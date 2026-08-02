@@ -19,7 +19,13 @@ from kis_openapi._wire import (
     required_int,
 )
 from kis_openapi.domestic_stock import DomesticStock
-from kis_openapi.domestic_stock.quotations import Bar, Quotations, Quote
+from kis_openapi.domestic_stock.quotations import (
+    Bar,
+    OrderBook,
+    PriceLevel,
+    Quotations,
+    Quote,
+)
 from kis_openapi.domestic_stock.quotations import facade as facade_module
 from kis_openapi.errors import KisError, KisUsageError
 from kis_openapi.transport import RawResponse
@@ -395,11 +401,159 @@ def test_quote_equality_ignores_raw_and_is_hashable():
         "previous_close": Decimal(1), "change": Decimal(0), "change_percent": Decimal(0),
         "volume": 1, "week_52_high": None, "week_52_low": None, "as_of": when,
     }
-    a = Quote(**fields, raw={"a": "b"})
-    b = Quote(**fields, raw={"DIFFERENT": "raw"})
-    assert a == b                                        # 파싱된 값이 같으면 같다(raw 무시)
-    assert hash(a) == hash(b)                            # frozen 인데 hash 가능해야 한다
-    assert {a, b} == {a}                                 # set 에 넣을 수 있다
+    first = Quote(**fields, raw={"a": "b"})
+    second = Quote(**fields, raw={"DIFFERENT": "raw"})
+    assert first == second                               # 파싱된 값이 같으면 같다(raw 무시)
+    assert hash(first) == hash(second)                   # frozen 인데 hash 가능해야 한다
+    assert {first, second} == {first}                    # set 에 넣을 수 있다
+
+
+# --- order_book ------------------------------------------------------------
+_ORDER_BOOK_PATH = "/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn"
+
+
+def _order_book_output(bids, asks, *, total_bid="500", total_ask="600"):
+    """bids/asks = 최우선 우선 (price, quantity) 목록. 나머지 단계는 0(주문 없음)으로 채움."""
+    out = {"total_bidp_rsqn": total_bid, "total_askp_rsqn": total_ask, "aspr_acpt_hour": "123456"}
+    for step in range(1, 11):
+        bid = bids[step - 1] if step - 1 < len(bids) else ("0", "0")
+        ask = asks[step - 1] if step - 1 < len(asks) else ("0", "0")
+        out[f"bidp{step}"], out[f"bidp_rsqn{step}"] = bid
+        out[f"askp{step}"], out[f"askp_rsqn{step}"] = ask
+    return out
+
+
+def _order_book_resp(output1):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output1": output1})
+
+
+def test_order_book_parses_ladders_best_first():
+    output1 = _order_book_output(
+        bids=[("71500", "150"), ("71400", "250")],   # 매수: 높은 가격이 최우선
+        asks=[("71600", "100"), ("71700", "200")],   # 매도: 낮은 가격이 최우선
+    )
+    book = Quotations(FakeTransport(response=_order_book_resp(output1))).order_book("005930")
+    assert isinstance(book, OrderBook)
+    assert book.symbol == "005930"
+    assert book.market == "KRX"
+    assert book.bids[0] == PriceLevel(price=Decimal(71500), quantity=150)  # 최우선 매수
+    assert book.bids[1].price == Decimal(71400)
+    assert book.asks[0] == PriceLevel(price=Decimal(71600), quantity=100)  # 최우선 매도
+    assert book.asks[1].price == Decimal(71700)
+    assert len(book.bids) == 2 and len(book.asks) == 2   # 빈 단계는 제외
+    assert book.total_bid_quantity == 500
+    assert book.total_ask_quantity == 600
+    assert book.as_of.tzinfo is not None
+
+
+def test_order_book_skips_empty_levels():
+    output1 = _order_book_output(bids=[("71500", "150")], asks=[("71600", "100")])
+    book = Quotations(FakeTransport(response=_order_book_resp(output1))).order_book("005930")
+    assert len(book.bids) == 1 and len(book.asks) == 1
+
+
+def test_order_book_unparseable_price_fails_closed():
+    output1 = _order_book_output(bids=[("71500", "150")], asks=[("N/A", "100")])
+    with pytest.raises(KisError):
+        Quotations(FakeTransport(response=_order_book_resp(output1))).order_book("005930")
+
+
+def test_order_book_missing_quantity_on_real_level_fails_closed():
+    output1 = _order_book_output(bids=[("71500", "150")], asks=[("71600", "")])
+    with pytest.raises(KisError):
+        Quotations(FakeTransport(response=_order_book_resp(output1))).order_book("005930")
+
+
+def test_order_book_maps_market_and_symbol_to_params():
+    fake = FakeTransport(response=_order_book_resp(_order_book_output([("1", "1")], [("2", "1")])))
+    Quotations(fake).order_book("005930", market="NXT")
+    call = fake.calls[0]
+    assert call["method"] == "GET"
+    assert call["idempotent"] is True
+    assert call["path"] == _ORDER_BOOK_PATH
+    assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "NX"
+    assert call["params"]["FID_INPUT_ISCD"] == "005930"
+
+
+def test_order_book_error_response_raises():
+    with pytest.raises(KisError):
+        Quotations(FakeTransport(response=_ERROR)).order_book("BADCODE")
+
+
+def test_order_book_missing_output1_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={})
+    with pytest.raises(KisError):
+        Quotations(FakeTransport(response=resp)).order_book("005930")
+
+
+def test_order_book_equality_ignores_raw_and_is_hashable():
+    when = datetime(2024, 1, 2, tzinfo=_KST)
+    fields = {
+        "symbol": "005930", "market": "KRX",
+        "bids": (PriceLevel(price=Decimal(71500), quantity=150),),
+        "asks": (PriceLevel(price=Decimal(71600), quantity=100),),
+        "total_bid_quantity": 150, "total_ask_quantity": 100, "as_of": when,
+    }
+    first_book = OrderBook(**fields, raw={"a": "b"})
+    second_book = OrderBook(**fields, raw={"DIFFERENT": "raw"})
+    assert first_book == second_book
+    assert hash(first_book) == hash(second_book)
+    assert {first_book, second_book} == {first_book}
+
+
+def test_price_level_value_equality_and_is_hashable():
+    first = PriceLevel(price=Decimal(71500), quantity=150)
+    same = PriceLevel(price=Decimal(71500), quantity=150)
+    other = PriceLevel(price=Decimal(71500), quantity=151)
+    assert first == same
+    assert first != other
+    assert hash(first) == hash(same)
+    assert {first, same, other} == {first, other}
+
+
+def test_order_book_halt_has_empty_ladders_and_zero_totals():
+    output1 = _order_book_output([], [], total_bid="", total_ask="")  # 정지/동시호가: 다 빔
+    book = Quotations(FakeTransport(response=_order_book_resp(output1))).order_book("005930")
+    assert book.bids == ()
+    assert book.asks == ()
+    assert book.total_bid_quantity == 0    # 빈 총잔량 -> 0(빈 사다리와 대칭, raise 아님)
+    assert book.total_ask_quantity == 0
+
+
+def test_order_book_skips_gap_without_dropping_later_level():
+    output1 = _order_book_output(
+        bids=[("", "0"), ("71400", "250")],   # 1단계 빔, 2단계 실재
+        asks=[("0", "0"), ("71700", "200")],
+    )
+    book = Quotations(FakeTransport(response=_order_book_resp(output1))).order_book("005930")
+    assert book.bids == (PriceLevel(price=Decimal(71400), quantity=250),)
+    assert book.asks == (PriceLevel(price=Decimal(71700), quantity=200),)
+
+
+def test_order_book_keeps_priced_level_with_zero_quantity():
+    output1 = _order_book_output(
+        bids=[("71500", "0")], asks=[("71600", "0")], total_bid="0", total_ask="0"
+    )
+    book = Quotations(FakeTransport(response=_order_book_resp(output1))).order_book("005930")
+    assert book.bids == (PriceLevel(price=Decimal(71500), quantity=0),)  # 가격 있으면 유지
+
+
+def test_order_book_negative_price_fails_closed():
+    output1 = _order_book_output(bids=[("-100", "10")], asks=[("71600", "100")])
+    with pytest.raises(KisError):
+        Quotations(FakeTransport(response=_order_book_resp(output1))).order_book("005930")
+
+
+def test_order_book_market_un_maps_to_un():
+    fake = FakeTransport(response=_order_book_resp(_order_book_output([("1", "1")], [("2", "1")])))
+    Quotations(fake).order_book("005930", market="UN")
+    assert fake.calls[0]["params"]["FID_COND_MRKT_DIV_CODE"] == "UN"
+
+
+def test_order_book_raw_preserves_acceptance_time():
+    output1 = _order_book_output([("71500", "1")], [("71600", "1")])
+    book = Quotations(FakeTransport(response=_order_book_resp(output1))).order_book("005930")
+    assert book.raw["aspr_acpt_hour"] == "123456"       # output1 필드는 raw 에 보존
 
 
 # --- facade wiring ---------------------------------------------------------

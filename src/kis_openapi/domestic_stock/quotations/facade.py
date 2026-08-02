@@ -22,6 +22,7 @@ from datetime import date, datetime, timedelta, timezone
 from ...errors import KisError, KisUsageError
 from ...transport import RawResponse, Transport
 from .bar import Bar, Interval, parse_bars, period_code_for
+from .order_book import OrderBook, parse_order_book
 from .quote import Market, Quote, parse_quote
 
 #: 시장 보드 -> KIS 조건시장분류코드(FID_COND_MRKT_DIV_CODE).
@@ -33,6 +34,8 @@ _QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
 _QUOTE_TR = "FHKST01010100"
 _BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
 _BARS_TR = "FHKST03010100"
+_ORDER_BOOK_PATH = "/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn"
+_ORDER_BOOK_TR = "FHKST01010200"
 
 #: 날짜창 페이지네이션 안전 상한(무한 루프 방지). 일봉 기준 ~20000개까지 -- 실사용 범위를
 #: 크게 웃돈다. 여기 닿으면 부분 결과로 자르지 않고 예외로 fail-closed 한다.
@@ -62,6 +65,24 @@ class Quotations:
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         return parse_quote(output, symbol=symbol, market=market, as_of=datetime.now(_KST))
+
+    def order_book(self, symbol: str, *, market: Market = "KRX") -> OrderBook:
+        """한 종목의 10단계 호가창 스냅샷을 조회한다(예상체결 블록은 raw 에만)."""
+        params = {
+            "FID_COND_MRKT_DIV_CODE": _resolve_market(market),
+            "FID_INPUT_ISCD": symbol,
+        }
+        resp = self._transport.request(
+            method="GET", path=_ORDER_BOOK_PATH, tr_id=_ORDER_BOOK_TR, params=params, idempotent=True
+        )
+        _raise_if_error(resp)
+        output1 = resp.body.get("output1")
+        if not isinstance(output1, Mapping):
+            raise KisError(
+                "호가 응답에 output1 객체가 없다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        return parse_order_book(output1, symbol=symbol, market=market, as_of=datetime.now(_KST))
 
     def bars(
         self,
