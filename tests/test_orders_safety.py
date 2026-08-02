@@ -20,7 +20,8 @@ from kis_openapi.errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from kis_openapi.orders import Order, Orders, OrderStatus, OrderStore
+from kis_openapi.orders import Order, OrderStatus, OrderStore
+from kis_openapi.orders.facade import Orders
 from kis_openapi.orders.store import ClaimOutcome
 from kis_openapi.transport import RawResponse, TransportTimeout
 

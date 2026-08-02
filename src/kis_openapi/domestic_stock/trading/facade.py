@@ -1,8 +1,10 @@
 """국내주식 매매(trading) 파사드 -- :class:`Trading`.
 
-계좌 식별정보(``cano`` 계좌번호 앞 8자리, ``product_code`` 상품코드 뒤 2자리)를 갖고 잔고를
-조회한다. KIS는 잔고조회를 매매(trading) 그룹에 두므로(주문과 같은 경로 계열) 여기 산다 --
-주문 실행(buy/sell/place/cancel)은 주문 안전 코어(``orders``)가 맡고, 추후 이 파사드로 합류한다.
+계좌 식별정보(``cano`` 계좌번호 앞 8자리, ``product_code`` 상품코드 뒤 2자리)를 갖고 잔고
+조회와 주문 실행을 한 표면에서 제공한다(KIS가 둘 다 매매(trading) 그룹에 둔다). 주문 실행
+(:meth:`place`/:meth:`buy`/:meth:`sell`/:meth:`reconcile`)은 리뷰된 주문 안전 코어
+(:class:`~kis_openapi.orders.facade.Orders`)에 위임한다 -- 이중체결 구조적 불가·재시도 금지·
+보수적 재조회가 그대로 적용된다.
 
 한 번의 잔고조회가 종목 배열(``output1``)과 계좌 요약(``output2``)을 함께 준다. KIS가 느린
 heavy TR로 표시하므로(유량 주의), 둘 다 필요하면 :meth:`portfolio` 로 **한 번만** 조회한다.
@@ -21,6 +23,9 @@ from typing import Any, Literal
 
 from ..._wire import format_wire_decimal
 from ...errors import KisError, KisUsageError
+from ...orders import ExecutionReport, Order, OrderStore
+from ...orders.facade import Orders
+from ...orders.order import TimeInForce
 from ...transport import RawResponse, Transport
 from .balance import Balance, Portfolio, Position, parse_balance, parse_positions
 from .orderable import (
@@ -43,7 +48,17 @@ _MAX_BALANCE_PAGES = 100
 
 
 class Trading:
-    """한 계좌의 국내주식 매매/잔고 표면. 하나의 :class:`Transport` 를 공유한다."""
+    """한 계좌의 국내주식 매매/잔고 표면. 하나의 :class:`Transport` 를 공유한다.
+
+    잔고/사전점검 조회는 계좌 식별정보만으로 되지만, **주문 실행**(:meth:`place`/:meth:`buy`/
+    :meth:`sell`/:meth:`reconcile`)에는 멱등 dedup 저장소(:class:`OrderStore`)가 필요하다 --
+    ``store`` 를 주면 활성화된다. 실행은 리뷰된 주문 안전 코어(:class:`Orders`)에 위임한다
+    (이중체결 구조적 불가·재시도 금지·보수적 재조회가 그대로 적용된다).
+
+    ``store`` 의 수명은 **호출자가 소유**한다 -- 이 파사드는 store 를 닫지 않는다. path-backed
+    :class:`OrderStore` 는 프로세스 간 락을 수명 동안 물고 있으므로, 다 쓰면 ``store.close()``
+    하거나 ``with OrderStore(path=...) as store:`` 로 감싸라.
+    """
 
     def __init__(
         self,
@@ -52,11 +67,20 @@ class Trading:
         cano: str,
         product_code: str,
         environment: Literal["real", "demo"] = "real",
+        store: OrderStore | None = None,
+        orderable: bool = True,
     ) -> None:
         self._transport = transport
         self._cano = cano
         self._product_code = product_code
         self._environment = environment
+        # 주문 실행은 안전 엔진에 위임 -- store 가 있어야 활성화(멱등 dedup 필수).
+        self._orders: Orders | None = None
+        if store is not None:
+            self._orders = Orders(
+                transport, store, cano=cano, product_code=product_code,
+                orderable=orderable, environment=environment,
+            )
 
     def balance(self) -> Balance:
         """계좌의 현금·자산 요약만 조회한다(1콜). 실패/요약 부재 시 :class:`KisError`.
@@ -146,6 +170,51 @@ class Trading:
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         return parse_sellable_quantity(output1, symbol=symbol)
+
+    # --- 주문 실행(주문 안전 코어에 위임) ----------------------------
+    # 주문 실행 계약은 위임 대상 :class:`Orders` 와 동일하다. store 없이 생성했으면 어느
+    # 메서드든 :class:`KisUsageError`. 실행 자체의 예외는 안전 코어 그대로 -- 접수 거부는
+    # :class:`~kis_openapi.errors.OrderRejectedError`, 타임아웃(체결 불명)은
+    # :class:`~kis_openapi.errors.OrderTimeoutError`, 주문불가 계좌는
+    # :class:`~kis_openapi.errors.AccountNotOrderable`.
+    def place(self, order: Order) -> ExecutionReport:
+        """주문을 안전 규칙에 따라 전송한다(이중체결 방지·재시도 금지). ``store`` 필요."""
+        return self._require_orders().place(order)
+
+    def buy(
+        self, symbol: str, *, quantity: object, limit_price: object | None = None,
+        time_in_force: TimeInForce = "day", exchange: str = "XKRX",
+        client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """매수 -- ``limit_price`` 를 주면 지정가, 없으면 시장가. ``store`` 필요."""
+        return self._require_orders().buy(
+            symbol, quantity=quantity, limit_price=limit_price,
+            time_in_force=time_in_force, exchange=exchange, client_order_id=client_order_id,
+        )
+
+    def sell(
+        self, symbol: str, *, quantity: object, limit_price: object | None = None,
+        time_in_force: TimeInForce = "day", exchange: str = "XKRX",
+        client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """매도 -- ``limit_price`` 를 주면 지정가, 없으면 시장가. ``store`` 필요."""
+        return self._require_orders().sell(
+            symbol, quantity=quantity, limit_price=limit_price,
+            time_in_force=time_in_force, exchange=exchange, client_order_id=client_order_id,
+        )
+
+    def reconcile(self, client_order_id: str) -> ExecutionReport | None:
+        """미확인 주문의 실제 상태를 브로커에 재조회한다(보수적). ``store`` 필요."""
+        return self._require_orders().reconcile(client_order_id)
+
+    def _require_orders(self) -> Orders:
+        """주문 실행 엔진을 돌려준다 -- ``store`` 없이 생성했으면 :class:`KisUsageError`."""
+        if self._orders is None:
+            raise KisUsageError(
+                "주문 실행에는 멱등 dedup 저장소가 필요하다 -- Trading(..., store=OrderStore(...)) "
+                "로 생성하라(조회 전용이면 store 없이 balance/positions 만 쓸 수 있다)."
+            )
+        return self._orders
 
     # --- 내부 조회 ----------------------------------------------------
     def _walk_holdings(self) -> tuple[list[Mapping[str, Any]], Mapping[str, Any] | None]:

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import threading
 from decimal import Decimal
+from unittest.mock import Mock, sentinel
 
 import pytest
 
@@ -15,6 +16,9 @@ from kis_openapi.domestic_stock import DomesticStock
 from kis_openapi.domestic_stock.trading import (
     Balance,
     BuyableAmount,
+    ExecutionReport,
+    Order,
+    OrderStore,
     Portfolio,
     Position,
     SellableQuantity,
@@ -460,6 +464,131 @@ def test_sellable_value_semantics_ignore_raw_and_hashable():
     assert first != different
     assert hash(first) == hash(second)
     assert {first, second} == {first}
+
+
+# --- 주문 실행 위임(안전 코어) ---------------------------------------------
+_ORDER_CASH_PATH = "/uapi/domestic-stock/v1/trading/order-cash"
+_ORDER_ACCEPTED_RESPONSE = RawResponse(
+    rt_cd="0", msg_cd="APBK0013", msg1="주문 전송 완료",
+    body={"output": {"ODNO": "0000117057", "ORD_TMD": "121052"}},
+)
+
+
+def _trading_with_store(fake):
+    return Trading(fake, cano="12345678", product_code="01", store=OrderStore())
+
+
+def test_trading_buy_delegates_to_order_engine():
+    fake = FakeTransport(response=_ORDER_ACCEPTED_RESPONSE)
+    report = _trading_with_store(fake).buy("005930", quantity=10, limit_price=70000)
+    assert isinstance(report, ExecutionReport)
+    assert report.order_id == "0000117057"
+    assert report.symbol == "005930"
+    assert report.side == "buy"
+    call = fake.calls[0]
+    assert call["method"] == "POST"
+    assert call["path"] == _ORDER_CASH_PATH
+    assert call["idempotent"] is False             # 주문은 타임아웃 재시도 금지
+
+
+def test_trading_place_delegates_to_order_engine():
+    order = Order.limit("005930", side="buy", quantity=10, limit_price=70000)
+    fake = FakeTransport(response=_ORDER_ACCEPTED_RESPONSE)
+    report = _trading_with_store(fake).place(order)
+    assert report.order_id == "0000117057"
+
+
+def test_trading_sell_delegates_to_order_engine():
+    fake = FakeTransport(response=_ORDER_ACCEPTED_RESPONSE)
+    report = _trading_with_store(fake).sell("005930", quantity=10, limit_price=70000)
+    assert report.side == "sell"
+
+
+def test_trading_reconcile_delegates_and_replays_completed():
+    fake = FakeTransport(response=_ORDER_ACCEPTED_RESPONSE)
+    trading = _trading_with_store(fake)
+    order = Order.limit("005930", side="buy", quantity=10, limit_price=70000)
+    placed = trading.place(order)
+    replayed = trading.reconcile(order.client_order_id)   # 완료 리포트 replay(추가 호출 없음)
+    assert replayed is not None
+    assert replayed.order_id == placed.order_id
+    assert len(fake.calls) == 1                    # place 만 -- reconcile 은 로컬 replay
+
+
+def test_trading_execution_requires_store():
+    trading = Trading(FakeTransport(response=_balance_resp()), cano="12345678", product_code="01")
+    for place_order in (
+        lambda: trading.buy("005930", quantity=10),
+        lambda: trading.sell("005930", quantity=10),
+        lambda: trading.place(Order.market("005930", side="buy", quantity=10)),
+        lambda: trading.reconcile("some-id"),
+    ):
+        with pytest.raises(KisUsageError):         # store 없이 주문/재조회 -> 안내 예외
+            place_order()
+    assert trading.balance().deposit == Decimal(1000000)   # 조회는 store 없이도 된다
+
+
+@pytest.mark.parametrize(
+    ("method_name", "kwargs"),
+    [
+        ("buy", {"quantity": 10, "limit_price": 70000, "time_in_force": "ioc",
+                 "exchange": "XKRX", "client_order_id": "BUY-ID"}),
+        ("sell", {"quantity": 3, "limit_price": 120000, "time_in_force": "fok",
+                  "exchange": "XKRX", "client_order_id": "SELL-ID"}),
+    ],
+)
+def test_trading_forwards_order_arguments_unchanged(method_name, kwargs, monkeypatch):
+    trading = _trading_with_store(FakeTransport(response=_ORDER_ACCEPTED_RESPONSE))
+    engine = Mock()
+    getattr(engine, method_name).return_value = sentinel.report
+    monkeypatch.setattr(trading, "_orders", engine)
+    result = getattr(trading, method_name)("005930", **kwargs)
+    assert result is sentinel.report               # 반환도 그대로 통과
+    getattr(engine, method_name).assert_called_once_with("005930", **kwargs)  # 인자 무변경 전달
+
+
+def test_trading_buy_forwards_market_order_defaults(monkeypatch):
+    trading = _trading_with_store(FakeTransport(response=_ORDER_ACCEPTED_RESPONSE))
+    engine = Mock()
+    engine.buy.return_value = sentinel.report
+    monkeypatch.setattr(trading, "_orders", engine)
+    trading.buy("005930", quantity=10)             # limit_price 없음 -> 시장가 기본값 전달
+    engine.buy.assert_called_once_with(
+        "005930", quantity=10, limit_price=None,
+        time_in_force="day", exchange="XKRX", client_order_id=None,
+    )
+
+
+def test_trading_place_and_reconcile_forward_unchanged(monkeypatch):
+    trading = _trading_with_store(FakeTransport(response=_ORDER_ACCEPTED_RESPONSE))
+    engine = Mock()
+    engine.place.return_value = sentinel.placed
+    engine.reconcile.return_value = sentinel.reconciled
+    monkeypatch.setattr(trading, "_orders", engine)
+    order = Order.limit("005930", side="buy", quantity=10, limit_price=70000)
+    assert trading.place(order) is sentinel.placed
+    engine.place.assert_called_once_with(order)     # 같은 Order 그대로
+    assert trading.reconcile("ORDER-ID") is sentinel.reconciled
+    engine.reconcile.assert_called_once_with("ORDER-ID")
+
+
+def test_domestic_stock_trading_executes_with_store():
+    fake = FakeTransport(response=_ORDER_ACCEPTED_RESPONSE)
+    stock = DomesticStock(fake, cano="12345678", product_code="01", store=OrderStore())
+    report = stock.trading.buy("005930", quantity=10, limit_price=70000)
+    assert report.order_id == "0000117057"
+
+
+def test_domestic_stock_without_store_reads_but_rejects_writes():
+    stock = DomesticStock(FakeTransport(response=_balance_resp()), cano="12345678", product_code="01")
+    assert stock.trading.balance().deposit == Decimal(1000000)   # 조회 OK
+    with pytest.raises(KisUsageError):                           # 주문은 store 필요
+        stock.trading.buy("005930", quantity=10)
+
+
+def test_domestic_stock_rejects_store_without_account():
+    with pytest.raises(KisUsageError):   # 계좌 없이 store 만 -> 락 stranded 방지
+        DomesticStock(FakeTransport(response=_balance_resp()), store=OrderStore())
 
 
 # --- facade 배선 -----------------------------------------------------------

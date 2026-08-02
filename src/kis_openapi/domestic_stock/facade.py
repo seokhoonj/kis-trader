@@ -2,11 +2,12 @@
 
 KIS URL 구조(``/uapi/domestic-stock/v1/{quotations,trading}/...``)를 그대로 반영해, 자산군
 아래에 기능(capability) 세그먼트를 둔다. 시세(``quotations``)는 자격증명 없이 쓸 수 있고,
-매매/잔고(``trading``)는 계좌 식별정보가 있어야 한다(없이 생성하면 ``.trading`` 접근 시 안내
-예외). 주문 실행(buy/sell 등)은 주문 안전 코어(``orders``)가 맡고 추후 ``trading`` 으로 합류한다.
+매매(``trading``)는 계좌 식별정보가 있어야 한다(없이 생성하면 ``.trading`` 접근 시 안내 예외).
+주문 실행(buy/sell/place/reconcile)까지 ``trading`` 이 제공하며, 실행에는 멱등 저장소(``store``)가
+추가로 필요하다(주문 안전 코어에 위임).
 
 사용례: ``client.domestic_stock.quotations.quote("005930")`` /
-``client.domestic_stock.trading.balance()``.
+``client.domestic_stock.trading.balance()`` / ``client.domestic_stock.trading.buy(...)``.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from __future__ import annotations
 from typing import Literal
 
 from ..errors import KisUsageError
+from ..orders import OrderStore
 from ..transport import Transport
 from .quotations.facade import Quotations
 from .trading.facade import Trading
@@ -33,6 +35,8 @@ class DomesticStock:
         cano: str | None = None,
         product_code: str | None = None,
         environment: Literal["real", "demo"] = "real",
+        store: OrderStore | None = None,
+        orderable: bool = True,
     ) -> None:
         self.quotations = Quotations(transport)
         # 계좌 식별정보는 둘 다 있거나 둘 다 없어야 한다 -- 한쪽만 주면 반쪽짜리 구성이
@@ -41,10 +45,18 @@ class DomesticStock:
             raise KisUsageError(
                 "cano 와 product_code 는 함께 주거나 함께 생략해야 한다(한쪽만 줄 수 없다)."
             )
+        # 계좌 없이 store 만 주면 store 가 어디에도 연결되지 않고 버려진다 -- path-backed
+        # store 는 프로세스 락을 물고 있어 해제 경로가 사라지므로, 생성 시점에 거른다.
+        if store is not None and cano is None:
+            raise KisUsageError(
+                "store 는 계좌 식별정보(cano/product_code)와 함께 줘야 한다 -- "
+                "계좌 없이 준 store 는 쓰이지 않고 락만 붙든다."
+            )
         self._trading: Trading | None = None
         if cano is not None and product_code is not None:
             self._trading = Trading(
-                transport, cano=cano, product_code=product_code, environment=environment
+                transport, cano=cano, product_code=product_code, environment=environment,
+                store=store, orderable=orderable,
             )
 
     @property
