@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Literal
 
+from .._wire import format_wire_decimal
 from ..errors import KisUsageError
 
 Side = Literal["buy", "sell"]
@@ -43,16 +44,6 @@ def _as_decimal(value: object, name: str) -> Decimal:
         return Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as err:
         raise KisUsageError(f"{name} 는 숫자여야 한다: {value!r}") from err
-
-
-def format_wire_decimal(value: Decimal) -> str:
-    """Decimal 을 KIS 와이어 정본 문자열로: 지수표기·컨텍스트 반올림 없이 고정소수점.
-
-    ``format(x, "f")`` 는 ``normalize()`` 와 달리 정밀도로 반올림하지 않고 지수표기만
-    펼친다. 주문 전송(단가/수량)과 요청 지문이 **같은** 정본을 쓰도록 여기 한 곳에 둔다
-    -- 정본이 갈리면 와이어가 동일한 주문이 지문은 달라져 멱등 판정이 깨진다.
-    """
-    return format(value, "f")
 
 
 @dataclass(frozen=True, slots=True)

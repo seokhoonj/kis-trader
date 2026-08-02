@@ -16,14 +16,26 @@ KIS URL/TR-id:
 from __future__ import annotations
 
 from collections.abc import Mapping
+from decimal import Decimal
 from typing import Any, Literal
 
-from ...errors import KisError
+from ..._wire import format_wire_decimal
+from ...errors import KisError, KisUsageError
 from ...transport import RawResponse, Transport
 from .balance import Balance, Portfolio, Position, parse_balance, parse_positions
+from .orderable import (
+    BuyableAmount,
+    SellableQuantity,
+    parse_buyable_amount,
+    parse_sellable_quantity,
+)
 
 _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
 _BALANCE_TR = {"real": "TTTC8434R", "demo": "VTTC8434R"}
+_BUYABLE_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-order"
+_BUYABLE_TR = {"real": "TTTC8908R", "demo": "VTTC8908R"}
+_SELLABLE_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-sell"
+_SELLABLE_TR = "TTTC8408R"  # 모의투자 미지원 -- demo TR 없음
 
 #: 잔고 종목배열 연속조회 페이지 상한(무한 루프 방지). 여기 닿으면 부분 결과로 자르지 않고
 #: 예외로 fail-closed 한다(연속조회가 남았는데 멈추면 보유종목을 누락한다).
@@ -76,6 +88,64 @@ class Trading:
         if summary is None:
             raise KisError("잔고 응답에 계좌 요약(output2)이 없다.")
         return Portfolio(balance=parse_balance(summary), positions=tuple(parse_positions(rows)))
+
+    # --- 주문가능 여력(사전점검) --------------------------------------
+    def buyable_amount(
+        self, symbol: str | None = None, *, limit_price: object | None = None
+    ) -> BuyableAmount:
+        """매수가능 여력을 조회한다 -- 현금 기준과 미수 포함 최대(주문 전 사전점검).
+
+        ``symbol`` 을 생략하면 금액만 조회한다(종목별 수량 필드는 0). ``limit_price`` 를 주면
+        지정가 기준으로, 생략하면 시장가 기준으로 계산한다(시장가는 증거금율을 반영해 최대수량을
+        산정한다). ``symbol`` 없이 ``limit_price`` 만 주는 조합은 의미가 없어 :class:`KisUsageError`.
+        숫자 아닌 ``limit_price`` 도 전송 전 :class:`KisUsageError`, 실패/응답 부재는 :class:`KisError`.
+        """
+        if symbol is None and limit_price is not None:
+            raise KisUsageError("limit_price 는 symbol 과 함께 줘야 한다(금액만 조회엔 단가가 무의미).")
+        params = {
+            "CANO": self._cano,
+            "ACNT_PRDT_CD": self._product_code,
+            "PDNO": symbol or "",
+            "ORD_UNPR": _format_order_unit_price(limit_price),
+            "ORD_DVSN": "00" if limit_price is not None else "01",  # 지정가/시장가
+            "CMA_EVLU_AMT_ICLD_YN": "N",
+            "OVRS_ICLD_YN": "N",
+        }
+        resp = self._transport.request(
+            method="GET", path=_BUYABLE_PATH, tr_id=_BUYABLE_TR[self._environment],
+            params=params, idempotent=True,
+        )
+        _raise_if_error(resp)
+        output = resp.body.get("output")
+        if not isinstance(output, Mapping):
+            raise KisError(
+                "매수가능조회 응답에 output 이 없다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        return parse_buyable_amount(output, symbol=symbol or "")
+
+    def sellable_quantity(self, symbol: str) -> SellableQuantity:
+        """한 종목의 매도가능 수량을 조회한다. **모의투자 미지원**(demo면 사전 :class:`KisUsageError`).
+
+        실패/응답(``output1``) 부재는 :class:`KisError`.
+        """
+        if self._environment == "demo":
+            raise KisUsageError(
+                "매도가능수량조회(inquire-psbl-sell)는 모의투자 미지원이다 -- 실전에서만 조회 가능. "
+                "모의에서는 잔고조회의 sellable_quantity(ord_psbl_qty)를 참고하라."
+            )
+        params = {"CANO": self._cano, "ACNT_PRDT_CD": self._product_code, "PDNO": symbol}
+        resp = self._transport.request(
+            method="GET", path=_SELLABLE_PATH, tr_id=_SELLABLE_TR, params=params, idempotent=True
+        )
+        _raise_if_error(resp)
+        output1 = resp.body.get("output1")
+        if not isinstance(output1, Mapping):
+            raise KisError(
+                "매도가능수량조회 응답에 output1 이 없다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        return parse_sellable_quantity(output1, symbol=symbol)
 
     # --- 내부 조회 ----------------------------------------------------
     def _walk_holdings(self) -> tuple[list[Mapping[str, Any]], Mapping[str, Any] | None]:
@@ -147,9 +217,27 @@ def _first_summary(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
     return None
 
 
+def _format_order_unit_price(limit_price: object | None) -> str:
+    """주문 단가를 KIS 와이어 정본 문자열로 -- ``None`` 이면 빈 문자열(시장가/금액만 조회).
+
+    형제 주문 경로와 **같은** 정본(:func:`format_wire_decimal`)을 쓴다. 숫자가 아니거나
+    유한 양수가 아니면(0/음수/NaN/Inf) 와이어에 실어 보내기 전에 :class:`KisUsageError` 로
+    거른다(단가는 0보다 큰 유한값이어야 한다 -- ``Order`` 와 동일한 가드).
+    """
+    if limit_price is None:
+        return ""
+    try:
+        price = Decimal(str(limit_price))
+    except (ArithmeticError, ValueError) as err:
+        raise KisUsageError(f"limit_price 는 숫자여야 한다: {limit_price!r}") from err
+    if not price.is_finite() or price <= 0:
+        raise KisUsageError(f"limit_price 는 0보다 큰 유한값이어야 한다: {limit_price!r}")
+    return format_wire_decimal(price)
+
+
 def _raise_if_error(resp: RawResponse) -> None:
     if not resp.ok:
         raise KisError(
-            f"잔고 조회 실패: {resp.msg1}",
+            f"KIS 조회 요청 실패: {resp.msg1}",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )

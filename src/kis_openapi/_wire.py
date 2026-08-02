@@ -55,6 +55,17 @@ def optional_int(value: object, field_name: str) -> int | None:
     return int(number)
 
 
+def format_wire_decimal(value: Decimal) -> str:
+    """Decimal 을 KIS 와이어 정본 문자열로: 지수표기·컨텍스트 반올림 없이 고정소수점.
+
+    ``format(x, "f")`` 는 ``normalize()`` 와 달리 정밀도로 반올림하지 않고 지수표기만 펼친다.
+    KIS 와이어에 실리는 모든 수치(주문 단가/수량, 사전점검 단가, 요청 지문)가 **같은** 정본을
+    쓰도록 여기 한 곳에 둔다 -- 정본이 갈리면 와이어가 동일한 값이 서로 다른 문자열이 되어
+    주문 멱등 판정(지문 비교)이 깨진다.
+    """
+    return format(value, "f")
+
+
 def _strip(value: object) -> str:
     """None/숫자/문자열을 공백 제거한 문자열로. None 은 빈 문자열."""
     if value is None:

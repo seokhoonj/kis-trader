@@ -12,7 +12,14 @@ from decimal import Decimal
 import pytest
 
 from kis_openapi.domestic_stock import DomesticStock
-from kis_openapi.domestic_stock.trading import Balance, Portfolio, Position, Trading
+from kis_openapi.domestic_stock.trading import (
+    Balance,
+    BuyableAmount,
+    Portfolio,
+    Position,
+    SellableQuantity,
+    Trading,
+)
 from kis_openapi.domestic_stock.trading import facade as facade_module
 from kis_openapi.errors import KisError, KisUsageError
 from kis_openapi.transport import RawResponse
@@ -267,6 +274,190 @@ def test_balance_value_semantics_ignore_raw_and_hashable():
     first = _trading(FakeTransport(response=_balance_resp())).balance()
     second = _trading(FakeTransport(response=_balance_resp(summary=dict(_SUMMARY, extra="x")))).balance()
     assert first == second
+    assert hash(first) == hash(second)
+    assert {first, second} == {first}
+
+
+# --- buyable (매수가능조회) -----------------------------------------------
+_BUYABLE_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-order"
+_SELLABLE_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-sell"
+
+_BUYABLE_OUTPUT = {
+    "ord_psbl_cash": "1000000", "ruse_psbl_amt": "0",
+    "nrcvb_buy_amt": "980000", "nrcvb_buy_qty": "13",
+    "max_buy_amt": "2000000", "max_buy_qty": "27",
+}
+
+
+def _buyable_resp(output=None):
+    body = {"output": output if output is not None else dict(_BUYABLE_OUTPUT)}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
+
+
+def _sellable_resp(output1=None):
+    default = {"pdno": "005930", "prdt_name": "삼성전자", "cblc_qty": "10", "ord_psbl_qty": "8"}
+    body = {"output1": output1 if output1 is not None else default}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
+
+
+def test_buyable_parses_amounts_and_quantities():
+    result = _trading(FakeTransport(response=_buyable_resp())).buyable_amount("005930", limit_price=75000)
+    assert isinstance(result, BuyableAmount)
+    assert result.symbol == "005930"
+    assert result.currency == "KRW"
+    assert result.orderable_cash == Decimal(1000000)
+    assert result.reusable_cash == Decimal(0)
+    assert result.cash_buyable_amount == Decimal(980000)
+    assert result.cash_buyable_quantity == Decimal(13)
+    assert result.max_buyable_amount == Decimal(2000000)
+    assert result.max_buyable_quantity == Decimal(27)
+
+
+def test_buyable_with_limit_price_uses_limit_division():
+    fake = FakeTransport(response=_buyable_resp())
+    _trading(fake).buyable_amount("005930", limit_price=75000)
+    call = fake.calls[0]
+    assert call["method"] == "GET"
+    assert call["idempotent"] is True
+    assert call["path"] == _BUYABLE_PATH
+    assert call["tr_id"] == "TTTC8908R"
+    assert call["params"]["PDNO"] == "005930"
+    assert call["params"]["ORD_DVSN"] == "00"             # 지정가
+    assert call["params"]["ORD_UNPR"] == "75000"
+
+
+def test_buyable_without_price_uses_market_division():
+    fake = FakeTransport(response=_buyable_resp())
+    _trading(fake).buyable_amount("005930")
+    assert fake.calls[0]["params"]["ORD_DVSN"] == "01"     # 시장가(증거금율 반영)
+    assert fake.calls[0]["params"]["ORD_UNPR"] == ""
+
+
+@pytest.mark.parametrize(("limit_price", "expected"), [(75000, "75000"), (Decimal("7E4"), "70000")])
+def test_buyable_formats_limit_price_as_fixed_point(limit_price, expected):
+    fake = FakeTransport(response=_buyable_resp())
+    _trading(fake).buyable_amount("005930", limit_price=limit_price)
+    assert fake.calls[0]["params"]["ORD_UNPR"] == expected   # 지수표기 없이 고정소수점
+
+
+def test_buyable_amount_only_omits_symbol_and_zeroes_quantities():
+    output = dict(_BUYABLE_OUTPUT, nrcvb_buy_qty="", max_buy_qty="")  # 종목 없으면 수량 빔
+    fake = FakeTransport(response=_buyable_resp(output))
+    result = _trading(fake).buyable_amount()                # 종목 없이 금액만
+    assert result.symbol == ""
+    assert result.cash_buyable_quantity == Decimal(0)      # 빈 수량 -> 0(docstring 약속)
+    assert result.max_buyable_quantity == Decimal(0)
+    assert fake.calls[0]["params"]["PDNO"] == ""
+
+
+def test_buyable_rejects_limit_price_without_symbol():
+    fake = FakeTransport(response=_buyable_resp())
+    with pytest.raises(KisUsageError):                      # 금액만 조회에 단가는 무의미
+        _trading(fake).buyable_amount(limit_price=75000)
+    assert fake.calls == []
+
+
+def test_buyable_uses_demo_tr():
+    fake = FakeTransport(response=_buyable_resp())
+    _trading(fake, environment="demo").buyable_amount("005930")
+    assert fake.calls[0]["tr_id"] == "VTTC8908R"
+
+
+@pytest.mark.parametrize("limit_price", ["not-a-number", -1, Decimal(0), float("nan"), float("inf")])
+def test_buyable_bad_limit_price_raises_before_io(limit_price):
+    fake = FakeTransport(response=_buyable_resp())
+    with pytest.raises(KisUsageError):                      # 비숫자/0/음수/비유한 -> 전송 전 거부
+        _trading(fake).buyable_amount("005930", limit_price=limit_price)
+    assert fake.calls == []
+
+
+def test_buyable_missing_output_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={})
+    with pytest.raises(KisError):
+        _trading(FakeTransport(response=resp)).buyable_amount("005930")
+
+
+def test_buyable_error_response_raises():
+    with pytest.raises(KisError):
+        _trading(FakeTransport(response=_ERROR)).buyable_amount("005930")
+
+
+@pytest.mark.parametrize("wire_field", ["ord_psbl_cash", "ruse_psbl_amt", "nrcvb_buy_amt", "max_buy_qty"])
+def test_buyable_unparseable_field_fails_closed(wire_field):
+    output = dict(_BUYABLE_OUTPUT, **{wire_field: "N/A"})   # 값 있는데 파싱 실패 -> raise
+    with pytest.raises(KisError):
+        _trading(FakeTransport(response=_buyable_resp(output))).buyable_amount("005930")
+
+
+# --- sellable (매도가능수량조회, 모의 미지원) ------------------------------
+def test_sellable_parses_quantities():
+    result = _trading(FakeTransport(response=_sellable_resp())).sellable_quantity("005930")
+    assert isinstance(result, SellableQuantity)
+    assert result.symbol == "005930"
+    assert result.security_name == "삼성전자"
+    assert result.quantity == Decimal(10)                 # 잔고
+    assert result.sellable_quantity == Decimal(8)         # 매도가능
+
+
+def test_sellable_sends_get_idempotent_with_pdno_and_fixed_tr():
+    fake = FakeTransport(response=_sellable_resp())
+    _trading(fake).sellable_quantity("005930")
+    call = fake.calls[0]
+    assert call["method"] == "GET"
+    assert call["idempotent"] is True
+    assert call["path"] == _SELLABLE_PATH
+    assert call["tr_id"] == "TTTC8408R"
+    assert call["params"]["PDNO"] == "005930"
+
+
+def test_sellable_not_held_symbol_reads_zero():
+    output1 = {"pdno": "005930", "prdt_name": "", "cblc_qty": "", "ord_psbl_qty": ""}
+    result = _trading(FakeTransport(response=_sellable_resp(output1))).sellable_quantity("005930")
+    assert result.quantity == Decimal(0)                  # 미보유 -> 빈 수량을 0으로
+    assert result.sellable_quantity == Decimal(0)
+
+
+@pytest.mark.parametrize("wire_field", ["cblc_qty", "ord_psbl_qty"])
+def test_sellable_unparseable_quantity_fails_closed(wire_field):
+    output1 = {"pdno": "005930", "prdt_name": "삼성전자", "cblc_qty": "10", "ord_psbl_qty": "8"}
+    output1[wire_field] = "N/A"
+    with pytest.raises(KisError):
+        _trading(FakeTransport(response=_sellable_resp(output1))).sellable_quantity("005930")
+
+
+def test_sellable_demo_raises_before_io():
+    fake = FakeTransport(response=_sellable_resp())
+    with pytest.raises(KisUsageError):
+        _trading(fake, environment="demo").sellable_quantity("005930")
+    assert fake.calls == []                                # 모의 미지원 -> 전송 전 중단
+
+
+def test_sellable_missing_output1_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={})
+    with pytest.raises(KisError):
+        _trading(FakeTransport(response=resp)).sellable_quantity("005930")
+
+
+# --- 값 의미론(raw 제외 동등성/해시) --------------------------------------
+def test_buyable_value_semantics_ignore_raw_and_hashable():
+    first = _trading(FakeTransport(response=_buyable_resp())).buyable_amount("005930")
+    second = _trading(
+        FakeTransport(response=_buyable_resp(dict(_BUYABLE_OUTPUT, extra="x")))
+    ).buyable_amount("005930")
+    assert first == second
+    assert hash(first) == hash(second)
+    assert {first, second} == {first}
+
+
+def test_sellable_value_semantics_ignore_raw_and_hashable():
+    base = {"pdno": "005930", "prdt_name": "삼성전자", "cblc_qty": "10", "ord_psbl_qty": "8"}
+    first = _trading(FakeTransport(response=_sellable_resp(base))).sellable_quantity("005930")
+    second = _trading(FakeTransport(response=_sellable_resp(dict(base, extra="x")))).sellable_quantity("005930")
+    different = _trading(
+        FakeTransport(response=_sellable_resp(dict(base, ord_psbl_qty="7")))
+    ).sellable_quantity("005930")
+    assert first == second
+    assert first != different
     assert hash(first) == hash(second)
     assert {first, second} == {first}
 
