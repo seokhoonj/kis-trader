@@ -1,0 +1,278 @@
+"""국내주식 시세 조회 (내부) -- 현재가/기간별 바/호가창.
+
+사용자면(Ticker)이 이 함수들을 호출해 통합 반환 타입(:class:`Quote`/:class:`Bar`/
+:class:`OrderBook`)을 받는다. KIS 원본 필드 매핑과 fail-closed 파싱은 여기 갇힌다.
+
+KIS URL/TR-id:
+- 현재가: ``GET .../quotations/inquire-price`` (``FHKST01010100``, 모의 지원).
+- 기간별 OHLCV: ``GET .../quotations/inquire-daily-itemchartprice`` (``FHKST03010100``, 모의 지원).
+- 호가/예상체결: ``GET .../quotations/inquire-asking-price-exp-ccn`` (``FHKST01010200``, 모의 지원).
+"""
+
+from __future__ import annotations
+
+from collections.abc import Mapping, Sequence
+from datetime import date, datetime, timedelta, timezone
+from decimal import Decimal
+from typing import Any
+
+from .._wire import optional_decimal, optional_int, required_decimal, required_int
+from ..bar import Bar, Interval
+from ..errors import KisError, KisUsageError
+from ..order_book import OrderBook, PriceLevel
+from ..quote import Quote
+from ..transport import RawResponse, Transport
+
+_KST = timezone(timedelta(hours=9))
+
+#: 시장 보드 -> KIS 조건시장분류코드(FID_COND_MRKT_DIV_CODE).
+_MARKET_DIV = {"KRX": "J", "NXT": "NX", "UN": "UN"}
+
+_QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
+_QUOTE_TR = "FHKST01010100"
+#: 전일대비 부호코드(prdy_vrss_sign) 중 하락(4 하한, 5 하락). 나머지는 양(0 포함).
+_DOWN_SIGNS = frozenset(("4", "5"))
+
+_BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
+_BARS_TR = "FHKST03010100"
+_PERIOD_BY_INTERVAL = {"1d": "D", "1wk": "W", "1mo": "M"}
+_MINUTE_INTERVALS = frozenset(("1m", "5m", "15m", "30m", "1h"))
+#: 날짜창 페이지네이션 안전 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
+_MAX_BAR_PAGES = 200
+
+_ORDER_BOOK_PATH = "/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn"
+_ORDER_BOOK_TR = "FHKST01010200"
+_DEPTH = 10
+
+
+# --- 현재가 ----------------------------------------------------------------
+def fetch_quote(transport: Transport, *, symbol: str, market: str) -> Quote:
+    """한 종목의 현재가 스냅샷."""
+    params = {"FID_COND_MRKT_DIV_CODE": _market_div(market), "FID_INPUT_ISCD": symbol}
+    resp = transport.request(
+        method="GET", path=_QUOTE_PATH, tr_id=_QUOTE_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise _missing_block_error("output", resp)
+    return _parse_quote(output, symbol=symbol, market=market, as_of=datetime.now(_KST))
+
+
+def _parse_quote(output: Mapping[str, Any], *, symbol: str, market: str, as_of: datetime) -> Quote:
+    sign = str(output.get("prdy_vrss_sign", "")).strip()
+    return Quote(
+        symbol=symbol,
+        market=market,
+        currency="KRW",
+        last=required_decimal(output.get("stck_prpr"), "stck_prpr"),
+        open=required_decimal(output.get("stck_oprc"), "stck_oprc"),
+        high=required_decimal(output.get("stck_hgpr"), "stck_hgpr"),
+        low=required_decimal(output.get("stck_lwpr"), "stck_lwpr"),
+        previous_close=required_decimal(output.get("stck_sdpr"), "stck_sdpr"),
+        change=_apply_change_sign(required_decimal(output.get("prdy_vrss"), "prdy_vrss"), sign),
+        change_percent=_apply_change_sign(required_decimal(output.get("prdy_ctrt"), "prdy_ctrt"), sign),
+        volume=required_int(output.get("acml_vol"), "acml_vol"),
+        week_52_high=optional_decimal(output.get("w52_hgpr"), "w52_hgpr"),
+        week_52_low=optional_decimal(output.get("w52_lwpr"), "w52_lwpr"),
+        as_of=as_of,
+        raw=output,
+    )
+
+
+def _apply_change_sign(magnitude: Decimal, sign_code: str) -> Decimal:
+    """전일대비 값에 방향 부호를 입힌다(하락 코드면 음수).
+
+    KIS가 크기만 주든(부호 없는) 이미 부호를 실어 주든 상관없이 옳도록, 크기를 ``abs`` 로
+    정규화한 뒤 부호코드로만 방향을 정한다(부호가 이중 적용돼 뒤집히는 일 방지).
+    """
+    size = abs(magnitude)
+    return -size if sign_code in _DOWN_SIGNS else size
+
+
+# --- 기간별 OHLCV 바 -------------------------------------------------------
+def fetch_bars(
+    transport: Transport,
+    *,
+    symbol: str,
+    market: str,
+    interval: Interval = "1d",
+    start: str | date,
+    end: str | date | None = None,
+    adjusted: bool = True,
+    max_bars: int | None = None,
+) -> list[Bar]:
+    """[start, end] 구간의 OHLCV 바를 과거->현재 오름차순으로. KIS 100개/호출 상한을 날짜창을
+    뒤로 밀며 넘고, 상한에 닿으면 부분 결과로 자르지 않고 예외."""
+    period = _period_code_for(interval)
+    market_div = _market_div(market)
+    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
+    start_date = _to_yyyymmdd(start, "start")
+    if start_date > end_date:
+        raise KisUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
+    if max_bars is not None and max_bars <= 0:
+        raise KisUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
+    adjusted_code = "0" if adjusted else "1"  # KIS 극성: 0=수정주가, 1=원주가
+
+    bar_by_date: dict[str, Bar] = {}
+    window_end = end_date
+    for _page in range(_MAX_BAR_PAGES):
+        params = {
+            "FID_COND_MRKT_DIV_CODE": market_div,
+            "FID_INPUT_ISCD": symbol,
+            "FID_INPUT_DATE_1": start_date,
+            "FID_INPUT_DATE_2": window_end,
+            "FID_PERIOD_DIV_CODE": period,
+            "FID_ORG_ADJ_PRC": adjusted_code,
+        }
+        resp = transport.request(
+            method="GET", path=_BARS_PATH, tr_id=_BARS_TR, params=params, idempotent=True
+        )
+        _raise_if_error(resp)
+        rows = resp.body.get("output2")
+        if not isinstance(rows, list):  # 성공 응답인데 바 배열 아님 -> fail-closed
+            raise _missing_block_error("output2", resp)
+        page_by_date = {f"{bar.timestamp:%Y%m%d}": bar for bar in _parse_bars(rows, symbol=symbol)}
+        if not page_by_date:
+            break
+        bar_by_date.update(page_by_date)
+        if max_bars is not None and len(bar_by_date) >= max_bars:
+            break  # 최근 max_bars 면 충분 -> 더 안 훑음
+        oldest_date = min(page_by_date)  # YYYYMMDD 고정폭 -> 문자열 비교 = 시간순
+        if oldest_date <= start_date:
+            break
+        oldest = page_by_date[oldest_date].timestamp
+        window_end = f"{oldest - timedelta(days=1):%Y%m%d}"
+    else:
+        raise KisError(
+            f"바 조회가 {_MAX_BAR_PAGES}페이지 상한에 도달했으나 start({start_date})에 못 미쳤다 "
+            f"-- 부분 결과로 자르지 않는다. 범위를 좁히거나 재시도하라."
+        )
+
+    bars = [
+        bar_by_date[key]
+        for key in sorted(bar_by_date)
+        if start_date <= key <= end_date
+    ]
+    if max_bars is not None and len(bars) > max_bars:
+        bars = bars[-max_bars:]
+    return bars
+
+
+def _period_code_for(interval: str) -> str:
+    if interval in _PERIOD_BY_INTERVAL:
+        return _PERIOD_BY_INTERVAL[interval]
+    if interval in _MINUTE_INTERVALS:
+        raise NotImplementedError(f"분봉({interval})은 아직 미구현이다 -- 현재는 1d/1wk/1mo.")
+    raise KisUsageError(f"지원하지 않는 interval: {interval!r} (1d/1wk/1mo).")
+
+
+def _parse_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:
+    bars: list[Bar] = []
+    for row in rows:
+        date_text = str(row.get("stck_bsop_date", "")).strip()
+        close_text = str(row.get("stck_clpr", "")).strip()
+        if not date_text or not close_text:  # 미체결 세션의 빈 바 -- 건너뜀
+            continue
+        bars.append(
+            Bar(
+                symbol=symbol,
+                timestamp=_parse_bar_timestamp(date_text),
+                open=required_decimal(row.get("stck_oprc"), "stck_oprc"),
+                high=required_decimal(row.get("stck_hgpr"), "stck_hgpr"),
+                low=required_decimal(row.get("stck_lwpr"), "stck_lwpr"),
+                close=required_decimal(close_text, "stck_clpr"),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                raw=row,
+            )
+        )
+    return bars
+
+
+def _parse_bar_timestamp(date_text: str) -> datetime:
+    try:
+        day = datetime.strptime(date_text, "%Y%m%d")  # noqa: DTZ007 -- 아래 replace 로 KST-aware
+    except ValueError as err:
+        raise KisError(f"바 날짜(stck_bsop_date) 파싱 실패: {date_text!r}") from err
+    return day.replace(tzinfo=_KST)
+
+
+# --- 호가창 ----------------------------------------------------------------
+def fetch_order_book(transport: Transport, *, symbol: str, market: str) -> OrderBook:
+    """한 종목의 10단계 호가창(예상체결 블록은 다루지 않음)."""
+    params = {"FID_COND_MRKT_DIV_CODE": _market_div(market), "FID_INPUT_ISCD": symbol}
+    resp = transport.request(
+        method="GET", path=_ORDER_BOOK_PATH, tr_id=_ORDER_BOOK_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    output1 = resp.body.get("output1")
+    if not isinstance(output1, Mapping):
+        raise _missing_block_error("output1", resp)
+    return _parse_order_book(output1, symbol=symbol, market=market, as_of=datetime.now(_KST))
+
+
+def _parse_order_book(
+    output1: Mapping[str, Any], *, symbol: str, market: str, as_of: datetime
+) -> OrderBook:
+    return OrderBook(
+        symbol=symbol,
+        market=market,
+        bids=_price_levels(output1, "bidp", "bidp_rsqn"),
+        asks=_price_levels(output1, "askp", "askp_rsqn"),
+        total_bid_quantity=optional_int(output1.get("total_bidp_rsqn"), "total_bidp_rsqn") or 0,
+        total_ask_quantity=optional_int(output1.get("total_askp_rsqn"), "total_askp_rsqn") or 0,
+        as_of=as_of,
+        raw=output1,
+    )
+
+
+def _price_levels(
+    output1: Mapping[str, Any], price_key: str, quantity_key: str
+) -> tuple[PriceLevel, ...]:
+    """실재 단계만 최우선->차선 순서로. 빈/0 가격은 건너뛰고, 음수 가격은 손상이라 fail-closed."""
+    levels: list[PriceLevel] = []
+    for step in range(1, _DEPTH + 1):
+        price = optional_decimal(output1.get(f"{price_key}{step}"), f"{price_key}{step}")
+        if price is None or price == 0:
+            continue
+        if price < 0:
+            raise KisError(f"호가 단계 {price_key}{step} 의 가격이 음수다: {price}")
+        quantity = required_int(output1.get(f"{quantity_key}{step}"), f"{quantity_key}{step}")
+        levels.append(PriceLevel(price=price, quantity=quantity))
+    return tuple(levels)
+
+
+# --- 공용 ------------------------------------------------------------------
+def _market_div(market: str) -> str:
+    try:
+        return _MARKET_DIV[market]
+    except KeyError:
+        raise KisUsageError(f"지원하지 않는 국내 시장 보드: {market!r} (KRX/NXT/UN).") from None
+
+
+def _to_yyyymmdd(value: str | date, name: str) -> str:
+    if isinstance(value, date):  # datetime 도 date 하위형
+        return f"{value:%Y%m%d}"
+    digits = str(value).strip().replace("-", "")
+    if len(digits) == 8 and digits.isdigit():
+        return digits
+    raise KisUsageError(f"{name} 는 date 또는 YYYYMMDD/YYYY-MM-DD 문자열이어야 한다: {value!r}")
+
+
+def _today_kst() -> str:
+    return f"{datetime.now(_KST):%Y%m%d}"
+
+
+def _missing_block_error(block: str, resp: RawResponse) -> KisError:
+    return KisError(
+        f"시세 응답에 {block} 블록이 없다.",
+        rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+    )
+
+
+def _raise_if_error(resp: RawResponse) -> None:
+    if not resp.ok:
+        raise KisError(
+            f"시세 조회 실패: {resp.msg1}",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
