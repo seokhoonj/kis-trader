@@ -12,10 +12,12 @@ from __future__ import annotations
 from datetime import date
 from typing import TYPE_CHECKING
 
+from ._domestic import account as account_api
 from ._domestic import market_data
 from .bar import Bar, Interval
 from .instrument import DomesticBoard, resolve_market
 from .order_book import OrderBook
+from .orderable import BuyableAmount, SellableQuantity
 from .quote import Quote
 
 if TYPE_CHECKING:
@@ -63,4 +65,23 @@ class Ticker:
         """10단계 호가창 스냅샷."""
         return market_data.fetch_order_book(
             self._client.transport, symbol=self.symbol, market=self.market
+        )
+
+    def buyable(self, *, limit_price: object | None = None) -> BuyableAmount:
+        """이 종목의 매수가능 여력(현금 기준·미수 포함 최대). ``limit_price`` 없으면 시장가 기준.
+
+        계좌 정보 없이 생성한 세션이면 :class:`~kis_openapi.errors.KisUsageError`.
+        """
+        cano, product_code = self._client._require_account()
+        return account_api.fetch_buyable(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, symbol=self.symbol, limit_price=limit_price,
+        )
+
+    def sellable(self) -> SellableQuantity:
+        """이 종목의 매도가능 수량. **모의투자 미지원**(demo면 :class:`~kis_openapi.errors.KisUsageError`)."""
+        cano, product_code = self._client._require_account()
+        return account_api.fetch_sellable(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, symbol=self.symbol,
         )
