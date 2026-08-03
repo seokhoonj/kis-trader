@@ -10,6 +10,7 @@ Securities (KIS) Open API.
 
 from __future__ import annotations
 
+from .after_hours import AfterHoursQuote
 from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
 from .broker import BrokerActivity, BrokerActivitySummary
@@ -28,6 +29,7 @@ from .trade import Trade
 __version__ = "0.0.0"
 
 __all__ = [
+    "AfterHoursQuote",
     "Balance",
     "Bar",
     "BrokerActivity",

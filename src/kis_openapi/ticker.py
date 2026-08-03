@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from ._domestic import account as account_api
 from ._domestic import market_data
+from .after_hours import AfterHoursQuote
 from .bar import Bar, Interval
 from .broker import BrokerActivitySummary
 from .instrument import DomesticBoard, resolve_market
@@ -89,6 +90,12 @@ class Ticker:
     def broker_activity(self) -> BrokerActivitySummary:
         """매도/매수 상위 회원사(증권사) 매매 비중."""
         return market_data.fetch_broker_activity(
+            self._client.transport, symbol=self.symbol, market=self.market
+        )
+
+    def after_hours_quote(self) -> AfterHoursQuote:
+        """시간외 단일가 스냅샷(예상체결가·최우선호가)."""
+        return market_data.fetch_after_hours_quote(
             self._client.transport, symbol=self.symbol, market=self.market
         )
 

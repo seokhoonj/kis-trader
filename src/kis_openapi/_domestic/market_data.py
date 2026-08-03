@@ -17,6 +17,7 @@ from decimal import Decimal
 from typing import Any
 
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
+from ..after_hours import AfterHoursQuote
 from ..bar import Bar, Interval
 from ..broker import BrokerActivity, BrokerActivitySummary
 from ..errors import KisError, KisUsageError
@@ -65,6 +66,9 @@ _INVESTOR_PREFIX = {"individual": "prsn", "foreign": "frgn", "institutional": "o
 _MEMBER_PATH = "/uapi/domestic-stock/v1/quotations/inquire-member"
 _MEMBER_TR = "FHKST01010600"
 _BROKER_TOP_N = 5           # KIS 회원사 상위 제공 개수(매도/매수 각각)
+
+_AFTER_HOURS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-overtime-price"
+_AFTER_HOURS_TR = "FHPST02300000"
 
 
 # --- 현재가 ----------------------------------------------------------------
@@ -489,6 +493,37 @@ def _broker_side(output: Mapping[str, Any], side: str) -> tuple[BrokerActivity, 
             )
         )
     return tuple(brokers)
+
+
+# --- 시간외 단일가 ---------------------------------------------------------
+def fetch_after_hours_quote(transport: Transport, *, symbol: str, market: str) -> AfterHoursQuote:
+    """한 종목의 시간외 단일가 스냅샷(세션 밖이면 대부분 비어 올 수 있음)."""
+    params = {"FID_COND_MRKT_DIV_CODE": _market_div(market), "FID_INPUT_ISCD": symbol}
+    resp = transport.request(
+        method="GET", path=_AFTER_HOURS_PATH, tr_id=_AFTER_HOURS_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise _missing_block_error("output", resp)
+    change_size = optional_decimal(
+        output.get("ovtm_untp_antc_cntg_vrss"), "ovtm_untp_antc_cntg_vrss"
+    )
+    change_rate = optional_decimal(
+        output.get("ovtm_untp_antc_cntg_ctrt"), "ovtm_untp_antc_cntg_ctrt"
+    )
+    sign = str(output.get("ovtm_untp_antc_cntg_vrss_sign", "")).strip()
+    return AfterHoursQuote(
+        symbol=symbol,
+        bid=optional_decimal(output.get("bidp"), "bidp"),
+        ask=optional_decimal(output.get("askp"), "askp"),
+        expected_price=optional_decimal(output.get("ovtm_untp_antc_cnpr"), "ovtm_untp_antc_cnpr"),
+        expected_quantity=optional_int(output.get("ovtm_untp_antc_cnqn"), "ovtm_untp_antc_cnqn"),
+        change=None if change_size is None else _apply_change_sign(change_size, sign),
+        change_percent=None if change_rate is None else _apply_change_sign(change_rate, sign),
+        as_of=datetime.now(_KST),
+        raw=output,
+    )
 
 
 # --- 공용 ------------------------------------------------------------------
