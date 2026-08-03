@@ -61,14 +61,16 @@ class ExecutionReport:
     #: 이 리포트를 로컬에 기록한 시각(보존 정리 기준). 전송 경로에선 접수 시각과 사실상
     #: 같지만, 재조회(reconcile)로 만든 리포트에선 원 접수 시각이 아니라 재조회 시각이다.
     submitted_at: datetime
-    raw: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         # side 는 신뢰 못 할 경계(영속 JSON, 지문 튜플)에서도 도메인 값이어야 한다.
         if self.side not in _SIDES:
             raise KisError(f"ExecutionReport.side 는 buy/sell 중 하나여야 한다: {self.side!r}")
-        # frozen 이 재바인딩만 막으므로, raw 를 읽기전용 스냅샷으로 얼려 진짜 불변으로.
-        object.__setattr__(self, "raw", MappingProxyType(dict(self.raw)))
+        # frozen 이 재바인딩만 막으므로, _raw 를 읽기전용 스냅샷으로 얼려 진짜 불변으로.
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
 
     @property
     def is_terminal(self) -> bool:

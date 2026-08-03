@@ -31,9 +31,9 @@ class Trade:
     quantity: int                     # 이 체결의 수량(낱건)
     change: Decimal                   # 전일대비(부호 포함)
     change_percent: Decimal           # 전일대비율(부호 포함)
-    raw: Mapping[str, Any] = field(
+    _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "raw", MappingProxyType(dict(self.raw)))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

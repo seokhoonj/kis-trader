@@ -37,11 +37,11 @@ class Quote:
     week_52_high: Decimal | None
     week_52_low: Decimal | None
     as_of: datetime                   # KST-aware
-    # raw 는 원본 와이어의 읽기전용 뷰. 동등성/해시/repr 제외 -- 값 동일성은 파싱된 필드로,
+    # _raw 는 원본 와이어의 읽기전용 뷰(안정 API 아님, 미매핑 필드 접근용). 동등성/해시/repr 제외 -- 값 동일성은 파싱된 필드로,
     # dict 는 unhashable 이라 포함하면 frozen 인데도 hash() 가 TypeError.
-    raw: Mapping[str, Any] = field(
+    _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "raw", MappingProxyType(dict(self.raw)))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

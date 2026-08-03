@@ -34,12 +34,12 @@ class Position:
     market_value: Decimal             # 평가금액 = 현재가 x 수량
     unrealized_pnl: Decimal
     unrealized_pnl_percent: Decimal
-    raw: Mapping[str, Any] = field(
+    _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "raw", MappingProxyType(dict(self.raw)))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
 
 
 @dataclass(frozen=True, slots=True)
@@ -60,12 +60,12 @@ class Balance:
     purchase_amount: Decimal
     market_value: Decimal
     unrealized_pnl: Decimal
-    raw: Mapping[str, Any] = field(
+    _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "raw", MappingProxyType(dict(self.raw)))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
 
 
 @dataclass(frozen=True, slots=True)

@@ -129,7 +129,7 @@ def _parse_positions(rows: list[Mapping[str, Any]]) -> list[Position]:
                 market_value=_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
                 unrealized_pnl=_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
                 unrealized_pnl_percent=_decimal_or_zero(row.get("evlu_pfls_rt"), "evlu_pfls_rt"),
-                raw=row,
+                _raw=row,
             )
         )
     return positions
@@ -146,7 +146,7 @@ def _parse_balance(summary: Mapping[str, Any]) -> Balance:
         purchase_amount=required_decimal(summary.get("pchs_amt_smtl_amt"), "pchs_amt_smtl_amt"),
         market_value=required_decimal(summary.get("evlu_amt_smtl_amt"), "evlu_amt_smtl_amt"),
         unrealized_pnl=required_decimal(summary.get("evlu_pfls_smtl_amt"), "evlu_pfls_smtl_amt"),
-        raw=summary,
+        _raw=summary,
     )
 
 
@@ -222,7 +222,7 @@ def _parse_buyable(output: Mapping[str, Any], *, symbol: str) -> BuyableAmount:
         cash_buyable_quantity=_decimal_or_zero(output.get("nrcvb_buy_qty"), "nrcvb_buy_qty"),
         max_buyable_amount=_decimal_or_zero(output.get("max_buy_amt"), "max_buy_amt"),
         max_buyable_quantity=_decimal_or_zero(output.get("max_buy_qty"), "max_buy_qty"),
-        raw=output,
+        _raw=output,
     )
 
 
@@ -232,7 +232,7 @@ def _parse_sellable(output1: Mapping[str, Any], *, symbol: str) -> SellableQuant
         security_name=str(output1.get("prdt_name", "")).strip(),
         quantity=_decimal_or_zero(output1.get("cblc_qty"), "cblc_qty"),
         sellable_quantity=_decimal_or_zero(output1.get("ord_psbl_qty"), "ord_psbl_qty"),
-        raw=output1,
+        _raw=output1,
     )
 
 

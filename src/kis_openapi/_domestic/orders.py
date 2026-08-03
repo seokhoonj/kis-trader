@@ -150,7 +150,7 @@ def place(
         filled_quantity=Decimal(0),
         average_price=None,
         submitted_at=datetime.now(_KST),
-        raw=resp.body,
+        _raw=resp.body,
     )
     store.record(report, fingerprint)
     return report
@@ -340,7 +340,7 @@ def _execution_report_from_daily_row(
         filled_quantity=filled,
         average_price=avg if filled > 0 and avg > 0 else None,
         submitted_at=datetime.now(_KST),
-        raw=row,
+        _raw=row,
     )
 
 

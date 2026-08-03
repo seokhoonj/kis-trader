@@ -37,9 +37,9 @@ class OrderBook:
     total_bid_quantity: int
     total_ask_quantity: int
     as_of: datetime
-    raw: Mapping[str, Any] = field(
+    _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "raw", MappingProxyType(dict(self.raw)))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

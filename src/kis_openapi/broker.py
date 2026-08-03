@@ -31,9 +31,9 @@ class BrokerActivitySummary:
     symbol: str
     sellers: tuple[BrokerActivity, ...]   # 매도 상위 회원사
     buyers: tuple[BrokerActivity, ...]    # 매수 상위 회원사
-    raw: Mapping[str, Any] = field(
+    _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "raw", MappingProxyType(dict(self.raw)))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

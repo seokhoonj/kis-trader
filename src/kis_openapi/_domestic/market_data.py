@@ -104,7 +104,7 @@ def _parse_quote(output: Mapping[str, Any], *, symbol: str, market: str, as_of: 
         week_52_high=optional_decimal(output.get("w52_hgpr"), "w52_hgpr"),
         week_52_low=optional_decimal(output.get("w52_lwpr"), "w52_lwpr"),
         as_of=as_of,
-        raw=output,
+        _raw=output,
     )
 
 
@@ -216,7 +216,7 @@ def _parse_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:
                 low=required_decimal(row.get("stck_lwpr"), "stck_lwpr"),
                 close=required_decimal(close_text, "stck_clpr"),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
-                raw=row,
+                _raw=row,
             )
         )
     return bars
@@ -302,7 +302,7 @@ def _parse_minute_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> lis
                 low=required_decimal(row.get("stck_lwpr"), "stck_lwpr"),
                 close=required_decimal(close_text, "stck_prpr"),
                 volume=required_int(row.get("cntg_vol"), "cntg_vol"),
-                raw=row,
+                _raw=row,
             )
         )
     return bars
@@ -350,7 +350,7 @@ def _parse_order_book(
         total_bid_quantity=optional_int(output1.get("total_bidp_rsqn"), "total_bidp_rsqn") or 0,
         total_ask_quantity=optional_int(output1.get("total_askp_rsqn"), "total_askp_rsqn") or 0,
         as_of=as_of,
-        raw=output1,
+        _raw=output1,
     )
 
 
@@ -404,7 +404,7 @@ def _parse_trades(
                 change_percent=_apply_change_sign(
                     required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
                 ),
-                raw=row,
+                _raw=row,
             )
         )
     return trades
@@ -443,7 +443,7 @@ def fetch_investor_flows(transport: Transport, *, symbol: str, market: str) -> l
                 individual=_parse_investor_activity(row, "individual"),
                 foreign=_parse_investor_activity(row, "foreign"),
                 institutional=_parse_investor_activity(row, "institutional"),
-                raw=row,
+                _raw=row,
             )
         )
     return flows
@@ -478,7 +478,7 @@ def fetch_broker_activity(
         symbol=symbol,
         sellers=_parse_broker_side(output, "seln"),
         buyers=_parse_broker_side(output, "shnu"),
-        raw=output,
+        _raw=output,
     )
 
 
@@ -538,7 +538,7 @@ def _parse_after_hours_quote(
         change=None if change_size is None else _apply_change_sign(change_size, sign),
         change_percent=None if change_rate is None else _apply_change_sign(change_rate, sign),
         as_of=as_of,
-        raw=output,
+        _raw=output,
     )
 
 

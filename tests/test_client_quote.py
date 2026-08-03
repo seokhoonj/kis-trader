@@ -137,8 +137,8 @@ def test_quote_value_semantics_ignore_raw_and_hashable():
         "previous_close": Decimal(1), "change": Decimal(0), "change_percent": Decimal(0),
         "volume": 1, "week_52_high": None, "week_52_low": None, "as_of": when,
     }
-    first = Quote(**fields, raw={"a": "b"})
-    second = Quote(**fields, raw={"z": "1"})
+    first = Quote(**fields, _raw={"a": "b"})
+    second = Quote(**fields, _raw={"z": "1"})
     assert first == second                # 파싱 값 같으면 같다(raw 무시)
     assert hash(first) == hash(second)
     assert {first, second} == {first}
@@ -315,15 +315,15 @@ def test_ticker_bars_stops_on_empty_page():
 def test_bar_and_order_book_value_semantics_hashable():
     when = datetime(2024, 1, 2, tzinfo=timezone(timedelta(hours=9)))
     bar_a = Bar(symbol="005930", timestamp=when, open=Decimal(1), high=Decimal(2),
-                low=Decimal(1), close=Decimal(2), volume=10, raw={"a": "b"})
+                low=Decimal(1), close=Decimal(2), volume=10, _raw={"a": "b"})
     bar_b = Bar(symbol="005930", timestamp=when, open=Decimal(1), high=Decimal(2),
-                low=Decimal(1), close=Decimal(2), volume=10, raw={"z": "1"})
+                low=Decimal(1), close=Decimal(2), volume=10, _raw={"z": "1"})
     assert bar_a == bar_b and hash(bar_a) == hash(bar_b)   # raw 무시
     assert PriceLevel(Decimal(1), 2) == PriceLevel(Decimal(1), 2)
     fields = {"symbol": "005930", "market": "KRX",
               "bids": (PriceLevel(Decimal(1), 2),), "asks": (PriceLevel(Decimal(3), 4),),
               "total_bid_quantity": 2, "total_ask_quantity": 4, "as_of": when}
-    assert OrderBook(**fields, raw={"a": "b"}) == OrderBook(**fields, raw={"z": "1"})
+    assert OrderBook(**fields, _raw={"a": "b"}) == OrderBook(**fields, _raw={"z": "1"})
 
 
 # --- 구성/인증 ------------------------------------------------------------
