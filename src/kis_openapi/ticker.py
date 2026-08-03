@@ -16,9 +16,11 @@ from ._domestic import account as account_api
 from ._domestic import market_data
 from .bar import Bar, Interval
 from .instrument import DomesticBoard, resolve_market
+from .order import Order, Side, TimeInForce
 from .order_book import OrderBook
 from .orderable import BuyableAmount, SellableQuantity
 from .quote import Quote
+from .report import ExecutionReport
 
 if TYPE_CHECKING:
     from .client import KisClient
@@ -85,3 +87,34 @@ class Ticker:
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment, symbol=self.symbol,
         )
+
+    # --- 주문 실행(안전 엔진 위임; 계좌 정보 필요) --------------------
+    def buy(
+        self, *, quantity: object, price: object | None = None,
+        time_in_force: TimeInForce = "day", client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 종목을 매수한다 -- ``price`` 를 주면 지정가, 없으면 시장가.
+
+        이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 계좌 정보가 없으면
+        :class:`~kis_openapi.errors.KisUsageError`, 조회전용(퇴직연금 등) 계좌면
+        :class:`~kis_openapi.errors.AccountNotOrderable`. 접수 거부는 ``OrderRejectedError``,
+        타임아웃(체결 불명)은 ``OrderTimeoutError`` -- 후자는 :meth:`KisClient.reconcile` 로 확인한다.
+        """
+        return self._client._place_order(self._make_order("buy", quantity, price, time_in_force, client_order_id))
+
+    def sell(
+        self, *, quantity: object, price: object | None = None,
+        time_in_force: TimeInForce = "day", client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 종목을 매도한다 -- ``price`` 를 주면 지정가, 없으면 시장가(계약은 :meth:`buy` 와 동일)."""
+        return self._client._place_order(self._make_order("sell", quantity, price, time_in_force, client_order_id))
+
+    def _make_order(
+        self, side: Side, quantity: object, price: object | None,
+        time_in_force: TimeInForce, client_order_id: str | None,
+    ) -> Order:
+        if price is None:
+            return Order.market(self.symbol, side=side, quantity=quantity,
+                                time_in_force=time_in_force, client_order_id=client_order_id)
+        return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
+                          time_in_force=time_in_force, client_order_id=client_order_id)

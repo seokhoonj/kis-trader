@@ -12,9 +12,13 @@ from __future__ import annotations
 from typing import Literal
 
 from ._domestic import account as account_api
+from ._domestic import orders as orders_engine
 from .balance import Balance, Portfolio, Position
 from .errors import KisUsageError
 from .instrument import DomesticBoard
+from .order import Order
+from .report import ExecutionReport
+from .store import OrderStore
 from .ticker import Ticker
 from .transport import Transport
 
@@ -30,7 +34,16 @@ class KisClient:
         account: str | None = None,
         environment: Literal["real", "demo"] = "real",
         transport: Transport | None = None,
+        store: OrderStore | None = None,
+        orderable: bool = True,
     ) -> None:
+        """세션을 연다.
+
+        ``store`` 는 주문 멱등 dedup 저장소 -- 생략하면 세션 인메모리(프로세스 재시작에 dedup
+        유지 안 됨). 실거래는 ``store=OrderStore(path=...)`` 로 영속 저장소를 주는 것을 강력히
+        권장한다(재시작 후에도 이중체결 장벽 유지). ``orderable=False`` 면 모든 주문을 와이어
+        전에 :class:`~kis_openapi.errors.AccountNotOrderable` 로 막는다(조회전용 계좌 보호).
+        """
         self._app_key = app_key
         self._app_secret = app_secret
         self._environment = environment
@@ -41,6 +54,10 @@ class KisClient:
             )
         self._transport = transport
         self._cano, self._product_code = _split_account(account)
+        # 주문 멱등 dedup 저장소. 기본은 세션 인메모리 -- 프로세스 재시작에도 dedup 을 유지하려면
+        # store=OrderStore(path=...) 로 영속 저장소를 주입하라(권장, 이중체결 장벽 지속).
+        self._store = store if store is not None else OrderStore()
+        self._orderable = orderable
 
     @property
     def transport(self) -> Transport:
@@ -78,6 +95,29 @@ class KisClient:
         cano, product_code = self._require_account()
         return account_api.fetch_portfolio(
             self._transport, cano=cano, product_code=product_code, environment=self._environment
+        )
+
+    def reconcile(self, client_order_id: str) -> ExecutionReport | None:
+        """미확인 주문(타임아웃 등)의 실제 상태를 브로커에 재조회한다 -- **보수적**.
+
+        완료 리포트가 있으면 반환. in-flight 면 일별체결조회로 확인해 정확히 1건이면 확정,
+        모호(0/다건)하면 미접수로 단정하지 않는다(``None`` 또는 :class:`~kis_openapi.errors.KisError`).
+        모르는 id 는 :class:`~kis_openapi.errors.KisUsageError`. 재조회 자체가 시간초과면
+        :class:`~kis_openapi.errors.OrderTimeoutError`(in-flight 유지, 잠시 후 재시도).
+        """
+        cano, product_code = self._require_account()
+        return orders_engine.reconcile(
+            self._transport, self._store, client_order_id,
+            cano=cano, product_code=product_code, environment=self._environment,
+        )
+
+    def _place_order(self, order: Order) -> ExecutionReport:
+        """주문을 안전 엔진에 넘겨 전송한다(Ticker.buy/sell 이 호출). 계좌 정보 필요."""
+        cano, product_code = self._require_account()
+        return orders_engine.place(
+            self._transport, self._store, order,
+            cano=cano, product_code=product_code, environment=self._environment,
+            orderable=self._orderable,
         )
 
     def _require_account(self) -> tuple[str, str]:
