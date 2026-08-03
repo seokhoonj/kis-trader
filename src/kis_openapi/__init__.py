@@ -20,6 +20,8 @@ from .order import Order
 from .order_book import OrderBook, PriceLevel
 from .orderable import BuyableAmount, SellableQuantity
 from .quote import Quote
+from .ranked_stock import RankedStock
+from .ranking import RankingQueries
 from .report import ExecutionReport, OrderStatus
 from .risk import RiskLimits
 from .store import OrderStore
@@ -48,6 +50,8 @@ __all__ = [
     "Position",
     "PriceLevel",
     "Quote",
+    "RankedStock",
+    "RankingQueries",
     "RiskLimits",
     "SellableQuantity",
     "Ticker",

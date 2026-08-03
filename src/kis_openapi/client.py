@@ -17,6 +17,7 @@ from .balance import Balance, Portfolio, Position
 from .errors import KisUsageError
 from .instrument import DomesticBoard
 from .order import Order
+from .ranking import RankingQueries
 from .report import ExecutionReport
 from .risk import RiskLimits
 from .store import OrderStore
@@ -76,6 +77,11 @@ class KisClient:
     def ticker(self, symbol: str, *, market: DomesticBoard | None = None) -> Ticker:
         """종목 핸들을 만든다. 시장은 심볼로 자동 판별(6자리 숫자 -> 국내 KRX)."""
         return Ticker(self, symbol, market=market)
+
+    @property
+    def ranking(self) -> RankingQueries:
+        """시장 전체 순위 네임스페이스 -- ``kis.ranking.by_change()`` / ``by_volume()`` 등."""
+        return RankingQueries(self)
 
     # --- 계좌 단위 조회(계좌 정보 필요) ------------------------------
     # 계좌 미설정이면 :class:`~kis_openapi.errors.KisUsageError`, 실패/응답 부재/파싱 실패는
