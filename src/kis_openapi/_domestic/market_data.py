@@ -38,9 +38,16 @@ _DOWN_SIGNS = frozenset(("4", "5"))
 _BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
 _BARS_TR = "FHKST03010100"
 _PERIOD_BY_INTERVAL = {"1d": "D", "1wk": "W", "1mo": "M"}
-_MINUTE_INTERVALS = frozenset(("1m", "5m", "15m", "30m", "1h"))
 #: 날짜창 페이지네이션 안전 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
 _MAX_BAR_PAGES = 200
+
+#: 당일 분봉(1분 고정). KIS는 당일치만 제공하고 한 번에 30건씩 시각을 뒤로 밀며 준다.
+_MINUTE_BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
+_MINUTE_BARS_TR = "FHKST03010200"
+_SESSION_OPEN = "090000"          # 정규장 개장(HHMMSS) -- 여기까지 훑으면 종료
+_MINUTE_ANCHOR_START = "153000"   # 조회 시작 기준시각(장 마감 이후로 두면 최신부터). 미래시각은 현재로 처리됨
+#: 분봉 페이지 상한(30건/page). 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
+_MAX_MINUTE_PAGES = 60
 
 _ORDER_BOOK_PATH = "/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn"
 _ORDER_BOOK_TR = "FHKST01010200"
@@ -107,21 +114,28 @@ def fetch_bars(
     symbol: str,
     market: str,
     interval: Interval = "1d",
-    start: str | date,
+    start: str | date | None = None,
     end: str | date | None = None,
     adjusted: bool = True,
     max_bars: int | None = None,
 ) -> list[Bar]:
-    """[start, end] 구간의 OHLCV 바를 과거->현재 오름차순으로. KIS 100개/호출 상한을 날짜창을
-    뒤로 밀며 넘고, 상한에 닿으면 부분 결과로 자르지 않고 예외."""
+    """OHLCV 바를 과거->현재 오름차순으로.
+
+    ``interval="1m"`` 은 **당일** 1분봉이라 ``start``/``end`` 를 쓰지 않고 최신 세션을 준다
+    (``max_bars`` 로 최근 N개 제한). ``1d``/``1wk``/``1mo`` 는 [start, end] 구간 기간봉이며
+    ``start`` 가 필요하다. 어느 쪽이든 페이지 상한에 닿으면 부분 결과로 자르지 않고 예외."""
+    if max_bars is not None and max_bars <= 0:
+        raise KisUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
+    if interval == "1m":
+        return _fetch_minute_bars(transport, symbol=symbol, market=market, max_bars=max_bars)
+    if start is None:
+        raise KisUsageError(f"interval={interval!r}(기간봉)에는 start 가 필요하다.")
     period = _period_code_for(interval)
     market_div = _market_div(market)
     end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
     start_date = _to_yyyymmdd(start, "start")
     if start_date > end_date:
         raise KisUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
-    if max_bars is not None and max_bars <= 0:
-        raise KisUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
     adjusted_code = "0" if adjusted else "1"  # KIS 극성: 0=수정주가, 1=원주가
 
     bar_by_date: dict[str, Bar] = {}
@@ -172,9 +186,7 @@ def fetch_bars(
 def _period_code_for(interval: str) -> str:
     if interval in _PERIOD_BY_INTERVAL:
         return _PERIOD_BY_INTERVAL[interval]
-    if interval in _MINUTE_INTERVALS:
-        raise NotImplementedError(f"분봉({interval})은 아직 미구현이다 -- 현재는 1d/1wk/1mo.")
-    raise KisUsageError(f"지원하지 않는 interval: {interval!r} (1d/1wk/1mo).")
+    raise KisUsageError(f"지원하지 않는 기간봉 interval: {interval!r} (1d/1wk/1mo).")
 
 
 def _parse_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:
@@ -205,6 +217,93 @@ def _parse_bar_timestamp(date_text: str) -> datetime:
     except ValueError as err:
         raise KisError(f"바 날짜(stck_bsop_date) 파싱 실패: {date_text!r}") from err
     return day.replace(tzinfo=_KST)
+
+
+def _fetch_minute_bars(
+    transport: Transport, *, symbol: str, market: str, max_bars: int | None
+) -> list[Bar]:
+    """당일 1분봉을 과거->현재 오름차순으로. 최신(장 마감 기준시각)부터 시각을 뒤로 밀며 30건씩
+    모으고, 개장(_SESSION_OPEN)까지 닿거나 새 봉이 없으면 종료. 상한 초과는 fail-closed."""
+    market_div = _market_div(market)
+    bar_by_time: dict[str, Bar] = {}   # "HHMMSS" -> Bar (고정폭이라 문자열 정렬=시간순)
+    anchor = _MINUTE_ANCHOR_START
+    for _page in range(_MAX_MINUTE_PAGES):
+        params = {
+            "FID_ETC_CLS_CODE": "",
+            "FID_COND_MRKT_DIV_CODE": market_div,
+            "FID_INPUT_ISCD": symbol,
+            "FID_INPUT_HOUR_1": anchor,
+            "FID_PW_DATA_INCU_YN": "N",
+        }
+        resp = transport.request(
+            method="GET", path=_MINUTE_BARS_PATH, tr_id=_MINUTE_BARS_TR, params=params,
+            idempotent=True,
+        )
+        _raise_if_error(resp)
+        rows = resp.body.get("output2")
+        if not isinstance(rows, list):  # 성공 응답인데 봉 배열 아님 -> fail-closed
+            raise _missing_block_error("output2", resp)
+        page = {f"{bar.timestamp:%H%M%S}": bar for bar in _parse_minute_bars(rows, symbol=symbol)}
+        fresh = {time: bar for time, bar in page.items() if time not in bar_by_time}
+        if not fresh:  # 빈 페이지거나 진전 없음 -> 종료(무한 루프 방지)
+            break
+        bar_by_time.update(fresh)
+        if max_bars is not None and len(bar_by_time) >= max_bars:
+            break
+        oldest = min(page)
+        if oldest <= _SESSION_OPEN:  # 개장까지 훑음
+            break
+        anchor = _minus_one_minute(oldest)
+    else:
+        raise KisError(
+            f"분봉 조회가 {_MAX_MINUTE_PAGES}페이지 상한에 도달했으나 개장까지 못 미쳤다 "
+            f"-- 부분 결과로 자르지 않는다. max_bars 로 범위를 줄이거나 재시도하라."
+        )
+    bars = [bar_by_time[key] for key in sorted(bar_by_time)]
+    if max_bars is not None and len(bars) > max_bars:
+        bars = bars[-max_bars:]
+    return bars
+
+
+def _parse_minute_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:
+    """분봉 행 -> Bar. 분봉은 종가가 ``stck_prpr``, 그 분의 거래량이 ``cntg_vol`` 로 일봉과 다르다."""
+    bars: list[Bar] = []
+    for row in rows:
+        date_text = str(row.get("stck_bsop_date", "")).strip()
+        time_text = str(row.get("stck_cntg_hour", "")).strip()
+        close_text = str(row.get("stck_prpr", "")).strip()
+        if not date_text or not time_text or not close_text:  # 빈 봉 skip
+            continue
+        bars.append(
+            Bar(
+                symbol=symbol,
+                timestamp=_minute_bar_timestamp(date_text, time_text),
+                open=required_decimal(row.get("stck_oprc"), "stck_oprc"),
+                high=required_decimal(row.get("stck_hgpr"), "stck_hgpr"),
+                low=required_decimal(row.get("stck_lwpr"), "stck_lwpr"),
+                close=required_decimal(close_text, "stck_prpr"),
+                volume=required_int(row.get("cntg_vol"), "cntg_vol"),
+                raw=row,
+            )
+        )
+    return bars
+
+
+def _minute_bar_timestamp(date_text: str, time_text: str) -> datetime:
+    try:
+        moment = datetime.strptime(date_text + time_text, "%Y%m%d%H%M%S")  # noqa: DTZ007 -- KST 결합
+    except ValueError as err:
+        raise KisError(f"분봉 시각 파싱 실패: {date_text!r} {time_text!r}") from err
+    return moment.replace(tzinfo=_KST)
+
+
+def _minus_one_minute(hhmmss: str) -> str:
+    """"HHMMSS" 에서 1분 뺀 "HHMMSS"(다음 페이지의 기준시각). 분 경계/시 경계 넘김 처리."""
+    try:
+        moment = datetime.strptime(hhmmss, "%H%M%S")  # noqa: DTZ007 -- 날짜 없는 시각 산술용
+    except ValueError as err:
+        raise KisError(f"분봉 기준시각 파싱 실패: {hhmmss!r}") from err
+    return f"{moment - timedelta(minutes=1):%H%M%S}"
 
 
 # --- 호가창 ----------------------------------------------------------------

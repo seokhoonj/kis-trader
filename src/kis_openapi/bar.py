@@ -1,8 +1,8 @@
 """기간별 OHLCV 바(DATA) -- :class:`Bar` 와 :type:`Interval`.
 
-한 시간 버킷(일/주/월봉)의 OHLCV. ``Interval`` 은 현재 지원 토큰만 담아 정직하게 유지한다
-(Yahoo 스타일; ``mo``=월). 분봉(``1m``..``1h``)은 아직 지원하지 않는다(전용 시간앵커
-페이지네이션이 필요).
+한 시간 버킷의 OHLCV. ``Interval`` 은 현재 지원 토큰만 담아 정직하게 유지한다(Yahoo 스타일;
+``mo``=월). ``1m`` 은 당일 1분봉이고, ``1d``/``1wk``/``1mo`` 는 기간봉이다. 더 굵은 분봉
+(5/15/30분·1시간)은 KIS가 이 형태로 제공하지 않아 담지 않는다.
 """
 
 from __future__ import annotations
@@ -14,8 +14,8 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any, Literal
 
-#: 바 간격 -- 일/주/월봉. 분봉은 아직 미지원.
-Interval = Literal["1d", "1wk", "1mo"]
+#: 바 간격 -- 당일 1분봉(1m)과 일/주/월봉.
+Interval = Literal["1m", "1d", "1wk", "1mo"]
 
 
 @dataclass(frozen=True, slots=True)

@@ -50,15 +50,17 @@ class Ticker:
         self,
         *,
         interval: Interval = "1d",
-        start: str | date,
+        start: str | date | None = None,
         end: str | date | None = None,
         adjusted: bool = True,
         max_bars: int | None = None,
     ) -> list[Bar]:
-        """[start, end] 구간의 OHLCV 바(과거->현재). ``interval`` 은 1d/1wk/1mo(분봉 미지원).
+        """OHLCV 바(과거->현재). ``interval="1m"`` 은 당일 1분봉(``start``/``end`` 무시, 최신
+        세션; ``max_bars`` 로 최근 N개), ``1d``/``1wk``/``1mo`` 는 [start, end] 기간봉(``start`` 필요).
 
-        ``start`` > ``end`` 이거나 ``max_bars`` <= 0 이면 :class:`~kis_openapi.errors.KisUsageError`,
-        응답 손상(비배열 output2)이나 페이지 상한 초과는 :class:`~kis_openapi.errors.KisError`.
+        ``start`` > ``end``, ``max_bars`` <= 0, 기간봉인데 ``start`` 없음이면
+        :class:`~kis_openapi.errors.KisUsageError`. 응답 손상(비배열 output2)이나 페이지 상한
+        초과는 :class:`~kis_openapi.errors.KisError`.
         """
         return market_data.fetch_bars(
             self._client.transport, symbol=self.symbol, market=self.market,
