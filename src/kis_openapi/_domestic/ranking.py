@@ -12,6 +12,11 @@ KIS URL/TR-id/화면코드/코드표(원장 대조):
 - 거래량: ``GET .../quotations/volume-rank`` ``FHPST01710000`` 화면 20171
   (``FID_BLNG_CLS_CODE`` 0:평균거래량 1:거래증가율 2:회전율 3:거래금액 4:금액회전율).
 - 시가총액: ``GET .../ranking/market-cap`` ``FHPST01740000`` 화면 20174.
+- 이격도: ``GET .../ranking/disparity`` ``FHPST01780000`` 화면 20178
+  (``FID_RANK_SORT_CLS_CODE`` 0:이격도상위 1:이격도하위, ``FID_HOUR_CLS_CODE`` 5/10/20/60/120일).
+- 호가잔량: ``GET .../ranking/quote-balance`` ``FHPST01720000`` 화면 20172
+  (``FID_RANK_SORT_CLS_CODE`` 0:순매수잔량 1:순매도잔량 2:매수비율 3:매도비율).
+- 체결강도: ``GET .../ranking/volume-power`` ``FHPST01680000`` 화면 20168 (정렬 없음).
 """
 
 from __future__ import annotations
@@ -44,6 +49,24 @@ _MARKET_CAP_PATH = "/uapi/domestic-stock/v1/ranking/market-cap"
 _MARKET_CAP_TR = "FHPST01740000"
 _MARKET_CAP_SCR = "20174"
 
+_DISPARITY_PATH = "/uapi/domestic-stock/v1/ranking/disparity"
+_DISPARITY_TR = "FHPST01780000"
+_DISPARITY_SCR = "20178"
+#: 이격도 정렬(원장 코드표). highest=이격도상위순(0), lowest=이격도하위순(1).
+_DISPARITY_SORT = {"highest": "0", "lowest": "1"}
+#: 이격도 기준 이동평균 일수(원장 FID_HOUR_CLS_CODE 허용값).
+_DISPARITY_PERIODS = frozenset({5, 10, 20, 60, 120})
+
+_QUOTE_BALANCE_PATH = "/uapi/domestic-stock/v1/ranking/quote-balance"
+_QUOTE_BALANCE_TR = "FHPST01720000"
+_QUOTE_BALANCE_SCR = "20172"
+#: 호가잔량 정렬(원장 코드표). 0:순매수잔량 1:순매도잔량 2:매수비율 3:매도비율.
+_QUOTE_BALANCE_SORT = {"net_buy": "0", "net_sell": "1", "buy_ratio": "2", "sell_ratio": "3"}
+
+_VOLUME_POWER_PATH = "/uapi/domestic-stock/v1/ranking/volume-power"
+_VOLUME_POWER_TR = "FHPST01680000"
+_VOLUME_POWER_SCR = "20168"
+
 
 def fetch_fluctuation(transport: Transport, *, top: str, market: str) -> list[RankedStock]:
     """등락률 순위. ``top="gainers"`` 상승율순 / ``"losers"`` 하락율순. 최대 30건(다음조회 없음)."""
@@ -51,7 +74,7 @@ def fetch_fluctuation(transport: Transport, *, top: str, market: str) -> list[Ra
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _FLUCTUATION_SCR,
         "FID_INPUT_ISCD": "0000",              # 전체
-        "FID_RANK_SORT_CLS_CODE": _sort_code(top),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_RANK_SORT, top, "top"),
         "FID_INPUT_CNT_1": "0",
         "FID_PRC_CLS_CODE": "0",
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",   # 가격 전체
@@ -94,6 +117,57 @@ def fetch_market_cap(transport: Transport, *, market: str) -> list[RankedStock]:
     return _fetch_ranking(transport, path=_MARKET_CAP_PATH, tr=_MARKET_CAP_TR, params=params)
 
 
+def fetch_disparity(
+    transport: Transport, *, top: str, period: int, market: str
+) -> list[RankedStock]:
+    """이격도 순위. ``top="highest"`` 이격도상위 / ``"lowest"`` 하위. ``period`` 이동평균 일수
+    (5/10/20/60/120). 이격도 값은 각 항목의 ``_raw['d{period}_dsrt']``(%). 최대 30건(다음조회 없음)."""
+    if period not in _DISPARITY_PERIODS:
+        raise KisUsageError(f"period 는 5/10/20/60/120 중 하나여야 한다: {period!r}")
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_COND_SCR_DIV_CODE": _DISPARITY_SCR,
+        "FID_DIV_CLS_CODE": "0",
+        "FID_RANK_SORT_CLS_CODE": _lookup(_DISPARITY_SORT, top, "top"),
+        "FID_HOUR_CLS_CODE": str(period),
+        "FID_INPUT_ISCD": "0000",              # 전체
+        "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
+        "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",   # 가격 전체
+        "FID_VOL_CNT": "",                      # 거래량 전체
+    }
+    return _fetch_ranking(transport, path=_DISPARITY_PATH, tr=_DISPARITY_TR, params=params)
+
+
+def fetch_quote_balance(transport: Transport, *, top: str, market: str) -> list[RankedStock]:
+    """호가잔량 순위. ``top`` = net_buy(순매수잔량)/net_sell(순매도잔량)/buy_ratio(매수비율)/
+    sell_ratio(매도비율). 잔량 지표는 ``_raw`` (total_askp_rsqn/total_bidp_rsqn/...). 최대 30건."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_COND_SCR_DIV_CODE": _QUOTE_BALANCE_SCR,
+        "FID_INPUT_ISCD": "0000",
+        "FID_RANK_SORT_CLS_CODE": _lookup(_QUOTE_BALANCE_SORT, top, "top"),
+        "FID_DIV_CLS_CODE": "0",
+        "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
+        "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
+        "FID_VOL_CNT": "",
+    }
+    return _fetch_ranking(transport, path=_QUOTE_BALANCE_PATH, tr=_QUOTE_BALANCE_TR, params=params)
+
+
+def fetch_volume_power(transport: Transport, *, market: str) -> list[RankedStock]:
+    """체결강도 순위(정렬 없음). 당일 체결강도는 각 항목의 ``_raw['tday_rltv']``. 최대 30건."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_COND_SCR_DIV_CODE": _VOLUME_POWER_SCR,
+        "FID_INPUT_ISCD": "0000",
+        "FID_DIV_CLS_CODE": "0",                # 전체
+        "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
+        "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
+        "FID_VOL_CNT": "",
+    }
+    return _fetch_ranking(transport, path=_VOLUME_POWER_PATH, tr=_VOLUME_POWER_TR, params=params)
+
+
 def _fetch_ranking(
     transport: Transport, *, path: str, tr: str, params: dict[str, str]
 ) -> list[RankedStock]:
@@ -131,8 +205,10 @@ def _parse_ranked(rows: Sequence[Mapping[str, Any]]) -> list[RankedStock]:
     return ranked
 
 
-def _sort_code(top: str) -> str:
+def _lookup(table: Mapping[str, str], key: str, argname: str) -> str:
+    """코드표에서 사용자 값 -> KIS 코드. 미지원 값은 유효 목록과 함께 :class:`KisUsageError`."""
     try:
-        return _RANK_SORT[top]
+        return table[key]
     except KeyError:
-        raise KisUsageError(f'top 은 "gainers"/"losers" 중 하나여야 한다: {top!r}') from None
+        valid = "/".join(f'"{k}"' for k in table)
+        raise KisUsageError(f"{argname} 은 {valid} 중 하나여야 한다: {key!r}") from None

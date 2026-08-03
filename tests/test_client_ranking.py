@@ -18,6 +18,9 @@ from kis_openapi.transport import RawResponse
 _FLUCTUATION = "/uapi/domestic-stock/v1/ranking/fluctuation"
 _VOLUME = "/uapi/domestic-stock/v1/quotations/volume-rank"
 _MARKET_CAP = "/uapi/domestic-stock/v1/ranking/market-cap"
+_DISPARITY = "/uapi/domestic-stock/v1/ranking/disparity"
+_QUOTE_BALANCE = "/uapi/domestic-stock/v1/ranking/quote-balance"
+_VOLUME_POWER = "/uapi/domestic-stock/v1/ranking/volume-power"
 
 
 def _row(*, rank="1", symbol_field="mksc_shrn_iscd", symbol="005930", name="삼성전자",
@@ -102,6 +105,73 @@ def test_by_market_cap_exposes_market_cap_in_raw():
     assert call["tr_id"] == "FHPST01740000"
     assert ranked[0]._raw["stck_avls"] == "4340032"            # 헤드라인 지표는 _raw
     assert ranked[0].price == Decimal(72700)
+
+
+def test_by_disparity_defaults_to_highest_and_20day():
+    fake = FakeTransport(response=_resp([_row(d20_dsrt="103.42")]))
+    ranked = _client(fake).ranking.by_disparity()
+    call = fake.calls[0]
+    assert call["path"] == _DISPARITY
+    assert call["tr_id"] == "FHPST01780000"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20178"
+    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "0"       # highest
+    assert call["params"]["FID_HOUR_CLS_CODE"] == "20"           # 기본 20일
+    assert ranked[0]._raw["d20_dsrt"] == "103.42"                # 이격도는 _raw
+
+
+def test_by_disparity_lowest_and_period():
+    fake = FakeTransport(response=_resp([_row(d5_dsrt="97.1")]))
+    _client(fake).ranking.by_disparity(top="lowest", period=5)
+    call = fake.calls[0]
+    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "1"       # lowest
+    assert call["params"]["FID_HOUR_CLS_CODE"] == "5"
+
+
+def test_by_disparity_rejects_bad_period():
+    fake = FakeTransport(response=_resp([]))
+    with pytest.raises(KisUsageError):
+        _client(fake).ranking.by_disparity(period=7)
+
+
+def test_by_disparity_rejects_bad_top():
+    fake = FakeTransport(response=_resp([]))
+    with pytest.raises(KisUsageError):
+        _client(fake).ranking.by_disparity(top="above")
+
+
+def test_by_quote_balance_defaults_to_net_buy():
+    fake = FakeTransport(response=_resp([_row(total_bidp_rsqn="12345")]))
+    ranked = _client(fake).ranking.by_quote_balance()
+    call = fake.calls[0]
+    assert call["path"] == _QUOTE_BALANCE
+    assert call["tr_id"] == "FHPST01720000"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20172"
+    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "0"       # net_buy
+    assert ranked[0]._raw["total_bidp_rsqn"] == "12345"
+
+
+def test_by_quote_balance_sort_variants():
+    for top, code in [("net_sell", "1"), ("buy_ratio", "2"), ("sell_ratio", "3")]:
+        fake = FakeTransport(response=_resp([_row()]))
+        _client(fake).ranking.by_quote_balance(top=top)
+        assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == code
+
+
+def test_by_quote_balance_rejects_bad_top():
+    fake = FakeTransport(response=_resp([]))
+    with pytest.raises(KisUsageError):
+        _client(fake).ranking.by_quote_balance(top="bogus")
+
+
+def test_by_volume_power_uses_endpoint_without_sort():
+    fake = FakeTransport(response=_resp([_row(symbol_field="stck_shrn_iscd", tday_rltv="128.5")]))
+    ranked = _client(fake).ranking.by_volume_power()
+    call = fake.calls[0]
+    assert call["path"] == _VOLUME_POWER
+    assert call["tr_id"] == "FHPST01680000"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20168"
+    assert "FID_RANK_SORT_CLS_CODE" not in call["params"]        # 정렬 축 없음
+    assert ranked[0]._raw["tday_rltv"] == "128.5"
 
 
 def test_ranking_skips_empty_rows():

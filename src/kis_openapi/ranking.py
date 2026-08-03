@@ -36,3 +36,19 @@ class RankingQueries:
     def by_market_cap(self) -> list[RankedStock]:
         """시가총액 순위(최대 30건). 시가총액 값은 각 항목의 ``_raw['stck_avls']``."""
         return ranking_api.fetch_market_cap(self._client.transport, market="KRX")
+
+    def by_disparity(self, *, top: str = "highest", period: int = 20) -> list[RankedStock]:
+        """이격도 순위. ``top="highest"`` 이격도 상위 / ``"lowest"`` 하위. ``period`` 는 이동평균
+        일수(5/10/20/60/120). 이격도 값은 각 항목의 ``_raw['d{period}_dsrt']``(%)(최대 30건)."""
+        return ranking_api.fetch_disparity(
+            self._client.transport, top=top, period=period, market="KRX"
+        )
+
+    def by_quote_balance(self, *, top: str = "net_buy") -> list[RankedStock]:
+        """호가잔량 순위. ``top`` = ``"net_buy"`` 순매수잔량 / ``"net_sell"`` 순매도잔량 /
+        ``"buy_ratio"`` 매수비율 / ``"sell_ratio"`` 매도비율. 잔량 지표는 ``_raw``(최대 30건)."""
+        return ranking_api.fetch_quote_balance(self._client.transport, top=top, market="KRX")
+
+    def by_volume_power(self) -> list[RankedStock]:
+        """체결강도 순위(최대 30건). 당일 체결강도는 각 항목의 ``_raw['tday_rltv']``."""
+        return ranking_api.fetch_volume_power(self._client.transport, market="KRX")
