@@ -1,8 +1,7 @@
 """회원사(증권사) 매매(DATA) -- :class:`BrokerActivity` 와 :class:`BrokerActivitySummary`.
 
-한 종목에 대해 매도·매수 상위 회원사(증권사)를 담는다. KIS는 상위 5개를 ``seln_mbcr_name1`` ..
-``shnu_mbcr_rlim5`` 처럼 평평하게 주지만, 여기서는 회원사 하나를 :class:`BrokerActivity` 로 묶고
-매도/매수 쪽을 각각 리스트로 정리한다.
+한 종목에 대해 매도·매수 상위 회원사(증권사)를 담는다. 회원사 하나를 :class:`BrokerActivity`
+로 묶고, 매도/매수 쪽을 각각 상위 리스트로 정리한다.
 """
 
 from __future__ import annotations
@@ -19,8 +18,8 @@ class BrokerActivity:
     """한 회원사(증권사)의 이 종목 매매 비중(불변). ``quantity_change`` 는 직전 대비 증감."""
 
     member_name: str                  # 회원사(증권사)명
-    member_number: str                # 회원사 번호
-    share_percent: Decimal            # 거래 점유율(%)
+    member_number: str                # 회원사 번호(이름은 있는데 번호가 빈 경우 "")
+    volume_share_percent: Decimal     # 이 종목 거래량 점유율(%)
     quantity_change: int              # 직전 대비 수량 증감(주; 음수 가능)
     is_foreign: bool                  # 외국계 회원사 여부
 

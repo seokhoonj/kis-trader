@@ -1,8 +1,7 @@
 """투자자별 매매(DATA) -- :class:`InvestorFlow` 와 :class:`InvestorActivity`.
 
-하루치, 투자자 주체(개인/외국인/기관)별 매수·매도·순매수를 담는다. KIS는 주체마다 6개 필드를
-평평하게(``prsn_shnu_vol``, ``frgn_ntby_qty`` ...) 주지만, 여기서는 주체 하나의 활동을
-:class:`InvestorActivity` 로 묶어 ``flow.foreign.net_buy_quantity`` 처럼 읽히게 한다.
+하루치, 투자자 주체(개인/외국인/기관)별 매수·매도·순매수를 담는다. 주체 하나의 활동을
+:class:`InvestorActivity` 로 묶어 ``flow.foreign.net_buy_volume`` 처럼 읽히게 한다.
 """
 
 from __future__ import annotations
@@ -21,7 +20,7 @@ class InvestorActivity:
 
     buy_volume: int                   # 매수 수량(주)
     sell_volume: int                  # 매도 수량(주)
-    net_buy_quantity: int             # 순매수 수량(주; 음수면 순매도)
+    net_buy_volume: int               # 순매수 수량(주; 음수면 순매도)
     buy_value: Decimal                # 매수 대금(원)
     sell_value: Decimal               # 매도 대금(원)
     net_buy_value: Decimal            # 순매수 대금(원; 음수면 순매도)
@@ -32,7 +31,7 @@ class InvestorFlow:
     """하루치 투자자별 매매(불변). 주체별 활동은 :class:`InvestorActivity`."""
 
     symbol: str
-    date: date
+    trading_date: date
     close: Decimal                    # 그날 종가
     individual: InvestorActivity      # 개인
     foreign: InvestorActivity         # 외국인

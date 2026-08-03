@@ -54,12 +54,13 @@ def test_trades_parses_rows_newest_first():
     assert all(isinstance(t, Trade) for t in trades)
     first = trades[0]
     assert first.symbol == "005930"
-    assert first.volume == 12
+    assert first.quantity == 12
     assert first.timestamp.hour == 9 and first.timestamp.minute == 30 and first.timestamp.second == 15
     call = fake.calls[0]
     assert call["path"] == _TRADES_PATH
     assert call["tr_id"] == "FHKST01010300"
     assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "J"      # KRX
+    assert call["params"]["FID_INPUT_ISCD"] == "005930"         # 조회 종목
     assert call["idempotent"] is True
 
 

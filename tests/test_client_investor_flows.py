@@ -58,18 +58,30 @@ def test_investor_flows_maps_nested_activity():
     flow = flows[0]
     assert isinstance(flow, InvestorFlow)
     assert flow.symbol == "005930"
-    assert flow.date == date(2024, 1, 2)
+    assert flow.trading_date == date(2024, 1, 2)
     assert flow.close == Decimal(71500)
+    # 개인 6필드 전수
     assert flow.individual.buy_volume == 100
-    assert flow.individual.net_buy_quantity == 60
+    assert flow.individual.sell_volume == 40
+    assert flow.individual.net_buy_volume == 60
+    assert flow.individual.buy_value == Decimal(7_000_000)
+    assert flow.individual.sell_value == Decimal(2_800_000)
     assert flow.individual.net_buy_value == Decimal(4_200_000)
+    # 기관 6필드 전수
+    assert flow.institutional.buy_volume == 50
+    assert flow.institutional.sell_volume == 20
+    assert flow.institutional.net_buy_volume == 30
+    assert flow.institutional.buy_value == Decimal(3_500_000)
+    assert flow.institutional.sell_value == Decimal(1_400_000)
+    assert flow.institutional.net_buy_value == Decimal(2_100_000)
     assert fake.calls[0]["path"] == _INVESTOR_PATH
     assert fake.calls[0]["tr_id"] == "FHKST01010900"
+    assert fake.calls[0]["params"] == {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": "005930"}
 
 
 def test_investor_flows_handles_net_selling_negative():
     flow = _client(FakeTransport(response=_resp([_row()]))).ticker("005930").investor_flows()[0]
-    assert flow.foreign.net_buy_quantity == -300           # 외국인 순매도
+    assert flow.foreign.net_buy_volume == -300             # 외국인 순매도
     assert flow.foreign.net_buy_value == Decimal(-21_000_000)
 
 
@@ -87,4 +99,10 @@ def test_investor_flows_missing_field_fails_closed():
 def test_investor_flows_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="X", msg1="실패", body={}))
     with pytest.raises(KisError):
+        _client(fake).ticker("005930").investor_flows()
+
+
+def test_investor_flows_missing_output_block_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KisError):                          # 성공 응답인데 output 없음 -> 빈결과로 오인 금지
         _client(fake).ticker("005930").investor_flows()

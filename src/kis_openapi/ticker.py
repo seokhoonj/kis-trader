@@ -57,8 +57,9 @@ class Ticker:
         adjusted: bool = True,
         max_bars: int | None = None,
     ) -> list[Bar]:
-        """OHLCV 바(과거->현재). ``interval="1m"`` 은 당일 1분봉(``start``/``end`` 무시, 최신
-        세션; ``max_bars`` 로 최근 N개), ``1d``/``1wk``/``1mo`` 는 [start, end] 기간봉(``start`` 필요).
+        """OHLCV 바(과거->현재). ``interval="1m"`` 은 당일 1분봉(``start``/``end``/``adjusted``
+        무시, 최신 세션; ``max_bars`` 로 최근 N개), ``1d``/``1wk``/``1mo`` 는 [start, end]
+        기간봉(``start`` 필요).
 
         ``start`` > ``end``, ``max_bars`` <= 0, 기간봉인데 ``start`` 없음이면
         :class:`~kis_openapi.errors.KisUsageError`. 응답 손상(비배열 output2)이나 페이지 상한

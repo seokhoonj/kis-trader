@@ -47,7 +47,9 @@ _MAX_BAR_PAGES = 200
 _MINUTE_BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
 _MINUTE_BARS_TR = "FHKST03010200"
 _SESSION_OPEN = "090000"          # 정규장 개장(HHMMSS) -- 여기까지 훑으면 종료
-_MINUTE_ANCHOR_START = "153000"   # 조회 시작 기준시각(장 마감 이후로 두면 최신부터). 미래시각은 현재로 처리됨
+#: 조회 시작 기준시각. 미래시각을 주면 KIS가 현재시각으로 처리하므로, 하루 끝(235959)으로 두면
+#: 어느 보드(KRX/NXT 연장)든 항상 최신 봉부터 받는다(고정 마감시각은 NXT 연장분을 놓칠 수 있음).
+_MINUTE_ANCHOR_START = "235959"
 #: 분봉 페이지 상한(30건/page). 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
 _MAX_MINUTE_PAGES = 60
 
@@ -130,9 +132,9 @@ def fetch_bars(
 ) -> list[Bar]:
     """OHLCV 바를 과거->현재 오름차순으로.
 
-    ``interval="1m"`` 은 **당일** 1분봉이라 ``start``/``end`` 를 쓰지 않고 최신 세션을 준다
-    (``max_bars`` 로 최근 N개 제한). ``1d``/``1wk``/``1mo`` 는 [start, end] 구간 기간봉이며
-    ``start`` 가 필요하다. 어느 쪽이든 페이지 상한에 닿으면 부분 결과로 자르지 않고 예외."""
+    ``interval="1m"`` 은 **당일** 1분봉이라 ``start``/``end``/``adjusted`` 를 쓰지 않고 최신
+    세션을 준다(``max_bars`` 로 최근 N개 제한). ``1d``/``1wk``/``1mo`` 는 [start, end] 구간
+    기간봉이며 ``start`` 가 필요하다. 어느 쪽이든 페이지 상한에 닿으면 부분 결과로 자르지 않고 예외."""
     if max_bars is not None and max_bars <= 0:
         raise KisUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
     if interval == "1m":
@@ -228,6 +230,14 @@ def _parse_bar_timestamp(date_text: str) -> datetime:
     return day.replace(tzinfo=_KST)
 
 
+def _parse_kst_date(date_text: str) -> date:
+    """"YYYYMMDD" -> date. 날짜만 필요한 곳(투자자 일자 등)에서 쓴다."""
+    try:
+        return datetime.strptime(date_text, "%Y%m%d").date()  # noqa: DTZ007 -- date 만 취함
+    except ValueError as err:
+        raise KisError(f"날짜(YYYYMMDD) 파싱 실패: {date_text!r}") from err
+
+
 def _fetch_minute_bars(
     transport: Transport, *, symbol: str, market: str, max_bars: int | None
 ) -> list[Bar]:
@@ -262,7 +272,7 @@ def _fetch_minute_bars(
         oldest = min(page)
         if oldest <= _SESSION_OPEN:  # 개장까지 훑음
             break
-        anchor = _minus_one_minute(oldest)
+        anchor = _subtract_one_minute(oldest)
     else:
         raise KisError(
             f"분봉 조회가 {_MAX_MINUTE_PAGES}페이지 상한에 도달했으나 개장까지 못 미쳤다 "
@@ -286,7 +296,7 @@ def _parse_minute_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> lis
         bars.append(
             Bar(
                 symbol=symbol,
-                timestamp=_minute_bar_timestamp(date_text, time_text),
+                timestamp=_parse_minute_bar_timestamp(date_text, time_text),
                 open=required_decimal(row.get("stck_oprc"), "stck_oprc"),
                 high=required_decimal(row.get("stck_hgpr"), "stck_hgpr"),
                 low=required_decimal(row.get("stck_lwpr"), "stck_lwpr"),
@@ -298,7 +308,7 @@ def _parse_minute_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> lis
     return bars
 
 
-def _minute_bar_timestamp(date_text: str, time_text: str) -> datetime:
+def _parse_minute_bar_timestamp(date_text: str, time_text: str) -> datetime:
     try:
         moment = datetime.strptime(date_text + time_text, "%Y%m%d%H%M%S")  # noqa: DTZ007 -- KST 결합
     except ValueError as err:
@@ -306,7 +316,7 @@ def _minute_bar_timestamp(date_text: str, time_text: str) -> datetime:
     return moment.replace(tzinfo=_KST)
 
 
-def _minus_one_minute(hhmmss: str) -> str:
+def _subtract_one_minute(hhmmss: str) -> str:
     """"HHMMSS" 에서 1분 뺀 "HHMMSS"(다음 페이지의 기준시각). 분 경계/시 경계 넘김 처리."""
     try:
         moment = datetime.strptime(hhmmss, "%H%M%S")  # noqa: DTZ007 -- 날짜 없는 시각 산술용
@@ -387,9 +397,9 @@ def _parse_trades(
         trades.append(
             Trade(
                 symbol=symbol,
-                timestamp=_intraday_timestamp(time_text, as_of),
+                timestamp=_parse_intraday_timestamp(time_text, as_of),
                 price=required_decimal(price_text, "stck_prpr"),
-                volume=required_int(row.get("cntg_vol"), "cntg_vol"),
+                quantity=required_int(row.get("cntg_vol"), "cntg_vol"),
                 change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
                 change_percent=_apply_change_sign(
                     required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
@@ -400,7 +410,7 @@ def _parse_trades(
     return trades
 
 
-def _intraday_timestamp(time_text: str, as_of: datetime) -> datetime:
+def _parse_intraday_timestamp(time_text: str, as_of: datetime) -> datetime:
     """당일 체결 시각("HHMMSS")을 KST-aware datetime 으로(날짜는 조회일 ``as_of``)."""
     try:
         moment = datetime.strptime(time_text, "%H%M%S").time()  # noqa: DTZ007 -- 아래에서 KST 결합
@@ -428,26 +438,26 @@ def fetch_investor_flows(transport: Transport, *, symbol: str, market: str) -> l
         flows.append(
             InvestorFlow(
                 symbol=symbol,
-                date=_parse_bar_timestamp(date_text).date(),
+                trading_date=_parse_kst_date(date_text),
                 close=required_decimal(row.get("stck_clpr"), "stck_clpr"),
-                individual=_investor_activity(row, "individual"),
-                foreign=_investor_activity(row, "foreign"),
-                institutional=_investor_activity(row, "institutional"),
+                individual=_parse_investor_activity(row, "individual"),
+                foreign=_parse_investor_activity(row, "foreign"),
+                institutional=_parse_investor_activity(row, "institutional"),
                 raw=row,
             )
         )
     return flows
 
 
-def _investor_activity(row: Mapping[str, Any], investor: str) -> InvestorActivity:
-    p = _INVESTOR_PREFIX[investor]
+def _parse_investor_activity(row: Mapping[str, Any], investor: str) -> InvestorActivity:
+    prefix = _INVESTOR_PREFIX[investor]
     return InvestorActivity(
-        buy_volume=required_int(row.get(f"{p}_shnu_vol"), f"{p}_shnu_vol"),
-        sell_volume=required_int(row.get(f"{p}_seln_vol"), f"{p}_seln_vol"),
-        net_buy_quantity=required_int(row.get(f"{p}_ntby_qty"), f"{p}_ntby_qty"),
-        buy_value=required_decimal(row.get(f"{p}_shnu_tr_pbmn"), f"{p}_shnu_tr_pbmn"),
-        sell_value=required_decimal(row.get(f"{p}_seln_tr_pbmn"), f"{p}_seln_tr_pbmn"),
-        net_buy_value=required_decimal(row.get(f"{p}_ntby_tr_pbmn"), f"{p}_ntby_tr_pbmn"),
+        buy_volume=required_int(row.get(f"{prefix}_shnu_vol"), f"{prefix}_shnu_vol"),
+        sell_volume=required_int(row.get(f"{prefix}_seln_vol"), f"{prefix}_seln_vol"),
+        net_buy_volume=required_int(row.get(f"{prefix}_ntby_qty"), f"{prefix}_ntby_qty"),
+        buy_value=required_decimal(row.get(f"{prefix}_shnu_tr_pbmn"), f"{prefix}_shnu_tr_pbmn"),
+        sell_value=required_decimal(row.get(f"{prefix}_seln_tr_pbmn"), f"{prefix}_seln_tr_pbmn"),
+        net_buy_value=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
     )
 
 
@@ -466,13 +476,13 @@ def fetch_broker_activity(
         raise _missing_block_error("output", resp)
     return BrokerActivitySummary(
         symbol=symbol,
-        sellers=_broker_side(output, "seln"),
-        buyers=_broker_side(output, "shnu"),
+        sellers=_parse_broker_side(output, "seln"),
+        buyers=_parse_broker_side(output, "shnu"),
         raw=output,
     )
 
 
-def _broker_side(output: Mapping[str, Any], side: str) -> tuple[BrokerActivity, ...]:
+def _parse_broker_side(output: Mapping[str, Any], side: str) -> tuple[BrokerActivity, ...]:
     """한 방향(매도 seln / 매수 shnu)의 상위 회원사. 이름 빈 칸은 미기재라 건너뛴다."""
     brokers: list[BrokerActivity] = []
     for i in range(1, _BROKER_TOP_N + 1):
@@ -483,7 +493,7 @@ def _broker_side(output: Mapping[str, Any], side: str) -> tuple[BrokerActivity, 
             BrokerActivity(
                 member_name=name,
                 member_number=str(output.get(f"{side}_mbcr_no{i}", "")).strip(),
-                share_percent=required_decimal(
+                volume_share_percent=required_decimal(
                     output.get(f"{side}_mbcr_rlim{i}"), f"{side}_mbcr_rlim{i}"
                 ),
                 quantity_change=required_int(
@@ -506,6 +516,12 @@ def fetch_after_hours_quote(transport: Transport, *, symbol: str, market: str) -
     output = resp.body.get("output")
     if not isinstance(output, Mapping):
         raise _missing_block_error("output", resp)
+    return _parse_after_hours_quote(output, symbol=symbol, as_of=datetime.now(_KST))
+
+
+def _parse_after_hours_quote(
+    output: Mapping[str, Any], *, symbol: str, as_of: datetime
+) -> AfterHoursQuote:
     change_size = optional_decimal(
         output.get("ovtm_untp_antc_cntg_vrss"), "ovtm_untp_antc_cntg_vrss"
     )
@@ -521,7 +537,7 @@ def fetch_after_hours_quote(transport: Transport, *, symbol: str, market: str) -
         expected_quantity=optional_int(output.get("ovtm_untp_antc_cnqn"), "ovtm_untp_antc_cnqn"),
         change=None if change_size is None else _apply_change_sign(change_size, sign),
         change_percent=None if change_rate is None else _apply_change_sign(change_rate, sign),
-        as_of=datetime.now(_KST),
+        as_of=as_of,
         raw=output,
     )
 

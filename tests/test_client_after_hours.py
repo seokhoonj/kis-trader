@@ -59,6 +59,7 @@ def test_after_hours_quote_maps_fields():
     assert quote.change_percent == Decimal("0.07")
     assert fake.calls[0]["path"] == _PATH
     assert fake.calls[0]["tr_id"] == "FHPST02300000"
+    assert fake.calls[0]["params"] == {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": "005930"}
 
 
 def test_after_hours_quote_restores_down_sign():
@@ -72,9 +73,29 @@ def test_after_hours_quote_empty_fields_become_none():
     empty = {k: "" for k in _output()}
     quote = _client(FakeTransport(response=_resp(empty))).ticker("005930").after_hours_quote()
     assert quote.bid is None
+    assert quote.ask is None
     assert quote.expected_price is None
     assert quote.expected_quantity is None
     assert quote.change is None                            # 세션 밖 -> None
+    assert quote.change_percent is None
+
+
+def test_after_hours_quote_maps_partial_payload():
+    # 일부만 채워진 경우 필드별로 독립 파싱되는지: bid/수량/change 만 존재.
+    partial = _output(askp="", ovtm_untp_antc_cnpr="", ovtm_untp_antc_cntg_ctrt="")
+    quote = _client(FakeTransport(response=_resp(partial))).ticker("005930").after_hours_quote()
+    assert quote.bid == Decimal(71400)
+    assert quote.ask is None
+    assert quote.expected_price is None
+    assert quote.expected_quantity == 1200
+    assert quote.change == Decimal(50)
+    assert quote.change_percent is None
+
+
+def test_after_hours_quote_missing_output_block_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KisError):
+        _client(fake).ticker("005930").after_hours_quote()
 
 
 def test_after_hours_quote_bad_value_fails_closed():

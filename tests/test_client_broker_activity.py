@@ -60,12 +60,14 @@ def test_broker_activity_maps_sellers_and_buyers():
     assert len(summary.buyers) == 1
     top_seller = summary.sellers[0]
     assert top_seller.member_name == "미래에셋"
-    assert top_seller.share_percent == Decimal("12.5")
+    assert top_seller.member_number == "0034"
+    assert top_seller.volume_share_percent == Decimal("12.5")
     assert top_seller.quantity_change == -1000            # 증감 음수
     assert top_seller.is_foreign is False
     assert summary.sellers[1].is_foreign is True          # 외국계(Y)
     assert fake.calls[0]["path"] == _MEMBER_PATH
     assert fake.calls[0]["tr_id"] == "FHKST01010600"
+    assert fake.calls[0]["params"] == {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": "005930"}
 
 
 def test_broker_activity_missing_output_fails_closed():

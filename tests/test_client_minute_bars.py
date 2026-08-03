@@ -57,7 +57,9 @@ def test_minute_bars_paginate_to_open_ascending():
     assert len(fake.calls) >= 2                                    # 3건/page -> 최소 3페이지로 9건
     assert fake.calls[0]["path"] == _MINUTE_PATH
     assert fake.calls[0]["tr_id"] == "FHKST03010200"
-    assert fake.calls[0]["params"]["FID_INPUT_HOUR_1"] == "153000"  # 최신부터
+    assert fake.calls[0]["params"]["FID_INPUT_HOUR_1"] == "235959"  # 미래시각=현재로 클램프 -> 최신부터
+    # 2페이지째 기준시각 = 1페이지 최소시각(0906)에서 1분 전(0905)
+    assert fake.calls[1]["params"]["FID_INPUT_HOUR_1"] == "090500"
 
 
 def test_minute_bar_maps_close_and_volume():
@@ -102,3 +104,61 @@ def test_minute_bars_missing_block_fails_closed():
 
     with pytest.raises(KisError):
         _client(Bad()).ticker("005930").bars(interval="1m")
+
+
+class _StaticTransport:
+    """anchor 와 무관하게 매번 같은 output2 를 돌려주는 가짜 전송(종료조건 격리 검증용)."""
+
+    def __init__(self, rows, *, rt_cd="0"):
+        self.rows = rows
+        self.rt_cd = rt_cd
+        self.calls: list[dict] = []
+
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
+        self.calls.append({"params": params})
+        return RawResponse(rt_cd=self.rt_cd, msg_cd="X", msg1="ok", body={"output2": self.rows})
+
+
+def test_minute_bars_raise_when_page_cap_reached_before_session_open():
+    # 매 페이지 anchor 시각 자체를 새 봉으로 돌려주면 개장까지 못 미쳐 상한(60p)에서 fail-closed.
+    class AnchorEcho:
+        def __init__(self):
+            self.calls: list[dict] = []
+
+        def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
+            self.calls.append({"params": params})
+            hh = params["FID_INPUT_HOUR_1"]
+            return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output2": [_bar(hh)]})
+
+    fake = AnchorEcho()
+    with pytest.raises(KisError):
+        _client(fake).ticker("005930").bars(interval="1m")
+    assert len(fake.calls) == 60                           # _MAX_MINUTE_PAGES 만큼 돌고 중단
+
+
+def test_minute_bars_error_response_fails_closed():
+    fake = _StaticTransport([], rt_cd="1")                 # 비성공 응답을 빈 페이지로 오인 금지
+    with pytest.raises(KisError):
+        _client(fake).ticker("005930").bars(interval="1m")
+
+
+def test_minute_bars_anchor_rolls_over_hour_boundary():
+    # 1페이지 최소=100000 -> 2페이지 anchor 는 정시경계를 넘겨 095900 이어야 한다(1분 전).
+    fake = FakeTransport({t: _bar(t) for t in ("100000", "100100", "100200")})
+    _client(fake).ticker("005930").bars(interval="1m")
+    assert fake.calls[0]["params"]["FID_INPUT_HOUR_1"] == "235959"
+    assert fake.calls[1]["params"]["FID_INPUT_HOUR_1"] == "095900"
+
+
+def test_minute_bars_stop_when_next_page_has_no_fresh_bars():
+    fake = _StaticTransport([_bar("091000")])              # 개장 이후 같은 봉만 반복
+    bars = _client(fake).ticker("005930").bars(interval="1m")
+    assert len(fake.calls) == 2                            # 2페이지째 새 봉 없음 -> 중단(무한루프 방지)
+    assert len(bars) == 1                                  # 중복 제거
+
+
+def test_minute_bars_skip_empty_rows():
+    fake = _StaticTransport([_bar("090000"), {"stck_bsop_date": "", "stck_cntg_hour": "",
+                                              "stck_prpr": ""}])
+    bars = _client(fake).ticker("005930").bars(interval="1m")
+    assert len(bars) == 1                                  # 빈 행 skip, 090000 도달로 종료
