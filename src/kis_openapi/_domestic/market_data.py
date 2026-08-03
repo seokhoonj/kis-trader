@@ -21,6 +21,7 @@ from ..bar import Bar, Interval
 from ..errors import KisError, KisUsageError
 from ..order_book import OrderBook, PriceLevel
 from ..quote import Quote
+from ..trade import Trade
 from ..transport import RawResponse, Transport
 
 _KST = timezone(timedelta(hours=9))
@@ -43,6 +44,9 @@ _MAX_BAR_PAGES = 200
 _ORDER_BOOK_PATH = "/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn"
 _ORDER_BOOK_TR = "FHKST01010200"
 _DEPTH = 10
+
+_TRADES_PATH = "/uapi/domestic-stock/v1/quotations/inquire-ccnl"
+_TRADES_TR = "FHKST01010300"
 
 
 # --- 현재가 ----------------------------------------------------------------
@@ -240,6 +244,55 @@ def _price_levels(
         quantity = required_int(output1.get(f"{quantity_key}{step}"), f"{quantity_key}{step}")
         levels.append(PriceLevel(price=price, quantity=quantity))
     return tuple(levels)
+
+
+# --- 체결(time & sales) ----------------------------------------------------
+def fetch_trades(transport: Transport, *, symbol: str, market: str) -> list[Trade]:
+    """한 종목의 최근 체결 목록(최신순). 시장 구분은 심볼의 보드로 정해진다."""
+    params = {"FID_COND_MRKT_DIV_CODE": _market_div(market), "FID_INPUT_ISCD": symbol}
+    resp = transport.request(
+        method="GET", path=_TRADES_PATH, tr_id=_TRADES_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):  # 성공 응답인데 체결 배열 아님 -> fail-closed
+        raise _missing_block_error("output", resp)
+    return _parse_trades(rows, symbol=symbol, as_of=datetime.now(_KST))
+
+
+def _parse_trades(
+    rows: Sequence[Mapping[str, Any]], *, symbol: str, as_of: datetime
+) -> list[Trade]:
+    trades: list[Trade] = []
+    for row in rows:
+        time_text = str(row.get("stck_cntg_hour", "")).strip()
+        price_text = str(row.get("stck_prpr", "")).strip()
+        if not time_text or not price_text:  # 빈 행 건너뜀
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        trades.append(
+            Trade(
+                symbol=symbol,
+                timestamp=_intraday_timestamp(time_text, as_of),
+                price=required_decimal(price_text, "stck_prpr"),
+                volume=required_int(row.get("cntg_vol"), "cntg_vol"),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                raw=row,
+            )
+        )
+    return trades
+
+
+def _intraday_timestamp(time_text: str, as_of: datetime) -> datetime:
+    """당일 체결 시각("HHMMSS")을 KST-aware datetime 으로(날짜는 조회일 ``as_of``)."""
+    try:
+        moment = datetime.strptime(time_text, "%H%M%S").time()  # noqa: DTZ007 -- 아래에서 KST 결합
+    except ValueError as err:
+        raise KisError(f"체결 시각(stck_cntg_hour) 파싱 실패: {time_text!r}") from err
+    return datetime.combine(as_of.date(), moment, tzinfo=_KST)
 
 
 # --- 공용 ------------------------------------------------------------------

@@ -21,6 +21,7 @@ from .report import ExecutionReport, OrderStatus
 from .risk import RiskLimits
 from .store import OrderStore
 from .ticker import Ticker
+from .trade import Trade
 
 __version__ = "0.0.0"
 
@@ -42,4 +43,5 @@ __all__ = [
     "RiskLimits",
     "SellableQuantity",
     "Ticker",
+    "Trade",
 ]

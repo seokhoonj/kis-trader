@@ -21,6 +21,7 @@ from .order_book import OrderBook
 from .orderable import BuyableAmount, SellableQuantity
 from .quote import Quote
 from .report import ExecutionReport
+from .trade import Trade
 
 if TYPE_CHECKING:
     from .client import KisClient
@@ -66,6 +67,12 @@ class Ticker:
     def order_book(self) -> OrderBook:
         """10단계 호가창 스냅샷."""
         return market_data.fetch_order_book(
+            self._client.transport, symbol=self.symbol, market=self.market
+        )
+
+    def trades(self) -> list[Trade]:
+        """최근 체결 목록(time & sales; 최신순)."""
+        return market_data.fetch_trades(
             self._client.transport, symbol=self.symbol, market=self.market
         )
 
