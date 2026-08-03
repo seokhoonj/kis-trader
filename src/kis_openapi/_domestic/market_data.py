@@ -18,6 +18,7 @@ from typing import Any
 
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
 from ..bar import Bar, Interval
+from ..broker import BrokerActivity, BrokerActivitySummary
 from ..errors import KisError, KisUsageError
 from ..investor import InvestorActivity, InvestorFlow
 from ..order_book import OrderBook, PriceLevel
@@ -60,6 +61,10 @@ _INVESTOR_PATH = "/uapi/domestic-stock/v1/quotations/inquire-investor"
 _INVESTOR_TR = "FHKST01010900"
 #: 투자자 주체 -> KIS 필드 접두어(개인/외국인/기관).
 _INVESTOR_PREFIX = {"individual": "prsn", "foreign": "frgn", "institutional": "orgn"}
+
+_MEMBER_PATH = "/uapi/domestic-stock/v1/quotations/inquire-member"
+_MEMBER_TR = "FHKST01010600"
+_BROKER_TOP_N = 5           # KIS 회원사 상위 제공 개수(매도/매수 각각)
 
 
 # --- 현재가 ----------------------------------------------------------------
@@ -440,6 +445,50 @@ def _investor_activity(row: Mapping[str, Any], investor: str) -> InvestorActivit
         sell_value=required_decimal(row.get(f"{p}_seln_tr_pbmn"), f"{p}_seln_tr_pbmn"),
         net_buy_value=required_decimal(row.get(f"{p}_ntby_tr_pbmn"), f"{p}_ntby_tr_pbmn"),
     )
+
+
+# --- 회원사(증권사) 매매 ---------------------------------------------------
+def fetch_broker_activity(
+    transport: Transport, *, symbol: str, market: str
+) -> BrokerActivitySummary:
+    """한 종목의 매도/매수 상위 회원사(증권사) 매매 비중."""
+    params = {"FID_COND_MRKT_DIV_CODE": _market_div(market), "FID_INPUT_ISCD": symbol}
+    resp = transport.request(
+        method="GET", path=_MEMBER_PATH, tr_id=_MEMBER_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise _missing_block_error("output", resp)
+    return BrokerActivitySummary(
+        symbol=symbol,
+        sellers=_broker_side(output, "seln"),
+        buyers=_broker_side(output, "shnu"),
+        raw=output,
+    )
+
+
+def _broker_side(output: Mapping[str, Any], side: str) -> tuple[BrokerActivity, ...]:
+    """한 방향(매도 seln / 매수 shnu)의 상위 회원사. 이름 빈 칸은 미기재라 건너뛴다."""
+    brokers: list[BrokerActivity] = []
+    for i in range(1, _BROKER_TOP_N + 1):
+        name = str(output.get(f"{side}_mbcr_name{i}", "")).strip()
+        if not name:  # 채워지지 않은 순위 -- skip
+            continue
+        brokers.append(
+            BrokerActivity(
+                member_name=name,
+                member_number=str(output.get(f"{side}_mbcr_no{i}", "")).strip(),
+                share_percent=required_decimal(
+                    output.get(f"{side}_mbcr_rlim{i}"), f"{side}_mbcr_rlim{i}"
+                ),
+                quantity_change=required_int(
+                    output.get(f"{side}_qty_icdc{i}"), f"{side}_qty_icdc{i}"
+                ),
+                is_foreign=str(output.get(f"{side}_mbcr_glob_yn_{i}", "")).strip().upper() == "Y",
+            )
+        )
+    return tuple(brokers)
 
 
 # --- 공용 ------------------------------------------------------------------

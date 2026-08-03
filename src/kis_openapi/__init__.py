@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
+from .broker import BrokerActivity, BrokerActivitySummary
 from .client import KisClient
 from .investor import InvestorActivity, InvestorFlow
 from .order import Order
@@ -29,6 +30,8 @@ __version__ = "0.0.0"
 __all__ = [
     "Balance",
     "Bar",
+    "BrokerActivity",
+    "BrokerActivitySummary",
     "BuyableAmount",
     "ExecutionReport",
     "Interval",

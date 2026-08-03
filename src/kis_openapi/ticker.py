@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from ._domestic import account as account_api
 from ._domestic import market_data
 from .bar import Bar, Interval
+from .broker import BrokerActivitySummary
 from .instrument import DomesticBoard, resolve_market
 from .investor import InvestorFlow
 from .order import Order, Side, TimeInForce
@@ -82,6 +83,12 @@ class Ticker:
     def investor_flows(self) -> list[InvestorFlow]:
         """일자별 투자자(개인/외국인/기관) 매매동향(최신순)."""
         return market_data.fetch_investor_flows(
+            self._client.transport, symbol=self.symbol, market=self.market
+        )
+
+    def broker_activity(self) -> BrokerActivitySummary:
+        """매도/매수 상위 회원사(증권사) 매매 비중."""
+        return market_data.fetch_broker_activity(
             self._client.transport, symbol=self.symbol, market=self.market
         )
 
