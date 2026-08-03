@@ -19,6 +19,7 @@ from typing import Any
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
 from ..bar import Bar, Interval
 from ..errors import KisError, KisUsageError
+from ..investor import InvestorActivity, InvestorFlow
 from ..order_book import OrderBook, PriceLevel
 from ..quote import Quote
 from ..trade import Trade
@@ -47,6 +48,11 @@ _DEPTH = 10
 
 _TRADES_PATH = "/uapi/domestic-stock/v1/quotations/inquire-ccnl"
 _TRADES_TR = "FHKST01010300"
+
+_INVESTOR_PATH = "/uapi/domestic-stock/v1/quotations/inquire-investor"
+_INVESTOR_TR = "FHKST01010900"
+#: 투자자 주체 -> KIS 필드 접두어(개인/외국인/기관).
+_INVESTOR_PREFIX = {"individual": "prsn", "foreign": "frgn", "institutional": "orgn"}
 
 
 # --- 현재가 ----------------------------------------------------------------
@@ -293,6 +299,48 @@ def _intraday_timestamp(time_text: str, as_of: datetime) -> datetime:
     except ValueError as err:
         raise KisError(f"체결 시각(stck_cntg_hour) 파싱 실패: {time_text!r}") from err
     return datetime.combine(as_of.date(), moment, tzinfo=_KST)
+
+
+# --- 투자자 수급 -----------------------------------------------------------
+def fetch_investor_flows(transport: Transport, *, symbol: str, market: str) -> list[InvestorFlow]:
+    """한 종목의 일자별 투자자(개인/외국인/기관) 매매(최신순)."""
+    params = {"FID_COND_MRKT_DIV_CODE": _market_div(market), "FID_INPUT_ISCD": symbol}
+    resp = transport.request(
+        method="GET", path=_INVESTOR_PATH, tr_id=_INVESTOR_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):  # 성공 응답인데 배열 아님 -> fail-closed
+        raise _missing_block_error("output", resp)
+    flows: list[InvestorFlow] = []
+    for row in rows:
+        date_text = str(row.get("stck_bsop_date", "")).strip()
+        if not date_text:  # 날짜 없는 빈 행 skip
+            continue
+        flows.append(
+            InvestorFlow(
+                symbol=symbol,
+                date=_parse_bar_timestamp(date_text).date(),
+                close=required_decimal(row.get("stck_clpr"), "stck_clpr"),
+                individual=_investor_activity(row, "individual"),
+                foreign=_investor_activity(row, "foreign"),
+                institutional=_investor_activity(row, "institutional"),
+                raw=row,
+            )
+        )
+    return flows
+
+
+def _investor_activity(row: Mapping[str, Any], investor: str) -> InvestorActivity:
+    p = _INVESTOR_PREFIX[investor]
+    return InvestorActivity(
+        buy_volume=required_int(row.get(f"{p}_shnu_vol"), f"{p}_shnu_vol"),
+        sell_volume=required_int(row.get(f"{p}_seln_vol"), f"{p}_seln_vol"),
+        net_buy_quantity=required_int(row.get(f"{p}_ntby_qty"), f"{p}_ntby_qty"),
+        buy_value=required_decimal(row.get(f"{p}_shnu_tr_pbmn"), f"{p}_shnu_tr_pbmn"),
+        sell_value=required_decimal(row.get(f"{p}_seln_tr_pbmn"), f"{p}_seln_tr_pbmn"),
+        net_buy_value=required_decimal(row.get(f"{p}_ntby_tr_pbmn"), f"{p}_ntby_tr_pbmn"),
+    )
 
 
 # --- 공용 ------------------------------------------------------------------

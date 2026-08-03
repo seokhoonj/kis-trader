@@ -16,6 +16,7 @@ from ._domestic import account as account_api
 from ._domestic import market_data
 from .bar import Bar, Interval
 from .instrument import DomesticBoard, resolve_market
+from .investor import InvestorFlow
 from .order import Order, Side, TimeInForce
 from .order_book import OrderBook
 from .orderable import BuyableAmount, SellableQuantity
@@ -73,6 +74,12 @@ class Ticker:
     def trades(self) -> list[Trade]:
         """최근 체결 목록(time & sales; 최신순)."""
         return market_data.fetch_trades(
+            self._client.transport, symbol=self.symbol, market=self.market
+        )
+
+    def investor_flows(self) -> list[InvestorFlow]:
+        """일자별 투자자(개인/외국인/기관) 매매동향(최신순)."""
+        return market_data.fetch_investor_flows(
             self._client.transport, symbol=self.symbol, market=self.market
         )
 
