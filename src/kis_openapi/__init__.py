@@ -18,6 +18,7 @@ from .order_book import OrderBook, PriceLevel
 from .orderable import BuyableAmount, SellableQuantity
 from .quote import Quote
 from .report import ExecutionReport, OrderStatus
+from .risk import RiskLimits
 from .store import OrderStore
 from .ticker import Ticker
 
@@ -38,6 +39,7 @@ __all__ = [
     "Position",
     "PriceLevel",
     "Quote",
+    "RiskLimits",
     "SellableQuantity",
     "Ticker",
 ]

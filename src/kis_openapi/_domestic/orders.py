@@ -37,10 +37,13 @@ from ..errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
+from ..instrument import resolve_market
 from ..order import Order, format_wire_decimal
 from ..report import ExecutionReport, OrderStatus
+from ..risk import RiskLimits
 from ..store import ClaimOutcome, OrderStore
 from ..transport import Environment, Transport, TransportTimeout
+from . import market_data
 
 _KST = timezone(timedelta(hours=9))
 
@@ -67,8 +70,14 @@ _SIDE_CODE = {"buy": "02", "sell": "01"}
 def place(
     transport: Transport, store: OrderStore, order: Order, *,
     cano: str, product_code: str, environment: Environment, orderable: bool = True,
+    risk: RiskLimits | None = None,
 ) -> ExecutionReport:
-    """주문을 안전 규칙(모듈 docstring 6단계)에 따라 전송한다."""
+    """주문을 안전 규칙(모듈 docstring 6단계)에 따라 전송한다.
+
+    ``risk`` 를 주면 와이어 전에 사전 리스크 한도를 점검한다. 계좌 가드/수량 정수/리스크 게이트는
+    모두 :meth:`OrderStore.try_claim` **전**에 돈다 -- 거부되면 ``client_order_id`` 를 소비하지도
+    와이어에 닿지도 않는다.
+    """
     client_order_id = order.client_order_id
     fingerprint = order.fingerprint
 
@@ -76,6 +85,13 @@ def place(
         raise AccountNotOrderable(
             "이 계좌는 API 주문이 불가하다(퇴직연금 IRP/DC 등 조회전용). 일반/연금저축 계좌를 쓰라."
         )
+    # 국내주식은 주(株) 단위 정수 수량만 -- 소수 수량은 fat-finger(예: 10.5). 와이어 전에 막는다.
+    if order.quantity != order.quantity.to_integral_value():
+        raise KisUsageError(f"국내주식 주문 수량은 정수여야 한다(주 단위): {order.quantity}")
+    # 사전 리스크 한도(opt-in). 참조가가 필요하면 현재가를 조회한다 -- 조회 실패는 fail-closed
+    # (한도 확인 불가 -> 주문 중단; 예외가 그대로 올라가 claim 전에 멈춘다).
+    if risk is not None:
+        _run_pre_trade_risk(transport, order, risk)
     # 와이어 변환을 먼저 -- 미구현/부적합이면 claim 전에 중단(stuck in-flight 방지).
     method, path, tr_id, body = _make_order_cash_request(order, cano, product_code, environment)
 
@@ -181,13 +197,26 @@ def reconcile(
     return report
 
 
+# --- 사전 리스크 한도 ------------------------------------------------------
+def _run_pre_trade_risk(transport: Transport, order: Order, risk: RiskLimits) -> None:
+    """리스크 한도를 점검한다. 참조가(현재가)가 필요하면 시세를 조회해 넘긴다 -- 조회 실패는
+    잡지 않고 그대로 올린다(fail-closed: 한도를 확인 못 하면 주문을 보내지 않는다)."""
+    reference_price = None
+    if risk._needs_reference_price(order):
+        quote = market_data.fetch_quote(
+            transport, symbol=order.symbol, market=resolve_market(order.symbol)
+        )
+        reference_price = quote.last
+    risk.check(order, reference_price=reference_price)
+
+
 # --- 와이어 매핑(국내 현금주문) --------------------------------------------
 def _make_order_cash_request(
     order: Order, cano: str, product_code: str, environment: Environment
 ) -> tuple[str, str, str, dict[str, str]]:
     if order.exchange not in _DOMESTIC_MICS:
         raise NotImplementedError(
-            f"해외주문은 아직 미구현이다(exchange={order.exchange!r}). 다음 슬라이스."
+            f"해외주문은 아직 지원하지 않는다(exchange={order.exchange!r})."
         )
     if order.order_type not in _ORD_DVSN:
         raise NotImplementedError(

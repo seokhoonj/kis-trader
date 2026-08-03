@@ -1,7 +1,7 @@
 """심볼 -> 시장 판별.
 
 종목 핸들(:class:`~kis_openapi.ticker.Ticker`)이 심볼만으로 어느 시장을 부를지 정한다.
-6자리 숫자 심볼은 국내(KRX 보드), 그 밖(영문 등)은 해외다 -- 해외는 후속 슬라이스라 v1은
+6자리 숫자 심볼은 국내(KRX 보드)로 본다. 그 밖(영문 등 해외 심볼)은 아직 지원하지 않아
 명시적으로 거부한다. 국내 다른 보드(NXT/통합)를 쓰려면 ``market=`` 로 지정한다.
 """
 
@@ -32,5 +32,5 @@ def resolve_market(symbol: str, *, market: DomesticBoard | None = None) -> Domes
         return "KRX"
     raise KisUsageError(
         f"시장을 판별할 수 없는 심볼: {symbol!r} -- 국내는 6자리 숫자 코드다. "
-        f"해외는 아직 미지원(후속 슬라이스)."
+        f"해외는 아직 미지원이다."
     )

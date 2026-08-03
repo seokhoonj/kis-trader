@@ -62,6 +62,15 @@ class OrderError(KisError):
     """주문 관련 실패의 뿌리."""
 
 
+class PreTradeRiskError(OrderError):
+    """주문이 사전 리스크 한도(:class:`~kis_openapi.risk.RiskLimits`)를 어겨 전송 전에 막혔다.
+
+    과대 수량/금액, 현재가 대비 % 이탈(collar), 호가단위 위반 같은 fat-finger(오주문)를
+    와이어에 닿기 전에 잡는다. 접수 거부(:class:`OrderRejectedError`)와 달리 주문은 아예
+    전송되지 않았다 -- 한도를 고쳐 다시 주문하면 된다.
+    """
+
+
 class OrderRejectedError(OrderError):
     """거래소가 주문을 거부했다(정상 응답이되 ``rt_cd`` != 0).
 

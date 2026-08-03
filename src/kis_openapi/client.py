@@ -1,8 +1,8 @@
 """세션 루트 -- :class:`KisClient`.
 
 인증(앱키/시크릿)과 기본 계좌를 쥔 세션이다. 모든 행위가 여기서 시작한다:
-``kis.ticker("005930")`` 로 종목 핸들을, ``kis.balance()`` 등으로 계좌 조회를(후속 슬라이스).
-KIS 토큰은 앱키 단위(24h, 재발급 제한)라 세션이 캐시해 재사용한다(실제 HTTP 배선은 후속).
+``kis.ticker("005930")`` 로 종목 핸들을, ``kis.balance()`` 등으로 계좌를 조회한다.
+KIS 토큰은 앱키 단위(24h, 재발급 제한)라 세션이 캐시해 재사용한다.
 
 시세만 볼 거면 ``account`` 없이도 되지만, 주문/잔고엔 계좌 식별정보가 필요하다.
 """
@@ -18,13 +18,14 @@ from .errors import KisUsageError
 from .instrument import DomesticBoard
 from .order import Order
 from .report import ExecutionReport
+from .risk import RiskLimits
 from .store import OrderStore
 from .ticker import Ticker
 from .transport import Transport
 
 
 class KisClient:
-    """KIS Open API 세션. ``transport`` 는 실제 HTTP 세션(후속) 또는 테스트용 주입 전송이다."""
+    """KIS Open API 세션. ``transport`` 는 주입된 전송 구현(실제 HTTP 또는 테스트용 가짜)이다."""
 
     def __init__(
         self,
@@ -36,6 +37,7 @@ class KisClient:
         transport: Transport | None = None,
         store: OrderStore | None = None,
         orderable: bool = True,
+        risk: RiskLimits | None = None,
     ) -> None:
         """세션을 연다.
 
@@ -43,14 +45,15 @@ class KisClient:
         유지 안 됨). 실거래는 ``store=OrderStore(path=...)`` 로 영속 저장소를 주는 것을 강력히
         권장한다(재시작 후에도 이중체결 장벽 유지). ``orderable=False`` 면 모든 주문을 와이어
         전에 :class:`~kis_openapi.errors.AccountNotOrderable` 로 막는다(조회전용 계좌 보호).
+        ``risk`` 를 주면 모든 buy/sell 이 전송 전에 그 사전 리스크 한도
+        (:class:`~kis_openapi.risk.RiskLimits`)를 통과해야 한다(fat-finger 방지).
         """
         self._app_key = app_key
         self._app_secret = app_secret
         self._environment = environment
         if transport is None:
             raise NotImplementedError(
-                "실제 HTTP transport 는 아직 미구현이다 -- 지금은 transport= 로 주입하라"
-                "(추후 앱키/시크릿으로 자동 생성)."
+                "실제 HTTP transport 는 아직 미구현이다 -- transport= 로 전송 구현을 주입하라."
             )
         self._transport = transport
         self._cano, self._product_code = _split_account(account)
@@ -58,6 +61,7 @@ class KisClient:
         # store=OrderStore(path=...) 로 영속 저장소를 주입하라(권장, 이중체결 장벽 지속).
         self._store = store if store is not None else OrderStore()
         self._orderable = orderable
+        self._risk = risk
 
     @property
     def transport(self) -> Transport:
@@ -117,7 +121,7 @@ class KisClient:
         return orders_engine.place(
             self._transport, self._store, order,
             cano=cano, product_code=product_code, environment=self._environment,
-            orderable=self._orderable,
+            orderable=self._orderable, risk=self._risk,
         )
 
     def _require_account(self) -> tuple[str, str]:

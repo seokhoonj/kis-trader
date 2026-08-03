@@ -1,8 +1,8 @@
 """기간별 OHLCV 바(DATA) -- :class:`Bar` 와 :type:`Interval`.
 
 한 시간 버킷(일/주/월봉)의 OHLCV. ``Interval`` 은 현재 지원 토큰만 담아 정직하게 유지한다
-(Yahoo 스타일; ``mo``=월). 분봉(``1m``..``1h``)은 전용 시간앵커 페이지네이션이 필요해 후속
-슬라이스에서 ``Interval`` 을 확장하며 추가한다.
+(Yahoo 스타일; ``mo``=월). 분봉(``1m``..``1h``)은 아직 지원하지 않는다(전용 시간앵커
+페이지네이션이 필요).
 """
 
 from __future__ import annotations
@@ -14,7 +14,7 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any, Literal
 
-#: 바 간격 -- 현재 지원분(일/주/월). 분봉은 후속.
+#: 바 간격 -- 일/주/월봉. 분봉은 아직 미지원.
 Interval = Literal["1d", "1wk", "1mo"]
 
 
