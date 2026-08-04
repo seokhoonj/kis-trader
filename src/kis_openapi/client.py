@@ -15,6 +15,7 @@ from ._domestic import account as account_api
 from ._domestic import orders as orders_engine
 from .balance import Balance, Portfolio, Position
 from .errors import KisUsageError
+from .index import Index
 from .instrument import DomesticBoard
 from .order import Order
 from .ranking import RankingQueries
@@ -77,6 +78,11 @@ class KisClient:
     def ticker(self, symbol: str, *, market: DomesticBoard | None = None) -> Ticker:
         """종목 핸들을 만든다. 시장은 심볼로 자동 판별(6자리 숫자 -> 국내 KRX)."""
         return Ticker(self, symbol, market=market)
+
+    def index(self, code: str) -> Index:
+        """지수/업종 핸들을 만든다. ``code`` 는 업종코드(0001 KOSPI 종합, 1001 KOSDAQ 종합,
+        2001 KOSPI200 등)."""
+        return Index(self, code)
 
     @property
     def ranking(self) -> RankingQueries:

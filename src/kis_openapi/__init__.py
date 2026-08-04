@@ -15,6 +15,8 @@ from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
 from .broker import BrokerActivity, BrokerActivitySummary
 from .client import KisClient
+from .index import Index
+from .index_quote import IndexQuote
 from .investor import InvestorActivity, InvestorFlow
 from .order import Order
 from .order_book import OrderBook, PriceLevel
@@ -46,6 +48,8 @@ __all__ = [
     "CreditBalanceRanking",
     "DividendRanking",
     "ExecutionReport",
+    "Index",
+    "IndexQuote",
     "Interval",
     "InvestorActivity",
     "InvestorFlow",
