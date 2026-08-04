@@ -170,18 +170,14 @@ class KisClient:
         :class:`~kis_openapi.errors.OrderTimeoutError`(in-flight 유지, 잠시 후 재시도).
         """
         cano, product_code = self._require_account()
-        # 해외 주문의 미확인(in-flight) 재조회는 국내 일별체결조회로는 확인 불가(엉뚱한 미접수
-        # 판정 위험) -- 아직 미구현이라 fail-closed 로 막는다. no-retry 는 유지되므로 재전송은 절대
-        # 없고, 사용자는 KIS 앱/HTS 로 수동 확인하면 된다. (완료 리포트가 있으면 그건 그대로 반환.)
+        # 해외 주문의 미확인(in-flight) 재조회는 국내 일별체결조회가 아니라 해외 체결내역으로 확인해야
+        # 한다(엉뚱한 미접수 판정 방지) -- 지문의 거래소로 국내/해외 경로를 가른다. 완료 리포트가 있으면
+        # 어느 엔진이든 그대로 반환한다.
         fingerprint = self._store.fingerprint_for(client_order_id)
-        if (
-            fingerprint is not None
-            and self._store.report_for(client_order_id) is None
-            and overseas_orders_engine.is_overseas_exchange(fingerprint[-1])
-        ):
-            raise KisUsageError(
-                f"해외 주문 {client_order_id} 의 재조회(reconcile)는 아직 미구현이다 -- 재전송하지 "
-                f"말고(no-retry 유지) KIS 앱/HTS 에서 수동 확인하라."
+        if fingerprint is not None and overseas_orders_engine.is_overseas_exchange(fingerprint[-1]):
+            return overseas_orders_engine.reconcile(
+                self._transport, self._store, client_order_id,
+                cano=cano, product_code=product_code, environment=self._environment,
             )
         return orders_engine.reconcile(
             self._transport, self._store, client_order_id,

@@ -12,12 +12,17 @@ KIS URL/TR-id (원장 대조, sheet '해외주식 주문'):
 
 from __future__ import annotations
 
-from decimal import Decimal
-from typing import TYPE_CHECKING
+from collections.abc import Mapping
+from datetime import datetime, timedelta
+from decimal import Decimal, InvalidOperation
+from typing import TYPE_CHECKING, Any
 
+from .._domestic.market_data import _KST
 from .._wire import format_wire_decimal
-from ..errors import KisUsageError
-from ..transport import Environment
+from ..errors import KisError, KisUsageError, OrderTimeoutError
+from ..report import ExecutionReport, OrderStatus
+from ..store import OrderStore
+from ..transport import Environment, Transport, TransportTimeout
 
 if TYPE_CHECKING:
     from ..order import Order
@@ -115,3 +120,159 @@ def make_order_request(
         limit_price=order.limit_price, exchange=order.exchange,
         cano=cano, product_code=product_code, environment=environment,
     )
+
+
+# --- 재조회(해외 주문체결내역) ---------------------------------------------
+_CCNL_PATH = "/uapi/overseas-stock/v1/trading/inquire-ccnl"
+_CCNL_TR = {"real": "TTTS3035R", "demo": "VTTS3035R"}
+#: 해외 체결내역 매매구분코드. 매수=02, 매도=01(도메스틱과 다르다).
+_SIDE_CODE = {"buy": "02", "sell": "01"}
+_MAX_CCNL_PAGES = 100
+#: 재조회 날짜창(일). 해외는 현지시각 기준이라 KST-오늘과 ±1일 어긋날 수 있어 여유를 둔다.
+_LOOKBACK_DAYS = 2
+
+
+def reconcile(
+    transport: Transport, store: OrderStore, client_order_id: str, *,
+    cano: str, product_code: str, environment: Environment,
+) -> ExecutionReport | None:
+    """미확인 해외 주문의 실제 상태를 체결내역에서 재조회한다 -- **보수적**(도메스틱과 동형).
+
+    완료 리포트가 있으면 반환. in-flight 면 체결내역을 지문으로 스캔해 정확히 1건이면 확정, 0건이면
+    ``None``(재전송 금지 유지), 2건 이상이면 :class:`KisError`. **자동 해제는 절대 하지 않는다.**
+    ODNO 로는 검색이 안 돼(원장) 지문(종목/매매/수량/단가)으로 맞춘다."""
+    prior = store.report_for(client_order_id)
+    if prior is not None:
+        return prior
+    fingerprint = store.fingerprint_for(client_order_id)
+    if fingerprint is None:
+        raise KisUsageError(
+            f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
+        )
+    exchange = fingerprint[-1]
+    try:
+        rows = _fetch_ccnl(
+            transport, symbol=fingerprint[0], exchange=exchange,
+            cano=cano, product_code=product_code, environment=environment,
+        )
+    except TransportTimeout as err:
+        raise OrderTimeoutError(
+            f"해외 재조회(체결내역) 시간초과 -- 주문 {client_order_id} 상태 여전히 불명. "
+            f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
+            client_order_id=client_order_id,
+        ) from err
+    matches = _filter_matching_ccnl_rows(rows, fingerprint)
+    if len(matches) > 1:
+        raise KisError(
+            f"주문 {client_order_id} 의 지문과 일치하는 체결내역이 {len(matches)}건이라 자동 확정 "
+            f"불가하다(KIS가 client_order_id를 돌려주지 않음). 수동 확인이 필요하다."
+        )
+    if not matches:  # 0건: 미접수인지 반영 지연인지 단정 불가 -> in-flight 유지
+        return None
+    report = _ccnl_report(client_order_id, fingerprint, matches[0])
+    store.record(report, fingerprint)
+    return report
+
+
+def _fetch_ccnl(
+    transport: Transport, *, symbol: str, exchange: str,
+    cano: str, product_code: str, environment: Environment,
+) -> list[Mapping[str, Any]]:
+    """해외 체결내역을 연속조회 소진까지 읽어 행을 돌려준다(순수 I/O). 에러 응답은 fail-closed."""
+    order_exchange = _ORDER_EXCHANGE.get(exchange, (exchange, ""))[0]
+    now = datetime.now(_KST)
+    start = f"{now - timedelta(days=_LOOKBACK_DAYS):%Y%m%d}"
+    end = f"{now:%Y%m%d}"
+    rows: list[Mapping[str, Any]] = []
+    ctx_fk, ctx_nk = "", ""
+    for _page in range(_MAX_CCNL_PAGES):
+        params = {
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "PDNO": symbol, "ORD_STRT_DT": start, "ORD_END_DT": end,
+            "SLL_BUY_DVSN": "00", "CCLD_NCCS_DVSN": "00", "OVRS_EXCG_CD": order_exchange,
+            "SORT_SQN": "DS", "ORD_DT": "", "ORD_GNO_BRNO": "", "ODNO": "",
+            "CTX_AREA_NK200": ctx_nk, "CTX_AREA_FK200": ctx_fk,
+        }
+        resp = transport.request(
+            method="GET", path=_CCNL_PATH, tr_id=_CCNL_TR[environment],
+            params=params, idempotent=True,  # 읽기 -- 타임아웃 재시도 안전
+        )
+        if not resp.ok:
+            raise KisError(
+                f"해외 재조회(체결내역) 실패: {resp.msg1}",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        page = resp.body.get("output")
+        rows.extend(page if isinstance(page, list) else [])
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        if not ctx_nk:
+            break
+    else:
+        raise KisError(
+            f"해외 재조회 스캔이 {_MAX_CCNL_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
+            f"-- 부분 스캔으로 확정하지 않는다. 재시도하거나 수동 확인하라."
+        )
+    return rows
+
+
+def _filter_matching_ccnl_rows(
+    rows: list[Mapping[str, Any]], fingerprint: tuple[str, ...]
+) -> list[Mapping[str, Any]]:
+    """체결내역 행 중 요청 지문과 맞는 것만(순수). 종목+매매구분+주문수량, 지정가는 주문단가까지 비교."""
+    symbol, side = fingerprint[0], fingerprint[1]
+    quantity = Decimal(fingerprint[3])
+    limit_price = Decimal(fingerprint[4]) if fingerprint[4] else None
+    want_side = _SIDE_CODE[side]
+    matched = []
+    for row in rows:
+        if str(row.get("pdno", "")) != symbol:
+            continue
+        if str(row.get("sll_buy_dvsn_cd", "")) != want_side:
+            continue
+        if _parse_decimal(row.get("ft_ord_qty")) != quantity:
+            continue
+        if limit_price is not None:  # 지정가는 주문단가가 있고 같아야 한다(없으면 제외, 안전 방향)
+            row_price = row.get("ft_ord_unpr3")
+            if row_price in (None, "") or _parse_decimal(row_price) != limit_price:
+                continue
+        matched.append(row)
+    return matched
+
+
+def _ccnl_report(
+    client_order_id: str, fingerprint: tuple[str, ...], row: Mapping[str, Any]
+) -> ExecutionReport:
+    ordered = _parse_decimal(row.get("ft_ord_qty"))
+    filled = _parse_decimal(row.get("ft_ccld_qty"))
+    rejected = str(row.get("rjct_rson", "")).strip()
+    if rejected and filled == 0:
+        status = OrderStatus.REJECTED
+    elif ordered > 0 and filled >= ordered:
+        status = OrderStatus.FILLED
+    elif filled > 0:
+        status = OrderStatus.PARTIALLY_FILLED
+    else:
+        status = OrderStatus.NEW
+    avg = _parse_decimal(row.get("ft_ccld_unpr3"))
+    return ExecutionReport(
+        client_order_id=client_order_id,
+        order_id=str(row.get("odno")) if row.get("odno") else None,
+        symbol=fingerprint[0],
+        side=fingerprint[1],
+        status=status,
+        filled_quantity=filled,
+        average_price=avg if filled > 0 and avg > 0 else None,
+        submitted_at=datetime.now(_KST),
+        _raw=row,
+    )
+
+
+def _parse_decimal(value: object) -> Decimal:
+    """KIS 문자열 수치 -> Decimal. 공백/None 은 0, 값이 있는데 파싱 실패면 fail-closed(:class:`KisError`)."""
+    if value is None or value == "":
+        return Decimal(0)
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError) as err:
+        raise KisError(f"해외 재조회 응답의 수치 파싱 실패: {value!r}") from err

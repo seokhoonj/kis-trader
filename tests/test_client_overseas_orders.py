@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import threading
+from decimal import Decimal
 
 import pytest
 
@@ -18,18 +19,37 @@ _ORDER = "/uapi/overseas-stock/v1/trading/order"
 
 
 class FakeTransport:
-    def __init__(self, *, response=None, raises=None):
+    def __init__(self, *, response=None, raises=None, on_post=None, on_get=None):
         self.response = response
         self.raises = raises
+        self.on_post = on_post      # 주문(POST) 전용 응답/예외
+        self.on_get = on_get        # 재조회(GET) 전용 응답
         self.calls: list[dict] = []
         self._lock = threading.Lock()
 
     def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
         with self._lock:
             self.calls.append({"method": method, "path": path, "tr_id": tr_id, "body": body})
+        if method == "POST" and self.on_post is not None:
+            outcome = self.on_post
+            if isinstance(outcome, Exception):
+                raise outcome
+            return outcome
+        if method == "GET" and self.on_get is not None:
+            return self.on_get
         if self.raises is not None:
             raise self.raises
         return self.response
+
+
+def _ccnl(rows):
+    return RawResponse(rt_cd="0", msg_cd="0", msg1="정상", body={"output": rows})
+
+
+def _ccnl_row(*, pdno="AAPL", side="02", qty="1", ord_unpr="150.00", ccld_qty="1",
+              ccld_unpr="150.10", odno="0000123456", rjct=""):
+    return {"pdno": pdno, "sll_buy_dvsn_cd": side, "ft_ord_qty": qty, "ft_ord_unpr3": ord_unpr,
+            "ft_ccld_qty": ccld_qty, "ft_ccld_unpr3": ccld_unpr, "odno": odno, "rjct_rson": rjct}
 
 
 def _ack(odno="0000123456"):
@@ -84,13 +104,28 @@ def test_overseas_order_dedup_replays_report():
     assert len(fake.calls) == 1                         # 두 번째는 와이어 미접촉
 
 
-def test_overseas_order_timeout_then_reconcile_gated():
-    client = _client(FakeTransport(raises=TransportTimeout("timeout")))
+def test_overseas_order_timeout_then_reconcile_confirms():
+    # 주문 POST 는 timeout, 재조회 GET 은 지문과 맞는 체결 1건 -> 확정.
+    fake = FakeTransport(on_post=TransportTimeout("timeout"), on_get=_ccnl([_ccnl_row()]))
+    client = _client(fake)
     with pytest.raises(OrderTimeoutError):
         client.ticker("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="to")
-    # 해외 timeout 재조회는 아직 미구현 -> 명확히 거부(재전송 금지 유지, 수동 확인 안내).
-    with pytest.raises(KisUsageError, match="해외 주문.*재조회"):
-        client.reconcile("to")
+    report = client.reconcile("to")                    # 해외 체결내역으로 확정
+    assert report is not None
+    assert report.order_id == "0000123456"
+    assert report.filled_quantity == Decimal(1)
+    assert fake.calls[-1]["path"] == "/uapi/overseas-stock/v1/trading/inquire-ccnl"
+    assert fake.calls[-1]["tr_id"] == "TTTS3035R"
+
+
+def test_overseas_reconcile_zero_matches_stays_none():
+    # 지문과 맞는 체결이 없으면 미접수로 단정하지 않고 None(재전송 금지 유지).
+    fake = FakeTransport(on_post=TransportTimeout("timeout"),
+                         on_get=_ccnl([_ccnl_row(pdno="MSFT")]))
+    client = _client(fake)
+    with pytest.raises(OrderTimeoutError):
+        client.ticker("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="z")
+    assert client.reconcile("z") is None
 
 
 def test_overseas_order_with_risk_session_rejected():
