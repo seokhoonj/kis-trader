@@ -20,11 +20,13 @@ from ._masters import (
     load_overseas_index,
     urlopen_fetch,
 )
+from ._overseas import account as overseas_account
 from .balance import Balance, Portfolio, Position
 from .errors import KisUsageError
 from .index import Index
 from .instrument import DomesticBoard, is_domestic_symbol
 from .order import Order
+from .overseas_items import OverseasPosition
 from .ranking import RankingQueries
 from .report import ExecutionReport
 from .risk import RiskLimits
@@ -138,6 +140,17 @@ class KisClient:
         cano, product_code = self._require_account()
         return account_api.fetch_positions(
             self._transport, cano=cano, product_code=product_code, environment=self._environment
+        )
+
+    def overseas_positions(self, *, market: str) -> list[OverseasPosition]:
+        """해외 보유 종목(거래소 그룹+통화별). ``market`` = ``"US"``/``"HK"``/``"CN_SH"``/``"CN_SZ"``/
+        ``"JP"``/``"VN_HN"``/``"VN_HCM"``. 금액은 종목 통화의 :class:`~kis_openapi.money.Money`.
+
+        국내와 달리 해외는 시장/통화별로 조회하므로 ``market`` 을 지정한다(계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return overseas_account.fetch_positions(
+            self._transport, cano=cano, product_code=product_code,
+            environment=self._environment, market=market,
         )
 
     def portfolio(self) -> Portfolio:
