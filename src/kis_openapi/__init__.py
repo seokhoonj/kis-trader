@@ -24,7 +24,7 @@ from .money import Money
 from .order import Order
 from .order_book import OrderBook, PriceLevel
 from .orderable import BuyableAmount, SellableQuantity
-from .overseas_items import OverseasBalance, OverseasPosition
+from .overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
 from .quote import Quote
 from .ranking import RankingQueries
 from .ranking_items import (
@@ -72,6 +72,7 @@ __all__ = [
     "OrderStatus",
     "OrderStore",
     "OverseasBalance",
+    "OverseasOpenOrder",
     "OverseasPosition",
     "Portfolio",
     "Position",

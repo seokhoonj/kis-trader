@@ -18,13 +18,18 @@ from .._domestic.market_data import _raise_if_error
 from .._wire import required_decimal, required_int
 from ..errors import KisError, KisUsageError
 from ..money import Money
-from ..overseas_items import OverseasBalance, OverseasPosition
+from ..overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
 from ..transport import Environment, Transport
 
 _POSITIONS_PATH = "/uapi/overseas-stock/v1/trading/inquire-balance"
 _POSITIONS_TR = {"real": "TTTS3012R", "demo": "VTTS3012R"}
 #: 잔고 종목배열 연속조회 페이지 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
 _MAX_PAGES = 100
+
+_OPEN_ORDERS_PATH = "/uapi/overseas-stock/v1/trading/inquire-nccs"
+_OPEN_ORDERS_TR = "TTTS3018R"           # 모의투자 미지원(실전만)
+#: 미체결 매매구분코드(원장). 01:매도, 02:매수.
+_SIDE = {"01": "sell", "02": "buy"}
 
 #: 해외 잔고 시장 -> (OVRS_EXCG_CD, TR_CRCY_CD). 원장 코드표. 미국은 NASD(실전=미국전체).
 _MARKETS: dict[str, tuple[str, str]] = {
@@ -79,6 +84,75 @@ def fetch_balance(
         return_percent=required_decimal(summary.get("tot_pftrt"), "tot_pftrt"),
         _raw=summary,
     )
+
+
+def fetch_open_orders(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment, market: str
+) -> list[OverseasOpenOrder]:
+    """해외 미체결 주문 전체(연속조회 소진까지). **모의투자 미지원**(demo면 :class:`KisUsageError`)."""
+    if environment == "demo":
+        raise KisUsageError("해외 미체결내역 조회는 모의투자 미지원이다(실전 계좌만).")
+    try:
+        exchange, currency = _MARKETS[market]
+    except KeyError:
+        raise KisUsageError(
+            f"지원하지 않는 해외 시장: {market!r} ({'/'.join(_MARKETS)})."
+        ) from None
+    rows: list[Mapping[str, Any]] = []
+    ctx_fk, ctx_nk = "", ""
+    for _page in range(_MAX_PAGES):
+        params = {
+            "CANO": cano, "ACNT_PRDT_CD": product_code, "OVRS_EXCG_CD": exchange,
+            "SORT_SQN": "DS", "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
+        }
+        resp = transport.request(
+            method="GET", path=_OPEN_ORDERS_PATH, tr_id=_OPEN_ORDERS_TR,
+            params=params, idempotent=True,
+        )
+        _raise_if_error(resp)
+        page = resp.body.get("output")
+        if not isinstance(page, list):  # 빈 미체결도 배열 -> 부재/비배열은 손상
+            raise KisError(
+                "해외 미체결 응답의 output 이 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        if not ctx_nk:
+            break
+    else:
+        raise KisError(
+            f"해외 미체결 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
+            f"-- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        )
+    return _parse_open_orders(rows, default_currency=currency)
+
+
+def _parse_open_orders(
+    rows: list[Mapping[str, Any]], *, default_currency: str
+) -> list[OverseasOpenOrder]:
+    orders: list[OverseasOpenOrder] = []
+    for row in rows:
+        order_id = str(row.get("odno", "")).strip()
+        if not order_id:  # 빈 행 skip
+            continue
+        currency = str(row.get("tr_crcy_cd", "")).strip() or default_currency
+        orders.append(
+            OverseasOpenOrder(
+                symbol=str(row.get("pdno", "")).strip(),
+                name=str(row.get("prdt_name", "")).strip(),
+                exchange=str(row.get("ovrs_excg_cd", "")).strip(),
+                order_id=order_id,
+                side=_SIDE.get(str(row.get("sll_buy_dvsn_cd", "")).strip(), ""),
+                quantity=required_int(row.get("ft_ord_qty"), "ft_ord_qty"),
+                filled_quantity=required_int(row.get("ft_ccld_qty"), "ft_ccld_qty"),
+                unfilled_quantity=required_int(row.get("nccs_qty"), "nccs_qty"),
+                price=_money(row, "ft_ord_unpr3", currency),
+                _raw=row,
+            )
+        )
+    return orders
 
 
 def _request_page(

@@ -45,6 +45,28 @@ class OverseasPosition:
 
 
 @dataclass(frozen=True, slots=True)
+class OverseasOpenOrder:
+    """해외 미체결 주문 한 건(불변). 브로커 측 미체결 목록이라 우리 ``client_order_id`` 는 없고
+    거래소 주문번호(``order_id``)로 식별한다. ``unfilled_quantity`` 는 아직 체결 안 된 잔량."""
+
+    symbol: str
+    name: str
+    exchange: str                     # 해외거래소코드
+    order_id: str                     # 거래소 주문번호(odno)
+    side: str                         # buy / sell
+    quantity: int                     # 주문수량
+    filled_quantity: int              # 체결수량
+    unfilled_quantity: int            # 미체결 잔량
+    price: Money                      # 주문단가(종목 통화)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class OverseasBalance:
     """해외 계좌 손익 요약(불변). 조회한 거래소 그룹+통화 기준. 금액은 :class:`Money`.
 

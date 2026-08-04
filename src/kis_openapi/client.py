@@ -27,7 +27,7 @@ from .errors import KisUsageError
 from .index import Index
 from .instrument import DomesticBoard, is_domestic_symbol
 from .order import Order
-from .overseas_items import OverseasBalance, OverseasPosition
+from .overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
 from .ranking import RankingQueries
 from .report import ExecutionReport
 from .risk import RiskLimits
@@ -160,6 +160,15 @@ class KisClient:
         별도다."""
         cano, product_code = self._require_account()
         return overseas_account.fetch_balance(
+            self._transport, cano=cano, product_code=product_code,
+            environment=self._environment, market=market,
+        )
+
+    def overseas_open_orders(self, *, market: str) -> list[OverseasOpenOrder]:
+        """해외 미체결(열린) 주문 목록(시장별). 거래소 주문번호·미체결 잔량을 준다. **모의투자
+        미지원**(demo면 :class:`~kis_openapi.errors.KisUsageError`; 계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return overseas_account.fetch_open_orders(
             self._transport, cano=cano, product_code=product_code,
             environment=self._environment, market=market,
         )

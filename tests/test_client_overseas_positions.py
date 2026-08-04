@@ -11,7 +11,13 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KisClient, Money, OverseasBalance, OverseasPosition
+from kis_openapi import (
+    KisClient,
+    Money,
+    OverseasBalance,
+    OverseasOpenOrder,
+    OverseasPosition,
+)
 from kis_openapi.errors import KisError, KisUsageError
 from kis_openapi.transport import RawResponse
 
@@ -156,3 +162,47 @@ def test_overseas_balance_missing_output2_fails_closed():
                                               body={"output1": []}))
     with pytest.raises(KisError):
         _client(fake).overseas_balance(market="US")
+
+
+def _open_order(odno="0000123456", pdno="AAPL", side="02", qty="10", ccld="3", nccs="7",
+                unpr="150.25", excg="NASD", crcy="USD"):
+    return {"odno": odno, "pdno": pdno, "prdt_name": "APPLE", "sll_buy_dvsn_cd": side,
+            "ft_ord_qty": qty, "ft_ccld_qty": ccld, "nccs_qty": nccs, "ft_ord_unpr3": unpr,
+            "ovrs_excg_cd": excg, "tr_crcy_cd": crcy}
+
+
+def _open_resp(rows, *, nk=""):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output": rows, "ctx_area_nk200": nk})
+
+
+def test_overseas_open_orders_maps_fields():
+    fake = FakeTransport(response=_open_resp([_open_order()]))
+    orders = _client(fake).overseas_open_orders(market="US")
+    assert len(orders) == 1
+    o = orders[0]
+    assert isinstance(o, OverseasOpenOrder)
+    assert o.order_id == "0000123456"
+    assert o.symbol == "AAPL"
+    assert o.side == "buy"                             # 02 -> buy
+    assert o.quantity == 10
+    assert o.filled_quantity == 3
+    assert o.unfilled_quantity == 7
+    assert o.price == Money(Decimal("150.25"), "USD")
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/overseas-stock/v1/trading/inquire-nccs"
+    assert call["tr_id"] == "TTTS3018R"
+    assert call["params"]["OVRS_EXCG_CD"] == "NASD"
+
+
+def test_overseas_open_orders_demo_unsupported():
+    fake = FakeTransport(response=_open_resp([]))
+    with pytest.raises(KisUsageError, match="모의투자 미지원"):
+        _client(fake, environment="demo").overseas_open_orders(market="US")
+
+
+def test_overseas_open_orders_paginates():
+    fake = FakeTransport(pages=[_open_resp([_open_order(odno="1")], nk="NEXT"),
+                                _open_resp([_open_order(odno="2")], nk="")])
+    orders = _client(fake).overseas_open_orders(market="US")
+    assert [o.order_id for o in orders] == ["1", "2"]
