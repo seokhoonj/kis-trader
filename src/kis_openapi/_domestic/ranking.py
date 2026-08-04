@@ -28,11 +28,14 @@ KIS URL/TR-id/화면코드/코드표(원장 대조):
 - 수익자산지표: ``GET .../ranking/profit-asset-index`` ``FHPST01730000`` 화면 20173
   (``FID_RANK_SORT_CLS_CODE`` 0:매출이익 1:영업이익 2:경상이익 3:당기순이익 4:자산총계 5:부채총계 6:자본총계).
   이 셋은 회계연도(``FID_INPUT_OPTION_1``)+분기(``FID_INPUT_OPTION_2`` 0:1Q 1:반기 2:3Q 3:결산)를 함께 받는다.
+- 당사매매종목: ``GET .../ranking/traded-by-company`` ``FHPST01860000`` 화면 20186
+  (``FID_RANK_SORT_CLS_CODE`` 0:매도상위 1:매수상위, 기간 ``FID_INPUT_DATE_1``~``FID_INPUT_DATE_2``).
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import date
 from typing import Any
 
 from .._wire import required_decimal, required_int
@@ -44,6 +47,7 @@ from .market_data import (
     _market_div,
     _missing_block_error,
     _raise_if_error,
+    _to_yyyymmdd,
 )
 
 _FLUCTUATION_PATH = "/uapi/domestic-stock/v1/ranking/fluctuation"
@@ -120,6 +124,12 @@ _PROFIT_ASSET_METRIC = {
     "sales_profit": "0", "operating_profit": "1", "ordinary_profit": "2",
     "net_income": "3", "total_assets": "4", "total_liabilities": "5", "total_equity": "6",
 }
+
+_COMPANY_TRADES_PATH = "/uapi/domestic-stock/v1/ranking/traded-by-company"
+_COMPANY_TRADES_TR = "FHPST01860000"
+_COMPANY_TRADES_SCR = "20186"
+#: 당사매매 정렬(원장 코드표). buy=매수상위(1), sell=매도상위(0).
+_COMPANY_TRADES_SORT = {"sell": "0", "buy": "1"}
 
 
 def fetch_fluctuation(transport: Transport, *, top: str, market: str) -> list[RankedStock]:
@@ -309,6 +319,29 @@ def fetch_profit_asset(
         sort=_lookup(_PROFIT_ASSET_METRIC, metric, "metric"), year=year, quarter=quarter,
     )
     return _fetch_ranking(transport, path=_PROFIT_ASSET_PATH, tr=_PROFIT_ASSET_TR, params=params)
+
+
+def fetch_company_trades(
+    transport: Transport, *, top: str, start: str | date, end: str | date, market: str
+) -> list[RankedStock]:
+    """당사매매종목 순위(기간). ``top="buy"`` 매수상위 / ``"sell"`` 매도상위. ``start``/``end`` 는
+    조회 기간(YYYYMMDD 또는 date). 당사 매수/매도/순매수 수량은 각 항목의 ``_raw`` (shnu_cnqn_smtn/
+    seln_cnqn_smtn/ntby_cnqn). 최대 30건(다음조회 없음)."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_COND_SCR_DIV_CODE": _COMPANY_TRADES_SCR,
+        "FID_DIV_CLS_CODE": "0",
+        "FID_RANK_SORT_CLS_CODE": _lookup(_COMPANY_TRADES_SORT, top, "top"),
+        "FID_INPUT_DATE_1": _to_yyyymmdd(start, "start"),
+        "FID_INPUT_DATE_2": _to_yyyymmdd(end, "end"),
+        "FID_INPUT_ISCD": "0000",              # 전체
+        "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
+        "FID_APLY_RANG_VOL": "0",              # 거래량 전체
+        "FID_APLY_RANG_PRC_1": "", "FID_APLY_RANG_PRC_2": "",   # 가격 전체
+    }
+    return _fetch_ranking(
+        transport, path=_COMPANY_TRADES_PATH, tr=_COMPANY_TRADES_TR, params=params
+    )
 
 
 def _fundamentals_params(

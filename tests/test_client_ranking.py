@@ -27,6 +27,7 @@ _PREFERRED_DISPARITY = "/uapi/domestic-stock/v1/ranking/prefer-disparate-ratio"
 _FINANCE_RATIO = "/uapi/domestic-stock/v1/ranking/finance-ratio"
 _VALUATION = "/uapi/domestic-stock/v1/ranking/market-value"
 _PROFIT_ASSET = "/uapi/domestic-stock/v1/ranking/profit-asset-index"
+_COMPANY_TRADES = "/uapi/domestic-stock/v1/ranking/traded-by-company"
 
 
 def _row(*, rank="1", symbol_field="mksc_shrn_iscd", symbol="005930", name="삼성전자",
@@ -276,6 +277,39 @@ def test_by_profit_asset_default_metric_is_net_income():
     fake = FakeTransport(response=_resp([_row()]))
     _client(fake).ranking.by_profit_asset(year=2023)
     assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "3"   # net_income
+
+
+def test_by_company_trades_buy_with_date_range():
+    fake = FakeTransport(response=_resp([_row(ntby_cnqn="9800")]))
+    ranked = _client(fake).ranking.by_company_trades(
+        top="buy", start="20240314", end="20240315"
+    )
+    call = fake.calls[0]
+    assert call["path"] == _COMPANY_TRADES
+    assert call["tr_id"] == "FHPST01860000"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20186"
+    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "1"       # buy = 매수상위
+    assert call["params"]["FID_INPUT_DATE_1"] == "20240314"
+    assert call["params"]["FID_INPUT_DATE_2"] == "20240315"
+    assert ranked[0]._raw["ntby_cnqn"] == "9800"
+
+
+def test_by_company_trades_accepts_date_objects_and_sell():
+    from datetime import date
+    fake = FakeTransport(response=_resp([_row()]))
+    _client(fake).ranking.by_company_trades(
+        top="sell", start=date(2024, 3, 14), end=date(2024, 3, 15)
+    )
+    call = fake.calls[0]
+    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "0"       # sell = 매도상위
+    assert call["params"]["FID_INPUT_DATE_1"] == "20240314"
+
+
+def test_by_company_trades_bad_top():
+    with pytest.raises(KisUsageError):
+        _client(FakeTransport(response=_resp([]))).ranking.by_company_trades(
+            top="net", start="20240314", end="20240315"
+        )
 
 
 def test_ranking_skips_empty_rows():

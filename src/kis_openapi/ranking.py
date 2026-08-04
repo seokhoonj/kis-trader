@@ -16,6 +16,8 @@ from ._domestic import ranking as ranking_api
 from .ranked_stock import RankedStock
 
 if TYPE_CHECKING:
+    from datetime import date
+
     from .client import KisClient
 
 
@@ -96,4 +98,14 @@ class RankingQueries:
         q1/h1/q3/annual. 금액은 각 항목의 ``_raw``(최대 30건)."""
         return ranking_api.fetch_profit_asset(
             self._client.transport, metric=metric, year=year, quarter=quarter, market="KRX"
+        )
+
+    def by_company_trades(
+        self, *, top: str = "buy", start: str | date, end: str | date
+    ) -> list[RankedStock]:
+        """당사매매종목 순위(기간). ``top="buy"`` 매수상위 / ``"sell"`` 매도상위. ``start``/``end`` 는
+        조회 기간(YYYYMMDD 문자열 또는 ``date``). 당사 매수/매도/순매수 수량은 각 항목의
+        ``_raw``(shnu_cnqn_smtn/seln_cnqn_smtn/ntby_cnqn)(최대 30건)."""
+        return ranking_api.fetch_company_trades(
+            self._client.transport, top=top, start=start, end=end, market="KRX"
         )
