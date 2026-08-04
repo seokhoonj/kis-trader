@@ -215,3 +215,62 @@ def test_index_intraday_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KisError):
         _client(fake).index("0001").intraday()
+
+
+_INDEX_CATEGORY = "/uapi/domestic-stock/v1/quotations/inquire-index-category-price"
+
+
+def _category_row(code="0002", name="대형주", value="2700.10", change="15.0", sign="2",
+                  pct="0.56", vol="120000000", amt="4200000000000", vol_rlim="23.4",
+                  amt_rlim="42.9"):
+    return {"bstp_cls_code": code, "hts_kor_isnm": name, "bstp_nmix_prpr": value,
+            "bstp_nmix_prdy_vrss": change, "prdy_vrss_sign": sign, "bstp_nmix_prdy_ctrt": pct,
+            "acml_vol": vol, "acml_tr_pbmn": amt, "acml_vol_rlim": vol_rlim,
+            "acml_tr_pbmn_rlim": amt_rlim}
+
+
+def _category_resp(rows):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": {"bstp_nmix_prpr": "2650"}, "output2": rows})
+
+
+def test_index_categories_maps_fields_and_market_class():
+    from kis_openapi import CategoryIndex
+    fake = FakeTransport(response=_category_resp([_category_row(), _category_row(code="0003",
+                                                                                name="중형주")]))
+    cats = _client(fake).index("0001").categories()
+    assert [c.code for c in cats] == ["0002", "0003"]
+    first = cats[0]
+    assert isinstance(first, CategoryIndex)
+    assert first.name == "대형주"
+    assert first.value == Decimal("2700.10")
+    assert first.change == Decimal("15.0")
+    assert first.change_percent == Decimal("0.56")
+    assert first.volume_share == Decimal("23.4")
+    assert first.amount_share == Decimal("42.9")
+    call = fake.calls[0]
+    assert call["path"] == _INDEX_CATEGORY
+    assert call["tr_id"] == "FHPUP02140000"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20214"
+    assert call["params"]["FID_MRKT_CLS_CODE"] == "K"           # 0001 -> 거래소
+    assert call["params"]["FID_BLNG_CLS_CODE"] == "0"
+
+
+def test_index_categories_market_class_for_kosdaq_and_kospi200():
+    for code, cls in [("1001", "Q"), ("2001", "K2")]:
+        fake = FakeTransport(response=_category_resp([_category_row()]))
+        _client(fake).index(code).categories()
+        assert fake.calls[0]["params"]["FID_MRKT_CLS_CODE"] == cls
+
+
+def test_index_categories_rejects_non_market_code():
+    fake = FakeTransport(response=_category_resp([]))
+    with pytest.raises(KisUsageError):
+        _client(fake).index("0002").categories()      # 하위 업종엔 categories 없음
+
+
+def test_index_categories_missing_output2_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
+                                              body={"output1": {"bstp_nmix_prpr": "2650"}}))
+    with pytest.raises(KisError):
+        _client(fake).index("0001").categories()

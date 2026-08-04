@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from ._domestic import index as index_api
 from .bar import Bar, Interval
-from .index_items import IndexIntradayPoint, IndexQuote
+from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
 
 if TYPE_CHECKING:
     from datetime import date
@@ -59,3 +59,8 @@ class Index:
         return index_api.fetch_index_intraday(
             self._client.transport, code=self.code, interval=interval
         )
+
+    def categories(self) -> list[CategoryIndex]:
+        """이 시장의 하위 업종 지수 목록. 시장 지수(``0001`` KOSPI / ``1001`` KOSDAQ / ``2001``
+        KOSPI200) 핸들에서만 쓴다 -- 각 업종의 지수 레벨·전일대비와 시장 내 거래량/거래대금 비중."""
+        return index_api.fetch_index_categories(self._client.transport, code=self.code)

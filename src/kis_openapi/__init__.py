@@ -16,7 +16,7 @@ from .bar import Bar, Interval
 from .broker import BrokerActivity, BrokerActivitySummary
 from .client import KisClient
 from .index import Index
-from .index_items import IndexIntradayPoint, IndexQuote
+from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
 from .investor import InvestorActivity, InvestorFlow
 from .order import Order
 from .order_book import OrderBook, PriceLevel
@@ -45,6 +45,7 @@ __all__ = [
     "BrokerActivity",
     "BrokerActivitySummary",
     "BuyableAmount",
+    "CategoryIndex",
     "CreditBalanceRanking",
     "DividendRanking",
     "ExecutionReport",

@@ -1,8 +1,9 @@
-"""지수/업종 시세 DATA -- :class:`IndexQuote`, :class:`IndexIntradayPoint`.
+"""지수/업종 시세 DATA -- :class:`IndexQuote`, :class:`IndexIntradayPoint`, :class:`CategoryIndex`.
 
 :class:`~kis_openapi.index.Index` 핸들(``kis.index(code)``)이 돌려주는 지수(업종) 시세 타입들이다.
 :class:`IndexQuote` 는 현재가 스냅샷(:meth:`~kis_openapi.index.Index.quote`), :class:`IndexIntradayPoint`
-는 당일 시간대별 시계열(:meth:`~kis_openapi.index.Index.intraday`)의 한 점이다. 종목의
+는 당일 시간대별 시계열(:meth:`~kis_openapi.index.Index.intraday`)의 한 점, :class:`CategoryIndex` 는
+시장 하위 업종 지수(:meth:`~kis_openapi.index.Index.categories`)의 한 항목이다. 종목의
 :class:`~kis_openapi.quote.Quote` 와 달리 체결가가 아니라 **지수 레벨**(``value``)을 담는다.
 """
 
@@ -60,6 +61,32 @@ class IndexIntradayPoint:
     change: Decimal                   # 전일대비(부호 포함)
     volume: int                       # 누적 거래량
     interval_volume: int              # 그 구간 체결 거래량
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class CategoryIndex:
+    """시장 하위 업종 지수 한 항목(불변).
+
+    한 시장(KOSPI/KOSDAQ/KOSPI200) 아래 업종별 지수 중 하나다. ``value`` 는 그 업종 지수 레벨,
+    ``change`` / ``change_percent`` 는 전일대비로 하락이면 음수. ``volume_share`` / ``amount_share`` 는
+    그 업종이 시장 전체 거래량 / 거래대금에서 차지하는 비중(%).
+    """
+
+    code: str                         # 업종 구분 코드
+    name: str                         # 업종명
+    value: Decimal                    # 업종 지수 레벨
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int                       # 누적 거래량
+    amount: Decimal                   # 누적 거래대금
+    volume_share: Decimal             # 거래량 비중(%)
+    amount_share: Decimal             # 거래대금 비중(%)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

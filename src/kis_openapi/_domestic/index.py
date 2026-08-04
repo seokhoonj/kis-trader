@@ -11,6 +11,9 @@ KIS URL/TR-id (원장 대조):
   ``bstp_nmix_*`` 로 다르다 -- 공용 :func:`collect_period_bars` 재사용.
 - 지수 시간대별: ``GET .../quotations/inquire-index-timeprice`` ``FHPUP02110200``
   (``FID_INPUT_HOUR_1`` 샘플 간격(초): 60=1분 300=5분 600=10분).
+- 업종별 지수: ``GET .../quotations/inquire-index-category-price`` ``FHPUP02140000`` 화면 20214
+  (``FID_MRKT_CLS_CODE`` K:거래소 Q:코스닥 K2:코스피200 -- 코드에서 추론, ``FID_BLNG_CLS_CODE`` 0:전업종).
+  output1=시장 지수, output2=하위 업종 지수 목록. output2를 :class:`CategoryIndex` 로 돌려준다.
 """
 
 from __future__ import annotations
@@ -22,7 +25,7 @@ from typing import Any
 from .._wire import required_decimal, required_int
 from ..bar import Bar, Interval
 from ..errors import KisUsageError
-from ..index_items import IndexIntradayPoint, IndexQuote
+from ..index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
 from ..transport import Transport
 from .market_data import (
     _KST,
@@ -49,6 +52,12 @@ _INDEX_INTRADAY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-timepri
 _INDEX_INTRADAY_TR = "FHPUP02110200"
 #: 지수 시간대별 샘플 간격 -> FID_INPUT_HOUR_1(초). 원장: 60=1분, 300=5분, 600=10분.
 _INDEX_INTRADAY_INTERVAL = {"1m": "60", "5m": "300", "10m": "600"}
+
+_INDEX_CATEGORY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-category-price"
+_INDEX_CATEGORY_TR = "FHPUP02140000"
+_INDEX_CATEGORY_SCR = "20214"
+#: 업종별 지수 시장구분(원장 FID_MRKT_CLS_CODE). 시장 지수 코드에서 추론한다.
+_INDEX_CATEGORY_MARKET_CLASS = {"0001": "K", "1001": "Q", "2001": "K2"}
 
 
 def fetch_index_quote(transport: Transport, *, code: str) -> IndexQuote:
@@ -176,6 +185,62 @@ def _parse_index_intraday(
         )
     points.sort(key=lambda p: p.time)          # 과거->현재
     return points
+
+
+def fetch_index_categories(transport: Transport, *, code: str) -> list[CategoryIndex]:
+    """시장(``code``)의 하위 업종 지수 목록. ``code`` 는 시장 지수(0001 KOSPI/1001 KOSDAQ/2001
+    KOSPI200)여야 하며 시장구분(K/Q/K2)을 여기서 추론한다. output2를 :class:`CategoryIndex` 로."""
+    market_class = _INDEX_CATEGORY_MARKET_CLASS.get(code)
+    if market_class is None:
+        raise KisUsageError(
+            "categories 는 시장 지수(0001 KOSPI / 1001 KOSDAQ / 2001 KOSPI200)에만 쓴다: "
+            f"{code!r}"
+        )
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _INDEX_MARKET_DIV,
+        "FID_INPUT_ISCD": code,
+        "FID_COND_SCR_DIV_CODE": _INDEX_CATEGORY_SCR,
+        "FID_MRKT_CLS_CODE": market_class,
+        "FID_BLNG_CLS_CODE": "0",               # 전업종
+    }
+    resp = transport.request(
+        method="GET", path=_INDEX_CATEGORY_PATH, tr_id=_INDEX_CATEGORY_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")             # output1=시장 지수, output2=하위 업종 목록
+    if not isinstance(rows, list):              # 성공 응답인데 목록 아님 -> fail-closed
+        raise _missing_block_error("output2", resp)
+    return _parse_index_categories(rows)
+
+
+def _parse_index_categories(rows: Sequence[Mapping[str, Any]]) -> list[CategoryIndex]:
+    categories: list[CategoryIndex] = []
+    for row in rows:
+        category_code = str(row.get("bstp_cls_code", "")).strip()
+        value_text = str(row.get("bstp_nmix_prpr", "")).strip()
+        if not category_code or not value_text:  # 빈 행 skip
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        categories.append(
+            CategoryIndex(
+                code=category_code,
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                value=required_decimal(value_text, "bstp_nmix_prpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("bstp_nmix_prdy_ctrt"), "bstp_nmix_prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+                volume_share=required_decimal(row.get("acml_vol_rlim"), "acml_vol_rlim"),
+                amount_share=required_decimal(row.get("acml_tr_pbmn_rlim"), "acml_tr_pbmn_rlim"),
+                _raw=row,
+            )
+        )
+    return categories
 
 
 def _parse_index_quote(
