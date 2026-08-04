@@ -30,6 +30,9 @@ KIS URL/TR-id/화면코드/코드표(원장 대조):
   이 셋은 회계연도(``FID_INPUT_OPTION_1``)+분기(``FID_INPUT_OPTION_2`` 0:1Q 1:반기 2:3Q 3:결산)를 함께 받는다.
 - 당사매매종목: ``GET .../ranking/traded-by-company`` ``FHPST01860000`` 화면 20186
   (``FID_RANK_SORT_CLS_CODE`` 0:매도상위 1:매수상위, 기간 ``FID_INPUT_DATE_1``~``FID_INPUT_DATE_2``).
+- 배당률: ``GET .../ranking/dividend-rate`` ``HHKDB13470100`` (파라미터가 FID_ 계열이 아니라
+  ``GB1`` 시장 / ``GB3`` 1:주식배당 2:현금배당 / ``F_DT``~``T_DT`` 기준일 / ``GB4`` 0:전체 1:결산 2:중간;
+  시세가 없어 :class:`DividendRanking` 전용 항목으로 돌려준다).
 """
 
 from __future__ import annotations
@@ -39,6 +42,7 @@ from datetime import date
 from typing import Any
 
 from .._wire import required_decimal, required_int
+from ..dividend_ranking import DividendRanking
 from ..errors import KisUsageError
 from ..ranked_stock import RankedStock
 from ..transport import Transport
@@ -46,6 +50,7 @@ from .market_data import (
     _apply_change_sign,
     _market_div,
     _missing_block_error,
+    _parse_kst_date,
     _raise_if_error,
     _to_yyyymmdd,
 )
@@ -130,6 +135,15 @@ _COMPANY_TRADES_TR = "FHPST01860000"
 _COMPANY_TRADES_SCR = "20186"
 #: 당사매매 정렬(원장 코드표). buy=매수상위(1), sell=매도상위(0).
 _COMPANY_TRADES_SORT = {"sell": "0", "buy": "1"}
+
+_DIVIDEND_PATH = "/uapi/domestic-stock/v1/ranking/dividend-rate"
+_DIVIDEND_TR = "HHKDB13470100"
+#: 배당 종류(원장 GB3). cash=현금배당(2), stock=주식배당(1).
+_DIVIDEND_KIND = {"cash": "2", "stock": "1"}
+#: 시장(원장 GB1).
+_DIVIDEND_MARKET = {"all": "0", "kospi": "1", "kospi200": "2", "kosdaq": "3"}
+#: 결산/중간(원장 GB4).
+_DIVIDEND_SETTLEMENT = {"all": "0", "final": "1", "interim": "2"}
 
 
 def fetch_fluctuation(transport: Transport, *, top: str, market: str) -> list[RankedStock]:
@@ -342,6 +356,57 @@ def fetch_company_trades(
     return _fetch_ranking(
         transport, path=_COMPANY_TRADES_PATH, tr=_COMPANY_TRADES_TR, params=params
     )
+
+
+def fetch_dividend(
+    transport: Transport, *, kind: str, start: str | date, end: str | date,
+    market: str, settlement: str,
+) -> list[DividendRanking]:
+    """배당률 순위. ``kind="cash"`` 현금배당 / ``"stock"`` 주식배당. ``start``/``end`` 는 배당 기준일
+    범위(YYYYMMDD 또는 date). ``market`` all/kospi/kospi200/kosdaq, ``settlement`` all/final/interim.
+    시세가 없어 :class:`DividendRanking` 로 돌려준다. 최대 30건(다음조회 없음)."""
+    params = {
+        "CTS_AREA": "",
+        "GB1": _lookup(_DIVIDEND_MARKET, market, "market"),
+        "UPJONG": "0001",                      # 업종 종합(전체)
+        "GB2": "0",                            # 보통주/우선주 전체
+        "GB3": _lookup(_DIVIDEND_KIND, kind, "kind"),
+        "F_DT": _to_yyyymmdd(start, "start"),
+        "T_DT": _to_yyyymmdd(end, "end"),
+        "GB4": _lookup(_DIVIDEND_SETTLEMENT, settlement, "settlement"),
+    }
+    resp = transport.request(
+        method="GET", path=_DIVIDEND_PATH, tr_id=_DIVIDEND_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):             # 성공 응답인데 배열 아님 -> fail-closed
+        raise _missing_block_error("output", resp)
+    return _parse_dividend(rows)
+
+
+def _parse_dividend(rows: Sequence[Mapping[str, Any]]) -> list[DividendRanking]:
+    ranked: list[DividendRanking] = []
+    for row in rows:
+        symbol = str(row.get("sht_cd", "")).strip()
+        rank_text = str(row.get("rank", "")).strip()
+        if not symbol or not rank_text:        # 빈 행 skip
+            continue
+        ranked.append(
+            DividendRanking(
+                rank=required_int(rank_text, "rank"),
+                symbol=symbol,
+                name=str(row.get("isin_name", "")).strip(),
+                record_date=_parse_kst_date(str(row.get("record_date", "")).strip()),
+                dividend_per_share=required_decimal(
+                    row.get("per_sto_divi_amt"), "per_sto_divi_amt"
+                ),
+                dividend_rate=required_decimal(row.get("divi_rate"), "divi_rate"),
+                dividend_kind=str(row.get("divi_kind", "")).strip(),
+                _raw=row,
+            )
+        )
+    return ranked
 
 
 def _fundamentals_params(

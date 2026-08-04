@@ -312,6 +312,65 @@ def test_by_company_trades_bad_top():
         )
 
 
+_DIVIDEND = "/uapi/domestic-stock/v1/ranking/dividend-rate"
+
+
+def _dividend_row(rank="1", sht_cd="089600", name="나스미디어", record_date="20240403",
+                  amount="750", rate="5.23", kind="현금"):
+    return {"rank": rank, "sht_cd": sht_cd, "isin_name": name, "record_date": record_date,
+            "per_sto_divi_amt": amount, "divi_rate": rate, "divi_kind": kind}
+
+
+def test_by_dividend_maps_fields_and_params():
+    from datetime import date as _date
+
+    from kis_openapi import DividendRanking
+    fake = FakeTransport(response=_resp([_dividend_row()]))
+    ranked = _client(fake).ranking.by_dividend(kind="cash", start="20200101", end="20240403")
+    assert len(ranked) == 1
+    item = ranked[0]
+    assert isinstance(item, DividendRanking)
+    assert item.rank == 1
+    assert item.symbol == "089600"
+    assert item.name == "나스미디어"
+    assert item.record_date == _date(2024, 4, 3)
+    assert item.dividend_per_share == Decimal(750)
+    assert item.dividend_rate == Decimal("5.23")
+    assert item.dividend_kind == "현금"
+    call = fake.calls[0]
+    assert call["path"] == _DIVIDEND
+    assert call["tr_id"] == "HHKDB13470100"
+    assert call["params"]["GB3"] == "2"                         # cash
+    assert call["params"]["GB1"] == "0"                         # all markets
+    assert call["params"]["GB4"] == "0"                         # settlement all
+    assert call["params"]["F_DT"] == "20200101"
+    assert call["params"]["T_DT"] == "20240403"
+
+
+def test_by_dividend_stock_kind_and_market_settlement():
+    fake = FakeTransport(response=_resp([_dividend_row()]))
+    _client(fake).ranking.by_dividend(
+        kind="stock", start="20230101", end="20231231", market="kosdaq", settlement="interim"
+    )
+    call = fake.calls[0]
+    assert call["params"]["GB3"] == "1"                         # stock
+    assert call["params"]["GB1"] == "3"                         # kosdaq
+    assert call["params"]["GB4"] == "2"                         # interim
+
+
+def test_by_dividend_rejects_bad_kind():
+    with pytest.raises(KisUsageError):
+        _client(FakeTransport(response=_resp([]))).ranking.by_dividend(
+            kind="both", start="20230101", end="20231231"
+        )
+
+
+def test_by_dividend_bad_record_date_fails_closed():
+    fake = FakeTransport(response=_resp([_dividend_row(record_date="n/a")]))
+    with pytest.raises(KisError):
+        _client(fake).ranking.by_dividend(kind="cash", start="20230101", end="20231231")
+
+
 def test_ranking_skips_empty_rows():
     fake = FakeTransport(response=_resp([_row(), {"data_rank": "", "mksc_shrn_iscd": ""}]))
     assert len(_client(fake).ranking.by_volume()) == 1

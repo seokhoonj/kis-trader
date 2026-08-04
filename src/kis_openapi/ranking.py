@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._domestic import ranking as ranking_api
+from .dividend_ranking import DividendRanking
 from .ranked_stock import RankedStock
 
 if TYPE_CHECKING:
@@ -108,4 +109,19 @@ class RankingQueries:
         ``_raw``(shnu_cnqn_smtn/seln_cnqn_smtn/ntby_cnqn)(최대 30건)."""
         return ranking_api.fetch_company_trades(
             self._client.transport, top=top, start=start, end=end, market="KRX"
+        )
+
+    def by_dividend(
+        self, *, kind: str = "cash", start: str | date, end: str | date,
+        market: str = "all", settlement: str = "all",
+    ) -> list[DividendRanking]:
+        """배당률 순위. ``kind="cash"`` 현금배당 / ``"stock"`` 주식배당. ``start``/``end`` 는 배당
+        기준일 범위(YYYYMMDD 문자열 또는 ``date``). ``market`` = ``"all"``/``"kospi"``/``"kospi200"``/
+        ``"kosdaq"``, ``settlement`` = ``"all"``/``"final"``(결산)/``"interim"``(중간). 시세가 없어
+        :class:`~kis_openapi.dividend_ranking.DividendRanking` 항목을 돌려준다(최대 30건).
+
+        ``dividend_rate`` 는 액면가 기준 배당률(%)이지 시장가 기준 배당수익률이 아니다."""
+        return ranking_api.fetch_dividend(
+            self._client.transport, kind=kind, start=start, end=end,
+            market=market, settlement=settlement,
         )
