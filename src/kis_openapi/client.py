@@ -91,9 +91,13 @@ class KisClient:
         """실전(real) / 모의(demo). 계좌·주문 TR 선택에 쓰인다."""
         return self._environment
 
-    def ticker(self, symbol: str, *, market: DomesticBoard | None = None) -> Ticker:
-        """종목 핸들을 만든다. 시장은 심볼로 자동 판별(6자리 숫자 -> 국내 KRX)."""
-        return Ticker(self, symbol, market=market)
+    def ticker(
+        self, symbol: str, *, market: DomesticBoard | None = None, exchange: str | None = None
+    ) -> Ticker:
+        """종목 핸들을 만든다. 국내는 심볼로 시장 자동 판별(6자리 숫자 -> KRX), 해외는 ``exchange``
+        (거래소코드 NAS/NYS/AMS/TSE/HKS/...)를 준다. 해외 심볼->거래소를 모르면 :meth:`instrument`
+        로 먼저 조회한다."""
+        return Ticker(self, symbol, market=market, exchange=exchange)
 
     def instrument(self, symbol: str, *, exchange: str | None = None) -> MasterRecord:
         """해외 심볼을 KIS 종목 마스터로 조회한다 -- 거래소코드/통화/종목유형/이름을 돌려준다.
