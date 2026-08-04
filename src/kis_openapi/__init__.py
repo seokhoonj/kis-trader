@@ -25,6 +25,7 @@ from .ranked_stock import RankedStock
 from .ranking import RankingQueries
 from .report import ExecutionReport, OrderStatus
 from .risk import RiskLimits
+from .short_sale_ranking import ShortSaleRanking
 from .store import OrderStore
 from .ticker import Ticker
 from .trade import Trade
@@ -56,6 +57,7 @@ __all__ = [
     "RankingQueries",
     "RiskLimits",
     "SellableQuantity",
+    "ShortSaleRanking",
     "Ticker",
     "Trade",
 ]

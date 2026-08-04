@@ -33,6 +33,9 @@ KIS URL/TR-id/화면코드/코드표(원장 대조):
 - 배당률: ``GET .../ranking/dividend-rate`` ``HHKDB13470100`` (파라미터가 FID_ 계열이 아니라
   ``GB1`` 시장 / ``GB3`` 1:주식배당 2:현금배당 / ``F_DT``~``T_DT`` 기준일 / ``GB4`` 0:전체 1:결산 2:중간;
   시세가 없어 :class:`DividendRanking` 전용 항목으로 돌려준다).
+- 공매도: ``GET .../ranking/short-sale`` ``FHPST04820000`` 화면 20482
+  (``FID_PERIOD_DIV_CODE`` D:일/M:월 + ``FID_INPUT_CNT_1`` 조회기간; 순위 필드가 없어 응답 순서로
+  순위를 매기고, 공매도 지표를 포함한 :class:`ShortSaleRanking` 전용 항목으로 돌려준다).
 """
 
 from __future__ import annotations
@@ -45,6 +48,7 @@ from .._wire import required_decimal, required_int
 from ..dividend_ranking import DividendRanking
 from ..errors import KisUsageError
 from ..ranked_stock import RankedStock
+from ..short_sale_ranking import ShortSaleRanking
 from ..transport import Transport
 from .market_data import (
     _apply_change_sign,
@@ -144,6 +148,16 @@ _DIVIDEND_KIND = {"cash": "2", "stock": "1"}
 _DIVIDEND_MARKET = {"all": "0", "kospi": "1", "kospi200": "2", "kosdaq": "3"}
 #: 결산/중간(원장 GB4).
 _DIVIDEND_SETTLEMENT = {"all": "0", "final": "1", "interim": "2"}
+
+_SHORT_SALE_PATH = "/uapi/domestic-stock/v1/ranking/short-sale"
+_SHORT_SALE_TR = "FHPST04820000"
+_SHORT_SALE_SCR = "20482"
+#: 공매도 조회기간 -> (FID_PERIOD_DIV_CODE, FID_INPUT_CNT_1). 원장 코드표(D:일수 코드, M:개월).
+_SHORT_SALE_WINDOW = {
+    "1d": ("D", "0"), "2d": ("D", "1"), "3d": ("D", "2"), "4d": ("D", "3"),
+    "1w": ("D", "4"), "2w": ("D", "9"), "3w": ("D", "14"),
+    "1mo": ("M", "1"), "2mo": ("M", "2"), "3mo": ("M", "3"),
+}
 
 
 def fetch_fluctuation(transport: Transport, *, top: str, market: str) -> list[RankedStock]:
@@ -403,6 +417,66 @@ def _parse_dividend(rows: Sequence[Mapping[str, Any]]) -> list[DividendRanking]:
                 ),
                 dividend_rate=required_decimal(row.get("divi_rate"), "divi_rate"),
                 dividend_kind=str(row.get("divi_kind", "")).strip(),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def fetch_short_sale(transport: Transport, *, window: str, market: str) -> list[ShortSaleRanking]:
+    """공매도 순위. ``window`` 는 조회기간 1d/2d/3d/4d/1w/2w/3w/1mo/2mo/3mo. 공매도 지표를 담은
+    :class:`ShortSaleRanking` 로 돌려준다(순위는 응답 순서). 최대 30건(다음조회 없음)."""
+    try:
+        period_code, count_code = _SHORT_SALE_WINDOW[window]
+    except KeyError:
+        valid = "/".join(_SHORT_SALE_WINDOW)
+        raise KisUsageError(f"window 는 {valid} 중 하나여야 한다: {window!r}") from None
+    params = {
+        "FID_APLY_RANG_VOL": "",               # 거래량 전체
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_COND_SCR_DIV_CODE": _SHORT_SALE_SCR,
+        "FID_INPUT_ISCD": "0000",              # 전체
+        "FID_PERIOD_DIV_CODE": period_code,
+        "FID_INPUT_CNT_1": count_code,
+        "FID_TRGT_EXLS_CLS_CODE": "", "FID_TRGT_CLS_CODE": "",
+        "FID_APLY_RANG_PRC_1": "", "FID_APLY_RANG_PRC_2": "",   # 가격 전체
+    }
+    resp = transport.request(
+        method="GET", path=_SHORT_SALE_PATH, tr_id=_SHORT_SALE_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):             # 성공 응답인데 배열 아님 -> fail-closed
+        raise _missing_block_error("output", resp)
+    return _parse_short_sale(rows)
+
+
+def _parse_short_sale(rows: Sequence[Mapping[str, Any]]) -> list[ShortSaleRanking]:
+    """공매도 행 -> ShortSaleRanking. 순위 필드가 없어 살아남은 행에 1부터 순번을 매긴다."""
+    ranked: list[ShortSaleRanking] = []
+    for row in rows:
+        symbol = str(row.get("mksc_shrn_iscd", "")).strip()
+        if not symbol:                         # 빈 행 skip
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        ranked.append(
+            ShortSaleRanking(
+                rank=len(ranked) + 1,
+                symbol=symbol,
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                short_volume=required_int(row.get("ssts_cntg_qty"), "ssts_cntg_qty"),
+                short_volume_ratio=required_decimal(row.get("ssts_vol_rlim"), "ssts_vol_rlim"),
+                short_value=required_decimal(row.get("ssts_tr_pbmn"), "ssts_tr_pbmn"),
+                short_value_ratio=required_decimal(
+                    row.get("ssts_tr_pbmn_rlim"), "ssts_tr_pbmn_rlim"
+                ),
+                average_price=required_decimal(row.get("avrg_prc"), "avrg_prc"),
                 _raw=row,
             )
         )

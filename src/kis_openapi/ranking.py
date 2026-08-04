@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING
 from ._domestic import ranking as ranking_api
 from .dividend_ranking import DividendRanking
 from .ranked_stock import RankedStock
+from .short_sale_ranking import ShortSaleRanking
 
 if TYPE_CHECKING:
     from datetime import date
@@ -125,3 +126,10 @@ class RankingQueries:
             self._client.transport, kind=kind, start=start, end=end,
             market=market, settlement=settlement,
         )
+
+    def by_short_sale(self, *, window: str = "1d") -> list[ShortSaleRanking]:
+        """공매도 순위. ``window`` 조회기간 = ``"1d"``/``"2d"``/``"3d"``/``"4d"``/``"1w"``/``"2w"``/
+        ``"3w"`` (일 단위) 또는 ``"1mo"``/``"2mo"``/``"3mo"`` (월 단위). 공매도 체결수량·거래량 비중·
+        거래대금·평균가를 담은 :class:`~kis_openapi.short_sale_ranking.ShortSaleRanking` 를
+        돌려준다(순위는 응답 순서, 최대 30건)."""
+        return ranking_api.fetch_short_sale(self._client.transport, window=window, market="KRX")

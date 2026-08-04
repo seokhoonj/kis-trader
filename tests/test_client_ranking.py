@@ -371,6 +371,56 @@ def test_by_dividend_bad_record_date_fails_closed():
         _client(fake).ranking.by_dividend(kind="cash", start="20230101", end="20231231")
 
 
+_SHORT_SALE = "/uapi/domestic-stock/v1/ranking/short-sale"
+
+
+def _short_row(symbol="138930", name="BNK금융지주", price="7760", change="60", sign="2",
+               pct="0.78", volume="1000000", qty="12000", vol_rlim="1.2",
+               value="93000000", value_rlim="1.1", avg="7745"):
+    return {"mksc_shrn_iscd": symbol, "hts_kor_isnm": name, "stck_prpr": price,
+            "prdy_vrss": change, "prdy_vrss_sign": sign, "prdy_ctrt": pct, "acml_vol": volume,
+            "ssts_cntg_qty": qty, "ssts_vol_rlim": vol_rlim, "ssts_tr_pbmn": value,
+            "ssts_tr_pbmn_rlim": value_rlim, "avrg_prc": avg}
+
+
+def test_by_short_sale_maps_fields_and_synthesizes_rank():
+    from kis_openapi import ShortSaleRanking
+    fake = FakeTransport(response=_resp([_short_row(), _short_row(symbol="000660")]))
+    ranked = _client(fake).ranking.by_short_sale()
+    assert [r.rank for r in ranked] == [1, 2]                   # 응답 순서로 순위
+    first = ranked[0]
+    assert isinstance(first, ShortSaleRanking)
+    assert first.symbol == "138930"
+    assert first.price == Decimal(7760)
+    assert first.short_volume == 12000
+    assert first.short_volume_ratio == Decimal("1.2")
+    assert first.short_value == Decimal(93000000)
+    assert first.average_price == Decimal(7745)
+    call = fake.calls[0]
+    assert call["path"] == _SHORT_SALE
+    assert call["tr_id"] == "FHPST04820000"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20482"
+    assert call["params"]["FID_PERIOD_DIV_CODE"] == "D"         # 1d 기본
+    assert call["params"]["FID_INPUT_CNT_1"] == "0"
+
+
+def test_by_short_sale_monthly_window():
+    fake = FakeTransport(response=_resp([_short_row()]))
+    _client(fake).ranking.by_short_sale(window="3mo")
+    call = fake.calls[0]
+    assert call["params"]["FID_PERIOD_DIV_CODE"] == "M"
+    assert call["params"]["FID_INPUT_CNT_1"] == "3"
+
+
+def test_by_short_sale_negative_change_and_bad_window():
+    fake = FakeTransport(response=_resp([_short_row(sign="5")]))
+    ranked = _client(fake).ranking.by_short_sale(window="1w")
+    assert ranked[0].change == Decimal(-60)                     # 하락 -> 음수
+    assert fake.calls[0]["params"]["FID_INPUT_CNT_1"] == "4"    # 1w
+    with pytest.raises(KisUsageError):
+        _client(FakeTransport(response=_resp([]))).ranking.by_short_sale(window="5d")
+
+
 def test_ranking_skips_empty_rows():
     fake = FakeTransport(response=_resp([_row(), {"data_rank": "", "mksc_shrn_iscd": ""}]))
     assert len(_client(fake).ranking.by_volume()) == 1
