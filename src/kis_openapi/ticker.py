@@ -13,10 +13,12 @@ from datetime import date
 from typing import TYPE_CHECKING
 
 from ._domestic import account as account_api
+from ._domestic import etf as etf_api
 from ._domestic import market_data
 from .after_hours import AfterHoursQuote
 from .bar import Bar, Interval
 from .broker import BrokerActivitySummary
+from .etf_items import EtfNav
 from .instrument import DomesticBoard, resolve_market
 from .investor import InvestorFlow
 from .order import Order, Side, TimeInForce
@@ -99,6 +101,11 @@ class Ticker:
         return market_data.fetch_after_hours_quote(
             self._client.transport, symbol=self.symbol, market=self.market
         )
+
+    def nav(self) -> EtfNav:
+        """ETF/ETN 순자산가치(NAV) 스냅샷(NAV·괴리율·추적오차율·순자산총액). 이 종목이 ETF/ETN
+        일 때만 유효하다(아니면 서버가 거부). 시장 체결가는 :meth:`quote`."""
+        return etf_api.fetch_etf_nav(self._client.transport, symbol=self.symbol)
 
     def buyable(self, *, limit_price: object | None = None) -> BuyableAmount:
         """이 종목의 매수가능 여력(현금 기준·미수 포함 최대). ``limit_price`` 없으면 시장가 기준.
