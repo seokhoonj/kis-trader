@@ -13,7 +13,13 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._domestic import ranking as ranking_api
-from .ranking_items import DividendRanking, RankedStock, ShortSaleRanking
+from .ranking_items import (
+    CreditBalanceRanking,
+    DividendRanking,
+    NearHighLowRanking,
+    RankedStock,
+    ShortSaleRanking,
+)
 
 if TYPE_CHECKING:
     from datetime import date
@@ -131,3 +137,22 @@ class RankingQueries:
         거래대금·평균가를 담은 :class:`~kis_openapi.ranking_items.ShortSaleRanking` 를
         돌려준다(순위는 응답 순서, 최대 30건)."""
         return ranking_api.fetch_short_sale(self._client.transport, window=window, market="KRX")
+
+    def by_credit_balance(
+        self, *, top: str = "margin_ratio", days: int = 2
+    ) -> list[CreditBalanceRanking]:
+        """신용잔고 순위. ``top`` = 융자 ``"margin_ratio"``/``"margin_shares"``/``"margin_amount"``/
+        ``"margin_ratio_increase"``/``"margin_ratio_decrease"`` 또는 대주 ``"loan_ratio"``/
+        ``"loan_shares"``/``"loan_amount"``/``"loan_ratio_increase"``/``"loan_ratio_decrease"``.
+        ``days`` 는 증가율 계산 기간(2~999). 융자/대주 잔고를 담은
+        :class:`~kis_openapi.ranking_items.CreditBalanceRanking` 를 돌려준다(최대 30건).
+
+        융자잔고는 신용융자(빚내서 매수) 보유 잔고, 대주잔고는 대주(주식 빌려 매도) 잔고다."""
+        return ranking_api.fetch_credit_balance(
+            self._client.transport, top=top, days=days, market="KRX"
+        )
+
+    def by_near_high_low(self, *, side: str = "high") -> list[NearHighLowRanking]:
+        """신고/신저 근접 순위. ``side="high"`` 신고가 근접 / ``"low"`` 신저가 근접. 신 최고/최저가와
+        근접 비율을 담은 :class:`~kis_openapi.ranking_items.NearHighLowRanking` 를 돌려준다(최대 30건)."""
+        return ranking_api.fetch_near_high_low(self._client.transport, side=side, market="KRX")

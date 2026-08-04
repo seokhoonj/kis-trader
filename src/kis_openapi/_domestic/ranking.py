@@ -36,6 +36,13 @@ KIS URL/TR-id/화면코드/코드표(원장 대조):
 - 공매도: ``GET .../ranking/short-sale`` ``FHPST04820000`` 화면 20482
   (``FID_PERIOD_DIV_CODE`` D:일/M:월 + ``FID_INPUT_CNT_1`` 조회기간; 순위 필드가 없어 응답 순서로
   순위를 매기고, 공매도 지표를 포함한 :class:`ShortSaleRanking` 전용 항목으로 돌려준다).
+- 신용잔고: ``GET .../ranking/credit-balance`` ``FHKST17010000`` 화면 11701
+  (``FID_RANK_SORT_CLS_CODE`` 0~4:융자 잔고비율/수량/금액/비율증가/비율감소, 5~9:대주 동일,
+  ``FID_OPTION`` 증가율기간 2~999). 응답은 output1(헤더)+output2(목록) 중첩이라 output2를 파싱하고,
+  순위 필드가 없어 응답 순서로 순위를 매겨 :class:`CreditBalanceRanking` 로 돌려준다.
+- 신고/신저근접: ``GET .../ranking/near-new-highlow`` ``FHPST01870000`` 화면 20187
+  (``FID_PRC_CLS_CODE`` 0:신고근접 1:신저근접). 순위 필드가 없어 응답 순서로 순위를 매기고,
+  신 최고/최저가와 근접 비율을 담은 :class:`NearHighLowRanking` 로 돌려준다.
 """
 
 from __future__ import annotations
@@ -46,7 +53,13 @@ from typing import Any
 
 from .._wire import required_decimal, required_int
 from ..errors import KisUsageError
-from ..ranking_items import DividendRanking, RankedStock, ShortSaleRanking
+from ..ranking_items import (
+    CreditBalanceRanking,
+    DividendRanking,
+    NearHighLowRanking,
+    RankedStock,
+    ShortSaleRanking,
+)
 from ..transport import Transport
 from .market_data import (
     _apply_change_sign,
@@ -156,6 +169,23 @@ _SHORT_SALE_WINDOW = {
     "1w": ("D", "4"), "2w": ("D", "9"), "3w": ("D", "14"),
     "1mo": ("M", "1"), "2mo": ("M", "2"), "3mo": ("M", "3"),
 }
+
+_CREDIT_BALANCE_PATH = "/uapi/domestic-stock/v1/ranking/credit-balance"
+_CREDIT_BALANCE_TR = "FHKST17010000"
+_CREDIT_BALANCE_SCR = "11701"
+#: 신용잔고 정렬(원장 코드표). margin=융자(0~4), loan=대주(5~9); ratio/shares/amount + 비율 증가/감소.
+_CREDIT_BALANCE_SORT = {
+    "margin_ratio": "0", "margin_shares": "1", "margin_amount": "2",
+    "margin_ratio_increase": "3", "margin_ratio_decrease": "4",
+    "loan_ratio": "5", "loan_shares": "6", "loan_amount": "7",
+    "loan_ratio_increase": "8", "loan_ratio_decrease": "9",
+}
+
+_NEAR_HIGH_LOW_PATH = "/uapi/domestic-stock/v1/ranking/near-new-highlow"
+_NEAR_HIGH_LOW_TR = "FHPST01870000"
+_NEAR_HIGH_LOW_SCR = "20187"
+#: 신고/신저 근접 방향(원장 FID_PRC_CLS_CODE). high=신고근접(0), low=신저근접(1).
+_NEAR_HIGH_LOW_SIDE = {"high": "0", "low": "1"}
 
 
 def fetch_fluctuation(transport: Transport, *, top: str, market: str) -> list[RankedStock]:
@@ -475,6 +505,125 @@ def _parse_short_sale(rows: Sequence[Mapping[str, Any]]) -> list[ShortSaleRankin
                     row.get("ssts_tr_pbmn_rlim"), "ssts_tr_pbmn_rlim"
                 ),
                 average_price=required_decimal(row.get("avrg_prc"), "avrg_prc"),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def fetch_credit_balance(
+    transport: Transport, *, top: str, days: int, market: str
+) -> list[CreditBalanceRanking]:
+    """신용잔고 순위. ``top`` = margin_*(융자) / loan_*(대주) x ratio/shares/amount/ratio_increase/
+    ratio_decrease. ``days`` 는 증가율 계산 기간(2~999). 응답 output2를 :class:`CreditBalanceRanking`
+    로 돌려준다(순위는 응답 순서). 최대 30건(다음조회 없음)."""
+    params = {
+        "FID_COND_SCR_DIV_CODE": _CREDIT_BALANCE_SCR,
+        "FID_INPUT_ISCD": "0000",              # 전체
+        "FID_OPTION": str(days),
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_CREDIT_BALANCE_SORT, top, "top"),
+    }
+    resp = transport.request(
+        method="GET", path=_CREDIT_BALANCE_PATH, tr_id=_CREDIT_BALANCE_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")            # output1=헤더, output2=종목 목록
+    if not isinstance(rows, list):             # 성공 응답인데 목록 아님 -> fail-closed
+        raise _missing_block_error("output2", resp)
+    return _parse_credit_balance(rows)
+
+
+def _parse_credit_balance(rows: Sequence[Mapping[str, Any]]) -> list[CreditBalanceRanking]:
+    ranked: list[CreditBalanceRanking] = []
+    for row in rows:
+        symbol = str(row.get("mksc_shrn_iscd", "")).strip()
+        if not symbol:                         # 빈 행 skip
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        ranked.append(
+            CreditBalanceRanking(
+                rank=len(ranked) + 1,
+                symbol=symbol,
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                margin_loan_shares=required_int(
+                    row.get("whol_loan_rmnd_stcn"), "whol_loan_rmnd_stcn"
+                ),
+                margin_loan_amount=required_decimal(
+                    row.get("whol_loan_rmnd_amt"), "whol_loan_rmnd_amt"
+                ),
+                margin_loan_ratio=required_decimal(
+                    row.get("whol_loan_rmnd_rate"), "whol_loan_rmnd_rate"
+                ),
+                stock_loan_shares=required_int(
+                    row.get("whol_stln_rmnd_stcn"), "whol_stln_rmnd_stcn"
+                ),
+                stock_loan_amount=required_decimal(
+                    row.get("whol_stln_rmnd_amt"), "whol_stln_rmnd_amt"
+                ),
+                stock_loan_ratio=required_decimal(
+                    row.get("whol_stln_rmnd_rate"), "whol_stln_rmnd_rate"
+                ),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def fetch_near_high_low(
+    transport: Transport, *, side: str, market: str
+) -> list[NearHighLowRanking]:
+    """신고/신저 근접 순위. ``side="high"`` 신고근접 / ``"low"`` 신저근접. 신 최고/최저가와 근접
+    비율을 담은 :class:`NearHighLowRanking` 로 돌려준다(순위는 응답 순서). 최대 30건(다음조회 없음)."""
+    params = {
+        "FID_APLY_RANG_VOL": "0",              # 거래량 전체
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_COND_SCR_DIV_CODE": _NEAR_HIGH_LOW_SCR,
+        "FID_DIV_CLS_CODE": "0",               # 전체
+        "FID_INPUT_CNT_1": "", "FID_INPUT_CNT_2": "",   # 근접범위 전체
+        "FID_PRC_CLS_CODE": _lookup(_NEAR_HIGH_LOW_SIDE, side, "side"),
+        "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
+    }
+    resp = transport.request(
+        method="GET", path=_NEAR_HIGH_LOW_PATH, tr_id=_NEAR_HIGH_LOW_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):             # 성공 응답인데 목록 아님 -> fail-closed
+        raise _missing_block_error("output", resp)
+    return _parse_near_high_low(rows)
+
+
+def _parse_near_high_low(rows: Sequence[Mapping[str, Any]]) -> list[NearHighLowRanking]:
+    ranked: list[NearHighLowRanking] = []
+    for row in rows:
+        symbol = str(row.get("mksc_shrn_iscd", "")).strip()
+        if not symbol:                         # 빈 행 skip
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        ranked.append(
+            NearHighLowRanking(
+                rank=len(ranked) + 1,
+                symbol=symbol,
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                new_high=required_decimal(row.get("new_hgpr"), "new_hgpr"),
+                high_near_rate=required_decimal(row.get("hprc_near_rate"), "hprc_near_rate"),
+                new_low=required_decimal(row.get("new_lwpr"), "new_lwpr"),
+                low_near_rate=required_decimal(row.get("lwpr_near_rate"), "lwpr_near_rate"),
                 _raw=row,
             )
         )

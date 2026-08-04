@@ -97,3 +97,60 @@ class ShortSaleRanking:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class CreditBalanceRanking:
+    """신용잔고 순위 한 항목(불변). ``rank`` 는 응답 순서.
+
+    ``margin_loan_*`` 은 그 종목을 **신용융자(빚내서 매수)**로 보유 중인 잔고, ``stock_loan_*`` 은
+    **대주(주식 빌려 매도)** 잔고이다(각각 주수/금액/비율). 비율(``*_ratio``)은 % 단위. ``change`` /
+    ``change_percent`` 는 하락이면 음수. N일 대비 증가율 등은 ``_raw``.
+    """
+
+    rank: int
+    symbol: str
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int                       # 누적 거래량
+    margin_loan_shares: int           # 융자 잔고 주수
+    margin_loan_amount: Decimal       # 융자 잔고 금액
+    margin_loan_ratio: Decimal        # 융자 잔고 비율(%)
+    stock_loan_shares: int            # 대주 잔고 주수
+    stock_loan_amount: Decimal        # 대주 잔고 금액
+    stock_loan_ratio: Decimal         # 대주 잔고 비율(%)
+    _raw: Mapping[str, Any] = field(
+        default_factory=_empty_raw, compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class NearHighLowRanking:
+    """신고/신저 근접 순위 한 항목(불변). ``rank`` 는 응답 순서.
+
+    ``new_high`` / ``new_low`` 는 신 최고가 / 최저가, ``high_near_rate`` / ``low_near_rate`` 는 그
+    가격에 얼마나 근접했는지의 비율(%). ``change`` / ``change_percent`` 는 하락이면 음수.
+    """
+
+    rank: int
+    symbol: str
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int                       # 누적 거래량
+    new_high: Decimal                 # 신 최고가
+    high_near_rate: Decimal           # 고가 근접 비율(%)
+    new_low: Decimal                  # 신 최저가
+    low_near_rate: Decimal            # 저가 근접 비율(%)
+    _raw: Mapping[str, Any] = field(
+        default_factory=_empty_raw, compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

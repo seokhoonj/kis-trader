@@ -421,6 +421,95 @@ def test_by_short_sale_negative_change_and_bad_window():
         _client(FakeTransport(response=_resp([]))).ranking.by_short_sale(window="5d")
 
 
+_CREDIT_BALANCE = "/uapi/domestic-stock/v1/ranking/credit-balance"
+_NEAR_HIGH_LOW = "/uapi/domestic-stock/v1/ranking/near-new-highlow"
+
+
+def _credit_row(symbol="005930", name="삼성전자", price="72700", change="400", sign="2",
+                pct="0.55", volume="3686661", loan_stcn="1200000", loan_amt="87000000000",
+                loan_rate="1.23", stln_stcn="5000", stln_amt="360000000", stln_rate="0.05"):
+    return {"mksc_shrn_iscd": symbol, "hts_kor_isnm": name, "stck_prpr": price,
+            "prdy_vrss": change, "prdy_vrss_sign": sign, "prdy_ctrt": pct, "acml_vol": volume,
+            "whol_loan_rmnd_stcn": loan_stcn, "whol_loan_rmnd_amt": loan_amt,
+            "whol_loan_rmnd_rate": loan_rate, "whol_stln_rmnd_stcn": stln_stcn,
+            "whol_stln_rmnd_amt": stln_amt, "whol_stln_rmnd_rate": stln_rate}
+
+
+def _credit_resp(rows):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": [{"bstp_cls_code": "1001", "hts_kor_isnm": "종합"}],
+                             "output2": rows})
+
+
+def test_by_credit_balance_parses_output2_and_synthesizes_rank():
+    from kis_openapi import CreditBalanceRanking
+    fake = FakeTransport(response=_credit_resp([_credit_row(), _credit_row(symbol="000660")]))
+    ranked = _client(fake).ranking.by_credit_balance()
+    assert [r.rank for r in ranked] == [1, 2]
+    first = ranked[0]
+    assert isinstance(first, CreditBalanceRanking)
+    assert first.symbol == "005930"
+    assert first.margin_loan_shares == 1200000
+    assert first.margin_loan_ratio == Decimal("1.23")
+    assert first.stock_loan_amount == Decimal(360000000)
+    call = fake.calls[0]
+    assert call["path"] == _CREDIT_BALANCE
+    assert call["tr_id"] == "FHKST17010000"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "11701"
+    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "0"       # margin_ratio 기본
+    assert call["params"]["FID_OPTION"] == "2"                   # days 기본
+
+
+def test_by_credit_balance_sort_and_days():
+    fake = FakeTransport(response=_credit_resp([_credit_row()]))
+    _client(fake).ranking.by_credit_balance(top="loan_ratio_increase", days=30)
+    call = fake.calls[0]
+    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "8"       # loan_ratio_increase
+    assert call["params"]["FID_OPTION"] == "30"
+    with pytest.raises(KisUsageError):
+        _client(FakeTransport(response=_credit_resp([]))).ranking.by_credit_balance(top="x")
+
+
+def test_by_credit_balance_missing_output2_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
+                                              body={"output1": [{"bstp_cls_code": "1001"}]}))
+    with pytest.raises(KisError):
+        _client(fake).ranking.by_credit_balance()
+
+
+def _near_row(symbol="003560", name="IHQ", price="10760", change="-100", sign="5", pct="-0.92",
+              volume="500000", new_hi="11000", hi_rate="97.8", new_lo="9000", lo_rate="119.6"):
+    return {"mksc_shrn_iscd": symbol, "hts_kor_isnm": name, "stck_prpr": price,
+            "prdy_vrss": change, "prdy_vrss_sign": sign, "prdy_ctrt": pct, "acml_vol": volume,
+            "new_hgpr": new_hi, "hprc_near_rate": hi_rate, "new_lwpr": new_lo,
+            "lwpr_near_rate": lo_rate}
+
+
+def test_by_near_high_low_high_side():
+    from kis_openapi import NearHighLowRanking
+    fake = FakeTransport(response=_resp([_near_row()]))
+    ranked = _client(fake).ranking.by_near_high_low()
+    first = ranked[0]
+    assert isinstance(first, NearHighLowRanking)
+    assert first.rank == 1
+    assert first.new_high == Decimal(11000)
+    assert first.high_near_rate == Decimal("97.8")
+    assert first.change == Decimal(-100)                         # 하락 부호 복원
+    call = fake.calls[0]
+    assert call["path"] == _NEAR_HIGH_LOW
+    assert call["tr_id"] == "FHPST01870000"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20187"
+    assert call["params"]["FID_PRC_CLS_CODE"] == "0"             # high 기본
+
+
+def test_by_near_high_low_low_side_and_bad_side():
+    fake = FakeTransport(response=_resp([_near_row()]))
+    _client(fake).ranking.by_near_high_low(side="low")
+    assert fake.calls[0]["params"]["FID_PRC_CLS_CODE"] == "1"    # low
+    with pytest.raises(KisUsageError):
+        _client(FakeTransport(response=_resp([]))).ranking.by_near_high_low(side="middle")
+
+
 def test_ranking_skips_empty_rows():
     fake = FakeTransport(response=_resp([_row(), {"data_rank": "", "mksc_shrn_iscd": ""}]))
     assert len(_client(fake).ranking.by_volume()) == 1

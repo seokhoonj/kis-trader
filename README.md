@@ -39,8 +39,8 @@ lists of typed rows. Coverage of the KIS ranking endpoints:
 | Firm's own trading (당사매매종목) | `by_company_trades` | ✅ |
 | Dividend rate (배당률) | `by_dividend` | ✅ |
 | Short selling (공매도) | `by_short_sale` | ✅ |
-| Credit balance (신용잔고) | | |
-| Near 52-week high/low (신고신저근접) | | |
+| Credit balance (신용잔고) | `by_credit_balance` | ✅ |
+| Near new high/low (신고신저근접) | `by_near_high_low` | ✅ |
 | Expected-open change (예상체결 등락) | | |
 | After-hours quote balance (시간외잔량) | | |
 | After-hours change (시간외 등락) | | |
