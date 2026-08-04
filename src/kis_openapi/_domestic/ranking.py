@@ -17,6 +17,10 @@ KIS URL/TR-id/화면코드/코드표(원장 대조):
 - 호가잔량: ``GET .../ranking/quote-balance`` ``FHPST01720000`` 화면 20172
   (``FID_RANK_SORT_CLS_CODE`` 0:순매수잔량 1:순매도잔량 2:매수비율 3:매도비율).
 - 체결강도: ``GET .../ranking/volume-power`` ``FHPST01680000`` 화면 20168 (정렬 없음).
+- 대량체결건수: ``GET .../ranking/bulk-trans-num`` ``FHKST190900C0`` 화면 11909
+  (``FID_RANK_SORT_CLS_CODE`` 0:매수상위 1:매도상위).
+- 관심종목 등록상위: ``GET .../ranking/top-interest-stock`` ``FHPST01800000`` 화면 20180 (정렬 없음).
+- 우선주 괴리율: ``GET .../ranking/prefer-disparate-ratio`` ``FHPST01770000`` 화면 20177 (정렬 없음).
 """
 
 from __future__ import annotations
@@ -66,6 +70,20 @@ _QUOTE_BALANCE_SORT = {"net_buy": "0", "net_sell": "1", "buy_ratio": "2", "sell_
 _VOLUME_POWER_PATH = "/uapi/domestic-stock/v1/ranking/volume-power"
 _VOLUME_POWER_TR = "FHPST01680000"
 _VOLUME_POWER_SCR = "20168"
+
+_BULK_TRADES_PATH = "/uapi/domestic-stock/v1/ranking/bulk-trans-num"
+_BULK_TRADES_TR = "FHKST190900C0"
+_BULK_TRADES_SCR = "11909"
+#: 대량체결건수 정렬(원장 코드표). buy=매수상위(0), sell=매도상위(1).
+_BULK_TRADES_SORT = {"buy": "0", "sell": "1"}
+
+_INTEREST_PATH = "/uapi/domestic-stock/v1/ranking/top-interest-stock"
+_INTEREST_TR = "FHPST01800000"
+_INTEREST_SCR = "20180"
+
+_PREFERRED_DISPARITY_PATH = "/uapi/domestic-stock/v1/ranking/prefer-disparate-ratio"
+_PREFERRED_DISPARITY_TR = "FHPST01770000"
+_PREFERRED_DISPARITY_SCR = "20177"
 
 
 def fetch_fluctuation(transport: Transport, *, top: str, market: str) -> list[RankedStock]:
@@ -166,6 +184,58 @@ def fetch_volume_power(transport: Transport, *, market: str) -> list[RankedStock
         "FID_VOL_CNT": "",
     }
     return _fetch_ranking(transport, path=_VOLUME_POWER_PATH, tr=_VOLUME_POWER_TR, params=params)
+
+
+def fetch_bulk_trades(transport: Transport, *, top: str, market: str) -> list[RankedStock]:
+    """대량체결건수 순위. ``top="buy"`` 매수상위 / ``"sell"`` 매도상위. 체결건수는 각 항목의
+    ``_raw`` (shnu_cntg_csnu/seln_cntg_csnu/ntby_cnqn). 최대 30건(다음조회 없음)."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_COND_SCR_DIV_CODE": _BULK_TRADES_SCR,
+        "FID_INPUT_ISCD": "0000",              # 전체
+        "FID_RANK_SORT_CLS_CODE": _lookup(_BULK_TRADES_SORT, top, "top"),
+        "FID_DIV_CLS_CODE": "0",
+        "FID_INPUT_ISCD_2": "",
+        "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
+        "FID_INPUT_PRICE_1": "",                # 가격 전체
+        "FID_APLY_RANG_PRC_1": "", "FID_APLY_RANG_PRC_2": "",
+        "FID_VOL_CNT": "",                      # 거래량 전체
+    }
+    return _fetch_ranking(transport, path=_BULK_TRADES_PATH, tr=_BULK_TRADES_TR, params=params)
+
+
+def fetch_interest(transport: Transport, *, market: str) -> list[RankedStock]:
+    """관심종목 등록상위 순위(정렬 없음). 관심등록 건수는 각 항목의 ``_raw['inter_issu_reg_csnu']``.
+    최대 30건(다음조회 없음)."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_COND_SCR_DIV_CODE": _INTEREST_SCR,
+        "FID_INPUT_ISCD": "0000",
+        "FID_INPUT_ISCD_2": "000000",          # 관심그룹 전체
+        "FID_DIV_CLS_CODE": "0",
+        "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
+        "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
+        "FID_VOL_CNT": "",
+        "FID_INPUT_CNT_1": "1",                # 1위부터
+    }
+    return _fetch_ranking(transport, path=_INTEREST_PATH, tr=_INTEREST_TR, params=params)
+
+
+def fetch_preferred_disparity(transport: Transport, *, market: str) -> list[RankedStock]:
+    """우선주 괴리율 순위(정렬 없음). 공통필드는 본주 기준, 짝이 되는 우선주와 괴리율은 각 항목의
+    ``_raw`` (prst_* 우선주 시세, diff_prpr 가격차, dprt 괴리율). 최대 30건(다음조회 없음)."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_COND_SCR_DIV_CODE": _PREFERRED_DISPARITY_SCR,
+        "FID_DIV_CLS_CODE": "0",
+        "FID_INPUT_ISCD": "0000",
+        "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
+        "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
+        "FID_VOL_CNT": "",
+    }
+    return _fetch_ranking(
+        transport, path=_PREFERRED_DISPARITY_PATH, tr=_PREFERRED_DISPARITY_TR, params=params
+    )
 
 
 def _fetch_ranking(

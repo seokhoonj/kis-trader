@@ -21,6 +21,9 @@ _MARKET_CAP = "/uapi/domestic-stock/v1/ranking/market-cap"
 _DISPARITY = "/uapi/domestic-stock/v1/ranking/disparity"
 _QUOTE_BALANCE = "/uapi/domestic-stock/v1/ranking/quote-balance"
 _VOLUME_POWER = "/uapi/domestic-stock/v1/ranking/volume-power"
+_BULK_TRADES = "/uapi/domestic-stock/v1/ranking/bulk-trans-num"
+_INTEREST = "/uapi/domestic-stock/v1/ranking/top-interest-stock"
+_PREFERRED_DISPARITY = "/uapi/domestic-stock/v1/ranking/prefer-disparate-ratio"
 
 
 def _row(*, rank="1", symbol_field="mksc_shrn_iscd", symbol="005930", name="삼성전자",
@@ -172,6 +175,47 @@ def test_by_volume_power_uses_endpoint_without_sort():
     assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20168"
     assert "FID_RANK_SORT_CLS_CODE" not in call["params"]        # 정렬 축 없음
     assert ranked[0]._raw["tday_rltv"] == "128.5"
+
+
+def test_by_bulk_trades_defaults_to_buy():
+    fake = FakeTransport(response=_resp([_row(shnu_cntg_csnu="42")]))
+    ranked = _client(fake).ranking.by_bulk_trades()
+    call = fake.calls[0]
+    assert call["path"] == _BULK_TRADES
+    assert call["tr_id"] == "FHKST190900C0"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "11909"
+    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "0"       # buy
+    assert ranked[0]._raw["shnu_cntg_csnu"] == "42"
+
+
+def test_by_bulk_trades_sell_and_bad_top():
+    fake = FakeTransport(response=_resp([_row()]))
+    _client(fake).ranking.by_bulk_trades(top="sell")
+    assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "1"   # sell
+    with pytest.raises(KisUsageError):
+        _client(FakeTransport(response=_resp([]))).ranking.by_bulk_trades(top="both")
+
+
+def test_by_interest_uses_endpoint_without_sort():
+    fake = FakeTransport(response=_resp([_row(inter_issu_reg_csnu="1523")]))
+    ranked = _client(fake).ranking.by_interest()
+    call = fake.calls[0]
+    assert call["path"] == _INTEREST
+    assert call["tr_id"] == "FHPST01800000"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20180"
+    assert "FID_RANK_SORT_CLS_CODE" not in call["params"]
+    assert ranked[0]._raw["inter_issu_reg_csnu"] == "1523"
+
+
+def test_by_preferred_disparity_exposes_pair_in_raw():
+    fake = FakeTransport(response=_resp([_row(prst_prpr="61000", dprt="12.34")]))
+    ranked = _client(fake).ranking.by_preferred_disparity()
+    call = fake.calls[0]
+    assert call["path"] == _PREFERRED_DISPARITY
+    assert call["tr_id"] == "FHPST01770000"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20177"
+    assert ranked[0].price == Decimal(72700)                     # 본주 현재가
+    assert ranked[0]._raw["dprt"] == "12.34"                     # 괴리율은 _raw
 
 
 def test_ranking_skips_empty_rows():

@@ -52,3 +52,17 @@ class RankingQueries:
     def by_volume_power(self) -> list[RankedStock]:
         """체결강도 순위(최대 30건). 당일 체결강도는 각 항목의 ``_raw['tday_rltv']``."""
         return ranking_api.fetch_volume_power(self._client.transport, market="KRX")
+
+    def by_bulk_trades(self, *, top: str = "buy") -> list[RankedStock]:
+        """대량체결건수 순위. ``top="buy"`` 매수상위 / ``"sell"`` 매도상위. 체결건수는 각 항목의
+        ``_raw``(shnu_cntg_csnu/seln_cntg_csnu 등)(최대 30건)."""
+        return ranking_api.fetch_bulk_trades(self._client.transport, top=top, market="KRX")
+
+    def by_interest(self) -> list[RankedStock]:
+        """관심종목 등록상위 순위(최대 30건). 관심등록 건수는 각 항목의 ``_raw['inter_issu_reg_csnu']``."""
+        return ranking_api.fetch_interest(self._client.transport, market="KRX")
+
+    def by_preferred_disparity(self) -> list[RankedStock]:
+        """우선주 괴리율 순위(최대 30건). 공통필드는 본주 기준, 짝 우선주 시세와 괴리율은 각 항목의
+        ``_raw``(prst_* / dprt 괴리율)."""
+        return ranking_api.fetch_preferred_disparity(self._client.transport, market="KRX")
