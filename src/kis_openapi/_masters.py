@@ -11,8 +11,13 @@
 
 from __future__ import annotations
 
+import io
+import zipfile
+from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Literal
+
+from .errors import KisUsageError
 
 #: 마스터 파일 다운로드 URL 템플릿({code} 자리에 시장코드).
 OVERSEAS_MASTER_URL = "https://new.real.download.dws.co.kr/common/master/{code}mst.cod.zip"
@@ -81,3 +86,67 @@ def parse_overseas_master(data: bytes) -> list[MasterRecord]:
             )
         )
     return records
+
+
+#: 마스터 zip 을 받아 오는 함수 타입(url -> zip 바이트). 주입해서 테스트/전송계층을 갈아끼운다.
+Fetch = Callable[[str], bytes]
+
+
+def download_overseas_master(code: str, *, fetch: Fetch) -> list[MasterRecord]:
+    """``code`` 시장의 마스터 파일을 받아 :class:`MasterRecord` 리스트로. ``fetch(url)`` 는 zip
+    바이트를 돌려주는 주입 함수(기본은 :func:`urlopen_fetch`, 테스트는 fake)."""
+    if code not in OVERSEAS_MARKETS:
+        raise KisUsageError(
+            f"알 수 없는 해외 시장코드: {code!r} ({'/'.join(OVERSEAS_MARKETS)})."
+        )
+    zip_bytes = fetch(OVERSEAS_MASTER_URL.format(code=code))
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
+        names = archive.namelist()
+        if not names:                  # 빈 zip -> fail-closed
+            raise ValueError(f"해외 마스터 zip 이 비었다: {code}")
+        raw = archive.read(names[0])
+    return parse_overseas_master(raw)
+
+
+def urlopen_fetch(url: str) -> bytes:
+    """기본 마스터 fetcher -- KIS 배포 서버에서 zip 을 받는다(인증 불필요한 정적 파일)."""
+    import urllib.request
+
+    # URL 은 고정 KIS 호스트 + 검증된 시장코드 템플릿이라 사용자 입력이 섞이지 않는다.
+    with urllib.request.urlopen(url, timeout=30) as resp:
+        return resp.read()
+
+
+class MasterIndex:
+    """심볼 -> 거래소 해석 인덱스. 여러 시장 마스터를 합쳐 심볼로 :class:`MasterRecord` 를 찾는다.
+
+    같은 심볼이 여러 거래소에 있으면 ``exchange`` 를 명시해야 한다(오조회 방지). 국내 6자리 코드는
+    이 인덱스를 안 거친다(:mod:`~kis_openapi.instrument` 가 KRX 로 판별).
+    """
+
+    __slots__ = ("_by_symbol",)
+
+    def __init__(self, records: Iterable[MasterRecord]) -> None:
+        by_symbol: dict[str, list[MasterRecord]] = {}
+        for record in records:
+            by_symbol.setdefault(record.symbol, []).append(record)
+        self._by_symbol = by_symbol
+
+    def resolve(self, symbol: str, *, exchange: str | None = None) -> MasterRecord:
+        """심볼(과 선택적 ``exchange``)로 마스터 레코드 하나를 찾는다.
+
+        없으면/모호하면(여러 거래소) :class:`~kis_openapi.errors.KisUsageError`. ``exchange`` 를 주면
+        그 거래소로 좁힌다."""
+        matches = self._by_symbol.get(symbol, [])
+        if exchange is not None:
+            matches = [record for record in matches if record.exchange == exchange]
+        if not matches:
+            hint = f" (거래소 {exchange!r})" if exchange is not None else ""
+            raise KisUsageError(f"해외 마스터에서 심볼을 찾지 못했다: {symbol!r}{hint}.")
+        exchanges = {record.exchange for record in matches}
+        if len(exchanges) > 1:
+            raise KisUsageError(
+                f"심볼 {symbol!r} 이 여러 거래소에 있다: {sorted(exchanges)} "
+                f"-- exchange= 로 지정하라."
+            )
+        return matches[0]

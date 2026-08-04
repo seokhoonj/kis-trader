@@ -6,9 +6,18 @@
 
 from __future__ import annotations
 
+import io
+import zipfile
+
 import pytest
 
-from kis_openapi._masters import MasterRecord, parse_overseas_master
+from kis_openapi._masters import (
+    MasterIndex,
+    MasterRecord,
+    download_overseas_master,
+    parse_overseas_master,
+)
+from kis_openapi.errors import KisUsageError
 
 
 def _row(*, exchange, symbol, rsym, korean, english, stis, currency):
@@ -78,3 +87,59 @@ def test_parse_short_row_fails_closed():
     bad = "US\t23\tNAS\t나스닥"                       # 컬럼 4개뿐 -> 포맷 변경
     with pytest.raises(ValueError, match="컬럼 수"):
         parse_overseas_master((bad + "\n").encode("cp949"))
+
+
+def _fake_fetch_for(rows):
+    """rows(마스터 텍스트 줄들)을 담은 zip 바이트를 돌려주는 fake fetch 를 만든다."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("NASMST.COD", _master_bytes(rows))
+    payload = buffer.getvalue()
+
+    def fetch(url):
+        assert url.endswith("nasmst.cod.zip")
+        return payload
+
+    return fetch
+
+
+def test_download_unzips_and_parses():
+    fetch = _fake_fetch_for([
+        _row(exchange="NAS", symbol="AAPL", rsym="NASAAPL", korean="애플", english="APPLE",
+             stis="2", currency="USD"),
+    ])
+    records = download_overseas_master("nas", fetch=fetch)
+    assert [r.symbol for r in records] == ["AAPL"]
+    assert records[0].exchange == "NAS"
+
+
+def test_download_rejects_unknown_market():
+    with pytest.raises(KisUsageError):
+        download_overseas_master("xxx", fetch=lambda url: b"")
+
+
+def test_index_resolve_single_match():
+    index = MasterIndex([
+        MasterRecord("AAPL", "NAS", "USD", "stock", "애플", "APPLE", "NASAAPL"),
+        MasterRecord("7203", "TSE", "JPY", "stock", "도요타", "TOYOTA", "TSE7203"),
+    ])
+    record = index.resolve("AAPL")
+    assert record.exchange == "NAS"
+    assert record.currency == "USD"
+
+
+def test_index_resolve_ambiguous_requires_exchange():
+    index = MasterIndex([
+        MasterRecord("XYZ", "NAS", "USD", "stock", "", "XYZ NAS", "NASXYZ"),
+        MasterRecord("XYZ", "HKS", "HKD", "stock", "", "XYZ HK", "HKSXYZ"),
+    ])
+    with pytest.raises(KisUsageError, match="여러 거래소"):
+        index.resolve("XYZ")
+    picked = index.resolve("XYZ", exchange="HKS")     # 명시하면 좁혀짐
+    assert picked.currency == "HKD"
+
+
+def test_index_resolve_not_found():
+    index = MasterIndex([MasterRecord("AAPL", "NAS", "USD", "stock", "", "APPLE", "NASAAPL")])
+    with pytest.raises(KisUsageError, match="찾지 못"):
+        index.resolve("MSFT")
