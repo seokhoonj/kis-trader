@@ -11,7 +11,7 @@ KIS URL/TR-id:
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any
@@ -148,26 +148,47 @@ def fetch_bars(
     if start_date > end_date:
         raise KisUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
     adjusted_code = "0" if adjusted else "1"  # KIS 극성: 0=수정주가, 1=원주가
+    base_params = {
+        "FID_COND_MRKT_DIV_CODE": market_div,
+        "FID_INPUT_ISCD": symbol,
+        "FID_PERIOD_DIV_CODE": period,
+        "FID_ORG_ADJ_PRC": adjusted_code,
+    }
+    return collect_period_bars(
+        transport, path=_BARS_PATH, tr=_BARS_TR, base_params=base_params,
+        start_date=start_date, end_date=end_date, max_bars=max_bars,
+        parse_rows=lambda rows: _parse_bars(rows, symbol=symbol),
+    )
 
+
+def collect_period_bars(
+    transport: Transport,
+    *,
+    path: str,
+    tr: str,
+    base_params: dict[str, str],
+    start_date: str,
+    end_date: str,
+    max_bars: int | None,
+    parse_rows: Callable[[Sequence[Mapping[str, Any]]], list[Bar]],
+) -> list[Bar]:
+    """[start, end] 기간봉을 과거->현재 오름차순으로. KIS 페이지 상한을 날짜창을 뒤로 밀며 넘고,
+    중복 날짜는 병합, 빈 페이지면 종료, 페이지 상한에 닿으면 부분 결과로 자르지 않고 예외.
+
+    종목/지수 공용 -- ``base_params`` 는 날짜 외 고정 파라미터(시장구분/코드/기간/수정주가 등),
+    ``parse_rows`` 는 output2 행을 :class:`Bar` 로 바꾸는 파서(필드명이 종목/지수마다 다르다)."""
     bar_by_date: dict[str, Bar] = {}
     window_end = end_date
     for _page in range(_MAX_BAR_PAGES):
-        params = {
-            "FID_COND_MRKT_DIV_CODE": market_div,
-            "FID_INPUT_ISCD": symbol,
-            "FID_INPUT_DATE_1": start_date,
-            "FID_INPUT_DATE_2": window_end,
-            "FID_PERIOD_DIV_CODE": period,
-            "FID_ORG_ADJ_PRC": adjusted_code,
-        }
+        params = {**base_params, "FID_INPUT_DATE_1": start_date, "FID_INPUT_DATE_2": window_end}
         resp = transport.request(
-            method="GET", path=_BARS_PATH, tr_id=_BARS_TR, params=params, idempotent=True
+            method="GET", path=path, tr_id=tr, params=params, idempotent=True
         )
         _raise_if_error(resp)
         rows = resp.body.get("output2")
         if not isinstance(rows, list):  # 성공 응답인데 바 배열 아님 -> fail-closed
             raise _missing_block_error("output2", resp)
-        page_by_date = {f"{bar.timestamp:%Y%m%d}": bar for bar in _parse_bars(rows, symbol=symbol)}
+        page_by_date = {f"{bar.timestamp:%Y%m%d}": bar for bar in parse_rows(rows)}
         if not page_by_date:
             break
         bar_by_date.update(page_by_date)

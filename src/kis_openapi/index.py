@@ -11,9 +11,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._domestic import index as index_api
+from .bar import Bar, Interval
 from .index_quote import IndexQuote
 
 if TYPE_CHECKING:
+    from datetime import date
+
     from .client import KisClient
 
 
@@ -33,3 +36,19 @@ class Index:
     def quote(self) -> IndexQuote:
         """지수 현재가 스냅샷(레벨·시고저·등락종목수)."""
         return index_api.fetch_index_quote(self._client.transport, code=self.code)
+
+    def bars(
+        self,
+        *,
+        interval: Interval = "1d",
+        start: str | date | None = None,
+        end: str | date | None = None,
+        max_bars: int | None = None,
+    ) -> list[Bar]:
+        """지수 기간봉(과거->현재). ``interval="1d"``/``"1wk"``/``"1mo"``, ``start`` 필요(``end``
+        기본 오늘). OHLCV 의 O/H/L/C 는 지수 레벨, ``symbol`` 자리엔 업종코드가 담긴다. 지수엔
+        수정주가 개념이 없다. 지수 분봉(``1m``)은 아직 미지원."""
+        return index_api.fetch_index_bars(
+            self._client.transport, code=self.code,
+            interval=interval, start=start, end=end, max_bars=max_bars,
+        )
