@@ -99,10 +99,15 @@ class Ticker:
 
         ``start`` > ``end``, ``max_bars`` <= 0, 기간봉인데 ``start`` 없음이면
         :class:`~kis_openapi.errors.KisUsageError`. 응답 손상(비배열 output2)이나 페이지 상한
-        초과는 :class:`~kis_openapi.errors.KisError`.
+        초과는 :class:`~kis_openapi.errors.KisError`. 해외는 일/주/월봉만(분봉 미지원).
         """
+        if self.exchange is not None:
+            return overseas_market_data.fetch_bars(
+                self._client.transport, symbol=self.symbol, exchange=self.exchange,
+                interval=interval, start=start, end=end, adjusted=adjusted, max_bars=max_bars,
+            )
         return market_data.fetch_bars(
-            self._client.transport, symbol=self.symbol, market=self._domestic_market(),
+            self._client.transport, symbol=self.symbol, market=self.market,
             interval=interval, start=start, end=end, adjusted=adjusted, max_bars=max_bars,
         )
 
