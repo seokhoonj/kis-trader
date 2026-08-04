@@ -15,6 +15,8 @@ from kis_openapi._masters import (
     MasterIndex,
     MasterRecord,
     download_overseas_master,
+    load_overseas_index,
+    load_overseas_master,
     parse_overseas_master,
 )
 from kis_openapi.errors import KisUsageError
@@ -143,3 +145,62 @@ def test_index_resolve_not_found():
     index = MasterIndex([MasterRecord("AAPL", "NAS", "USD", "stock", "", "APPLE", "NASAAPL")])
     with pytest.raises(KisUsageError, match="찾지 못"):
         index.resolve("MSFT")
+
+
+class _CountingFetch:
+    """호출 횟수를 세는 fake fetch. 시장코드별 zip 페이로드를 돌려준다."""
+
+    def __init__(self, rows_by_code):
+        self.calls = 0
+        self._payloads = {}
+        for code, rows in rows_by_code.items():
+            buffer = io.BytesIO()
+            with zipfile.ZipFile(buffer, "w") as archive:
+                archive.writestr(f"{code.upper()}MST.COD", _master_bytes(rows))
+            self._payloads[code] = buffer.getvalue()
+
+    def __call__(self, url):
+        self.calls += 1
+        for code, payload in self._payloads.items():
+            if url.endswith(f"{code}mst.cod.zip"):
+                return payload
+        raise AssertionError(url)
+
+
+def test_load_master_downloads_then_uses_cache(tmp_path):
+    fetch = _CountingFetch({"nas": [
+        _row(exchange="NAS", symbol="AAPL", rsym="NASAAPL", korean="애플", english="APPLE",
+             stis="2", currency="USD"),
+    ]})
+    cache = str(tmp_path)
+    first = load_overseas_master("nas", cache_dir=cache, fetch=fetch, now=1000.0)
+    assert [r.symbol for r in first] == ["AAPL"]
+    assert fetch.calls == 1
+    # 캐시가 신선하면(now 가 max_age 안) 다시 다운로드하지 않는다.
+    again = load_overseas_master("nas", cache_dir=cache, fetch=fetch, now=1000.0 + 3600)
+    assert [r.symbol for r in again] == ["AAPL"]
+    assert fetch.calls == 1                            # 재다운로드 없음
+
+
+def test_load_master_refetches_when_stale(tmp_path):
+    fetch = _CountingFetch({"nas": [
+        _row(exchange="NAS", symbol="AAPL", rsym="NASAAPL", korean="애플", english="APPLE",
+             stis="2", currency="USD"),
+    ]})
+    cache = str(tmp_path)
+    load_overseas_master("nas", cache_dir=cache, fetch=fetch, now=1000.0)
+    # now 가 max_age(하루)를 넘으면 다시 받는다.
+    load_overseas_master("nas", cache_dir=cache, fetch=fetch, now=1000.0 + 86400 + 1)
+    assert fetch.calls == 2
+
+
+def test_load_index_combines_markets(tmp_path):
+    fetch = _CountingFetch({
+        "nas": [_row(exchange="NAS", symbol="AAPL", rsym="NASAAPL", korean="애플",
+                     english="APPLE", stis="2", currency="USD")],
+        "tse": [_row(exchange="TSE", symbol="7203", rsym="TSE7203", korean="도요타",
+                     english="TOYOTA", stis="2", currency="JPY")],
+    })
+    index = load_overseas_index(["nas", "tse"], cache_dir=str(tmp_path), fetch=fetch, now=1000.0)
+    assert index.resolve("AAPL").exchange == "NAS"
+    assert index.resolve("7203").currency == "JPY"

@@ -12,12 +12,17 @@
 from __future__ import annotations
 
 import io
+import os
+import time
 import zipfile
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Literal
 
 from .errors import KisUsageError
+
+#: 마스터 캐시 기본 수명(초). 하루 -- KIS 가 마스터를 매일 갱신한다.
+DEFAULT_MASTER_MAX_AGE = 86400
 
 #: 마스터 파일 다운로드 URL 템플릿({code} 자리에 시장코드).
 OVERSEAS_MASTER_URL = "https://new.real.download.dws.co.kr/common/master/{code}mst.cod.zip"
@@ -92,9 +97,9 @@ def parse_overseas_master(data: bytes) -> list[MasterRecord]:
 Fetch = Callable[[str], bytes]
 
 
-def download_overseas_master(code: str, *, fetch: Fetch) -> list[MasterRecord]:
-    """``code`` 시장의 마스터 파일을 받아 :class:`MasterRecord` 리스트로. ``fetch(url)`` 는 zip
-    바이트를 돌려주는 주입 함수(기본은 :func:`urlopen_fetch`, 테스트는 fake)."""
+def fetch_overseas_master_raw(code: str, *, fetch: Fetch) -> bytes:
+    """``code`` 시장의 마스터 zip 을 받아 압축 해제한 원본(.cod) 바이트를 돌려준다. ``fetch(url)`` 는
+    zip 바이트를 돌려주는 주입 함수(기본 :func:`urlopen_fetch`)."""
     if code not in OVERSEAS_MARKETS:
         raise KisUsageError(
             f"알 수 없는 해외 시장코드: {code!r} ({'/'.join(OVERSEAS_MARKETS)})."
@@ -104,8 +109,12 @@ def download_overseas_master(code: str, *, fetch: Fetch) -> list[MasterRecord]:
         names = archive.namelist()
         if not names:                  # 빈 zip -> fail-closed
             raise ValueError(f"해외 마스터 zip 이 비었다: {code}")
-        raw = archive.read(names[0])
-    return parse_overseas_master(raw)
+        return archive.read(names[0])
+
+
+def download_overseas_master(code: str, *, fetch: Fetch) -> list[MasterRecord]:
+    """``code`` 시장의 마스터 파일을 받아 :class:`MasterRecord` 리스트로(캐시 없이 매번 다운로드)."""
+    return parse_overseas_master(fetch_overseas_master_raw(code, fetch=fetch))
 
 
 def urlopen_fetch(url: str) -> bytes:
@@ -150,3 +159,55 @@ class MasterIndex:
                 f"-- exchange= 로 지정하라."
             )
         return matches[0]
+
+
+def default_cache_dir() -> str:
+    """마스터 캐시 디렉터리(repo 밖, 런타임 캐시). ``XDG_CACHE_HOME`` 을 존중한다."""
+    base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
+    return os.path.join(base, "kis-openapi", "masters")
+
+
+def load_overseas_master(
+    code: str,
+    *,
+    cache_dir: str | None = None,
+    max_age: int = DEFAULT_MASTER_MAX_AGE,
+    fetch: Fetch = urlopen_fetch,
+    now: float | None = None,
+) -> list[MasterRecord]:
+    """``code`` 시장의 마스터를 캐시 우선으로 로드. 캐시 파일이 ``max_age`` 안이면 다운로드 없이
+    읽고, 오래됐거나 없으면 받아서 원자적으로 캐시에 쓴 뒤 파싱한다."""
+    cache_dir = cache_dir if cache_dir is not None else default_cache_dir()
+    path = os.path.join(cache_dir, f"{code}mst.cod")
+    stamp = time.time() if now is None else now
+    if os.path.exists(path) and (stamp - os.path.getmtime(path)) < max_age:
+        with open(path, "rb") as cached:
+            return parse_overseas_master(cached.read())
+    raw = fetch_overseas_master_raw(code, fetch=fetch)
+    os.makedirs(cache_dir, exist_ok=True)
+    tmp = f"{path}.tmp"
+    with open(tmp, "wb") as out:
+        out.write(raw)
+    os.replace(tmp, path)              # 원자적 교체(부분 파일 방지)
+    os.utime(path, (stamp, stamp))     # mtime 을 조회 시각으로 -- staleness 판정을 시계와 일치시킴
+    return parse_overseas_master(raw)
+
+
+def load_overseas_index(
+    markets: Iterable[str] | None = None,
+    *,
+    cache_dir: str | None = None,
+    max_age: int = DEFAULT_MASTER_MAX_AGE,
+    fetch: Fetch = urlopen_fetch,
+    now: float | None = None,
+) -> MasterIndex:
+    """여러 해외 시장 마스터(기본 전체)를 캐시 우선으로 로드해 합친 :class:`MasterIndex` 를 만든다."""
+    codes = list(OVERSEAS_MARKETS) if markets is None else list(markets)
+    records: list[MasterRecord] = []
+    for code in codes:
+        records.extend(
+            load_overseas_master(
+                code, cache_dir=cache_dir, max_age=max_age, fetch=fetch, now=now
+            )
+        )
+    return MasterIndex(records)
