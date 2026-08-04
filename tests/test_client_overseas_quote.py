@@ -123,7 +123,7 @@ def test_overseas_ticker_rejects_domestic_only_methods():
     handle = _client(fake).ticker("AAPL", exchange="NAS")
     for call in (
         handle.order_book,
-        handle.trades,
+        handle.investor_flows,
         lambda: handle.buy(quantity=1),
         handle.nav,
     ):

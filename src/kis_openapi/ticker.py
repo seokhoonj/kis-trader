@@ -118,9 +118,13 @@ class Ticker:
         )
 
     def trades(self) -> list[Trade]:
-        """최근 체결 목록(time & sales; 최신순)."""
+        """최근 체결 목록(time & sales; 최신순). 국내/해외 자동 라우팅."""
+        if self.exchange is not None:
+            return overseas_market_data.fetch_trades(
+                self._client.transport, symbol=self.symbol, exchange=self.exchange
+            )
         return market_data.fetch_trades(
-            self._client.transport, symbol=self.symbol, market=self._domestic_market()
+            self._client.transport, symbol=self.symbol, market=self.market
         )
 
     def investor_flows(self) -> list[InvestorFlow]:

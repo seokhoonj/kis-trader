@@ -18,8 +18,10 @@ from typing import Any
 from .._domestic.market_data import (
     _KST,
     _MAX_BAR_PAGES,
+    _apply_change_sign,
     _missing_block_error,
     _parse_bar_timestamp,
+    _parse_minute_bar_timestamp,
     _raise_if_error,
     _to_yyyymmdd,
     _today_kst,
@@ -28,6 +30,7 @@ from .._wire import required_decimal, required_int
 from ..bar import Bar, Interval
 from ..errors import KisError, KisUsageError
 from ..quote import Quote
+from ..trade import Trade
 from ..transport import Transport
 
 _QUOTE_PATH = "/uapi/overseas-price/v1/quotations/price-detail"
@@ -38,6 +41,9 @@ _BARS_PATH = "/uapi/overseas-price/v1/quotations/dailyprice"
 _BARS_TR = "HHDFS76240000"
 #: 해외 기간봉 간격 -> GUBN(원장: 0:일 1:주 2:월).
 _BARS_GUBN = {"1d": "0", "1wk": "1", "1mo": "2"}
+
+_TRADES_PATH = "/uapi/overseas-price/v1/quotations/inquire-ccnl"
+_TRADES_TR = "HHDFS76200300"
 
 
 def fetch_quote(transport: Transport, *, symbol: str, exchange: str) -> Quote:
@@ -142,6 +148,44 @@ def _parse_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:
             )
         )
     return bars
+
+
+def fetch_trades(transport: Transport, *, symbol: str, exchange: str) -> list[Trade]:
+    """해외 최근 체결(time & sales; 당일). 벤더 순서(최신순)를 유지한다. 시각은 한국기준시간(khms)."""
+    params = {"AUTH": "", "EXCD": exchange, "SYMB": symbol, "TDAY": "1", "KEYB": ""}
+    resp = transport.request(
+        method="GET", path=_TRADES_PATH, tr_id=_TRADES_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output1")
+    if not isinstance(rows, list):     # 성공 응답인데 배열 아님 -> fail-closed
+        raise _missing_block_error("output1", resp)
+    return _parse_trades(rows, symbol=symbol, today=_today_kst())
+
+
+def _parse_trades(
+    rows: Sequence[Mapping[str, Any]], *, symbol: str, today: str
+) -> list[Trade]:
+    """해외 체결 행 -> Trade. 시각 khms(한국기준시간 HHMMSS)에 조회일을 붙인다. 체결량은 evol."""
+    trades: list[Trade] = []
+    for row in rows:
+        time_text = str(row.get("khms", "")).strip()
+        price_text = str(row.get("last", "")).strip()
+        if not time_text or not price_text:  # 빈 체결 skip
+            continue
+        sign = str(row.get("sign", "")).strip()
+        trades.append(
+            Trade(
+                symbol=symbol,
+                timestamp=_parse_minute_bar_timestamp(today, time_text),
+                price=required_decimal(price_text, "last"),
+                quantity=required_int(row.get("evol"), "evol"),
+                change=_apply_change_sign(required_decimal(row.get("diff"), "diff"), sign),
+                change_percent=_apply_change_sign(required_decimal(row.get("rate"), "rate"), sign),
+                _raw=row,
+            )
+        )
+    return trades
 
 
 def _parse_quote(
