@@ -23,7 +23,7 @@ from ._masters import (
 from .balance import Balance, Portfolio, Position
 from .errors import KisUsageError
 from .index import Index
-from .instrument import DomesticBoard
+from .instrument import DomesticBoard, is_domestic_symbol
 from .order import Order
 from .ranking import RankingQueries
 from .report import ExecutionReport
@@ -95,8 +95,13 @@ class KisClient:
         self, symbol: str, *, market: DomesticBoard | None = None, exchange: str | None = None
     ) -> Ticker:
         """종목 핸들을 만든다. 국내는 심볼로 시장 자동 판별(6자리 숫자 -> KRX), 해외는 ``exchange``
-        (거래소코드 NAS/NYS/AMS/TSE/HKS/...)를 준다. 해외 심볼->거래소를 모르면 :meth:`instrument`
-        로 먼저 조회한다."""
+        (거래소코드 NAS/NYS/AMS/TSE/HKS/...)를 준다.
+
+        해외 심볼을 ``exchange`` 없이 주면(6자리 숫자가 아니면) KIS 종목 마스터로 거래소를 자동
+        해석한다(첫 조회는 마스터를 받아 캐시 -- 느릴 수 있다). 같은 심볼이 여러 거래소면
+        ``exchange`` 를 명시해야 한다."""
+        if exchange is None and market is None and not is_domestic_symbol(symbol):
+            exchange = self.instrument(symbol).exchange     # 해외 바-심볼 -> 마스터로 거래소 해석
         return Ticker(self, symbol, market=market, exchange=exchange)
 
     def instrument(self, symbol: str, *, exchange: str | None = None) -> MasterRecord:

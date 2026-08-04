@@ -92,11 +92,6 @@ def test_ticker_market_override_to_nextrade():
     assert fake.calls[0]["params"]["FID_COND_MRKT_DIV_CODE"] == "NX"
 
 
-def test_overseas_symbol_not_yet_supported():
-    with pytest.raises(KisUsageError):        # 영문 심볼 -> 해외 미지원 안내
-        _client(FakeTransport(response=_quote_resp())).ticker("AAPL")
-
-
 def test_quote_change_negative_on_down_sign():
     output = dict(_QUOTE_OUTPUT, prdy_vrss_sign="5", prdy_vrss="600", prdy_ctrt="0.85")
     quote = _client(FakeTransport(response=_quote_resp(output))).ticker("005930").quote()

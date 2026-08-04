@@ -93,6 +93,31 @@ def test_overseas_ticker_is_overseas_flag():
     assert _client(fake).ticker("005930").is_overseas is False
 
 
+def test_bare_symbol_auto_resolves_exchange():
+    from kis_openapi import MasterIndex, MasterRecord
+    index = MasterIndex([MasterRecord("AAPL", "NAS", "USD", "stock", "애플", "APPLE", "NASAAPL")])
+    fake = FakeTransport(response=_resp(_output()))
+    client = KisClient(app_key="k", app_secret="s", transport=fake, master_index=index)
+    handle = client.ticker("AAPL")                # exchange 없이 -> 마스터로 NAS 자동 해석
+    assert handle.is_overseas is True
+    assert handle.exchange == "NAS"
+    quote = handle.quote()
+    assert quote.market == "NAS"
+    assert fake.calls[0]["params"]["EXCD"] == "NAS"
+
+
+def test_bare_domestic_symbol_stays_domestic_without_master():
+    # 6자리 숫자는 마스터를 거치지 않는다(네트워크/인덱스 불필요).
+    def exploding_fetch(url):
+        raise AssertionError("국내 심볼은 마스터를 받으면 안 된다")
+
+    client = KisClient(app_key="k", app_secret="s", transport=FakeTransport(response=_resp(_output())),
+                       master_fetch=exploding_fetch)
+    handle = client.ticker("005930")
+    assert handle.is_overseas is False
+    assert handle.market == "KRX"
+
+
 def test_overseas_ticker_rejects_domestic_only_methods():
     fake = FakeTransport(response=_resp(_output()))
     handle = _client(fake).ticker("AAPL", exchange="NAS")
