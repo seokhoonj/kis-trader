@@ -162,3 +162,56 @@ def test_index_bars_non_list_output2_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output2": "oops"})
     with pytest.raises(KisError):
         _client(FakeTransport(response=resp)).index("0001").bars(start="20240101")
+
+
+_INDEX_INTRADAY = "/uapi/domestic-stock/v1/quotations/inquire-index-timeprice"
+
+
+def _intraday_row(hour, value, change, sign, acml, cntg):
+    return {"bsop_hour": hour, "bstp_nmix_prpr": value, "bstp_nmix_prdy_vrss": change,
+            "prdy_vrss_sign": sign, "acml_vol": acml, "cntg_vol": cntg}
+
+
+def _intraday_resp(rows):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output": rows})
+
+
+def test_index_intraday_maps_fields_sorted_ascending():
+    from kis_openapi import IndexIntradayPoint
+    fake = FakeTransport(response=_intraday_resp([
+        _intraday_row("100600", "2650.10", "12.30", "2", "500", "40"),
+        _intraday_row("100500", "2649.80", "12.00", "2", "460", "38"),
+    ]))
+    points = _client(fake).index("0001").intraday()
+    assert [f"{p.time:%H%M%S}" for p in points] == ["100500", "100600"]   # 오름차순 정렬
+    assert all(isinstance(p, IndexIntradayPoint) for p in points)
+    assert points[-1].value == Decimal("2650.10")
+    assert points[-1].change == Decimal("12.30")
+    assert points[-1].volume == 500
+    assert points[-1].interval_volume == 40
+    call = fake.calls[0]
+    assert call["path"] == _INDEX_INTRADAY
+    assert call["tr_id"] == "FHPUP02110200"
+    assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "U"
+    assert call["params"]["FID_INPUT_ISCD"] == "0001"
+    assert call["params"]["FID_INPUT_HOUR_1"] == "60"           # 1m = 60초
+
+
+def test_index_intraday_interval_maps_and_negative_change():
+    fake = FakeTransport(response=_intraday_resp([_intraday_row("131000", "900.00", "5.5", "5",
+                                                                "100", "10")]))
+    points = _client(fake).index("1001").intraday(interval="10m")
+    assert fake.calls[0]["params"]["FID_INPUT_HOUR_1"] == "600"  # 10m = 600초
+    assert points[0].change == Decimal("-5.5")                   # 하락 -> 음수
+
+
+def test_index_intraday_bad_interval():
+    fake = FakeTransport(response=_intraday_resp([]))
+    with pytest.raises(KisUsageError):
+        _client(fake).index("0001").intraday(interval="3m")
+
+
+def test_index_intraday_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KisError):
+        _client(fake).index("0001").intraday()

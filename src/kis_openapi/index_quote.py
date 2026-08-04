@@ -1,8 +1,9 @@
-"""지수/업종 현재가 스냅샷(DATA) -- :class:`IndexQuote`.
+"""지수/업종 시세 DATA -- :class:`IndexQuote`, :class:`IndexIntradayPoint`.
 
-:meth:`~kis_openapi.index.Index.quote` 가 돌려주는 한 지수(업종)의 현재 스냅샷이다. 종목의
-:class:`~kis_openapi.quote.Quote` 와 달리 체결가가 아니라 **지수 레벨**(``value``)을 담고, 지수만의
-등락 종목 수(breadth: 상승/하락/보합/상한/하한)를 함께 준다.
+:class:`~kis_openapi.index.Index` 핸들(``kis.index(code)``)이 돌려주는 지수(업종) 시세 타입들이다.
+:class:`IndexQuote` 는 현재가 스냅샷(:meth:`~kis_openapi.index.Index.quote`), :class:`IndexIntradayPoint`
+는 당일 시간대별 시계열(:meth:`~kis_openapi.index.Index.intraday`)의 한 점이다. 종목의
+:class:`~kis_openapi.quote.Quote` 와 달리 체결가가 아니라 **지수 레벨**(``value``)을 담는다.
 """
 
 from __future__ import annotations
@@ -38,6 +39,27 @@ class IndexQuote:
     limit_up: int                     # 상한 종목 수
     limit_down: int                   # 하한 종목 수
     as_of: datetime                   # KST-aware
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class IndexIntradayPoint:
+    """지수 당일 시간대별 시계열의 한 점(불변).
+
+    ``time`` 은 그 시각(당일, KST-aware), ``value`` 는 그때의 지수 레벨. ``change`` 는 전일대비로
+    하락이면 음수. ``interval_volume`` 은 그 구간의 체결 거래량(``volume`` 은 그 시각까지 누적).
+    """
+
+    time: datetime                    # 그 시각(당일, KST-aware)
+    value: Decimal                    # 지수 레벨
+    change: Decimal                   # 전일대비(부호 포함)
+    volume: int                       # 누적 거래량
+    interval_volume: int              # 그 구간 체결 거래량
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

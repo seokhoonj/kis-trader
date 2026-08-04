@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from ._domestic import index as index_api
 from .bar import Bar, Interval
-from .index_quote import IndexQuote
+from .index_quote import IndexIntradayPoint, IndexQuote
 
 if TYPE_CHECKING:
     from datetime import date
@@ -51,4 +51,11 @@ class Index:
         return index_api.fetch_index_bars(
             self._client.transport, code=self.code,
             interval=interval, start=start, end=end, max_bars=max_bars,
+        )
+
+    def intraday(self, *, interval: str = "1m") -> list[IndexIntradayPoint]:
+        """지수 당일 시간대별 시계열(과거->현재). ``interval="1m"``/``"5m"``/``"10m"`` 샘플 간격.
+        각 점은 그 시각의 지수 레벨·전일대비·거래량이며, OHLC 캔들이 아니라 값 시계열이다."""
+        return index_api.fetch_index_intraday(
+            self._client.transport, code=self.code, interval=interval
         )
