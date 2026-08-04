@@ -22,7 +22,7 @@ from typing import Any
 from .._wire import required_decimal, required_int
 from ..bar import Bar, Interval
 from ..errors import KisUsageError
-from ..index_quote import IndexIntradayPoint, IndexQuote
+from ..index_items import IndexIntradayPoint, IndexQuote
 from ..transport import Transport
 from .market_data import (
     _KST,

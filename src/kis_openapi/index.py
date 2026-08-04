@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from ._domestic import index as index_api
 from .bar import Bar, Interval
-from .index_quote import IndexIntradayPoint, IndexQuote
+from .index_items import IndexIntradayPoint, IndexQuote
 
 if TYPE_CHECKING:
     from datetime import date
