@@ -45,10 +45,8 @@ from datetime import date
 from typing import Any
 
 from .._wire import required_decimal, required_int
-from ..dividend_ranking import DividendRanking
 from ..errors import KisUsageError
-from ..ranked_stock import RankedStock
-from ..short_sale_ranking import ShortSaleRanking
+from ..ranking_items import DividendRanking, RankedStock, ShortSaleRanking
 from ..transport import Transport
 from .market_data import (
     _apply_change_sign,

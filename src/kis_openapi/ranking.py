@@ -1,7 +1,7 @@
 """시장 전체 순위 네임스페이스 -- :class:`RankingQueries`.
 
 ``kis.ranking.by_change(top="gainers")`` 처럼, 종목이 아니라 **시장 전체**를 어떤 기준으로 줄
-세운 결과(:class:`~kis_openapi.ranked_stock.RankedStock` 리스트)를 돌려준다. KIS가 순위마다 URL을
+세운 결과(:class:`~kis_openapi.ranking_items.RankedStock` 리스트)를 돌려준다. KIS가 순위마다 URL을
 다른 섹션(``/ranking/``, ``/quotations/``)에 두지만, 사용자에겐 "ranking" 하나로 모은다(섹션 계층
 미러링 금지). 직접 만들지 않고 :attr:`~kis_openapi.client.KisClient.ranking` 로 얻는다.
 
@@ -13,9 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._domestic import ranking as ranking_api
-from .dividend_ranking import DividendRanking
-from .ranked_stock import RankedStock
-from .short_sale_ranking import ShortSaleRanking
+from .ranking_items import DividendRanking, RankedStock, ShortSaleRanking
 
 if TYPE_CHECKING:
     from datetime import date
@@ -119,7 +117,7 @@ class RankingQueries:
         """배당률 순위. ``kind="cash"`` 현금배당 / ``"stock"`` 주식배당. ``start``/``end`` 는 배당
         기준일 범위(YYYYMMDD 문자열 또는 ``date``). ``market`` = ``"all"``/``"kospi"``/``"kospi200"``/
         ``"kosdaq"``, ``settlement`` = ``"all"``/``"final"``(결산)/``"interim"``(중간). 시세가 없어
-        :class:`~kis_openapi.dividend_ranking.DividendRanking` 항목을 돌려준다(최대 30건).
+        :class:`~kis_openapi.ranking_items.DividendRanking` 항목을 돌려준다(최대 30건).
 
         ``dividend_rate`` 는 액면가 기준 배당률(%)이지 시장가 기준 배당수익률이 아니다."""
         return ranking_api.fetch_dividend(
@@ -130,6 +128,6 @@ class RankingQueries:
     def by_short_sale(self, *, window: str = "1d") -> list[ShortSaleRanking]:
         """공매도 순위. ``window`` 조회기간 = ``"1d"``/``"2d"``/``"3d"``/``"4d"``/``"1w"``/``"2w"``/
         ``"3w"`` (일 단위) 또는 ``"1mo"``/``"2mo"``/``"3mo"`` (월 단위). 공매도 체결수량·거래량 비중·
-        거래대금·평균가를 담은 :class:`~kis_openapi.short_sale_ranking.ShortSaleRanking` 를
+        거래대금·평균가를 담은 :class:`~kis_openapi.ranking_items.ShortSaleRanking` 를
         돌려준다(순위는 응답 순서, 최대 30건)."""
         return ranking_api.fetch_short_sale(self._client.transport, window=window, market="KRX")
