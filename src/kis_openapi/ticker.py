@@ -18,7 +18,7 @@ from ._domestic import market_data
 from .after_hours import AfterHoursQuote
 from .bar import Bar, Interval
 from .broker import BrokerActivitySummary
-from .etf_items import EtfNav
+from .etf_items import EtfComponent, EtfNav
 from .instrument import DomesticBoard, resolve_market
 from .investor import InvestorFlow
 from .order import Order, Side, TimeInForce
@@ -106,6 +106,11 @@ class Ticker:
         """ETF/ETN 순자산가치(NAV) 스냅샷(NAV·괴리율·추적오차율·순자산총액). 이 종목이 ETF/ETN
         일 때만 유효하다(아니면 서버가 거부). 시장 체결가는 :meth:`quote`."""
         return etf_api.fetch_etf_nav(self._client.transport, symbol=self.symbol)
+
+    def components(self) -> list[EtfComponent]:
+        """ETF 구성종목(PDF) 목록 -- 각 구성종목의 시세·ETF 내 구성 비중·평가금액. 이 종목이 ETF
+        일 때만 유효하다(아니면 서버가 거부)."""
+        return etf_api.fetch_etf_components(self._client.transport, symbol=self.symbol)
 
     def buyable(self, *, limit_price: object | None = None) -> BuyableAmount:
         """이 종목의 매수가능 여력(현금 기준·미수 포함 최대). ``limit_price`` 없으면 시장가 기준.

@@ -1,8 +1,9 @@
-"""ETF/ETN 시세 DATA -- :class:`EtfNav`.
+"""ETF/ETN 시세 DATA -- :class:`EtfNav`, :class:`EtfComponent`.
 
 ETF/ETN 은 호가창에서 거래되는 종목이라 시세/주문은 :class:`~kis_openapi.ticker.Ticker` 로 하고,
-ETF 고유 정보(NAV 등)만 이 타입들로 돌려준다. :class:`EtfNav` 는 순자산가치 스냅샷
-(:meth:`~kis_openapi.ticker.Ticker.nav`)이다.
+ETF 고유 정보만 이 타입들로 돌려준다. :class:`EtfNav` 는 순자산가치 스냅샷
+(:meth:`~kis_openapi.ticker.Ticker.nav`), :class:`EtfComponent` 는 구성종목(PDF) 한 항목
+(:meth:`~kis_openapi.ticker.Ticker.components`)이다.
 """
 
 from __future__ import annotations
@@ -33,6 +34,30 @@ class EtfNav:
     tracking_error: Decimal           # 추적오차율(%)
     net_assets: Decimal               # 순자산 총액
     as_of: datetime                   # KST-aware
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class EtfComponent:
+    """ETF 구성종목(PDF) 한 항목(불변).
+
+    ETF 가 담고 있는 개별 종목 하나다. ``weight`` 는 ETF 안에서 차지하는 구성 비중(%),
+    ``valuation`` 은 ETF 내 평가금액. ``change`` / ``change_percent`` 는 그 구성종목의 전일대비로
+    하락이면 음수.
+    """
+
+    symbol: str                       # 구성종목 코드
+    name: str                         # 구성종목명
+    price: Decimal                    # 현재가
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    weight: Decimal                   # ETF 구성 비중(%)
+    valuation: Decimal                # ETF 내 평가금액
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

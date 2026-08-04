@@ -7,16 +7,18 @@ ETF/ETN 은 종목처럼 거래되므로 시세/주문은 일반 verb 로 하고
 KIS URL/TR-id (원장 대조):
 - ETF/ETN 현재가(NAV 포함): ``GET /uapi/etfetn/v1/quotations/inquire-price`` ``FHPST02400000``
   (``FID_COND_MRKT_DIV_CODE=J``).
+- ETF 구성종목시세: ``GET /uapi/etfetn/v1/quotations/inquire-component-stock-price`` ``FHKST121600C0``
+  화면 11216 (output2 = 구성종목 목록).
 """
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import datetime
 from typing import Any
 
 from .._wire import required_decimal
-from ..etf_items import EtfNav
+from ..etf_items import EtfComponent, EtfNav
 from ..transport import Transport
 from .market_data import _KST, _apply_change_sign, _missing_block_error, _raise_if_error
 
@@ -24,6 +26,10 @@ _ETF_NAV_PATH = "/uapi/etfetn/v1/quotations/inquire-price"
 _ETF_NAV_TR = "FHPST02400000"
 #: ETF/ETN 시세의 시장구분 코드(원장: 주식 J).
 _ETF_MARKET_DIV = "J"
+
+_ETF_COMPONENTS_PATH = "/uapi/etfetn/v1/quotations/inquire-component-stock-price"
+_ETF_COMPONENTS_TR = "FHKST121600C0"
+_ETF_COMPONENTS_SCR = "11216"
 
 
 def fetch_etf_nav(transport: Transport, *, symbol: str) -> EtfNav:
@@ -37,6 +43,49 @@ def fetch_etf_nav(transport: Transport, *, symbol: str) -> EtfNav:
     if not isinstance(output, Mapping):        # 성공 응답인데 객체 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return _parse_etf_nav(output, symbol=symbol, as_of=datetime.now(_KST))
+
+
+def fetch_etf_components(transport: Transport, *, symbol: str) -> list[EtfComponent]:
+    """ETF 구성종목(PDF) 목록. ``symbol`` 이 ETF 가 아니면 서버가 거부한다. output2를
+    :class:`EtfComponent` 리스트로 돌려준다."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _ETF_MARKET_DIV,
+        "FID_INPUT_ISCD": symbol,
+        "FID_COND_SCR_DIV_CODE": _ETF_COMPONENTS_SCR,
+    }
+    resp = transport.request(
+        method="GET", path=_ETF_COMPONENTS_PATH, tr_id=_ETF_COMPONENTS_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")            # output1=ETF 요약, output2=구성종목 목록
+    if not isinstance(rows, list):             # 성공 응답인데 목록 아님 -> fail-closed
+        raise _missing_block_error("output2", resp)
+    return _parse_etf_components(rows)
+
+
+def _parse_etf_components(rows: Sequence[Mapping[str, Any]]) -> list[EtfComponent]:
+    components: list[EtfComponent] = []
+    for row in rows:
+        symbol = str(row.get("stck_shrn_iscd", "")).strip()
+        if not symbol:                         # 빈 행 skip
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        components.append(
+            EtfComponent(
+                symbol=symbol,
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                weight=required_decimal(row.get("etf_cnfg_issu_rlim"), "etf_cnfg_issu_rlim"),
+                valuation=required_decimal(row.get("etf_vltn_amt"), "etf_vltn_amt"),
+                _raw=row,
+            )
+        )
+    return components
 
 
 def _parse_etf_nav(output: Mapping[str, Any], *, symbol: str, as_of: datetime) -> EtfNav:

@@ -88,3 +88,50 @@ def test_nav_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(_output(nav="n/a")))
     with pytest.raises(KisError):
         _client(fake).ticker("069500").nav()
+
+
+_ETF_COMPONENTS = "/uapi/etfetn/v1/quotations/inquire-component-stock-price"
+
+
+def _component_row(symbol="005930", name="삼성전자", price="72700", change="400", sign="2",
+                   pct="0.55", weight="28.9", valuation="1210000000"):
+    return {"stck_shrn_iscd": symbol, "hts_kor_isnm": name, "stck_prpr": price,
+            "prdy_vrss": change, "prdy_vrss_sign": sign, "prdy_ctrt": pct,
+            "etf_cnfg_issu_rlim": weight, "etf_vltn_amt": valuation}
+
+
+def _components_resp(rows):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": {"stck_prpr": "37195"}, "output2": rows})
+
+
+def test_components_maps_fields_and_params():
+    from kis_openapi import EtfComponent
+    fake = FakeTransport(response=_components_resp([_component_row(),
+                                                    _component_row(symbol="000660", name="SK하이닉스")]))
+    comps = _client(fake).ticker("069500").components()
+    assert [c.symbol for c in comps] == ["005930", "000660"]
+    first = comps[0]
+    assert isinstance(first, EtfComponent)
+    assert first.name == "삼성전자"
+    assert first.price == Decimal(72700)
+    assert first.weight == Decimal("28.9")
+    assert first.valuation == Decimal(1210000000)
+    call = fake.calls[0]
+    assert call["path"] == _ETF_COMPONENTS
+    assert call["tr_id"] == "FHKST121600C0"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "11216"
+    assert call["params"]["FID_INPUT_ISCD"] == "069500"
+
+
+def test_components_negative_change_sign_restored():
+    fake = FakeTransport(response=_components_resp([_component_row(change="300", sign="5")]))
+    comps = _client(fake).ticker("069500").components()
+    assert comps[0].change == Decimal(-300)                      # 하락 -> 음수
+
+
+def test_components_missing_output2_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
+                                              body={"output1": {"stck_prpr": "1"}}))
+    with pytest.raises(KisError):
+        _client(fake).ticker("069500").components()
