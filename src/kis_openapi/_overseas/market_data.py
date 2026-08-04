@@ -22,13 +22,15 @@ from .._domestic.market_data import (
     _missing_block_error,
     _parse_bar_timestamp,
     _parse_minute_bar_timestamp,
+    _price_levels,
     _raise_if_error,
     _to_yyyymmdd,
     _today_kst,
 )
-from .._wire import required_decimal, required_int
+from .._wire import optional_int, required_decimal, required_int
 from ..bar import Bar, Interval
 from ..errors import KisError, KisUsageError
+from ..order_book import OrderBook
 from ..quote import Quote
 from ..trade import Trade
 from ..transport import Transport
@@ -44,6 +46,9 @@ _BARS_GUBN = {"1d": "0", "1wk": "1", "1mo": "2"}
 
 _TRADES_PATH = "/uapi/overseas-price/v1/quotations/inquire-ccnl"
 _TRADES_TR = "HHDFS76200300"
+
+_ORDER_BOOK_PATH = "/uapi/overseas-price/v1/quotations/inquire-asking-price"
+_ORDER_BOOK_TR = "HHDFS76200100"
 
 
 def fetch_quote(transport: Transport, *, symbol: str, exchange: str) -> Quote:
@@ -148,6 +153,32 @@ def _parse_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:
             )
         )
     return bars
+
+
+def fetch_order_book(transport: Transport, *, symbol: str, exchange: str) -> OrderBook:
+    """해외 호가창 스냅샷. **미국은 10단계, 그 외 국가는 1단계**만 제공(원장). output1=총잔량 헤더,
+    output2=단계별 매수/매도 호가. 도메스틱과 같은 :class:`~kis_openapi.order_book.OrderBook` 로."""
+    params = {"AUTH": "", "EXCD": exchange, "SYMB": symbol}
+    resp = transport.request(
+        method="GET", path=_ORDER_BOOK_PATH, tr_id=_ORDER_BOOK_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    output1 = resp.body.get("output1")         # 총잔량/시세 헤더
+    output2 = resp.body.get("output2")         # 단계별 호가(pbidN/paskN/vbidN/vaskN)
+    if not isinstance(output1, Mapping):
+        raise _missing_block_error("output1", resp)
+    if not isinstance(output2, Mapping):
+        raise _missing_block_error("output2", resp)
+    return OrderBook(
+        symbol=symbol,
+        market=exchange,
+        bids=_price_levels(output2, "pbid", "vbid"),
+        asks=_price_levels(output2, "pask", "vask"),
+        total_bid_quantity=optional_int(output1.get("bvol"), "bvol") or 0,
+        total_ask_quantity=optional_int(output1.get("avol"), "avol") or 0,
+        as_of=datetime.now(_KST),
+        _raw={**dict(output1), **dict(output2)},
+    )
 
 
 def fetch_trades(transport: Transport, *, symbol: str, exchange: str) -> list[Trade]:

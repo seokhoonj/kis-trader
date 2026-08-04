@@ -122,8 +122,8 @@ def test_overseas_ticker_rejects_domestic_only_methods():
     fake = FakeTransport(response=_resp(_output()))
     handle = _client(fake).ticker("AAPL", exchange="NAS")
     for call in (
-        handle.order_book,
         handle.investor_flows,
+        handle.broker_activity,
         lambda: handle.buy(quantity=1),
         handle.nav,
     ):

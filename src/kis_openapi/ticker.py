@@ -112,9 +112,13 @@ class Ticker:
         )
 
     def order_book(self) -> OrderBook:
-        """10단계 호가창 스냅샷."""
+        """호가창 스냅샷(국내 10단계 / 해외는 미국 10·그 외 1단계). 국내/해외 자동 라우팅."""
+        if self.exchange is not None:
+            return overseas_market_data.fetch_order_book(
+                self._client.transport, symbol=self.symbol, exchange=self.exchange
+            )
         return market_data.fetch_order_book(
-            self._client.transport, symbol=self.symbol, market=self._domestic_market()
+            self._client.transport, symbol=self.symbol, market=self.market
         )
 
     def trades(self) -> list[Trade]:
