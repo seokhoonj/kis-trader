@@ -10,6 +10,7 @@ Securities (KIS) Open API.
 
 from __future__ import annotations
 
+from ._masters import MasterIndex, MasterRecord
 from .after_hours import AfterHoursQuote
 from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
@@ -60,6 +61,8 @@ __all__ = [
     "InvestorActivity",
     "InvestorFlow",
     "KisClient",
+    "MasterIndex",
+    "MasterRecord",
     "NearHighLowRanking",
     "Order",
     "OrderBook",

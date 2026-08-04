@@ -13,6 +13,13 @@ from typing import Literal
 
 from ._domestic import account as account_api
 from ._domestic import orders as orders_engine
+from ._masters import (
+    Fetch,
+    MasterIndex,
+    MasterRecord,
+    load_overseas_index,
+    urlopen_fetch,
+)
 from .balance import Balance, Portfolio, Position
 from .errors import KisUsageError
 from .index import Index
@@ -40,6 +47,8 @@ class KisClient:
         store: OrderStore | None = None,
         orderable: bool = True,
         risk: RiskLimits | None = None,
+        master_index: MasterIndex | None = None,
+        master_fetch: Fetch | None = None,
     ) -> None:
         """세션을 연다.
 
@@ -49,6 +58,10 @@ class KisClient:
         전에 :class:`~kis_openapi.errors.AccountNotOrderable` 로 막는다(조회전용 계좌 보호).
         ``risk`` 를 주면 모든 buy/sell 이 전송 전에 그 사전 리스크 한도
         (:class:`~kis_openapi.risk.RiskLimits`)를 통과해야 한다(fat-finger 방지).
+
+        해외 심볼 조회(:meth:`instrument`)는 KIS 종목 마스터로 심볼->거래소를 찾는다. ``master_index``
+        를 주면 그 인덱스를 쓰고(테스트/고급), 없으면 첫 조회 때 마스터를 받아 캐시한다. ``master_fetch``
+        로 다운로더를 바꿀 수 있다(기본은 KIS 배포 서버).
         """
         self._app_key = app_key
         self._app_secret = app_secret
@@ -64,6 +77,9 @@ class KisClient:
         self._store = store if store is not None else OrderStore()
         self._orderable = orderable
         self._risk = risk
+        # 해외 심볼->거래소 해석용 마스터 인덱스. 주입 없으면 첫 instrument() 호출 때 지연 로드.
+        self._master_index = master_index
+        self._master_fetch = master_fetch if master_fetch is not None else urlopen_fetch
 
     @property
     def transport(self) -> Transport:
@@ -78,6 +94,15 @@ class KisClient:
     def ticker(self, symbol: str, *, market: DomesticBoard | None = None) -> Ticker:
         """종목 핸들을 만든다. 시장은 심볼로 자동 판별(6자리 숫자 -> 국내 KRX)."""
         return Ticker(self, symbol, market=market)
+
+    def instrument(self, symbol: str, *, exchange: str | None = None) -> MasterRecord:
+        """해외 심볼을 KIS 종목 마스터로 조회한다 -- 거래소코드/통화/종목유형/이름을 돌려준다.
+
+        같은 심볼이 여러 거래소에 있으면 ``exchange`` 를 명시해야 한다(:class:`~kis_openapi.errors.
+        KisUsageError`). 첫 호출은 마스터를 받아 캐시하므로 느릴 수 있다(이후는 캐시)."""
+        if self._master_index is None:
+            self._master_index = load_overseas_index(fetch=self._master_fetch)
+        return self._master_index.resolve(symbol, exchange=exchange)
 
     def index(self, code: str) -> Index:
         """지수/업종 핸들을 만든다. ``code`` 는 업종코드(0001 KOSPI 종합, 1001 KOSDAQ 종합,
