@@ -21,6 +21,13 @@ KIS URL/TR-id/화면코드/코드표(원장 대조):
   (``FID_RANK_SORT_CLS_CODE`` 0:매수상위 1:매도상위).
 - 관심종목 등록상위: ``GET .../ranking/top-interest-stock`` ``FHPST01800000`` 화면 20180 (정렬 없음).
 - 우선주 괴리율: ``GET .../ranking/prefer-disparate-ratio`` ``FHPST01770000`` 화면 20177 (정렬 없음).
+- 재무비율: ``GET .../ranking/finance-ratio`` ``FHPST01750000`` 화면 20175
+  (``FID_RANK_SORT_CLS_CODE`` 7:수익성 11:안정성 15:성장성 20:활동성).
+- 시장가치: ``GET .../ranking/market-value`` ``FHPST01790000`` 화면 20179
+  (``FID_RANK_SORT_CLS_CODE`` 23:PER 24:PBR 25:PCR 26:PSR 27:EPS 28:EVA 29:EBITDA 30:EV/EBITDA 31:EBITDA/금융비율).
+- 수익자산지표: ``GET .../ranking/profit-asset-index`` ``FHPST01730000`` 화면 20173
+  (``FID_RANK_SORT_CLS_CODE`` 0:매출이익 1:영업이익 2:경상이익 3:당기순이익 4:자산총계 5:부채총계 6:자본총계).
+  이 셋은 회계연도(``FID_INPUT_OPTION_1``)+분기(``FID_INPUT_OPTION_2`` 0:1Q 1:반기 2:3Q 3:결산)를 함께 받는다.
 """
 
 from __future__ import annotations
@@ -84,6 +91,35 @@ _INTEREST_SCR = "20180"
 _PREFERRED_DISPARITY_PATH = "/uapi/domestic-stock/v1/ranking/prefer-disparate-ratio"
 _PREFERRED_DISPARITY_TR = "FHPST01770000"
 _PREFERRED_DISPARITY_SCR = "20177"
+
+#: 회계 분기(재무·가치 순위 공통, 원장 FID_INPUT_OPTION_2). annual=결산.
+_FISCAL_QUARTER = {"q1": "0", "h1": "1", "q3": "2", "annual": "3"}
+
+_FINANCE_RATIO_PATH = "/uapi/domestic-stock/v1/ranking/finance-ratio"
+_FINANCE_RATIO_TR = "FHPST01750000"
+_FINANCE_RATIO_SCR = "20175"
+#: 재무비율 분석 축(원장 코드표).
+_FINANCE_RATIO_ANALYSIS = {
+    "profitability": "7", "stability": "11", "growth": "15", "activity": "20",
+}
+
+_VALUATION_PATH = "/uapi/domestic-stock/v1/ranking/market-value"
+_VALUATION_TR = "FHPST01790000"
+_VALUATION_SCR = "20179"
+#: 시장가치(밸류에이션) 지표 축(원장 코드표).
+_VALUATION_METRIC = {
+    "per": "23", "pbr": "24", "pcr": "25", "psr": "26", "eps": "27",
+    "eva": "28", "ebitda": "29", "ev_ebitda": "30", "ebitda_ratio": "31",
+}
+
+_PROFIT_ASSET_PATH = "/uapi/domestic-stock/v1/ranking/profit-asset-index"
+_PROFIT_ASSET_TR = "FHPST01730000"
+_PROFIT_ASSET_SCR = "20173"
+#: 수익자산지표 축(원장 코드표).
+_PROFIT_ASSET_METRIC = {
+    "sales_profit": "0", "operating_profit": "1", "ordinary_profit": "2",
+    "net_income": "3", "total_assets": "4", "total_liabilities": "5", "total_equity": "6",
+}
 
 
 def fetch_fluctuation(transport: Transport, *, top: str, market: str) -> list[RankedStock]:
@@ -236,6 +272,63 @@ def fetch_preferred_disparity(transport: Transport, *, market: str) -> list[Rank
     return _fetch_ranking(
         transport, path=_PREFERRED_DISPARITY_PATH, tr=_PREFERRED_DISPARITY_TR, params=params
     )
+
+
+def fetch_finance_ratio(
+    transport: Transport, *, analysis: str, year: int, quarter: str, market: str
+) -> list[RankedStock]:
+    """재무비율 순위. ``analysis`` = profitability(수익성)/stability(안정성)/growth(성장성)/
+    activity(활동성). ``year`` 회계연도, ``quarter`` q1/h1/q3/annual. 비율값은 각 항목의 ``_raw``."""
+    params = _fundamentals_params(
+        market=market, scr=_FINANCE_RATIO_SCR,
+        sort=_lookup(_FINANCE_RATIO_ANALYSIS, analysis, "analysis"), year=year, quarter=quarter,
+    )
+    return _fetch_ranking(transport, path=_FINANCE_RATIO_PATH, tr=_FINANCE_RATIO_TR, params=params)
+
+
+def fetch_valuation(
+    transport: Transport, *, metric: str, year: int, quarter: str, market: str
+) -> list[RankedStock]:
+    """시장가치(밸류에이션) 순위. ``metric`` = per/pbr/pcr/psr/eps/eva/ebitda/ev_ebitda/ebitda_ratio.
+    ``year`` 회계연도, ``quarter`` q1/h1/q3/annual. 지표값은 각 항목의 ``_raw`` (per/pbr/... )."""
+    params = _fundamentals_params(
+        market=market, scr=_VALUATION_SCR,
+        sort=_lookup(_VALUATION_METRIC, metric, "metric"), year=year, quarter=quarter,
+    )
+    return _fetch_ranking(transport, path=_VALUATION_PATH, tr=_VALUATION_TR, params=params)
+
+
+def fetch_profit_asset(
+    transport: Transport, *, metric: str, year: int, quarter: str, market: str
+) -> list[RankedStock]:
+    """수익자산지표 순위. ``metric`` = sales_profit/operating_profit/ordinary_profit/net_income/
+    total_assets/total_liabilities/total_equity. ``year`` 회계연도, ``quarter`` q1/h1/q3/annual.
+    금액은 각 항목의 ``_raw`` (sale_totl_prfi/op_prfi/total_aset 등)."""
+    params = _fundamentals_params(
+        market=market, scr=_PROFIT_ASSET_SCR,
+        sort=_lookup(_PROFIT_ASSET_METRIC, metric, "metric"), year=year, quarter=quarter,
+    )
+    return _fetch_ranking(transport, path=_PROFIT_ASSET_PATH, tr=_PROFIT_ASSET_TR, params=params)
+
+
+def _fundamentals_params(
+    *, market: str, scr: str, sort: str, year: int, quarter: str
+) -> dict[str, str]:
+    """재무·가치 순위 공통 파라미터(회계연도+분기+지표 축). 세 순위가 이 모양을 공유한다."""
+    return {
+        "FID_TRGT_CLS_CODE": "0",
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_COND_SCR_DIV_CODE": scr,
+        "FID_INPUT_ISCD": "0000",              # 전체
+        "FID_DIV_CLS_CODE": "0",
+        "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",   # 가격 전체
+        "FID_VOL_CNT": "",                      # 거래량 전체
+        "FID_INPUT_OPTION_1": str(year),        # 회계연도
+        "FID_INPUT_OPTION_2": _lookup(_FISCAL_QUARTER, quarter, "quarter"),
+        "FID_RANK_SORT_CLS_CODE": sort,
+        "FID_BLNG_CLS_CODE": "0",
+        "FID_TRGT_EXLS_CLS_CODE": "0",
+    }
 
 
 def _fetch_ranking(

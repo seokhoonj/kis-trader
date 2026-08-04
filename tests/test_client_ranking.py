@@ -24,6 +24,9 @@ _VOLUME_POWER = "/uapi/domestic-stock/v1/ranking/volume-power"
 _BULK_TRADES = "/uapi/domestic-stock/v1/ranking/bulk-trans-num"
 _INTEREST = "/uapi/domestic-stock/v1/ranking/top-interest-stock"
 _PREFERRED_DISPARITY = "/uapi/domestic-stock/v1/ranking/prefer-disparate-ratio"
+_FINANCE_RATIO = "/uapi/domestic-stock/v1/ranking/finance-ratio"
+_VALUATION = "/uapi/domestic-stock/v1/ranking/market-value"
+_PROFIT_ASSET = "/uapi/domestic-stock/v1/ranking/profit-asset-index"
 
 
 def _row(*, rank="1", symbol_field="mksc_shrn_iscd", symbol="005930", name="삼성전자",
@@ -216,6 +219,63 @@ def test_by_preferred_disparity_exposes_pair_in_raw():
     assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20177"
     assert ranked[0].price == Decimal(72700)                     # 본주 현재가
     assert ranked[0]._raw["dprt"] == "12.34"                     # 괴리율은 _raw
+
+
+def test_by_finance_ratio_sort_year_quarter():
+    fake = FakeTransport(response=_resp([_row(cptl_op_prfi="12.3")]))
+    ranked = _client(fake).ranking.by_finance_ratio(analysis="stability", year=2023, quarter="h1")
+    call = fake.calls[0]
+    assert call["path"] == _FINANCE_RATIO
+    assert call["tr_id"] == "FHPST01750000"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20175"
+    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "11"      # stability
+    assert call["params"]["FID_INPUT_OPTION_1"] == "2023"        # 회계연도
+    assert call["params"]["FID_INPUT_OPTION_2"] == "1"           # h1 = 반기
+    assert ranked[0]._raw["cptl_op_prfi"] == "12.3"
+
+
+def test_by_finance_ratio_defaults_and_bad_analysis():
+    fake = FakeTransport(response=_resp([_row()]))
+    _client(fake).ranking.by_finance_ratio(year=2024)
+    call = fake.calls[0]
+    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "7"       # profitability 기본
+    assert call["params"]["FID_INPUT_OPTION_2"] == "3"           # annual 기본
+    with pytest.raises(KisUsageError):
+        _client(FakeTransport(response=_resp([]))).ranking.by_finance_ratio(
+            analysis="liquidity", year=2024
+        )
+
+
+def test_by_valuation_metric_maps_to_code():
+    for metric, code in [("per", "23"), ("pbr", "24"), ("ev_ebitda", "30"), ("ebitda_ratio", "31")]:
+        fake = FakeTransport(response=_resp([_row(per="8.1")]))
+        _client(fake).ranking.by_valuation(metric=metric, year=2023)
+        call = fake.calls[0]
+        assert call["path"] == _VALUATION
+        assert call["tr_id"] == "FHPST01790000"
+        assert call["params"]["FID_RANK_SORT_CLS_CODE"] == code
+
+
+def test_by_valuation_bad_quarter():
+    with pytest.raises(KisUsageError):
+        _client(FakeTransport(response=_resp([]))).ranking.by_valuation(year=2023, quarter="q2")
+
+
+def test_by_profit_asset_metric_and_defaults():
+    fake = FakeTransport(response=_resp([_row(total_aset="4200000")]))
+    ranked = _client(fake).ranking.by_profit_asset(metric="total_assets", year=2023)
+    call = fake.calls[0]
+    assert call["path"] == _PROFIT_ASSET
+    assert call["tr_id"] == "FHPST01730000"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20173"
+    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "4"       # total_assets
+    assert ranked[0]._raw["total_aset"] == "4200000"
+
+
+def test_by_profit_asset_default_metric_is_net_income():
+    fake = FakeTransport(response=_resp([_row()]))
+    _client(fake).ranking.by_profit_asset(year=2023)
+    assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "3"   # net_income
 
 
 def test_ranking_skips_empty_rows():

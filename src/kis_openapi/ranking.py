@@ -66,3 +66,34 @@ class RankingQueries:
         """우선주 괴리율 순위(최대 30건). 공통필드는 본주 기준, 짝 우선주 시세와 괴리율은 각 항목의
         ``_raw``(prst_* / dprt 괴리율)."""
         return ranking_api.fetch_preferred_disparity(self._client.transport, market="KRX")
+
+    def by_finance_ratio(
+        self, *, analysis: str = "profitability", year: int, quarter: str = "annual"
+    ) -> list[RankedStock]:
+        """재무비율 순위. ``analysis`` = ``"profitability"`` 수익성 / ``"stability"`` 안정성 /
+        ``"growth"`` 성장성 / ``"activity"`` 활동성. ``year`` 회계연도(예: 2023), ``quarter`` =
+        ``"q1"``/``"h1"``/``"q3"``/``"annual"``(결산). 비율값은 각 항목의 ``_raw``(최대 30건)."""
+        return ranking_api.fetch_finance_ratio(
+            self._client.transport, analysis=analysis, year=year, quarter=quarter, market="KRX"
+        )
+
+    def by_valuation(
+        self, *, metric: str = "per", year: int, quarter: str = "annual"
+    ) -> list[RankedStock]:
+        """시장가치(밸류에이션) 순위. ``metric`` = per/pbr/pcr/psr/eps/eva/ebitda/ev_ebitda/
+        ebitda_ratio. ``year`` 회계연도, ``quarter`` = q1/h1/q3/annual. 지표값은 각 항목의
+        ``_raw``(per/pbr/...)(최대 30건). 시가총액 순위는 :meth:`by_market_cap`."""
+        return ranking_api.fetch_valuation(
+            self._client.transport, metric=metric, year=year, quarter=quarter, market="KRX"
+        )
+
+    def by_profit_asset(
+        self, *, metric: str = "net_income", year: int, quarter: str = "annual"
+    ) -> list[RankedStock]:
+        """수익자산지표 순위. ``metric`` = ``"sales_profit"`` 매출이익 / ``"operating_profit"`` 영업이익 /
+        ``"ordinary_profit"`` 경상이익 / ``"net_income"`` 당기순이익 / ``"total_assets"`` 자산총계 /
+        ``"total_liabilities"`` 부채총계 / ``"total_equity"`` 자본총계. ``year`` 회계연도, ``quarter`` =
+        q1/h1/q3/annual. 금액은 각 항목의 ``_raw``(최대 30건)."""
+        return ranking_api.fetch_profit_asset(
+            self._client.transport, metric=metric, year=year, quarter=quarter, market="KRX"
+        )
