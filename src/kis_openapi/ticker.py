@@ -18,7 +18,7 @@ from ._domestic import market_data
 from .after_hours import AfterHoursQuote
 from .bar import Bar, Interval
 from .broker import BrokerActivitySummary
-from .etf_items import EtfComponent, EtfNav
+from .etf_items import EtfComponent, EtfNav, EtfNavHistoryPoint
 from .instrument import DomesticBoard, resolve_market
 from .investor import InvestorFlow
 from .order import Order, Side, TimeInForce
@@ -111,6 +111,13 @@ class Ticker:
         """ETF 구성종목(PDF) 목록 -- 각 구성종목의 시세·ETF 내 구성 비중·평가금액. 이 종목이 ETF
         일 때만 유효하다(아니면 서버가 거부)."""
         return etf_api.fetch_etf_components(self._client.transport, symbol=self.symbol)
+
+    def nav_history(self, *, start: str | date, end: str | date) -> list[EtfNavHistoryPoint]:
+        """일별 NAV-가격 추이(과거->현재). ``start``/``end`` 는 기간(YYYYMMDD 또는 ``date``). 각
+        거래일의 종가·NAV·괴리율로 프리미엄/디스카운트 추이를 본다. 이 종목이 ETF/ETN 일 때만 유효."""
+        return etf_api.fetch_etf_nav_history(
+            self._client.transport, symbol=self.symbol, start=start, end=end
+        )
 
     def buyable(self, *, limit_price: object | None = None) -> BuyableAmount:
         """이 종목의 매수가능 여력(현금 기준·미수 포함 최대). ``limit_price`` 없으면 시장가 기준.

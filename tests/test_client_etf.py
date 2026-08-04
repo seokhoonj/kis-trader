@@ -12,7 +12,7 @@ from decimal import Decimal
 import pytest
 
 from kis_openapi import EtfNav, KisClient
-from kis_openapi.errors import KisError
+from kis_openapi.errors import KisError, KisUsageError
 from kis_openapi.transport import RawResponse
 
 _ETF_NAV = "/uapi/etfetn/v1/quotations/inquire-price"
@@ -135,3 +135,60 @@ def test_components_missing_output2_fails_closed():
                                               body={"output1": {"stck_prpr": "1"}}))
     with pytest.raises(KisError):
         _client(fake).ticker("069500").components()
+
+
+_ETF_NAV_HISTORY = "/uapi/etfetn/v1/quotations/nav-comparison-daily-trend"
+
+
+def _nav_hist_row(date_text, close, nav, nav_change, sign, nav_pct, premium):
+    return {"stck_bsop_date": date_text, "stck_clpr": close, "nav": nav,
+            "nav_prdy_vrss": nav_change, "nav_prdy_vrss_sign": sign, "nav_prdy_ctrt": nav_pct,
+            "dprt": premium}
+
+
+def _nav_hist_resp(rows):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output": rows})
+
+
+def test_nav_history_maps_fields_sorted_and_params():
+    from datetime import date as _date
+
+    from kis_openapi import EtfNavHistoryPoint
+    fake = FakeTransport(response=_nav_hist_resp([
+        _nav_hist_row("20240104", "36090", "36110", "95", "2", "0.26", "-0.06"),
+        _nav_hist_row("20240103", "35980", "36015", "40", "2", "0.11", "-0.10"),
+    ]))
+    points = _client(fake).ticker("069500").nav_history(start="20240103", end="20240104")
+    assert [p.date for p in points] == [_date(2024, 1, 3), _date(2024, 1, 4)]   # 오름차순
+    assert all(isinstance(p, EtfNavHistoryPoint) for p in points)
+    assert points[-1].close == Decimal(36090)
+    assert points[-1].nav == Decimal(36110)
+    assert points[-1].premium == Decimal("-0.06")
+    call = fake.calls[0]
+    assert call["path"] == _ETF_NAV_HISTORY
+    assert call["tr_id"] == "FHPST02440200"
+    assert call["params"]["FID_INPUT_DATE_1"] == "20240103"
+    assert call["params"]["FID_INPUT_DATE_2"] == "20240104"
+
+
+def test_nav_history_negative_nav_change_and_date_objects():
+    from datetime import date as _date
+    fake = FakeTransport(response=_nav_hist_resp([
+        _nav_hist_row("20240104", "36090", "36110", "95", "5", "0.26", "-0.06")]))
+    points = _client(fake).ticker("069500").nav_history(
+        start=_date(2024, 1, 1), end=_date(2024, 1, 4)
+    )
+    assert points[0].nav_change == Decimal(-95)                  # 하락 -> 음수
+    assert fake.calls[0]["params"]["FID_INPUT_DATE_1"] == "20240101"
+
+
+def test_nav_history_start_after_end_raises():
+    fake = FakeTransport(response=_nav_hist_resp([]))
+    with pytest.raises(KisUsageError):
+        _client(fake).ticker("069500").nav_history(start="20240104", end="20240103")
+
+
+def test_nav_history_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KisError):
+        _client(fake).ticker("069500").nav_history(start="20240101", end="20240104")

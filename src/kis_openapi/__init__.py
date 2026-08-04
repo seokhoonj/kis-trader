@@ -15,7 +15,7 @@ from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
 from .broker import BrokerActivity, BrokerActivitySummary
 from .client import KisClient
-from .etf_items import EtfComponent, EtfNav
+from .etf_items import EtfComponent, EtfNav, EtfNavHistoryPoint
 from .index import Index
 from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
 from .investor import InvestorActivity, InvestorFlow
@@ -51,6 +51,7 @@ __all__ = [
     "DividendRanking",
     "EtfComponent",
     "EtfNav",
+    "EtfNavHistoryPoint",
     "ExecutionReport",
     "Index",
     "IndexIntradayPoint",

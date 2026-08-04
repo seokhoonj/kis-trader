@@ -1,16 +1,17 @@
-"""ETF/ETN 시세 DATA -- :class:`EtfNav`, :class:`EtfComponent`.
+"""ETF/ETN 시세 DATA -- :class:`EtfNav`, :class:`EtfComponent`, :class:`EtfNavHistoryPoint`.
 
 ETF/ETN 은 호가창에서 거래되는 종목이라 시세/주문은 :class:`~kis_openapi.ticker.Ticker` 로 하고,
 ETF 고유 정보만 이 타입들로 돌려준다. :class:`EtfNav` 는 순자산가치 스냅샷
 (:meth:`~kis_openapi.ticker.Ticker.nav`), :class:`EtfComponent` 는 구성종목(PDF) 한 항목
-(:meth:`~kis_openapi.ticker.Ticker.components`)이다.
+(:meth:`~kis_openapi.ticker.Ticker.components`), :class:`EtfNavHistoryPoint` 는 일별 NAV-가격
+추이(:meth:`~kis_openapi.ticker.Ticker.nav_history`)의 한 점이다.
 """
 
 from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -58,6 +59,28 @@ class EtfComponent:
     change_percent: Decimal           # 전일대비율(부호 포함)
     weight: Decimal                   # ETF 구성 비중(%)
     valuation: Decimal                # ETF 내 평가금액
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class EtfNavHistoryPoint:
+    """일별 NAV-가격 추이의 한 점(불변).
+
+    ``date`` 그 거래일, ``close`` 시장 종가, ``nav`` 그 날 NAV, ``premium`` 괴리율(시장가가 NAV 대비
+    벗어난 정도, %). ``nav_change`` / ``nav_change_percent`` 는 NAV 전일대비로 하락이면 음수.
+    """
+
+    date: date                        # 거래일
+    close: Decimal                    # 시장 종가
+    nav: Decimal                      # 그 날 NAV
+    nav_change: Decimal               # NAV 전일대비(부호 포함)
+    nav_change_percent: Decimal       # NAV 전일대비율(부호 포함)
+    premium: Decimal                  # 괴리율(%): 시장가 vs NAV
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
