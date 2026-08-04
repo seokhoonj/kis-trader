@@ -124,8 +124,8 @@ def test_overseas_ticker_rejects_domestic_only_methods():
     for call in (
         handle.investor_flows,
         handle.broker_activity,
-        lambda: handle.buy(quantity=1),
         handle.nav,
+        handle.components,
     ):
         with pytest.raises(KisUsageError, match="해외 티커"):
             call()

@@ -21,6 +21,7 @@ from ._masters import (
     urlopen_fetch,
 )
 from ._overseas import account as overseas_account
+from ._overseas import orders as overseas_orders_engine
 from .balance import Balance, Portfolio, Position
 from .errors import KisUsageError
 from .index import Index
@@ -169,18 +170,44 @@ class KisClient:
         :class:`~kis_openapi.errors.OrderTimeoutError`(in-flight 유지, 잠시 후 재시도).
         """
         cano, product_code = self._require_account()
+        # 해외 주문의 미확인(in-flight) 재조회는 국내 일별체결조회로는 확인 불가(엉뚱한 미접수
+        # 판정 위험) -- 아직 미구현이라 fail-closed 로 막는다. no-retry 는 유지되므로 재전송은 절대
+        # 없고, 사용자는 KIS 앱/HTS 로 수동 확인하면 된다. (완료 리포트가 있으면 그건 그대로 반환.)
+        fingerprint = self._store.fingerprint_for(client_order_id)
+        if (
+            fingerprint is not None
+            and self._store.report_for(client_order_id) is None
+            and overseas_orders_engine.is_overseas_exchange(fingerprint[-1])
+        ):
+            raise KisUsageError(
+                f"해외 주문 {client_order_id} 의 재조회(reconcile)는 아직 미구현이다 -- 재전송하지 "
+                f"말고(no-retry 유지) KIS 앱/HTS 에서 수동 확인하라."
+            )
         return orders_engine.reconcile(
             self._transport, self._store, client_order_id,
             cano=cano, product_code=product_code, environment=self._environment,
         )
 
     def _place_order(self, order: Order) -> ExecutionReport:
-        """주문을 안전 엔진에 넘겨 전송한다(Ticker.buy/sell 이 호출). 계좌 정보 필요."""
+        """주문을 안전 엔진에 넘겨 전송한다(Ticker.buy/sell 이 호출). 계좌 정보 필요.
+
+        국내/해외 모두 같은 안전 코어(이중체결 방지·재시도 금지)를 쓰되, 와이어 요청 조립기만
+        시장별로 바꾼다. 해외 주문엔 아직 사전 리스크 게이트가 없어(참조가가 국내 시세 기반),
+        ``risk`` 를 켠 세션에서 해외 주문을 내면 명확히 거부한다."""
         cano, product_code = self._require_account()
+        build_request = None
+        risk = self._risk
+        if overseas_orders_engine.is_overseas_exchange(order.exchange):
+            if risk is not None:
+                raise KisUsageError(
+                    "해외 주문엔 사전 리스크 게이트가 아직 미지원이다 -- risk 없는 세션에서 내거나 "
+                    "국내 주문에만 risk 를 쓰라."
+                )
+            build_request = overseas_orders_engine.make_order_request
         return orders_engine.place(
             self._transport, self._store, order,
             cano=cano, product_code=product_code, environment=self._environment,
-            orderable=self._orderable, risk=self._risk,
+            orderable=self._orderable, risk=risk, build_request=build_request,
         )
 
     def _require_account(self) -> tuple[str, str]:

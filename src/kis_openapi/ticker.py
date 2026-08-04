@@ -215,7 +215,12 @@ class Ticker:
         self, side: Side, quantity: object, price: object | None,
         time_in_force: TimeInForce, client_order_id: str | None,
     ) -> Order:
-        self._domestic_market()        # 해외 주문은 아직 미지원 -- 명확히 거부(국내 주문 오전송 방지)
+        if self.exchange is not None:  # 해외: 지정가만, 거래소코드를 주문 정체성에 담는다
+            if price is None:
+                raise KisUsageError("해외 주문은 지정가만 지원한다 -- price 를 지정하라(시장가 미지원).")
+            return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
+                               time_in_force=time_in_force, client_order_id=client_order_id,
+                               exchange=self.exchange)
         if price is None:
             return Order.market(self.symbol, side=side, quantity=quantity,
                                 time_in_force=time_in_force, client_order_id=client_order_id)

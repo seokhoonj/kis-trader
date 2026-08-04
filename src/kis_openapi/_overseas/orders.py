@@ -13,10 +13,14 @@ KIS URL/TR-id (원장 대조, sheet '해외주식 주문'):
 from __future__ import annotations
 
 from decimal import Decimal
+from typing import TYPE_CHECKING
 
 from .._wire import format_wire_decimal
 from ..errors import KisUsageError
 from ..transport import Environment
+
+if TYPE_CHECKING:
+    from ..order import Order
 
 _ORDER_PATH = "/uapi/overseas-stock/v1/trading/order"
 
@@ -92,3 +96,22 @@ def build_order_request(
     if side == "sell":
         body["SLL_TYPE"] = "00"        # 매도 표시(매수는 필드 없음)
     return "POST", _ORDER_PATH, tr_id, body
+
+
+def is_overseas_exchange(exchange: str) -> bool:
+    """``exchange`` 가 해외 거래소코드(주문 지원)면 True. 안전 코어의 주문 라우팅에 쓴다."""
+    return exchange in _ORDER_EXCHANGE
+
+
+def make_order_request(
+    order: Order, cano: str, product_code: str, environment: Environment
+) -> tuple[str, str, str, dict[str, str]]:
+    """안전 코어(:func:`~kis_openapi._domestic.orders.place`)에 넘길 해외 주문 빌더.
+
+    :class:`~kis_openapi.order.Order` 를 :func:`build_order_request` 인자로 풀어 넘긴다. ``order.exchange``
+    는 시세 거래소코드(NAS/NYS/...)를 담는다."""
+    return build_order_request(
+        side=order.side, symbol=order.symbol, quantity=order.quantity,
+        limit_price=order.limit_price, exchange=order.exchange,
+        cano=cano, product_code=product_code, environment=environment,
+    )

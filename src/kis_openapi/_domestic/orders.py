@@ -24,7 +24,7 @@ KIS URL/TR-id (국내주식):
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -53,6 +53,10 @@ _MAX_RECONCILE_PAGES = 100
 #: 국내(KRX/KOSDAQ/Nextrade) 시장 식별코드 -- 이 셋은 국내 현금주문으로 라우팅.
 _DOMESTIC_MICS = frozenset(("XKRX", "XKOS", "NXTE"))
 
+#: 주문 와이어 요청 조립기: (order, cano, product_code, environment) -> (method, path, tr_id, body).
+#: 안전 코어(place)는 시장 중립이고, 도메스틱/해외가 각자 이 형태의 빌더를 준다.
+BuildRequest = Callable[[Order, str, str, Environment], "tuple[str, str, str, dict[str, str]]"]
+
 _ORDER_CASH_PATH = "/uapi/domestic-stock/v1/trading/order-cash"
 _DAILY_CCLD_PATH = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
 # (environment, side) -> tr_id
@@ -70,14 +74,16 @@ _SIDE_CODE = {"buy": "02", "sell": "01"}
 def place(
     transport: Transport, store: OrderStore, order: Order, *,
     cano: str, product_code: str, environment: Environment, orderable: bool = True,
-    risk: RiskLimits | None = None,
+    risk: RiskLimits | None = None, build_request: BuildRequest | None = None,
 ) -> ExecutionReport:
     """주문을 안전 규칙(모듈 docstring 6단계)에 따라 전송한다.
 
-    ``risk`` 를 주면 와이어 전에 사전 리스크 한도를 점검한다. 계좌 가드/수량 정수/리스크 게이트는
-    모두 :meth:`OrderStore.try_claim` **전**에 돈다 -- 거부되면 ``client_order_id`` 를 소비하지도
-    와이어에 닿지도 않는다.
+    ``risk`` 를 주면 와이어 전에 사전 리스크 한도를 점검한다. ``build_request`` 는 와이어 요청을
+    조립하는 시장별 빌더(기본은 국내 현금주문) -- 이중체결 방지·재시도 금지·재조회 등 안전 코어는
+    시장과 무관하게 공유한다. 계좌 가드/수량 정수/리스크 게이트는 모두 :meth:`OrderStore.try_claim`
+    **전**에 돈다 -- 거부되면 ``client_order_id`` 를 소비하지도 와이어에 닿지도 않는다.
     """
+    build = build_request if build_request is not None else _make_order_cash_request
     client_order_id = order.client_order_id
     fingerprint = order.fingerprint
 
@@ -85,15 +91,15 @@ def place(
         raise AccountNotOrderable(
             "이 계좌는 API 주문이 불가하다(퇴직연금 IRP/DC 등 조회전용). 일반/연금저축 계좌를 쓰라."
         )
-    # 국내주식은 주(株) 단위 정수 수량만 -- 소수 수량은 fat-finger(예: 10.5). 와이어 전에 막는다.
+    # 주식 주문은 주(株) 단위 정수 수량만 -- 소수 수량은 fat-finger(예: 10.5). 와이어 전에 막는다.
     if order.quantity != order.quantity.to_integral_value():
-        raise KisUsageError(f"국내주식 주문 수량은 정수여야 한다(주 단위): {order.quantity}")
+        raise KisUsageError(f"주식 주문 수량은 정수여야 한다(주 단위): {order.quantity}")
     # 사전 리스크 한도(opt-in). 참조가가 필요하면 현재가를 조회한다 -- 조회 실패는 fail-closed
     # (한도 확인 불가 -> 주문 중단; 예외가 그대로 올라가 claim 전에 멈춘다).
     if risk is not None:
         _run_pre_trade_risk(transport, order, risk)
     # 와이어 변환을 먼저 -- 미구현/부적합이면 claim 전에 중단(stuck in-flight 방지).
-    method, path, tr_id, body = _make_order_cash_request(order, cano, product_code, environment)
+    method, path, tr_id, body = build(order, cano, product_code, environment)
 
     outcome, prior = store.try_claim(client_order_id, fingerprint)
     if outcome is ClaimOutcome.COMPLETED:
