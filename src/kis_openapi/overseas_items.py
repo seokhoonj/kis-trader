@@ -1,8 +1,9 @@
-"""해외 계좌 DATA -- :class:`OverseasPosition`.
+"""해외 계좌 DATA -- :class:`OverseasPosition`, :class:`OverseasBalance`.
 
-해외 잔고(:meth:`~kis_openapi.client.KisClient.overseas_positions`)가 돌려주는 보유 종목 한 건.
-금액은 종목 통화(USD/HKD/JPY/...)라 :class:`~kis_openapi.money.Money` 로 통화를 함께 담는다 --
-국내 :class:`~kis_openapi.balance.Position`(KRW Decimal)와 달리 다통화이기 때문이다.
+해외 잔고가 돌려주는 보유 종목(:meth:`~kis_openapi.client.KisClient.overseas_positions`)과 계좌
+손익 요약(:meth:`~kis_openapi.client.KisClient.overseas_balance`). 금액은 종목/조회 통화
+(USD/HKD/JPY/...)라 :class:`~kis_openapi.money.Money` 로 통화를 함께 담는다 -- 국내
+:class:`~kis_openapi.balance.Position`(KRW Decimal)와 달리 다통화이기 때문이다.
 """
 
 from __future__ import annotations
@@ -35,6 +36,28 @@ class OverseasPosition:
     market_value: Money               # 평가금액
     unrealized_pnl: Money             # 외화 평가손익
     pnl_percent: Decimal              # 평가손익률(%)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasBalance:
+    """해외 계좌 손익 요약(불변). 조회한 거래소 그룹+통화 기준. 금액은 :class:`Money`.
+
+    ``purchase_amount`` 보유분 매입금액, ``unrealized_pnl`` 평가손익, ``realized_pnl`` 실현손익,
+    ``total_pnl`` 총손익(실현+평가), ``return_percent`` 총수익률(%). 예수금(현금)은 별도 조회다.
+    """
+
+    exchange: str                     # 조회한 해외거래소코드(OVRS_EXCG_CD)
+    purchase_amount: Money            # 외화 매입금액
+    unrealized_pnl: Money             # 평가손익
+    realized_pnl: Money               # 실현손익
+    total_pnl: Money                  # 총손익(실현+평가)
+    return_percent: Decimal           # 총수익률(%)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KisClient, Money, OverseasPosition
+from kis_openapi import KisClient, Money, OverseasBalance, OverseasPosition
 from kis_openapi.errors import KisError, KisUsageError
 from kis_openapi.transport import RawResponse
 
@@ -117,3 +117,42 @@ def test_overseas_positions_requires_account():
     client = KisClient(app_key="k", app_secret="s", transport=fake)  # 계좌 없음
     with pytest.raises(KisUsageError):
         client.overseas_positions(market="US")
+
+
+def _summary():
+    return {"frcr_pchs_amt1": "10000.00", "tot_evlu_pfls_amt": "502.50",
+            "ovrs_rlzt_pfls_amt": "120.00", "ovrs_tot_pfls": "622.50", "tot_pftrt": "6.22"}
+
+
+def _balance_resp(summary):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": [], "output2": summary, "ctx_area_nk200": ""})
+
+
+def test_overseas_balance_maps_money_summary():
+    fake = FakeTransport(response=_balance_resp(_summary()))
+    bal = _client(fake).overseas_balance(market="US")
+    assert isinstance(bal, OverseasBalance)
+    assert bal.exchange == "NASD"
+    assert bal.purchase_amount == Money(Decimal("10000.00"), "USD")
+    assert bal.unrealized_pnl == Money(Decimal("502.50"), "USD")
+    assert bal.realized_pnl == Money(Decimal("120.00"), "USD")
+    assert bal.total_pnl == Money(Decimal("622.50"), "USD")
+    assert bal.return_percent == Decimal("6.22")
+    call = fake.calls[0]
+    assert call["params"]["OVRS_EXCG_CD"] == "NASD"
+    assert call["params"]["TR_CRCY_CD"] == "USD"
+
+
+def test_overseas_balance_currency_follows_market():
+    fake = FakeTransport(response=_balance_resp(_summary()))
+    bal = _client(fake).overseas_balance(market="JP")
+    assert bal.purchase_amount.currency == "JPY"
+    assert fake.calls[0]["params"]["OVRS_EXCG_CD"] == "TKSE"
+
+
+def test_overseas_balance_missing_output2_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
+                                              body={"output1": []}))
+    with pytest.raises(KisError):
+        _client(fake).overseas_balance(market="US")

@@ -18,7 +18,7 @@ from .._domestic.market_data import _raise_if_error
 from .._wire import required_decimal, required_int
 from ..errors import KisError, KisUsageError
 from ..money import Money
-from ..overseas_items import OverseasPosition
+from ..overseas_items import OverseasBalance, OverseasPosition
 from ..transport import Environment, Transport
 
 _POSITIONS_PATH = "/uapi/overseas-stock/v1/trading/inquire-balance"
@@ -52,6 +52,50 @@ def fetch_positions(
     return _parse_positions(rows, exchange=exchange, default_currency=currency)
 
 
+def fetch_balance(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment, market: str
+) -> OverseasBalance:
+    """해외 계좌 손익 요약(1콜, output2). ``market`` 은 US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM."""
+    try:
+        exchange, currency = _MARKETS[market]
+    except KeyError:
+        raise KisUsageError(
+            f"지원하지 않는 해외 시장: {market!r} ({'/'.join(_MARKETS)})."
+        ) from None
+    resp = _request_page(transport, cano, product_code, environment, exchange, currency, "", "")
+    _raise_if_error(resp)
+    summary = resp.body.get("output2")     # 계좌 요약(계좌 단위라 첫 페이지로 완결)
+    if not isinstance(summary, Mapping):
+        raise KisError(
+            "해외 잔고 응답에 계좌 요약(output2)이 없다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    return OverseasBalance(
+        exchange=exchange,
+        purchase_amount=_money(summary, "frcr_pchs_amt1", currency),
+        unrealized_pnl=_money(summary, "tot_evlu_pfls_amt", currency),
+        realized_pnl=_money(summary, "ovrs_rlzt_pfls_amt", currency),
+        total_pnl=_money(summary, "ovrs_tot_pfls", currency),
+        return_percent=required_decimal(summary.get("tot_pftrt"), "tot_pftrt"),
+        _raw=summary,
+    )
+
+
+def _request_page(
+    transport: Transport, cano: str, product_code: str, environment: Environment,
+    exchange: str, currency: str, ctx_fk: str, ctx_nk: str,
+):
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "OVRS_EXCG_CD": exchange, "TR_CRCY_CD": currency,
+        "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
+    }
+    return transport.request(
+        method="GET", path=_POSITIONS_PATH, tr_id=_POSITIONS_TR[environment],
+        params=params, idempotent=True,
+    )
+
+
 def _walk_holdings(
     transport: Transport, cano: str, product_code: str, environment: Environment,
     exchange: str, currency: str,
@@ -59,14 +103,8 @@ def _walk_holdings(
     rows: list[Mapping[str, Any]] = []
     ctx_fk, ctx_nk = "", ""
     for _page in range(_MAX_PAGES):
-        params = {
-            "CANO": cano, "ACNT_PRDT_CD": product_code,
-            "OVRS_EXCG_CD": exchange, "TR_CRCY_CD": currency,
-            "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
-        }
-        resp = transport.request(
-            method="GET", path=_POSITIONS_PATH, tr_id=_POSITIONS_TR[environment],
-            params=params, idempotent=True,
+        resp = _request_page(
+            transport, cano, product_code, environment, exchange, currency, ctx_fk, ctx_nk
         )
         _raise_if_error(resp)
         page = resp.body.get("output1")

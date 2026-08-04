@@ -27,7 +27,7 @@ from .errors import KisUsageError
 from .index import Index
 from .instrument import DomesticBoard, is_domestic_symbol
 from .order import Order
-from .overseas_items import OverseasPosition
+from .overseas_items import OverseasBalance, OverseasPosition
 from .ranking import RankingQueries
 from .report import ExecutionReport
 from .risk import RiskLimits
@@ -150,6 +150,16 @@ class KisClient:
         국내와 달리 해외는 시장/통화별로 조회하므로 ``market`` 을 지정한다(계좌 정보 필요)."""
         cano, product_code = self._require_account()
         return overseas_account.fetch_positions(
+            self._transport, cano=cano, product_code=product_code,
+            environment=self._environment, market=market,
+        )
+
+    def overseas_balance(self, *, market: str) -> OverseasBalance:
+        """해외 계좌 손익 요약(시장/통화별) -- 매입금액·평가/실현/총손익·총수익률을 :class:`~kis_openapi.
+        money.Money` 로. ``market`` 은 :meth:`overseas_positions` 와 같다(계좌 정보 필요). 예수금(현금)은
+        별도다."""
+        cano, product_code = self._require_account()
+        return overseas_account.fetch_balance(
             self._transport, cano=cano, product_code=product_code,
             environment=self._environment, market=market,
         )
