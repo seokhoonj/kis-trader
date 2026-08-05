@@ -16,7 +16,10 @@ from ._overseas import derivatives as overseas_derivatives_api
 
 if TYPE_CHECKING:
     from .client import KISClient
-    from .overseas_derivative_items import OverseasDerivativeQuote
+    from .overseas_derivative_items import (
+        OverseasDerivativeDetail,
+        OverseasDerivativeQuote,
+    )
 
 
 class OverseasDerivative:
@@ -38,5 +41,11 @@ class OverseasDerivative:
     def quote(self) -> OverseasDerivativeQuote:
         """계약 현재가 스냅샷(가격·정산가·전일대비·호가·통화·거래소·만기·틱사이즈·증거금)."""
         return overseas_derivatives_api.fetch_quote(
+            self._client.transport, srs_cd=self.symbol, market=self.market
+        )
+
+    def detail(self) -> OverseasDerivativeDetail:
+        """계약 명세(거래소·통화·틱사이즈/틱가치·계약크기·증거금·만기·결제구분)."""
+        return overseas_derivatives_api.fetch_detail(
             self._client.transport, srs_cd=self.symbol, market=self.market
         )

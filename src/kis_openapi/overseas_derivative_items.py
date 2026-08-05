@@ -57,3 +57,35 @@ class OverseasDerivativeQuote:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasDerivativeDetail:
+    """한 해외 선물/옵션 계약의 명세(불변).
+
+    시세(:class:`OverseasDerivativeQuote`)가 "지금 얼마"라면 이건 "어떤 계약인가" -- 거래소·통화·
+    품목종류·틱사이즈/틱가치·계약크기·증거금·만기 관련·결제구분 같은 계약 조건이다.
+    :meth:`~kis_openapi.overseas_derivative.OverseasDerivative.detail` 가 돌려준다.
+    """
+
+    symbol: str
+    exchange: str                     # 거래소코드(exch_cd)
+    currency: str                     # 거래통화(crc_cd)
+    product_class: str                # 품목종류(clas_cd)
+    tick_size: Decimal | None         # 틱사이즈(tick_sz)
+    tick_value: Decimal | None        # 틱가치(tick_val)
+    contract_size: Decimal | None     # 계약크기(ctrt_size)
+    margin: Decimal | None            # 증거금(trst_mgn)
+    price_digits: int | None          # 가격표시진법(disp_digit)
+    listing_date: datetime | None     # 상장일(trd_fr_date; KST-aware)
+    expiry_date: datetime | None      # 만기일(expr_date; KST-aware)
+    last_trade_date: datetime | None  # 최종거래일(trd_to_date; KST-aware)
+    remaining_days: int | None        # 잔존일수(remn_cnt)
+    settlement_type: str              # 최종결제구분(stl_tp)
+    tradable: str                     # 매매여부(stat_tp)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

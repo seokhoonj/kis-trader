@@ -24,7 +24,10 @@ from .._domestic.market_data import (
     _raise_if_error,
 )
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
-from ..overseas_derivative_items import OverseasDerivativeQuote
+from ..overseas_derivative_items import (
+    OverseasDerivativeDetail,
+    OverseasDerivativeQuote,
+)
 from ..transport import Transport
 
 _QUOTE = {
@@ -84,5 +87,41 @@ def _parse_quote(
         tick_size=optional_decimal(output.get("tick_size"), "tick_size"),
         margin=optional_decimal(output.get("trst_mgn"), "trst_mgn"),
         as_of=as_of,
+        _raw=output,
+    )
+
+
+_DETAIL = {
+    "future": ("/uapi/overseas-futureoption/v1/quotations/stock-detail", "HHDFC55010100"),
+    "option": ("/uapi/overseas-futureoption/v1/quotations/opt-detail", "HHDFO55010100"),
+}
+
+
+def fetch_detail(transport: Transport, *, srs_cd: str, market: str) -> OverseasDerivativeDetail:
+    """해외 선물/옵션 계약 명세. ``market`` 은 ``"future"``/``"option"``, ``srs_cd`` 는 시리즈코드."""
+    path, tr = _DETAIL[market]
+    resp = transport.request(
+        method="GET", path=path, tr_id=tr, params={"SRS_CD": srs_cd}, idempotent=True
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output1")
+    if not isinstance(output, Mapping):
+        raise _missing_block_error("output1", resp)
+    return OverseasDerivativeDetail(
+        symbol=srs_cd,
+        exchange=str(output.get("exch_cd", "")).strip(),
+        currency=str(output.get("crc_cd", "")).strip(),
+        product_class=str(output.get("clas_cd", "")).strip(),
+        tick_size=optional_decimal(output.get("tick_sz"), "tick_sz"),
+        tick_value=optional_decimal(output.get("tick_val"), "tick_val"),
+        contract_size=optional_decimal(output.get("ctrt_size"), "ctrt_size"),
+        margin=optional_decimal(output.get("trst_mgn"), "trst_mgn"),
+        price_digits=optional_int(output.get("disp_digit"), "disp_digit"),
+        listing_date=_optional_date(output.get("trd_fr_date")),
+        expiry_date=_optional_date(output.get("expr_date")),
+        last_trade_date=_optional_date(output.get("trd_to_date")),
+        remaining_days=optional_int(output.get("remn_cnt"), "remn_cnt"),
+        settlement_type=str(output.get("stl_tp", "")).strip(),
+        tradable=str(output.get("stat_tp", "")).strip(),
         _raw=output,
     )
