@@ -100,3 +100,35 @@ class VIEvent:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class LimitStock:
+    """상한가/하한가에 도달한 한 종목(불변).
+
+    ``price`` 가 ``upper_limit`` 와 같으면 상한가, ``lower_limit`` 와 같으면 하한가에 걸린 것이다.
+    ``total_ask_quantity`` / ``total_bid_quantity`` 는 총 매도/매수 호가잔량(상한가면 매수잔량이,
+    하한가면 매도잔량이 크게 쌓인다). 시장 전체 스냅샷이라 ``kis.market.limit_stocks`` 가 돌려준다.
+    """
+
+    symbol: str
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int
+    upper_limit: Decimal              # 상한가(stck_mxpr)
+    lower_limit: Decimal              # 하한가(stck_llam)
+    total_ask_quantity: int           # 총 매도호가잔량(total_askp_rsqn)
+    total_bid_quantity: int           # 총 매수호가잔량(total_bidp_rsqn)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+    @property
+    def at_upper_limit(self) -> bool:
+        """상한가에 걸렸는지(현재가 == 상한가)."""
+        return self.price == self.upper_limit

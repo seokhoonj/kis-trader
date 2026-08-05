@@ -40,7 +40,7 @@ from .index import Index
 from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
 from .investor import InvestorActivity, InvestorEstimate, InvestorFlow
 from .market import MarketQueries
-from .market_items import MarketInvestorFlow, ProgramTradeSummary, VIEvent
+from .market_items import LimitStock, MarketInvestorFlow, ProgramTradeSummary, VIEvent
 from .money import Money
 from .order import Order
 from .order_book import OrderBook, PriceLevel
@@ -113,6 +113,7 @@ __all__ = [
     "InvestorEstimate",
     "InvestorFlow",
     "KISClient",
+    "LimitStock",
     "LoanPoint",
     "MarketInvestorFlow",
     "MarketQueries",

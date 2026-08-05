@@ -14,7 +14,13 @@ from datetime import date, datetime, timedelta
 
 from .._wire import optional_decimal, required_decimal, required_int
 from ..errors import KISUsageError
-from ..market_items import Market, MarketInvestorFlow, ProgramTradeSummary, VIEvent
+from ..market_items import (
+    LimitStock,
+    Market,
+    MarketInvestorFlow,
+    ProgramTradeSummary,
+    VIEvent,
+)
 from ..transport import Transport
 from .market_data import (
     _KST,
@@ -203,3 +209,49 @@ def fetch_vi_events(
             )
         )
     return events
+
+
+_LIMIT_PATH = "/uapi/domestic-stock/v1/quotations/capture-uplowprice"
+_LIMIT_TR = "FHKST130000C0"
+
+
+def fetch_limit_stocks(transport: Transport) -> list[LimitStock]:
+    """상한가/하한가에 도달한 종목 전체 스냅샷(전 시장)."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_COND_SCR_DIV_CODE": "11300",
+        "FID_PRC_CLS_CODE": "0",           # 0: 상하한가 전체
+        "FID_DIV_CLS_CODE": "0",
+        "FID_INPUT_ISCD": "0000",
+    }
+    resp = transport.request(
+        method="GET", path=_LIMIT_PATH, tr_id=_LIMIT_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    stocks: list[LimitStock] = []
+    for row in rows:
+        code = str(row.get("mksc_shrn_iscd", "")).strip()
+        if not code:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        stocks.append(
+            LimitStock(
+                symbol=code,
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                upper_limit=required_decimal(row.get("stck_mxpr"), "stck_mxpr"),
+                lower_limit=required_decimal(row.get("stck_llam"), "stck_llam"),
+                total_ask_quantity=required_int(row.get("total_askp_rsqn"), "total_askp_rsqn"),
+                total_bid_quantity=required_int(row.get("total_bidp_rsqn"), "total_bidp_rsqn"),
+                _raw=row,
+            )
+        )
+    return stocks
