@@ -121,3 +121,32 @@ def test_loan_default_window_is_lookback():
     assert call["params"]["END_DATE"] == "20240131"
     assert call["params"]["START_DATE"] == "20240101"
     assert call["params"]["MRKT_DIV_CLS_CODE"] == "1"
+
+
+def test_daily_trade_volume_maps_output2():
+    # 원장 응답 예시값(output2, 20240126). output1(구간합계)은 무시.
+    body = {"output1": {"shnu_cnqn_smtn": "4520816", "seln_cnqn_smtn": "5285722"},
+            "output2": [{"stck_bsop_date": "20240126", "total_seln_qty": "5285722",
+                         "total_shnu_qty": "4520816"},
+                        {"stck_bsop_date": "20240125", "total_seln_qty": "5610781",
+                         "total_shnu_qty": "4008095"}]}
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
+    fake = FakeTransport(response=resp)
+    from kis_openapi import DailyExecutionVolume
+    pts = _client(fake).ticker("005930").daily_trade_volume(start="20240120", end="20240126")
+    assert isinstance(pts[0], DailyExecutionVolume)
+    assert pts[0].buy_volume == 4520816
+    assert pts[0].sell_volume == 5285722
+    assert pts[1].timestamp.strftime("%Y%m%d") == "20240125"
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/quotations/inquire-daily-trade-volume"
+    assert call["tr_id"] == "FHKST03010800"
+    assert call["params"]["FID_PERIOD_DIV_CODE"] == "D"
+    assert call["params"]["FID_INPUT_DATE_1"] == "20240120"
+
+
+def test_daily_trade_volume_missing_output2_fails_closed():
+    resp = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}})
+    fake = FakeTransport(response=resp)
+    with pytest.raises(KISError):
+        _client(fake).ticker("005930").daily_trade_volume(end="20240126")

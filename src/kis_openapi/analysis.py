@@ -122,3 +122,24 @@ class AnalystOpinion:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class DailyExecutionVolume:
+    """하루의 매수/매도 체결량 합계(불변).
+
+    ``buy_volume`` 은 그날 총 매수 체결량, ``sell_volume`` 은 총 매도 체결량이다.
+    :meth:`~kis_openapi.ticker.Ticker.daily_trade_volume` 이 일자 시계열(최근->과거)로 돌려준다.
+    ``timestamp`` 는 영업일(KST-aware).
+    """
+
+    symbol: str
+    timestamp: datetime               # 영업일(KST-aware)
+    buy_volume: int                   # 총 매수 수량(total_shnu_qty)
+    sell_volume: int                  # 총 매도 수량(total_seln_qty)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

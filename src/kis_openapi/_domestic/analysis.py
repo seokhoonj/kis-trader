@@ -17,7 +17,13 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from .._wire import optional_decimal, required_decimal, required_int
-from ..analysis import AnalystOpinion, CreditBalancePoint, LoanPoint, ShortSalePoint
+from ..analysis import (
+    AnalystOpinion,
+    CreditBalancePoint,
+    DailyExecutionVolume,
+    LoanPoint,
+    ShortSalePoint,
+)
 from ..transport import Transport
 from .market_data import (
     _apply_change_sign,
@@ -184,6 +190,48 @@ def fetch_loan_trend(
                 balance_shares=required_int(row.get("rmnd_stcn"), "rmnd_stcn"),
                 balance_amount=required_decimal(row.get("rmnd_amt"), "rmnd_amt"),
                 balance_change=required_int(row.get("prdy_rmnd_vrss"), "prdy_rmnd_vrss"),
+                _raw=row,
+            )
+        )
+    return points
+
+
+_DAILY_TRADE_VOL_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-trade-volume"
+_DAILY_TRADE_VOL_TR = "FHKST03010800"
+
+
+def fetch_daily_trade_volume(
+    transport: Transport, *, symbol: str,
+    start: str | date | None = None, end: str | date | None = None,
+) -> list[DailyExecutionVolume]:
+    """일별 매수/매도 체결량 추이(기간 [start, end], 최근->과거). ``start`` 미지정이면 ``end`` 로부터
+    30일 전. 응답 배열은 ``output2`` (``output1`` 은 구간 합계)."""
+    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
+    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_INPUT_ISCD": symbol,
+        "FID_INPUT_DATE_1": start_date,
+        "FID_INPUT_DATE_2": end_date,
+        "FID_PERIOD_DIV_CODE": "D",
+    }
+    resp = transport.request(method="GET", path=_DAILY_TRADE_VOL_PATH, tr_id=_DAILY_TRADE_VOL_TR,
+                             params=params, idempotent=True)
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    points: list[DailyExecutionVolume] = []
+    for row in rows:
+        day = str(row.get("stck_bsop_date", "")).strip()
+        if not day:
+            continue
+        points.append(
+            DailyExecutionVolume(
+                symbol=symbol,
+                timestamp=_parse_bar_timestamp(day),
+                buy_volume=required_int(row.get("total_shnu_qty"), "total_shnu_qty"),
+                sell_volume=required_int(row.get("total_seln_qty"), "total_seln_qty"),
                 _raw=row,
             )
         )

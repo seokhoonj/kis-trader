@@ -12,7 +12,13 @@ from __future__ import annotations
 
 from ._masters import MasterIndex, MasterRecord
 from .after_hours import AfterHoursQuote
-from .analysis import AnalystOpinion, CreditBalancePoint, LoanPoint, ShortSalePoint
+from .analysis import (
+    AnalystOpinion,
+    CreditBalancePoint,
+    DailyExecutionVolume,
+    LoanPoint,
+    ShortSalePoint,
+)
 from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
 from .bond import Bond
@@ -107,6 +113,7 @@ __all__ = [
     "CategoryIndex",
     "CreditBalancePoint",
     "CreditBalanceRanking",
+    "DailyExecutionVolume",
     "Derivative",
     "DerivativesQuote",
     "DividendRanking",
