@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from ._masters import MasterIndex, MasterRecord
 from .after_hours import AfterHoursQuote
+from .analysis import CreditBalancePoint, ShortSalePoint
 from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
 from .bond import Bond
@@ -80,6 +81,7 @@ __all__ = [
     "BrokerActivitySummary",
     "BuyableAmount",
     "CategoryIndex",
+    "CreditBalancePoint",
     "CreditBalanceRanking",
     "Derivative",
     "DerivativesQuote",
@@ -130,6 +132,7 @@ __all__ = [
     "RankingQueries",
     "RiskLimits",
     "SellableQuantity",
+    "ShortSalePoint",
     "ShortSaleRanking",
     "Ticker",
     "TopViewedStock",
