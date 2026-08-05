@@ -11,7 +11,14 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import BalanceSheet, FinancialRatio, IncomeStatement, KISClient
+from kis_openapi import (
+    BalanceSheet,
+    FinancialRatio,
+    GrowthRatio,
+    IncomeStatement,
+    KISClient,
+    OtherRatio,
+)
 from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
@@ -141,3 +148,37 @@ def test_income_statement_optional_line_items_none_for_financial_issuer():
     assert stmt.revenue == Decimal(5000)                 # 합계는 required
     assert stmt.operating_income == Decimal(1200)
     assert stmt.net_income == Decimal(900)
+
+
+def test_growth_ratios_maps():
+    # 원장 응답 예시값(삼성전자 202312/202309).
+    rows = [{"stac_yymm": "202312", "grs": "-14.33", "bsop_prfi_inrt": "-84.86",
+             "equt_inrt": "2.52", "totl_aset_inrt": "1.67"},
+            {"stac_yymm": "202309", "grs": "-17.52", "bsop_prfi_inrt": "-90.42",
+             "equt_inrt": "5.50", "totl_aset_inrt": "-3.36"}]
+    fake = FakeTransport(response=_resp(rows))
+    ratios = _client(fake).ticker("005930").growth_ratios(quarterly=True)
+    assert isinstance(ratios[0], GrowthRatio)
+    assert ratios[0].revenue_growth == Decimal("-14.33")
+    assert ratios[0].equity_growth == Decimal("2.52")
+    assert ratios[0].total_asset_growth == Decimal("1.67")
+    assert ratios[1].period == "202309"
+    assert fake.calls[0]["path"] == "/uapi/domestic-stock/v1/finance/growth-ratio"
+    assert fake.calls[0]["tr_id"] == "FHKST66430800"
+    assert fake.calls[0]["params"]["FID_DIV_CLS_CODE"] == "1"
+
+
+def test_other_ratios_maps():
+    # 원장 응답 예시값(삼성전자 202212). payout_rate 는 무시(별도 필드 없음, _raw 에만).
+    rows = [{"stac_yymm": "202212", "payout_rate": "0.05", "eva": "-18075.00",
+             "ebitda": "209609.00", "ev_ebitda": "3.48"}]
+    fake = FakeTransport(response=_resp(rows))
+    ratio = _client(fake).ticker("005930").other_ratios()[0]
+    assert isinstance(ratio, OtherRatio)
+    assert ratio.eva == Decimal("-18075.00")
+    assert ratio.ebitda == Decimal("209609.00")
+    assert ratio.ev_ebitda == Decimal("3.48")
+    assert ratio._raw["payout_rate"] == "0.05"           # 무시 필드는 _raw 에 보존
+    assert fake.calls[0]["path"] == "/uapi/domestic-stock/v1/finance/other-major-ratios"
+    assert fake.calls[0]["tr_id"] == "FHKST66430500"
+    assert fake.calls[0]["params"]["FID_DIV_CLS_CODE"] == "0"

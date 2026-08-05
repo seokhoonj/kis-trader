@@ -24,7 +24,13 @@ from .bar import Bar, Interval
 from .broker import BrokerActivitySummary
 from .errors import KISUsageError
 from .etf_items import ETFNAV, ETFComponent, ETFNAVHistoryPoint
-from .financials import BalanceSheet, FinancialRatio, IncomeStatement
+from .financials import (
+    BalanceSheet,
+    FinancialRatio,
+    GrowthRatio,
+    IncomeStatement,
+    OtherRatio,
+)
 from .instrument import DomesticBoard, resolve_market
 from .investor import InvestorEstimate, InvestorFlow
 from .order import Order, Side, TimeInForce
@@ -190,6 +196,22 @@ class Ticker:
         면 분기, 아니면 연간."""
         self._domestic_market()        # 국내 전용
         return finance_api.fetch_financial_ratios(
+            self._client.transport, symbol=self.symbol, quarterly=quarterly
+        )
+
+    def growth_ratios(self, *, quarterly: bool = False) -> list[GrowthRatio]:
+        """결산기별 성장성비율(매출/영업이익/자기자본/총자산 증가율; 최근->과거). ``quarterly=True``
+        면 분기, 아니면 연간."""
+        self._domestic_market()        # 국내 전용
+        return finance_api.fetch_growth_ratios(
+            self._client.transport, symbol=self.symbol, quarterly=quarterly
+        )
+
+    def other_ratios(self, *, quarterly: bool = False) -> list[OtherRatio]:
+        """결산기별 기타주요비율(EVA·EBITDA·EV/EBITDA; 최근->과거). ``quarterly=True`` 면 분기,
+        아니면 연간."""
+        self._domestic_market()        # 국내 전용
+        return finance_api.fetch_other_ratios(
             self._client.transport, symbol=self.symbol, quarterly=quarterly
         )
 

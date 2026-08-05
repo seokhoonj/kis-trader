@@ -16,13 +16,21 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from .._wire import optional_decimal, required_decimal
-from ..financials import BalanceSheet, FinancialRatio, IncomeStatement
+from ..financials import (
+    BalanceSheet,
+    FinancialRatio,
+    GrowthRatio,
+    IncomeStatement,
+    OtherRatio,
+)
 from ..transport import Transport
 from .market_data import _missing_block_error, _raise_if_error
 
 _BALANCE_SHEET = ("/uapi/domestic-stock/v1/finance/balance-sheet", "FHKST66430100")
 _INCOME_STATEMENT = ("/uapi/domestic-stock/v1/finance/income-statement", "FHKST66430200")
 _FINANCIAL_RATIO = ("/uapi/domestic-stock/v1/finance/financial-ratio", "FHKST66430300")
+_GROWTH_RATIO = ("/uapi/domestic-stock/v1/finance/growth-ratio", "FHKST66430800")
+_OTHER_RATIO = ("/uapi/domestic-stock/v1/finance/other-major-ratios", "FHKST66430500")
 
 
 def _fetch_finance(
@@ -123,6 +131,56 @@ def fetch_financial_ratios(
                 bps=optional_decimal(row.get("bps"), "bps"),
                 reserve_ratio=optional_decimal(row.get("rsrv_rate"), "rsrv_rate"),
                 debt_ratio=optional_decimal(row.get("lblt_rate"), "lblt_rate"),
+                _raw=row,
+            )
+        )
+    return ratios
+
+
+def fetch_growth_ratios(
+    transport: Transport, *, symbol: str, quarterly: bool = False
+) -> list[GrowthRatio]:
+    """결산기별 성장성비율(최근->과거). ``quarterly`` 면 분기, 아니면 연간."""
+    path, tr = _GROWTH_RATIO
+    rows = _fetch_finance(transport, path=path, tr=tr, symbol=symbol, quarterly=quarterly)
+    ratios: list[GrowthRatio] = []
+    for row in rows:
+        period = str(row.get("stac_yymm", "")).strip()
+        if not period:
+            continue
+        ratios.append(
+            GrowthRatio(
+                symbol=symbol,
+                period=period,
+                revenue_growth=optional_decimal(row.get("grs"), "grs"),
+                operating_income_growth=optional_decimal(row.get("bsop_prfi_inrt"),
+                                                         "bsop_prfi_inrt"),
+                equity_growth=optional_decimal(row.get("equt_inrt"), "equt_inrt"),
+                total_asset_growth=optional_decimal(row.get("totl_aset_inrt"), "totl_aset_inrt"),
+                _raw=row,
+            )
+        )
+    return ratios
+
+
+def fetch_other_ratios(
+    transport: Transport, *, symbol: str, quarterly: bool = False
+) -> list[OtherRatio]:
+    """결산기별 기타주요비율(최근->과거). ``quarterly`` 면 분기, 아니면 연간."""
+    path, tr = _OTHER_RATIO
+    rows = _fetch_finance(transport, path=path, tr=tr, symbol=symbol, quarterly=quarterly)
+    ratios: list[OtherRatio] = []
+    for row in rows:
+        period = str(row.get("stac_yymm", "")).strip()
+        if not period:
+            continue
+        ratios.append(
+            OtherRatio(
+                symbol=symbol,
+                period=period,
+                eva=optional_decimal(row.get("eva"), "eva"),
+                ebitda=optional_decimal(row.get("ebitda"), "ebitda"),
+                ev_ebitda=optional_decimal(row.get("ev_ebitda"), "ev_ebitda"),
                 _raw=row,
             )
         )

@@ -66,6 +66,51 @@ class FinancialRatio:
 
 
 @dataclass(frozen=True, slots=True)
+class GrowthRatio:
+    """한 결산기의 성장성비율(불변, 단위 %).
+
+    매출액/영업이익/자기자본/총자산 증가율의 헤드라인이다. :class:`FinancialRatio` 와 매출액/영업이익
+    증가율이 겹치지만, 이 조회는 자기자본(``equity_growth``)·총자산(``total_asset_growth``) 증가율을
+    함께 준다. 특정 기에 결측이면 ``None``. 세부는 ``_raw``.
+    """
+
+    symbol: str
+    period: str                       # 결산년월(stac_yymm, "YYYYMM")
+    revenue_growth: Decimal | None    # 매출액 증가율(grs)
+    operating_income_growth: Decimal | None  # 영업이익 증가율(bsop_prfi_inrt)
+    equity_growth: Decimal | None     # 자기자본 증가율(equt_inrt)
+    total_asset_growth: Decimal | None  # 총자산 증가율(totl_aset_inrt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OtherRatio:
+    """한 결산기의 기타주요비율(불변).
+
+    기업가치 지표 -- ``eva``(경제적 부가가치), ``ebitda``, ``ev_ebitda``(EV/EBITDA 배수)를 담는다.
+    ``payout_rate``(배당성향)는 KIS 원장이 "비정상 출력되는 데이터"로 명시해 무시 대상이라 별도 필드로
+    노출하지 않는다(필요하면 ``_raw["payout_rate"]``). 특정 기에 결측이면 ``None``.
+    """
+
+    symbol: str
+    period: str                       # 결산년월(stac_yymm, "YYYYMM")
+    eva: Decimal | None               # 경제적 부가가치(eva)
+    ebitda: Decimal | None            # EBITDA(ebitda)
+    ev_ebitda: Decimal | None         # EV/EBITDA 배수(ev_ebitda)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class IncomeStatement:
     """한 결산기의 손익계산서 요약(불변)."""
 
