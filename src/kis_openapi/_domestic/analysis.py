@@ -23,6 +23,7 @@ from ..analysis import (
     DailyExecutionVolume,
     LoanPoint,
     ShortSalePoint,
+    TradeAmountBand,
 )
 from ..transport import Transport
 from .market_data import (
@@ -236,6 +237,47 @@ def fetch_daily_trade_volume(
             )
         )
     return points
+
+
+_TRADE_BAND_PATH = "/uapi/domestic-stock/v1/quotations/tradprt-byamt"
+_TRADE_BAND_TR = "FHKST111900C0"
+
+
+def fetch_trade_amount_bands(
+    transport: Transport, *, symbol: str
+) -> list[TradeAmountBand]:
+    """당일 체결금액대별 매매비중(금액대 리스트). 순매수 비율/건수는 음수 가능(pre-signed)."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_COND_SCR_DIV_CODE": "11119",
+        "FID_INPUT_ISCD": symbol,
+    }
+    bands: list[TradeAmountBand] = []
+    for row in _rows(transport, path=_TRADE_BAND_PATH, tr=_TRADE_BAND_TR, params=params):
+        label = str(row.get("prpr_name", "")).strip()
+        if not label:
+            continue
+        bands.append(
+            TradeAmountBand(
+                symbol=symbol,
+                band_label=label,
+                average_price=required_decimal(row.get("smtn_avrg_prpr"), "smtn_avrg_prpr"),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                net_buy_ratio=optional_decimal(row.get("whol_ntby_qty_rate"),
+                                               "whol_ntby_qty_rate"),
+                net_buy_count=required_int(row.get("ntby_cntg_csnu"), "ntby_cntg_csnu"),
+                sell_volume=required_int(row.get("seln_cnqn_smtn"), "seln_cnqn_smtn"),
+                sell_volume_ratio=optional_decimal(row.get("whol_seln_vol_rate"),
+                                                   "whol_seln_vol_rate"),
+                sell_count=required_int(row.get("seln_cntg_csnu"), "seln_cntg_csnu"),
+                buy_volume=required_int(row.get("shnu_cnqn_smtn"), "shnu_cnqn_smtn"),
+                buy_volume_ratio=optional_decimal(row.get("whol_shun_vol_rate"),
+                                                  "whol_shun_vol_rate"),
+                buy_count=required_int(row.get("shnu_cntg_csnu"), "shnu_cntg_csnu"),
+                _raw=row,
+            )
+        )
+    return bands
 
 
 _OPINION_PATH = "/uapi/domestic-stock/v1/quotations/invest-opinion"

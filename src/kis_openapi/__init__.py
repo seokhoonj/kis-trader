@@ -18,6 +18,7 @@ from .analysis import (
     DailyExecutionVolume,
     LoanPoint,
     ShortSalePoint,
+    TradeAmountBand,
 )
 from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
@@ -184,6 +185,7 @@ __all__ = [
     "Ticker",
     "TopViewedStock",
     "Trade",
+    "TradeAmountBand",
     "TradingDay",
     "VIEvent",
 ]

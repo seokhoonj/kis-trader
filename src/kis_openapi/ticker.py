@@ -25,6 +25,7 @@ from .analysis import (
     DailyExecutionVolume,
     LoanPoint,
     ShortSalePoint,
+    TradeAmountBand,
 )
 from .bar import Bar, Interval
 from .broker import BrokerActivitySummary
@@ -282,6 +283,13 @@ class Ticker:
         self._domestic_market()        # 국내 전용
         return analysis_api.fetch_daily_trade_volume(
             self._client.transport, symbol=self.symbol, start=start, end=end
+        )
+
+    def trade_amount_bands(self) -> list[TradeAmountBand]:
+        """당일 체결금액대별 매매비중(금액대 리스트). 각 금액대의 매수/매도/순매수 거래량·비율·건수."""
+        self._domestic_market()        # 국내 전용
+        return analysis_api.fetch_trade_amount_bands(
+            self._client.transport, symbol=self.symbol
         )
 
     def nav(self) -> ETFNAV:

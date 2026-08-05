@@ -150,3 +150,29 @@ def test_daily_trade_volume_missing_output2_fails_closed():
     fake = FakeTransport(response=resp)
     with pytest.raises(KISError):
         _client(fake).ticker("005930").daily_trade_volume(end="20240126")
+
+
+def test_trade_amount_bands_maps():
+    # 원장 응답 예시값(005930, 3백/5백 이하). 순매수 비율·건수 음수 보존.
+    rows = [{"prpr_name": "3백 이하", "smtn_avrg_prpr": "78315", "acml_vol": "291426",
+             "whol_ntby_qty_rate": "0.37", "ntby_cntg_csnu": "13297",
+             "seln_cnqn_smtn": "126451", "whol_seln_vol_rate": "1.21", "seln_cntg_csnu": "16084",
+             "shnu_cnqn_smtn": "164975", "whol_shun_vol_rate": "1.58", "shnu_cntg_csnu": "29381"},
+            {"prpr_name": "5백 이하", "smtn_avrg_prpr": "78317", "acml_vol": "138138",
+             "whol_ntby_qty_rate": "-0.13", "ntby_cntg_csnu": "-278",
+             "seln_cnqn_smtn": "75634", "whol_seln_vol_rate": "0.73", "seln_cntg_csnu": "1525",
+             "shnu_cnqn_smtn": "62504", "whol_shun_vol_rate": "0.60", "shnu_cntg_csnu": "1247"}]
+    fake = FakeTransport(response=_resp(rows))
+    from kis_openapi import TradeAmountBand
+    bands = _client(fake).ticker("005930").trade_amount_bands()
+    assert isinstance(bands[0], TradeAmountBand)
+    assert bands[0].band_label == "3백 이하"
+    assert bands[0].average_price == Decimal(78315)
+    assert bands[0].buy_count == 29381
+    # 두 번째 밴드: 순매수 음수 보존(pre-signed, apply_change_sign 안 탐)
+    assert bands[1].net_buy_ratio == Decimal("-0.13")
+    assert bands[1].net_buy_count == -278
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/quotations/tradprt-byamt"
+    assert call["tr_id"] == "FHKST111900C0"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "11119"

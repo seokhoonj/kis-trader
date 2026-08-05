@@ -1,7 +1,7 @@
-"""per-ticker 일별 시세분석(DATA) -- :class:`CreditBalancePoint` / :class:`ShortSalePoint`.
+"""per-ticker 시세분석(DATA) -- :class:`CreditBalancePoint` / :class:`ShortSalePoint` 등.
 
-한 종목의 일별 신용잔고/공매도 추이 한 점이다. :meth:`~kis_openapi.ticker.Ticker.credit_balance_trend`
-/ :meth:`~kis_openapi.ticker.Ticker.short_sale_trend` 가 일자 리스트(최근->과거)로 돌려준다.
+한 종목의 시세분석 결과 한 행이다: 일별 추이(신용잔고/공매도/대차/체결량)나 체결금액대별 매매비중 같은
+스냅샷. :class:`~kis_openapi.ticker.Ticker` 의 대응 메서드가 리스트로 돌려준다(추이는 최근->과거).
 """
 
 from __future__ import annotations
@@ -116,6 +116,35 @@ class AnalystOpinion:
     target_price: Decimal | None      # HTS 목표주가(hts_goal_prc)
     previous_close: Decimal | None    # 전일 종가(stck_prdy_clpr)
     disparity_percent: Decimal | None  # 목표가 대비 괴리율 %(dprt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class TradeAmountBand:
+    """한 체결금액대의 매매비중(불변).
+
+    당일 체결을 체결금액대(``band_label`` 예: "3백 이하")로 묶어 매수/매도/순매수를 나눈다.
+    ``*_ratio`` 는 전체 대비 거래량 비율(%), ``*_count`` 는 체결 건수, ``net_buy_*`` 는 순매수(음수 가능).
+    :meth:`~kis_openapi.ticker.Ticker.trade_amount_bands` 가 금액대 리스트로 돌려준다.
+    """
+
+    symbol: str
+    band_label: str                   # 가격(금액)대명(prpr_name)
+    average_price: Decimal            # 금액대 평균가격(smtn_avrg_prpr)
+    volume: int                       # 금액대 합계 거래량(acml_vol)
+    net_buy_ratio: Decimal | None     # 합계 순매수비율 %(whol_ntby_qty_rate; 음수 가능)
+    net_buy_count: int                # 합계 순매수건수(ntby_cntg_csnu; 음수 가능)
+    sell_volume: int                  # 매도 거래량(seln_cnqn_smtn)
+    sell_volume_ratio: Decimal | None  # 매도 거래량비율 %(whol_seln_vol_rate)
+    sell_count: int                   # 매도 건수(seln_cntg_csnu)
+    buy_volume: int                   # 매수 거래량(shnu_cnqn_smtn)
+    buy_volume_ratio: Decimal | None  # 매수 거래량비율 %(whol_shun_vol_rate; 원장 오타 shun)
+    buy_count: int                    # 매수 건수(shnu_cntg_csnu)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
