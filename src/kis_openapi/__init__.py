@@ -61,6 +61,7 @@ from .ranking_items import (
 )
 from .report import ExecutionReport, OrderStatus
 from .risk import RiskLimits
+from .stock_info import StockInfo
 from .store import OrderStore
 from .ticker import Ticker
 from .trade import Trade
@@ -135,6 +136,7 @@ __all__ = [
     "SellableQuantity",
     "ShortSalePoint",
     "ShortSaleRanking",
+    "StockInfo",
     "Ticker",
     "TopViewedStock",
     "Trade",

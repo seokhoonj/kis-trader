@@ -33,6 +33,7 @@ from .orderable import BuyableAmount, SellableQuantity
 from .program import ProgramTradePoint
 from .quote import Quote
 from .report import ExecutionReport
+from .stock_info import StockInfo
 from .trade import Trade
 
 if TYPE_CHECKING:
@@ -80,6 +81,11 @@ class Ticker:
                 f"-- 해외는 .quote() 만 된다."
             )
         return self.market
+
+    def info(self) -> StockInfo:
+        """종목 기본정보(이름·상장주식수·자본금·액면가·업종·상장일). 국내 전용."""
+        self._domestic_market()        # 국내 전용
+        return market_data.fetch_stock_info(self._client.transport, symbol=self.symbol)
 
     def quote(self) -> Quote:
         """현재가 스냅샷(국내/해외 자동 라우팅)."""

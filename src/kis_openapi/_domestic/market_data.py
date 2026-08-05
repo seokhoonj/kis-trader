@@ -25,6 +25,7 @@ from ..investor import InvestorActivity, InvestorEstimate, InvestorFlow
 from ..order_book import OrderBook, PriceLevel
 from ..program import ProgramTradePoint
 from ..quote import Quote
+from ..stock_info import StockInfo
 from ..trade import Trade
 from ..transport import RawResponse, Transport
 
@@ -681,3 +682,38 @@ def fetch_investor_estimate(
             )
         )
     return estimates
+
+
+# --- 종목 기본정보 ---------------------------------------------------------
+_STOCK_INFO_PATH = "/uapi/domestic-stock/v1/quotations/search-stock-info"
+_STOCK_INFO_TR = "CTPF1002R"
+
+
+def fetch_stock_info(transport: Transport, *, symbol: str) -> StockInfo:
+    """한 종목의 기본정보(이름·상장주식수·자본금·액면가·업종·상장일)."""
+    params = {"PRDT_TYPE_CD": "300", "PDNO": symbol}    # 300: 주식/ETF/ETN/ELW
+    resp = transport.request(
+        method="GET", path=_STOCK_INFO_PATH, tr_id=_STOCK_INFO_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise _missing_block_error("output", resp)
+    listing = str(output.get("scts_mket_lstg_dt") or output.get("kosdaq_mket_lstg_dt") or "").strip()
+    return StockInfo(
+        symbol=symbol,
+        name=str(output.get("prdt_name", "")).strip(),
+        short_name=str(output.get("prdt_abrv_name", "")).strip(),
+        english_name=str(output.get("prdt_eng_name", "")).strip(),
+        listed_shares=optional_int(output.get("lstg_stqt"), "lstg_stqt"),
+        capital=optional_decimal(output.get("cpta"), "cpta"),
+        par_value=optional_decimal(output.get("papr"), "papr"),
+        issue_price=optional_decimal(output.get("issu_pric"), "issu_pric"),
+        sector_large=str(output.get("idx_bztp_lcls_cd_name", "")).strip(),
+        sector_medium=str(output.get("idx_bztp_mcls_cd_name", "")).strip(),
+        sector_small=str(output.get("idx_bztp_scls_cd_name", "")).strip(),
+        is_kospi200=str(output.get("kospi200_item_yn", "")).strip() == "Y",
+        kind=str(output.get("stck_kind_cd", "")).strip(),
+        listing_date=_parse_bar_timestamp(listing) if listing else None,
+        _raw=output,
+    )
