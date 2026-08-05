@@ -32,8 +32,14 @@ _UPDOWN = ("/uapi/overseas-stock/v1/ranking/updown-rate", "HHDFS76290000")
 _VOLUME_SURGE = ("/uapi/overseas-stock/v1/ranking/volume-surge", "HHDFS76270000")
 _BUY_STRENGTH = ("/uapi/overseas-stock/v1/ranking/volume-power", "HHDFS76280000")
 _TURNOVER = ("/uapi/overseas-stock/v1/ranking/trade-turnover", "HHDFS76340000")
+_PRICE_FLUCT = ("/uapi/overseas-stock/v1/ranking/price-fluct", "HHDFS76260000")
+_NEW_HIGHLOW = ("/uapi/overseas-stock/v1/ranking/new-highlow", "HHDFS76300000")
 #: 상승/하락 구분(GUBN). 원장: 0(하락율), 1(상승율).
 _UPDOWN_GUBN = {"gainers": "1", "losers": "0"}
+#: 급등/급락 구분(price-fluct GUBN). 원장: 0(급락), 1(급등).
+_FLUCT_GUBN = {"risers": "1", "fallers": "0"}
+#: 신고/신저 구분(new-highlow GUBN). 원장: 1(신고), 0(신저).
+_HIGHLOW_GUBN = {"high": "1", "low": "0"}
 
 
 def _parse_ranking(rows: list[Mapping[str, Any]]) -> list[RankedOverseasStock]:
@@ -143,4 +149,33 @@ def fetch_by_turnover(transport: Transport, *, exchange: str) -> list[RankedOver
     path, tr = _TURNOVER
     params = {"EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
               "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
+    return _fetch_ranking(transport, path=path, tr=tr, params=params)
+
+
+def fetch_by_price_fluctuation(
+    transport: Transport, *, exchange: str, top: str = "risers"
+) -> list[RankedOverseasStock]:
+    """한 거래소의 가격 급등/급락 순위. ``top="risers"`` 급등 / ``"fallers"`` 급락(원장 GUBN 1/0)."""
+    try:
+        gubn = _FLUCT_GUBN[top]
+    except KeyError:
+        raise KISUsageError(f"top 은 {sorted(_FLUCT_GUBN)} 중 하나: {top!r}") from None
+    path, tr = _PRICE_FLUCT
+    params = {"EXCD": exchange, "GUBN": gubn, "MINX": "0", "VOL_RANG": "0",
+              "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
+    return _fetch_ranking(transport, path=path, tr=tr, params=params)
+
+
+def fetch_by_new_highlow(
+    transport: Transport, *, exchange: str, extreme: str = "high", sustained: bool = True
+) -> list[RankedOverseasStock]:
+    """한 거래소의 신고가/신저가 순위. ``extreme="high"`` 신고 / ``"low"`` 신저(원장 GUBN 1/0).
+    ``sustained=True`` 돌파유지 / ``False`` 일시돌파(원장 GUBN2 1/0)."""
+    try:
+        gubn = _HIGHLOW_GUBN[extreme]
+    except KeyError:
+        raise KISUsageError(f"extreme 은 {sorted(_HIGHLOW_GUBN)} 중 하나: {extreme!r}") from None
+    path, tr = _NEW_HIGHLOW
+    params = {"EXCD": exchange, "GUBN": gubn, "GUBN2": "1" if sustained else "0",
+              "NDAY": "0", "VOL_RANG": "0", "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
     return _fetch_ranking(transport, path=path, tr=tr, params=params)

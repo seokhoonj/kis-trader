@@ -61,3 +61,20 @@ class OverseasRankingQueries:
     def by_turnover(self, *, exchange: str) -> list[RankedOverseasStock]:
         """한 거래소의 거래 회전율 순위."""
         return overseas_ranking_api.fetch_by_turnover(self._client.transport, exchange=exchange)
+
+    def by_price_fluctuation(
+        self, *, exchange: str, top: str = "risers"
+    ) -> list[RankedOverseasStock]:
+        """한 거래소의 가격 급등/급락 순위. ``top="risers"`` 급등 상위 / ``"fallers"`` 급락 상위."""
+        return overseas_ranking_api.fetch_by_price_fluctuation(
+            self._client.transport, exchange=exchange, top=top
+        )
+
+    def by_new_highlow(
+        self, *, exchange: str, extreme: str = "high", sustained: bool = True
+    ) -> list[RankedOverseasStock]:
+        """한 거래소의 신고가/신저가 순위. ``extreme="high"`` 신고 / ``"low"`` 신저,
+        ``sustained=True`` 돌파유지 / ``False`` 일시돌파."""
+        return overseas_ranking_api.fetch_by_new_highlow(
+            self._client.transport, exchange=exchange, extreme=extreme, sustained=sustained
+        )

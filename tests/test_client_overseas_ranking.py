@@ -127,3 +127,37 @@ def test_more_overseas_rankings_route():
         assert fake.calls[0]["path"] == path
         assert fake.calls[0]["tr_id"] == tr
         assert key in fake.calls[0]["params"]
+
+
+def test_price_fluct_and_new_highlow_gubn_codes():
+    row = [{"rank": "1", "excd": "NAS", "symb": "T", "name": "n", "ename": "N", "last": "1",
+            "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
+    # price-fluct: risers -> GUBN 1, fallers -> GUBN 0
+    fake = FakeTransport(response=_one(row))
+    _client(fake).overseas_ranking.by_price_fluctuation(exchange="NAS", top="fallers")
+    assert fake.calls[0]["path"] == "/uapi/overseas-stock/v1/ranking/price-fluct"
+    assert fake.calls[0]["tr_id"] == "HHDFS76260000"
+    assert fake.calls[0]["params"]["GUBN"] == "0"
+    fake = FakeTransport(response=_one(row))
+    _client(fake).overseas_ranking.by_price_fluctuation(exchange="NAS", top="risers")
+    assert fake.calls[0]["params"]["GUBN"] == "1"
+    # new-highlow: high/low -> GUBN 1/0, sustained -> GUBN2 1/0
+    fake = FakeTransport(response=_one(row))
+    _client(fake).overseas_ranking.by_new_highlow(exchange="NAS", extreme="low", sustained=False)
+    assert fake.calls[0]["path"] == "/uapi/overseas-stock/v1/ranking/new-highlow"
+    assert fake.calls[0]["tr_id"] == "HHDFS76300000"
+    assert fake.calls[0]["params"]["GUBN"] == "0"
+    assert fake.calls[0]["params"]["GUBN2"] == "0"
+    fake = FakeTransport(response=_one(row))
+    _client(fake).overseas_ranking.by_new_highlow(exchange="NAS")   # 기본 high/sustained
+    assert fake.calls[0]["params"]["GUBN"] == "1"
+    assert fake.calls[0]["params"]["GUBN2"] == "1"
+
+
+def test_overseas_ranking_bad_top_raises():
+    import pytest
+
+    from kis_openapi.errors import KISUsageError
+    fake = FakeTransport(response=_one([]))
+    with pytest.raises(KISUsageError):
+        _client(fake).overseas_ranking.by_price_fluctuation(exchange="NAS", top="nope")
