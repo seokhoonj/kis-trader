@@ -19,7 +19,7 @@ from ._domestic import finance as finance_api
 from ._domestic import market_data
 from ._overseas import market_data as overseas_market_data
 from .after_hours import AfterHoursQuote
-from .analysis import CreditBalancePoint, LoanPoint, ShortSalePoint
+from .analysis import AnalystOpinion, CreditBalancePoint, LoanPoint, ShortSalePoint
 from .bar import Bar, Interval
 from .broker import BrokerActivitySummary
 from .errors import KISUsageError
@@ -217,6 +217,15 @@ class Ticker:
         """일별 대차거래(대여) 추이(기간 [start, end], 최근->과거). 대차잔고는 공매도 공급 대리지표."""
         self._domestic_market()        # 국내 전용
         return analysis_api.fetch_loan_trend(
+            self._client.transport, symbol=self.symbol, start=start, end=end
+        )
+
+    def analyst_opinions(
+        self, *, start: str | date | None = None, end: str | date | None = None
+    ) -> list[AnalystOpinion]:
+        """기간 [start, end] 의 애널리스트 투자의견·목표주가 시계열(최근->과거). start 미지정이면 최근 30일."""
+        self._domestic_market()        # 국내 전용
+        return analysis_api.fetch_analyst_opinions(
             self._client.transport, symbol=self.symbol, start=start, end=end
         )
 

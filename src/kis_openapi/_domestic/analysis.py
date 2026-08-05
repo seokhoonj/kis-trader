@@ -17,7 +17,7 @@ from datetime import date, datetime, timedelta
 from typing import Any
 
 from .._wire import optional_decimal, required_decimal, required_int
-from ..analysis import CreditBalancePoint, LoanPoint, ShortSalePoint
+from ..analysis import AnalystOpinion, CreditBalancePoint, LoanPoint, ShortSalePoint
 from ..transport import Transport
 from .market_data import (
     _apply_change_sign,
@@ -188,3 +188,42 @@ def fetch_loan_trend(
             )
         )
     return points
+
+
+_OPINION_PATH = "/uapi/domestic-stock/v1/quotations/invest-opinion"
+_OPINION_TR = "FHKST663300C0"
+
+
+def fetch_analyst_opinions(
+    transport: Transport, *, symbol: str,
+    start: str | date | None = None, end: str | date | None = None,
+) -> list[AnalystOpinion]:
+    """기간 [start, end] 의 애널리스트 투자의견·목표주가 시계열(최근->과거). ``start`` 미지정이면
+    ``end`` 로부터 30일 전."""
+    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
+    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_COND_SCR_DIV_CODE": "16633",
+        "FID_INPUT_ISCD": symbol,
+        "FID_INPUT_DATE_1": start_date,
+        "FID_INPUT_DATE_2": end_date,
+    }
+    opinions: list[AnalystOpinion] = []
+    for row in _rows(transport, path=_OPINION_PATH, tr=_OPINION_TR, params=params):
+        day = str(row.get("stck_bsop_date", "")).strip()
+        if not day:
+            continue
+        opinions.append(
+            AnalystOpinion(
+                symbol=symbol,
+                timestamp=_parse_bar_timestamp(day),
+                opinion=str(row.get("invt_opnn", "")).strip(),
+                previous_opinion=str(row.get("rgbf_invt_opnn", "")).strip(),
+                target_price=optional_decimal(row.get("hts_goal_prc"), "hts_goal_prc"),
+                previous_close=optional_decimal(row.get("stck_prdy_clpr"), "stck_prdy_clpr"),
+                disparity_percent=optional_decimal(row.get("dprt"), "dprt"),
+                _raw=row,
+            )
+        )
+    return opinions

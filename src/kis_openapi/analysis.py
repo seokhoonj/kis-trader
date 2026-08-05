@@ -97,3 +97,28 @@ class ShortSalePoint:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class AnalystOpinion:
+    """한 시점의 애널리스트 투자의견(불변).
+
+    ``opinion`` 은 투자의견(매수/중립/매도 등 텍스트), ``previous_opinion`` 은 직전 의견,
+    ``target_price`` 는 HTS 목표주가, ``disparity_percent`` 는 목표가 대비 괴리율(%)이다.
+    :meth:`~kis_openapi.ticker.Ticker.analyst_opinions` 가 기간 시계열로 돌려준다.
+    ``timestamp`` 는 영업일(KST-aware).
+    """
+
+    symbol: str
+    timestamp: datetime               # 영업일(KST-aware)
+    opinion: str                      # 투자의견(invt_opnn)
+    previous_opinion: str             # 직전 투자의견(rgbf_invt_opnn)
+    target_price: Decimal | None      # HTS 목표주가(hts_goal_prc)
+    previous_close: Decimal | None    # 전일 종가(stck_prdy_clpr)
+    disparity_percent: Decimal | None  # 목표가 대비 괴리율 %(dprt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
