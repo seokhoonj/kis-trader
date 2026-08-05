@@ -15,17 +15,15 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from typing import TYPE_CHECKING, Any
+from typing import Any
 
 from .._domestic.market_data import _KST
 from .._wire import format_wire_decimal
 from ..errors import KisError, KisUsageError, OrderTimeoutError
+from ..order import Fingerprint, Order, OrderType, Side, TimeInForce, WireRequest
 from ..report import ExecutionReport, OrderStatus
 from ..store import OrderStore
 from ..transport import Environment, Transport, TransportTimeout
-
-if TYPE_CHECKING:
-    from ..order import Order
 
 _ORDER_PATH = "/uapi/overseas-stock/v1/trading/order"
 
@@ -40,7 +38,7 @@ _ORDER_EXCHANGE: dict[str, tuple[str, str]] = {
 }
 
 #: (시장 그룹, 매수/매도, 실전/모의) -> tr_id. 원장 코드표('해외주식 주문').
-_ORDER_TR: dict[tuple[str, str, Environment], str] = {
+_ORDER_TR: dict[tuple[str, Side, Environment], str] = {
     ("US", "buy", "real"): "TTTT1002U", ("US", "sell", "real"): "TTTT1006U",
     ("US", "buy", "demo"): "VTTT1002U", ("US", "sell", "demo"): "VTTT1001U",
     ("JP", "buy", "real"): "TTTS0308U", ("JP", "sell", "real"): "TTTS0307U",
@@ -59,7 +57,7 @@ _ORD_DVSN_LIMIT = "00"  # 지정가
 
 def build_order_request(
     *,
-    side: str,
+    side: Side,
     symbol: str,
     quantity: Decimal,
     limit_price: Decimal | None,
@@ -67,11 +65,18 @@ def build_order_request(
     cano: str,
     product_code: str,
     environment: Environment,
-) -> tuple[str, str, str, dict[str, str]]:
-    """해외 주문의 (method, path, tr_id, body) 를 조립한다.
+    order_type: OrderType = "limit",
+    time_in_force: TimeInForce = "day",
+) -> WireRequest:
+    """해외 주문의 :class:`~kis_openapi.order.WireRequest` 를 조립한다.
 
-    ``exchange`` 는 시세 거래소코드(NAS/NYS/...). 해외 주문은 지정가만 지원하므로 ``limit_price`` 가
-    필요하다(시장가/MOO/MOC 등은 시장별로 제약이 달라 아직 미지원). ``quantity`` 는 정수(주 단위)."""
+    ``exchange`` 는 시세 거래소코드(NAS/NYS/...). 해외 주문은 지금 **지정가·day 만** 지원한다
+    (시장가/MOO/MOC·IOC/FOK 등은 시장별 제약이 달라 미구현) -- 도메스틱처럼 그 밖은 조용히 day
+    지정가로 바꾸지 않고 fail-closed 로 거부한다. ``quantity`` 는 정수(주 단위)."""
+    if order_type != "limit":
+        raise KisUsageError(f"해외 주문은 지정가만 지원한다(order_type={order_type!r}).")
+    if time_in_force != "day":
+        raise KisUsageError(f"해외 주문은 아직 day 만 지원한다(time_in_force={time_in_force!r}).")
     if limit_price is None:
         raise KisUsageError("해외 주문은 지정가만 지원한다 -- price 를 지정하라(시장가 미지원).")
     if quantity != quantity.to_integral_value():
@@ -100,7 +105,7 @@ def build_order_request(
     }
     if side == "sell":
         body["SLL_TYPE"] = "00"        # 매도 표시(매수는 필드 없음)
-    return "POST", _ORDER_PATH, tr_id, body
+    return WireRequest("POST", _ORDER_PATH, tr_id, body)
 
 
 def is_overseas_exchange(exchange: str) -> bool:
@@ -110,15 +115,17 @@ def is_overseas_exchange(exchange: str) -> bool:
 
 def make_order_request(
     order: Order, cano: str, product_code: str, environment: Environment
-) -> tuple[str, str, str, dict[str, str]]:
+) -> WireRequest:
     """안전 코어(:func:`~kis_openapi._domestic.orders.place`)에 넘길 해외 주문 빌더.
 
     :class:`~kis_openapi.order.Order` 를 :func:`build_order_request` 인자로 풀어 넘긴다. ``order.exchange``
-    는 시세 거래소코드(NAS/NYS/...)를 담는다."""
+    는 시세 거래소코드(NAS/NYS/...)를 담고, ``order_type``/``time_in_force`` 도 넘겨 미지원 조합은
+    거기서 fail-closed 로 거부된다."""
     return build_order_request(
         side=order.side, symbol=order.symbol, quantity=order.quantity,
         limit_price=order.limit_price, exchange=order.exchange,
         cano=cano, product_code=product_code, environment=environment,
+        order_type=order.order_type, time_in_force=order.time_in_force,
     )
 
 
@@ -128,19 +135,21 @@ _CCNL_TR = {"real": "TTTS3035R", "demo": "VTTS3035R"}
 #: 해외 체결내역 매매구분코드. 매수=02, 매도=01(도메스틱과 다르다).
 _SIDE_CODE = {"buy": "02", "sell": "01"}
 _MAX_CCNL_PAGES = 100
-#: 재조회 날짜창(일). 해외는 현지시각 기준이라 KST-오늘과 ±1일 어긋날 수 있어 여유를 둔다.
-_LOOKBACK_DAYS = 2
+#: 재조회 날짜창(일). 해외는 현지시각 기준이라 KST-오늘이 거래소 현지일과 최대 ±1일 어긋날 수
+#: 있어 하루만 뒤로 본다. 더 넓히면 과거의 동일지문 주문이 가짜 단일매칭될 위험이 커진다.
+_LOOKBACK_DAYS = 1
 
 
 def reconcile(
     transport: Transport, store: OrderStore, client_order_id: str, *,
-    cano: str, product_code: str, environment: Environment,
+    cano: str, product_code: str, environment: Environment, now: datetime | None = None,
 ) -> ExecutionReport | None:
     """미확인 해외 주문의 실제 상태를 체결내역에서 재조회한다 -- **보수적**(도메스틱과 동형).
 
     완료 리포트가 있으면 반환. in-flight 면 체결내역을 지문으로 스캔해 정확히 1건이면 확정, 0건이면
     ``None``(재전송 금지 유지), 2건 이상이면 :class:`KisError`. **자동 해제는 절대 하지 않는다.**
-    ODNO 로는 검색이 안 돼(원장) 지문(종목/매매/수량/단가)으로 맞춘다."""
+    ODNO 로는 검색이 안 돼(원장) 지문(종목/매매/수량/단가)으로 맞춘다. ``now`` 는 조회 날짜창의
+    기준시각(주입하면 결정적; 생략 시 현재 KST)."""
     prior = store.report_for(client_order_id)
     if prior is not None:
         return prior
@@ -149,11 +158,10 @@ def reconcile(
         raise KisUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
         )
-    exchange = fingerprint[-1]
     try:
         rows = _fetch_ccnl(
-            transport, symbol=fingerprint[0], exchange=exchange,
-            cano=cano, product_code=product_code, environment=environment,
+            transport, symbol=fingerprint.symbol, exchange=fingerprint.exchange,
+            cano=cano, product_code=product_code, environment=environment, now=now,
         )
     except TransportTimeout as err:
         raise OrderTimeoutError(
@@ -176,13 +184,14 @@ def reconcile(
 
 def _fetch_ccnl(
     transport: Transport, *, symbol: str, exchange: str,
-    cano: str, product_code: str, environment: Environment,
+    cano: str, product_code: str, environment: Environment, now: datetime | None = None,
 ) -> list[Mapping[str, Any]]:
-    """해외 체결내역을 연속조회 소진까지 읽어 행을 돌려준다(순수 I/O). 에러 응답은 fail-closed."""
+    """해외 체결내역을 연속조회 소진까지 읽어 행을 돌려준다(순수 I/O). 에러 응답은 fail-closed.
+    ``now`` 주입 시 날짜창이 결정적(테스트용); 생략 시 현재 KST."""
     order_exchange = _ORDER_EXCHANGE.get(exchange, (exchange, ""))[0]
-    now = datetime.now(_KST)
-    start = f"{now - timedelta(days=_LOOKBACK_DAYS):%Y%m%d}"
-    end = f"{now:%Y%m%d}"
+    stamp = datetime.now(_KST) if now is None else now
+    start = f"{stamp - timedelta(days=_LOOKBACK_DAYS):%Y%m%d}"
+    end = f"{stamp:%Y%m%d}"
     rows: list[Mapping[str, Any]] = []
     ctx_fk, ctx_nk = "", ""
     for _page in range(_MAX_CCNL_PAGES):
@@ -217,15 +226,19 @@ def _fetch_ccnl(
 
 
 def _filter_matching_ccnl_rows(
-    rows: list[Mapping[str, Any]], fingerprint: tuple[str, ...]
+    rows: list[Mapping[str, Any]], fingerprint: Fingerprint
 ) -> list[Mapping[str, Any]]:
     """체결내역 행 중 요청 지문과 맞는 것만(순수). 종목+매매구분+주문수량, 지정가는 주문단가까지 비교."""
-    symbol, side = fingerprint[0], fingerprint[1]
-    quantity = Decimal(fingerprint[3])
-    limit_price = Decimal(fingerprint[4]) if fingerprint[4] else None
+    symbol, side = fingerprint.symbol, fingerprint.side
+    quantity = Decimal(fingerprint.quantity)
+    limit_price = Decimal(fingerprint.limit_price) if fingerprint.limit_price else None
     want_side = _SIDE_CODE[side]
     matched = []
     for row in rows:
+        # 정정(01)/취소(02) 행은 원주문(orgn_odno)을 참조하는 별개 행이라 원주문 지문 매칭에서 제외
+        # -- 원주문 행만 맞춰 가짜 다중매칭을 줄인다.
+        if str(row.get("rvse_cncl_dvsn", "")).strip() in ("01", "02"):
+            continue
         if str(row.get("pdno", "")) != symbol:
             continue
         if str(row.get("sll_buy_dvsn_cd", "")) != want_side:
@@ -241,11 +254,13 @@ def _filter_matching_ccnl_rows(
 
 
 def _ccnl_report(
-    client_order_id: str, fingerprint: tuple[str, ...], row: Mapping[str, Any]
+    client_order_id: str, fingerprint: Fingerprint, row: Mapping[str, Any]
 ) -> ExecutionReport:
     ordered = _parse_decimal(row.get("ft_ord_qty"))
     filled = _parse_decimal(row.get("ft_ccld_qty"))
-    rejected = str(row.get("rjct_rson", "")).strip()
+    rejected = str(row.get("rjct_rson", "")).strip() or str(row.get("prcs_stat_name", "")) == "거부"
+    # 이 엔드포인트의 처리상태(prcs_stat_name)는 완료/거부/전송뿐이라 CANCELED 값이 없다(원장). 취소는
+    # 별개 행이라 위 필터에서 제외되므로, 취소된 원주문은 마지막 working 상태(전송->NEW)로 읽힌다.
     if rejected and filled == 0:
         status = OrderStatus.REJECTED
     elif ordered > 0 and filled >= ordered:
@@ -258,8 +273,8 @@ def _ccnl_report(
     return ExecutionReport(
         client_order_id=client_order_id,
         order_id=str(row.get("odno")) if row.get("odno") else None,
-        symbol=fingerprint[0],
-        side=fingerprint[1],
+        symbol=fingerprint.symbol,
+        side=fingerprint.side,
         status=status,
         filled_quantity=filled,
         average_price=avg if filled > 0 and avg > 0 else None,

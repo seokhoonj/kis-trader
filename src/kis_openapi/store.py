@@ -30,6 +30,7 @@ from pathlib import Path
 from typing import Self
 
 from .errors import KisError, UnsupportedSchemaVersionError
+from .order import Fingerprint
 from .report import ExecutionReport, OrderStatus
 
 try:
@@ -77,7 +78,7 @@ class OrderStore:
         self._path = Path(path) if path is not None else None
         self._retention = timedelta(days=retention_days) if retention_days > 0 else None
         self._reports: dict[str, ExecutionReport] = {}
-        self._fingerprints: dict[str, tuple[str, ...]] = {}
+        self._fingerprints: dict[str, Fingerprint] = {}
         self._in_flight: set[str] = set()
         self._lock = threading.Lock()
         self._process_lock_fd: int | None = None
@@ -93,7 +94,7 @@ class OrderStore:
 
     # --- 원자적 check-and-claim(핵심 안전 연산) ----------------------
     def try_claim(
-        self, client_order_id: str, fingerprint: tuple[str, ...]
+        self, client_order_id: str, fingerprint: Fingerprint
     ) -> tuple[ClaimOutcome, ExecutionReport | None]:
         """한 락 안에서 상태를 판정하고 필요 시 in-flight 로 확보한다.
 
@@ -127,13 +128,13 @@ class OrderStore:
         with self._lock:
             return client_order_id in self._in_flight
 
-    def fingerprint_for(self, client_order_id: str) -> tuple[str, ...] | None:
+    def fingerprint_for(self, client_order_id: str) -> Fingerprint | None:
         """이 id로 기록된 요청 지문(재조회 매칭용). 없으면 None."""
         with self._lock:
             return self._fingerprints.get(client_order_id)
 
     # --- 상태 전이 ----------------------------------------------------
-    def record(self, report: ExecutionReport, fingerprint: tuple[str, ...]) -> None:
+    def record(self, report: ExecutionReport, fingerprint: Fingerprint) -> None:
         """접수 리포트를 기록하고 in-flight 를 해제(영속)."""
         with self._lock:
             self._require_open()
@@ -272,7 +273,7 @@ class OrderStore:
             )
         try:
             self._in_flight = set(data.get("in_flight", []))
-            self._fingerprints = {cid: tuple(fp) for cid, fp in data.get("fingerprints", {}).items()}
+            self._fingerprints = {cid: Fingerprint(*fp) for cid, fp in data.get("fingerprints", {}).items()}
             self._reports = {cid: _report_from_dict(d) for cid, d in data.get("reports", {}).items()}
         except (ValueError, InvalidOperation, TypeError, KeyError, AttributeError) as err:
             # 스키마는 맞지만 레코드 값이 손상(잘못된 status/수량/날짜 등) -> 도메인 에러로 fail-closed.

@@ -12,7 +12,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Literal
+from typing import Literal, NamedTuple
 
 from ._wire import format_wire_decimal
 from .errors import KisUsageError
@@ -20,6 +20,31 @@ from .errors import KisUsageError
 Side = Literal["buy", "sell"]
 OrderType = Literal["market", "limit", "stop", "stop_limit"]
 TimeInForce = Literal["day", "gtc", "ioc", "fok"]
+
+
+class Fingerprint(NamedTuple):
+    """주문의 요청 지문(멱등 dedup 키). 필드를 이름으로 읽어 매직 인덱스를 없앤다 -- 특히
+    ``exchange`` 로 국내/해외 재조회 경로를 가르므로 위치 이동에 취약하면 안전 라우팅이 깨진다.
+    수치 필드는 와이어와 같은 정본 문자열(:func:`format_wire_decimal`)이다."""
+
+    symbol: str
+    side: Side
+    order_type: OrderType
+    quantity: str
+    limit_price: str
+    stop_price: str
+    time_in_force: TimeInForce
+    exchange: str
+
+
+class WireRequest(NamedTuple):
+    """주문 와이어 요청 -- 시장별 빌더가 조립해 안전 코어(place)에 넘긴다. 세 문자열이 서로
+    바뀌어도 타입이 못 잡던 것을 이름으로 막는다."""
+
+    method: str
+    path: str
+    tr_id: str
+    body: dict[str, str]
 
 _SIDES = frozenset(("buy", "sell"))
 _ORDER_TYPES = frozenset(("market", "limit", "stop", "stop_limit"))
@@ -99,17 +124,17 @@ class Order:
             raise KisUsageError(f"stop_price 는 0보다 커야 한다: {self.stop_price}")
 
     @property
-    def fingerprint(self) -> tuple[str, ...]:
+    def fingerprint(self) -> Fingerprint:
         """이 주문의 요청 지문 -- 같은 ``client_order_id`` 를 *다른* 주문에 재사용했는지
         판별하는 데 쓴다(멱등 replay 는 지문이 같을 때만 허용). 수치는 와이어와 **같은**
         정본(:func:`format_wire_decimal`)으로 -- 그래야 ``10`` 과 ``1E1`` 이 같은 지문이 된다.
         """
-        return (
-            self.symbol, self.side, self.order_type,
-            format_wire_decimal(self.quantity),
-            "" if self.limit_price is None else format_wire_decimal(self.limit_price),
-            "" if self.stop_price is None else format_wire_decimal(self.stop_price),
-            self.time_in_force, self.exchange,
+        return Fingerprint(
+            symbol=self.symbol, side=self.side, order_type=self.order_type,
+            quantity=format_wire_decimal(self.quantity),
+            limit_price="" if self.limit_price is None else format_wire_decimal(self.limit_price),
+            stop_price="" if self.stop_price is None else format_wire_decimal(self.stop_price),
+            time_in_force=self.time_in_force, exchange=self.exchange,
         )
 
     # --- 타입별 생성자(권장 진입점) ------------------------------------

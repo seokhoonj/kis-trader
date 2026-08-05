@@ -12,7 +12,7 @@ from decimal import Decimal
 import pytest
 
 from kis_openapi import ExecutionReport, KisClient, RiskLimits
-from kis_openapi.errors import KisUsageError, OrderTimeoutError
+from kis_openapi.errors import KisError, KisUsageError, OrderTimeoutError
 from kis_openapi.transport import RawResponse, TransportTimeout
 
 _ORDER = "/uapi/overseas-stock/v1/trading/order"
@@ -29,17 +29,23 @@ class FakeTransport:
 
     def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
         with self._lock:
-            self.calls.append({"method": method, "path": path, "tr_id": tr_id, "body": body})
+            self.calls.append({"method": method, "path": path, "tr_id": tr_id, "body": body,
+                               "params": params, "idempotent": idempotent})
         if method == "POST" and self.on_post is not None:
             outcome = self.on_post
             if isinstance(outcome, Exception):
                 raise outcome
             return outcome
         if method == "GET" and self.on_get is not None:
-            return self.on_get
+            # 리스트면 페이지별 순차 응답(연속조회 테스트).
+            return self.on_get.pop(0) if isinstance(self.on_get, list) else self.on_get
         if self.raises is not None:
             raise self.raises
         return self.response
+
+
+def _posts(fake):
+    return [c for c in fake.calls if c["method"] == "POST"]
 
 
 def _ccnl(rows):
@@ -126,6 +132,99 @@ def test_overseas_reconcile_zero_matches_stays_none():
     with pytest.raises(OrderTimeoutError):
         client.ticker("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="z")
     assert client.reconcile("z") is None
+
+
+def test_overseas_reconcile_two_matches_raises():
+    # 지문과 맞는 체결이 2건이면 자동 확정하지 않고 에러(보수적 -- 오확정 방지).
+    fake = FakeTransport(on_post=TransportTimeout("timeout"),
+                         on_get=_ccnl([_ccnl_row(odno="1"), _ccnl_row(odno="2")]))
+    client = _client(fake)
+    with pytest.raises(OrderTimeoutError):
+        client.ticker("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="m2")
+    with pytest.raises(KisError, match="2건"):
+        client.reconcile("m2")
+
+
+def test_overseas_write_timeout_does_not_retry():
+    # POST timeout 이면 정확히 1회만 전송(재전송 금지)하고 idempotent=False 로 나간다.
+    fake = FakeTransport(on_post=TransportTimeout("timeout"))
+    with pytest.raises(OrderTimeoutError):
+        _client(fake).ticker("AAPL", exchange="NAS").buy(
+            quantity=1, price="150.00", client_order_id="nr")
+    posts = _posts(fake)
+    assert len(posts) == 1                              # 재전송 없음
+    assert posts[0]["idempotent"] is False              # 쓰기라 재시도 불가 표시
+
+
+def test_overseas_reconcile_date_window_is_deterministic():
+    # reconcile 날짜창은 주입 시각(now) 기준으로 결정적 -- 벽시계에 의존하지 않는다.
+    from datetime import datetime, timezone
+
+    from kis_openapi._overseas import orders as engine
+    from kis_openapi.store import OrderStore
+    kst = timezone(__import__("datetime").timedelta(hours=9))
+    store = OrderStore()
+    order = _client(FakeTransport(response=_ack())).ticker(
+        "AAPL", exchange="NAS")._make_order("buy", 1, "150.00", "day", "d1")
+    store.try_claim("d1", order.fingerprint)            # in-flight 로 만든다
+    fake = FakeTransport(on_get=_ccnl([]))
+    engine.reconcile(fake, store, "d1", cano="1", product_code="01", environment="real",
+                     now=datetime(2024, 3, 15, 10, 0, tzinfo=kst))
+    params = fake.calls[0]["params"]
+    assert params["ORD_END_DT"] == "20240315"
+    assert params["ORD_STRT_DT"] == "20240314"          # today-1 (해외 현지일 ±1 여유)
+
+
+def test_overseas_reconcile_paginates_ccnl():
+    # 재조회가 연속조회(ctx_area_nk200)를 소진하며 모든 페이지를 스캔한다.
+    page1 = RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
+                        body={"output": [_ccnl_row(pdno="MSFT")], "ctx_area_nk200": "NEXT"})
+    page2 = _ccnl([_ccnl_row()])                        # 원하는 체결은 2페이지에
+    fake = FakeTransport(on_post=TransportTimeout("t"), on_get=[page1, page2])
+    client = _client(fake)
+    with pytest.raises(OrderTimeoutError):
+        client.ticker("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="pg")
+    report = client.reconcile("pg")
+    assert report is not None and report.order_id == "0000123456"
+    gets = [c for c in fake.calls if c["method"] == "GET"]
+    assert len(gets) == 2
+    assert gets[1]["params"]["CTX_AREA_NK200"] == "NEXT"
+
+
+def test_overseas_non_day_tif_rejected_before_wire():
+    # 해외는 day 만 -- IOC 를 조용히 day 로 바꾸지 않고 와이어 전에 거부한다(fail-closed).
+    fake = FakeTransport(response=_ack())
+    with pytest.raises(KisUsageError, match="day"):
+        _client(fake).ticker("AAPL", exchange="NAS").buy(
+            quantity=1, price="150.00", time_in_force="ioc", client_order_id="ioc")
+    assert _posts(fake) == []
+
+
+def test_overseas_unknown_exchange_rejected_before_wire():
+    # 알 수 없는 거래소코드는 도메스틱 빌더로 흘러 와이어 전에 거부된다(오라우팅 방지).
+    fake = FakeTransport(response=_ack())
+    with pytest.raises(Exception):  # noqa: B017 -- NotImplementedError/KisUsageError, 어느 쪽이든 와이어 전
+        _client(fake).ticker("BOGUS", exchange="XXX").buy(
+            quantity=1, price="150.00", client_order_id="x")
+    assert _posts(fake) == []
+
+
+def test_overseas_full_demo_tr_matrix():
+    # 실전에 이어 모의 TR 도 시장 x 매수/매도 전수 검증(원장 [모의투자]).
+    from kis_openapi._overseas.orders import build_order_request
+    demo = {
+        ("NAS", "buy"): "VTTT1002U", ("NAS", "sell"): "VTTT1001U",
+        ("TSE", "buy"): "VTTS0308U", ("TSE", "sell"): "VTTS0307U",
+        ("SHS", "buy"): "VTTS0202U", ("SHS", "sell"): "VTTS1005U",
+        ("HKS", "buy"): "VTTS1002U", ("HKS", "sell"): "VTTS1001U",
+        ("SZS", "buy"): "VTTS0305U", ("SZS", "sell"): "VTTS0304U",
+        ("HSX", "buy"): "VTTS0311U", ("HSX", "sell"): "VTTS0310U",
+    }
+    for (exchange, side), tr in demo.items():
+        wire = build_order_request(side=side, symbol="X", quantity=Decimal(1),
+                                   limit_price=Decimal(1), exchange=exchange, cano="1",
+                                   product_code="01", environment="demo")
+        assert wire.tr_id == tr
 
 
 def test_overseas_order_with_risk_session_rejected():

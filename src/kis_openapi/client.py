@@ -193,7 +193,7 @@ class KisClient:
         # 한다(엉뚱한 미접수 판정 방지) -- 지문의 거래소로 국내/해외 경로를 가른다. 완료 리포트가 있으면
         # 어느 엔진이든 그대로 반환한다.
         fingerprint = self._store.fingerprint_for(client_order_id)
-        if fingerprint is not None and overseas_orders_engine.is_overseas_exchange(fingerprint[-1]):
+        if fingerprint is not None and overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
             return overseas_orders_engine.reconcile(
                 self._transport, self._store, client_order_id,
                 cano=cano, product_code=product_code, environment=self._environment,

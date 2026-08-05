@@ -27,7 +27,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Any
+from typing import Any, TypeAlias
 
 from ..errors import (
     AccountNotOrderable,
@@ -38,7 +38,7 @@ from ..errors import (
     OrderTimeoutError,
 )
 from ..instrument import resolve_market
-from ..order import Order, format_wire_decimal
+from ..order import Fingerprint, Order, WireRequest, format_wire_decimal
 from ..report import ExecutionReport, OrderStatus
 from ..risk import RiskLimits
 from ..store import ClaimOutcome, OrderStore
@@ -53,9 +53,9 @@ _MAX_RECONCILE_PAGES = 100
 #: 국내(KRX/KOSDAQ/Nextrade) 시장 식별코드 -- 이 셋은 국내 현금주문으로 라우팅.
 _DOMESTIC_MICS = frozenset(("XKRX", "XKOS", "NXTE"))
 
-#: 주문 와이어 요청 조립기: (order, cano, product_code, environment) -> (method, path, tr_id, body).
+#: 주문 와이어 요청 조립기: (order, cano, product_code, environment) -> WireRequest.
 #: 안전 코어(place)는 시장 중립이고, 도메스틱/해외가 각자 이 형태의 빌더를 준다.
-BuildRequest = Callable[[Order, str, str, Environment], "tuple[str, str, str, dict[str, str]]"]
+BuildRequest: TypeAlias = Callable[[Order, str, str, Environment], WireRequest]
 
 _ORDER_CASH_PATH = "/uapi/domestic-stock/v1/trading/order-cash"
 _DAILY_CCLD_PATH = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
@@ -182,7 +182,7 @@ def reconcile(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
         )
     try:
-        rows = _fetch_daily_orders(transport, fingerprint[0], cano=cano,
+        rows = _fetch_daily_orders(transport, fingerprint.symbol, cano=cano,
                                    product_code=product_code, environment=environment)
     except TransportTimeout as err:
         raise OrderTimeoutError(
@@ -219,7 +219,7 @@ def _run_pre_trade_risk(transport: Transport, order: Order, risk: RiskLimits) ->
 # --- 와이어 매핑(국내 현금주문) --------------------------------------------
 def _make_order_cash_request(
     order: Order, cano: str, product_code: str, environment: Environment
-) -> tuple[str, str, str, dict[str, str]]:
+) -> WireRequest:
     if order.exchange not in _DOMESTIC_MICS:
         raise NotImplementedError(
             f"해외주문은 아직 지원하지 않는다(exchange={order.exchange!r})."
@@ -244,7 +244,7 @@ def _make_order_cash_request(
         "ORD_UNPR": "0" if order.order_type == "market" else _format_optional_wire_decimal(order.limit_price),
         "EXCG_ID_DVSN_CD": "KRX",
     }
-    return "POST", _ORDER_CASH_PATH, tr_id, body
+    return WireRequest("POST", _ORDER_CASH_PATH, tr_id, body)
 
 
 def _fetch_daily_orders(
@@ -291,13 +291,13 @@ def _fetch_daily_orders(
 
 
 def _filter_matching_daily_rows(
-    rows: list[Mapping[str, Any]], fingerprint: tuple[str, ...]
+    rows: list[Mapping[str, Any]], fingerprint: Fingerprint
 ) -> list[Mapping[str, Any]]:
     """일별체결조회 행 중 요청 지문과 맞는 것만(순수). 종목+매매구분+주문구분+수량, 지정가면
     단가까지 비교해 무관한 동일수량 주문의 오귀속을 줄인다."""
-    symbol, side, order_type = fingerprint[0], fingerprint[1], fingerprint[2]
-    quantity = Decimal(fingerprint[3])
-    limit_price = Decimal(fingerprint[4]) if fingerprint[4] else None  # 루프 밖 1회 파싱
+    symbol, side, order_type = fingerprint.symbol, fingerprint.side, fingerprint.order_type
+    quantity = Decimal(fingerprint.quantity)
+    limit_price = Decimal(fingerprint.limit_price) if fingerprint.limit_price else None
     want_side = _SIDE_CODE[side]
     want_dvsn = _ORD_DVSN.get(order_type)
     matched = []
@@ -321,7 +321,7 @@ def _filter_matching_daily_rows(
 
 
 def _execution_report_from_daily_row(
-    client_order_id: str, fingerprint: tuple[str, ...], row: Mapping[str, Any]
+    client_order_id: str, fingerprint: Fingerprint, row: Mapping[str, Any]
 ) -> ExecutionReport:
     ordered = _parse_decimal(row.get("ord_qty"))
     filled = _parse_decimal(row.get("tot_ccld_qty"))
@@ -340,8 +340,8 @@ def _execution_report_from_daily_row(
     return ExecutionReport(
         client_order_id=client_order_id,
         order_id=str(row.get("odno")) if row.get("odno") else None,
-        symbol=fingerprint[0],
-        side=fingerprint[1],
+        symbol=fingerprint.symbol,
+        side=fingerprint.side,
         status=status,
         filled_quantity=filled,
         average_price=avg if filled > 0 and avg > 0 else None,
