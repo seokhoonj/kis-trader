@@ -20,6 +20,8 @@ from .broker import BrokerActivity, BrokerActivitySummary
 from .client import KisClient
 from .derivative import Derivative
 from .derivative_items import DerivativesQuote
+from .elw import Elw
+from .elw_items import ElwSensitivityPoint
 from .etf_items import EtfComponent, EtfNav, EtfNavHistoryPoint
 from .index import Index
 from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
@@ -60,6 +62,8 @@ __all__ = [
     "Derivative",
     "DerivativesQuote",
     "DividendRanking",
+    "Elw",
+    "ElwSensitivityPoint",
     "EtfComponent",
     "EtfNav",
     "EtfNavHistoryPoint",

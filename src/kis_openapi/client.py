@@ -25,6 +25,7 @@ from ._overseas import orders as overseas_orders_engine
 from .balance import Balance, Portfolio, Position
 from .bond import Bond
 from .derivative import Derivative
+from .elw import Elw
 from .errors import KisUsageError
 from .index import Index
 from .instrument import DomesticBoard, is_domestic_symbol
@@ -126,6 +127,13 @@ class KisClient:
     def bond(self, code: str) -> Bond:
         """장내채권 핸들을 만든다. ``code`` 는 표준코드(ISIN, 예: KR2033022D33)."""
         return Bond(self, code)
+
+    def elw(self, code: str) -> Elw:
+        """ELW(주식워런트증권) 고유 지표 핸들을 만든다. ``code`` 는 ELW 표준코드(6자리, 예: 58J297).
+
+        기본 시세(현재가/호가/체결)는 ``kis.ticker(code)`` 로 조회한다 -- 이 핸들은 민감도(그릭스)·
+        변동성·투자지표 같은 ELW 고유 옵션 분석 지표만 얹는다."""
+        return Elw(self, code)
 
     def futures(self, code: str) -> Derivative:
         """지수선물 계약 핸들을 만든다. ``code`` 는 계약코드(예: 101W09)."""
