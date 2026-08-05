@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import BalanceSheet, IncomeStatement, KISClient
+from kis_openapi import BalanceSheet, FinancialRatio, IncomeStatement, KISClient
 from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
@@ -93,3 +93,25 @@ def test_finance_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(rows))
     with pytest.raises(KISError):
         _client(fake).ticker("000660").balance_sheet()
+
+
+def test_financial_ratios_maps_headline():
+    rows = [{"stac_yymm": "202312", "grs": "10.5", "bsop_prfi_inrt": "15.2",
+             "ntin_inrt": "8.1", "roe_val": "12.3", "eps": "5000", "sps": "40000",
+             "bps": "45000", "rsrv_rate": "1500.0", "lblt_rate": "35.5"}]
+    fake = FakeTransport(response=_resp(rows))
+    ratios = _client(fake).ticker("000660").financial_ratios()
+    assert isinstance(ratios[0], FinancialRatio)
+    assert ratios[0].roe == Decimal("12.3")
+    assert ratios[0].eps == Decimal(5000)
+    assert ratios[0].debt_ratio == Decimal("35.5")
+    assert fake.calls[0]["path"] == "/uapi/domestic-stock/v1/finance/financial-ratio"
+    assert fake.calls[0]["tr_id"] == "FHKST66430300"
+
+
+def test_financial_ratios_optional_none():
+    rows = [{"stac_yymm": "202312", "roe_val": "", "eps": "5000"}]
+    fake = FakeTransport(response=_resp(rows))
+    ratios = _client(fake).ticker("000660").financial_ratios()
+    assert ratios[0].roe is None
+    assert ratios[0].eps == Decimal(5000)

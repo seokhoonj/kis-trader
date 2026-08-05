@@ -22,7 +22,7 @@ from .bar import Bar, Interval
 from .broker import BrokerActivitySummary
 from .errors import KISUsageError
 from .etf_items import ETFNAV, ETFComponent, ETFNAVHistoryPoint
-from .financials import BalanceSheet, IncomeStatement
+from .financials import BalanceSheet, FinancialRatio, IncomeStatement
 from .instrument import DomesticBoard, resolve_market
 from .investor import InvestorEstimate, InvestorFlow
 from .order import Order, Side, TimeInForce
@@ -174,6 +174,14 @@ class Ticker:
         """결산기별 손익계산서(최근->과거). ``quarterly=True`` 면 분기, 아니면 연간."""
         self._domestic_market()        # 국내 전용
         return finance_api.fetch_income_statement(
+            self._client.transport, symbol=self.symbol, quarterly=quarterly
+        )
+
+    def financial_ratios(self, *, quarterly: bool = False) -> list[FinancialRatio]:
+        """결산기별 주요 재무비율(ROE·EPS·BPS·부채비율·유보율·증가율; 최근->과거). ``quarterly=True``
+        면 분기, 아니면 연간."""
+        self._domestic_market()        # 국내 전용
+        return finance_api.fetch_financial_ratios(
             self._client.transport, symbol=self.symbol, quarterly=quarterly
         )
 

@@ -15,13 +15,14 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from .._wire import required_decimal
-from ..financials import BalanceSheet, IncomeStatement
+from .._wire import optional_decimal, required_decimal
+from ..financials import BalanceSheet, FinancialRatio, IncomeStatement
 from ..transport import Transport
 from .market_data import _missing_block_error, _raise_if_error
 
 _BALANCE_SHEET = ("/uapi/domestic-stock/v1/finance/balance-sheet", "FHKST66430100")
 _INCOME_STATEMENT = ("/uapi/domestic-stock/v1/finance/income-statement", "FHKST66430200")
+_FINANCIAL_RATIO = ("/uapi/domestic-stock/v1/finance/financial-ratio", "FHKST66430300")
 
 
 def _fetch_finance(
@@ -95,3 +96,34 @@ def fetch_income_statement(
             )
         )
     return statements
+
+
+def fetch_financial_ratios(
+    transport: Transport, *, symbol: str, quarterly: bool = False
+) -> list[FinancialRatio]:
+    """결산기별 주요 재무비율(최근->과거). ``quarterly`` 면 분기, 아니면 연간."""
+    path, tr = _FINANCIAL_RATIO
+    rows = _fetch_finance(transport, path=path, tr=tr, symbol=symbol, quarterly=quarterly)
+    ratios: list[FinancialRatio] = []
+    for row in rows:
+        period = str(row.get("stac_yymm", "")).strip()
+        if not period:
+            continue
+        ratios.append(
+            FinancialRatio(
+                symbol=symbol,
+                period=period,
+                revenue_growth=optional_decimal(row.get("grs"), "grs"),
+                operating_income_growth=optional_decimal(row.get("bsop_prfi_inrt"),
+                                                         "bsop_prfi_inrt"),
+                net_income_growth=optional_decimal(row.get("ntin_inrt"), "ntin_inrt"),
+                roe=optional_decimal(row.get("roe_val"), "roe_val"),
+                eps=optional_decimal(row.get("eps"), "eps"),
+                sps=optional_decimal(row.get("sps"), "sps"),
+                bps=optional_decimal(row.get("bps"), "bps"),
+                reserve_ratio=optional_decimal(row.get("rsrv_rate"), "rsrv_rate"),
+                debt_ratio=optional_decimal(row.get("lblt_rate"), "lblt_rate"),
+                _raw=row,
+            )
+        )
+    return ratios

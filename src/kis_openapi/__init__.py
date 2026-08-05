@@ -34,7 +34,7 @@ from .elw_items import (
 from .elw_ranking import ELWRankingQueries
 from .elw_screener import ELWScreenerQueries
 from .etf_items import ETFNAV, ETFComponent, ETFNAVHistoryPoint
-from .financials import BalanceSheet, IncomeStatement
+from .financials import BalanceSheet, FinancialRatio, IncomeStatement
 from .index import Index
 from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
 from .investor import InvestorActivity, InvestorEstimate, InvestorFlow
@@ -96,6 +96,7 @@ __all__ = [
     "ETFComponent",
     "ETFNAVHistoryPoint",
     "ExecutionReport",
+    "FinancialRatio",
     "IncomeStatement",
     "Index",
     "IndexIntradayPoint",
