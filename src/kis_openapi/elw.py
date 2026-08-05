@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from .elw_items import (
         ELWIndicatorPoint,
         ELWLPFlow,
+        ELWQuote,
         ELWSensitivityPoint,
         ELWVolatilityPoint,
     )
@@ -37,6 +38,13 @@ class ELW:
     def __init__(self, client: KISClient, code: str) -> None:
         self._client = client
         self.code = code
+
+    def quote(self) -> ELWQuote:
+        """ELW 현재가 스냅샷(기초자산가·내재변동성·이론가·괴리율·행사가·머니니스 포함).
+
+        종목 기본 시세(``kis.ticker(code).quote()``)와 달리 옵션으로서의 맥락(기초자산·그릭스 파생)을
+        함께 준다."""
+        return elw_api.fetch_quote(self._client.transport, code=self.code)
 
     def sensitivity_trend(
         self, interval: TrendInterval = "day"

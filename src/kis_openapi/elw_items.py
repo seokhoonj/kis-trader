@@ -19,6 +19,44 @@ from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
+class ELWQuote:
+    """ELW 현재가 스냅샷(불변) -- ELW-aware 시세.
+
+    종목 :class:`~kis_openapi.quote.Quote` 와 달리, ELW 가 옵션인 만큼 **기초자산 가격**(``underlying_
+    price``)과 **내재변동성**(``implied_volatility``)·**이론가**(``theoretical_price``)·**괴리율**
+    (``premium`` = 이론가 대비 시장가 괴리)·**행사가**(``strike``)·**머니니스**(``moneyness`` =
+    ATM/ITM/OTM)를 함께 담는다. ``change`` / ``change_percent`` 는 전일대비(이 응답엔 ELW 부호
+    필드가 따로 없어 값 자체의 부호를 쓴다). 피벗/자본지지점 등 부가 지표는 ``_raw`` 에 있다.
+    """
+
+    code: str
+    price: Decimal
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    previous_close: Decimal
+    change: Decimal                   # 전일대비(값 자체 부호)
+    change_percent: Decimal           # 전일대비율
+    volume: int
+    bid: Decimal | None               # 매수호가
+    ask: Decimal | None               # 매도호가
+    theoretical_price: Decimal | None  # HTS 이론가(모형가)
+    premium: Decimal | None           # 괴리율(dprt)
+    implied_volatility: Decimal | None  # HTS 내재변동성(%)
+    strike: Decimal | None            # 행사가(acpr)
+    moneyness: str                    # ATM/ITM/OTM(atm_cls_name)
+    underlying_name: str              # 기초자산명(unas_isnm)
+    underlying_price: Decimal         # 기초자산 현재가(unas_prpr)
+    as_of: datetime                   # KST-aware
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class ELWSensitivityPoint:
     """한 시점의 ELW 민감도(그릭스) 스냅샷(불변).
 

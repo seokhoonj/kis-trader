@@ -24,6 +24,7 @@ from .._wire import optional_decimal, required_decimal, required_int
 from ..elw_items import (
     ELWIndicatorPoint,
     ELWLPFlow,
+    ELWQuote,
     ELWSensitivityPoint,
     ELWVolatilityPoint,
     RankedELW,
@@ -41,6 +42,43 @@ from .market_data import (
 
 #: ELW 조회의 시장구분코드(원장: ELW W).
 _MARKET_DIV = "W"
+
+_QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-elw-price"
+_QUOTE_TR = "FHKEW15010000"
+
+
+def fetch_quote(transport: Transport, *, code: str) -> ELWQuote:
+    """ELW 현재가 스냅샷(기초자산가·내재변동성·이론가·괴리율·행사가 포함). ``code`` 는 ELW 표준코드."""
+    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code}
+    resp = transport.request(
+        method="GET", path=_QUOTE_PATH, tr_id=_QUOTE_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):        # 성공 응답인데 객체 아님 -> fail-closed
+        raise _missing_block_error("output", resp)
+    return ELWQuote(
+        code=code,
+        price=required_decimal(output.get("elw_prpr"), "elw_prpr"),
+        open=required_decimal(output.get("elw_oprc"), "elw_oprc"),
+        high=required_decimal(output.get("elw_hgpr"), "elw_hgpr"),
+        low=required_decimal(output.get("elw_lwpr"), "elw_lwpr"),
+        previous_close=required_decimal(output.get("stck_prdy_clpr"), "stck_prdy_clpr"),
+        change=required_decimal(output.get("prdy_vrss"), "prdy_vrss"),   # 부호 필드 없음
+        change_percent=required_decimal(output.get("prdy_ctrt"), "prdy_ctrt"),
+        volume=required_int(output.get("acml_vol"), "acml_vol"),
+        bid=optional_decimal(output.get("bidp"), "bidp"),
+        ask=optional_decimal(output.get("askp"), "askp"),
+        theoretical_price=optional_decimal(output.get("hts_thpr"), "hts_thpr"),
+        premium=optional_decimal(output.get("dprt"), "dprt"),
+        implied_volatility=optional_decimal(output.get("hts_ints_vltl"), "hts_ints_vltl"),
+        strike=optional_decimal(output.get("acpr"), "acpr"),
+        moneyness=str(output.get("atm_cls_name", "")).strip(),
+        underlying_name=str(output.get("unas_isnm", "")).strip(),
+        underlying_price=required_decimal(output.get("unas_prpr"), "unas_prpr"),
+        as_of=datetime.now(_KST),
+        _raw=output,
+    )
 
 #: 시계열 시간축 -- "trade"(체결별), "day"(일별), "minute"(분별), "tick"(틱).
 #: 지표군마다 지원 축이 다르다(미지원 축은 KISUsageError).

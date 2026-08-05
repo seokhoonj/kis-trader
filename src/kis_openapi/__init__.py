@@ -24,6 +24,7 @@ from .elw import ELW
 from .elw_items import (
     ELWIndicatorPoint,
     ELWLPFlow,
+    ELWQuote,
     ELWSensitivityPoint,
     ELWVolatilityPoint,
     RankedELW,
@@ -73,6 +74,7 @@ __all__ = [
     "DividendRanking",
     "ELWIndicatorPoint",
     "ELWLPFlow",
+    "ELWQuote",
     "ELWRankingQueries",
     "ELWSensitivityPoint",
     "ELWVolatilityPoint",

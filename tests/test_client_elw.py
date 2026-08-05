@@ -15,6 +15,7 @@ from kis_openapi import (
     ELW,
     ELWIndicatorPoint,
     ELWLPFlow,
+    ELWQuote,
     ELWSensitivityPoint,
     ELWVolatilityPoint,
     KISClient,
@@ -71,6 +72,65 @@ def test_elw_accessor_returns_handle():
     handle = _client(FakeTransport(response=_resp([]))).elw("58J297")
     assert isinstance(handle, ELW)
     assert handle.code == "58J297"
+
+
+# --- quote (ELW-aware 현재가) -----------------------------------------------
+def _quote_output(**over):
+    out = {
+        "elw_prpr": "135", "prdy_vrss": "-100", "prdy_ctrt": "-42.55", "acml_vol": "44020",
+        "unas_isnm": "KOSPI200", "unas_prpr": "371.33", "bidp": "130", "askp": "135",
+        "elw_oprc": "200", "elw_hgpr": "210", "elw_lwpr": "130", "stck_prdy_clpr": "235",
+        "hts_thpr": "140.50", "dprt": "-3.90", "atm_cls_name": "ITM", "hts_ints_vltl": "33.05",
+        "acpr": "360.00",
+    }
+    out.update(over)
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output": out})
+
+
+def test_elw_quote_maps_option_aware_fields():
+    fake = FakeTransport(response=_quote_output())
+    quote = _client(fake).elw("58J297").quote()
+    assert isinstance(quote, ELWQuote)
+    assert quote.code == "58J297"
+    assert quote.price == Decimal(135)
+    assert quote.change == Decimal(-100)                  # 부호 필드 없음 -> 값 자체 부호
+    assert quote.change_percent == Decimal("-42.55")
+    assert quote.previous_close == Decimal(235)
+    assert quote.bid == Decimal(130)
+    assert quote.ask == Decimal(135)
+    assert quote.theoretical_price == Decimal("140.50")
+    assert quote.premium == Decimal("-3.90")              # 괴리율
+    assert quote.implied_volatility == Decimal("33.05")
+    assert quote.strike == Decimal("360.00")              # 행사가
+    assert quote.moneyness == "ITM"
+    assert quote.underlying_name == "KOSPI200"
+    assert quote.underlying_price == Decimal("371.33")
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/quotations/inquire-elw-price"
+    assert call["tr_id"] == "FHKEW15010000"
+    assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "W"
+    assert call["params"]["FID_INPUT_ISCD"] == "58J297"
+
+
+def test_elw_quote_optional_greeks_none():
+    fake = FakeTransport(response=_quote_output(hts_thpr="", hts_ints_vltl="", acpr=""))
+    quote = _client(fake).elw("58J297").quote()
+    assert quote.theoretical_price is None
+    assert quote.implied_volatility is None
+    assert quote.strike is None
+    assert quote.price == Decimal(135)                    # 핵심 필드는 여전히 파싱
+
+
+def test_elw_quote_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).elw("58J297").quote()
+
+
+def test_elw_quote_bad_value_fails_closed():
+    fake = FakeTransport(response=_quote_output(elw_prpr="n/a"))
+    with pytest.raises(KISError):
+        _client(fake).elw("58J297").quote()
 
 
 def test_sensitivity_trend_daily_maps_greeks_and_market():
