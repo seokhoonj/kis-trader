@@ -200,6 +200,12 @@ class Ticker:
             self._client.transport, symbol=self.symbol, market=self._domestic_market()
         )
 
+    def after_hours_order_book(self) -> OrderBook:
+        """시간외 단일가 세션의 10단계 호가창 스냅샷. 세션 밖이면 단계가 비어 올 수 있다."""
+        return market_data.fetch_after_hours_order_book(
+            self._client.transport, symbol=self.symbol, market=self._domestic_market()
+        )
+
     def program_trades(self) -> list[ProgramTradePoint]:
         """장중 시간대별 프로그램매매 흐름(매수/매도/순매수 수량·금액, 시간 순)."""
         return market_data.fetch_program_trades(

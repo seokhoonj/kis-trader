@@ -162,3 +162,33 @@ def test_after_hours_history_missing_output2_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}}))
     with pytest.raises(KISError):
         _client(fake).ticker("005930").after_hours_conclusions()
+
+
+def test_after_hours_order_book_maps_levels_and_totals():
+    # 원장 응답 예시값(ovtm_untp_ 프리픽스, 1·2단계만 채움).
+    output1 = {
+        "ovtm_untp_last_hour": "161847",
+        "ovtm_untp_askp1": "83600", "ovtm_untp_askp2": "83700",
+        "ovtm_untp_bidp1": "83500", "ovtm_untp_bidp2": "83400",
+        "ovtm_untp_askp_rsqn1": "5000", "ovtm_untp_askp_rsqn2": "11671",
+        "ovtm_untp_bidp_rsqn1": "3000", "ovtm_untp_bidp_rsqn2": "2242",
+        "ovtm_untp_total_askp_rsqn": "25794", "ovtm_untp_total_bidp_rsqn": "9064",
+    }
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output1": output1})
+    fake = FakeTransport(response=resp)
+    ob = _client(fake).ticker("005930").after_hours_order_book()
+    assert ob.asks[0].price == Decimal(83600)
+    assert ob.asks[0].quantity == 5000
+    assert ob.bids[0].price == Decimal(83500)
+    assert len(ob.asks) == 2 and len(ob.bids) == 2      # 채운 단계만
+    assert ob.total_ask_quantity == 25794
+    assert ob.total_bid_quantity == 9064
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/quotations/inquire-overtime-asking-price"
+    assert call["tr_id"] == "FHPST02300400"
+
+
+def test_after_hours_order_book_missing_output1_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).ticker("005930").after_hours_order_book()

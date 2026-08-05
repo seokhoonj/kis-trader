@@ -711,6 +711,39 @@ def fetch_after_hours_daily(
     return points
 
 
+_AFTER_HOURS_ORDER_BOOK_PATH = "/uapi/domestic-stock/v1/quotations/inquire-overtime-asking-price"
+_AFTER_HOURS_ORDER_BOOK_TR = "FHPST02300400"
+
+
+def fetch_after_hours_order_book(
+    transport: Transport, *, symbol: str, market: str
+) -> OrderBook:
+    """시간외 단일가 세션의 10단계 호가창. 세션 밖이면 단계가 비어 올 수 있다."""
+    params = {"FID_INPUT_ISCD": symbol, "FID_COND_MRKT_DIV_CODE": _market_div(market)}
+    resp = transport.request(
+        method="GET", path=_AFTER_HOURS_ORDER_BOOK_PATH, tr_id=_AFTER_HOURS_ORDER_BOOK_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    output1 = resp.body.get("output1")
+    if not isinstance(output1, Mapping):
+        raise _missing_block_error("output1", resp)
+    return OrderBook(
+        symbol=symbol,
+        market=market,
+        bids=_price_levels(output1, "ovtm_untp_bidp", "ovtm_untp_bidp_rsqn"),
+        asks=_price_levels(output1, "ovtm_untp_askp", "ovtm_untp_askp_rsqn"),
+        total_bid_quantity=optional_int(
+            output1.get("ovtm_untp_total_bidp_rsqn"), "ovtm_untp_total_bidp_rsqn"
+        ) or 0,
+        total_ask_quantity=optional_int(
+            output1.get("ovtm_untp_total_askp_rsqn"), "ovtm_untp_total_askp_rsqn"
+        ) or 0,
+        as_of=datetime.now(_KST),
+        _raw=output1,
+    )
+
+
 # --- 공용 ------------------------------------------------------------------
 def _market_div(market: str) -> str:
     try:
