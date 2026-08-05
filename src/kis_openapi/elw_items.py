@@ -45,3 +45,28 @@ class ElwSensitivityPoint:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ElwVolatilityPoint:
+    """한 시점의 ELW 변동성 스냅샷(불변).
+
+    ``implied_volatility`` 는 HTS 내재변동성(%) -- 옵션 가격에 내포된 시장의 변동성 기대치다.
+    ``change`` / ``change_percent`` 는 전일대비(일별/체결별에만 있고 분별/틱은 없어 ``None``).
+    시간축(체결/일별/분별/틱)마다 벤더가 주는 부가 필드가 달라(일별=역사변동성 곡선 d10~d90 및
+    OHLCV, 체결=매수/매도호가, 분별=OHLC) 공통 축만 타입으로 담고 나머지는 ``_raw`` 에 둔다.
+    ``timestamp`` 는 KST-aware(일별=영업일자, 그 외=날짜+체결시각 또는 조회일+체결시각).
+    """
+
+    code: str
+    timestamp: datetime               # KST-aware
+    price: Decimal                    # ELW 현재가
+    implied_volatility: Decimal | None  # HTS 내재변동성(%)
+    change: Decimal | None            # 전일대비(부호 포함; 분별/틱은 None)
+    change_percent: Decimal | None    # 전일대비율(부호 포함; 분별/틱은 None)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

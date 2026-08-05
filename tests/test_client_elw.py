@@ -11,12 +11,16 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Elw, ElwSensitivityPoint, KisClient
+from kis_openapi import Elw, ElwSensitivityPoint, ElwVolatilityPoint, KisClient
 from kis_openapi.errors import KisError, KisUsageError
 from kis_openapi.transport import RawResponse
 
 _DAILY = "/uapi/elw/v1/quotations/sensitivity-trend-daily"
 _CCNL = "/uapi/elw/v1/quotations/sensitivity-trend-ccnl"
+_VOL_DAILY = "/uapi/elw/v1/quotations/volatility-trend-daily"
+_VOL_CCNL = "/uapi/elw/v1/quotations/volatility-trend-ccnl"
+_VOL_MINUTE = "/uapi/elw/v1/quotations/volatility-trend-minute"
+_VOL_TICK = "/uapi/elw/v1/quotations/volatility-trend-tick"
 
 
 class FakeTransport:
@@ -123,3 +127,82 @@ def test_sensitivity_trend_bad_value_fails_closed():
     fake = FakeTransport(response=_resp([_daily_row(price="n/a")]))
     with pytest.raises(KisError):
         _client(fake).elw("58J438").sensitivity_trend("day")
+
+
+# --- volatility trend (내재변동성; 4개 시간축) ------------------------------
+def test_volatility_trend_daily_maps_iv_and_change():
+    row = {"stck_bsop_date": "20240503", "elw_prpr": "5", "prdy_vrss": "0",
+           "prdy_vrss_sign": "3", "prdy_ctrt": "0.00", "elw_oprc": "5", "elw_hgpr": "5",
+           "elw_lwpr": "5", "acml_vol": "76410", "d10_hist_vltl": "21.05",
+           "hts_ints_vltl": "23.37"}
+    fake = FakeTransport(response=_resp([row]))
+    points = _client(fake).elw("58J297").volatility_trend("day")
+    assert all(isinstance(p, ElwVolatilityPoint) for p in points)
+    point = points[0]
+    assert point.price == Decimal(5)
+    assert point.implied_volatility == Decimal("23.37")
+    assert point.change == Decimal(0)
+    assert point.change_percent == Decimal("0.00")
+    assert f"{point.timestamp:%Y%m%d}" == "20240503"
+    assert point._raw["d10_hist_vltl"] == "21.05"          # 역사변동성 곡선은 _raw
+    call = fake.calls[0]
+    assert call["path"] == _VOL_DAILY
+    assert call["tr_id"] == "FHPEW02840200"
+    assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "W"
+
+
+def test_volatility_trend_ccnl_uses_execution_time_and_change():
+    row = {"stck_cntg_hour": "150121", "elw_prpr": "45", "prdy_vrss": "10",
+           "prdy_vrss_sign": "5", "prdy_ctrt": "18.18", "bidp": "45", "askp": "50",
+           "acml_vol": "52690", "hts_ints_vltl": "33.05"}
+    fake = FakeTransport(response=_resp([row]))
+    point = _client(fake).elw("58J297").volatility_trend("trade")[0]
+    assert fake.calls[0]["path"] == _VOL_CCNL
+    assert fake.calls[0]["tr_id"] == "FHPEW02840100"
+    assert point.implied_volatility == Decimal("33.05")
+    assert point.change == Decimal(-10)                    # sign 5 -> 하락
+    assert point.timestamp.hour == 15 and point.timestamp.minute == 1
+
+
+def test_volatility_trend_minute_combines_date_time_and_no_change():
+    row = {"stck_bsop_date": "20240422", "stck_cntg_hour": "142800", "stck_prpr": "265",
+           "elw_oprc": "265", "elw_hgpr": "265", "elw_lwpr": "265", "hts_ints_vltl": "21.90",
+           "hist_vltl": ""}
+    fake = FakeTransport(response=_resp([row]))
+    point = _client(fake).elw("58J297").volatility_trend("minute", minutes=5)[0]
+    assert fake.calls[0]["path"] == _VOL_MINUTE
+    assert fake.calls[0]["params"]["FID_HOUR_CLS_CODE"] == "300"     # 5분
+    assert fake.calls[0]["params"]["FID_PW_DATA_INCU_YN"] == "N"
+    assert point.price == Decimal(265)                     # 분별은 stck_prpr
+    assert point.change is None                            # 분별은 전일대비 없음
+    assert f"{point.timestamp:%Y%m%d %H%M%S}" == "20240422 142800"
+
+
+def test_volatility_trend_tick_date_plus_time():
+    row = {"bsop_date": "20240507", "stck_cntg_hour": "150619", "elw_prpr": "25",
+           "hts_ints_vltl": "33.03"}
+    fake = FakeTransport(response=_resp([row]))
+    point = _client(fake).elw("58J297").volatility_trend("tick")[0]
+    assert fake.calls[0]["path"] == _VOL_TICK
+    assert point.implied_volatility == Decimal("33.03")
+    assert f"{point.timestamp:%Y%m%d %H%M%S}" == "20240507 150619"
+
+
+def test_volatility_trend_include_past_flag():
+    row = {"stck_bsop_date": "20240422", "stck_cntg_hour": "142800", "stck_prpr": "265",
+           "hts_ints_vltl": "21.90"}
+    fake = FakeTransport(response=_resp([row]))
+    _client(fake).elw("58J297").volatility_trend("minute", include_past=True)
+    assert fake.calls[0]["params"]["FID_PW_DATA_INCU_YN"] == "Y"
+
+
+def test_volatility_trend_rejects_bad_minutes():
+    fake = FakeTransport(response=_resp([]))
+    with pytest.raises(KisUsageError):
+        _client(fake).elw("58J297").volatility_trend("minute", minutes=2)
+
+
+def test_volatility_trend_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KisError):
+        _client(fake).elw("58J297").volatility_trend("day")

@@ -17,7 +17,7 @@ from ._domestic import elw as elw_api
 if TYPE_CHECKING:
     from ._domestic.elw import TrendInterval
     from .client import KisClient
-    from .elw_items import ElwSensitivityPoint
+    from .elw_items import ElwSensitivityPoint, ElwVolatilityPoint
 
 
 class Elw:
@@ -39,4 +39,16 @@ class Elw:
         """민감도(그릭스) 추이. ``interval`` 은 ``"trade"``(체결별)/``"day"``(일별)."""
         return elw_api.fetch_sensitivity_trend(
             self._client.transport, code=self.code, interval=interval
+        )
+
+    def volatility_trend(
+        self, interval: TrendInterval = "day", *, minutes: int = 1, include_past: bool = False
+    ) -> list[ElwVolatilityPoint]:
+        """변동성(내재변동성) 추이. ``interval`` 은 체결/일별/분별/틱 모두 지원.
+
+        ``minutes`` 는 ``interval="minute"`` 일 때 봉 간격(1/3/5/10/30/60분), ``include_past`` 는
+        분별에서 과거 데이터 포함 여부."""
+        return elw_api.fetch_volatility_trend(
+            self._client.transport, code=self.code, interval=interval,
+            minutes=minutes, include_past=include_past,
         )
