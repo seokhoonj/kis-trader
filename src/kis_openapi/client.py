@@ -23,6 +23,7 @@ from ._masters import (
 from ._overseas import account as overseas_account
 from ._overseas import orders as overseas_orders_engine
 from .balance import Balance, Portfolio, Position
+from .derivative import Derivative
 from .errors import KisUsageError
 from .index import Index
 from .instrument import DomesticBoard, is_domestic_symbol
@@ -120,6 +121,14 @@ class KisClient:
         """지수/업종 핸들을 만든다. ``code`` 는 업종코드(0001 KOSPI 종합, 1001 KOSDAQ 종합,
         2001 KOSPI200 등)."""
         return Index(self, code)
+
+    def futures(self, code: str) -> Derivative:
+        """지수선물 계약 핸들을 만든다. ``code`` 는 계약코드(예: 101W09)."""
+        return Derivative(self, code, market="F")
+
+    def option(self, code: str) -> Derivative:
+        """지수옵션 계약 핸들을 만든다. ``code`` 는 계약코드."""
+        return Derivative(self, code, market="O")
 
     @property
     def ranking(self) -> RankingQueries:

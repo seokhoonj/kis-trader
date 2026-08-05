@@ -16,6 +16,8 @@ from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
 from .broker import BrokerActivity, BrokerActivitySummary
 from .client import KisClient
+from .derivative import Derivative
+from .derivative_items import DerivativesQuote
 from .etf_items import EtfComponent, EtfNav, EtfNavHistoryPoint
 from .index import Index
 from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
@@ -51,6 +53,8 @@ __all__ = [
     "BuyableAmount",
     "CategoryIndex",
     "CreditBalanceRanking",
+    "Derivative",
+    "DerivativesQuote",
     "DividendRanking",
     "EtfComponent",
     "EtfNav",
