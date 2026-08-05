@@ -20,8 +20,13 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal, NamedTuple
 
-from .._wire import optional_decimal, required_decimal
-from ..elw_items import ElwIndicatorPoint, ElwSensitivityPoint, ElwVolatilityPoint
+from .._wire import optional_decimal, required_decimal, required_int
+from ..elw_items import (
+    ElwIndicatorPoint,
+    ElwLpFlow,
+    ElwSensitivityPoint,
+    ElwVolatilityPoint,
+)
 from ..errors import KisUsageError
 from ..transport import Transport
 from .market_data import (
@@ -295,5 +300,49 @@ def _parse_indicator_row(
         parity=optional_decimal(row.get("prit"), "prit"),
         change=change,
         change_percent=change_percent,
+        _raw=row,
+    )
+
+
+_LP_TREND_PATH = "/uapi/elw/v1/quotations/lp-trade-trend"
+_LP_TREND_TR = "FHPEW03760000"
+
+
+def fetch_lp_trend(transport: Transport, *, code: str) -> list[ElwLpFlow]:
+    """ELW 의 일별 LP(유동성공급자) 매매 흐름(최신순). ``code`` 는 ELW 표준코드.
+
+    응답의 ``output2`` 가 일별 LP 매매내역이다(``output1`` 은 현재 요약이라 다루지 않는다 -- 레버리지/
+    패리티 등은 :meth:`~kis_openapi.elw.Elw.indicator_trend` 로 얻는다)."""
+    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code}
+    resp = transport.request(
+        method="GET", path=_LP_TREND_PATH, tr_id=_LP_TREND_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list):             # 성공 응답인데 배열 아님 -> fail-closed
+        raise _missing_block_error("output2", resp)
+    return [
+        _parse_lp_row(row, code=code)
+        for row in rows
+        if str(row.get("stck_bsop_date", "")).strip()
+    ]
+
+
+def _parse_lp_row(row: Mapping[str, Any], *, code: str) -> ElwLpFlow:
+    sign = str(row.get("prdy_vrss_sign", "")).strip()
+    return ElwLpFlow(
+        code=code,
+        timestamp=_parse_bar_timestamp(str(row.get("stck_bsop_date", "")).strip()),
+        price=required_decimal(row.get("elw_prpr"), "elw_prpr"),
+        change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+        change_percent=_apply_change_sign(
+            required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+        ),
+        lp_buy_quantity=required_int(row.get("lp_shnu_qty"), "lp_shnu_qty"),
+        lp_buy_avg_price=optional_decimal(row.get("lp_shnu_avrg_unpr"), "lp_shnu_avrg_unpr"),
+        lp_sell_quantity=required_int(row.get("lp_seln_qty"), "lp_seln_qty"),
+        lp_sell_avg_price=optional_decimal(row.get("lp_seln_avrg_unpr"), "lp_seln_avrg_unpr"),
+        lp_holding_quantity=required_int(row.get("lp_hvol"), "lp_hvol"),
+        lp_holding_rate=optional_decimal(row.get("lp_hldn_rate"), "lp_hldn_rate"),
         _raw=row,
     )

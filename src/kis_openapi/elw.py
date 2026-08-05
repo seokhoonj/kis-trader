@@ -17,7 +17,12 @@ from ._domestic import elw as elw_api
 if TYPE_CHECKING:
     from ._domestic.elw import TrendInterval
     from .client import KisClient
-    from .elw_items import ElwIndicatorPoint, ElwSensitivityPoint, ElwVolatilityPoint
+    from .elw_items import (
+        ElwIndicatorPoint,
+        ElwLpFlow,
+        ElwSensitivityPoint,
+        ElwVolatilityPoint,
+    )
 
 
 class Elw:
@@ -63,3 +68,7 @@ class Elw:
             self._client.transport, code=self.code, interval=interval,
             minutes=minutes, include_past=include_past,
         )
+
+    def lp_trend(self) -> list[ElwLpFlow]:
+        """일별 LP(유동성공급자) 매매 흐름(최신순) -- 매수/매도 수량·평균단가·LP 보유비율."""
+        return elw_api.fetch_lp_trend(self._client.transport, code=self.code)

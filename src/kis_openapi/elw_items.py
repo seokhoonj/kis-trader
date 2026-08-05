@@ -98,3 +98,38 @@ class ElwIndicatorPoint:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ElwLpFlow:
+    """하루의 LP(유동성공급자) 매매 흐름(불변).
+
+    ELW 는 거래가 얇아 발행 증권사의 LP 가 양방향 호가를 대므로, LP 의 매수/매도 물량이 시세를
+    좌우한다. ``lp_buy_quantity`` / ``lp_sell_quantity`` 는 그날 LP 의 매수/매도 수량, ``*_avg_price``
+    는 각 평균단가, ``lp_holding_quantity`` / ``lp_holding_rate`` 는 LP 의 보유수량/보유비율(%)이다.
+    :attr:`net_quantity`(매수-매도)가 양수면 LP 가 순매수(회수), 음수면 순매도(공급)한 날이다.
+    ``timestamp`` 는 영업일자(KST-aware).
+    """
+
+    code: str
+    timestamp: datetime               # 영업일자(KST-aware)
+    price: Decimal                    # ELW 현재가
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    lp_buy_quantity: int              # LP 매수수량(lp_shnu_qty)
+    lp_buy_avg_price: Decimal | None  # LP 매수평균단가(lp_shnu_avrg_unpr)
+    lp_sell_quantity: int             # LP 매도수량(lp_seln_qty)
+    lp_sell_avg_price: Decimal | None  # LP 매도평균단가(lp_seln_avrg_unpr)
+    lp_holding_quantity: int          # LP 보유수량(lp_hvol)
+    lp_holding_rate: Decimal | None   # LP 보유비율 %(lp_hldn_rate)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+    @property
+    def net_quantity(self) -> int:
+        """LP 순매수 수량(매수-매도). 양수면 LP 회수, 음수면 LP 공급."""
+        return self.lp_buy_quantity - self.lp_sell_quantity

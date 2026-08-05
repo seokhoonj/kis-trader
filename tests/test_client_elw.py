@@ -14,6 +14,7 @@ import pytest
 from kis_openapi import (
     Elw,
     ElwIndicatorPoint,
+    ElwLpFlow,
     ElwSensitivityPoint,
     ElwVolatilityPoint,
     KisClient,
@@ -29,6 +30,13 @@ _VOL_MINUTE = "/uapi/elw/v1/quotations/volatility-trend-minute"
 _VOL_TICK = "/uapi/elw/v1/quotations/volatility-trend-tick"
 _IND_DAILY = "/uapi/elw/v1/quotations/indicator-trend-daily"
 _IND_MINUTE = "/uapi/elw/v1/quotations/indicator-trend-minute"
+_LP = "/uapi/elw/v1/quotations/lp-trade-trend"
+
+
+def _resp2(rows):
+    """LP 매매추이는 output1(요약) + output2(일별 흐름)."""
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": {"elw_prpr": "40"}, "output2": rows})
 
 
 class FakeTransport:
@@ -263,3 +271,57 @@ def test_indicator_trend_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KisError):
         _client(fake).elw("57K281").indicator_trend("day")
+
+
+# --- LP trade trend (output2, 순매수 property) -------------------------------
+def _lp_row(bsop="20240516", price="35", vrss="0", sign="3", ctrt="0.00",
+            seln="30030", seln_unpr="30", shnu="84810", shnu_unpr="34",
+            hvol="7999900", hldn="99.99"):
+    return {"stck_bsop_date": bsop, "elw_prpr": price, "prdy_vrss": vrss,
+            "prdy_vrss_sign": sign, "prdy_ctrt": ctrt, "lp_seln_qty": seln,
+            "lp_seln_avrg_unpr": seln_unpr, "lp_shnu_qty": shnu,
+            "lp_shnu_avrg_unpr": shnu_unpr, "lp_hvol": hvol, "lp_hldn_rate": hldn}
+
+
+def test_lp_trend_maps_flow_from_output2():
+    fake = FakeTransport(response=_resp2([_lp_row()]))
+    flows = _client(fake).elw("52K577").lp_trend()
+    assert all(isinstance(f, ElwLpFlow) for f in flows)
+    flow = flows[0]
+    assert flow.code == "52K577"
+    assert flow.lp_buy_quantity == 84810
+    assert flow.lp_buy_avg_price == Decimal(34)
+    assert flow.lp_sell_quantity == 30030
+    assert flow.lp_sell_avg_price == Decimal(30)
+    assert flow.lp_holding_quantity == 7999900
+    assert flow.lp_holding_rate == Decimal("99.99")
+    assert flow.net_quantity == 84810 - 30030             # 순매수 = 매수-매도
+    assert f"{flow.timestamp:%Y%m%d}" == "20240516"
+    call = fake.calls[0]
+    assert call["path"] == _LP
+    assert call["tr_id"] == "FHPEW03760000"
+    assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "W"
+
+
+def test_lp_trend_net_quantity_negative_when_lp_supplies():
+    fake = FakeTransport(response=_resp2([_lp_row(seln="90000", shnu="10000")]))
+    flow = _client(fake).elw("52K577").lp_trend()[0]
+    assert flow.net_quantity == 10000 - 90000             # LP 순매도(공급) -> 음수
+
+
+def test_lp_trend_skips_empty_rows():
+    fake = FakeTransport(response=_resp2([_lp_row(), {"stck_bsop_date": ""}]))
+    assert len(_client(fake).elw("52K577").lp_trend()) == 1
+
+
+def test_lp_trend_missing_output2_fails_closed():
+    resp = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {"elw_prpr": "40"}})
+    fake = FakeTransport(response=resp)
+    with pytest.raises(KisError):
+        _client(fake).elw("52K577").lp_trend()
+
+
+def test_lp_trend_bad_quantity_fails_closed():
+    fake = FakeTransport(response=_resp2([_lp_row(shnu="n/a")]))
+    with pytest.raises(KisError):
+        _client(fake).elw("52K577").lp_trend()
