@@ -35,6 +35,7 @@ from .market import MarketQueries
 from .order import Order
 from .overseas_derivative import OverseasDerivative
 from .overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
+from .overseas_ranking import OverseasRankingQueries
 from .ranking import RankingQueries
 from .report import ExecutionReport
 from .risk import RiskLimits
@@ -165,6 +166,12 @@ class KISClient:
         """시장 전체 분석 네임스페이스 -- ``kis.market.investor_flows(market="KOSPI")`` 등
         (종목/순위가 아닌 시장 전체 수급·상태). 종목 단위는 ``kis.ticker(code)``."""
         return MarketQueries(self)
+
+    @property
+    def overseas_ranking(self) -> OverseasRankingQueries:
+        """해외주식 시장 순위 네임스페이스 -- ``kis.overseas_ranking.by_volume(exchange="NAS")`` 등.
+        거래소별로 조회한다(``exchange`` = NAS/NYS/HKS/...)."""
+        return OverseasRankingQueries(self)
 
     @property
     def elw_ranking(self) -> ELWRankingQueries:
