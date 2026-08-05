@@ -14,6 +14,8 @@ from ._masters import MasterIndex, MasterRecord
 from .after_hours import AfterHoursQuote
 from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
+from .bond import Bond
+from .bond_items import BondQuote
 from .broker import BrokerActivity, BrokerActivitySummary
 from .client import KisClient
 from .derivative import Derivative
@@ -48,6 +50,8 @@ __all__ = [
     "AfterHoursQuote",
     "Balance",
     "Bar",
+    "Bond",
+    "BondQuote",
     "BrokerActivity",
     "BrokerActivitySummary",
     "BuyableAmount",

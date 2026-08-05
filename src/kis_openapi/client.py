@@ -23,6 +23,7 @@ from ._masters import (
 from ._overseas import account as overseas_account
 from ._overseas import orders as overseas_orders_engine
 from .balance import Balance, Portfolio, Position
+from .bond import Bond
 from .derivative import Derivative
 from .errors import KisUsageError
 from .index import Index
@@ -121,6 +122,10 @@ class KisClient:
         """지수/업종 핸들을 만든다. ``code`` 는 업종코드(0001 KOSPI 종합, 1001 KOSDAQ 종합,
         2001 KOSPI200 등)."""
         return Index(self, code)
+
+    def bond(self, code: str) -> Bond:
+        """장내채권 핸들을 만든다. ``code`` 는 표준코드(ISIN, 예: KR2033022D33)."""
+        return Bond(self, code)
 
     def futures(self, code: str) -> Derivative:
         """지수선물 계약 핸들을 만든다. ``code`` 는 계약코드(예: 101W09)."""
