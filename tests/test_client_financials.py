@@ -1,0 +1,95 @@
+"""재무제표 -- kis.ticker(code).balance_sheet() / .income_statement().
+
+대차대조표(FHKST66430100)·손익계산서(FHKST66430200)의 TR·URL·분류(년/분기)·필드 매핑·결산기
+순서·fail-closed 를 검증한다.
+"""
+
+from __future__ import annotations
+
+import threading
+from decimal import Decimal
+
+import pytest
+
+from kis_openapi import BalanceSheet, IncomeStatement, KISClient
+from kis_openapi.errors import KISError
+from kis_openapi.transport import RawResponse
+
+
+class FakeTransport:
+    def __init__(self, *, response):
+        self.response = response
+        self.calls: list[dict] = []
+        self._lock = threading.Lock()
+
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
+        with self._lock:
+            self.calls.append({"path": path, "tr_id": tr_id, "params": params})
+        return self.response
+
+
+def _client(transport):
+    return KISClient(app_key="k", app_secret="s", transport=transport)
+
+
+def _resp(rows):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output": rows})
+
+
+def test_balance_sheet_maps_and_annual_default():
+    rows = [{"stac_yymm": "202312", "cras": "1000", "fxas": "2000", "total_aset": "3000",
+             "flow_lblt": "500", "fix_lblt": "300", "total_lblt": "800", "cpfn": "100",
+             "total_cptl": "2200"},
+            {"stac_yymm": "202212", "cras": "900", "fxas": "1800", "total_aset": "2700",
+             "flow_lblt": "450", "fix_lblt": "250", "total_lblt": "700", "cpfn": "100",
+             "total_cptl": "2000"}]
+    fake = FakeTransport(response=_resp(rows))
+    sheets = _client(fake).ticker("000660").balance_sheet()
+    assert all(isinstance(s, BalanceSheet) for s in sheets)
+    s = sheets[0]
+    assert s.symbol == "000660"
+    assert s.period == "202312"
+    assert s.total_assets == Decimal(3000)
+    assert s.total_liabilities == Decimal(800)
+    assert s.total_equity == Decimal(2200)
+    assert sheets[1].period == "202212"
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/finance/balance-sheet"
+    assert call["tr_id"] == "FHKST66430100"
+    assert call["params"]["FID_DIV_CLS_CODE"] == "0"             # 연간(기본)
+    assert call["params"]["FID_INPUT_ISCD"] == "000660"
+
+
+def test_balance_sheet_quarterly_flag():
+    fake = FakeTransport(response=_resp([]))
+    _client(fake).ticker("000660").balance_sheet(quarterly=True)
+    assert fake.calls[0]["params"]["FID_DIV_CLS_CODE"] == "1"    # 분기
+
+
+def test_income_statement_maps():
+    rows = [{"stac_yymm": "202312", "sale_account": "5000", "sale_cost": "3000",
+             "sale_totl_prfi": "2000", "sell_mang": "800", "bsop_prti": "1200",
+             "thtr_ntin": "900"}]
+    fake = FakeTransport(response=_resp(rows))
+    stmts = _client(fake).ticker("000660").income_statement()
+    assert isinstance(stmts[0], IncomeStatement)
+    assert stmts[0].revenue == Decimal(5000)
+    assert stmts[0].operating_income == Decimal(1200)
+    assert stmts[0].net_income == Decimal(900)
+    assert fake.calls[0]["path"] == "/uapi/domestic-stock/v1/finance/income-statement"
+    assert fake.calls[0]["tr_id"] == "FHKST66430200"
+
+
+def test_finance_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).ticker("000660").balance_sheet()
+
+
+def test_finance_bad_value_fails_closed():
+    rows = [{"stac_yymm": "202312", "cras": "n/a", "fxas": "0", "total_aset": "0",
+             "flow_lblt": "0", "fix_lblt": "0", "total_lblt": "0", "cpfn": "0",
+             "total_cptl": "0"}]
+    fake = FakeTransport(response=_resp(rows))
+    with pytest.raises(KISError):
+        _client(fake).ticker("000660").balance_sheet()

@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING
 
 from ._domestic import account as account_api
 from ._domestic import etf as etf_api
+from ._domestic import finance as finance_api
 from ._domestic import market_data
 from ._overseas import market_data as overseas_market_data
 from .after_hours import AfterHoursQuote
@@ -21,6 +22,7 @@ from .bar import Bar, Interval
 from .broker import BrokerActivitySummary
 from .errors import KISUsageError
 from .etf_items import ETFNAV, ETFComponent, ETFNAVHistoryPoint
+from .financials import BalanceSheet, IncomeStatement
 from .instrument import DomesticBoard, resolve_market
 from .investor import InvestorEstimate, InvestorFlow
 from .order import Order, Side, TimeInForce
@@ -160,6 +162,20 @@ class Ticker:
         """장중 투자자(외국인/기관) 순매수 추정(시간 순, 확정 아닌 가추정)."""
         self._domestic_market()        # 국내 전용(해외 티커 거부)
         return market_data.fetch_investor_estimate(self._client.transport, symbol=self.symbol)
+
+    def balance_sheet(self, *, quarterly: bool = False) -> list[BalanceSheet]:
+        """결산기별 대차대조표(최근->과거). ``quarterly=True`` 면 분기, 아니면 연간."""
+        self._domestic_market()        # 국내 전용
+        return finance_api.fetch_balance_sheet(
+            self._client.transport, symbol=self.symbol, quarterly=quarterly
+        )
+
+    def income_statement(self, *, quarterly: bool = False) -> list[IncomeStatement]:
+        """결산기별 손익계산서(최근->과거). ``quarterly=True`` 면 분기, 아니면 연간."""
+        self._domestic_market()        # 국내 전용
+        return finance_api.fetch_income_statement(
+            self._client.transport, symbol=self.symbol, quarterly=quarterly
+        )
 
     def nav(self) -> ETFNAV:
         """ETF/ETN 순자산가치(NAV) 스냅샷(NAV·괴리율·추적오차율·순자산총액). 이 종목이 ETF/ETN
