@@ -29,6 +29,9 @@ _TRADE_AMOUNT = ("/uapi/overseas-stock/v1/ranking/trade-pbmn", "HHDFS76320010")
 _TRADE_GROWTH = ("/uapi/overseas-stock/v1/ranking/trade-growth", "HHDFS76330000")
 _MARKET_CAP = ("/uapi/overseas-stock/v1/ranking/market-cap", "HHDFS76350100")
 _UPDOWN = ("/uapi/overseas-stock/v1/ranking/updown-rate", "HHDFS76290000")
+_VOLUME_SURGE = ("/uapi/overseas-stock/v1/ranking/volume-surge", "HHDFS76270000")
+_BUY_STRENGTH = ("/uapi/overseas-stock/v1/ranking/volume-power", "HHDFS76280000")
+_TURNOVER = ("/uapi/overseas-stock/v1/ranking/trade-turnover", "HHDFS76340000")
 #: 상승/하락 구분(GUBN). 원장: 0(하락율), 1(상승율).
 _UPDOWN_GUBN = {"gainers": "1", "losers": "0"}
 
@@ -115,5 +118,29 @@ def fetch_by_change(
         raise KISUsageError(f"top 은 {sorted(_UPDOWN_GUBN)} 중 하나: {top!r}") from None
     path, tr = _UPDOWN
     params = {"EXCD": exchange, "GUBN": gubn, "NDAY": "0", "VOL_RANG": "0",
+              "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
+    return _fetch_ranking(transport, path=path, tr=tr, params=params)
+
+
+def fetch_by_volume_surge(transport: Transport, *, exchange: str) -> list[RankedOverseasStock]:
+    """한 거래소의 거래량 급증 순위."""
+    path, tr = _VOLUME_SURGE
+    params = {"EXCD": exchange, "MINX": "0", "VOL_RANG": "0",
+              "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
+    return _fetch_ranking(transport, path=path, tr=tr, params=params)
+
+
+def fetch_by_buy_strength(transport: Transport, *, exchange: str) -> list[RankedOverseasStock]:
+    """한 거래소의 매수 체결강도 순위."""
+    path, tr = _BUY_STRENGTH
+    params = {"EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
+              "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
+    return _fetch_ranking(transport, path=path, tr=tr, params=params)
+
+
+def fetch_by_turnover(transport: Transport, *, exchange: str) -> list[RankedOverseasStock]:
+    """한 거래소의 거래 회전율 순위."""
+    path, tr = _TURNOVER
+    params = {"EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
               "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
     return _fetch_ranking(transport, path=path, tr=tr, params=params)

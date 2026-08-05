@@ -49,3 +49,15 @@ class OverseasRankingQueries:
         return overseas_ranking_api.fetch_by_change(
             self._client.transport, exchange=exchange, top=top
         )
+
+    def by_volume_surge(self, *, exchange: str) -> list[RankedOverseasStock]:
+        """한 거래소의 거래량 급증 순위."""
+        return overseas_ranking_api.fetch_by_volume_surge(self._client.transport, exchange=exchange)
+
+    def by_buy_strength(self, *, exchange: str) -> list[RankedOverseasStock]:
+        """한 거래소의 매수 체결강도 순위."""
+        return overseas_ranking_api.fetch_by_buy_strength(self._client.transport, exchange=exchange)
+
+    def by_turnover(self, *, exchange: str) -> list[RankedOverseasStock]:
+        """한 거래소의 거래 회전율 순위."""
+        return overseas_ranking_api.fetch_by_turnover(self._client.transport, exchange=exchange)

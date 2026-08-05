@@ -111,3 +111,19 @@ def test_by_change_gubn_and_bad_top():
     assert fake2.calls[0]["params"]["GUBN"] == "0"               # losers=0(하락율)
     with _pytest.raises(_U):
         _client(fake2).overseas_ranking.by_change(exchange="NAS", top="nope")
+
+
+def test_more_overseas_rankings_route():
+    row = [{"rank": "1", "excd": "NAS", "symb": "T", "name": "n", "ename": "N", "last": "1",
+            "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
+    cases = [
+        ("by_volume_surge", "/uapi/overseas-stock/v1/ranking/volume-surge", "HHDFS76270000", "MINX"),
+        ("by_buy_strength", "/uapi/overseas-stock/v1/ranking/volume-power", "HHDFS76280000", "NDAY"),
+        ("by_turnover", "/uapi/overseas-stock/v1/ranking/trade-turnover", "HHDFS76340000", "NDAY"),
+    ]
+    for verb, path, tr, key in cases:
+        fake = FakeTransport(response=_one(row))
+        assert getattr(_client(fake).overseas_ranking, verb)(exchange="NAS")[0].rank == 1
+        assert fake.calls[0]["path"] == path
+        assert fake.calls[0]["tr_id"] == tr
+        assert key in fake.calls[0]["params"]
