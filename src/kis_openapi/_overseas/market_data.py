@@ -18,6 +18,7 @@ from typing import Any
 from .._domestic.market_data import (
     _KST,
     _MAX_BAR_PAGES,
+    _MAX_MINUTE_PAGES,
     _apply_change_sign,
     _missing_block_error,
     _parse_bar_timestamp,
@@ -43,6 +44,12 @@ _BARS_PATH = "/uapi/overseas-price/v1/quotations/dailyprice"
 _BARS_TR = "HHDFS76240000"
 #: 해외 기간봉 간격 -> GUBN(원장: 0:일 1:주 2:월).
 _BARS_GUBN = {"1d": "0", "1wk": "1", "1mo": "2"}
+
+#: 해외 분봉. 한 번에 최대 120건, KEYB(마지막 봉 1분 전 시각)로 다음 조회. 국내와 달리 거래소별
+#: 현지시각 기준이라 봉 식별/KEYB 모두 현지 일자+시각(xymd+xhms)을 쓴다.
+_MINUTE_BARS_PATH = "/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice"
+_MINUTE_BARS_TR = "HHDFS76950200"
+_MINUTE_NREC = "120"              # 한 페이지 최대 레코드(원장 상한)
 
 _TRADES_PATH = "/uapi/overseas-price/v1/quotations/inquire-ccnl"
 _TRADES_TR = "HHDFS76200300"
@@ -75,15 +82,18 @@ def fetch_bars(
     adjusted: bool = True,
     max_bars: int | None = None,
 ) -> list[Bar]:
-    """해외 기간봉(일/주/월)을 과거->현재 오름차순으로. ``interval`` 은 ``1d``/``1wk``/``1mo``,
-    ``start`` 가 필요하다(``end`` 기본 오늘). ``adjusted`` 는 수정주가 반영(MODP).
+    """해외 봉을 과거->현재 오름차순으로. ``interval="1m"`` 은 별 엔드포인트로 최신 분봉을 뒤로 밀며
+    (``start``/``end``/``adjusted`` 무시, ``max_bars`` 로 최근 N개), ``1d``/``1wk``/``1mo`` 는
+    [start, end] 기간봉(``start`` 필요, ``end`` 기본 오늘, ``adjusted`` = 수정주가 MODP).
 
-    해외 분봉(``1m``)은 별도 엔드포인트라 아직 미지원. dailyprice 는 기준일(BYMD)에서 뒤로 한
-    페이지씩 주므로 BYMD 를 옛날로 밀며 ``start`` 까지 모으고, 페이지 상한 초과는 fail-closed."""
+    dailyprice 는 기준일(BYMD)에서 뒤로 한 페이지씩 주므로 BYMD 를 옛날로 밀며 ``start`` 까지 모으고,
+    페이지 상한 초과는 fail-closed."""
     if max_bars is not None and max_bars <= 0:
         raise KISUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
     if interval == "1m":
-        raise NotImplementedError("해외 분봉은 아직 미지원 -- 별 슬라이스로 다룬다.")
+        return _fetch_minute_bars(
+            transport, symbol=symbol, exchange=exchange, max_bars=max_bars
+        )
     gubn = _BARS_GUBN.get(interval)
     if gubn is None:
         raise KISUsageError(f"지원하지 않는 해외 기간봉 interval: {interval!r} (1d/1wk/1mo).")
@@ -130,6 +140,81 @@ def fetch_bars(
     if max_bars is not None and len(bars) > max_bars:
         bars = bars[-max_bars:]
     return bars
+
+
+def _fetch_minute_bars(
+    transport: Transport, *, symbol: str, exchange: str, max_bars: int | None
+) -> list[Bar]:
+    """해외 1분봉을 과거->현재 오름차순으로. 최신부터 120건씩 받고, KEYB(직전 페이지 최오래 봉의 현지
+    시각 1분 전)로 뒤로 밀며 모은다. 새 봉이 없으면 종료(다음가능 플래그 인코딩과 무관하게 자가종료),
+    페이지 상한 초과는 fail-closed. 봉 식별은 현지 일자+시각(xymd+xhms)."""
+    bar_by_key: dict[str, Bar] = {}    # "YYYYMMDDHHMMSS"(현지) -> Bar, 고정폭이라 문자열 정렬=시간순
+    keyb = ""                          # 첫 조회는 공백
+    for _page in range(_MAX_MINUTE_PAGES):
+        params = {
+            "AUTH": "", "EXCD": exchange, "SYMB": symbol,
+            "NMIN": "1", "PINC": "1", "NEXT": "",
+            "NREC": _MINUTE_NREC, "FILL": "", "KEYB": keyb,
+        }
+        resp = transport.request(
+            method="GET", path=_MINUTE_BARS_PATH, tr_id=_MINUTE_BARS_TR, params=params,
+            idempotent=True,
+        )
+        _raise_if_error(resp)
+        rows = resp.body.get("output2")
+        if not isinstance(rows, list):  # 성공 응답인데 봉 배열 아님 -> fail-closed
+            raise _missing_block_error("output2", resp)
+        page = _parse_minute_bars(rows, symbol=symbol)
+        keyed = {f"{day}{moment}": bar for day, moment, bar in page}
+        fresh = {key: bar for key, bar in keyed.items() if key not in bar_by_key}
+        if not fresh:  # 빈 페이지거나 진전 없음 -> 종료(무한 루프 방지)
+            break
+        bar_by_key.update(fresh)
+        if max_bars is not None and len(bar_by_key) >= max_bars:
+            break
+        oldest_day, oldest_moment, _ = min(page, key=lambda item: item[0] + item[1])
+        try:
+            edge = datetime.strptime(oldest_day + oldest_moment, "%Y%m%d%H%M%S")  # noqa: DTZ007
+        except ValueError as err:
+            raise KISError(f"해외 분봉 KEYB 시각 파싱 실패: {oldest_day!r} {oldest_moment!r}") from err
+        keyb = f"{edge - timedelta(minutes=1):%Y%m%d%H%M%S}"
+    else:
+        raise KISError(
+            f"해외 분봉 조회가 {_MAX_MINUTE_PAGES}페이지 상한에 도달했으나 진전을 멈추지 않았다 "
+            f"-- 부분 결과로 자르지 않는다. max_bars 로 범위를 줄이거나 재시도하라."
+        )
+    bars = [bar_by_key[key] for key in sorted(bar_by_key)]
+    if max_bars is not None and len(bars) > max_bars:
+        bars = bars[-max_bars:]
+    return bars
+
+
+def _parse_minute_bars(
+    rows: Sequence[Mapping[str, Any]], *, symbol: str
+) -> list[tuple[str, str, Bar]]:
+    """해외 분봉 행 -> (현지일자, 현지시각, Bar). 종가 ``last``, 거래량 ``evol``, timestamp 는 현지
+    일자+시각(``xymd``+``xhms``; 해외 일봉이 현지일자 xymd 를 쓰는 것과 같은 관례)."""
+    out: list[tuple[str, str, Bar]] = []
+    for row in rows:
+        day = str(row.get("xymd", "")).strip()
+        moment = str(row.get("xhms", "")).strip()
+        close_text = str(row.get("last", "")).strip()
+        if not day or not moment or not close_text:  # 빈 봉 skip
+            continue
+        out.append((
+            day, moment,
+            Bar(
+                symbol=symbol,
+                timestamp=_parse_minute_bar_timestamp(day, moment),
+                open=required_decimal(row.get("open"), "open"),
+                high=required_decimal(row.get("high"), "high"),
+                low=required_decimal(row.get("low"), "low"),
+                close=required_decimal(close_text, "last"),
+                volume=required_int(row.get("evol"), "evol"),
+                _raw=row,
+            ),
+        ))
+    return out
 
 
 def _parse_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:

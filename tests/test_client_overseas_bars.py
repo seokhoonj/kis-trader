@@ -88,7 +88,66 @@ def test_overseas_bars_paginates_by_base_date():
     assert fake.calls[1]["params"]["BYMD"] == "20240104"
 
 
-def test_overseas_bars_minute_not_implemented():
-    fake = FakeTransport(response=_resp([]))
-    with pytest.raises(NotImplementedError):
-        _client(fake).ticker("AAPL", exchange="NAS").bars(interval="1m")
+_OVERSEAS_MINUTE = "/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice"
+
+
+def _min_row(xymd, xhms, *, last="197.41", vol="5695"):
+    return {"tymd": xymd, "xymd": xymd, "xhms": xhms, "kymd": xymd, "khms": xhms,
+            "open": "197.34", "high": "197.41", "low": "197.28", "last": last, "evol": vol,
+            "eamt": "1123799"}
+
+
+class MinuteFakeTransport:
+    """KEYB(현지 YYYYMMDDHHMMSS, 첫 조회 공백) 이하 분봉을 최신 3건씩 돌려주는 가짜 전송."""
+
+    def __init__(self, minutes):
+        # minutes: "YYYYMMDDHHMMSS" -> row, 오름차순
+        self.minutes = dict(sorted(minutes.items()))
+        self.calls: list[dict] = []
+        self._lock = threading.Lock()
+
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
+        with self._lock:
+            self.calls.append({"path": path, "tr_id": tr_id, "params": params})
+        keyb = params["KEYB"] or "99999999999999"     # 공백 = 최신부터
+        at_or_before = [k for k in self.minutes if k <= keyb]
+        page = [self.minutes[k] for k in at_or_before[-3:]]
+        return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                           body={"output1": {"next": "1"}, "output2": page})
+
+
+def test_overseas_minute_bars_paginate_ascending_and_params():
+    times = [f"2024022209{m:02d}00" for m in range(9)]   # 09:00..09:08, 1분 간격 9개
+    minutes = {t: _min_row(t[:8], t[8:], last=str(197 + i)) for i, t in enumerate(times)}
+    fake = MinuteFakeTransport(minutes)
+    bars = _client(fake).ticker("TSLA", exchange="NAS").bars(interval="1m")
+    assert [f"{b.timestamp:%Y%m%d%H%M%S}" for b in bars] == times   # 과거->현재 오름차순, 전량
+    assert fake.calls[0]["path"] == _OVERSEAS_MINUTE
+    assert fake.calls[0]["tr_id"] == "HHDFS76950200"
+    assert fake.calls[0]["params"]["NMIN"] == "1"
+    assert fake.calls[0]["params"]["NREC"] == "120"
+    assert fake.calls[0]["params"]["KEYB"] == ""               # 첫 조회 공백
+    assert fake.calls[0]["params"]["SYMB"] == "TSLA"
+    # 2페이지 KEYB = 1페이지 최오래 봉(090600) 1분 전
+    assert fake.calls[1]["params"]["KEYB"] == "20240222090500"
+
+
+def test_overseas_minute_bars_maps_close_volume_and_max_bars():
+    times = [f"2024022209{m:02d}00" for m in range(9)]
+    minutes = {t: _min_row(t[:8], t[8:], last=str(197 + i), vol=str(100 + i))
+               for i, t in enumerate(times)}
+    fake = MinuteFakeTransport(minutes)
+    bars = _client(fake).ticker("TSLA", exchange="NAS").bars(interval="1m", max_bars=4)
+    assert len(bars) == 4
+    assert [f"{b.timestamp:%Y%m%d%H%M%S}" for b in bars] == times[-4:]
+    assert bars[-1].close == Decimal(205)                     # last 매핑
+    assert bars[-1].volume == 108                             # evol 매핑
+
+
+def test_overseas_minute_bars_missing_output2_fails_closed():
+    class Bad:
+        def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
+            return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}})
+    from kis_openapi.errors import KISError
+    with pytest.raises(KISError):
+        _client(Bad()).ticker("TSLA", exchange="NAS").bars(interval="1m")

@@ -126,7 +126,8 @@ class Ticker:
 
         ``start`` > ``end``, ``max_bars`` <= 0, 기간봉인데 ``start`` 없음이면
         :class:`~kis_openapi.errors.KISUsageError`. 응답 손상(비배열 output2)이나 페이지 상한
-        초과는 :class:`~kis_openapi.errors.KISError`. 해외는 일/주/월봉만(분봉 미지원).
+        초과는 :class:`~kis_openapi.errors.KISError`. 해외 ``1m`` 은 최신 분봉을 뒤로 밀며 모은다
+        (``start``/``end`` 무시, ``max_bars`` 로 최근 N개).
         """
         if self.exchange is not None:
             return overseas_market_data.fetch_bars(
