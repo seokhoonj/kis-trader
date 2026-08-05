@@ -128,3 +128,16 @@ def test_balance_sheet_optional_line_items_none_for_financial_issuer():
     assert s.fixed_liabilities is None
     assert s.total_assets == Decimal(3000)               # 합계는 여전히 required
     assert s.total_equity == Decimal(2200)
+
+
+def test_income_statement_optional_line_items_none_for_financial_issuer():
+    rows = [{"stac_yymm": "202312", "sale_account": "5000", "sale_cost": "",
+             "sale_totl_prfi": "", "sell_mang": "", "bsop_prti": "1200", "thtr_ntin": "900"}]
+    fake = FakeTransport(response=_resp(rows))
+    stmt = _client(fake).ticker("000660").income_statement()[0]
+    assert stmt.cost_of_sales is None
+    assert stmt.gross_profit is None
+    assert stmt.sga_expenses is None
+    assert stmt.revenue == Decimal(5000)                 # 합계는 required
+    assert stmt.operating_income == Decimal(1200)
+    assert stmt.net_income == Decimal(900)

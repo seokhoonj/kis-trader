@@ -70,3 +70,11 @@ def test_analyst_opinions_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).ticker("005930").analyst_opinions()
+
+
+def test_analyst_opinions_bad_value_fails_closed():
+    rows = [{"stck_bsop_date": "20240510", "invt_opnn": "매수", "rgbf_invt_opnn": "중립",
+             "hts_goal_prc": "n/a"}]
+    fake = FakeTransport(response=_resp(rows))
+    with pytest.raises(KISError):
+        _client(fake).ticker("005930").analyst_opinions()

@@ -14,7 +14,7 @@ from datetime import date, datetime, timedelta
 
 from .._wire import required_decimal, required_int
 from ..errors import KISUsageError
-from ..market_items import MarketInvestorFlow, ProgramTradeSummary
+from ..market_items import Market, MarketInvestorFlow, ProgramTradeSummary
 from ..transport import Transport
 from .market_data import (
     _apply_change_sign,
@@ -37,22 +37,23 @@ def _default_start(end_yyyymmdd: str, days: int = 30) -> str:
 
 
 def fetch_market_investor_flows(
-    transport: Transport, *, market: str = "KOSPI",
-    start: str | date | None = None, end: str | date | None = None,
+    transport: Transport, *, market: Market = "KOSPI", as_of: str | date | None = None,
 ) -> list[MarketInvestorFlow]:
-    """시장(코스피/코스닥) 전체의 일별 투자자 순매수(최근->과거). ``start`` 미지정이면 ``end`` 로부터 30일 전."""
+    """시장(코스피/코스닥) 전체의 투자자 순매수 최근 히스토리(``as_of`` 기준일에서 과거로).
+
+    이 엔드포인트는 기준일 하나(FID_INPUT_DATE_1)에서 뒤로 고정 히스토리를 주므로 기간이 아니라
+    앵커 날짜를 받는다(원장: DATE_2 는 "DATE_1 과 동일날짜 입력"). ``as_of`` 없으면 오늘 기준."""
     try:
         index_code, market_abbr = _MARKET_CODE[market]
     except KeyError:
         raise KISUsageError(f"market 은 {sorted(_MARKET_CODE)} 중 하나: {market!r}") from None
-    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
-    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
+    anchor = _today_kst() if as_of is None else _to_yyyymmdd(as_of, "as_of")
     params = {
         "FID_COND_MRKT_DIV_CODE": "U",
         "FID_INPUT_ISCD": index_code,
-        "FID_INPUT_DATE_1": start_date,
+        "FID_INPUT_DATE_1": anchor,
         "FID_INPUT_ISCD_1": market_abbr,
-        "FID_INPUT_DATE_2": end_date,
+        "FID_INPUT_DATE_2": anchor,     # 원장: DATE_1 과 동일날짜(앵커에서 백워드 히스토리)
         "FID_INPUT_ISCD_2": index_code,
     }
     resp = transport.request(
@@ -96,7 +97,7 @@ _PROGRAM_MARKET = {"KOSPI": "K", "KOSDAQ": "Q"}
 
 
 def fetch_program_trade_summary(
-    transport: Transport, *, market: str = "KOSPI",
+    transport: Transport, *, market: Market = "KOSPI",
     start: str | date | None = None, end: str | date | None = None,
 ) -> list[ProgramTradeSummary]:
     """시장(코스피/코스닥) 전체의 일별 프로그램매매 종합(차익/비차익 순매수; 최근->과거). ``start``
@@ -130,9 +131,9 @@ def fetch_program_trade_summary(
             ProgramTradeSummary(
                 market=market,
                 timestamp=_parse_bar_timestamp(day),
-                # KIS 필드명 불일치 주의: 차익 수량 smtm / 나머지 smtn (원장 대조).
-                arbitrage_net_volume=required_int(row.get("arbt_smtm_ntby_qty"),
-                                                  "arbt_smtm_ntby_qty"),
+                # 값 필드는 모두 smtn(차익/비차익 합계). smtm 은 *비율* 필드(_rate)에만 붙는 오탈자다.
+                arbitrage_net_volume=required_int(row.get("arbt_smtn_ntby_qty"),
+                                                  "arbt_smtn_ntby_qty"),
                 arbitrage_net_amount=required_decimal(row.get("arbt_smtn_ntby_tr_pbmn"),
                                                       "arbt_smtn_ntby_tr_pbmn"),
                 nonarb_net_volume=required_int(row.get("nabt_smtn_ntby_qty"),

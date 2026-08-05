@@ -12,7 +12,10 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal
+
+#: 시장 -- 시장 전체 분석이 대상으로 삼는 시장(코스피/코스닥).
+Market = Literal["KOSPI", "KOSDAQ"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,7 +28,7 @@ class MarketInvestorFlow:
     ``index_value`` 는 그날 업종(시장)지수, ``timestamp`` 는 영업일(KST-aware).
     """
 
-    market: str                       # "KOSPI" / "KOSDAQ"
+    market: Market                    # 코스피/코스닥
     timestamp: datetime               # 영업일(KST-aware)
     index_value: Decimal              # 시장(업종)지수(bstp_nmix_prpr)
     index_change: Decimal             # 지수 전일대비(부호 포함)
@@ -51,9 +54,9 @@ class ProgramTradeSummary:
     ``timestamp`` 는 영업일(KST-aware).
     """
 
-    market: str                       # "KOSPI" / "KOSDAQ"
+    market: Market                    # 코스피/코스닥
     timestamp: datetime               # 영업일(KST-aware)
-    arbitrage_net_volume: int         # 차익 합계 순매수 수량(arbt_smtm_ntby_qty; KIS 필드 오탈자 smtm)
+    arbitrage_net_volume: int         # 차익 합계 순매수 수량(arbt_smtn_ntby_qty)
     arbitrage_net_amount: Decimal     # 차익 합계 순매수 금액(arbt_smtn_ntby_tr_pbmn)
     nonarb_net_volume: int            # 비차익 합계 순매수 수량(nabt_smtn_ntby_qty)
     nonarb_net_amount: Decimal        # 비차익 합계 순매수 금액(nabt_smtn_ntby_tr_pbmn)

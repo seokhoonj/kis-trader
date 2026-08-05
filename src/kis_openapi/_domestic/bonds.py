@@ -154,9 +154,10 @@ _INFO_PATH = "/uapi/domestic-bond/v1/quotations/search-bond-info"
 _INFO_TR = "CTPF1114R"
 
 
-def _optional_date(value: object) -> datetime | None:
+def _parse_optional_date(value: object) -> datetime | None:
+    """YYYYMMDD 를 KST-aware datetime 으로. 빈 값이나 0-채움 센티넬("00000000")은 ``None``."""
     text = str(value or "").strip()
-    return _parse_bar_timestamp(text) if text else None
+    return _parse_bar_timestamp(text) if text and text.strip("0") else None
 
 
 def fetch_info(transport: Transport, *, code: str) -> BondInfo:
@@ -174,9 +175,9 @@ def fetch_info(transport: Transport, *, code: str) -> BondInfo:
         name=str(output.get("ksd_bond_item_name", "")).strip(),
         english_name=str(output.get("ksd_bond_item_eng_name", "")).strip(),
         currency=str(output.get("iso_crcy_cd", "")).strip(),
-        issue_date=_optional_date(output.get("issu_dt")),
-        maturity_date=_optional_date(output.get("rdpt_dt")),
-        listing_date=_optional_date(output.get("lstg_dt")),
+        issue_date=_parse_optional_date(output.get("issu_dt")),
+        maturity_date=_parse_optional_date(output.get("rdpt_dt")),
+        listing_date=_parse_optional_date(output.get("lstg_dt")),
         coupon_rate=optional_decimal(output.get("ksd_rcvg_bond_srfc_inrt"),
                                      "ksd_rcvg_bond_srfc_inrt"),
         discount_rate=optional_decimal(output.get("ksd_rcvg_bond_dsct_rt"),

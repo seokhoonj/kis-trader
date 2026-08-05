@@ -66,3 +66,21 @@ def test_bond_info_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).bond("KR2033022D33").info()
+
+
+def test_bond_info_zero_date_sentinel_is_none():
+    out = {"ksd_bond_item_name": "x", "ksd_bond_item_eng_name": "x", "iso_crcy_cd": "KRW",
+           "issu_dt": "00000000", "rdpt_dt": "00000000", "lstg_dt": "00000000"}
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
+    info = _client(fake).bond("KR2033022D33").info()
+    assert info.issue_date is None                        # 0-채움 센티넬 -> None (크래시 아님)
+    assert info.maturity_date is None
+    assert info.listing_date is None
+
+
+def test_bond_info_bad_value_fails_closed():
+    out = {"ksd_bond_item_name": "x", "ksd_bond_item_eng_name": "x", "iso_crcy_cd": "KRW",
+           "ksd_rcvg_bond_srfc_inrt": "n/a"}
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
+    with pytest.raises(KISError):
+        _client(fake).bond("KR2033022D33").info()
