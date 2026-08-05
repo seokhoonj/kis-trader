@@ -24,6 +24,9 @@ from ..overseas_ranking_items import RankedOverseasStock
 from ..transport import Transport
 
 _TRADE_VOL = ("/uapi/overseas-stock/v1/ranking/trade-vol", "HHDFS76310010")
+_TRADE_AMOUNT = ("/uapi/overseas-stock/v1/ranking/trade-pbmn", "HHDFS76320010")
+_TRADE_GROWTH = ("/uapi/overseas-stock/v1/ranking/trade-growth", "HHDFS76330000")
+_MARKET_CAP = ("/uapi/overseas-stock/v1/ranking/market-cap", "HHDFS76350100")
 
 
 def _parse_ranking(rows: list[Mapping[str, Any]]) -> list[RankedOverseasStock]:
@@ -71,4 +74,28 @@ def fetch_by_volume(transport: Transport, *, exchange: str) -> list[RankedOverse
         "EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
         "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": "",
     }
+    return _fetch_ranking(transport, path=path, tr=tr, params=params)
+
+
+def fetch_by_amount(transport: Transport, *, exchange: str) -> list[RankedOverseasStock]:
+    """한 거래소의 거래대금 순위."""
+    path, tr = _TRADE_AMOUNT
+    params = {"EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
+              "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
+    return _fetch_ranking(transport, path=path, tr=tr, params=params)
+
+
+def fetch_by_trade_growth(transport: Transport, *, exchange: str) -> list[RankedOverseasStock]:
+    """한 거래소의 거래증가율 순위."""
+    path, tr = _TRADE_GROWTH
+    params = {"EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
+              "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
+    return _fetch_ranking(transport, path=path, tr=tr, params=params)
+
+
+def fetch_by_market_cap(transport: Transport, *, exchange: str) -> list[RankedOverseasStock]:
+    """한 거래소의 시가총액 순위."""
+    path, tr = _MARKET_CAP
+    params = {"EXCD": exchange, "VOL_RANG": "1",
+              "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
     return _fetch_ranking(transport, path=path, tr=tr, params=params)

@@ -31,3 +31,15 @@ class OverseasRankingQueries:
     def by_volume(self, *, exchange: str) -> list[RankedOverseasStock]:
         """한 거래소의 거래량 순위."""
         return overseas_ranking_api.fetch_by_volume(self._client.transport, exchange=exchange)
+
+    def by_amount(self, *, exchange: str) -> list[RankedOverseasStock]:
+        """한 거래소의 거래대금 순위."""
+        return overseas_ranking_api.fetch_by_amount(self._client.transport, exchange=exchange)
+
+    def by_trade_growth(self, *, exchange: str) -> list[RankedOverseasStock]:
+        """한 거래소의 거래증가율 순위."""
+        return overseas_ranking_api.fetch_by_trade_growth(self._client.transport, exchange=exchange)
+
+    def by_market_cap(self, *, exchange: str) -> list[RankedOverseasStock]:
+        """한 거래소의 시가총액 순위."""
+        return overseas_ranking_api.fetch_by_market_cap(self._client.transport, exchange=exchange)

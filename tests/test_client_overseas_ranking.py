@@ -73,3 +73,24 @@ def test_by_volume_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(rows))
     with pytest.raises(KISError):
         _client(fake).overseas_ranking.by_volume(exchange="NAS")
+
+
+def _one(rows):
+    return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}, "output2": rows})
+
+
+def test_by_amount_growth_market_cap_route_correctly():
+    row = [{"rank": "1", "excd": "NAS", "symb": "T", "name": "n", "ename": "N", "last": "1",
+            "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
+    cases = [
+        ("by_amount", "/uapi/overseas-stock/v1/ranking/trade-pbmn", "HHDFS76320010"),
+        ("by_trade_growth", "/uapi/overseas-stock/v1/ranking/trade-growth", "HHDFS76330000"),
+        ("by_market_cap", "/uapi/overseas-stock/v1/ranking/market-cap", "HHDFS76350100"),
+    ]
+    for verb, path, tr in cases:
+        fake = FakeTransport(response=_one(row))
+        result = getattr(_client(fake).overseas_ranking, verb)(exchange="NAS")
+        assert result[0].symbol == "T"
+        assert fake.calls[0]["path"] == path
+        assert fake.calls[0]["tr_id"] == tr
+        assert fake.calls[0]["params"]["EXCD"] == "NAS"
