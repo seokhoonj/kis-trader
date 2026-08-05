@@ -41,6 +41,8 @@ from .money import Money
 from .order import Order
 from .order_book import OrderBook, PriceLevel
 from .orderable import BuyableAmount, SellableQuantity
+from .overseas_derivative import OverseasDerivative
+from .overseas_derivative_items import OverseasDerivativeQuote
 from .overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
 from .quote import Quote
 from .ranking import RankingQueries
@@ -107,6 +109,8 @@ __all__ = [
     "OrderStatus",
     "OrderStore",
     "OverseasBalance",
+    "OverseasDerivative",
+    "OverseasDerivativeQuote",
     "OverseasOpenOrder",
     "OverseasPosition",
     "OvertimeRanking",

@@ -32,6 +32,7 @@ from .errors import KISUsageError
 from .index import Index
 from .instrument import DomesticBoard, is_domestic_symbol
 from .order import Order
+from .overseas_derivative import OverseasDerivative
 from .overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
 from .ranking import RankingQueries
 from .report import ExecutionReport
@@ -144,6 +145,14 @@ class KISClient:
     def option(self, code: str) -> Derivative:
         """지수옵션 계약 핸들을 만든다. ``code`` 는 계약코드."""
         return Derivative(self, code, market="O")
+
+    def overseas_futures(self, srs_cd: str) -> OverseasDerivative:
+        """해외 선물 계약 핸들을 만든다. ``srs_cd`` 는 시리즈코드(예: ESZ25 = E-mini S&P 2025.12)."""
+        return OverseasDerivative(self, srs_cd, market="future")
+
+    def overseas_option(self, srs_cd: str) -> OverseasDerivative:
+        """해외 옵션 계약 핸들을 만든다. ``srs_cd`` 는 시리즈코드."""
+        return OverseasDerivative(self, srs_cd, market="option")
 
     @property
     def ranking(self) -> RankingQueries:
