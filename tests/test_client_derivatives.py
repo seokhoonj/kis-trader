@@ -11,11 +11,12 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import DerivativesQuote, KisClient
+from kis_openapi import DerivativesQuote, KisClient, OrderBook
 from kis_openapi.errors import KisError
 from kis_openapi.transport import RawResponse
 
 _PRICE = "/uapi/domestic-futureoption/v1/quotations/inquire-price"
+_ASKING = "/uapi/domestic-futureoption/v1/quotations/inquire-asking-price"
 
 
 def _output(*, last="335.20", oprc="334.10", hgpr="336.00", lwpr="333.50", clpr="333.00",
@@ -100,3 +101,55 @@ def test_derivatives_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(_output(last="n/a")))
     with pytest.raises(KisError):
         _client(fake).futures("101W09").quote()
+
+
+# --- order_book (호가 사다리는 output2) -------------------------------------
+def _book(**over):
+    out = {
+        "futs_askp1": "364.40", "futs_askp2": "364.45", "futs_askp3": "0",
+        "futs_askp4": "0", "futs_askp5": "0",
+        "askp_rsqn1": "35", "askp_rsqn2": "47", "askp_rsqn3": "0",
+        "askp_rsqn4": "0", "askp_rsqn5": "0",
+        "futs_bidp1": "364.35", "futs_bidp2": "364.30", "futs_bidp3": "364.25",
+        "futs_bidp4": "0", "futs_bidp5": "0",
+        "bidp_rsqn1": "22", "bidp_rsqn2": "70", "bidp_rsqn3": "68",
+        "bidp_rsqn4": "0", "bidp_rsqn5": "0",
+        "total_askp_rsqn": "7140", "total_bidp_rsqn": "9319",
+    }
+    out.update(over)
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": {"hts_kor_isnm": "F 202409"}, "output2": out})
+
+
+def test_futures_order_book_maps_output2_and_market():
+    fake = FakeTransport(response=_book())
+    book = _client(fake).futures("101W09").order_book()
+    assert isinstance(book, OrderBook)
+    assert book.symbol == "101W09"
+    assert book.market == "F"
+    assert [(lvl.price, lvl.quantity) for lvl in book.asks] == [
+        (Decimal("364.40"), 35), (Decimal("364.45"), 47),
+    ]                                                          # 0-가격 단계 skip
+    assert [(lvl.price, lvl.quantity) for lvl in book.bids] == [
+        (Decimal("364.35"), 22), (Decimal("364.30"), 70), (Decimal("364.25"), 68),
+    ]
+    assert book.total_ask_quantity == 7140
+    assert book.total_bid_quantity == 9319
+    call = fake.calls[0]
+    assert call["path"] == _ASKING
+    assert call["tr_id"] == "FHMIF10010000"
+    assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "F"
+
+
+def test_option_order_book_uses_o_market():
+    fake = FakeTransport(response=_book())
+    _client(fake).option("201W09335").order_book()
+    assert fake.calls[0]["params"]["FID_COND_MRKT_DIV_CODE"] == "O"
+
+
+def test_derivatives_order_book_missing_output2_fails_closed():
+    resp = RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
+                       body={"output1": {"hts_kor_isnm": "F"}})    # output2 없음
+    fake = FakeTransport(response=resp)
+    with pytest.raises(KisError):
+        _client(fake).futures("101W09").order_book()

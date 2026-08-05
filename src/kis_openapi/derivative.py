@@ -17,6 +17,7 @@ from .derivative_items import DerivativesQuote
 
 if TYPE_CHECKING:
     from .client import KisClient
+    from .order_book import OrderBook
 
 
 class Derivative:
@@ -37,5 +38,11 @@ class Derivative:
     def quote(self) -> DerivativesQuote:
         """계약 현재가 스냅샷(가격·미결제약정·베이시스·이론가·괴리율; 옵션 그릭스는 ``_raw``)."""
         return derivatives_api.fetch_quote(
+            self._client.transport, code=self.code, market=self.market
+        )
+
+    def order_book(self) -> OrderBook:
+        """계약 호가창(5단계 매수/매도 심도)."""
+        return derivatives_api.fetch_order_book(
             self._client.transport, code=self.code, market=self.market
         )
