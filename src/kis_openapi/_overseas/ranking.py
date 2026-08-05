@@ -20,6 +20,7 @@ from .._domestic.market_data import (
     _raise_if_error,
 )
 from .._wire import required_decimal, required_int
+from ..errors import KISUsageError
 from ..overseas_ranking_items import RankedOverseasStock
 from ..transport import Transport
 
@@ -27,6 +28,9 @@ _TRADE_VOL = ("/uapi/overseas-stock/v1/ranking/trade-vol", "HHDFS76310010")
 _TRADE_AMOUNT = ("/uapi/overseas-stock/v1/ranking/trade-pbmn", "HHDFS76320010")
 _TRADE_GROWTH = ("/uapi/overseas-stock/v1/ranking/trade-growth", "HHDFS76330000")
 _MARKET_CAP = ("/uapi/overseas-stock/v1/ranking/market-cap", "HHDFS76350100")
+_UPDOWN = ("/uapi/overseas-stock/v1/ranking/updown-rate", "HHDFS76290000")
+#: 상승/하락 구분(GUBN). 원장: 0(하락율), 1(상승율).
+_UPDOWN_GUBN = {"gainers": "1", "losers": "0"}
 
 
 def _parse_ranking(rows: list[Mapping[str, Any]]) -> list[RankedOverseasStock]:
@@ -97,5 +101,19 @@ def fetch_by_market_cap(transport: Transport, *, exchange: str) -> list[RankedOv
     """한 거래소의 시가총액 순위."""
     path, tr = _MARKET_CAP
     params = {"EXCD": exchange, "VOL_RANG": "1",
+              "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
+    return _fetch_ranking(transport, path=path, tr=tr, params=params)
+
+
+def fetch_by_change(
+    transport: Transport, *, exchange: str, top: str = "gainers"
+) -> list[RankedOverseasStock]:
+    """한 거래소의 등락률 순위. ``top="gainers"`` 상승률 / ``"losers"`` 하락률(원장 GUBN 1/0)."""
+    try:
+        gubn = _UPDOWN_GUBN[top]
+    except KeyError:
+        raise KISUsageError(f"top 은 {sorted(_UPDOWN_GUBN)} 중 하나: {top!r}") from None
+    path, tr = _UPDOWN
+    params = {"EXCD": exchange, "GUBN": gubn, "NDAY": "0", "VOL_RANG": "0",
               "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
     return _fetch_ranking(transport, path=path, tr=tr, params=params)

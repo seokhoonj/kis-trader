@@ -94,3 +94,20 @@ def test_by_amount_growth_market_cap_route_correctly():
         assert fake.calls[0]["path"] == path
         assert fake.calls[0]["tr_id"] == tr
         assert fake.calls[0]["params"]["EXCD"] == "NAS"
+
+
+def test_by_change_gubn_and_bad_top():
+    import pytest as _pytest
+
+    from kis_openapi.errors import KISUsageError as _U
+    row = [{"rank": "1", "excd": "NAS", "symb": "T", "name": "n", "ename": "N", "last": "1",
+            "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
+    fake = FakeTransport(response=_one(row))
+    _client(fake).overseas_ranking.by_change(exchange="NAS", top="gainers")
+    assert fake.calls[0]["path"] == "/uapi/overseas-stock/v1/ranking/updown-rate"
+    assert fake.calls[0]["params"]["GUBN"] == "1"                # gainers=1(상승율)
+    fake2 = FakeTransport(response=_one(row))
+    _client(fake2).overseas_ranking.by_change(exchange="NAS", top="losers")
+    assert fake2.calls[0]["params"]["GUBN"] == "0"               # losers=0(하락율)
+    with _pytest.raises(_U):
+        _client(fake2).overseas_ranking.by_change(exchange="NAS", top="nope")

@@ -43,3 +43,9 @@ class OverseasRankingQueries:
     def by_market_cap(self, *, exchange: str) -> list[RankedOverseasStock]:
         """한 거래소의 시가총액 순위."""
         return overseas_ranking_api.fetch_by_market_cap(self._client.transport, exchange=exchange)
+
+    def by_change(self, *, exchange: str, top: str = "gainers") -> list[RankedOverseasStock]:
+        """한 거래소의 등락률 순위. ``top="gainers"`` 상승률 상위 / ``"losers"`` 하락률 상위."""
+        return overseas_ranking_api.fetch_by_change(
+            self._client.transport, exchange=exchange, top=top
+        )
