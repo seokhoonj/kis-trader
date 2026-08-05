@@ -23,6 +23,7 @@ from .analysis import (
     AnalystOpinion,
     CreditBalancePoint,
     DailyExecutionVolume,
+    ExpectedPricePoint,
     LoanPoint,
     ShortSalePoint,
     TradeAmountBand,
@@ -283,6 +284,13 @@ class Ticker:
         self._domestic_market()        # 국내 전용
         return analysis_api.fetch_daily_trade_volume(
             self._client.transport, symbol=self.symbol, start=start, end=end
+        )
+
+    def expected_price_trend(self, *, nonzero_only: bool = False) -> list[ExpectedPricePoint]:
+        """동시호가 예상 체결가 추이(시각 리스트, 최근->과거). ``nonzero_only=True`` 면 체결량 0 시각 제외."""
+        self._domestic_market()        # 국내 전용
+        return analysis_api.fetch_expected_price_trend(
+            self._client.transport, symbol=self.symbol, nonzero_only=nonzero_only
         )
 
     def trade_amount_bands(self) -> list[TradeAmountBand]:

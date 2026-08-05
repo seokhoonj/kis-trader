@@ -21,6 +21,7 @@ from ..analysis import (
     AnalystOpinion,
     CreditBalancePoint,
     DailyExecutionVolume,
+    ExpectedPricePoint,
     LoanPoint,
     ShortSalePoint,
     TradeAmountBand,
@@ -30,6 +31,7 @@ from .market_data import (
     _apply_change_sign,
     _missing_block_error,
     _parse_bar_timestamp,
+    _parse_minute_bar_timestamp,
     _raise_if_error,
     _to_yyyymmdd,
     _today_kst,
@@ -278,6 +280,49 @@ def fetch_trade_amount_bands(
             )
         )
     return bands
+
+
+_EXP_PRICE_PATH = "/uapi/domestic-stock/v1/quotations/exp-price-trend"
+_EXP_PRICE_TR = "FHPST01810000"
+
+
+def fetch_expected_price_trend(
+    transport: Transport, *, symbol: str, nonzero_only: bool = False
+) -> list[ExpectedPricePoint]:
+    """동시호가 예상 체결가 추이(시각 리스트, 최근->과거). ``nonzero_only`` 면 체결량 0 시각 제외.
+    응답 배열은 ``output2`` (``output1`` 은 현재 예상체결 스냅샷)."""
+    params = {
+        "fid_mkop_cls_code": "4" if nonzero_only else "0",
+        "fid_cond_mrkt_div_code": "J",
+        "fid_input_iscd": symbol,
+    }
+    resp = transport.request(method="GET", path=_EXP_PRICE_PATH, tr_id=_EXP_PRICE_TR,
+                             params=params, idempotent=True)
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    points: list[ExpectedPricePoint] = []
+    for row in rows:
+        day = str(row.get("stck_bsop_date", "")).strip()
+        moment = str(row.get("stck_cntg_hour", "")).strip()
+        if not day or not moment:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        points.append(
+            ExpectedPricePoint(
+                symbol=symbol,
+                timestamp=_parse_minute_bar_timestamp(day, moment),
+                expected_price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                _raw=row,
+            )
+        )
+    return points
 
 
 _OPINION_PATH = "/uapi/domestic-stock/v1/quotations/invest-opinion"

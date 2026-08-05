@@ -154,6 +154,30 @@ class TradeAmountBand:
 
 
 @dataclass(frozen=True, slots=True)
+class ExpectedPricePoint:
+    """한 시점의 예상 체결가(불변).
+
+    장 시작 전/마감 동시호가 구간에 형성되는 예상 체결가 시계열의 한 점이다. ``expected_price`` 는
+    그 시각의 예상 체결가, ``change`` / ``change_percent`` 는 전일 종가 대비(하락이면 음수), ``volume``
+    은 누적 예상 거래량이다. :meth:`~kis_openapi.ticker.Ticker.expected_price_trend` 가 시각 리스트
+    (최근->과거)로 돌려준다. ``timestamp`` 는 체결시각(KST-aware).
+    """
+
+    symbol: str
+    timestamp: datetime               # 체결시각(KST-aware, 일자+시각)
+    expected_price: Decimal           # 예상 체결가(stck_prpr)
+    change: Decimal                   # 전일 대비(부호 포함)
+    change_percent: Decimal           # 전일 대비율(부호 포함)
+    volume: int                       # 누적 거래량(acml_vol)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class DailyExecutionVolume:
     """하루의 매수/매도 체결량 합계(불변).
 

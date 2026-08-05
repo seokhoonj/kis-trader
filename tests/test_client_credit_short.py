@@ -176,3 +176,24 @@ def test_trade_amount_bands_maps():
     assert call["path"] == "/uapi/domestic-stock/v1/quotations/tradprt-byamt"
     assert call["tr_id"] == "FHKST111900C0"
     assert call["params"]["FID_COND_SCR_DIV_CODE"] == "11119"
+
+
+def test_expected_price_trend_maps_output2():
+    # 원장 응답 예시값(output2, 20240318 090023). output1(스냅샷)은 무시.
+    body = {"output1": {"antc_cnpr": "72600"},
+            "output2": [{"stck_bsop_date": "20240318", "stck_cntg_hour": "090023",
+                         "stck_prpr": "72600", "prdy_vrss_sign": "2", "prdy_vrss": "300",
+                         "prdy_ctrt": "0.41", "acml_vol": "420303"}]}
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
+    fake = FakeTransport(response=resp)
+    from kis_openapi import ExpectedPricePoint
+    pts = _client(fake).ticker("005930").expected_price_trend(nonzero_only=True)
+    assert isinstance(pts[0], ExpectedPricePoint)
+    assert pts[0].expected_price == Decimal(72600)
+    assert pts[0].change == Decimal(300)                 # sign 2 -> 양수
+    assert pts[0].change_percent == Decimal("0.41")
+    assert pts[0].timestamp.strftime("%Y%m%d%H%M%S") == "20240318090023"
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/quotations/exp-price-trend"
+    assert call["tr_id"] == "FHPST01810000"
+    assert call["params"]["fid_mkop_cls_code"] == "4"    # nonzero_only
