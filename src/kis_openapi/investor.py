@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -36,6 +36,28 @@ class InvestorFlow:
     individual: InvestorActivity      # 개인
     foreign: InvestorActivity         # 외국인
     institutional: InvestorActivity   # 기관
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class InvestorEstimate:
+    """한 시점의 장중 투자자 순매수 추정(불변).
+
+    장중 실시간 추정치라 확정값이 아니라 **가(假)추정**이다(장 마감 후 확정치는
+    :class:`InvestorFlow`). ``foreign_net`` / ``institutional_net`` 은 외국인/기관의 추정 순매수
+    수량, ``total_net`` 은 합계. ``timestamp`` 는 조회일 날짜를 붙인 시각(KST-aware).
+    """
+
+    symbol: str
+    timestamp: datetime               # 시각(조회일 날짜; KST)
+    foreign_net: int                  # 외국인 추정 순매수 수량
+    institutional_net: int            # 기관 추정 순매수 수량
+    total_net: int                    # 추정 순매수 합계
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

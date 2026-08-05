@@ -36,7 +36,7 @@ from .elw_screener import ELWScreenerQueries
 from .etf_items import ETFNAV, ETFComponent, ETFNAVHistoryPoint
 from .index import Index
 from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
-from .investor import InvestorActivity, InvestorFlow
+from .investor import InvestorActivity, InvestorEstimate, InvestorFlow
 from .money import Money
 from .order import Order
 from .order_book import OrderBook, PriceLevel
@@ -44,6 +44,7 @@ from .orderable import BuyableAmount, SellableQuantity
 from .overseas_derivative import OverseasDerivative
 from .overseas_derivative_items import OverseasDerivativeQuote
 from .overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
+from .program import ProgramTradePoint
 from .quote import Quote
 from .ranking import RankingQueries
 from .ranking_items import (
@@ -98,6 +99,7 @@ __all__ = [
     "IndexQuote",
     "Interval",
     "InvestorActivity",
+    "InvestorEstimate",
     "InvestorFlow",
     "KISClient",
     "MasterIndex",
@@ -117,6 +119,7 @@ __all__ = [
     "Portfolio",
     "Position",
     "PriceLevel",
+    "ProgramTradePoint",
     "Quote",
     "RankedELW",
     "RankedStock",

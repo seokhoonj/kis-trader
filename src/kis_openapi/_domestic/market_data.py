@@ -21,8 +21,9 @@ from ..after_hours import AfterHoursQuote
 from ..bar import Bar, Interval
 from ..broker import BrokerActivity, BrokerActivitySummary
 from ..errors import KISError, KISUsageError
-from ..investor import InvestorActivity, InvestorFlow
+from ..investor import InvestorActivity, InvestorEstimate, InvestorFlow
 from ..order_book import OrderBook, PriceLevel
+from ..program import ProgramTradePoint
 from ..quote import Quote
 from ..trade import Trade
 from ..transport import RawResponse, Transport
@@ -597,3 +598,86 @@ def _raise_if_error(resp: RawResponse) -> None:
             f"시세 조회 실패: {resp.msg1}",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
+
+
+# --- 프로그램매매 / 투자자 추정 (per-ticker 시세분석) -----------------------
+_PROGRAM_TRADES_PATH = "/uapi/domestic-stock/v1/quotations/program-trade-by-stock"
+_PROGRAM_TRADES_TR = "FHPPG04650101"
+
+
+def fetch_program_trades(
+    transport: Transport, *, symbol: str, market: str
+) -> list[ProgramTradePoint]:
+    """한 종목의 장중 시간대별 프로그램매매 흐름(시간 순)."""
+    params = {"FID_COND_MRKT_DIV_CODE": _market_div(market), "FID_INPUT_ISCD": symbol}
+    resp = transport.request(
+        method="GET", path=_PROGRAM_TRADES_PATH, tr_id=_PROGRAM_TRADES_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    as_of = datetime.now(_KST)
+    points: list[ProgramTradePoint] = []
+    for row in rows:
+        time_text = str(row.get("bsop_hour", "")).strip()
+        if not time_text:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        points.append(
+            ProgramTradePoint(
+                symbol=symbol,
+                timestamp=_parse_intraday_timestamp(time_text, as_of),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                buy_volume=required_int(row.get("whol_smtn_shnu_vol"), "whol_smtn_shnu_vol"),
+                sell_volume=required_int(row.get("whol_smtn_seln_vol"), "whol_smtn_seln_vol"),
+                net_volume=required_int(row.get("whol_smtn_ntby_qty"), "whol_smtn_ntby_qty"),
+                net_amount=required_decimal(
+                    row.get("whol_smtn_ntby_tr_pbmn"), "whol_smtn_ntby_tr_pbmn"
+                ),
+                _raw=row,
+            )
+        )
+    return points
+
+
+_INVESTOR_ESTIMATE_PATH = "/uapi/domestic-stock/v1/quotations/investor-trend-estimate"
+_INVESTOR_ESTIMATE_TR = "HHPTJ04160200"
+
+
+def fetch_investor_estimate(
+    transport: Transport, *, symbol: str
+) -> list[InvestorEstimate]:
+    """한 종목의 장중 투자자(외국인/기관) 순매수 추정(시간 순). 확정 아닌 가추정이다."""
+    params = {"MKSC_SHRN_ISCD": symbol}
+    resp = transport.request(
+        method="GET", path=_INVESTOR_ESTIMATE_PATH, tr_id=_INVESTOR_ESTIMATE_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    as_of = datetime.now(_KST)
+    estimates: list[InvestorEstimate] = []
+    for row in rows:
+        time_text = str(row.get("bsop_hour_gb", "")).strip()
+        if not time_text:
+            continue
+        estimates.append(
+            InvestorEstimate(
+                symbol=symbol,
+                timestamp=_parse_intraday_timestamp(time_text, as_of),
+                foreign_net=required_int(row.get("frgn_fake_ntby_qty"), "frgn_fake_ntby_qty"),
+                institutional_net=required_int(row.get("orgn_fake_ntby_qty"), "orgn_fake_ntby_qty"),
+                total_net=required_int(row.get("sum_fake_ntby_qty"), "sum_fake_ntby_qty"),
+                _raw=row,
+            )
+        )
+    return estimates

@@ -22,10 +22,11 @@ from .broker import BrokerActivitySummary
 from .errors import KISUsageError
 from .etf_items import ETFNAV, ETFComponent, ETFNAVHistoryPoint
 from .instrument import DomesticBoard, resolve_market
-from .investor import InvestorFlow
+from .investor import InvestorEstimate, InvestorFlow
 from .order import Order, Side, TimeInForce
 from .order_book import OrderBook
 from .orderable import BuyableAmount, SellableQuantity
+from .program import ProgramTradePoint
 from .quote import Quote
 from .report import ExecutionReport
 from .trade import Trade
@@ -148,6 +149,17 @@ class Ticker:
         return market_data.fetch_after_hours_quote(
             self._client.transport, symbol=self.symbol, market=self._domestic_market()
         )
+
+    def program_trades(self) -> list[ProgramTradePoint]:
+        """장중 시간대별 프로그램매매 흐름(매수/매도/순매수 수량·금액, 시간 순)."""
+        return market_data.fetch_program_trades(
+            self._client.transport, symbol=self.symbol, market=self._domestic_market()
+        )
+
+    def investor_estimate(self) -> list[InvestorEstimate]:
+        """장중 투자자(외국인/기관) 순매수 추정(시간 순, 확정 아닌 가추정)."""
+        self._domestic_market()        # 국내 전용(해외 티커 거부)
+        return market_data.fetch_investor_estimate(self._client.transport, symbol=self.symbol)
 
     def nav(self) -> ETFNAV:
         """ETF/ETN 순자산가치(NAV) 스냅샷(NAV·괴리율·추적오차율·순자산총액). 이 종목이 ETF/ETN
