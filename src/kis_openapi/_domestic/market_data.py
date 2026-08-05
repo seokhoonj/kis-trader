@@ -55,6 +55,11 @@ _MINUTE_ANCHOR_START = "235959"
 #: 분봉 페이지 상한(30건/page). 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
 _MAX_MINUTE_PAGES = 60
 
+#: 특정 과거일 분봉(backfill). 당일 분봉과 봉 스키마는 같고, 날짜(FID_INPUT_DATE_1)를 받아 그 날의
+#: 분봉을 준다. TR/URL 만 다르다(과거 데이터 포함 여부 FID_PW_DATA_INCU_YN 은 여기선 당일치=N 고정).
+_MINUTE_DAILY_BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-dailychartprice"
+_MINUTE_DAILY_BARS_TR = "FHKST03010230"
+
 _ORDER_BOOK_PATH = "/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn"
 _ORDER_BOOK_TR = "FHKST01010200"
 _DEPTH = 10
@@ -279,6 +284,57 @@ def _fetch_minute_bars(
         }
         resp = transport.request(
             method="GET", path=_MINUTE_BARS_PATH, tr_id=_MINUTE_BARS_TR, params=params,
+            idempotent=True,
+        )
+        _raise_if_error(resp)
+        rows = resp.body.get("output2")
+        if not isinstance(rows, list):  # 성공 응답인데 봉 배열 아님 -> fail-closed
+            raise _missing_block_error("output2", resp)
+        page = {f"{bar.timestamp:%H%M%S}": bar for bar in _parse_minute_bars(rows, symbol=symbol)}
+        fresh = {time: bar for time, bar in page.items() if time not in bar_by_time}
+        if not fresh:  # 빈 페이지거나 진전 없음 -> 종료(무한 루프 방지)
+            break
+        bar_by_time.update(fresh)
+        if max_bars is not None and len(bar_by_time) >= max_bars:
+            break
+        oldest = min(page)
+        if oldest <= _SESSION_OPEN:  # 개장까지 훑음
+            break
+        anchor = _subtract_one_minute(oldest)
+    else:
+        raise KISError(
+            f"분봉 조회가 {_MAX_MINUTE_PAGES}페이지 상한에 도달했으나 개장까지 못 미쳤다 "
+            f"-- 부분 결과로 자르지 않는다. max_bars 로 범위를 줄이거나 재시도하라."
+        )
+    bars = [bar_by_time[key] for key in sorted(bar_by_time)]
+    if max_bars is not None and len(bars) > max_bars:
+        bars = bars[-max_bars:]
+    return bars
+
+
+def fetch_minute_bars_on(
+    transport: Transport, *, symbol: str, market: str, day: str | date,
+    max_bars: int | None = None,
+) -> list[Bar]:
+    """특정 과거일 ``day`` 의 1분봉(과거->현재 오름차순). 당일 분봉과 같은 봉 스키마를 그 날짜에 대해
+    받되, 마감(235959)부터 시각을 뒤로 밀며 30건씩 모으고 개장까지 닿거나 새 봉이 없으면 종료.
+    상한 초과는 fail-closed. ``max_bars`` 로 최근 N개."""
+    if max_bars is not None and max_bars <= 0:
+        raise KISUsageError(f"max_bars 는 양수여야 한다: {max_bars}")
+    day_yyyymmdd = _to_yyyymmdd(day, "day")
+    market_div = _market_div(market)
+    bar_by_time: dict[str, Bar] = {}   # "HHMMSS" -> Bar (하루치라 문자열 정렬=시간순)
+    anchor = _MINUTE_ANCHOR_START
+    for _page in range(_MAX_MINUTE_PAGES):
+        params = {
+            "FID_COND_MRKT_DIV_CODE": market_div,
+            "FID_INPUT_ISCD": symbol,
+            "FID_INPUT_HOUR_1": anchor,
+            "FID_INPUT_DATE_1": day_yyyymmdd,
+            "FID_PW_DATA_INCU_YN": "N",
+        }
+        resp = transport.request(
+            method="GET", path=_MINUTE_DAILY_BARS_PATH, tr_id=_MINUTE_DAILY_BARS_TR, params=params,
             idempotent=True,
         )
         _raise_if_error(resp)

@@ -138,6 +138,17 @@ class Ticker:
             interval=interval, start=start, end=end, adjusted=adjusted, max_bars=max_bars,
         )
 
+    def minute_bars_on(
+        self, day: str | date, *, max_bars: int | None = None
+    ) -> list[Bar]:
+        """특정 과거일 ``day`` 의 1분봉(과거->현재). 당일만 주는 :meth:`bars`\\ ``(interval="1m")`` 과
+        달리 지난 영업일의 분봉을 backfill 한다. ``max_bars`` 로 최근 N개. 국내 전용."""
+        self._domestic_market()        # 국내 전용(해외 분봉 미지원)
+        return market_data.fetch_minute_bars_on(
+            self._client.transport, symbol=self.symbol, market=self.market,
+            day=day, max_bars=max_bars,
+        )
+
     def order_book(self) -> OrderBook:
         """호가창 스냅샷(국내 10단계 / 해외는 미국 10·그 외 1단계). 국내/해외 자동 라우팅."""
         if self.exchange is not None:

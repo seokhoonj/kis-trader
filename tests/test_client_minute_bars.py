@@ -162,3 +162,43 @@ def test_minute_bars_skip_empty_rows():
                                               "stck_prpr": ""}])
     bars = _client(fake).ticker("005930").bars(interval="1m")
     assert len(bars) == 1                                  # 빈 행 skip, 090000 도달로 종료
+
+
+_MINUTE_DAILY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-dailychartprice"
+
+
+def test_minute_bars_on_past_date_routes_and_paginates():
+    times = [f"09{m:02d}00" for m in range(9)]                  # 0900..0908
+    fake = FakeTransport(_session(times))
+    bars = _client(fake).ticker("005930").minute_bars_on("20240102")
+    assert [f"{b.timestamp:%H%M%S}" for b in bars] == times      # 과거->현재 오름차순, 전량
+    assert bars[0].timestamp.strftime("%Y%m%d") == "20240102"    # 그 날짜로 찍힘
+    assert fake.calls[0]["path"] == _MINUTE_DAILY_PATH
+    assert fake.calls[0]["tr_id"] == "FHKST03010230"
+    assert fake.calls[0]["params"]["FID_INPUT_DATE_1"] == "20240102"
+    assert fake.calls[0]["params"]["FID_INPUT_HOUR_1"] == "235959"
+    assert "FID_ETC_CLS_CODE" not in fake.calls[0]["params"]     # 당일 분봉 전용 파라미터 아님
+
+
+def test_minute_bars_on_accepts_date_object_and_max_bars():
+    from datetime import date
+
+    times = [f"09{m:02d}00" for m in range(9)]
+    fake = FakeTransport(_session(times))
+    bars = _client(fake).ticker("005930").minute_bars_on(date(2024, 1, 2), max_bars=4)
+    assert len(bars) == 4
+    assert fake.calls[0]["params"]["FID_INPUT_DATE_1"] == "20240102"
+
+
+def test_minute_bars_on_bad_max_bars_raises():
+    fake = FakeTransport(_session(["090000"]))
+    with pytest.raises(KISUsageError):
+        _client(fake).ticker("005930").minute_bars_on("20240102", max_bars=0)
+
+
+def test_minute_bars_on_missing_output2_fails_closed():
+    class BadTransport:
+        def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
+            return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
+    with pytest.raises(KISError):
+        _client(BadTransport()).ticker("005930").minute_bars_on("20240102")
