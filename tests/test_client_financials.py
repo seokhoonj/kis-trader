@@ -115,3 +115,16 @@ def test_financial_ratios_optional_none():
     ratios = _client(fake).ticker("000660").financial_ratios()
     assert ratios[0].roe is None
     assert ratios[0].eps == Decimal(5000)
+
+
+def test_balance_sheet_optional_line_items_none_for_financial_issuer():
+    # 은행/보험은 유동/고정 구분을 미보고(공란) -> 소계는 None, 합계는 그대로여야 한다(verb 안 죽음).
+    rows = [{"stac_yymm": "202312", "cras": "", "fxas": "", "total_aset": "3000",
+             "flow_lblt": "", "fix_lblt": "", "total_lblt": "800", "cpfn": "100",
+             "total_cptl": "2200"}]
+    fake = FakeTransport(response=_resp(rows))
+    s = _client(fake).ticker("000660").balance_sheet()[0]
+    assert s.current_assets is None
+    assert s.fixed_liabilities is None
+    assert s.total_assets == Decimal(3000)               # 합계는 여전히 required
+    assert s.total_equity == Decimal(2200)

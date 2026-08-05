@@ -66,20 +66,33 @@ def test_program_trades_missing_output_fails_closed():
         _client(fake).ticker("005930").program_trades()
 
 
-def test_investor_estimate_maps_estimate():
-    rows = [{"bsop_hour_gb": "0930", "frgn_fake_ntby_qty": "12000",
-             "orgn_fake_ntby_qty": "-3000", "sum_fake_ntby_qty": "9000"}]
+def test_investor_estimate_maps_estimate_and_input_time():
+    # bsop_hour_gb 는 시각이 아니라 입력구분 코드다: 1=09:30, 2=10:00, 3=11:20, 4=13:20, 5=14:30.
+    rows = [{"bsop_hour_gb": "1", "frgn_fake_ntby_qty": "12000",
+             "orgn_fake_ntby_qty": "-3000", "sum_fake_ntby_qty": "9000"},
+            {"bsop_hour_gb": "5", "frgn_fake_ntby_qty": "-30000",
+             "orgn_fake_ntby_qty": "121000", "sum_fake_ntby_qty": "91000"}]
     fake = FakeTransport(response=_resp({"output2": rows}))
     ests = _client(fake).ticker("005930").investor_estimate()
     assert all(isinstance(e, InvestorEstimate) for e in ests)
-    e = ests[0]
-    assert e.foreign_net == 12000
-    assert e.institutional_net == -3000
-    assert e.total_net == 9000
+    first = ests[0]
+    assert first.foreign_net == 12000
+    assert first.institutional_net == -3000            # 가집계 순매수는 pre-signed(부호복원 안 함)
+    assert first.total_net == 9000
+    assert (first.timestamp.hour, first.timestamp.minute) == (9, 30)   # 코드 1 -> 09:30
+    assert (ests[1].timestamp.hour, ests[1].timestamp.minute) == (14, 30)  # 코드 5 -> 14:30
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/quotations/investor-trend-estimate"
     assert call["tr_id"] == "HHPTJ04160200"
     assert call["params"]["MKSC_SHRN_ISCD"] == "005930"
+
+
+def test_investor_estimate_unknown_input_code_fails_closed():
+    rows = [{"bsop_hour_gb": "9", "frgn_fake_ntby_qty": "0",
+             "orgn_fake_ntby_qty": "0", "sum_fake_ntby_qty": "0"}]
+    fake = FakeTransport(response=_resp({"output2": rows}))
+    with pytest.raises(KISError):
+        _client(fake).ticker("005930").investor_estimate()
 
 
 def test_investor_estimate_missing_output2_fails_closed():

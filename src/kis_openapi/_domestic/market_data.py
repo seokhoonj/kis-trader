@@ -650,6 +650,11 @@ def fetch_program_trades(
 
 _INVESTOR_ESTIMATE_PATH = "/uapi/domestic-stock/v1/quotations/investor-trend-estimate"
 _INVESTOR_ESTIMATE_TR = "HHPTJ04160200"
+#: 추정 가집계 입력구분(bsop_hour_gb) -> 입력 시각(원장: 증권사 직원이 그 시각에 집계·입력).
+#: 시각이 아니라 1~5 코드다(HHMMSS 아님) -- 각 코드의 문서화된 입력 시각으로 매핑한다.
+_ESTIMATE_INPUT_TIME = {
+    "1": (9, 30), "2": (10, 0), "3": (11, 20), "4": (13, 20), "5": (14, 30),
+}
 
 
 def fetch_investor_estimate(
@@ -668,13 +673,17 @@ def fetch_investor_estimate(
     as_of = datetime.now(_KST)
     estimates: list[InvestorEstimate] = []
     for row in rows:
-        time_text = str(row.get("bsop_hour_gb", "")).strip()
-        if not time_text:
+        code = str(row.get("bsop_hour_gb", "")).strip()
+        if not code:
             continue
+        try:
+            hour, minute = _ESTIMATE_INPUT_TIME[code]
+        except KeyError as err:                # 알 수 없는 입력구분 -> fail-closed
+            raise KISError(f"추정 입력구분(bsop_hour_gb) 미지원 코드: {code!r}") from err
         estimates.append(
             InvestorEstimate(
                 symbol=symbol,
-                timestamp=_parse_intraday_timestamp(time_text, as_of),
+                timestamp=as_of.replace(hour=hour, minute=minute, second=0, microsecond=0),
                 foreign_net=required_int(row.get("frgn_fake_ntby_qty"), "frgn_fake_ntby_qty"),
                 institutional_net=required_int(row.get("orgn_fake_ntby_qty"), "orgn_fake_ntby_qty"),
                 total_net=required_int(row.get("sum_fake_ntby_qty"), "sum_fake_ntby_qty"),
@@ -699,7 +708,10 @@ def fetch_stock_info(transport: Transport, *, symbol: str) -> StockInfo:
     output = resp.body.get("output")
     if not isinstance(output, Mapping):
         raise _missing_block_error("output", resp)
-    listing = str(output.get("scts_mket_lstg_dt") or output.get("kosdaq_mket_lstg_dt") or "").strip()
+    # 유가증권/코스닥 상장일 중 실재하는 것. 각 후보를 먼저 strip 해야 공백값이 truthy 로 뒤 후보를
+    # 가리지 않는다(공백 primary 가 실제 코스닥 상장일을 덮는 버그 방지).
+    listing = (str(output.get("scts_mket_lstg_dt", "")).strip()
+               or str(output.get("kosdaq_mket_lstg_dt", "")).strip())
     return StockInfo(
         symbol=symbol,
         name=str(output.get("prdt_name", "")).strip(),

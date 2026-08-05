@@ -20,11 +20,11 @@ class BalanceSheet:
 
     symbol: str
     period: str                       # 결산년월(stac_yymm, "YYYYMM")
-    current_assets: Decimal           # 유동자산(cras)
-    fixed_assets: Decimal             # 고정(비유동)자산(fxas)
+    current_assets: Decimal | None    # 유동자산(cras; 금융업은 공란)
+    fixed_assets: Decimal | None      # 고정(비유동)자산(fxas; 금융업은 공란)
     total_assets: Decimal             # 자산총계(total_aset)
-    current_liabilities: Decimal      # 유동부채(flow_lblt)
-    fixed_liabilities: Decimal        # 고정(비유동)부채(fix_lblt)
+    current_liabilities: Decimal | None  # 유동부채(flow_lblt; 금융업은 공란)
+    fixed_liabilities: Decimal | None  # 고정(비유동)부채(fix_lblt; 금융업은 공란)
     total_liabilities: Decimal        # 부채총계(total_lblt)
     capital: Decimal                  # 자본금(cpfn)
     total_equity: Decimal             # 자본총계(total_cptl)
@@ -72,9 +72,9 @@ class IncomeStatement:
     symbol: str
     period: str                       # 결산년월(stac_yymm, "YYYYMM")
     revenue: Decimal                  # 매출액(sale_account)
-    cost_of_sales: Decimal            # 매출원가(sale_cost)
-    gross_profit: Decimal             # 매출총이익(sale_totl_prfi)
-    sga_expenses: Decimal             # 판매관리비(sell_mang)
+    cost_of_sales: Decimal | None     # 매출원가(sale_cost; 금융업은 공란)
+    gross_profit: Decimal | None      # 매출총이익(sale_totl_prfi; 금융업은 공란)
+    sga_expenses: Decimal | None      # 판매관리비(sell_mang; 금융업은 공란)
     operating_income: Decimal         # 영업이익(bsop_prti)
     net_income: Decimal               # 당기순이익(thtr_ntin)
     _raw: Mapping[str, Any] = field(

@@ -90,7 +90,7 @@ class ShortSalePoint:
     short_volume: int                 # 공매도 체결량(ssts_cntg_qty)
     short_volume_ratio: Decimal | None  # 공매도 비중 %(ssts_vol_rlim)
     short_amount: Decimal             # 공매도 대금(ssts_tr_pbmn)
-    short_avg_price: Decimal | None   # 공매도 평균가(avrg_prc)
+    short_average_price: Decimal | None  # 공매도 평균가(avrg_prc)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

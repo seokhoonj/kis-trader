@@ -13,7 +13,7 @@ KIS URL/TR-id:
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import Any
 
 from .._wire import optional_decimal, required_decimal, required_int
@@ -32,6 +32,16 @@ _CREDIT_PATH = "/uapi/domestic-stock/v1/quotations/daily-credit-balance"
 _CREDIT_TR = "FHPST04760000"
 _SHORT_PATH = "/uapi/domestic-stock/v1/quotations/daily-short-sale"
 _SHORT_TR = "FHPST04830000"
+
+
+#: 추이 조회에서 start 를 안 주면 잡는 기본 조회 구간(일). _trend 가 한 점만 주지 않도록.
+_DEFAULT_TREND_DAYS = 30
+
+
+def _default_start(end_yyyymmdd: str) -> str:
+    """start 미지정 시 기본 시작일 = end 로부터 ``_DEFAULT_TREND_DAYS`` 일 전(YYYYMMDD)."""
+    end_day = datetime.strptime(end_yyyymmdd, "%Y%m%d")  # noqa: DTZ007 -- 날짜 산술만
+    return f"{end_day - timedelta(days=_DEFAULT_TREND_DAYS):%Y%m%d}"
 
 
 def _rows(transport: Transport, *, path: str, tr: str, params: Mapping[str, str]
@@ -100,9 +110,9 @@ def fetch_short_sale_trend(
     transport: Transport, *, symbol: str,
     start: str | date | None = None, end: str | date | None = None,
 ) -> list[ShortSalePoint]:
-    """일별 공매도 추이(기간 [start, end], 최근->과거). 기본은 최근(오늘 기준)."""
+    """일별 공매도 추이(기간 [start, end], 최근->과거). ``start`` 미지정이면 ``end`` 로부터 30일 전."""
     end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
-    start_date = end_date if start is None else _to_yyyymmdd(start, "start")
+    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_INPUT_ISCD": symbol,
@@ -128,7 +138,7 @@ def fetch_short_sale_trend(
                 short_volume=required_int(row.get("ssts_cntg_qty"), "ssts_cntg_qty"),
                 short_volume_ratio=optional_decimal(row.get("ssts_vol_rlim"), "ssts_vol_rlim"),
                 short_amount=required_decimal(row.get("ssts_tr_pbmn"), "ssts_tr_pbmn"),
-                short_avg_price=optional_decimal(row.get("avrg_prc"), "avrg_prc"),
+                short_average_price=optional_decimal(row.get("avrg_prc"), "avrg_prc"),
                 _raw=row,
             )
         )
@@ -143,9 +153,9 @@ def fetch_loan_trend(
     transport: Transport, *, symbol: str,
     start: str | date | None = None, end: str | date | None = None,
 ) -> list[LoanPoint]:
-    """일별 대차거래(대여) 추이(기간 [start, end], 최근->과거). 기본은 최근(오늘 기준)."""
+    """일별 대차거래(대여) 추이(기간 [start, end], 최근->과거). ``start`` 미지정이면 ``end`` 로부터 30일 전."""
     end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
-    start_date = end_date if start is None else _to_yyyymmdd(start, "start")
+    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
     params = {
         "MRKT_DIV_CLS_CODE": "1",
         "MKSC_SHRN_ISCD": symbol,
@@ -153,14 +163,8 @@ def fetch_loan_trend(
         "END_DATE": end_date,
         "CTS": "",
     }
-    resp = transport.request(method="GET", path=_LOAN_PATH, tr_id=_LOAN_TR, params=params,
-                             idempotent=True)
-    _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
     points: list[LoanPoint] = []
-    for row in rows:
+    for row in _rows(transport, path=_LOAN_PATH, tr=_LOAN_TR, params=params):
         day = str(row.get("bsop_date", "")).strip()
         if not day:
             continue

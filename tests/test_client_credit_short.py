@@ -39,7 +39,7 @@ def test_credit_balance_trend_maps():
              "whol_loan_rmnd_rate": "0.5", "whol_stln_rmnd_stcn": "2000",
              "whol_stln_rmnd_amt": "140000000", "whol_stln_rmnd_rate": "0.02"}]
     fake = FakeTransport(response=_resp(rows))
-    pts = _client(fake).ticker("005930").credit_balance_trend(date="20240102")
+    pts = _client(fake).ticker("005930").credit_balance_trend(as_of="20240102")
     assert isinstance(pts[0], CreditBalancePoint)
     assert pts[0].margin_loan_shares == 50000
     assert pts[0].margin_loan_amount == Decimal(3500000000)
@@ -102,3 +102,22 @@ def test_loan_trend_maps():
     assert call["tr_id"] == "HHPST074500C0"
     assert call["params"]["MKSC_SHRN_ISCD"] == "005930"
     assert call["params"]["START_DATE"] == "20240101"
+
+
+def test_short_sale_default_window_is_lookback_not_single_day():
+    # start 미지정이면 end 로부터 30일 전이 되어야 한다(하루로 붕괴하면 _trend 가 무의미).
+    fake = FakeTransport(response=_resp([]))
+    _client(fake).ticker("005930").short_sale_trend(end="20240131")
+    call = fake.calls[0]
+    assert call["params"]["FID_INPUT_DATE_2"] == "20240131"
+    assert call["params"]["FID_INPUT_DATE_1"] == "20240101"      # 31일 - 30일
+    assert call["params"]["FID_INPUT_DATE_1"] != call["params"]["FID_INPUT_DATE_2"]
+
+
+def test_loan_default_window_is_lookback():
+    fake = FakeTransport(response=_resp([]))
+    _client(fake).ticker("005930").loan_trend(end="20240131")
+    call = fake.calls[0]
+    assert call["params"]["END_DATE"] == "20240131"
+    assert call["params"]["START_DATE"] == "20240101"
+    assert call["params"]["MRKT_DIV_CLS_CODE"] == "1"

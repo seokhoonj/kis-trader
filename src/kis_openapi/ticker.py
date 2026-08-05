@@ -194,12 +194,12 @@ class Ticker:
         )
 
     def credit_balance_trend(
-        self, *, date: str | date | None = None
+        self, *, as_of: str | date | None = None
     ) -> list[CreditBalancePoint]:
-        """일별 신용잔고(융자/대주) 추이(기준일에서 과거로). ``date`` 없으면 오늘 기준."""
+        """일별 신용잔고(융자/대주) 추이(기준일에서 과거로). ``as_of`` 없으면 오늘 기준."""
         self._domestic_market()        # 국내 전용
         return analysis_api.fetch_credit_balance_trend(
-            self._client.transport, symbol=self.symbol, date_=date
+            self._client.transport, symbol=self.symbol, date_=as_of
         )
 
     def short_sale_trend(
