@@ -1,9 +1,10 @@
-"""선물/옵션(파생) 시세 DATA -- :class:`DerivativesQuote`.
+"""선물/옵션(파생) 시세 DATA -- :class:`DerivativesQuote` / :class:`UnderlyingQuote`.
 
 :class:`~kis_openapi.derivative.Derivative` 핸들(``kis.futures(code)`` / ``kis.option(code)``)이
 돌려주는 한 계약의 현재가 스냅샷이다. 종목의 :class:`~kis_openapi.quote.Quote` 와 달리 파생 고유의
 미결제약정(open interest)·베이시스·이론가·괴리율을 담는다. 옵션 그릭스(delta/gamma/theta/vega/rho)와
-변동성·잔존일수는 ``_raw`` 로 접근한다(선물엔 없거나 무의미하므로).
+변동성·잔존일수는 ``_raw`` 로 접근한다(선물엔 없거나 무의미하므로). :class:`UnderlyingQuote` 는
+선물과 그 기초자산(지수)을 나란히 보여주는 스냅샷이다(베이시스 판단용).
 """
 
 from __future__ import annotations
@@ -39,6 +40,33 @@ class DerivativesQuote:
     theoretical_price: Decimal | None  # 이론가
     basis: Decimal | None             # 베이시스(선물-기초자산)
     premium: Decimal | None           # 괴리율(%)
+    as_of: datetime                   # KST-aware
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class UnderlyingQuote:
+    """선물과 그 기초자산(지수)을 나란히 담는 스냅샷(불변).
+
+    ``underlying_*`` 은 기초자산(예: KOSPI200 지수), ``futures_*`` 은 선물 계약의 현재가·전일대비다
+    (각각 자기 부호 필드로 복원, 하락이면 음수). 선물가-기초자산가 = 베이시스 판단의 기본 재료다.
+    :meth:`~kis_openapi.derivative.Derivative.underlying_quote` 가 돌려준다. ``as_of`` 는 조회 시각.
+    """
+
+    symbol: str                       # 선물 계약코드
+    name: str                         # HTS 종목명(hts_kor_isnm)
+    underlying_price: Decimal         # 기초자산 현재가(unas_prpr)
+    underlying_change: Decimal        # 기초자산 전일대비(부호 포함)
+    underlying_change_percent: Decimal  # 기초자산 전일대비율(부호 포함)
+    underlying_volume: int            # 기초자산 누적 거래량(unas_acml_vol)
+    futures_price: Decimal            # 선물 현재가(futs_prpr)
+    futures_change: Decimal           # 선물 전일대비(부호 포함)
+    futures_change_percent: Decimal   # 선물 전일대비율(부호 포함)
     as_of: datetime                   # KST-aware
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

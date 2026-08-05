@@ -28,7 +28,7 @@ from .bond_items import BondInfo, BondQuote
 from .broker import BrokerActivity, BrokerActivitySummary
 from .client import KISClient
 from .derivative import Derivative
-from .derivative_items import DerivativesQuote
+from .derivative_items import DerivativesQuote, UnderlyingQuote
 from .elw import ELW
 from .elw_items import (
     ELWIndicatorPoint,
@@ -191,5 +191,6 @@ __all__ = [
     "Trade",
     "TradeAmountBand",
     "TradingDay",
+    "UnderlyingQuote",
     "VIEvent",
 ]

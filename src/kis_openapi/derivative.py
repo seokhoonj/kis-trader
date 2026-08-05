@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._domestic import derivatives as derivatives_api
-from .derivative_items import DerivativesQuote
+from .derivative_items import DerivativesQuote, UnderlyingQuote
 
 if TYPE_CHECKING:
     from datetime import date
@@ -47,6 +47,12 @@ class Derivative:
     def order_book(self) -> OrderBook:
         """계약 호가창(5단계 매수/매도 심도)."""
         return derivatives_api.fetch_order_book(
+            self._client.transport, code=self.code, market=self.market
+        )
+
+    def underlying_quote(self) -> UnderlyingQuote:
+        """선물과 그 기초자산(지수)을 나란히 담는 스냅샷(베이시스 판단용). 선물 최근월물 계약에서 쓴다."""
+        return derivatives_api.fetch_underlying_quote(
             self._client.transport, code=self.code, market=self.market
         )
 

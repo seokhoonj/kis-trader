@@ -21,7 +21,7 @@ from typing import Any
 
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
 from ..bar import Bar, Interval
-from ..derivative_items import DerivativesQuote
+from ..derivative_items import DerivativesQuote, UnderlyingQuote
 from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook
 from ..transport import Transport
@@ -118,6 +118,53 @@ def fetch_order_book(transport: Transport, *, code: str, market: str) -> OrderBo
         total_ask_quantity=optional_int(output2.get("total_askp_rsqn"), "total_askp_rsqn") or 0,
         as_of=datetime.now(_KST),
         _raw=output2,
+    )
+
+
+_UNDERLYING_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-top"
+_UNDERLYING_TR = "FHPIF05030000"
+
+
+def fetch_underlying_quote(transport: Transport, *, code: str, market: str) -> UnderlyingQuote:
+    """선물 계약과 그 기초자산(지수)을 나란히 담는 스냅샷. ``code`` 는 선물 최근월물, ``market`` 은 F.
+    기초자산/선물 전일대비는 서로 다른 부호 필드(unas_prdy_vrss_sign / prdy_vrss_sign)로 복원한다."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": market,
+        "FID_INPUT_ISCD": code,
+        "FID_COND_MRKT_DIV_CODE1": "",
+        "FID_COND_SCR_DIV_CODE": "",
+        "FID_MTRT_CNT": "",
+        "FID_COND_MRKT_CLS_CODE": "",
+    }
+    resp = transport.request(
+        method="GET", path=_UNDERLYING_PATH, tr_id=_UNDERLYING_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    output1 = resp.body.get("output1")
+    if not isinstance(output1, Mapping):
+        raise _missing_block_error("output1", resp)
+    unas_sign = str(output1.get("unas_prdy_vrss_sign", "")).strip()
+    futs_sign = str(output1.get("prdy_vrss_sign", "")).strip()
+    return UnderlyingQuote(
+        symbol=code,
+        name=str(output1.get("hts_kor_isnm", "")).strip(),
+        underlying_price=required_decimal(output1.get("unas_prpr"), "unas_prpr"),
+        underlying_change=_apply_change_sign(
+            required_decimal(output1.get("unas_prdy_vrss"), "unas_prdy_vrss"), unas_sign
+        ),
+        underlying_change_percent=_apply_change_sign(
+            required_decimal(output1.get("unas_prdy_ctrt"), "unas_prdy_ctrt"), unas_sign
+        ),
+        underlying_volume=required_int(output1.get("unas_acml_vol"), "unas_acml_vol"),
+        futures_price=required_decimal(output1.get("futs_prpr"), "futs_prpr"),
+        futures_change=_apply_change_sign(
+            required_decimal(output1.get("futs_prdy_vrss"), "futs_prdy_vrss"), futs_sign
+        ),
+        futures_change_percent=_apply_change_sign(
+            required_decimal(output1.get("futs_prdy_ctrt"), "futs_prdy_ctrt"), futs_sign
+        ),
+        as_of=datetime.now(_KST),
+        _raw=output1,
     )
 
 

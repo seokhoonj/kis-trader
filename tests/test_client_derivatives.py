@@ -253,3 +253,36 @@ def test_futures_minute_bars_missing_output2_fails_closed():
     from kis_openapi.errors import KISError
     with pytest.raises(KISError):
         _client(Bad()).futures("101W09").bars("1m")
+
+
+def test_underlying_quote_maps_two_sign_fields():
+    # 원장 응답 예시값(F 202406). 기초자산·선물이 서로 다른 부호 필드로 복원돼야 한다(둘 다 sign=5 하락).
+    output1 = {"unas_prpr": "367.25", "unas_prdy_vrss": "3.47", "unas_prdy_vrss_sign": "5",
+               "unas_prdy_ctrt": "0.94", "unas_acml_vol": "161725000", "hts_kor_isnm": "F 202406",
+               "futs_prpr": "369.35", "futs_prdy_vrss": "3.45", "prdy_vrss_sign": "5",
+               "futs_prdy_ctrt": "0.93"}
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": output1, "output2": []})
+    fake = FakeTransport(response=resp)
+    from kis_openapi import UnderlyingQuote
+    uq = _client(fake).futures("101V06").underlying_quote()
+    assert isinstance(uq, UnderlyingQuote)
+    assert uq.name == "F 202406"
+    assert uq.underlying_price == Decimal("367.25")
+    assert uq.underlying_change == Decimal("-3.47")      # unas_prdy_vrss_sign=5 -> 음수
+    assert uq.underlying_change_percent == Decimal("-0.94")
+    assert uq.underlying_volume == 161725000
+    assert uq.futures_price == Decimal("369.35")
+    assert uq.futures_change == Decimal("-3.45")         # prdy_vrss_sign=5 -> 음수
+    assert uq.futures_change_percent == Decimal("-0.93")
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-futureoption/v1/quotations/display-board-top"
+    assert call["tr_id"] == "FHPIF05030000"
+    assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "F"
+
+
+def test_underlying_quote_missing_output1_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    from kis_openapi.errors import KISError
+    with pytest.raises(KISError):
+        _client(fake).futures("101V06").underlying_quote()
