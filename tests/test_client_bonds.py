@@ -11,11 +11,13 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import BondQuote, KisClient
+from kis_openapi import BondQuote, KisClient, OrderBook, Trade
 from kis_openapi.errors import KisError
 from kis_openapi.transport import RawResponse
 
 _PRICE = "/uapi/domestic-bond/v1/quotations/inquire-price"
+_ASKING = "/uapi/domestic-bond/v1/quotations/inquire-asking-price"
+_CCNL = "/uapi/domestic-bond/v1/quotations/inquire-ccnl"
 
 
 def _output(*, prpr="10250.0", oprc="10240.0", hgpr="10260.0", lwpr="10235.0",
@@ -92,3 +94,91 @@ def test_bond_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(_output(prpr="n/a")))
     with pytest.raises(KisError):
         _client(fake).bond("KR2033022D33").quote()
+
+
+# --- order_book ------------------------------------------------------------
+def _book(**over):
+    out = {
+        "bond_bidp1": "10230.0", "bond_bidp2": "10225.0", "bond_bidp3": "10220.0",
+        "bond_bidp4": "0", "bond_bidp5": "0",
+        "bidp_rsqn1": "100", "bidp_rsqn2": "200", "bidp_rsqn3": "300",
+        "bidp_rsqn4": "0", "bidp_rsqn5": "0",
+        "bond_askp1": "10250.0", "bond_askp2": "10255.0", "bond_askp3": "0",
+        "bond_askp4": "0", "bond_askp5": "0",
+        "askp_rsqn1": "150", "askp_rsqn2": "250", "askp_rsqn3": "0",
+        "askp_rsqn4": "0", "askp_rsqn5": "0",
+        "total_bidp_rsqn": "600", "total_askp_rsqn": "400",
+    }
+    out.update(over)
+    return out
+
+
+def test_bond_order_book_maps_levels_and_market():
+    fake = FakeTransport(response=_resp(_book()))
+    book = _client(fake).bond("KR2033022D33").order_book()
+    assert isinstance(book, OrderBook)
+    assert book.symbol == "KR2033022D33"
+    assert book.market == "B"
+    assert [(lvl.price, lvl.quantity) for lvl in book.bids] == [
+        (Decimal("10230.0"), 100), (Decimal("10225.0"), 200), (Decimal("10220.0"), 300),
+    ]                                                          # 0-가격 단계는 skip
+    assert [(lvl.price, lvl.quantity) for lvl in book.asks] == [
+        (Decimal("10250.0"), 150), (Decimal("10255.0"), 250),
+    ]
+    assert book.total_bid_quantity == 600
+    assert book.total_ask_quantity == 400
+    call = fake.calls[0]
+    assert call["path"] == _ASKING
+    assert call["tr_id"] == "FHKBJ773401C0"
+    assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "B"
+
+
+def test_bond_order_book_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KisError):
+        _client(fake).bond("KR2033022D33").order_book()
+
+
+# --- trades ----------------------------------------------------------------
+def _trade_rows():
+    return [
+        {"stck_cntg_hour": "101530", "bond_prpr": "10250.0", "cntg_vol": "50",
+         "bond_prdy_vrss": "20.0", "prdy_vrss_sign": "2", "prdy_ctrt": "0.20"},
+        {"stck_cntg_hour": "101500", "bond_prpr": "10245.0", "cntg_vol": "30",
+         "bond_prdy_vrss": "15.0", "prdy_vrss_sign": "5", "prdy_ctrt": "0.15"},
+        {"stck_cntg_hour": "", "bond_prpr": ""},                 # 빈 행은 건너뜀
+    ]
+
+
+def test_bond_trades_maps_rows_and_market():
+    fake = FakeTransport(response=_resp(_trade_rows()))
+    trades = _client(fake).bond("KR2033022D33").trades()
+    assert all(isinstance(t, Trade) for t in trades)
+    assert len(trades) == 2                                    # 빈 행 제외
+    first, second = trades
+    assert first.symbol == "KR2033022D33"
+    assert first.price == Decimal("10250.0")
+    assert first.quantity == 50
+    assert first.change == Decimal("20.0")
+    assert first.change_percent == Decimal("0.20")
+    assert first.timestamp.hour == 10 and first.timestamp.minute == 15
+    assert second.change == Decimal("-15.0")                   # 하락 부호 복원
+    assert second.change_percent == Decimal("-0.15")
+    call = fake.calls[0]
+    assert call["path"] == _CCNL
+    assert call["tr_id"] == "FHKBJ773403C0"
+    assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "B"
+
+
+def test_bond_trades_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KisError):
+        _client(fake).bond("KR2033022D33").trades()
+
+
+def test_bond_trades_bad_value_fails_closed():
+    rows = [{"stck_cntg_hour": "101530", "bond_prpr": "10250.0", "cntg_vol": "n/a",
+             "bond_prdy_vrss": "20.0", "prdy_vrss_sign": "2", "prdy_ctrt": "0.20"}]
+    fake = FakeTransport(response=_resp(rows))
+    with pytest.raises(KisError):
+        _client(fake).bond("KR2033022D33").trades()

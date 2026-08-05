@@ -15,6 +15,8 @@ from .bond_items import BondQuote
 
 if TYPE_CHECKING:
     from .client import KisClient
+    from .order_book import OrderBook
+    from .trade import Trade
 
 
 class Bond:
@@ -32,3 +34,11 @@ class Bond:
     def quote(self) -> BondQuote:
         """채권 현재가 스냅샷(가격·시고저·전일대비·수익률)."""
         return bonds_api.fetch_quote(self._client.transport, code=self.code)
+
+    def order_book(self) -> OrderBook:
+        """채권 호가창(5단계 매수/매도 심도)."""
+        return bonds_api.fetch_order_book(self._client.transport, code=self.code)
+
+    def trades(self) -> list[Trade]:
+        """채권의 최근 체결 목록(최신순)."""
+        return bonds_api.fetch_trades(self._client.transport, code=self.code)
