@@ -30,6 +30,8 @@ from .financials import (
     GrowthRatio,
     IncomeStatement,
     OtherRatio,
+    ProfitabilityRatio,
+    StabilityRatio,
 )
 from .instrument import DomesticBoard, resolve_market
 from .investor import InvestorEstimate, InvestorFlow
@@ -196,6 +198,22 @@ class Ticker:
         면 분기, 아니면 연간."""
         self._domestic_market()        # 국내 전용
         return finance_api.fetch_financial_ratios(
+            self._client.transport, symbol=self.symbol, quarterly=quarterly
+        )
+
+    def profitability_ratios(self, *, quarterly: bool = False) -> list[ProfitabilityRatio]:
+        """결산기별 수익성비율(ROA·ROE·순이익률·총이익률; 최근->과거). ``quarterly=True`` 면 분기,
+        아니면 연간."""
+        self._domestic_market()        # 국내 전용
+        return finance_api.fetch_profitability_ratios(
+            self._client.transport, symbol=self.symbol, quarterly=quarterly
+        )
+
+    def stability_ratios(self, *, quarterly: bool = False) -> list[StabilityRatio]:
+        """결산기별 안정성비율(부채비율·차입금의존도·유동비율·당좌비율; 최근->과거). ``quarterly=True``
+        면 분기, 아니면 연간."""
+        self._domestic_market()        # 국내 전용
+        return finance_api.fetch_stability_ratios(
             self._client.transport, symbol=self.symbol, quarterly=quarterly
         )
 

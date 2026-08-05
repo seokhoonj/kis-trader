@@ -22,6 +22,8 @@ from ..financials import (
     GrowthRatio,
     IncomeStatement,
     OtherRatio,
+    ProfitabilityRatio,
+    StabilityRatio,
 )
 from ..transport import Transport
 from .market_data import _missing_block_error, _raise_if_error
@@ -29,6 +31,8 @@ from .market_data import _missing_block_error, _raise_if_error
 _BALANCE_SHEET = ("/uapi/domestic-stock/v1/finance/balance-sheet", "FHKST66430100")
 _INCOME_STATEMENT = ("/uapi/domestic-stock/v1/finance/income-statement", "FHKST66430200")
 _FINANCIAL_RATIO = ("/uapi/domestic-stock/v1/finance/financial-ratio", "FHKST66430300")
+_PROFIT_RATIO = ("/uapi/domestic-stock/v1/finance/profit-ratio", "FHKST66430400")
+_STABILITY_RATIO = ("/uapi/domestic-stock/v1/finance/stability-ratio", "FHKST66430600")
 _GROWTH_RATIO = ("/uapi/domestic-stock/v1/finance/growth-ratio", "FHKST66430800")
 _OTHER_RATIO = ("/uapi/domestic-stock/v1/finance/other-major-ratios", "FHKST66430500")
 
@@ -131,6 +135,57 @@ def fetch_financial_ratios(
                 bps=optional_decimal(row.get("bps"), "bps"),
                 reserve_ratio=optional_decimal(row.get("rsrv_rate"), "rsrv_rate"),
                 debt_ratio=optional_decimal(row.get("lblt_rate"), "lblt_rate"),
+                _raw=row,
+            )
+        )
+    return ratios
+
+
+def fetch_profitability_ratios(
+    transport: Transport, *, symbol: str, quarterly: bool = False
+) -> list[ProfitabilityRatio]:
+    """결산기별 수익성비율(최근->과거). ``quarterly`` 면 분기, 아니면 연간."""
+    path, tr = _PROFIT_RATIO
+    rows = _fetch_finance(transport, path=path, tr=tr, symbol=symbol, quarterly=quarterly)
+    ratios: list[ProfitabilityRatio] = []
+    for row in rows:
+        period = str(row.get("stac_yymm", "")).strip()
+        if not period:
+            continue
+        ratios.append(
+            ProfitabilityRatio(
+                symbol=symbol,
+                period=period,
+                return_on_assets=optional_decimal(row.get("cptl_ntin_rate"), "cptl_ntin_rate"),
+                return_on_equity=optional_decimal(row.get("self_cptl_ntin_inrt"),
+                                                  "self_cptl_ntin_inrt"),
+                net_margin=optional_decimal(row.get("sale_ntin_rate"), "sale_ntin_rate"),
+                gross_margin=optional_decimal(row.get("sale_totl_rate"), "sale_totl_rate"),
+                _raw=row,
+            )
+        )
+    return ratios
+
+
+def fetch_stability_ratios(
+    transport: Transport, *, symbol: str, quarterly: bool = False
+) -> list[StabilityRatio]:
+    """결산기별 안정성비율(최근->과거). ``quarterly`` 면 분기, 아니면 연간."""
+    path, tr = _STABILITY_RATIO
+    rows = _fetch_finance(transport, path=path, tr=tr, symbol=symbol, quarterly=quarterly)
+    ratios: list[StabilityRatio] = []
+    for row in rows:
+        period = str(row.get("stac_yymm", "")).strip()
+        if not period:
+            continue
+        ratios.append(
+            StabilityRatio(
+                symbol=symbol,
+                period=period,
+                debt_ratio=optional_decimal(row.get("lblt_rate"), "lblt_rate"),
+                borrowing_dependency=optional_decimal(row.get("bram_depn"), "bram_depn"),
+                current_ratio=optional_decimal(row.get("crnt_rate"), "crnt_rate"),
+                quick_ratio=optional_decimal(row.get("quck_rate"), "quck_rate"),
                 _raw=row,
             )
         )

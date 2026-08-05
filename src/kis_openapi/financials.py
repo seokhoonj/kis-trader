@@ -111,6 +111,50 @@ class OtherRatio:
 
 
 @dataclass(frozen=True, slots=True)
+class ProfitabilityRatio:
+    """한 결산기의 수익성비율(불변, 단위 %).
+
+    총자본순이익률(``return_on_assets``)·자기자본순이익률(``return_on_equity``, ROE)·매출액순이익률
+    (``net_margin``)·매출액총이익률(``gross_margin``)을 담는다. 특정 기에 결측이면 ``None``.
+    """
+
+    symbol: str
+    period: str                       # 결산년월(stac_yymm, "YYYYMM")
+    return_on_assets: Decimal | None  # 총자본순이익률(cptl_ntin_rate)
+    return_on_equity: Decimal | None  # 자기자본순이익률(self_cptl_ntin_inrt, ROE)
+    net_margin: Decimal | None        # 매출액순이익률(sale_ntin_rate)
+    gross_margin: Decimal | None      # 매출액총이익률(sale_totl_rate)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class StabilityRatio:
+    """한 결산기의 안정성비율(불변, 단위 %).
+
+    부채비율(``debt_ratio``)·차입금의존도(``borrowing_dependency``)·유동비율(``current_ratio``)·
+    당좌비율(``quick_ratio``)을 담는다. 특정 기에 결측이면 ``None``.
+    """
+
+    symbol: str
+    period: str                       # 결산년월(stac_yymm, "YYYYMM")
+    debt_ratio: Decimal | None        # 부채비율(lblt_rate)
+    borrowing_dependency: Decimal | None  # 차입금의존도(bram_depn)
+    current_ratio: Decimal | None     # 유동비율(crnt_rate)
+    quick_ratio: Decimal | None       # 당좌비율(quck_rate)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class IncomeStatement:
     """한 결산기의 손익계산서 요약(불변)."""
 

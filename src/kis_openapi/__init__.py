@@ -41,6 +41,8 @@ from .financials import (
     GrowthRatio,
     IncomeStatement,
     OtherRatio,
+    ProfitabilityRatio,
+    StabilityRatio,
 )
 from .index import Index
 from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
@@ -157,6 +159,7 @@ __all__ = [
     "Portfolio",
     "Position",
     "PriceLevel",
+    "ProfitabilityRatio",
     "ProgramFlowPoint",
     "ProgramTradePoint",
     "ProgramTradeSummary",
@@ -169,6 +172,7 @@ __all__ = [
     "SellableQuantity",
     "ShortSalePoint",
     "ShortSaleRanking",
+    "StabilityRatio",
     "StockInfo",
     "Ticker",
     "TopViewedStock",

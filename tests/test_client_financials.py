@@ -18,6 +18,8 @@ from kis_openapi import (
     IncomeStatement,
     KISClient,
     OtherRatio,
+    ProfitabilityRatio,
+    StabilityRatio,
 )
 from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
@@ -148,6 +150,37 @@ def test_income_statement_optional_line_items_none_for_financial_issuer():
     assert stmt.revenue == Decimal(5000)                 # 합계는 required
     assert stmt.operating_income == Decimal(1200)
     assert stmt.net_income == Decimal(900)
+
+
+def test_profitability_ratios_maps():
+    # 원장 응답 예시값(삼성전자 202312).
+    rows = [{"stac_yymm": "202312", "cptl_ntin_rate": "3.43", "self_cptl_ntin_inrt": "4.14",
+             "sale_ntin_rate": "5.98", "sale_totl_rate": "30.33"}]
+    fake = FakeTransport(response=_resp(rows))
+    ratio = _client(fake).ticker("005930").profitability_ratios()[0]
+    assert isinstance(ratio, ProfitabilityRatio)
+    assert ratio.return_on_assets == Decimal("3.43")
+    assert ratio.return_on_equity == Decimal("4.14")
+    assert ratio.net_margin == Decimal("5.98")
+    assert ratio.gross_margin == Decimal("30.33")
+    assert fake.calls[0]["path"] == "/uapi/domestic-stock/v1/finance/profit-ratio"
+    assert fake.calls[0]["tr_id"] == "FHKST66430400"
+
+
+def test_stability_ratios_maps():
+    # 원장 응답 예시값(삼성전자 202312).
+    rows = [{"stac_yymm": "202312", "lblt_rate": "25.36", "bram_depn": "2.78",
+             "crnt_rate": "258.77", "quck_rate": "190.59"}]
+    fake = FakeTransport(response=_resp(rows))
+    ratio = _client(fake).ticker("005930").stability_ratios(quarterly=True)[0]
+    assert isinstance(ratio, StabilityRatio)
+    assert ratio.debt_ratio == Decimal("25.36")
+    assert ratio.borrowing_dependency == Decimal("2.78")
+    assert ratio.current_ratio == Decimal("258.77")
+    assert ratio.quick_ratio == Decimal("190.59")
+    assert fake.calls[0]["path"] == "/uapi/domestic-stock/v1/finance/stability-ratio"
+    assert fake.calls[0]["tr_id"] == "FHKST66430600"
+    assert fake.calls[0]["params"]["FID_DIV_CLS_CODE"] == "1"
 
 
 def test_growth_ratios_maps():
