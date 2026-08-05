@@ -740,3 +740,42 @@ def fetch_expiring(
         transport, path="/uapi/elw/v1/quotations/expiration-stocks",
         tr="FHKEW154700C0", params=params,
     )
+
+
+# 종목검색은 필터 파라미터가 60여 개(그릭스/IV/레버리지/프리미엄 범위 등)라 대부분 공백으로 보낸다
+# (원장 요청 예시의 기본값 그대로). 사용자에겐 기초자산/발행사만 노출하고 나머지는 무필터(공백).
+_SEARCH_EMPTY_KEYS = (
+    "FID_RANK_SORT_CLS_CODE_2", "FID_INPUT_CNT_2", "FID_RANK_SORT_CLS_CODE_3",
+    "FID_INPUT_CNT_3", "FID_TRGT_CLS_CODE", "FID_MRKT_CLS_CODE", "FID_INPUT_DATE_1",
+    "FID_INPUT_DATE_2", "FID_INPUT_ISCD_2", "FID_ETC_CLS_CODE", "FID_INPUT_RMNN_DYNU_1",
+    "FID_INPUT_RMNN_DYNU_2", "FID_PRPR_CNT1", "FID_PRPR_CNT2", "FID_RSFL_RATE1",
+    "FID_RSFL_RATE2", "FID_VOL1", "FID_VOL2", "FID_APLY_RANG_PRC_1", "FID_APLY_RANG_PRC_2",
+    "FID_LVRG_VAL1", "FID_LVRG_VAL2", "FID_VOL3", "FID_VOL4", "FID_INTS_VLTL1",
+    "FID_INTS_VLTL2", "FID_PRMM_VAL1", "FID_PRMM_VAL2", "FID_GEAR1", "FID_GEAR2",
+    "FID_PRLS_QRYR_RATE1", "FID_PRLS_QRYR_RATE2", "FID_DELTA1", "FID_DELTA2", "FID_ACPR1",
+    "FID_ACPR2", "FID_STCK_CNVR_RATE1", "FID_STCK_CNVR_RATE2", "FID_DIV_CLS_CODE",
+    "FID_PRIT1", "FID_PRIT2", "FID_CFP1", "FID_CFP2", "FID_INPUT_NMIX_PRICE_1",
+    "FID_INPUT_NMIX_PRICE_2", "FID_EGEA_VAL1", "FID_EGEA_VAL2", "FID_INPUT_DVDN_ERT",
+    "FID_INPUT_HIST_VLTL", "FID_THETA1", "FID_THETA2",
+)
+
+
+def fetch_search(
+    transport: Transport, *, underlying: str = "", issuer: str = ""
+) -> list[ELWListing]:
+    """조건검색으로 ELW 목록(그릭스·지표 포함 풍부한 행). ``underlying``/``issuer`` 로 좁힐 수 있고
+    (공백=전체), 세부 수치 필터(그릭스/IV/레버리지 범위 등)는 무필터로 보낸다. 반환 행의 그릭스·
+    지표·LP 보유 등은 ``_raw`` 에 있다."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _MARKET_DIV,
+        "FID_COND_SCR_DIV_CODE": "11510",
+        "FID_RANK_SORT_CLS_CODE": "0",
+        "FID_INPUT_CNT_1": "1",
+        "FID_INPUT_ISCD": issuer,
+        "FID_UNAS_INPUT_ISCD": underlying,
+        **{key: "" for key in _SEARCH_EMPTY_KEYS},
+    }
+    return _fetch_listings(
+        transport, path="/uapi/elw/v1/quotations/cond-search",
+        tr="FHKEW15100000", params=params,
+    )

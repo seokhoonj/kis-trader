@@ -68,3 +68,10 @@ class ELWScreenerQueries:
             self._client.transport, start=start, end=end, right=right,
             underlying=underlying, issuer=issuer,
         )
+
+    def search(self, *, underlying: str = "", issuer: str = "") -> list[ELWListing]:
+        """조건검색으로 ELW 목록(그릭스·지표 포함). ``underlying``/``issuer`` 로 좁힐 수 있고(공백=
+        전체), 세부 수치 필터는 무필터. 그릭스·지표·LP 보유 등 풍부한 필드는 각 행의 ``_raw`` 에 있다."""
+        return elw_api.fetch_search(
+            self._client.transport, underlying=underlying, issuer=issuer
+        )
