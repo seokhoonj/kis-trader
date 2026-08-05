@@ -174,6 +174,56 @@ class ELWLPFlow:
 
 
 @dataclass(frozen=True, slots=True)
+class ELWUnderlying:
+    """ELW 가 상장돼 있는 기초자산 한 종목(불변).
+
+    :meth:`~kis_openapi.elw_screener.ELWScreenerQueries.underlyings` 가 돌려주는, ELW 발행의 바탕이
+    되는 기초자산(개별주식/지수) 목록의 낱개 행이다. ``symbol`` 은 기초자산 코드(지수면 2001 등,
+    주식이면 6자리), ``price`` 는 기초자산 현재가.
+    """
+
+    symbol: str                       # 기초자산 코드(unas_shrn_iscd)
+    name: str                         # 기초자산명(unas_isnm)
+    price: Decimal                    # 기초자산 현재가
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ELWListing:
+    """스크리닝/목록 조회에 잡힌 ELW 한 종목(불변).
+
+    기초자산별 시세·신규상장·만기예정·조건검색·비교종목 등 여러 목록 조회가 공유하는 행이다. 조회
+    종류마다 벤더가 주는 필드가 달라(신규상장/비교종목은 시세 없음, 기초자산별/조건검색은 시세 있음)
+    ``symbol``/``name`` 외에는 모두 optional 이며, 부가 필드(전환비율·잔존일수·LP 보유 등)는 ``_raw``
+    에 둔다. ``strike`` 는 행사가, ``listing_date`` / ``last_trade_date`` 는 상장일/최종거래일.
+    """
+
+    symbol: str                       # ELW 코드(elw_shrn_iscd / bond_shrn_iscd)
+    name: str                         # ELW 명(elw_kor_isnm / hts_kor_isnm)
+    underlying_name: str | None       # 기초자산명(unas_isnm)
+    price: Decimal | None             # ELW 현재가(elw_prpr)
+    change: Decimal | None            # 전일대비(부호 포함)
+    change_percent: Decimal | None    # 전일대비율(부호 포함)
+    volume: int | None                # 누적 거래량(acml_vol)
+    strike: Decimal | None            # 행사가(acpr)
+    listing_date: datetime | None     # 상장일(KST-aware)
+    last_trade_date: datetime | None  # 최종거래일(KST-aware)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class RankedELW:
     """시장 전체 ELW 순위의 한 행(불변).
 

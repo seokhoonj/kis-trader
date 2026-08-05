@@ -20,12 +20,14 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal, NamedTuple
 
-from .._wire import optional_decimal, required_decimal, required_int
+from .._wire import optional_decimal, optional_int, required_decimal, required_int
 from ..elw_items import (
     ELWIndicatorPoint,
+    ELWListing,
     ELWLPFlow,
     ELWQuote,
     ELWSensitivityPoint,
+    ELWUnderlying,
     ELWVolatilityPoint,
     RankedELW,
 )
@@ -558,4 +560,183 @@ def fetch_ranking_quick_change(
     })
     return _fetch_ranking(
         transport, path="/uapi/elw/v1/ranking/quick-change", tr="FHPEW02870000", params=params
+    )
+
+
+# --- ELW 스크리닝/기초자산 조회 ---------------------------------------------
+# 기초자산 목록/별시세, 신규상장, 만기예정, 비교종목. 콜풋 코드가 엔드포인트마다 다르다(순위 0/1/2,
+# 신규상장 02/00/01, 만기 2/0/1)는 점에 주의. 목록 행은 공통 축(코드/이름/기초자산/시세/행사가/일자)만
+# 매핑하고 부가 필드는 _raw 에 둔다(조회마다 필드가 달라 대부분 optional).
+
+
+def fetch_underlyings(
+    transport: Transport, *, sort: str = "name", issuer: str = "00000"
+) -> list[ELWUnderlying]:
+    """ELW 가 상장된 기초자산 목록. ``sort`` 는 name/call_count/put_count/gainers/losers/price,
+    ``issuer`` 는 발행사 코드(전체 ``"00000"``)."""
+    sort_code = _code_of(
+        sort,
+        {"name": "0", "call_count": "1", "put_count": "2", "gainers": "3",
+         "losers": "4", "price": "5"},
+        "sort",
+    )
+    params = {
+        "FID_COND_SCR_DIV_CODE": "11541",
+        "FID_RANK_SORT_CLS_CODE": sort_code,
+        "FID_INPUT_ISCD": issuer,
+    }
+    resp = transport.request(
+        method="GET", path="/uapi/elw/v1/quotations/udrl-asset-list",
+        tr_id="FHKEW154100C0", params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    underlyings: list[ELWUnderlying] = []
+    for row in rows:
+        code = str(row.get("unas_shrn_iscd", "")).strip()
+        if not code:
+            continue
+        sign = str(row.get("unas_prdy_vrss_sign", "")).strip()
+        underlyings.append(
+            ELWUnderlying(
+                symbol=code,
+                name=str(row.get("unas_isnm", "")).strip(),
+                price=required_decimal(row.get("unas_prpr"), "unas_prpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("unas_prdy_vrss"), "unas_prdy_vrss"), sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("unas_prdy_ctrt"), "unas_prdy_ctrt"), sign
+                ),
+                _raw=row,
+            )
+        )
+    return underlyings
+
+
+def _optional_date(value: object) -> datetime | None:
+    text = str(value or "").strip()
+    return _parse_bar_timestamp(text) if text else None
+
+
+def _parse_listing_row(row: Mapping[str, Any]) -> ELWListing | None:
+    """목록 조회 한 행을 :class:`ELWListing` 으로. 코드가 없으면 ``None``(빈 행). 조회마다 코드/이름
+    키가 달라(elw_shrn_iscd/bond_shrn_iscd, elw_kor_isnm/hts_kor_isnm) 폴백으로 찾는다."""
+    code = str(row.get("elw_shrn_iscd") or row.get("bond_shrn_iscd") or "").strip()
+    if not code:
+        return None
+    change = change_percent = None
+    if str(row.get("prdy_vrss", "")).strip():
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        vrss = required_decimal(row.get("prdy_vrss"), "prdy_vrss")
+        ctrt = required_decimal(row.get("prdy_ctrt"), "prdy_ctrt")
+        # 부호 필드가 있으면 그것으로 방향을 정하고, 없으면 값 자체의 부호를 쓴다.
+        change = _apply_change_sign(vrss, sign) if sign else vrss
+        change_percent = _apply_change_sign(ctrt, sign) if sign else ctrt
+    return ELWListing(
+        symbol=code,
+        name=str(row.get("elw_kor_isnm") or row.get("hts_kor_isnm") or "").strip(),
+        underlying_name=str(row.get("unas_isnm", "")).strip() or None,
+        price=optional_decimal(row.get("elw_prpr"), "elw_prpr"),
+        change=change,
+        change_percent=change_percent,
+        volume=optional_int(row.get("acml_vol"), "acml_vol"),
+        strike=optional_decimal(row.get("acpr"), "acpr"),
+        listing_date=_optional_date(row.get("stck_lstn_date")),
+        last_trade_date=_optional_date(row.get("stck_last_tr_date")),
+        _raw=row,
+    )
+
+
+def _fetch_listings(
+    transport: Transport, *, path: str, tr: str, params: Mapping[str, str]
+) -> list[ELWListing]:
+    resp = transport.request(
+        method="GET", path=path, tr_id=tr, params=dict(params), idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    return [listing for row in rows if (listing := _parse_listing_row(row)) is not None]
+
+
+def fetch_by_underlying(
+    transport: Transport, *, underlying: str, issuer: str = "00000",
+) -> list[ELWListing]:
+    """한 기초자산에 상장된 ELW 목록(시세 포함). ``underlying`` 은 기초자산 코드(예: 삼성전자 005930,
+    KOSPI200 2001), ``issuer`` 는 발행사 코드."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _MARKET_DIV,
+        "FID_COND_SCR_DIV_CODE": "11541",
+        "FID_MRKT_CLS_CODE": "A",
+        "FID_INPUT_ISCD": issuer,
+        "FID_UNAS_INPUT_ISCD": underlying,
+        "FID_VOL_CNT": "", "FID_TRGT_EXLS_CLS_CODE": "0",
+        "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
+        "FID_INPUT_VOL_1": "", "FID_INPUT_VOL_2": "",
+        "FID_INPUT_RMNN_DYNU_1": "", "FID_INPUT_RMNN_DYNU_2": "",
+        "FID_OPTION": "", "FID_INPUT_OPTION_1": "", "FID_INPUT_OPTION_2": "",
+    }
+    return _fetch_listings(
+        transport, path="/uapi/elw/v1/quotations/udrl-asset-price",
+        tr="FHKEW154101C0", params=params,
+    )
+
+
+def fetch_comparables(transport: Transport, *, underlying: str) -> list[ELWListing]:
+    """한 기초자산의 비교대상 ELW 목록(코드/이름만). ``underlying`` 은 기초자산 코드."""
+    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": underlying}
+    return _fetch_listings(
+        transport, path="/uapi/elw/v1/quotations/compare-stocks",
+        tr="FHKEW151701C0", params=params,
+    )
+
+
+def fetch_newly_listed(
+    transport: Transport, *, date: str, right: str = "all",
+    underlying: str = "000000", issuer: str = "00003",
+) -> list[ELWListing]:
+    """신규상장 ELW 목록. ``date`` 는 기준일(YYYYMMDD), ``right`` 는 all/call/put(신규상장은 코드
+    02/00/01), ``underlying``/``issuer`` 는 기초자산/발행사 코드."""
+    right_code = _code_of(right, {"all": "02", "call": "00", "put": "01"}, "right")
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _MARKET_DIV,
+        "FID_COND_SCR_DIV_CODE": "11548",
+        "FID_DIV_CLS_CODE": right_code,
+        "FID_UNAS_INPUT_ISCD": underlying,
+        "FID_INPUT_ISCD_2": issuer,
+        "FID_INPUT_DATE_1": date,
+        "FID_BLNG_CLS_CODE": "0",
+    }
+    return _fetch_listings(
+        transport, path="/uapi/elw/v1/quotations/newly-listed",
+        tr="FHKEW154800C0", params=params,
+    )
+
+
+def fetch_expiring(
+    transport: Transport, *, start: str, end: str, right: str = "all",
+    underlying: str = "000000", issuer: str = "00000",
+) -> list[ELWListing]:
+    """만기예정 ELW 목록. ``[start, end]`` 는 만기일 구간(YYYYMMDD), ``right`` 는 all/call/put
+    (만기는 코드 2/0/1), ``underlying``/``issuer`` 는 기초자산/발행사 코드."""
+    right_code = _code_of(right, {"all": "2", "call": "0", "put": "1"}, "right")
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _MARKET_DIV,
+        "FID_COND_SCR_DIV_CODE": "11547",
+        "FID_INPUT_DATE_1": start,
+        "FID_INPUT_DATE_2": end,
+        "FID_DIV_CLS_CODE": right_code,
+        "FID_ETC_CLS_CODE": "",
+        "FID_UNAS_INPUT_ISCD": underlying,
+        "FID_INPUT_ISCD_2": issuer,
+        "FID_BLNG_CLS_CODE": "0",
+        "FID_INPUT_OPTION_1": "",
+    }
+    return _fetch_listings(
+        transport, path="/uapi/elw/v1/quotations/expiration-stocks",
+        tr="FHKEW154700C0", params=params,
     )
