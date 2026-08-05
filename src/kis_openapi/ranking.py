@@ -14,11 +14,14 @@ from typing import TYPE_CHECKING
 
 from ._domestic import ranking as ranking_api
 from .ranking_items import (
+    AfterHourBalanceRanking,
     CreditBalanceRanking,
     DividendRanking,
     NearHighLowRanking,
+    OvertimeRanking,
     RankedStock,
     ShortSaleRanking,
+    TopViewedStock,
 )
 
 if TYPE_CHECKING:
@@ -156,3 +159,35 @@ class RankingQueries:
         """신고/신저 근접 순위. ``side="high"`` 신고가 근접 / ``"low"`` 신저가 근접. 신 최고/최저가와
         근접 비율을 담은 :class:`~kis_openapi.ranking_items.NearHighLowRanking` 를 돌려준다(최대 30건)."""
         return ranking_api.fetch_near_high_low(self._client.transport, side=side, market="KRX")
+
+    def by_expected_conclusion(self, *, top: str = "up") -> list[RankedStock]:
+        """장 시작 전 예상체결 기준 상승/하락 상위. ``top="up"`` 상승 / ``"down"`` 하락. 예상체결가·
+        예상체결량을 담은 :class:`~kis_openapi.ranking_items.RankedStock` 로 돌려준다(최대 30건)."""
+        return ranking_api.fetch_expected_conclusion(self._client.transport, top=top, market="KRX")
+
+    def by_overtime_change(self, *, top: str = "up") -> list[OvertimeRanking]:
+        """시간외 단일가 등락률 순위. ``top="up"`` 상승 / ``"down"`` 하락
+        (:class:`~kis_openapi.ranking_items.OvertimeRanking`, 최대 30건)."""
+        return ranking_api.fetch_overtime_change(self._client.transport, top=top, market="KRX")
+
+    def by_overtime_volume(self) -> list[OvertimeRanking]:
+        """시간외 단일가 거래량 순위(:class:`~kis_openapi.ranking_items.OvertimeRanking`, 최대 30건)."""
+        return ranking_api.fetch_overtime_volume(self._client.transport, market="KRX")
+
+    def by_overtime_expected_change(self, *, top: str = "up") -> list[OvertimeRanking]:
+        """시간외 예상체결 등락률 순위. ``top="up"`` 상승 / ``"down"`` 하락. 시간외 예상체결가·예상
+        체결량을 담아 돌려준다(:class:`~kis_openapi.ranking_items.OvertimeRanking`, 최대 30건)."""
+        return ranking_api.fetch_overtime_expected_change(
+            self._client.transport, top=top, market="KRX"
+        )
+
+    def by_after_hour_balance(self, *, top: str = "ask") -> list[AfterHourBalanceRanking]:
+        """시간외 잔량 순위. ``top="ask"`` 매도잔량 상위 / ``"bid"`` 매수잔량 상위. 시간외 총 매도/
+        매수 잔량과 장전/장후 체결량을 담아 돌려준다
+        (:class:`~kis_openapi.ranking_items.AfterHourBalanceRanking`, 최대 30건)."""
+        return ranking_api.fetch_after_hour_balance(self._client.transport, top=top, market="KRX")
+
+    def most_viewed(self) -> list[TopViewedStock]:
+        """HTS 조회 상위 종목(관심 상위). 코드와 시장구분만 담은
+        :class:`~kis_openapi.ranking_items.TopViewedStock` 를 돌려준다."""
+        return ranking_api.fetch_most_viewed(self._client.transport)

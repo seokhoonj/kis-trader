@@ -54,11 +54,14 @@ from typing import Any
 from .._wire import required_decimal, required_int
 from ..errors import KISUsageError
 from ..ranking_items import (
+    AfterHourBalanceRanking,
     CreditBalanceRanking,
     DividendRanking,
     NearHighLowRanking,
+    OvertimeRanking,
     RankedStock,
     ShortSaleRanking,
+    TopViewedStock,
 )
 from ..transport import Transport
 from .market_data import (
@@ -694,3 +697,255 @@ def _lookup(table: Mapping[str, str], key: str, argname: str) -> str:
     except KeyError:
         valid = "/".join(f'"{k}"' for k in table)
         raise KISUsageError(f"{argname} 은 {valid} 중 하나여야 한다: {key!r}") from None
+
+
+# --- 예상체결/시간외 순위 (마무리 6종) --------------------------------------
+_EXP_UPDOWN_PATH = "/uapi/domestic-stock/v1/ranking/exp-trans-updown"
+_EXP_UPDOWN_TR = "FHPST01820000"
+#: 예상체결 상승/하락 정렬(FID_RANK_SORT_CLS_CODE).
+_EXP_UPDOWN_TOP = {"up": "0", "down": "1"}
+
+
+def fetch_expected_conclusion(
+    transport: Transport, *, top: str, market: str
+) -> list[RankedStock]:
+    """장 시작 전 예상체결 기준 상승/하락 상위. ``top="up"`` 상승 / ``"down"`` 하락. 예상체결가를
+    현재가로, 예상체결량(cntg_vol)을 거래량으로 담는다(:class:`RankedStock`, 순위는 응답 순서)."""
+    params = {
+        "FID_RANK_SORT_CLS_CODE": _lookup(_EXP_UPDOWN_TOP, top, "top"),
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_COND_SCR_DIV_CODE": "20182",
+        "FID_INPUT_ISCD": "0000",
+        "FID_DIV_CLS_CODE": "0",
+        "FID_APLY_RANG_PRC_1": "", "FID_VOL_CNT": "", "FID_PBMN": "",
+        "FID_BLNG_CLS_CODE": "0", "FID_MKOP_CLS_CODE": "0",
+    }
+    resp = transport.request(
+        method="GET", path=_EXP_UPDOWN_PATH, tr_id=_EXP_UPDOWN_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    ranked: list[RankedStock] = []
+    for row in rows:
+        symbol = str(row.get("stck_shrn_iscd", "")).strip()
+        if not symbol:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        ranked.append(
+            RankedStock(
+                rank=len(ranked) + 1,
+                symbol=symbol,
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("cntg_vol"), "cntg_vol"),   # 예상체결량
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+# 시간외 순위 3종: 블록/필드 키/파라미터가 조금씩 다르다(원장 요청예시 대조).
+#   등락률: SCR 20234, output2, ovtm_untp_prpr/prdy_vrss/vol, 코드 mksc_shrn_iscd, 정렬 FID_DIV_CLS_CODE
+#   거래량: SCR 20235, output2, 같은 필드, 코드 stck_shrn_iscd, 정렬 FID_RANK_SORT_CLS_CODE
+#   예상체결: SCR 11186, output(flat), ovtm_untp_antc_cnpr/cntg_vrss/cnqn, 코드 stck_shrn_iscd
+_OVERTIME_CHANGE = {  # 시간외등락률순위 정렬(FID_DIV_CLS_CODE)
+    "up": "2", "down": "3",
+}
+
+
+def _parse_overtime(
+    rows: Sequence[Mapping[str, Any]], *,
+    price_key: str, change_key: str, sign_key: str, ctrt_key: str, vol_key: str,
+) -> list[OvertimeRanking]:
+    ranked: list[OvertimeRanking] = []
+    for row in rows:
+        symbol = str(row.get("mksc_shrn_iscd") or row.get("stck_shrn_iscd") or "").strip()
+        if not symbol:
+            continue
+        sign = str(row.get(sign_key, "")).strip()
+        ranked.append(
+            OvertimeRanking(
+                rank=len(ranked) + 1,
+                symbol=symbol,
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                overtime_price=required_decimal(row.get(price_key), price_key),
+                overtime_change=_apply_change_sign(
+                    required_decimal(row.get(change_key), change_key), sign
+                ),
+                overtime_change_percent=_apply_change_sign(
+                    required_decimal(row.get(ctrt_key), ctrt_key), sign
+                ),
+                overtime_volume=required_int(row.get(vol_key), vol_key),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def fetch_overtime_change(
+    transport: Transport, *, top: str, market: str
+) -> list[OvertimeRanking]:
+    """시간외 단일가 등락률 순위. ``top="up"`` 상승 / ``"down"`` 하락(:class:`OvertimeRanking`)."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_MRKT_CLS_CODE": "",
+        "FID_COND_SCR_DIV_CODE": "20234",
+        "FID_INPUT_ISCD": "0000",
+        "FID_DIV_CLS_CODE": _lookup(_OVERTIME_CHANGE, top, "top"),
+        "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
+        "FID_VOL_CNT": "", "FID_TRGT_CLS_CODE": "", "FID_TRGT_EXLS_CLS_CODE": "",
+    }
+    resp = transport.request(
+        method="GET", path="/uapi/domestic-stock/v1/ranking/overtime-fluctuation",
+        tr_id="FHPST02340000", params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    return _parse_overtime(
+        rows, price_key="ovtm_untp_prpr", change_key="ovtm_untp_prdy_vrss",
+        sign_key="ovtm_untp_prdy_vrss_sign", ctrt_key="ovtm_untp_prdy_ctrt",
+        vol_key="ovtm_untp_vol",
+    )
+
+
+def fetch_overtime_volume(transport: Transport, *, market: str) -> list[OvertimeRanking]:
+    """시간외 단일가 거래량 순위(:class:`OvertimeRanking`)."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_COND_SCR_DIV_CODE": "20235",
+        "FID_INPUT_ISCD": "0000",
+        "FID_RANK_SORT_CLS_CODE": "0",
+        "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
+        "FID_VOL_CNT": "", "FID_TRGT_CLS_CODE": "", "FID_TRGT_EXLS_CLS_CODE": "",
+    }
+    resp = transport.request(
+        method="GET", path="/uapi/domestic-stock/v1/ranking/overtime-volume",
+        tr_id="FHPST02350000", params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    return _parse_overtime(
+        rows, price_key="ovtm_untp_prpr", change_key="ovtm_untp_prdy_vrss",
+        sign_key="ovtm_untp_prdy_vrss_sign", ctrt_key="ovtm_untp_prdy_ctrt",
+        vol_key="ovtm_untp_vol",
+    )
+
+
+def fetch_overtime_expected_change(
+    transport: Transport, *, top: str, market: str
+) -> list[OvertimeRanking]:
+    """시간외 예상체결 등락률 순위. ``top="up"`` 상승 / ``"down"`` 하락. 시간외 예상체결가·예상체결량
+    을 담는다(:class:`OvertimeRanking`)."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_COND_SCR_DIV_CODE": "11186",
+        "FID_INPUT_ISCD": "0000",
+        "FID_RANK_SORT_CLS_CODE": _lookup(_EXP_UPDOWN_TOP, top, "top"),
+        "FID_DIV_CLS_CODE": "0",
+        "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "", "FID_INPUT_VOL_1": "",
+    }
+    resp = transport.request(
+        method="GET", path="/uapi/domestic-stock/v1/ranking/overtime-exp-trans-fluct",
+        tr_id="FHKST11860000", params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    return _parse_overtime(
+        rows, price_key="ovtm_untp_antc_cnpr", change_key="ovtm_untp_antc_cntg_vrss",
+        sign_key="ovtm_untp_antc_cntg_vrss_sign", ctrt_key="ovtm_untp_antc_cntg_ctrt",
+        vol_key="ovtm_untp_antc_cnqn",
+    )
+
+
+_AFTER_HOUR_TOP = {"ask": "1", "bid": "2"}   # FID_RANK_SORT_CLS_CODE (매도잔량/매수잔량 상위)
+
+
+def fetch_after_hour_balance(
+    transport: Transport, *, top: str, market: str
+) -> list[AfterHourBalanceRanking]:
+    """시간외 잔량 순위. ``top="ask"`` 매도잔량 상위 / ``"bid"`` 매수잔량 상위. 시간외 총 매도/매수
+    잔량과 장전/장후 체결량을 담는다(:class:`AfterHourBalanceRanking`)."""
+    params = {
+        "FID_INPUT_PRICE_1": "",
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_COND_SCR_DIV_CODE": "20176",
+        "FID_RANK_SORT_CLS_CODE": _lookup(_AFTER_HOUR_TOP, top, "top"),
+        "FID_DIV_CLS_CODE": "0",
+        "FID_INPUT_ISCD": "0000",
+        "FID_TRGT_EXLS_CLS_CODE": "0", "FID_TRGT_CLS_CODE": "0",
+        "FID_VOL_CNT": "", "FID_INPUT_PRICE_2": "",
+    }
+    resp = transport.request(
+        method="GET", path="/uapi/domestic-stock/v1/ranking/after-hour-balance",
+        tr_id="FHPST01760000", params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    ranked: list[AfterHourBalanceRanking] = []
+    for row in rows:
+        symbol = str(row.get("stck_shrn_iscd", "")).strip()
+        if not symbol:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        ranked.append(
+            AfterHourBalanceRanking(
+                rank=len(ranked) + 1,
+                symbol=symbol,
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                overtime_ask_residual=required_int(
+                    row.get("ovtm_total_askp_rsqn"), "ovtm_total_askp_rsqn"
+                ),
+                overtime_bid_residual=required_int(
+                    row.get("ovtm_total_bidp_rsqn"), "ovtm_total_bidp_rsqn"
+                ),
+                pre_market_volume=required_int(row.get("mkob_otcp_vol"), "mkob_otcp_vol"),
+                post_market_volume=required_int(row.get("mkfa_otcp_vol"), "mkfa_otcp_vol"),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def fetch_most_viewed(transport: Transport) -> list[TopViewedStock]:
+    """HTS 조회 상위 종목(관심 상위). 코드와 시장구분만 준다(:class:`TopViewedStock`). 파라미터 없음."""
+    resp = transport.request(
+        method="GET", path="/uapi/domestic-stock/v1/ranking/hts-top-view",
+        tr_id="HHMCM000100C0", params={}, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output1")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output1", resp)
+    ranked: list[TopViewedStock] = []
+    for row in rows:
+        symbol = str(row.get("mksc_shrn_iscd", "")).strip()
+        if not symbol:
+            continue
+        ranked.append(
+            TopViewedStock(
+                rank=len(ranked) + 1,
+                symbol=symbol,
+                market=str(row.get("mrkt_div_cls_code", "")).strip(),
+                _raw=row,
+            )
+        )
+    return ranked

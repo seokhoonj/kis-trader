@@ -154,3 +154,74 @@ class NearHighLowRanking:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OvertimeRanking:
+    """시간외 단일가 순위의 한 행(불변).
+
+    정규장이 아니라 **시간외 단일가** 세션 기준이라 ``overtime_price`` / ``overtime_change`` /
+    ``overtime_volume`` 이 모두 시간외 값이다(정규장 현재가·누적거래량 등은 ``_raw`` 에 있다). 시간외
+    등락률/거래량/예상체결 순위가 공유한다. 순위는 응답 순서 기반이다.
+    """
+
+    rank: int
+    symbol: str
+    name: str
+    overtime_price: Decimal           # 시간외 단일가
+    overtime_change: Decimal          # 시간외 전일대비(부호 포함)
+    overtime_change_percent: Decimal  # 시간외 전일대비율(부호 포함)
+    overtime_volume: int              # 시간외 거래량
+    _raw: Mapping[str, Any] = field(
+        default_factory=_empty_raw, compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class AfterHourBalanceRanking:
+    """시간외 잔량 순위의 한 행(불변).
+
+    시간외 매도/매수 총잔량(``overtime_ask_residual`` / ``overtime_bid_residual``)과 장전/장후 시간외
+    체결량(``pre_market_volume`` / ``post_market_volume``)을 담는다. 이 순위엔 정규장 누적거래량이
+    없다(그래서 :class:`RankedStock` 이 아니라 전용 타입). ``price`` / ``change`` 는 정규장 종가 기준.
+    """
+
+    rank: int
+    symbol: str
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    overtime_ask_residual: int        # 시간외 총 매도잔량
+    overtime_bid_residual: int        # 시간외 총 매수잔량
+    pre_market_volume: int            # 장전 시간외 체결량(mkob_otcp_vol)
+    post_market_volume: int           # 장후 시간외 체결량(mkfa_otcp_vol)
+    _raw: Mapping[str, Any] = field(
+        default_factory=_empty_raw, compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class TopViewedStock:
+    """HTS 조회 상위 종목 한 행(불변).
+
+    사용자들이 많이 조회한(관심을 받은) 종목 순위로, 코드와 시장구분(``market`` J:KOSPI/Q:KOSDAQ)만
+    준다 -- 시세는 없으니 관심 종목은 종목 핸들(:class:`~kis_openapi.ticker.Ticker`)로 따로 조회한다.
+    순위는 응답 순서 기반이다.
+    """
+
+    rank: int
+    symbol: str
+    market: str                       # 시장구분(J:KOSPI / Q:KOSDAQ)
+    _raw: Mapping[str, Any] = field(
+        default_factory=_empty_raw, compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
