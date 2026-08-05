@@ -15,6 +15,7 @@ from datetime import date, datetime, timedelta
 from .._wire import optional_decimal, required_decimal, required_int
 from ..errors import KISUsageError
 from ..market_items import (
+    ForeignBrokerFlow,
     LimitStock,
     Market,
     MarketInvestorFlow,
@@ -393,3 +394,59 @@ def fetch_news(
             )
         )
     return items
+
+
+_FOREIGN_BROKER_PATH = "/uapi/domestic-stock/v1/quotations/frgnmem-trade-estimate"
+_FOREIGN_BROKER_TR = "FHKST644100C0"
+_FOREIGN_BROKER_SORT = {"amount": "0", "volume": "1"}
+
+
+def fetch_foreign_broker_trades(
+    transport: Transport, *, sort: str = "amount"
+) -> list[ForeignBrokerFlow]:
+    """외국계 창구 매매종목 가집계(전 시장). ``sort`` 는 ``"amount"``(금액순)/``"volume"``(수량순)."""
+    try:
+        sort_code = _FOREIGN_BROKER_SORT[sort]
+    except KeyError:
+        raise KISUsageError(
+            f"sort 는 {sorted(_FOREIGN_BROKER_SORT)} 중 하나: {sort!r}"
+        ) from None
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_COND_SCR_DIV_CODE": "16441",
+        "FID_INPUT_ISCD": "0000",
+        "FID_RANK_SORT_CLS_CODE": sort_code,
+        "FID_RANK_SORT_CLS_CODE_2": "0",
+    }
+    resp = transport.request(
+        method="GET", path=_FOREIGN_BROKER_PATH, tr_id=_FOREIGN_BROKER_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    flows: list[ForeignBrokerFlow] = []
+    for row in rows:
+        code = str(row.get("stck_shrn_iscd", "")).strip()
+        if not code:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        flows.append(
+            ForeignBrokerFlow(
+                rank=len(flows) + 1,
+                symbol=code,
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                estimated_net=required_int(row.get("glob_ntsl_qty"), "glob_ntsl_qty"),
+                estimated_buy=required_int(row.get("glob_total_shnu_qty"), "glob_total_shnu_qty"),
+                estimated_sell=required_int(row.get("glob_total_seln_qty"), "glob_total_seln_qty"),
+                _raw=row,
+            )
+        )
+    return flows

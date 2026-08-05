@@ -41,6 +41,7 @@ from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
 from .investor import InvestorActivity, InvestorEstimate, InvestorFlow
 from .market import MarketQueries
 from .market_items import (
+    ForeignBrokerFlow,
     LimitStock,
     MarketInvestorFlow,
     NewsItem,
@@ -112,6 +113,7 @@ __all__ = [
     "ETFNAVHistoryPoint",
     "ExecutionReport",
     "FinancialRatio",
+    "ForeignBrokerFlow",
     "IncomeStatement",
     "Index",
     "IndexIntradayPoint",

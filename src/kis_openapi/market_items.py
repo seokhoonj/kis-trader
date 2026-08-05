@@ -201,3 +201,31 @@ class NewsItem:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ForeignBrokerFlow:
+    """외국계 창구 매매 가집계의 한 종목(불변).
+
+    외국계 증권사 창구를 통한 그날 추정 매매다(확정 아닌 가집계). ``estimated_net`` 은 추정 순매수
+    수량(매수-매도; pre-signed, 음수면 순매도), ``estimated_buy`` / ``estimated_sell`` 은 추정 매수/
+    매도 수량. ``rank`` 는 응답 순서 기반이다. 시장 전체 집계라 ``kis.market.foreign_broker_trades``
+    가 돌려준다.
+    """
+
+    rank: int
+    symbol: str
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int
+    estimated_net: int                # 외국계 추정 순매수(glob_ntsl_qty; 매수-매도)
+    estimated_buy: int                # 외국계 추정 매수(glob_total_shnu_qty)
+    estimated_sell: int               # 외국계 추정 매도(glob_total_seln_qty)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
