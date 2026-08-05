@@ -11,7 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._domestic import bonds as bonds_api
-from .bond_items import BondQuote
+from .bond_items import BondInfo, BondQuote
 
 if TYPE_CHECKING:
     from .client import KISClient
@@ -30,6 +30,10 @@ class Bond:
     def __init__(self, client: KISClient, code: str) -> None:
         self._client = client
         self.code = code
+
+    def info(self) -> BondInfo:
+        """채권 기본/발행 정보(발행일·만기·표면금리·만기수익률·통화)."""
+        return bonds_api.fetch_info(self._client.transport, code=self.code)
 
     def quote(self) -> BondQuote:
         """채권 현재가 스냅샷(가격·시고저·전일대비·수익률)."""

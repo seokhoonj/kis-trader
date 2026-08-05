@@ -16,7 +16,7 @@ from .analysis import CreditBalancePoint, LoanPoint, ShortSalePoint
 from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
 from .bond import Bond
-from .bond_items import BondQuote
+from .bond_items import BondInfo, BondQuote
 from .broker import BrokerActivity, BrokerActivitySummary
 from .client import KISClient
 from .derivative import Derivative
@@ -77,6 +77,7 @@ __all__ = [
     "BalanceSheet",
     "Bar",
     "Bond",
+    "BondInfo",
     "BondQuote",
     "BrokerActivity",
     "BrokerActivitySummary",

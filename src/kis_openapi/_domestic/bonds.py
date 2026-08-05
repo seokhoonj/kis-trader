@@ -17,7 +17,7 @@ from datetime import datetime
 from typing import Any
 
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
-from ..bond_items import BondQuote
+from ..bond_items import BondInfo, BondQuote
 from ..order_book import OrderBook
 from ..trade import Trade
 from ..transport import Transport
@@ -25,6 +25,7 @@ from .market_data import (
     _KST,
     _apply_change_sign,
     _missing_block_error,
+    _parse_bar_timestamp,
     _parse_intraday_timestamp,
     _price_levels,
     _raise_if_error,
@@ -147,3 +148,42 @@ def _parse_trades(
             )
         )
     return trades
+
+
+_INFO_PATH = "/uapi/domestic-bond/v1/quotations/search-bond-info"
+_INFO_TR = "CTPF1114R"
+
+
+def _optional_date(value: object) -> datetime | None:
+    text = str(value or "").strip()
+    return _parse_bar_timestamp(text) if text else None
+
+
+def fetch_info(transport: Transport, *, code: str) -> BondInfo:
+    """채권 기본/발행 정보(발행일·만기·표면금리·만기수익률·통화). ``code`` 는 표준코드(ISIN)."""
+    params = {"PDNO": code, "PRDT_TYPE_CD": "302"}      # 302: 채권
+    resp = transport.request(
+        method="GET", path=_INFO_PATH, tr_id=_INFO_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise _missing_block_error("output", resp)
+    return BondInfo(
+        code=code,
+        name=str(output.get("ksd_bond_item_name", "")).strip(),
+        english_name=str(output.get("ksd_bond_item_eng_name", "")).strip(),
+        currency=str(output.get("iso_crcy_cd", "")).strip(),
+        issue_date=_optional_date(output.get("issu_dt")),
+        maturity_date=_optional_date(output.get("rdpt_dt")),
+        listing_date=_optional_date(output.get("lstg_dt")),
+        coupon_rate=optional_decimal(output.get("ksd_rcvg_bond_srfc_inrt"),
+                                     "ksd_rcvg_bond_srfc_inrt"),
+        discount_rate=optional_decimal(output.get("ksd_rcvg_bond_dsct_rt"),
+                                       "ksd_rcvg_bond_dsct_rt"),
+        redemption_rate=optional_decimal(output.get("bond_expd_rdpt_rt"), "bond_expd_rdpt_rt"),
+        yield_to_maturity=optional_decimal(output.get("bond_expd_asrc_erng_rt"),
+                                           "bond_expd_asrc_erng_rt"),
+        interest_period_months=optional_int(output.get("int_caltm_mcnt"), "int_caltm_mcnt"),
+        _raw=output,
+    )
