@@ -286,3 +286,27 @@ def test_underlying_quote_missing_output1_fails_closed():
     from kis_openapi.errors import KISError
     with pytest.raises(KISError):
         _client(fake).futures("101V06").underlying_quote()
+
+
+def test_option_expiries_reads_output_array():
+    # 원장 예시: 배열 키가 output(레이아웃엔 output1). 예시값 그대로.
+    rows = [{"mtrt_yymm_code": "0V05", "mtrt_yymm": "202405"},
+            {"mtrt_yymm_code": "0V06", "mtrt_yymm": "202406"}]
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output": rows})
+    fake = FakeTransport(response=resp)
+    from kis_openapi import OptionExpiry
+    expiries = _client(fake).option_expiries()
+    assert isinstance(expiries[0], OptionExpiry)
+    assert expiries[0].code == "0V05"
+    assert expiries[0].year_month == "202405"
+    assert expiries[1].year_month == "202406"
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-futureoption/v1/quotations/display-board-option-list"
+    assert call["tr_id"] == "FHPIO056104C0"
+    assert call["params"]["FID_COND_SCR_DIV_CODE"] == "509"
+
+
+def test_option_expiries_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).option_expiries()

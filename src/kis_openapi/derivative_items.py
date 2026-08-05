@@ -74,3 +74,22 @@ class UnderlyingQuote:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OptionExpiry:
+    """지수옵션의 한 만기 월물(불변).
+
+    ``code`` 는 만기 년월 코드(예: ``"0V05"``), ``year_month`` 는 만기 년월(``"YYYYMM"``)이다.
+    :meth:`~kis_openapi.client.KISClient.option_expiries` 가 유효한 월물 목록을 돌려준다 -- 옵션
+    계약코드를 만들기 전에 상장된 만기를 확인하는 용도.
+    """
+
+    code: str                         # 만기 년월 코드(mtrt_yymm_code)
+    year_month: str                   # 만기 년월(mtrt_yymm, "YYYYMM")
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

@@ -12,6 +12,7 @@ from __future__ import annotations
 from typing import Literal
 
 from ._domestic import account as account_api
+from ._domestic import derivatives as derivatives_api
 from ._domestic import orders as orders_engine
 from ._masters import (
     Fetch,
@@ -25,6 +26,7 @@ from ._overseas import orders as overseas_orders_engine
 from .balance import Balance, Portfolio, Position
 from .bond import Bond
 from .derivative import Derivative
+from .derivative_items import OptionExpiry
 from .elw import ELW
 from .elw_ranking import ELWRankingQueries
 from .elw_screener import ELWScreenerQueries
@@ -147,6 +149,10 @@ class KISClient:
     def option(self, code: str) -> Derivative:
         """지수옵션 계약 핸들을 만든다. ``code`` 는 계약코드."""
         return Derivative(self, code, market="O")
+
+    def option_expiries(self) -> list[OptionExpiry]:
+        """상장된 지수옵션 만기 월물 목록. 옵션 계약코드를 만들기 전에 유효한 만기를 확인하는 용도."""
+        return derivatives_api.fetch_option_expiries(self.transport)
 
     def overseas_futures(self, srs_cd: str) -> OverseasDerivative:
         """해외 선물 계약 핸들을 만든다. ``srs_cd`` 는 시리즈코드(예: ESZ25 = E-mini S&P 2025.12)."""

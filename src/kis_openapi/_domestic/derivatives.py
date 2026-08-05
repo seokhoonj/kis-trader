@@ -21,7 +21,7 @@ from typing import Any
 
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
 from ..bar import Bar, Interval
-from ..derivative_items import DerivativesQuote, UnderlyingQuote
+from ..derivative_items import DerivativesQuote, OptionExpiry, UnderlyingQuote
 from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook
 from ..transport import Transport
@@ -119,6 +119,40 @@ def fetch_order_book(transport: Transport, *, code: str, market: str) -> OrderBo
         as_of=datetime.now(_KST),
         _raw=output2,
     )
+
+
+_OPTION_EXPIRIES_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-option-list"
+_OPTION_EXPIRIES_TR = "FHPIO056104C0"
+
+
+def fetch_option_expiries(transport: Transport) -> list[OptionExpiry]:
+    """상장된 지수옵션 만기 월물 목록. 응답 배열 키는 원장 예시대로 ``output``(레이아웃의 output1 아님)."""
+    params = {
+        "FID_COND_SCR_DIV_CODE": "509",
+        "FID_COND_MRKT_DIV_CODE": "",
+        "FID_COND_MRKT_CLS_CODE": "",
+    }
+    resp = transport.request(
+        method="GET", path=_OPTION_EXPIRIES_PATH, tr_id=_OPTION_EXPIRIES_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    expiries: list[OptionExpiry] = []
+    for row in rows:
+        year_month = str(row.get("mtrt_yymm", "")).strip()
+        if not year_month:
+            continue
+        expiries.append(
+            OptionExpiry(
+                code=str(row.get("mtrt_yymm_code", "")).strip(),
+                year_month=year_month,
+                _raw=row,
+            )
+        )
+    return expiries
 
 
 _UNDERLYING_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-top"
