@@ -155,3 +155,26 @@ class ProgramFlowPoint:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class TradingDay:
+    """거래 캘린더의 하루(불변).
+
+    ``date`` 기준으로 그날이 영업일/거래일/개장일/결제일인지 알려준다. ``is_open`` 이 거래소 개장
+    여부(휴장일이면 False), ``is_settlement_day`` 는 결제일 여부다. :meth:`~kis_openapi.market.
+    MarketQueries.trading_calendar` 가 기준일에서 앞으로 한 페이지를 돌려준다. ``date`` 는 KST-aware.
+    """
+
+    date: datetime                    # 기준일자(bass_dt; KST-aware)
+    weekday: str                      # 요일구분코드(wday_dvsn_cd)
+    is_business_day: bool             # 영업일 여부(bzdy_yn)
+    is_trading_day: bool              # 거래일 여부(tr_day_yn)
+    is_open: bool                     # 개장일 여부(opnd_yn; 휴장이면 False)
+    is_settlement_day: bool           # 결제일 여부(sttl_day_yn)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

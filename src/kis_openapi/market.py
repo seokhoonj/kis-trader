@@ -23,6 +23,7 @@ if TYPE_CHECKING:
         MarketInvestorFlow,
         ProgramFlowPoint,
         ProgramTradeSummary,
+        TradingDay,
         VIEvent,
     )
 
@@ -65,3 +66,7 @@ class MarketQueries:
         """당일 시간대별 프로그램매매 순매수 대금(차익/비차익/전체; 시간 순). 일별 종합은
         :meth:`program_trades`."""
         return market_api.fetch_program_flow(self._client.transport, market=market)
+
+    def trading_calendar(self, *, base_date: str | date | None = None) -> list[TradingDay]:
+        """거래 캘린더(``base_date`` 기준 한 페이지). 각 날짜의 영업/거래/개장(휴장)/결제 여부."""
+        return market_api.fetch_trading_calendar(self._client.transport, base_date=base_date)

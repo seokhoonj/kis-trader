@@ -20,6 +20,7 @@ from ..market_items import (
     MarketInvestorFlow,
     ProgramFlowPoint,
     ProgramTradeSummary,
+    TradingDay,
     VIEvent,
 )
 from ..transport import Transport
@@ -303,3 +304,40 @@ def fetch_program_flow(
             )
         )
     return points
+
+
+_CALENDAR_PATH = "/uapi/domestic-stock/v1/quotations/chk-holiday"
+_CALENDAR_TR = "CTCA0903R"
+
+
+def fetch_trading_calendar(
+    transport: Transport, *, base_date: str | date | None = None
+) -> list[TradingDay]:
+    """거래 캘린더(``base_date`` 기준일에서 앞으로 한 페이지). 각 날짜의 영업/거래/개장/결제 여부.
+    ``base_date`` 없으면 오늘. (연속조회 페이지네이션은 미구현 -- 첫 페이지만.)"""
+    base = _today_kst() if base_date is None else _to_yyyymmdd(base_date, "base_date")
+    params = {"BASS_DT": base, "CTX_AREA_NK": "", "CTX_AREA_FK": ""}
+    resp = transport.request(
+        method="GET", path=_CALENDAR_PATH, tr_id=_CALENDAR_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    days: list[TradingDay] = []
+    for row in rows:
+        day = str(row.get("bass_dt", "")).strip()
+        if not day:
+            continue
+        days.append(
+            TradingDay(
+                date=_parse_bar_timestamp(day),
+                weekday=str(row.get("wday_dvsn_cd", "")).strip(),
+                is_business_day=str(row.get("bzdy_yn", "")).strip() == "Y",
+                is_trading_day=str(row.get("tr_day_yn", "")).strip() == "Y",
+                is_open=str(row.get("opnd_yn", "")).strip() == "Y",
+                is_settlement_day=str(row.get("sttl_day_yn", "")).strip() == "Y",
+                _raw=row,
+            )
+        )
+    return days

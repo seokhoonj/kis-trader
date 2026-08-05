@@ -45,6 +45,7 @@ from .market_items import (
     MarketInvestorFlow,
     ProgramFlowPoint,
     ProgramTradeSummary,
+    TradingDay,
     VIEvent,
 )
 from .money import Money
@@ -156,5 +157,6 @@ __all__ = [
     "Ticker",
     "TopViewedStock",
     "Trade",
+    "TradingDay",
     "VIEvent",
 ]
