@@ -44,6 +44,35 @@ class CreditBalancePoint:
 
 
 @dataclass(frozen=True, slots=True)
+class LoanPoint:
+    """하루의 대차거래(주식 대여) 스냅샷(불변).
+
+    ``new_shares`` 는 그날 신규 대차 체결 주수, ``redeemed_shares`` 는 상환 주수, ``balance_shares``
+    / ``balance_amount`` 는 대차잔고 주수/금액, ``balance_change`` 는 잔고 전일대비 주수다. 대차잔고는
+    공매도 공급 여력의 대리지표로 본다. ``price`` / ``change`` 는 그날 종목 시세, ``timestamp`` 는
+    영업일(KST-aware).
+    """
+
+    symbol: str
+    timestamp: datetime               # 영업일(KST-aware)
+    price: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    new_shares: int                   # 신규 대차 체결 주수(new_stcn)
+    redeemed_shares: int              # 상환 주수(rdmp_stcn)
+    balance_shares: int               # 대차잔고 주수(rmnd_stcn)
+    balance_amount: Decimal           # 대차잔고 금액(rmnd_amt)
+    balance_change: int               # 잔고 전일대비 주수(prdy_rmnd_vrss)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class ShortSalePoint:
     """하루의 공매도 스냅샷(불변).
 

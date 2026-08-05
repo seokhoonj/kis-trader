@@ -19,7 +19,7 @@ from ._domestic import finance as finance_api
 from ._domestic import market_data
 from ._overseas import market_data as overseas_market_data
 from .after_hours import AfterHoursQuote
-from .analysis import CreditBalancePoint, ShortSalePoint
+from .analysis import CreditBalancePoint, LoanPoint, ShortSalePoint
 from .bar import Bar, Interval
 from .broker import BrokerActivitySummary
 from .errors import KISUsageError
@@ -202,6 +202,15 @@ class Ticker:
         """일별 공매도 추이(기간 [start, end], 최근->과거). 기본은 최근."""
         self._domestic_market()        # 국내 전용
         return analysis_api.fetch_short_sale_trend(
+            self._client.transport, symbol=self.symbol, start=start, end=end
+        )
+
+    def loan_trend(
+        self, *, start: str | date | None = None, end: str | date | None = None
+    ) -> list[LoanPoint]:
+        """일별 대차거래(대여) 추이(기간 [start, end], 최근->과거). 대차잔고는 공매도 공급 대리지표."""
+        self._domestic_market()        # 국내 전용
+        return analysis_api.fetch_loan_trend(
             self._client.transport, symbol=self.symbol, start=start, end=end
         )
 

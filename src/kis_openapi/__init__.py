@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from ._masters import MasterIndex, MasterRecord
 from .after_hours import AfterHoursQuote
-from .analysis import CreditBalancePoint, ShortSalePoint
+from .analysis import CreditBalancePoint, LoanPoint, ShortSalePoint
 from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
 from .bond import Bond
@@ -108,6 +108,7 @@ __all__ = [
     "InvestorEstimate",
     "InvestorFlow",
     "KISClient",
+    "LoanPoint",
     "MasterIndex",
     "MasterRecord",
     "Money",

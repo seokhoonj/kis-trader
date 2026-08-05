@@ -82,3 +82,23 @@ def test_short_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(rows))
     with pytest.raises(KISError):
         _client(fake).ticker("005930").short_sale_trend()
+
+
+def test_loan_trend_maps():
+    from kis_openapi import LoanPoint
+    rows = [{"bsop_date": "20240102", "stck_prpr": "70000", "prdy_vrss": "0",
+             "prdy_vrss_sign": "3", "prdy_ctrt": "0", "acml_vol": "1000",
+             "new_stcn": "5000", "rdmp_stcn": "2000", "rmnd_stcn": "100000",
+             "rmnd_amt": "7000000000", "prdy_rmnd_vrss": "3000"}]
+    fake = FakeTransport(response=_resp(rows))
+    pts = _client(fake).ticker("005930").loan_trend(start="20240101", end="20240102")
+    assert isinstance(pts[0], LoanPoint)
+    assert pts[0].new_shares == 5000
+    assert pts[0].balance_shares == 100000
+    assert pts[0].balance_amount == Decimal(7000000000)
+    assert pts[0].balance_change == 3000
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/quotations/daily-loan-trans"
+    assert call["tr_id"] == "HHPST074500C0"
+    assert call["params"]["MKSC_SHRN_ISCD"] == "005930"
+    assert call["params"]["START_DATE"] == "20240101"

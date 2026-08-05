@@ -17,7 +17,7 @@ from datetime import date
 from typing import Any
 
 from .._wire import optional_decimal, required_decimal, required_int
-from ..analysis import CreditBalancePoint, ShortSalePoint
+from ..analysis import CreditBalancePoint, LoanPoint, ShortSalePoint
 from ..transport import Transport
 from .market_data import (
     _apply_change_sign,
@@ -129,6 +129,57 @@ def fetch_short_sale_trend(
                 short_volume_ratio=optional_decimal(row.get("ssts_vol_rlim"), "ssts_vol_rlim"),
                 short_amount=required_decimal(row.get("ssts_tr_pbmn"), "ssts_tr_pbmn"),
                 short_avg_price=optional_decimal(row.get("avrg_prc"), "avrg_prc"),
+                _raw=row,
+            )
+        )
+    return points
+
+
+_LOAN_PATH = "/uapi/domestic-stock/v1/quotations/daily-loan-trans"
+_LOAN_TR = "HHPST074500C0"
+
+
+def fetch_loan_trend(
+    transport: Transport, *, symbol: str,
+    start: str | date | None = None, end: str | date | None = None,
+) -> list[LoanPoint]:
+    """일별 대차거래(대여) 추이(기간 [start, end], 최근->과거). 기본은 최근(오늘 기준)."""
+    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
+    start_date = end_date if start is None else _to_yyyymmdd(start, "start")
+    params = {
+        "MRKT_DIV_CLS_CODE": "1",
+        "MKSC_SHRN_ISCD": symbol,
+        "START_DATE": start_date,
+        "END_DATE": end_date,
+        "CTS": "",
+    }
+    resp = transport.request(method="GET", path=_LOAN_PATH, tr_id=_LOAN_TR, params=params,
+                             idempotent=True)
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    points: list[LoanPoint] = []
+    for row in rows:
+        day = str(row.get("bsop_date", "")).strip()
+        if not day:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        points.append(
+            LoanPoint(
+                symbol=symbol,
+                timestamp=_parse_bar_timestamp(day),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                new_shares=required_int(row.get("new_stcn"), "new_stcn"),
+                redeemed_shares=required_int(row.get("rdmp_stcn"), "rdmp_stcn"),
+                balance_shares=required_int(row.get("rmnd_stcn"), "rmnd_stcn"),
+                balance_amount=required_decimal(row.get("rmnd_amt"), "rmnd_amt"),
+                balance_change=required_int(row.get("prdy_rmnd_vrss"), "prdy_rmnd_vrss"),
                 _raw=row,
             )
         )
