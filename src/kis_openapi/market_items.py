@@ -39,3 +39,32 @@ class MarketInvestorFlow:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ProgramTradeSummary:
+    """하루의 시장 전체 프로그램매매 종합(불변).
+
+    프로그램매매를 차익(arbitrage; 현물-선물 가격차 노린 바스켓)과 비차익(non-arbitrage; 단순
+    바스켓)으로 나눠, 각각의 순매수 수량/금액을 담는다. 순매수는 pre-signed(음수면 순매도).
+    ``total_net_volume`` 은 둘의 합. 위탁/자기 세부와 매수/매도 원자료는 ``_raw`` 에 있다.
+    ``timestamp`` 는 영업일(KST-aware).
+    """
+
+    market: str                       # "KOSPI" / "KOSDAQ"
+    timestamp: datetime               # 영업일(KST-aware)
+    arbitrage_net_volume: int         # 차익 합계 순매수 수량(arbt_smtm_ntby_qty; KIS 필드 오탈자 smtm)
+    arbitrage_net_amount: Decimal     # 차익 합계 순매수 금액(arbt_smtn_ntby_tr_pbmn)
+    nonarb_net_volume: int            # 비차익 합계 순매수 수량(nabt_smtn_ntby_qty)
+    nonarb_net_amount: Decimal        # 비차익 합계 순매수 금액(nabt_smtn_ntby_tr_pbmn)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+    @property
+    def total_net_volume(self) -> int:
+        """전체 프로그램 순매수 수량(차익 + 비차익)."""
+        return self.arbitrage_net_volume + self.nonarb_net_volume

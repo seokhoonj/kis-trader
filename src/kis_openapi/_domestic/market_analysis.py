@@ -14,7 +14,7 @@ from datetime import date, datetime, timedelta
 
 from .._wire import required_decimal, required_int
 from ..errors import KISUsageError
-from ..market_items import MarketInvestorFlow
+from ..market_items import MarketInvestorFlow, ProgramTradeSummary
 from ..transport import Transport
 from .market_data import (
     _apply_change_sign,
@@ -87,3 +87,59 @@ def fetch_market_investor_flows(
             )
         )
     return flows
+
+
+_PROGRAM_SUMMARY_PATH = "/uapi/domestic-stock/v1/quotations/comp-program-trade-daily"
+_PROGRAM_SUMMARY_TR = "FHPPG04600001"
+#: 시장 -> FID_MRKT_CLS_CODE.
+_PROGRAM_MARKET = {"KOSPI": "K", "KOSDAQ": "Q"}
+
+
+def fetch_program_trade_summary(
+    transport: Transport, *, market: str = "KOSPI",
+    start: str | date | None = None, end: str | date | None = None,
+) -> list[ProgramTradeSummary]:
+    """시장(코스피/코스닥) 전체의 일별 프로그램매매 종합(차익/비차익 순매수; 최근->과거). ``start``
+    미지정이면 ``end`` 로부터 30일 전."""
+    try:
+        market_code = _PROGRAM_MARKET[market]
+    except KeyError:
+        raise KISUsageError(f"market 은 {sorted(_PROGRAM_MARKET)} 중 하나: {market!r}") from None
+    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
+    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_MRKT_CLS_CODE": market_code,
+        "FID_INPUT_DATE_1": start_date,
+        "FID_INPUT_DATE_2": end_date,
+    }
+    resp = transport.request(
+        method="GET", path=_PROGRAM_SUMMARY_PATH, tr_id=_PROGRAM_SUMMARY_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    summaries: list[ProgramTradeSummary] = []
+    for row in rows:
+        day = str(row.get("stck_bsop_date", "")).strip()
+        if not day:
+            continue
+        summaries.append(
+            ProgramTradeSummary(
+                market=market,
+                timestamp=_parse_bar_timestamp(day),
+                # KIS 필드명 불일치 주의: 차익 수량 smtm / 나머지 smtn (원장 대조).
+                arbitrage_net_volume=required_int(row.get("arbt_smtm_ntby_qty"),
+                                                  "arbt_smtm_ntby_qty"),
+                arbitrage_net_amount=required_decimal(row.get("arbt_smtn_ntby_tr_pbmn"),
+                                                      "arbt_smtn_ntby_tr_pbmn"),
+                nonarb_net_volume=required_int(row.get("nabt_smtn_ntby_qty"),
+                                               "nabt_smtn_ntby_qty"),
+                nonarb_net_amount=required_decimal(row.get("nabt_smtn_ntby_tr_pbmn"),
+                                                   "nabt_smtn_ntby_tr_pbmn"),
+                _raw=row,
+            )
+        )
+    return summaries

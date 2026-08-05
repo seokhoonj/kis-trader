@@ -80,3 +80,36 @@ def test_market_investor_flows_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).market.investor_flows()
+
+
+def test_program_trade_summary_maps_typo_fields():
+    from kis_openapi import ProgramTradeSummary
+    # KIS 필드 오탈자: 차익 수량 smtm, 나머지 smtn. 순매수는 pre-signed.
+    rows = [{"stck_bsop_date": "20240510", "arbt_smtm_ntby_qty": "12000",
+             "arbt_smtn_ntby_tr_pbmn": "84000000", "nabt_smtn_ntby_qty": "-5000",
+             "nabt_smtn_ntby_tr_pbmn": "-35000000", "whol_entm_ntby_qty": "7000"}]
+    fake = FakeTransport(response=_resp(rows))
+    s = _client(fake).market.program_trades(market="KOSPI", start="20240101", end="20240513")[0]
+    assert isinstance(s, ProgramTradeSummary)
+    assert s.arbitrage_net_volume == 12000
+    assert s.arbitrage_net_amount == Decimal(84000000)
+    assert s.nonarb_net_volume == -5000                  # pre-signed 순매도
+    assert s.total_net_volume == 12000 - 5000            # 차익 + 비차익
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/quotations/comp-program-trade-daily"
+    assert call["tr_id"] == "FHPPG04600001"
+    assert call["params"]["FID_MRKT_CLS_CODE"] == "K"
+
+
+def test_program_trade_summary_kosdaq_and_bad_market():
+    fake = FakeTransport(response=_resp([]))
+    _client(fake).market.program_trades(market="KOSDAQ", start="20240101", end="20240131")
+    assert fake.calls[0]["params"]["FID_MRKT_CLS_CODE"] == "Q"
+    with pytest.raises(KISUsageError):
+        _client(fake).market.program_trades(market="US")
+
+
+def test_program_trade_summary_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).market.program_trades()
