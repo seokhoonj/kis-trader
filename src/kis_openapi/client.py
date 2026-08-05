@@ -31,6 +31,7 @@ from .elw_screener import ELWScreenerQueries
 from .errors import KISUsageError
 from .index import Index
 from .instrument import DomesticBoard, is_domestic_symbol
+from .market import MarketQueries
 from .order import Order
 from .overseas_derivative import OverseasDerivative
 from .overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
@@ -158,6 +159,12 @@ class KISClient:
     def ranking(self) -> RankingQueries:
         """시장 전체 순위 네임스페이스 -- ``kis.ranking.by_change()`` / ``by_volume()`` 등."""
         return RankingQueries(self)
+
+    @property
+    def market(self) -> MarketQueries:
+        """시장 전체 분석 네임스페이스 -- ``kis.market.investor_flows(market="KOSPI")`` 등
+        (종목/순위가 아닌 시장 전체 수급·상태). 종목 단위는 ``kis.ticker(code)``."""
+        return MarketQueries(self)
 
     @property
     def elw_ranking(self) -> ELWRankingQueries:

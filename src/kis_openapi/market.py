@@ -1,0 +1,37 @@
+"""시장 전체 분석 네임스페이스 -- :class:`MarketQueries`.
+
+``kis.market.investor_flows(market="KOSPI")`` 처럼, 종목도 순위도 아닌 **시장(코스피/코스닥) 전체**
+상태·수급 분석을 모은다. 순위(``kis.ranking``)가 "종목을 줄 세우기"라면 여기는 "시장 전체가 지금
+어떤가"(투자자 수급, 프로그램매매 종합, VI 등)다.
+
+직접 만들지 않고 :attr:`~kis_openapi.client.KISClient.market` 로 얻는다.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from ._domestic import market_analysis as market_api
+
+if TYPE_CHECKING:
+    from datetime import date
+
+    from .client import KISClient
+    from .market_items import MarketInvestorFlow
+
+
+class MarketQueries:
+    """세션에 달린 시장 전체 분석 네임스페이스. :attr:`KISClient.market` 이 만들어 준다."""
+
+    def __init__(self, client: KISClient) -> None:
+        self._client = client
+
+    def investor_flows(
+        self, *, market: str = "KOSPI",
+        start: str | date | None = None, end: str | date | None = None,
+    ) -> list[MarketInvestorFlow]:
+        """시장(``"KOSPI"``/``"KOSDAQ"``) 전체의 일별 투자자 순매수(최근->과거). ``start`` 미지정이면
+        최근 30일. 종목 단위는 ``kis.ticker(code).investor_flows()``."""
+        return market_api.fetch_market_investor_flows(
+            self._client.transport, market=market, start=start, end=end
+        )
