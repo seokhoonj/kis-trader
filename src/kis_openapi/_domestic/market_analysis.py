@@ -18,6 +18,7 @@ from ..market_items import (
     LimitStock,
     Market,
     MarketInvestorFlow,
+    ProgramFlowPoint,
     ProgramTradeSummary,
     VIEvent,
 )
@@ -27,6 +28,7 @@ from .market_data import (
     _apply_change_sign,
     _missing_block_error,
     _parse_bar_timestamp,
+    _parse_intraday_timestamp,
     _raise_if_error,
     _to_yyyymmdd,
     _today_kst,
@@ -255,3 +257,49 @@ def fetch_limit_stocks(transport: Transport) -> list[LimitStock]:
             )
         )
     return stocks
+
+
+_PROGRAM_FLOW_PATH = "/uapi/domestic-stock/v1/quotations/comp-program-trade-today"
+_PROGRAM_FLOW_TR = "FHPPG04600101"
+
+
+def fetch_program_flow(
+    transport: Transport, *, market: Market = "KOSPI"
+) -> list[ProgramFlowPoint]:
+    """당일 시간대별 프로그램매매 순매수 대금(시간 순). 시장(코스피/코스닥)."""
+    try:
+        market_code = _PROGRAM_MARKET[market]
+    except KeyError:
+        raise KISUsageError(f"market 은 {sorted(_PROGRAM_MARKET)} 중 하나: {market!r}") from None
+    params = {"FID_COND_MRKT_DIV_CODE": "J", "FID_MRKT_CLS_CODE": market_code}
+    resp = transport.request(
+        method="GET", path=_PROGRAM_FLOW_PATH, tr_id=_PROGRAM_FLOW_TR, params=params,
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    as_of = datetime.now(_KST)
+    points: list[ProgramFlowPoint] = []
+    for row in rows:
+        time_text = str(row.get("bsop_hour", "")).strip()
+        if not time_text:
+            continue
+        points.append(
+            ProgramFlowPoint(
+                market=market,
+                timestamp=_parse_intraday_timestamp(time_text, as_of),
+                arbitrage_net_amount=required_decimal(
+                    row.get("arbt_smtn_ntby_tr_pbmn"), "arbt_smtn_ntby_tr_pbmn"
+                ),
+                nonarb_net_amount=required_decimal(
+                    row.get("nabt_smtn_ntby_tr_pbmn"), "nabt_smtn_ntby_tr_pbmn"
+                ),
+                total_net_amount=required_decimal(
+                    row.get("whol_smtn_ntby_tr_pbmn"), "whol_smtn_ntby_tr_pbmn"
+                ),
+                _raw=row,
+            )
+        )
+    return points

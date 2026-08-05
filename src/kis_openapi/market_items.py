@@ -132,3 +132,26 @@ class LimitStock:
     def at_upper_limit(self) -> bool:
         """상한가에 걸렸는지(현재가 == 상한가)."""
         return self.price == self.upper_limit
+
+
+@dataclass(frozen=True, slots=True)
+class ProgramFlowPoint:
+    """당일 한 시각의 프로그램매매 순매수 대금(불변).
+
+    :class:`ProgramTradeSummary`(일별 종합)의 당일 시간판이다. ``arbitrage_net_amount`` /
+    ``nonarb_net_amount`` 는 차익/비차익 순매수 금액, ``total_net_amount`` 는 전체 순매수 금액
+    (모두 pre-signed; 음수면 순매도). 매수/매도 원자료·비율은 ``_raw``. ``timestamp`` 는 조회일
+    날짜를 붙인 시각(KST-aware).
+    """
+
+    market: str
+    timestamp: datetime               # 시각(조회일 날짜; KST)
+    arbitrage_net_amount: Decimal     # 차익 순매수 대금(arbt_smtn_ntby_tr_pbmn)
+    nonarb_net_amount: Decimal        # 비차익 순매수 대금(nabt_smtn_ntby_tr_pbmn)
+    total_net_amount: Decimal         # 전체 순매수 대금(whol_smtn_ntby_tr_pbmn)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

@@ -21,6 +21,7 @@ if TYPE_CHECKING:
         LimitStock,
         Market,
         MarketInvestorFlow,
+        ProgramFlowPoint,
         ProgramTradeSummary,
         VIEvent,
     )
@@ -59,3 +60,8 @@ class MarketQueries:
     def limit_stocks(self) -> list[LimitStock]:
         """상한가/하한가에 도달한 종목 전체 스냅샷. 각 행의 ``at_upper_limit`` 로 상/하한 구분."""
         return market_api.fetch_limit_stocks(self._client.transport)
+
+    def program_flow(self, *, market: Market = "KOSPI") -> list[ProgramFlowPoint]:
+        """당일 시간대별 프로그램매매 순매수 대금(차익/비차익/전체; 시간 순). 일별 종합은
+        :meth:`program_trades`."""
+        return market_api.fetch_program_flow(self._client.transport, market=market)
