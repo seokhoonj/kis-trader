@@ -16,6 +16,9 @@ from ._domestic import derivatives as derivatives_api
 from .derivative_items import DerivativesQuote
 
 if TYPE_CHECKING:
+    from datetime import date
+
+    from .bar import Bar, Interval
     from .client import KisClient
     from .order_book import OrderBook
 
@@ -45,4 +48,18 @@ class Derivative:
         """계약 호가창(5단계 매수/매도 심도)."""
         return derivatives_api.fetch_order_book(
             self._client.transport, code=self.code, market=self.market
+        )
+
+    def bars(
+        self,
+        interval: Interval = "1d",
+        *,
+        start: str | date | None = None,
+        end: str | date | None = None,
+        max_bars: int | None = None,
+    ) -> list[Bar]:
+        """기간봉(일/주/월) OHLCV 를 과거->현재 오름차순으로. ``start`` 가 필요하다(분봉 미지원)."""
+        return derivatives_api.fetch_bars(
+            self._client.transport, code=self.code, market=self.market,
+            interval=interval, start=start, end=end, max_bars=max_bars,
         )

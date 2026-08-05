@@ -11,12 +11,13 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import DerivativesQuote, KisClient, OrderBook
-from kis_openapi.errors import KisError
+from kis_openapi import Bar, DerivativesQuote, KisClient, OrderBook
+from kis_openapi.errors import KisError, KisUsageError
 from kis_openapi.transport import RawResponse
 
 _PRICE = "/uapi/domestic-futureoption/v1/quotations/inquire-price"
 _ASKING = "/uapi/domestic-futureoption/v1/quotations/inquire-asking-price"
+_CHART = "/uapi/domestic-futureoption/v1/quotations/inquire-daily-fuopchartprice"
 
 
 def _output(*, last="335.20", oprc="334.10", hgpr="336.00", lwpr="333.50", clpr="333.00",
@@ -153,3 +154,45 @@ def test_derivatives_order_book_missing_output2_fails_closed():
     fake = FakeTransport(response=resp)
     with pytest.raises(KisError):
         _client(fake).futures("101W09").order_book()
+
+
+# --- bars (기간봉, 캔들은 output2, 종가=futs_prpr) ---------------------------
+def _candle(bsop, o, h, low, close, vol="100"):
+    return {"stck_bsop_date": bsop, "futs_oprc": o, "futs_hgpr": h,
+            "futs_lwpr": low, "futs_prpr": close, "acml_vol": vol}
+
+
+def _bars_resp(rows):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": {"hts_kor_isnm": "F 202409"}, "output2": rows})
+
+
+def test_futures_bars_maps_candles_ascending():
+    rows = [_candle("20260803", "334.0", "336.0", "333.0", "335.0"),
+            _candle("20260801", "332.0", "335.0", "331.0", "334.0")]
+    fake = FakeTransport(response=_bars_resp(rows))
+    bars = _client(fake).futures("101W09").bars("1d", start="20260801", end="20260803")
+    assert all(isinstance(b, Bar) for b in bars)
+    assert [f"{b.timestamp:%Y%m%d}" for b in bars] == ["20260801", "20260803"]  # 오름차순
+    last = bars[-1]
+    assert last.open == Decimal("334.0")
+    assert last.close == Decimal("335.0")                 # 종가=futs_prpr
+    assert last.volume == 100
+    call = fake.calls[0]
+    assert call["path"] == _CHART
+    assert call["tr_id"] == "FHKIF03020100"
+    assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "F"
+    assert call["params"]["FID_PERIOD_DIV_CODE"] == "D"
+    assert "FID_ORG_ADJ_PRC" not in call["params"]        # 파생엔 수정주가 없음
+
+
+def test_derivatives_bars_requires_start():
+    fake = FakeTransport(response=_bars_resp([]))
+    with pytest.raises(KisUsageError):
+        _client(fake).futures("101W09").bars("1d")
+
+
+def test_derivatives_bars_rejects_minute():
+    fake = FakeTransport(response=_bars_resp([]))
+    with pytest.raises(KisUsageError):
+        _client(fake).futures("101W09").bars("1m", start="20260801")
