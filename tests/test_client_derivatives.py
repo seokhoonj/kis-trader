@@ -192,7 +192,64 @@ def test_derivatives_bars_requires_start():
         _client(fake).futures("101W09").bars("1d")
 
 
-def test_derivatives_bars_rejects_minute():
-    fake = FakeTransport(response=_bars_resp([]))
-    with pytest.raises(KISUsageError):
-        _client(fake).futures("101W09").bars("1m", start="20260801")
+_MINUTE_CHART = "/uapi/domestic-futureoption/v1/quotations/inquire-time-fuopchartprice"
+
+
+def _min_candle(hhmmss, close, *, vol="10"):
+    return {"stck_bsop_date": "20240417", "stck_cntg_hour": hhmmss, "futs_oprc": "359.60",
+            "futs_hgpr": "359.80", "futs_lwpr": "359.40", "futs_prpr": close, "cntg_vol": vol,
+            "acml_tr_pbmn": "31394925"}
+
+
+class MinuteFakeTransport:
+    """FID_INPUT_HOUR_1 이하 분봉을 최신 3건씩 돌려주는 가짜 전송(당일)."""
+
+    def __init__(self, minutes):
+        self.minutes = dict(sorted(minutes.items()))
+        self.calls: list[dict] = []
+        self._lock = threading.Lock()
+
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
+        with self._lock:
+            self.calls.append({"path": path, "tr_id": tr_id, "params": params})
+        anchor = params["FID_INPUT_HOUR_1"]
+        at_or_before = [t for t in self.minutes if t <= anchor]
+        page = [self.minutes[t] for t in at_or_before[-3:]]
+        return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output2": page})
+
+
+def test_futures_minute_bars_paginate_ascending_and_params():
+    times = [f"09{m:02d}00" for m in range(9)]                   # 0900..0908, 1분 간격
+    minutes = {t: _min_candle(t, str(359 + i)) for i, t in enumerate(times)}
+    fake = MinuteFakeTransport(minutes)
+    bars = _client(fake).futures("101W09").bars("1m")
+    assert [f"{b.timestamp:%H%M%S}" for b in bars] == times       # 과거->현재 오름차순, 전량
+    assert bars[-1].close == Decimal(367)                         # 종가=futs_prpr
+    assert bars[-1].volume == 10                                  # 분당 거래량=cntg_vol
+    call = fake.calls[0]
+    assert call["path"] == _MINUTE_CHART
+    assert call["tr_id"] == "FHKIF03020200"
+    assert call["params"]["FID_HOUR_CLS_CODE"] == "60"           # 1분
+    assert call["params"]["FID_PW_DATA_INCU_YN"] == "N"          # 당일치
+    assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "F"
+    assert call["params"]["FID_INPUT_HOUR_1"] == "235959"        # 최신부터
+    # 2페이지 기준시각 = 1페이지 최오래 봉(090600) 1분 전
+    assert fake.calls[1]["params"]["FID_INPUT_HOUR_1"] == "090500"
+
+
+def test_futures_minute_bars_respects_max_bars():
+    times = [f"09{m:02d}00" for m in range(9)]
+    minutes = {t: _min_candle(t, str(359 + i)) for i, t in enumerate(times)}
+    fake = MinuteFakeTransport(minutes)
+    bars = _client(fake).futures("101W09").bars("1m", max_bars=4)
+    assert len(bars) == 4
+    assert [f"{b.timestamp:%H%M%S}" for b in bars] == times[-4:]
+
+
+def test_futures_minute_bars_missing_output2_fails_closed():
+    class Bad:
+        def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
+            return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
+    from kis_openapi.errors import KISError
+    with pytest.raises(KISError):
+        _client(Bad()).futures("101W09").bars("1m")

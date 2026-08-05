@@ -22,17 +22,20 @@ from typing import Any
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
 from ..bar import Bar, Interval
 from ..derivative_items import DerivativesQuote
-from ..errors import KISUsageError
+from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook
 from ..transport import Transport
 from .market_data import (
     _KST,
+    _MAX_MINUTE_PAGES,
     _apply_change_sign,
     _missing_block_error,
     _parse_bar_timestamp,
+    _parse_minute_bar_timestamp,
     _period_code_for,
     _price_levels,
     _raise_if_error,
+    _subtract_one_minute,
     _to_yyyymmdd,
     _today_kst,
     collect_period_bars,
@@ -44,6 +47,12 @@ _ORDER_BOOK_PATH = "/uapi/domestic-futureoption/v1/quotations/inquire-asking-pri
 _ORDER_BOOK_TR = "FHMIF10010000"
 _BARS_PATH = "/uapi/domestic-futureoption/v1/quotations/inquire-daily-fuopchartprice"
 _BARS_TR = "FHKIF03020100"
+#: 선물옵션 분봉. 한 번에 최대 102건, FID_INPUT_DATE_1+FID_INPUT_HOUR_1 로 다음조회. 당일치만
+#: (FID_PW_DATA_INCU_YN=N) 모으고, 파생은 야간장 등 세션 경계가 다양해 개장시각 가정 대신 새 봉이
+#: 없으면 종료한다. FID_HOUR_CLS_CODE 60 = 1분.
+_MINUTE_BARS_PATH = "/uapi/domestic-futureoption/v1/quotations/inquire-time-fuopchartprice"
+_MINUTE_BARS_TR = "FHKIF03020200"
+_MINUTE_ANCHOR_START = "235959"
 
 
 def fetch_quote(transport: Transport, *, code: str, market: str) -> DerivativesQuote:
@@ -122,17 +131,17 @@ def fetch_bars(
     end: str | date | None = None,
     max_bars: int | None = None,
 ) -> list[Bar]:
-    """선물/옵션 계약의 기간봉(일/주/월)을 과거->현재 오름차순으로. ``market`` 은 F/O.
+    """선물/옵션 계약의 봉을 과거->현재 오름차순으로. ``market`` 은 F/O.
 
-    ``interval`` 은 ``1d``/``1wk``/``1mo`` (분봉은 미지원). ``[start, end]`` 구간 기간봉이라 ``start``
-    가 필요하다. 캔들은 응답의 ``output2`` 에 있고 종가는 채권/지수와 달리 ``futs_prpr``(현재가)이며,
-    파생엔 수정주가 개념이 없어 조정 파라미터는 보내지 않는다. 페이지 상한에 닿으면 부분 결과로 자르지
-    않고 예외.
+    ``interval="1m"`` 은 당일 1분봉을 최신부터 뒤로 밀며(``start``/``end`` 무시, ``max_bars`` 로 최근
+    N개), ``1d``/``1wk``/``1mo`` 는 ``[start, end]`` 구간 기간봉(``start`` 필요). 캔들은 응답의
+    ``output2`` 에 있고 종가는 채권/지수와 달리 ``futs_prpr``(현재가)이며, 파생엔 수정주가 개념이 없어
+    조정 파라미터는 보내지 않는다. 페이지 상한에 닿으면 부분 결과로 자르지 않고 예외.
     """
     if max_bars is not None and max_bars <= 0:
         raise KISUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
     if interval == "1m":
-        raise KISUsageError("선물옵션 분봉은 아직 미지원이다 (1d/1wk/1mo).")
+        return _fetch_minute_bars(transport, code=code, market=market, max_bars=max_bars)
     if start is None:
         raise KISUsageError(f"interval={interval!r}(기간봉)에는 start 가 필요하다.")
     period = _period_code_for(interval)
@@ -150,6 +159,77 @@ def fetch_bars(
         start_date=start_date, end_date=end_date, max_bars=max_bars,
         parse_rows=lambda rows: _parse_bars(rows, code=code),
     )
+
+
+def _fetch_minute_bars(
+    transport: Transport, *, code: str, market: str, max_bars: int | None
+) -> list[Bar]:
+    """당일 1분봉을 과거->현재 오름차순으로. 최신부터 102건씩 받고 FID_INPUT_HOUR_1 을 뒤로 밀며
+    모은다. 파생은 세션 경계(야간장 등)가 다양해 개장시각 가정 대신 새 봉이 없으면 종료하고, 페이지
+    상한 초과는 fail-closed. 봉 식별은 당일 시각(HHMMSS)."""
+    day = _today_kst()
+    bar_by_time: dict[str, Bar] = {}   # "HHMMSS" -> Bar, 고정폭이라 문자열 정렬=시간순
+    anchor = _MINUTE_ANCHOR_START
+    for _page in range(_MAX_MINUTE_PAGES):
+        params = {
+            "FID_COND_MRKT_DIV_CODE": market,
+            "FID_INPUT_ISCD": code,
+            "FID_HOUR_CLS_CODE": "60",         # 60 = 1분
+            "FID_PW_DATA_INCU_YN": "N",        # 당일치
+            "FID_FAKE_TICK_INCU_YN": "N",      # 허봉 제외
+            "FID_INPUT_DATE_1": day,
+            "FID_INPUT_HOUR_1": anchor,
+        }
+        resp = transport.request(
+            method="GET", path=_MINUTE_BARS_PATH, tr_id=_MINUTE_BARS_TR, params=params,
+            idempotent=True,
+        )
+        _raise_if_error(resp)
+        rows = resp.body.get("output2")
+        if not isinstance(rows, list):  # 성공 응답인데 봉 배열 아님 -> fail-closed
+            raise _missing_block_error("output2", resp)
+        page = {f"{bar.timestamp:%H%M%S}": bar for bar in _parse_minute_bars(rows, code=code)}
+        fresh = {time: bar for time, bar in page.items() if time not in bar_by_time}
+        if not fresh:  # 빈 페이지거나 진전 없음 -> 종료(무한 루프 방지)
+            break
+        bar_by_time.update(fresh)
+        if max_bars is not None and len(bar_by_time) >= max_bars:
+            break
+        anchor = _subtract_one_minute(min(page))
+    else:
+        raise KISError(
+            f"선물옵션 분봉 조회가 {_MAX_MINUTE_PAGES}페이지 상한에 도달했으나 진전을 멈추지 않았다 "
+            f"-- 부분 결과로 자르지 않는다. max_bars 로 범위를 줄이거나 재시도하라."
+        )
+    bars = [bar_by_time[key] for key in sorted(bar_by_time)]
+    if max_bars is not None and len(bars) > max_bars:
+        bars = bars[-max_bars:]
+    return bars
+
+
+def _parse_minute_bars(rows: Sequence[Mapping[str, Any]], *, code: str) -> list[Bar]:
+    """분봉 행 -> Bar. 종가 ``futs_prpr``, 분당 거래량 ``cntg_vol``(일봉의 acml_vol 과 다름),
+    timestamp 는 일자+시각(``stck_bsop_date``+``stck_cntg_hour``)."""
+    bars: list[Bar] = []
+    for row in rows:
+        date_text = str(row.get("stck_bsop_date", "")).strip()
+        time_text = str(row.get("stck_cntg_hour", "")).strip()
+        close_text = str(row.get("futs_prpr", "")).strip()
+        if not date_text or not time_text or not close_text:   # 빈 봉 skip
+            continue
+        bars.append(
+            Bar(
+                symbol=code,
+                timestamp=_parse_minute_bar_timestamp(date_text, time_text),
+                open=required_decimal(row.get("futs_oprc"), "futs_oprc"),
+                high=required_decimal(row.get("futs_hgpr"), "futs_hgpr"),
+                low=required_decimal(row.get("futs_lwpr"), "futs_lwpr"),
+                close=required_decimal(close_text, "futs_prpr"),
+                volume=required_int(row.get("cntg_vol"), "cntg_vol"),
+                _raw=row,
+            )
+        )
+    return bars
 
 
 def _parse_bars(rows: Sequence[Mapping[str, Any]], *, code: str) -> list[Bar]:

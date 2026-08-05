@@ -58,7 +58,8 @@ class Derivative:
         end: str | date | None = None,
         max_bars: int | None = None,
     ) -> list[Bar]:
-        """기간봉(일/주/월) OHLCV 를 과거->현재 오름차순으로. ``start`` 가 필요하다(분봉 미지원)."""
+        """OHLCV 봉을 과거->현재 오름차순으로. ``interval="1m"`` 은 당일 1분봉(``start``/``end`` 무시,
+        ``max_bars`` 로 최근 N개), ``1d``/``1wk``/``1mo`` 는 ``[start, end]`` 기간봉(``start`` 필요)."""
         return derivatives_api.fetch_bars(
             self._client.transport, code=self.code, market=self.market,
             interval=interval, start=start, end=end, max_bars=max_bars,
