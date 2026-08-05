@@ -26,6 +26,7 @@ from ..elw_items import (
     ELWLpFlow,
     ELWSensitivityPoint,
     ELWVolatilityPoint,
+    RankedELW,
 )
 from ..errors import KISUsageError
 from ..transport import Transport
@@ -345,4 +346,178 @@ def _parse_lp_row(row: Mapping[str, Any], *, code: str) -> ELWLpFlow:
         lp_holding_quantity=required_int(row.get("lp_hvol"), "lp_hvol"),
         lp_holding_rate=optional_decimal(row.get("lp_hldn_rate"), "lp_hldn_rate"),
         _raw=row,
+    )
+
+
+# --- 시장 전체 ELW 순위 -----------------------------------------------------
+# ELW 순위는 필터 파라미터가 많고(기초자산/발행사/콜풋/가격/거래량 범위/정렬/소속) 순위마다 필요한
+# 파라미터 집합이 조금씩 다르다. KIS 는 누락/불필요 파라미터에 민감하므로 순위별로 정확히 보낸다.
+# 출력 행은 공통 축(코드/이름/가격/전일대비/거래량)만 매핑하고 순위 고유지표는 _raw 에 둔다.
+
+#: 콜풋 구분(FID_DIV_CLS_CODE): 전체/콜/풋.
+_RIGHT_CODE = {"all": "0", "call": "1", "put": "2"}
+
+_VOLUME_SORT = {
+    "volume": "0", "turnover_growth": "1", "turnover_rate": "2",
+    "amount": "3", "net_buy_balance": "4", "net_sell_balance": "5",
+}
+_CHANGE_SORT = {
+    "gainers": "0", "losers": "1", "from_open_up": "2", "from_open_down": "3",
+    "fluctuation": "4",
+}
+_SENSITIVITY_SORT = {
+    "theoretical": "0", "delta": "1", "gamma": "2", "rho": "3", "vega": "4",
+    "implied_volatility": "6", "hist_volatility": "7",
+}
+_INDICATOR_SORT = {
+    "conversion_ratio": "0", "leverage": "1", "strike": "2", "intrinsic_value": "3",
+    "time_value": "4",
+}
+_QUICK_CHANGE_SORT = {
+    "price_surge": "1", "price_plunge": "2", "volume_surge": "3",
+    "bid_surge": "4", "ask_surge": "5",
+}
+
+
+def _code_of(value: str, table: Mapping[str, str], argname: str) -> str:
+    try:
+        return table[value]
+    except KeyError:
+        raise KISUsageError(f"{argname} 는 {sorted(table)} 중 하나: {value!r}") from None
+
+
+def _fetch_ranking(
+    transport: Transport, *, path: str, tr: str, params: Mapping[str, str]
+) -> list[RankedELW]:
+    resp = transport.request(
+        method="GET", path=path, tr_id=tr, params=dict(params), idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):             # 성공 응답인데 배열 아님 -> fail-closed
+        raise _missing_block_error("output", resp)
+    ranked: list[RankedELW] = []
+    for row in rows:
+        code = str(row.get("elw_shrn_iscd", "")).strip()
+        if not code:                           # 빈 행 건너뜀
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        ranked.append(
+            RankedELW(
+                rank=len(ranked) + 1,          # 응답 순서 기반 1-베이스 순위
+                symbol=code,
+                name=str(row.get("elw_kor_isnm") or row.get("hts_kor_isnm") or "").strip(),
+                price=required_decimal(row.get("elw_prpr"), "elw_prpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def _base_ranking_params(scr: str, underlying: str, issuer: str) -> dict[str, str]:
+    return {
+        "FID_COND_MRKT_DIV_CODE": _MARKET_DIV,
+        "FID_COND_SCR_DIV_CODE": scr,
+        "FID_UNAS_INPUT_ISCD": underlying,
+        "FID_INPUT_ISCD": issuer,
+        "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
+        "FID_INPUT_VOL_1": "", "FID_INPUT_VOL_2": "",
+        "FID_BLNG_CLS_CODE": "0",
+    }
+
+
+def fetch_ranking_by_volume(
+    transport: Transport, *, sort: str = "volume",
+    underlying: str = "000000", issuer: str = "00000", right: str = "all",
+) -> list[RankedELW]:
+    """ELW 거래량 순위. ``sort`` 는 volume/turnover_growth/turnover_rate/amount/
+    net_buy_balance/net_sell_balance."""
+    params = _base_ranking_params("20278", underlying, issuer)
+    params.update({
+        "FID_INPUT_RMNN_DYNU_1": "",
+        "FID_DIV_CLS_CODE": _code_of(right, _RIGHT_CODE, "right"),
+        "FID_INPUT_DATE_1": "",
+        "FID_RANK_SORT_CLS_CODE": _code_of(sort, _VOLUME_SORT, "sort"),
+        "FID_INPUT_ISCD_2": "0000",
+        "FID_INPUT_DATE_2": "",
+    })
+    return _fetch_ranking(
+        transport, path="/uapi/elw/v1/ranking/volume-rank", tr="FHPEW02780000", params=params
+    )
+
+
+def fetch_ranking_by_change(
+    transport: Transport, *, sort: str = "gainers",
+    underlying: str = "000000", issuer: str = "00000", right: str = "all",
+) -> list[RankedELW]:
+    """ELW 등락률 순위. ``sort`` 는 gainers/losers/from_open_up/from_open_down/fluctuation."""
+    params = _base_ranking_params("20277", underlying, issuer)
+    params.update({
+        "FID_INPUT_RMNN_DYNU_1": "",
+        "FID_DIV_CLS_CODE": _code_of(right, _RIGHT_CODE, "right"),
+        "FID_INPUT_DATE_1": "",
+        "FID_RANK_SORT_CLS_CODE": _code_of(sort, _CHANGE_SORT, "sort"),
+        "FID_INPUT_DATE_2": "",
+    })
+    return _fetch_ranking(
+        transport, path="/uapi/elw/v1/ranking/updown-rate", tr="FHPEW02770000", params=params
+    )
+
+
+def fetch_ranking_by_sensitivity(
+    transport: Transport, *, sort: str = "delta",
+    underlying: str = "000000", issuer: str = "00000", right: str = "all",
+) -> list[RankedELW]:
+    """ELW 민감도 순위. ``sort`` 는 theoretical/delta/gamma/rho/vega/implied_volatility/
+    hist_volatility. 그릭스 등 지표는 각 행의 ``_raw`` 에 있다."""
+    params = _base_ranking_params("20285", underlying, issuer)
+    params.update({
+        "FID_DIV_CLS_CODE": _code_of(right, _RIGHT_CODE, "right"),
+        "FID_RANK_SORT_CLS_CODE": _code_of(sort, _SENSITIVITY_SORT, "sort"),
+        "FID_INPUT_RMNN_DYNU_1": "",
+        "FID_INPUT_DATE_1": "",
+    })
+    return _fetch_ranking(
+        transport, path="/uapi/elw/v1/ranking/sensitivity", tr="FHPEW02850000", params=params
+    )
+
+
+def fetch_ranking_by_indicator(
+    transport: Transport, *, sort: str = "leverage",
+    underlying: str = "000000", issuer: str = "00000", right: str = "all",
+) -> list[RankedELW]:
+    """ELW 투자지표 순위. ``sort`` 는 conversion_ratio/leverage/strike/intrinsic_value/
+    time_value. 레버리지 등 지표는 각 행의 ``_raw`` 에 있다."""
+    params = _base_ranking_params("20279", underlying, issuer)
+    params.update({
+        "FID_DIV_CLS_CODE": _code_of(right, _RIGHT_CODE, "right"),
+        "FID_RANK_SORT_CLS_CODE": _code_of(sort, _INDICATOR_SORT, "sort"),
+    })
+    return _fetch_ranking(
+        transport, path="/uapi/elw/v1/ranking/indicator", tr="FHPEW02790000", params=params
+    )
+
+
+def fetch_ranking_quick_change(
+    transport: Transport, *, sort: str = "price_surge", window: str = "day",
+    underlying: str = "000000", issuer: str = "00000",
+) -> list[RankedELW]:
+    """ELW 당일 급변 종목. ``sort`` 는 price_surge/price_plunge/volume_surge/bid_surge/
+    ask_surge, ``window`` 는 ``"minute"``(분 기준)/``"day"``(일 기준). 콜풋 필터는 없다."""
+    params = _base_ranking_params("20287", underlying, issuer)
+    params.update({
+        "FID_MRKT_CLS_CODE": "A",
+        "FID_HOUR_CLS_CODE": _code_of(window, {"minute": "1", "day": "2"}, "window"),
+        "FID_INPUT_HOUR_1": "", "FID_INPUT_HOUR_2": "",
+        "FID_RANK_SORT_CLS_CODE": _code_of(sort, _QUICK_CHANGE_SORT, "sort"),
+    })
+    return _fetch_ranking(
+        transport, path="/uapi/elw/v1/ranking/quick-change", tr="FHPEW02870000", params=params
     )

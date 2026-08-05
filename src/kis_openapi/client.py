@@ -26,6 +26,7 @@ from .balance import Balance, Portfolio, Position
 from .bond import Bond
 from .derivative import Derivative
 from .elw import ELW
+from .elw_ranking import ELWRankingQueries
 from .errors import KISUsageError
 from .index import Index
 from .instrument import DomesticBoard, is_domestic_symbol
@@ -147,6 +148,12 @@ class KISClient:
     def ranking(self) -> RankingQueries:
         """시장 전체 순위 네임스페이스 -- ``kis.ranking.by_change()`` / ``by_volume()`` 등."""
         return RankingQueries(self)
+
+    @property
+    def elw_ranking(self) -> ELWRankingQueries:
+        """시장 전체 ELW 순위 네임스페이스 -- ``kis.elw_ranking.by_volume()`` /
+        ``by_sensitivity()`` 등. 지표가 ELW 고유라 종목 순위와 별도로 둔다."""
+        return ELWRankingQueries(self)
 
     # --- 계좌 단위 조회(계좌 정보 필요) ------------------------------
     # 계좌 미설정이면 :class:`~kis_openapi.errors.KISUsageError`, 실패/응답 부재/파싱 실패는

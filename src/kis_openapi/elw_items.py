@@ -133,3 +133,28 @@ class ELWLpFlow:
     def net_quantity(self) -> int:
         """LP 순매수 수량(매수-매도). 양수면 LP 회수, 음수면 LP 공급."""
         return self.lp_buy_quantity - self.lp_sell_quantity
+
+
+@dataclass(frozen=True, slots=True)
+class RankedELW:
+    """시장 전체 ELW 순위의 한 행(불변).
+
+    :class:`~kis_openapi.ranking_items.RankedStock` 과 대칭인 ELW 판으로, 어떤 기준으로 줄 세운
+    ELW 목록의 낱개 행이다. 공통 축(순위/코드/이름/가격/전일대비/거래량)만 담고, 순위 종류마다
+    다른 고유 지표(그릭스·레버리지·회전율·호가잔량 등)는 ``_raw`` 에 있다. ``rank`` 는 응답 순서
+    기반 1-베이스 순위다(KIS 가 별도 순위 필드를 주지 않음).
+    """
+
+    rank: int
+    symbol: str                       # ELW 표준코드(6자리)
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int                       # 누적 거래량
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
