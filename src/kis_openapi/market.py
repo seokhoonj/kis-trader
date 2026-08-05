@@ -21,6 +21,7 @@ if TYPE_CHECKING:
         LimitStock,
         Market,
         MarketInvestorFlow,
+        NewsItem,
         ProgramFlowPoint,
         ProgramTradeSummary,
         TradingDay,
@@ -70,3 +71,8 @@ class MarketQueries:
     def trading_calendar(self, *, base_date: str | date | None = None) -> list[TradingDay]:
         """거래 캘린더(``base_date`` 기준 한 페이지). 각 날짜의 영업/거래/개장(휴장)/결제 여부."""
         return market_api.fetch_trading_calendar(self._client.transport, base_date=base_date)
+
+    def news(self, *, symbol: str = "", date: str | date | None = None) -> list[NewsItem]:
+        """시황/공시 뉴스 제목 피드(최신순). ``symbol`` 을 주면 그 종목 관련만, ``date`` 를 주면 그
+        날짜(없으면 최근 전체). 각 뉴스의 연관 종목은 ``NewsItem.symbols``."""
+        return market_api.fetch_news(self._client.transport, symbol=symbol, date_=date)

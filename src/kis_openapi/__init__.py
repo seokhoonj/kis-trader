@@ -43,6 +43,7 @@ from .market import MarketQueries
 from .market_items import (
     LimitStock,
     MarketInvestorFlow,
+    NewsItem,
     ProgramFlowPoint,
     ProgramTradeSummary,
     TradingDay,
@@ -128,6 +129,7 @@ __all__ = [
     "MasterRecord",
     "Money",
     "NearHighLowRanking",
+    "NewsItem",
     "Order",
     "OrderBook",
     "OrderStatus",

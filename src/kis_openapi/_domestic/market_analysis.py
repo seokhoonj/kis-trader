@@ -18,6 +18,7 @@ from ..market_items import (
     LimitStock,
     Market,
     MarketInvestorFlow,
+    NewsItem,
     ProgramFlowPoint,
     ProgramTradeSummary,
     TradingDay,
@@ -341,3 +342,54 @@ def fetch_trading_calendar(
             )
         )
     return days
+
+
+_NEWS_PATH = "/uapi/domestic-stock/v1/quotations/news-title"
+_NEWS_TR = "FHKST01011800"
+
+
+def fetch_news(
+    transport: Transport, *, symbol: str = "", date_: str | date | None = None
+) -> list[NewsItem]:
+    """시황/공시 뉴스 제목 피드(최신순). ``symbol`` 을 주면 그 종목 관련만, ``date_`` 를 주면 그 날짜.
+    둘 다 없으면 전체 최근."""
+    input_date = "" if date_ is None else _to_yyyymmdd(date_, "date_")
+    params = {
+        "FID_NEWS_OFER_ENTP_CODE": "",
+        "FID_COND_MRKT_CLS_CODE": "",
+        "FID_INPUT_ISCD": symbol,
+        "FID_TITL_CNTT": "",
+        "FID_INPUT_DATE_1": input_date,
+        "FID_INPUT_HOUR_1": "",
+        "FID_RANK_SORT_CLS_CODE": "",
+        "FID_INPUT_SRNO": "",
+    }
+    resp = transport.request(
+        method="GET", path=_NEWS_PATH, tr_id=_NEWS_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    items: list[NewsItem] = []
+    for row in rows:
+        day = str(row.get("data_dt", "")).strip()
+        tm = str(row.get("data_tm", "")).strip()
+        if not day or not tm:
+            continue
+        symbols = tuple(
+            code for i in range(1, 11)
+            if (code := str(row.get(f"iscd{i}", "")).strip())
+        )
+        items.append(
+            NewsItem(
+                serial=str(row.get("cntt_usiq_srno", "")).strip(),
+                timestamp=_combine_date_time(day, tm),
+                title=str(row.get("hts_pbnt_titl_cntt", "")).strip(),
+                source=str(row.get("dorg", "")).strip(),
+                category=str(row.get("news_lrdv_code", "")).strip(),
+                symbols=symbols,
+                _raw=row,
+            )
+        )
+    return items
