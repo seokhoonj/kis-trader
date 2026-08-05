@@ -23,13 +23,13 @@ from .derivative_items import DerivativesQuote
 from .elw import ELW
 from .elw_items import (
     ELWIndicatorPoint,
-    ELWLpFlow,
+    ELWLPFlow,
     ELWSensitivityPoint,
     ELWVolatilityPoint,
     RankedELW,
 )
 from .elw_ranking import ELWRankingQueries
-from .etf_items import ETFComponent, ETFNav, ETFNavHistoryPoint
+from .etf_items import ETFNAV, ETFComponent, ETFNAVHistoryPoint
 from .index import Index
 from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
 from .investor import InvestorActivity, InvestorFlow
@@ -57,6 +57,7 @@ __version__ = "0.0.0"
 
 __all__ = [
     "ELW",
+    "ETFNAV",
     "AfterHoursQuote",
     "Balance",
     "Bar",
@@ -71,13 +72,12 @@ __all__ = [
     "DerivativesQuote",
     "DividendRanking",
     "ELWIndicatorPoint",
-    "ELWLpFlow",
+    "ELWLPFlow",
     "ELWRankingQueries",
     "ELWSensitivityPoint",
     "ELWVolatilityPoint",
     "ETFComponent",
-    "ETFNav",
-    "ETFNavHistoryPoint",
+    "ETFNAVHistoryPoint",
     "ExecutionReport",
     "Index",
     "IndexIntradayPoint",

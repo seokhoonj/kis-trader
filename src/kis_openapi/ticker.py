@@ -20,7 +20,7 @@ from .after_hours import AfterHoursQuote
 from .bar import Bar, Interval
 from .broker import BrokerActivitySummary
 from .errors import KISUsageError
-from .etf_items import ETFComponent, ETFNav, ETFNavHistoryPoint
+from .etf_items import ETFNAV, ETFComponent, ETFNAVHistoryPoint
 from .instrument import DomesticBoard, resolve_market
 from .investor import InvestorFlow
 from .order import Order, Side, TimeInForce
@@ -149,7 +149,7 @@ class Ticker:
             self._client.transport, symbol=self.symbol, market=self._domestic_market()
         )
 
-    def nav(self) -> ETFNav:
+    def nav(self) -> ETFNAV:
         """ETF/ETN 순자산가치(NAV) 스냅샷(NAV·괴리율·추적오차율·순자산총액). 이 종목이 ETF/ETN
         일 때만 유효하다(아니면 서버가 거부). 시장 체결가는 :meth:`quote`."""
         self._domestic_market()        # 국내 ETF 전용
@@ -161,7 +161,7 @@ class Ticker:
         self._domestic_market()        # 국내 ETF 전용
         return etf_api.fetch_etf_components(self._client.transport, symbol=self.symbol)
 
-    def nav_history(self, *, start: str | date, end: str | date) -> list[ETFNavHistoryPoint]:
+    def nav_history(self, *, start: str | date, end: str | date) -> list[ETFNAVHistoryPoint]:
         """일별 NAV-가격 추이(과거->현재). ``start``/``end`` 는 기간(YYYYMMDD 또는 ``date``). 각
         거래일의 종가·NAV·괴리율로 프리미엄/디스카운트 추이를 본다. 이 종목이 ETF/ETN 일 때만 유효."""
         self._domestic_market()        # 국내 ETF 전용

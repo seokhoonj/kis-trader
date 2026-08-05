@@ -14,7 +14,7 @@ import pytest
 from kis_openapi import (
     ELW,
     ELWIndicatorPoint,
-    ELWLpFlow,
+    ELWLPFlow,
     ELWSensitivityPoint,
     ELWVolatilityPoint,
     KISClient,
@@ -286,7 +286,7 @@ def _lp_row(bsop="20240516", price="35", vrss="0", sign="3", ctrt="0.00",
 def test_lp_trend_maps_flow_from_output2():
     fake = FakeTransport(response=_resp2([_lp_row()]))
     flows = _client(fake).elw("52K577").lp_trend()
-    assert all(isinstance(f, ELWLpFlow) for f in flows)
+    assert all(isinstance(f, ELWLPFlow) for f in flows)
     flow = flows[0]
     assert flow.code == "52K577"
     assert flow.lp_buy_quantity == 84810

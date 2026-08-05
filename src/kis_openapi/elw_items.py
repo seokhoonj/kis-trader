@@ -101,7 +101,7 @@ class ELWIndicatorPoint:
 
 
 @dataclass(frozen=True, slots=True)
-class ELWLpFlow:
+class ELWLPFlow:
     """하루의 LP(유동성공급자) 매매 흐름(불변).
 
     ELW 는 거래가 얇아 발행 증권사의 LP 가 양방향 호가를 대므로, LP 의 매수/매도 물량이 시세를

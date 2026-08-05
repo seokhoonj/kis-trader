@@ -1,4 +1,4 @@
-"""ETF/ETN 시세 조회 (내부) -- NAV 등 ETF 고유 정보를 :class:`ETFNav` 로.
+"""ETF/ETN 시세 조회 (내부) -- NAV 등 ETF 고유 정보를 :class:`ETFNAV` 로.
 
 사용자면은 종목 핸들(:class:`~kis_openapi.ticker.Ticker`)의 ETF 전용 verb(``kis.ticker(code).nav()``)다.
 ETF/ETN 은 종목처럼 거래되므로 시세/주문은 일반 verb 로 하고, 여기선 NAV/괴리율/추적오차 같은 ETF
@@ -21,7 +21,7 @@ from typing import Any
 
 from .._wire import required_decimal
 from ..errors import KISUsageError
-from ..etf_items import ETFComponent, ETFNav, ETFNavHistoryPoint
+from ..etf_items import ETFNAV, ETFComponent, ETFNAVHistoryPoint
 from ..transport import Transport
 from .market_data import (
     _KST,
@@ -45,7 +45,7 @@ _ETF_NAV_HISTORY_PATH = "/uapi/etfetn/v1/quotations/nav-comparison-daily-trend"
 _ETF_NAV_HISTORY_TR = "FHPST02440200"
 
 
-def fetch_etf_nav(transport: Transport, *, symbol: str) -> ETFNav:
+def fetch_etf_nav(transport: Transport, *, symbol: str) -> ETFNAV:
     """ETF/ETN 순자산가치(NAV) 스냅샷. ``symbol`` 이 ETF/ETN 이 아니면 서버가 거부한다."""
     params = {"FID_COND_MRKT_DIV_CODE": _ETF_MARKET_DIV, "FID_INPUT_ISCD": symbol}
     resp = transport.request(
@@ -103,9 +103,9 @@ def _parse_etf_components(rows: Sequence[Mapping[str, Any]]) -> list[ETFComponen
 
 def fetch_etf_nav_history(
     transport: Transport, *, symbol: str, start: str | date, end: str | date
-) -> list[ETFNavHistoryPoint]:
+) -> list[ETFNAVHistoryPoint]:
     """일별 NAV-가격 추이. ``start``/``end`` 는 조회 기간(YYYYMMDD 또는 date). 각 거래일의 종가·NAV·
-    괴리율을 :class:`ETFNavHistoryPoint` 리스트(과거->현재)로. KIS 가 한 번에 주는 창만 돌려준다."""
+    괴리율을 :class:`ETFNAVHistoryPoint` 리스트(과거->현재)로. KIS 가 한 번에 주는 창만 돌려준다."""
     start_date = _to_yyyymmdd(start, "start")
     end_date = _to_yyyymmdd(end, "end")
     if start_date > end_date:
@@ -127,9 +127,9 @@ def fetch_etf_nav_history(
     return _parse_etf_nav_history(rows)
 
 
-def _parse_etf_nav_history(rows: Sequence[Mapping[str, Any]]) -> list[ETFNavHistoryPoint]:
-    """일별 NAV 추이 행 -> ETFNavHistoryPoint(거래일 오름차순)."""
-    points: list[ETFNavHistoryPoint] = []
+def _parse_etf_nav_history(rows: Sequence[Mapping[str, Any]]) -> list[ETFNAVHistoryPoint]:
+    """일별 NAV 추이 행 -> ETFNAVHistoryPoint(거래일 오름차순)."""
+    points: list[ETFNAVHistoryPoint] = []
     for row in rows:
         date_text = str(row.get("stck_bsop_date", "")).strip()
         close_text = str(row.get("stck_clpr", "")).strip()
@@ -137,7 +137,7 @@ def _parse_etf_nav_history(rows: Sequence[Mapping[str, Any]]) -> list[ETFNavHist
             continue
         sign = str(row.get("nav_prdy_vrss_sign", "")).strip()
         points.append(
-            ETFNavHistoryPoint(
+            ETFNAVHistoryPoint(
                 date=_parse_kst_date(date_text),
                 close=required_decimal(close_text, "stck_clpr"),
                 nav=required_decimal(row.get("nav"), "nav"),
@@ -155,9 +155,9 @@ def _parse_etf_nav_history(rows: Sequence[Mapping[str, Any]]) -> list[ETFNavHist
     return points
 
 
-def _parse_etf_nav(output: Mapping[str, Any], *, symbol: str, as_of: datetime) -> ETFNav:
+def _parse_etf_nav(output: Mapping[str, Any], *, symbol: str, as_of: datetime) -> ETFNAV:
     sign = str(output.get("nav_prdy_vrss_sign", "")).strip()
-    return ETFNav(
+    return ETFNAV(
         symbol=symbol,
         nav=required_decimal(output.get("nav"), "nav"),
         nav_change=_apply_change_sign(

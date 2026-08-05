@@ -23,7 +23,7 @@ from typing import Any, Literal, NamedTuple
 from .._wire import optional_decimal, required_decimal, required_int
 from ..elw_items import (
     ELWIndicatorPoint,
-    ELWLpFlow,
+    ELWLPFlow,
     ELWSensitivityPoint,
     ELWVolatilityPoint,
     RankedELW,
@@ -309,7 +309,7 @@ _LP_TREND_PATH = "/uapi/elw/v1/quotations/lp-trade-trend"
 _LP_TREND_TR = "FHPEW03760000"
 
 
-def fetch_lp_trend(transport: Transport, *, code: str) -> list[ELWLpFlow]:
+def fetch_lp_trend(transport: Transport, *, code: str) -> list[ELWLPFlow]:
     """ELW 의 일별 LP(유동성공급자) 매매 흐름(최신순). ``code`` 는 ELW 표준코드.
 
     응답의 ``output2`` 가 일별 LP 매매내역이다(``output1`` 은 현재 요약이라 다루지 않는다 -- 레버리지/
@@ -329,9 +329,9 @@ def fetch_lp_trend(transport: Transport, *, code: str) -> list[ELWLpFlow]:
     ]
 
 
-def _parse_lp_row(row: Mapping[str, Any], *, code: str) -> ELWLpFlow:
+def _parse_lp_row(row: Mapping[str, Any], *, code: str) -> ELWLPFlow:
     sign = str(row.get("prdy_vrss_sign", "")).strip()
-    return ELWLpFlow(
+    return ELWLPFlow(
         code=code,
         timestamp=_parse_bar_timestamp(str(row.get("stck_bsop_date", "")).strip()),
         price=required_decimal(row.get("elw_prpr"), "elw_prpr"),
