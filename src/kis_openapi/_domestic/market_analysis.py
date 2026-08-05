@@ -12,11 +12,12 @@ from __future__ import annotations
 
 from datetime import date, datetime, timedelta
 
-from .._wire import required_decimal, required_int
+from .._wire import optional_decimal, required_decimal, required_int
 from ..errors import KISUsageError
-from ..market_items import Market, MarketInvestorFlow, ProgramTradeSummary
+from ..market_items import Market, MarketInvestorFlow, ProgramTradeSummary, VIEvent
 from ..transport import Transport
 from .market_data import (
+    _KST,
     _apply_change_sign,
     _missing_block_error,
     _parse_bar_timestamp,
@@ -144,3 +145,61 @@ def fetch_program_trade_summary(
             )
         )
     return summaries
+
+
+_VI_STATUS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-vi-status"
+_VI_STATUS_TR = "FHPST01390000"
+
+
+def _combine_date_time(date_yyyymmdd: str, time_hhmmss: str) -> datetime:
+    """영업일(YYYYMMDD) + 시각(HHMMSS) -> KST-aware datetime."""
+    stamp = datetime.strptime(date_yyyymmdd + time_hhmmss, "%Y%m%d%H%M%S")  # noqa: DTZ007
+    return stamp.replace(tzinfo=_KST)
+
+
+def fetch_vi_events(
+    transport: Transport, *, as_of: str | date | None = None
+) -> list[VIEvent]:
+    """전 시장의 VI(변동성완화장치) 발동 이벤트 목록(``as_of`` 기준일; 미지정이면 오늘)."""
+    anchor = _today_kst() if as_of is None else _to_yyyymmdd(as_of, "as_of")
+    params = {
+        "FID_DIV_CLS_CODE": "0",
+        "FID_COND_SCR_DIV_CODE": "20139",
+        "FID_MRKT_CLS_CODE": "0",          # 0: 전체 시장
+        "FID_INPUT_ISCD": "",
+        "FID_RANK_SORT_CLS_CODE": "0",
+        "FID_INPUT_DATE_1": anchor,
+        "FID_TRGT_CLS_CODE": "",
+        "FID_TRGT_EXLS_CLS_CODE": "",
+    }
+    resp = transport.request(
+        method="GET", path=_VI_STATUS_PATH, tr_id=_VI_STATUS_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    events: list[VIEvent] = []
+    for row in rows:
+        code = str(row.get("mksc_shrn_iscd", "")).strip()
+        day = str(row.get("bsop_date", "")).strip()
+        triggered = str(row.get("cntg_vi_hour", "")).strip()
+        if not code or not day or not triggered:
+            continue
+        released = str(row.get("vi_cncl_hour", "")).strip()
+        events.append(
+            VIEvent(
+                symbol=code,
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                triggered_at=_combine_date_time(day, triggered),
+                released_at=_combine_date_time(day, released) if released.strip("0") else None,
+                vi_class=str(row.get("vi_cls_code", "")).strip(),
+                vi_kind=str(row.get("vi_kind_code", "")).strip(),
+                trigger_price=required_decimal(row.get("vi_prc"), "vi_prc"),
+                base_price=optional_decimal(row.get("vi_stnd_prc"), "vi_stnd_prc"),
+                disparity_percent=optional_decimal(row.get("vi_dprt"), "vi_dprt"),
+                count=required_int(row.get("vi_count"), "vi_count"),
+                _raw=row,
+            )
+        )
+    return events

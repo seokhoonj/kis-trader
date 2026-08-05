@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from datetime import date
 
     from .client import KISClient
-    from .market_items import Market, MarketInvestorFlow, ProgramTradeSummary
+    from .market_items import Market, MarketInvestorFlow, ProgramTradeSummary, VIEvent
 
 
 class MarketQueries:
@@ -44,3 +44,8 @@ class MarketQueries:
         return market_api.fetch_program_trade_summary(
             self._client.transport, market=market, start=start, end=end
         )
+
+    def vi_events(self, *, as_of: str | date | None = None) -> list[VIEvent]:
+        """전 시장의 VI(변동성완화장치) 발동 이벤트(``as_of`` 기준일; 미지정이면 오늘). 발동/해제 시각·
+        발동가·기준가 대비 괴리율·당일 발동횟수를 담는다."""
+        return market_api.fetch_vi_events(self._client.transport, as_of=as_of)
