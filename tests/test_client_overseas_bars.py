@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, KisClient
+from kis_openapi import Bar, KISClient
 from kis_openapi.transport import RawResponse
 
 _OVERSEAS_BARS = "/uapi/overseas-price/v1/quotations/dailyprice"
@@ -43,7 +43,7 @@ class FakeTransport:
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", transport=transport)
 
 
 def test_overseas_bars_parses_ascending_and_params():

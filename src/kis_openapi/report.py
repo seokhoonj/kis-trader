@@ -14,7 +14,7 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
 
-from .errors import KisError
+from .errors import KISError
 from .order import _SIDES, Side
 
 
@@ -68,7 +68,7 @@ class ExecutionReport:
     def __post_init__(self) -> None:
         # side 는 신뢰 못 할 경계(영속 JSON, 지문 튜플)에서도 도메인 값이어야 한다.
         if self.side not in _SIDES:
-            raise KisError(f"ExecutionReport.side 는 buy/sell 중 하나여야 한다: {self.side!r}")
+            raise KISError(f"ExecutionReport.side 는 buy/sell 중 하나여야 한다: {self.side!r}")
         # frozen 이 재바인딩만 막으므로, _raw 를 읽기전용 스냅샷으로 얼려 진짜 불변으로.
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
 

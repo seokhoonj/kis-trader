@@ -1,4 +1,4 @@
-"""사전 리스크 한도(오주문 방지) -- KisClient(risk=RiskLimits(...)) 로 buy/sell 을 게이트.
+"""사전 리스크 한도(오주문 방지) -- KISClient(risk=RiskLimits(...)) 로 buy/sell 을 게이트.
 
 KIS 가 서버에서 막지 않는 fat-finger(과대 수량/금액, 현재가 대비 % 이탈, 호가단위)를 와이어에
 닿기 전에 잡는지, 그리고 참조가가 필요한 검사(collar/시장가 notional)가 시세를 조회하고 조회
@@ -13,8 +13,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import ExecutionReport, KisClient, Order, RiskLimits
-from kis_openapi.errors import KisError, KisUsageError, PreTradeRiskError
+from kis_openapi import ExecutionReport, KISClient, Order, RiskLimits
+from kis_openapi.errors import KISError, KISUsageError, PreTradeRiskError
 from kis_openapi.transport import RawResponse
 
 _ORDER_CASH = "/uapi/domestic-stock/v1/trading/order-cash"
@@ -55,7 +55,7 @@ class FakeTransport:
 
 
 def _client(transport, *, risk=None):
-    return KisClient(app_key="k", app_secret="s", account="12345678-01",
+    return KISClient(app_key="k", app_secret="s", account="12345678-01",
                      environment="real", transport=transport, risk=risk)
 
 
@@ -70,13 +70,13 @@ def _paths(fake):
      {"max_order_notional": "-1"}, {"price_collar_percent": 0}, {"price_collar_percent": -1}],
 )
 def test_risk_limits_rejects_non_positive_config(kwargs):
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         RiskLimits(**kwargs)
 
 
 @pytest.mark.parametrize("kwargs", [{"max_order_notional": "abc"}, {"price_collar_percent": "x%"}])
 def test_risk_limits_rejects_nonnumeric_config(kwargs):
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         RiskLimits(**kwargs)
 
 
@@ -155,7 +155,7 @@ def test_collar_does_not_apply_to_market_order():
 def test_collar_fails_closed_when_quote_unavailable():
     fake = FakeTransport(by_path={_QUOTE: [_QUOTE_FAIL], _ORDER_CASH: [_ACCEPTED]})
     kis = _client(fake, risk=RiskLimits(price_collar_percent=10))
-    with pytest.raises(KisError):                        # 참조 시세 조회 실패 -> 한도 확인 불가 -> 주문 중단
+    with pytest.raises(KISError):                        # 참조 시세 조회 실패 -> 한도 확인 불가 -> 주문 중단
         kis.ticker("005930").buy(quantity=10, price=72000)
     assert _paths(fake) == [_QUOTE]                      # 시세 1회만 조회하고 주문은 나가지 않는다
 
@@ -198,7 +198,7 @@ def test_tick_size_table_boundaries(price, expected_tick_ok):
 # --- 정수 수량(구조적, 항상 ON) -------------------------------------------
 def test_fractional_quantity_rejected_without_risk_config():
     fake = FakeTransport(response=_ACCEPTED)
-    with pytest.raises(KisUsageError):                  # 리스크 설정 없이도 소수 수량은 거부
+    with pytest.raises(KISUsageError):                  # 리스크 설정 없이도 소수 수량은 거부
         _client(fake).ticker("005930").buy(quantity=Decimal("10.5"), price=70000)
     assert fake.calls == []
 
@@ -237,7 +237,7 @@ def test_limit_notional_equal_to_cap_passes_without_quote():
 def test_market_notional_cap_fails_closed_when_quote_unavailable():
     fake = FakeTransport(by_path={_QUOTE: [_QUOTE_FAIL], _ORDER_CASH: [_ACCEPTED]})
     kis = _client(fake, risk=RiskLimits(max_order_notional=1_000_000))
-    with pytest.raises(KisError):                       # 참조 조회 실패 -> 한도 확인 불가 -> 중단
+    with pytest.raises(KISError):                       # 참조 조회 실패 -> 한도 확인 불가 -> 중단
         kis.ticker("005930").buy(quantity=20)
     assert _paths(fake) == [_QUOTE]                     # 시세만 시도, 주문 미전송
 

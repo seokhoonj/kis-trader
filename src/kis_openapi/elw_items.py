@@ -4,7 +4,7 @@ ELW 는 증권 형태로 상장된 옵션이다(기초자산에 대한 콜/풋 �
 (현재가/호가/체결)는 종목 핸들(:class:`~kis_openapi.ticker.Ticker`)로 조회하고, 여기 타입들은
 ELW 고유의 **옵션 분석 지표** -- 민감도(그릭스), 변동성, 투자지표의 시계열 -- 를 담는다.
 
-:class:`~kis_openapi.elw.Elw` 핸들(``kis.elw(code)``)의 조회 메서드가 돌려준다. 타입이 여럿이라
+:class:`~kis_openapi.elw.ELW` 핸들(``kis.elw(code)``)의 조회 메서드가 돌려준다. 타입이 여럿이라
 한 파일에 모은다(ranking_items/index_items 선례).
 """
 
@@ -19,7 +19,7 @@ from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
-class ElwSensitivityPoint:
+class ELWSensitivityPoint:
     """한 시점의 ELW 민감도(그릭스) 스냅샷(불변).
 
     옵션 민감도로, ``delta`` 는 기초자산 1 변동당 ELW 이론가 변동, ``gamma`` 는 델타의 변화율,
@@ -48,7 +48,7 @@ class ElwSensitivityPoint:
 
 
 @dataclass(frozen=True, slots=True)
-class ElwVolatilityPoint:
+class ELWVolatilityPoint:
     """한 시점의 ELW 변동성 스냅샷(불변).
 
     ``implied_volatility`` 는 HTS 내재변동성(%) -- 옵션 가격에 내포된 시장의 변동성 기대치다.
@@ -73,7 +73,7 @@ class ElwVolatilityPoint:
 
 
 @dataclass(frozen=True, slots=True)
-class ElwIndicatorPoint:
+class ELWIndicatorPoint:
     """한 시점의 ELW 투자지표 스냅샷(불변).
 
     ``leverage`` 는 실효 레버리지(기초자산 1% 변동당 ELW 몇 % 변동), ``gearing`` 은 명목 레버리지
@@ -101,7 +101,7 @@ class ElwIndicatorPoint:
 
 
 @dataclass(frozen=True, slots=True)
-class ElwLpFlow:
+class ELWLpFlow:
     """하루의 LP(유동성공급자) 매매 흐름(불변).
 
     ELW 는 거래가 얇아 발행 증권사의 LP 가 양방향 호가를 대므로, LP 의 매수/매도 물량이 시세를

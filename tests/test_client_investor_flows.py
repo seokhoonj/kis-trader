@@ -12,8 +12,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import InvestorFlow, KisClient
-from kis_openapi.errors import KisError
+from kis_openapi import InvestorFlow, KISClient
+from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
 _INVESTOR_PATH = "/uapi/domestic-stock/v1/quotations/inquire-investor"
@@ -48,7 +48,7 @@ def _resp(rows):
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", transport=transport)
 
 
 def test_investor_flows_maps_nested_activity():
@@ -92,17 +92,17 @@ def test_investor_flows_skips_dateless_rows():
 
 def test_investor_flows_missing_field_fails_closed():
     fake = FakeTransport(response=_resp([_row(frgn_ntby_qty="")]))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("005930").investor_flows()
 
 
 def test_investor_flows_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="X", msg1="실패", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("005930").investor_flows()
 
 
 def test_investor_flows_missing_output_block_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):                          # 성공 응답인데 output 없음 -> 빈결과로 오인 금지
+    with pytest.raises(KISError):                          # 성공 응답인데 output 없음 -> 빈결과로 오인 금지
         _client(fake).ticker("005930").investor_flows()

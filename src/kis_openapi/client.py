@@ -1,4 +1,4 @@
-"""세션 루트 -- :class:`KisClient`.
+"""세션 루트 -- :class:`KISClient`.
 
 인증(앱키/시크릿)과 기본 계좌를 쥔 세션이다. 모든 행위가 여기서 시작한다:
 ``kis.ticker("005930")`` 로 종목 핸들을, ``kis.balance()`` 등으로 계좌를 조회한다.
@@ -25,8 +25,8 @@ from ._overseas import orders as overseas_orders_engine
 from .balance import Balance, Portfolio, Position
 from .bond import Bond
 from .derivative import Derivative
-from .elw import Elw
-from .errors import KisUsageError
+from .elw import ELW
+from .errors import KISUsageError
 from .index import Index
 from .instrument import DomesticBoard, is_domestic_symbol
 from .order import Order
@@ -39,7 +39,7 @@ from .ticker import Ticker
 from .transport import Transport
 
 
-class KisClient:
+class KISClient:
     """KIS Open API 세션. ``transport`` 는 주입된 전송 구현(실제 HTTP 또는 테스트용 가짜)이다."""
 
     def __init__(
@@ -114,7 +114,7 @@ class KisClient:
         """해외 심볼을 KIS 종목 마스터로 조회한다 -- 거래소코드/통화/종목유형/이름을 돌려준다.
 
         같은 심볼이 여러 거래소에 있으면 ``exchange`` 를 명시해야 한다(:class:`~kis_openapi.errors.
-        KisUsageError`). 첫 호출은 마스터를 받아 캐시하므로 느릴 수 있다(이후는 캐시)."""
+        KISUsageError`). 첫 호출은 마스터를 받아 캐시하므로 느릴 수 있다(이후는 캐시)."""
         if self._master_index is None:
             self._master_index = load_overseas_index(fetch=self._master_fetch)
         return self._master_index.resolve(symbol, exchange=exchange)
@@ -128,12 +128,12 @@ class KisClient:
         """장내채권 핸들을 만든다. ``code`` 는 표준코드(ISIN, 예: KR2033022D33)."""
         return Bond(self, code)
 
-    def elw(self, code: str) -> Elw:
+    def elw(self, code: str) -> ELW:
         """ELW(주식워런트증권) 고유 지표 핸들을 만든다. ``code`` 는 ELW 표준코드(6자리, 예: 58J297).
 
         기본 시세(현재가/호가/체결)는 ``kis.ticker(code)`` 로 조회한다 -- 이 핸들은 민감도(그릭스)·
         변동성·투자지표 같은 ELW 고유 옵션 분석 지표만 얹는다."""
-        return Elw(self, code)
+        return ELW(self, code)
 
     def futures(self, code: str) -> Derivative:
         """지수선물 계약 핸들을 만든다. ``code`` 는 계약코드(예: 101W09)."""
@@ -149,8 +149,8 @@ class KisClient:
         return RankingQueries(self)
 
     # --- 계좌 단위 조회(계좌 정보 필요) ------------------------------
-    # 계좌 미설정이면 :class:`~kis_openapi.errors.KisUsageError`, 실패/응답 부재/파싱 실패는
-    # :class:`~kis_openapi.errors.KisError`.
+    # 계좌 미설정이면 :class:`~kis_openapi.errors.KISUsageError`, 실패/응답 부재/파싱 실패는
+    # :class:`~kis_openapi.errors.KISError`.
     def balance(self) -> Balance:
         """계좌의 현금·자산 요약."""
         cano, product_code = self._require_account()
@@ -188,7 +188,7 @@ class KisClient:
 
     def overseas_open_orders(self, *, market: str) -> list[OverseasOpenOrder]:
         """해외 미체결(열린) 주문 목록(시장별). 거래소 주문번호·미체결 잔량을 준다. **모의투자
-        미지원**(demo면 :class:`~kis_openapi.errors.KisUsageError`; 계좌 정보 필요)."""
+        미지원**(demo면 :class:`~kis_openapi.errors.KISUsageError`; 계좌 정보 필요)."""
         cano, product_code = self._require_account()
         return overseas_account.fetch_open_orders(
             self._transport, cano=cano, product_code=product_code,
@@ -206,8 +206,8 @@ class KisClient:
         """미확인 주문(타임아웃 등)의 실제 상태를 브로커에 재조회한다 -- **보수적**.
 
         완료 리포트가 있으면 반환. in-flight 면 일별체결조회로 확인해 정확히 1건이면 확정,
-        모호(0/다건)하면 미접수로 단정하지 않는다(``None`` 또는 :class:`~kis_openapi.errors.KisError`).
-        모르는 id 는 :class:`~kis_openapi.errors.KisUsageError`. 재조회 자체가 시간초과면
+        모호(0/다건)하면 미접수로 단정하지 않는다(``None`` 또는 :class:`~kis_openapi.errors.KISError`).
+        모르는 id 는 :class:`~kis_openapi.errors.KISUsageError`. 재조회 자체가 시간초과면
         :class:`~kis_openapi.errors.OrderTimeoutError`(in-flight 유지, 잠시 후 재시도).
         """
         cano, product_code = self._require_account()
@@ -236,7 +236,7 @@ class KisClient:
         risk = self._risk
         if overseas_orders_engine.is_overseas_exchange(order.exchange):
             if risk is not None:
-                raise KisUsageError(
+                raise KISUsageError(
                     "해외 주문엔 사전 리스크 게이트가 아직 미지원이다 -- risk 없는 세션에서 내거나 "
                     "국내 주문에만 risk 를 쓰라."
                 )
@@ -248,11 +248,11 @@ class KisClient:
         )
 
     def _require_account(self) -> tuple[str, str]:
-        """계좌 식별정보를 돌려주거나, 없으면 :class:`KisUsageError`."""
+        """계좌 식별정보를 돌려주거나, 없으면 :class:`KISUsageError`."""
         if self._cano is None or self._product_code is None:
-            raise KisUsageError(
+            raise KISUsageError(
                 "계좌 조회/주문에는 계좌 정보가 필요하다 -- "
-                "KisClient(..., account='12345678-01') 로 생성하라."
+                "KISClient(..., account='12345678-01') 로 생성하라."
             )
         return self._cano, self._product_code
 
@@ -263,7 +263,7 @@ def _split_account(account: str | None) -> tuple[str, str] | tuple[None, None]:
         return None, None
     cano, _, product_code = account.partition("-")
     if not cano or not product_code or "-" in product_code:
-        raise KisUsageError(
+        raise KISUsageError(
             f"account 형식은 '계좌번호-상품코드'여야 한다(예: '12345678-01'): {account!r}"
         )
     return cano, product_code

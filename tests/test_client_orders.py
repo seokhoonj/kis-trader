@@ -13,11 +13,11 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import ExecutionReport, KisClient, OrderStatus, OrderStore
+from kis_openapi import ExecutionReport, KISClient, OrderStatus, OrderStore
 from kis_openapi.errors import (
     AccountNotOrderable,
-    KisError,
-    KisUsageError,
+    KISError,
+    KISUsageError,
     OrderRejectedError,
     OrderTimeoutError,
 )
@@ -74,7 +74,7 @@ def _daily_order_row(*, odno="0000117057", symbol="005930", side_code="02", orde
 
 
 def _client(transport, *, environment="real", account="12345678-01", store=None, orderable=True):
-    return KisClient(app_key="k", app_secret="s", account=account, environment=environment,
+    return KISClient(app_key="k", app_secret="s", account=account, environment=environment,
                      transport=transport, store=store, orderable=orderable)
 
 
@@ -130,7 +130,7 @@ def test_same_id_different_order_conflicts():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     kis = _client(fake)
     kis.ticker("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
-    with pytest.raises(KisUsageError):                   # 같은 id 다른 주문 -> 충돌 거부
+    with pytest.raises(KISUsageError):                   # 같은 id 다른 주문 -> 충돌 거부
         kis.ticker("005930").buy(quantity=99, price=70000, client_order_id="ID-1")
 
 
@@ -148,7 +148,7 @@ def test_in_flight_after_timeout_refuses_resend():
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
         kis.ticker("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
-    with pytest.raises(KisUsageError):                   # in-flight -> 재전송 거부(재조회 요구)
+    with pytest.raises(KISUsageError):                   # in-flight -> 재전송 거부(재조회 요구)
         kis.ticker("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
 
 
@@ -165,7 +165,7 @@ def test_rejected_raises_and_clears_in_flight():
 
 def test_accepted_without_odno_raises():
     resp = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="ok", body={"output": {}})
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=resp)).ticker("005930").buy(quantity=10, price=70000)
 
 
@@ -178,8 +178,8 @@ def test_retirement_account_blocked():
 
 
 def test_order_requires_account():
-    kis = KisClient(app_key="k", app_secret="s", transport=FakeTransport(response=_ACCEPTED_ORDER_RESPONSE))
-    with pytest.raises(KisUsageError):
+    kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_ACCEPTED_ORDER_RESPONSE))
+    with pytest.raises(KISUsageError):
         kis.ticker("005930").buy(quantity=10, price=70000)
 
 
@@ -195,7 +195,7 @@ def test_reconcile_replays_completed():
 
 
 def test_reconcile_unknown_id_raises():
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)).reconcile("never-sent")
 
 
@@ -233,7 +233,7 @@ def test_reconcile_ambiguous_multiple_matches_raises():
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
         kis.ticker("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
-    with pytest.raises(KisError):                         # 지문 일치 2건 -> 자동 확정 불가
+    with pytest.raises(KISError):                         # 지문 일치 2건 -> 자동 확정 불가
         kis.reconcile("ID-1")
 
 
@@ -334,7 +334,7 @@ def test_reconcile_daily_ccld_failure_fails_closed():
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
         kis.ticker("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
-    with pytest.raises(KisError):                 # 조회 실패를 빈 결과(미접수)로 오인하지 않음
+    with pytest.raises(KISError):                 # 조회 실패를 빈 결과(미접수)로 오인하지 않음
         kis.reconcile("ID-1")
 
 
@@ -347,7 +347,7 @@ def test_reconcile_scans_all_daily_ccld_pages():
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
         kis.ticker("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
-    with pytest.raises(KisError):                 # 두 페이지 걸쳐 2건 -> 모호 -> 자동확정 불가
+    with pytest.raises(KISError):                 # 두 페이지 걸쳐 2건 -> 모호 -> 자동확정 불가
         kis.reconcile("ID-1")
     assert fake.calls[2]["params"]["CTX_AREA_NK100"] == "NK2"   # 2페이지째에 연속키 전달
 

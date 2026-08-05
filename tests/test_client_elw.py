@@ -12,14 +12,14 @@ from decimal import Decimal
 import pytest
 
 from kis_openapi import (
-    Elw,
-    ElwIndicatorPoint,
-    ElwLpFlow,
-    ElwSensitivityPoint,
-    ElwVolatilityPoint,
-    KisClient,
+    ELW,
+    ELWIndicatorPoint,
+    ELWLpFlow,
+    ELWSensitivityPoint,
+    ELWVolatilityPoint,
+    KISClient,
 )
-from kis_openapi.errors import KisError, KisUsageError
+from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
 _DAILY = "/uapi/elw/v1/quotations/sensitivity-trend-daily"
@@ -56,7 +56,7 @@ def _resp(rows):
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", transport=transport)
 
 
 def _daily_row(bsop="20240507", price="25", vrss="20", sign="5", ctrt="44.44",
@@ -69,14 +69,14 @@ def _daily_row(bsop="20240507", price="25", vrss="20", sign="5", ctrt="44.44",
 
 def test_elw_accessor_returns_handle():
     handle = _client(FakeTransport(response=_resp([]))).elw("58J297")
-    assert isinstance(handle, Elw)
+    assert isinstance(handle, ELW)
     assert handle.code == "58J297"
 
 
 def test_sensitivity_trend_daily_maps_greeks_and_market():
     fake = FakeTransport(response=_resp([_daily_row()]))
     points = _client(fake).elw("58J438").sensitivity_trend("day")
-    assert all(isinstance(p, ElwSensitivityPoint) for p in points)
+    assert all(isinstance(p, ELWSensitivityPoint) for p in points)
     point = points[0]
     assert point.code == "58J438"
     assert point.price == Decimal(25)
@@ -129,19 +129,19 @@ def test_sensitivity_trend_skips_empty_rows():
 
 def test_sensitivity_trend_rejects_unsupported_interval():
     fake = FakeTransport(response=_resp([]))
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).elw("58J438").sensitivity_trend("minute")
 
 
 def test_sensitivity_trend_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).elw("58J438").sensitivity_trend("day")
 
 
 def test_sensitivity_trend_bad_value_fails_closed():
     fake = FakeTransport(response=_resp([_daily_row(price="n/a")]))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).elw("58J438").sensitivity_trend("day")
 
 
@@ -153,7 +153,7 @@ def test_volatility_trend_daily_maps_iv_and_change():
            "hts_ints_vltl": "23.37"}
     fake = FakeTransport(response=_resp([row]))
     points = _client(fake).elw("58J297").volatility_trend("day")
-    assert all(isinstance(p, ElwVolatilityPoint) for p in points)
+    assert all(isinstance(p, ELWVolatilityPoint) for p in points)
     point = points[0]
     assert point.price == Decimal(5)
     assert point.implied_volatility == Decimal("23.37")
@@ -214,13 +214,13 @@ def test_volatility_trend_include_past_flag():
 
 def test_volatility_trend_rejects_bad_minutes():
     fake = FakeTransport(response=_resp([]))
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).elw("58J297").volatility_trend("minute", minutes=2)
 
 
 def test_volatility_trend_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).elw("58J297").volatility_trend("day")
 
 
@@ -232,7 +232,7 @@ def test_indicator_trend_daily_maps_indicators_and_change():
            "prit": "102.82", "elw_oprc": "40", "apprch_rate": "0.00"}
     fake = FakeTransport(response=_resp([row]))
     points = _client(fake).elw("57K281").indicator_trend("day")
-    assert all(isinstance(p, ElwIndicatorPoint) for p in points)
+    assert all(isinstance(p, ELWIndicatorPoint) for p in points)
     point = points[0]
     assert point.price == Decimal(40)
     assert point.leverage == Decimal("-11.0377")
@@ -263,13 +263,13 @@ def test_indicator_trend_minute_no_change_and_span():
 
 def test_indicator_trend_rejects_tick():
     fake = FakeTransport(response=_resp([]))
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).elw("57K281").indicator_trend("tick")
 
 
 def test_indicator_trend_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).elw("57K281").indicator_trend("day")
 
 
@@ -286,7 +286,7 @@ def _lp_row(bsop="20240516", price="35", vrss="0", sign="3", ctrt="0.00",
 def test_lp_trend_maps_flow_from_output2():
     fake = FakeTransport(response=_resp2([_lp_row()]))
     flows = _client(fake).elw("52K577").lp_trend()
-    assert all(isinstance(f, ElwLpFlow) for f in flows)
+    assert all(isinstance(f, ELWLpFlow) for f in flows)
     flow = flows[0]
     assert flow.code == "52K577"
     assert flow.lp_buy_quantity == 84810
@@ -317,11 +317,11 @@ def test_lp_trend_skips_empty_rows():
 def test_lp_trend_missing_output2_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {"elw_prpr": "40"}})
     fake = FakeTransport(response=resp)
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).elw("52K577").lp_trend()
 
 
 def test_lp_trend_bad_quantity_fails_closed():
     fake = FakeTransport(response=_resp2([_lp_row(shnu="n/a")]))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).elw("52K577").lp_trend()

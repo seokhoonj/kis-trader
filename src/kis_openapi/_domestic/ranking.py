@@ -52,7 +52,7 @@ from datetime import date
 from typing import Any
 
 from .._wire import required_decimal, required_int
-from ..errors import KisUsageError
+from ..errors import KISUsageError
 from ..ranking_items import (
     CreditBalanceRanking,
     DividendRanking,
@@ -243,7 +243,7 @@ def fetch_disparity(
     """이격도 순위. ``top="highest"`` 이격도상위 / ``"lowest"`` 하위. ``period`` 이동평균 일수
     (5/10/20/60/120). 이격도 값은 각 항목의 ``_raw['d{period}_dsrt']``(%). 최대 30건(다음조회 없음)."""
     if period not in _DISPARITY_PERIODS:
-        raise KisUsageError(f"period 는 5/10/20/60/120 중 하나여야 한다: {period!r}")
+        raise KISUsageError(f"period 는 5/10/20/60/120 중 하나여야 한다: {period!r}")
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _DISPARITY_SCR,
@@ -458,7 +458,7 @@ def fetch_short_sale(transport: Transport, *, window: str, market: str) -> list[
         period_code, count_code = _SHORT_SALE_WINDOW[window]
     except KeyError:
         valid = "/".join(_SHORT_SALE_WINDOW)
-        raise KisUsageError(f"window 는 {valid} 중 하나여야 한다: {window!r}") from None
+        raise KISUsageError(f"window 는 {valid} 중 하나여야 한다: {window!r}") from None
     params = {
         "FID_APLY_RANG_VOL": "",               # 거래량 전체
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
@@ -688,9 +688,9 @@ def _parse_ranked(rows: Sequence[Mapping[str, Any]]) -> list[RankedStock]:
 
 
 def _lookup(table: Mapping[str, str], key: str, argname: str) -> str:
-    """코드표에서 사용자 값 -> KIS 코드. 미지원 값은 유효 목록과 함께 :class:`KisUsageError`."""
+    """코드표에서 사용자 값 -> KIS 코드. 미지원 값은 유효 목록과 함께 :class:`KISUsageError`."""
     try:
         return table[key]
     except KeyError:
         valid = "/".join(f'"{k}"' for k in table)
-        raise KisUsageError(f"{argname} 은 {valid} 중 하나여야 한다: {key!r}") from None
+        raise KISUsageError(f"{argname} 은 {valid} 중 하나여야 한다: {key!r}") from None

@@ -1,6 +1,6 @@
 """ELW(주식워런트증권) 고유 지표 조회 (내부).
 
-사용자면은 ELW 핸들(:class:`~kis_openapi.elw.Elw`, ``kis.elw(code)``)이다. ELW 는 6자리 코드로
+사용자면은 ELW 핸들(:class:`~kis_openapi.elw.ELW`, ``kis.elw(code)``)이다. ELW 는 6자리 코드로
 상장돼 기본 시세는 종목 엔진(시장구분 J)으로 조회되므로, 여기서는 ELW 고유의 옵션 분석 지표
 (민감도/변동성/투자지표 추이)만 다룬다. ELW 조회의 시장구분코드는 ``W`` 다.
 
@@ -22,12 +22,12 @@ from typing import Any, Literal, NamedTuple
 
 from .._wire import optional_decimal, required_decimal, required_int
 from ..elw_items import (
-    ElwIndicatorPoint,
-    ElwLpFlow,
-    ElwSensitivityPoint,
-    ElwVolatilityPoint,
+    ELWIndicatorPoint,
+    ELWLpFlow,
+    ELWSensitivityPoint,
+    ELWVolatilityPoint,
 )
-from ..errors import KisUsageError
+from ..errors import KISUsageError
 from ..transport import Transport
 from .market_data import (
     _KST,
@@ -42,7 +42,7 @@ from .market_data import (
 _MARKET_DIV = "W"
 
 #: 시계열 시간축 -- "trade"(체결별), "day"(일별), "minute"(분별), "tick"(틱).
-#: 지표군마다 지원 축이 다르다(미지원 축은 KisUsageError).
+#: 지표군마다 지원 축이 다르다(미지원 축은 KISUsageError).
 TrendInterval = Literal["trade", "day", "minute", "tick"]
 
 #: 분별 조회의 시간 간격(분) -> KIS 초 코드(FID_HOUR_CLS_CODE).
@@ -56,7 +56,7 @@ _SENSITIVITY_TR = {
 
 def fetch_sensitivity_trend(
     transport: Transport, *, code: str, interval: TrendInterval = "day"
-) -> list[ElwSensitivityPoint]:
+) -> list[ELWSensitivityPoint]:
     """ELW 민감도(그릭스) 추이. ``interval`` 은 ``"trade"``(체결별)/``"day"``(일별).
 
     체결별은 조회일의 체결 시각별, 일별은 최근 영업일별 그릭스 시계열이다(둘 다 최신순 벤더 순서
@@ -64,7 +64,7 @@ def fetch_sensitivity_trend(
     try:
         path, tr = _SENSITIVITY_TR[interval]
     except KeyError:
-        raise KisUsageError(
+        raise KISUsageError(
             f"민감도 추이는 interval='trade'/'day' 만 지원한다: {interval!r}"
         ) from None
     rows = _fetch_trend_rows(transport, path=path, tr=tr, code=code)
@@ -107,9 +107,9 @@ def _trend_timestamp(row: Mapping[str, Any], *, as_of: datetime, intraday: bool)
 
 def _parse_sensitivity_row(
     row: Mapping[str, Any], *, code: str, as_of: datetime, intraday: bool
-) -> ElwSensitivityPoint:
+) -> ELWSensitivityPoint:
     sign = str(row.get("prdy_vrss_sign", "")).strip()
-    return ElwSensitivityPoint(
+    return ELWSensitivityPoint(
         code=code,
         timestamp=_trend_timestamp(row, as_of=as_of, intraday=intraday),
         price=required_decimal(row.get("elw_prpr"), "elw_prpr"),
@@ -159,7 +159,7 @@ _VOLATILITY_SPEC = {
 def fetch_volatility_trend(
     transport: Transport, *, code: str, interval: TrendInterval = "day",
     minutes: int = 1, include_past: bool = False,
-) -> list[ElwVolatilityPoint]:
+) -> list[ELWVolatilityPoint]:
     """ELW 변동성(내재변동성) 추이. ``interval`` 은 체결/일별/분별/틱 모두 지원.
 
     ``minutes`` 는 ``interval="minute"`` 일 때만 쓰는 봉 간격(1/3/5/10/30/60분), ``include_past`` 는
@@ -182,7 +182,7 @@ def _pick_spec(
     try:
         return table[interval]
     except KeyError:
-        raise KisUsageError(
+        raise KISUsageError(
             f"{label} interval 은 {sorted(table)} 중 하나: {interval!r}"
         ) from None
 
@@ -196,7 +196,7 @@ def _minute_extra_params(
     try:
         span = _MINUTE_SPAN_SECONDS[minutes]
     except KeyError:
-        raise KisUsageError(f"minutes 는 1/3/5/10/30/60 중 하나: {minutes!r}") from None
+        raise KISUsageError(f"minutes 는 1/3/5/10/30/60 중 하나: {minutes!r}") from None
     return {"FID_HOUR_CLS_CODE": span, "FID_PW_DATA_INCU_YN": "Y" if include_past else "N"}
 
 
@@ -238,9 +238,9 @@ def _row_change(
 
 def _parse_volatility_row(
     row: Mapping[str, Any], *, code: str, as_of: datetime, spec: _TrendSpec
-) -> ElwVolatilityPoint:
+) -> ELWVolatilityPoint:
     change, change_percent = _row_change(row, spec)
-    return ElwVolatilityPoint(
+    return ELWVolatilityPoint(
         code=code,
         timestamp=_spec_timestamp(row, as_of=as_of, spec=spec),
         price=required_decimal(row.get(spec.price_key), spec.price_key),
@@ -270,7 +270,7 @@ _INDICATOR_SPEC = {
 def fetch_indicator_trend(
     transport: Transport, *, code: str, interval: TrendInterval = "day",
     minutes: int = 1, include_past: bool = False,
-) -> list[ElwIndicatorPoint]:
+) -> list[ELWIndicatorPoint]:
     """ELW 투자지표 추이. ``interval`` 은 체결/일별/분별(틱 미지원).
 
     ``minutes``/``include_past`` 는 분별에서만 쓴다. 레버리지/기어링/내재가치/패리티만 매핑하고
@@ -288,9 +288,9 @@ def fetch_indicator_trend(
 
 def _parse_indicator_row(
     row: Mapping[str, Any], *, code: str, as_of: datetime, spec: _TrendSpec
-) -> ElwIndicatorPoint:
+) -> ELWIndicatorPoint:
     change, change_percent = _row_change(row, spec)
-    return ElwIndicatorPoint(
+    return ELWIndicatorPoint(
         code=code,
         timestamp=_spec_timestamp(row, as_of=as_of, spec=spec),
         price=required_decimal(row.get(spec.price_key), spec.price_key),
@@ -308,11 +308,11 @@ _LP_TREND_PATH = "/uapi/elw/v1/quotations/lp-trade-trend"
 _LP_TREND_TR = "FHPEW03760000"
 
 
-def fetch_lp_trend(transport: Transport, *, code: str) -> list[ElwLpFlow]:
+def fetch_lp_trend(transport: Transport, *, code: str) -> list[ELWLpFlow]:
     """ELW 의 일별 LP(유동성공급자) 매매 흐름(최신순). ``code`` 는 ELW 표준코드.
 
     응답의 ``output2`` 가 일별 LP 매매내역이다(``output1`` 은 현재 요약이라 다루지 않는다 -- 레버리지/
-    패리티 등은 :meth:`~kis_openapi.elw.Elw.indicator_trend` 로 얻는다)."""
+    패리티 등은 :meth:`~kis_openapi.elw.ELW.indicator_trend` 로 얻는다)."""
     params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code}
     resp = transport.request(
         method="GET", path=_LP_TREND_PATH, tr_id=_LP_TREND_TR, params=params, idempotent=True
@@ -328,9 +328,9 @@ def fetch_lp_trend(transport: Transport, *, code: str) -> list[ElwLpFlow]:
     ]
 
 
-def _parse_lp_row(row: Mapping[str, Any], *, code: str) -> ElwLpFlow:
+def _parse_lp_row(row: Mapping[str, Any], *, code: str) -> ELWLpFlow:
     sign = str(row.get("prdy_vrss_sign", "")).strip()
-    return ElwLpFlow(
+    return ELWLpFlow(
         code=code,
         timestamp=_parse_bar_timestamp(str(row.get("stck_bsop_date", "")).strip()),
         price=required_decimal(row.get("elw_prpr"), "elw_prpr"),

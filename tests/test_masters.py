@@ -19,7 +19,7 @@ from kis_openapi._masters import (
     load_overseas_master,
     parse_overseas_master,
 )
-from kis_openapi.errors import KisUsageError
+from kis_openapi.errors import KISUsageError
 
 
 def _row(*, exchange, symbol, rsym, korean, english, stis, currency):
@@ -116,7 +116,7 @@ def test_download_unzips_and_parses():
 
 
 def test_download_rejects_unknown_market():
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         download_overseas_master("xxx", fetch=lambda url: b"")
 
 
@@ -135,7 +135,7 @@ def test_index_resolve_ambiguous_requires_exchange():
         MasterRecord("XYZ", "NAS", "USD", "stock", "", "XYZ NAS", "NASXYZ"),
         MasterRecord("XYZ", "HKS", "HKD", "stock", "", "XYZ HK", "HKSXYZ"),
     ])
-    with pytest.raises(KisUsageError, match="여러 거래소"):
+    with pytest.raises(KISUsageError, match="여러 거래소"):
         index.resolve("XYZ")
     picked = index.resolve("XYZ", exchange="HKS")     # 명시하면 좁혀짐
     assert picked.currency == "HKD"
@@ -143,7 +143,7 @@ def test_index_resolve_ambiguous_requires_exchange():
 
 def test_index_resolve_not_found():
     index = MasterIndex([MasterRecord("AAPL", "NAS", "USD", "stock", "", "APPLE", "NASAAPL")])
-    with pytest.raises(KisUsageError, match="찾지 못"):
+    with pytest.raises(KISUsageError, match="찾지 못"):
         index.resolve("MSFT")
 
 

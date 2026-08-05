@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KisClient, OrderBook
-from kis_openapi.errors import KisError
+from kis_openapi import KISClient, OrderBook
+from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
 _OVERSEAS_ASKING = "/uapi/overseas-price/v1/quotations/inquire-asking-price"
@@ -48,7 +48,7 @@ class FakeTransport:
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", transport=transport)
 
 
 def test_overseas_order_book_us_multiple_levels():
@@ -86,5 +86,5 @@ def test_overseas_order_book_non_us_single_level():
 def test_overseas_order_book_missing_output2_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                                               body={"output1": {"bvol": "1", "avol": "1"}}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("AAPL", exchange="NAS").order_book()

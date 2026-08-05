@@ -29,7 +29,7 @@ from .._domestic.market_data import (
 )
 from .._wire import optional_int, required_decimal, required_int
 from ..bar import Bar, Interval
-from ..errors import KisError, KisUsageError
+from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook
 from ..quote import Quote
 from ..trade import Trade
@@ -81,18 +81,18 @@ def fetch_bars(
     해외 분봉(``1m``)은 별도 엔드포인트라 아직 미지원. dailyprice 는 기준일(BYMD)에서 뒤로 한
     페이지씩 주므로 BYMD 를 옛날로 밀며 ``start`` 까지 모으고, 페이지 상한 초과는 fail-closed."""
     if max_bars is not None and max_bars <= 0:
-        raise KisUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
+        raise KISUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
     if interval == "1m":
         raise NotImplementedError("해외 분봉은 아직 미지원 -- 별 슬라이스로 다룬다.")
     gubn = _BARS_GUBN.get(interval)
     if gubn is None:
-        raise KisUsageError(f"지원하지 않는 해외 기간봉 interval: {interval!r} (1d/1wk/1mo).")
+        raise KISUsageError(f"지원하지 않는 해외 기간봉 interval: {interval!r} (1d/1wk/1mo).")
     if start is None:
-        raise KisUsageError(f"interval={interval!r}(기간봉)에는 start 가 필요하다.")
+        raise KISUsageError(f"interval={interval!r}(기간봉)에는 start 가 필요하다.")
     end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
     start_date = _to_yyyymmdd(start, "start")
     if start_date > end_date:
-        raise KisUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
+        raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
     modp = "1" if adjusted else "0"    # 수정주가 반영 여부
 
     bar_by_date: dict[str, Bar] = {}
@@ -121,7 +121,7 @@ def fetch_bars(
             break
         base_date = f"{_parse_bar_timestamp(oldest) - timedelta(days=1):%Y%m%d}"
     else:
-        raise KisError(
+        raise KISError(
             f"해외 바 조회가 {_MAX_BAR_PAGES}페이지 상한에 도달했으나 start({start_date})에 못 미쳤다 "
             f"-- 부분 결과로 자르지 않는다. 범위를 좁히거나 재시도하라."
         )

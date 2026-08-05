@@ -1,7 +1,7 @@
 """kis_openapi -- a clean, action-centric Python client for the Korea Investment &
 Securities (KIS) Open API.
 
-행위 중심 API: 세션 :class:`KisClient` 에서 종목 핸들 :class:`~kis_openapi.ticker.Ticker`
+행위 중심 API: 세션 :class:`KISClient` 에서 종목 핸들 :class:`~kis_openapi.ticker.Ticker`
 (``kis.ticker("005930").quote()``)와 계좌 조회를 시킨다. KIS URL 구조는 노출되지 않는다.
 
 공개 식별자는 국제 표준 금융 영어(Yahoo/Alpaca/Coinbase/FIX/ISO); KIS URL·TR-id 매핑은
@@ -17,17 +17,17 @@ from .bar import Bar, Interval
 from .bond import Bond
 from .bond_items import BondQuote
 from .broker import BrokerActivity, BrokerActivitySummary
-from .client import KisClient
+from .client import KISClient
 from .derivative import Derivative
 from .derivative_items import DerivativesQuote
-from .elw import Elw
+from .elw import ELW
 from .elw_items import (
-    ElwIndicatorPoint,
-    ElwLpFlow,
-    ElwSensitivityPoint,
-    ElwVolatilityPoint,
+    ELWIndicatorPoint,
+    ELWLpFlow,
+    ELWSensitivityPoint,
+    ELWVolatilityPoint,
 )
-from .etf_items import EtfComponent, EtfNav, EtfNavHistoryPoint
+from .etf_items import ETFComponent, ETFNav, ETFNavHistoryPoint
 from .index import Index
 from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
 from .investor import InvestorActivity, InvestorFlow
@@ -54,6 +54,7 @@ from .trade import Trade
 __version__ = "0.0.0"
 
 __all__ = [
+    "ELW",
     "AfterHoursQuote",
     "Balance",
     "Bar",
@@ -67,14 +68,13 @@ __all__ = [
     "Derivative",
     "DerivativesQuote",
     "DividendRanking",
-    "Elw",
-    "ElwIndicatorPoint",
-    "ElwLpFlow",
-    "ElwSensitivityPoint",
-    "ElwVolatilityPoint",
-    "EtfComponent",
-    "EtfNav",
-    "EtfNavHistoryPoint",
+    "ELWIndicatorPoint",
+    "ELWLpFlow",
+    "ELWSensitivityPoint",
+    "ELWVolatilityPoint",
+    "ETFComponent",
+    "ETFNav",
+    "ETFNavHistoryPoint",
     "ExecutionReport",
     "Index",
     "IndexIntradayPoint",
@@ -82,7 +82,7 @@ __all__ = [
     "Interval",
     "InvestorActivity",
     "InvestorFlow",
-    "KisClient",
+    "KISClient",
     "MasterIndex",
     "MasterRecord",
     "Money",

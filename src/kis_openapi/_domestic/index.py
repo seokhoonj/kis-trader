@@ -24,7 +24,7 @@ from typing import Any
 
 from .._wire import required_decimal, required_int
 from ..bar import Bar, Interval
-from ..errors import KisUsageError
+from ..errors import KISUsageError
 from ..index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
 from ..transport import Transport
 from .market_data import (
@@ -88,19 +88,19 @@ def fetch_index_bars(
     지수 분봉(``1m``)은 별도 엔드포인트(inquire-time-indexchartprice)이고 앵커가 아니라 봉 크기(초)
     파라미터라 페이지네이션이 달라 아직 지원하지 않는다."""
     if max_bars is not None and max_bars <= 0:
-        raise KisUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
+        raise KISUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
     if interval == "1m":
         raise NotImplementedError(
             "지수 분봉은 아직 미구현 -- inquire-time-indexchartprice 는 앵커가 아니라 봉 크기(초) "
             "파라미터라 별 슬라이스로 다룬다."
         )
     if start is None:
-        raise KisUsageError(f"interval={interval!r}(기간봉)에는 start 가 필요하다.")
+        raise KISUsageError(f"interval={interval!r}(기간봉)에는 start 가 필요하다.")
     period = _period_code_for(interval)
     end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
     start_date = _to_yyyymmdd(start, "start")
     if start_date > end_date:
-        raise KisUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
+        raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
     base_params = {
         "FID_COND_MRKT_DIV_CODE": _INDEX_MARKET_DIV,
         "FID_INPUT_ISCD": code,
@@ -143,7 +143,7 @@ def fetch_index_intraday(
     오름차순으로 :class:`IndexIntradayPoint` 리스트를 돌려준다."""
     seconds = _INDEX_INTRADAY_INTERVAL.get(interval)
     if seconds is None:
-        raise KisUsageError(f'interval 은 "1m"/"5m"/"10m" 중 하나여야 한다: {interval!r}')
+        raise KISUsageError(f'interval 은 "1m"/"5m"/"10m" 중 하나여야 한다: {interval!r}')
     params = {
         "FID_INPUT_HOUR_1": seconds,
         "FID_INPUT_ISCD": code,
@@ -192,7 +192,7 @@ def fetch_index_categories(transport: Transport, *, code: str) -> list[CategoryI
     KOSPI200)여야 하며 시장구분(K/Q/K2)을 여기서 추론한다. output2를 :class:`CategoryIndex` 로."""
     market_class = _INDEX_CATEGORY_MARKET_CLASS.get(code)
     if market_class is None:
-        raise KisUsageError(
+        raise KISUsageError(
             "categories 는 시장 지수(0001 KOSPI / 1001 KOSDAQ / 2001 KOSPI200)에만 쓴다: "
             f"{code!r}"
         )

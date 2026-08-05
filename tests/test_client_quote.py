@@ -1,4 +1,4 @@
-"""새 행위중심 API 첫 수직 -- KisClient + Ticker + quote.
+"""새 행위중심 API 첫 수직 -- KISClient + Ticker + quote.
 
 kis.ticker("005930").quote() 엔드투엔드(FakeTransport), 시장 자동판별, 계좌 파싱, transport
 주입, fail-closed 파싱, 전일대비 부호, 값 의미론을 네트워크 없이 검증한다.
@@ -12,8 +12,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, KisClient, OrderBook, PriceLevel, Quote
-from kis_openapi.errors import KisError, KisUsageError
+from kis_openapi import Bar, KISClient, OrderBook, PriceLevel, Quote
+from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
 _QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
@@ -56,7 +56,7 @@ def _quote_resp(output=None):
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", account="12345678-01", transport=transport)
+    return KISClient(app_key="k", app_secret="s", account="12345678-01", transport=transport)
 
 
 def test_ticker_quote_returns_unified_quote():
@@ -108,19 +108,19 @@ def test_quote_week52_absent_is_none():
 
 def test_quote_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="MCA05918", msg1="종목코드 오류", body={})
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=resp)).ticker("005930").quote()
 
 
 def test_quote_missing_output_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={})
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=resp)).ticker("005930").quote()
 
 
 def test_quote_unparseable_price_fails_closed():
     output = dict(_QUOTE_OUTPUT, stck_prpr="N/A")
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=_quote_resp(output))).ticker("005930").quote()
 
 
@@ -200,12 +200,12 @@ def test_ticker_bars_max_bars_keeps_recent():
 
 def test_ticker_bars_non_list_output2_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output2": "oops"})
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=resp)).ticker("005930").bars(start="20240101")
 
 
 def test_ticker_bars_start_after_end_raises():
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_bars_resp([]))).ticker("005930").bars(
             start="20240201", end="20240101"
         )
@@ -242,13 +242,13 @@ def test_ticker_order_book_best_first():
 
 def test_ticker_order_book_negative_price_fails_closed():
     output1 = _order_book_output(bids=[("-100", "10")], asks=[("71600", "100")])
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=_order_book_resp(output1))).ticker("005930").order_book()
 
 
 def test_ticker_order_book_missing_output1_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={})
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=resp)).ticker("005930").order_book()
 
 
@@ -279,7 +279,7 @@ def test_ticker_market_override_to_unified_board():
 
 def test_ticker_bad_market_override_rejected_before_io():
     fake = FakeTransport(response=_quote_resp())
-    with pytest.raises(KisUsageError):        # KROX 같은 오타는 조회 전에 거부
+    with pytest.raises(KISUsageError):        # KROX 같은 오타는 조회 전에 거부
         _client(fake).ticker("005930", market="KROX")
     assert fake.calls == []
 
@@ -293,7 +293,7 @@ def test_quote_as_of_uses_kst_offset():
 @pytest.mark.parametrize("max_bars", [0, -1])
 def test_ticker_bars_max_bars_must_be_positive(max_bars):
     fake = FakeTransport(response=_bars_resp([]))
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).ticker("005930").bars(start="20240101", max_bars=max_bars)
     assert fake.calls == []
 
@@ -324,16 +324,16 @@ def test_bar_and_order_book_value_semantics_hashable():
 # --- 구성/인증 ------------------------------------------------------------
 def test_transport_required_until_http_implemented():
     with pytest.raises(NotImplementedError):
-        KisClient(app_key="k", app_secret="s", account="12345678-01")
+        KISClient(app_key="k", app_secret="s", account="12345678-01")
 
 
 @pytest.mark.parametrize("account", ["12345678", "1-2-3", "12345678-", "-01"])
 def test_bad_account_format_rejected(account):
-    with pytest.raises(KisUsageError):
-        KisClient(app_key="k", app_secret="s", account=account,
+    with pytest.raises(KISUsageError):
+        KISClient(app_key="k", app_secret="s", account=account,
                   transport=FakeTransport(response=_quote_resp()))
 
 
 def test_account_optional_for_market_data():
-    kis = KisClient(app_key="k", app_secret="s", transport=FakeTransport(response=_quote_resp()))
+    kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_quote_resp()))
     assert kis.ticker("005930").quote().last == Decimal(71500)   # 계좌 없이 시세 OK

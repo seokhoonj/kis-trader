@@ -1,6 +1,6 @@
 """주문 전 리스크 한도(pre-trade risk) -- :class:`RiskLimits`.
 
-``KisClient(risk=RiskLimits(...))`` 로 주입하면 모든 :meth:`Ticker.buy` / :meth:`Ticker.sell`
+``KISClient(risk=RiskLimits(...))`` 로 주입하면 모든 :meth:`Ticker.buy` / :meth:`Ticker.sell`
 가 와이어에 닿기 전에 이 한도를 통과해야 한다. 어기면 :class:`~kis_openapi.errors.PreTradeRiskError`
 로 막혀 주문은 전송되지 않는다(fat-finger 방지).
 
@@ -16,7 +16,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
 
-from .errors import KisUsageError, PreTradeRiskError
+from .errors import KISUsageError, PreTradeRiskError
 from .order import Order
 
 # KRX 주식 호가가격단위 (2023-01-25 개정, KOSPI/KOSDAQ 통일). (가격 하한, 호가단위) 오름차순.
@@ -61,7 +61,7 @@ class RiskLimits:
     def __post_init__(self) -> None:
         # 한도 자체를 검증/정규화한다(양수, Decimal). frozen 이라 object.__setattr__ 로 다시 쓴다.
         if self.max_order_quantity is not None and self.max_order_quantity <= 0:
-            raise KisUsageError(f"max_order_quantity 는 양의 정수여야 한다: {self.max_order_quantity}")
+            raise KISUsageError(f"max_order_quantity 는 양의 정수여야 한다: {self.max_order_quantity}")
         if self.max_order_notional is not None:
             object.__setattr__(
                 self, "max_order_notional",
@@ -150,7 +150,7 @@ def _as_positive_decimal(value: object, name: str) -> Decimal:
     try:
         dec = Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as err:
-        raise KisUsageError(f"{name} 는 숫자여야 한다: {value!r}") from err
+        raise KISUsageError(f"{name} 는 숫자여야 한다: {value!r}") from err
     if dec <= 0:
-        raise KisUsageError(f"{name} 는 양수여야 한다: {dec}")
+        raise KISUsageError(f"{name} 는 양수여야 한다: {dec}")
     return dec

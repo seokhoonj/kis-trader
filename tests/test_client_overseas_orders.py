@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import ExecutionReport, KisClient, RiskLimits
-from kis_openapi.errors import KisError, KisUsageError, OrderTimeoutError
+from kis_openapi import ExecutionReport, KISClient, RiskLimits
+from kis_openapi.errors import KISError, KISUsageError, OrderTimeoutError
 from kis_openapi.transport import RawResponse, TransportTimeout
 
 _ORDER = "/uapi/overseas-stock/v1/trading/order"
@@ -65,7 +65,7 @@ def _ack(odno="0000123456"):
 
 
 def _client(transport, **kw):
-    return KisClient(app_key="k", app_secret="s", account="12345678-01", transport=transport, **kw)
+    return KISClient(app_key="k", app_secret="s", account="12345678-01", transport=transport, **kw)
 
 
 def test_overseas_buy_routes_to_overseas_wire():
@@ -96,7 +96,7 @@ def test_overseas_sell_sets_sll_type_and_tr():
 
 def test_overseas_market_order_rejected():
     fake = FakeTransport(response=_ack())
-    with pytest.raises(KisUsageError, match="지정가"):
+    with pytest.raises(KISUsageError, match="지정가"):
         _client(fake).ticker("AAPL", exchange="NAS").buy(quantity=1)  # price 없음
 
 
@@ -141,7 +141,7 @@ def test_overseas_reconcile_two_matches_raises():
     client = _client(fake)
     with pytest.raises(OrderTimeoutError):
         client.ticker("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="m2")
-    with pytest.raises(KisError, match="2건"):
+    with pytest.raises(KISError, match="2건"):
         client.reconcile("m2")
 
 
@@ -194,7 +194,7 @@ def test_overseas_reconcile_paginates_ccnl():
 def test_overseas_non_day_tif_rejected_before_wire():
     # 해외는 day 만 -- IOC 를 조용히 day 로 바꾸지 않고 와이어 전에 거부한다(fail-closed).
     fake = FakeTransport(response=_ack())
-    with pytest.raises(KisUsageError, match="day"):
+    with pytest.raises(KISUsageError, match="day"):
         _client(fake).ticker("AAPL", exchange="NAS").buy(
             quantity=1, price="150.00", time_in_force="ioc", client_order_id="ioc")
     assert _posts(fake) == []
@@ -203,7 +203,7 @@ def test_overseas_non_day_tif_rejected_before_wire():
 def test_overseas_unknown_exchange_rejected_before_wire():
     # 알 수 없는 거래소코드는 도메스틱 빌더로 흘러 와이어 전에 거부된다(오라우팅 방지).
     fake = FakeTransport(response=_ack())
-    with pytest.raises(Exception):  # noqa: B017 -- NotImplementedError/KisUsageError, 어느 쪽이든 와이어 전
+    with pytest.raises(Exception):  # noqa: B017 -- NotImplementedError/KISUsageError, 어느 쪽이든 와이어 전
         _client(fake).ticker("BOGUS", exchange="XXX").buy(
             quantity=1, price="150.00", client_order_id="x")
     assert _posts(fake) == []
@@ -230,6 +230,6 @@ def test_overseas_full_demo_tr_matrix():
 def test_overseas_order_with_risk_session_rejected():
     fake = FakeTransport(response=_ack())
     client = _client(fake, risk=RiskLimits(max_order_quantity=10))
-    with pytest.raises(KisUsageError, match="리스크"):
+    with pytest.raises(KISUsageError, match="리스크"):
         client.ticker("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="r1")
     assert len(fake.calls) == 0                         # 거부는 와이어 전

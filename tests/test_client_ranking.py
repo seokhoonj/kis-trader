@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KisClient, RankedStock
-from kis_openapi.errors import KisError, KisUsageError
+from kis_openapi import KISClient, RankedStock
+from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
 _FLUCTUATION = "/uapi/domestic-stock/v1/ranking/fluctuation"
@@ -56,7 +56,7 @@ def _resp(rows):
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", transport=transport)
 
 
 def test_by_change_gainers_uses_rise_sort_code():
@@ -89,7 +89,7 @@ def test_by_change_losers_uses_fall_sort_code():
 
 def test_by_change_rejects_bad_top():
     fake = FakeTransport(response=_resp([]))
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).ranking.by_change(top="up")
 
 
@@ -136,13 +136,13 @@ def test_by_disparity_lowest_and_period():
 
 def test_by_disparity_rejects_bad_period():
     fake = FakeTransport(response=_resp([]))
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).ranking.by_disparity(period=7)
 
 
 def test_by_disparity_rejects_bad_top():
     fake = FakeTransport(response=_resp([]))
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).ranking.by_disparity(top="above")
 
 
@@ -166,7 +166,7 @@ def test_by_quote_balance_sort_variants():
 
 def test_by_quote_balance_rejects_bad_top():
     fake = FakeTransport(response=_resp([]))
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).ranking.by_quote_balance(top="bogus")
 
 
@@ -196,7 +196,7 @@ def test_by_bulk_trades_sell_and_bad_top():
     fake = FakeTransport(response=_resp([_row()]))
     _client(fake).ranking.by_bulk_trades(top="sell")
     assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "1"   # sell
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_resp([]))).ranking.by_bulk_trades(top="both")
 
 
@@ -241,7 +241,7 @@ def test_by_finance_ratio_defaults_and_bad_analysis():
     call = fake.calls[0]
     assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "7"       # profitability 기본
     assert call["params"]["FID_INPUT_OPTION_2"] == "3"           # annual 기본
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_resp([]))).ranking.by_finance_ratio(
             analysis="liquidity", year=2024
         )
@@ -258,7 +258,7 @@ def test_by_valuation_metric_maps_to_code():
 
 
 def test_by_valuation_bad_quarter():
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_resp([]))).ranking.by_valuation(year=2023, quarter="q2")
 
 
@@ -306,7 +306,7 @@ def test_by_company_trades_accepts_date_objects_and_sell():
 
 
 def test_by_company_trades_bad_top():
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_resp([]))).ranking.by_company_trades(
             top="net", start="20240314", end="20240315"
         )
@@ -359,7 +359,7 @@ def test_by_dividend_stock_kind_and_market_settlement():
 
 
 def test_by_dividend_rejects_bad_kind():
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_resp([]))).ranking.by_dividend(
             kind="both", start="20230101", end="20231231"
         )
@@ -367,7 +367,7 @@ def test_by_dividend_rejects_bad_kind():
 
 def test_by_dividend_bad_record_date_fails_closed():
     fake = FakeTransport(response=_resp([_dividend_row(record_date="n/a")]))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ranking.by_dividend(kind="cash", start="20230101", end="20231231")
 
 
@@ -417,7 +417,7 @@ def test_by_short_sale_negative_change_and_bad_window():
     ranked = _client(fake).ranking.by_short_sale(window="1w")
     assert ranked[0].change == Decimal(-60)                     # 하락 -> 음수
     assert fake.calls[0]["params"]["FID_INPUT_CNT_1"] == "4"    # 1w
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_resp([]))).ranking.by_short_sale(window="5d")
 
 
@@ -466,14 +466,14 @@ def test_by_credit_balance_sort_and_days():
     call = fake.calls[0]
     assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "8"       # loan_ratio_increase
     assert call["params"]["FID_OPTION"] == "30"
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_credit_resp([]))).ranking.by_credit_balance(top="x")
 
 
 def test_by_credit_balance_missing_output2_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                                               body={"output1": [{"bstp_cls_code": "1001"}]}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ranking.by_credit_balance()
 
 
@@ -506,7 +506,7 @@ def test_by_near_high_low_low_side_and_bad_side():
     fake = FakeTransport(response=_resp([_near_row()]))
     _client(fake).ranking.by_near_high_low(side="low")
     assert fake.calls[0]["params"]["FID_PRC_CLS_CODE"] == "1"    # low
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_resp([]))).ranking.by_near_high_low(side="middle")
 
 
@@ -517,17 +517,17 @@ def test_ranking_skips_empty_rows():
 
 def test_ranking_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ranking.by_volume()
 
 
 def test_ranking_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="X", msg1="실패", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ranking.by_volume()
 
 
 def test_ranking_bad_price_fails_closed():
     fake = FakeTransport(response=_resp([_row(price="n/a")]))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ranking.by_volume()

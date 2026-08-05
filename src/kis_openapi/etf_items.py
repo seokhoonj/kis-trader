@@ -1,9 +1,9 @@
-"""ETF/ETN 시세 DATA -- :class:`EtfNav`, :class:`EtfComponent`, :class:`EtfNavHistoryPoint`.
+"""ETF/ETN 시세 DATA -- :class:`ETFNav`, :class:`ETFComponent`, :class:`ETFNavHistoryPoint`.
 
 ETF/ETN 은 호가창에서 거래되는 종목이라 시세/주문은 :class:`~kis_openapi.ticker.Ticker` 로 하고,
-ETF 고유 정보만 이 타입들로 돌려준다. :class:`EtfNav` 는 순자산가치 스냅샷
-(:meth:`~kis_openapi.ticker.Ticker.nav`), :class:`EtfComponent` 는 구성종목(PDF) 한 항목
-(:meth:`~kis_openapi.ticker.Ticker.components`), :class:`EtfNavHistoryPoint` 는 일별 NAV-가격
+ETF 고유 정보만 이 타입들로 돌려준다. :class:`ETFNav` 는 순자산가치 스냅샷
+(:meth:`~kis_openapi.ticker.Ticker.nav`), :class:`ETFComponent` 는 구성종목(PDF) 한 항목
+(:meth:`~kis_openapi.ticker.Ticker.components`), :class:`ETFNavHistoryPoint` 는 일별 NAV-가격
 추이(:meth:`~kis_openapi.ticker.Ticker.nav_history`)의 한 점이다.
 """
 
@@ -18,7 +18,7 @@ from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
-class EtfNav:
+class ETFNav:
     """ETF/ETN 순자산가치(NAV) 스냅샷(불변).
 
     ``nav`` 는 현재 NAV(순자산가치), ``premium`` 은 괴리율(시장가가 NAV 대비 얼마나 벗어났는지, %),
@@ -44,7 +44,7 @@ class EtfNav:
 
 
 @dataclass(frozen=True, slots=True)
-class EtfComponent:
+class ETFComponent:
     """ETF 구성종목(PDF) 한 항목(불변).
 
     ETF 가 담고 있는 개별 종목 하나다. ``weight`` 는 ETF 안에서 차지하는 구성 비중(%),
@@ -68,7 +68,7 @@ class EtfComponent:
 
 
 @dataclass(frozen=True, slots=True)
-class EtfNavHistoryPoint:
+class ETFNavHistoryPoint:
     """일별 NAV-가격 추이의 한 점(불변).
 
     ``date`` 그 거래일, ``close`` 시장 종가, ``nav`` 그 날 NAV, ``premium`` 괴리율(시장가가 NAV 대비

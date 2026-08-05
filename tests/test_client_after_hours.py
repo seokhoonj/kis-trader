@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import AfterHoursQuote, KisClient
-from kis_openapi.errors import KisError
+from kis_openapi import AfterHoursQuote, KISClient
+from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
 _PATH = "/uapi/domestic-stock/v1/quotations/inquire-overtime-price"
@@ -43,7 +43,7 @@ def _resp(output):
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", transport=transport)
 
 
 def test_after_hours_quote_maps_fields():
@@ -94,17 +94,17 @@ def test_after_hours_quote_maps_partial_payload():
 
 def test_after_hours_quote_missing_output_block_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("005930").after_hours_quote()
 
 
 def test_after_hours_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(_output(ovtm_untp_antc_cnpr="oops")))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("005930").after_hours_quote()
 
 
 def test_after_hours_quote_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="X", msg1="실패", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("005930").after_hours_quote()

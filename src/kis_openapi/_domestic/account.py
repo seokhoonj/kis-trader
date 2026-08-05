@@ -1,6 +1,6 @@
 """국내주식 계좌 조회 (내부) -- 잔고/보유종목/매수가능/매도가능.
 
-사용자면(KisClient/Ticker)이 이 함수들을 호출해 통합 반환 타입을 받는다. 계좌 식별정보
+사용자면(KISClient/Ticker)이 이 함수들을 호출해 통합 반환 타입을 받는다. 계좌 식별정보
 (``cano``/``product_code``)와 환경(``environment``)은 세션에서 온다. KIS 원본 필드 매핑과
 fail-closed 파싱은 여기 갇힌다.
 
@@ -18,7 +18,7 @@ from typing import Any
 
 from .._wire import format_wire_decimal, optional_decimal, required_decimal
 from ..balance import Balance, Portfolio, Position
-from ..errors import KisError, KisUsageError
+from ..errors import KISError, KISUsageError
 from ..orderable import BuyableAmount, SellableQuantity
 from ..transport import Environment, RawResponse, Transport
 
@@ -40,7 +40,7 @@ def fetch_balance(transport: Transport, *, cano: str, product_code: str, environ
     _raise_if_error(resp)
     summary = _extract_summary(resp.body)
     if summary is None:
-        raise KisError(
+        raise KISError(
             "잔고 응답에 계좌 요약(output2)이 없다.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
@@ -57,7 +57,7 @@ def fetch_portfolio(transport: Transport, *, cano: str, product_code: str, envir
     """현금·자산 요약과 보유 종목을 한 번의 조회 순회로 함께."""
     rows, summary = _walk_holdings(transport, cano, product_code, environment)
     if summary is None:
-        raise KisError("잔고 응답에 계좌 요약(output2)이 없다.")
+        raise KISError("잔고 응답에 계좌 요약(output2)이 없다.")
     return Portfolio(balance=_parse_balance(summary), positions=tuple(_parse_positions(rows)))
 
 
@@ -74,7 +74,7 @@ def _walk_holdings(
             summary = _extract_summary(resp.body)
         page = resp.body.get("output1")
         if not isinstance(page, list):  # 빈 계좌도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
-            raise KisError(
+            raise KISError(
                 "잔고 응답의 output1 이 종목 배열이 아니다.",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
@@ -85,7 +85,7 @@ def _walk_holdings(
         if not ctx_nk:
             break
     else:
-        raise KisError(
+        raise KISError(
             f"잔고 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
             f"-- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
         )
@@ -168,7 +168,7 @@ def fetch_buyable(
 ) -> BuyableAmount:
     """매수가능 여력. ``symbol`` 없으면 금액만(수량 0). ``limit_price`` 있으면 지정가 기준."""
     if symbol is None and limit_price is not None:
-        raise KisUsageError("limit_price 는 symbol 과 함께 줘야 한다(금액만 조회엔 단가 무의미).")
+        raise KISUsageError("limit_price 는 symbol 과 함께 줘야 한다(금액만 조회엔 단가 무의미).")
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
         "PDNO": symbol or "",
@@ -182,7 +182,7 @@ def fetch_buyable(
     _raise_if_error(resp)
     output = resp.body.get("output")
     if not isinstance(output, Mapping):
-        raise KisError(
+        raise KISError(
             "매수가능조회 응답에 output 이 없다.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
@@ -192,9 +192,9 @@ def fetch_buyable(
 def fetch_sellable(
     transport: Transport, *, cano: str, product_code: str, environment: Environment, symbol: str
 ) -> SellableQuantity:
-    """매도가능 수량. **모의투자 미지원**(demo면 사전 :class:`KisUsageError`)."""
+    """매도가능 수량. **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
     if environment == "demo":
-        raise KisUsageError(
+        raise KISUsageError(
             "매도가능수량조회(inquire-psbl-sell)는 모의투자 미지원 -- 실전에서만. "
             "모의에선 잔고의 sellable_quantity 를 참고하라."
         )
@@ -205,7 +205,7 @@ def fetch_sellable(
     _raise_if_error(resp)
     output1 = resp.body.get("output1")
     if not isinstance(output1, Mapping):
-        raise KisError(
+        raise KISError(
             "매도가능수량조회 응답에 output1 이 없다.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
@@ -254,15 +254,15 @@ def _format_order_unit_price(limit_price: object | None) -> str:
     try:
         price = Decimal(str(limit_price))
     except (ArithmeticError, ValueError) as err:
-        raise KisUsageError(f"limit_price 는 숫자여야 한다: {limit_price!r}") from err
+        raise KISUsageError(f"limit_price 는 숫자여야 한다: {limit_price!r}") from err
     if not price.is_finite() or price <= 0:
-        raise KisUsageError(f"limit_price 는 0보다 큰 유한값이어야 한다: {limit_price!r}")
+        raise KISUsageError(f"limit_price 는 0보다 큰 유한값이어야 한다: {limit_price!r}")
     return format_wire_decimal(price)
 
 
 def _raise_if_error(resp: RawResponse) -> None:
     if not resp.ok:
-        raise KisError(
+        raise KISError(
             f"KIS 조회 요청 실패: {resp.msg1}",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )

@@ -19,7 +19,7 @@ from typing import Any
 
 from .._domestic.market_data import _KST
 from .._wire import format_wire_decimal
-from ..errors import KisError, KisUsageError, OrderTimeoutError
+from ..errors import KISError, KISUsageError, OrderTimeoutError
 from ..order import Fingerprint, Order, OrderType, Side, TimeInForce, WireRequest
 from ..report import ExecutionReport, OrderStatus
 from ..store import OrderStore
@@ -74,23 +74,23 @@ def build_order_request(
     (시장가/MOO/MOC·IOC/FOK 등은 시장별 제약이 달라 미구현) -- 도메스틱처럼 그 밖은 조용히 day
     지정가로 바꾸지 않고 fail-closed 로 거부한다. ``quantity`` 는 정수(주 단위)."""
     if order_type != "limit":
-        raise KisUsageError(f"해외 주문은 지정가만 지원한다(order_type={order_type!r}).")
+        raise KISUsageError(f"해외 주문은 지정가만 지원한다(order_type={order_type!r}).")
     if time_in_force != "day":
-        raise KisUsageError(f"해외 주문은 아직 day 만 지원한다(time_in_force={time_in_force!r}).")
+        raise KISUsageError(f"해외 주문은 아직 day 만 지원한다(time_in_force={time_in_force!r}).")
     if limit_price is None:
-        raise KisUsageError("해외 주문은 지정가만 지원한다 -- price 를 지정하라(시장가 미지원).")
+        raise KISUsageError("해외 주문은 지정가만 지원한다 -- price 를 지정하라(시장가 미지원).")
     if quantity != quantity.to_integral_value():
-        raise KisUsageError(f"해외 주문 수량은 정수여야 한다(주 단위): {quantity}")
+        raise KISUsageError(f"해외 주문 수량은 정수여야 한다(주 단위): {quantity}")
     try:
         order_exchange, market = _ORDER_EXCHANGE[exchange]
     except KeyError:
-        raise KisUsageError(
+        raise KISUsageError(
             f"해외 주문을 지원하지 않는 거래소코드: {exchange!r} ({'/'.join(_ORDER_EXCHANGE)})."
         ) from None
     try:
         tr_id = _ORDER_TR[(market, side, environment)]
     except KeyError:
-        raise KisUsageError(
+        raise KISUsageError(
             f"해외 주문 TR 을 찾지 못했다: 시장 {market} / {side} / {environment}."
         ) from None
     body = {
@@ -147,7 +147,7 @@ def reconcile(
     """미확인 해외 주문의 실제 상태를 체결내역에서 재조회한다 -- **보수적**(도메스틱과 동형).
 
     완료 리포트가 있으면 반환. in-flight 면 체결내역을 지문으로 스캔해 정확히 1건이면 확정, 0건이면
-    ``None``(재전송 금지 유지), 2건 이상이면 :class:`KisError`. **자동 해제는 절대 하지 않는다.**
+    ``None``(재전송 금지 유지), 2건 이상이면 :class:`KISError`. **자동 해제는 절대 하지 않는다.**
     ODNO 로는 검색이 안 돼(원장) 지문(종목/매매/수량/단가)으로 맞춘다. ``now`` 는 조회 날짜창의
     기준시각(주입하면 결정적; 생략 시 현재 KST)."""
     prior = store.report_for(client_order_id)
@@ -155,7 +155,7 @@ def reconcile(
         return prior
     fingerprint = store.fingerprint_for(client_order_id)
     if fingerprint is None:
-        raise KisUsageError(
+        raise KISUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
         )
     try:
@@ -171,7 +171,7 @@ def reconcile(
         ) from err
     matches = _filter_matching_ccnl_rows(rows, fingerprint)
     if len(matches) > 1:
-        raise KisError(
+        raise KISError(
             f"주문 {client_order_id} 의 지문과 일치하는 체결내역이 {len(matches)}건이라 자동 확정 "
             f"불가하다(KIS가 client_order_id를 돌려주지 않음). 수동 확인이 필요하다."
         )
@@ -207,7 +207,7 @@ def _fetch_ccnl(
             params=params, idempotent=True,  # 읽기 -- 타임아웃 재시도 안전
         )
         if not resp.ok:
-            raise KisError(
+            raise KISError(
                 f"해외 재조회(체결내역) 실패: {resp.msg1}",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
@@ -218,7 +218,7 @@ def _fetch_ccnl(
         if not ctx_nk:
             break
     else:
-        raise KisError(
+        raise KISError(
             f"해외 재조회 스캔이 {_MAX_CCNL_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
             f"-- 부분 스캔으로 확정하지 않는다. 재시도하거나 수동 확인하라."
         )
@@ -284,10 +284,10 @@ def _ccnl_report(
 
 
 def _parse_decimal(value: object) -> Decimal:
-    """KIS 문자열 수치 -> Decimal. 공백/None 은 0, 값이 있는데 파싱 실패면 fail-closed(:class:`KisError`)."""
+    """KIS 문자열 수치 -> Decimal. 공백/None 은 0, 값이 있는데 파싱 실패면 fail-closed(:class:`KISError`)."""
     if value is None or value == "":
         return Decimal(0)
     try:
         return Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as err:
-        raise KisError(f"해외 재조회 응답의 수치 파싱 실패: {value!r}") from err
+        raise KISError(f"해외 재조회 응답의 수치 파싱 실패: {value!r}") from err

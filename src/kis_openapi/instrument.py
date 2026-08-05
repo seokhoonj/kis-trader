@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from typing import Literal
 
-from .errors import KisUsageError
+from .errors import KISUsageError
 
 #: 국내 시장 보드. KIS 조건시장분류코드로는 KRX / NXT(넥스트레이드) / UN(통합).
 DomesticBoard = Literal["KRX", "NXT", "UN"]
@@ -27,16 +27,16 @@ def resolve_market(symbol: str, *, market: DomesticBoard | None = None) -> Domes
 
     ``market`` 을 명시하면 유효성(KRX/NXT/UN)을 여기서 검증해 잘못된 값을 조회 전에 거른다.
     없으면 6자리 숫자 심볼을 국내 KRX 로 본다. 해외 심볼은 여기서 판별하지 않는다 -- 해외는
-    거래소코드(``exchange=``)로 만들거나 :meth:`~kis_openapi.client.KisClient.ticker` 가 마스터로
+    거래소코드(``exchange=``)로 만들거나 :meth:`~kis_openapi.client.KISClient.ticker` 가 마스터로
     자동 해석한다.
     """
     if market is not None:
         if market not in _DOMESTIC_BOARDS:
-            raise KisUsageError(f"지원하지 않는 시장 보드: {market!r} (KRX/NXT/UN).")
+            raise KISUsageError(f"지원하지 않는 시장 보드: {market!r} (KRX/NXT/UN).")
         return market
     if is_domestic_symbol(symbol):
         return "KRX"
-    raise KisUsageError(
+    raise KISUsageError(
         f"국내 시장을 판별할 수 없는 심볼: {symbol!r} -- 국내는 6자리 숫자 코드다. "
         f"해외는 kis.ticker(symbol, exchange=...) 로 만들거나 심볼만 주면 마스터로 자동 해석한다."
     )

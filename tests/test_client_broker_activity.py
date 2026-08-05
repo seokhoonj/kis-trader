@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import BrokerActivitySummary, KisClient
-from kis_openapi.errors import KisError
+from kis_openapi import BrokerActivitySummary, KISClient
+from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
 _MEMBER_PATH = "/uapi/domestic-stock/v1/quotations/inquire-member"
@@ -48,7 +48,7 @@ def _resp(output):
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", transport=transport)
 
 
 def test_broker_activity_maps_sellers_and_buyers():
@@ -72,17 +72,17 @@ def test_broker_activity_maps_sellers_and_buyers():
 
 def test_broker_activity_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("005930").broker_activity()
 
 
 def test_broker_activity_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="X", msg1="실패", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("005930").broker_activity()
 
 
 def test_broker_activity_bad_share_percent_fails_closed():
     bad = _member_output() | {"seln_mbcr_rlim1": "n/a"}
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=_resp(bad))).ticker("005930").broker_activity()

@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, IndexQuote, KisClient
-from kis_openapi.errors import KisError, KisUsageError
+from kis_openapi import Bar, IndexQuote, KISClient
+from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
 _INDEX_PRICE = "/uapi/domestic-stock/v1/quotations/inquire-index-price"
@@ -50,7 +50,7 @@ def _resp(output):
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", transport=transport)
 
 
 def test_index_quote_maps_fields_and_params():
@@ -85,19 +85,19 @@ def test_index_quote_negative_change_sign_restored():
 
 def test_index_quote_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).index("0001").quote()
 
 
 def test_index_quote_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="X", msg1="실패", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).index("0001").quote()
 
 
 def test_index_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(_output(value="n/a")))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).index("0001").quote()
 
 
@@ -148,7 +148,7 @@ def test_index_bars_paginates_date_window():
 
 def test_index_bars_start_required():
     fake = FakeTransport(response=_bars_resp([]))
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).index("0001").bars()
 
 
@@ -160,7 +160,7 @@ def test_index_bars_minute_not_implemented():
 
 def test_index_bars_non_list_output2_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output2": "oops"})
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=resp)).index("0001").bars(start="20240101")
 
 
@@ -207,13 +207,13 @@ def test_index_intraday_interval_maps_and_negative_change():
 
 def test_index_intraday_bad_interval():
     fake = FakeTransport(response=_intraday_resp([]))
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).index("0001").intraday(interval="3m")
 
 
 def test_index_intraday_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).index("0001").intraday()
 
 
@@ -265,12 +265,12 @@ def test_index_categories_market_class_for_kosdaq_and_kospi200():
 
 def test_index_categories_rejects_non_market_code():
     fake = FakeTransport(response=_category_resp([]))
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).index("0002").categories()      # 하위 업종엔 categories 없음
 
 
 def test_index_categories_missing_output2_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                                               body={"output1": {"bstp_nmix_prpr": "2650"}}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).index("0001").categories()

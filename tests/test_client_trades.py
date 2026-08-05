@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KisClient, Trade
-from kis_openapi.errors import KisError
+from kis_openapi import KISClient, Trade
+from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
 _TRADES_PATH = "/uapi/domestic-stock/v1/quotations/inquire-ccnl"
@@ -43,7 +43,7 @@ def _trades_resp(rows):
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", transport=transport)
 
 
 def test_trades_parses_rows_newest_first():
@@ -78,17 +78,17 @@ def test_trades_skips_empty_rows():
 
 def test_trades_bad_time_fails_closed():
     fake = FakeTransport(response=_trades_resp([_row(hour="99xx99")]))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("005930").trades()
 
 
 def test_trades_missing_output_block_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("005930").trades()
 
 
 def test_trades_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="MCA05918", msg1="종목코드 오류", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("005930").trades()

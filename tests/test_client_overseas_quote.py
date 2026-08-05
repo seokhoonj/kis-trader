@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KisClient, Quote
-from kis_openapi.errors import KisError, KisUsageError
+from kis_openapi import KISClient, Quote
+from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
 _OVERSEAS_PRICE = "/uapi/overseas-price/v1/quotations/price-detail"
@@ -41,7 +41,7 @@ def _resp(output):
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", transport=transport)
 
 
 def test_overseas_quote_routes_and_maps():
@@ -77,13 +77,13 @@ def test_overseas_quote_negative_change():
 
 def test_overseas_quote_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("AAPL", exchange="NAS").quote()
 
 
 def test_overseas_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(_output(last="n/a")))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("AAPL", exchange="NAS").quote()
 
 
@@ -97,7 +97,7 @@ def test_bare_symbol_auto_resolves_exchange():
     from kis_openapi import MasterIndex, MasterRecord
     index = MasterIndex([MasterRecord("AAPL", "NAS", "USD", "stock", "애플", "APPLE", "NASAAPL")])
     fake = FakeTransport(response=_resp(_output()))
-    client = KisClient(app_key="k", app_secret="s", transport=fake, master_index=index)
+    client = KISClient(app_key="k", app_secret="s", transport=fake, master_index=index)
     handle = client.ticker("AAPL")                # exchange 없이 -> 마스터로 NAS 자동 해석
     assert handle.is_overseas is True
     assert handle.exchange == "NAS"
@@ -111,7 +111,7 @@ def test_bare_domestic_symbol_stays_domestic_without_master():
     def exploding_fetch(url):
         raise AssertionError("국내 심볼은 마스터를 받으면 안 된다")
 
-    client = KisClient(app_key="k", app_secret="s", transport=FakeTransport(response=_resp(_output())),
+    client = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_resp(_output())),
                        master_fetch=exploding_fetch)
     handle = client.ticker("005930")
     assert handle.is_overseas is False
@@ -127,5 +127,5 @@ def test_overseas_ticker_rejects_domestic_only_methods():
         handle.nav,
         handle.components,
     ):
-        with pytest.raises(KisUsageError, match="해외 티커"):
+        with pytest.raises(KISUsageError, match="해외 티커"):
             call()

@@ -1,6 +1,6 @@
 """국내주식 주문 실행 엔진 (내부) -- 안전 규칙 구현.
 
-사용자면(Ticker.buy/sell, KisClient.reconcile)이 이 함수들을 호출한다. 안전 불변식(이중체결
+사용자면(Ticker.buy/sell, KISClient.reconcile)이 이 함수들을 호출한다. 안전 불변식(이중체결
 구조적 불가·쓰기 재시도 금지·보수적 재조회)은 여기와 :class:`~kis_openapi.store.OrderStore`
 가 함께 보장한다. KIS 주문/체결조회 와이어 매핑은 이 안에 갇힌다.
 
@@ -31,8 +31,8 @@ from typing import Any, TypeAlias
 
 from ..errors import (
     AccountNotOrderable,
-    KisError,
-    KisUsageError,
+    KISError,
+    KISUsageError,
     OrderError,
     OrderRejectedError,
     OrderTimeoutError,
@@ -93,7 +93,7 @@ def place(
         )
     # 주식 주문은 주(株) 단위 정수 수량만 -- 소수 수량은 fat-finger(예: 10.5). 와이어 전에 막는다.
     if order.quantity != order.quantity.to_integral_value():
-        raise KisUsageError(f"주식 주문 수량은 정수여야 한다(주 단위): {order.quantity}")
+        raise KISUsageError(f"주식 주문 수량은 정수여야 한다(주 단위): {order.quantity}")
     # 사전 리스크 한도(opt-in). 참조가가 필요하면 현재가를 조회한다 -- 조회 실패는 fail-closed
     # (한도 확인 불가 -> 주문 중단; 예외가 그대로 올라가 claim 전에 멈춘다).
     if risk is not None:
@@ -107,11 +107,11 @@ def place(
             raise OrderError("claim 이 COMPLETED 인데 리포트가 없다(store 불변식 위반).")
         return prior
     if outcome is ClaimOutcome.CONFLICT:
-        raise KisUsageError(
+        raise KISUsageError(
             f"client_order_id {client_order_id!r} 는 이미 다른 주문에 사용됐다. 새 id를 발행하라."
         )
     if outcome is ClaimOutcome.IN_FLIGHT:
-        raise KisUsageError(
+        raise KISUsageError(
             f"주문 {client_order_id} 은 전송됐으나 결과가 확인되지 않았다. "
             f"kis.reconcile({client_order_id!r}) 로 재조회한 뒤 판단하라."
         )
@@ -170,15 +170,15 @@ def reconcile(
 
     완료 리포트가 있으면 반환. in-flight 면 일별체결조회를 스캔해 지문과 맞는 주문을 찾는다:
     정확히 1건이면 확정, 0건이면 미접수로 단정하지 않고 ``None``(재전송 금지 유지), 2건 이상이면
-    :class:`KisError`(수동 확인). 스캔 실패(에러/타임아웃)는 in-flight 유지한 채 예외. 모르는 id면
-    :class:`KisUsageError`. **자동 해제는 절대 하지 않는다.**
+    :class:`KISError`(수동 확인). 스캔 실패(에러/타임아웃)는 in-flight 유지한 채 예외. 모르는 id면
+    :class:`KISUsageError`. **자동 해제는 절대 하지 않는다.**
     """
     prior = store.report_for(client_order_id)
     if prior is not None:
         return prior
     fingerprint = store.fingerprint_for(client_order_id)
     if fingerprint is None:  # 완료도 in-flight 도 아님 -> 모르는 id
-        raise KisUsageError(
+        raise KISUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
         )
     try:
@@ -192,7 +192,7 @@ def reconcile(
         ) from err
     matches = _filter_matching_daily_rows(rows, fingerprint)
     if len(matches) > 1:
-        raise KisError(
+        raise KISError(
             f"주문 {client_order_id} 의 지문과 일치하는 당일 주문이 {len(matches)}건이라 "
             f"자동 확정 불가하다(KIS가 client_order_id를 돌려주지 않음). 수동 확인이 필요하다."
         )
@@ -252,7 +252,7 @@ def _fetch_daily_orders(
 ) -> list[Mapping[str, Any]]:
     """당일 일별체결조회를 연속조회 소진까지 읽어 한 종목의 모든 주문 행을 돌려준다(순수 I/O).
 
-    에러 응답(rt_cd!=0)은 :class:`KisError` 로 올린다 -- 빈 결과로 오인해 '미접수'로 단정하면
+    에러 응답(rt_cd!=0)은 :class:`KISError` 로 올린다 -- 빈 결과로 오인해 '미접수'로 단정하면
     이중체결로 이어진다. 상한까지 갔는데 연속조회가 남으면 부분 스캔을 전부로 오인하지 않도록
     fail-closed(다중일치 가드 무력화 방지).
     """
@@ -272,7 +272,7 @@ def _fetch_daily_orders(
             params=params, idempotent=True,  # 읽기 -- 타임아웃에 재시도해도 안전
         )
         if not resp.ok:
-            raise KisError(
+            raise KISError(
                 f"재조회(일별체결조회) 실패: {resp.msg1}",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
@@ -283,7 +283,7 @@ def _fetch_daily_orders(
         if not ctx_nk:  # 연속조회 키 없음 -> 마지막 페이지
             break
     else:
-        raise KisError(
+        raise KISError(
             f"재조회 스캔이 {_MAX_RECONCILE_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
             f"-- 부분 스캔으로 확정하지 않는다. 재시도하거나 수동 확인하라."
         )
@@ -356,14 +356,14 @@ def _extract_output_mapping(body: Mapping[str, Any]) -> Mapping[str, Any]:
 
 
 def _parse_decimal(value: object) -> Decimal:
-    """KIS 문자열 수치를 Decimal 로. 공백/None 은 0. 값이 있는데 파싱 실패면 :class:`KisError`
+    """KIS 문자열 수치를 Decimal 로. 공백/None 은 0. 값이 있는데 파싱 실패면 :class:`KISError`
     로 fail-closed -- 신뢰 못 할 숫자를 0으로 조작하면 재조회가 체결을 '미체결'로 오판한다."""
     if value is None or value == "":
         return Decimal(0)
     try:
         return Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as err:
-        raise KisError(f"재조회 응답의 수치 파싱 실패: {value!r}") from err
+        raise KISError(f"재조회 응답의 수치 파싱 실패: {value!r}") from err
 
 
 def _format_optional_wire_decimal(value: Decimal | None) -> str:

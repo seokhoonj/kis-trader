@@ -20,7 +20,7 @@ from .._wire import optional_decimal, optional_int, required_decimal, required_i
 from ..after_hours import AfterHoursQuote
 from ..bar import Bar, Interval
 from ..broker import BrokerActivity, BrokerActivitySummary
-from ..errors import KisError, KisUsageError
+from ..errors import KISError, KISUsageError
 from ..investor import InvestorActivity, InvestorFlow
 from ..order_book import OrderBook, PriceLevel
 from ..quote import Quote
@@ -136,17 +136,17 @@ def fetch_bars(
     세션을 준다(``max_bars`` 로 최근 N개 제한). ``1d``/``1wk``/``1mo`` 는 [start, end] 구간
     기간봉이며 ``start`` 가 필요하다. 어느 쪽이든 페이지 상한에 닿으면 부분 결과로 자르지 않고 예외."""
     if max_bars is not None and max_bars <= 0:
-        raise KisUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
+        raise KISUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
     if interval == "1m":
         return _fetch_minute_bars(transport, symbol=symbol, market=market, max_bars=max_bars)
     if start is None:
-        raise KisUsageError(f"interval={interval!r}(기간봉)에는 start 가 필요하다.")
+        raise KISUsageError(f"interval={interval!r}(기간봉)에는 start 가 필요하다.")
     period = _period_code_for(interval)
     market_div = _market_div(market)
     end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
     start_date = _to_yyyymmdd(start, "start")
     if start_date > end_date:
-        raise KisUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
+        raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
     adjusted_code = "0" if adjusted else "1"  # KIS 극성: 0=수정주가, 1=원주가
     base_params = {
         "FID_COND_MRKT_DIV_CODE": market_div,
@@ -200,7 +200,7 @@ def collect_period_bars(
         oldest = page_by_date[oldest_date].timestamp
         window_end = f"{oldest - timedelta(days=1):%Y%m%d}"
     else:
-        raise KisError(
+        raise KISError(
             f"바 조회가 {_MAX_BAR_PAGES}페이지 상한에 도달했으나 start({start_date})에 못 미쳤다 "
             f"-- 부분 결과로 자르지 않는다. 범위를 좁히거나 재시도하라."
         )
@@ -218,7 +218,7 @@ def collect_period_bars(
 def _period_code_for(interval: str) -> str:
     if interval in _PERIOD_BY_INTERVAL:
         return _PERIOD_BY_INTERVAL[interval]
-    raise KisUsageError(f"지원하지 않는 기간봉 interval: {interval!r} (1d/1wk/1mo).")
+    raise KISUsageError(f"지원하지 않는 기간봉 interval: {interval!r} (1d/1wk/1mo).")
 
 
 def _parse_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:
@@ -247,7 +247,7 @@ def _parse_bar_timestamp(date_text: str) -> datetime:
     try:
         day = datetime.strptime(date_text, "%Y%m%d")  # noqa: DTZ007 -- 아래 replace 로 KST-aware
     except ValueError as err:
-        raise KisError(f"바 날짜(stck_bsop_date) 파싱 실패: {date_text!r}") from err
+        raise KISError(f"바 날짜(stck_bsop_date) 파싱 실패: {date_text!r}") from err
     return day.replace(tzinfo=_KST)
 
 
@@ -256,7 +256,7 @@ def _parse_kst_date(date_text: str) -> date:
     try:
         return datetime.strptime(date_text, "%Y%m%d").date()  # noqa: DTZ007 -- date 만 취함
     except ValueError as err:
-        raise KisError(f"날짜(YYYYMMDD) 파싱 실패: {date_text!r}") from err
+        raise KISError(f"날짜(YYYYMMDD) 파싱 실패: {date_text!r}") from err
 
 
 def _fetch_minute_bars(
@@ -295,7 +295,7 @@ def _fetch_minute_bars(
             break
         anchor = _subtract_one_minute(oldest)
     else:
-        raise KisError(
+        raise KISError(
             f"분봉 조회가 {_MAX_MINUTE_PAGES}페이지 상한에 도달했으나 개장까지 못 미쳤다 "
             f"-- 부분 결과로 자르지 않는다. max_bars 로 범위를 줄이거나 재시도하라."
         )
@@ -333,7 +333,7 @@ def _parse_minute_bar_timestamp(date_text: str, time_text: str) -> datetime:
     try:
         moment = datetime.strptime(date_text + time_text, "%Y%m%d%H%M%S")  # noqa: DTZ007 -- KST 결합
     except ValueError as err:
-        raise KisError(f"분봉 시각 파싱 실패: {date_text!r} {time_text!r}") from err
+        raise KISError(f"분봉 시각 파싱 실패: {date_text!r} {time_text!r}") from err
     return moment.replace(tzinfo=_KST)
 
 
@@ -342,7 +342,7 @@ def _subtract_one_minute(hhmmss: str) -> str:
     try:
         moment = datetime.strptime(hhmmss, "%H%M%S")  # noqa: DTZ007 -- 날짜 없는 시각 산술용
     except ValueError as err:
-        raise KisError(f"분봉 기준시각 파싱 실패: {hhmmss!r}") from err
+        raise KISError(f"분봉 기준시각 파싱 실패: {hhmmss!r}") from err
     return f"{moment - timedelta(minutes=1):%H%M%S}"
 
 
@@ -385,7 +385,7 @@ def _price_levels(
         if price is None or price == 0:
             continue
         if price < 0:
-            raise KisError(f"호가 단계 {price_key}{step} 의 가격이 음수다: {price}")
+            raise KISError(f"호가 단계 {price_key}{step} 의 가격이 음수다: {price}")
         quantity = required_int(output1.get(f"{quantity_key}{step}"), f"{quantity_key}{step}")
         levels.append(PriceLevel(price=price, quantity=quantity))
     return tuple(levels)
@@ -436,7 +436,7 @@ def _parse_intraday_timestamp(time_text: str, as_of: datetime) -> datetime:
     try:
         moment = datetime.strptime(time_text, "%H%M%S").time()  # noqa: DTZ007 -- 아래에서 KST 결합
     except ValueError as err:
-        raise KisError(f"체결 시각(stck_cntg_hour) 파싱 실패: {time_text!r}") from err
+        raise KISError(f"체결 시각(stck_cntg_hour) 파싱 실패: {time_text!r}") from err
     return datetime.combine(as_of.date(), moment, tzinfo=_KST)
 
 
@@ -568,7 +568,7 @@ def _market_div(market: str) -> str:
     try:
         return _MARKET_DIV[market]
     except KeyError:
-        raise KisUsageError(f"지원하지 않는 국내 시장 보드: {market!r} (KRX/NXT/UN).") from None
+        raise KISUsageError(f"지원하지 않는 국내 시장 보드: {market!r} (KRX/NXT/UN).") from None
 
 
 def _to_yyyymmdd(value: str | date, name: str) -> str:
@@ -577,15 +577,15 @@ def _to_yyyymmdd(value: str | date, name: str) -> str:
     digits = str(value).strip().replace("-", "")
     if len(digits) == 8 and digits.isdigit():
         return digits
-    raise KisUsageError(f"{name} 는 date 또는 YYYYMMDD/YYYY-MM-DD 문자열이어야 한다: {value!r}")
+    raise KISUsageError(f"{name} 는 date 또는 YYYYMMDD/YYYY-MM-DD 문자열이어야 한다: {value!r}")
 
 
 def _today_kst() -> str:
     return f"{datetime.now(_KST):%Y%m%d}"
 
 
-def _missing_block_error(block: str, resp: RawResponse) -> KisError:
-    return KisError(
+def _missing_block_error(block: str, resp: RawResponse) -> KISError:
+    return KISError(
         f"시세 응답에 {block} 블록이 없다.",
         rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
     )
@@ -593,7 +593,7 @@ def _missing_block_error(block: str, resp: RawResponse) -> KisError:
 
 def _raise_if_error(resp: RawResponse) -> None:
     if not resp.ok:
-        raise KisError(
+        raise KISError(
             f"시세 조회 실패: {resp.msg1}",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )

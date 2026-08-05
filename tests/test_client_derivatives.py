@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, DerivativesQuote, KisClient, OrderBook
-from kis_openapi.errors import KisError, KisUsageError
+from kis_openapi import Bar, DerivativesQuote, KISClient, OrderBook
+from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
 _PRICE = "/uapi/domestic-futureoption/v1/quotations/inquire-price"
@@ -46,7 +46,7 @@ def _resp(output):
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", transport=transport)
 
 
 def test_futures_quote_maps_fields_and_market():
@@ -94,13 +94,13 @@ def test_derivatives_quote_optional_fields_none():
 
 def test_derivatives_quote_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).futures("101W09").quote()
 
 
 def test_derivatives_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(_output(last="n/a")))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).futures("101W09").quote()
 
 
@@ -152,7 +152,7 @@ def test_derivatives_order_book_missing_output2_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                        body={"output1": {"hts_kor_isnm": "F"}})    # output2 없음
     fake = FakeTransport(response=resp)
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).futures("101W09").order_book()
 
 
@@ -188,11 +188,11 @@ def test_futures_bars_maps_candles_ascending():
 
 def test_derivatives_bars_requires_start():
     fake = FakeTransport(response=_bars_resp([]))
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).futures("101W09").bars("1d")
 
 
 def test_derivatives_bars_rejects_minute():
     fake = FakeTransport(response=_bars_resp([]))
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).futures("101W09").bars("1m", start="20260801")

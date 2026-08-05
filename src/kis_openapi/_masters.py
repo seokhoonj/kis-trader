@@ -19,7 +19,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Literal
 
-from .errors import KisUsageError
+from .errors import KISUsageError
 
 #: 마스터 캐시 기본 수명(초). 하루 -- KIS 가 마스터를 매일 갱신한다.
 DEFAULT_MASTER_MAX_AGE = 86400
@@ -101,7 +101,7 @@ def fetch_overseas_master_raw(code: str, *, fetch: Fetch) -> bytes:
     """``code`` 시장의 마스터 zip 을 받아 압축 해제한 원본(.cod) 바이트를 돌려준다. ``fetch(url)`` 는
     zip 바이트를 돌려주는 주입 함수(기본 :func:`urlopen_fetch`)."""
     if code not in OVERSEAS_MARKETS:
-        raise KisUsageError(
+        raise KISUsageError(
             f"알 수 없는 해외 시장코드: {code!r} ({'/'.join(OVERSEAS_MARKETS)})."
         )
     zip_bytes = fetch(OVERSEAS_MASTER_URL.format(code=code))
@@ -144,17 +144,17 @@ class MasterIndex:
     def resolve(self, symbol: str, *, exchange: str | None = None) -> MasterRecord:
         """심볼(과 선택적 ``exchange``)로 마스터 레코드 하나를 찾는다.
 
-        없으면/모호하면(여러 거래소) :class:`~kis_openapi.errors.KisUsageError`. ``exchange`` 를 주면
+        없으면/모호하면(여러 거래소) :class:`~kis_openapi.errors.KISUsageError`. ``exchange`` 를 주면
         그 거래소로 좁힌다."""
         matches = self._by_symbol.get(symbol, [])
         if exchange is not None:
             matches = [record for record in matches if record.exchange == exchange]
         if not matches:
             hint = f" (거래소 {exchange!r})" if exchange is not None else ""
-            raise KisUsageError(f"해외 마스터에서 심볼을 찾지 못했다: {symbol!r}{hint}.")
+            raise KISUsageError(f"해외 마스터에서 심볼을 찾지 못했다: {symbol!r}{hint}.")
         exchanges = {record.exchange for record in matches}
         if len(exchanges) > 1:
-            raise KisUsageError(
+            raise KISUsageError(
                 f"심볼 {symbol!r} 이 여러 거래소에 있다: {sorted(exchanges)} "
                 f"-- exchange= 로 지정하라."
             )

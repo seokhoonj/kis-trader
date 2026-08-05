@@ -29,7 +29,7 @@ from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Self
 
-from .errors import KisError, UnsupportedSchemaVersionError
+from .errors import KISError, UnsupportedSchemaVersionError
 from .order import Fingerprint
 from .report import ExecutionReport, OrderStatus
 
@@ -153,13 +153,13 @@ class OrderStore:
 
     def _require_open(self) -> None:
         if self._closed:
-            raise KisError("OrderStore 가 닫혔다(close 이후). 단일라이터 락이 없으니 새 인스턴스를 열어라.")
+            raise KISError("OrderStore 가 닫혔다(close 이후). 단일라이터 락이 없으니 새 인스턴스를 열어라.")
 
     def close(self) -> None:
         """단일라이터 락을 해제하고 이후 연산을 막는다(종료 시/명시적). 여러 번 호출 안전.
 
         close 이후에는 단일라이터 보장이 사라지므로 :meth:`try_claim` 등 변경 연산은
-        :class:`KisError` 로 거부된다(보장 상실을 조용히 넘기지 않는다). 락을 쥐고 수행해,
+        :class:`KISError` 로 거부된다(보장 상실을 조용히 넘기지 않는다). 락을 쥐고 수행해,
         진행 중인 ``_save_locked`` 가 끝난 **뒤에** 락 fd 를 놓는다(다른 프로세스가 절반
         쓰인 상태를 읽지 않게).
         """
@@ -186,7 +186,7 @@ class OrderStore:
         assert self._path is not None
         if fcntl is None:  # pragma: no cover -- 비-Unix
             # fail-closed: 락을 강제할 수 없는 플랫폼에선 보장이 없다고 조용히 넘기지 않는다.
-            raise KisError(
+            raise KISError(
                 "이 플랫폼(비-Unix)은 파일 락(fcntl)을 지원하지 않아 프로세스 간 단일라이터 "
                 "보장을 강제할 수 없다. path-backed OrderStore 는 Unix 에서만 안전하다."
             )
@@ -197,7 +197,7 @@ class OrderStore:
             fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
         except OSError as err:
             os.close(fd)
-            raise KisError(
+            raise KISError(
                 f"주문 dedup 저장소가 다른 프로세스에 의해 이미 열려 있다: {self._path}. "
                 f"OrderStore 는 단일 프로세스 전용이다(프로세스 간 이중전송 방지)."
             ) from err
@@ -261,7 +261,7 @@ class OrderStore:
             data = json.loads(self._path.read_text(encoding="utf-8"))
         except (json.JSONDecodeError, OSError) as err:
             # fail-closed: 빈 상태로 시작하면 dedup 장벽이 사라져 중복체결 위험.
-            raise KisError(
+            raise KISError(
                 f"주문 dedup 저장소가 손상됐다: {self._path}. 자동 복구하지 않는다"
                 f"(빈 상태 시작은 중복 체결 위험). 파일을 점검/재구성한 뒤 재시작하라."
             ) from err
@@ -277,7 +277,7 @@ class OrderStore:
             self._reports = {cid: _report_from_dict(d) for cid, d in data.get("reports", {}).items()}
         except (ValueError, InvalidOperation, TypeError, KeyError, AttributeError) as err:
             # 스키마는 맞지만 레코드 값이 손상(잘못된 status/수량/날짜 등) -> 도메인 에러로 fail-closed.
-            raise KisError(
+            raise KISError(
                 f"주문 dedup 저장소 레코드가 손상됐다: {self._path}. 자동 복구하지 않는다"
                 f"(빈 상태 시작은 중복 체결 위험). 파일을 점검한 뒤 재시작하라."
             ) from err

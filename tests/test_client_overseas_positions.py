@@ -12,13 +12,13 @@ from decimal import Decimal
 import pytest
 
 from kis_openapi import (
-    KisClient,
+    KISClient,
     Money,
     OverseasBalance,
     OverseasOpenOrder,
     OverseasPosition,
 )
-from kis_openapi.errors import KisError, KisUsageError
+from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
 _BALANCE = "/uapi/overseas-stock/v1/trading/inquire-balance"
@@ -54,7 +54,7 @@ class FakeTransport:
 
 
 def _client(transport, *, environment="real"):
-    return KisClient(app_key="k", app_secret="s", account="12345678-01",
+    return KISClient(app_key="k", app_secret="s", account="12345678-01",
                      transport=transport, environment=environment)
 
 
@@ -107,21 +107,21 @@ def test_overseas_positions_paginates_ctx_area():
 
 def test_overseas_positions_rejects_bad_market():
     fake = FakeTransport(response=_resp([]))
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).overseas_positions(market="XX")
 
 
 def test_overseas_positions_non_list_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                                               body={"output1": "oops"}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).overseas_positions(market="US")
 
 
 def test_overseas_positions_requires_account():
     fake = FakeTransport(response=_resp([]))
-    client = KisClient(app_key="k", app_secret="s", transport=fake)  # 계좌 없음
-    with pytest.raises(KisUsageError):
+    client = KISClient(app_key="k", app_secret="s", transport=fake)  # 계좌 없음
+    with pytest.raises(KISUsageError):
         client.overseas_positions(market="US")
 
 
@@ -160,7 +160,7 @@ def test_overseas_balance_currency_follows_market():
 def test_overseas_balance_missing_output2_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                                               body={"output1": []}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).overseas_balance(market="US")
 
 
@@ -197,7 +197,7 @@ def test_overseas_open_orders_maps_fields():
 
 def test_overseas_open_orders_demo_unsupported():
     fake = FakeTransport(response=_open_resp([]))
-    with pytest.raises(KisUsageError, match="모의투자 미지원"):
+    with pytest.raises(KISUsageError, match="모의투자 미지원"):
         _client(fake, environment="demo").overseas_open_orders(market="US")
 
 

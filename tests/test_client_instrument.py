@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from kis_openapi import KisClient, MasterIndex, MasterRecord
-from kis_openapi.errors import KisUsageError
+from kis_openapi import KISClient, MasterIndex, MasterRecord
+from kis_openapi.errors import KISUsageError
 
 
 class FakeTransport:
@@ -18,7 +18,7 @@ class FakeTransport:
 
 
 def _client(index):
-    return KisClient(app_key="k", app_secret="s", transport=FakeTransport(), master_index=index)
+    return KISClient(app_key="k", app_secret="s", transport=FakeTransport(), master_index=index)
 
 
 _INDEX = MasterIndex([
@@ -46,13 +46,13 @@ def test_instrument_resolves_non_us_market():
 
 def test_instrument_ambiguous_requires_exchange():
     client = _client(_INDEX)
-    with pytest.raises(KisUsageError, match="여러 거래소"):
+    with pytest.raises(KISUsageError, match="여러 거래소"):
         client.instrument("XYZ")
     assert client.instrument("XYZ", exchange="HKS").currency == "HKD"
 
 
 def test_instrument_unknown_symbol_raises():
-    with pytest.raises(KisUsageError, match="찾지 못"):
+    with pytest.raises(KISUsageError, match="찾지 못"):
         _client(_INDEX).instrument("MSFT")
 
 
@@ -61,7 +61,7 @@ def test_instrument_does_not_download_when_index_injected():
     def exploding_fetch(url):
         raise AssertionError("주입 인덱스가 있으면 다운로드하면 안 된다")
 
-    client = KisClient(app_key="k", app_secret="s", transport=FakeTransport(),
+    client = KISClient(app_key="k", app_secret="s", transport=FakeTransport(),
                        master_index=_INDEX, master_fetch=exploding_fetch)
     assert client.instrument("AAPL").exchange == "NAS"
 
@@ -86,7 +86,7 @@ def test_instrument_lazy_build_uses_master_fetch(tmp_path, monkeypatch):
             archive.writestr("M.COD", ("\n".join(rows) + ("\n" if rows else "")).encode("cp949"))
         return buffer.getvalue()
 
-    client = KisClient(app_key="k", app_secret="s", transport=FakeTransport(), master_fetch=fetch)
+    client = KISClient(app_key="k", app_secret="s", transport=FakeTransport(), master_fetch=fetch)
     record = client.instrument("NVDA")
     assert record.exchange == "NAS"
     assert record.currency == "USD"

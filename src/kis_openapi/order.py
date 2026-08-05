@@ -15,7 +15,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Literal, NamedTuple
 
 from ._wire import format_wire_decimal
-from .errors import KisUsageError
+from .errors import KISUsageError
 
 Side = Literal["buy", "sell"]
 OrderType = Literal["market", "limit", "stop", "stop_limit"]
@@ -68,7 +68,7 @@ def _as_decimal(value: object, name: str) -> Decimal:
     try:
         return Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as err:
-        raise KisUsageError(f"{name} 는 숫자여야 한다: {value!r}") from err
+        raise KISUsageError(f"{name} 는 숫자여야 한다: {value!r}") from err
 
 
 @dataclass(frozen=True, slots=True)
@@ -99,29 +99,29 @@ class Order:
             object.__setattr__(self, "stop_price", _as_decimal(self.stop_price, "stop_price"))
 
         if self.side not in _SIDES:
-            raise KisUsageError(f"side 는 buy/sell 중 하나여야 한다: {self.side!r}")
+            raise KISUsageError(f"side 는 buy/sell 중 하나여야 한다: {self.side!r}")
         if self.order_type not in _ORDER_TYPES:
-            raise KisUsageError(f"지원하지 않는 order_type: {self.order_type!r}")
+            raise KISUsageError(f"지원하지 않는 order_type: {self.order_type!r}")
         if self.time_in_force not in _TIFS:
-            raise KisUsageError(f"지원하지 않는 time_in_force: {self.time_in_force!r}")
+            raise KISUsageError(f"지원하지 않는 time_in_force: {self.time_in_force!r}")
         if self.quantity <= 0:
-            raise KisUsageError(f"quantity 는 0보다 커야 한다: {self.quantity}")
+            raise KISUsageError(f"quantity 는 0보다 커야 한다: {self.quantity}")
 
         needs_limit = self.order_type in _NEEDS_LIMIT
         needs_stop = self.order_type in _NEEDS_STOP
         # 타입 -> 가격 의존성(FIX): 필요한 가격은 있어야, 불필요한 가격은 없어야 한다.
         if needs_limit and self.limit_price is None:
-            raise KisUsageError(f"{self.order_type} 주문은 limit_price 가 필요하다")
+            raise KISUsageError(f"{self.order_type} 주문은 limit_price 가 필요하다")
         if not needs_limit and self.limit_price is not None:
-            raise KisUsageError(f"{self.order_type} 주문에는 limit_price 를 줄 수 없다")
+            raise KISUsageError(f"{self.order_type} 주문에는 limit_price 를 줄 수 없다")
         if needs_stop and self.stop_price is None:
-            raise KisUsageError(f"{self.order_type} 주문은 stop_price 가 필요하다")
+            raise KISUsageError(f"{self.order_type} 주문은 stop_price 가 필요하다")
         if not needs_stop and self.stop_price is not None:
-            raise KisUsageError(f"{self.order_type} 주문에는 stop_price 를 줄 수 없다")
+            raise KISUsageError(f"{self.order_type} 주문에는 stop_price 를 줄 수 없다")
         if self.limit_price is not None and self.limit_price <= 0:
-            raise KisUsageError(f"limit_price 는 0보다 커야 한다: {self.limit_price}")
+            raise KISUsageError(f"limit_price 는 0보다 커야 한다: {self.limit_price}")
         if self.stop_price is not None and self.stop_price <= 0:
-            raise KisUsageError(f"stop_price 는 0보다 커야 한다: {self.stop_price}")
+            raise KISUsageError(f"stop_price 는 0보다 커야 한다: {self.stop_price}")
 
     @property
     def fingerprint(self) -> Fingerprint:

@@ -4,7 +4,7 @@
 인증만으로 되고, 주문은 세션에 묶인 계좌 + 내부 안전엔진을 쓴다. 사용자는 KIS
 구조(quotations/trading/국내/해외)를 몰라도 되고, 시장은 심볼로 자동 판별된다.
 
-핸들은 :class:`~kis_openapi.client.KisClient` 가 만들어 준다 -- 직접 생성하지 않는다.
+핸들은 :class:`~kis_openapi.client.KISClient` 가 만들어 준다 -- 직접 생성하지 않는다.
 """
 
 from __future__ import annotations
@@ -19,8 +19,8 @@ from ._overseas import market_data as overseas_market_data
 from .after_hours import AfterHoursQuote
 from .bar import Bar, Interval
 from .broker import BrokerActivitySummary
-from .errors import KisUsageError
-from .etf_items import EtfComponent, EtfNav, EtfNavHistoryPoint
+from .errors import KISUsageError
+from .etf_items import ETFComponent, ETFNav, ETFNavHistoryPoint
 from .instrument import DomesticBoard, resolve_market
 from .investor import InvestorFlow
 from .order import Order, Side, TimeInForce
@@ -31,14 +31,14 @@ from .report import ExecutionReport
 from .trade import Trade
 
 if TYPE_CHECKING:
-    from .client import KisClient
+    from .client import KISClient
 
 
 class Ticker:
-    """한 종목에 대한 행위 핸들. 세션(:class:`KisClient`)과 심볼/시장을 안다.
+    """한 종목에 대한 행위 핸들. 세션(:class:`KISClient`)과 심볼/시장을 안다.
 
     국내는 시장 보드(:attr:`market`), 해외는 거래소코드(:attr:`exchange`)로 식별한다 -- 둘 중 하나만
-    있다. 보통 직접 만들지 않고 :meth:`KisClient.ticker` 로 얻는다(세션이 필요하므로).
+    있다. 보통 직접 만들지 않고 :meth:`KISClient.ticker` 로 얻는다(세션이 필요하므로).
     """
 
     symbol: str
@@ -47,7 +47,7 @@ class Ticker:
 
     def __init__(
         self,
-        client: KisClient,
+        client: KISClient,
         symbol: str,
         *,
         market: DomesticBoard | None = None,
@@ -70,7 +70,7 @@ class Ticker:
     def _domestic_market(self) -> DomesticBoard:
         """국내 전용 메서드가 쓰는 시장 보드. 해외 티커면 -- 아직 해외 미구현이라 -- 명확히 거부한다."""
         if self.market is None:
-            raise KisUsageError(
+            raise KISUsageError(
                 f"해외 티커({self.symbol}@{self.exchange})에선 이 기능이 아직 미지원이다 "
                 f"-- 해외는 .quote() 만 된다."
             )
@@ -98,8 +98,8 @@ class Ticker:
         기간봉(``start`` 필요).
 
         ``start`` > ``end``, ``max_bars`` <= 0, 기간봉인데 ``start`` 없음이면
-        :class:`~kis_openapi.errors.KisUsageError`. 응답 손상(비배열 output2)이나 페이지 상한
-        초과는 :class:`~kis_openapi.errors.KisError`. 해외는 일/주/월봉만(분봉 미지원).
+        :class:`~kis_openapi.errors.KISUsageError`. 응답 손상(비배열 output2)이나 페이지 상한
+        초과는 :class:`~kis_openapi.errors.KISError`. 해외는 일/주/월봉만(분봉 미지원).
         """
         if self.exchange is not None:
             return overseas_market_data.fetch_bars(
@@ -149,19 +149,19 @@ class Ticker:
             self._client.transport, symbol=self.symbol, market=self._domestic_market()
         )
 
-    def nav(self) -> EtfNav:
+    def nav(self) -> ETFNav:
         """ETF/ETN 순자산가치(NAV) 스냅샷(NAV·괴리율·추적오차율·순자산총액). 이 종목이 ETF/ETN
         일 때만 유효하다(아니면 서버가 거부). 시장 체결가는 :meth:`quote`."""
         self._domestic_market()        # 국내 ETF 전용
         return etf_api.fetch_etf_nav(self._client.transport, symbol=self.symbol)
 
-    def components(self) -> list[EtfComponent]:
+    def components(self) -> list[ETFComponent]:
         """ETF 구성종목(PDF) 목록 -- 각 구성종목의 시세·ETF 내 구성 비중·평가금액. 이 종목이 ETF
         일 때만 유효하다(아니면 서버가 거부)."""
         self._domestic_market()        # 국내 ETF 전용
         return etf_api.fetch_etf_components(self._client.transport, symbol=self.symbol)
 
-    def nav_history(self, *, start: str | date, end: str | date) -> list[EtfNavHistoryPoint]:
+    def nav_history(self, *, start: str | date, end: str | date) -> list[ETFNavHistoryPoint]:
         """일별 NAV-가격 추이(과거->현재). ``start``/``end`` 는 기간(YYYYMMDD 또는 ``date``). 각
         거래일의 종가·NAV·괴리율로 프리미엄/디스카운트 추이를 본다. 이 종목이 ETF/ETN 일 때만 유효."""
         self._domestic_market()        # 국내 ETF 전용
@@ -172,7 +172,7 @@ class Ticker:
     def buyable(self, *, limit_price: object | None = None) -> BuyableAmount:
         """이 종목의 매수가능 여력(현금 기준·미수 포함 최대). ``limit_price`` 없으면 시장가 기준.
 
-        계좌 정보 없이 생성한 세션이면 :class:`~kis_openapi.errors.KisUsageError`.
+        계좌 정보 없이 생성한 세션이면 :class:`~kis_openapi.errors.KISUsageError`.
         """
         self._domestic_market()        # 해외 미지원
         cano, product_code = self._client._require_account()
@@ -182,7 +182,7 @@ class Ticker:
         )
 
     def sellable(self) -> SellableQuantity:
-        """이 종목의 매도가능 수량. **모의투자 미지원**(demo면 :class:`~kis_openapi.errors.KisUsageError`)."""
+        """이 종목의 매도가능 수량. **모의투자 미지원**(demo면 :class:`~kis_openapi.errors.KISUsageError`)."""
         self._domestic_market()        # 해외 미지원
         cano, product_code = self._client._require_account()
         return account_api.fetch_sellable(
@@ -198,9 +198,9 @@ class Ticker:
         """이 종목을 매수한다 -- ``price`` 를 주면 지정가, 없으면 시장가.
 
         이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 계좌 정보가 없으면
-        :class:`~kis_openapi.errors.KisUsageError`, 조회전용(퇴직연금 등) 계좌면
+        :class:`~kis_openapi.errors.KISUsageError`, 조회전용(퇴직연금 등) 계좌면
         :class:`~kis_openapi.errors.AccountNotOrderable`. 접수 거부는 ``OrderRejectedError``,
-        타임아웃(체결 불명)은 ``OrderTimeoutError`` -- 후자는 :meth:`KisClient.reconcile` 로 확인한다.
+        타임아웃(체결 불명)은 ``OrderTimeoutError`` -- 후자는 :meth:`KISClient.reconcile` 로 확인한다.
         """
         return self._client._place_order(self._make_order("buy", quantity, price, time_in_force, client_order_id))
 
@@ -217,7 +217,7 @@ class Ticker:
     ) -> Order:
         if self.exchange is not None:  # 해외: 지정가만, 거래소코드를 주문 정체성에 담는다
             if price is None:
-                raise KisUsageError("해외 주문은 지정가만 지원한다 -- price 를 지정하라(시장가 미지원).")
+                raise KISUsageError("해외 주문은 지정가만 지원한다 -- price 를 지정하라(시장가 미지원).")
             return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
                                time_in_force=time_in_force, client_order_id=client_order_id,
                                exchange=self.exchange)

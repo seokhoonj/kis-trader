@@ -13,13 +13,13 @@ import pytest
 from kis_openapi import (
     Balance,
     BuyableAmount,
-    KisClient,
+    KISClient,
     Portfolio,
     Position,
     SellableQuantity,
 )
 from kis_openapi._domestic import account as account_module
-from kis_openapi.errors import KisError, KisUsageError
+from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
 _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
@@ -94,7 +94,7 @@ _ERROR = RawResponse(rt_cd="1", msg_cd="EGW00215", msg1="초당 거래건수 초
 
 
 def _client(transport, *, environment="real", account="12345678-01"):
-    return KisClient(app_key="k", app_secret="s", account=account,
+    return KISClient(app_key="k", app_secret="s", account=account,
                      environment=environment, transport=transport)
 
 
@@ -130,24 +130,24 @@ def test_balance_summary_as_single_object():
 
 def test_balance_missing_summary_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output1": []})
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=resp)).balance()
 
 
 def test_balance_error_response_raises():
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=_ERROR)).balance()
 
 
 def test_balance_unparseable_fails_closed():
     summary = dict(_SUMMARY, dnca_tot_amt="N/A")
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=_balance_resp(summary=summary))).balance()
 
 
 def test_balance_requires_account():
-    kis = KisClient(app_key="k", app_secret="s", transport=FakeTransport(response=_balance_resp()))
-    with pytest.raises(KisUsageError):
+    kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_balance_resp()))
+    with pytest.raises(KISUsageError):
         kis.balance()
 
 
@@ -176,14 +176,14 @@ def test_positions_paginate_and_merge():
 def test_positions_non_list_output1_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"output1": {"pdno": "005930"}, "output2": [dict(_SUMMARY)]})
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=resp)).positions()
 
 
 def test_positions_pagination_cap_fails_closed(monkeypatch):
     monkeypatch.setattr(account_module, "_MAX_BALANCE_PAGES", 3)
     endless = _balance_resp(rows=[_holding("005930")], ctx_nk="NEXT", ctx_fk="FK")
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=endless)).positions()
 
 
@@ -230,14 +230,14 @@ def test_ticker_buyable_demo_tr():
 @pytest.mark.parametrize("limit_price", ["nope", -1, Decimal(0), float("nan"), float("inf")])
 def test_ticker_buyable_bad_price_rejected_before_io(limit_price):
     fake = FakeTransport(response=_buyable_resp())
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).ticker("005930").buyable(limit_price=limit_price)
     assert fake.calls == []
 
 
 def test_ticker_buyable_amount_field_unparseable_fails_closed():
     output = dict(_BUYABLE_OUTPUT, ord_psbl_cash="N/A")
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=_buyable_resp(output))).ticker("005930").buyable()
 
 
@@ -258,14 +258,14 @@ def test_ticker_sellable_not_held_reads_zero():
 
 def test_ticker_sellable_demo_rejected_before_io():
     fake = FakeTransport(response=_sellable_resp())
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake, environment="demo").ticker("005930").sellable()
     assert fake.calls == []
 
 
 def test_ticker_buyable_requires_account():
-    kis = KisClient(app_key="k", app_secret="s", transport=FakeTransport(response=_buyable_resp()))
-    with pytest.raises(KisUsageError):
+    kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_buyable_resp()))
+    with pytest.raises(KISUsageError):
         kis.ticker("005930").buyable()
 
 
@@ -291,7 +291,7 @@ def test_balance_reads_single_page():
 
 def test_balance_empty_summary_list_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output1": [], "output2": []})
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=resp)).balance()
 
 
@@ -316,7 +316,7 @@ def test_positions_blank_lot_field_reads_zero_not_raise():
 
 def test_positions_garbage_lot_field_still_fails_closed():
     row = dict(_holding("005930"), evlu_amt="N/A")   # 값 있는데 파싱 실패
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=_balance_resp(rows=[row]))).positions()
 
 
@@ -329,13 +329,13 @@ def test_ticker_buyable_formats_limit_price(limit_price, expected):
 
 def test_sellable_unparseable_quantity_fails_closed():
     output1 = {"pdno": "005930", "prdt_name": "삼성전자", "cblc_qty": "N/A", "ord_psbl_qty": "8"}
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(FakeTransport(response=_sellable_resp(output1))).ticker("005930").sellable()
 
 
 def test_fetch_buyable_amount_only_rejects_limit_price():
     fake = FakeTransport(response=_buyable_resp())
-    with pytest.raises(KisUsageError):   # symbol 없이 단가 -> 무의미(모듈 레벨 가드)
+    with pytest.raises(KISUsageError):   # symbol 없이 단가 -> 무의미(모듈 레벨 가드)
         account_module.fetch_buyable(
             fake, cano="12345678", product_code="01", environment="real", limit_price=70000
         )

@@ -4,7 +4,7 @@
 :class:`~kis_openapi.ticker.Ticker` 와 대칭이며, 파생은 종목이 아니라 계약코드 + 시장구분
 (F:지수선물 / O:지수옵션)으로 조회한다.
 
-핸들은 :class:`~kis_openapi.client.KisClient` 가 ``kis.futures(code)`` / ``kis.option(code)`` 로
+핸들은 :class:`~kis_openapi.client.KISClient` 가 ``kis.futures(code)`` / ``kis.option(code)`` 로
 만들어 준다 -- 직접 생성하지 않는다.
 """
 
@@ -19,21 +19,21 @@ if TYPE_CHECKING:
     from datetime import date
 
     from .bar import Bar, Interval
-    from .client import KisClient
+    from .client import KISClient
     from .order_book import OrderBook
 
 
 class Derivative:
-    """한 파생 계약(선물/옵션)에 대한 조회 핸들. 세션(:class:`KisClient`)과 계약코드·시장구분을 안다.
+    """한 파생 계약(선물/옵션)에 대한 조회 핸들. 세션(:class:`KISClient`)과 계약코드·시장구분을 안다.
 
-    보통 직접 만들지 않고 :meth:`KisClient.futures` / :meth:`KisClient.option` 으로 얻는다.
+    보통 직접 만들지 않고 :meth:`KISClient.futures` / :meth:`KISClient.option` 으로 얻는다.
     ``market`` 은 F(지수선물) 또는 O(지수옵션).
     """
 
     code: str
     market: str
 
-    def __init__(self, client: KisClient, code: str, *, market: str) -> None:
+    def __init__(self, client: KISClient, code: str, *, market: str) -> None:
         self._client = client
         self.code = code
         self.market = market

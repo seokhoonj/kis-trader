@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import BondQuote, KisClient, OrderBook, Trade
-from kis_openapi.errors import KisError
+from kis_openapi import BondQuote, KISClient, OrderBook, Trade
+from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
 _PRICE = "/uapi/domestic-bond/v1/quotations/inquire-price"
@@ -46,7 +46,7 @@ def _resp(output):
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", transport=transport)
 
 
 def test_bond_quote_maps_fields_and_market():
@@ -86,13 +86,13 @@ def test_bond_quote_optional_yield_none():
 
 def test_bond_quote_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).bond("KR2033022D33").quote()
 
 
 def test_bond_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(_output(prpr="n/a")))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).bond("KR2033022D33").quote()
 
 
@@ -135,7 +135,7 @@ def test_bond_order_book_maps_levels_and_market():
 
 def test_bond_order_book_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).bond("KR2033022D33").order_book()
 
 
@@ -172,7 +172,7 @@ def test_bond_trades_maps_rows_and_market():
 
 def test_bond_trades_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).bond("KR2033022D33").trades()
 
 
@@ -180,5 +180,5 @@ def test_bond_trades_bad_value_fails_closed():
     rows = [{"stck_cntg_hour": "101530", "bond_prpr": "10250.0", "cntg_vol": "n/a",
              "bond_prdy_vrss": "20.0", "prdy_vrss_sign": "2", "prdy_ctrt": "0.20"}]
     fake = FakeTransport(response=_resp(rows))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).bond("KR2033022D33").trades()

@@ -16,7 +16,7 @@ from typing import Any
 
 from .._domestic.market_data import _raise_if_error
 from .._wire import required_decimal, required_int
-from ..errors import KisError, KisUsageError
+from ..errors import KISError, KISUsageError
 from ..money import Money
 from ..overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
 from ..transport import Environment, Transport
@@ -50,7 +50,7 @@ def fetch_positions(
     try:
         exchange, currency = _MARKETS[market]
     except KeyError:
-        raise KisUsageError(
+        raise KISUsageError(
             f"지원하지 않는 해외 시장: {market!r} ({'/'.join(_MARKETS)})."
         ) from None
     rows = _walk_holdings(transport, cano, product_code, environment, exchange, currency)
@@ -64,14 +64,14 @@ def fetch_balance(
     try:
         exchange, currency = _MARKETS[market]
     except KeyError:
-        raise KisUsageError(
+        raise KISUsageError(
             f"지원하지 않는 해외 시장: {market!r} ({'/'.join(_MARKETS)})."
         ) from None
     resp = _request_page(transport, cano, product_code, environment, exchange, currency, "", "")
     _raise_if_error(resp)
     summary = resp.body.get("output2")     # 계좌 요약(계좌 단위라 첫 페이지로 완결)
     if not isinstance(summary, Mapping):
-        raise KisError(
+        raise KISError(
             "해외 잔고 응답에 계좌 요약(output2)이 없다.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
@@ -89,13 +89,13 @@ def fetch_balance(
 def fetch_open_orders(
     transport: Transport, *, cano: str, product_code: str, environment: Environment, market: str
 ) -> list[OverseasOpenOrder]:
-    """해외 미체결 주문 전체(연속조회 소진까지). **모의투자 미지원**(demo면 :class:`KisUsageError`)."""
+    """해외 미체결 주문 전체(연속조회 소진까지). **모의투자 미지원**(demo면 :class:`KISUsageError`)."""
     if environment == "demo":
-        raise KisUsageError("해외 미체결내역 조회는 모의투자 미지원이다(실전 계좌만).")
+        raise KISUsageError("해외 미체결내역 조회는 모의투자 미지원이다(실전 계좌만).")
     try:
         exchange, currency = _MARKETS[market]
     except KeyError:
-        raise KisUsageError(
+        raise KISUsageError(
             f"지원하지 않는 해외 시장: {market!r} ({'/'.join(_MARKETS)})."
         ) from None
     rows: list[Mapping[str, Any]] = []
@@ -112,7 +112,7 @@ def fetch_open_orders(
         _raise_if_error(resp)
         page = resp.body.get("output")
         if not isinstance(page, list):  # 빈 미체결도 배열 -> 부재/비배열은 손상
-            raise KisError(
+            raise KISError(
                 "해외 미체결 응답의 output 이 배열이 아니다.",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
@@ -122,7 +122,7 @@ def fetch_open_orders(
         if not ctx_nk:
             break
     else:
-        raise KisError(
+        raise KISError(
             f"해외 미체결 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
             f"-- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
         )
@@ -183,7 +183,7 @@ def _walk_holdings(
         _raise_if_error(resp)
         page = resp.body.get("output1")
         if not isinstance(page, list):  # 빈 계좌도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
-            raise KisError(
+            raise KISError(
                 "해외 잔고 응답의 output1 이 종목 배열이 아니다.",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
@@ -194,7 +194,7 @@ def _walk_holdings(
         if not ctx_nk:
             break
     else:
-        raise KisError(
+        raise KISError(
             f"해외 잔고 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
             f"-- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
         )

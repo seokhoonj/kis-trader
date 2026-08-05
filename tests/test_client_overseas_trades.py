@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KisClient, Trade
-from kis_openapi.errors import KisError
+from kis_openapi import KISClient, Trade
+from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
 _OVERSEAS_TRADES = "/uapi/overseas-price/v1/quotations/inquire-ccnl"
@@ -39,7 +39,7 @@ class FakeTransport:
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", transport=transport)
 
 
 def test_overseas_trades_maps_fields_and_params():
@@ -73,5 +73,5 @@ def test_overseas_trades_negative_change_sign():
 
 def test_overseas_trades_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("AAPL", exchange="NAS").trades()

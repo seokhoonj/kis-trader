@@ -1,6 +1,6 @@
 """kis_openapi 예외 계층.
 
-모든 예외의 뿌리는 :class:`KisError` 이고, KIS 응답의 ``rt_cd`` / ``msg_cd`` /
+모든 예외의 뿌리는 :class:`KISError` 이고, KIS 응답의 ``rt_cd`` / ``msg_cd`` /
 ``msg1`` 과 원본 바디(``raw``)를 실어 호출자가 원인을 프로그램으로 분기할 수 있게 한다.
 경계(transport)에서 벤더 응답을 이 타입들로 변환해 올린다.
 """
@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from typing import Any
 
 
-class KisError(Exception):
+class KISError(Exception):
     """kis_openapi 모든 예외의 뿌리.
 
     KIS 표준 응답 3필드(``rt_cd`` 성공실패, ``msg_cd`` 응답코드, ``msg1`` 응답메시지)와
@@ -34,11 +34,11 @@ class KisError(Exception):
         self.raw = raw
 
 
-class KisUsageError(KisError):
+class KISUsageError(KISError):
     """호출자 잘못 -- 잘못된 인자, 미충족 사전조건 등. 재시도해도 소용없다."""
 
 
-class AccountNotOrderable(KisUsageError):
+class AccountNotOrderable(KISUsageError):
     """조회전용 계좌(퇴직연금 IRP/DC)에 주문을 시도.
 
     KIS Open API는 퇴직연금 계좌의 주문 엔드포인트를 거부한다(``APBK1744``). 와이어에
@@ -46,19 +46,19 @@ class AccountNotOrderable(KisUsageError):
     """
 
 
-class KisAuthError(KisError):
+class KISAuthError(KISError):
     """인증/토큰 실패 -- 재인증(토큰 재발급)이 필요하다."""
 
 
-class KisRateLimitError(KisError):
+class KISRateLimitError(KISError):
     """유량(rate limit) 초과 -- 잠시 backoff 후 재시도한다."""
 
 
-class UnsupportedSchemaVersionError(KisError):
+class UnsupportedSchemaVersionError(KISError):
     """영속 저장소의 스키마 버전이 이 릴리스가 읽을 수 있는 집합에 없다(내구 형식 계약)."""
 
 
-class OrderError(KisError):
+class OrderError(KISError):
     """주문 관련 실패의 뿌리."""
 
 
@@ -88,5 +88,5 @@ class OrderTimeoutError(OrderError):
     """
 
     def __init__(self, message: str, *, client_order_id: str, **kw: object) -> None:
-        super().__init__(message, **kw)  # kw = KisError 의 rt_cd/msg_cd/msg1/raw
+        super().__init__(message, **kw)  # kw = KISError 의 rt_cd/msg_cd/msg1/raw
         self.client_order_id = client_order_id

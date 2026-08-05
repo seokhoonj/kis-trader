@@ -11,7 +11,7 @@ from decimal import Decimal
 import pytest
 
 from kis_openapi._overseas.orders import build_order_request
-from kis_openapi.errors import KisUsageError
+from kis_openapi.errors import KISUsageError
 
 
 def _build(**over):
@@ -66,15 +66,15 @@ def test_exchange_code_mapping():
 
 
 def test_rejects_market_order():
-    with pytest.raises(KisUsageError, match="지정가"):
+    with pytest.raises(KISUsageError, match="지정가"):
         _build(limit_price=None)
 
 
 def test_rejects_fractional_quantity():
-    with pytest.raises(KisUsageError, match="정수"):
+    with pytest.raises(KISUsageError, match="정수"):
         _build(quantity=Decimal("1.5"))
 
 
 def test_rejects_unknown_exchange():
-    with pytest.raises(KisUsageError, match="거래소"):
+    with pytest.raises(KISUsageError, match="거래소"):
         _build(exchange="XXX")

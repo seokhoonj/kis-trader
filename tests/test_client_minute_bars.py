@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KisClient
-from kis_openapi.errors import KisError, KisUsageError
+from kis_openapi import KISClient
+from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
 _MINUTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
@@ -42,7 +42,7 @@ class FakeTransport:
 
 
 def _client(transport):
-    return KisClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", transport=transport)
 
 
 def _session(times):
@@ -87,13 +87,13 @@ def test_minute_bars_ignore_start_end():
 
 def test_period_bars_still_require_start():
     fake = FakeTransport({})
-    with pytest.raises(KisUsageError):
+    with pytest.raises(KISUsageError):
         _client(fake).ticker("005930").bars(interval="1d")        # 기간봉엔 start 필수
 
 
 def test_minute_bars_bad_time_fails_closed():
     fake = FakeTransport({"090000": _bar("bad")})
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("005930").bars(interval="1m")
 
 
@@ -102,7 +102,7 @@ def test_minute_bars_missing_block_fails_closed():
         def request(self, **kw):
             return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})  # output2 없음
 
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(Bad()).ticker("005930").bars(interval="1m")
 
 
@@ -131,14 +131,14 @@ def test_minute_bars_raise_when_page_cap_reached_before_session_open():
             return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output2": [_bar(hh)]})
 
     fake = AnchorEcho()
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("005930").bars(interval="1m")
     assert len(fake.calls) == 60                           # _MAX_MINUTE_PAGES 만큼 돌고 중단
 
 
 def test_minute_bars_error_response_fails_closed():
     fake = _StaticTransport([], rt_cd="1")                 # 비성공 응답을 빈 페이지로 오인 금지
-    with pytest.raises(KisError):
+    with pytest.raises(KISError):
         _client(fake).ticker("005930").bars(interval="1m")
 
 
