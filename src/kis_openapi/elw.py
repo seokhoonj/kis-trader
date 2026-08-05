@@ -17,7 +17,7 @@ from ._domestic import elw as elw_api
 if TYPE_CHECKING:
     from ._domestic.elw import TrendInterval
     from .client import KisClient
-    from .elw_items import ElwSensitivityPoint, ElwVolatilityPoint
+    from .elw_items import ElwIndicatorPoint, ElwSensitivityPoint, ElwVolatilityPoint
 
 
 class Elw:
@@ -49,6 +49,17 @@ class Elw:
         ``minutes`` 는 ``interval="minute"`` 일 때 봉 간격(1/3/5/10/30/60분), ``include_past`` 는
         분별에서 과거 데이터 포함 여부."""
         return elw_api.fetch_volatility_trend(
+            self._client.transport, code=self.code, interval=interval,
+            minutes=minutes, include_past=include_past,
+        )
+
+    def indicator_trend(
+        self, interval: TrendInterval = "day", *, minutes: int = 1, include_past: bool = False
+    ) -> list[ElwIndicatorPoint]:
+        """투자지표(레버리지·기어링·내재가치·패리티) 추이. ``interval`` 은 체결/일별/분별.
+
+        ``minutes``/``include_past`` 는 분별에서만 쓴다(1/3/5/10/30/60분)."""
+        return elw_api.fetch_indicator_trend(
             self._client.transport, code=self.code, interval=interval,
             minutes=minutes, include_past=include_past,
         )

@@ -11,7 +11,13 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Elw, ElwSensitivityPoint, ElwVolatilityPoint, KisClient
+from kis_openapi import (
+    Elw,
+    ElwIndicatorPoint,
+    ElwSensitivityPoint,
+    ElwVolatilityPoint,
+    KisClient,
+)
 from kis_openapi.errors import KisError, KisUsageError
 from kis_openapi.transport import RawResponse
 
@@ -21,6 +27,8 @@ _VOL_DAILY = "/uapi/elw/v1/quotations/volatility-trend-daily"
 _VOL_CCNL = "/uapi/elw/v1/quotations/volatility-trend-ccnl"
 _VOL_MINUTE = "/uapi/elw/v1/quotations/volatility-trend-minute"
 _VOL_TICK = "/uapi/elw/v1/quotations/volatility-trend-tick"
+_IND_DAILY = "/uapi/elw/v1/quotations/indicator-trend-daily"
+_IND_MINUTE = "/uapi/elw/v1/quotations/indicator-trend-minute"
 
 
 class FakeTransport:
@@ -206,3 +214,52 @@ def test_volatility_trend_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KisError):
         _client(fake).elw("58J297").volatility_trend("day")
+
+
+# --- indicator trend (레버리지·기어링·내재가치·패리티) -----------------------
+def test_indicator_trend_daily_maps_indicators_and_change():
+    row = {"stck_bsop_date": "20240503", "elw_prpr": "40", "prdy_vrss_sign": "5",
+           "prdy_vrss": "5", "prdy_ctrt": "11.11", "acml_vol": "1000020",
+           "lvrg_val": "-11.0377", "gear": "19.45", "tmvl_val": "18.00", "invl_val": "22.00",
+           "prit": "102.82", "elw_oprc": "40", "apprch_rate": "0.00"}
+    fake = FakeTransport(response=_resp([row]))
+    points = _client(fake).elw("57K281").indicator_trend("day")
+    assert all(isinstance(p, ElwIndicatorPoint) for p in points)
+    point = points[0]
+    assert point.price == Decimal(40)
+    assert point.leverage == Decimal("-11.0377")
+    assert point.gearing == Decimal("19.45")
+    assert point.intrinsic_value == Decimal("22.00")
+    assert point.parity == Decimal("102.82")
+    assert point.change == Decimal(-5)                      # sign 5 -> 하락
+    assert point._raw["tmvl_val"] == "18.00"               # 시간가치는 _raw
+    call = fake.calls[0]
+    assert call["path"] == _IND_DAILY
+    assert call["tr_id"] == "FHPEW02740200"
+    assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "W"
+
+
+def test_indicator_trend_minute_no_change_and_span():
+    row = {"stck_bsop_date": "20240503", "stck_cntg_hour": "131900", "elw_prpr": "40",
+           "elw_oprc": "40", "lvrg_val": "-10.88", "gear": "19.57", "prmm_val": "5.1086",
+           "invl_val": "17.00", "prit": "102.17", "acml_vol": "827720", "cntg_vol": "55700"}
+    fake = FakeTransport(response=_resp([row]))
+    point = _client(fake).elw("57K281").indicator_trend("minute", minutes=10)[0]
+    assert fake.calls[0]["path"] == _IND_MINUTE
+    assert fake.calls[0]["params"]["FID_HOUR_CLS_CODE"] == "600"     # 10분
+    assert point.change is None                            # 분별은 전일대비 없음
+    assert point.leverage == Decimal("-10.88")
+    assert f"{point.timestamp:%Y%m%d %H%M%S}" == "20240503 131900"
+    assert point._raw["prmm_val"] == "5.1086"              # 프리미엄은 _raw
+
+
+def test_indicator_trend_rejects_tick():
+    fake = FakeTransport(response=_resp([]))
+    with pytest.raises(KisUsageError):
+        _client(fake).elw("57K281").indicator_trend("tick")
+
+
+def test_indicator_trend_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KisError):
+        _client(fake).elw("57K281").indicator_trend("day")

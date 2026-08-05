@@ -70,3 +70,31 @@ class ElwVolatilityPoint:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ElwIndicatorPoint:
+    """한 시점의 ELW 투자지표 스냅샷(불변).
+
+    ``leverage`` 는 실효 레버리지(기초자산 1% 변동당 ELW 몇 % 변동), ``gearing`` 은 명목 레버리지
+    (기초자산가 / (ELW가 x 전환비율)), ``intrinsic_value`` 는 내재가치(지금 행사 시 가치),
+    ``parity`` 는 패리티(기초자산가 / 행사가 x 100; 100 = 등가격). ``change`` / ``change_percent``
+    는 전일대비(일별/체결별에만 있고 분별은 없어 ``None``). 시간가치/프리미엄/자본지지점 근접률 등
+    축마다 다른 부가 지표는 ``_raw`` 에 둔다. ``timestamp`` 는 KST-aware.
+    """
+
+    code: str
+    timestamp: datetime               # KST-aware
+    price: Decimal                    # ELW 현재가
+    leverage: Decimal | None          # 실효 레버리지(lvrg_val)
+    gearing: Decimal | None           # 명목 레버리지/기어링(gear)
+    intrinsic_value: Decimal | None   # 내재가치(invl_val)
+    parity: Decimal | None            # 패리티(prit)
+    change: Decimal | None            # 전일대비(부호 포함; 분별은 None)
+    change_percent: Decimal | None    # 전일대비율(부호 포함; 분별은 None)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

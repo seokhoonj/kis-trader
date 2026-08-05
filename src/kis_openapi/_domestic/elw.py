@@ -17,10 +17,11 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from datetime import datetime
+from decimal import Decimal
 from typing import Any, Literal, NamedTuple
 
 from .._wire import optional_decimal, required_decimal
-from ..elw_items import ElwSensitivityPoint, ElwVolatilityPoint
+from ..elw_items import ElwIndicatorPoint, ElwSensitivityPoint, ElwVolatilityPoint
 from ..errors import KisUsageError
 from ..transport import Transport
 from .market_data import (
@@ -121,7 +122,7 @@ def _parse_sensitivity_row(
     )
 
 
-class _VolatilitySpec(NamedTuple):
+class _TrendSpec(NamedTuple):
     path: str
     tr: str
     price_key: str                    # 가격 필드(체결/일별/틱=elw_prpr, 분별=stck_prpr)
@@ -131,19 +132,19 @@ class _VolatilitySpec(NamedTuple):
 
 
 _VOLATILITY_SPEC = {
-    "trade": _VolatilitySpec(
+    "trade": _TrendSpec(
         "/uapi/elw/v1/quotations/volatility-trend-ccnl", "FHPEW02840100",
         "elw_prpr", None, "stck_cntg_hour", True,
     ),
-    "day": _VolatilitySpec(
+    "day": _TrendSpec(
         "/uapi/elw/v1/quotations/volatility-trend-daily", "FHPEW02840200",
         "elw_prpr", "stck_bsop_date", None, True,
     ),
-    "minute": _VolatilitySpec(
+    "minute": _TrendSpec(
         "/uapi/elw/v1/quotations/volatility-trend-minute", "FHPEW02840300",
         "stck_prpr", "stck_bsop_date", "stck_cntg_hour", False,
     ),
-    "tick": _VolatilitySpec(
+    "tick": _TrendSpec(
         "/uapi/elw/v1/quotations/volatility-trend-tick", "FHPEW02840400",
         "elw_prpr", "bsop_date", "stck_cntg_hour", False,
     ),
@@ -159,21 +160,8 @@ def fetch_volatility_trend(
     ``minutes`` 는 ``interval="minute"`` 일 때만 쓰는 봉 간격(1/3/5/10/30/60분), ``include_past`` 는
     분별에서 과거 데이터 포함 여부(FID_PW_DATA_INCU_YN). 벤더 순서(최신순)를 유지하며, 가격/내재
     변동성/전일대비만 매핑하고 나머지(역사변동성 곡선·OHLC·호가)는 ``_raw`` 에 있다."""
-    try:
-        spec = _VOLATILITY_SPEC[interval]
-    except KeyError:
-        raise KisUsageError(
-            f"변동성 추이 interval 은 'trade'/'day'/'minute'/'tick': {interval!r}"
-        ) from None
-    extra: dict[str, str] | None = None
-    if interval == "minute":
-        try:
-            span = _MINUTE_SPAN_SECONDS[minutes]
-        except KeyError:
-            raise KisUsageError(
-                f"minutes 는 1/3/5/10/30/60 중 하나: {minutes!r}"
-            ) from None
-        extra = {"FID_HOUR_CLS_CODE": span, "FID_PW_DATA_INCU_YN": "Y" if include_past else "N"}
+    spec = _pick_spec(_VOLATILITY_SPEC, interval, "변동성 추이")
+    extra = _minute_extra_params(interval, minutes, include_past)
     rows = _fetch_trend_rows(transport, path=spec.path, tr=spec.tr, code=code, extra_params=extra)
     as_of = datetime.now(_KST)
     return [
@@ -183,12 +171,36 @@ def fetch_volatility_trend(
     ]
 
 
-def _spec_has_time(row: Mapping[str, Any], spec: _VolatilitySpec) -> bool:
+def _pick_spec(
+    table: Mapping[str, _TrendSpec], interval: str, label: str
+) -> _TrendSpec:
+    try:
+        return table[interval]
+    except KeyError:
+        raise KisUsageError(
+            f"{label} interval 은 {sorted(table)} 중 하나: {interval!r}"
+        ) from None
+
+
+def _minute_extra_params(
+    interval: str, minutes: int, include_past: bool
+) -> dict[str, str] | None:
+    """분별 조회의 추가 파라미터(간격 초 + 과거포함). 분별이 아니면 ``None``."""
+    if interval != "minute":
+        return None
+    try:
+        span = _MINUTE_SPAN_SECONDS[minutes]
+    except KeyError:
+        raise KisUsageError(f"minutes 는 1/3/5/10/30/60 중 하나: {minutes!r}") from None
+    return {"FID_HOUR_CLS_CODE": span, "FID_PW_DATA_INCU_YN": "Y" if include_past else "N"}
+
+
+def _spec_has_time(row: Mapping[str, Any], spec: _TrendSpec) -> bool:
     key = spec.time_key or spec.date_key
     return bool(key) and bool(str(row.get(key, "")).strip())
 
 
-def _spec_timestamp(row: Mapping[str, Any], *, as_of: datetime, spec: _VolatilitySpec) -> datetime:
+def _spec_timestamp(row: Mapping[str, Any], *, as_of: datetime, spec: _TrendSpec) -> datetime:
     date_text = str(row.get(spec.date_key, "")).strip() if spec.date_key else ""
     time_text = str(row.get(spec.time_key, "")).strip() if spec.time_key else ""
     if date_text and time_text:
@@ -205,21 +217,82 @@ def _combine_date_time(date_text: str, time_text: str) -> datetime:
     return day.replace(hour=moment.hour, minute=moment.minute, second=moment.second)
 
 
+def _row_change(
+    row: Mapping[str, Any], spec: _TrendSpec
+) -> tuple[Decimal | None, Decimal | None]:
+    """전일대비/전일대비율(부호 복원). 전일대비 필드가 없는 축(분별/틱)은 ``(None, None)``."""
+    if not spec.has_change:
+        return None, None
+    sign = str(row.get("prdy_vrss_sign", "")).strip()
+    change = _apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign)
+    change_percent = _apply_change_sign(
+        required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+    )
+    return change, change_percent
+
+
 def _parse_volatility_row(
-    row: Mapping[str, Any], *, code: str, as_of: datetime, spec: _VolatilitySpec
+    row: Mapping[str, Any], *, code: str, as_of: datetime, spec: _TrendSpec
 ) -> ElwVolatilityPoint:
-    change = change_percent = None
-    if spec.has_change:
-        sign = str(row.get("prdy_vrss_sign", "")).strip()
-        change = _apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign)
-        change_percent = _apply_change_sign(
-            required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
-        )
+    change, change_percent = _row_change(row, spec)
     return ElwVolatilityPoint(
         code=code,
         timestamp=_spec_timestamp(row, as_of=as_of, spec=spec),
         price=required_decimal(row.get(spec.price_key), spec.price_key),
         implied_volatility=optional_decimal(row.get("hts_ints_vltl"), "hts_ints_vltl"),
+        change=change,
+        change_percent=change_percent,
+        _raw=row,
+    )
+
+
+_INDICATOR_SPEC = {
+    "trade": _TrendSpec(
+        "/uapi/elw/v1/quotations/indicator-trend-ccnl", "FHPEW02740100",
+        "elw_prpr", None, "stck_cntg_hour", True,
+    ),
+    "day": _TrendSpec(
+        "/uapi/elw/v1/quotations/indicator-trend-daily", "FHPEW02740200",
+        "elw_prpr", "stck_bsop_date", None, True,
+    ),
+    "minute": _TrendSpec(
+        "/uapi/elw/v1/quotations/indicator-trend-minute", "FHPEW02740300",
+        "elw_prpr", "stck_bsop_date", "stck_cntg_hour", False,
+    ),
+}
+
+
+def fetch_indicator_trend(
+    transport: Transport, *, code: str, interval: TrendInterval = "day",
+    minutes: int = 1, include_past: bool = False,
+) -> list[ElwIndicatorPoint]:
+    """ELW 투자지표 추이. ``interval`` 은 체결/일별/분별(틱 미지원).
+
+    ``minutes``/``include_past`` 는 분별에서만 쓴다. 레버리지/기어링/내재가치/패리티만 매핑하고
+    나머지(시간가치·프리미엄·자본지지점 근접률·OHLC)는 ``_raw`` 에 있다(축마다 부가 필드가 다름)."""
+    spec = _pick_spec(_INDICATOR_SPEC, interval, "투자지표 추이")
+    extra = _minute_extra_params(interval, minutes, include_past)
+    rows = _fetch_trend_rows(transport, path=spec.path, tr=spec.tr, code=code, extra_params=extra)
+    as_of = datetime.now(_KST)
+    return [
+        _parse_indicator_row(row, code=code, as_of=as_of, spec=spec)
+        for row in rows
+        if _spec_has_time(row, spec)
+    ]
+
+
+def _parse_indicator_row(
+    row: Mapping[str, Any], *, code: str, as_of: datetime, spec: _TrendSpec
+) -> ElwIndicatorPoint:
+    change, change_percent = _row_change(row, spec)
+    return ElwIndicatorPoint(
+        code=code,
+        timestamp=_spec_timestamp(row, as_of=as_of, spec=spec),
+        price=required_decimal(row.get(spec.price_key), spec.price_key),
+        leverage=optional_decimal(row.get("lvrg_val"), "lvrg_val"),
+        gearing=optional_decimal(row.get("gear"), "gear"),
+        intrinsic_value=optional_decimal(row.get("invl_val"), "invl_val"),
+        parity=optional_decimal(row.get("prit"), "prit"),
         change=change,
         change_percent=change_percent,
         _raw=row,
