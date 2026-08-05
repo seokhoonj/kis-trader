@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import Any
 
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
-from ..after_hours import AfterHoursQuote
+from ..after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
 from ..bar import Bar, Interval
 from ..broker import BrokerActivity, BrokerActivitySummary
 from ..errors import KISError, KISUsageError
@@ -619,6 +619,96 @@ def _parse_after_hours_quote(
         as_of=as_of,
         _raw=output,
     )
+
+
+# --- 시간외 시간별/일자별 ---------------------------------------------------
+_AFTER_HOURS_CONCLUSIONS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-overtimeconclusion"
+_AFTER_HOURS_CONCLUSIONS_TR = "FHPST02310000"
+_AFTER_HOURS_DAILY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-overtimeprice"
+_AFTER_HOURS_DAILY_TR = "FHPST02320000"
+
+
+def fetch_after_hours_conclusions(
+    transport: Transport, *, symbol: str, market: str
+) -> list[AfterHoursConclusion]:
+    """시간외 단일가 세션의 시간별 체결(시각 리스트). 세션 밖이면 비어 올 수 있다. 응답 배열은 output2
+    (output1 은 시간외 요약 스냅샷)."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _market_div(market),
+        "FID_INPUT_ISCD": symbol,
+        "FID_HOUR_CLS_CODE": "1",
+    }
+    resp = transport.request(
+        method="GET", path=_AFTER_HOURS_CONCLUSIONS_PATH, tr_id=_AFTER_HOURS_CONCLUSIONS_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    as_of = datetime.now(_KST)
+    points: list[AfterHoursConclusion] = []
+    for row in rows:
+        moment = str(row.get("stck_cntg_hour", "")).strip()
+        if not moment:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        points.append(
+            AfterHoursConclusion(
+                symbol=symbol,
+                timestamp=_parse_intraday_timestamp(moment, as_of),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                ask=optional_decimal(row.get("askp"), "askp"),
+                bid=optional_decimal(row.get("bidp"), "bidp"),
+                cumulative_volume=required_int(row.get("acml_vol"), "acml_vol"),
+                tick_volume=required_int(row.get("cntg_vol"), "cntg_vol"),
+                _raw=row,
+            )
+        )
+    return points
+
+
+def fetch_after_hours_daily(
+    transport: Transport, *, symbol: str, market: str
+) -> list[AfterHoursDailyPrice]:
+    """시간외 단일가 세션의 일자별 종가(최근->과거). 세션 밖이면 비어 올 수 있다. 응답 배열은 output2
+    (output1 은 시간외 요약 스냅샷)."""
+    params = {"FID_COND_MRKT_DIV_CODE": _market_div(market), "FID_INPUT_ISCD": symbol}
+    resp = transport.request(
+        method="GET", path=_AFTER_HOURS_DAILY_PATH, tr_id=_AFTER_HOURS_DAILY_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    points: list[AfterHoursDailyPrice] = []
+    for row in rows:
+        day = str(row.get("stck_bsop_date", "")).strip()
+        if not day:
+            continue
+        sign = str(row.get("ovtm_untp_prdy_vrss_sign", "")).strip()
+        points.append(
+            AfterHoursDailyPrice(
+                symbol=symbol,
+                timestamp=_parse_bar_timestamp(day),
+                price=required_decimal(row.get("ovtm_untp_prpr"), "ovtm_untp_prpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("ovtm_untp_prdy_vrss"), "ovtm_untp_prdy_vrss"), sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("ovtm_untp_prdy_ctrt"), "ovtm_untp_prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("ovtm_untp_vol"), "ovtm_untp_vol"),
+                amount=required_decimal(row.get("ovtm_untp_tr_pbmn"), "ovtm_untp_tr_pbmn"),
+                _raw=row,
+            )
+        )
+    return points
 
 
 # --- 공용 ------------------------------------------------------------------

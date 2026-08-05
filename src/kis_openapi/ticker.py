@@ -18,7 +18,7 @@ from ._domestic import etf as etf_api
 from ._domestic import finance as finance_api
 from ._domestic import market_data
 from ._overseas import market_data as overseas_market_data
-from .after_hours import AfterHoursQuote
+from .after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
 from .analysis import (
     AnalystOpinion,
     CreditBalancePoint,
@@ -185,6 +185,18 @@ class Ticker:
     def after_hours_quote(self) -> AfterHoursQuote:
         """시간외 단일가 스냅샷(예상체결가·최우선호가)."""
         return market_data.fetch_after_hours_quote(
+            self._client.transport, symbol=self.symbol, market=self._domestic_market()
+        )
+
+    def after_hours_conclusions(self) -> list[AfterHoursConclusion]:
+        """시간외 단일가 세션의 시간별 체결(시각 리스트). 세션 밖이면 빈 리스트일 수 있다."""
+        return market_data.fetch_after_hours_conclusions(
+            self._client.transport, symbol=self.symbol, market=self._domestic_market()
+        )
+
+    def after_hours_daily(self) -> list[AfterHoursDailyPrice]:
+        """시간외 단일가 세션의 일자별 종가(최근->과거). 세션 밖이면 빈 리스트일 수 있다."""
+        return market_data.fetch_after_hours_daily(
             self._client.transport, symbol=self.symbol, market=self._domestic_market()
         )
 

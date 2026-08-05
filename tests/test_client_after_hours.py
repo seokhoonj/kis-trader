@@ -108,3 +108,57 @@ def test_after_hours_quote_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="X", msg1="실패", body={}))
     with pytest.raises(KISError):
         _client(fake).ticker("005930").after_hours_quote()
+
+
+def _resp2(rows):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": {}, "output2": rows})
+
+
+def test_after_hours_conclusions_maps_output2():
+    # 원장 응답 예시값(180025, 하락 sign=5).
+    rows = [{"stck_cntg_hour": "180025", "stck_prpr": "2835", "prdy_vrss": "-70",
+             "prdy_vrss_sign": "5", "prdy_ctrt": "-2.41", "askp": "2840", "bidp": "2835",
+             "acml_vol": "68086", "cntg_vol": "12865"}]
+    fake = FakeTransport(response=_resp2(rows))
+    from kis_openapi import AfterHoursConclusion
+    pts = _client(fake).ticker("005930").after_hours_conclusions()
+    assert isinstance(pts[0], AfterHoursConclusion)
+    assert pts[0].price == Decimal(2835)
+    assert pts[0].change == Decimal(-70)                 # sign 5 -> 음수
+    assert pts[0].change_percent == Decimal("-2.41")
+    assert pts[0].ask == Decimal(2840)
+    assert pts[0].cumulative_volume == 68086
+    assert pts[0].tick_volume == 12865
+    assert pts[0].timestamp.strftime("%H%M%S") == "180025"
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/quotations/inquire-time-overtimeconclusion"
+    assert call["tr_id"] == "FHPST02310000"
+    assert call["params"]["FID_HOUR_CLS_CODE"] == "1"
+
+
+def test_after_hours_daily_maps_output2():
+    # 원장 응답 예시값(시간외가 상승 sign=2).
+    rows = [{"stck_bsop_date": "20240223", "ovtm_untp_prpr": "106000",
+             "ovtm_untp_prdy_vrss": "500", "ovtm_untp_prdy_vrss_sign": "2",
+             "ovtm_untp_prdy_ctrt": "0.47", "ovtm_untp_vol": "12740",
+             "ovtm_untp_tr_pbmn": "1348318000"}]
+    fake = FakeTransport(response=_resp2(rows))
+    from kis_openapi import AfterHoursDailyPrice
+    pts = _client(fake).ticker("005930").after_hours_daily()
+    assert isinstance(pts[0], AfterHoursDailyPrice)
+    assert pts[0].price == Decimal(106000)
+    assert pts[0].change == Decimal(500)                 # sign 2 -> 양수
+    assert pts[0].change_percent == Decimal("0.47")
+    assert pts[0].volume == 12740
+    assert pts[0].amount == Decimal(1348318000)
+    assert pts[0].timestamp.strftime("%Y%m%d") == "20240223"
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/quotations/inquire-daily-overtimeprice"
+    assert call["tr_id"] == "FHPST02320000"
+
+
+def test_after_hours_history_missing_output2_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}}))
+    with pytest.raises(KISError):
+        _client(fake).ticker("005930").after_hours_conclusions()

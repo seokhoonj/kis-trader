@@ -1,6 +1,7 @@
-"""시간외 단일가(DATA) -- :class:`AfterHoursQuote`.
+"""시간외 단일가(DATA) -- :class:`AfterHoursQuote` / :class:`AfterHoursConclusion` /
+:class:`AfterHoursDailyPrice`.
 
-정규장 마감 후 시간외 단일가 세션의 최우선 호가와 예상체결 정보다. 이 세션 밖에서는 값이 비어
+정규장 마감 후 시간외 단일가 세션의 스냅샷·시간별 체결·일자별 종가다. 이 세션 밖에서는 값이 비어
 올 수 있어(장중 조회 등) 필드를 모두 optional 로 둔다(빈 값은 ``None``, 있는데 깨지면 예외).
 """
 
@@ -29,6 +30,58 @@ class AfterHoursQuote:
     change: Decimal | None            # 예상체결가 전일대비(부호 포함)
     change_percent: Decimal | None    # 예상체결가 전일대비율(부호 포함)
     as_of: datetime                   # KST-aware
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class AfterHoursConclusion:
+    """시간외 단일가 세션의 한 시각 체결(불변).
+
+    ``price`` 는 그 시각 체결가, ``change`` / ``change_percent`` 는 전일대비(하락이면 음수),
+    ``ask`` / ``bid`` 는 그 시각 최우선 호가, ``cumulative_volume`` 은 시간외 누적 거래량,
+    ``tick_volume`` 은 그 체결의 거래량이다. :meth:`~kis_openapi.ticker.Ticker.after_hours_conclusions`
+    가 시각 리스트로 돌려준다. ``timestamp`` 는 체결시각(시각은 벤더, 날짜는 조회일; KST-aware).
+    """
+
+    symbol: str
+    timestamp: datetime               # 체결시각(시각은 벤더, 날짜는 조회일; KST)
+    price: Decimal                    # 체결가(stck_prpr)
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    ask: Decimal | None               # 최우선 매도호가(askp)
+    bid: Decimal | None               # 최우선 매수호가(bidp)
+    cumulative_volume: int            # 시간외 누적 거래량(acml_vol)
+    tick_volume: int                  # 이 체결의 거래량(cntg_vol)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class AfterHoursDailyPrice:
+    """시간외 단일가 세션의 하루 종가(불변).
+
+    ``price`` 는 그날 시간외 단일가 종가, ``change`` / ``change_percent`` 는 그 시간외가의 전일대비
+    (하락이면 음수), ``volume`` / ``amount`` 는 시간외 거래량/거래대금이다.
+    :meth:`~kis_openapi.ticker.Ticker.after_hours_daily` 가 일자 리스트(최근->과거)로 돌려준다.
+    ``timestamp`` 는 영업일(KST-aware).
+    """
+
+    symbol: str
+    timestamp: datetime               # 영업일(KST-aware)
+    price: Decimal                    # 시간외 단일가 종가(ovtm_untp_prpr)
+    change: Decimal                   # 시간외가 전일대비(부호 포함, ovtm_untp_prdy_vrss)
+    change_percent: Decimal           # 시간외가 전일대비율(부호 포함, ovtm_untp_prdy_ctrt)
+    volume: int                       # 시간외 거래량(ovtm_untp_vol)
+    amount: Decimal                   # 시간외 거래대금(ovtm_untp_tr_pbmn)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
