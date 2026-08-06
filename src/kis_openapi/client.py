@@ -41,6 +41,7 @@ from .market import MarketQueries
 from .order import Order
 from .overseas_derivative import OverseasDerivative
 from .overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
+from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
 from .quote import Quote
 from .ranking import RankingQueries
@@ -147,6 +148,12 @@ class KISClient:
         (거래소코드 NAS/NYS/AMS/HKS/TSE/... 혼합 가능). 국내는 :meth:`quotes`."""
         return overseas_market_data_api.fetch_multi_quotes(
             self.transport, requests=[tuple(item) for item in symbols]
+        )
+
+    def overseas_product_info(self, exchange: str, symbol: str) -> OverseasProductInfo:
+        """해외 종목의 상품기본정보(거래소·통화·상장주식수·SEDOL·블룸버그티커 등). exchange=NAS/NYS/AMS/TSE/HKS/..."""
+        return overseas_market_data_api.fetch_product_info(
+            self.transport, exchange=exchange, symbol=symbol
         )
 
     def index(self, code: str) -> Index:

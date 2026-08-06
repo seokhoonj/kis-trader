@@ -94,6 +94,7 @@ from .orderable import BuyableAmount, SellableQuantity
 from .overseas_derivative import OverseasDerivative
 from .overseas_derivative_items import OverseasDerivativeDetail, OverseasDerivativeQuote
 from .overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
+from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
 from .overseas_ranking_items import RankedOverseasStock
 from .program import ProgramTradePoint
@@ -200,6 +201,7 @@ __all__ = [
     "OverseasDerivativeQuote",
     "OverseasOpenOrder",
     "OverseasPosition",
+    "OverseasProductInfo",
     "OverseasRankingQueries",
     "OvertimeRanking",
     "ParValueChange",

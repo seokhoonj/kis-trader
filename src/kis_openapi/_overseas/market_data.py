@@ -28,10 +28,11 @@ from .._domestic.market_data import (
     _to_yyyymmdd,
     _today_kst,
 )
-from .._wire import optional_int, required_decimal, required_int
+from .._wire import optional_decimal, optional_int, required_decimal, required_int
 from ..bar import Bar, Interval
 from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook
+from ..overseas_product import OverseasProductInfo
 from ..quote import Quote
 from ..trade import Trade
 from ..transport import Transport
@@ -39,6 +40,20 @@ from ..transport import Transport
 _QUOTE_PATH = "/uapi/overseas-price/v1/quotations/price-detail"
 _QUOTE_TR = "HHDFS76200200"
 _PERCENT = Decimal("0.01")
+
+_PRODUCT_INFO_PATH = "/uapi/overseas-price/v1/quotations/search-info"
+_PRODUCT_INFO_TR = "CTPF1702R"
+_PRODUCT_TYPE_BY_EXCHANGE = {
+    "NAS": "512",
+    "NYS": "513",
+    "AMS": "529",
+    "TSE": "515",
+    "HKS": "501",
+    "HNX": "507",
+    "HSX": "508",
+    "SHS": "551",
+    "SZS": "552",
+}
 
 _BARS_PATH = "/uapi/overseas-price/v1/quotations/dailyprice"
 _BARS_TR = "HHDFS76240000"
@@ -100,6 +115,48 @@ _TRADES_TR = "HHDFS76200300"
 
 _ORDER_BOOK_PATH = "/uapi/overseas-price/v1/quotations/inquire-asking-price"
 _ORDER_BOOK_TR = "HHDFS76200100"
+
+
+def fetch_product_info(
+    transport: Transport, *, exchange: str, symbol: str
+) -> OverseasProductInfo:
+    """해외 종목의 상품기본정보. ``exchange`` 는 거래소코드(NAS/NYS/AMS/TSE/HKS/...)."""
+    product_type = _PRODUCT_TYPE_BY_EXCHANGE.get(exchange)
+    if product_type is None:
+        valid = "/".join(_PRODUCT_TYPE_BY_EXCHANGE)
+        raise KISUsageError(f"지원하지 않는 해외 거래소코드: {exchange!r} ({valid})")
+    resp = transport.request(
+        method="GET",
+        path=_PRODUCT_INFO_PATH,
+        tr_id=_PRODUCT_INFO_TR,
+        params={"PRDT_TYPE_CD": product_type, "PDNO": symbol},
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise _missing_block_error("output", resp)
+    return OverseasProductInfo(
+        symbol=symbol,
+        isin=str(output.get("std_pdno", "")).strip(),
+        name=str(output.get("prdt_name", "")).strip(),
+        english_name=str(output.get("prdt_eng_name", "")).strip(),
+        exchange_code=str(output.get("ovrs_excg_cd", "")).strip(),
+        exchange_name=str(output.get("ovrs_excg_name", "")).strip(),
+        country=str(output.get("natn_name", "")).strip(),
+        currency=str(output.get("tr_crcy_cd", "")).strip(),
+        currency_name=str(output.get("crcy_name", "")).strip(),
+        par_value=optional_decimal(output.get("ovrs_papr"), "ovrs_papr"),
+        listed_shares=optional_int(output.get("lstg_stck_num"), "lstg_stck_num"),
+        buy_unit=optional_int(output.get("buy_unit_qty"), "buy_unit_qty"),
+        sell_unit=optional_int(output.get("sll_unit_qty"), "sll_unit_qty"),
+        sedol=str(output.get("sedol_no", "")).strip(),
+        bloomberg_ticker=str(output.get("blbg_tckr_text", "")).strip(),
+        is_listed=str(output.get("lstg_yn", "")).strip().upper() == "Y",
+        is_delisted=str(output.get("lstg_abol_item_yn", "")).strip().upper() == "Y",
+        taxable=str(output.get("tax_levy_yn", "")).strip().upper() == "Y",
+        _raw=output,
+    )
 
 
 def fetch_quote(transport: Transport, *, symbol: str, exchange: str) -> Quote:
