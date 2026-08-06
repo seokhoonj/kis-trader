@@ -16,6 +16,7 @@ from ._overseas import derivatives as overseas_derivatives_api
 
 if TYPE_CHECKING:
     from .client import KISClient
+    from .order_book import OrderBook
     from .overseas_derivative_items import (
         OverseasDerivativeDetail,
         OverseasDerivativeQuote,
@@ -41,6 +42,12 @@ class OverseasDerivative:
     def quote(self) -> OverseasDerivativeQuote:
         """계약 현재가 스냅샷(가격·정산가·전일대비·호가·통화·거래소·만기·틱사이즈·증거금)."""
         return overseas_derivatives_api.fetch_quote(
+            self._client.transport, srs_cd=self.symbol, market=self.market
+        )
+
+    def order_book(self) -> OrderBook:
+        """계약 호가창(매수/매도 5단계 심도). 도메스틱과 같은 :class:`OrderBook` 로 돌려준다."""
+        return overseas_derivatives_api.fetch_order_book(
             self._client.transport, srs_cd=self.symbol, market=self.market
         )
 

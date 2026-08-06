@@ -24,6 +24,8 @@ from .._domestic.market_data import (
     _raise_if_error,
 )
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
+from ..errors import KISError
+from ..order_book import OrderBook, PriceLevel
 from ..overseas_derivative_items import (
     OverseasDerivativeDetail,
     OverseasDerivativeQuote,
@@ -33,6 +35,17 @@ from ..transport import Transport
 _QUOTE = {
     "future": ("/uapi/overseas-futureoption/v1/quotations/inquire-price", "HHDFC55010000"),
     "option": ("/uapi/overseas-futureoption/v1/quotations/opt-price", "HHDFO55010000"),
+}
+
+_ORDER_BOOK = {
+    "future": (
+        "/uapi/overseas-futureoption/v1/quotations/inquire-asking-price",
+        "HHDFC86000000",
+    ),
+    "option": (
+        "/uapi/overseas-futureoption/v1/quotations/opt-asking-price",
+        "HHDFO86000000",
+    ),
 }
 
 
@@ -88,6 +101,64 @@ def _parse_quote(
         margin=optional_decimal(output.get("trst_mgn"), "trst_mgn"),
         as_of=as_of,
         _raw=output,
+    )
+
+
+def _level(
+    row: Mapping[str, Any], price_key: str, quantity_key: str
+) -> PriceLevel | None:
+    """배열의 호가 한쪽을 읽는다. 빈/0 가격은 건너뛰고 손상된 가격·수량은 fail-closed."""
+    price = optional_decimal(row.get(price_key), price_key)
+    if price is None or price == 0:
+        return None
+    if price < 0:
+        raise KISError(f"호가 단계 {price_key} 의 가격이 음수다: {price}")
+    return PriceLevel(
+        price=price,
+        quantity=required_int(row.get(quantity_key), quantity_key),
+    )
+
+
+def fetch_order_book(transport: Transport, *, srs_cd: str, market: str) -> OrderBook:
+    """해외 선물/옵션 계약의 호가창(5단계 매수/매도 심도).
+
+    KIS 선물 ``GET .../overseas-futureoption/v1/quotations/inquire-asking-price``
+    (``HHDFC86000000``), 옵션 ``GET .../quotations/opt-asking-price``
+    (``HHDFO86000000``)를 조회한다. 호가 사다리는 ``output2``(배열, 5단계)이며 각 행의
+    ``bid_price``/``bid_qntt`` 와 ``ask_price``/``ask_qntt`` 를 최우선부터 읽는다.
+
+    KIS가 해외 파생 호가 전체 잔량을 주지 않으므로 총잔량은 반환된 유효 단계 잔량의 합이다.
+    """
+    path, tr = _ORDER_BOOK[market]
+    resp = transport.request(
+        method="GET", path=path, tr_id=tr, params={"SRS_CD": srs_cd}, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+
+    bids: list[PriceLevel] = []
+    asks: list[PriceLevel] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise KISError("시세 응답의 output2 호가 단계가 객체가 아니다.", raw=resp.body)
+        bid = _level(row, "bid_price", "bid_qntt")
+        ask = _level(row, "ask_price", "ask_qntt")
+        if bid is not None:
+            bids.append(bid)
+        if ask is not None:
+            asks.append(ask)
+
+    return OrderBook(
+        symbol=srs_cd,
+        market=market,
+        bids=tuple(bids),
+        asks=tuple(asks),
+        total_bid_quantity=sum(level.quantity for level in bids),
+        total_ask_quantity=sum(level.quantity for level in asks),
+        as_of=datetime.now(_KST),
+        _raw=resp.body,
     )
 
 
