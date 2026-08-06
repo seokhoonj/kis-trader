@@ -25,6 +25,7 @@ from ._overseas import account as overseas_account
 from ._overseas import orders as overseas_orders_engine
 from .balance import Balance, Portfolio, Position
 from .bond import Bond
+from .calendar import CalendarQueries
 from .derivative import Derivative
 from .derivative_items import OptionExpiry
 from .elw import ELW
@@ -172,6 +173,12 @@ class KISClient:
         """시장 전체 분석 네임스페이스 -- ``kis.market.investor_flows(market="KOSPI")`` 등
         (종목/순위가 아닌 시장 전체 수급·상태). 종목 단위는 ``kis.ticker(code)``."""
         return MarketQueries(self)
+
+    @property
+    def calendar(self) -> CalendarQueries:
+        """기업행위 캘린더 네임스페이스 -- ``kis.calendar.dividends(start=..., end=...)`` 등
+        (예탁결제원 배당/증자/주총 등 일정). 기간 조회다."""
+        return CalendarQueries(self)
 
     @property
     def overseas_ranking(self) -> OverseasRankingQueries:

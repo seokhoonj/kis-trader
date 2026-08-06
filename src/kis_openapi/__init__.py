@@ -26,6 +26,8 @@ from .bar import Bar, Interval
 from .bond import Bond
 from .bond_items import BondInfo, BondQuote
 from .broker import BrokerActivity, BrokerActivitySummary
+from .calendar import CalendarQueries
+from .calendar_items import DividendEvent
 from .client import KISClient
 from .derivative import Derivative
 from .derivative_items import DerivativesQuote, OptionExpiry, UnderlyingQuote
@@ -114,12 +116,14 @@ __all__ = [
     "BrokerActivity",
     "BrokerActivitySummary",
     "BuyableAmount",
+    "CalendarQueries",
     "CategoryIndex",
     "CreditBalancePoint",
     "CreditBalanceRanking",
     "DailyExecutionVolume",
     "Derivative",
     "DerivativesQuote",
+    "DividendEvent",
     "DividendRanking",
     "ELWIndicatorPoint",
     "ELWLPFlow",
