@@ -15,7 +15,7 @@ from datetime import date, datetime
 from typing import Any
 
 from .._wire import optional_decimal, optional_int
-from ..calendar_items import DividendEvent, IPOSubscription, RightsOffering
+from ..calendar_items import BonusIssue, DividendEvent, IPOSubscription, RightsOffering
 from ..errors import KISError, KISUsageError
 from ..transport import Transport
 from .market_data import _missing_block_error, _raise_if_error, _to_yyyymmdd
@@ -26,6 +26,8 @@ _IPO_PATH = "/uapi/domestic-stock/v1/ksdinfo/pub-offer"
 _IPO_TR = "HHKDB669108C0"
 _RIGHTS_PATH = "/uapi/domestic-stock/v1/ksdinfo/paidin-capin"
 _RIGHTS_TR = "HHKDB669100C0"
+_BONUS_PATH = "/uapi/domestic-stock/v1/ksdinfo/bonus-issue"
+_BONUS_TR = "HHKDB669101C0"
 
 #: 배당 조회구분(GB1). 원장: 0(배당전체), 1(결산배당), 2(중간배당).
 _DIVIDEND_KIND = {"all": "0", "final": "1", "interim": "2"}
@@ -182,6 +184,43 @@ def fetch_rights_offerings(
                                                    name="sub_term_ft"),
                 subscription_period=str(row.get("sub_term", "")).strip(),
                 list_date=_parse_ksd_date(row.get("list_date"), required=False, name="list_date"),
+                stock_kind=str(row.get("stk_kind", "")).strip(),
+                _raw=row,
+            )
+        )
+    return events
+
+
+def fetch_bonus_issues(
+    transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
+) -> list[BonusIssue]:
+    """기간 [start, end] 의 무상증자 일정. ``symbol`` 지정 시 그 종목만."""
+    params = {
+        "CTS": "",
+        "F_DT": _to_yyyymmdd(start, "start"),
+        "T_DT": _to_yyyymmdd(end, "end"),
+        "SHT_CD": symbol or "",
+    }
+    events: list[BonusIssue] = []
+    for row in _rows(transport, path=_BONUS_PATH, tr=_BONUS_TR, params=params):
+        code = str(row.get("sht_cd", "")).strip()
+        if not code:
+            continue
+        events.append(
+            BonusIssue(
+                symbol=code,
+                name=str(row.get("isin_name", "")).strip(),
+                record_date=_parse_ksd_date(row.get("record_date"), required=True,
+                                            name="record_date"),
+                allocation_rate=optional_decimal(row.get("fix_rate"), "fix_rate"),
+                odd_lot_base_price=optional_decimal(row.get("odd_rec_price"), "odd_rec_price"),
+                ex_rights_date=_parse_ksd_date(row.get("right_dt"), required=False,
+                                               name="right_dt"),
+                odd_lot_pay_date=_parse_ksd_date(row.get("odd_pay_dt"), required=False,
+                                                 name="odd_pay_dt"),
+                list_date=_parse_ksd_date(row.get("list_date"), required=False, name="list_date"),
+                total_shares=optional_int(row.get("tot_issue_stk_qty"), "tot_issue_stk_qty"),
+                new_shares=optional_int(row.get("issue_stk_qty"), "issue_stk_qty"),
                 stock_kind=str(row.get("stk_kind", "")).strip(),
                 _raw=row,
             )

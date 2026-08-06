@@ -27,7 +27,7 @@ from .bond import Bond
 from .bond_items import BondInfo, BondQuote
 from .broker import BrokerActivity, BrokerActivitySummary
 from .calendar import CalendarQueries
-from .calendar_items import DividendEvent, IPOSubscription, RightsOffering
+from .calendar_items import BonusIssue, DividendEvent, IPOSubscription, RightsOffering
 from .client import KISClient
 from .derivative import Derivative
 from .derivative_items import DerivativesQuote, OptionExpiry, UnderlyingQuote
@@ -113,6 +113,7 @@ __all__ = [
     "Bond",
     "BondInfo",
     "BondQuote",
+    "BonusIssue",
     "BrokerActivity",
     "BrokerActivitySummary",
     "BuyableAmount",

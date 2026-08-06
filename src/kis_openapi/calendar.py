@@ -16,7 +16,12 @@ from ._domestic import ksd as ksd_api
 if TYPE_CHECKING:
     from datetime import date
 
-    from .calendar_items import DividendEvent, IPOSubscription, RightsOffering
+    from .calendar_items import (
+        BonusIssue,
+        DividendEvent,
+        IPOSubscription,
+        RightsOffering,
+    )
     from .client import KISClient
 
 
@@ -56,4 +61,12 @@ class CalendarQueries:
         ``"record"``(기준일별). ``symbol`` 지정 시 그 종목만."""
         return ksd_api.fetch_rights_offerings(
             self._client.transport, start=start, end=end, symbol=symbol, basis=basis
+        )
+
+    def bonus_issues(
+        self, *, start: str | date, end: str | date, symbol: str | None = None
+    ) -> list[BonusIssue]:
+        """기간 [start, end] 의 무상증자 일정. ``symbol`` 지정 시 그 종목만."""
+        return ksd_api.fetch_bonus_issues(
+            self._client.transport, start=start, end=end, symbol=symbol
         )

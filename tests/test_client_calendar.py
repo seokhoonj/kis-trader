@@ -155,3 +155,32 @@ def test_rights_offerings_bad_basis_raises():
                                               body={"output1": []}))
     with pytest.raises(KISUsageError):
         _client(fake).calendar.rights_offerings(start="20240201", end="20240229", basis="nope")
+
+
+def test_bonus_issues_maps_and_params():
+    # 원장 예시값(클로봇). zero/space padding과 미정 날짜 빈값을 그대로 검증한다.
+    rows = [{"record_date": "20240326", "sht_cd": "466100", "isin_name": "클로봇",
+             "fix_rate": "1000.0", "odd_rec_price": "000000000", "right_dt": "20240325",
+             "odd_pay_dt": "", "list_date": "", "tot_issue_stk_qty": "     1885394",
+             "issue_stk_qty": "    18853940", "stk_kind": "01"}]
+    fake = FakeTransport(response=_resp(rows))
+    from kis_openapi import BonusIssue
+    events = _client(fake).calendar.bonus_issues(start="20240301", end="20240331")
+    assert isinstance(events[0], BonusIssue)
+    e = events[0]
+    assert e.symbol == "466100"
+    assert e.allocation_rate == Decimal("1000.0")
+    assert e.ex_rights_date == date(2024, 3, 25)
+    assert e.odd_lot_pay_date is None
+    assert e.list_date is None
+    assert e.new_shares == 18853940
+    assert e.stock_kind == "01"
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/ksdinfo/bonus-issue"
+    assert call["tr_id"] == "HHKDB669101C0"
+
+
+def test_bonus_issues_missing_output1_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).calendar.bonus_issues(start="20240301", end="20240331")

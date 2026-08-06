@@ -1,6 +1,6 @@
 """기업행위 캘린더(DATA) -- :class:`DividendEvent` 등.
 
-한국예탁결제원(KSD)이 제공하는 기업행위 일정의 한 항목이다. 배당·유상증자·주주총회 같은 이벤트를
+한국예탁결제원(KSD)이 제공하는 기업행위 일정의 한 항목이다. 배당·유상증자·무상증자·주주총회 같은 이벤트를
 기준일 기준으로 준다. :class:`~kis_openapi.calendar.CalendarQueries`(``kis.calendar``)가 기간
 조회로 리스트를 돌려준다. 날짜는 시각/시간대 없는 순수 달력 날짜라 :class:`datetime.date` 로 둔다
 (시세 타임스탬프의 KST-aware ``datetime`` 과 구분).
@@ -98,6 +98,29 @@ class RightsOffering:
     subscription_start: date | None   # 청약 시작일(sub_term_ft)
     subscription_period: str          # 청약기간 텍스트(sub_term)
     list_date: date | None            # 상장/등록일(list_date)
+    stock_kind: str                   # 주식종류 코드(stk_kind)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class BonusIssue:
+    """한 종목의 무상증자 일정(불변)."""
+
+    symbol: str                       # 종목코드(sht_cd)
+    name: str                         # 종목명(isin_name)
+    record_date: date                 # 기준일(record_date)
+    allocation_rate: Decimal | None   # 확정배정율 %(fix_rate)
+    odd_lot_base_price: Decimal | None  # 단주기준가(odd_rec_price)
+    ex_rights_date: date | None       # 권리락일(right_dt)
+    odd_lot_pay_date: date | None     # 단주대금지급일(odd_pay_dt)
+    list_date: date | None            # 상장/등록일(list_date)
+    total_shares: int | None          # 발행주식수(tot_issue_stk_qty)
+    new_shares: int | None            # 발행할 주식수(issue_stk_qty)
     stock_kind: str                   # 주식종류 코드(stk_kind)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
