@@ -93,3 +93,50 @@ class OptionExpiry:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OptionBoardRow:
+    """옵션 전광판의 한 행사가 시세와 그릭스(불변)."""
+
+    strike: Decimal
+    code: str
+    price: Decimal
+    change: Decimal
+    change_percent: Decimal
+    bid: Decimal | None
+    ask: Decimal | None
+    volume: int
+    open_interest: int
+    delta: Decimal | None
+    gamma: Decimal | None
+    vega: Decimal | None
+    theta: Decimal | None
+    rho: Decimal | None
+    implied_volatility: Decimal | None
+    theoretical_price: Decimal | None
+    time_value: Decimal | None
+    intrinsic_value: Decimal | None
+    atm_class: str
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OptionBoard:
+    """한 만기월의 옵션 콜/풋 전광판(불변)."""
+
+    expiry: str
+    underlying: str
+    calls: tuple[OptionBoardRow, ...]
+    puts: tuple[OptionBoardRow, ...]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

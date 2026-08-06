@@ -21,7 +21,13 @@ from typing import Any
 
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
 from ..bar import Bar, Interval
-from ..derivative_items import DerivativesQuote, OptionExpiry, UnderlyingQuote
+from ..derivative_items import (
+    DerivativesQuote,
+    OptionBoard,
+    OptionBoardRow,
+    OptionExpiry,
+    UnderlyingQuote,
+)
 from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook
 from ..transport import Transport
@@ -123,6 +129,9 @@ def fetch_order_book(transport: Transport, *, code: str, market: str) -> OrderBo
 
 _OPTION_EXPIRIES_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-option-list"
 _OPTION_EXPIRIES_TR = "FHPIO056104C0"
+_OPTION_BOARD_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-callput"
+_OPTION_BOARD_TR = "FHPIF05030100"
+_OPTION_UNDERLYING = {"KOSPI200": "", "MINI_KOSPI200": "MKI", "KOSDAQ150": "KQI"}
 
 
 def fetch_option_expiries(transport: Transport) -> list[OptionExpiry]:
@@ -153,6 +162,73 @@ def fetch_option_expiries(transport: Transport) -> list[OptionExpiry]:
             )
         )
     return expiries
+
+
+def _parse_board_row(row: Mapping[str, Any]) -> OptionBoardRow:
+    sign = str(row.get("prdy_vrss_sign", "")).strip()
+    return OptionBoardRow(
+        strike=required_decimal(row.get("acpr"), "acpr"),
+        code=str(row.get("optn_shrn_iscd", "")).strip(),
+        price=required_decimal(row.get("optn_prpr"), "optn_prpr"),
+        change=_apply_change_sign(
+            required_decimal(row.get("optn_prdy_vrss"), "optn_prdy_vrss"), sign
+        ),
+        change_percent=_apply_change_sign(
+            required_decimal(row.get("optn_prdy_ctrt"), "optn_prdy_ctrt"), sign
+        ),
+        bid=optional_decimal(row.get("optn_bidp"), "optn_bidp"),
+        ask=optional_decimal(row.get("optn_askp"), "optn_askp"),
+        volume=required_int(row.get("acml_vol"), "acml_vol"),
+        open_interest=required_int(row.get("hts_otst_stpl_qty"), "hts_otst_stpl_qty"),
+        delta=optional_decimal(row.get("delta_val"), "delta_val"),
+        gamma=optional_decimal(row.get("gama"), "gama"),
+        vega=optional_decimal(row.get("vega"), "vega"),
+        theta=optional_decimal(row.get("theta"), "theta"),
+        rho=optional_decimal(row.get("rho"), "rho"),
+        implied_volatility=optional_decimal(row.get("hts_ints_vltl"), "hts_ints_vltl"),
+        theoretical_price=optional_decimal(row.get("hts_thpr"), "hts_thpr"),
+        time_value=optional_decimal(row.get("tmvl_val"), "tmvl_val"),
+        intrinsic_value=optional_decimal(row.get("invl_val"), "invl_val"),
+        atm_class=str(row.get("atm_cls_name", "")).strip(),
+        _raw=row,
+    )
+
+
+def fetch_option_board(
+    transport: Transport, *, expiry: str, underlying: str = "KOSPI200"
+) -> OptionBoard:
+    """한 만기월의 지수옵션 콜/풋 전광판을 행사가별로 조회한다."""
+    try:
+        underlying_code = _OPTION_UNDERLYING[underlying]
+    except KeyError:
+        valid = ", ".join(_OPTION_UNDERLYING)
+        raise KISUsageError(f"underlying 은 다음 중 하나여야 한다: {valid}") from None
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "O",
+        "FID_COND_SCR_DIV_CODE": "20503",
+        "FID_MRKT_CLS_CODE": "CO",
+        "FID_MRKT_CLS_CODE1": "PO",
+        "FID_MTRT_CNT": expiry,
+        "FID_COND_MRKT_CLS_CODE": underlying_code,
+    }
+    resp = transport.request(
+        method="GET", path=_OPTION_BOARD_PATH, tr_id=_OPTION_BOARD_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    call_rows = resp.body.get("output1")
+    if not isinstance(call_rows, list):
+        raise _missing_block_error("output1", resp)
+    put_rows = resp.body.get("output2")
+    if not isinstance(put_rows, list):
+        raise _missing_block_error("output2", resp)
+    return OptionBoard(
+        expiry=expiry,
+        underlying=underlying,
+        calls=tuple(_parse_board_row(row) for row in call_rows),
+        puts=tuple(_parse_board_row(row) for row in put_rows),
+        _raw=resp.body,
+    )
 
 
 _UNDERLYING_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-top"

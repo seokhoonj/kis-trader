@@ -43,7 +43,13 @@ from .calendar_items import (
 )
 from .client import KISClient
 from .derivative import Derivative
-from .derivative_items import DerivativesQuote, OptionExpiry, UnderlyingQuote
+from .derivative_items import (
+    DerivativesQuote,
+    OptionBoard,
+    OptionBoardRow,
+    OptionExpiry,
+    UnderlyingQuote,
+)
 from .elw import ELW
 from .elw_items import (
     ELWIndicatorPoint,
@@ -180,6 +186,8 @@ __all__ = [
     "Money",
     "NearHighLowRanking",
     "NewsItem",
+    "OptionBoard",
+    "OptionBoardRow",
     "OptionExpiry",
     "Order",
     "OrderBook",

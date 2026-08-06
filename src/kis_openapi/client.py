@@ -30,7 +30,7 @@ from .balance import Balance, Portfolio, Position
 from .bond import Bond
 from .calendar import CalendarQueries
 from .derivative import Derivative
-from .derivative_items import OptionExpiry
+from .derivative_items import OptionBoard, OptionExpiry
 from .elw import ELW
 from .elw_ranking import ELWRankingQueries
 from .elw_screener import ELWScreenerQueries
@@ -176,6 +176,12 @@ class KISClient:
     def option_expiries(self) -> list[OptionExpiry]:
         """상장된 지수옵션 만기 월물 목록. 옵션 계약코드를 만들기 전에 유효한 만기를 확인하는 용도."""
         return derivatives_api.fetch_option_expiries(self.transport)
+
+    def option_board(self, expiry: str, *, underlying: str = "KOSPI200") -> OptionBoard:
+        """한 만기월의 옵션 콜/풋 전광판(행사가별 시세·그릭스). expiry 는 OptionExpiry.year_month."""
+        return derivatives_api.fetch_option_board(
+            self.transport, expiry=expiry, underlying=underlying
+        )
 
     def overseas_futures(self, srs_cd: str) -> OverseasDerivative:
         """해외 선물 계약 핸들을 만든다. ``srs_cd`` 는 시리즈코드(예: ESZ25 = E-mini S&P 2025.12)."""
