@@ -18,8 +18,10 @@ if TYPE_CHECKING:
 
     from .calendar_items import (
         BonusIssue,
+        CapitalReduction,
         DividendEvent,
         IPOSubscription,
+        MergerSplit,
         RightsOffering,
     )
     from .client import KISClient
@@ -68,5 +70,21 @@ class CalendarQueries:
     ) -> list[BonusIssue]:
         """기간 [start, end] 의 무상증자 일정. ``symbol`` 지정 시 그 종목만."""
         return ksd_api.fetch_bonus_issues(
+            self._client.transport, start=start, end=end, symbol=symbol
+        )
+
+    def capital_reductions(
+        self, *, start: str | date, end: str | date, symbol: str | None = None
+    ) -> list[CapitalReduction]:
+        """기간 [start, end] 의 자본감소 일정. ``symbol`` 지정 시 그 종목만."""
+        return ksd_api.fetch_capital_reductions(
+            self._client.transport, start=start, end=end, symbol=symbol
+        )
+
+    def merger_splits(
+        self, *, start: str | date, end: str | date, symbol: str | None = None
+    ) -> list[MergerSplit]:
+        """기간 [start, end] 의 합병분할 일정. ``symbol`` 지정 시 그 종목만."""
+        return ksd_api.fetch_merger_splits(
             self._client.transport, start=start, end=end, symbol=symbol
         )

@@ -15,7 +15,14 @@ from datetime import date, datetime
 from typing import Any
 
 from .._wire import optional_decimal, optional_int
-from ..calendar_items import BonusIssue, DividendEvent, IPOSubscription, RightsOffering
+from ..calendar_items import (
+    BonusIssue,
+    CapitalReduction,
+    DividendEvent,
+    IPOSubscription,
+    MergerSplit,
+    RightsOffering,
+)
 from ..errors import KISError, KISUsageError
 from ..transport import Transport
 from .market_data import _missing_block_error, _raise_if_error, _to_yyyymmdd
@@ -28,6 +35,10 @@ _RIGHTS_PATH = "/uapi/domestic-stock/v1/ksdinfo/paidin-capin"
 _RIGHTS_TR = "HHKDB669100C0"
 _BONUS_PATH = "/uapi/domestic-stock/v1/ksdinfo/bonus-issue"
 _BONUS_TR = "HHKDB669101C0"
+_CAPITAL_REDUCTION_PATH = "/uapi/domestic-stock/v1/ksdinfo/cap-dcrs"
+_CAPITAL_REDUCTION_TR = "HHKDB669106C0"
+_MERGER_SPLIT_PATH = "/uapi/domestic-stock/v1/ksdinfo/merger-split"
+_MERGER_SPLIT_TR = "HHKDB669104C0"
 
 #: 배당 조회구분(GB1). 원장: 0(배당전체), 1(결산배당), 2(중간배당).
 _DIVIDEND_KIND = {"all": "0", "final": "1", "interim": "2"}
@@ -222,6 +233,80 @@ def fetch_bonus_issues(
                 total_shares=optional_int(row.get("tot_issue_stk_qty"), "tot_issue_stk_qty"),
                 new_shares=optional_int(row.get("issue_stk_qty"), "issue_stk_qty"),
                 stock_kind=str(row.get("stk_kind", "")).strip(),
+                _raw=row,
+            )
+        )
+    return events
+
+
+def fetch_capital_reductions(
+    transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
+) -> list[CapitalReduction]:
+    """기간 [start, end] 의 자본감소 일정. ``symbol`` 지정 시 그 종목만."""
+    params = {
+        "CTS": "",
+        "F_DT": _to_yyyymmdd(start, "start"),
+        "T_DT": _to_yyyymmdd(end, "end"),
+        "SHT_CD": symbol or "",
+    }
+    events: list[CapitalReduction] = []
+    for row in _rows(
+        transport, path=_CAPITAL_REDUCTION_PATH, tr=_CAPITAL_REDUCTION_TR, params=params
+    ):
+        code = str(row.get("sht_cd", "")).strip()
+        if not code:
+            continue
+        events.append(
+            CapitalReduction(
+                symbol=code,
+                name=str(row.get("isin_name", "")).strip(),
+                record_date=_parse_ksd_date(row.get("record_date"), required=True,
+                                            name="record_date"),
+                stock_kind=str(row.get("stk_kind", "")).strip(),
+                reduction_type=str(row.get("reduce_cap_type", "")).strip(),
+                reduction_rate=optional_decimal(row.get("reduce_cap_rate"), "reduce_cap_rate"),
+                computation_method=str(row.get("comp_way", "")).strip(),
+                trading_halt_period=str(row.get("td_stop_dt", "")).strip(),
+                list_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
+                _raw=row,
+            )
+        )
+    return events
+
+
+def fetch_merger_splits(
+    transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
+) -> list[MergerSplit]:
+    """기간 [start, end] 의 합병분할 일정. ``symbol`` 지정 시 그 종목만."""
+    params = {
+        "CTS": "",
+        "F_DT": _to_yyyymmdd(start, "start"),
+        "T_DT": _to_yyyymmdd(end, "end"),
+        "SHT_CD": symbol or "",
+    }
+    events: list[MergerSplit] = []
+    for row in _rows(transport, path=_MERGER_SPLIT_PATH, tr=_MERGER_SPLIT_TR, params=params):
+        code = str(row.get("sht_cd", "")).strip()
+        if not code:
+            continue
+        events.append(
+            MergerSplit(
+                symbol=code,
+                record_date=_parse_ksd_date(row.get("record_date"), required=True,
+                                            name="record_date"),
+                company_code=str(row.get("cust_cd", "")).strip(),
+                company_name=str(row.get("cust_nm", "")).strip(),
+                counterparty_code=str(row.get("opp_cust_cd", "")).strip(),
+                counterparty_name=str(row.get("opp_cust_nm", "")).strip(),
+                merge_type=str(row.get("merge_type", "")).strip(),
+                merge_ratio=optional_decimal(row.get("merge_rate"), "merge_rate"),
+                trading_halt_period=str(row.get("td_stop_dt", "")).strip(),
+                list_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
+                odd_lot_pay_date=_parse_ksd_date(row.get("odd_amt_pay_dt"), required=False,
+                                                 name="odd_amt_pay_dt"),
+                total_shares=optional_int(row.get("tot_issue_stk_qty"), "tot_issue_stk_qty"),
+                new_shares=optional_int(row.get("issue_stk_qty"), "issue_stk_qty"),
+                sequence=str(row.get("seq", "")).strip(),
                 _raw=row,
             )
         )

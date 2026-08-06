@@ -184,3 +184,62 @@ def test_bonus_issues_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).calendar.bonus_issues(start="20240301", end="20240331")
+
+
+def test_capital_reductions_maps_and_params():
+    # 원장 예시값(아스트). list_dt는 YYYY/MM/DD이고 td_stop_dt는 텍스트 범위다.
+    rows = [{"record_date": "20240315", "sht_cd": "067390", "isin_name": "아스트",
+             "stk_kind": "보통", "reduce_cap_type": "무상감자", "reduce_cap_rate": " 1.00",
+             "comp_way": "곱하기", "td_stop_dt": "2024/03/14 ~ 2024/03/31",
+             "list_dt": "2024/04/01"}]
+    fake = FakeTransport(response=_resp(rows))
+    from kis_openapi import CapitalReduction
+    events = _client(fake).calendar.capital_reductions(start="20240301", end="20240331")
+    assert isinstance(events[0], CapitalReduction)
+    e = events[0]
+    assert e.symbol == "067390"
+    assert e.record_date == date(2024, 3, 15)
+    assert e.reduction_rate == Decimal("1.00")
+    assert e.trading_halt_period == "2024/03/14 ~ 2024/03/31"
+    assert e.list_date == date(2024, 4, 1)
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/ksdinfo/cap-dcrs"
+    assert call["tr_id"] == "HHKDB669106C0"
+
+
+def test_capital_reductions_missing_output1_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).calendar.capital_reductions(start="20240301", end="20240331")
+
+
+def test_merger_splits_maps_and_params():
+    # 원장 예시값(베셀/에스케이씨에스). list_dt는 YYYYMMDD이고 td_stop_dt는 텍스트 범위다.
+    rows = [{"record_date": "20240311", "sht_cd": "224020", "opp_cust_cd": "22402",
+             "opp_cust_nm": "에스케이씨에스", "cust_cd": "17735", "cust_nm": "베셀",
+             "merge_type": "흡수합병", "merge_rate": " 0.66",
+             "td_stop_dt": "2024/03/08 ~ 2024/03/28", "list_dt": "20240329",
+             "odd_amt_pay_dt": "2024/04/05", "tot_issue_stk_qty": "           0",
+             "issue_stk_qty": "           0", "seq": "00"}]
+    fake = FakeTransport(response=_resp(rows))
+    from kis_openapi import MergerSplit
+    events = _client(fake).calendar.merger_splits(start="20240301", end="20240331")
+    assert isinstance(events[0], MergerSplit)
+    e = events[0]
+    assert e.symbol == "224020"
+    assert e.record_date == date(2024, 3, 11)
+    assert e.company_name == "베셀"
+    assert e.counterparty_name == "에스케이씨에스"
+    assert e.merge_ratio == Decimal("0.66")
+    assert e.trading_halt_period == "2024/03/08 ~ 2024/03/28"
+    assert e.list_date == date(2024, 3, 29)
+    assert e.new_shares == 0
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/ksdinfo/merger-split"
+    assert call["tr_id"] == "HHKDB669104C0"
+
+
+def test_merger_splits_missing_output1_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).calendar.merger_splits(start="20240301", end="20240331")

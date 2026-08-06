@@ -27,7 +27,14 @@ from .bond import Bond
 from .bond_items import BondInfo, BondQuote
 from .broker import BrokerActivity, BrokerActivitySummary
 from .calendar import CalendarQueries
-from .calendar_items import BonusIssue, DividendEvent, IPOSubscription, RightsOffering
+from .calendar_items import (
+    BonusIssue,
+    CapitalReduction,
+    DividendEvent,
+    IPOSubscription,
+    MergerSplit,
+    RightsOffering,
+)
 from .client import KISClient
 from .derivative import Derivative
 from .derivative_items import DerivativesQuote, OptionExpiry, UnderlyingQuote
@@ -118,6 +125,7 @@ __all__ = [
     "BrokerActivitySummary",
     "BuyableAmount",
     "CalendarQueries",
+    "CapitalReduction",
     "CategoryIndex",
     "CreditBalancePoint",
     "CreditBalanceRanking",
@@ -158,6 +166,7 @@ __all__ = [
     "MarketQueries",
     "MasterIndex",
     "MasterRecord",
+    "MergerSplit",
     "Money",
     "NearHighLowRanking",
     "NewsItem",

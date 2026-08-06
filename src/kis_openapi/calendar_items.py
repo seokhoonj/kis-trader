@@ -128,3 +128,50 @@ class BonusIssue:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class CapitalReduction:
+    """한 종목의 자본감소 일정(불변)."""
+
+    symbol: str                       # 종목코드(sht_cd)
+    name: str                         # 종목명(isin_name)
+    record_date: date                 # 기준일(record_date)
+    stock_kind: str                   # 주식종류(stk_kind)
+    reduction_type: str               # 감자구분(reduce_cap_type)
+    reduction_rate: Decimal | None    # 감자비율 %(reduce_cap_rate)
+    computation_method: str           # 계산방법(comp_way)
+    trading_halt_period: str          # 매매거래정지기간 텍스트(td_stop_dt)
+    list_date: date | None            # 상장/등록일(list_dt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class MergerSplit:
+    """한 종목의 합병분할 일정(불변)."""
+
+    symbol: str                       # 종목코드(sht_cd)
+    record_date: date                 # 기준일(record_date)
+    company_code: str                 # 회사코드(cust_cd)
+    company_name: str                 # 회사명(cust_nm)
+    counterparty_code: str            # 상대회사코드(opp_cust_cd)
+    counterparty_name: str            # 상대회사명(opp_cust_nm)
+    merge_type: str                   # 합병구분(merge_type)
+    merge_ratio: Decimal | None       # 합병비율(merge_rate)
+    trading_halt_period: str          # 매매거래정지기간 텍스트(td_stop_dt)
+    list_date: date | None            # 상장/등록일(list_dt)
+    odd_lot_pay_date: date | None     # 단주대금지급일(odd_amt_pay_dt)
+    total_shares: int | None          # 발행주식수(tot_issue_stk_qty)
+    new_shares: int | None            # 발행할 주식수(issue_stk_qty)
+    sequence: str                     # 일련번호(seq)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
