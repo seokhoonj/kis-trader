@@ -16,13 +16,16 @@ from typing import Any
 
 from .._wire import optional_decimal, optional_int
 from ..calendar_items import (
+    AppraisalRights,
     BonusIssue,
     CapitalReduction,
     DividendEvent,
+    ForfeitedShares,
     IPOSubscription,
     ListingInfo,
     MandatoryDeposit,
     MergerSplit,
+    ParValueChange,
     RightsOffering,
     ShareholderMeeting,
 )
@@ -48,6 +51,12 @@ _MANDATORY_DEPOSIT_PATH = "/uapi/domestic-stock/v1/ksdinfo/mand-deposit"
 _MANDATORY_DEPOSIT_TR = "HHKDB669110C0"
 _LISTING_INFO_PATH = "/uapi/domestic-stock/v1/ksdinfo/list-info"
 _LISTING_INFO_TR = "HHKDB669107C0"
+_PAR_VALUE_CHANGE_PATH = "/uapi/domestic-stock/v1/ksdinfo/rev-split"
+_PAR_VALUE_CHANGE_TR = "HHKDB669105C0"
+_FORFEITED_SHARES_PATH = "/uapi/domestic-stock/v1/ksdinfo/forfeit"
+_FORFEITED_SHARES_TR = "HHKDB669109C0"
+_APPRAISAL_RIGHTS_PATH = "/uapi/domestic-stock/v1/ksdinfo/purreq"
+_APPRAISAL_RIGHTS_TR = "HHKDB669103C0"
 
 #: 배당 조회구분(GB1). 원장: 0(배당전체), 1(결산배당), 2(중간배당).
 _DIVIDEND_KIND = {"all": "0", "final": "1", "interim": "2"}
@@ -414,6 +423,116 @@ def fetch_listing_infos(
                 new_shares=optional_int(row.get("issue_stk_qty"), "issue_stk_qty"),
                 total_shares=optional_int(row.get("tot_issue_stk_qty"), "tot_issue_stk_qty"),
                 issue_price=optional_decimal(row.get("issue_price"), "issue_price"),
+                _raw=row,
+            )
+        )
+    return events
+
+
+def fetch_par_value_changes(
+    transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
+) -> list[ParValueChange]:
+    """기간 [start, end] 의 액면교체 일정. ``symbol`` 지정 시 그 종목만."""
+    params = {
+        "CTS": "",
+        "F_DT": _to_yyyymmdd(start, "start"),
+        "T_DT": _to_yyyymmdd(end, "end"),
+        "SHT_CD": symbol or "",
+    }
+    events: list[ParValueChange] = []
+    for row in _rows(
+        transport, path=_PAR_VALUE_CHANGE_PATH, tr=_PAR_VALUE_CHANGE_TR, params=params
+    ):
+        code = str(row.get("sht_cd", "")).strip()
+        if not code:
+            continue
+        events.append(
+            ParValueChange(
+                symbol=code,
+                name=str(row.get("isin_name", "")).strip(),
+                record_date=_parse_ksd_date(row.get("record_date"), required=True,
+                                            name="record_date"),
+                face_value_before=optional_decimal(
+                    row.get("inter_bf_face_amt"), "inter_bf_face_amt"
+                ),
+                face_value_after=optional_decimal(
+                    row.get("inter_af_face_amt"), "inter_af_face_amt"
+                ),
+                trading_halt_period=str(row.get("td_stop_dt", "")).strip(),
+                list_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
+                _raw=row,
+            )
+        )
+    return events
+
+
+def fetch_forfeited_shares(
+    transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
+) -> list[ForfeitedShares]:
+    """기간 [start, end] 의 실권주 일정. ``symbol`` 지정 시 그 종목만."""
+    params = {
+        "CTS": "",
+        "F_DT": _to_yyyymmdd(start, "start"),
+        "T_DT": _to_yyyymmdd(end, "end"),
+        "SHT_CD": symbol or "",
+    }
+    events: list[ForfeitedShares] = []
+    for row in _rows(
+        transport, path=_FORFEITED_SHARES_PATH, tr=_FORFEITED_SHARES_TR, params=params
+    ):
+        code = str(row.get("sht_cd", "")).strip()
+        if not code:
+            continue
+        events.append(
+            ForfeitedShares(
+                symbol=code,
+                name=str(row.get("isin_name", "")).strip(),
+                record_date=_parse_ksd_date(row.get("record_date"), required=True,
+                                            name="record_date"),
+                subscription_period=str(row.get("subscr_dt", "")).strip(),
+                subscription_price=optional_decimal(row.get("subscr_price"), "subscr_price"),
+                subscription_shares=optional_int(row.get("subscr_stk_qty"), "subscr_stk_qty"),
+                refund_date=_parse_ksd_date(row.get("refund_dt"), required=False,
+                                            name="refund_dt"),
+                list_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
+                lead_manager=str(row.get("lead_mgr", "")).strip(),
+                _raw=row,
+            )
+        )
+    return events
+
+
+def fetch_appraisal_rights(
+    transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
+) -> list[AppraisalRights]:
+    """기간 [start, end] 의 주식매수청구 일정. ``symbol`` 지정 시 그 종목만."""
+    params = {
+        "CTS": "",
+        "F_DT": _to_yyyymmdd(start, "start"),
+        "T_DT": _to_yyyymmdd(end, "end"),
+        "SHT_CD": symbol or "",
+    }
+    events: list[AppraisalRights] = []
+    for row in _rows(
+        transport, path=_APPRAISAL_RIGHTS_PATH, tr=_APPRAISAL_RIGHTS_TR, params=params
+    ):
+        code = str(row.get("sht_cd", "")).strip()
+        if not code:
+            continue
+        events.append(
+            AppraisalRights(
+                symbol=code,
+                name=str(row.get("isin_name", "")).strip(),
+                record_date=_parse_ksd_date(row.get("record_date"), required=True,
+                                            name="record_date"),
+                stock_kind=str(row.get("stk_kind", "")).strip(),
+                opposition_period=str(row.get("opp_opi_rcpt_term", "")).strip(),
+                buyback_request_period=str(row.get("buy_req_rcpt_term", "")).strip(),
+                buyback_price=optional_decimal(row.get("buy_req_price"), "buy_req_price"),
+                payment_date=_parse_ksd_date(row.get("buy_amt_pay_dt"), required=False,
+                                             name="buy_amt_pay_dt"),
+                meeting_date=_parse_ksd_date(row.get("get_meet_dt"), required=False,
+                                             name="get_meet_dt"),
                 _raw=row,
             )
         )

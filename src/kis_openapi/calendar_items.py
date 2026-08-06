@@ -232,3 +232,64 @@ class ListingInfo:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ParValueChange:
+    """한 종목의 액면교체 일정(불변)."""
+
+    symbol: str                       # 종목코드(sht_cd)
+    name: str                         # 종목명(isin_name)
+    record_date: date                 # 기준일(record_date)
+    face_value_before: Decimal | None  # 교체 전 액면가(inter_bf_face_amt)
+    face_value_after: Decimal | None  # 교체 후 액면가(inter_af_face_amt)
+    trading_halt_period: str          # 매매거래정지기간 텍스트(td_stop_dt)
+    list_date: date | None            # 상장/등록일(list_dt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ForfeitedShares:
+    """한 종목의 실권주 일정(불변)."""
+
+    symbol: str                       # 종목코드(sht_cd)
+    name: str                         # 종목명(isin_name)
+    record_date: date                 # 기준일(record_date)
+    subscription_period: str          # 청약기간 텍스트(subscr_dt)
+    subscription_price: Decimal | None  # 청약가(subscr_price)
+    subscription_shares: int | None   # 청약 주식수(subscr_stk_qty)
+    refund_date: date | None          # 환불일(refund_dt)
+    list_date: date | None            # 상장/등록일(list_dt)
+    lead_manager: str                 # 주간사(lead_mgr)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class AppraisalRights:
+    """한 종목의 주식매수청구 일정(불변)."""
+
+    symbol: str                       # 종목코드(sht_cd)
+    name: str                         # 종목명(isin_name)
+    record_date: date                 # 기준일(record_date)
+    stock_kind: str                   # 주식종류(stk_kind)
+    opposition_period: str            # 반대의사 접수기간 텍스트(opp_opi_rcpt_term)
+    buyback_request_period: str       # 매수청구 접수기간 텍스트(buy_req_rcpt_term)
+    buyback_price: Decimal | None     # 매수청구가(buy_req_price)
+    payment_date: date | None         # 매수대금 지급일(buy_amt_pay_dt)
+    meeting_date: date | None         # 총회일(get_meet_dt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

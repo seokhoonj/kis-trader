@@ -331,3 +331,85 @@ def test_listing_infos_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).calendar.listing_infos(start="20240301", end="20240331")
+
+
+def test_par_value_changes_maps_and_params():
+    rows = [{"record_date": "20230823", "sht_cd": "001390", "isin_name": "케이지케미칼",
+             "inter_bf_face_amt": "000005000", "inter_af_face_amt": "000001000",
+             "td_stop_dt": "2023/08/22 ~ 2023/08/27", "list_dt": "2023/08/28"}]
+    fake = FakeTransport(response=_resp(rows))
+    from kis_openapi import ParValueChange
+    events = _client(fake).calendar.par_value_changes(
+        start="20230801", end="20230831", symbol="001390"
+    )
+    assert isinstance(events[0], ParValueChange)
+    e = events[0]
+    assert e.symbol == "001390"
+    assert e.record_date == date(2023, 8, 23)
+    assert e.face_value_before == Decimal(5000)
+    assert e.trading_halt_period == "2023/08/22 ~ 2023/08/27"
+    assert e.list_date == date(2023, 8, 28)
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/ksdinfo/rev-split"
+    assert call["tr_id"] == "HHKDB669105C0"
+    assert call["params"]["SHT_CD"] == "001390"
+
+
+def test_par_value_changes_missing_output1_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).calendar.par_value_changes(start="20230801", end="20230831")
+
+
+def test_forfeited_shares_maps_and_params():
+    rows = [{"record_date": "20240131", "sht_cd": "001440", "isin_name": "대한전선",
+             "subscr_dt": "2024/03/14 ~ 2024/03/15", "subscr_price": "000007460",
+             "subscr_stk_qty": "    62000000", "refund_dt": "2024/03/19",
+             "list_dt": "2024/04/02", "lead_mgr": "케이비증권,미래에셋증권,"}]
+    fake = FakeTransport(response=_resp(rows))
+    from kis_openapi import ForfeitedShares
+    events = _client(fake).calendar.forfeited_shares(start="20240101", end="20240131")
+    assert isinstance(events[0], ForfeitedShares)
+    e = events[0]
+    assert e.symbol == "001440"
+    assert e.record_date == date(2024, 1, 31)
+    assert e.subscription_price == Decimal(7460)
+    assert e.subscription_period == "2024/03/14 ~ 2024/03/15"
+    assert e.refund_date == date(2024, 3, 19)
+    assert e.lead_manager == "케이비증권,미래에셋증권,"
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/ksdinfo/forfeit"
+    assert call["tr_id"] == "HHKDB669109C0"
+
+
+def test_forfeited_shares_missing_output1_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).calendar.forfeited_shares(start="20240101", end="20240131")
+
+
+def test_appraisal_rights_maps_and_params():
+    rows = [{"record_date": "20240313", "sht_cd": "065350", "isin_name": "신성델타테크",
+             "stk_kind": "보통", "opp_opi_rcpt_term": "020240326",
+             "buy_req_rcpt_term": "", "buy_req_price": "000000000000",
+             "buy_amt_pay_dt": "", "get_meet_dt": ""}]
+    fake = FakeTransport(response=_resp(rows))
+    from kis_openapi import AppraisalRights
+    events = _client(fake).calendar.appraisal_rights(start="20240301", end="20240331")
+    assert isinstance(events[0], AppraisalRights)
+    e = events[0]
+    assert e.symbol == "065350"
+    assert e.record_date == date(2024, 3, 13)
+    assert e.opposition_period == "020240326"
+    assert e.buyback_price == Decimal(0)
+    assert e.payment_date is None
+    assert e.meeting_date is None
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/ksdinfo/purreq"
+    assert call["tr_id"] == "HHKDB669103C0"
+
+
+def test_appraisal_rights_missing_output1_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).calendar.appraisal_rights(start="20240301", end="20240331")

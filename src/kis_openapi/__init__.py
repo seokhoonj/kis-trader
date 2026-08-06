@@ -28,13 +28,16 @@ from .bond_items import BondInfo, BondQuote
 from .broker import BrokerActivity, BrokerActivitySummary
 from .calendar import CalendarQueries
 from .calendar_items import (
+    AppraisalRights,
     BonusIssue,
     CapitalReduction,
     DividendEvent,
+    ForfeitedShares,
     IPOSubscription,
     ListingInfo,
     MandatoryDeposit,
     MergerSplit,
+    ParValueChange,
     RightsOffering,
     ShareholderMeeting,
 )
@@ -117,6 +120,7 @@ __all__ = [
     "AfterHoursDailyPrice",
     "AfterHoursQuote",
     "AnalystOpinion",
+    "AppraisalRights",
     "Balance",
     "BalanceSheet",
     "Bar",
@@ -152,6 +156,7 @@ __all__ = [
     "ExpectedPricePoint",
     "FinancialRatio",
     "ForeignBrokerFlow",
+    "ForfeitedShares",
     "GrowthRatio",
     "IPOSubscription",
     "IncomeStatement",
@@ -189,6 +194,7 @@ __all__ = [
     "OverseasPosition",
     "OverseasRankingQueries",
     "OvertimeRanking",
+    "ParValueChange",
     "Portfolio",
     "Position",
     "PriceLevel",

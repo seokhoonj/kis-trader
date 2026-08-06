@@ -17,13 +17,16 @@ if TYPE_CHECKING:
     from datetime import date
 
     from .calendar_items import (
+        AppraisalRights,
         BonusIssue,
         CapitalReduction,
         DividendEvent,
+        ForfeitedShares,
         IPOSubscription,
         ListingInfo,
         MandatoryDeposit,
         MergerSplit,
+        ParValueChange,
         RightsOffering,
         ShareholderMeeting,
     )
@@ -113,5 +116,29 @@ class CalendarQueries:
     ) -> list[ListingInfo]:
         """기간 [start, end] 의 상장정보. ``symbol`` 지정 시 그 종목만."""
         return ksd_api.fetch_listing_infos(
+            self._client.transport, start=start, end=end, symbol=symbol
+        )
+
+    def par_value_changes(
+        self, *, start: str | date, end: str | date, symbol: str | None = None
+    ) -> list[ParValueChange]:
+        """기간 [start, end] 의 액면교체 일정. ``symbol`` 지정 시 그 종목만."""
+        return ksd_api.fetch_par_value_changes(
+            self._client.transport, start=start, end=end, symbol=symbol
+        )
+
+    def forfeited_shares(
+        self, *, start: str | date, end: str | date, symbol: str | None = None
+    ) -> list[ForfeitedShares]:
+        """기간 [start, end] 의 실권주 일정. ``symbol`` 지정 시 그 종목만."""
+        return ksd_api.fetch_forfeited_shares(
+            self._client.transport, start=start, end=end, symbol=symbol
+        )
+
+    def appraisal_rights(
+        self, *, start: str | date, end: str | date, symbol: str | None = None
+    ) -> list[AppraisalRights]:
+        """기간 [start, end] 의 주식매수청구 일정. ``symbol`` 지정 시 그 종목만."""
+        return ksd_api.fetch_appraisal_rights(
             self._client.transport, start=start, end=end, symbol=symbol
         )
