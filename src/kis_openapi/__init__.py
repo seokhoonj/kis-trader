@@ -27,7 +27,7 @@ from .bond import Bond
 from .bond_items import BondInfo, BondQuote
 from .broker import BrokerActivity, BrokerActivitySummary
 from .calendar import CalendarQueries
-from .calendar_items import DividendEvent
+from .calendar_items import DividendEvent, IPOSubscription, RightsOffering
 from .client import KISClient
 from .derivative import Derivative
 from .derivative_items import DerivativesQuote, OptionExpiry, UnderlyingQuote
@@ -141,6 +141,7 @@ __all__ = [
     "FinancialRatio",
     "ForeignBrokerFlow",
     "GrowthRatio",
+    "IPOSubscription",
     "IncomeStatement",
     "Index",
     "IndexIntradayPoint",
@@ -185,6 +186,7 @@ __all__ = [
     "RankedOverseasStock",
     "RankedStock",
     "RankingQueries",
+    "RightsOffering",
     "RiskLimits",
     "SellableQuantity",
     "ShortSalePoint",

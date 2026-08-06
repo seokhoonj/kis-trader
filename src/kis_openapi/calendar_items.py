@@ -45,3 +45,63 @@ class DividendEvent:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class IPOSubscription:
+    """한 종목의 공모주 청약 일정(불변).
+
+    ``offer_price`` 는 공모가, ``subscription_period`` 는 청약기간(벤더가 준 텍스트 범위 그대로),
+    ``pay_date`` / ``refund_date`` / ``list_date`` 는 납입/환불/상장일(미정이면 ``None``),
+    ``lead_manager`` 는 주간사, ``allocated_quantity`` 는 당사 배정물량이다.
+    """
+
+    symbol: str                       # 종목코드(sht_cd)
+    name: str                         # 종목명(isin_name)
+    record_date: date                 # 기준일(record_date)
+    offer_price: Decimal | None       # 공모가(fix_subscr_pri)
+    face_value: Decimal | None        # 액면가(face_value)
+    subscription_period: str          # 청약기간 텍스트(subscr_dt; 예 "2024/03/25 ~ 2024/03/26")
+    pay_date: date | None             # 납입일(pay_dt)
+    refund_date: date | None          # 환불일(refund_dt)
+    list_date: date | None            # 상장/등록일(list_dt)
+    lead_manager: str                 # 주간사(lead_mgr)
+    capital_before: Decimal | None    # 공모전 자본금(pub_bf_cap)
+    capital_after: Decimal | None     # 공모후 자본금(pub_af_cap)
+    allocated_quantity: int | None    # 당사 배정물량(assign_stk_qty)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class RightsOffering:
+    """한 종목의 유상증자 일정(불변).
+
+    ``new_shares`` 는 발행할 주식수, ``allocation_rate`` 는 확정배정율(%), ``discount_rate`` 는
+    할인율(%), ``issue_price`` 는 발행예정가, ``ex_rights_date`` 는 권리락일, ``subscription_start`` 는
+    청약 시작일, ``subscription_period`` 는 청약기간 텍스트, ``stock_kind`` 는 주식종류 코드다.
+    """
+
+    symbol: str                       # 종목코드(sht_cd)
+    name: str                         # 종목명(isin_name)
+    record_date: date                 # 기준일(record_date)
+    total_shares: int | None          # 발행주식수(tot_issue_stk_qty)
+    new_shares: int | None            # 발행할 주식수(issue_stk_qty)
+    allocation_rate: Decimal | None   # 확정배정율 %(fix_rate)
+    discount_rate: Decimal | None     # 할인율 %(disc_rate)
+    issue_price: Decimal | None       # 발행예정가(fix_price)
+    ex_rights_date: date | None       # 권리락일(right_dt)
+    subscription_start: date | None   # 청약 시작일(sub_term_ft)
+    subscription_period: str          # 청약기간 텍스트(sub_term)
+    list_date: date | None            # 상장/등록일(list_date)
+    stock_kind: str                   # 주식종류 코드(stk_kind)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

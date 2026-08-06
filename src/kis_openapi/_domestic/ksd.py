@@ -14,23 +14,29 @@ from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from typing import Any
 
-from .._wire import optional_decimal
-from ..calendar_items import DividendEvent
+from .._wire import optional_decimal, optional_int
+from ..calendar_items import DividendEvent, IPOSubscription, RightsOffering
 from ..errors import KISError, KISUsageError
 from ..transport import Transport
 from .market_data import _missing_block_error, _raise_if_error, _to_yyyymmdd
 
 _DIVIDEND_PATH = "/uapi/domestic-stock/v1/ksdinfo/dividend"
 _DIVIDEND_TR = "HHKDB669102C0"
+_IPO_PATH = "/uapi/domestic-stock/v1/ksdinfo/pub-offer"
+_IPO_TR = "HHKDB669108C0"
+_RIGHTS_PATH = "/uapi/domestic-stock/v1/ksdinfo/paidin-capin"
+_RIGHTS_TR = "HHKDB669100C0"
 
 #: 배당 조회구분(GB1). 원장: 0(배당전체), 1(결산배당), 2(중간배당).
 _DIVIDEND_KIND = {"all": "0", "final": "1", "interim": "2"}
+#: 유상증자 조회구분(GB1). 원장: 1(청약일별), 2(기준일별).
+_RIGHTS_BASIS = {"subscription": "1", "record": "2"}
 
 
 def _parse_ksd_date(value: object, *, required: bool, name: str) -> date | None:
-    """KSD 날짜("YYYYMMDD") -> date. 빈 값/"00000000"(미정 sentinel)은 ``None``(required 면 예외).
-    값이 있는데 형식이 깨지면 fail-closed."""
-    text = str(value).strip()
+    """KSD 날짜 -> date. KSD는 "YYYYMMDD" 와 "YYYY/MM/DD" 를 섞어 주므로 구분자를 벗겨 통일한다.
+    빈 값/"00000000"(미정 sentinel)은 ``None``(required 면 예외). 형식이 깨지면 fail-closed."""
+    text = str(value).strip().replace("/", "").replace(".", "").replace("-", "")
     if not text or text == "00000000":
         if required:
             raise KISError(f"필수 날짜 필드 {name!r} 가 비어 있다: {value!r}")
@@ -41,14 +47,14 @@ def _parse_ksd_date(value: object, *, required: bool, name: str) -> date | None:
         raise KISError(f"날짜 필드 {name!r} 파싱 실패: {value!r}") from err
 
 
-def _rows(transport: Transport, *, path: str, tr: str, params: Mapping[str, str]
-          ) -> Sequence[Mapping[str, Any]]:
+def _rows(transport: Transport, *, path: str, tr: str, params: Mapping[str, str],
+          block: str = "output1") -> Sequence[Mapping[str, Any]]:
     resp = transport.request(method="GET", path=path, tr_id=tr, params=dict(params),
                              idempotent=True)
     _raise_if_error(resp)
-    rows = resp.body.get("output1")
+    rows = resp.body.get(block)
     if not isinstance(rows, list):
-        raise _missing_block_error("output1", resp)
+        raise _missing_block_error(block, resp)
     return rows
 
 
@@ -94,6 +100,89 @@ def fetch_dividends(
                                                  name="odd_pay_dt"),
                 stock_kind=str(row.get("stk_kind", "")).strip(),
                 high_dividend=high,
+                _raw=row,
+            )
+        )
+    return events
+
+
+def fetch_ipo_subscriptions(
+    transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
+) -> list[IPOSubscription]:
+    """기간 [start, end] 의 공모주 청약 일정. ``symbol`` 지정 시 그 종목만."""
+    params = {
+        "SHT_CD": symbol or "",
+        "CTS": "",
+        "F_DT": _to_yyyymmdd(start, "start"),
+        "T_DT": _to_yyyymmdd(end, "end"),
+    }
+    events: list[IPOSubscription] = []
+    for row in _rows(transport, path=_IPO_PATH, tr=_IPO_TR, params=params):
+        code = str(row.get("sht_cd", "")).strip()
+        if not code:
+            continue
+        events.append(
+            IPOSubscription(
+                symbol=code,
+                name=str(row.get("isin_name", "")).strip(),
+                record_date=_parse_ksd_date(row.get("record_date"), required=True,
+                                            name="record_date"),
+                offer_price=optional_decimal(row.get("fix_subscr_pri"), "fix_subscr_pri"),
+                face_value=optional_decimal(row.get("face_value"), "face_value"),
+                subscription_period=str(row.get("subscr_dt", "")).strip(),
+                pay_date=_parse_ksd_date(row.get("pay_dt"), required=False, name="pay_dt"),
+                refund_date=_parse_ksd_date(row.get("refund_dt"), required=False, name="refund_dt"),
+                list_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
+                lead_manager=str(row.get("lead_mgr", "")).strip(),
+                capital_before=optional_decimal(row.get("pub_bf_cap"), "pub_bf_cap"),
+                capital_after=optional_decimal(row.get("pub_af_cap"), "pub_af_cap"),
+                allocated_quantity=optional_int(row.get("assign_stk_qty"), "assign_stk_qty"),
+                _raw=row,
+            )
+        )
+    return events
+
+
+def fetch_rights_offerings(
+    transport: Transport, *, start: str | date, end: str | date,
+    symbol: str | None = None, basis: str = "subscription",
+) -> list[RightsOffering]:
+    """기간 [start, end] 의 유상증자 일정. ``basis`` 는 조회 기준 -- ``"subscription"``(청약일별) /
+    ``"record"``(기준일별). ``symbol`` 지정 시 그 종목만."""
+    try:
+        gb1 = _RIGHTS_BASIS[basis]
+    except KeyError:
+        raise KISUsageError(f"basis 는 {sorted(_RIGHTS_BASIS)} 중 하나: {basis!r}") from None
+    params = {
+        "CTS": "",
+        "GB1": gb1,
+        "F_DT": _to_yyyymmdd(start, "start"),
+        "T_DT": _to_yyyymmdd(end, "end"),
+        "SHT_CD": symbol or "",
+    }
+    events: list[RightsOffering] = []
+    for row in _rows(transport, path=_RIGHTS_PATH, tr=_RIGHTS_TR, params=params):
+        code = str(row.get("sht_cd", "")).strip()
+        if not code:
+            continue
+        events.append(
+            RightsOffering(
+                symbol=code,
+                name=str(row.get("isin_name", "")).strip(),
+                record_date=_parse_ksd_date(row.get("record_date"), required=True,
+                                            name="record_date"),
+                total_shares=optional_int(row.get("tot_issue_stk_qty"), "tot_issue_stk_qty"),
+                new_shares=optional_int(row.get("issue_stk_qty"), "issue_stk_qty"),
+                allocation_rate=optional_decimal(row.get("fix_rate"), "fix_rate"),
+                discount_rate=optional_decimal(row.get("disc_rate"), "disc_rate"),
+                issue_price=optional_decimal(row.get("fix_price"), "fix_price"),
+                ex_rights_date=_parse_ksd_date(row.get("right_dt"), required=False,
+                                               name="right_dt"),
+                subscription_start=_parse_ksd_date(row.get("sub_term_ft"), required=False,
+                                                   name="sub_term_ft"),
+                subscription_period=str(row.get("sub_term", "")).strip(),
+                list_date=_parse_ksd_date(row.get("list_date"), required=False, name="list_date"),
+                stock_kind=str(row.get("stk_kind", "")).strip(),
                 _raw=row,
             )
         )

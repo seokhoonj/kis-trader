@@ -16,7 +16,7 @@ from ._domestic import ksd as ksd_api
 if TYPE_CHECKING:
     from datetime import date
 
-    from .calendar_items import DividendEvent
+    from .calendar_items import DividendEvent, IPOSubscription, RightsOffering
     from .client import KISClient
 
 
@@ -38,4 +38,22 @@ class CalendarQueries:
         ``"all"``(전체) / ``"final"``(결산배당) / ``"interim"``(중간배당)."""
         return ksd_api.fetch_dividends(
             self._client.transport, start=start, end=end, symbol=symbol, kind=kind
+        )
+
+    def ipo_subscriptions(
+        self, *, start: str | date, end: str | date, symbol: str | None = None
+    ) -> list[IPOSubscription]:
+        """기간 [start, end] 의 공모주 청약 일정. ``symbol`` 지정 시 그 종목만."""
+        return ksd_api.fetch_ipo_subscriptions(
+            self._client.transport, start=start, end=end, symbol=symbol
+        )
+
+    def rights_offerings(
+        self, *, start: str | date, end: str | date,
+        symbol: str | None = None, basis: str = "subscription",
+    ) -> list[RightsOffering]:
+        """기간 [start, end] 의 유상증자 일정. ``basis`` 는 ``"subscription"``(청약일별) /
+        ``"record"``(기준일별). ``symbol`` 지정 시 그 종목만."""
+        return ksd_api.fetch_rights_offerings(
+            self._client.transport, start=start, end=end, symbol=symbol, basis=basis
         )
