@@ -20,8 +20,11 @@ from ..calendar_items import (
     CapitalReduction,
     DividendEvent,
     IPOSubscription,
+    ListingInfo,
+    MandatoryDeposit,
     MergerSplit,
     RightsOffering,
+    ShareholderMeeting,
 )
 from ..errors import KISError, KISUsageError
 from ..transport import Transport
@@ -39,6 +42,12 @@ _CAPITAL_REDUCTION_PATH = "/uapi/domestic-stock/v1/ksdinfo/cap-dcrs"
 _CAPITAL_REDUCTION_TR = "HHKDB669106C0"
 _MERGER_SPLIT_PATH = "/uapi/domestic-stock/v1/ksdinfo/merger-split"
 _MERGER_SPLIT_TR = "HHKDB669104C0"
+_SHAREHOLDER_MEETING_PATH = "/uapi/domestic-stock/v1/ksdinfo/sharehld-meet"
+_SHAREHOLDER_MEETING_TR = "HHKDB669111C0"
+_MANDATORY_DEPOSIT_PATH = "/uapi/domestic-stock/v1/ksdinfo/mand-deposit"
+_MANDATORY_DEPOSIT_TR = "HHKDB669110C0"
+_LISTING_INFO_PATH = "/uapi/domestic-stock/v1/ksdinfo/list-info"
+_LISTING_INFO_TR = "HHKDB669107C0"
 
 #: 배당 조회구분(GB1). 원장: 0(배당전체), 1(결산배당), 2(중간배당).
 _DIVIDEND_KIND = {"all": "0", "final": "1", "interim": "2"}
@@ -307,6 +316,104 @@ def fetch_merger_splits(
                 total_shares=optional_int(row.get("tot_issue_stk_qty"), "tot_issue_stk_qty"),
                 new_shares=optional_int(row.get("issue_stk_qty"), "issue_stk_qty"),
                 sequence=str(row.get("seq", "")).strip(),
+                _raw=row,
+            )
+        )
+    return events
+
+
+def fetch_shareholder_meetings(
+    transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
+) -> list[ShareholderMeeting]:
+    """기간 [start, end] 의 주주총회 일정. ``symbol`` 지정 시 그 종목만."""
+    params = {
+        "CTS": "",
+        "F_DT": _to_yyyymmdd(start, "start"),
+        "T_DT": _to_yyyymmdd(end, "end"),
+        "SHT_CD": symbol or "",
+    }
+    events: list[ShareholderMeeting] = []
+    for row in _rows(
+        transport, path=_SHAREHOLDER_MEETING_PATH, tr=_SHAREHOLDER_MEETING_TR, params=params
+    ):
+        code = str(row.get("sht_cd", "")).strip()
+        if not code:
+            continue
+        events.append(
+            ShareholderMeeting(
+                symbol=code,
+                name=str(row.get("isin_name", "")).strip(),
+                record_date=_parse_ksd_date(row.get("record_date"), required=True,
+                                            name="record_date"),
+                meeting_date=_parse_ksd_date(row.get("gen_meet_dt"), required=False,
+                                             name="gen_meet_dt"),
+                meeting_type=str(row.get("gen_meet_type", "")).strip(),
+                agenda=str(row.get("agenda", "")).strip(),
+                voting_shares=optional_int(row.get("vote_tot_qty"), "vote_tot_qty"),
+                _raw=row,
+            )
+        )
+    return events
+
+
+def fetch_mandatory_deposits(
+    transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
+) -> list[MandatoryDeposit]:
+    """기간 [start, end] 의 의무예치 내역. ``symbol`` 지정 시 그 종목만."""
+    params = {
+        "CTS": "",
+        "F_DT": _to_yyyymmdd(start, "start"),
+        "T_DT": _to_yyyymmdd(end, "end"),
+        "SHT_CD": symbol or "",
+    }
+    events: list[MandatoryDeposit] = []
+    for row in _rows(
+        transport, path=_MANDATORY_DEPOSIT_PATH, tr=_MANDATORY_DEPOSIT_TR, params=params
+    ):
+        code = str(row.get("sht_cd", "")).strip()
+        if not code:
+            continue
+        events.append(
+            MandatoryDeposit(
+                symbol=code,
+                name=str(row.get("isin_name", "")).strip(),
+                deposit_shares=optional_int(row.get("stk_qty"), "stk_qty"),
+                deposit_period=str(row.get("depo_date", "")).strip(),
+                deposit_reason=str(row.get("depo_reason", "")).strip(),
+                issued_shares_ratio=optional_decimal(
+                    row.get("tot_issue_qty_per_rate"), "tot_issue_qty_per_rate"
+                ),
+                _raw=row,
+            )
+        )
+    return events
+
+
+def fetch_listing_infos(
+    transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
+) -> list[ListingInfo]:
+    """기간 [start, end] 의 상장정보. ``symbol`` 지정 시 그 종목만."""
+    params = {
+        "CTS": "",
+        "F_DT": _to_yyyymmdd(start, "start"),
+        "T_DT": _to_yyyymmdd(end, "end"),
+        "SHT_CD": symbol or "",
+    }
+    events: list[ListingInfo] = []
+    for row in _rows(transport, path=_LISTING_INFO_PATH, tr=_LISTING_INFO_TR, params=params):
+        code = str(row.get("sht_cd", "")).strip()
+        if not code:
+            continue
+        events.append(
+            ListingInfo(
+                symbol=code,
+                name=str(row.get("isin_name", "")).strip(),
+                list_date=_parse_ksd_date(row.get("list_dt"), required=True, name="list_dt"),
+                stock_kind=str(row.get("stk_kind", "")).strip(),
+                issue_type=str(row.get("issue_type", "")).strip(),
+                new_shares=optional_int(row.get("issue_stk_qty"), "issue_stk_qty"),
+                total_shares=optional_int(row.get("tot_issue_stk_qty"), "tot_issue_stk_qty"),
+                issue_price=optional_decimal(row.get("issue_price"), "issue_price"),
                 _raw=row,
             )
         )

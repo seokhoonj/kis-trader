@@ -175,3 +175,60 @@ class MergerSplit:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ShareholderMeeting:
+    """한 종목의 주주총회 일정(불변)."""
+
+    symbol: str                       # 종목코드(sht_cd)
+    name: str                         # 종목명(isin_name)
+    record_date: date                 # 기준일(record_date)
+    meeting_date: date | None         # 총회일(gen_meet_dt)
+    meeting_type: str                 # 총회구분(gen_meet_type)
+    agenda: str                       # 안건(agenda)
+    voting_shares: int | None         # 의결권 주식수(vote_tot_qty)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class MandatoryDeposit:
+    """한 종목의 의무예치 내역(불변)."""
+
+    symbol: str                       # 종목코드(sht_cd, 영숫자 가능)
+    name: str                         # 종목명(isin_name)
+    deposit_shares: int | None        # 예치 주식수(stk_qty)
+    deposit_period: str               # 예치기간 텍스트(depo_date)
+    deposit_reason: str               # 예치사유(depo_reason)
+    issued_shares_ratio: Decimal | None  # 총발행수량 대비 비율(tot_issue_qty_per_rate)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ListingInfo:
+    """한 종목의 상장정보(불변)."""
+
+    symbol: str                       # 종목코드(sht_cd)
+    name: str                         # 종목명(isin_name)
+    list_date: date                   # 상장일(list_dt)
+    stock_kind: str                   # 주식종류(stk_kind)
+    issue_type: str                   # 발행구분(issue_type)
+    new_shares: int | None            # 발행 주식수(issue_stk_qty)
+    total_shares: int | None          # 총발행 주식수(tot_issue_stk_qty)
+    issue_price: Decimal | None       # 발행가(issue_price)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

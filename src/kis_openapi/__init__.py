@@ -32,8 +32,11 @@ from .calendar_items import (
     CapitalReduction,
     DividendEvent,
     IPOSubscription,
+    ListingInfo,
+    MandatoryDeposit,
     MergerSplit,
     RightsOffering,
+    ShareholderMeeting,
 )
 from .client import KISClient
 from .derivative import Derivative
@@ -161,7 +164,9 @@ __all__ = [
     "InvestorFlow",
     "KISClient",
     "LimitStock",
+    "ListingInfo",
     "LoanPoint",
+    "MandatoryDeposit",
     "MarketInvestorFlow",
     "MarketQueries",
     "MasterIndex",
@@ -199,6 +204,7 @@ __all__ = [
     "RightsOffering",
     "RiskLimits",
     "SellableQuantity",
+    "ShareholderMeeting",
     "ShortSalePoint",
     "ShortSaleRanking",
     "StabilityRatio",

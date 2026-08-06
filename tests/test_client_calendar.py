@@ -243,3 +243,91 @@ def test_merger_splits_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).calendar.merger_splits(start="20240301", end="20240331")
+
+
+def test_shareholder_meetings_maps_and_params():
+    rows = [{"record_date": "20240322", "sht_cd": "388370",
+             "isin_name": "(주)우앤컴퍼니", "gen_meet_dt": "2024/04/18",
+             "gen_meet_type": "임시총회", "agenda": "정관변경",
+             "vote_tot_qty": "      959800"}]
+    fake = FakeTransport(response=_resp(rows))
+    from kis_openapi import ShareholderMeeting
+    events = _client(fake).calendar.shareholder_meetings(
+        start="20240301", end="20240331", symbol="388370"
+    )
+    assert isinstance(events[0], ShareholderMeeting)
+    e = events[0]
+    assert e.symbol == "388370"
+    assert e.record_date == date(2024, 3, 22)
+    assert e.meeting_date == date(2024, 4, 18)
+    assert e.meeting_type == "임시총회"
+    assert e.agenda == "정관변경"
+    assert e.voting_shares == 959800
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/ksdinfo/sharehld-meet"
+    assert call["tr_id"] == "HHKDB669111C0"
+    assert call["params"]["SHT_CD"] == "388370"
+
+
+def test_shareholder_meetings_missing_output1_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).calendar.shareholder_meetings(start="20240301", end="20240331")
+
+
+def test_mandatory_deposits_maps_and_params():
+    rows = [{"sht_cd": "27322R", "isin_name": "뷰텔7우", "stk_qty": "       68966",
+             "depo_date": "2024/03/26 ~ 2025/03/26", "depo_reason": "모집매출",
+             "tot_issue_qty_per_rate": "10000"}]
+    fake = FakeTransport(response=_resp(rows))
+    from kis_openapi import MandatoryDeposit
+    events = _client(fake).calendar.mandatory_deposits(
+        start="20240301", end="20240331", symbol="27322R"
+    )
+    assert isinstance(events[0], MandatoryDeposit)
+    e = events[0]
+    assert e.symbol == "27322R"
+    assert e.deposit_shares == 68966
+    assert e.deposit_period == "2024/03/26 ~ 2025/03/26"
+    assert e.deposit_reason == "모집매출"
+    assert e.issued_shares_ratio == Decimal(10000)
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/ksdinfo/mand-deposit"
+    assert call["tr_id"] == "HHKDB669110C0"
+    assert call["params"]["SHT_CD"] == "27322R"
+
+
+def test_mandatory_deposits_missing_output1_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).calendar.mandatory_deposits(start="20240301", end="20240331")
+
+
+def test_listing_infos_maps_and_params():
+    rows = [{"list_dt": "20240326", "sht_cd": "034220", "isin_name": "LG디스플레이",
+             "stk_kind": "보통", "issue_type": "유상증자",
+             "issue_stk_qty": "   142184300", "tot_issue_stk_qty": "   500000000",
+             "issue_price": "     9090"}]
+    fake = FakeTransport(response=_resp(rows))
+    from kis_openapi import ListingInfo
+    events = _client(fake).calendar.listing_infos(
+        start="20240301", end="20240331", symbol="034220"
+    )
+    assert isinstance(events[0], ListingInfo)
+    e = events[0]
+    assert e.symbol == "034220"
+    assert e.list_date == date(2024, 3, 26)
+    assert e.issue_type == "유상증자"
+    assert e.new_shares == 142184300
+    assert e.total_shares == 500000000
+    assert e.issue_price == Decimal(9090)
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/ksdinfo/list-info"
+    assert call["tr_id"] == "HHKDB669107C0"
+    assert call["params"]["SHT_CD"] == "034220"
+
+
+def test_listing_infos_missing_output1_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).calendar.listing_infos(start="20240301", end="20240331")

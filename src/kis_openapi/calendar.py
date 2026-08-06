@@ -21,8 +21,11 @@ if TYPE_CHECKING:
         CapitalReduction,
         DividendEvent,
         IPOSubscription,
+        ListingInfo,
+        MandatoryDeposit,
         MergerSplit,
         RightsOffering,
+        ShareholderMeeting,
     )
     from .client import KISClient
 
@@ -86,5 +89,29 @@ class CalendarQueries:
     ) -> list[MergerSplit]:
         """기간 [start, end] 의 합병분할 일정. ``symbol`` 지정 시 그 종목만."""
         return ksd_api.fetch_merger_splits(
+            self._client.transport, start=start, end=end, symbol=symbol
+        )
+
+    def shareholder_meetings(
+        self, *, start: str | date, end: str | date, symbol: str | None = None
+    ) -> list[ShareholderMeeting]:
+        """기간 [start, end] 의 주주총회 일정. ``symbol`` 지정 시 그 종목만."""
+        return ksd_api.fetch_shareholder_meetings(
+            self._client.transport, start=start, end=end, symbol=symbol
+        )
+
+    def mandatory_deposits(
+        self, *, start: str | date, end: str | date, symbol: str | None = None
+    ) -> list[MandatoryDeposit]:
+        """기간 [start, end] 의 의무예치 내역. ``symbol`` 지정 시 그 종목만."""
+        return ksd_api.fetch_mandatory_deposits(
+            self._client.transport, start=start, end=end, symbol=symbol
+        )
+
+    def listing_infos(
+        self, *, start: str | date, end: str | date, symbol: str | None = None
+    ) -> list[ListingInfo]:
+        """기간 [start, end] 의 상장정보. ``symbol`` 지정 시 그 종목만."""
+        return ksd_api.fetch_listing_infos(
             self._client.transport, start=start, end=end, symbol=symbol
         )
