@@ -42,6 +42,50 @@ _PERCENT = Decimal("0.01")
 
 _BARS_PATH = "/uapi/overseas-price/v1/quotations/dailyprice"
 _BARS_TR = "HHDFS76240000"
+
+_MULTI_QUOTE_PATH = "/uapi/overseas-price/v1/quotations/multprice"
+_MULTI_QUOTE_TR = "HHDFS76220000"
+_MAX_MULTI_QUOTE = 10           # 원장: 슬롯 10개(EXCD_01 ~ _10, NREC 최대 10)
+
+
+def fetch_multi_quotes(
+    transport: Transport, *, requests: Sequence[tuple[str, str]]
+) -> list[Quote]:
+    """여러 해외 종목의 현재가를 한 번에. ``requests`` 는 (거래소코드, 종목코드) 쌍(거래소 혼합 가능).
+    슬롯 10개 상한. 응답 ``output2`` 각 행을 단일 현재가와 같은 방식(전일종가 base 로 등락 계산)으로
+    :class:`Quote` 에 실어 준다."""
+    if not requests:
+        return []
+    if len(requests) > _MAX_MULTI_QUOTE:
+        raise KISUsageError(
+            f"해외 멀티시세는 한 번에 {_MAX_MULTI_QUOTE}종목까지: {len(requests)}개 요청"
+        )
+    params: dict[str, str] = {"AUTH": "", "NREC": str(len(requests))}
+    for i in range(_MAX_MULTI_QUOTE):
+        slot = f"{i + 1:02d}"
+        if i < len(requests):
+            exchange, symbol = requests[i]
+            params[f"EXCD_{slot}"] = exchange
+            params[f"SYMB_{slot}"] = symbol
+        else:                                   # 남는 슬롯도 키는 있어야 함(모두 Required) -> 공백
+            params[f"EXCD_{slot}"] = ""
+            params[f"SYMB_{slot}"] = ""
+    resp = transport.request(
+        method="GET", path=_MULTI_QUOTE_PATH, tr_id=_MULTI_QUOTE_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    as_of = datetime.now(_KST)
+    quotes: list[Quote] = []
+    for row in rows:
+        symbol = str(row.get("symb", "")).strip()
+        exchange = str(row.get("excd", "")).strip()
+        if not symbol:
+            continue
+        quotes.append(_parse_quote(row, symbol=symbol, exchange=exchange, as_of=as_of))
+    return quotes
 #: 해외 기간봉 간격 -> GUBN(원장: 0:일 1:주 2:월).
 _BARS_GUBN = {"1d": "0", "1wk": "1", "1mo": "2"}
 

@@ -9,10 +9,12 @@ KIS 토큰은 앱키 단위(24h, 재발급 제한)라 세션이 캐시해 재사
 
 from __future__ import annotations
 
+from collections.abc import Sequence
 from typing import Literal
 
 from ._domestic import account as account_api
 from ._domestic import derivatives as derivatives_api
+from ._domestic import market_data as market_data_api
 from ._domestic import orders as orders_engine
 from ._masters import (
     Fetch,
@@ -22,6 +24,7 @@ from ._masters import (
     urlopen_fetch,
 )
 from ._overseas import account as overseas_account
+from ._overseas import market_data as overseas_market_data_api
 from ._overseas import orders as overseas_orders_engine
 from .balance import Balance, Portfolio, Position
 from .bond import Bond
@@ -39,6 +42,7 @@ from .order import Order
 from .overseas_derivative import OverseasDerivative
 from .overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
 from .overseas_ranking import OverseasRankingQueries
+from .quote import Quote
 from .ranking import RankingQueries
 from .report import ExecutionReport
 from .risk import RiskLimits
@@ -126,6 +130,24 @@ class KISClient:
         if self._master_index is None:
             self._master_index = load_overseas_index(fetch=self._master_fetch)
         return self._master_index.resolve(symbol, exchange=exchange)
+
+    def quotes(
+        self, symbols: Sequence[str | tuple[DomesticBoard, str]], *, market: DomesticBoard = "KRX"
+    ) -> list[Quote]:
+        """여러 국내 종목의 현재가를 한 번에(최대 30). 원소가 종목코드 문자열이면 보드는 ``market``
+        기본(KRX), ``(board, symbol)`` 튜플이면 그 보드를 쓴다 -- KRX/NXT/통합(UN) 혼합 가능.
+        해외는 :meth:`overseas_quotes` (엔드포인트가 분리돼 한 번에 국내+해외는 불가)."""
+        requests = [
+            item if isinstance(item, tuple) else (market, item) for item in symbols
+        ]
+        return market_data_api.fetch_multi_quotes(self.transport, requests=requests)
+
+    def overseas_quotes(self, symbols: Sequence[tuple[str, str]]) -> list[Quote]:
+        """여러 해외 종목의 현재가를 한 번에(최대 10). 원소는 ``(exchange, symbol)`` 튜플
+        (거래소코드 NAS/NYS/AMS/HKS/TSE/... 혼합 가능). 국내는 :meth:`quotes`."""
+        return overseas_market_data_api.fetch_multi_quotes(
+            self.transport, requests=[tuple(item) for item in symbols]
+        )
 
     def index(self, code: str) -> Index:
         """지수/업종 핸들을 만든다. ``code`` 는 업종코드(0001 KOSPI 종합, 1001 KOSDAQ 종합,

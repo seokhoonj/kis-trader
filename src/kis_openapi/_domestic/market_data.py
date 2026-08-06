@@ -744,6 +744,74 @@ def fetch_after_hours_order_book(
     )
 
 
+# --- 멀티종목 시세 ---------------------------------------------------------
+_MULTI_QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/intstock-multprice"
+_MULTI_QUOTE_TR = "FHKST11300006"
+_MAX_MULTI_QUOTE = 30            # 원장: 슬롯 30개(FID_..._1 ~ _30)
+
+
+def fetch_multi_quotes(
+    transport: Transport, *, requests: Sequence[tuple[str, str]]
+) -> list[Quote]:
+    """여러 국내 종목의 현재가를 한 번에. ``requests`` 는 (보드, 종목코드) 쌍(보드=KRX/NXT/UN). 슬롯
+    30개 상한. 응답의 종목코드(inter_shrn_iscd)로 보드를 되짚어 :class:`Quote` 에 실어 준다."""
+    if not requests:
+        return []
+    if len(requests) > _MAX_MULTI_QUOTE:
+        raise KISUsageError(f"국내 멀티시세는 한 번에 {_MAX_MULTI_QUOTE}종목까지: {len(requests)}개 요청")
+    params: dict[str, str] = {}
+    board_by_symbol: dict[str, str] = {}
+    for i in range(_MAX_MULTI_QUOTE):
+        n = i + 1
+        if i < len(requests):
+            board, symbol = requests[i]
+            params[f"FID_COND_MRKT_DIV_CODE_{n}"] = _market_div(board)
+            params[f"FID_INPUT_ISCD_{n}"] = symbol
+            board_by_symbol[symbol] = board
+        else:                                   # 남는 슬롯도 키는 있어야 함(모두 Required) -> 공백
+            params[f"FID_COND_MRKT_DIV_CODE_{n}"] = ""
+            params[f"FID_INPUT_ISCD_{n}"] = ""
+    resp = transport.request(
+        method="GET", path=_MULTI_QUOTE_PATH, tr_id=_MULTI_QUOTE_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    as_of = datetime.now(_KST)
+    default_board = requests[0][0]
+    quotes: list[Quote] = []
+    for row in rows:
+        symbol = str(row.get("inter_shrn_iscd", "")).strip()
+        if not symbol:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        quotes.append(
+            Quote(
+                symbol=symbol,
+                market=board_by_symbol.get(symbol, default_board),
+                currency="KRW",
+                last=required_decimal(row.get("inter2_prpr"), "inter2_prpr"),
+                open=required_decimal(row.get("inter2_oprc"), "inter2_oprc"),
+                high=required_decimal(row.get("inter2_hgpr"), "inter2_hgpr"),
+                low=required_decimal(row.get("inter2_lwpr"), "inter2_lwpr"),
+                previous_close=required_decimal(row.get("inter2_prdy_clpr"), "inter2_prdy_clpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("inter2_prdy_vrss"), "inter2_prdy_vrss"), sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                week_52_high=None,          # 멀티시세 응답엔 52주 고저가 없음
+                week_52_low=None,
+                as_of=as_of,
+                _raw=row,
+            )
+        )
+    return quotes
+
+
 # --- 공용 ------------------------------------------------------------------
 def _market_div(market: str) -> str:
     try:
