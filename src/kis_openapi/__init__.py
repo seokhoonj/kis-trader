@@ -97,7 +97,12 @@ from .overseas_derivative_items import (
     OverseasDerivativeMarketHours,
     OverseasDerivativeQuote,
 )
-from .overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
+from .overseas_items import (
+    OverseasBalance,
+    OverseasOpenOrder,
+    OverseasPosition,
+    OverseasSettlementDate,
+)
 from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
 from .overseas_ranking_items import RankedOverseasStock
@@ -208,6 +213,7 @@ __all__ = [
     "OverseasPosition",
     "OverseasProductInfo",
     "OverseasRankingQueries",
+    "OverseasSettlementDate",
     "OvertimeRanking",
     "ParValueChange",
     "Portfolio",

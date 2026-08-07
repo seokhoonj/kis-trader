@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -80,6 +81,26 @@ class OverseasBalance:
     realized_pnl: Money               # 실현손익
     total_pnl: Money                  # 총손익(실현+평가)
     return_percent: Decimal           # 총수익률(%)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasSettlementDate:
+    """해외 시장별 현지·국내 결제일자 한 건(불변)."""
+
+    market_type_code: str
+    country_code: str
+    country_name: str
+    country_abbr: str
+    market_code: str
+    market_name: str
+    local_settlement_date: date | None
+    domestic_settlement_date: date | None
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

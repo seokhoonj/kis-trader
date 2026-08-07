@@ -27,6 +27,7 @@ from ._overseas import account as overseas_account
 from ._overseas import derivatives as overseas_derivatives_api
 from ._overseas import market_data as overseas_market_data_api
 from ._overseas import orders as overseas_orders_engine
+from ._overseas import reference as overseas_reference_api
 from .balance import Balance, Portfolio, Position
 from .bond import Bond
 from .calendar import CalendarQueries
@@ -42,7 +43,12 @@ from .market import MarketQueries
 from .order import Order
 from .overseas_derivative import OverseasDerivative
 from .overseas_derivative_items import OverseasDerivativeMarketHours
-from .overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
+from .overseas_items import (
+    OverseasBalance,
+    OverseasOpenOrder,
+    OverseasPosition,
+    OverseasSettlementDate,
+)
 from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
 from .quote import Quote
@@ -230,6 +236,21 @@ class KISClient:
             asset_class=asset_class,
             exchange=exchange,
             kind=kind,
+        )
+
+    def overseas_settlement_dates(self) -> list[OverseasSettlementDate]:
+        """해외 각 시장의 현지·국내 결제일자(시장 전체 참조표).
+
+        종목과 무관하게 해외 거래시장별 현지 결제일과 국내 결제일을 조회한다.
+
+        KIS 해외주식 국가별 휴장일 조회를 사용하며 별도 조회 조건은 없다.
+
+        모의투자는 지원하지 않으며 실전 환경에서만 사용할 수 있다.
+
+        결제일이 비어 있거나 유효하지 않으면 해당 날짜는 ``None`` 이다.
+        """
+        return overseas_reference_api.fetch_settlement_dates(
+            self.transport, environment=self._environment
         )
 
     @property
