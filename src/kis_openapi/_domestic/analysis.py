@@ -26,6 +26,8 @@ from ..analysis import (
     LoanPoint,
     ShortSalePoint,
     TradeAmountBand,
+    VolumeAtPrice,
+    VolumeProfile,
 )
 from ..transport import Transport
 from .market_data import (
@@ -417,3 +419,65 @@ def fetch_foreign_net_buy_trend(
             )
         )
     return points
+
+
+def fetch_volume_profile(transport: Transport, *, symbol: str) -> VolumeProfile:
+    """종목의 가격대별 거래량 분포(매물대)와 시세 요약을 조회한다.
+
+    KIS 국내주식 매물대/거래비중 API를 조회한다.
+    URL: ``GET /uapi/domestic-stock/v1/quotations/pbar-tratio``.
+    TR-id: ``FHPST01130000``.
+    ``tr_cont`` 미지원으로 단일 호출하며 ``output1`` 요약과 ``output2`` 가격대를 반환한다.
+    """
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_INPUT_ISCD": symbol,
+        "FID_COND_SCR_DIV_CODE": "20113",
+        "FID_INPUT_HOUR_1": "",
+    }
+    resp = transport.request(
+        method="GET",
+        path="/uapi/domestic-stock/v1/quotations/pbar-tratio",
+        tr_id="FHPST01130000",
+        params=params,
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    summary = resp.body.get("output1")
+    if not isinstance(summary, Mapping):
+        raise _missing_block_error("output1", resp)
+    bands_raw = resp.body.get("output2")
+    if not isinstance(bands_raw, list):
+        raise _missing_block_error("output2", resp)
+    sign = str(summary.get("prdy_vrss_sign", "")).strip()
+    bands = tuple(
+        VolumeAtPrice(
+            rank=required_int(row.get("data_rank"), "data_rank"),
+            price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+            volume=required_int(row.get("cntg_vol"), "cntg_vol"),
+            volume_share_percent=required_decimal(
+                row.get("acml_vol_rlim"), "acml_vol_rlim"
+            ),
+            _raw=row,
+        )
+        for row in bands_raw
+    )
+    return VolumeProfile(
+        symbol=symbol,
+        market=str(summary.get("rprs_mrkt_kor_name", "")).strip(),
+        name=str(summary.get("hts_kor_isnm", "")).strip(),
+        price=required_decimal(summary.get("stck_prpr"), "stck_prpr"),
+        change=_apply_change_sign(
+            required_decimal(summary.get("prdy_vrss"), "prdy_vrss"), sign
+        ),
+        change_percent=_apply_change_sign(
+            required_decimal(summary.get("prdy_ctrt"), "prdy_ctrt"), sign
+        ),
+        volume=required_int(summary.get("acml_vol"), "acml_vol"),
+        weighted_average_price=required_decimal(
+            summary.get("wghn_avrg_stck_prc"), "wghn_avrg_stck_prc"
+        ),
+        listed_shares=required_int(summary.get("lstn_stcn"), "lstn_stcn"),
+        bands=bands,
+        _raw=summary,
+    )

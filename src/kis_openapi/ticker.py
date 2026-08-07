@@ -28,6 +28,7 @@ from .analysis import (
     LoanPoint,
     ShortSalePoint,
     TradeAmountBand,
+    VolumeProfile,
 )
 from .bar import Bar, Interval
 from .broker import BrokerActivitySummary
@@ -289,6 +290,11 @@ class Ticker:
         return analysis_api.fetch_short_sale_trend(
             self._client.transport, symbol=self.symbol, start=start, end=end
         )
+
+    def volume_profile(self) -> VolumeProfile:
+        """가격대별 거래량 분포(매물대)와 요약(현재가·가중평균가·상장주수)."""
+        self._domestic_market()        # 국내 전용
+        return analysis_api.fetch_volume_profile(self._client.transport, symbol=self.symbol)
 
     def foreign_net_buy_trend(self) -> list[ForeignNetBuyPoint]:
         """이 종목의 장중 외국계(외국인 회원사) 순매수 추이(시간대별)."""

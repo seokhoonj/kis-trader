@@ -221,3 +221,45 @@ class ForeignNetBuyPoint:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class VolumeAtPrice:
+    """한 가격대의 체결량과 전체 누적거래량 대비 비중(불변)."""
+
+    rank: int
+    price: Decimal
+    volume: int
+    volume_share_percent: Decimal
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class VolumeProfile:
+    """종목의 가격대별 거래량 분포와 현재 시세 요약(불변).
+
+    ``bands`` 는 KIS가 제공한 순서를 유지하며, 각 가격대의 체결량과 누적거래량 대비 비중(%)을
+    담는다. ``weighted_average_price`` 는 가중평균가, ``listed_shares`` 는 상장주수다.
+    """
+
+    symbol: str
+    market: str
+    name: str
+    price: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    weighted_average_price: Decimal
+    listed_shares: int
+    bands: tuple[VolumeAtPrice, ...]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

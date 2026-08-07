@@ -21,6 +21,8 @@ from .analysis import (
     LoanPoint,
     ShortSalePoint,
     TradeAmountBand,
+    VolumeAtPrice,
+    VolumeProfile,
 )
 from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
@@ -251,4 +253,6 @@ __all__ = [
     "TradingDay",
     "UnderlyingQuote",
     "VIEvent",
+    "VolumeAtPrice",
+    "VolumeProfile",
 ]
