@@ -22,8 +22,10 @@ from .._domestic.market_data import (
     _missing_block_error,
     _parse_bar_timestamp,
     _raise_if_error,
+    _today_kst,
 )
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
+from ..bar import Bar, Interval
 from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook, PriceLevel
 from ..overseas_derivative_items import (
@@ -31,7 +33,8 @@ from ..overseas_derivative_items import (
     OverseasDerivativeMarketHours,
     OverseasDerivativeQuote,
 )
-from ..transport import Environment, Transport
+from ..trade import Trade
+from ..transport import Environment, RawResponse, Transport
 
 _QUOTE = {
     "future": ("/uapi/overseas-futureoption/v1/quotations/inquire-price", "HHDFC55010000"),
@@ -48,6 +51,27 @@ _ORDER_BOOK = {
         "HHDFO86000000",
     ),
 }
+
+_BARS = {
+    "future": {
+        "1m": ("inquire-time-futurechartprice", "HHDFC55020400", 120),
+        "1d": ("daily-ccnl", "HHDFC55020100", 40),
+        "1wk": ("weekly-ccnl", "HHDFC55020000", 40),
+        "1mo": ("monthly-ccnl", "HHDFC55020300", 40),
+    },
+    "option": {
+        "1m": ("inquire-time-optchartprice", "HHDFO55020400", 120),
+        "1d": ("opt-daily-ccnl", "HHDFO55020100", 120),
+        "1wk": ("opt-weekly-ccnl", "HHDFO55020000", 120),
+        "1mo": ("opt-monthly-ccnl", "HHDFO55020300", 120),
+    },
+}
+
+_TRADES = {
+    "future": ("tick-ccnl", "HHDFC55020200"),
+    "option": ("opt-tick-ccnl", "HHDFO55020200"),
+}
+_QUOTATIONS_BASE = "/uapi/overseas-futureoption/v1/quotations"
 
 
 def fetch_quote(transport: Transport, *, srs_cd: str, market: str) -> OverseasDerivativeQuote:
@@ -161,6 +185,165 @@ def fetch_order_book(transport: Transport, *, srs_cd: str, market: str) -> Order
         as_of=datetime.now(_KST),
         _raw=resp.body,
     )
+
+
+def fetch_bars(
+    transport: Transport,
+    *,
+    srs_cd: str,
+    market: str,
+    exchange: str,
+    interval: Interval,
+    max_bars: int,
+    environment: Environment,
+) -> list[Bar]:
+    """해외 선물/옵션의 최근 분·일·주·월 OHLCV 한 페이지."""
+    if environment == "demo":
+        raise KISUsageError("해외 선물/옵션 시계열 조회는 모의투자 미지원이다(실전만).")
+    try:
+        endpoint, tr, limit = _BARS[market][interval]
+    except KeyError:
+        raise KISUsageError(f"지원하지 않는 해외 파생 interval: {interval!r}") from None
+    if not exchange.strip():
+        raise KISUsageError("해외 선물/옵션 시계열에는 exchange 가 필요하다.")
+    if max_bars <= 0 or max_bars > limit:
+        raise KISUsageError(f"interval={interval!r} max_bars 는 1..{limit}: {max_bars}")
+    query_count = (
+        max(1, max_bars - 1) if market == "option" and interval == "1d" else max_bars
+    )
+    params = _history_params(
+        srs_cd=srs_cd, exchange=exchange, count=query_count,
+        gap="1" if interval == "1m" else "",
+        close_date=_today_kst() if market == "future" else "",
+    )
+    resp = transport.request(
+        method="GET", path=f"{_QUOTATIONS_BASE}/{endpoint}", tr_id=tr,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output1" if interval == "1m" else "output2")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output1" if interval == "1m" else "output2", resp)
+    bars = _parse_history_bars(rows, symbol=srs_cd, intraday=interval == "1m", resp=resp)
+    return bars[-max_bars:]
+
+
+def fetch_trades(
+    transport: Transport,
+    *,
+    srs_cd: str,
+    market: str,
+    exchange: str,
+    max_trades: int,
+    environment: Environment,
+) -> list[Trade]:
+    """해외 선물/옵션 최근 틱 체결(최대 40건, 시간 오름차순)."""
+    if environment == "demo":
+        raise KISUsageError("해외 선물/옵션 틱 조회는 모의투자 미지원이다(실전만).")
+    if not exchange.strip():
+        raise KISUsageError("해외 선물/옵션 틱 조회에는 exchange 가 필요하다.")
+    if max_trades <= 0 or max_trades > 40:
+        raise KISUsageError(f"max_trades 는 1..40: {max_trades}")
+    endpoint, tr = _TRADES[market]
+    params = _history_params(
+        srs_cd=srs_cd, exchange=exchange, count=max_trades, gap="",
+        close_date=_today_kst() if market == "future" else "",
+    )
+    resp = transport.request(
+        method="GET", path=f"{_QUOTATIONS_BASE}/{endpoint}", tr_id=tr,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    trades: list[Trade] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output2[]", resp)
+        date_text = str(row.get("data_date", "")).strip()
+        time_text = str(row.get("data_time", "")).strip()
+        price_text = str(row.get("last_price", "")).strip()
+        if not date_text or not time_text or not price_text:
+            continue
+        sign = str(row.get("prev_diff_flag", "")).strip()
+        trades.append(
+            Trade(
+                symbol=srs_cd,
+                timestamp=_parse_history_timestamp(date_text, time_text),
+                price=required_decimal(price_text, "last_price"),
+                quantity=required_int(row.get("last_qntt"), "last_qntt"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("prev_diff_price"), "prev_diff_price"), sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prev_diff_rate"), "prev_diff_rate"), sign
+                ),
+                _raw=row,
+            )
+        )
+    trades.sort(key=lambda trade: trade.timestamp)
+    return trades[-max_trades:]
+
+
+def _history_params(
+    *, srs_cd: str, exchange: str, count: int, gap: str, close_date: str
+) -> dict[str, str]:
+    return {
+        "SRS_CD": srs_cd,
+        "EXCH_CD": exchange.strip(),
+        "START_DATE_TIME": "",
+        "CLOSE_DATE_TIME": close_date,
+        "QRY_TP": "Q",
+        "QRY_CNT": str(count),
+        "QRY_GAP": gap,
+        "INDEX_KEY": "",
+    }
+
+
+def _parse_history_bars(
+    rows: list[object], *, symbol: str, intraday: bool, resp: RawResponse
+) -> list[Bar]:
+    bars: list[Bar] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("history output[]", resp)
+        date_text = str(row.get("data_date", "")).strip()
+        close_text = str(row.get("last_price", "")).strip()
+        if not date_text or not close_text:
+            continue
+        time_text = str(row.get("data_time", "")).strip()
+        timestamp = (
+            _parse_history_timestamp(date_text, time_text)
+            if intraday
+            else _parse_bar_timestamp(date_text)
+        )
+        bars.append(
+            Bar(
+                symbol=symbol,
+                timestamp=timestamp,
+                open=required_decimal(row.get("open_price"), "open_price"),
+                high=required_decimal(row.get("high_price"), "high_price"),
+                low=required_decimal(row.get("low_price"), "low_price"),
+                close=required_decimal(close_text, "last_price"),
+                volume=required_int(row.get("vol"), "vol"),
+                _raw=row,
+            )
+        )
+    bars.sort(key=lambda bar: bar.timestamp)
+    return bars
+
+
+def _parse_history_timestamp(date_text: str, time_text: str) -> datetime:
+    try:
+        timestamp = datetime.strptime(  # noqa: DTZ007 -- 아래에서 KST-aware 로 변환
+            date_text + time_text, "%Y%m%d%H%M%S"
+        )
+    except ValueError as err:
+        raise KISError(
+            f"해외 선물/옵션 시계열 일시 파싱 실패: {date_text!r} {time_text!r}"
+        ) from err
+    return timestamp.replace(tzinfo=_KST)
 
 
 _DETAIL = {

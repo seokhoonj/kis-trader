@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KISClient, OverseasDerivativeQuote
-from kis_openapi.errors import KISError
+from kis_openapi import Bar, KISClient, OverseasDerivativeQuote, Trade
+from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
 _FUT = "/uapi/overseas-futureoption/v1/quotations/inquire-price"
@@ -113,3 +113,114 @@ def test_overseas_derivative_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_output(last_price="n/a"))
     with pytest.raises(KISError):
         _client(fake).overseas_futures("BONU25").quote()
+
+
+def _history_row(date_text="20240423", time_text="164434", **over):
+    row = {
+        "data_date": date_text, "data_time": time_text, "open_price": "74.80",
+        "high_price": "75.10", "low_price": "74.70", "last_price": "74.90",
+        "last_qntt": "4", "vol": "27806", "prev_diff_flag": "5",
+        "prev_diff_price": "0.67", "prev_diff_rate": "-0.89",
+    }
+    row.update(over)
+    return row
+
+
+def test_overseas_futures_daily_bars_maps_and_routes():
+    response = RawResponse(
+        rt_cd="0", msg_cd="X", msg1="ok",
+        body={"output1": {}, "output2": [_history_row(time_text="")]},
+    )
+    fake = FakeTransport(response=response)
+    bars = _client(fake).overseas_futures("BONU25").bars(
+        exchange="ICE", interval="1d", max_bars=1
+    )
+    assert len(bars) == 1 and isinstance(bars[0], Bar)
+    assert bars[0].symbol == "BONU25"
+    assert bars[0].close == Decimal("74.90")
+    assert bars[0].volume == 27806
+    assert fake.calls[0]["path"].endswith("/daily-ccnl")
+    assert fake.calls[0]["tr_id"] == "HHDFC55020100"
+    assert fake.calls[0]["params"]["EXCH_CD"] == "ICE"
+    assert fake.calls[0]["params"]["QRY_CNT"] == "1"
+    assert len(fake.calls[0]["params"]["CLOSE_DATE_TIME"]) == 8
+
+
+@pytest.mark.parametrize(
+    ("market", "interval", "endpoint", "tr_id"),
+    [
+        ("future", "1m", "inquire-time-futurechartprice", "HHDFC55020400"),
+        ("future", "1wk", "weekly-ccnl", "HHDFC55020000"),
+        ("future", "1mo", "monthly-ccnl", "HHDFC55020300"),
+        ("option", "1m", "inquire-time-optchartprice", "HHDFO55020400"),
+        ("option", "1d", "opt-daily-ccnl", "HHDFO55020100"),
+        ("option", "1wk", "opt-weekly-ccnl", "HHDFO55020000"),
+        ("option", "1mo", "opt-monthly-ccnl", "HHDFO55020300"),
+    ],
+)
+def test_overseas_derivative_bars_routes_all_period_endpoints(
+    market, interval, endpoint, tr_id
+):
+    row = _history_row(time_text="164434" if interval == "1m" else "")
+    body = {"output1": [row], "output2": {}} if interval == "1m" else {
+        "output1": {}, "output2": [row],
+    }
+    fake = FakeTransport(
+        response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
+    )
+    handle = (
+        _client(fake).overseas_futures("BONU25")
+        if market == "future"
+        else _client(fake).overseas_option("BONU25 C75")
+    )
+    bars = handle.bars(exchange="ICE", interval=interval, max_bars=1)
+    assert len(bars) == 1
+    assert fake.calls[0]["path"].endswith("/" + endpoint)
+    assert fake.calls[0]["tr_id"] == tr_id
+    assert fake.calls[0]["params"]["QRY_GAP"] == ("1" if interval == "1m" else "")
+
+
+@pytest.mark.parametrize(
+    ("market", "endpoint", "tr_id"),
+    [
+        ("future", "tick-ccnl", "HHDFC55020200"),
+        ("option", "opt-tick-ccnl", "HHDFO55020200"),
+    ],
+)
+def test_overseas_derivative_trades_maps_and_routes(market, endpoint, tr_id):
+    response = RawResponse(
+        rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}, "output2": [
+            _history_row(time_text="164500", last_qntt="2"),
+            _history_row(time_text="164434", last_qntt="4"),
+        ]},
+    )
+    fake = FakeTransport(response=response)
+    handle = (
+        _client(fake).overseas_futures("BONU25")
+        if market == "future"
+        else _client(fake).overseas_option("BONU25 C75")
+    )
+    trades = handle.trades(exchange="ICE", max_trades=2)
+    assert all(isinstance(trade, Trade) for trade in trades)
+    assert [trade.quantity for trade in trades] == [4, 2]
+    assert trades[0].change == Decimal("-0.67")
+    assert fake.calls[0]["path"].endswith("/" + endpoint)
+    assert fake.calls[0]["tr_id"] == tr_id
+
+
+def test_overseas_derivative_history_rejects_invalid_inputs_before_transport():
+    fake = FakeTransport(response=None)
+    handle = _client(fake).overseas_futures("BONU25")
+    with pytest.raises(KISUsageError):
+        handle.bars(exchange="", interval="1d")
+    with pytest.raises(KISUsageError):
+        handle.bars(exchange="ICE", interval="1d", max_bars=41)
+    with pytest.raises(KISUsageError):
+        handle.trades(exchange="ICE", max_trades=41)
+    assert fake.calls == []
+
+
+def test_overseas_derivative_history_missing_rows_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).overseas_futures("BONU25").bars(exchange="ICE")

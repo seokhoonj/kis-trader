@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._overseas import derivatives as overseas_derivatives_api
+from .bar import Bar, Interval
 
 if TYPE_CHECKING:
     from .client import KISClient
@@ -21,6 +22,7 @@ if TYPE_CHECKING:
         OverseasDerivativeDetail,
         OverseasDerivativeQuote,
     )
+    from .trade import Trade
 
 
 class OverseasDerivative:
@@ -49,6 +51,23 @@ class OverseasDerivative:
         """계약 호가창(매수/매도 5단계 심도). 도메스틱과 같은 :class:`OrderBook` 로 돌려준다."""
         return overseas_derivatives_api.fetch_order_book(
             self._client.transport, srs_cd=self.symbol, market=self.market
+        )
+
+    def bars(
+        self, *, exchange: str, interval: Interval = "1d", max_bars: int = 40
+    ) -> list[Bar]:
+        """최근 분·일·주·월 OHLCV. 거래소코드는 필수이며 TR별 한도는 40~120건."""
+        return overseas_derivatives_api.fetch_bars(
+            self._client.transport, srs_cd=self.symbol, market=self.market,
+            exchange=exchange, interval=interval, max_bars=max_bars,
+            environment=self._client.environment,
+        )
+
+    def trades(self, *, exchange: str, max_trades: int = 40) -> list[Trade]:
+        """최근 틱 체결을 시간 오름차순으로(최대 40건)."""
+        return overseas_derivatives_api.fetch_trades(
+            self._client.transport, srs_cd=self.symbol, market=self.market,
+            exchange=exchange, max_trades=max_trades, environment=self._client.environment,
         )
 
     def detail(self) -> OverseasDerivativeDetail:
