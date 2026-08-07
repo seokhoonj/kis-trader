@@ -155,6 +155,31 @@ class EarningsEstimate:
 
 
 @dataclass(frozen=True, slots=True)
+class RecentPricePoint:
+    """최근 일·주·월 주가와 수급 보조지표 한 점(불변)."""
+
+    date: date
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    volume: int
+    volume_ratio: Decimal
+    change: Decimal
+    change_percent: Decimal
+    foreign_exhaustion_ratio: Decimal
+    foreign_net_quantity: int
+    ex_rights_code: str
+    cumulative_split_ratio: Decimal
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class TradeAmountBand:
     """한 체결금액대의 매매비중(불변).
 

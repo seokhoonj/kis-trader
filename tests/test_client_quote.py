@@ -12,7 +12,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, KISClient, OrderBook, PriceLevel, Quote
+from kis_openapi import Bar, KISClient, OrderBook, PriceLevel, Quote, RecentPricePoint
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
@@ -339,3 +339,48 @@ def test_bad_account_format_rejected(account):
 def test_account_optional_for_market_data():
     kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_quote_resp()))
     assert kis.ticker("005930").quote().last == Decimal(71500)   # 계좌 없이 시세 OK
+
+
+def test_recent_prices_maps_extended_history_fields():
+    row = {
+        "stck_bsop_date": "20240223",
+        "stck_oprc": "72000",
+        "stck_hgpr": "73500",
+        "stck_lwpr": "71800",
+        "stck_clpr": "73000",
+        "acml_vol": "12000000",
+        "prdy_vrss_vol_rate": "115.50",
+        "prdy_vrss": "1200",
+        "prdy_vrss_sign": "5",
+        "prdy_ctrt": "1.62",
+        "hts_frgn_ehrt": "55.25",
+        "frgn_ntby_qty": "-250000",
+        "flng_cls_code": "02",
+        "acml_prtt_rate": "100.00",
+    }
+    fake = FakeTransport(response=_quote_resp([row]))
+    points = _client(fake).ticker("005930", market="NXT").recent_prices(
+        interval="1wk", adjusted=False
+    )
+
+    assert isinstance(points[0], RecentPricePoint)
+    assert f"{points[0].date:%Y%m%d}" == "20240223"
+    assert points[0].close == Decimal(73000)
+    assert points[0].change == Decimal(-1200)
+    assert points[0].foreign_net_quantity == -250000
+    assert points[0].ex_rights_code == "02"
+    assert fake.calls[0]["path"] == "/uapi/domestic-stock/v1/quotations/inquire-daily-price"
+    assert fake.calls[0]["tr_id"] == "FHKST01010400"
+    assert fake.calls[0]["params"] == {
+        "FID_COND_MRKT_DIV_CODE": "NX",
+        "FID_INPUT_ISCD": "005930",
+        "FID_PERIOD_DIV_CODE": "W",
+        "FID_ORG_ADJ_PRC": "0",
+    }
+
+
+def test_recent_prices_rejects_minute_interval_before_transport():
+    fake = FakeTransport(response=_quote_resp([]))
+    with pytest.raises(KISUsageError):
+        _client(fake).ticker("005930").recent_prices(interval="1m")
+    assert fake.calls == []

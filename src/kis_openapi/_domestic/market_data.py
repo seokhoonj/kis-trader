@@ -18,6 +18,7 @@ from typing import Any
 
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
 from ..after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
+from ..analysis import RecentPricePoint
 from ..bar import Bar, Interval
 from ..broker import BrokerActivity, BrokerActivitySummary
 from ..errors import KISError, KISUsageError
@@ -41,9 +42,81 @@ _DOWN_SIGNS = frozenset(("4", "5"))
 
 _BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
 _BARS_TR = "FHKST03010100"
+_RECENT_PRICES_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-price"
+_RECENT_PRICES_TR = "FHKST01010400"
 _PERIOD_BY_INTERVAL = {"1d": "D", "1wk": "W", "1mo": "M"}
 #: 날짜창 페이지네이션 안전 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
 _MAX_BAR_PAGES = 200
+
+
+def fetch_recent_prices(
+    transport: Transport,
+    *,
+    symbol: str,
+    market: str,
+    interval: Interval,
+    adjusted: bool,
+) -> list[RecentPricePoint]:
+    """최근 30개 일·주·월 주가와 수급 보조지표."""
+    period = _PERIOD_BY_INTERVAL.get(interval)
+    if period is None:
+        raise KISUsageError(f"interval 은 '1d'/'1wk'/'1mo' 중 하나여야 한다: {interval!r}")
+    resp = transport.request(
+        method="GET",
+        path=_RECENT_PRICES_PATH,
+        tr_id=_RECENT_PRICES_TR,
+        params={
+            "FID_COND_MRKT_DIV_CODE": _market_div(market),
+            "FID_INPUT_ISCD": symbol,
+            "FID_PERIOD_DIV_CODE": period,
+            "FID_ORG_ADJ_PRC": "1" if adjusted else "0",
+        },
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    points: list[RecentPricePoint] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output[]", resp)
+        date_text = str(row.get("stck_bsop_date", "")).strip()
+        if not date_text:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        points.append(
+            RecentPricePoint(
+                date=_parse_kst_date(date_text),
+                open=required_decimal(row.get("stck_oprc"), "stck_oprc"),
+                high=required_decimal(row.get("stck_hgpr"), "stck_hgpr"),
+                low=required_decimal(row.get("stck_lwpr"), "stck_lwpr"),
+                close=required_decimal(row.get("stck_clpr"), "stck_clpr"),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                volume_ratio=required_decimal(
+                    row.get("prdy_vrss_vol_rate"), "prdy_vrss_vol_rate"
+                ),
+                change=_apply_change_sign(
+                    required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                foreign_exhaustion_ratio=required_decimal(
+                    row.get("hts_frgn_ehrt"), "hts_frgn_ehrt"
+                ),
+                foreign_net_quantity=required_int(
+                    row.get("frgn_ntby_qty"), "frgn_ntby_qty"
+                ),
+                ex_rights_code=str(row.get("flng_cls_code", "")).strip(),
+                cumulative_split_ratio=required_decimal(
+                    row.get("acml_prtt_rate"), "acml_prtt_rate"
+                ),
+                _raw=row,
+            )
+        )
+    points.sort(key=lambda point: point.date)
+    return points
 
 #: 당일 분봉(1분 고정). KIS는 당일치만 제공하고 한 번에 30건씩 시각을 뒤로 밀며 준다.
 _MINUTE_BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"

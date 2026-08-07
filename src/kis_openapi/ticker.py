@@ -27,6 +27,7 @@ from .analysis import (
     ExpectedPricePoint,
     ForeignNetBuyPoint,
     LoanPoint,
+    RecentPricePoint,
     ShortSalePoint,
     TradeAmountBand,
     VolumeProfile,
@@ -140,6 +141,18 @@ class Ticker:
         return market_data.fetch_bars(
             self._client.transport, symbol=self.symbol, market=self.market,
             interval=interval, start=start, end=end, adjusted=adjusted, max_bars=max_bars,
+        )
+
+    def recent_prices(
+        self, *, interval: Interval = "1d", adjusted: bool = True
+    ) -> list[RecentPricePoint]:
+        """최근 30개 일·주·월 주가와 외국인 수급·거래량·권리락 보조지표. 국내 전용."""
+        return market_data.fetch_recent_prices(
+            self._client.transport,
+            symbol=self.symbol,
+            market=self._domestic_market(),
+            interval=interval,
+            adjusted=adjusted,
         )
 
     def minute_bars_on(
