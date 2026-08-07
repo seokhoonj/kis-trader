@@ -86,8 +86,18 @@ class KISClient:
         self._app_secret = app_secret
         self._environment = environment
         if transport is None:
-            raise NotImplementedError(
-                "실제 HTTP transport 는 아직 미구현이다 -- transport= 로 전송 구현을 주입하라."
+            from ._auth import TokenManager
+            from ._http import RequestsTransport
+
+            transport = RequestsTransport(
+                app_key=app_key,
+                app_secret=app_secret,
+                environment=environment,
+                token_manager=TokenManager(
+                    app_key=app_key,
+                    app_secret=app_secret,
+                    environment=environment,
+                ),
             )
         self._transport = transport
         self._cano, self._product_code = _split_account(account)

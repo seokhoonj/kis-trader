@@ -40,6 +40,7 @@ class RawResponse:
     msg1: str
     # 인바운드 벤더 페이로드는 진짜로 이질적이라 Any 가 정당한 경계다.
     body: Mapping[str, Any] = field(default_factory=lambda: MappingProxyType({}))
+    tr_cont: str = ""
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "body", MappingProxyType(dict(self.body)))
