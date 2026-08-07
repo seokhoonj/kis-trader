@@ -66,9 +66,11 @@ def _walk_holdings(
 ) -> tuple[list[Mapping[str, Any]], Mapping[str, Any] | None]:
     rows: list[Mapping[str, Any]] = []
     summary: Mapping[str, Any] | None = None
-    ctx_fk, ctx_nk = "", ""
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
     for _page in range(_MAX_BALANCE_PAGES):
-        resp = _fetch_balance_page(transport, cano, product_code, environment, ctx_fk, ctx_nk)
+        resp = _fetch_balance_page(
+            transport, cano, product_code, environment, ctx_fk, ctx_nk, tr_cont=tr_cont
+        )
         _raise_if_error(resp)
         if summary is None:  # 계좌 요약은 첫 페이지에서(계좌 단위라 페이지 불변)
             summary = _extract_summary(resp.body)
@@ -79,11 +81,11 @@ def _walk_holdings(
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         rows.extend(page)
-        # JSON null 은 str(...) 로 "None"(truthy) 이 되니, None 을 먼저 ""로 눌러 종료 판정을 지킨다.
+        if resp.tr_cont not in ("F", "M"):
+            break
         ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
-        if not ctx_nk:
-            break
+        tr_cont = "N"
     else:
         raise KISError(
             f"잔고 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
@@ -93,7 +95,8 @@ def _walk_holdings(
 
 
 def _fetch_balance_page(
-    transport: Transport, cano: str, product_code: str, environment: Environment, ctx_fk: str, ctx_nk: str
+    transport: Transport, cano: str, product_code: str, environment: Environment, ctx_fk: str, ctx_nk: str,
+    *, tr_cont: str = "",
 ) -> RawResponse:
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
@@ -103,7 +106,7 @@ def _fetch_balance_page(
     }
     return transport.request(
         method="GET", path=_BALANCE_PATH, tr_id=_BALANCE_TR[environment],
-        params=params, idempotent=True,
+        params=params, idempotent=True, tr_cont=tr_cont,
     )
 
 

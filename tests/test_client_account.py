@@ -35,7 +35,7 @@ class FakeTransport:
         self.calls: list[dict] = []
         self._lock = threading.Lock()
 
-    def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
         with self._lock:
             self.calls.append({"method": method, "path": path, "tr_id": tr_id,
                                "params": params, "idempotent": idempotent})
@@ -72,11 +72,11 @@ def _holding(pdno, *, name="삼성전자", hldg="10", sellable="10", avg="70000"
             "evlu_pfls_amt": pfls, "evlu_pfls_rt": pfls_rt}
 
 
-def _balance_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk=""):
+def _balance_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont=""):
     body = {"output1": rows if rows is not None else [],
             "output2": [summary if summary is not None else dict(_SUMMARY)],
             "ctx_area_nk100": ctx_nk, "ctx_area_fk100": ctx_fk}
-    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
 
 
 def _buyable_resp(output=None):
@@ -165,7 +165,7 @@ def test_positions_parses_and_skips_padding():
 
 
 def test_positions_paginate_and_merge():
-    page1 = _balance_resp(rows=[_holding("005930")], ctx_nk="NEXT", ctx_fk="FK")
+    page1 = _balance_resp(rows=[_holding("005930")], ctx_nk="NEXT", ctx_fk="FK", tr_cont="M")
     page2 = _balance_resp(rows=[_holding("000660", name="SK하이닉스")])
     fake = FakeTransport(by_path={_BALANCE_PATH: [page1, page2]})
     positions = _client(fake).positions()
@@ -182,13 +182,13 @@ def test_positions_non_list_output1_fails_closed():
 
 def test_positions_pagination_cap_fails_closed(monkeypatch):
     monkeypatch.setattr(account_module, "_MAX_BALANCE_PAGES", 3)
-    endless = _balance_resp(rows=[_holding("005930")], ctx_nk="NEXT", ctx_fk="FK")
+    endless = _balance_resp(rows=[_holding("005930")], ctx_nk="NEXT", ctx_fk="FK", tr_cont="M")
     with pytest.raises(KISError):
         _client(FakeTransport(response=endless)).positions()
 
 
 def test_portfolio_returns_balance_and_positions_in_one_walk():
-    page1 = _balance_resp(rows=[_holding("005930")], ctx_nk="NEXT", ctx_fk="FK")
+    page1 = _balance_resp(rows=[_holding("005930")], ctx_nk="NEXT", ctx_fk="FK", tr_cont="M")
     page2 = _balance_resp(rows=[_holding("000660", name="SK하이닉스")])
     fake = FakeTransport(by_path={_BALANCE_PATH: [page1, page2]})
     portfolio = _client(fake).portfolio()
@@ -281,7 +281,9 @@ def test_positions_use_environment_tr_and_params():
 
 
 def test_balance_reads_single_page():
-    page1 = _balance_resp(summary=dict(_SUMMARY, dnca_tot_amt="111"), ctx_nk="NEXT", ctx_fk="FK")
+    page1 = _balance_resp(
+        summary=dict(_SUMMARY, dnca_tot_amt="111"), ctx_nk="NEXT", ctx_fk="FK", tr_cont="M"
+    )
     page2 = _balance_resp(summary=dict(_SUMMARY, dnca_tot_amt="222"))
     fake = FakeTransport(by_path={_BALANCE_PATH: [page1, page2]})
     balance = _client(fake).balance()

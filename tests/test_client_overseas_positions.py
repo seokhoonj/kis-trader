@@ -32,10 +32,10 @@ def _holding(symbol="AAPL", name="APPLE", qty="10", sellable="10", avg="140.00",
             "evlu_pfls_rt": rate, "tr_crcy_cd": crcy}
 
 
-def _resp(rows, *, nk="", fk=""):
+def _resp(rows, *, nk="", fk="", tr_cont=""):
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"output1": rows, "output2": {}, "ctx_area_nk200": nk,
-                             "ctx_area_fk200": fk})
+                             "ctx_area_fk200": fk}, tr_cont=tr_cont)
 
 
 class FakeTransport:
@@ -45,7 +45,7 @@ class FakeTransport:
         self.calls: list[dict] = []
         self._lock = threading.Lock()
 
-    def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
         with self._lock:
             self.calls.append({"path": path, "tr_id": tr_id, "params": params})
             if self.pages is not None:
@@ -97,7 +97,7 @@ def test_overseas_positions_demo_tr():
 
 def test_overseas_positions_paginates_ctx_area():
     fake = FakeTransport(pages=[
-        _resp([_holding(symbol="AAPL")], nk="NEXT"),
+        _resp([_holding(symbol="AAPL")], nk="NEXT", tr_cont="M"),
         _resp([_holding(symbol="MSFT")], nk=""),
     ])
     positions = _client(fake).overseas_positions(market="US")
@@ -171,9 +171,9 @@ def _open_order(odno="0000123456", pdno="AAPL", side="02", qty="10", ccld="3", n
             "ovrs_excg_cd": excg, "tr_crcy_cd": crcy}
 
 
-def _open_resp(rows, *, nk=""):
+def _open_resp(rows, *, nk="", tr_cont=""):
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
-                       body={"output": rows, "ctx_area_nk200": nk})
+                       body={"output": rows, "ctx_area_nk200": nk}, tr_cont=tr_cont)
 
 
 def test_overseas_open_orders_maps_fields():
@@ -202,7 +202,7 @@ def test_overseas_open_orders_demo_unsupported():
 
 
 def test_overseas_open_orders_paginates():
-    fake = FakeTransport(pages=[_open_resp([_open_order(odno="1")], nk="NEXT"),
+    fake = FakeTransport(pages=[_open_resp([_open_order(odno="1")], nk="NEXT", tr_cont="M"),
                                 _open_resp([_open_order(odno="2")], nk="")])
     orders = _client(fake).overseas_open_orders(market="US")
     assert [o.order_id for o in orders] == ["1", "2"]

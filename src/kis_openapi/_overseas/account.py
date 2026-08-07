@@ -99,7 +99,7 @@ def fetch_open_orders(
             f"지원하지 않는 해외 시장: {market!r} ({'/'.join(_MARKETS)})."
         ) from None
     rows: list[Mapping[str, Any]] = []
-    ctx_fk, ctx_nk = "", ""
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
     for _page in range(_MAX_PAGES):
         params = {
             "CANO": cano, "ACNT_PRDT_CD": product_code, "OVRS_EXCG_CD": exchange,
@@ -107,7 +107,7 @@ def fetch_open_orders(
         }
         resp = transport.request(
             method="GET", path=_OPEN_ORDERS_PATH, tr_id=_OPEN_ORDERS_TR,
-            params=params, idempotent=True,
+            params=params, idempotent=True, tr_cont=tr_cont,
         )
         _raise_if_error(resp)
         page = resp.body.get("output")
@@ -117,10 +117,11 @@ def fetch_open_orders(
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
         ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
-        if not ctx_nk:
-            break
+        tr_cont = "N"
     else:
         raise KISError(
             f"해외 미체결 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
@@ -158,6 +159,7 @@ def _parse_open_orders(
 def _request_page(
     transport: Transport, cano: str, product_code: str, environment: Environment,
     exchange: str, currency: str, ctx_fk: str, ctx_nk: str,
+    *, tr_cont: str = "",
 ):
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
@@ -166,7 +168,7 @@ def _request_page(
     }
     return transport.request(
         method="GET", path=_POSITIONS_PATH, tr_id=_POSITIONS_TR[environment],
-        params=params, idempotent=True,
+        params=params, idempotent=True, tr_cont=tr_cont,
     )
 
 
@@ -175,10 +177,11 @@ def _walk_holdings(
     exchange: str, currency: str,
 ) -> list[Mapping[str, Any]]:
     rows: list[Mapping[str, Any]] = []
-    ctx_fk, ctx_nk = "", ""
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
     for _page in range(_MAX_PAGES):
         resp = _request_page(
-            transport, cano, product_code, environment, exchange, currency, ctx_fk, ctx_nk
+            transport, cano, product_code, environment, exchange, currency, ctx_fk, ctx_nk,
+            tr_cont=tr_cont,
         )
         _raise_if_error(resp)
         page = resp.body.get("output1")
@@ -188,11 +191,11 @@ def _walk_holdings(
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         rows.extend(page)
-        # JSON null 은 str(...) 로 "None"(truthy) 이 되니 None 을 먼저 ""로 눌러 종료 판정을 지킨다.
+        if resp.tr_cont not in ("F", "M"):
+            break
         ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
-        if not ctx_nk:
-            break
+        tr_cont = "N"
     else:
         raise KISError(
             f"해외 잔고 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
