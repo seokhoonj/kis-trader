@@ -11,6 +11,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._domestic import bonds as bonds_api
+from .bar import Bar, Interval
 from .bond_items import BondInfo, BondQuote
 
 if TYPE_CHECKING:
@@ -38,6 +39,10 @@ class Bond:
     def quote(self) -> BondQuote:
         """채권 현재가 스냅샷(가격·시고저·전일대비·수익률)."""
         return bonds_api.fetch_quote(self._client.transport, code=self.code)
+
+    def bars(self, interval: Interval = "1d") -> list[Bar]:
+        """채권 일별 OHLCV를 과거->현재 오름차순으로. ``interval="1d"`` 만 지원한다."""
+        return bonds_api.fetch_bars(self._client.transport, code=self.code, interval=interval)
 
     def order_book(self) -> OrderBook:
         """채권 호가창(5단계 매수/매도 심도)."""

@@ -11,13 +11,14 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import BondQuote, KISClient, OrderBook, Trade
-from kis_openapi.errors import KISError
+from kis_openapi import Bar, BondQuote, KISClient, OrderBook, Trade
+from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
 _PRICE = "/uapi/domestic-bond/v1/quotations/inquire-price"
 _ASKING = "/uapi/domestic-bond/v1/quotations/inquire-asking-price"
 _CCNL = "/uapi/domestic-bond/v1/quotations/inquire-ccnl"
+_BARS = "/uapi/domestic-bond/v1/quotations/inquire-daily-itemchartprice"
 
 
 def _output(*, prpr="10250.0", oprc="10240.0", hgpr="10260.0", lwpr="10235.0",
@@ -182,3 +183,53 @@ def test_bond_trades_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(rows))
     with pytest.raises(KISError):
         _client(fake).bond("KR2033022D33").trades()
+
+
+# --- bars ------------------------------------------------------------------
+def _bar_rows():
+    return [
+        {"stck_bsop_date": "20240610", "bond_oprc": "0.00", "bond_hgpr": "0.00",
+         "bond_lwpr": "0.00", "bond_prpr": "10997.10", "acml_vol": "0"},
+        {"stck_bsop_date": "20240607", "bond_oprc": "10997.10", "bond_hgpr": "10997.10",
+         "bond_lwpr": "10997.10", "bond_prpr": "10997.10", "acml_vol": "119"},
+        {"stck_bsop_date": "", "bond_prpr": ""},
+    ]
+
+
+def test_bond_bars_maps_ledger_rows_and_sorts_oldest_first():
+    fake = FakeTransport(response=_resp(_bar_rows()))
+    bars = _client(fake).bond("KR101501D967").bars()
+    assert all(isinstance(bar, Bar) for bar in bars)
+    assert [bar.timestamp.strftime("%Y%m%d") for bar in bars] == ["20240607", "20240610"]
+    assert bars[0].symbol == "KR101501D967"
+    assert bars[0].open == Decimal("10997.10")
+    assert bars[0].high == Decimal("10997.10")
+    assert bars[0].low == Decimal("10997.10")
+    assert bars[0].close == Decimal("10997.10")
+    assert bars[0].volume == 119
+    call = fake.calls[0]
+    assert call["path"] == _BARS
+    assert call["tr_id"] == "FHKBJ773701C0"
+    assert call["params"] == {
+        "FID_COND_MRKT_DIV_CODE": "B",
+        "FID_INPUT_ISCD": "KR101501D967",
+    }
+
+
+def test_bond_bars_rejects_unsupported_interval_before_transport():
+    fake = FakeTransport(response=_resp(_bar_rows()))
+    with pytest.raises(KISUsageError):
+        _client(fake).bond("KR101501D967").bars("1wk")
+    assert fake.calls == []
+
+
+def test_bond_bars_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).bond("KR101501D967").bars()
+
+
+def test_bond_bars_non_mapping_row_fails_closed():
+    fake = FakeTransport(response=_resp(["bad-row"]))
+    with pytest.raises(KISError):
+        _client(fake).bond("KR101501D967").bars()

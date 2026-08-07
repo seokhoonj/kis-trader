@@ -7,6 +7,8 @@ KIS URL/TR-id (원장 대조):
 - 채권 현재가: ``GET .../domestic-bond/v1/quotations/inquire-price`` ``FHKBJ773400C0``.
 - 채권 호가: ``GET .../domestic-bond/v1/quotations/inquire-asking-price`` ``FHKBJ773401C0``.
 - 채권 체결: ``GET .../domestic-bond/v1/quotations/inquire-ccnl`` ``FHKBJ773403C0``.
+- 채권 일봉: ``GET .../domestic-bond/v1/quotations/inquire-daily-itemchartprice``
+  ``FHKBJ773701C0``.
   (모두 ``FID_COND_MRKT_DIV_CODE=B`` + ``FID_INPUT_ISCD=표준코드``).
 """
 
@@ -17,7 +19,9 @@ from datetime import datetime
 from typing import Any
 
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
+from ..bar import Bar, Interval
 from ..bond_items import BondInfo, BondQuote
+from ..errors import KISUsageError
 from ..order_book import OrderBook
 from ..trade import Trade
 from ..transport import Transport
@@ -37,6 +41,8 @@ _ORDER_BOOK_PATH = "/uapi/domestic-bond/v1/quotations/inquire-asking-price"
 _ORDER_BOOK_TR = "FHKBJ773401C0"
 _TRADES_PATH = "/uapi/domestic-bond/v1/quotations/inquire-ccnl"
 _TRADES_TR = "FHKBJ773403C0"
+_BARS_PATH = "/uapi/domestic-bond/v1/quotations/inquire-daily-itemchartprice"
+_BARS_TR = "FHKBJ773701C0"
 #: 채권 조회의 시장구분 코드(원장: 채권 B).
 _MARKET_DIV = "B"
 
@@ -148,6 +154,42 @@ def _parse_trades(
             )
         )
     return trades
+
+
+def fetch_bars(transport: Transport, *, code: str, interval: Interval = "1d") -> list[Bar]:
+    """채권 일별 OHLCV(과거->현재). 원장상 기간·연속조회 파라미터가 없어 단일 응답을 반환한다."""
+    if interval != "1d":
+        raise KISUsageError(f"채권 bars 는 interval='1d' 만 지원한다: {interval!r}")
+    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code}
+    resp = transport.request(
+        method="GET", path=_BARS_PATH, tr_id=_BARS_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    bars: list[Bar] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output[]", resp)
+        date_text = str(row.get("stck_bsop_date", "")).strip()
+        close_text = str(row.get("bond_prpr", "")).strip()
+        if not date_text or not close_text:
+            continue
+        bars.append(
+            Bar(
+                symbol=code,
+                timestamp=_parse_bar_timestamp(date_text),
+                open=required_decimal(row.get("bond_oprc"), "bond_oprc"),
+                high=required_decimal(row.get("bond_hgpr"), "bond_hgpr"),
+                low=required_decimal(row.get("bond_lwpr"), "bond_lwpr"),
+                close=required_decimal(close_text, "bond_prpr"),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                _raw=row,
+            )
+        )
+    bars.sort(key=lambda bar: bar.timestamp)
+    return bars
 
 
 _INFO_PATH = "/uapi/domestic-bond/v1/quotations/search-bond-info"
