@@ -16,6 +16,7 @@ from typing import Literal
 
 from .._wire import optional_decimal, required_decimal, required_int
 from ..errors import KISUsageError
+from ..investor import InvestorActivity
 from ..market_items import (
     BrokerOpinion,
     CreditEligibleStock,
@@ -27,6 +28,7 @@ from ..market_items import (
     Market,
     MarketFunds,
     MarketInvestorFlow,
+    MarketInvestorSnapshot,
     NewsItem,
     ProgramFlowPoint,
     ProgramTradeSummary,
@@ -48,6 +50,8 @@ from .market_data import (
 
 _INVESTOR_BY_MARKET_PATH = "/uapi/domestic-stock/v1/quotations/inquire-investor-daily-by-market"
 _INVESTOR_BY_MARKET_TR = "FHPTJ04040000"
+_INVESTOR_SNAPSHOT_PATH = "/uapi/domestic-stock/v1/quotations/inquire-investor-time-by-market"
+_INVESTOR_SNAPSHOT_TR = "FHPTJ04030000"
 #: 시장 -> (지수코드 FID_INPUT_ISCD, 시장약어 FID_INPUT_ISCD_1). 원장 예시 대조.
 _MARKET_CODE = {"KOSPI": ("0001", "KSP"), "KOSDAQ": ("1001", "KSQ")}
 
@@ -274,6 +278,53 @@ def fetch_market_investor_flows(
             )
         )
     return flows
+
+
+_INVESTOR_SNAPSHOT_PREFIX = {
+    "foreign": "frgn", "individual": "prsn", "institutional": "orgn",
+    "securities": "scrt", "investment_trust": "ivtr", "private_equity": "pe_fund",
+    "bank": "bank", "insurance": "insu", "merchant_bank": "mrbn", "fund": "fund",
+    "other_organization": "etc_orgt", "other_corporation": "etc_corp",
+}
+
+
+def fetch_market_investor_snapshot(
+    transport: Transport, *, market_code: str, industry_code: str
+) -> MarketInvestorSnapshot:
+    """한 시장·업종의 세부 투자자 매수·매도·순매수 총량."""
+    if not market_code.strip():
+        raise KISUsageError("market_code 가 필요하다.")
+    if not industry_code.strip():
+        raise KISUsageError("industry_code 가 필요하다.")
+    resp = transport.request(
+        method="GET", path=_INVESTOR_SNAPSHOT_PATH, tr_id=_INVESTOR_SNAPSHOT_TR,
+        params={"FID_INPUT_ISCD": market_code.strip(),
+                "FID_INPUT_ISCD_2": industry_code.strip()}, idempotent=True,
+    )
+    _raise_if_error(resp)
+    row = resp.body.get("output")
+    if not isinstance(row, Mapping):
+        raise _missing_block_error("output", resp)
+    return MarketInvestorSnapshot(
+        market_code=market_code.strip(), industry_code=industry_code.strip(),
+        participants={name: _parse_market_investor_activity(row, prefix)
+                      for name, prefix in _INVESTOR_SNAPSHOT_PREFIX.items()},
+        _raw=row,
+    )
+
+
+def _parse_market_investor_activity(
+    row: Mapping[str, object], prefix: str
+) -> InvestorActivity:
+    net_key = f"{prefix}_ntby_vol" if prefix in {"pe_fund", "etc_orgt", "etc_corp"} else f"{prefix}_ntby_qty"
+    return InvestorActivity(
+        buy_volume=required_int(row.get(f"{prefix}_shnu_vol"), f"{prefix}_shnu_vol"),
+        sell_volume=required_int(row.get(f"{prefix}_seln_vol"), f"{prefix}_seln_vol"),
+        net_buy_volume=required_int(row.get(net_key), net_key),
+        buy_value=required_decimal(row.get(f"{prefix}_shnu_tr_pbmn"), f"{prefix}_shnu_tr_pbmn"),
+        sell_value=required_decimal(row.get(f"{prefix}_seln_tr_pbmn"), f"{prefix}_seln_tr_pbmn"),
+        net_buy_value=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
+    )
 
 
 _PROGRAM_SUMMARY_PATH = "/uapi/domestic-stock/v1/quotations/comp-program-trade-daily"

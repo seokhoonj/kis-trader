@@ -14,6 +14,8 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any, Literal
 
+from .investor import InvestorActivity
+
 #: 시장 -- 시장 전체 분석이 대상으로 삼는 시장(코스피/코스닥).
 Market = Literal["KOSPI", "KOSDAQ"]
 
@@ -41,6 +43,26 @@ class MarketInvestorFlow:
     )
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class MarketInvestorSnapshot:
+    """한 시장·업종의 조회 시점 세부 투자자 매매 총량(불변).
+
+    ``participants`` 는 외국인·개인·기관계 및 기관 세부 주체를 매수·매도·순매수
+    수량과 대금으로 매핑한다. 대금 필드는 KIS 원장 단위인 백만원이다.
+    """
+
+    market_code: str
+    industry_code: str
+    participants: Mapping[str, InvestorActivity]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "participants", MappingProxyType(dict(self.participants)))
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
 
 

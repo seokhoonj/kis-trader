@@ -28,6 +28,7 @@ if TYPE_CHECKING:
         Market,
         MarketFunds,
         MarketInvestorFlow,
+        MarketInvestorSnapshot,
         NewsItem,
         ProgramFlowPoint,
         ProgramTradeSummary,
@@ -49,6 +50,14 @@ class MarketQueries:
         기간이 아니라 앵커 날짜). ``as_of`` 없으면 오늘. 종목 단위는 ``kis.ticker(code).investor_flows()``."""
         return market_api.fetch_market_investor_flows(
             self._client.transport, market=market, as_of=as_of
+        )
+
+    def investor_snapshot(
+        self, *, market_code: str, industry_code: str
+    ) -> MarketInvestorSnapshot:
+        """시장·업종 코드별 세부 투자자 매수·매도·순매수 총량 스냅샷."""
+        return market_api.fetch_market_investor_snapshot(
+            self._client.transport, market_code=market_code, industry_code=industry_code
         )
 
     def funds(self, *, as_of: str | date | None = None) -> list[MarketFunds]:

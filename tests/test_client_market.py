@@ -15,6 +15,7 @@ from kis_openapi import (
     LendableStock,
     MarketFunds,
     MarketInvestorFlow,
+    MarketInvestorSnapshot,
 )
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
@@ -96,6 +97,55 @@ def test_market_investor_flows_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).market.investor_flows()
+
+
+_SNAPSHOT_PREFIXES = (
+    "frgn", "prsn", "orgn", "scrt", "ivtr", "pe_fund", "bank", "insu", "mrbn",
+    "fund", "etc_orgt", "etc_corp",
+)
+
+
+def _snapshot_row():
+    row = {}
+    for prefix in _SNAPSHOT_PREFIXES:
+        net_key = "ntby_vol" if prefix in {"pe_fund", "etc_orgt", "etc_corp"} else "ntby_qty"
+        row |= {f"{prefix}_shnu_vol": "120", f"{prefix}_seln_vol": "100",
+                f"{prefix}_{net_key}": "20", f"{prefix}_shnu_tr_pbmn": "12",
+                f"{prefix}_seln_tr_pbmn": "10", f"{prefix}_ntby_tr_pbmn": "2"}
+    return row
+
+
+def test_market_investor_snapshot_maps_participants_and_params():
+    fake = FakeTransport(response=_resp(_snapshot_row()))
+    snapshot = _client(fake).market.investor_snapshot(
+        market_code="KSP", industry_code="0001"
+    )
+    assert isinstance(snapshot, MarketInvestorSnapshot)
+    assert snapshot.market_code == "KSP"
+    assert snapshot.industry_code == "0001"
+    assert snapshot.participants["foreign"].buy_volume == 120
+    assert snapshot.participants["private_equity"].net_buy_volume == 20
+    assert snapshot.participants["other_corporation"].net_buy_value == Decimal(2)
+    assert fake.calls[0] == {
+        "path": "/uapi/domestic-stock/v1/quotations/inquire-investor-time-by-market",
+        "tr_id": "FHPTJ04030000",
+        "params": {"FID_INPUT_ISCD": "KSP", "FID_INPUT_ISCD_2": "0001"},
+    }
+
+
+@pytest.mark.parametrize("market_code,industry_code", [("", "0001"), ("KSP", "")])
+def test_market_investor_snapshot_rejects_blank_codes(market_code, industry_code):
+    fake = FakeTransport(response=_resp(_snapshot_row()))
+    with pytest.raises(KISUsageError):
+        _client(fake).market.investor_snapshot(
+            market_code=market_code, industry_code=industry_code
+        )
+
+
+def test_market_investor_snapshot_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).market.investor_snapshot(market_code="KSP", industry_code="0001")
 
 
 def test_market_investor_flows_bad_value_fails_closed():
