@@ -9,6 +9,8 @@ KIS URL/TR-id (원장 대조):
 - 지수 기간봉(일/주/월/년): ``GET .../quotations/inquire-daily-indexchartprice`` ``FHKUP03500100``
   (``FID_PERIOD_DIV_CODE`` D:일 W:주 M:월 Y:년). 종목 일봉과 페이지네이션은 같고 필드명만
   ``bstp_nmix_*`` 로 다르다 -- 공용 :func:`collect_period_bars` 재사용.
+- 지수 분봉: ``GET .../quotations/inquire-time-indexchartprice`` ``FHKUP03500200``
+  (``FID_INPUT_HOUR_1=60``, 과거 포함, 한 번에 최대 102건·연속조회 불가).
 - 지수 시간대별: ``GET .../quotations/inquire-index-timeprice`` ``FHPUP02110200``
   (``FID_INPUT_HOUR_1`` 샘플 간격(초): 60=1분 300=5분 600=10분).
 - 업종별 지수: ``GET .../quotations/inquire-index-category-price`` ``FHPUP02140000`` 화면 20214
@@ -26,7 +28,7 @@ from .._wire import required_decimal, required_int
 from ..bar import Bar, Interval
 from ..errors import KISUsageError
 from ..index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
-from ..transport import Transport
+from ..transport import RawResponse, Transport
 from .market_data import (
     _KST,
     _apply_change_sign,
@@ -47,6 +49,8 @@ _INDEX_MARKET_DIV = "U"
 
 _INDEX_BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-indexchartprice"
 _INDEX_BARS_TR = "FHKUP03500100"
+_INDEX_MINUTE_BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-indexchartprice"
+_INDEX_MINUTE_BARS_TR = "FHKUP03500200"
 
 _INDEX_INTRADAY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-timeprice"
 _INDEX_INTRADAY_TR = "FHPUP02110200"
@@ -82,17 +86,16 @@ def fetch_index_bars(
     end: str | date | None = None,
     max_bars: int | None = None,
 ) -> list[Bar]:
-    """지수 기간봉(일/주/월)을 과거->현재 오름차순으로. ``interval`` 은 ``1d``/``1wk``/``1mo``,
-    ``start`` 가 필요하다(``end`` 기본 오늘). 지수엔 수정주가 개념이 없어 ``adjusted`` 는 없다.
+    """지수 봉을 과거->현재 오름차순으로.
 
-    지수 분봉(``1m``)은 별도 엔드포인트(inquire-time-indexchartprice)이고 앵커가 아니라 봉 크기(초)
-    파라미터라 페이지네이션이 달라 아직 지원하지 않는다."""
+    ``1m`` 은 최근 분봉 최대 102건(연속조회 불가)이며 ``start``/``end`` 를 주면 응답 안에서 날짜를
+    거른다. ``1d``/``1wk``/``1mo`` 는 ``start`` 가 필요한 기간봉이다. 지수엔 수정주가 개념이 없다.
+    """
     if max_bars is not None and max_bars <= 0:
         raise KISUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
     if interval == "1m":
-        raise NotImplementedError(
-            "지수 분봉은 아직 미구현 -- inquire-time-indexchartprice 는 앵커가 아니라 봉 크기(초) "
-            "파라미터라 별 슬라이스로 다룬다."
+        return _fetch_index_minute_bars(
+            transport, code=code, start=start, end=end, max_bars=max_bars
         )
     if start is None:
         raise KISUsageError(f"interval={interval!r}(기간봉)에는 start 가 필요하다.")
@@ -111,6 +114,76 @@ def fetch_index_bars(
         start_date=start_date, end_date=end_date, max_bars=max_bars,
         parse_rows=lambda rows: _parse_index_bars(rows, code=code),
     )
+
+
+def _fetch_index_minute_bars(
+    transport: Transport, *, code: str, start: str | date | None,
+    end: str | date | None, max_bars: int | None,
+) -> list[Bar]:
+    """최근 지수 1분봉 한 페이지를 조회하고 날짜 범위·최근 건수를 적용한다."""
+    start_date = None if start is None else _to_yyyymmdd(start, "start")
+    end_date = None if end is None else _to_yyyymmdd(end, "end")
+    if start_date is not None and end_date is not None and start_date > end_date:
+        raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _INDEX_MARKET_DIV,
+        "FID_ETC_CLS_CODE": "0",
+        "FID_INPUT_ISCD": code,
+        "FID_INPUT_HOUR_1": "60",
+        "FID_PW_DATA_INCU_YN": "Y",
+    }
+    resp = transport.request(
+        method="GET", path=_INDEX_MINUTE_BARS_PATH, tr_id=_INDEX_MINUTE_BARS_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    bars = _parse_index_minute_bars(rows, code=code, resp=resp)
+    if start_date is not None:
+        bars = [bar for bar in bars if f"{bar.timestamp:%Y%m%d}" >= start_date]
+    if end_date is not None:
+        bars = [bar for bar in bars if f"{bar.timestamp:%Y%m%d}" <= end_date]
+    if max_bars is not None:
+        bars = bars[-max_bars:]
+    return bars
+
+
+def _parse_index_minute_bars(
+    rows: Sequence[object], *, code: str, resp: RawResponse
+) -> list[Bar]:
+    bars: list[Bar] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output2[]", resp)
+        date_text = str(row.get("stck_bsop_date", "")).strip()
+        time_text = str(row.get("stck_cntg_hour", "")).strip()
+        close_text = str(row.get("bstp_nmix_prpr", "")).strip()
+        if not date_text or not time_text or not close_text:
+            continue
+        if (
+            len(time_text) != 6
+            or not time_text.isdigit()
+            or int(time_text[:2]) > 23
+            or int(time_text[2:4]) > 59
+            or int(time_text[4:]) > 59
+        ):
+            continue
+        bars.append(
+            Bar(
+                symbol=code,
+                timestamp=_parse_minute_bar_timestamp(date_text, time_text),
+                open=required_decimal(row.get("bstp_nmix_oprc"), "bstp_nmix_oprc"),
+                high=required_decimal(row.get("bstp_nmix_hgpr"), "bstp_nmix_hgpr"),
+                low=required_decimal(row.get("bstp_nmix_lwpr"), "bstp_nmix_lwpr"),
+                close=required_decimal(close_text, "bstp_nmix_prpr"),
+                volume=required_int(row.get("cntg_vol"), "cntg_vol"),
+                _raw=row,
+            )
+        )
+    bars.sort(key=lambda bar: bar.timestamp)
+    return bars
 
 
 def _parse_index_bars(rows: Sequence[Mapping[str, Any]], *, code: str) -> list[Bar]:

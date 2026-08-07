@@ -45,9 +45,8 @@ class Index:
         end: str | date | None = None,
         max_bars: int | None = None,
     ) -> list[Bar]:
-        """지수 기간봉(과거->현재). ``interval="1d"``/``"1wk"``/``"1mo"``, ``start`` 필요(``end``
-        기본 오늘). OHLCV 의 O/H/L/C 는 지수 레벨, ``symbol`` 자리엔 업종코드가 담긴다. 지수엔
-        수정주가 개념이 없다. 지수 분봉(``1m``)은 아직 미지원."""
+        """지수 봉(과거->현재). ``1m`` 은 최근 최대 102건이며 날짜 범위는 응답 안에서 거른다.
+        ``1d``/``1wk``/``1mo`` 는 ``start`` 필요(``end`` 기본 오늘). OHLC는 지수 레벨이다."""
         return index_api.fetch_index_bars(
             self._client.transport, code=self.code,
             interval=interval, start=start, end=end, max_bars=max_bars,

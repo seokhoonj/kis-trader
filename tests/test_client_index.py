@@ -17,6 +17,7 @@ from kis_openapi.transport import RawResponse
 
 _INDEX_PRICE = "/uapi/domestic-stock/v1/quotations/inquire-index-price"
 _INDEX_BARS = "/uapi/domestic-stock/v1/quotations/inquire-daily-indexchartprice"
+_INDEX_MINUTE_BARS = "/uapi/domestic-stock/v1/quotations/inquire-time-indexchartprice"
 
 
 def _output(*, value="2650.32", change="12.44", sign="2", pct="0.47", oprc="2640.10",
@@ -152,9 +153,56 @@ def test_index_bars_start_required():
         _client(fake).index("0001").bars()
 
 
-def test_index_bars_minute_not_implemented():
+def _minute_bar_row(date_text, time_text, close, volume="10"):
+    return {
+        "stck_bsop_date": date_text, "stck_cntg_hour": time_text,
+        "bstp_nmix_oprc": close, "bstp_nmix_hgpr": close,
+        "bstp_nmix_lwpr": close, "bstp_nmix_prpr": close, "cntg_vol": volume,
+    }
+
+
+def test_index_minute_bars_maps_filters_and_limits_recent_rows():
+    response = RawResponse(
+        rt_cd="0", msg_cd="MCA00000", msg1="정상",
+        body={"output1": {}, "output2": [
+            _minute_bar_row("20240129", "103200", "833.56", "4618"),
+            _minute_bar_row("20240129", "103100", "833.40", "4500"),
+            _minute_bar_row("20240126", "153000", "837.19", "17043"),
+            _minute_bar_row("20240126", "999999", "837.24", "21566"),
+        ]},
+    )
+    fake = FakeTransport(response=response)
+    bars = _client(fake).index("1001").bars(
+        interval="1m", start="2024-01-29", end="20240129", max_bars=1
+    )
+    assert len(bars) == 1
+    assert bars[0].symbol == "1001"
+    assert f"{bars[0].timestamp:%Y%m%d%H%M%S}" == "20240129103200"
+    assert bars[0].close == Decimal("833.56")
+    assert bars[0].volume == 4618
+    assert fake.calls[0] == {
+        "path": _INDEX_MINUTE_BARS,
+        "tr_id": "FHKUP03500200",
+        "params": {
+            "FID_COND_MRKT_DIV_CODE": "U", "FID_ETC_CLS_CODE": "0",
+            "FID_INPUT_ISCD": "1001", "FID_INPUT_HOUR_1": "60",
+            "FID_PW_DATA_INCU_YN": "Y",
+        },
+    }
+
+
+def test_index_minute_bars_rejects_reversed_dates_before_transport():
     fake = FakeTransport(response=_bars_resp([]))
-    with pytest.raises(NotImplementedError):
+    with pytest.raises(KISUsageError):
+        _client(fake).index("0001").bars(
+            interval="1m", start="20240130", end="20240129"
+        )
+    assert fake.calls == []
+
+
+def test_index_minute_bars_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
         _client(fake).index("0001").bars(interval="1m")
 
 
