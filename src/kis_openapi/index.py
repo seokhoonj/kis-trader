@@ -12,7 +12,12 @@ from typing import TYPE_CHECKING
 
 from ._domestic import index as index_api
 from .bar import Bar, Interval
-from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
+from .index_items import (
+    CategoryIndex,
+    IndexDailyHistory,
+    IndexIntradayPoint,
+    IndexQuote,
+)
 
 if TYPE_CHECKING:
     from datetime import date
@@ -62,6 +67,20 @@ class Index:
     def ticks(self) -> list[IndexIntradayPoint]:
         """지수 당일 10초 시계열(과거->현재)."""
         return index_api.fetch_index_ticks(self._client.transport, code=self.code)
+
+    def daily_history(
+        self,
+        *,
+        interval: Interval = "1d",
+        as_of: str | date | None = None,
+    ) -> IndexDailyHistory:
+        """조회 시점 스냅샷과 최근 최대 100건의 일·주·월 지수 통계."""
+        return index_api.fetch_index_daily_history(
+            self._client.transport,
+            code=self.code,
+            interval=interval,
+            as_of=as_of,
+        )
 
     def categories(self) -> list[CategoryIndex]:
         """이 시장의 하위 업종 지수 목록. 시장 지수(``0001`` KOSPI / ``1001`` KOSDAQ / ``2001``

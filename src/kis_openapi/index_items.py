@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -66,6 +66,45 @@ class IndexIntradayPoint:
     )
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class IndexDailyPoint:
+    """지수 일·주·월 통계의 한 시점(불변)."""
+
+    date: date
+    value: Decimal
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume_share: Decimal
+    volume: int
+    amount: Decimal
+    sentiment: Decimal
+    disparity_20d: Decimal
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class IndexDailyHistory:
+    """조회 시점의 지수 스냅샷과 일·주·월 통계(불변)."""
+
+    snapshot: IndexQuote
+    points: tuple[IndexDailyPoint, ...]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "points", tuple(self.points))
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
 
 

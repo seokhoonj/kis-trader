@@ -78,7 +78,13 @@ from .financials import (
     StabilityRatio,
 )
 from .index import Index
-from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
+from .index_items import (
+    CategoryIndex,
+    IndexDailyHistory,
+    IndexDailyPoint,
+    IndexIntradayPoint,
+    IndexQuote,
+)
 from .investor import InvestorActivity, InvestorEstimate, InvestorFlow
 from .market import MarketQueries
 from .market_items import (
@@ -195,6 +201,8 @@ __all__ = [
     "IPOSubscription",
     "IncomeStatement",
     "Index",
+    "IndexDailyHistory",
+    "IndexDailyPoint",
     "IndexIntradayPoint",
     "IndexQuote",
     "InterestRateQuote",

@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, IndexQuote, KISClient
+from kis_openapi import Bar, IndexDailyHistory, IndexDailyPoint, IndexQuote, KISClient
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
@@ -305,6 +305,79 @@ def test_index_ticks_rejects_malformed_output():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": {}})
     with pytest.raises(KISError):
         _client(FakeTransport(response=response)).index("0001").ticks()
+
+
+def _daily_history_row(date_text, value, change, sign):
+    return {
+        "stck_bsop_date": date_text,
+        "bstp_nmix_prpr": value,
+        "prdy_vrss_sign": sign,
+        "bstp_nmix_prdy_vrss": change,
+        "bstp_nmix_prdy_ctrt": "1.25",
+        "bstp_nmix_oprc": "2600.10",
+        "bstp_nmix_hgpr": "2655.20",
+        "bstp_nmix_lwpr": "2598.30",
+        "acml_vol_rlim": "127.44",
+        "acml_vol": "465967",
+        "acml_tr_pbmn": "8848288",
+        "invt_new_psdg": "45.45",
+        "d20_dsrt": "102.50",
+    }
+
+
+def test_index_daily_history_maps_snapshot_and_statistics():
+    response = RawResponse(
+        rt_cd="0",
+        msg_cd="MCA00000",
+        msg1="정상",
+        body={
+            "output1": _output(),
+            "output2": [
+                _daily_history_row("20240223", "2650.10", "12.30", "2"),
+                _daily_history_row("20240222", "2637.80", "8.20", "5"),
+            ],
+        },
+    )
+    fake = FakeTransport(response=response)
+    history = _client(fake).index("0001").daily_history(
+        interval="1wk", as_of="2024-02-23"
+    )
+
+    assert isinstance(history, IndexDailyHistory)
+    assert history.snapshot.code == "0001"
+    assert history.snapshot.value == Decimal("2650.32")
+    assert all(isinstance(point, IndexDailyPoint) for point in history.points)
+    assert [f"{point.date:%Y%m%d}" for point in history.points] == [
+        "20240222",
+        "20240223",
+    ]
+    assert history.points[0].change == Decimal("-8.20")
+    assert history.points[-1].volume_share == Decimal("127.44")
+    assert history.points[-1].sentiment == Decimal("45.45")
+    assert history.points[-1].disparity_20d == Decimal("102.50")
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/quotations/inquire-index-daily-price"
+    assert call["tr_id"] == "FHPUP02120000"
+    assert call["params"] == {
+        "FID_PERIOD_DIV_CODE": "W",
+        "FID_COND_MRKT_DIV_CODE": "U",
+        "FID_INPUT_ISCD": "0001",
+        "FID_INPUT_DATE_1": "20240223",
+    }
+
+
+def test_index_daily_history_rejects_bad_interval_before_transport():
+    fake = FakeTransport(response=None)
+    with pytest.raises(KISUsageError):
+        _client(fake).index("0001").daily_history(interval="1m")
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("body", [{}, {"output1": _output()}, {"output1": {}, "output2": {}}])
+def test_index_daily_history_requires_both_response_blocks(body):
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=response)).index("0001").daily_history()
 
 
 _INDEX_CATEGORY = "/uapi/domestic-stock/v1/quotations/inquire-index-category-price"

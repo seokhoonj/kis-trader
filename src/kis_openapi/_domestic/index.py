@@ -27,13 +27,20 @@ from typing import Any
 from .._wire import required_decimal, required_int
 from ..bar import Bar, Interval
 from ..errors import KISUsageError
-from ..index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
+from ..index_items import (
+    CategoryIndex,
+    IndexDailyHistory,
+    IndexDailyPoint,
+    IndexIntradayPoint,
+    IndexQuote,
+)
 from ..transport import RawResponse, Transport
 from .market_data import (
     _KST,
     _apply_change_sign,
     _missing_block_error,
     _parse_bar_timestamp,
+    _parse_kst_date,
     _parse_minute_bar_timestamp,
     _period_code_for,
     _raise_if_error,
@@ -56,6 +63,9 @@ _INDEX_INTRADAY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-timepri
 _INDEX_INTRADAY_TR = "FHPUP02110200"
 _INDEX_TICKS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-tickprice"
 _INDEX_TICKS_TR = "FHPUP02110100"
+_INDEX_DAILY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-daily-price"
+_INDEX_DAILY_TR = "FHPUP02120000"
+_INDEX_DAILY_INTERVAL = {"1d": "D", "1wk": "W", "1mo": "M"}
 #: 지수 시간대별 샘플 간격 -> FID_INPUT_HOUR_1(초). 원장: 60=1분, 300=5분, 600=10분.
 _INDEX_INTRADAY_INTERVAL = {"1m": "60", "5m": "300", "10m": "600"}
 
@@ -278,6 +288,89 @@ def fetch_index_ticks(transport: Transport, *, code: str) -> list[IndexIntradayP
         )
     points.sort(key=lambda point: point.time)
     return points
+
+
+def fetch_index_daily_history(
+    transport: Transport,
+    *,
+    code: str,
+    interval: Interval,
+    as_of: str | date | None,
+) -> IndexDailyHistory:
+    """지수 일·주·월 통계와 조회 시점 스냅샷을 조회한다."""
+    period = _INDEX_DAILY_INTERVAL.get(interval)
+    if period is None:
+        raise KISUsageError(
+            f'interval 은 "1d"/"1wk"/"1mo" 중 하나여야 한다: {interval!r}'
+        )
+    as_of_date = _today_kst() if as_of is None else _to_yyyymmdd(as_of, "as_of")
+    resp = transport.request(
+        method="GET",
+        path=_INDEX_DAILY_PATH,
+        tr_id=_INDEX_DAILY_TR,
+        params={
+            "FID_PERIOD_DIV_CODE": period,
+            "FID_COND_MRKT_DIV_CODE": _INDEX_MARKET_DIV,
+            "FID_INPUT_ISCD": code,
+            "FID_INPUT_DATE_1": as_of_date,
+        },
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    snapshot_row = resp.body.get("output1")
+    rows = resp.body.get("output2")
+    if not isinstance(snapshot_row, Mapping):
+        raise _missing_block_error("output1", resp)
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    points: list[IndexDailyPoint] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output2[]", resp)
+        date_text = str(row.get("stck_bsop_date", "")).strip()
+        value_text = str(row.get("bstp_nmix_prpr", "")).strip()
+        if not date_text or not value_text:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        points.append(
+            IndexDailyPoint(
+                date=_parse_kst_date(date_text),
+                value=required_decimal(value_text, "bstp_nmix_prpr"),
+                open=required_decimal(row.get("bstp_nmix_oprc"), "bstp_nmix_oprc"),
+                high=required_decimal(row.get("bstp_nmix_hgpr"), "bstp_nmix_hgpr"),
+                low=required_decimal(row.get("bstp_nmix_lwpr"), "bstp_nmix_lwpr"),
+                change=_apply_change_sign(
+                    required_decimal(
+                        row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"
+                    ),
+                    sign,
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(
+                        row.get("bstp_nmix_prdy_ctrt"), "bstp_nmix_prdy_ctrt"
+                    ),
+                    sign,
+                ),
+                volume_share=required_decimal(
+                    row.get("acml_vol_rlim"), "acml_vol_rlim"
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+                sentiment=required_decimal(row.get("invt_new_psdg"), "invt_new_psdg"),
+                disparity_20d=required_decimal(row.get("d20_dsrt"), "d20_dsrt"),
+                _raw=row,
+            )
+        )
+    points.sort(key=lambda point: point.date)
+    return IndexDailyHistory(
+        snapshot=_parse_index_quote(
+            snapshot_row,
+            code=code,
+            as_of=_parse_bar_timestamp(as_of_date),
+        ),
+        points=tuple(points),
+        _raw=resp.body,
+    )
 
 
 def _parse_index_intraday(
