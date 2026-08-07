@@ -6,14 +6,24 @@ from collections.abc import Mapping
 
 from .._wire import required_decimal, required_int
 from ..errors import KISUsageError
-from ..saved_screen import SavedScreen, SavedScreenStock
-from ..transport import Transport
+from ..saved_screen import (
+    SavedScreen,
+    SavedScreenStock,
+    Watchlist,
+    WatchlistGroup,
+    WatchlistStock,
+)
+from ..transport import RawResponse, Transport
 from .market_data import _apply_change_sign, _missing_block_error, _raise_if_error
 
 _SCREENS_PATH = "/uapi/domestic-stock/v1/quotations/psearch-title"
 _SCREENS_TR = "HHKST03900300"
 _RESULTS_PATH = "/uapi/domestic-stock/v1/quotations/psearch-result"
 _RESULTS_TR = "HHKST03900400"
+_WATCHLIST_GROUPS_PATH = "/uapi/domestic-stock/v1/quotations/intstock-grouplist"
+_WATCHLIST_GROUPS_TR = "HHKCM113004C7"
+_WATCHLIST_STOCKS_PATH = "/uapi/domestic-stock/v1/quotations/intstock-stocklist-by-group"
+_WATCHLIST_STOCKS_TR = "HHKCM113004C6"
 
 
 def _required(value: str, name: str) -> str:
@@ -80,3 +90,66 @@ def fetch_saved_screen_stocks(
             market_cap=required_decimal(row.get("stotprice"), "stotprice"), _raw=row,
         ))
     return stocks
+
+
+def _rows(value: object, block: str, resp: RawResponse) -> list[Mapping[str, object]]:
+    if isinstance(value, Mapping):
+        return [value]
+    if isinstance(value, list) and all(isinstance(row, Mapping) for row in value):
+        return value
+    raise _missing_block_error(block, resp)
+
+
+def fetch_watchlist_groups(
+    transport: Transport, *, user_id: str
+) -> list[WatchlistGroup]:
+    """HTS 관심종목 그룹 목록."""
+    user_id = _required(user_id, "user_id")
+    resp = transport.request(
+        method="GET", path=_WATCHLIST_GROUPS_PATH, tr_id=_WATCHLIST_GROUPS_TR,
+        params={"TYPE": "1", "FID_ETC_CLS_CODE": "00", "USER_ID": user_id},
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = _rows(resp.body.get("output2"), "output2", resp)
+    return [WatchlistGroup(
+        date=str(row.get("date", "")).strip(),
+        transmitted_at=str(row.get("trnm_hour", "")).strip(),
+        rank=str(row.get("data_rank", "")).strip(),
+        code=str(row.get("inter_grp_code", "")).strip(),
+        name=str(row.get("inter_grp_name", "")).strip(),
+        requested_count=required_int(row.get("ask_cnt"), "ask_cnt"), _raw=row,
+    ) for row in rows]
+
+
+def fetch_watchlist(
+    transport: Transport, *, user_id: str, group_code: str
+) -> Watchlist:
+    """HTS 관심종목 그룹 하나의 요약과 구성 종목(최대 30개)."""
+    user_id, group_code = _required(user_id, "user_id"), _required(group_code, "group_code")
+    resp = transport.request(
+        method="GET", path=_WATCHLIST_STOCKS_PATH, tr_id=_WATCHLIST_STOCKS_TR,
+        params={"TYPE": "1", "USER_ID": user_id, "INTER_GRP_CODE": group_code,
+                "FID_ETC_CLS_CODE": "4", "DATA_RANK": "", "INTER_GRP_NAME": "",
+                "HTS_KOR_ISNM": "", "CNTG_CLS_CODE": ""}, idempotent=True,
+    )
+    _raise_if_error(resp)
+    summary = resp.body.get("output1")
+    if not isinstance(summary, Mapping):
+        raise _missing_block_error("output1", resp)
+    rows = _rows(resp.body.get("output2"), "output2", resp)
+    return Watchlist(
+        rank=str(summary.get("data_rank", "")).strip(),
+        name=str(summary.get("inter_grp_name", "")).strip(),
+        stocks=tuple(WatchlistStock(
+            market_code=str(row.get("fid_mrkt_cls_code", "")).strip(),
+            rank=str(row.get("data_rank", "")).strip(),
+            exchange_code=str(row.get("exch_code", "")).strip(),
+            symbol=str(row.get("jong_code", "")).strip(),
+            color_code=str(row.get("color_code", "")).strip(), memo=str(row.get("memo", "")).strip(),
+            name=str(row.get("hts_kor_isnm", "")).strip(),
+            base_date_net_buy_quantity=required_int(row.get("fxdt_ntby_qty"), "fxdt_ntby_qty"),
+            execution_price=required_decimal(row.get("cntg_unpr"), "cntg_unpr"),
+            execution_class_code=str(row.get("cntg_cls_code", "")).strip(), _raw=row,
+        ) for row in rows),
+    )

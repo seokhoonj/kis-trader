@@ -57,3 +57,55 @@ class SavedScreenStock:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class WatchlistGroup:
+    """HTS 관심종목 그룹."""
+
+    date: str
+    transmitted_at: str
+    rank: str
+    code: str
+    name: str
+    requested_count: int
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class WatchlistStock:
+    """관심종목 그룹에 저장된 종목."""
+
+    market_code: str
+    rank: str
+    exchange_code: str
+    symbol: str
+    color_code: str
+    memo: str
+    name: str
+    base_date_net_buy_quantity: int
+    execution_price: Decimal
+    execution_class_code: str
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class Watchlist:
+    """관심종목 그룹 요약과 저장 종목 목록."""
+
+    rank: str
+    name: str
+    stocks: tuple[WatchlistStock, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "stocks", tuple(self.stocks))

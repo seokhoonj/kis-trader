@@ -163,7 +163,13 @@ from .ranking_items import (
 )
 from .report import ExecutionReport, OrderStatus
 from .risk import RiskLimits
-from .saved_screen import SavedScreen, SavedScreenStock
+from .saved_screen import (
+    SavedScreen,
+    SavedScreenStock,
+    Watchlist,
+    WatchlistGroup,
+    WatchlistStock,
+)
 from .stock_info import StockInfo, StockStatus
 from .store import OrderStore
 from .ticker import Ticker
@@ -321,4 +327,7 @@ __all__ = [
     "VIEvent",
     "VolumeAtPrice",
     "VolumeProfile",
+    "Watchlist",
+    "WatchlistGroup",
+    "WatchlistStock",
 ]

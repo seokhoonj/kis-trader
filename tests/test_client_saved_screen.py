@@ -4,7 +4,13 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KISClient, SavedScreen, SavedScreenStock
+from kis_openapi import (
+    KISClient,
+    SavedScreen,
+    SavedScreenStock,
+    Watchlist,
+    WatchlistGroup,
+)
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
@@ -67,3 +73,46 @@ def test_saved_screen_queries_fail_closed_on_missing_output():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
     with pytest.raises(KISError):
         _client(response).saved_screens("user")
+
+
+def test_watchlist_groups_and_stocks_map_and_route():
+    groups_response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output2": {
+        "date": "20240510", "trnm_hour": "091500", "data_rank": "1",
+        "inter_grp_code": "001", "inter_grp_name": "반도체", "ask_cnt": "1",
+    }})
+    stocks_response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={
+        "output1": {"data_rank": "1", "inter_grp_name": "반도체"},
+        "output2": [{"fid_mrkt_cls_code": "J", "data_rank": "1", "exch_code": "KRX",
+                     "jong_code": "005930", "color_code": "1", "memo": "핵심",
+                     "hts_kor_isnm": "삼성전자", "fxdt_ntby_qty": "100",
+                     "cntg_unpr": "71000", "cntg_cls_code": "2"}],
+    })
+    client = _client(groups_response, stocks_response)
+    groups = client.watchlist_groups("user")
+    watchlist = client.watchlist("user", groups[0].code)
+    assert isinstance(groups[0], WatchlistGroup)
+    assert groups[0].requested_count == 1
+    assert isinstance(watchlist, Watchlist)
+    assert watchlist.name == "반도체"
+    assert watchlist.stocks[0].symbol == "005930"
+    assert watchlist.stocks[0].execution_price == Decimal(71000)
+    assert client.transport.calls[0]["tr_id"] == "HHKCM113004C7"
+    assert client.transport.calls[0]["params"] == {
+        "TYPE": "1", "FID_ETC_CLS_CODE": "00", "USER_ID": "user"
+    }
+    assert client.transport.calls[1]["tr_id"] == "HHKCM113004C6"
+    assert client.transport.calls[1]["params"]["FID_ETC_CLS_CODE"] == "4"
+
+
+@pytest.mark.parametrize("method,args", [("watchlist_groups", ("",)),
+                                          ("watchlist", ("user", ""))])
+def test_watchlist_queries_reject_blank_identifiers(method, args):
+    with pytest.raises(KISUsageError):
+        getattr(_client(), method)(*args)
+
+
+@pytest.mark.parametrize("body", [{}, {"output1": {}, "output2": "bad"}])
+def test_watchlist_queries_fail_closed(body):
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
+    with pytest.raises(KISError):
+        _client(response).watchlist("user", "001")

@@ -66,7 +66,7 @@ from .quote import Quote
 from .ranking import RankingQueries
 from .report import ExecutionReport
 from .risk import RiskLimits
-from .saved_screen import SavedScreen, SavedScreenStock
+from .saved_screen import SavedScreen, SavedScreenStock, Watchlist, WatchlistGroup
 from .store import OrderStore
 from .ticker import Ticker
 from .transport import Transport
@@ -202,6 +202,16 @@ class KISClient:
         """저장 조건 하나에 일치하는 종목 시세(최대 100건)."""
         return saved_screen_api.fetch_saved_screen_stocks(
             self.transport, user_id=user_id, sequence=sequence
+        )
+
+    def watchlist_groups(self, user_id: str) -> list[WatchlistGroup]:
+        """HTS 관심종목 그룹 목록."""
+        return saved_screen_api.fetch_watchlist_groups(self.transport, user_id=user_id)
+
+    def watchlist(self, user_id: str, group_code: str) -> Watchlist:
+        """HTS 관심종목 그룹 하나의 요약과 구성 종목(최대 30개)."""
+        return saved_screen_api.fetch_watchlist(
+            self.transport, user_id=user_id, group_code=group_code
         )
 
     def overseas_industries(self, exchange: str) -> list[OverseasIndustry]:
