@@ -45,6 +45,7 @@ from .overseas_derivative import OverseasDerivative
 from .overseas_derivative_items import OverseasDerivativeMarketHours
 from .overseas_items import (
     OverseasBalance,
+    OverseasIndustry,
     OverseasOpenOrder,
     OverseasPosition,
     OverseasSettlementDate,
@@ -172,6 +173,15 @@ class KISClient:
         """해외 종목의 상품기본정보(거래소·통화·상장주식수·SEDOL·블룸버그티커 등). exchange=NAS/NYS/AMS/TSE/HKS/..."""
         return overseas_market_data_api.fetch_product_info(
             self.transport, exchange=exchange, symbol=symbol
+        )
+
+    def overseas_industries(self, exchange: str) -> list[OverseasIndustry]:
+        """해외 거래소의 업종(섹터) 코드 목록. ``exchange`` 는 거래소코드(NAS/NYS/...).
+
+        모의투자는 지원하지 않으며 실전 환경에서만 사용할 수 있다.
+        """
+        return overseas_market_data_api.fetch_industries(
+            self.transport, exchange=exchange, environment=self._environment
         )
 
     def index(self, code: str) -> Index:

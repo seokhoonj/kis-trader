@@ -32,10 +32,11 @@ from .._wire import optional_decimal, optional_int, required_decimal, required_i
 from ..bar import Bar, Interval
 from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook
+from ..overseas_items import OverseasIndustry
 from ..overseas_product import OverseasProductInfo
 from ..quote import Quote
 from ..trade import Trade
-from ..transport import Transport
+from ..transport import Environment, Transport
 
 _QUOTE_PATH = "/uapi/overseas-price/v1/quotations/price-detail"
 _QUOTE_TR = "HHDFS76200200"
@@ -434,3 +435,43 @@ def _parse_quote(
         as_of=as_of,
         _raw=output,
     )
+
+
+def fetch_industries(
+    transport: Transport, *, exchange: str, environment: Environment
+) -> list[OverseasIndustry]:
+    """해외 거래소의 업종(섹터) 코드 목록을 조회한다.
+
+    ``exchange`` 는 해외 거래소코드(NAS/NYS/AMS/HKS/...)다.
+
+    KIS ``GET /uapi/overseas-price/v1/quotations/industry-price``
+    (``HHDFS76370100``)를 사용하며 모의투자는 지원하지 않는다.
+
+    이 조회는 연속조회 없이 한 번만 호출한다.
+
+    성공 응답의 ``output2`` 객체 배열이 없거나 항목이 객체가 아니면 부분 결과 대신 실패한다.
+    """
+    if environment == "demo":
+        raise KISUsageError("해외 업종 코드 목록 조회는 모의투자 미지원이다(실전만).")
+
+    resp = transport.request(
+        method="GET",
+        path="/uapi/overseas-price/v1/quotations/industry-price",
+        tr_id="HHDFS76370100",
+        params={"AUTH": "", "EXCD": exchange},
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    page = resp.body.get("output2")
+    if not isinstance(page, list):
+        raise _missing_block_error("output2", resp)
+    if not all(isinstance(row, Mapping) for row in page):
+        raise KISError("해외 업종 코드 응답의 output2 항목이 객체가 아니다.", raw=resp.body)
+    return [
+        OverseasIndustry(
+            code=str(row.get("icod", "")).strip(),
+            name=str(row.get("name", "")).strip(),
+            _raw=row,
+        )
+        for row in page
+    ]

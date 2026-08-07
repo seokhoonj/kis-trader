@@ -107,3 +107,17 @@ class OverseasSettlementDate:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasIndustry:
+    """해외 거래소의 업종(섹터) 코드 한 건(불변)."""
+
+    code: str
+    name: str
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
