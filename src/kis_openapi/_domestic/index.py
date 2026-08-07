@@ -54,6 +54,8 @@ _INDEX_MINUTE_BARS_TR = "FHKUP03500200"
 
 _INDEX_INTRADAY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-timeprice"
 _INDEX_INTRADAY_TR = "FHPUP02110200"
+_INDEX_TICKS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-tickprice"
+_INDEX_TICKS_TR = "FHPUP02110100"
 #: 지수 시간대별 샘플 간격 -> FID_INPUT_HOUR_1(초). 원장: 60=1분, 300=5분, 600=10분.
 _INDEX_INTRADAY_INTERVAL = {"1m": "60", "5m": "300", "10m": "600"}
 
@@ -231,6 +233,51 @@ def fetch_index_intraday(
     if not isinstance(rows, list):             # 성공 응답인데 배열 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return _parse_index_intraday(rows, today=_today_kst())
+
+
+def fetch_index_ticks(transport: Transport, *, code: str) -> list[IndexIntradayPoint]:
+    """지수 당일 10초 시계열을 과거->현재 오름차순으로 조회한다."""
+    resp = transport.request(
+        method="GET",
+        path=_INDEX_TICKS_PATH,
+        tr_id=_INDEX_TICKS_TR,
+        params={
+            "FID_INPUT_ISCD": code,
+            "FID_COND_MRKT_DIV_CODE": _INDEX_MARKET_DIV,
+        },
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    points: list[IndexIntradayPoint] = []
+    today = _today_kst()
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output[]", resp)
+        time_text = str(row.get("stck_cntg_hour", "")).strip()
+        value_text = str(row.get("bstp_nmix_prpr", "")).strip()
+        if not time_text or not value_text:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        points.append(
+            IndexIntradayPoint(
+                time=_parse_minute_bar_timestamp(today, time_text),
+                value=required_decimal(value_text, "bstp_nmix_prpr"),
+                change=_apply_change_sign(
+                    required_decimal(
+                        row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"
+                    ),
+                    sign,
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                interval_volume=required_int(row.get("cntg_vol"), "cntg_vol"),
+                _raw=row,
+            )
+        )
+    points.sort(key=lambda point: point.time)
+    return points
 
 
 def _parse_index_intraday(

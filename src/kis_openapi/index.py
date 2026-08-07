@@ -59,6 +59,10 @@ class Index:
             self._client.transport, code=self.code, interval=interval
         )
 
+    def ticks(self) -> list[IndexIntradayPoint]:
+        """지수 당일 10초 시계열(과거->현재)."""
+        return index_api.fetch_index_ticks(self._client.transport, code=self.code)
+
     def categories(self) -> list[CategoryIndex]:
         """이 시장의 하위 업종 지수 목록. 시장 지수(``0001`` KOSPI / ``1001`` KOSDAQ / ``2001``
         KOSPI200) 핸들에서만 쓴다 -- 각 업종의 지수 레벨·전일대비와 시장 내 거래량/거래대금 비중."""

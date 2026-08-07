@@ -265,6 +265,48 @@ def test_index_intraday_missing_output_fails_closed():
         _client(fake).index("0001").intraday()
 
 
+def test_index_ticks_maps_fields_sorted_ascending():
+    rows = [
+        {
+            "stck_cntg_hour": "100520",
+            "bstp_nmix_prpr": "916.59",
+            "bstp_nmix_prdy_vrss": "11.09",
+            "prdy_vrss_sign": "2",
+            "acml_vol": "311514",
+            "cntg_vol": "378",
+        },
+        {
+            "stck_cntg_hour": "100510",
+            "bstp_nmix_prpr": "916.56",
+            "bstp_nmix_prdy_vrss": "11.06",
+            "prdy_vrss_sign": "2",
+            "acml_vol": "311136",
+            "cntg_vol": "389",
+        },
+    ]
+    fake = FakeTransport(response=_intraday_resp(rows))
+    points = _client(fake).index("1001").ticks()
+
+    assert [f"{point.time:%H%M%S}" for point in points] == ["100510", "100520"]
+    assert points[-1].value == Decimal("916.59")
+    assert points[-1].change == Decimal("11.09")
+    assert points[-1].volume == 311514
+    assert points[-1].interval_volume == 378
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/quotations/inquire-index-tickprice"
+    assert call["tr_id"] == "FHPUP02110100"
+    assert call["params"] == {
+        "FID_INPUT_ISCD": "1001",
+        "FID_COND_MRKT_DIV_CODE": "U",
+    }
+
+
+def test_index_ticks_rejects_malformed_output():
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": {}})
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=response)).index("0001").ticks()
+
+
 _INDEX_CATEGORY = "/uapi/domestic-stock/v1/quotations/inquire-index-category-price"
 
 
