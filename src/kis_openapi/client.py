@@ -58,6 +58,7 @@ from .overseas_items import (
     OverseasOpenOrder,
     OverseasPosition,
     OverseasSettlementDate,
+    OverseasStockSearch,
 )
 from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
@@ -180,6 +181,14 @@ class KISClient:
         (거래소코드 NAS/NYS/AMS/HKS/TSE/... 혼합 가능). 국내는 :meth:`quotes`."""
         return overseas_market_data_api.fetch_multi_quotes(
             self.transport, requests=[tuple(item) for item in symbols]
+        )
+
+    def search_overseas_stocks(
+        self, exchange: str, **filters: tuple[object, object] | None
+    ) -> OverseasStockSearch:
+        """해외 종목을 가격·등락률·규모·거래·밸류에이션 범위로 검색한다."""
+        return overseas_market_data_api.search_stocks(
+            self.transport, exchange=exchange, **filters
         )
 
     def overseas_product_info(self, exchange: str, symbol: str) -> OverseasProductInfo:

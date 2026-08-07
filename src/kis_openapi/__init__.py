@@ -146,6 +146,8 @@ from .overseas_items import (
     OverseasOpenOrder,
     OverseasPosition,
     OverseasSettlementDate,
+    OverseasStockSearch,
+    OverseasStockSearchItem,
 )
 from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
@@ -298,6 +300,8 @@ __all__ = [
     "OverseasProductInfo",
     "OverseasRankingQueries",
     "OverseasSettlementDate",
+    "OverseasStockSearch",
+    "OverseasStockSearchItem",
     "OvertimeRanking",
     "ParValueChange",
     "Portfolio",

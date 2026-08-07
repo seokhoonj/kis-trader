@@ -32,7 +32,12 @@ from .._wire import optional_decimal, optional_int, required_decimal, required_i
 from ..bar import Bar, Interval
 from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook
-from ..overseas_items import OverseasIndustry, OverseasIndustryStock
+from ..overseas_items import (
+    OverseasIndustry,
+    OverseasIndustryStock,
+    OverseasStockSearch,
+    OverseasStockSearchItem,
+)
 from ..overseas_product import OverseasProductInfo
 from ..quote import Quote
 from ..trade import Trade
@@ -62,6 +67,83 @@ _BARS_TR = "HHDFS76240000"
 _MULTI_QUOTE_PATH = "/uapi/overseas-price/v1/quotations/multprice"
 _MULTI_QUOTE_TR = "HHDFS76220000"
 _MAX_MULTI_QUOTE = 10           # 원장: 슬롯 10개(EXCD_01 ~ _10, NREC 최대 10)
+_SEARCH_PATH = "/uapi/overseas-price/v1/quotations/inquire-search"
+_SEARCH_TR = "HHDFS76410000"
+
+
+def _range_params(name: str, value: tuple[object, object] | None) -> dict[str, str]:
+    if value is None:
+        return {f"CO_YN_{name}": "", f"CO_ST_{name}": "", f"CO_EN_{name}": ""}
+    if len(value) != 2:
+        raise KISUsageError(f"{name.lower()} 범위는 (시작, 끝) 두 값이어야 한다.")
+    start, end = (str(item) for item in value)
+    return {f"CO_YN_{name}": "1", f"CO_ST_{name}": start, f"CO_EN_{name}": end}
+
+
+def search_stocks(
+    transport: Transport, *, exchange: str,
+    price: tuple[object, object] | None = None,
+    change_percent: tuple[object, object] | None = None,
+    market_cap: tuple[object, object] | None = None,
+    shares: tuple[object, object] | None = None,
+    volume: tuple[object, object] | None = None,
+    amount: tuple[object, object] | None = None,
+    eps: tuple[object, object] | None = None,
+    per: tuple[object, object] | None = None,
+) -> OverseasStockSearch:
+    """해외 거래소 종목을 가격·등락률·규모·거래·밸류에이션 범위로 검색한다."""
+    if not exchange.strip():
+        raise KISUsageError("exchange 가 필요하다.")
+    params = {"AUTH": "", "EXCD": exchange.strip(), "KEYB": ""}
+    for name, value in (("PRICECUR", price), ("RATE", change_percent), ("VALX", market_cap),
+                        ("SHAR", shares), ("VOLUME", volume), ("AMT", amount),
+                        ("EPS", eps), ("PER", per)):
+        params.update(_range_params(name, value))
+    items: list[OverseasStockSearchItem] = []
+    summary: Mapping[str, Any] | None = None
+    tr_cont = ""
+    while True:
+        resp = transport.request(
+            method="GET", path=_SEARCH_PATH, tr_id=_SEARCH_TR, params=params,
+            idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        output1, rows = resp.body.get("output1"), resp.body.get("output2")
+        if not isinstance(output1, Mapping):
+            raise _missing_block_error("output1", resp)
+        if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+            raise _missing_block_error("output2", resp)
+        if summary is None:
+            summary = output1
+        for row in rows:
+            sign = str(row.get("sign", "")).strip()
+            items.append(OverseasStockSearchItem(
+                realtime_symbol=str(row.get("rsym", "")).strip(),
+                exchange=str(row.get("excd", "")).strip(), symbol=str(row.get("symb", "")).strip(),
+                name=str(row.get("name", "")).strip(), english_name=str(row.get("ename", "")).strip(),
+                price=required_decimal(row.get("last"), "last"),
+                change=_apply_change_sign(required_decimal(row.get("diff"), "diff"), sign),
+                change_percent=_apply_change_sign(required_decimal(row.get("rate"), "rate"), sign),
+                open=required_decimal(row.get("popen"), "popen"),
+                high=required_decimal(row.get("phigh"), "phigh"),
+                low=required_decimal(row.get("plow"), "plow"),
+                volume=required_int(row.get("tvol"), "tvol"),
+                amount=required_decimal(row.get("avol"), "avol"),
+                shares=required_decimal(row.get("shar"), "shar"),
+                market_cap=required_decimal(row.get("valx"), "valx"),
+                eps=optional_decimal(row.get("eps"), "eps"), per=optional_decimal(row.get("per"), "per"),
+                rank=required_int(row.get("rank"), "rank"),
+                is_tradable=str(row.get("e_ordyn", "")).strip() == "O", _raw=row,
+            ))
+        if resp.tr_cont not in {"F", "M"}:
+            break
+        tr_cont = "N"
+    assert summary is not None
+    return OverseasStockSearch(
+        exchange=exchange.strip(), decimal_places=required_int(summary.get("zdiv"), "zdiv"),
+        status=str(summary.get("stat", "")).strip(),
+        total_count=required_int(summary.get("trec"), "trec"), items=tuple(items),
+    )
 
 
 def fetch_multi_quotes(
