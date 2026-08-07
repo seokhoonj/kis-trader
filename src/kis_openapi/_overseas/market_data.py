@@ -33,6 +33,7 @@ from ..bar import Bar, Interval
 from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook
 from ..overseas_items import (
+    OverseasCurrentPrice,
     OverseasIndustry,
     OverseasIndustryStock,
     OverseasStockSearch,
@@ -45,6 +46,8 @@ from ..transport import Environment, Transport
 
 _QUOTE_PATH = "/uapi/overseas-price/v1/quotations/price-detail"
 _QUOTE_TR = "HHDFS76200200"
+_CURRENT_PRICE_PATH = "/uapi/overseas-price/v1/quotations/price"
+_CURRENT_PRICE_TR = "HHDFS00000300"
 _PERCENT = Decimal("0.01")
 
 _PRODUCT_INFO_PATH = "/uapi/overseas-price/v1/quotations/search-info"
@@ -253,6 +256,38 @@ def fetch_quote(transport: Transport, *, symbol: str, exchange: str) -> Quote:
     if not isinstance(output, Mapping):        # 성공 응답인데 객체 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return _parse_quote(output, symbol=symbol, exchange=exchange, as_of=datetime.now(_KST))
+
+
+def fetch_current_price(
+    transport: Transport, *, symbol: str, exchange: str
+) -> OverseasCurrentPrice:
+    """해외주식의 간결한 현재체결가와 누적 거래량·거래대금을 조회한다."""
+    resp = transport.request(
+        method="GET",
+        path=_CURRENT_PRICE_PATH,
+        tr_id=_CURRENT_PRICE_TR,
+        params={"AUTH": "", "EXCD": exchange, "SYMB": symbol},
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise _missing_block_error("output", resp)
+    sign = str(output.get("sign", "")).strip()
+    return OverseasCurrentPrice(
+        symbol=symbol,
+        exchange=exchange,
+        last=required_decimal(output.get("last"), "last"),
+        previous_close=required_decimal(output.get("base"), "base"),
+        change=_apply_change_sign(required_decimal(output.get("diff"), "diff"), sign),
+        change_percent=_apply_change_sign(required_decimal(output.get("rate"), "rate"), sign),
+        previous_volume=required_int(output.get("pvol"), "pvol"),
+        volume=required_int(output.get("tvol"), "tvol"),
+        traded_amount=required_decimal(output.get("tamt"), "tamt"),
+        decimal_places=required_int(output.get("zdiv"), "zdiv"),
+        buyable_status=str(output.get("ordy", "")).strip(),
+        _raw=output,
+    )
 
 
 def fetch_bars(

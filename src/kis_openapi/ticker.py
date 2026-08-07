@@ -58,6 +58,7 @@ from .investor import DetailedInvestorHistory, InvestorEstimate, InvestorFlow
 from .order import Order, Side, TimeInForce
 from .order_book import OrderBook
 from .orderable import BuyableAmount, SellableQuantity
+from .overseas_items import OverseasCurrentPrice
 from .program import DailyProgramTradePoint, ProgramTradePoint
 from .quote import Quote
 from .report import ExecutionReport
@@ -122,6 +123,14 @@ class Ticker:
                 self._client.transport, symbol=self.symbol, exchange=self.exchange
             )
         return market_data.fetch_quote(self._client.transport, symbol=self.symbol, market=self.market)
+
+    def current_price(self) -> OverseasCurrentPrice:
+        """해외주식 현재체결가와 누적 거래량·거래대금. 해외 티커 전용."""
+        if self.exchange is None:
+            raise KISUsageError("current_price()는 해외 티커 전용이다.")
+        return overseas_market_data.fetch_current_price(
+            self._client.transport, symbol=self.symbol, exchange=self.exchange
+        )
 
     def status(self) -> StockStatus:
         """현재가와 거래·규제·경고 상태. 국내 전용."""

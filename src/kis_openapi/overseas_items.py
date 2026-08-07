@@ -19,6 +19,29 @@ from .money import Money
 
 
 @dataclass(frozen=True, slots=True)
+class OverseasCurrentPrice:
+    """해외주식 현재체결가의 간결한 가격·누적거래 스냅샷."""
+
+    symbol: str
+    exchange: str
+    last: Decimal
+    previous_close: Decimal
+    change: Decimal
+    change_percent: Decimal
+    previous_volume: int
+    volume: int
+    traded_amount: Decimal
+    decimal_places: int
+    buyable_status: str
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class OverseasPosition:
     """해외 보유 종목 한 건(불변). 금액은 종목 통화의 :class:`Money`.
 

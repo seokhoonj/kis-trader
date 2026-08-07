@@ -87,6 +87,43 @@ def test_overseas_quote_bad_value_fails_closed():
         _client(fake).ticker("AAPL", exchange="NAS").quote()
 
 
+def test_overseas_current_price_maps_compact_endpoint():
+    output = {
+        "rsym": "DNAAPL", "zdiv": "4", "base": "148.00", "pvol": "41000000",
+        "last": "150.25", "sign": "2", "diff": "2.25", "rate": "1.52",
+        "tvol": "52000000", "tamt": "7813000000.50", "ordy": "Y",
+    }
+    fake = FakeTransport(response=_resp(output))
+
+    from kis_openapi import OverseasCurrentPrice
+    price = _client(fake).ticker("AAPL", exchange="NAS").current_price()
+
+    assert isinstance(price, OverseasCurrentPrice)
+    assert price.symbol == "AAPL"
+    assert price.exchange == "NAS"
+    assert price.last == Decimal("150.25")
+    assert price.previous_close == Decimal("148.00")
+    assert price.change == Decimal("2.25")
+    assert price.change_percent == Decimal("1.52")
+    assert price.previous_volume == 41000000
+    assert price.volume == 52000000
+    assert price.traded_amount == Decimal("7813000000.50")
+    assert price.decimal_places == 4
+    assert price.buyable_status == "Y"
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/overseas-price/v1/quotations/price"
+    assert call["tr_id"] == "HHDFS00000300"
+    assert call["params"] == {"AUTH": "", "EXCD": "NAS", "SYMB": "AAPL"}
+
+
+def test_current_price_is_overseas_only_and_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISUsageError):
+        _client(fake).ticker("005930").current_price()
+    with pytest.raises(KISError):
+        _client(fake).ticker("AAPL", exchange="NAS").current_price()
+
+
 def test_overseas_ticker_is_overseas_flag():
     fake = FakeTransport(response=_resp(_output()))
     assert _client(fake).ticker("AAPL", exchange="NAS").is_overseas is True
