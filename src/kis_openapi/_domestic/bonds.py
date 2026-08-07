@@ -15,12 +15,13 @@ KIS URL/TR-id (원장 대조):
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import datetime
+from datetime import date, datetime
+from decimal import Decimal
 from typing import Any
 
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
 from ..bar import Bar, Interval
-from ..bond_items import BondInfo, BondQuote
+from ..bond_items import BondInfo, BondQuote, BondValuation
 from ..errors import KISUsageError
 from ..order_book import OrderBook
 from ..trade import Trade
@@ -31,8 +32,10 @@ from .market_data import (
     _missing_block_error,
     _parse_bar_timestamp,
     _parse_intraday_timestamp,
+    _parse_kst_date,
     _price_levels,
     _raise_if_error,
+    _to_yyyymmdd,
 )
 
 _QUOTE_PATH = "/uapi/domestic-bond/v1/quotations/inquire-price"
@@ -43,6 +46,8 @@ _TRADES_PATH = "/uapi/domestic-bond/v1/quotations/inquire-ccnl"
 _TRADES_TR = "FHKBJ773403C0"
 _BARS_PATH = "/uapi/domestic-bond/v1/quotations/inquire-daily-itemchartprice"
 _BARS_TR = "FHKBJ773701C0"
+_VALUATIONS_PATH = "/uapi/domestic-bond/v1/quotations/avg-unit"
+_VALUATIONS_TR = "CTPF2005R"
 #: 채권 조회의 시장구분 코드(원장: 채권 B).
 _MARKET_DIV = "B"
 
@@ -190,6 +195,90 @@ def fetch_bars(transport: Transport, *, code: str, interval: Interval = "1d") ->
         )
     bars.sort(key=lambda bar: bar.timestamp)
     return bars
+
+
+def fetch_valuations(
+    transport: Transport, *, code: str, start: str | date, end: str | date
+) -> list[BondValuation]:
+    """평가기관별 채권 단가·수익률의 일별 시계열(과거->현재)."""
+    start_date = _to_yyyymmdd(start, "start")
+    end_date = _to_yyyymmdd(end, "end")
+    if start_date > end_date:
+        raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
+    params = {
+        "INQR_STRT_DT": start_date,
+        "INQR_END_DT": end_date,
+        "PDNO": code,
+        "PRDT_TYPE_CD": "302",
+        "VRFC_KIND_CD": "00",
+        "CTX_AREA_NK30": "",
+        "CTX_AREA_FK100": "",
+    }
+    resp = transport.request(
+        method="GET", path=_VALUATIONS_PATH, tr_id=_VALUATIONS_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output1")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output1", resp)
+    valuations: list[BondValuation] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output1[]", resp)
+        date_text = str(row.get("evlu_dt", "")).strip()
+        average_price_text = str(row.get("avg_evlu_unpr", "")).strip()
+        if not date_text or not average_price_text:
+            continue
+        valuations.append(_parse_valuation(row, fallback_code=code, date_text=date_text))
+    valuations.sort(key=lambda valuation: valuation.date)
+    return valuations
+
+
+def _parse_valuation(
+    row: Mapping[str, Any], *, fallback_code: str, date_text: str
+) -> BondValuation:
+    agency_fields = {
+        "KIS": ("kis_unpr", "kis_erng_rt", "kis_crdt_grad_text", "kis_rf_unpr"),
+        "KBP": ("kbp_unpr", "kbp_erng_rt", "kbp_crdt_grad_text", "kbp_rf_unpr"),
+        "NICE": (
+            "nice_evlu_unpr", "nice_evlu_erng_rt", "nice_crdt_grad_text",
+            "nice_evlu_rf_unpr",
+        ),
+        "FNP": ("fnp_unpr", "fnp_erng_rt", "fnp_crdt_grad_text", ""),
+    }
+    agency_prices: dict[str, Decimal] = {}
+    agency_yields: dict[str, Decimal] = {}
+    credit_ratings: dict[str, str] = {}
+    risk_free_prices: dict[str, Decimal] = {}
+    for agency, (price_field, yield_field, rating_field, risk_free_field) in agency_fields.items():
+        price = optional_decimal(row.get(price_field), price_field)
+        yield_rate = optional_decimal(row.get(yield_field), yield_field)
+        rating = str(row.get(rating_field, "")).strip()
+        risk_free_price = (
+            optional_decimal(row.get(risk_free_field), risk_free_field) if risk_free_field else None
+        )
+        if price is not None:
+            agency_prices[agency] = price
+        if yield_rate is not None:
+            agency_yields[agency] = yield_rate
+        if rating:
+            credit_ratings[agency] = rating
+        if risk_free_price is not None:
+            risk_free_prices[agency] = risk_free_price
+    return BondValuation(
+        date=_parse_kst_date(date_text),
+        code=str(row.get("pdno", "")).strip() or fallback_code,
+        name=str(row.get("prdt_name", "")).strip(),
+        average_price=required_decimal(row.get("avg_evlu_unpr"), "avg_evlu_unpr"),
+        average_yield=required_decimal(row.get("avg_evlu_erng_rt"), "avg_evlu_erng_rt"),
+        agency_prices=agency_prices,
+        agency_yields=agency_yields,
+        credit_ratings=credit_ratings,
+        risk_free_prices=risk_free_prices,
+        changed=str(row.get("chng_yn", "")).strip() == "Y",
+        _raw=row,
+    )
 
 
 _INFO_PATH = "/uapi/domestic-bond/v1/quotations/search-bond-info"

@@ -1,4 +1,4 @@
-"""장내채권 시세 DATA -- :class:`BondQuote`.
+"""장내채권 시세 DATA -- :class:`BondQuote`, :class:`BondValuation`.
 
 :meth:`~kis_openapi.bond.Bond.quote` 가 돌려주는 한 채권의 현재가 스냅샷이다. 종목의
 :class:`~kis_openapi.quote.Quote` 와 달리 채권 고유의 **수익률**(``yield_rate``)을 함께 담는다.
@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -70,4 +70,35 @@ class BondInfo:
     )
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class BondValuation:
+    """한 날짜의 채권 평가기관 단가·수익률과 평균(불변).
+
+    ``average_price`` / ``average_yield`` 는 평가기관 평균이고, 기관별 값은
+    ``agency_prices`` / ``agency_yields`` / ``credit_ratings`` 에 기관 코드(KIS, KBP, NICE,
+    FNP)로 담는다. ``risk_free_prices`` 는 응답에 값이 있는 기관만 포함한다.
+    """
+
+    date: date
+    code: str
+    name: str
+    average_price: Decimal
+    average_yield: Decimal
+    agency_prices: Mapping[str, Decimal]
+    agency_yields: Mapping[str, Decimal]
+    credit_ratings: Mapping[str, str]
+    risk_free_prices: Mapping[str, Decimal]
+    changed: bool
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "agency_prices", MappingProxyType(dict(self.agency_prices)))
+        object.__setattr__(self, "agency_yields", MappingProxyType(dict(self.agency_yields)))
+        object.__setattr__(self, "credit_ratings", MappingProxyType(dict(self.credit_ratings)))
+        object.__setattr__(self, "risk_free_prices", MappingProxyType(dict(self.risk_free_prices)))
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, BondQuote, KISClient, OrderBook, Trade
+from kis_openapi import Bar, BondQuote, BondValuation, KISClient, OrderBook, Trade
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
@@ -19,6 +19,7 @@ _PRICE = "/uapi/domestic-bond/v1/quotations/inquire-price"
 _ASKING = "/uapi/domestic-bond/v1/quotations/inquire-asking-price"
 _CCNL = "/uapi/domestic-bond/v1/quotations/inquire-ccnl"
 _BARS = "/uapi/domestic-bond/v1/quotations/inquire-daily-itemchartprice"
+_VALUATIONS = "/uapi/domestic-bond/v1/quotations/avg-unit"
 
 
 def _output(*, prpr="10250.0", oprc="10240.0", hgpr="10260.0", lwpr="10235.0",
@@ -233,3 +234,74 @@ def test_bond_bars_non_mapping_row_fails_closed():
     fake = FakeTransport(response=_resp(["bad-row"]))
     with pytest.raises(KISError):
         _client(fake).bond("KR101501D967").bars()
+
+
+# --- valuations ------------------------------------------------------------
+def _valuation_rows():
+    base = {
+        "pdno": "KR2033022D33", "prdt_name": "충북지역개발채권23-03",
+        "kis_unpr": "9793.13", "kbp_unpr": "9799.81", "nice_evlu_unpr": "9809.20",
+        "fnp_unpr": "9804.69", "avg_evlu_unpr": "9801.70",
+        "kis_erng_rt": "3.703", "kbp_erng_rt": "3.685",
+        "nice_evlu_erng_rt": "3.660", "fnp_erng_rt": "3.672",
+        "avg_evlu_erng_rt": "3.680", "kis_crdt_grad_text": "AA+",
+        "kbp_crdt_grad_text": "AA+", "nice_crdt_grad_text": "AA+",
+        "fnp_crdt_grad_text": "AA+", "kis_rf_unpr": "0.00", "kbp_rf_unpr": "0.00",
+        "nice_evlu_rf_unpr": "0.00", "chng_yn": "N",
+    }
+    return [
+        {**base, "evlu_dt": "20240410"},
+        {**base, "evlu_dt": "20240409", "avg_evlu_unpr": "9800.75", "chng_yn": "Y"},
+        {"evlu_dt": "", "avg_evlu_unpr": ""},
+    ]
+
+
+def test_bond_valuations_maps_rows_and_sorts_oldest_first():
+    response = RawResponse(
+        rt_cd="0", msg_cd="KIOK0500", msg1="정상", body={"output1": _valuation_rows()}
+    )
+    fake = FakeTransport(response=response)
+    valuations = _client(fake).bond("KR2033022D33").valuations(
+        start="2024-04-01", end="20240410"
+    )
+    assert all(isinstance(valuation, BondValuation) for valuation in valuations)
+    assert [valuation.date.isoformat() for valuation in valuations] == [
+        "2024-04-09", "2024-04-10",
+    ]
+    first = valuations[0]
+    assert first.code == "KR2033022D33"
+    assert first.average_price == Decimal("9800.75")
+    assert first.average_yield == Decimal("3.680")
+    assert first.agency_prices["NICE"] == Decimal("9809.20")
+    assert first.agency_yields["FNP"] == Decimal("3.672")
+    assert first.credit_ratings["KIS"] == "AA+"
+    assert first.risk_free_prices["KBP"] == Decimal("0.00")
+    assert first.changed is True
+    call = fake.calls[0]
+    assert call["path"] == _VALUATIONS
+    assert call["tr_id"] == "CTPF2005R"
+    assert call["params"] == {
+        "INQR_STRT_DT": "20240401", "INQR_END_DT": "20240410",
+        "PDNO": "KR2033022D33", "PRDT_TYPE_CD": "302", "VRFC_KIND_CD": "00",
+        "CTX_AREA_NK30": "", "CTX_AREA_FK100": "",
+    }
+
+
+def test_bond_valuations_rejects_reversed_dates_before_transport():
+    fake = FakeTransport(response=_resp([]))
+    with pytest.raises(KISUsageError):
+        _client(fake).bond("KR2033022D33").valuations(start="20240411", end="20240410")
+    assert fake.calls == []
+
+
+def test_bond_valuations_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).bond("KR2033022D33").valuations(start="20240401", end="20240410")
+
+
+def test_bond_valuations_non_mapping_row_fails_closed():
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": ["bad-row"]})
+    fake = FakeTransport(response=response)
+    with pytest.raises(KISError):
+        _client(fake).bond("KR2033022D33").valuations(start="20240401", end="20240410")

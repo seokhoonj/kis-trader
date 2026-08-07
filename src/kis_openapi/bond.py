@@ -8,11 +8,12 @@
 
 from __future__ import annotations
 
+from datetime import date
 from typing import TYPE_CHECKING
 
 from ._domestic import bonds as bonds_api
 from .bar import Bar, Interval
-from .bond_items import BondInfo, BondQuote
+from .bond_items import BondInfo, BondQuote, BondValuation
 
 if TYPE_CHECKING:
     from .client import KISClient
@@ -43,6 +44,12 @@ class Bond:
     def bars(self, interval: Interval = "1d") -> list[Bar]:
         """채권 일별 OHLCV를 과거->현재 오름차순으로. ``interval="1d"`` 만 지원한다."""
         return bonds_api.fetch_bars(self._client.transport, code=self.code, interval=interval)
+
+    def valuations(self, *, start: str | date, end: str | date) -> list[BondValuation]:
+        """평가기관별 채권 단가·수익률의 일별 시계열을 과거->현재 순으로."""
+        return bonds_api.fetch_valuations(
+            self._client.transport, code=self.code, start=start, end=end
+        )
 
     def order_book(self) -> OrderBook:
         """채권 호가창(5단계 매수/매도 심도)."""
