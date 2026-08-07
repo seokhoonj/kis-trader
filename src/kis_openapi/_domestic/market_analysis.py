@@ -17,6 +17,7 @@ from typing import Literal
 from .._wire import optional_decimal, required_decimal, required_int
 from ..errors import KISUsageError
 from ..market_items import (
+    BrokerOpinion,
     CreditEligibleStock,
     ForeignBrokerFlow,
     InterestRateQuote,
@@ -55,6 +56,8 @@ _LENDABLE_MARKET = {"all": "00", "KOSPI": "02", "KOSDAQ": "03"}
 _CREDIT_ELIGIBLE_PATH = "/uapi/domestic-stock/v1/quotations/credit-by-company"
 _CREDIT_ELIGIBLE_TR = "FHPST04770000"
 _CREDIT_MARKET = {"all": "0000", "KOSPI": "0001", "KOSDAQ": "1001", "KOSPI200": "2001"}
+_BROKER_OPINIONS_PATH = "/uapi/domestic-stock/v1/quotations/invest-opbysec"
+_BROKER_OPINIONS_TR = "FHKST663400C0"
 
 
 def _default_start(end_yyyymmdd: str, days: int = 30) -> str:
@@ -151,6 +154,71 @@ def fetch_credit_eligible_stocks(
         )
         for row in rows
     ]
+
+
+def fetch_broker_opinions(
+    transport: Transport,
+    *,
+    broker: str,
+    opinion: str = "all",
+    start: str | date | None = None,
+    end: str | date | None = None,
+) -> list[BrokerOpinion]:
+    """한 증권사가 낸 여러 종목 투자의견(한 호출 최대 20건)."""
+    if not broker.strip():
+        raise KISUsageError("broker 회원사코드가 필요하다.")
+    opinion_code = {"all": "0", "buy": "1", "neutral": "2", "sell": "3"}.get(opinion)
+    if opinion_code is None:
+        raise KISUsageError(f"opinion 은 all/buy/neutral/sell 중 하나: {opinion!r}")
+    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
+    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
+    if start_date > end_date:
+        raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_COND_SCR_DIV_CODE": "16634",
+        "FID_INPUT_ISCD": broker.strip(),
+        "FID_DIV_CLS_CODE": opinion_code,
+        "FID_INPUT_DATE_1": start_date,
+        "FID_INPUT_DATE_2": end_date,
+    }
+    resp = transport.request(
+        method="GET", path=_BROKER_OPINIONS_PATH, tr_id=_BROKER_OPINIONS_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    opinions: list[BrokerOpinion] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output[]", resp)
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        opinions.append(
+            BrokerOpinion(
+                date=_parse_kst_date(str(row.get("stck_bsop_date", "")).strip()),
+                symbol=str(row.get("stck_shrn_iscd", "")).strip(),
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                broker=str(row.get("mbcr_name", "")).strip(),
+                opinion=str(row.get("invt_opnn", "")).strip(),
+                opinion_code=str(row.get("invt_opnn_cls_code", "")).strip(),
+                previous_opinion=str(row.get("rgbf_invt_opnn", "")).strip(),
+                previous_opinion_code=str(row.get("rgbf_invt_opnn_cls_code", "")).strip(),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                target_price=optional_decimal(row.get("hts_goal_prc"), "hts_goal_prc"),
+                previous_close=required_decimal(row.get("stck_prdy_clpr"), "stck_prdy_clpr"),
+                disparity_percent=optional_decimal(row.get("dprt"), "dprt"),
+                _raw=row,
+            )
+        )
+    return opinions
 
 
 def fetch_market_investor_flows(

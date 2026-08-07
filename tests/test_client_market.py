@@ -8,6 +8,7 @@ from decimal import Decimal
 import pytest
 
 from kis_openapi import (
+    BrokerOpinion,
     CreditEligibleStock,
     InterestRateQuote,
     KISClient,
@@ -306,6 +307,72 @@ def test_market_credit_eligible_stocks_rejects_bad_filters_and_rows():
     )
     with pytest.raises(KISError):
         _client(bad).market.credit_eligible_stocks()
+
+
+def _broker_opinion_row(**over):
+    row = {
+        "stck_bsop_date": "20240527", "stck_shrn_iscd": "454910",
+        "hts_kor_isnm": "두산로보틱스", "invt_opnn": "매수",
+        "invt_opnn_cls_code": "1", "rgbf_invt_opnn": "중립",
+        "rgbf_invt_opnn_cls_code": "2", "mbcr_name": "테스트증권",
+        "stck_prpr": "74300", "prdy_vrss": "500", "prdy_vrss_sign": "2",
+        "prdy_ctrt": "0.68", "hts_goal_prc": "90000", "stck_prdy_clpr": "73800",
+        "dprt": "21.13",
+    }
+    row.update(over)
+    return row
+
+
+def test_market_broker_opinions_maps_and_routes():
+    fake = FakeTransport(response=_resp([_broker_opinion_row()]))
+    opinions = _client(fake).market.broker_opinions(
+        broker="999", opinion="buy", start="20240501", end="20240528"
+    )
+    assert len(opinions) == 1 and isinstance(opinions[0], BrokerOpinion)
+    item = opinions[0]
+    assert item.symbol == "454910"
+    assert item.broker == "테스트증권"
+    assert item.opinion == "매수"
+    assert item.target_price == Decimal(90000)
+    assert item.change == Decimal(500)
+    assert fake.calls[0] == {
+        "path": "/uapi/domestic-stock/v1/quotations/invest-opbysec",
+        "tr_id": "FHKST663400C0",
+        "params": {
+            "FID_COND_MRKT_DIV_CODE": "J", "FID_COND_SCR_DIV_CODE": "16634",
+            "FID_INPUT_ISCD": "999", "FID_DIV_CLS_CODE": "1",
+            "FID_INPUT_DATE_1": "20240501", "FID_INPUT_DATE_2": "20240528",
+        },
+    }
+
+
+def test_market_broker_opinions_restores_down_sign_and_defaults_window():
+    fake = FakeTransport(response=_resp([_broker_opinion_row(
+        prdy_vrss_sign="5", prdy_vrss="500", prdy_ctrt="0.68"
+    )]))
+    item = _client(fake).market.broker_opinions(broker="999", end="20240131")[0]
+    assert item.change == Decimal(-500)
+    assert item.change_percent == Decimal("-0.68")
+    assert fake.calls[0]["params"]["FID_INPUT_DATE_1"] == "20240101"
+
+
+def test_market_broker_opinions_rejects_invalid_inputs_before_transport():
+    fake = FakeTransport(response=None)
+    with pytest.raises(KISUsageError):
+        _client(fake).market.broker_opinions(broker="")
+    with pytest.raises(KISUsageError):
+        _client(fake).market.broker_opinions(broker="999", opinion="strong_buy")
+    with pytest.raises(KISUsageError):
+        _client(fake).market.broker_opinions(
+            broker="999", start="20240201", end="20240101"
+        )
+    assert fake.calls == []
+
+
+def test_market_broker_opinions_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).market.broker_opinions(broker="999")
 
 
 def _prog_row(**over):

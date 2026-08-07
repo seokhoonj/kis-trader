@@ -81,6 +81,7 @@ from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
 from .investor import InvestorActivity, InvestorEstimate, InvestorFlow
 from .market import MarketQueries
 from .market_items import (
+    BrokerOpinion,
     CreditEligibleStock,
     ForeignBrokerFlow,
     InterestRateQuote,
@@ -158,6 +159,7 @@ __all__ = [
     "BonusIssue",
     "BrokerActivity",
     "BrokerActivitySummary",
+    "BrokerOpinion",
     "BuyableAmount",
     "CalendarQueries",
     "CapitalReduction",

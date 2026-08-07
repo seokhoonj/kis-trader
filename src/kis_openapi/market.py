@@ -18,6 +18,7 @@ if TYPE_CHECKING:
 
     from .client import KISClient
     from .market_items import (
+        BrokerOpinion,
         CreditEligibleStock,
         ForeignBrokerFlow,
         InterestRateQuote,
@@ -72,6 +73,19 @@ class MarketQueries:
         """회사 신용주문 가능·불가 종목과 신용비율 목록(최대 100건)."""
         return market_api.fetch_credit_eligible_stocks(
             self._client.transport, market=market, eligible=eligible, sort=sort
+        )
+
+    def broker_opinions(
+        self,
+        *,
+        broker: str,
+        opinion: str = "all",
+        start: str | date | None = None,
+        end: str | date | None = None,
+    ) -> list[BrokerOpinion]:
+        """한 증권사가 낸 여러 종목 투자의견·목표가격(한 호출 최대 20건)."""
+        return market_api.fetch_broker_opinions(
+            self._client.transport, broker=broker, opinion=opinion, start=start, end=end
         )
 
     def program_trades(

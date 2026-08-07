@@ -296,6 +296,32 @@ class CreditEligibleStock:
 
 
 @dataclass(frozen=True, slots=True)
+class BrokerOpinion:
+    """한 증권사가 한 종목에 낸 투자의견과 목표가격(불변)."""
+
+    date: date
+    symbol: str
+    name: str
+    broker: str
+    opinion: str
+    opinion_code: str
+    previous_opinion: str
+    previous_opinion_code: str
+    price: Decimal
+    change: Decimal
+    change_percent: Decimal
+    target_price: Decimal | None
+    previous_close: Decimal
+    disparity_percent: Decimal | None
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class MarketFunds:
     """하루의 증시자금 종합 현황(불변).
 
