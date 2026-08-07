@@ -88,6 +88,43 @@ class ExpectedIndexPoint:
 
 
 @dataclass(frozen=True, slots=True)
+class ExpectedIndexQuote:
+    """동시호가 중 한 지수의 예상체결 스냅샷(불변)."""
+
+    code: str
+    name: str
+    value: Decimal
+    base_value: Decimal | None
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    advances: int
+    unchanged: int
+    declines: int
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ExpectedIndexSnapshot:
+    """대표 예상체결 지수와 함께 반환된 시장별 지수 목록(불변)."""
+
+    summary: ExpectedIndexQuote
+    markets: tuple[ExpectedIndexQuote, ...]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "markets", tuple(self.markets))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class IndexDailyPoint:
     """지수 일·주·월 통계의 한 시점(불변)."""
 

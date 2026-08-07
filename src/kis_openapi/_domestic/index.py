@@ -24,12 +24,14 @@ from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from typing import Any
 
-from .._wire import required_decimal, required_int
+from .._wire import optional_decimal, required_decimal, required_int
 from ..bar import Bar, Interval
 from ..errors import KISUsageError
 from ..index_items import (
     CategoryIndex,
     ExpectedIndexPoint,
+    ExpectedIndexQuote,
+    ExpectedIndexSnapshot,
     IndexDailyHistory,
     IndexDailyPoint,
     IndexIntradayPoint,
@@ -71,6 +73,9 @@ _EXPECTED_INDEX_PATH = "/uapi/domestic-stock/v1/quotations/exp-index-trend"
 _EXPECTED_INDEX_TR = "FHPST01840000"
 _EXPECTED_INDEX_INTERVAL = {"10s": "10", "30s": "30", "1m": "60", "10m": "600"}
 _EXPECTED_INDEX_SESSION = {"open": "1", "close": "2"}
+_EXPECTED_TOTAL_PATH = "/uapi/domestic-stock/v1/quotations/exp-total-index"
+_EXPECTED_TOTAL_TR = "FHKUP11750000"
+_EXPECTED_TOTAL_MARKET = {"all": "0", "KOSPI": "K", "KOSDAQ": "Q"}
 #: 지수 시간대별 샘플 간격 -> FID_INPUT_HOUR_1(초). 원장: 60=1분, 300=5분, 600=10분.
 _INDEX_INTRADAY_INTERVAL = {"1m": "60", "5m": "300", "10m": "600"}
 
@@ -440,6 +445,73 @@ def fetch_expected_index_trend(
         )
     points.sort(key=lambda point: point.time)
     return points
+
+
+def fetch_expected_index_snapshot(
+    transport: Transport, *, code: str, market: str, session: str
+) -> ExpectedIndexSnapshot:
+    """동시호가의 대표 예상체결 지수와 시장별 지수 목록."""
+    market_code = _EXPECTED_TOTAL_MARKET.get(market)
+    session_code = _EXPECTED_INDEX_SESSION.get(session)
+    if market_code is None:
+        raise KISUsageError(f"market 은 {sorted(_EXPECTED_TOTAL_MARKET)} 중 하나여야 한다: {market!r}")
+    if session_code is None:
+        raise KISUsageError(f"session 은 'open'/'close' 중 하나여야 한다: {session!r}")
+    resp = transport.request(
+        method="GET",
+        path=_EXPECTED_TOTAL_PATH,
+        tr_id=_EXPECTED_TOTAL_TR,
+        params={
+            "fid_mrkt_cls_code": market_code,
+            "fid_cond_mrkt_div_code": _INDEX_MARKET_DIV,
+            "fid_cond_scr_div_code": "11175",
+            "fid_input_iscd": code,
+            "fid_mkop_cls_code": session_code,
+        },
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    summary_row = resp.body.get("output1")
+    rows = resp.body.get("output2")
+    if not isinstance(summary_row, Mapping):
+        raise _missing_block_error("output1", resp)
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+
+    def parse_quote(row: Mapping[str, Any], *, fallback_code: str) -> ExpectedIndexQuote:
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        return ExpectedIndexQuote(
+            code=str(row.get("bstp_cls_code", fallback_code)).strip(),
+            name=str(row.get("hts_kor_isnm", "")).strip(),
+            value=required_decimal(row.get("bstp_nmix_prpr"), "bstp_nmix_prpr"),
+            base_value=optional_decimal(row.get("nmix_sdpr"), "nmix_sdpr"),
+            change=_apply_change_sign(
+                required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), sign
+            ),
+            change_percent=_apply_change_sign(
+                required_decimal(
+                    row.get("bstp_nmix_prdy_ctrt", row.get("prdy_ctrt")),
+                    "bstp_nmix_prdy_ctrt",
+                ),
+                sign,
+            ),
+            volume=required_int(row.get("acml_vol"), "acml_vol"),
+            advances=required_int(row.get("ascn_issu_cnt"), "ascn_issu_cnt"),
+            unchanged=required_int(row.get("stnr_issu_cnt"), "stnr_issu_cnt"),
+            declines=required_int(row.get("down_issu_cnt"), "down_issu_cnt"),
+            _raw=row,
+        )
+
+    markets: list[ExpectedIndexQuote] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output2[]", resp)
+        markets.append(parse_quote(row, fallback_code=""))
+    return ExpectedIndexSnapshot(
+        summary=parse_quote(summary_row, fallback_code=code),
+        markets=tuple(markets),
+        _raw=resp.body,
+    )
 
 
 def _parse_index_intraday(

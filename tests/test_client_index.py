@@ -442,6 +442,79 @@ def test_expected_index_trend_missing_output_fails_closed():
         _client(FakeTransport(response=response)).index("0001").expected_trend()
 
 
+def _expected_index_quote(*, name="", code="", value="2650", sign="2"):
+    return {
+        "hts_kor_isnm": name,
+        "bstp_cls_code": code,
+        "bstp_nmix_prpr": value,
+        "bstp_nmix_prdy_vrss": "12.5",
+        "prdy_vrss_sign": sign,
+        "bstp_nmix_prdy_ctrt": "0.47",
+        "prdy_ctrt": "0.47",
+        "acml_vol": "500000",
+        "nmix_sdpr": "2637.5",
+        "ascn_issu_cnt": "480",
+        "stnr_issu_cnt": "60",
+        "down_issu_cnt": "360",
+    }
+
+
+def test_expected_index_snapshot_maps_summary_markets_and_params():
+    summary = _expected_index_quote(code="0001")
+    summary.pop("nmix_sdpr")
+    response = RawResponse(
+        rt_cd="0",
+        msg_cd="MCA00000",
+        msg1="정상",
+        body={
+            "output1": summary,
+            "output2": [
+                _expected_index_quote(name="코스피", value="2650"),
+                _expected_index_quote(name="코스닥", value="870", sign="5"),
+            ],
+        },
+    )
+    fake = FakeTransport(response=response)
+    snapshot = _client(fake).index("0001").expected_snapshot(
+        market="KOSPI", session="close"
+    )
+
+    assert snapshot.summary.code == "0001"
+    assert snapshot.summary.base_value is None
+    assert snapshot.summary.change == Decimal("12.5")
+    assert len(snapshot.markets) == 2
+    assert snapshot.markets[0].name == "코스피"
+    assert snapshot.markets[0].base_value == Decimal("2637.5")
+    assert snapshot.markets[1].change == Decimal("-12.5")
+    assert snapshot.markets[1].change_percent == Decimal("-0.47")
+    assert fake.calls[0] == {
+        "path": "/uapi/domestic-stock/v1/quotations/exp-total-index",
+        "tr_id": "FHKUP11750000",
+        "params": {
+            "fid_mrkt_cls_code": "K",
+            "fid_cond_mrkt_div_code": "U",
+            "fid_cond_scr_div_code": "11175",
+            "fid_input_iscd": "0001",
+            "fid_mkop_cls_code": "2",
+        },
+    }
+
+
+@pytest.mark.parametrize("kwargs", [{"market": "KOSPI200"}, {"session": "midday"}])
+def test_expected_index_snapshot_rejects_bad_options_before_transport(kwargs):
+    fake = FakeTransport(response=None)
+    with pytest.raises(KISUsageError):
+        _client(fake).index("0001").expected_snapshot(**kwargs)
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("body", [{}, {"output1": {}}, {"output1": {}, "output2": {}}])
+def test_expected_index_snapshot_requires_both_blocks(body):
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=response)).index("0001").expected_snapshot()
+
+
 _INDEX_CATEGORY = "/uapi/domestic-stock/v1/quotations/inquire-index-category-price"
 
 

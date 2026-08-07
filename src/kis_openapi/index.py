@@ -15,6 +15,7 @@ from .bar import Bar, Interval
 from .index_items import (
     CategoryIndex,
     ExpectedIndexPoint,
+    ExpectedIndexSnapshot,
     IndexDailyHistory,
     IndexIntradayPoint,
     IndexQuote,
@@ -92,6 +93,17 @@ class Index:
             code=self.code,
             session=session,
             interval=interval,
+        )
+
+    def expected_snapshot(
+        self, *, market: str = "all", session: str = "open"
+    ) -> ExpectedIndexSnapshot:
+        """동시호가의 대표 예상체결 지수와 시장별 지수 목록."""
+        return index_api.fetch_expected_index_snapshot(
+            self._client.transport,
+            code=self.code,
+            market=market,
+            session=session,
         )
 
     def categories(self) -> list[CategoryIndex]:

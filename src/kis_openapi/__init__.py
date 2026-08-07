@@ -81,6 +81,8 @@ from .index import Index
 from .index_items import (
     CategoryIndex,
     ExpectedIndexPoint,
+    ExpectedIndexQuote,
+    ExpectedIndexSnapshot,
     IndexDailyHistory,
     IndexDailyPoint,
     IndexIntradayPoint,
@@ -196,6 +198,8 @@ __all__ = [
     "EarningsEstimate",
     "ExecutionReport",
     "ExpectedIndexPoint",
+    "ExpectedIndexQuote",
+    "ExpectedIndexSnapshot",
     "ExpectedPricePoint",
     "FinancialRatio",
     "ForeignBrokerFlow",
