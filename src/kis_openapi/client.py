@@ -24,6 +24,7 @@ from ._masters import (
     urlopen_fetch,
 )
 from ._overseas import account as overseas_account
+from ._overseas import derivatives as overseas_derivatives_api
 from ._overseas import market_data as overseas_market_data_api
 from ._overseas import orders as overseas_orders_engine
 from .balance import Balance, Portfolio, Position
@@ -40,6 +41,7 @@ from .instrument import DomesticBoard, is_domestic_symbol
 from .market import MarketQueries
 from .order import Order
 from .overseas_derivative import OverseasDerivative
+from .overseas_derivative_items import OverseasDerivativeMarketHours
 from .overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
 from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
@@ -207,6 +209,28 @@ class KISClient:
     def overseas_option(self, srs_cd: str) -> OverseasDerivative:
         """해외 옵션 계약 핸들을 만든다. ``srs_cd`` 는 시리즈코드."""
         return OverseasDerivative(self, srs_cd, market="option")
+
+    def overseas_derivatives_market_hours(
+        self,
+        *,
+        product_group: str = "",
+        asset_class: str = "",
+        exchange: str = "",
+        kind: str = "%",
+    ) -> list[OverseasDerivativeMarketHours]:
+        """해외 선물/옵션 상품군별 장운영시간(시장 전체, 계약 무관).
+
+        상품군·클래스·거래소·선물옵션 구분 필터는 생략하면 전체를 조회한다. 모의투자는
+        지원하지 않으며 실전 환경에서만 사용할 수 있다.
+        """
+        return overseas_derivatives_api.fetch_market_hours(
+            self.transport,
+            environment=self._environment,
+            product_group=product_group,
+            asset_class=asset_class,
+            exchange=exchange,
+            kind=kind,
+        )
 
     @property
     def ranking(self) -> RankingQueries:

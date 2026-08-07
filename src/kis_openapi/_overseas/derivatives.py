@@ -13,7 +13,7 @@ KIS URL/TR-id:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime
+from datetime import datetime, time
 from typing import Any
 
 from .._domestic.market_data import (
@@ -24,13 +24,14 @@ from .._domestic.market_data import (
     _raise_if_error,
 )
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
-from ..errors import KISError
+from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook, PriceLevel
 from ..overseas_derivative_items import (
     OverseasDerivativeDetail,
+    OverseasDerivativeMarketHours,
     OverseasDerivativeQuote,
 )
-from ..transport import Transport
+from ..transport import Environment, Transport
 
 _QUOTE = {
     "future": ("/uapi/overseas-futureoption/v1/quotations/inquire-price", "HHDFC55010000"),
@@ -195,4 +196,102 @@ def fetch_detail(transport: Transport, *, srs_cd: str, market: str) -> OverseasD
         settlement_type=str(output.get("stl_tp", "")).strip(),
         tradable=str(output.get("stat_tp", "")).strip(),
         _raw=output,
+    )
+
+
+_MARKET_HOURS_PATH = "/uapi/overseas-futureoption/v1/quotations/market-time"
+_MARKET_HOURS_TR = "OTFM2229R"
+#: 장운영시간 CTX_AREA 연속조회 페이지 상한. 도달하면 부분 결과로 자르지 않고 fail-closed.
+_MAX_MARKET_HOURS_PAGES = 100
+
+
+def _HHMMSS(value: object) -> time | None:
+    text = str(value or "").strip()
+    if len(text) != 6 or not text.isdigit():
+        return None
+    try:
+        return time(int(text[:2]), int(text[2:4]), int(text[4:]))
+    except ValueError:
+        return None
+
+
+def fetch_market_hours(
+    transport: Transport,
+    *,
+    environment: Environment,
+    product_group: str = "",
+    asset_class: str = "",
+    exchange: str = "",
+    kind: str = "%",
+) -> list[OverseasDerivativeMarketHours]:
+    """해외 선물/옵션 상품군별 장운영시간 전체를 조회한다.
+
+    계약 시리즈코드와 무관한 시장 전체 일정이며 상품군·클래스·거래소·선물옵션 구분으로 필터한다.
+
+    KIS ``GET /uapi/overseas-futureoption/v1/quotations/market-time``
+    (``OTFM2229R``)를 사용하며 모의투자는 지원하지 않는다.
+
+    이 TR은 ``tr_cont`` 미지원이므로 ``CTX_AREA`` 커서만으로 연속조회한다.
+
+    성공 응답의 ``output`` 배열이 없거나 페이지 상한 뒤에도 커서가 남으면 부분 결과 대신 실패한다.
+    """
+    if environment == "demo":
+        raise KISUsageError("해외 선물/옵션 장운영시간 조회는 모의투자 미지원이다(실전만).")
+
+    rows: list[Mapping[str, Any]] = []
+    ctx_fk, ctx_nk = "", ""
+    for _page in range(_MAX_MARKET_HOURS_PAGES):
+        params = {
+            "FM_PDGR_CD": product_group,
+            "FM_CLAS_CD": asset_class,
+            "FM_EXCG_CD": exchange,
+            "OPT_YN": kind,
+            "CTX_AREA_NK200": ctx_nk,
+            "CTX_AREA_FK200": ctx_fk,
+        }
+        resp = transport.request(
+            method="GET",
+            path=_MARKET_HOURS_PATH,
+            tr_id=_MARKET_HOURS_TR,
+            params=params,
+            idempotent=True,
+        )
+        _raise_if_error(resp)
+        page = resp.body.get("output")
+        if not isinstance(page, list):
+            raise _missing_block_error("output", resp)
+        if not all(isinstance(row, Mapping) for row in page):
+            raise KISError("장운영시간 응답의 output 항목이 객체가 아니다.", raw=resp.body)
+        rows.extend(page)
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        if not ctx_nk:
+            break
+    else:
+        raise KISError(
+            f"해외 선물/옵션 장운영시간 조회가 {_MAX_MARKET_HOURS_PAGES}페이지 상한에 "
+            "도달했으나 연속조회가 남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 "
+            "수동 확인하라."
+        )
+    return [_parse_market_hours(row) for row in rows]
+
+
+def _parse_market_hours(row: Mapping[str, Any]) -> OverseasDerivativeMarketHours:
+    return OverseasDerivativeMarketHours(
+        product_group_code=str(row.get("fm_pdgr_cd", "")).strip(),
+        product_group_name=str(row.get("fm_pdgr_name", "")).strip(),
+        exchange_code=str(row.get("fm_excg_cd", "")).strip(),
+        exchange_name=str(row.get("fm_excg_name", "")).strip(),
+        kind=str(row.get("fuop_dvsn_name", "")).strip(),
+        class_code=str(row.get("fm_clas_cd", "")).strip(),
+        class_name=str(row.get("fm_clas_name", "")).strip(),
+        am_open=_HHMMSS(row.get("am_mkmn_strt_tmd")),
+        am_close=_HHMMSS(row.get("am_mkmn_end_tmd")),
+        pm_open=_HHMMSS(row.get("pm_mkmn_strt_tmd")),
+        pm_close=_HHMMSS(row.get("pm_mkmn_end_tmd")),
+        next_day_open=_HHMMSS(row.get("mkmn_nxdy_strt_tmd")),
+        next_day_close=_HHMMSS(row.get("mkmn_nxdy_end_tmd")),
+        base_open=_HHMMSS(row.get("base_mket_strt_tmd")),
+        base_close=_HHMMSS(row.get("base_mket_end_tmd")),
+        _raw=row,
     )

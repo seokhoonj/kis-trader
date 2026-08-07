@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import datetime, time
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -83,6 +83,37 @@ class OverseasDerivativeDetail:
     remaining_days: int | None        # 잔존일수(remn_cnt)
     settlement_type: str              # 최종결제구분(stl_tp)
     tradable: str                     # 매매여부(stat_tp)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasDerivativeMarketHours:
+    """해외 선물/옵션 상품군의 장운영시간(불변).
+
+    계약과 무관한 상품군·거래소·클래스별 일정이다. 오전장·오후장·익일장·기본시장 시작/종료
+    시각은 원장 값이 비었거나 유효하지 않으면 ``None`` 이다.
+    """
+
+    product_group_code: str
+    product_group_name: str
+    exchange_code: str
+    exchange_name: str
+    kind: str
+    class_code: str
+    class_name: str
+    am_open: time | None
+    am_close: time | None
+    pm_open: time | None
+    pm_close: time | None
+    next_day_open: time | None
+    next_day_close: time | None
+    base_open: time | None
+    base_close: time | None
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

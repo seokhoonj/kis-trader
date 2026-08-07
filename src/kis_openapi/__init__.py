@@ -92,7 +92,11 @@ from .order import Order
 from .order_book import OrderBook, PriceLevel
 from .orderable import BuyableAmount, SellableQuantity
 from .overseas_derivative import OverseasDerivative
-from .overseas_derivative_items import OverseasDerivativeDetail, OverseasDerivativeQuote
+from .overseas_derivative_items import (
+    OverseasDerivativeDetail,
+    OverseasDerivativeMarketHours,
+    OverseasDerivativeQuote,
+)
 from .overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
 from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
@@ -198,6 +202,7 @@ __all__ = [
     "OverseasBalance",
     "OverseasDerivative",
     "OverseasDerivativeDetail",
+    "OverseasDerivativeMarketHours",
     "OverseasDerivativeQuote",
     "OverseasOpenOrder",
     "OverseasPosition",
