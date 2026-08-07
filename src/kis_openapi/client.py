@@ -42,7 +42,10 @@ from .instrument import DomesticBoard, is_domestic_symbol
 from .market import MarketQueries
 from .order import Order
 from .overseas_derivative import OverseasDerivative
-from .overseas_derivative_items import OverseasDerivativeMarketHours
+from .overseas_derivative_items import (
+    OverseasDerivativeDetail,
+    OverseasDerivativeMarketHours,
+)
 from .overseas_index import OverseasIndex
 from .overseas_items import (
     OverseasBalance,
@@ -241,6 +244,24 @@ class KISClient:
     def overseas_option(self, srs_cd: str) -> OverseasDerivative:
         """해외 옵션 계약 핸들을 만든다. ``srs_cd`` 는 시리즈코드."""
         return OverseasDerivative(self, srs_cd, market="option")
+
+    def overseas_futures_details(
+        self, symbols: Sequence[str]
+    ) -> list[OverseasDerivativeDetail]:
+        """여러 해외 선물 계약의 명세를 한 번에 조회한다(최대 32개, 실전만)."""
+        return overseas_derivatives_api.fetch_details(
+            self.transport, srs_codes=list(symbols), market="future",
+            environment=self._environment,
+        )
+
+    def overseas_option_details(
+        self, symbols: Sequence[str]
+    ) -> list[OverseasDerivativeDetail]:
+        """여러 해외 옵션 계약의 명세를 한 번에 조회한다(최대 30개, 실전만)."""
+        return overseas_derivatives_api.fetch_details(
+            self.transport, srs_codes=list(symbols), market="option",
+            environment=self._environment,
+        )
 
     def overseas_derivatives_market_hours(
         self,

@@ -168,6 +168,19 @@ _DETAIL = {
     "option": ("/uapi/overseas-futureoption/v1/quotations/opt-detail", "HHDFO55010100"),
 }
 
+_BATCH_DETAIL = {
+    "future": (
+        "/uapi/overseas-futureoption/v1/quotations/search-contract-detail",
+        "HHDFC55200000",
+        32,
+    ),
+    "option": (
+        "/uapi/overseas-futureoption/v1/quotations/search-opt-detail",
+        "HHDFO55200000",
+        30,
+    ),
+}
+
 
 def fetch_detail(transport: Transport, *, srs_cd: str, market: str) -> OverseasDerivativeDetail:
     """해외 선물/옵션 계약 명세. ``market`` 은 ``"future"``/``"option"``, ``srs_cd`` 는 시리즈코드."""
@@ -179,6 +192,48 @@ def fetch_detail(transport: Transport, *, srs_cd: str, market: str) -> OverseasD
     output = resp.body.get("output1")
     if not isinstance(output, Mapping):
         raise _missing_block_error("output1", resp)
+    return _parse_detail(output, srs_cd=srs_cd)
+
+
+def fetch_details(
+    transport: Transport, *, srs_codes: list[str], market: str, environment: Environment
+) -> list[OverseasDerivativeDetail]:
+    """해외 선물/옵션 계약 명세를 한 번에 조회한다(선물 32개, 옵션 30개 한도)."""
+    if environment == "demo":
+        raise KISUsageError("해외 선물/옵션 상품기본정보 조회는 모의투자 미지원이다(실전만).")
+    path, tr, limit = _BATCH_DETAIL[market]
+    if not srs_codes:
+        raise KISUsageError("조회할 해외 선물/옵션 시리즈코드가 하나 이상 필요하다.")
+    if len(srs_codes) > limit:
+        raise KISUsageError(f"해외 {market} 상품기본정보는 최대 {limit}개: {len(srs_codes)}")
+    if any(not isinstance(code, str) or not code.strip() for code in srs_codes):
+        raise KISUsageError("해외 선물/옵션 시리즈코드는 비어 있지 않은 문자열이어야 한다.")
+    normalized_codes = [code.strip() for code in srs_codes]
+    params = {"QRY_CNT": str(len(normalized_codes))}
+    params.update(
+        {f"SRS_CD_{position:02d}": code for position, code in enumerate(normalized_codes, 1)}
+    )
+    resp = transport.request(
+        method="GET", path=path, tr_id=tr, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    if len(rows) != len(normalized_codes) or not all(isinstance(row, Mapping) for row in rows):
+        raise KISError(
+            "해외 선물/옵션 상품기본정보 응답이 요청 계약 수·순서와 일치하지 않는다.",
+            raw=resp.body,
+        )
+    return [
+        _parse_detail(row, srs_cd=code)
+        for code, row in zip(normalized_codes, rows, strict=True)
+    ]
+
+
+def _parse_detail(
+    output: Mapping[str, Any], *, srs_cd: str
+) -> OverseasDerivativeDetail:
     return OverseasDerivativeDetail(
         symbol=srs_cd,
         exchange=str(output.get("exch_cd", "")).strip(),

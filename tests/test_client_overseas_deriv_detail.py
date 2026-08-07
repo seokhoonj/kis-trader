@@ -7,7 +7,7 @@ from decimal import Decimal
 import pytest
 
 from kis_openapi import KISClient, OverseasDerivativeDetail
-from kis_openapi.errors import KISError
+from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
 
@@ -74,3 +74,71 @@ def test_overseas_derivative_detail_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).overseas_futures("ESZ25").detail()
+
+
+def _detail_row():
+    return _out().body["output1"]
+
+
+def test_overseas_futures_details_maps_batch_by_request_order():
+    fake = FakeTransport(response=RawResponse(
+        rt_cd="0", msg_cd="MCA00000", msg1="정상",
+        body={"output2": [_detail_row(), _detail_row()]},
+    ))
+    details = _client(fake).overseas_futures_details(["6AM24", "10YK24"])
+    assert [detail.symbol for detail in details] == ["6AM24", "10YK24"]
+    assert all(isinstance(detail, OverseasDerivativeDetail) for detail in details)
+    assert details[0].exchange == "CME"
+    assert fake.calls[0] == {
+        "path": "/uapi/overseas-futureoption/v1/quotations/search-contract-detail",
+        "tr_id": "HHDFC55200000",
+        "params": {"QRY_CNT": "2", "SRS_CD_01": "6AM24", "SRS_CD_02": "10YK24"},
+    }
+
+
+def test_overseas_option_details_routes_option_batch():
+    fake = FakeTransport(response=RawResponse(
+        rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output2": [_detail_row()]}
+    ))
+    details = _client(fake).overseas_option_details(["OESU24 C5600"])
+    assert details[0].symbol == "OESU24 C5600"
+    assert fake.calls[0]["path"].endswith("/search-opt-detail")
+    assert fake.calls[0]["tr_id"] == "HHDFO55200000"
+
+
+@pytest.mark.parametrize(
+    ("method", "symbols"),
+    [
+        ("overseas_futures_details", []),
+        ("overseas_futures_details", ["x"] * 33),
+        ("overseas_option_details", ["x"] * 31),
+        ("overseas_option_details", [""]),
+    ],
+)
+def test_overseas_derivative_details_rejects_invalid_requests(method, symbols):
+    fake = FakeTransport(response=None)
+    with pytest.raises(KISUsageError):
+        getattr(_client(fake), method)(symbols)
+    assert fake.calls == []
+
+
+def test_overseas_derivative_details_rejects_demo_before_transport():
+    fake = FakeTransport(response=None)
+    client = KISClient(app_key="k", app_secret="s", transport=fake, environment="demo")
+    with pytest.raises(KISUsageError):
+        client.overseas_futures_details(["6AM24"])
+    assert fake.calls == []
+
+
+def test_overseas_derivative_details_requires_matching_response_count():
+    fake = FakeTransport(response=RawResponse(
+        rt_cd="0", msg_cd="X", msg1="ok", body={"output2": [_detail_row()]}
+    ))
+    with pytest.raises(KISError):
+        _client(fake).overseas_futures_details(["6AM24", "10YK24"])
+
+
+def test_overseas_derivative_details_requires_output2():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).overseas_futures_details(["6AM24"])
