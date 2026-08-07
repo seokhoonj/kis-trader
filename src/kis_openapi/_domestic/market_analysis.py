@@ -16,13 +16,14 @@ from typing import Literal
 
 from .._wire import optional_decimal, required_decimal, required_int
 from ..errors import KISUsageError
-from ..investor import InvestorActivity
+from ..investor import InvestorActivity, InvestorNetActivity
 from ..market_items import (
     BrokerOpinion,
     CreditEligibleStock,
     ForeignBrokerFlow,
     FuturesMarketSchedule,
     InterestRateQuote,
+    InvestorNetBuyStock,
     LendableStock,
     LimitStock,
     Market,
@@ -31,10 +32,12 @@ from ..market_items import (
     MarketInvestorSnapshot,
     NewsItem,
     ProgramFlowPoint,
+    ProgramInvestorTrade,
     ProgramTradeSummary,
     TradingDay,
     VIEvent,
 )
+from ..program import ProgramTradeActivity
 from ..transport import RawResponse, Transport
 from .market_data import (
     _KST,
@@ -52,6 +55,8 @@ _INVESTOR_BY_MARKET_PATH = "/uapi/domestic-stock/v1/quotations/inquire-investor-
 _INVESTOR_BY_MARKET_TR = "FHPTJ04040000"
 _INVESTOR_SNAPSHOT_PATH = "/uapi/domestic-stock/v1/quotations/inquire-investor-time-by-market"
 _INVESTOR_SNAPSHOT_TR = "FHPTJ04030000"
+_INVESTOR_NET_BUY_PATH = "/uapi/domestic-stock/v1/quotations/foreign-institution-total"
+_INVESTOR_NET_BUY_TR = "FHPTJ04400000"
 #: 시장 -> (지수코드 FID_INPUT_ISCD, 시장약어 FID_INPUT_ISCD_1). 원장 예시 대조.
 _MARKET_CODE = {"KOSPI": ("0001", "KSP"), "KOSDAQ": ("1001", "KSQ")}
 
@@ -325,6 +330,94 @@ def _parse_market_investor_activity(
         sell_value=required_decimal(row.get(f"{prefix}_seln_tr_pbmn"), f"{prefix}_seln_tr_pbmn"),
         net_buy_value=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
     )
+
+
+_NET_BUY_MARKET = {"all": "0000", "KOSPI": "0001", "KOSDAQ": "1001"}
+_NET_BUY_PARTICIPANT = {
+    "foreign": "frgn", "institutional": "orgn", "investment_trust": "ivtr",
+    "bank": "bank", "insurance": "insu", "merchant_bank": "mrbn", "fund": "fund",
+    "other_organization": "etc_orgt", "other_corporation": "etc_corp",
+}
+
+
+def fetch_investor_net_buy_stocks(
+    transport: Transport, *, market: str = "all", basis: str = "volume",
+    direction: str = "buy", investor: str = "all",
+) -> list[InvestorNetBuyStock]:
+    """투자자 순매수·순매도 상위 종목 집계."""
+    market_code = _NET_BUY_MARKET.get(market)
+    basis_code = {"volume": "0", "amount": "1"}.get(basis)
+    direction_code = {"buy": "0", "sell": "1"}.get(direction)
+    investor_code = {"all": "0", "foreign": "1", "institutional": "2", "other": "3"}.get(investor)
+    if market_code is None or basis_code is None or direction_code is None or investor_code is None:
+        raise KISUsageError("market/basis/direction/investor 값이 지원 범위를 벗어났다.")
+    resp = transport.request(
+        method="GET", path=_INVESTOR_NET_BUY_PATH, tr_id=_INVESTOR_NET_BUY_TR,
+        params={"FID_COND_MRKT_DIV_CODE": "V", "FID_COND_SCR_DIV_CODE": "16449",
+                "FID_INPUT_ISCD": market_code,
+                "FID_DIV_CLS_CODE": basis_code, "FID_RANK_SORT_CLS_CODE": direction_code,
+                "FID_ETC_CLS_CODE": investor_code}, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+        raise _missing_block_error("output", resp)
+    stocks = []
+    for row in rows:
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        stocks.append(InvestorNetBuyStock(
+            symbol=str(row.get("mksc_shrn_iscd", "")).strip(),
+            name=str(row.get("hts_kor_isnm", "")).strip(),
+            net_buy_quantity=required_int(row.get("ntby_qty"), "ntby_qty"),
+            price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+            change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+            change_percent=_apply_change_sign(required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign),
+            volume=required_int(row.get("acml_vol"), "acml_vol"),
+            participants={name: InvestorNetActivity(
+                quantity=required_int(row.get(f"{prefix}_ntby_vol" if prefix in {"etc_orgt", "etc_corp"} else f"{prefix}_ntby_qty"),
+                                      f"{prefix}_ntby_vol" if prefix in {"etc_orgt", "etc_corp"} else f"{prefix}_ntby_qty"),
+                amount=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
+            ) for name, prefix in _NET_BUY_PARTICIPANT.items()}, _raw=row,
+        ))
+    return stocks
+
+
+_PROGRAM_INVESTOR_PATH = "/uapi/domestic-stock/v1/quotations/investor-program-trade-today"
+_PROGRAM_INVESTOR_TR = "HHPPG046600C1"
+
+
+def _program_activity(row: Mapping[str, object], prefix: str) -> ProgramTradeActivity:
+    return ProgramTradeActivity(
+        sell_quantity=required_int(row.get(f"{prefix}_seln_qty"), f"{prefix}_seln_qty"),
+        buy_quantity=required_int(row.get(f"{prefix}_shnu_qty"), f"{prefix}_shnu_qty"),
+        net_buy_quantity=required_int(row.get(f"{prefix}_ntby_qty"), f"{prefix}_ntby_qty"),
+        sell_amount=required_decimal(row.get(f"{prefix}_seln_amt"), f"{prefix}_seln_amt"),
+        buy_amount=required_decimal(row.get(f"{prefix}_shnu_amt"), f"{prefix}_shnu_amt"),
+        net_buy_amount=required_decimal(row.get(f"{prefix}_ntby_amt"), f"{prefix}_ntby_amt"),
+    )
+
+
+def fetch_program_investor_trades(
+    transport: Transport, *, market: Market = "KOSPI"
+) -> list[ProgramInvestorTrade]:
+    """시장별 당일 프로그램매매 투자자 집계."""
+    market_code = {"KOSPI": "1", "KOSDAQ": "4"}.get(market)
+    if market_code is None:
+        raise KISUsageError("market 은 KOSPI 또는 KOSDAQ 이어야 한다.")
+    resp = transport.request(
+        method="GET", path=_PROGRAM_INVESTOR_PATH, tr_id=_PROGRAM_INVESTOR_TR,
+        params={"MRKT_DIV_CLS_CODE": market_code}, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output1")
+    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+        raise _missing_block_error("output1", resp)
+    return [ProgramInvestorTrade(
+        investor_code=str(row.get("invr_cls_code", "")).strip(),
+        investor_name=str(row.get("invr_cls_name", "")).strip(),
+        total=_program_activity(row, "all"), arbitrage=_program_activity(row, "arbt"),
+        nonarbitrage=_program_activity(row, "nabt"), _raw=row,
+    ) for row in rows]
 
 
 _PROGRAM_SUMMARY_PATH = "/uapi/domestic-stock/v1/quotations/comp-program-trade-daily"

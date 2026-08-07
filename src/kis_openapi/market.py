@@ -23,6 +23,7 @@ if TYPE_CHECKING:
         ForeignBrokerFlow,
         FuturesMarketSchedule,
         InterestRateQuote,
+        InvestorNetBuyStock,
         LendableStock,
         LimitStock,
         Market,
@@ -31,6 +32,7 @@ if TYPE_CHECKING:
         MarketInvestorSnapshot,
         NewsItem,
         ProgramFlowPoint,
+        ProgramInvestorTrade,
         ProgramTradeSummary,
         TradingDay,
         VIEvent,
@@ -58,6 +60,24 @@ class MarketQueries:
         """시장·업종 코드별 세부 투자자 매수·매도·순매수 총량 스냅샷."""
         return market_api.fetch_market_investor_snapshot(
             self._client.transport, market_code=market_code, industry_code=industry_code
+        )
+
+    def investor_net_buy_stocks(
+        self, *, market: str = "all", basis: str = "volume",
+        direction: str = "buy", investor: str = "all",
+    ) -> list[InvestorNetBuyStock]:
+        """투자자 순매수·순매도 상위 종목 집계."""
+        return market_api.fetch_investor_net_buy_stocks(
+            self._client.transport, market=market, basis=basis,
+            direction=direction, investor=investor,
+        )
+
+    def program_investor_trades(
+        self, *, market: Market = "KOSPI"
+    ) -> list[ProgramInvestorTrade]:
+        """시장별 당일 프로그램매매 투자자 집계."""
+        return market_api.fetch_program_investor_trades(
+            self._client.transport, market=market
         )
 
     def funds(self, *, as_of: str | date | None = None) -> list[MarketFunds]:

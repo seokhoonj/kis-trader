@@ -14,7 +14,8 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any, Literal
 
-from .investor import InvestorActivity
+from .investor import InvestorActivity, InvestorNetActivity
+from .program import ProgramTradeActivity
 
 #: 시장 -- 시장 전체 분석이 대상으로 삼는 시장(코스피/코스닥).
 Market = Literal["KOSPI", "KOSDAQ"]
@@ -63,6 +64,44 @@ class MarketInvestorSnapshot:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "participants", MappingProxyType(dict(self.participants)))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class InvestorNetBuyStock:
+    """기관·외국인 등 투자자 순매수 기준으로 집계된 종목."""
+
+    symbol: str
+    name: str
+    net_buy_quantity: int
+    price: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    participants: Mapping[str, InvestorNetActivity]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "participants", MappingProxyType(dict(self.participants)))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ProgramInvestorTrade:
+    """당일 한 투자자 구분의 전체·차익·비차익 프로그램매매."""
+
+    investor_code: str
+    investor_name: str
+    total: ProgramTradeActivity
+    arbitrage: ProgramTradeActivity
+    nonarbitrage: ProgramTradeActivity
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
 
 

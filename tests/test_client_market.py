@@ -11,11 +11,13 @@ from kis_openapi import (
     BrokerOpinion,
     CreditEligibleStock,
     InterestRateQuote,
+    InvestorNetBuyStock,
     KISClient,
     LendableStock,
     MarketFunds,
     MarketInvestorFlow,
     MarketInvestorSnapshot,
+    ProgramInvestorTrade,
 )
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
@@ -146,6 +148,54 @@ def test_market_investor_snapshot_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).market.investor_snapshot(market_code="KSP", industry_code="0001")
+
+
+def _net_buy_row():
+    row = {"mksc_shrn_iscd": "005930", "hts_kor_isnm": "삼성전자", "ntby_qty": "100",
+           "stck_prpr": "71500", "prdy_vrss_sign": "2", "prdy_vrss": "500",
+           "prdy_ctrt": "0.70", "acml_vol": "1000000"}
+    for prefix in ("frgn", "orgn", "ivtr", "bank", "insu", "mrbn", "fund",
+                   "etc_orgt", "etc_corp"):
+        quantity_key = "ntby_vol" if prefix.startswith("etc_") else "ntby_qty"
+        row[f"{prefix}_{quantity_key}"] = "10"
+        row[f"{prefix}_ntby_tr_pbmn"] = "1"
+    return row
+
+
+def test_investor_net_buy_stocks_maps_and_routes():
+    fake = FakeTransport(response=_resp([_net_buy_row()]))
+    stocks = _client(fake).market.investor_net_buy_stocks(
+        market="KOSPI", basis="amount", direction="sell", investor="foreign"
+    )
+    assert isinstance(stocks[0], InvestorNetBuyStock)
+    assert stocks[0].participants["foreign"].quantity == 10
+    assert fake.calls[0]["tr_id"] == "FHPTJ04400000"
+    assert fake.calls[0]["params"] == {
+        "FID_COND_MRKT_DIV_CODE": "V", "FID_COND_SCR_DIV_CODE": "16449",
+        "FID_INPUT_ISCD": "0001", "FID_DIV_CLS_CODE": "1",
+        "FID_RANK_SORT_CLS_CODE": "1", "FID_ETC_CLS_CODE": "1",
+    }
+
+
+def _program_investor_row():
+    row = {"invr_cls_code": "01", "invr_cls_name": "외국인"}
+    for prefix in ("all", "arbt", "nabt"):
+        row |= {f"{prefix}_seln_qty": "100", f"{prefix}_shnu_qty": "130",
+                f"{prefix}_ntby_qty": "30", f"{prefix}_seln_amt": "10",
+                f"{prefix}_shnu_amt": "13", f"{prefix}_ntby_amt": "3"}
+    return row
+
+
+def test_program_investor_trades_maps_and_routes():
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
+                           body={"output1": [_program_investor_row()]})
+    fake = FakeTransport(response=response)
+    rows = _client(fake).market.program_investor_trades(market="KOSDAQ")
+    assert isinstance(rows[0], ProgramInvestorTrade)
+    assert rows[0].total.net_buy_quantity == 30
+    assert rows[0].arbitrage.buy_amount == Decimal(13)
+    assert fake.calls[0]["tr_id"] == "HHPPG046600C1"
+    assert fake.calls[0]["params"] == {"MRKT_DIV_CLS_CODE": "4"}
 
 
 def test_market_investor_flows_bad_value_fails_closed():

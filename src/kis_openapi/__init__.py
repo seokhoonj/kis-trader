@@ -105,6 +105,7 @@ from .investor import (
     InvestorActivity,
     InvestorEstimate,
     InvestorFlow,
+    InvestorNetActivity,
 )
 from .market import MarketQueries
 from .market_items import (
@@ -113,6 +114,7 @@ from .market_items import (
     ForeignBrokerFlow,
     FuturesMarketSchedule,
     InterestRateQuote,
+    InvestorNetBuyStock,
     LendableStock,
     LimitStock,
     MarketFunds,
@@ -120,6 +122,7 @@ from .market_items import (
     MarketInvestorSnapshot,
     NewsItem,
     ProgramFlowPoint,
+    ProgramInvestorTrade,
     ProgramTradeSummary,
     TradingDay,
     VIEvent,
@@ -148,7 +151,7 @@ from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
 from .overseas_ranking_items import RankedOverseasStock
 from .product import ProductInfo
-from .program import DailyProgramTradePoint, ProgramTradePoint
+from .program import DailyProgramTradePoint, ProgramTradeActivity, ProgramTradePoint
 from .quote import Quote
 from .ranking import RankingQueries
 from .ranking_items import (
@@ -255,6 +258,8 @@ __all__ = [
     "InvestorActivity",
     "InvestorEstimate",
     "InvestorFlow",
+    "InvestorNetActivity",
+    "InvestorNetBuyStock",
     "KISClient",
     "LendableStock",
     "LimitStock",
@@ -301,6 +306,8 @@ __all__ = [
     "ProductInfo",
     "ProfitabilityRatio",
     "ProgramFlowPoint",
+    "ProgramInvestorTrade",
+    "ProgramTradeActivity",
     "ProgramTradePoint",
     "ProgramTradeSummary",
     "Quote",

@@ -67,3 +67,15 @@ class DailyProgramTradePoint:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ProgramTradeActivity:
+    """프로그램매매 한 구분의 매도·매수·순매수 수량과 대금."""
+
+    sell_quantity: int
+    buy_quantity: int
+    net_buy_quantity: int
+    sell_amount: Decimal
+    buy_amount: Decimal
+    net_buy_amount: Decimal

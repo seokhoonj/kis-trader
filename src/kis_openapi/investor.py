@@ -27,6 +27,14 @@ class InvestorActivity:
 
 
 @dataclass(frozen=True, slots=True)
+class InvestorNetActivity:
+    """한 투자자 주체의 순매수 수량과 대금."""
+
+    quantity: int
+    amount: Decimal
+
+
+@dataclass(frozen=True, slots=True)
 class InvestorFlow:
     """하루치 투자자별 매매(불변). 주체별 활동은 :class:`InvestorActivity`."""
 
