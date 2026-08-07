@@ -7,12 +7,14 @@
 from __future__ import annotations
 
 import threading
+from datetime import date
 from decimal import Decimal
 
 import pytest
 
 from kis_openapi import (
     BalanceSheet,
+    EarningsEstimate,
     FinancialRatio,
     GrowthRatio,
     IncomeStatement,
@@ -43,6 +45,91 @@ def _client(transport):
 
 def _resp(rows):
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output": rows})
+
+
+def _estimate_resp(*, income_rows=None, indicator_rows=None, period_rows=None):
+    if income_rows is None:
+        income_rows = [
+            {"data1": str(position * 100), "data2": str(position * 110), "data3": ""}
+            for position in range(1, 7)
+        ]
+    if indicator_rows is None:
+        indicator_rows = [
+            {"data1": str(position), "data2": str(position + 1), "data3": ""}
+            for position in range(1, 9)
+        ]
+    if period_rows is None:
+        period_rows = [{"dt": "2024A"}, {"dt": "2025E"}, {"dt": "2026E"}]
+    return RawResponse(
+        rt_cd="0",
+        msg_cd="MCA00000",
+        msg1="정상",
+        body={
+            "output1": {
+                "sht_cd": "005930",
+                "item_kor_nm": "삼성전자",
+                "name1": "홍길동",
+                "estdate": "20240229",
+                "rcmd_name": "매수",
+                "capital": "8975",
+                "forn_item_lmtrt": "55.25",
+            },
+            "output2": income_rows,
+            "output3": indicator_rows,
+            "output4": period_rows,
+        },
+    )
+
+
+def test_earnings_estimate_maps_ordered_metrics_and_periods():
+    fake = FakeTransport(response=_estimate_resp())
+    estimate = _client(fake).ticker("005930").earnings_estimate()
+
+    assert isinstance(estimate, EarningsEstimate)
+    assert estimate.symbol == "005930"
+    assert estimate.name == "삼성전자"
+    assert estimate.analyst == "홍길동"
+    assert estimate.estimate_date == date(2024, 2, 29)
+    assert estimate.recommendation == "매수"
+    assert estimate.capital == Decimal(8975)
+    assert estimate.foreign_limit_ratio == Decimal("55.25")
+    assert estimate.periods == ("2024A", "2025E", "2026E")
+    assert estimate.income_statement["revenue"] == (
+        Decimal(100), Decimal(110), None
+    )
+    assert estimate.income_statement["net_income_growth_percent"] == (
+        Decimal(600), Decimal(660), None
+    )
+    assert estimate.indicators["ebitda"] == (Decimal(1), Decimal(2), None)
+    assert estimate.indicators["interest_coverage"] == (
+        Decimal(8), Decimal(9), None
+    )
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/quotations/estimate-perform"
+    assert call["tr_id"] == "HHKST668300C0"
+    assert call["params"] == {"SHT_CD": "005930"}
+
+
+@pytest.mark.parametrize(
+    ("response", "missing_block"),
+    [
+        (_estimate_resp(income_rows=[]), "output2"),
+        (_estimate_resp(indicator_rows=[]), "output3"),
+        (_estimate_resp(period_rows=[]), "output4"),
+    ],
+)
+def test_earnings_estimate_rejects_malformed_blocks(response, missing_block):
+    fake = FakeTransport(response=response)
+    with pytest.raises(KISError, match=missing_block):
+        _client(fake).ticker("005930").earnings_estimate()
+
+
+def test_earnings_estimate_bad_numeric_value_fails_closed():
+    income_rows = [{"data1": "1"} for _ in range(6)]
+    income_rows[2]["data1"] = "not-a-number"
+    fake = FakeTransport(response=_estimate_resp(income_rows=income_rows))
+    with pytest.raises(KISError, match="data1"):
+        _client(fake).ticker("005930").earnings_estimate()
 
 
 def test_balance_sheet_maps_and_annual_default():

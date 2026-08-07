@@ -23,6 +23,7 @@ from .analysis import (
     AnalystOpinion,
     CreditBalancePoint,
     DailyExecutionVolume,
+    EarningsEstimate,
     ExpectedPricePoint,
     ForeignNetBuyPoint,
     LoanPoint,
@@ -319,6 +320,13 @@ class Ticker:
         self._domestic_market()        # 국내 전용
         return analysis_api.fetch_analyst_opinions(
             self._client.transport, symbol=self.symbol, start=start, end=end
+        )
+
+    def earnings_estimate(self) -> EarningsEstimate:
+        """월간 추정 손익계산서·투자지표 스냅샷. 리서치 추정 대상 국내 종목만 유효하다."""
+        self._domestic_market()
+        return analysis_api.fetch_earnings_estimate(
+            self._client.transport, symbol=self.symbol
         )
 
     def daily_trade_volume(

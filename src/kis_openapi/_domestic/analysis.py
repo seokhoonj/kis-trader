@@ -14,6 +14,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
+from decimal import Decimal
 from typing import Any
 
 from .._wire import optional_decimal, required_decimal, required_int
@@ -21,6 +22,7 @@ from ..analysis import (
     AnalystOpinion,
     CreditBalancePoint,
     DailyExecutionVolume,
+    EarningsEstimate,
     ExpectedPricePoint,
     ForeignNetBuyPoint,
     LoanPoint,
@@ -35,6 +37,7 @@ from .market_data import (
     _missing_block_error,
     _parse_bar_timestamp,
     _parse_intraday_timestamp,
+    _parse_kst_date,
     _parse_minute_bar_timestamp,
     _raise_if_error,
     _to_yyyymmdd,
@@ -43,6 +46,86 @@ from .market_data import (
 
 _CREDIT_PATH = "/uapi/domestic-stock/v1/quotations/daily-credit-balance"
 _CREDIT_TR = "FHPST04760000"
+_EARNINGS_ESTIMATE_PATH = "/uapi/domestic-stock/v1/quotations/estimate-perform"
+_EARNINGS_ESTIMATE_TR = "HHKST668300C0"
+
+_ESTIMATE_INCOME_METRICS = (
+    "revenue",
+    "revenue_growth_percent",
+    "operating_profit",
+    "operating_profit_growth_percent",
+    "net_income",
+    "net_income_growth_percent",
+)
+_ESTIMATE_INDICATOR_METRICS = (
+    "ebitda",
+    "eps",
+    "eps_growth_percent",
+    "per",
+    "ev_to_ebitda",
+    "roe",
+    "debt_ratio",
+    "interest_coverage",
+)
+
+
+def fetch_earnings_estimate(transport: Transport, *, symbol: str) -> EarningsEstimate:
+    """한 종목의 월간 추정 손익계산서·투자지표 스냅샷."""
+    resp = transport.request(
+        method="GET", path=_EARNINGS_ESTIMATE_PATH, tr_id=_EARNINGS_ESTIMATE_TR,
+        params={"SHT_CD": symbol}, idempotent=True,
+    )
+    _raise_if_error(resp)
+    header = resp.body.get("output1")
+    income_rows = resp.body.get("output2")
+    indicator_rows = resp.body.get("output3")
+    period_rows = resp.body.get("output4")
+    if not isinstance(header, Mapping):
+        raise _missing_block_error("output1", resp)
+    if not isinstance(income_rows, list) or len(income_rows) != len(_ESTIMATE_INCOME_METRICS):
+        raise _missing_block_error("output2(6 rows)", resp)
+    if not isinstance(indicator_rows, list) or len(indicator_rows) != len(
+        _ESTIMATE_INDICATOR_METRICS
+    ):
+        raise _missing_block_error("output3(8 rows)", resp)
+    if not isinstance(period_rows, list) or not 1 <= len(period_rows) <= 5:
+        raise _missing_block_error("output4(1..5 rows)", resp)
+    if not all(isinstance(row, Mapping) for row in [*income_rows, *indicator_rows, *period_rows]):
+        raise _missing_block_error("estimate row", resp)
+    periods = tuple(str(row.get("dt", "")).strip() for row in period_rows)
+    if any(not period for period in periods):
+        raise _missing_block_error("output4[].dt", resp)
+
+    def metric_values(row: Mapping[str, Any]) -> tuple[Decimal | None, ...]:
+        return tuple(
+            optional_decimal(row.get(f"data{position}"), f"data{position}")
+            for position in range(1, len(periods) + 1)
+        )
+
+    income_statement = {
+        metric: metric_values(row)
+        for metric, row in zip(_ESTIMATE_INCOME_METRICS, income_rows, strict=True)
+    }
+    indicators = {
+        metric: metric_values(row)
+        for metric, row in zip(_ESTIMATE_INDICATOR_METRICS, indicator_rows, strict=True)
+    }
+    date_text = str(header.get("estdate", "")).strip()
+    return EarningsEstimate(
+        symbol=symbol,
+        name=str(header.get("item_kor_nm", "")).strip(),
+        analyst=str(header.get("name1", "")).strip(),
+        estimate_date=_parse_kst_date(date_text),
+        recommendation=str(header.get("rcmd_name", "")).strip(),
+        capital=optional_decimal(header.get("capital"), "capital"),
+        foreign_limit_ratio=optional_decimal(
+            header.get("forn_item_lmtrt"), "forn_item_lmtrt"
+        ),
+        periods=periods,
+        income_statement=income_statement,
+        indicators=indicators,
+        _raw=resp.body,
+    )
 _SHORT_PATH = "/uapi/domestic-stock/v1/quotations/daily-short-sale"
 _SHORT_TR = "FHPST04830000"
 

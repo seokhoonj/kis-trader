@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -121,6 +121,36 @@ class AnalystOpinion:
     )
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class EarningsEstimate:
+    """한 종목의 월간 추정손익·투자지표 스냅샷(불변).
+
+    ``periods`` 와 각 metric tuple은 같은 위치로 대응한다. ``income_statement`` 는 매출·영업이익·
+    순이익과 증감률, ``indicators`` 는 EBITDA·EPS·PER·ROE 등 추정 투자지표다.
+    """
+
+    symbol: str
+    name: str
+    analyst: str
+    estimate_date: date
+    recommendation: str
+    capital: Decimal | None
+    foreign_limit_ratio: Decimal | None
+    periods: tuple[str, ...]
+    income_statement: Mapping[str, tuple[Decimal | None, ...]]
+    indicators: Mapping[str, tuple[Decimal | None, ...]]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self, "income_statement", MappingProxyType(dict(self.income_statement))
+        )
+        object.__setattr__(self, "indicators", MappingProxyType(dict(self.indicators)))
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
 
 
