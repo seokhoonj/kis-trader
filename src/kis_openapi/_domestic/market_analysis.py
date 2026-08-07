@@ -17,8 +17,10 @@ from typing import Literal
 from .._wire import optional_decimal, required_decimal, required_int
 from ..errors import KISUsageError
 from ..market_items import (
+    CreditEligibleStock,
     ForeignBrokerFlow,
     InterestRateQuote,
+    LendableStock,
     LimitStock,
     Market,
     MarketFunds,
@@ -47,10 +49,108 @@ _INVESTOR_BY_MARKET_TR = "FHPTJ04040000"
 #: 시장 -> (지수코드 FID_INPUT_ISCD, 시장약어 FID_INPUT_ISCD_1). 원장 예시 대조.
 _MARKET_CODE = {"KOSPI": ("0001", "KSP"), "KOSDAQ": ("1001", "KSQ")}
 
+_LENDABLE_PATH = "/uapi/domestic-stock/v1/quotations/lendable-by-company"
+_LENDABLE_TR = "CTSC2702R"
+_LENDABLE_MARKET = {"all": "00", "KOSPI": "02", "KOSDAQ": "03"}
+_CREDIT_ELIGIBLE_PATH = "/uapi/domestic-stock/v1/quotations/credit-by-company"
+_CREDIT_ELIGIBLE_TR = "FHPST04770000"
+_CREDIT_MARKET = {"all": "0000", "KOSPI": "0001", "KOSDAQ": "1001", "KOSPI200": "2001"}
+
 
 def _default_start(end_yyyymmdd: str, days: int = 30) -> str:
     end_day = datetime.strptime(end_yyyymmdd, "%Y%m%d")  # noqa: DTZ007 -- 날짜 산술만
     return f"{end_day - timedelta(days=days):%Y%m%d}"
+
+
+def fetch_lendable_stocks(
+    transport: Transport, *, market: str = "all", symbol: str = ""
+) -> list[LendableStock]:
+    """회사 대주 가능 종목과 한도·사용·가능수량 목록."""
+    market_code = _LENDABLE_MARKET.get(market)
+    if market_code is None:
+        raise KISUsageError(f"market 은 {sorted(_LENDABLE_MARKET)} 중 하나: {market!r}")
+    params = {
+        "EXCG_DVSN_CD": market_code,
+        "PDNO": symbol,
+        "THCO_STLN_PSBL_YN": "Y",
+        "INQR_DVSN_1": "0",
+        "CTX_AREA_FK200": "",
+        "CTX_AREA_NK100": "",
+    }
+    resp = transport.request(
+        method="GET", path=_LENDABLE_PATH, tr_id=_LENDABLE_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output1")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output1", resp)
+    stocks: list[LendableStock] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output1[]", resp)
+        stocks.append(
+            LendableStock(
+                symbol=str(row.get("pdno", "")).strip(),
+                name=str(row.get("prdt_name", "")).strip(),
+                par_value=required_decimal(row.get("papr"), "papr"),
+                previous_close=required_decimal(row.get("bfdy_clpr"), "bfdy_clpr"),
+                substitute_value=required_decimal(row.get("sbst_prvs"), "sbst_prvs"),
+                trading_status=str(row.get("tr_stop_dvsn_name", "")).strip(),
+                availability=str(row.get("psbl_yn_name", "")).strip(),
+                limit_quantity=required_int(row.get("lmt_qty1"), "lmt_qty1"),
+                used_quantity=required_int(row.get("use_qty1"), "use_qty1"),
+                available_quantity=required_int(row.get("trad_psbl_qty2"), "trad_psbl_qty2"),
+                rights_type=str(row.get("rght_type_cd", "")).strip(),
+                base_date=_parse_kst_date(str(row.get("bass_dt", "")).strip()),
+                is_lendable=str(row.get("psbl_yn", "")).strip() == "Y",
+                _raw=row,
+            )
+        )
+    return stocks
+
+
+def fetch_credit_eligible_stocks(
+    transport: Transport,
+    *,
+    market: str = "all",
+    eligible: bool = True,
+    sort: str = "name",
+) -> list[CreditEligibleStock]:
+    """회사 신용주문 가능·불가 종목과 신용비율 목록(최대 100건)."""
+    market_code = _CREDIT_MARKET.get(market)
+    if market_code is None:
+        raise KISUsageError(f"market 은 {sorted(_CREDIT_MARKET)} 중 하나: {market!r}")
+    sort_code = {"symbol": "0", "name": "1"}.get(sort)
+    if sort_code is None:
+        raise KISUsageError(f"sort 는 'symbol' 또는 'name': {sort!r}")
+    params = {
+        "fid_rank_sort_cls_code": sort_code,
+        "fid_slct_yn": "0" if eligible else "1",
+        "fid_input_iscd": market_code,
+        "fid_cond_scr_div_code": "20477",
+        "fid_cond_mrkt_div_code": "J",
+    }
+    resp = transport.request(
+        method="GET", path=_CREDIT_ELIGIBLE_PATH, tr_id=_CREDIT_ELIGIBLE_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    if not all(isinstance(row, Mapping) for row in rows):
+        raise _missing_block_error("output[]", resp)
+    return [
+        CreditEligibleStock(
+            symbol=str(row.get("stck_shrn_iscd", "")).strip(),
+            name=str(row.get("hts_kor_isnm", "")).strip(),
+            credit_rate=required_decimal(row.get("crdt_rate"), "crdt_rate"),
+            is_eligible=eligible,
+            _raw=row,
+        )
+        for row in rows
+    ]
 
 
 def fetch_market_investor_flows(

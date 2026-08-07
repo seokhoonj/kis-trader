@@ -7,7 +7,14 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import InterestRateQuote, KISClient, MarketFunds, MarketInvestorFlow
+from kis_openapi import (
+    CreditEligibleStock,
+    InterestRateQuote,
+    KISClient,
+    LendableStock,
+    MarketFunds,
+    MarketInvestorFlow,
+)
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
@@ -215,6 +222,90 @@ def test_market_interest_rates_bad_row_fails_closed():
     fake = FakeTransport(response=response)
     with pytest.raises(KISError):
         _client(fake).market.interest_rates()
+
+
+def _lendable_row(**over):
+    row = {
+        "pdno": "005930", "prdt_name": "삼성전자", "papr": "100",
+        "bfdy_clpr": "75000", "sbst_prvs": "60000", "tr_stop_dvsn_name": "정상",
+        "psbl_yn_name": "가능", "lmt_qty1": "100000", "use_qty1": "20000",
+        "trad_psbl_qty2": "80000", "rght_type_cd": "00", "bass_dt": "20240528",
+        "psbl_yn": "Y",
+    }
+    row.update(over)
+    return row
+
+
+def test_market_lendable_stocks_maps_and_routes():
+    response = RawResponse(
+        rt_cd="0", msg_cd="X", msg1="ok",
+        body={"output1": [_lendable_row()], "output2": {}},
+    )
+    fake = FakeTransport(response=response)
+    stocks = _client(fake).market.lendable_stocks(market="KOSPI", symbol="005930")
+    assert len(stocks) == 1 and isinstance(stocks[0], LendableStock)
+    stock = stocks[0]
+    assert stock.symbol == "005930"
+    assert stock.available_quantity == 80000
+    assert stock.limit_quantity - stock.used_quantity == stock.available_quantity
+    assert stock.is_lendable is True
+    assert stock.base_date == date(2024, 5, 28)
+    assert fake.calls[0] == {
+        "path": "/uapi/domestic-stock/v1/quotations/lendable-by-company",
+        "tr_id": "CTSC2702R",
+        "params": {
+            "EXCG_DVSN_CD": "02", "PDNO": "005930", "THCO_STLN_PSBL_YN": "Y",
+            "INQR_DVSN_1": "0", "CTX_AREA_FK200": "", "CTX_AREA_NK100": "",
+        },
+    }
+
+
+def test_market_lendable_stocks_rejects_bad_market_and_output():
+    fake = FakeTransport(response=None)
+    with pytest.raises(KISUsageError):
+        _client(fake).market.lendable_stocks(market="NYSE")
+    assert fake.calls == []
+    bad = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(bad).market.lendable_stocks()
+
+
+def test_market_credit_eligible_stocks_maps_query_contract():
+    response = RawResponse(
+        rt_cd="0", msg_cd="X", msg1="ok", body={"output": [
+            {"stck_shrn_iscd": "005930", "hts_kor_isnm": "삼성전자", "crdt_rate": "40.00"}
+        ]},
+    )
+    fake = FakeTransport(response=response)
+    stocks = _client(fake).market.credit_eligible_stocks(
+        market="KOSDAQ", eligible=False, sort="symbol"
+    )
+    assert len(stocks) == 1 and isinstance(stocks[0], CreditEligibleStock)
+    assert stocks[0].credit_rate == Decimal("40.00")
+    assert stocks[0].is_eligible is False
+    assert fake.calls[0] == {
+        "path": "/uapi/domestic-stock/v1/quotations/credit-by-company",
+        "tr_id": "FHPST04770000",
+        "params": {
+            "fid_rank_sort_cls_code": "0", "fid_slct_yn": "1",
+            "fid_input_iscd": "1001", "fid_cond_scr_div_code": "20477",
+            "fid_cond_mrkt_div_code": "J",
+        },
+    }
+
+
+def test_market_credit_eligible_stocks_rejects_bad_filters_and_rows():
+    fake = FakeTransport(response=None)
+    with pytest.raises(KISUsageError):
+        _client(fake).market.credit_eligible_stocks(market="NYSE")
+    with pytest.raises(KISUsageError):
+        _client(fake).market.credit_eligible_stocks(sort="rate")
+    assert fake.calls == []
+    bad = FakeTransport(
+        response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": ["bad"]})
+    )
+    with pytest.raises(KISError):
+        _client(bad).market.credit_eligible_stocks()
 
 
 def _prog_row(**over):

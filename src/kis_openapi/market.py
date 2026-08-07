@@ -18,8 +18,10 @@ if TYPE_CHECKING:
 
     from .client import KISClient
     from .market_items import (
+        CreditEligibleStock,
         ForeignBrokerFlow,
         InterestRateQuote,
+        LendableStock,
         LimitStock,
         Market,
         MarketFunds,
@@ -55,6 +57,22 @@ class MarketQueries:
     def interest_rates(self) -> list[InterestRateQuote]:
         """국내·해외 주요 금리와 채권지수의 최신 값·전일대비 스냅샷."""
         return market_api.fetch_interest_rates(self._client.transport)
+
+    def lendable_stocks(
+        self, *, market: str = "all", symbol: str = ""
+    ) -> list[LendableStock]:
+        """회사 대주 가능 종목과 한도·사용·매매가능 수량 목록."""
+        return market_api.fetch_lendable_stocks(
+            self._client.transport, market=market, symbol=symbol
+        )
+
+    def credit_eligible_stocks(
+        self, *, market: str = "all", eligible: bool = True, sort: str = "name"
+    ) -> list[CreditEligibleStock]:
+        """회사 신용주문 가능·불가 종목과 신용비율 목록(최대 100건)."""
+        return market_api.fetch_credit_eligible_stocks(
+            self._client.transport, market=market, eligible=eligible, sort=sort
+        )
 
     def program_trades(
         self, *, market: Market = "KOSPI",

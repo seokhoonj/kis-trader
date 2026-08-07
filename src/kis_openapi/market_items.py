@@ -255,6 +255,47 @@ class InterestRateQuote:
 
 
 @dataclass(frozen=True, slots=True)
+class LendableStock:
+    """회사 대주가 가능한 한 종목의 한도·사용·가능수량(불변)."""
+
+    symbol: str
+    name: str
+    par_value: Decimal
+    previous_close: Decimal
+    substitute_value: Decimal
+    trading_status: str
+    availability: str
+    limit_quantity: int
+    used_quantity: int
+    available_quantity: int
+    rights_type: str
+    base_date: date
+    is_lendable: bool
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class CreditEligibleStock:
+    """회사 신용주문 가능 여부와 신용비율을 가진 한 종목(불변)."""
+
+    symbol: str
+    name: str
+    credit_rate: Decimal
+    is_eligible: bool
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class MarketFunds:
     """하루의 증시자금 종합 현황(불변).
 

@@ -81,8 +81,10 @@ from .index_items import CategoryIndex, IndexIntradayPoint, IndexQuote
 from .investor import InvestorActivity, InvestorEstimate, InvestorFlow
 from .market import MarketQueries
 from .market_items import (
+    CreditEligibleStock,
     ForeignBrokerFlow,
     InterestRateQuote,
+    LendableStock,
     LimitStock,
     MarketFunds,
     MarketInvestorFlow,
@@ -162,6 +164,7 @@ __all__ = [
     "CategoryIndex",
     "CreditBalancePoint",
     "CreditBalanceRanking",
+    "CreditEligibleStock",
     "DailyExecutionVolume",
     "Derivative",
     "DerivativesQuote",
@@ -196,6 +199,7 @@ __all__ = [
     "InvestorEstimate",
     "InvestorFlow",
     "KISClient",
+    "LendableStock",
     "LimitStock",
     "ListingInfo",
     "LoanPoint",
