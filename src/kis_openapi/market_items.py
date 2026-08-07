@@ -181,6 +181,24 @@ class TradingDay:
 
 
 @dataclass(frozen=True, slots=True)
+class FuturesMarketSchedule:
+    """국내선물의 기준 영업일과 당일 장 운영 시각(불변)."""
+
+    business_days: tuple[date, ...]
+    today: date
+    current_time: datetime
+    opens_at: datetime
+    closes_at: datetime
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "business_days", tuple(self.business_days))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class NewsItem:
     """한 건의 시황/공시 뉴스(불변).
 

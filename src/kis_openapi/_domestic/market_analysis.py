@@ -20,6 +20,7 @@ from ..market_items import (
     BrokerOpinion,
     CreditEligibleStock,
     ForeignBrokerFlow,
+    FuturesMarketSchedule,
     InterestRateQuote,
     LendableStock,
     LimitStock,
@@ -483,6 +484,8 @@ def fetch_program_flow(
 
 _CALENDAR_PATH = "/uapi/domestic-stock/v1/quotations/chk-holiday"
 _CALENDAR_TR = "CTCA0903R"
+_FUTURES_SCHEDULE_PATH = "/uapi/domestic-stock/v1/quotations/market-time"
+_FUTURES_SCHEDULE_TR = "HHMCM000002C0"
 
 
 def fetch_trading_calendar(
@@ -516,6 +519,42 @@ def fetch_trading_calendar(
             )
         )
     return days
+
+
+def fetch_futures_market_schedule(transport: Transport) -> FuturesMarketSchedule:
+    """국내선물의 인접 영업일 5개와 오늘 장 운영 시각."""
+    resp = transport.request(
+        method="GET",
+        path=_FUTURES_SCHEDULE_PATH,
+        tr_id=_FUTURES_SCHEDULE_TR,
+        params={},
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output1")
+    if not isinstance(output, Mapping):
+        raise _missing_block_error("output1", resp)
+    business_days = tuple(
+        _parse_kst_date(str(output.get(f"date{position}", "")).strip())
+        for position in range(1, 6)
+    )
+    today_text = str(output.get("today", "")).strip()
+    today = _parse_kst_date(today_text)
+    as_of = _parse_bar_timestamp(today_text)
+    return FuturesMarketSchedule(
+        business_days=business_days,
+        today=today,
+        current_time=_parse_intraday_timestamp(
+            str(output.get("time", "")).strip(), as_of
+        ),
+        opens_at=_parse_intraday_timestamp(
+            str(output.get("s_time", "")).strip(), as_of
+        ),
+        closes_at=_parse_intraday_timestamp(
+            str(output.get("e_time", "")).strip(), as_of
+        ),
+        _raw=output,
+    )
 
 
 _NEWS_PATH = "/uapi/domestic-stock/v1/quotations/news-title"

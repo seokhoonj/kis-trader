@@ -5,7 +5,7 @@ import threading
 
 import pytest
 
-from kis_openapi import KISClient, TradingDay
+from kis_openapi import FuturesMarketSchedule, KISClient, TradingDay
 from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
@@ -55,3 +55,51 @@ def test_trading_calendar_skips_empty_and_missing_output():
     fake2 = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake2).market.trading_calendar()
+
+
+def test_futures_market_schedule_maps_business_days_and_times():
+    response = RawResponse(
+        rt_cd="0",
+        msg_cd="X",
+        msg1="ok",
+        body={
+            "output1": {
+                "date1": "20240221",
+                "date2": "20240222",
+                "date3": "20240223",
+                "date4": "20240226",
+                "date5": "20240227",
+                "today": "20240223",
+                "time": "101530",
+                "s_time": "084500",
+                "e_time": "154500",
+            }
+        },
+    )
+    fake = FakeTransport(response=response)
+    schedule = _client(fake).market.futures_market_schedule()
+
+    assert isinstance(schedule, FuturesMarketSchedule)
+    assert [f"{day:%Y%m%d}" for day in schedule.business_days] == [
+        "20240221",
+        "20240222",
+        "20240223",
+        "20240226",
+        "20240227",
+    ]
+    assert f"{schedule.today:%Y%m%d}" == "20240223"
+    assert f"{schedule.current_time:%Y%m%d%H%M%S}" == "20240223101530"
+    assert f"{schedule.opens_at:%H%M%S}" == "084500"
+    assert f"{schedule.closes_at:%H%M%S}" == "154500"
+    assert schedule.current_time.tzinfo is not None
+    assert fake.calls[0] == {
+        "path": "/uapi/domestic-stock/v1/quotations/market-time",
+        "tr_id": "HHMCM000002C0",
+        "params": {},
+    }
+
+
+def test_futures_market_schedule_missing_output_fails_closed():
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=response)).market.futures_market_schedule()
