@@ -44,6 +44,27 @@ class BondQuote:
 
 
 @dataclass(frozen=True, slots=True)
+class BondDailyPrice:
+    """한 거래일의 채권 가격·등락·누적거래량."""
+
+    date: date
+    code: str
+    price: Decimal
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class BondInfo:
     """한 장내채권의 기본/발행 정보(불변).
 

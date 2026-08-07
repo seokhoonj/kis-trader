@@ -21,8 +21,14 @@ from typing import Any
 
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
 from ..bar import Bar, Interval
-from ..bond_items import BondInfo, BondIssuance, BondQuote, BondValuation
-from ..errors import KISUsageError
+from ..bond_items import (
+    BondDailyPrice,
+    BondInfo,
+    BondIssuance,
+    BondQuote,
+    BondValuation,
+)
+from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook
 from ..trade import Trade
 from ..transport import Transport
@@ -46,6 +52,9 @@ _TRADES_PATH = "/uapi/domestic-bond/v1/quotations/inquire-ccnl"
 _TRADES_TR = "FHKBJ773403C0"
 _BARS_PATH = "/uapi/domestic-bond/v1/quotations/inquire-daily-itemchartprice"
 _BARS_TR = "FHKBJ773701C0"
+_DAILY_PRICES_PATH = "/uapi/domestic-bond/v1/quotations/inquire-daily-price"
+_DAILY_PRICES_TR = "FHKBJ773404C0"
+_MAX_DAILY_PRICE_PAGES = 50
 _VALUATIONS_PATH = "/uapi/domestic-bond/v1/quotations/avg-unit"
 _VALUATIONS_TR = "CTPF2005R"
 _ISSUANCE_PATH = "/uapi/domestic-bond/v1/quotations/issue-info"
@@ -197,6 +206,62 @@ def fetch_bars(transport: Transport, *, code: str, interval: Interval = "1d") ->
         )
     bars.sort(key=lambda bar: bar.timestamp)
     return bars
+
+
+def fetch_daily_prices(transport: Transport, *, code: str) -> list[BondDailyPrice]:
+    """채권의 날짜별 현재가·등락·OHLCV를 과거->현재 순으로 조회한다."""
+    prices_by_date: dict[date, BondDailyPrice] = {}
+    tr_cont = ""
+    for _page in range(_MAX_DAILY_PRICE_PAGES):
+        resp = transport.request(
+            method="GET",
+            path=_DAILY_PRICES_PATH,
+            tr_id=_DAILY_PRICES_TR,
+            params={"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code},
+            idempotent=True,
+            tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        rows = resp.body.get("output")
+        if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+            raise _missing_block_error("output", resp)
+        fresh = 0
+        for row in rows:
+            date_text = str(row.get("stck_bsop_date", "")).strip()
+            price_text = str(row.get("bond_prpr", "")).strip()
+            if not date_text or not price_text:
+                continue
+            day = _parse_bar_timestamp(date_text).date()
+            sign = str(row.get("prdy_vrss_sign", "")).strip()
+            price = BondDailyPrice(
+                date=day,
+                code=code,
+                price=required_decimal(price_text, "bond_prpr"),
+                open=required_decimal(row.get("bond_oprc"), "bond_oprc"),
+                high=required_decimal(row.get("bond_hgpr"), "bond_hgpr"),
+                low=required_decimal(row.get("bond_lwpr"), "bond_lwpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("bond_prdy_vrss"), "bond_prdy_vrss"), sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                _raw=row,
+            )
+            if day not in prices_by_date:
+                fresh += 1
+            prices_by_date[day] = price
+        if resp.tr_cont not in {"F", "M"}:
+            break
+        if fresh == 0:
+            raise KISError("채권 일별 현재가 연속조회가 새 날짜 없이 반복됐다.")
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"채권 일별 현재가가 {_MAX_DAILY_PRICE_PAGES}페이지 상한에 도달했다."
+        )
+    return [prices_by_date[day] for day in sorted(prices_by_date)]
 
 
 def fetch_valuations(

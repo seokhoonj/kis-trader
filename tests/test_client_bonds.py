@@ -19,6 +19,7 @@ _PRICE = "/uapi/domestic-bond/v1/quotations/inquire-price"
 _ASKING = "/uapi/domestic-bond/v1/quotations/inquire-asking-price"
 _CCNL = "/uapi/domestic-bond/v1/quotations/inquire-ccnl"
 _BARS = "/uapi/domestic-bond/v1/quotations/inquire-daily-itemchartprice"
+_DAILY_PRICES = "/uapi/domestic-bond/v1/quotations/inquire-daily-price"
 _VALUATIONS = "/uapi/domestic-bond/v1/quotations/avg-unit"
 
 
@@ -234,6 +235,55 @@ def test_bond_bars_non_mapping_row_fails_closed():
     fake = FakeTransport(response=_resp(["bad-row"]))
     with pytest.raises(KISError):
         _client(fake).bond("KR101501D967").bars()
+
+
+# --- daily_prices ----------------------------------------------------------
+class DailyPriceTransport:
+    def __init__(self, responses):
+        self.responses = list(responses)
+        self.calls = []
+
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
+        self.calls.append({"path": path, "tr_id": tr_id, "params": params, "tr_cont": tr_cont})
+        return self.responses.pop(0)
+
+
+def _daily_row(day, price, change, sign, rate, volume="119"):
+    return {
+        "stck_bsop_date": day, "bond_prpr": price, "bond_prdy_vrss": change,
+        "prdy_vrss_sign": sign, "prdy_ctrt": rate, "acml_vol": volume,
+        "bond_oprc": price, "bond_hgpr": price, "bond_lwpr": price,
+    }
+
+
+def test_bond_daily_prices_maps_change_and_continuation():
+    first = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", tr_cont="M",
+                        body={"output": [_daily_row("20240610", "10997.10", "2.10", "2", "0.02")]})
+    second = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                         body={"output": [_daily_row("20240607", "10995.00", "5.00", "5", "0.05")]})
+    fake = DailyPriceTransport([first, second])
+
+    from kis_openapi import BondDailyPrice
+    prices = _client(fake).bond("KR101501D967").daily_prices()
+
+    assert all(isinstance(price, BondDailyPrice) for price in prices)
+    assert [f"{price.date:%Y%m%d}" for price in prices] == ["20240607", "20240610"]
+    assert prices[0].change == Decimal("-5.00")
+    assert prices[0].change_percent == Decimal("-0.05")
+    assert prices[1].price == Decimal("10997.10")
+    assert prices[1].volume == 119
+    assert fake.calls[0]["path"] == _DAILY_PRICES
+    assert fake.calls[0]["tr_id"] == "FHKBJ773404C0"
+    assert fake.calls[0]["tr_cont"] == ""
+    assert fake.calls[1]["tr_cont"] == "N"
+
+
+def test_bond_daily_prices_missing_output_fails_closed():
+    fake = DailyPriceTransport([
+        RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={})
+    ])
+    with pytest.raises(KISError):
+        _client(fake).bond("KR101501D967").daily_prices()
 
 
 # --- valuations ------------------------------------------------------------
