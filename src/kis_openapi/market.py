@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from .client import KISClient
     from .market_items import (
         ForeignBrokerFlow,
+        InterestRateQuote,
         LimitStock,
         Market,
         MarketFunds,
@@ -50,6 +51,10 @@ class MarketQueries:
         """증시자금 종합(고객예탁금·신용융자잔고·펀드유형별 잔고·시가총액)의 최근 일별 추이.
         ``as_of`` 기준일에서 과거로(미지정이면 오늘). 시장 전체."""
         return market_api.fetch_market_funds(self._client.transport, as_of=as_of)
+
+    def interest_rates(self) -> list[InterestRateQuote]:
+        """국내·해외 주요 금리와 채권지수의 최신 값·전일대비 스냅샷."""
+        return market_api.fetch_interest_rates(self._client.transport)
 
     def program_trades(
         self, *, market: Market = "KOSPI",

@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KISClient, MarketFunds, MarketInvestorFlow
+from kis_openapi import InterestRateQuote, KISClient, MarketFunds, MarketInvestorFlow
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
@@ -153,6 +153,68 @@ def test_market_funds_bad_required_numeric_fails_closed():
     fake = FakeTransport(response=_resp([_funds_row(bstp_nmix_prpr="n/a")]))
     with pytest.raises(KISError):
         _client(fake).market.funds(as_of="20240430")
+
+
+def _interest_row(**over):
+    row = {
+        "bcdt_code": "Y0202", "hts_kor_isnm": "미국 10년 국채수익률",
+        "bond_mnrt_prpr": "4.5600", "prdy_vrss_sign": "2",
+        "bond_mnrt_prdy_vrss": "0.0100", "prdy_ctrt": "0.22",
+        "bstp_nmix_prdy_ctrt": "0.22", "stck_bsop_date": "20240411",
+    }
+    row.update(over)
+    return row
+
+
+def test_market_interest_rates_combines_regions_and_maps_signs():
+    overseas = _interest_row()
+    domestic = _interest_row(
+        bcdt_code="Y0101", hts_kor_isnm="국고채 3년", bond_mnrt_prpr="3.4080",
+        prdy_vrss_sign="5", bond_mnrt_prdy_vrss="-0.0580",
+        bstp_nmix_prdy_ctrt="-1.67", stck_bsop_date="20240412",
+    )
+    response = RawResponse(
+        rt_cd="0", msg_cd="MCA00000", msg1="정상",
+        body={"output1": [overseas], "output2": [domestic]},
+    )
+    fake = FakeTransport(response=response)
+    quotes = _client(fake).market.interest_rates()
+    assert all(isinstance(quote, InterestRateQuote) for quote in quotes)
+    assert [(quote.code, quote.region) for quote in quotes] == [
+        ("Y0202", "overseas"), ("Y0101", "domestic"),
+    ]
+    assert quotes[0].value == Decimal("4.5600")
+    assert quotes[0].change == Decimal("0.0100")
+    assert quotes[0].change_percent == Decimal("0.22")
+    assert quotes[1].change == Decimal("-0.0580")
+    assert quotes[1].change_percent == Decimal("-1.67")
+    assert quotes[1].date == date(2024, 4, 12)
+    assert fake.calls[0] == {
+        "path": "/uapi/domestic-stock/v1/quotations/comp-interest",
+        "tr_id": "FHPST07020000",
+        "params": {
+            "FID_COND_MRKT_DIV_CODE": "I", "FID_COND_SCR_DIV_CODE": "20702",
+            "FID_DIV_CLS_CODE": "1", "FID_DIV_CLS_CODE1": "",
+        },
+    }
+
+
+@pytest.mark.parametrize("body", [{"output1": []}, {"output2": []}])
+def test_market_interest_rates_requires_both_output_blocks(body):
+    fake = FakeTransport(
+        response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
+    )
+    with pytest.raises(KISError):
+        _client(fake).market.interest_rates()
+
+
+def test_market_interest_rates_bad_row_fails_closed():
+    response = RawResponse(
+        rt_cd="0", msg_cd="X", msg1="ok", body={"output1": ["bad"], "output2": []}
+    )
+    fake = FakeTransport(response=response)
+    with pytest.raises(KISError):
+        _client(fake).market.interest_rates()
 
 
 def _prog_row(**over):

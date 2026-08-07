@@ -82,6 +82,7 @@ from .investor import InvestorActivity, InvestorEstimate, InvestorFlow
 from .market import MarketQueries
 from .market_items import (
     ForeignBrokerFlow,
+    InterestRateQuote,
     LimitStock,
     MarketFunds,
     MarketInvestorFlow,
@@ -187,6 +188,7 @@ __all__ = [
     "Index",
     "IndexIntradayPoint",
     "IndexQuote",
+    "InterestRateQuote",
     "Interval",
     "InvestorActivity",
     "InvestorEstimate",

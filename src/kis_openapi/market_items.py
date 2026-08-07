@@ -232,6 +232,29 @@ class ForeignBrokerFlow:
 
 
 @dataclass(frozen=True, slots=True)
+class InterestRateQuote:
+    """국내·해외 금리 지표 또는 채권지수의 최근 값(불변).
+
+    ``value`` 는 항목에 따라 금리(%) 또는 지수 수준이고, ``change`` / ``change_percent`` 는
+    전일대비 부호를 반영한다. ``region`` 은 ``"domestic"`` 또는 ``"overseas"``.
+    """
+
+    code: str
+    name: str
+    region: Literal["domestic", "overseas"]
+    value: Decimal
+    change: Decimal
+    change_percent: Decimal
+    date: date
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class MarketFunds:
     """하루의 증시자금 종합 현황(불변).
 

@@ -10,12 +10,15 @@ KIS URL/TR-id:
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from datetime import date, datetime, timedelta
+from typing import Literal
 
 from .._wire import optional_decimal, required_decimal, required_int
 from ..errors import KISUsageError
 from ..market_items import (
     ForeignBrokerFlow,
+    InterestRateQuote,
     LimitStock,
     Market,
     MarketFunds,
@@ -26,7 +29,7 @@ from ..market_items import (
     TradingDay,
     VIEvent,
 )
-from ..transport import Transport
+from ..transport import RawResponse, Transport
 from .market_data import (
     _KST,
     _apply_change_sign,
@@ -456,6 +459,68 @@ def fetch_foreign_broker_trades(
 
 _MARKET_FUNDS_PATH = "/uapi/domestic-stock/v1/quotations/mktfunds"
 _MARKET_FUNDS_TR = "FHKST649100C0"
+
+_INTEREST_RATES_PATH = "/uapi/domestic-stock/v1/quotations/comp-interest"
+_INTEREST_RATES_TR = "FHPST07020000"
+
+
+def fetch_interest_rates(transport: Transport) -> list[InterestRateQuote]:
+    """국내·해외 주요 금리와 채권지수의 최신 스냅샷."""
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "I",
+        "FID_COND_SCR_DIV_CODE": "20702",
+        "FID_DIV_CLS_CODE": "1",
+        "FID_DIV_CLS_CODE1": "",
+    }
+    resp = transport.request(
+        method="GET", path=_INTEREST_RATES_PATH, tr_id=_INTEREST_RATES_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    overseas_rows = resp.body.get("output1")
+    domestic_rows = resp.body.get("output2")
+    if not isinstance(overseas_rows, list):
+        raise _missing_block_error("output1", resp)
+    if not isinstance(domestic_rows, list):
+        raise _missing_block_error("output2", resp)
+    quotes = _parse_interest_rates(
+        overseas_rows, region="overseas", percent_field="prdy_ctrt", resp=resp
+    )
+    quotes.extend(
+        _parse_interest_rates(
+            domestic_rows, region="domestic", percent_field="bstp_nmix_prdy_ctrt", resp=resp
+        )
+    )
+    return quotes
+
+
+def _parse_interest_rates(
+    rows: list[object], *, region: Literal["domestic", "overseas"], percent_field: str,
+    resp: RawResponse,
+) -> list[InterestRateQuote]:
+    quotes: list[InterestRateQuote] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error(f"{region} output[]", resp)
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        quotes.append(
+            InterestRateQuote(
+                code=str(row.get("bcdt_code", "")).strip(),
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                region=region,
+                value=required_decimal(row.get("bond_mnrt_prpr"), "bond_mnrt_prpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("bond_mnrt_prdy_vrss"), "bond_mnrt_prdy_vrss"),
+                    sign,
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get(percent_field), percent_field), sign
+                ),
+                date=_parse_kst_date(str(row.get("stck_bsop_date", "")).strip()),
+                _raw=row,
+            )
+        )
+    return quotes
 
 
 def fetch_market_funds(
