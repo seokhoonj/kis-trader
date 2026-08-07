@@ -32,7 +32,7 @@ from .._wire import optional_decimal, optional_int, required_decimal, required_i
 from ..bar import Bar, Interval
 from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook
-from ..overseas_items import OverseasIndustry
+from ..overseas_items import OverseasIndustry, OverseasIndustryStock
 from ..overseas_product import OverseasProductInfo
 from ..quote import Quote
 from ..trade import Trade
@@ -475,3 +475,86 @@ def fetch_industries(
         )
         for row in page
     ]
+
+
+_INDUSTRY_STOCKS_PATH = "/uapi/overseas-price/v1/quotations/industry-theme"
+_INDUSTRY_STOCKS_TR = "HHDFS76370000"
+_INDUSTRY_VOLUME_FILTER = {
+    0: "0",
+    100: "1",
+    1_000: "2",
+    10_000: "3",
+    100_000: "4",
+    1_000_000: "5",
+    10_000_000: "6",
+}
+
+
+def fetch_industry_stocks(
+    transport: Transport,
+    *,
+    exchange: str,
+    industry_code: str,
+    min_volume: int,
+    environment: Environment,
+) -> list[OverseasIndustryStock]:
+    """해외 거래소의 한 업종에 속한 종목 시세 목록."""
+    if environment == "demo":
+        raise KISUsageError("해외 업종별 시세 조회는 모의투자 미지원이다(실전만).")
+    volume_code = _INDUSTRY_VOLUME_FILTER.get(min_volume)
+    if volume_code is None:
+        raise KISUsageError(
+            f"min_volume 은 {sorted(_INDUSTRY_VOLUME_FILTER)} 중 하나: {min_volume!r}"
+        )
+    resp = transport.request(
+        method="GET",
+        path=_INDUSTRY_STOCKS_PATH,
+        tr_id=_INDUSTRY_STOCKS_TR,
+        params={
+            "KEYB": "",
+            "AUTH": "",
+            "EXCD": exchange,
+            "ICOD": industry_code,
+            "VOL_RANG": volume_code,
+        },
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    header = resp.body.get("output1")
+    rows = resp.body.get("output2")
+    if not isinstance(header, Mapping):
+        raise _missing_block_error("output1", resp)
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    stocks: list[OverseasIndustryStock] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output2[]", resp)
+        symbol = str(row.get("symb", "")).strip()
+        if not symbol:
+            continue
+        sign = str(row.get("sign", "")).strip()
+        stocks.append(
+            OverseasIndustryStock(
+                exchange=str(row.get("excd", exchange)).strip(),
+                symbol=symbol,
+                name=str(row.get("name", "")).strip(),
+                english_name=str(row.get("ename", "")).strip(),
+                last=required_decimal(row.get("last"), "last"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("diff"), "diff"), sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("rate"), "rate"), sign
+                ),
+                volume=required_int(row.get("tvol"), "tvol"),
+                ask_price=required_decimal(row.get("pask"), "pask"),
+                ask_quantity=required_int(row.get("vask"), "vask"),
+                bid_price=required_decimal(row.get("pbid"), "pbid"),
+                bid_quantity=required_int(row.get("vbid"), "vbid"),
+                rank=required_int(row.get("seqn"), "seqn"),
+                is_tradable=str(row.get("e_ordyn", "")).strip() == "Y",
+                _raw=row,
+            )
+        )
+    return stocks

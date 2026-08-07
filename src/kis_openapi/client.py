@@ -52,6 +52,7 @@ from .overseas_index import OverseasIndex
 from .overseas_items import (
     OverseasBalance,
     OverseasIndustry,
+    OverseasIndustryStock,
     OverseasOpenOrder,
     OverseasPosition,
     OverseasSettlementDate,
@@ -190,6 +191,18 @@ class KISClient:
         """
         return overseas_market_data_api.fetch_industries(
             self.transport, exchange=exchange, environment=self._environment
+        )
+
+    def overseas_industry_stocks(
+        self, exchange: str, industry_code: str, *, min_volume: int = 0
+    ) -> list[OverseasIndustryStock]:
+        """해외 거래소의 한 업종에 속한 종목 시세. 거래량 하한은 0·100·1천·1만·10만·100만·1천만."""
+        return overseas_market_data_api.fetch_industry_stocks(
+            self.transport,
+            exchange=exchange,
+            industry_code=industry_code,
+            min_volume=min_volume,
+            environment=self._environment,
         )
 
     def index(self, code: str) -> Index:

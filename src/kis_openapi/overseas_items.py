@@ -121,3 +121,29 @@ class OverseasIndustry:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasIndustryStock:
+    """해외 거래소의 한 업종에 속한 종목 시세(불변)."""
+
+    exchange: str
+    symbol: str
+    name: str
+    english_name: str
+    last: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    ask_price: Decimal
+    ask_quantity: int
+    bid_price: Decimal
+    bid_quantity: int
+    rank: int
+    is_tradable: bool
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import threading
+from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KISClient, OverseasIndustry
+from kis_openapi import KISClient, OverseasIndustry, OverseasIndustryStock
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
@@ -87,3 +88,89 @@ def test_overseas_industries_non_mapping_item_fails_closed():
     fake = FakeTransport(responses=[_response([{"icod": "000", "name": "전체"}, "bad"])])
     with pytest.raises(KISError):
         _client(fake).overseas_industries("NAS")
+
+
+def _industry_stock_response(output2):
+    return RawResponse(
+        rt_cd="0",
+        msg_cd="MCA00000",
+        msg1="정상",
+        body={"output1": {"crec": "1", "trec": "1"}, "output2": output2},
+    )
+
+
+def test_overseas_industry_stocks_maps_quote_and_volume_filter():
+    row = {
+        "excd": "NAS",
+        "symb": "XOM",
+        "name": "엑슨 모빌",
+        "ename": "Exxon Mobil",
+        "last": "112.50",
+        "sign": "5",
+        "diff": "1.25",
+        "rate": "1.10",
+        "tvol": "1234567",
+        "vask": "300",
+        "pask": "112.55",
+        "pbid": "112.45",
+        "vbid": "250",
+        "seqn": "1",
+        "e_ordyn": "Y",
+    }
+    fake = FakeTransport(responses=[_industry_stock_response([row])])
+    stocks = _client(fake).overseas_industry_stocks(
+        "NAS", "010", min_volume=1_000_000
+    )
+
+    assert len(stocks) == 1
+    stock = stocks[0]
+    assert isinstance(stock, OverseasIndustryStock)
+    assert (stock.exchange, stock.symbol, stock.english_name) == (
+        "NAS",
+        "XOM",
+        "Exxon Mobil",
+    )
+    assert stock.last == Decimal("112.50")
+    assert stock.change == Decimal("-1.25")
+    assert stock.change_percent == Decimal("-1.10")
+    assert stock.volume == 1234567
+    assert stock.ask_price == Decimal("112.55")
+    assert stock.bid_quantity == 250
+    assert stock.rank == 1
+    assert stock.is_tradable is True
+    assert fake.calls[0] == {
+        "method": "GET",
+        "path": "/uapi/overseas-price/v1/quotations/industry-theme",
+        "tr_id": "HHDFS76370000",
+        "params": {
+            "KEYB": "",
+            "AUTH": "",
+            "EXCD": "NAS",
+            "ICOD": "010",
+            "VOL_RANG": "5",
+        },
+    }
+
+
+def test_overseas_industry_stocks_validates_environment_and_volume():
+    demo = FakeTransport(responses=[])
+    with pytest.raises(KISUsageError):
+        _client(demo, environment="demo").overseas_industry_stocks("NAS", "010")
+    assert demo.calls == []
+
+    fake = FakeTransport(responses=[])
+    with pytest.raises(KISUsageError):
+        _client(fake).overseas_industry_stocks("NAS", "010", min_volume=500)
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize(
+    "body",
+    [{}, {"output1": {}}, {"output1": {}, "output2": {}}],
+)
+def test_overseas_industry_stocks_requires_both_blocks(body):
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
+    with pytest.raises(KISError):
+        _client(FakeTransport(responses=[response])).overseas_industry_stocks(
+            "NAS", "010"
+        )

@@ -118,6 +118,7 @@ from .overseas_index import OverseasIndex
 from .overseas_items import (
     OverseasBalance,
     OverseasIndustry,
+    OverseasIndustryStock,
     OverseasOpenOrder,
     OverseasPosition,
     OverseasSettlementDate,
@@ -243,6 +244,7 @@ __all__ = [
     "OverseasFuturesOpenInterest",
     "OverseasIndex",
     "OverseasIndustry",
+    "OverseasIndustryStock",
     "OverseasOpenOrder",
     "OverseasPosition",
     "OverseasProductInfo",
