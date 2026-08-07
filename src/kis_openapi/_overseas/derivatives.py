@@ -13,15 +13,17 @@ KIS URL/TR-id:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime, time
-from typing import Any
+from datetime import date, datetime, time
+from typing import Any, Literal
 
 from .._domestic.market_data import (
     _KST,
     _apply_change_sign,
     _missing_block_error,
     _parse_bar_timestamp,
+    _parse_kst_date,
     _raise_if_error,
+    _to_yyyymmdd,
     _today_kst,
 )
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
@@ -32,6 +34,7 @@ from ..overseas_derivative_items import (
     OverseasDerivativeDetail,
     OverseasDerivativeMarketHours,
     OverseasDerivativeQuote,
+    OverseasFuturesOpenInterest,
 )
 from ..trade import Trade
 from ..transport import Environment, RawResponse, Transport
@@ -72,6 +75,8 @@ _TRADES = {
     "option": ("opt-tick-ccnl", "HHDFO55020200"),
 }
 _QUOTATIONS_BASE = "/uapi/overseas-futureoption/v1/quotations"
+_OPEN_INTEREST_PATH = f"{_QUOTATIONS_BASE}/investor-unpd-trend"
+_OPEN_INTEREST_TR = "HHDDB95030000"
 
 
 def fetch_quote(transport: Transport, *, srs_cd: str, market: str) -> OverseasDerivativeQuote:
@@ -344,6 +349,76 @@ def _parse_history_timestamp(date_text: str, time_text: str) -> datetime:
             f"해외 선물/옵션 시계열 일시 파싱 실패: {date_text!r} {time_text!r}"
         ) from err
     return timestamp.replace(tzinfo=_KST)
+
+
+def fetch_open_interest(
+    transport: Transport,
+    *,
+    product: str,
+    as_of: str | date,
+    mode: Literal["quantity", "change"],
+    environment: Environment,
+) -> list[OverseasFuturesOpenInterest]:
+    """해외선물 상품의 CFTC 미결제약정 수량 또는 증감 추이."""
+    if environment == "demo":
+        raise KISUsageError("해외선물 미결제추이는 모의투자 미지원이다(실전만).")
+    if not product.strip():
+        raise KISUsageError("해외선물 미결제추이에는 product 가 필요하다.")
+    mode_code = {"quantity": "0", "change": "1"}.get(mode)
+    if mode_code is None:
+        raise KISUsageError(f"mode 는 'quantity' 또는 'change': {mode!r}")
+    params = {
+        "PROD_ISCD": product.strip(),
+        "BSOP_DATE": _to_yyyymmdd(as_of, "as_of"),
+        "UPMU_GUBUN": mode_code,
+        "CTS_KEY": "",
+    }
+    resp = transport.request(
+        method="GET", path=_OPEN_INTEREST_PATH, tr_id=_OPEN_INTEREST_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    points: list[OverseasFuturesOpenInterest] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output2[]", resp)
+        points.append(
+            OverseasFuturesOpenInterest(
+                product=str(row.get("prod_iscd", "")).strip() or product.strip(),
+                cftc_code=str(row.get("cftc_iscd", "")).strip(),
+                date=_parse_kst_date(str(row.get("bsop_date", "")).strip()),
+                speculative_long=required_int(row.get("bidp_spec"), "bidp_spec"),
+                speculative_short=required_int(row.get("askp_spec"), "askp_spec"),
+                speculative_spread=required_int(row.get("spread_spec"), "spread_spec"),
+                hedging_long=required_int(row.get("bidp_hedge"), "bidp_hedge"),
+                hedging_short=required_int(row.get("askp_hedge"), "askp_hedge"),
+                total_open_interest=required_int(row.get("hts_otst_smtn"), "hts_otst_smtn"),
+                unclassified_long=required_int(row.get("bidp_missing"), "bidp_missing"),
+                unclassified_short=required_int(row.get("askp_missing"), "askp_missing"),
+                customer_speculative_long=required_int(
+                    row.get("bidp_spec_cust"), "bidp_spec_cust"
+                ),
+                customer_speculative_short=required_int(
+                    row.get("askp_spec_cust"), "askp_spec_cust"
+                ),
+                customer_speculative_spread=required_int(
+                    row.get("spread_spec_cust"), "spread_spec_cust"
+                ),
+                customer_hedging_long=required_int(
+                    row.get("bidp_hedge_cust"), "bidp_hedge_cust"
+                ),
+                customer_hedging_short=required_int(
+                    row.get("askp_hedge_cust"), "askp_hedge_cust"
+                ),
+                customer_total=required_int(row.get("cust_smtn"), "cust_smtn"),
+                _raw=row,
+            )
+        )
+    points.sort(key=lambda point: point.date)
+    return points
 
 
 _DETAIL = {

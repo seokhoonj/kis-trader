@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime, time
+from datetime import date, datetime, time
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -114,6 +114,35 @@ class OverseasDerivativeMarketHours:
     next_day_close: time | None
     base_open: time | None
     base_close: time | None
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasFuturesOpenInterest:
+    """한 날짜의 해외선물 상품 CFTC 미결제약정 구성(불변)."""
+
+    product: str
+    cftc_code: str
+    date: date
+    speculative_long: int
+    speculative_short: int
+    speculative_spread: int
+    hedging_long: int
+    hedging_short: int
+    total_open_interest: int
+    unclassified_long: int
+    unclassified_short: int
+    customer_speculative_long: int
+    customer_speculative_short: int
+    customer_speculative_spread: int
+    customer_hedging_long: int
+    customer_hedging_short: int
+    customer_total: int
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

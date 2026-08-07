@@ -10,6 +10,7 @@ KIS 토큰은 앱키 단위(24h, 재발급 제한)라 세션이 캐시해 재사
 from __future__ import annotations
 
 from collections.abc import Sequence
+from datetime import date
 from typing import Literal
 
 from ._domestic import account as account_api
@@ -45,6 +46,7 @@ from .overseas_derivative import OverseasDerivative
 from .overseas_derivative_items import (
     OverseasDerivativeDetail,
     OverseasDerivativeMarketHours,
+    OverseasFuturesOpenInterest,
 )
 from .overseas_index import OverseasIndex
 from .overseas_items import (
@@ -283,6 +285,15 @@ class KISClient:
             asset_class=asset_class,
             exchange=exchange,
             kind=kind,
+        )
+
+    def overseas_futures_open_interest(
+        self, product: str, *, as_of: str | date, mode: str = "quantity"
+    ) -> list[OverseasFuturesOpenInterest]:
+        """해외선물 상품의 CFTC 미결제약정 수량 또는 증감 추이(실전만)."""
+        return overseas_derivatives_api.fetch_open_interest(
+            self.transport, product=product, as_of=as_of, mode=mode,
+            environment=self._environment,
         )
 
     def overseas_settlement_dates(self) -> list[OverseasSettlementDate]:

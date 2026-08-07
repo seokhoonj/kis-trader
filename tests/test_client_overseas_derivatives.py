@@ -11,7 +11,13 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, KISClient, OverseasDerivativeQuote, Trade
+from kis_openapi import (
+    Bar,
+    KISClient,
+    OverseasDerivativeQuote,
+    OverseasFuturesOpenInterest,
+    Trade,
+)
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
@@ -224,3 +230,72 @@ def test_overseas_derivative_history_missing_rows_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).overseas_futures("BONU25").bars(exchange="ICE")
+
+
+def _open_interest_row(**over):
+    row = {
+        "prod_iscd": "ES", "cftc_iscd": "13874A", "bsop_date": "20240611",
+        "bidp_spec": "270380", "askp_spec": "381794", "spread_spec": "0",
+        "bidp_hedge": "1606798", "askp_hedge": "1617849", "hts_otst_smtn": "2266096",
+        "bidp_missing": "297310", "askp_missing": "174845",
+        "bidp_spec_cust": "100", "askp_spec_cust": "90", "spread_spec_cust": "10",
+        "bidp_hedge_cust": "80", "askp_hedge_cust": "70", "cust_smtn": "350",
+    }
+    row.update(over)
+    return row
+
+
+def test_overseas_futures_open_interest_maps_and_routes():
+    response = RawResponse(
+        rt_cd="0", msg_cd="X", msg1="ok",
+        body={"output1": {"row_cnt": "1"}, "output2": [_open_interest_row()]},
+    )
+    fake = FakeTransport(response=response)
+    points = _client(fake).overseas_futures_open_interest(
+        "ES", as_of="2024-06-24"
+    )
+    assert len(points) == 1 and isinstance(points[0], OverseasFuturesOpenInterest)
+    point = points[0]
+    assert point.product == "ES"
+    assert point.speculative_long == 270380
+    assert point.hedging_short == 1617849
+    assert point.total_open_interest == 2266096
+    assert point.customer_total == 350
+    assert fake.calls[0] == {
+        "path": "/uapi/overseas-futureoption/v1/quotations/investor-unpd-trend",
+        "tr_id": "HHDDB95030000",
+        "params": {
+            "PROD_ISCD": "ES", "BSOP_DATE": "20240624",
+            "UPMU_GUBUN": "0", "CTS_KEY": "",
+        },
+    }
+
+
+def test_overseas_futures_open_interest_change_mode_and_sort():
+    response = RawResponse(
+        rt_cd="0", msg_cd="X", msg1="ok", body={"output2": [
+            _open_interest_row(bsop_date="20240612", bidp_spec="-5"),
+            _open_interest_row(bsop_date="20240611", bidp_spec="-3"),
+        ]},
+    )
+    fake = FakeTransport(response=response)
+    points = _client(fake).overseas_futures_open_interest(
+        "ES", as_of="20240624", mode="change"
+    )
+    assert [point.speculative_long for point in points] == [-3, -5]
+    assert fake.calls[0]["params"]["UPMU_GUBUN"] == "1"
+
+
+def test_overseas_futures_open_interest_rejects_invalid_input_before_transport():
+    fake = FakeTransport(response=None)
+    with pytest.raises(KISUsageError):
+        _client(fake).overseas_futures_open_interest("", as_of="20240624")
+    with pytest.raises(KISUsageError):
+        _client(fake).overseas_futures_open_interest("ES", as_of="20240624", mode="bad")
+    assert fake.calls == []
+
+
+def test_overseas_futures_open_interest_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).overseas_futures_open_interest("ES", as_of="20240624")
