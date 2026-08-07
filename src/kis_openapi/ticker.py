@@ -42,6 +42,7 @@ from .etf_items import (
     ETFNAVComparison,
     ETFNAVHistoryPoint,
     ETFNAVMinutePoint,
+    ETFOrderBook,
 )
 from .financials import (
     BalanceSheet,
@@ -406,6 +407,11 @@ class Ticker:
             symbol=self.symbol,
             interval_minutes=interval_minutes,
         )
+
+    def etf_order_book(self) -> ETFOrderBook:
+        """ETF 10단계 호가와 LP 잔량·잔량 증감·중간가. 국내 ETF 전용."""
+        self._domestic_market()
+        return etf_api.fetch_etf_order_book(self._client.transport, symbol=self.symbol)
 
     def components(self) -> list[ETFComponent]:
         """ETF 구성종목(PDF) 목록 -- 각 구성종목의 시세·ETF 내 구성 비중·평가금액. 이 종목이 ETF

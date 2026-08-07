@@ -16,6 +16,8 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
+from .order_book import OrderBook, PriceLevel
+
 
 @dataclass(frozen=True, slots=True)
 class ETFNAV:
@@ -138,4 +140,32 @@ class ETFNAVMinutePoint:
     )
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ETFOrderBook:
+    """ETF 10단계 호가와 LP 잔량·잔량 증감·중간가(불변)."""
+
+    order_book: OrderBook
+    lp_bids: tuple[PriceLevel, ...]
+    lp_asks: tuple[PriceLevel, ...]
+    bid_quantity_changes: tuple[int, ...]
+    ask_quantity_changes: tuple[int, ...]
+    lp_total_bid_quantity: int
+    lp_total_ask_quantity: int
+    total_bid_quantity_change: int
+    total_ask_quantity_change: int
+    midpoint: Decimal | None
+    midpoint_quantity: int | None
+    midpoint_code: str
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "lp_bids", tuple(self.lp_bids))
+        object.__setattr__(self, "lp_asks", tuple(self.lp_asks))
+        object.__setattr__(self, "bid_quantity_changes", tuple(self.bid_quantity_changes))
+        object.__setattr__(self, "ask_quantity_changes", tuple(self.ask_quantity_changes))
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

@@ -19,7 +19,7 @@ from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from typing import Any
 
-from .._wire import required_decimal, required_int
+from .._wire import optional_decimal, optional_int, required_decimal, required_int
 from ..errors import KISUsageError
 from ..etf_items import (
     ETFNAV,
@@ -27,12 +27,15 @@ from ..etf_items import (
     ETFNAVComparison,
     ETFNAVHistoryPoint,
     ETFNAVMinutePoint,
+    ETFOrderBook,
 )
+from ..order_book import OrderBook, PriceLevel
 from ..transport import Transport
 from .market_data import (
     _KST,
     _apply_change_sign,
     _missing_block_error,
+    _parse_intraday_timestamp,
     _parse_kst_date,
     _parse_minute_bar_timestamp,
     _raise_if_error,
@@ -55,6 +58,8 @@ _ETF_NAV_COMPARISON_PATH = "/uapi/etfetn/v1/quotations/nav-comparison-trend"
 _ETF_NAV_COMPARISON_TR = "FHPST02440000"
 _ETF_NAV_MINUTE_PATH = "/uapi/etfetn/v1/quotations/nav-comparison-time-trend"
 _ETF_NAV_MINUTE_TR = "FHPST02440100"
+_ETF_ORDER_BOOK_PATH = "/uapi/etfetn/v1/quotations/inquire-asking-price"
+_ETF_ORDER_BOOK_TR = "FHPST02400200"
 
 
 def fetch_etf_nav(transport: Transport, *, symbol: str) -> ETFNAV:
@@ -179,6 +184,82 @@ def fetch_etf_nav_intraday(
         )
     points.sort(key=lambda point: point.timestamp)
     return points
+
+
+def fetch_etf_order_book(transport: Transport, *, symbol: str) -> ETFOrderBook:
+    """ETF 10단계 호가와 LP 잔량·잔량 증감·중간가."""
+    resp = transport.request(
+        method="GET",
+        path=_ETF_ORDER_BOOK_PATH,
+        tr_id=_ETF_ORDER_BOOK_TR,
+        params={"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": symbol},
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    row = resp.body.get("output")
+    if not isinstance(row, Mapping):
+        raise _missing_block_error("output", resp)
+
+    def levels(price_prefix: str, quantity_prefix: str) -> tuple[PriceLevel, ...]:
+        return tuple(
+            PriceLevel(
+                price=required_decimal(row.get(f"{price_prefix}{position}"), f"{price_prefix}{position}"),
+                quantity=required_int(
+                    row.get(f"{quantity_prefix}{position}"), f"{quantity_prefix}{position}"
+                ),
+            )
+            for position in range(1, 11)
+        )
+
+    bids = levels("bidp", "bidp_rsqn")
+    asks = levels("askp", "askp_rsqn")
+    lp_bids = tuple(
+        PriceLevel(price=bids[position - 1].price, quantity=required_int(
+            row.get(f"lp_bidp_rsqn{position}"), f"lp_bidp_rsqn{position}"
+        )) for position in range(1, 11)
+    )
+    lp_asks = tuple(
+        PriceLevel(price=asks[position - 1].price, quantity=required_int(
+            row.get(f"lp_askp_rsqn{position}"), f"lp_askp_rsqn{position}"
+        )) for position in range(1, 11)
+    )
+    as_of = _parse_intraday_timestamp(
+        str(row.get("aspr_acpt_hour", "")).strip(),
+        _parse_minute_bar_timestamp(_today_kst(), "000000"),
+    )
+    order_book = OrderBook(
+        symbol=symbol,
+        market="KRX",
+        bids=bids,
+        asks=asks,
+        total_bid_quantity=required_int(row.get("total_bidp_rsqn"), "total_bidp_rsqn"),
+        total_ask_quantity=required_int(row.get("total_askp_rsqn"), "total_askp_rsqn"),
+        as_of=as_of,
+        _raw=row,
+    )
+    return ETFOrderBook(
+        order_book=order_book,
+        lp_bids=lp_bids,
+        lp_asks=lp_asks,
+        bid_quantity_changes=tuple(required_int(
+            row.get(f"bidp_rsqn_icdc{position}"), f"bidp_rsqn_icdc{position}"
+        ) for position in range(1, 11)),
+        ask_quantity_changes=tuple(required_int(
+            row.get(f"askp_rsqn_icdc{position}"), f"askp_rsqn_icdc{position}"
+        ) for position in range(1, 11)),
+        lp_total_bid_quantity=required_int(row.get("lp_total_bidp_rsqn"), "lp_total_bidp_rsqn"),
+        lp_total_ask_quantity=required_int(row.get("lp_total_askp_rsqn"), "lp_total_askp_rsqn"),
+        total_bid_quantity_change=required_int(
+            row.get("total_bidp_rsqn_icdc"), "total_bidp_rsqn_icdc"
+        ),
+        total_ask_quantity_change=required_int(
+            row.get("total_askp_rsqn_icdc"), "total_askp_rsqn_icdc"
+        ),
+        midpoint=optional_decimal(row.get("mid_prc"), "mid_prc"),
+        midpoint_quantity=optional_int(row.get("midp_total_rsqn"), "midp_total_rsqn"),
+        midpoint_code=str(row.get("midp_cls_code", "")).strip(),
+        _raw=row,
+    )
 
 
 def fetch_etf_components(transport: Transport, *, symbol: str) -> list[ETFComponent]:

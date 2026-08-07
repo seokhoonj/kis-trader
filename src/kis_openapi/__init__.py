@@ -77,6 +77,7 @@ from .etf_items import (
     ETFNAVComparison,
     ETFNAVHistoryPoint,
     ETFNAVMinutePoint,
+    ETFOrderBook,
 )
 from .financials import (
     BalanceSheet,
@@ -207,6 +208,7 @@ __all__ = [
     "ETFNAVComparison",
     "ETFNAVHistoryPoint",
     "ETFNAVMinutePoint",
+    "ETFOrderBook",
     "EarningsEstimate",
     "ExecutionReport",
     "ExpectedIndexPoint",

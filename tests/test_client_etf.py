@@ -11,7 +11,13 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import ETFNAV, ETFNAVComparison, ETFNAVMinutePoint, KISClient
+from kis_openapi import (
+    ETFNAV,
+    ETFNAVComparison,
+    ETFNAVMinutePoint,
+    ETFOrderBook,
+    KISClient,
+)
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
@@ -252,3 +258,44 @@ def test_nav_intraday_rejects_bad_interval_before_transport(minutes):
     with pytest.raises(KISUsageError):
         _client(fake).ticker("069500").nav_intraday(interval_minutes=minutes)
     assert fake.calls == []
+
+
+def test_etf_order_book_maps_standard_and_lp_levels():
+    output = {
+        "aspr_acpt_hour": "101530",
+        "total_askp_rsqn": "5500", "total_bidp_rsqn": "6500",
+        "total_askp_rsqn_icdc": "-100", "total_bidp_rsqn_icdc": "200",
+        "lp_total_askp_rsqn": "1200", "lp_total_bidp_rsqn": "1300",
+        "mid_prc": "36125", "midp_total_rsqn": "400", "midp_cls_code": "1",
+    }
+    for position in range(1, 11):
+        output[f"askp{position}"] = str(36150 + position * 5)
+        output[f"bidp{position}"] = str(36150 - position * 5)
+        output[f"askp_rsqn{position}"] = str(position * 100)
+        output[f"bidp_rsqn{position}"] = str(position * 110)
+        output[f"askp_rsqn_icdc{position}"] = str(-position)
+        output[f"bidp_rsqn_icdc{position}"] = str(position)
+        output[f"lp_askp_rsqn{position}"] = str(position * 10)
+        output[f"lp_bidp_rsqn{position}"] = str(position * 11)
+    fake = FakeTransport(response=RawResponse(
+        rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output": output}
+    ))
+    book = _client(fake).ticker("069500").etf_order_book()
+
+    assert isinstance(book, ETFOrderBook)
+    assert len(book.order_book.asks) == 10
+    assert book.order_book.asks[0].price == Decimal(36155)
+    assert book.lp_asks[0].quantity == 10
+    assert book.lp_bids[-1].quantity == 110
+    assert book.ask_quantity_changes[0] == -1
+    assert book.total_bid_quantity_change == 200
+    assert book.midpoint == Decimal(36125)
+    assert f"{book.order_book.as_of:%H%M%S}" == "101530"
+    assert fake.calls[0]["path"] == "/uapi/etfetn/v1/quotations/inquire-asking-price"
+    assert fake.calls[0]["tr_id"] == "FHPST02400200"
+
+
+def test_etf_order_book_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).ticker("069500").etf_order_book()
