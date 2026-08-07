@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import BrokerActivitySummary, KISClient
+from kis_openapi import BrokerActivitySummary, BrokerDailyActivity, KISClient
 from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
@@ -74,6 +74,28 @@ def test_broker_activity_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).ticker("005930").broker_activity()
+
+
+def test_broker_daily_activity_maps_and_routes():
+    row = {"stck_bsop_date": "20240510", "total_seln_qty": "100", "total_shnu_qty": "130",
+           "ntby_qty": "30", "stck_prpr": "71500", "prdy_vrss": "500",
+           "prdy_vrss_sign": "5", "prdy_ctrt": "0.70", "acml_vol": "1000000"}
+    fake = FakeTransport(response=RawResponse(
+        rt_cd="0", msg_cd="X", msg1="ok", body={"output": [row]}
+    ))
+    activities = _client(fake).ticker("005930").broker_daily_activity(
+        "0003", start="20240501", end="20240510"
+    )
+    assert isinstance(activities[0], BrokerDailyActivity)
+    assert activities[0].net_buy_quantity == 30
+    assert activities[0].change == Decimal(-500)
+    assert fake.calls[0] == {
+        "path": "/uapi/domestic-stock/v1/quotations/inquire-member-daily",
+        "tr_id": "FHPST04540000",
+        "params": {"FID_INPUT_ISCD": "005930", "FID_INPUT_ISCD_2": "0003",
+                   "FID_INPUT_DATE_1": "20240501", "FID_INPUT_DATE_2": "20240510",
+                   "FID_SCTN_CLS_CODE": ""},
+    }
 
 
 def test_broker_activity_error_response_fails_closed():

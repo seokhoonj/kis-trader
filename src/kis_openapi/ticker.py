@@ -34,7 +34,7 @@ from .analysis import (
     VolumeProfile,
 )
 from .bar import Bar, Interval
-from .broker import BrokerActivitySummary
+from .broker import BrokerActivitySummary, BrokerDailyActivity
 from .errors import KISUsageError
 from .etf_items import (
     ETFNAV,
@@ -58,7 +58,7 @@ from .investor import DetailedInvestorHistory, InvestorEstimate, InvestorFlow
 from .order import Order, Side, TimeInForce
 from .order_book import OrderBook
 from .orderable import BuyableAmount, SellableQuantity
-from .program import ProgramTradePoint
+from .program import DailyProgramTradePoint, ProgramTradePoint
 from .quote import Quote
 from .report import ExecutionReport
 from .stock_info import StockInfo, StockStatus
@@ -232,6 +232,15 @@ class Ticker:
             self._client.transport, symbol=self.symbol, market=self._domestic_market()
         )
 
+    def broker_daily_activity(
+        self, member_code: str, *, start: str | date, end: str | date
+    ) -> list[BrokerDailyActivity]:
+        """회원사 하나의 종목 일별 매수·매도 내역."""
+        return market_data.fetch_broker_daily_activity(
+            self._client.transport, symbol=self.symbol, member_code=member_code,
+            start=start, end=end,
+        )
+
     def after_hours_quote(self) -> AfterHoursQuote:
         """시간외 단일가 스냅샷(예상체결가·최우선호가)."""
         return market_data.fetch_after_hours_quote(
@@ -260,6 +269,15 @@ class Ticker:
         """장중 시간대별 프로그램매매 흐름(매수/매도/순매수 수량·금액, 시간 순)."""
         return market_data.fetch_program_trades(
             self._client.transport, symbol=self.symbol, market=self._domestic_market()
+        )
+
+    def daily_program_trades(
+        self, *, as_of: str | date | None = None
+    ) -> list[DailyProgramTradePoint]:
+        """종목별 프로그램매매 일별 추이."""
+        self._domestic_market()
+        return market_data.fetch_daily_program_trades(
+            self._client.transport, symbol=self.symbol, as_of=as_of
         )
 
     def investor_estimate(self) -> list[InvestorEstimate]:

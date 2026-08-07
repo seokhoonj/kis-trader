@@ -33,7 +33,7 @@ from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
 from .bond import Bond
 from .bond_items import BondInfo, BondIssuance, BondQuote, BondValuation
-from .broker import BrokerActivity, BrokerActivitySummary
+from .broker import BrokerActivity, BrokerActivitySummary, BrokerDailyActivity
 from .calendar import CalendarQueries
 from .calendar_items import (
     AppraisalRights,
@@ -148,7 +148,7 @@ from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
 from .overseas_ranking_items import RankedOverseasStock
 from .product import ProductInfo
-from .program import ProgramTradePoint
+from .program import DailyProgramTradePoint, ProgramTradePoint
 from .quote import Quote
 from .ranking import RankingQueries
 from .ranking_items import (
@@ -197,6 +197,7 @@ __all__ = [
     "BonusIssue",
     "BrokerActivity",
     "BrokerActivitySummary",
+    "BrokerDailyActivity",
     "BrokerOpinion",
     "BuyableAmount",
     "CalendarQueries",
@@ -206,6 +207,7 @@ __all__ = [
     "CreditBalanceRanking",
     "CreditEligibleStock",
     "DailyExecutionVolume",
+    "DailyProgramTradePoint",
     "Derivative",
     "DerivativesQuote",
     "DetailedInvestorFlow",

@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -34,6 +34,33 @@ class ProgramTradePoint:
     sell_volume: int                  # 프로그램 매도 수량
     net_volume: int                   # 프로그램 순매수 수량(매수-매도)
     net_amount: Decimal               # 프로그램 순매수 금액
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class DailyProgramTradePoint:
+    """한 종목의 하루치 프로그램매매 합계와 시세."""
+
+    symbol: str
+    trading_date: date
+    close: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    amount: Decimal
+    sell_volume: int
+    buy_volume: int
+    net_volume: int
+    sell_amount: Decimal
+    buy_amount: Decimal
+    net_amount: Decimal
+    net_volume_change: int
+    net_amount_change: Decimal
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

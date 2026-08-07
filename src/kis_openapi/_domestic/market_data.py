@@ -25,7 +25,7 @@ from ..analysis import (
     RecentPricePoint,
 )
 from ..bar import Bar, Interval
-from ..broker import BrokerActivity, BrokerActivitySummary
+from ..broker import BrokerActivity, BrokerActivitySummary, BrokerDailyActivity
 from ..errors import KISError, KISUsageError
 from ..investor import (
     DetailedInvestorFlow,
@@ -35,7 +35,7 @@ from ..investor import (
     InvestorFlow,
 )
 from ..order_book import OrderBook, PriceLevel
-from ..program import ProgramTradePoint
+from ..program import DailyProgramTradePoint, ProgramTradePoint
 from ..quote import Quote
 from ..stock_info import StockInfo, StockStatus
 from ..trade import Trade
@@ -299,6 +299,8 @@ _INVESTOR_PREFIX = {"individual": "prsn", "foreign": "frgn", "institutional": "o
 
 _MEMBER_PATH = "/uapi/domestic-stock/v1/quotations/inquire-member"
 _MEMBER_TR = "FHKST01010600"
+_MEMBER_DAILY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-member-daily"
+_MEMBER_DAILY_TR = "FHPST04540000"
 _BROKER_TOP_N = 5           # KIS 회원사 상위 제공 개수(매도/매수 각각)
 
 _AFTER_HOURS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-overtime-price"
@@ -870,6 +872,43 @@ def fetch_broker_activity(
     )
 
 
+def fetch_broker_daily_activity(
+    transport: Transport, *, symbol: str, member_code: str,
+    start: str | date, end: str | date,
+) -> list[BrokerDailyActivity]:
+    """한 회원사의 한 종목 일별 매수·매도 내역."""
+    if not member_code.strip():
+        raise KISUsageError("member_code 가 필요하다.")
+    start_date, end_date = _to_yyyymmdd(start, "start"), _to_yyyymmdd(end, "end")
+    if start_date > end_date:
+        raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
+    resp = transport.request(
+        method="GET", path=_MEMBER_DAILY_PATH, tr_id=_MEMBER_DAILY_TR,
+        params={"FID_INPUT_ISCD": symbol, "FID_INPUT_ISCD_2": member_code.strip(),
+                "FID_INPUT_DATE_1": start_date, "FID_INPUT_DATE_2": end_date,
+                "FID_SCTN_CLS_CODE": ""}, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+        raise _missing_block_error("output", resp)
+    activities = []
+    for row in rows:
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        activities.append(BrokerDailyActivity(
+            symbol=symbol, member_code=member_code.strip(),
+            trading_date=_parse_kst_date(str(row.get("stck_bsop_date", "")).strip()),
+            sell_quantity=required_int(row.get("total_seln_qty"), "total_seln_qty"),
+            buy_quantity=required_int(row.get("total_shnu_qty"), "total_shnu_qty"),
+            net_buy_quantity=required_int(row.get("ntby_qty"), "ntby_qty"),
+            price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+            change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+            change_percent=_apply_change_sign(required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign),
+            volume=required_int(row.get("acml_vol"), "acml_vol"), _raw=row,
+        ))
+    return activities
+
+
 def _parse_broker_side(output: Mapping[str, Any], side: str) -> tuple[BrokerActivity, ...]:
     """한 방향(매도 seln / 매수 shnu)의 상위 회원사. 이름 빈 칸은 미기재라 건너뛴다."""
     brokers: list[BrokerActivity] = []
@@ -1160,6 +1199,8 @@ def _raise_if_error(resp: RawResponse) -> None:
 # --- 프로그램매매 / 투자자 추정 (per-ticker 시세분석) -----------------------
 _PROGRAM_TRADES_PATH = "/uapi/domestic-stock/v1/quotations/program-trade-by-stock"
 _PROGRAM_TRADES_TR = "FHPPG04650101"
+_PROGRAM_DAILY_PATH = "/uapi/domestic-stock/v1/quotations/program-trade-by-stock-daily"
+_PROGRAM_DAILY_TR = "FHPPG04650201"
 
 
 def fetch_program_trades(
@@ -1201,6 +1242,42 @@ def fetch_program_trades(
                 _raw=row,
             )
         )
+    return points
+
+
+def fetch_daily_program_trades(
+    transport: Transport, *, symbol: str, as_of: str | date | None = None
+) -> list[DailyProgramTradePoint]:
+    """한 종목의 프로그램매매 일별 추이."""
+    anchor = "" if as_of is None else _to_yyyymmdd(as_of, "as_of")
+    resp = transport.request(
+        method="GET", path=_PROGRAM_DAILY_PATH, tr_id=_PROGRAM_DAILY_TR,
+        params={"FID_INPUT_ISCD": symbol, "FID_INPUT_DATE_1": anchor}, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+        raise _missing_block_error("output", resp)
+    points = []
+    for row in rows:
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        points.append(DailyProgramTradePoint(
+            symbol=symbol, trading_date=_parse_kst_date(str(row.get("stck_bsop_date", "")).strip()),
+            close=required_decimal(row.get("stck_clpr"), "stck_clpr"),
+            change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+            change_percent=_apply_change_sign(required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign),
+            volume=required_int(row.get("acml_vol"), "acml_vol"),
+            amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+            sell_volume=required_int(row.get("whol_smtn_seln_vol"), "whol_smtn_seln_vol"),
+            buy_volume=required_int(row.get("whol_smtn_shnu_vol"), "whol_smtn_shnu_vol"),
+            net_volume=required_int(row.get("whol_smtn_ntby_qty"), "whol_smtn_ntby_qty"),
+            sell_amount=required_decimal(row.get("whol_smtn_seln_tr_pbmn"), "whol_smtn_seln_tr_pbmn"),
+            buy_amount=required_decimal(row.get("whol_smtn_shnu_tr_pbmn"), "whol_smtn_shnu_tr_pbmn"),
+            net_amount=required_decimal(row.get("whol_smtn_ntby_tr_pbmn"), "whol_smtn_ntby_tr_pbmn"),
+            net_volume_change=required_int(row.get("whol_ntby_vol_icdc"), "whol_ntby_vol_icdc"),
+            net_amount_change=required_decimal(row.get("whol_ntby_tr_pbmn_icdc2"), "whol_ntby_tr_pbmn_icdc2"),
+            _raw=row,
+        ))
     return points
 
 

@@ -8,6 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -31,6 +32,28 @@ class BrokerActivitySummary:
     symbol: str
     sellers: tuple[BrokerActivity, ...]   # 매도 상위 회원사
     buyers: tuple[BrokerActivity, ...]    # 매수 상위 회원사
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class BrokerDailyActivity:
+    """한 회원사의 한 종목 일별 매수·매도와 시세."""
+
+    symbol: str
+    member_code: str
+    trading_date: date
+    sell_quantity: int
+    buy_quantity: int
+    net_buy_quantity: int
+    price: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

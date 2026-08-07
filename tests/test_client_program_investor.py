@@ -11,7 +11,12 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import InvestorEstimate, KISClient, ProgramTradePoint
+from kis_openapi import (
+    DailyProgramTradePoint,
+    InvestorEstimate,
+    KISClient,
+    ProgramTradePoint,
+)
 from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
@@ -64,6 +69,25 @@ def test_program_trades_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).ticker("005930").program_trades()
+
+
+def test_daily_program_trades_maps_and_routes():
+    row = {"stck_bsop_date": "20240510", "stck_clpr": "71500", "prdy_vrss": "500",
+           "prdy_vrss_sign": "2", "prdy_ctrt": "0.70", "acml_vol": "1000000",
+           "acml_tr_pbmn": "71000", "whol_smtn_seln_vol": "100", "whol_smtn_shnu_vol": "130",
+           "whol_smtn_ntby_qty": "30", "whol_smtn_seln_tr_pbmn": "10",
+           "whol_smtn_shnu_tr_pbmn": "13", "whol_smtn_ntby_tr_pbmn": "3",
+           "whol_ntby_vol_icdc": "5", "whol_ntby_tr_pbmn_icdc2": "1"}
+    fake = FakeTransport(response=_resp({"output": [row]}))
+    points = _client(fake).ticker("005930").daily_program_trades(as_of="20240510")
+    assert isinstance(points[0], DailyProgramTradePoint)
+    assert points[0].net_volume == 30
+    assert points[0].net_amount_change == Decimal(1)
+    assert fake.calls[0] == {
+        "path": "/uapi/domestic-stock/v1/quotations/program-trade-by-stock-daily",
+        "tr_id": "FHPPG04650201",
+        "params": {"FID_INPUT_ISCD": "005930", "FID_INPUT_DATE_1": "20240510"},
+    }
 
 
 def test_investor_estimate_maps_estimate_and_input_time():
