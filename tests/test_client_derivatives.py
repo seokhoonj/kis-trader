@@ -288,6 +288,51 @@ def test_underlying_quote_missing_output1_fails_closed():
         _client(fake).futures("101V06").underlying_quote()
 
 
+def test_expected_execution_trend_maps_summary_and_sorted_points():
+    summary = {
+        "hts_kor_isnm": "K200 F 202409", "futs_antc_cnpr": "335.20",
+        "antc_cntg_vrss_sign": "5", "futs_antc_cntg_vrss": "1.30",
+        "antc_cntg_prdy_ctrt": "0.39", "futs_sdpr": "336.50",
+    }
+    rows = [
+        {"stck_cntg_hour": "085902", "futs_antc_cnpr": "335.20",
+         "antc_cntg_vrss_sign": "5", "futs_antc_cntg_vrss": "1.30",
+         "antc_cntg_prdy_ctrt": "0.39"},
+        {"stck_cntg_hour": "085901", "futs_antc_cnpr": "336.80",
+         "antc_cntg_vrss_sign": "2", "futs_antc_cntg_vrss": "0.30",
+         "antc_cntg_prdy_ctrt": "0.09"},
+    ]
+    response = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                           body={"output1": summary, "output2": rows})
+    fake = FakeTransport(response=response)
+
+    from kis_openapi import ExpectedExecutionPoint, ExpectedExecutionTrend
+    trend = _client(fake).futures("101W09").expected_execution_trend()
+
+    assert isinstance(trend, ExpectedExecutionTrend)
+    assert isinstance(trend.points[0], ExpectedExecutionPoint)
+    assert trend.name == "K200 F 202409"
+    assert trend.price == Decimal("335.20")
+    assert trend.change == Decimal("-1.30")
+    assert trend.change_percent == Decimal("-0.39")
+    assert trend.base_price == Decimal("336.50")
+    assert [f"{point.timestamp:%H%M%S}" for point in trend.points] == ["085901", "085902"]
+    assert trend.points[0].change == Decimal("0.30")
+    assert trend.points[1].change == Decimal("-1.30")
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-futureoption/v1/quotations/exp-price-trend"
+    assert call["tr_id"] == "FHPIF05110100"
+    assert call["params"] == {"FID_INPUT_ISCD": "101W09", "FID_COND_MRKT_DIV_CODE": "F"}
+
+
+def test_expected_execution_trend_missing_output2_fails_closed():
+    response = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                           body={"output1": {}})
+    fake = FakeTransport(response=response)
+    with pytest.raises(KISError):
+        _client(fake).option("201W09335").expected_execution_trend()
+
+
 def test_option_expiries_reads_output_array():
     # 원장 예시: 배열 키가 output(레이아웃엔 output1). 예시값 그대로.
     rows = [{"mtrt_yymm_code": "0V05", "mtrt_yymm": "202405"},

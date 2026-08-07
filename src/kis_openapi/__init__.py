@@ -59,6 +59,8 @@ from .client import KISClient
 from .derivative import Derivative
 from .derivative_items import (
     DerivativesQuote,
+    ExpectedExecutionPoint,
+    ExpectedExecutionTrend,
     OptionBoard,
     OptionBoardRow,
     OptionExpiry,
@@ -247,6 +249,8 @@ __all__ = [
     "ETFOrderBook",
     "EarningsEstimate",
     "ExecutionReport",
+    "ExpectedExecutionPoint",
+    "ExpectedExecutionTrend",
     "ExpectedIndexPoint",
     "ExpectedIndexQuote",
     "ExpectedIndexSnapshot",

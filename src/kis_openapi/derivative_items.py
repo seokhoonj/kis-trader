@@ -77,6 +77,42 @@ class UnderlyingQuote:
 
 
 @dataclass(frozen=True, slots=True)
+class ExpectedExecutionPoint:
+    """선물·옵션의 한 시각 예상체결가."""
+
+    timestamp: datetime
+    price: Decimal
+    change: Decimal
+    change_percent: Decimal
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ExpectedExecutionTrend:
+    """현재 예상체결 요약과 일중 예상체결가 추이."""
+
+    code: str
+    name: str
+    price: Decimal
+    change: Decimal
+    change_percent: Decimal
+    base_price: Decimal
+    points: tuple[ExpectedExecutionPoint, ...]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "points", tuple(self.points))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class OptionExpiry:
     """지수옵션의 한 만기 월물(불변).
 

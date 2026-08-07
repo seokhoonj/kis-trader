@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._domestic import derivatives as derivatives_api
-from .derivative_items import DerivativesQuote, UnderlyingQuote
+from .derivative_items import DerivativesQuote, ExpectedExecutionTrend, UnderlyingQuote
 
 if TYPE_CHECKING:
     from datetime import date
@@ -53,6 +53,12 @@ class Derivative:
     def underlying_quote(self) -> UnderlyingQuote:
         """선물과 그 기초자산(지수)을 나란히 담는 스냅샷(베이시스 판단용). 선물 최근월물 계약에서 쓴다."""
         return derivatives_api.fetch_underlying_quote(
+            self._client.transport, code=self.code, market=self.market
+        )
+
+    def expected_execution_trend(self) -> ExpectedExecutionTrend:
+        """현재 예상체결 요약과 당일 시각별 예상체결가 추이."""
+        return derivatives_api.fetch_expected_execution_trend(
             self._client.transport, code=self.code, market=self.market
         )
 

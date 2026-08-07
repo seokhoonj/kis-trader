@@ -23,6 +23,8 @@ from .._wire import optional_decimal, optional_int, required_decimal, required_i
 from ..bar import Bar, Interval
 from ..derivative_items import (
     DerivativesQuote,
+    ExpectedExecutionPoint,
+    ExpectedExecutionTrend,
     OptionBoard,
     OptionBoardRow,
     OptionExpiry,
@@ -37,6 +39,7 @@ from .market_data import (
     _apply_change_sign,
     _missing_block_error,
     _parse_bar_timestamp,
+    _parse_intraday_timestamp,
     _parse_minute_bar_timestamp,
     _period_code_for,
     _price_levels,
@@ -59,6 +62,8 @@ _BARS_TR = "FHKIF03020100"
 _MINUTE_BARS_PATH = "/uapi/domestic-futureoption/v1/quotations/inquire-time-fuopchartprice"
 _MINUTE_BARS_TR = "FHKIF03020200"
 _MINUTE_ANCHOR_START = "235959"
+_EXPECTED_TREND_PATH = "/uapi/domestic-futureoption/v1/quotations/exp-price-trend"
+_EXPECTED_TREND_TR = "FHPIF05110100"
 
 
 def fetch_quote(transport: Transport, *, code: str, market: str) -> DerivativesQuote:
@@ -275,6 +280,66 @@ def fetch_underlying_quote(transport: Transport, *, code: str, market: str) -> U
         ),
         as_of=datetime.now(_KST),
         _raw=output1,
+    )
+
+
+def fetch_expected_execution_trend(
+    transport: Transport, *, code: str, market: str
+) -> ExpectedExecutionTrend:
+    """선물/옵션 계약의 현재 예상체결 요약과 당일 시각별 추이를 조회한다."""
+    resp = transport.request(
+        method="GET",
+        path=_EXPECTED_TREND_PATH,
+        tr_id=_EXPECTED_TREND_TR,
+        params={"FID_INPUT_ISCD": code, "FID_COND_MRKT_DIV_CODE": market},
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    summary = resp.body.get("output1")
+    if not isinstance(summary, Mapping):
+        raise _missing_block_error("output1", resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+        raise _missing_block_error("output2", resp)
+
+    as_of = datetime.now(_KST)
+    summary_sign = str(summary.get("antc_cntg_vrss_sign", "")).strip()
+    points = []
+    for row in rows:
+        sign = str(row.get("antc_cntg_vrss_sign", "")).strip()
+        points.append(
+            ExpectedExecutionPoint(
+                timestamp=_parse_intraday_timestamp(
+                    str(row.get("stck_cntg_hour", "")).strip(), as_of
+                ),
+                price=required_decimal(row.get("futs_antc_cnpr"), "futs_antc_cnpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("futs_antc_cntg_vrss"), "futs_antc_cntg_vrss"),
+                    sign,
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("antc_cntg_prdy_ctrt"), "antc_cntg_prdy_ctrt"),
+                    sign,
+                ),
+                _raw=row,
+            )
+        )
+    points.sort(key=lambda point: point.timestamp)
+    return ExpectedExecutionTrend(
+        code=code,
+        name=str(summary.get("hts_kor_isnm", "")).strip(),
+        price=required_decimal(summary.get("futs_antc_cnpr"), "futs_antc_cnpr"),
+        change=_apply_change_sign(
+            required_decimal(summary.get("futs_antc_cntg_vrss"), "futs_antc_cntg_vrss"),
+            summary_sign,
+        ),
+        change_percent=_apply_change_sign(
+            required_decimal(summary.get("antc_cntg_prdy_ctrt"), "antc_cntg_prdy_ctrt"),
+            summary_sign,
+        ),
+        base_price=required_decimal(summary.get("futs_sdpr"), "futs_sdpr"),
+        points=tuple(points),
+        _raw=resp.body,
     )
 
 
