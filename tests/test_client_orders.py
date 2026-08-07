@@ -24,6 +24,7 @@ from kis_openapi.errors import (
 from kis_openapi.transport import RawResponse, TransportTimeout
 
 _ORDER_CASH = "/uapi/domestic-stock/v1/trading/order-cash"
+_ORDER_CHANGE = "/uapi/domestic-stock/v1/trading/order-rvsecncl"
 _DAILY_CCLD = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
 
 
@@ -55,8 +56,11 @@ class FakeTransport:
         return outcome
 
 
-_ACCEPTED_ORDER_RESPONSE = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="주문 전송 완료",
-                        body={"output": {"ODNO": "0000117057", "ORD_TMD": "121052"}})
+_ACCEPTED_ORDER_RESPONSE = RawResponse(
+    rt_cd="0", msg_cd="APBK0013", msg1="주문 전송 완료",
+    body={"output": {"KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117057",
+                     "ORD_TMD": "121052"}},
+)
 _REJECTED_ORDER_RESPONSE = RawResponse(rt_cd="1", msg_cd="APBK1234", msg1="주문가능금액 부족", body={})
 
 
@@ -114,6 +118,67 @@ def test_demo_uses_demo_tr():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     _client(fake, environment="demo").ticker("005930").buy(quantity=10, price=70000)
     assert fake.calls[0]["tr_id"] == "VTTC0012U"
+
+
+def test_cancel_domestic_order_uses_original_identifiers_and_deduplicates():
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    kis = _client(fake)
+    kis.ticker("005930").buy(
+        quantity=10, price=70000, client_order_id="original-1"
+    )
+    first = kis.cancel_order("original-1", request_id="cancel-1")
+    second = kis.cancel_order("original-1", request_id="cancel-1")
+
+    assert first.status is OrderStatus.PENDING_CANCEL
+    assert second == first
+    assert len(fake.calls) == 2
+    call = fake.calls[1]
+    assert call["path"] == _ORDER_CHANGE
+    assert call["tr_id"] == "TTTC0013U"
+    assert call["idempotent"] is False
+    assert call["body"]["KRX_FWDG_ORD_ORGNO"] == "01790"
+    assert call["body"]["ORGN_ODNO"] == "0000117057"
+    assert call["body"]["RVSE_CNCL_DVSN_CD"] == "02"
+    assert call["body"]["ORD_QTY"] == "10"
+    assert call["body"]["ORD_UNPR"] == "0"
+    assert call["body"]["QTY_ALL_ORD_YN"] == "Y"
+
+
+def test_replace_domestic_order_maps_new_quantity_and_price():
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    kis = _client(fake, environment="demo")
+    kis.ticker("005930").sell(
+        quantity=10, price=70000, client_order_id="original-2"
+    )
+    report = kis.replace_order(
+        "original-2", quantity=4, price=71000, request_id="replace-1"
+    )
+
+    assert report.status is OrderStatus.PENDING_REPLACE
+    call = fake.calls[1]
+    assert call["tr_id"] == "VTTC0013U"
+    assert call["body"]["RVSE_CNCL_DVSN_CD"] == "01"
+    assert call["body"]["ORD_QTY"] == "4"
+    assert call["body"]["ORD_UNPR"] == "71000"
+    assert call["body"]["QTY_ALL_ORD_YN"] == "N"
+
+
+def test_domestic_change_timeout_stays_in_flight_and_is_not_resent():
+    fake = FakeTransport(
+        by_path={
+            _ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
+            _ORDER_CHANGE: TransportTimeout(),
+        }
+    )
+    kis = _client(fake)
+    kis.ticker("005930").buy(
+        quantity=10, price=70000, client_order_id="original-3"
+    )
+    with pytest.raises(OrderTimeoutError):
+        kis.cancel_order("original-3", request_id="cancel-timeout")
+    with pytest.raises(KISUsageError, match="재전송하지"):
+        kis.cancel_order("original-3", request_id="cancel-timeout")
+    assert len([call for call in fake.calls if call["path"] == _ORDER_CHANGE]) == 1
 
 
 # --- 멱등 dedup ------------------------------------------------------------

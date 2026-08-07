@@ -65,6 +65,9 @@ _ORDER_CASH_TR = {
     ("demo", "buy"): "VTTC0012U", ("demo", "sell"): "VTTC0011U",
 }
 _DAILY_CCLD_TR = {"real": "TTTC0081R", "demo": "VTTC0081R"}
+_CHANGE_PATH = "/uapi/domestic-stock/v1/trading/order-rvsecncl"
+_CHANGE_TR = {"real": "TTTC0013U", "demo": "VTTC0013U"}
+_ACTION_EXCHANGE_PREFIX = "action:"
 # order_type -> KIS ORD_DVSN(주문구분): 00 지정가, 01 시장가
 _ORD_DVSN = {"limit": "00", "market": "01"}
 # our side -> KIS SLL_BUY_DVSN_CD (01 매도, 02 매수)
@@ -201,6 +204,142 @@ def reconcile(
     report = _execution_report_from_daily_row(client_order_id, fingerprint, matches[0])
     store.record(report, fingerprint)
     return report
+
+
+def submit_change(
+    transport: Transport,
+    store: OrderStore,
+    *,
+    original_client_order_id: str,
+    request_id: str,
+    action: str,
+    quantity: Decimal,
+    price: Decimal | None,
+    cano: str,
+    product_code: str,
+    environment: Environment,
+    build_request: Callable[..., WireRequest] | None = None,
+) -> ExecutionReport:
+    """접수된 주문을 정정하거나 취소한다. 변경 요청도 별도 멱등키로 중복 전송을 막는다."""
+    original_report = store.report_for(original_client_order_id)
+    original_fingerprint = store.fingerprint_for(original_client_order_id)
+    if original_report is None or original_fingerprint is None:
+        raise KISUsageError(f"확정된 원주문을 찾을 수 없다: {original_client_order_id!r}")
+    if not original_report.order_id:
+        raise KISUsageError("원주문에 거래소 주문번호가 없어 정정·취소할 수 없다.")
+    if original_report.is_terminal:
+        raise KISUsageError(
+            f"종료 상태 주문은 정정·취소할 수 없다: {original_report.status.value}"
+        )
+    if action not in {"cancel", "replace"}:
+        raise KISUsageError(f"지원하지 않는 주문 변경: {action!r}")
+    if quantity <= 0 or quantity != quantity.to_integral_value():
+        raise KISUsageError(f"정정·취소 수량은 양의 정수여야 한다: {quantity}")
+    if action == "replace" and (price is None or price <= 0):
+        raise KISUsageError("정정 주문에는 0보다 큰 price가 필요하다.")
+    if action == "cancel" and price is not None:
+        raise KISUsageError("취소 주문에는 price를 지정할 수 없다.")
+
+    action_fingerprint = Fingerprint(
+        symbol=f"{original_client_order_id}:{original_report.order_id}",
+        side=original_fingerprint.side,
+        order_type=original_fingerprint.order_type,
+        quantity=format_wire_decimal(quantity),
+        limit_price="" if price is None else format_wire_decimal(price),
+        stop_price=action,
+        time_in_force=original_fingerprint.time_in_force,
+        exchange=f"{_ACTION_EXCHANGE_PREFIX}{original_fingerprint.exchange}",
+    )
+    builder = build_request or _make_domestic_change_request
+    request = builder(
+        original_report=original_report,
+        original_fingerprint=original_fingerprint,
+        action=action,
+        quantity=quantity,
+        price=price,
+        cano=cano,
+        product_code=product_code,
+        environment=environment,
+    )
+    outcome, prior = store.try_claim(request_id, action_fingerprint)
+    if outcome is ClaimOutcome.COMPLETED:
+        if prior is None:
+            raise OrderError("변경 요청 claim이 COMPLETED인데 리포트가 없다.")
+        return prior
+    if outcome is ClaimOutcome.CONFLICT:
+        raise KISUsageError(f"request_id {request_id!r}는 이미 다른 요청에 사용됐다.")
+    if outcome is ClaimOutcome.IN_FLIGHT:
+        raise KISUsageError(
+            f"변경 요청 {request_id}의 결과가 아직 확인되지 않았다. 재전송하지 말라."
+        )
+    if outcome is not ClaimOutcome.CLAIMED:
+        raise OrderError(f"예상치 못한 claim outcome: {outcome!r}")
+    try:
+        resp = transport.request(
+            method=request.method,
+            path=request.path,
+            tr_id=request.tr_id,
+            body=request.body,
+            idempotent=False,
+        )
+    except TransportTimeout as err:
+        raise OrderTimeoutError(
+            f"주문 {action} 요청 시간초과 -- 처리 여부가 불명이다. 재전송하지 말라.",
+            client_order_id=request_id,
+        ) from err
+    if not resp.ok:
+        store.clear_in_flight(request_id)
+        raise OrderRejectedError(
+            f"주문 {action} 요청 거부: {resp.msg1}",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    output = _extract_output_mapping(resp.body)
+    report = ExecutionReport(
+        client_order_id=request_id,
+        order_id=str(output.get("ODNO") or original_report.order_id),
+        symbol=original_report.symbol,
+        side=original_report.side,
+        status=OrderStatus.PENDING_CANCEL if action == "cancel" else OrderStatus.PENDING_REPLACE,
+        filled_quantity=original_report.filled_quantity,
+        average_price=original_report.average_price,
+        submitted_at=datetime.now(_KST),
+        _raw=resp.body,
+    )
+    store.record(report, action_fingerprint)
+    return report
+
+
+def _make_domestic_change_request(
+    *, original_report: ExecutionReport, original_fingerprint: Fingerprint,
+    action: str, quantity: Decimal, price: Decimal | None,
+    cano: str, product_code: str, environment: Environment,
+) -> WireRequest:
+    original_output = _extract_output_mapping(original_report._raw)
+    organization_number = str(
+        original_output.get("KRX_FWDG_ORD_ORGNO")
+        or original_output.get("ord_gno_brno")
+        or ""
+    ).strip()
+    if not organization_number:
+        raise KISUsageError(
+            "원주문 리포트에 한국거래소전송주문조직번호가 없어 정정·취소할 수 없다."
+        )
+    order_division = _ORD_DVSN.get(original_fingerprint.order_type)
+    if order_division is None:
+        raise KISUsageError("원주문의 주문구분을 정정·취소 와이어로 변환할 수 없다.")
+    body = {
+        "CANO": cano,
+        "ACNT_PRDT_CD": product_code,
+        "KRX_FWDG_ORD_ORGNO": organization_number,
+        "ORGN_ODNO": str(original_report.order_id),
+        "ORD_DVSN": order_division,
+        "RVSE_CNCL_DVSN_CD": "02" if action == "cancel" else "01",
+        "ORD_QTY": format_wire_decimal(quantity),
+        "ORD_UNPR": "0" if price is None else format_wire_decimal(price),
+        "QTY_ALL_ORD_YN": "Y" if action == "cancel" else "N",
+        "EXCG_ID_DVSN_CD": "KRX",
+    }
+    return WireRequest("POST", _CHANGE_PATH, _CHANGE_TR[environment], body)
 
 
 # --- 사전 리스크 한도 ------------------------------------------------------

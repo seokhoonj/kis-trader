@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 from datetime import date
+from decimal import Decimal
 from typing import Literal
 
 from ._domestic import account as account_api
@@ -44,7 +45,7 @@ from .index import Index
 from .instrument import DomesticBoard, is_domestic_symbol
 from .market import MarketQueries
 from .market_items import NewsItem
-from .order import Order
+from .order import Order, mint_client_order_id
 from .overseas_derivative import OverseasDerivative
 from .overseas_derivative_items import (
     OverseasDerivativeDetail,
@@ -524,6 +525,10 @@ class KISClient:
         # 한다(엉뚱한 미접수 판정 방지) -- 지문의 거래소로 국내/해외 경로를 가른다. 완료 리포트가 있으면
         # 어느 엔진이든 그대로 반환한다.
         fingerprint = self._store.fingerprint_for(client_order_id)
+        if fingerprint is not None and fingerprint.exchange.startswith("action:"):
+            raise KISUsageError(
+                "정정·취소 요청은 자동 reconcile을 지원하지 않는다. 원주문 상태를 조회해 확인하라."
+            )
         if fingerprint is not None and overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
             return overseas_orders_engine.reconcile(
                 self._transport, self._store, client_order_id,
@@ -532,6 +537,55 @@ class KISClient:
         return orders_engine.reconcile(
             self._transport, self._store, client_order_id,
             cano=cano, product_code=product_code, environment=self._environment,
+        )
+
+    def cancel_order(
+        self, client_order_id: str, *, quantity: object | None = None,
+        request_id: str | None = None,
+    ) -> ExecutionReport:
+        """접수된 국내·해외 주식 주문의 미체결 수량을 취소한다."""
+        return self._change_order(
+            client_order_id, action="cancel", quantity=quantity, price=None,
+            request_id=request_id,
+        )
+
+    def replace_order(
+        self, client_order_id: str, *, price: object, quantity: object | None = None,
+        request_id: str | None = None,
+    ) -> ExecutionReport:
+        """접수된 국내·해외 주식 주문의 가격 또는 잔량을 정정한다."""
+        return self._change_order(
+            client_order_id, action="replace", quantity=quantity, price=price,
+            request_id=request_id,
+        )
+
+    def _change_order(
+        self, client_order_id: str, *, action: str, quantity: object | None,
+        price: object | None, request_id: str | None,
+    ) -> ExecutionReport:
+        cano, product_code = self._require_account()
+        fingerprint = self._store.fingerprint_for(client_order_id)
+        report = self._store.report_for(client_order_id)
+        if fingerprint is None or report is None:
+            raise KISUsageError(f"확정된 원주문을 찾을 수 없다: {client_order_id!r}")
+        original_quantity = Decimal(fingerprint.quantity)
+        remaining_quantity = original_quantity - report.filled_quantity
+        change_quantity = remaining_quantity if quantity is None else Decimal(str(quantity))
+        change_price = None if price is None else Decimal(str(price))
+        builder = None
+        if overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
+            builder = overseas_orders_engine.make_change_request
+        return orders_engine.submit_change(
+            self._transport, self._store,
+            original_client_order_id=client_order_id,
+            request_id=request_id or mint_client_order_id(),
+            action=action,
+            quantity=change_quantity,
+            price=change_price,
+            cano=cano,
+            product_code=product_code,
+            environment=self._environment,
+            build_request=builder,
         )
 
     def _place_order(self, order: Order) -> ExecutionReport:
