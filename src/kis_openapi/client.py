@@ -54,6 +54,7 @@ from .overseas_derivative_items import (
 from .overseas_index import OverseasIndex
 from .overseas_items import (
     OverseasBalance,
+    OverseasCollateralStock,
     OverseasCorporateAction,
     OverseasIndustry,
     OverseasIndustryStock,
@@ -403,6 +404,16 @@ class KISClient:
         """해외속보 제목 피드(최대 100건)."""
         return overseas_reference_api.fetch_breaking_news(
             self.transport, symbol=symbol, title=title, date_=date_, time=time
+        )
+
+    def overseas_collateral_stocks(
+        self, symbol: str, country: str, *, sort: str = "name",
+        product_type: str = "", loanable: bool | None = None,
+    ) -> list[OverseasCollateralStock]:
+        """해외주식 담보대출 가능 여부와 적용 비율."""
+        return overseas_reference_api.fetch_collateral_stocks(
+            self.transport, symbol=symbol, country=country, sort=sort,
+            product_type=product_type, loanable=loanable,
         )
 
     @property

@@ -268,3 +268,26 @@ class OverseasNewsHeadline:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasCollateralStock:
+    """해외주식 담보대출 가능 여부와 적용 비율."""
+
+    symbol: str
+    name: str
+    loan_rate: Decimal | None
+    maintenance_rate: Decimal | None
+    collateral_rate: Decimal | None
+    is_loanable: bool
+    registered_date: date | None
+    market_name: str
+    currency: str
+    country_name: str
+    exchange: str
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

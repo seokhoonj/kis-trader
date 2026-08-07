@@ -16,6 +16,7 @@ from .._wire import optional_decimal
 from ..errors import KISError, KISUsageError
 from ..market_items import NewsItem
 from ..overseas_items import (
+    OverseasCollateralStock,
     OverseasCorporateAction,
     OverseasNewsHeadline,
     OverseasRight,
@@ -35,6 +36,8 @@ _NEWS_PATH = "/uapi/overseas-price/v1/quotations/news-title"
 _NEWS_TR = "HHPSTH60100C1"
 _BREAKING_NEWS_PATH = "/uapi/overseas-price/v1/quotations/brknews-title"
 _BREAKING_NEWS_TR = "FHKST01011801"
+_COLLATERAL_STOCKS_PATH = "/uapi/overseas-price/v1/quotations/colable-by-company"
+_COLLATERAL_STOCKS_TR = "CTLN4050R"
 
 
 def _YYYYMMDD(value: object) -> date | None:
@@ -202,6 +205,56 @@ def fetch_breaking_news(
         source=str(row.get("dorg", "")).strip(), category=str(row.get("news_lrdv_code", "")).strip(),
         symbols=tuple(code for i in range(1, 11)
                       if (code := str(row.get(f"iscd{i}", "")).strip())), _raw=row,
+    ) for row in rows]
+
+
+def fetch_collateral_stocks(
+    transport: Transport, *, symbol: str, country: str, sort: str = "name",
+    product_type: str = "", loanable: bool | None = None,
+) -> list[OverseasCollateralStock]:
+    """해외주식 담보대출 가능 종목과 적용 비율을 조회한다."""
+    if not symbol.strip() or not country.strip():
+        raise KISUsageError("symbol 과 country 가 필요하다.")
+    sort_code = {"name": "01", "symbol": "02"}.get(sort)
+    if sort_code is None:
+        raise KISUsageError("sort 는 name 또는 symbol 이어야 한다.")
+    rows: list[Mapping[str, Any]] = []
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(100):
+        resp = transport.request(
+            method="GET", path=_COLLATERAL_STOCKS_PATH, tr_id=_COLLATERAL_STOCKS_TR,
+            params={"PDNO": symbol.strip(), "NATN_CD": country.strip(),
+                    "INQR_SQN_DVSN": sort_code, "PRDT_TYPE_CD": product_type.strip(),
+                    "INQR_STRT_DT": "", "INQR_END_DT": "", "INQR_DVSN": "",
+                    "RT_DVSN_CD": "", "RT": "",
+                    "LOAN_PSBL_YN": "" if loanable is None else ("Y" if loanable else "N"),
+                    "CTX_AREA_FK100": ctx_fk, "CTX_AREA_NK100": ctx_nk},
+            idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        page, summary = resp.body.get("output1"), resp.body.get("output2")
+        if not isinstance(page, list) or not all(isinstance(row, Mapping) for row in page):
+            raise _missing_block_error("output1", resp)
+        if not isinstance(summary, Mapping):
+            raise _missing_block_error("output2", resp)
+        rows.extend(page)
+        ctx_fk = str(resp.body.get("ctx_area_fk100", "")).strip()
+        ctx_nk = str(resp.body.get("ctx_area_nk100", "")).strip()
+        if resp.tr_cont not in {"F", "M"}:
+            break
+        tr_cont = "N"
+    else:
+        raise KISError("해외주식 담보대출 가능종목 조회가 100페이지 상한을 초과했다.")
+    return [OverseasCollateralStock(
+        symbol=str(row.get("pdno", "")).strip(), name=str(row.get("ovrs_item_name", "")).strip(),
+        loan_rate=optional_decimal(row.get("loan_rt"), "loan_rt"),
+        maintenance_rate=optional_decimal(row.get("mgge_mntn_rt"), "mgge_mntn_rt"),
+        collateral_rate=optional_decimal(row.get("mgge_ensu_rt"), "mgge_ensu_rt"),
+        is_loanable=str(row.get("loan_exec_psbl_yn", "")).strip() == "Y",
+        registered_date=_YYYYMMDD(row.get("erlm_dt")),
+        market_name=str(row.get("tr_mket_name", "")).strip(), currency=str(row.get("crcy_cd", "")).strip(),
+        country_name=str(row.get("natn_kor_name", "")).strip(),
+        exchange=str(row.get("ovrs_excg_cd", "")).strip(), _raw=row,
     ) for row in rows]
 def fetch_settlement_dates(
     transport: Transport, *, environment: Environment

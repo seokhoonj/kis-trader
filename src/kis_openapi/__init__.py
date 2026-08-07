@@ -141,6 +141,7 @@ from .overseas_derivative_items import (
 from .overseas_index import OverseasIndex
 from .overseas_items import (
     OverseasBalance,
+    OverseasCollateralStock,
     OverseasCorporateAction,
     OverseasIndustry,
     OverseasIndustryStock,
@@ -290,6 +291,7 @@ __all__ = [
     "OrderStore",
     "OtherRatio",
     "OverseasBalance",
+    "OverseasCollateralStock",
     "OverseasCorporateAction",
     "OverseasDerivative",
     "OverseasDerivativeDetail",
