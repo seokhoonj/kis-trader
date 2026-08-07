@@ -27,7 +27,13 @@ from ..analysis import (
 from ..bar import Bar, Interval
 from ..broker import BrokerActivity, BrokerActivitySummary
 from ..errors import KISError, KISUsageError
-from ..investor import InvestorActivity, InvestorEstimate, InvestorFlow
+from ..investor import (
+    DetailedInvestorFlow,
+    DetailedInvestorHistory,
+    InvestorActivity,
+    InvestorEstimate,
+    InvestorFlow,
+)
 from ..order_book import OrderBook, PriceLevel
 from ..program import ProgramTradePoint
 from ..quote import Quote
@@ -46,6 +52,8 @@ _STATUS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price-2"
 _STATUS_TR = "FHPST01010000"
 _INTRADAY_EXECUTIONS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-itemconclusion"
 _INTRADAY_EXECUTIONS_TR = "FHPST01060000"
+_DETAILED_INVESTOR_PATH = "/uapi/domestic-stock/v1/quotations/investor-trade-by-stock-daily"
+_DETAILED_INVESTOR_TR = "FHPTJ04160001"
 #: 전일대비 부호코드(prdy_vrss_sign) 중 하락(4 하한, 5 하락). 나머지는 양(0 포함).
 _DOWN_SIGNS = frozenset(("4", "5"))
 
@@ -743,6 +751,90 @@ def fetch_investor_flows(transport: Transport, *, symbol: str, market: str) -> l
             )
         )
     return flows
+
+
+_DETAILED_INVESTOR_PREFIX = {
+    "foreign": "frgn", "individual": "prsn", "institutional": "orgn",
+    "securities": "scrt", "investment_trust": "ivtr", "private_equity": "pe_fund",
+    "bank": "bank", "insurance": "insu", "merchant_bank": "mrbn", "fund": "fund",
+    "other": "etc", "other_organization": "etc_orgt", "other_corporation": "etc_corp",
+}
+
+
+def fetch_detailed_investor_history(
+    transport: Transport, *, symbol: str, market: str, as_of: str | date | None = None
+) -> DetailedInvestorHistory:
+    """한 종목의 현재 요약과 세부 투자자 일별 매매(연속조회 포함)."""
+    anchor = _today_kst() if as_of is None else _to_yyyymmdd(as_of, "as_of")
+    params = {
+        "FID_COND_MRKT_DIV_CODE": _market_div(market), "FID_INPUT_ISCD": symbol,
+        "FID_INPUT_DATE_1": anchor, "FID_ORG_ADJ_PRC": "", "FID_ETC_CLS_CODE": "1",
+    }
+    pages: list[Mapping[str, Any]] = []
+    summary: Mapping[str, Any] | None = None
+    tr_cont = ""
+    while True:
+        resp = transport.request(
+            method="GET", path=_DETAILED_INVESTOR_PATH, tr_id=_DETAILED_INVESTOR_TR,
+            params=params, idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        output1, rows = resp.body.get("output1"), resp.body.get("output2")
+        if not isinstance(output1, Mapping):
+            raise _missing_block_error("output1", resp)
+        if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+            raise _missing_block_error("output2", resp)
+        if summary is None:
+            summary = output1
+        pages.extend(rows)
+        if resp.tr_cont not in {"F", "M"}:
+            break
+        tr_cont = "N"
+    assert summary is not None
+    summary_sign = str(summary.get("prdy_vrss_sign", "")).strip()
+    flows: list[DetailedInvestorFlow] = []
+    for row in pages:
+        day = str(row.get("stck_bsop_date", "")).strip()
+        if not day:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        flows.append(DetailedInvestorFlow(
+            symbol=symbol, trading_date=_parse_kst_date(day),
+            open=required_decimal(row.get("stck_oprc"), "stck_oprc"),
+            high=required_decimal(row.get("stck_hgpr"), "stck_hgpr"),
+            low=required_decimal(row.get("stck_lwpr"), "stck_lwpr"),
+            close=required_decimal(row.get("stck_clpr"), "stck_clpr"),
+            change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+            change_percent=_apply_change_sign(required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign),
+            volume=required_int(row.get("acml_vol"), "acml_vol"),
+            amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+            participants={name: _parse_detailed_investor_activity(row, prefix)
+                          for name, prefix in _DETAILED_INVESTOR_PREFIX.items()},
+            _raw=row,
+        ))
+    return DetailedInvestorHistory(
+        symbol=symbol, price=required_decimal(summary.get("stck_prpr"), "stck_prpr"),
+        change=_apply_change_sign(required_decimal(summary.get("prdy_vrss"), "prdy_vrss"),
+                                  summary_sign),
+        change_percent=_apply_change_sign(required_decimal(summary.get("prdy_ctrt"), "prdy_ctrt"),
+                                          summary_sign),
+        volume=required_int(summary.get("acml_vol"), "acml_vol"),
+        previous_volume=required_int(summary.get("prdy_vol"), "prdy_vol"),
+        market_name=str(summary.get("rprs_mrkt_kor_name", "")).strip(), flows=tuple(flows),
+        _raw={"output1": summary, "output2": tuple(pages)},
+    )
+
+
+def _parse_detailed_investor_activity(row: Mapping[str, Any], prefix: str) -> InvestorActivity:
+    net_key = f"{prefix}_ntby_vol" if prefix in {"pe_fund", "etc_orgt", "etc_corp"} else f"{prefix}_ntby_qty"
+    return InvestorActivity(
+        buy_volume=required_int(row.get(f"{prefix}_shnu_vol"), f"{prefix}_shnu_vol"),
+        sell_volume=required_int(row.get(f"{prefix}_seln_vol"), f"{prefix}_seln_vol"),
+        net_buy_volume=required_int(row.get(net_key), net_key),
+        buy_value=required_decimal(row.get(f"{prefix}_shnu_tr_pbmn"), f"{prefix}_shnu_tr_pbmn"),
+        sell_value=required_decimal(row.get(f"{prefix}_seln_tr_pbmn"), f"{prefix}_seln_tr_pbmn"),
+        net_buy_value=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
+    )
 
 
 def _parse_investor_activity(row: Mapping[str, Any], investor: str) -> InvestorActivity:

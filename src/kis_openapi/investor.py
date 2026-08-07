@@ -45,6 +45,55 @@ class InvestorFlow:
 
 
 @dataclass(frozen=True, slots=True)
+class DetailedInvestorFlow:
+    """한 종목의 하루치 세부 투자자 매매와 OHLCV(불변).
+
+    ``participants`` 는 ``foreign`` / ``individual`` / ``institutional`` 및 기관 세부
+    주체를 :class:`InvestorActivity` 로 매핑한다. 대금 필드는 KIS 원장 단위인 백만원이다.
+    """
+
+    symbol: str
+    trading_date: date
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    close: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    amount: Decimal
+    participants: Mapping[str, InvestorActivity]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "participants", MappingProxyType(dict(self.participants)))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class DetailedInvestorHistory:
+    """현재 종목 요약과 세부 투자자 일별 매매 목록(불변)."""
+
+    symbol: str
+    price: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    previous_volume: int
+    market_name: str
+    flows: tuple[DetailedInvestorFlow, ...]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "flows", tuple(self.flows))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class InvestorEstimate:
     """한 시점의 장중 투자자 순매수 추정(불변).
 

@@ -12,7 +12,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import InvestorFlow, KISClient
+from kis_openapi import DetailedInvestorHistory, InvestorFlow, KISClient
 from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
@@ -106,3 +106,78 @@ def test_investor_flows_missing_output_block_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):                          # 성공 응답인데 output 없음 -> 빈결과로 오인 금지
         _client(fake).ticker("005930").investor_flows()
+
+
+_DETAILED_PATH = "/uapi/domestic-stock/v1/quotations/investor-trade-by-stock-daily"
+_DETAILED_PREFIXES = (
+    "frgn", "prsn", "orgn", "scrt", "ivtr", "pe_fund", "bank", "insu", "mrbn",
+    "fund", "etc", "etc_orgt", "etc_corp",
+)
+
+
+def _detailed_row(day="20240510"):
+    row = {"stck_bsop_date": day, "stck_oprc": "70000", "stck_hgpr": "72000",
+           "stck_lwpr": "69500", "stck_clpr": "71500", "prdy_vrss": "500",
+           "prdy_vrss_sign": "2", "prdy_ctrt": "0.70", "acml_vol": "1000000",
+           "acml_tr_pbmn": "71000"}
+    for prefix in _DETAILED_PREFIXES:
+        net_key = "ntby_vol" if prefix in {"pe_fund", "etc_orgt", "etc_corp"} else "ntby_qty"
+        row |= {f"{prefix}_shnu_vol": "120", f"{prefix}_seln_vol": "100",
+                f"{prefix}_{net_key}": "20", f"{prefix}_shnu_tr_pbmn": "12",
+                f"{prefix}_seln_tr_pbmn": "10", f"{prefix}_ntby_tr_pbmn": "2"}
+    return row
+
+
+def _detailed_summary():
+    return {"stck_prpr": "71500", "prdy_vrss": "500", "prdy_vrss_sign": "2",
+            "prdy_ctrt": "0.70", "acml_vol": "1000000", "prdy_vol": "900000",
+            "rprs_mrkt_kor_name": "코스피"}
+
+
+class PagingTransport:
+    def __init__(self, responses):
+        self.responses, self.calls = iter(responses), []
+
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
+        self.calls.append({"path": path, "tr_id": tr_id, "params": params, "tr_cont": tr_cont})
+        return next(self.responses)
+
+
+def _detailed_response(rows, *, tr_cont=""):
+    return RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
+                       body={"output1": _detailed_summary(), "output2": rows}, tr_cont=tr_cont)
+
+
+def test_detailed_investor_history_maps_all_participants_and_paginates():
+    fake = PagingTransport([_detailed_response([_detailed_row()], tr_cont="M"),
+                            _detailed_response([_detailed_row("20240509")])])
+    history = _client(fake).ticker("005930").detailed_investor_history(as_of="20240510")
+    assert isinstance(history, DetailedInvestorHistory)
+    assert history.price == Decimal(71500)
+    assert len(history.flows) == 2
+    flow = history.flows[0]
+    assert flow.trading_date == date(2024, 5, 10)
+    assert flow.participants["foreign"].buy_volume == 120
+    assert flow.participants["private_equity"].net_buy_volume == 20
+    assert flow.participants["other_corporation"].net_buy_value == Decimal(2)
+    assert fake.calls[0]["path"] == _DETAILED_PATH
+    assert fake.calls[0]["tr_id"] == "FHPTJ04160001"
+    assert fake.calls[0]["params"]["FID_ETC_CLS_CODE"] == "1"
+    assert [call["tr_cont"] for call in fake.calls] == ["", "N"]
+
+
+def test_detailed_investor_history_applies_down_sign():
+    row, summary = _detailed_row(), _detailed_summary()
+    row["prdy_vrss_sign"] = summary["prdy_vrss_sign"] = "5"
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
+                           body={"output1": summary, "output2": [row]})
+    history = _client(PagingTransport([response])).ticker("005930").detailed_investor_history()
+    assert history.change == Decimal(-500)
+    assert history.flows[0].change_percent == Decimal("-0.70")
+
+
+@pytest.mark.parametrize("body", [{}, {"output1": _detailed_summary(), "output2": {}}])
+def test_detailed_investor_history_missing_blocks_fail_closed(body):
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
+    with pytest.raises(KISError):
+        _client(PagingTransport([response])).ticker("005930").detailed_investor_history()

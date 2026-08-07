@@ -99,7 +99,13 @@ from .index_items import (
     IndexIntradayPoint,
     IndexQuote,
 )
-from .investor import InvestorActivity, InvestorEstimate, InvestorFlow
+from .investor import (
+    DetailedInvestorFlow,
+    DetailedInvestorHistory,
+    InvestorActivity,
+    InvestorEstimate,
+    InvestorFlow,
+)
 from .market import MarketQueries
 from .market_items import (
     BrokerOpinion,
@@ -193,6 +199,8 @@ __all__ = [
     "DailyExecutionVolume",
     "Derivative",
     "DerivativesQuote",
+    "DetailedInvestorFlow",
+    "DetailedInvestorHistory",
     "DividendEvent",
     "DividendRanking",
     "ELWIndicatorPoint",

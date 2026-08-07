@@ -54,7 +54,7 @@ from .financials import (
     StabilityRatio,
 )
 from .instrument import DomesticBoard, resolve_market
-from .investor import InvestorEstimate, InvestorFlow
+from .investor import DetailedInvestorHistory, InvestorEstimate, InvestorFlow
 from .order import Order, Side, TimeInForce
 from .order_book import OrderBook
 from .orderable import BuyableAmount, SellableQuantity
@@ -213,6 +213,17 @@ class Ticker:
         """일자별 투자자(개인/외국인/기관) 매매동향(최신순)."""
         return market_data.fetch_investor_flows(
             self._client.transport, symbol=self.symbol, market=self._domestic_market()
+        )
+
+    def detailed_investor_history(
+        self, *, as_of: str | date | None = None
+    ) -> DetailedInvestorHistory:
+        """세부 투자자 주체별 매수·매도·순매수 일별 내역(``as_of`` 기준)."""
+        return market_data.fetch_detailed_investor_history(
+            self._client.transport,
+            symbol=self.symbol,
+            market=self._domestic_market(),
+            as_of=as_of,
         )
 
     def broker_activity(self) -> BrokerActivitySummary:
