@@ -12,7 +12,15 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, KISClient, OrderBook, PriceLevel, Quote, RecentPricePoint
+from kis_openapi import (
+    Bar,
+    KISClient,
+    OrderBook,
+    PriceLevel,
+    Quote,
+    RecentPricePoint,
+    StockStatus,
+)
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
@@ -384,3 +392,67 @@ def test_recent_prices_rejects_minute_interval_before_transport():
     with pytest.raises(KISUsageError):
         _client(fake).ticker("005930").recent_prices(interval="1m")
     assert fake.calls == []
+
+
+def test_stock_status_maps_prices_and_regulatory_flags():
+    output = {
+        "rprs_mrkt_kor_name": "코스피",
+        "bstp_kor_isnm": "전기전자",
+        "stck_prpr": "73000",
+        "stck_oprc": "72000",
+        "stck_hgpr": "73500",
+        "stck_lwpr": "71800",
+        "stck_prdy_clpr": "71800",
+        "stck_sdpr": "71800",
+        "stck_mxpr": "93300",
+        "stck_llam": "50300",
+        "prdy_vrss": "1200",
+        "prdy_vrss_sign": "5",
+        "prdy_ctrt": "1.67",
+        "acml_vol": "12000000",
+        "prdy_vol": "10000000",
+        "prdy_vrss_vol_rate": "120.00",
+        "acml_tr_pbmn": "870000000000",
+        "crdt_able_yn": "Y",
+        "crdt_rate": "45.00",
+        "marg_rate": "30.00",
+        "mang_issu_yn": "N",
+        "short_over_yn": "Y",
+        "mrkt_warn_cls_code": "02",
+        "mrkt_warn_cls_name": "투자경고",
+        "invt_caful_yn": "Y",
+        "stange_runup_yn": "N",
+        "ssts_hot_yn": "Y",
+        "low_current_yn": "N",
+        "vi_cls_code": "1",
+        "sltr_yn": "N",
+        "trht_yn": "Y",
+        "new_lstn_cls_name": "",
+        "flng_cls_name": "배당락",
+    }
+    fake = FakeTransport(response=_quote_resp(output))
+    status = _client(fake).ticker("005930", market="UN").status()
+
+    assert isinstance(status, StockStatus)
+    assert status.market == "UN"
+    assert status.price == Decimal(73000)
+    assert status.change == Decimal(-1200)
+    assert status.credit_allowed is True
+    assert status.short_term_overheated is True
+    assert status.market_warning_code == "02"
+    assert status.investment_caution is True
+    assert status.short_sale_overheated is True
+    assert status.halted is True
+    assert status.ex_rights_name == "배당락"
+    assert fake.calls[0]["path"] == "/uapi/domestic-stock/v1/quotations/inquire-price-2"
+    assert fake.calls[0]["tr_id"] == "FHPST01010000"
+    assert fake.calls[0]["params"] == {
+        "FID_COND_MRKT_DIV_CODE": "UN",
+        "FID_INPUT_ISCD": "005930",
+    }
+
+
+def test_stock_status_missing_output_fails_closed():
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=response)).ticker("005930").status()

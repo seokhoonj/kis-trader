@@ -26,7 +26,7 @@ from ..investor import InvestorActivity, InvestorEstimate, InvestorFlow
 from ..order_book import OrderBook, PriceLevel
 from ..program import ProgramTradePoint
 from ..quote import Quote
-from ..stock_info import StockInfo
+from ..stock_info import StockInfo, StockStatus
 from ..trade import Trade
 from ..transport import RawResponse, Transport
 
@@ -37,8 +37,70 @@ _MARKET_DIV = {"KRX": "J", "NXT": "NX", "UN": "UN"}
 
 _QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
 _QUOTE_TR = "FHKST01010100"
+_STATUS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price-2"
+_STATUS_TR = "FHPST01010000"
 #: 전일대비 부호코드(prdy_vrss_sign) 중 하락(4 하한, 5 하락). 나머지는 양(0 포함).
 _DOWN_SIGNS = frozenset(("4", "5"))
+
+
+def fetch_stock_status(
+    transport: Transport, *, symbol: str, market: str
+) -> StockStatus:
+    """현재가와 거래·규제·경고 상태를 함께 조회한다."""
+    resp = transport.request(
+        method="GET",
+        path=_STATUS_PATH,
+        tr_id=_STATUS_TR,
+        params={
+            "FID_COND_MRKT_DIV_CODE": _market_div(market),
+            "FID_INPUT_ISCD": symbol,
+        },
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    row = resp.body.get("output")
+    if not isinstance(row, Mapping):
+        raise _missing_block_error("output", resp)
+    sign = str(row.get("prdy_vrss_sign", "")).strip()
+    return StockStatus(
+        symbol=symbol,
+        market=market,
+        market_name=str(row.get("rprs_mrkt_kor_name", "")).strip(),
+        industry_name=str(row.get("bstp_kor_isnm", "")).strip(),
+        price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+        open=required_decimal(row.get("stck_oprc"), "stck_oprc"),
+        high=required_decimal(row.get("stck_hgpr"), "stck_hgpr"),
+        low=required_decimal(row.get("stck_lwpr"), "stck_lwpr"),
+        previous_close=required_decimal(row.get("stck_prdy_clpr"), "stck_prdy_clpr"),
+        base_price=required_decimal(row.get("stck_sdpr"), "stck_sdpr"),
+        upper_limit=required_decimal(row.get("stck_mxpr"), "stck_mxpr"),
+        lower_limit=required_decimal(row.get("stck_llam"), "stck_llam"),
+        change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+        change_percent=_apply_change_sign(
+            required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+        ),
+        volume=required_int(row.get("acml_vol"), "acml_vol"),
+        previous_volume=required_int(row.get("prdy_vol"), "prdy_vol"),
+        volume_ratio=required_decimal(row.get("prdy_vrss_vol_rate"), "prdy_vrss_vol_rate"),
+        amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+        credit_allowed=str(row.get("crdt_able_yn", "")).strip() == "Y",
+        credit_ratio=required_decimal(row.get("crdt_rate"), "crdt_rate"),
+        margin_ratio=required_decimal(row.get("marg_rate"), "marg_rate"),
+        managed=str(row.get("mang_issu_yn", "")).strip() == "Y",
+        short_term_overheated=str(row.get("short_over_yn", "")).strip() == "Y",
+        market_warning_code=str(row.get("mrkt_warn_cls_code", "")).strip(),
+        market_warning_name=str(row.get("mrkt_warn_cls_name", "")).strip(),
+        investment_caution=str(row.get("invt_caful_yn", "")).strip() == "Y",
+        abnormal_runup=str(row.get("stange_runup_yn", "")).strip() == "Y",
+        short_sale_overheated=str(row.get("ssts_hot_yn", "")).strip() == "Y",
+        low_liquidity=str(row.get("low_current_yn", "")).strip() == "Y",
+        vi_code=str(row.get("vi_cls_code", "")).strip(),
+        liquidation_trading=str(row.get("sltr_yn", "")).strip() == "Y",
+        halted=str(row.get("trht_yn", "")).strip() == "Y",
+        new_listing_name=str(row.get("new_lstn_cls_name", "")).strip(),
+        ex_rights_name=str(row.get("flng_cls_name", "")).strip(),
+        _raw=row,
+    )
 
 _BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
 _BARS_TR = "FHKST03010100"

@@ -53,7 +53,7 @@ from .orderable import BuyableAmount, SellableQuantity
 from .program import ProgramTradePoint
 from .quote import Quote
 from .report import ExecutionReport
-from .stock_info import StockInfo
+from .stock_info import StockInfo, StockStatus
 from .trade import Trade
 
 if TYPE_CHECKING:
@@ -114,6 +114,12 @@ class Ticker:
                 self._client.transport, symbol=self.symbol, exchange=self.exchange
             )
         return market_data.fetch_quote(self._client.transport, symbol=self.symbol, market=self.market)
+
+    def status(self) -> StockStatus:
+        """현재가와 거래·규제·경고 상태. 국내 전용."""
+        return market_data.fetch_stock_status(
+            self._client.transport, symbol=self.symbol, market=self._domestic_market()
+        )
 
     def bars(
         self,

@@ -45,3 +45,49 @@ class StockInfo:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class StockStatus:
+    """현재가와 거래·규제·경고 상태를 함께 담은 종목 스냅샷(불변)."""
+
+    symbol: str
+    market: str
+    market_name: str
+    industry_name: str
+    price: Decimal
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    previous_close: Decimal
+    base_price: Decimal
+    upper_limit: Decimal
+    lower_limit: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    previous_volume: int
+    volume_ratio: Decimal
+    amount: Decimal
+    credit_allowed: bool
+    credit_ratio: Decimal
+    margin_ratio: Decimal
+    managed: bool
+    short_term_overheated: bool
+    market_warning_code: str
+    market_warning_name: str
+    investment_caution: bool
+    abnormal_runup: bool
+    short_sale_overheated: bool
+    low_liquidity: bool
+    vi_code: str
+    liquidation_trading: bool
+    halted: bool
+    new_listing_name: str
+    ex_rights_name: str
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
