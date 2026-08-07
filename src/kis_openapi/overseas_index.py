@@ -43,8 +43,8 @@ class OverseasIndex:
     ) -> list[Bar]:
         """해외 지수류 기간봉(과거->현재)을 조회한다.
 
-        ``interval`` 은 ``1d``/``1wk``/``1mo`` 이며 ``start`` 가 필요하고 ``end`` 는 기본 오늘이다.
-        OHLCV 는 기존 :class:`Bar` 로 돌려주며 분봉(``1m``)은 아직 지원하지 않는다.
+        ``interval="1m"`` 은 해외지수·환율의 최근 최대 102개 분봉이며 날짜 범위는 응답 안에서
+        거른다. ``1d``/``1wk``/``1mo`` 는 ``start`` 가 필요하고 ``end`` 는 기본 오늘이다.
         """
         return overseas_index_api.fetch_bars(
             self._client.transport, symbol=self.symbol,

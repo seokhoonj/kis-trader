@@ -85,7 +85,6 @@ def test_overseas_index_rejects_unknown_kind():
 
 @pytest.mark.parametrize("kwargs, error", [
     ({}, KISUsageError),
-    ({"interval": "1m", "start": "20240101"}, NotImplementedError),
     ({"start": "20240102", "end": "20240101"}, KISUsageError),
     ({"start": "20240101", "max_bars": 0}, KISUsageError),
 ])
@@ -114,3 +113,66 @@ def test_overseas_index_bars_skips_blank_rows_and_rejects_bad_numeric():
     client, _ = _client(_resp([_row("20240101", "bad", "1", "1", "1", "1")]))
     with pytest.raises(KISError):
         client.overseas_index(".DJI").bars(start="20240101")
+
+
+def _minute_row(day, time, open_, high, low, close, volume):
+    return {
+        "stck_bsop_date": day,
+        "stck_cntg_hour": time,
+        "optn_oprc": open_,
+        "optn_hgpr": high,
+        "optn_lwpr": low,
+        "optn_prpr": close,
+        "cntg_vol": volume,
+    }
+
+
+def test_overseas_index_minute_bars_maps_filters_and_limits():
+    response = RawResponse(
+        rt_cd="0",
+        msg_cd="MCA00000",
+        msg1="정상",
+        body={
+            "output1": {"stck_shrn_iscd": "SPX"},
+            "output2": [
+                _minute_row("20240223", "101000", "5000", "5002", "4999", "5001", "30"),
+                _minute_row("20240223", "100900", "4998", "5001", "4997", "5000", "25"),
+                _minute_row("20240222", "160000", "4990", "4999", "4988", "4998", "50"),
+            ],
+        },
+    )
+    client, fake = _client(response)
+    bars = client.overseas_index("SPX").bars(
+        "1m", start="20240223", end="2024-02-23", max_bars=1
+    )
+
+    assert len(bars) == 1
+    assert f"{bars[0].timestamp:%Y%m%d%H%M%S}" == "20240223101000"
+    assert bars[0].close == Decimal(5001)
+    assert bars[0].volume == 30
+    assert fake.calls[0] == {
+        "method": "GET",
+        "path": "/uapi/overseas-price/v1/quotations/inquire-time-indexchartprice",
+        "tr_id": "FHKST03030200",
+        "params": {
+            "FID_COND_MRKT_DIV_CODE": "N",
+            "FID_INPUT_ISCD": "SPX",
+            "FID_HOUR_CLS_CODE": "0",
+            "FID_PW_DATA_INCU_YN": "Y",
+        },
+    }
+
+
+def test_overseas_index_minute_bars_rejects_unsupported_kind_before_transport():
+    client, fake = _client(_resp([]))
+    with pytest.raises(KISUsageError):
+        client.overseas_index("US10Y", kind="bond").bars("1m")
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("body", [{}, {"output1": {}}, {"output1": {}, "output2": {}}])
+def test_overseas_index_minute_bars_requires_both_blocks(body):
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
+    client, _ = _client(response)
+    with pytest.raises(KISError):
+        client.overseas_index("SPX").bars("1m")
