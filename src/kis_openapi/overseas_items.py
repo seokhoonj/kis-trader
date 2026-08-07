@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -239,6 +239,29 @@ class OverseasCorporateAction:
     redemption_date: date | None
     early_redemption_date: date | None
     effective_date: date | None
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasNewsHeadline:
+    """해외뉴스 종합 피드의 제목 한 건."""
+
+    news_type: str
+    key: str
+    timestamp: datetime
+    category_code: str
+    category_name: str
+    source: str
+    country_code: str
+    exchange_code: str
+    symbol: str
+    symbol_name: str
+    title: str
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

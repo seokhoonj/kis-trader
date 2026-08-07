@@ -43,6 +43,7 @@ from .errors import KISUsageError
 from .index import Index
 from .instrument import DomesticBoard, is_domestic_symbol
 from .market import MarketQueries
+from .market_items import NewsItem
 from .order import Order
 from .overseas_derivative import OverseasDerivative
 from .overseas_derivative_items import (
@@ -56,6 +57,7 @@ from .overseas_items import (
     OverseasCorporateAction,
     OverseasIndustry,
     OverseasIndustryStock,
+    OverseasNewsHeadline,
     OverseasOpenOrder,
     OverseasPosition,
     OverseasRight,
@@ -382,6 +384,25 @@ class KISClient:
         """해외종목 권리·기업행사 종합 일정."""
         return overseas_reference_api.fetch_corporate_actions(
             self.transport, country=country, symbol=symbol, start=start, end=end
+        )
+
+    def overseas_news(
+        self, *, country: str = "", exchange: str = "", symbol: str = "",
+        date_: str | date | None = None, time: str = "", category: str = "",
+    ) -> list[OverseasNewsHeadline]:
+        """해외뉴스 종합 제목 피드."""
+        return overseas_reference_api.fetch_news(
+            self.transport, country=country, exchange=exchange, symbol=symbol,
+            date_=date_, time=time, category=category,
+        )
+
+    def overseas_breaking_news(
+        self, *, symbol: str = "", title: str = "",
+        date_: str | date | None = None, time: str = "",
+    ) -> list[NewsItem]:
+        """해외속보 제목 피드(최대 100건)."""
+        return overseas_reference_api.fetch_breaking_news(
+            self.transport, symbol=symbol, title=title, date_=date_, time=time
         )
 
     @property

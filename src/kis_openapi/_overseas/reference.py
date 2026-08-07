@@ -6,11 +6,18 @@ from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Any
 
-from .._domestic.market_data import _missing_block_error, _raise_if_error, _to_yyyymmdd
+from .._domestic.market_data import (
+    _KST,
+    _missing_block_error,
+    _raise_if_error,
+    _to_yyyymmdd,
+)
 from .._wire import optional_decimal
 from ..errors import KISError, KISUsageError
+from ..market_items import NewsItem
 from ..overseas_items import (
     OverseasCorporateAction,
+    OverseasNewsHeadline,
     OverseasRight,
     OverseasSettlementDate,
 )
@@ -24,6 +31,10 @@ _PERIOD_RIGHTS_PATH = "/uapi/overseas-price/v1/quotations/period-rights"
 _PERIOD_RIGHTS_TR = "CTRGT011R"
 _CORPORATE_ACTIONS_PATH = "/uapi/overseas-price/v1/quotations/rights-by-ice"
 _CORPORATE_ACTIONS_TR = "HHDFS78330900"
+_NEWS_PATH = "/uapi/overseas-price/v1/quotations/news-title"
+_NEWS_TR = "HHPSTH60100C1"
+_BREAKING_NEWS_PATH = "/uapi/overseas-price/v1/quotations/brknews-title"
+_BREAKING_NEWS_TR = "FHKST01011801"
 
 
 def _YYYYMMDD(value: object) -> date | None:
@@ -120,6 +131,77 @@ def fetch_corporate_actions(
         delisting_date=_YYYYMMDD(row.get("delist_dt")), redemption_date=_YYYYMMDD(row.get("redempt_dt")),
         early_redemption_date=_YYYYMMDD(row.get("early_redempt_dt")),
         effective_date=_YYYYMMDD(row.get("effective_dt")), _raw=row,
+    ) for row in rows]
+
+
+def _news_timestamp(day: object, time: object) -> datetime:
+    return datetime.strptime(f"{str(day).strip()}{str(time).strip()}", "%Y%m%d%H%M%S").replace(
+        tzinfo=_KST
+    )
+
+
+def fetch_news(
+    transport: Transport, *, country: str = "", exchange: str = "", symbol: str = "",
+    date_: str | date | None = None, time: str = "", category: str = "",
+) -> list[OverseasNewsHeadline]:
+    """해외뉴스 종합 제목 피드를 연속조회한다."""
+    input_date = "" if date_ is None else _to_yyyymmdd(date_, "date_")
+    params = {"INFO_GB": "", "CLASS_CD": category, "NATION_CD": country,
+              "EXCHANGE_CD": exchange, "SYMB": symbol, "DATA_DT": input_date,
+              "DATA_TM": time, "CTS": ""}
+    rows: list[Mapping[str, Any]] = []
+    tr_cont = ""
+    for _page in range(100):
+        resp = transport.request(
+            method="GET", path=_NEWS_PATH, tr_id=_NEWS_TR, params=params,
+            idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        page = resp.body.get("outblock1")
+        if not isinstance(page, list) or not all(isinstance(row, Mapping) for row in page):
+            raise _missing_block_error("outblock1", resp)
+        rows.extend(page)
+        if resp.tr_cont not in {"F", "M"}:
+            break
+        tr_cont = "N"
+    else:
+        raise KISError("해외뉴스 종합 조회가 100페이지 상한을 초과했다.")
+    return [OverseasNewsHeadline(
+        news_type=str(row.get("info_gb", "")).strip(), key=str(row.get("news_key", "")).strip(),
+        timestamp=_news_timestamp(row.get("data_dt"), row.get("data_tm")),
+        category_code=str(row.get("class_cd", "")).strip(),
+        category_name=str(row.get("class_name", "")).strip(), source=str(row.get("source", "")).strip(),
+        country_code=str(row.get("nation_cd", "")).strip(),
+        exchange_code=str(row.get("exchange_cd", "")).strip(), symbol=str(row.get("symb", "")).strip(),
+        symbol_name=str(row.get("symb_name", "")).strip(), title=str(row.get("title", "")).strip(), _raw=row,
+    ) for row in rows]
+
+
+def fetch_breaking_news(
+    transport: Transport, *, symbol: str = "", title: str = "",
+    date_: str | date | None = None, time: str = "",
+) -> list[NewsItem]:
+    """해외속보 제목 피드(최대 100건)."""
+    input_date = "" if date_ is None else _to_yyyymmdd(date_, "date_")
+    resp = transport.request(
+        method="GET", path=_BREAKING_NEWS_PATH, tr_id=_BREAKING_NEWS_TR,
+        params={"FID_NEWS_OFER_ENTP_CODE": "0", "FID_COND_SCR_DIV_CODE": "11801",
+                "FID_COND_MRKT_CLS_CODE": "", "FID_INPUT_ISCD": symbol,
+                "FID_TITL_CNTT": title, "FID_INPUT_DATE_1": input_date,
+                "FID_INPUT_HOUR_1": time, "FID_RANK_SORT_CLS_CODE": "",
+                "FID_INPUT_SRNO": ""}, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+        raise _missing_block_error("output", resp)
+    return [NewsItem(
+        serial=str(row.get("cntt_usiq_srno", "")).strip(),
+        timestamp=_news_timestamp(row.get("data_dt"), row.get("data_tm")),
+        title=str(row.get("hts_pbnt_titl_cntt", "")).strip(),
+        source=str(row.get("dorg", "")).strip(), category=str(row.get("news_lrdv_code", "")).strip(),
+        symbols=tuple(code for i in range(1, 11)
+                      if (code := str(row.get(f"iscd{i}", "")).strip())), _raw=row,
     ) for row in rows]
 def fetch_settlement_dates(
     transport: Transport, *, environment: Environment
