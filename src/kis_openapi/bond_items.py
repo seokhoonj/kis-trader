@@ -74,6 +74,46 @@ class BondInfo:
 
 
 @dataclass(frozen=True, slots=True)
+class BondIssuance:
+    """한 장내채권의 상세 발행 조건과 상태(불변).
+
+    액면가·발행액·상장잔액·발행기관·이자지급 주기와 주요 일자를 담는다. 평가기관별
+    신용등급은 ``credit_ratings`` 의 기관 코드(KIS, KBP, NICE, FNP)로 제공한다.
+    """
+
+    code: str
+    name: str
+    english_name: str
+    classification: str
+    face_value: Decimal
+    issue_amount: Decimal
+    outstanding_amount: Decimal
+    issuer_name: str
+    interest_payment_months: int
+    coupon_rate: Decimal
+    discount_rate: Decimal
+    redemption_rate: Decimal
+    yield_to_maturity: Decimal
+    issue_date: datetime | None
+    listing_date: datetime | None
+    maturity_date: datetime | None
+    redemption_date: datetime | None
+    previous_interest_date: datetime | None
+    next_interest_date: datetime | None
+    credit_ratings: Mapping[str, str]
+    is_inflation_linked: bool
+    is_trade_suspended: bool
+    is_electronic: bool
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "credit_ratings", MappingProxyType(dict(self.credit_ratings)))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class BondValuation:
     """한 날짜의 채권 평가기관 단가·수익률과 평균(불변).
 

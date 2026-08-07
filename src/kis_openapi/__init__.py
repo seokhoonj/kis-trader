@@ -27,7 +27,7 @@ from .analysis import (
 from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
 from .bond import Bond
-from .bond_items import BondInfo, BondQuote, BondValuation
+from .bond_items import BondInfo, BondIssuance, BondQuote, BondValuation
 from .broker import BrokerActivity, BrokerActivitySummary
 from .calendar import CalendarQueries
 from .calendar_items import (
@@ -149,6 +149,7 @@ __all__ = [
     "Bar",
     "Bond",
     "BondInfo",
+    "BondIssuance",
     "BondQuote",
     "BondValuation",
     "BonusIssue",

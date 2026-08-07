@@ -21,7 +21,7 @@ from typing import Any
 
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
 from ..bar import Bar, Interval
-from ..bond_items import BondInfo, BondQuote, BondValuation
+from ..bond_items import BondInfo, BondIssuance, BondQuote, BondValuation
 from ..errors import KISUsageError
 from ..order_book import OrderBook
 from ..trade import Trade
@@ -48,6 +48,8 @@ _BARS_PATH = "/uapi/domestic-bond/v1/quotations/inquire-daily-itemchartprice"
 _BARS_TR = "FHKBJ773701C0"
 _VALUATIONS_PATH = "/uapi/domestic-bond/v1/quotations/avg-unit"
 _VALUATIONS_TR = "CTPF2005R"
+_ISSUANCE_PATH = "/uapi/domestic-bond/v1/quotations/issue-info"
+_ISSUANCE_TR = "CTPF1101R"
 #: 채권 조회의 시장구분 코드(원장: 채권 B).
 _MARKET_DIV = "B"
 
@@ -317,5 +319,57 @@ def fetch_info(transport: Transport, *, code: str) -> BondInfo:
         yield_to_maturity=optional_decimal(output.get("bond_expd_asrc_erng_rt"),
                                            "bond_expd_asrc_erng_rt"),
         interest_period_months=optional_int(output.get("int_caltm_mcnt"), "int_caltm_mcnt"),
+        _raw=output,
+    )
+
+
+def fetch_issuance(transport: Transport, *, code: str) -> BondIssuance:
+    """채권의 상세 발행 조건·기관·상태. ``code`` 는 표준코드(ISIN)."""
+    params = {"PDNO": code, "PRDT_TYPE_CD": "302"}
+    resp = transport.request(
+        method="GET", path=_ISSUANCE_PATH, tr_id=_ISSUANCE_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise _missing_block_error("output", resp)
+    rating_fields = {
+        "KIS": "kis_crdt_grad_text",
+        "KBP": "kbp_crdt_grad_text",
+        "NICE": "nice_crdt_grad_text",
+        "FNP": "fnp_crdt_grad_text",
+    }
+    credit_ratings = {
+        agency: rating
+        for agency, field in rating_fields.items()
+        if (rating := str(output.get(field, "")).strip())
+    }
+    return BondIssuance(
+        code=str(output.get("pdno", "")).strip() or code,
+        name=str(output.get("prdt_name", "")).strip(),
+        english_name=str(output.get("prdt_eng_name", "")).strip(),
+        classification=str(output.get("bond_clsf_kor_name", "")).strip(),
+        face_value=required_decimal(output.get("papr"), "papr"),
+        issue_amount=required_decimal(output.get("issu_amt"), "issu_amt"),
+        outstanding_amount=required_decimal(output.get("lstg_rmnd"), "lstg_rmnd"),
+        issuer_name=str(output.get("issu_istt_name", "")).strip(),
+        interest_payment_months=required_int(output.get("int_dfrm_mcnt"), "int_dfrm_mcnt"),
+        coupon_rate=required_decimal(output.get("srfc_inrt"), "srfc_inrt"),
+        discount_rate=required_decimal(output.get("dsct_ec_rt"), "dsct_ec_rt"),
+        redemption_rate=required_decimal(output.get("expd_rdpt_rt"), "expd_rdpt_rt"),
+        yield_to_maturity=required_decimal(
+            output.get("expd_asrc_erng_rt"), "expd_asrc_erng_rt"
+        ),
+        issue_date=_parse_optional_date(output.get("issu_dt")),
+        listing_date=_parse_optional_date(output.get("lstg_dt")),
+        maturity_date=_parse_optional_date(output.get("expd_dt")),
+        redemption_date=_parse_optional_date(output.get("rdpt_dt")),
+        previous_interest_date=_parse_optional_date(output.get("rgbf_int_dfrm_dt")),
+        next_interest_date=_parse_optional_date(output.get("nxtm_int_dfrm_dt")),
+        credit_ratings=credit_ratings,
+        is_inflation_linked=str(output.get("prcm_idx_bond_yn", "")).strip() == "Y",
+        is_trade_suspended=str(output.get("bond_tr_stop_dvsn_cd", "")).strip() == "Y",
+        is_electronic=str(output.get("elec_scty_yn", "")).strip() == "Y",
         _raw=output,
     )

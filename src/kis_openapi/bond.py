@@ -13,7 +13,7 @@ from typing import TYPE_CHECKING
 
 from ._domestic import bonds as bonds_api
 from .bar import Bar, Interval
-from .bond_items import BondInfo, BondQuote, BondValuation
+from .bond_items import BondInfo, BondIssuance, BondQuote, BondValuation
 
 if TYPE_CHECKING:
     from .client import KISClient
@@ -36,6 +36,10 @@ class Bond:
     def info(self) -> BondInfo:
         """채권 기본/발행 정보(발행일·만기·표면금리·만기수익률·통화)."""
         return bonds_api.fetch_info(self._client.transport, code=self.code)
+
+    def issuance(self) -> BondIssuance:
+        """채권의 상세 발행 조건·발행기관·신용등급·거래 상태."""
+        return bonds_api.fetch_issuance(self._client.transport, code=self.code)
 
     def quote(self) -> BondQuote:
         """채권 현재가 스냅샷(가격·시고저·전일대비·수익률)."""

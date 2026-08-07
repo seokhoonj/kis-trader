@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import BondInfo, KISClient
+from kis_openapi import BondInfo, BondIssuance, KISClient
 from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
@@ -84,3 +84,80 @@ def test_bond_info_bad_value_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
     with pytest.raises(KISError):
         _client(fake).bond("KR2033022D33").info()
+
+
+def _issuance_output(**over):
+    output = {
+        "pdno": "KR6449111CB8", "prdt_name": "테스트채권", "prdt_eng_name": "Test Bond",
+        "bond_clsf_kor_name": "일반사채", "papr": "10000", "issu_amt": "77839700000",
+        "lstg_rmnd": "70000000000", "issu_istt_name": "테스트 발행기관",
+        "int_dfrm_mcnt": "3", "srfc_inrt": "5.931", "dsct_ec_rt": "0.000",
+        "expd_rdpt_rt": "100.000", "expd_asrc_erng_rt": "5.931",
+        "issu_dt": "20221116", "lstg_dt": "20221116", "expd_dt": "20241116",
+        "rdpt_dt": "20241116", "rgbf_int_dfrm_dt": "20240516",
+        "nxtm_int_dfrm_dt": "20240816", "kis_crdt_grad_text": "AAA",
+        "kbp_crdt_grad_text": "AAA", "nice_crdt_grad_text": "AAA",
+        "fnp_crdt_grad_text": "", "prcm_idx_bond_yn": "N",
+        "bond_tr_stop_dvsn_cd": "N", "elec_scty_yn": "Y",
+    }
+    output.update(over)
+    return output
+
+
+def test_bond_issuance_maps_detailed_terms_and_status():
+    fake = FakeTransport(
+        response=RawResponse(
+            rt_cd="0", msg_cd="KIOK0530", msg1="정상", body={"output": _issuance_output()}
+        )
+    )
+    issuance = _client(fake).bond("KR6449111CB8").issuance()
+    assert isinstance(issuance, BondIssuance)
+    assert issuance.code == "KR6449111CB8"
+    assert issuance.classification == "일반사채"
+    assert issuance.face_value == Decimal(10000)
+    assert issuance.issue_amount == Decimal(77839700000)
+    assert issuance.outstanding_amount == Decimal(70000000000)
+    assert issuance.issuer_name == "테스트 발행기관"
+    assert issuance.interest_payment_months == 3
+    assert issuance.coupon_rate == Decimal("5.931")
+    assert f"{issuance.maturity_date:%Y%m%d}" == "20241116"
+    assert issuance.credit_ratings == {"KIS": "AAA", "KBP": "AAA", "NICE": "AAA"}
+    assert issuance.is_inflation_linked is False
+    assert issuance.is_trade_suspended is False
+    assert issuance.is_electronic is True
+    assert fake.calls[0] == {
+        "path": "/uapi/domestic-bond/v1/quotations/issue-info",
+        "tr_id": "CTPF1101R",
+        "params": {"PDNO": "KR6449111CB8", "PRDT_TYPE_CD": "302"},
+    }
+
+
+def test_bond_issuance_optional_dates_and_sparse_ratings():
+    output = _issuance_output(
+        issu_dt="", lstg_dt="00000000", rgbf_int_dfrm_dt="", fnp_crdt_grad_text="AA+",
+        bond_tr_stop_dvsn_cd="Y",
+    )
+    fake = FakeTransport(
+        response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": output})
+    )
+    issuance = _client(fake).bond("KR6449111CB8").issuance()
+    assert issuance.issue_date is None
+    assert issuance.listing_date is None
+    assert issuance.credit_ratings["FNP"] == "AA+"
+    assert issuance.is_trade_suspended is True
+
+
+def test_bond_issuance_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).bond("KR6449111CB8").issuance()
+
+
+def test_bond_issuance_bad_required_value_fails_closed():
+    fake = FakeTransport(
+        response=RawResponse(
+            rt_cd="0", msg_cd="X", msg1="ok", body={"output": _issuance_output(papr="n/a")}
+        )
+    )
+    with pytest.raises(KISError):
+        _client(fake).bond("KR6449111CB8").issuance()
