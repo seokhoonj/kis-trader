@@ -18,6 +18,7 @@ from ._domestic import derivatives as derivatives_api
 from ._domestic import market_data as market_data_api
 from ._domestic import orders as orders_engine
 from ._domestic import product as product_api
+from ._domestic import saved_screen as saved_screen_api
 from ._masters import (
     Fetch,
     MasterIndex,
@@ -65,6 +66,7 @@ from .quote import Quote
 from .ranking import RankingQueries
 from .report import ExecutionReport
 from .risk import RiskLimits
+from .saved_screen import SavedScreen, SavedScreenStock
 from .store import OrderStore
 from .ticker import Ticker
 from .transport import Transport
@@ -190,6 +192,16 @@ class KISClient:
         """상품 공통 등록·판매 기본정보. 상품유형 기본값 ``"300"`` 은 국내 주식군이다."""
         return product_api.fetch_product_info(
             self.transport, symbol=symbol, product_type=product_type
+        )
+
+    def saved_screens(self, user_id: str) -> list[SavedScreen]:
+        """HTS에 서버 저장된 종목검색 조건 목록."""
+        return saved_screen_api.fetch_saved_screens(self.transport, user_id=user_id)
+
+    def saved_screen_stocks(self, user_id: str, sequence: str) -> list[SavedScreenStock]:
+        """저장 조건 하나에 일치하는 종목 시세(최대 100건)."""
+        return saved_screen_api.fetch_saved_screen_stocks(
+            self.transport, user_id=user_id, sequence=sequence
         )
 
     def overseas_industries(self, exchange: str) -> list[OverseasIndustry]:
