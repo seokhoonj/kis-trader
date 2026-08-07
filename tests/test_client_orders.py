@@ -37,7 +37,7 @@ class FakeTransport:
         self.calls: list[dict] = []
         self._lock = threading.Lock()
 
-    def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
         with self._lock:
             self.calls.append({"method": method, "path": path, "tr_id": tr_id,
                                "params": params, "body": body, "idempotent": idempotent})

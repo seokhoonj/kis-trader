@@ -27,7 +27,7 @@ class FakeTransport:
         self.calls: list[dict] = []
         self._lock = threading.Lock()
 
-    def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
         with self._lock:
             self.calls.append({"method": method, "path": path, "tr_id": tr_id, "body": body,
                                "params": params, "idempotent": idempotent})
@@ -189,6 +189,22 @@ def test_overseas_reconcile_paginates_ccnl():
     gets = [c for c in fake.calls if c["method"] == "GET"]
     assert len(gets) == 2
     assert gets[1]["params"]["CTX_AREA_NK200"] == "NEXT"
+
+
+def test_overseas_reconcile_keeps_scanning_when_tr_cont_says_more():
+    # 안전: 응답헤더 tr_cont 가 연속(F/M)이면 커서가 비어 있어도 계속 스캔한다 -- 조기 종료로
+    # 체결을 놓쳐 '미접수'로 오판하면 이중체결 위험. 커서 공백만 보던 옛 로직이라면 여기서 멈췄다.
+    page1 = RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
+                        body={"output": [_ccnl_row(pdno="MSFT")], "ctx_area_nk200": ""},
+                        tr_cont="M")                    # 커서는 비었지만 tr_cont 는 더 있다고 함
+    page2 = _ccnl([_ccnl_row()])                        # 원하는 체결은 2페이지에(tr_cont 기본 "")
+    fake = FakeTransport(on_post=TransportTimeout("t"), on_get=[page1, page2])
+    client = _client(fake)
+    with pytest.raises(OrderTimeoutError):
+        client.ticker("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="tc")
+    report = client.reconcile("tc")
+    assert report is not None and report.order_id == "0000123456"
+    assert len([c for c in fake.calls if c["method"] == "GET"]) == 2
 
 
 def test_overseas_non_day_tif_rejected_before_wire():

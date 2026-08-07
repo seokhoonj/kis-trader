@@ -258,7 +258,7 @@ def _fetch_daily_orders(
     """
     today = f"{datetime.now(_KST):%Y%m%d}"
     rows: list[Mapping[str, Any]] = []
-    ctx_fk, ctx_nk = "", ""
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
     for _page in range(_MAX_RECONCILE_PAGES):
         params = {
             "CANO": cano, "ACNT_PRDT_CD": product_code,
@@ -269,7 +269,7 @@ def _fetch_daily_orders(
         }
         resp = transport.request(
             method="GET", path=_DAILY_CCLD_PATH, tr_id=_DAILY_CCLD_TR[environment],
-            params=params, idempotent=True,  # 읽기 -- 타임아웃에 재시도해도 안전
+            params=params, idempotent=True, tr_cont=tr_cont,  # 읽기 -- 타임아웃에 재시도해도 안전
         )
         if not resp.ok:
             raise KISError(
@@ -280,8 +280,11 @@ def _fetch_daily_orders(
         rows.extend(page if isinstance(page, list) else [])  # 리스트 아니면 무시
         ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
-        if not ctx_nk:  # 연속조회 키 없음 -> 마지막 페이지
+        # 재조회는 조기 종료 금지(체결 누락->오재주문 위험): tr_cont 정본 종료(D/E/공백)이면서
+        # 연속조회 커서도 소진됐을 때만 마지막 페이지로 확정한다(둘 중 하나라도 남으면 계속 스캔).
+        if resp.tr_cont not in ("F", "M") and not ctx_nk:
             break
+        tr_cont = "N"  # 다음 페이지는 연속조회
     else:
         raise KISError(
             f"재조회 스캔이 {_MAX_RECONCILE_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
