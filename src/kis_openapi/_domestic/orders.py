@@ -72,6 +72,7 @@ _ACTION_EXCHANGE_PREFIX = "action:"
 _ORD_DVSN = {"limit": "00", "market": "01"}
 # our side -> KIS SLL_BUY_DVSN_CD (01 매도, 02 매수)
 _SIDE_CODE = {"buy": "02", "sell": "01"}
+_EXCHANGE_ID = {"XKRX": "KRX", "XKOS": "KRX", "NXTE": "NXT"}
 
 
 def place(
@@ -335,9 +336,13 @@ def _make_domestic_change_request(
         "ORD_DVSN": order_division,
         "RVSE_CNCL_DVSN_CD": "02" if action == "cancel" else "01",
         "ORD_QTY": format_wire_decimal(quantity),
-        "ORD_UNPR": "0" if price is None else format_wire_decimal(price),
+        "ORD_UNPR": (
+            original_fingerprint.limit_price
+            if price is None and original_fingerprint.limit_price
+            else "0" if price is None else format_wire_decimal(price)
+        ),
         "QTY_ALL_ORD_YN": "Y" if action == "cancel" else "N",
-        "EXCG_ID_DVSN_CD": "KRX",
+        "EXCG_ID_DVSN_CD": _EXCHANGE_ID[original_fingerprint.exchange],
     }
     return WireRequest("POST", _CHANGE_PATH, _CHANGE_TR[environment], body)
 

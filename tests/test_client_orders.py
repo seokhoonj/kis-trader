@@ -140,7 +140,7 @@ def test_cancel_domestic_order_uses_original_identifiers_and_deduplicates():
     assert call["body"]["ORGN_ODNO"] == "0000117057"
     assert call["body"]["RVSE_CNCL_DVSN_CD"] == "02"
     assert call["body"]["ORD_QTY"] == "10"
-    assert call["body"]["ORD_UNPR"] == "0"
+    assert call["body"]["ORD_UNPR"] == "70000"
     assert call["body"]["QTY_ALL_ORD_YN"] == "Y"
 
 
