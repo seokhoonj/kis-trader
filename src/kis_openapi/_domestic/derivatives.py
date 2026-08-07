@@ -25,6 +25,7 @@ from ..derivative_items import (
     DerivativesQuote,
     ExpectedExecutionPoint,
     ExpectedExecutionTrend,
+    FuturesBoardQuote,
     OptionBoard,
     OptionBoardRow,
     OptionExpiry,
@@ -64,6 +65,8 @@ _MINUTE_BARS_TR = "FHKIF03020200"
 _MINUTE_ANCHOR_START = "235959"
 _EXPECTED_TREND_PATH = "/uapi/domestic-futureoption/v1/quotations/exp-price-trend"
 _EXPECTED_TREND_TR = "FHPIF05110100"
+_FUTURES_BOARD_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-futures"
+_FUTURES_BOARD_TR = "FHPIF05030200"
 
 
 def fetch_quote(transport: Transport, *, code: str, market: str) -> DerivativesQuote:
@@ -341,6 +344,68 @@ def fetch_expected_execution_trend(
         points=tuple(points),
         _raw=resp.body,
     )
+
+
+def fetch_option_board_futures(
+    transport: Transport, *, market_class: str
+) -> list[FuturesBoardQuote]:
+    """옵션 전광판 하단의 선물 계약별 시세를 조회한다."""
+    if not market_class.strip():
+        raise KISUsageError("market_class 는 비어 있을 수 없다.")
+    resp = transport.request(
+        method="GET",
+        path=_FUTURES_BOARD_PATH,
+        tr_id=_FUTURES_BOARD_TR,
+        params={
+            "FID_COND_MRKT_DIV_CODE": "F",
+            "FID_COND_SCR_DIV_CODE": "20503",
+            "FID_COND_MRKT_CLS_CODE": market_class,
+        },
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+        raise _missing_block_error("output", resp)
+
+    quotes = []
+    for row in rows:
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        expected_sign = str(row.get("antc_cntg_vrss_sign", "")).strip()
+        quotes.append(
+            FuturesBoardQuote(
+                code=str(row.get("futs_shrn_iscd", "")).strip(),
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                price=required_decimal(row.get("futs_prpr"), "futs_prpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("futs_prdy_vrss"), "futs_prdy_vrss"), sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("futs_prdy_ctrt"), "futs_prdy_ctrt"), sign
+                ),
+                theoretical_price=required_decimal(row.get("hts_thpr"), "hts_thpr"),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                ask=required_decimal(row.get("futs_askp"), "futs_askp"),
+                bid=required_decimal(row.get("futs_bidp"), "futs_bidp"),
+                open_interest=required_int(row.get("hts_otst_stpl_qty"), "hts_otst_stpl_qty"),
+                high=required_decimal(row.get("futs_hgpr"), "futs_hgpr"),
+                low=required_decimal(row.get("futs_lwpr"), "futs_lwpr"),
+                days_to_expiry=required_int(row.get("hts_rmnn_dynu"), "hts_rmnn_dynu"),
+                total_ask_quantity=required_int(row.get("total_askp_rsqn"), "total_askp_rsqn"),
+                total_bid_quantity=required_int(row.get("total_bidp_rsqn"), "total_bidp_rsqn"),
+                expected_price=required_decimal(row.get("futs_antc_cnpr"), "futs_antc_cnpr"),
+                expected_change=_apply_change_sign(
+                    required_decimal(row.get("futs_antc_cntg_vrss"), "futs_antc_cntg_vrss"),
+                    expected_sign,
+                ),
+                expected_change_percent=_apply_change_sign(
+                    required_decimal(row.get("antc_cntg_prdy_ctrt"), "antc_cntg_prdy_ctrt"),
+                    expected_sign,
+                ),
+                _raw=row,
+            )
+        )
+    return quotes
 
 
 def fetch_bars(

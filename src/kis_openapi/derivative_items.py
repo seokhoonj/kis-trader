@@ -176,3 +176,33 @@ class OptionBoard:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class FuturesBoardQuote:
+    """옵션 전광판 하단에 표시되는 한 선물 계약의 시세 스냅샷."""
+
+    code: str
+    name: str
+    price: Decimal
+    change: Decimal
+    change_percent: Decimal
+    theoretical_price: Decimal
+    volume: int
+    ask: Decimal
+    bid: Decimal
+    open_interest: int
+    high: Decimal
+    low: Decimal
+    days_to_expiry: int
+    total_ask_quantity: int
+    total_bid_quantity: int
+    expected_price: Decimal
+    expected_change: Decimal
+    expected_change_percent: Decimal
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

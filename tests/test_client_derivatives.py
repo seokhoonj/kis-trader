@@ -333,6 +333,52 @@ def test_expected_execution_trend_missing_output2_fails_closed():
         _client(fake).option("201W09335").expected_execution_trend()
 
 
+def test_option_board_futures_maps_official_output_array():
+    row = {
+        "futs_shrn_iscd": "101W09", "hts_kor_isnm": "K200 F 202409",
+        "futs_prpr": "335.20", "futs_prdy_vrss": "1.30", "prdy_vrss_sign": "5",
+        "futs_prdy_ctrt": "0.39", "hts_thpr": "335.15", "acml_vol": "120000",
+        "futs_askp": "335.25", "futs_bidp": "335.20", "hts_otst_stpl_qty": "380000",
+        "futs_hgpr": "338.00", "futs_lwpr": "334.50", "hts_rmnn_dynu": "31",
+        "total_askp_rsqn": "7140", "total_bidp_rsqn": "9319",
+        "futs_antc_cnpr": "335.10", "futs_antc_cntg_vrss": "1.40",
+        "antc_cntg_vrss_sign": "5", "antc_cntg_prdy_ctrt": "0.42",
+    }
+    response = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                           body={"output": [row]})
+    fake = FakeTransport(response=response)
+
+    from kis_openapi import FuturesBoardQuote
+    quotes = _client(fake).option_board_futures()
+
+    assert isinstance(quotes[0], FuturesBoardQuote)
+    quote = quotes[0]
+    assert quote.code == "101W09"
+    assert quote.price == Decimal("335.20")
+    assert quote.change == Decimal("-1.30")
+    assert quote.theoretical_price == Decimal("335.15")
+    assert quote.open_interest == 380000
+    assert quote.days_to_expiry == 31
+    assert quote.total_ask_quantity == 7140
+    assert quote.expected_price == Decimal("335.10")
+    assert quote.expected_change == Decimal("-1.40")
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-futureoption/v1/quotations/display-board-futures"
+    assert call["tr_id"] == "FHPIF05030200"
+    assert call["params"] == {
+        "FID_COND_MRKT_DIV_CODE": "F", "FID_COND_SCR_DIV_CODE": "20503",
+        "FID_COND_MRKT_CLS_CODE": "MKI",
+    }
+
+
+def test_option_board_futures_rejects_missing_output_and_blank_market_class():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake).option_board_futures()
+    with pytest.raises(KISUsageError):
+        _client(fake).option_board_futures(market_class=" ")
+
+
 def test_option_expiries_reads_output_array():
     # 원장 예시: 배열 키가 output(레이아웃엔 output1). 예시값 그대로.
     rows = [{"mtrt_yymm_code": "0V05", "mtrt_yymm": "202405"},

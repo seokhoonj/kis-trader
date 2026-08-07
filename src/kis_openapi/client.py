@@ -35,7 +35,7 @@ from .balance import Balance, Portfolio, Position
 from .bond import Bond
 from .calendar import CalendarQueries
 from .derivative import Derivative
-from .derivative_items import OptionBoard, OptionExpiry
+from .derivative_items import FuturesBoardQuote, OptionBoard, OptionExpiry
 from .elw import ELW
 from .elw_ranking import ELWRankingQueries
 from .elw_screener import ELWScreenerQueries
@@ -294,6 +294,12 @@ class KISClient:
         """한 만기월의 옵션 콜/풋 전광판(행사가별 시세·그릭스). expiry 는 OptionExpiry.year_month."""
         return derivatives_api.fetch_option_board(
             self.transport, expiry=expiry, underlying=underlying
+        )
+
+    def option_board_futures(self, *, market_class: str = "MKI") -> list[FuturesBoardQuote]:
+        """옵션 전광판 하단의 선물 계약별 현재가·호가·미결제약정·예상체결가."""
+        return derivatives_api.fetch_option_board_futures(
+            self.transport, market_class=market_class
         )
 
     def overseas_futures(self, srs_cd: str) -> OverseasDerivative:
