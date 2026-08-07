@@ -95,14 +95,16 @@ class RequestsTransport:
         params: Mapping[str, str] | None = None,
         body: Mapping[str, str] | None = None,
         idempotent: bool,
+        tr_cont: str = "",
     ) -> RawResponse:
         """KIS ``Transport`` 계약에 따라 한 REST 요청을 수행한다.
 
         목적: KIS 도메인의 응답을 벤더 원형을 보존한 ``RawResponse`` 로 만든다.
-        입력: 프로토콜의 메서드·경로·TR ID·쿼리·바디·멱등성 표지를 받는다.
+        입력: 프로토콜의 메서드·경로·TR ID·쿼리·바디·멱등성 표지·연속조회 ``tr_cont`` 를 받는다.
         출력: HTTP 200의 표준 envelope와 응답 ``tr_cont`` 헤더를 반환한다.
         오류: 401/429/기타 HTTP 실패 및 잘못된 JSON을 KIS 예외로 변환한다.
-        주의: GET+멱등 요청만 재시도하고 쓰기 요청의 타임아웃은 즉시 전파한다.
+        주의: GET+멱등 요청만 재시도하고 쓰기 요청의 타임아웃은 즉시 전파한다. ``tr_cont`` 는
+        요청 헤더로 그대로 전달한다("" 초기, "N" 다음 페이지).
         """
         headers = {
             "content-type": "application/json; charset=utf-8",
@@ -110,7 +112,7 @@ class RequestsTransport:
             "appkey": self._app_key,
             "appsecret": self._app_secret,
             "tr_id": tr_id,
-            "tr_cont": "",
+            "tr_cont": tr_cont,
             "custtype": self._custtype,
         }
         url = base_url(self._environment) + path

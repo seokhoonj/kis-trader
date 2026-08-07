@@ -64,9 +64,12 @@ class Transport(Protocol):
         params: Mapping[str, str] | None = None,
         body: Mapping[str, str] | None = None,
         idempotent: bool,
+        tr_cont: str = "",
     ) -> RawResponse:
         """한 번의 KIS 호출. 아웃바운드 파라미터/바디는 문자열-값(KIS 인코딩).
 
-        ``idempotent=False``(쓰기)면 타임아웃에 재시도하지 않는다.
+        ``idempotent=False``(쓰기)면 타임아웃에 재시도하지 않는다. ``tr_cont`` 는 연속조회
+        요청 표지다 -- 공백("")이 초기 조회, "N" 이 다음 페이지(직전 응답헤더 ``tr_cont`` 가
+        F/M 이었을 때). 응답측 연속 여부는 :attr:`RawResponse.tr_cont` 로 노출된다.
         """
         ...

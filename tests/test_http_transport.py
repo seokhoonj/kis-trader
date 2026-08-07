@@ -72,6 +72,19 @@ def test_get_builds_request_and_exposes_tr_cont(tmp_path: Any) -> None:
     assert response.tr_cont == "M"
 
 
+def test_tr_cont_is_forwarded_to_request_header(tmp_path: Any) -> None:
+    captured: list[str] = []
+
+    def send(method: str, url: str, **kwargs: Any) -> tuple[int, Mapping[str, str], Mapping[str, Any]]:
+        captured.append(kwargs["headers"]["tr_cont"])
+        return 200, {"tr_cont": "D"}, {"rt_cd": "0"}
+
+    transport = _transport(tmp_path, send)
+    transport.request(method="GET", path="/p", tr_id="TR", idempotent=True)
+    transport.request(method="GET", path="/p", tr_id="TR", idempotent=True, tr_cont="N")
+    assert captured == ["", "N"]
+
+
 def test_demo_uses_virtual_domain(tmp_path: Any) -> None:
     urls: list[str] = []
 
