@@ -165,6 +165,21 @@ class RankingQueries:
         예상체결량을 담은 :class:`~kis_openapi.ranking_items.RankedStock` 로 돌려준다(최대 30건)."""
         return ranking_api.fetch_expected_conclusion(self._client.transport, top=top, market="KRX")
 
+    def by_expected_close(
+        self,
+        *,
+        filter: str = "all",
+        market: str = "all",
+        extended_range: bool = False,
+    ) -> list[RankedStock]:
+        """장마감 예상체결 종목. ``filter`` 는 전체·상한·하한·상승·하락 필터의 영문 코드."""
+        return ranking_api.fetch_expected_close(
+            self._client.transport,
+            filter_=filter,
+            market=market,
+            extended_range=extended_range,
+        )
+
     def by_overtime_change(self, *, top: str = "up") -> list[OvertimeRanking]:
         """시간외 단일가 등락률 순위. ``top="up"`` 상승 / ``"down"`` 하락
         (:class:`~kis_openapi.ranking_items.OvertimeRanking`, 최대 30건)."""

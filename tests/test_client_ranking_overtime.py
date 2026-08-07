@@ -157,6 +157,58 @@ def test_expected_conclusion_rejects_bad_top():
         _client(fake).ranking.by_expected_conclusion(top="nope")
 
 
+def test_expected_close_maps_rows_and_filters():
+    rows = [
+        {
+            "stck_shrn_iscd": "005930",
+            "hts_kor_isnm": "삼성전자",
+            "stck_prpr": "73000",
+            "prdy_vrss": "1200",
+            "prdy_vrss_sign": "2",
+            "prdy_ctrt": "1.67",
+            "sdpr_vrss_prpr": "1500",
+            "sdpr_vrss_prpr_rate": "2.10",
+            "cntg_vol": "35000",
+        }
+    ]
+    fake = FakeTransport(response=_resp({"output1": rows}))
+    ranked = _client(fake).ranking.by_expected_close(
+        filter="upper_limit", market="KOSPI", extended_range=True
+    )
+
+    assert ranked[0].rank == 1
+    assert ranked[0].symbol == "005930"
+    assert ranked[0].price == Decimal(73000)
+    assert ranked[0].change == Decimal(1200)
+    assert ranked[0].volume == 35000
+    assert ranked[0]._raw["sdpr_vrss_prpr"] == "1500"
+    assert fake.calls[0] == {
+        "path": "/uapi/domestic-stock/v1/quotations/exp-closing-price",
+        "tr_id": "FHKST117300C0",
+        "params": {
+            "FID_RANK_SORT_CLS_CODE": "1",
+            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_COND_SCR_DIV_CODE": "11173",
+            "FID_INPUT_ISCD": "0001",
+            "FID_BLNG_CLS_CODE": "1",
+        },
+    }
+
+
+@pytest.mark.parametrize("kwargs", [{"filter": "bad"}, {"market": "NXT"}])
+def test_expected_close_rejects_bad_options(kwargs):
+    fake = FakeTransport(response=_resp({"output1": []}))
+    with pytest.raises(KISUsageError):
+        _client(fake).ranking.by_expected_close(**kwargs)
+    assert fake.calls == []
+
+
+def test_expected_close_missing_output_fails_closed():
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=response)).ranking.by_expected_close()
+
+
 def test_overtime_change_missing_output2_fails_closed():
     fake = FakeTransport(response=_resp({"output1": {}}))
     with pytest.raises(KISError):

@@ -704,6 +704,22 @@ _EXP_UPDOWN_PATH = "/uapi/domestic-stock/v1/ranking/exp-trans-updown"
 _EXP_UPDOWN_TR = "FHPST01820000"
 #: 예상체결 상승/하락 정렬(FID_RANK_SORT_CLS_CODE).
 _EXP_UPDOWN_TOP = {"up": "0", "down": "1"}
+_EXPECTED_CLOSE_PATH = "/uapi/domestic-stock/v1/quotations/exp-closing-price"
+_EXPECTED_CLOSE_TR = "FHKST117300C0"
+_EXPECTED_CLOSE_FILTER = {
+    "all": "0",
+    "upper_limit": "1",
+    "lower_limit": "2",
+    "up": "3",
+    "down": "4",
+}
+_EXPECTED_CLOSE_MARKET = {
+    "all": "0000",
+    "KOSPI": "0001",
+    "KOSDAQ": "1001",
+    "KOSPI200": "2001",
+    "KRX100": "4001",
+}
 
 
 def fetch_expected_conclusion(
@@ -744,6 +760,60 @@ def fetch_expected_conclusion(
                     required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
                 ),
                 volume=required_int(row.get("cntg_vol"), "cntg_vol"),   # 예상체결량
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def fetch_expected_close(
+    transport: Transport,
+    *,
+    filter_: str,
+    market: str,
+    extended_range: bool,
+) -> list[RankedStock]:
+    """장마감 예상체결 종목 목록과 직전·기준가 대비."""
+    filter_code = _lookup(_EXPECTED_CLOSE_FILTER, filter_, "filter")
+    market_code = _lookup(_EXPECTED_CLOSE_MARKET, market, "market")
+    resp = transport.request(
+        method="GET",
+        path=_EXPECTED_CLOSE_PATH,
+        tr_id=_EXPECTED_CLOSE_TR,
+        params={
+            "FID_RANK_SORT_CLS_CODE": filter_code,
+            "FID_COND_MRKT_DIV_CODE": "J",
+            "FID_COND_SCR_DIV_CODE": "11173",
+            "FID_INPUT_ISCD": market_code,
+            "FID_BLNG_CLS_CODE": "1" if extended_range else "0",
+        },
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output1")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output1", resp)
+    ranked: list[RankedStock] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output1[]", resp)
+        symbol = str(row.get("stck_shrn_iscd", "")).strip()
+        if not symbol:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        ranked.append(
+            RankedStock(
+                rank=len(ranked) + 1,
+                symbol=symbol,
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("cntg_vol"), "cntg_vol"),
                 _raw=row,
             )
         )
