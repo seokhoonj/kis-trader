@@ -36,7 +36,13 @@ from .analysis import (
 from .bar import Bar, Interval
 from .broker import BrokerActivitySummary
 from .errors import KISUsageError
-from .etf_items import ETFNAV, ETFComponent, ETFNAVHistoryPoint
+from .etf_items import (
+    ETFNAV,
+    ETFComponent,
+    ETFNAVComparison,
+    ETFNAVHistoryPoint,
+    ETFNAVMinutePoint,
+)
 from .financials import (
     BalanceSheet,
     FinancialRatio,
@@ -386,6 +392,20 @@ class Ticker:
         일 때만 유효하다(아니면 서버가 거부). 시장 체결가는 :meth:`quote`."""
         self._domestic_market()        # 국내 ETF 전용
         return etf_api.fetch_etf_nav(self._client.transport, symbol=self.symbol)
+
+    def nav_comparison(self) -> ETFNAVComparison:
+        """ETF 시장가격과 NAV의 당일 OHLC 비교. 국내 ETF/ETN 전용."""
+        self._domestic_market()
+        return etf_api.fetch_etf_nav_comparison(self._client.transport, symbol=self.symbol)
+
+    def nav_intraday(self, *, interval_minutes: int = 1) -> list[ETFNAVMinutePoint]:
+        """최근 30개 ETF 시장가격-NAV 분별 비교. 국내 ETF/ETN 전용."""
+        self._domestic_market()
+        return etf_api.fetch_etf_nav_intraday(
+            self._client.transport,
+            symbol=self.symbol,
+            interval_minutes=interval_minutes,
+        )
 
     def components(self) -> list[ETFComponent]:
         """ETF 구성종목(PDF) 목록 -- 각 구성종목의 시세·ETF 내 구성 비중·평가금액. 이 종목이 ETF

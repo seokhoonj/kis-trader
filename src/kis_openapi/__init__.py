@@ -71,7 +71,13 @@ from .elw_items import (
 )
 from .elw_ranking import ELWRankingQueries
 from .elw_screener import ELWScreenerQueries
-from .etf_items import ETFNAV, ETFComponent, ETFNAVHistoryPoint
+from .etf_items import (
+    ETFNAV,
+    ETFComponent,
+    ETFNAVComparison,
+    ETFNAVHistoryPoint,
+    ETFNAVMinutePoint,
+)
 from .financials import (
     BalanceSheet,
     FinancialRatio,
@@ -198,7 +204,9 @@ __all__ = [
     "ELWUnderlying",
     "ELWVolatilityPoint",
     "ETFComponent",
+    "ETFNAVComparison",
     "ETFNAVHistoryPoint",
+    "ETFNAVMinutePoint",
     "EarningsEstimate",
     "ExecutionReport",
     "ExpectedIndexPoint",

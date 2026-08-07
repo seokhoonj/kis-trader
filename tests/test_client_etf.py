@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import ETFNAV, KISClient
+from kis_openapi import ETFNAV, ETFNAVComparison, ETFNAVMinutePoint, KISClient
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
@@ -192,3 +192,63 @@ def test_nav_history_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).ticker("069500").nav_history(start="20240101", end="20240104")
+
+
+def test_nav_comparison_maps_price_and_nav_ohlc():
+    response = RawResponse(
+        rt_cd="0", msg_cd="MCA00000", msg1="정상",
+        body={
+            "output1": {
+                "stck_prpr": "36150", "stck_prdy_clpr": "36000", "stck_oprc": "36020",
+                "stck_hgpr": "36200", "stck_lwpr": "35980", "prdy_vrss": "150",
+                "prdy_vrss_sign": "2", "prdy_ctrt": "0.42", "acml_vol": "1000000",
+                "acml_tr_pbmn": "36100000000",
+            },
+            "output2": {
+                "nav": "36110.50", "prdy_clpr_nav": "36015.30", "oprc_nav": "36025.00",
+                "hprc_nav": "36180.00", "lprc_nav": "35990.00", "nav_prdy_vrss": "95.20",
+                "nav_prdy_vrss_sign": "5", "nav_prdy_ctrt": "0.26",
+            },
+        },
+    )
+    fake = FakeTransport(response=response)
+    comparison = _client(fake).ticker("069500").nav_comparison()
+    assert isinstance(comparison, ETFNAVComparison)
+    assert comparison.price == Decimal(36150)
+    assert comparison.nav == Decimal("36110.50")
+    assert comparison.nav_change == Decimal("-95.20")
+    assert fake.calls[0]["path"] == "/uapi/etfetn/v1/quotations/nav-comparison-trend"
+    assert fake.calls[0]["tr_id"] == "FHPST02440000"
+
+
+def test_nav_intraday_maps_sorted_points_and_interval():
+    rows = [
+        {"bsop_hour": "101000", "nav": "36110", "nav_prdy_vrss_sign": "2",
+         "nav_prdy_vrss": "100", "nav_prdy_ctrt": "0.28", "nav_vrss_prpr": "40",
+         "dprt": "0.11", "stck_prpr": "36150", "prdy_vrss": "150",
+         "prdy_vrss_sign": "2", "prdy_ctrt": "0.42", "acml_vol": "10000",
+         "cntg_vol": "200"},
+        {"bsop_hour": "100700", "nav": "36100", "nav_prdy_vrss_sign": "5",
+         "nav_prdy_vrss": "90", "nav_prdy_ctrt": "0.25", "nav_vrss_prpr": "35",
+         "dprt": "0.10", "stck_prpr": "36135", "prdy_vrss": "135",
+         "prdy_vrss_sign": "2", "prdy_ctrt": "0.38", "acml_vol": "9800",
+         "cntg_vol": "180"},
+    ]
+    fake = FakeTransport(response=_nav_hist_resp(rows))
+    points = _client(fake).ticker("069500").nav_intraday(interval_minutes=3)
+    assert all(isinstance(point, ETFNAVMinutePoint) for point in points)
+    assert [f"{point.timestamp:%H%M%S}" for point in points] == ["100700", "101000"]
+    assert points[0].nav_change == Decimal(-90)
+    assert points[-1].interval_volume == 200
+    assert fake.calls[0]["params"] == {
+        "fid_hour_cls_code": "180", "fid_cond_mrkt_div_code": "E",
+        "fid_input_iscd": "069500",
+    }
+
+
+@pytest.mark.parametrize("minutes", [0, 121])
+def test_nav_intraday_rejects_bad_interval_before_transport(minutes):
+    fake = FakeTransport(response=_nav_hist_resp([]))
+    with pytest.raises(KISUsageError):
+        _client(fake).ticker("069500").nav_intraday(interval_minutes=minutes)
+    assert fake.calls == []

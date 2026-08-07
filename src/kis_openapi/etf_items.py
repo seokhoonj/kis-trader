@@ -87,3 +87,55 @@ class ETFNAVHistoryPoint:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ETFNAVComparison:
+    """ETF 시장가격과 NAV의 당일 OHLC 비교 스냅샷(불변)."""
+
+    symbol: str
+    price: Decimal
+    previous_close: Decimal
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    amount: Decimal
+    nav: Decimal
+    previous_nav: Decimal
+    nav_open: Decimal
+    nav_high: Decimal
+    nav_low: Decimal
+    nav_change: Decimal
+    nav_change_percent: Decimal
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ETFNAVMinutePoint:
+    """ETF 시장가격과 NAV의 분별 비교 한 점(불변)."""
+
+    timestamp: datetime
+    price: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    interval_volume: int
+    nav: Decimal
+    nav_change: Decimal
+    nav_change_percent: Decimal
+    price_minus_nav: Decimal
+    premium: Decimal
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))

@@ -19,17 +19,25 @@ from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from typing import Any
 
-from .._wire import required_decimal
+from .._wire import required_decimal, required_int
 from ..errors import KISUsageError
-from ..etf_items import ETFNAV, ETFComponent, ETFNAVHistoryPoint
+from ..etf_items import (
+    ETFNAV,
+    ETFComponent,
+    ETFNAVComparison,
+    ETFNAVHistoryPoint,
+    ETFNAVMinutePoint,
+)
 from ..transport import Transport
 from .market_data import (
     _KST,
     _apply_change_sign,
     _missing_block_error,
     _parse_kst_date,
+    _parse_minute_bar_timestamp,
     _raise_if_error,
     _to_yyyymmdd,
+    _today_kst,
 )
 
 _ETF_NAV_PATH = "/uapi/etfetn/v1/quotations/inquire-price"
@@ -43,6 +51,10 @@ _ETF_COMPONENTS_SCR = "11216"
 
 _ETF_NAV_HISTORY_PATH = "/uapi/etfetn/v1/quotations/nav-comparison-daily-trend"
 _ETF_NAV_HISTORY_TR = "FHPST02440200"
+_ETF_NAV_COMPARISON_PATH = "/uapi/etfetn/v1/quotations/nav-comparison-trend"
+_ETF_NAV_COMPARISON_TR = "FHPST02440000"
+_ETF_NAV_MINUTE_PATH = "/uapi/etfetn/v1/quotations/nav-comparison-time-trend"
+_ETF_NAV_MINUTE_TR = "FHPST02440100"
 
 
 def fetch_etf_nav(transport: Transport, *, symbol: str) -> ETFNAV:
@@ -56,6 +68,117 @@ def fetch_etf_nav(transport: Transport, *, symbol: str) -> ETFNAV:
     if not isinstance(output, Mapping):        # 성공 응답인데 객체 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return _parse_etf_nav(output, symbol=symbol, as_of=datetime.now(_KST))
+
+
+def fetch_etf_nav_comparison(
+    transport: Transport, *, symbol: str
+) -> ETFNAVComparison:
+    """ETF 시장가격과 NAV의 당일 OHLC 비교."""
+    resp = transport.request(
+        method="GET",
+        path=_ETF_NAV_COMPARISON_PATH,
+        tr_id=_ETF_NAV_COMPARISON_TR,
+        params={"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": symbol},
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    price = resp.body.get("output1")
+    nav = resp.body.get("output2")
+    if not isinstance(price, Mapping):
+        raise _missing_block_error("output1", resp)
+    if not isinstance(nav, Mapping):
+        raise _missing_block_error("output2", resp)
+    price_sign = str(price.get("prdy_vrss_sign", "")).strip()
+    nav_sign = str(nav.get("nav_prdy_vrss_sign", "")).strip()
+    return ETFNAVComparison(
+        symbol=symbol,
+        price=required_decimal(price.get("stck_prpr"), "stck_prpr"),
+        previous_close=required_decimal(price.get("stck_prdy_clpr"), "stck_prdy_clpr"),
+        open=required_decimal(price.get("stck_oprc"), "stck_oprc"),
+        high=required_decimal(price.get("stck_hgpr"), "stck_hgpr"),
+        low=required_decimal(price.get("stck_lwpr"), "stck_lwpr"),
+        change=_apply_change_sign(
+            required_decimal(price.get("prdy_vrss"), "prdy_vrss"), price_sign
+        ),
+        change_percent=_apply_change_sign(
+            required_decimal(price.get("prdy_ctrt"), "prdy_ctrt"), price_sign
+        ),
+        volume=required_int(price.get("acml_vol"), "acml_vol"),
+        amount=required_decimal(price.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+        nav=required_decimal(nav.get("nav"), "nav"),
+        previous_nav=required_decimal(nav.get("prdy_clpr_nav"), "prdy_clpr_nav"),
+        nav_open=required_decimal(nav.get("oprc_nav"), "oprc_nav"),
+        nav_high=required_decimal(nav.get("hprc_nav"), "hprc_nav"),
+        nav_low=required_decimal(nav.get("lprc_nav"), "lprc_nav"),
+        nav_change=_apply_change_sign(
+            required_decimal(nav.get("nav_prdy_vrss"), "nav_prdy_vrss"), nav_sign
+        ),
+        nav_change_percent=_apply_change_sign(
+            required_decimal(nav.get("nav_prdy_ctrt"), "nav_prdy_ctrt"), nav_sign
+        ),
+        _raw=resp.body,
+    )
+
+
+def fetch_etf_nav_intraday(
+    transport: Transport, *, symbol: str, interval_minutes: int
+) -> list[ETFNAVMinutePoint]:
+    """최근 30개 ETF 시장가격-NAV 분별 비교."""
+    if not 1 <= interval_minutes <= 120:
+        raise KISUsageError(
+            f"interval_minutes 는 1~120 사이 정수여야 한다: {interval_minutes!r}"
+        )
+    resp = transport.request(
+        method="GET",
+        path=_ETF_NAV_MINUTE_PATH,
+        tr_id=_ETF_NAV_MINUTE_TR,
+        params={
+            "fid_hour_cls_code": str(interval_minutes * 60),
+            "fid_cond_mrkt_div_code": "E",
+            "fid_input_iscd": symbol,
+        },
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    today = _today_kst()
+    points: list[ETFNAVMinutePoint] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output[]", resp)
+        time_text = str(row.get("bsop_hour", "")).strip()
+        if not time_text:
+            continue
+        nav_sign = str(row.get("nav_prdy_vrss_sign", "")).strip()
+        price_sign = str(row.get("prdy_vrss_sign", "")).strip()
+        points.append(
+            ETFNAVMinutePoint(
+                timestamp=_parse_minute_bar_timestamp(today, time_text),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("prdy_vrss"), "prdy_vrss"), price_sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), price_sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                interval_volume=required_int(row.get("cntg_vol"), "cntg_vol"),
+                nav=required_decimal(row.get("nav"), "nav"),
+                nav_change=_apply_change_sign(
+                    required_decimal(row.get("nav_prdy_vrss"), "nav_prdy_vrss"), nav_sign
+                ),
+                nav_change_percent=_apply_change_sign(
+                    required_decimal(row.get("nav_prdy_ctrt"), "nav_prdy_ctrt"), nav_sign
+                ),
+                price_minus_nav=required_decimal(row.get("nav_vrss_prpr"), "nav_vrss_prpr"),
+                premium=required_decimal(row.get("dprt"), "dprt"),
+                _raw=row,
+            )
+        )
+    points.sort(key=lambda point: point.timestamp)
+    return points
 
 
 def fetch_etf_components(transport: Transport, *, symbol: str) -> list[ETFComponent]:
