@@ -147,6 +147,7 @@ from .overseas_items import (
 from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
 from .overseas_ranking_items import RankedOverseasStock
+from .product import ProductInfo
 from .program import ProgramTradePoint
 from .quote import Quote
 from .ranking import RankingQueries
@@ -288,6 +289,7 @@ __all__ = [
     "Portfolio",
     "Position",
     "PriceLevel",
+    "ProductInfo",
     "ProfitabilityRatio",
     "ProgramFlowPoint",
     "ProgramTradePoint",

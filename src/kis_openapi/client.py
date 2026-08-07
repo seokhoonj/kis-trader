@@ -17,6 +17,7 @@ from ._domestic import account as account_api
 from ._domestic import derivatives as derivatives_api
 from ._domestic import market_data as market_data_api
 from ._domestic import orders as orders_engine
+from ._domestic import product as product_api
 from ._masters import (
     Fetch,
     MasterIndex,
@@ -59,6 +60,7 @@ from .overseas_items import (
 )
 from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
+from .product import ProductInfo
 from .quote import Quote
 from .ranking import RankingQueries
 from .report import ExecutionReport
@@ -182,6 +184,12 @@ class KISClient:
         """해외 종목의 상품기본정보(거래소·통화·상장주식수·SEDOL·블룸버그티커 등). exchange=NAS/NYS/AMS/TSE/HKS/..."""
         return overseas_market_data_api.fetch_product_info(
             self.transport, exchange=exchange, symbol=symbol
+        )
+
+    def product_info(self, symbol: str, *, product_type: str = "300") -> ProductInfo:
+        """상품 공통 등록·판매 기본정보. 상품유형 기본값 ``"300"`` 은 국내 주식군이다."""
+        return product_api.fetch_product_info(
+            self.transport, symbol=symbol, product_type=product_type
         )
 
     def overseas_industries(self, exchange: str) -> list[OverseasIndustry]:
