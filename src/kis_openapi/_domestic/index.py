@@ -29,6 +29,7 @@ from ..bar import Bar, Interval
 from ..errors import KISUsageError
 from ..index_items import (
     CategoryIndex,
+    ExpectedIndexPoint,
     IndexDailyHistory,
     IndexDailyPoint,
     IndexIntradayPoint,
@@ -66,6 +67,10 @@ _INDEX_TICKS_TR = "FHPUP02110100"
 _INDEX_DAILY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-daily-price"
 _INDEX_DAILY_TR = "FHPUP02120000"
 _INDEX_DAILY_INTERVAL = {"1d": "D", "1wk": "W", "1mo": "M"}
+_EXPECTED_INDEX_PATH = "/uapi/domestic-stock/v1/quotations/exp-index-trend"
+_EXPECTED_INDEX_TR = "FHPST01840000"
+_EXPECTED_INDEX_INTERVAL = {"10s": "10", "30s": "30", "1m": "60", "10m": "600"}
+_EXPECTED_INDEX_SESSION = {"open": "1", "close": "2"}
 #: 지수 시간대별 샘플 간격 -> FID_INPUT_HOUR_1(초). 원장: 60=1분, 300=5분, 600=10분.
 _INDEX_INTRADAY_INTERVAL = {"1m": "60", "5m": "300", "10m": "600"}
 
@@ -371,6 +376,70 @@ def fetch_index_daily_history(
         points=tuple(points),
         _raw=resp.body,
     )
+
+
+def fetch_expected_index_trend(
+    transport: Transport,
+    *,
+    code: str,
+    session: str,
+    interval: str,
+) -> list[ExpectedIndexPoint]:
+    """장 시작 전·마감 동시호가의 예상체결 지수 추이."""
+    session_code = _EXPECTED_INDEX_SESSION.get(session)
+    interval_code = _EXPECTED_INDEX_INTERVAL.get(interval)
+    if session_code is None:
+        raise KISUsageError(f"session 은 'open'/'close' 중 하나여야 한다: {session!r}")
+    if interval_code is None:
+        raise KISUsageError(
+            f"interval 은 {sorted(_EXPECTED_INDEX_INTERVAL)} 중 하나여야 한다: {interval!r}"
+        )
+    resp = transport.request(
+        method="GET",
+        path=_EXPECTED_INDEX_PATH,
+        tr_id=_EXPECTED_INDEX_TR,
+        params={
+            "FID_MKOP_CLS_CODE": session_code,
+            "FID_INPUT_HOUR_1": interval_code,
+            "FID_INPUT_ISCD": code,
+            "FID_COND_MRKT_DIV_CODE": _INDEX_MARKET_DIV,
+        },
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    today = _today_kst()
+    points: list[ExpectedIndexPoint] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output[]", resp)
+        time_text = str(row.get("stck_cntg_hour", "")).strip()
+        value_text = str(row.get("bstp_nmix_prpr", "")).strip()
+        if not time_text or not value_text:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        points.append(
+            ExpectedIndexPoint(
+                time=_parse_minute_bar_timestamp(today, time_text),
+                value=required_decimal(value_text, "bstp_nmix_prpr"),
+                change=_apply_change_sign(
+                    required_decimal(
+                        row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"
+                    ),
+                    sign,
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+                _raw=row,
+            )
+        )
+    points.sort(key=lambda point: point.time)
+    return points
 
 
 def _parse_index_intraday(

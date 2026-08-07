@@ -80,6 +80,7 @@ from .financials import (
 from .index import Index
 from .index_items import (
     CategoryIndex,
+    ExpectedIndexPoint,
     IndexDailyHistory,
     IndexDailyPoint,
     IndexIntradayPoint,
@@ -194,6 +195,7 @@ __all__ = [
     "ETFNAVHistoryPoint",
     "EarningsEstimate",
     "ExecutionReport",
+    "ExpectedIndexPoint",
     "ExpectedPricePoint",
     "FinancialRatio",
     "ForeignBrokerFlow",

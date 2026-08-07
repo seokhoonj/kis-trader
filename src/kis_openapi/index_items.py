@@ -70,6 +70,24 @@ class IndexIntradayPoint:
 
 
 @dataclass(frozen=True, slots=True)
+class ExpectedIndexPoint:
+    """동시호가 중 한 시각의 예상체결 지수(불변)."""
+
+    time: datetime
+    value: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    amount: Decimal
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class IndexDailyPoint:
     """지수 일·주·월 통계의 한 시점(불변)."""
 

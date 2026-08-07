@@ -14,6 +14,7 @@ from ._domestic import index as index_api
 from .bar import Bar, Interval
 from .index_items import (
     CategoryIndex,
+    ExpectedIndexPoint,
     IndexDailyHistory,
     IndexIntradayPoint,
     IndexQuote,
@@ -80,6 +81,17 @@ class Index:
             code=self.code,
             interval=interval,
             as_of=as_of,
+        )
+
+    def expected_trend(
+        self, *, session: str = "open", interval: str = "10s"
+    ) -> list[ExpectedIndexPoint]:
+        """장 시작 전·마감 동시호가의 예상체결 지수 추이."""
+        return index_api.fetch_expected_index_trend(
+            self._client.transport,
+            code=self.code,
+            session=session,
+            interval=interval,
         )
 
     def categories(self) -> list[CategoryIndex]:

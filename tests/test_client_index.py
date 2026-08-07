@@ -380,6 +380,68 @@ def test_index_daily_history_requires_both_response_blocks(body):
         _client(FakeTransport(response=response)).index("0001").daily_history()
 
 
+def test_expected_index_trend_maps_session_interval_and_sign():
+    response = _intraday_resp(
+        [
+            {
+                "stck_cntg_hour": "152010",
+                "bstp_nmix_prpr": "2650.25",
+                "prdy_vrss_sign": "5",
+                "bstp_nmix_prdy_vrss": "10.50",
+                "prdy_ctrt": "0.40",
+                "acml_vol": "500000",
+                "acml_tr_pbmn": "9000000",
+            },
+            {
+                "stck_cntg_hour": "152000",
+                "bstp_nmix_prpr": "2651.00",
+                "prdy_vrss_sign": "2",
+                "bstp_nmix_prdy_vrss": "11.25",
+                "prdy_ctrt": "0.43",
+                "acml_vol": "490000",
+                "acml_tr_pbmn": "8800000",
+            },
+        ]
+    )
+    fake = FakeTransport(response=response)
+    points = _client(fake).index("0001").expected_trend(
+        session="close", interval="30s"
+    )
+
+    assert [f"{point.time:%H%M%S}" for point in points] == ["152000", "152010"]
+    assert points[-1].value == Decimal("2650.25")
+    assert points[-1].change == Decimal("-10.50")
+    assert points[-1].change_percent == Decimal("-0.40")
+    assert points[-1].volume == 500000
+    assert points[-1].amount == Decimal(9000000)
+    assert fake.calls[0] == {
+        "path": "/uapi/domestic-stock/v1/quotations/exp-index-trend",
+        "tr_id": "FHPST01840000",
+        "params": {
+            "FID_MKOP_CLS_CODE": "2",
+            "FID_INPUT_HOUR_1": "30",
+            "FID_INPUT_ISCD": "0001",
+            "FID_COND_MRKT_DIV_CODE": "U",
+        },
+    }
+
+
+@pytest.mark.parametrize(
+    "kwargs", [{"session": "midday"}, {"interval": "5m"}]
+)
+def test_expected_index_trend_rejects_bad_options_before_transport(kwargs):
+    fake = FakeTransport(response=_intraday_resp([]))
+    with pytest.raises(KISUsageError):
+        _client(fake).index("0001").expected_trend(**kwargs)
+    assert fake.calls == []
+
+
+def test_expected_index_trend_missing_output_fails_closed():
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=response)).index("0001").expected_trend()
+
+
 _INDEX_CATEGORY = "/uapi/domestic-stock/v1/quotations/inquire-index-category-price"
 
 
