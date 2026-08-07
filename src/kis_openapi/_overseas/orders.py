@@ -26,6 +26,8 @@ from ..store import OrderStore
 from ..transport import Environment, Transport, TransportTimeout
 
 _ORDER_PATH = "/uapi/overseas-stock/v1/trading/order"
+_CHANGE_PATH = "/uapi/overseas-stock/v1/trading/order-rvsecncl"
+_CHANGE_TR = {"real": "TTTT1004U", "demo": "VTTT1004U"}
 
 #: 시세 거래소코드(EXCD) -> (주문 거래소코드 OVRS_EXCG_CD, 시장 그룹). 원장 코드표.
 _ORDER_EXCHANGE: dict[str, tuple[str, str]] = {
@@ -127,6 +129,35 @@ def make_order_request(
         cano=cano, product_code=product_code, environment=environment,
         order_type=order.order_type, time_in_force=order.time_in_force,
     )
+
+
+def make_change_request(
+    *, original_report: ExecutionReport, original_fingerprint: Fingerprint,
+    action: str, quantity: Decimal, price: Decimal | None,
+    cano: str, product_code: str, environment: Environment,
+) -> WireRequest:
+    """해외주식 정정·취소 요청을 공식 단일 TR 와이어로 조립한다."""
+    try:
+        order_exchange = _ORDER_EXCHANGE[original_fingerprint.exchange][0]
+    except KeyError:
+        raise KISUsageError(
+            f"해외 정정·취소를 지원하지 않는 거래소코드: {original_fingerprint.exchange!r}."
+        ) from None
+    if original_fingerprint.order_type != "limit":
+        raise KISUsageError("해외 정정·취소는 지정가 원주문만 지원한다.")
+    body = {
+        "CANO": cano,
+        "ACNT_PRDT_CD": product_code,
+        "OVRS_EXCG_CD": order_exchange,
+        "PDNO": original_report.symbol,
+        "ORGN_ODNO": str(original_report.order_id),
+        "RVSE_CNCL_DVSN_CD": "02" if action == "cancel" else "01",
+        "ORD_QTY": format_wire_decimal(quantity),
+        "OVRS_ORD_UNPR": "0" if price is None else format_wire_decimal(price),
+        "MGCO_APTM_ODNO": "",
+        "ORD_SVR_DVSN_CD": "0",
+    }
+    return WireRequest("POST", _CHANGE_PATH, _CHANGE_TR[environment], body)
 
 
 # --- 재조회(해외 주문체결내역) ---------------------------------------------

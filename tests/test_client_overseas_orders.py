@@ -16,6 +16,7 @@ from kis_openapi.errors import KISError, KISUsageError, OrderTimeoutError
 from kis_openapi.transport import RawResponse, TransportTimeout
 
 _ORDER = "/uapi/overseas-stock/v1/trading/order"
+_ORDER_CHANGE = "/uapi/overseas-stock/v1/trading/order-rvsecncl"
 
 
 class FakeTransport:
@@ -92,6 +93,71 @@ def test_overseas_sell_sets_sll_type_and_tr():
     )
     assert fake.calls[0]["tr_id"] == "TTTT1006U"       # 미국 매도 실전
     assert fake.calls[0]["body"]["SLL_TYPE"] == "00"
+
+
+def test_overseas_cancel_maps_exchange_and_deduplicates():
+    fake = FakeTransport(response=_ack())
+    kis = _client(fake)
+    kis.ticker("AAPL", exchange="NAS").buy(
+        quantity=3, price="150.25", client_order_id="original-overseas-1"
+    )
+    first = kis.cancel_order(
+        "original-overseas-1", quantity=2, request_id="cancel-overseas-1"
+    )
+    second = kis.cancel_order(
+        "original-overseas-1", quantity=2, request_id="cancel-overseas-1"
+    )
+
+    from kis_openapi import OrderStatus
+    assert first.status is OrderStatus.PENDING_CANCEL
+    assert second == first
+    assert len(_posts(fake)) == 2
+    call = _posts(fake)[1]
+    assert call["path"] == _ORDER_CHANGE
+    assert call["tr_id"] == "TTTT1004U"
+    assert call["idempotent"] is False
+    assert call["body"]["OVRS_EXCG_CD"] == "NASD"
+    assert call["body"]["PDNO"] == "AAPL"
+    assert call["body"]["ORGN_ODNO"] == "0000123456"
+    assert call["body"]["RVSE_CNCL_DVSN_CD"] == "02"
+    assert call["body"]["ORD_QTY"] == "2"
+    assert call["body"]["OVRS_ORD_UNPR"] == "0"
+
+
+def test_overseas_replace_uses_demo_tr_and_new_price():
+    fake = FakeTransport(response=_ack())
+    kis = _client(fake, environment="demo")
+    kis.ticker("0700", exchange="HKS").sell(
+        quantity=4, price="410.00", client_order_id="original-overseas-2"
+    )
+    report = kis.replace_order(
+        "original-overseas-2", quantity=3, price="412.50",
+        request_id="replace-overseas-1",
+    )
+
+    from kis_openapi import OrderStatus
+    assert report.status is OrderStatus.PENDING_REPLACE
+    call = _posts(fake)[1]
+    assert call["tr_id"] == "VTTT1004U"
+    assert call["body"]["OVRS_EXCG_CD"] == "SEHK"
+    assert call["body"]["RVSE_CNCL_DVSN_CD"] == "01"
+    assert call["body"]["ORD_QTY"] == "3"
+    assert call["body"]["OVRS_ORD_UNPR"] == "412.50"
+
+
+def test_overseas_change_timeout_is_not_resent():
+    fake = FakeTransport(response=_ack())
+    kis = _client(fake)
+    kis.ticker("AAPL", exchange="NAS").buy(
+        quantity=3, price="150.25", client_order_id="original-overseas-3"
+    )
+    fake.raises = TransportTimeout()
+    with pytest.raises(OrderTimeoutError):
+        kis.cancel_order("original-overseas-3", request_id="cancel-overseas-timeout")
+    fake.raises = None
+    with pytest.raises(KISUsageError, match="재전송하지"):
+        kis.cancel_order("original-overseas-3", request_id="cancel-overseas-timeout")
+    assert len(_posts(fake)) == 2
 
 
 def test_overseas_market_order_rejected():
