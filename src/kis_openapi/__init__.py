@@ -97,6 +97,7 @@ from .overseas_derivative_items import (
     OverseasDerivativeMarketHours,
     OverseasDerivativeQuote,
 )
+from .overseas_index import OverseasIndex
 from .overseas_items import (
     OverseasBalance,
     OverseasIndustry,
@@ -210,6 +211,7 @@ __all__ = [
     "OverseasDerivativeDetail",
     "OverseasDerivativeMarketHours",
     "OverseasDerivativeQuote",
+    "OverseasIndex",
     "OverseasIndustry",
     "OverseasOpenOrder",
     "OverseasPosition",

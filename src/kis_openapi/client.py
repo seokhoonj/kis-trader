@@ -43,6 +43,7 @@ from .market import MarketQueries
 from .order import Order
 from .overseas_derivative import OverseasDerivative
 from .overseas_derivative_items import OverseasDerivativeMarketHours
+from .overseas_index import OverseasIndex
 from .overseas_items import (
     OverseasBalance,
     OverseasIndustry,
@@ -59,6 +60,8 @@ from .risk import RiskLimits
 from .store import OrderStore
 from .ticker import Ticker
 from .transport import Transport
+
+_OVERSEAS_INDEX_KIND = {"index": "N", "fx": "X", "bond": "I", "gold": "S"}
 
 
 class KISClient:
@@ -188,6 +191,19 @@ class KISClient:
         """지수/업종 핸들을 만든다. ``code`` 는 업종코드(0001 KOSPI 종합, 1001 KOSDAQ 종합,
         2001 KOSPI200 등)."""
         return Index(self, code)
+
+    def overseas_index(self, symbol: str, *, kind: str = "index") -> OverseasIndex:
+        """해외 지수/환율/국채/금선물 핸들을 만든다.
+
+        ``kind`` 는 ``index``/``fx``/``bond``/``gold`` 중 하나이고, ``symbol`` 은 지수코드(예:
+        ``.DJI``)다. 국내 :meth:`index` 의 해외판이다.
+        """
+        division = _OVERSEAS_INDEX_KIND.get(kind)
+        if division is None:
+            raise KISUsageError(
+                f"지원하지 않는 kind: {kind!r} ({'/'.join(_OVERSEAS_INDEX_KIND)})."
+            )
+        return OverseasIndex(self, symbol, market_division=division)
 
     def bond(self, code: str) -> Bond:
         """장내채권 핸들을 만든다. ``code`` 는 표준코드(ISIN, 예: KR2033022D33)."""
