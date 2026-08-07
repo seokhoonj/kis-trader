@@ -18,7 +18,12 @@ from typing import Any
 
 from .._wire import optional_decimal, optional_int, required_decimal, required_int
 from ..after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
-from ..analysis import RecentPricePoint
+from ..analysis import (
+    IntradayExecutionPoint,
+    IntradayExecutions,
+    IntradayExecutionSummary,
+    RecentPricePoint,
+)
 from ..bar import Bar, Interval
 from ..broker import BrokerActivity, BrokerActivitySummary
 from ..errors import KISError, KISUsageError
@@ -39,6 +44,8 @@ _QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
 _QUOTE_TR = "FHKST01010100"
 _STATUS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price-2"
 _STATUS_TR = "FHPST01010000"
+_INTRADAY_EXECUTIONS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-itemconclusion"
+_INTRADAY_EXECUTIONS_TR = "FHPST01060000"
 #: 전일대비 부호코드(prdy_vrss_sign) 중 하락(4 하한, 5 하락). 나머지는 양(0 포함).
 _DOWN_SIGNS = frozenset(("4", "5"))
 
@@ -101,6 +108,81 @@ def fetch_stock_status(
         ex_rights_name=str(row.get("flng_cls_name", "")).strip(),
         _raw=row,
     )
+
+
+def fetch_intraday_executions(
+    transport: Transport, *, symbol: str, market: str, at: str
+) -> IntradayExecutions:
+    """기준시각 이전의 당일 체결·최우선호가·체결강도."""
+    if (
+        len(at) != 6
+        or not at.isdigit()
+        or int(at[:2]) > 23
+        or int(at[2:4]) > 59
+        or int(at[4:]) > 59
+    ):
+        raise KISUsageError(f"at 은 HHMMSS 형식의 유효한 시각이어야 한다: {at!r}")
+    resp = transport.request(
+        method="GET",
+        path=_INTRADAY_EXECUTIONS_PATH,
+        tr_id=_INTRADAY_EXECUTIONS_TR,
+        params={
+            "FID_COND_MRKT_DIV_CODE": _market_div(market),
+            "FID_INPUT_ISCD": symbol,
+            "FID_INPUT_HOUR_1": at,
+        },
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    header = resp.body.get("output1")
+    rows = resp.body.get("output2")
+    if not isinstance(header, Mapping):
+        raise _missing_block_error("output1", resp)
+    if not isinstance(rows, list):
+        raise _missing_block_error("output2", resp)
+    header_sign = str(header.get("prdy_vrss_sign", "")).strip()
+    summary = IntradayExecutionSummary(
+        price=required_decimal(header.get("stck_prpr"), "stck_prpr"),
+        change=_apply_change_sign(
+            required_decimal(header.get("prdy_vrss"), "prdy_vrss"), header_sign
+        ),
+        change_percent=_apply_change_sign(
+            required_decimal(header.get("prdy_ctrt"), "prdy_ctrt"), header_sign
+        ),
+        volume=required_int(header.get("acml_vol"), "acml_vol"),
+        previous_volume=required_int(header.get("prdy_vol"), "prdy_vol"),
+        market_name=str(header.get("rprs_mrkt_kor_name", "")).strip(),
+        _raw=header,
+    )
+    today = _today_kst()
+    points: list[IntradayExecutionPoint] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error("output2[]", resp)
+        time_text = str(row.get("stck_cntg_hour", "")).strip()
+        if not time_text:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        points.append(
+            IntradayExecutionPoint(
+                timestamp=_parse_minute_bar_timestamp(today, time_text),
+                price=required_decimal(row.get("stck_pbpr"), "stck_pbpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                ask_price=required_decimal(row.get("askp"), "askp"),
+                bid_price=required_decimal(row.get("bidp"), "bidp"),
+                strength=required_decimal(row.get("tday_rltv"), "tday_rltv"),
+                cumulative_volume=required_int(row.get("acml_vol"), "acml_vol"),
+                quantity=required_int(row.get("cnqn"), "cnqn"),
+                _raw=row,
+            )
+        )
+    points.sort(key=lambda point: point.timestamp)
+    return IntradayExecutions(summary=summary, points=tuple(points), _raw=resp.body)
 
 _BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
 _BARS_TR = "FHKST03010100"

@@ -180,6 +180,60 @@ class RecentPricePoint:
 
 
 @dataclass(frozen=True, slots=True)
+class IntradayExecutionSummary:
+    """당일 시간대별 체결 조회의 현재 종목 요약(불변)."""
+
+    price: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    previous_volume: int
+    market_name: str
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class IntradayExecutionPoint:
+    """당일 한 시각의 체결·최우선호가·체결강도(불변)."""
+
+    timestamp: datetime
+    price: Decimal
+    change: Decimal
+    change_percent: Decimal
+    ask_price: Decimal
+    bid_price: Decimal
+    strength: Decimal
+    cumulative_volume: int
+    quantity: int
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class IntradayExecutions:
+    """현재 종목 요약과 기준시각 이전의 당일 체결 목록(불변)."""
+
+    summary: IntradayExecutionSummary
+    points: tuple[IntradayExecutionPoint, ...]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "points", tuple(self.points))
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class TradeAmountBand:
     """한 체결금액대의 매매비중(불변).
 

@@ -26,6 +26,7 @@ from .analysis import (
     EarningsEstimate,
     ExpectedPricePoint,
     ForeignNetBuyPoint,
+    IntradayExecutions,
     LoanPoint,
     RecentPricePoint,
     ShortSalePoint,
@@ -119,6 +120,15 @@ class Ticker:
         """현재가와 거래·규제·경고 상태. 국내 전용."""
         return market_data.fetch_stock_status(
             self._client.transport, symbol=self.symbol, market=self._domestic_market()
+        )
+
+    def intraday_executions(self, *, at: str = "235959") -> IntradayExecutions:
+        """기준시각 이전의 당일 체결·최우선호가·체결강도. 국내 전용."""
+        return market_data.fetch_intraday_executions(
+            self._client.transport,
+            symbol=self.symbol,
+            market=self._domestic_market(),
+            at=at,
         )
 
     def bars(

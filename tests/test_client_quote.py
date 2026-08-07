@@ -14,6 +14,7 @@ import pytest
 
 from kis_openapi import (
     Bar,
+    IntradayExecutions,
     KISClient,
     OrderBook,
     PriceLevel,
@@ -456,3 +457,85 @@ def test_stock_status_missing_output_fails_closed():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
     with pytest.raises(KISError):
         _client(FakeTransport(response=response)).ticker("005930").status()
+
+
+def test_intraday_executions_maps_summary_points_and_params():
+    response = RawResponse(
+        rt_cd="0",
+        msg_cd="MCA00000",
+        msg1="정상",
+        body={
+            "output1": {
+                "stck_prpr": "73000",
+                "prdy_vrss": "1200",
+                "prdy_vrss_sign": "2",
+                "prdy_ctrt": "1.67",
+                "acml_vol": "12000000",
+                "prdy_vol": "10000000",
+                "rprs_mrkt_kor_name": "코스피",
+            },
+            "output2": [
+                {
+                    "stck_cntg_hour": "101501",
+                    "stck_pbpr": "73000",
+                    "prdy_vrss": "1200",
+                    "prdy_vrss_sign": "2",
+                    "prdy_ctrt": "1.67",
+                    "askp": "73100",
+                    "bidp": "73000",
+                    "tday_rltv": "115.25",
+                    "acml_vol": "5000000",
+                    "cnqn": "150",
+                },
+                {
+                    "stck_cntg_hour": "101500",
+                    "stck_pbpr": "72900",
+                    "prdy_vrss": "1100",
+                    "prdy_vrss_sign": "5",
+                    "prdy_ctrt": "1.53",
+                    "askp": "73000",
+                    "bidp": "72900",
+                    "tday_rltv": "114.80",
+                    "acml_vol": "4999850",
+                    "cnqn": "200",
+                },
+            ],
+        },
+    )
+    fake = FakeTransport(response=response)
+    executions = _client(fake).ticker("005930").intraday_executions(at="101501")
+
+    assert isinstance(executions, IntradayExecutions)
+    assert executions.summary.price == Decimal(73000)
+    assert executions.summary.market_name == "코스피"
+    assert [f"{point.timestamp:%H%M%S}" for point in executions.points] == [
+        "101500",
+        "101501",
+    ]
+    assert executions.points[0].change == Decimal(-1100)
+    assert executions.points[-1].strength == Decimal("115.25")
+    assert executions.points[-1].quantity == 150
+    assert fake.calls[0]["path"] == (
+        "/uapi/domestic-stock/v1/quotations/inquire-time-itemconclusion"
+    )
+    assert fake.calls[0]["tr_id"] == "FHPST01060000"
+    assert fake.calls[0]["params"] == {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_INPUT_ISCD": "005930",
+        "FID_INPUT_HOUR_1": "101501",
+    }
+
+
+@pytest.mark.parametrize("at", ["", "250000", "126060", "1015AA"])
+def test_intraday_executions_rejects_bad_time_before_transport(at):
+    fake = FakeTransport(response=_quote_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake).ticker("005930").intraday_executions(at=at)
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("body", [{}, {"output1": {}}, {"output1": {}, "output2": {}}])
+def test_intraday_executions_requires_both_blocks(body):
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=response)).ticker("005930").intraday_executions()
