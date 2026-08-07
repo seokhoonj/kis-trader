@@ -2,11 +2,12 @@
 from __future__ import annotations
 
 import threading
+from datetime import date
 from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KISClient, MarketInvestorFlow
+from kis_openapi import KISClient, MarketFunds, MarketInvestorFlow
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
@@ -93,6 +94,65 @@ def test_market_investor_flows_bad_value_fails_closed():
     fake = FakeTransport(response=_resp([_flow_row(frgn_ntby_qty="n/a")]))
     with pytest.raises(KISError):
         _client(fake).market.investor_flows(as_of="20240510")
+
+
+def _funds_row(**over):
+    row = {
+        "bsop_date": "20240430", "bstp_nmix_prpr": "2692.06",
+        "bstp_nmix_prdy_vrss": "12.34", "prdy_vrss_sign": "2", "prdy_ctrt": "0.46",
+        "hts_avls": "2193843858", "cust_dpmn_amt": "572306",
+        "cust_dpmn_amt_prdy_vrss": "1234", "amt_tnrt": "1.25", "uncl_amt": "9289",
+        "crdt_loan_rmnd": "191730", "futs_tfam_amt": "45000", "sttp_amt": "1112330",
+        "mxtp_amt": "220000", "bntp_amt": "330000", "mmf_amt": "1971372",
+        "secu_lend_amt": "44000",
+    }
+    row.update(over)
+    return row
+
+
+def test_market_funds_maps_ledger_fields_signed_values_and_order():
+    older = _funds_row(bsop_date="20240429", bstp_nmix_prpr="2680.00", mmf_amt="")
+    fake = FakeTransport(response=_resp([_funds_row(), older]))
+    funds = _client(fake).market.funds(as_of="20240430")
+    assert isinstance(funds[0], MarketFunds)
+    assert [item.date for item in funds] == [date(2024, 4, 30), date(2024, 4, 29)]
+    first = funds[0]
+    assert first.index_value == Decimal("2692.06")
+    assert first.index_change == Decimal("12.34")          # sign 2 -> 상승
+    assert first.index_change_percent == Decimal("0.46")
+    assert first.market_cap == Decimal(2193843858)
+    assert first.customer_deposits == Decimal(572306)
+    assert first.receivables == Decimal(9289)
+    assert first.credit_loan_balance == Decimal(191730)
+    assert first.equity_fund == Decimal(1112330)
+    assert first.mmf == Decimal(1971372)
+    assert funds[1].mmf is None
+    assert fake.calls[0] == {
+        "path": "/uapi/domestic-stock/v1/quotations/mktfunds",
+        "tr_id": "FHKST649100C0",
+        "params": {"FID_INPUT_DATE_1": "20240430"},
+    }
+
+
+def test_market_funds_default_anchor_and_down_sign():
+    fake = FakeTransport(response=_resp([_funds_row(prdy_vrss_sign="5")]))
+    fund = _client(fake).market.funds()[0]
+    assert fund.index_change == Decimal("-12.34")
+    assert fund.index_change_percent == Decimal("-0.46")
+    anchor = fake.calls[0]["params"]["FID_INPUT_DATE_1"]
+    assert len(anchor) == 8 and anchor.isdigit()
+
+
+def test_market_funds_non_list_output_fails_closed():
+    fake = FakeTransport(response=_resp({}))
+    with pytest.raises(KISError):
+        _client(fake).market.funds()
+
+
+def test_market_funds_bad_required_numeric_fails_closed():
+    fake = FakeTransport(response=_resp([_funds_row(bstp_nmix_prpr="n/a")]))
+    with pytest.raises(KISError):
+        _client(fake).market.funds(as_of="20240430")
 
 
 def _prog_row(**over):

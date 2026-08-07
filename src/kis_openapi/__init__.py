@@ -81,6 +81,7 @@ from .market import MarketQueries
 from .market_items import (
     ForeignBrokerFlow,
     LimitStock,
+    MarketFunds,
     MarketInvestorFlow,
     NewsItem,
     ProgramFlowPoint,
@@ -192,6 +193,7 @@ __all__ = [
     "ListingInfo",
     "LoanPoint",
     "MandatoryDeposit",
+    "MarketFunds",
     "MarketInvestorFlow",
     "MarketQueries",
     "MasterIndex",

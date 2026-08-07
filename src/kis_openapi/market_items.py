@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any, Literal
@@ -223,6 +223,39 @@ class ForeignBrokerFlow:
     estimated_net: int                # 외국계 추정 순매수(glob_ntsl_qty; 매수-매도)
     estimated_buy: int                # 외국계 추정 매수(glob_total_shnu_qty)
     estimated_sell: int               # 외국계 추정 매도(glob_total_seln_qty)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class MarketFunds:
+    """하루의 증시자금 종합 현황(불변).
+
+    코스피 지수와 시가총액, 고객예탁금·신용융자잔고 및 유형별 펀드 잔고를 담는다.
+    금액 필드는 원장의 단위를 그대로 유지하며, 제공되지 않은 값은 ``None`` 이다.
+    ``index_change`` 와 ``index_change_percent`` 는 전일대비 부호를 반영한 값이다.
+    """
+
+    date: date | None
+    index_value: Decimal
+    index_change: Decimal
+    index_change_percent: Decimal
+    market_cap: Decimal | None
+    customer_deposits: Decimal | None
+    customer_deposits_change: Decimal | None
+    turnover_rate: Decimal | None
+    receivables: Decimal | None
+    credit_loan_balance: Decimal | None
+    futures_deposits: Decimal | None
+    equity_fund: Decimal | None
+    mixed_fund: Decimal | None
+    bond_fund: Decimal | None
+    mmf: Decimal | None
+    collateral_loan_balance: Decimal | None
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

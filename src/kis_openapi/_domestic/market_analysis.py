@@ -18,6 +18,7 @@ from ..market_items import (
     ForeignBrokerFlow,
     LimitStock,
     Market,
+    MarketFunds,
     MarketInvestorFlow,
     NewsItem,
     ProgramFlowPoint,
@@ -32,6 +33,7 @@ from .market_data import (
     _missing_block_error,
     _parse_bar_timestamp,
     _parse_intraday_timestamp,
+    _parse_kst_date,
     _raise_if_error,
     _to_yyyymmdd,
     _today_kst,
@@ -450,3 +452,68 @@ def fetch_foreign_broker_trades(
             )
         )
     return flows
+
+
+_MARKET_FUNDS_PATH = "/uapi/domestic-stock/v1/quotations/mktfunds"
+_MARKET_FUNDS_TR = "FHKST649100C0"
+
+
+def fetch_market_funds(
+    transport: Transport, *, as_of: str | date | None = None
+) -> list[MarketFunds]:
+    """증시자금 종합의 최근 일별 추이(``as_of`` 기준일에서 과거로)를 조회한다.
+
+    고객예탁금·신용융자잔고·펀드유형별 잔고·시가총액을 시장 전체 기준으로 돌려준다.
+    ``as_of`` 는 앵커 날짜이며 미지정하면 오늘을 사용하고, 응답의 최신순을 보존한다.
+    KIS URL: ``GET /uapi/domestic-stock/v1/quotations/mktfunds``.
+    TR-id: ``FHKST649100C0``. 연속조회 미지원으로 한 번만 호출한다.
+    """
+    anchor = _today_kst() if as_of is None else _to_yyyymmdd(as_of, "as_of")
+    params = {"FID_INPUT_DATE_1": anchor}
+    resp = transport.request(
+        method="GET", path=_MARKET_FUNDS_PATH, tr_id=_MARKET_FUNDS_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    funds: list[MarketFunds] = []
+    for row in rows:
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        funds.append(
+            MarketFunds(
+                date=_parse_kst_date(str(row.get("bsop_date", "")).strip()),
+                index_value=required_decimal(row.get("bstp_nmix_prpr"), "bstp_nmix_prpr"),
+                index_change=_apply_change_sign(
+                    required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), sign
+                ),
+                index_change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                market_cap=optional_decimal(row.get("hts_avls"), "hts_avls"),
+                customer_deposits=optional_decimal(
+                    row.get("cust_dpmn_amt"), "cust_dpmn_amt"
+                ),
+                customer_deposits_change=optional_decimal(
+                    row.get("cust_dpmn_amt_prdy_vrss"), "cust_dpmn_amt_prdy_vrss"
+                ),
+                turnover_rate=optional_decimal(row.get("amt_tnrt"), "amt_tnrt"),
+                receivables=optional_decimal(row.get("uncl_amt"), "uncl_amt"),
+                credit_loan_balance=optional_decimal(
+                    row.get("crdt_loan_rmnd"), "crdt_loan_rmnd"
+                ),
+                futures_deposits=optional_decimal(
+                    row.get("futs_tfam_amt"), "futs_tfam_amt"
+                ),
+                equity_fund=optional_decimal(row.get("sttp_amt"), "sttp_amt"),
+                mixed_fund=optional_decimal(row.get("mxtp_amt"), "mxtp_amt"),
+                bond_fund=optional_decimal(row.get("bntp_amt"), "bntp_amt"),
+                mmf=optional_decimal(row.get("mmf_amt"), "mmf_amt"),
+                collateral_loan_balance=optional_decimal(
+                    row.get("secu_lend_amt"), "secu_lend_amt"
+                ),
+                _raw=row,
+            )
+        )
+    return funds
