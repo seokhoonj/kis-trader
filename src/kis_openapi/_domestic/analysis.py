@@ -22,6 +22,7 @@ from ..analysis import (
     CreditBalancePoint,
     DailyExecutionVolume,
     ExpectedPricePoint,
+    ForeignNetBuyPoint,
     LoanPoint,
     ShortSalePoint,
     TradeAmountBand,
@@ -31,6 +32,7 @@ from .market_data import (
     _apply_change_sign,
     _missing_block_error,
     _parse_bar_timestamp,
+    _parse_intraday_timestamp,
     _parse_minute_bar_timestamp,
     _raise_if_error,
     _to_yyyymmdd,
@@ -362,3 +364,56 @@ def fetch_analyst_opinions(
             )
         )
     return opinions
+
+
+def fetch_foreign_net_buy_trend(
+    transport: Transport, *, symbol: str
+) -> list[ForeignNetBuyPoint]:
+    """장중 외국계(외국인 회원사) 순매수 추이(시간대별, 응답 순서 유지).
+
+    KIS 국내주식 외국계 매매종목 가집계 API를 조회한다.
+    URL: ``GET /uapi/domestic-stock/v1/quotations/frgnmem-pchs-trend``.
+    TR-id: ``FHKST644400C0``.
+    ``tr_cont`` 미지원으로 단일 호출하며 ``output`` 배열을 반환한다.
+    """
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_INPUT_ISCD": symbol,
+        "FID_INPUT_ISCD_2": "99999",
+    }
+    resp = transport.request(
+        method="GET",
+        path="/uapi/domestic-stock/v1/quotations/frgnmem-pchs-trend",
+        tr_id="FHKST644400C0",
+        params=params,
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):
+        raise _missing_block_error("output", resp)
+    as_of = _parse_bar_timestamp(_today_kst())
+    points: list[ForeignNetBuyPoint] = []
+    for row in rows:
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        points.append(
+            ForeignNetBuyPoint(
+                time=_parse_intraday_timestamp(str(row.get("bsop_hour", "")).strip(), as_of),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                foreign_sell_volume=required_int(row.get("frgn_seln_vol"), "frgn_seln_vol"),
+                foreign_buy_volume=required_int(row.get("frgn_shnu_vol"), "frgn_shnu_vol"),
+                foreign_net_buy=required_int(row.get("glob_ntby_qty"), "glob_ntby_qty"),
+                foreign_net_buy_change=required_int(
+                    row.get("frgn_ntby_qty_icdc"), "frgn_ntby_qty_icdc"
+                ),
+                _raw=row,
+            )
+        )
+    return points

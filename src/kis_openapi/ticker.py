@@ -24,6 +24,7 @@ from .analysis import (
     CreditBalancePoint,
     DailyExecutionVolume,
     ExpectedPricePoint,
+    ForeignNetBuyPoint,
     LoanPoint,
     ShortSalePoint,
     TradeAmountBand,
@@ -287,6 +288,13 @@ class Ticker:
         self._domestic_market()        # 국내 전용
         return analysis_api.fetch_short_sale_trend(
             self._client.transport, symbol=self.symbol, start=start, end=end
+        )
+
+    def foreign_net_buy_trend(self) -> list[ForeignNetBuyPoint]:
+        """이 종목의 장중 외국계(외국인 회원사) 순매수 추이(시간대별)."""
+        self._domestic_market()        # 국내 전용
+        return analysis_api.fetch_foreign_net_buy_trend(
+            self._client.transport, symbol=self.symbol
         )
 
     def loan_trend(

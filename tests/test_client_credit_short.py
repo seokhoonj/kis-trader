@@ -7,7 +7,12 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import CreditBalancePoint, KISClient, ShortSalePoint
+from kis_openapi import (
+    CreditBalancePoint,
+    ForeignNetBuyPoint,
+    KISClient,
+    ShortSalePoint,
+)
 from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
@@ -82,6 +87,61 @@ def test_short_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(rows))
     with pytest.raises(KISError):
         _client(fake).ticker("005930").short_sale_trend()
+
+
+def test_foreign_net_buy_trend_maps_ledger_values_and_preserves_order():
+    rows = [
+        {
+            "bsop_hour": "153106", "stck_prpr": "81300", "prdy_vrss_sign": "2",
+            "prdy_ctrt": "1.50", "prdy_vrss": "1200", "acml_vol": "15432100",
+            "frgn_seln_vol": "4312000", "frgn_shnu_vol": "8182530",
+            "glob_ntby_qty": "3870530", "frgn_ntby_qty_icdc": "194396",
+        },
+        {
+            "bsop_hour": "153006", "stck_prpr": "80100", "prdy_vrss_sign": "5",
+            "prdy_ctrt": "0.25", "prdy_vrss": "200", "acml_vol": "15000000",
+            "frgn_seln_vol": "4300000", "frgn_shnu_vol": "7976134",
+            "glob_ntby_qty": "3676134", "frgn_ntby_qty_icdc": "100",
+        },
+    ]
+    fake = FakeTransport(response=_resp(rows))
+    pts = _client(fake).ticker("005930").foreign_net_buy_trend()
+    assert isinstance(pts[0], ForeignNetBuyPoint)
+    assert pts[0].time.strftime("%H%M%S") == "153106"
+    assert pts[0].price == Decimal(81300)
+    assert pts[0].change == Decimal(1200)
+    assert pts[0].change_percent == Decimal("1.50")
+    assert pts[0].foreign_net_buy == 3870530
+    assert pts[0].foreign_net_buy_change == 194396
+    assert pts[1].time.strftime("%H%M%S") == "153006"
+    assert pts[1].change == Decimal(-200)
+    assert pts[1].change_percent == Decimal("-0.25")
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-stock/v1/quotations/frgnmem-pchs-trend"
+    assert call["tr_id"] == "FHKST644400C0"
+    assert call["params"] == {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_INPUT_ISCD": "005930",
+        "FID_INPUT_ISCD_2": "99999",
+    }
+
+
+def test_foreign_net_buy_trend_non_list_output_fails_closed():
+    fake = FakeTransport(response=_resp({"bsop_hour": "153106"}))
+    with pytest.raises(KISError):
+        _client(fake).ticker("005930").foreign_net_buy_trend()
+
+
+def test_foreign_net_buy_trend_bad_present_numeric_fails_closed():
+    rows = [{
+        "bsop_hour": "153106", "stck_prpr": "81300", "prdy_vrss_sign": "2",
+        "prdy_ctrt": "1.50", "prdy_vrss": "1200", "acml_vol": "15432100",
+        "frgn_seln_vol": "4312000", "frgn_shnu_vol": "8182530",
+        "glob_ntby_qty": "not-a-number", "frgn_ntby_qty_icdc": "194396",
+    }]
+    fake = FakeTransport(response=_resp(rows))
+    with pytest.raises(KISError):
+        _client(fake).ticker("005930").foreign_net_buy_trend()
 
 
 def test_loan_trend_maps():

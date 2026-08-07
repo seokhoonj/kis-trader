@@ -196,3 +196,28 @@ class DailyExecutionVolume:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class ForeignNetBuyPoint:
+    """한 시점의 장중 외국계(외국인 회원사) 순매수 스냅샷(불변).
+
+    ``foreign_net_buy`` 는 누적 외국계 순매수 수량, ``foreign_net_buy_change`` 는 해당 시간대의
+    순매수 증감이다. ``time`` 은 당일 체결시각(KST-aware)이며 응답 순서대로 제공된다.
+    """
+
+    time: datetime
+    price: Decimal
+    change: Decimal
+    change_percent: Decimal
+    volume: int
+    foreign_sell_volume: int
+    foreign_buy_volume: int
+    foreign_net_buy: int
+    foreign_net_buy_change: int
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
