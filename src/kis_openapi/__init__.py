@@ -141,10 +141,12 @@ from .overseas_derivative_items import (
 from .overseas_index import OverseasIndex
 from .overseas_items import (
     OverseasBalance,
+    OverseasCorporateAction,
     OverseasIndustry,
     OverseasIndustryStock,
     OverseasOpenOrder,
     OverseasPosition,
+    OverseasRight,
     OverseasSettlementDate,
     OverseasStockSearch,
     OverseasStockSearchItem,
@@ -287,6 +289,7 @@ __all__ = [
     "OrderStore",
     "OtherRatio",
     "OverseasBalance",
+    "OverseasCorporateAction",
     "OverseasDerivative",
     "OverseasDerivativeDetail",
     "OverseasDerivativeMarketHours",
@@ -299,6 +302,7 @@ __all__ = [
     "OverseasPosition",
     "OverseasProductInfo",
     "OverseasRankingQueries",
+    "OverseasRight",
     "OverseasSettlementDate",
     "OverseasStockSearch",
     "OverseasStockSearchItem",

@@ -53,10 +53,12 @@ from .overseas_derivative_items import (
 from .overseas_index import OverseasIndex
 from .overseas_items import (
     OverseasBalance,
+    OverseasCorporateAction,
     OverseasIndustry,
     OverseasIndustryStock,
     OverseasOpenOrder,
     OverseasPosition,
+    OverseasRight,
     OverseasSettlementDate,
     OverseasStockSearch,
 )
@@ -361,6 +363,25 @@ class KISClient:
         """
         return overseas_reference_api.fetch_settlement_dates(
             self.transport, environment=self._environment
+        )
+
+    def overseas_rights(
+        self, *, start: str | date, end: str | date, right_type: str = "%%",
+        date_basis: str = "local_base", symbol: str = "", product_type: str = "",
+    ) -> list[OverseasRight]:
+        """기간별 해외증권 배당·증자·합병 등 권리."""
+        return overseas_reference_api.fetch_period_rights(
+            self.transport, start=start, end=end, right_type=right_type,
+            date_basis=date_basis, symbol=symbol, product_type=product_type,
+        )
+
+    def overseas_corporate_actions(
+        self, country: str, symbol: str, *, start: str | date | None = None,
+        end: str | date | None = None,
+    ) -> list[OverseasCorporateAction]:
+        """해외종목 권리·기업행사 종합 일정."""
+        return overseas_reference_api.fetch_corporate_actions(
+            self.transport, country=country, symbol=symbol, start=start, end=end
         )
 
     @property
