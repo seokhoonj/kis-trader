@@ -34,7 +34,7 @@ from .analysis import (
     VolumeProfile,
 )
 from .bar import Bar, Interval
-from .broker import BrokerActivitySummary, BrokerDailyActivity
+from .broker import BrokerActivitySummary, BrokerDailyActivity, BrokerTradeTicks
 from .errors import KISUsageError
 from .etf_items import (
     ETFNAV,
@@ -239,6 +239,16 @@ class Ticker:
         return market_data.fetch_broker_daily_activity(
             self._client.transport, symbol=self.symbol, member_code=member_code,
             start=start, end=end,
+        )
+
+    def broker_trade_ticks(
+        self, *, member_code: str = "99999", min_volume: int = 0
+    ) -> BrokerTradeTicks:
+        """회원사 실시간 매매동향 체결 틱."""
+        self._domestic_market()
+        return market_data.fetch_broker_trade_ticks(
+            self._client.transport, symbol=self.symbol,
+            member_code=member_code, min_volume=min_volume,
         )
 
     def after_hours_quote(self) -> AfterHoursQuote:

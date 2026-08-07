@@ -33,7 +33,13 @@ from .balance import Balance, Portfolio, Position
 from .bar import Bar, Interval
 from .bond import Bond
 from .bond_items import BondInfo, BondIssuance, BondQuote, BondValuation
-from .broker import BrokerActivity, BrokerActivitySummary, BrokerDailyActivity
+from .broker import (
+    BrokerActivity,
+    BrokerActivitySummary,
+    BrokerDailyActivity,
+    BrokerTradeTick,
+    BrokerTradeTicks,
+)
 from .calendar import CalendarQueries
 from .calendar_items import (
     AppraisalRights,
@@ -208,6 +214,8 @@ __all__ = [
     "BrokerActivitySummary",
     "BrokerDailyActivity",
     "BrokerOpinion",
+    "BrokerTradeTick",
+    "BrokerTradeTicks",
     "BuyableAmount",
     "CalendarQueries",
     "CapitalReduction",

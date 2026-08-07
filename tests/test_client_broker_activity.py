@@ -11,7 +11,12 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import BrokerActivitySummary, BrokerDailyActivity, KISClient
+from kis_openapi import (
+    BrokerActivitySummary,
+    BrokerDailyActivity,
+    BrokerTradeTicks,
+    KISClient,
+)
 from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
@@ -95,6 +100,29 @@ def test_broker_daily_activity_maps_and_routes():
         "params": {"FID_INPUT_ISCD": "005930", "FID_INPUT_ISCD_2": "0003",
                    "FID_INPUT_DATE_1": "20240501", "FID_INPUT_DATE_2": "20240510",
                    "FID_SCTN_CLS_CODE": ""},
+    }
+
+
+def test_broker_trade_ticks_maps_summary_and_route():
+    body = {
+        "output1": [{"total_seln_qty": "100", "total_shnu_qty": "130"}],
+        "output2": [{"bsop_hour": "101500", "mbcr_name": "외국계", "hts_kor_isnm": "삼성전자",
+                     "stck_prpr": "71500", "prdy_vrss": "500", "prdy_vrss_sign": "5",
+                     "cntg_vol": "1000", "acml_ntby_qty": "300", "glob_ntby_qty": "200",
+                     "frgn_ntby_qty_icdc": "50"}],
+    }
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body))
+    result = _client(fake).ticker("005930").broker_trade_ticks(min_volume=1000)
+    assert isinstance(result, BrokerTradeTicks)
+    assert result.total_buy_quantity == 130
+    assert result.ticks[0].change == Decimal(-500)
+    assert result.ticks[0].foreign_net_buy_change == 50
+    assert fake.calls[0] == {
+        "path": "/uapi/domestic-stock/v1/quotations/frgnmem-trade-trend",
+        "tr_id": "FHPST04320000",
+        "params": {"FID_COND_SCR_DIV_CODE": "20432", "FID_COND_MRKT_DIV_CODE": "J",
+                   "FID_INPUT_ISCD": "005930", "FID_INPUT_ISCD_2": "99999",
+                   "FID_MRKT_CLS_CODE": "", "FID_VOL_CNT": "1000"},
     }
 
 

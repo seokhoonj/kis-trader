@@ -25,7 +25,13 @@ from ..analysis import (
     RecentPricePoint,
 )
 from ..bar import Bar, Interval
-from ..broker import BrokerActivity, BrokerActivitySummary, BrokerDailyActivity
+from ..broker import (
+    BrokerActivity,
+    BrokerActivitySummary,
+    BrokerDailyActivity,
+    BrokerTradeTick,
+    BrokerTradeTicks,
+)
 from ..errors import KISError, KISUsageError
 from ..investor import (
     DetailedInvestorFlow,
@@ -301,6 +307,8 @@ _MEMBER_PATH = "/uapi/domestic-stock/v1/quotations/inquire-member"
 _MEMBER_TR = "FHKST01010600"
 _MEMBER_DAILY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-member-daily"
 _MEMBER_DAILY_TR = "FHPST04540000"
+_MEMBER_TICKS_PATH = "/uapi/domestic-stock/v1/quotations/frgnmem-trade-trend"
+_MEMBER_TICKS_TR = "FHPST04320000"
 _BROKER_TOP_N = 5           # KIS 회원사 상위 제공 개수(매도/매수 각각)
 
 _AFTER_HOURS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-overtime-price"
@@ -907,6 +915,48 @@ def fetch_broker_daily_activity(
             volume=required_int(row.get("acml_vol"), "acml_vol"), _raw=row,
         ))
     return activities
+
+
+def fetch_broker_trade_ticks(
+    transport: Transport, *, symbol: str, member_code: str = "99999", min_volume: int = 0
+) -> BrokerTradeTicks:
+    """한 종목의 회원사 실시간 매매동향 체결 틱."""
+    if not member_code.strip() or min_volume < 0:
+        raise KISUsageError("member_code 가 필요하고 min_volume 은 0 이상이어야 한다.")
+    resp = transport.request(
+        method="GET", path=_MEMBER_TICKS_PATH, tr_id=_MEMBER_TICKS_TR,
+        params={"FID_COND_SCR_DIV_CODE": "20432", "FID_COND_MRKT_DIV_CODE": "J",
+                "FID_INPUT_ISCD": symbol, "FID_INPUT_ISCD_2": member_code.strip(),
+                "FID_MRKT_CLS_CODE": "", "FID_VOL_CNT": str(min_volume)}, idempotent=True,
+    )
+    _raise_if_error(resp)
+    summaries, rows = resp.body.get("output1"), resp.body.get("output2")
+    if not isinstance(summaries, list) or not summaries or not isinstance(summaries[0], Mapping):
+        raise _missing_block_error("output1", resp)
+    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+        raise _missing_block_error("output2", resp)
+    as_of = datetime.now(_KST)
+    ticks = []
+    for row in rows:
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        ticks.append(BrokerTradeTick(
+            timestamp=_parse_intraday_timestamp(str(row.get("bsop_hour", "")).strip(), as_of),
+            member_name=str(row.get("mbcr_name", "")).strip(),
+            symbol_name=str(row.get("hts_kor_isnm", "")).strip(),
+            price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+            change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+            execution_volume=required_int(row.get("cntg_vol"), "cntg_vol"),
+            cumulative_net_buy_quantity=required_int(row.get("acml_ntby_qty"), "acml_ntby_qty"),
+            foreign_broker_net_buy_quantity=required_int(row.get("glob_ntby_qty"), "glob_ntby_qty"),
+            foreign_net_buy_change=required_int(row.get("frgn_ntby_qty_icdc"), "frgn_ntby_qty_icdc"),
+            _raw=row,
+        ))
+    summary = summaries[0]
+    return BrokerTradeTicks(
+        total_sell_quantity=required_int(summary.get("total_seln_qty"), "total_seln_qty"),
+        total_buy_quantity=required_int(summary.get("total_shnu_qty"), "total_shnu_qty"),
+        ticks=tuple(ticks),
+    )
 
 
 def _parse_broker_side(output: Mapping[str, Any], side: str) -> tuple[BrokerActivity, ...]:

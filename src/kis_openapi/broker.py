@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -60,3 +60,36 @@ class BrokerDailyActivity:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class BrokerTradeTick:
+    """회원사 실시간 매매동향의 한 체결 틱."""
+
+    timestamp: datetime
+    member_name: str
+    symbol_name: str
+    price: Decimal
+    change: Decimal
+    execution_volume: int
+    cumulative_net_buy_quantity: int
+    foreign_broker_net_buy_quantity: int
+    foreign_net_buy_change: int
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class BrokerTradeTicks:
+    """회원사 실시간 총매도·총매수와 체결 틱 목록."""
+
+    total_sell_quantity: int
+    total_buy_quantity: int
+    ticks: tuple[BrokerTradeTick, ...]
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "ticks", tuple(self.ticks))
