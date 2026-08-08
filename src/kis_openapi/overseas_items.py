@@ -91,6 +91,34 @@ class OverseasOpenOrder:
 
 
 @dataclass(frozen=True, slots=True)
+class OverseasBuyableAmount:
+    """해외주식 매수가능금액(불변). 거래소·종목·주문단가 기준. 금액은 조회 통화의 :class:`Money`.
+
+    ``orderable_amount`` 외화 기준 주문가능금액("외화" 화면), ``max_quantity`` 그 최대 주문가능수량,
+    ``integrated_orderable_amount``/``integrated_max_quantity`` 는 원화 통합("통합" 화면) 기준.
+    ``orderable_foreign_cash`` 주문가능외화금액, ``reusable_sell_amount`` 매도재사용가능금액,
+    ``exchange_rate`` 적용환율. **매수 시 수량단위 절사가 필요**(예: 100주 단위면 545 -> 500).
+    """
+
+    symbol: str
+    exchange: str                     # 주문 거래소코드(OVRS_EXCG_CD)
+    currency: str
+    orderable_foreign_cash: Money     # 주문가능외화금액(ord_psbl_frcr_amt)
+    reusable_sell_amount: Money       # 매도재사용가능금액(sll_ruse_psbl_amt)
+    orderable_amount: Money           # 해외주문가능금액(ovrs_ord_psbl_amt) -- 외화 기준
+    max_quantity: Decimal             # 최대주문가능수량(max_ord_psbl_qty) -- 외화 기준
+    integrated_orderable_amount: Money  # 외화주문가능금액1(frcr_ord_psbl_amt1) -- 통합 기준
+    integrated_max_quantity: Decimal  # 해외최대주문가능수량(ovrs_max_ord_psbl_qty) -- 통합 기준
+    exchange_rate: Decimal            # 환율(exrt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class OverseasBalance:
     """해외 계좌 손익 요약(불변). 조회한 거래소 그룹+통화 기준. 금액은 :class:`Money`.
 

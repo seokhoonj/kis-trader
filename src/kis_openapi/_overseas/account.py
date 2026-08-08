@@ -12,14 +12,26 @@ KIS URL/TR-id (원장 대조):
 from __future__ import annotations
 
 from collections.abc import Mapping
+from decimal import Decimal
 from typing import Any
 
 from .._domestic.market_data import _raise_if_error
-from .._wire import required_decimal, required_int
+from .._wire import (
+    format_wire_decimal,
+    optional_decimal,
+    required_decimal,
+    required_int,
+)
 from ..errors import KISError, KISUsageError
 from ..money import Money
-from ..overseas_items import OverseasBalance, OverseasOpenOrder, OverseasPosition
+from ..overseas_items import (
+    OverseasBalance,
+    OverseasBuyableAmount,
+    OverseasOpenOrder,
+    OverseasPosition,
+)
 from ..transport import Environment, Transport
+from .orders import _ORDER_EXCHANGE
 
 _POSITIONS_PATH = "/uapi/overseas-stock/v1/trading/inquire-balance"
 _POSITIONS_TR = {"real": "TTTS3012R", "demo": "VTTS3012R"}
@@ -28,6 +40,9 @@ _MAX_PAGES = 100
 
 _OPEN_ORDERS_PATH = "/uapi/overseas-stock/v1/trading/inquire-nccs"
 _OPEN_ORDERS_TR = "TTTS3018R"           # 모의투자 미지원(실전만)
+
+_BUYABLE_PATH = "/uapi/overseas-stock/v1/trading/inquire-psamount"
+_BUYABLE_TR = {"real": "TTTS3007R", "demo": "VTTS3007R"}
 #: 미체결 매매구분코드(원장). 01:매도, 02:매수.
 _SIDE = {"01": "sell", "02": "buy"}
 
@@ -154,6 +169,73 @@ def _parse_open_orders(
             )
         )
     return orders
+
+
+def fetch_buyable(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    symbol: str, exchange: str, price: object,
+) -> OverseasBuyableAmount:
+    """해외주식 매수가능금액. ``exchange`` 는 시세 거래소코드(NAS/NYS/AMS/HKS/SHS/SZS/TSE/HNX/HSX),
+    ``price`` 는 의도한 주문단가(0보다 큰 유한값). 단발 조회(다음조회 불가)."""
+    try:
+        order_exchange = _ORDER_EXCHANGE[exchange][0]
+    except KeyError:
+        raise KISUsageError(
+            f"지원하지 않는 해외 거래소코드: {exchange!r} ({'/'.join(_ORDER_EXCHANGE)})."
+        ) from None
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "OVRS_EXCG_CD": order_exchange,
+        "OVRS_ORD_UNPR": _format_order_unit_price(price),
+        "ITEM_CD": symbol,
+    }
+    resp = transport.request(
+        method="GET", path=_BUYABLE_PATH, tr_id=_BUYABLE_TR[environment],
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise KISError(
+            "해외 매수가능금액 응답에 output 이 없다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    currency = str(output.get("tr_crcy_cd", "")).strip()
+    return OverseasBuyableAmount(
+        symbol=symbol,
+        exchange=order_exchange,
+        currency=currency,
+        orderable_foreign_cash=_money_or_zero(output, "ord_psbl_frcr_amt", currency),
+        reusable_sell_amount=_money_or_zero(output, "sll_ruse_psbl_amt", currency),
+        orderable_amount=_money_or_zero(output, "ovrs_ord_psbl_amt", currency),
+        max_quantity=_decimal_or_zero(output, "max_ord_psbl_qty"),
+        integrated_orderable_amount=_money_or_zero(output, "frcr_ord_psbl_amt1", currency),
+        integrated_max_quantity=_decimal_or_zero(output, "ovrs_max_ord_psbl_qty"),
+        exchange_rate=_decimal_or_zero(output, "exrt"),
+        _raw=output,
+    )
+
+
+def _format_order_unit_price(price: object) -> str:
+    """주문단가를 KIS 와이어 정본으로. 0보다 큰 유한값이 아니면 거부."""
+    try:
+        amount = Decimal(str(price))
+    except (ArithmeticError, ValueError) as err:
+        raise KISUsageError(f"price 는 숫자여야 한다: {price!r}") from err
+    if not amount.is_finite() or amount <= 0:
+        raise KISUsageError(f"price 는 0보다 큰 유한값이어야 한다: {price!r}")
+    return format_wire_decimal(amount)
+
+
+def _money_or_zero(row: Mapping[str, Any], key: str, currency: str) -> Money:
+    """없으면 0(해당 통화), 있으면 파싱(값 있는데 실패면 예외). 매수가능금액 필드는 모두 optional."""
+    amount = optional_decimal(row.get(key), key)
+    return Money(Decimal(0) if amount is None else amount, currency)
+
+
+def _decimal_or_zero(row: Mapping[str, Any], key: str) -> Decimal:
+    amount = optional_decimal(row.get(key), key)
+    return Decimal(0) if amount is None else amount
 
 
 def _request_page(

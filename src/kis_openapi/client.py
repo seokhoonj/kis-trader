@@ -56,6 +56,7 @@ from .overseas_derivative_items import (
 from .overseas_index import OverseasIndex
 from .overseas_items import (
     OverseasBalance,
+    OverseasBuyableAmount,
     OverseasCollateralStock,
     OverseasCorporateAction,
     OverseasIndustry,
@@ -504,6 +505,17 @@ class KISClient:
         return overseas_account.fetch_balance(
             self._transport, cano=cano, product_code=product_code,
             environment=self._environment, market=market,
+        )
+
+    def overseas_buyable(self, symbol: str, *, exchange: str, price: object) -> OverseasBuyableAmount:
+        """해외주식 매수가능금액. ``exchange`` 는 시세 거래소코드(NAS/NYS/AMS/HKS/SHS/SZS/TSE/HNX/HSX),
+        ``price`` 는 의도한 주문단가. 국내 :meth:`~kis_openapi.ticker.Ticker.buyable` 의 해외판이며
+        외화·통합 기준 주문가능금액·최대수량을 :class:`~kis_openapi.money.Money` 로 준다(계좌 정보
+        필요). **매수 시 수량단위 절사가 필요**하다."""
+        cano, product_code = self._require_account()
+        return overseas_account.fetch_buyable(
+            self._transport, cano=cano, product_code=product_code,
+            environment=self._environment, symbol=symbol, exchange=exchange, price=price,
         )
 
     def overseas_open_orders(self, *, market: str) -> list[OverseasOpenOrder]:
