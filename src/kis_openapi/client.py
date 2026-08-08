@@ -593,6 +593,32 @@ class KISClient:
             start=start, end=end, process=process,
         )
 
+    def cancel_reserved_order(self, sequence: str, *, order_date: str | None = None) -> None:
+        """예약주문을 취소한다 -- ``sequence`` 는 :meth:`~kis_openapi.ticker.Ticker.reserve_buy` 가 돌려준
+        리포트의 ``order_id``(예약주문순번). 정상 처리면 조용히 반환, 아니면 예외. ``order_date``(YYYYMMDD)는
+        선택(예약주문조회의 ``order_date``). **모의투자 미지원**(계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        reserved_orders_api.cancel_reserved_order(
+            self._transport, sequence=sequence, order_date=order_date,
+            cano=cano, product_code=product_code, environment=self._environment,
+        )
+
+    def modify_reserved_order(
+        self, sequence: str, *, symbol: str, side: Side, quantity: object,
+        price: object | None = None, end_date: str | None = None, order_date: str | None = None,
+    ) -> None:
+        """예약주문을 정정한다 -- 브로커 규격상 종목/방향/수량/단가/종료일을 **전체 재지정**한다.
+        ``sequence`` 로 대상을 지목한다(예약주문조회/발주 리포트에서 얻음). ``price`` 를 생략하면 기존
+        단가 유지가 아니라 **시장가**로 바뀐다. 정정 후 순번이 바뀔 수 있으므로 이후 정정·취소가 필요하면
+        :meth:`reserved_orders` 로 현재 순번을 재확인하라. 정상 처리면 조용히 반환, 아니면 예외.
+        **모의투자 미지원**, 국내 현금 예약만(계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        reserved_orders_api.modify_reserved_order(
+            self._transport, sequence=sequence, symbol=symbol, side=side, quantity=quantity,
+            price=price, end_date=end_date, order_date=order_date,
+            cano=cano, product_code=product_code, environment=self._environment,
+        )
+
     def open_orders(self) -> list[OpenOrder]:
         """미체결(정정·취소 가능) 주문 목록. 브로커 측 뷰라 우리 ``client_order_id`` 는 없고
         KIS 주문번호로 식별한다. 정정/취소 전 ``cancelable_quantity`` 를 확인하라. **모의투자

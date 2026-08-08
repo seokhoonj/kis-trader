@@ -40,6 +40,9 @@ _INQUIRE_PATH = "/uapi/domestic-stock/v1/trading/order-resv-ccnl"
 _INQUIRE_TR = "CTSC0004R"          # 모의투자 미지원
 _PLACE_PATH = "/uapi/domestic-stock/v1/trading/order-resv"
 _PLACE_TR = "CTSC0008U"            # 모의투자 미지원
+_CHANGE_PATH = "/uapi/domestic-stock/v1/trading/order-resv-rvsecncl"
+_CANCEL_TR = "CTSC0009U"           # 예약취소, 모의투자 미지원
+_MODIFY_TR = "CTSC0013U"           # 예약정정, 모의투자 미지원
 #: 예약주문 조회 연속조회 페이지 상한. 닿으면 fail-closed.
 _MAX_PAGES = 100
 _SIDE = {"01": "sell", "02": "buy"}
@@ -270,6 +273,117 @@ def reconcile_reserved_order(
     )
     store.record(report, fingerprint)
     return report
+
+
+# --- 예약주문 정정/취소 (뮤테이션) ----------------------------------------
+def cancel_reserved_order(
+    transport: Transport, *, sequence: str, order_date: str | None = None,
+    cano: str, product_code: str, environment: Environment,
+) -> None:
+    """예약주문을 취소한다 -- ``sequence`` 는 예약주문순번(:attr:`ExecutionReport.order_id`). 정상
+    처리(nrml_prcs_yn=Y)면 조용히 반환(정정취소 응답엔 리포트로 만들 값이 없어 반환값이 없다).
+
+    취소는 순번 대상의 멱등적 연산(이미 취소/처리면 브로커가 거부)이라 즉시주문 dedup 스토어를 거치지
+    않되, 타임아웃(처리 불명)엔 재전송하지 않는다. ``order_date``(YYYYMMDD)는 선택이며(원장상 순번만
+    필수) 같은 순번이 여러 날에 재사용될 때 대상을 좁히는 용도다. **모의투자 미지원**. 실패는
+    :class:`KISUsageError`(demo/빈 순번/잘못된 order_date)·:class:`OrderRejectedError`(rt_cd!=0)·
+    :class:`KISError`(정상처리 아님)·:class:`OrderTimeoutError`(타임아웃)."""
+    if environment == "demo":
+        raise KISUsageError("예약주문 취소(order-resv-rvsecncl)는 모의투자 미지원 -- 실전에서만.")
+    if not str(sequence).strip():
+        raise KISUsageError("취소할 예약주문순번(sequence)이 필요하다.")
+    if order_date is not None:
+        validate_yyyymmdd(order_date, "order_date")
+    body = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "RSVN_ORD_SEQ": str(sequence).strip(),
+        "RSVN_ORD_ORGNO": "", "RSVN_ORD_ORD_DT": order_date or "",
+    }
+    _send_change(transport, _CANCEL_TR, body, sequence, action="취소")
+
+
+def modify_reserved_order(
+    transport: Transport, *, sequence: str, symbol: str, side: Side, quantity: object,
+    price: object | None = None, end_date: str | None = None, order_date: str | None = None,
+    cano: str, product_code: str, environment: Environment,
+) -> None:
+    """예약주문을 정정한다 -- 브로커 규격상 **전체 재지정**(종목/방향/수량/단가/종료일)을 요구한다.
+    ``sequence`` 로 대상을 지목한다. 정상 처리면 조용히 반환(응답에 새 순번/리포트가 없다), 아니면 예외.
+    **모의투자 미지원**, 국내 현금 예약만.
+
+    주의: ``price`` 를 생략하면 **시장가**가 된다(기존 단가 유지가 아니라 시장가 전환). 정정 후 브로커가
+    순번을 바꿀 수 있으므로(응답은 새 순번을 주지 않는다) 이후 정정·취소가 필요하면 :func:`fetch_reserved_orders`
+    로 현재 순번을 재확인하라. 정정도 순번 대상의 절대 재지정이라 dedup 스토어를 거치지 않되 타임아웃엔
+    재전송하지 않는다. 실패 예외는 :func:`cancel_reserved_order` 와 같고, 인자 검증(side/quantity/price/
+    end_date)은 :class:`KISUsageError`."""
+    if environment == "demo":
+        raise KISUsageError("예약주문 정정(order-resv-rvsecncl)은 모의투자 미지원 -- 실전에서만.")
+    if not str(sequence).strip():
+        raise KISUsageError("정정할 예약주문순번(sequence)이 필요하다.")
+    if side not in _SIDE_CODE:
+        raise KISUsageError(f"side 는 buy/sell 이어야 한다: {side!r}")
+    qty = coerce_decimal(quantity, "quantity")
+    if qty <= 0 or qty != qty.to_integral_value():
+        raise KISUsageError(f"예약주문 수량은 0보다 큰 정수(주)여야 한다: {qty}")
+    order_type = "limit" if price is not None else "market"
+    limit_price = None
+    if price is not None:
+        limit_price = coerce_decimal(price, "price")
+        if not limit_price.is_finite() or limit_price <= 0:
+            raise KISUsageError(f"price 는 0보다 큰 유한값이어야 한다: {price!r}")
+    if end_date is not None:
+        validate_yyyymmdd(end_date, "end_date")  # strptime 이 형식+실재 날짜를 함께 검증
+    if order_date is not None:
+        validate_yyyymmdd(order_date, "order_date")
+    body = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": symbol,
+        "ORD_QTY": format_wire_decimal(qty),
+        "ORD_UNPR": "0" if limit_price is None else format_wire_decimal(limit_price),
+        "SLL_BUY_DVSN_CD": _SIDE_CODE[side],
+        "ORD_DVSN_CD": _ORD_DVSN_CD[order_type],
+        "ORD_OBJT_CBLC_DVSN_CD": _CASH_BALANCE_DIVISION,
+        "LOAN_DT": "", "RSVN_ORD_END_DT": end_date or "", "CTAC_TLNO": "",
+        "RSVN_ORD_SEQ": str(sequence).strip(),
+        "RSVN_ORD_ORGNO": "", "RSVN_ORD_ORD_DT": order_date or "",
+    }
+    _send_change(transport, _MODIFY_TR, body, sequence, action="정정")
+
+
+def _send_change(
+    transport: Transport, tr_id: str, body: Mapping[str, Any], sequence: str, *, action: str
+) -> None:
+    """예약 정정/취소 와이어 전송 -- 무재시도. 정상처리(nrml_prcs_yn=Y)면 반환, 아니면 예외."""
+    try:
+        resp = transport.request(
+            method="POST", path=_CHANGE_PATH, tr_id=tr_id, body=dict(body), idempotent=False
+        )
+    except TransportTimeout as err:
+        raise OrderTimeoutError(
+            f"예약주문 {action} 요청 시간초과 -- 처리 여부가 불명이다. 재전송하지 말고 예약주문조회로 "
+            f"상태를 확인하라(예약순번 {sequence}).",
+            client_order_id=str(sequence),   # 이 흐름엔 client_order_id 가 없어 예약순번을 넣는다
+        ) from err
+    if not resp.ok:
+        raise OrderRejectedError(
+            f"예약주문 {action} 요청 거부: {resp.msg1}",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    # nrml_prcs_yn 위치가 원장 응답예시로 확정되지 않아(layout=output 하위) output 과 본문 최상위를
+    # 모두 본다 -- verify-fields 리스크(layout vs example 불일치) 헤지.
+    output = resp.body.get("output")
+    if isinstance(output, list):
+        output = output[0] if output else {}
+    normal = ""
+    if isinstance(output, Mapping) and str(output.get("nrml_prcs_yn", "")).strip():
+        normal = str(output.get("nrml_prcs_yn", "")).strip()
+    elif str(resp.body.get("nrml_prcs_yn", "")).strip():
+        normal = str(resp.body.get("nrml_prcs_yn", "")).strip()
+    if normal.upper() != "Y":
+        raise KISError(
+            f"예약주문 {action} 가 정상 처리되지 않았다(nrml_prcs_yn={normal!r}) -- 순번 {sequence}. "
+            f"예약주문조회로 상태를 확인하라.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
 
 
 def _filter_matching_reserved(
