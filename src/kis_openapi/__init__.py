@@ -171,6 +171,7 @@ from .overseas_items import (
 from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
 from .overseas_ranking_items import RankedOverseasStock
+from .pension_items import PensionBuyableAmount, PensionDeposit
 from .product import ProductInfo
 from .program import DailyProgramTradePoint, ProgramTradeActivity, ProgramTradePoint
 from .quote import Quote
@@ -348,6 +349,8 @@ __all__ = [
     "OverseasTransaction",
     "OvertimeRanking",
     "ParValueChange",
+    "PensionBuyableAmount",
+    "PensionDeposit",
     "Portfolio",
     "Position",
     "PriceLevel",
