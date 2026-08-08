@@ -487,6 +487,21 @@ class Ticker:
             environment=self._client.environment, symbol=self.symbol, limit_price=limit_price,
         )
 
+    def credit_buyable(
+        self, *, credit_type: str = "21", limit_price: object | None = None
+    ) -> BuyableAmount:
+        """이 종목의 신용(융자/대주) 매수가능 여력. ``credit_type`` 신용유형(기본 21 자기융자신규,
+        22 유통대주신규/23 유통융자신규/24 자기대주신규/25~28 각 상환), ``limit_price`` 없으면
+        시장가 기준. 현금 :meth:`buyable` 과 같은 :class:`~kis_openapi.orderable.BuyableAmount` 를
+        주며, 신용 전용 필드는 ``_raw`` 로 본다. **모의투자 미지원**."""
+        self._domestic_market()        # 해외 미지원
+        cano, product_code = self._client._require_account()
+        return account_api.fetch_credit_buyable(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, symbol=self.symbol,
+            credit_type=credit_type, limit_price=limit_price,
+        )
+
     def sellable(self) -> SellableQuantity:
         """이 종목의 매도가능 수량. **모의투자 미지원**(demo면 :class:`~kis_openapi.errors.KISUsageError`)."""
         self._domestic_market()        # 해외 미지원

@@ -34,6 +34,12 @@ _BUYABLE_TR = {"real": "TTTC8908R", "demo": "VTTC8908R"}
 _SELLABLE_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-sell"
 _SELLABLE_TR = "TTTC8408R"  # 모의투자 미지원 -- demo TR 없음
 
+_CREDIT_BUYABLE_PATH = "/uapi/domestic-stock/v1/trading/inquire-credit-psamount"
+_CREDIT_BUYABLE_TR = "TTTC8909R"  # 모의투자 미지원
+#: 신용유형(원장 코드표). 21 자기융자신규/22 유통대주신규/23 유통융자신규/24 자기대주신규/
+#: 25 자기융자상환/26 유통대주상환/27 유통융자상환/28 자기대주상환.
+_CREDIT_TYPES = frozenset({"21", "22", "23", "24", "25", "26", "27", "28"})
+
 _OPEN_ORDERS_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-rvsecncl"
 _OPEN_ORDERS_TR = "TTTC0084R"  # 정정취소가능주문조회, 모의투자 미지원
 #: 미체결 주문 연속조회 페이지 상한(한 콜 최대 50건). 닿으면 fail-closed.
@@ -221,6 +227,47 @@ def fetch_sellable(
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
     return _parse_sellable(output1, symbol=symbol)
+
+
+def fetch_credit_buyable(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    symbol: str, credit_type: str, limit_price: object | None = None,
+) -> BuyableAmount:
+    """신용(융자/대주) 매수가능 여력. ``credit_type`` 은 신용유형(21 자기융자신규 등),
+    ``limit_price`` 없으면 시장가 기준. **모의투자 미지원**.
+
+    현금 매수가능(:func:`fetch_buyable`)과 output 형상이 같아 :class:`BuyableAmount` 를 공유한다
+    -- 신용 전용 필드(주문가능대용·펀드환매대금·CMA평가금액 등)는 ``_raw`` 로 접근한다.
+    """
+    if environment == "demo":
+        raise KISUsageError(
+            "신용매수가능조회(inquire-credit-psamount)는 모의투자 미지원 -- 실전에서만."
+        )
+    if credit_type not in _CREDIT_TYPES:
+        raise KISUsageError(
+            f"지원하지 않는 신용유형: {credit_type!r} ({'/'.join(sorted(_CREDIT_TYPES))})."
+        )
+    unit_price = _format_order_unit_price(limit_price)
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "PDNO": symbol,
+        "ORD_UNPR": unit_price or "0",  # 시장가면 공란 대신 "0"(원장 권고)
+        "ORD_DVSN": "00" if limit_price is not None else "01",  # 지정가/시장가
+        "CRDT_TYPE": credit_type,
+        "CMA_EVLU_AMT_ICLD_YN": "N", "OVRS_ICLD_YN": "N",
+    }
+    resp = transport.request(
+        method="GET", path=_CREDIT_BUYABLE_PATH, tr_id=_CREDIT_BUYABLE_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise KISError(
+            "신용매수가능조회 응답에 output 이 없다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    return _parse_buyable(output, symbol=symbol)
 
 
 def _parse_buyable(output: Mapping[str, Any], *, symbol: str) -> BuyableAmount:
