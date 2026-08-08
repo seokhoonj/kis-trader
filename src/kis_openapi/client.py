@@ -32,6 +32,7 @@ from ._overseas import derivatives as overseas_derivatives_api
 from ._overseas import market_data as overseas_market_data_api
 from ._overseas import orders as overseas_orders_engine
 from ._overseas import reference as overseas_reference_api
+from .account_right import AccountRight
 from .balance import AccountAssets, Balance, Portfolio, Position
 from .bond import Bond
 from .calendar import CalendarQueries
@@ -504,6 +505,16 @@ class KISClient:
         return account_api.fetch_daily_profits(
             self._transport, cano=cano, product_code=product_code, environment=self._environment,
             start=start, end=end, symbol=symbol, sort=sort,
+        )
+
+    def account_rights(self, *, start: str, end: str) -> list[AccountRight]:
+        """기간별 계좌 권리현황 -- 이 계좌에 배정/신청/환불된 권리(유상·무상 증자·배당·상환 등).
+        ``start``/``end`` 는 기간(YYYYMMDD). 시장 전체 일정을 보는 :attr:`calendar` 와 달리 실제 계좌
+        내역이다. **모의투자 미지원**(demo면 :class:`~kis_openapi.errors.KISUsageError`; 계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return account_api.fetch_account_rights(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment,
+            start=start, end=end,
         )
 
     def account_assets(self) -> AccountAssets:

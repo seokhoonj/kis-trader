@@ -11,6 +11,7 @@ Securities (KIS) Open API.
 from __future__ import annotations
 
 from ._masters import MasterIndex, MasterRecord
+from .account_right import AccountRight
 from .after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
 from .analysis import (
     AnalystOpinion,
@@ -210,6 +211,7 @@ __all__ = [
     "ELW",
     "ETFNAV",
     "AccountAssets",
+    "AccountRight",
     "AfterHourBalanceRanking",
     "AfterHoursConclusion",
     "AfterHoursDailyPrice",

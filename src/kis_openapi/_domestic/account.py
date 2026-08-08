@@ -18,6 +18,7 @@ from decimal import Decimal
 from typing import Any
 
 from .._wire import format_wire_decimal, optional_decimal, required_decimal
+from ..account_right import AccountRight
 from ..balance import AccountAssets, Balance, Portfolio, Position
 from ..errors import KISError, KISUsageError
 from ..open_order import OpenOrder
@@ -55,6 +56,9 @@ _TRADE_PROFIT_SORT = {"recent": "00", "oldest": "01"}
 
 _DAILY_PROFIT_PATH = "/uapi/domestic-stock/v1/trading/inquire-period-profit"
 _DAILY_PROFIT_TR = "TTTC8708R"  # 모의투자 미지원
+
+_RIGHTS_PATH = "/uapi/domestic-stock/v1/trading/period-rights"
+_RIGHTS_TR = "CTRGA011R"  # 모의투자 미지원
 #: 신용유형(원장 코드표). 21 자기융자신규/22 유통대주신규/23 유통융자신규/24 자기대주신규/
 #: 25 자기융자상환/26 유통대주상환/27 유통융자상환/28 자기대주상환.
 _CREDIT_TYPES = frozenset({"21", "22", "23", "24", "25", "26", "27", "28"})
@@ -482,6 +486,78 @@ def _parse_daily_profit(row: Mapping[str, Any]) -> DailyProfit:
         loan_interest=_decimal_or_zero(row.get("loan_int"), "loan_int"),
         buy_quantity=_decimal_or_zero(row.get("buy_qty1"), "buy_qty1"),
         sell_quantity=_decimal_or_zero(row.get("sll_qty1"), "sll_qty1"),
+        _raw=row,
+    )
+
+
+def fetch_account_rights(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str,
+) -> list[AccountRight]:
+    """기간별 계좌 권리현황(유상·무상 배정·배당·상환 등). ``start``/``end`` 는 기간(YYYYMMDD).
+    응답 배열 키는 원장 예시 기준 ``output``(레이아웃의 output1 과 다름). **모의투자 미지원**."""
+    if environment == "demo":
+        raise KISUsageError(
+            "기간별계좌권리현황조회(period-rights)는 모의투자 미지원 -- 실전에서만."
+        )
+    rows: list[Mapping[str, Any]] = []
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_BALANCE_PAGES):
+        params = {
+            "INQR_DVSN": "03", "CUST_RNCNO25": "", "HMID": "",
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "INQR_STRT_DT": start, "INQR_END_DT": end,
+            "RGHT_TYPE_CD": "", "PDNO": "", "PRDT_TYPE_CD": "",
+            "CTX_AREA_FK100": ctx_fk, "CTX_AREA_NK100": ctx_nk,
+        }
+        resp = transport.request(
+            method="GET", path=_RIGHTS_PATH, tr_id=_RIGHTS_TR,
+            params=params, idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        page = resp.body.get("output")  # 원장 예시 키는 output(레이아웃 output1 과 불일치)
+        if not isinstance(page, list):  # 빈 내역도 배열 -> 부재/비배열은 손상
+            raise KISError(
+                "계좌권리현황 응답의 output 이 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"계좌권리현황 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다."
+        )
+    return [_parse_account_right(row) for row in rows if str(row.get("pdno", "")).strip()]
+
+
+def _parse_account_right(row: Mapping[str, Any]) -> AccountRight:
+    return AccountRight(
+        account_number=str(row.get("acno10", "")).strip(),
+        right_type_code=str(row.get("rght_type_cd", "")).strip(),
+        record_date=_parse_date(row.get("bass_dt")),
+        symbol=str(row.get("pdno", "")).strip(),
+        short_symbol=str(row.get("shtn_pdno", "")).strip(),
+        name=str(row.get("prdt_name", "")).strip(),
+        balance_quantity=_decimal_or_zero(row.get("cblc_qty"), "cblc_qty"),
+        allocated_quantity=_decimal_or_zero(row.get("last_alct_qty"), "last_alct_qty"),
+        excess_allocated_quantity=_decimal_or_zero(row.get("excs_alct_qty"), "excs_alct_qty"),
+        total_allocated_quantity=_decimal_or_zero(row.get("tot_alct_qty"), "tot_alct_qty"),
+        allocated_amount=_decimal_or_zero(row.get("last_alct_amt"), "last_alct_amt"),
+        subscription_price=_decimal_or_zero(row.get("sbsc_unpr"), "sbsc_unpr"),
+        requested_quantity=_decimal_or_zero(row.get("rqst_qty"), "rqst_qty"),
+        requested_amount=_decimal_or_zero(row.get("rqst_amt"), "rqst_amt"),
+        request_date=_parse_date(row.get("rqst_dt")),
+        subscription_end_date=_parse_date(row.get("sbsc_end_dt")),
+        listing_date=_parse_date(row.get("lstg_dt")),
+        cash_payment_date=_parse_date(row.get("cash_dfrm_dt")),
+        refund_date=_parse_date(row.get("rfnd_dt")),
+        refund_amount=_decimal_or_zero(row.get("rfnd_amt"), "rfnd_amt"),
+        tax_amount=_decimal_or_zero(row.get("tax_amt"), "tax_amt"),
         _raw=row,
     )
 
