@@ -193,6 +193,7 @@ from .ranking_items import (
     TopViewedStock,
 )
 from .report import ExecutionReport, OrderStatus
+from .reserved_order import ReservedOrder
 from .risk import RiskLimits
 from .saved_screen import (
     SavedScreen,
@@ -376,6 +377,7 @@ __all__ = [
     "RankedStock",
     "RankingQueries",
     "RecentPricePoint",
+    "ReservedOrder",
     "RightsOffering",
     "RiskLimits",
     "SavedScreen",

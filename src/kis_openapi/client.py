@@ -20,6 +20,7 @@ from ._domestic import market_data as market_data_api
 from ._domestic import orders as orders_engine
 from ._domestic import pension as pension_api
 from ._domestic import product as product_api
+from ._domestic import reserved_orders as reserved_orders_api
 from ._domestic import saved_screen as saved_screen_api
 from ._masters import (
     Fetch,
@@ -85,6 +86,7 @@ from .product import ProductInfo
 from .quote import Quote
 from .ranking import RankingQueries
 from .report import ExecutionReport
+from .reserved_order import ReservedOrder
 from .risk import RiskLimits
 from .saved_screen import SavedScreen, SavedScreenStock, Watchlist, WatchlistGroup
 from .store import OrderStore
@@ -576,6 +578,19 @@ class KISClient:
         cano, product_code = self._require_account()
         return account_api.fetch_account_assets(
             self._transport, cano=cano, product_code=product_code, environment=self._environment
+        )
+
+    def reserved_orders(
+        self, *, start: str, end: str, process: str = "all"
+    ) -> list[ReservedOrder]:
+        """예약주문 목록 -- 다음 영업일 동시호가 등에 걸어둔 예약주문. ``start``/``end`` 는 예약주문일자
+        기간(YYYYMMDD), ``process`` = ``"all"``/``"processed"``/``"unprocessed"``. 각 건의 ``sequence``
+        (예약순번)로 정정·취소한다. **모의투자 미지원**(demo면 :class:`~kis_openapi.errors.KISUsageError`;
+        계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return reserved_orders_api.fetch_reserved_orders(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment,
+            start=start, end=end, process=process,
         )
 
     def open_orders(self) -> list[OpenOrder]:
