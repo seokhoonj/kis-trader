@@ -74,7 +74,13 @@ from .overseas_items import (
 )
 from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
-from .pension_items import PensionBuyableAmount, PensionDeposit
+from .pension_items import (
+    PensionBalance,
+    PensionBuyableAmount,
+    PensionDeposit,
+    PensionOrder,
+    PensionPresentBalance,
+)
 from .product import ProductInfo
 from .quote import Quote
 from .ranking import RankingQueries
@@ -526,6 +532,31 @@ class KISClient:
         return pension_api.fetch_buyable(
             self._transport, cano=cano, product_code=product_code, environment=self._environment,
             symbol=symbol, limit_price=limit_price,
+        )
+
+    def pension_balance(self) -> PensionBalance:
+        """퇴직연금 잔고 -- 보유종목과 예수금 기준 계좌 요약을 한 조회로. **모의투자 미지원**
+        (demo면 :class:`~kis_openapi.errors.KISUsageError`; 계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return pension_api.fetch_balance(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment
+        )
+
+    def pension_present_balance(self) -> PensionPresentBalance:
+        """퇴직연금 체결기준잔고 -- 체결기준 보유종목과 손익 요약. **모의투자 미지원**(demo면
+        :class:`~kis_openapi.errors.KISUsageError`; 계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return pension_api.fetch_present_balance(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment
+        )
+
+    def pension_orders(self, *, only_unfilled: bool = False) -> list[PensionOrder]:
+        """퇴직연금 당일 주문 내역(체결/미체결). ``only_unfilled=True`` 면 미체결만. **모의투자
+        미지원**(demo면 :class:`~kis_openapi.errors.KISUsageError`; 계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return pension_api.fetch_orders(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment,
+            only_unfilled=only_unfilled,
         )
 
     def account_rights(self, *, start: str, end: str) -> list[AccountRight]:
