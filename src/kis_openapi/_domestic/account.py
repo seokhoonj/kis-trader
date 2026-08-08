@@ -18,7 +18,7 @@ from decimal import Decimal
 from typing import Any
 
 from .._wire import format_wire_decimal, optional_decimal, required_decimal
-from ..balance import Balance, Portfolio, Position
+from ..balance import AccountAssets, Balance, Portfolio, Position
 from ..errors import KISError, KISUsageError
 from ..open_order import OpenOrder
 from ..orderable import BuyableAmount, SellableQuantity
@@ -36,6 +36,9 @@ _SELLABLE_TR = "TTTC8408R"  # 모의투자 미지원 -- demo TR 없음
 
 _CREDIT_BUYABLE_PATH = "/uapi/domestic-stock/v1/trading/inquire-credit-psamount"
 _CREDIT_BUYABLE_TR = "TTTC8909R"  # 모의투자 미지원
+
+_ASSETS_PATH = "/uapi/domestic-stock/v1/trading/inquire-account-balance"
+_ASSETS_TR = "CTRP6548R"  # 모의투자 미지원
 #: 신용유형(원장 코드표). 21 자기융자신규/22 유통대주신규/23 유통융자신규/24 자기대주신규/
 #: 25 자기융자상환/26 유통대주상환/27 유통융자상환/28 자기대주상환.
 _CREDIT_TYPES = frozenset({"21", "22", "23", "24", "25", "26", "27", "28"})
@@ -291,6 +294,47 @@ def _parse_sellable(output1: Mapping[str, Any], *, symbol: str) -> SellableQuant
         quantity=_decimal_or_zero(output1.get("cblc_qty"), "cblc_qty"),
         sellable_quantity=_decimal_or_zero(output1.get("ord_psbl_qty"), "ord_psbl_qty"),
         _raw=output1,
+    )
+
+
+# --- 투자계좌 자산현황 -----------------------------------------------------
+def fetch_account_assets(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment
+) -> AccountAssets:
+    """투자계좌 자산현황 요약(output2). 자산군별 내역(output1)은 위치기반이라 ``_raw`` 로만 둔다.
+    **모의투자 미지원**."""
+    if environment == "demo":
+        raise KISUsageError(
+            "투자계좌자산현황조회(inquire-account-balance)는 모의투자 미지원 -- 실전에서만."
+        )
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "INQR_DVSN_1": "", "BSPR_BF_DT_APLY_YN": "",
+    }
+    resp = transport.request(
+        method="GET", path=_ASSETS_PATH, tr_id=_ASSETS_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    summary = resp.body.get("output2")
+    if not isinstance(summary, Mapping):
+        raise KISError(
+            "투자계좌자산현황 응답에 요약(output2)이 없다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    return AccountAssets(
+        total_asset_amount=required_decimal(summary.get("tot_asst_amt"), "tot_asst_amt"),
+        net_asset_total=required_decimal(summary.get("nass_tot_amt"), "nass_tot_amt"),
+        purchase_amount_total=required_decimal(summary.get("pchs_amt_smtl"), "pchs_amt_smtl"),
+        evaluation_amount_total=required_decimal(summary.get("evlu_amt_smtl"), "evlu_amt_smtl"),
+        evaluation_pnl_total=required_decimal(summary.get("evlu_pfls_amt_smtl"), "evlu_pfls_amt_smtl"),
+        loan_amount_total=required_decimal(summary.get("loan_amt_smtl"), "loan_amt_smtl"),
+        deposit_total=required_decimal(summary.get("tot_dncl_amt"), "tot_dncl_amt"),
+        deposit=required_decimal(summary.get("dncl_amt"), "dncl_amt"),
+        foreign_evaluation_total=required_decimal(summary.get("frcr_evlu_tota"), "frcr_evlu_tota"),
+        overseas_stock_evaluation=required_decimal(summary.get("ovrs_stck_evlu_amt1"), "ovrs_stck_evlu_amt1"),
+        substitute_amount_total=required_decimal(summary.get("tot_sbst_amt"), "tot_sbst_amt"),
+        today_receivable=required_decimal(summary.get("thdt_rcvb_amt"), "thdt_rcvb_amt"),
+        _raw=resp.body,
     )
 
 

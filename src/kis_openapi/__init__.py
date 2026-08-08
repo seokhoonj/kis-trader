@@ -29,7 +29,7 @@ from .analysis import (
     VolumeAtPrice,
     VolumeProfile,
 )
-from .balance import Balance, Portfolio, Position
+from .balance import AccountAssets, Balance, Portfolio, Position
 from .bar import Bar, Interval
 from .bond import Bond
 from .bond_items import BondDailyPrice, BondInfo, BondIssuance, BondQuote, BondValuation
@@ -201,6 +201,7 @@ __version__ = "0.0.0"
 __all__ = [
     "ELW",
     "ETFNAV",
+    "AccountAssets",
     "AfterHourBalanceRanking",
     "AfterHoursConclusion",
     "AfterHoursDailyPrice",

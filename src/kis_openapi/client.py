@@ -32,7 +32,7 @@ from ._overseas import derivatives as overseas_derivatives_api
 from ._overseas import market_data as overseas_market_data_api
 from ._overseas import orders as overseas_orders_engine
 from ._overseas import reference as overseas_reference_api
-from .balance import Balance, Portfolio, Position
+from .balance import AccountAssets, Balance, Portfolio, Position
 from .bond import Bond
 from .calendar import CalendarQueries
 from .derivative import Derivative
@@ -474,6 +474,15 @@ class KISClient:
         """보유 종목 전체(0수량 잔여 lot 포함)."""
         cano, product_code = self._require_account()
         return account_api.fetch_positions(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment
+        )
+
+    def account_assets(self) -> AccountAssets:
+        """투자계좌 자산현황 요약 -- 총자산·순자산·예수금·대출·외화까지 계좌 전반. 주식 잔고 요약
+        :meth:`balance` 보다 넓다. 자산군별 내역은 위치기반이라 반환값 ``_raw`` 로만 둔다. **모의투자
+        미지원**(demo면 :class:`~kis_openapi.errors.KISUsageError`; 계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return account_api.fetch_account_assets(
             self._transport, cano=cano, product_code=product_code, environment=self._environment
         )
 
