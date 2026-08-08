@@ -20,12 +20,20 @@ from .errors import KISUsageError
 Side = Literal["buy", "sell"]
 OrderType = Literal["market", "limit", "stop", "stop_limit"]
 TimeInForce = Literal["day", "gtc", "ioc", "fok"]
+#: 국내 신용주문 유형 코드(원장 코드표). 매수/매도별로 유효 코드가 다르고(아래 상수), 신규/상환
+#: 여부로 대출일자(LOAN_DT) 요구가 갈린다.
+CreditType = Literal["21", "22", "23", "24", "25", "26", "27", "28"]
 
 
 class Fingerprint(NamedTuple):
     """주문의 요청 지문(멱등 dedup 키). 필드를 이름으로 읽어 매직 인덱스를 없앤다 -- 특히
     ``exchange`` 로 국내/해외 재조회 경로를 가르므로 위치 이동에 취약하면 안전 라우팅이 깨진다.
-    수치 필드는 와이어와 같은 정본 문자열(:func:`format_wire_decimal`)이다."""
+    수치 필드는 와이어와 같은 정본 문자열(:func:`format_wire_decimal`)이다.
+
+    ``credit_type`` 은 신용주문 유형(현금주문은 ``""``), ``loan_date`` 는 그 신용주문의 대출일자
+    (현금주문·신규신용은 ``""``, 상환신용은 대상 대출일자) -- 같은 종목·수량·가격이라도 현금 vs
+    신용, 또 서로 다른 대출을 상환하는 신용주문은 서로 다른 주문이므로 지문으로 구분해야
+    replay/conflict 판정이 정확하다."""
 
     symbol: str
     side: Side
@@ -35,6 +43,8 @@ class Fingerprint(NamedTuple):
     stop_price: str
     time_in_force: TimeInForce
     exchange: str
+    credit_type: str = ""
+    loan_date: str = ""
 
 
 class WireRequest(NamedTuple):
@@ -51,6 +61,13 @@ _ORDER_TYPES = frozenset(("market", "limit", "stop", "stop_limit"))
 _TIFS = frozenset(("day", "gtc", "ioc", "fok"))
 _NEEDS_LIMIT = frozenset(("limit", "stop_limit"))
 _NEEDS_STOP = frozenset(("stop", "stop_limit"))
+
+#: 신용주문 유형(국내, 원장 코드표). 매수/매도별로 유효한 코드가 다르다.
+_CREDIT_BUY_TYPES = frozenset(("21", "23", "26", "28"))    # 자기융자신규/유통융자신규/유통대주상환/자기대주상환
+_CREDIT_SELL_TYPES = frozenset(("22", "24", "25", "27"))   # 유통대주신규/자기대주신규/자기융자상환/유통융자상환
+#: 신규(융자/대주 개시) vs 상환. 대출일자(LOAN_DT)는 신규면 개시일(오늘), 상환이면 대상 대출일자다.
+_CREDIT_NEW_TYPES = frozenset(("21", "22", "23", "24"))    # 자기융자/유통대주/유통융자/자기대주 신규
+_CREDIT_REPAY_TYPES = frozenset(("25", "26", "27", "28"))  # 자기융자/유통대주/유통융자/자기대주 상환
 
 _KST = timezone(timedelta(hours=9))
 
@@ -71,6 +88,14 @@ def _as_decimal(value: object, name: str) -> Decimal:
         raise KISUsageError(f"{name} 는 숫자여야 한다: {value!r}") from err
 
 
+def _validate_loan_date(value: str) -> None:
+    """대출일자가 실재하는 YYYYMMDD 날짜인지 확인 -- 형식만 맞고 불가능한 날짜(20261399 등)는 거부."""
+    try:
+        datetime.strptime(value, "%Y%m%d")  # noqa: DTZ007 -- 날짜 유효성만 확인
+    except ValueError as err:
+        raise KISUsageError(f"loan_date 는 실재하는 YYYYMMDD 날짜여야 한다: {value!r}") from err
+
+
 @dataclass(frozen=True, slots=True)
 class Order:
     """한 건의 주문 요청(불변).
@@ -87,6 +112,8 @@ class Order:
     stop_price: Decimal | None = None
     time_in_force: TimeInForce = "day"
     exchange: str = "XKRX"
+    credit_type: CreditType | None = None
+    loan_date: str | None = None
     client_order_id: str = field(default_factory=mint_client_order_id)
 
     def __post_init__(self) -> None:
@@ -123,6 +150,38 @@ class Order:
         if self.stop_price is not None and self.stop_price <= 0:
             raise KISUsageError(f"stop_price 는 0보다 커야 한다: {self.stop_price}")
 
+        # loan_date 는 신용주문에서만 의미 있다(현금주문에 대출일자를 주면 표현 불가능한 상태).
+        if self.loan_date is not None and self.credit_type is None:
+            raise KISUsageError("loan_date 는 신용주문(credit_type)에만 줄 수 있다.")
+        if self.loan_date is not None:
+            _validate_loan_date(self.loan_date)
+        if self.credit_type is not None:
+            # 신용주문은 국내(KRX) 마진 전용 -- 해외 거래소와 조합하면 라우팅이 해외 빌더로 새어
+            # 신용 의미가 조용히 사라진다. 생성 시점에 fail-closed.
+            if self.exchange != "XKRX":
+                raise KISUsageError(
+                    f"신용주문은 국내(XKRX)만 지원한다 -- credit_type 과 exchange={self.exchange!r} 는 "
+                    f"조합할 수 없다."
+                )
+            # 매수/매도별 유효 코드가 다르다 -- 반대 side 코드를 조용히 통과시키지 않는다(잘못된
+            # 신용 종류로 체결되면 상환·이자 구조가 달라진다).
+            valid = _CREDIT_BUY_TYPES if self.side == "buy" else _CREDIT_SELL_TYPES
+            if self.credit_type not in valid:
+                raise KISUsageError(
+                    f"{self.side} 신용주문의 credit_type 은 {sorted(valid)} 중 하나여야 한다: "
+                    f"{self.credit_type!r}"
+                )
+            # 대출일자 규칙은 신규/상환으로 갈린다: 상환은 대상 대출을 지정해야 하므로 loan_date 필수,
+            # 신규는 개시일(오늘)로 채운다 -- 생성 시점에 확정해 지문·와이어가 순수해지도록 한다.
+            if self.credit_type in _CREDIT_REPAY_TYPES:
+                if self.loan_date is None:
+                    raise KISUsageError(
+                        "상환 신용주문(credit_type 25/26/27/28)은 대상 대출의 loan_date(YYYYMMDD)가 "
+                        "필요하다."
+                    )
+            elif self.loan_date is None:  # 신규 신용 -- 개시일 = 오늘(KST)
+                object.__setattr__(self, "loan_date", f"{datetime.now(_KST):%Y%m%d}")
+
     @property
     def fingerprint(self) -> Fingerprint:
         """이 주문의 요청 지문 -- 같은 ``client_order_id`` 를 *다른* 주문에 재사용했는지
@@ -135,6 +194,7 @@ class Order:
             limit_price="" if self.limit_price is None else format_wire_decimal(self.limit_price),
             stop_price="" if self.stop_price is None else format_wire_decimal(self.stop_price),
             time_in_force=self.time_in_force, exchange=self.exchange,
+            credit_type=self.credit_type or "", loan_date=self.loan_date or "",
         )
 
     # --- 타입별 생성자(권장 진입점) ------------------------------------
@@ -143,6 +203,7 @@ class Order:
         cls, symbol: str, side: Side, order_type: OrderType, quantity: object, *,
         limit_price: object | None = None, stop_price: object | None = None,
         time_in_force: TimeInForce = "day", exchange: str = "XKRX",
+        credit_type: CreditType | None = None, loan_date: str | None = None,
         client_order_id: str | None = None,
     ) -> Order:
         quantity_dec = _as_decimal(quantity, "quantity")
@@ -155,12 +216,33 @@ class Order:
                 symbol, side, order_type, quantity_dec,
                 limit_price=limit_dec, stop_price=stop_dec,
                 time_in_force=time_in_force, exchange=exchange,
+                credit_type=credit_type, loan_date=loan_date,
             )
         return cls(
             symbol, side, order_type, quantity_dec,
             limit_price=limit_dec, stop_price=stop_dec,
             time_in_force=time_in_force, exchange=exchange,
+            credit_type=credit_type, loan_date=loan_date,
             client_order_id=client_order_id,
+        )
+
+    @classmethod
+    def credit(
+        cls, symbol: str, *, side: Side, quantity: object, credit_type: CreditType,
+        price: object | None = None, loan_date: str | None = None,
+        time_in_force: TimeInForce = "day", client_order_id: str | None = None,
+    ) -> Order:
+        """국내 신용(융자/대주) 주문 -- ``price`` 를 주면 지정가, 없으면 시장가. ``credit_type`` 은
+        매수/매도별 신용유형(매수 21/23/26/28, 매도 22/24/25/27).
+
+        ``loan_date``(YYYYMMDD)는 대출일자다: **상환**유형(25/26/27/28)은 상환 대상 대출을 지정해야
+        하므로 필수, **신규**유형(21/22/23/24)은 개시일이라 생략하면 생성 시점의 오늘(KST)로 채운다.
+        신용주문은 국내(XKRX)만 가능하다."""
+        order_type: OrderType = "limit" if price is not None else "market"
+        return cls._build(
+            symbol, side, order_type, quantity, limit_price=price,
+            credit_type=credit_type, loan_date=loan_date,
+            time_in_force=time_in_force, client_order_id=client_order_id,
         )
 
     @classmethod

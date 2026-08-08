@@ -749,6 +749,10 @@ class KISClient:
                     "국내 주문에만 risk 를 쓰라."
                 )
             build_request = overseas_orders_engine.make_order_request
+        elif order.credit_type is not None:
+            # 국내 신용주문 -- 안전 코어(place)는 공유, 와이어 조립기만 신용용으로. risk 는 국내라
+            # 그대로 적용된다(참조가=국내 시세).
+            build_request = orders_engine._make_credit_order_request
         return orders_engine.place(
             self._transport, self._store, order,
             cano=cano, product_code=product_code, environment=self._environment,

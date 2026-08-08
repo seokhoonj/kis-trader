@@ -58,6 +58,9 @@ _DOMESTIC_MICS = frozenset(("XKRX", "XKOS", "NXTE"))
 BuildRequest: TypeAlias = Callable[[Order, str, str, Environment], WireRequest]
 
 _ORDER_CASH_PATH = "/uapi/domestic-stock/v1/trading/order-cash"
+_ORDER_CREDIT_PATH = "/uapi/domestic-stock/v1/trading/order-credit"
+# 신용주문 (모의 미지원): 매도 TTTC0051U / 매수 TTTC0052U.
+_ORDER_CREDIT_TR = {"sell": "TTTC0051U", "buy": "TTTC0052U"}
 _DAILY_CCLD_PATH = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
 # (environment, side) -> tr_id
 _ORDER_CASH_TR = {
@@ -391,6 +394,44 @@ def _make_order_cash_request(
     return WireRequest("POST", _ORDER_CASH_PATH, tr_id, body)
 
 
+def _make_credit_order_request(
+    order: Order, cano: str, product_code: str, environment: Environment
+) -> WireRequest:
+    """국내 신용(융자/대주) 주문 와이어. 안전 코어(place)가 ``build_request`` 로 주입해 쓴다 --
+    현금주문과 같은 즉시체결·ODNO 응답이라 dedup/재시도금지/reconcile 은 그대로 공유된다.
+
+    **모의투자 미지원**, **국내 KRX 만**, 지정가/시장가·day 만. credit_type/loan_date 는 :class:`Order`
+    생성 시점에 검증·확정되므로(신규=오늘, 상환=대상 대출일자), 이 빌더는 주문의 순수 함수다."""
+    if environment == "demo":
+        raise KISUsageError("신용주문(order-credit)은 모의투자 미지원 -- 실전에서만.")
+    if order.exchange not in _DOMESTIC_MICS:
+        raise KISUsageError(f"신용주문은 국내 주식만 지원한다(exchange={order.exchange!r}).")
+    if order.credit_type is None or order.loan_date is None:  # Order 가 보장 -- 라우팅 방어
+        raise OrderError("신용주문 빌더에 credit_type/loan_date 없는 주문이 들어왔다(라우팅 오류).")
+    if order.order_type not in _ORD_DVSN:
+        raise NotImplementedError(
+            f"{order.order_type} 신용주문은 아직 와이어 매핑이 없다(현재 시장가/지정가만)."
+        )
+    if order.time_in_force != "day":
+        raise NotImplementedError(
+            f"time_in_force={order.time_in_force!r} 신용주문은 미구현이다(현재 day 만)."
+        )
+    body = {
+        "CANO": cano,
+        "ACNT_PRDT_CD": product_code,
+        "PDNO": order.symbol,
+        "SLL_TYPE": "",                       # 공란(원장 지시)
+        "CRDT_TYPE": order.credit_type,
+        "LOAN_DT": order.loan_date,
+        "ORD_DVSN": _ORD_DVSN[order.order_type],
+        "ORD_QTY": _format_optional_wire_decimal(order.quantity),
+        "ORD_UNPR": "0" if order.order_type == "market" else _format_optional_wire_decimal(order.limit_price),
+        "RSVN_ORD_YN": "N",
+        "EXCG_ID_DVSN_CD": "KRX",
+    }
+    return WireRequest("POST", _ORDER_CREDIT_PATH, _ORDER_CREDIT_TR[order.side], body)
+
+
 def _fetch_daily_orders(
     transport: Transport, symbol: str, *, cano: str, product_code: str, environment: Environment
 ) -> list[Mapping[str, Any]]:
@@ -441,12 +482,14 @@ def _filter_matching_daily_rows(
     rows: list[Mapping[str, Any]], fingerprint: Fingerprint
 ) -> list[Mapping[str, Any]]:
     """일별체결조회 행 중 요청 지문과 맞는 것만(순수). 종목+매매구분+주문구분+수량, 지정가면
-    단가까지 비교해 무관한 동일수량 주문의 오귀속을 줄인다."""
+    단가까지 비교해 무관한 동일수량 주문의 오귀속을 줄인다. 신용/현금은 행의 대출일자(loan_dt)로
+    가른다 -- 안 그러면 같은 종목·수량·가격의 현금 체결이 미접수 신용주문을 phantom 확정할 수 있다."""
     symbol, side, order_type = fingerprint.symbol, fingerprint.side, fingerprint.order_type
     quantity = Decimal(fingerprint.quantity)
     limit_price = Decimal(fingerprint.limit_price) if fingerprint.limit_price else None
     want_side = _SIDE_CODE[side]
     want_dvsn = _ORD_DVSN.get(order_type)
+    want_loan_date = fingerprint.loan_date        # 신용이면 대출일자, 현금이면 ""
     matched = []
     for row in rows:
         if str(row.get("pdno", "")) != symbol:
@@ -454,6 +497,10 @@ def _filter_matching_daily_rows(
         if str(row.get("sll_buy_dvsn_cd", "")) != want_side:
             continue
         if want_dvsn is not None and str(row.get("ord_dvsn_cd", "")) not in ("", want_dvsn):
+            continue
+        # 신용/현금 구분: 신용주문 지문(loan_date != "")은 행의 loan_dt 가 그 대출일자와 같아야,
+        # 현금주문 지문("")은 행에 대출일자가 없어야 매칭한다(cash<->credit 오확정 방지).
+        if _normalize_loan_date(row.get("loan_dt")) != want_loan_date:
             continue
         if _parse_decimal(row.get("ord_qty")) != quantity:
             continue
@@ -495,6 +542,13 @@ def _execution_report_from_daily_row(
         submitted_at=datetime.now(_KST),
         _raw=row,
     )
+
+
+def _normalize_loan_date(value: object) -> str:
+    """일별체결조회 행의 대출일자를 지문의 loan_date 정본과 맞춘다 -- 공백/0채움("00000000")은
+    '대출 없음(현금)'을 뜻하므로 ``""`` 로 본다."""
+    text = str(value or "").strip()
+    return "" if text.strip("0") == "" else text
 
 
 def _extract_output_mapping(body: Mapping[str, Any]) -> Mapping[str, Any]:

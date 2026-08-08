@@ -41,9 +41,12 @@ except ImportError:  # pragma: no cover -- 비-Unix
 _KST = timezone(timedelta(hours=9))
 
 #: 이 릴리스가 쓰는 스키마 버전.
-_SCHEMA_VERSION = 1
+#: v2: Fingerprint 에 credit_type/loan_date 추가(신용주문). v1 레코드는 두 필드가 기본 ""로
+#: 채워져 그대로 읽힌다(현금주문과 동일 지문). 구 바이너리(v1만 읽음)는 v2 파일을 손상이 아니라
+#: 미지원 버전으로 거부하게 해 오진단을 막는다.
+_SCHEMA_VERSION = 2
 #: 읽을 수 있는 스키마 버전 집합(이 밖은 UnsupportedSchemaVersionError 로 거부).
-_READABLE_SCHEMA_VERSIONS = frozenset({1})
+_READABLE_SCHEMA_VERSIONS = frozenset({1, 2})
 #: 완료(비-in-flight) 리포트 보존 기본 일수 -- 이 이후엔 정리(무한 성장 방지). client_order_id
 #: 가 날짜를 포함하므로 같은 id 재전송 위험 창은 당일이라, 넉넉한 기본값이 dedup 을 약화하지 않는다.
 _DEFAULT_RETENTION_DAYS = 7

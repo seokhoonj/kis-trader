@@ -55,7 +55,7 @@ from .financials import (
 )
 from .instrument import DomesticBoard, resolve_market
 from .investor import DetailedInvestorHistory, InvestorEstimate, InvestorFlow
-from .order import Order, Side, TimeInForce
+from .order import CreditType, Order, Side, TimeInForce
 from .order_book import OrderBook
 from .orderable import BuyableAmount, SellableQuantity
 from .overseas_items import OverseasCurrentPrice
@@ -531,6 +531,45 @@ class Ticker:
     ) -> ExecutionReport:
         """이 종목을 매도한다 -- ``price`` 를 주면 지정가, 없으면 시장가(계약은 :meth:`buy` 와 동일)."""
         return self._client._place_order(self._make_order("sell", quantity, price, time_in_force, client_order_id))
+
+    def credit_buy(
+        self, *, quantity: object, credit_type: CreditType, price: object | None = None,
+        loan_date: str | None = None, time_in_force: TimeInForce = "day",
+        client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 종목을 신용(융자/대주)으로 매수한다.
+
+        ``quantity`` 주문수량(주 단위 정수), ``credit_type`` 매수 신용유형(21 자기융자신규/23 유통융자
+        신규/26 유통대주상환/28 자기대주상환), ``price`` 지정가(생략 시 시장가), ``loan_date``(YYYYMMDD)
+        상환유형(26/28)일 때 대상 대출일자(필수)·신규유형(21/23)이면 생략(전송 시 오늘로 채움),
+        ``time_in_force`` 현재 ``"day"`` 만(그 외는 ``NotImplementedError``), ``client_order_id`` 멱등키
+        (생략 시 자동 발행).
+
+        현금 :meth:`buy` 와 같은 안전 엔진(이중체결 방지·타임아웃 재시도 금지)을 공유한다. **모의투자
+        미지원**, 국내 종목만. 반환은 :class:`~kis_openapi.report.ExecutionReport`. 잘못된 조합/계좌
+        미설정은 ``KISUsageError``, 접수 거부는 ``OrderRejectedError``, 타임아웃(체결 불명)은
+        ``OrderTimeoutError``(:meth:`KISClient.reconcile` 로 확인)."""
+        self._domestic_market()        # 해외 미지원(신용은 국내만)
+        return self._client._place_order(Order.credit(
+            self.symbol, side="buy", quantity=quantity, credit_type=credit_type, price=price,
+            loan_date=loan_date, time_in_force=time_in_force, client_order_id=client_order_id,
+        ))
+
+    def credit_sell(
+        self, *, quantity: object, credit_type: CreditType, price: object | None = None,
+        loan_date: str | None = None, time_in_force: TimeInForce = "day",
+        client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 종목을 신용(대주/상환)으로 매도한다.
+
+        ``credit_type`` 매도 신용유형(22 유통대주신규/24 자기대주신규/25 자기융자상환/27 유통융자상환),
+        ``loan_date``(YYYYMMDD) 상환유형(25/27)일 때 대상 대출일자(필수)·신규유형(22/24)이면 생략(오늘로
+        채움). 나머지 인자·안전 규칙·예외는 :meth:`credit_buy` 와 같다. **모의투자 미지원**, 국내 종목만."""
+        self._domestic_market()        # 해외 미지원
+        return self._client._place_order(Order.credit(
+            self.symbol, side="sell", quantity=quantity, credit_type=credit_type, price=price,
+            loan_date=loan_date, time_in_force=time_in_force, client_order_id=client_order_id,
+        ))
 
     def _make_order(
         self, side: Side, quantity: object, price: object | None,
