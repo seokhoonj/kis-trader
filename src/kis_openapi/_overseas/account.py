@@ -28,6 +28,7 @@ from ..money import Money
 from ..overseas_items import (
     OverseasBalance,
     OverseasBuyableAmount,
+    OverseasForeignMargin,
     OverseasOpenOrder,
     OverseasPosition,
     OverseasTransaction,
@@ -48,6 +49,9 @@ _BUYABLE_TR = {"real": "TTTS3007R", "demo": "VTTS3007R"}
 
 _TRANSACTIONS_PATH = "/uapi/overseas-stock/v1/trading/inquire-period-trans"
 _TRANSACTIONS_TR = "CTOS4001R"          # 모의투자 미지원
+
+_FOREIGN_MARGIN_PATH = "/uapi/overseas-stock/v1/trading/foreign-margin"
+_FOREIGN_MARGIN_TR = "TTTC2101R"        # 모의투자 미지원
 #: 거래내역 매도매수 필터 -> SLL_BUY_DVSN_CD. all:전체/sell:매도/buy:매수.
 _TX_SIDE_FILTER = {"all": "00", "sell": "01", "buy": "02"}
 
@@ -292,6 +296,48 @@ def _parse_transaction(row: Mapping[str, Any]) -> OverseasTransaction:
         loan_type=str(row.get("loan_dvsn_name", "")).strip(),
         _raw=row,
     )
+
+
+def fetch_foreign_margin(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment
+) -> list[OverseasForeignMargin]:
+    """통화별 해외증거금(외화 예수금·증거금·주문가능금액). 단발 조회. **모의투자 미지원**."""
+    if environment == "demo":
+        raise KISUsageError("해외증거금 통화별조회(foreign-margin)는 모의투자 미지원 -- 실전에서만.")
+    params = {"CANO": cano, "ACNT_PRDT_CD": product_code}
+    resp = transport.request(
+        method="GET", path=_FOREIGN_MARGIN_PATH, tr_id=_FOREIGN_MARGIN_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output")
+    if not isinstance(rows, list):  # 빈 계좌도 배열 -> 부재/비배열은 손상
+        raise KISError(
+            "해외증거금 응답의 output 이 배열이 아니다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    margins: list[OverseasForeignMargin] = []
+    for row in rows:
+        currency = str(row.get("crcy_cd", "")).strip()
+        if not currency:  # 통화코드 없는 패딩 행 -- 건너뜀
+            continue
+        margins.append(
+            OverseasForeignMargin(
+                country_name=str(row.get("natn_name", "")).strip(),
+                currency=currency,
+                deposit=_money_or_zero(row, "frcr_dncl_amt1", currency),
+                unsettled_buy_amount=_money_or_zero(row, "ustl_buy_amt", currency),
+                unsettled_sell_amount=_money_or_zero(row, "ustl_sll_amt", currency),
+                receivable_amount=_money_or_zero(row, "frcr_rcvb_amt", currency),
+                margin_amount=_money_or_zero(row, "frcr_mgn_amt", currency),
+                general_orderable_amount=_money_or_zero(row, "frcr_gnrl_ord_psbl_amt", currency),
+                orderable_amount=_money_or_zero(row, "frcr_ord_psbl_amt1", currency),
+                integrated_orderable_amount=_money_or_zero(row, "itgr_ord_psbl_amt", currency),
+                exchange_rate=_decimal_or_zero(row, "bass_exrt"),
+                _raw=row,
+            )
+        )
+    return margins
 
 
 def _YYYYMMDD(value: object) -> date | None:

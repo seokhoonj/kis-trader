@@ -91,6 +91,36 @@ class OverseasOpenOrder:
 
 
 @dataclass(frozen=True, slots=True)
+class OverseasForeignMargin:
+    """통화별 해외증거금 한 건(불변). 계좌의 통화별 외화 예수금·증거금·주문가능금액을 한 줄로.
+    금액은 그 통화의 :class:`Money`.
+
+    ``deposit`` 외화예수금액, ``margin_amount`` 외화증거금액, ``receivable_amount`` 외화미수금액,
+    ``unsettled_buy_amount``/``unsettled_sell_amount`` 미결제 매수/매도금액, ``general_orderable_amount``
+    외화일반주문가능금액, ``orderable_amount`` 외화주문가능금액, ``integrated_orderable_amount``
+    통합주문가능금액, ``exchange_rate`` 기준환율.
+    """
+
+    country_name: str                 # 국가명(natn_name)
+    currency: str                     # 통화코드(crcy_cd)
+    deposit: Money                    # 외화예수금액(frcr_dncl_amt1)
+    unsettled_buy_amount: Money       # 미결제매수금액(ustl_buy_amt)
+    unsettled_sell_amount: Money      # 미결제매도금액(ustl_sll_amt)
+    receivable_amount: Money          # 외화미수금액(frcr_rcvb_amt)
+    margin_amount: Money              # 외화증거금액(frcr_mgn_amt)
+    general_orderable_amount: Money   # 외화일반주문가능금액(frcr_gnrl_ord_psbl_amt)
+    orderable_amount: Money           # 외화주문가능금액(frcr_ord_psbl_amt1)
+    integrated_orderable_amount: Money  # 통합주문가능금액(itgr_ord_psbl_amt)
+    exchange_rate: Decimal            # 기준환율(bass_exrt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class OverseasTransaction:
     """해외주식 일별 거래내역 한 건(불변). 체결된 매매 한 줄 -- 매매일·결제일·종목·수량·단가·금액·
     수수료. 외화 금액은 그 거래 통화의 :class:`Money`, 원화 수수료는 KRW Decimal.

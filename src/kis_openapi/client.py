@@ -59,6 +59,7 @@ from .overseas_items import (
     OverseasBuyableAmount,
     OverseasCollateralStock,
     OverseasCorporateAction,
+    OverseasForeignMargin,
     OverseasIndustry,
     OverseasIndustryStock,
     OverseasNewsHeadline,
@@ -526,6 +527,15 @@ class KISClient:
         return overseas_account.fetch_buyable(
             self._transport, cano=cano, product_code=product_code,
             environment=self._environment, symbol=symbol, exchange=exchange, price=price,
+        )
+
+    def overseas_foreign_margin(self) -> list[OverseasForeignMargin]:
+        """통화별 해외증거금 -- 계좌의 통화별 외화 예수금·증거금·주문가능금액. 금액은 각 통화의
+        :class:`~kis_openapi.money.Money`. **모의투자 미지원**(demo면 :class:`~kis_openapi.errors.
+        KISUsageError`; 계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return overseas_account.fetch_foreign_margin(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment
         )
 
     def overseas_transactions(
