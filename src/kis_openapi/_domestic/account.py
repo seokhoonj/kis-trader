@@ -22,7 +22,12 @@ from ..balance import AccountAssets, Balance, Portfolio, Position
 from ..errors import KISError, KISUsageError
 from ..open_order import OpenOrder
 from ..orderable import BuyableAmount, SellableQuantity
-from ..trade_profit import TradeProfit, TradeProfitHistory
+from ..trade_profit import (
+    DailyProfit,
+    DailyProfitHistory,
+    TradeProfit,
+    TradeProfitHistory,
+)
 from ..transport import Environment, RawResponse, Transport
 
 _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
@@ -47,6 +52,9 @@ _TRADE_PROFIT_TR = "TTTC8715R"  # 모의투자 미지원
 _MAX_TRADE_PROFIT_PAGES = 100
 #: 정렬 -> SORT_DVSN. recent:최근순/oldest:과거순.
 _TRADE_PROFIT_SORT = {"recent": "00", "oldest": "01"}
+
+_DAILY_PROFIT_PATH = "/uapi/domestic-stock/v1/trading/inquire-period-profit"
+_DAILY_PROFIT_TR = "TTTC8708R"  # 모의투자 미지원
 #: 신용유형(원장 코드표). 21 자기융자신규/22 유통대주신규/23 유통융자신규/24 자기대주신규/
 #: 25 자기융자상환/26 유통대주상환/27 유통융자상환/28 자기대주상환.
 _CREDIT_TYPES = frozenset({"21", "22", "23", "24", "25", "26", "27", "28"})
@@ -393,6 +401,87 @@ def _parse_trade_profit(row: Mapping[str, Any]) -> TradeProfit:
         fee=_decimal_or_zero(row.get("fee"), "fee"),
         tax=_decimal_or_zero(row.get("tl_tax"), "tl_tax"),
         loan_interest=_decimal_or_zero(row.get("loan_int"), "loan_int"),
+        _raw=row,
+    )
+
+
+def fetch_daily_profits(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str, symbol: str | None = None, sort: str = "recent",
+) -> DailyProfitHistory:
+    """기간별 일별 매매손익 합산. 파라미터는 :func:`fetch_trade_profits` 와 같되 output1 이 하루
+    단위(종목 구분 없음)다. **모의투자 미지원**."""
+    if environment == "demo":
+        raise KISUsageError(
+            "기간별손익일별합산조회(inquire-period-profit)는 모의투자 미지원 -- 실전에서만."
+        )
+    try:
+        sort_code = _TRADE_PROFIT_SORT[sort]
+    except KeyError:
+        raise KISUsageError(
+            f"지원하지 않는 sort: {sort!r} ({'/'.join(_TRADE_PROFIT_SORT)})."
+        ) from None
+    rows: list[Mapping[str, Any]] = []
+    summary: Mapping[str, Any] | None = None
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_TRADE_PROFIT_PAGES):
+        params = {
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "INQR_STRT_DT": start, "INQR_END_DT": end, "PDNO": symbol or "",
+            "SORT_DVSN": sort_code, "INQR_DVSN": "00", "CBLC_DVSN": "00",
+            "CTX_AREA_FK100": ctx_fk, "CTX_AREA_NK100": ctx_nk,
+        }
+        resp = transport.request(
+            method="GET", path=_DAILY_PROFIT_PATH, tr_id=_DAILY_PROFIT_TR,
+            params=params, idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        if summary is None:
+            candidate = resp.body.get("output2")
+            summary = candidate if isinstance(candidate, Mapping) else None
+        page = resp.body.get("output1")
+        if not isinstance(page, list):
+            raise KISError(
+                "일별손익 응답의 output1 이 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"일별손익 조회가 {_MAX_TRADE_PROFIT_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다."
+        )
+    if summary is None:
+        raise KISError("일별손익 응답에 총계(output2)가 없다.")
+    days = tuple(_parse_daily_profit(row) for row in rows if str(row.get("trad_dt", "")).strip())
+    return DailyProfitHistory(
+        days=days,
+        total_realized_pnl=required_decimal(summary.get("tot_rlzt_pfls"), "tot_rlzt_pfls"),
+        total_buy_amount=required_decimal(summary.get("buy_tr_amt_smtl"), "buy_tr_amt_smtl"),
+        total_sell_amount=required_decimal(summary.get("sll_tr_amt_smtl"), "sll_tr_amt_smtl"),
+        total_fee=required_decimal(summary.get("tot_fee"), "tot_fee"),
+        total_tax=required_decimal(summary.get("tot_tltx"), "tot_tltx"),
+        _raw=summary,
+    )
+
+
+def _parse_daily_profit(row: Mapping[str, Any]) -> DailyProfit:
+    return DailyProfit(
+        trade_date=_parse_date(row.get("trad_dt")),
+        buy_amount=_decimal_or_zero(row.get("buy_amt"), "buy_amt"),
+        sell_amount=_decimal_or_zero(row.get("sll_amt"), "sll_amt"),
+        realized_pnl=_decimal_or_zero(row.get("rlzt_pfls"), "rlzt_pfls"),
+        return_percent=_decimal_or_zero(row.get("pfls_rt"), "pfls_rt"),
+        fee=_decimal_or_zero(row.get("fee"), "fee"),
+        tax=_decimal_or_zero(row.get("tl_tax"), "tl_tax"),
+        loan_interest=_decimal_or_zero(row.get("loan_int"), "loan_int"),
+        buy_quantity=_decimal_or_zero(row.get("buy_qty1"), "buy_qty1"),
+        sell_quantity=_decimal_or_zero(row.get("sll_qty1"), "sll_qty1"),
         _raw=row,
     )
 

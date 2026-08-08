@@ -197,7 +197,12 @@ from .stock_info import StockInfo, StockStatus
 from .store import OrderStore
 from .ticker import Ticker
 from .trade import Trade
-from .trade_profit import TradeProfit, TradeProfitHistory
+from .trade_profit import (
+    DailyProfit,
+    DailyProfitHistory,
+    TradeProfit,
+    TradeProfitHistory,
+)
 
 __version__ = "0.0.0"
 
@@ -235,6 +240,8 @@ __all__ = [
     "CreditBalanceRanking",
     "CreditEligibleStock",
     "DailyExecutionVolume",
+    "DailyProfit",
+    "DailyProfitHistory",
     "DailyProgramTradePoint",
     "Derivative",
     "DerivativesQuote",

@@ -80,7 +80,7 @@ from .risk import RiskLimits
 from .saved_screen import SavedScreen, SavedScreenStock, Watchlist, WatchlistGroup
 from .store import OrderStore
 from .ticker import Ticker
-from .trade_profit import TradeProfitHistory
+from .trade_profit import DailyProfitHistory, TradeProfitHistory
 from .transport import Transport
 
 _OVERSEAS_INDEX_KIND = {"index": "N", "fx": "X", "bond": "I", "gold": "S"}
@@ -489,6 +489,19 @@ class KISClient:
         미지원**(demo면 :class:`~kis_openapi.errors.KISUsageError`; 계좌 정보 필요)."""
         cano, product_code = self._require_account()
         return account_api.fetch_trade_profits(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment,
+            start=start, end=end, symbol=symbol, sort=sort,
+        )
+
+    def daily_profits(
+        self, *, start: str, end: str, symbol: str | None = None, sort: str = "recent"
+    ) -> DailyProfitHistory:
+        """기간별 일별 매매손익 합산 -- 하루 단위 매수/매도금액·실현손익·수익률과 기간 총계.
+        :meth:`trade_profits` 의 일별 그래뉼래러티 버전(종목 구분 없음). ``start``/``end`` 는
+        기간(YYYYMMDD), ``symbol`` 없으면 전체, ``sort`` = ``"recent"``/``"oldest"``. **모의투자
+        미지원**(demo면 :class:`~kis_openapi.errors.KISUsageError`; 계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return account_api.fetch_daily_profits(
             self._transport, cano=cano, product_code=product_code, environment=self._environment,
             start=start, end=end, symbol=symbol, sort=sort,
         )
