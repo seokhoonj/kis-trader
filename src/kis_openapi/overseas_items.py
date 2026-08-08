@@ -91,6 +91,38 @@ class OverseasOpenOrder:
 
 
 @dataclass(frozen=True, slots=True)
+class OverseasTransaction:
+    """해외주식 일별 거래내역 한 건(불변). 체결된 매매 한 줄 -- 매매일·결제일·종목·수량·단가·금액·
+    수수료. 외화 금액은 그 거래 통화의 :class:`Money`, 원화 수수료는 KRW Decimal.
+
+    ``price`` 체결단가, ``trade_amount`` 거래외화금액, ``settlement_amount`` 외화정산금액,
+    ``foreign_fee`` 외화수수료, ``domestic_won_fee``/``overseas_won_fee`` 국내·해외 원화수수료,
+    ``loan_type`` 대출구분명(예: 현금).
+    """
+
+    trade_date: date | None           # 매매일자(trad_dt)
+    settlement_date: date | None      # 결제일자(sttl_dt)
+    side: str                         # buy / sell
+    symbol: str
+    name: str
+    quantity: Decimal                 # 체결수량(ccld_qty)
+    price: Money                      # 체결단가(ft_ccld_unpr2)
+    trade_amount: Money               # 거래외화금액2(tr_frcr_amt2)
+    settlement_amount: Money          # 외화정산금액1(frcr_excc_amt_1)
+    foreign_fee: Money                # 외화수수료1(frcr_fee1)
+    domestic_won_fee: Decimal         # 국내원화수수료(dmst_wcrc_fee), KRW
+    overseas_won_fee: Decimal         # 해외원화수수료(ovrs_wcrc_fee), KRW
+    currency: str                     # 거래통화코드(crcy_cd)
+    loan_type: str                    # 대출구분명(loan_dvsn_name)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class OverseasBuyableAmount:
     """해외주식 매수가능금액(불변). 거래소·종목·주문단가 기준. 금액은 조회 통화의 :class:`Money`.
 

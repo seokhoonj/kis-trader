@@ -67,6 +67,7 @@ from .overseas_items import (
     OverseasRight,
     OverseasSettlementDate,
     OverseasStockSearch,
+    OverseasTransaction,
 )
 from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
@@ -525,6 +526,19 @@ class KISClient:
         return overseas_account.fetch_buyable(
             self._transport, cano=cano, product_code=product_code,
             environment=self._environment, symbol=symbol, exchange=exchange, price=price,
+        )
+
+    def overseas_transactions(
+        self, *, start: str, end: str, symbol: str | None = None, side: str = "all"
+    ) -> list[OverseasTransaction]:
+        """해외주식 일별 거래내역(매매·결제·수수료). ``start``/``end`` 는 등록일자 기간(YYYYMMDD),
+        ``symbol`` 없으면 전체 종목, ``side`` = ``"all"``/``"sell"``/``"buy"``. 외화 금액은 거래
+        통화의 :class:`~kis_openapi.money.Money`. **모의투자 미지원**(demo면 :class:`~kis_openapi.
+        errors.KISUsageError`; 계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return overseas_account.fetch_transactions(
+            self._transport, cano=cano, product_code=product_code,
+            environment=self._environment, start=start, end=end, symbol=symbol, side=side,
         )
 
     def overseas_open_orders(self, *, market: str) -> list[OverseasOpenOrder]:

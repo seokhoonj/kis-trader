@@ -12,6 +12,7 @@ KIS URL/TR-id (원장 대조):
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
@@ -29,6 +30,7 @@ from ..overseas_items import (
     OverseasBuyableAmount,
     OverseasOpenOrder,
     OverseasPosition,
+    OverseasTransaction,
 )
 from ..transport import Environment, Transport
 from .orders import _ORDER_EXCHANGE
@@ -43,6 +45,12 @@ _OPEN_ORDERS_TR = "TTTS3018R"           # 모의투자 미지원(실전만)
 
 _BUYABLE_PATH = "/uapi/overseas-stock/v1/trading/inquire-psamount"
 _BUYABLE_TR = {"real": "TTTS3007R", "demo": "VTTS3007R"}
+
+_TRANSACTIONS_PATH = "/uapi/overseas-stock/v1/trading/inquire-period-trans"
+_TRANSACTIONS_TR = "CTOS4001R"          # 모의투자 미지원
+#: 거래내역 매도매수 필터 -> SLL_BUY_DVSN_CD. all:전체/sell:매도/buy:매수.
+_TX_SIDE_FILTER = {"all": "00", "sell": "01", "buy": "02"}
+
 #: 미체결 매매구분코드(원장). 01:매도, 02:매수.
 _SIDE = {"01": "sell", "02": "buy"}
 
@@ -214,6 +222,86 @@ def fetch_buyable(
         exchange_rate=_decimal_or_zero(output, "exrt"),
         _raw=output,
     )
+
+
+def fetch_transactions(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str, symbol: str | None = None, side: str = "all",
+) -> list[OverseasTransaction]:
+    """해외주식 일별 거래내역(연속조회 소진까지). ``start``/``end`` 는 등록일자 기간(YYYYMMDD),
+    ``symbol`` 없으면 전체 종목, ``side`` = all/sell/buy. **모의투자 미지원**."""
+    if environment == "demo":
+        raise KISUsageError("해외주식 일별거래내역(inquire-period-trans)은 모의투자 미지원 -- 실전에서만.")
+    try:
+        side_code = _TX_SIDE_FILTER[side]
+    except KeyError:
+        raise KISUsageError(
+            f"지원하지 않는 side: {side!r} ({'/'.join(_TX_SIDE_FILTER)})."
+        ) from None
+    rows: list[Mapping[str, Any]] = []
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_PAGES):
+        params = {
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "ERLM_STRT_DT": start, "ERLM_END_DT": end,
+            "OVRS_EXCG_CD": "", "PDNO": symbol or "",
+            "SLL_BUY_DVSN_CD": side_code, "LOAN_DVSN_CD": "",
+            "CTX_AREA_FK100": ctx_fk, "CTX_AREA_NK100": ctx_nk,
+        }
+        resp = transport.request(
+            method="GET", path=_TRANSACTIONS_PATH, tr_id=_TRANSACTIONS_TR,
+            params=params, idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        page = resp.body.get("output1")
+        if not isinstance(page, list):  # 빈 내역도 배열 -> 부재/비배열은 손상
+            raise KISError(
+                "해외 거래내역 응답의 output1 이 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"해외 거래내역 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
+            f"-- 부분 결과로 자르지 않는다."
+        )
+    return [_parse_transaction(row) for row in rows if str(row.get("pdno", "")).strip()]
+
+
+def _parse_transaction(row: Mapping[str, Any]) -> OverseasTransaction:
+    currency = str(row.get("crcy_cd", "")).strip()
+    return OverseasTransaction(
+        trade_date=_YYYYMMDD(row.get("trad_dt")),
+        settlement_date=_YYYYMMDD(row.get("sttl_dt")),
+        side=_SIDE.get(str(row.get("sll_buy_dvsn_cd", "")).strip(), ""),
+        symbol=str(row.get("pdno", "")).strip(),
+        name=str(row.get("ovrs_item_name", "")).strip(),
+        quantity=_decimal_or_zero(row, "ccld_qty"),
+        price=_money_or_zero(row, "ft_ccld_unpr2", currency),
+        trade_amount=_money_or_zero(row, "tr_frcr_amt2", currency),
+        settlement_amount=_money_or_zero(row, "frcr_excc_amt_1", currency),
+        foreign_fee=_money_or_zero(row, "frcr_fee1", currency),
+        domestic_won_fee=_decimal_or_zero(row, "dmst_wcrc_fee"),
+        overseas_won_fee=_decimal_or_zero(row, "ovrs_wcrc_fee"),
+        currency=currency,
+        loan_type=str(row.get("loan_dvsn_name", "")).strip(),
+        _raw=row,
+    )
+
+
+def _YYYYMMDD(value: object) -> date | None:
+    text = str(value or "").strip()
+    if len(text) != 8 or not text.isdigit():
+        return None
+    try:
+        return datetime.strptime(text, "%Y%m%d").date()  # noqa: DTZ007
+    except ValueError:
+        return None
 
 
 def _format_order_unit_price(price: object) -> str:

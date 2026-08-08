@@ -164,6 +164,7 @@ from .overseas_items import (
     OverseasSettlementDate,
     OverseasStockSearch,
     OverseasStockSearchItem,
+    OverseasTransaction,
 )
 from .overseas_product import OverseasProductInfo
 from .overseas_ranking import OverseasRankingQueries
@@ -332,6 +333,7 @@ __all__ = [
     "OverseasSettlementDate",
     "OverseasStockSearch",
     "OverseasStockSearchItem",
+    "OverseasTransaction",
     "OvertimeRanking",
     "ParValueChange",
     "Portfolio",
