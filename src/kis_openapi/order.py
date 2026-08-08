@@ -81,19 +81,22 @@ def mint_client_order_id() -> str:
     return f"{datetime.now(_KST):%Y%m%d}-{uuid.uuid4().hex[:16]}"
 
 
-def _as_decimal(value: object, name: str) -> Decimal:
+def coerce_decimal(value: object, name: str) -> Decimal:
+    """사용자 입력 수치를 Decimal 로 -- 파싱 실패는 :class:`KISUsageError`(사용자 오류). 주문 계층
+    공용(즉시/신용/예약 주문의 수량·단가 강제변환에 함께 쓴다)."""
     try:
         return Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as err:
         raise KISUsageError(f"{name} 는 숫자여야 한다: {value!r}") from err
 
 
-def _validate_loan_date(value: str) -> None:
-    """대출일자가 실재하는 YYYYMMDD 날짜인지 확인 -- 형식만 맞고 불가능한 날짜(20261399 등)는 거부."""
+def validate_yyyymmdd(value: str, field_name: str) -> None:
+    """``field_name`` 이 실재하는 YYYYMMDD 날짜인지 확인 -- 형식만 맞고 불가능한 날짜(20261399 등)는
+    거부. 주문 계층 공용(신용 loan_date, 예약 end_date 등)."""
     try:
         datetime.strptime(value, "%Y%m%d")  # noqa: DTZ007 -- 날짜 유효성만 확인
     except ValueError as err:
-        raise KISUsageError(f"loan_date 는 실재하는 YYYYMMDD 날짜여야 한다: {value!r}") from err
+        raise KISUsageError(f"{field_name} 는 실재하는 YYYYMMDD 날짜여야 한다: {value!r}") from err
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,11 +122,11 @@ class Order:
     def __post_init__(self) -> None:
         # 어떤 생성 경로(직접 Order(...) 포함)로도 가격/수량이 Decimal 이 되게 강제한다.
         # frozen 이라 object.__setattr__ 로 다시 쓴다.
-        object.__setattr__(self, "quantity", _as_decimal(self.quantity, "quantity"))
+        object.__setattr__(self, "quantity", coerce_decimal(self.quantity, "quantity"))
         if self.limit_price is not None:
-            object.__setattr__(self, "limit_price", _as_decimal(self.limit_price, "limit_price"))
+            object.__setattr__(self, "limit_price", coerce_decimal(self.limit_price, "limit_price"))
         if self.stop_price is not None:
-            object.__setattr__(self, "stop_price", _as_decimal(self.stop_price, "stop_price"))
+            object.__setattr__(self, "stop_price", coerce_decimal(self.stop_price, "stop_price"))
 
         if self.side not in _SIDES:
             raise KISUsageError(f"side 는 buy/sell 중 하나여야 한다: {self.side!r}")
@@ -154,7 +157,7 @@ class Order:
         if self.loan_date is not None and self.credit_type is None:
             raise KISUsageError("loan_date 는 신용주문(credit_type)에만 줄 수 있다.")
         if self.loan_date is not None:
-            _validate_loan_date(self.loan_date)
+            validate_yyyymmdd(self.loan_date, "loan_date")
         if self.credit_type is not None:
             # 신용주문은 국내(KRX) 마진 전용 -- 해외 거래소와 조합하면 라우팅이 해외 빌더로 새어
             # 신용 의미가 조용히 사라진다. 생성 시점에 fail-closed.
@@ -206,9 +209,9 @@ class Order:
         credit_type: CreditType | None = None, loan_date: str | None = None,
         client_order_id: str | None = None,
     ) -> Order:
-        quantity_dec = _as_decimal(quantity, "quantity")
-        limit_dec = None if limit_price is None else _as_decimal(limit_price, "limit_price")
-        stop_dec = None if stop_price is None else _as_decimal(stop_price, "stop_price")
+        quantity_dec = coerce_decimal(quantity, "quantity")
+        limit_dec = None if limit_price is None else coerce_decimal(limit_price, "limit_price")
+        stop_dec = None if stop_price is None else coerce_decimal(stop_price, "stop_price")
         # client_order_id 를 안 주면 필드의 default_factory 가 발행하도록 아예 넘기지 않는다
         # (None 을 넘기면 factory 를 덮어써 멱등키가 사라진다).
         if client_order_id is None:

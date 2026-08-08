@@ -502,13 +502,13 @@ def _filter_matching_daily_rows(
         # 현금주문 지문("")은 행에 대출일자가 없어야 매칭한다(cash<->credit 오확정 방지).
         if _normalize_loan_date(row.get("loan_dt")) != want_loan_date:
             continue
-        if _parse_decimal(row.get("ord_qty")) != quantity:
+        if parse_response_decimal(row.get("ord_qty")) != quantity:
             continue
         # 지정가 주문은 단가가 있고 같아야 한다(fail-closed) -- 단가 없는 행 통과 시 무관한
         # 동일수량 주문을 오귀속할 수 있다. 단가 없으면 제외(안전 방향).
         if limit_price is not None:
             row_price = row.get("ord_unpr")
-            if row_price in (None, "") or _parse_decimal(row_price) != limit_price:
+            if row_price in (None, "") or parse_response_decimal(row_price) != limit_price:
                 continue
         matched.append(row)
     return matched
@@ -517,9 +517,9 @@ def _filter_matching_daily_rows(
 def _execution_report_from_daily_row(
     client_order_id: str, fingerprint: Fingerprint, row: Mapping[str, Any]
 ) -> ExecutionReport:
-    ordered = _parse_decimal(row.get("ord_qty"))
-    filled = _parse_decimal(row.get("tot_ccld_qty"))
-    rejected = _parse_decimal(row.get("rjct_qty"))
+    ordered = parse_response_decimal(row.get("ord_qty"))
+    filled = parse_response_decimal(row.get("tot_ccld_qty"))
+    rejected = parse_response_decimal(row.get("rjct_qty"))
     if str(row.get("cncl_yn", "")).upper() == "Y":
         status = OrderStatus.CANCELED
     elif rejected > 0 and filled == 0:
@@ -530,7 +530,7 @@ def _execution_report_from_daily_row(
         status = OrderStatus.PARTIALLY_FILLED
     else:
         status = OrderStatus.NEW
-    avg = _parse_decimal(row.get("avg_prvs"))
+    avg = parse_response_decimal(row.get("avg_prvs"))
     return ExecutionReport(
         client_order_id=client_order_id,
         order_id=str(row.get("odno")) if row.get("odno") else None,
@@ -556,7 +556,7 @@ def _extract_output_mapping(body: Mapping[str, Any]) -> Mapping[str, Any]:
     return out if isinstance(out, Mapping) else {}
 
 
-def _parse_decimal(value: object) -> Decimal:
+def parse_response_decimal(value: object) -> Decimal:
     """KIS 문자열 수치를 Decimal 로. 공백/None 은 0. 값이 있는데 파싱 실패면 :class:`KISError`
     로 fail-closed -- 신뢰 못 할 숫자를 0으로 조작하면 재조회가 체결을 '미체결'로 오판한다."""
     if value is None or value == "":

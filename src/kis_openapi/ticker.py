@@ -571,6 +571,37 @@ class Ticker:
             loan_date=loan_date, time_in_force=time_in_force, client_order_id=client_order_id,
         ))
 
+    def reserve_buy(
+        self, *, quantity: object, price: object | None = None, end_date: str | None = None,
+        client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 종목의 **현금 예약매수** -- 다음 영업일(또는 ``end_date`` 까지) 아침 동시호가에 집행되도록
+        예약한다. ``price`` 를 주면 지정가, 없으면 시장가. ``end_date``(YYYYMMDD)는 예약 유효 종료일
+        (현재 이후, 생략 시 브로커 기본).
+
+        즉시 :meth:`buy` 와 같은 안전 규칙(이중발주 방지·재시도 금지·주문가능 계좌 가드)을 공유하되
+        라이프사이클이 다르다: 반환 :class:`~kis_openapi.report.ExecutionReport` 의 ``order_id`` 는
+        예약주문순번(정정·취소 시 지목), ``status`` 는 :attr:`~kis_openapi.report.OrderStatus.PENDING_NEW`
+        (접수됨·미집행). **모의투자 미지원**, 국내 종목만, 현금 예약만. 잘못된 인자/계좌 미설정은
+        ``KISUsageError``, 조회전용 계좌는 ``AccountNotOrderable``, 접수 거부는 ``OrderRejectedError``,
+        타임아웃(접수 불명)은 ``OrderTimeoutError``(:meth:`KISClient.reconcile` 로 확인)."""
+        self._domestic_market()        # 해외 미지원(예약은 국내만)
+        return self._client._place_reserved_order(
+            symbol=self.symbol, side="buy", quantity=quantity, price=price, end_date=end_date,
+            client_order_id=client_order_id,
+        )
+
+    def reserve_sell(
+        self, *, quantity: object, price: object | None = None, end_date: str | None = None,
+        client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 종목의 **현금 예약매도**. 계약·안전 규칙은 :meth:`reserve_buy` 와 같다(방향만 매도)."""
+        self._domestic_market()        # 해외 미지원
+        return self._client._place_reserved_order(
+            symbol=self.symbol, side="sell", quantity=quantity, price=price, end_date=end_date,
+            client_order_id=client_order_id,
+        )
+
     def _make_order(
         self, side: Side, quantity: object, price: object | None,
         time_in_force: TimeInForce, client_order_id: str | None,

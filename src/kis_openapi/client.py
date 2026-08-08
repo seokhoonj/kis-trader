@@ -49,7 +49,7 @@ from .instrument import DomesticBoard, is_domestic_symbol
 from .market import MarketQueries
 from .market_items import NewsItem
 from .open_order import OpenOrder
-from .order import Order, mint_client_order_id
+from .order import Order, Side, mint_client_order_id
 from .overseas_derivative import OverseasDerivative
 from .overseas_derivative_items import (
     OverseasDerivativeDetail,
@@ -675,10 +675,11 @@ class KISClient:
     def reconcile(self, client_order_id: str) -> ExecutionReport | None:
         """미확인 주문(타임아웃 등)의 실제 상태를 브로커에 재조회한다 -- **보수적**.
 
-        완료 리포트가 있으면 반환. in-flight 면 일별체결조회로 확인해 정확히 1건이면 확정,
-        모호(0/다건)하면 미접수로 단정하지 않는다(``None`` 또는 :class:`~kis_openapi.errors.KISError`).
-        모르는 id 는 :class:`~kis_openapi.errors.KISUsageError`. 재조회 자체가 시간초과면
-        :class:`~kis_openapi.errors.OrderTimeoutError`(in-flight 유지, 잠시 후 재시도).
+        완료 리포트가 있으면 반환. in-flight 면 저장된 주문 종류에 따라 확인처를 고른다: 국내 즉시
+        주문은 일별체결조회, 해외 주문은 해외 체결내역, 예약주문은 예약주문조회. 어느 쪽이든 정확히
+        1건이면 확정, 모호(0/다건)하면 미접수로 단정하지 않는다(``None`` 또는 :class:`~kis_openapi.
+        errors.KISError`). 모르는 id 는 :class:`~kis_openapi.errors.KISUsageError`. 재조회 자체가
+        시간초과면 :class:`~kis_openapi.errors.OrderTimeoutError`(in-flight 유지, 잠시 후 재시도).
         """
         cano, product_code = self._require_account()
         # 해외 주문의 미확인(in-flight) 재조회는 국내 일별체결조회가 아니라 해외 체결내역으로 확인해야
@@ -688,6 +689,12 @@ class KISClient:
         if fingerprint is not None and fingerprint.exchange.startswith("action:"):
             raise KISUsageError(
                 "정정·취소 요청은 자동 reconcile을 지원하지 않는다. 원주문 상태를 조회해 확인하라."
+            )
+        if fingerprint is not None and fingerprint.exchange == "reserved":
+            # 예약주문은 일별체결이 아니라 예약주문조회로 확인한다.
+            return reserved_orders_api.reconcile_reserved_order(
+                self._transport, self._store, client_order_id,
+                cano=cano, product_code=product_code, environment=self._environment,
             )
         if fingerprint is not None and overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
             return overseas_orders_engine.reconcile(
@@ -772,6 +779,23 @@ class KISClient:
             self._transport, self._store, order,
             cano=cano, product_code=product_code, environment=self._environment,
             orderable=self._orderable, risk=risk, build_request=build_request,
+        )
+
+    def _place_reserved_order(
+        self, *, symbol: str, side: Side, quantity: object, price: object | None,
+        end_date: str | None, client_order_id: str | None,
+    ) -> ExecutionReport:
+        """예약주문을 예약 안전 엔진에 넘긴다(Ticker.reserve_buy/sell 이 호출). 계좌 정보 필요.
+
+        즉시주문 안전 코어와 별개 흐름이되 dedup(OrderStore)·재시도 금지·보수적 재조회·주문가능 계좌
+        가드는 공유한다. risk 게이트는 예약주문엔 적용하지 않는다(집행이 향후라 현재가 기준 참조가
+        의미 없음)."""
+        cano, product_code = self._require_account()
+        return reserved_orders_api.place_reserved_order(
+            self._transport, self._store,
+            symbol=symbol, side=side, quantity=quantity, price=price, end_date=end_date,
+            client_order_id=client_order_id or mint_client_order_id(), orderable=self._orderable,
+            cano=cano, product_code=product_code, environment=self._environment,
         )
 
     def _require_account(self) -> tuple[str, str]:
