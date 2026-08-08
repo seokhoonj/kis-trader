@@ -45,6 +45,7 @@ from .index import Index
 from .instrument import DomesticBoard, is_domestic_symbol
 from .market import MarketQueries
 from .market_items import NewsItem
+from .open_order import OpenOrder
 from .order import Order, mint_client_order_id
 from .overseas_derivative import OverseasDerivative
 from .overseas_derivative_items import (
@@ -472,6 +473,15 @@ class KISClient:
         """보유 종목 전체(0수량 잔여 lot 포함)."""
         cano, product_code = self._require_account()
         return account_api.fetch_positions(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment
+        )
+
+    def open_orders(self) -> list[OpenOrder]:
+        """미체결(정정·취소 가능) 주문 목록. 브로커 측 뷰라 우리 ``client_order_id`` 는 없고
+        KIS 주문번호로 식별한다. 정정/취소 전 ``cancelable_quantity`` 를 확인하라. **모의투자
+        미지원**(demo면 :class:`~kis_openapi.errors.KISUsageError`; 계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return account_api.fetch_open_orders(
             self._transport, cano=cano, product_code=product_code, environment=self._environment
         )
 

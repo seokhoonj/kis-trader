@@ -13,12 +13,14 @@ KIS URL/TR-id:
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import time
 from decimal import Decimal
 from typing import Any
 
 from .._wire import format_wire_decimal, optional_decimal, required_decimal
 from ..balance import Balance, Portfolio, Position
 from ..errors import KISError, KISUsageError
+from ..open_order import OpenOrder
 from ..orderable import BuyableAmount, SellableQuantity
 from ..transport import Environment, RawResponse, Transport
 
@@ -31,6 +33,12 @@ _BUYABLE_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-order"
 _BUYABLE_TR = {"real": "TTTC8908R", "demo": "VTTC8908R"}
 _SELLABLE_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-sell"
 _SELLABLE_TR = "TTTC8408R"  # 모의투자 미지원 -- demo TR 없음
+
+_OPEN_ORDERS_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-rvsecncl"
+_OPEN_ORDERS_TR = "TTTC0084R"  # 정정취소가능주문조회, 모의투자 미지원
+#: 미체결 주문 연속조회 페이지 상한(한 콜 최대 50건). 닿으면 fail-closed.
+_MAX_OPEN_ORDER_PAGES = 100
+_SIDE = {"01": "sell", "02": "buy"}
 
 
 # --- 잔고 / 보유종목 / 포트폴리오 -----------------------------------------
@@ -237,6 +245,102 @@ def _parse_sellable(output1: Mapping[str, Any], *, symbol: str) -> SellableQuant
         sellable_quantity=_decimal_or_zero(output1.get("ord_psbl_qty"), "ord_psbl_qty"),
         _raw=output1,
     )
+
+
+# --- 미체결(정정·취소 가능) 주문 -------------------------------------------
+def fetch_open_orders(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment
+) -> list[OpenOrder]:
+    """미체결(정정·취소 가능) 주문 전체(연속조회 소진까지). **모의투자 미지원**.
+
+    브로커 측 뷰라 우리 ``client_order_id`` 는 없다 -- 정정/취소는 KIS ``order_id``/``branch_number``
+    로 지목한다. 응답은 ``output`` 배열, 페이지당 최대 50건.
+    """
+    if environment == "demo":
+        raise KISUsageError(
+            "정정취소가능주문조회(inquire-psbl-rvsecncl)는 모의투자 미지원 -- 실전에서만."
+        )
+    rows: list[Mapping[str, Any]] = []
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_OPEN_ORDER_PAGES):
+        resp = _fetch_open_orders_page(
+            transport, cano, product_code, environment, ctx_fk, ctx_nk, tr_cont=tr_cont
+        )
+        _raise_if_error(resp)
+        page = resp.body.get("output")
+        if not isinstance(page, list):  # 미체결 없어도 빈 배열 -> 부재/비배열은 손상
+            raise KISError(
+                "정정취소가능주문조회 응답의 output 이 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
+        ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"정정취소가능주문조회가 {_MAX_OPEN_ORDER_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다."
+        )
+    return _parse_open_orders(rows)
+
+
+def _fetch_open_orders_page(
+    transport: Transport, cano: str, product_code: str, environment: Environment, ctx_fk: str, ctx_nk: str,
+    *, tr_cont: str = "",
+) -> RawResponse:
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "CTX_AREA_FK100": ctx_fk, "CTX_AREA_NK100": ctx_nk,
+        "INQR_DVSN_1": "0",  # 0 주문 단위
+        "INQR_DVSN_2": "0",  # 0 전체(매도+매수)
+    }
+    return transport.request(
+        method="GET", path=_OPEN_ORDERS_PATH, tr_id=_OPEN_ORDERS_TR,
+        params=params, idempotent=True, tr_cont=tr_cont,
+    )
+
+
+def _parse_open_orders(rows: list[Mapping[str, Any]]) -> list[OpenOrder]:
+    orders: list[OpenOrder] = []
+    for row in rows:
+        order_id = str(row.get("odno", "")).strip()
+        if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
+            continue
+        quantity = _decimal_or_zero(row.get("ord_qty"), "ord_qty")
+        filled = _decimal_or_zero(row.get("tot_ccld_qty"), "tot_ccld_qty")
+        orders.append(
+            OpenOrder(
+                symbol=str(row.get("pdno", "")).strip(),
+                name=str(row.get("prdt_name", "")).strip(),
+                order_id=order_id,
+                original_order_id=str(row.get("orgn_odno", "")).strip(),
+                branch_number=str(row.get("ord_gno_brno", "")).strip(),
+                side=_SIDE.get(str(row.get("sll_buy_dvsn_cd", "")).strip(), ""),
+                order_type=str(row.get("ord_dvsn_name", "")).strip(),
+                quantity=quantity,
+                filled_quantity=filled,
+                unfilled_quantity=quantity - filled,
+                cancelable_quantity=_decimal_or_zero(row.get("psbl_qty"), "psbl_qty"),
+                price=_decimal_or_zero(row.get("ord_unpr"), "ord_unpr"),
+                order_time=_parse_hhmmss(row.get("ord_tmd")),
+                _raw=row,
+            )
+        )
+    return orders
+
+
+def _parse_hhmmss(value: object) -> time | None:
+    """``"131438"`` -> ``time(13, 14, 38)``. 공백/형식오류면 None(fail-soft)."""
+    text = str(value or "").strip()
+    if len(text) != 6 or not text.isdigit():
+        return None
+    hour, minute, second = int(text[0:2]), int(text[2:4]), int(text[4:6])
+    if hour > 23 or minute > 59 or second > 59:
+        return None
+    return time(hour, minute, second)
 
 
 # --- 공용 ------------------------------------------------------------------

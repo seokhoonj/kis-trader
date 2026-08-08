@@ -137,6 +137,7 @@ from .market_items import (
     VIEvent,
 )
 from .money import Money
+from .open_order import OpenOrder
 from .order import Order
 from .order_book import OrderBook, PriceLevel
 from .orderable import BuyableAmount, SellableQuantity
@@ -298,6 +299,7 @@ __all__ = [
     "Money",
     "NearHighLowRanking",
     "NewsItem",
+    "OpenOrder",
     "OptionBoard",
     "OptionBoardRow",
     "OptionExpiry",
