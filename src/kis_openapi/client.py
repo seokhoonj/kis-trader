@@ -80,6 +80,7 @@ from .risk import RiskLimits
 from .saved_screen import SavedScreen, SavedScreenStock, Watchlist, WatchlistGroup
 from .store import OrderStore
 from .ticker import Ticker
+from .trade_profit import TradeProfitHistory
 from .transport import Transport
 
 _OVERSEAS_INDEX_KIND = {"index": "N", "fx": "X", "bond": "I", "gold": "S"}
@@ -477,6 +478,19 @@ class KISClient:
         cano, product_code = self._require_account()
         return account_api.fetch_positions(
             self._transport, cano=cano, product_code=product_code, environment=self._environment
+        )
+
+    def trade_profits(
+        self, *, start: str, end: str, symbol: str | None = None, sort: str = "recent"
+    ) -> TradeProfitHistory:
+        """기간별 매매손익(실현손익) -- 종목별 실현손익과 기간 총계(총실현손익·총수익률·수수료·세금).
+        ``start``/``end`` 는 기간(YYYYMMDD), ``symbol`` 없으면 전체, ``sort`` = ``"recent"``/``"oldest"``.
+        미실현 평가손익(:meth:`positions`)과 달리 매도로 확정된 손익이다. 금액은 KRW Decimal. **모의투자
+        미지원**(demo면 :class:`~kis_openapi.errors.KISUsageError`; 계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return account_api.fetch_trade_profits(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment,
+            start=start, end=end, symbol=symbol, sort=sort,
         )
 
     def account_assets(self) -> AccountAssets:

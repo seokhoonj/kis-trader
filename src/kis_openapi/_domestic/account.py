@@ -13,7 +13,7 @@ KIS URL/TR-id:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import time
+from datetime import date, time
 from decimal import Decimal
 from typing import Any
 
@@ -22,6 +22,7 @@ from ..balance import AccountAssets, Balance, Portfolio, Position
 from ..errors import KISError, KISUsageError
 from ..open_order import OpenOrder
 from ..orderable import BuyableAmount, SellableQuantity
+from ..trade_profit import TradeProfit, TradeProfitHistory
 from ..transport import Environment, RawResponse, Transport
 
 _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
@@ -39,6 +40,13 @@ _CREDIT_BUYABLE_TR = "TTTC8909R"  # 모의투자 미지원
 
 _ASSETS_PATH = "/uapi/domestic-stock/v1/trading/inquire-account-balance"
 _ASSETS_TR = "CTRP6548R"  # 모의투자 미지원
+
+_TRADE_PROFIT_PATH = "/uapi/domestic-stock/v1/trading/inquire-period-trade-profit"
+_TRADE_PROFIT_TR = "TTTC8715R"  # 모의투자 미지원
+#: 매매손익 연속조회 페이지 상한. 닿으면 fail-closed.
+_MAX_TRADE_PROFIT_PAGES = 100
+#: 정렬 -> SORT_DVSN. recent:최근순/oldest:과거순.
+_TRADE_PROFIT_SORT = {"recent": "00", "oldest": "01"}
 #: 신용유형(원장 코드표). 21 자기융자신규/22 유통대주신규/23 유통융자신규/24 자기대주신규/
 #: 25 자기융자상환/26 유통대주상환/27 유통융자상환/28 자기대주상환.
 _CREDIT_TYPES = frozenset({"21", "22", "23", "24", "25", "26", "27", "28"})
@@ -295,6 +303,109 @@ def _parse_sellable(output1: Mapping[str, Any], *, symbol: str) -> SellableQuant
         sellable_quantity=_decimal_or_zero(output1.get("ord_psbl_qty"), "ord_psbl_qty"),
         _raw=output1,
     )
+
+
+# --- 기간별 매매손익 -------------------------------------------------------
+def fetch_trade_profits(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str, symbol: str | None = None, sort: str = "recent",
+) -> TradeProfitHistory:
+    """기간별 매매손익(실현손익). ``start``/``end`` 는 기간(YYYYMMDD), ``symbol`` 없으면 전체,
+    ``sort`` = recent/oldest. output1 종목행을 연속조회로 모으고 output2 총계를 함께 담는다.
+    **모의투자 미지원**."""
+    if environment == "demo":
+        raise KISUsageError(
+            "기간별매매손익현황조회(inquire-period-trade-profit)는 모의투자 미지원 -- 실전에서만."
+        )
+    try:
+        sort_code = _TRADE_PROFIT_SORT[sort]
+    except KeyError:
+        raise KISUsageError(
+            f"지원하지 않는 sort: {sort!r} ({'/'.join(_TRADE_PROFIT_SORT)})."
+        ) from None
+    rows: list[Mapping[str, Any]] = []
+    summary: Mapping[str, Any] | None = None
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_TRADE_PROFIT_PAGES):
+        params = {
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "SORT_DVSN": sort_code, "PDNO": symbol or "",
+            "INQR_STRT_DT": start, "INQR_END_DT": end, "CBLC_DVSN": "00",
+            "CTX_AREA_FK100": ctx_fk, "CTX_AREA_NK100": ctx_nk,
+        }
+        resp = transport.request(
+            method="GET", path=_TRADE_PROFIT_PATH, tr_id=_TRADE_PROFIT_TR,
+            params=params, idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        if summary is None:  # 기간 총계(output2)는 기간 단위라 첫 페이지로 완결
+            candidate = resp.body.get("output2")
+            summary = candidate if isinstance(candidate, Mapping) else None
+        page = resp.body.get("output1")
+        if not isinstance(page, list):  # 빈 내역도 배열 -> 부재/비배열은 손상
+            raise KISError(
+                "매매손익 응답의 output1 이 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"매매손익 조회가 {_MAX_TRADE_PROFIT_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다."
+        )
+    if summary is None:
+        raise KISError("매매손익 응답에 총계(output2)가 없다.")
+    trades = tuple(
+        _parse_trade_profit(row) for row in rows if str(row.get("pdno", "")).strip()
+    )
+    return TradeProfitHistory(
+        trades=trades,
+        total_realized_pnl=required_decimal(summary.get("tot_rlzt_pfls"), "tot_rlzt_pfls"),
+        total_return_percent=required_decimal(summary.get("tot_pftrt"), "tot_pftrt"),
+        total_buy_amount=required_decimal(summary.get("buy_tr_amt_smtl"), "buy_tr_amt_smtl"),
+        total_sell_amount=required_decimal(summary.get("sll_tr_amt_smtl"), "sll_tr_amt_smtl"),
+        total_fee=required_decimal(summary.get("tot_fee"), "tot_fee"),
+        total_tax=required_decimal(summary.get("tot_tltx"), "tot_tltx"),
+        _raw=summary,
+    )
+
+
+def _parse_trade_profit(row: Mapping[str, Any]) -> TradeProfit:
+    return TradeProfit(
+        trade_date=_parse_date(row.get("trad_dt")),
+        symbol=str(row.get("pdno", "")).strip(),
+        name=str(row.get("prdt_name", "")).strip(),
+        trade_type=str(row.get("trad_dvsn_name", "")).strip(),
+        holding_quantity=_decimal_or_zero(row.get("hldg_qty"), "hldg_qty"),
+        purchase_price=_decimal_or_zero(row.get("pchs_unpr"), "pchs_unpr"),
+        buy_quantity=_decimal_or_zero(row.get("buy_qty"), "buy_qty"),
+        buy_amount=_decimal_or_zero(row.get("buy_amt"), "buy_amt"),
+        sell_price=_decimal_or_zero(row.get("sll_pric"), "sll_pric"),
+        sell_quantity=_decimal_or_zero(row.get("sll_qty"), "sll_qty"),
+        sell_amount=_decimal_or_zero(row.get("sll_amt"), "sll_amt"),
+        realized_pnl=_decimal_or_zero(row.get("rlzt_pfls"), "rlzt_pfls"),
+        return_percent=_decimal_or_zero(row.get("pfls_rt"), "pfls_rt"),
+        fee=_decimal_or_zero(row.get("fee"), "fee"),
+        tax=_decimal_or_zero(row.get("tl_tax"), "tl_tax"),
+        loan_interest=_decimal_or_zero(row.get("loan_int"), "loan_int"),
+        _raw=row,
+    )
+
+
+def _parse_date(value: object) -> date | None:
+    """``"20240216"`` -> ``date(2024, 2, 16)``. 공백/형식오류면 None(fail-soft)."""
+    text = str(value or "").strip()
+    if len(text) != 8 or not text.isdigit():
+        return None
+    try:
+        return date(int(text[0:4]), int(text[4:6]), int(text[6:8]))
+    except ValueError:
+        return None
 
 
 # --- 투자계좌 자산현황 -----------------------------------------------------

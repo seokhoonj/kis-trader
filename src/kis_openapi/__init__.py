@@ -197,6 +197,7 @@ from .stock_info import StockInfo, StockStatus
 from .store import OrderStore
 from .ticker import Ticker
 from .trade import Trade
+from .trade_profit import TradeProfit, TradeProfitHistory
 
 __version__ = "0.0.0"
 
@@ -369,6 +370,8 @@ __all__ = [
     "TopViewedStock",
     "Trade",
     "TradeAmountBand",
+    "TradeProfit",
+    "TradeProfitHistory",
     "TradingDay",
     "UnderlyingQuote",
     "VIEvent",
