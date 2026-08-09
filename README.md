@@ -17,10 +17,10 @@ including analyst opinions/estimates where KIS provides them, domestic and overs
 orders and balances across account types, and an order path built to a safety standard
 (client-side idempotency, no write-retries, conservative reconciliation).
 
-## Market-wide rankings — `kis.ranking`
+## Market-wide rankings — `kis.domestic.ranking`
 
-`kis.ranking.*` returns market-wide rankings (top movers, most traded, and so on) as
-lists of typed rows. Coverage of the KIS ranking endpoints:
+`kis.domestic.ranking.*` returns market-wide rankings (top movers, most traded, and so
+on) as lists of typed rows. Coverage of the KIS ranking endpoints:
 
 | Ranking | Verb | Done |
 |---|---|:---:|
