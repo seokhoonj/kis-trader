@@ -48,8 +48,8 @@ class ExecutionReport:
     """한 주문의 상태 스냅샷(진실 원천).
 
     ``client_order_id`` (우리가 발행한 멱등키)로 요청과 리포트를 잇고, ``order_id`` 는 브로커가
-    접수 시 부여한 식별자다 -- 즉시주문은 거래소 주문번호(KIS ``ODNO``), 예약주문은 예약주문순번
-    (``rsvn_ord_seq``, 정정·취소 지목용)이 담긴다. 두 id를 모두 보관한다.
+    접수 시 부여한 식별자다 -- 즉시주문은 거래소 주문번호(KIS ``ODNO``), 예약주문은 예약 식별자
+    (국내 ``rsvn_ord_seq`` / 해외 ``ovrs_rsvn_odno``, 정정·취소 지목용)가 담긴다. 두 id를 모두 보관한다.
     """
 
     client_order_id: str

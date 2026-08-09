@@ -734,6 +734,11 @@ class KISClient:
                 self._transport, self._store, client_order_id,
                 cano=cano, product_code=product_code, environment=self._environment,
             )
+        if fingerprint is not None and fingerprint.exchange == "overseas-reserved":
+            return overseas_reserved_orders_api.reconcile_overseas_reserved_order(
+                self._transport, self._store, client_order_id,
+                cano=cano, product_code=product_code, environment=self._environment,
+            )
         if fingerprint is not None and overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
             return overseas_orders_engine.reconcile(
                 self._transport, self._store, client_order_id,
@@ -840,6 +845,19 @@ class KISClient:
         return reserved_orders_api.place_reserved_order(
             self._transport, self._store,
             symbol=symbol, side=side, quantity=quantity, price=price, end_date=end_date,
+            client_order_id=client_order_id or mint_client_order_id(), orderable=self._orderable,
+            cano=cano, product_code=product_code, environment=self._environment,
+        )
+
+    def _place_overseas_reserved_order(
+        self, *, symbol: str, side: Side, quantity: object, price: object, exchange: str,
+        client_order_id: str | None,
+    ) -> ExecutionReport:
+        """미국 해외예약주문을 예약 안전 엔진에 넘긴다(Ticker.reserve_buy/sell 이 해외 종목일 때 호출)."""
+        cano, product_code = self._require_account()
+        return overseas_reserved_orders_api.place_overseas_reserved_order(
+            self._transport, self._store,
+            symbol=symbol, side=side, quantity=quantity, price=price, exchange=exchange,
             client_order_id=client_order_id or mint_client_order_id(), orderable=self._orderable,
             cano=cano, product_code=product_code, environment=self._environment,
         )
