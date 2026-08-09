@@ -50,6 +50,12 @@ from .index import Index
 from .instrument import DomesticBoard, is_domestic_symbol
 from .market import MarketQueries
 from .market_items import NewsItem
+from .namespaces import (
+    DomesticNamespace,
+    OrdersNamespace,
+    OverseasNamespace,
+    PensionNamespace,
+)
 from .open_order import OpenOrder
 from .order import Order, Side, mint_client_order_id
 from .overseas_derivative import OverseasDerivative
@@ -162,6 +168,11 @@ class KISClient:
         # 해외 심볼->거래소 해석용 마스터 인덱스. 주입 없으면 첫 instrument() 호출 때 지연 로드.
         self._master_index = master_index
         self._master_fetch = master_fetch if master_fetch is not None else urlopen_fetch
+        # 자산군 최상위 네임스페이스(표면 조직). 평평한 verb 와 같은 엔진에 위임한다.
+        self.domestic = DomesticNamespace(self)
+        self.overseas = OverseasNamespace(self)
+        self.pension = PensionNamespace(self)
+        self.orders = OrdersNamespace(self)
 
     @property
     def transport(self) -> Transport:
