@@ -1,10 +1,10 @@
 """선물/옵션 핸들 -- :class:`Derivative`.
 
-한 파생 계약에 대해 조회를 시키는 핸들이다: ``kis.futures("101W09").quote()`` 처럼. 종목 핸들
+한 파생 계약에 대해 조회를 시키는 핸들이다: ``kis.domestic.futures("101W09").quote()`` 처럼. 종목 핸들
 :class:`~kis_openapi.ticker.Ticker` 와 대칭이며, 파생은 종목이 아니라 계약코드 + 시장구분
 (F:지수선물 / O:지수옵션)으로 조회한다.
 
-핸들은 :class:`~kis_openapi.client.KISClient` 가 ``kis.futures(code)`` / ``kis.option(code)`` 로
+핸들은 :class:`~kis_openapi.client.KISClient` 가 ``kis.domestic.futures(code)`` / ``kis.domestic.option(code)`` 로
 만들어 준다 -- 직접 생성하지 않는다.
 """
 

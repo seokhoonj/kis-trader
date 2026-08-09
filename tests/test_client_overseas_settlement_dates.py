@@ -56,7 +56,7 @@ def _response(rows, **extra):
 
 def test_settlement_dates_single_page_routes_and_parses():
     fake = FakeTransport(responses=[_response([_row(dmst_sttl_dt="")])])
-    dates = _client(fake).overseas_settlement_dates()
+    dates = _client(fake).overseas.settlement_dates()
 
     assert len(dates) == 1
     item = dates[0]
@@ -84,7 +84,7 @@ def test_settlement_dates_walks_ctx_area_pages_without_tr_cont():
             _response([_row(prdt_type_cd="513", tr_mket_cd="NYS")]),
         ]
     )
-    dates = _client(fake).overseas_settlement_dates()
+    dates = _client(fake).overseas.settlement_dates()
     assert [item.market_type_code for item in dates] == ["512", "513"]
     assert fake.calls[1]["params"] == {
         "CTX_AREA_NK": "NEXT",
@@ -95,7 +95,7 @@ def test_settlement_dates_walks_ctx_area_pages_without_tr_cont():
 def test_settlement_dates_rejects_demo_environment():
     fake = FakeTransport(responses=[])
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas_settlement_dates()
+        _client(fake, environment="demo").overseas.settlement_dates()
     assert fake.calls == []
 
 
@@ -105,9 +105,9 @@ def test_settlement_dates_missing_or_non_list_output_fails_closed(output):
     response = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
     fake = FakeTransport(responses=[response])
     with pytest.raises(KISError):
-        _client(fake).overseas_settlement_dates()
+        _client(fake).overseas.settlement_dates()
 
 
 def test_settlement_dates_invalid_date_is_none():
     fake = FakeTransport(responses=[_response([_row(acpl_sttl_dt="20260230")])])
-    assert _client(fake).overseas_settlement_dates()[0].local_settlement_date is None
+    assert _client(fake).overseas.settlement_dates()[0].local_settlement_date is None

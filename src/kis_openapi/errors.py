@@ -82,7 +82,7 @@ class OrderTimeoutError(OrderError):
     """주문 전송이 시간초과됐다 -- 체결 여부가 **불명**이다.
 
     KIS 타임아웃(``EGW00301`` / ``EGW00302``)은 "주문이 안 들어갔다"는 뜻이 **아니다**.
-    따라서 **자동 재전송하지 않는다**(중복 체결 위험). 반드시 ``kis.reconcile(client_order_id)``
+    따라서 **자동 재전송하지 않는다**(중복 체결 위험). 반드시 ``kis.orders.reconcile(client_order_id)``
     로 실제 상태를 재조회한 뒤 판단한다. 실패한 주문의 ``client_order_id`` 를 실어 재조회에
     쓰게 한다.
     """

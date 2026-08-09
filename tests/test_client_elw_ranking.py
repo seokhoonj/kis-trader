@@ -1,4 +1,4 @@
-"""ELW 시장 순위 -- kis.elw_ranking.*.
+"""ELW 시장 순위 -- kis.domestic.elw_ranking.*.
 
 5종(거래량/등락률/민감도/투자지표/당일급변) 각각의 TR·URL·시장구분 W·정렬/필터 파라미터,
 공통 행(RankedELW) 파싱(1-베이스 순위·부호 복원·지표는 _raw), sort 검증, fail-closed 를 검증한다.
@@ -45,12 +45,12 @@ def _row(code="57JS54", name="한국JS54KOSPI200콜", price="135", vrss="100", s
 
 
 def test_elw_ranking_accessor():
-    assert isinstance(_client(FakeTransport(response=_resp([]))).elw_ranking, ELWRankingQueries)
+    assert isinstance(_client(FakeTransport(response=_resp([]))).domestic.elw_ranking, ELWRankingQueries)
 
 
 def test_by_volume_maps_rows_and_params():
     fake = FakeTransport(response=_resp([_row(vol_tnrt="440.20"), _row(code="57JS55")]))
-    rows = _client(fake).elw_ranking.by_volume(underlying="005930", right="call")
+    rows = _client(fake).domestic.elw_ranking.by_volume(underlying="005930", right="call")
     assert all(isinstance(r, RankedELW) for r in rows)
     first = rows[0]
     assert first.rank == 1
@@ -74,7 +74,7 @@ def test_by_volume_maps_rows_and_params():
 
 def test_by_change_sort_and_negative():
     fake = FakeTransport(response=_resp([_row(vrss="50", sign="5", ctrt="18.18")]))
-    rows = _client(fake).elw_ranking.by_change(sort="losers", right="put")
+    rows = _client(fake).domestic.elw_ranking.by_change(sort="losers", right="put")
     assert rows[0].change == Decimal(-50)                 # sign 5(하락) -> 음수
     call = fake.calls[0]
     assert call["path"] == "/uapi/elw/v1/ranking/updown-rate"
@@ -85,7 +85,7 @@ def test_by_change_sort_and_negative():
 
 def test_by_sensitivity_sort_map_and_greeks_in_raw():
     fake = FakeTransport(response=_resp([_row(delta_val="1.000000", gama="0.0", vega="0.0")]))
-    rows = _client(fake).elw_ranking.by_sensitivity(sort="delta")
+    rows = _client(fake).domestic.elw_ranking.by_sensitivity(sort="delta")
     assert rows[0]._raw["delta_val"] == "1.000000"        # 그릭스는 _raw
     call = fake.calls[0]
     assert call["path"] == "/uapi/elw/v1/ranking/sensitivity"
@@ -95,7 +95,7 @@ def test_by_sensitivity_sort_map_and_greeks_in_raw():
 
 def test_by_indicator_sort_map():
     fake = FakeTransport(response=_resp([_row(lvrg_val="35.05")]))
-    _client(fake).elw_ranking.by_indicator(sort="leverage")
+    _client(fake).domestic.elw_ranking.by_indicator(sort="leverage")
     call = fake.calls[0]
     assert call["path"] == "/uapi/elw/v1/ranking/indicator"
     assert call["tr_id"] == "FHPEW02790000"
@@ -104,7 +104,7 @@ def test_by_indicator_sort_map():
 
 def test_quick_change_window_and_no_right():
     fake = FakeTransport(response=_resp([_row()]))
-    _client(fake).elw_ranking.quick_change(sort="volume_surge", window="minute")
+    _client(fake).domestic.elw_ranking.quick_change(sort="volume_surge", window="minute")
     call = fake.calls[0]
     assert call["path"] == "/uapi/elw/v1/ranking/quick-change"
     assert call["tr_id"] == "FHPEW02870000"
@@ -116,29 +116,29 @@ def test_quick_change_window_and_no_right():
 
 def test_ranking_skips_empty_rows_and_ranks_sequentially():
     fake = FakeTransport(response=_resp([_row(), {"elw_shrn_iscd": ""}, _row(code="57JS55")]))
-    rows = _client(fake).elw_ranking.by_volume()
+    rows = _client(fake).domestic.elw_ranking.by_volume()
     assert [r.rank for r in rows] == [1, 2]               # 빈 행 제외, 순위 연속
 
 
 def test_ranking_rejects_bad_sort():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).elw_ranking.by_volume(sort="nope")
+        _client(fake).domestic.elw_ranking.by_volume(sort="nope")
 
 
 def test_ranking_rejects_bad_right():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).elw_ranking.by_volume(right="both")
+        _client(fake).domestic.elw_ranking.by_volume(right="both")
 
 
 def test_ranking_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).elw_ranking.by_volume()
+        _client(fake).domestic.elw_ranking.by_volume()
 
 
 def test_ranking_bad_value_fails_closed():
     fake = FakeTransport(response=_resp([_row(price="n/a")]))
     with pytest.raises(KISError):
-        _client(fake).elw_ranking.by_volume()
+        _client(fake).domestic.elw_ranking.by_volume()

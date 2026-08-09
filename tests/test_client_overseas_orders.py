@@ -101,10 +101,10 @@ def test_overseas_cancel_maps_exchange_and_deduplicates():
     kis.overseas.stock("AAPL", exchange="NAS").buy(
         quantity=3, price="150.25", client_order_id="original-overseas-1"
     )
-    first = kis.cancel_order(
+    first = kis.orders.cancel(
         "original-overseas-1", quantity=2, request_id="cancel-overseas-1"
     )
-    second = kis.cancel_order(
+    second = kis.orders.cancel(
         "original-overseas-1", quantity=2, request_id="cancel-overseas-1"
     )
 
@@ -130,7 +130,7 @@ def test_overseas_replace_uses_demo_tr_and_new_price():
     kis.overseas.stock("0700", exchange="HKS").sell(
         quantity=4, price="410.00", client_order_id="original-overseas-2"
     )
-    report = kis.replace_order(
+    report = kis.orders.replace(
         "original-overseas-2", quantity=3, price="412.50",
         request_id="replace-overseas-1",
     )
@@ -153,10 +153,10 @@ def test_overseas_change_timeout_is_not_resent():
     )
     fake.raises = TransportTimeout()
     with pytest.raises(OrderTimeoutError):
-        kis.cancel_order("original-overseas-3", request_id="cancel-overseas-timeout")
+        kis.orders.cancel("original-overseas-3", request_id="cancel-overseas-timeout")
     fake.raises = None
     with pytest.raises(KISUsageError, match="재전송하지"):
-        kis.cancel_order("original-overseas-3", request_id="cancel-overseas-timeout")
+        kis.orders.cancel("original-overseas-3", request_id="cancel-overseas-timeout")
     assert len(_posts(fake)) == 2
 
 
@@ -182,7 +182,7 @@ def test_overseas_order_timeout_then_reconcile_confirms():
     client = _client(fake)
     with pytest.raises(OrderTimeoutError):
         client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="to")
-    report = client.reconcile("to")                    # 해외 체결내역으로 확정
+    report = client.orders.reconcile("to")                    # 해외 체결내역으로 확정
     assert report is not None
     assert report.order_id == "0000123456"
     assert report.filled_quantity == Decimal(1)
@@ -197,7 +197,7 @@ def test_overseas_reconcile_zero_matches_stays_none():
     client = _client(fake)
     with pytest.raises(OrderTimeoutError):
         client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="z")
-    assert client.reconcile("z") is None
+    assert client.orders.reconcile("z") is None
 
 
 def test_overseas_reconcile_two_matches_raises():
@@ -208,7 +208,7 @@ def test_overseas_reconcile_two_matches_raises():
     with pytest.raises(OrderTimeoutError):
         client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="m2")
     with pytest.raises(KISError, match="2건"):
-        client.reconcile("m2")
+        client.orders.reconcile("m2")
 
 
 def test_overseas_write_timeout_does_not_retry():
@@ -250,7 +250,7 @@ def test_overseas_reconcile_paginates_ccnl():
     client = _client(fake)
     with pytest.raises(OrderTimeoutError):
         client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="pg")
-    report = client.reconcile("pg")
+    report = client.orders.reconcile("pg")
     assert report is not None and report.order_id == "0000123456"
     gets = [c for c in fake.calls if c["method"] == "GET"]
     assert len(gets) == 2
@@ -268,7 +268,7 @@ def test_overseas_reconcile_keeps_scanning_when_tr_cont_says_more():
     client = _client(fake)
     with pytest.raises(OrderTimeoutError):
         client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="tc")
-    report = client.reconcile("tc")
+    report = client.orders.reconcile("tc")
     assert report is not None and report.order_id == "0000123456"
     assert len([c for c in fake.calls if c["method"] == "GET"]) == 2
 

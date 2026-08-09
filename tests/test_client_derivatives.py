@@ -1,4 +1,4 @@
-"""선물/옵션 핸들 -- kis.futures(code).quote() / kis.option(code).quote().
+"""선물/옵션 핸들 -- kis.domestic.futures(code).quote() / kis.domestic.option(code).quote().
 
 시장구분 F/O 라우팅, output1 파싱(미결제약정·베이시스·이론가·괴리율), 전일대비 부호 복원,
 optional 필드(None), fail-closed 를 검증한다.
@@ -51,7 +51,7 @@ def _client(transport):
 
 def test_futures_quote_maps_fields_and_market():
     fake = FakeTransport(response=_resp(_output()))
-    quote = _client(fake).futures("101W09").quote()
+    quote = _client(fake).domestic.futures("101W09").quote()
     assert isinstance(quote, DerivativesQuote)
     assert quote.code == "101W09"
     assert quote.last == Decimal("335.20")
@@ -72,20 +72,20 @@ def test_futures_quote_maps_fields_and_market():
 
 def test_option_quote_uses_o_market():
     fake = FakeTransport(response=_resp(_output()))
-    _client(fake).option("201W09335").quote()
+    _client(fake).domestic.option("201W09335").quote()
     assert fake.calls[0]["params"]["FID_COND_MRKT_DIV_CODE"] == "O"   # 지수옵션
 
 
 def test_derivatives_quote_negative_change():
     fake = FakeTransport(response=_resp(_output(vrss="1.50", sign="5", ctrt="0.45")))
-    quote = _client(fake).futures("101W09").quote()
+    quote = _client(fake).domestic.futures("101W09").quote()
     assert quote.change == Decimal("-1.50")            # 하락 -> 음수
     assert quote.change_percent == Decimal("-0.45")
 
 
 def test_derivatives_quote_optional_fields_none():
     fake = FakeTransport(response=_resp(_output(thpr="", basis="", dprt="")))
-    quote = _client(fake).futures("101W09").quote()
+    quote = _client(fake).domestic.futures("101W09").quote()
     assert quote.theoretical_price is None
     assert quote.basis is None
     assert quote.premium is None
@@ -95,13 +95,13 @@ def test_derivatives_quote_optional_fields_none():
 def test_derivatives_quote_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).futures("101W09").quote()
+        _client(fake).domestic.futures("101W09").quote()
 
 
 def test_derivatives_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(_output(last="n/a")))
     with pytest.raises(KISError):
-        _client(fake).futures("101W09").quote()
+        _client(fake).domestic.futures("101W09").quote()
 
 
 # --- order_book (호가 사다리는 output2) -------------------------------------
@@ -124,7 +124,7 @@ def _book(**over):
 
 def test_futures_order_book_maps_output2_and_market():
     fake = FakeTransport(response=_book())
-    book = _client(fake).futures("101W09").order_book()
+    book = _client(fake).domestic.futures("101W09").order_book()
     assert isinstance(book, OrderBook)
     assert book.symbol == "101W09"
     assert book.market == "F"
@@ -144,7 +144,7 @@ def test_futures_order_book_maps_output2_and_market():
 
 def test_option_order_book_uses_o_market():
     fake = FakeTransport(response=_book())
-    _client(fake).option("201W09335").order_book()
+    _client(fake).domestic.option("201W09335").order_book()
     assert fake.calls[0]["params"]["FID_COND_MRKT_DIV_CODE"] == "O"
 
 
@@ -153,7 +153,7 @@ def test_derivatives_order_book_missing_output2_fails_closed():
                        body={"output1": {"hts_kor_isnm": "F"}})    # output2 없음
     fake = FakeTransport(response=resp)
     with pytest.raises(KISError):
-        _client(fake).futures("101W09").order_book()
+        _client(fake).domestic.futures("101W09").order_book()
 
 
 # --- bars (기간봉, 캔들은 output2, 종가=futs_prpr) ---------------------------
@@ -171,7 +171,7 @@ def test_futures_bars_maps_candles_ascending():
     rows = [_candle("20260803", "334.0", "336.0", "333.0", "335.0"),
             _candle("20260801", "332.0", "335.0", "331.0", "334.0")]
     fake = FakeTransport(response=_bars_resp(rows))
-    bars = _client(fake).futures("101W09").bars("1d", start="20260801", end="20260803")
+    bars = _client(fake).domestic.futures("101W09").bars("1d", start="20260801", end="20260803")
     assert all(isinstance(b, Bar) for b in bars)
     assert [f"{b.timestamp:%Y%m%d}" for b in bars] == ["20260801", "20260803"]  # 오름차순
     last = bars[-1]
@@ -189,7 +189,7 @@ def test_futures_bars_maps_candles_ascending():
 def test_derivatives_bars_requires_start():
     fake = FakeTransport(response=_bars_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).futures("101W09").bars("1d")
+        _client(fake).domestic.futures("101W09").bars("1d")
 
 
 _MINUTE_CHART = "/uapi/domestic-futureoption/v1/quotations/inquire-time-fuopchartprice"
@@ -222,7 +222,7 @@ def test_futures_minute_bars_paginate_ascending_and_params():
     times = [f"09{m:02d}00" for m in range(9)]                   # 0900..0908, 1분 간격
     minutes = {t: _min_candle(t, str(359 + i)) for i, t in enumerate(times)}
     fake = MinuteFakeTransport(minutes)
-    bars = _client(fake).futures("101W09").bars("1m")
+    bars = _client(fake).domestic.futures("101W09").bars("1m")
     assert [f"{b.timestamp:%H%M%S}" for b in bars] == times       # 과거->현재 오름차순, 전량
     assert bars[-1].close == Decimal(367)                         # 종가=futs_prpr
     assert bars[-1].volume == 10                                  # 분당 거래량=cntg_vol
@@ -241,7 +241,7 @@ def test_futures_minute_bars_respects_max_bars():
     times = [f"09{m:02d}00" for m in range(9)]
     minutes = {t: _min_candle(t, str(359 + i)) for i, t in enumerate(times)}
     fake = MinuteFakeTransport(minutes)
-    bars = _client(fake).futures("101W09").bars("1m", max_bars=4)
+    bars = _client(fake).domestic.futures("101W09").bars("1m", max_bars=4)
     assert len(bars) == 4
     assert [f"{b.timestamp:%H%M%S}" for b in bars] == times[-4:]
 
@@ -252,7 +252,7 @@ def test_futures_minute_bars_missing_output2_fails_closed():
             return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
     from kis_openapi.errors import KISError
     with pytest.raises(KISError):
-        _client(Bad()).futures("101W09").bars("1m")
+        _client(Bad()).domestic.futures("101W09").bars("1m")
 
 
 def test_underlying_quote_maps_two_sign_fields():
@@ -265,7 +265,7 @@ def test_underlying_quote_maps_two_sign_fields():
                        body={"output1": output1, "output2": []})
     fake = FakeTransport(response=resp)
     from kis_openapi import UnderlyingQuote
-    uq = _client(fake).futures("101V06").underlying_quote()
+    uq = _client(fake).domestic.futures("101V06").underlying_quote()
     assert isinstance(uq, UnderlyingQuote)
     assert uq.name == "F 202406"
     assert uq.underlying_price == Decimal("367.25")
@@ -285,7 +285,7 @@ def test_underlying_quote_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     from kis_openapi.errors import KISError
     with pytest.raises(KISError):
-        _client(fake).futures("101V06").underlying_quote()
+        _client(fake).domestic.futures("101V06").underlying_quote()
 
 
 def test_expected_execution_trend_maps_summary_and_sorted_points():
@@ -307,7 +307,7 @@ def test_expected_execution_trend_maps_summary_and_sorted_points():
     fake = FakeTransport(response=response)
 
     from kis_openapi import ExpectedExecutionPoint, ExpectedExecutionTrend
-    trend = _client(fake).futures("101W09").expected_execution_trend()
+    trend = _client(fake).domestic.futures("101W09").expected_execution_trend()
 
     assert isinstance(trend, ExpectedExecutionTrend)
     assert isinstance(trend.points[0], ExpectedExecutionPoint)
@@ -330,7 +330,7 @@ def test_expected_execution_trend_missing_output2_fails_closed():
                            body={"output1": {}})
     fake = FakeTransport(response=response)
     with pytest.raises(KISError):
-        _client(fake).option("201W09335").expected_execution_trend()
+        _client(fake).domestic.option("201W09335").expected_execution_trend()
 
 
 def test_option_board_futures_maps_official_output_array():
@@ -349,7 +349,7 @@ def test_option_board_futures_maps_official_output_array():
     fake = FakeTransport(response=response)
 
     from kis_openapi import FuturesBoardQuote
-    quotes = _client(fake).option_board_futures()
+    quotes = _client(fake).domestic.option_board_futures()
 
     assert isinstance(quotes[0], FuturesBoardQuote)
     quote = quotes[0]
@@ -374,9 +374,9 @@ def test_option_board_futures_maps_official_output_array():
 def test_option_board_futures_rejects_missing_output_and_blank_market_class():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).option_board_futures()
+        _client(fake).domestic.option_board_futures()
     with pytest.raises(KISUsageError):
-        _client(fake).option_board_futures(market_class=" ")
+        _client(fake).domestic.option_board_futures(market_class=" ")
 
 
 def test_option_expiries_reads_output_array():
@@ -386,7 +386,7 @@ def test_option_expiries_reads_output_array():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output": rows})
     fake = FakeTransport(response=resp)
     from kis_openapi import OptionExpiry
-    expiries = _client(fake).option_expiries()
+    expiries = _client(fake).domestic.option_expiries()
     assert isinstance(expiries[0], OptionExpiry)
     assert expiries[0].code == "0V05"
     assert expiries[0].year_month == "202405"
@@ -400,4 +400,4 @@ def test_option_expiries_reads_output_array():
 def test_option_expiries_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).option_expiries()
+        _client(fake).domestic.option_expiries()

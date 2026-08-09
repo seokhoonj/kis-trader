@@ -1,6 +1,6 @@
 """해외 지수/환율/국채/금선물 핸들 -- :class:`OverseasIndex`.
 
-한 해외 지수류 심볼의 기간봉을 조회하는 핸들이다: ``kis.overseas_index(".DJI").bars(...)`` 처럼.
+한 해외 지수류 심볼의 기간봉을 조회하는 핸들이다: ``kis.overseas.index(".DJI").bars(...)`` 처럼.
 국내 :class:`~kis_openapi.index.Index` 와 대칭이며 첫 슬라이스에서는 기간봉만 지원한다.
 
 핸들은 :class:`~kis_openapi.client.KISClient` 가 만들어 준다 -- 직접 생성하지 않는다.

@@ -227,7 +227,7 @@ def test_overseas_reserve_reconcile_confirms_single_match(monkeypatch):
             quantity=1, price="150", client_order_id=cid)
     body = {"output": [_list_row(qty="1", unpr="150")], "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_LIST: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
-    report = _client(recon_t, store=store).reconcile(cid)
+    report = _client(recon_t, store=store).orders.reconcile(cid)
     assert report is not None
     assert report.order_id == "0031111234"
     assert all(c["method"] == "GET" for c in recon_t.calls)
@@ -250,7 +250,7 @@ def test_overseas_reserve_reconcile_ignores_canceled_mismatch_and_old_receipt(mo
             _list_row(qty="1", unpr="150", receipt="20240401")]  # 옛 접수 -> 배제
     body = {"output": rows, "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_LIST: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
-    assert _client(recon_t, store=store).reconcile(cid) is None
+    assert _client(recon_t, store=store).orders.reconcile(cid) is None
     assert store.fingerprint_for(cid) is not None
 
 
@@ -267,7 +267,7 @@ def test_overseas_reserve_reconcile_multi_match_raises(monkeypatch):
     body = {"output": rows, "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_LIST: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
     with pytest.raises(KISError):
-        _client(recon_t, store=store).reconcile(cid)
+        _client(recon_t, store=store).orders.reconcile(cid)
     assert store.fingerprint_for(cid) is not None
 
 

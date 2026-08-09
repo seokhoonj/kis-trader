@@ -49,7 +49,7 @@ def test_expected_conclusion_maps_and_sort():
              "prdy_vrss": "17500", "prdy_vrss_sign": "1", "prdy_ctrt": "29.86",
              "cntg_vol": "51683", "antc_tr_pbmn": "3933076300"}]
     fake = FakeTransport(response=_resp({"output": rows}))
-    ranked = _client(fake).ranking.by_expected_conclusion(top="up")
+    ranked = _client(fake).domestic.ranking.by_expected_conclusion(top="up")
     assert isinstance(ranked[0], RankedStock)
     assert ranked[0].rank == 1
     assert ranked[0].symbol == "199800"
@@ -75,7 +75,7 @@ def _ovtm_row(**over):
 
 def test_overtime_change_maps_overtime_fields():
     fake = FakeTransport(response=_resp({"output1": {}, "output2": [_ovtm_row()]}))
-    ranked = _client(fake).ranking.by_overtime_change(top="down")
+    ranked = _client(fake).domestic.ranking.by_overtime_change(top="down")
     assert isinstance(ranked[0], OvertimeRanking)
     assert ranked[0].symbol == "025950"
     assert ranked[0].overtime_price == Decimal(21000)     # 시간외 가격
@@ -93,7 +93,7 @@ def test_overtime_volume_uses_stck_shrn_iscd_fallback():
     row = _ovtm_row(mksc_shrn_iscd=None, stck_shrn_iscd="024840")
     del row["mksc_shrn_iscd"]
     fake = FakeTransport(response=_resp({"output1": {}, "output2": [row]}))
-    ranked = _client(fake).ranking.by_overtime_volume()
+    ranked = _client(fake).domestic.ranking.by_overtime_volume()
     assert ranked[0].symbol == "024840"                   # stck_shrn_iscd 폴백
     assert fake.calls[0]["tr_id"] == "FHPST02350000"
     assert fake.calls[0]["params"]["FID_COND_SCR_DIV_CODE"] == "20235"
@@ -105,7 +105,7 @@ def test_overtime_expected_change_uses_output_and_antc_fields():
            "ovtm_untp_antc_cntg_vrss_sign": "1", "ovtm_untp_antc_cntg_ctrt": "10.00",
            "ovtm_untp_antc_cnqn": "253267", "stck_prpr": "5700"}
     fake = FakeTransport(response=_resp({"output": [row]}))
-    ranked = _client(fake).ranking.by_overtime_expected_change(top="up")
+    ranked = _client(fake).domestic.ranking.by_overtime_expected_change(top="up")
     assert ranked[0].overtime_price == Decimal(6270)      # 예상체결가
     assert ranked[0].overtime_change == Decimal(570)
     assert ranked[0].overtime_volume == 253267            # 예상체결량
@@ -120,7 +120,7 @@ def test_after_hour_balance_maps_residual_and_volumes():
              "ovtm_total_askp_rsqn": "500", "ovtm_total_bidp_rsqn": "700",
              "mkob_otcp_vol": "451685", "mkfa_otcp_vol": "0"}]
     fake = FakeTransport(response=_resp({"output": rows}))
-    ranked = _client(fake).ranking.by_after_hour_balance(top="bid")
+    ranked = _client(fake).domestic.ranking.by_after_hour_balance(top="bid")
     assert isinstance(ranked[0], AfterHourBalanceRanking)
     assert ranked[0].overtime_ask_residual == 500
     assert ranked[0].overtime_bid_residual == 700
@@ -138,7 +138,7 @@ def test_most_viewed_maps_symbol_and_market():
     rows = [{"mrkt_div_cls_code": "J", "mksc_shrn_iscd": "005930"},
             {"mrkt_div_cls_code": "Q", "mksc_shrn_iscd": "458650"}]
     fake = FakeTransport(response=_resp({"output1": rows}))
-    ranked = _client(fake).ranking.most_viewed()
+    ranked = _client(fake).domestic.ranking.most_viewed()
     assert all(isinstance(x, TopViewedStock) for x in ranked)
     assert ranked[0].symbol == "005930"
     assert ranked[0].market == "J"
@@ -154,7 +154,7 @@ def test_most_viewed_maps_symbol_and_market():
 def test_expected_conclusion_rejects_bad_top():
     fake = FakeTransport(response=_resp({"output": []}))
     with pytest.raises(KISUsageError):
-        _client(fake).ranking.by_expected_conclusion(top="nope")
+        _client(fake).domestic.ranking.by_expected_conclusion(top="nope")
 
 
 def test_expected_close_maps_rows_and_filters():
@@ -172,7 +172,7 @@ def test_expected_close_maps_rows_and_filters():
         }
     ]
     fake = FakeTransport(response=_resp({"output1": rows}))
-    ranked = _client(fake).ranking.by_expected_close(
+    ranked = _client(fake).domestic.ranking.by_expected_close(
         filter="upper_limit", market="KOSPI", extended_range=True
     )
 
@@ -199,20 +199,20 @@ def test_expected_close_maps_rows_and_filters():
 def test_expected_close_rejects_bad_options(kwargs):
     fake = FakeTransport(response=_resp({"output1": []}))
     with pytest.raises(KISUsageError):
-        _client(fake).ranking.by_expected_close(**kwargs)
+        _client(fake).domestic.ranking.by_expected_close(**kwargs)
     assert fake.calls == []
 
 
 def test_expected_close_missing_output_fails_closed():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=response)).ranking.by_expected_close()
+        _client(FakeTransport(response=response)).domestic.ranking.by_expected_close()
 
 
 def test_overtime_change_missing_output2_fails_closed():
     fake = FakeTransport(response=_resp({"output1": {}}))
     with pytest.raises(KISError):
-        _client(fake).ranking.by_overtime_change()
+        _client(fake).domestic.ranking.by_overtime_change()
 
 
 def test_after_hour_balance_bad_value_fails_closed():
@@ -221,4 +221,4 @@ def test_after_hour_balance_bad_value_fails_closed():
              "ovtm_total_bidp_rsqn": "0", "mkob_otcp_vol": "0", "mkfa_otcp_vol": "0"}]
     fake = FakeTransport(response=_resp({"output": rows}))
     with pytest.raises(KISError):
-        _client(fake).ranking.by_after_hour_balance()
+        _client(fake).domestic.ranking.by_after_hour_balance()

@@ -1,4 +1,4 @@
-"""시황/공시 뉴스 -- kis.market.news(). 필드는 원장 응답예시 실값."""
+"""시황/공시 뉴스 -- kis.domestic.market.news(). 필드는 원장 응답예시 실값."""
 from __future__ import annotations
 
 import threading
@@ -35,7 +35,7 @@ def test_news_maps_and_symbols():
              "hts_pbnt_titl_cntt": "금융투자협회 라운드테이블", "news_lrdv_code": "10", "dorg": "뉴스핌",
              "iscd1": "005930", "iscd2": "000660", "iscd3": "", "iscd4": ""}]
     fake = FakeTransport(response=_resp(rows))
-    items = _client(fake).market.news()
+    items = _client(fake).domestic.market.news()
     assert isinstance(items[0], NewsItem)
     n = items[0]
     assert n.title == "금융투자협회 라운드테이블"
@@ -50,7 +50,7 @@ def test_news_maps_and_symbols():
 
 def test_news_symbol_and_date_filter():
     fake = FakeTransport(response=_resp([]))
-    _client(fake).market.news(symbol="005930", date="20240412")
+    _client(fake).domestic.market.news(symbol="005930", date="20240412")
     call = fake.calls[0]
     assert call["params"]["FID_INPUT_ISCD"] == "005930"
     assert call["params"]["FID_INPUT_DATE_1"] == "20240412"
@@ -58,7 +58,7 @@ def test_news_symbol_and_date_filter():
 
 def test_news_skips_empty_and_missing_output():
     fake = FakeTransport(response=_resp([{"data_dt": "", "data_tm": ""}]))
-    assert _client(fake).market.news() == []
+    assert _client(fake).domestic.market.news() == []
     fake2 = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake2).market.news()
+        _client(fake2).domestic.market.news()

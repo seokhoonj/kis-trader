@@ -35,7 +35,7 @@ def _response(symbol, *, tr_cont=""):
 def test_overseas_search_maps_filters_and_paginates():
     fake = FakeTransport([_response("AAPL", tr_cont="M"), _response("MSFT")])
     client = KISClient(app_key="k", app_secret="s", transport=fake)
-    result = client.search_overseas_stocks(
+    result = client.overseas.search_stocks(
         "NAS", price=(160, 200), per=(10, 30), volume=(1000, 100000)
     )
     assert isinstance(result, OverseasStockSearch)
@@ -51,10 +51,10 @@ def test_overseas_search_maps_filters_and_paginates():
 
 def test_overseas_search_rejects_blank_exchange():
     with pytest.raises(KISUsageError):
-        KISClient(app_key="k", app_secret="s", transport=FakeTransport([])).search_overseas_stocks("")
+        KISClient(app_key="k", app_secret="s", transport=FakeTransport([])).overseas.search_stocks("")
 
 
 def test_overseas_search_missing_output_fails_closed():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
     with pytest.raises(KISError):
-        KISClient(app_key="k", app_secret="s", transport=FakeTransport([response])).search_overseas_stocks("NAS")
+        KISClient(app_key="k", app_secret="s", transport=FakeTransport([response])).overseas.search_stocks("NAS")

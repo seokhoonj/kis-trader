@@ -2,7 +2,7 @@
 
 멱등 dedup(replay/충돌/in-flight), 쓰기 타임아웃 재시도 금지, 접수 거부, ODNO 부재, 퇴직연금
 차단, 시장가/지정가 와이어, 보수적 재조회를 네트워크 없이 가짜 전송으로 검증한다. 안전 엔진은
-검증된 코어를 새 구조로 이관한 것이라, 여기서 새 진입점(ticker.buy/sell, kis.reconcile)이 그
+검증된 코어를 새 구조로 이관한 것이라, 여기서 새 진입점(ticker.buy/sell, kis.orders.reconcile)이 그
 불변식을 그대로 구동하는지 확인한다.
 """
 
@@ -126,8 +126,8 @@ def test_cancel_domestic_order_uses_original_identifiers_and_deduplicates():
     kis.domestic.stock("005930").buy(
         quantity=10, price=70000, client_order_id="original-1"
     )
-    first = kis.cancel_order("original-1", request_id="cancel-1")
-    second = kis.cancel_order("original-1", request_id="cancel-1")
+    first = kis.orders.cancel("original-1", request_id="cancel-1")
+    second = kis.orders.cancel("original-1", request_id="cancel-1")
 
     assert first.status is OrderStatus.PENDING_CANCEL
     assert second == first
@@ -150,7 +150,7 @@ def test_replace_domestic_order_maps_new_quantity_and_price():
     kis.domestic.stock("005930").sell(
         quantity=10, price=70000, client_order_id="original-2"
     )
-    report = kis.replace_order(
+    report = kis.orders.replace(
         "original-2", quantity=4, price=71000, request_id="replace-1"
     )
 
@@ -175,9 +175,9 @@ def test_domestic_change_timeout_stays_in_flight_and_is_not_resent():
         quantity=10, price=70000, client_order_id="original-3"
     )
     with pytest.raises(OrderTimeoutError):
-        kis.cancel_order("original-3", request_id="cancel-timeout")
+        kis.orders.cancel("original-3", request_id="cancel-timeout")
     with pytest.raises(KISUsageError, match="재전송하지"):
-        kis.cancel_order("original-3", request_id="cancel-timeout")
+        kis.orders.cancel("original-3", request_id="cancel-timeout")
     assert len([call for call in fake.calls if call["path"] == _ORDER_CHANGE]) == 1
 
 
@@ -253,7 +253,7 @@ def test_reconcile_replays_completed():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     kis = _client(fake)
     placed = kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
-    again = kis.reconcile("ID-1")
+    again = kis.orders.reconcile("ID-1")
     assert again is not None
     assert again.order_id == placed.order_id
     assert len(fake.calls) == 1                          # 완료 replay -- 추가 호출 없음
@@ -261,7 +261,7 @@ def test_reconcile_replays_completed():
 
 def test_reconcile_unknown_id_raises():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)).reconcile("never-sent")
+        _client(FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)).orders.reconcile("never-sent")
 
 
 def test_timeout_then_reconcile_confirms_fill():
@@ -273,7 +273,7 @@ def test_timeout_then_reconcile_confirms_fill():
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
         kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
-    report = kis.reconcile("ID-1")
+    report = kis.orders.reconcile("ID-1")
     assert report is not None
     assert report.status is OrderStatus.FILLED
     assert report.filled_quantity == Decimal(10)
@@ -287,7 +287,7 @@ def test_reconcile_empty_scan_stays_in_flight():
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
         kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
-    assert kis.reconcile("ID-1") is None                 # 0건 -> 미접수로 단정 안 함(재전송 금지 유지)
+    assert kis.orders.reconcile("ID-1") is None                 # 0건 -> 미접수로 단정 안 함(재전송 금지 유지)
 
 
 def test_reconcile_ambiguous_multiple_matches_raises():
@@ -299,7 +299,7 @@ def test_reconcile_ambiguous_multiple_matches_raises():
     with pytest.raises(OrderTimeoutError):
         kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
     with pytest.raises(KISError):                         # 지문 일치 2건 -> 자동 확정 불가
-        kis.reconcile("ID-1")
+        kis.orders.reconcile("ID-1")
 
 
 # --- 세션 store 공유 -------------------------------------------------------
@@ -369,7 +369,7 @@ def test_reconcile_ignores_mismatched_fingerprint(mismatch):
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
         kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
-    assert kis.reconcile("ID-1") is None          # 지문 불일치 -> 0건 -> 오귀속 안 함
+    assert kis.orders.reconcile("ID-1") is None          # 지문 불일치 -> 0건 -> 오귀속 안 함
 
 
 @pytest.mark.parametrize(
@@ -387,7 +387,7 @@ def test_reconcile_maps_daily_row_status(row_updates, expected_status, expected_
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
         kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
-    report = kis.reconcile("ID-1")
+    report = kis.orders.reconcile("ID-1")
     assert report is not None
     assert report.status is expected_status
     assert report.filled_quantity == expected_filled
@@ -400,7 +400,7 @@ def test_reconcile_daily_ccld_failure_fails_closed():
     with pytest.raises(OrderTimeoutError):
         kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
     with pytest.raises(KISError):                 # 조회 실패를 빈 결과(미접수)로 오인하지 않음
-        kis.reconcile("ID-1")
+        kis.orders.reconcile("ID-1")
 
 
 def test_reconcile_scans_all_daily_ccld_pages():
@@ -413,7 +413,7 @@ def test_reconcile_scans_all_daily_ccld_pages():
     with pytest.raises(OrderTimeoutError):
         kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
     with pytest.raises(KISError):                 # 두 페이지 걸쳐 2건 -> 모호 -> 자동확정 불가
-        kis.reconcile("ID-1")
+        kis.orders.reconcile("ID-1")
     assert fake.calls[2]["params"]["CTX_AREA_NK100"] == "NK2"   # 2페이지째에 연속키 전달
 
 
@@ -425,7 +425,7 @@ def test_reconcile_full_report_semantics():
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
         kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
-    report = kis.reconcile("ID-1")
+    report = kis.orders.reconcile("ID-1")
     assert report is not None
     assert report.client_order_id == "ID-1"
     assert report.order_id == "0000117057"

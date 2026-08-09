@@ -1,10 +1,10 @@
 """ELW 시장 순위 네임스페이스 -- :class:`ELWRankingQueries`.
 
-``kis.elw_ranking.by_volume()`` 처럼, 개별 ELW 가 아니라 **시장 전체 ELW** 를 어떤 기준으로 줄
-세운 결과(:class:`~kis_openapi.elw_items.RankedELW` 리스트)를 돌려준다. 종목 순위(``kis.ranking``)
+``kis.domestic.elw_ranking.by_volume()`` 처럼, 개별 ELW 가 아니라 **시장 전체 ELW** 를 어떤 기준으로 줄
+세운 결과(:class:`~kis_openapi.elw_items.RankedELW` 리스트)를 돌려준다. 종목 순위(``kis.domestic.ranking``)
 와 나란한 ELW 판이되, ELW 순위는 지표(그릭스·레버리지·변동성)가 고유해 별도 네임스페이스로 둔다.
 
-직접 만들지 않고 :attr:`~kis_openapi.client.KISClient.elw_ranking` 로 얻는다. 각 순위는 한 번에
+직접 만들지 않고 ``kis.domestic.elw_ranking`` 로 얻는다. 각 순위는 한 번에
 상위 한 페이지만 준다(KIS 제약). 필터는 기초자산(``underlying``)/발행사(``issuer``)/콜풋(``right``)로
 좁힐 수 있다(기본은 전체).
 """

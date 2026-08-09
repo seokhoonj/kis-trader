@@ -1,4 +1,4 @@
-"""기간별 계좌 권리현황 -- kis.account_rights(start=, end=) (CTRGA011R).
+"""기간별 계좌 권리현황 -- kis.domestic.account.rights(start=, end=) (CTRGA011R).
 
 계좌에 배정/신청/환불된 권리 내역을 검증한다. 응답 배열 키는 원장 예시 기준 ``output``
 (레이아웃 output1 과 다름). 픽스처는 원장 응답예시(period-rights) 실값을 쓴다.
@@ -59,7 +59,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 
 
 def test_account_rights_parses_ledger_row():
-    rights = _client(FakeTransport(response=_resp())).account_rights(start="20240508", end="20241106")
+    rights = _client(FakeTransport(response=_resp())).domestic.account.rights(start="20240508", end="20241106")
     assert len(rights) == 1
     r = rights[0]
     assert isinstance(r, AccountRight)
@@ -82,7 +82,7 @@ def test_account_rights_parses_ledger_row():
 
 def test_account_rights_tr_method_and_params():
     fake = FakeTransport(response=_resp())
-    _client(fake).account_rights(start="20240508", end="20241106")
+    _client(fake).domestic.account.rights(start="20240508", end="20241106")
     call = fake.calls[0]
     assert call["tr_id"] == "CTRGA011R"
     assert call["method"] == "GET"
@@ -99,22 +99,22 @@ def test_account_rights_reads_output_key_not_output1():
     body = {"output1": [_ROW]}   # output 키 없음
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).account_rights(start="1", end="2")
+        _client(FakeTransport(response=resp)).domestic.account.rights(start="1", end="2")
 
 
 def test_account_rights_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").account_rights(start="1", end="2")
+        _client(fake, environment="demo").domestic.account.rights(start="1", end="2")
     assert fake.calls == []
 
 
 def test_account_rights_empty_is_ok():
-    assert _client(FakeTransport(response=_resp([]))).account_rights(start="1", end="2") == []
+    assert _client(FakeTransport(response=_resp([]))).domestic.account.rights(start="1", end="2") == []
 
 
 def test_account_rights_skips_padding_row():
-    rights = _client(FakeTransport(response=_resp([dict(_ROW, pdno=""), _ROW]))).account_rights(
+    rights = _client(FakeTransport(response=_resp([dict(_ROW, pdno=""), _ROW]))).domestic.account.rights(
         start="1", end="2"
     )
     assert len(rights) == 1
@@ -124,7 +124,7 @@ def test_account_rights_paginates_and_merges():
     page1 = _resp([_ROW], nk="NEXT", tr_cont="M")
     page2 = _resp([dict(_ROW, pdno="00000B111111")], tr_cont="D")
     fake = FakeTransport(pages=[page1, page2])
-    rights = _client(fake).account_rights(start="1", end="2")
+    rights = _client(fake).domestic.account.rights(start="1", end="2")
     assert [r.symbol for r in rights] == ["00000A357880", "00000B111111"]
     assert fake.calls[1]["tr_cont"] == "N"
     assert fake.calls[1]["params"]["CTX_AREA_NK100"] == "NEXT"
@@ -133,9 +133,9 @@ def test_account_rights_paginates_and_merges():
 def test_account_rights_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="E", msg1="실패", body={"output": []}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).account_rights(start="1", end="2")
+        _client(FakeTransport(response=resp)).domestic.account.rights(start="1", end="2")
 
 
 def test_account_rights_requires_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp()), account=None).account_rights(start="1", end="2")
+        _client(FakeTransport(response=_resp()), account=None).domestic.account.rights(start="1", end="2")

@@ -3,7 +3,7 @@
 해외주식 시장 순위(거래량/등락률/시가총액 등)의 한 행이다. 국내 :class:`~kis_openapi.ranking_items.
 RankedStock` 의 해외 판으로, 거래소(``exchange``)와 통화 없는 원가격을 담는다(해외 시세는 거래소별
 통화라 금액은 거래소 통화 기준). :class:`~kis_openapi.overseas_ranking.OverseasRankingQueries`
-(``kis.overseas_ranking``)가 돌려준다.
+(``kis.overseas.ranking``)가 돌려준다.
 """
 
 from __future__ import annotations

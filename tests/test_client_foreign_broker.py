@@ -1,4 +1,4 @@
-"""외국계 가집계 -- kis.market.foreign_broker_trades(). 필드는 원장 응답예시 실값."""
+"""외국계 가집계 -- kis.domestic.market.foreign_broker_trades(). 필드는 원장 응답예시 실값."""
 from __future__ import annotations
 
 import threading
@@ -37,7 +37,7 @@ def test_foreign_broker_maps_ledger_values():
              "acml_vol": "24892595", "glob_total_seln_qty": "547879",
              "glob_total_shnu_qty": "4418409"}]
     fake = FakeTransport(response=_resp(rows))
-    flows = _client(fake).market.foreign_broker_trades(sort="amount")
+    flows = _client(fake).domestic.market.foreign_broker_trades(sort="amount")
     assert isinstance(flows[0], ForeignBrokerFlow)
     f = flows[0]
     assert f.rank == 1
@@ -55,13 +55,13 @@ def test_foreign_broker_maps_ledger_values():
 
 def test_foreign_broker_volume_sort_and_bad_sort():
     fake = FakeTransport(response=_resp([]))
-    _client(fake).market.foreign_broker_trades(sort="volume")
+    _client(fake).domestic.market.foreign_broker_trades(sort="volume")
     assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "1"
     with pytest.raises(KISUsageError):
-        _client(fake).market.foreign_broker_trades(sort="nope")
+        _client(fake).domestic.market.foreign_broker_trades(sort="nope")
 
 
 def test_foreign_broker_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).market.foreign_broker_trades()
+        _client(fake).domestic.market.foreign_broker_trades()

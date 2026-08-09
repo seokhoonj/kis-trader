@@ -1,4 +1,4 @@
-"""채권 기본정보 -- kis.bond(code).info()."""
+"""채권 기본정보 -- kis.domestic.bond(code).info()."""
 from __future__ import annotations
 
 import threading
@@ -34,7 +34,7 @@ def test_bond_info_maps():
            "ksd_rcvg_bond_dsct_rt": "0.000", "bond_expd_rdpt_rt": "100.0",
            "bond_expd_asrc_erng_rt": "3.85", "int_caltm_mcnt": "6"}
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
-    info = _client(fake).bond("KR2033022D33").info()
+    info = _client(fake).domestic.bond("KR2033022D33").info()
     assert isinstance(info, BondInfo)
     assert info.name == "국고03750-3312"
     assert info.currency == "KRW"
@@ -56,7 +56,7 @@ def test_bond_info_optional_none():
            "ksd_rcvg_bond_dsct_rt": "", "bond_expd_rdpt_rt": "", "bond_expd_asrc_erng_rt": "",
            "int_caltm_mcnt": ""}
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
-    info = _client(fake).bond("KR2033022D33").info()
+    info = _client(fake).domestic.bond("KR2033022D33").info()
     assert info.issue_date is None
     assert info.coupon_rate is None
     assert info.interest_period_months is None
@@ -65,14 +65,14 @@ def test_bond_info_optional_none():
 def test_bond_info_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).bond("KR2033022D33").info()
+        _client(fake).domestic.bond("KR2033022D33").info()
 
 
 def test_bond_info_zero_date_sentinel_is_none():
     out = {"ksd_bond_item_name": "x", "ksd_bond_item_eng_name": "x", "iso_crcy_cd": "KRW",
            "issu_dt": "00000000", "rdpt_dt": "00000000", "lstg_dt": "00000000"}
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
-    info = _client(fake).bond("KR2033022D33").info()
+    info = _client(fake).domestic.bond("KR2033022D33").info()
     assert info.issue_date is None                        # 0-채움 센티넬 -> None (크래시 아님)
     assert info.maturity_date is None
     assert info.listing_date is None
@@ -83,7 +83,7 @@ def test_bond_info_bad_value_fails_closed():
            "ksd_rcvg_bond_srfc_inrt": "n/a"}
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
     with pytest.raises(KISError):
-        _client(fake).bond("KR2033022D33").info()
+        _client(fake).domestic.bond("KR2033022D33").info()
 
 
 def _issuance_output(**over):
@@ -110,7 +110,7 @@ def test_bond_issuance_maps_detailed_terms_and_status():
             rt_cd="0", msg_cd="KIOK0530", msg1="정상", body={"output": _issuance_output()}
         )
     )
-    issuance = _client(fake).bond("KR6449111CB8").issuance()
+    issuance = _client(fake).domestic.bond("KR6449111CB8").issuance()
     assert isinstance(issuance, BondIssuance)
     assert issuance.code == "KR6449111CB8"
     assert issuance.classification == "일반사채"
@@ -140,7 +140,7 @@ def test_bond_issuance_optional_dates_and_sparse_ratings():
     fake = FakeTransport(
         response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": output})
     )
-    issuance = _client(fake).bond("KR6449111CB8").issuance()
+    issuance = _client(fake).domestic.bond("KR6449111CB8").issuance()
     assert issuance.issue_date is None
     assert issuance.listing_date is None
     assert issuance.credit_ratings["FNP"] == "AA+"
@@ -150,7 +150,7 @@ def test_bond_issuance_optional_dates_and_sparse_ratings():
 def test_bond_issuance_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).bond("KR6449111CB8").issuance()
+        _client(fake).domestic.bond("KR6449111CB8").issuance()
 
 
 def test_bond_issuance_bad_required_value_fails_closed():
@@ -160,4 +160,4 @@ def test_bond_issuance_bad_required_value_fails_closed():
         )
     )
     with pytest.raises(KISError):
-        _client(fake).bond("KR6449111CB8").issuance()
+        _client(fake).domestic.bond("KR6449111CB8").issuance()

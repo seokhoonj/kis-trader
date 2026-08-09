@@ -51,7 +51,7 @@ def test_overseas_industries_routes_and_parses_single_call():
             )
         ]
     )
-    industries = _client(fake).overseas_industries("NAS")
+    industries = _client(fake).overseas.industries("NAS")
 
     assert [(item.code, item.name) for item in industries] == [
         ("000", "전체"),
@@ -71,7 +71,7 @@ def test_overseas_industries_routes_and_parses_single_call():
 def test_overseas_industries_rejects_demo_environment():
     fake = FakeTransport(responses=[])
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas_industries("NAS")
+        _client(fake, environment="demo").overseas.industries("NAS")
     assert fake.calls == []
 
 
@@ -81,13 +81,13 @@ def test_overseas_industries_missing_or_non_list_output2_fails_closed(output2):
     response = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
     fake = FakeTransport(responses=[response])
     with pytest.raises(KISError):
-        _client(fake).overseas_industries("NAS")
+        _client(fake).overseas.industries("NAS")
 
 
 def test_overseas_industries_non_mapping_item_fails_closed():
     fake = FakeTransport(responses=[_response([{"icod": "000", "name": "전체"}, "bad"])])
     with pytest.raises(KISError):
-        _client(fake).overseas_industries("NAS")
+        _client(fake).overseas.industries("NAS")
 
 
 def _industry_stock_response(output2):
@@ -118,7 +118,7 @@ def test_overseas_industry_stocks_maps_quote_and_volume_filter():
         "e_ordyn": "Y",
     }
     fake = FakeTransport(responses=[_industry_stock_response([row])])
-    stocks = _client(fake).overseas_industry_stocks(
+    stocks = _client(fake).overseas.industry_stocks(
         "NAS", "010", min_volume=1_000_000
     )
 
@@ -155,12 +155,12 @@ def test_overseas_industry_stocks_maps_quote_and_volume_filter():
 def test_overseas_industry_stocks_validates_environment_and_volume():
     demo = FakeTransport(responses=[])
     with pytest.raises(KISUsageError):
-        _client(demo, environment="demo").overseas_industry_stocks("NAS", "010")
+        _client(demo, environment="demo").overseas.industry_stocks("NAS", "010")
     assert demo.calls == []
 
     fake = FakeTransport(responses=[])
     with pytest.raises(KISUsageError):
-        _client(fake).overseas_industry_stocks("NAS", "010", min_volume=500)
+        _client(fake).overseas.industry_stocks("NAS", "010", min_volume=500)
     assert fake.calls == []
 
 
@@ -171,6 +171,6 @@ def test_overseas_industry_stocks_validates_environment_and_volume():
 def test_overseas_industry_stocks_requires_both_blocks(body):
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     with pytest.raises(KISError):
-        _client(FakeTransport(responses=[response])).overseas_industry_stocks(
+        _client(FakeTransport(responses=[response])).overseas.industry_stocks(
             "NAS", "010"
         )

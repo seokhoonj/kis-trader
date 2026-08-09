@@ -1,4 +1,4 @@
-"""ELW 핸들 -- kis.elw(code) 고유 지표.
+"""ELW 핸들 -- kis.domestic.elw(code) 고유 지표.
 
 민감도(그릭스) 추이: 일별/체결별 라우팅(TR·URL·시장구분 W), output 배열 파싱(그릭스·이론가·
 전일대비 부호 복원), 시간축(영업일자 vs 체결시각), optional 그릭스(None), fail-closed 를 검증한다.
@@ -69,7 +69,7 @@ def _daily_row(bsop="20240507", price="25", vrss="20", sign="5", ctrt="44.44",
 
 
 def test_elw_accessor_returns_handle():
-    handle = _client(FakeTransport(response=_resp([]))).elw("58J297")
+    handle = _client(FakeTransport(response=_resp([]))).domestic.elw("58J297")
     assert isinstance(handle, ELW)
     assert handle.code == "58J297"
 
@@ -89,7 +89,7 @@ def _quote_output(**over):
 
 def test_elw_quote_maps_option_aware_fields():
     fake = FakeTransport(response=_quote_output())
-    quote = _client(fake).elw("58J297").quote()
+    quote = _client(fake).domestic.elw("58J297").quote()
     assert isinstance(quote, ELWQuote)
     assert quote.code == "58J297"
     assert quote.price == Decimal(135)
@@ -114,7 +114,7 @@ def test_elw_quote_maps_option_aware_fields():
 
 def test_elw_quote_optional_greeks_none():
     fake = FakeTransport(response=_quote_output(hts_thpr="", hts_ints_vltl="", acpr=""))
-    quote = _client(fake).elw("58J297").quote()
+    quote = _client(fake).domestic.elw("58J297").quote()
     assert quote.theoretical_price is None
     assert quote.implied_volatility is None
     assert quote.strike is None
@@ -124,18 +124,18 @@ def test_elw_quote_optional_greeks_none():
 def test_elw_quote_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).elw("58J297").quote()
+        _client(fake).domestic.elw("58J297").quote()
 
 
 def test_elw_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_quote_output(elw_prpr="n/a"))
     with pytest.raises(KISError):
-        _client(fake).elw("58J297").quote()
+        _client(fake).domestic.elw("58J297").quote()
 
 
 def test_sensitivity_trend_daily_maps_greeks_and_market():
     fake = FakeTransport(response=_resp([_daily_row()]))
-    points = _client(fake).elw("58J438").sensitivity_trend("day")
+    points = _client(fake).domestic.elw("58J438").sensitivity_trend("day")
     assert all(isinstance(p, ELWSensitivityPoint) for p in points)
     point = points[0]
     assert point.code == "58J438"
@@ -158,7 +158,7 @@ def test_sensitivity_trend_daily_maps_greeks_and_market():
 
 def test_sensitivity_trend_default_is_daily():
     fake = FakeTransport(response=_resp([_daily_row()]))
-    _client(fake).elw("58J438").sensitivity_trend()
+    _client(fake).domestic.elw("58J438").sensitivity_trend()
     assert fake.calls[0]["tr_id"] == "FHPEW02830200"
 
 
@@ -168,7 +168,7 @@ def test_sensitivity_trend_ccnl_uses_execution_time():
              "delta_val": "0.4034", "gama": "0.0", "theta": "0.5", "vega": "0.9",
              "rho": "0.3"}]
     fake = FakeTransport(response=_resp(rows))
-    points = _client(fake).elw("58J297").sensitivity_trend("trade")
+    points = _client(fake).domestic.elw("58J297").sensitivity_trend("trade")
     assert fake.calls[0]["path"] == _CCNL
     assert fake.calls[0]["tr_id"] == "FHPEW02830100"
     assert points[0].change == Decimal(20)               # sign 2(상승) -> 양수
@@ -177,32 +177,32 @@ def test_sensitivity_trend_ccnl_uses_execution_time():
 
 def test_sensitivity_trend_optional_greek_none():
     fake = FakeTransport(response=_resp([_daily_row(vega="")]))
-    point = _client(fake).elw("58J438").sensitivity_trend("day")[0]
+    point = _client(fake).domestic.elw("58J438").sensitivity_trend("day")[0]
     assert point.vega is None
     assert point.delta == Decimal("-0.4034")               # 나머지는 여전히 파싱
 
 
 def test_sensitivity_trend_skips_empty_rows():
     fake = FakeTransport(response=_resp([_daily_row(), {"stck_bsop_date": ""}]))
-    assert len(_client(fake).elw("58J438").sensitivity_trend("day")) == 1
+    assert len(_client(fake).domestic.elw("58J438").sensitivity_trend("day")) == 1
 
 
 def test_sensitivity_trend_rejects_unsupported_interval():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).elw("58J438").sensitivity_trend("minute")
+        _client(fake).domestic.elw("58J438").sensitivity_trend("minute")
 
 
 def test_sensitivity_trend_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).elw("58J438").sensitivity_trend("day")
+        _client(fake).domestic.elw("58J438").sensitivity_trend("day")
 
 
 def test_sensitivity_trend_bad_value_fails_closed():
     fake = FakeTransport(response=_resp([_daily_row(price="n/a")]))
     with pytest.raises(KISError):
-        _client(fake).elw("58J438").sensitivity_trend("day")
+        _client(fake).domestic.elw("58J438").sensitivity_trend("day")
 
 
 # --- volatility trend (내재변동성; 4개 시간축) ------------------------------
@@ -212,7 +212,7 @@ def test_volatility_trend_daily_maps_iv_and_change():
            "elw_lwpr": "5", "acml_vol": "76410", "d10_hist_vltl": "21.05",
            "hts_ints_vltl": "23.37"}
     fake = FakeTransport(response=_resp([row]))
-    points = _client(fake).elw("58J297").volatility_trend("day")
+    points = _client(fake).domestic.elw("58J297").volatility_trend("day")
     assert all(isinstance(p, ELWVolatilityPoint) for p in points)
     point = points[0]
     assert point.price == Decimal(5)
@@ -232,7 +232,7 @@ def test_volatility_trend_ccnl_uses_execution_time_and_change():
            "prdy_vrss_sign": "5", "prdy_ctrt": "18.18", "bidp": "45", "askp": "50",
            "acml_vol": "52690", "hts_ints_vltl": "33.05"}
     fake = FakeTransport(response=_resp([row]))
-    point = _client(fake).elw("58J297").volatility_trend("trade")[0]
+    point = _client(fake).domestic.elw("58J297").volatility_trend("trade")[0]
     assert fake.calls[0]["path"] == _VOL_CCNL
     assert fake.calls[0]["tr_id"] == "FHPEW02840100"
     assert point.implied_volatility == Decimal("33.05")
@@ -245,7 +245,7 @@ def test_volatility_trend_minute_combines_date_time_and_no_change():
            "elw_oprc": "265", "elw_hgpr": "265", "elw_lwpr": "265", "hts_ints_vltl": "21.90",
            "hist_vltl": ""}
     fake = FakeTransport(response=_resp([row]))
-    point = _client(fake).elw("58J297").volatility_trend("minute", minutes=5)[0]
+    point = _client(fake).domestic.elw("58J297").volatility_trend("minute", minutes=5)[0]
     assert fake.calls[0]["path"] == _VOL_MINUTE
     assert fake.calls[0]["params"]["FID_HOUR_CLS_CODE"] == "300"     # 5분
     assert fake.calls[0]["params"]["FID_PW_DATA_INCU_YN"] == "N"
@@ -258,7 +258,7 @@ def test_volatility_trend_tick_date_plus_time():
     row = {"bsop_date": "20240507", "stck_cntg_hour": "150619", "elw_prpr": "25",
            "hts_ints_vltl": "33.03"}
     fake = FakeTransport(response=_resp([row]))
-    point = _client(fake).elw("58J297").volatility_trend("tick")[0]
+    point = _client(fake).domestic.elw("58J297").volatility_trend("tick")[0]
     assert fake.calls[0]["path"] == _VOL_TICK
     assert point.implied_volatility == Decimal("33.03")
     assert f"{point.timestamp:%Y%m%d %H%M%S}" == "20240507 150619"
@@ -268,20 +268,20 @@ def test_volatility_trend_include_past_flag():
     row = {"stck_bsop_date": "20240422", "stck_cntg_hour": "142800", "stck_prpr": "265",
            "hts_ints_vltl": "21.90"}
     fake = FakeTransport(response=_resp([row]))
-    _client(fake).elw("58J297").volatility_trend("minute", include_past=True)
+    _client(fake).domestic.elw("58J297").volatility_trend("minute", include_past=True)
     assert fake.calls[0]["params"]["FID_PW_DATA_INCU_YN"] == "Y"
 
 
 def test_volatility_trend_rejects_bad_minutes():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).elw("58J297").volatility_trend("minute", minutes=2)
+        _client(fake).domestic.elw("58J297").volatility_trend("minute", minutes=2)
 
 
 def test_volatility_trend_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).elw("58J297").volatility_trend("day")
+        _client(fake).domestic.elw("58J297").volatility_trend("day")
 
 
 # --- indicator trend (레버리지·기어링·내재가치·패리티) -----------------------
@@ -291,7 +291,7 @@ def test_indicator_trend_daily_maps_indicators_and_change():
            "lvrg_val": "-11.0377", "gear": "19.45", "tmvl_val": "18.00", "invl_val": "22.00",
            "prit": "102.82", "elw_oprc": "40", "apprch_rate": "0.00"}
     fake = FakeTransport(response=_resp([row]))
-    points = _client(fake).elw("57K281").indicator_trend("day")
+    points = _client(fake).domestic.elw("57K281").indicator_trend("day")
     assert all(isinstance(p, ELWIndicatorPoint) for p in points)
     point = points[0]
     assert point.price == Decimal(40)
@@ -312,7 +312,7 @@ def test_indicator_trend_minute_no_change_and_span():
            "elw_oprc": "40", "lvrg_val": "-10.88", "gear": "19.57", "prmm_val": "5.1086",
            "invl_val": "17.00", "prit": "102.17", "acml_vol": "827720", "cntg_vol": "55700"}
     fake = FakeTransport(response=_resp([row]))
-    point = _client(fake).elw("57K281").indicator_trend("minute", minutes=10)[0]
+    point = _client(fake).domestic.elw("57K281").indicator_trend("minute", minutes=10)[0]
     assert fake.calls[0]["path"] == _IND_MINUTE
     assert fake.calls[0]["params"]["FID_HOUR_CLS_CODE"] == "600"     # 10분
     assert point.change is None                            # 분별은 전일대비 없음
@@ -324,13 +324,13 @@ def test_indicator_trend_minute_no_change_and_span():
 def test_indicator_trend_rejects_tick():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).elw("57K281").indicator_trend("tick")
+        _client(fake).domestic.elw("57K281").indicator_trend("tick")
 
 
 def test_indicator_trend_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).elw("57K281").indicator_trend("day")
+        _client(fake).domestic.elw("57K281").indicator_trend("day")
 
 
 # --- LP trade trend (output2, 순매수 property) -------------------------------
@@ -345,7 +345,7 @@ def _lp_row(bsop="20240516", price="35", vrss="0", sign="3", ctrt="0.00",
 
 def test_lp_trend_maps_flow_from_output2():
     fake = FakeTransport(response=_resp2([_lp_row()]))
-    flows = _client(fake).elw("52K577").lp_trend()
+    flows = _client(fake).domestic.elw("52K577").lp_trend()
     assert all(isinstance(f, ELWLPFlow) for f in flows)
     flow = flows[0]
     assert flow.code == "52K577"
@@ -365,23 +365,23 @@ def test_lp_trend_maps_flow_from_output2():
 
 def test_lp_trend_net_quantity_negative_when_lp_supplies():
     fake = FakeTransport(response=_resp2([_lp_row(seln="90000", shnu="10000")]))
-    flow = _client(fake).elw("52K577").lp_trend()[0]
+    flow = _client(fake).domestic.elw("52K577").lp_trend()[0]
     assert flow.net_quantity == 10000 - 90000             # LP 순매도(공급) -> 음수
 
 
 def test_lp_trend_skips_empty_rows():
     fake = FakeTransport(response=_resp2([_lp_row(), {"stck_bsop_date": ""}]))
-    assert len(_client(fake).elw("52K577").lp_trend()) == 1
+    assert len(_client(fake).domestic.elw("52K577").lp_trend()) == 1
 
 
 def test_lp_trend_missing_output2_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {"elw_prpr": "40"}})
     fake = FakeTransport(response=resp)
     with pytest.raises(KISError):
-        _client(fake).elw("52K577").lp_trend()
+        _client(fake).domestic.elw("52K577").lp_trend()
 
 
 def test_lp_trend_bad_quantity_fails_closed():
     fake = FakeTransport(response=_resp2([_lp_row(shnu="n/a")]))
     with pytest.raises(KISError):
-        _client(fake).elw("52K577").lp_trend()
+        _client(fake).domestic.elw("52K577").lp_trend()

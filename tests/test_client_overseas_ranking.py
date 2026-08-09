@@ -1,4 +1,4 @@
-"""해외주식 순위 -- kis.overseas_ranking.by_volume(). 필드는 원장 응답예시 실값."""
+"""해외주식 순위 -- kis.overseas.ranking.by_volume(). 필드는 원장 응답예시 실값."""
 from __future__ import annotations
 
 import threading
@@ -32,7 +32,7 @@ def _resp(rows):
 
 
 def test_overseas_ranking_accessor():
-    assert isinstance(_client(FakeTransport(response=_resp([]))).overseas_ranking,
+    assert isinstance(_client(FakeTransport(response=_resp([]))).overseas.ranking,
                       OverseasRankingQueries)
 
 
@@ -41,7 +41,7 @@ def test_by_volume_maps_and_params():
              "last": "250.5", "sign": "2", "diff": "5.5", "rate": "2.24", "tvol": "120000000",
              "tamt": "30000000000", "a_tvol": "90000000"}]
     fake = FakeTransport(response=_resp(rows))
-    ranked = _client(fake).overseas_ranking.by_volume(exchange="NAS")
+    ranked = _client(fake).overseas.ranking.by_volume(exchange="NAS")
     assert isinstance(ranked[0], RankedOverseasStock)
     r = ranked[0]
     assert r.rank == 1
@@ -61,10 +61,10 @@ def test_by_volume_down_sign_and_missing_output():
     rows = [{"rank": "2", "excd": "NAS", "symb": "X", "name": "x", "ename": "X", "last": "10",
              "sign": "5", "diff": "1.0", "rate": "9.1", "tvol": "1", "tamt": "10"}]
     fake = FakeTransport(response=_resp(rows))
-    assert _client(fake).overseas_ranking.by_volume(exchange="NAS")[0].change == Decimal("-1.0")
+    assert _client(fake).overseas.ranking.by_volume(exchange="NAS")[0].change == Decimal("-1.0")
     fake2 = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}}))
     with pytest.raises(KISError):
-        _client(fake2).overseas_ranking.by_volume(exchange="NAS")
+        _client(fake2).overseas.ranking.by_volume(exchange="NAS")
 
 
 def test_by_volume_bad_value_fails_closed():
@@ -72,7 +72,7 @@ def test_by_volume_bad_value_fails_closed():
              "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
     fake = FakeTransport(response=_resp(rows))
     with pytest.raises(KISError):
-        _client(fake).overseas_ranking.by_volume(exchange="NAS")
+        _client(fake).overseas.ranking.by_volume(exchange="NAS")
 
 
 def _one(rows):
@@ -89,7 +89,7 @@ def test_by_amount_growth_market_cap_route_correctly():
     ]
     for verb, path, tr in cases:
         fake = FakeTransport(response=_one(row))
-        result = getattr(_client(fake).overseas_ranking, verb)(exchange="NAS")
+        result = getattr(_client(fake).overseas.ranking, verb)(exchange="NAS")
         assert result[0].symbol == "T"
         assert fake.calls[0]["path"] == path
         assert fake.calls[0]["tr_id"] == tr
@@ -103,14 +103,14 @@ def test_by_change_gubn_and_bad_top():
     row = [{"rank": "1", "excd": "NAS", "symb": "T", "name": "n", "ename": "N", "last": "1",
             "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
     fake = FakeTransport(response=_one(row))
-    _client(fake).overseas_ranking.by_change(exchange="NAS", top="gainers")
+    _client(fake).overseas.ranking.by_change(exchange="NAS", top="gainers")
     assert fake.calls[0]["path"] == "/uapi/overseas-stock/v1/ranking/updown-rate"
     assert fake.calls[0]["params"]["GUBN"] == "1"                # gainers=1(상승율)
     fake2 = FakeTransport(response=_one(row))
-    _client(fake2).overseas_ranking.by_change(exchange="NAS", top="losers")
+    _client(fake2).overseas.ranking.by_change(exchange="NAS", top="losers")
     assert fake2.calls[0]["params"]["GUBN"] == "0"               # losers=0(하락율)
     with _pytest.raises(_U):
-        _client(fake2).overseas_ranking.by_change(exchange="NAS", top="nope")
+        _client(fake2).overseas.ranking.by_change(exchange="NAS", top="nope")
 
 
 def test_more_overseas_rankings_route():
@@ -123,7 +123,7 @@ def test_more_overseas_rankings_route():
     ]
     for verb, path, tr, key in cases:
         fake = FakeTransport(response=_one(row))
-        assert getattr(_client(fake).overseas_ranking, verb)(exchange="NAS")[0].rank == 1
+        assert getattr(_client(fake).overseas.ranking, verb)(exchange="NAS")[0].rank == 1
         assert fake.calls[0]["path"] == path
         assert fake.calls[0]["tr_id"] == tr
         assert key in fake.calls[0]["params"]
@@ -134,22 +134,22 @@ def test_price_fluct_and_new_highlow_gubn_codes():
             "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
     # price-fluct: risers -> GUBN 1, fallers -> GUBN 0
     fake = FakeTransport(response=_one(row))
-    _client(fake).overseas_ranking.by_price_fluctuation(exchange="NAS", top="fallers")
+    _client(fake).overseas.ranking.by_price_fluctuation(exchange="NAS", top="fallers")
     assert fake.calls[0]["path"] == "/uapi/overseas-stock/v1/ranking/price-fluct"
     assert fake.calls[0]["tr_id"] == "HHDFS76260000"
     assert fake.calls[0]["params"]["GUBN"] == "0"
     fake = FakeTransport(response=_one(row))
-    _client(fake).overseas_ranking.by_price_fluctuation(exchange="NAS", top="risers")
+    _client(fake).overseas.ranking.by_price_fluctuation(exchange="NAS", top="risers")
     assert fake.calls[0]["params"]["GUBN"] == "1"
     # new-highlow: high/low -> GUBN 1/0, sustained -> GUBN2 1/0
     fake = FakeTransport(response=_one(row))
-    _client(fake).overseas_ranking.by_new_highlow(exchange="NAS", extreme="low", sustained=False)
+    _client(fake).overseas.ranking.by_new_highlow(exchange="NAS", extreme="low", sustained=False)
     assert fake.calls[0]["path"] == "/uapi/overseas-stock/v1/ranking/new-highlow"
     assert fake.calls[0]["tr_id"] == "HHDFS76300000"
     assert fake.calls[0]["params"]["GUBN"] == "0"
     assert fake.calls[0]["params"]["GUBN2"] == "0"
     fake = FakeTransport(response=_one(row))
-    _client(fake).overseas_ranking.by_new_highlow(exchange="NAS")   # 기본 high/sustained
+    _client(fake).overseas.ranking.by_new_highlow(exchange="NAS")   # 기본 high/sustained
     assert fake.calls[0]["params"]["GUBN"] == "1"
     assert fake.calls[0]["params"]["GUBN2"] == "1"
 
@@ -160,4 +160,4 @@ def test_overseas_ranking_bad_top_raises():
     from kis_openapi.errors import KISUsageError
     fake = FakeTransport(response=_one([]))
     with pytest.raises(KISUsageError):
-        _client(fake).overseas_ranking.by_price_fluctuation(exchange="NAS", top="nope")
+        _client(fake).overseas.ranking.by_price_fluctuation(exchange="NAS", top="nope")

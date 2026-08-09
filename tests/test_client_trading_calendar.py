@@ -1,4 +1,4 @@
-"""거래 캘린더 -- kis.market.trading_calendar(). 필드는 원장 응답예시 실값."""
+"""거래 캘린더 -- kis.domestic.market.trading_calendar(). 필드는 원장 응답예시 실값."""
 from __future__ import annotations
 
 import threading
@@ -36,7 +36,7 @@ def test_trading_calendar_maps_flags():
             {"bass_dt": "20221231", "wday_dvsn_cd": "07", "bzdy_yn": "N", "tr_day_yn": "N",
              "opnd_yn": "N", "sttl_day_yn": "N"}]
     fake = FakeTransport(response=_resp(rows))
-    days = _client(fake).market.trading_calendar(base_date="20221227")
+    days = _client(fake).domestic.market.trading_calendar(base_date="20221227")
     assert all(isinstance(d, TradingDay) for d in days)
     assert f"{days[0].date:%Y%m%d}" == "20221227"
     assert days[0].is_open is True
@@ -51,10 +51,10 @@ def test_trading_calendar_maps_flags():
 
 def test_trading_calendar_skips_empty_and_missing_output():
     fake = FakeTransport(response=_resp([{"bass_dt": ""}]))
-    assert _client(fake).market.trading_calendar(base_date="20221227") == []
+    assert _client(fake).domestic.market.trading_calendar(base_date="20221227") == []
     fake2 = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake2).market.trading_calendar()
+        _client(fake2).domestic.market.trading_calendar()
 
 
 def test_futures_market_schedule_maps_business_days_and_times():
@@ -77,7 +77,7 @@ def test_futures_market_schedule_maps_business_days_and_times():
         },
     )
     fake = FakeTransport(response=response)
-    schedule = _client(fake).market.futures_market_schedule()
+    schedule = _client(fake).domestic.market.futures_market_schedule()
 
     assert isinstance(schedule, FuturesMarketSchedule)
     assert [f"{day:%Y%m%d}" for day in schedule.business_days] == [
@@ -102,4 +102,4 @@ def test_futures_market_schedule_maps_business_days_and_times():
 def test_futures_market_schedule_missing_output_fails_closed():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=response)).market.futures_market_schedule()
+        _client(FakeTransport(response=response)).domestic.market.futures_market_schedule()

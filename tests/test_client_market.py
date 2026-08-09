@@ -1,4 +1,4 @@
-"""시장 전체 분석 -- kis.market.investor_flows()."""
+"""시장 전체 분석 -- kis.domestic.market.investor_flows()."""
 from __future__ import annotations
 
 import threading
@@ -54,7 +54,7 @@ def _flow_row(**over):
 
 def test_market_investor_flows_maps_signed_and_anchor_params():
     fake = FakeTransport(response=_resp([_flow_row()]))
-    flows = _client(fake).market.investor_flows(market="KOSPI", as_of="20240510")
+    flows = _client(fake).domestic.market.investor_flows(market="KOSPI", as_of="20240510")
     assert isinstance(flows[0], MarketInvestorFlow)
     f = flows[0]
     assert f.market == "KOSPI"
@@ -77,14 +77,14 @@ def test_market_investor_flows_maps_signed_and_anchor_params():
 
 def test_market_investor_flows_index_down_sign():
     fake = FakeTransport(response=_resp([_flow_row(prdy_vrss_sign="5", bstp_nmix_prdy_ctrt="0.56")]))
-    f = _client(fake).market.investor_flows(as_of="20240510")[0]
+    f = _client(fake).domestic.market.investor_flows(as_of="20240510")[0]
     assert f.index_change == Decimal("-15.0")            # sign 5 -> 하락
     assert f.index_change_percent == Decimal("-0.56")
 
 
 def test_market_investor_flows_kosdaq_code():
     fake = FakeTransport(response=_resp([]))
-    _client(fake).market.investor_flows(market="KOSDAQ", as_of="20240131")
+    _client(fake).domestic.market.investor_flows(market="KOSDAQ", as_of="20240131")
     assert fake.calls[0]["params"]["FID_INPUT_ISCD"] == "1001"
     assert fake.calls[0]["params"]["FID_INPUT_ISCD_1"] == "KSQ"
 
@@ -92,13 +92,13 @@ def test_market_investor_flows_kosdaq_code():
 def test_market_investor_flows_rejects_bad_market():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).market.investor_flows(market="NYSE")
+        _client(fake).domestic.market.investor_flows(market="NYSE")
 
 
 def test_market_investor_flows_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).market.investor_flows()
+        _client(fake).domestic.market.investor_flows()
 
 
 _SNAPSHOT_PREFIXES = (
@@ -119,7 +119,7 @@ def _snapshot_row():
 
 def test_market_investor_snapshot_maps_participants_and_params():
     fake = FakeTransport(response=_resp(_snapshot_row()))
-    snapshot = _client(fake).market.investor_snapshot(
+    snapshot = _client(fake).domestic.market.investor_snapshot(
         market_code="KSP", industry_code="0001"
     )
     assert isinstance(snapshot, MarketInvestorSnapshot)
@@ -139,7 +139,7 @@ def test_market_investor_snapshot_maps_participants_and_params():
 def test_market_investor_snapshot_rejects_blank_codes(market_code, industry_code):
     fake = FakeTransport(response=_resp(_snapshot_row()))
     with pytest.raises(KISUsageError):
-        _client(fake).market.investor_snapshot(
+        _client(fake).domestic.market.investor_snapshot(
             market_code=market_code, industry_code=industry_code
         )
 
@@ -147,7 +147,7 @@ def test_market_investor_snapshot_rejects_blank_codes(market_code, industry_code
 def test_market_investor_snapshot_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).market.investor_snapshot(market_code="KSP", industry_code="0001")
+        _client(fake).domestic.market.investor_snapshot(market_code="KSP", industry_code="0001")
 
 
 def _net_buy_row():
@@ -164,7 +164,7 @@ def _net_buy_row():
 
 def test_investor_net_buy_stocks_maps_and_routes():
     fake = FakeTransport(response=_resp([_net_buy_row()]))
-    stocks = _client(fake).market.investor_net_buy_stocks(
+    stocks = _client(fake).domestic.market.investor_net_buy_stocks(
         market="KOSPI", basis="amount", direction="sell", investor="foreign"
     )
     assert isinstance(stocks[0], InvestorNetBuyStock)
@@ -190,7 +190,7 @@ def test_program_investor_trades_maps_and_routes():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                            body={"output1": [_program_investor_row()]})
     fake = FakeTransport(response=response)
-    rows = _client(fake).market.program_investor_trades(market="KOSDAQ")
+    rows = _client(fake).domestic.market.program_investor_trades(market="KOSDAQ")
     assert isinstance(rows[0], ProgramInvestorTrade)
     assert rows[0].total.net_buy_quantity == 30
     assert rows[0].arbitrage.buy_amount == Decimal(13)
@@ -201,7 +201,7 @@ def test_program_investor_trades_maps_and_routes():
 def test_market_investor_flows_bad_value_fails_closed():
     fake = FakeTransport(response=_resp([_flow_row(frgn_ntby_qty="n/a")]))
     with pytest.raises(KISError):
-        _client(fake).market.investor_flows(as_of="20240510")
+        _client(fake).domestic.market.investor_flows(as_of="20240510")
 
 
 def _funds_row(**over):
@@ -221,7 +221,7 @@ def _funds_row(**over):
 def test_market_funds_maps_ledger_fields_signed_values_and_order():
     older = _funds_row(bsop_date="20240429", bstp_nmix_prpr="2680.00", mmf_amt="")
     fake = FakeTransport(response=_resp([_funds_row(), older]))
-    funds = _client(fake).market.funds(as_of="20240430")
+    funds = _client(fake).domestic.market.funds(as_of="20240430")
     assert isinstance(funds[0], MarketFunds)
     assert [item.date for item in funds] == [date(2024, 4, 30), date(2024, 4, 29)]
     first = funds[0]
@@ -244,7 +244,7 @@ def test_market_funds_maps_ledger_fields_signed_values_and_order():
 
 def test_market_funds_default_anchor_and_down_sign():
     fake = FakeTransport(response=_resp([_funds_row(prdy_vrss_sign="5")]))
-    fund = _client(fake).market.funds()[0]
+    fund = _client(fake).domestic.market.funds()[0]
     assert fund.index_change == Decimal("-12.34")
     assert fund.index_change_percent == Decimal("-0.46")
     anchor = fake.calls[0]["params"]["FID_INPUT_DATE_1"]
@@ -254,13 +254,13 @@ def test_market_funds_default_anchor_and_down_sign():
 def test_market_funds_non_list_output_fails_closed():
     fake = FakeTransport(response=_resp({}))
     with pytest.raises(KISError):
-        _client(fake).market.funds()
+        _client(fake).domestic.market.funds()
 
 
 def test_market_funds_bad_required_numeric_fails_closed():
     fake = FakeTransport(response=_resp([_funds_row(bstp_nmix_prpr="n/a")]))
     with pytest.raises(KISError):
-        _client(fake).market.funds(as_of="20240430")
+        _client(fake).domestic.market.funds(as_of="20240430")
 
 
 def _interest_row(**over):
@@ -286,7 +286,7 @@ def test_market_interest_rates_combines_regions_and_maps_signs():
         body={"output1": [overseas], "output2": [domestic]},
     )
     fake = FakeTransport(response=response)
-    quotes = _client(fake).market.interest_rates()
+    quotes = _client(fake).domestic.market.interest_rates()
     assert all(isinstance(quote, InterestRateQuote) for quote in quotes)
     assert [(quote.code, quote.region) for quote in quotes] == [
         ("Y0202", "overseas"), ("Y0101", "domestic"),
@@ -313,7 +313,7 @@ def test_market_interest_rates_requires_both_output_blocks(body):
         response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     )
     with pytest.raises(KISError):
-        _client(fake).market.interest_rates()
+        _client(fake).domestic.market.interest_rates()
 
 
 def test_market_interest_rates_bad_row_fails_closed():
@@ -322,7 +322,7 @@ def test_market_interest_rates_bad_row_fails_closed():
     )
     fake = FakeTransport(response=response)
     with pytest.raises(KISError):
-        _client(fake).market.interest_rates()
+        _client(fake).domestic.market.interest_rates()
 
 
 def _lendable_row(**over):
@@ -343,7 +343,7 @@ def test_market_lendable_stocks_maps_and_routes():
         body={"output1": [_lendable_row()], "output2": {}},
     )
     fake = FakeTransport(response=response)
-    stocks = _client(fake).market.lendable_stocks(market="KOSPI", symbol="005930")
+    stocks = _client(fake).domestic.market.lendable_stocks(market="KOSPI", symbol="005930")
     assert len(stocks) == 1 and isinstance(stocks[0], LendableStock)
     stock = stocks[0]
     assert stock.symbol == "005930"
@@ -364,11 +364,11 @@ def test_market_lendable_stocks_maps_and_routes():
 def test_market_lendable_stocks_rejects_bad_market_and_output():
     fake = FakeTransport(response=None)
     with pytest.raises(KISUsageError):
-        _client(fake).market.lendable_stocks(market="NYSE")
+        _client(fake).domestic.market.lendable_stocks(market="NYSE")
     assert fake.calls == []
     bad = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(bad).market.lendable_stocks()
+        _client(bad).domestic.market.lendable_stocks()
 
 
 def test_market_credit_eligible_stocks_maps_query_contract():
@@ -378,7 +378,7 @@ def test_market_credit_eligible_stocks_maps_query_contract():
         ]},
     )
     fake = FakeTransport(response=response)
-    stocks = _client(fake).market.credit_eligible_stocks(
+    stocks = _client(fake).domestic.market.credit_eligible_stocks(
         market="KOSDAQ", eligible=False, sort="symbol"
     )
     assert len(stocks) == 1 and isinstance(stocks[0], CreditEligibleStock)
@@ -398,15 +398,15 @@ def test_market_credit_eligible_stocks_maps_query_contract():
 def test_market_credit_eligible_stocks_rejects_bad_filters_and_rows():
     fake = FakeTransport(response=None)
     with pytest.raises(KISUsageError):
-        _client(fake).market.credit_eligible_stocks(market="NYSE")
+        _client(fake).domestic.market.credit_eligible_stocks(market="NYSE")
     with pytest.raises(KISUsageError):
-        _client(fake).market.credit_eligible_stocks(sort="rate")
+        _client(fake).domestic.market.credit_eligible_stocks(sort="rate")
     assert fake.calls == []
     bad = FakeTransport(
         response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": ["bad"]})
     )
     with pytest.raises(KISError):
-        _client(bad).market.credit_eligible_stocks()
+        _client(bad).domestic.market.credit_eligible_stocks()
 
 
 def _broker_opinion_row(**over):
@@ -425,7 +425,7 @@ def _broker_opinion_row(**over):
 
 def test_market_broker_opinions_maps_and_routes():
     fake = FakeTransport(response=_resp([_broker_opinion_row()]))
-    opinions = _client(fake).market.broker_opinions(
+    opinions = _client(fake).domestic.market.broker_opinions(
         broker="999", opinion="buy", start="20240501", end="20240528"
     )
     assert len(opinions) == 1 and isinstance(opinions[0], BrokerOpinion)
@@ -450,7 +450,7 @@ def test_market_broker_opinions_restores_down_sign_and_defaults_window():
     fake = FakeTransport(response=_resp([_broker_opinion_row(
         prdy_vrss_sign="5", prdy_vrss="500", prdy_ctrt="0.68"
     )]))
-    item = _client(fake).market.broker_opinions(broker="999", end="20240131")[0]
+    item = _client(fake).domestic.market.broker_opinions(broker="999", end="20240131")[0]
     assert item.change == Decimal(-500)
     assert item.change_percent == Decimal("-0.68")
     assert fake.calls[0]["params"]["FID_INPUT_DATE_1"] == "20240101"
@@ -459,11 +459,11 @@ def test_market_broker_opinions_restores_down_sign_and_defaults_window():
 def test_market_broker_opinions_rejects_invalid_inputs_before_transport():
     fake = FakeTransport(response=None)
     with pytest.raises(KISUsageError):
-        _client(fake).market.broker_opinions(broker="")
+        _client(fake).domestic.market.broker_opinions(broker="")
     with pytest.raises(KISUsageError):
-        _client(fake).market.broker_opinions(broker="999", opinion="strong_buy")
+        _client(fake).domestic.market.broker_opinions(broker="999", opinion="strong_buy")
     with pytest.raises(KISUsageError):
-        _client(fake).market.broker_opinions(
+        _client(fake).domestic.market.broker_opinions(
             broker="999", start="20240201", end="20240101"
         )
     assert fake.calls == []
@@ -472,7 +472,7 @@ def test_market_broker_opinions_rejects_invalid_inputs_before_transport():
 def test_market_broker_opinions_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).market.broker_opinions(broker="999")
+        _client(fake).domestic.market.broker_opinions(broker="999")
 
 
 def _prog_row(**over):
@@ -487,7 +487,7 @@ def _prog_row(**over):
 def test_program_trade_summary_maps_smtn_fields():
     from kis_openapi import ProgramTradeSummary
     fake = FakeTransport(response=_resp([_prog_row()]))
-    s = _client(fake).market.program_trades(market="KOSPI", start="20240101", end="20240513")[0]
+    s = _client(fake).domestic.market.program_trades(market="KOSPI", start="20240101", end="20240513")[0]
     assert isinstance(s, ProgramTradeSummary)
     assert s.arbitrage_net_volume == 12000               # arbt_smtn_ntby_qty (NOT the _rate field)
     assert s.arbitrage_net_amount == Decimal(84000000)
@@ -501,19 +501,19 @@ def test_program_trade_summary_maps_smtn_fields():
 
 def test_program_trade_summary_kosdaq_and_bad_market():
     fake = FakeTransport(response=_resp([]))
-    _client(fake).market.program_trades(market="KOSDAQ", start="20240101", end="20240131")
+    _client(fake).domestic.market.program_trades(market="KOSDAQ", start="20240101", end="20240131")
     assert fake.calls[0]["params"]["FID_MRKT_CLS_CODE"] == "Q"
     with pytest.raises(KISUsageError):
-        _client(fake).market.program_trades(market="US")
+        _client(fake).domestic.market.program_trades(market="US")
 
 
 def test_program_trade_summary_bad_value_fails_closed():
     fake = FakeTransport(response=_resp([_prog_row(arbt_smtn_ntby_qty="n/a")]))
     with pytest.raises(KISError):
-        _client(fake).market.program_trades()
+        _client(fake).domestic.market.program_trades()
 
 
 def test_program_trade_summary_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).market.program_trades()
+        _client(fake).domestic.market.program_trades()

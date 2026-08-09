@@ -56,7 +56,7 @@ APPLE = {
 
 def test_overseas_product_info_maps_real_apple_example():
     fake = FakeTransport(response=_response(APPLE))
-    info = _client(fake).overseas_product_info("NAS", "AAPL")
+    info = _client(fake).overseas.product_info("NAS", "AAPL")
 
     call = fake.calls[0]
     assert call["path"] == "/uapi/overseas-price/v1/quotations/search-info"
@@ -79,7 +79,7 @@ def test_overseas_product_info_maps_real_apple_example():
 def test_overseas_product_info_rejects_unknown_exchange():
     fake = FakeTransport(response=_response(APPLE))
     with pytest.raises(KISUsageError):
-        _client(fake).overseas_product_info("XXX", "AAPL")
+        _client(fake).overseas.product_info("XXX", "AAPL")
     assert fake.calls == []
 
 
@@ -88,4 +88,4 @@ def test_overseas_product_info_missing_output_fails_closed():
         response=RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={})
     )
     with pytest.raises(KISError):
-        _client(fake).overseas_product_info("NAS", "AAPL")
+        _client(fake).overseas.product_info("NAS", "AAPL")

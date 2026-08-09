@@ -1,6 +1,6 @@
 """지수/업종 시세 DATA -- :class:`IndexQuote`, :class:`IndexIntradayPoint`, :class:`CategoryIndex`.
 
-:class:`~kis_openapi.index.Index` 핸들(``kis.index(code)``)이 돌려주는 지수(업종) 시세 타입들이다.
+:class:`~kis_openapi.index.Index` 핸들(``kis.domestic.index(code)``)이 돌려주는 지수(업종) 시세 타입들이다.
 :class:`IndexQuote` 는 현재가 스냅샷(:meth:`~kis_openapi.index.Index.quote`), :class:`IndexIntradayPoint`
 는 당일 시간대별 시계열(:meth:`~kis_openapi.index.Index.intraday`)의 한 점, :class:`CategoryIndex` 는
 시장 하위 업종 지수(:meth:`~kis_openapi.index.Index.categories`)의 한 항목이다. 종목의

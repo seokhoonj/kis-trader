@@ -1,10 +1,10 @@
 """ELW 스크리닝/기초자산 조회 네임스페이스 -- :class:`ELWScreenerQueries`.
 
-``kis.elw_screener.underlyings()`` 처럼, 개별 ELW 가 아니라 **시장에서 ELW 를 찾는** 조회를 모은다:
+``kis.domestic.elw_screener.underlyings()`` 처럼, 개별 ELW 가 아니라 **시장에서 ELW 를 찾는** 조회를 모은다:
 ELW 가 상장된 기초자산 목록, 한 기초자산의 ELW 들, 신규상장/만기예정 ELW, 비교대상 ELW. 순위
-(``kis.elw_ranking``)가 "줄 세우기"라면 스크리너는 "골라내기"다.
+(``kis.domestic.elw_ranking``)가 "줄 세우기"라면 스크리너는 "골라내기"다.
 
-직접 만들지 않고 :attr:`~kis_openapi.client.KISClient.elw_screener` 로 얻는다. 목록 행은
+직접 만들지 않고 ``kis.domestic.elw_screener`` 로 얻는다. 목록 행은
 :class:`~kis_openapi.elw_items.ELWListing`(기초자산 목록만 :class:`~kis_openapi.elw_items.ELWUnderlying`).
 """
 

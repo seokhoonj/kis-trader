@@ -1,4 +1,4 @@
-"""해외 선물/옵션 핸들 -- kis.overseas_futures/option(srs_cd).order_book().
+"""해외 선물/옵션 핸들 -- kis.overseas.futures/option(srs_cd).order_book().
 
 선물/옵션 호가 URL·TR 라우팅, output2 객체 배열의 5단계 파싱, 공백 패딩, 빈 단계 생략,
 표시 잔량 합계와 손상 응답의 fail-closed 처리를 검증한다.
@@ -63,7 +63,7 @@ def _response(*, rows=None):
 
 def test_overseas_futures_order_book_maps_array_and_routes():
     fake = FakeTransport(response=_response())
-    book = _client(fake).overseas_futures("6AM24").order_book()
+    book = _client(fake).overseas.futures("6AM24").order_book()
 
     assert isinstance(book, OrderBook)
     assert book.symbol == "6AM24"
@@ -87,7 +87,7 @@ def test_overseas_futures_order_book_maps_array_and_routes():
 
 def test_overseas_option_order_book_routes_to_opt_endpoint():
     fake = FakeTransport(response=_response())
-    _client(fake).overseas_option("OTXM24 C22000").order_book()
+    _client(fake).overseas.option("OTXM24 C22000").order_book()
     assert fake.calls[0]["path"] == _OPT
     assert fake.calls[0]["tr_id"] == "HHDFO86000000"
 
@@ -97,7 +97,7 @@ def test_overseas_derivative_order_book_missing_array_fails_closed(output2):
     body = {} if output2 is None else {"output2": output2}
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     with pytest.raises(KISError):
-        _client(FakeTransport(response=response)).overseas_futures("6AM24").order_book()
+        _client(FakeTransport(response=response)).overseas.futures("6AM24").order_book()
 
 
 def test_overseas_derivative_order_book_bad_quantity_fails_closed():
@@ -106,6 +106,6 @@ def test_overseas_derivative_order_book_bad_quantity_fails_closed():
         "ask_qntt": "11", "ask_price": "6443.5",
     }]
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_response(rows=rows))).overseas_futures(
+        _client(FakeTransport(response=_response(rows=rows))).overseas.futures(
             "6AM24"
         ).order_book()

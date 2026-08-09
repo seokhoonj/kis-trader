@@ -196,7 +196,7 @@ def place_reserved_order(
     if outcome is ClaimOutcome.IN_FLIGHT:
         raise KISUsageError(
             f"예약주문 {client_order_id} 은 전송됐으나 결과가 확인되지 않았다. "
-            f"kis.reconcile({client_order_id!r}) 로 재조회한 뒤 판단하라."
+            f"kis.orders.reconcile({client_order_id!r}) 로 재조회한 뒤 판단하라."
         )
     if outcome is not ClaimOutcome.CLAIMED:
         raise OrderError(f"예상치 못한 claim outcome: {outcome!r}")
@@ -208,7 +208,7 @@ def place_reserved_order(
     except TransportTimeout as err:
         raise OrderTimeoutError(
             f"예약주문 전송 시간초과 -- 접수 여부가 불명이다. 재전송하지 말고 "
-            f"kis.reconcile({client_order_id!r}) 로 재조회하라.",
+            f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
             client_order_id=client_order_id,
         ) from err
 

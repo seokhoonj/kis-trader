@@ -47,8 +47,8 @@ def test_saved_screens_and_results_map_and_route():
         _response([{"user_id": "user", "seq": "0", "grp_nm": "가치", "condition_nm": "저PER"}]),
         _response([_stock_row()]),
     )
-    screens = client.saved_screens("user")
-    stocks = client.saved_screen_stocks("user", screens[0].sequence)
+    screens = client.domestic.saved_screens("user")
+    stocks = client.domestic.saved_screen_stocks("user", screens[0].sequence)
     assert isinstance(screens[0], SavedScreen)
     assert screens[0].condition_name == "저PER"
     assert isinstance(stocks[0], SavedScreenStock)
@@ -66,13 +66,13 @@ def test_saved_screens_and_results_map_and_route():
                                           ("saved_screen_stocks", ("user", ""))])
 def test_saved_screen_queries_reject_blank_identifiers(method, args):
     with pytest.raises(KISUsageError):
-        getattr(_client(), method)(*args)
+        getattr(_client().domestic, method)(*args)
 
 
 def test_saved_screen_queries_fail_closed_on_missing_output():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
     with pytest.raises(KISError):
-        _client(response).saved_screens("user")
+        _client(response).domestic.saved_screens("user")
 
 
 def test_watchlist_groups_and_stocks_map_and_route():
@@ -88,8 +88,8 @@ def test_watchlist_groups_and_stocks_map_and_route():
                      "cntg_unpr": "71000", "cntg_cls_code": "2"}],
     })
     client = _client(groups_response, stocks_response)
-    groups = client.watchlist_groups("user")
-    watchlist = client.watchlist("user", groups[0].code)
+    groups = client.domestic.watchlist_groups("user")
+    watchlist = client.domestic.watchlist("user", groups[0].code)
     assert isinstance(groups[0], WatchlistGroup)
     assert groups[0].requested_count == 1
     assert isinstance(watchlist, Watchlist)
@@ -108,11 +108,11 @@ def test_watchlist_groups_and_stocks_map_and_route():
                                           ("watchlist", ("user", ""))])
 def test_watchlist_queries_reject_blank_identifiers(method, args):
     with pytest.raises(KISUsageError):
-        getattr(_client(), method)(*args)
+        getattr(_client().domestic, method)(*args)
 
 
 @pytest.mark.parametrize("body", [{}, {"output1": {}, "output2": "bad"}])
 def test_watchlist_queries_fail_closed(body):
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     with pytest.raises(KISError):
-        _client(response).watchlist("user", "001")
+        _client(response).domestic.watchlist("user", "001")

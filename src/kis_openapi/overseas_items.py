@@ -1,7 +1,7 @@
 """해외 계좌 DATA -- :class:`OverseasPosition`, :class:`OverseasBalance`.
 
-해외 잔고가 돌려주는 보유 종목(:meth:`~kis_openapi.client.KISClient.overseas_positions`)과 계좌
-손익 요약(:meth:`~kis_openapi.client.KISClient.overseas_balance`). 금액은 종목/조회 통화
+해외 잔고가 돌려주는 보유 종목(``kis.overseas.account.positions``)과 계좌
+손익 요약(``kis.overseas.account.balance``). 금액은 종목/조회 통화
 (USD/HKD/JPY/...)라 :class:`~kis_openapi.money.Money` 로 통화를 함께 담는다 -- 국내
 :class:`~kis_openapi.balance.Position`(KRW Decimal)와 달리 다통화이기 때문이다.
 """

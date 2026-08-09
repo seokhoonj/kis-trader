@@ -1,6 +1,6 @@
 """장내채권 시세 조회 (내부) -- 채권 현재가를 :class:`BondQuote` 로.
 
-사용자면은 채권 핸들(:class:`~kis_openapi.bond.Bond`, ``kis.bond(code)``)이다. 채권은 시장구분 ``B`` +
+사용자면은 채권 핸들(:class:`~kis_openapi.bond.Bond`, ``kis.domestic.bond(code)``)이다. 채권은 시장구분 ``B`` +
 표준코드(ISIN, 예: KR2033022D33)로 조회한다.
 
 KIS URL/TR-id (원장 대조):

@@ -1,10 +1,10 @@
 """해외주식 순위 네임스페이스 -- :class:`OverseasRankingQueries`.
 
-``kis.overseas_ranking.by_volume(exchange="NAS")`` 처럼, 한 해외 거래소의 시장 전체 순위를
+``kis.overseas.ranking.by_volume(exchange="NAS")`` 처럼, 한 해외 거래소의 시장 전체 순위를
 :class:`~kis_openapi.overseas_ranking_items.RankedOverseasStock` 리스트로 돌려준다. 국내 순위
-(``kis.ranking``)의 해외 판이다 -- 해외는 거래소별로 조회하므로 ``exchange`` 를 준다.
+(``kis.domestic.ranking``)의 해외 판이다 -- 해외는 거래소별로 조회하므로 ``exchange`` 를 준다.
 
-직접 만들지 않고 :attr:`~kis_openapi.client.KISClient.overseas_ranking` 로 얻는다.
+직접 만들지 않고 ``kis.overseas.ranking`` 로 얻는다.
 """
 
 from __future__ import annotations

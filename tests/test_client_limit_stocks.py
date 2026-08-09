@@ -1,4 +1,4 @@
-"""상하한가 포착 -- kis.market.limit_stocks(). 필드는 원장 응답예시 실값."""
+"""상하한가 포착 -- kis.domestic.market.limit_stocks(). 필드는 원장 응답예시 실값."""
 from __future__ import annotations
 
 import threading
@@ -37,7 +37,7 @@ def test_limit_stocks_maps_ledger_values_upper():
              "acml_vol": "39937550", "total_askp_rsqn": "0", "total_bidp_rsqn": "2648946",
              "stck_llam": "1122", "stck_mxpr": "2080", "prdy_vrss_vol_rate": "997.66"}]
     fake = FakeTransport(response=_resp(rows))
-    stocks = _client(fake).market.limit_stocks()
+    stocks = _client(fake).domestic.market.limit_stocks()
     assert isinstance(stocks[0], LimitStock)
     s = stocks[0]
     assert s.symbol == "012800"
@@ -60,7 +60,7 @@ def test_limit_stocks_lower_limit_not_at_upper():
              "acml_vol": "100", "total_askp_rsqn": "500", "total_bidp_rsqn": "0",
              "stck_llam": "1122", "stck_mxpr": "2080"}]
     fake = FakeTransport(response=_resp(rows))
-    s = _client(fake).market.limit_stocks()[0]
+    s = _client(fake).domestic.market.limit_stocks()[0]
     assert s.change == Decimal(-478)                     # sign 5 -> 하락(하한)
     assert s.at_upper_limit is False
     assert s.price == s.lower_limit
@@ -68,10 +68,10 @@ def test_limit_stocks_lower_limit_not_at_upper():
 
 def test_limit_stocks_skips_empty_and_missing_output():
     fake = FakeTransport(response=_resp([{"mksc_shrn_iscd": ""}]))
-    assert _client(fake).market.limit_stocks() == []
+    assert _client(fake).domestic.market.limit_stocks() == []
     fake2 = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake2).market.limit_stocks()
+        _client(fake2).domestic.market.limit_stocks()
 
 
 def test_limit_stocks_bad_value_fails_closed():
@@ -80,4 +80,4 @@ def test_limit_stocks_bad_value_fails_closed():
              "stck_llam": "1", "stck_mxpr": "2", "total_askp_rsqn": "0", "total_bidp_rsqn": "0"}]
     fake = FakeTransport(response=_resp(rows))
     with pytest.raises(KISError):
-        _client(fake).market.limit_stocks()
+        _client(fake).domestic.market.limit_stocks()

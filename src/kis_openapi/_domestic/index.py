@@ -1,6 +1,6 @@
 """국내 지수/업종 시세 조회 (내부) -- 지수 현재가 등을 :class:`IndexQuote` 로.
 
-사용자면(:class:`~kis_openapi.index.Index`, ``kis.index(code)``)이 호출한다. 지수/업종은 종목이
+사용자면(:class:`~kis_openapi.index.Index`, ``kis.domestic.index(code)``)이 호출한다. 지수/업종은 종목이
 아니라 시장구분 ``U`` + 업종코드(``FID_INPUT_ISCD``)로 조회한다. 업종코드는 포털의 업종코드표를
 따르며, 대표값은 0001 KOSPI 종합 / 1001 KOSDAQ 종합 / 2001 KOSPI200.
 

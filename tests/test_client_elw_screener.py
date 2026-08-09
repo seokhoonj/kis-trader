@@ -1,4 +1,4 @@
-"""ELW 스크리닝 -- kis.elw_screener.*.
+"""ELW 스크리닝 -- kis.domestic.elw_screener.*.
 
 기초자산 목록/별 시세, 비교종목, 신규상장, 만기예정 각각의 TR·URL·시장구분 W·필터 파라미터
 (콜풋 코드가 엔드포인트마다 다름), 공통 행 파싱(코드/이름 폴백·optional 필드·부호 복원), fail-closed
@@ -38,7 +38,7 @@ def _client(transport):
 
 
 def test_screener_accessor():
-    assert isinstance(_client(FakeTransport(response=_resp([]))).elw_screener, ELWScreenerQueries)
+    assert isinstance(_client(FakeTransport(response=_resp([]))).domestic.elw_screener, ELWScreenerQueries)
 
 
 # --- underlyings (기초자산 목록) --------------------------------------------
@@ -48,7 +48,7 @@ def test_underlyings_maps_and_params():
             {"unas_shrn_iscd": "005930", "unas_isnm": "삼성전자", "unas_prpr": "40850",
              "unas_prdy_vrss": "300", "unas_prdy_vrss_sign": "5", "unas_prdy_ctrt": "0.73"}]
     fake = FakeTransport(response=_resp(rows))
-    unders = _client(fake).elw_screener.underlyings(sort="gainers")
+    unders = _client(fake).domestic.elw_screener.underlyings(sort="gainers")
     assert all(isinstance(u, ELWUnderlying) for u in unders)
     assert unders[0].symbol == "2001"
     assert unders[0].name == "KOSPI200"
@@ -68,7 +68,7 @@ def test_by_underlying_maps_listing_and_params():
              "prdy_vrss": "0", "prdy_vrss_sign": "3", "prdy_ctrt": "0.00", "acml_vol": "0",
              "acpr": "63300.00", "unas_isnm": "삼성전자", "stck_cnvr_rate": "0.01"}]
     fake = FakeTransport(response=_resp(rows))
-    listings = _client(fake).elw_screener.by_underlying("005930")
+    listings = _client(fake).domestic.elw_screener.by_underlying("005930")
     assert all(isinstance(x, ELWListing) for x in listings)
     row = listings[0]
     assert row.symbol == "57JAAQ"
@@ -90,7 +90,7 @@ def test_comparables_minimal_rows():
     rows = [{"elw_shrn_iscd": "58J782", "elw_kor_isnm": "KBJ782삼성전자풋"},
             {"elw_shrn_iscd": "58JC71", "elw_kor_isnm": "KBJC71삼성전자콜"}]
     fake = FakeTransport(response=_resp(rows))
-    listings = _client(fake).elw_screener.comparables("005930")
+    listings = _client(fake).domestic.elw_screener.comparables("005930")
     assert [x.symbol for x in listings] == ["58J782", "58JC71"]
     assert listings[0].price is None                      # 시세 없음
     assert listings[0].change is None
@@ -105,7 +105,7 @@ def test_newly_listed_right_code_and_dates():
     rows = [{"elw_shrn_iscd": "57K924", "elw_kor_isnm": "한국K924HLB콜", "unas_isnm": "HLB",
              "stck_lstn_date": "20240320", "stck_last_tr_date": "20240613", "acpr": "78000.00"}]
     fake = FakeTransport(response=_resp(rows))
-    listings = _client(fake).elw_screener.newly_listed(date="20240410", right="call")
+    listings = _client(fake).domestic.elw_screener.newly_listed(date="20240410", right="call")
     row = listings[0]
     assert row.symbol == "57K924"
     assert row.listing_date is not None
@@ -125,7 +125,7 @@ def test_expiring_right_code_and_range():
              "unas_isnm": "KOSPI200", "elw_prpr": "515", "acpr": "372.50",
              "stck_last_tr_date": "20240613"}]
     fake = FakeTransport(response=_resp(rows))
-    listings = _client(fake).elw_screener.expiring(start="20240611", end="20240618", right="put")
+    listings = _client(fake).domestic.elw_screener.expiring(start="20240611", end="20240618", right="put")
     assert listings[0].symbol == "58K374"
     assert listings[0].price == Decimal(515)
     call = fake.calls[0]
@@ -140,39 +140,39 @@ def test_expiring_right_code_and_range():
 def test_bond_shrn_iscd_fallback():
     rows = [{"bond_shrn_iscd": "57JAES", "hts_kor_isnm": "한국JAESKOSPI200콜", "elw_prpr": "1560"}]
     fake = FakeTransport(response=_resp(rows))
-    listings = _client(fake).elw_screener.by_underlying("2001")
+    listings = _client(fake).domestic.elw_screener.by_underlying("2001")
     assert listings[0].symbol == "57JAES"                 # bond_shrn_iscd 폴백
 
 
 def test_listings_skip_empty_rows():
     rows = [{"elw_shrn_iscd": "57JAAQ", "hts_kor_isnm": "x"}, {"elw_shrn_iscd": ""}]
     fake = FakeTransport(response=_resp(rows))
-    assert len(_client(fake).elw_screener.by_underlying("005930")) == 1
+    assert len(_client(fake).domestic.elw_screener.by_underlying("005930")) == 1
 
 
 def test_screener_rejects_bad_right():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).elw_screener.newly_listed(date="20240410", right="both")
+        _client(fake).domestic.elw_screener.newly_listed(date="20240410", right="both")
 
 
 def test_underlyings_rejects_bad_sort():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).elw_screener.underlyings(sort="nope")
+        _client(fake).domestic.elw_screener.underlyings(sort="nope")
 
 
 def test_screener_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).elw_screener.underlyings()
+        _client(fake).domestic.elw_screener.underlyings()
 
 
 def test_by_underlying_bad_value_fails_closed():
     rows = [{"elw_shrn_iscd": "57JAAQ", "hts_kor_isnm": "x", "elw_prpr": "n/a"}]
     fake = FakeTransport(response=_resp(rows))
     with pytest.raises(KISError):
-        _client(fake).elw_screener.by_underlying("005930")
+        _client(fake).domestic.elw_screener.by_underlying("005930")
 
 
 # --- search (조건검색, 60파라미터·풍부한 _raw) ------------------------------
@@ -183,7 +183,7 @@ def test_search_maps_rich_row_and_sends_all_params():
              "unas_isnm": "KOSPI200", "stck_lstn_date": "20231018",
              "stck_last_tr_date": "20240613", "delta_val": "1.000000", "lvrg_val": "24.22"}]
     fake = FakeTransport(response=_resp(rows))
-    listings = _client(fake).elw_screener.search(underlying="2001")
+    listings = _client(fake).domestic.elw_screener.search(underlying="2001")
     assert all(isinstance(x, ELWListing) for x in listings)
     row = listings[0]
     assert row.symbol == "57JAES"                         # bond_shrn_iscd 폴백
@@ -206,4 +206,4 @@ def test_search_maps_rich_row_and_sends_all_params():
 def test_search_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).elw_screener.search()
+        _client(fake).domestic.elw_screener.search()

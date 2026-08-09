@@ -1,7 +1,7 @@
 """기업행위 캘린더(DATA) -- :class:`DividendEvent` 등.
 
 한국예탁결제원(KSD)이 제공하는 기업행위 일정의 한 항목이다. 배당·유상증자·무상증자·주주총회 같은 이벤트를
-기준일 기준으로 준다. :class:`~kis_openapi.calendar.CalendarQueries`(``kis.calendar``)가 기간
+기준일 기준으로 준다. :class:`~kis_openapi.calendar.CalendarQueries`(``kis.domestic.calendar``)가 기간
 조회로 리스트를 돌려준다. 날짜는 시각/시간대 없는 순수 달력 날짜라 :class:`datetime.date` 로 둔다
 (시세 타임스탬프의 KST-aware ``datetime`` 과 구분).
 """

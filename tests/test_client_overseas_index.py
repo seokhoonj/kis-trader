@@ -47,7 +47,7 @@ def test_overseas_index_bars_routes_and_parses_ascending():
         _row("20220613", "3060.1", "3090.2", "3050.3", "3080.4", "500"),
         _row("20220401", "3010.1", "3040.2", "3000.3", "3030.4", "400"),
     ]))
-    handle = client.overseas_index(".DJI")
+    handle = client.overseas.index(".DJI")
     bars = handle.bars("1d", start="20220401", end="20220613")
     assert isinstance(handle, OverseasIndex)
     assert all(isinstance(bar, Bar) for bar in bars)
@@ -69,18 +69,18 @@ def test_overseas_index_bars_routes_and_parses_ascending():
 
 def test_overseas_index_kind_and_period_mappings():
     client, fake = _client(_resp([_row("20240105", "1", "1", "1", "1", "1")]))
-    client.overseas_index("USD", kind="fx").bars(start="20240105")
+    client.overseas.index("USD", kind="fx").bars(start="20240105")
     assert fake.calls[0]["params"]["FID_COND_MRKT_DIV_CODE"] == "X"
     for interval, period in (("1wk", "W"), ("1mo", "M")):
         client, fake = _client(_resp([_row("20240105", "1", "1", "1", "1", "1")]))
-        client.overseas_index(".DJI").bars(interval, start="20240105")
+        client.overseas.index(".DJI").bars(interval, start="20240105")
         assert fake.calls[0]["params"]["FID_PERIOD_DIV_CODE"] == period
 
 
 def test_overseas_index_rejects_unknown_kind():
     client, _ = _client(_resp([]))
     with pytest.raises(KISUsageError):
-        client.overseas_index(".DJI", kind="commodity")
+        client.overseas.index(".DJI", kind="commodity")
 
 
 @pytest.mark.parametrize("kwargs, error", [
@@ -91,7 +91,7 @@ def test_overseas_index_rejects_unknown_kind():
 def test_overseas_index_bars_guards(kwargs, error):
     client, _ = _client(_resp([]))
     with pytest.raises(error):
-        client.overseas_index(".DJI").bars(**kwargs)
+        client.overseas.index(".DJI").bars(**kwargs)
 
 
 @pytest.mark.parametrize("output2", [None, {}, "bad"])
@@ -100,7 +100,7 @@ def test_overseas_index_bars_missing_or_non_list_output_fails_closed(output2):
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     client, _ = _client(response)
     with pytest.raises(KISError):
-        client.overseas_index(".DJI").bars(start="20240101")
+        client.overseas.index(".DJI").bars(start="20240101")
 
 
 def test_overseas_index_bars_skips_blank_rows_and_rejects_bad_numeric():
@@ -108,11 +108,11 @@ def test_overseas_index_bars_skips_blank_rows_and_rejects_bad_numeric():
         _row("", "1", "1", "1", "1", "1"),
         _row("20240101", "1", "1", "1", "", "1"),
     ]))
-    assert client.overseas_index(".DJI").bars(start="20240101") == []
+    assert client.overseas.index(".DJI").bars(start="20240101") == []
 
     client, _ = _client(_resp([_row("20240101", "bad", "1", "1", "1", "1")]))
     with pytest.raises(KISError):
-        client.overseas_index(".DJI").bars(start="20240101")
+        client.overseas.index(".DJI").bars(start="20240101")
 
 
 def _minute_row(day, time, open_, high, low, close, volume):
@@ -142,7 +142,7 @@ def test_overseas_index_minute_bars_maps_filters_and_limits():
         },
     )
     client, fake = _client(response)
-    bars = client.overseas_index("SPX").bars(
+    bars = client.overseas.index("SPX").bars(
         "1m", start="20240223", end="2024-02-23", max_bars=1
     )
 
@@ -166,7 +166,7 @@ def test_overseas_index_minute_bars_maps_filters_and_limits():
 def test_overseas_index_minute_bars_rejects_unsupported_kind_before_transport():
     client, fake = _client(_resp([]))
     with pytest.raises(KISUsageError):
-        client.overseas_index("US10Y", kind="bond").bars("1m")
+        client.overseas.index("US10Y", kind="bond").bars("1m")
     assert fake.calls == []
 
 
@@ -175,4 +175,4 @@ def test_overseas_index_minute_bars_requires_both_blocks(body):
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     client, _ = _client(response)
     with pytest.raises(KISError):
-        client.overseas_index("SPX").bars("1m")
+        client.overseas.index("SPX").bars("1m")

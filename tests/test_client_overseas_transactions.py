@@ -1,4 +1,4 @@
-"""해외주식 일별거래내역 -- kis.overseas_transactions(start=, end=) (CTOS4001R).
+"""해외주식 일별거래내역 -- kis.overseas.account.transactions(start=, end=) (CTOS4001R).
 
 체결 거래 행(output1)을 통화 태그된 Money 로, 연속조회·필터·fail-closed 를 네트워크 없이
 검증한다. 픽스처는 원장 응답예시(inquire-period-trans) 실값을 쓴다.
@@ -60,7 +60,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 
 
 def test_transactions_parse_ledger_row():
-    txs = _client(FakeTransport(response=_resp())).overseas_transactions(
+    txs = _client(FakeTransport(response=_resp())).overseas.account.transactions(
         start="20240101", end="20240528"
     )
     assert len(txs) == 1
@@ -83,7 +83,7 @@ def test_transactions_parse_ledger_row():
 
 def test_transactions_tr_method_and_params():
     fake = FakeTransport(response=_resp())
-    _client(fake).overseas_transactions(start="20240101", end="20240528", symbol="AAPL", side="buy")
+    _client(fake).overseas.account.transactions(start="20240101", end="20240528", symbol="AAPL", side="buy")
     call = fake.calls[0]
     assert call["tr_id"] == "CTOS4001R"
     assert call["method"] == "GET"
@@ -97,21 +97,21 @@ def test_transactions_tr_method_and_params():
 
 def test_transactions_side_filter_codes():
     fake = FakeTransport(response=_resp())
-    _client(fake).overseas_transactions(start="1", end="2")   # default all
+    _client(fake).overseas.account.transactions(start="1", end="2")   # default all
     assert fake.calls[0]["params"]["SLL_BUY_DVSN_CD"] == "00"
 
 
 def test_transactions_unknown_side_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake).overseas_transactions(start="1", end="2", side="hold")
+        _client(fake).overseas.account.transactions(start="1", end="2", side="hold")
     assert fake.calls == []
 
 
 def test_transactions_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas_transactions(start="1", end="2")
+        _client(fake, environment="demo").overseas.account.transactions(start="1", end="2")
     assert fake.calls == []
 
 
@@ -119,19 +119,19 @@ def test_transactions_paginates_and_merges():
     page1 = _resp([_ROW], nk="NEXT", fk="FK", tr_cont="M")
     page2 = _resp([dict(_ROW, pdno="MSFT")], tr_cont="D")
     fake = FakeTransport(pages=[page1, page2])
-    txs = _client(fake).overseas_transactions(start="1", end="2")
+    txs = _client(fake).overseas.account.transactions(start="1", end="2")
     assert [t.symbol for t in txs] == ["AAPL", "MSFT"]
     assert fake.calls[1]["tr_cont"] == "N"
     assert fake.calls[1]["params"]["CTX_AREA_NK100"] == "NEXT"
 
 
 def test_transactions_empty_is_ok():
-    txs = _client(FakeTransport(response=_resp([]))).overseas_transactions(start="1", end="2")
+    txs = _client(FakeTransport(response=_resp([]))).overseas.account.transactions(start="1", end="2")
     assert txs == []
 
 
 def test_transactions_skips_padding_row():
-    txs = _client(FakeTransport(response=_resp([dict(_ROW, pdno=""), _ROW]))).overseas_transactions(
+    txs = _client(FakeTransport(response=_resp([dict(_ROW, pdno=""), _ROW]))).overseas.account.transactions(
         start="1", end="2"
     )
     assert len(txs) == 1
@@ -141,15 +141,15 @@ def test_transactions_non_list_output_fails_closed():
     body = {"output1": {"pdno": "x"}, "ctx_area_nk100": "", "ctx_area_fk100": ""}
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).overseas_transactions(start="1", end="2")
+        _client(FakeTransport(response=resp)).overseas.account.transactions(start="1", end="2")
 
 
 def test_transactions_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="E", msg1="실패", body={"output1": []}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).overseas_transactions(start="1", end="2")
+        _client(FakeTransport(response=resp)).overseas.account.transactions(start="1", end="2")
 
 
 def test_transactions_requires_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp()), account=None).overseas_transactions(start="1", end="2")
+        _client(FakeTransport(response=_resp()), account=None).overseas.account.transactions(start="1", end="2")

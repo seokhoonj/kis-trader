@@ -1,10 +1,10 @@
 """시장 전체 분석 네임스페이스 -- :class:`MarketQueries`.
 
-``kis.market.investor_flows(market="KOSPI")`` 처럼, 종목도 순위도 아닌 **시장(코스피/코스닥) 전체**
-상태·수급 분석을 모은다. 순위(``kis.ranking``)가 "종목을 줄 세우기"라면 여기는 "시장 전체가 지금
+``kis.domestic.market.investor_flows(market="KOSPI")`` 처럼, 종목도 순위도 아닌 **시장(코스피/코스닥) 전체**
+상태·수급 분석을 모은다. 순위(``kis.domestic.ranking``)가 "종목을 줄 세우기"라면 여기는 "시장 전체가 지금
 어떤가"(투자자 수급, 프로그램매매 종합, VI 등)다.
 
-직접 만들지 않고 :attr:`~kis_openapi.client.KISClient.market` 로 얻는다.
+직접 만들지 않고 ``kis.domestic.market`` 로 얻는다.
 """
 
 from __future__ import annotations

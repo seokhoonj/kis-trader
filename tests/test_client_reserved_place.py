@@ -237,7 +237,7 @@ def test_reserve_reconcile_confirms_single_match():
     recon_body = {"output": [_reserved_row(qty="1", unpr="70000")],
                   "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=recon_body)})
-    report = _client(recon_t, store=store).reconcile(cid)
+    report = _client(recon_t, store=store).orders.reconcile(cid)
     assert report is not None
     assert report.order_id == "42401"
     assert report.status is OrderStatus.PENDING_NEW
@@ -254,7 +254,7 @@ def test_reserve_reconcile_no_match_stays_in_flight():
     # 조회 결과가 비면 미접수로 단정하지 않는다 -> None, in-flight 유지
     empty_body = {"output": [], "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=empty_body)})
-    assert _client(recon_t, store=store).reconcile(cid) is None
+    assert _client(recon_t, store=store).orders.reconcile(cid) is None
     assert store.fingerprint_for(cid) is not None    # 여전히 in-flight
 
 
@@ -270,7 +270,7 @@ def test_reserve_reconcile_multi_match_raises():
             "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
     with pytest.raises(KISError):
-        _client(recon_t, store=store).reconcile(cid)
+        _client(recon_t, store=store).orders.reconcile(cid)
 
 
 def test_reserve_same_id_different_order_conflicts_no_wire():
@@ -329,7 +329,7 @@ def test_reserve_reconcile_rejects_partial_match(changed):
     row.update(changed)
     body = {"output": [row], "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
-    assert _client(recon_t, store=store).reconcile(cid) is None
+    assert _client(recon_t, store=store).orders.reconcile(cid) is None
     assert store.fingerprint_for(cid) is not None
 
 
@@ -343,7 +343,7 @@ def test_reserve_reconcile_window_and_process_params(monkeypatch):
             quantity=1, price=70000, client_order_id=cid)
     body = {"output": [], "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
-    _client(recon_t, store=store).reconcile(cid)
+    _client(recon_t, store=store).orders.reconcile(cid)
     params = recon_t.calls[0]["params"]
     # 고정된 오늘 20240603 기준 양방향 창(오늘-7 ~ 오늘+31), 처리/미처리 모두(0)
     assert params["RSVN_ORD_ORD_DT"] == "20240527"   # 20240603 - 7
@@ -362,7 +362,7 @@ def test_reserve_reconcile_ignores_blank_sequence_row():
     row = _reserved_row(seq="", qty="1", unpr="70000")
     body = {"output": [row], "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
-    assert _client(recon_t, store=store).reconcile(cid) is None
+    assert _client(recon_t, store=store).orders.reconcile(cid) is None
     assert store.fingerprint_for(cid) is not None
 
 

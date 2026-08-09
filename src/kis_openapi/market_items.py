@@ -1,7 +1,7 @@
 """시장 전체 분석 DATA -- :class:`MarketInvestorFlow`.
 
 종목이 아니라 **시장(코스피/코스닥) 전체**를 대상으로 한 분석 결과다. :class:`~kis_openapi.market.
-MarketQueries`(``kis.market``)가 돌려준다. 종목 단위 투자자매매동향은 종목 핸들
+MarketQueries`(``kis.domestic.market``)가 돌려준다. 종목 단위 투자자매매동향은 종목 핸들
 (:meth:`~kis_openapi.ticker.Ticker.investor_flows`)에 있다.
 """
 
@@ -142,7 +142,7 @@ class VIEvent:
     ``released_at`` 은 해제 시각(아직 해제 전이면 ``None``). ``trigger_price`` 는 발동가, ``base_price``
     는 기준가, ``disparity_percent`` 는 기준가 대비 괴리율(%), ``count`` 는 그날 그 종목의 누적 발동
     횟수. ``vi_class`` 는 정적/동적 구분코드(vi_cls_code), ``vi_kind`` 는 발동 종류코드(vi_kind_code).
-    시각들은 KST-aware. 시장 전체를 대상으로 하므로 ``kis.market.vi_events`` 가 돌려준다.
+    시각들은 KST-aware. 시장 전체를 대상으로 하므로 ``kis.domestic.market.vi_events`` 가 돌려준다.
     """
 
     symbol: str
@@ -169,7 +169,7 @@ class LimitStock:
 
     ``price`` 가 ``upper_limit`` 와 같으면 상한가, ``lower_limit`` 와 같으면 하한가에 걸린 것이다.
     ``total_ask_quantity`` / ``total_bid_quantity`` 는 총 매도/매수 호가잔량(상한가면 매수잔량이,
-    하한가면 매도잔량이 크게 쌓인다). 시장 전체 스냅샷이라 ``kis.market.limit_stocks`` 가 돌려준다.
+    하한가면 매도잔량이 크게 쌓인다). 시장 전체 스냅샷이라 ``kis.domestic.market.limit_stocks`` 가 돌려준다.
     """
 
     symbol: str
@@ -288,7 +288,7 @@ class ForeignBrokerFlow:
 
     외국계 증권사 창구를 통한 그날 추정 매매다(확정 아닌 가집계). ``estimated_net`` 은 추정 순매수
     수량(매수-매도; pre-signed, 음수면 순매도), ``estimated_buy`` / ``estimated_sell`` 은 추정 매수/
-    매도 수량. ``rank`` 는 응답 순서 기반이다. 시장 전체 집계라 ``kis.market.foreign_broker_trades``
+    매도 수량. ``rank`` 는 응답 순서 기반이다. 시장 전체 집계라 ``kis.domestic.market.foreign_broker_trades``
     가 돌려준다.
     """
 

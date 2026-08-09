@@ -1,4 +1,4 @@
-"""해외 선물/옵션 핸들 -- kis.overseas_futures/option(srs_cd).quote().
+"""해외 선물/옵션 핸들 -- kis.overseas.futures/option(srs_cd).quote().
 
 선물/옵션 URL·TR 라우팅(HHDFC55010000 / HHDFO55010000), output1 파싱(공백 패딩 값·통화·거래소·
 만기·정산가·전일대비 부호 복원), optional 필드(None), fail-closed 를 검증한다.
@@ -60,7 +60,7 @@ def _output(**over):
 
 def test_overseas_futures_quote_maps_and_routes():
     fake = FakeTransport(response=_output())
-    quote = _client(fake).overseas_futures("BONU25").quote()
+    quote = _client(fake).overseas.futures("BONU25").quote()
     assert isinstance(quote, OverseasDerivativeQuote)
     assert quote.symbol == "BONU25"
     assert quote.last == Decimal("74.90")                 # 공백 패딩 strip
@@ -87,7 +87,7 @@ def test_overseas_futures_quote_maps_and_routes():
 
 def test_overseas_option_quote_routes_to_opt_endpoint():
     fake = FakeTransport(response=_output())
-    _client(fake).overseas_option("ESZ25 C5000").quote()
+    _client(fake).overseas.option("ESZ25 C5000").quote()
     assert fake.calls[0]["path"] == _OPT
     assert fake.calls[0]["tr_id"] == "HHDFO55010000"
 
@@ -95,14 +95,14 @@ def test_overseas_option_quote_routes_to_opt_endpoint():
 def test_overseas_derivative_quote_positive_change():
     fake = FakeTransport(response=_output(prev_diff_flag="2", prev_diff_price="1.10",
                                           prev_diff_rate="1.47"))
-    quote = _client(fake).overseas_futures("BONU25").quote()
+    quote = _client(fake).overseas.futures("BONU25").quote()
     assert quote.change == Decimal("1.10")                # flag 2(상승) -> 양수
     assert quote.change_percent == Decimal("1.47")
 
 
 def test_overseas_derivative_quote_optional_none():
     fake = FakeTransport(response=_output(sttl_price="", tick_size="", expr_date=""))
-    quote = _client(fake).overseas_futures("BONU25").quote()
+    quote = _client(fake).overseas.futures("BONU25").quote()
     assert quote.settlement_price is None
     assert quote.tick_size is None
     assert quote.expiry_date is None
@@ -112,13 +112,13 @@ def test_overseas_derivative_quote_optional_none():
 def test_overseas_derivative_quote_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).overseas_futures("BONU25").quote()
+        _client(fake).overseas.futures("BONU25").quote()
 
 
 def test_overseas_derivative_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_output(last_price="n/a"))
     with pytest.raises(KISError):
-        _client(fake).overseas_futures("BONU25").quote()
+        _client(fake).overseas.futures("BONU25").quote()
 
 
 def _history_row(date_text="20240423", time_text="164434", **over):
@@ -138,7 +138,7 @@ def test_overseas_futures_daily_bars_maps_and_routes():
         body={"output1": {}, "output2": [_history_row(time_text="")]},
     )
     fake = FakeTransport(response=response)
-    bars = _client(fake).overseas_futures("BONU25").bars(
+    bars = _client(fake).overseas.futures("BONU25").bars(
         exchange="ICE", interval="1d", max_bars=1
     )
     assert len(bars) == 1 and isinstance(bars[0], Bar)
@@ -175,9 +175,9 @@ def test_overseas_derivative_bars_routes_all_period_endpoints(
         response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     )
     handle = (
-        _client(fake).overseas_futures("BONU25")
+        _client(fake).overseas.futures("BONU25")
         if market == "future"
-        else _client(fake).overseas_option("BONU25 C75")
+        else _client(fake).overseas.option("BONU25 C75")
     )
     bars = handle.bars(exchange="ICE", interval=interval, max_bars=1)
     assert len(bars) == 1
@@ -202,9 +202,9 @@ def test_overseas_derivative_trades_maps_and_routes(market, endpoint, tr_id):
     )
     fake = FakeTransport(response=response)
     handle = (
-        _client(fake).overseas_futures("BONU25")
+        _client(fake).overseas.futures("BONU25")
         if market == "future"
-        else _client(fake).overseas_option("BONU25 C75")
+        else _client(fake).overseas.option("BONU25 C75")
     )
     trades = handle.trades(exchange="ICE", max_trades=2)
     assert all(isinstance(trade, Trade) for trade in trades)
@@ -216,7 +216,7 @@ def test_overseas_derivative_trades_maps_and_routes(market, endpoint, tr_id):
 
 def test_overseas_derivative_history_rejects_invalid_inputs_before_transport():
     fake = FakeTransport(response=None)
-    handle = _client(fake).overseas_futures("BONU25")
+    handle = _client(fake).overseas.futures("BONU25")
     with pytest.raises(KISUsageError):
         handle.bars(exchange="", interval="1d")
     with pytest.raises(KISUsageError):
@@ -229,7 +229,7 @@ def test_overseas_derivative_history_rejects_invalid_inputs_before_transport():
 def test_overseas_derivative_history_missing_rows_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).overseas_futures("BONU25").bars(exchange="ICE")
+        _client(fake).overseas.futures("BONU25").bars(exchange="ICE")
 
 
 def _open_interest_row(**over):
@@ -251,7 +251,7 @@ def test_overseas_futures_open_interest_maps_and_routes():
         body={"output1": {"row_cnt": "1"}, "output2": [_open_interest_row()]},
     )
     fake = FakeTransport(response=response)
-    points = _client(fake).overseas_futures_open_interest(
+    points = _client(fake).overseas.futures_open_interest(
         "ES", as_of="2024-06-24"
     )
     assert len(points) == 1 and isinstance(points[0], OverseasFuturesOpenInterest)
@@ -279,7 +279,7 @@ def test_overseas_futures_open_interest_change_mode_and_sort():
         ]},
     )
     fake = FakeTransport(response=response)
-    points = _client(fake).overseas_futures_open_interest(
+    points = _client(fake).overseas.futures_open_interest(
         "ES", as_of="20240624", mode="change"
     )
     assert [point.speculative_long for point in points] == [-3, -5]
@@ -289,13 +289,13 @@ def test_overseas_futures_open_interest_change_mode_and_sort():
 def test_overseas_futures_open_interest_rejects_invalid_input_before_transport():
     fake = FakeTransport(response=None)
     with pytest.raises(KISUsageError):
-        _client(fake).overseas_futures_open_interest("", as_of="20240624")
+        _client(fake).overseas.futures_open_interest("", as_of="20240624")
     with pytest.raises(KISUsageError):
-        _client(fake).overseas_futures_open_interest("ES", as_of="20240624", mode="bad")
+        _client(fake).overseas.futures_open_interest("ES", as_of="20240624", mode="bad")
     assert fake.calls == []
 
 
 def test_overseas_futures_open_interest_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).overseas_futures_open_interest("ES", as_of="20240624")
+        _client(fake).overseas.futures_open_interest("ES", as_of="20240624")

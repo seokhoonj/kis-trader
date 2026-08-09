@@ -27,7 +27,7 @@ def resolve_market(symbol: str, *, market: DomesticBoard | None = None) -> Domes
 
     ``market`` 을 명시하면 유효성(KRX/NXT/UN)을 여기서 검증해 잘못된 값을 조회 전에 거른다.
     없으면 6자리 숫자 심볼을 국내 KRX 로 본다. 해외 심볼은 여기서 판별하지 않는다 -- 해외는
-    거래소코드(``exchange=``)로 만들거나 :meth:`~kis_openapi.client.KISClient.ticker` 가 마스터로
+    거래소코드(``exchange=``)로 만들거나 ``kis.overseas.stock(symbol)`` 이 마스터로
     자동 해석한다.
     """
     if market is not None:

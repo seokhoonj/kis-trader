@@ -415,9 +415,11 @@ class OverseasNamespace:
         """다종목 시세."""
         return self._c.overseas_quotes(symbols)
 
-    def search_stocks(self, exchange: str) -> OverseasStockSearch:
-        """조건 종목검색."""
-        return self._c.search_overseas_stocks(exchange)
+    def search_stocks(
+        self, exchange: str, **filters: tuple[object, object] | None
+    ) -> OverseasStockSearch:
+        """조건 종목검색(가격·등락률·규모·거래·밸류에이션 범위 필터)."""
+        return self._c.search_overseas_stocks(exchange, **filters)
 
     def product_info(self, exchange: str, symbol: str) -> OverseasProductInfo:
         """상품 기본정보."""

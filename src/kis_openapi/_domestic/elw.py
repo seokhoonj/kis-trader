@@ -1,6 +1,6 @@
 """ELW(주식워런트증권) 고유 지표 조회 (내부).
 
-사용자면은 ELW 핸들(:class:`~kis_openapi.elw.ELW`, ``kis.elw(code)``)이다. ELW 는 6자리 코드로
+사용자면은 ELW 핸들(:class:`~kis_openapi.elw.ELW`, ``kis.domestic.elw(code)``)이다. ELW 는 6자리 코드로
 상장돼 기본 시세는 종목 엔진(시장구분 J)으로 조회되므로, 여기서는 ELW 고유의 옵션 분석 지표
 (민감도/변동성/투자지표 추이)만 다룬다. ELW 조회의 시장구분코드는 ``W`` 다.
 

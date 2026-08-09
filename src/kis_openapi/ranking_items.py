@@ -1,6 +1,6 @@
 """시장 전체 순위 항목(DATA) -- 한 행(row)을 나타내는 불변 데이터 타입 모음.
 
-:class:`~kis_openapi.ranking.RankingQueries` (``kis.ranking.*``)가 돌려주는 순위 결과의 낱개
+:class:`~kis_openapi.ranking.RankingQueries` (``kis.domestic.ranking.*``)가 돌려주는 순위 결과의 낱개
 항목들이다. 대부분의 순위는 공통 코어(순위·종목·시세·거래량)를 공유하므로 :class:`RankedStock`
 하나로 통일하고, 그 순위 고유의 지표는 ``_raw`` 로 접근한다. 코어가 맞지 않는 순위(시세가 없는
 배당률, 공매도 지표가 본질인 공매도)는 전용 타입을 둔다.

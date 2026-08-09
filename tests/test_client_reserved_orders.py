@@ -1,4 +1,4 @@
-"""예약주문 조회 -- kis.reserved_orders(start=, end=) (CTSC0004R).
+"""예약주문 조회 -- kis.domestic.account.reserved_orders(start=, end=) (CTSC0004R).
 
 예약주문 목록(다음 영업일 동시호가 예약)을 네트워크 없이 검증한다. 픽스처는 원장 응답예시
 (order-resv-ccnl) 실값을 쓴다.
@@ -58,7 +58,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 
 
 def test_reserved_orders_parses_ledger_row():
-    orders = _client(FakeTransport(response=_resp())).reserved_orders(start="20220501", end="20220523")
+    orders = _client(FakeTransport(response=_resp())).domestic.account.reserved_orders(start="20220501", end="20220523")
     assert len(orders) == 1
     o = orders[0]
     assert isinstance(o, ReservedOrder)
@@ -79,7 +79,7 @@ def test_reserved_orders_parses_ledger_row():
 
 def test_reserved_orders_tr_method_and_params():
     fake = FakeTransport(response=_resp())
-    _client(fake).reserved_orders(start="20220501", end="20220523", process="unprocessed")
+    _client(fake).domestic.account.reserved_orders(start="20220501", end="20220523", process="unprocessed")
     call = fake.calls[0]
     assert call["tr_id"] == "CTSC0004R"
     assert call["method"] == "GET"
@@ -94,21 +94,21 @@ def test_reserved_orders_tr_method_and_params():
 
 def test_reserved_orders_default_process_all():
     fake = FakeTransport(response=_resp())
-    _client(fake).reserved_orders(start="1", end="2")
+    _client(fake).domestic.account.reserved_orders(start="1", end="2")
     assert fake.calls[0]["params"]["PRCS_DVSN_CD"] == "0"
 
 
 def test_reserved_orders_unknown_process_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake).reserved_orders(start="1", end="2", process="weird")
+        _client(fake).domestic.account.reserved_orders(start="1", end="2", process="weird")
     assert fake.calls == []
 
 
 def test_reserved_orders_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").reserved_orders(start="1", end="2")
+        _client(fake, environment="demo").domestic.account.reserved_orders(start="1", end="2")
     assert fake.calls == []
 
 
@@ -116,18 +116,18 @@ def test_reserved_orders_paginates_and_merges():
     page1 = _resp([_ROW], nk="NEXT", fk="FK", tr_cont="M")
     page2 = _resp([dict(_ROW, rsvn_ord_seq="42405")], tr_cont="D")
     fake = FakeTransport(pages=[page1, page2])
-    orders = _client(fake).reserved_orders(start="1", end="2")
+    orders = _client(fake).domestic.account.reserved_orders(start="1", end="2")
     assert [o.sequence for o in orders] == ["42401", "42405"]
     assert fake.calls[1]["tr_cont"] == "N"
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
 
 
 def test_reserved_orders_empty_is_ok():
-    assert _client(FakeTransport(response=_resp([]))).reserved_orders(start="1", end="2") == []
+    assert _client(FakeTransport(response=_resp([]))).domestic.account.reserved_orders(start="1", end="2") == []
 
 
 def test_reserved_orders_skips_padding_row():
-    orders = _client(FakeTransport(response=_resp([dict(_ROW, rsvn_ord_seq=""), _ROW]))).reserved_orders(
+    orders = _client(FakeTransport(response=_resp([dict(_ROW, rsvn_ord_seq=""), _ROW]))).domestic.account.reserved_orders(
         start="1", end="2"
     )
     assert len(orders) == 1
@@ -136,15 +136,15 @@ def test_reserved_orders_skips_padding_row():
 def test_reserved_orders_non_list_output_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body={"output": {"rsvn_ord_seq": "1"}}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).reserved_orders(start="1", end="2")
+        _client(FakeTransport(response=resp)).domestic.account.reserved_orders(start="1", end="2")
 
 
 def test_reserved_orders_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="E", msg1="실패", body={"output": []}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).reserved_orders(start="1", end="2")
+        _client(FakeTransport(response=resp)).domestic.account.reserved_orders(start="1", end="2")
 
 
 def test_reserved_orders_requires_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp()), account=None).reserved_orders(start="1", end="2")
+        _client(FakeTransport(response=_resp()), account=None).domestic.account.reserved_orders(start="1", end="2")

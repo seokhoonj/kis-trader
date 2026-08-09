@@ -41,7 +41,7 @@ def _row():
 def test_product_info_maps_common_fields_and_params():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": _row()})
     client = _client(response)
-    info = client.product_info("005930")
+    info = client.domestic.product_info("005930")
     assert isinstance(info, ProductInfo)
     assert info.symbol == "005930"
     assert info.standard_symbol == "KR7005930003"
@@ -59,10 +59,10 @@ def test_product_info_maps_common_fields_and_params():
 def test_product_info_rejects_blank_identifiers(symbol, product_type):
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": _row()})
     with pytest.raises(KISUsageError):
-        _client(response).product_info(symbol, product_type=product_type)
+        _client(response).domestic.product_info(symbol, product_type=product_type)
 
 
 def test_product_info_missing_output_fails_closed():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
     with pytest.raises(KISError):
-        _client(response).product_info("005930")
+        _client(response).domestic.product_info("005930")

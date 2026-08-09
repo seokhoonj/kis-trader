@@ -76,4 +76,4 @@ def test_flat_verb_also_aggregates():
     # 네임스페이스뿐 아니라 flat verb 도 같은 동작(둘 다 같은 엔진).
     fake = FakeTransport()
     k = _client(fake)
-    assert len(k.overseas_positions()) == len(_ALL)
+    assert len(k.overseas.account.positions()) == len(_ALL)

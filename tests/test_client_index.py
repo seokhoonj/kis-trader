@@ -1,4 +1,4 @@
-"""지수/업종 핸들 -- kis.index(code).quote().
+"""지수/업종 핸들 -- kis.domestic.index(code).quote().
 
 업종 시장구분 U + 업종코드로 조회, 지수 레벨/시고저/전일대비 부호 복원/등락종목수(breadth),
 fail-closed 파싱을 가짜 전송으로 검증.
@@ -56,7 +56,7 @@ def _client(transport):
 
 def test_index_quote_maps_fields_and_params():
     fake = FakeTransport(response=_resp(_output()))
-    quote = _client(fake).index("0001").quote()
+    quote = _client(fake).domestic.index("0001").quote()
     assert isinstance(quote, IndexQuote)
     assert quote.code == "0001"
     assert quote.value == Decimal("2650.32")
@@ -78,7 +78,7 @@ def test_index_quote_maps_fields_and_params():
 
 def test_index_quote_negative_change_sign_restored():
     fake = FakeTransport(response=_resp(_output(change="8.10", sign="5", pct="0.31")))
-    quote = _client(fake).index("1001").quote()
+    quote = _client(fake).domestic.index("1001").quote()
     assert quote.change == Decimal("-8.10")                      # 하락 -> 음수
     assert quote.change_percent == Decimal("-0.31")
     assert fake.calls[0]["params"]["FID_INPUT_ISCD"] == "1001"
@@ -87,19 +87,19 @@ def test_index_quote_negative_change_sign_restored():
 def test_index_quote_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).index("0001").quote()
+        _client(fake).domestic.index("0001").quote()
 
 
 def test_index_quote_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="X", msg1="실패", body={}))
     with pytest.raises(KISError):
-        _client(fake).index("0001").quote()
+        _client(fake).domestic.index("0001").quote()
 
 
 def test_index_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(_output(value="n/a")))
     with pytest.raises(KISError):
-        _client(fake).index("0001").quote()
+        _client(fake).domestic.index("0001").quote()
 
 
 def _bar_row(date_text, oprc, hgpr, lwpr, prpr, vol):
@@ -117,7 +117,7 @@ def test_index_bars_parses_ascending():
         _bar_row("20240103", "2620", "2645", "2615", "2640", "480"),
         _bar_row("20240102", "2600", "2625", "2595", "2620", "460"),
     ]))
-    bars = _client(fake).index("0001").bars(start="20240102")
+    bars = _client(fake).domestic.index("0001").bars(start="20240102")
     assert [b.symbol for b in bars] == ["0001", "0001", "0001"]   # 코드가 symbol 자리
     assert [f"{b.timestamp:%Y%m%d}" for b in bars] == ["20240102", "20240103", "20240104"]
     assert bars[-1].close == Decimal(2655)
@@ -133,7 +133,7 @@ def test_index_bars_parses_ascending():
 def test_index_bars_weekly_and_monthly_period_codes():
     for interval, code in [("1wk", "W"), ("1mo", "M")]:
         fake = FakeTransport(response=_bars_resp([_bar_row("20240105", "1", "1", "1", "1", "1")]))
-        _client(fake).index("0001").bars(start="20240105", interval=interval)
+        _client(fake).domestic.index("0001").bars(start="20240105", interval=interval)
         assert fake.calls[0]["params"]["FID_PERIOD_DIV_CODE"] == code
 
 
@@ -142,7 +142,7 @@ def test_index_bars_paginates_date_window():
     page_b = _bars_resp([_bar_row(f"2024010{n}", "1", "1", "1", str(n), "1")
                          for n in (5, 4, 3, 2, 1)])
     fake = FakeTransport(by_path={_INDEX_BARS: [page_a, page_b]})
-    bars = _client(fake).index("0001").bars(start="20240101")
+    bars = _client(fake).domestic.index("0001").bars(start="20240101")
     assert [f"{b.timestamp:%Y%m%d}" for b in bars] == [f"2024010{n}" for n in range(1, 9)]
     assert isinstance(bars[0], Bar)
 
@@ -150,7 +150,7 @@ def test_index_bars_paginates_date_window():
 def test_index_bars_start_required():
     fake = FakeTransport(response=_bars_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).index("0001").bars()
+        _client(fake).domestic.index("0001").bars()
 
 
 def _minute_bar_row(date_text, time_text, close, volume="10"):
@@ -172,7 +172,7 @@ def test_index_minute_bars_maps_filters_and_limits_recent_rows():
         ]},
     )
     fake = FakeTransport(response=response)
-    bars = _client(fake).index("1001").bars(
+    bars = _client(fake).domestic.index("1001").bars(
         interval="1m", start="2024-01-29", end="20240129", max_bars=1
     )
     assert len(bars) == 1
@@ -194,7 +194,7 @@ def test_index_minute_bars_maps_filters_and_limits_recent_rows():
 def test_index_minute_bars_rejects_reversed_dates_before_transport():
     fake = FakeTransport(response=_bars_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).index("0001").bars(
+        _client(fake).domestic.index("0001").bars(
             interval="1m", start="20240130", end="20240129"
         )
     assert fake.calls == []
@@ -203,13 +203,13 @@ def test_index_minute_bars_rejects_reversed_dates_before_transport():
 def test_index_minute_bars_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).index("0001").bars(interval="1m")
+        _client(fake).domestic.index("0001").bars(interval="1m")
 
 
 def test_index_bars_non_list_output2_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output2": "oops"})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).index("0001").bars(start="20240101")
+        _client(FakeTransport(response=resp)).domestic.index("0001").bars(start="20240101")
 
 
 _INDEX_INTRADAY = "/uapi/domestic-stock/v1/quotations/inquire-index-timeprice"
@@ -230,7 +230,7 @@ def test_index_intraday_maps_fields_sorted_ascending():
         _intraday_row("100600", "2650.10", "12.30", "2", "500", "40"),
         _intraday_row("100500", "2649.80", "12.00", "2", "460", "38"),
     ]))
-    points = _client(fake).index("0001").intraday()
+    points = _client(fake).domestic.index("0001").intraday()
     assert [f"{p.time:%H%M%S}" for p in points] == ["100500", "100600"]   # 오름차순 정렬
     assert all(isinstance(p, IndexIntradayPoint) for p in points)
     assert points[-1].value == Decimal("2650.10")
@@ -248,7 +248,7 @@ def test_index_intraday_maps_fields_sorted_ascending():
 def test_index_intraday_interval_maps_and_negative_change():
     fake = FakeTransport(response=_intraday_resp([_intraday_row("131000", "900.00", "5.5", "5",
                                                                 "100", "10")]))
-    points = _client(fake).index("1001").intraday(interval="10m")
+    points = _client(fake).domestic.index("1001").intraday(interval="10m")
     assert fake.calls[0]["params"]["FID_INPUT_HOUR_1"] == "600"  # 10m = 600초
     assert points[0].change == Decimal("-5.5")                   # 하락 -> 음수
 
@@ -256,13 +256,13 @@ def test_index_intraday_interval_maps_and_negative_change():
 def test_index_intraday_bad_interval():
     fake = FakeTransport(response=_intraday_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).index("0001").intraday(interval="3m")
+        _client(fake).domestic.index("0001").intraday(interval="3m")
 
 
 def test_index_intraday_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).index("0001").intraday()
+        _client(fake).domestic.index("0001").intraday()
 
 
 def test_index_ticks_maps_fields_sorted_ascending():
@@ -285,7 +285,7 @@ def test_index_ticks_maps_fields_sorted_ascending():
         },
     ]
     fake = FakeTransport(response=_intraday_resp(rows))
-    points = _client(fake).index("1001").ticks()
+    points = _client(fake).domestic.index("1001").ticks()
 
     assert [f"{point.time:%H%M%S}" for point in points] == ["100510", "100520"]
     assert points[-1].value == Decimal("916.59")
@@ -304,7 +304,7 @@ def test_index_ticks_maps_fields_sorted_ascending():
 def test_index_ticks_rejects_malformed_output():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": {}})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=response)).index("0001").ticks()
+        _client(FakeTransport(response=response)).domestic.index("0001").ticks()
 
 
 def _daily_history_row(date_text, value, change, sign):
@@ -339,7 +339,7 @@ def test_index_daily_history_maps_snapshot_and_statistics():
         },
     )
     fake = FakeTransport(response=response)
-    history = _client(fake).index("0001").daily_history(
+    history = _client(fake).domestic.index("0001").daily_history(
         interval="1wk", as_of="2024-02-23"
     )
 
@@ -369,7 +369,7 @@ def test_index_daily_history_maps_snapshot_and_statistics():
 def test_index_daily_history_rejects_bad_interval_before_transport():
     fake = FakeTransport(response=None)
     with pytest.raises(KISUsageError):
-        _client(fake).index("0001").daily_history(interval="1m")
+        _client(fake).domestic.index("0001").daily_history(interval="1m")
     assert fake.calls == []
 
 
@@ -377,7 +377,7 @@ def test_index_daily_history_rejects_bad_interval_before_transport():
 def test_index_daily_history_requires_both_response_blocks(body):
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     with pytest.raises(KISError):
-        _client(FakeTransport(response=response)).index("0001").daily_history()
+        _client(FakeTransport(response=response)).domestic.index("0001").daily_history()
 
 
 def test_expected_index_trend_maps_session_interval_and_sign():
@@ -404,7 +404,7 @@ def test_expected_index_trend_maps_session_interval_and_sign():
         ]
     )
     fake = FakeTransport(response=response)
-    points = _client(fake).index("0001").expected_trend(
+    points = _client(fake).domestic.index("0001").expected_trend(
         session="close", interval="30s"
     )
 
@@ -432,14 +432,14 @@ def test_expected_index_trend_maps_session_interval_and_sign():
 def test_expected_index_trend_rejects_bad_options_before_transport(kwargs):
     fake = FakeTransport(response=_intraday_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).index("0001").expected_trend(**kwargs)
+        _client(fake).domestic.index("0001").expected_trend(**kwargs)
     assert fake.calls == []
 
 
 def test_expected_index_trend_missing_output_fails_closed():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=response)).index("0001").expected_trend()
+        _client(FakeTransport(response=response)).domestic.index("0001").expected_trend()
 
 
 def _expected_index_quote(*, name="", code="", value="2650", sign="2"):
@@ -475,7 +475,7 @@ def test_expected_index_snapshot_maps_summary_markets_and_params():
         },
     )
     fake = FakeTransport(response=response)
-    snapshot = _client(fake).index("0001").expected_snapshot(
+    snapshot = _client(fake).domestic.index("0001").expected_snapshot(
         market="KOSPI", session="close"
     )
 
@@ -504,7 +504,7 @@ def test_expected_index_snapshot_maps_summary_markets_and_params():
 def test_expected_index_snapshot_rejects_bad_options_before_transport(kwargs):
     fake = FakeTransport(response=None)
     with pytest.raises(KISUsageError):
-        _client(fake).index("0001").expected_snapshot(**kwargs)
+        _client(fake).domestic.index("0001").expected_snapshot(**kwargs)
     assert fake.calls == []
 
 
@@ -512,7 +512,7 @@ def test_expected_index_snapshot_rejects_bad_options_before_transport(kwargs):
 def test_expected_index_snapshot_requires_both_blocks(body):
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     with pytest.raises(KISError):
-        _client(FakeTransport(response=response)).index("0001").expected_snapshot()
+        _client(FakeTransport(response=response)).domestic.index("0001").expected_snapshot()
 
 
 _INDEX_CATEGORY = "/uapi/domestic-stock/v1/quotations/inquire-index-category-price"
@@ -536,7 +536,7 @@ def test_index_categories_maps_fields_and_market_class():
     from kis_openapi import CategoryIndex
     fake = FakeTransport(response=_category_resp([_category_row(), _category_row(code="0003",
                                                                                 name="중형주")]))
-    cats = _client(fake).index("0001").categories()
+    cats = _client(fake).domestic.index("0001").categories()
     assert [c.code for c in cats] == ["0002", "0003"]
     first = cats[0]
     assert isinstance(first, CategoryIndex)
@@ -557,18 +557,18 @@ def test_index_categories_maps_fields_and_market_class():
 def test_index_categories_market_class_for_kosdaq_and_kospi200():
     for code, cls in [("1001", "Q"), ("2001", "K2")]:
         fake = FakeTransport(response=_category_resp([_category_row()]))
-        _client(fake).index(code).categories()
+        _client(fake).domestic.index(code).categories()
         assert fake.calls[0]["params"]["FID_MRKT_CLS_CODE"] == cls
 
 
 def test_index_categories_rejects_non_market_code():
     fake = FakeTransport(response=_category_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).index("0002").categories()      # 하위 업종엔 categories 없음
+        _client(fake).domestic.index("0002").categories()      # 하위 업종엔 categories 없음
 
 
 def test_index_categories_missing_output2_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                                               body={"output1": {"bstp_nmix_prpr": "2650"}}))
     with pytest.raises(KISError):
-        _client(fake).index("0001").categories()
+        _client(fake).domestic.index("0001").categories()

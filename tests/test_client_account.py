@@ -1,4 +1,4 @@
-"""계좌 조회 (새 API) -- kis.balance/positions/portfolio + ticker.buyable/sellable.
+"""계좌 조회 (새 API) -- kis.domestic.account.balance/positions/portfolio + stock.buyable/sellable.
 
 잔고 요약·보유종목·포트폴리오·매수가능·매도가능을 네트워크 없이 FakeTransport 로 검증한다.
 """
@@ -100,7 +100,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 
 # --- balance ---------------------------------------------------------------
 def test_balance_parses_summary():
-    balance = _client(FakeTransport(response=_balance_resp())).balance()
+    balance = _client(FakeTransport(response=_balance_resp())).domestic.account.balance()
     assert isinstance(balance, Balance)
     assert balance.currency == "KRW"
     assert balance.deposit == Decimal(1000000)
@@ -112,49 +112,49 @@ def test_balance_parses_summary():
 
 def test_balance_real_and_demo_tr():
     fake = FakeTransport(response=_balance_resp())
-    _client(fake, environment="real").balance()
+    _client(fake, environment="real").domestic.account.balance()
     assert fake.calls[0]["tr_id"] == "TTTC8434R"
     assert fake.calls[0]["method"] == "GET"
     assert fake.calls[0]["params"]["CANO"] == "12345678"
     assert fake.calls[0]["params"]["ACNT_PRDT_CD"] == "01"
     fake2 = FakeTransport(response=_balance_resp())
-    _client(fake2, environment="demo").balance()
+    _client(fake2, environment="demo").domestic.account.balance()
     assert fake2.calls[0]["tr_id"] == "VTTC8434R"
 
 
 def test_balance_summary_as_single_object():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"output1": [], "output2": dict(_SUMMARY)})
-    assert _client(FakeTransport(response=resp)).balance().deposit == Decimal(1000000)
+    assert _client(FakeTransport(response=resp)).domestic.account.balance().deposit == Decimal(1000000)
 
 
 def test_balance_missing_summary_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output1": []})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).balance()
+        _client(FakeTransport(response=resp)).domestic.account.balance()
 
 
 def test_balance_error_response_raises():
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_ERROR)).balance()
+        _client(FakeTransport(response=_ERROR)).domestic.account.balance()
 
 
 def test_balance_unparseable_fails_closed():
     summary = dict(_SUMMARY, dnca_tot_amt="N/A")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_balance_resp(summary=summary))).balance()
+        _client(FakeTransport(response=_balance_resp(summary=summary))).domestic.account.balance()
 
 
 def test_balance_requires_account():
     kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_balance_resp()))
     with pytest.raises(KISUsageError):
-        kis.balance()
+        kis.domestic.account.balance()
 
 
 # --- positions / portfolio -------------------------------------------------
 def test_positions_parses_and_skips_padding():
     rows = [_holding("005930"), _holding("", name=""), {"prdt_name": "빈행"}]
-    positions = _client(FakeTransport(response=_balance_resp(rows=rows))).positions()
+    positions = _client(FakeTransport(response=_balance_resp(rows=rows))).domestic.account.positions()
     assert [p.symbol for p in positions] == ["005930"]
     holding = positions[0]
     assert isinstance(holding, Position)
@@ -168,7 +168,7 @@ def test_positions_paginate_and_merge():
     page1 = _balance_resp(rows=[_holding("005930")], ctx_nk="NEXT", ctx_fk="FK", tr_cont="M")
     page2 = _balance_resp(rows=[_holding("000660", name="SK하이닉스")])
     fake = FakeTransport(by_path={_BALANCE_PATH: [page1, page2]})
-    positions = _client(fake).positions()
+    positions = _client(fake).domestic.account.positions()
     assert [p.symbol for p in positions] == ["005930", "000660"]
     assert fake.calls[1]["params"]["CTX_AREA_NK100"] == "NEXT"
 
@@ -177,21 +177,21 @@ def test_positions_non_list_output1_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"output1": {"pdno": "005930"}, "output2": [dict(_SUMMARY)]})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).positions()
+        _client(FakeTransport(response=resp)).domestic.account.positions()
 
 
 def test_positions_pagination_cap_fails_closed(monkeypatch):
     monkeypatch.setattr(account_module, "_MAX_BALANCE_PAGES", 3)
     endless = _balance_resp(rows=[_holding("005930")], ctx_nk="NEXT", ctx_fk="FK", tr_cont="M")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=endless)).positions()
+        _client(FakeTransport(response=endless)).domestic.account.positions()
 
 
 def test_portfolio_returns_balance_and_positions_in_one_walk():
     page1 = _balance_resp(rows=[_holding("005930")], ctx_nk="NEXT", ctx_fk="FK", tr_cont="M")
     page2 = _balance_resp(rows=[_holding("000660", name="SK하이닉스")])
     fake = FakeTransport(by_path={_BALANCE_PATH: [page1, page2]})
-    portfolio = _client(fake).portfolio()
+    portfolio = _client(fake).domestic.account.portfolio()
     assert isinstance(portfolio, Portfolio)
     assert portfolio.balance.deposit == Decimal(1000000)
     assert [p.symbol for p in portfolio.positions] == ["005930", "000660"]
@@ -272,7 +272,7 @@ def test_ticker_buyable_requires_account():
 # --- 추가 엣지 ------------------------------------------------------------
 def test_positions_use_environment_tr_and_params():
     fake = FakeTransport(response=_balance_resp(rows=[]))
-    _client(fake, environment="demo").positions()
+    _client(fake, environment="demo").domestic.account.positions()
     call = fake.calls[0]
     assert call["method"] == "GET"
     assert call["tr_id"] == "VTTC8434R"
@@ -286,7 +286,7 @@ def test_balance_reads_single_page():
     )
     page2 = _balance_resp(summary=dict(_SUMMARY, dnca_tot_amt="222"))
     fake = FakeTransport(by_path={_BALANCE_PATH: [page1, page2]})
-    balance = _client(fake).balance()
+    balance = _client(fake).domestic.account.balance()
     assert balance.deposit == Decimal(111)     # 첫 페이지 요약만
     assert len(fake.calls) == 1                 # 페이지네이션 안 함
 
@@ -294,24 +294,24 @@ def test_balance_reads_single_page():
 def test_balance_empty_summary_list_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output1": [], "output2": []})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).balance()
+        _client(FakeTransport(response=resp)).domestic.account.balance()
 
 
 def test_balance_field_mapping_d1_d2_not_transposed():
-    balance = _client(FakeTransport(response=_balance_resp())).balance()
+    balance = _client(FakeTransport(response=_balance_resp())).domestic.account.balance()
     assert balance.settlement_cash_d1 == Decimal(1010000)   # nxdy_excc_amt
     assert balance.settlement_cash_d2 == Decimal(1020000)   # prvs_rcdl_excc_amt
 
 
 def test_positions_keeps_zero_quantity_lot():
     rows = [_holding("005930", hldg="0", sellable="0", evlu="0", pfls="0", pfls_rt="0")]
-    positions = _client(FakeTransport(response=_balance_resp(rows=rows))).positions()
+    positions = _client(FakeTransport(response=_balance_resp(rows=rows))).domestic.account.positions()
     assert positions[0].quantity == Decimal(0)
 
 
 def test_positions_blank_lot_field_reads_zero_not_raise():
     row = dict(_holding("005930"), evlu_pfls_rt="", pchs_avg_pric="")   # 정산 lot 빈 필드
-    positions = _client(FakeTransport(response=_balance_resp(rows=[row]))).positions()
+    positions = _client(FakeTransport(response=_balance_resp(rows=[row]))).domestic.account.positions()
     assert positions[0].unrealized_pnl_percent == Decimal(0)
     assert positions[0].average_purchase_price == Decimal(0)
 
@@ -319,7 +319,7 @@ def test_positions_blank_lot_field_reads_zero_not_raise():
 def test_positions_garbage_lot_field_still_fails_closed():
     row = dict(_holding("005930"), evlu_amt="N/A")   # 값 있는데 파싱 실패
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_balance_resp(rows=[row]))).positions()
+        _client(FakeTransport(response=_balance_resp(rows=[row]))).domestic.account.positions()
 
 
 @pytest.mark.parametrize(("limit_price", "expected"), [(75000, "75000"), (Decimal("7E4"), "70000")])
@@ -345,17 +345,17 @@ def test_fetch_buyable_amount_only_rejects_limit_price():
 
 # --- 값 의미론 -------------------------------------------------------------
 def test_balance_value_semantics_ignore_raw_and_hashable():
-    first = _client(FakeTransport(response=_balance_resp())).balance()
-    second = _client(FakeTransport(response=_balance_resp(summary=dict(_SUMMARY, extra="x")))).balance()
+    first = _client(FakeTransport(response=_balance_resp())).domestic.account.balance()
+    second = _client(FakeTransport(response=_balance_resp(summary=dict(_SUMMARY, extra="x")))).domestic.account.balance()
     assert first == second
     assert hash(first) == hash(second)
     assert {first, second} == {first}
 
 
 def test_position_value_semantics_ignore_raw_and_hashable():
-    first = _client(FakeTransport(response=_balance_resp(rows=[_holding("005930")]))).positions()[0]
+    first = _client(FakeTransport(response=_balance_resp(rows=[_holding("005930")]))).domestic.account.positions()[0]
     second = _client(FakeTransport(response=_balance_resp(
-        rows=[dict(_holding("005930"), extra="x")]))).positions()[0]
+        rows=[dict(_holding("005930"), extra="x")]))).domestic.account.positions()[0]
     assert first == second
     assert hash(first) == hash(second)
 
@@ -366,6 +366,6 @@ def test_buyable_sellable_portfolio_value_semantics():
     assert buy == buy_other and hash(buy) == hash(buy_other)
     sell = _client(FakeTransport(response=_sellable_resp())).domestic.stock("005930").sellable()
     assert hash(sell) == hash(_client(FakeTransport(response=_sellable_resp())).domestic.stock("005930").sellable())
-    port = _client(FakeTransport(response=_balance_resp(rows=[_holding("005930")]))).portfolio()
-    port_other = _client(FakeTransport(response=_balance_resp(rows=[_holding("005930")]))).portfolio()
+    port = _client(FakeTransport(response=_balance_resp(rows=[_holding("005930")]))).domestic.account.portfolio()
+    port_other = _client(FakeTransport(response=_balance_resp(rows=[_holding("005930")]))).domestic.account.portfolio()
     assert port == port_other and hash(port) == hash(port_other)

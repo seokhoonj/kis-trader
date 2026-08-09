@@ -268,7 +268,7 @@ def test_credit_reconcile_confirms_credit_row():
     row = _credit_daily_row(filled_quantity="1", loan_dt="20211103")
     recon_t = FakeTransport(by_path={_DAILY_CCLD: RawResponse(
         rt_cd="0", msg_cd="APBK0013", msg1="조회", body={"output1": [row]})})
-    report = _client(recon_t, store=store).reconcile(cid)
+    report = _client(recon_t, store=store).orders.reconcile(cid)
     assert report is not None
     assert report.order_id == "0001569138"
     assert report.status is OrderStatus.FILLED
@@ -287,5 +287,5 @@ def test_credit_reconcile_ignores_cash_lookalike_row():
     cash_row = _credit_daily_row(loan_dt="")         # 대출일자 없음 = 현금 체결
     recon_t = FakeTransport(by_path={_DAILY_CCLD: RawResponse(
         rt_cd="0", msg_cd="APBK0013", msg1="조회", body={"output1": [cash_row]})})
-    report = _client(recon_t, store=store).reconcile(cid)
+    report = _client(recon_t, store=store).orders.reconcile(cid)
     assert report is None                            # 현금 행으로 신용주문을 확정하지 않는다

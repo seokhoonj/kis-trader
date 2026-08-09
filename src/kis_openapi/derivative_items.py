@@ -1,6 +1,6 @@
 """선물/옵션(파생) 시세 DATA -- :class:`DerivativesQuote` / :class:`UnderlyingQuote`.
 
-:class:`~kis_openapi.derivative.Derivative` 핸들(``kis.futures(code)`` / ``kis.option(code)``)이
+:class:`~kis_openapi.derivative.Derivative` 핸들(``kis.domestic.futures(code)`` / ``kis.domestic.option(code)``)이
 돌려주는 한 계약의 현재가 스냅샷이다. 종목의 :class:`~kis_openapi.quote.Quote` 와 달리 파생 고유의
 미결제약정(open interest)·베이시스·이론가·괴리율을 담는다. 옵션 그릭스(delta/gamma/theta/vega/rho)와
 변동성·잔존일수는 ``_raw`` 로 접근한다(선물엔 없거나 무의미하므로). :class:`UnderlyingQuote` 는
@@ -117,7 +117,7 @@ class OptionExpiry:
     """지수옵션의 한 만기 월물(불변).
 
     ``code`` 는 만기 년월 코드(예: ``"0V05"``), ``year_month`` 는 만기 년월(``"YYYYMM"``)이다.
-    :meth:`~kis_openapi.client.KISClient.option_expiries` 가 유효한 월물 목록을 돌려준다 -- 옵션
+    ``kis.domestic.option_expiries`` 가 유효한 월물 목록을 돌려준다 -- 옵션
     계약코드를 만들기 전에 상장된 만기를 확인하는 용도.
     """
 

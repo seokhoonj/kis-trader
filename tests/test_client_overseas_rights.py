@@ -36,7 +36,7 @@ def _right_response(*, tr_cont="", nk=""):
 
 def test_overseas_period_rights_maps_and_paginates():
     client = _client(_right_response(tr_cont="M", nk="next"), _right_response())
-    rights = client.overseas_rights(start="20240501", end="20240531")
+    rights = client.overseas.rights(start="20240501", end="20240531")
     assert isinstance(rights[0], OverseasRight)
     assert rights[0].base_date == date(2024, 5, 10)
     assert rights[0].dividends_per_share[0] == Decimal("0.25")
@@ -54,7 +54,7 @@ def test_overseas_corporate_actions_maps_and_routes():
            "early_redempt_dt": "", "effective_dt": ""}
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": [row]})
     client = _client(response)
-    actions = client.overseas_corporate_actions("US", "AAPL")
+    actions = client.overseas.corporate_actions("US", "AAPL")
     assert isinstance(actions[0], OverseasCorporateAction)
     assert actions[0].payment_date == date(2024, 5, 20)
     assert client.transport.calls[0] == {

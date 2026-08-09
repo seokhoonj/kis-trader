@@ -1,4 +1,4 @@
-"""멀티종목 시세 -- kis.quotes([...]) / kis.overseas_quotes([...]).
+"""멀티종목 시세 -- kis.quotes([...]) / kis.overseas.quotes([...]).
 
 국내(intstock-multprice FHKST11300006)·해외(multprice HHDFS76220000)의 슬롯 매핑, 보드/거래소
 혼합, Quote 매핑(국내 부호복원, 해외 base 로 등락 계산), 상한 초과 거부, fail-closed 를 검증한다.
@@ -44,7 +44,7 @@ def test_domestic_quotes_maps_and_slot_params():
             _dom_row("035720", "카카오", "48000", "300", "5", "-0.62")]
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                                               body={"output": rows}))
-    quotes = _client(fake).quotes(["005930", "035720"])
+    quotes = _client(fake).domestic.quotes(["005930", "035720"])
     assert all(isinstance(q, Quote) for q in quotes)
     assert quotes[0].symbol == "005930"
     assert quotes[0].last == Decimal(71500)
@@ -66,7 +66,7 @@ def test_domestic_quotes_mixed_boards_via_tuples():
             _dom_row("123456", "NXT종목", "10000", "0", "3", "0.00")]
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                                               body={"output": rows}))
-    quotes = _client(fake).quotes(["005930", ("NXT", "123456")])
+    quotes = _client(fake).domestic.quotes(["005930", ("NXT", "123456")])
     by_symbol = {q.symbol: q for q in quotes}
     assert by_symbol["005930"].market == "KRX"
     assert by_symbol["123456"].market == "NXT"           # 응답 코드로 보드 되짚음
@@ -78,7 +78,7 @@ def test_domestic_quotes_mixed_boards_via_tuples():
 def test_domestic_quotes_rejects_over_30():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": []}))
     with pytest.raises(KISUsageError):
-        _client(fake).quotes([f"{i:06d}" for i in range(31)])
+        _client(fake).domestic.quotes([f"{i:06d}" for i in range(31)])
 
 
 def _ovs_row(excd, symb, last, base, curr="USD"):
@@ -93,7 +93,7 @@ def test_overseas_quotes_maps_and_mixed_exchanges():
             _ovs_row("HKS", "00700", "300.0", "310.0", curr="HKD")]
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                                               body={"output2": rows}))
-    quotes = _client(fake).overseas_quotes([("NAS", "AAPL"), ("HKS", "00700")])
+    quotes = _client(fake).overseas.quotes([("NAS", "AAPL"), ("HKS", "00700")])
     by_symbol = {q.symbol: q for q in quotes}
     aapl = by_symbol["AAPL"]
     assert aapl.market == "NAS"
@@ -119,17 +119,17 @@ def test_overseas_quotes_rejects_over_10():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                                               body={"output2": []}))
     with pytest.raises(KISUsageError):
-        _client(fake).overseas_quotes([("NAS", f"S{i}") for i in range(11)])
+        _client(fake).overseas.quotes([("NAS", f"S{i}") for i in range(11)])
 
 
 def test_multi_quotes_empty_returns_empty_without_call():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    assert _client(fake).quotes([]) == []
-    assert _client(fake).overseas_quotes([]) == []
+    assert _client(fake).domestic.quotes([]) == []
+    assert _client(fake).overseas.quotes([]) == []
     assert fake.calls == []                              # 빈 요청은 와이어 접촉 안 함
 
 
 def test_domestic_quotes_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).quotes(["005930"])
+        _client(fake).domestic.quotes(["005930"])

@@ -1,4 +1,4 @@
-"""채권 핸들 -- kis.bond(code).quote().
+"""채권 핸들 -- kis.domestic.bond(code).quote().
 
 시장구분 B 라우팅, output 파싱(가격·시고저·전일대비·수익률), 전일대비 부호 복원,
 optional 수익률(None), fail-closed 를 검증한다.
@@ -54,7 +54,7 @@ def _client(transport):
 
 def test_bond_quote_maps_fields_and_market():
     fake = FakeTransport(response=_resp(_output()))
-    quote = _client(fake).bond("KR2033022D33").quote()
+    quote = _client(fake).domestic.bond("KR2033022D33").quote()
     assert isinstance(quote, BondQuote)
     assert quote.code == "KR2033022D33"
     assert quote.price == Decimal("10250.0")
@@ -75,14 +75,14 @@ def test_bond_quote_maps_fields_and_market():
 
 def test_bond_quote_negative_change():
     fake = FakeTransport(response=_resp(_output(vrss="15.0", sign="5", ctrt="0.15")))
-    quote = _client(fake).bond("KR2033022D33").quote()
+    quote = _client(fake).domestic.bond("KR2033022D33").quote()
     assert quote.change == Decimal("-15.0")                 # 하락 -> 음수
     assert quote.change_percent == Decimal("-0.15")
 
 
 def test_bond_quote_optional_yield_none():
     fake = FakeTransport(response=_resp(_output(ernn="")))
-    quote = _client(fake).bond("KR2033022D33").quote()
+    quote = _client(fake).domestic.bond("KR2033022D33").quote()
     assert quote.yield_rate is None
     assert quote.price == Decimal("10250.0")               # 핵심 필드는 여전히 파싱
 
@@ -90,13 +90,13 @@ def test_bond_quote_optional_yield_none():
 def test_bond_quote_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).bond("KR2033022D33").quote()
+        _client(fake).domestic.bond("KR2033022D33").quote()
 
 
 def test_bond_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(_output(prpr="n/a")))
     with pytest.raises(KISError):
-        _client(fake).bond("KR2033022D33").quote()
+        _client(fake).domestic.bond("KR2033022D33").quote()
 
 
 # --- order_book ------------------------------------------------------------
@@ -118,7 +118,7 @@ def _book(**over):
 
 def test_bond_order_book_maps_levels_and_market():
     fake = FakeTransport(response=_resp(_book()))
-    book = _client(fake).bond("KR2033022D33").order_book()
+    book = _client(fake).domestic.bond("KR2033022D33").order_book()
     assert isinstance(book, OrderBook)
     assert book.symbol == "KR2033022D33"
     assert book.market == "B"
@@ -139,7 +139,7 @@ def test_bond_order_book_maps_levels_and_market():
 def test_bond_order_book_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).bond("KR2033022D33").order_book()
+        _client(fake).domestic.bond("KR2033022D33").order_book()
 
 
 # --- trades ----------------------------------------------------------------
@@ -155,7 +155,7 @@ def _trade_rows():
 
 def test_bond_trades_maps_rows_and_market():
     fake = FakeTransport(response=_resp(_trade_rows()))
-    trades = _client(fake).bond("KR2033022D33").trades()
+    trades = _client(fake).domestic.bond("KR2033022D33").trades()
     assert all(isinstance(t, Trade) for t in trades)
     assert len(trades) == 2                                    # 빈 행 제외
     first, second = trades
@@ -176,7 +176,7 @@ def test_bond_trades_maps_rows_and_market():
 def test_bond_trades_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).bond("KR2033022D33").trades()
+        _client(fake).domestic.bond("KR2033022D33").trades()
 
 
 def test_bond_trades_bad_value_fails_closed():
@@ -184,7 +184,7 @@ def test_bond_trades_bad_value_fails_closed():
              "bond_prdy_vrss": "20.0", "prdy_vrss_sign": "2", "prdy_ctrt": "0.20"}]
     fake = FakeTransport(response=_resp(rows))
     with pytest.raises(KISError):
-        _client(fake).bond("KR2033022D33").trades()
+        _client(fake).domestic.bond("KR2033022D33").trades()
 
 
 # --- bars ------------------------------------------------------------------
@@ -200,7 +200,7 @@ def _bar_rows():
 
 def test_bond_bars_maps_ledger_rows_and_sorts_oldest_first():
     fake = FakeTransport(response=_resp(_bar_rows()))
-    bars = _client(fake).bond("KR101501D967").bars()
+    bars = _client(fake).domestic.bond("KR101501D967").bars()
     assert all(isinstance(bar, Bar) for bar in bars)
     assert [bar.timestamp.strftime("%Y%m%d") for bar in bars] == ["20240607", "20240610"]
     assert bars[0].symbol == "KR101501D967"
@@ -221,20 +221,20 @@ def test_bond_bars_maps_ledger_rows_and_sorts_oldest_first():
 def test_bond_bars_rejects_unsupported_interval_before_transport():
     fake = FakeTransport(response=_resp(_bar_rows()))
     with pytest.raises(KISUsageError):
-        _client(fake).bond("KR101501D967").bars("1wk")
+        _client(fake).domestic.bond("KR101501D967").bars("1wk")
     assert fake.calls == []
 
 
 def test_bond_bars_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).bond("KR101501D967").bars()
+        _client(fake).domestic.bond("KR101501D967").bars()
 
 
 def test_bond_bars_non_mapping_row_fails_closed():
     fake = FakeTransport(response=_resp(["bad-row"]))
     with pytest.raises(KISError):
-        _client(fake).bond("KR101501D967").bars()
+        _client(fake).domestic.bond("KR101501D967").bars()
 
 
 # --- daily_prices ----------------------------------------------------------
@@ -264,7 +264,7 @@ def test_bond_daily_prices_maps_change_and_continuation():
     fake = DailyPriceTransport([first, second])
 
     from kis_openapi import BondDailyPrice
-    prices = _client(fake).bond("KR101501D967").daily_prices()
+    prices = _client(fake).domestic.bond("KR101501D967").daily_prices()
 
     assert all(isinstance(price, BondDailyPrice) for price in prices)
     assert [f"{price.date:%Y%m%d}" for price in prices] == ["20240607", "20240610"]
@@ -283,7 +283,7 @@ def test_bond_daily_prices_missing_output_fails_closed():
         RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={})
     ])
     with pytest.raises(KISError):
-        _client(fake).bond("KR101501D967").daily_prices()
+        _client(fake).domestic.bond("KR101501D967").daily_prices()
 
 
 # --- valuations ------------------------------------------------------------
@@ -311,7 +311,7 @@ def test_bond_valuations_maps_rows_and_sorts_oldest_first():
         rt_cd="0", msg_cd="KIOK0500", msg1="정상", body={"output1": _valuation_rows()}
     )
     fake = FakeTransport(response=response)
-    valuations = _client(fake).bond("KR2033022D33").valuations(
+    valuations = _client(fake).domestic.bond("KR2033022D33").valuations(
         start="2024-04-01", end="20240410"
     )
     assert all(isinstance(valuation, BondValuation) for valuation in valuations)
@@ -340,18 +340,18 @@ def test_bond_valuations_maps_rows_and_sorts_oldest_first():
 def test_bond_valuations_rejects_reversed_dates_before_transport():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).bond("KR2033022D33").valuations(start="20240411", end="20240410")
+        _client(fake).domestic.bond("KR2033022D33").valuations(start="20240411", end="20240410")
     assert fake.calls == []
 
 
 def test_bond_valuations_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).bond("KR2033022D33").valuations(start="20240401", end="20240410")
+        _client(fake).domestic.bond("KR2033022D33").valuations(start="20240401", end="20240410")
 
 
 def test_bond_valuations_non_mapping_row_fails_closed():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": ["bad-row"]})
     fake = FakeTransport(response=response)
     with pytest.raises(KISError):
-        _client(fake).bond("KR2033022D33").valuations(start="20240401", end="20240410")
+        _client(fake).domestic.bond("KR2033022D33").valuations(start="20240401", end="20240410")

@@ -1,4 +1,4 @@
-"""기간별 일별 매매손익 합산 -- kis.daily_profits(start=, end=) (TTTC8708R).
+"""기간별 일별 매매손익 합산 -- kis.domestic.account.daily_profits(start=, end=) (TTTC8708R).
 
 하루 단위 실현손익(output1)과 기간 총계(output2)를 검증한다. 픽스처는 원장 응답예시
 (inquire-period-profit) 실값을 쓴다. 이 응답엔 총수익률(tot_pftrt)이 없다.
@@ -61,7 +61,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 
 
 def test_daily_profits_parses_rows_and_totals():
-    history = _client(FakeTransport(response=_resp())).daily_profits(start="20240201", end="20240229")
+    history = _client(FakeTransport(response=_resp())).domestic.account.daily_profits(start="20240201", end="20240229")
     assert isinstance(history, DailyProfitHistory)
     assert history.total_realized_pnl == Decimal(22991)
     assert history.total_buy_amount == Decimal(116697331)
@@ -79,7 +79,7 @@ def test_daily_profits_parses_rows_and_totals():
 
 def test_daily_profits_tr_and_params():
     fake = FakeTransport(response=_resp())
-    _client(fake).daily_profits(start="20240201", end="20240229", sort="oldest")
+    _client(fake).domestic.account.daily_profits(start="20240201", end="20240229", sort="oldest")
     call = fake.calls[0]
     assert call["tr_id"] == "TTTC8708R"
     assert call["path"] == _PATH
@@ -93,14 +93,14 @@ def test_daily_profits_tr_and_params():
 def test_daily_profits_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").daily_profits(start="1", end="2")
+        _client(fake, environment="demo").domestic.account.daily_profits(start="1", end="2")
     assert fake.calls == []
 
 
 def test_daily_profits_unknown_sort_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake).daily_profits(start="1", end="2", sort="x")
+        _client(fake).domestic.account.daily_profits(start="1", end="2", sort="x")
     assert fake.calls == []
 
 
@@ -108,7 +108,7 @@ def test_daily_profits_paginates_and_merges():
     page1 = _resp([_ROW], nk="NEXT", tr_cont="M")
     page2 = _resp([dict(_ROW, trad_dt="20240221")], tr_cont="D")
     fake = FakeTransport(pages=[page1, page2])
-    history = _client(fake).daily_profits(start="1", end="2")
+    history = _client(fake).domestic.account.daily_profits(start="1", end="2")
     assert [d.trade_date for d in history.days] == [date(2024, 2, 20), date(2024, 2, 21)]
     assert fake.calls[1]["tr_cont"] == "N"
 
@@ -117,16 +117,16 @@ def test_daily_profits_missing_summary_fails_closed():
     body = {"output1": [_ROW], "output2": []}
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).daily_profits(start="1", end="2")
+        _client(FakeTransport(response=resp)).domestic.account.daily_profits(start="1", end="2")
 
 
 def test_daily_profits_non_list_output1_fails_closed():
     body = {"output1": {"trad_dt": "x"}, "output2": dict(_SUMMARY)}
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).daily_profits(start="1", end="2")
+        _client(FakeTransport(response=resp)).domestic.account.daily_profits(start="1", end="2")
 
 
 def test_daily_profits_requires_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp()), account=None).daily_profits(start="1", end="2")
+        _client(FakeTransport(response=_resp()), account=None).domestic.account.daily_profits(start="1", end="2")

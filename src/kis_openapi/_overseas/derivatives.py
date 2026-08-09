@@ -1,7 +1,7 @@
 """해외 선물/옵션 시세 조회 (내부) -- 계약 현재가를 :class:`OverseasDerivativeQuote` 로.
 
 사용자면은 해외 파생 핸들(:class:`~kis_openapi.overseas_derivative.OverseasDerivative`,
-``kis.overseas_futures(srs_cd)`` / ``kis.overseas_option(srs_cd)``)이다. 계약은 시리즈코드(``srs_cd``)
+``kis.overseas.futures(srs_cd)`` / ``kis.overseas.option(srs_cd)``)이다. 계약은 시리즈코드(``srs_cd``)
 하나로 식별한다. 선물/옵션은 URL/TR 만 다르고 출력 구조는 같아 한 파서를 공유한다(원장 대조).
 
 KIS URL/TR-id:

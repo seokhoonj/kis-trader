@@ -63,7 +63,7 @@ def _response(rows, **extra):
 
 def test_market_hours_single_page_routes_defaults_and_parses():
     fake = FakeTransport(responses=[_response([_row(pm_mkmn_end_tmd="")])])
-    hours = _client(fake).overseas_derivatives_market_hours()
+    hours = _client(fake).overseas.derivatives_market_hours()
 
     assert len(hours) == 1
     item = hours[0]
@@ -93,7 +93,7 @@ def test_market_hours_single_page_routes_defaults_and_parses():
 
 def test_market_hours_forwards_non_default_filters():
     fake = FakeTransport(responses=[_response([])])
-    _client(fake).overseas_derivatives_market_hours(
+    _client(fake).overseas.derivatives_market_hours(
         product_group="ES", asset_class="003", exchange="CME", kind="N"
     )
     params = fake.calls[0]["params"]
@@ -110,7 +110,7 @@ def test_market_hours_walks_ctx_area_pages_without_tr_cont():
             _response([_row(fm_pdgr_cd="NQ", fm_pdgr_name="E-MINI NASDAQ-100")]),
         ]
     )
-    hours = _client(fake).overseas_derivatives_market_hours()
+    hours = _client(fake).overseas.derivatives_market_hours()
     assert [item.product_group_code for item in hours] == ["ES", "NQ"]
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FIRST"
@@ -119,7 +119,7 @@ def test_market_hours_walks_ctx_area_pages_without_tr_cont():
 def test_market_hours_rejects_demo_environment():
     fake = FakeTransport(responses=[])
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas_derivatives_market_hours()
+        _client(fake, environment="demo").overseas.derivatives_market_hours()
     assert fake.calls == []
 
 
@@ -129,9 +129,9 @@ def test_market_hours_missing_or_non_list_output_fails_closed(output):
     response = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
     fake = FakeTransport(responses=[response])
     with pytest.raises(KISError):
-        _client(fake).overseas_derivatives_market_hours()
+        _client(fake).overseas.derivatives_market_hours()
 
 
 def test_market_hours_invalid_time_is_none():
     fake = FakeTransport(responses=[_response([_row(am_mkmn_strt_tmd="246000")])])
-    assert _client(fake).overseas_derivatives_market_hours()[0].am_open is None
+    assert _client(fake).overseas.derivatives_market_hours()[0].am_open is None

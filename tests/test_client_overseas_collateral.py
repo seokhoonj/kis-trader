@@ -31,7 +31,7 @@ def _response(*, tr_cont="", nk=""):
 def test_overseas_collateral_stocks_maps_and_paginates():
     fake = FakeTransport([_response(tr_cont="M", nk="next"), _response()])
     client = KISClient(app_key="k", app_secret="s", transport=fake)
-    stocks = client.overseas_collateral_stocks("AMD", "840", loanable=True)
+    stocks = client.overseas.collateral_stocks("AMD", "840", loanable=True)
     assert isinstance(stocks[0], OverseasCollateralStock)
     assert stocks[0].loan_rate == Decimal(50)
     assert stocks[0].registered_date == date(2024, 5, 10)

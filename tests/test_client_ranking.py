@@ -1,4 +1,4 @@
-"""시장 전체 순위 -- kis.ranking.by_change / by_volume / by_market_cap.
+"""시장 전체 순위 -- kis.domestic.ranking.by_change / by_volume / by_market_cap.
 
 행위중심 네임스페이스(섹션 미러링 아님), 원장 검증 정렬코드(gainers=0/losers=1), 종목코드 필드
 차이 흡수(stck_shrn_iscd/mksc_shrn_iscd), 전일대비 부호 복원, fail-closed 파싱을 가짜 전송으로 검증.
@@ -61,7 +61,7 @@ def _client(transport):
 
 def test_by_change_gainers_uses_rise_sort_code():
     fake = FakeTransport(response=_resp([_row(symbol_field="stck_shrn_iscd")]))
-    ranked = _client(fake).ranking.by_change(top="gainers")
+    ranked = _client(fake).domestic.ranking.by_change(top="gainers")
     assert len(ranked) == 1
     first = ranked[0]
     assert isinstance(first, RankedStock)
@@ -81,7 +81,7 @@ def test_by_change_gainers_uses_rise_sort_code():
 
 def test_by_change_losers_uses_fall_sort_code():
     fake = FakeTransport(response=_resp([_row(symbol_field="stck_shrn_iscd", sign="5")]))
-    ranked = _client(fake).ranking.by_change(top="losers")
+    ranked = _client(fake).domestic.ranking.by_change(top="losers")
     assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "1"   # 하락율순
     assert ranked[0].change == Decimal(-400)                     # 하락 -> 음수
     assert ranked[0].change_percent == Decimal("-0.55")
@@ -90,12 +90,12 @@ def test_by_change_losers_uses_fall_sort_code():
 def test_by_change_rejects_bad_top():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).ranking.by_change(top="up")
+        _client(fake).domestic.ranking.by_change(top="up")
 
 
 def test_by_volume_uses_volume_endpoint():
     fake = FakeTransport(response=_resp([_row(rank="1"), _row(rank="2", symbol="000660")]))
-    ranked = _client(fake).ranking.by_volume()
+    ranked = _client(fake).domestic.ranking.by_volume()
     assert [r.symbol for r in ranked] == ["005930", "000660"]
     call = fake.calls[0]
     assert call["path"] == _VOLUME
@@ -106,7 +106,7 @@ def test_by_volume_uses_volume_endpoint():
 
 def test_by_market_cap_exposes_market_cap_in_raw():
     fake = FakeTransport(response=_resp([_row(stck_avls="4340032", mrkt_whol_avls_rlim="15.77")]))
-    ranked = _client(fake).ranking.by_market_cap()
+    ranked = _client(fake).domestic.ranking.by_market_cap()
     call = fake.calls[0]
     assert call["path"] == _MARKET_CAP
     assert call["tr_id"] == "FHPST01740000"
@@ -116,7 +116,7 @@ def test_by_market_cap_exposes_market_cap_in_raw():
 
 def test_by_disparity_defaults_to_highest_and_20day():
     fake = FakeTransport(response=_resp([_row(d20_dsrt="103.42")]))
-    ranked = _client(fake).ranking.by_disparity()
+    ranked = _client(fake).domestic.ranking.by_disparity()
     call = fake.calls[0]
     assert call["path"] == _DISPARITY
     assert call["tr_id"] == "FHPST01780000"
@@ -128,7 +128,7 @@ def test_by_disparity_defaults_to_highest_and_20day():
 
 def test_by_disparity_lowest_and_period():
     fake = FakeTransport(response=_resp([_row(d5_dsrt="97.1")]))
-    _client(fake).ranking.by_disparity(top="lowest", period=5)
+    _client(fake).domestic.ranking.by_disparity(top="lowest", period=5)
     call = fake.calls[0]
     assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "1"       # lowest
     assert call["params"]["FID_HOUR_CLS_CODE"] == "5"
@@ -137,18 +137,18 @@ def test_by_disparity_lowest_and_period():
 def test_by_disparity_rejects_bad_period():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).ranking.by_disparity(period=7)
+        _client(fake).domestic.ranking.by_disparity(period=7)
 
 
 def test_by_disparity_rejects_bad_top():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).ranking.by_disparity(top="above")
+        _client(fake).domestic.ranking.by_disparity(top="above")
 
 
 def test_by_quote_balance_defaults_to_net_buy():
     fake = FakeTransport(response=_resp([_row(total_bidp_rsqn="12345")]))
-    ranked = _client(fake).ranking.by_quote_balance()
+    ranked = _client(fake).domestic.ranking.by_quote_balance()
     call = fake.calls[0]
     assert call["path"] == _QUOTE_BALANCE
     assert call["tr_id"] == "FHPST01720000"
@@ -160,19 +160,19 @@ def test_by_quote_balance_defaults_to_net_buy():
 def test_by_quote_balance_sort_variants():
     for top, code in [("net_sell", "1"), ("buy_ratio", "2"), ("sell_ratio", "3")]:
         fake = FakeTransport(response=_resp([_row()]))
-        _client(fake).ranking.by_quote_balance(top=top)
+        _client(fake).domestic.ranking.by_quote_balance(top=top)
         assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == code
 
 
 def test_by_quote_balance_rejects_bad_top():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).ranking.by_quote_balance(top="bogus")
+        _client(fake).domestic.ranking.by_quote_balance(top="bogus")
 
 
 def test_by_volume_power_uses_endpoint_without_sort():
     fake = FakeTransport(response=_resp([_row(symbol_field="stck_shrn_iscd", tday_rltv="128.5")]))
-    ranked = _client(fake).ranking.by_volume_power()
+    ranked = _client(fake).domestic.ranking.by_volume_power()
     call = fake.calls[0]
     assert call["path"] == _VOLUME_POWER
     assert call["tr_id"] == "FHPST01680000"
@@ -183,7 +183,7 @@ def test_by_volume_power_uses_endpoint_without_sort():
 
 def test_by_bulk_trades_defaults_to_buy():
     fake = FakeTransport(response=_resp([_row(shnu_cntg_csnu="42")]))
-    ranked = _client(fake).ranking.by_bulk_trades()
+    ranked = _client(fake).domestic.ranking.by_bulk_trades()
     call = fake.calls[0]
     assert call["path"] == _BULK_TRADES
     assert call["tr_id"] == "FHKST190900C0"
@@ -194,15 +194,15 @@ def test_by_bulk_trades_defaults_to_buy():
 
 def test_by_bulk_trades_sell_and_bad_top():
     fake = FakeTransport(response=_resp([_row()]))
-    _client(fake).ranking.by_bulk_trades(top="sell")
+    _client(fake).domestic.ranking.by_bulk_trades(top="sell")
     assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "1"   # sell
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp([]))).ranking.by_bulk_trades(top="both")
+        _client(FakeTransport(response=_resp([]))).domestic.ranking.by_bulk_trades(top="both")
 
 
 def test_by_interest_uses_endpoint_without_sort():
     fake = FakeTransport(response=_resp([_row(inter_issu_reg_csnu="1523")]))
-    ranked = _client(fake).ranking.by_interest()
+    ranked = _client(fake).domestic.ranking.by_interest()
     call = fake.calls[0]
     assert call["path"] == _INTEREST
     assert call["tr_id"] == "FHPST01800000"
@@ -213,7 +213,7 @@ def test_by_interest_uses_endpoint_without_sort():
 
 def test_by_preferred_disparity_exposes_pair_in_raw():
     fake = FakeTransport(response=_resp([_row(prst_prpr="61000", dprt="12.34")]))
-    ranked = _client(fake).ranking.by_preferred_disparity()
+    ranked = _client(fake).domestic.ranking.by_preferred_disparity()
     call = fake.calls[0]
     assert call["path"] == _PREFERRED_DISPARITY
     assert call["tr_id"] == "FHPST01770000"
@@ -224,7 +224,7 @@ def test_by_preferred_disparity_exposes_pair_in_raw():
 
 def test_by_finance_ratio_sort_year_quarter():
     fake = FakeTransport(response=_resp([_row(cptl_op_prfi="12.3")]))
-    ranked = _client(fake).ranking.by_finance_ratio(analysis="stability", year=2023, quarter="h1")
+    ranked = _client(fake).domestic.ranking.by_finance_ratio(analysis="stability", year=2023, quarter="h1")
     call = fake.calls[0]
     assert call["path"] == _FINANCE_RATIO
     assert call["tr_id"] == "FHPST01750000"
@@ -237,12 +237,12 @@ def test_by_finance_ratio_sort_year_quarter():
 
 def test_by_finance_ratio_defaults_and_bad_analysis():
     fake = FakeTransport(response=_resp([_row()]))
-    _client(fake).ranking.by_finance_ratio(year=2024)
+    _client(fake).domestic.ranking.by_finance_ratio(year=2024)
     call = fake.calls[0]
     assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "7"       # profitability 기본
     assert call["params"]["FID_INPUT_OPTION_2"] == "3"           # annual 기본
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp([]))).ranking.by_finance_ratio(
+        _client(FakeTransport(response=_resp([]))).domestic.ranking.by_finance_ratio(
             analysis="liquidity", year=2024
         )
 
@@ -250,7 +250,7 @@ def test_by_finance_ratio_defaults_and_bad_analysis():
 def test_by_valuation_metric_maps_to_code():
     for metric, code in [("per", "23"), ("pbr", "24"), ("ev_ebitda", "30"), ("ebitda_ratio", "31")]:
         fake = FakeTransport(response=_resp([_row(per="8.1")]))
-        _client(fake).ranking.by_valuation(metric=metric, year=2023)
+        _client(fake).domestic.ranking.by_valuation(metric=metric, year=2023)
         call = fake.calls[0]
         assert call["path"] == _VALUATION
         assert call["tr_id"] == "FHPST01790000"
@@ -259,12 +259,12 @@ def test_by_valuation_metric_maps_to_code():
 
 def test_by_valuation_bad_quarter():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp([]))).ranking.by_valuation(year=2023, quarter="q2")
+        _client(FakeTransport(response=_resp([]))).domestic.ranking.by_valuation(year=2023, quarter="q2")
 
 
 def test_by_profit_asset_metric_and_defaults():
     fake = FakeTransport(response=_resp([_row(total_aset="4200000")]))
-    ranked = _client(fake).ranking.by_profit_asset(metric="total_assets", year=2023)
+    ranked = _client(fake).domestic.ranking.by_profit_asset(metric="total_assets", year=2023)
     call = fake.calls[0]
     assert call["path"] == _PROFIT_ASSET
     assert call["tr_id"] == "FHPST01730000"
@@ -275,13 +275,13 @@ def test_by_profit_asset_metric_and_defaults():
 
 def test_by_profit_asset_default_metric_is_net_income():
     fake = FakeTransport(response=_resp([_row()]))
-    _client(fake).ranking.by_profit_asset(year=2023)
+    _client(fake).domestic.ranking.by_profit_asset(year=2023)
     assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "3"   # net_income
 
 
 def test_by_company_trades_buy_with_date_range():
     fake = FakeTransport(response=_resp([_row(ntby_cnqn="9800")]))
-    ranked = _client(fake).ranking.by_company_trades(
+    ranked = _client(fake).domestic.ranking.by_company_trades(
         top="buy", start="20240314", end="20240315"
     )
     call = fake.calls[0]
@@ -297,7 +297,7 @@ def test_by_company_trades_buy_with_date_range():
 def test_by_company_trades_accepts_date_objects_and_sell():
     from datetime import date
     fake = FakeTransport(response=_resp([_row()]))
-    _client(fake).ranking.by_company_trades(
+    _client(fake).domestic.ranking.by_company_trades(
         top="sell", start=date(2024, 3, 14), end=date(2024, 3, 15)
     )
     call = fake.calls[0]
@@ -307,7 +307,7 @@ def test_by_company_trades_accepts_date_objects_and_sell():
 
 def test_by_company_trades_bad_top():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp([]))).ranking.by_company_trades(
+        _client(FakeTransport(response=_resp([]))).domestic.ranking.by_company_trades(
             top="net", start="20240314", end="20240315"
         )
 
@@ -326,7 +326,7 @@ def test_by_dividend_maps_fields_and_params():
 
     from kis_openapi import DividendRanking
     fake = FakeTransport(response=_resp([_dividend_row()]))
-    ranked = _client(fake).ranking.by_dividend(kind="cash", start="20200101", end="20240403")
+    ranked = _client(fake).domestic.ranking.by_dividend(kind="cash", start="20200101", end="20240403")
     assert len(ranked) == 1
     item = ranked[0]
     assert isinstance(item, DividendRanking)
@@ -349,7 +349,7 @@ def test_by_dividend_maps_fields_and_params():
 
 def test_by_dividend_stock_kind_and_market_settlement():
     fake = FakeTransport(response=_resp([_dividend_row()]))
-    _client(fake).ranking.by_dividend(
+    _client(fake).domestic.ranking.by_dividend(
         kind="stock", start="20230101", end="20231231", market="kosdaq", settlement="interim"
     )
     call = fake.calls[0]
@@ -360,7 +360,7 @@ def test_by_dividend_stock_kind_and_market_settlement():
 
 def test_by_dividend_rejects_bad_kind():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp([]))).ranking.by_dividend(
+        _client(FakeTransport(response=_resp([]))).domestic.ranking.by_dividend(
             kind="both", start="20230101", end="20231231"
         )
 
@@ -368,7 +368,7 @@ def test_by_dividend_rejects_bad_kind():
 def test_by_dividend_bad_record_date_fails_closed():
     fake = FakeTransport(response=_resp([_dividend_row(record_date="n/a")]))
     with pytest.raises(KISError):
-        _client(fake).ranking.by_dividend(kind="cash", start="20230101", end="20231231")
+        _client(fake).domestic.ranking.by_dividend(kind="cash", start="20230101", end="20231231")
 
 
 _SHORT_SALE = "/uapi/domestic-stock/v1/ranking/short-sale"
@@ -386,7 +386,7 @@ def _short_row(symbol="138930", name="BNK금융지주", price="7760", change="60
 def test_by_short_sale_maps_fields_and_synthesizes_rank():
     from kis_openapi import ShortSaleRanking
     fake = FakeTransport(response=_resp([_short_row(), _short_row(symbol="000660")]))
-    ranked = _client(fake).ranking.by_short_sale()
+    ranked = _client(fake).domestic.ranking.by_short_sale()
     assert [r.rank for r in ranked] == [1, 2]                   # 응답 순서로 순위
     first = ranked[0]
     assert isinstance(first, ShortSaleRanking)
@@ -406,7 +406,7 @@ def test_by_short_sale_maps_fields_and_synthesizes_rank():
 
 def test_by_short_sale_monthly_window():
     fake = FakeTransport(response=_resp([_short_row()]))
-    _client(fake).ranking.by_short_sale(window="3mo")
+    _client(fake).domestic.ranking.by_short_sale(window="3mo")
     call = fake.calls[0]
     assert call["params"]["FID_PERIOD_DIV_CODE"] == "M"
     assert call["params"]["FID_INPUT_CNT_1"] == "3"
@@ -414,11 +414,11 @@ def test_by_short_sale_monthly_window():
 
 def test_by_short_sale_negative_change_and_bad_window():
     fake = FakeTransport(response=_resp([_short_row(sign="5")]))
-    ranked = _client(fake).ranking.by_short_sale(window="1w")
+    ranked = _client(fake).domestic.ranking.by_short_sale(window="1w")
     assert ranked[0].change == Decimal(-60)                     # 하락 -> 음수
     assert fake.calls[0]["params"]["FID_INPUT_CNT_1"] == "4"    # 1w
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp([]))).ranking.by_short_sale(window="5d")
+        _client(FakeTransport(response=_resp([]))).domestic.ranking.by_short_sale(window="5d")
 
 
 _CREDIT_BALANCE = "/uapi/domestic-stock/v1/ranking/credit-balance"
@@ -444,7 +444,7 @@ def _credit_resp(rows):
 def test_by_credit_balance_parses_output2_and_synthesizes_rank():
     from kis_openapi import CreditBalanceRanking
     fake = FakeTransport(response=_credit_resp([_credit_row(), _credit_row(symbol="000660")]))
-    ranked = _client(fake).ranking.by_credit_balance()
+    ranked = _client(fake).domestic.ranking.by_credit_balance()
     assert [r.rank for r in ranked] == [1, 2]
     first = ranked[0]
     assert isinstance(first, CreditBalanceRanking)
@@ -462,19 +462,19 @@ def test_by_credit_balance_parses_output2_and_synthesizes_rank():
 
 def test_by_credit_balance_sort_and_days():
     fake = FakeTransport(response=_credit_resp([_credit_row()]))
-    _client(fake).ranking.by_credit_balance(top="loan_ratio_increase", days=30)
+    _client(fake).domestic.ranking.by_credit_balance(top="loan_ratio_increase", days=30)
     call = fake.calls[0]
     assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "8"       # loan_ratio_increase
     assert call["params"]["FID_OPTION"] == "30"
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_credit_resp([]))).ranking.by_credit_balance(top="x")
+        _client(FakeTransport(response=_credit_resp([]))).domestic.ranking.by_credit_balance(top="x")
 
 
 def test_by_credit_balance_missing_output2_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                                               body={"output1": [{"bstp_cls_code": "1001"}]}))
     with pytest.raises(KISError):
-        _client(fake).ranking.by_credit_balance()
+        _client(fake).domestic.ranking.by_credit_balance()
 
 
 def _near_row(symbol="003560", name="IHQ", price="10760", change="-100", sign="5", pct="-0.92",
@@ -488,7 +488,7 @@ def _near_row(symbol="003560", name="IHQ", price="10760", change="-100", sign="5
 def test_by_near_high_low_high_side():
     from kis_openapi import NearHighLowRanking
     fake = FakeTransport(response=_resp([_near_row()]))
-    ranked = _client(fake).ranking.by_near_high_low()
+    ranked = _client(fake).domestic.ranking.by_near_high_low()
     first = ranked[0]
     assert isinstance(first, NearHighLowRanking)
     assert first.rank == 1
@@ -504,30 +504,30 @@ def test_by_near_high_low_high_side():
 
 def test_by_near_high_low_low_side_and_bad_side():
     fake = FakeTransport(response=_resp([_near_row()]))
-    _client(fake).ranking.by_near_high_low(side="low")
+    _client(fake).domestic.ranking.by_near_high_low(side="low")
     assert fake.calls[0]["params"]["FID_PRC_CLS_CODE"] == "1"    # low
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp([]))).ranking.by_near_high_low(side="middle")
+        _client(FakeTransport(response=_resp([]))).domestic.ranking.by_near_high_low(side="middle")
 
 
 def test_ranking_skips_empty_rows():
     fake = FakeTransport(response=_resp([_row(), {"data_rank": "", "mksc_shrn_iscd": ""}]))
-    assert len(_client(fake).ranking.by_volume()) == 1
+    assert len(_client(fake).domestic.ranking.by_volume()) == 1
 
 
 def test_ranking_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).ranking.by_volume()
+        _client(fake).domestic.ranking.by_volume()
 
 
 def test_ranking_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="X", msg1="실패", body={}))
     with pytest.raises(KISError):
-        _client(fake).ranking.by_volume()
+        _client(fake).domestic.ranking.by_volume()
 
 
 def test_ranking_bad_price_fails_closed():
     fake = FakeTransport(response=_resp([_row(price="n/a")]))
     with pytest.raises(KISError):
-        _client(fake).ranking.by_volume()
+        _client(fake).domestic.ranking.by_volume()

@@ -164,7 +164,7 @@ def test_daytime_order_cancel_routes_to_daytime_endpoint():
     # 취소는 미국주간 전용 rvsecncl 로 라우팅돼야 한다
     change_t = FakeTransport(response=RawResponse(
         rt_cd="0", msg_cd="A", msg1="", body={"output": {"ODNO": "0030000123"}}))
-    _client(change_t, store=store).cancel_order(cid)
+    _client(change_t, store=store).orders.cancel(cid)
     call = change_t.calls[0]
     assert call["path"] == _DAYTIME_CHANGE
     assert call["tr_id"] == "TTTS6038U"
@@ -180,7 +180,7 @@ def test_daytime_order_replace_routes_to_daytime_endpoint():
         quantity=2, price="150", client_order_id=cid)
     change_t = FakeTransport(response=RawResponse(
         rt_cd="0", msg_cd="A", msg1="", body={"output": {"ODNO": "0030000123"}}))
-    _client(change_t, store=store).replace_order(cid, price="151")
+    _client(change_t, store=store).orders.replace(cid, price="151")
     call = change_t.calls[0]
     assert call["path"] == _DAYTIME_CHANGE
     assert call["tr_id"] == "TTTS6038U"
@@ -213,7 +213,7 @@ def test_daytime_reconcile_does_not_confirm_from_regular_ccnl():
                 "ft_ccld_qty": "1", "ft_ccld_unpr3": "150", "odno": "0009999999"}
     recon_body = {"output": [ccnl_row], "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="M", msg1="", body=recon_body))
-    assert _client(recon_t, store=store).reconcile(cid) is None   # 자동 확정 안 함
+    assert _client(recon_t, store=store).orders.reconcile(cid) is None   # 자동 확정 안 함
     assert store.fingerprint_for(cid) is not None                 # in-flight 유지
     assert recon_t.calls == []                                    # ccnl 조회조차 하지 않는다
 
@@ -231,7 +231,7 @@ def test_daytime_session_persists_across_store_reopen(tmp_path):
     assert store2.fingerprint_for(cid).session == "daytime"       # v3 라운드트립 보존
     change_t = FakeTransport(response=RawResponse(
         rt_cd="0", msg_cd="A", msg1="", body={"output": {"ODNO": "0030000123"}}))
-    _client(change_t, store=store2).cancel_order(cid)
+    _client(change_t, store=store2).orders.cancel(cid)
     assert change_t.calls[0]["path"] == _DAYTIME_CHANGE
     assert change_t.calls[0]["tr_id"] == "TTTS6038U"
     store2.close()

@@ -1,4 +1,4 @@
-"""해외 알고(지정가/TWAP/VWAP) 주문 -- kis.overseas_algo_orders / overseas_algo_executions.
+"""해외 알고(지정가/TWAP/VWAP) 주문 -- kis.overseas.account.algo_orders / overseas_algo_executions.
 
 algo-ordno TTTS6058R (주문번호 목록) + inquire-algo-ccnl TTTS6059R (체결내역). 네트워크 없이
 FakeTransport 로 검증한다. 픽스처는 원장 응답예시/레이아웃 필드 기반.
@@ -57,7 +57,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 
 # --- 주문번호 목록 (TTTS6058R) ---------------------------------------------
 def test_algo_orders_parses():
-    orders = _client(FakeTransport(response=_resp([_ORD_ROW]))).overseas_algo_orders()
+    orders = _client(FakeTransport(response=_resp([_ORD_ROW]))).overseas.account.algo_orders()
     assert len(orders) == 1
     o = orders[0]
     assert isinstance(o, OverseasAlgoOrder)
@@ -72,7 +72,7 @@ def test_algo_orders_parses():
 
 def test_algo_orders_tr_and_params():
     fake = FakeTransport(response=_resp([_ORD_ROW]))
-    _client(fake).overseas_algo_orders()
+    _client(fake).overseas.account.algo_orders()
     call = fake.calls[0]
     assert call["tr_id"] == "TTTS6058R"
     assert call["method"] == "GET"
@@ -83,23 +83,23 @@ def test_algo_orders_tr_and_params():
 def test_algo_orders_demo_rejected():
     fake = FakeTransport(response=_resp([_ORD_ROW]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas_algo_orders()
+        _client(fake, environment="demo").overseas.account.algo_orders()
     assert fake.calls == []
 
 
 def test_algo_orders_empty_ok():
-    assert _client(FakeTransport(response=_resp([]))).overseas_algo_orders() == []
+    assert _client(FakeTransport(response=_resp([]))).overseas.account.algo_orders() == []
 
 
 def test_algo_orders_non_list_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body={"output": {"odno": "x"}}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).overseas_algo_orders()
+        _client(FakeTransport(response=resp)).overseas.account.algo_orders()
 
 
 # --- 체결내역 (TTTS6059R) --------------------------------------------------
 def test_algo_executions_parses():
-    execs = _client(FakeTransport(response=_resp([_CCNL_ROW]))).overseas_algo_executions(
+    execs = _client(FakeTransport(response=_resp([_CCNL_ROW]))).overseas.account.algo_executions(
         "0030000123", order_date="20250523", branch_number="06010")
     assert len(execs) == 1
     e = execs[0]
@@ -114,7 +114,7 @@ def test_algo_executions_parses():
 
 def test_algo_executions_tr_and_params():
     fake = FakeTransport(response=_resp([_CCNL_ROW]))
-    _client(fake).overseas_algo_executions("0030000123", order_date="20250523", branch_number="06010")
+    _client(fake).overseas.account.algo_executions("0030000123", order_date="20250523", branch_number="06010")
     call = fake.calls[0]
     assert call["tr_id"] == "TTTS6059R"
     assert call["path"] == _CCNL
@@ -126,15 +126,15 @@ def test_algo_executions_tr_and_params():
 def test_algo_executions_demo_rejected():
     fake = FakeTransport(response=_resp([_CCNL_ROW]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas_algo_executions("1", order_date="20250523")
+        _client(fake, environment="demo").overseas.account.algo_executions("1", order_date="20250523")
     assert fake.calls == []
 
 
 def test_algo_executions_empty_ok():
-    assert _client(FakeTransport(response=_resp([]))).overseas_algo_executions(
+    assert _client(FakeTransport(response=_resp([]))).overseas.account.algo_executions(
         "1", order_date="20250523") == []
 
 
 def test_algo_requires_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp([])), account=None).overseas_algo_orders()
+        _client(FakeTransport(response=_resp([])), account=None).overseas.account.algo_orders()

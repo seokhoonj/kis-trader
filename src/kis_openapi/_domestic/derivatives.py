@@ -1,7 +1,7 @@
 """국내 선물/옵션(파생) 시세 조회 (내부) -- 계약 현재가를 :class:`DerivativesQuote` 로.
 
-사용자면은 파생 핸들(:class:`~kis_openapi.derivative.Derivative`, ``kis.futures(code)`` /
-``kis.option(code)``)이다. 파생은 종목이 아니라 시장구분(F:지수선물 / O:지수옵션) + 계약코드로
+사용자면은 파생 핸들(:class:`~kis_openapi.derivative.Derivative`, ``kis.domestic.futures(code)`` /
+``kis.domestic.option(code)``)이다. 파생은 종목이 아니라 시장구분(F:지수선물 / O:지수옵션) + 계약코드로
 조회한다. 스캘핑에 필요한 미결제약정·베이시스·이론가는 output1 에서 매핑한다.
 
 KIS URL/TR-id (원장 대조):

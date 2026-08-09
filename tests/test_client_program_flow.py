@@ -1,4 +1,4 @@
-"""시간대별 프로그램매매 -- kis.market.program_flow(). 필드는 원장 응답예시 실값."""
+"""시간대별 프로그램매매 -- kis.domestic.market.program_flow(). 필드는 원장 응답예시 실값."""
 from __future__ import annotations
 
 import threading
@@ -37,7 +37,7 @@ def test_program_flow_maps_amounts():
              "arbt_smtm_ntby_tr_pbmn_rate": "2.53", "nabt_smtn_ntby_tr_pbmn": "859384",
              "whol_smtn_ntby_tr_pbmn": "1136289"}]
     fake = FakeTransport(response=_resp(rows))
-    pts = _client(fake).market.program_flow(market="KOSPI")
+    pts = _client(fake).domestic.market.program_flow(market="KOSPI")
     assert isinstance(pts[0], ProgramFlowPoint)
     p = pts[0]
     assert p.arbitrage_net_amount == Decimal(276905)     # smtn (NOT the _rate field)
@@ -52,18 +52,18 @@ def test_program_flow_maps_amounts():
 
 def test_program_flow_kosdaq_and_bad_market():
     fake = FakeTransport(response=_resp([]))
-    _client(fake).market.program_flow(market="KOSDAQ")
+    _client(fake).domestic.market.program_flow(market="KOSDAQ")
     assert fake.calls[0]["params"]["FID_MRKT_CLS_CODE"] == "Q"
     with pytest.raises(KISUsageError):
-        _client(fake).market.program_flow(market="US")
+        _client(fake).domestic.market.program_flow(market="US")
 
 
 def test_program_flow_missing_output_and_bad_value():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).market.program_flow()
+        _client(fake).domestic.market.program_flow()
     fake2 = FakeTransport(response=_resp([{"bsop_hour": "170000",
         "arbt_smtn_ntby_tr_pbmn": "n/a", "nabt_smtn_ntby_tr_pbmn": "1",
         "whol_smtn_ntby_tr_pbmn": "1"}]))
     with pytest.raises(KISError):
-        _client(fake2).market.program_flow()
+        _client(fake2).domestic.market.program_flow()

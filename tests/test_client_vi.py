@@ -1,4 +1,4 @@
-"""VI 현황 -- kis.market.vi_events(). 필드는 원장 응답예시 실값 기준."""
+"""VI 현황 -- kis.domestic.market.vi_events(). 필드는 원장 응답예시 실값 기준."""
 from __future__ import annotations
 
 import threading
@@ -38,7 +38,7 @@ def test_vi_events_maps_ledger_values():
              "vi_kind_code": "2", "vi_prc": "12135", "vi_stnd_prc": "0", "vi_dprt": "0.00",
              "vi_dmc_stnd_prc": "13275", "vi_dmc_dprt": "-8.59", "vi_count": "2"}]
     fake = FakeTransport(response=_resp(rows))
-    events = _client(fake).market.vi_events(as_of="20240126")
+    events = _client(fake).domestic.market.vi_events(as_of="20240126")
     assert isinstance(events[0], VIEvent)
     e = events[0]
     assert e.symbol == "337120"
@@ -63,7 +63,7 @@ def test_vi_events_unreleased_is_none():
              "vi_kind_code": "1", "vi_prc": "1000", "vi_stnd_prc": "", "vi_dprt": "",
              "vi_count": "1"}]
     fake = FakeTransport(response=_resp(rows))
-    e = _client(fake).market.vi_events(as_of="20240126")[0]
+    e = _client(fake).domestic.market.vi_events(as_of="20240126")[0]
     assert e.released_at is None                          # 0-채움 해제시각 -> 미해제
     assert e.base_price is None
     assert e.disparity_percent is None
@@ -71,10 +71,10 @@ def test_vi_events_unreleased_is_none():
 
 def test_vi_events_skips_empty_and_missing_output():
     fake = FakeTransport(response=_resp([{"mksc_shrn_iscd": ""}]))
-    assert _client(fake).market.vi_events(as_of="20240126") == []
+    assert _client(fake).domestic.market.vi_events(as_of="20240126") == []
     fake2 = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake2).market.vi_events()
+        _client(fake2).domestic.market.vi_events()
 
 
 def test_vi_events_bad_value_fails_closed():
@@ -83,4 +83,4 @@ def test_vi_events_bad_value_fails_closed():
              "vi_count": "1", "vi_cls_code": "N", "vi_kind_code": "1"}]
     fake = FakeTransport(response=_resp(rows))
     with pytest.raises(KISError):
-        _client(fake).market.vi_events(as_of="20240126")
+        _client(fake).domestic.market.vi_events(as_of="20240126")

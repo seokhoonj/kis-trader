@@ -1,4 +1,4 @@
-"""퇴직연금 예수금·매수가능 -- kis.pension_deposit() / kis.pension_buyable() (TTTC0506R/TTTC0503R).
+"""퇴직연금 예수금·매수가능 -- kis.pension.deposit() / kis.pension.buyable() (TTTC0506R/TTTC0503R).
 
 네트워크 없이 FakeTransport 로 검증한다. 픽스처는 원장 응답예시 실값을 쓴다.
 """
@@ -52,7 +52,7 @@ def _client(transport, *, environment="real", account="12345678-29"):
 
 # --- 예수금 ---------------------------------------------------------------
 def test_pension_deposit_parses():
-    dep = _client(FakeTransport(response=_resp(_DEPOSIT_OUT))).pension_deposit()
+    dep = _client(FakeTransport(response=_resp(_DEPOSIT_OUT))).pension.deposit()
     assert isinstance(dep, PensionDeposit)
     assert dep.deposit_total == Decimal(57622382)
     assert dep.next_day_settlement == Decimal(11054042)
@@ -62,7 +62,7 @@ def test_pension_deposit_parses():
 
 def test_pension_deposit_tr_and_params():
     fake = FakeTransport(response=_resp(_DEPOSIT_OUT))
-    _client(fake).pension_deposit()
+    _client(fake).pension.deposit()
     call = fake.calls[0]
     assert call["tr_id"] == "TTTC0506R"
     assert call["method"] == "GET"
@@ -76,30 +76,30 @@ def test_pension_deposit_tr_and_params():
 def test_pension_deposit_demo_rejected_before_io():
     fake = FakeTransport(response=_resp(_DEPOSIT_OUT))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").pension_deposit()
+        _client(fake, environment="demo").pension.deposit()
     assert fake.calls == []
 
 
 def test_pension_deposit_missing_output_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body={"output": []}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).pension_deposit()
+        _client(FakeTransport(response=resp)).pension.deposit()
 
 
 def test_pension_deposit_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="E", msg1="실패", body={"output": {}}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).pension_deposit()
+        _client(FakeTransport(response=resp)).pension.deposit()
 
 
 def test_pension_deposit_requires_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp(_DEPOSIT_OUT)), account=None).pension_deposit()
+        _client(FakeTransport(response=_resp(_DEPOSIT_OUT)), account=None).pension.deposit()
 
 
 # --- 매수가능 -------------------------------------------------------------
 def test_pension_buyable_parses():
-    buyable = _client(FakeTransport(response=_resp(_BUYABLE_OUT))).pension_buyable("005930", limit_price="55000")
+    buyable = _client(FakeTransport(response=_resp(_BUYABLE_OUT))).pension.buyable("005930", limit_price="55000")
     assert isinstance(buyable, PensionBuyableAmount)
     assert buyable.symbol == "005930"
     assert buyable.orderable_cash == Decimal(11054042)
@@ -109,7 +109,7 @@ def test_pension_buyable_parses():
 
 def test_pension_buyable_limit_price_params():
     fake = FakeTransport(response=_resp(_BUYABLE_OUT))
-    _client(fake).pension_buyable("005930", limit_price="55000")
+    _client(fake).pension.buyable("005930", limit_price="55000")
     call = fake.calls[0]
     assert call["tr_id"] == "TTTC0503R"
     assert call["path"] == _BUYABLE_PATH
@@ -121,7 +121,7 @@ def test_pension_buyable_limit_price_params():
 
 def test_pension_buyable_market_sends_zero():
     fake = FakeTransport(response=_resp(_BUYABLE_OUT))
-    _client(fake).pension_buyable("005930")   # 시장가
+    _client(fake).pension.buyable("005930")   # 시장가
     call = fake.calls[0]
     assert call["params"]["ORD_DVSN"] == "01"
     assert call["params"]["ORD_UNPR"] == "0"
@@ -131,12 +131,12 @@ def test_pension_buyable_market_sends_zero():
 def test_pension_buyable_bad_price_rejected_before_io(bad):
     fake = FakeTransport(response=_resp(_BUYABLE_OUT))
     with pytest.raises(KISUsageError):
-        _client(fake).pension_buyable("005930", limit_price=bad)
+        _client(fake).pension.buyable("005930", limit_price=bad)
     assert fake.calls == []
 
 
 def test_pension_buyable_demo_rejected_before_io():
     fake = FakeTransport(response=_resp(_BUYABLE_OUT))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").pension_buyable("005930", limit_price="1")
+        _client(fake, environment="demo").pension.buyable("005930", limit_price="1")
     assert fake.calls == []

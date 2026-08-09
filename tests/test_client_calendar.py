@@ -1,4 +1,4 @@
-"""기업행위 캘린더 -- kis.calendar.dividends().
+"""기업행위 캘린더 -- kis.domestic.calendar.dividends().
 
 배당일정(HHKDB669102C0)의 TR/URL·기간·종목·구분 파라미터·필드 매핑(zero/space padding, 날짜
 sentinel)·fail-closed 를 가짜 전송으로 검증한다.
@@ -44,7 +44,7 @@ def test_dividends_maps_and_params():
              "divi_rate": " 12.00", "stk_divi_rate": "  0.00", "divi_pay_dt": "",
              "stk_div_pay_dt": "", "odd_pay_dt": "", "stk_kind": "보통", "high_divi_gb": ""}]
     fake = FakeTransport(response=_resp(rows))
-    events = _client(fake).calendar.dividends(start="20240301", end="20240331")
+    events = _client(fake).domestic.calendar.dividends(start="20240301", end="20240331")
     assert isinstance(events[0], DividendEvent)
     e = events[0]
     assert e.symbol == "000720"                          # 코드 문자열 유지(정수화 안 함)
@@ -67,7 +67,7 @@ def test_dividends_maps_and_params():
 
 def test_dividends_symbol_and_kind_filters():
     fake = FakeTransport(response=_resp([]))
-    _client(fake).calendar.dividends(
+    _client(fake).domestic.calendar.dividends(
         start=date(2024, 3, 1), end=date(2024, 3, 31), symbol="005930", kind="interim"
     )
     call = fake.calls[0]
@@ -81,7 +81,7 @@ def test_dividends_high_dividend_flag_and_zero_sentinel_date():
              "stk_divi_rate": "0.0", "divi_pay_dt": "00000000", "stk_div_pay_dt": "",
              "odd_pay_dt": "", "stk_kind": "보통", "high_divi_gb": "Y"}]
     fake = FakeTransport(response=_resp(rows))
-    e = _client(fake).calendar.dividends(start="20240301", end="20240331")[0]
+    e = _client(fake).domestic.calendar.dividends(start="20240301", end="20240331")[0]
     assert e.high_dividend is True                        # "Y" -> True
     assert e.cash_pay_date is None                        # "00000000" sentinel -> None
 
@@ -89,13 +89,13 @@ def test_dividends_high_dividend_flag_and_zero_sentinel_date():
 def test_dividends_bad_kind_raises():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).calendar.dividends(start="20240301", end="20240331", kind="nope")
+        _client(fake).domestic.calendar.dividends(start="20240301", end="20240331", kind="nope")
 
 
 def test_dividends_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).calendar.dividends(start="20240301", end="20240331")
+        _client(fake).domestic.calendar.dividends(start="20240301", end="20240331")
 
 
 def test_ipo_subscriptions_maps_slash_dates_and_text_period():
@@ -108,7 +108,7 @@ def test_ipo_subscriptions_maps_slash_dates_and_text_period():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                                               body={"output1": rows}))
     from kis_openapi import IPOSubscription
-    events = _client(fake).calendar.ipo_subscriptions(start="20240301", end="20240331")
+    events = _client(fake).domestic.calendar.ipo_subscriptions(start="20240301", end="20240331")
     assert isinstance(events[0], IPOSubscription)
     e = events[0]
     assert e.symbol == "461030"
@@ -133,7 +133,7 @@ def test_rights_offerings_maps_and_basis():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                                               body={"output1": rows}))
     from kis_openapi import RightsOffering
-    events = _client(fake).calendar.rights_offerings(
+    events = _client(fake).domestic.calendar.rights_offerings(
         start="20240201", end="20240229", basis="record"
     )
     assert isinstance(events[0], RightsOffering)
@@ -154,7 +154,7 @@ def test_rights_offerings_bad_basis_raises():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                                               body={"output1": []}))
     with pytest.raises(KISUsageError):
-        _client(fake).calendar.rights_offerings(start="20240201", end="20240229", basis="nope")
+        _client(fake).domestic.calendar.rights_offerings(start="20240201", end="20240229", basis="nope")
 
 
 def test_bonus_issues_maps_and_params():
@@ -165,7 +165,7 @@ def test_bonus_issues_maps_and_params():
              "issue_stk_qty": "    18853940", "stk_kind": "01"}]
     fake = FakeTransport(response=_resp(rows))
     from kis_openapi import BonusIssue
-    events = _client(fake).calendar.bonus_issues(start="20240301", end="20240331")
+    events = _client(fake).domestic.calendar.bonus_issues(start="20240301", end="20240331")
     assert isinstance(events[0], BonusIssue)
     e = events[0]
     assert e.symbol == "466100"
@@ -183,7 +183,7 @@ def test_bonus_issues_maps_and_params():
 def test_bonus_issues_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).calendar.bonus_issues(start="20240301", end="20240331")
+        _client(fake).domestic.calendar.bonus_issues(start="20240301", end="20240331")
 
 
 def test_capital_reductions_maps_and_params():
@@ -194,7 +194,7 @@ def test_capital_reductions_maps_and_params():
              "list_dt": "2024/04/01"}]
     fake = FakeTransport(response=_resp(rows))
     from kis_openapi import CapitalReduction
-    events = _client(fake).calendar.capital_reductions(start="20240301", end="20240331")
+    events = _client(fake).domestic.calendar.capital_reductions(start="20240301", end="20240331")
     assert isinstance(events[0], CapitalReduction)
     e = events[0]
     assert e.symbol == "067390"
@@ -210,7 +210,7 @@ def test_capital_reductions_maps_and_params():
 def test_capital_reductions_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).calendar.capital_reductions(start="20240301", end="20240331")
+        _client(fake).domestic.calendar.capital_reductions(start="20240301", end="20240331")
 
 
 def test_merger_splits_maps_and_params():
@@ -223,7 +223,7 @@ def test_merger_splits_maps_and_params():
              "issue_stk_qty": "           0", "seq": "00"}]
     fake = FakeTransport(response=_resp(rows))
     from kis_openapi import MergerSplit
-    events = _client(fake).calendar.merger_splits(start="20240301", end="20240331")
+    events = _client(fake).domestic.calendar.merger_splits(start="20240301", end="20240331")
     assert isinstance(events[0], MergerSplit)
     e = events[0]
     assert e.symbol == "224020"
@@ -242,7 +242,7 @@ def test_merger_splits_maps_and_params():
 def test_merger_splits_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).calendar.merger_splits(start="20240301", end="20240331")
+        _client(fake).domestic.calendar.merger_splits(start="20240301", end="20240331")
 
 
 def test_shareholder_meetings_maps_and_params():
@@ -252,7 +252,7 @@ def test_shareholder_meetings_maps_and_params():
              "vote_tot_qty": "      959800"}]
     fake = FakeTransport(response=_resp(rows))
     from kis_openapi import ShareholderMeeting
-    events = _client(fake).calendar.shareholder_meetings(
+    events = _client(fake).domestic.calendar.shareholder_meetings(
         start="20240301", end="20240331", symbol="388370"
     )
     assert isinstance(events[0], ShareholderMeeting)
@@ -272,7 +272,7 @@ def test_shareholder_meetings_maps_and_params():
 def test_shareholder_meetings_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).calendar.shareholder_meetings(start="20240301", end="20240331")
+        _client(fake).domestic.calendar.shareholder_meetings(start="20240301", end="20240331")
 
 
 def test_mandatory_deposits_maps_and_params():
@@ -281,7 +281,7 @@ def test_mandatory_deposits_maps_and_params():
              "tot_issue_qty_per_rate": "10000"}]
     fake = FakeTransport(response=_resp(rows))
     from kis_openapi import MandatoryDeposit
-    events = _client(fake).calendar.mandatory_deposits(
+    events = _client(fake).domestic.calendar.mandatory_deposits(
         start="20240301", end="20240331", symbol="27322R"
     )
     assert isinstance(events[0], MandatoryDeposit)
@@ -300,7 +300,7 @@ def test_mandatory_deposits_maps_and_params():
 def test_mandatory_deposits_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).calendar.mandatory_deposits(start="20240301", end="20240331")
+        _client(fake).domestic.calendar.mandatory_deposits(start="20240301", end="20240331")
 
 
 def test_listing_infos_maps_and_params():
@@ -310,7 +310,7 @@ def test_listing_infos_maps_and_params():
              "issue_price": "     9090"}]
     fake = FakeTransport(response=_resp(rows))
     from kis_openapi import ListingInfo
-    events = _client(fake).calendar.listing_infos(
+    events = _client(fake).domestic.calendar.listing_infos(
         start="20240301", end="20240331", symbol="034220"
     )
     assert isinstance(events[0], ListingInfo)
@@ -330,7 +330,7 @@ def test_listing_infos_maps_and_params():
 def test_listing_infos_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).calendar.listing_infos(start="20240301", end="20240331")
+        _client(fake).domestic.calendar.listing_infos(start="20240301", end="20240331")
 
 
 def test_par_value_changes_maps_and_params():
@@ -339,7 +339,7 @@ def test_par_value_changes_maps_and_params():
              "td_stop_dt": "2023/08/22 ~ 2023/08/27", "list_dt": "2023/08/28"}]
     fake = FakeTransport(response=_resp(rows))
     from kis_openapi import ParValueChange
-    events = _client(fake).calendar.par_value_changes(
+    events = _client(fake).domestic.calendar.par_value_changes(
         start="20230801", end="20230831", symbol="001390"
     )
     assert isinstance(events[0], ParValueChange)
@@ -358,7 +358,7 @@ def test_par_value_changes_maps_and_params():
 def test_par_value_changes_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).calendar.par_value_changes(start="20230801", end="20230831")
+        _client(fake).domestic.calendar.par_value_changes(start="20230801", end="20230831")
 
 
 def test_forfeited_shares_maps_and_params():
@@ -368,7 +368,7 @@ def test_forfeited_shares_maps_and_params():
              "list_dt": "2024/04/02", "lead_mgr": "케이비증권,미래에셋증권,"}]
     fake = FakeTransport(response=_resp(rows))
     from kis_openapi import ForfeitedShares
-    events = _client(fake).calendar.forfeited_shares(start="20240101", end="20240131")
+    events = _client(fake).domestic.calendar.forfeited_shares(start="20240101", end="20240131")
     assert isinstance(events[0], ForfeitedShares)
     e = events[0]
     assert e.symbol == "001440"
@@ -385,7 +385,7 @@ def test_forfeited_shares_maps_and_params():
 def test_forfeited_shares_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).calendar.forfeited_shares(start="20240101", end="20240131")
+        _client(fake).domestic.calendar.forfeited_shares(start="20240101", end="20240131")
 
 
 def test_appraisal_rights_maps_and_params():
@@ -395,7 +395,7 @@ def test_appraisal_rights_maps_and_params():
              "buy_amt_pay_dt": "", "get_meet_dt": ""}]
     fake = FakeTransport(response=_resp(rows))
     from kis_openapi import AppraisalRights
-    events = _client(fake).calendar.appraisal_rights(start="20240301", end="20240331")
+    events = _client(fake).domestic.calendar.appraisal_rights(start="20240301", end="20240331")
     assert isinstance(events[0], AppraisalRights)
     e = events[0]
     assert e.symbol == "065350"
@@ -412,4 +412,4 @@ def test_appraisal_rights_maps_and_params():
 def test_appraisal_rights_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).calendar.appraisal_rights(start="20240301", end="20240331")
+        _client(fake).domestic.calendar.appraisal_rights(start="20240301", end="20240331")
