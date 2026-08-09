@@ -186,12 +186,12 @@ class OverseasAccount:
     def __init__(self, client: KISClient) -> None:
         self._c = client
 
-    def positions(self, *, market: str) -> list[OverseasPosition]:
-        """보유 종목(거래소 그룹+통화별)."""
+    def positions(self, *, market: str | None = None) -> list[OverseasPosition]:
+        """보유 종목. ``market`` 생략 시 전체 시장 그룹 합산."""
         return self._c.overseas_positions(market=market)
 
     def balance(self, *, market: str) -> OverseasBalance:
-        """계좌 손익 요약."""
+        """계좌 손익 요약(시장/통화별). 전체 시장 종합은 :meth:`present_balance`."""
         return self._c.overseas_balance(market=market)
 
     def buyable(self, symbol: str, *, exchange: str, price: object) -> OverseasBuyableAmount:
@@ -235,8 +235,8 @@ class OverseasAccount:
         """일별 체결 거래내역."""
         return self._c.overseas_transactions(start=start, end=end, symbol=symbol, side=side)
 
-    def open_orders(self, *, market: str) -> list[OverseasOpenOrder]:
-        """미체결 주문."""
+    def open_orders(self, *, market: str | None = None) -> list[OverseasOpenOrder]:
+        """미체결 주문. ``market`` 생략 시 전체 시장 그룹 합산."""
         return self._c.overseas_open_orders(market=market)
 
     def algo_orders(self) -> list[OverseasAlgoOrder]:

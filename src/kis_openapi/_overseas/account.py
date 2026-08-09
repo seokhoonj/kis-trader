@@ -94,9 +94,19 @@ _MARKETS: dict[str, tuple[str, str]] = {
 
 
 def fetch_positions(
-    transport: Transport, *, cano: str, product_code: str, environment: Environment, market: str
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    market: str | None = None,
 ) -> list[OverseasPosition]:
-    """해외 보유 종목 전체(연속조회 소진까지). ``market`` 은 US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM."""
+    """해외 보유 종목 전체(연속조회 소진까지). ``market`` 은 US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM;
+    ``None`` 이면 전체 시장 그룹을 순회해 합친다(KIS는 그룹별 조회만 제공하므로 그룹 수만큼 호출)."""
+    if market is None:
+        out: list[OverseasPosition] = []
+        for group in _MARKETS:
+            out.extend(fetch_positions(
+                transport, cano=cano, product_code=product_code, environment=environment,
+                market=group,
+            ))
+        return out
     try:
         exchange, currency = _MARKETS[market]
     except KeyError:
@@ -137,11 +147,21 @@ def fetch_balance(
 
 
 def fetch_open_orders(
-    transport: Transport, *, cano: str, product_code: str, environment: Environment, market: str
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    market: str | None = None,
 ) -> list[OverseasOpenOrder]:
-    """해외 미체결 주문 전체(연속조회 소진까지). **모의투자 미지원**(demo면 :class:`KISUsageError`)."""
+    """해외 미체결 주문 전체(연속조회 소진까지). ``market`` 생략(``None``)이면 전체 시장 그룹을 순회해
+    합친다. **모의투자 미지원**(demo면 :class:`KISUsageError`)."""
     if environment == "demo":
         raise KISUsageError("해외 미체결내역 조회는 모의투자 미지원이다(실전 계좌만).")
+    if market is None:
+        out: list[OverseasOpenOrder] = []
+        for group in _MARKETS:
+            out.extend(fetch_open_orders(
+                transport, cano=cano, product_code=product_code, environment=environment,
+                market=group,
+            ))
+        return out
     try:
         exchange, currency = _MARKETS[market]
     except KeyError:

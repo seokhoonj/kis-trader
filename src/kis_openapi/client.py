@@ -670,11 +670,10 @@ class KISClient:
             self._transport, cano=cano, product_code=product_code, environment=self._environment
         )
 
-    def overseas_positions(self, *, market: str) -> list[OverseasPosition]:
+    def overseas_positions(self, *, market: str | None = None) -> list[OverseasPosition]:
         """해외 보유 종목(거래소 그룹+통화별). ``market`` = ``"US"``/``"HK"``/``"CN_SH"``/``"CN_SZ"``/
-        ``"JP"``/``"VN_HN"``/``"VN_HCM"``. 금액은 종목 통화의 :class:`~kis_openapi.money.Money`.
-
-        국내와 달리 해외는 시장/통화별로 조회하므로 ``market`` 을 지정한다(계좌 정보 필요)."""
+        ``"JP"``/``"VN_HN"``/``"VN_HCM"``, 생략(``None``)하면 **전체 시장 그룹을 순회해 합친다**. 금액은
+        종목 통화의 :class:`~kis_openapi.money.Money`(계좌 정보 필요)."""
         cano, product_code = self._require_account()
         return overseas_account.fetch_positions(
             self._transport, cano=cano, product_code=product_code,
@@ -808,9 +807,10 @@ class KISClient:
             environment=self._environment, start=start, end=end, symbol=symbol, side=side,
         )
 
-    def overseas_open_orders(self, *, market: str) -> list[OverseasOpenOrder]:
-        """해외 미체결(열린) 주문 목록(시장별). 거래소 주문번호·미체결 잔량을 준다. **모의투자
-        미지원**(demo면 :class:`~kis_openapi.errors.KISUsageError`; 계좌 정보 필요)."""
+    def overseas_open_orders(self, *, market: str | None = None) -> list[OverseasOpenOrder]:
+        """해외 미체결(열린) 주문 목록. 거래소 주문번호·미체결 잔량을 준다. ``market`` 생략(``None``)하면
+        **전체 시장 그룹을 순회해 합친다**. **모의투자 미지원**(demo면 :class:`~kis_openapi.errors.
+        KISUsageError`; 계좌 정보 필요)."""
         cano, product_code = self._require_account()
         return overseas_account.fetch_open_orders(
             self._transport, cano=cano, product_code=product_code,

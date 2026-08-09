@@ -9,7 +9,7 @@ from __future__ import annotations
 import contextlib
 import threading
 
-from kis_openapi import KISClient
+from kis_openapi import KISClient, MasterIndex, MasterRecord
 from kis_openapi.namespaces import (
     DomesticAccount,
     DomesticNamespace,
@@ -66,6 +66,16 @@ def test_overseas_stock_returns_ticker():
     t = k.overseas.stock("AAPL", exchange="NAS")
     assert isinstance(t, Ticker)
     assert t.is_overseas
+
+
+def test_overseas_stock_auto_resolves_exchange():
+    # market 자동: exchange 를 안 줘도 종목 마스터로 거래소가 채워진다.
+    index = MasterIndex([MasterRecord("AAPL", "NAS", "USD", "stock", "애플", "APPLE", "NASAAPL")])
+    k = KISClient(app_key="k", app_secret="s", account="12345678-01",
+                  transport=FakeTransport(), master_index=index)
+    t = k.overseas.stock("AAPL")            # exchange 생략
+    assert t.is_overseas
+    assert t.exchange == "NAS"
 
 
 def test_domestic_query_namespaces_delegate():
