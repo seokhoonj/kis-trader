@@ -59,7 +59,7 @@ def _client(fake):
 
 def test_option_board_maps_rows_and_default_params():
     fake = FakeTransport(_response())
-    board = _client(fake).option_board("202405")
+    board = _client(fake).domestic.option_board("202405")
     assert isinstance(board, OptionBoard)
     assert board.calls[0].strike == Decimal("480.00")
     assert board.calls[0].price == Decimal("0.01")
@@ -76,18 +76,18 @@ def test_option_board_maps_rows_and_default_params():
 
 def test_option_board_maps_mini_kospi200_underlying():
     fake = FakeTransport(_response())
-    _client(fake).option_board("202405", underlying="MINI_KOSPI200")
+    _client(fake).domestic.option_board("202405", underlying="MINI_KOSPI200")
     assert fake.calls[0]["params"]["FID_COND_MRKT_CLS_CODE"] == "MKI"
 
 
 def test_option_board_rejects_unknown_underlying():
     fake = FakeTransport(_response())
     with pytest.raises(KISUsageError, match="KOSPI200.*MINI_KOSPI200.*KOSDAQ150"):
-        _client(fake).option_board("202405", underlying="UNKNOWN")
+        _client(fake).domestic.option_board("202405", underlying="UNKNOWN")
     assert fake.calls == []
 
 
 def test_option_board_missing_output2_fails_closed():
     fake = FakeTransport(_response(include_puts=False))
     with pytest.raises(KISError):
-        _client(fake).option_board("202405")
+        _client(fake).domestic.option_board("202405")

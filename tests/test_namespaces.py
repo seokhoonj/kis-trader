@@ -1,7 +1,7 @@
 """자산군 최상위 네임스페이스 -- kis.domestic / kis.overseas / kis.pension / kis.orders.
 
-1단계(스캐폴딩): 새 경로가 기존 flat verb 와 같은 엔진(같은 TR/파라미터)에 위임하는지 검증한다.
-Ticker 분리·flat 삭제는 다음 단계. 네트워크 없이 FakeTransport 로.
+각 네임스페이스 메서드가 올바른 원장 엔진(같은 TR/파라미터/경로)을 때리는지 검증한다. 네트워크
+없이 FakeTransport 로 wire 콜만 본다.
 """
 
 from __future__ import annotations
@@ -10,6 +10,8 @@ import contextlib
 import threading
 
 from kis_openapi import KISClient, MasterIndex, MasterRecord
+from kis_openapi.calendar import CalendarQueries
+from kis_openapi.market import MarketQueries
 from kis_openapi.namespaces import (
     DomesticAccount,
     DomesticNamespace,
@@ -78,15 +80,14 @@ def test_overseas_stock_auto_resolves_exchange():
     assert t.exchange == "NAS"
 
 
-def test_domestic_query_namespaces_delegate():
+def test_domestic_query_namespaces_expose_query_objects():
     k = _client()
     assert isinstance(k.domestic.ranking, RankingQueries)
-    # 같은 세션 프로퍼티로 위임
-    assert type(k.domestic.market) is type(k.market)
-    assert type(k.domestic.calendar) is type(k.calendar)
+    assert isinstance(k.domestic.market, MarketQueries)
+    assert isinstance(k.domestic.calendar, CalendarQueries)
 
 
-# --- 계좌 위임이 flat verb 와 같은 TR/경로를 때리나 ------------------------
+# --- 계좌 네임스페이스가 올바른 TR/경로를 때리나 --------------------------
 def _last_call(fn, fake):
     """fn() 을 호출하고 마지막 wire 콜을 돌려준다. 응답 파싱 실패는 무시(위임=와이어 콜만 검증)."""
     with contextlib.suppress(Exception):
@@ -94,13 +95,13 @@ def _last_call(fn, fake):
     return fake.calls[-1]
 
 
-def test_domestic_account_balance_delegates():
-    # 네임스페이스 경로와 flat 경로가 같은 (TR, path) 를 때리는지 비교.
+def test_domestic_account_balance_hits_balance_tr():
+    # 네임스페이스 경로가 국내 잔고 조회 TR/경로를 때리는지.
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="M", msg1="", body={}, tr_cont=""))
     k = _client(fake)
-    via_ns = _last_call(k.domestic.account.balance, fake)
-    via_flat = _last_call(k.balance, fake)
-    assert (via_ns["tr_id"], via_ns["path"]) == (via_flat["tr_id"], via_flat["path"])
+    call = _last_call(k.domestic.account.balance, fake)
+    assert call["tr_id"] == "TTTC8434R"
+    assert call["path"] == "/uapi/domestic-stock/v1/trading/inquire-balance"
 
 
 def test_overseas_account_present_balance_delegates():
