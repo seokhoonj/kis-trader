@@ -767,7 +767,11 @@ class KISClient:
         change_price = None if price is None else Decimal(str(price))
         builder = None
         if overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
-            builder = overseas_orders_engine.make_change_request
+            builder = (
+                overseas_orders_engine.make_daytime_change_request
+                if fingerprint.session == "daytime"
+                else overseas_orders_engine.make_change_request
+            )
         return orders_engine.submit_change(
             self._transport, self._store,
             original_client_order_id=client_order_id,
@@ -796,7 +800,11 @@ class KISClient:
                     "해외 주문엔 사전 리스크 게이트가 아직 미지원이다 -- risk 없는 세션에서 내거나 "
                     "국내 주문에만 risk 를 쓰라."
                 )
-            build_request = overseas_orders_engine.make_order_request
+            build_request = (
+                overseas_orders_engine.make_daytime_order_request
+                if order.session == "daytime"
+                else overseas_orders_engine.make_order_request
+            )
         elif order.credit_type is not None:
             # 국내 신용주문 -- 안전 코어(place)는 공유, 와이어 조립기만 신용용으로. risk 는 국내라
             # 그대로 적용된다(참조가=국내 시세).

@@ -20,6 +20,11 @@ from .errors import KISUsageError
 Side = Literal["buy", "sell"]
 OrderType = Literal["market", "limit", "stop", "stop_limit"]
 TimeInForce = Literal["day", "gtc", "ioc", "fok"]
+#: 거래 세션. ``regular`` 정규장, ``daytime`` 미국주간거래(한국 낮 시간대 미국 종목 거래). 세션이
+#: 다르면 서로 다른 주문이고 정정·취소 엔드포인트도 다르므로 지문·라우팅으로 구분한다.
+Session = Literal["regular", "daytime"]
+#: 접수된 주문에 대한 변경 동작(정정/취소).
+Action = Literal["cancel", "replace"]
 #: 국내 신용주문 유형 코드(원장 코드표). 매수/매도별로 유효 코드가 다르고(아래 상수), 신규/상환
 #: 여부로 대출일자(LOAN_DT) 요구가 갈린다.
 CreditType = Literal["21", "22", "23", "24", "25", "26", "27", "28"]
@@ -45,6 +50,7 @@ class Fingerprint(NamedTuple):
     exchange: str
     credit_type: str = ""
     loan_date: str = ""
+    session: Session = "regular"
 
 
 class WireRequest(NamedTuple):
@@ -68,6 +74,11 @@ _CREDIT_SELL_TYPES = frozenset(("22", "24", "25", "27"))   # 유통대주신규/
 #: 신규(융자/대주 개시) vs 상환. 대출일자(LOAN_DT)는 신규면 개시일(오늘), 상환이면 대상 대출일자다.
 _CREDIT_NEW_TYPES = frozenset(("21", "22", "23", "24"))    # 자기융자/유통대주/유통융자/자기대주 신규
 _CREDIT_REPAY_TYPES = frozenset(("25", "26", "27", "28"))  # 자기융자/유통대주/유통융자/자기대주 상환
+_SESSIONS = frozenset(("regular", "daytime"))
+#: 미국주간거래 가능 거래소(시세 EXCD). 주간거래는 미국(NASD/NYSE/AMEX)만·지정가만. 여기서
+#: 구성 시점 검증에 쓴다(Order 는 _overseas 를 import 못 해 목록을 직접 든다) -- _overseas/orders.py
+#: `_ORDER_EXCHANGE` 의 US 그룹(market=="US")과 동일해야 하며, 와이어 빌더가 거기서 한 번 더 확인한다.
+_DAYTIME_EXCHANGES = frozenset(("NAS", "NYS", "AMS"))
 
 _KST = timezone(timedelta(hours=9))
 
@@ -117,6 +128,7 @@ class Order:
     exchange: str = "XKRX"
     credit_type: CreditType | None = None
     loan_date: str | None = None
+    session: Session = "regular"
     client_order_id: str = field(default_factory=mint_client_order_id)
 
     def __post_init__(self) -> None:
@@ -185,6 +197,26 @@ class Order:
             elif self.loan_date is None:  # 신규 신용 -- 개시일 = 오늘(KST)
                 object.__setattr__(self, "loan_date", f"{datetime.now(_KST):%Y%m%d}")
 
+        if self.session not in _SESSIONS:
+            raise KISUsageError(f"지원하지 않는 session: {self.session!r}")
+        if self.session == "daytime":
+            # 미국주간거래는 미국(NASD/NYSE/AMEX)만·지정가만 -- 그 밖은 생성 시점에 fail-closed.
+            if self.exchange not in _DAYTIME_EXCHANGES:
+                raise KISUsageError(
+                    f"미국주간거래(session='daytime')는 미국 거래소만 지원한다 "
+                    f"({'/'.join(sorted(_DAYTIME_EXCHANGES))}): exchange={self.exchange!r}"
+                )
+            if self.order_type != "limit":
+                raise KISUsageError("미국주간거래는 지정가만 지원한다(price 를 지정하라).")
+            if self.time_in_force != "day":
+                # 주간 와이어엔 TIF 필드가 없어 조용히 day 로 나간다 -- 정규 해외주문처럼 fail-closed
+                # (그렇지 않으면 지문의 TIF 와 실제 전송이 어긋난다).
+                raise KISUsageError(
+                    f"미국주간거래는 time_in_force='day' 만 지원한다: {self.time_in_force!r}"
+                )
+            if self.credit_type is not None:
+                raise KISUsageError("미국주간거래는 신용주문과 조합할 수 없다.")
+
     @property
     def fingerprint(self) -> Fingerprint:
         """이 주문의 요청 지문 -- 같은 ``client_order_id`` 를 *다른* 주문에 재사용했는지
@@ -198,6 +230,7 @@ class Order:
             stop_price="" if self.stop_price is None else format_wire_decimal(self.stop_price),
             time_in_force=self.time_in_force, exchange=self.exchange,
             credit_type=self.credit_type or "", loan_date=self.loan_date or "",
+            session=self.session,
         )
 
     # --- 타입별 생성자(권장 진입점) ------------------------------------
@@ -207,7 +240,7 @@ class Order:
         limit_price: object | None = None, stop_price: object | None = None,
         time_in_force: TimeInForce = "day", exchange: str = "XKRX",
         credit_type: CreditType | None = None, loan_date: str | None = None,
-        client_order_id: str | None = None,
+        session: Session = "regular", client_order_id: str | None = None,
     ) -> Order:
         quantity_dec = coerce_decimal(quantity, "quantity")
         limit_dec = None if limit_price is None else coerce_decimal(limit_price, "limit_price")
@@ -219,13 +252,13 @@ class Order:
                 symbol, side, order_type, quantity_dec,
                 limit_price=limit_dec, stop_price=stop_dec,
                 time_in_force=time_in_force, exchange=exchange,
-                credit_type=credit_type, loan_date=loan_date,
+                credit_type=credit_type, loan_date=loan_date, session=session,
             )
         return cls(
             symbol, side, order_type, quantity_dec,
             limit_price=limit_dec, stop_price=stop_dec,
             time_in_force=time_in_force, exchange=exchange,
-            credit_type=credit_type, loan_date=loan_date,
+            credit_type=credit_type, loan_date=loan_date, session=session,
             client_order_id=client_order_id,
         )
 
@@ -259,10 +292,11 @@ class Order:
     @classmethod
     def limit(cls, symbol: str, *, side: Side, quantity: object, limit_price: object,
               time_in_force: TimeInForce = "day", exchange: str = "XKRX",
-              client_order_id: str | None = None) -> Order:
-        """지정가 주문."""
+              session: Session = "regular", client_order_id: str | None = None) -> Order:
+        """지정가 주문. ``session='daytime'`` 은 미국주간거래(미국 종목만)."""
         return cls._build(symbol, side, "limit", quantity, limit_price=limit_price,
-                          time_in_force=time_in_force, exchange=exchange, client_order_id=client_order_id)
+                          time_in_force=time_in_force, exchange=exchange, session=session,
+                          client_order_id=client_order_id)
 
     @classmethod
     def stop(cls, symbol: str, *, side: Side, quantity: object, stop_price: object,

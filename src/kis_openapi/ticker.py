@@ -602,6 +602,35 @@ class Ticker:
             client_order_id=client_order_id,
         )
 
+    def daytime_buy(
+        self, *, quantity: object, price: object, client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 미국 종목을 **미국주간거래**로 매수한다(한국 낮 시간대). 지정가만(``price`` 필수).
+
+        정규 해외 :meth:`buy` 와 같은 안전 엔진(이중체결 방지·재시도 금지)을 공유하되 세션이 달라
+        정정·취소는 미국주간 전용 엔드포인트로 라우팅된다(반환 리포트의 ``client_order_id`` 로 :meth:`
+        KISClient.cancel_order`/:meth:`~KISClient.replace_order`). **모의투자 미지원**, 미국(NAS/NYS/AMS)만.
+        타임아웃 시 :meth:`KISClient.reconcile` 은 주간 체결이 정규 체결내역에 없어 자동 확정하지 않고
+        None(in-flight 유지)을 준다 -- 수동 확인이 필요하다. 예외는 :meth:`buy` 와 같고(접수 거부
+        ``OrderRejectedError``·타임아웃 ``OrderTimeoutError``), 비-미국 티커·계좌 미설정은 ``KISUsageError``."""
+        return self._client._place_order(self._make_daytime_order("buy", quantity, price, client_order_id))
+
+    def daytime_sell(
+        self, *, quantity: object, price: object, client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 미국 종목을 미국주간거래로 매도한다(계약은 :meth:`daytime_buy` 와 동일, 방향만 매도)."""
+        return self._client._place_order(self._make_daytime_order("sell", quantity, price, client_order_id))
+
+    def _make_daytime_order(
+        self, side: Side, quantity: object, price: object, client_order_id: str | None,
+    ) -> Order:
+        if self.exchange is None:
+            raise KISUsageError(
+                "미국주간거래는 해외(미국) 종목만 지원한다 -- kis.ticker(symbol, exchange='NAS') 로 지정하라."
+            )
+        return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
+                           exchange=self.exchange, session="daytime", client_order_id=client_order_id)
+
     def _make_order(
         self, side: Side, quantity: object, price: object | None,
         time_in_force: TimeInForce, client_order_id: str | None,

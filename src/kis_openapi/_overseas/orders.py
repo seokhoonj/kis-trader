@@ -20,7 +20,15 @@ from typing import Any
 from .._domestic.market_data import _KST
 from .._wire import format_wire_decimal
 from ..errors import KISError, KISUsageError, OrderTimeoutError
-from ..order import Fingerprint, Order, OrderType, Side, TimeInForce, WireRequest
+from ..order import (
+    Action,
+    Fingerprint,
+    Order,
+    OrderType,
+    Side,
+    TimeInForce,
+    WireRequest,
+)
 from ..report import ExecutionReport, OrderStatus
 from ..store import OrderStore
 from ..transport import Environment, Transport, TransportTimeout
@@ -131,9 +139,86 @@ def make_order_request(
     )
 
 
+#: 미국주간거래(daytime) 엔드포인트/TR (모의 미지원). 매수 TTTS6036U / 매도 TTTS6037U,
+#: 정정취소 TTTS6038U. 미국(NASD/NYSE/AMEX)만·지정가만.
+_DAYTIME_ORDER_PATH = "/uapi/overseas-stock/v1/trading/daytime-order"
+_DAYTIME_ORDER_TR = {"buy": "TTTS6036U", "sell": "TTTS6037U"}
+_DAYTIME_CHANGE_PATH = "/uapi/overseas-stock/v1/trading/daytime-order-rvsecncl"
+_DAYTIME_CHANGE_TR = "TTTS6038U"
+#: 미국주간거래 가능 시장 그룹(위 _ORDER_EXCHANGE 의 market 값). 미국만.
+_DAYTIME_MARKET = "US"
+
+
+def make_daytime_order_request(
+    order: Order, cano: str, product_code: str, environment: Environment
+) -> WireRequest:
+    """안전 코어(place)에 넘길 **미국주간거래** 주문 빌더 -- 정규 해외주문과 같은 즉시체결·ODNO
+    응답이라 dedup/무재시도/reconcile 안전 코어를 공유한다. **모의투자 미지원**, 미국(NASD/NYSE/
+    AMEX)·지정가만(주문 정체성의 세션 구분은 :class:`Order` 가 생성 시점에 검증)."""
+    if environment == "demo":
+        raise KISUsageError("미국주간거래 주문(daytime-order)은 모의투자 미지원 -- 실전에서만.")
+    if order.limit_price is None or order.order_type != "limit":
+        raise KISUsageError("미국주간거래는 지정가만 지원한다 -- price 를 지정하라.")
+    if order.quantity != order.quantity.to_integral_value():
+        raise KISUsageError(f"주문 수량은 정수여야 한다(주 단위): {order.quantity}")
+    try:
+        order_exchange, market = _ORDER_EXCHANGE[order.exchange]
+    except KeyError:
+        raise KISUsageError(
+            f"미국주간거래를 지원하지 않는 거래소코드: {order.exchange!r}."
+        ) from None
+    if market != _DAYTIME_MARKET:
+        raise KISUsageError(f"미국주간거래는 미국 거래소만 지원한다: {order.exchange!r}.")
+    body = {
+        "CANO": cano,
+        "ACNT_PRDT_CD": product_code,
+        "OVRS_EXCG_CD": order_exchange,
+        "PDNO": order.symbol,
+        "ORD_QTY": format_wire_decimal(order.quantity),
+        "OVRS_ORD_UNPR": format_wire_decimal(order.limit_price),
+        "CTAC_TLNO": "",
+        "MGCO_APTM_ODNO": "",
+        "ORD_SVR_DVSN_CD": "0",
+        "ORD_DVSN": _ORD_DVSN_LIMIT,
+    }
+    return WireRequest("POST", _DAYTIME_ORDER_PATH, _DAYTIME_ORDER_TR[order.side], body)
+
+
+def make_daytime_change_request(
+    *, original_report: ExecutionReport, original_fingerprint: Fingerprint,
+    action: Action, quantity: Decimal, price: Decimal | None,
+    cano: str, product_code: str, environment: Environment,
+) -> WireRequest:
+    """미국주간거래 정정·취소 요청 와이어(daytime-order-rvsecncl TTTS6038U). **모의투자 미지원**."""
+    if environment == "demo":
+        raise KISUsageError("미국주간거래 정정·취소는 모의투자 미지원 -- 실전에서만.")
+    try:
+        order_exchange, market = _ORDER_EXCHANGE[original_fingerprint.exchange]
+    except KeyError:
+        raise KISUsageError(
+            f"미국주간거래 정정·취소를 지원하지 않는 거래소코드: {original_fingerprint.exchange!r}."
+        ) from None
+    if market != _DAYTIME_MARKET:
+        raise KISUsageError("미국주간거래 정정·취소는 미국 거래소만 지원한다.")
+    body = {
+        "CANO": cano,
+        "ACNT_PRDT_CD": product_code,
+        "OVRS_EXCG_CD": order_exchange,
+        "PDNO": original_report.symbol,
+        "ORGN_ODNO": str(original_report.order_id),
+        "RVSE_CNCL_DVSN_CD": "02" if action == "cancel" else "01",
+        "ORD_QTY": format_wire_decimal(quantity),
+        "OVRS_ORD_UNPR": "0" if price is None else format_wire_decimal(price),
+        "CTAC_TLNO": "",
+        "MGCO_APTM_ODNO": "",
+        "ORD_SVR_DVSN_CD": "0",
+    }
+    return WireRequest("POST", _DAYTIME_CHANGE_PATH, _DAYTIME_CHANGE_TR, body)
+
+
 def make_change_request(
     *, original_report: ExecutionReport, original_fingerprint: Fingerprint,
-    action: str, quantity: Decimal, price: Decimal | None,
+    action: Action, quantity: Decimal, price: Decimal | None,
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
     """해외주식 정정·취소 요청을 공식 단일 TR 와이어로 조립한다."""
@@ -189,6 +274,11 @@ def reconcile(
         raise KISUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
         )
+    if fingerprint.session == "daytime":
+        # 미국주간거래 체결은 정규 체결내역(inquire-ccnl)에 담기지 않으므로, 여기서 단일 매칭되는 행은
+        # 반드시 '정규 세션' 주문이다 -> 주간 주문을 그 행으로 확정하면 오확정이다. 자동 확정하지 않고
+        # in-flight 를 유지한다(주간거래 전용 체결조회 미구현 -- 수동 확인 필요).
+        return None
     try:
         rows = _fetch_ccnl(
             transport, symbol=fingerprint.symbol, exchange=fingerprint.exchange,
