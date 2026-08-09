@@ -25,7 +25,7 @@ from ..errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from ..order import Fingerprint, Side, coerce_decimal
+from ..order import Fingerprint, Side, coerce_decimal, validate_yyyymmdd
 from ..overseas_items import OverseasReservedOrder
 from ..report import ExecutionReport, OrderStatus
 from ..store import ClaimOutcome, OrderStore
@@ -38,6 +38,8 @@ _LIST_PATH = "/uapi/overseas-stock/v1/trading/order-resv-list"
 _LIST_TR = "TTTT3039R"             # 미국, 모의투자 미지원
 _PLACE_PATH = "/uapi/overseas-stock/v1/trading/order-resv"
 _PLACE_TR = {"buy": "TTTT3014U", "sell": "TTTT3016U"}  # 미국, 모의투자 미지원
+_CANCEL_PATH = "/uapi/overseas-stock/v1/trading/order-resv-ccnl"
+_CANCEL_TR = "TTTT3017U"           # 미국 예약취소, 모의투자 미지원
 #: 연속조회 페이지 상한. 닿으면 fail-closed.
 _MAX_PAGES = 100
 _SIDE = {"01": "sell", "02": "buy"}
@@ -245,6 +247,59 @@ def reconcile_overseas_reserved_order(
     return report
 
 
+# --- 미국 해외예약 취소 (뮤테이션) ----------------------------------------
+def cancel_overseas_reserved_order(
+    transport: Transport, *, reserved_order_id: str, receipt_date: str,
+    cano: str, product_code: str, environment: Environment,
+) -> None:
+    """미국 해외예약주문을 취소한다 -- ``reserved_order_id`` 는 발주가 돌려준 예약주문번호(:attr:`
+    ExecutionReport.order_id`), ``receipt_date``(YYYYMMDD)는 그 예약의 접수일자(예약주문조회의
+    ``receipt_date``, 방금 발주분은 발주일). rt_cd 정상이면 조용히 반환(취소 응답엔 리포트로 만들
+    값이 없다), 아니면 예외.
+
+    ``receipt_date`` 는 원장상 **필수**다(해외 취소는 접수일자로 대상을 특정) -- 국내 ``order_date`` 가
+    optional 인 것과 다르다. 취소는 예약번호 대상의 멱등 연산(이미 취소/처리면 브로커가 거부)이라 즉시
+    주문 dedup 스토어를 거치지 않되, 타임아웃(처리 불명)엔 재전송하지 않는다. **모의투자 미지원**. 실패는
+    :class:`KISUsageError`(demo/빈 값/잘못된 날짜)·:class:`OrderRejectedError`(rt_cd!=0)·:class:`OrderTimeoutError`
+    (타임아웃)·:class:`KISError`(정상 응답인데 취소 확인번호 부재/불일치)."""
+    if environment == "demo":
+        raise KISUsageError("해외 예약주문 취소(order-resv-ccnl)는 모의투자 미지원 -- 실전에서만.")
+    if not str(reserved_order_id).strip():
+        raise KISUsageError("취소할 해외예약주문번호(reserved_order_id)가 필요하다.")
+    if not str(receipt_date).strip():
+        raise KISUsageError("취소에는 예약 접수일자(receipt_date, YYYYMMDD)가 필요하다.")
+    validate_yyyymmdd(receipt_date, "receipt_date")
+    body = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "RSVN_ORD_RCIT_DT": receipt_date,
+        "OVRS_RSVN_ODNO": str(reserved_order_id).strip(),
+    }
+    try:
+        resp = transport.request(
+            method="POST", path=_CANCEL_PATH, tr_id=_CANCEL_TR, body=body, idempotent=False
+        )
+    except TransportTimeout as err:
+        raise OrderTimeoutError(
+            f"해외 예약주문 취소 요청 시간초과 -- 처리 여부가 불명이다. 재전송하지 말고 "
+            f"예약주문조회로 상태를 확인하라(예약번호 {reserved_order_id}).",
+            client_order_id=str(reserved_order_id),   # 이 흐름엔 client_order_id 가 없어 예약번호를 넣는다
+        ) from err
+    if not resp.ok:
+        raise OrderRejectedError(
+            f"해외 예약주문 취소 요청 거부: {resp.msg1}",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    # 취소 응답의 유일한 업무 필드는 에코된 OVRS_RSVN_ODNO -- rt_cd=0 이어도 이 번호가 요청과 다르거나
+    # 비어 있으면 실제 취소가 안 된 것으로 보고 fail-closed(국내의 nrml_prcs_yn 확인에 대응).
+    echoed = _extract_ovrs_rsvn_odno(resp.body)
+    if echoed != str(reserved_order_id).strip():
+        raise KISError(
+            f"해외 예약주문 취소 응답의 확인번호가 요청과 일치하지 않는다(응답 {echoed!r} != 요청 "
+            f"{str(reserved_order_id).strip()!r}) -- 예약주문조회로 상태를 확인하라.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+
+
 def _filter_matching(
     rows: list[Mapping[str, Any]], fingerprint: Fingerprint, today: date
 ) -> list[Mapping[str, Any]]:
@@ -305,6 +360,16 @@ def _extract_reserved_id(body: Mapping[str, Any]) -> str:
         out = out[0]
     if isinstance(out, Mapping):
         return str(out.get("ODNO") or "").strip()
+    return ""
+
+
+def _extract_ovrs_rsvn_odno(body: Mapping[str, Any]) -> str:
+    """취소 응답의 에코된 해외예약주문번호(output.OVRS_RSVN_ODNO). 부재/비객체면 빈 문자열."""
+    out = body.get("output")
+    if isinstance(out, list):
+        out = out[0] if out else {}
+    if isinstance(out, Mapping):
+        return str(out.get("OVRS_RSVN_ODNO") or "").strip()
     return ""
 
 

@@ -671,6 +671,17 @@ class KISClient:
             self._transport, cano=cano, product_code=product_code, environment=self._environment
         )
 
+    def cancel_overseas_reserved_order(self, reserved_order_id: str, *, receipt_date: str) -> None:
+        """미국 해외예약주문을 취소한다 -- ``reserved_order_id`` 는 :meth:`~kis_openapi.ticker.Ticker.reserve_buy`
+        가 돌려준 리포트의 ``order_id``(해외예약주문번호), ``receipt_date``(YYYYMMDD)는 그 예약의 접수일자
+        (:meth:`overseas_reserved_orders` 의 ``receipt_date``, 방금 발주분은 발주일). 정상 처리면 조용히
+        반환, 아니면 예외. **모의투자 미지원**(계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        overseas_reserved_orders_api.cancel_overseas_reserved_order(
+            self._transport, reserved_order_id=reserved_order_id, receipt_date=receipt_date,
+            cano=cano, product_code=product_code, environment=self._environment,
+        )
+
     def overseas_reserved_orders(self, *, start: str, end: str) -> list[OverseasReservedOrder]:
         """미국 해외주식 예약주문 목록(정규장 시작 전 예약). ``start``/``end`` 는 기간(YYYYMMDD).
         각 건의 ``reserved_order_id``(해외예약주문번호)로 취소한다. 아시아(일/중/홍/베) 예약은 별
