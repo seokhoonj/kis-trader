@@ -86,6 +86,10 @@ class RequestsTransport:
         self._sleep = sleep
         self._max_attempts = max_attempts
 
+    def revoke_token(self) -> None:
+        """현재 접근 토큰을 폐기한다(``/oauth2/revokeP``). 토큰 매니저에 위임."""
+        self._token_manager.revoke()
+
     def request(
         self,
         *,

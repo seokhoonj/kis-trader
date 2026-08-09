@@ -126,3 +126,37 @@ def test_auth_failures_raise(
 
     with pytest.raises(KISAuthError):
         token_manager.access_token()
+
+
+def test_revoke_posts_revokep_and_clears(tmp_path: Path) -> None:
+    poster = FakePoster()
+    clock = [1_000.0]
+    token_manager = manager(tmp_path, poster, clock)
+    token = token_manager.access_token()          # 발급 + 캐시
+    assert Path(token_manager._cache_path).exists()
+    token_manager.revoke()
+    # revokeP 로 폐기 요청(appkey/appsecret/token)
+    url, body = poster.calls[-1]
+    assert url.endswith("/oauth2/revokeP")
+    assert body == {"appkey": "test-app-key", "appsecret": "test-app-secret", "token": token}
+    assert not Path(token_manager._cache_path).exists()   # 캐시 삭제
+    # 폐기 후 다음 호출은 재발급
+    before = len(poster.calls)
+    token_manager.access_token()
+    assert len(poster.calls) == before + 1
+
+
+def test_revoke_without_token_is_noop(tmp_path: Path) -> None:
+    poster = FakePoster()
+    token_manager = manager(tmp_path, poster, [1_000.0])
+    token_manager.revoke()                         # 발급한 적 없음 -> 조용히 반환
+    assert poster.calls == []
+
+
+def test_revoke_failure_raises(tmp_path: Path) -> None:
+    poster = FakePoster()
+    token_manager = manager(tmp_path, poster, [1_000.0])
+    token_manager.access_token()
+    poster.status = 500                            # 폐기 요청 실패
+    with pytest.raises(KISAuthError):
+        token_manager.revoke()

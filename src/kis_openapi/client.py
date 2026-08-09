@@ -873,6 +873,18 @@ class KISClient:
             cano=cano, product_code=product_code, environment=self._environment,
         )
 
+    def revoke_token(self) -> None:
+        """현재 접근 토큰을 KIS ``/oauth2/revokeP`` 로 폐기한다. 이후 첫 요청 때 새 토큰이 재발급된다.
+
+        실 HTTP transport 를 쓰는 세션에서만 유효하다(주입한 커스텀 transport 가 지원하지 않으면
+        :class:`~kis_openapi.errors.KISUsageError`)."""
+        revoke = getattr(self._transport, "revoke_token", None)
+        if not callable(revoke):
+            raise KISUsageError(
+                "이 transport 는 토큰 폐기를 지원하지 않는다(실 HTTP 세션에서만 가능)."
+            )
+        revoke()
+
     def _require_account(self) -> tuple[str, str]:
         """계좌 식별정보를 돌려주거나, 없으면 :class:`KISUsageError`."""
         if self._cano is None or self._product_code is None:

@@ -102,6 +102,13 @@ class TokenManager:
         os.chmod(tmp, 0o600)
         os.replace(tmp, path)
 
+    def _clear_cache(self) -> None:
+        """디스크 토큰 캐시 파일을 지운다(폐기 후 재사용 방지). 없으면 무시."""
+        try:
+            os.remove(self._cache_path)
+        except FileNotFoundError:
+            pass
+
     def _issue(self, now: float) -> tuple[str, float]:
         body = {
             "grant_type": "client_credentials",
@@ -145,3 +152,24 @@ class TokenManager:
             self._token = token
             self._expires_at = expires_at
             return token
+
+    def revoke(self) -> None:
+        """현재 접근 토큰을 KIS ``/oauth2/revokeP`` 로 폐기하고 메모리·디스크 캐시를 비운다.
+
+        유효한 토큰이 없으면(발급한 적 없거나 이미 만료) 조용히 반환한다. 폐기 요청 실패는
+        :class:`KISAuthError`. 폐기 후 다음 :meth:`access_token` 호출은 새 토큰을 재발급한다.
+        """
+        with self._lock:
+            now = self._clock()
+            token = self._token if self._valid(self._token, self._expires_at, now) else None
+            if token is None:
+                cached = self._read_cache(now)
+                token = cached[0] if cached is not None else None
+            self._token, self._expires_at = None, None
+            self._clear_cache()
+            if token is None:
+                return
+            body = {"appkey": self._app_key, "appsecret": self._app_secret, "token": token}
+            status, _payload = self._post(base_url(self._environment) + "/oauth2/revokeP", body)
+            if status != 200:
+                raise KISAuthError("KIS OAuth 접근 토큰 폐기에 실패했다.")
