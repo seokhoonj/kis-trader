@@ -91,6 +91,37 @@ class OverseasOpenOrder:
 
 
 @dataclass(frozen=True, slots=True)
+class OverseasReservedOrder:
+    """미국 해외주식 예약주문 한 건(불변). 정규장 시작 전에 걸어둔 예약으로, ``reserved_order_id``
+    (해외예약주문번호)로 식별한다. 집행되면 ``executed_order_id``(주문번호)가 채워진다.
+
+    ``status`` 예약 상태(예: "접수"), ``canceled`` 취소 여부, ``filled_quantity`` 체결수량,
+    ``unprocessed_reason`` 미처리 사유. 가격/수량은 Decimal(미국이라 통화는 USD).
+    """
+
+    reserved_order_id: str            # 해외예약주문번호(ovrs_rsvn_odno)
+    receipt_date: date | None         # 예약주문접수일자(rsvn_ord_rcit_dt)
+    order_date: date | None           # 주문일자(ord_dt) -- 집행 전이면 None
+    executed_order_id: str            # 집행 주문번호(odno), 미집행이면 ""
+    symbol: str
+    name: str
+    side: str                         # buy / sell
+    status: str                       # 해외예약주문상태명(ovrs_rsvn_ord_stat_cd_name)
+    exchange: str                     # 해외거래소코드(ovrs_excg_cd)
+    quantity: Decimal                 # 주문수량(ft_ord_qty)
+    price: Decimal                    # 주문단가(ft_ord_unpr3)
+    filled_quantity: Decimal          # 체결수량(ft_ccld_qty)
+    canceled: bool                    # 취소여부(cncl_yn)
+    unprocessed_reason: str           # 미처리사유(nprc_rson_text)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
 class OverseasForeignMargin:
     """통화별 해외증거금 한 건(불변). 계좌의 통화별 외화 예수금·증거금·주문가능금액을 한 줄로.
     금액은 그 통화의 :class:`Money`.

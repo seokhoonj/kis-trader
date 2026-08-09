@@ -34,6 +34,7 @@ from ._overseas import derivatives as overseas_derivatives_api
 from ._overseas import market_data as overseas_market_data_api
 from ._overseas import orders as overseas_orders_engine
 from ._overseas import reference as overseas_reference_api
+from ._overseas import reserved_orders as overseas_reserved_orders_api
 from .account_right import AccountRight
 from .balance import AccountAssets, Balance, Portfolio, Position
 from .bond import Bond
@@ -68,6 +69,7 @@ from .overseas_items import (
     OverseasNewsHeadline,
     OverseasOpenOrder,
     OverseasPosition,
+    OverseasReservedOrder,
     OverseasRight,
     OverseasSettlementDate,
     OverseasStockSearch,
@@ -667,6 +669,16 @@ class KISClient:
         cano, product_code = self._require_account()
         return overseas_account.fetch_foreign_margin(
             self._transport, cano=cano, product_code=product_code, environment=self._environment
+        )
+
+    def overseas_reserved_orders(self, *, start: str, end: str) -> list[OverseasReservedOrder]:
+        """미국 해외주식 예약주문 목록(정규장 시작 전 예약). ``start``/``end`` 는 기간(YYYYMMDD).
+        각 건의 ``reserved_order_id``(해외예약주문번호)로 취소한다. 아시아(일/중/홍/베) 예약은 별
+        프로토콜이라 미지원. **모의투자 미지원**(계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return overseas_reserved_orders_api.fetch_reserved_orders(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment,
+            start=start, end=end,
         )
 
     def overseas_transactions(
