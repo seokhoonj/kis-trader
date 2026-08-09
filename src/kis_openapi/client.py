@@ -35,6 +35,7 @@ from ._overseas import market_data as overseas_market_data_api
 from ._overseas import orders as overseas_orders_engine
 from ._overseas import reference as overseas_reference_api
 from ._overseas import reserved_orders as overseas_reserved_orders_api
+from .account_reports import IntegratedMargin, RealizedProfitBalance
 from .account_right import AccountRight
 from .balance import AccountAssets, Balance, Portfolio, Position
 from .bond import Bond
@@ -582,6 +583,29 @@ class KISClient:
         cano, product_code = self._require_account()
         return account_api.fetch_account_assets(
             self._transport, cano=cano, product_code=product_code, environment=self._environment
+        )
+
+    def realized_profit_balance(self) -> RealizedProfitBalance:
+        """실현손익 포함 국내 체결기준잔고(HTS [0800]) -- 보유 종목과 계좌 요약(실현손익 포함)을
+        한 스냅샷으로. **모의투자 미지원**(계좌 정보 필요).
+
+        .. note:: 요약 필드는 원장 응답예시로 확증되지 않았다(레이아웃 기준). 전체 원본은 ``_raw``."""
+        cano, product_code = self._require_account()
+        return account_api.fetch_realized_profit_balance(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment
+        )
+
+    def integrated_margin(
+        self, *, include_cma: bool = False, won_basis: bool = True
+    ) -> IntegratedMargin:
+        """주식통합증거금 현황 -- 원화와 외화(USD/HKD/JPY/CNY)를 하나로 본 주문가능금액. ``include_cma``
+        CMA평가금액 포함, ``won_basis`` 원화(True)/외화(False) 기준. **모의투자 미지원**(계좌 정보 필요).
+
+        .. note:: 필드가 방대해 headline 만 타입화했다. 통화별 세부는 반환값 ``_raw`` 참조."""
+        cano, product_code = self._require_account()
+        return account_api.fetch_integrated_margin(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment,
+            include_cma=include_cma, won_basis=won_basis,
         )
 
     def reserved_orders(

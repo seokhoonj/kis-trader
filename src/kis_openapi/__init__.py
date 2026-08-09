@@ -11,6 +11,11 @@ Securities (KIS) Open API.
 from __future__ import annotations
 
 from ._masters import MasterIndex, MasterRecord
+from .account_reports import (
+    IntegratedMargin,
+    RealizedProfitBalance,
+    RealizedProfitPosition,
+)
 from .account_right import AccountRight
 from .after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
 from .analysis import (
@@ -298,6 +303,7 @@ __all__ = [
     "IndexDailyPoint",
     "IndexIntradayPoint",
     "IndexQuote",
+    "IntegratedMargin",
     "InterestRateQuote",
     "Interval",
     "IntradayExecutionPoint",
@@ -382,6 +388,8 @@ __all__ = [
     "RankedOverseasStock",
     "RankedStock",
     "RankingQueries",
+    "RealizedProfitBalance",
+    "RealizedProfitPosition",
     "RecentPricePoint",
     "ReservedOrder",
     "RightsOffering",

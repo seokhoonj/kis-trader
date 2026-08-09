@@ -18,6 +18,11 @@ from decimal import Decimal
 from typing import Any
 
 from .._wire import format_wire_decimal, optional_decimal, required_decimal
+from ..account_reports import (
+    IntegratedMargin,
+    RealizedProfitBalance,
+    RealizedProfitPosition,
+)
 from ..account_right import AccountRight
 from ..balance import AccountAssets, Balance, Portfolio, Position
 from ..errors import KISError, KISUsageError
@@ -65,6 +70,14 @@ _CREDIT_TYPES = frozenset({"21", "22", "23", "24", "25", "26", "27", "28"})
 
 _OPEN_ORDERS_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-rvsecncl"
 _OPEN_ORDERS_TR = "TTTC0084R"  # 정정취소가능주문조회, 모의투자 미지원
+
+_REALIZED_BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance-rlz-pl"
+_REALIZED_BALANCE_TR = "TTTC8494R"  # 주식잔고조회_실현손익, 모의투자 미지원
+#: 실현손익 잔고 종목배열 연속조회 페이지 상한. 닿으면 fail-closed.
+_MAX_REALIZED_PAGES = 100
+
+_INTEGRATED_MARGIN_PATH = "/uapi/domestic-stock/v1/trading/intgr-margin"
+_INTEGRATED_MARGIN_TR = "TTTC0869R"  # 주식통합증거금 현황, 모의투자 미지원
 #: 미체결 주문 연속조회 페이지 상한(한 콜 최대 50건). 닿으면 fail-closed.
 _MAX_OPEN_ORDER_PAGES = 100
 _SIDE = {"01": "sell", "02": "buy"}
@@ -560,6 +573,152 @@ def _parse_account_right(row: Mapping[str, Any]) -> AccountRight:
         tax_amount=_decimal_or_zero(row.get("tax_amt"), "tax_amt"),
         _raw=row,
     )
+
+
+# --- 실현손익 잔고 (TTTC8494R) --------------------------------------------
+def fetch_realized_profit_balance(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment
+) -> RealizedProfitBalance:
+    """실현손익 포함 국내 체결기준잔고. 보유 종목(output1)과 계좌 요약(output2, 실현손익 포함)을
+    :class:`RealizedProfitBalance` 로. **모의투자 미지원**.
+
+    .. note:: output2 요약 필드는 원장 응답예시로 확증되지 않았다(레이아웃 기준) -- 실제 응답과 다를
+       수 있어 전체 원본을 결과의 ``_raw`` 로 함께 노출한다.
+    """
+    if environment == "demo":
+        raise KISUsageError(
+            "주식잔고조회_실현손익(inquire-balance-rlz-pl)은 모의투자 미지원 -- 실전에서만."
+        )
+    rows: list[Mapping[str, Any]] = []
+    summary: Mapping[str, Any] = {}
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_REALIZED_PAGES):
+        params = {
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "AFHR_FLPR_YN": "N", "OFL_YN": "", "INQR_DVSN": "00", "UNPR_DVSN": "01",
+            "FUND_STTL_ICLD_YN": "N", "FNCG_AMT_AUTO_RDPT_YN": "N", "PRCS_DVSN": "00",
+            "COST_ICLD_YN": "", "CTX_AREA_FK100": ctx_fk, "CTX_AREA_NK100": ctx_nk,
+        }
+        resp = transport.request(
+            method="GET", path=_REALIZED_BALANCE_PATH, tr_id=_REALIZED_BALANCE_TR,
+            params=params, idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        page = resp.body.get("output1")
+        if not isinstance(page, list):
+            raise KISError(
+                "실현손익 잔고 응답의 output1 이 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        summary = _first_summary(resp.body.get("output2")) or summary
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError("실현손익 잔고가 페이지 상한에 도달했으나 연속조회가 남아있다.")
+    positions = tuple(
+        RealizedProfitPosition(
+            symbol=str(row.get("pdno", "")).strip(),
+            name=str(row.get("prdt_name", "")).strip(),
+            trade_type=str(row.get("trad_dvsn_name", "")).strip(),
+            holding_quantity=_decimal_or_zero(row.get("hldg_qty"), "hldg_qty"),
+            orderable_quantity=_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
+            average_purchase_price=_decimal_or_zero(row.get("pchs_avg_pric"), "pchs_avg_pric"),
+            purchase_amount=_decimal_or_zero(row.get("pchs_amt"), "pchs_amt"),
+            current_price=_decimal_or_zero(row.get("prpr"), "prpr"),
+            market_value=_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
+            unrealized_pnl=_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
+            unrealized_pnl_rate=_decimal_or_zero(row.get("evlu_pfls_rt"), "evlu_pfls_rt"),
+            loan_date=_parse_date(row.get("loan_dt")),
+            loan_amount=_decimal_or_zero(row.get("loan_amt"), "loan_amt"),
+            expiry_date=_parse_date(row.get("expd_dt")),
+            _raw=row,
+        )
+        for row in rows if str(row.get("pdno", "")).strip()
+    )
+    return RealizedProfitBalance(
+        positions=positions,
+        deposit_total=_decimal_or_zero(summary.get("dnca_tot_amt"), "dnca_tot_amt"),
+        net_asset=_decimal_or_zero(summary.get("nass_amt"), "nass_amt"),
+        total_value=_decimal_or_zero(summary.get("tot_evlu_amt"), "tot_evlu_amt"),
+        purchase_total=_decimal_or_zero(summary.get("pchs_amt_smtl_amt"), "pchs_amt_smtl_amt"),
+        evaluation_total=_decimal_or_zero(summary.get("evlu_amt_smtl_amt"), "evlu_amt_smtl_amt"),
+        evaluation_pnl_total=_decimal_or_zero(summary.get("evlu_pfls_smtl_amt"), "evlu_pfls_smtl_amt"),
+        asset_change=_decimal_or_zero(summary.get("asst_icdc_amt"), "asst_icdc_amt"),
+        asset_change_rate=_decimal_or_zero(summary.get("asst_icdc_erng_rt"), "asst_icdc_erng_rt"),
+        realized_pnl=_decimal_or_zero(summary.get("rlzt_pfls"), "rlzt_pfls"),
+        realized_return_rate=_decimal_or_zero(summary.get("rlzt_erng_rt"), "rlzt_erng_rt"),
+        real_eval_pnl=_decimal_or_zero(summary.get("real_evlu_pfls"), "real_evlu_pfls"),
+        real_eval_return_rate=_decimal_or_zero(
+            summary.get("real_evlu_pfls_erng_rt"), "real_evlu_pfls_erng_rt"
+        ),
+        _raw=summary,
+    )
+
+
+# --- 통합증거금 현황 (TTTC0869R) ------------------------------------------
+def fetch_integrated_margin(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    include_cma: bool = False, won_basis: bool = True,
+) -> IntegratedMargin:
+    """주식통합증거금 현황(원화+외화 통합 주문가능금액). headline 만 타입화하고 전체(레이아웃
+    100여 필드)는 ``_raw``. **모의투자 미지원**.
+
+    ``include_cma`` CMA평가금액 포함 여부, ``won_basis`` 원화(True)/외화(False) 기준 표시.
+
+    .. note:: 필드가 방대하고 원장 예시에만 있는 (레이아웃 미기재) 홍콩위안화 재사용 필드가 있어,
+       핵심 외 필드는 ``_raw`` 로만 노출한다.
+    """
+    if environment == "demo":
+        raise KISUsageError(
+            "주식통합증거금 현황(intgr-margin)은 모의투자 미지원 -- 실전에서만."
+        )
+    basis = "02" if won_basis else "01"
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "CMA_EVLU_AMT_ICLD_YN": "Y" if include_cma else "N",
+        "WCRC_FRCR_DVSN_CD": basis, "FWEX_CTRT_FRCR_DVSN_CD": basis,
+    }
+    resp = transport.request(
+        method="GET", path=_INTEGRATED_MARGIN_PATH, tr_id=_INTEGRATED_MARGIN_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise KISError(
+            "통합증거금 현황 응답의 output 이 객체가 아니다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    return IntegratedMargin(
+        account_margin_rate=_decimal_or_zero(output.get("acmga_rt"), "acmga_rt"),
+        cash_orderable=_decimal_or_zero(output.get("stck_cash_ord_psbl_amt"), "stck_cash_ord_psbl_amt"),
+        substitute_orderable=_decimal_or_zero(output.get("stck_sbst_ord_psbl_amt"), "stck_sbst_ord_psbl_amt"),
+        receivable=_decimal_or_zero(output.get("rcvb_amt"), "rcvb_amt"),
+        limit_amount=_decimal_or_zero(output.get("lmt_amt"), "lmt_amt"),
+        integrated_margin_type=str(output.get("ovrs_stck_itgr_mgna_dvsn_name", "")).strip(),
+        usd_orderable=_decimal_or_zero(output.get("usd_itgr_ord_psbl_amt"), "usd_itgr_ord_psbl_amt"),
+        hkd_orderable=_decimal_or_zero(output.get("hkd_itgr_ord_psbl_amt"), "hkd_itgr_ord_psbl_amt"),
+        jpy_orderable=_decimal_or_zero(output.get("jpy_itgr_ord_psbl_amt"), "jpy_itgr_ord_psbl_amt"),
+        cny_orderable=_decimal_or_zero(output.get("cny_itgr_ord_psbl_amt"), "cny_itgr_ord_psbl_amt"),
+        usd_exchange_rate=_decimal_or_zero(output.get("usd_frst_bltn_exrt"), "usd_frst_bltn_exrt"),
+        hkd_exchange_rate=_decimal_or_zero(output.get("hkd_frst_bltn_exrt"), "hkd_frst_bltn_exrt"),
+        jpy_exchange_rate=_decimal_or_zero(output.get("jpy_frst_bltn_exrt"), "jpy_frst_bltn_exrt"),
+        cny_exchange_rate=_decimal_or_zero(output.get("cny_frst_bltn_exrt"), "cny_frst_bltn_exrt"),
+        _raw=output,
+    )
+
+
+def _first_summary(block: object) -> Mapping[str, Any] | None:
+    """output2 가 객체배열이면 첫 원소를, 객체면 그대로. 비면 None."""
+    if isinstance(block, Mapping):
+        return block
+    if isinstance(block, list) and block and isinstance(block[0], Mapping):
+        return block[0]
+    return None
 
 
 def _parse_date(value: object) -> date | None:
