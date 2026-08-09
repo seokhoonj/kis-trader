@@ -71,9 +71,12 @@ from .overseas_items import (
     OverseasIndustryStock,
     OverseasNewsHeadline,
     OverseasOpenOrder,
+    OverseasPeriodProfit,
     OverseasPosition,
+    OverseasPresentBalance,
     OverseasReservedOrder,
     OverseasRight,
+    OverseasSettlementBalance,
     OverseasSettlementDate,
     OverseasStockSearch,
     OverseasTransaction,
@@ -726,6 +729,49 @@ class KISClient:
         return overseas_account.fetch_algo_executions(
             self._transport, cano=cano, product_code=product_code, environment=self._environment,
             order_date=order_date, order_id=order_id, branch_number=branch_number,
+        )
+
+    def overseas_present_balance(
+        self, *, won_basis: bool = True, nation: str = "all",
+        market_code: str = "00", inquiry: str = "00",
+    ) -> OverseasPresentBalance:
+        """해외주식 체결기준현재잔고 -- 보유 종목·통화별 예수금·계좌 요약. ``won_basis`` 원화(True)/외화
+        (False), ``nation`` 국가(``"all"``/``"US"``/``"HK"``/``"CN"``/``"JP"``/``"VN"``), ``market_code``
+        거래시장코드(``"00"``=전체), ``inquiry`` 조회구분(``"00"`` 전체). 모의는 요약만 온다(계좌 정보 필요).
+
+        .. note:: 요약 필드는 원장 예시가 잘려 레이아웃 기준이다 -- 전체 원본은 반환값 ``_raw``."""
+        cano, product_code = self._require_account()
+        return overseas_account.fetch_present_balance(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment,
+            won_basis=won_basis, nation=nation, market_code=market_code, inquiry=inquiry,
+        )
+
+    def overseas_settlement_balance(
+        self, *, basis_date: str, won_basis: bool = True, inquiry: str = "00"
+    ) -> OverseasSettlementBalance:
+        """해외주식 결제기준잔고 -- ``basis_date``(YYYYMMDD) 결제 기준의 보유 종목·통화별 예수금·계좌
+        요약. ``won_basis`` 원화(True)/외화(False), ``inquiry`` 조회구분(``"00"`` 전체). **모의투자
+        미지원**(계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return overseas_account.fetch_settlement_balance(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment,
+            basis_date=basis_date, won_basis=won_basis, inquiry=inquiry,
+        )
+
+    def overseas_period_profit(
+        self, *, start: str, end: str, exchange: str = "", nation: str = "",
+        currency: str = "", symbol: str = "", won_basis: bool = False,
+    ) -> OverseasPeriodProfit:
+        """해외주식 기간손익 -- ``start``~``end``(YYYYMMDD) 매도청산 종목별 실현손익과 총계. ``exchange``
+        거래소(OVRS_EXCG_CD, 공란=전체), ``currency`` 통화(공란=전체), ``symbol`` 종목(공란=전체),
+        ``won_basis`` 원화(True)/외화(False). **모의투자 미지원**(계좌 정보 필요).
+
+        .. note:: 원장 예시가 비어 있어 필드는 레이아웃 기준이다 -- 전체 원본은 각 행/결과의 ``_raw``."""
+        cano, product_code = self._require_account()
+        return overseas_account.fetch_period_profit(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment,
+            start=start, end=end, exchange=exchange, nation=nation, currency=currency,
+            symbol=symbol, won_basis=won_basis,
         )
 
     def overseas_reserved_orders(self, *, start: str, end: str) -> list[OverseasReservedOrder]:

@@ -30,9 +30,15 @@ from ..overseas_items import (
     OverseasAlgoOrder,
     OverseasBalance,
     OverseasBuyableAmount,
+    OverseasCurrencyBalance,
     OverseasForeignMargin,
     OverseasOpenOrder,
+    OverseasPeriodProfit,
+    OverseasPeriodProfitRow,
     OverseasPosition,
+    OverseasPresentBalance,
+    OverseasReportPosition,
+    OverseasSettlementBalance,
     OverseasTransaction,
 )
 from ..transport import Environment, Transport
@@ -59,6 +65,16 @@ _ALGO_ORDNO_PATH = "/uapi/overseas-stock/v1/trading/algo-ordno"
 _ALGO_ORDNO_TR = "TTTS6058R"            # 모의투자 미지원
 _ALGO_CCNL_PATH = "/uapi/overseas-stock/v1/trading/inquire-algo-ccnl"
 _ALGO_CCNL_TR = "TTTS6059R"             # 모의투자 미지원
+
+_PRESENT_BALANCE_PATH = "/uapi/overseas-stock/v1/trading/inquire-present-balance"
+_PRESENT_BALANCE_TR = {"real": "CTRP6504R", "demo": "VTRP6504R"}  # 모의는 output3(요약)만
+_SETTLEMENT_BALANCE_PATH = "/uapi/overseas-stock/v1/trading/inquire-paymt-stdr-balance"
+_SETTLEMENT_BALANCE_TR = "CTRP6010R"    # 모의투자 미지원
+_PERIOD_PROFIT_PATH = "/uapi/overseas-stock/v1/trading/inquire-period-profit"
+_PERIOD_PROFIT_TR = "TTTS3039R"         # 모의투자 미지원
+
+#: 잔고 리포트 국가코드(NATN_CD). 000:전체/840:미국/344:홍콩/156:중국/392:일본/704:베트남.
+_NATION_CODE = {"all": "000", "US": "840", "HK": "344", "CN": "156", "JP": "392", "VN": "704"}
 #: 거래내역 매도매수 필터 -> SLL_BUY_DVSN_CD. all:전체/sell:매도/buy:매수.
 _TX_SIDE_FILTER = {"all": "00", "sell": "01", "buy": "02"}
 
@@ -443,6 +459,214 @@ def fetch_algo_executions(
         )
         for row in rows if str(row.get("CCLD_SEQ", "")).strip()
     ]
+
+
+# --- 체결기준현재잔고 (CTRP6504R) -----------------------------------------
+def fetch_present_balance(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    won_basis: bool = True, nation: str = "all", market_code: str = "00", inquiry: str = "00",
+) -> OverseasPresentBalance:
+    """해외주식 체결기준현재잔고 -- 보유 종목(output1)·통화별 예수금(output2)·계좌 요약(output3).
+    실전(CTRP6504R)은 3블록 전부, 모의(VTRP6504R)는 요약만 온다.
+
+    ``won_basis`` 원화(True)/외화(False) 기준, ``nation`` 국가(``"all"``/``"US"``/``"HK"``/``"CN"``/``"JP"``/
+    ``"VN"``), ``market_code`` 거래시장코드(원장 표, ``"00"``=전체), ``inquiry`` 조회구분(``"00"`` 전체/
+    ``"01"`` 일반/``"02"`` 미니스탁).
+
+    .. note:: 요약(output3) 필드는 원장 예시가 output1 에서 잘려 레이아웃 기준이다 -- 전체 원본은 결과 ``_raw``.
+    """
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "WCRC_FRCR_DVSN_CD": "01" if won_basis else "02",
+        "NATN_CD": _NATION_CODE.get(nation, "000"),
+        "TR_MKET_CD": market_code, "INQR_DVSN_CD": inquiry,
+    }
+    resp = transport.request(
+        method="GET", path=_PRESENT_BALANCE_PATH, tr_id=_PRESENT_BALANCE_TR[environment],
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    summary = _first_object(resp.body.get("output3"))
+    return OverseasPresentBalance(
+        positions=tuple(_report_position(row) for row in _as_rows(resp.body.get("output1"))),
+        currencies=tuple(_currency_balance(row) for row in _as_rows(resp.body.get("output2"))),
+        purchase_total=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
+        evaluation_total=_decimal_or_zero(summary, "evlu_amt_smtl_amt"),
+        total_eval_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
+        total_asset=_decimal_or_zero(summary, "tot_asst_amt"),
+        eval_return_rate=_decimal_or_zero(summary, "evlu_erng_rt1"),
+        _raw=summary,
+    )
+
+
+# --- 결제기준잔고 (CTRP6010R) ---------------------------------------------
+def fetch_settlement_balance(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    basis_date: str, won_basis: bool = True, inquiry: str = "00",
+) -> OverseasSettlementBalance:
+    """해외주식 결제기준잔고 -- ``basis_date``(YYYYMMDD) 결제 기준의 보유 종목·통화별 예수금·계좌 요약.
+    **모의투자 미지원**. ``won_basis`` 원화(True)/외화(False) 기준, ``inquiry`` 조회구분(``"00"`` 전체)."""
+    if environment == "demo":
+        raise KISUsageError(
+            "해외주식 결제기준잔고(inquire-paymt-stdr-balance)는 모의투자 미지원 -- 실전에서만."
+        )
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code, "BASS_DT": basis_date,
+        "WCRC_FRCR_DVSN_CD": "01" if won_basis else "02", "INQR_DVSN_CD": inquiry,
+    }
+    resp = transport.request(
+        method="GET", path=_SETTLEMENT_BALANCE_PATH, tr_id=_SETTLEMENT_BALANCE_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    summary = _first_object(resp.body.get("output3"))
+    return OverseasSettlementBalance(
+        positions=tuple(_report_position(row) for row in _as_rows(resp.body.get("output1"))),
+        currencies=tuple(_currency_balance(row) for row in _as_rows(resp.body.get("output2"))),
+        purchase_total=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
+        total_eval_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
+        eval_return_rate=_decimal_or_zero(summary, "evlu_erng_rt1"),
+        total_deposit=_decimal_or_zero(summary, "tot_dncl_amt"),
+        won_evaluation_total=_decimal_or_zero(summary, "wcrc_evlu_amt_smtl"),
+        total_asset=_decimal_or_zero(summary, "tot_asst_amt2"),
+        total_loan=_decimal_or_zero(summary, "tot_loan_amt"),
+        _raw=summary,
+    )
+
+
+# --- 기간손익 (TTTS3039R) --------------------------------------------------
+def fetch_period_profit(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str, exchange: str = "", nation: str = "", currency: str = "",
+    symbol: str = "", won_basis: bool = False,
+) -> OverseasPeriodProfit:
+    """해외주식 기간손익 -- ``start``~``end``(YYYYMMDD) 매도청산 종목별 실현손익(output1)과 총계(output2).
+    **모의투자 미지원**. ``exchange`` 거래소(OVRS_EXCG_CD, 공란=전체), ``currency`` 통화(공란=전체),
+    ``symbol`` 종목(공란=전체), ``won_basis`` 원화(True)/외화(False) 기준.
+
+    .. note:: 원장 응답예시가 비어 있어 필드는 레이아웃 기준이다 -- 실제 응답과 다를 수 있으므로 각 행과
+       결과의 ``_raw`` 로 원본을 함께 노출한다.
+    """
+    if environment == "demo":
+        raise KISUsageError(
+            "해외주식 기간손익(inquire-period-profit)은 모의투자 미지원 -- 실전에서만."
+        )
+    rows: list[Mapping[str, Any]] = []
+    summary: Mapping[str, Any] = {}
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_PAGES):
+        params = {
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "OVRS_EXCG_CD": exchange, "NATN_CD": nation, "CRCY_CD": currency, "PDNO": symbol,
+            "INQR_STRT_DT": start, "INQR_END_DT": end,
+            "WCRC_FRCR_DVSN_CD": "02" if won_basis else "01",
+            "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
+        }
+        resp = transport.request(
+            method="GET", path=_PERIOD_PROFIT_PATH, tr_id=_PERIOD_PROFIT_TR,
+            params=params, idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        page = resp.body.get("output1")
+        if not isinstance(page, list):
+            raise KISError(
+                "해외 기간손익 응답의 output1 이 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        summary = _first_object(resp.body.get("output2")) or summary
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError("해외 기간손익이 페이지 상한에 도달했으나 연속조회가 남아있다.")
+    profit_rows = tuple(
+        OverseasPeriodProfitRow(
+            trade_day=_YYYYMMDD(row.get("trad_day")),
+            symbol=str(row.get("ovrs_pdno", "")).strip(),
+            name=str(row.get("ovrs_item_name", "")).strip(),
+            sold_quantity=_decimal_or_zero(row, "slcl_qty"),
+            average_purchase_price=_decimal_or_zero(row, "pchs_avg_pric"),
+            purchase_amount=_decimal_or_zero(row, "frcr_pchs_amt1"),
+            average_sell_price=_decimal_or_zero(row, "avg_sll_unpr"),
+            sell_amount=_decimal_or_zero(row, "frcr_sll_amt_smtl1"),
+            sell_expense=_decimal_or_zero(row, "stck_sll_tlex"),
+            realized_pnl=_decimal_or_zero(row, "ovrs_rlzt_pfls_amt"),
+            return_rate=_decimal_or_zero(row, "pftrt"),
+            exchange_rate=_decimal_or_zero(row, "exrt"),
+            exchange=str(row.get("ovrs_excg_cd", "")).strip(),
+            first_exchange_rate=_decimal_or_zero(row, "frst_bltn_exrt"),
+            _raw=row,
+        )
+        for row in rows
+    )
+    return OverseasPeriodProfit(
+        rows=profit_rows,
+        total_sell_amount=_decimal_or_zero(summary, "stck_sll_amt_smtl"),
+        total_buy_amount=_decimal_or_zero(summary, "stck_buy_amt_smtl"),
+        total_fee=_decimal_or_zero(summary, "smtl_fee1"),
+        settlement_amount=_decimal_or_zero(summary, "excc_dfrm_amt"),
+        total_realized_pnl=_decimal_or_zero(summary, "ovrs_rlzt_pfls_tot_amt"),
+        total_return_rate=_decimal_or_zero(summary, "tot_pftrt"),
+        basis_date=_YYYYMMDD(summary.get("bass_dt")),
+        exchange_rate=_decimal_or_zero(summary, "exrt"),
+        _raw=summary,
+    )
+
+
+def _as_rows(block: object) -> list[Mapping[str, Any]]:
+    """output 배열을 종목 dict 리스트로. 객체 하나면 1원소 리스트, 비면 빈 리스트(fail-soft)."""
+    if isinstance(block, list):
+        return [r for r in block if isinstance(r, Mapping)]
+    if isinstance(block, Mapping):
+        return [block]
+    return []
+
+
+def _first_object(block: object) -> Mapping[str, Any]:
+    """output(요약)이 객체면 그대로, 1원소 배열이면 첫 원소, 비면 빈 dict(fail-soft)."""
+    if isinstance(block, Mapping):
+        return block
+    if isinstance(block, list) and block and isinstance(block[0], Mapping):
+        return block[0]
+    return {}
+
+
+def _report_position(row: Mapping[str, Any]) -> OverseasReportPosition:
+    currency = str(row.get("buy_crcy_cd", "")).strip()
+    return OverseasReportPosition(
+        symbol=str(row.get("pdno", "")).strip(),
+        name=str(row.get("prdt_name", "")).strip(),
+        balance_quantity=_decimal_or_zero(row, "cblc_qty13"),
+        orderable_quantity=_decimal_or_zero(row, "ord_psbl_qty1"),
+        average_price=_money_or_zero(row, "avg_unpr3", currency),
+        current_price=_money_or_zero(row, "ovrs_now_pric1", currency),
+        purchase_amount=_money_or_zero(row, "frcr_pchs_amt", currency),
+        market_value=_money_or_zero(row, "frcr_evlu_amt2", currency),
+        unrealized_pnl=_money_or_zero(row, "evlu_pfls_amt2", currency),
+        unrealized_pnl_rate=_decimal_or_zero(row, "evlu_pfls_rt1"),
+        loan_balance=_money_or_zero(row, "loan_rmnd", currency),
+        collateral_quantity=_decimal_or_zero(row, "mgge_qty"),
+        exchange=str(row.get("ovrs_excg_cd", "")).strip(),
+        market_name=str(row.get("tr_mket_name", "")).strip(),
+        country_name=str(row.get("natn_kor_name", "")).strip(),
+        currency=currency,
+        exchange_rate=_decimal_or_zero(row, "bass_exrt"),
+        _raw=row,
+    )
+
+
+def _currency_balance(row: Mapping[str, Any]) -> OverseasCurrencyBalance:
+    currency = str(row.get("crcy_cd", "")).strip()
+    return OverseasCurrencyBalance(
+        currency=currency,
+        currency_name=str(row.get("crcy_cd_name", "")).strip(),
+        deposit=_money_or_zero(row, "frcr_dncl_amt_2", currency),
+        first_exchange_rate=_decimal_or_zero(row, "frst_bltn_exrt"),
+        _raw=row,
+    )
 
 
 def _parse_hhmmss(value: object) -> time | None:

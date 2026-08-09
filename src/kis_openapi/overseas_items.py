@@ -479,3 +479,150 @@ class OverseasCollateralStock:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasReportPosition:
+    """해외 잔고 리포트(체결기준/결제기준)의 보유 종목 한 줄(불변). 금액은 매수통화(``currency``)
+    :class:`~kis_openapi.money.Money`. ``collateral_quantity`` 는 결제기준잔고에만 채워진다(체결기준은 0).
+
+    .. note:: 결제기준잔고(:class:`OverseasSettlementBalance`)는 원장 응답예시로 확증됐고, 체결기준
+       (:class:`OverseasPresentBalance`)은 예시가 output1 까지만 있어 output2/3 요약이 레이아웃 기준이다.
+    """
+
+    symbol: str                        # 상품번호(pdno)
+    name: str                          # 상품명(prdt_name)
+    balance_quantity: Decimal          # 잔고수량(cblc_qty13)
+    orderable_quantity: Decimal        # 주문가능수량(ord_psbl_qty1)
+    average_price: Money               # 평균단가(avg_unpr3)
+    current_price: Money               # 해외현재가격(ovrs_now_pric1)
+    purchase_amount: Money             # 외화매입금액(frcr_pchs_amt)
+    market_value: Money                # 외화평가금액(frcr_evlu_amt2)
+    unrealized_pnl: Money              # 평가손익금액(evlu_pfls_amt2)
+    unrealized_pnl_rate: Decimal       # 평가손익율(evlu_pfls_rt1)
+    loan_balance: Money                # 대출잔액(loan_rmnd)
+    collateral_quantity: Decimal       # 담보수량(mgge_qty; 결제기준만)
+    exchange: str                      # 해외거래소코드(ovrs_excg_cd)
+    market_name: str                   # 거래시장명(tr_mket_name)
+    country_name: str                  # 국가한글명(natn_kor_name)
+    currency: str                      # 매수통화코드(buy_crcy_cd)
+    exchange_rate: Decimal             # 기준환율(bass_exrt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasCurrencyBalance:
+    """해외 잔고 리포트의 통화별 예수금 한 줄(불변). ``deposit`` 은 외화예수금(``currency`` Money)."""
+
+    currency: str                      # 통화코드(crcy_cd)
+    currency_name: str                 # 통화코드명(crcy_cd_name)
+    deposit: Money                     # 외화예수금(frcr_dncl_amt_2)
+    first_exchange_rate: Decimal       # 최초고시환율(frst_bltn_exrt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasPresentBalance:
+    """해외주식 체결기준현재잔고(불변) -- 보유 종목·통화별 예수금·계좌 요약. 실전은 3블록 전부,
+    모의(VTRP6504R)는 요약(``_raw``)만 온다.
+
+    .. note:: 요약(output3) 필드는 원장 예시가 output1 에서 잘려 레이아웃 기준이다 -- 전체 원본은 ``_raw``.
+    """
+
+    positions: tuple[OverseasReportPosition, ...]
+    currencies: tuple[OverseasCurrencyBalance, ...]
+    purchase_total: Decimal            # 매입금액합계금액(pchs_amt_smtl_amt), 원화
+    evaluation_total: Decimal          # 평가금액합계금액(evlu_amt_smtl_amt), 원화
+    total_eval_pnl: Decimal            # 총평가손익금액(tot_evlu_pfls_amt), 원화
+    total_asset: Decimal               # 총자산금액(tot_asst_amt), 원화
+    eval_return_rate: Decimal          # 평가수익율(evlu_erng_rt1)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasSettlementBalance:
+    """해외주식 결제기준잔고(불변) -- 기준일자(``BASS_DT``) 결제 기준의 보유 종목·통화별 예수금·계좌
+    요약. **모의투자 미지원**. 원장 응답예시로 필드 전량 확증됨(단 ``_raw`` 는 대여평가 등 추가 필드 포함)."""
+
+    positions: tuple[OverseasReportPosition, ...]
+    currencies: tuple[OverseasCurrencyBalance, ...]
+    purchase_total: Decimal            # 매입금액합계금액(pchs_amt_smtl_amt), 원화
+    total_eval_pnl: Decimal            # 총평가손익금액(tot_evlu_pfls_amt), 원화
+    eval_return_rate: Decimal          # 평가수익율(evlu_erng_rt1)
+    total_deposit: Decimal             # 총예수금액(tot_dncl_amt), 원화
+    won_evaluation_total: Decimal      # 원화평가금액합계(wcrc_evlu_amt_smtl)
+    total_asset: Decimal               # 총자산금액(tot_asst_amt2), 원화
+    total_loan: Decimal                # 총대출금액(tot_loan_amt), 원화
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasPeriodProfitRow:
+    """해외주식 기간손익의 매도청산 한 줄(불변). 금액은 조회통화(``CRCY_CD``) 외화 Decimal -- 조회를
+    통화 지정 없이(전체) 하면 통화가 섞일 수 있다."""
+
+    trade_day: date | None             # 매매일(trad_day)
+    symbol: str                        # 해외상품번호(ovrs_pdno)
+    name: str                          # 해외종목명(ovrs_item_name)
+    sold_quantity: Decimal             # 매도청산수량(slcl_qty)
+    average_purchase_price: Decimal    # 매입평균가격(pchs_avg_pric)
+    purchase_amount: Decimal           # 외화매입금액1(frcr_pchs_amt1)
+    average_sell_price: Decimal        # 평균매도단가(avg_sll_unpr)
+    sell_amount: Decimal               # 외화매도금액합계1(frcr_sll_amt_smtl1)
+    sell_expense: Decimal              # 주식매도제비용(stck_sll_tlex)
+    realized_pnl: Decimal              # 해외실현손익금액(ovrs_rlzt_pfls_amt)
+    return_rate: Decimal               # 수익률(pftrt)
+    exchange_rate: Decimal             # 환율(exrt)
+    exchange: str                      # 해외거래소코드(ovrs_excg_cd)
+    first_exchange_rate: Decimal       # 최초고시환율(frst_bltn_exrt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasPeriodProfit:
+    """해외주식 기간손익(불변) -- 기간 내 매도청산 종목별 실현손익(``rows``)과 총계. **모의투자 미지원**.
+
+    .. note:: 원장 응답예시가 비어 있어 필드는 레이아웃 기준이다 -- 실제 응답과 다를 수 있으므로 각
+       행과 결과의 ``_raw`` 로 원본을 함께 노출한다.
+    """
+
+    rows: tuple[OverseasPeriodProfitRow, ...]
+    total_sell_amount: Decimal         # 주식매도금액합계(stck_sll_amt_smtl)
+    total_buy_amount: Decimal          # 주식매수금액합계(stck_buy_amt_smtl)
+    total_fee: Decimal                 # 합계수수료1(smtl_fee1)
+    settlement_amount: Decimal         # 정산지급금액(excc_dfrm_amt)
+    total_realized_pnl: Decimal        # 해외실현손익총금액(ovrs_rlzt_pfls_tot_amt)
+    total_return_rate: Decimal         # 총수익률(tot_pftrt)
+    basis_date: date | None            # 기준일자(bass_dt)
+    exchange_rate: Decimal             # 환율(exrt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
