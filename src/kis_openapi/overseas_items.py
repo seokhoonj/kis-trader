@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -82,6 +82,50 @@ class OverseasOpenOrder:
     filled_quantity: int              # 체결수량
     unfilled_quantity: int            # 미체결 잔량
     price: Money                      # 주문단가(종목 통화)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasAlgoOrder:
+    """해외 지정가(TWAP/VWAP 등 알고) 주문 한 건(불변). ``order_id`` 로 지목해 체결내역을 조회한다.
+
+    ``split_attribute`` 분할매수속성(예: "정규장 종료" 또는 시간범위), ``branch_number`` 주문채번지점번호
+    (체결내역 조회 시 함께 넘긴다).
+    """
+
+    order_id: str                     # 주문번호(odno)
+    trade_type: str                   # 매매구분명(trad_dvsn_name)
+    symbol: str
+    name: str
+    quantity: Decimal                 # 주문수량(ft_ord_qty)
+    price: Decimal                    # 주문단가(ft_ord_unpr3)
+    filled_quantity: Decimal          # 체결수량(ft_ccld_qty)
+    split_attribute: str              # 분할매수속성명(splt_buy_attr_name)
+    branch_number: str                # 주문채번지점번호(ord_gno_brno)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasAlgoExecution:
+    """해외 알고주문의 체결 한 건(불변). ``sequence`` 체결순번, ``executed_at`` 체결시각(HH:MM:SS)."""
+
+    sequence: str                     # 체결순번(CCLD_SEQ)
+    executed_at: time | None          # 체결시간(CCLD_BTWN, HHMMSS)
+    symbol: str
+    name: str
+    quantity: Decimal                 # 체결수량(FT_CCLD_QTY)
+    price: Decimal                    # 체결단가(FT_CCLD_UNPR3)
+    amount: Decimal                   # 체결금액(FT_CCLD_AMT3)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

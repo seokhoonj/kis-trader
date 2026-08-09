@@ -59,6 +59,8 @@ from .overseas_derivative_items import (
 )
 from .overseas_index import OverseasIndex
 from .overseas_items import (
+    OverseasAlgoExecution,
+    OverseasAlgoOrder,
     OverseasBalance,
     OverseasBuyableAmount,
     OverseasCollateralStock,
@@ -680,6 +682,26 @@ class KISClient:
         overseas_reserved_orders_api.cancel_overseas_reserved_order(
             self._transport, reserved_order_id=reserved_order_id, receipt_date=receipt_date,
             cano=cano, product_code=product_code, environment=self._environment,
+        )
+
+    def overseas_algo_orders(self) -> list[OverseasAlgoOrder]:
+        """해외 지정가(TWAP/VWAP 등 알고) 주문 목록. 각 건의 ``order_id``/``branch_number`` 로
+        :meth:`overseas_algo_executions` 를 조회한다. **모의투자 미지원**(계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return overseas_account.fetch_algo_orders(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment
+        )
+
+    def overseas_algo_executions(
+        self, order_id: str, *, order_date: str, branch_number: str = ""
+    ) -> list[OverseasAlgoExecution]:
+        """한 해외 알고주문의 체결내역. ``order_id`` 는 :meth:`overseas_algo_orders` 의 주문번호,
+        ``order_date``(YYYYMMDD)는 주문일자, ``branch_number`` 는 그 주문의 채번지점번호. **모의투자
+        미지원**(계좌 정보 필요)."""
+        cano, product_code = self._require_account()
+        return overseas_account.fetch_algo_executions(
+            self._transport, cano=cano, product_code=product_code, environment=self._environment,
+            order_date=order_date, order_id=order_id, branch_number=branch_number,
         )
 
     def overseas_reserved_orders(self, *, start: str, end: str) -> list[OverseasReservedOrder]:

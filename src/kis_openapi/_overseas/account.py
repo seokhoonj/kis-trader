@@ -12,7 +12,7 @@ KIS URL/TR-id (원장 대조):
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any
 
@@ -26,6 +26,8 @@ from .._wire import (
 from ..errors import KISError, KISUsageError
 from ..money import Money
 from ..overseas_items import (
+    OverseasAlgoExecution,
+    OverseasAlgoOrder,
     OverseasBalance,
     OverseasBuyableAmount,
     OverseasForeignMargin,
@@ -52,6 +54,11 @@ _TRANSACTIONS_TR = "CTOS4001R"          # 모의투자 미지원
 
 _FOREIGN_MARGIN_PATH = "/uapi/overseas-stock/v1/trading/foreign-margin"
 _FOREIGN_MARGIN_TR = "TTTC2101R"        # 모의투자 미지원
+
+_ALGO_ORDNO_PATH = "/uapi/overseas-stock/v1/trading/algo-ordno"
+_ALGO_ORDNO_TR = "TTTS6058R"            # 모의투자 미지원
+_ALGO_CCNL_PATH = "/uapi/overseas-stock/v1/trading/inquire-algo-ccnl"
+_ALGO_CCNL_TR = "TTTS6059R"             # 모의투자 미지원
 #: 거래내역 매도매수 필터 -> SLL_BUY_DVSN_CD. all:전체/sell:매도/buy:매수.
 _TX_SIDE_FILTER = {"all": "00", "sell": "01", "buy": "02"}
 
@@ -338,6 +345,114 @@ def fetch_foreign_margin(
             )
         )
     return margins
+
+
+def fetch_algo_orders(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment
+) -> list[OverseasAlgoOrder]:
+    """해외 지정가(TWAP/VWAP 등 알고) 주문 목록. 각 건의 ``order_id``/``branch_number`` 로 체결내역을
+    조회한다(:func:`fetch_algo_executions`). **모의투자 미지원**."""
+    if environment == "demo":
+        raise KISUsageError("해외 지정가주문번호조회(algo-ordno)는 모의투자 미지원 -- 실전에서만.")
+    rows: list[Mapping[str, Any]] = []
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_PAGES):
+        params = {"CANO": cano, "ACNT_PRDT_CD": product_code,
+                  "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk}
+        resp = transport.request(
+            method="GET", path=_ALGO_ORDNO_PATH, tr_id=_ALGO_ORDNO_TR,
+            params=params, idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        page = resp.body.get("output")
+        if not isinstance(page, list):
+            raise KISError(
+                "해외 지정가주문번호조회 응답의 output 이 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError("해외 지정가주문번호조회가 페이지 상한에 도달했으나 연속조회가 남아있다.")
+    return [
+        OverseasAlgoOrder(
+            order_id=str(row.get("odno", "")).strip(),
+            trade_type=str(row.get("trad_dvsn_name", "")).strip(),
+            symbol=str(row.get("pdno", "")).strip(),
+            name=str(row.get("item_name", "")).strip(),
+            quantity=_decimal_or_zero(row, "ft_ord_qty"),
+            price=_decimal_or_zero(row, "ft_ord_unpr3"),
+            filled_quantity=_decimal_or_zero(row, "ft_ccld_qty"),
+            split_attribute=str(row.get("splt_buy_attr_name", "")).strip(),
+            branch_number=str(row.get("ord_gno_brno", "")).strip(),
+            _raw=row,
+        )
+        for row in rows if str(row.get("odno", "")).strip()
+    ]
+
+
+def fetch_algo_executions(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    order_date: str, order_id: str, branch_number: str = "",
+) -> list[OverseasAlgoExecution]:
+    """한 해외 알고주문(``order_id``)의 체결내역. ``order_date``(YYYYMMDD)는 주문일자, ``branch_number``
+    는 주문채번지점번호(:func:`fetch_algo_orders` 의 ``branch_number``). 응답 키가 대문자다. **모의투자 미지원**."""
+    if environment == "demo":
+        raise KISUsageError("해외 지정가체결내역조회(inquire-algo-ccnl)는 모의투자 미지원 -- 실전에서만.")
+    rows: list[Mapping[str, Any]] = []
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_PAGES):
+        params = {
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "ORD_DT": order_date, "ORD_GNO_BRNO": branch_number, "ODNO": order_id,
+            "TTLZ_ICLD_YN": "", "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
+        }
+        resp = transport.request(
+            method="GET", path=_ALGO_CCNL_PATH, tr_id=_ALGO_CCNL_TR,
+            params=params, idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        page = resp.body.get("output")
+        if not isinstance(page, list):
+            raise KISError(
+                "해외 지정가체결내역조회 응답의 output 이 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError("해외 지정가체결내역조회가 페이지 상한에 도달했으나 연속조회가 남아있다.")
+    return [
+        OverseasAlgoExecution(
+            sequence=str(row.get("CCLD_SEQ", "")).strip(),
+            executed_at=_parse_hhmmss(row.get("CCLD_BTWN")),
+            symbol=str(row.get("PDNO", "")).strip(),
+            name=str(row.get("ITEM_NAME", "")).strip(),
+            quantity=_decimal_or_zero(row, "FT_CCLD_QTY"),
+            price=_decimal_or_zero(row, "FT_CCLD_UNPR3"),
+            amount=_decimal_or_zero(row, "FT_CCLD_AMT3"),
+            _raw=row,
+        )
+        for row in rows if str(row.get("CCLD_SEQ", "")).strip()
+    ]
+
+
+def _parse_hhmmss(value: object) -> time | None:
+    text = str(value or "").strip()
+    if len(text) != 6 or not text.isdigit():
+        return None
+    hour, minute, second = int(text[0:2]), int(text[2:4]), int(text[4:6])
+    if hour > 23 or minute > 59 or second > 59:
+        return None
+    return time(hour, minute, second)
 
 
 def _YYYYMMDD(value: object) -> date | None:
