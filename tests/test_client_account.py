@@ -201,7 +201,7 @@ def test_portfolio_returns_balance_and_positions_in_one_walk():
 # --- buyable (ticker) ------------------------------------------------------
 def test_ticker_buyable_parses_and_limit_division():
     fake = FakeTransport(response=_buyable_resp())
-    result = _client(fake).ticker("005930").buyable(limit_price=75000)
+    result = _client(fake).domestic.stock("005930").buyable(limit_price=75000)
     assert isinstance(result, BuyableAmount)
     assert result.orderable_cash == Decimal(1000000)
     assert result.cash_buyable_quantity == Decimal(13)
@@ -216,14 +216,14 @@ def test_ticker_buyable_parses_and_limit_division():
 
 def test_ticker_buyable_market_division_without_price():
     fake = FakeTransport(response=_buyable_resp())
-    _client(fake).ticker("005930").buyable()
+    _client(fake).domestic.stock("005930").buyable()
     assert fake.calls[0]["params"]["ORD_DVSN"] == "01"
     assert fake.calls[0]["params"]["ORD_UNPR"] == ""
 
 
 def test_ticker_buyable_demo_tr():
     fake = FakeTransport(response=_buyable_resp())
-    _client(fake, environment="demo").ticker("005930").buyable()
+    _client(fake, environment="demo").domestic.stock("005930").buyable()
     assert fake.calls[0]["tr_id"] == "VTTC8908R"
 
 
@@ -231,19 +231,19 @@ def test_ticker_buyable_demo_tr():
 def test_ticker_buyable_bad_price_rejected_before_io(limit_price):
     fake = FakeTransport(response=_buyable_resp())
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("005930").buyable(limit_price=limit_price)
+        _client(fake).domestic.stock("005930").buyable(limit_price=limit_price)
     assert fake.calls == []
 
 
 def test_ticker_buyable_amount_field_unparseable_fails_closed():
     output = dict(_BUYABLE_OUTPUT, ord_psbl_cash="N/A")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_buyable_resp(output))).ticker("005930").buyable()
+        _client(FakeTransport(response=_buyable_resp(output))).domestic.stock("005930").buyable()
 
 
 # --- sellable (ticker, 모의 미지원) ----------------------------------------
 def test_ticker_sellable_parses():
-    result = _client(FakeTransport(response=_sellable_resp())).ticker("005930").sellable()
+    result = _client(FakeTransport(response=_sellable_resp())).domestic.stock("005930").sellable()
     assert isinstance(result, SellableQuantity)
     assert result.quantity == Decimal(10)
     assert result.sellable_quantity == Decimal(8)
@@ -251,7 +251,7 @@ def test_ticker_sellable_parses():
 
 def test_ticker_sellable_not_held_reads_zero():
     output1 = {"pdno": "005930", "prdt_name": "", "cblc_qty": "", "ord_psbl_qty": ""}
-    result = _client(FakeTransport(response=_sellable_resp(output1))).ticker("005930").sellable()
+    result = _client(FakeTransport(response=_sellable_resp(output1))).domestic.stock("005930").sellable()
     assert result.quantity == Decimal(0)
     assert result.sellable_quantity == Decimal(0)
 
@@ -259,14 +259,14 @@ def test_ticker_sellable_not_held_reads_zero():
 def test_ticker_sellable_demo_rejected_before_io():
     fake = FakeTransport(response=_sellable_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").ticker("005930").sellable()
+        _client(fake, environment="demo").domestic.stock("005930").sellable()
     assert fake.calls == []
 
 
 def test_ticker_buyable_requires_account():
     kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_buyable_resp()))
     with pytest.raises(KISUsageError):
-        kis.ticker("005930").buyable()
+        kis.domestic.stock("005930").buyable()
 
 
 # --- 추가 엣지 ------------------------------------------------------------
@@ -325,14 +325,14 @@ def test_positions_garbage_lot_field_still_fails_closed():
 @pytest.mark.parametrize(("limit_price", "expected"), [(75000, "75000"), (Decimal("7E4"), "70000")])
 def test_ticker_buyable_formats_limit_price(limit_price, expected):
     fake = FakeTransport(response=_buyable_resp())
-    _client(fake).ticker("005930").buyable(limit_price=limit_price)
+    _client(fake).domestic.stock("005930").buyable(limit_price=limit_price)
     assert fake.calls[0]["params"]["ORD_UNPR"] == expected
 
 
 def test_sellable_unparseable_quantity_fails_closed():
     output1 = {"pdno": "005930", "prdt_name": "삼성전자", "cblc_qty": "N/A", "ord_psbl_qty": "8"}
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_sellable_resp(output1))).ticker("005930").sellable()
+        _client(FakeTransport(response=_sellable_resp(output1))).domestic.stock("005930").sellable()
 
 
 def test_fetch_buyable_amount_only_rejects_limit_price():
@@ -361,11 +361,11 @@ def test_position_value_semantics_ignore_raw_and_hashable():
 
 
 def test_buyable_sellable_portfolio_value_semantics():
-    buy = _client(FakeTransport(response=_buyable_resp())).ticker("005930").buyable()
-    buy_other = _client(FakeTransport(response=_buyable_resp(dict(_BUYABLE_OUTPUT, extra="x")))).ticker("005930").buyable()
+    buy = _client(FakeTransport(response=_buyable_resp())).domestic.stock("005930").buyable()
+    buy_other = _client(FakeTransport(response=_buyable_resp(dict(_BUYABLE_OUTPUT, extra="x")))).domestic.stock("005930").buyable()
     assert buy == buy_other and hash(buy) == hash(buy_other)
-    sell = _client(FakeTransport(response=_sellable_resp())).ticker("005930").sellable()
-    assert hash(sell) == hash(_client(FakeTransport(response=_sellable_resp())).ticker("005930").sellable())
+    sell = _client(FakeTransport(response=_sellable_resp())).domestic.stock("005930").sellable()
+    assert hash(sell) == hash(_client(FakeTransport(response=_sellable_resp())).domestic.stock("005930").sellable())
     port = _client(FakeTransport(response=_balance_resp(rows=[_holding("005930")]))).portfolio()
     port_other = _client(FakeTransport(response=_balance_resp(rows=[_holding("005930")]))).portfolio()
     assert port == port_other and hash(port) == hash(port_other)

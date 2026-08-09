@@ -1,7 +1,7 @@
 """세션 루트 -- :class:`KISClient`.
 
 인증(앱키/시크릿)과 기본 계좌를 쥔 세션이다. 모든 행위가 여기서 시작한다:
-``kis.ticker("005930")`` 로 종목 핸들을, ``kis.balance()`` 등으로 계좌를 조회한다.
+``kis.domestic.stock("005930")`` 로 종목 핸들을, ``kis.balance()`` 등으로 계좌를 조회한다.
 KIS 토큰은 앱키 단위(24h, 재발급 제한)라 세션이 캐시해 재사용한다.
 
 시세만 볼 거면 ``account`` 없이도 되지만, 주문/잔고엔 계좌 식별정보가 필요하다.
@@ -184,15 +184,15 @@ class KISClient:
         """실전(real) / 모의(demo). 계좌·주문 TR 선택에 쓰인다."""
         return self._environment
 
-    def ticker(
+    def _make_stock(
         self, symbol: str, *, market: DomesticBoard | None = None, exchange: str | None = None
     ) -> Ticker:
-        """종목 핸들을 만든다. 국내는 심볼로 시장 자동 판별(6자리 숫자 -> KRX), 해외는 ``exchange``
-        (거래소코드 NAS/NYS/AMS/TSE/HKS/...)를 준다.
+        """종목 핸들을 만든다(내부). 공개 진입점은 ``kis.domestic.stock`` / ``kis.overseas.stock``.
 
-        해외 심볼을 ``exchange`` 없이 주면(6자리 숫자가 아니면) KIS 종목 마스터로 거래소를 자동
-        해석한다(첫 조회는 마스터를 받아 캐시 -- 느릴 수 있다). 같은 심볼이 여러 거래소면
-        ``exchange`` 를 명시해야 한다."""
+        국내는 심볼로 시장 자동 판별(6자리 숫자 -> KRX), 해외는 ``exchange`` (거래소코드 NAS/NYS/AMS/
+        TSE/HKS/...)를 준다. 해외 심볼을 ``exchange`` 없이 주면(6자리 숫자가 아니면) KIS 종목 마스터로
+        거래소를 자동 해석한다(첫 조회는 마스터를 받아 캐시 -- 느릴 수 있다). 같은 심볼이 여러
+        거래소면 ``exchange`` 를 명시해야 한다."""
         if exchange is None and market is None and not is_domestic_symbol(symbol):
             exchange = self.instrument(symbol).exchange     # 해외 바-심볼 -> 마스터로 거래소 해석
         return Ticker(self, symbol, market=market, exchange=exchange)
@@ -310,7 +310,7 @@ class KISClient:
     def elw(self, code: str) -> ELW:
         """ELW(주식워런트증권) 고유 지표 핸들을 만든다. ``code`` 는 ELW 표준코드(6자리, 예: 58J297).
 
-        기본 시세(현재가/호가/체결)는 ``kis.ticker(code)`` 로 조회한다 -- 이 핸들은 민감도(그릭스)·
+        기본 시세(현재가/호가/체결)는 ``kis.domestic.stock(code)`` 로 조회한다 -- 이 핸들은 민감도(그릭스)·
         변동성·투자지표 같은 ELW 고유 옵션 분석 지표만 얹는다."""
         return ELW(self, code)
 
@@ -466,7 +466,7 @@ class KISClient:
     @property
     def market(self) -> MarketQueries:
         """시장 전체 분석 네임스페이스 -- ``kis.market.investor_flows(market="KOSPI")`` 등
-        (종목/순위가 아닌 시장 전체 수급·상태). 종목 단위는 ``kis.ticker(code)``."""
+        (종목/순위가 아닌 시장 전체 수급·상태). 종목 단위는 ``kis.domestic.stock(code)``."""
         return MarketQueries(self)
 
     @property

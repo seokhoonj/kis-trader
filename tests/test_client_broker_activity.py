@@ -1,4 +1,4 @@
-"""회원사 매매 -- kis.ticker(...).broker_activity().
+"""회원사 매매 -- kis.domestic.stock(...).broker_activity().
 
 평평한 상위 5개(매도/매수) 필드를 중첩 리스트로 매핑, 외국계 여부(Y/N)->bool, 빈 순위 skip,
 fail-closed 파싱을 가짜 전송으로 검증한다.
@@ -58,7 +58,7 @@ def _client(transport):
 
 def test_broker_activity_maps_sellers_and_buyers():
     fake = FakeTransport(response=_resp(_member_output()))
-    summary = _client(fake).ticker("005930").broker_activity()
+    summary = _client(fake).domestic.stock("005930").broker_activity()
     assert isinstance(summary, BrokerActivitySummary)
     assert summary.symbol == "005930"
     assert len(summary.sellers) == 2                      # 빈 3~5위는 제외
@@ -78,7 +78,7 @@ def test_broker_activity_maps_sellers_and_buyers():
 def test_broker_activity_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").broker_activity()
+        _client(fake).domestic.stock("005930").broker_activity()
 
 
 def test_broker_daily_activity_maps_and_routes():
@@ -88,7 +88,7 @@ def test_broker_daily_activity_maps_and_routes():
     fake = FakeTransport(response=RawResponse(
         rt_cd="0", msg_cd="X", msg1="ok", body={"output": [row]}
     ))
-    activities = _client(fake).ticker("005930").broker_daily_activity(
+    activities = _client(fake).domestic.stock("005930").broker_daily_activity(
         "0003", start="20240501", end="20240510"
     )
     assert isinstance(activities[0], BrokerDailyActivity)
@@ -112,7 +112,7 @@ def test_broker_trade_ticks_maps_summary_and_route():
                      "frgn_ntby_qty_icdc": "50"}],
     }
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body))
-    result = _client(fake).ticker("005930").broker_trade_ticks(min_volume=1000)
+    result = _client(fake).domestic.stock("005930").broker_trade_ticks(min_volume=1000)
     assert isinstance(result, BrokerTradeTicks)
     assert result.total_buy_quantity == 130
     assert result.ticks[0].change == Decimal(-500)
@@ -129,10 +129,10 @@ def test_broker_trade_ticks_maps_summary_and_route():
 def test_broker_activity_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="X", msg1="실패", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").broker_activity()
+        _client(fake).domestic.stock("005930").broker_activity()
 
 
 def test_broker_activity_bad_share_percent_fails_closed():
     bad = _member_output() | {"seln_mbcr_rlim1": "n/a"}
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_resp(bad))).ticker("005930").broker_activity()
+        _client(FakeTransport(response=_resp(bad))).domestic.stock("005930").broker_activity()

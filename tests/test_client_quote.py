@@ -1,6 +1,6 @@
 """새 행위중심 API 첫 수직 -- KISClient + Ticker + quote.
 
-kis.ticker("005930").quote() 엔드투엔드(FakeTransport), 시장 자동판별, 계좌 파싱, transport
+kis.domestic.stock("005930").quote() 엔드투엔드(FakeTransport), 시장 자동판별, 계좌 파싱, transport
 주입, fail-closed 파싱, 전일대비 부호, 값 의미론을 네트워크 없이 검증한다.
 """
 
@@ -69,7 +69,7 @@ def _client(transport):
 
 
 def test_ticker_quote_returns_unified_quote():
-    quote = _client(FakeTransport(response=_quote_resp())).ticker("005930").quote()
+    quote = _client(FakeTransport(response=_quote_resp())).domestic.stock("005930").quote()
     assert isinstance(quote, Quote)
     assert quote.symbol == "005930"
     assert quote.market == "KRX"
@@ -86,7 +86,7 @@ def test_ticker_quote_returns_unified_quote():
 
 def test_ticker_defaults_to_domestic_krx():
     fake = FakeTransport(response=_quote_resp())
-    _client(fake).ticker("005930").quote()
+    _client(fake).domestic.stock("005930").quote()
     call = fake.calls[0]
     assert call["method"] == "GET"
     assert call["idempotent"] is True
@@ -97,20 +97,20 @@ def test_ticker_defaults_to_domestic_krx():
 
 def test_ticker_market_override_to_nextrade():
     fake = FakeTransport(response=_quote_resp())
-    _client(fake).ticker("005930", market="NXT").quote()
+    _client(fake).domestic.stock("005930", market="NXT").quote()
     assert fake.calls[0]["params"]["FID_COND_MRKT_DIV_CODE"] == "NX"
 
 
 def test_quote_change_negative_on_down_sign():
     output = dict(_QUOTE_OUTPUT, prdy_vrss_sign="5", prdy_vrss="600", prdy_ctrt="0.85")
-    quote = _client(FakeTransport(response=_quote_resp(output))).ticker("005930").quote()
+    quote = _client(FakeTransport(response=_quote_resp(output))).domestic.stock("005930").quote()
     assert quote.change == Decimal(-600)
     assert quote.change_percent == Decimal("-0.85")
 
 
 def test_quote_week52_absent_is_none():
     output = dict(_QUOTE_OUTPUT, w52_hgpr="", w52_lwpr="  ")
-    quote = _client(FakeTransport(response=_quote_resp(output))).ticker("005930").quote()
+    quote = _client(FakeTransport(response=_quote_resp(output))).domestic.stock("005930").quote()
     assert quote.week_52_high is None
     assert quote.week_52_low is None
 
@@ -118,19 +118,19 @@ def test_quote_week52_absent_is_none():
 def test_quote_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="MCA05918", msg1="종목코드 오류", body={})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).ticker("005930").quote()
+        _client(FakeTransport(response=resp)).domestic.stock("005930").quote()
 
 
 def test_quote_missing_output_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).ticker("005930").quote()
+        _client(FakeTransport(response=resp)).domestic.stock("005930").quote()
 
 
 def test_quote_unparseable_price_fails_closed():
     output = dict(_QUOTE_OUTPUT, stck_prpr="N/A")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_quote_resp(output))).ticker("005930").quote()
+        _client(FakeTransport(response=_quote_resp(output))).domestic.stock("005930").quote()
 
 
 def test_quote_value_semantics_ignore_raw_and_hashable():
@@ -168,7 +168,7 @@ def test_ticker_bars_parses_ascending():
         _bar_row("20240102", "69000", "69600", "68900", "69500", "1200"),
     ]
     fake = FakeTransport(response=_bars_resp(rows))
-    bars = _client(fake).ticker("005930").bars(start="20240102")
+    bars = _client(fake).domestic.stock("005930").bars(start="20240102")
     assert [f"{bar.timestamp:%Y%m%d}" for bar in bars] == ["20240102", "20240103", "20240104"]
     assert bars[0].open == Decimal(69000)
     assert bars[0].close == Decimal(69500)
@@ -179,13 +179,13 @@ def test_ticker_bars_parses_ascending():
 
 def test_ticker_bars_weekly_maps_to_period_w():
     fake = FakeTransport(response=_bars_resp([_bar_row("20240105", "1", "1", "1", "1", "1")]))
-    _client(fake).ticker("005930").bars(start="20240105", interval="1wk")
+    _client(fake).domestic.stock("005930").bars(start="20240105", interval="1wk")
     assert fake.calls[0]["params"]["FID_PERIOD_DIV_CODE"] == "W"
 
 
 def test_ticker_bars_unadjusted_polarity():
     fake = FakeTransport(response=_bars_resp([_bar_row("20240105", "1", "1", "1", "1", "1")]))
-    _client(fake).ticker("005930").bars(start="20240105", adjusted=False)
+    _client(fake).domestic.stock("005930").bars(start="20240105", adjusted=False)
     assert fake.calls[0]["params"]["FID_ORG_ADJ_PRC"] == "1"
 
 
@@ -193,7 +193,7 @@ def test_ticker_bars_paginates_date_window():
     page_a = _bars_resp([_bar_row(f"2024010{n}", "1", "1", "1", str(n), "1") for n in (8, 7, 6, 5)])
     page_b = _bars_resp([_bar_row(f"2024010{n}", "1", "1", "1", str(n), "1") for n in (5, 4, 3, 2, 1)])
     fake = FakeTransport(by_path={_BARS_PATH: [page_a, page_b]})
-    bars = _client(fake).ticker("005930").bars(start="20240101")
+    bars = _client(fake).domestic.stock("005930").bars(start="20240101")
     assert [f"{bar.timestamp:%Y%m%d}" for bar in bars] == [f"2024010{n}" for n in range(1, 9)]
     assert len(fake.calls) == 2
     assert fake.calls[1]["params"]["FID_INPUT_DATE_2"] == "20240104"   # oldest(0105) 하루 전
@@ -201,7 +201,7 @@ def test_ticker_bars_paginates_date_window():
 
 def test_ticker_bars_max_bars_keeps_recent():
     rows = [_bar_row(f"2024010{n}", "1", "1", "1", str(n), "1") for n in (4, 3, 2, 1)]
-    bars = _client(FakeTransport(response=_bars_resp(rows))).ticker("005930").bars(
+    bars = _client(FakeTransport(response=_bars_resp(rows))).domestic.stock("005930").bars(
         start="20240101", max_bars=2
     )
     assert [f"{bar.timestamp:%Y%m%d}" for bar in bars] == ["20240103", "20240104"]
@@ -210,12 +210,12 @@ def test_ticker_bars_max_bars_keeps_recent():
 def test_ticker_bars_non_list_output2_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output2": "oops"})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).ticker("005930").bars(start="20240101")
+        _client(FakeTransport(response=resp)).domestic.stock("005930").bars(start="20240101")
 
 
 def test_ticker_bars_start_after_end_raises():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_bars_resp([]))).ticker("005930").bars(
+        _client(FakeTransport(response=_bars_resp([]))).domestic.stock("005930").bars(
             start="20240201", end="20240101"
         )
 
@@ -241,7 +241,7 @@ def _order_book_resp(output1):
 def test_ticker_order_book_best_first():
     output1 = _order_book_output(bids=[("71500", "150"), ("71400", "250")],
                                  asks=[("71600", "100"), ("71700", "200")])
-    book = _client(FakeTransport(response=_order_book_resp(output1))).ticker("005930").order_book()
+    book = _client(FakeTransport(response=_order_book_resp(output1))).domestic.stock("005930").order_book()
     assert isinstance(book, OrderBook)
     assert book.bids[0] == PriceLevel(price=Decimal(71500), quantity=150)
     assert book.asks[0] == PriceLevel(price=Decimal(71600), quantity=100)
@@ -252,18 +252,18 @@ def test_ticker_order_book_best_first():
 def test_ticker_order_book_negative_price_fails_closed():
     output1 = _order_book_output(bids=[("-100", "10")], asks=[("71600", "100")])
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_order_book_resp(output1))).ticker("005930").order_book()
+        _client(FakeTransport(response=_order_book_resp(output1))).domestic.stock("005930").order_book()
 
 
 def test_ticker_order_book_missing_output1_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).ticker("005930").order_book()
+        _client(FakeTransport(response=resp)).domestic.stock("005930").order_book()
 
 
 def test_ticker_order_book_halt_empty_ladders_zero_totals():
     output1 = _order_book_output([], [], total_bid="", total_ask="")   # 정지/동시호가
-    book = _client(FakeTransport(response=_order_book_resp(output1))).ticker("005930").order_book()
+    book = _client(FakeTransport(response=_order_book_resp(output1))).domestic.stock("005930").order_book()
     assert book.bids == () and book.asks == ()
     assert book.total_bid_quantity == 0 and book.total_ask_quantity == 0
 
@@ -273,7 +273,7 @@ def test_ticker_order_book_skips_gap_and_keeps_best_first():
         bids=[("71500", "100"), ("0", "0"), ("71300", "300")],   # 2단계 빔
         asks=[("71600", "110"), ("0", "0"), ("71800", "310")],
     )
-    book = _client(FakeTransport(response=_order_book_resp(output1))).ticker("005930").order_book()
+    book = _client(FakeTransport(response=_order_book_resp(output1))).domestic.stock("005930").order_book()
     assert book.bids == (PriceLevel(Decimal(71500), 100), PriceLevel(Decimal(71300), 300))
     assert book.asks == (PriceLevel(Decimal(71600), 110), PriceLevel(Decimal(71800), 310))
 
@@ -281,7 +281,7 @@ def test_ticker_order_book_skips_gap_and_keeps_best_first():
 # --- 시장 매핑/시각 -------------------------------------------------------
 def test_ticker_market_override_to_unified_board():
     fake = FakeTransport(response=_quote_resp())
-    quote = _client(fake).ticker("005930", market="UN").quote()
+    quote = _client(fake).domestic.stock("005930", market="UN").quote()
     assert quote.market == "UN"
     assert fake.calls[0]["params"]["FID_COND_MRKT_DIV_CODE"] == "UN"
 
@@ -289,12 +289,12 @@ def test_ticker_market_override_to_unified_board():
 def test_ticker_bad_market_override_rejected_before_io():
     fake = FakeTransport(response=_quote_resp())
     with pytest.raises(KISUsageError):        # KROX 같은 오타는 조회 전에 거부
-        _client(fake).ticker("005930", market="KROX")
+        _client(fake).domestic.stock("005930", market="KROX")
     assert fake.calls == []
 
 
 def test_quote_as_of_uses_kst_offset():
-    quote = _client(FakeTransport(response=_quote_resp())).ticker("005930").quote()
+    quote = _client(FakeTransport(response=_quote_resp())).domestic.stock("005930").quote()
     assert quote.as_of.utcoffset() == timedelta(hours=9)
 
 
@@ -303,14 +303,14 @@ def test_quote_as_of_uses_kst_offset():
 def test_ticker_bars_max_bars_must_be_positive(max_bars):
     fake = FakeTransport(response=_bars_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("005930").bars(start="20240101", max_bars=max_bars)
+        _client(fake).domestic.stock("005930").bars(start="20240101", max_bars=max_bars)
     assert fake.calls == []
 
 
 def test_ticker_bars_stops_on_empty_page():
     page_a = _bars_resp([_bar_row("20240105", "1", "1", "1", "5", "1")])
     fake = FakeTransport(by_path={_BARS_PATH: [page_a, _bars_resp([])]})
-    bars = _client(fake).ticker("005930").bars(start="20200101")   # 데이터보다 훨씬 이전
+    bars = _client(fake).domestic.stock("005930").bars(start="20200101")   # 데이터보다 훨씬 이전
     assert [f"{bar.timestamp:%Y%m%d}" for bar in bars] == ["20240105"]
     assert len(fake.calls) == 2
 
@@ -347,7 +347,7 @@ def test_bad_account_format_rejected(account):
 
 def test_account_optional_for_market_data():
     kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_quote_resp()))
-    assert kis.ticker("005930").quote().last == Decimal(71500)   # 계좌 없이 시세 OK
+    assert kis.domestic.stock("005930").quote().last == Decimal(71500)   # 계좌 없이 시세 OK
 
 
 def test_recent_prices_maps_extended_history_fields():
@@ -368,7 +368,7 @@ def test_recent_prices_maps_extended_history_fields():
         "acml_prtt_rate": "100.00",
     }
     fake = FakeTransport(response=_quote_resp([row]))
-    points = _client(fake).ticker("005930", market="NXT").recent_prices(
+    points = _client(fake).domestic.stock("005930", market="NXT").recent_prices(
         interval="1wk", adjusted=False
     )
 
@@ -391,7 +391,7 @@ def test_recent_prices_maps_extended_history_fields():
 def test_recent_prices_rejects_minute_interval_before_transport():
     fake = FakeTransport(response=_quote_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("005930").recent_prices(interval="1m")
+        _client(fake).domestic.stock("005930").recent_prices(interval="1m")
     assert fake.calls == []
 
 
@@ -432,7 +432,7 @@ def test_stock_status_maps_prices_and_regulatory_flags():
         "flng_cls_name": "배당락",
     }
     fake = FakeTransport(response=_quote_resp(output))
-    status = _client(fake).ticker("005930", market="UN").status()
+    status = _client(fake).domestic.stock("005930", market="UN").status()
 
     assert isinstance(status, StockStatus)
     assert status.market == "UN"
@@ -456,7 +456,7 @@ def test_stock_status_maps_prices_and_regulatory_flags():
 def test_stock_status_missing_output_fails_closed():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=response)).ticker("005930").status()
+        _client(FakeTransport(response=response)).domestic.stock("005930").status()
 
 
 def test_intraday_executions_maps_summary_points_and_params():
@@ -503,7 +503,7 @@ def test_intraday_executions_maps_summary_points_and_params():
         },
     )
     fake = FakeTransport(response=response)
-    executions = _client(fake).ticker("005930").intraday_executions(at="101501")
+    executions = _client(fake).domestic.stock("005930").intraday_executions(at="101501")
 
     assert isinstance(executions, IntradayExecutions)
     assert executions.summary.price == Decimal(73000)
@@ -530,7 +530,7 @@ def test_intraday_executions_maps_summary_points_and_params():
 def test_intraday_executions_rejects_bad_time_before_transport(at):
     fake = FakeTransport(response=_quote_resp())
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("005930").intraday_executions(at=at)
+        _client(fake).domestic.stock("005930").intraday_executions(at=at)
     assert fake.calls == []
 
 
@@ -538,4 +538,4 @@ def test_intraday_executions_rejects_bad_time_before_transport(at):
 def test_intraday_executions_requires_both_blocks(body):
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     with pytest.raises(KISError):
-        _client(FakeTransport(response=response)).ticker("005930").intraday_executions()
+        _client(FakeTransport(response=response)).domestic.stock("005930").intraday_executions()

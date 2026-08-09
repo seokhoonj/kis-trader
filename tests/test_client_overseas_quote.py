@@ -1,4 +1,4 @@
-"""해외주식 현재가 -- kis.ticker(symbol, exchange=...).quote().
+"""해외주식 현재가 -- kis.overseas.stock(symbol, exchange=...).quote().
 
 해외는 거래소코드로 라우팅, price-detail 엔드포인트, 통화(curr) 채움, 전일종가 대비 등락 계산,
 그리고 해외 티커에서 아직 미구현 국내 메서드는 명확히 거부됨을 검증한다.
@@ -46,7 +46,7 @@ def _client(transport):
 
 def test_overseas_quote_routes_and_maps():
     fake = FakeTransport(response=_resp(_output()))
-    quote = _client(fake).ticker("AAPL", exchange="NAS").quote()
+    quote = _client(fake).overseas.stock("AAPL", exchange="NAS").quote()
     assert isinstance(quote, Quote)
     assert quote.symbol == "AAPL"
     assert quote.market == "NAS"                  # 거래소코드
@@ -70,7 +70,7 @@ def test_overseas_quote_routes_and_maps():
 
 def test_overseas_quote_negative_change():
     fake = FakeTransport(response=_resp(_output(last="145.00", base="148.00")))
-    quote = _client(fake).ticker("AAPL", exchange="NAS").quote()
+    quote = _client(fake).overseas.stock("AAPL", exchange="NAS").quote()
     assert quote.change == Decimal("-3.00")       # 하락
     assert quote.change_percent == Decimal("-2.03")
 
@@ -78,13 +78,13 @@ def test_overseas_quote_negative_change():
 def test_overseas_quote_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("AAPL", exchange="NAS").quote()
+        _client(fake).overseas.stock("AAPL", exchange="NAS").quote()
 
 
 def test_overseas_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(_output(last="n/a")))
     with pytest.raises(KISError):
-        _client(fake).ticker("AAPL", exchange="NAS").quote()
+        _client(fake).overseas.stock("AAPL", exchange="NAS").quote()
 
 
 def test_overseas_current_price_maps_compact_endpoint():
@@ -96,7 +96,7 @@ def test_overseas_current_price_maps_compact_endpoint():
     fake = FakeTransport(response=_resp(output))
 
     from kis_openapi import OverseasCurrentPrice
-    price = _client(fake).ticker("AAPL", exchange="NAS").current_price()
+    price = _client(fake).overseas.stock("AAPL", exchange="NAS").current_price()
 
     assert isinstance(price, OverseasCurrentPrice)
     assert price.symbol == "AAPL"
@@ -119,15 +119,15 @@ def test_overseas_current_price_maps_compact_endpoint():
 def test_current_price_is_overseas_only_and_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("005930").current_price()
+        _client(fake).domestic.stock("005930").current_price()
     with pytest.raises(KISError):
-        _client(fake).ticker("AAPL", exchange="NAS").current_price()
+        _client(fake).overseas.stock("AAPL", exchange="NAS").current_price()
 
 
 def test_overseas_ticker_is_overseas_flag():
     fake = FakeTransport(response=_resp(_output()))
-    assert _client(fake).ticker("AAPL", exchange="NAS").is_overseas is True
-    assert _client(fake).ticker("005930").is_overseas is False
+    assert _client(fake).overseas.stock("AAPL", exchange="NAS").is_overseas is True
+    assert _client(fake).domestic.stock("005930").is_overseas is False
 
 
 def test_bare_symbol_auto_resolves_exchange():
@@ -135,7 +135,7 @@ def test_bare_symbol_auto_resolves_exchange():
     index = MasterIndex([MasterRecord("AAPL", "NAS", "USD", "stock", "애플", "APPLE", "NASAAPL")])
     fake = FakeTransport(response=_resp(_output()))
     client = KISClient(app_key="k", app_secret="s", transport=fake, master_index=index)
-    handle = client.ticker("AAPL")                # exchange 없이 -> 마스터로 NAS 자동 해석
+    handle = client.overseas.stock("AAPL")                # exchange 없이 -> 마스터로 NAS 자동 해석
     assert handle.is_overseas is True
     assert handle.exchange == "NAS"
     quote = handle.quote()
@@ -150,14 +150,14 @@ def test_bare_domestic_symbol_stays_domestic_without_master():
 
     client = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_resp(_output())),
                        master_fetch=exploding_fetch)
-    handle = client.ticker("005930")
+    handle = client.domestic.stock("005930")
     assert handle.is_overseas is False
     assert handle.market == "KRX"
 
 
 def test_overseas_ticker_rejects_domestic_only_methods():
     fake = FakeTransport(response=_resp(_output()))
-    handle = _client(fake).ticker("AAPL", exchange="NAS")
+    handle = _client(fake).overseas.stock("AAPL", exchange="NAS")
     for call in (
         handle.investor_flows,
         handle.broker_activity,

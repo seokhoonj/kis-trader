@@ -1,4 +1,4 @@
-"""해외 주문 -- kis.ticker(symbol, exchange=...).buy()/sell().
+"""해외 주문 -- kis.overseas.stock(symbol, exchange=...).buy()/sell().
 
 해외 주문이 공유 안전 코어(이중체결 방지·재시도 금지)를 거쳐 해외 와이어(TR/EXCD)로 나가는지,
 지정가 필수, 해외 timeout 재조회 게이트, risk 세션 거부, 접수 응답(ODNO) 처리를 검증한다.
@@ -71,7 +71,7 @@ def _client(transport, **kw):
 
 def test_overseas_buy_routes_to_overseas_wire():
     fake = FakeTransport(response=_ack())
-    report = _client(fake).ticker("AAPL", exchange="NAS").buy(
+    report = _client(fake).overseas.stock("AAPL", exchange="NAS").buy(
         quantity=3, price="150.25", client_order_id="oid-1"
     )
     assert isinstance(report, ExecutionReport)
@@ -88,7 +88,7 @@ def test_overseas_buy_routes_to_overseas_wire():
 
 def test_overseas_sell_sets_sll_type_and_tr():
     fake = FakeTransport(response=_ack())
-    _client(fake).ticker("AAPL", exchange="NAS").sell(
+    _client(fake).overseas.stock("AAPL", exchange="NAS").sell(
         quantity=1, price="151.00", client_order_id="oid-2"
     )
     assert fake.calls[0]["tr_id"] == "TTTT1006U"       # 미국 매도 실전
@@ -98,7 +98,7 @@ def test_overseas_sell_sets_sll_type_and_tr():
 def test_overseas_cancel_maps_exchange_and_deduplicates():
     fake = FakeTransport(response=_ack())
     kis = _client(fake)
-    kis.ticker("AAPL", exchange="NAS").buy(
+    kis.overseas.stock("AAPL", exchange="NAS").buy(
         quantity=3, price="150.25", client_order_id="original-overseas-1"
     )
     first = kis.cancel_order(
@@ -127,7 +127,7 @@ def test_overseas_cancel_maps_exchange_and_deduplicates():
 def test_overseas_replace_uses_demo_tr_and_new_price():
     fake = FakeTransport(response=_ack())
     kis = _client(fake, environment="demo")
-    kis.ticker("0700", exchange="HKS").sell(
+    kis.overseas.stock("0700", exchange="HKS").sell(
         quantity=4, price="410.00", client_order_id="original-overseas-2"
     )
     report = kis.replace_order(
@@ -148,7 +148,7 @@ def test_overseas_replace_uses_demo_tr_and_new_price():
 def test_overseas_change_timeout_is_not_resent():
     fake = FakeTransport(response=_ack())
     kis = _client(fake)
-    kis.ticker("AAPL", exchange="NAS").buy(
+    kis.overseas.stock("AAPL", exchange="NAS").buy(
         quantity=3, price="150.25", client_order_id="original-overseas-3"
     )
     fake.raises = TransportTimeout()
@@ -163,13 +163,13 @@ def test_overseas_change_timeout_is_not_resent():
 def test_overseas_market_order_rejected():
     fake = FakeTransport(response=_ack())
     with pytest.raises(KISUsageError, match="지정가"):
-        _client(fake).ticker("AAPL", exchange="NAS").buy(quantity=1)  # price 없음
+        _client(fake).overseas.stock("AAPL", exchange="NAS").buy(quantity=1)  # price 없음
 
 
 def test_overseas_order_dedup_replays_report():
     # 같은 client_order_id 재전송은 와이어에 다시 안 나가고 이전 리포트를 돌려준다(이중체결 방지).
     fake = FakeTransport(response=_ack())
-    handle = _client(fake).ticker("AAPL", exchange="NAS")
+    handle = _client(fake).overseas.stock("AAPL", exchange="NAS")
     first = handle.buy(quantity=1, price="150.00", client_order_id="dup")
     second = handle.buy(quantity=1, price="150.00", client_order_id="dup")
     assert first.order_id == second.order_id
@@ -181,7 +181,7 @@ def test_overseas_order_timeout_then_reconcile_confirms():
     fake = FakeTransport(on_post=TransportTimeout("timeout"), on_get=_ccnl([_ccnl_row()]))
     client = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        client.ticker("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="to")
+        client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="to")
     report = client.reconcile("to")                    # 해외 체결내역으로 확정
     assert report is not None
     assert report.order_id == "0000123456"
@@ -196,7 +196,7 @@ def test_overseas_reconcile_zero_matches_stays_none():
                          on_get=_ccnl([_ccnl_row(pdno="MSFT")]))
     client = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        client.ticker("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="z")
+        client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="z")
     assert client.reconcile("z") is None
 
 
@@ -206,7 +206,7 @@ def test_overseas_reconcile_two_matches_raises():
                          on_get=_ccnl([_ccnl_row(odno="1"), _ccnl_row(odno="2")]))
     client = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        client.ticker("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="m2")
+        client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="m2")
     with pytest.raises(KISError, match="2건"):
         client.reconcile("m2")
 
@@ -215,7 +215,7 @@ def test_overseas_write_timeout_does_not_retry():
     # POST timeout 이면 정확히 1회만 전송(재전송 금지)하고 idempotent=False 로 나간다.
     fake = FakeTransport(on_post=TransportTimeout("timeout"))
     with pytest.raises(OrderTimeoutError):
-        _client(fake).ticker("AAPL", exchange="NAS").buy(
+        _client(fake).overseas.stock("AAPL", exchange="NAS").buy(
             quantity=1, price="150.00", client_order_id="nr")
     posts = _posts(fake)
     assert len(posts) == 1                              # 재전송 없음
@@ -230,7 +230,7 @@ def test_overseas_reconcile_date_window_is_deterministic():
     from kis_openapi.store import OrderStore
     kst = timezone(__import__("datetime").timedelta(hours=9))
     store = OrderStore()
-    order = _client(FakeTransport(response=_ack())).ticker(
+    order = _client(FakeTransport(response=_ack())).overseas.stock(
         "AAPL", exchange="NAS")._make_order("buy", 1, "150.00", "day", "d1")
     store.try_claim("d1", order.fingerprint)            # in-flight 로 만든다
     fake = FakeTransport(on_get=_ccnl([]))
@@ -249,7 +249,7 @@ def test_overseas_reconcile_paginates_ccnl():
     fake = FakeTransport(on_post=TransportTimeout("t"), on_get=[page1, page2])
     client = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        client.ticker("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="pg")
+        client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="pg")
     report = client.reconcile("pg")
     assert report is not None and report.order_id == "0000123456"
     gets = [c for c in fake.calls if c["method"] == "GET"]
@@ -267,7 +267,7 @@ def test_overseas_reconcile_keeps_scanning_when_tr_cont_says_more():
     fake = FakeTransport(on_post=TransportTimeout("t"), on_get=[page1, page2])
     client = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        client.ticker("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="tc")
+        client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="tc")
     report = client.reconcile("tc")
     assert report is not None and report.order_id == "0000123456"
     assert len([c for c in fake.calls if c["method"] == "GET"]) == 2
@@ -277,7 +277,7 @@ def test_overseas_non_day_tif_rejected_before_wire():
     # 해외는 day 만 -- IOC 를 조용히 day 로 바꾸지 않고 와이어 전에 거부한다(fail-closed).
     fake = FakeTransport(response=_ack())
     with pytest.raises(KISUsageError, match="day"):
-        _client(fake).ticker("AAPL", exchange="NAS").buy(
+        _client(fake).overseas.stock("AAPL", exchange="NAS").buy(
             quantity=1, price="150.00", time_in_force="ioc", client_order_id="ioc")
     assert _posts(fake) == []
 
@@ -286,7 +286,7 @@ def test_overseas_unknown_exchange_rejected_before_wire():
     # 알 수 없는 거래소코드는 도메스틱 빌더로 흘러 와이어 전에 거부된다(오라우팅 방지).
     fake = FakeTransport(response=_ack())
     with pytest.raises(Exception):  # noqa: B017 -- NotImplementedError/KISUsageError, 어느 쪽이든 와이어 전
-        _client(fake).ticker("BOGUS", exchange="XXX").buy(
+        _client(fake).overseas.stock("BOGUS", exchange="XXX").buy(
             quantity=1, price="150.00", client_order_id="x")
     assert _posts(fake) == []
 
@@ -313,5 +313,5 @@ def test_overseas_order_with_risk_session_rejected():
     fake = FakeTransport(response=_ack())
     client = _client(fake, risk=RiskLimits(max_order_quantity=10))
     with pytest.raises(KISUsageError, match="리스크"):
-        client.ticker("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="r1")
+        client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, price="150.00", client_order_id="r1")
     assert len(fake.calls) == 0                         # 거부는 와이어 전

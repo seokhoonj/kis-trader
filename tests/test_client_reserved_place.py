@@ -1,4 +1,4 @@
-"""예약주문 발주 -- kis.ticker(...).reserve_buy/reserve_sell (order-resv CTSC0008U).
+"""예약주문 발주 -- kis.domestic.stock(...).reserve_buy/reserve_sell (order-resv CTSC0008U).
 
 즉시주문과 별개 라이프사이클(rsvn_ord_seq·체결개념 없음)이지만 이중발주 방지·재시도 금지·보수적
 재조회(예약주문조회 기반)를 공유한다. 네트워크 없이 가짜 전송으로 안전 불변식을 검증한다.
@@ -83,7 +83,7 @@ def _client(transport, *, environment="real", account="12345678-01", store=None)
 # --- 정상 전송 -------------------------------------------------------------
 def test_reserve_buy_limit_wire():
     fake = FakeTransport(response=_ACCEPTED)
-    report = _client(fake).ticker("005930").reserve_buy(quantity=1, price=70000, end_date="20240605")
+    report = _client(fake).domestic.stock("005930").reserve_buy(quantity=1, price=70000, end_date="20240605")
     assert isinstance(report, ExecutionReport)
     assert report.order_id == "42401"               # 예약주문순번
     assert report.status is OrderStatus.PENDING_NEW  # 접수됨·미집행
@@ -103,7 +103,7 @@ def test_reserve_buy_limit_wire():
 
 def test_reserve_sell_market_wire():
     fake = FakeTransport(response=_ACCEPTED)
-    _client(fake).ticker("005930").reserve_sell(quantity=2)   # 시장가
+    _client(fake).domestic.stock("005930").reserve_sell(quantity=2)   # 시장가
     call = fake.calls[0]
     assert call["body"]["SLL_BUY_DVSN_CD"] == "01"  # 매도
     assert call["body"]["ORD_DVSN_CD"] == "01"      # 시장가
@@ -116,28 +116,28 @@ def test_reserve_sell_market_wire():
 def test_reserve_bad_quantity_rejected_before_io(bad_qty):
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("005930").reserve_buy(quantity=bad_qty, price=70000)
+        _client(fake).domestic.stock("005930").reserve_buy(quantity=bad_qty, price=70000)
     assert fake.calls == []
 
 
 def test_reserve_bad_price_rejected_before_io():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("005930").reserve_buy(quantity=1, price=0)
+        _client(fake).domestic.stock("005930").reserve_buy(quantity=1, price=0)
     assert fake.calls == []
 
 
 def test_reserve_bad_end_date_rejected_before_io():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("005930").reserve_buy(quantity=1, price=1, end_date="2024-06-05")
+        _client(fake).domestic.stock("005930").reserve_buy(quantity=1, price=1, end_date="2024-06-05")
     assert fake.calls == []
 
 
 def test_reserve_demo_rejected_before_io():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").ticker("005930").reserve_buy(quantity=1, price=1)
+        _client(fake, environment="demo").domestic.stock("005930").reserve_buy(quantity=1, price=1)
     assert fake.calls == []
 
 
@@ -145,7 +145,7 @@ def test_reserve_overseas_ticker_rejects_end_date():
     # 해외(미국) 티커의 reserve_buy 는 해외예약으로 라우팅되며 end_date 를 지원하지 않는다(전송 전 거부)
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("AAPL", exchange="NAS").reserve_buy(quantity=1, price=1, end_date="20240605")
+        _client(fake).overseas.stock("AAPL", exchange="NAS").reserve_buy(quantity=1, price=1, end_date="20240605")
     assert fake.calls == []
 
 
@@ -154,7 +154,7 @@ def test_reserve_missing_sequence_fails_closed_holds_in_flight():
     cid = "20240101-reserved-noseq01"
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body={"output": [{}]}, tr_cont="")
     with pytest.raises(OrderError):  # 순번 없으면 재조회 불가
-        _client(FakeTransport(response=resp), store=store).ticker("005930").reserve_buy(
+        _client(FakeTransport(response=resp), store=store).domestic.stock("005930").reserve_buy(
             quantity=1, price=1, client_order_id=cid)
     assert store.fingerprint_for(cid) is not None    # in-flight 유지(재전송 금지)
 
@@ -164,7 +164,7 @@ def test_reserve_multi_row_sequence_treated_as_missing():
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="",
                        body={"output": [{"rsvn_ord_seq": "1"}, {"rsvn_ord_seq": "2"}]}, tr_cont="")
     with pytest.raises(OrderError):
-        _client(FakeTransport(response=resp)).ticker("005930").reserve_buy(quantity=1, price=1)
+        _client(FakeTransport(response=resp)).domestic.stock("005930").reserve_buy(quantity=1, price=1)
 
 
 def test_reserve_non_orderable_account_rejected_before_io():
@@ -173,7 +173,7 @@ def test_reserve_non_orderable_account_rejected_before_io():
     client = KISClient(app_key="k", app_secret="s", account="12345678-01",
                        environment="real", transport=fake, orderable=False)
     with pytest.raises(AccountNotOrderable):
-        client.ticker("005930").reserve_buy(quantity=1, price=70000)
+        client.domestic.stock("005930").reserve_buy(quantity=1, price=70000)
     assert fake.calls == []
 
 
@@ -181,12 +181,12 @@ def test_reserve_non_orderable_account_rejected_before_io():
 def test_reserve_rejected_clears_in_flight_and_reusable():
     store = OrderStore()
     cid = "20240101-reserved-rej01"
-    t = _client(FakeTransport(response=_REJECTED), store=store).ticker("005930")
+    t = _client(FakeTransport(response=_REJECTED), store=store).domestic.stock("005930")
     with pytest.raises(OrderRejectedError):
         t.reserve_buy(quantity=1, price=70000, client_order_id=cid)
     assert store.fingerprint_for(cid) is None       # 거부 -> in-flight 해제
     fake2 = FakeTransport(response=_ACCEPTED)
-    report = _client(fake2, store=store).ticker("005930").reserve_buy(
+    report = _client(fake2, store=store).domestic.stock("005930").reserve_buy(
         quantity=1, price=70000, client_order_id=cid)
     assert report.order_id == "42401"
     assert len(fake2.calls) == 1
@@ -197,7 +197,7 @@ def test_reserve_timeout_no_retry_holds_in_flight():
     fake = FakeTransport(raises=TransportTimeout("t"))
     cid = "20240101-reserved-to01"
     with pytest.raises(OrderTimeoutError):
-        _client(fake, store=store).ticker("005930").reserve_buy(
+        _client(fake, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, price=70000, client_order_id=cid)
     assert len(fake.calls) == 1                      # 재전송 없음
     assert store.fingerprint_for(cid) is not None    # in-flight 유지
@@ -207,7 +207,7 @@ def test_reserve_replay_same_id_returns_prior():
     store = OrderStore()
     fake = FakeTransport(response=_ACCEPTED)
     cid = "20240101-reserved-rp01"
-    t = _client(fake, store=store).ticker("005930")
+    t = _client(fake, store=store).domestic.stock("005930")
     r1 = t.reserve_buy(quantity=1, price=70000, client_order_id=cid)
     r2 = t.reserve_buy(quantity=1, price=70000, client_order_id=cid)
     assert r1.order_id == r2.order_id
@@ -219,7 +219,7 @@ def test_reserve_fingerprint_namespaced_from_immediate():
     store = OrderStore()
     cid = "20240101-reserved-ns01"
     fake = FakeTransport(response=_ACCEPTED)
-    _client(fake, store=store).ticker("005930").reserve_buy(quantity=1, price=70000, client_order_id=cid)
+    _client(fake, store=store).domestic.stock("005930").reserve_buy(quantity=1, price=70000, client_order_id=cid)
     fp = store.fingerprint_for(cid)
     assert fp is not None and fp.exchange == "reserved"
 
@@ -231,7 +231,7 @@ def test_reserve_reconcile_confirms_single_match():
     # 발주 타임아웃 -> in-flight
     place_t = FakeTransport(raises=TransportTimeout("t"))
     with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).ticker("005930").reserve_buy(
+        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, price=70000, client_order_id=cid)
     # 재조회: 예약주문조회에 지문과 맞는 미처리 예약 하나
     recon_body = {"output": [_reserved_row(qty="1", unpr="70000")],
@@ -249,7 +249,7 @@ def test_reserve_reconcile_no_match_stays_in_flight():
     cid = "20240101-reserved-rc02"
     place_t = FakeTransport(raises=TransportTimeout("t"))
     with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).ticker("005930").reserve_buy(
+        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, price=70000, client_order_id=cid)
     # 조회 결과가 비면 미접수로 단정하지 않는다 -> None, in-flight 유지
     empty_body = {"output": [], "ctx_area_nk200": "", "ctx_area_fk200": ""}
@@ -263,7 +263,7 @@ def test_reserve_reconcile_multi_match_raises():
     cid = "20240101-reserved-rc03"
     place_t = FakeTransport(raises=TransportTimeout("t"))
     with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).ticker("005930").reserve_buy(
+        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, price=70000, client_order_id=cid)
     body = {"output": [_reserved_row(seq="42401", qty="1", unpr="70000"),
                        _reserved_row(seq="42402", qty="1", unpr="70000")],
@@ -277,7 +277,7 @@ def test_reserve_same_id_different_order_conflicts_no_wire():
     store = OrderStore()
     fake = FakeTransport(response=_ACCEPTED)
     cid = "20240101-reserved-cf01"
-    t = _client(fake, store=store).ticker("005930")
+    t = _client(fake, store=store).domestic.stock("005930")
     t.reserve_buy(quantity=1, price=70000, client_order_id=cid)
     with pytest.raises(KISUsageError):               # 같은 id, 다른 수량 -> 충돌
         t.reserve_buy(quantity=2, price=70000, client_order_id=cid)
@@ -292,10 +292,10 @@ def test_reserve_and_immediate_same_id_cross_lifecycle_conflicts():
     immediate = FakeTransport(response=RawResponse(
         rt_cd="0", msg_cd="A", msg1="",
         body={"output": {"KRX_FWDG_ORD_ORGNO": "01", "ODNO": "0001", "ORD_TMD": "1"}}))
-    _client(immediate, store=store).ticker("005930").buy(quantity=1, price=70000, client_order_id=cid)
+    _client(immediate, store=store).domestic.stock("005930").buy(quantity=1, price=70000, client_order_id=cid)
     reserved = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(reserved, store=store).ticker("005930").reserve_buy(
+        _client(reserved, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, price=70000, client_order_id=cid)
     assert reserved.calls == []                      # 예약 POST 없음
 
@@ -304,11 +304,11 @@ def test_reserve_end_date_distinguishes_fingerprint():
     # 종료일만 다른 두 예약을 같은 id 로 내면 서로 다른 주문 -> 두 번째는 CONFLICT(silent replay 아님)
     store = OrderStore()
     cid = "20240101-reserved-ed01"
-    t = _client(FakeTransport(response=_ACCEPTED), store=store).ticker("005930")
+    t = _client(FakeTransport(response=_ACCEPTED), store=store).domestic.stock("005930")
     t.reserve_buy(quantity=1, price=70000, end_date="20240605", client_order_id=cid)
     fake2 = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake2, store=store).ticker("005930").reserve_buy(
+        _client(fake2, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, price=70000, end_date="20240610", client_order_id=cid)
     assert fake2.calls == []
 
@@ -323,7 +323,7 @@ def test_reserve_reconcile_rejects_partial_match(changed):
     cid = "20240101-reserved-pm01"
     place_t = FakeTransport(raises=TransportTimeout("t"))
     with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).ticker("005930").reserve_buy(
+        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, price=70000, client_order_id=cid)
     row = _reserved_row(qty="1", unpr="70000")
     row.update(changed)
@@ -339,7 +339,7 @@ def test_reserve_reconcile_window_and_process_params(monkeypatch):
     cid = "20240101-reserved-win01"
     place_t = FakeTransport(raises=TransportTimeout("t"))
     with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).ticker("005930").reserve_buy(
+        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, price=70000, client_order_id=cid)
     body = {"output": [], "ctx_area_nk200": "", "ctx_area_fk200": ""}
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
@@ -357,7 +357,7 @@ def test_reserve_reconcile_ignores_blank_sequence_row():
     cid = "20240101-reserved-bs01"
     place_t = FakeTransport(raises=TransportTimeout("t"))
     with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).ticker("005930").reserve_buy(
+        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, price=70000, client_order_id=cid)
     row = _reserved_row(seq="", qty="1", unpr="70000")
     body = {"output": [row], "ctx_area_nk200": "", "ctx_area_fk200": ""}
@@ -368,5 +368,5 @@ def test_reserve_reconcile_ignores_blank_sequence_row():
 
 def test_reserve_requires_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_ACCEPTED), account=None).ticker("005930").reserve_buy(
+        _client(FakeTransport(response=_ACCEPTED), account=None).domestic.stock("005930").reserve_buy(
             quantity=1, price=1)

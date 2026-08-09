@@ -44,7 +44,7 @@ def test_credit_balance_trend_maps():
              "whol_loan_rmnd_rate": "0.5", "whol_stln_rmnd_stcn": "2000",
              "whol_stln_rmnd_amt": "140000000", "whol_stln_rmnd_rate": "0.02"}]
     fake = FakeTransport(response=_resp(rows))
-    pts = _client(fake).ticker("005930").credit_balance_trend(as_of="20240102")
+    pts = _client(fake).domestic.stock("005930").credit_balance_trend(as_of="20240102")
     assert isinstance(pts[0], CreditBalancePoint)
     assert pts[0].margin_loan_shares == 50000
     assert pts[0].margin_loan_amount == Decimal(3500000000)
@@ -62,7 +62,7 @@ def test_short_sale_trend_maps():
              "ssts_cntg_qty": "1500", "ssts_vol_rlim": "15.0", "ssts_tr_pbmn": "105000000",
              "avrg_prc": "70050"}]
     fake = FakeTransport(response=_resp(rows))
-    pts = _client(fake).ticker("005930").short_sale_trend(start="20240101", end="20240102")
+    pts = _client(fake).domestic.stock("005930").short_sale_trend(start="20240101", end="20240102")
     assert isinstance(pts[0], ShortSalePoint)
     assert pts[0].short_volume == 1500
     assert pts[0].short_volume_ratio == Decimal("15.0")
@@ -77,7 +77,7 @@ def test_short_sale_trend_maps():
 def test_credit_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").credit_balance_trend()
+        _client(fake).domestic.stock("005930").credit_balance_trend()
 
 
 def test_short_bad_value_fails_closed():
@@ -86,7 +86,7 @@ def test_short_bad_value_fails_closed():
              "ssts_tr_pbmn": "0"}]
     fake = FakeTransport(response=_resp(rows))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").short_sale_trend()
+        _client(fake).domestic.stock("005930").short_sale_trend()
 
 
 def test_foreign_net_buy_trend_maps_ledger_values_and_preserves_order():
@@ -105,7 +105,7 @@ def test_foreign_net_buy_trend_maps_ledger_values_and_preserves_order():
         },
     ]
     fake = FakeTransport(response=_resp(rows))
-    pts = _client(fake).ticker("005930").foreign_net_buy_trend()
+    pts = _client(fake).domestic.stock("005930").foreign_net_buy_trend()
     assert isinstance(pts[0], ForeignNetBuyPoint)
     assert pts[0].time.strftime("%H%M%S") == "153106"
     assert pts[0].price == Decimal(81300)
@@ -129,7 +129,7 @@ def test_foreign_net_buy_trend_maps_ledger_values_and_preserves_order():
 def test_foreign_net_buy_trend_non_list_output_fails_closed():
     fake = FakeTransport(response=_resp({"bsop_hour": "153106"}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").foreign_net_buy_trend()
+        _client(fake).domestic.stock("005930").foreign_net_buy_trend()
 
 
 def test_foreign_net_buy_trend_bad_present_numeric_fails_closed():
@@ -141,7 +141,7 @@ def test_foreign_net_buy_trend_bad_present_numeric_fails_closed():
     }]
     fake = FakeTransport(response=_resp(rows))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").foreign_net_buy_trend()
+        _client(fake).domestic.stock("005930").foreign_net_buy_trend()
 
 
 def test_loan_trend_maps():
@@ -151,7 +151,7 @@ def test_loan_trend_maps():
              "new_stcn": "5000", "rdmp_stcn": "2000", "rmnd_stcn": "100000",
              "rmnd_amt": "7000000000", "prdy_rmnd_vrss": "3000"}]
     fake = FakeTransport(response=_resp(rows))
-    pts = _client(fake).ticker("005930").loan_trend(start="20240101", end="20240102")
+    pts = _client(fake).domestic.stock("005930").loan_trend(start="20240101", end="20240102")
     assert isinstance(pts[0], LoanPoint)
     assert pts[0].new_shares == 5000
     assert pts[0].balance_shares == 100000
@@ -167,7 +167,7 @@ def test_loan_trend_maps():
 def test_short_sale_default_window_is_lookback_not_single_day():
     # start 미지정이면 end 로부터 30일 전이 되어야 한다(하루로 붕괴하면 _trend 가 무의미).
     fake = FakeTransport(response=_resp([]))
-    _client(fake).ticker("005930").short_sale_trend(end="20240131")
+    _client(fake).domestic.stock("005930").short_sale_trend(end="20240131")
     call = fake.calls[0]
     assert call["params"]["FID_INPUT_DATE_2"] == "20240131"
     assert call["params"]["FID_INPUT_DATE_1"] == "20240101"      # 31일 - 30일
@@ -176,7 +176,7 @@ def test_short_sale_default_window_is_lookback_not_single_day():
 
 def test_loan_default_window_is_lookback():
     fake = FakeTransport(response=_resp([]))
-    _client(fake).ticker("005930").loan_trend(end="20240131")
+    _client(fake).domestic.stock("005930").loan_trend(end="20240131")
     call = fake.calls[0]
     assert call["params"]["END_DATE"] == "20240131"
     assert call["params"]["START_DATE"] == "20240101"
@@ -193,7 +193,7 @@ def test_daily_trade_volume_maps_output2():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
     fake = FakeTransport(response=resp)
     from kis_openapi import DailyExecutionVolume
-    pts = _client(fake).ticker("005930").daily_trade_volume(start="20240120", end="20240126")
+    pts = _client(fake).domestic.stock("005930").daily_trade_volume(start="20240120", end="20240126")
     assert isinstance(pts[0], DailyExecutionVolume)
     assert pts[0].buy_volume == 4520816
     assert pts[0].sell_volume == 5285722
@@ -209,7 +209,7 @@ def test_daily_trade_volume_missing_output2_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}})
     fake = FakeTransport(response=resp)
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").daily_trade_volume(end="20240126")
+        _client(fake).domestic.stock("005930").daily_trade_volume(end="20240126")
 
 
 def test_trade_amount_bands_maps():
@@ -224,7 +224,7 @@ def test_trade_amount_bands_maps():
              "shnu_cnqn_smtn": "62504", "whol_shun_vol_rate": "0.60", "shnu_cntg_csnu": "1247"}]
     fake = FakeTransport(response=_resp(rows))
     from kis_openapi import TradeAmountBand
-    bands = _client(fake).ticker("005930").trade_amount_bands()
+    bands = _client(fake).domestic.stock("005930").trade_amount_bands()
     assert isinstance(bands[0], TradeAmountBand)
     assert bands[0].band_label == "3백 이하"
     assert bands[0].average_price == Decimal(78315)
@@ -247,7 +247,7 @@ def test_expected_price_trend_maps_output2():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
     fake = FakeTransport(response=resp)
     from kis_openapi import ExpectedPricePoint
-    pts = _client(fake).ticker("005930").expected_price_trend(nonzero_only=True)
+    pts = _client(fake).domestic.stock("005930").expected_price_trend(nonzero_only=True)
     assert isinstance(pts[0], ExpectedPricePoint)
     assert pts[0].expected_price == Decimal(72600)
     assert pts[0].change == Decimal(300)                 # sign 2 -> 양수

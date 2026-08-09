@@ -270,7 +270,7 @@ class DomesticNamespace:
     # -- 종목/상품 핸들 --
     def stock(self, code: str, *, market: DomesticBoard | None = None) -> Ticker:
         """국내 종목/ETF 핸들."""
-        return self._c.ticker(code, market=market)
+        return self._c._make_stock(code, market=market)
 
     def index(self, code: str) -> Index:
         """지수 핸들."""
@@ -369,7 +369,7 @@ class OverseasNamespace:
     # -- 종목/상품 핸들 --
     def stock(self, symbol: str, *, exchange: str | None = None) -> Ticker:
         """해외 종목 핸들(``exchange`` 없으면 종목 마스터로 자동 해석)."""
-        return self._c.ticker(symbol, exchange=exchange)
+        return self._c._make_stock(symbol, exchange=exchange)
 
     def index(self, symbol: str, *, kind: str = "index") -> OverseasIndex:
         """해외 지수/환율/채권/금 핸들."""

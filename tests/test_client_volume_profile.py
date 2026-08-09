@@ -72,7 +72,7 @@ def _response(*, output1=None, output2=None):
 
 def test_volume_profile_routes_and_maps_ledger_values():
     fake = FakeTransport(response=_response())
-    profile = _client(fake).ticker("123456").volume_profile()
+    profile = _client(fake).domestic.stock("123456").volume_profile()
 
     assert isinstance(profile, VolumeProfile)
     assert profile.symbol == "123456"
@@ -116,22 +116,22 @@ def test_volume_profile_missing_blocks_fail_closed(output1, output2):
     response = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
 
     with pytest.raises(KISError):
-        _client(FakeTransport(response=response)).ticker("123456").volume_profile()
+        _client(FakeTransport(response=response)).domestic.stock("123456").volume_profile()
 
 
 def test_volume_profile_bad_required_numeric_fails_closed():
     response = _response(output1=_summary(wghn_avrg_stck_prc="not-a-number"))
 
     with pytest.raises(KISError):
-        _client(FakeTransport(response=response)).ticker("123456").volume_profile()
+        _client(FakeTransport(response=response)).domestic.stock("123456").volume_profile()
 
 
 def test_volume_profile_entities_are_hashable_and_raw_does_not_affect_equality():
-    first = _client(FakeTransport(response=_response())).ticker("123456").volume_profile()
+    first = _client(FakeTransport(response=_response())).domestic.stock("123456").volume_profile()
     changed_raw = _summary(extra_vendor_field="ignored")
     second = _client(
         FakeTransport(response=_response(output1=changed_raw))
-    ).ticker("123456").volume_profile()
+    ).domestic.stock("123456").volume_profile()
 
     assert first == second
     assert hash(first) == hash(second)

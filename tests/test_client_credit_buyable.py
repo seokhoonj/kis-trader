@@ -1,4 +1,4 @@
-"""신용매수가능조회 -- kis.ticker(symbol).credit_buyable() (TTTC8909R).
+"""신용매수가능조회 -- kis.domestic.stock(symbol).credit_buyable() (TTTC8909R).
 
 현금 매수가능과 output 형상이 같아 BuyableAmount 를 공유한다. 네트워크 없이 FakeTransport 로
 검증하며, 픽스처는 원장 응답예시(inquire-credit-psamount) 실값을 쓴다.
@@ -51,7 +51,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 
 
 def test_credit_buyable_parses_shared_fields():
-    result = _client(FakeTransport(response=_resp())).ticker("005930").credit_buyable(limit_price="55000")
+    result = _client(FakeTransport(response=_resp())).domestic.stock("005930").credit_buyable(limit_price="55000")
     assert isinstance(result, BuyableAmount)
     assert result.symbol == "005930"
     assert result.currency == "KRW"
@@ -64,7 +64,7 @@ def test_credit_buyable_parses_shared_fields():
 
 def test_credit_buyable_tr_and_params():
     fake = FakeTransport(response=_resp())
-    _client(fake).ticker("005930").credit_buyable(limit_price="55000")
+    _client(fake).domestic.stock("005930").credit_buyable(limit_price="55000")
     call = fake.calls[0]
     assert call["tr_id"] == "TTTC8909R"
     assert call["method"] == "GET"
@@ -78,7 +78,7 @@ def test_credit_buyable_tr_and_params():
 
 def test_credit_buyable_market_price_sends_zero():
     fake = FakeTransport(response=_resp())
-    _client(fake).ticker("005930").credit_buyable()   # limit_price 없음 -> 시장가
+    _client(fake).domestic.stock("005930").credit_buyable()   # limit_price 없음 -> 시장가
     call = fake.calls[0]
     assert call["params"]["ORD_DVSN"] == "01"         # 시장가
     assert call["params"]["ORD_UNPR"] == "0"          # 공란 대신 "0"
@@ -86,21 +86,21 @@ def test_credit_buyable_market_price_sends_zero():
 
 def test_credit_buyable_custom_credit_type():
     fake = FakeTransport(response=_resp())
-    _client(fake).ticker("005930").credit_buyable(credit_type="23", limit_price="1")
+    _client(fake).domestic.stock("005930").credit_buyable(credit_type="23", limit_price="1")
     assert fake.calls[0]["params"]["CRDT_TYPE"] == "23"
 
 
 def test_credit_buyable_unknown_credit_type_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("005930").credit_buyable(credit_type="99", limit_price="1")
+        _client(fake).domestic.stock("005930").credit_buyable(credit_type="99", limit_price="1")
     assert fake.calls == []
 
 
 def test_credit_buyable_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").ticker("005930").credit_buyable(limit_price="1")
+        _client(fake, environment="demo").domestic.stock("005930").credit_buyable(limit_price="1")
     assert fake.calls == []
 
 
@@ -108,22 +108,22 @@ def test_credit_buyable_demo_rejected_before_io():
 def test_credit_buyable_bad_price_rejected_before_io(bad):
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("005930").credit_buyable(limit_price=bad)
+        _client(fake).domestic.stock("005930").credit_buyable(limit_price=bad)
     assert fake.calls == []
 
 
 def test_credit_buyable_missing_output_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body={"output": []}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).ticker("005930").credit_buyable(limit_price="1")
+        _client(FakeTransport(response=resp)).domestic.stock("005930").credit_buyable(limit_price="1")
 
 
 def test_credit_buyable_overseas_ticker_rejected():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("AAPL", exchange="NAS").credit_buyable(limit_price="1")
+        _client(fake).overseas.stock("AAPL", exchange="NAS").credit_buyable(limit_price="1")
 
 
 def test_credit_buyable_requires_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp()), account=None).ticker("005930").credit_buyable(limit_price="1")
+        _client(FakeTransport(response=_resp()), account=None).domestic.stock("005930").credit_buyable(limit_price="1")

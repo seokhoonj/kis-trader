@@ -1,4 +1,4 @@
-"""해외주식 체결(time & sales) -- kis.ticker(symbol, exchange=...).trades().
+"""해외주식 체결(time & sales) -- kis.overseas.stock(symbol, exchange=...).trades().
 
 inquire-ccnl 엔드포인트, 한국기준시간(khms)+조회일 결합, 체결량(evol), 전일대비 부호 복원,
 벤더 순서 유지, fail-closed 를 검증한다.
@@ -47,7 +47,7 @@ def test_overseas_trades_maps_fields_and_params():
         _trade_row("093015", "150.25", "120", "2.25", "2", "1.52"),
         _trade_row("093012", "150.10", "80", "2.10", "2", "1.42"),
     ]))
-    trades = _client(fake).ticker("AAPL", exchange="NAS").trades()
+    trades = _client(fake).overseas.stock("AAPL", exchange="NAS").trades()
     assert [t.symbol for t in trades] == ["AAPL", "AAPL"]     # 벤더 순서 유지(최신순)
     first = trades[0]
     assert isinstance(first, Trade)
@@ -66,7 +66,7 @@ def test_overseas_trades_maps_fields_and_params():
 
 def test_overseas_trades_negative_change_sign():
     fake = FakeTransport(response=_resp([_trade_row("100000", "148.00", "50", "3.00", "5", "1.99")]))
-    trade = _client(fake).ticker("AAPL", exchange="NAS").trades()[0]
+    trade = _client(fake).overseas.stock("AAPL", exchange="NAS").trades()[0]
     assert trade.change == Decimal("-3.00")                   # 하락 -> 음수
     assert trade.change_percent == Decimal("-1.99")
 
@@ -74,4 +74,4 @@ def test_overseas_trades_negative_change_sign():
 def test_overseas_trades_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("AAPL", exchange="NAS").trades()
+        _client(fake).overseas.stock("AAPL", exchange="NAS").trades()

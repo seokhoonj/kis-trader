@@ -1,4 +1,4 @@
-"""per-ticker 시세분석 -- kis.ticker(code).program_trades() / .investor_estimate().
+"""per-ticker 시세분석 -- kis.domestic.stock(code).program_trades() / .investor_estimate().
 
 프로그램매매 흐름(TR FHPPG04650101, output)·투자자 순매수 추정(TR HHPTJ04160200, output2)의
 TR·URL·시장구분·필드 매핑(순매수 수량/금액·외인/기관 추정), 시각 파싱, fail-closed 를 검증한다.
@@ -47,7 +47,7 @@ def test_program_trades_maps_flow():
              "whol_smtn_seln_vol": "30000", "whol_smtn_shnu_vol": "50000",
              "whol_smtn_ntby_qty": "20000", "whol_smtn_ntby_tr_pbmn": "1400000000"}]
     fake = FakeTransport(response=_resp({"output": rows}))
-    points = _client(fake).ticker("005930").program_trades()
+    points = _client(fake).domestic.stock("005930").program_trades()
     assert all(isinstance(p, ProgramTradePoint) for p in points)
     p = points[0]
     assert p.symbol == "005930"
@@ -68,7 +68,7 @@ def test_program_trades_maps_flow():
 def test_program_trades_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").program_trades()
+        _client(fake).domestic.stock("005930").program_trades()
 
 
 def test_daily_program_trades_maps_and_routes():
@@ -79,7 +79,7 @@ def test_daily_program_trades_maps_and_routes():
            "whol_smtn_shnu_tr_pbmn": "13", "whol_smtn_ntby_tr_pbmn": "3",
            "whol_ntby_vol_icdc": "5", "whol_ntby_tr_pbmn_icdc2": "1"}
     fake = FakeTransport(response=_resp({"output": [row]}))
-    points = _client(fake).ticker("005930").daily_program_trades(as_of="20240510")
+    points = _client(fake).domestic.stock("005930").daily_program_trades(as_of="20240510")
     assert isinstance(points[0], DailyProgramTradePoint)
     assert points[0].net_volume == 30
     assert points[0].net_amount_change == Decimal(1)
@@ -97,7 +97,7 @@ def test_investor_estimate_maps_estimate_and_input_time():
             {"bsop_hour_gb": "5", "frgn_fake_ntby_qty": "-30000",
              "orgn_fake_ntby_qty": "121000", "sum_fake_ntby_qty": "91000"}]
     fake = FakeTransport(response=_resp({"output2": rows}))
-    ests = _client(fake).ticker("005930").investor_estimate()
+    ests = _client(fake).domestic.stock("005930").investor_estimate()
     assert all(isinstance(e, InvestorEstimate) for e in ests)
     first = ests[0]
     assert first.foreign_net == 12000
@@ -116,16 +116,16 @@ def test_investor_estimate_unknown_input_code_fails_closed():
              "orgn_fake_ntby_qty": "0", "sum_fake_ntby_qty": "0"}]
     fake = FakeTransport(response=_resp({"output2": rows}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").investor_estimate()
+        _client(fake).domestic.stock("005930").investor_estimate()
 
 
 def test_investor_estimate_missing_output2_fails_closed():
     fake = FakeTransport(response=_resp({"output": []}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").investor_estimate()
+        _client(fake).domestic.stock("005930").investor_estimate()
 
 
 def test_investor_estimate_rejected_for_overseas_ticker():
     fake = FakeTransport(response=_resp({"output2": []}))
     with pytest.raises(Exception):  # noqa: B017 -- 해외 티커는 국내 전용 verb 거부
-        _client(fake).ticker("AAPL", exchange="NAS").investor_estimate()
+        _client(fake).overseas.stock("AAPL", exchange="NAS").investor_estimate()

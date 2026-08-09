@@ -38,5 +38,5 @@ def resolve_market(symbol: str, *, market: DomesticBoard | None = None) -> Domes
         return "KRX"
     raise KISUsageError(
         f"국내 시장을 판별할 수 없는 심볼: {symbol!r} -- 국내는 6자리 숫자 코드다. "
-        f"해외는 kis.ticker(symbol, exchange=...) 로 만들거나 심볼만 주면 마스터로 자동 해석한다."
+        f"해외는 kis.overseas.stock(symbol, exchange=...) 로 만들거나 심볼만 주면 마스터로 자동 해석한다."
     )

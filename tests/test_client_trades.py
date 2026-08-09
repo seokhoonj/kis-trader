@@ -1,4 +1,4 @@
-"""체결(time & sales) -- kis.ticker(...).trades().
+"""체결(time & sales) -- kis.domestic.stock(...).trades().
 
 행위중심 표면(`quotations.inquire_ccnl` 이 아니라 `ticker.trades()`)과 fail-closed 파싱, 전일대비
 부호 복원, 빈 행 skip 을 가짜 전송으로 검증한다.
@@ -49,7 +49,7 @@ def _client(transport):
 def test_trades_parses_rows_newest_first():
     fake = FakeTransport(response=_trades_resp([_row(hour="093015", price="71500", volume="12"),
                                                _row(hour="093010", price="71400", volume="5")]))
-    trades = _client(fake).ticker("005930").trades()
+    trades = _client(fake).domestic.stock("005930").trades()
     assert [t.price for t in trades] == [Decimal(71500), Decimal(71400)]
     assert all(isinstance(t, Trade) for t in trades)
     first = trades[0]
@@ -66,29 +66,29 @@ def test_trades_parses_rows_newest_first():
 
 def test_trades_restores_down_sign():
     fake = FakeTransport(response=_trades_resp([_row(change="600", change_percent="0.85", sign="5")]))
-    trade = _client(fake).ticker("005930").trades()[0]
+    trade = _client(fake).domestic.stock("005930").trades()[0]
     assert trade.change == Decimal(-600)                        # 하락(5) -> 음수
     assert trade.change_percent == Decimal("-0.85")
 
 
 def test_trades_skips_empty_rows():
     fake = FakeTransport(response=_trades_resp([_row(), {"stck_cntg_hour": "", "stck_prpr": ""}]))
-    assert len(_client(fake).ticker("005930").trades()) == 1
+    assert len(_client(fake).domestic.stock("005930").trades()) == 1
 
 
 def test_trades_bad_time_fails_closed():
     fake = FakeTransport(response=_trades_resp([_row(hour="99xx99")]))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").trades()
+        _client(fake).domestic.stock("005930").trades()
 
 
 def test_trades_missing_output_block_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").trades()
+        _client(fake).domestic.stock("005930").trades()
 
 
 def test_trades_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="MCA05918", msg1="종목코드 오류", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").trades()
+        _client(fake).domestic.stock("005930").trades()

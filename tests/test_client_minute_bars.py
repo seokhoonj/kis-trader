@@ -1,4 +1,4 @@
-"""당일 1분봉 -- kis.ticker(...).bars(interval="1m").
+"""당일 1분봉 -- kis.domestic.stock(...).bars(interval="1m").
 
 일봉과 같은 `bars()` 로 통합하되 분봉은 당일 세션(시각기준 페이지네이션)이라는 점, close=stck_prpr
 /volume=cntg_vol 매핑, 개장까지 페이지네이션, max_bars, fail-closed 를 가짜 전송으로 검증한다.
@@ -52,7 +52,7 @@ def _session(times):
 def test_minute_bars_paginate_to_open_ascending():
     times = [f"09{m:02d}00" for m in range(9)]                  # 0900..0908, 9개
     fake = FakeTransport(_session(times))
-    bars = _client(fake).ticker("005930").bars(interval="1m")
+    bars = _client(fake).domestic.stock("005930").bars(interval="1m")
     assert [f"{b.timestamp:%H%M%S}" for b in bars] == times        # 과거->현재 오름차순, 전량
     assert len(fake.calls) >= 2                                    # 3건/page -> 최소 3페이지로 9건
     assert fake.calls[0]["path"] == _MINUTE_PATH
@@ -64,7 +64,7 @@ def test_minute_bars_paginate_to_open_ascending():
 
 def test_minute_bar_maps_close_and_volume():
     fake = FakeTransport({"090000": _bar("090000", close="71234", vol="55")})
-    bar = _client(fake).ticker("005930").bars(interval="1m")[0]
+    bar = _client(fake).domestic.stock("005930").bars(interval="1m")[0]
     assert bar.close == Decimal(71234)                            # 분봉 종가 = stck_prpr
     assert bar.volume == 55                                       # 분당 거래량 = cntg_vol
     assert bar.open == Decimal(71000)
@@ -73,7 +73,7 @@ def test_minute_bar_maps_close_and_volume():
 def test_minute_bars_respects_max_bars():
     times = [f"09{m:02d}00" for m in range(9)]
     fake = FakeTransport(_session(times))
-    bars = _client(fake).ticker("005930").bars(interval="1m", max_bars=4)
+    bars = _client(fake).domestic.stock("005930").bars(interval="1m", max_bars=4)
     assert len(bars) == 4
     assert [f"{b.timestamp:%H%M%S}" for b in bars] == times[-4:]   # 가장 최근 4개
 
@@ -81,20 +81,20 @@ def test_minute_bars_respects_max_bars():
 def test_minute_bars_ignore_start_end():
     fake = FakeTransport({"090000": _bar("090000")})
     # start/end 를 줘도 분봉은 당일 기준 -- 예외 없이 동작
-    bars = _client(fake).ticker("005930").bars(interval="1m", start="20200101", end="20200102")
+    bars = _client(fake).domestic.stock("005930").bars(interval="1m", start="20200101", end="20200102")
     assert len(bars) == 1
 
 
 def test_period_bars_still_require_start():
     fake = FakeTransport({})
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("005930").bars(interval="1d")        # 기간봉엔 start 필수
+        _client(fake).domestic.stock("005930").bars(interval="1d")        # 기간봉엔 start 필수
 
 
 def test_minute_bars_bad_time_fails_closed():
     fake = FakeTransport({"090000": _bar("bad")})
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").bars(interval="1m")
+        _client(fake).domestic.stock("005930").bars(interval="1m")
 
 
 def test_minute_bars_missing_block_fails_closed():
@@ -103,7 +103,7 @@ def test_minute_bars_missing_block_fails_closed():
             return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})  # output2 없음
 
     with pytest.raises(KISError):
-        _client(Bad()).ticker("005930").bars(interval="1m")
+        _client(Bad()).domestic.stock("005930").bars(interval="1m")
 
 
 class _StaticTransport:
@@ -132,27 +132,27 @@ def test_minute_bars_raise_when_page_cap_reached_before_session_open():
 
     fake = AnchorEcho()
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").bars(interval="1m")
+        _client(fake).domestic.stock("005930").bars(interval="1m")
     assert len(fake.calls) == 60                           # _MAX_MINUTE_PAGES 만큼 돌고 중단
 
 
 def test_minute_bars_error_response_fails_closed():
     fake = _StaticTransport([], rt_cd="1")                 # 비성공 응답을 빈 페이지로 오인 금지
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").bars(interval="1m")
+        _client(fake).domestic.stock("005930").bars(interval="1m")
 
 
 def test_minute_bars_anchor_rolls_over_hour_boundary():
     # 1페이지 최소=100000 -> 2페이지 anchor 는 정시경계를 넘겨 095900 이어야 한다(1분 전).
     fake = FakeTransport({t: _bar(t) for t in ("100000", "100100", "100200")})
-    _client(fake).ticker("005930").bars(interval="1m")
+    _client(fake).domestic.stock("005930").bars(interval="1m")
     assert fake.calls[0]["params"]["FID_INPUT_HOUR_1"] == "235959"
     assert fake.calls[1]["params"]["FID_INPUT_HOUR_1"] == "095900"
 
 
 def test_minute_bars_stop_when_next_page_has_no_fresh_bars():
     fake = _StaticTransport([_bar("091000")])              # 개장 이후 같은 봉만 반복
-    bars = _client(fake).ticker("005930").bars(interval="1m")
+    bars = _client(fake).domestic.stock("005930").bars(interval="1m")
     assert len(fake.calls) == 2                            # 2페이지째 새 봉 없음 -> 중단(무한루프 방지)
     assert len(bars) == 1                                  # 중복 제거
 
@@ -160,7 +160,7 @@ def test_minute_bars_stop_when_next_page_has_no_fresh_bars():
 def test_minute_bars_skip_empty_rows():
     fake = _StaticTransport([_bar("090000"), {"stck_bsop_date": "", "stck_cntg_hour": "",
                                               "stck_prpr": ""}])
-    bars = _client(fake).ticker("005930").bars(interval="1m")
+    bars = _client(fake).domestic.stock("005930").bars(interval="1m")
     assert len(bars) == 1                                  # 빈 행 skip, 090000 도달로 종료
 
 
@@ -170,7 +170,7 @@ _MINUTE_DAILY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-dailychart
 def test_minute_bars_on_past_date_routes_and_paginates():
     times = [f"09{m:02d}00" for m in range(9)]                  # 0900..0908
     fake = FakeTransport(_session(times))
-    bars = _client(fake).ticker("005930").minute_bars_on("20240102")
+    bars = _client(fake).domestic.stock("005930").minute_bars_on("20240102")
     assert [f"{b.timestamp:%H%M%S}" for b in bars] == times      # 과거->현재 오름차순, 전량
     assert bars[0].timestamp.strftime("%Y%m%d") == "20240102"    # 그 날짜로 찍힘
     assert fake.calls[0]["path"] == _MINUTE_DAILY_PATH
@@ -185,7 +185,7 @@ def test_minute_bars_on_accepts_date_object_and_max_bars():
 
     times = [f"09{m:02d}00" for m in range(9)]
     fake = FakeTransport(_session(times))
-    bars = _client(fake).ticker("005930").minute_bars_on(date(2024, 1, 2), max_bars=4)
+    bars = _client(fake).domestic.stock("005930").minute_bars_on(date(2024, 1, 2), max_bars=4)
     assert len(bars) == 4
     assert fake.calls[0]["params"]["FID_INPUT_DATE_1"] == "20240102"
 
@@ -193,7 +193,7 @@ def test_minute_bars_on_accepts_date_object_and_max_bars():
 def test_minute_bars_on_bad_max_bars_raises():
     fake = FakeTransport(_session(["090000"]))
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("005930").minute_bars_on("20240102", max_bars=0)
+        _client(fake).domestic.stock("005930").minute_bars_on("20240102", max_bars=0)
 
 
 def test_minute_bars_on_missing_output2_fails_closed():
@@ -201,4 +201,4 @@ def test_minute_bars_on_missing_output2_fails_closed():
         def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
             return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
     with pytest.raises(KISError):
-        _client(BadTransport()).ticker("005930").minute_bars_on("20240102")
+        _client(BadTransport()).domestic.stock("005930").minute_bars_on("20240102")

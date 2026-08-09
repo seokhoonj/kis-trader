@@ -1,4 +1,4 @@
-"""투자자 수급 -- kis.ticker(...).investor_flows().
+"""투자자 수급 -- kis.domestic.stock(...).investor_flows().
 
 행위중심 표면(`quotations.inquire_investor` 아님), 개인/외국인/기관 중첩 엔티티 매핑, 순매도(음수)
 처리, fail-closed 파싱을 가짜 전송으로 검증한다.
@@ -53,7 +53,7 @@ def _client(transport):
 
 def test_investor_flows_maps_nested_activity():
     fake = FakeTransport(response=_resp([_row()]))
-    flows = _client(fake).ticker("005930").investor_flows()
+    flows = _client(fake).domestic.stock("005930").investor_flows()
     assert len(flows) == 1
     flow = flows[0]
     assert isinstance(flow, InvestorFlow)
@@ -80,32 +80,32 @@ def test_investor_flows_maps_nested_activity():
 
 
 def test_investor_flows_handles_net_selling_negative():
-    flow = _client(FakeTransport(response=_resp([_row()]))).ticker("005930").investor_flows()[0]
+    flow = _client(FakeTransport(response=_resp([_row()]))).domestic.stock("005930").investor_flows()[0]
     assert flow.foreign.net_buy_volume == -300             # 외국인 순매도
     assert flow.foreign.net_buy_value == Decimal(-21_000_000)
 
 
 def test_investor_flows_skips_dateless_rows():
     fake = FakeTransport(response=_resp([_row(), {"stck_bsop_date": ""}]))
-    assert len(_client(fake).ticker("005930").investor_flows()) == 1
+    assert len(_client(fake).domestic.stock("005930").investor_flows()) == 1
 
 
 def test_investor_flows_missing_field_fails_closed():
     fake = FakeTransport(response=_resp([_row(frgn_ntby_qty="")]))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").investor_flows()
+        _client(fake).domestic.stock("005930").investor_flows()
 
 
 def test_investor_flows_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="X", msg1="실패", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").investor_flows()
+        _client(fake).domestic.stock("005930").investor_flows()
 
 
 def test_investor_flows_missing_output_block_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):                          # 성공 응답인데 output 없음 -> 빈결과로 오인 금지
-        _client(fake).ticker("005930").investor_flows()
+        _client(fake).domestic.stock("005930").investor_flows()
 
 
 _DETAILED_PATH = "/uapi/domestic-stock/v1/quotations/investor-trade-by-stock-daily"
@@ -151,7 +151,7 @@ def _detailed_response(rows, *, tr_cont=""):
 def test_detailed_investor_history_maps_all_participants_and_paginates():
     fake = PagingTransport([_detailed_response([_detailed_row()], tr_cont="M"),
                             _detailed_response([_detailed_row("20240509")])])
-    history = _client(fake).ticker("005930").detailed_investor_history(as_of="20240510")
+    history = _client(fake).domestic.stock("005930").detailed_investor_history(as_of="20240510")
     assert isinstance(history, DetailedInvestorHistory)
     assert history.price == Decimal(71500)
     assert len(history.flows) == 2
@@ -171,7 +171,7 @@ def test_detailed_investor_history_applies_down_sign():
     row["prdy_vrss_sign"] = summary["prdy_vrss_sign"] = "5"
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                            body={"output1": summary, "output2": [row]})
-    history = _client(PagingTransport([response])).ticker("005930").detailed_investor_history()
+    history = _client(PagingTransport([response])).domestic.stock("005930").detailed_investor_history()
     assert history.change == Decimal(-500)
     assert history.flows[0].change_percent == Decimal("-0.70")
 
@@ -180,4 +180,4 @@ def test_detailed_investor_history_applies_down_sign():
 def test_detailed_investor_history_missing_blocks_fail_closed(body):
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     with pytest.raises(KISError):
-        _client(PagingTransport([response])).ticker("005930").detailed_investor_history()
+        _client(PagingTransport([response])).domestic.stock("005930").detailed_investor_history()

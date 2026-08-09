@@ -30,7 +30,7 @@ class ELW:
     """한 ELW 에 대한 고유 지표 조회 핸들. 세션(:class:`KISClient`)과 ELW 표준코드를 안다.
 
     보통 직접 만들지 않고 :meth:`KISClient.elw` 로 얻는다. ``code`` 는 ELW 표준코드(6자리).
-    기본 시세는 ``kis.ticker(code)`` 로 조회한다(ELW 는 종목처럼 상장돼 있다).
+    기본 시세는 ``kis.domestic.stock(code)`` 로 조회한다(ELW 는 종목처럼 상장돼 있다).
     """
 
     code: str
@@ -42,7 +42,7 @@ class ELW:
     def quote(self) -> ELWQuote:
         """ELW 현재가 스냅샷(기초자산가·내재변동성·이론가·괴리율·행사가·머니니스 포함).
 
-        종목 기본 시세(``kis.ticker(code).quote()``)와 달리 옵션으로서의 맥락(기초자산·그릭스 파생)을
+        종목 기본 시세(``kis.domestic.stock(code).quote()``)와 달리 옵션으로서의 맥락(기초자산·그릭스 파생)을
         함께 준다."""
         return elw_api.fetch_quote(self._client.transport, code=self.code)
 

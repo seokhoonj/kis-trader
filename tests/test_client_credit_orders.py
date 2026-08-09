@@ -1,4 +1,4 @@
-"""신용주문 실행 -- kis.ticker(...).credit_buy/credit_sell (order-credit TTTC0052U/TTTC0051U).
+"""신용주문 실행 -- kis.domestic.stock(...).credit_buy/credit_sell (order-credit TTTC0052U/TTTC0051U).
 
 현금주문과 같은 안전 코어(place/reconcile)를 공유하되 와이어 조립기만 신용용이다. 이중체결
 방지·재시도 금지·dedup 지문(신용/현금·대출별 구분)·보수적 재조회를 네트워크 없이 가짜 전송으로
@@ -77,7 +77,7 @@ def _credit_daily_row(*, odno="0001569138", symbol="009150", side_code="02", ord
 # --- 정상 전송 -------------------------------------------------------------
 def test_credit_buy_limit_wire():
     fake = FakeTransport(response=_ACCEPTED)
-    report = _client(fake).ticker("009150").credit_buy(quantity=1, price=130000,
+    report = _client(fake).domestic.stock("009150").credit_buy(quantity=1, price=130000,
                                                        credit_type="26", loan_date="20211103")
     assert isinstance(report, ExecutionReport)
     assert report.order_id == "0001569138"
@@ -99,7 +99,7 @@ def test_credit_buy_limit_wire():
 def test_credit_buy_new_type_defaults_loan_date_to_today(monkeypatch):
     monkeypatch.setattr("kis_openapi.order.datetime", _FrozenDatetime)
     fake = FakeTransport(response=_ACCEPTED)
-    _client(fake).ticker("009150").credit_buy(quantity=1, price=130000, credit_type="21")  # 신규
+    _client(fake).domestic.stock("009150").credit_buy(quantity=1, price=130000, credit_type="21")  # 신규
     assert fake.calls[0]["body"]["LOAN_DT"] == "20240603"   # 고정된 오늘(KST)
 
 
@@ -107,7 +107,7 @@ def test_credit_sell_new_type_defaults_loan_date(monkeypatch):
     # 대주신규(22)는 sell 이지만 신규라 loan_date 생략 가능 -> 오늘로 채움(side 아니라 operation 기준)
     monkeypatch.setattr("kis_openapi.order.datetime", _FrozenDatetime)
     fake = FakeTransport(response=_ACCEPTED)
-    _client(fake).ticker("009150").credit_sell(quantity=1, price=130000, credit_type="22")
+    _client(fake).domestic.stock("009150").credit_sell(quantity=1, price=130000, credit_type="22")
     assert fake.calls[0]["tr_id"] == "TTTC0051U"
     assert fake.calls[0]["body"]["LOAN_DT"] == "20240603"
     assert fake.calls[0]["body"]["CRDT_TYPE"] == "22"
@@ -115,14 +115,14 @@ def test_credit_sell_new_type_defaults_loan_date(monkeypatch):
 
 def test_credit_sell_repay_uses_given_loan_date():
     fake = FakeTransport(response=_ACCEPTED)
-    _client(fake).ticker("009150").credit_sell(quantity=1, price=130000,
+    _client(fake).domestic.stock("009150").credit_sell(quantity=1, price=130000,
                                                credit_type="25", loan_date="20211103")  # 융자상환
     assert fake.calls[0]["body"]["LOAN_DT"] == "20211103"
 
 
 def test_credit_buy_market_division():
     fake = FakeTransport(response=_ACCEPTED)
-    _client(fake).ticker("009150").credit_buy(quantity=1, credit_type="21", loan_date="20211103")
+    _client(fake).domestic.stock("009150").credit_buy(quantity=1, credit_type="21", loan_date="20211103")
     assert fake.calls[0]["body"]["ORD_DVSN"] == "01"    # 시장가
     assert fake.calls[0]["body"]["ORD_UNPR"] == "0"
 
@@ -131,7 +131,7 @@ def test_credit_buy_market_division():
 def test_credit_type_must_match_side():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):     # 21 은 매수 유형 -- 매도에 쓰면 거부
-        _client(fake).ticker("009150").credit_sell(quantity=1, price=1, credit_type="21",
+        _client(fake).domestic.stock("009150").credit_sell(quantity=1, price=1, credit_type="21",
                                                    loan_date="20211103")
     assert fake.calls == []
 
@@ -139,19 +139,19 @@ def test_credit_type_must_match_side():
 def test_credit_repay_requires_loan_date():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):     # 26 은 상환(매수측) -- loan_date 필수
-        _client(fake).ticker("009150").credit_buy(quantity=1, price=1, credit_type="26")
+        _client(fake).domestic.stock("009150").credit_buy(quantity=1, price=1, credit_type="26")
     with pytest.raises(KISUsageError):     # 25 는 상환(매도측) -- loan_date 필수
-        _client(fake).ticker("009150").credit_sell(quantity=1, price=1, credit_type="25")
+        _client(fake).domestic.stock("009150").credit_sell(quantity=1, price=1, credit_type="25")
     assert fake.calls == []
 
 
 def test_credit_bad_calendar_loan_date_rejected():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):     # 형식은 8자리지만 불가능한 날짜
-        _client(fake).ticker("009150").credit_sell(quantity=1, price=1, credit_type="25",
+        _client(fake).domestic.stock("009150").credit_sell(quantity=1, price=1, credit_type="25",
                                                    loan_date="20261399")
     with pytest.raises(KISUsageError):     # 구분자 있는 형식
-        _client(fake).ticker("009150").credit_sell(quantity=1, price=1, credit_type="25",
+        _client(fake).domestic.stock("009150").credit_sell(quantity=1, price=1, credit_type="25",
                                                    loan_date="2021-11-03")
     assert fake.calls == []
 
@@ -159,7 +159,7 @@ def test_credit_bad_calendar_loan_date_rejected():
 def test_credit_demo_rejected_before_io():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").ticker("009150").credit_buy(quantity=1, price=1,
+        _client(fake, environment="demo").domestic.stock("009150").credit_buy(quantity=1, price=1,
                                                                       credit_type="21",
                                                                       loan_date="20211103")
     assert fake.calls == []
@@ -168,7 +168,7 @@ def test_credit_demo_rejected_before_io():
 def test_credit_overseas_ticker_rejected():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("AAPL", exchange="NAS").credit_buy(quantity=1, price=1,
+        _client(fake).overseas.stock("AAPL", exchange="NAS").credit_buy(quantity=1, price=1,
                                                                credit_type="21",
                                                                loan_date="20211103")
     assert fake.calls == []
@@ -191,13 +191,13 @@ def test_loan_date_without_credit_type_rejected():
 def test_credit_rejected_clears_in_flight_and_id_reusable():
     store = OrderStore()
     cid = "20240101-creditreject01"
-    t = _client(FakeTransport(response=_REJECTED), store=store).ticker("009150")
+    t = _client(FakeTransport(response=_REJECTED), store=store).domestic.stock("009150")
     with pytest.raises(OrderRejectedError):
         t.credit_buy(quantity=1, price=1, credit_type="21", loan_date="20211103", client_order_id=cid)
     assert store.fingerprint_for(cid) is None       # 거부 -> in-flight 해제
     # 같은 id 재사용이 가능해야 한다(영구 차단 아님)
     fake2 = FakeTransport(response=_ACCEPTED)
-    report = _client(fake2, store=store).ticker("009150").credit_buy(
+    report = _client(fake2, store=store).domestic.stock("009150").credit_buy(
         quantity=1, price=1, credit_type="21", loan_date="20211103", client_order_id=cid)
     assert report.order_id == "0001569138"
     assert len(fake2.calls) == 1
@@ -209,7 +209,7 @@ def test_credit_timeout_no_retry():
     fake = FakeTransport(raises=TransportTimeout("t"))
     cid = "20240101-creditbuy0001"
     with pytest.raises(OrderTimeoutError):
-        _client(fake, store=store).ticker("009150").credit_buy(
+        _client(fake, store=store).domestic.stock("009150").credit_buy(
             quantity=1, price=1, credit_type="21", loan_date="20211103", client_order_id=cid)
     assert len(fake.calls) == 1                      # 재전송 없음
     assert store.fingerprint_for(cid) is not None    # in-flight 유지
@@ -237,7 +237,7 @@ def test_credit_replay_same_id_returns_prior():
     store = OrderStore()
     fake = FakeTransport(response=_ACCEPTED)
     cid = "20240101-creditbuy0002"
-    t = _client(fake, store=store).ticker("009150")
+    t = _client(fake, store=store).domestic.stock("009150")
     r1 = t.credit_buy(quantity=1, price=130000, credit_type="26", loan_date="20211103", client_order_id=cid)
     r2 = t.credit_buy(quantity=1, price=130000, credit_type="26", loan_date="20211103", client_order_id=cid)
     assert r1.order_id == r2.order_id
@@ -248,7 +248,7 @@ def test_credit_same_id_different_credit_conflicts_no_wire():
     store = OrderStore()
     fake = FakeTransport(response=_ACCEPTED)
     cid = "20240101-creditbuy0003"
-    t = _client(fake, store=store).ticker("009150")
+    t = _client(fake, store=store).domestic.stock("009150")
     t.credit_buy(quantity=1, price=130000, credit_type="21", loan_date="20211103", client_order_id=cid)
     with pytest.raises(KISUsageError):               # 다른 신용유형 -> 지문 불일치 -> 충돌
         t.credit_buy(quantity=1, price=130000, credit_type="23", loan_date="20211103", client_order_id=cid)
@@ -262,7 +262,7 @@ def test_credit_reconcile_confirms_credit_row():
     # 전송은 타임아웃(체결 불명) -> in-flight
     place_t = FakeTransport(raises=TransportTimeout("t"))
     with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).ticker("009150").credit_buy(
+        _client(place_t, store=store).domestic.stock("009150").credit_buy(
             quantity=1, price=130000, credit_type="26", loan_date="20211103", client_order_id=cid)
     # 재조회: 일별체결조회에 부분체결된 신용 행(loan_dt 일치) 하나
     row = _credit_daily_row(filled_quantity="1", loan_dt="20211103")
@@ -282,7 +282,7 @@ def test_credit_reconcile_ignores_cash_lookalike_row():
     cid = "20240101-creditrecon02"
     place_t = FakeTransport(raises=TransportTimeout("t"))
     with pytest.raises(OrderTimeoutError):
-        _client(place_t, store=store).ticker("009150").credit_buy(
+        _client(place_t, store=store).domestic.stock("009150").credit_buy(
             quantity=1, price=130000, credit_type="26", loan_date="20211103", client_order_id=cid)
     cash_row = _credit_daily_row(loan_dt="")         # 대출일자 없음 = 현금 체결
     recon_t = FakeTransport(by_path={_DAILY_CCLD: RawResponse(

@@ -1,4 +1,4 @@
-"""ETF/ETN 고유 정보 -- kis.ticker(code).nav().
+"""ETF/ETN 고유 정보 -- kis.domestic.stock(code).nav().
 
 ETF 는 종목처럼 거래되므로 시세/주문은 일반 verb 로 하고, NAV/괴리율/추적오차만 별도. etfetn 세그먼트
 경로, NAV 전일대비 부호 복원, fail-closed 파싱을 가짜 전송으로 검증.
@@ -54,7 +54,7 @@ def _client(transport):
 
 def test_nav_maps_fields_and_params():
     fake = FakeTransport(response=_resp(_output()))
-    nav = _client(fake).ticker("069500").nav()
+    nav = _client(fake).domestic.stock("069500").nav()
     assert isinstance(nav, ETFNAV)
     assert nav.symbol == "069500"
     assert nav.nav == Decimal("36110.50")
@@ -73,7 +73,7 @@ def test_nav_maps_fields_and_params():
 
 def test_nav_negative_change_sign_restored():
     fake = FakeTransport(response=_resp(_output(nav_change="80.00", nav_sign="5", nav_pct="0.22")))
-    nav = _client(fake).ticker("069500").nav()
+    nav = _client(fake).domestic.stock("069500").nav()
     assert nav.nav_change == Decimal("-80.00")                   # 하락 -> 음수
     assert nav.nav_change_percent == Decimal("-0.22")
 
@@ -81,19 +81,19 @@ def test_nav_negative_change_sign_restored():
 def test_nav_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("069500").nav()
+        _client(fake).domestic.stock("069500").nav()
 
 
 def test_nav_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="X", msg1="실패", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("069500").nav()
+        _client(fake).domestic.stock("069500").nav()
 
 
 def test_nav_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(_output(nav="n/a")))
     with pytest.raises(KISError):
-        _client(fake).ticker("069500").nav()
+        _client(fake).domestic.stock("069500").nav()
 
 
 _ETF_COMPONENTS = "/uapi/etfetn/v1/quotations/inquire-component-stock-price"
@@ -115,7 +115,7 @@ def test_components_maps_fields_and_params():
     from kis_openapi import ETFComponent
     fake = FakeTransport(response=_components_resp([_component_row(),
                                                     _component_row(symbol="000660", name="SK하이닉스")]))
-    comps = _client(fake).ticker("069500").components()
+    comps = _client(fake).domestic.stock("069500").components()
     assert [c.symbol for c in comps] == ["005930", "000660"]
     first = comps[0]
     assert isinstance(first, ETFComponent)
@@ -132,7 +132,7 @@ def test_components_maps_fields_and_params():
 
 def test_components_negative_change_sign_restored():
     fake = FakeTransport(response=_components_resp([_component_row(change="300", sign="5")]))
-    comps = _client(fake).ticker("069500").components()
+    comps = _client(fake).domestic.stock("069500").components()
     assert comps[0].change == Decimal(-300)                      # 하락 -> 음수
 
 
@@ -140,7 +140,7 @@ def test_components_missing_output2_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                                               body={"output1": {"stck_prpr": "1"}}))
     with pytest.raises(KISError):
-        _client(fake).ticker("069500").components()
+        _client(fake).domestic.stock("069500").components()
 
 
 _ETF_NAV_HISTORY = "/uapi/etfetn/v1/quotations/nav-comparison-daily-trend"
@@ -164,7 +164,7 @@ def test_nav_history_maps_fields_sorted_and_params():
         _nav_hist_row("20240104", "36090", "36110", "95", "2", "0.26", "-0.06"),
         _nav_hist_row("20240103", "35980", "36015", "40", "2", "0.11", "-0.10"),
     ]))
-    points = _client(fake).ticker("069500").nav_history(start="20240103", end="20240104")
+    points = _client(fake).domestic.stock("069500").nav_history(start="20240103", end="20240104")
     assert [p.date for p in points] == [_date(2024, 1, 3), _date(2024, 1, 4)]   # 오름차순
     assert all(isinstance(p, ETFNAVHistoryPoint) for p in points)
     assert points[-1].close == Decimal(36090)
@@ -181,7 +181,7 @@ def test_nav_history_negative_nav_change_and_date_objects():
     from datetime import date as _date
     fake = FakeTransport(response=_nav_hist_resp([
         _nav_hist_row("20240104", "36090", "36110", "95", "5", "0.26", "-0.06")]))
-    points = _client(fake).ticker("069500").nav_history(
+    points = _client(fake).domestic.stock("069500").nav_history(
         start=_date(2024, 1, 1), end=_date(2024, 1, 4)
     )
     assert points[0].nav_change == Decimal(-95)                  # 하락 -> 음수
@@ -191,13 +191,13 @@ def test_nav_history_negative_nav_change_and_date_objects():
 def test_nav_history_start_after_end_raises():
     fake = FakeTransport(response=_nav_hist_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("069500").nav_history(start="20240104", end="20240103")
+        _client(fake).domestic.stock("069500").nav_history(start="20240104", end="20240103")
 
 
 def test_nav_history_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("069500").nav_history(start="20240101", end="20240104")
+        _client(fake).domestic.stock("069500").nav_history(start="20240101", end="20240104")
 
 
 def test_nav_comparison_maps_price_and_nav_ohlc():
@@ -218,7 +218,7 @@ def test_nav_comparison_maps_price_and_nav_ohlc():
         },
     )
     fake = FakeTransport(response=response)
-    comparison = _client(fake).ticker("069500").nav_comparison()
+    comparison = _client(fake).domestic.stock("069500").nav_comparison()
     assert isinstance(comparison, ETFNAVComparison)
     assert comparison.price == Decimal(36150)
     assert comparison.nav == Decimal("36110.50")
@@ -241,7 +241,7 @@ def test_nav_intraday_maps_sorted_points_and_interval():
          "cntg_vol": "180"},
     ]
     fake = FakeTransport(response=_nav_hist_resp(rows))
-    points = _client(fake).ticker("069500").nav_intraday(interval_minutes=3)
+    points = _client(fake).domestic.stock("069500").nav_intraday(interval_minutes=3)
     assert all(isinstance(point, ETFNAVMinutePoint) for point in points)
     assert [f"{point.timestamp:%H%M%S}" for point in points] == ["100700", "101000"]
     assert points[0].nav_change == Decimal(-90)
@@ -256,7 +256,7 @@ def test_nav_intraday_maps_sorted_points_and_interval():
 def test_nav_intraday_rejects_bad_interval_before_transport(minutes):
     fake = FakeTransport(response=_nav_hist_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).ticker("069500").nav_intraday(interval_minutes=minutes)
+        _client(fake).domestic.stock("069500").nav_intraday(interval_minutes=minutes)
     assert fake.calls == []
 
 
@@ -280,7 +280,7 @@ def test_etf_order_book_maps_standard_and_lp_levels():
     fake = FakeTransport(response=RawResponse(
         rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output": output}
     ))
-    book = _client(fake).ticker("069500").etf_order_book()
+    book = _client(fake).domestic.stock("069500").etf_order_book()
 
     assert isinstance(book, ETFOrderBook)
     assert len(book.order_book.asks) == 10
@@ -298,4 +298,4 @@ def test_etf_order_book_maps_standard_and_lp_levels():
 def test_etf_order_book_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("069500").etf_order_book()
+        _client(fake).domestic.stock("069500").etf_order_book()

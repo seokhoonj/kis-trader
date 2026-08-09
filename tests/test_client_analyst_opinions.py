@@ -1,4 +1,4 @@
-"""애널리스트 투자의견 -- kis.ticker(code).analyst_opinions()."""
+"""애널리스트 투자의견 -- kis.domestic.stock(code).analyst_opinions()."""
 from __future__ import annotations
 
 import threading
@@ -35,7 +35,7 @@ def test_analyst_opinions_maps():
     rows = [{"stck_bsop_date": "20240510", "invt_opnn": "매수", "rgbf_invt_opnn": "중립",
              "hts_goal_prc": "90000", "stck_prdy_clpr": "75000", "dprt": "20.0"}]
     fake = FakeTransport(response=_resp(rows))
-    ops = _client(fake).ticker("005930").analyst_opinions(start="20240101", end="20240513")
+    ops = _client(fake).domestic.stock("005930").analyst_opinions(start="20240101", end="20240513")
     assert isinstance(ops[0], AnalystOpinion)
     assert ops[0].opinion == "매수"
     assert ops[0].previous_opinion == "중립"
@@ -51,7 +51,7 @@ def test_analyst_opinions_maps():
 
 def test_analyst_opinions_default_window():
     fake = FakeTransport(response=_resp([]))
-    _client(fake).ticker("005930").analyst_opinions(end="20240131")
+    _client(fake).domestic.stock("005930").analyst_opinions(end="20240131")
     call = fake.calls[0]
     assert call["params"]["FID_INPUT_DATE_1"] == "20240101"       # 30일 전
     assert call["params"]["FID_INPUT_DATE_2"] == "20240131"
@@ -61,7 +61,7 @@ def test_analyst_opinions_optional_target_none():
     rows = [{"stck_bsop_date": "20240510", "invt_opnn": "매수", "rgbf_invt_opnn": "",
              "hts_goal_prc": "", "stck_prdy_clpr": "75000", "dprt": ""}]
     fake = FakeTransport(response=_resp(rows))
-    op = _client(fake).ticker("005930").analyst_opinions()[0]
+    op = _client(fake).domestic.stock("005930").analyst_opinions()[0]
     assert op.target_price is None
     assert op.disparity_percent is None
 
@@ -69,7 +69,7 @@ def test_analyst_opinions_optional_target_none():
 def test_analyst_opinions_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").analyst_opinions()
+        _client(fake).domestic.stock("005930").analyst_opinions()
 
 
 def test_analyst_opinions_bad_value_fails_closed():
@@ -77,4 +77,4 @@ def test_analyst_opinions_bad_value_fails_closed():
              "hts_goal_prc": "n/a"}]
     fake = FakeTransport(response=_resp(rows))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").analyst_opinions()
+        _client(fake).domestic.stock("005930").analyst_opinions()

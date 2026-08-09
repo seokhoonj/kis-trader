@@ -49,7 +49,7 @@ class MarketQueries:
         self, *, market: Market = "KOSPI", as_of: str | date | None = None,
     ) -> list[MarketInvestorFlow]:
         """시장(``"KOSPI"``/``"KOSDAQ"``) 전체의 투자자 순매수 최근 히스토리(``as_of`` 기준일에서 과거로;
-        기간이 아니라 앵커 날짜). ``as_of`` 없으면 오늘. 종목 단위는 ``kis.ticker(code).investor_flows()``."""
+        기간이 아니라 앵커 날짜). ``as_of`` 없으면 오늘. 종목 단위는 ``kis.domestic.stock(code).investor_flows()``."""
         return market_api.fetch_market_investor_flows(
             self._client.transport, market=market, as_of=as_of
         )
@@ -123,7 +123,7 @@ class MarketQueries:
         start: str | date | None = None, end: str | date | None = None,
     ) -> list[ProgramTradeSummary]:
         """시장(``"KOSPI"``/``"KOSDAQ"``) 전체의 일별 프로그램매매 종합(차익/비차익 순매수; 최근->과거).
-        ``start`` 미지정이면 최근 30일. 종목 단위는 ``kis.ticker(code).program_trades()``."""
+        ``start`` 미지정이면 최근 30일. 종목 단위는 ``kis.domestic.stock(code).program_trades()``."""
         return market_api.fetch_program_trade_summary(
             self._client.transport, market=market, start=start, end=end
         )

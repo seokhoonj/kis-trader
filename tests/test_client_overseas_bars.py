@@ -1,4 +1,4 @@
-"""해외주식 기간봉 -- kis.ticker(symbol, exchange=...).bars().
+"""해외주식 기간봉 -- kis.overseas.stock(symbol, exchange=...).bars().
 
 dailyprice 엔드포인트, GUBN(일/주/월) 매핑, MODP(수정주가), BYMD 앵커 walk-back 페이지네이션,
 오름차순 정렬, 분봉 미지원을 검증한다.
@@ -52,7 +52,7 @@ def test_overseas_bars_parses_ascending_and_params():
         _bar_row("20240103", "147.0", "149.5", "146.5", "148.00", "480"),
         _bar_row("20240102", "145.0", "147.5", "144.5", "146.50", "460"),
     ]))
-    bars = _client(fake).ticker("AAPL", exchange="NAS").bars(start="20240102")
+    bars = _client(fake).overseas.stock("AAPL", exchange="NAS").bars(start="20240102")
     assert [b.symbol for b in bars] == ["AAPL", "AAPL", "AAPL"]
     assert [f"{b.timestamp:%Y%m%d}" for b in bars] == ["20240102", "20240103", "20240104"]
     assert bars[-1].close == Decimal("150.25")
@@ -70,10 +70,10 @@ def test_overseas_bars_parses_ascending_and_params():
 def test_overseas_bars_weekly_monthly_and_unadjusted():
     for interval, gubn in [("1wk", "1"), ("1mo", "2")]:
         fake = FakeTransport(response=_resp([_bar_row("20240105", "1", "1", "1", "1", "1")]))
-        _client(fake).ticker("AAPL", exchange="NAS").bars(start="20240105", interval=interval)
+        _client(fake).overseas.stock("AAPL", exchange="NAS").bars(start="20240105", interval=interval)
         assert fake.calls[0]["params"]["GUBN"] == gubn
     fake = FakeTransport(response=_resp([_bar_row("20240105", "1", "1", "1", "1", "1")]))
-    _client(fake).ticker("AAPL", exchange="NAS").bars(start="20240105", adjusted=False)
+    _client(fake).overseas.stock("AAPL", exchange="NAS").bars(start="20240105", adjusted=False)
     assert fake.calls[0]["params"]["MODP"] == "0"
 
 
@@ -81,7 +81,7 @@ def test_overseas_bars_paginates_by_base_date():
     page_a = _resp([_bar_row(f"2024010{n}", "1", "1", "1", str(n), "1") for n in (8, 7, 6, 5)])
     page_b = _resp([_bar_row(f"2024010{n}", "1", "1", "1", str(n), "1") for n in (5, 4, 3, 2, 1)])
     fake = FakeTransport(by_path={_OVERSEAS_BARS: [page_a, page_b]})
-    bars = _client(fake).ticker("AAPL", exchange="NAS").bars(start="20240101")
+    bars = _client(fake).overseas.stock("AAPL", exchange="NAS").bars(start="20240101")
     assert [f"{b.timestamp:%Y%m%d}" for b in bars] == [f"2024010{n}" for n in range(1, 9)]
     assert isinstance(bars[0], Bar)
     # 2페이지째 BYMD 는 첫 페이지 최소일(20240105) 하루 전(20240104).
@@ -120,7 +120,7 @@ def test_overseas_minute_bars_paginate_ascending_and_params():
     times = [f"2024022209{m:02d}00" for m in range(9)]   # 09:00..09:08, 1분 간격 9개
     minutes = {t: _min_row(t[:8], t[8:], last=str(197 + i)) for i, t in enumerate(times)}
     fake = MinuteFakeTransport(minutes)
-    bars = _client(fake).ticker("TSLA", exchange="NAS").bars(interval="1m")
+    bars = _client(fake).overseas.stock("TSLA", exchange="NAS").bars(interval="1m")
     assert [f"{b.timestamp:%Y%m%d%H%M%S}" for b in bars] == times   # 과거->현재 오름차순, 전량
     assert fake.calls[0]["path"] == _OVERSEAS_MINUTE
     assert fake.calls[0]["tr_id"] == "HHDFS76950200"
@@ -137,7 +137,7 @@ def test_overseas_minute_bars_maps_close_volume_and_max_bars():
     minutes = {t: _min_row(t[:8], t[8:], last=str(197 + i), vol=str(100 + i))
                for i, t in enumerate(times)}
     fake = MinuteFakeTransport(minutes)
-    bars = _client(fake).ticker("TSLA", exchange="NAS").bars(interval="1m", max_bars=4)
+    bars = _client(fake).overseas.stock("TSLA", exchange="NAS").bars(interval="1m", max_bars=4)
     assert len(bars) == 4
     assert [f"{b.timestamp:%Y%m%d%H%M%S}" for b in bars] == times[-4:]
     assert bars[-1].close == Decimal(205)                     # last 매핑
@@ -150,4 +150,4 @@ def test_overseas_minute_bars_missing_output2_fails_closed():
             return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}})
     from kis_openapi.errors import KISError
     with pytest.raises(KISError):
-        _client(Bad()).ticker("TSLA", exchange="NAS").bars(interval="1m")
+        _client(Bad()).overseas.stock("TSLA", exchange="NAS").bars(interval="1m")

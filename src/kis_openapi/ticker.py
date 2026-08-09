@@ -1,6 +1,6 @@
 """종목 핸들 -- :class:`Ticker`.
 
-한 종목에 대해 행위를 시키는 핸들이다: ``kis.ticker("005930").quote()`` 처럼. 시세는 세션
+한 종목에 대해 행위를 시키는 핸들이다: ``kis.domestic.stock("005930").quote()`` 처럼. 시세는 세션
 인증만으로 되고, 주문은 세션에 묶인 계좌 + 내부 안전엔진을 쓴다. 사용자는 KIS
 구조(quotations/trading/국내/해외)를 몰라도 되고, 시장은 심볼로 자동 판별된다.
 
@@ -638,7 +638,7 @@ class Ticker:
     ) -> Order:
         if self.exchange is None:
             raise KISUsageError(
-                "미국주간거래는 해외(미국) 종목만 지원한다 -- kis.ticker(symbol, exchange='NAS') 로 지정하라."
+                "미국주간거래는 해외(미국) 종목만 지원한다 -- kis.overseas.stock(symbol, exchange='NAS') 로 지정하라."
             )
         return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
                            exchange=self.exchange, session="daytime", client_order_id=client_order_id)

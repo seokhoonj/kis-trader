@@ -1,4 +1,4 @@
-"""종목 기본정보 -- kis.ticker(code).info()."""
+"""종목 기본정보 -- kis.domestic.stock(code).info()."""
 from __future__ import annotations
 
 import threading
@@ -34,7 +34,7 @@ def test_stock_info_maps():
            "idx_bztp_scls_cd_name": "메모리", "kospi200_item_yn": "Y", "stck_kind_cd": "0",
            "scts_mket_lstg_dt": "19750611"}
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
-    info = _client(fake).ticker("005930").info()
+    info = _client(fake).domestic.stock("005930").info()
     assert isinstance(info, StockInfo)
     assert info.name == "삼성전자"
     assert info.listed_shares == 5969782550
@@ -56,7 +56,7 @@ def test_stock_info_optional_none():
            "idx_bztp_mcls_cd_name": "", "idx_bztp_scls_cd_name": "", "kospi200_item_yn": "N",
            "stck_kind_cd": "", "scts_mket_lstg_dt": "", "kosdaq_mket_lstg_dt": ""}
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
-    info = _client(fake).ticker("005930").info()
+    info = _client(fake).domestic.stock("005930").info()
     assert info.listed_shares is None
     assert info.listing_date is None
     assert info.is_kospi200 is False
@@ -65,4 +65,4 @@ def test_stock_info_optional_none():
 def test_stock_info_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").info()
+        _client(fake).domestic.stock("005930").info()

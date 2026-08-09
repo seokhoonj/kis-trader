@@ -1,4 +1,4 @@
-"""시간외 단일가 -- kis.ticker(...).after_hours_quote().
+"""시간외 단일가 -- kis.domestic.stock(...).after_hours_quote().
 
 예상체결가·최우선호가 매핑, 전일대비 부호 복원, 세션 밖 빈 값->None(optional), fail-closed 를
 가짜 전송으로 검증한다.
@@ -48,7 +48,7 @@ def _client(transport):
 
 def test_after_hours_quote_maps_fields():
     fake = FakeTransport(response=_resp(_output()))
-    quote = _client(fake).ticker("005930").after_hours_quote()
+    quote = _client(fake).domestic.stock("005930").after_hours_quote()
     assert isinstance(quote, AfterHoursQuote)
     assert quote.symbol == "005930"
     assert quote.bid == Decimal(71400)
@@ -64,14 +64,14 @@ def test_after_hours_quote_maps_fields():
 
 def test_after_hours_quote_restores_down_sign():
     fake = FakeTransport(response=_resp(_output(ovtm_untp_antc_cntg_vrss_sign="5")))
-    quote = _client(fake).ticker("005930").after_hours_quote()
+    quote = _client(fake).domestic.stock("005930").after_hours_quote()
     assert quote.change == Decimal(-50)                    # 하락 -> 음수
     assert quote.change_percent == Decimal("-0.07")
 
 
 def test_after_hours_quote_empty_fields_become_none():
     empty = {k: "" for k in _output()}
-    quote = _client(FakeTransport(response=_resp(empty))).ticker("005930").after_hours_quote()
+    quote = _client(FakeTransport(response=_resp(empty))).domestic.stock("005930").after_hours_quote()
     assert quote.bid is None
     assert quote.ask is None
     assert quote.expected_price is None
@@ -83,7 +83,7 @@ def test_after_hours_quote_empty_fields_become_none():
 def test_after_hours_quote_maps_partial_payload():
     # 일부만 채워진 경우 필드별로 독립 파싱되는지: bid/수량/change 만 존재.
     partial = _output(askp="", ovtm_untp_antc_cnpr="", ovtm_untp_antc_cntg_ctrt="")
-    quote = _client(FakeTransport(response=_resp(partial))).ticker("005930").after_hours_quote()
+    quote = _client(FakeTransport(response=_resp(partial))).domestic.stock("005930").after_hours_quote()
     assert quote.bid == Decimal(71400)
     assert quote.ask is None
     assert quote.expected_price is None
@@ -95,19 +95,19 @@ def test_after_hours_quote_maps_partial_payload():
 def test_after_hours_quote_missing_output_block_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").after_hours_quote()
+        _client(fake).domestic.stock("005930").after_hours_quote()
 
 
 def test_after_hours_quote_bad_value_fails_closed():
     fake = FakeTransport(response=_resp(_output(ovtm_untp_antc_cnpr="oops")))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").after_hours_quote()
+        _client(fake).domestic.stock("005930").after_hours_quote()
 
 
 def test_after_hours_quote_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="X", msg1="실패", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").after_hours_quote()
+        _client(fake).domestic.stock("005930").after_hours_quote()
 
 
 def _resp2(rows):
@@ -122,7 +122,7 @@ def test_after_hours_conclusions_maps_output2():
              "acml_vol": "68086", "cntg_vol": "12865"}]
     fake = FakeTransport(response=_resp2(rows))
     from kis_openapi import AfterHoursConclusion
-    pts = _client(fake).ticker("005930").after_hours_conclusions()
+    pts = _client(fake).domestic.stock("005930").after_hours_conclusions()
     assert isinstance(pts[0], AfterHoursConclusion)
     assert pts[0].price == Decimal(2835)
     assert pts[0].change == Decimal(-70)                 # sign 5 -> 음수
@@ -145,7 +145,7 @@ def test_after_hours_daily_maps_output2():
              "ovtm_untp_tr_pbmn": "1348318000"}]
     fake = FakeTransport(response=_resp2(rows))
     from kis_openapi import AfterHoursDailyPrice
-    pts = _client(fake).ticker("005930").after_hours_daily()
+    pts = _client(fake).domestic.stock("005930").after_hours_daily()
     assert isinstance(pts[0], AfterHoursDailyPrice)
     assert pts[0].price == Decimal(106000)
     assert pts[0].change == Decimal(500)                 # sign 2 -> 양수
@@ -161,7 +161,7 @@ def test_after_hours_daily_maps_output2():
 def test_after_hours_history_missing_output2_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").after_hours_conclusions()
+        _client(fake).domestic.stock("005930").after_hours_conclusions()
 
 
 def test_after_hours_order_book_maps_levels_and_totals():
@@ -176,7 +176,7 @@ def test_after_hours_order_book_maps_levels_and_totals():
     }
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output1": output1})
     fake = FakeTransport(response=resp)
-    ob = _client(fake).ticker("005930").after_hours_order_book()
+    ob = _client(fake).domestic.stock("005930").after_hours_order_book()
     assert ob.asks[0].price == Decimal(83600)
     assert ob.asks[0].quantity == 5000
     assert ob.bids[0].price == Decimal(83500)
@@ -191,4 +191,4 @@ def test_after_hours_order_book_maps_levels_and_totals():
 def test_after_hours_order_book_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).ticker("005930").after_hours_order_book()
+        _client(fake).domestic.stock("005930").after_hours_order_book()

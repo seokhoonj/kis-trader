@@ -1,4 +1,4 @@
-"""해외주식 호가창 -- kis.ticker(symbol, exchange=...).order_book().
+"""해외주식 호가창 -- kis.overseas.stock(symbol, exchange=...).order_book().
 
 inquire-asking-price 엔드포인트, output1(총잔량)+output2(단계) 파싱, 미국 다단계/그 외 1단계,
 빈(0) 단계 skip, fail-closed 를 검증한다. 도메스틱과 같은 OrderBook 타입.
@@ -57,7 +57,7 @@ def test_overseas_order_book_us_multiple_levels():
         pask1="147.00", vask1="120", pask2="147.10", vask2="300",
     )
     fake = FakeTransport(response=_resp(output1={"bvol": "350", "avol": "420"}, output2=output2))
-    book = _client(fake).ticker("AAPL", exchange="NAS").order_book()
+    book = _client(fake).overseas.stock("AAPL", exchange="NAS").order_book()
     assert isinstance(book, OrderBook)
     assert book.market == "NAS"
     assert [(lvl.price, lvl.quantity) for lvl in book.bids] == [
@@ -77,7 +77,7 @@ def test_overseas_order_book_non_us_single_level():
     # 미국 외: 1단계만 채워지고 나머지는 0 -> 한 단계만.
     output2 = _levels(pbid1="61000", vbid1="10", pask1="61050", vask1="12")
     fake = FakeTransport(response=_resp(output1={"bvol": "10", "avol": "12"}, output2=output2))
-    book = _client(fake).ticker("0700", exchange="HKS").order_book()
+    book = _client(fake).overseas.stock("0700", exchange="HKS").order_book()
     assert len(book.bids) == 1
     assert len(book.asks) == 1
     assert book.asks[0].price == Decimal(61050)
@@ -87,4 +87,4 @@ def test_overseas_order_book_missing_output2_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                                               body={"output1": {"bvol": "1", "avol": "1"}}))
     with pytest.raises(KISError):
-        _client(fake).ticker("AAPL", exchange="NAS").order_book()
+        _client(fake).overseas.stock("AAPL", exchange="NAS").order_book()
