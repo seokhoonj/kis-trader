@@ -591,7 +591,7 @@ class OverseasStock(_StockBase):
 
         정규 :meth:`buy` 와 같은 안전 엔진(이중체결 방지·재시도 금지)을 공유하되 세션이 달라 정정·취소는
         미국주간 전용 엔드포인트로 라우팅된다(반환 리포트의 ``client_order_id`` 로 ``kis.orders.cancel``/
-        ``kis.orders.replace``). **모의투자 미지원**, 미국(NAS/NYS/AMS)만. 타임아웃 시 ``kis.orders.reconcile``
+        ``kis.orders.modify``). **모의투자 미지원**, 미국(NAS/NYS/AMS)만. 타임아웃 시 ``kis.orders.reconcile``
         은 주간 체결이 정규 체결내역에 없어 자동 확정하지 않고 None(in-flight 유지)을 준다 -- 수동 확인이
         필요하다. 예외는 :meth:`buy` 와 같다(접수 거부 ``OrderRejectedError``·타임아웃 ``OrderTimeoutError``)."""
         return self._client._place_order(self._make_daytime_order("buy", quantity, price, client_order_id))

@@ -166,7 +166,7 @@ class KISClient:
         self, client_order_id: str, *, action: str, quantity: object | None,
         price: object | None, request_id: str | None,
     ) -> ExecutionReport:
-        """접수된 국내·해외 주식 주문의 미체결 수량을 취소/정정한다(``kis.orders.cancel`` / ``.replace``)."""
+        """접수된 국내·해외 주식 주문의 미체결 수량을 취소/정정한다(``kis.orders.cancel`` / ``.modify``)."""
         cano, product_code = self._require_account()
         fingerprint = self._store.fingerprint_for(client_order_id)
         report = self._store.report_for(client_order_id)

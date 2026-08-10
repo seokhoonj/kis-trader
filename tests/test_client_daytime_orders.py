@@ -180,7 +180,7 @@ def test_daytime_order_replace_routes_to_daytime_endpoint():
         quantity=2, price="150", client_order_id=cid)
     change_t = FakeTransport(response=RawResponse(
         rt_cd="0", msg_cd="A", msg1="", body={"output": {"ODNO": "0030000123"}}))
-    _client(change_t, store=store).orders.replace(cid, price="151")
+    _client(change_t, store=store).orders.modify(cid, price="151")
     call = change_t.calls[0]
     assert call["path"] == _DAYTIME_CHANGE
     assert call["tr_id"] == "TTTS6038U"

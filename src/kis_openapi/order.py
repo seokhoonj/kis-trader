@@ -24,7 +24,7 @@ TimeInForce = Literal["day", "gtc", "ioc", "fok"]
 #: 다르면 서로 다른 주문이고 정정·취소 엔드포인트도 다르므로 지문·라우팅으로 구분한다.
 Session = Literal["regular", "daytime"]
 #: 접수된 주문에 대한 변경 동작(정정/취소).
-Action = Literal["cancel", "replace"]
+Action = Literal["cancel", "modify"]
 #: 국내 신용주문 유형 코드(원장 코드표). 매수/매도별로 유효 코드가 다르고(아래 상수), 신규/상환
 #: 여부로 대출일자(LOAN_DT) 요구가 갈린다.
 CreditType = Literal["21", "22", "23", "24", "25", "26", "27", "28"]

@@ -235,11 +235,11 @@ def submit_change(
         raise KISUsageError(
             f"종료 상태 주문은 정정·취소할 수 없다: {original_report.status.value}"
         )
-    if action not in {"cancel", "replace"}:
+    if action not in {"cancel", "modify"}:
         raise KISUsageError(f"지원하지 않는 주문 변경: {action!r}")
     if quantity <= 0 or quantity != quantity.to_integral_value():
         raise KISUsageError(f"정정·취소 수량은 양의 정수여야 한다: {quantity}")
-    if action == "replace" and (price is None or price <= 0):
+    if action == "modify" and (price is None or price <= 0):
         raise KISUsageError("정정 주문에는 0보다 큰 price가 필요하다.")
     if action == "cancel" and price is not None:
         raise KISUsageError("취소 주문에는 price를 지정할 수 없다.")

@@ -150,8 +150,8 @@ def test_replace_domestic_order_maps_new_quantity_and_price():
     kis.domestic.stock("005930").sell(
         quantity=10, price=70000, client_order_id="original-2"
     )
-    report = kis.orders.replace(
-        "original-2", quantity=4, price=71000, request_id="replace-1"
+    report = kis.orders.modify(
+        "original-2", quantity=4, price=71000, request_id="modify-1"
     )
 
     assert report.status is OrderStatus.PENDING_REPLACE

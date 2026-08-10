@@ -130,9 +130,9 @@ def test_overseas_replace_uses_demo_tr_and_new_price():
     kis.overseas.stock("0700", exchange="HKS").sell(
         quantity=4, price="410.00", client_order_id="original-overseas-2"
     )
-    report = kis.orders.replace(
+    report = kis.orders.modify(
         "original-overseas-2", quantity=3, price="412.50",
-        request_id="replace-overseas-1",
+        request_id="modify-overseas-1",
     )
 
     from kis_openapi import OrderStatus

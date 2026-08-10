@@ -116,13 +116,13 @@ class OrdersNamespace:
             client_order_id, action="cancel", quantity=quantity, price=None, request_id=request_id
         )
 
-    def replace(
+    def modify(
         self, client_order_id: str, *, price: object, quantity: object | None = None,
         request_id: str | None = None,
     ) -> ExecutionReport:
         """접수된 주문의 가격(또는 수량)을 정정한다."""
         return self._c._change_order(
-            client_order_id, action="replace", quantity=quantity, price=price, request_id=request_id
+            client_order_id, action="modify", quantity=quantity, price=price, request_id=request_id
         )
 
 
