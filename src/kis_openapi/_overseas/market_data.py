@@ -72,6 +72,7 @@ _MULTI_QUOTE_TR = "HHDFS76220000"
 _MAX_MULTI_QUOTE = 10           # 원장: 슬롯 10개(EXCD_01 ~ _10, NREC 최대 10)
 _SEARCH_PATH = "/uapi/overseas-price/v1/quotations/inquire-search"
 _SEARCH_TR = "HHDFS76410000"
+_MAX_SEARCH_PAGES = 100
 
 
 def _range_params(name: str, value: tuple[object, object] | None) -> dict[str, str]:
@@ -105,7 +106,7 @@ def search_stocks(
     items: list[OverseasStockSearchItem] = []
     summary: Mapping[str, Any] | None = None
     tr_cont = ""
-    while True:
+    for _page in range(_MAX_SEARCH_PAGES):
         resp = transport.request(
             method="GET", path=_SEARCH_PATH, tr_id=_SEARCH_TR, params=params,
             idempotent=True, tr_cont=tr_cont,
@@ -141,6 +142,8 @@ def search_stocks(
         if resp.tr_cont not in {"F", "M"}:
             break
         tr_cont = "N"
+    else:
+        raise KISError(f"해외 종목검색이 {_MAX_SEARCH_PAGES}페이지 상한을 넘겼다(다음조회 미종료).")
     assert summary is not None
     return OverseasStockSearch(
         exchange=exchange.strip(), decimal_places=required_int(summary.get("zdiv"), "zdiv"),

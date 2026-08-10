@@ -60,6 +60,7 @@ _INTRADAY_EXECUTIONS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-time-ite
 _INTRADAY_EXECUTIONS_TR = "FHPST01060000"
 _DETAILED_INVESTOR_PATH = "/uapi/domestic-stock/v1/quotations/investor-trade-by-stock-daily"
 _DETAILED_INVESTOR_TR = "FHPTJ04160001"
+_MAX_DETAILED_INVESTOR_PAGES = 100
 #: 전일대비 부호코드(prdy_vrss_sign) 중 하락(4 하한, 5 하락). 나머지는 양(0 포함).
 _DOWN_SIGNS = frozenset(("4", "5"))
 
@@ -783,7 +784,7 @@ def fetch_detailed_investor_history(
     pages: list[Mapping[str, Any]] = []
     summary: Mapping[str, Any] | None = None
     tr_cont = ""
-    while True:
+    for _page in range(_MAX_DETAILED_INVESTOR_PAGES):
         resp = transport.request(
             method="GET", path=_DETAILED_INVESTOR_PATH, tr_id=_DETAILED_INVESTOR_TR,
             params=params, idempotent=True, tr_cont=tr_cont,
@@ -800,6 +801,10 @@ def fetch_detailed_investor_history(
         if resp.tr_cont not in {"F", "M"}:
             break
         tr_cont = "N"
+    else:
+        raise KISError(
+            f"세부 투자자 매매동향 조회가 {_MAX_DETAILED_INVESTOR_PAGES}페이지 상한을 넘겼다(다음조회 미종료)."
+        )
     assert summary is not None
     summary_sign = str(summary.get("prdy_vrss_sign", "")).strip()
     flows: list[DetailedInvestorFlow] = []

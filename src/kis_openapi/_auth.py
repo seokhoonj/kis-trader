@@ -94,12 +94,15 @@ class TokenManager:
         return token, float(expires_at)
 
     def _write_cache(self, token: str, expires_at: float) -> None:
-        os.makedirs(self._cache_dir, exist_ok=True)
+        # 토큰(브로커 접근권한)은 캐시 파일에 절대 world-readable 로 잠깐도 노출되면 안 된다.
+        # 임시 파일을 처음부터 0o600 으로 만들고(먼저 열고 chmod 하면 그 사이 창에서 읽힌다),
+        # 디렉터리도 0o700 으로 잠근 뒤 원자적 교체한다.
+        os.makedirs(self._cache_dir, mode=0o700, exist_ok=True)
         path = self._cache_path
         tmp = f"{path}.tmp"
-        with open(tmp, "w", encoding="utf-8") as out:
+        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
+        with os.fdopen(fd, "w", encoding="utf-8") as out:
             json.dump({"access_token": token, "expires_at": expires_at}, out)
-        os.chmod(tmp, 0o600)
         os.replace(tmp, path)
 
     def _clear_cache(self) -> None:

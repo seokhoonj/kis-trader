@@ -495,10 +495,16 @@ def fetch_present_balance(
 
     .. note:: 요약(output3) 필드는 원장 예시가 output1 에서 잘려 레이아웃 기준이다 -- 전체 원본은 결과 ``_raw``.
     """
+    try:
+        nation_code = _NATION_CODE[nation]      # 알 수 없는 nation 은 조용히 전체(000)로 넓히지 않고 거부한다
+    except KeyError:
+        raise KISUsageError(
+            f"지원하지 않는 nation: {nation!r} ({'/'.join(_NATION_CODE)})."
+        ) from None
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
         "WCRC_FRCR_DVSN_CD": "01" if won_basis else "02",
-        "NATN_CD": _NATION_CODE.get(nation, "000"),
+        "NATN_CD": nation_code,
         "TR_MKET_CD": market_code, "INQR_DVSN_CD": inquiry,
     }
     resp = transport.request(
