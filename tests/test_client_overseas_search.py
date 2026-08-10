@@ -42,10 +42,13 @@ def test_overseas_search_maps_filters_and_paginates():
     assert len(result.items) == 2
     assert result.items[0].price == Decimal("160.5")
     assert result.items[0].is_tradable
+    params = fake.calls[0]["params"]
     assert fake.calls[0]["tr_id"] == "HHDFS76410000"
-    assert fake.calls[0]["params"]["CO_YN_PRICECUR"] == "1"
-    assert fake.calls[0]["params"]["CO_ST_PRICECUR"] == "160"
-    assert fake.calls[0]["params"]["CO_YN_RATE"] == ""
+    assert (params["CO_YN_PRICECUR"], params["CO_ST_PRICECUR"], params["CO_EN_PRICECUR"]) == ("1", "160", "200")
+    # 모든 필터가 전달되는지(price 만이 아니라 per/volume 도) -- **filters forward 회귀 가드.
+    assert (params["CO_YN_PER"], params["CO_ST_PER"], params["CO_EN_PER"]) == ("1", "10", "30")
+    assert (params["CO_YN_VOLUME"], params["CO_ST_VOLUME"], params["CO_EN_VOLUME"]) == ("1", "1000", "100000")
+    assert params["CO_YN_RATE"] == ""          # 미지정 필터는 빈 값
     assert [call["tr_cont"] for call in fake.calls] == ["", "N"]
 
 
