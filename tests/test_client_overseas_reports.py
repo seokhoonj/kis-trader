@@ -96,6 +96,14 @@ def test_present_balance_parses():
     assert bal.total_asset == Decimal(5000000)
 
 
+def test_present_balance_rejects_unknown_nation_before_wire():
+    # 미지원 nation 은 조용히 전체(000)로 넓히지 않고 와이어 접촉 전에 거부한다(fail-closed).
+    fake = FakeTransport(response=_resp({"output1": [], "output2": [], "output3": _SUM3}))
+    with pytest.raises(KISUsageError):
+        _client(fake).overseas.account.present_balance(nation="usa")
+    assert fake.calls == []
+
+
 def test_present_balance_tr_env_and_params():
     fake = FakeTransport(response=_resp({"output1": [_POS], "output2": [_CRCY], "output3": _SUM3}))
     _client(fake).overseas.account.present_balance(won_basis=False, nation="US")

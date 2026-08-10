@@ -151,6 +151,49 @@ def test_get_timeout_can_succeed_on_retry(tmp_path: Any) -> None:
     assert response.ok
 
 
+@pytest.mark.parametrize(
+    ("method", "idempotent", "expected_attempts"),
+    [
+        ("GET", True, 4),     # 읽기 + 멱등 = 유일하게 재시도(타임아웃이 무해)
+        ("POST", True, 1),    # 쓰기는 멱등 표기와 무관하게 1회만(이중체결 방지)
+        ("POST", False, 1),
+        ("GET", False, 1),    # 비멱등 GET 도 재시도 금지
+    ],
+)
+def test_only_idempotent_get_is_retried_on_timeout(
+    tmp_path: Any, method: str, idempotent: bool, expected_attempts: int
+) -> None:
+    # 재시도 게이트는 정확히 `method == GET and idempotent`. 이 4조합이 모두 걸려 있어야
+    # 게이트를 `and`->`or` 로 바꾸는 회귀(쓰기 재시도 = 이중체결)를 테스트가 잡는다.
+    calls = 0
+
+    def send(m: str, url: str, **kwargs: Any) -> tuple[int, Mapping[str, str], Mapping[str, Any]]:
+        nonlocal calls
+        calls += 1
+        raise TransportTimeout("uncertain outcome")
+
+    with pytest.raises(TransportTimeout):
+        _transport(tmp_path, send, max_attempts=4).request(
+            method=method, path="/x", tr_id="TR", idempotent=idempotent,
+            body=None if method == "GET" else {"QTY": "1"},
+        )
+    assert calls == expected_attempts
+
+
+def test_http_status_error_carries_kis_envelope(tmp_path: Any) -> None:
+    # 429 등 에러 응답도 KIS 봉투(rt_cd/msg_cd/raw)를 실어 올려야 호출자가 분기할 수 있다.
+    body = {"rt_cd": "1", "msg_cd": "EGW00201", "msg1": "초당 거래건수 초과"}
+
+    def send(method: str, url: str, **kwargs: Any) -> tuple[int, Mapping[str, str], Mapping[str, Any]]:
+        return 429, {}, body
+
+    with pytest.raises(KISRateLimitError) as excinfo:
+        _transport(tmp_path, send).request(method="GET", path="/x", tr_id="TR", idempotent=True)
+    assert excinfo.value.rt_cd == "1"
+    assert excinfo.value.msg_cd == "EGW00201"
+    assert excinfo.value.raw == body
+
+
 def test_rt_cd_error_envelope_is_returned(tmp_path: Any) -> None:
     def send(method: str, url: str, **kwargs: Any) -> tuple[int, Mapping[str, str], Mapping[str, Any]]:
         return 200, {}, {"rt_cd": "1", "msg_cd": "BAD", "msg1": "거부"}
