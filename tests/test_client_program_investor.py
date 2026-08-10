@@ -125,7 +125,7 @@ def test_investor_estimate_missing_output2_fails_closed():
         _client(fake).domestic.stock("005930").investor_estimate()
 
 
-def test_investor_estimate_rejected_for_overseas_ticker():
-    fake = FakeTransport(response=_resp({"output2": []}))
-    with pytest.raises(Exception):  # noqa: B017 -- 해외 티커는 국내 전용 verb 거부
-        _client(fake).overseas.stock("AAPL", exchange="NAS").investor_estimate()
+def test_investor_estimate_absent_on_overseas_stock():
+    # investor_estimate 는 국내 전용 -- 해외 핸들엔 아예 없다(자산군 분리).
+    handle = _client(FakeTransport(response=_resp({"output2": []}))).overseas.stock("AAPL", exchange="NAS")
+    assert not hasattr(handle, "investor_estimate")

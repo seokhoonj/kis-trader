@@ -165,7 +165,7 @@ def test_credit_demo_rejected_before_io():
     assert fake.calls == []
 
 
-def test_credit_overseas_ticker_rejected():
+def test_credit_orders_absent_on_overseas_stock():
     # 신용주문은 국내 전용 -- 해외 핸들엔 credit_buy/credit_sell 이 없다(호출 자체가 불가).
     handle = _client(FakeTransport(response=_ACCEPTED)).overseas.stock("AAPL", exchange="NAS")
     assert not hasattr(handle, "credit_buy")

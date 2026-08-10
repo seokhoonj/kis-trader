@@ -88,7 +88,7 @@ def test_daytime_non_us_exchange_rejected():
     assert fake.calls == []
 
 
-def test_daytime_domestic_ticker_rejected():
+def test_daytime_absent_on_domestic_stock():
     # 미국주간거래는 해외(미국) 전용 -- 국내 핸들엔 daytime_buy/sell 이 없다.
     handle = _client(FakeTransport(response=_ACCEPTED)).domestic.stock("005930")
     assert not hasattr(handle, "daytime_buy")

@@ -118,7 +118,7 @@ def test_credit_buyable_missing_output_fails_closed():
         _client(FakeTransport(response=resp)).domestic.stock("005930").credit_buyable(limit_price="1")
 
 
-def test_credit_buyable_overseas_ticker_rejected():
+def test_credit_buyable_absent_on_overseas_stock():
     # credit_buyable 은 국내 전용 -- 해외 핸들엔 아예 없다(자산군 분리로 구조적 보장).
     handle = _client(FakeTransport(response=_resp())).overseas.stock("AAPL", exchange="NAS")
     assert not hasattr(handle, "credit_buyable")

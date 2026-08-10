@@ -9,6 +9,8 @@ from __future__ import annotations
 import contextlib
 import threading
 
+import pytest
+
 from kis_openapi import InstrumentRecord, KISClient, MasterIndex
 from kis_openapi.calendar import CalendarQueries
 from kis_openapi.market import MarketQueries
@@ -21,7 +23,7 @@ from kis_openapi.namespaces import (
     PensionNamespace,
 )
 from kis_openapi.ranking import RankingQueries
-from kis_openapi.stock import DomesticStock, OverseasStock
+from kis_openapi.stock import DomesticStock, OverseasStock, _StockBase
 from kis_openapi.transport import RawResponse
 
 
@@ -54,8 +56,8 @@ def test_namespaces_present_and_typed():
     assert isinstance(k.overseas.account, OverseasAccount)
 
 
-# --- 핸들 팩토리가 기존과 같은 핸들을 주나 ---------------------------------
-def test_domestic_stock_returns_ticker():
+# --- 핸들 팩토리가 올바른 자산군 핸들을 주나 -------------------------------
+def test_domestic_stock_returns_domestic_stock():
     k = _client()
     t = k.domestic.stock("005930")
     assert isinstance(t, DomesticStock)
@@ -63,11 +65,28 @@ def test_domestic_stock_returns_ticker():
     assert not t.is_overseas
 
 
-def test_overseas_stock_returns_ticker():
+def test_overseas_stock_returns_overseas_stock():
     k = _client()
     t = k.overseas.stock("AAPL", exchange="NAS")
     assert isinstance(t, OverseasStock)
     assert t.is_overseas
+
+
+def _public_methods(cls: type) -> set[str]:
+    """클래스의 공개 호출가능 멤버 이름(언더스코어 제외)."""
+    return {n for n in dir(cls) if not n.startswith("_") and callable(getattr(cls, n))}
+
+
+def test_stock_surfaces_are_asset_specific():
+    # 자산군 분리의 핵심 계약: 국내 전용은 해외 핸들에 없고, 해외 전용은 국내 핸들에 없다(전수).
+    dom = _public_methods(DomesticStock)
+    ovs = _public_methods(OverseasStock)
+    assert ovs - dom == {"current_price", "daytime_buy", "daytime_sell"}   # 해외 전용은 정확히 이 셋
+    assert {"nav", "balance_sheet", "investor_flows", "credit_buy", "buyable"} <= dom - ovs
+    assert {"quote", "bars", "order_book", "trades"} <= dom & ovs          # 공유 표면은 양쪽에
+    # 추상 베이스는 직접 생성 불가.
+    with pytest.raises(TypeError):
+        _StockBase(_client(), "005930")
 
 
 def test_overseas_stock_auto_resolves_exchange():

@@ -125,7 +125,7 @@ def test_current_price_is_overseas_only_and_fails_closed():
         _client(fake).overseas.stock("AAPL", exchange="NAS").current_price()
 
 
-def test_overseas_ticker_is_overseas_flag():
+def test_overseas_stock_is_overseas_flag():
     fake = FakeTransport(response=_resp(_output()))
     assert _client(fake).overseas.stock("AAPL", exchange="NAS").is_overseas is True
     assert _client(fake).domestic.stock("005930").is_overseas is False
@@ -156,7 +156,7 @@ def test_bare_domestic_symbol_stays_domestic_without_master():
     assert handle.market == "KRX"
 
 
-def test_overseas_ticker_rejects_domestic_only_methods():
+def test_overseas_stock_excludes_domestic_only_methods():
     # 국내 전용 조회는 해외 핸들에 아예 없다(자산군 분리로 구조적 보장 -- 런타임 가드 불필요).
     handle = _client(FakeTransport(response=_resp(_output()))).overseas.stock("AAPL", exchange="NAS")
     for name in ("investor_flows", "broker_activity", "nav", "components"):

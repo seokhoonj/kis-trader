@@ -11,6 +11,7 @@
 
 from __future__ import annotations
 
+import abc
 from datetime import date
 from typing import TYPE_CHECKING
 
@@ -71,13 +72,12 @@ if TYPE_CHECKING:
     from .client import KISClient
 
 
-class _StockBase:
+class _StockBase(abc.ABC):
     """종목 핸들 공통 베이스 -- 국내/해외가 공유하는 주문 안전 흐름(계좌 + 안전엔진). 시세는 각
-    서브클래스가 자산군 엔진으로 구현한다. 직접 만들지 않는다(:class:`DomesticStock` /
-    :class:`OverseasStock`)."""
+    서브클래스가 자산군 엔진으로 구현한다. 추상 베이스라 직접 만들 수 없다(:class:`DomesticStock` /
+    :class:`OverseasStock` 만 생성 가능)."""
 
     symbol: str
-    is_overseas: bool
 
     def __init__(self, client: KISClient, symbol: str) -> None:
         self._client = client
@@ -130,19 +130,19 @@ class _StockBase:
         """이 종목의 **예약매도**. 계약·안전 규칙은 :meth:`reserve_buy` 와 같다(방향만 매도)."""
         return self._reserve("sell", quantity, price, end_date, client_order_id)
 
+    @abc.abstractmethod
     def _make_order(
         self, side: Side, quantity: object, price: object | None,
         time_in_force: TimeInForce, client_order_id: str | None,
     ) -> Order:
         """자산군별 즉시주문 와이어 조립(서브클래스 구현)."""
-        raise NotImplementedError
 
+    @abc.abstractmethod
     def _reserve(
         self, side: Side, quantity: object, price: object | None, end_date: str | None,
         client_order_id: str | None,
     ) -> ExecutionReport:
         """자산군별 예약주문 발주(서브클래스 구현)."""
-        raise NotImplementedError
 
 
 class DomesticStock(_StockBase):

@@ -141,7 +141,7 @@ def test_reserve_demo_rejected_before_io():
     assert fake.calls == []
 
 
-def test_reserve_overseas_ticker_rejects_end_date():
+def test_reserve_overseas_stock_rejects_end_date():
     # 해외(미국) 티커의 reserve_buy 는 해외예약으로 라우팅되며 end_date 를 지원하지 않는다(전송 전 거부)
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
