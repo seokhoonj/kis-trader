@@ -21,7 +21,7 @@ if TYPE_CHECKING:
 
 
 class ELWRankingQueries:
-    """세션에 달린 ELW 순위 질의 네임스페이스. :attr:`KISClient.elw_ranking` 이 만들어 준다.
+    """세션에 달린 ELW 순위 질의 네임스페이스. ``kis.domestic.elw_ranking`` 이 만들어 준다.
 
     공통 필터: ``underlying`` 은 기초자산 코드(``"000000"`` 전체, ``"005930"`` 삼성전자 등),
     ``issuer`` 는 발행사 코드(``"00000"`` 전체), ``right`` 는 ``"all"``/``"call"``/``"put"``.

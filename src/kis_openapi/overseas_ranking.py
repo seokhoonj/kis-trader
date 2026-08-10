@@ -19,7 +19,7 @@ if TYPE_CHECKING:
 
 
 class OverseasRankingQueries:
-    """세션에 달린 해외주식 순위 질의 네임스페이스. :attr:`KISClient.overseas_ranking` 이 만들어 준다.
+    """세션에 달린 해외주식 순위 질의 네임스페이스. ``kis.overseas.ranking`` 이 만들어 준다.
 
     모든 순위가 거래소(``exchange``)를 받는다 -- 거래소코드는 NAS/NYS/AMS(미국), HKS(홍콩),
     SHS/SZS(중국), TSE(일본), HNX/HSX(베트남).

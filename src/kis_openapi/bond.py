@@ -24,7 +24,7 @@ if TYPE_CHECKING:
 class Bond:
     """한 채권에 대한 조회 핸들. 세션(:class:`KISClient`)과 표준코드를 안다.
 
-    보통 직접 만들지 않고 :meth:`KISClient.bond` 로 얻는다. ``code`` 는 표준코드(ISIN).
+    보통 직접 만들지 않고 ``kis.domestic.bond`` 로 얻는다. ``code`` 는 표준코드(ISIN).
     """
 
     code: str

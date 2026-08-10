@@ -40,7 +40,7 @@ if TYPE_CHECKING:
 
 
 class MarketQueries:
-    """세션에 달린 시장 전체 분석 네임스페이스. :attr:`KISClient.market` 이 만들어 준다."""
+    """세션에 달린 시장 전체 분석 네임스페이스. ``kis.domestic.market`` 이 만들어 준다."""
 
     def __init__(self, client: KISClient) -> None:
         self._client = client

@@ -30,7 +30,7 @@ if TYPE_CHECKING:
 class Index:
     """한 지수(업종)에 대한 조회 핸들. 세션(:class:`KISClient`)과 업종코드를 안다.
 
-    보통 직접 만들지 않고 :meth:`KISClient.index` 로 얻는다. ``code`` 는 업종코드(예: 0001 KOSPI
+    보통 직접 만들지 않고 ``kis.domestic.index`` 로 얻는다. ``code`` 는 업종코드(예: 0001 KOSPI
     종합, 1001 KOSDAQ 종합, 2001 KOSPI200).
     """
 

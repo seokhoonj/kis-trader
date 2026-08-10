@@ -8,11 +8,6 @@ license = { text = "MIT" }
 dependencies = ["requests>=2.31"]
 
 # Base install is REST-only. Heavier capabilities are opt-in extras.
-[project.optional-dependencies]
-dataframe = ["pandas>=2.0"]
-realtime = ["websockets>=13"]
-realtime-crypto = ["websockets>=13", "pycryptodome>=3.20"]
-
 [dependency-groups]
 test = ["pytest>=8"]
 

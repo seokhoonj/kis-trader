@@ -20,7 +20,7 @@ if TYPE_CHECKING:
 
 
 class ELWScreenerQueries:
-    """세션에 달린 ELW 스크리닝 질의 네임스페이스. :attr:`KISClient.elw_screener` 가 만들어 준다.
+    """세션에 달린 ELW 스크리닝 질의 네임스페이스. ``kis.domestic.elw_screener`` 가 만들어 준다.
 
     필터는 ``underlying``(기초자산 코드)/``issuer``(발행사 코드)/``right``(``"all"``/``"call"``/
     ``"put"``)로 좁힌다. 콜풋 코드는 KIS 가 조회마다 다르게 쓰지만(신규상장 02/00/01, 만기 2/0/1)

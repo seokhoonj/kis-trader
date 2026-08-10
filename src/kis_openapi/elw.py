@@ -29,7 +29,7 @@ if TYPE_CHECKING:
 class ELW:
     """한 ELW 에 대한 고유 지표 조회 핸들. 세션(:class:`KISClient`)과 ELW 표준코드를 안다.
 
-    보통 직접 만들지 않고 :meth:`KISClient.elw` 로 얻는다. ``code`` 는 ELW 표준코드(6자리).
+    보통 직접 만들지 않고 ``kis.domestic.elw`` 로 얻는다. ``code`` 는 ELW 표준코드(6자리).
     기본 시세는 ``kis.domestic.stock(code)`` 로 조회한다(ELW 는 종목처럼 상장돼 있다).
     """
 

@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
 
 class CalendarQueries:
-    """세션에 달린 기업행위 캘린더 질의 네임스페이스. :attr:`KISClient.calendar` 가 만들어 준다.
+    """세션에 달린 기업행위 캘린더 질의 네임스페이스. ``kis.domestic.calendar`` 가 만들어 준다.
 
     모든 조회가 기간(``start`` ~ ``end``, YYYYMMDD 또는 ``date``)을 받고, 대부분 ``symbol`` 로 특정
     종목만 좁힐 수 있다(생략하면 전체).

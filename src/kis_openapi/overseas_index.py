@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 class OverseasIndex:
     """한 해외 지수류 심볼의 조회 핸들. 세션·심볼·시장구분을 안다.
 
-    보통 직접 만들지 않고 :meth:`KISClient.overseas_index` 로 얻는다. ``symbol`` 은 지수코드(예:
+    보통 직접 만들지 않고 ``kis.overseas.index`` 로 얻는다. ``symbol`` 은 지수코드(예:
     ``.DJI``), 종류는 팩토리의 ``kind`` 로 선택한다.
     """
 

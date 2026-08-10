@@ -26,7 +26,7 @@ if TYPE_CHECKING:
 class Derivative:
     """한 파생 계약(선물/옵션)에 대한 조회 핸들. 세션(:class:`KISClient`)과 계약코드·시장구분을 안다.
 
-    보통 직접 만들지 않고 :meth:`KISClient.futures` / :meth:`KISClient.option` 으로 얻는다.
+    보통 직접 만들지 않고 ``kis.domestic.futures`` / ``kis.domestic.option`` 으로 얻는다.
     ``market`` 은 F(지수선물) 또는 O(지수옵션).
     """
 

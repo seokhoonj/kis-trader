@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 
 
 class RankingQueries:
-    """세션에 달린 순위 질의 네임스페이스. :meth:`KISClient.ranking` 이 만들어 준다."""
+    """세션에 달린 순위 질의 네임스페이스. ``kis.domestic.ranking`` 이 만들어 준다."""
 
     def __init__(self, client: KISClient) -> None:
         self._client = client

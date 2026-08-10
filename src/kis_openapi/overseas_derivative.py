@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 class OverseasDerivative:
     """한 해외 선물/옵션 계약에 대한 조회 핸들. 세션과 시리즈코드·시장을 안다.
 
-    보통 직접 만들지 않고 :meth:`KISClient.overseas_futures` / :meth:`KISClient.overseas_option`
+    보통 직접 만들지 않고 ``kis.overseas.futures`` / ``kis.overseas.option``
     으로 얻는다. ``market`` 은 ``"future"``(선물) 또는 ``"option"``(옵션)이고, ``symbol`` 은
     시리즈코드(예: ESZ25).
     """
