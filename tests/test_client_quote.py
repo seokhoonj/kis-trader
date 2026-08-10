@@ -477,7 +477,7 @@ def test_intraday_executions_maps_summary_points_and_params():
             "output2": [
                 {
                     "stck_cntg_hour": "101501",
-                    "stck_pbpr": "73000",
+                    "stck_prpr": "73000",
                     "prdy_vrss": "1200",
                     "prdy_vrss_sign": "2",
                     "prdy_ctrt": "1.67",
@@ -489,7 +489,7 @@ def test_intraday_executions_maps_summary_points_and_params():
                 },
                 {
                     "stck_cntg_hour": "101500",
-                    "stck_pbpr": "72900",
+                    "stck_prpr": "72900",
                     "prdy_vrss": "1100",
                     "prdy_vrss_sign": "5",
                     "prdy_ctrt": "1.53",

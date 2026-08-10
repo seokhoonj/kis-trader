@@ -180,7 +180,7 @@ def fetch_intraday_executions(
         points.append(
             IntradayExecutionPoint(
                 timestamp=_parse_minute_bar_timestamp(today, time_text),
-                price=required_decimal(row.get("stck_pbpr"), "stck_pbpr"),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
                 change=_apply_change_sign(
                     required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign
                 ),
