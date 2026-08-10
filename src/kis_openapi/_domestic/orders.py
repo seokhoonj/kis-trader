@@ -1,6 +1,6 @@
 """국내주식 주문 실행 엔진 (내부) -- 안전 규칙 구현.
 
-사용자면(Ticker.buy/sell, KISClient.reconcile)이 이 함수들을 호출한다. 안전 불변식(이중체결
+사용자면(종목 핸들 buy/sell, KISClient.reconcile)이 이 함수들을 호출한다. 안전 불변식(이중체결
 구조적 불가·쓰기 재시도 금지·보수적 재조회)은 여기와 :class:`~kis_openapi.store.OrderStore`
 가 함께 보장한다. KIS 주문/체결조회 와이어 매핑은 이 안에 갇힌다.
 

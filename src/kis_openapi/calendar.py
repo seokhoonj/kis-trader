@@ -2,7 +2,7 @@
 
 ``kis.domestic.calendar.dividends(start=..., end=...)`` 처럼, 한국예탁결제원(KSD)이 제공하는 기업행위 일정을
 기간 조회로 돌려준다. 종목 하나가 아니라 시장 전체(또는 지정 종목)의 예정 이벤트를 다루므로 종목 핸들
-(:class:`~kis_openapi.ticker.Ticker`)이 아니라 세션에 달린 질의 네임스페이스다.
+(:class:`~kis_openapi.stock.DomesticStock`)이 아니라 세션에 달린 질의 네임스페이스다.
 
 직접 만들지 않고 ``kis.domestic.calendar`` 로 얻는다.
 """

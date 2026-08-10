@@ -1,4 +1,4 @@
-"""새 행위중심 API 첫 수직 -- KISClient + Ticker + quote.
+"""새 행위중심 API 첫 수직 -- KISClient + DomesticStock + quote.
 
 kis.domestic.stock("005930").quote() 엔드투엔드(FakeTransport), 시장 자동판별, 계좌 파싱, transport
 주입, fail-closed 파싱, 전일대비 부호, 값 의미론을 네트워크 없이 검증한다.

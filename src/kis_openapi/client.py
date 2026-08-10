@@ -25,7 +25,6 @@ from ._masters import (
 from ._overseas import orders as overseas_orders_engine
 from ._overseas import reserved_orders as overseas_reserved_orders_api
 from .errors import KISUsageError
-from .instrument import DomesticBoard, is_domestic_symbol
 from .namespaces import (
     DomesticNamespace,
     OrdersNamespace,
@@ -34,7 +33,6 @@ from .namespaces import (
 )
 from .order import Order, Side, mint_client_order_id
 from .store import OrderStore
-from .ticker import Ticker
 
 if TYPE_CHECKING:
     from ._masters import InstrumentRecord
@@ -115,19 +113,6 @@ class KISClient:
     def environment(self) -> Literal["real", "demo"]:
         """실전(real) / 모의(demo). 계좌·주문 TR 선택에 쓰인다."""
         return self._environment
-
-    def _make_stock(
-        self, symbol: str, *, market: DomesticBoard | None = None, exchange: str | None = None
-    ) -> Ticker:
-        """종목 핸들을 만든다(내부). 공개 진입점은 ``kis.domestic.stock`` / ``kis.overseas.stock``.
-
-        국내는 심볼로 시장 자동 판별(6자리 숫자 -> KRX), 해외는 ``exchange`` (거래소코드 NAS/NYS/AMS/
-        TSE/HKS/...)를 준다. 해외 심볼을 ``exchange`` 없이 주면(6자리 숫자가 아니면) KIS 종목 마스터로
-        거래소를 자동 해석한다(첫 조회는 마스터를 받아 캐시 -- 느릴 수 있다). 같은 심볼이 여러
-        거래소면 ``exchange`` 를 명시해야 한다."""
-        if exchange is None and market is None and not is_domestic_symbol(symbol):
-            exchange = self.instrument(symbol).exchange     # 해외 바-심볼 -> 마스터로 거래소 해석
-        return Ticker(self, symbol, market=market, exchange=exchange)
 
     def instrument(self, symbol: str, *, exchange: str | None = None) -> InstrumentRecord:
         """해외 심볼을 KIS 종목 마스터로 조회한다 -- 거래소코드/통화/종목유형/이름을 돌려준다.
@@ -212,7 +197,7 @@ class KISClient:
         )
 
     def _place_order(self, order: Order) -> ExecutionReport:
-        """주문을 안전 엔진에 넘겨 전송한다(Ticker.buy/sell 이 호출). 계좌 정보 필요.
+        """주문을 안전 엔진에 넘겨 전송한다(종목 핸들 buy/sell 이 호출). 계좌 정보 필요.
 
         국내/해외 모두 같은 안전 코어(이중체결 방지·재시도 금지)를 쓰되, 와이어 요청 조립기만
         시장별로 바꾼다. 해외 주문엔 아직 사전 리스크 게이트가 없어(참조가가 국내 시세 기반),
@@ -245,7 +230,7 @@ class KISClient:
         self, *, symbol: str, side: Side, quantity: object, price: object | None,
         end_date: str | None, client_order_id: str | None,
     ) -> ExecutionReport:
-        """예약주문을 예약 안전 엔진에 넘긴다(Ticker.reserve_buy/sell 이 호출). 계좌 정보 필요.
+        """예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 호출). 계좌 정보 필요.
 
         즉시주문 안전 코어와 별개 흐름이되 dedup(OrderStore)·재시도 금지·보수적 재조회·주문가능 계좌
         가드는 공유한다. risk 게이트는 예약주문엔 적용하지 않는다(집행이 향후라 현재가 기준 참조가
@@ -262,7 +247,7 @@ class KISClient:
         self, *, symbol: str, side: Side, quantity: object, price: object, exchange: str,
         client_order_id: str | None,
     ) -> ExecutionReport:
-        """미국 해외예약주문을 예약 안전 엔진에 넘긴다(Ticker.reserve_buy/sell 이 해외 종목일 때 호출)."""
+        """미국 해외예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 해외 종목일 때 호출)."""
         cano, product_code = self._require_account()
         return overseas_reserved_orders_api.place_overseas_reserved_order(
             self._transport, self._store,

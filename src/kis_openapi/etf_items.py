@@ -1,10 +1,10 @@
 """ETF/ETN 시세 DATA -- :class:`ETFNAV`, :class:`ETFComponent`, :class:`ETFNAVHistoryPoint`.
 
-ETF/ETN 은 호가창에서 거래되는 종목이라 시세/주문은 :class:`~kis_openapi.ticker.Ticker` 로 하고,
+ETF/ETN 은 호가창에서 거래되는 종목이라 시세/주문은 :class:`~kis_openapi.stock.DomesticStock` 로 하고,
 ETF 고유 정보만 이 타입들로 돌려준다. :class:`ETFNAV` 는 순자산가치 스냅샷
-(:meth:`~kis_openapi.ticker.Ticker.nav`), :class:`ETFComponent` 는 구성종목(PDF) 한 항목
-(:meth:`~kis_openapi.ticker.Ticker.components`), :class:`ETFNAVHistoryPoint` 는 일별 NAV-가격
-추이(:meth:`~kis_openapi.ticker.Ticker.nav_history`)의 한 점이다.
+(:meth:`~kis_openapi.stock.DomesticStock.nav`), :class:`ETFComponent` 는 구성종목(PDF) 한 항목
+(:meth:`~kis_openapi.stock.DomesticStock.components`), :class:`ETFNAVHistoryPoint` 는 일별 NAV-가격
+추이(:meth:`~kis_openapi.stock.DomesticStock.nav_history`)의 한 점이다.
 """
 
 from __future__ import annotations
@@ -25,7 +25,7 @@ class ETFNAV:
 
     ``nav`` 는 현재 NAV(순자산가치), ``premium`` 은 괴리율(시장가가 NAV 대비 얼마나 벗어났는지, %),
     ``tracking_error`` 는 추적오차율(%). ``nav_change`` / ``nav_change_percent`` 는 NAV 전일대비로
-    하락이면 음수. 시장 체결가는 :meth:`~kis_openapi.ticker.Ticker.quote` 에 있다.
+    하락이면 음수. 시장 체결가는 :meth:`~kis_openapi.stock.DomesticStock.quote` 에 있다.
     """
 
     symbol: str

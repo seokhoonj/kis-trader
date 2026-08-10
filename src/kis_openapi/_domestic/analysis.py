@@ -1,7 +1,7 @@
 """per-ticker 일별 시세분석 조회 (내부) -- 신용잔고/공매도 추이.
 
-사용자면은 종목 핸들(:meth:`~kis_openapi.ticker.Ticker.credit_balance_trend` /
-:meth:`~kis_openapi.ticker.Ticker.short_sale_trend`)이다. 둘 다 기준일에서 과거로 일별 추이를 준다.
+사용자면은 종목 핸들(:meth:`~kis_openapi.stock.DomesticStock.credit_balance_trend` /
+:meth:`~kis_openapi.stock.DomesticStock.short_sale_trend`)이다. 둘 다 기준일에서 과거로 일별 추이를 준다.
 
 KIS URL/TR-id:
 - 신용잔고 일별추이: ``GET .../quotations/daily-credit-balance`` ``FHPST04760000``

@@ -1,7 +1,7 @@
 """해외주식 현재가 -- kis.overseas.stock(symbol, exchange=...).quote().
 
 해외는 거래소코드로 라우팅, price-detail 엔드포인트, 통화(curr) 채움, 전일종가 대비 등락 계산,
-그리고 해외 티커에서 아직 미구현 국내 메서드는 명확히 거부됨을 검증한다.
+그리고 국내 전용 메서드는 해외 핸들(OverseasStock)에 아예 없음(자산군 분리)을 검증한다.
 """
 
 from __future__ import annotations
@@ -12,7 +12,7 @@ from decimal import Decimal
 import pytest
 
 from kis_openapi import KISClient, Quote
-from kis_openapi.errors import KISError, KISUsageError
+from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
 _OVERSEAS_PRICE = "/uapi/overseas-price/v1/quotations/price-detail"
@@ -118,8 +118,9 @@ def test_overseas_current_price_maps_compact_endpoint():
 
 def test_current_price_is_overseas_only_and_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    with pytest.raises(KISUsageError):
-        _client(fake).domestic.stock("005930").current_price()
+    # current_price 는 해외 전용 -- 국내 핸들엔 아예 없다.
+    assert not hasattr(_client(fake).domestic.stock("005930"), "current_price")
+    # 해외 핸들에선 응답 손상 시 fail-closed(KISError).
     with pytest.raises(KISError):
         _client(fake).overseas.stock("AAPL", exchange="NAS").current_price()
 
@@ -156,13 +157,7 @@ def test_bare_domestic_symbol_stays_domestic_without_master():
 
 
 def test_overseas_ticker_rejects_domestic_only_methods():
-    fake = FakeTransport(response=_resp(_output()))
-    handle = _client(fake).overseas.stock("AAPL", exchange="NAS")
-    for call in (
-        handle.investor_flows,
-        handle.broker_activity,
-        handle.nav,
-        handle.components,
-    ):
-        with pytest.raises(KISUsageError, match="해외 티커"):
-            call()
+    # 국내 전용 조회는 해외 핸들에 아예 없다(자산군 분리로 구조적 보장 -- 런타임 가드 불필요).
+    handle = _client(FakeTransport(response=_resp(_output()))).overseas.stock("AAPL", exchange="NAS")
+    for name in ("investor_flows", "broker_activity", "nav", "components"):
+        assert not hasattr(handle, name)

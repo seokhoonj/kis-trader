@@ -44,7 +44,7 @@ class AfterHoursConclusion:
 
     ``price`` 는 그 시각 체결가, ``change`` / ``change_percent`` 는 전일대비(하락이면 음수),
     ``ask`` / ``bid`` 는 그 시각 최우선 호가, ``cumulative_volume`` 은 시간외 누적 거래량,
-    ``tick_volume`` 은 그 체결의 거래량이다. :meth:`~kis_openapi.ticker.Ticker.after_hours_conclusions`
+    ``tick_volume`` 은 그 체결의 거래량이다. :meth:`~kis_openapi.stock.DomesticStock.after_hours_conclusions`
     가 시각 리스트로 돌려준다. ``timestamp`` 는 체결시각(시각은 벤더, 날짜는 조회일; KST-aware).
     """
 
@@ -71,7 +71,7 @@ class AfterHoursDailyPrice:
 
     ``price`` 는 그날 시간외 단일가 종가, ``change`` / ``change_percent`` 는 그 시간외가의 전일대비
     (하락이면 음수), ``volume`` / ``amount`` 는 시간외 거래량/거래대금이다.
-    :meth:`~kis_openapi.ticker.Ticker.after_hours_daily` 가 일자 리스트(최근->과거)로 돌려준다.
+    :meth:`~kis_openapi.stock.DomesticStock.after_hours_daily` 가 일자 리스트(최근->과거)로 돌려준다.
     ``timestamp`` 는 영업일(KST-aware).
     """
 

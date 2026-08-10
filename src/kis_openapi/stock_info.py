@@ -1,6 +1,6 @@
 """종목 기본정보(DATA) -- :class:`StockInfo`.
 
-한 종목의 상장/기업 기본정보 스냅샷이다. :meth:`~kis_openapi.ticker.Ticker.info` 가 돌려준다.
+한 종목의 상장/기업 기본정보 스냅샷이다. :meth:`~kis_openapi.stock.DomesticStock.info` 가 돌려준다.
 시세(:class:`~kis_openapi.quote.Quote`)가 "지금 얼마"라면 ``StockInfo`` 는 "어떤 종목인가"
 (이름·상장주식수·자본금·액면가·업종·상장일)다.
 """

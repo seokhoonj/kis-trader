@@ -1,7 +1,7 @@
 """ELW(주식워런트증권) 시세 DATA 타입들.
 
 ELW 는 증권 형태로 상장된 옵션이다(기초자산에 대한 콜/풋 권리를 담은 워런트). 기본 시세
-(현재가/호가/체결)는 종목 핸들(:class:`~kis_openapi.ticker.Ticker`)로 조회하고, 여기 타입들은
+(현재가/호가/체결)는 종목 핸들(:class:`~kis_openapi.stock.DomesticStock`)로 조회하고, 여기 타입들은
 ELW 고유의 **옵션 분석 지표** -- 민감도(그릭스), 변동성, 투자지표의 시계열 -- 를 담는다.
 
 :class:`~kis_openapi.elw.ELW` 핸들(``kis.domestic.elw(code)``)의 조회 메서드가 돌려준다. 타입이 여럿이라

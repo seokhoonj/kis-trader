@@ -89,10 +89,10 @@ def test_daytime_non_us_exchange_rejected():
 
 
 def test_daytime_domestic_ticker_rejected():
-    fake = FakeTransport(response=_ACCEPTED)
-    with pytest.raises(KISUsageError):
-        _client(fake).domestic.stock("005930").daytime_buy(quantity=1, price="1")
-    assert fake.calls == []
+    # 미국주간거래는 해외(미국) 전용 -- 국내 핸들엔 daytime_buy/sell 이 없다.
+    handle = _client(FakeTransport(response=_ACCEPTED)).domestic.stock("005930")
+    assert not hasattr(handle, "daytime_buy")
+    assert not hasattr(handle, "daytime_sell")
 
 
 def test_daytime_demo_rejected_before_io():

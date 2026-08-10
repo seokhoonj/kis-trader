@@ -119,9 +119,9 @@ def test_credit_buyable_missing_output_fails_closed():
 
 
 def test_credit_buyable_overseas_ticker_rejected():
-    fake = FakeTransport(response=_resp())
-    with pytest.raises(KISUsageError):
-        _client(fake).overseas.stock("AAPL", exchange="NAS").credit_buyable(limit_price="1")
+    # credit_buyable 은 국내 전용 -- 해외 핸들엔 아예 없다(자산군 분리로 구조적 보장).
+    handle = _client(FakeTransport(response=_resp())).overseas.stock("AAPL", exchange="NAS")
+    assert not hasattr(handle, "credit_buyable")
 
 
 def test_credit_buyable_requires_account():

@@ -166,12 +166,10 @@ def test_credit_demo_rejected_before_io():
 
 
 def test_credit_overseas_ticker_rejected():
-    fake = FakeTransport(response=_ACCEPTED)
-    with pytest.raises(KISUsageError):
-        _client(fake).overseas.stock("AAPL", exchange="NAS").credit_buy(quantity=1, price=1,
-                                                               credit_type="21",
-                                                               loan_date="20211103")
-    assert fake.calls == []
+    # 신용주문은 국내 전용 -- 해외 핸들엔 credit_buy/credit_sell 이 없다(호출 자체가 불가).
+    handle = _client(FakeTransport(response=_ACCEPTED)).overseas.stock("AAPL", exchange="NAS")
+    assert not hasattr(handle, "credit_buy")
+    assert not hasattr(handle, "credit_sell")
 
 
 def test_order_credit_with_overseas_exchange_rejected_at_construction():

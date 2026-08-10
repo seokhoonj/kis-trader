@@ -21,7 +21,7 @@ from kis_openapi.namespaces import (
     PensionNamespace,
 )
 from kis_openapi.ranking import RankingQueries
-from kis_openapi.ticker import Ticker
+from kis_openapi.stock import DomesticStock, OverseasStock
 from kis_openapi.transport import RawResponse
 
 
@@ -58,7 +58,7 @@ def test_namespaces_present_and_typed():
 def test_domestic_stock_returns_ticker():
     k = _client()
     t = k.domestic.stock("005930")
-    assert isinstance(t, Ticker)
+    assert isinstance(t, DomesticStock)
     assert t.symbol == "005930"
     assert not t.is_overseas
 
@@ -66,7 +66,7 @@ def test_domestic_stock_returns_ticker():
 def test_overseas_stock_returns_ticker():
     k = _client()
     t = k.overseas.stock("AAPL", exchange="NAS")
-    assert isinstance(t, Ticker)
+    assert isinstance(t, OverseasStock)
     assert t.is_overseas
 
 

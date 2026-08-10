@@ -1,6 +1,6 @@
 """주문 전 리스크 한도(pre-trade risk) -- :class:`RiskLimits`.
 
-``KISClient(risk=RiskLimits(...))`` 로 주입하면 모든 :meth:`Ticker.buy` / :meth:`Ticker.sell`
+``KISClient(risk=RiskLimits(...))`` 로 주입하면 모든 :meth:`~kis_openapi.stock.DomesticStock.buy` / :meth:`~kis_openapi.stock.DomesticStock.sell`
 가 와이어에 닿기 전에 이 한도를 통과해야 한다. 어기면 :class:`~kis_openapi.errors.PreTradeRiskError`
 로 막혀 주문은 전송되지 않는다(fat-finger 방지).
 

@@ -37,6 +37,7 @@ from .overseas_derivative import OverseasDerivative
 from .overseas_index import OverseasIndex
 from .overseas_ranking import OverseasRankingQueries
 from .ranking import RankingQueries
+from .stock import DomesticStock, OverseasStock
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -91,7 +92,6 @@ if TYPE_CHECKING:
     from .report import ExecutionReport
     from .reserved_order import ReservedOrder
     from .saved_screen import SavedScreen, SavedScreenStock, Watchlist, WatchlistGroup
-    from .ticker import Ticker
     from .trade_profit import DailyProfitHistory, TradeProfitHistory
 
 # 해외 지수류 kind -> FID_COND_MRKT_DIV_CODE. ``kis.overseas.index`` 가 쓴다.
@@ -239,7 +239,7 @@ class DomesticAccount:
         )
 
     def cancel_reserved_order(self, sequence: str, *, order_date: str | None = None) -> None:
-        """예약주문을 취소한다 -- ``sequence`` 는 :meth:`~kis_openapi.ticker.Ticker.reserve_buy` 리포트의
+        """예약주문을 취소한다 -- ``sequence`` 는 :meth:`~kis_openapi.stock.DomesticStock.reserve_buy` 리포트의
         ``order_id``(예약주문순번). 정상 처리면 조용히 반환, 아니면 예외. **모의투자 미지원**."""
         cano, product_code = self._c._require_account()
         reserved_orders_api.cancel_reserved_order(
@@ -402,7 +402,7 @@ class OverseasAccount:
         )
 
     def cancel_reserved_order(self, reserved_order_id: str, *, receipt_date: str) -> None:
-        """미국 예약주문을 취소한다 -- ``reserved_order_id`` 는 :meth:`~kis_openapi.ticker.Ticker.reserve_buy`
+        """미국 예약주문을 취소한다 -- ``reserved_order_id`` 는 :meth:`~kis_openapi.stock.OverseasStock.reserve_buy`
         리포트의 ``order_id``, ``receipt_date``(YYYYMMDD)는 그 예약의 접수일자. **모의투자 미지원**."""
         cano, product_code = self._c._require_account()
         overseas_reserved_orders_api.cancel_overseas_reserved_order(
@@ -419,9 +419,9 @@ class DomesticNamespace:
         self.account = DomesticAccount(client)
 
     # -- 종목/상품 핸들 --
-    def stock(self, code: str, *, market: DomesticBoard | None = None) -> Ticker:
-        """국내 종목/ETF 핸들."""
-        return self._c._make_stock(code, market=market)
+    def stock(self, code: str, *, market: DomesticBoard | None = None) -> DomesticStock:
+        """국내 종목/ETF 핸들. 시장은 심볼로 자동 판별한다(6자리 숫자 -> KRX; ``market`` 로 보드 지정 가능)."""
+        return DomesticStock(self._c, code, market=market)
 
     def index(self, code: str) -> Index:
         """지수/업종 핸들. ``code`` 는 업종코드(0001 KOSPI 종합, 1001 KOSDAQ 종합, 2001 KOSPI200 등)."""
@@ -534,10 +534,13 @@ class OverseasNamespace:
         self.account = OverseasAccount(client)
 
     # -- 종목/상품 핸들 --
-    def stock(self, symbol: str, *, exchange: str | None = None) -> Ticker:
-        """해외 종목 핸들. ``exchange`` 없으면 KIS 종목 마스터로 거래소를 자동 해석한다(첫 조회는 마스터를
-        받아 캐시 -- 느릴 수 있다). 같은 심볼이 여러 거래소면 ``exchange`` 를 명시해야 한다."""
-        return self._c._make_stock(symbol, exchange=exchange)
+    def stock(self, symbol: str, *, exchange: str | None = None) -> OverseasStock:
+        """해외 종목 핸들. ``exchange`` (거래소코드 NAS/NYS/AMS/TSE/HKS/...)를 생략하면 KIS 종목 마스터로
+        거래소를 자동 해석한다(첫 조회는 마스터를 받아 캐시 -- 느릴 수 있다). 같은 심볼이 여러 거래소면
+        ``exchange`` 를 명시해야 한다(:class:`~kis_openapi.errors.KISUsageError`)."""
+        if exchange is None:
+            exchange = self._c.instrument(symbol).exchange
+        return OverseasStock(self._c, symbol, exchange=exchange)
 
     def index(self, symbol: str, *, kind: str = "index") -> OverseasIndex:
         """해외 지수/환율/국채/금선물 핸들. ``kind`` 는 ``index``/``fx``/``bond``/``gold`` 중 하나, ``symbol``

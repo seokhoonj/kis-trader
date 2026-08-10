@@ -1,7 +1,7 @@
 """kis_openapi -- a clean, action-centric Python client for the Korea Investment &
 Securities (KIS) Open API.
 
-행위 중심 API: 세션 :class:`KISClient` 에서 종목 핸들 :class:`~kis_openapi.ticker.Ticker`
+행위 중심 API: 세션 :class:`KISClient` 에서 종목 핸들 :class:`~kis_openapi.stock.DomesticStock`
 (``kis.domestic.stock("005930").quote()``)와 계좌 조회를 시킨다. KIS URL 구조는 노출되지 않는다.
 
 공개 식별자는 국제 표준 금융 영어(Yahoo/Alpaca/Coinbase/FIX/ISO); KIS URL·TR-id 매핑은
@@ -216,9 +216,9 @@ from .saved_screen import (
     WatchlistGroup,
     WatchlistStock,
 )
+from .stock import DomesticStock, OverseasStock
 from .stock_info import StockInfo, StockStatus
 from .store import OrderStore
-from .ticker import Ticker
 from .trade import Trade
 from .trade_profit import (
     DailyProfit,
@@ -273,6 +273,7 @@ __all__ = [
     "DetailedInvestorHistory",
     "DividendEvent",
     "DividendRanking",
+    "DomesticStock",
     "ELWIndicatorPoint",
     "ELWLPFlow",
     "ELWListing",
@@ -375,6 +376,7 @@ __all__ = [
     "OverseasRight",
     "OverseasSettlementBalance",
     "OverseasSettlementDate",
+    "OverseasStock",
     "OverseasStockSearch",
     "OverseasStockSearchItem",
     "OverseasTransaction",
@@ -415,7 +417,6 @@ __all__ = [
     "StabilityRatio",
     "StockInfo",
     "StockStatus",
-    "Ticker",
     "TopViewedStock",
     "Trade",
     "TradeAmountBand",

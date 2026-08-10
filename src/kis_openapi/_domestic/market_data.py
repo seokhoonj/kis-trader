@@ -1,6 +1,6 @@
 """국내주식 시세 조회 (내부) -- 현재가/기간별 바/호가창.
 
-사용자면(Ticker)이 이 함수들을 호출해 통합 반환 타입(:class:`Quote`/:class:`Bar`/
+사용자면(종목 핸들)이 이 함수들을 호출해 통합 반환 타입(:class:`Quote`/:class:`Bar`/
 :class:`OrderBook`)을 받는다. KIS 원본 필드 매핑과 fail-closed 파싱은 여기 갇힌다.
 
 KIS URL/TR-id:

@@ -1,7 +1,7 @@
 """재무제표(DATA) -- :class:`BalanceSheet` / :class:`IncomeStatement`.
 
-한 종목의 결산기별 재무제표 한 행이다. :meth:`~kis_openapi.ticker.Ticker.balance_sheet` /
-:meth:`~kis_openapi.ticker.Ticker.income_statement` 가 결산기 리스트(최근->과거)로 돌려준다.
+한 종목의 결산기별 재무제표 한 행이다. :meth:`~kis_openapi.stock.DomesticStock.balance_sheet` /
+:meth:`~kis_openapi.stock.DomesticStock.income_statement` 가 결산기 리스트(최근->과거)로 돌려준다.
 ``period`` 는 결산년월(``"YYYYMM"``). 금액 단위는 KIS 원본을 따른다(대개 억원). 세부 항목은 ``_raw``.
 """
 

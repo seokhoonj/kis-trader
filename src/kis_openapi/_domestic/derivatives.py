@@ -111,7 +111,7 @@ def _parse_quote(output: Mapping[str, Any], *, code: str, as_of: datetime) -> De
 def fetch_order_book(transport: Transport, *, code: str, market: str) -> OrderBook:
     """선물/옵션 계약의 호가창(5단계 매수/매도 심도). ``market`` 은 F/O, ``code`` 는 계약코드.
 
-    종목 :meth:`~kis_openapi.ticker.Ticker.order_book` 과 같은 :class:`OrderBook` 로 돌려주되,
+    종목 :meth:`~kis_openapi.stock.DomesticStock.order_book` 과 같은 :class:`OrderBook` 로 돌려주되,
     파생 호가는 5단계(주식 10단계)다. 호가 사다리는 응답의 **output2** 에 있고(output1 은 현재가
     요약), 가격 키는 ``futs_askp``/``futs_bidp``, 잔량 키는 ``askp_rsqn``/``bidp_rsqn`` 다.
     """
