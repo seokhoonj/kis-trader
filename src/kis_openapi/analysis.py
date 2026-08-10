@@ -287,7 +287,7 @@ class ExpectedPricePoint:
 
 
 @dataclass(frozen=True, slots=True)
-class DailyExecutionVolume:
+class DailyTradeVolume:
     """하루의 매수/매도 체결량 합계(불변).
 
     ``buy_volume`` 은 그날 총 매수 체결량, ``sell_volume`` 은 총 매도 체결량이다.

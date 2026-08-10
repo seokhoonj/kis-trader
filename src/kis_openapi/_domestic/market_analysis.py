@@ -30,7 +30,7 @@ from ..market_items import (
     MarketFunds,
     MarketInvestorFlow,
     MarketInvestorSnapshot,
-    NewsItem,
+    NewsHeadline,
     ProgramFlowPoint,
     ProgramInvestorTrade,
     ProgramTradeSummary,
@@ -707,7 +707,7 @@ _NEWS_TR = "FHKST01011800"
 
 def fetch_news(
     transport: Transport, *, symbol: str = "", date_: str | date | None = None
-) -> list[NewsItem]:
+) -> list[NewsHeadline]:
     """시황/공시 뉴스 제목 피드(최신순). ``symbol`` 을 주면 그 종목 관련만, ``date_`` 를 주면 그 날짜.
     둘 다 없으면 전체 최근."""
     input_date = "" if date_ is None else _to_yyyymmdd(date_, "date_")
@@ -728,7 +728,7 @@ def fetch_news(
     rows = resp.body.get("output")
     if not isinstance(rows, list):
         raise _missing_block_error("output", resp)
-    items: list[NewsItem] = []
+    items: list[NewsHeadline] = []
     for row in rows:
         day = str(row.get("data_dt", "")).strip()
         tm = str(row.get("data_tm", "")).strip()
@@ -739,7 +739,7 @@ def fetch_news(
             if (code := str(row.get(f"iscd{i}", "")).strip())
         )
         items.append(
-            NewsItem(
+            NewsHeadline(
                 serial=str(row.get("cntt_usiq_srno", "")).strip(),
                 timestamp=_combine_date_time(day, tm),
                 title=str(row.get("hts_pbnt_titl_cntt", "")).strip(),

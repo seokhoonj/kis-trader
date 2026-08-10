@@ -192,9 +192,9 @@ def test_daily_trade_volume_maps_output2():
                          "total_shnu_qty": "4008095"}]}
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
     fake = FakeTransport(response=resp)
-    from kis_openapi import DailyExecutionVolume
+    from kis_openapi import DailyTradeVolume
     pts = _client(fake).domestic.stock("005930").daily_trade_volume(start="20240120", end="20240126")
-    assert isinstance(pts[0], DailyExecutionVolume)
+    assert isinstance(pts[0], DailyTradeVolume)
     assert pts[0].buy_volume == 4520816
     assert pts[0].sell_volume == 5285722
     assert pts[1].timestamp.strftime("%Y%m%d") == "20240125"

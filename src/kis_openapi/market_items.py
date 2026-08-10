@@ -260,7 +260,7 @@ class FuturesMarketSchedule:
 
 
 @dataclass(frozen=True, slots=True)
-class NewsItem:
+class NewsHeadline:
     """한 건의 시황/공시 뉴스(불변).
 
     ``title`` 은 제목, ``source`` 는 출처 매체, ``category`` 는 분류코드, ``symbols`` 는 그 뉴스에

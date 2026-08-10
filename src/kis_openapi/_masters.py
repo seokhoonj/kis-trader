@@ -5,7 +5,7 @@
 
 마스터 파일: ``https://new.real.download.dws.co.kr/common/master/{code}mst.cod.zip`` (KIS 공식 배포).
 ``{code}`` = 시장코드(아래 :data:`OVERSEAS_MARKETS`). 압축 해제 시 탭 구분 cp949 텍스트, 24개 컬럼
-(공식 헤더 ``해외종목코드정보`` 레이아웃). 이 모듈은 그 텍스트를 :class:`MasterRecord` 로 파싱만 한다
+(공식 헤더 ``해외종목코드정보`` 레이아웃). 이 모듈은 그 텍스트를 :class:`InstrumentRecord` 로 파싱만 한다
 (다운로드/캐시는 별도). pandas 의존 없이 표준 라이브러리로 파싱한다.
 """
 
@@ -51,7 +51,7 @@ _MIN_COLUMNS = 10
 
 
 @dataclass(frozen=True, slots=True)
-class MasterRecord:
+class InstrumentRecord:
     """해외 마스터 한 종목(불변). 심볼->거래소 해석과 통화/유형/이름 메타를 담는다."""
 
     symbol: str
@@ -63,13 +63,13 @@ class MasterRecord:
     realtime_symbol: str              # 실시간 시세용 심볼(rsym)
 
 
-def parse_overseas_master(data: bytes) -> list[MasterRecord]:
-    """마스터 파일 원본(압축 해제된 cp949 텍스트 바이트) -> :class:`MasterRecord` 리스트.
+def parse_overseas_master(data: bytes) -> list[InstrumentRecord]:
+    """마스터 파일 원본(압축 해제된 cp949 텍스트 바이트) -> :class:`InstrumentRecord` 리스트.
 
     탭 구분·cp949 인코딩. 빈 줄은 건너뛰고, 데이터 줄의 컬럼 수가 기대(24 레이아웃의 최소치)에
     못 미치면 포맷 변경으로 보고 :class:`ValueError`(조용히 자르지 않는다)."""
     text = data.decode("cp949")
-    records: list[MasterRecord] = []
+    records: list[InstrumentRecord] = []
     for line in text.splitlines():
         if not line.strip():           # 빈 줄(말미 개행 등) skip
             continue
@@ -80,7 +80,7 @@ def parse_overseas_master(data: bytes) -> list[MasterRecord]:
             )
         type_code = cols[_COL_SECURITY_TYPE].strip()
         records.append(
-            MasterRecord(
+            InstrumentRecord(
                 symbol=cols[_COL_SYMBOL].strip(),
                 exchange=cols[_COL_EXCHANGE].strip(),
                 currency=cols[_COL_CURRENCY].strip(),
@@ -112,8 +112,8 @@ def fetch_overseas_master_raw(code: str, *, fetch: Fetch) -> bytes:
         return archive.read(names[0])
 
 
-def download_overseas_master(code: str, *, fetch: Fetch) -> list[MasterRecord]:
-    """``code`` 시장의 마스터 파일을 받아 :class:`MasterRecord` 리스트로(캐시 없이 매번 다운로드)."""
+def download_overseas_master(code: str, *, fetch: Fetch) -> list[InstrumentRecord]:
+    """``code`` 시장의 마스터 파일을 받아 :class:`InstrumentRecord` 리스트로(캐시 없이 매번 다운로드)."""
     return parse_overseas_master(fetch_overseas_master_raw(code, fetch=fetch))
 
 
@@ -127,7 +127,7 @@ def urlopen_fetch(url: str) -> bytes:
 
 
 class MasterIndex:
-    """심볼 -> 거래소 해석 인덱스. 여러 시장 마스터를 합쳐 심볼로 :class:`MasterRecord` 를 찾는다.
+    """심볼 -> 거래소 해석 인덱스. 여러 시장 마스터를 합쳐 심볼로 :class:`InstrumentRecord` 를 찾는다.
 
     같은 심볼이 여러 거래소에 있으면 ``exchange`` 를 명시해야 한다(오조회 방지). 국내 6자리 코드는
     이 인덱스를 안 거친다(:mod:`~kis_openapi.instrument` 가 KRX 로 판별).
@@ -135,13 +135,13 @@ class MasterIndex:
 
     __slots__ = ("_by_symbol",)
 
-    def __init__(self, records: Iterable[MasterRecord]) -> None:
-        by_symbol: dict[str, list[MasterRecord]] = {}
+    def __init__(self, records: Iterable[InstrumentRecord]) -> None:
+        by_symbol: dict[str, list[InstrumentRecord]] = {}
         for record in records:
             by_symbol.setdefault(record.symbol, []).append(record)
         self._by_symbol = by_symbol
 
-    def resolve(self, symbol: str, *, exchange: str | None = None) -> MasterRecord:
+    def resolve(self, symbol: str, *, exchange: str | None = None) -> InstrumentRecord:
         """심볼(과 선택적 ``exchange``)로 마스터 레코드 하나를 찾는다.
 
         없으면/모호하면(여러 거래소) :class:`~kis_openapi.errors.KISUsageError`. ``exchange`` 를 주면
@@ -174,7 +174,7 @@ def load_overseas_master(
     max_age: int = DEFAULT_MASTER_MAX_AGE,
     fetch: Fetch = urlopen_fetch,
     now: float | None = None,
-) -> list[MasterRecord]:
+) -> list[InstrumentRecord]:
     """``code`` 시장의 마스터를 캐시 우선으로 로드. 캐시 파일이 ``max_age`` 안이면 다운로드 없이
     읽고, 오래됐거나 없으면 받아서 원자적으로 캐시에 쓴 뒤 파싱한다."""
     cache_dir = cache_dir if cache_dir is not None else default_cache_dir()
@@ -203,7 +203,7 @@ def load_overseas_index(
 ) -> MasterIndex:
     """여러 해외 시장 마스터(기본 전체)를 캐시 우선으로 로드해 합친 :class:`MasterIndex` 를 만든다."""
     codes = list(OVERSEAS_MARKETS) if markets is None else list(markets)
-    records: list[MasterRecord] = []
+    records: list[InstrumentRecord] = []
     for code in codes:
         records.extend(
             load_overseas_master(

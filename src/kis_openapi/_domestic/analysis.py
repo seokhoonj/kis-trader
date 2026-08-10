@@ -21,7 +21,7 @@ from .._wire import optional_decimal, required_decimal, required_int
 from ..analysis import (
     AnalystOpinion,
     CreditBalancePoint,
-    DailyExecutionVolume,
+    DailyTradeVolume,
     EarningsEstimate,
     ExpectedPricePoint,
     ForeignNetBuyPoint,
@@ -293,7 +293,7 @@ _DAILY_TRADE_VOL_TR = "FHKST03010800"
 def fetch_daily_trade_volume(
     transport: Transport, *, symbol: str,
     start: str | date | None = None, end: str | date | None = None,
-) -> list[DailyExecutionVolume]:
+) -> list[DailyTradeVolume]:
     """일별 매수/매도 체결량 추이(기간 [start, end], 최근->과거). ``start`` 미지정이면 ``end`` 로부터
     30일 전. 응답 배열은 ``output2`` (``output1`` 은 구간 합계)."""
     end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
@@ -311,13 +311,13 @@ def fetch_daily_trade_volume(
     rows = resp.body.get("output2")
     if not isinstance(rows, list):
         raise _missing_block_error("output2", resp)
-    points: list[DailyExecutionVolume] = []
+    points: list[DailyTradeVolume] = []
     for row in rows:
         day = str(row.get("stck_bsop_date", "")).strip()
         if not day:
             continue
         points.append(
-            DailyExecutionVolume(
+            DailyTradeVolume(
                 symbol=symbol,
                 timestamp=_parse_bar_timestamp(day),
                 buy_volume=required_int(row.get("total_shnu_qty"), "total_shnu_qty"),

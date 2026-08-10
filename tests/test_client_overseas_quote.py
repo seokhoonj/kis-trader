@@ -131,8 +131,8 @@ def test_overseas_ticker_is_overseas_flag():
 
 
 def test_bare_symbol_auto_resolves_exchange():
-    from kis_openapi import MasterIndex, MasterRecord
-    index = MasterIndex([MasterRecord("AAPL", "NAS", "USD", "stock", "애플", "APPLE", "NASAAPL")])
+    from kis_openapi import InstrumentRecord, MasterIndex
+    index = MasterIndex([InstrumentRecord("AAPL", "NAS", "USD", "stock", "애플", "APPLE", "NASAAPL")])
     fake = FakeTransport(response=_resp(_output()))
     client = KISClient(app_key="k", app_secret="s", transport=fake, master_index=index)
     handle = client.overseas.stock("AAPL")                # exchange 없이 -> 마스터로 NAS 자동 해석

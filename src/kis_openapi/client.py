@@ -37,7 +37,7 @@ from .store import OrderStore
 from .ticker import Ticker
 
 if TYPE_CHECKING:
-    from ._masters import MasterRecord
+    from ._masters import InstrumentRecord
     from .report import ExecutionReport
     from .risk import RiskLimits
     from .transport import Transport
@@ -129,7 +129,7 @@ class KISClient:
             exchange = self.instrument(symbol).exchange     # 해외 바-심볼 -> 마스터로 거래소 해석
         return Ticker(self, symbol, market=market, exchange=exchange)
 
-    def instrument(self, symbol: str, *, exchange: str | None = None) -> MasterRecord:
+    def instrument(self, symbol: str, *, exchange: str | None = None) -> InstrumentRecord:
         """해외 심볼을 KIS 종목 마스터로 조회한다 -- 거래소코드/통화/종목유형/이름을 돌려준다.
 
         같은 심볼이 여러 거래소에 있으면 ``exchange`` 를 명시해야 한다(:class:`~kis_openapi.errors.

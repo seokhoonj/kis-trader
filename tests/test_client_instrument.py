@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import pytest
 
-from kis_openapi import KISClient, MasterIndex, MasterRecord
+from kis_openapi import InstrumentRecord, KISClient, MasterIndex
 from kis_openapi.errors import KISUsageError
 
 
@@ -22,16 +22,16 @@ def _client(index):
 
 
 _INDEX = MasterIndex([
-    MasterRecord("AAPL", "NAS", "USD", "stock", "애플", "APPLE INC", "NASAAPL"),
-    MasterRecord("7203", "TSE", "JPY", "stock", "도요타", "TOYOTA", "TSE7203"),
-    MasterRecord("XYZ", "NAS", "USD", "stock", "", "XYZ NAS", "NASXYZ"),
-    MasterRecord("XYZ", "HKS", "HKD", "stock", "", "XYZ HK", "HKSXYZ"),
+    InstrumentRecord("AAPL", "NAS", "USD", "stock", "애플", "APPLE INC", "NASAAPL"),
+    InstrumentRecord("7203", "TSE", "JPY", "stock", "도요타", "TOYOTA", "TSE7203"),
+    InstrumentRecord("XYZ", "NAS", "USD", "stock", "", "XYZ NAS", "NASXYZ"),
+    InstrumentRecord("XYZ", "HKS", "HKD", "stock", "", "XYZ HK", "HKSXYZ"),
 ])
 
 
 def test_instrument_resolves_exchange_and_currency():
     record = _client(_INDEX).instrument("AAPL")
-    assert isinstance(record, MasterRecord)
+    assert isinstance(record, InstrumentRecord)
     assert record.exchange == "NAS"
     assert record.currency == "USD"
     assert record.security_type == "stock"

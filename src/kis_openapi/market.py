@@ -30,7 +30,7 @@ if TYPE_CHECKING:
         MarketFunds,
         MarketInvestorFlow,
         MarketInvestorSnapshot,
-        NewsItem,
+        NewsHeadline,
         ProgramFlowPoint,
         ProgramInvestorTrade,
         ProgramTradeSummary,
@@ -150,9 +150,9 @@ class MarketQueries:
         """국내선물의 인접 영업일 5개와 오늘 장 시작·종료 시각."""
         return market_api.fetch_futures_market_schedule(self._client.transport)
 
-    def news(self, *, symbol: str = "", date: str | date | None = None) -> list[NewsItem]:
+    def news(self, *, symbol: str = "", date: str | date | None = None) -> list[NewsHeadline]:
         """시황/공시 뉴스 제목 피드(최신순). ``symbol`` 을 주면 그 종목 관련만, ``date`` 를 주면 그
-        날짜(없으면 최근 전체). 각 뉴스의 연관 종목은 ``NewsItem.symbols``."""
+        날짜(없으면 최근 전체). 각 뉴스의 연관 종목은 ``NewsHeadline.symbols``."""
         return market_api.fetch_news(self._client.transport, symbol=symbol, date_=date)
 
     def foreign_broker_trades(self, *, sort: str = "amount") -> list[ForeignBrokerFlow]:

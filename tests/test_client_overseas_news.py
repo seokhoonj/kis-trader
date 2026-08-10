@@ -1,6 +1,6 @@
 """해외뉴스 종합과 해외속보 제목 조회."""
 
-from kis_openapi import KISClient, NewsItem, OverseasNewsHeadline
+from kis_openapi import KISClient, NewsHeadline, OverseasNewsHeadline
 from kis_openapi.transport import RawResponse
 
 
@@ -45,7 +45,7 @@ def test_overseas_breaking_news_reuses_news_item_and_routes():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": [row]})
     client = _client(response)
     items = client.overseas.breaking_news(symbol="AAPL", title="Breaking")
-    assert isinstance(items[0], NewsItem)
+    assert isinstance(items[0], NewsHeadline)
     assert items[0].symbols == ("AAPL", "MSFT")
     assert client.transport.calls[0]["tr_id"] == "FHKST01011801"
     assert client.transport.calls[0]["params"]["FID_COND_SCR_DIV_CODE"] == "11801"

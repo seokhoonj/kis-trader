@@ -48,7 +48,7 @@ if TYPE_CHECKING:
     from .client import KISClient
     from .derivative_items import FuturesBoardQuote, OptionBoard, OptionExpiry
     from .instrument import DomesticBoard
-    from .market_items import NewsItem
+    from .market_items import NewsHeadline
     from .open_order import OpenOrder
     from .order import Side
     from .overseas_derivative_items import (
@@ -648,7 +648,7 @@ class OverseasNamespace:
 
     def breaking_news(
         self, *, symbol: str = "", title: str = "", date_: str | date | None = None, time: str = ""
-    ) -> list[NewsItem]:
+    ) -> list[NewsHeadline]:
         """해외속보 제목 피드(최대 100건)."""
         return overseas_reference_api.fetch_breaking_news(
             self._c.transport, symbol=symbol, title=title, date_=date_, time=time

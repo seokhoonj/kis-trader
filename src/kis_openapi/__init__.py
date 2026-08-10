@@ -10,7 +10,7 @@ Securities (KIS) Open API.
 
 from __future__ import annotations
 
-from ._masters import MasterIndex, MasterRecord
+from ._masters import InstrumentRecord, MasterIndex
 from .account_reports import (
     IntegratedMargin,
     RealizedProfitBalance,
@@ -21,7 +21,7 @@ from .after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQ
 from .analysis import (
     AnalystOpinion,
     CreditBalancePoint,
-    DailyExecutionVolume,
+    DailyTradeVolume,
     EarningsEstimate,
     ExpectedPricePoint,
     ForeignNetBuyPoint,
@@ -135,7 +135,7 @@ from .market_items import (
     MarketFunds,
     MarketInvestorFlow,
     MarketInvestorSnapshot,
-    NewsItem,
+    NewsHeadline,
     ProgramFlowPoint,
     ProgramInvestorTrade,
     ProgramTradeSummary,
@@ -263,10 +263,10 @@ __all__ = [
     "CreditBalancePoint",
     "CreditBalanceRanking",
     "CreditEligibleStock",
-    "DailyExecutionVolume",
     "DailyProfit",
     "DailyProfitHistory",
     "DailyProgramTradePoint",
+    "DailyTradeVolume",
     "Derivative",
     "DerivativesQuote",
     "DetailedInvestorFlow",
@@ -309,6 +309,7 @@ __all__ = [
     "IndexDailyPoint",
     "IndexIntradayPoint",
     "IndexQuote",
+    "InstrumentRecord",
     "IntegratedMargin",
     "InterestRateQuote",
     "Interval",
@@ -331,11 +332,10 @@ __all__ = [
     "MarketInvestorSnapshot",
     "MarketQueries",
     "MasterIndex",
-    "MasterRecord",
     "MergerSplit",
     "Money",
     "NearHighLowRanking",
-    "NewsItem",
+    "NewsHeadline",
     "OpenOrder",
     "OptionBoard",
     "OptionBoardRow",

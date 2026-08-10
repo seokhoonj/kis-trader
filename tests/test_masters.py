@@ -12,8 +12,8 @@ import zipfile
 import pytest
 
 from kis_openapi._masters import (
+    InstrumentRecord,
     MasterIndex,
-    MasterRecord,
     download_overseas_master,
     load_overseas_index,
     load_overseas_master,
@@ -53,7 +53,7 @@ def test_parse_maps_columns():
     records = parse_overseas_master(data)
     assert len(records) == 2
     first = records[0]
-    assert isinstance(first, MasterRecord)
+    assert isinstance(first, InstrumentRecord)
     assert first.symbol == "AAPL"
     assert first.exchange == "NAS"
     assert first.currency == "USD"
@@ -122,8 +122,8 @@ def test_download_rejects_unknown_market():
 
 def test_index_resolve_single_match():
     index = MasterIndex([
-        MasterRecord("AAPL", "NAS", "USD", "stock", "애플", "APPLE", "NASAAPL"),
-        MasterRecord("7203", "TSE", "JPY", "stock", "도요타", "TOYOTA", "TSE7203"),
+        InstrumentRecord("AAPL", "NAS", "USD", "stock", "애플", "APPLE", "NASAAPL"),
+        InstrumentRecord("7203", "TSE", "JPY", "stock", "도요타", "TOYOTA", "TSE7203"),
     ])
     record = index.resolve("AAPL")
     assert record.exchange == "NAS"
@@ -132,8 +132,8 @@ def test_index_resolve_single_match():
 
 def test_index_resolve_ambiguous_requires_exchange():
     index = MasterIndex([
-        MasterRecord("XYZ", "NAS", "USD", "stock", "", "XYZ NAS", "NASXYZ"),
-        MasterRecord("XYZ", "HKS", "HKD", "stock", "", "XYZ HK", "HKSXYZ"),
+        InstrumentRecord("XYZ", "NAS", "USD", "stock", "", "XYZ NAS", "NASXYZ"),
+        InstrumentRecord("XYZ", "HKS", "HKD", "stock", "", "XYZ HK", "HKSXYZ"),
     ])
     with pytest.raises(KISUsageError, match="여러 거래소"):
         index.resolve("XYZ")
@@ -142,7 +142,7 @@ def test_index_resolve_ambiguous_requires_exchange():
 
 
 def test_index_resolve_not_found():
-    index = MasterIndex([MasterRecord("AAPL", "NAS", "USD", "stock", "", "APPLE", "NASAAPL")])
+    index = MasterIndex([InstrumentRecord("AAPL", "NAS", "USD", "stock", "", "APPLE", "NASAAPL")])
     with pytest.raises(KISUsageError, match="찾지 못"):
         index.resolve("MSFT")
 

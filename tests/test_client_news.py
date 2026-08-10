@@ -5,7 +5,7 @@ import threading
 
 import pytest
 
-from kis_openapi import KISClient, NewsItem
+from kis_openapi import KISClient, NewsHeadline
 from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
@@ -36,7 +36,7 @@ def test_news_maps_and_symbols():
              "iscd1": "005930", "iscd2": "000660", "iscd3": "", "iscd4": ""}]
     fake = FakeTransport(response=_resp(rows))
     items = _client(fake).domestic.market.news()
-    assert isinstance(items[0], NewsItem)
+    assert isinstance(items[0], NewsHeadline)
     n = items[0]
     assert n.title == "금융투자협회 라운드테이블"
     assert n.source == "뉴스핌"

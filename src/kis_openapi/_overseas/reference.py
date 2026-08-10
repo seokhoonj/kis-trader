@@ -14,7 +14,7 @@ from .._domestic.market_data import (
 )
 from .._wire import optional_decimal
 from ..errors import KISError, KISUsageError
-from ..market_items import NewsItem
+from ..market_items import NewsHeadline
 from ..overseas_items import (
     OverseasCollateralStock,
     OverseasCorporateAction,
@@ -183,7 +183,7 @@ def fetch_news(
 def fetch_breaking_news(
     transport: Transport, *, symbol: str = "", title: str = "",
     date_: str | date | None = None, time: str = "",
-) -> list[NewsItem]:
+) -> list[NewsHeadline]:
     """해외속보 제목 피드(최대 100건)."""
     input_date = "" if date_ is None else _to_yyyymmdd(date_, "date_")
     resp = transport.request(
@@ -198,7 +198,7 @@ def fetch_breaking_news(
     rows = resp.body.get("output")
     if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output", resp)
-    return [NewsItem(
+    return [NewsHeadline(
         serial=str(row.get("cntt_usiq_srno", "")).strip(),
         timestamp=_news_timestamp(row.get("data_dt"), row.get("data_tm")),
         title=str(row.get("hts_pbnt_titl_cntt", "")).strip(),

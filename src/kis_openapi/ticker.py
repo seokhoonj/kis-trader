@@ -22,7 +22,7 @@ from .after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQ
 from .analysis import (
     AnalystOpinion,
     CreditBalancePoint,
-    DailyExecutionVolume,
+    DailyTradeVolume,
     EarningsEstimate,
     ExpectedPricePoint,
     ForeignNetBuyPoint,
@@ -415,7 +415,7 @@ class Ticker:
 
     def daily_trade_volume(
         self, *, start: str | date | None = None, end: str | date | None = None
-    ) -> list[DailyExecutionVolume]:
+    ) -> list[DailyTradeVolume]:
         """일별 매수/매도 체결량 추이(기간 [start, end], 최근->과거). start 미지정이면 최근 30일."""
         self._domestic_market()        # 국내 전용
         return analysis_api.fetch_daily_trade_volume(
