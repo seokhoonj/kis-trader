@@ -15,8 +15,8 @@ from ._endpoints import base_url
 from .errors import KISAuthError, KISError, KISRateLimitError
 from .transport import Environment, RawResponse, TransportTimeout
 
-HttpResult = tuple[int, Mapping[str, str], Mapping[str, Any]]
-HttpSend = Callable[..., HttpResult]
+HTTPResult = tuple[int, Mapping[str, str], Mapping[str, Any]]
+HTTPSend = Callable[..., HTTPResult]
 _SESSION: Any = None
 
 
@@ -27,7 +27,7 @@ def _requests_send(
     headers: Mapping[str, str],
     params: Mapping[str, str] | None,
     json_body: Mapping[str, str] | None,
-) -> HttpResult:
+) -> HTTPResult:
     """기본 HTTP 송신기.
 
     목적: KIS REST 도메인에 한 요청을 보낸다.
@@ -73,7 +73,7 @@ class RequestsTransport:
         environment: Environment,
         token_manager: TokenManager,
         custtype: str = "P",
-        send: HttpSend = _requests_send,
+        send: HTTPSend = _requests_send,
         sleep: Callable[[float], None] = time.sleep,
         max_attempts: int = 3,
     ) -> None:

@@ -20,7 +20,7 @@ from typing import Any
 
 from .._wire import format_wire_decimal, optional_decimal
 from ..errors import (
-    AccountNotOrderable,
+    AccountNotOrderableError,
     KISError,
     KISUsageError,
     OrderError,
@@ -138,13 +138,13 @@ def place_reserved_order(
     ``order_id`` 는 예약주문순번(rsvn_ord_seq), ``status`` 는 :attr:`OrderStatus.PENDING_NEW`(접수됨·
     미집행). **모의투자 미지원**, 현금 예약만(신용/대여 예약 미지원).
 
-    조회전용 계좌(``orderable=False``, 퇴직연금 등)면 :class:`AccountNotOrderable`, 잘못된 인자/계좌
+    조회전용 계좌(``orderable=False``, 퇴직연금 등)면 :class:`AccountNotOrderableError`, 잘못된 인자/계좌
     미설정은 :class:`KISUsageError`, 접수 거부는 :class:`OrderRejectedError`, 접수 불명(타임아웃)은
     :class:`OrderTimeoutError`(:func:`reconcile_reserved_order` 로 확인), 순번 부재/예상밖 상태는
     :class:`OrderError`.
     """
     if not orderable:
-        raise AccountNotOrderable(
+        raise AccountNotOrderableError(
             "이 계좌는 API 주문이 불가하다(퇴직연금 IRP/DC 등 조회전용). 일반/연금저축 계좌를 쓰라."
         )
     if environment == "demo":

@@ -13,7 +13,7 @@ import pytest
 
 from kis_openapi import ExecutionReport, KISClient, OrderStatus, OrderStore
 from kis_openapi.errors import (
-    AccountNotOrderable,
+    AccountNotOrderableError,
     KISError,
     KISUsageError,
     OrderError,
@@ -128,7 +128,7 @@ def test_overseas_reserve_demo_rejected():
 
 def test_overseas_reserve_non_orderable_rejected():
     fake = FakeTransport(response=_ACCEPTED)
-    with pytest.raises(AccountNotOrderable):
+    with pytest.raises(AccountNotOrderableError):
         _client(fake, orderable=False).overseas.stock("AAPL", exchange="NAS").reserve_buy(quantity=1, price="1")
     assert fake.calls == []
 

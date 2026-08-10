@@ -15,7 +15,7 @@ import pytest
 
 from kis_openapi import ExecutionReport, KISClient, OrderStatus, OrderStore
 from kis_openapi.errors import (
-    AccountNotOrderable,
+    AccountNotOrderableError,
     KISError,
     KISUsageError,
     OrderRejectedError,
@@ -237,7 +237,7 @@ def test_accepted_without_odno_raises():
 # --- 계좌 가드 -------------------------------------------------------------
 def test_retirement_account_blocked():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
-    with pytest.raises(AccountNotOrderable):
+    with pytest.raises(AccountNotOrderableError):
         _client(fake, orderable=False).domestic.stock("005930").buy(quantity=10, price=70000)
     assert fake.calls == []                              # 와이어에 닿기 전 차단
 

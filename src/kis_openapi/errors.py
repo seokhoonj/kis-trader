@@ -38,7 +38,7 @@ class KISUsageError(KISError):
     """호출자 잘못 -- 잘못된 인자, 미충족 사전조건 등. 재시도해도 소용없다."""
 
 
-class AccountNotOrderable(KISUsageError):
+class AccountNotOrderableError(KISUsageError):
     """조회전용 계좌(퇴직연금 IRP/DC)에 주문을 시도.
 
     KIS Open API는 퇴직연금 계좌의 주문 엔드포인트를 거부한다(``APBK1744``). 와이어에

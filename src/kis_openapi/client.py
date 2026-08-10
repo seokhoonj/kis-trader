@@ -63,7 +63,7 @@ class KISClient:
         ``store`` 는 주문 멱등 dedup 저장소 -- 생략하면 세션 인메모리(프로세스 재시작에 dedup
         유지 안 됨). 실거래는 ``store=OrderStore(path=...)`` 로 영속 저장소를 주는 것을 강력히
         권장한다(재시작 후에도 이중체결 장벽 유지). ``orderable=False`` 면 모든 주문을 와이어
-        전에 :class:`~kis_openapi.errors.AccountNotOrderable` 로 막는다(조회전용 계좌 보호).
+        전에 :class:`~kis_openapi.errors.AccountNotOrderableError` 로 막는다(조회전용 계좌 보호).
         ``risk`` 를 주면 모든 buy/sell 이 전송 전에 그 사전 리스크 한도
         (:class:`~kis_openapi.risk.RiskLimits`)를 통과해야 한다(fat-finger 방지).
 

@@ -92,7 +92,7 @@ class _StockBase(abc.ABC):
 
         이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 계좌 정보가 없으면
         :class:`~kis_openapi.errors.KISUsageError`, 조회전용(퇴직연금 등) 계좌면
-        :class:`~kis_openapi.errors.AccountNotOrderable`. 접수 거부는 ``OrderRejectedError``,
+        :class:`~kis_openapi.errors.AccountNotOrderableError`. 접수 거부는 ``OrderRejectedError``,
         타임아웃(체결 불명)은 ``OrderTimeoutError`` -- 후자는 ``kis.orders.reconcile`` 로 확인한다.
         """
         return self._client._place_order(
@@ -119,7 +119,7 @@ class _StockBase(abc.ABC):
         예약주문 식별자(정정·취소 시 지목), ``status`` 는 :attr:`~kis_openapi.report.OrderStatus.PENDING_NEW`.
         **모의투자 미지원**. 국내는 현금 예약(``price`` 있으면 지정가·없으면 시장가, ``end_date`` 지원),
         해외(미국)는 지정가 예약(``price`` 필수, ``end_date`` 미지원)이다. 잘못된 인자/계좌 미설정은
-        ``KISUsageError``, 조회전용 계좌는 ``AccountNotOrderable``, 접수 거부는 ``OrderRejectedError``,
+        ``KISUsageError``, 조회전용 계좌는 ``AccountNotOrderableError``, 접수 거부는 ``OrderRejectedError``,
         타임아웃(접수 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile`` 로 확인)."""
         return self._reserve("buy", quantity, price, end_date, client_order_id)
 

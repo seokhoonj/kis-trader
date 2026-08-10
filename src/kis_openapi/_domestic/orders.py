@@ -30,7 +30,7 @@ from decimal import Decimal, InvalidOperation
 from typing import Any, TypeAlias
 
 from ..errors import (
-    AccountNotOrderable,
+    AccountNotOrderableError,
     KISError,
     KISUsageError,
     OrderError,
@@ -95,7 +95,7 @@ def place(
     fingerprint = order.fingerprint
 
     if not orderable:
-        raise AccountNotOrderable(
+        raise AccountNotOrderableError(
             "이 계좌는 API 주문이 불가하다(퇴직연금 IRP/DC 등 조회전용). 일반/연금저축 계좌를 쓰라."
         )
     # 주식 주문은 주(株) 단위 정수 수량만 -- 소수 수량은 fat-finger(예: 10.5). 와이어 전에 막는다.

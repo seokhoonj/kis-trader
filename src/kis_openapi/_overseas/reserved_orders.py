@@ -18,7 +18,7 @@ from typing import Any
 from .._domestic.orders import parse_response_decimal as _parse_response_decimal
 from .._wire import format_wire_decimal, optional_decimal
 from ..errors import (
-    AccountNotOrderable,
+    AccountNotOrderableError,
     KISError,
     KISUsageError,
     OrderError,
@@ -121,12 +121,12 @@ def place_overseas_reserved_order(
 
     반환 :class:`ExecutionReport` 의 ``order_id`` 는 해외예약주문번호(원장상 발주 Output ODNO = 취소 시
     OVRS_RSVN_ODNO), ``status`` 는 :attr:`OrderStatus.PENDING_NEW`. 조회전용 계좌면
-    :class:`AccountNotOrderable`, 접수 거부는 :class:`OrderRejectedError`, 접수 불명(타임아웃)은
+    :class:`AccountNotOrderableError`, 접수 거부는 :class:`OrderRejectedError`, 접수 불명(타임아웃)은
     :class:`OrderTimeoutError`(:func:`reconcile_overseas_reserved_order` 로 확인). demo·비-미국 거래소·
     잘못된 side/수량/가격·client_order_id 재사용은 :class:`KISUsageError`, 순번 부재는 :class:`OrderError`.
     """
     if not orderable:
-        raise AccountNotOrderable(
+        raise AccountNotOrderableError(
             "이 계좌는 API 주문이 불가하다(퇴직연금 IRP/DC 등 조회전용). 일반/연금저축 계좌를 쓰라."
         )
     if environment == "demo":
