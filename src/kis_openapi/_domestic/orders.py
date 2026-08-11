@@ -71,8 +71,18 @@ _DAILY_CCLD_TR = {"real": "TTTC0081R", "demo": "VTTC0081R"}
 _CHANGE_PATH = "/uapi/domestic-stock/v1/trading/order-rvsecncl"
 _CHANGE_TR = {"real": "TTTC0013U", "demo": "VTTC0013U"}
 _ACTION_EXCHANGE_PREFIX = "action:"
-# order_type -> KIS ORD_DVSN(주문구분): 00 지정가, 01 시장가
+# order_type -> KIS ORD_DVSN(주문구분): 00 지정가, 01 시장가. 신용주문·정정(order_type 만) 이 쓴다.
 _ORD_DVSN = {"limit": "00", "market": "01"}
+# (base, time_in_force) -> KIS ORD_DVSN. base = order.division 이 있으면 그것, 없으면 order_type.
+# 현금주문 전용(KRX 코드표 원장 대조). IOC/FOK 는 time_in_force 로 조합하며 지정가/시장가/최유리에서만
+# 유효하다(조건부/최우선엔 없어 매핑 부재 -> 거부). 시간외·중간가·스톱(05/06/07/21~24)은 차기 슬라이스.
+_ORD_DVSN_MAP = {
+    ("limit", "day"): "00", ("limit", "ioc"): "11", ("limit", "fok"): "12",
+    ("market", "day"): "01", ("market", "ioc"): "13", ("market", "fok"): "14",
+    ("immediate_limit", "day"): "03", ("immediate_limit", "ioc"): "15", ("immediate_limit", "fok"): "16",
+    ("conditional_limit", "day"): "02",
+    ("priority_limit", "day"): "04",
+}
 # our side -> KIS SLL_BUY_DVSN_CD (01 매도, 02 매수)
 _SIDE_CODE = {"buy": "02", "sell": "01"}
 _EXCHANGE_ID = {"XKRX": "KRX", "XKOS": "KRX", "NXTE": "NXT"}
@@ -371,24 +381,23 @@ def _make_order_cash_request(
         raise NotImplementedError(
             f"해외주문은 아직 지원하지 않는다(exchange={order.exchange!r})."
         )
-    if order.order_type not in _ORD_DVSN:
+    # ORD_DVSN 은 (주문구분 base, TIF) 로 정한다. base = division(최유리/최우선/조건부) 이 있으면 그것,
+    # 없으면 order_type(limit/market). 미매핑 조합(예: 조건부+ioc, 스톱)은 조용히 day/지정가로 바꾸지
+    # 않고 fail-closed -- 사용자 의도와 다른 주문 체결을 막는다.
+    base = order.division or order.order_type
+    order_division = _ORD_DVSN_MAP.get((base, order.time_in_force))
+    if order_division is None:
         raise NotImplementedError(
-            f"{order.order_type} 주문은 아직 와이어 매핑이 없다(현재 시장가/지정가만)."
-        )
-    if order.time_in_force != "day":
-        # 국내 현금주문 와이어엔 아직 TIF 매핑이 없다 -- 조용히 day 로 보내지 않고 fail-closed
-        # (ioc/fok 를 day 로 처리하면 사용자 의도와 다른 주문이 체결된다).
-        raise NotImplementedError(
-            f"time_in_force={order.time_in_force!r} 는 아직 미구현이다(국내 현금주문은 현재 day 만)."
+            f"주문구분/TIF 조합에 와이어 매핑이 없다(base={base!r}, time_in_force={order.time_in_force!r})."
         )
     tr_id = _ORDER_CASH_TR[(environment, order.side)]
     body = {
         "CANO": cano,
         "ACNT_PRDT_CD": product_code,
         "PDNO": order.symbol,
-        "ORD_DVSN": _ORD_DVSN[order.order_type],
+        "ORD_DVSN": order_division,
         "ORD_QTY": _format_optional_wire_decimal(order.quantity),
-        "ORD_UNPR": "0" if order.order_type == "market" else _format_optional_wire_decimal(order.limit_price),
+        "ORD_UNPR": "0" if order.limit_price is None else _format_optional_wire_decimal(order.limit_price),
         "EXCG_ID_DVSN_CD": "KRX",
     }
     return WireRequest("POST", _ORDER_CASH_PATH, tr_id, body)

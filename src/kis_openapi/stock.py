@@ -58,7 +58,7 @@ from .financials import (
 )
 from .instrument import DomesticBoard, resolve_market
 from .investor import DetailedInvestorHistory, InvestorEstimate, InvestorFlow
-from .order import CreditType, Order, Side, TimeInForce
+from .order import CreditType, DomesticDivision, Order, Side, TimeInForce
 from .order_book import OrderBook
 from .orderable import BuyableAmount, SellableQuantity
 from .overseas_items import OverseasCurrentPrice
@@ -511,10 +511,64 @@ class DomesticStock(_StockBase):
             loan_date=loan_date, time_in_force=time_in_force, client_order_id=client_order_id,
         ))
 
+    # --- 주문 실행(국내 현금; KRX 주문구분 division 지원) -- _StockBase.buy/sell 을 오버라이드 ---
+    def buy(
+        self, *, quantity: object, price: object | None = None,
+        time_in_force: TimeInForce = "day", division: DomesticDivision | None = None,
+        client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 종목을 매수한다 -- ``price`` 를 주면 지정가, 없으면 시장가.
+
+        ``division`` 으로 KRX 고유 주문구분을 고른다(국내 현금 전용):
+        ``conditional_limit`` 조건부지정가(장중 지정가->마감 시장가, ``price`` 필요),
+        ``immediate_limit`` 최유리지정가(접수 시점 상대편 최우선호가에 지정가로 즉시 체결 -- 매도면 최우선
+        매수호가, 매수면 최우선 매도호가; ``price`` 없음), ``priority_limit`` 최우선지정가(같은 방향 최우선
+        호가에 지정가로 대기, 체결 우선순위 확보; ``price`` 없음). IOC/FOK 는 ``time_in_force="ioc"/"fok"``
+        로 조합한다(지정가/시장가/최유리에서). ``immediate_limit`` 은 시장가의 슬리피지 없이 즉시 체결하려는
+        안전 대안이다(얕은 호가에서 시장가는 나쁜 가격까지 쓸어담을 수 있다).
+
+        이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 계좌 미설정은
+        :class:`~kis_openapi.errors.KISUsageError`, 조회전용 계좌면 :class:`~kis_openapi.errors.
+        AccountNotOrderableError`, 접수 거부는 ``OrderRejectedError``, 타임아웃(체결 불명)은
+        ``OrderTimeoutError`` -- 후자는 ``kis.orders.reconcile`` 로 확인한다."""
+        return self._client._place_order(
+            self._make_domestic_order("buy", quantity, price, time_in_force, division, client_order_id)
+        )
+
+    def sell(
+        self, *, quantity: object, price: object | None = None,
+        time_in_force: TimeInForce = "day", division: DomesticDivision | None = None,
+        client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 종목을 매도한다 -- 계약·``division`` 은 :meth:`buy` 와 동일(방향만 매도)."""
+        return self._client._place_order(
+            self._make_domestic_order("sell", quantity, price, time_in_force, division, client_order_id)
+        )
+
     def _make_order(
         self, side: Side, quantity: object, price: object | None,
         time_in_force: TimeInForce, client_order_id: str | None,
     ) -> Order:
+        return self._make_domestic_order(side, quantity, price, time_in_force, None, client_order_id)
+
+    def _make_domestic_order(
+        self, side: Side, quantity: object, price: object | None,
+        time_in_force: TimeInForce, division: DomesticDivision | None, client_order_id: str | None,
+    ) -> Order:
+        # 최유리/최우선은 시장이 가격을 정하므로 price 없음(order_type="market" 기반), 조건부는 가격 필요
+        # (order_type="limit" 기반). division 없으면 기존 동작(price 유무로 시장가/지정가).
+        if division in ("immediate_limit", "priority_limit"):
+            if price is not None:
+                raise KISUsageError(
+                    f"{division} 은 시장이 가격을 정하므로 price 를 줄 수 없다(최유리/최우선호가 기준)."
+                )
+            return Order.market(self.symbol, side=side, quantity=quantity,
+                                time_in_force=time_in_force, division=division,
+                                client_order_id=client_order_id)
+        if division == "conditional_limit":
+            return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
+                               time_in_force=time_in_force, division=division,
+                               client_order_id=client_order_id)
         if price is None:
             return Order.market(self.symbol, side=side, quantity=quantity,
                                 time_in_force=time_in_force, client_order_id=client_order_id)

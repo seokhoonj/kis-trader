@@ -20,6 +20,17 @@ from .errors import KISUsageError
 Side = Literal["buy", "sell"]
 OrderType = Literal["market", "limit", "stop", "stop_limit"]
 TimeInForce = Literal["day", "gtc", "ioc", "fok"]
+#: 국내(KRX) 현금주문 전용 주문구분(가격 결정 방식). 지정가(order_type="limit")/시장가("market")를
+#: 넘어서는 KRX 고유 주문구분을 고른다. 해외 주문에는 없다(국내 전용).
+#:   ``conditional_limit`` 조건부지정가(02) -- 장중 지정가, 마감 동시호가에 시장가 전환(가격 필요).
+#:     (KRX 공식 영문 "Limit-to-Market-on-Close".)
+#:   ``immediate_limit`` 최유리지정가(03) -- 접수 시점 상대편 최우선호가에 지정가로 접수해 즉시 체결.
+#:     매도면 최우선 매수호가, 매수면 최우선 매도호가. 가격 없음(시장이 정함). (KRX 공식 영문
+#:     "Immediately Executable Limit Order"; 시장가 슬리피지를 피하는 즉시체결 대안.)
+#:   ``priority_limit`` 최우선지정가(04) -- 접수 시점 같은 방향 최우선호가에 지정가로 접수(체결
+#:     우선순위 확보, 즉시 체결은 아님). 매도면 최우선 매도호가, 매수면 최우선 매수호가. 가격 없음.
+#: IOC/FOK 는 별도 주문구분이 아니라 ``time_in_force``(ioc/fok)로 조합한다.
+DomesticDivision = Literal["conditional_limit", "immediate_limit", "priority_limit"]
 #: 거래 세션. ``regular`` 정규장, ``daytime`` 미국주간거래(한국 낮 시간대 미국 종목 거래). 세션이
 #: 다르면 서로 다른 주문이고 정정·취소 엔드포인트도 다르므로 지문·라우팅으로 구분한다.
 Session = Literal["regular", "daytime"]
@@ -51,6 +62,9 @@ class Fingerprint(NamedTuple):
     credit_type: str = ""
     loan_date: str = ""
     session: Session = "regular"
+    #: 국내 주문구분(최유리/최우선/조건부; 그 밖은 ``""``). 같은 종목·수량이라도 시장가 vs 최유리는
+    #: 서로 다른 주문(ORD_DVSN 01 vs 03)이므로 지문으로 구분해야 replay/conflict 판정이 정확하다.
+    division: str = ""
 
 
 class WireRequest(NamedTuple):
@@ -79,6 +93,9 @@ _SESSIONS = frozenset(("regular", "daytime"))
 #: 구성 시점 검증에 쓴다(Order 는 _overseas 를 import 못 해 목록을 직접 든다) -- _overseas/orders.py
 #: `_ORDER_EXCHANGE` 의 US 그룹(market=="US")과 동일해야 하며, 와이어 빌더가 거기서 한 번 더 확인한다.
 _DAYTIME_EXCHANGES = frozenset(("NAS", "NYS", "AMS"))
+#: 국내 거래소(MIC). ``division``(국내 주문구분)은 이 거래소에서만 유효하다. _domestic/orders.py
+#: `_DOMESTIC_MICS`/`_EXCHANGE_ID` 와 일치해야 한다.
+_DOMESTIC_EXCHANGES = frozenset(("XKRX", "XKOS", "NXTE"))
 
 _KST = timezone(timedelta(hours=9))
 
@@ -129,6 +146,7 @@ class Order:
     credit_type: CreditType | None = None
     loan_date: str | None = None
     session: Session = "regular"
+    division: DomesticDivision | None = None
     client_order_id: str = field(default_factory=mint_client_order_id)
 
     def __post_init__(self) -> None:
@@ -217,6 +235,19 @@ class Order:
             if self.credit_type is not None:
                 raise KISUsageError("미국주간거래는 신용주문과 조합할 수 없다.")
 
+        # division(국내 주문구분: 최유리/최우선/조건부)은 국내 현금주문 전용 -- 해외 거래소·신용·주간과
+        # 조합하면 라우팅이 어긋나 의도와 다른 주문이 나갈 수 있어, 생성 시점에 fail-closed.
+        if self.division is not None:
+            if self.exchange not in _DOMESTIC_EXCHANGES:
+                raise KISUsageError(
+                    f"division(국내 주문구분)은 국내 현금주문 전용이다 -- exchange={self.exchange!r} "
+                    f"와 조합할 수 없다."
+                )
+            if self.credit_type is not None:
+                raise KISUsageError("division 은 신용주문과 조합할 수 없다.")
+            if self.session != "regular":
+                raise KISUsageError("division 은 미국주간거래와 조합할 수 없다.")
+
     @property
     def fingerprint(self) -> Fingerprint:
         """이 주문의 요청 지문 -- 같은 ``client_order_id`` 를 *다른* 주문에 재사용했는지
@@ -230,7 +261,7 @@ class Order:
             stop_price="" if self.stop_price is None else format_wire_decimal(self.stop_price),
             time_in_force=self.time_in_force, exchange=self.exchange,
             credit_type=self.credit_type or "", loan_date=self.loan_date or "",
-            session=self.session,
+            session=self.session, division=self.division or "",
         )
 
     # --- 타입별 생성자(권장 진입점) ------------------------------------
@@ -240,7 +271,8 @@ class Order:
         limit_price: object | None = None, stop_price: object | None = None,
         time_in_force: TimeInForce = "day", exchange: str = "XKRX",
         credit_type: CreditType | None = None, loan_date: str | None = None,
-        session: Session = "regular", client_order_id: str | None = None,
+        session: Session = "regular", division: DomesticDivision | None = None,
+        client_order_id: str | None = None,
     ) -> Order:
         quantity_dec = coerce_decimal(quantity, "quantity")
         limit_dec = None if limit_price is None else coerce_decimal(limit_price, "limit_price")
@@ -253,13 +285,14 @@ class Order:
                 limit_price=limit_dec, stop_price=stop_dec,
                 time_in_force=time_in_force, exchange=exchange,
                 credit_type=credit_type, loan_date=loan_date, session=session,
+                division=division,
             )
         return cls(
             symbol, side, order_type, quantity_dec,
             limit_price=limit_dec, stop_price=stop_dec,
             time_in_force=time_in_force, exchange=exchange,
             credit_type=credit_type, loan_date=loan_date, session=session,
-            client_order_id=client_order_id,
+            division=division, client_order_id=client_order_id,
         )
 
     @classmethod
@@ -284,19 +317,22 @@ class Order:
     @classmethod
     def market(cls, symbol: str, *, side: Side, quantity: object,
                time_in_force: TimeInForce = "day", exchange: str = "XKRX",
+               division: DomesticDivision | None = None,
                client_order_id: str | None = None) -> Order:
-        """시장가 주문."""
+        """시장가 주문. ``division`` 은 국내 현금주문 전용 주문구분(최유리/최우선 등, 가격 없음)."""
         return cls._build(symbol, side, "market", quantity, time_in_force=time_in_force,
-                          exchange=exchange, client_order_id=client_order_id)
+                          exchange=exchange, division=division, client_order_id=client_order_id)
 
     @classmethod
     def limit(cls, symbol: str, *, side: Side, quantity: object, limit_price: object,
               time_in_force: TimeInForce = "day", exchange: str = "XKRX",
-              session: Session = "regular", client_order_id: str | None = None) -> Order:
-        """지정가 주문. ``session='daytime'`` 은 미국주간거래(미국 종목만)."""
+              session: Session = "regular", division: DomesticDivision | None = None,
+              client_order_id: str | None = None) -> Order:
+        """지정가 주문. ``session='daytime'`` 은 미국주간거래(미국 종목만). ``division`` 은 국내
+        현금주문 전용 주문구분(조건부지정가 등, 가격 필요)."""
         return cls._build(symbol, side, "limit", quantity, limit_price=limit_price,
                           time_in_force=time_in_force, exchange=exchange, session=session,
-                          client_order_id=client_order_id)
+                          division=division, client_order_id=client_order_id)
 
     @classmethod
     def stop(cls, symbol: str, *, side: Side, quantity: object, stop_price: object,
