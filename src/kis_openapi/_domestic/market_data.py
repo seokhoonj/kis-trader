@@ -12,11 +12,23 @@ KIS URL/TR-id:
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
-from datetime import date, datetime, timedelta, timezone
-from decimal import Decimal
+from datetime import date, datetime, timedelta
 from typing import Any
 
-from .._wire import optional_decimal, optional_int, required_decimal, required_int
+from .._datetime import (
+    _KST,
+    _parse_intraday_timestamp,
+    _parse_kst_date,
+    _to_yyyymmdd,
+)
+from .._response import _missing_block_error, _raise_if_error
+from .._wire import (
+    _apply_change_sign,
+    optional_decimal,
+    optional_int,
+    required_decimal,
+    required_int,
+)
 from ..after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
 from ..analysis import (
     IntradayExecutionPoint,
@@ -45,9 +57,7 @@ from ..program import DailyProgramTradePoint, ProgramTradePoint
 from ..quote import Quote
 from ..stock_info import StockInfo, StockStatus
 from ..trade import Trade
-from ..transport import RawResponse, Transport
-
-_KST = timezone(timedelta(hours=9))
+from ..transport import Transport
 
 #: 시장 보드 -> KIS 조건시장분류코드(FID_COND_MRKT_DIV_CODE).
 _MARKET_DIV = {"KRX": "J", "NXT": "NX", "UN": "UN"}
@@ -61,8 +71,6 @@ _INTRADAY_EXECUTIONS_TR = "FHPST01060000"
 _DETAILED_INVESTOR_PATH = "/uapi/domestic-stock/v1/quotations/investor-trade-by-stock-daily"
 _DETAILED_INVESTOR_TR = "FHPTJ04160001"
 _MAX_DETAILED_INVESTOR_PAGES = 100
-#: 전일대비 부호코드(prdy_vrss_sign) 중 하락(4 하한, 5 하락). 나머지는 양(0 포함).
-_DOWN_SIGNS = frozenset(("4", "5"))
 
 
 def fetch_stock_status(
@@ -351,16 +359,6 @@ def _parse_quote(output: Mapping[str, Any], *, symbol: str, market: str, as_of: 
     )
 
 
-def _apply_change_sign(magnitude: Decimal, sign_code: str) -> Decimal:
-    """전일대비 값에 방향 부호를 입힌다(하락 코드면 음수).
-
-    KIS가 크기만 주든(부호 없는) 이미 부호를 실어 주든 상관없이 옳도록, 크기를 ``abs`` 로
-    정규화한 뒤 부호코드로만 방향을 정한다(부호가 이중 적용돼 뒤집히는 일 방지).
-    """
-    size = abs(magnitude)
-    return -size if sign_code in _DOWN_SIGNS else size
-
-
 # --- 기간별 OHLCV 바 -------------------------------------------------------
 def fetch_bars(
     transport: Transport,
@@ -492,14 +490,6 @@ def _parse_bar_timestamp(date_text: str) -> datetime:
     except ValueError as err:
         raise KISError(f"바 날짜(stck_bsop_date) 파싱 실패: {date_text!r}") from err
     return day.replace(tzinfo=_KST)
-
-
-def _parse_kst_date(date_text: str) -> date:
-    """"YYYYMMDD" -> date. 날짜만 필요한 곳(투자자 일자 등)에서 쓴다."""
-    try:
-        return datetime.strptime(date_text, "%Y%m%d").date()  # noqa: DTZ007 -- date 만 취함
-    except ValueError as err:
-        raise KISError(f"날짜(YYYYMMDD) 파싱 실패: {date_text!r}") from err
 
 
 def _fetch_minute_bars(
@@ -723,15 +713,6 @@ def _parse_trades(
             )
         )
     return trades
-
-
-def _parse_intraday_timestamp(time_text: str, as_of: datetime) -> datetime:
-    """당일 체결 시각("HHMMSS")을 KST-aware datetime 으로(날짜는 조회일 ``as_of``)."""
-    try:
-        moment = datetime.strptime(time_text, "%H%M%S").time()  # noqa: DTZ007 -- 아래에서 KST 결합
-    except ValueError as err:
-        raise KISError(f"체결 시각(stck_cntg_hour) 파싱 실패: {time_text!r}") from err
-    return datetime.combine(as_of.date(), moment, tzinfo=_KST)
 
 
 # --- 투자자 수급 -----------------------------------------------------------
@@ -1223,32 +1204,8 @@ def _market_div(market: str) -> str:
         raise KISUsageError(f"지원하지 않는 국내 시장 보드: {market!r} (KRX/NXT/UN).") from None
 
 
-def _to_yyyymmdd(value: str | date, name: str) -> str:
-    if isinstance(value, date):  # datetime 도 date 하위형
-        return f"{value:%Y%m%d}"
-    digits = str(value).strip().replace("-", "")
-    if len(digits) == 8 and digits.isdigit():
-        return digits
-    raise KISUsageError(f"{name} 는 date 또는 YYYYMMDD/YYYY-MM-DD 문자열이어야 한다: {value!r}")
-
-
 def _today_kst() -> str:
     return f"{datetime.now(_KST):%Y%m%d}"
-
-
-def _missing_block_error(block: str, resp: RawResponse) -> KISError:
-    return KISError(
-        f"시세 응답에 {block} 블록이 없다.",
-        rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-    )
-
-
-def _raise_if_error(resp: RawResponse) -> None:
-    if not resp.ok:
-        raise KISError(
-            f"시세 조회 실패: {resp.msg1}",
-            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-        )
 
 
 # --- 프로그램매매 / 투자자 추정 (per-ticker 시세분석) -----------------------

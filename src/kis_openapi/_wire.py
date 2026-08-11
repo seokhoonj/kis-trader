@@ -66,6 +66,20 @@ def format_wire_decimal(value: Decimal) -> str:
     return format(value, "f")
 
 
+#: KIS 대비기호(prdy_vrss_sign) 중 하락을 뜻하는 코드(4=하한, 5=하락).
+_DOWN_SIGNS = frozenset(("4", "5"))
+
+
+def _apply_change_sign(magnitude: Decimal, sign_code: str) -> Decimal:
+    """전일대비 값에 방향 부호를 입힌다(하락 코드면 음수).
+
+    KIS가 크기만 주든(부호 없는) 이미 부호를 실어 주든 상관없이 옳도록, 크기를 ``abs`` 로
+    정규화한 뒤 부호코드로만 방향을 정한다(부호가 이중 적용돼 뒤집히는 일 방지).
+    """
+    size = abs(magnitude)
+    return -size if sign_code in _DOWN_SIGNS else size
+
+
 def _strip(value: object) -> str:
     """None/숫자/문자열을 공백 제거한 문자열로. None 은 빈 문자열."""
     if value is None:

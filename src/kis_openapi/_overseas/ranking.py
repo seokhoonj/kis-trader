@@ -14,12 +14,15 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from .._domestic.market_data import (
-    _apply_change_sign,
+from .._response import (
     _missing_block_error,
     _raise_if_error,
 )
-from .._wire import required_decimal, required_int
+from .._wire import (
+    _apply_change_sign,
+    required_decimal,
+    required_int,
+)
 from ..errors import KISUsageError
 from ..overseas_ranking_items import RankedOverseasStock
 from ..transport import Transport

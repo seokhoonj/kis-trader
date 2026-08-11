@@ -17,7 +17,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from .._domestic.market_data import _KST
+from .._datetime import _KST
 from .._wire import format_wire_decimal
 from ..errors import KISError, KISUsageError, OrderTimeoutError
 from ..order import (

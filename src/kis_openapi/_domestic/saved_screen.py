@@ -4,7 +4,15 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
-from .._wire import required_decimal, required_int
+from .._response import (
+    _missing_block_error,
+    _raise_if_error,
+)
+from .._wire import (
+    _apply_change_sign,
+    required_decimal,
+    required_int,
+)
 from ..errors import KISUsageError
 from ..saved_screen import (
     SavedScreen,
@@ -14,7 +22,6 @@ from ..saved_screen import (
     WatchlistStock,
 )
 from ..transport import RawResponse, Transport
-from .market_data import _apply_change_sign, _missing_block_error, _raise_if_error
 
 _SCREENS_PATH = "/uapi/domestic-stock/v1/quotations/psearch-title"
 _SCREENS_TR = "HHKST03900300"

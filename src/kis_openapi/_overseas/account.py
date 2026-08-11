@@ -16,7 +16,7 @@ from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any
 
-from .._domestic.market_data import _raise_if_error
+from .._response import _raise_if_error
 from .._wire import (
     format_wire_decimal,
     optional_decimal,
