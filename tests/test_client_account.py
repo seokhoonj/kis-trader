@@ -338,7 +338,7 @@ def test_sellable_unparseable_quantity_fails_closed():
 def test_fetch_buyable_amount_only_rejects_limit_price():
     fake = FakeTransport(response=_buyable_resp())
     with pytest.raises(KISUsageError):   # symbol 없이 단가 -> 무의미(모듈 레벨 가드)
-        account_module.fetch_buyable(
+        account_module.fetch_buyable_amount(
             fake, cano="12345678", product_code="01", environment="real", limit_price=70000
         )
 

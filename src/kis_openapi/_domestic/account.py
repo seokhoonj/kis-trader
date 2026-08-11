@@ -215,7 +215,7 @@ def _extract_summary(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
 
 
 # --- 매수가능 / 매도가능 ---------------------------------------------------
-def fetch_buyable(
+def fetch_buyable_amount(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     symbol: str | None = None, limit_price: object | None = None,
 ) -> BuyableAmount:
@@ -272,7 +272,7 @@ def fetch_credit_buyable(
     """신용(융자/대주) 매수가능 여력. ``credit_type`` 은 신용유형(21 자기융자신규 등),
     ``limit_price`` 없으면 시장가 기준. **모의투자 미지원**.
 
-    현금 매수가능(:func:`fetch_buyable`)과 output 형상이 같아 :class:`BuyableAmount` 를 공유한다
+    현금 매수가능(:func:`fetch_buyable_amount`)과 output 형상이 같아 :class:`BuyableAmount` 를 공유한다
     -- 신용 전용 필드(주문가능대용·펀드환매대금·CMA평가금액 등)는 ``_raw`` 로 접근한다.
     """
     if environment == "demo":

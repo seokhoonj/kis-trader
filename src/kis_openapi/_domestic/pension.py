@@ -55,7 +55,7 @@ def fetch_deposit(
     )
 
 
-def fetch_buyable(
+def fetch_buyable_amount(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     symbol: str, limit_price: object | None = None,
 ) -> PensionBuyableAmount:

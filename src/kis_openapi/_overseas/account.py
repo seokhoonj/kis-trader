@@ -226,7 +226,7 @@ def _parse_open_orders(
     return orders
 
 
-def fetch_buyable(
+def fetch_buyable_amount(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     symbol: str, exchange: str, price: object,
 ) -> OverseasBuyableAmount:

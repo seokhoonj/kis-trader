@@ -448,7 +448,7 @@ class DomesticStock(_StockBase):
         계좌 정보 없이 생성한 세션이면 :class:`~kis_openapi.errors.KISUsageError`.
         """
         cano, product_code = self._client._require_account()
-        return account_api.fetch_buyable(
+        return account_api.fetch_buyable_amount(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment, symbol=self.symbol, limit_price=limit_price,
         )

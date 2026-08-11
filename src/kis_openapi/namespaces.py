@@ -307,7 +307,7 @@ class OverseasAccount:
         의도한 주문단가. 외화·통합 기준 주문가능금액·최대수량을 :class:`~kis_openapi.money.Money` 로 준다.
         **매수 시 수량단위 절사가 필요**하다."""
         cano, product_code = self._c._require_account()
-        return overseas_account.fetch_buyable(
+        return overseas_account.fetch_buyable_amount(
             self._c.transport, cano=cano, product_code=product_code,
             environment=self._c.environment, symbol=symbol, exchange=exchange, price=price,
         )
@@ -728,7 +728,7 @@ class PensionNamespace:
         """매수가능 여력 -- 주문가능현금·재사용가능금액·최대 매수금액/수량. ``limit_price`` 없으면 시장가 기준.
         **모의투자 미지원**."""
         cano, product_code = self._c._require_account()
-        return pension_api.fetch_buyable(
+        return pension_api.fetch_buyable_amount(
             self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
             symbol=symbol, limit_price=limit_price,
         )
