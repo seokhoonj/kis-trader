@@ -28,7 +28,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Any, TypeAlias
+from typing import Any, Literal, TypeAlias
 
 from ..errors import (
     AccountNotOrderableError,
@@ -47,6 +47,9 @@ from ..transport import Environment, Transport, TransportTimeout
 from . import market_data
 
 _KST = timezone(timedelta(hours=9))
+
+#: 접수된 주문에 가할 수 있는 변경 -- 정정(modify) 또는 취소(cancel).
+ChangeAction: TypeAlias = Literal["cancel", "modify"]
 
 #: 재조회 시 일별체결조회 연속조회(페이지) 상한 -- 무한 루프 방지의 명시적 안전 상한.
 _MAX_RECONCILE_PAGES = 100
@@ -236,7 +239,7 @@ def submit_change(
     *,
     original_client_order_id: str,
     request_id: str,
-    action: str,
+    action: ChangeAction,
     quantity: Decimal,
     price: Decimal | None,
     cano: str,
@@ -244,7 +247,13 @@ def submit_change(
     environment: Environment,
     build_request: Callable[..., WireRequest] | None = None,
 ) -> ExecutionReport:
-    """접수된 주문을 정정하거나 취소한다. 변경 요청도 별도 멱등키로 중복 전송을 막는다."""
+    """접수된 주문을 정정하거나 취소한다. 변경 요청도 별도 멱등키(``request_id``)로 중복 전송을 막는다.
+
+    정정(``action="modify"``)이 성공하면 KIS 가 원주문에 **새 ODNO** 를 부여하므로, 원
+    ``original_client_order_id`` 의 표준 리포트와 지문을 그 정정된 주문(새 ODNO/조직번호, 정정
+    수량/가격, ``PENDING_REPLACE``)으로 **재바인딩**한다 -- 이후 같은 id 의 cancel/modify 가
+    정정된 주문을 지목하게 하려는 것이다. 정정 접수(rt_cd=0)인데 새 ODNO 가 없으면 재조회
+    불가라 :class:`OrderError` 로 fail-closed(낡은 ODNO 에 재바인딩하지 않는다)."""
     original_report = store.report_for(original_client_order_id)
     original_fingerprint = store.fingerprint_for(original_client_order_id)
     if original_report is None or original_fingerprint is None:
@@ -265,7 +274,11 @@ def submit_change(
         raise KISUsageError("취소 주문에는 price를 지정할 수 없다.")
 
     action_fingerprint = Fingerprint(
-        symbol=f"{original_client_order_id}:{original_report.order_id}",
+        # 원 client_order_id 로만 식별한다(그 order_id 로 파생하지 않는다) -- 정정은 원 id 를
+        # 새 ODNO 로 재바인딩하므로, order_id 를 지문에 넣으면 같은 request_id 재시도 시 재계산
+        # 값이 달라져 replay 가 CONFLICT 로 깨진다. request_id 가 1차 멱등키, 나머지 필드가
+        # 변경 의도(action/수량/가격)를 식별하며, "action:" 접두 exchange 로 원주문 지문과 구분된다.
+        symbol=original_client_order_id,
         side=original_fingerprint.side,
         order_type=original_fingerprint.order_type,
         quantity=format_wire_decimal(quantity),
@@ -318,9 +331,18 @@ def submit_change(
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
     output = _extract_output_mapping(resp.body)
+    new_order_id = output.get("ODNO")
+    if action == "modify" and not new_order_id:
+        # 정정 접수(rt_cd=0)인데 새 ODNO 가 없다 -> 재조회 불가. place 와 같이 fail-closed:
+        # in-flight 유지(재조회 요구)하고, 원 id 를 낡은 ODNO 에 재바인딩하지 않는다. 원 ODNO 는
+        # 정정으로 무효화됐을 수 있어, 낡은 값에 재바인딩하면 이후 취소가 조용히 거부된다(은폐 금지).
+        raise OrderError(
+            "정정 접수(rt_cd=0)에 새 거래소 주문번호(ODNO)가 없다 -- 재조회 불가.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
     report = ExecutionReport(
         client_order_id=request_id,
-        order_id=str(output.get("ODNO") or original_report.order_id),
+        order_id=str(new_order_id or original_report.order_id),
         symbol=original_report.symbol,
         side=original_report.side,
         status=OrderStatus.PENDING_CANCEL if action == "cancel" else OrderStatus.PENDING_REPLACE,
@@ -329,15 +351,22 @@ def submit_change(
         submitted_at=datetime.now(_KST),
         _raw=resp.body,
     )
-    store.record(report, action_fingerprint)
+    rebind: tuple[ExecutionReport, Fingerprint] | None = None
     if action == "modify":
-        # 정정은 KIS 가 원주문에 **새 ODNO** 를 부여한다(원 ODNO 는 정정취소 가능수량 소멸).
-        # 원 client_order_id 가 이후에도 그 살아있는 주문을 가리키도록, 정정 응답의 새 ODNO 와
-        # 조직번호(report._raw)를 원 id 의 표준 리포트에 재바인딩한다 -- 안 하면 다음 cancel/
-        # modify 가 낡은 ODNO 를 보내 '정정취소 가능수량 없음'으로 거부된다(실서버 실증).
-        store.record(
-            replace(report, client_order_id=original_client_order_id), original_fingerprint
+        # 정정은 KIS 가 원주문에 **새 ODNO** 를 부여한다(원 ODNO 는 정정취소 가능수량 소멸). 원
+        # client_order_id 가 이후에도 그 살아있는 주문을 가리키도록 표준 리포트+지문을 재바인딩한다:
+        # order_id/조직번호(report._raw)는 정정 응답값, 지문 수량/가격은 정정값(이후 잔량 계산 정확),
+        # 리포트 filled=0 (새 ODNO 는 정정 수량만큼의 신규 대기주문 -- 기체결분은 이전 실행에 남는다).
+        # 변경요청 기록과 이 재바인딩은 record_change 로 한 번에 커밋해 크래시 창을 없앤다.
+        resting_fingerprint = original_fingerprint._replace(
+            quantity=format_wire_decimal(quantity),
+            limit_price="" if price is None else format_wire_decimal(price),
         )
+        rebound_report = replace(
+            report, client_order_id=original_client_order_id, filled_quantity=Decimal(0)
+        )
+        rebind = (rebound_report, resting_fingerprint)
+    store.record_change(report, action_fingerprint, rebind=rebind)
     return report
 
 

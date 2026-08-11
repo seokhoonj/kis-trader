@@ -120,7 +120,12 @@ class OrdersNamespace:
         self, client_order_id: str, *, price: object, quantity: object | None = None,
         request_id: str | None = None,
     ) -> ExecutionReport:
-        """접수된 주문의 가격(또는 수량)을 정정한다."""
+        """접수된 주문의 가격(또는 수량)을 정정한다.
+
+        정정이 성공하면 KIS 가 원주문에 새 거래소 주문번호(ODNO)를 부여하므로, 이 정정된 주문을
+        같은 ``client_order_id`` 가 계속 가리키도록 재바인딩한다 -- 이후 ``cancel``/``modify`` 는
+        정정된 주문을 지목하고, ``report_for(client_order_id)`` 의 ``order_id`` 는 새 ODNO,
+        상태는 ``PENDING_REPLACE`` 가 된다(place 시점 ODNO 를 캐시했다면 갱신 필요)."""
         return self._c._change_order(
             client_order_id, action="modify", quantity=quantity, price=price, request_id=request_id
         )

@@ -18,6 +18,7 @@ from kis_openapi.errors import (
     AccountNotOrderableError,
     KISError,
     KISUsageError,
+    OrderError,
     OrderRejectedError,
     OrderTimeoutError,
 )
@@ -169,28 +170,109 @@ def test_modify_rebinds_client_order_id_to_new_odno_so_cancel_targets_it():
     그 살아있는 주문을 가리켜야 한다 -- 낡은 ODNO 로 취소하면 '정정취소 가능수량 없음'
     으로 실패한다(실서버에서 실증). 정정 응답의 새 ODNO 와 조직번호를 원 id 의 표준
     리포트에 반영해, 이어지는 cancel/modify 가 정정된 주문을 지목하게 한다."""
-    place = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
-        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "PLACE-ODNO", "ORD_TMD": "090000"}})
-    modified = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
-        "KRX_FWDG_ORD_ORGNO": "02880", "ODNO": "MODIFY-ODNO", "ORD_TMD": "090100"}})
-    canceled = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
-        "KRX_FWDG_ORD_ORGNO": "02880", "ODNO": "MODIFY-ODNO", "ORD_TMD": "090200"}})
-    fake = FakeTransport(by_path={_ORDER_CASH: place,
-                                  _ORDER_CHANGE: [modified, canceled]})
+    place_response = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117057", "ORD_TMD": "090000"}})
+    modify_response = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "02880", "ODNO": "0000117061", "ORD_TMD": "090100"}})
+    cancel_response = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "02880", "ODNO": "0000117061", "ORD_TMD": "090200"}})
+    fake = FakeTransport(by_path={_ORDER_CASH: place_response,
+                                  _ORDER_CHANGE: [modify_response, cancel_response]})
     store = OrderStore()
     kis = _client(fake, store=store)
     kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
     report = kis.orders.modify("orig-1", price=71000, request_id="modify-1")
 
     # 정정 응답의 새 ODNO 가 원 id 의 표준 상태로 반영된다.
-    assert report.order_id == "MODIFY-ODNO"
-    assert store.report_for("orig-1").order_id == "MODIFY-ODNO"
+    assert report.order_id == "0000117061"
+    assert store.report_for("orig-1").order_id == "0000117061"
 
     # 이어지는 취소가 원 id 로 새 ODNO(와 그 조직번호)를 지목한다.
     kis.orders.cancel("orig-1", request_id="cancel-1")
     cancel_call = fake.calls[2]
-    assert cancel_call["body"]["ORGN_ODNO"] == "MODIFY-ODNO"
+    assert cancel_call["body"]["ORGN_ODNO"] == "0000117061"
     assert cancel_call["body"]["KRX_FWDG_ORD_ORGNO"] == "02880"
+
+
+def test_modify_with_missing_odno_fails_closed_and_does_not_rebind():
+    """정정이 접수(rt_cd=0)됐는데 새 ODNO 가 없으면 재조회 불가 -- place 와 같이 fail-closed
+    (OrderError, 변경요청 in-flight 유지)하고, 원 id 를 낡은 ODNO 에 재바인딩하지 않는다
+    (낡은 ODNO 로의 조용한 재무장·은폐 금지)."""
+    place = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117057", "ORD_TMD": "090000"}})
+    modify_no_odno = RawResponse(rt_cd="0", msg_cd="A", msg1="주문 전송 완료", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ORD_TMD": "090100"}})  # ODNO 누락
+    fake = FakeTransport(by_path={_ORDER_CASH: place, _ORDER_CHANGE: modify_no_odno})
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
+    with pytest.raises(OrderError):
+        kis.orders.modify("orig-1", price=71000, request_id="modify-1")
+    # 원 id 는 여전히 원 ODNO -- 낡은 값에 재바인딩하지 않는다.
+    assert store.report_for("orig-1").order_id == "0000117057"
+    assert store.report_for("orig-1").status is OrderStatus.NEW
+    # 변경 요청은 in-flight 유지(재조회 요구), 완료로 기록되지 않는다.
+    assert store.is_in_flight("modify-1")
+    assert store.report_for("modify-1") is None
+
+
+def test_modify_replay_same_request_id_returns_prior_not_conflict():
+    """정정 성공 뒤 원 id 가 새 ODNO 로 재바인딩돼도, 같은 request_id 로 정정을 재요청하면
+    (멱등 재시도) CONFLICT 가 아니라 그 결과를 replay 해야 한다. action 지문이 재바인딩된
+    report.order_id 에 의존하면 재계산 값이 달라져 조용히 CONFLICT 로 깨진다."""
+    place = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117057", "ORD_TMD": "090000"}})
+    modify_response = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117061", "ORD_TMD": "090100"}})
+    fake = FakeTransport(by_path={_ORDER_CASH: place, _ORDER_CHANGE: modify_response})
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
+    first = kis.orders.modify("orig-1", price=71000, request_id="modify-1")
+    second = kis.orders.modify("orig-1", price=71000, request_id="modify-1")
+    assert second == first
+    assert len([c for c in fake.calls if c["path"] == _ORDER_CHANGE]) == 1   # 한 번만 전송
+
+
+def test_modify_quantity_rebinds_remaining_for_next_change():
+    """수량을 바꾸는 정정 뒤에는 원 id 의 지문 수량도 새 수량으로 재바인딩돼야, 이어지는
+    cancel/modify(수량 생략)가 올바른 잔량을 계산한다 -- 원 수량으로 계산하면 살아있는
+    주문에 틀린 ORD_QTY 를 보낸다."""
+    place = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117057", "ORD_TMD": "090000"}})
+    modify_response = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117061", "ORD_TMD": "090100"}})
+    change_response = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117062", "ORD_TMD": "090200"}})
+    fake = FakeTransport(by_path={_ORDER_CASH: place,
+                                  _ORDER_CHANGE: [modify_response, change_response]})
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
+    kis.orders.modify("orig-1", quantity=4, price=71000, request_id="modify-1")
+    kis.orders.modify("orig-1", price=72000, request_id="modify-2")
+    change_calls = [c for c in fake.calls if c["path"] == _ORDER_CHANGE]
+    assert change_calls[1]["body"]["ORD_QTY"] == "4"          # 원 10 아닌 정정 후 4
+
+
+def test_modify_rebind_persists_in_a_single_store_write(monkeypatch):
+    """정정의 두 상태전이(변경요청 기록 + 원 id 재바인딩)는 한 번의 영속 쓰기로 원자적이어야
+    한다 -- 두 번 나눠 쓰면 그 사이 크래시 시 request_id 는 완료로 남고 원 id 는 낡은 ODNO 에
+    고착돼(재시도는 COMPLETED 조기반환) 복구 불가해진다."""
+    place = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117057", "ORD_TMD": "090000"}})
+    modify_response = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117061", "ORD_TMD": "090100"}})
+    fake = FakeTransport(by_path={_ORDER_CASH: place, _ORDER_CHANGE: modify_response})
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
+    saves = {"n": 0}
+    original_save = store._save_locked
+    monkeypatch.setattr(store, "_save_locked",
+                        lambda: (saves.__setitem__("n", saves["n"] + 1), original_save())[1])
+    kis.orders.modify("orig-1", price=71000, request_id="modify-1")
+    assert saves["n"] == 2          # claim 1회 + 결과기록(변경요청+재바인딩) 단일 save 1회
 
 
 def test_domestic_change_timeout_stays_in_flight_and_is_not_resent():

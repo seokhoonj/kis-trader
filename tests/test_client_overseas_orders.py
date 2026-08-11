@@ -33,7 +33,8 @@ class FakeTransport:
             self.calls.append({"method": method, "path": path, "tr_id": tr_id, "body": body,
                                "params": params, "idempotent": idempotent})
         if method == "POST" and self.on_post is not None:
-            outcome = self.on_post
+            # 리스트면 POST 별 순차 응답(place -> modify -> cancel 시퀀스).
+            outcome = self.on_post.pop(0) if isinstance(self.on_post, list) else self.on_post
             if isinstance(outcome, Exception):
                 raise outcome
             return outcome
@@ -143,6 +144,26 @@ def test_overseas_replace_uses_demo_tr_and_new_price():
     assert call["body"]["RVSE_CNCL_DVSN_CD"] == "01"
     assert call["body"]["ORD_QTY"] == "3"
     assert call["body"]["OVRS_ORD_UNPR"] == "412.50"
+
+
+def test_overseas_modify_rebinds_client_order_id_to_new_odno():
+    """해외 정정도 국내와 같은 안전코어(submit_change)를 공유한다 -- 정정이 새 ODNO 를 부여하면
+    원 client_order_id 를 그 주문으로 재바인딩해, 이어지는 취소가 원 id 로 정정된 주문(새 ODNO)을
+    지목한다(낡은 ODNO 미사용)."""
+    from kis_openapi import OrderStatus
+    fake = FakeTransport(on_post=[_ack("0000123456"), _ack("0000123499"), _ack("0000123499")])
+    kis = _client(fake)
+    kis.overseas.stock("AAPL", exchange="NAS").buy(
+        quantity=3, price="150.25", client_order_id="ov-1"
+    )
+    report = kis.orders.modify("ov-1", price="151.00", request_id="ov-modify-1")
+    assert report.status is OrderStatus.PENDING_REPLACE
+    assert report.order_id == "0000123499"                     # 정정 응답의 새 ODNO
+
+    kis.orders.cancel("ov-1", request_id="ov-cancel-1")
+    cancel_call = _posts(fake)[2]
+    assert cancel_call["path"] == _ORDER_CHANGE
+    assert cancel_call["body"]["ORGN_ODNO"] == "0000123499"    # 낡은 ...456 아닌 새 ...499
 
 
 def test_overseas_change_timeout_is_not_resent():

@@ -147,6 +147,29 @@ class OrderStore:
             self._in_flight.discard(report.client_order_id)
             self._save_locked()
 
+    def record_change(
+        self, report: ExecutionReport, fingerprint: Fingerprint, *,
+        rebind: tuple[ExecutionReport, Fingerprint] | None = None,
+    ) -> None:
+        """변경(정정/취소) 결과를 기록하고, 필요하면 원주문 id 를 정정된 주문으로 **원자적으로**
+        재바인딩한다(한 락, 한 번의 영속 쓰기).
+
+        변경요청 리포트는 자기 ``request_id`` 아래, ``rebind`` 이 있으면 (재바인딩 리포트,
+        지문)을 원 ``client_order_id`` 아래에 **함께** 커밋한다. 두 전이를 나눠 쓰면 그 사이
+        크래시 시 request_id 만 완료로 남고 원 id 는 낡은 주문번호에 고착돼(재시도는 완료
+        replay 로 조기반환) 복구 불가해지므로, 단일 ``_save_locked`` 로 묶는다."""
+        with self._lock:
+            self._require_open()
+            self._reports[report.client_order_id] = report
+            self._fingerprints[report.client_order_id] = fingerprint
+            self._in_flight.discard(report.client_order_id)
+            if rebind is not None:
+                rebound_report, rebound_fingerprint = rebind
+                self._reports[rebound_report.client_order_id] = rebound_report
+                self._fingerprints[rebound_report.client_order_id] = rebound_fingerprint
+                self._in_flight.discard(rebound_report.client_order_id)
+            self._save_locked()
+
     def clear_in_flight(self, client_order_id: str) -> None:
         """주문이 확실히 접수 안 됐을 때(거부 등) in-flight 와 지문을 해제(영속)."""
         with self._lock:
