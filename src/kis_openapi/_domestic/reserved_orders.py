@@ -110,10 +110,13 @@ def _walk_reserved(
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
         ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        # 재조회는 조기 종료 금지(예약 누락->오확정->이중발주 위험): tr_cont 정본 종료(D/E/공백)
+        # 이면서 연속조회 커서도 소진됐을 때만 마지막 페이지로 확정한다(둘 중 하나라도 남으면 계속
+        # 스캔). 즉시/해외 재조회(_fetch_daily_orders/_fetch_ccnl)와 같은 보수적 종료.
+        if resp.tr_cont not in ("F", "M") and not ctx_nk:
+            break
         tr_cont = "N"
     else:
         raise KISError(

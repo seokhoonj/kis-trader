@@ -271,6 +271,29 @@ def test_overseas_reserve_reconcile_multi_match_raises(monkeypatch):
     assert store.fingerprint_for(cid) is not None
 
 
+def test_overseas_reserve_reconcile_scans_all_pages_before_confirming(monkeypatch):
+    # 재조회는 조기 종료 금지: 첫 페이지 tr_cont 소진(D)이라도 커서(ctx_area_nk200)가 남으면 계속
+    # 스캔해야 둘째 페이지의 두 번째 일치를 본다. 그러지 않으면 ≥2 모호를 1건으로 오판해 접수 여부
+    # 불명 주문을 잘못 확정한다(이중발주 위험). 국내 예약/즉시 재조회와 같은 보수적 종료.
+    monkeypatch.setattr("kis_openapi._overseas.reserved_orders.datetime", _FrozenDatetime)
+    store = OrderStore()
+    cid = "20240101-ovsresv-pg01"
+    place_t = FakeTransport(raises=TransportTimeout("t"))
+    with pytest.raises(OrderTimeoutError):
+        _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").reserve_buy(
+            quantity=1, price="150", client_order_id=cid)
+    page1 = RawResponse(rt_cd="0", msg_cd="M", msg1="", tr_cont="D",
+                        body={"output": [_list_row(odno="0031111234", qty="1", unpr="150")],
+                              "ctx_area_nk200": "NEXT", "ctx_area_fk200": "FK"})
+    page2 = RawResponse(rt_cd="0", msg_cd="M", msg1="", tr_cont="",
+                        body={"output": [_list_row(odno="0031111299", qty="1", unpr="150")],
+                              "ctx_area_nk200": "", "ctx_area_fk200": ""})
+    recon_t = FakeTransport(by_path={_LIST: [page1, page2]})
+    with pytest.raises(KISError):                      # 두 페이지 모두 스캔 -> 2건 -> 모호로 거부
+        _client(recon_t, store=store).orders.reconcile(cid)
+    assert len(recon_t.calls) == 2                     # 커서가 남아 둘째 페이지도 조회했다
+
+
 def test_overseas_reserve_requires_account():
     with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_ACCEPTED), account=None).overseas.stock(

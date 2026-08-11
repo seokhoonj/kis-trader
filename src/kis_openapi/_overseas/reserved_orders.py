@@ -95,10 +95,12 @@ def _walk(
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
         ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        # 재조회는 조기 종료 금지(예약 누락->오확정->이중발주 위험): tr_cont 정본 종료이면서 연속조회
+        # 커서도 소진됐을 때만 멈춘다(둘 중 하나라도 남으면 계속 스캔). 즉시/국내 예약 재조회와 동형.
+        if resp.tr_cont not in ("F", "M") and not ctx_nk:
+            break
         tr_cont = "N"
     else:
         raise KISError(
