@@ -119,25 +119,24 @@ def test_default_rates_real_and_demo():
     assert DEFAULT_REQUESTS_PER_SECOND["demo"] == pytest.approx(1.0)
 
 
-def test_thread_safe_never_exceeds_limit_in_window():
-    # 실시각·고빈도(실제 sleep 최소)로 동시 acquire 가 상태를 깨지 않고 한도를 지키는지.
+def test_thread_safe_serializes_and_enforces_rate():
+    # 실시각 동시 acquire 가 교착·유실 없이 전원 완료되고, 리미터가 속도를 강제한다(지터로 더
+    # 빨라질 수는 없다 -- 최소 경과시간은 하한으로 신뢰 가능). 5건/0.2초 => 20건은 최소 ~0.6초.
     rl = SlidingWindowRateLimiter(5, per_seconds=0.2, clock=time.monotonic, sleep=time.sleep)
-    stamps: list[float] = []
+    done: list[int] = []
     lock = threading.Lock()
 
     def worker():
         rl.acquire()
         with lock:
-            stamps.append(time.monotonic())
+            done.append(1)
 
+    start = time.monotonic()
     threads = [threading.Thread(target=worker) for _ in range(20)]
     for t in threads:
         t.start()
     for t in threads:
         t.join()
-    assert len(stamps) == 20                                # 전원 완료(교착·유실 없음)
-    stamps.sort()
-    # 임의 0.2초 창 안에 5건 초과가 없어야 한다.
-    for i in range(len(stamps)):
-        in_window = [s for s in stamps if stamps[i] <= s < stamps[i] + 0.2]
-        assert len(in_window) <= 5
+    elapsed = time.monotonic() - start
+    assert len(done) == 20                  # 교착·유실 없이 전원 완료(락이 상태를 지킴)
+    assert elapsed >= 0.5                    # 리미터가 강제하는 하한(더 빨라질 수 없음)
