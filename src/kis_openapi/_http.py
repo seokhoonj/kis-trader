@@ -12,6 +12,7 @@ from typing import Any
 
 from ._auth import TokenManager
 from ._endpoints import base_url
+from ._ratelimit import SlidingWindowRateLimiter
 from .errors import KISAuthError, KISError, KISRateLimitError
 from .transport import Environment, RawResponse, TransportTimeout
 
@@ -76,6 +77,7 @@ class RequestsTransport:
         send: HTTPSend = _requests_send,
         sleep: Callable[[float], None] = time.sleep,
         max_attempts: int = 3,
+        rate_limiter: SlidingWindowRateLimiter | None = None,
     ) -> None:
         self._app_key = app_key
         self._app_secret = app_secret
@@ -85,6 +87,8 @@ class RequestsTransport:
         self._send = send
         self._sleep = sleep
         self._max_attempts = max_attempts
+        # 앱키 단위 호출 유량 제한기(선택). None 이면 스로틀 없음. 전송 시도마다 acquire.
+        self._rate_limiter = rate_limiter
 
     def revoke_token(self) -> None:
         """현재 접근 토큰을 폐기한다(``/oauth2/revokeP``). 토큰 매니저에 위임."""
@@ -124,6 +128,8 @@ class RequestsTransport:
         attempts = self._max_attempts if is_retryable else 1
 
         for attempt in range(attempts):
+            if self._rate_limiter is not None:
+                self._rate_limiter.acquire()   # 앱키 유량 준수 -- 재시도되는 GET 은 시도마다 소모
             try:
                 status, response_headers, payload = self._send(
                     method,

@@ -52,6 +52,8 @@ class KISClient:
         account: str | None = None,
         environment: Literal["real", "demo"] = "real",
         transport: Transport | None = None,
+        throttle: bool = True,
+        requests_per_second: float | None = None,
         store: OrderStore | None = None,
         orderable: bool = True,
         allow_credit: bool = False,
@@ -68,6 +70,13 @@ class KISClient:
         ``risk`` 를 주면 모든 buy/sell 이 전송 전에 그 사전 리스크 한도
         (:class:`~kis_openapi.risk.RiskLimits`)를 통과해야 한다(fat-finger 방지).
 
+        ``throttle`` (기본 True)은 built-in 전송에 sliding-window 유량 제한기를 붙여 KIS 호출
+        유량(공식 실전 초당 18건/모의 1건, **앱키 단위 합산**) 아래로 마진을 두고(실전 15/모의 1)
+        선제적으로 속도를 조절한다. ``requests_per_second`` 로 초당 한도를 바꾸고, ``throttle=False``
+        로 끈다(직접 관리하거나 앱키를 분산 운용할 때). 주입한 ``transport`` 에는 적용되지 않는다.
+        유량은 앱키(계좌) 단위라 **같은 앱키를 다른 프로세스/앱이 동시에 쓰면 이 리미터로 조율되지
+        않는다** -- 그 경우 앱마다 별도 앱키를 신청해 쓰는 것을 권장한다.
+
         해외 심볼 조회(:meth:`instrument`)는 KIS 종목 마스터로 심볼->거래소를 찾는다. ``master_index``
         를 주면 그 인덱스를 쓰고(테스트/고급), 없으면 첫 조회 때 마스터를 받아 캐시한다. ``master_fetch``
         로 다운로더를 바꿀 수 있다(기본은 KIS 배포 서버).
@@ -78,7 +87,18 @@ class KISClient:
         if transport is None:
             from ._auth import TokenManager
             from ._http import RequestsTransport
+            from ._ratelimit import DEFAULT_REQUESTS_PER_SECOND, build_rate_limiter
 
+            # 앱키 단위 호출 유량을 선제적으로 지킨다(기본 on). requests_per_second 로 초당 한도를
+            # override, 없으면 환경 기본값(실전 15/모의 1 -- 공식 18/1 아래 마진). throttle=False 면
+            # 리미터 미장착(사용자가 직접 관리하거나 앱키를 분산 운용). 주입한 transport 엔 미적용.
+            rate_limiter = None
+            if throttle:
+                per_second = (
+                    requests_per_second if requests_per_second is not None
+                    else DEFAULT_REQUESTS_PER_SECOND[environment]
+                )
+                rate_limiter = build_rate_limiter(per_second)
             transport = RequestsTransport(
                 app_key=app_key,
                 app_secret=app_secret,
@@ -88,6 +108,7 @@ class KISClient:
                     app_secret=app_secret,
                     environment=environment,
                 ),
+                rate_limiter=rate_limiter,
             )
         self._transport = transport
         self._cano, self._product_code = _split_account(account)

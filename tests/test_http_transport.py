@@ -39,6 +39,83 @@ def _transport(tmp_path: Any, send: Any, **kwargs: Any) -> RequestsTransport:
     )
 
 
+class _RecordingLimiter:
+    def __init__(self) -> None:
+        self.acquired = 0
+
+    def acquire(self) -> None:
+        self.acquired += 1
+
+
+def test_request_acquires_rate_limit_before_each_send(tmp_path: Any) -> None:
+    events: list[str] = []
+
+    class Limiter:
+        def acquire(self) -> None:
+            events.append("acquire")
+
+    def send(method: str, url: str, **kwargs: Any):
+        events.append("send")
+        return 200, {}, {"rt_cd": "0", "msg_cd": "", "msg1": ""}
+
+    _transport(tmp_path, send, rate_limiter=Limiter()).request(
+        method="GET", path="/uapi/x", tr_id="T", idempotent=True
+    )
+    assert events == ["acquire", "send"]           # 전송 전에 permit 확보
+
+
+def test_rate_limit_acquired_on_each_retry_attempt(tmp_path: Any) -> None:
+    events: list[str] = []
+    attempts = {"n": 0}
+
+    class Limiter:
+        def acquire(self) -> None:
+            events.append("acquire")
+
+    def send(method: str, url: str, **kwargs: Any):
+        events.append("send")
+        attempts["n"] += 1
+        if attempts["n"] < 2:                       # 첫 시도 타임아웃 -> 재시도
+            raise TransportTimeout()
+        return 200, {}, {"rt_cd": "0", "msg_cd": "", "msg1": ""}
+
+    _transport(tmp_path, send, rate_limiter=Limiter()).request(
+        method="GET", path="/uapi/x", tr_id="T", idempotent=True
+    )
+    assert events == ["acquire", "send", "acquire", "send"]   # 재시도마다 permit
+
+
+def test_no_limiter_by_default_does_not_throttle(tmp_path: Any) -> None:
+    # rate_limiter 미지정(기본) 시 그대로 전송(스로틀 없음).
+    def send(method: str, url: str, **kwargs: Any):
+        return 200, {}, {"rt_cd": "0", "msg_cd": "", "msg1": ""}
+
+    resp = _transport(tmp_path, send).request(
+        method="GET", path="/uapi/x", tr_id="T", idempotent=True
+    )
+    assert resp.rt_cd == "0"
+
+
+def test_client_builds_rate_limiter_by_default(tmp_path: Any) -> None:
+    kis = KISClient(app_key="k", app_secret="s", environment="real")
+    assert kis.transport._rate_limiter is not None       # 기본 on
+
+
+def test_client_throttle_false_disables_rate_limiter(tmp_path: Any) -> None:
+    kis = KISClient(app_key="k", app_secret="s", throttle=False)
+    assert kis.transport._rate_limiter is None
+
+
+def test_client_requests_per_second_override(tmp_path: Any) -> None:
+    # override 시 그 한도로 리미터를 구성한다(초당 3건 -> 4번째 대기).
+    from kis_openapi._ratelimit import SlidingWindowRateLimiter
+
+    kis = KISClient(app_key="k", app_secret="s", requests_per_second=3)
+    limiter = kis.transport._rate_limiter
+    assert isinstance(limiter, SlidingWindowRateLimiter)
+    assert limiter._max == 3 and limiter._window == pytest.approx(1.0)
+
+
 def test_get_builds_request_and_exposes_tr_cont(tmp_path: Any) -> None:
     calls: list[dict[str, Any]] = []
     payload = {"rt_cd": "0", "msg_cd": "OK", "msg1": "정상", "output": {"x": "1"}}
