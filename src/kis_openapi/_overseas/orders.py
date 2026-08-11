@@ -82,7 +82,14 @@ def build_order_request(
 
     ``exchange`` 는 시세 거래소코드(NAS/NYS/...). 해외 주문은 지금 **지정가·day 만** 지원한다
     (시장가/MOO/MOC·IOC/FOK 등은 시장별 제약이 달라 미구현) -- 도메스틱처럼 그 밖은 조용히 day
-    지정가로 바꾸지 않고 fail-closed 로 거부한다. ``quantity`` 는 정수(주 단위)."""
+    지정가로 바꾸지 않고 fail-closed 로 거부한다. ``quantity`` 는 정수(주 단위).
+
+    미국 주문의 **주문가능시간**(거래소·주문유형별, 한국시간, 서머타임 여부에 따라 다름)과 **입력
+    가격범위**(대략 매수 현재가 -97%~+30%, 매도 -20%~+200%; 현지 브로커 정책에 따라 상이)는
+    **KIS/브로커가 접수 시 강제**한다(범위 밖이면 거부). 이 클라이언트는 그 시간/범위를 사전 차단
+    하지 않는다 -- 서머타임 전환·휴장 등 엣지에서 정상 주문을 잘못 막을 위험이 있어, 판정은 KIS 에
+    맡기고 명확한 거부 메시지를 전달한다. 사용자측 fat-finger 방지가 필요하면 세션의
+    :class:`~kis_openapi.risk.RiskLimits` (설정 가능한 지정가 collar)를 쓰라."""
     if order_type != "limit":
         raise KISUsageError(f"해외 주문은 지정가만 지원한다(order_type={order_type!r}).")
     if time_in_force != "day":
