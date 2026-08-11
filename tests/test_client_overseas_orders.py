@@ -149,7 +149,11 @@ def test_overseas_replace_uses_demo_tr_and_new_price():
 def test_overseas_modify_rebinds_client_order_id_to_new_odno():
     """해외 정정도 국내와 같은 안전코어(submit_change)를 공유한다 -- 정정이 새 ODNO 를 부여하면
     원 client_order_id 를 그 주문으로 재바인딩해, 이어지는 취소가 원 id 로 정정된 주문(새 ODNO)을
-    지목한다(낡은 ODNO 미사용)."""
+    지목한다(낡은 ODNO 미사용).
+
+    원장 검증('해외주식 정정취소주문' output): 응답 output = {KRX_FWDG_ORD_ORGNO, ODNO, ORD_TMD}
+    로 국내와 동일 구조이며 ODNO 는 "채번된 주문번호"(정정 시 새 번호)다. 아래 _ack() 픽스처가
+    그 실필드(KRX_FWDG_ORD_ORGNO/ODNO/ORD_TMD)를 그대로 쓴다."""
     from kis_openapi import OrderStatus
     fake = FakeTransport(on_post=[_ack("0000123456"), _ack("0000123499"), _ack("0000123499")])
     kis = _client(fake)

@@ -255,8 +255,9 @@ def submit_change(
 
     재바인딩은 응답의 ``ODNO`` 를 취소 대상으로 삼으므로, 정정이 제자리(구 ODNO 유효)든 새
     ODNO 든 그 응답값이 올바른 대상이 된다. 국내는 새 ODNO 부여를 실서버로 실증했다. 해외도
-    같은 안전 코어를 공유하나(``build_request`` 만 다름), 해외 정정취소 응답의 새 주문번호 필드와
-    구주문번호 무효화는 **해외 원장 응답예시로 아직 검증 전**이다(backlog).
+    같은 안전 코어를 공유하며(``build_request`` 만 다름), 원장('해외주식 정정취소주문' output)으로
+    검증됨 -- 응답 output 에 ``ODNO``("채번된 주문번호" = 정정 시 새 주문번호)와 ``KRX_FWDG_ORD_ORGNO``
+    가 있어 국내와 동일 구조이며, 재바인딩 대상(새 ODNO)이 정확하다.
 
     Raises: 미확정/종료/수량·가격 위반은 :class:`KISUsageError`, 접수 거부(rt_cd!=0)는
     :class:`OrderRejectedError`, 전송 타임아웃(처리 불명)은 :class:`OrderTimeoutError`,
