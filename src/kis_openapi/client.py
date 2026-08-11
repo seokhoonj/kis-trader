@@ -54,6 +54,7 @@ class KISClient:
         transport: Transport | None = None,
         store: OrderStore | None = None,
         orderable: bool = True,
+        allow_credit: bool = False,
         risk: RiskLimits | None = None,
         master_index: MasterIndex | None = None,
         master_fetch: Fetch | None = None,
@@ -94,6 +95,9 @@ class KISClient:
         # store=OrderStore(path=...) 로 영속 저장소를 주입하라(권장, 이중체결 장벽 지속).
         self._store = store if store is not None else OrderStore()
         self._orderable = orderable
+        # 신용(융자/대주) 주문은 위험이 커 기본 비활성 -- opt-in(allow_credit=True) 해야 credit_buy/sell 이
+        # 와이어에 닿는다. 조회(credit_buyable)는 읽기라 게이트하지 않는다.
+        self._allow_credit = allow_credit
         self._risk = risk
         # 해외 심볼->거래소 해석용 마스터 인덱스. 주입 없으면 첫 instrument() 호출 때 지연 로드.
         self._master_index = master_index
@@ -267,6 +271,14 @@ class KISClient:
                 "이 transport 는 토큰 폐기를 지원하지 않는다(실 HTTP 세션에서만 가능)."
             )
         revoke()
+
+    def _require_credit_enabled(self) -> None:
+        """신용주문이 opt-in(``allow_credit=True``)됐는지 확인 -- 안 됐으면 와이어 전에 막는다."""
+        if not self._allow_credit:
+            raise KISUsageError(
+                "신용(융자/대주) 주문은 기본 비활성이다 -- KISClient(..., allow_credit=True) 로 "
+                "명시적으로 켜야 한다(고위험 주문 보호)."
+            )
 
     def _require_account(self) -> tuple[str, str]:
         """계좌 식별정보를 돌려주거나, 없으면 :class:`KISUsageError`."""

@@ -489,8 +489,10 @@ class DomesticStock(_StockBase):
         ``time_in_force`` 현재 ``"day"`` 만, ``client_order_id`` 멱등키(생략 시 자동 발행).
 
         현금 :meth:`buy` 와 같은 안전 엔진(이중체결 방지·타임아웃 재시도 금지)을 공유한다. **모의투자
-        미지원**. 잘못된 조합/계좌 미설정은 ``KISUsageError``, 접수 거부는 ``OrderRejectedError``,
-        타임아웃(체결 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile`` 로 확인)."""
+        미지원**. **신용주문은 기본 비활성**이라 ``KISClient(..., allow_credit=True)`` 로 명시적으로 켜야
+        한다(고위험 보호). 잘못된 조합/계좌 미설정/비활성은 ``KISUsageError``, 접수 거부는
+        ``OrderRejectedError``, 타임아웃(체결 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile`` 로 확인)."""
+        self._client._require_credit_enabled()
         self._require_krx_board("신용주문")
         return self._client._place_order(Order.credit(
             self.symbol, side="buy", quantity=quantity, credit_type=credit_type, price=price,
@@ -507,6 +509,7 @@ class DomesticStock(_StockBase):
         ``credit_type`` 매도 신용유형(22 유통대주신규/24 자기대주신규/25 자기융자상환/27 유통융자상환),
         ``loan_date``(YYYYMMDD) 상환유형(25/27)일 때 대상 대출일자(필수)·신규유형(22/24)이면 생략(오늘로
         채움). 나머지 인자·안전 규칙·예외는 :meth:`credit_buy` 와 같다. **모의투자 미지원**."""
+        self._client._require_credit_enabled()
         self._require_krx_board("신용주문")
         return self._client._place_order(Order.credit(
             self.symbol, side="sell", quantity=quantity, credit_type=credit_type, price=price,

@@ -77,9 +77,10 @@ def _daily_order_row(*, odno="0000117057", symbol="005930", side_code="02", orde
             "rjct_qty": rejected_quantity, "cncl_yn": canceled, "excg_id_dvsn_cd": excg}
 
 
-def _client(transport, *, environment="real", account="12345678-01", store=None, orderable=True):
+def _client(transport, *, environment="real", account="12345678-01", store=None, orderable=True,
+            allow_credit=False):
     return KISClient(app_key="k", app_secret="s", account=account, environment=environment,
-                     transport=transport, store=store, orderable=orderable)
+                     transport=transport, store=store, orderable=orderable, allow_credit=allow_credit)
 
 
 # --- 정상 전송 -------------------------------------------------------------
@@ -533,7 +534,8 @@ def test_credit_order_rejects_non_krx_board(market):
     """신용주문은 보드 배선이 아직 없어 KRX 만 -- NXT/UN 종목의 신용주문은 조용히 KRX 로 안 보내고 거부."""
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.stock("005930", market=market).credit_buy(quantity=10, credit_type="21")
+        _client(fake, allow_credit=True).domestic.stock("005930", market=market).credit_buy(
+            quantity=10, credit_type="21")
     assert fake.calls == []
 
 

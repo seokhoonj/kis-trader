@@ -61,8 +61,9 @@ class FakeTransport:
 
 
 def _client(transport, *, environment="real", account="12345678-01", store=None, risk=None):
+    # 이 파일은 신용주문을 테스트하므로 opt-in(allow_credit=True). 기본 차단은 아래 전용 테스트에서 확인.
     return KISClient(app_key="k", app_secret="s", account=account, environment=environment,
-                     transport=transport, store=store, risk=risk)
+                     transport=transport, store=store, risk=risk, allow_credit=True)
 
 
 def _credit_daily_row(*, odno="0001569138", symbol="009150", side_code="02", order_division="00",
@@ -73,6 +74,20 @@ def _credit_daily_row(*, odno="0001569138", symbol="009150", side_code="02", ord
             "ord_qty": order_quantity, "ord_unpr": order_unit_price, "tot_ccld_qty": filled_quantity,
             "avg_prvs": average_price, "loan_dt": loan_dt, "rjct_qty": rejected_quantity,
             "cncl_yn": canceled, "excg_id_dvsn_cd": excg}
+
+
+# --- 신용주문 opt-in(기본 차단) ------------------------------------------
+def test_credit_order_blocked_by_default():
+    """신용주문은 기본 비활성 -- KISClient(allow_credit=True) 로 명시적으로 켜야 한다(와이어 전 거부)."""
+    fake = FakeTransport(response=_ACCEPTED)
+    kis = KISClient(app_key="k", app_secret="s", account="12345678-01", transport=fake)  # allow_credit 미설정
+    with pytest.raises(KISUsageError):
+        kis.domestic.stock("009150").credit_buy(quantity=1, price=130000, credit_type="26",
+                                                loan_date="20211103")
+    assert fake.calls == []
+    with pytest.raises(KISUsageError):
+        kis.domestic.stock("009150").credit_sell(quantity=1, credit_type="25", loan_date="20211103")
+    assert fake.calls == []
 
 
 # --- 정상 전송 -------------------------------------------------------------
