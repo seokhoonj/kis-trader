@@ -570,18 +570,20 @@ class DomesticStock(_StockBase):
                 )
             return Order.market(self.symbol, side=side, quantity=quantity,
                                 time_in_force=time_in_force, division=division,
-                                client_order_id=client_order_id)
+                                board=self.market, client_order_id=client_order_id)
         if division == "conditional_limit":
             if price is None:
                 raise KISUsageError("conditional_limit(조건부지정가)은 price 가 필요하다.")
             return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
                                time_in_force=time_in_force, division=division,
-                               client_order_id=client_order_id)
+                               board=self.market, client_order_id=client_order_id)
         if price is None:
             return Order.market(self.symbol, side=side, quantity=quantity,
-                                time_in_force=time_in_force, client_order_id=client_order_id)
+                                time_in_force=time_in_force, board=self.market,
+                                client_order_id=client_order_id)
         return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
-                           time_in_force=time_in_force, client_order_id=client_order_id)
+                           time_in_force=time_in_force, board=self.market,
+                           client_order_id=client_order_id)
 
     def _reserve(
         self, side: Side, quantity: object, price: object | None, end_date: str | None,

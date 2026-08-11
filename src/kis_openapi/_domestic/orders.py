@@ -92,7 +92,9 @@ def _resolve_ord_dvsn(order_type: str, division: str | None, time_in_force: str)
     return _ORD_DVSN_MAP.get((division or order_type, time_in_force))
 # our side -> KIS SLL_BUY_DVSN_CD (01 매도, 02 매수)
 _SIDE_CODE = {"buy": "02", "sell": "01"}
-_EXCHANGE_ID = {"XKRX": "KRX", "XKOS": "KRX", "NXTE": "NXT"}
+# 국내 보드(KRX/NXT/UN) -> KIS EXCG_ID_DVSN_CD(KRX/NXT/SOR). UN(통합) 주문은 SOR(스마트 주문 라우팅).
+# 원장: 미입력=KRX, 모의투자는 KRX 만 가능.
+_BOARD_EXCG = {"KRX": "KRX", "NXT": "NXT", "UN": "SOR"}
 
 
 def place(
@@ -365,7 +367,7 @@ def _make_domestic_change_request(
             else "0" if price is None else format_wire_decimal(price)
         ),
         "QTY_ALL_ORD_YN": "Y" if action == "cancel" else "N",
-        "EXCG_ID_DVSN_CD": _EXCHANGE_ID[original_fingerprint.exchange],
+        "EXCG_ID_DVSN_CD": _BOARD_EXCG[original_fingerprint.board],
     }
     return WireRequest("POST", _CHANGE_PATH, _CHANGE_TR[environment], body)
 
@@ -399,6 +401,9 @@ def _make_order_cash_request(
             f"지원하지 않는 주문구분/TIF 조합이다(division/order_type={order.division or order.order_type!r}, "
             f"time_in_force={order.time_in_force!r})."
         )
+    # 모의투자는 KRX 보드만 제공(원장) -- NXT/UN(SOR) 주문은 demo 에서 와이어 전 fail-closed.
+    if environment == "demo" and order.board != "KRX":
+        raise KISUsageError(f"모의투자는 KRX 보드만 지원한다(board={order.board!r}).")
     tr_id = _ORDER_CASH_TR[(environment, order.side)]
     body = {
         "CANO": cano,
@@ -407,7 +412,7 @@ def _make_order_cash_request(
         "ORD_DVSN": order_division,
         "ORD_QTY": _format_optional_wire_decimal(order.quantity),
         "ORD_UNPR": "0" if order.limit_price is None else _format_optional_wire_decimal(order.limit_price),
-        "EXCG_ID_DVSN_CD": "KRX",
+        "EXCG_ID_DVSN_CD": _BOARD_EXCG[order.board],
     }
     return WireRequest("POST", _ORDER_CASH_PATH, tr_id, body)
 
@@ -509,6 +514,7 @@ def _filter_matching_daily_rows(
     # reconcile 도 place 와 같은 리졸버로 ORD_DVSN 을 유도해야 division 주문이 자기 행에 매칭된다
     # (order_type 만으로 유도하면 최유리(03)를 01 로 찾아 무관한 시장가 행을 오확정한다).
     want_dvsn = _resolve_ord_dvsn(order_type, fingerprint.division, fingerprint.time_in_force)
+    want_excg = _BOARD_EXCG.get(fingerprint.board, "KRX")   # 보드 -> EXCG(KRX/NXT/SOR)
     want_loan_date = fingerprint.loan_date        # 신용이면 대출일자, 현금이면 ""
     matched = []
     for row in rows:
@@ -517,6 +523,10 @@ def _filter_matching_daily_rows(
         if str(row.get("sll_buy_dvsn_cd", "")) != want_side:
             continue
         if want_dvsn is not None and str(row.get("ord_dvsn_cd", "")) not in ("", want_dvsn):
+            continue
+        # 보드 구분: KRX vs NXT 는 다른 거래소 주문 -- 행의 거래소(excg_id_dvsn_cd)가 지문 보드와 같아야
+        # (같은 종목·수량·주문구분의 KRX 체결이 미접수 NXT 주문을 phantom 확정하는 것 방지). 빈 값은 관용.
+        if str(row.get("excg_id_dvsn_cd", "")) not in ("", want_excg):
             continue
         # 신용/현금 구분: 신용주문 지문(loan_date != "")은 행의 loan_dt 가 그 대출일자와 같아야,
         # 현금주문 지문("")은 행에 대출일자가 없어야 매칭한다(cash<->credit 오확정 방지).

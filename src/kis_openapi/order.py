@@ -16,6 +16,7 @@ from typing import Literal, NamedTuple
 
 from ._wire import format_wire_decimal
 from .errors import KISUsageError
+from .instrument import DomesticBoard
 
 Side = Literal["buy", "sell"]
 OrderType = Literal["market", "limit", "stop", "stop_limit"]
@@ -65,6 +66,9 @@ class Fingerprint(NamedTuple):
     #: 국내 주문구분(최유리/최우선/조건부; 그 밖은 ``""``). 같은 종목·수량이라도 시장가 vs 최유리는
     #: 서로 다른 주문(ORD_DVSN 01 vs 03)이므로 지문으로 구분해야 replay/conflict 판정이 정확하다.
     division: str = ""
+    #: 국내 체결 보드(KRX/NXT/UN). 같은 종목·수량이라도 KRX vs NXT 는 서로 다른 거래소 주문이므로
+    #: 지문으로 구분한다(구버전 레코드는 기본 "KRX"). 해외/신용은 "KRX" 기본.
+    board: str = "KRX"
 
 
 class WireRequest(NamedTuple):
@@ -96,6 +100,13 @@ _DAYTIME_EXCHANGES = frozenset(("NAS", "NYS", "AMS"))
 #: 국내 거래소(MIC). ``division``(국내 주문구분)은 이 거래소에서만 유효하다. _domestic/orders.py
 #: `_DOMESTIC_MICS`/`_EXCHANGE_ID` 와 일치해야 한다.
 _DOMESTIC_EXCHANGES = frozenset(("XKRX", "XKOS", "NXTE"))
+#: 국내 보드(NXT/UN)별 **미지원** 주문구분 base(= division 있으면 그것, 없으면 order_type). 원장 대조:
+#: NXT 는 시장가(market)·조건부(conditional_limit) 미지원, SOR(UN)은 조건부 미지원(KRX 는 전부 지원).
+#: blocklist 라 여기 없는 base(stop 등 Tier 2/미매핑)는 이 검증이 아니라 와이어 빌더에서 판정한다.
+_BOARD_UNSUPPORTED_BASES = {
+    "NXT": frozenset(("market", "conditional_limit")),
+    "UN": frozenset(("conditional_limit",)),
+}
 
 _KST = timezone(timedelta(hours=9))
 
@@ -147,6 +158,7 @@ class Order:
     loan_date: str | None = None
     session: Session = "regular"
     division: DomesticDivision | None = None
+    board: DomesticBoard = "KRX"
     client_order_id: str = field(default_factory=mint_client_order_id)
 
     def __post_init__(self) -> None:
@@ -258,6 +270,16 @@ class Order:
             elif self.division == "conditional_limit" and self.order_type != "limit":
                 raise KISUsageError("conditional_limit(조건부지정가)은 지정가(limit) 기반이어야 한다.")
 
+        # 보드(NXT/UN)별 미지원 주문구분 -- 국내 주문에만. NXT 는 시장가·조건부, SOR(UN)은 조건부를
+        # 지원하지 않으므로 와이어 전(생성 시점)에 fail-closed. base = division 있으면 그것, 없으면 order_type.
+        if self.exchange in _DOMESTIC_EXCHANGES:
+            base = self.division or self.order_type
+            if base in _BOARD_UNSUPPORTED_BASES.get(self.board, frozenset()):
+                raise KISUsageError(
+                    f"{self.board} 보드는 이 주문구분을 지원하지 않는다(base={base!r}; "
+                    f"NXT 는 시장가·조건부 없음, SOR(UN)은 조건부 없음)."
+                )
+
     @property
     def fingerprint(self) -> Fingerprint:
         """이 주문의 요청 지문 -- 같은 ``client_order_id`` 를 *다른* 주문에 재사용했는지
@@ -271,7 +293,7 @@ class Order:
             stop_price="" if self.stop_price is None else format_wire_decimal(self.stop_price),
             time_in_force=self.time_in_force, exchange=self.exchange,
             credit_type=self.credit_type or "", loan_date=self.loan_date or "",
-            session=self.session, division=self.division or "",
+            session=self.session, division=self.division or "", board=self.board,
         )
 
     # --- 타입별 생성자(권장 진입점) ------------------------------------
@@ -282,7 +304,7 @@ class Order:
         time_in_force: TimeInForce = "day", exchange: str = "XKRX",
         credit_type: CreditType | None = None, loan_date: str | None = None,
         session: Session = "regular", division: DomesticDivision | None = None,
-        client_order_id: str | None = None,
+        board: DomesticBoard = "KRX", client_order_id: str | None = None,
     ) -> Order:
         quantity_dec = coerce_decimal(quantity, "quantity")
         limit_dec = None if limit_price is None else coerce_decimal(limit_price, "limit_price")
@@ -295,14 +317,14 @@ class Order:
                 limit_price=limit_dec, stop_price=stop_dec,
                 time_in_force=time_in_force, exchange=exchange,
                 credit_type=credit_type, loan_date=loan_date, session=session,
-                division=division,
+                division=division, board=board,
             )
         return cls(
             symbol, side, order_type, quantity_dec,
             limit_price=limit_dec, stop_price=stop_dec,
             time_in_force=time_in_force, exchange=exchange,
             credit_type=credit_type, loan_date=loan_date, session=session,
-            division=division, client_order_id=client_order_id,
+            division=division, board=board, client_order_id=client_order_id,
         )
 
     @classmethod
@@ -327,22 +349,24 @@ class Order:
     @classmethod
     def market(cls, symbol: str, *, side: Side, quantity: object,
                time_in_force: TimeInForce = "day", exchange: str = "XKRX",
-               division: DomesticDivision | None = None,
+               division: DomesticDivision | None = None, board: DomesticBoard = "KRX",
                client_order_id: str | None = None) -> Order:
-        """시장가 주문. ``division`` 은 국내 현금주문 전용 주문구분(최유리/최우선 등, 가격 없음)."""
+        """시장가 주문. ``division`` 은 국내 현금주문 전용 주문구분(최유리/최우선 등, 가격 없음).
+        ``board`` 는 체결 보드(KRX/NXT/UN=SOR)."""
         return cls._build(symbol, side, "market", quantity, time_in_force=time_in_force,
-                          exchange=exchange, division=division, client_order_id=client_order_id)
+                          exchange=exchange, division=division, board=board,
+                          client_order_id=client_order_id)
 
     @classmethod
     def limit(cls, symbol: str, *, side: Side, quantity: object, limit_price: object,
               time_in_force: TimeInForce = "day", exchange: str = "XKRX",
               session: Session = "regular", division: DomesticDivision | None = None,
-              client_order_id: str | None = None) -> Order:
+              board: DomesticBoard = "KRX", client_order_id: str | None = None) -> Order:
         """지정가 주문. ``session='daytime'`` 은 미국주간거래(미국 종목만). ``division`` 은 국내
-        현금주문 전용 주문구분(조건부지정가 등, 가격 필요)."""
+        현금주문 전용 주문구분(조건부지정가 등, 가격 필요). ``board`` 는 체결 보드(KRX/NXT/UN=SOR)."""
         return cls._build(symbol, side, "limit", quantity, limit_price=limit_price,
                           time_in_force=time_in_force, exchange=exchange, session=session,
-                          division=division, client_order_id=client_order_id)
+                          division=division, board=board, client_order_id=client_order_id)
 
     @classmethod
     def stop(cls, symbol: str, *, side: Side, quantity: object, stop_price: object,

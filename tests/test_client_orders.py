@@ -70,11 +70,11 @@ def _daily_orders_response(rows):
 
 def _daily_order_row(*, odno="0000117057", symbol="005930", side_code="02", order_division="00",
                      order_quantity="10", order_unit_price="70000", filled_quantity="10",
-                     average_price="70000", rejected_quantity="0", canceled="N"):
+                     average_price="70000", rejected_quantity="0", canceled="N", excg=""):
     return {"odno": odno, "pdno": symbol, "sll_buy_dvsn_cd": side_code,
             "ord_dvsn_cd": order_division, "ord_qty": order_quantity, "ord_unpr": order_unit_price,
             "tot_ccld_qty": filled_quantity, "avg_prvs": average_price,
-            "rjct_qty": rejected_quantity, "cncl_yn": canceled}
+            "rjct_qty": rejected_quantity, "cncl_yn": canceled, "excg_id_dvsn_cd": excg}
 
 
 def _client(transport, *, environment="real", account="12345678-01", store=None, orderable=True):
@@ -454,6 +454,63 @@ def test_order_construction_enforces_division_price_coupling(kwargs):
         (Order.limit if "limit_price" in kwargs else Order.market)(**kwargs)
 
 
+@pytest.mark.parametrize("market,expected_excg", [("KRX", "KRX"), ("NXT", "NXT"), ("UN", "SOR")])
+def test_board_routes_exchange_id(market, expected_excg):
+    """보드(KRX/NXT/UN)가 EXCG_ID_DVSN_CD(KRX/NXT/SOR)로 라우팅돼야 한다(현재 KRX 하드코딩 버그)."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(fake).domestic.stock("005930", market=market).buy(quantity=10, division="immediate_limit")
+    assert fake.calls[0]["body"]["EXCG_ID_DVSN_CD"] == expected_excg
+
+
+@pytest.mark.parametrize("market,kwargs", [
+    ("NXT", {"quantity": 10}),                                          # NXT 시장가 미지원
+    ("NXT", {"quantity": 10, "price": 70000, "division": "conditional_limit"}),  # NXT 조건부 미지원
+    ("UN", {"quantity": 10, "price": 70000, "division": "conditional_limit"}),   # SOR 조건부 미지원
+])
+def test_board_rejects_unsupported_division(market, kwargs):
+    """보드별 미지원 주문구분은 와이어 전 거부(NXT=시장가·조건부, SOR=조건부)."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(KISUsageError):
+        _client(fake).domestic.stock("005930", market=market).buy(**kwargs)
+    assert fake.calls == []
+
+
+def test_non_krx_board_rejected_in_demo():
+    """모의투자는 KRX만 -- NXT/UN 주문은 demo 에서 와이어 전 거부."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="demo").domestic.stock("005930", market="NXT").buy(
+            quantity=10, division="immediate_limit")
+    assert fake.calls == []
+
+
+def test_board_distinguishes_dedup_fingerprint():
+    """같은 종목·수량·주문구분이라도 KRX vs NXT 는 다른 주문 -- 같은 id 재사용은 CONFLICT."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930", market="KRX").buy(quantity=10, division="immediate_limit", client_order_id="ID-1")
+    with pytest.raises(KISUsageError):
+        kis.domestic.stock("005930", market="NXT").buy(
+            quantity=10, division="immediate_limit", client_order_id="ID-1")
+
+
+def test_reconcile_matches_board_not_other_board():
+    """타임아웃된 NXT 주문은 자기 NXT 행에 매칭돼야 한다(같은 종목·수량의 KRX 행 오확정 금지)."""
+    store = OrderStore()
+    cid = "20240101-nxt-rc01"
+    place_t = FakeTransport(by_path={_ORDER_CASH: [TransportTimeout("t")]})
+    with pytest.raises(OrderTimeoutError):
+        _client(place_t, store=store).domestic.stock("005930", market="NXT").buy(
+            quantity=10, division="immediate_limit", client_order_id=cid)
+    rows = [_daily_order_row(odno="KRXROW", order_division="03", order_unit_price="0", excg="KRX"),
+            _daily_order_row(odno="NXTROW", order_division="03", order_unit_price="0", excg="NXT")]
+    recon_t = FakeTransport(by_path={_DAILY_CCLD: [_daily_orders_response(rows)]})
+    report = _client(recon_t, store=store).orders.reconcile(cid)
+    assert report is not None
+    assert report.order_id == "NXTROW"
+
+
 def test_old_schema_store_loads_with_empty_division(tmp_path):
     """v3(division 없는 11필드) 저장소도 division='' 로 하위호환 로드된다 -- 기존 영속 dedup 저장소가
     깨지면 재시작 후 이중체결 장벽이 사라지므로, 구버전 읽기는 안전상 반드시 보존돼야 한다."""
@@ -468,6 +525,18 @@ def test_old_schema_store_loads_with_empty_division(tmp_path):
     assert fp is not None
     assert fp.division == ""
     assert fp.session == "regular"
+    assert fp.board == "KRX"          # v5 신규 필드도 기본값으로 하위호환
+
+
+def test_board_persists_across_store_reopen(tmp_path):
+    """store v5 라운드트립 -- NXT 주문의 board 가 닫고 다시 열어도 지문에 보존돼야 dedup 이 유지된다."""
+    path = tmp_path / "orders.json"
+    cid = "20240101-nxt-persist01"
+    store1 = OrderStore(path=path)
+    _client(FakeTransport(response=_ACCEPTED_ORDER_RESPONSE), store=store1).domestic.stock(
+        "005930", market="NXT").buy(quantity=10, division="immediate_limit", client_order_id=cid)
+    store1.close()
+    assert OrderStore(path=path).fingerprint_for(cid).board == "NXT"
 
 
 def test_division_distinguishes_dedup_fingerprint():

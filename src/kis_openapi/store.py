@@ -42,12 +42,12 @@ _KST = timezone(timedelta(hours=9))
 
 #: 이 릴리스가 쓰는 스키마 버전.
 #: v2: Fingerprint 에 credit_type/loan_date(신용주문). v3: session(미국주간거래). v4: division(국내
-#: 주문구분: 최유리/최우선/조건부) 추가. 구버전 레코드는 새 필드가 기본값("", "regular")으로 채워져
-#: 그대로 읽힌다(Fingerprint(*fp) 가 뒤쪽 누락 필드를 기본값으로 채움). 구 바이너리는 새 버전 파일을
-#: 손상이 아니라 미지원 버전으로 거부하게 해 오진단을 막는다.
-_SCHEMA_VERSION = 4
+#: 주문구분: 최유리/최우선/조건부). v5: board(국내 체결 보드 KRX/NXT/UN) 추가. 구버전 레코드는 새 필드가
+#: 기본값("", "regular", "KRX")으로 채워져 그대로 읽힌다(Fingerprint(*fp) 가 뒤쪽 누락 필드를 기본값으로
+#: 채움). 구 바이너리는 새 버전 파일을 손상이 아니라 미지원 버전으로 거부하게 해 오진단을 막는다.
+_SCHEMA_VERSION = 5
 #: 읽을 수 있는 스키마 버전 집합(이 밖은 UnsupportedSchemaVersionError 로 거부).
-_READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4})
+_READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5})
 #: 완료(비-in-flight) 리포트 보존 기본 일수 -- 이 이후엔 정리(무한 성장 방지). client_order_id
 #: 가 날짜를 포함하므로 같은 id 재전송 위험 창은 당일이라, 넉넉한 기본값이 dedup 을 약화하지 않는다.
 _DEFAULT_RETENTION_DAYS = 7
