@@ -96,7 +96,8 @@ class _StockBase(abc.ABC):
         타임아웃(체결 불명)은 ``OrderTimeoutError`` -- 후자는 ``kis.orders.reconcile`` 로 확인한다.
         """
         return self._client._place_order(
-            self._make_order("buy", quantity, price, time_in_force, client_order_id)
+            self._make_order("buy", quantity=quantity, price=price,
+                             time_in_force=time_in_force, client_order_id=client_order_id)
         )
 
     def sell(
@@ -105,7 +106,8 @@ class _StockBase(abc.ABC):
     ) -> ExecutionReport:
         """이 종목을 매도한다 -- 계약은 :meth:`buy` 와 동일(방향만 매도)."""
         return self._client._place_order(
-            self._make_order("sell", quantity, price, time_in_force, client_order_id)
+            self._make_order("sell", quantity=quantity, price=price,
+                             time_in_force=time_in_force, client_order_id=client_order_id)
         )
 
     def reserve_buy(
@@ -121,25 +123,27 @@ class _StockBase(abc.ABC):
         해외(미국)는 지정가 예약(``price`` 필수, ``end_date`` 미지원)이다. 잘못된 인자/계좌 미설정은
         ``KISUsageError``, 조회전용 계좌는 ``AccountNotOrderableError``, 접수 거부는 ``OrderRejectedError``,
         타임아웃(접수 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile`` 로 확인)."""
-        return self._reserve("buy", quantity, price, end_date, client_order_id)
+        return self._reserve("buy", quantity=quantity, price=price,
+                             end_date=end_date, client_order_id=client_order_id)
 
     def reserve_sell(
         self, *, quantity: object, price: object | None = None, end_date: str | None = None,
         client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 종목의 **예약매도**. 계약·안전 규칙은 :meth:`reserve_buy` 와 같다(방향만 매도)."""
-        return self._reserve("sell", quantity, price, end_date, client_order_id)
+        return self._reserve("sell", quantity=quantity, price=price,
+                             end_date=end_date, client_order_id=client_order_id)
 
     @abc.abstractmethod
     def _make_order(
-        self, side: Side, quantity: object, price: object | None,
+        self, side: Side, *, quantity: object, price: object | None,
         time_in_force: TimeInForce, client_order_id: str | None,
     ) -> Order:
         """자산군별 즉시주문 와이어 조립(서브클래스 구현)."""
 
     @abc.abstractmethod
     def _reserve(
-        self, side: Side, quantity: object, price: object | None, end_date: str | None,
+        self, side: Side, *, quantity: object, price: object | None, end_date: str | None,
         client_order_id: str | None,
     ) -> ExecutionReport:
         """자산군별 예약주문 발주(서브클래스 구현)."""
@@ -454,7 +458,7 @@ class DomesticStock(_StockBase):
         )
 
     def credit_buyable(
-        self, *, credit_type: str = "21", limit_price: object | None = None
+        self, *, credit_type: CreditType = "21", limit_price: object | None = None
     ) -> BuyableAmount:
         """이 종목의 신용(융자/대주) 매수가능 여력. ``credit_type`` 신용유형(기본 21 자기융자신규,
         22 유통대주신규/23 유통융자신규/24 자기대주신규/25~28 각 상환), ``limit_price`` 없으면 시장가
@@ -553,7 +557,7 @@ class DomesticStock(_StockBase):
         ))
 
     def _make_order(
-        self, side: Side, quantity: object, price: object | None,
+        self, side: Side, *, quantity: object, price: object | None,
         time_in_force: TimeInForce, client_order_id: str | None,
     ) -> Order:
         return self._make_domestic_order(
@@ -591,7 +595,7 @@ class DomesticStock(_StockBase):
                            client_order_id=client_order_id)
 
     def _reserve(
-        self, side: Side, quantity: object, price: object | None, end_date: str | None,
+        self, side: Side, *, quantity: object, price: object | None, end_date: str | None,
         client_order_id: str | None,
     ) -> ExecutionReport:
         self._require_krx_board("예약주문")
@@ -672,22 +676,24 @@ class OverseasStock(_StockBase):
         ``kis.orders.modify``). **모의투자 미지원**, 미국(NAS/NYS/AMS)만. 타임아웃 시 ``kis.orders.reconcile``
         은 주간 체결이 정규 체결내역에 없어 자동 확정하지 않고 None(in-flight 유지)을 준다 -- 수동 확인이
         필요하다. 예외는 :meth:`buy` 와 같다(접수 거부 ``OrderRejectedError``·타임아웃 ``OrderTimeoutError``)."""
-        return self._client._place_order(self._make_daytime_order("buy", quantity, price, client_order_id))
+        return self._client._place_order(self._make_daytime_order(
+            "buy", quantity=quantity, price=price, client_order_id=client_order_id))
 
     def daytime_sell(
         self, *, quantity: object, price: object, client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 미국 종목을 미국주간거래로 매도한다(계약은 :meth:`daytime_buy` 와 동일, 방향만 매도)."""
-        return self._client._place_order(self._make_daytime_order("sell", quantity, price, client_order_id))
+        return self._client._place_order(self._make_daytime_order(
+            "sell", quantity=quantity, price=price, client_order_id=client_order_id))
 
     def _make_daytime_order(
-        self, side: Side, quantity: object, price: object, client_order_id: str | None,
+        self, side: Side, *, quantity: object, price: object, client_order_id: str | None,
     ) -> Order:
         return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
                            exchange=self.exchange, session="daytime", client_order_id=client_order_id)
 
     def _make_order(
-        self, side: Side, quantity: object, price: object | None,
+        self, side: Side, *, quantity: object, price: object | None,
         time_in_force: TimeInForce, client_order_id: str | None,
     ) -> Order:
         if price is None:
@@ -697,7 +703,7 @@ class OverseasStock(_StockBase):
                            exchange=self.exchange)
 
     def _reserve(
-        self, side: Side, quantity: object, price: object | None, end_date: str | None,
+        self, side: Side, *, quantity: object, price: object | None, end_date: str | None,
         client_order_id: str | None,
     ) -> ExecutionReport:
         if end_date is not None:      # 미국 예약: 지정가만, end_date 미지원

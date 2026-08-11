@@ -256,7 +256,8 @@ def test_overseas_reconcile_date_window_is_deterministic():
     kst = timezone(__import__("datetime").timedelta(hours=9))
     store = OrderStore()
     order = _client(FakeTransport(response=_ack())).overseas.stock(
-        "AAPL", exchange="NAS")._make_order("buy", 1, "150.00", "day", "d1")
+        "AAPL", exchange="NAS")._make_order(
+            "buy", quantity=1, price="150.00", time_in_force="day", client_order_id="d1")
     store.try_claim("d1", order.fingerprint)            # in-flight 로 만든다
     fake = FakeTransport(on_get=_ccnl([]))
     engine.reconcile(fake, store, "d1", cano="1", product_code="01", environment="real",
