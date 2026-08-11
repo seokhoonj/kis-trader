@@ -164,6 +164,35 @@ def test_replace_domestic_order_maps_new_quantity_and_price():
     assert call["body"]["QTY_ALL_ORD_YN"] == "N"
 
 
+def test_modify_rebinds_client_order_id_to_new_odno_so_cancel_targets_it():
+    """정정하면 KIS 가 원주문에 **새 ODNO** 를 부여한다. 원 client_order_id 는 이후에도
+    그 살아있는 주문을 가리켜야 한다 -- 낡은 ODNO 로 취소하면 '정정취소 가능수량 없음'
+    으로 실패한다(실서버에서 실증). 정정 응답의 새 ODNO 와 조직번호를 원 id 의 표준
+    리포트에 반영해, 이어지는 cancel/modify 가 정정된 주문을 지목하게 한다."""
+    place = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "PLACE-ODNO", "ORD_TMD": "090000"}})
+    modified = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "02880", "ODNO": "MODIFY-ODNO", "ORD_TMD": "090100"}})
+    canceled = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "02880", "ODNO": "MODIFY-ODNO", "ORD_TMD": "090200"}})
+    fake = FakeTransport(by_path={_ORDER_CASH: place,
+                                  _ORDER_CHANGE: [modified, canceled]})
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
+    report = kis.orders.modify("orig-1", price=71000, request_id="modify-1")
+
+    # 정정 응답의 새 ODNO 가 원 id 의 표준 상태로 반영된다.
+    assert report.order_id == "MODIFY-ODNO"
+    assert store.report_for("orig-1").order_id == "MODIFY-ODNO"
+
+    # 이어지는 취소가 원 id 로 새 ODNO(와 그 조직번호)를 지목한다.
+    kis.orders.cancel("orig-1", request_id="cancel-1")
+    cancel_call = fake.calls[2]
+    assert cancel_call["body"]["ORGN_ODNO"] == "MODIFY-ODNO"
+    assert cancel_call["body"]["KRX_FWDG_ORD_ORGNO"] == "02880"
+
+
 def test_domestic_change_timeout_stays_in_flight_and_is_not_resent():
     fake = FakeTransport(
         by_path={

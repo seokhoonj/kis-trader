@@ -25,6 +25,7 @@ KIS URL/TR-id (국내주식):
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any, TypeAlias
@@ -329,6 +330,14 @@ def submit_change(
         _raw=resp.body,
     )
     store.record(report, action_fingerprint)
+    if action == "modify":
+        # 정정은 KIS 가 원주문에 **새 ODNO** 를 부여한다(원 ODNO 는 정정취소 가능수량 소멸).
+        # 원 client_order_id 가 이후에도 그 살아있는 주문을 가리키도록, 정정 응답의 새 ODNO 와
+        # 조직번호(report._raw)를 원 id 의 표준 리포트에 재바인딩한다 -- 안 하면 다음 cancel/
+        # modify 가 낡은 ODNO 를 보내 '정정취소 가능수량 없음'으로 거부된다(실서버 실증).
+        store.record(
+            replace(report, client_order_id=original_client_order_id), original_fingerprint
+        )
     return report
 
 
