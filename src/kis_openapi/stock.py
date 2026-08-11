@@ -491,6 +491,7 @@ class DomesticStock(_StockBase):
         현금 :meth:`buy` 와 같은 안전 엔진(이중체결 방지·타임아웃 재시도 금지)을 공유한다. **모의투자
         미지원**. 잘못된 조합/계좌 미설정은 ``KISUsageError``, 접수 거부는 ``OrderRejectedError``,
         타임아웃(체결 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile`` 로 확인)."""
+        self._require_krx_board("신용주문")
         return self._client._place_order(Order.credit(
             self.symbol, side="buy", quantity=quantity, credit_type=credit_type, price=price,
             loan_date=loan_date, time_in_force=time_in_force, client_order_id=client_order_id,
@@ -506,6 +507,7 @@ class DomesticStock(_StockBase):
         ``credit_type`` 매도 신용유형(22 유통대주신규/24 자기대주신규/25 자기융자상환/27 유통융자상환),
         ``loan_date``(YYYYMMDD) 상환유형(25/27)일 때 대상 대출일자(필수)·신규유형(22/24)이면 생략(오늘로
         채움). 나머지 인자·안전 규칙·예외는 :meth:`credit_buy` 와 같다. **모의투자 미지원**."""
+        self._require_krx_board("신용주문")
         return self._client._place_order(Order.credit(
             self.symbol, side="sell", quantity=quantity, credit_type=credit_type, price=price,
             loan_date=loan_date, time_in_force=time_in_force, client_order_id=client_order_id,
@@ -589,10 +591,19 @@ class DomesticStock(_StockBase):
         self, side: Side, quantity: object, price: object | None, end_date: str | None,
         client_order_id: str | None,
     ) -> ExecutionReport:
+        self._require_krx_board("예약주문")
         return self._client._place_reserved_order(
             symbol=self.symbol, side=side, quantity=quantity, price=price, end_date=end_date,
             client_order_id=client_order_id,
         )
+
+    def _require_krx_board(self, what: str) -> None:
+        # 신용·예약 주문은 아직 보드(EXCG_ID_DVSN_CD) 배선이 없어 KRX 전용이다 -- NXT/UN 종목 핸들에서
+        # 부르면 조용히 KRX 로 나가지 않도록 fail-closed(즉시 현금주문은 보드를 반영하지만 이 둘은 차기).
+        if self.market != "KRX":
+            raise KISUsageError(
+                f"{what}은 아직 KRX 보드만 지원한다(board={self.market!r}). NXT/통합(SOR)은 차기 지원."
+            )
 
 
 class OverseasStock(_StockBase):

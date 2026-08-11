@@ -107,6 +107,8 @@ _BOARD_UNSUPPORTED_BASES = {
     "NXT": frozenset(("market", "conditional_limit")),
     "UN": frozenset(("conditional_limit",)),
 }
+#: 유효한 국내 보드 값. 알 수 없는 board 는 와이어 빌더의 _BOARD_EXCG KeyError 전에 생성 시점 거부.
+_DOMESTIC_BOARDS = frozenset(("KRX", "NXT", "UN"))
 
 _KST = timezone(timedelta(hours=9))
 
@@ -270,6 +272,8 @@ class Order:
             elif self.division == "conditional_limit" and self.order_type != "limit":
                 raise KISUsageError("conditional_limit(조건부지정가)은 지정가(limit) 기반이어야 한다.")
 
+        if self.board not in _DOMESTIC_BOARDS:
+            raise KISUsageError(f"지원하지 않는 board: {self.board!r} (KRX/NXT/UN).")
         # 보드(NXT/UN)별 미지원 주문구분 -- 국내 주문에만. NXT 는 시장가·조건부, SOR(UN)은 조건부를
         # 지원하지 않으므로 와이어 전(생성 시점)에 fail-closed. base = division 있으면 그것, 없으면 order_type.
         if self.exchange in _DOMESTIC_EXCHANGES:

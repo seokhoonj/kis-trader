@@ -450,7 +450,7 @@ def _make_credit_order_request(
         "ORD_QTY": _format_optional_wire_decimal(order.quantity),
         "ORD_UNPR": "0" if order.order_type == "market" else _format_optional_wire_decimal(order.limit_price),
         "RSVN_ORD_YN": "N",
-        "EXCG_ID_DVSN_CD": "KRX",
+        "EXCG_ID_DVSN_CD": _BOARD_EXCG[order.board],   # 신용은 board="KRX"(=KRX) -- cash/change 와 일관
     }
     return WireRequest("POST", _ORDER_CREDIT_PATH, _ORDER_CREDIT_TR[order.side], body)
 
@@ -514,7 +514,7 @@ def _filter_matching_daily_rows(
     # reconcile 도 place 와 같은 리졸버로 ORD_DVSN 을 유도해야 division 주문이 자기 행에 매칭된다
     # (order_type 만으로 유도하면 최유리(03)를 01 로 찾아 무관한 시장가 행을 오확정한다).
     want_dvsn = _resolve_ord_dvsn(order_type, fingerprint.division, fingerprint.time_in_force)
-    want_excg = _BOARD_EXCG.get(fingerprint.board, "KRX")   # 보드 -> EXCG(KRX/NXT/SOR)
+    want_excg = _BOARD_EXCG[fingerprint.board]    # 보드 -> EXCG(KRX/NXT/SOR). 빌더와 같은 strict 조회.
     want_loan_date = fingerprint.loan_date        # 신용이면 대출일자, 현금이면 ""
     matched = []
     for row in rows:
@@ -524,9 +524,10 @@ def _filter_matching_daily_rows(
             continue
         if want_dvsn is not None and str(row.get("ord_dvsn_cd", "")) not in ("", want_dvsn):
             continue
-        # 보드 구분: KRX vs NXT 는 다른 거래소 주문 -- 행의 거래소(excg_id_dvsn_cd)가 지문 보드와 같아야
-        # (같은 종목·수량·주문구분의 KRX 체결이 미접수 NXT 주문을 phantom 확정하는 것 방지). 빈 값은 관용.
-        if str(row.get("excg_id_dvsn_cd", "")) not in ("", want_excg):
+        # 보드 구분: KRX vs NXT 는 다른 거래소 주문 -- 행의 거래소(excg_id_dvsn_cd)가 지문 보드와 정확히
+        # 같아야 한다(같은 종목·수량·주문구분의 KRX 체결이 미접수 NXT 주문을 phantom 확정하는 것 방지).
+        # 거래소 필드는 실응답에 실재하므로(라이브 확인) blank 는 관용하지 않고 비매칭으로 본다(오확정 방지).
+        if str(row.get("excg_id_dvsn_cd", "")) != want_excg:
             continue
         # 신용/현금 구분: 신용주문 지문(loan_date != "")은 행의 loan_dt 가 그 대출일자와 같아야,
         # 현금주문 지문("")은 행에 대출일자가 없어야 매칭한다(cash<->credit 오확정 방지).

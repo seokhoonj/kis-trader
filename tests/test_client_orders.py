@@ -70,7 +70,7 @@ def _daily_orders_response(rows):
 
 def _daily_order_row(*, odno="0000117057", symbol="005930", side_code="02", order_division="00",
                      order_quantity="10", order_unit_price="70000", filled_quantity="10",
-                     average_price="70000", rejected_quantity="0", canceled="N", excg=""):
+                     average_price="70000", rejected_quantity="0", canceled="N", excg="KRX"):
     return {"odno": odno, "pdno": symbol, "sll_buy_dvsn_cd": side_code,
             "ord_dvsn_cd": order_division, "ord_qty": order_quantity, "ord_unpr": order_unit_price,
             "tot_ccld_qty": filled_quantity, "avg_prvs": average_price,
@@ -526,6 +526,24 @@ def test_old_schema_store_loads_with_empty_division(tmp_path):
     assert fp.division == ""
     assert fp.session == "regular"
     assert fp.board == "KRX"          # v5 신규 필드도 기본값으로 하위호환
+
+
+@pytest.mark.parametrize("market", ["NXT", "UN"])
+def test_credit_order_rejects_non_krx_board(market):
+    """신용주문은 보드 배선이 아직 없어 KRX 만 -- NXT/UN 종목의 신용주문은 조용히 KRX 로 안 보내고 거부."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(KISUsageError):
+        _client(fake).domestic.stock("005930", market=market).credit_buy(quantity=10, credit_type="21")
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("market", ["NXT", "UN"])
+def test_reserved_order_rejects_non_krx_board(market):
+    """예약주문도 보드 배선이 아직 없어 KRX 만 -- NXT/UN 종목의 예약주문은 거부."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(KISUsageError):
+        _client(fake).domestic.stock("005930", market=market).reserve_buy(quantity=10, price=70000)
+    assert fake.calls == []
 
 
 def test_board_persists_across_store_reopen(tmp_path):

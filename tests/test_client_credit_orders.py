@@ -67,11 +67,12 @@ def _client(transport, *, environment="real", account="12345678-01", store=None,
 
 def _credit_daily_row(*, odno="0001569138", symbol="009150", side_code="02", order_division="00",
                       order_quantity="1", order_unit_price="130000", filled_quantity="1",
-                      average_price="130000", loan_dt="20211103", rejected_quantity="0", canceled="N"):
+                      average_price="130000", loan_dt="20211103", rejected_quantity="0", canceled="N",
+                      excg="KRX"):
     return {"odno": odno, "pdno": symbol, "sll_buy_dvsn_cd": side_code, "ord_dvsn_cd": order_division,
             "ord_qty": order_quantity, "ord_unpr": order_unit_price, "tot_ccld_qty": filled_quantity,
             "avg_prvs": average_price, "loan_dt": loan_dt, "rjct_qty": rejected_quantity,
-            "cncl_yn": canceled}
+            "cncl_yn": canceled, "excg_id_dvsn_cd": excg}
 
 
 # --- 정상 전송 -------------------------------------------------------------
