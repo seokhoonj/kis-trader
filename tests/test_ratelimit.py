@@ -146,7 +146,8 @@ def test_thread_safe_serializes_and_enforces_rate():
     for t in threads:
         t.start()
     for t in threads:
-        t.join()
+        t.join(timeout=10)                  # 교착 시 무한 대기하지 않고 실패로 드러난다
     elapsed = time.monotonic() - start
+    assert not any(t.is_alive() for t in threads)   # 전원 종료(살아있으면 교착 -> 실패)
     assert len(done) == 20                  # 교착·유실 없이 전원 완료(락이 상태를 지킴)
     assert elapsed >= 0.5                    # 리미터가 강제하는 하한(더 빨라질 수 없음)

@@ -21,6 +21,7 @@ from kis_openapi.errors import (
     OrderError,
     OrderRejectedError,
     OrderTimeoutError,
+    UnsupportedSchemaVersionError,
 )
 from kis_openapi.transport import RawResponse, TransportTimeout
 
@@ -742,6 +743,57 @@ def test_old_schema_report_loads_with_none_org_number(tmp_path):
     assert report is not None
     assert report.organization_number is None      # 누락 키 -> None(하위호환)
     assert report.order_id == "0000117057"          # 나머지 필드는 정상 로드
+
+
+def test_corrupt_json_store_fails_closed(tmp_path):
+    """파싱 불가한(손상) 저장소는 빈 상태로 시작하지 않고 KISError 로 거부한다 -- 빈 시작은 dedup
+    장벽을 지워 재시작 후 이중체결 위험이므로 자동 복구하지 않는다."""
+    path = tmp_path / "orders.json"
+    path.write_text("{ not valid json", encoding="utf-8")
+    with pytest.raises(KISError):
+        OrderStore(path=path)
+
+
+def test_corrupt_record_store_fails_closed(tmp_path):
+    """스키마 버전은 맞지만 레코드 값이 손상된(잘못된 status) 저장소도 fail-closed -- 조용히 버리지 않는다."""
+    import json
+    path = tmp_path / "orders.json"
+    bad_report = {
+        "client_order_id": "ID", "order_id": "1", "symbol": "005930", "side": "buy",
+        "status": "not_a_real_status", "filled_quantity": "0", "average_price": None,
+        "submitted_at": "2026-08-11T09:00:00+09:00",
+    }
+    path.write_text(json.dumps({
+        "schema_version": 6, "in_flight": [], "fingerprints": {}, "reports": {"ID": bad_report},
+    }), encoding="utf-8")
+    with pytest.raises(KISError):
+        OrderStore(path=path)
+
+
+def test_unsupported_schema_version_rejected(tmp_path):
+    """미래/미지원 스키마 버전은 손상이 아니라 미지원으로 명확히 거부한다(구 바이너리가 신버전 파일을
+    손상으로 오진단하지 않게)."""
+    import json
+    path = tmp_path / "orders.json"
+    path.write_text(json.dumps({
+        "schema_version": 999, "in_flight": [], "fingerprints": {}, "reports": {},
+    }), encoding="utf-8")
+    with pytest.raises(UnsupportedSchemaVersionError):
+        OrderStore(path=path)
+
+
+def test_second_opener_rejected_until_first_releases_flock(tmp_path):
+    """같은 경로의 두 번째 OrderStore 는 단일라이터 락(flock)에 막혀 열리지 않고, 첫 스토어를 닫으면
+    다시 열 수 있다 -- 프로세스 간(및 같은 프로세스의 두 인스턴스) 이중전송 방지."""
+    path = tmp_path / "orders.json"
+    first = OrderStore(path=path)
+    try:
+        with pytest.raises(KISError):
+            OrderStore(path=path)          # 두 번째 라이터는 거부된다
+    finally:
+        first.close()
+    reopened = OrderStore(path=path)       # 첫 락 해제 후 재오픈 가능
+    reopened.close()
 
 
 def test_irp_account_is_auto_read_only():
