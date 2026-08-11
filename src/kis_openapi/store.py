@@ -27,7 +27,7 @@ import threading
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import Self
+from typing import NamedTuple, Self
 
 from .errors import KISError, UnsupportedSchemaVersionError
 from .order import Fingerprint
@@ -53,6 +53,14 @@ _READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5, 6})
 #: 완료(비-in-flight) 리포트 보존 기본 일수 -- 이 이후엔 정리(무한 성장 방지). client_order_id
 #: 가 날짜를 포함하므로 같은 id 재전송 위험 창은 당일이라, 넉넉한 기본값이 dedup 을 약화하지 않는다.
 _DEFAULT_RETENTION_DAYS = 7
+
+
+class Binding(NamedTuple):
+    """원자적으로 함께 심을 (리포트, 지문) 한 쌍 -- :meth:`OrderStore.record_change` 의 ``rebind``.
+    "리포트 없는 지문"/"지문 없는 리포트" 같은 반쪽 상태를 표현 불가능하게 해 원자성을 구조로 만든다."""
+
+    report: ExecutionReport
+    fingerprint: Fingerprint
 
 
 class ClaimOutcome(enum.Enum):
@@ -140,18 +148,23 @@ class OrderStore:
             return self._fingerprints.get(client_order_id)
 
     # --- 상태 전이 ----------------------------------------------------
+    def _bind_locked(self, report: ExecutionReport, fingerprint: Fingerprint) -> None:
+        """락을 쥔 상태에서 한 주문의 (리포트, 지문)을 심고 in-flight 를 해제한다 -- 저장(persist)은
+        호출자가 한다. 여러 바인딩을 한 번의 ``_save_locked`` 로 원자적으로 묶으려는 헬퍼."""
+        self._reports[report.client_order_id] = report
+        self._fingerprints[report.client_order_id] = fingerprint
+        self._in_flight.discard(report.client_order_id)
+
     def record(self, report: ExecutionReport, fingerprint: Fingerprint) -> None:
         """접수 리포트를 기록하고 in-flight 를 해제(영속)."""
         with self._lock:
             self._require_open()
-            self._reports[report.client_order_id] = report
-            self._fingerprints[report.client_order_id] = fingerprint
-            self._in_flight.discard(report.client_order_id)
+            self._bind_locked(report, fingerprint)
             self._save_locked()
 
     def record_change(
         self, report: ExecutionReport, fingerprint: Fingerprint, *,
-        rebind: tuple[ExecutionReport, Fingerprint] | None = None,
+        rebind: Binding | None = None,
     ) -> None:
         """변경(정정/취소) 결과를 기록하고, 필요하면 원주문 id 를 정정된 주문으로 **원자적으로**
         재바인딩한다(한 락, 한 번의 영속 쓰기).
@@ -165,14 +178,9 @@ class OrderStore:
         (있으면) 재바인딩 원 id 둘 다. 원 id 는 이미 완료 상태라 해제는 보통 no-op 이다."""
         with self._lock:
             self._require_open()
-            self._reports[report.client_order_id] = report
-            self._fingerprints[report.client_order_id] = fingerprint
-            self._in_flight.discard(report.client_order_id)
+            self._bind_locked(report, fingerprint)
             if rebind is not None:
-                rebound_report, rebound_fingerprint = rebind
-                self._reports[rebound_report.client_order_id] = rebound_report
-                self._fingerprints[rebound_report.client_order_id] = rebound_fingerprint
-                self._in_flight.discard(rebound_report.client_order_id)
+                self._bind_locked(rebind.report, rebind.fingerprint)
             self._save_locked()
 
     def clear_in_flight(self, client_order_id: str) -> None:

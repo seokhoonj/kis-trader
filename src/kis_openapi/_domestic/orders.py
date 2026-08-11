@@ -42,7 +42,7 @@ from ..instrument import resolve_market
 from ..order import ChangeAction, Fingerprint, Order, WireRequest, format_wire_decimal
 from ..report import ExecutionReport, OrderStatus
 from ..risk import RiskLimits
-from ..store import ClaimOutcome, OrderStore
+from ..store import Binding, ClaimOutcome, OrderStore
 from ..transport import Environment, Transport, TransportTimeout
 from . import market_data
 
@@ -183,7 +183,7 @@ def place(
         filled_quantity=Decimal(0),
         average_price=None,
         submitted_at=datetime.now(_KST),
-        organization_number=_extract_org_number(output),
+        organization_number=_extract_organization_number(output),
         _raw=resp.body,
     )
     store.record(report, fingerprint)
@@ -358,10 +358,10 @@ def submit_change(
         average_price=original_report.average_price,
         submitted_at=datetime.now(_KST),
         # 정정 응답의 새 조직번호(없으면 원주문 것 유지) -- 정정 시 새 ODNO 와 짝이 되어 영속된다.
-        organization_number=_extract_org_number(output) or original_report.organization_number,
+        organization_number=_extract_organization_number(output) or original_report.organization_number,
         _raw=resp.body,
     )
-    rebind: tuple[ExecutionReport, Fingerprint] | None = None
+    rebind: Binding | None = None
     if action == "modify":
         # 정정은 KIS 가 원주문에 **새 ODNO** 를 부여한다(원 ODNO 는 정정취소 가능수량 소멸). 원
         # client_order_id 가 이후에도 그 살아있는 주문을 가리키도록 표준 리포트+지문을 재바인딩한다:
@@ -376,7 +376,7 @@ def submit_change(
             report, client_order_id=original_client_order_id,
             filled_quantity=Decimal(0), average_price=None,   # filled==0 => 평균가 없음(규약)
         )
-        rebind = (rebound_report, resting_fingerprint)
+        rebind = Binding(rebound_report, resting_fingerprint)
     store.record_change(report, action_fingerprint, rebind=rebind)
     return report
 
@@ -388,7 +388,7 @@ def _make_domestic_change_request(
 ) -> WireRequest:
     # 영속되는 리포트 필드를 우선 쓰고(재기동 후에도 유효), 없으면 미영속 _raw 에서 뽑는다
     # (구버전 레코드 하위호환). 둘 다 없으면 대상 식별 불가라 fail-closed.
-    organization_number = original_report.organization_number or _extract_org_number(
+    organization_number = original_report.organization_number or _extract_organization_number(
         _extract_output_mapping(original_report._raw)
     )
     if not organization_number:
@@ -619,7 +619,7 @@ def _execution_report_from_daily_row(
         filled_quantity=filled,
         average_price=avg if filled > 0 and avg > 0 else None,
         submitted_at=datetime.now(_KST),
-        organization_number=_extract_org_number(row),
+        organization_number=_extract_organization_number(row),
         _raw=row,
     )
 
@@ -636,7 +636,7 @@ def _extract_output_mapping(body: Mapping[str, Any]) -> Mapping[str, Any]:
     return out if isinstance(out, Mapping) else {}
 
 
-def _extract_org_number(output: Mapping[str, Any]) -> str | None:
+def _extract_organization_number(output: Mapping[str, Any]) -> str | None:
     """국내 주문 응답/체결행에서 한국거래소전송주문조직번호를 뽑는다(없으면 None).
 
     접수/정정 응답은 ``KRX_FWDG_ORD_ORGNO``, 일별체결 행은 ``ord_gno_brno`` 키를 쓴다."""

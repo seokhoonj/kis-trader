@@ -128,7 +128,7 @@ def test_client_requests_per_second_override(tmp_path: Any) -> None:
     kis = KISClient(app_key="k", app_secret="s", requests_per_second=3)
     limiter = kis.transport._rate_limiter
     assert isinstance(limiter, SlidingWindowRateLimiter)
-    assert limiter._max == 3 and limiter._window == pytest.approx(1.0)
+    assert limiter._max_requests == 3 and limiter._window_seconds == pytest.approx(1.0)
 
 
 def test_get_builds_request_and_exposes_tr_cont(tmp_path: Any) -> None:

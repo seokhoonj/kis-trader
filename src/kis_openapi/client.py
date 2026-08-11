@@ -90,7 +90,10 @@ class KISClient:
         if transport is None:
             from ._auth import TokenManager
             from ._http import RequestsTransport
-            from ._ratelimit import DEFAULT_REQUESTS_PER_SECOND, build_rate_limiter
+            from ._ratelimit import (
+                DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT,
+                SlidingWindowRateLimiter,
+            )
 
             # 앱키 단위 호출 유량을 선제적으로 지킨다(기본 on). requests_per_second 로 초당 한도를
             # override, 없으면 환경 기본값(실전 15/모의 1 -- 공식 18/1 아래 마진). throttle=False 면
@@ -99,9 +102,9 @@ class KISClient:
             if throttle:
                 per_second = (
                     requests_per_second if requests_per_second is not None
-                    else DEFAULT_REQUESTS_PER_SECOND[environment]
+                    else DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT[environment]
                 )
-                rate_limiter = build_rate_limiter(per_second)
+                rate_limiter = SlidingWindowRateLimiter.from_rate(per_second)
             transport = RequestsTransport(
                 app_key=app_key,
                 app_secret=app_secret,

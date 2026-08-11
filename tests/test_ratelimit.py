@@ -8,9 +8,8 @@ import time
 import pytest
 
 from kis_openapi._ratelimit import (
-    DEFAULT_REQUESTS_PER_SECOND,
+    DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT,
     SlidingWindowRateLimiter,
-    build_rate_limiter,
 )
 from kis_openapi.errors import KISError
 
@@ -31,9 +30,9 @@ class FakeClock:
         self.slept.append(dt)
 
 
-def _limiter(clock: FakeClock, max_requests: int, per_seconds: float = 1.0, **kw):
+def _limiter(clock: FakeClock, max_requests: int, window_seconds: float = 1.0, **kw):
     return SlidingWindowRateLimiter(
-        max_requests, per_seconds=per_seconds, clock=clock.now, sleep=clock.sleep, **kw
+        max_requests, window_seconds=window_seconds, clock=clock.now, sleep=clock.sleep, **kw
     )
 
 
@@ -79,7 +78,7 @@ def test_window_slides_allows_more_after_gap():
 
 def test_wait_exceeding_max_wait_raises():
     clock = FakeClock()
-    rl = _limiter(clock, 1, per_seconds=10.0, max_wait=1.0)
+    rl = _limiter(clock, 1, window_seconds=10.0, max_wait=1.0)
     rl.acquire()                        # t=0
     with pytest.raises(KISError, match="유량|대기|rate"):
         rl.acquire()                    # 필요 대기 10s > max_wait 1s
@@ -91,34 +90,34 @@ def test_zero_or_negative_max_requests_rejected():
         _limiter(clock, 0)
 
 
-def test_build_rate_limiter_integer_rate():
+def test_from_rate_integer_rate():
     clock = FakeClock()
-    rl = build_rate_limiter(2, clock=clock.now, sleep=clock.sleep)   # 초당 2건
+    rl = SlidingWindowRateLimiter.from_rate(2, clock=clock.now, sleep=clock.sleep)   # 초당 2건
     rl.acquire()
     rl.acquire()
     rl.acquire()                        # 3번째는 1초 대기
     assert clock.slept == [1.0]
 
 
-def test_build_rate_limiter_fractional_rate():
+def test_from_rate_fractional_rate():
     clock = FakeClock()
-    rl = build_rate_limiter(0.5, clock=clock.now, sleep=clock.sleep)  # 2초당 1건
+    rl = SlidingWindowRateLimiter.from_rate(0.5, clock=clock.now, sleep=clock.sleep)  # 2초당 1건
     rl.acquire()
     rl.acquire()                        # 2초 대기
     assert clock.slept == [2.0]
 
 
-def test_build_rate_limiter_rejects_nonpositive():
+def test_from_rate_rejects_nonpositive():
     with pytest.raises(ValueError):
-        build_rate_limiter(0)
+        SlidingWindowRateLimiter.from_rate(0)
 
 
-def test_build_rate_limiter_scales_max_wait_to_window():
+def test_from_rate_scales_max_wait_to_window():
     """아주 낮은 rate(창 > 기본 max_wait 60s)여도 정상 대기가 max_wait 를 넘어 spurious raise 되면
-    안 된다 -- 팩토리가 창(per_seconds)에 맞춰 max_wait 를 키운다. (안 그러면 낮은 rps 설정이
+    안 된다 -- 팩토리가 창(window_seconds)에 맞춰 max_wait 를 키운다. (안 그러면 낮은 rps 설정이
     주문 경로에서 KISError 로 in-flight 를 고착시킨다.)"""
     clock = FakeClock()
-    rl = build_rate_limiter(0.01, clock=clock.now, sleep=clock.sleep)   # 100초당 1건(창 100s)
+    rl = SlidingWindowRateLimiter.from_rate(0.01, clock=clock.now, sleep=clock.sleep)   # 100초당 1건(창 100s)
     rl.acquire()
     rl.acquire()                        # 100초 대기 -- 스케일된 max_wait 안 넘어 raise 안 함
     assert clock.slept == [100.0]
@@ -126,14 +125,14 @@ def test_build_rate_limiter_scales_max_wait_to_window():
 
 def test_default_rates_real_and_demo():
     # 공식 실전 18/모의 1 아래 마진.
-    assert DEFAULT_REQUESTS_PER_SECOND["real"] == pytest.approx(15.0)
-    assert DEFAULT_REQUESTS_PER_SECOND["demo"] == pytest.approx(1.0)
+    assert DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT["real"] == pytest.approx(15.0)
+    assert DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT["demo"] == pytest.approx(1.0)
 
 
 def test_thread_safe_serializes_and_enforces_rate():
     # 실시각 동시 acquire 가 교착·유실 없이 전원 완료되고, 리미터가 속도를 강제한다(지터로 더
     # 빨라질 수는 없다 -- 최소 경과시간은 하한으로 신뢰 가능). 5건/0.2초 => 20건은 최소 ~0.6초.
-    rl = SlidingWindowRateLimiter(5, per_seconds=0.2, clock=time.monotonic, sleep=time.sleep)
+    rl = SlidingWindowRateLimiter(5, window_seconds=0.2, clock=time.monotonic, sleep=time.sleep)
     done: list[int] = []
     lock = threading.Lock()
 
