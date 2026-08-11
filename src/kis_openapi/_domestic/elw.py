@@ -697,10 +697,11 @@ def fetch_comparables(transport: Transport, *, underlying: str) -> list[ELWListi
 
 def fetch_newly_listed(
     transport: Transport, *, date: str, right: str = "all",
-    underlying: str = "000000", issuer: str = "00003",
+    underlying: str = "000000", issuer: str = "00000",
 ) -> list[ELWListing]:
     """신규상장 ELW 목록. ``date`` 는 기준일(YYYYMMDD), ``right`` 는 all/call/put(신규상장은 코드
-    02/00/01), ``underlying``/``issuer`` 는 기초자산/발행사 코드."""
+    02/00/01), ``underlying``/``issuer`` 는 기초자산/발행사 코드. ``issuer="00000"`` 은 전 발행사
+    (기본, 형제 만기예정 조회의 원장 코드표와 동일한 발행회사코드 필드)이며 특정 발행사는 그 코드다."""
     right_code = _code_of(right, {"all": "02", "call": "00", "put": "01"}, "right")
     params = {
         "FID_COND_MRKT_DIV_CODE": _MARKET_DIV,

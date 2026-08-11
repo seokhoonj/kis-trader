@@ -51,9 +51,10 @@ class ELWScreenerQueries:
 
     def newly_listed(
         self, *, date: str, right: str = "all",
-        underlying: str = "000000", issuer: str = "00003",
+        underlying: str = "000000", issuer: str = "00000",
     ) -> list[ELWListing]:
-        """신규상장 ELW 목록. ``date`` 는 기준일(YYYYMMDD)."""
+        """신규상장 ELW 목록. ``date`` 는 기준일(YYYYMMDD). ``issuer`` 는 발행사 코드로
+        ``"00000"`` 이면 전 발행사(기본), 특정 발행사는 그 코드(예: ``"00003"`` 한국투자증권)."""
         return elw_api.fetch_newly_listed(
             self._client.transport, date=date, right=right,
             underlying=underlying, issuer=issuer,

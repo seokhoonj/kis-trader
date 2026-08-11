@@ -117,6 +117,7 @@ def test_newly_listed_right_code_and_dates():
     assert call["tr_id"] == "FHKEW154800C0"
     assert call["params"]["FID_DIV_CLS_CODE"] == "00"            # 신규상장 call=00
     assert call["params"]["FID_INPUT_DATE_1"] == "20240410"
+    assert call["params"]["FID_INPUT_ISCD_2"] == "00000"         # 기본 발행사=전체(형제 조회와 동일 코드표)
 
 
 # --- expiring (콜풋 코드 2/0/1) ---------------------------------------------
