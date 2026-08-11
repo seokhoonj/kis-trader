@@ -86,6 +86,8 @@ class RequestsTransport:
         self._custtype = custtype
         self._send = send
         self._sleep = sleep
+        if max_attempts < 1:  # 0 이면 어떤 시도도 못 해 결과가 불명 -- 생성 시점에 거부(fail-fast)
+            raise ValueError(f"max_attempts 는 1 이상이어야 한다: {max_attempts}")
         self._max_attempts = max_attempts
         # 앱키 단위 호출 유량 제한기(선택). None 이면 스로틀 없음. 전송 시도마다 acquire.
         self._rate_limiter = rate_limiter
@@ -145,7 +147,7 @@ class RequestsTransport:
                 self._sleep(0.1 * (attempt + 1))
             except ValueError as err:
                 raise KISError("KIS HTTP 응답이 올바른 JSON이 아니다.") from err
-        else:
+        else:  # attempts>=1 이 보장돼(위 생성자 검증) 정상 흐름에선 닿지 않는 백스톱 -- payload 미정의 방지
             raise TransportTimeout("KIS HTTP 요청의 결과를 확인할 수 없다.")
 
         # 에러 응답도 KIS 봉투(rt_cd/msg_cd/msg1)를 실어 올려 호출자가 프로그램으로 분기할 수 있게 한다.

@@ -337,35 +337,36 @@ def _fsync_dir(directory: Path) -> None:
         os.close(dir_fd)
 
 
-def _report_to_dict(r: ExecutionReport) -> dict[str, object]:
+def _report_to_dict(report: ExecutionReport) -> dict[str, object]:
     # raw 는 벤더 와이어 DTO -- 영속하지 않는다(재로드 시 raw={} 로 복원, 아래 명시).
     return {
-        "client_order_id": r.client_order_id,
-        "order_id": r.order_id,
-        "symbol": r.symbol,
-        "side": r.side,
-        "status": r.status.value,
-        "filled_quantity": str(r.filled_quantity),
-        "average_price": None if r.average_price is None else str(r.average_price),
-        "submitted_at": r.submitted_at.isoformat(),
-        "organization_number": r.organization_number,
+        "client_order_id": report.client_order_id,
+        "order_id": report.order_id,
+        "symbol": report.symbol,
+        "side": report.side,
+        "status": report.status.value,
+        "filled_quantity": str(report.filled_quantity),
+        "average_price": None if report.average_price is None else str(report.average_price),
+        "submitted_at": report.submitted_at.isoformat(),
+        "organization_number": report.organization_number,
     }
 
 
-def _report_from_dict(d: dict[str, object]) -> ExecutionReport:
-    avg = d["average_price"]
+def _report_from_dict(report_data: dict[str, object]) -> ExecutionReport:
+    average_price = report_data["average_price"]
     return ExecutionReport(
-        client_order_id=str(d["client_order_id"]),
-        order_id=None if d["order_id"] is None else str(d["order_id"]),
-        symbol=str(d["symbol"]),
-        side=str(d["side"]),
-        status=OrderStatus(str(d["status"])),
-        filled_quantity=Decimal(str(d["filled_quantity"])),
-        average_price=None if avg is None else Decimal(str(avg)),
-        submitted_at=datetime.fromisoformat(str(d["submitted_at"])),
+        client_order_id=str(report_data["client_order_id"]),
+        order_id=None if report_data["order_id"] is None else str(report_data["order_id"]),
+        symbol=str(report_data["symbol"]),
+        side=str(report_data["side"]),
+        status=OrderStatus(str(report_data["status"])),
+        filled_quantity=Decimal(str(report_data["filled_quantity"])),
+        average_price=None if average_price is None else Decimal(str(average_price)),
+        submitted_at=datetime.fromisoformat(str(report_data["submitted_at"])),
         # 구버전(v5 이하) 레코드엔 없으니 누락 시 None (해당 주문은 재기동 후 취소 불가 -- 종전과 동일).
         organization_number=(
-            None if d.get("organization_number") is None else str(d["organization_number"])
+            None if report_data.get("organization_number") is None
+            else str(report_data["organization_number"])
         ),
         # raw 는 영속되지 않음 -- 재로드된 리포트는 raw={} (빈 와이어 바디와 구별 안 됨).
     )

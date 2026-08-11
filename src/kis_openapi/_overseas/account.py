@@ -323,8 +323,8 @@ def fetch_transactions(
 def _parse_transaction(row: Mapping[str, Any]) -> OverseasTransaction:
     currency = str(row.get("crcy_cd", "")).strip()
     return OverseasTransaction(
-        trade_date=_YYYYMMDD(row.get("trad_dt")),
-        settlement_date=_YYYYMMDD(row.get("sttl_dt")),
+        trade_date=_parse_optional_date(row.get("trad_dt")),
+        settlement_date=_parse_optional_date(row.get("sttl_dt")),
         side=_SIDE.get(str(row.get("sll_buy_dvsn_cd", "")).strip(), ""),
         symbol=str(row.get("pdno", "")).strip(),
         name=str(row.get("ovrs_item_name", "")).strip(),
@@ -610,7 +610,7 @@ def fetch_period_profit(
         raise KISError("해외 기간손익이 페이지 상한에 도달했으나 연속조회가 남아있다.")
     profit_rows = tuple(
         OverseasPeriodProfitRow(
-            trade_day=_YYYYMMDD(row.get("trad_day")),
+            trade_day=_parse_optional_date(row.get("trad_day")),
             symbol=str(row.get("ovrs_pdno", "")).strip(),
             name=str(row.get("ovrs_item_name", "")).strip(),
             sold_quantity=_decimal_or_zero(row, "slcl_qty"),
@@ -636,7 +636,7 @@ def fetch_period_profit(
         settlement_amount=_decimal_or_zero(summary, "excc_dfrm_amt"),
         total_realized_pnl=_decimal_or_zero(summary, "ovrs_rlzt_pfls_tot_amt"),
         total_return_rate=_decimal_or_zero(summary, "tot_pftrt"),
-        basis_date=_YYYYMMDD(summary.get("bass_dt")),
+        basis_date=_parse_optional_date(summary.get("bass_dt")),
         exchange_rate=_decimal_or_zero(summary, "exrt"),
         _raw=summary,
     )
@@ -705,7 +705,7 @@ def _parse_hhmmss(value: object) -> time | None:
     return time(hour, minute, second)
 
 
-def _YYYYMMDD(value: object) -> date | None:
+def _parse_optional_date(value: object) -> date | None:
     text = str(value or "").strip()
     if len(text) != 8 or not text.isdigit():
         return None

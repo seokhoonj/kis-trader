@@ -240,11 +240,11 @@ def test_credit_fingerprint_distinct_from_cash():
 
 def test_credit_fingerprint_distinct_by_loan_date():
     # 같은 종목/수량/가격/신용유형이라도 상환 대상 대출이 다르면 다른 주문(다른 지문)
-    a = Order.credit("009150", side="sell", quantity=1, price=130000, credit_type="25",
-                     loan_date="20211103")
-    b = Order.credit("009150", side="sell", quantity=1, price=130000, credit_type="25",
-                     loan_date="20220204")
-    assert a.fingerprint != b.fingerprint
+    repay_nov_loan = Order.credit("009150", side="sell", quantity=1, price=130000,
+                                  credit_type="25", loan_date="20211103")
+    repay_feb_loan = Order.credit("009150", side="sell", quantity=1, price=130000,
+                                  credit_type="25", loan_date="20220204")
+    assert repay_nov_loan.fingerprint != repay_feb_loan.fingerprint
 
 
 def test_credit_replay_same_id_returns_prior():
