@@ -16,13 +16,11 @@ from collections.abc import Mapping
 from datetime import date, datetime, time
 from typing import Any, Literal
 
+from .._bars import _parse_bar_timestamp
 from .._datetime import (
     _KST,
     _parse_kst_date,
     _to_yyyymmdd,
-)
-from .._domestic.market_data import (
-    _parse_bar_timestamp,
     _today_kst,
 )
 from .._response import (

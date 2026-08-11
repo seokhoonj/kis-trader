@@ -19,11 +19,21 @@ from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from typing import Any
 
+from .._bars import (
+    _MAX_MINUTE_PAGES,
+    _parse_bar_timestamp,
+    _parse_minute_bar_timestamp,
+    _period_code_for,
+    _subtract_one_minute,
+    collect_period_bars,
+)
 from .._datetime import (
     _KST,
     _parse_intraday_timestamp,
     _to_yyyymmdd,
+    _today_kst,
 )
+from .._depth import _price_levels
 from .._response import (
     _missing_block_error,
     _raise_if_error,
@@ -49,16 +59,6 @@ from ..derivative_items import (
 from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook
 from ..transport import Transport
-from .market_data import (
-    _MAX_MINUTE_PAGES,
-    _parse_bar_timestamp,
-    _parse_minute_bar_timestamp,
-    _period_code_for,
-    _price_levels,
-    _subtract_one_minute,
-    _today_kst,
-    collect_period_bars,
-)
 
 _QUOTE_PATH = "/uapi/domestic-futureoption/v1/quotations/inquire-price"
 _QUOTE_TR = "FHMIF10000000"

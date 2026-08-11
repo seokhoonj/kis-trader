@@ -20,6 +20,7 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any, Literal, NamedTuple
 
+from .._bars import _parse_bar_timestamp
 from .._datetime import (
     _KST,
     _parse_intraday_timestamp,
@@ -47,7 +48,6 @@ from ..elw_items import (
 )
 from ..errors import KISUsageError
 from ..transport import Transport
-from .market_data import _parse_bar_timestamp
 
 #: ELW 조회의 시장구분코드(원장: ELW W).
 _MARKET_DIV = "W"

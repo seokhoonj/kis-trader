@@ -19,11 +19,13 @@ from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from typing import Any
 
+from .._bars import _parse_minute_bar_timestamp
 from .._datetime import (
     _KST,
     _parse_intraday_timestamp,
     _parse_kst_date,
     _to_yyyymmdd,
+    _today_kst,
 )
 from .._response import (
     _missing_block_error,
@@ -47,10 +49,6 @@ from ..etf_items import (
 )
 from ..order_book import OrderBook, PriceLevel
 from ..transport import Transport
-from .market_data import (
-    _parse_minute_bar_timestamp,
-    _today_kst,
-)
 
 _ETF_NAV_PATH = "/uapi/etfetn/v1/quotations/inquire-price"
 _ETF_NAV_TR = "FHPST02400000"

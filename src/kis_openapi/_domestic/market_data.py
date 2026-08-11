@@ -11,16 +11,27 @@ KIS URL/TR-id:
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping, Sequence
-from datetime import date, datetime, timedelta
+from collections.abc import Mapping, Sequence
+from datetime import date, datetime
 from typing import Any
 
+from .._bars import (
+    _MAX_MINUTE_PAGES,
+    _PERIOD_BY_INTERVAL,
+    _parse_bar_timestamp,
+    _parse_minute_bar_timestamp,
+    _period_code_for,
+    _subtract_one_minute,
+    collect_period_bars,
+)
 from .._datetime import (
     _KST,
     _parse_intraday_timestamp,
     _parse_kst_date,
     _to_yyyymmdd,
+    _today_kst,
 )
+from .._depth import _price_levels
 from .._response import _missing_block_error, _raise_if_error
 from .._wire import (
     _apply_change_sign,
@@ -52,7 +63,7 @@ from ..investor import (
     InvestorEstimate,
     InvestorFlow,
 )
-from ..order_book import OrderBook, PriceLevel
+from ..order_book import OrderBook
 from ..program import DailyProgramTradePoint, ProgramTradePoint
 from ..quote import Quote
 from ..stock_info import StockInfo, StockStatus
@@ -211,9 +222,6 @@ _BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
 _BARS_TR = "FHKST03010100"
 _RECENT_PRICES_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-price"
 _RECENT_PRICES_TR = "FHKST01010400"
-_PERIOD_BY_INTERVAL = {"1d": "D", "1wk": "W", "1mo": "M"}
-#: 날짜창 페이지네이션 안전 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
-_MAX_BAR_PAGES = 200
 
 
 def fetch_recent_prices(
@@ -292,8 +300,6 @@ _SESSION_OPEN = "090000"          # 정규장 개장(HHMMSS) -- 여기까지 훑
 #: 조회 시작 기준시각. 미래시각을 주면 KIS가 현재시각으로 처리하므로, 하루 끝(235959)으로 두면
 #: 어느 보드(KRX/NXT 연장)든 항상 최신 봉부터 받는다(고정 마감시각은 NXT 연장분을 놓칠 수 있음).
 _MINUTE_ANCHOR_START = "235959"
-#: 분봉 페이지 상한(30건/page). 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
-_MAX_MINUTE_PAGES = 60
 
 #: 특정 과거일 분봉(backfill). 당일 분봉과 봉 스키마는 같고, 날짜(FID_INPUT_DATE_1)를 받아 그 날의
 #: 분봉을 준다. TR/URL 만 다르다(과거 데이터 포함 여부 FID_PW_DATA_INCU_YN 은 여기선 당일치=N 고정).
@@ -302,7 +308,6 @@ _MINUTE_DAILY_BARS_TR = "FHKST03010230"
 
 _ORDER_BOOK_PATH = "/uapi/domestic-stock/v1/quotations/inquire-asking-price-exp-ccn"
 _ORDER_BOOK_TR = "FHKST01010200"
-_DEPTH = 10
 
 _TRADES_PATH = "/uapi/domestic-stock/v1/quotations/inquire-ccnl"
 _TRADES_TR = "FHKST01010300"
@@ -402,66 +407,6 @@ def fetch_bars(
     )
 
 
-def collect_period_bars(
-    transport: Transport,
-    *,
-    path: str,
-    tr: str,
-    base_params: dict[str, str],
-    start_date: str,
-    end_date: str,
-    max_bars: int | None,
-    parse_rows: Callable[[Sequence[Mapping[str, Any]]], list[Bar]],
-) -> list[Bar]:
-    """[start, end] 기간봉을 과거->현재 오름차순으로. KIS 페이지 상한을 날짜창을 뒤로 밀며 넘고,
-    중복 날짜는 병합, 빈 페이지면 종료, 페이지 상한에 닿으면 부분 결과로 자르지 않고 예외.
-
-    종목/지수 공용 -- ``base_params`` 는 날짜 외 고정 파라미터(시장구분/코드/기간/수정주가 등),
-    ``parse_rows`` 는 output2 행을 :class:`Bar` 로 바꾸는 파서(필드명이 종목/지수마다 다르다)."""
-    bar_by_date: dict[str, Bar] = {}
-    window_end = end_date
-    for _page in range(_MAX_BAR_PAGES):
-        params = {**base_params, "FID_INPUT_DATE_1": start_date, "FID_INPUT_DATE_2": window_end}
-        resp = transport.request(
-            method="GET", path=path, tr_id=tr, params=params, idempotent=True
-        )
-        _raise_if_error(resp)
-        rows = resp.body.get("output2")
-        if not isinstance(rows, list):  # 성공 응답인데 바 배열 아님 -> fail-closed
-            raise _missing_block_error("output2", resp)
-        page_by_date = {f"{bar.timestamp:%Y%m%d}": bar for bar in parse_rows(rows)}
-        if not page_by_date:
-            break
-        bar_by_date.update(page_by_date)
-        if max_bars is not None and len(bar_by_date) >= max_bars:
-            break  # 최근 max_bars 면 충분 -> 더 안 훑음
-        oldest_date = min(page_by_date)  # YYYYMMDD 고정폭 -> 문자열 비교 = 시간순
-        if oldest_date <= start_date:
-            break
-        oldest = page_by_date[oldest_date].timestamp
-        window_end = f"{oldest - timedelta(days=1):%Y%m%d}"
-    else:
-        raise KISError(
-            f"바 조회가 {_MAX_BAR_PAGES}페이지 상한에 도달했으나 start({start_date})에 못 미쳤다 "
-            f"-- 부분 결과로 자르지 않는다. 범위를 좁히거나 재시도하라."
-        )
-
-    bars = [
-        bar_by_date[key]
-        for key in sorted(bar_by_date)
-        if start_date <= key <= end_date
-    ]
-    if max_bars is not None and len(bars) > max_bars:
-        bars = bars[-max_bars:]
-    return bars
-
-
-def _period_code_for(interval: str) -> str:
-    if interval in _PERIOD_BY_INTERVAL:
-        return _PERIOD_BY_INTERVAL[interval]
-    raise KISUsageError(f"지원하지 않는 기간봉 interval: {interval!r} (1d/1wk/1mo).")
-
-
 def _parse_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:
     bars: list[Bar] = []
     for row in rows:
@@ -482,14 +427,6 @@ def _parse_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:
             )
         )
     return bars
-
-
-def _parse_bar_timestamp(date_text: str) -> datetime:
-    try:
-        day = datetime.strptime(date_text, "%Y%m%d")  # noqa: DTZ007 -- 아래 replace 로 KST-aware
-    except ValueError as err:
-        raise KISError(f"바 날짜(stck_bsop_date) 파싱 실패: {date_text!r}") from err
-    return day.replace(tzinfo=_KST)
 
 
 def _fetch_minute_bars(
@@ -613,23 +550,6 @@ def _parse_minute_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> lis
     return bars
 
 
-def _parse_minute_bar_timestamp(date_text: str, time_text: str) -> datetime:
-    try:
-        moment = datetime.strptime(date_text + time_text, "%Y%m%d%H%M%S")  # noqa: DTZ007 -- KST 결합
-    except ValueError as err:
-        raise KISError(f"분봉 시각 파싱 실패: {date_text!r} {time_text!r}") from err
-    return moment.replace(tzinfo=_KST)
-
-
-def _subtract_one_minute(hhmmss: str) -> str:
-    """"HHMMSS" 에서 1분 뺀 "HHMMSS"(다음 페이지의 기준시각). 분 경계/시 경계 넘김 처리."""
-    try:
-        moment = datetime.strptime(hhmmss, "%H%M%S")  # noqa: DTZ007 -- 날짜 없는 시각 산술용
-    except ValueError as err:
-        raise KISError(f"분봉 기준시각 파싱 실패: {hhmmss!r}") from err
-    return f"{moment - timedelta(minutes=1):%H%M%S}"
-
-
 # --- 호가창 ----------------------------------------------------------------
 def fetch_order_book(transport: Transport, *, symbol: str, market: str) -> OrderBook:
     """한 종목의 10단계 호가창(예상체결 블록은 다루지 않음)."""
@@ -657,22 +577,6 @@ def _parse_order_book(
         as_of=as_of,
         _raw=output1,
     )
-
-
-def _price_levels(
-    output1: Mapping[str, Any], price_key: str, quantity_key: str
-) -> tuple[PriceLevel, ...]:
-    """실재 단계만 최우선->차선 순서로. 빈/0 가격은 건너뛰고, 음수 가격은 손상이라 fail-closed."""
-    levels: list[PriceLevel] = []
-    for step in range(1, _DEPTH + 1):
-        price = optional_decimal(output1.get(f"{price_key}{step}"), f"{price_key}{step}")
-        if price is None or price == 0:
-            continue
-        if price < 0:
-            raise KISError(f"호가 단계 {price_key}{step} 의 가격이 음수다: {price}")
-        quantity = required_int(output1.get(f"{quantity_key}{step}"), f"{quantity_key}{step}")
-        levels.append(PriceLevel(price=price, quantity=quantity))
-    return tuple(levels)
 
 
 # --- 체결(time & sales) ----------------------------------------------------
@@ -1202,10 +1106,6 @@ def _market_div(market: str) -> str:
         return _MARKET_DIV[market]
     except KeyError:
         raise KISUsageError(f"지원하지 않는 국내 시장 보드: {market!r} (KRX/NXT/UN).") from None
-
-
-def _today_kst() -> str:
-    return f"{datetime.now(_KST):%Y%m%d}"
 
 
 # --- 프로그램매매 / 투자자 추정 (per-ticker 시세분석) -----------------------

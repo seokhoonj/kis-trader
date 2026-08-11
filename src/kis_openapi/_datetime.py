@@ -15,6 +15,11 @@ from .errors import KISError, KISUsageError
 _KST = timezone(timedelta(hours=9))
 
 
+def _today_kst() -> str:
+    """오늘(KST)을 "YYYYMMDD" 로. 조회 기본 종료일/앵커 등에 쓴다."""
+    return f"{datetime.now(_KST):%Y%m%d}"
+
+
 def _parse_kst_date(date_text: str) -> date:
     """"YYYYMMDD" -> date. 날짜만 필요한 곳(투자자 일자 등)에서 쓴다."""
     try:

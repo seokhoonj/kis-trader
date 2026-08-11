@@ -15,18 +15,18 @@ from datetime import date, datetime, timedelta
 from decimal import Decimal
 from typing import Any
 
-from .._datetime import (
-    _KST,
-    _to_yyyymmdd,
-)
-from .._domestic.market_data import (
+from .._bars import (
     _MAX_BAR_PAGES,
     _MAX_MINUTE_PAGES,
     _parse_bar_timestamp,
     _parse_minute_bar_timestamp,
-    _price_levels,
+)
+from .._datetime import (
+    _KST,
+    _to_yyyymmdd,
     _today_kst,
 )
+from .._depth import _price_levels
 from .._response import (
     _missing_block_error,
     _raise_if_error,

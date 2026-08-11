@@ -19,12 +19,14 @@ from datetime import date, datetime
 from decimal import Decimal
 from typing import Any
 
+from .._bars import _parse_bar_timestamp
 from .._datetime import (
     _KST,
     _parse_intraday_timestamp,
     _parse_kst_date,
     _to_yyyymmdd,
 )
+from .._depth import _price_levels
 from .._response import (
     _missing_block_error,
     _raise_if_error,
@@ -48,10 +50,6 @@ from ..errors import KISError, KISUsageError
 from ..order_book import OrderBook
 from ..trade import Trade
 from ..transport import Transport
-from .market_data import (
-    _parse_bar_timestamp,
-    _price_levels,
-)
 
 _QUOTE_PATH = "/uapi/domestic-bond/v1/quotations/inquire-price"
 _QUOTE_TR = "FHKBJ773400C0"
