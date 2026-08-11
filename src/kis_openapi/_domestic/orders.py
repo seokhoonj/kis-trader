@@ -183,6 +183,7 @@ def place(
         filled_quantity=Decimal(0),
         average_price=None,
         submitted_at=datetime.now(_KST),
+        organization_number=_extract_org_number(output),
         _raw=resp.body,
     )
     store.record(report, fingerprint)
@@ -355,6 +356,8 @@ def submit_change(
         filled_quantity=original_report.filled_quantity,
         average_price=original_report.average_price,
         submitted_at=datetime.now(_KST),
+        # 정정 응답의 새 조직번호(없으면 원주문 것 유지) -- 정정 시 새 ODNO 와 짝이 되어 영속된다.
+        organization_number=_extract_org_number(output) or original_report.organization_number,
         _raw=resp.body,
     )
     rebind: tuple[ExecutionReport, Fingerprint] | None = None
@@ -381,12 +384,11 @@ def _make_domestic_change_request(
     action: ChangeAction, quantity: Decimal, price: Decimal | None,
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
-    original_output = _extract_output_mapping(original_report._raw)
-    organization_number = str(
-        original_output.get("KRX_FWDG_ORD_ORGNO")
-        or original_output.get("ord_gno_brno")
-        or ""
-    ).strip()
+    # 영속되는 리포트 필드를 우선 쓰고(재기동 후에도 유효), 없으면 미영속 _raw 에서 뽑는다
+    # (구버전 레코드 하위호환). 둘 다 없으면 대상 식별 불가라 fail-closed.
+    organization_number = original_report.organization_number or _extract_org_number(
+        _extract_output_mapping(original_report._raw)
+    )
     if not organization_number:
         raise KISUsageError(
             "원주문 리포트에 한국거래소전송주문조직번호가 없어 정정·취소할 수 없다."
@@ -615,6 +617,7 @@ def _execution_report_from_daily_row(
         filled_quantity=filled,
         average_price=avg if filled > 0 and avg > 0 else None,
         submitted_at=datetime.now(_KST),
+        organization_number=_extract_org_number(row),
         _raw=row,
     )
 
@@ -629,6 +632,14 @@ def _normalize_loan_date(value: object) -> str:
 def _extract_output_mapping(body: Mapping[str, Any]) -> Mapping[str, Any]:
     out = body.get("output", body)
     return out if isinstance(out, Mapping) else {}
+
+
+def _extract_org_number(output: Mapping[str, Any]) -> str | None:
+    """국내 주문 응답/체결행에서 한국거래소전송주문조직번호를 뽑는다(없으면 None).
+
+    접수/정정 응답은 ``KRX_FWDG_ORD_ORGNO``, 일별체결 행은 ``ord_gno_brno`` 키를 쓴다."""
+    org = str(output.get("KRX_FWDG_ORD_ORGNO") or output.get("ord_gno_brno") or "").strip()
+    return org or None
 
 
 def parse_response_decimal(value: object) -> Decimal:

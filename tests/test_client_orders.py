@@ -275,6 +275,24 @@ def test_modify_rebind_persists_in_a_single_store_write(monkeypatch):
     assert saves["n"] == 2          # claim 1회 + 결과기록(변경요청+재바인딩) 단일 save 1회
 
 
+def test_cancel_survives_store_restart_via_persisted_org_number(tmp_path):
+    """path-backed store 재기동(재로드) 후에도 정정·취소가 원주문을 지목한다 -- 조직번호
+    (KRX_FWDG_ORD_ORGNO)는 미영속 ``_raw`` 가 아니라 리포트 필드로 영속되므로 재시작에도
+    살아남는다. (재기동 후엔 ``_raw`` 가 비어, 조직번호를 거기서만 읽으면 취소가 거부된다.)"""
+    path = str(tmp_path / "orders.json")
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with OrderStore(path=path) as store:
+        _client(fake, store=store).domestic.stock("005930").buy(
+            quantity=10, price=70000, client_order_id="orig-1")
+    with OrderStore(path=path) as store2:                 # 재기동 시뮬레이션(새 인스턴스)
+        assert not store2.report_for("orig-1")._raw       # _raw 는 재로드에서 비어있음(설계)
+        _client(fake, store=store2).orders.cancel("orig-1", request_id="cancel-1")
+    call = fake.calls[-1]
+    assert call["path"] == _ORDER_CHANGE
+    assert call["body"]["KRX_FWDG_ORD_ORGNO"] == "01790"  # 조직번호 영속 -> 취소가 지목
+    assert call["body"]["ORGN_ODNO"] == "0000117057"
+
+
 def test_reconcile_of_change_request_is_explicitly_rejected():
     """변경요청(정정/취소)이 in-flight 로 남아도(타임아웃 등) 그 request_id 는 자동 reconcile
     대상이 아니다 -- action 지문의 종목이 실제 종목코드가 아니라 원 주문 식별이라 일별체결 조회로
@@ -654,6 +672,27 @@ def test_old_schema_store_loads_with_empty_division(tmp_path):
     assert fp.division == ""
     assert fp.session == "regular"
     assert fp.board == "KRX"          # v5 신규 필드도 기본값으로 하위호환
+
+
+def test_old_schema_report_loads_with_none_org_number(tmp_path):
+    """v5 이하 리포트(organization_number 키 없음)도 org=None 으로 하위호환 로드된다 -- 그 주문은
+    재기동 후 정정취소 불가(종전과 동일)이나, 저장소는 깨지지 않고 dedup 이 유지돼야 한다."""
+    import json
+    path = tmp_path / "orders.json"
+    report_v5 = {                     # organization_number 키 없음(구버전)
+        "client_order_id": "ID-old", "order_id": "0000117057", "symbol": "005930",
+        "side": "buy", "status": "new", "filled_quantity": "0", "average_price": None,
+        "submitted_at": "2026-08-11T09:00:00+09:00",
+    }
+    fp_v3 = ["005930", "buy", "limit", "10", "70000", "", "day", "XKRX", "", "", "regular"]
+    path.write_text(json.dumps({
+        "schema_version": 5, "in_flight": [],
+        "fingerprints": {"ID-old": fp_v3}, "reports": {"ID-old": report_v5},
+    }), encoding="utf-8")
+    report = OrderStore(path=path).report_for("ID-old")
+    assert report is not None
+    assert report.organization_number is None      # 누락 키 -> None(하위호환)
+    assert report.order_id == "0000117057"          # 나머지 필드는 정상 로드
 
 
 @pytest.mark.parametrize("market", ["NXT", "UN"])

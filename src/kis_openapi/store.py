@@ -42,12 +42,14 @@ _KST = timezone(timedelta(hours=9))
 
 #: 이 릴리스가 쓰는 스키마 버전.
 #: v2: Fingerprint 에 credit_type/loan_date(신용주문). v3: session(미국주간거래). v4: division(국내
-#: 주문구분: 최유리/최우선/조건부). v5: board(국내 체결 보드 KRX/NXT/UN) 추가. 구버전 레코드는 새 필드가
-#: 기본값("", "regular", "KRX")으로 채워져 그대로 읽힌다(Fingerprint(*fp) 가 뒤쪽 누락 필드를 기본값으로
-#: 채움). 구 바이너리는 새 버전 파일을 손상이 아니라 미지원 버전으로 거부하게 해 오진단을 막는다.
-_SCHEMA_VERSION = 5
+#: 주문구분: 최유리/최우선/조건부). v5: board(국내 체결 보드 KRX/NXT/UN) 추가. v6: 리포트에
+#: organization_number(국내 조직번호) 영속 -- 재기동 후 정정취소가 조직번호를 읽게(전엔 미영속 _raw
+#: 에만 있어 재시작하면 취소 불가). 구버전 레코드는 새 필드가 기본값("", "regular", "KRX", None)으로
+#: 채워져 그대로 읽힌다(Fingerprint(*fp) 가 뒤쪽 누락 필드를, 리포트는 dict.get 이 누락 키를 기본값으로).
+#: 구 바이너리는 새 버전 파일을 손상이 아니라 미지원 버전으로 거부하게 해 오진단을 막는다.
+_SCHEMA_VERSION = 6
 #: 읽을 수 있는 스키마 버전 집합(이 밖은 UnsupportedSchemaVersionError 로 거부).
-_READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5})
+_READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5, 6})
 #: 완료(비-in-flight) 리포트 보존 기본 일수 -- 이 이후엔 정리(무한 성장 방지). client_order_id
 #: 가 날짜를 포함하므로 같은 id 재전송 위험 창은 당일이라, 넉넉한 기본값이 dedup 을 약화하지 않는다.
 _DEFAULT_RETENTION_DAYS = 7
@@ -338,6 +340,7 @@ def _report_to_dict(r: ExecutionReport) -> dict[str, object]:
         "filled_quantity": str(r.filled_quantity),
         "average_price": None if r.average_price is None else str(r.average_price),
         "submitted_at": r.submitted_at.isoformat(),
+        "organization_number": r.organization_number,
     }
 
 
@@ -352,5 +355,9 @@ def _report_from_dict(d: dict[str, object]) -> ExecutionReport:
         filled_quantity=Decimal(str(d["filled_quantity"])),
         average_price=None if avg is None else Decimal(str(avg)),
         submitted_at=datetime.fromisoformat(str(d["submitted_at"])),
+        # 구버전(v5 이하) 레코드엔 없으니 누락 시 None (해당 주문은 재기동 후 취소 불가 -- 종전과 동일).
+        organization_number=(
+            None if d.get("organization_number") is None else str(d["organization_number"])
+        ),
         # raw 는 영속되지 않음 -- 재로드된 리포트는 raw={} (빈 와이어 바디와 구별 안 됨).
     )

@@ -65,6 +65,10 @@ class ExecutionReport:
     #: 이 리포트를 로컬에 기록한 시각(보존 정리 기준). 전송 경로에선 접수 시각과 사실상
     #: 같지만, 재조회(reconcile)로 만든 리포트에선 원 접수 시각이 아니라 재조회 시각이다.
     submitted_at: datetime
+    #: 국내 주문의 한국거래소전송주문조직번호(KRX_FWDG_ORD_ORGNO) -- ``order_id`` 와 함께
+    #: 정정·취소 요청의 대상 식별에 필요하다. 접수/재조회 응답에서 뽑아 보관하며, ``_raw`` 와 달리
+    #: 영속되므로 프로세스 재기동 뒤에도 정정·취소가 가능하다. 해외 주문엔 해당 없음(None).
+    organization_number: str | None = None
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
