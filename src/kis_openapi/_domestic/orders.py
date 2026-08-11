@@ -83,6 +83,13 @@ _ORD_DVSN_MAP = {
     ("conditional_limit", "day"): "02",
     ("priority_limit", "day"): "04",
 }
+
+
+def _resolve_ord_dvsn(order_type: str, division: str | None, time_in_force: str) -> str | None:
+    """주문의 실제 ORD_DVSN 을 정한다 -- base=division(있으면) 아니면 order_type. **place·reconcile·정정
+    이 한 리졸버를 공유**해야 division 주문이 세 경로에서 같은 코드로 해석된다(다른 유도를 쓰면 최유리(03)
+    를 시장가(01)로 오인해 재확인 불가·오확정·정정 오코드 전송). 미매핑 조합은 ``None``."""
+    return _ORD_DVSN_MAP.get((division or order_type, time_in_force))
 # our side -> KIS SLL_BUY_DVSN_CD (01 매도, 02 매수)
 _SIDE_CODE = {"buy": "02", "sell": "01"}
 _EXCHANGE_ID = {"XKRX": "KRX", "XKOS": "KRX", "NXTE": "NXT"}
@@ -338,7 +345,10 @@ def _make_domestic_change_request(
         raise KISUsageError(
             "원주문 리포트에 한국거래소전송주문조직번호가 없어 정정·취소할 수 없다."
         )
-    order_division = _ORD_DVSN.get(original_fingerprint.order_type)
+    order_division = _resolve_ord_dvsn(
+        original_fingerprint.order_type, original_fingerprint.division,
+        original_fingerprint.time_in_force,
+    )
     if order_division is None:
         raise KISUsageError("원주문의 주문구분을 정정·취소 와이어로 변환할 수 없다.")
     body = {
@@ -381,14 +391,13 @@ def _make_order_cash_request(
         raise NotImplementedError(
             f"해외주문은 아직 지원하지 않는다(exchange={order.exchange!r})."
         )
-    # ORD_DVSN 은 (주문구분 base, TIF) 로 정한다. base = division(최유리/최우선/조건부) 이 있으면 그것,
-    # 없으면 order_type(limit/market). 미매핑 조합(예: 조건부+ioc, 스톱)은 조용히 day/지정가로 바꾸지
-    # 않고 fail-closed -- 사용자 의도와 다른 주문 체결을 막는다.
-    base = order.division or order.order_type
-    order_division = _ORD_DVSN_MAP.get((base, order.time_in_force))
+    # ORD_DVSN 은 리졸버로 정한다(place·reconcile·정정 공용). 미매핑 조합(예: 조건부+ioc, 스톱, gtc)은
+    # 조용히 day/지정가로 바꾸지 않고 fail-closed -- 사용자의 잘못된 인자 조합이라 KISUsageError.
+    order_division = _resolve_ord_dvsn(order.order_type, order.division, order.time_in_force)
     if order_division is None:
-        raise NotImplementedError(
-            f"주문구분/TIF 조합에 와이어 매핑이 없다(base={base!r}, time_in_force={order.time_in_force!r})."
+        raise KISUsageError(
+            f"지원하지 않는 주문구분/TIF 조합이다(division/order_type={order.division or order.order_type!r}, "
+            f"time_in_force={order.time_in_force!r})."
         )
     tr_id = _ORDER_CASH_TR[(environment, order.side)]
     body = {
@@ -497,7 +506,9 @@ def _filter_matching_daily_rows(
     quantity = Decimal(fingerprint.quantity)
     limit_price = Decimal(fingerprint.limit_price) if fingerprint.limit_price else None
     want_side = _SIDE_CODE[side]
-    want_dvsn = _ORD_DVSN.get(order_type)
+    # reconcile 도 place 와 같은 리졸버로 ORD_DVSN 을 유도해야 division 주문이 자기 행에 매칭된다
+    # (order_type 만으로 유도하면 최유리(03)를 01 로 찾아 무관한 시장가 행을 오확정한다).
+    want_dvsn = _resolve_ord_dvsn(order_type, fingerprint.division, fingerprint.time_in_force)
     want_loan_date = fingerprint.loan_date        # 신용이면 대출일자, 현금이면 ""
     matched = []
     for row in rows:

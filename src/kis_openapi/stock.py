@@ -531,9 +531,10 @@ class DomesticStock(_StockBase):
         :class:`~kis_openapi.errors.KISUsageError`, 조회전용 계좌면 :class:`~kis_openapi.errors.
         AccountNotOrderableError`, 접수 거부는 ``OrderRejectedError``, 타임아웃(체결 불명)은
         ``OrderTimeoutError`` -- 후자는 ``kis.orders.reconcile`` 로 확인한다."""
-        return self._client._place_order(
-            self._make_domestic_order("buy", quantity, price, time_in_force, division, client_order_id)
-        )
+        return self._client._place_order(self._make_domestic_order(
+            "buy", quantity=quantity, price=price, time_in_force=time_in_force,
+            division=division, client_order_id=client_order_id,
+        ))
 
     def sell(
         self, *, quantity: object, price: object | None = None,
@@ -541,22 +542,27 @@ class DomesticStock(_StockBase):
         client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 종목을 매도한다 -- 계약·``division`` 은 :meth:`buy` 와 동일(방향만 매도)."""
-        return self._client._place_order(
-            self._make_domestic_order("sell", quantity, price, time_in_force, division, client_order_id)
-        )
+        return self._client._place_order(self._make_domestic_order(
+            "sell", quantity=quantity, price=price, time_in_force=time_in_force,
+            division=division, client_order_id=client_order_id,
+        ))
 
     def _make_order(
         self, side: Side, quantity: object, price: object | None,
         time_in_force: TimeInForce, client_order_id: str | None,
     ) -> Order:
-        return self._make_domestic_order(side, quantity, price, time_in_force, None, client_order_id)
+        return self._make_domestic_order(
+            side, quantity=quantity, price=price, time_in_force=time_in_force,
+            division=None, client_order_id=client_order_id,
+        )
 
     def _make_domestic_order(
-        self, side: Side, quantity: object, price: object | None,
+        self, side: Side, *, quantity: object, price: object | None,
         time_in_force: TimeInForce, division: DomesticDivision | None, client_order_id: str | None,
     ) -> Order:
         # 최유리/최우선은 시장이 가격을 정하므로 price 없음(order_type="market" 기반), 조건부는 가격 필요
-        # (order_type="limit" 기반). division 없으면 기존 동작(price 유무로 시장가/지정가).
+        # (order_type="limit" 기반). division 없으면 기존 동작(price 유무로 시장가/지정가). 결합 불변식은
+        # Order.__post_init__ 에도 있으나, 여기서 미리 막아 division 을 지목하는 명확한 메시지를 준다.
         if division in ("immediate_limit", "priority_limit"):
             if price is not None:
                 raise KISUsageError(
@@ -566,6 +572,8 @@ class DomesticStock(_StockBase):
                                 time_in_force=time_in_force, division=division,
                                 client_order_id=client_order_id)
         if division == "conditional_limit":
+            if price is None:
+                raise KISUsageError("conditional_limit(조건부지정가)은 price 가 필요하다.")
             return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
                                time_in_force=time_in_force, division=division,
                                client_order_id=client_order_id)

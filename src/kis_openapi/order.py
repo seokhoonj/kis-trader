@@ -247,6 +247,16 @@ class Order:
                 raise KISUsageError("division 은 신용주문과 조합할 수 없다.")
             if self.session != "regular":
                 raise KISUsageError("division 은 미국주간거래와 조합할 수 없다.")
+            # division<->order_type<->price 결합을 DATA 경계에서 강제한다 -- 최유리/최우선은 시장이 가격을
+            # 정하는 가격없는 시장가 기반, 조건부는 지정가 기반. 이 결합이 없으면 Order.market/limit 생성자로
+            # 잘못된 조합이 만들어져 와이어에 조용히 틀린 가격(또는 price 0)이 나간다(fail-open).
+            if self.division in ("immediate_limit", "priority_limit"):
+                if self.order_type != "market" or self.limit_price is not None:
+                    raise KISUsageError(
+                        f"{self.division} 은 시장이 가격을 정하므로 가격 없는 시장가 기반이어야 한다."
+                    )
+            elif self.division == "conditional_limit" and self.order_type != "limit":
+                raise KISUsageError("conditional_limit(조건부지정가)은 지정가(limit) 기반이어야 한다.")
 
     @property
     def fingerprint(self) -> Fingerprint:

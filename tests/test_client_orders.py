@@ -329,7 +329,7 @@ def test_injected_store_used():
 def test_unmapped_division_tif_rejected_before_wire(kwargs):
     """조건부/최우선엔 IOC/FOK 가 없고 gtc 는 미지원 -- 조용히 day 로 안 바꾸고 fail-closed."""
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
-    with pytest.raises((NotImplementedError, KISUsageError)):
+    with pytest.raises(KISUsageError, match="지원하지 않는 주문구분"):
         _client(fake).domestic.stock("005930").buy(**kwargs)
     assert fake.calls == []
 
@@ -338,7 +338,7 @@ def test_unmapped_division_tif_rejected_before_wire(kwargs):
 def test_priceless_division_rejects_price(division):
     """최유리/최우선은 시장이 가격을 정한다 -- price 를 주면 조용히 무시하지 않고 거부."""
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
-    with pytest.raises(KISUsageError):
+    with pytest.raises(KISUsageError, match="price 를 줄 수 없다"):
         _client(fake).domestic.stock("005930").buy(quantity=10, price=70000, division=division)
     assert fake.calls == []
 
@@ -346,7 +346,7 @@ def test_priceless_division_rejects_price(division):
 def test_division_requires_domestic_exchange():
     """division 은 국내 현금주문 전용 -- 해외 거래소와 조합하면 생성 시점에 거부."""
     from kis_openapi.order import Order
-    with pytest.raises(KISUsageError):
+    with pytest.raises(KISUsageError, match="국내 현금주문 전용"):
         Order.market("AAPL", side="buy", quantity=10, division="immediate_limit", exchange="NASD")
 
 
@@ -382,12 +382,76 @@ def test_order_wire_quantity_and_division(side, price, expected_tr, expected_dvs
         ({"quantity": 10, "division": "immediate_limit", "time_in_force": "fok"}, "16", "0"),
     ],
 )
-def test_domestic_order_division_maps_to_ord_dvsn(kwargs, expected_dvsn, expected_unpr):
+@pytest.mark.parametrize("side", ["buy", "sell"])
+def test_domestic_order_sends_expected_order_division_and_price(side, kwargs, expected_dvsn, expected_unpr):
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
-    _client(fake).domestic.stock("005930").buy(**kwargs)
+    getattr(_client(fake).domestic.stock("005930"), side)(**kwargs)
     body = fake.calls[0]["body"]
     assert body["ORD_DVSN"] == expected_dvsn
     assert body["ORD_UNPR"] == expected_unpr
+
+
+def test_reconcile_matches_division_order_own_row_not_sibling_market():
+    """타임아웃된 최유리(03) 주문은 자기 03 행에 매칭돼야 한다 -- order_type=market 이라고 01 로 찾아
+    무관한 시장가(01) 주문 행을 오확정하면 안 된다(보수적 reconcile)."""
+    store = OrderStore()
+    cid = "20240101-imm-rc01"
+    place_t = FakeTransport(by_path={_ORDER_CASH: [TransportTimeout("t")]})
+    with pytest.raises(OrderTimeoutError):
+        _client(place_t, store=store).domestic.stock("005930").buy(
+            quantity=10, division="immediate_limit", client_order_id=cid)
+    rows = [_daily_order_row(odno="MKT01", order_division="01", order_unit_price="0"),
+            _daily_order_row(odno="IMM03", order_division="03", order_unit_price="0")]
+    recon_t = FakeTransport(by_path={_DAILY_CCLD: [_daily_orders_response(rows)]})
+    report = _client(recon_t, store=store).orders.reconcile(cid)
+    assert report is not None
+    assert report.order_id == "IMM03"        # 자기 03 행, 시장가 01 행 아님
+
+
+def test_modify_division_order_sends_its_order_division():
+    """최유리(03) 주문의 정정 와이어는 ORD_DVSN 03 을 실어야 한다(order_type=market 이라고 01 아님)."""
+    store = OrderStore()
+    cid = "20240101-imm-mod01"
+    place_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(place_t, store=store).domestic.stock("005930").buy(
+        quantity=10, division="immediate_limit", client_order_id=cid)
+    change_t = FakeTransport(response=RawResponse(
+        rt_cd="0", msg_cd="A", msg1="", body={"output": {"ODNO": "0030000999"}}))
+    _client(change_t, store=store).orders.modify(cid, price=71000, request_id="mod-1")
+    assert change_t.calls[0]["body"]["ORD_DVSN"] == "03"
+
+
+def test_same_division_and_id_replays_without_resend():
+    """같은 division + 같은 client_order_id 는 replay -- 두 번째 호출은 와이어를 다시 때리지 않는다."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    first = kis.domestic.stock("005930").buy(quantity=10, division="immediate_limit", client_order_id="ID-1")
+    second = kis.domestic.stock("005930").buy(quantity=10, division="immediate_limit", client_order_id="ID-1")
+    assert second == first
+    assert len(fake.calls) == 1
+
+
+def test_division_persists_across_store_reopen(tmp_path):
+    """store v4 라운드트립 -- 최유리 주문의 division 이 닫고 다시 열어도 지문에 보존돼야 dedup 이 유지된다."""
+    path = tmp_path / "orders.json"
+    cid = "20240101-imm-persist01"
+    store1 = OrderStore(path=path)
+    _client(FakeTransport(response=_ACCEPTED_ORDER_RESPONSE), store=store1).domestic.stock(
+        "005930").buy(quantity=10, division="immediate_limit", client_order_id=cid)
+    store1.close()
+    assert OrderStore(path=path).fingerprint_for(cid).division == "immediate_limit"
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"symbol": "005930", "side": "buy", "quantity": 10, "division": "conditional_limit"},  # 조건부인데 market 기반
+    {"symbol": "005930", "side": "buy", "quantity": 10, "division": "immediate_limit", "limit_price": 70000},  # 최유리인데 가격
+])
+def test_order_construction_enforces_division_price_coupling(kwargs):
+    """Order.* 생성자도 division↔order_type↔price 결합을 강제해야 한다(와이어 fail-open 방지)."""
+    from kis_openapi.order import Order
+    with pytest.raises(KISUsageError):
+        (Order.limit if "limit_price" in kwargs else Order.market)(**kwargs)
 
 
 def test_old_schema_store_loads_with_empty_division(tmp_path):
