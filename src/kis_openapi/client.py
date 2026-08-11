@@ -67,6 +67,9 @@ class KISClient:
         유지 안 됨). 실거래는 ``store=OrderStore(path=...)`` 로 영속 저장소를 주는 것을 강력히
         권장한다(재시작 후에도 이중체결 장벽 유지). ``orderable=False`` 면 모든 주문을 와이어
         전에 :class:`~kis_openapi.errors.AccountNotOrderableError` 로 막는다(조회전용 계좌 보호).
+        계좌 상품코드(ACNT_PRDT_CD)로도 자동 반영한다(공식 FAQ): IRP(29)는 주문불가라 orderable 을
+        자동으로 끄고(수동 True 여도 막힘), DC가입자(55)는 API 이용 불가라 생성 시 거부한다.
+        연금저축(22)은 주문 가능이라 막지 않는다.
         ``risk`` 를 주면 모든 buy/sell 이 전송 전에 그 사전 리스크 한도
         (:class:`~kis_openapi.risk.RiskLimits`)를 통과해야 한다(fat-finger 방지).
 
@@ -112,10 +115,18 @@ class KISClient:
             )
         self._transport = transport
         self._cano, self._product_code = _split_account(account)
+        # 상품계좌종류(ACNT_PRDT_CD)로 이용 가능 범위를 자동 반영한다(공식 FAQ 2026-03-26):
+        # DC가입자(55)는 Open API 이용 자체가 불가 -> 생성 거부. IRP(29)는 조회만 가능(주문 불가)
+        # -> orderable 을 자동으로 끈다. 수동 orderable 플래그는 더 제약만 가능(주문불가 계좌를
+        # 켜지 못한다). 연금저축(22)은 주문 가능이라 막지 않는다(IRP 와 혼동 주의).
+        if self._product_code in _API_UNAVAILABLE_PRODUCT_CODES:
+            raise KISUsageError(
+                f"상품계좌종류 {self._product_code}(DC가입자)는 한국투자 Open API 이용이 불가하다."
+            )
         # 주문 멱등 dedup 저장소. 기본은 세션 인메모리 -- 프로세스 재시작에도 dedup 을 유지하려면
         # store=OrderStore(path=...) 로 영속 저장소를 주입하라(권장, 이중체결 장벽 지속).
         self._store = store if store is not None else OrderStore()
-        self._orderable = orderable
+        self._orderable = orderable and self._product_code not in _READ_ONLY_PRODUCT_CODES
         # 신용(융자/대주) 주문은 위험이 커 기본 비활성 -- opt-in(allow_credit=True) 해야 credit_buy/sell 이
         # 와이어에 닿는다. 조회(credit_buyable)는 읽기라 게이트하지 않는다.
         self._allow_credit = allow_credit
@@ -309,6 +320,13 @@ class KISClient:
                 "KISClient(..., account='12345678-01') 로 생성하라."
             )
         return self._cano, self._product_code
+
+
+#: Open API 이용 자체가 불가한 상품계좌종류(ACNT_PRDT_CD). 공식 FAQ(2026-03-26): DC가입자(55).
+_API_UNAVAILABLE_PRODUCT_CODES = frozenset({"55"})
+#: 조회만 가능(주문 불가)한 상품계좌종류. IRP(29) -- KIS 가 주문 엔드포인트를 거부(APBK1744).
+#: 연금저축(22)은 주문 가능이므로 여기 없다(IRP 와 혼동 주의).
+_READ_ONLY_PRODUCT_CODES = frozenset({"29"})
 
 
 def _split_account(account: str | None) -> tuple[str, str] | tuple[None, None]:

@@ -695,6 +695,36 @@ def test_old_schema_report_loads_with_none_org_number(tmp_path):
     assert report.order_id == "0000117057"          # 나머지 필드는 정상 로드
 
 
+def test_irp_account_is_auto_read_only():
+    """IRP(상품코드 29)는 주문불가 계좌(공식 FAQ) -- 계좌 상품코드로 자동 유도해 주문을 막는다."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(AccountNotOrderableError):
+        _client(fake, account="12345678-29").domestic.stock("005930").buy(quantity=1, price=70000)
+
+
+def test_irp_manual_orderable_true_still_blocked():
+    """수동 orderable=True 여도 IRP(29)는 막힌다 -- 자동유도가 우선(더 제약만 가능)."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(AccountNotOrderableError):
+        _client(fake, account="12345678-29", orderable=True).domestic.stock(
+            "005930").buy(quantity=1, price=70000)
+
+
+def test_dc_account_rejected_at_construction():
+    """DC가입자(55)는 Open API 이용 자체가 불가(공식 FAQ) -- 세션 생성 시 거부."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(KISUsageError, match="DC|이용|55"):
+        _client(fake, account="12345678-55")
+
+
+def test_pension_savings_22_is_orderable():
+    """연금저축(22)은 주문 가능 -- IRP(29)와 달리 막지 않는다(혼동 주의)."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    report = _client(fake, account="12345678-22").domestic.stock("005930").buy(
+        quantity=1, price=70000)
+    assert report.order_id == "0000117057"
+
+
 @pytest.mark.parametrize("market", ["NXT", "UN"])
 def test_credit_order_rejects_non_krx_board(market):
     """신용주문은 보드 배선이 아직 없어 KRX 만 -- NXT/UN 종목의 신용주문은 조용히 KRX 로 안 보내고 거부."""
