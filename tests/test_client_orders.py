@@ -275,6 +275,22 @@ def test_modify_rebind_persists_in_a_single_store_write(monkeypatch):
     assert saves["n"] == 2          # claim 1회 + 결과기록(변경요청+재바인딩) 단일 save 1회
 
 
+def test_reconcile_of_change_request_is_explicitly_rejected():
+    """변경요청(정정/취소)이 in-flight 로 남아도(타임아웃 등) 그 request_id 는 자동 reconcile
+    대상이 아니다 -- action 지문의 종목이 실제 종목코드가 아니라 원 주문 식별이라 일별체결 조회로
+    맞출 수 없다. 조용히 무한 in-flight 로 두지 않고 명확히 거부해 수동 확인을 안내한다."""
+    fake = FakeTransport(by_path={_ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
+                                  _ORDER_CHANGE: TransportTimeout()})
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
+    with pytest.raises(OrderTimeoutError):
+        kis.orders.modify("orig-1", price=71000, request_id="modify-1")
+    assert store.is_in_flight("modify-1")
+    with pytest.raises(KISUsageError, match="자동 reconcile"):
+        kis.orders.reconcile("modify-1")
+
+
 def test_domestic_change_timeout_stays_in_flight_and_is_not_resent():
     fake = FakeTransport(
         by_path={

@@ -31,7 +31,7 @@ from .namespaces import (
     OverseasNamespace,
     PensionNamespace,
 )
-from .order import Order, Side, mint_client_order_id
+from .order import ChangeAction, Order, Side, mint_client_order_id
 from .store import OrderStore
 
 if TYPE_CHECKING:
@@ -167,7 +167,7 @@ class KISClient:
         )
 
     def _change_order(
-        self, client_order_id: str, *, action: str, quantity: object | None,
+        self, client_order_id: str, *, action: ChangeAction, quantity: object | None,
         price: object | None, request_id: str | None,
     ) -> ExecutionReport:
         """접수된 국내·해외 주식 주문의 미체결 수량을 취소/정정한다(``kis.orders.cancel`` / ``.modify``)."""

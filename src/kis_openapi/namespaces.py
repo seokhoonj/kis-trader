@@ -125,7 +125,12 @@ class OrdersNamespace:
         정정이 성공하면 KIS 가 원주문에 새 거래소 주문번호(ODNO)를 부여하므로, 이 정정된 주문을
         같은 ``client_order_id`` 가 계속 가리키도록 재바인딩한다 -- 이후 ``cancel``/``modify`` 는
         정정된 주문을 지목하고, ``report_for(client_order_id)`` 의 ``order_id`` 는 새 ODNO,
-        상태는 ``PENDING_REPLACE`` 가 된다(place 시점 ODNO 를 캐시했다면 갱신 필요)."""
+        상태는 ``PENDING_REPLACE`` 가 된다(place 시점 ODNO 를 캐시했다면 갱신 필요).
+
+        **주의**: 정정 후 ``report_for(client_order_id).filled_quantity`` 는 **0 으로 리셋된다**
+        -- 새 ODNO 는 정정 수량만큼의 신규 대기주문이라서다(이 값이 재바인딩된 지문 수량과 짝을
+        이뤄 이후 잔량 계산이 맞는다). 원주문의 누적 체결량을 이 id 로만 읽으면 과소 집계되니,
+        정정 이전 체결은 정정이 반환한 리포트/기존 실행에서 확인하라."""
         return self._c._change_order(
             client_order_id, action="modify", quantity=quantity, price=price, request_id=request_id
         )

@@ -157,7 +157,10 @@ class OrderStore:
         변경요청 리포트는 자기 ``request_id`` 아래, ``rebind`` 이 있으면 (재바인딩 리포트,
         지문)을 원 ``client_order_id`` 아래에 **함께** 커밋한다. 두 전이를 나눠 쓰면 그 사이
         크래시 시 request_id 만 완료로 남고 원 id 는 낡은 주문번호에 고착돼(재시도는 완료
-        replay 로 조기반환) 복구 불가해지므로, 단일 ``_save_locked`` 로 묶는다."""
+        replay 로 조기반환) 복구 불가해지므로, 단일 ``_save_locked`` 로 묶는다.
+
+        :meth:`record` 와 마찬가지로 각 id 의 in-flight 표시를 해제한다 -- request_id 와
+        (있으면) 재바인딩 원 id 둘 다. 원 id 는 이미 완료 상태라 해제는 보통 no-op 이다."""
         with self._lock:
             self._require_open()
             self._reports[report.client_order_id] = report

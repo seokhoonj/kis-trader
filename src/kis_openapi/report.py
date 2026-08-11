@@ -57,6 +57,9 @@ class ExecutionReport:
     symbol: str
     side: Side
     status: OrderStatus
+    #: 이 ``order_id`` (대기주문) 기준 누적 체결량 -- 원 client_order_id 의 전 생애 합이 아니다.
+    #: 정정(modify)은 새 ODNO 를 부여하며 그 신규 대기주문 리포트의 이 값은 0 에서 다시 시작한다
+    #: (정정 이전 체결은 정정이 반환한 리포트에 남는다). 재조회(reconcile)로 만든 리포트에선 조회 시점 값.
     filled_quantity: Decimal
     average_price: Decimal | None
     #: 이 리포트를 로컬에 기록한 시각(보존 정리 기준). 전송 경로에선 접수 시각과 사실상

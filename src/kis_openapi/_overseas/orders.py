@@ -21,7 +21,7 @@ from .._domestic.market_data import _KST
 from .._wire import format_wire_decimal
 from ..errors import KISError, KISUsageError, OrderTimeoutError
 from ..order import (
-    Action,
+    ChangeAction,
     Fingerprint,
     Order,
     OrderType,
@@ -186,7 +186,7 @@ def make_daytime_order_request(
 
 def make_daytime_change_request(
     *, original_report: ExecutionReport, original_fingerprint: Fingerprint,
-    action: Action, quantity: Decimal, price: Decimal | None,
+    action: ChangeAction, quantity: Decimal, price: Decimal | None,
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
     """미국주간거래 정정·취소 요청 와이어(daytime-order-rvsecncl TTTS6038U). **모의투자 미지원**."""
@@ -218,7 +218,7 @@ def make_daytime_change_request(
 
 def make_change_request(
     *, original_report: ExecutionReport, original_fingerprint: Fingerprint,
-    action: Action, quantity: Decimal, price: Decimal | None,
+    action: ChangeAction, quantity: Decimal, price: Decimal | None,
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
     """해외주식 정정·취소 요청을 공식 단일 TR 와이어로 조립한다."""

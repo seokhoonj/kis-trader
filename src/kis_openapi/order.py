@@ -35,8 +35,9 @@ DomesticDivision = Literal["conditional_limit", "immediate_limit", "priority_lim
 #: 거래 세션. ``regular`` 정규장, ``daytime`` 미국주간거래(한국 낮 시간대 미국 종목 거래). 세션이
 #: 다르면 서로 다른 주문이고 정정·취소 엔드포인트도 다르므로 지문·라우팅으로 구분한다.
 Session = Literal["regular", "daytime"]
-#: 접수된 주문에 대한 변경 동작(정정/취소).
-Action = Literal["cancel", "modify"]
+#: 접수된 주문에 대한 변경 동작(정정/취소). 국내(``_domestic``)·해외(``_overseas``) 주문
+#: 엔진이 공유하는 단일 타입 -- 두 엔진 모두 이 alias 를 import 한다(중복 정의 금지).
+ChangeAction = Literal["cancel", "modify"]
 #: 국내 신용주문 유형 코드(원장 코드표). 매수/매도별로 유효 코드가 다르고(아래 상수), 신규/상환
 #: 여부로 대출일자(LOAN_DT) 요구가 갈린다.
 CreditType = Literal["21", "22", "23", "24", "25", "26", "27", "28"]

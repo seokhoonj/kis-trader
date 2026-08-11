@@ -28,7 +28,7 @@ from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Any, Literal, TypeAlias
+from typing import Any, TypeAlias
 
 from ..errors import (
     AccountNotOrderableError,
@@ -39,7 +39,7 @@ from ..errors import (
     OrderTimeoutError,
 )
 from ..instrument import resolve_market
-from ..order import Fingerprint, Order, WireRequest, format_wire_decimal
+from ..order import ChangeAction, Fingerprint, Order, WireRequest, format_wire_decimal
 from ..report import ExecutionReport, OrderStatus
 from ..risk import RiskLimits
 from ..store import ClaimOutcome, OrderStore
@@ -47,9 +47,6 @@ from ..transport import Environment, Transport, TransportTimeout
 from . import market_data
 
 _KST = timezone(timedelta(hours=9))
-
-#: 접수된 주문에 가할 수 있는 변경 -- 정정(modify) 또는 취소(cancel).
-ChangeAction: TypeAlias = Literal["cancel", "modify"]
 
 #: 재조회 시 일별체결조회 연속조회(페이지) 상한 -- 무한 루프 방지의 명시적 안전 상한.
 _MAX_RECONCILE_PAGES = 100
@@ -253,7 +250,16 @@ def submit_change(
     ``original_client_order_id`` 의 표준 리포트와 지문을 그 정정된 주문(새 ODNO/조직번호, 정정
     수량/가격, ``PENDING_REPLACE``)으로 **재바인딩**한다 -- 이후 같은 id 의 cancel/modify 가
     정정된 주문을 지목하게 하려는 것이다. 정정 접수(rt_cd=0)인데 새 ODNO 가 없으면 재조회
-    불가라 :class:`OrderError` 로 fail-closed(낡은 ODNO 에 재바인딩하지 않는다)."""
+    불가라 :class:`OrderError` 로 fail-closed(낡은 ODNO 에 재바인딩하지 않는다).
+
+    재바인딩은 응답의 ``ODNO`` 를 취소 대상으로 삼으므로, 정정이 제자리(구 ODNO 유효)든 새
+    ODNO 든 그 응답값이 올바른 대상이 된다. 국내는 새 ODNO 부여를 실서버로 실증했다. 해외도
+    같은 안전 코어를 공유하나(``build_request`` 만 다름), 해외 정정취소 응답의 새 주문번호 필드와
+    구주문번호 무효화는 **해외 원장 응답예시로 아직 검증 전**이다(backlog).
+
+    Raises: 미확정/종료/수량·가격 위반은 :class:`KISUsageError`, 접수 거부(rt_cd!=0)는
+    :class:`OrderRejectedError`, 전송 타임아웃(처리 불명)은 :class:`OrderTimeoutError`,
+    정정 접수인데 ODNO 없음/예상외 outcome 은 :class:`OrderError`."""
     original_report = store.report_for(original_client_order_id)
     original_fingerprint = store.fingerprint_for(original_client_order_id)
     if original_report is None or original_fingerprint is None:
@@ -372,7 +378,7 @@ def submit_change(
 
 def _make_domestic_change_request(
     *, original_report: ExecutionReport, original_fingerprint: Fingerprint,
-    action: str, quantity: Decimal, price: Decimal | None,
+    action: ChangeAction, quantity: Decimal, price: Decimal | None,
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
     original_output = _extract_output_mapping(original_report._raw)
