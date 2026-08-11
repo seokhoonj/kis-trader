@@ -37,9 +37,15 @@ def build_rate_limiter(
     rate = float(requests_per_second)
     if rate <= 0:
         raise ValueError(f"requests_per_second 는 양수여야 한다: {requests_per_second}")
-    if rate >= 1:
-        return SlidingWindowRateLimiter(int(rate), per_seconds=1.0, clock=clock, sleep=sleep)
-    return SlidingWindowRateLimiter(1, per_seconds=1.0 / rate, clock=clock, sleep=sleep)
+    per_seconds = 1.0 if rate >= 1 else 1.0 / rate
+    max_requests = int(rate) if rate >= 1 else 1
+    # max_wait 를 창에 맞춰 키운다 -- 정상 대기는 최대 한 창(per_seconds)이므로, 낮은 rate(창 > 60s)
+    # 여도 정상 대기가 max_wait 를 넘어 KISError 로 spurious raise(주문 경로에선 in-flight 고착)되지
+    # 않게 한다. max_wait 는 클럭 이상 등 창을 크게 벗어난 이상치만 잡는다.
+    max_wait = max(60.0, per_seconds * 2.0)
+    return SlidingWindowRateLimiter(
+        max_requests, per_seconds=per_seconds, clock=clock, sleep=sleep, max_wait=max_wait
+    )
 
 
 class SlidingWindowRateLimiter:
@@ -52,8 +58,10 @@ class SlidingWindowRateLimiter:
 
     - ``max_requests`` / ``per_seconds``: "``per_seconds`` 초 창 안 최대 ``max_requests`` 건".
     - ``clock``: 단조(monotonic) 초 단위 시각원. ``sleep``: 대기 함수. 둘 다 주입 가능(테스트용).
-    - ``max_wait``: 한 번의 ``acquire`` 가 기다릴 수 있는 상한. 정상 동작에선 대기가 창(``per_seconds``)
-      을 넘지 않으므로, 이를 초과하면 클럭 이상/과도한 설정으로 보고 :class:`KISError` 를 던진다.
+    - ``max_wait``: **한 번의 sleep**(한 슬롯이 만료되길 기다리는 시간)의 상한. 정상 동작에선 그 대기가
+      창(``per_seconds``)을 넘지 않으므로, 이를 초과하면 클럭 이상/과도한 설정으로 보고 :class:`KISError`
+      를 던진다. (경합 시 ``acquire`` 는 여러 슬롯을 기다리며 총 대기가 ``max_wait`` 를 넘을 수 있다 --
+      이는 누적 상한이 아니라 슬롯당 이상치 탐지용이다.)
 
     락을 쥔 채 대기하므로 여러 스레드의 ``acquire`` 는 직렬화되어 총 처리율이 한도를 지킨다.
     (네트워크 호출은 ``acquire`` 반환 뒤에 일어나므로 락 밖이다.)

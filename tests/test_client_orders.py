@@ -71,10 +71,10 @@ def _daily_orders_response(rows):
 
 def _daily_order_row(*, odno="0000117057", symbol="005930", side_code="02", order_division="00",
                      order_quantity="10", order_unit_price="70000", filled_quantity="10",
-                     average_price="70000", rejected_quantity="0", canceled="N", excg="KRX"):
+                     average_price="70000", rejected_quantity="0", canceled="N", excg="KRX", org=""):
     return {"odno": odno, "pdno": symbol, "sll_buy_dvsn_cd": side_code,
             "ord_dvsn_cd": order_division, "ord_qty": order_quantity, "ord_unpr": order_unit_price,
-            "tot_ccld_qty": filled_quantity, "avg_prvs": average_price,
+            "tot_ccld_qty": filled_quantity, "avg_prvs": average_price, "ord_gno_brno": org,
             "rjct_qty": rejected_quantity, "cncl_yn": canceled, "excg_id_dvsn_cd": excg}
 
 
@@ -194,6 +194,28 @@ def test_modify_rebinds_client_order_id_to_new_odno_so_cancel_targets_it():
     assert cancel_call["body"]["KRX_FWDG_ORD_ORGNO"] == "02880"
 
 
+def test_modify_of_partially_filled_order_resets_filled_and_avg_price():
+    """부분체결된 주문을 정정하면 새 ODNO 는 정정 수량만큼의 신규 대기주문이라 rebound 리포트의
+    체결량은 0 이어야 하고, 그에 맞춰 평균가도 None 이어야 한다(코드 규약: filled==0 => avg None).
+    지문 수량은 정정 잔량으로 재바인딩된다."""
+    import dataclasses
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
+    # 부분체결 시뮬레이션: 저장된 리포트를 3/10 체결·평균가로 갱신(지문은 유지).
+    placed = store.report_for("orig-1")
+    store.record(
+        dataclasses.replace(placed, status=OrderStatus.PARTIALLY_FILLED,
+                            filled_quantity=Decimal(3), average_price=Decimal(70000)),
+        store.fingerprint_for("orig-1"))
+    kis.orders.modify("orig-1", price=71000, request_id="modify-1")
+    rebound = store.report_for("orig-1")
+    assert rebound.filled_quantity == Decimal(0)              # 신규 대기주문 = 0 체결
+    assert rebound.average_price is None                      # filled==0 => 평균가 없음
+    assert store.fingerprint_for("orig-1").quantity == "7"    # 잔량 7 로 재바인딩
+
+
 def test_modify_with_missing_odno_fails_closed_and_does_not_rebind():
     """정정이 접수(rt_cd=0)됐는데 새 ODNO 가 없으면 재조회 불가 -- place 와 같이 fail-closed
     (OrderError, 변경요청 in-flight 유지)하고, 원 id 를 낡은 ODNO 에 재바인딩하지 않는다
@@ -241,9 +263,9 @@ def test_modify_quantity_rebinds_remaining_for_next_change():
     place = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
         "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117057", "ORD_TMD": "090000"}})
     modify_response = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
-        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117061", "ORD_TMD": "090100"}})
+        "KRX_FWDG_ORD_ORGNO": "02880", "ODNO": "0000117061", "ORD_TMD": "090100"}})
     change_response = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
-        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117062", "ORD_TMD": "090200"}})
+        "KRX_FWDG_ORD_ORGNO": "03970", "ODNO": "0000117062", "ORD_TMD": "090200"}})
     fake = FakeTransport(by_path={_ORDER_CASH: place,
                                   _ORDER_CHANGE: [modify_response, change_response]})
     store = OrderStore()
@@ -252,7 +274,12 @@ def test_modify_quantity_rebinds_remaining_for_next_change():
     kis.orders.modify("orig-1", quantity=4, price=71000, request_id="modify-1")
     kis.orders.modify("orig-1", price=72000, request_id="modify-2")
     change_calls = [c for c in fake.calls if c["path"] == _ORDER_CHANGE]
+    # 2차 정정은 1차 정정이 부여한 새 ODNO·조직번호를 지목한다(원 주문번호가 아니라).
+    assert change_calls[1]["body"]["ORGN_ODNO"] == "0000117061"
+    assert change_calls[1]["body"]["KRX_FWDG_ORD_ORGNO"] == "02880"
     assert change_calls[1]["body"]["ORD_QTY"] == "4"          # 원 10 아닌 정정 후 4
+    # 2차 정정 뒤에는 원 id 가 2차의 ODNO 를 가리킨다(재바인딩 연쇄).
+    assert store.report_for("orig-1").order_id == "0000117062"
 
 
 def test_modify_rebind_persists_in_a_single_store_write(monkeypatch):
@@ -273,6 +300,9 @@ def test_modify_rebind_persists_in_a_single_store_write(monkeypatch):
                         lambda: (saves.__setitem__("n", saves["n"] + 1), original_save())[1])
     kis.orders.modify("orig-1", price=71000, request_id="modify-1")
     assert saves["n"] == 2          # claim 1회 + 결과기록(변경요청+재바인딩) 단일 save 1회
+    # 그 단일 save 가 두 전이를 모두 담았는지(횟수만이 아니라 내용) 확인.
+    assert store.report_for("orig-1").order_id == "0000117061"           # 재바인딩됨
+    assert store.report_for("modify-1").status is OrderStatus.PENDING_REPLACE  # 변경요청 기록됨
 
 
 def test_cancel_survives_store_restart_via_persisted_org_number(tmp_path):
@@ -423,6 +453,25 @@ def test_timeout_then_reconcile_confirms_fill():
     assert report is not None
     assert report.status is OrderStatus.FILLED
     assert report.filled_quantity == Decimal(10)
+
+
+def test_cancel_after_reconcile_uses_org_from_daily_row():
+    """재조회(일별체결)로 복원한 리포트도 조직번호(ord_gno_brno)를 담아, 이후 취소가 그 값으로
+    원주문을 지목한다 -- 접수 응답 없이 재조회로만 확정된 주문도 정정취소 가능해야 한다."""
+    fake = FakeTransport(by_path={
+        _ORDER_CASH: [TransportTimeout("t")],
+        _DAILY_CCLD: [_daily_orders_response([_daily_order_row(filled_quantity="0", org="01790")])],
+        _ORDER_CHANGE: _ACCEPTED_ORDER_RESPONSE,
+    })
+    kis = _client(fake)
+    with pytest.raises(OrderTimeoutError):
+        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+    report = kis.orders.reconcile("ID-1")
+    assert report is not None and report.status is OrderStatus.NEW    # 미체결 -> 취소 가능
+    kis.orders.cancel("ID-1", request_id="cancel-1")
+    call = [c for c in fake.calls if c["path"] == _ORDER_CHANGE][-1]
+    assert call["body"]["KRX_FWDG_ORD_ORGNO"] == "01790"             # 일별체결행의 조직번호로 지목
+    assert call["body"]["ORGN_ODNO"] == "0000117057"
 
 
 def test_reconcile_empty_scan_stays_in_flight():
@@ -723,6 +772,18 @@ def test_pension_savings_22_is_orderable():
     report = _client(fake, account="12345678-22").domestic.stock("005930").buy(
         quantity=1, price=70000)
     assert report.order_id == "0000117057"
+
+
+def test_ordinary_code_and_no_account_are_not_special_cased():
+    """29/55 만 특수처리 -- 일반 위탁(01)은 주문 가능, account 미설정은 생성 성공(상품코드 유도
+    우회, DC/IRP 오탐 없음)."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    report = _client(fake, account="12345678-01").domestic.stock("005930").buy(
+        quantity=1, price=70000)
+    assert report.order_id == "0000117057"                       # 01 은 주문 가능
+    kis = _client(fake, account=None)                            # 생성 성공(DC 거부 아님)
+    with pytest.raises(KISUsageError):                           # 주문은 계좌 필요(orderable 거부 아님)
+        kis.domestic.stock("005930").buy(quantity=1, price=70000)
 
 
 @pytest.mark.parametrize("market", ["NXT", "UN"])

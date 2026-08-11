@@ -113,6 +113,17 @@ def test_build_rate_limiter_rejects_nonpositive():
         build_rate_limiter(0)
 
 
+def test_build_rate_limiter_scales_max_wait_to_window():
+    """아주 낮은 rate(창 > 기본 max_wait 60s)여도 정상 대기가 max_wait 를 넘어 spurious raise 되면
+    안 된다 -- 팩토리가 창(per_seconds)에 맞춰 max_wait 를 키운다. (안 그러면 낮은 rps 설정이
+    주문 경로에서 KISError 로 in-flight 를 고착시킨다.)"""
+    clock = FakeClock()
+    rl = build_rate_limiter(0.01, clock=clock.now, sleep=clock.sleep)   # 100초당 1건(창 100s)
+    rl.acquire()
+    rl.acquire()                        # 100초 대기 -- 스케일된 max_wait 안 넘어 raise 안 함
+    assert clock.slept == [100.0]
+
+
 def test_default_rates_real_and_demo():
     # 공식 실전 18/모의 1 아래 마진.
     assert DEFAULT_REQUESTS_PER_SECOND["real"] == pytest.approx(15.0)

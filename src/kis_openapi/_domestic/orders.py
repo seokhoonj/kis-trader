@@ -373,7 +373,8 @@ def submit_change(
             limit_price="" if price is None else format_wire_decimal(price),
         )
         rebound_report = replace(
-            report, client_order_id=original_client_order_id, filled_quantity=Decimal(0)
+            report, client_order_id=original_client_order_id,
+            filled_quantity=Decimal(0), average_price=None,   # filled==0 => 평균가 없음(규약)
         )
         rebind = (rebound_report, resting_fingerprint)
     store.record_change(report, action_fingerprint, rebind=rebind)

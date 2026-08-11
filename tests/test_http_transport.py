@@ -85,6 +85,21 @@ def test_rate_limit_acquired_on_each_retry_attempt(tmp_path: Any) -> None:
     assert events == ["acquire", "send", "acquire", "send"]   # 재시도마다 permit
 
 
+def test_post_timeout_acquires_one_permit_and_is_not_retried(tmp_path: Any) -> None:
+    """쓰기(POST)는 타임아웃에 재시도하지 않으므로 리미터도 정확히 1 permit 만 소모한다 --
+    리미터가 재시도를 만들지 않음을(무재시도 불변 유지) 확인한다."""
+    limiter = _RecordingLimiter()
+
+    def send(method: str, url: str, **kwargs: Any):
+        raise TransportTimeout()
+
+    with pytest.raises(TransportTimeout):
+        _transport(tmp_path, send, rate_limiter=limiter).request(
+            method="POST", path="/uapi/x", tr_id="T", idempotent=False
+        )
+    assert limiter.acquired == 1              # 1회 시도 = 1 permit(재시도 없음)
+
+
 def test_no_limiter_by_default_does_not_throttle(tmp_path: Any) -> None:
     # rate_limiter 미지정(기본) 시 그대로 전송(스로틀 없음).
     def send(method: str, url: str, **kwargs: Any):
