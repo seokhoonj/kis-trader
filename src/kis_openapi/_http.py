@@ -8,7 +8,7 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import Any, Protocol
 
 from ._auth import TokenManager
 from ._endpoints import base_url
@@ -16,8 +16,27 @@ from ._ratelimit import SlidingWindowRateLimiter
 from .errors import KISAuthError, KISError, KISRateLimitError
 from .transport import Environment, RawResponse, TransportTimeout
 
-HTTPResult = tuple[int, Mapping[str, str], Mapping[str, Any]]
-HTTPSend = Callable[..., HTTPResult]
+HTTPResult = tuple[int, Mapping[str, str], object]
+
+
+class _HTTPSender(Protocol):
+    """HTTP 송신기 계약 -- 한 요청을 보내고 (상태, 헤더, 파싱된 바디)를 돌려준다.
+
+    ``RequestsTransport`` 에 주입되는 실제/가짜 송신기가 만족해야 하는 형이다. 바디는
+    :data:`HTTPResult` 대로 ``object`` 라, 호출자가 ``Mapping`` 여부를 좁혀 써야 한다.
+    """
+
+    def __call__(
+        self,
+        method: str,
+        url: str,
+        *,
+        headers: Mapping[str, str],
+        params: Mapping[str, str] | None,
+        json_body: Mapping[str, str] | None,
+    ) -> HTTPResult: ...
+
+
 _SESSION: Any = None
 
 
@@ -74,7 +93,7 @@ class RequestsTransport:
         environment: Environment,
         token_manager: TokenManager,
         custtype: str = "P",
-        send: HTTPSend = _requests_send,
+        send: _HTTPSender = _requests_send,
         sleep: Callable[[float], None] = time.sleep,
         max_attempts: int = 3,
         rate_limiter: SlidingWindowRateLimiter | None = None,

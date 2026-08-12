@@ -18,6 +18,7 @@ KIS 가 값을 고정된 코드 집합으로만 받는 자리(주문 방향·신
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from decimal import Decimal
 from typing import Literal, TypeAlias
 
@@ -35,6 +36,11 @@ JSONValue: TypeAlias = (
     str | int | float | bool | None | list["JSONValue"] | dict[str, "JSONValue"]
 )
 
+#: JSON 객체 -- 문자열 키의 JSON 매핑. 파싱된 KIS 바디를 그대로 실어 나르는 자리(예: 예외의
+#: ``raw`` 원본 바디)를 위해 :data:`JSONValue` 를 한 겹 감싼 별칭이다. 저장된 바디는 읽기
+#: 전용으로만 다뤄 ``Mapping`` 으로 좁힌다(구체 ``dict`` 타입에 묶지 않는다).
+JSONObject: TypeAlias = Mapping[str, JSONValue]
+
 #: 국내 파생 시장(보드) 구분 코드 -- F(지수선물)/O(지수옵션). ``FID_COND_MRKT_DIV_CODE``
 #: 로 나간다. 어느 "판"이냐를 고르는 board/segment 코드다(명명 규약의 ``Market``).
 DerivativeMarket: TypeAlias = Literal["F", "O"]
@@ -48,6 +54,7 @@ __all__ = [
     "DerivativeMarket",
     "DerivativeProduct",
     "Environment",
+    "JSONObject",
     "JSONValue",
     "Numeric",
     "Side",

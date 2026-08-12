@@ -15,9 +15,16 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from typing import TypeAlias
 
 from .errors import KISUsageError, PreTradeRiskError
 from .order import Order
+
+#: 금액/비율 한도의 입력 허용형. 생성자는 ``int``/``str``/``Decimal`` 로 받아 __post_init__
+#: 에서 ``Decimal`` 로 정규화해 저장한다(저장값은 항상 ``Decimal | None``). 이 별칭은 *입력*
+#: 계약만 이름 붙인 것이고, 필드 주석이 곧 생성자 인자 주석이라 여기까지가 정직하게 좁힐 수
+#: 있는 한계다(저장형까지 좁히려면 ``init=False``/property 로 생성 동작이 바뀐다).
+DecimalInput: TypeAlias = Decimal | int | str
 
 # KRX 주식 호가가격단위 (2023-01-25 개정, KOSPI/KOSDAQ 통일). (가격 하한, 호가단위) 오름차순.
 # 가격 p 의 단위 = p 이상인 마지막 하한의 단위(경계는 [하한, 다음 하한)). 이 표는 규정 개정으로
@@ -54,8 +61,8 @@ class RiskLimits:
     """
 
     max_order_quantity: int | None = None
-    max_order_notional: Decimal | int | str | None = None
-    price_collar_percent: Decimal | int | str | None = None
+    max_order_notional: DecimalInput | None = None
+    price_collar_percent: DecimalInput | None = None
     enforce_tick_size: bool = False
 
     def __post_init__(self) -> None:

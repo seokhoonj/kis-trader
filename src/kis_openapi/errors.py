@@ -7,8 +7,10 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import Any
+from typing import TYPE_CHECKING, TypedDict, Unpack
+
+if TYPE_CHECKING:
+    from ._literals import JSONObject
 
 
 class KISError(Exception):
@@ -25,13 +27,25 @@ class KISError(Exception):
         rt_cd: str | None = None,
         msg_cd: str | None = None,
         msg1: str | None = None,
-        raw: Mapping[str, Any] | None = None,
+        raw: JSONObject | None = None,
     ) -> None:
         super().__init__(message)
         self.rt_cd = rt_cd
         self.msg_cd = msg_cd
         self.msg1 = msg1
         self.raw = raw
+
+
+class _KISErrorKwargs(TypedDict, total=False):
+    """:class:`KISError` 로 그대로 전달되는 KIS 응답 봉투 키워드(전부 선택).
+
+    ``**kw`` 로 기반 생성자에 넘기는 키를 이 형으로 좁혀 오타/미지원 키를 잡는다.
+    """
+
+    rt_cd: str | None
+    msg_cd: str | None
+    msg1: str | None
+    raw: JSONObject | None
 
 
 class KISUsageError(KISError):
@@ -87,6 +101,8 @@ class OrderTimeoutError(OrderError):
     쓰게 한다.
     """
 
-    def __init__(self, message: str, *, client_order_id: str, **kw: object) -> None:
+    def __init__(
+        self, message: str, *, client_order_id: str, **kw: Unpack[_KISErrorKwargs]
+    ) -> None:
         super().__init__(message, **kw)  # kw = KISError 의 rt_cd/msg_cd/msg1/raw
         self.client_order_id = client_order_id
