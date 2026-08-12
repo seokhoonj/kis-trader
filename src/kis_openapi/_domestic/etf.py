@@ -154,7 +154,7 @@ def fetch_etf_nav_intraday(
     )
     _raise_if_error(resp)
     rows = _require_mapping_rows("output", resp)
-    today = _today_kst()
+    date_text = _today_kst()
     points: list[ETFNAVMinutePoint] = []
     for row in rows:
         if not isinstance(row, Mapping):
@@ -166,7 +166,7 @@ def fetch_etf_nav_intraday(
         price_sign = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             ETFNAVMinutePoint(
-                timestamp=_parse_minute_bar_timestamp(date_text=today, time_text=time_text),
+                timestamp=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
                 price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
                 change=_apply_change_sign(
                     required_decimal(row.get("prdy_vrss"), "prdy_vrss"), price_sign
@@ -293,15 +293,15 @@ def _parse_etf_components(rows: Sequence[Mapping[str, Any]]) -> list[ETFComponen
         symbol = str(row.get("stck_shrn_iscd", "")).strip()
         if not symbol:                         # 빈 행 skip
             continue
-        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         components.append(
             ETFComponent(
                 symbol=symbol,
                 name=str(row.get("hts_kor_isnm", "")).strip(),
                 price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
-                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), change_sign_code),
                 change_percent=_apply_change_sign(
-                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), change_sign_code
                 ),
                 weight=required_decimal(row.get("etf_cnfg_issu_rlim"), "etf_cnfg_issu_rlim"),
                 valuation=required_decimal(row.get("etf_vltn_amt"), "etf_vltn_amt"),
@@ -345,17 +345,17 @@ def _parse_etf_nav_history(rows: Sequence[Mapping[str, Any]]) -> list[ETFNAVHist
         close_text = str(row.get("stck_clpr", "")).strip()
         if not date_text or not close_text:    # 빈 행 skip
             continue
-        sign = str(row.get("nav_prdy_vrss_sign", "")).strip()
+        change_sign_code = str(row.get("nav_prdy_vrss_sign", "")).strip()
         points.append(
             ETFNAVHistoryPoint(
                 date=_parse_kst_date(date_text),
                 close=required_decimal(close_text, "stck_clpr"),
                 nav=required_decimal(row.get("nav"), "nav"),
                 nav_change=_apply_change_sign(
-                    required_decimal(row.get("nav_prdy_vrss"), "nav_prdy_vrss"), sign
+                    required_decimal(row.get("nav_prdy_vrss"), "nav_prdy_vrss"), change_sign_code
                 ),
                 nav_change_percent=_apply_change_sign(
-                    required_decimal(row.get("nav_prdy_ctrt"), "nav_prdy_ctrt"), sign
+                    required_decimal(row.get("nav_prdy_ctrt"), "nav_prdy_ctrt"), change_sign_code
                 ),
                 premium=required_decimal(row.get("dprt"), "dprt"),
                 _raw=row,
@@ -366,15 +366,15 @@ def _parse_etf_nav_history(rows: Sequence[Mapping[str, Any]]) -> list[ETFNAVHist
 
 
 def _parse_etf_nav(output: Mapping[str, Any], *, symbol: str, as_of: datetime) -> ETFNAV:
-    sign = str(output.get("nav_prdy_vrss_sign", "")).strip()
+    change_sign_code = str(output.get("nav_prdy_vrss_sign", "")).strip()
     return ETFNAV(
         symbol=symbol,
         nav=required_decimal(output.get("nav"), "nav"),
         nav_change=_apply_change_sign(
-            required_decimal(output.get("nav_prdy_vrss"), "nav_prdy_vrss"), sign
+            required_decimal(output.get("nav_prdy_vrss"), "nav_prdy_vrss"), change_sign_code
         ),
         nav_change_percent=_apply_change_sign(
-            required_decimal(output.get("nav_prdy_ctrt"), "nav_prdy_ctrt"), sign
+            required_decimal(output.get("nav_prdy_ctrt"), "nav_prdy_ctrt"), change_sign_code
         ),
         previous_nav=required_decimal(output.get("prdy_last_nav"), "prdy_last_nav"),
         premium=required_decimal(output.get("dprt"), "dprt"),

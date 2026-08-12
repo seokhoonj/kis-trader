@@ -78,9 +78,64 @@ _BROKER_OPINIONS_PATH = "/uapi/domestic-stock/v1/quotations/invest-opbysec"
 _BROKER_OPINIONS_TR = "FHKST663400C0"
 
 
-def _default_start(end_yyyymmdd: str, days: int = 30) -> str:
-    end_day = datetime.strptime(end_yyyymmdd, "%Y%m%d")  # noqa: DTZ007 -- 날짜 산술만
-    return f"{end_day - timedelta(days=days):%Y%m%d}"
+_INVESTOR_SNAPSHOT_PREFIX = {
+    "foreign": "frgn", "individual": "prsn", "institutional": "orgn",
+    "securities": "scrt", "investment_trust": "ivtr", "private_equity": "pe_fund",
+    "bank": "bank", "insurance": "insu", "merchant_bank": "mrbn", "fund": "fund",
+    "other_organization": "etc_orgt", "other_corporation": "etc_corp",
+}
+
+
+_NET_BUY_MARKET = {"all": "0000", "KOSPI": "0001", "KOSDAQ": "1001"}
+_NET_BUY_PARTICIPANT = {
+    "foreign": "frgn", "institutional": "orgn", "investment_trust": "ivtr",
+    "bank": "bank", "insurance": "insu", "merchant_bank": "mrbn", "fund": "fund",
+    "other_organization": "etc_orgt", "other_corporation": "etc_corp",
+}
+
+
+_PROGRAM_INVESTOR_PATH = "/uapi/domestic-stock/v1/quotations/investor-program-trade-today"
+_PROGRAM_INVESTOR_TR = "HHPPG046600C1"
+
+
+_PROGRAM_SUMMARY_PATH = "/uapi/domestic-stock/v1/quotations/comp-program-trade-daily"
+_PROGRAM_SUMMARY_TR = "FHPPG04600001"
+#: 시장 -> FID_MRKT_CLS_CODE.
+_PROGRAM_MARKET = {"KOSPI": "K", "KOSDAQ": "Q"}
+
+
+_VI_STATUS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-vi-status"
+_VI_STATUS_TR = "FHPST01390000"
+
+
+_LIMIT_PATH = "/uapi/domestic-stock/v1/quotations/capture-uplowprice"
+_LIMIT_TR = "FHKST130000C0"
+
+
+_PROGRAM_FLOW_PATH = "/uapi/domestic-stock/v1/quotations/comp-program-trade-today"
+_PROGRAM_FLOW_TR = "FHPPG04600101"
+
+
+_CALENDAR_PATH = "/uapi/domestic-stock/v1/quotations/chk-holiday"
+_CALENDAR_TR = "CTCA0903R"
+_FUTURES_SCHEDULE_PATH = "/uapi/domestic-stock/v1/quotations/market-time"
+_FUTURES_SCHEDULE_TR = "HHMCM000002C0"
+
+
+_NEWS_PATH = "/uapi/domestic-stock/v1/quotations/news-title"
+_NEWS_TR = "FHKST01011800"
+
+
+_FOREIGN_BROKER_PATH = "/uapi/domestic-stock/v1/quotations/frgnmem-trade-estimate"
+_FOREIGN_BROKER_TR = "FHKST644100C0"
+_FOREIGN_BROKER_SORT = {"amount": "0", "volume": "1"}
+
+
+_MARKET_FUNDS_PATH = "/uapi/domestic-stock/v1/quotations/mktfunds"
+_MARKET_FUNDS_TR = "FHKST649100C0"
+
+_INTEREST_RATES_PATH = "/uapi/domestic-stock/v1/quotations/comp-interest"
+_INTEREST_RATES_TR = "FHPST07020000"
 
 
 def fetch_lendable_stocks(
@@ -287,14 +342,6 @@ def fetch_market_investor_flows(
     return flows
 
 
-_INVESTOR_SNAPSHOT_PREFIX = {
-    "foreign": "frgn", "individual": "prsn", "institutional": "orgn",
-    "securities": "scrt", "investment_trust": "ivtr", "private_equity": "pe_fund",
-    "bank": "bank", "insurance": "insu", "merchant_bank": "mrbn", "fund": "fund",
-    "other_organization": "etc_orgt", "other_corporation": "etc_corp",
-}
-
-
 def fetch_market_investor_snapshot(
     transport: Transport, *, market_code: str, industry_code: str
 ) -> MarketInvestorSnapshot:
@@ -318,28 +365,6 @@ def fetch_market_investor_snapshot(
                       for name, prefix in _INVESTOR_SNAPSHOT_PREFIX.items()},
         _raw=row,
     )
-
-
-def _parse_market_investor_activity(
-    row: Mapping[str, object], prefix: str
-) -> InvestorActivity:
-    net_key = f"{prefix}_ntby_vol" if prefix in {"pe_fund", "etc_orgt", "etc_corp"} else f"{prefix}_ntby_qty"
-    return InvestorActivity(
-        buy_volume=required_int(row.get(f"{prefix}_shnu_vol"), f"{prefix}_shnu_vol"),
-        sell_volume=required_int(row.get(f"{prefix}_seln_vol"), f"{prefix}_seln_vol"),
-        net_buy_volume=required_int(row.get(net_key), net_key),
-        buy_value=required_decimal(row.get(f"{prefix}_shnu_tr_pbmn"), f"{prefix}_shnu_tr_pbmn"),
-        sell_value=required_decimal(row.get(f"{prefix}_seln_tr_pbmn"), f"{prefix}_seln_tr_pbmn"),
-        net_buy_value=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
-    )
-
-
-_NET_BUY_MARKET = {"all": "0000", "KOSPI": "0001", "KOSDAQ": "1001"}
-_NET_BUY_PARTICIPANT = {
-    "foreign": "frgn", "institutional": "orgn", "investment_trust": "ivtr",
-    "bank": "bank", "insurance": "insu", "merchant_bank": "mrbn", "fund": "fund",
-    "other_organization": "etc_orgt", "other_corporation": "etc_corp",
-}
 
 
 def fetch_investor_net_buy_stocks(
@@ -392,21 +417,6 @@ def fetch_investor_net_buy_stocks(
     return stocks
 
 
-_PROGRAM_INVESTOR_PATH = "/uapi/domestic-stock/v1/quotations/investor-program-trade-today"
-_PROGRAM_INVESTOR_TR = "HHPPG046600C1"
-
-
-def _parse_program_trade_activity(row: Mapping[str, object], prefix: str) -> ProgramTradeActivity:
-    return ProgramTradeActivity(
-        sell_quantity=required_int(row.get(f"{prefix}_seln_qty"), f"{prefix}_seln_qty"),
-        buy_quantity=required_int(row.get(f"{prefix}_shnu_qty"), f"{prefix}_shnu_qty"),
-        net_buy_quantity=required_int(row.get(f"{prefix}_ntby_qty"), f"{prefix}_ntby_qty"),
-        sell_amount=required_decimal(row.get(f"{prefix}_seln_amt"), f"{prefix}_seln_amt"),
-        buy_amount=required_decimal(row.get(f"{prefix}_shnu_amt"), f"{prefix}_shnu_amt"),
-        net_buy_amount=required_decimal(row.get(f"{prefix}_ntby_amt"), f"{prefix}_ntby_amt"),
-    )
-
-
 def fetch_program_investor_trades(
     transport: Transport, *, market: Market = "KOSPI"
 ) -> list[ProgramInvestorTrade]:
@@ -429,12 +439,6 @@ def fetch_program_investor_trades(
         arbitrage=_parse_program_trade_activity(row, "arbt"),
         nonarbitrage=_parse_program_trade_activity(row, "nabt"), _raw=row,
     ) for row in rows]
-
-
-_PROGRAM_SUMMARY_PATH = "/uapi/domestic-stock/v1/quotations/comp-program-trade-daily"
-_PROGRAM_SUMMARY_TR = "FHPPG04600001"
-#: 시장 -> FID_MRKT_CLS_CODE.
-_PROGRAM_MARKET = {"KOSPI": "K", "KOSDAQ": "Q"}
 
 
 def fetch_program_trade_summary(
@@ -485,10 +489,6 @@ def fetch_program_trade_summary(
     return summaries
 
 
-_VI_STATUS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-vi-status"
-_VI_STATUS_TR = "FHPST01390000"
-
-
 def fetch_vi_events(
     transport: Transport, *, as_of: str | date | None = None
 ) -> list[VIEvent]:
@@ -535,10 +535,6 @@ def fetch_vi_events(
     return events
 
 
-_LIMIT_PATH = "/uapi/domestic-stock/v1/quotations/capture-uplowprice"
-_LIMIT_TR = "FHKST130000C0"
-
-
 def fetch_limit_stocks(transport: Transport) -> list[LimitStock]:
     """상한가/하한가에 도달한 종목 전체 스냅샷(전 시장)."""
     params = {
@@ -579,10 +575,6 @@ def fetch_limit_stocks(transport: Transport) -> list[LimitStock]:
     return stocks
 
 
-_PROGRAM_FLOW_PATH = "/uapi/domestic-stock/v1/quotations/comp-program-trade-today"
-_PROGRAM_FLOW_TR = "FHPPG04600101"
-
-
 def fetch_program_flow(
     transport: Transport, *, market: Market = "KOSPI"
 ) -> list[ProgramFlowPoint]:
@@ -621,12 +613,6 @@ def fetch_program_flow(
             )
         )
     return points
-
-
-_CALENDAR_PATH = "/uapi/domestic-stock/v1/quotations/chk-holiday"
-_CALENDAR_TR = "CTCA0903R"
-_FUTURES_SCHEDULE_PATH = "/uapi/domestic-stock/v1/quotations/market-time"
-_FUTURES_SCHEDULE_TR = "HHMCM000002C0"
 
 
 def fetch_trading_calendar(
@@ -696,10 +682,6 @@ def fetch_futures_market_schedule(transport: Transport) -> FuturesMarketSchedule
     )
 
 
-_NEWS_PATH = "/uapi/domestic-stock/v1/quotations/news-title"
-_NEWS_TR = "FHKST01011800"
-
-
 def fetch_news(
     transport: Transport, *, symbol: str = "", date_: str | date | None = None
 ) -> list[NewsHeadline]:
@@ -743,11 +725,6 @@ def fetch_news(
             )
         )
     return items
-
-
-_FOREIGN_BROKER_PATH = "/uapi/domestic-stock/v1/quotations/frgnmem-trade-estimate"
-_FOREIGN_BROKER_TR = "FHKST644100C0"
-_FOREIGN_BROKER_SORT = {"amount": "0", "volume": "1"}
 
 
 def fetch_foreign_broker_trades(
@@ -799,13 +776,6 @@ def fetch_foreign_broker_trades(
     return flows
 
 
-_MARKET_FUNDS_PATH = "/uapi/domestic-stock/v1/quotations/mktfunds"
-_MARKET_FUNDS_TR = "FHKST649100C0"
-
-_INTEREST_RATES_PATH = "/uapi/domestic-stock/v1/quotations/comp-interest"
-_INTEREST_RATES_TR = "FHPST07020000"
-
-
 def fetch_interest_rates(transport: Transport) -> list[InterestRateQuote]:
     """국내·해외 주요 금리와 채권지수의 최신 스냅샷."""
     params = {
@@ -833,35 +803,6 @@ def fetch_interest_rates(transport: Transport) -> list[InterestRateQuote]:
             domestic_rows, region="domestic", percent_field="bstp_nmix_prdy_ctrt", resp=resp
         )
     )
-    return quotes
-
-
-def _parse_interest_rates(
-    rows: list[object], *, region: Literal["domestic", "overseas"], percent_field: str,
-    resp: RawResponse,
-) -> list[InterestRateQuote]:
-    quotes: list[InterestRateQuote] = []
-    for row in rows:
-        if not isinstance(row, Mapping):
-            raise _missing_block_error(f"{region} output[]", resp)
-        sign = str(row.get("prdy_vrss_sign", "")).strip()
-        quotes.append(
-            InterestRateQuote(
-                code=str(row.get("bcdt_code", "")).strip(),
-                name=str(row.get("hts_kor_isnm", "")).strip(),
-                region=region,
-                value=required_decimal(row.get("bond_mnrt_prpr"), "bond_mnrt_prpr"),
-                change=_apply_change_sign(
-                    required_decimal(row.get("bond_mnrt_prdy_vrss"), "bond_mnrt_prdy_vrss"),
-                    sign,
-                ),
-                change_percent=_apply_change_sign(
-                    required_decimal(row.get(percent_field), percent_field), sign
-                ),
-                date=_parse_kst_date(str(row.get("stck_bsop_date", "")).strip()),
-                _raw=row,
-            )
-        )
     return quotes
 
 
@@ -922,3 +863,62 @@ def fetch_market_funds(
             )
         )
     return funds
+
+
+def _default_start(end_yyyymmdd: str, days: int = 30) -> str:
+    end_day = datetime.strptime(end_yyyymmdd, "%Y%m%d")  # noqa: DTZ007 -- 날짜 산술만
+    return f"{end_day - timedelta(days=days):%Y%m%d}"
+
+
+def _parse_market_investor_activity(
+    row: Mapping[str, object], prefix: str
+) -> InvestorActivity:
+    net_key = f"{prefix}_ntby_vol" if prefix in {"pe_fund", "etc_orgt", "etc_corp"} else f"{prefix}_ntby_qty"
+    return InvestorActivity(
+        buy_volume=required_int(row.get(f"{prefix}_shnu_vol"), f"{prefix}_shnu_vol"),
+        sell_volume=required_int(row.get(f"{prefix}_seln_vol"), f"{prefix}_seln_vol"),
+        net_buy_volume=required_int(row.get(net_key), net_key),
+        buy_value=required_decimal(row.get(f"{prefix}_shnu_tr_pbmn"), f"{prefix}_shnu_tr_pbmn"),
+        sell_value=required_decimal(row.get(f"{prefix}_seln_tr_pbmn"), f"{prefix}_seln_tr_pbmn"),
+        net_buy_value=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
+    )
+
+
+def _parse_program_trade_activity(row: Mapping[str, object], prefix: str) -> ProgramTradeActivity:
+    return ProgramTradeActivity(
+        sell_quantity=required_int(row.get(f"{prefix}_seln_qty"), f"{prefix}_seln_qty"),
+        buy_quantity=required_int(row.get(f"{prefix}_shnu_qty"), f"{prefix}_shnu_qty"),
+        net_buy_quantity=required_int(row.get(f"{prefix}_ntby_qty"), f"{prefix}_ntby_qty"),
+        sell_amount=required_decimal(row.get(f"{prefix}_seln_amt"), f"{prefix}_seln_amt"),
+        buy_amount=required_decimal(row.get(f"{prefix}_shnu_amt"), f"{prefix}_shnu_amt"),
+        net_buy_amount=required_decimal(row.get(f"{prefix}_ntby_amt"), f"{prefix}_ntby_amt"),
+    )
+
+
+def _parse_interest_rates(
+    rows: list[object], *, region: Literal["domestic", "overseas"], percent_field: str,
+    resp: RawResponse,
+) -> list[InterestRateQuote]:
+    quotes: list[InterestRateQuote] = []
+    for row in rows:
+        if not isinstance(row, Mapping):
+            raise _missing_block_error(f"{region} output[]", resp)
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        quotes.append(
+            InterestRateQuote(
+                code=str(row.get("bcdt_code", "")).strip(),
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                region=region,
+                value=required_decimal(row.get("bond_mnrt_prpr"), "bond_mnrt_prpr"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("bond_mnrt_prdy_vrss"), "bond_mnrt_prdy_vrss"),
+                    sign,
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get(percent_field), percent_field), sign
+                ),
+                date=_parse_kst_date(str(row.get("stck_bsop_date", "")).strip()),
+                _raw=row,
+            )
+        )
+    return quotes

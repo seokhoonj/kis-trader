@@ -74,6 +74,30 @@ _MARKET_DIV = "B"
 _BOND_PRODUCT_TYPE_CODE = "302"
 
 
+class _ValuationAgencyFields(NamedTuple):
+    """평가기관 하나의 응답 필드명 묶음(단가 / 수익률 / 신용등급 / 무위험단가)."""
+
+    price: str
+    yield_rate: str
+    rating: str
+    risk_free: str
+
+
+#: 평가기관 -> 그 기관의 단가/수익률/신용등급/무위험단가 응답 필드명. FNP 는 무위험단가 필드가 없어 빈 문자열.
+_VALUATION_FIELDS_BY_AGENCY = {
+    "KIS": _ValuationAgencyFields("kis_unpr", "kis_erng_rt", "kis_crdt_grad_text", "kis_rf_unpr"),
+    "KBP": _ValuationAgencyFields("kbp_unpr", "kbp_erng_rt", "kbp_crdt_grad_text", "kbp_rf_unpr"),
+    "NICE": _ValuationAgencyFields(
+        "nice_evlu_unpr", "nice_evlu_erng_rt", "nice_crdt_grad_text", "nice_evlu_rf_unpr"
+    ),
+    "FNP": _ValuationAgencyFields("fnp_unpr", "fnp_erng_rt", "fnp_crdt_grad_text", ""),
+}
+
+
+_INFO_PATH = "/uapi/domestic-bond/v1/quotations/search-bond-info"
+_INFO_TR = "CTPF1114R"
+
+
 def fetch_quote(transport: Transport, *, code: str) -> BondQuote:
     """채권 현재가 스냅샷. ``code`` 는 표준코드(ISIN)."""
     params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code}
@@ -85,29 +109,6 @@ def fetch_quote(transport: Transport, *, code: str) -> BondQuote:
     if not isinstance(output, Mapping):        # 성공 응답인데 객체 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return _parse_quote(output, code=code, as_of=datetime.now(_KST))
-
-
-def _parse_quote(output: Mapping[str, Any], *, code: str, as_of: datetime) -> BondQuote:
-    sign = str(output.get("prdy_vrss_sign", "")).strip()
-    return BondQuote(
-        code=code,
-        name=str(output.get("hts_kor_isnm", "")).strip(),
-        price=required_decimal(output.get("bond_prpr"), "bond_prpr"),
-        open=required_decimal(output.get("bond_oprc"), "bond_oprc"),
-        high=required_decimal(output.get("bond_hgpr"), "bond_hgpr"),
-        low=required_decimal(output.get("bond_lwpr"), "bond_lwpr"),
-        previous_close=required_decimal(output.get("bond_prdy_clpr"), "bond_prdy_clpr"),
-        change=_apply_change_sign(
-            required_decimal(output.get("bond_prdy_vrss"), "bond_prdy_vrss"), sign
-        ),
-        change_percent=_apply_change_sign(
-            required_decimal(output.get("prdy_ctrt"), "prdy_ctrt"), sign
-        ),
-        volume=required_int(output.get("acml_vol"), "acml_vol"),
-        yield_rate=optional_decimal(output.get("ernn_rate"), "ernn_rate"),
-        as_of=as_of,
-        _raw=output,
-    )
 
 
 def fetch_order_book(transport: Transport, *, code: str) -> OrderBook:
@@ -153,34 +154,6 @@ def fetch_trades(transport: Transport, *, code: str) -> list[Trade]:
     if not isinstance(rows, list):             # 성공 응답인데 체결 배열 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return _parse_trades(rows, code=code, as_of=datetime.now(_KST))
-
-
-def _parse_trades(
-    rows: Sequence[Mapping[str, Any]], *, code: str, as_of: datetime
-) -> list[Trade]:
-    trades: list[Trade] = []
-    for row in rows:
-        time_text = str(row.get("stck_cntg_hour", "")).strip()
-        price_text = str(row.get("bond_prpr", "")).strip()
-        if not time_text or not price_text:    # 빈 행 건너뜀
-            continue
-        sign = str(row.get("prdy_vrss_sign", "")).strip()
-        trades.append(
-            Trade(
-                symbol=code,
-                timestamp=_parse_intraday_timestamp(time_text, as_of),
-                price=required_decimal(price_text, "bond_prpr"),
-                quantity=required_int(row.get("cntg_vol"), "cntg_vol"),
-                change=_apply_change_sign(
-                    required_decimal(row.get("bond_prdy_vrss"), "bond_prdy_vrss"), sign
-                ),
-                change_percent=_apply_change_sign(
-                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
-                ),
-                _raw=row,
-            )
-        )
-    return trades
 
 
 def fetch_bars(transport: Transport, *, code: str, interval: Interval = "1d") -> list[Bar]:
@@ -234,14 +207,14 @@ def fetch_daily_prices(transport: Transport, *, code: str) -> list[BondDailyPric
         rows = resp.body.get("output")
         if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
             raise _missing_block_error("output", resp)
-        fresh = 0
+        new_date_count = 0
         for row in rows:
             date_text = str(row.get("stck_bsop_date", "")).strip()
             price_text = str(row.get("bond_prpr", "")).strip()
             if not date_text or not price_text:
                 continue
             day = _parse_bar_timestamp(date_text).date()
-            sign = str(row.get("prdy_vrss_sign", "")).strip()
+            change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
             price = BondDailyPrice(
                 date=day,
                 code=code,
@@ -250,20 +223,20 @@ def fetch_daily_prices(transport: Transport, *, code: str) -> list[BondDailyPric
                 high=required_decimal(row.get("bond_hgpr"), "bond_hgpr"),
                 low=required_decimal(row.get("bond_lwpr"), "bond_lwpr"),
                 change=_apply_change_sign(
-                    required_decimal(row.get("bond_prdy_vrss"), "bond_prdy_vrss"), sign
+                    required_decimal(row.get("bond_prdy_vrss"), "bond_prdy_vrss"), change_sign_code
                 ),
                 change_percent=_apply_change_sign(
-                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), change_sign_code
                 ),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
                 _raw=row,
             )
             if day not in prices_by_date:
-                fresh += 1
+                new_date_count += 1
             prices_by_date[day] = price
         if resp.tr_cont not in {"F", "M"}:
             break
-        if fresh == 0:
+        if new_date_count == 0:
             raise KISError("채권 일별 현재가 연속조회가 새 날짜 없이 반복됐다.")
         tr_cont = "N"
     else:
@@ -307,69 +280,6 @@ def fetch_valuations(
         valuations.append(_parse_valuation(row, fallback_code=code, date_text=date_text))
     valuations.sort(key=lambda valuation: valuation.date)
     return valuations
-
-
-class _ValuationAgencyFields(NamedTuple):
-    """평가기관 하나의 응답 필드명 묶음(단가 / 수익률 / 신용등급 / 무위험단가)."""
-
-    price: str
-    yield_rate: str
-    rating: str
-    risk_free: str
-
-
-#: 평가기관 -> 그 기관의 단가/수익률/신용등급/무위험단가 응답 필드명. FNP 는 무위험단가 필드가 없어 빈 문자열.
-_VALUATION_FIELDS_BY_AGENCY = {
-    "KIS": _ValuationAgencyFields("kis_unpr", "kis_erng_rt", "kis_crdt_grad_text", "kis_rf_unpr"),
-    "KBP": _ValuationAgencyFields("kbp_unpr", "kbp_erng_rt", "kbp_crdt_grad_text", "kbp_rf_unpr"),
-    "NICE": _ValuationAgencyFields(
-        "nice_evlu_unpr", "nice_evlu_erng_rt", "nice_crdt_grad_text", "nice_evlu_rf_unpr"
-    ),
-    "FNP": _ValuationAgencyFields("fnp_unpr", "fnp_erng_rt", "fnp_crdt_grad_text", ""),
-}
-
-
-def _parse_valuation(
-    row: Mapping[str, Any], *, fallback_code: str, date_text: str
-) -> BondValuation:
-    agency_prices: dict[str, Decimal] = {}
-    agency_yields: dict[str, Decimal] = {}
-    credit_ratings: dict[str, str] = {}
-    risk_free_prices: dict[str, Decimal] = {}
-    for agency, fields in _VALUATION_FIELDS_BY_AGENCY.items():
-        price = optional_decimal(row.get(fields.price), fields.price)
-        yield_rate = optional_decimal(row.get(fields.yield_rate), fields.yield_rate)
-        rating = str(row.get(fields.rating, "")).strip()
-        risk_free_price = (
-            optional_decimal(row.get(fields.risk_free), fields.risk_free)
-            if fields.risk_free
-            else None
-        )
-        if price is not None:
-            agency_prices[agency] = price
-        if yield_rate is not None:
-            agency_yields[agency] = yield_rate
-        if rating:
-            credit_ratings[agency] = rating
-        if risk_free_price is not None:
-            risk_free_prices[agency] = risk_free_price
-    return BondValuation(
-        date=_parse_kst_date(date_text),
-        code=str(row.get("pdno", "")).strip() or fallback_code,
-        name=str(row.get("prdt_name", "")).strip(),
-        average_price=required_decimal(row.get("avg_evlu_unpr"), "avg_evlu_unpr"),
-        average_yield=required_decimal(row.get("avg_evlu_erng_rt"), "avg_evlu_erng_rt"),
-        agency_prices=agency_prices,
-        agency_yields=agency_yields,
-        credit_ratings=credit_ratings,
-        risk_free_prices=risk_free_prices,
-        changed=str(row.get("chng_yn", "")).strip() == "Y",
-        _raw=row,
-    )
-
-
-_INFO_PATH = "/uapi/domestic-bond/v1/quotations/search-bond-info"
-_INFO_TR = "CTPF1114R"
 
 
 def fetch_info(transport: Transport, *, code: str) -> BondInfo:
@@ -451,4 +361,94 @@ def fetch_issuance(transport: Transport, *, code: str) -> BondIssuance:
         is_trade_suspended=str(output.get("bond_tr_stop_dvsn_cd", "")).strip() == "Y",
         is_electronic=str(output.get("elec_scty_yn", "")).strip() == "Y",
         _raw=output,
+    )
+
+
+def _parse_quote(output: Mapping[str, Any], *, code: str, as_of: datetime) -> BondQuote:
+    change_sign_code = str(output.get("prdy_vrss_sign", "")).strip()
+    return BondQuote(
+        code=code,
+        name=str(output.get("hts_kor_isnm", "")).strip(),
+        price=required_decimal(output.get("bond_prpr"), "bond_prpr"),
+        open=required_decimal(output.get("bond_oprc"), "bond_oprc"),
+        high=required_decimal(output.get("bond_hgpr"), "bond_hgpr"),
+        low=required_decimal(output.get("bond_lwpr"), "bond_lwpr"),
+        previous_close=required_decimal(output.get("bond_prdy_clpr"), "bond_prdy_clpr"),
+        change=_apply_change_sign(
+            required_decimal(output.get("bond_prdy_vrss"), "bond_prdy_vrss"), change_sign_code
+        ),
+        change_percent=_apply_change_sign(
+            required_decimal(output.get("prdy_ctrt"), "prdy_ctrt"), change_sign_code
+        ),
+        volume=required_int(output.get("acml_vol"), "acml_vol"),
+        yield_rate=optional_decimal(output.get("ernn_rate"), "ernn_rate"),
+        as_of=as_of,
+        _raw=output,
+    )
+
+
+def _parse_trades(
+    rows: Sequence[Mapping[str, Any]], *, code: str, as_of: datetime
+) -> list[Trade]:
+    trades: list[Trade] = []
+    for row in rows:
+        time_text = str(row.get("stck_cntg_hour", "")).strip()
+        price_text = str(row.get("bond_prpr", "")).strip()
+        if not time_text or not price_text:    # 빈 행 건너뜀
+            continue
+        change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
+        trades.append(
+            Trade(
+                symbol=code,
+                timestamp=_parse_intraday_timestamp(time_text, as_of),
+                price=required_decimal(price_text, "bond_prpr"),
+                quantity=required_int(row.get("cntg_vol"), "cntg_vol"),
+                change=_apply_change_sign(
+                    required_decimal(row.get("bond_prdy_vrss"), "bond_prdy_vrss"), change_sign_code
+                ),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), change_sign_code
+                ),
+                _raw=row,
+            )
+        )
+    return trades
+
+
+def _parse_valuation(
+    row: Mapping[str, Any], *, fallback_code: str, date_text: str
+) -> BondValuation:
+    agency_prices: dict[str, Decimal] = {}
+    agency_yields: dict[str, Decimal] = {}
+    credit_ratings: dict[str, str] = {}
+    risk_free_prices: dict[str, Decimal] = {}
+    for agency, fields in _VALUATION_FIELDS_BY_AGENCY.items():
+        price = optional_decimal(row.get(fields.price), fields.price)
+        yield_rate = optional_decimal(row.get(fields.yield_rate), fields.yield_rate)
+        rating = str(row.get(fields.rating, "")).strip()
+        risk_free_price = (
+            optional_decimal(row.get(fields.risk_free), fields.risk_free)
+            if fields.risk_free
+            else None
+        )
+        if price is not None:
+            agency_prices[agency] = price
+        if yield_rate is not None:
+            agency_yields[agency] = yield_rate
+        if rating:
+            credit_ratings[agency] = rating
+        if risk_free_price is not None:
+            risk_free_prices[agency] = risk_free_price
+    return BondValuation(
+        date=_parse_kst_date(date_text),
+        code=str(row.get("pdno", "")).strip() or fallback_code,
+        name=str(row.get("prdt_name", "")).strip(),
+        average_price=required_decimal(row.get("avg_evlu_unpr"), "avg_evlu_unpr"),
+        average_yield=required_decimal(row.get("avg_evlu_erng_rt"), "avg_evlu_erng_rt"),
+        agency_prices=agency_prices,
+        agency_yields=agency_yields,
+        credit_ratings=credit_ratings,
+        risk_free_prices=risk_free_prices,
+        changed=str(row.get("chng_yn", "")).strip() == "Y",
+        _raw=row,
     )

@@ -263,7 +263,7 @@ def fetch_index_intraday(
     rows = resp.body.get("output")
     if not isinstance(rows, list):             # 성공 응답인데 배열 아님 -> fail-closed
         raise _missing_block_error("output", resp)
-    return _parse_index_intraday(rows, today=_today_kst())
+    return _parse_index_intraday(rows, date_text=_today_kst())
 
 
 def fetch_index_ticks(transport: Transport, *, code: str) -> list[IndexIntradayPoint]:
@@ -281,7 +281,7 @@ def fetch_index_ticks(transport: Transport, *, code: str) -> list[IndexIntradayP
     _raise_if_error(resp)
     rows = _require_mapping_rows("output", resp)
     points: list[IndexIntradayPoint] = []
-    today = _today_kst()
+    date_text = _today_kst()
     for row in rows:
         if not isinstance(row, Mapping):
             raise _missing_block_error("output[]", resp)
@@ -289,16 +289,16 @@ def fetch_index_ticks(transport: Transport, *, code: str) -> list[IndexIntradayP
         value_text = str(row.get("bstp_nmix_prpr", "")).strip()
         if not time_text or not value_text:
             continue
-        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             IndexIntradayPoint(
-                time=_parse_minute_bar_timestamp(date_text=today, time_text=time_text),
+                time=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
                 value=required_decimal(value_text, "bstp_nmix_prpr"),
                 change=_apply_change_sign(
                     required_decimal(
                         row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"
                     ),
-                    sign,
+                    change_sign_code,
                 ),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
                 interval_volume=required_int(row.get("cntg_vol"), "cntg_vol"),
@@ -350,7 +350,7 @@ def fetch_index_daily_history(
         value_text = str(row.get("bstp_nmix_prpr", "")).strip()
         if not date_text or not value_text:
             continue
-        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             IndexDailyPoint(
                 date=_parse_kst_date(date_text),
@@ -362,13 +362,13 @@ def fetch_index_daily_history(
                     required_decimal(
                         row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"
                     ),
-                    sign,
+                    change_sign_code,
                 ),
                 change_percent=_apply_change_sign(
                     required_decimal(
                         row.get("bstp_nmix_prdy_ctrt"), "bstp_nmix_prdy_ctrt"
                     ),
-                    sign,
+                    change_sign_code,
                 ),
                 volume_share=required_decimal(
                     row.get("acml_vol_rlim"), "acml_vol_rlim"
@@ -422,7 +422,7 @@ def fetch_expected_index_trend(
     )
     _raise_if_error(resp)
     rows = _require_mapping_rows("output", resp)
-    today = _today_kst()
+    date_text = _today_kst()
     points: list[ExpectedIndexPoint] = []
     for row in rows:
         if not isinstance(row, Mapping):
@@ -431,19 +431,19 @@ def fetch_expected_index_trend(
         value_text = str(row.get("bstp_nmix_prpr", "")).strip()
         if not time_text or not value_text:
             continue
-        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             ExpectedIndexPoint(
-                time=_parse_minute_bar_timestamp(date_text=today, time_text=time_text),
+                time=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
                 value=required_decimal(value_text, "bstp_nmix_prpr"),
                 change=_apply_change_sign(
                     required_decimal(
                         row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"
                     ),
-                    sign,
+                    change_sign_code,
                 ),
                 change_percent=_apply_change_sign(
-                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), change_sign_code
                 ),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
                 amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
@@ -486,21 +486,21 @@ def fetch_expected_index_snapshot(
         raise _missing_block_error("output2", resp)
 
     def parse_quote(row: Mapping[str, Any], *, fallback_code: str) -> ExpectedIndexQuote:
-        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         return ExpectedIndexQuote(
             code=str(row.get("bstp_cls_code", fallback_code)).strip(),
             name=str(row.get("hts_kor_isnm", "")).strip(),
             value=required_decimal(row.get("bstp_nmix_prpr"), "bstp_nmix_prpr"),
             base_value=optional_decimal(row.get("nmix_sdpr"), "nmix_sdpr"),
             change=_apply_change_sign(
-                required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), sign
+                required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), change_sign_code
             ),
             change_percent=_apply_change_sign(
                 required_decimal(
                     row.get("bstp_nmix_prdy_ctrt", row.get("prdy_ctrt")),
                     "bstp_nmix_prdy_ctrt",
                 ),
-                sign,
+                change_sign_code,
             ),
             volume=required_int(row.get("acml_vol"), "acml_vol"),
             advances=required_int(row.get("ascn_issu_cnt"), "ascn_issu_cnt"),
@@ -522,7 +522,7 @@ def fetch_expected_index_snapshot(
 
 
 def _parse_index_intraday(
-    rows: Sequence[Mapping[str, Any]], *, today: str
+    rows: Sequence[Mapping[str, Any]], *, date_text: str
 ) -> list[IndexIntradayPoint]:
     """시간대별 행 -> IndexIntradayPoint(시각 오름차순). bsop_hour(HHMMSS)에 당일 날짜를 결합한다."""
     points: list[IndexIntradayPoint] = []
@@ -531,13 +531,13 @@ def _parse_index_intraday(
         value_text = str(row.get("bstp_nmix_prpr", "")).strip()
         if not time_text or not value_text:    # 빈 점 skip
             continue
-        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             IndexIntradayPoint(
-                time=_parse_minute_bar_timestamp(date_text=today, time_text=time_text),
+                time=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
                 value=required_decimal(value_text, "bstp_nmix_prpr"),
                 change=_apply_change_sign(
-                    required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), sign
+                    required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), change_sign_code
                 ),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
                 interval_volume=required_int(row.get("cntg_vol"), "cntg_vol"),
@@ -582,17 +582,17 @@ def _parse_index_categories(rows: Sequence[Mapping[str, Any]]) -> list[CategoryI
         value_text = str(row.get("bstp_nmix_prpr", "")).strip()
         if not category_code or not value_text:  # 빈 행 skip
             continue
-        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         categories.append(
             CategoryIndex(
                 code=category_code,
                 name=str(row.get("hts_kor_isnm", "")).strip(),
                 value=required_decimal(value_text, "bstp_nmix_prpr"),
                 change=_apply_change_sign(
-                    required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), sign
+                    required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), change_sign_code
                 ),
                 change_percent=_apply_change_sign(
-                    required_decimal(row.get("bstp_nmix_prdy_ctrt"), "bstp_nmix_prdy_ctrt"), sign
+                    required_decimal(row.get("bstp_nmix_prdy_ctrt"), "bstp_nmix_prdy_ctrt"), change_sign_code
                 ),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
                 amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
@@ -607,7 +607,7 @@ def _parse_index_categories(rows: Sequence[Mapping[str, Any]]) -> list[CategoryI
 def _parse_index_quote(
     output: Mapping[str, Any], *, code: str, as_of: datetime
 ) -> IndexQuote:
-    sign = str(output.get("prdy_vrss_sign", "")).strip()
+    change_sign_code = str(output.get("prdy_vrss_sign", "")).strip()
     return IndexQuote(
         code=code,
         value=required_decimal(output.get("bstp_nmix_prpr"), "bstp_nmix_prpr"),
@@ -615,10 +615,10 @@ def _parse_index_quote(
         high=required_decimal(output.get("bstp_nmix_hgpr"), "bstp_nmix_hgpr"),
         low=required_decimal(output.get("bstp_nmix_lwpr"), "bstp_nmix_lwpr"),
         change=_apply_change_sign(
-            required_decimal(output.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), sign
+            required_decimal(output.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), change_sign_code
         ),
         change_percent=_apply_change_sign(
-            required_decimal(output.get("bstp_nmix_prdy_ctrt"), "bstp_nmix_prdy_ctrt"), sign
+            required_decimal(output.get("bstp_nmix_prdy_ctrt"), "bstp_nmix_prdy_ctrt"), change_sign_code
         ),
         volume=required_int(output.get("acml_vol"), "acml_vol"),
         amount=required_decimal(output.get("acml_tr_pbmn"), "acml_tr_pbmn"),

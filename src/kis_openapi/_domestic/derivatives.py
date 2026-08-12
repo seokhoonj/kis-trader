@@ -80,6 +80,19 @@ _FUTURES_BOARD_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-f
 _FUTURES_BOARD_TR = "FHPIF05030200"
 
 
+_OPTION_EXPIRIES_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-option-list"
+_OPTION_EXPIRIES_TR = "FHPIO056104C0"
+_OPTION_BOARD_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-callput"
+_OPTION_BOARD_TR = "FHPIF05030100"
+#: 옵션 전광판 화면번호(KIS 명세 FID_COND_SCR_DIV_CODE 20503). 콜/풋 전광판과 그 하단 선물 전광판이 공유.
+_OPTION_BOARD_SCREEN_CODE = "20503"
+_OPTION_UNDERLYING = {"KOSPI200": "", "MINI_KOSPI200": "MKI", "KOSDAQ150": "KQI"}
+
+
+_UNDERLYING_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-top"
+_UNDERLYING_TR = "FHPIF05030000"
+
+
 def fetch_quote(transport: Transport, *, code: str, market: DerivativeMarket) -> DerivativesQuote:
     """선물/옵션 계약 현재가 스냅샷. ``market`` 은 F(지수선물)/O(지수옵션), ``code`` 는 계약코드."""
     params = {"FID_COND_MRKT_DIV_CODE": market, "FID_INPUT_ISCD": code}
@@ -91,32 +104,6 @@ def fetch_quote(transport: Transport, *, code: str, market: DerivativeMarket) ->
     if not isinstance(output, Mapping):        # 성공 응답인데 객체 아님 -> fail-closed
         raise _missing_block_error("output1", resp)
     return _parse_quote(output, code=code, as_of=datetime.now(_KST))
-
-
-def _parse_quote(output: Mapping[str, Any], *, code: str, as_of: datetime) -> DerivativesQuote:
-    sign = str(output.get("prdy_vrss_sign", "")).strip()
-    return DerivativesQuote(
-        code=code,
-        name=str(output.get("hts_kor_isnm", "")).strip(),
-        last=required_decimal(output.get("futs_prpr"), "futs_prpr"),
-        open=required_decimal(output.get("futs_oprc"), "futs_oprc"),
-        high=required_decimal(output.get("futs_hgpr"), "futs_hgpr"),
-        low=required_decimal(output.get("futs_lwpr"), "futs_lwpr"),
-        previous_close=required_decimal(output.get("futs_prdy_clpr"), "futs_prdy_clpr"),
-        change=_apply_change_sign(
-            required_decimal(output.get("futs_prdy_vrss"), "futs_prdy_vrss"), sign
-        ),
-        change_percent=_apply_change_sign(
-            required_decimal(output.get("futs_prdy_ctrt"), "futs_prdy_ctrt"), sign
-        ),
-        volume=required_int(output.get("acml_vol"), "acml_vol"),
-        open_interest=required_int(output.get("hts_otst_stpl_qty"), "hts_otst_stpl_qty"),
-        theoretical_price=optional_decimal(output.get("hts_thpr"), "hts_thpr"),
-        basis=optional_decimal(output.get("basis"), "basis"),
-        premium=optional_decimal(output.get("dprt"), "dprt"),
-        as_of=as_of,
-        _raw=output,
-    )
 
 
 def fetch_order_book(transport: Transport, *, code: str, market: DerivativeMarket) -> OrderBook:
@@ -146,15 +133,6 @@ def fetch_order_book(transport: Transport, *, code: str, market: DerivativeMarke
     )
 
 
-_OPTION_EXPIRIES_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-option-list"
-_OPTION_EXPIRIES_TR = "FHPIO056104C0"
-_OPTION_BOARD_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-callput"
-_OPTION_BOARD_TR = "FHPIF05030100"
-#: 옵션 전광판 화면번호(KIS 명세 FID_COND_SCR_DIV_CODE 20503). 콜/풋 전광판과 그 하단 선물 전광판이 공유.
-_OPTION_BOARD_SCREEN_CODE = "20503"
-_OPTION_UNDERLYING = {"KOSPI200": "", "MINI_KOSPI200": "MKI", "KOSDAQ150": "KQI"}
-
-
 def fetch_option_expiries(transport: Transport) -> list[OptionExpiry]:
     """상장된 지수옵션 만기 월물 목록. 응답 배열 키는 KIS 예시대로 ``output``(레이아웃의 output1 아님)."""
     params = {
@@ -181,36 +159,6 @@ def fetch_option_expiries(transport: Transport) -> list[OptionExpiry]:
             )
         )
     return expiries
-
-
-def _parse_board_row(row: Mapping[str, Any]) -> OptionBoardRow:
-    sign = str(row.get("prdy_vrss_sign", "")).strip()
-    return OptionBoardRow(
-        strike=required_decimal(row.get("acpr"), "acpr"),
-        code=str(row.get("optn_shrn_iscd", "")).strip(),
-        price=required_decimal(row.get("optn_prpr"), "optn_prpr"),
-        change=_apply_change_sign(
-            required_decimal(row.get("optn_prdy_vrss"), "optn_prdy_vrss"), sign
-        ),
-        change_percent=_apply_change_sign(
-            required_decimal(row.get("optn_prdy_ctrt"), "optn_prdy_ctrt"), sign
-        ),
-        bid=optional_decimal(row.get("optn_bidp"), "optn_bidp"),
-        ask=optional_decimal(row.get("optn_askp"), "optn_askp"),
-        volume=required_int(row.get("acml_vol"), "acml_vol"),
-        open_interest=required_int(row.get("hts_otst_stpl_qty"), "hts_otst_stpl_qty"),
-        delta=optional_decimal(row.get("delta_val"), "delta_val"),
-        gamma=optional_decimal(row.get("gama"), "gama"),
-        vega=optional_decimal(row.get("vega"), "vega"),
-        theta=optional_decimal(row.get("theta"), "theta"),
-        rho=optional_decimal(row.get("rho"), "rho"),
-        implied_volatility=optional_decimal(row.get("hts_ints_vltl"), "hts_ints_vltl"),
-        theoretical_price=optional_decimal(row.get("hts_thpr"), "hts_thpr"),
-        time_value=optional_decimal(row.get("tmvl_val"), "tmvl_val"),
-        intrinsic_value=optional_decimal(row.get("invl_val"), "invl_val"),
-        atm_class=str(row.get("atm_cls_name", "")).strip(),
-        _raw=row,
-    )
 
 
 def fetch_option_board(
@@ -246,10 +194,6 @@ def fetch_option_board(
         puts=tuple(_parse_board_row(row) for row in put_rows),
         _raw=resp.body,
     )
-
-
-_UNDERLYING_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-top"
-_UNDERLYING_TR = "FHPIF05030000"
 
 
 def fetch_underlying_quote(
@@ -320,7 +264,7 @@ def fetch_expected_execution_trend(
     summary_sign = str(summary.get("antc_cntg_vrss_sign", "")).strip()
     points = []
     for row in rows:
-        sign = str(row.get("antc_cntg_vrss_sign", "")).strip()
+        change_sign_code = str(row.get("antc_cntg_vrss_sign", "")).strip()
         points.append(
             ExpectedExecutionPoint(
                 timestamp=_parse_intraday_timestamp(
@@ -329,11 +273,11 @@ def fetch_expected_execution_trend(
                 price=required_decimal(row.get("futs_antc_cnpr"), "futs_antc_cnpr"),
                 change=_apply_change_sign(
                     required_decimal(row.get("futs_antc_cntg_vrss"), "futs_antc_cntg_vrss"),
-                    sign,
+                    change_sign_code,
                 ),
                 change_percent=_apply_change_sign(
                     required_decimal(row.get("antc_cntg_prdy_ctrt"), "antc_cntg_prdy_ctrt"),
-                    sign,
+                    change_sign_code,
                 ),
                 _raw=row,
             )
@@ -381,7 +325,7 @@ def fetch_option_board_futures(
 
     quotes = []
     for row in rows:
-        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         expected_sign = str(row.get("antc_cntg_vrss_sign", "")).strip()
         quotes.append(
             FuturesBoardQuote(
@@ -389,10 +333,10 @@ def fetch_option_board_futures(
                 name=str(row.get("hts_kor_isnm", "")).strip(),
                 price=required_decimal(row.get("futs_prpr"), "futs_prpr"),
                 change=_apply_change_sign(
-                    required_decimal(row.get("futs_prdy_vrss"), "futs_prdy_vrss"), sign
+                    required_decimal(row.get("futs_prdy_vrss"), "futs_prdy_vrss"), change_sign_code
                 ),
                 change_percent=_apply_change_sign(
-                    required_decimal(row.get("futs_prdy_ctrt"), "futs_prdy_ctrt"), sign
+                    required_decimal(row.get("futs_prdy_ctrt"), "futs_prdy_ctrt"), change_sign_code
                 ),
                 theoretical_price=required_decimal(row.get("hts_thpr"), "hts_thpr"),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
@@ -459,6 +403,62 @@ def fetch_bars(
     )
 
 
+def _parse_quote(output: Mapping[str, Any], *, code: str, as_of: datetime) -> DerivativesQuote:
+    change_sign_code = str(output.get("prdy_vrss_sign", "")).strip()
+    return DerivativesQuote(
+        code=code,
+        name=str(output.get("hts_kor_isnm", "")).strip(),
+        last=required_decimal(output.get("futs_prpr"), "futs_prpr"),
+        open=required_decimal(output.get("futs_oprc"), "futs_oprc"),
+        high=required_decimal(output.get("futs_hgpr"), "futs_hgpr"),
+        low=required_decimal(output.get("futs_lwpr"), "futs_lwpr"),
+        previous_close=required_decimal(output.get("futs_prdy_clpr"), "futs_prdy_clpr"),
+        change=_apply_change_sign(
+            required_decimal(output.get("futs_prdy_vrss"), "futs_prdy_vrss"), change_sign_code
+        ),
+        change_percent=_apply_change_sign(
+            required_decimal(output.get("futs_prdy_ctrt"), "futs_prdy_ctrt"), change_sign_code
+        ),
+        volume=required_int(output.get("acml_vol"), "acml_vol"),
+        open_interest=required_int(output.get("hts_otst_stpl_qty"), "hts_otst_stpl_qty"),
+        theoretical_price=optional_decimal(output.get("hts_thpr"), "hts_thpr"),
+        basis=optional_decimal(output.get("basis"), "basis"),
+        premium=optional_decimal(output.get("dprt"), "dprt"),
+        as_of=as_of,
+        _raw=output,
+    )
+
+
+def _parse_board_row(row: Mapping[str, Any]) -> OptionBoardRow:
+    change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
+    return OptionBoardRow(
+        strike=required_decimal(row.get("acpr"), "acpr"),
+        code=str(row.get("optn_shrn_iscd", "")).strip(),
+        price=required_decimal(row.get("optn_prpr"), "optn_prpr"),
+        change=_apply_change_sign(
+            required_decimal(row.get("optn_prdy_vrss"), "optn_prdy_vrss"), change_sign_code
+        ),
+        change_percent=_apply_change_sign(
+            required_decimal(row.get("optn_prdy_ctrt"), "optn_prdy_ctrt"), change_sign_code
+        ),
+        bid=optional_decimal(row.get("optn_bidp"), "optn_bidp"),
+        ask=optional_decimal(row.get("optn_askp"), "optn_askp"),
+        volume=required_int(row.get("acml_vol"), "acml_vol"),
+        open_interest=required_int(row.get("hts_otst_stpl_qty"), "hts_otst_stpl_qty"),
+        delta=optional_decimal(row.get("delta_val"), "delta_val"),
+        gamma=optional_decimal(row.get("gama"), "gama"),
+        vega=optional_decimal(row.get("vega"), "vega"),
+        theta=optional_decimal(row.get("theta"), "theta"),
+        rho=optional_decimal(row.get("rho"), "rho"),
+        implied_volatility=optional_decimal(row.get("hts_ints_vltl"), "hts_ints_vltl"),
+        theoretical_price=optional_decimal(row.get("hts_thpr"), "hts_thpr"),
+        time_value=optional_decimal(row.get("tmvl_val"), "tmvl_val"),
+        intrinsic_value=optional_decimal(row.get("invl_val"), "invl_val"),
+        atm_class=str(row.get("atm_cls_name", "")).strip(),
+        _raw=row,
+    )
+
+
 def _fetch_minute_bars(
     transport: Transport, *, code: str, market: DerivativeMarket, max_bars: int | None
 ) -> list[Bar]:
@@ -487,10 +487,10 @@ def _fetch_minute_bars(
         if not isinstance(rows, list):  # 성공 응답인데 봉 배열 아님 -> fail-closed
             raise _missing_block_error("output2", resp)
         page = {f"{bar.timestamp:%H%M%S}": bar for bar in _parse_minute_bars(rows, code=code)}
-        fresh = {time: bar for time, bar in page.items() if time not in bar_by_time}
-        if not fresh:  # 빈 페이지거나 진전 없음 -> 종료(무한 루프 방지)
+        new_bars = {time: bar for time, bar in page.items() if time not in bar_by_time}
+        if not new_bars:  # 빈 페이지거나 진전 없음 -> 종료(무한 루프 방지)
             break
-        bar_by_time.update(fresh)
+        bar_by_time.update(new_bars)
         if max_bars is not None and len(bar_by_time) >= max_bars:
             break
         anchor = _subtract_one_minute(min(page))
