@@ -48,7 +48,7 @@ _US_MARKET = "US"
 _ORD_DVSN_LIMIT = "00"             # 지정가
 #: 예약 지문의 exchange 네임스페이스 -- 즉시/주간/국내예약과 분리해 reconcile 을 해외예약 경로로 라우팅.
 _RESERVED_EXCHANGE = "overseas-reserved"
-#: reconcile 창(양방향). 원장상 예약 조회일자 필드 의미가 모호해 앞뒤로 스캔한다(실 API 검증 후 축소).
+#: reconcile 창(양방향). KIS 명세상 예약 조회일자 필드 의미가 모호해 앞뒤로 스캔한다(실 API 검증 후 축소).
 _RECONCILE_LOOKBACK_DAYS = 7
 _RECONCILE_FORWARD_DAYS = 31
 
@@ -75,7 +75,7 @@ def _walk(
         params = {
             "CANO": cano, "ACNT_PRDT_CD": product_code,
             "INQR_STRT_DT": start, "INQR_END_DT": end,
-            "INQR_DVSN_CD": "00",                     # 원장: 00 = 전체(집행/미집행 모두)
+            "INQR_DVSN_CD": "00",                     # KIS 명세: 00 = 전체(집행/미집행 모두)
             "PRDT_TYPE_CD": "", "OVRS_EXCG_CD": "",   # 공백 = 미국 전체
             "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
         }
@@ -121,7 +121,7 @@ def place_overseas_reserved_order(
     금지·보수적 재조회를, 예약 라이프사이클(예약번호·체결개념 없음)에 맞춰 구현한다. **지정가만**
     (``price`` 필수), **미국(NAS/NYS/AMS)만**, **모의투자 미지원**.
 
-    반환 :class:`ExecutionReport` 의 ``order_id`` 는 해외예약주문번호(원장상 발주 Output ODNO = 취소 시
+    반환 :class:`ExecutionReport` 의 ``order_id`` 는 해외예약주문번호(KIS 명세상 발주 Output ODNO = 취소 시
     OVRS_RSVN_ODNO), ``status`` 는 :attr:`OrderStatus.PENDING_NEW`. 조회전용 계좌면
     :class:`AccountNotOrderableError`, 접수 거부는 :class:`OrderRejectedError`, 접수 불명(타임아웃)은
     :class:`OrderTimeoutError`(:func:`reconcile_overseas_reserved_order` 로 확인). demo·비-미국 거래소·
@@ -259,7 +259,7 @@ def cancel_overseas_reserved_order(
     ``receipt_date``, 방금 발주분은 발주일). rt_cd 정상이면 조용히 반환(취소 응답엔 리포트로 만들
     값이 없다), 아니면 예외.
 
-    ``receipt_date`` 는 원장상 **필수**다(해외 취소는 접수일자로 대상을 특정) -- 국내 ``order_date`` 가
+    ``receipt_date`` 는 KIS 명세상 **필수**다(해외 취소는 접수일자로 대상을 특정) -- 국내 ``order_date`` 가
     optional 인 것과 다르다. 취소는 예약번호 대상의 멱등 연산(이미 취소/처리면 브로커가 거부)이라 즉시
     주문 dedup 스토어를 거치지 않되, 타임아웃(처리 불명)엔 재전송하지 않는다. **모의투자 미지원**. 실패는
     :class:`KISUsageError`(demo/빈 값/잘못된 날짜)·:class:`OrderRejectedError`(rt_cd!=0)·:class:`OrderTimeoutError`
@@ -353,7 +353,7 @@ def _make_report(
 
 
 def _extract_reserved_id(body: Mapping[str, Any]) -> str:
-    """발주 응답에서 예약주문번호를 뽑는다. 원장상 미국 예약발주(TTTT3014U/3016U) 응답의 output 은
+    """발주 응답에서 예약주문번호를 뽑는다. KIS 명세상 미국 예약발주(TTTT3014U/3016U) 응답의 output 은
     ``ODNO`` 하나뿐이며 이 값이 취소 시 OVRS_RSVN_ODNO 로 쓰인다. 다건이면 특정 불가라 빈 문자열."""
     out = body.get("output")
     if isinstance(out, list):

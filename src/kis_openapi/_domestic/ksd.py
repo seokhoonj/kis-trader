@@ -62,9 +62,9 @@ _FORFEITED_SHARES_TR = "HHKDB669109C0"
 _APPRAISAL_RIGHTS_PATH = "/uapi/domestic-stock/v1/ksdinfo/purreq"
 _APPRAISAL_RIGHTS_TR = "HHKDB669103C0"
 
-#: 배당 조회구분(GB1). 원장: 0(배당전체), 1(결산배당), 2(중간배당).
+#: 배당 조회구분(GB1). KIS 명세: 0(배당전체), 1(결산배당), 2(중간배당).
 _DIVIDEND_KIND = {"all": "0", "final": "1", "interim": "2"}
-#: 유상증자 조회구분(GB1). 원장: 1(청약일별), 2(기준일별).
+#: 유상증자 조회구분(GB1). KIS 명세: 1(청약일별), 2(기준일별).
 _RIGHTS_BASIS = {"subscription": "1", "record": "2"}
 
 

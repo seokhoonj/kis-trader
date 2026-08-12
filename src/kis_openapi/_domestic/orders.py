@@ -75,7 +75,7 @@ _ACTION_EXCHANGE_PREFIX = "action:"
 # order_type -> KIS ORD_DVSN(주문구분): 00 지정가, 01 시장가. 신용주문·정정(order_type 만) 이 쓴다.
 _ORD_DVSN = {"limit": "00", "market": "01"}
 # (base, time_in_force) -> KIS ORD_DVSN. base = order.division 이 있으면 그것, 없으면 order_type.
-# 현금주문 전용(KRX 코드표 원장 대조). IOC/FOK 는 time_in_force 로 조합하며 지정가/시장가/최유리에서만
+# 현금주문 전용(KRX 코드표 KIS 명세 대조). IOC/FOK 는 time_in_force 로 조합하며 지정가/시장가/최유리에서만
 # 유효하다(조건부/최우선엔 없어 매핑 부재 -> 거부). 시간외·중간가·스톱(05/06/07/21~24)은 차기 슬라이스.
 _ORD_DVSN_MAP = {
     ("limit", "day"): "00", ("limit", "ioc"): "11", ("limit", "fok"): "12",
@@ -94,7 +94,7 @@ def _resolve_ord_dvsn(order_type: str, division: str | None, time_in_force: str)
 # our side -> KIS SLL_BUY_DVSN_CD (01 매도, 02 매수)
 _SIDE_CODE = {"buy": "02", "sell": "01"}
 # 국내 보드(KRX/NXT/UN) -> KIS EXCG_ID_DVSN_CD(KRX/NXT/SOR). UN(통합) 주문은 SOR(스마트 주문 라우팅).
-# 원장: 미입력=KRX, 모의투자는 KRX 만 가능.
+# KIS 명세: 미입력=KRX, 모의투자는 KRX 만 가능.
 _BOARD_EXCG = {"KRX": "KRX", "NXT": "NXT", "UN": "SOR"}
 
 
@@ -255,7 +255,7 @@ def submit_change(
 
     재바인딩은 응답의 ``ODNO`` 를 취소 대상으로 삼으므로, 정정이 제자리(구 ODNO 유효)든 새
     ODNO 든 그 응답값이 올바른 대상이 된다. 국내는 새 ODNO 부여를 실서버로 실증했다. 해외도
-    같은 안전 코어를 공유하며(``build_request`` 만 다름), 원장('해외주식 정정취소주문' output)으로
+    같은 안전 코어를 공유하며(``build_request`` 만 다름), KIS 명세('해외주식 정정취소주문' output)으로
     검증됨 -- 응답 output 에 ``ODNO``("채번된 주문번호" = 정정 시 새 주문번호)와 ``KRX_FWDG_ORD_ORGNO``
     가 있어 국내와 동일 구조이며, 재바인딩 대상(새 ODNO)이 정확하다.
 
@@ -449,7 +449,7 @@ def _make_order_cash_request(
             f"지원하지 않는 주문구분/TIF 조합이다(division/order_type={order.division or order.order_type!r}, "
             f"time_in_force={order.time_in_force!r})."
         )
-    # 모의투자는 KRX 보드만 제공(원장) -- NXT/UN(SOR) 주문은 demo 에서 와이어 전 fail-closed.
+    # 모의투자는 KRX 보드만 제공(KIS 명세) -- NXT/UN(SOR) 주문은 demo 에서 와이어 전 fail-closed.
     if environment == "demo" and order.board != "KRX":
         raise KISUsageError(f"모의투자는 KRX 보드만 지원한다(board={order.board!r}).")
     tr_id = _ORDER_CASH_TR[(environment, order.side)]
@@ -491,7 +491,7 @@ def _make_credit_order_request(
         "CANO": cano,
         "ACNT_PRDT_CD": product_code,
         "PDNO": order.symbol,
-        "SLL_TYPE": "",                       # 공란(원장 지시)
+        "SLL_TYPE": "",                       # 공란(KIS 명세 지시)
         "CRDT_TYPE": order.credit_type,
         "LOAN_DT": order.loan_date,
         "ORD_DVSN": _ORD_DVSN[order.order_type],

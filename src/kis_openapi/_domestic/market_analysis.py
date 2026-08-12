@@ -63,7 +63,7 @@ _INVESTOR_SNAPSHOT_PATH = "/uapi/domestic-stock/v1/quotations/inquire-investor-t
 _INVESTOR_SNAPSHOT_TR = "FHPTJ04030000"
 _INVESTOR_NET_BUY_PATH = "/uapi/domestic-stock/v1/quotations/foreign-institution-total"
 _INVESTOR_NET_BUY_TR = "FHPTJ04400000"
-#: 시장 -> (지수코드 FID_INPUT_ISCD, 시장약어 FID_INPUT_ISCD_1). 원장 예시 대조.
+#: 시장 -> (지수코드 FID_INPUT_ISCD, 시장약어 FID_INPUT_ISCD_1). KIS 예시 대조.
 _MARKET_CODE = {"KOSPI": ("0001", "KSP"), "KOSDAQ": ("1001", "KSQ")}
 
 _LENDABLE_PATH = "/uapi/domestic-stock/v1/quotations/lendable-by-company"
@@ -243,7 +243,7 @@ def fetch_market_investor_flows(
     """시장(코스피/코스닥) 전체의 투자자 순매수 최근 히스토리(``as_of`` 기준일에서 과거로).
 
     이 엔드포인트는 기준일 하나(FID_INPUT_DATE_1)에서 뒤로 고정 히스토리를 주므로 기간이 아니라
-    앵커 날짜를 받는다(원장: DATE_2 는 "DATE_1 과 동일날짜 입력"). ``as_of`` 없으면 오늘 기준."""
+    앵커 날짜를 받는다(KIS 명세: DATE_2 는 "DATE_1 과 동일날짜 입력"). ``as_of`` 없으면 오늘 기준."""
     try:
         index_code, market_abbr = _MARKET_CODE[market]
     except KeyError:
@@ -254,7 +254,7 @@ def fetch_market_investor_flows(
         "FID_INPUT_ISCD": index_code,
         "FID_INPUT_DATE_1": anchor,
         "FID_INPUT_ISCD_1": market_abbr,
-        "FID_INPUT_DATE_2": anchor,     # 원장: DATE_1 과 동일날짜(앵커에서 백워드 히스토리)
+        "FID_INPUT_DATE_2": anchor,     # KIS 명세: DATE_1 과 동일날짜(앵커에서 백워드 히스토리)
         "FID_INPUT_ISCD_2": index_code,
     }
     resp = transport.request(

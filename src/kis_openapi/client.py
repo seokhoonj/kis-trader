@@ -137,7 +137,7 @@ class KISClient:
         # 해외 심볼->거래소 해석용 마스터 인덱스. 주입 없으면 첫 instrument() 호출 때 지연 로드.
         self._master_index = master_index
         self._master_fetch = master_fetch if master_fetch is not None else urlopen_fetch
-        # 자산군 최상위 네임스페이스(공개 행위 표면). 세션이 쥔 전송/계좌/안전코어로 원장 엔진을 호출한다.
+        # 자산군 최상위 네임스페이스(공개 행위 표면). 세션이 쥔 전송/계좌/안전코어로 엔드포인트 엔진을 호출한다.
         self.domestic = DomesticNamespace(self)
         self.overseas = OverseasNamespace(self)
         self.pension = PensionNamespace(self)

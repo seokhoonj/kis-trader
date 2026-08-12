@@ -38,7 +38,7 @@ Session = Literal["regular", "daytime"]
 #: 접수된 주문에 대한 변경 동작(정정/취소). 국내(``_domestic``)·해외(``_overseas``) 주문
 #: 엔진이 공유하는 단일 타입 -- 두 엔진 모두 이 alias 를 import 한다(중복 정의 금지).
 ChangeAction = Literal["cancel", "modify"]
-#: 국내 신용주문 유형 코드(원장 코드표). 매수/매도별로 유효 코드가 다르고(아래 상수), 신규/상환
+#: 국내 신용주문 유형 코드(KIS 코드표). 매수/매도별로 유효 코드가 다르고(아래 상수), 신규/상환
 #: 여부로 대출일자(LOAN_DT) 요구가 갈린다.
 CreditType = Literal["21", "22", "23", "24", "25", "26", "27", "28"]
 
@@ -87,7 +87,7 @@ _TIFS = frozenset(("day", "gtc", "ioc", "fok"))
 _NEEDS_LIMIT = frozenset(("limit", "stop_limit"))
 _NEEDS_STOP = frozenset(("stop", "stop_limit"))
 
-#: 신용주문 유형(국내, 원장 코드표). 매수/매도별로 유효한 코드가 다르다.
+#: 신용주문 유형(국내, KIS 코드표). 매수/매도별로 유효한 코드가 다르다.
 _CREDIT_BUY_TYPES = frozenset(("21", "23", "26", "28"))    # 자기융자신규/유통융자신규/유통대주상환/자기대주상환
 _CREDIT_SELL_TYPES = frozenset(("22", "24", "25", "27"))   # 유통대주신규/자기대주신규/자기융자상환/유통융자상환
 #: 신규(융자/대주 개시) vs 상환. 대출일자(LOAN_DT)는 신규면 개시일(오늘), 상환이면 대상 대출일자다.
@@ -101,7 +101,7 @@ _DAYTIME_EXCHANGES = frozenset(("NAS", "NYS", "AMS"))
 #: 국내 거래소(MIC). ``division``(국내 주문구분)은 이 거래소에서만 유효하다. _domestic/orders.py
 #: `_DOMESTIC_MICS`/`_EXCHANGE_ID` 와 일치해야 한다.
 _DOMESTIC_EXCHANGES = frozenset(("XKRX", "XKOS", "NXTE"))
-#: 국내 보드(NXT/UN)별 **미지원** 주문구분 base(= division 있으면 그것, 없으면 order_type). 원장 대조:
+#: 국내 보드(NXT/UN)별 **미지원** 주문구분 base(= division 있으면 그것, 없으면 order_type). KIS 명세 대조:
 #: NXT 는 시장가(market)·조건부(conditional_limit) 미지원, SOR(UN)은 조건부 미지원(KRX 는 전부 지원).
 #: blocklist 라 여기 없는 base(stop 등 Tier 2/미매핑)는 이 검증이 아니라 와이어 빌더에서 판정한다.
 _BOARD_UNSUPPORTED_BASES = {

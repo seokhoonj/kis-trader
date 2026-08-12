@@ -4,7 +4,7 @@
 상장돼 기본 시세는 종목 엔진(시장구분 J)으로 조회되므로, 여기서는 ELW 고유의 옵션 분석 지표
 (민감도/변동성/투자지표 추이)만 다룬다. ELW 조회의 시장구분코드는 ``W`` 다.
 
-각 추이는 체결별/일별/분별/틱 시간축을 갖는데, 지표군마다 지원 축이 다르다(원장 대조):
+각 추이는 체결별/일별/분별/틱 시간축을 갖는데, 지표군마다 지원 축이 다르다(KIS 명세 대조):
 - 민감도 추이: 체결(``FHPEW02830100``) / 일별(``FHPEW02830200``).
   ``GET .../elw/v1/quotations/sensitivity-trend-ccnl`` / ``.../sensitivity-trend-daily``.
 - 변동성 추이: 체결(``FHPEW02840100``) / 일별(``FHPEW02840200``) / 분별(``FHPEW02840300``) /
@@ -49,7 +49,7 @@ from ..elw_items import (
 from ..errors import KISUsageError
 from ..transport import Transport
 
-#: ELW 조회의 시장구분코드(원장: ELW W).
+#: ELW 조회의 시장구분코드(KIS 코드표: ELW W).
 _MARKET_DIV = "W"
 
 _QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-elw-price"
@@ -708,7 +708,7 @@ def fetch_newly_listed(
 ) -> list[ELWListing]:
     """신규상장 ELW 목록. ``date`` 는 기준일(YYYYMMDD), ``right`` 는 all/call/put(신규상장은 코드
     02/00/01), ``underlying``/``issuer`` 는 기초자산/발행사 코드. ``issuer="00000"`` 은 전 발행사
-    (기본, 형제 만기예정 조회의 원장 코드표와 동일한 발행회사코드 필드)이며 특정 발행사는 그 코드다."""
+    (기본, 형제 만기예정 조회의 KIS 코드표와 동일한 발행회사코드 필드)이며 특정 발행사는 그 코드다."""
     right_code = _code_of(right, {"all": "02", "call": "00", "put": "01"}, "right")
     params = {
         "FID_COND_MRKT_DIV_CODE": _MARKET_DIV,
@@ -751,7 +751,7 @@ def fetch_expiring(
 
 
 # 종목검색은 필터 파라미터가 60여 개(그릭스/IV/레버리지/프리미엄 범위 등)라 대부분 공백으로 보낸다
-# (원장 요청 예시의 기본값 그대로). 사용자에겐 기초자산/발행사만 노출하고 나머지는 무필터(공백).
+# (KIS 요청 예시의 기본값 그대로). 사용자에겐 기초자산/발행사만 노출하고 나머지는 무필터(공백).
 _SEARCH_EMPTY_KEYS = (
     "FID_RANK_SORT_CLS_CODE_2", "FID_INPUT_CNT_2", "FID_RANK_SORT_CLS_CODE_3",
     "FID_INPUT_CNT_3", "FID_TRGT_CLS_CODE", "FID_MRKT_CLS_CODE", "FID_INPUT_DATE_1",

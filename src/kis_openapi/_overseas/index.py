@@ -3,7 +3,7 @@
 사용자면(:class:`~kis_openapi.overseas_index.OverseasIndex`)이 호출한다. 해외 지수류는
 ``FID_COND_MRKT_DIV_CODE`` 로 자산 종류를 구분하고 ``FID_INPUT_ISCD`` 로 심볼을 조회한다.
 
-KIS URL/TR-id (원장 대조):
+KIS URL/TR-id (KIS 명세 대조):
 - 기간봉: ``GET .../quotations/inquire-daily-chartprice`` ``FHKST03030100``.
 """
 
@@ -33,8 +33,6 @@ _BARS_PATH = "/uapi/overseas-price/v1/quotations/inquire-daily-chartprice"
 _BARS_TR   = "FHKST03030100"
 _MINUTE_BARS_PATH = "/uapi/overseas-price/v1/quotations/inquire-time-indexchartprice"
 _MINUTE_BARS_TR = "FHKST03030200"
-
-_MARKET_DIVISION = {"index": "N", "fx": "X", "bond": "I", "gold": "S"}
 
 
 def fetch_bars(

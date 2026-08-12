@@ -252,7 +252,7 @@ class TradeAmountBand:
     sell_volume_ratio: Decimal | None  # 매도 거래량비율 %(whol_seln_vol_rate)
     sell_count: int                   # 매도 건수(seln_cntg_csnu)
     buy_volume: int                   # 매수 거래량(shnu_cnqn_smtn)
-    buy_volume_ratio: Decimal | None  # 매수 거래량비율 %(whol_shun_vol_rate; 원장 오타 shun)
+    buy_volume_ratio: Decimal | None  # 매수 거래량비율 %(whol_shun_vol_rate; KIS 명세 오타 shun)
     buy_count: int                    # 매수 건수(shnu_cntg_csnu)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

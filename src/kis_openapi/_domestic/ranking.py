@@ -4,9 +4,9 @@
 시장 전체 대상이라 종목 핸들이 아닌 세션 네임스페이스(``kis.domestic.ranking.*``)에 달린다. 여러 순위가
 서로 다른 KIS URL(등락률/시총은 ``/ranking/``, 거래량은 ``/quotations/``)에 흩어져 있지만
 사용자에겐 하나의 "ranking" 개념으로 모은다. 각 순위는 한 페이지(대개 상위 30건)만 주고 다음
-조회가 없다(원장 명시).
+조회가 없다(KIS 명세 명시).
 
-KIS URL/TR-id/화면코드/코드표(원장 대조):
+KIS URL/TR-id/화면코드/코드표(KIS 명세 대조):
 - 등락률: ``GET .../ranking/fluctuation`` ``FHPST01700000`` 화면 20170.
   ``FID_RANK_SORT_CLS_CODE`` 0:상승율순 1:하락율순 2:시가대비상승 3:시가대비하락 4:변동율.
 - 거래량: ``GET .../quotations/volume-rank`` ``FHPST01710000`` 화면 20171
@@ -81,7 +81,7 @@ from .market_data import _market_div
 _FLUCTUATION_PATH = "/uapi/domestic-stock/v1/ranking/fluctuation"
 _FLUCTUATION_TR = "FHPST01700000"
 _FLUCTUATION_SCR = "20170"
-#: 등락률 순위 정렬(원장 코드표). gainers=상승율순(0), losers=하락율순(1).
+#: 등락률 순위 정렬(KIS 코드표). gainers=상승율순(0), losers=하락율순(1).
 _RANK_SORT = {"gainers": "0", "losers": "1"}
 
 _VOLUME_PATH = "/uapi/domestic-stock/v1/quotations/volume-rank"
@@ -95,15 +95,15 @@ _MARKET_CAP_SCR = "20174"
 _DISPARITY_PATH = "/uapi/domestic-stock/v1/ranking/disparity"
 _DISPARITY_TR = "FHPST01780000"
 _DISPARITY_SCR = "20178"
-#: 이격도 정렬(원장 코드표). highest=이격도상위순(0), lowest=이격도하위순(1).
+#: 이격도 정렬(KIS 코드표). highest=이격도상위순(0), lowest=이격도하위순(1).
 _DISPARITY_SORT = {"highest": "0", "lowest": "1"}
-#: 이격도 기준 이동평균 일수(원장 FID_HOUR_CLS_CODE 허용값).
+#: 이격도 기준 이동평균 일수(KIS 명세 FID_HOUR_CLS_CODE 허용값).
 _DISPARITY_PERIODS = frozenset({5, 10, 20, 60, 120})
 
 _QUOTE_BALANCE_PATH = "/uapi/domestic-stock/v1/ranking/quote-balance"
 _QUOTE_BALANCE_TR = "FHPST01720000"
 _QUOTE_BALANCE_SCR = "20172"
-#: 호가잔량 정렬(원장 코드표). 0:순매수잔량 1:순매도잔량 2:매수비율 3:매도비율.
+#: 호가잔량 정렬(KIS 코드표). 0:순매수잔량 1:순매도잔량 2:매수비율 3:매도비율.
 _QUOTE_BALANCE_SORT = {"net_buy": "0", "net_sell": "1", "buy_ratio": "2", "sell_ratio": "3"}
 
 _VOLUME_POWER_PATH = "/uapi/domestic-stock/v1/ranking/volume-power"
@@ -113,7 +113,7 @@ _VOLUME_POWER_SCR = "20168"
 _BULK_TRADES_PATH = "/uapi/domestic-stock/v1/ranking/bulk-trans-num"
 _BULK_TRADES_TR = "FHKST190900C0"
 _BULK_TRADES_SCR = "11909"
-#: 대량체결건수 정렬(원장 코드표). buy=매수상위(0), sell=매도상위(1).
+#: 대량체결건수 정렬(KIS 코드표). buy=매수상위(0), sell=매도상위(1).
 _BULK_TRADES_SORT = {"buy": "0", "sell": "1"}
 
 _INTEREST_PATH = "/uapi/domestic-stock/v1/ranking/top-interest-stock"
@@ -124,13 +124,13 @@ _PREFERRED_DISPARITY_PATH = "/uapi/domestic-stock/v1/ranking/prefer-disparate-ra
 _PREFERRED_DISPARITY_TR = "FHPST01770000"
 _PREFERRED_DISPARITY_SCR = "20177"
 
-#: 회계 분기(재무·가치 순위 공통, 원장 FID_INPUT_OPTION_2). annual=결산.
+#: 회계 분기(재무·가치 순위 공통, KIS 명세 FID_INPUT_OPTION_2). annual=결산.
 _FISCAL_QUARTER = {"q1": "0", "h1": "1", "q3": "2", "annual": "3"}
 
 _FINANCE_RATIO_PATH = "/uapi/domestic-stock/v1/ranking/finance-ratio"
 _FINANCE_RATIO_TR = "FHPST01750000"
 _FINANCE_RATIO_SCR = "20175"
-#: 재무비율 분석 축(원장 코드표).
+#: 재무비율 분석 축(KIS 코드표).
 _FINANCE_RATIO_ANALYSIS = {
     "profitability": "7", "stability": "11", "growth": "15", "activity": "20",
 }
@@ -138,7 +138,7 @@ _FINANCE_RATIO_ANALYSIS = {
 _VALUATION_PATH = "/uapi/domestic-stock/v1/ranking/market-value"
 _VALUATION_TR = "FHPST01790000"
 _VALUATION_SCR = "20179"
-#: 시장가치(밸류에이션) 지표 축(원장 코드표).
+#: 시장가치(밸류에이션) 지표 축(KIS 코드표).
 _VALUATION_METRIC = {
     "per": "23", "pbr": "24", "pcr": "25", "psr": "26", "eps": "27",
     "eva": "28", "ebitda": "29", "ev_ebitda": "30", "ebitda_ratio": "31",
@@ -147,7 +147,7 @@ _VALUATION_METRIC = {
 _PROFIT_ASSET_PATH = "/uapi/domestic-stock/v1/ranking/profit-asset-index"
 _PROFIT_ASSET_TR = "FHPST01730000"
 _PROFIT_ASSET_SCR = "20173"
-#: 수익자산지표 축(원장 코드표).
+#: 수익자산지표 축(KIS 코드표).
 _PROFIT_ASSET_METRIC = {
     "sales_profit": "0", "operating_profit": "1", "ordinary_profit": "2",
     "net_income": "3", "total_assets": "4", "total_liabilities": "5", "total_equity": "6",
@@ -156,22 +156,22 @@ _PROFIT_ASSET_METRIC = {
 _COMPANY_TRADES_PATH = "/uapi/domestic-stock/v1/ranking/traded-by-company"
 _COMPANY_TRADES_TR = "FHPST01860000"
 _COMPANY_TRADES_SCR = "20186"
-#: 당사매매 정렬(원장 코드표). buy=매수상위(1), sell=매도상위(0).
+#: 당사매매 정렬(KIS 코드표). buy=매수상위(1), sell=매도상위(0).
 _COMPANY_TRADES_SORT = {"sell": "0", "buy": "1"}
 
 _DIVIDEND_PATH = "/uapi/domestic-stock/v1/ranking/dividend-rate"
 _DIVIDEND_TR = "HHKDB13470100"
-#: 배당 종류(원장 GB3). cash=현금배당(2), stock=주식배당(1).
+#: 배당 종류(KIS 명세 GB3). cash=현금배당(2), stock=주식배당(1).
 _DIVIDEND_KIND = {"cash": "2", "stock": "1"}
-#: 시장(원장 GB1).
+#: 시장(KIS 명세 GB1).
 _DIVIDEND_MARKET = {"all": "0", "kospi": "1", "kospi200": "2", "kosdaq": "3"}
-#: 결산/중간(원장 GB4).
+#: 결산/중간(KIS 명세 GB4).
 _DIVIDEND_SETTLEMENT = {"all": "0", "final": "1", "interim": "2"}
 
 _SHORT_SALE_PATH = "/uapi/domestic-stock/v1/ranking/short-sale"
 _SHORT_SALE_TR = "FHPST04820000"
 _SHORT_SALE_SCR = "20482"
-#: 공매도 조회기간 -> (FID_PERIOD_DIV_CODE, FID_INPUT_CNT_1). 원장 코드표(D:일수 코드, M:개월).
+#: 공매도 조회기간 -> (FID_PERIOD_DIV_CODE, FID_INPUT_CNT_1). KIS 코드표(D:일수 코드, M:개월).
 _SHORT_SALE_WINDOW = {
     "1d": ("D", "0"), "2d": ("D", "1"), "3d": ("D", "2"), "4d": ("D", "3"),
     "1w": ("D", "4"), "2w": ("D", "9"), "3w": ("D", "14"),
@@ -181,7 +181,7 @@ _SHORT_SALE_WINDOW = {
 _CREDIT_BALANCE_PATH = "/uapi/domestic-stock/v1/ranking/credit-balance"
 _CREDIT_BALANCE_TR = "FHKST17010000"
 _CREDIT_BALANCE_SCR = "11701"
-#: 신용잔고 정렬(원장 코드표). margin=융자(0~4), loan=대주(5~9); ratio/shares/amount + 비율 증가/감소.
+#: 신용잔고 정렬(KIS 코드표). margin=융자(0~4), loan=대주(5~9); ratio/shares/amount + 비율 증가/감소.
 _CREDIT_BALANCE_SORT = {
     "margin_ratio": "0", "margin_shares": "1", "margin_amount": "2",
     "margin_ratio_increase": "3", "margin_ratio_decrease": "4",
@@ -192,7 +192,7 @@ _CREDIT_BALANCE_SORT = {
 _NEAR_HIGH_LOW_PATH = "/uapi/domestic-stock/v1/ranking/near-new-highlow"
 _NEAR_HIGH_LOW_TR = "FHPST01870000"
 _NEAR_HIGH_LOW_SCR = "20187"
-#: 신고/신저 근접 방향(원장 FID_PRC_CLS_CODE). high=신고근접(0), low=신저근접(1).
+#: 신고/신저 근접 방향(KIS 명세 FID_PRC_CLS_CODE). high=신고근접(0), low=신저근접(1).
 _NEAR_HIGH_LOW_SIDE = {"high": "0", "low": "1"}
 
 
@@ -825,7 +825,7 @@ def fetch_expected_close(
     return ranked
 
 
-# 시간외 순위 3종: 블록/필드 키/파라미터가 조금씩 다르다(원장 요청예시 대조).
+# 시간외 순위 3종: 블록/필드 키/파라미터가 조금씩 다르다(KIS 요청예시 대조).
 #   등락률: SCR 20234, output2, ovtm_untp_prpr/prdy_vrss/vol, 코드 mksc_shrn_iscd, 정렬 FID_DIV_CLS_CODE
 #   거래량: SCR 20235, output2, 같은 필드, 코드 stck_shrn_iscd, 정렬 FID_RANK_SORT_CLS_CODE
 #   예상체결: SCR 11186, output(flat), ovtm_untp_antc_cnpr/cntg_vrss/cnqn, 코드 stck_shrn_iscd

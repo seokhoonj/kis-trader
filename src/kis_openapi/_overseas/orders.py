@@ -4,7 +4,7 @@
 코어(:class:`~kis_openapi.store.OrderStore`)가 맡는다. 이 모듈은 그 코어에 넘길 **해외 주문의
 와이어 요청**만 조립한다 -- 순수 함수라 오케스트레이션 없이 단독 검증된다.
 
-KIS URL/TR-id (원장 대조, sheet '해외주식 주문'):
+KIS URL/TR-id (KIS 명세 대조, sheet '해외주식 주문'):
 - 주문: ``POST /uapi/overseas-stock/v1/trading/order``. TR 은 시장 x 매수/매도 x 실전/모의로 갈린다
   (아래 :data:`_ORDER_TR`). 시세 조회의 거래소코드(NAS/NYS/...)와 주문 거래소코드(NASD/NYSE/...)가
   다르므로 :data:`_ORDER_EXCHANGE` 로 매핑한다. 해외 주문은 지정가(ORD_DVSN=00) 중심이다.
@@ -37,7 +37,7 @@ _ORDER_PATH = "/uapi/overseas-stock/v1/trading/order"
 _CHANGE_PATH = "/uapi/overseas-stock/v1/trading/order-rvsecncl"
 _CHANGE_TR = {"real": "TTTT1004U", "demo": "VTTT1004U"}
 
-#: 시세 거래소코드(EXCD) -> (주문 거래소코드 OVRS_EXCG_CD, 시장 그룹). 원장 코드표.
+#: 시세 거래소코드(EXCD) -> (주문 거래소코드 OVRS_EXCG_CD, 시장 그룹). KIS 코드표.
 _ORDER_EXCHANGE: dict[str, tuple[str, str]] = {
     "NAS": ("NASD", "US"), "NYS": ("NYSE", "US"), "AMS": ("AMEX", "US"),
     "HKS": ("SEHK", "HK"),
@@ -47,7 +47,7 @@ _ORDER_EXCHANGE: dict[str, tuple[str, str]] = {
     "HNX": ("HASE", "VN"), "HSX": ("VNSE", "VN"),
 }
 
-#: (시장 그룹, 매수/매도, 실전/모의) -> tr_id. 원장 코드표('해외주식 주문').
+#: (시장 그룹, 매수/매도, 실전/모의) -> tr_id. KIS 코드표('해외주식 주문').
 _ORDER_TR: dict[tuple[str, Side, Environment], str] = {
     ("US", "buy", "real"): "TTTT1002U", ("US", "sell", "real"): "TTTT1006U",
     ("US", "buy", "demo"): "VTTT1002U", ("US", "sell", "demo"): "VTTT1001U",
@@ -271,7 +271,7 @@ def reconcile(
 
     완료 리포트가 있으면 반환. in-flight 면 체결내역을 지문으로 스캔해 정확히 1건이면 확정, 0건이면
     ``None``(재전송 금지 유지), 2건 이상이면 :class:`KISError`. **자동 해제는 절대 하지 않는다.**
-    ODNO 로는 검색이 안 돼(원장) 지문(종목/매매/수량/단가)으로 맞춘다. ``now`` 는 조회 날짜창의
+    ODNO 로는 검색이 안 돼(KIS 명세) 지문(종목/매매/수량/단가)으로 맞춘다. ``now`` 는 조회 날짜창의
     기준시각(주입하면 결정적; 생략 시 현재 KST)."""
     prior = store.report_for(client_order_id)
     if prior is not None:
@@ -390,7 +390,7 @@ def _ccnl_report(
     ordered = _parse_decimal(row.get("ft_ord_qty"))
     filled = _parse_decimal(row.get("ft_ccld_qty"))
     rejected = str(row.get("rjct_rson", "")).strip() or str(row.get("prcs_stat_name", "")) == "거부"
-    # 이 엔드포인트의 처리상태(prcs_stat_name)는 완료/거부/전송뿐이라 CANCELED 값이 없다(원장). 취소는
+    # 이 엔드포인트의 처리상태(prcs_stat_name)는 완료/거부/전송뿐이라 CANCELED 값이 없다(KIS 명세). 취소는
     # 별개 행이라 위 필터에서 제외되므로, 취소된 원주문은 마지막 working 상태(전송->NEW)로 읽힌다.
     if rejected and filled == 0:
         status = OrderStatus.REJECTED

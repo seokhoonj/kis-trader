@@ -3,7 +3,7 @@
 사용자면은 채권 핸들(:class:`~kis_openapi.bond.Bond`, ``kis.domestic.bond(code)``)이다. 채권은 시장구분 ``B`` +
 표준코드(ISIN, 예: KR2033022D33)로 조회한다.
 
-KIS URL/TR-id (원장 대조):
+KIS URL/TR-id (KIS 명세 대조):
 - 채권 현재가: ``GET .../domestic-bond/v1/quotations/inquire-price`` ``FHKBJ773400C0``.
 - 채권 호가: ``GET .../domestic-bond/v1/quotations/inquire-asking-price`` ``FHKBJ773401C0``.
 - 채권 체결: ``GET .../domestic-bond/v1/quotations/inquire-ccnl`` ``FHKBJ773403C0``.
@@ -66,7 +66,7 @@ _VALUATIONS_PATH = "/uapi/domestic-bond/v1/quotations/avg-unit"
 _VALUATIONS_TR = "CTPF2005R"
 _ISSUANCE_PATH = "/uapi/domestic-bond/v1/quotations/issue-info"
 _ISSUANCE_TR = "CTPF1101R"
-#: 채권 조회의 시장구분 코드(원장: 채권 B).
+#: 채권 조회의 시장구분 코드(KIS 코드표: 채권 B).
 _MARKET_DIV = "B"
 
 
@@ -180,7 +180,7 @@ def _parse_trades(
 
 
 def fetch_bars(transport: Transport, *, code: str, interval: Interval = "1d") -> list[Bar]:
-    """채권 일별 OHLCV(과거->현재). 원장상 기간·연속조회 파라미터가 없어 단일 응답을 반환한다."""
+    """채권 일별 OHLCV(과거->현재). KIS 명세상 기간·연속조회 파라미터가 없어 단일 응답을 반환한다."""
     if interval != "1d":
         raise KISUsageError(f"채권 bars 는 interval='1d' 만 지원한다: {interval!r}")
     params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code}

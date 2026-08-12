@@ -57,7 +57,7 @@ class DetailedInvestorFlow:
     """한 종목의 하루치 세부 투자자 매매와 OHLCV(불변).
 
     ``participants`` 는 ``foreign`` / ``individual`` / ``institutional`` 및 기관 세부
-    주체를 :class:`InvestorActivity` 로 매핑한다. 대금 필드는 KIS 원장 단위인 백만원이다.
+    주체를 :class:`InvestorActivity` 로 매핑한다. 대금 필드는 KIS 명세 단위인 백만원이다.
     """
 
     symbol: str

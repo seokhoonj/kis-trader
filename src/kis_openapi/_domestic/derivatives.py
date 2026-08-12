@@ -4,7 +4,7 @@
 ``kis.domestic.option(code)``)이다. 파생은 종목이 아니라 시장구분(F:지수선물 / O:지수옵션) + 계약코드로
 조회한다. 스캘핑에 필요한 미결제약정·베이시스·이론가는 output1 에서 매핑한다.
 
-KIS URL/TR-id (원장 대조):
+KIS URL/TR-id (KIS 명세 대조):
 - 선물옵션 현재가: ``GET .../domestic-futureoption/v1/quotations/inquire-price`` ``FHMIF10000000``.
 - 선물옵션 호가: ``GET .../domestic-futureoption/v1/quotations/inquire-asking-price`` ``FHMIF10010000``
   (호가 사다리는 ``output2``).
@@ -152,7 +152,7 @@ _OPTION_UNDERLYING = {"KOSPI200": "", "MINI_KOSPI200": "MKI", "KOSDAQ150": "KQI"
 
 
 def fetch_option_expiries(transport: Transport) -> list[OptionExpiry]:
-    """상장된 지수옵션 만기 월물 목록. 응답 배열 키는 원장 예시대로 ``output``(레이아웃의 output1 아님)."""
+    """상장된 지수옵션 만기 월물 목록. 응답 배열 키는 KIS 예시대로 ``output``(레이아웃의 output1 아님)."""
     params = {
         "FID_COND_SCR_DIV_CODE": "509",
         "FID_COND_MRKT_DIV_CODE": "",

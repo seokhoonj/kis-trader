@@ -96,7 +96,7 @@ class OverseasDerivativeMarketHours:
     """해외 선물/옵션 상품군의 장운영시간(불변).
 
     계약과 무관한 상품군·거래소·클래스별 일정이다. 오전장·오후장·익일장·기본시장 시작/종료
-    시각은 원장 값이 비었거나 유효하지 않으면 ``None`` 이다.
+    시각은 응답 값이 비었거나 유효하지 않으면 ``None`` 이다.
     """
 
     product_group_code: str

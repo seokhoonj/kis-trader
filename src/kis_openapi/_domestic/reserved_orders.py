@@ -56,7 +56,7 @@ _PROCESS_FILTER = {"all": "0", "processed": "1", "unprocessed": "2"}
 _RESERVED_EXCHANGE = "reserved"
 #: 현금 주문대상잔고구분코드(신용/대여 예약은 미지원 -- 현금만).
 _CASH_BALANCE_DIVISION = "10"
-#: reconcile 시 예약주문조회 날짜창. 원장상 RSVN_ORD_ORD_DT 가 예약 '발주일'인지 '집행 예정일'인지
+#: reconcile 시 예약주문조회 날짜창. KIS 명세상 RSVN_ORD_ORD_DT 가 예약 '발주일'인지 '집행 예정일'인지
 #: 모호해(요청예시 ctx 는 발주일에 가깝고, 응답 rsvn_ord_ord_dt 는 집행일에 가깝다) 양방향으로 스캔한다
 #: -- 어느 쪽이든 최근 예약을 포함하도록. 실 API 왕복으로 필드 의미를 확정하면 창을 좁힌다.
 _RECONCILE_LOOKBACK_DAYS = 7
@@ -287,7 +287,7 @@ def cancel_reserved_order(
     처리(nrml_prcs_yn=Y)면 조용히 반환(정정취소 응답엔 리포트로 만들 값이 없어 반환값이 없다).
 
     취소는 순번 대상의 멱등적 연산(이미 취소/처리면 브로커가 거부)이라 즉시주문 dedup 스토어를 거치지
-    않되, 타임아웃(처리 불명)엔 재전송하지 않는다. ``order_date``(YYYYMMDD)는 선택이며(원장상 순번만
+    않되, 타임아웃(처리 불명)엔 재전송하지 않는다. ``order_date``(YYYYMMDD)는 선택이며(KIS 명세상 순번만
     필수) 같은 순번이 여러 날에 재사용될 때 대상을 좁히는 용도다. **모의투자 미지원**. 실패는
     :class:`KISUsageError`(demo/빈 순번/잘못된 order_date)·:class:`OrderRejectedError`(rt_cd!=0)·
     :class:`KISError`(정상처리 아님)·:class:`OrderTimeoutError`(타임아웃)."""
@@ -371,8 +371,8 @@ def _send_change(
             f"예약주문 {action} 요청 거부: {resp.msg1}",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
-    # nrml_prcs_yn 위치가 원장 응답예시로 확정되지 않아(layout=output 하위) output 과 본문 최상위를
-    # 모두 본다 -- verify-fields 리스크(layout vs example 불일치) 헤지.
+    # nrml_prcs_yn 위치가 KIS 응답예시로 확정되지 않아(layout=output 하위) output 과 본문 최상위를
+    # 모두 본다 -- 레이아웃과 응답예시가 어긋날 때를 헤지.
     output = resp.body.get("output")
     if isinstance(output, list):
         output = output[0] if output else {}
@@ -440,7 +440,7 @@ def _make_reserved_order_report(
 
 
 def _extract_sequence(body: Mapping[str, Any]) -> str:
-    """발주 응답에서 예약주문순번을 뽑는다. 원장상 output 은 단일 건 -- 다건이면(예상밖) 특정 불가라
+    """발주 응답에서 예약주문순번을 뽑는다. KIS 명세상 output 은 단일 건 -- 다건이면(예상밖) 특정 불가라
     빈 문자열로 취급해 발주 경로의 '순번 없음 -> in-flight 유지·raise' 로 흘린다(임의 귀속 금지)."""
     out = body.get("output")
     if isinstance(out, list):

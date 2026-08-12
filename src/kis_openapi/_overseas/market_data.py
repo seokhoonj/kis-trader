@@ -4,7 +4,7 @@
 ``Quote.currency`` 를 응답의 통화(``curr``)로 채운다. 전일대비는 KIS 가 native 통화로는 따로 주지
 않아 현재가-전일종가로 계산한다.
 
-KIS URL/TR-id (원장 대조):
+KIS URL/TR-id (KIS 명세 대조):
 - 해외 현재가상세: ``GET /uapi/overseas-price/v1/quotations/price-detail`` ``HHDFS76200200``.
 """
 
@@ -78,7 +78,7 @@ _BARS_TR = "HHDFS76240000"
 
 _MULTI_QUOTE_PATH = "/uapi/overseas-price/v1/quotations/multprice"
 _MULTI_QUOTE_TR = "HHDFS76220000"
-_MAX_MULTI_QUOTE = 10           # 원장: 슬롯 10개(EXCD_01 ~ _10, NREC 최대 10)
+_MAX_MULTI_QUOTE = 10           # KIS 명세: 슬롯 10개(EXCD_01 ~ _10, NREC 최대 10)
 _SEARCH_PATH = "/uapi/overseas-price/v1/quotations/inquire-search"
 _SEARCH_TR = "HHDFS76410000"
 _MAX_SEARCH_PAGES = 100
@@ -199,14 +199,14 @@ def fetch_multi_quotes(
             continue
         quotes.append(_parse_quote(row, symbol=symbol, exchange=exchange, as_of=as_of))
     return quotes
-#: 해외 기간봉 간격 -> GUBN(원장: 0:일 1:주 2:월).
+#: 해외 기간봉 간격 -> GUBN(KIS 명세: 0:일 1:주 2:월).
 _BARS_GUBN = {"1d": "0", "1wk": "1", "1mo": "2"}
 
 #: 해외 분봉. 한 번에 최대 120건, KEYB(마지막 봉 1분 전 시각)로 다음 조회. 국내와 달리 거래소별
 #: 현지시각 기준이라 봉 식별/KEYB 모두 현지 일자+시각(xymd+xhms)을 쓴다.
 _MINUTE_BARS_PATH = "/uapi/overseas-price/v1/quotations/inquire-time-itemchartprice"
 _MINUTE_BARS_TR = "HHDFS76950200"
-_MINUTE_NREC = "120"              # 한 페이지 최대 레코드(원장 상한)
+_MINUTE_NREC = "120"              # 한 페이지 최대 레코드(KIS 명세 상한)
 
 _TRADES_PATH = "/uapi/overseas-price/v1/quotations/inquire-ccnl"
 _TRADES_TR = "HHDFS76200300"
@@ -472,7 +472,7 @@ def _parse_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:
 
 
 def fetch_order_book(transport: Transport, *, symbol: str, exchange: str) -> OrderBook:
-    """해외 호가창 스냅샷. **미국은 10단계, 그 외 국가는 1단계**만 제공(원장). output1=총잔량 헤더,
+    """해외 호가창 스냅샷. **미국은 10단계, 그 외 국가는 1단계**만 제공(KIS 명세). output1=총잔량 헤더,
     output2=단계별 매수/매도 호가. 도메스틱과 같은 :class:`~kis_openapi.order_book.OrderBook` 로."""
     params = {"AUTH": "", "EXCD": exchange, "SYMB": symbol}
     resp = transport.request(

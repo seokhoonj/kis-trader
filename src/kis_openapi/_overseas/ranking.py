@@ -37,11 +37,11 @@ _BUY_STRENGTH = ("/uapi/overseas-stock/v1/ranking/volume-power", "HHDFS76280000"
 _TURNOVER = ("/uapi/overseas-stock/v1/ranking/trade-turnover", "HHDFS76340000")
 _PRICE_FLUCT = ("/uapi/overseas-stock/v1/ranking/price-fluct", "HHDFS76260000")
 _NEW_HIGHLOW = ("/uapi/overseas-stock/v1/ranking/new-highlow", "HHDFS76300000")
-#: 상승/하락 구분(GUBN). 원장: 0(하락율), 1(상승율).
+#: 상승/하락 구분(GUBN). KIS 명세: 0(하락율), 1(상승율).
 _UPDOWN_GUBN = {"gainers": "1", "losers": "0"}
-#: 급등/급락 구분(price-fluct GUBN). 원장: 0(급락), 1(급등).
+#: 급등/급락 구분(price-fluct GUBN). KIS 명세: 0(급락), 1(급등).
 _FLUCT_GUBN = {"risers": "1", "fallers": "0"}
-#: 신고/신저 구분(new-highlow GUBN). 원장: 1(신고), 0(신저).
+#: 신고/신저 구분(new-highlow GUBN). KIS 명세: 1(신고), 0(신저).
 _HIGHLOW_GUBN = {"high": "1", "low": "0"}
 
 
@@ -120,7 +120,7 @@ def fetch_by_market_cap(transport: Transport, *, exchange: str) -> list[RankedOv
 def fetch_by_change(
     transport: Transport, *, exchange: str, top: str = "gainers"
 ) -> list[RankedOverseasStock]:
-    """한 거래소의 등락률 순위. ``top="gainers"`` 상승률 / ``"losers"`` 하락률(원장 GUBN 1/0)."""
+    """한 거래소의 등락률 순위. ``top="gainers"`` 상승률 / ``"losers"`` 하락률(KIS 명세 GUBN 1/0)."""
     try:
         gubn = _UPDOWN_GUBN[top]
     except KeyError:
@@ -158,7 +158,7 @@ def fetch_by_turnover(transport: Transport, *, exchange: str) -> list[RankedOver
 def fetch_by_price_fluctuation(
     transport: Transport, *, exchange: str, top: str = "risers"
 ) -> list[RankedOverseasStock]:
-    """한 거래소의 가격 급등/급락 순위. ``top="risers"`` 급등 / ``"fallers"`` 급락(원장 GUBN 1/0)."""
+    """한 거래소의 가격 급등/급락 순위. ``top="risers"`` 급등 / ``"fallers"`` 급락(KIS 명세 GUBN 1/0)."""
     try:
         gubn = _FLUCT_GUBN[top]
     except KeyError:
@@ -172,8 +172,8 @@ def fetch_by_price_fluctuation(
 def fetch_by_new_highlow(
     transport: Transport, *, exchange: str, extreme: str = "high", sustained: bool = True
 ) -> list[RankedOverseasStock]:
-    """한 거래소의 신고가/신저가 순위. ``extreme="high"`` 신고 / ``"low"`` 신저(원장 GUBN 1/0).
-    ``sustained=True`` 돌파유지 / ``False`` 일시돌파(원장 GUBN2 1/0)."""
+    """한 거래소의 신고가/신저가 순위. ``extreme="high"`` 신고 / ``"low"`` 신저(KIS 명세 GUBN 1/0).
+    ``sustained=True`` 돌파유지 / ``False`` 일시돌파(KIS 명세 GUBN2 1/0)."""
     try:
         gubn = _HIGHLOW_GUBN[extreme]
     except KeyError:

@@ -4,7 +4,7 @@
 아니라 시장구분 ``U`` + 업종코드(``FID_INPUT_ISCD``)로 조회한다. 업종코드는 포털의 업종코드표를
 따르며, 대표값은 0001 KOSPI 종합 / 1001 KOSDAQ 종합 / 2001 KOSPI200.
 
-KIS URL/TR-id (원장 대조):
+KIS URL/TR-id (KIS 명세 대조):
 - 지수 현재가: ``GET .../quotations/inquire-index-price`` ``FHPUP02100000`` (``FID_COND_MRKT_DIV_CODE=U``).
 - 지수 기간봉(일/주/월/년): ``GET .../quotations/inquire-daily-indexchartprice`` ``FHKUP03500100``
   (``FID_PERIOD_DIV_CODE`` D:일 W:주 M:월 Y:년). 종목 일봉과 페이지네이션은 같고 필드명만
@@ -62,7 +62,7 @@ from ..transport import RawResponse, Transport
 
 _INDEX_QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-price"
 _INDEX_QUOTE_TR = "FHPUP02100000"
-#: 지수/업종 조회의 시장구분 코드(원장: 업종 U).
+#: 지수/업종 조회의 시장구분 코드(KIS 코드표: 업종 U).
 _INDEX_MARKET_DIV = "U"
 
 _INDEX_BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-indexchartprice"
@@ -84,13 +84,13 @@ _EXPECTED_INDEX_SESSION = {"open": "1", "close": "2"}
 _EXPECTED_TOTAL_PATH = "/uapi/domestic-stock/v1/quotations/exp-total-index"
 _EXPECTED_TOTAL_TR = "FHKUP11750000"
 _EXPECTED_TOTAL_MARKET = {"all": "0", "KOSPI": "K", "KOSDAQ": "Q"}
-#: 지수 시간대별 샘플 간격 -> FID_INPUT_HOUR_1(초). 원장: 60=1분, 300=5분, 600=10분.
+#: 지수 시간대별 샘플 간격 -> FID_INPUT_HOUR_1(초). KIS 명세: 60=1분, 300=5분, 600=10분.
 _INDEX_INTRADAY_INTERVAL = {"1m": "60", "5m": "300", "10m": "600"}
 
 _INDEX_CATEGORY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-category-price"
 _INDEX_CATEGORY_TR = "FHPUP02140000"
 _INDEX_CATEGORY_SCR = "20214"
-#: 업종별 지수 시장구분(원장 FID_MRKT_CLS_CODE). 시장 지수 코드에서 추론한다.
+#: 업종별 지수 시장구분(KIS 명세 FID_MRKT_CLS_CODE). 시장 지수 코드에서 추론한다.
 _INDEX_CATEGORY_MARKET_CLASS = {"0001": "K", "1001": "Q", "2001": "K2"}
 
 

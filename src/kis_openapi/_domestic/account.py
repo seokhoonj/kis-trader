@@ -64,7 +64,7 @@ _DAILY_PROFIT_TR = "TTTC8708R"  # 모의투자 미지원
 
 _RIGHTS_PATH = "/uapi/domestic-stock/v1/trading/period-rights"
 _RIGHTS_TR = "CTRGA011R"  # 모의투자 미지원
-#: 신용유형(원장 코드표). 21 자기융자신규/22 유통대주신규/23 유통융자신규/24 자기대주신규/
+#: 신용유형(KIS 코드표). 21 자기융자신규/22 유통대주신규/23 유통융자신규/24 자기대주신규/
 #: 25 자기융자상환/26 유통대주상환/27 유통융자상환/28 자기대주상환.
 _CREDIT_TYPES = frozenset({"21", "22", "23", "24", "25", "26", "27", "28"})
 
@@ -287,7 +287,7 @@ def fetch_credit_buyable(
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
         "PDNO": symbol,
-        "ORD_UNPR": unit_price or "0",  # 시장가면 공란 대신 "0"(원장 권고)
+        "ORD_UNPR": unit_price or "0",  # 시장가면 공란 대신 "0"(KIS 명세 권고)
         "ORD_DVSN": "00" if limit_price is not None else "01",  # 지정가/시장가
         "CRDT_TYPE": credit_type,
         "CMA_EVLU_AMT_ICLD_YN": "N", "OVRS_ICLD_YN": "N",
@@ -508,7 +508,7 @@ def fetch_account_rights(
     start: str, end: str,
 ) -> list[AccountRight]:
     """기간별 계좌 권리현황(유상·무상 배정·배당·상환 등). ``start``/``end`` 는 기간(YYYYMMDD).
-    응답 배열 키는 원장 예시 기준 ``output``(레이아웃의 output1 과 다름). **모의투자 미지원**."""
+    응답 배열 키는 KIS 예시 기준 ``output``(레이아웃의 output1 과 다름). **모의투자 미지원**."""
     if environment == "demo":
         raise KISUsageError(
             "기간별계좌권리현황조회(period-rights)는 모의투자 미지원 -- 실전에서만."
@@ -528,7 +528,7 @@ def fetch_account_rights(
             params=params, idempotent=True, tr_cont=tr_cont,
         )
         _raise_if_error(resp)
-        page = resp.body.get("output")  # 원장 예시 키는 output(레이아웃 output1 과 불일치)
+        page = resp.body.get("output")  # KIS 예시 키는 output(레이아웃 output1 과 불일치)
         if not isinstance(page, list):  # 빈 내역도 배열 -> 부재/비배열은 손상
             raise KISError(
                 "계좌권리현황 응답의 output 이 배열이 아니다.",
@@ -582,7 +582,7 @@ def fetch_realized_profit_balance(
     """실현손익 포함 국내 체결기준잔고. 보유 종목(output1)과 계좌 요약(output2, 실현손익 포함)을
     :class:`RealizedProfitBalance` 로. **모의투자 미지원**.
 
-    .. note:: output2 요약 필드는 원장 응답예시로 확증되지 않았다(레이아웃 기준) -- 실제 응답과 다를
+    .. note:: output2 요약 필드는 KIS 응답예시로 확증되지 않았다(레이아웃 기준) -- 실제 응답과 다를
        수 있어 전체 원본을 결과의 ``_raw`` 로 함께 노출한다.
     """
     if environment == "demo":
@@ -669,7 +669,7 @@ def fetch_integrated_margin(
 
     ``include_cma`` CMA평가금액 포함 여부, ``won_basis`` 원화(True)/외화(False) 기준 표시.
 
-    .. note:: 필드가 방대하고 원장 예시에만 있는 (레이아웃 미기재) 홍콩위안화 재사용 필드가 있어,
+    .. note:: 필드가 방대하고 KIS 예시에만 있는 (레이아웃 미기재) 홍콩위안화 재사용 필드가 있어,
        핵심 외 필드는 ``_raw`` 로만 노출한다.
     """
     if environment == "demo":

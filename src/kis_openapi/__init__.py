@@ -4,7 +4,7 @@ Securities (KIS) Open API.
 행위 중심 API: 세션 :class:`KISClient` 에서 종목 핸들 :class:`~kis_openapi.stock.DomesticStock`
 (``kis.domestic.stock("005930").quote()``)와 계좌 조회를 시킨다. KIS URL 구조는 노출되지 않는다.
 
-공개 식별자는 국제 표준 금융 영어(Yahoo/Alpaca/Coinbase/FIX/ISO); KIS URL·TR-id 매핑은
+공개 식별자는 국제 표준 금융 영어(FIX/ISO 용어); KIS URL·TR-id 매핑은
 내부 조회 계층 docstring에 있다.
 """
 

@@ -486,7 +486,7 @@ class OverseasReportPosition:
     """해외 잔고 리포트(체결기준/결제기준)의 보유 종목 한 줄(불변). 금액은 매수통화(``currency``)
     :class:`~kis_openapi.money.Money`. ``collateral_quantity`` 는 결제기준잔고에만 채워진다(체결기준은 0).
 
-    .. note:: 결제기준잔고(:class:`OverseasSettlementBalance`)는 원장 응답예시로 확증됐고, 체결기준
+    .. note:: 결제기준잔고(:class:`OverseasSettlementBalance`)는 KIS 응답예시로 확증됐고, 체결기준
        (:class:`OverseasPresentBalance`)은 예시가 output1 까지만 있어 output2/3 요약이 레이아웃 기준이다.
     """
 
@@ -536,7 +536,7 @@ class OverseasPresentBalance:
     """해외주식 체결기준현재잔고(불변) -- 보유 종목·통화별 예수금·계좌 요약. 실전은 3블록 전부,
     모의(VTRP6504R)는 요약(``_raw``)만 온다.
 
-    .. note:: 요약(output3) 필드는 원장 예시가 output1 에서 잘려 레이아웃 기준이다 -- 전체 원본은 ``_raw``.
+    .. note:: 요약(output3) 필드는 KIS 예시가 output1 에서 잘려 레이아웃 기준이다 -- 전체 원본은 ``_raw``.
     """
 
     positions: tuple[OverseasReportPosition, ...]
@@ -557,7 +557,7 @@ class OverseasPresentBalance:
 @dataclass(frozen=True, slots=True)
 class OverseasSettlementBalance:
     """해외주식 결제기준잔고(불변) -- 기준일자(``BASS_DT``) 결제 기준의 보유 종목·통화별 예수금·계좌
-    요약. **모의투자 미지원**. 원장 응답예시로 필드 전량 확증됨(단 ``_raw`` 는 대여평가 등 추가 필드 포함)."""
+    요약. **모의투자 미지원**. KIS 응답예시로 필드 전량 확증됨(단 ``_raw`` 는 대여평가 등 추가 필드 포함)."""
 
     positions: tuple[OverseasReportPosition, ...]
     currencies: tuple[OverseasCurrencyBalance, ...]
@@ -607,7 +607,7 @@ class OverseasPeriodProfitRow:
 class OverseasPeriodProfit:
     """해외주식 기간손익(불변) -- 기간 내 매도청산 종목별 실현손익(``rows``)과 총계. **모의투자 미지원**.
 
-    .. note:: 원장 응답예시가 비어 있어 필드는 레이아웃 기준이다 -- 실제 응답과 다를 수 있으므로 각
+    .. note:: KIS 응답예시가 비어 있어 필드는 레이아웃 기준이다 -- 실제 응답과 다를 수 있으므로 각
        행과 결과의 ``_raw`` 로 원본을 함께 노출한다.
     """
 

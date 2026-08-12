@@ -3,7 +3,7 @@
 국내(:mod:`kis_openapi._domestic.account`)와 대칭. 해외 잔고는 **거래소 그룹(OVRS_EXCG_CD)+통화
 (TR_CRCY_CD)별**로 조회하며 금액이 외화라 :class:`~kis_openapi.money.Money` 로 통화를 함께 담는다.
 
-KIS URL/TR-id (원장 대조):
+KIS URL/TR-id (KIS 명세 대조):
 - 잔고: ``GET /uapi/overseas-stock/v1/trading/inquire-balance`` (실전 ``TTTS3012R`` / 모의 ``VTTS3012R``).
   ``OVRS_EXCG_CD`` 는 NASD(미국전체)/SEHK(홍콩)/SHAA(상해)/SZAA(심천)/TKSE(일본)/HASE(하노이)/VNSE(호치민),
   ``TR_CRCY_CD`` 는 USD/HKD/CNY/JPY/VND. (시세 조회의 EXCD 코드와 다르다.)
@@ -78,10 +78,10 @@ _NATION_CODE = {"all": "000", "US": "840", "HK": "344", "CN": "156", "JP": "392"
 #: 거래내역 매도매수 필터 -> SLL_BUY_DVSN_CD. all:전체/sell:매도/buy:매수.
 _TX_SIDE_FILTER = {"all": "00", "sell": "01", "buy": "02"}
 
-#: 미체결 매매구분코드(원장). 01:매도, 02:매수.
+#: 미체결 매매구분코드(KIS 명세). 01:매도, 02:매수.
 _SIDE = {"01": "sell", "02": "buy"}
 
-#: 해외 잔고 시장 -> (OVRS_EXCG_CD, TR_CRCY_CD). 원장 코드표. 미국은 NASD(실전=미국전체).
+#: 해외 잔고 시장 -> (OVRS_EXCG_CD, TR_CRCY_CD). KIS 코드표. 미국은 NASD(실전=미국전체).
 _MARKETS: dict[str, tuple[str, str]] = {
     "US": ("NASD", "USD"),
     "HK": ("SEHK", "HKD"),
@@ -490,10 +490,10 @@ def fetch_present_balance(
     실전(CTRP6504R)은 3블록 전부, 모의(VTRP6504R)는 요약만 온다.
 
     ``won_basis`` 원화(True)/외화(False) 기준, ``nation`` 국가(``"all"``/``"US"``/``"HK"``/``"CN"``/``"JP"``/
-    ``"VN"``), ``market_code`` 거래시장코드(원장 표, ``"00"``=전체), ``inquiry`` 조회구분(``"00"`` 전체/
+    ``"VN"``), ``market_code`` 거래시장코드(KIS 코드표, ``"00"``=전체), ``inquiry`` 조회구분(``"00"`` 전체/
     ``"01"`` 일반/``"02"`` 미니스탁).
 
-    .. note:: 요약(output3) 필드는 원장 예시가 output1 에서 잘려 레이아웃 기준이다 -- 전체 원본은 결과 ``_raw``.
+    .. note:: 요약(output3) 필드는 KIS 예시가 output1 에서 잘려 레이아웃 기준이다 -- 전체 원본은 결과 ``_raw``.
     """
     try:
         nation_code = _NATION_CODE[nation]      # 알 수 없는 nation 은 조용히 전체(000)로 넓히지 않고 거부한다
@@ -570,7 +570,7 @@ def fetch_period_profit(
     **모의투자 미지원**. ``exchange`` 거래소(OVRS_EXCG_CD, 공란=전체), ``currency`` 통화(공란=전체),
     ``symbol`` 종목(공란=전체), ``won_basis`` 원화(True)/외화(False) 기준.
 
-    .. note:: 원장 응답예시가 비어 있어 필드는 레이아웃 기준이다 -- 실제 응답과 다를 수 있으므로 각 행과
+    .. note:: KIS 응답예시가 비어 있어 필드는 레이아웃 기준이다 -- 실제 응답과 다를 수 있으므로 각 행과
        결과의 ``_raw`` 로 원본을 함께 노출한다.
     """
     if environment == "demo":

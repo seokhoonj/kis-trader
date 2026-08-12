@@ -2,7 +2,7 @@
 
 사용자면은 해외 파생 핸들(:class:`~kis_openapi.overseas_derivative.OverseasDerivative`,
 ``kis.overseas.futures(srs_cd)`` / ``kis.overseas.option(srs_cd)``)이다. 계약은 시리즈코드(``srs_cd``)
-하나로 식별한다. 선물/옵션은 URL/TR 만 다르고 출력 구조는 같아 한 파서를 공유한다(원장 대조).
+하나로 식별한다. 선물/옵션은 URL/TR 만 다르고 출력 구조는 같아 한 파서를 공유한다(KIS 명세 대조).
 
 KIS URL/TR-id:
 - 선물 현재가: ``GET .../overseas-futureoption/v1/quotations/inquire-price`` ``HHDFC55010000``.
@@ -525,7 +525,7 @@ _MARKET_HOURS_TR = "OTFM2229R"
 _MAX_MARKET_HOURS_PAGES = 100
 
 
-def _HHMMSS(value: object) -> time | None:
+def _parse_hhmmss(value: object) -> time | None:
     text = str(value or "").strip()
     if len(text) != 6 or not text.isdigit():
         return None
@@ -605,13 +605,13 @@ def _parse_market_hours(row: Mapping[str, Any]) -> OverseasDerivativeMarketHours
         kind=str(row.get("fuop_dvsn_name", "")).strip(),
         class_code=str(row.get("fm_clas_cd", "")).strip(),
         class_name=str(row.get("fm_clas_name", "")).strip(),
-        am_open=_HHMMSS(row.get("am_mkmn_strt_tmd")),
-        am_close=_HHMMSS(row.get("am_mkmn_end_tmd")),
-        pm_open=_HHMMSS(row.get("pm_mkmn_strt_tmd")),
-        pm_close=_HHMMSS(row.get("pm_mkmn_end_tmd")),
-        next_day_open=_HHMMSS(row.get("mkmn_nxdy_strt_tmd")),
-        next_day_close=_HHMMSS(row.get("mkmn_nxdy_end_tmd")),
-        base_open=_HHMMSS(row.get("base_mket_strt_tmd")),
-        base_close=_HHMMSS(row.get("base_mket_end_tmd")),
+        am_open=_parse_hhmmss(row.get("am_mkmn_strt_tmd")),
+        am_close=_parse_hhmmss(row.get("am_mkmn_end_tmd")),
+        pm_open=_parse_hhmmss(row.get("pm_mkmn_strt_tmd")),
+        pm_close=_parse_hhmmss(row.get("pm_mkmn_end_tmd")),
+        next_day_open=_parse_hhmmss(row.get("mkmn_nxdy_strt_tmd")),
+        next_day_close=_parse_hhmmss(row.get("mkmn_nxdy_end_tmd")),
+        base_open=_parse_hhmmss(row.get("base_mket_strt_tmd")),
+        base_close=_parse_hhmmss(row.get("base_mket_end_tmd")),
         _raw=row,
     )

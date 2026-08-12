@@ -4,7 +4,7 @@
 시장·일정을, 해외는 시세·계좌·순위·뉴스 등을 각 네임스페이스로 모은다. 계좌는 다시 ``.account``
 하위로, 주문 lifecycle(client_order_id 로 동작, 자산 무관)은 ``kis.orders`` 로 둔다.
 
-각 메서드는 세션이 쥔 전송/계좌/환경으로 원장 엔진을 직접 호출한다. 세션(:class:`KISClient`)은
+각 메서드는 세션이 쥔 전송/계좌/환경으로 엔드포인트 엔진을 직접 호출한다. 세션(:class:`KISClient`)은
 전송·계좌·주문 안전코어(store/risk/place)만 쥐고, 공개 행위 표면은 이 네임스페이스들이 담당한다.
 """
 
@@ -179,7 +179,7 @@ class DomesticAccount:
     def realized_profit_balance(self) -> RealizedProfitBalance:
         """실현손익 포함 체결기준잔고(HTS [0800]). **모의투자 미지원**.
 
-        .. note:: 요약 필드는 원장 응답예시로 확증되지 않았다(레이아웃 기준). 전체 원본은 ``_raw``."""
+        .. note:: 요약 필드는 KIS 응답예시로 확증되지 않았다(레이아웃 기준). 전체 원본은 ``_raw``."""
         cano, product_code = self._c._require_account()
         return account_api.fetch_realized_profit_balance(
             self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment
@@ -328,7 +328,7 @@ class OverseasAccount:
         ``nation`` 국가(``"all"``/``"US"``/``"HK"``/``"CN"``/``"JP"``/``"VN"``), ``market_code`` 거래시장코드
         (``"00"``=전체), ``inquiry`` 조회구분. 모의는 요약만 온다.
 
-        .. note:: 요약 필드는 원장 예시가 잘려 레이아웃 기준이다 -- 전체 원본은 ``_raw``."""
+        .. note:: 요약 필드는 KIS 예시가 잘려 레이아웃 기준이다 -- 전체 원본은 ``_raw``."""
         cano, product_code = self._c._require_account()
         return overseas_account.fetch_present_balance(
             self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
@@ -354,7 +354,7 @@ class OverseasAccount:
         (공란=전체), ``currency`` 통화(공란=전체), ``symbol`` 종목(공란=전체), ``won_basis`` 원화(True)/외화
         (False). **모의투자 미지원**.
 
-        .. note:: 원장 예시가 비어 있어 필드는 레이아웃 기준이다 -- 전체 원본은 각 행/결과의 ``_raw``."""
+        .. note:: KIS 예시가 비어 있어 필드는 레이아웃 기준이다 -- 전체 원본은 각 행/결과의 ``_raw``."""
         cano, product_code = self._c._require_account()
         return overseas_account.fetch_period_profit(
             self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,

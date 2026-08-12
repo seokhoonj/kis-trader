@@ -1035,7 +1035,7 @@ def fetch_after_hours_order_book(
 # --- 멀티종목 시세 ---------------------------------------------------------
 _MULTI_QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/intstock-multprice"
 _MULTI_QUOTE_TR = "FHKST11300006"
-_MAX_MULTI_QUOTE = 30            # 원장: 슬롯 30개(FID_..._1 ~ _30)
+_MAX_MULTI_QUOTE = 30            # KIS 명세: 슬롯 30개(FID_..._1 ~ _30)
 
 
 def fetch_multi_quotes(
@@ -1195,7 +1195,7 @@ def fetch_daily_program_trades(
 
 _INVESTOR_ESTIMATE_PATH = "/uapi/domestic-stock/v1/quotations/investor-trend-estimate"
 _INVESTOR_ESTIMATE_TR = "HHPTJ04160200"
-#: 추정 가집계 입력구분(bsop_hour_gb) -> 입력 시각(원장: 증권사 직원이 그 시각에 집계·입력).
+#: 추정 가집계 입력구분(bsop_hour_gb) -> 입력 시각(KIS 명세: 증권사 직원이 그 시각에 집계·입력).
 #: 시각이 아니라 1~5 코드다(HHMMSS 아님) -- 각 코드의 문서화된 입력 시각으로 매핑한다.
 _ESTIMATE_INPUT_TIME = {
     "1": (9, 30), "2": (10, 0), "3": (11, 20), "4": (13, 20), "5": (14, 30),
