@@ -68,6 +68,8 @@ def format_wire_decimal(value: Decimal) -> str:
 
 #: KIS 대비기호(prdy_vrss_sign) 중 하락을 뜻하는 코드(4=하한, 5=하락).
 _DOWN_SIGNS = frozenset(("4", "5"))
+#: 상승/보합을 뜻하는 코드(1=상한, 2=상승, 3=보합) -- 크기를 그대로(양수) 둔다.
+_UP_SIGNS = frozenset(("1", "2", "3"))
 
 
 def _apply_change_sign(magnitude: Decimal, sign_code: str) -> Decimal:
@@ -75,9 +77,17 @@ def _apply_change_sign(magnitude: Decimal, sign_code: str) -> Decimal:
 
     KIS가 크기만 주든(부호 없는) 이미 부호를 실어 주든 상관없이 옳도록, 크기를 ``abs`` 로
     정규화한 뒤 부호코드로만 방향을 정한다(부호가 이중 적용돼 뒤집히는 일 방지).
+
+    빈 부호("")는 대비 없음으로 보아 크기를 그대로 둔다. 그러나 **알 수 없는** 비어있지 않은
+    부호코드는 조용히 양수로 두지 않고 :class:`KISError` 로 fail-closed 한다 -- 잘못된 부호는
+    대비값의 방향을 통째로 뒤집으므로.
     """
     size = abs(magnitude)
-    return -size if sign_code in _DOWN_SIGNS else size
+    if sign_code in _DOWN_SIGNS:
+        return -size
+    if sign_code in _UP_SIGNS or not sign_code:
+        return size
+    raise KISError(f"알 수 없는 KIS 대비부호(prdy_vrss_sign): {sign_code!r}")
 
 
 def _strip(value: object) -> str:

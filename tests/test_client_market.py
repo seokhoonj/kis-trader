@@ -517,3 +517,10 @@ def test_program_trade_summary_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).domestic.market.program_trades()
+
+
+def test_program_trade_summary_rejects_inverted_range_before_transport():
+    fake = FakeTransport(response=_resp([]))
+    with pytest.raises(KISUsageError):
+        _client(fake).domestic.market.program_trades(start="20240513", end="20240101")
+    assert fake.calls == []                                # I/O 전 거부

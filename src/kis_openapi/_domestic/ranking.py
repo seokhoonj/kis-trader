@@ -392,13 +392,17 @@ def fetch_company_trades(
     """당사매매종목 순위(기간). ``top="buy"`` 매수상위 / ``"sell"`` 매도상위. ``start``/``end`` 는
     조회 기간(YYYYMMDD 또는 date). 당사 매수/매도/순매수 수량은 각 항목의 ``_raw`` (shnu_cnqn_smtn/
     seln_cnqn_smtn/ntby_cnqn). 최대 30건(다음조회 없음)."""
+    start_date = _to_yyyymmdd(start, "start")
+    end_date = _to_yyyymmdd(end, "end")
+    if start_date > end_date:                  # 뒤집힌 기간 -> I/O 전 fail-closed
+        raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _COMPANY_TRADES_SCR,
         "FID_DIV_CLS_CODE": "0",
         "FID_RANK_SORT_CLS_CODE": _lookup(_COMPANY_TRADES_SORT, key=top, argname="top"),
-        "FID_INPUT_DATE_1": _to_yyyymmdd(start, "start"),
-        "FID_INPUT_DATE_2": _to_yyyymmdd(end, "end"),
+        "FID_INPUT_DATE_1": start_date,
+        "FID_INPUT_DATE_2": end_date,
         "FID_INPUT_ISCD": "0000",              # 전체
         "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
         "FID_APLY_RANG_VOL": "0",              # 거래량 전체
@@ -416,14 +420,18 @@ def fetch_dividend(
     """배당률 순위. ``kind="cash"`` 현금배당 / ``"stock"`` 주식배당. ``start``/``end`` 는 배당 기준일
     범위(YYYYMMDD 또는 date). ``market`` all/kospi/kospi200/kosdaq, ``settlement`` all/final/interim.
     시세가 없어 :class:`DividendRanking` 로 돌려준다. 최대 30건(다음조회 없음)."""
+    start_date = _to_yyyymmdd(start, "start")
+    end_date = _to_yyyymmdd(end, "end")
+    if start_date > end_date:                  # 뒤집힌 기간 -> I/O 전 fail-closed
+        raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
     params = {
         "CTS_AREA": "",
         "GB1": _lookup(_DIVIDEND_MARKET, key=market, argname="market"),
         "UPJONG": "0001",                      # 업종 종합(전체)
         "GB2": "0",                            # 보통주/우선주 전체
         "GB3": _lookup(_DIVIDEND_KIND, key=kind, argname="kind"),
-        "F_DT": _to_yyyymmdd(start, "start"),
-        "T_DT": _to_yyyymmdd(end, "end"),
+        "F_DT": start_date,
+        "T_DT": end_date,
         "GB4": _lookup(_DIVIDEND_SETTLEMENT, key=settlement, argname="settlement"),
     }
     resp = transport.request(
@@ -526,6 +534,8 @@ def fetch_credit_balance(
     """신용잔고 순위. ``top`` = margin_*(융자) / loan_*(대주) x ratio/shares/amount/ratio_increase/
     ratio_decrease. ``days`` 는 증가율 계산 기간(2~999). 응답 output2를 :class:`CreditBalanceRanking`
     로 돌려준다(순위는 응답 순서). 최대 30건(다음조회 없음)."""
+    if not 2 <= days <= 999:                   # KIS 명세 증가율기간 범위 -> I/O 전 fail-closed
+        raise KISUsageError(f"days 는 2~999 범위여야 한다: {days!r}")
     params = {
         "FID_COND_SCR_DIV_CODE": _CREDIT_BALANCE_SCR,
         "FID_INPUT_ISCD": "0000",              # 전체

@@ -44,7 +44,12 @@ def collect_period_bars(
     중복 날짜는 병합, 빈 페이지면 종료, 페이지 상한에 닿으면 부분 결과로 자르지 않고 예외.
 
     종목/지수 공용 -- ``base_params`` 는 날짜 외 고정 파라미터(시장구분/코드/기간/수정주가 등),
-    ``parse_rows`` 는 output2 행을 :class:`Bar` 로 바꾸는 파서(필드명이 종목/지수마다 다르다)."""
+    ``parse_rows`` 는 output2 행을 :class:`Bar` 로 바꾸는 파서(필드명이 종목/지수마다 다르다).
+
+    ``max_bars`` 는 ``None``(무제한) 또는 양의 정수여야 한다. 0 이하이면 조회가 무의미하므로
+    I/O 전에 :class:`KISUsageError` 로 fail-closed 한다."""
+    if max_bars is not None and max_bars <= 0:
+        raise KISUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
     bar_by_date: dict[str, Bar] = {}
     window_end = end_date
     for _page in range(_MAX_BAR_PAGES):

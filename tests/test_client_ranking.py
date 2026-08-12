@@ -312,6 +312,15 @@ def test_by_company_trades_bad_top():
         )
 
 
+def test_by_company_trades_rejects_inverted_range_before_transport():
+    fake = FakeTransport(response=_resp([]))
+    with pytest.raises(KISUsageError):
+        _client(fake).domestic.ranking.by_company_trades(
+            top="buy", start="20240315", end="20240314"
+        )
+    assert fake.calls == []                                       # I/O 전 거부
+
+
 _DIVIDEND = "/uapi/domestic-stock/v1/ranking/dividend-rate"
 
 
@@ -475,6 +484,21 @@ def test_by_credit_balance_missing_output2_fails_closed():
                                               body={"output1": [{"bstp_cls_code": "1001"}]}))
     with pytest.raises(KISError):
         _client(fake).domestic.ranking.by_credit_balance()
+
+
+@pytest.mark.parametrize("days", [1, 0, -3, 1000, 5000])
+def test_by_credit_balance_rejects_days_out_of_range_before_transport(days):
+    fake = FakeTransport(response=_credit_resp([_credit_row()]))
+    with pytest.raises(KISUsageError):
+        _client(fake).domestic.ranking.by_credit_balance(days=days)
+    assert fake.calls == []                                       # I/O 전 거부
+
+
+@pytest.mark.parametrize("days", [2, 30, 999])
+def test_by_credit_balance_accepts_in_range_days(days):
+    fake = FakeTransport(response=_credit_resp([_credit_row()]))
+    _client(fake).domestic.ranking.by_credit_balance(days=days)
+    assert fake.calls[0]["params"]["FID_OPTION"] == str(days)
 
 
 def _near_row(symbol="003560", name="IHQ", price="10760", change="-100", sign="5", pct="-0.92",

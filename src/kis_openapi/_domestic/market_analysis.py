@@ -453,6 +453,8 @@ def fetch_program_trade_summary(
         raise KISUsageError(f"market 은 {sorted(_PROGRAM_MARKET)} 중 하나: {market!r}") from None
     end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
     start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
+    if start_date > end_date:                  # 뒤집힌 기간 -> I/O 전 fail-closed
+        raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_MRKT_CLS_CODE": market_code,
