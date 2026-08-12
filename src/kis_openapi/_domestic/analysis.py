@@ -30,6 +30,7 @@ from .._datetime import (
 from .._response import (
     _missing_block_error,
     _raise_if_error,
+    _require_mapping_rows,
 )
 from .._wire import (
     _apply_change_sign,
@@ -316,9 +317,7 @@ def fetch_daily_trade_volume(
     resp = transport.request(method="GET", path=_DAILY_TRADE_VOL_PATH, tr_id=_DAILY_TRADE_VOL_TR,
                              params=params, idempotent=True)
     _raise_if_error(resp)
-    rows = resp.body.get("output2")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output2", resp)
+    rows = _require_mapping_rows("output2", resp)
     points: list[DailyTradeVolume] = []
     for row in rows:
         day = str(row.get("stck_bsop_date", "")).strip()
@@ -394,9 +393,7 @@ def fetch_expected_price_trend(
     resp = transport.request(method="GET", path=_EXP_PRICE_PATH, tr_id=_EXP_PRICE_TR,
                              params=params, idempotent=True)
     _raise_if_error(resp)
-    rows = resp.body.get("output2")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output2", resp)
+    rows = _require_mapping_rows("output2", resp)
     points: list[ExpectedPricePoint] = []
     for row in rows:
         day = str(row.get("stck_bsop_date", "")).strip()
@@ -482,9 +479,7 @@ def fetch_foreign_net_buy_trend(
         idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     as_of = _parse_bar_timestamp(_today_kst())
     points: list[ForeignNetBuyPoint] = []
     for row in rows:
@@ -537,9 +532,7 @@ def fetch_volume_profile(transport: Transport, *, symbol: str) -> VolumeProfile:
     summary = resp.body.get("output1")
     if not isinstance(summary, Mapping):
         raise _missing_block_error("output1", resp)
-    bands_raw = resp.body.get("output2")
-    if not isinstance(bands_raw, list):
-        raise _missing_block_error("output2", resp)
+    bands_raw = _require_mapping_rows("output2", resp)
     sign = str(summary.get("prdy_vrss_sign", "")).strip()
     bands = tuple(
         VolumeAtPrice(

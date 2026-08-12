@@ -39,6 +39,7 @@ from .._datetime import (
 from .._response import (
     _missing_block_error,
     _raise_if_error,
+    _require_mapping_rows,
 )
 from .._wire import (
     _apply_change_sign,
@@ -276,9 +277,7 @@ def fetch_index_ticks(transport: Transport, *, code: str) -> list[IndexIntradayP
         idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     points: list[IndexIntradayPoint] = []
     today = _today_kst()
     for row in rows:
@@ -420,9 +419,7 @@ def fetch_expected_index_trend(
         idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     today = _today_kst()
     points: list[ExpectedIndexPoint] = []
     for row in rows:

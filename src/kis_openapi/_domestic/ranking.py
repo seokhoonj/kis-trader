@@ -58,6 +58,7 @@ from .._datetime import (
 from .._response import (
     _missing_block_error,
     _raise_if_error,
+    _require_mapping_rows,
 )
 from .._wire import (
     _apply_change_sign,
@@ -745,9 +746,7 @@ def fetch_expected_conclusion(
         method="GET", path=_EXP_UPDOWN_PATH, tr_id=_EXP_UPDOWN_TR, params=params, idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     ranked: list[RankedStock] = []
     for row in rows:
         symbol = str(row.get("stck_shrn_iscd", "")).strip()
@@ -795,9 +794,7 @@ def fetch_expected_close(
         idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output1")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output1", resp)
+    rows = _require_mapping_rows("output1", resp)
     ranked: list[RankedStock] = []
     for row in rows:
         if not isinstance(row, Mapping):
@@ -967,9 +964,7 @@ def fetch_after_hour_balance(
         tr_id="FHPST01760000", params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     ranked: list[AfterHourBalanceRanking] = []
     for row in rows:
         symbol = str(row.get("stck_shrn_iscd", "")).strip()
@@ -1007,9 +1002,7 @@ def fetch_most_viewed(transport: Transport) -> list[TopViewedStock]:
         tr_id="HHMCM000100C0", params={}, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output1")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output1", resp)
+    rows = _require_mapping_rows("output1", resp)
     ranked: list[TopViewedStock] = []
     for row in rows:
         symbol = str(row.get("mksc_shrn_iscd", "")).strip()

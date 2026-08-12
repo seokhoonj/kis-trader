@@ -98,6 +98,25 @@ def test_dividends_missing_output1_fails_closed():
         _client(fake).domestic.calendar.dividends(start="20240301", end="20240331")
 
 
+@pytest.mark.parametrize("bad_row", [None, 1, "x"])
+def test_dividends_nonmapping_row_fails_closed(bad_row):
+    # output1 이 배열이긴 하나 원소가 매핑이 아니면 경계에서 fail-closed(row.get AttributeError 누출 금지).
+    fake = FakeTransport(response=_resp([bad_row]))
+    with pytest.raises(KISError):
+        _client(fake).domestic.calendar.dividends(start="20240301", end="20240331")
+
+
+def test_dividends_valid_rows_still_parse_after_row_check():
+    # 정상 매핑 배열은 행-검증 도입 후에도 동일하게 파싱된다(회귀 방지).
+    rows = [{"record_date": "20240326", "sht_cd": "000720", "isin_name": "현대건설",
+             "divi_kind": "결산", "face_val": "5000", "per_sto_divi_amt": "600",
+             "divi_rate": "12.00", "stk_divi_rate": "0.00", "divi_pay_dt": "",
+             "stk_div_pay_dt": "", "odd_pay_dt": "", "stk_kind": "보통", "high_divi_gb": ""}]
+    fake = FakeTransport(response=_resp(rows))
+    events = _client(fake).domestic.calendar.dividends(start="20240301", end="20240331")
+    assert [e.symbol for e in events] == ["000720"]
+
+
 def test_ipo_subscriptions_maps_slash_dates_and_text_period():
     # 원장 예시값(아이엠비디엑스). pay_dt는 YYYY/MM/DD, list_dt는 빈값, subscr_dt는 텍스트 범위.
     rows = [{"record_date": "20240325", "sht_cd": "461030", "isin_name": "아이엠비디엑스",

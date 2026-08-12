@@ -37,6 +37,7 @@ from .._depth import _price_levels
 from .._response import (
     _missing_block_error,
     _raise_if_error,
+    _require_mapping_rows,
 )
 from .._wire import (
     _apply_change_sign,
@@ -163,9 +164,7 @@ def fetch_option_expiries(transport: Transport) -> list[OptionExpiry]:
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     expiries: list[OptionExpiry] = []
     for row in rows:
         year_month = str(row.get("mtrt_yymm", "")).strip()
@@ -233,12 +232,8 @@ def fetch_option_board(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    call_rows = resp.body.get("output1")
-    if not isinstance(call_rows, list):
-        raise _missing_block_error("output1", resp)
-    put_rows = resp.body.get("output2")
-    if not isinstance(put_rows, list):
-        raise _missing_block_error("output2", resp)
+    call_rows = _require_mapping_rows("output1", resp)
+    put_rows = _require_mapping_rows("output2", resp)
     return OptionBoard(
         expiry=expiry,
         underlying=underlying,

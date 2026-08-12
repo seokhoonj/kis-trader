@@ -32,7 +32,7 @@ from .._datetime import (
     _today_kst,
 )
 from .._depth import _price_levels
-from .._response import _missing_block_error, _raise_if_error
+from .._response import _missing_block_error, _raise_if_error, _require_mapping_rows
 from .._wire import (
     _apply_change_sign,
     optional_decimal,
@@ -249,9 +249,7 @@ def fetch_recent_prices(
         idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     points: list[RecentPricePoint] = []
     for row in rows:
         if not isinstance(row, Mapping):
@@ -627,9 +625,7 @@ def fetch_investor_flows(transport: Transport, *, symbol: str, market: str) -> l
         method="GET", path=_INVESTOR_PATH, tr_id=_INVESTOR_TR, params=params, idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):  # 성공 응답인데 배열 아님 -> fail-closed
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     flows: list[InvestorFlow] = []
     for row in rows:
         date_text = str(row.get("stck_bsop_date", "")).strip()
@@ -931,9 +927,7 @@ def fetch_after_hours_conclusions(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output2")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output2", resp)
+    rows = _require_mapping_rows("output2", resp)
     as_of = datetime.now(_KST)
     points: list[AfterHoursConclusion] = []
     for row in rows:
@@ -971,9 +965,7 @@ def fetch_after_hours_daily(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output2")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output2", resp)
+    rows = _require_mapping_rows("output2", resp)
     points: list[AfterHoursDailyPrice] = []
     for row in rows:
         day = str(row.get("stck_bsop_date", "")).strip()
@@ -1067,9 +1059,7 @@ def fetch_multi_quotes(
         method="GET", path=_MULTI_QUOTE_PATH, tr_id=_MULTI_QUOTE_TR, params=params, idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     as_of = datetime.now(_KST)
     quotes: list[Quote] = []
     for row in rows:
@@ -1134,9 +1124,7 @@ def fetch_program_trades(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     as_of = datetime.now(_KST)
     points: list[ProgramTradePoint] = []
     for row in rows:
@@ -1221,9 +1209,7 @@ def fetch_investor_estimate(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output2")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output2", resp)
+    rows = _require_mapping_rows("output2", resp)
     as_of = datetime.now(_KST)
     estimates: list[InvestorEstimate] = []
     for row in rows:

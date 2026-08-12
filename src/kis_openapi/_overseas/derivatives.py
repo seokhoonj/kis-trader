@@ -26,6 +26,7 @@ from .._datetime import (
 from .._response import (
     _missing_block_error,
     _raise_if_error,
+    _require_mapping_rows,
 )
 from .._wire import (
     _apply_change_sign,
@@ -171,9 +172,7 @@ def fetch_order_book(transport: Transport, *, srs_cd: str, market: str) -> Order
         method="GET", path=path, tr_id=tr, params={"SRS_CD": srs_cd}, idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output2")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output2", resp)
+    rows = _require_mapping_rows("output2", resp)
 
     bids: list[PriceLevel] = []
     asks: list[PriceLevel] = []
@@ -266,9 +265,7 @@ def fetch_trades(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output2")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output2", resp)
+    rows = _require_mapping_rows("output2", resp)
     trades: list[Trade] = []
     for row in rows:
         if not isinstance(row, Mapping):
@@ -385,9 +382,7 @@ def fetch_open_interest(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output2")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output2", resp)
+    rows = _require_mapping_rows("output2", resp)
     points: list[OverseasFuturesOpenInterest] = []
     for row in rows:
         if not isinstance(row, Mapping):

@@ -30,6 +30,7 @@ from .._datetime import (
 from .._response import (
     _missing_block_error,
     _raise_if_error,
+    _require_mapping_rows,
 )
 from .._wire import (
     _apply_change_sign,
@@ -152,9 +153,7 @@ def fetch_etf_nav_intraday(
         idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     today = _today_kst()
     points: list[ETFNAVMinutePoint] = []
     for row in rows:

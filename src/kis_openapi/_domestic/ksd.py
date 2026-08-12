@@ -10,14 +10,14 @@ KIS URL/TR-id:
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Any
 
 from .._datetime import _to_yyyymmdd
 from .._response import (
-    _missing_block_error,
     _raise_if_error,
+    _require_mapping_rows,
 )
 from .._wire import optional_decimal, optional_int
 from ..calendar_items import (
@@ -83,14 +83,11 @@ def _parse_ksd_date(value: object, *, required: bool, name: str) -> date | None:
 
 
 def _rows(transport: Transport, *, path: str, tr: str, params: Mapping[str, str],
-          block: str = "output1") -> Sequence[Mapping[str, Any]]:
+          block: str = "output1") -> list[Mapping[str, Any]]:
     resp = transport.request(method="GET", path=path, tr_id=tr, params=dict(params),
                              idempotent=True)
     _raise_if_error(resp)
-    rows = resp.body.get(block)
-    if not isinstance(rows, list):
-        raise _missing_block_error(block, resp)
-    return rows
+    return _require_mapping_rows(block, resp)
 
 
 def fetch_dividends(

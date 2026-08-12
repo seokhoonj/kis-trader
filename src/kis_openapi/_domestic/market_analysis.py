@@ -26,6 +26,7 @@ from .._datetime import (
 from .._response import (
     _missing_block_error,
     _raise_if_error,
+    _require_mapping_rows,
 )
 from .._wire import (
     _apply_change_sign,
@@ -102,9 +103,7 @@ def fetch_lendable_stocks(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output1")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output1", resp)
+    rows = _require_mapping_rows("output1", resp)
     stocks: list[LendableStock] = []
     for row in rows:
         if not isinstance(row, Mapping):
@@ -204,9 +203,7 @@ def fetch_broker_opinions(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     opinions: list[BrokerOpinion] = []
     for row in rows:
         if not isinstance(row, Mapping):
@@ -263,9 +260,7 @@ def fetch_market_investor_flows(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     flows: list[MarketInvestorFlow] = []
     for row in rows:
         day = str(row.get("stck_bsop_date", "")).strip()
@@ -456,9 +451,7 @@ def fetch_program_trade_summary(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     summaries: list[ProgramTradeSummary] = []
     for row in rows:
         day = str(row.get("stck_bsop_date", "")).strip()
@@ -506,9 +499,7 @@ def fetch_vi_events(
         method="GET", path=_VI_STATUS_PATH, tr_id=_VI_STATUS_TR, params=params, idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     events: list[VIEvent] = []
     for row in rows:
         code = str(row.get("mksc_shrn_iscd", "")).strip()
@@ -552,9 +543,7 @@ def fetch_limit_stocks(transport: Transport) -> list[LimitStock]:
         method="GET", path=_LIMIT_PATH, tr_id=_LIMIT_TR, params=params, idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     stocks: list[LimitStock] = []
     for row in rows:
         code = str(row.get("mksc_shrn_iscd", "")).strip()
@@ -599,9 +588,7 @@ def fetch_program_flow(
         idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     as_of = datetime.now(_KST)
     points: list[ProgramFlowPoint] = []
     for row in rows:
@@ -644,9 +631,7 @@ def fetch_trading_calendar(
         method="GET", path=_CALENDAR_PATH, tr_id=_CALENDAR_TR, params=params, idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     days: list[TradingDay] = []
     for row in rows:
         day = str(row.get("bass_dt", "")).strip()
@@ -726,9 +711,7 @@ def fetch_news(
         method="GET", path=_NEWS_PATH, tr_id=_NEWS_TR, params=params, idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     items: list[NewsHeadline] = []
     for row in rows:
         day = str(row.get("data_dt", "")).strip()
@@ -780,9 +763,7 @@ def fetch_foreign_broker_trades(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     flows: list[ForeignBrokerFlow] = []
     for row in rows:
         code = str(row.get("stck_shrn_iscd", "")).strip()
@@ -892,9 +873,7 @@ def fetch_market_funds(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     funds: list[MarketFunds] = []
     for row in rows:
         sign = str(row.get("prdy_vrss_sign", "")).strip()

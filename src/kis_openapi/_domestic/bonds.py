@@ -31,6 +31,7 @@ from .._depth import _price_levels
 from .._response import (
     _missing_block_error,
     _raise_if_error,
+    _require_mapping_rows,
 )
 from .._wire import (
     _apply_change_sign,
@@ -189,9 +190,7 @@ def fetch_bars(transport: Transport, *, code: str, interval: Interval = "1d") ->
         method="GET", path=_BARS_PATH, tr_id=_BARS_TR, params=params, idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     bars: list[Bar] = []
     for row in rows:
         if not isinstance(row, Mapping):
@@ -294,9 +293,7 @@ def fetch_valuations(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output1")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output1", resp)
+    rows = _require_mapping_rows("output1", resp)
     valuations: list[BondValuation] = []
     for row in rows:
         if not isinstance(row, Mapping):

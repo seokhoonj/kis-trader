@@ -29,6 +29,7 @@ from .._datetime import (
 from .._response import (
     _missing_block_error,
     _raise_if_error,
+    _require_mapping_rows,
 )
 from .._wire import (
     _apply_change_sign,
@@ -362,9 +363,7 @@ def fetch_lp_trend(transport: Transport, *, code: str) -> list[ELWLPFlow]:
         method="GET", path=_LP_TREND_PATH, tr_id=_LP_TREND_TR, params=params, idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output2")
-    if not isinstance(rows, list):             # 성공 응답인데 배열 아님 -> fail-closed
-        raise _missing_block_error("output2", resp)
+    rows = _require_mapping_rows("output2", resp)
     return [
         _parse_lp_row(row, code=code)
         for row in rows
@@ -436,9 +435,7 @@ def _fetch_ranking(
         method="GET", path=path, tr_id=tr, params=dict(params), idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):             # 성공 응답인데 배열 아님 -> fail-closed
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     ranked: list[RankedELW] = []
     for row in rows:
         code = str(row.get("elw_shrn_iscd", "")).strip()
@@ -593,9 +590,7 @@ def fetch_underlyings(
         tr_id="FHKEW154100C0", params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     underlyings: list[ELWUnderlying] = []
     for row in rows:
         code = str(row.get("unas_shrn_iscd", "")).strip()
@@ -660,9 +655,7 @@ def _fetch_listings(
         method="GET", path=path, tr_id=tr, params=dict(params), idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+    rows = _require_mapping_rows("output", resp)
     return [listing for row in rows if (listing := _parse_listing_row(row)) is not None]
 
 

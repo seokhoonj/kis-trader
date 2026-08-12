@@ -30,6 +30,7 @@ from .._depth import _price_levels
 from .._response import (
     _missing_block_error,
     _raise_if_error,
+    _require_mapping_rows,
 )
 from .._wire import (
     _apply_change_sign,
@@ -187,9 +188,7 @@ def fetch_multi_quotes(
         method="GET", path=_MULTI_QUOTE_PATH, tr_id=_MULTI_QUOTE_TR, params=params, idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output2")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output2", resp)
+    rows = _require_mapping_rows("output2", resp)
     as_of = datetime.now(_KST)
     quotes: list[Quote] = []
     for row in rows:
