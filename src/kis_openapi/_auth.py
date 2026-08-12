@@ -15,7 +15,7 @@ from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from ._endpoints import base_url
-from .errors import KISAuthError
+from .errors import KISAuthError, KISUsageError
 
 if TYPE_CHECKING:
     from .transport import Environment
@@ -57,6 +57,9 @@ class TokenManager:
         cache_dir: str | None = None,
         refresh_margin: int = 600,
     ) -> None:
+        if refresh_margin < 0:
+            # 음수 마진은 만료 이후에야 갱신하게 만들어 만료된 토큰을 유효로 오인시킨다.
+            raise KISUsageError(f"refresh_margin 은 음수일 수 없다: {refresh_margin}")
         self._app_key = app_key
         self._app_secret = app_secret
         self._environment = environment
@@ -121,11 +124,22 @@ class TokenManager:
             "appkey": self._app_key,
             "appsecret": self._app_secret,
         }
-        status, payload = self._post(
-            base_url(self._environment) + "/oauth2/tokenP", body
-        )
+        # 경계: 전송/JSON 파싱 실패는 raw 예외로 새지 않게 KISAuthError 로 좁힌다.
+        try:
+            status, payload = self._post(
+                base_url(self._environment) + "/oauth2/tokenP", body
+            )
+        except KISAuthError:
+            raise
+        except Exception as err:
+            raise KISAuthError("KIS OAuth 접근 토큰 발급 요청에 실패했다(전송/JSON 파싱 오류).") from err
         if status != 200:
             raise KISAuthError("KIS OAuth 접근 토큰 발급에 실패했다.")
+        # 필드 접근 전에 본문이 매핑인지 확인한다(list/None 이면 .get 에서 AttributeError 가 샌다).
+        if not isinstance(payload, Mapping):
+            raise KISAuthError(
+                f"KIS OAuth 응답 본문이 예상한 JSON 객체가 아니다: {type(payload).__name__}"
+            )
         token = payload.get("access_token")
         if not isinstance(token, str) or not token.strip():
             raise KISAuthError("KIS OAuth 응답에 접근 토큰이 없다.")

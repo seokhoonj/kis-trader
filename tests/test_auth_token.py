@@ -11,7 +11,7 @@ from typing import Any
 import pytest
 
 from kis_openapi._auth import TokenManager
-from kis_openapi.errors import KISAuthError
+from kis_openapi.errors import KISAuthError, KISUsageError
 
 
 class FakePoster:
@@ -124,6 +124,48 @@ def test_auth_failures_raise(
 ) -> None:
     token_manager = manager(tmp_path, FakePoster(status, payload), [1_000.0])
 
+    with pytest.raises(KISAuthError):
+        token_manager.access_token()
+
+
+def test_negative_refresh_margin_rejected(tmp_path: Path) -> None:
+    # 음수 마진은 만료 이후에야 갱신하게 만들어 만료 토큰을 유효로 오인시킨다 -- 생성 시 거부.
+    with pytest.raises(KISUsageError):
+        TokenManager(
+            app_key="k", app_secret="s", environment="real",
+            post=FakePoster(), clock=lambda: 1_000.0,
+            cache_dir=str(tmp_path), refresh_margin=-1,
+        )
+
+
+def test_zero_and_positive_refresh_margin_accepted(tmp_path: Path) -> None:
+    # 0 과 양수 마진은 그대로 허용(parity).
+    for margin in (0, 600):
+        tm = TokenManager(
+            app_key="k", app_secret="s", environment="real",
+            post=FakePoster(), clock=lambda: 1_000.0,
+            cache_dir=str(tmp_path), refresh_margin=margin,
+        )
+        assert tm.access_token() == "canned-access-token"
+
+
+def test_transport_failure_narrows_to_auth_error(tmp_path: Path) -> None:
+    # poster 가 던지는 전송/JSON 오류는 raw 예외로 새지 않고 KISAuthError 로 좁혀진다.
+    def boom(url: str, body: Mapping[str, str]) -> tuple[int, Mapping[str, Any]]:
+        raise ValueError("json decode blew up")
+
+    tm = TokenManager(
+        app_key="k", app_secret="s", environment="real",
+        post=boom, clock=lambda: 1_000.0, cache_dir=str(tmp_path), refresh_margin=600,
+    )
+    with pytest.raises(KISAuthError):
+        tm.access_token()
+
+
+@pytest.mark.parametrize("payload", [["not", "a", "mapping"], "string-body", 42])
+def test_non_mapping_body_raises_auth_error(tmp_path: Path, payload: Any) -> None:
+    # 매핑이 아닌 본문은 필드 접근 전에 KISAuthError 로 거부(AttributeError 누출 방지).
+    token_manager = manager(tmp_path, FakePoster(200, payload), [1_000.0])
     with pytest.raises(KISAuthError):
         token_manager.access_token()
 
