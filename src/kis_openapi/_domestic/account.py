@@ -87,7 +87,7 @@ _SIDE = {"01": "sell", "02": "buy"}
 # --- 잔고 / 보유종목 / 포트폴리오 -----------------------------------------
 def fetch_balance(transport: Transport, *, cano: str, product_code: str, environment: Environment) -> Balance:
     """계좌 현금·자산 요약(1콜, output2). 요약은 계좌 단위라 첫 페이지로 완결."""
-    resp = _fetch_balance_page(transport, cano, product_code, environment, "", "")
+    resp = _fetch_balance_page(transport, cano=cano, product_code=product_code, environment=environment, ctx_fk="", ctx_nk="")
     _raise_if_error(resp)
     summary = _extract_summary(resp.body)
     if summary is None:
@@ -100,27 +100,28 @@ def fetch_balance(transport: Transport, *, cano: str, product_code: str, environ
 
 def fetch_positions(transport: Transport, *, cano: str, product_code: str, environment: Environment) -> list[Position]:
     """보유 종목 전체(연속조회 소진까지). 0수량 잔여 lot 포함."""
-    rows, _summary = _walk_holdings(transport, cano, product_code, environment)
+    rows, _summary = _walk_holdings(transport, cano=cano, product_code=product_code, environment=environment)
     return _parse_positions(rows)
 
 
 def fetch_portfolio(transport: Transport, *, cano: str, product_code: str, environment: Environment) -> Portfolio:
     """현금·자산 요약과 보유 종목을 한 번의 조회 순회로 함께."""
-    rows, summary = _walk_holdings(transport, cano, product_code, environment)
+    rows, summary = _walk_holdings(transport, cano=cano, product_code=product_code, environment=environment)
     if summary is None:
         raise KISError("잔고 응답에 계좌 요약(output2)이 없다.")
     return Portfolio(balance=_parse_balance(summary), positions=tuple(_parse_positions(rows)))
 
 
 def _walk_holdings(
-    transport: Transport, cano: str, product_code: str, environment: Environment
+    transport: Transport, *, cano: str, product_code: str, environment: Environment
 ) -> tuple[list[Mapping[str, Any]], Mapping[str, Any] | None]:
     rows: list[Mapping[str, Any]] = []
     summary: Mapping[str, Any] | None = None
     ctx_fk, ctx_nk, tr_cont = "", "", ""
     for _page in range(_MAX_BALANCE_PAGES):
         resp = _fetch_balance_page(
-            transport, cano, product_code, environment, ctx_fk, ctx_nk, tr_cont=tr_cont
+            transport, cano=cano, product_code=product_code, environment=environment,
+            ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
         )
         _raise_if_error(resp)
         if summary is None:  # 계좌 요약은 첫 페이지에서(계좌 단위라 페이지 불변)
@@ -146,8 +147,8 @@ def _walk_holdings(
 
 
 def _fetch_balance_page(
-    transport: Transport, cano: str, product_code: str, environment: Environment, ctx_fk: str, ctx_nk: str,
-    *, tr_cont: str = "",
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    ctx_fk: str, ctx_nk: str, tr_cont: str = "",
 ) -> RawResponse:
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,

@@ -404,7 +404,7 @@ def fetch_expected_price_trend(
         points.append(
             ExpectedPricePoint(
                 symbol=symbol,
-                timestamp=_parse_minute_bar_timestamp(day, moment),
+                timestamp=_parse_minute_bar_timestamp(date_text=day, time_text=moment),
                 expected_price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
                 change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
                 change_percent=_apply_change_sign(

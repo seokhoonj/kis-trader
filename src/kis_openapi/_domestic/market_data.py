@@ -199,7 +199,7 @@ def fetch_intraday_executions(
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             IntradayExecutionPoint(
-                timestamp=_parse_minute_bar_timestamp(today, time_text),
+                timestamp=_parse_minute_bar_timestamp(date_text=today, time_text=time_text),
                 price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
                 change=_apply_change_sign(
                     required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign
@@ -536,7 +536,7 @@ def _parse_minute_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> lis
         bars.append(
             Bar(
                 symbol=symbol,
-                timestamp=_parse_minute_bar_timestamp(date_text, time_text),
+                timestamp=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
                 open=required_decimal(row.get("stck_oprc"), "stck_oprc"),
                 high=required_decimal(row.get("stck_hgpr"), "stck_hgpr"),
                 low=required_decimal(row.get("stck_lwpr"), "stck_lwpr"),
@@ -568,8 +568,8 @@ def _parse_order_book(
     return OrderBook(
         symbol=symbol,
         market=market,
-        bids=_price_levels(output1, "bidp", "bidp_rsqn"),
-        asks=_price_levels(output1, "askp", "askp_rsqn"),
+        bids=_price_levels(output1, price_key="bidp", quantity_key="bidp_rsqn"),
+        asks=_price_levels(output1, price_key="askp", quantity_key="askp_rsqn"),
         total_bid_quantity=optional_int(output1.get("total_bidp_rsqn"), "total_bidp_rsqn") or 0,
         total_ask_quantity=optional_int(output1.get("total_askp_rsqn"), "total_askp_rsqn") or 0,
         as_of=as_of,
@@ -1011,8 +1011,8 @@ def fetch_after_hours_order_book(
     return OrderBook(
         symbol=symbol,
         market=market,
-        bids=_price_levels(output1, "ovtm_untp_bidp", "ovtm_untp_bidp_rsqn"),
-        asks=_price_levels(output1, "ovtm_untp_askp", "ovtm_untp_askp_rsqn"),
+        bids=_price_levels(output1, price_key="ovtm_untp_bidp", quantity_key="ovtm_untp_bidp_rsqn"),
+        asks=_price_levels(output1, price_key="ovtm_untp_askp", quantity_key="ovtm_untp_askp_rsqn"),
         total_bid_quantity=optional_int(
             output1.get("ovtm_untp_total_bidp_rsqn"), "ovtm_untp_total_bidp_rsqn"
         ) or 0,

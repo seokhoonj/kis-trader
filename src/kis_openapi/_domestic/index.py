@@ -204,7 +204,7 @@ def _parse_index_minute_bars(
         bars.append(
             Bar(
                 symbol=code,
-                timestamp=_parse_minute_bar_timestamp(date_text, time_text),
+                timestamp=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
                 open=required_decimal(row.get("bstp_nmix_oprc"), "bstp_nmix_oprc"),
                 high=required_decimal(row.get("bstp_nmix_hgpr"), "bstp_nmix_hgpr"),
                 low=required_decimal(row.get("bstp_nmix_lwpr"), "bstp_nmix_lwpr"),
@@ -290,7 +290,7 @@ def fetch_index_ticks(transport: Transport, *, code: str) -> list[IndexIntradayP
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             IndexIntradayPoint(
-                time=_parse_minute_bar_timestamp(today, time_text),
+                time=_parse_minute_bar_timestamp(date_text=today, time_text=time_text),
                 value=required_decimal(value_text, "bstp_nmix_prpr"),
                 change=_apply_change_sign(
                     required_decimal(
@@ -432,7 +432,7 @@ def fetch_expected_index_trend(
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             ExpectedIndexPoint(
-                time=_parse_minute_bar_timestamp(today, time_text),
+                time=_parse_minute_bar_timestamp(date_text=today, time_text=time_text),
                 value=required_decimal(value_text, "bstp_nmix_prpr"),
                 change=_apply_change_sign(
                     required_decimal(
@@ -532,7 +532,7 @@ def _parse_index_intraday(
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             IndexIntradayPoint(
-                time=_parse_minute_bar_timestamp(today, time_text),
+                time=_parse_minute_bar_timestamp(date_text=today, time_text=time_text),
                 value=required_decimal(value_text, "bstp_nmix_prpr"),
                 change=_apply_change_sign(
                     required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), sign

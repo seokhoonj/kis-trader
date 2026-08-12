@@ -435,7 +435,7 @@ def _parse_minute_bars(
             day, moment,
             Bar(
                 symbol=symbol,
-                timestamp=_parse_minute_bar_timestamp(day, moment),
+                timestamp=_parse_minute_bar_timestamp(date_text=day, time_text=moment),
                 open=required_decimal(row.get("open"), "open"),
                 high=required_decimal(row.get("high"), "high"),
                 low=required_decimal(row.get("low"), "low"),
@@ -487,8 +487,8 @@ def fetch_order_book(transport: Transport, *, symbol: str, exchange: str) -> Ord
     return OrderBook(
         symbol=symbol,
         market=exchange,
-        bids=_price_levels(output2, "pbid", "vbid"),
-        asks=_price_levels(output2, "pask", "vask"),
+        bids=_price_levels(output2, price_key="pbid", quantity_key="vbid"),
+        asks=_price_levels(output2, price_key="pask", quantity_key="vask"),
         total_bid_quantity=optional_int(output1.get("bvol"), "bvol") or 0,
         total_ask_quantity=optional_int(output1.get("avol"), "avol") or 0,
         as_of=datetime.now(_KST),
@@ -523,7 +523,7 @@ def _parse_trades(
         trades.append(
             Trade(
                 symbol=symbol,
-                timestamp=_parse_minute_bar_timestamp(today, time_text),
+                timestamp=_parse_minute_bar_timestamp(date_text=today, time_text=time_text),
                 price=required_decimal(price_text, "last"),
                 quantity=required_int(row.get("evol"), "evol"),
                 change=_apply_change_sign(required_decimal(row.get("diff"), "diff"), sign),

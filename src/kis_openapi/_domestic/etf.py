@@ -166,7 +166,7 @@ def fetch_etf_nav_intraday(
         price_sign = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             ETFNAVMinutePoint(
-                timestamp=_parse_minute_bar_timestamp(today, time_text),
+                timestamp=_parse_minute_bar_timestamp(date_text=today, time_text=time_text),
                 price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
                 change=_apply_change_sign(
                     required_decimal(row.get("prdy_vrss"), "prdy_vrss"), price_sign
@@ -231,7 +231,7 @@ def fetch_etf_order_book(transport: Transport, *, symbol: str) -> ETFOrderBook:
     )
     as_of = _parse_intraday_timestamp(
         str(row.get("aspr_acpt_hour", "")).strip(),
-        _parse_minute_bar_timestamp(_today_kst(), "000000"),
+        _parse_minute_bar_timestamp(date_text=_today_kst(), time_text="000000"),
     )
     order_book = OrderBook(
         symbol=symbol,

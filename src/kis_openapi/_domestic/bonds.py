@@ -126,8 +126,8 @@ def fetch_order_book(transport: Transport, *, code: str) -> OrderBook:
     return OrderBook(
         symbol=code,
         market=_MARKET_DIV,
-        bids=_price_levels(output, "bond_bidp", "bidp_rsqn"),
-        asks=_price_levels(output, "bond_askp", "askp_rsqn"),
+        bids=_price_levels(output, price_key="bond_bidp", quantity_key="bidp_rsqn"),
+        asks=_price_levels(output, price_key="bond_askp", quantity_key="askp_rsqn"),
         total_bid_quantity=optional_int(output.get("total_bidp_rsqn"), "total_bidp_rsqn") or 0,
         total_ask_quantity=optional_int(output.get("total_askp_rsqn"), "total_askp_rsqn") or 0,
         as_of=datetime.now(_KST),

@@ -138,7 +138,7 @@ def _parse_minute_bars(
         bars.append(
             Bar(
                 symbol=symbol,
-                timestamp=_parse_minute_bar_timestamp(date_text, time_text),
+                timestamp=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
                 open=required_decimal(row.get("optn_oprc"), "optn_oprc"),
                 high=required_decimal(row.get("optn_hgpr"), "optn_hgpr"),
                 low=required_decimal(row.get("optn_lwpr"), "optn_lwpr"),

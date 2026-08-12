@@ -137,8 +137,8 @@ def fetch_order_book(transport: Transport, *, code: str, market: DerivativeMarke
     return OrderBook(
         symbol=code,
         market=market,
-        bids=_price_levels(output2, "futs_bidp", "bidp_rsqn"),
-        asks=_price_levels(output2, "futs_askp", "askp_rsqn"),
+        bids=_price_levels(output2, price_key="futs_bidp", quantity_key="bidp_rsqn"),
+        asks=_price_levels(output2, price_key="futs_askp", quantity_key="askp_rsqn"),
         total_bid_quantity=optional_int(output2.get("total_bidp_rsqn"), "total_bidp_rsqn") or 0,
         total_ask_quantity=optional_int(output2.get("total_askp_rsqn"), "total_askp_rsqn") or 0,
         as_of=datetime.now(_KST),
@@ -514,7 +514,7 @@ def _parse_minute_bars(rows: Sequence[Mapping[str, Any]], *, code: str) -> list[
         bars.append(
             Bar(
                 symbol=code,
-                timestamp=_parse_minute_bar_timestamp(date_text, time_text),
+                timestamp=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
                 open=required_decimal(row.get("futs_oprc"), "futs_oprc"),
                 high=required_decimal(row.get("futs_hgpr"), "futs_hgpr"),
                 low=required_decimal(row.get("futs_lwpr"), "futs_lwpr"),

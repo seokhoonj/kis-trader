@@ -97,7 +97,7 @@ def _parse_bar_timestamp(date_text: str) -> datetime:
     return day.replace(tzinfo=_KST)
 
 
-def _parse_minute_bar_timestamp(date_text: str, time_text: str) -> datetime:
+def _parse_minute_bar_timestamp(*, date_text: str, time_text: str) -> datetime:
     try:
         moment = datetime.strptime(date_text + time_text, "%Y%m%d%H%M%S")  # noqa: DTZ007 -- KST 결합
     except ValueError as err:

@@ -20,7 +20,7 @@ _MAX_DEPTH_STEPS = 10
 
 
 def _price_levels(
-    output: Mapping[str, Any], price_key: str, quantity_key: str
+    output: Mapping[str, Any], *, price_key: str, quantity_key: str
 ) -> tuple[PriceLevel, ...]:
     """실재 단계만 최우선->차선 순서로. 빈/0 가격은 건너뛰고, 음수 가격은 손상이라 fail-closed."""
     levels: list[PriceLevel] = []

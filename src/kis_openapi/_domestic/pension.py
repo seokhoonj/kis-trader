@@ -43,9 +43,9 @@ def fetch_deposit(
     transport: Transport, *, cano: str, product_code: str, environment: Environment
 ) -> PensionDeposit:
     """퇴직연금 예수금 요약. **모의투자 미지원**."""
-    _reject_demo(environment, "퇴직연금 예수금조회(pension/inquire-deposit)")
+    _reject_demo(environment, what="퇴직연금 예수금조회(pension/inquire-deposit)")
     params = {"CANO": cano, "ACNT_PRDT_CD": product_code, "ACCA_DVSN_CD": "00"}
-    output = _request_output(transport, _DEPOSIT_PATH, _DEPOSIT_TR, params, "예수금")
+    output = _request_output(transport, path=_DEPOSIT_PATH, tr_id=_DEPOSIT_TR, params=params, label="예수금")
     return PensionDeposit(
         deposit_total=_decimal_or_zero(output, "dnca_tota"),
         next_day_settlement=_decimal_or_zero(output, "nxdy_excc_amt"),
@@ -60,7 +60,7 @@ def fetch_buyable_amount(
     symbol: str, limit_price: object | None = None,
 ) -> PensionBuyableAmount:
     """퇴직연금 매수가능 여력. ``limit_price`` 없으면 시장가 기준. **모의투자 미지원**."""
-    _reject_demo(environment, "퇴직연금 매수가능조회(pension/inquire-psbl-order)")
+    _reject_demo(environment, what="퇴직연금 매수가능조회(pension/inquire-psbl-order)")
     unit_price = _format_order_unit_price(limit_price)
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": symbol,
@@ -68,7 +68,7 @@ def fetch_buyable_amount(
         "ORD_DVSN": "00" if limit_price is not None else "01",
         "ORD_UNPR": unit_price or "0",
     }
-    output = _request_output(transport, _BUYABLE_PATH, _BUYABLE_TR, params, "매수가능")
+    output = _request_output(transport, path=_BUYABLE_PATH, tr_id=_BUYABLE_TR, params=params, label="매수가능")
     return PensionBuyableAmount(
         symbol=symbol,
         orderable_cash=_decimal_or_zero(output, "ord_psbl_cash"),
@@ -84,10 +84,10 @@ def fetch_balance(
     transport: Transport, *, cano: str, product_code: str, environment: Environment
 ) -> PensionBalance:
     """퇴직연금 잔고(보유종목 + 예수금 기준 요약). **모의투자 미지원**."""
-    _reject_demo(environment, "퇴직연금 잔고조회(pension/inquire-balance)")
+    _reject_demo(environment, what="퇴직연금 잔고조회(pension/inquire-balance)")
     rows, summary = _walk_holdings(
-        transport, cano, product_code, _BALANCE_PATH, _BALANCE_TR, extra={"INQR_DVSN": "00"},
-        label="잔고",
+        transport, cano=cano, product_code=product_code, path=_BALANCE_PATH, tr_id=_BALANCE_TR,
+        extra={"INQR_DVSN": "00"}, label="잔고",
     )
     if summary is None:
         raise KISError("퇴직연금 잔고 응답에 계좌 요약(output2)이 없다.")
@@ -109,9 +109,9 @@ def fetch_present_balance(
     transport: Transport, *, cano: str, product_code: str, environment: Environment
 ) -> PensionPresentBalance:
     """퇴직연금 체결기준잔고(보유종목 + 손익 요약). **모의투자 미지원**."""
-    _reject_demo(environment, "퇴직연금 체결기준잔고(pension/inquire-present-balance)")
+    _reject_demo(environment, what="퇴직연금 체결기준잔고(pension/inquire-present-balance)")
     rows, summary = _walk_holdings(
-        transport, cano, product_code, _PRESENT_BALANCE_PATH, _PRESENT_BALANCE_TR,
+        transport, cano=cano, product_code=product_code, path=_PRESENT_BALANCE_PATH, tr_id=_PRESENT_BALANCE_TR,
         extra={"INQR_DVSN": "00"}, label="체결기준잔고", summary_is_list=True,
     )
     if summary is None:
@@ -134,9 +134,9 @@ def fetch_orders(
     only_unfilled: bool = False,
 ) -> list[PensionOrder]:
     """퇴직연금 당일 주문(체결/미체결). ``only_unfilled`` 이면 미체결만. **모의투자 미지원**."""
-    _reject_demo(environment, "퇴직연금 미체결내역(pension/inquire-daily-ccld)")
+    _reject_demo(environment, what="퇴직연금 미체결내역(pension/inquire-daily-ccld)")
     rows, _summary = _walk_holdings(
-        transport, cano, product_code, _ORDERS_PATH, _ORDERS_TR,
+        transport, cano=cano, product_code=product_code, path=_ORDERS_PATH, tr_id=_ORDERS_TR,
         extra={
             "USER_DVSN_CD": "%%", "SLL_BUY_DVSN_CD": "00",
             "CCLD_NCCS_DVSN": "02" if only_unfilled else "%%", "INQR_DVSN_3": "00",
@@ -147,8 +147,8 @@ def fetch_orders(
 
 
 def _walk_holdings(
-    transport: Transport, cano: str, product_code: str, path: str, tr_id: str,
-    *, extra: Mapping[str, str], label: str,
+    transport: Transport, *, cano: str, product_code: str, path: str, tr_id: str,
+    extra: Mapping[str, str], label: str,
     output_key: str = "output1", summary_is_list: bool = False,
 ) -> tuple[list[Mapping[str, Any]], Mapping[str, Any] | None]:
     rows: list[Mapping[str, Any]] = []
@@ -166,7 +166,7 @@ def _walk_holdings(
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         if summary is None:
-            summary = _extract_summary(resp.body, summary_is_list)
+            summary = _extract_summary(resp.body, is_list=summary_is_list)
         page = resp.body.get(output_key)
         if not isinstance(page, list):
             raise KISError(
@@ -187,7 +187,7 @@ def _walk_holdings(
     return rows, summary
 
 
-def _extract_summary(body: Mapping[str, Any], is_list: bool) -> Mapping[str, Any] | None:
+def _extract_summary(body: Mapping[str, Any], *, is_list: bool) -> Mapping[str, Any] | None:
     summary = body.get("output2")
     if is_list:
         first = summary[0] if isinstance(summary, list) and summary else None
@@ -243,7 +243,7 @@ def _parse_hhmmss(value: object) -> time | None:
 
 # --- 공용 ------------------------------------------------------------------
 def _request_output(
-    transport: Transport, path: str, tr_id: str, params: Mapping[str, Any], label: str
+    transport: Transport, *, path: str, tr_id: str, params: Mapping[str, Any], label: str
 ) -> Mapping[str, Any]:
     resp = transport.request(method="GET", path=path, tr_id=tr_id, params=dict(params), idempotent=True)
     if not resp.ok:
@@ -260,7 +260,7 @@ def _request_output(
     return output
 
 
-def _reject_demo(environment: Environment, what: str) -> None:
+def _reject_demo(environment: Environment, *, what: str) -> None:
     if environment == "demo":
         raise KISUsageError(f"{what}는 모의투자 미지원 -- 실전에서만.")
 
