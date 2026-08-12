@@ -16,6 +16,7 @@ from ._overseas import derivatives as overseas_derivatives_api
 from .bar import Bar, Interval
 
 if TYPE_CHECKING:
+    from ._literals import DerivativeProduct
     from .client import KISClient
     from .order_book import OrderBook
     from .overseas_derivative_items import (
@@ -34,9 +35,9 @@ class OverseasDerivative:
     """
 
     symbol: str
-    market: str
+    market: DerivativeProduct
 
-    def __init__(self, client: KISClient, symbol: str, *, market: str) -> None:
+    def __init__(self, client: KISClient, symbol: str, *, market: DerivativeProduct) -> None:
         self._client = client
         self.symbol = symbol
         self.market = market

@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING
 
 from ._domestic import orders as orders_engine
 from ._domestic import reserved_orders as reserved_orders_api
@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from ._masters import InstrumentRecord
     from .report import ExecutionReport
     from .risk import RiskLimits
-    from .transport import Transport
+    from .transport import Environment, Transport
 
 
 class KISClient:
@@ -50,7 +50,7 @@ class KISClient:
         app_key: str,
         app_secret: str,
         account: str | None = None,
-        environment: Literal["real", "demo"] = "real",
+        environment: Environment = "real",
         transport: Transport | None = None,
         throttle: bool = True,
         requests_per_second: float | None = None,
@@ -149,7 +149,7 @@ class KISClient:
         return self._transport
 
     @property
-    def environment(self) -> Literal["real", "demo"]:
+    def environment(self) -> Environment:
         """실전(real) / 모의(demo). 계좌·주문 TR 선택에 쓰인다."""
         return self._environment
 

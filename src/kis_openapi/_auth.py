@@ -12,10 +12,13 @@ import os
 import threading
 import time
 from collections.abc import Callable, Mapping
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ._endpoints import base_url
 from .errors import KISAuthError
+
+if TYPE_CHECKING:
+    from .transport import Environment
 
 TokenPoster = Callable[[str, Mapping[str, str]], tuple[int, Mapping[str, Any]]]
 
@@ -48,7 +51,7 @@ class TokenManager:
         *,
         app_key: str,
         app_secret: str,
-        environment: str,
+        environment: Environment,
         post: TokenPoster = _requests_post,
         clock: Callable[[], float] = time.time,
         cache_dir: str | None = None,

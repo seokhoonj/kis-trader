@@ -18,6 +18,7 @@ from .derivative_items import DerivativesQuote, ExpectedExecutionTrend, Underlyi
 if TYPE_CHECKING:
     from datetime import date
 
+    from ._literals import DerivativeMarket
     from .bar import Bar, Interval
     from .client import KISClient
     from .order_book import OrderBook
@@ -31,9 +32,9 @@ class Derivative:
     """
 
     code: str
-    market: str
+    market: DerivativeMarket
 
-    def __init__(self, client: KISClient, code: str, *, market: str) -> None:
+    def __init__(self, client: KISClient, code: str, *, market: DerivativeMarket) -> None:
         self._client = client
         self.code = code
         self.market = market

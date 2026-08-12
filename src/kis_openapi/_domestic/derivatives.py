@@ -34,6 +34,7 @@ from .._datetime import (
     _today_kst,
 )
 from .._depth import _price_levels
+from .._literals import DerivativeMarket
 from .._response import (
     _missing_block_error,
     _raise_if_error,
@@ -79,7 +80,7 @@ _FUTURES_BOARD_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-f
 _FUTURES_BOARD_TR = "FHPIF05030200"
 
 
-def fetch_quote(transport: Transport, *, code: str, market: str) -> DerivativesQuote:
+def fetch_quote(transport: Transport, *, code: str, market: DerivativeMarket) -> DerivativesQuote:
     """선물/옵션 계약 현재가 스냅샷. ``market`` 은 F(지수선물)/O(지수옵션), ``code`` 는 계약코드."""
     params = {"FID_COND_MRKT_DIV_CODE": market, "FID_INPUT_ISCD": code}
     resp = transport.request(
@@ -118,7 +119,7 @@ def _parse_quote(output: Mapping[str, Any], *, code: str, as_of: datetime) -> De
     )
 
 
-def fetch_order_book(transport: Transport, *, code: str, market: str) -> OrderBook:
+def fetch_order_book(transport: Transport, *, code: str, market: DerivativeMarket) -> OrderBook:
     """선물/옵션 계약의 호가창(5단계 매수/매도 심도). ``market`` 은 F/O, ``code`` 는 계약코드.
 
     종목 :meth:`~kis_openapi.stock.DomesticStock.order_book` 과 같은 :class:`OrderBook` 로 돌려주되,
@@ -247,7 +248,9 @@ _UNDERLYING_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-top"
 _UNDERLYING_TR = "FHPIF05030000"
 
 
-def fetch_underlying_quote(transport: Transport, *, code: str, market: str) -> UnderlyingQuote:
+def fetch_underlying_quote(
+    transport: Transport, *, code: str, market: DerivativeMarket
+) -> UnderlyingQuote:
     """선물 계약과 그 기초자산(지수)을 나란히 담는 스냅샷. ``code`` 는 선물 최근월물, ``market`` 은 F.
     기초자산/선물 전일대비는 서로 다른 부호 필드(unas_prdy_vrss_sign / prdy_vrss_sign)로 복원한다."""
     params = {
@@ -291,7 +294,7 @@ def fetch_underlying_quote(transport: Transport, *, code: str, market: str) -> U
 
 
 def fetch_expected_execution_trend(
-    transport: Transport, *, code: str, market: str
+    transport: Transport, *, code: str, market: DerivativeMarket
 ) -> ExpectedExecutionTrend:
     """선물/옵션 계약의 현재 예상체결 요약과 당일 시각별 추이를 조회한다."""
     resp = transport.request(
@@ -416,7 +419,7 @@ def fetch_bars(
     transport: Transport,
     *,
     code: str,
-    market: str,
+    market: DerivativeMarket,
     interval: Interval = "1d",
     start: str | date | None = None,
     end: str | date | None = None,
@@ -453,7 +456,7 @@ def fetch_bars(
 
 
 def _fetch_minute_bars(
-    transport: Transport, *, code: str, market: str, max_bars: int | None
+    transport: Transport, *, code: str, market: DerivativeMarket, max_bars: int | None
 ) -> list[Bar]:
     """당일 1분봉을 과거->현재 오름차순으로. 최신부터 102건씩 받고 FID_INPUT_HOUR_1 을 뒤로 밀며
     모은다. 파생은 세션 경계(야간장 등)가 다양해 개장시각 가정 대신 새 봉이 없으면 종료하고, 페이지

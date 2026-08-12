@@ -23,6 +23,7 @@ from .._datetime import (
     _to_yyyymmdd,
     _today_kst,
 )
+from .._literals import DerivativeProduct
 from .._response import (
     _missing_block_error,
     _raise_if_error,
@@ -87,7 +88,9 @@ _OPEN_INTEREST_PATH = f"{_QUOTATIONS_BASE}/investor-unpd-trend"
 _OPEN_INTEREST_TR = "HHDDB95030000"
 
 
-def fetch_quote(transport: Transport, *, srs_cd: str, market: str) -> OverseasDerivativeQuote:
+def fetch_quote(
+    transport: Transport, *, srs_cd: str, market: DerivativeProduct
+) -> OverseasDerivativeQuote:
     """해외 선물/옵션 계약 현재가. ``market`` 은 ``"future"``/``"option"``, ``srs_cd`` 는 시리즈코드."""
     path, tr = _QUOTE[market]
     resp = transport.request(
@@ -157,7 +160,9 @@ def _level(
     )
 
 
-def fetch_order_book(transport: Transport, *, srs_cd: str, market: str) -> OrderBook:
+def fetch_order_book(
+    transport: Transport, *, srs_cd: str, market: DerivativeProduct
+) -> OrderBook:
     """해외 선물/옵션 계약의 호가창(5단계 매수/매도 심도).
 
     KIS 선물 ``GET .../overseas-futureoption/v1/quotations/inquire-asking-price``
@@ -202,7 +207,7 @@ def fetch_bars(
     transport: Transport,
     *,
     srs_cd: str,
-    market: str,
+    market: DerivativeProduct,
     exchange: str,
     interval: Interval,
     max_bars: int,
@@ -243,7 +248,7 @@ def fetch_trades(
     transport: Transport,
     *,
     srs_cd: str,
-    market: str,
+    market: DerivativeProduct,
     exchange: str,
     max_trades: int,
     environment: Environment,
@@ -442,7 +447,9 @@ _BATCH_DETAIL = {
 }
 
 
-def fetch_detail(transport: Transport, *, srs_cd: str, market: str) -> OverseasDerivativeDetail:
+def fetch_detail(
+    transport: Transport, *, srs_cd: str, market: DerivativeProduct
+) -> OverseasDerivativeDetail:
     """해외 선물/옵션 계약 명세. ``market`` 은 ``"future"``/``"option"``, ``srs_cd`` 는 시리즈코드."""
     path, tr = _DETAIL[market]
     resp = transport.request(
@@ -456,7 +463,8 @@ def fetch_detail(transport: Transport, *, srs_cd: str, market: str) -> OverseasD
 
 
 def fetch_details(
-    transport: Transport, *, srs_codes: list[str], market: str, environment: Environment
+    transport: Transport, *, srs_codes: list[str], market: DerivativeProduct,
+    environment: Environment
 ) -> list[OverseasDerivativeDetail]:
     """해외 선물/옵션 계약 명세를 한 번에 조회한다(선물 32개, 옵션 30개 한도)."""
     if environment == "demo":
