@@ -29,13 +29,13 @@ class ETFNAV:
     """
 
     symbol: str
-    nav: Decimal                      # 현재 NAV
+    nav: Decimal
     nav_change: Decimal               # NAV 전일대비(부호 포함)
     nav_change_percent: Decimal       # NAV 전일대비율(부호 포함)
-    previous_nav: Decimal             # 전일 최종 NAV
+    previous_nav: Decimal
     premium: Decimal                  # 괴리율(%): 시장가 vs NAV
     tracking_error: Decimal           # 추적오차율(%)
-    net_assets: Decimal               # 순자산 총액
+    net_assets: Decimal
     as_of: datetime                   # KST-aware
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -54,9 +54,9 @@ class ETFComponent:
     하락이면 음수.
     """
 
-    symbol: str                       # 구성종목 코드
-    name: str                         # 구성종목명
-    price: Decimal                    # 현재가
+    symbol: str
+    name: str
+    price: Decimal
     change: Decimal                   # 전일대비(부호 포함)
     change_percent: Decimal           # 전일대비율(부호 포함)
     weight: Decimal                   # ETF 구성 비중(%)
@@ -77,9 +77,9 @@ class ETFNAVHistoryPoint:
     벗어난 정도, %). ``nav_change`` / ``nav_change_percent`` 는 NAV 전일대비로 하락이면 음수.
     """
 
-    date: date                        # 거래일
+    date: date
     close: Decimal                    # 시장 종가
-    nav: Decimal                      # 그 날 NAV
+    nav: Decimal
     nav_change: Decimal               # NAV 전일대비(부호 포함)
     nav_change_percent: Decimal       # NAV 전일대비율(부호 포함)
     premium: Decimal                  # 괴리율(%): 시장가 vs NAV

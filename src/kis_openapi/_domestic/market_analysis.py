@@ -5,7 +5,7 @@
 
 KIS URL/TR-id:
 - 시장별 투자자매매동향(일별): ``GET .../quotations/inquire-investor-daily-by-market``
-  ``FHPTJ04040000`` (시장구분 U + 시장코드 + 기간). 시장코드: 코스피 0001/KSP, 코스닥 1001/KSQ.
+  ``FHPTJ04040000`` (시장구분 U + 시장코드 + 기준일). 시장코드: 코스피 0001/KSP, 코스닥 1001/KSQ.
 """
 
 from __future__ import annotations

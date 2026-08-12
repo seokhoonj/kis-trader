@@ -36,8 +36,8 @@ class DerivativesQuote:
     change: Decimal                   # 전일대비(부호 포함)
     change_percent: Decimal           # 전일대비율(부호 포함)
     volume: int
-    open_interest: int                # 미결제약정
-    theoretical_price: Decimal | None  # 이론가
+    open_interest: int
+    theoretical_price: Decimal | None
     basis: Decimal | None             # 베이시스(선물-기초자산)
     premium: Decimal | None           # 괴리율(%)
     as_of: datetime                   # KST-aware

@@ -42,7 +42,8 @@ class FinancialRatio:
 
     수익성(``roe``)·주당지표(``eps`` / ``sps`` / ``bps``)·안정성(``debt_ratio`` 부채비율,
     ``reserve_ratio`` 유보율)·성장성(``revenue_growth`` / ``operating_income_growth`` /
-    ``net_income_growth``)의 헤드라인을 담는다(단위 %). 세부(총자본순이익률·유동/당좌비율 등)는
+    ``net_income_growth``)의 헤드라인을 담는다(비율은 %, 주당지표 ``eps`` / ``sps`` / ``bps`` 는 원).
+    세부(총자본순이익률·유동/당좌비율 등)는
     ``_raw`` 나 별도 조회에 있다. 비율이 특정 기에 결측이면 ``None``.
     """
 
@@ -52,9 +53,9 @@ class FinancialRatio:
     operating_income_growth: Decimal | None  # 영업이익 증가율(bsop_prfi_inrt)
     net_income_growth: Decimal | None  # 순이익 증가율(ntin_inrt)
     roe: Decimal | None               # 자기자본이익률(roe_val)
-    eps: Decimal | None               # 주당순이익(eps)
-    sps: Decimal | None               # 주당매출액(sps)
-    bps: Decimal | None               # 주당순자산(bps)
+    eps: Decimal | None               # 주당순이익 원(eps)
+    sps: Decimal | None               # 주당매출액 원(sps)
+    bps: Decimal | None               # 주당순자산 원(bps)
     reserve_ratio: Decimal | None     # 유보율(rsrv_rate)
     debt_ratio: Decimal | None        # 부채비율(lblt_rate)
     _raw: Mapping[str, Any] = field(

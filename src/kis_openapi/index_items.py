@@ -34,11 +34,11 @@ class IndexQuote:
     change_percent: Decimal           # 전일대비율(부호 포함)
     volume: int                       # 구성종목 누적 거래량
     amount: Decimal                   # 누적 거래대금
-    advances: int                     # 상승 종목 수
-    declines: int                     # 하락 종목 수
-    unchanged: int                    # 보합 종목 수
-    limit_up: int                     # 상한 종목 수
-    limit_down: int                   # 하한 종목 수
+    advances: int
+    declines: int
+    unchanged: int
+    limit_up: int
+    limit_down: int
     as_of: datetime                   # KST-aware
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -172,8 +172,8 @@ class CategoryIndex:
     그 업종이 시장 전체 거래량 / 거래대금에서 차지하는 비중(%).
     """
 
-    code: str                         # 업종 구분 코드
-    name: str                         # 업종명
+    code: str
+    name: str
     value: Decimal                    # 업종 지수 레벨
     change: Decimal                   # 전일대비(부호 포함)
     change_percent: Decimal           # 전일대비율(부호 포함)
