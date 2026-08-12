@@ -203,7 +203,7 @@ def fetch_fluctuation(transport: Transport, *, top: str, market: str) -> list[Ra
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _FLUCTUATION_SCR,
         "FID_INPUT_ISCD": "0000",              # 전체
-        "FID_RANK_SORT_CLS_CODE": _lookup(_RANK_SORT, top, "top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_RANK_SORT, key=top, argname="top"),
         "FID_INPUT_CNT_1": "0",
         "FID_PRC_CLS_CODE": "0",
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",   # 가격 전체
@@ -257,7 +257,7 @@ def fetch_disparity(
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _DISPARITY_SCR,
         "FID_DIV_CLS_CODE": "0",
-        "FID_RANK_SORT_CLS_CODE": _lookup(_DISPARITY_SORT, top, "top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_DISPARITY_SORT, key=top, argname="top"),
         "FID_HOUR_CLS_CODE": str(period),
         "FID_INPUT_ISCD": "0000",              # 전체
         "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
@@ -274,7 +274,7 @@ def fetch_quote_balance(transport: Transport, *, top: str, market: str) -> list[
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _QUOTE_BALANCE_SCR,
         "FID_INPUT_ISCD": "0000",
-        "FID_RANK_SORT_CLS_CODE": _lookup(_QUOTE_BALANCE_SORT, top, "top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_QUOTE_BALANCE_SORT, key=top, argname="top"),
         "FID_DIV_CLS_CODE": "0",
         "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
@@ -304,7 +304,7 @@ def fetch_bulk_trades(transport: Transport, *, top: str, market: str) -> list[Ra
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _BULK_TRADES_SCR,
         "FID_INPUT_ISCD": "0000",              # 전체
-        "FID_RANK_SORT_CLS_CODE": _lookup(_BULK_TRADES_SORT, top, "top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_BULK_TRADES_SORT, key=top, argname="top"),
         "FID_DIV_CLS_CODE": "0",
         "FID_INPUT_ISCD_2": "",
         "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
@@ -356,7 +356,7 @@ def fetch_finance_ratio(
     activity(활동성). ``year`` 회계연도, ``quarter`` q1/h1/q3/annual. 비율값은 각 항목의 ``_raw``."""
     params = _fundamentals_params(
         market=market, scr=_FINANCE_RATIO_SCR,
-        sort=_lookup(_FINANCE_RATIO_ANALYSIS, analysis, "analysis"), year=year, quarter=quarter,
+        sort=_lookup(_FINANCE_RATIO_ANALYSIS, key=analysis, argname="analysis"), year=year, quarter=quarter,
     )
     return _fetch_ranking(transport, path=_FINANCE_RATIO_PATH, tr=_FINANCE_RATIO_TR, params=params)
 
@@ -368,7 +368,7 @@ def fetch_valuation(
     ``year`` 회계연도, ``quarter`` q1/h1/q3/annual. 지표값은 각 항목의 ``_raw`` (per/pbr/... )."""
     params = _fundamentals_params(
         market=market, scr=_VALUATION_SCR,
-        sort=_lookup(_VALUATION_METRIC, metric, "metric"), year=year, quarter=quarter,
+        sort=_lookup(_VALUATION_METRIC, key=metric, argname="metric"), year=year, quarter=quarter,
     )
     return _fetch_ranking(transport, path=_VALUATION_PATH, tr=_VALUATION_TR, params=params)
 
@@ -381,7 +381,7 @@ def fetch_profit_asset(
     금액은 각 항목의 ``_raw`` (sale_totl_prfi/op_prfi/total_aset 등)."""
     params = _fundamentals_params(
         market=market, scr=_PROFIT_ASSET_SCR,
-        sort=_lookup(_PROFIT_ASSET_METRIC, metric, "metric"), year=year, quarter=quarter,
+        sort=_lookup(_PROFIT_ASSET_METRIC, key=metric, argname="metric"), year=year, quarter=quarter,
     )
     return _fetch_ranking(transport, path=_PROFIT_ASSET_PATH, tr=_PROFIT_ASSET_TR, params=params)
 
@@ -396,7 +396,7 @@ def fetch_company_trades(
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _COMPANY_TRADES_SCR,
         "FID_DIV_CLS_CODE": "0",
-        "FID_RANK_SORT_CLS_CODE": _lookup(_COMPANY_TRADES_SORT, top, "top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_COMPANY_TRADES_SORT, key=top, argname="top"),
         "FID_INPUT_DATE_1": _to_yyyymmdd(start, "start"),
         "FID_INPUT_DATE_2": _to_yyyymmdd(end, "end"),
         "FID_INPUT_ISCD": "0000",              # 전체
@@ -418,13 +418,13 @@ def fetch_dividend(
     시세가 없어 :class:`DividendRanking` 로 돌려준다. 최대 30건(다음조회 없음)."""
     params = {
         "CTS_AREA": "",
-        "GB1": _lookup(_DIVIDEND_MARKET, market, "market"),
+        "GB1": _lookup(_DIVIDEND_MARKET, key=market, argname="market"),
         "UPJONG": "0001",                      # 업종 종합(전체)
         "GB2": "0",                            # 보통주/우선주 전체
-        "GB3": _lookup(_DIVIDEND_KIND, kind, "kind"),
+        "GB3": _lookup(_DIVIDEND_KIND, key=kind, argname="kind"),
         "F_DT": _to_yyyymmdd(start, "start"),
         "T_DT": _to_yyyymmdd(end, "end"),
-        "GB4": _lookup(_DIVIDEND_SETTLEMENT, settlement, "settlement"),
+        "GB4": _lookup(_DIVIDEND_SETTLEMENT, key=settlement, argname="settlement"),
     }
     resp = transport.request(
         method="GET", path=_DIVIDEND_PATH, tr_id=_DIVIDEND_TR, params=params, idempotent=True
@@ -531,7 +531,7 @@ def fetch_credit_balance(
         "FID_INPUT_ISCD": "0000",              # 전체
         "FID_OPTION": str(days),
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
-        "FID_RANK_SORT_CLS_CODE": _lookup(_CREDIT_BALANCE_SORT, top, "top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_CREDIT_BALANCE_SORT, key=top, argname="top"),
     }
     resp = transport.request(
         method="GET", path=_CREDIT_BALANCE_PATH, tr_id=_CREDIT_BALANCE_TR,
@@ -597,7 +597,7 @@ def fetch_near_high_low(
         "FID_COND_SCR_DIV_CODE": _NEAR_HIGH_LOW_SCR,
         "FID_DIV_CLS_CODE": "0",               # 전체
         "FID_INPUT_CNT_1": "", "FID_INPUT_CNT_2": "",   # 근접범위 전체
-        "FID_PRC_CLS_CODE": _lookup(_NEAR_HIGH_LOW_SIDE, side, "side"),
+        "FID_PRC_CLS_CODE": _lookup(_NEAR_HIGH_LOW_SIDE, key=side, argname="side"),
         "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
     }
     resp = transport.request(
@@ -652,7 +652,7 @@ def _fundamentals_params(
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",   # 가격 전체
         "FID_VOL_CNT": "",                      # 거래량 전체
         "FID_INPUT_OPTION_1": str(year),        # 회계연도
-        "FID_INPUT_OPTION_2": _lookup(_FISCAL_QUARTER, quarter, "quarter"),
+        "FID_INPUT_OPTION_2": _lookup(_FISCAL_QUARTER, key=quarter, argname="quarter"),
         "FID_RANK_SORT_CLS_CODE": sort,
         "FID_BLNG_CLS_CODE": "0",
         "FID_TRGT_EXLS_CLS_CODE": "0",
@@ -696,7 +696,7 @@ def _parse_ranked(rows: Sequence[Mapping[str, Any]]) -> list[RankedStock]:
     return ranked
 
 
-def _lookup(table: Mapping[str, str], key: str, argname: str) -> str:
+def _lookup(table: Mapping[str, str], *, key: str, argname: str) -> str:
     """코드표에서 사용자 값 -> KIS 코드. 미지원 값은 유효 목록과 함께 :class:`KISUsageError`."""
     try:
         return table[key]
@@ -734,7 +734,7 @@ def fetch_expected_conclusion(
     """장 시작 전 예상체결 기준 상승/하락 상위. ``top="up"`` 상승 / ``"down"`` 하락. 예상체결가를
     현재가로, 예상체결량(cntg_vol)을 거래량으로 담는다(:class:`RankedStock`, 순위는 응답 순서)."""
     params = {
-        "FID_RANK_SORT_CLS_CODE": _lookup(_EXP_UPDOWN_TOP, top, "top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_EXP_UPDOWN_TOP, key=top, argname="top"),
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": "20182",
         "FID_INPUT_ISCD": "0000",
@@ -778,8 +778,8 @@ def fetch_expected_close(
     extended_range: bool,
 ) -> list[RankedStock]:
     """장마감 예상체결 종목 목록과 직전·기준가 대비."""
-    filter_code = _lookup(_EXPECTED_CLOSE_FILTER, filter_, "filter")
-    market_code = _lookup(_EXPECTED_CLOSE_MARKET, market, "market")
+    filter_code = _lookup(_EXPECTED_CLOSE_FILTER, key=filter_, argname="filter")
+    market_code = _lookup(_EXPECTED_CLOSE_MARKET, key=market, argname="market")
     resp = transport.request(
         method="GET",
         path=_EXPECTED_CLOSE_PATH,
@@ -869,7 +869,7 @@ def fetch_overtime_change(
         "FID_MRKT_CLS_CODE": "",
         "FID_COND_SCR_DIV_CODE": "20234",
         "FID_INPUT_ISCD": "0000",
-        "FID_DIV_CLS_CODE": _lookup(_OVERTIME_CHANGE, top, "top"),
+        "FID_DIV_CLS_CODE": _lookup(_OVERTIME_CHANGE, key=top, argname="top"),
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
         "FID_VOL_CNT": "", "FID_TRGT_CLS_CODE": "", "FID_TRGT_EXLS_CLS_CODE": "",
     }
@@ -922,7 +922,7 @@ def fetch_overtime_expected_change(
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": "11186",
         "FID_INPUT_ISCD": "0000",
-        "FID_RANK_SORT_CLS_CODE": _lookup(_EXP_UPDOWN_TOP, top, "top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_EXP_UPDOWN_TOP, key=top, argname="top"),
         "FID_DIV_CLS_CODE": "0",
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "", "FID_INPUT_VOL_1": "",
     }
@@ -953,7 +953,7 @@ def fetch_after_hour_balance(
         "FID_INPUT_PRICE_1": "",
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": "20176",
-        "FID_RANK_SORT_CLS_CODE": _lookup(_AFTER_HOUR_TOP, top, "top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_AFTER_HOUR_TOP, key=top, argname="top"),
         "FID_DIV_CLS_CODE": "0",
         "FID_INPUT_ISCD": "0000",
         "FID_TRGT_EXLS_CLS_CODE": "0", "FID_TRGT_CLS_CODE": "0",

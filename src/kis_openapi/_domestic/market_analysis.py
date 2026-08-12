@@ -388,7 +388,7 @@ _PROGRAM_INVESTOR_PATH = "/uapi/domestic-stock/v1/quotations/investor-program-tr
 _PROGRAM_INVESTOR_TR = "HHPPG046600C1"
 
 
-def _program_activity(row: Mapping[str, object], prefix: str) -> ProgramTradeActivity:
+def _parse_program_trade_activity(row: Mapping[str, object], prefix: str) -> ProgramTradeActivity:
     return ProgramTradeActivity(
         sell_quantity=required_int(row.get(f"{prefix}_seln_qty"), f"{prefix}_seln_qty"),
         buy_quantity=required_int(row.get(f"{prefix}_shnu_qty"), f"{prefix}_shnu_qty"),
@@ -417,8 +417,9 @@ def fetch_program_investor_trades(
     return [ProgramInvestorTrade(
         investor_code=str(row.get("invr_cls_code", "")).strip(),
         investor_name=str(row.get("invr_cls_name", "")).strip(),
-        total=_program_activity(row, "all"), arbitrage=_program_activity(row, "arbt"),
-        nonarbitrage=_program_activity(row, "nabt"), _raw=row,
+        total=_parse_program_trade_activity(row, "all"),
+        arbitrage=_parse_program_trade_activity(row, "arbt"),
+        nonarbitrage=_parse_program_trade_activity(row, "nabt"), _raw=row,
     ) for row in rows]
 
 
