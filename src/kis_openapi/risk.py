@@ -67,8 +67,12 @@ class RiskLimits:
 
     def __post_init__(self) -> None:
         # 한도 자체를 검증/정규화한다(양수, Decimal). frozen 이라 object.__setattr__ 로 다시 쓴다.
-        if self.max_order_quantity is not None and self.max_order_quantity <= 0:
-            raise KISUsageError(f"max_order_quantity 는 양의 정수여야 한다: {self.max_order_quantity}")
+        if self.max_order_quantity is not None:
+            # bool 은 int 서브클래스라 True 가 수량 1 로 새어 든다 -- int 검사보다 먼저 명시 거부.
+            if isinstance(self.max_order_quantity, bool):
+                raise KISUsageError(f"max_order_quantity 는 정수여야 한다(bool 불가): {self.max_order_quantity!r}")
+            if self.max_order_quantity <= 0:
+                raise KISUsageError(f"max_order_quantity 는 양의 정수여야 한다: {self.max_order_quantity}")
         if self.max_order_notional is not None:
             object.__setattr__(
                 self, "max_order_notional",
@@ -158,6 +162,11 @@ def _as_positive_decimal(value: object, name: str) -> Decimal:
         dec = Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as err:
         raise KISUsageError(f"{name} 는 숫자여야 한다: {value!r}") from err
+    # 비유한값(Infinity/NaN)은 그 한도가 켜는 검사 자체를 무력화한다("inf"/"nan" 문자열도
+    # Decimal('Infinity')/NaN 으로 coerce 되므로 여기서 걸러야 한다). NaN 은 dec <= 0 이 False 라
+    # 아래 양수 검사도 통과해 버리므로 반드시 그 앞에서 막는다.
+    if not dec.is_finite():
+        raise KISUsageError(f"{name} 는 유한한 값이어야 한다(무한/NaN 불가): {value!r}")
     if dec <= 0:
         raise KISUsageError(f"{name} 는 양수여야 한다: {dec}")
     return dec

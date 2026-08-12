@@ -86,6 +86,32 @@ def test_risk_limits_coerces_decimal():
     assert limits.price_collar_percent == Decimal(10)
 
 
+@pytest.mark.parametrize(
+    "kwargs",
+    [{"max_order_notional": "inf"}, {"max_order_notional": "nan"},
+     {"max_order_notional": Decimal("Infinity")}, {"max_order_notional": Decimal("NaN")},
+     {"price_collar_percent": "inf"}, {"price_collar_percent": "nan"},
+     {"price_collar_percent": Decimal("-Infinity")}],
+)
+def test_risk_limits_rejects_non_finite_config(kwargs):
+    # 무한/NaN 한도는 그 한도가 켜는 검사 자체를 무력화한다 -- fail-closed 로 거부해야 한다.
+    with pytest.raises(KISUsageError):
+        RiskLimits(**kwargs)
+
+
+def test_risk_limits_rejects_bool_quantity():
+    # bool 은 int 서브클래스라 True 가 수량 1 로 새어 들면 안 된다.
+    with pytest.raises(KISUsageError):
+        RiskLimits(max_order_quantity=True)
+    with pytest.raises(KISUsageError):
+        RiskLimits(max_order_quantity=False)
+
+
+def test_risk_limits_accepts_genuine_int_quantity():
+    # 진짜 정수 수량은 그대로 통과(parity).
+    assert RiskLimits(max_order_quantity=100).max_order_quantity == 100
+
+
 # --- 수량 한도 -------------------------------------------------------------
 def test_quantity_cap_blocks_before_wire():
     fake = FakeTransport(response=_ACCEPTED)

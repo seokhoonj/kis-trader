@@ -10,6 +10,7 @@ KIS 유량제한(앱키 단위 합산, 실전 초당 18건 / 모의 1건)에 걸
 
 from __future__ import annotations
 
+import math
 import threading
 import time
 from collections import deque
@@ -52,10 +53,14 @@ class SlidingWindowRateLimiter:
         sleep: Callable[[float], None] = time.sleep,
         max_wait: float = 60.0,
     ) -> None:
+        # 잘못된 설정을 여기서 즉시 거부한다 -- 비유한/비양수 창이나 max_wait 는 acquire 에서
+        # 무한 대기나 상한 검사 무력화로 잠복하다 주문 경로를 고착시킨다.
         if max_requests <= 0:
             raise ValueError(f"max_requests 는 양수여야 한다: {max_requests}")
-        if window_seconds <= 0:
-            raise ValueError(f"window_seconds 는 양수여야 한다: {window_seconds}")
+        if not math.isfinite(window_seconds) or window_seconds <= 0:
+            raise ValueError(f"window_seconds 는 유한한 양수여야 한다: {window_seconds}")
+        if not math.isfinite(max_wait) or max_wait <= 0:
+            raise ValueError(f"max_wait 는 유한한 양수여야 한다: {max_wait}")
         self._max_requests = max_requests
         self._window_seconds = window_seconds
         self._clock = clock
@@ -80,8 +85,8 @@ class SlidingWindowRateLimiter:
         (주문 경로에선 그 raise 가 in-flight 를 고착시키므로).
         """
         rate = float(requests_per_second)
-        if rate <= 0:
-            raise ValueError(f"requests_per_second 는 양수여야 한다: {requests_per_second}")
+        if not math.isfinite(rate) or rate <= 0:
+            raise ValueError(f"requests_per_second 는 유한한 양수여야 한다: {requests_per_second}")
         window_seconds = 1.0 if rate >= 1 else 1.0 / rate
         max_requests = int(rate) if rate >= 1 else 1
         return cls(

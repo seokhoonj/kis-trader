@@ -90,6 +90,33 @@ def test_zero_or_negative_max_requests_rejected():
         _limiter(clock, 0)
 
 
+@pytest.mark.parametrize(
+    "kw",
+    [{"window_seconds": 0.0}, {"window_seconds": -1.0}, {"window_seconds": float("inf")},
+     {"window_seconds": float("nan")}, {"max_wait": 0.0}, {"max_wait": -5.0},
+     {"max_wait": float("inf")}, {"max_wait": float("nan")}],
+)
+def test_bad_window_or_max_wait_rejected_at_construction(kw):
+    # 비양수/비유한 창·max_wait 은 acquire 에서 무한 대기/상한 무력화로 잠복하므로 생성 시 거부.
+    clock = FakeClock()
+    with pytest.raises(ValueError):
+        _limiter(clock, 2, **kw)
+
+
+def test_valid_config_constructs():
+    # 유효 설정은 그대로 동작(parity).
+    clock = FakeClock()
+    rl = _limiter(clock, 2, window_seconds=1.0, max_wait=30.0)
+    rl.acquire()
+    assert clock.slept == []
+
+
+@pytest.mark.parametrize("bad_rate", [float("inf"), float("nan")])
+def test_from_rate_rejects_non_finite(bad_rate):
+    with pytest.raises(ValueError):
+        SlidingWindowRateLimiter.from_rate(bad_rate)
+
+
 def test_from_rate_integer_rate():
     clock = FakeClock()
     rl = SlidingWindowRateLimiter.from_rate(2, clock=clock.now, sleep=clock.sleep)   # 초당 2건
