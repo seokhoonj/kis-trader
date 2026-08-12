@@ -46,7 +46,7 @@ from ..elw_items import (
     ELWVolatilityPoint,
     RankedELW,
 )
-from ..errors import KISUsageError
+from ..errors import KISError, KISUsageError
 from ..transport import Transport
 
 #: ELW 조회의 시장구분코드(KIS 코드표: ELW W).
@@ -254,12 +254,14 @@ def _spec_has_time(row: Mapping[str, Any], spec: _TrendSpec) -> bool:
 
 
 def _spec_timestamp(row: Mapping[str, Any], *, as_of: datetime, spec: _TrendSpec) -> datetime:
-    date_text = str(row.get(spec.date_key, "")).strip() if spec.date_key else ""
     time_text = str(row.get(spec.time_key, "")).strip() if spec.time_key else ""
-    if date_text and time_text:
-        return _combine_date_time(date_text, time_text)
-    if time_text:                              # 시각만 -> 조회일 날짜를 붙임
+    if spec.date_key is None:                  # 시각만 제공하는 스펙 -> 조회일 날짜를 붙임
         return _parse_intraday_timestamp(time_text, as_of)
+    date_text = str(row.get(spec.date_key, "")).strip()
+    if not date_text:                          # 날짜 필드가 선언됐으면 비어 있으면 안 됨(조회일 조작 금지)
+        raise KISError(f"ELW 추이 행에 영업일자({spec.date_key})가 비어 있다")
+    if time_text:
+        return _combine_date_time(date_text, time_text)
     return _parse_bar_timestamp(date_text)     # 날짜만
 
 

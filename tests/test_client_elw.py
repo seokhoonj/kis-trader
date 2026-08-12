@@ -264,6 +264,15 @@ def test_volatility_trend_tick_date_plus_time():
     assert f"{point.timestamp:%Y%m%d %H%M%S}" == "20240507 150619"
 
 
+def test_volatility_trend_minute_blank_date_fails_closed():
+    # 분별 스펙은 영업일자를 선언하므로 비어 있으면 조회일을 조작해 붙이지 않고 raise
+    row = {"stck_bsop_date": "", "stck_cntg_hour": "142800", "stck_prpr": "265",
+           "hts_ints_vltl": "21.90"}
+    fake = FakeTransport(response=_resp([row]))
+    with pytest.raises(KISError):
+        _client(fake).domestic.elw("58J297").volatility_trend("minute")
+
+
 def test_volatility_trend_include_past_flag():
     row = {"stck_bsop_date": "20240422", "stck_cntg_hour": "142800", "stck_prpr": "265",
            "hts_ints_vltl": "21.90"}

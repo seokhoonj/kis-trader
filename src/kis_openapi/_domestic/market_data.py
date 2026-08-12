@@ -1055,7 +1055,11 @@ def fetch_multi_quotes(
             board, symbol = requests[i]
             params[f"FID_COND_MRKT_DIV_CODE_{n}"] = _market_div(board)
             params[f"FID_INPUT_ISCD_{n}"] = symbol
-            board_by_symbol[symbol] = board
+            if board_by_symbol.setdefault(symbol, board) != board:
+                raise KISUsageError(
+                    f"멀티시세는 응답을 종목코드로만 식별해 한 종목을 여러 보드로 조회할 수 없다: "
+                    f"{symbol!r} 이(가) 서로 다른 보드로 요청됨"
+                )
         else:                                   # 남는 슬롯도 키는 있어야 함(모두 Required) -> 공백
             params[f"FID_COND_MRKT_DIV_CODE_{n}"] = ""
             params[f"FID_INPUT_ISCD_{n}"] = ""
@@ -1067,17 +1071,22 @@ def fetch_multi_quotes(
     if not isinstance(rows, list):
         raise _missing_block_error("output", resp)
     as_of = datetime.now(_KST)
-    default_board = requests[0][0]
     quotes: list[Quote] = []
     for row in rows:
         symbol = str(row.get("inter_shrn_iscd", "")).strip()
         if not symbol:
             continue
+        try:
+            market = board_by_symbol[symbol]
+        except KeyError:
+            raise KISError(
+                f"멀티시세 응답에 요청하지 않은 종목코드가 있다: {symbol!r}"
+            ) from None
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         quotes.append(
             Quote(
                 symbol=symbol,
-                market=board_by_symbol.get(symbol, default_board),
+                market=market,
                 currency="KRW",
                 last=required_decimal(row.get("inter2_prpr"), "inter2_prpr"),
                 open=required_decimal(row.get("inter2_oprc"), "inter2_oprc"),
