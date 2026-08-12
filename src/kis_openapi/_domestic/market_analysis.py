@@ -351,8 +351,16 @@ def fetch_investor_net_buy_stocks(
     basis_code = {"volume": "0", "amount": "1"}.get(basis)
     direction_code = {"buy": "0", "sell": "1"}.get(direction)
     investor_code = {"all": "0", "foreign": "1", "institutional": "2", "other": "3"}.get(investor)
-    if market_code is None or basis_code is None or direction_code is None or investor_code is None:
-        raise KISUsageError("market/basis/direction/investor 값이 지원 범위를 벗어났다.")
+    if market_code is None:
+        raise KISUsageError(f"market 은 {sorted(_NET_BUY_MARKET)} 중 하나여야 한다: {market!r}")
+    if basis_code is None:
+        raise KISUsageError(f"basis 는 'volume'/'amount' 중 하나여야 한다: {basis!r}")
+    if direction_code is None:
+        raise KISUsageError(f"direction 은 'buy'/'sell' 중 하나여야 한다: {direction!r}")
+    if investor_code is None:
+        raise KISUsageError(
+            f"investor 는 'all'/'foreign'/'institutional'/'other' 중 하나여야 한다: {investor!r}"
+        )
     resp = transport.request(
         method="GET", path=_INVESTOR_NET_BUY_PATH, tr_id=_INVESTOR_NET_BUY_TR,
         params={"FID_COND_MRKT_DIV_CODE": "V", "FID_COND_SCR_DIV_CODE": "16449",

@@ -17,7 +17,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, NamedTuple
 
 from .._bars import _parse_bar_timestamp
 from .._datetime import (
@@ -70,6 +70,8 @@ _ISSUANCE_PATH = "/uapi/domestic-bond/v1/quotations/issue-info"
 _ISSUANCE_TR = "CTPF1101R"
 #: 채권 조회의 시장구분 코드(KIS 코드표: 채권 B).
 _MARKET_DIV = "B"
+#: 상품유형코드(KIS 코드표: 채권 302). PRDT_TYPE_CD 파라미터에 쓴다.
+_BOND_PRODUCT_TYPE_CODE = "302"
 
 
 def fetch_quote(transport: Transport, *, code: str) -> BondQuote:
@@ -283,7 +285,7 @@ def fetch_valuations(
         "INQR_STRT_DT": start_date,
         "INQR_END_DT": end_date,
         "PDNO": code,
-        "PRDT_TYPE_CD": "302",
+        "PRDT_TYPE_CD": _BOND_PRODUCT_TYPE_CODE,
         "VRFC_KIND_CD": "00",
         "CTX_AREA_NK30": "",
         "CTX_AREA_FK100": "",
@@ -307,28 +309,41 @@ def fetch_valuations(
     return valuations
 
 
+class _ValuationAgencyFields(NamedTuple):
+    """평가기관 하나의 응답 필드명 묶음(단가 / 수익률 / 신용등급 / 무위험단가)."""
+
+    price: str
+    yield_rate: str
+    rating: str
+    risk_free: str
+
+
+#: 평가기관 -> 그 기관의 단가/수익률/신용등급/무위험단가 응답 필드명. FNP 는 무위험단가 필드가 없어 빈 문자열.
+_VALUATION_FIELDS_BY_AGENCY = {
+    "KIS": _ValuationAgencyFields("kis_unpr", "kis_erng_rt", "kis_crdt_grad_text", "kis_rf_unpr"),
+    "KBP": _ValuationAgencyFields("kbp_unpr", "kbp_erng_rt", "kbp_crdt_grad_text", "kbp_rf_unpr"),
+    "NICE": _ValuationAgencyFields(
+        "nice_evlu_unpr", "nice_evlu_erng_rt", "nice_crdt_grad_text", "nice_evlu_rf_unpr"
+    ),
+    "FNP": _ValuationAgencyFields("fnp_unpr", "fnp_erng_rt", "fnp_crdt_grad_text", ""),
+}
+
+
 def _parse_valuation(
     row: Mapping[str, Any], *, fallback_code: str, date_text: str
 ) -> BondValuation:
-    agency_fields = {
-        "KIS": ("kis_unpr", "kis_erng_rt", "kis_crdt_grad_text", "kis_rf_unpr"),
-        "KBP": ("kbp_unpr", "kbp_erng_rt", "kbp_crdt_grad_text", "kbp_rf_unpr"),
-        "NICE": (
-            "nice_evlu_unpr", "nice_evlu_erng_rt", "nice_crdt_grad_text",
-            "nice_evlu_rf_unpr",
-        ),
-        "FNP": ("fnp_unpr", "fnp_erng_rt", "fnp_crdt_grad_text", ""),
-    }
     agency_prices: dict[str, Decimal] = {}
     agency_yields: dict[str, Decimal] = {}
     credit_ratings: dict[str, str] = {}
     risk_free_prices: dict[str, Decimal] = {}
-    for agency, (price_field, yield_field, rating_field, risk_free_field) in agency_fields.items():
-        price = optional_decimal(row.get(price_field), price_field)
-        yield_rate = optional_decimal(row.get(yield_field), yield_field)
-        rating = str(row.get(rating_field, "")).strip()
+    for agency, fields in _VALUATION_FIELDS_BY_AGENCY.items():
+        price = optional_decimal(row.get(fields.price), fields.price)
+        yield_rate = optional_decimal(row.get(fields.yield_rate), fields.yield_rate)
+        rating = str(row.get(fields.rating, "")).strip()
         risk_free_price = (
-            optional_decimal(row.get(risk_free_field), risk_free_field) if risk_free_field else None
+            optional_decimal(row.get(fields.risk_free), fields.risk_free)
+            if fields.risk_free
+            else None
         )
         if price is not None:
             agency_prices[agency] = price
@@ -359,7 +374,7 @@ _INFO_TR = "CTPF1114R"
 
 def fetch_info(transport: Transport, *, code: str) -> BondInfo:
     """채권 기본/발행 정보(발행일·만기·표면금리·만기수익률·통화). ``code`` 는 표준코드(ISIN)."""
-    params = {"PDNO": code, "PRDT_TYPE_CD": "302"}      # 302: 채권
+    params = {"PDNO": code, "PRDT_TYPE_CD": _BOND_PRODUCT_TYPE_CODE}
     resp = transport.request(
         method="GET", path=_INFO_PATH, tr_id=_INFO_TR, params=params, idempotent=True
     )
@@ -389,7 +404,7 @@ def fetch_info(transport: Transport, *, code: str) -> BondInfo:
 
 def fetch_issuance(transport: Transport, *, code: str) -> BondIssuance:
     """채권의 상세 발행 조건·기관·상태. ``code`` 는 표준코드(ISIN)."""
-    params = {"PDNO": code, "PRDT_TYPE_CD": "302"}
+    params = {"PDNO": code, "PRDT_TYPE_CD": _BOND_PRODUCT_TYPE_CODE}
     resp = transport.request(
         method="GET", path=_ISSUANCE_PATH, tr_id=_ISSUANCE_TR,
         params=params, idempotent=True,

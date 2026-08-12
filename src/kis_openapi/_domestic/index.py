@@ -84,6 +84,8 @@ _EXPECTED_INDEX_INTERVAL = {"10s": "10", "30s": "30", "1m": "60", "10m": "600"}
 _EXPECTED_INDEX_SESSION = {"open": "1", "close": "2"}
 _EXPECTED_TOTAL_PATH = "/uapi/domestic-stock/v1/quotations/exp-total-index"
 _EXPECTED_TOTAL_TR = "FHKUP11750000"
+#: 전체지수 예상체결 화면번호(KIS 명세 fid_cond_scr_div_code 11175).
+_EXPECTED_TOTAL_SCR = "11175"
 _EXPECTED_TOTAL_MARKET = {"all": "0", "KOSPI": "K", "KOSDAQ": "Q"}
 #: 지수 시간대별 샘플 간격 -> FID_INPUT_HOUR_1(초). KIS 명세: 60=1분, 300=5분, 600=10분.
 _INDEX_INTRADAY_INTERVAL = {"1m": "60", "5m": "300", "10m": "600"}
@@ -469,7 +471,7 @@ def fetch_expected_index_snapshot(
         params={
             "fid_mrkt_cls_code": market_code,
             "fid_cond_mrkt_div_code": _INDEX_MARKET_DIV,
-            "fid_cond_scr_div_code": "11175",
+            "fid_cond_scr_div_code": _EXPECTED_TOTAL_SCR,
             "fid_input_iscd": code,
             "fid_mkop_cls_code": session_code,
         },

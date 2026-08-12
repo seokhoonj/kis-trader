@@ -91,7 +91,7 @@ def fetch_etf_nav_comparison(
         method="GET",
         path=_ETF_NAV_COMPARISON_PATH,
         tr_id=_ETF_NAV_COMPARISON_TR,
-        params={"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": symbol},
+        params={"FID_COND_MRKT_DIV_CODE": _ETF_MARKET_DIV, "FID_INPUT_ISCD": symbol},
         idempotent=True,
     )
     _raise_if_error(resp)
@@ -198,7 +198,7 @@ def fetch_etf_order_book(transport: Transport, *, symbol: str) -> ETFOrderBook:
         method="GET",
         path=_ETF_ORDER_BOOK_PATH,
         tr_id=_ETF_ORDER_BOOK_TR,
-        params={"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": symbol},
+        params={"FID_COND_MRKT_DIV_CODE": _ETF_MARKET_DIV, "FID_INPUT_ISCD": symbol},
         idempotent=True,
     )
     _raise_if_error(resp)

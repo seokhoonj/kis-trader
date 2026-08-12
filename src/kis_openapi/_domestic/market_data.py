@@ -807,8 +807,10 @@ def fetch_broker_trade_ticks(
     transport: Transport, *, symbol: str, member_code: str = "99999", min_volume: int = 0
 ) -> BrokerTradeTicks:
     """한 종목의 회원사 실시간 매매동향 체결 틱."""
-    if not member_code.strip() or min_volume < 0:
-        raise KISUsageError("member_code 가 필요하고 min_volume 은 0 이상이어야 한다.")
+    if not member_code.strip():
+        raise KISUsageError(f"member_code 가 필요하다: {member_code!r}")
+    if min_volume < 0:
+        raise KISUsageError(f"min_volume 은 0 이상이어야 한다: {min_volume}")
     resp = transport.request(
         method="GET", path=_MEMBER_TICKS_PATH, tr_id=_MEMBER_TICKS_TR,
         params={"FID_COND_SCR_DIV_CODE": "20432", "FID_COND_MRKT_DIV_CODE": "J",

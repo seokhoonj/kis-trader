@@ -150,6 +150,8 @@ _OPTION_EXPIRIES_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board
 _OPTION_EXPIRIES_TR = "FHPIO056104C0"
 _OPTION_BOARD_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-callput"
 _OPTION_BOARD_TR = "FHPIF05030100"
+#: 옵션 전광판 화면번호(KIS 명세 FID_COND_SCR_DIV_CODE 20503). 콜/풋 전광판과 그 하단 선물 전광판이 공유.
+_OPTION_BOARD_SCREEN_CODE = "20503"
 _OPTION_UNDERLYING = {"KOSPI200": "", "MINI_KOSPI200": "MKI", "KOSDAQ150": "KQI"}
 
 
@@ -219,10 +221,12 @@ def fetch_option_board(
         underlying_code = _OPTION_UNDERLYING[underlying]
     except KeyError:
         valid = ", ".join(_OPTION_UNDERLYING)
-        raise KISUsageError(f"underlying 은 다음 중 하나여야 한다: {valid}") from None
+        raise KISUsageError(
+            f"underlying 은 다음 중 하나여야 한다: {valid} (받은 값: {underlying!r})"
+        ) from None
     params = {
         "FID_COND_MRKT_DIV_CODE": "O",
-        "FID_COND_SCR_DIV_CODE": "20503",
+        "FID_COND_SCR_DIV_CODE": _OPTION_BOARD_SCREEN_CODE,
         "FID_MRKT_CLS_CODE": "CO",
         "FID_MRKT_CLS_CODE1": "PO",
         "FID_MTRT_CNT": expiry,
@@ -365,7 +369,7 @@ def fetch_option_board_futures(
         tr_id=_FUTURES_BOARD_TR,
         params={
             "FID_COND_MRKT_DIV_CODE": "F",
-            "FID_COND_SCR_DIV_CODE": "20503",
+            "FID_COND_SCR_DIV_CODE": _OPTION_BOARD_SCREEN_CODE,
             "FID_COND_MRKT_CLS_CODE": market_class,
         },
         idempotent=True,
