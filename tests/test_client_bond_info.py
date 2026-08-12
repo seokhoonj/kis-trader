@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -60,6 +61,28 @@ def test_bond_info_optional_none():
     assert info.issue_date is None
     assert info.coupon_rate is None
     assert info.interest_period_months is None
+
+
+def test_bond_info_date_fields_are_pure_date():
+    # B-11: 채권 일자 속성은 datetime 이 아니라 순수 date 여야 한다.
+    out = {"ksd_bond_item_name": "국고03750-3312", "ksd_bond_item_eng_name": "KTB",
+           "iso_crcy_cd": "KRW", "issu_dt": "20201210", "rdpt_dt": "20331210",
+           "lstg_dt": "20201211"}
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
+    info = _client(fake).domestic.bond("KR2033022D33").info()
+    assert type(info.issue_date) is date
+    assert info.issue_date == date(2020, 12, 10)
+    assert type(info.maturity_date) is date
+    assert type(info.listing_date) is date
+
+
+def test_bond_info_bad_date_fails_closed():
+    # 비어있지 않은 잘못된 날짜는 조용히 None 이 아니라 fail-closed.
+    out = {"ksd_bond_item_name": "x", "ksd_bond_item_eng_name": "x", "iso_crcy_cd": "KRW",
+           "issu_dt": "20230230"}
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
+    with pytest.raises(KISError):
+        _client(fake).domestic.bond("KR2033022D33").info()
 
 
 def test_bond_info_missing_output_fails_closed():

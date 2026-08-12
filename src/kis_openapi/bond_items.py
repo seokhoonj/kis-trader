@@ -78,9 +78,9 @@ class BondInfo:
     name: str
     english_name: str
     currency: str                     # ISO 통화(iso_crcy_cd)
-    issue_date: datetime | None       # 발행일(issu_dt; KST-aware)
-    maturity_date: datetime | None    # 만기(상환)일(rdpt_dt; KST-aware)
-    listing_date: datetime | None     # 상장일(lstg_dt; KST-aware)
+    issue_date: date | None           # 발행일(issu_dt)
+    maturity_date: date | None        # 만기(상환)일(rdpt_dt)
+    listing_date: date | None         # 상장일(lstg_dt)
     coupon_rate: Decimal | None       # 표면금리 %(ksd_rcvg_bond_srfc_inrt)
     discount_rate: Decimal | None     # 할인율 %(ksd_rcvg_bond_dsct_rt)
     redemption_rate: Decimal | None   # 만기상환율 %(bond_expd_rdpt_rt)
@@ -115,12 +115,12 @@ class BondIssuance:
     discount_rate: Decimal
     redemption_rate: Decimal
     yield_to_maturity: Decimal
-    issue_date: datetime | None
-    listing_date: datetime | None
-    maturity_date: datetime | None
-    redemption_date: datetime | None
-    previous_interest_date: datetime | None
-    next_interest_date: datetime | None
+    issue_date: date | None
+    listing_date: date | None
+    maturity_date: date | None
+    redemption_date: date | None
+    previous_interest_date: date | None
+    next_interest_date: date | None
     credit_ratings: Mapping[str, str]
     is_inflation_linked: bool
     is_trade_suspended: bool

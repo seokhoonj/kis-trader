@@ -25,6 +25,7 @@ from .._datetime import (
     _parse_intraday_timestamp,
     _parse_kst_date,
     _to_yyyymmdd,
+    parse_optional_kst_date,
 )
 from .._depth import _price_levels
 from .._response import (
@@ -359,12 +360,6 @@ _INFO_PATH = "/uapi/domestic-bond/v1/quotations/search-bond-info"
 _INFO_TR = "CTPF1114R"
 
 
-def _parse_optional_date(value: object) -> datetime | None:
-    """YYYYMMDD 를 KST-aware datetime 으로. 빈 값이나 0-채움 센티넬("00000000")은 ``None``."""
-    text = str(value or "").strip()
-    return _parse_bar_timestamp(text) if text and text.strip("0") else None
-
-
 def fetch_info(transport: Transport, *, code: str) -> BondInfo:
     """채권 기본/발행 정보(발행일·만기·표면금리·만기수익률·통화). ``code`` 는 표준코드(ISIN)."""
     params = {"PDNO": code, "PRDT_TYPE_CD": "302"}      # 302: 채권
@@ -380,9 +375,9 @@ def fetch_info(transport: Transport, *, code: str) -> BondInfo:
         name=str(output.get("ksd_bond_item_name", "")).strip(),
         english_name=str(output.get("ksd_bond_item_eng_name", "")).strip(),
         currency=str(output.get("iso_crcy_cd", "")).strip(),
-        issue_date=_parse_optional_date(output.get("issu_dt")),
-        maturity_date=_parse_optional_date(output.get("rdpt_dt")),
-        listing_date=_parse_optional_date(output.get("lstg_dt")),
+        issue_date=parse_optional_kst_date(output.get("issu_dt")),
+        maturity_date=parse_optional_kst_date(output.get("rdpt_dt")),
+        listing_date=parse_optional_kst_date(output.get("lstg_dt")),
         coupon_rate=optional_decimal(output.get("ksd_rcvg_bond_srfc_inrt"),
                                      "ksd_rcvg_bond_srfc_inrt"),
         discount_rate=optional_decimal(output.get("ksd_rcvg_bond_dsct_rt"),
@@ -433,12 +428,12 @@ def fetch_issuance(transport: Transport, *, code: str) -> BondIssuance:
         yield_to_maturity=required_decimal(
             output.get("expd_asrc_erng_rt"), "expd_asrc_erng_rt"
         ),
-        issue_date=_parse_optional_date(output.get("issu_dt")),
-        listing_date=_parse_optional_date(output.get("lstg_dt")),
-        maturity_date=_parse_optional_date(output.get("expd_dt")),
-        redemption_date=_parse_optional_date(output.get("rdpt_dt")),
-        previous_interest_date=_parse_optional_date(output.get("rgbf_int_dfrm_dt")),
-        next_interest_date=_parse_optional_date(output.get("nxtm_int_dfrm_dt")),
+        issue_date=parse_optional_kst_date(output.get("issu_dt")),
+        listing_date=parse_optional_kst_date(output.get("lstg_dt")),
+        maturity_date=parse_optional_kst_date(output.get("expd_dt")),
+        redemption_date=parse_optional_kst_date(output.get("rdpt_dt")),
+        previous_interest_date=parse_optional_kst_date(output.get("rgbf_int_dfrm_dt")),
+        next_interest_date=parse_optional_kst_date(output.get("nxtm_int_dfrm_dt")),
         credit_ratings=credit_ratings,
         is_inflation_linked=str(output.get("prcm_idx_bond_yn", "")).strip() == "Y",
         is_trade_suspended=str(output.get("bond_tr_stop_dvsn_cd", "")).strip() == "Y",

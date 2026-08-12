@@ -17,6 +17,7 @@ from typing import Literal
 from .._bars import _parse_bar_timestamp
 from .._datetime import (
     _KST,
+    _combine_date_time,
     _parse_intraday_timestamp,
     _parse_kst_date,
     _to_yyyymmdd,
@@ -484,12 +485,6 @@ def fetch_program_trade_summary(
 
 _VI_STATUS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-vi-status"
 _VI_STATUS_TR = "FHPST01390000"
-
-
-def _combine_date_time(date_yyyymmdd: str, time_hhmmss: str) -> datetime:
-    """영업일(YYYYMMDD) + 시각(HHMMSS) -> KST-aware datetime."""
-    stamp = datetime.strptime(date_yyyymmdd + time_hhmmss, "%Y%m%d%H%M%S")  # noqa: DTZ007
-    return stamp.replace(tzinfo=_KST)
 
 
 def fetch_vi_events(

@@ -23,6 +23,7 @@ from typing import Any, Literal, NamedTuple
 from .._bars import _parse_bar_timestamp
 from .._datetime import (
     _KST,
+    _combine_date_time,
     _parse_intraday_timestamp,
 )
 from .._response import (
@@ -263,13 +264,6 @@ def _spec_timestamp(row: Mapping[str, Any], *, as_of: datetime, spec: _TrendSpec
     if time_text:
         return _combine_date_time(date_text, time_text)
     return _parse_bar_timestamp(date_text)     # 날짜만
-
-
-def _combine_date_time(date_text: str, time_text: str) -> datetime:
-    """영업일자(YYYYMMDD) + 체결시각(HHMMSS) -> KST-aware datetime."""
-    day = _parse_bar_timestamp(date_text)
-    moment = _parse_intraday_timestamp(time_text, day)
-    return day.replace(hour=moment.hour, minute=moment.minute, second=moment.second)
 
 
 def _row_change(
