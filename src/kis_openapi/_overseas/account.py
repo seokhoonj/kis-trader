@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import Any
 
 from .._datetime import parse_optional_kst_date
-from .._response import _raise_if_error
+from .._response import _fetch_paginated_rows, _raise_if_error
 from .._wire import (
     format_wire_decimal,
     optional_decimal,
@@ -169,35 +169,19 @@ def fetch_open_orders(
         raise KISUsageError(
             f"지원하지 않는 해외 시장: {market!r} ({'/'.join(_MARKETS)})."
         ) from None
-    rows: list[Mapping[str, Any]] = []
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_PAGES):
-        params = {
+    rows = _fetch_paginated_rows(
+        transport,
+        path=_OPEN_ORDERS_PATH, tr_id=_OPEN_ORDERS_TR,
+        base_params={
             "CANO": cano, "ACNT_PRDT_CD": product_code, "OVRS_EXCG_CD": exchange,
-            "SORT_SQN": "DS", "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
-        }
-        resp = transport.request(
-            method="GET", path=_OPEN_ORDERS_PATH, tr_id=_OPEN_ORDERS_TR,
-            params=params, idempotent=True, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        page = resp.body.get("output")
-        if not isinstance(page, list):  # 빈 미체결도 배열 -> 부재/비배열은 손상
-            raise KISError(
-                "해외 미체결 응답의 output 이 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
-        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
-        tr_cont = "N"
-    else:
-        raise KISError(
+            "SORT_SQN": "DS", "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
+        },
+        output_key="output", max_pages=_MAX_PAGES, ctx_width=200,
+        cap_message=(
             f"해외 미체결 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
             f"-- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
-        )
+        ),
+    )
     return _parse_open_orders(rows, default_currency=currency)
 
 
@@ -286,38 +270,22 @@ def fetch_transactions(
         raise KISUsageError(
             f"지원하지 않는 side: {side!r} ({'/'.join(_TX_SIDE_FILTER)})."
         ) from None
-    rows: list[Mapping[str, Any]] = []
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_PAGES):
-        params = {
+    rows = _fetch_paginated_rows(
+        transport,
+        path=_TRANSACTIONS_PATH, tr_id=_TRANSACTIONS_TR,
+        base_params={
             "CANO": cano, "ACNT_PRDT_CD": product_code,
             "ERLM_STRT_DT": start, "ERLM_END_DT": end,
             "OVRS_EXCG_CD": "", "PDNO": symbol or "",
             "SLL_BUY_DVSN_CD": side_code, "LOAN_DVSN_CD": "",
-            "CTX_AREA_FK100": ctx_fk, "CTX_AREA_NK100": ctx_nk,
-        }
-        resp = transport.request(
-            method="GET", path=_TRANSACTIONS_PATH, tr_id=_TRANSACTIONS_TR,
-            params=params, idempotent=True, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        page = resp.body.get("output1")
-        if not isinstance(page, list):  # 빈 내역도 배열 -> 부재/비배열은 손상
-            raise KISError(
-                "해외 거래내역 응답의 output1 이 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
-        ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
-        tr_cont = "N"
-    else:
-        raise KISError(
+            "CTX_AREA_FK100": "", "CTX_AREA_NK100": "",
+        },
+        output_key="output1", max_pages=_MAX_PAGES,  # 해외인데 커서 폭이 100(엔드포인트별 상이)
+        cap_message=(
             f"해외 거래내역 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
             f"-- 부분 결과로 자르지 않는다."
-        )
+        ),
+    )
     return [_parse_transaction(row) for row in rows if str(row.get("pdno", "")).strip()]
 
 
@@ -391,30 +359,14 @@ def fetch_algo_orders(
     조회한다(:func:`fetch_algo_executions`). **모의투자 미지원**."""
     if environment == "demo":
         raise KISUsageError("해외 지정가주문번호조회(algo-ordno)는 모의투자 미지원 -- 실전에서만.")
-    rows: list[Mapping[str, Any]] = []
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_PAGES):
-        params = {"CANO": cano, "ACNT_PRDT_CD": product_code,
-                  "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk}
-        resp = transport.request(
-            method="GET", path=_ALGO_ORDNO_PATH, tr_id=_ALGO_ORDNO_TR,
-            params=params, idempotent=True, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        page = resp.body.get("output")
-        if not isinstance(page, list):
-            raise KISError(
-                "해외 지정가주문번호조회 응답의 output 이 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
-        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
-        tr_cont = "N"
-    else:
-        raise KISError("해외 지정가주문번호조회가 페이지 상한에 도달했으나 연속조회가 남아있다.")
+    rows = _fetch_paginated_rows(
+        transport,
+        path=_ALGO_ORDNO_PATH, tr_id=_ALGO_ORDNO_TR,
+        base_params={"CANO": cano, "ACNT_PRDT_CD": product_code,
+                     "CTX_AREA_FK200": "", "CTX_AREA_NK200": ""},
+        output_key="output", max_pages=_MAX_PAGES, ctx_width=200,
+        cap_message="해외 지정가주문번호조회가 페이지 상한에 도달했으나 연속조회가 남아있다.",
+    )
     return [
         OverseasAlgoOrder(
             order_id=str(row.get("odno", "")).strip(),
@@ -440,33 +392,17 @@ def fetch_algo_executions(
     는 주문채번지점번호(:func:`fetch_algo_orders` 의 ``branch_number``). 응답 키가 대문자다. **모의투자 미지원**."""
     if environment == "demo":
         raise KISUsageError("해외 지정가체결내역조회(inquire-algo-ccnl)는 모의투자 미지원 -- 실전에서만.")
-    rows: list[Mapping[str, Any]] = []
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_PAGES):
-        params = {
+    rows = _fetch_paginated_rows(
+        transport,
+        path=_ALGO_CCNL_PATH, tr_id=_ALGO_CCNL_TR,
+        base_params={
             "CANO": cano, "ACNT_PRDT_CD": product_code,
             "ORD_DT": order_date, "ORD_GNO_BRNO": branch_number, "ODNO": order_id,
-            "TTLZ_ICLD_YN": "", "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
-        }
-        resp = transport.request(
-            method="GET", path=_ALGO_CCNL_PATH, tr_id=_ALGO_CCNL_TR,
-            params=params, idempotent=True, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        page = resp.body.get("output")
-        if not isinstance(page, list):
-            raise KISError(
-                "해외 지정가체결내역조회 응답의 output 이 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
-        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
-        tr_cont = "N"
-    else:
-        raise KISError("해외 지정가체결내역조회가 페이지 상한에 도달했으나 연속조회가 남아있다.")
+            "TTLZ_ICLD_YN": "", "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
+        },
+        output_key="output", max_pages=_MAX_PAGES, ctx_width=200,
+        cap_message="해외 지정가체결내역조회가 페이지 상한에 도달했으나 연속조회가 남아있다.",
+    )
     return [
         OverseasAlgoExecution(
             sequence=str(row.get("CCLD_SEQ", "")).strip(),
@@ -748,32 +684,20 @@ def _walk_holdings(
     transport: Transport, cano: str, product_code: str, environment: Environment,
     exchange: str, currency: str,
 ) -> list[Mapping[str, Any]]:
-    rows: list[Mapping[str, Any]] = []
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_PAGES):
-        resp = _request_page(
-            transport, cano, product_code, environment, exchange, currency, ctx_fk, ctx_nk,
-            tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        page = resp.body.get("output1")
-        if not isinstance(page, list):  # 빈 계좌도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
-            raise KISError(
-                "해외 잔고 응답의 output1 이 종목 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
-        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
-        tr_cont = "N"
-    else:
-        raise KISError(
+    return _fetch_paginated_rows(
+        transport,
+        path=_POSITIONS_PATH, tr_id=_POSITIONS_TR[environment],
+        base_params={
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "OVRS_EXCG_CD": exchange, "TR_CRCY_CD": currency,
+            "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
+        },
+        output_key="output1", max_pages=_MAX_PAGES, ctx_width=200,
+        cap_message=(
             f"해외 잔고 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
             f"-- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
-        )
-    return rows
+        ),
+    )
 
 
 def _money(row: Mapping[str, Any], key: str, currency: str) -> Money:

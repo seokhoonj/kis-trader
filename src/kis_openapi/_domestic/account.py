@@ -17,6 +17,7 @@ from datetime import date, time
 from decimal import Decimal
 from typing import Any
 
+from .._response import _fetch_paginated_rows
 from .._wire import format_wire_decimal, optional_decimal, required_decimal
 from ..account_reports import (
     IntegratedMargin,
@@ -513,38 +514,23 @@ def fetch_account_rights(
         raise KISUsageError(
             "기간별계좌권리현황조회(period-rights)는 모의투자 미지원 -- 실전에서만."
         )
-    rows: list[Mapping[str, Any]] = []
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_BALANCE_PAGES):
-        params = {
+    rows = _fetch_paginated_rows(
+        transport,
+        path=_RIGHTS_PATH, tr_id=_RIGHTS_TR,
+        base_params={
             "INQR_DVSN": "03", "CUST_RNCNO25": "", "HMID": "",
             "CANO": cano, "ACNT_PRDT_CD": product_code,
             "INQR_STRT_DT": start, "INQR_END_DT": end,
             "RGHT_TYPE_CD": "", "PDNO": "", "PRDT_TYPE_CD": "",
-            "CTX_AREA_FK100": ctx_fk, "CTX_AREA_NK100": ctx_nk,
-        }
-        resp = transport.request(
-            method="GET", path=_RIGHTS_PATH, tr_id=_RIGHTS_TR,
-            params=params, idempotent=True, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        page = resp.body.get("output")  # KIS 예시 키는 output(레이아웃 output1 과 불일치)
-        if not isinstance(page, list):  # 빈 내역도 배열 -> 부재/비배열은 손상
-            raise KISError(
-                "계좌권리현황 응답의 output 이 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
-        ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
-        tr_cont = "N"
-    else:
-        raise KISError(
+            "CTX_AREA_FK100": "", "CTX_AREA_NK100": "",
+        },
+        output_key="output",  # KIS 예시 키는 output(레이아웃 output1 과 불일치)
+        max_pages=_MAX_BALANCE_PAGES,
+        cap_message=(
             f"계좌권리현황 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 연속조회가 "
             f"남아있다 -- 부분 결과로 자르지 않는다."
-        )
+        ),
+    )
     return [_parse_account_right(row) for row in rows if str(row.get("pdno", "")).strip()]
 
 
@@ -786,47 +772,23 @@ def fetch_open_orders(
         raise KISUsageError(
             "정정취소가능주문조회(inquire-psbl-rvsecncl)는 모의투자 미지원 -- 실전에서만."
         )
-    rows: list[Mapping[str, Any]] = []
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_OPEN_ORDER_PAGES):
-        resp = _fetch_open_orders_page(
-            transport, cano, product_code, environment, ctx_fk, ctx_nk, tr_cont=tr_cont
-        )
-        _raise_if_error(resp)
-        page = resp.body.get("output")
-        if not isinstance(page, list):  # 미체결 없어도 빈 배열 -> 부재/비배열은 손상
-            raise KISError(
-                "정정취소가능주문조회 응답의 output 이 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
-        ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
-        ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
-        tr_cont = "N"
-    else:
-        raise KISError(
+    rows = _fetch_paginated_rows(
+        transport,
+        path=_OPEN_ORDERS_PATH, tr_id=_OPEN_ORDERS_TR,
+        base_params={
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "CTX_AREA_FK100": "", "CTX_AREA_NK100": "",
+            "INQR_DVSN_1": "0",  # 0 주문 단위
+            "INQR_DVSN_2": "0",  # 0 전체(매도+매수)
+        },
+        output_key="output",
+        max_pages=_MAX_OPEN_ORDER_PAGES,
+        cap_message=(
             f"정정취소가능주문조회가 {_MAX_OPEN_ORDER_PAGES}페이지 상한에 도달했으나 연속조회가 "
             f"남아있다 -- 부분 결과로 자르지 않는다."
-        )
-    return _parse_open_orders(rows)
-
-
-def _fetch_open_orders_page(
-    transport: Transport, cano: str, product_code: str, environment: Environment, ctx_fk: str, ctx_nk: str,
-    *, tr_cont: str = "",
-) -> RawResponse:
-    params = {
-        "CANO": cano, "ACNT_PRDT_CD": product_code,
-        "CTX_AREA_FK100": ctx_fk, "CTX_AREA_NK100": ctx_nk,
-        "INQR_DVSN_1": "0",  # 0 주문 단위
-        "INQR_DVSN_2": "0",  # 0 전체(매도+매수)
-    }
-    return transport.request(
-        method="GET", path=_OPEN_ORDERS_PATH, tr_id=_OPEN_ORDERS_TR,
-        params=params, idempotent=True, tr_cont=tr_cont,
+        ),
     )
+    return _parse_open_orders(rows)
 
 
 def _parse_open_orders(rows: list[Mapping[str, Any]]) -> list[OpenOrder]:
