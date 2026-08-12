@@ -19,7 +19,8 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Literal
 
-from .errors import KISUsageError
+from ._fsutil import atomic_write_bytes
+from .errors import KISError, KISUsageError
 
 #: 마스터 캐시 기본 수명(초). 하루 -- KIS 가 마스터를 매일 갱신한다.
 DEFAULT_MASTER_MAX_AGE = 86400
@@ -106,10 +107,19 @@ def fetch_overseas_master_raw(code: str, *, fetch: Fetch) -> bytes:
         )
     zip_bytes = fetch(OVERSEAS_MASTER_URL.format(code=code))
     with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
-        names = archive.namelist()
-        if not names:                  # 빈 zip -> fail-closed
-            raise ValueError(f"해외 마스터 zip 이 비었다: {code}")
-        return archive.read(names[0])
+        # 기대 멤버를 이름으로 명시 선택(첫/유일 엔트리 가정 금지). KIS 는 대소문자를
+        # 섞어 배포하므로(nasmst.cod / NASMST.COD) 소문자로 정규화해 대조한다.
+        expected = f"{code}mst.cod"
+        member = next(
+            (name for name in archive.namelist() if name.lower() == expected),
+            None,
+        )
+        if member is None:             # 기대 멤버 없음 -> fail-closed
+            raise KISError(
+                f"해외 마스터 zip 에 기대 멤버 {expected!r} 가 없다: {code} "
+                f"(멤버 {archive.namelist()})."
+            )
+        return archive.read(member)
 
 
 def download_overseas_master(code: str, *, fetch: Fetch) -> list[InstrumentRecord]:
@@ -177,6 +187,10 @@ def load_overseas_master(
 ) -> list[InstrumentRecord]:
     """``code`` 시장의 마스터를 캐시 우선으로 로드. 캐시 파일이 ``max_age`` 안이면 다운로드 없이
     읽고, 오래됐거나 없으면 받아서 원자적으로 캐시에 쓴 뒤 파싱한다."""
+    if code not in OVERSEAS_MARKETS:   # 파일시스템/경로 조립 전에 fail-closed
+        raise KISUsageError(           # 미지의 코드가 stray 캐시 경로를 만들지 못하게
+            f"알 수 없는 해외 시장코드: {code!r} ({'/'.join(OVERSEAS_MARKETS)})."
+        )
     cache_dir = cache_dir if cache_dir is not None else default_cache_dir()
     path = os.path.join(cache_dir, f"{code}mst.cod")
     stamp = time.time() if now is None else now
@@ -185,10 +199,7 @@ def load_overseas_master(
             return parse_overseas_master(cached.read())
     raw = fetch_overseas_master_raw(code, fetch=fetch)
     os.makedirs(cache_dir, exist_ok=True)
-    tmp = f"{path}.tmp"
-    with open(tmp, "wb") as out:
-        out.write(raw)
-    os.replace(tmp, path)              # 원자적 교체(부분 파일 방지)
+    atomic_write_bytes(path, raw)      # 보안 원자적 쓰기(예측 불가 임시파일, 부분 파일 방지)
     os.utime(path, (stamp, stamp))     # mtime 을 조회 시각으로 -- staleness 판정을 시계와 일치시킴
     return parse_overseas_master(raw)
 

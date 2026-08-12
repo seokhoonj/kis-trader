@@ -11,15 +11,17 @@ import zipfile
 
 import pytest
 
+from kis_openapi._fsutil import atomic_write_bytes
 from kis_openapi._masters import (
     InstrumentRecord,
     MasterIndex,
     download_overseas_master,
+    fetch_overseas_master_raw,
     load_overseas_index,
     load_overseas_master,
     parse_overseas_master,
 )
-from kis_openapi.errors import KISUsageError
+from kis_openapi.errors import KISError, KISUsageError
 
 
 def _row(*, exchange, symbol, rsym, korean, english, stis, currency):
@@ -192,6 +194,68 @@ def test_load_master_refetches_when_stale(tmp_path):
     # now 가 max_age(하루)를 넘으면 다시 받는다.
     load_overseas_master("nas", cache_dir=cache, fetch=fetch, now=1000.0 + 86400 + 1)
     assert fetch.calls == 2
+
+
+def test_load_master_rejects_unknown_market_before_fs(tmp_path):
+    """미지의 시장코드는 파일시스템/경로 조립 이전에 fail-closed -- stray 캐시 디렉터리를
+    만들지 않는다."""
+    cache = tmp_path / "cache"                         # 아직 존재하지 않는 디렉터리
+
+    def boom(url):                                     # fetch 는 절대 호출되면 안 된다
+        raise AssertionError("unknown market must be rejected before any fetch")
+
+    with pytest.raises(KISUsageError):
+        load_overseas_master("xxx", cache_dir=str(cache), fetch=boom, now=1000.0)
+    assert not cache.exists()                          # FS 를 건드리지 않았다
+
+
+def test_fetch_raw_missing_member_fails_closed():
+    """zip 에 기대 멤버({code}mst.cod)가 없으면 첫 엔트리로 폴백하지 않고 KISError."""
+    buffer = io.BytesIO()
+    with zipfile.ZipFile(buffer, "w") as archive:
+        archive.writestr("WRONGNAME.COD", _master_bytes([]))   # 기대와 다른 멤버명
+    payload = buffer.getvalue()
+    with pytest.raises(KISError, match="기대 멤버"):
+        fetch_overseas_master_raw("nas", fetch=lambda url: payload)
+
+
+def test_load_master_parity_after_hardening(tmp_path):
+    """정상 로드는 하드닝 후에도 같은 레코드를 돌려준다(회귀 방지)."""
+    fetch = _CountingFetch({"nas": [
+        _row(exchange="NAS", symbol="AAPL", rsym="NASAAPL", korean="애플", english="APPLE",
+             stis="2", currency="USD"),
+    ]})
+    records = load_overseas_master("nas", cache_dir=str(tmp_path), fetch=fetch, now=1000.0)
+    assert [r.symbol for r in records] == ["AAPL"]
+    assert records[0].exchange == "NAS"
+    assert records[0].currency == "USD"
+
+
+def test_atomic_write_leaves_no_stray_temp_on_failure(tmp_path, monkeypatch):
+    """os.replace 가 실패해도 임시파일이 남지 않는다(실패 시 청소)."""
+    import kis_openapi._fsutil as fsutil
+
+    target = tmp_path / "artifact.bin"
+
+    def failing_replace(src, dst):
+        raise OSError("simulated replace failure")
+
+    monkeypatch.setattr(fsutil.os, "replace", failing_replace)
+    with pytest.raises(OSError, match="simulated replace failure"):
+        atomic_write_bytes(target, b"payload")
+    assert not target.exists()                         # 타겟은 안 만들어졌고
+    assert list(tmp_path.iterdir()) == []              # 잔여 .tmp 도 없다
+
+
+def test_atomic_write_roundtrip_and_mode(tmp_path):
+    """정상 경로: 바이트 왕복 + 명시적 모드(0o600)."""
+    import os as _os
+    import stat
+
+    target = tmp_path / "artifact.bin"
+    atomic_write_bytes(target, b"hello")
+    assert target.read_bytes() == b"hello"
+    assert stat.S_IMODE(_os.stat(target).st_mode) == 0o600
 
 
 def test_load_index_combines_markets(tmp_path):

@@ -81,9 +81,11 @@ def test_instrument_lazy_build_uses_master_fetch(tmp_path, monkeypatch):
     def fetch(url):
         # 요청된 시장코드 하나만 채우고 나머지는 빈 마스터로 돌려준다.
         rows = [_row("NVDA", "NAS", "USD")] if url.endswith("nasmst.cod.zip") else []
+        code = url.rsplit("/", 1)[-1].removesuffix("mst.cod.zip")  # URL 에서 시장코드 추출
         buffer = io.BytesIO()
         with zipfile.ZipFile(buffer, "w") as archive:
-            archive.writestr("M.COD", ("\n".join(rows) + ("\n" if rows else "")).encode("cp949"))
+            member = f"{code}mst.cod"      # KIS 실제 멤버명 규칙과 일치
+            archive.writestr(member, ("\n".join(rows) + ("\n" if rows else "")).encode("cp949"))
         return buffer.getvalue()
 
     client = KISClient(app_key="k", app_secret="s", transport=FakeTransport(), master_fetch=fetch)
