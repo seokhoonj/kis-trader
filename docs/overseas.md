@@ -33,12 +33,23 @@ a = kis.overseas.account
 
 a.positions(market=None)  # None = 전체 시장 합산
 a.balance(market="NAS")  # 통화별 요약(시장 지정)
-a.present_balance()  # 체결기준 현재잔고
+a.present_balance()  # 체결기준 잔고 (오늘 체결분 포함)
+a.settlement_balance()  # 결제기준 잔고 (결제 완료분만)
 a.buyable(symbol="AAPL", exchange="NAS", price=150)
 a.period_profit(start="20240101", end="20240630")
 a.transactions(start="20240101", end="20240630")
 a.foreign_margin()  # 통화별 외화 증거금
 ```
+
+::: {.callout-note}
+## 체결기준 vs 결제기준
+주식은 **T+2 결제**라(체결 후 2영업일 뒤 실제 결제), "지금 잔고"가 두 가지다.
+
+- **`present_balance` (체결기준)** — 오늘 매매까지 반영. "내가 지금 들고 있는 것"에 가깝다.
+- **`settlement_balance` (결제기준)** — 결제 완료된 것만. 정산·인출가능 금액 확인용.
+
+오늘 산 종목은 `present_balance` 엔 바로 잡히고, `settlement_balance` 엔 결제일(D+2) 전까진 안 잡힌다.
+:::
 
 ## 순위·검색
 
