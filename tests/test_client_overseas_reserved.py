@@ -101,7 +101,7 @@ def test_overseas_reserved_demo_rejected_before_io():
 
 def test_overseas_reserved_canceled_flag():
     orders = _client(FakeTransport(response=_resp([dict(_ROW, cncl_yn="Y")]))).overseas.account.reserved_orders(
-        start="1", end="2")
+        start="20250501", end="20250531")
     assert orders[0].canceled is True
 
 
@@ -109,19 +109,19 @@ def test_overseas_reserved_paginates():
     page1 = _resp([_ROW], nk="NEXT", fk="FK", tr_cont="M")
     page2 = _resp([dict(_ROW, ovrs_rsvn_odno="0031111299")], tr_cont="D")
     fake = FakeTransport(pages=[page1, page2])
-    orders = _client(fake).overseas.account.reserved_orders(start="1", end="2")
+    orders = _client(fake).overseas.account.reserved_orders(start="20250501", end="20250531")
     assert [o.reserved_order_id for o in orders] == ["0031111234", "0031111299"]
     assert fake.calls[1]["tr_cont"] == "N"
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
 
 
 def test_overseas_reserved_empty_ok():
-    assert _client(FakeTransport(response=_resp([]))).overseas.account.reserved_orders(start="1", end="2") == []
+    assert _client(FakeTransport(response=_resp([]))).overseas.account.reserved_orders(start="20250501", end="20250531") == []
 
 
 def test_overseas_reserved_skips_padding_row():
     orders = _client(FakeTransport(response=_resp([dict(_ROW, ovrs_rsvn_odno=""), _ROW]))).overseas.account.reserved_orders(
-        start="1", end="2")
+        start="20250501", end="20250531")
     assert len(orders) == 1
 
 

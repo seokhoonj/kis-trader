@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import errno
 import threading
 from decimal import Decimal
 
@@ -969,3 +970,118 @@ def test_reconcile_full_report_semantics():
     assert report.side == "buy"
     assert report.status is OrderStatus.FILLED
     assert report.average_price == Decimal(69950)
+
+
+# --- fail-closed 가드 회귀(비유한 수치 / 날짜 엄격성 / 재조회 경계 / store) --------------
+@pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf"),
+                                 "nan", "inf", "-inf", "Infinity"])
+def test_coerce_decimal_rejects_non_finite(bad):
+    """A-11: coerce_decimal 은 NaN/Infinity(및 "nan"/"inf" 문자열)를 지문·와이어 전에 거부한다."""
+    from kis_openapi.order import coerce_decimal
+    with pytest.raises(KISUsageError):
+        coerce_decimal(bad, "quantity")
+
+
+def test_order_construction_rejects_non_finite_price():
+    """A-11: 비유한 가격은 Order 생성 시점에 fail-closed -- 와이어에 NaN 이 실릴 수 없다."""
+    from kis_openapi.order import Order
+    with pytest.raises(KISUsageError):
+        Order.limit("005930", side="buy", quantity=10, limit_price=float("nan"))
+
+
+def test_modify_rejects_non_finite_price_before_wire():
+    """A-03: 정정 경로도 coerce_decimal 을 거쳐 비유한 가격을 와이어 전에 거부한다(무전송)."""
+    store = OrderStore()
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-nf")
+    calls_before = len(fake.calls)
+    with pytest.raises(KISUsageError):
+        kis.orders.modify("orig-nf", price=float("inf"), request_id="mod-nf")
+    assert len(fake.calls) == calls_before          # 정정 와이어에 닿기 전 거부
+
+
+def test_reconcile_non_finite_row_quantity_fails_closed():
+    """A-01: 벤더 행의 비유한 수량은 비교로 흘러가지 않고 재조회가 fail-closed 한다(오확정 방지)."""
+    fake = FakeTransport(by_path={
+        _ORDER_CASH: [TransportTimeout("t")],
+        _DAILY_CCLD: [_daily_orders_response([_daily_order_row(order_quantity="nan")])],
+    })
+    kis = _client(fake)
+    with pytest.raises(OrderTimeoutError):
+        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+    with pytest.raises(KISError):
+        kis.orders.reconcile("ID-1")
+
+
+def test_reconcile_blank_division_row_does_not_match_known_division_order():
+    """A-02: 빈 ord_dvsn_cd 행은 division 명시 주문(최유리 03)을 확정하지 못한다(어떤 구분일지 몰라 오확정 위험)."""
+    store = OrderStore()
+    cid = "20240101-imm-blank01"
+    place_t = FakeTransport(by_path={_ORDER_CASH: [TransportTimeout("t")]})
+    with pytest.raises(OrderTimeoutError):
+        _client(place_t, store=store).domestic.stock("005930").buy(
+            quantity=10, division="immediate_limit", client_order_id=cid)
+    rows = [_daily_order_row(odno="BLANK", order_division="", order_unit_price="0")]
+    recon_t = FakeTransport(by_path={_DAILY_CCLD: [_daily_orders_response(rows)]})
+    assert _client(recon_t, store=store).orders.reconcile(cid) is None    # 빈 구분 행은 매칭 안 함
+
+
+def test_reconcile_blank_division_row_still_matches_plain_order():
+    """A-02: division 미지정 일반 주문은 종전대로 빈 ord_dvsn_cd 행을 관용한다(happy path 불변)."""
+    fake = FakeTransport(by_path={
+        _ORDER_CASH: [TransportTimeout("t")],
+        _DAILY_CCLD: [_daily_orders_response([_daily_order_row(order_division="")])],
+    })
+    kis = _client(fake)
+    with pytest.raises(OrderTimeoutError):
+        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+    report = kis.orders.reconcile("ID-1")
+    assert report is not None       # 빈 구분 관용(일반 주문) -- 종전 동작 유지
+
+
+@pytest.mark.parametrize("bad", ["1234567", "123456789", "2026010 ", " 2026010",
+                                 "2026-01-01", "２０２５０１０１"])
+def test_validate_yyyymmdd_requires_exactly_8_ascii_digits(bad):
+    """A-19: 7/9자리·공백·비-ASCII 숫자는 거부(정확히 8자리 ASCII 숫자만)."""
+    from kis_openapi.order import validate_yyyymmdd
+    with pytest.raises(KISUsageError):
+        validate_yyyymmdd(bad, "date")
+
+
+def test_validate_yyyymmdd_accepts_valid_8_digit():
+    """A-19: 정상 8자리 날짜는 통과(happy path 불변)."""
+    from kis_openapi.order import validate_yyyymmdd
+    validate_yyyymmdd("20260101", "date")           # 예외 없음
+
+
+def test_load_rejects_non_object_root(tmp_path):
+    """A-21: 루트가 JSON object 가 아니면(배열/스칼라) AttributeError 로 새지 않고 손상으로 fail-closed."""
+    import json
+    path = tmp_path / "orders.json"
+    path.write_text(json.dumps(["not", "an", "object"]), encoding="utf-8")
+    with pytest.raises(KISError):
+        OrderStore(path=path)
+
+
+def test_fsync_dir_propagates_real_io_error(tmp_path, monkeypatch):
+    """A-20: 디렉터리 fsync 의 진짜 IO 실패(EIO)는 삼키지 않고 올린다(거짓 '저장됨' 방지)."""
+    from kis_openapi import store as store_mod
+
+    def boom(fd):
+        raise OSError(errno.EIO, "I/O error")
+
+    monkeypatch.setattr(store_mod.os, "fsync", boom)
+    with pytest.raises(OSError):
+        store_mod._fsync_dir(tmp_path)
+
+
+def test_fsync_dir_ignores_unsupported_platform(tmp_path, monkeypatch):
+    """A-20: 디렉터리 fsync 미지원(EINVAL)은 종전대로 무시한다 -- 플랫폼 한계는 실패로 보지 않는다."""
+    from kis_openapi import store as store_mod
+
+    def unsupported(fd):
+        raise OSError(errno.EINVAL, "not supported")
+
+    monkeypatch.setattr(store_mod.os, "fsync", unsupported)
+    store_mod._fsync_dir(tmp_path)                    # 예외 없이 반환

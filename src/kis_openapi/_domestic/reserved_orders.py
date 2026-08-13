@@ -77,6 +77,8 @@ def fetch_reserved_orders(
         raise KISUsageError(
             f"지원하지 않는 process: {process!r} ({'/'.join(_PROCESS_FILTER)})."
         ) from None
+    validate_yyyymmdd(start, "start")   # 조회 기간은 실재하는 YYYYMMDD 8자리여야 한다(발주 날짜와 동일 강도)
+    validate_yyyymmdd(end, "end")
     rows = _walk_reserved(transport, cano, product_code, start, end, process_code)
     return [_parse_reserved(row) for row in rows if str(row.get("rsvn_ord_seq", "")).strip()]
 
@@ -375,6 +377,14 @@ def _send_change(
     # 모두 본다 -- 레이아웃과 응답예시가 어긋날 때를 헤지.
     output = resp.body.get("output")
     if isinstance(output, list):
+        # 정정/취소 응답의 output 은 단일 확인 건이다. 다건이면(예상밖) 어느 행이 이 요청의 결과인지
+        # 특정할 수 없어 output[0] 을 확인으로 읽으면 오확정 위험 -- fail-closed 로 수동 확인을 안내한다.
+        if len(output) > 1:
+            raise KISError(
+                f"예약주문 {action} 응답의 output 이 다건({len(output)})이라 단일 확인으로 읽을 수 없다 "
+                f"-- 순번 {sequence}. 예약주문조회로 상태를 확인하라.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
         output = output[0] if output else {}
     normal = ""
     if isinstance(output, Mapping) and str(output.get("nrml_prcs_yn", "")).strip():

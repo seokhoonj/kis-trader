@@ -61,6 +61,8 @@ def fetch_reserved_orders(
     거래소/상품유형 공백=미국 전체. **모의투자 미지원**."""
     if environment == "demo":
         raise KISUsageError("해외 예약주문조회(order-resv-list)는 모의투자 미지원 -- 실전에서만.")
+    validate_yyyymmdd(start, "start")   # 조회 기간은 실재하는 YYYYMMDD 8자리여야 한다
+    validate_yyyymmdd(end, "end")
     rows = _walk(transport, cano, product_code, start, end)
     return [_parse(row) for row in rows if str(row.get("ovrs_rsvn_odno", "")).strip()]
 

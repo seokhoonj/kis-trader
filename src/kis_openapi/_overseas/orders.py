@@ -415,10 +415,16 @@ def _ccnl_report(
 
 
 def _parse_decimal(value: object) -> Decimal:
-    """KIS 문자열 수치 -> Decimal. 공백/None 은 0, 값이 있는데 파싱 실패면 fail-closed(:class:`KISError`)."""
+    """KIS 문자열 수치 -> Decimal. 공백/None 은 0, 값이 있는데 파싱 실패면 fail-closed(:class:`KISError`).
+
+    ``"nan"``/``"inf"`` 는 파싱되지만 비유한값이라 이후 수량·단가 비교가 무너져 오확정을 부른다 --
+    :meth:`Decimal.is_finite` 로 fail-closed 한다."""
     if value is None or value == "":
         return Decimal(0)
     try:
-        return Decimal(str(value))
+        number = Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as err:
         raise KISError(f"해외 재조회 응답의 수치 파싱 실패: {value!r}") from err
+    if not number.is_finite():
+        raise KISError(f"해외 재조회 응답의 수치가 유한하지 않다(NaN/Infinity): {value!r}")
+    return number

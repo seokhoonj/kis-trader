@@ -570,8 +570,14 @@ def _filter_matching_daily_rows(
             continue
         if str(row.get("sll_buy_dvsn_cd", "")) != want_side:
             continue
-        if want_dvsn is not None and str(row.get("ord_dvsn_cd", "")) not in ("", want_dvsn):
-            continue
+        # division 이 명시된 주문(최유리/최우선/조건부)은 행의 주문구분이 정확히 일치해야 한다 -- 빈
+        # ord_dvsn_cd 행은 어떤 구분인지 알 수 없어(같은 종목·수량의 다른 구분 체결일 수 있음) 오확정을
+        # 부르므로 매칭하지 않는다. division 미지정(일반 지정가/시장가)일 때만 빈 값을 관용한다(종전과
+        # 동일 -- 행이 구분을 안 채우는 경우 대비).
+        if want_dvsn is not None:
+            allowed = (want_dvsn,) if fingerprint.division else ("", want_dvsn)
+            if str(row.get("ord_dvsn_cd", "")) not in allowed:
+                continue
         # 보드 구분: KRX vs NXT 는 다른 거래소 주문 -- 행의 거래소(excg_id_dvsn_cd)가 지문 보드와 정확히
         # 같아야 한다(같은 종목·수량·주문구분의 KRX 체결이 미접수 NXT 주문을 phantom 확정하는 것 방지).
         # 거래소 필드는 실응답에 실재하므로(라이브 확인) blank 는 관용하지 않고 비매칭으로 본다(오확정 방지).
@@ -646,13 +652,19 @@ def _extract_organization_number(output: Mapping[str, Any]) -> str | None:
 
 def parse_response_decimal(value: object) -> Decimal:
     """KIS 문자열 수치를 Decimal 로. 공백/None 은 0. 값이 있는데 파싱 실패면 :class:`KISError`
-    로 fail-closed -- 신뢰 못 할 숫자를 0으로 조작하면 재조회가 체결을 '미체결'로 오판한다."""
+    로 fail-closed -- 신뢰 못 할 숫자를 0으로 조작하면 재조회가 체결을 '미체결'로 오판한다.
+
+    ``"nan"``/``"inf"`` 는 파싱은 되지만 비유한값이라 이후 비교(수량·단가 일치)가 항상 거짓/참으로
+    무너져 오확정·오귀속을 부른다 -- :meth:`Decimal.is_finite` 로 fail-closed 한다."""
     if value is None or value == "":
         return Decimal(0)
     try:
-        return Decimal(str(value))
+        number = Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as err:
         raise KISError(f"재조회 응답의 수치 파싱 실패: {value!r}") from err
+    if not number.is_finite():
+        raise KISError(f"재조회 응답의 수치가 유한하지 않다(NaN/Infinity): {value!r}")
+    return number
 
 
 def _format_optional_wire_decimal(value: Decimal | None) -> str:

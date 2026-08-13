@@ -31,7 +31,7 @@ from .namespaces import (
     OverseasNamespace,
     PensionNamespace,
 )
-from .order import ChangeAction, Order, Side, mint_client_order_id
+from .order import ChangeAction, Order, Side, coerce_decimal, mint_client_order_id
 from .store import OrderStore
 
 if TYPE_CHECKING:
@@ -213,8 +213,10 @@ class KISClient:
             raise KISUsageError(f"확정된 원주문을 찾을 수 없다: {client_order_id!r}")
         original_quantity = Decimal(fingerprint.quantity)
         remaining_quantity = original_quantity - report.filled_quantity
-        change_quantity = remaining_quantity if quantity is None else Decimal(str(quantity))
-        change_price = None if price is None else Decimal(str(price))
+        # 정정 경로도 발주(place)와 같은 수치 강제변환을 거쳐 NaN/Infinity 등 비유한 입력을 fail-closed
+        # 로 막는다(raw Decimal(str(...)) 는 "nan"/"inf" 를 통과시켜 와이어에 실릴 수 있다).
+        change_quantity = remaining_quantity if quantity is None else coerce_decimal(quantity, "quantity")
+        change_price = None if price is None else coerce_decimal(price, "price")
         builder = None
         if overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
             builder = (

@@ -94,7 +94,7 @@ def test_reserved_orders_tr_method_and_params():
 
 def test_reserved_orders_default_process_all():
     fake = FakeTransport(response=_resp())
-    _client(fake).domestic.account.reserved_orders(start="1", end="2")
+    _client(fake).domestic.account.reserved_orders(start="20220501", end="20220523")
     assert fake.calls[0]["params"]["PRCS_DVSN_CD"] == "0"
 
 
@@ -116,19 +116,19 @@ def test_reserved_orders_paginates_and_merges():
     page1 = _resp([_ROW], nk="NEXT", fk="FK", tr_cont="M")
     page2 = _resp([dict(_ROW, rsvn_ord_seq="42405")], tr_cont="D")
     fake = FakeTransport(pages=[page1, page2])
-    orders = _client(fake).domestic.account.reserved_orders(start="1", end="2")
+    orders = _client(fake).domestic.account.reserved_orders(start="20220501", end="20220523")
     assert [o.sequence for o in orders] == ["42401", "42405"]
     assert fake.calls[1]["tr_cont"] == "N"
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
 
 
 def test_reserved_orders_empty_is_ok():
-    assert _client(FakeTransport(response=_resp([]))).domestic.account.reserved_orders(start="1", end="2") == []
+    assert _client(FakeTransport(response=_resp([]))).domestic.account.reserved_orders(start="20220501", end="20220523") == []
 
 
 def test_reserved_orders_skips_padding_row():
     orders = _client(FakeTransport(response=_resp([dict(_ROW, rsvn_ord_seq=""), _ROW]))).domestic.account.reserved_orders(
-        start="1", end="2"
+        start="20220501", end="20220523"
     )
     assert len(orders) == 1
 
@@ -143,6 +143,17 @@ def test_reserved_orders_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="E", msg1="실패", body={"output": []}, tr_cont="")
     with pytest.raises(KISError):
         _client(FakeTransport(response=resp)).domestic.account.reserved_orders(start="1", end="2")
+
+
+@pytest.mark.parametrize("bad", [{"start": "1", "end": "20220523"},
+                                 {"start": "20220501", "end": "2022053"},
+                                 {"start": "2022-05-01", "end": "20220523"}])
+def test_reserved_orders_rejects_bad_query_date_before_io(bad):
+    """A-19: 조회 기간(start/end)이 8자리 실재 날짜가 아니면 와이어 전에 fail-closed."""
+    fake = FakeTransport(response=_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake).domestic.account.reserved_orders(**bad)
+    assert fake.calls == []
 
 
 def test_reserved_orders_requires_account():

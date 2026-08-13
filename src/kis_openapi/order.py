@@ -125,16 +125,29 @@ def mint_client_order_id() -> str:
 
 def coerce_decimal(value: object, name: str) -> Decimal:
     """사용자 입력 수치를 Decimal 로 -- 파싱 실패는 :class:`KISUsageError`(사용자 오류). 주문 계층
-    공용(즉시/신용/예약 주문의 수량·단가 강제변환에 함께 쓴다)."""
+    공용(즉시/신용/예약 주문의 수량·단가 강제변환에 함께 쓴다).
+
+    ``Decimal(str(value))`` 는 ``"nan"``/``"inf"``(및 ``float('nan')``/``float('inf')``)도 유효한
+    Decimal(비유한값)으로 받아들이므로, 그대로 두면 지문·와이어에 NaN/Infinity 가 실려 재확인·비교가
+    깨진다. 파싱 뒤 :meth:`Decimal.is_finite` 로 비유한값을 fail-closed 로 거부한다."""
     try:
-        return Decimal(str(value))
+        number = Decimal(str(value))
     except (InvalidOperation, ValueError, TypeError) as err:
         raise KISUsageError(f"{name} 는 숫자여야 한다: {value!r}") from err
+    if not number.is_finite():
+        raise KISUsageError(f"{name} 는 유한한 숫자여야 한다(NaN/Infinity 불가): {value!r}")
+    return number
 
 
 def validate_yyyymmdd(value: str, field_name: str) -> None:
-    """``field_name`` 이 실재하는 YYYYMMDD 날짜인지 확인 -- 형식만 맞고 불가능한 날짜(20261399 등)는
-    거부. 주문 계층 공용(신용 loan_date, 예약 end_date 등)."""
+    """``field_name`` 이 실재하는 YYYYMMDD 날짜인지 확인 -- **정확히 8자리 ASCII 숫자**여야 하고
+    (7/9자리·공백·비-ASCII 숫자는 거부), 형식만 맞고 불가능한 날짜(20261399 등)도 거부한다. 주문
+    계층 공용(신용 loan_date, 예약 end_date, 예약주문조회 기간 등).
+
+    ``str.isdigit`` 은 위첨자·전각 숫자도 참이라 ``str.isascii`` 와 함께 봐 ASCII 0-9 만 허용한다
+    (``strptime`` 은 일부 유니코드 숫자·가변폭 매칭을 관용해 8자리가 아닌 입력을 통과시킬 수 있다)."""
+    if not (isinstance(value, str) and len(value) == 8 and value.isascii() and value.isdigit()):
+        raise KISUsageError(f"{field_name} 는 YYYYMMDD 8자리 숫자여야 한다: {value!r}")
     try:
         datetime.strptime(value, "%Y%m%d")  # noqa: DTZ007 -- 날짜 유효성만 확인
     except ValueError as err:

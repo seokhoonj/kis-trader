@@ -214,6 +214,14 @@ def test_reserved_change_malformed_output_fails_closed(body):
         _client(FakeTransport(response=resp)).domestic.account.cancel_reserved_order("42401")
 
 
+def test_reserved_change_multi_row_output_fails_closed():
+    # output 이 다건이면 어느 행이 이 요청의 확인인지 특정 불가 -- output[0] 을 맹신하지 않고 fail-closed.
+    resp = RawResponse(rt_cd="0", msg_cd="A", msg1="",
+                       body={"output": [{"nrml_prcs_yn": "Y"}, {"nrml_prcs_yn": "N"}]})
+    with pytest.raises(KISError, match="다건"):
+        _client(FakeTransport(response=resp)).domestic.account.cancel_reserved_order("42401")
+
+
 def test_reserved_change_requires_account():
     with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_OK), account=None).domestic.account.cancel_reserved_order("42401")

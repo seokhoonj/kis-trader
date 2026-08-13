@@ -20,6 +20,7 @@ from __future__ import annotations
 
 import contextlib
 import enum
+import errno
 import json
 import os
 import tempfile
@@ -305,6 +306,13 @@ class OrderStore:
                 f"주문 dedup 저장소가 손상됐다: {self._path}. 자동 복구하지 않는다"
                 f"(빈 상태 시작은 중복 체결 위험). 파일을 점검/재구성한 뒤 재시작하라."
             ) from err
+        if not isinstance(data, dict):
+            # 루트가 JSON object 가 아니면(배열/스칼라 등) data.get 이 AttributeError 로 새는 대신
+            # 손상으로 fail-closed -- 빈 상태 시작은 dedup 장벽을 지워 중복 체결 위험이므로.
+            raise KISError(
+                f"주문 dedup 저장소 루트가 JSON object 가 아니다: {self._path}. 자동 복구하지 않는다"
+                f"(빈 상태 시작은 중복 체결 위험). 파일을 점검한 뒤 재시작하라."
+            )
         version = data.get("schema_version")
         if version not in _READABLE_SCHEMA_VERSIONS:
             raise UnsupportedSchemaVersionError(
@@ -323,16 +331,23 @@ class OrderStore:
             ) from err
 
 
+#: 디렉터리 fsync 를 지원하지 않는 플랫폼/파일시스템이 내는 errno -- 이때만 무시한다. EIO/ENOSPC
+#: 같은 진짜 내구성 실패는 여기 없으므로 그대로 전파돼 '저장됨' 주장이 거짓이 되지 않는다.
+_UNSUPPORTED_FSYNC_ERRNOS = frozenset({errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP})
+
+
 def _fsync_dir(directory: Path) -> None:
-    """디렉터리 엔트리를 fsync -- rename 이 크래시에도 살아남게(플랫폼 미지원이면 무시)."""
+    """디렉터리 엔트리를 fsync -- rename 이 크래시에도 살아남게. 디렉터리 fsync 미지원(EINVAL/ENOTSUP)
+    만 무시하고, EIO/ENOSPC 등 진짜 내구성 실패는 삼키지 않고 올린다(거짓 '저장됨' 방지)."""
     try:
         dir_fd = os.open(directory, os.O_RDONLY)
-    except OSError:  # pragma: no cover
+    except OSError:  # pragma: no cover -- 디렉터리를 열 수 없는 드문 플랫폼
         return
     try:
         os.fsync(dir_fd)
-    except OSError:  # pragma: no cover -- 일부 플랫폼은 디렉터리 fsync 미지원
-        pass
+    except OSError as err:
+        if err.errno not in _UNSUPPORTED_FSYNC_ERRNOS:
+            raise
     finally:
         os.close(dir_fd)
 
