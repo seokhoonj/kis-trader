@@ -14,8 +14,8 @@ KIS 개발자센터에서 발급한 **앱키·앱시크릿**과 **계좌번호**
 from kis_openapi import KISClient
 
 kis = KISClient(
-    app_key="발급받은_앱키",
-    app_secret="발급받은_앱시크릿",
+    app_key="YOUR_APP_KEY",
+    app_secret="YOUR_APP_SECRET",
     account="12345678-01",    # 계좌번호 8자리-2자리
     environment="real",        # "real" 실전 / "demo" 모의투자
 )
