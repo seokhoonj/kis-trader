@@ -21,5 +21,6 @@ __pycache__/
 dist/
 build/
 
-# MkDocs build output
-site/
+# Docs build output (Quarto)
+docs/_site/
+docs/.quarto/

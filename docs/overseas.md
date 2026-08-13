@@ -1,57 +1,52 @@
-# 해외 — `kis.overseas`
+# 해외주식
 
-파라미터·KIS URL·TR-id·필드는 각 메서드 docstring에.
+해외는 `kis.overseas.*`. 심볼만 주면 **거래소는 자동으로 해석**된다.
 
-## 핸들
+## 시세
 
 ```python
-kis.overseas.stock("AAPL")     # OverseasStock (거래소 자동: NAS)
-kis.overseas.index("SPX")      # OverseasIndex
-kis.overseas.futures("ESU24")  # OverseasDerivative
+s = kis.overseas.stock("AAPL")   # 거래소 자동 (NAS)
+
+s.quote()           # 현재가
+s.current_price()   # 현재가(간단)
+s.bars("1d")        # 일봉
+s.order_book()      # 호가
+s.trades()          # 체결
 ```
 
-### OverseasStock
+## 주문
 
 ```python
-s = kis.overseas.stock("AAPL")
+s.buy(quantity=1, limit_price=150)
+s.sell(quantity=1, limit_price=160)
 
-# 시세
-s.quote(); s.current_price(); s.bars("1d"); s.order_book(); s.trades()
-
-# 주문
-s.buy(quantity=1, limit_price=150); s.sell(quantity=1, limit_price=155)
 s.daytime_buy(quantity=1, limit_price=150)   # 미국 주간거래
 s.reserve_buy(quantity=1, limit_price=150)   # 미국 예약
 ```
 
-## 계좌 — `kis.overseas.account`
+주문 안전장치는 국내와 동일 → [주문](orders.md).
+
+## 계좌
 
 ```python
 a = kis.overseas.account
-a.positions(market=None)     # None = 7개 시장그룹 전체 합산
-a.balance(market="NAS")      # 통화별 요약(시장 지정)
-a.open_orders(market=None)
+
+a.positions(market=None)   # None = 전체 시장 합산
+a.balance(market="NAS")    # 통화별 요약(시장 지정)
+a.present_balance()        # 체결기준 현재잔고
 a.buyable(symbol="AAPL", exchange="NAS", price=150)
-a.present_balance(…); a.settlement_balance(…)
-a.period_profit(start=, end=); a.transactions(start=, end=)
-a.foreign_margin()           # 통화별 외화 증거금
+a.period_profit(start="20240101", end="20240630")
+a.transactions(start="20240101", end="20240630")
+a.foreign_margin()         # 통화별 외화 증거금
 ```
 
-## 순위 — `kis.overseas.ranking`
+## 순위·검색
 
 ```python
 r = kis.overseas.ranking
 r.by_change(); r.by_volume(); r.by_amount(); r.by_market_cap()
-r.by_turnover(); r.by_volume_surge(); r.by_new_highlow()
-```
 
-## 참조·파생 데이터
-
-```python
-kis.overseas.quotes([("NAS","AAPL"), ("HKS","00700")])  # 멀티종목
-kis.overseas.search_stocks(**filters)                    # 종목 검색
-kis.overseas.news(…); kis.overseas.corporate_actions(…)
-kis.overseas.industries(…); kis.overseas.industry_stocks(…)
-kis.overseas.futures_details([...]); kis.overseas.option_details([...])
-kis.overseas.futures_open_interest(…)                    # 미결제추이(CFTC)
+kis.overseas.search_stocks(**filters)   # 종목 검색(가격·규모 등)
+kis.overseas.news(…)
+kis.overseas.industries(…)              # 업종
 ```

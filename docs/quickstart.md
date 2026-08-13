@@ -1,68 +1,74 @@
-# 빠른 시작
+# 시작하기
 
-## 세션
+## 설치
+
+```bash
+uv pip install -e .      # 아직 PyPI 미배포 (0.0.0)
+```
+
+## 세션 만들기
+
+KIS 개발자센터에서 발급한 **앱키·앱시크릿**과 **계좌번호**가 필요하다.
 
 ```python
 from kis_openapi import KISClient
 
 kis = KISClient(
-    app_key="앱키",
-    app_secret="앱시크릿",
-    account="12345678-01",   # 계좌번호 8-2
-    environment="real",       # "real" 실전 / "demo" 모의
+    app_key="발급받은_앱키",
+    app_secret="발급받은_앱시크릿",
+    account="12345678-01",    # 계좌번호 8자리-2자리
+    environment="real",        # "real" 실전 / "demo" 모의투자
 )
 ```
 
-주요 옵션(안전 스위치):
+모의투자로 연습하려면 `environment="demo"` — TR이 자동으로 모의용으로 바뀐다.
+
+## 자격증명 숨기기
+
+코드에 키를 직접 쓰지 말고 환경변수로:
 
 ```python
-KISClient(
+import os
+kis = KISClient(
+    app_key=os.environ["KIS_APP_KEY"],
+    app_secret=os.environ["KIS_APP_SECRET"],
+    account=os.environ["KIS_ACCOUNT"],
+)
+```
+
+## 첫 조회
+
+```python
+s = kis.domestic.stock("005930")   # 삼성전자
+q = s.quote()
+
+q.current_price   # 현재가
+q.change          # 전일대비
+q.change_percent  # 등락률(%)
+q.volume          # 거래량
+```
+
+## 안전 스위치 (주문할 때)
+
+```python
+kis = KISClient(
     …,
     orderable=True,      # 주문 가능 여부 (계좌 유형에서 자동 판단)
-    allow_credit=False,  # 신용주문은 명시적 허용 필요
-    throttle=True,       # 초당 유량제한 준수 (실전 15 / 모의 1)
-    risk=None,           # 사전 리스크 한도(RiskLimits)
+    allow_credit=False,  # 신용주문은 명시적으로 켜야 함
+    throttle=True,       # 초당 호출 제한 자동 준수 (실전 15 / 모의 1)
 )
 ```
 
-## 시세
+조회만 할 거면 신경 안 써도 된다. 주문의 안전장치는 [주문](orders.md)에서 자세히.
 
-```python
-s = kis.domestic.stock("005930")
-s.quote()                       # 현재가
-s.bars("1d", start="20240101")  # 일봉 (1m/1d/1wk/1mo)
-s.order_book()                  # 호가
-s.trades()                      # 체결
+## 결과 객체 다루기
 
-kis.overseas.stock("AAPL").quote()          # 거래소 자동(NAS)
-kis.overseas.stock("AAPL").current_price()
-```
-
-## 계좌
-
-```python
-kis.domestic.account.balance()      # 예수금/평가 요약
-kis.domestic.account.positions()    # 보유 종목
-kis.overseas.account.positions()    # 해외 보유 (전체 시장 합산)
-```
-
-## 주문
-
-```python
-r = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)
-r.client_order_id, r.order_id, r.status
-
-kis.orders.reconcile(r.client_order_id)   # 브로커와 대조해 확정
-kis.orders.cancel(r.client_order_id)       # 취소
-```
-
-자세히 → [주문·안전](orders-and-safety.md)
-
-## 결과 객체
+모든 결과는 **읽기전용**. 필드로 꺼내 쓰고, 필드 설명이 궁금하면 `help`.
 
 ```python
 q = kis.domestic.stock("005930").quote()
-q.current_price     # 매핑 필드 (Decimal)
-q._raw              # 원본 KIS 응답 (읽기전용)
-help(type(q))       # 필드 설명(한국어) + KIS URL/TR-id
+
+q.current_price    # 매핑된 값 (Decimal)
+q._raw             # KIS 원본 응답 전체
+help(type(q))      # 이 결과의 필드 설명(한국어) + KIS URL·TR-id
 ```

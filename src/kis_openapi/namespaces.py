@@ -105,7 +105,7 @@ class OrdersNamespace:
         self._c = client
 
     def reconcile(self, client_order_id: str) -> ExecutionReport | None:
-        """브로커측 체결과 로컬 상태를 대사한다."""
+        """접수 여부가 불확실한 주문을 KIS 서버에 실제로 조회해 상태를 확정한다(불확실하면 미확정 유지)."""
         return self._c._reconcile(client_order_id)
 
     def cancel(

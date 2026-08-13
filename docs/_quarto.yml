@@ -1,0 +1,39 @@
+project:
+  type: book
+  output-dir: _site
+
+lang: ko
+number-sections: true
+number-depth: 2
+
+book:
+  title: "kis-openapi"
+  subtitle: "한국투자증권 KIS Open API 파이썬 클라이언트"
+  repo-url: "https://github.com/seokhoonj/kis-openapi"
+  repo-actions: [source]
+  search: true
+  sidebar:
+    style: docked
+  chapters:
+    - index.md
+    - quickstart.md
+    - quotes.md
+    - account.md
+    - orders.md
+    - screening.md
+    - market.md
+    - overseas.md
+    - pension.md
+
+format:
+  html:
+    theme: [default]
+    toc: true
+    toc-depth: 3
+    toc-title: "이 페이지"
+    code-copy: true
+    code-overflow: wrap
+    grid:
+      sidebar-width: 300px
+      body-width: 820px
+      margin-width: 260px
