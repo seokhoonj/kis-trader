@@ -16,7 +16,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from .._wire import format_wire_decimal, optional_decimal
 from ..errors import (
@@ -34,6 +34,9 @@ from ..store import ClaimOutcome, OrderStore
 from ..transport import Environment, Transport, TransportTimeout
 from .orders import parse_response_decimal
 
+if TYPE_CHECKING:
+    from .._literals import Numeric
+
 _KST = timezone(timedelta(hours=9))
 
 _INQUIRE_PATH = "/uapi/domestic-stock/v1/trading/order-resv-ccnl"
@@ -45,7 +48,7 @@ _CANCEL_TR = "CTSC0009U"           # 예약취소, 모의투자 미지원
 _MODIFY_TR = "CTSC0013U"           # 예약정정, 모의투자 미지원
 #: 예약주문 조회 연속조회 페이지 상한. 닿으면 fail-closed.
 _MAX_PAGES = 100
-_SIDE = {"01": "sell", "02": "buy"}
+_SIDE: dict[str, Side] = {"01": "sell", "02": "buy"}
 _SIDE_CODE = {"buy": "02", "sell": "01"}
 #: 우리 주문타입 -> ORD_DVSN_CD(예약). 00 지정가 / 01 시장가.
 _ORD_DVSN_CD = {"limit": "00", "market": "01"}
@@ -61,6 +64,63 @@ _CASH_BALANCE_DIVISION = "10"
 #: -- 어느 쪽이든 최근 예약을 포함하도록. 실 API 왕복으로 필드 의미를 확정하면 창을 좁힌다.
 _RECONCILE_LOOKBACK_DAYS = 7
 _RECONCILE_FORWARD_DAYS = 31
+
+
+def _side_from_code(code: object) -> Side:
+    """벤더 매매구분코드(01 매도 / 02 매수)를 방향으로 -- 알 수 없는 코드는 fail-closed(:class:`KISError`).
+    ``side=""`` 로 뭉개면 buy/sell 어느 쪽도 아닌 주문 레코드가 새어 이후 오귀속/오매칭을 부른다."""
+    text = str(code or "").strip()
+    try:
+        return _SIDE[text]
+    except KeyError:
+        raise KISError(f"알 수 없는 매매구분코드: {text!r} (01 매도 / 02 매수만 유효).") from None
+
+
+class _ReservedTerms(NamedTuple):
+    """예약 발주/정정이 공유하는 정규화된 주문 항목 -- 방향·수량·주문구분·단가를 한 번의 검증으로 확정한다."""
+
+    order_type: str            # "limit"(지정가 00) / "market"(시장가 01)
+    quantity: Decimal
+    limit_price: Decimal | None
+
+
+def _coerce_reserved_order_terms(
+    *, side: Side, quantity: Numeric, price: Numeric | None, end_date: str | None
+) -> _ReservedTerms:
+    """예약 발주·정정이 공유하는 항목 검증/정규화(순수) -- 방향, 수량(양의 정수), 단가(있으면 유한·양수),
+    종료일(있으면 실재 YYYYMMDD)을 **한 경로**로 확정한다. 발주와 정정이 각자 검증하다 종료일 검증이
+    어긋나던 것을 하나로 모은다. ``price`` 없으면 시장가(01), 있으면 지정가(00)."""
+    if side not in _SIDE_CODE:
+        raise KISUsageError(f"side 는 buy/sell 이어야 한다: {side!r}")
+    qty = coerce_decimal(quantity, "quantity")
+    if qty <= 0 or qty != qty.to_integral_value():
+        raise KISUsageError(f"예약주문 수량은 0보다 큰 정수(주)여야 한다: {qty}")
+    order_type = "limit" if price is not None else "market"
+    limit_price = None
+    if price is not None:
+        limit_price = coerce_decimal(price, "price")
+        if not limit_price.is_finite() or limit_price <= 0:
+            raise KISUsageError(f"price 는 0보다 큰 유한값이어야 한다: {price!r}")
+    if end_date is not None:
+        validate_yyyymmdd(end_date, "end_date")  # 실재 달력 날짜(신용 loan_date 와 동일 강도)
+    return _ReservedTerms(order_type=order_type, quantity=qty, limit_price=limit_price)
+
+
+def _make_reserved_order_fields(
+    *, cano: str, product_code: str, symbol: str, side: Side, terms: _ReservedTerms,
+    end_date: str | None,
+) -> dict[str, str]:
+    """예약 발주·정정 와이어 바디의 **공통** 필드(순수). 정정은 여기에 대상 지정 키(순번/조직번호/
+    주문일자/연락처)를 삽입 순서대로 덧붙인다 -- 두 경로의 공통 부분이 바이트 동일하게 나간다."""
+    return {
+        "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": symbol,
+        "ORD_QTY": format_wire_decimal(terms.quantity),
+        "ORD_UNPR": "0" if terms.limit_price is None else format_wire_decimal(terms.limit_price),
+        "SLL_BUY_DVSN_CD": _SIDE_CODE[side],
+        "ORD_DVSN_CD": _ORD_DVSN_CD[terms.order_type],
+        "ORD_OBJT_CBLC_DVSN_CD": _CASH_BALANCE_DIVISION,
+        "LOAN_DT": "", "RSVN_ORD_END_DT": end_date or "",
+    }
 
 
 def fetch_reserved_orders(
@@ -131,7 +191,7 @@ def _walk_reserved(
 # --- 예약주문 발주 (뮤테이션, 안전 흐름) -----------------------------------
 def place_reserved_order(
     transport: Transport, store: OrderStore, *,
-    symbol: str, side: Side, quantity: object, price: object | None = None,
+    symbol: str, side: Side, quantity: Numeric, price: Numeric | None = None,
     end_date: str | None = None, client_order_id: str, orderable: bool = True,
     cano: str, product_code: str, environment: Environment,
 ) -> ExecutionReport:
@@ -154,40 +214,20 @@ def place_reserved_order(
         )
     if environment == "demo":
         raise KISUsageError("예약주문(order-resv)은 모의투자 미지원 -- 실전에서만.")
-    if side not in _SIDE_CODE:
-        raise KISUsageError(f"side 는 buy/sell 이어야 한다: {side!r}")
-    qty = coerce_decimal(quantity, "quantity")
-    if qty <= 0 or qty != qty.to_integral_value():
-        raise KISUsageError(f"예약주문 수량은 0보다 큰 정수(주)여야 한다: {qty}")
-    order_type = "limit" if price is not None else "market"
-    limit_price = None
-    if price is not None:
-        limit_price = coerce_decimal(price, "price")
-        if not limit_price.is_finite() or limit_price <= 0:
-            raise KISUsageError(f"price 는 0보다 큰 유한값이어야 한다: {price!r}")
-    if end_date is not None:
-        if len(end_date) != 8 or not end_date.isdigit():
-            raise KISUsageError(f"end_date 는 YYYYMMDD 8자리여야 한다: {end_date!r}")
-        validate_yyyymmdd(end_date, "end_date")  # 실재 달력 날짜(신용 loan_date 와 동일 강도)
+    terms = _coerce_reserved_order_terms(side=side, quantity=quantity, price=price, end_date=end_date)
 
     # end_date 는 예약의 정체성 일부(유효 종료일이 다르면 다른 주문)라 지문에 담는다. 예약 지문은
     # order_type 이 limit/market 뿐이라 stop_price 슬롯이 비어 이를 재사용한다(exchange="reserved"
     # 네임스페이스 안이라 모호하지 않다).
     fingerprint = Fingerprint(
-        symbol=symbol, side=side, order_type=order_type,
-        quantity=format_wire_decimal(qty),
-        limit_price="" if limit_price is None else format_wire_decimal(limit_price),
+        symbol=symbol, side=side, order_type=terms.order_type,
+        quantity=format_wire_decimal(terms.quantity),
+        limit_price="" if terms.limit_price is None else format_wire_decimal(terms.limit_price),
         stop_price=end_date or "", time_in_force="day", exchange=_RESERVED_EXCHANGE,
     )
-    body = {
-        "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": symbol,
-        "ORD_QTY": format_wire_decimal(qty),
-        "ORD_UNPR": "0" if limit_price is None else format_wire_decimal(limit_price),
-        "SLL_BUY_DVSN_CD": _SIDE_CODE[side],
-        "ORD_DVSN_CD": _ORD_DVSN_CD[order_type],
-        "ORD_OBJT_CBLC_DVSN_CD": _CASH_BALANCE_DIVISION,
-        "LOAN_DT": "", "RSVN_ORD_END_DT": end_date or "",
-    }
+    body = _make_reserved_order_fields(
+        cano=cano, product_code=product_code, symbol=symbol, side=side, terms=terms, end_date=end_date,
+    )
 
     outcome, prior = store.try_claim(client_order_id, fingerprint)
     if outcome is ClaimOutcome.COMPLETED:
@@ -308,8 +348,8 @@ def cancel_reserved_order(
 
 
 def modify_reserved_order(
-    transport: Transport, *, sequence: str, symbol: str, side: Side, quantity: object,
-    price: object | None = None, end_date: str | None = None, order_date: str | None = None,
+    transport: Transport, *, sequence: str, symbol: str, side: Side, quantity: Numeric,
+    price: Numeric | None = None, end_date: str | None = None, order_date: str | None = None,
     cano: str, product_code: str, environment: Environment,
 ) -> None:
     """예약주문을 정정한다 -- 브로커 규격상 **전체 재지정**(종목/방향/수량/단가/종료일)을 요구한다.
@@ -325,32 +365,18 @@ def modify_reserved_order(
         raise KISUsageError("예약주문 정정(order-resv-rvsecncl)은 모의투자 미지원 -- 실전에서만.")
     if not str(sequence).strip():
         raise KISUsageError("정정할 예약주문순번(sequence)이 필요하다.")
-    if side not in _SIDE_CODE:
-        raise KISUsageError(f"side 는 buy/sell 이어야 한다: {side!r}")
-    qty = coerce_decimal(quantity, "quantity")
-    if qty <= 0 or qty != qty.to_integral_value():
-        raise KISUsageError(f"예약주문 수량은 0보다 큰 정수(주)여야 한다: {qty}")
-    order_type = "limit" if price is not None else "market"
-    limit_price = None
-    if price is not None:
-        limit_price = coerce_decimal(price, "price")
-        if not limit_price.is_finite() or limit_price <= 0:
-            raise KISUsageError(f"price 는 0보다 큰 유한값이어야 한다: {price!r}")
-    if end_date is not None:
-        validate_yyyymmdd(end_date, "end_date")  # strptime 이 형식+실재 날짜를 함께 검증
+    terms = _coerce_reserved_order_terms(side=side, quantity=quantity, price=price, end_date=end_date)
     if order_date is not None:
         validate_yyyymmdd(order_date, "order_date")
-    body = {
-        "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": symbol,
-        "ORD_QTY": format_wire_decimal(qty),
-        "ORD_UNPR": "0" if limit_price is None else format_wire_decimal(limit_price),
-        "SLL_BUY_DVSN_CD": _SIDE_CODE[side],
-        "ORD_DVSN_CD": _ORD_DVSN_CD[order_type],
-        "ORD_OBJT_CBLC_DVSN_CD": _CASH_BALANCE_DIVISION,
-        "LOAN_DT": "", "RSVN_ORD_END_DT": end_date or "", "CTAC_TLNO": "",
+    body = _make_reserved_order_fields(
+        cano=cano, product_code=product_code, symbol=symbol, side=side, terms=terms, end_date=end_date,
+    )
+    # 정정은 대상 예약을 지목하는 키(순번/조직번호/주문일자)와 연락처를 공통 바디 뒤에 삽입 순서대로 덧붙인다.
+    body.update({
+        "CTAC_TLNO": "",
         "RSVN_ORD_SEQ": str(sequence).strip(),
         "RSVN_ORD_ORGNO": "", "RSVN_ORD_ORD_DT": order_date or "",
-    }
+    })
     _send_change(transport, _MODIFY_TR, body, sequence, action="정정")
 
 
@@ -469,7 +495,7 @@ def _parse_reserved(row: Mapping[str, Any]) -> ReservedOrder:
         received_date=_parse_date(row.get("rsvn_ord_rcit_dt")),
         symbol=str(row.get("pdno", "")).strip(),
         name=str(row.get("kor_item_shtn_name", "")).strip(),
-        side=_SIDE.get(str(row.get("sll_buy_dvsn_cd", "")).strip(), ""),
+        side=_side_from_code(row.get("sll_buy_dvsn_cd")),
         order_type_name=str(row.get("ord_dvsn_name", "")).strip(),
         reserved_quantity=_decimal_or_zero(row, "ord_rsvn_qty"),
         filled_quantity=_decimal_or_zero(row, "tot_ccld_qty"),

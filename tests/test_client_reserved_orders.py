@@ -159,3 +159,22 @@ def test_reserved_orders_rejects_bad_query_date_before_io(bad):
 def test_reserved_orders_requires_account():
     with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_resp()), account=None).domestic.account.reserved_orders(start="1", end="2")
+
+
+@pytest.mark.parametrize("bad_code", ["99", "", "0", "XX"])
+def test_reserved_orders_unknown_side_code_fails_closed(bad_code):
+    """A-12: 알 수 없는/빈 매매구분코드는 side="" 로 뭉개지 않고 fail-closed(KISError) -- 방향 없는
+    예약 레코드가 새어 이후 오귀속/오매칭되는 것을 막는다."""
+    fake = FakeTransport(response=_resp([dict(_ROW, sll_buy_dvsn_cd=bad_code)]))
+    with pytest.raises(KISError):
+        _client(fake).domestic.account.reserved_orders(start="20220501", end="20220523")
+
+
+def test_reserved_orders_known_side_codes_still_map():
+    """A-12: 알려진 01(매도)/02(매수)는 종전과 동일하게 매핑된다(회귀 방지)."""
+    sell = _client(FakeTransport(response=_resp([dict(_ROW, sll_buy_dvsn_cd="01")]))).domestic.account.reserved_orders(
+        start="20220501", end="20220523")
+    buy = _client(FakeTransport(response=_resp([dict(_ROW, sll_buy_dvsn_cd="02")]))).domestic.account.reserved_orders(
+        start="20220501", end="20220523")
+    assert sell[0].side == "sell"
+    assert buy[0].side == "buy"

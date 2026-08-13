@@ -35,6 +35,7 @@ from .order import ChangeAction, Order, Side, coerce_decimal, mint_client_order_
 from .store import OrderStore
 
 if TYPE_CHECKING:
+    from ._literals import Numeric
     from ._masters import InstrumentRecord
     from .report import ExecutionReport
     from .risk import RiskLimits
@@ -202,8 +203,8 @@ class KISClient:
         )
 
     def _change_order(
-        self, client_order_id: str, *, action: ChangeAction, quantity: object | None,
-        price: object | None, request_id: str | None,
+        self, client_order_id: str, *, action: ChangeAction, quantity: Numeric | None,
+        price: Numeric | None, request_id: str | None,
     ) -> ExecutionReport:
         """접수된 국내·해외 주식 주문의 미체결 수량을 취소/정정한다(``kis.orders.cancel`` / ``.modify``)."""
         cano, product_code = self._require_account()
@@ -217,7 +218,7 @@ class KISClient:
         # 로 막는다(raw Decimal(str(...)) 는 "nan"/"inf" 를 통과시켜 와이어에 실릴 수 있다).
         change_quantity = remaining_quantity if quantity is None else coerce_decimal(quantity, "quantity")
         change_price = None if price is None else coerce_decimal(price, "price")
-        builder = None
+        builder: orders_engine._ChangeRequestBuilder | None = None
         if overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
             builder = (
                 overseas_orders_engine.make_daytime_change_request
@@ -244,7 +245,7 @@ class KISClient:
         시장별로 바꾼다. 해외 주문엔 아직 사전 리스크 게이트가 없어(참조가가 국내 시세 기반),
         ``risk`` 를 켠 세션에서 해외 주문을 내면 명확히 거부한다."""
         cano, product_code = self._require_account()
-        build_request = None
+        build_request: orders_engine._PlaceRequestBuilder | None = None
         risk = self._risk
         if overseas_orders_engine.is_overseas_exchange(order.exchange):
             if risk is not None:
@@ -268,7 +269,7 @@ class KISClient:
         )
 
     def _place_reserved_order(
-        self, *, symbol: str, side: Side, quantity: object, price: object | None,
+        self, *, symbol: str, side: Side, quantity: Numeric, price: Numeric | None,
         end_date: str | None, client_order_id: str | None,
     ) -> ExecutionReport:
         """예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 호출). 계좌 정보 필요.
@@ -285,7 +286,7 @@ class KISClient:
         )
 
     def _place_overseas_reserved_order(
-        self, *, symbol: str, side: Side, quantity: object, price: object, exchange: str,
+        self, *, symbol: str, side: Side, quantity: Numeric, price: Numeric, exchange: str,
         client_order_id: str | None,
     ) -> ExecutionReport:
         """미국 해외예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 해외 종목일 때 호출)."""

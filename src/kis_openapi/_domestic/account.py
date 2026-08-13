@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import date, time
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .._response import _fetch_paginated_rows, _raise_if_error
 from .._wire import format_wire_decimal, optional_decimal, required_decimal
@@ -36,6 +36,9 @@ from ..trade_profit import (
     TradeProfitHistory,
 )
 from ..transport import Environment, RawResponse, Transport
+
+if TYPE_CHECKING:
+    from .._literals import Numeric
 
 _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
 _BALANCE_TR = {"real": "TTTC8434R", "demo": "VTTC8434R"}
@@ -219,7 +222,7 @@ def _extract_summary(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
 # --- 매수가능 / 매도가능 ---------------------------------------------------
 def fetch_buyable_amount(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    symbol: str | None = None, limit_price: object | None = None,
+    symbol: str | None = None, limit_price: Numeric | None = None,
 ) -> BuyableAmount:
     """매수가능 여력. ``symbol`` 없으면 금액만(수량 0). ``limit_price`` 있으면 지정가 기준."""
     if symbol is None and limit_price is not None:
@@ -269,7 +272,7 @@ def fetch_sellable(
 
 def fetch_credit_buyable(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    symbol: str, credit_type: str, limit_price: object | None = None,
+    symbol: str, credit_type: str, limit_price: Numeric | None = None,
 ) -> BuyableAmount:
     """신용(융자/대주) 매수가능 여력. ``credit_type`` 은 신용유형(21 자기융자신규 등),
     ``limit_price`` 없으면 시장가 기준. **모의투자 미지원**.

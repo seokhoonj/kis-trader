@@ -65,7 +65,7 @@ _ORDER_TR: dict[tuple[str, Side, Environment], str] = {
 _ORD_DVSN_LIMIT = "00"  # 지정가
 
 
-def build_order_request(
+def make_order_request_from_fields(
     *,
     side: Side,
     symbol: str,
@@ -135,10 +135,10 @@ def make_order_request(
 ) -> WireRequest:
     """안전 코어(:func:`~kis_openapi._domestic.orders.place`)에 넘길 해외 주문 빌더.
 
-    :class:`~kis_openapi.order.Order` 를 :func:`build_order_request` 인자로 풀어 넘긴다. ``order.exchange``
-    는 시세 거래소코드(NAS/NYS/...)를 담고, ``order_type``/``time_in_force`` 도 넘겨 미지원 조합은
-    거기서 fail-closed 로 거부된다."""
-    return build_order_request(
+    :class:`~kis_openapi.order.Order` 를 :func:`make_order_request_from_fields` 인자로 풀어 넘긴다.
+    ``order.exchange`` 는 시세 거래소코드(NAS/NYS/...)를 담고, ``order_type``/``time_in_force`` 도 넘겨
+    미지원 조합은 거기서 fail-closed 로 거부된다."""
+    return make_order_request_from_fields(
         side=order.side, symbol=order.symbol, quantity=order.quantity,
         limit_price=order.limit_price, exchange=order.exchange,
         cano=cano, product_code=product_code, environment=environment,

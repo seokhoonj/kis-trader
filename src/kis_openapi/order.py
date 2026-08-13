@@ -12,11 +12,16 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Literal, NamedTuple
+from typing import TYPE_CHECKING, Literal, NamedTuple
 
 from ._wire import format_wire_decimal
 from .errors import KISUsageError
 from .instrument import DomesticBoard
+
+if TYPE_CHECKING:
+    # 주문 수치 파라미터의 입력 허용형(int|float|Decimal|str). 주석 전용이라 런타임 순환 import
+    # (_literals -> order)을 피하려 TYPE_CHECKING 아래에서 들여온다.
+    from ._literals import Numeric
 
 Side = Literal["buy", "sell"]
 OrderType = Literal["market", "limit", "stop", "stop_limit"]
@@ -316,9 +321,9 @@ class Order:
 
     # --- 타입별 생성자(권장 진입점) ------------------------------------
     @classmethod
-    def _build(
-        cls, symbol: str, side: Side, order_type: OrderType, quantity: object, *,
-        limit_price: object | None = None, stop_price: object | None = None,
+    def _make(
+        cls, symbol: str, side: Side, order_type: OrderType, quantity: Numeric, *,
+        limit_price: Numeric | None = None, stop_price: Numeric | None = None,
         time_in_force: TimeInForce = "day", exchange: str = "XKRX",
         credit_type: CreditType | None = None, loan_date: str | None = None,
         session: Session = "regular", division: DomesticDivision | None = None,
@@ -347,8 +352,8 @@ class Order:
 
     @classmethod
     def credit(
-        cls, symbol: str, *, side: Side, quantity: object, credit_type: CreditType,
-        price: object | None = None, loan_date: str | None = None,
+        cls, symbol: str, *, side: Side, quantity: Numeric, credit_type: CreditType,
+        price: Numeric | None = None, loan_date: str | None = None,
         time_in_force: TimeInForce = "day", client_order_id: str | None = None,
     ) -> Order:
         """국내 신용(융자/대주) 주문 -- ``price`` 를 주면 지정가, 없으면 시장가. ``credit_type`` 은
@@ -358,47 +363,47 @@ class Order:
         하므로 필수, **신규**유형(21/22/23/24)은 개시일이라 생략하면 생성 시점의 오늘(KST)로 채운다.
         신용주문은 국내(XKRX)만 가능하다."""
         order_type: OrderType = "limit" if price is not None else "market"
-        return cls._build(
+        return cls._make(
             symbol, side, order_type, quantity, limit_price=price,
             credit_type=credit_type, loan_date=loan_date,
             time_in_force=time_in_force, client_order_id=client_order_id,
         )
 
     @classmethod
-    def market(cls, symbol: str, *, side: Side, quantity: object,
+    def market(cls, symbol: str, *, side: Side, quantity: Numeric,
                time_in_force: TimeInForce = "day", exchange: str = "XKRX",
                division: DomesticDivision | None = None, board: DomesticBoard = "KRX",
                client_order_id: str | None = None) -> Order:
         """시장가 주문. ``division`` 은 국내 현금주문 전용 주문구분(최유리/최우선 등, 가격 없음).
         ``board`` 는 체결 보드(KRX/NXT/UN=SOR)."""
-        return cls._build(symbol, side, "market", quantity, time_in_force=time_in_force,
+        return cls._make(symbol, side, "market", quantity, time_in_force=time_in_force,
                           exchange=exchange, division=division, board=board,
                           client_order_id=client_order_id)
 
     @classmethod
-    def limit(cls, symbol: str, *, side: Side, quantity: object, limit_price: object,
+    def limit(cls, symbol: str, *, side: Side, quantity: Numeric, limit_price: Numeric,
               time_in_force: TimeInForce = "day", exchange: str = "XKRX",
               session: Session = "regular", division: DomesticDivision | None = None,
               board: DomesticBoard = "KRX", client_order_id: str | None = None) -> Order:
         """지정가 주문. ``session='daytime'`` 은 미국주간거래(미국 종목만). ``division`` 은 국내
         현금주문 전용 주문구분(조건부지정가 등, 가격 필요). ``board`` 는 체결 보드(KRX/NXT/UN=SOR)."""
-        return cls._build(symbol, side, "limit", quantity, limit_price=limit_price,
+        return cls._make(symbol, side, "limit", quantity, limit_price=limit_price,
                           time_in_force=time_in_force, exchange=exchange, session=session,
                           division=division, board=board, client_order_id=client_order_id)
 
     @classmethod
-    def stop(cls, symbol: str, *, side: Side, quantity: object, stop_price: object,
+    def stop(cls, symbol: str, *, side: Side, quantity: Numeric, stop_price: Numeric,
              time_in_force: TimeInForce = "day", exchange: str = "XKRX",
              client_order_id: str | None = None) -> Order:
         """스탑(역지정) 주문 -- ``stop_price`` 도달 시 시장가로 전환."""
-        return cls._build(symbol, side, "stop", quantity, stop_price=stop_price,
+        return cls._make(symbol, side, "stop", quantity, stop_price=stop_price,
                           time_in_force=time_in_force, exchange=exchange, client_order_id=client_order_id)
 
     @classmethod
-    def stop_limit(cls, symbol: str, *, side: Side, quantity: object, limit_price: object,
-                   stop_price: object, time_in_force: TimeInForce = "day", exchange: str = "XKRX",
+    def stop_limit(cls, symbol: str, *, side: Side, quantity: Numeric, limit_price: Numeric,
+                   stop_price: Numeric, time_in_force: TimeInForce = "day", exchange: str = "XKRX",
                    client_order_id: str | None = None) -> Order:
         """스탑지정가 주문 -- ``stop_price`` 도달 시 ``limit_price`` 지정가로 전환."""
-        return cls._build(symbol, side, "stop_limit", quantity, limit_price=limit_price,
+        return cls._make(symbol, side, "stop_limit", quantity, limit_price=limit_price,
                           stop_price=stop_price, time_in_force=time_in_force, exchange=exchange,
                           client_order_id=client_order_id)

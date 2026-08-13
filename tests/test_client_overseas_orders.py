@@ -319,7 +319,7 @@ def test_overseas_unknown_exchange_rejected_before_wire():
 
 def test_overseas_full_demo_tr_matrix():
     # 실전에 이어 모의 TR 도 시장 x 매수/매도 전수 검증(원장 [모의투자]).
-    from kis_openapi._overseas.orders import build_order_request
+    from kis_openapi._overseas.orders import make_order_request_from_fields
     demo = {
         ("NAS", "buy"): "VTTT1002U", ("NAS", "sell"): "VTTT1001U",
         ("TSE", "buy"): "VTTS0308U", ("TSE", "sell"): "VTTS0307U",
@@ -329,9 +329,9 @@ def test_overseas_full_demo_tr_matrix():
         ("HSX", "buy"): "VTTS0311U", ("HSX", "sell"): "VTTS0310U",
     }
     for (exchange, side), tr in demo.items():
-        wire = build_order_request(side=side, symbol="X", quantity=Decimal(1),
-                                   limit_price=Decimal(1), exchange=exchange, cano="1",
-                                   product_code="01", environment="demo")
+        wire = make_order_request_from_fields(side=side, symbol="X", quantity=Decimal(1),
+                                              limit_price=Decimal(1), exchange=exchange, cano="1",
+                                              product_code="01", environment="demo")
         assert wire.tr_id == tr
 
 

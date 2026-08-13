@@ -1,4 +1,4 @@
-"""해외 주문 요청 조립 -- build_order_request.
+"""해외 주문 요청 조립 -- make_order_request_from_fields.
 
 TR 표(시장 x 매수/매도 x 실전/모의)와 거래소코드 매핑(NAS->NASD 등), 지정가 바디, SLL_TYPE(매도만),
 정수 수량/거래소/시장가 거부를 원장 코드표에 맞게 전수 검증한다(순수 함수, 전송 없음).
@@ -10,7 +10,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi._overseas.orders import build_order_request
+from kis_openapi._overseas.orders import make_order_request_from_fields
 from kis_openapi.errors import KISUsageError
 
 
@@ -19,7 +19,7 @@ def _build(**over):
             "limit_price": Decimal("150.25"), "exchange": "NAS", "cano": "12345678",
             "product_code": "01", "environment": "real"}
     args.update(over)
-    return build_order_request(**args)
+    return make_order_request_from_fields(**args)
 
 
 def test_us_buy_real_tr_and_body():

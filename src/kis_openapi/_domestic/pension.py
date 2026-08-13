@@ -10,7 +10,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import time
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .._wire import format_wire_decimal, optional_decimal
 from ..balance import Position
@@ -23,6 +23,9 @@ from ..pension_items import (
     PensionPresentBalance,
 )
 from ..transport import Environment, Transport
+
+if TYPE_CHECKING:
+    from .._literals import Numeric
 
 _DEPOSIT_PATH = "/uapi/domestic-stock/v1/trading/pension/inquire-deposit"
 _DEPOSIT_TR = "TTTC0506R"
@@ -57,7 +60,7 @@ def fetch_deposit(
 
 def fetch_buyable_amount(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    symbol: str, limit_price: object | None = None,
+    symbol: str, limit_price: Numeric | None = None,
 ) -> PensionBuyableAmount:
     """퇴직연금 매수가능 여력. ``limit_price`` 없으면 시장가 기준. **모의투자 미지원**."""
     _reject_demo(environment, what="퇴직연금 매수가능조회(pension/inquire-psbl-order)")

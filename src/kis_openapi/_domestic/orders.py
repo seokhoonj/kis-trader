@@ -24,11 +24,11 @@ KIS URL/TR-id (국내주식):
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
-from typing import Any, TypeAlias
+from typing import Any, Protocol
 
 from ..errors import (
     AccountNotOrderableError,
@@ -54,9 +54,27 @@ _MAX_RECONCILE_PAGES = 100
 #: 국내(KRX/KOSDAQ/Nextrade) 시장 식별코드 -- 이 셋은 국내 현금주문으로 라우팅.
 _DOMESTIC_MICS = frozenset(("XKRX", "XKOS", "NXTE"))
 
-#: 주문 와이어 요청 조립기: (order, cano, product_code, environment) -> WireRequest.
-#: 안전 코어(place)는 시장 중립이고, 도메스틱/해외가 각자 이 형태의 빌더를 준다.
-BuildRequest: TypeAlias = Callable[[Order, str, str, Environment], WireRequest]
+class _PlaceRequestBuilder(Protocol):
+    """발주 와이어 빌더의 정확한 호출 계약 -- 안전 코어(:func:`place`)는 시장 중립이라 이 형태의
+    빌더를 주입받아 ``(order, cano, product_code, environment)`` 로 호출한다. 국내 현금
+    (:func:`_make_order_cash_request`)·신용(:func:`_make_credit_order_request`), 해외 정규·주간 빌더가
+    이를 만족한다. 세 문자열이 자리로만 구분되던 것을 이름 있는 계약으로 고정한다(bare ``Callable`` 대체)."""
+
+    def __call__(
+        self, order: Order, cano: str, product_code: str, environment: Environment
+    ) -> WireRequest: ...
+
+
+class _ChangeRequestBuilder(Protocol):
+    """정정·취소 와이어 빌더의 정확한 호출 계약 -- 안전 코어(:func:`submit_change`)가 주입받아 호출한다.
+    전 인자 키워드 전용이며 원주문 리포트·지문 + 변경 의도(action/수량/가격)로 조립한다. 국내
+    (:func:`_make_domestic_change_request`)·해외 정규/주간 정정취소 빌더가 이를 만족한다."""
+
+    def __call__(
+        self, *, original_report: ExecutionReport, original_fingerprint: Fingerprint,
+        action: ChangeAction, quantity: Decimal, price: Decimal | None,
+        cano: str, product_code: str, environment: Environment,
+    ) -> WireRequest: ...
 
 _ORDER_CASH_PATH = "/uapi/domestic-stock/v1/trading/order-cash"
 _ORDER_CREDIT_PATH = "/uapi/domestic-stock/v1/trading/order-credit"
@@ -86,7 +104,7 @@ _ORD_DVSN_MAP = {
 }
 
 
-def _resolve_ord_dvsn(order_type: str, division: str | None, time_in_force: str) -> str | None:
+def _resolve_ord_dvsn(*, order_type: str, division: str | None, time_in_force: str) -> str | None:
     """주문의 실제 ORD_DVSN 을 정한다 -- base=division(있으면) 아니면 order_type. **place·reconcile·정정
     이 한 리졸버를 공유**해야 division 주문이 세 경로에서 같은 코드로 해석된다(다른 유도를 쓰면 최유리(03)
     를 시장가(01)로 오인해 재확인 불가·오확정·정정 오코드 전송). 미매핑 조합은 ``None``."""
@@ -101,7 +119,7 @@ _BOARD_EXCG = {"KRX": "KRX", "NXT": "NXT", "UN": "SOR"}
 def place(
     transport: Transport, store: OrderStore, order: Order, *,
     cano: str, product_code: str, environment: Environment, orderable: bool = True,
-    risk: RiskLimits | None = None, build_request: BuildRequest | None = None,
+    risk: RiskLimits | None = None, build_request: _PlaceRequestBuilder | None = None,
 ) -> ExecutionReport:
     """주문을 안전 규칙(모듈 docstring 6단계)에 따라 전송한다.
 
@@ -243,7 +261,7 @@ def submit_change(
     cano: str,
     product_code: str,
     environment: Environment,
-    build_request: Callable[..., WireRequest] | None = None,
+    build_request: _ChangeRequestBuilder | None = None,
 ) -> ExecutionReport:
     """접수된 주문을 정정하거나 취소한다. 변경 요청도 별도 멱등키(``request_id``)로 중복 전송을 막는다.
 
@@ -396,8 +414,8 @@ def _make_domestic_change_request(
             "원주문 리포트에 한국거래소전송주문조직번호가 없어 정정·취소할 수 없다."
         )
     order_division = _resolve_ord_dvsn(
-        original_fingerprint.order_type, original_fingerprint.division,
-        original_fingerprint.time_in_force,
+        order_type=original_fingerprint.order_type, division=original_fingerprint.division,
+        time_in_force=original_fingerprint.time_in_force,
     )
     if order_division is None:
         raise KISUsageError("원주문의 주문구분을 정정·취소 와이어로 변환할 수 없다.")
@@ -443,7 +461,9 @@ def _make_order_cash_request(
         )
     # ORD_DVSN 은 리졸버로 정한다(place·reconcile·정정 공용). 미매핑 조합(예: 조건부+ioc, 스톱, gtc)은
     # 조용히 day/지정가로 바꾸지 않고 fail-closed -- 사용자의 잘못된 인자 조합이라 KISUsageError.
-    order_division = _resolve_ord_dvsn(order.order_type, order.division, order.time_in_force)
+    order_division = _resolve_ord_dvsn(
+        order_type=order.order_type, division=order.division, time_in_force=order.time_in_force
+    )
     if order_division is None:
         raise KISUsageError(
             f"지원하지 않는 주문구분/TIF 조합이다(division/order_type={order.division or order.order_type!r}, "
@@ -561,7 +581,9 @@ def _filter_matching_daily_rows(
     want_side = _SIDE_CODE[side]
     # reconcile 도 place 와 같은 리졸버로 ORD_DVSN 을 유도해야 division 주문이 자기 행에 매칭된다
     # (order_type 만으로 유도하면 최유리(03)를 01 로 찾아 무관한 시장가 행을 오확정한다).
-    want_dvsn = _resolve_ord_dvsn(order_type, fingerprint.division, fingerprint.time_in_force)
+    want_dvsn = _resolve_ord_dvsn(
+        order_type=order_type, division=fingerprint.division, time_in_force=fingerprint.time_in_force
+    )
     want_excg = _BOARD_EXCG[fingerprint.board]    # 보드 -> EXCG(KRX/NXT/SOR). 빌더와 같은 strict 조회.
     want_loan_date = fingerprint.loan_date        # 신용이면 대출일자, 현금이면 ""
     matched = []

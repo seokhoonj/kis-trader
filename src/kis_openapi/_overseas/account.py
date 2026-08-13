@@ -14,7 +14,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import time
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .._datetime import parse_optional_kst_date
 from .._response import _fetch_paginated_rows, _raise_if_error
@@ -44,6 +44,9 @@ from ..overseas_items import (
 )
 from ..transport import Environment, Transport
 from .orders import _ORDER_EXCHANGE
+
+if TYPE_CHECKING:
+    from .._literals import Numeric
 
 _POSITIONS_PATH = "/uapi/overseas-stock/v1/trading/inquire-balance"
 _POSITIONS_TR = {"real": "TTTS3012R", "demo": "VTTS3012R"}
@@ -213,7 +216,7 @@ def _parse_open_orders(
 
 def fetch_buyable_amount(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    symbol: str, exchange: str, price: object,
+    symbol: str, exchange: str, price: Numeric,
 ) -> OverseasBuyableAmount:
     """해외주식 매수가능금액. ``exchange`` 는 시세 거래소코드(NAS/NYS/AMS/HKS/SHS/SZS/TSE/HNX/HSX),
     ``price`` 는 의도한 주문단가(0보다 큰 유한값). 단발 조회(다음조회 불가)."""

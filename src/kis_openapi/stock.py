@@ -69,6 +69,7 @@ from .stock_info import StockProfile, StockStatus
 from .trade import Trade
 
 if TYPE_CHECKING:
+    from ._literals import Numeric
     from .client import KISClient
 
 
@@ -85,7 +86,7 @@ class _StockBase(abc.ABC):
 
     # --- 주문 실행(안전 엔진 위임; 계좌 정보 필요) -- 와이어 조립기만 자산군별로 다르다 ---
     def buy(
-        self, *, quantity: object, price: object | None = None,
+        self, *, quantity: Numeric, price: Numeric | None = None,
         time_in_force: TimeInForce = "day", client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 종목을 매수한다 -- ``price`` 를 주면 지정가, 없으면 시장가(해외는 지정가만).
@@ -101,7 +102,7 @@ class _StockBase(abc.ABC):
         )
 
     def sell(
-        self, *, quantity: object, price: object | None = None,
+        self, *, quantity: Numeric, price: Numeric | None = None,
         time_in_force: TimeInForce = "day", client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 종목을 매도한다 -- 계약은 :meth:`buy` 와 동일(방향만 매도)."""
@@ -111,7 +112,7 @@ class _StockBase(abc.ABC):
         )
 
     def reserve_buy(
-        self, *, quantity: object, price: object | None = None, end_date: str | None = None,
+        self, *, quantity: Numeric, price: Numeric | None = None, end_date: str | None = None,
         client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 종목의 **예약매수** -- 다음 영업일(또는 ``end_date`` 까지) 아침 동시호가에 집행되도록 예약한다.
@@ -127,7 +128,7 @@ class _StockBase(abc.ABC):
                              end_date=end_date, client_order_id=client_order_id)
 
     def reserve_sell(
-        self, *, quantity: object, price: object | None = None, end_date: str | None = None,
+        self, *, quantity: Numeric, price: Numeric | None = None, end_date: str | None = None,
         client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 종목의 **예약매도**. 계약·안전 규칙은 :meth:`reserve_buy` 와 같다(방향만 매도)."""
@@ -136,14 +137,14 @@ class _StockBase(abc.ABC):
 
     @abc.abstractmethod
     def _make_order(
-        self, side: Side, *, quantity: object, price: object | None,
+        self, side: Side, *, quantity: Numeric, price: Numeric | None,
         time_in_force: TimeInForce, client_order_id: str | None,
     ) -> Order:
         """자산군별 즉시주문 와이어 조립(서브클래스 구현)."""
 
     @abc.abstractmethod
     def _reserve(
-        self, side: Side, *, quantity: object, price: object | None, end_date: str | None,
+        self, side: Side, *, quantity: Numeric, price: Numeric | None, end_date: str | None,
         client_order_id: str | None,
     ) -> ExecutionReport:
         """자산군별 예약주문 발주(서브클래스 구현)."""
@@ -447,7 +448,7 @@ class DomesticStock(_StockBase):
         )
 
     # --- 계좌 단위(매수/매도 여력; 계좌 정보 필요) ---
-    def buyable(self, *, limit_price: object | None = None) -> BuyableAmount:
+    def buyable(self, *, limit_price: Numeric | None = None) -> BuyableAmount:
         """이 종목의 매수가능 여력(현금 기준·미수 포함 최대). ``limit_price`` 없으면 시장가 기준.
 
         계좌 정보 없이 생성한 세션이면 :class:`~kis_openapi.errors.KISUsageError`.
@@ -459,7 +460,7 @@ class DomesticStock(_StockBase):
         )
 
     def credit_buyable(
-        self, *, credit_type: CreditType = "21", limit_price: object | None = None
+        self, *, credit_type: CreditType = "21", limit_price: Numeric | None = None
     ) -> BuyableAmount:
         """이 종목의 신용(융자/대주) 매수가능 여력. ``credit_type`` 신용유형(기본 21 자기융자신규,
         22 유통대주신규/23 유통융자신규/24 자기대주신규/25~28 각 상환), ``limit_price`` 없으면 시장가
@@ -482,7 +483,7 @@ class DomesticStock(_StockBase):
 
     # --- 신용주문(국내 전용) ---
     def credit_buy(
-        self, *, quantity: object, credit_type: CreditType, price: object | None = None,
+        self, *, quantity: Numeric, credit_type: CreditType, price: Numeric | None = None,
         loan_date: str | None = None, time_in_force: TimeInForce = "day",
         client_order_id: str | None = None,
     ) -> ExecutionReport:
@@ -505,7 +506,7 @@ class DomesticStock(_StockBase):
         ))
 
     def credit_sell(
-        self, *, quantity: object, credit_type: CreditType, price: object | None = None,
+        self, *, quantity: Numeric, credit_type: CreditType, price: Numeric | None = None,
         loan_date: str | None = None, time_in_force: TimeInForce = "day",
         client_order_id: str | None = None,
     ) -> ExecutionReport:
@@ -523,7 +524,7 @@ class DomesticStock(_StockBase):
 
     # --- 주문 실행(국내 현금; KRX 주문구분 division 지원) -- _StockBase.buy/sell 을 오버라이드 ---
     def buy(
-        self, *, quantity: object, price: object | None = None,
+        self, *, quantity: Numeric, price: Numeric | None = None,
         time_in_force: TimeInForce = "day", division: DomesticDivision | None = None,
         client_order_id: str | None = None,
     ) -> ExecutionReport:
@@ -547,7 +548,7 @@ class DomesticStock(_StockBase):
         ))
 
     def sell(
-        self, *, quantity: object, price: object | None = None,
+        self, *, quantity: Numeric, price: Numeric | None = None,
         time_in_force: TimeInForce = "day", division: DomesticDivision | None = None,
         client_order_id: str | None = None,
     ) -> ExecutionReport:
@@ -558,7 +559,7 @@ class DomesticStock(_StockBase):
         ))
 
     def _make_order(
-        self, side: Side, *, quantity: object, price: object | None,
+        self, side: Side, *, quantity: Numeric, price: Numeric | None,
         time_in_force: TimeInForce, client_order_id: str | None,
     ) -> Order:
         return self._make_domestic_order(
@@ -567,7 +568,7 @@ class DomesticStock(_StockBase):
         )
 
     def _make_domestic_order(
-        self, side: Side, *, quantity: object, price: object | None,
+        self, side: Side, *, quantity: Numeric, price: Numeric | None,
         time_in_force: TimeInForce, division: DomesticDivision | None, client_order_id: str | None,
     ) -> Order:
         # 최유리/최우선은 시장이 가격을 정하므로 price 없음(order_type="market" 기반), 조건부는 가격 필요
@@ -596,7 +597,7 @@ class DomesticStock(_StockBase):
                            client_order_id=client_order_id)
 
     def _reserve(
-        self, side: Side, *, quantity: object, price: object | None, end_date: str | None,
+        self, side: Side, *, quantity: Numeric, price: Numeric | None, end_date: str | None,
         client_order_id: str | None,
     ) -> ExecutionReport:
         self._require_krx_board("예약주문")
@@ -668,7 +669,7 @@ class OverseasStock(_StockBase):
 
     # --- 미국주간거래(한국 낮 시간대; 미국 NAS/NYS/AMS 만) ---
     def daytime_buy(
-        self, *, quantity: object, price: object, client_order_id: str | None = None,
+        self, *, quantity: Numeric, price: Numeric, client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 미국 종목을 **미국주간거래**로 매수한다(한국 낮 시간대). 지정가만(``price`` 필수).
 
@@ -681,20 +682,20 @@ class OverseasStock(_StockBase):
             "buy", quantity=quantity, price=price, client_order_id=client_order_id))
 
     def daytime_sell(
-        self, *, quantity: object, price: object, client_order_id: str | None = None,
+        self, *, quantity: Numeric, price: Numeric, client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 미국 종목을 미국주간거래로 매도한다(계약은 :meth:`daytime_buy` 와 동일, 방향만 매도)."""
         return self._client._place_order(self._make_daytime_order(
             "sell", quantity=quantity, price=price, client_order_id=client_order_id))
 
     def _make_daytime_order(
-        self, side: Side, *, quantity: object, price: object, client_order_id: str | None,
+        self, side: Side, *, quantity: Numeric, price: Numeric, client_order_id: str | None,
     ) -> Order:
         return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
                            exchange=self.exchange, session="daytime", client_order_id=client_order_id)
 
     def _make_order(
-        self, side: Side, *, quantity: object, price: object | None,
+        self, side: Side, *, quantity: Numeric, price: Numeric | None,
         time_in_force: TimeInForce, client_order_id: str | None,
     ) -> Order:
         if price is None:
@@ -704,7 +705,7 @@ class OverseasStock(_StockBase):
                            exchange=self.exchange)
 
     def _reserve(
-        self, side: Side, *, quantity: object, price: object | None, end_date: str | None,
+        self, side: Side, *, quantity: Numeric, price: Numeric | None, end_date: str | None,
         client_order_id: str | None,
     ) -> ExecutionReport:
         if end_date is not None:      # 미국 예약: 지정가만, end_date 미지원

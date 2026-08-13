@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from .._domestic.orders import parse_response_decimal as _parse_response_decimal
 from .._wire import format_wire_decimal, optional_decimal
@@ -32,6 +32,9 @@ from ..store import ClaimOutcome, OrderStore
 from ..transport import Environment, Transport, TransportTimeout
 from .orders import _ORDER_EXCHANGE
 
+if TYPE_CHECKING:
+    from .._literals import Numeric
+
 _KST = timezone(timedelta(hours=9))
 
 _LIST_PATH = "/uapi/overseas-stock/v1/trading/order-resv-list"
@@ -42,7 +45,7 @@ _CANCEL_PATH = "/uapi/overseas-stock/v1/trading/order-resv-ccnl"
 _CANCEL_TR = "TTTT3017U"           # 미국 예약취소, 모의투자 미지원
 #: 연속조회 페이지 상한. 닿으면 fail-closed.
 _MAX_PAGES = 100
-_SIDE = {"01": "sell", "02": "buy"}
+_SIDE: dict[str, Side] = {"01": "sell", "02": "buy"}
 _SIDE_CODE = {"buy": "02", "sell": "01"}
 _US_MARKET = "US"
 _ORD_DVSN_LIMIT = "00"             # 지정가
@@ -51,6 +54,16 @@ _RESERVED_EXCHANGE = "overseas-reserved"
 #: reconcile 창(양방향). KIS 명세상 예약 조회일자 필드 의미가 모호해 앞뒤로 스캔한다(실 API 검증 후 축소).
 _RECONCILE_LOOKBACK_DAYS = 7
 _RECONCILE_FORWARD_DAYS = 31
+
+
+def _side_from_code(code: object) -> Side:
+    """벤더 매매구분코드(01 매도 / 02 매수)를 방향으로 -- 알 수 없는 코드는 fail-closed(:class:`KISError`).
+    ``side=""`` 로 뭉개면 buy/sell 어느 쪽도 아닌 주문 레코드가 새어 이후 오귀속/오매칭을 부른다."""
+    text = str(code or "").strip()
+    try:
+        return _SIDE[text]
+    except KeyError:
+        raise KISError(f"알 수 없는 매매구분코드: {text!r} (01 매도 / 02 매수만 유효).") from None
 
 
 def fetch_reserved_orders(
@@ -115,7 +128,7 @@ def _walk(
 # --- 미국 해외예약 발주 (뮤테이션, 안전 흐름) ------------------------------
 def place_overseas_reserved_order(
     transport: Transport, store: OrderStore, *,
-    symbol: str, side: Side, quantity: object, price: object, exchange: str,
+    symbol: str, side: Side, quantity: Numeric, price: Numeric, exchange: str,
     client_order_id: str, orderable: bool = True,
     cano: str, product_code: str, environment: Environment,
 ) -> ExecutionReport:
@@ -385,7 +398,7 @@ def _parse(row: Mapping[str, Any]) -> OverseasReservedOrder:
         executed_order_id=str(row.get("odno", "")).strip(),
         symbol=str(row.get("pdno", "")).strip(),
         name=str(row.get("prdt_name", "")).strip(),
-        side=_SIDE.get(str(row.get("sll_buy_dvsn_cd", "")).strip(), ""),
+        side=_side_from_code(row.get("sll_buy_dvsn_cd")),
         status=str(row.get("ovrs_rsvn_ord_stat_cd_name", "")).strip(),
         exchange=str(row.get("ovrs_excg_cd", "")).strip(),
         quantity=_decimal_or_zero(row, "ft_ord_qty"),
