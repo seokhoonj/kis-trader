@@ -483,6 +483,41 @@ class OverseasCollateralStock:
 
 
 @dataclass(frozen=True, slots=True)
+class OverseasCollateralSummary:
+    """해외주식 담보대출 가능종목 조회의 요약(불변).
+
+    ``loanable_count`` 는 조회 조건에 걸린 대출가능종목 수(전체 페이지 합계)다.
+    """
+
+    loanable_count: int               # 대출가능종목수
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasCollateralStockSearch:
+    """해외주식 담보대출 가능종목 목록과 요약(불변).
+
+    ``summary`` 는 조회 요약(:class:`OverseasCollateralSummary`), ``stocks`` 는 대출가능종목
+    (:class:`OverseasCollateralStock`) 튜플이다.
+    """
+
+    summary: OverseasCollateralSummary
+    stocks: tuple[OverseasCollateralStock, ...]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "stocks", tuple(self.stocks))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
 class OverseasBalancePosition:
     """해외 잔고 리포트(체결기준/결제기준)의 보유 종목 한 줄(불변). 금액은 매수통화(``currency``)
     :class:`~kis_openapi.money.Money`. ``collateral_quantity`` 는 결제기준잔고에만 채워진다(체결기준은 0).

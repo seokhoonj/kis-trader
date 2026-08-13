@@ -106,23 +106,50 @@ def _component_row(symbol="005930", name="삼성전자", price="72700", change="
             "etf_cnfg_issu_rlim": weight, "etf_vltn_amt": valuation}
 
 
-def _components_resp(rows):
+def _components_summary(*, price="37195", change="-365", sign="5", pct="-0.97",
+                        market_cap="18415000000000", nav="37200.50", nav_change="120.30",
+                        nav_sign="2", nav_pct="0.32", net_assets="4200000000000",
+                        prev_nav="37080.20", nav_open="37150.00", nav_high="37250.00",
+                        nav_low="37020.00", cu_shares="50000", component_count="200"):
+    return {"stck_prpr": price, "prdy_vrss": change, "prdy_vrss_sign": sign, "prdy_ctrt": pct,
+            "etf_cnfg_issu_avls": market_cap, "nav": nav, "nav_prdy_vrss": nav_change,
+            "nav_prdy_vrss_sign": nav_sign, "nav_prdy_ctrt": nav_pct,
+            "etf_ntas_ttam": net_assets, "prdy_clpr_nav": prev_nav, "oprc_nav": nav_open,
+            "hprc_nav": nav_high, "lprc_nav": nav_low, "etf_cu_unit_scrt_cnt": cu_shares,
+            "etf_cnfg_issu_cnt": component_count}
+
+
+def _components_resp(rows, *, summary=None):
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
-                       body={"output1": {"stck_prpr": "37195"}, "output2": rows})
+                       body={"output1": summary or _components_summary(), "output2": rows})
 
 
-def test_components_maps_fields_and_params():
-    from kis_openapi import ETFComponent
-    fake = FakeTransport(response=_components_resp([_component_row(),
-                                                    _component_row(symbol="000660", name="SK하이닉스")]))
-    comps = _client(fake).domestic.stock("069500").components()
-    assert [c.symbol for c in comps] == ["005930", "000660"]
-    first = comps[0]
+def test_components_maps_fields_summary_and_params():
+    from kis_openapi import ETFComponent, ETFComponents, ETFComponentsSummary
+    rows = [_component_row(), _component_row(symbol="000660", name="SK하이닉스")]
+    fake = FakeTransport(response=_components_resp(rows))
+    result = _client(fake).domestic.stock("069500").etf_components()
+    assert isinstance(result, ETFComponents)
+    # PARITY: .components tuple equals the former bare-list return element-for-element.
+    from kis_openapi._domestic.etf import _parse_etf_components
+    assert list(result.components) == _parse_etf_components(rows)
+    assert isinstance(result.components, tuple)
+    assert [c.symbol for c in result.components] == ["005930", "000660"]
+    first = result.components[0]
     assert isinstance(first, ETFComponent)
     assert first.name == "삼성전자"
     assert first.price == Decimal(72700)
     assert first.weight == Decimal("28.9")
     assert first.valuation == Decimal(1210000000)
+    # DELTA: the previously-discarded output1 summary is now reachable and typed.
+    assert isinstance(result.summary, ETFComponentsSummary)
+    assert result.summary.price == Decimal(37195)
+    assert result.summary.change == Decimal(-365)               # sign 5 -> 하락 -> 음수
+    assert result.summary.nav == Decimal("37200.50")
+    assert result.summary.nav_change == Decimal("120.30")
+    assert result.summary.net_assets == Decimal(4200000000000)
+    assert result.summary.cu_unit_shares == 50000
+    assert result.summary.component_count == 200
     call = fake.calls[0]
     assert call["path"] == _ETF_COMPONENTS
     assert call["tr_id"] == "FHKST121600C0"
@@ -132,15 +159,31 @@ def test_components_maps_fields_and_params():
 
 def test_components_negative_change_sign_restored():
     fake = FakeTransport(response=_components_resp([_component_row(change="300", sign="5")]))
-    comps = _client(fake).domestic.stock("069500").components()
-    assert comps[0].change == Decimal(-300)                      # 하락 -> 음수
+    result = _client(fake).domestic.stock("069500").etf_components()
+    assert result.components[0].change == Decimal(-300)          # 하락 -> 음수
 
 
 def test_components_missing_output2_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
-                                              body={"output1": {"stck_prpr": "1"}}))
+                                              body={"output1": _components_summary()}))
     with pytest.raises(KISError):
-        _client(fake).domestic.stock("069500").components()
+        _client(fake).domestic.stock("069500").etf_components()
+
+
+def test_components_missing_output1_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
+                                              body={"output2": [_component_row()]}))
+    with pytest.raises(KISError):
+        _client(fake).domestic.stock("069500").etf_components()
+
+
+def test_components_malformed_output1_fails_closed():
+    # output1 present but missing required summary fields -> fail closed on parse.
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
+                                              body={"output1": {"stck_prpr": "1"},
+                                                    "output2": [_component_row()]}))
+    with pytest.raises(KISError):
+        _client(fake).domestic.stock("069500").etf_components()
 
 
 _ETF_NAV_HISTORY = "/uapi/etfetn/v1/quotations/nav-comparison-daily-trend"

@@ -62,7 +62,7 @@ if TYPE_CHECKING:
         OverseasAlgoOrder,
         OverseasBalance,
         OverseasBuyableAmount,
-        OverseasCollateralStock,
+        OverseasCollateralStockSearch,
         OverseasCorporateAction,
         OverseasForeignMargin,
         OverseasIndustry,
@@ -652,8 +652,9 @@ class OverseasNamespace:
     def collateral_stocks(
         self, symbol: str, country: str, *, sort: str = "name", product_type: str = "",
         loanable: bool | None = None,
-    ) -> list[OverseasCollateralStock]:
-        """해외주식 담보대출 가능 여부와 적용 비율."""
+    ) -> OverseasCollateralStockSearch:
+        """해외주식 담보대출 가능종목 목록(``.stocks``)과 조회 요약(``.summary``) -- 대출 가능 여부와
+        적용 비율."""
         return overseas_reference_api.fetch_collateral_stocks(
             self._c.transport, symbol=symbol, country=country, sort=sort,
             product_type=product_type, loanable=loanable,

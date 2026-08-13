@@ -14,11 +14,13 @@ from .._response import (
     _missing_block_error,
     _raise_if_error,
 )
-from .._wire import optional_decimal
+from .._wire import optional_decimal, required_int
 from ..errors import KISError, KISUsageError
 from ..market_items import NewsHeadline
 from ..overseas_items import (
     OverseasCollateralStock,
+    OverseasCollateralStockSearch,
+    OverseasCollateralSummary,
     OverseasCorporateAction,
     OverseasNewsHeadline,
     OverseasRight,
@@ -213,14 +215,20 @@ def fetch_breaking_news(
 def fetch_collateral_stocks(
     transport: Transport, *, symbol: str, country: str, sort: str = "name",
     product_type: str = "", loanable: bool | None = None,
-) -> list[OverseasCollateralStock]:
-    """해외주식 담보대출 가능 종목과 적용 비율을 조회한다."""
+) -> OverseasCollateralStockSearch:
+    """해외주식 담보대출 가능 종목·적용 비율과 조회 요약을 조회한다.
+
+    output1(종목 목록)을 :class:`OverseasCollateralStock` 튜플로, output2(대출가능종목수)를
+    :class:`OverseasCollateralSummary` 로 담은 :class:`OverseasCollateralStockSearch` 를 돌려준다.
+    두 블록 중 하나라도 없거나 형식이 어긋나면 부분 결과 대신 fail-closed 한다."""
     if not symbol.strip() or not country.strip():
         raise KISUsageError("symbol 과 country 가 필요하다.")
     sort_code = {"name": "01", "symbol": "02"}.get(sort)
     if sort_code is None:
         raise KISUsageError("sort 는 name 또는 symbol 이어야 한다.")
     rows: list[Mapping[str, Any]] = []
+    summary_row: Mapping[str, Any] = {}
+    last_body: Mapping[str, Any] = {}
     ctx_fk, ctx_nk, tr_cont = "", "", ""
     for _page in range(100):
         resp = transport.request(
@@ -240,6 +248,7 @@ def fetch_collateral_stocks(
         if not isinstance(summary, Mapping):
             raise _missing_block_error("output2", resp)
         rows.extend(page)
+        summary_row, last_body = summary, resp.body
         ctx_fk = str(resp.body.get("ctx_area_fk100", "")).strip()
         ctx_nk = str(resp.body.get("ctx_area_nk100", "")).strip()
         if resp.tr_cont not in {"F", "M"}:
@@ -247,7 +256,7 @@ def fetch_collateral_stocks(
         tr_cont = "N"
     else:
         raise KISError("해외주식 담보대출 가능종목 조회가 100페이지 상한을 초과했다.")
-    return [OverseasCollateralStock(
+    stocks = tuple(OverseasCollateralStock(
         symbol=str(row.get("pdno", "")).strip(), name=str(row.get("ovrs_item_name", "")).strip(),
         loan_rate=optional_decimal(row.get("loan_rt"), "loan_rt"),
         maintenance_rate=optional_decimal(row.get("mgge_mntn_rt"), "mgge_mntn_rt"),
@@ -257,7 +266,17 @@ def fetch_collateral_stocks(
         market_name=str(row.get("tr_mket_name", "")).strip(), currency=str(row.get("crcy_cd", "")).strip(),
         country_name=str(row.get("natn_kor_name", "")).strip(),
         exchange=str(row.get("ovrs_excg_cd", "")).strip(), _raw=row,
-    ) for row in rows]
+    ) for row in rows)
+    return OverseasCollateralStockSearch(
+        summary=OverseasCollateralSummary(
+            loanable_count=required_int(
+                summary_row.get("loan_psbl_item_num"), "loan_psbl_item_num"
+            ),
+            _raw=summary_row,
+        ),
+        stocks=stocks,
+        _raw=last_body,
+    )
 def fetch_settlement_dates(
     transport: Transport, *, environment: Environment
 ) -> list[OverseasSettlementDate]:

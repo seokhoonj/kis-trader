@@ -189,3 +189,22 @@ class CategoryIndex:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class IndexCategories:
+    """시장 지수 요약과 그 하위 업종 지수 목록(불변).
+
+    ``summary`` 는 시장 전체 지수 스냅샷(:class:`IndexQuote`), ``categories`` 는 그 시장의 하위 업종
+    지수(:class:`CategoryIndex`) 튜플이다.
+    """
+
+    summary: IndexQuote
+    categories: tuple[CategoryIndex, ...]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "categories", tuple(self.categories))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

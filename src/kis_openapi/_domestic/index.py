@@ -54,6 +54,7 @@ from ..index_items import (
     ExpectedIndexPoint,
     ExpectedIndexQuote,
     ExpectedIndexSnapshot,
+    IndexCategories,
     IndexDailyHistory,
     IndexDailyPoint,
     IndexIntradayPoint,
@@ -548,9 +549,11 @@ def _parse_index_intraday(
     return points
 
 
-def fetch_index_categories(transport: Transport, *, code: str) -> list[CategoryIndex]:
-    """시장(``code``)의 하위 업종 지수 목록. ``code`` 는 시장 지수(0001 KOSPI/1001 KOSDAQ/2001
-    KOSPI200)여야 하며 시장구분(K/Q/K2)을 여기서 추론한다. output2를 :class:`CategoryIndex` 로."""
+def fetch_index_categories(transport: Transport, *, code: str) -> IndexCategories:
+    """시장(``code``)의 지수 요약과 하위 업종 지수 목록. ``code`` 는 시장 지수(0001 KOSPI/1001
+    KOSDAQ/2001 KOSPI200)여야 하며 시장구분(K/Q/K2)을 여기서 추론한다. output1(시장 지수)을
+    :class:`IndexQuote` 로, output2(하위 업종)를 :class:`CategoryIndex` 튜플로 담은
+    :class:`IndexCategories` 를 돌려준다. 두 블록 중 하나라도 없거나 형식이 어긋나면 fail-closed 한다."""
     market_class = _INDEX_CATEGORY_MARKET_CLASS.get(code)
     if market_class is None:
         raise KISUsageError(
@@ -569,10 +572,17 @@ def fetch_index_categories(transport: Transport, *, code: str) -> list[CategoryI
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output2")             # output1=시장 지수, output2=하위 업종 목록
+    summary_row = resp.body.get("output1")      # output1=시장 지수
+    rows = resp.body.get("output2")             # output2=하위 업종 목록
+    if not isinstance(summary_row, Mapping):    # 성공 응답인데 객체 아님 -> fail-closed
+        raise _missing_block_error("output1", resp)
     if not isinstance(rows, list):              # 성공 응답인데 목록 아님 -> fail-closed
         raise _missing_block_error("output2", resp)
-    return _parse_index_categories(rows)
+    return IndexCategories(
+        summary=_parse_index_quote(summary_row, code=code, as_of=datetime.now(_KST)),
+        categories=tuple(_parse_index_categories(rows)),
+        _raw=resp.body,
+    )
 
 
 def _parse_index_categories(rows: Sequence[Mapping[str, Any]]) -> list[CategoryIndex]:

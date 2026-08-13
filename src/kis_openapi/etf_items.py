@@ -2,9 +2,10 @@
 
 ETF/ETN 은 호가창에서 거래되는 종목이라 시세/주문은 :class:`~kis_openapi.stock.DomesticStock` 로 하고,
 ETF 고유 정보만 이 타입들로 돌려준다. :class:`ETFNAV` 는 순자산가치 스냅샷
-(:meth:`~kis_openapi.stock.DomesticStock.nav`), :class:`ETFComponent` 는 구성종목(PDF) 한 항목
-(:meth:`~kis_openapi.stock.DomesticStock.components`), :class:`ETFNAVHistoryPoint` 는 일별 NAV-가격
-추이(:meth:`~kis_openapi.stock.DomesticStock.nav_history`)의 한 점이다.
+(:meth:`~kis_openapi.stock.DomesticStock.nav`), :class:`ETFComponents` 는 구성종목(PDF) 목록과 ETF
+요약(:meth:`~kis_openapi.stock.DomesticStock.etf_components`) -- 각 항목은 :class:`ETFComponent` --,
+:class:`ETFNAVHistoryPoint` 는 일별 NAV-가격 추이(:meth:`~kis_openapi.stock.DomesticStock.nav_history`)의
+한 점이다.
 """
 
 from __future__ import annotations
@@ -67,6 +68,57 @@ class ETFComponent:
     )
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class ETFComponentsSummary:
+    """ETF 구성종목 조회의 ETF 자체 요약(불변) -- 시세·NAV·구성 규모.
+
+    구성종목 목록(:class:`ETFComponent`)과 함께 오는 output1 요약이다. ``price`` 는 ETF 시장 체결가,
+    ``nav`` 는 순자산가치, ``net_assets`` 는 ETF 순자산총액, ``components_market_cap`` 는 구성종목
+    시가총액. ``change`` / ``nav_change`` 및 각 ``*_percent`` 는 전일대비로 하락이면 음수.
+    ``cu_unit_shares`` 는 CU(설정/환매 단위) 1좌당 증권 수, ``component_count`` 는 구성종목 수.
+    """
+
+    price: Decimal                    # ETF 현재가
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    components_market_cap: Decimal    # ETF 구성종목 시가총액
+    nav: Decimal
+    nav_change: Decimal               # NAV 전일대비(부호 포함)
+    nav_change_percent: Decimal       # NAV 전일대비율(부호 포함)
+    net_assets: Decimal               # ETF 순자산총액
+    previous_nav: Decimal             # NAV 전일종가
+    nav_open: Decimal
+    nav_high: Decimal
+    nav_low: Decimal
+    cu_unit_shares: int               # CU 1단위 증권 수
+    component_count: int              # ETF 구성종목 수
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class ETFComponents:
+    """ETF 구성종목(PDF) 목록과 ETF 요약(불변).
+
+    ``summary`` 는 ETF 자체 시세·NAV·구성 규모(:class:`ETFComponentsSummary`), ``components`` 는
+    구성종목(:class:`ETFComponent`) 튜플이다.
+    """
+
+    summary: ETFComponentsSummary
+    components: tuple[ETFComponent, ...]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "components", tuple(self.components))
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 

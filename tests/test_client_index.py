@@ -527,18 +527,23 @@ def _category_row(code="0002", name="대형주", value="2700.10", change="15.0",
             "acml_tr_pbmn_rlim": amt_rlim}
 
 
-def _category_resp(rows):
+def _category_resp(rows, *, summary=None):
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
-                       body={"output1": {"bstp_nmix_prpr": "2650"}, "output2": rows})
+                       body={"output1": summary or _output(), "output2": rows})
 
 
-def test_index_categories_maps_fields_and_market_class():
-    from kis_openapi import CategoryIndex
-    fake = FakeTransport(response=_category_resp([_category_row(), _category_row(code="0003",
-                                                                                name="중형주")]))
-    cats = _client(fake).domestic.index("0001").categories()
-    assert [c.code for c in cats] == ["0002", "0003"]
-    first = cats[0]
+def test_index_categories_maps_fields_summary_and_market_class():
+    from kis_openapi import CategoryIndex, IndexCategories, IndexQuote
+    rows = [_category_row(), _category_row(code="0003", name="중형주")]
+    fake = FakeTransport(response=_category_resp(rows))
+    result = _client(fake).domestic.index("0001").categories()
+    assert isinstance(result, IndexCategories)
+    # PARITY: .categories tuple equals the former bare-list return element-for-element.
+    from kis_openapi._domestic.index import _parse_index_categories
+    assert list(result.categories) == _parse_index_categories(rows)
+    assert isinstance(result.categories, tuple)
+    assert [c.code for c in result.categories] == ["0002", "0003"]
+    first = result.categories[0]
     assert isinstance(first, CategoryIndex)
     assert first.name == "대형주"
     assert first.index_value == Decimal("2700.10")
@@ -546,6 +551,11 @@ def test_index_categories_maps_fields_and_market_class():
     assert first.change_percent == Decimal("0.56")
     assert first.volume_share == Decimal("23.4")
     assert first.amount_share == Decimal("42.9")
+    # DELTA: the previously-discarded output1 market-index summary is now reachable, typed IndexQuote.
+    assert isinstance(result.summary, IndexQuote)
+    assert result.summary.code == "0001"
+    assert result.summary.index_value == Decimal("2650.32")
+    assert (result.summary.advances, result.summary.declines) == (480, 360)
     call = fake.calls[0]
     assert call["path"] == _INDEX_CATEGORY
     assert call["tr_id"] == "FHPUP02140000"
@@ -569,6 +579,13 @@ def test_index_categories_rejects_non_market_code():
 
 def test_index_categories_missing_output2_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
-                                              body={"output1": {"bstp_nmix_prpr": "2650"}}))
+                                              body={"output1": _output()}))
+    with pytest.raises(KISError):
+        _client(fake).domestic.index("0001").categories()
+
+
+def test_index_categories_missing_output1_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
+                                              body={"output2": [_category_row()]}))
     with pytest.raises(KISError):
         _client(fake).domestic.index("0001").categories()

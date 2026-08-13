@@ -41,7 +41,7 @@ from .broker import BrokerActivitySummary, BrokerDailyActivity, BrokerTradeTicks
 from .errors import KISUsageError
 from .etf_items import (
     ETFNAV,
-    ETFComponent,
+    ETFComponents,
     ETFNAVComparison,
     ETFNAVHistoryPoint,
     ETFNAVMinutePoint,
@@ -435,8 +435,9 @@ class DomesticStock(_StockBase):
         """ETF 10단계 호가와 LP 잔량·잔량 증감·중간가."""
         return etf_api.fetch_etf_order_book(self._client.transport, symbol=self.symbol)
 
-    def components(self) -> list[ETFComponent]:
-        """ETF 구성종목(PDF) 목록 -- 각 구성종목의 시세·ETF 내 구성 비중·평가금액."""
+    def etf_components(self) -> ETFComponents:
+        """ETF 구성종목(PDF)과 ETF 요약. ``.summary`` 는 ETF 시세·NAV·구성 규모, ``.components`` 는
+        각 구성종목의 시세·ETF 내 구성 비중·평가금액."""
         return etf_api.fetch_etf_components(self._client.transport, symbol=self.symbol)
 
     def nav_history(self, *, start: str | date, end: str | date) -> list[ETFNAVHistoryPoint]:

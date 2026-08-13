@@ -43,6 +43,8 @@ from ..errors import KISUsageError
 from ..etf_items import (
     ETFNAV,
     ETFComponent,
+    ETFComponents,
+    ETFComponentsSummary,
     ETFNAVComparison,
     ETFNAVHistoryPoint,
     ETFNAVMinutePoint,
@@ -268,9 +270,11 @@ def fetch_etf_order_book(transport: Transport, *, symbol: str) -> ETFOrderBook:
     )
 
 
-def fetch_etf_components(transport: Transport, *, symbol: str) -> list[ETFComponent]:
-    """ETF 구성종목(PDF) 목록. ``symbol`` 이 ETF 가 아니면 서버가 거부한다. output2를
-    :class:`ETFComponent` 리스트로 돌려준다."""
+def fetch_etf_components(transport: Transport, *, symbol: str) -> ETFComponents:
+    """ETF 구성종목(PDF) 목록과 ETF 요약. ``symbol`` 이 ETF 가 아니면 서버가 거부한다. output1(ETF
+    시세·NAV·구성 규모)을 :class:`ETFComponentsSummary` 로, output2(구성종목)를 :class:`ETFComponent`
+    튜플로 담은 :class:`ETFComponents` 를 돌려준다. 두 블록 중 하나라도 없거나 형식이 어긋나면
+    부분 결과 대신 fail-closed 한다."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _ETF_MARKET_DIV,
         "FID_INPUT_ISCD": symbol,
@@ -281,10 +285,47 @@ def fetch_etf_components(transport: Transport, *, symbol: str) -> list[ETFCompon
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output2")            # output1=ETF 요약, output2=구성종목 목록
+    summary_row = resp.body.get("output1")     # output1=ETF 요약
+    rows = resp.body.get("output2")            # output2=구성종목 목록
+    if not isinstance(summary_row, Mapping):   # 성공 응답인데 객체 아님 -> fail-closed
+        raise _missing_block_error("output1", resp)
     if not isinstance(rows, list):             # 성공 응답인데 목록 아님 -> fail-closed
         raise _missing_block_error("output2", resp)
-    return _parse_etf_components(rows)
+    return ETFComponents(
+        summary=_parse_etf_components_summary(summary_row),
+        components=tuple(_parse_etf_components(rows)),
+        _raw=resp.body,
+    )
+
+
+def _parse_etf_components_summary(row: Mapping[str, Any]) -> ETFComponentsSummary:
+    price_sign = str(row.get("prdy_vrss_sign", "")).strip()
+    nav_sign = str(row.get("nav_prdy_vrss_sign", "")).strip()
+    return ETFComponentsSummary(
+        price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+        change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), price_sign),
+        change_percent=_apply_change_sign(
+            required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), price_sign
+        ),
+        components_market_cap=required_decimal(
+            row.get("etf_cnfg_issu_avls"), "etf_cnfg_issu_avls"
+        ),
+        nav=required_decimal(row.get("nav"), "nav"),
+        nav_change=_apply_change_sign(
+            required_decimal(row.get("nav_prdy_vrss"), "nav_prdy_vrss"), nav_sign
+        ),
+        nav_change_percent=_apply_change_sign(
+            required_decimal(row.get("nav_prdy_ctrt"), "nav_prdy_ctrt"), nav_sign
+        ),
+        net_assets=required_decimal(row.get("etf_ntas_ttam"), "etf_ntas_ttam"),
+        previous_nav=required_decimal(row.get("prdy_clpr_nav"), "prdy_clpr_nav"),
+        nav_open=required_decimal(row.get("oprc_nav"), "oprc_nav"),
+        nav_high=required_decimal(row.get("hprc_nav"), "hprc_nav"),
+        nav_low=required_decimal(row.get("lprc_nav"), "lprc_nav"),
+        cu_unit_shares=required_int(row.get("etf_cu_unit_scrt_cnt"), "etf_cu_unit_scrt_cnt"),
+        component_count=required_int(row.get("etf_cnfg_issu_cnt"), "etf_cnfg_issu_cnt"),
+        _raw=row,
+    )
 
 
 def _parse_etf_components(rows: Sequence[Mapping[str, Any]]) -> list[ETFComponent]:
