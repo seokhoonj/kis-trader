@@ -117,7 +117,7 @@ kis.domestic.stock("005930").credit_buy(quantity=10, credit_type="…", limit_pr
 주문 나가기 전에 미리 걸러주는 안전망. 옵션입니다.
 
 ```python
-from kis_openapi import RiskLimits
+from kis_trader import RiskLimits
 from decimal import Decimal
 
 kis = KISClient(…, risk=RiskLimits(

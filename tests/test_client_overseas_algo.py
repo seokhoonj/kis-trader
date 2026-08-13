@@ -12,9 +12,9 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KISClient, OverseasAlgoExecution, OverseasAlgoOrder
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader import KISClient, OverseasAlgoExecution, OverseasAlgoOrder
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _ORDNO = "/uapi/overseas-stock/v1/trading/algo-ordno"
 _CCNL = "/uapi/overseas-stock/v1/trading/inquire-algo-ccnl"

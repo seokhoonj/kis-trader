@@ -12,8 +12,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import ExecutionReport, KISClient, OrderStatus, OrderStore
-from kis_openapi.errors import (
+from kis_trader import ExecutionReport, KISClient, OrderStatus, OrderStore
+from kis_trader.errors import (
     AccountNotOrderableError,
     KISError,
     KISUsageError,
@@ -21,7 +21,7 @@ from kis_openapi.errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from kis_openapi.transport import RawResponse, TransportTimeout
+from kis_trader.transport import RawResponse, TransportTimeout
 
 
 class _FrozenDatetime(_dt.datetime):
@@ -357,7 +357,7 @@ def test_reserve_reconcile_rejects_partial_match(changed):
 
 
 def test_reserve_reconcile_window_and_process_params(monkeypatch):
-    monkeypatch.setattr("kis_openapi._domestic.reserved_orders.datetime", _FrozenDatetime)
+    monkeypatch.setattr("kis_trader._domestic.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
     cid = "20240101-reserved-win01"
     place_t = FakeTransport(raises=TransportTimeout("t"))

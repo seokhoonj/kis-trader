@@ -8,8 +8,8 @@ from __future__ import annotations
 
 import pytest
 
-from kis_openapi import InstrumentRecord, KISClient, MasterIndex
-from kis_openapi.errors import KISUsageError
+from kis_trader import InstrumentRecord, KISClient, MasterIndex
+from kis_trader.errors import KISUsageError
 
 
 class FakeTransport:

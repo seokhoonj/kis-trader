@@ -11,9 +11,9 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import AfterHoursQuote, KISClient
-from kis_openapi.errors import KISError
-from kis_openapi.transport import RawResponse
+from kis_trader import AfterHoursQuote, KISClient
+from kis_trader.errors import KISError
+from kis_trader.transport import RawResponse
 
 _PATH = "/uapi/domestic-stock/v1/quotations/inquire-overtime-price"
 
@@ -121,7 +121,7 @@ def test_after_hours_conclusions_maps_output2():
              "prdy_vrss_sign": "5", "prdy_ctrt": "-2.41", "askp": "2840", "bidp": "2835",
              "acml_vol": "68086", "cntg_vol": "12865"}]
     fake = FakeTransport(response=_resp2(rows))
-    from kis_openapi import AfterHoursConclusion
+    from kis_trader import AfterHoursConclusion
     pts = _client(fake).domestic.stock("005930").after_hours_conclusions()
     assert isinstance(pts[0], AfterHoursConclusion)
     assert pts[0].price == Decimal(2835)
@@ -144,7 +144,7 @@ def test_after_hours_daily_maps_output2():
              "ovtm_untp_prdy_ctrt": "0.47", "ovtm_untp_vol": "12740",
              "ovtm_untp_tr_pbmn": "1348318000"}]
     fake = FakeTransport(response=_resp2(rows))
-    from kis_openapi import AfterHoursDailyPrice
+    from kis_trader import AfterHoursDailyPrice
     pts = _client(fake).domestic.stock("005930").after_hours_daily()
     assert isinstance(pts[0], AfterHoursDailyPrice)
     assert pts[0].price == Decimal(106000)

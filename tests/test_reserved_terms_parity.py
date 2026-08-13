@@ -11,13 +11,13 @@ import threading
 
 import pytest
 
-from kis_openapi import KISClient
-from kis_openapi._domestic.reserved_orders import (
+from kis_trader import KISClient
+from kis_trader._domestic.reserved_orders import (
     _coerce_reserved_order_terms,
     _make_reserved_order_fields,
 )
-from kis_openapi.errors import KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader.errors import KISUsageError
+from kis_trader.transport import RawResponse
 
 _PLACE = "/uapi/domestic-stock/v1/trading/order-resv"
 _CHANGE = "/uapi/domestic-stock/v1/trading/order-resv-rvsecncl"

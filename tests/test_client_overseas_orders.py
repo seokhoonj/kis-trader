@@ -11,9 +11,9 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import ExecutionReport, KISClient, RiskLimits
-from kis_openapi.errors import KISError, KISUsageError, OrderTimeoutError
-from kis_openapi.transport import RawResponse, TransportTimeout
+from kis_trader import ExecutionReport, KISClient, RiskLimits
+from kis_trader.errors import KISError, KISUsageError, OrderTimeoutError
+from kis_trader.transport import RawResponse, TransportTimeout
 
 _ORDER = "/uapi/overseas-stock/v1/trading/order"
 _ORDER_CHANGE = "/uapi/overseas-stock/v1/trading/order-rvsecncl"
@@ -109,7 +109,7 @@ def test_overseas_cancel_maps_exchange_and_deduplicates():
         "original-overseas-1", quantity=2, request_id="cancel-overseas-1"
     )
 
-    from kis_openapi import OrderStatus
+    from kis_trader import OrderStatus
     assert first.status is OrderStatus.PENDING_CANCEL
     assert second == first
     assert len(_posts(fake)) == 2
@@ -136,7 +136,7 @@ def test_overseas_replace_uses_demo_tr_and_new_price():
         request_id="modify-overseas-1",
     )
 
-    from kis_openapi import OrderStatus
+    from kis_trader import OrderStatus
     assert report.status is OrderStatus.PENDING_REPLACE
     call = _posts(fake)[1]
     assert call["tr_id"] == "VTTT1004U"
@@ -154,7 +154,7 @@ def test_overseas_modify_rebinds_client_order_id_to_new_odno():
     원장 검증('해외주식 정정취소주문' output): 응답 output = {KRX_FWDG_ORD_ORGNO, ODNO, ORD_TMD}
     로 국내와 동일 구조이며 ODNO 는 "채번된 주문번호"(정정 시 새 번호)다. 아래 _ack() 픽스처가
     그 실필드(KRX_FWDG_ORD_ORGNO/ODNO/ORD_TMD)를 그대로 쓴다."""
-    from kis_openapi import OrderStatus
+    from kis_trader import OrderStatus
     fake = FakeTransport(on_post=[_ack("0000123456"), _ack("0000123499"), _ack("0000123499")])
     kis = _client(fake)
     kis.overseas.stock("AAPL", exchange="NAS").buy(
@@ -251,8 +251,8 @@ def test_overseas_reconcile_date_window_is_deterministic():
     # reconcile 날짜창은 주입 시각(now) 기준으로 결정적 -- 벽시계에 의존하지 않는다.
     from datetime import datetime, timezone
 
-    from kis_openapi._overseas import orders as engine
-    from kis_openapi.store import OrderStore
+    from kis_trader._overseas import orders as engine
+    from kis_trader.store import OrderStore
     kst = timezone(__import__("datetime").timedelta(hours=9))
     store = OrderStore()
     order = _client(FakeTransport(response=_ack())).overseas.stock(
@@ -319,7 +319,7 @@ def test_overseas_unknown_exchange_rejected_before_wire():
 
 def test_overseas_full_demo_tr_matrix():
     # 실전에 이어 모의 TR 도 시장 x 매수/매도 전수 검증(원장 [모의투자]).
-    from kis_openapi._overseas.orders import make_order_request_from_fields
+    from kis_trader._overseas.orders import make_order_request_from_fields
     demo = {
         ("NAS", "buy"): "VTTT1002U", ("NAS", "sell"): "VTTT1001U",
         ("TSE", "buy"): "VTTS0308U", ("TSE", "sell"): "VTTS0307U",

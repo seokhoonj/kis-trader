@@ -4,7 +4,7 @@
 주문·계좌·순위까지, 증권사 URL을 외울 필요 없이 **자산군별로 정리된 메서드** 하나로 부릅니다.
 
 ```python
-from kis_openapi import KISClient
+from kis_trader import KISClient
 
 kis = KISClient(app_key="…", app_secret="…", account="12345678-01")
 

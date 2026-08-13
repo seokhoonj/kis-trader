@@ -11,14 +11,14 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import (
+from kis_trader import (
     BrokerActivitySummary,
     BrokerDailyActivity,
     BrokerTradeTicks,
     KISClient,
 )
-from kis_openapi.errors import KISError
-from kis_openapi.transport import RawResponse
+from kis_trader.errors import KISError
+from kis_trader.transport import RawResponse
 
 _MEMBER_PATH = "/uapi/domestic-stock/v1/quotations/inquire-member"
 

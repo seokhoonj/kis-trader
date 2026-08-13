@@ -6,9 +6,9 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KISClient, OverseasRankingQueries, RankedOverseasStock
-from kis_openapi.errors import KISError
-from kis_openapi.transport import RawResponse
+from kis_trader import KISClient, OverseasRankingQueries, RankedOverseasStock
+from kis_trader.errors import KISError
+from kis_trader.transport import RawResponse
 
 
 class FakeTransport:
@@ -99,7 +99,7 @@ def test_by_amount_growth_market_cap_route_correctly():
 def test_by_change_gubn_and_bad_top():
     import pytest as _pytest
 
-    from kis_openapi.errors import KISUsageError as _U
+    from kis_trader.errors import KISUsageError as _U
     row = [{"rank": "1", "excd": "NAS", "symb": "T", "name": "n", "ename": "N", "last": "1",
             "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
     fake = FakeTransport(response=_one(row))
@@ -157,7 +157,7 @@ def test_price_fluct_and_new_highlow_gubn_codes():
 def test_overseas_ranking_bad_top_raises():
     import pytest
 
-    from kis_openapi.errors import KISUsageError
+    from kis_trader.errors import KISUsageError
     fake = FakeTransport(response=_one([]))
     with pytest.raises(KISUsageError):
         _client(fake).overseas.ranking.by_price_fluctuation(exchange="NAS", top="nope")

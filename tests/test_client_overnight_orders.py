@@ -11,9 +11,9 @@ import threading
 
 import pytest
 
-from kis_openapi import ExecutionReport, KISClient, Order, OrderStatus, OrderStore
-from kis_openapi.errors import KISUsageError, OrderTimeoutError
-from kis_openapi.transport import RawResponse, TransportTimeout
+from kis_trader import ExecutionReport, KISClient, Order, OrderStatus, OrderStore
+from kis_trader.errors import KISUsageError, OrderTimeoutError
+from kis_trader.transport import RawResponse, TransportTimeout
 
 _DAYTIME_ORDER = "/uapi/overseas-stock/v1/trading/daytime-order"
 _DAYTIME_CHANGE = "/uapi/overseas-stock/v1/trading/daytime-order-rvsecncl"

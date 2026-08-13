@@ -11,8 +11,8 @@ import zipfile
 
 import pytest
 
-from kis_openapi._fsutil import atomic_write_bytes
-from kis_openapi._masters import (
+from kis_trader._fsutil import atomic_write_bytes
+from kis_trader._masters import (
     InstrumentRecord,
     MasterIndex,
     download_overseas_master,
@@ -21,7 +21,7 @@ from kis_openapi._masters import (
     load_overseas_master,
     parse_overseas_master,
 )
-from kis_openapi.errors import KISError, KISUsageError
+from kis_trader.errors import KISError, KISUsageError
 
 
 def _row(*, exchange, symbol, rsym, korean, english, stis, currency):
@@ -233,7 +233,7 @@ def test_load_master_parity_after_hardening(tmp_path):
 
 def test_atomic_write_leaves_no_stray_temp_on_failure(tmp_path, monkeypatch):
     """os.replace 가 실패해도 임시파일이 남지 않는다(실패 시 청소)."""
-    import kis_openapi._fsutil as fsutil
+    import kis_trader._fsutil as fsutil
 
     target = tmp_path / "artifact.bin"
 

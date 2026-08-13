@@ -12,15 +12,15 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import (
+from kis_trader import (
     KISClient,
     PensionBalance,
     PensionOrder,
     PensionPresentBalance,
     Position,
 )
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/pension/inquire-balance"
 _PRESENT_PATH = "/uapi/domestic-stock/v1/trading/pension/inquire-present-balance"

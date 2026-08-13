@@ -11,9 +11,9 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KISClient, RankedStock
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader import KISClient, RankedStock
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _FLUCTUATION = "/uapi/domestic-stock/v1/ranking/fluctuation"
 _VOLUME = "/uapi/domestic-stock/v1/quotations/volume-rank"
@@ -333,7 +333,7 @@ def _dividend_row(rank="1", sht_cd="089600", name="나스미디어", record_date
 def test_by_dividend_maps_fields_and_params():
     from datetime import date as _date
 
-    from kis_openapi import DividendRanking
+    from kis_trader import DividendRanking
     fake = FakeTransport(response=_resp([_dividend_row()]))
     ranked = _client(fake).domestic.ranking.by_dividend(kind="cash", start="20200101", end="20240403")
     assert len(ranked) == 1
@@ -393,7 +393,7 @@ def _short_row(symbol="138930", name="BNK금융지주", price="7760", change="60
 
 
 def test_by_short_sale_maps_fields_and_synthesizes_rank():
-    from kis_openapi import ShortSaleRanking
+    from kis_trader import ShortSaleRanking
     fake = FakeTransport(response=_resp([_short_row(), _short_row(symbol="000660")]))
     ranked = _client(fake).domestic.ranking.by_short_sale()
     assert [r.rank for r in ranked] == [1, 2]                   # 응답 순서로 순위
@@ -451,7 +451,7 @@ def _credit_resp(rows):
 
 
 def test_by_credit_balance_parses_output2_and_synthesizes_rank():
-    from kis_openapi import CreditBalanceRanking
+    from kis_trader import CreditBalanceRanking
     fake = FakeTransport(response=_credit_resp([_credit_row(), _credit_row(symbol="000660")]))
     ranked = _client(fake).domestic.ranking.by_credit_balance()
     assert [r.rank for r in ranked] == [1, 2]
@@ -510,7 +510,7 @@ def _near_row(symbol="003560", name="IHQ", price="10760", change="-100", sign="5
 
 
 def test_by_near_high_low_high_side():
-    from kis_openapi import NearHighLowRanking
+    from kis_trader import NearHighLowRanking
     fake = FakeTransport(response=_resp([_near_row()]))
     ranked = _client(fake).domestic.ranking.by_near_high_low()
     first = ranked[0]

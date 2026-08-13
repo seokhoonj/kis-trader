@@ -12,10 +12,10 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KISClient, OpenOrder
-from kis_openapi._domestic import account as account_module
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader import KISClient, OpenOrder
+from kis_trader._domestic import account as account_module
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-rvsecncl"
 

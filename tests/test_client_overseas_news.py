@@ -1,7 +1,7 @@
 """해외뉴스 종합과 해외속보 제목 조회."""
 
-from kis_openapi import KISClient, NewsHeadline, OverseasNewsHeadline
-from kis_openapi.transport import RawResponse
+from kis_trader import KISClient, NewsHeadline, OverseasNewsHeadline
+from kis_trader.transport import RawResponse
 
 
 class FakeTransport:

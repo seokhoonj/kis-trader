@@ -11,9 +11,9 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KISClient, Quote
-from kis_openapi.errors import KISError
-from kis_openapi.transport import RawResponse
+from kis_trader import KISClient, Quote
+from kis_trader.errors import KISError
+from kis_trader.transport import RawResponse
 
 _OVERSEAS_PRICE = "/uapi/overseas-price/v1/quotations/price-detail"
 
@@ -95,7 +95,7 @@ def test_overseas_current_price_maps_compact_endpoint():
     }
     fake = FakeTransport(response=_resp(output))
 
-    from kis_openapi import OverseasCurrentPrice
+    from kis_trader import OverseasCurrentPrice
     price = _client(fake).overseas.stock("AAPL", exchange="NAS").current_price()
 
     assert isinstance(price, OverseasCurrentPrice)
@@ -132,7 +132,7 @@ def test_overseas_stock_is_overseas_flag():
 
 
 def test_bare_symbol_auto_resolves_exchange():
-    from kis_openapi import InstrumentRecord, MasterIndex
+    from kis_trader import InstrumentRecord, MasterIndex
     index = MasterIndex([InstrumentRecord("AAPL", "NAS", "USD", "stock", "애플", "APPLE", "NASAAPL")])
     fake = FakeTransport(response=_resp(_output()))
     client = KISClient(app_key="k", app_secret="s", transport=fake, master_index=index)

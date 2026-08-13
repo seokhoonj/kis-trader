@@ -7,11 +7,11 @@ from typing import Any
 
 import pytest
 
-from kis_openapi._auth import TokenManager
-from kis_openapi._http import RequestsTransport
-from kis_openapi.client import KISClient
-from kis_openapi.errors import KISAuthError, KISError, KISRateLimitError
-from kis_openapi.transport import TransportTimeout
+from kis_trader._auth import TokenManager
+from kis_trader._http import RequestsTransport
+from kis_trader.client import KISClient
+from kis_trader.errors import KISAuthError, KISError, KISRateLimitError
+from kis_trader.transport import TransportTimeout
 
 
 def _token_manager(tmp_path: Any, environment: str = "real") -> TokenManager:
@@ -123,7 +123,7 @@ def test_client_throttle_false_disables_rate_limiter(tmp_path: Any) -> None:
 
 def test_client_requests_per_second_override(tmp_path: Any) -> None:
     # override 시 그 한도로 리미터를 구성한다(초당 3건 -> 4번째 대기).
-    from kis_openapi._ratelimit import SlidingWindowRateLimiter
+    from kis_trader._ratelimit import SlidingWindowRateLimiter
 
     kis = KISClient(app_key="k", app_secret="s", requests_per_second=3)
     limiter = kis.transport._rate_limiter

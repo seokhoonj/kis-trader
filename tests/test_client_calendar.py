@@ -12,9 +12,9 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import DividendEvent, KISClient
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader import DividendEvent, KISClient
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 
 class FakeTransport:
@@ -128,7 +128,7 @@ def test_ipo_subscriptions_maps_slash_dates_and_text_period():
              "pub_bf_cap": "     1141762", "pub_af_cap": "       62500", "assign_stk_qty": "  0"}]
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                                               body={"output1": rows}))
-    from kis_openapi import IPOSubscription
+    from kis_trader import IPOSubscription
     events = _client(fake).domestic.calendar.ipo_subscriptions(start="20240301", end="20240331")
     assert isinstance(events[0], IPOSubscription)
     e = events[0]
@@ -153,7 +153,7 @@ def test_rights_offerings_maps_and_basis():
              "sub_term": "2024/03/25 ~ 2024/03/26", "list_date": "", "stk_kind": "01"}]
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                                               body={"output1": rows}))
-    from kis_openapi import RightsOffering
+    from kis_trader import RightsOffering
     events = _client(fake).domestic.calendar.rights_offerings(
         start="20240201", end="20240229", offering_date_basis="record"
     )
@@ -187,7 +187,7 @@ def test_bonus_issues_maps_and_params():
              "odd_pay_dt": "", "list_date": "", "tot_issue_stk_qty": "     1885394",
              "issue_stk_qty": "    18853940", "stk_kind": "01"}]
     fake = FakeTransport(response=_resp(rows))
-    from kis_openapi import BonusIssue
+    from kis_trader import BonusIssue
     events = _client(fake).domestic.calendar.bonus_issues(start="20240301", end="20240331")
     assert isinstance(events[0], BonusIssue)
     e = events[0]
@@ -216,7 +216,7 @@ def test_capital_reductions_maps_and_params():
              "comp_way": "곱하기", "td_stop_dt": "2024/03/14 ~ 2024/03/31",
              "list_dt": "2024/04/01"}]
     fake = FakeTransport(response=_resp(rows))
-    from kis_openapi import CapitalReduction
+    from kis_trader import CapitalReduction
     events = _client(fake).domestic.calendar.capital_reductions(start="20240301", end="20240331")
     assert isinstance(events[0], CapitalReduction)
     e = events[0]
@@ -245,7 +245,7 @@ def test_merger_splits_maps_and_params():
              "odd_amt_pay_dt": "2024/04/05", "tot_issue_stk_qty": "           0",
              "issue_stk_qty": "           0", "seq": "00"}]
     fake = FakeTransport(response=_resp(rows))
-    from kis_openapi import MergerSplit
+    from kis_trader import MergerSplit
     events = _client(fake).domestic.calendar.merger_splits(start="20240301", end="20240331")
     assert isinstance(events[0], MergerSplit)
     e = events[0]
@@ -274,7 +274,7 @@ def test_shareholder_meetings_maps_and_params():
              "gen_meet_type": "임시총회", "agenda": "정관변경",
              "vote_tot_qty": "      959800"}]
     fake = FakeTransport(response=_resp(rows))
-    from kis_openapi import ShareholderMeeting
+    from kis_trader import ShareholderMeeting
     events = _client(fake).domestic.calendar.shareholder_meetings(
         start="20240301", end="20240331", symbol="388370"
     )
@@ -303,7 +303,7 @@ def test_mandatory_deposits_maps_and_params():
              "depo_date": "2024/03/26 ~ 2025/03/26", "depo_reason": "모집매출",
              "tot_issue_qty_per_rate": "10000"}]
     fake = FakeTransport(response=_resp(rows))
-    from kis_openapi import MandatoryDeposit
+    from kis_trader import MandatoryDeposit
     events = _client(fake).domestic.calendar.mandatory_deposits(
         start="20240301", end="20240331", symbol="27322R"
     )
@@ -332,7 +332,7 @@ def test_listings_maps_and_params():
              "issue_stk_qty": "   142184300", "tot_issue_stk_qty": "   500000000",
              "issue_price": "     9090"}]
     fake = FakeTransport(response=_resp(rows))
-    from kis_openapi import ListingEvent
+    from kis_trader import ListingEvent
     events = _client(fake).domestic.calendar.listings(
         start="20240301", end="20240331", symbol="034220"
     )
@@ -361,7 +361,7 @@ def test_par_value_changes_maps_and_params():
              "inter_bf_face_amt": "000005000", "inter_af_face_amt": "000001000",
              "td_stop_dt": "2023/08/22 ~ 2023/08/27", "list_dt": "2023/08/28"}]
     fake = FakeTransport(response=_resp(rows))
-    from kis_openapi import ParValueChange
+    from kis_trader import ParValueChange
     events = _client(fake).domestic.calendar.par_value_changes(
         start="20230801", end="20230831", symbol="001390"
     )
@@ -390,7 +390,7 @@ def test_forfeited_shares_maps_and_params():
              "subscr_stk_qty": "    62000000", "refund_dt": "2024/03/19",
              "list_dt": "2024/04/02", "lead_mgr": "케이비증권,미래에셋증권,"}]
     fake = FakeTransport(response=_resp(rows))
-    from kis_openapi import ForfeitedShares
+    from kis_trader import ForfeitedShares
     events = _client(fake).domestic.calendar.forfeited_shares(start="20240101", end="20240131")
     assert isinstance(events[0], ForfeitedShares)
     e = events[0]
@@ -417,7 +417,7 @@ def test_appraisal_rights_maps_and_params():
              "buy_req_rcpt_term": "", "buy_req_price": "000000000000",
              "buy_amt_pay_dt": "", "get_meet_dt": ""}]
     fake = FakeTransport(response=_resp(rows))
-    from kis_openapi import AppraisalRights
+    from kis_trader import AppraisalRights
     events = _client(fake).domestic.calendar.appraisal_rights(start="20240301", end="20240331")
     assert isinstance(events[0], AppraisalRights)
     e = events[0]

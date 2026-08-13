@@ -10,7 +10,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import (
+from kis_trader import (
     Balance,
     BuyableAmount,
     KISClient,
@@ -18,9 +18,9 @@ from kis_openapi import (
     Position,
     SellableQuantity,
 )
-from kis_openapi._domestic import account as account_module
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader._domestic import account as account_module
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
 _BUYABLE_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-order"

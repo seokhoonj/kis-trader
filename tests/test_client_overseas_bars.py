@@ -11,8 +11,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, KISClient
-from kis_openapi.transport import RawResponse
+from kis_trader import Bar, KISClient
+from kis_trader.transport import RawResponse
 
 _OVERSEAS_BARS = "/uapi/overseas-price/v1/quotations/dailyprice"
 
@@ -148,6 +148,6 @@ def test_overseas_minute_bars_missing_output2_fails_closed():
     class Bad:
         def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
             return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}})
-    from kis_openapi.errors import KISError
+    from kis_trader.errors import KISError
     with pytest.raises(KISError):
         _client(Bad()).overseas.stock("TSLA", exchange="NAS").bars(interval="1m")

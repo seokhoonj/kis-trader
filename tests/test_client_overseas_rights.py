@@ -3,8 +3,8 @@
 from datetime import date
 from decimal import Decimal
 
-from kis_openapi import KISClient, OverseasCorporateAction, OverseasRight
-from kis_openapi.transport import RawResponse
+from kis_trader import KISClient, OverseasCorporateAction, OverseasRight
+from kis_trader.transport import RawResponse
 
 
 class FakeTransport:

@@ -7,11 +7,11 @@ import time
 
 import pytest
 
-from kis_openapi._ratelimit import (
+from kis_trader._ratelimit import (
     DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT,
     SlidingWindowRateLimiter,
 )
-from kis_openapi.errors import KISError
+from kis_trader.errors import KISError
 
 
 class FakeClock:

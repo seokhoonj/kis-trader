@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import (
+from kis_trader import (
     BrokerOpinion,
     CreditEligibleStock,
     InterestRateQuote,
@@ -19,8 +19,8 @@ from kis_openapi import (
     MarketInvestorSnapshot,
     ProgramInvestorTrade,
 )
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 
 class FakeTransport:
@@ -485,7 +485,7 @@ def _prog_row(**over):
 
 
 def test_program_trade_summary_maps_smtn_fields():
-    from kis_openapi import ProgramTradeSummary
+    from kis_trader import ProgramTradeSummary
     fake = FakeTransport(response=_resp([_prog_row()]))
     s = _client(fake).domestic.market.program_trades(market="KOSPI", start="20240101", end="20240513")[0]
     assert isinstance(s, ProgramTradeSummary)

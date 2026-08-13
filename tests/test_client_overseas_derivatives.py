@@ -11,15 +11,15 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import (
+from kis_trader import (
     Bar,
     KISClient,
     OverseasDerivativeQuote,
     OverseasFuturesOpenInterest,
     Trade,
 )
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _FUT = "/uapi/overseas-futureoption/v1/quotations/inquire-price"
 _OPT = "/uapi/overseas-futureoption/v1/quotations/opt-price"

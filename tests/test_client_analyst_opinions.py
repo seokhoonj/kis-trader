@@ -6,9 +6,9 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import AnalystOpinion, KISClient
-from kis_openapi.errors import KISError
-from kis_openapi.transport import RawResponse
+from kis_trader import AnalystOpinion, KISClient
+from kis_trader.errors import KISError
+from kis_trader.transport import RawResponse
 
 
 class FakeTransport:

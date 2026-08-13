@@ -11,10 +11,10 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KISClient
-from kis_openapi.errors import KISError
-from kis_openapi.order_book import OrderBook
-from kis_openapi.transport import RawResponse
+from kis_trader import KISClient
+from kis_trader.errors import KISError
+from kis_trader.order_book import OrderBook
+from kis_trader.transport import RawResponse
 
 _FUT = "/uapi/overseas-futureoption/v1/quotations/inquire-asking-price"
 _OPT = "/uapi/overseas-futureoption/v1/quotations/opt-asking-price"

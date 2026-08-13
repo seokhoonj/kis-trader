@@ -14,15 +14,15 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import (
+from kis_trader import (
     KISClient,
     OverseasPeriodProfit,
     OverseasPresentBalance,
     OverseasSettlementBalance,
 )
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.money import Money
-from kis_openapi.transport import RawResponse
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.money import Money
+from kis_trader.transport import RawResponse
 
 _PRESENT = "/uapi/overseas-stock/v1/trading/inquire-present-balance"
 _SETTLE = "/uapi/overseas-stock/v1/trading/inquire-paymt-stdr-balance"

@@ -13,9 +13,9 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import ExecutionReport, KISClient, Order, RiskLimits
-from kis_openapi.errors import KISError, KISUsageError, PreTradeRiskError
-from kis_openapi.transport import RawResponse
+from kis_trader import ExecutionReport, KISClient, Order, RiskLimits
+from kis_trader.errors import KISError, KISUsageError, PreTradeRiskError
+from kis_trader.transport import RawResponse
 
 _ORDER_CASH = "/uapi/domestic-stock/v1/trading/order-cash"
 _QUOTE = "/uapi/domestic-stock/v1/quotations/inquire-price"

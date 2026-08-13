@@ -11,9 +11,9 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, IndexDailyHistory, IndexDailyPoint, IndexQuote, KISClient
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader import Bar, IndexDailyHistory, IndexDailyPoint, IndexQuote, KISClient
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _INDEX_PRICE = "/uapi/domestic-stock/v1/quotations/inquire-index-price"
 _INDEX_BARS = "/uapi/domestic-stock/v1/quotations/inquire-daily-indexchartprice"
@@ -225,7 +225,7 @@ def _intraday_resp(rows):
 
 
 def test_index_intraday_maps_fields_sorted_ascending():
-    from kis_openapi import IndexIntradayPoint
+    from kis_trader import IndexIntradayPoint
     fake = FakeTransport(response=_intraday_resp([
         _intraday_row("100600", "2650.10", "12.30", "2", "500", "40"),
         _intraday_row("100500", "2649.80", "12.00", "2", "460", "38"),
@@ -533,13 +533,13 @@ def _category_resp(rows, *, summary=None):
 
 
 def test_index_categories_maps_fields_summary_and_market_class():
-    from kis_openapi import CategoryIndex, IndexCategories, IndexQuote
+    from kis_trader import CategoryIndex, IndexCategories, IndexQuote
     rows = [_category_row(), _category_row(code="0003", name="중형주")]
     fake = FakeTransport(response=_category_resp(rows))
     result = _client(fake).domestic.index("0001").categories()
     assert isinstance(result, IndexCategories)
     # PARITY: .categories tuple equals the former bare-list return element-for-element.
-    from kis_openapi._domestic.index import _parse_index_categories
+    from kis_trader._domestic.index import _parse_index_categories
     assert list(result.categories) == _parse_index_categories(rows)
     assert isinstance(result.categories, tuple)
     assert [c.code for c in result.categories] == ["0002", "0003"]

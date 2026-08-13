@@ -11,10 +11,10 @@ import threading
 
 import pytest
 
-from kis_openapi import InstrumentRecord, KISClient, MasterIndex
-from kis_openapi.calendar import CalendarQueries
-from kis_openapi.market import MarketQueries
-from kis_openapi.namespaces import (
+from kis_trader import InstrumentRecord, KISClient, MasterIndex
+from kis_trader.calendar import CalendarQueries
+from kis_trader.market import MarketQueries
+from kis_trader.namespaces import (
     DomesticAccount,
     DomesticNamespace,
     OrdersNamespace,
@@ -22,9 +22,9 @@ from kis_openapi.namespaces import (
     OverseasNamespace,
     PensionNamespace,
 )
-from kis_openapi.ranking import RankingQueries
-from kis_openapi.stock import DomesticStock, OverseasStock, _StockBase
-from kis_openapi.transport import RawResponse
+from kis_trader.ranking import RankingQueries
+from kis_trader.stock import DomesticStock, OverseasStock, _StockBase
+from kis_trader.transport import RawResponse
 
 
 class FakeTransport:

@@ -12,9 +12,9 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import IntegratedMargin, KISClient, RealizedProfitBalance
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader import IntegratedMargin, KISClient, RealizedProfitBalance
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _RLZ = "/uapi/domestic-stock/v1/trading/inquire-balance-rlz-pl"
 _MGN = "/uapi/domestic-stock/v1/trading/intgr-margin"

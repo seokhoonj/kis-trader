@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import (
+from kis_trader import (
     Bar,
     DerivativeQuote,
     FuturesContract,
@@ -19,8 +19,8 @@ from kis_openapi import (
     OptionContract,
     OrderBook,
 )
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _PRICE = "/uapi/domestic-futureoption/v1/quotations/inquire-price"
 _ASKING = "/uapi/domestic-futureoption/v1/quotations/inquire-asking-price"
@@ -257,7 +257,7 @@ def test_futures_minute_bars_missing_output2_fails_closed():
     class Bad:
         def request(self, *, method, path, tr_id, params=None, body=None, idempotent):
             return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
-    from kis_openapi.errors import KISError
+    from kis_trader.errors import KISError
     with pytest.raises(KISError):
         _client(Bad()).domestic.futures("101W09").bars("1m")
 
@@ -271,7 +271,7 @@ def test_underlying_quote_maps_two_sign_fields():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"output1": output1, "output2": []})
     fake = FakeTransport(response=resp)
-    from kis_openapi import UnderlyingQuote
+    from kis_trader import UnderlyingQuote
     uq = _client(fake).domestic.futures("101V06").underlying_quote()
     assert isinstance(uq, UnderlyingQuote)
     assert uq.name == "F 202406"
@@ -290,7 +290,7 @@ def test_underlying_quote_maps_two_sign_fields():
 
 def test_underlying_quote_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
-    from kis_openapi.errors import KISError
+    from kis_trader.errors import KISError
     with pytest.raises(KISError):
         _client(fake).domestic.futures("101V06").underlying_quote()
 
@@ -336,7 +336,7 @@ def test_expected_execution_trend_maps_summary_and_sorted_points():
                            body={"output1": summary, "output2": rows})
     fake = FakeTransport(response=response)
 
-    from kis_openapi import ExpectedExecutionPoint, ExpectedExecutionTrend
+    from kis_trader import ExpectedExecutionPoint, ExpectedExecutionTrend
     trend = _client(fake).domestic.futures("101W09").expected_execution_trend()
 
     assert isinstance(trend, ExpectedExecutionTrend)
@@ -378,7 +378,7 @@ def test_option_board_futures_maps_official_output_array():
                            body={"output": [row]})
     fake = FakeTransport(response=response)
 
-    from kis_openapi import FuturesBoardQuote
+    from kis_trader import FuturesBoardQuote
     quotes = _client(fake).domestic.option_board_futures()
 
     assert isinstance(quotes[0], FuturesBoardQuote)
@@ -422,7 +422,7 @@ def test_option_expiries_reads_output_array():
             {"mtrt_yymm_code": "0V06", "mtrt_yymm": "202406"}]
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output": rows})
     fake = FakeTransport(response=resp)
-    from kis_openapi import OptionExpiry
+    from kis_trader import OptionExpiry
     expiries = _client(fake).domestic.option_expiries()
     assert isinstance(expiries[0], OptionExpiry)
     assert expiries[0].code == "0V05"

@@ -7,9 +7,9 @@ from datetime import time
 
 import pytest
 
-from kis_openapi import KISClient, OverseasDerivativeMarketHours
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader import KISClient, OverseasDerivativeMarketHours
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _PATH = "/uapi/overseas-futureoption/v1/quotations/market-time"
 

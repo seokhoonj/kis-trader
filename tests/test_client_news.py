@@ -5,9 +5,9 @@ import threading
 
 import pytest
 
-from kis_openapi import KISClient, NewsHeadline
-from kis_openapi.errors import KISError
-from kis_openapi.transport import RawResponse
+from kis_trader import KISClient, NewsHeadline
+from kis_trader.errors import KISError
+from kis_trader.transport import RawResponse
 
 
 class FakeTransport:

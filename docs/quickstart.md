@@ -11,7 +11,7 @@ uv pip install -e .  # 아직 PyPI 미배포 (0.0.0)
 KIS 개발자센터에서 발급한 **앱키·앱시크릿**과 **계좌번호**가 필요합니다.
 
 ```python
-from kis_openapi import KISClient
+from kis_trader import KISClient
 
 kis = KISClient(
     app_key="YOUR_APP_KEY",

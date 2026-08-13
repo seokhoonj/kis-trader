@@ -12,7 +12,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import (
+from kis_trader import (
     BalanceSheet,
     EarningsEstimate,
     FinancialRatio,
@@ -23,8 +23,8 @@ from kis_openapi import (
     ProfitabilityRatio,
     StabilityRatio,
 )
-from kis_openapi.errors import KISError
-from kis_openapi.transport import RawResponse
+from kis_trader.errors import KISError
+from kis_trader.transport import RawResponse
 
 
 class FakeTransport:

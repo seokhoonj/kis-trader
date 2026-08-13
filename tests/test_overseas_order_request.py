@@ -10,8 +10,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi._overseas.orders import make_order_request_from_fields
-from kis_openapi.errors import KISUsageError
+from kis_trader._overseas.orders import make_order_request_from_fields
+from kis_trader.errors import KISUsageError
 
 
 def _build(**over):

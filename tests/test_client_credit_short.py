@@ -7,14 +7,14 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import (
+from kis_trader import (
     CreditBalancePoint,
     ForeignNetBuyPoint,
     KISClient,
     ShortSalePoint,
 )
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 
 class FakeTransport:
@@ -153,7 +153,7 @@ def test_foreign_net_buy_trend_bad_present_numeric_fails_closed():
 
 
 def test_loan_trend_maps():
-    from kis_openapi import LoanPoint
+    from kis_trader import LoanPoint
     rows = [{"bsop_date": "20240102", "stck_prpr": "70000", "prdy_vrss": "0",
              "prdy_vrss_sign": "3", "prdy_ctrt": "0", "acml_vol": "1000",
              "new_stcn": "5000", "rdmp_stcn": "2000", "rmnd_stcn": "100000",
@@ -200,7 +200,7 @@ def test_daily_trade_volume_maps_output2():
                          "total_shnu_qty": "4008095"}]}
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
     fake = FakeTransport(response=resp)
-    from kis_openapi import DailyTradeVolumePoint
+    from kis_trader import DailyTradeVolumePoint
     pts = _client(fake).domestic.stock("005930").daily_trade_volume(start="20240120", end="20240126")
     assert isinstance(pts[0], DailyTradeVolumePoint)
     assert pts[0].buy_volume == 4520816
@@ -231,7 +231,7 @@ def test_trade_amount_bands_maps():
              "seln_cnqn_smtn": "75634", "whol_seln_vol_rate": "0.73", "seln_cntg_csnu": "1525",
              "shnu_cnqn_smtn": "62504", "whol_shun_vol_rate": "0.60", "shnu_cntg_csnu": "1247"}]
     fake = FakeTransport(response=_resp(rows))
-    from kis_openapi import TradeAmountBand
+    from kis_trader import TradeAmountBand
     bands = _client(fake).domestic.stock("005930").trade_amount_bands()
     assert isinstance(bands[0], TradeAmountBand)
     assert bands[0].band_label == "3백 이하"
@@ -254,7 +254,7 @@ def test_expected_price_trend_maps_output2():
                          "prdy_ctrt": "0.41", "acml_vol": "420303"}]}
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
     fake = FakeTransport(response=resp)
-    from kis_openapi import ExpectedPricePoint
+    from kis_trader import ExpectedPricePoint
     pts = _client(fake).domestic.stock("005930").expected_price_trend(exclude_zero_volume=True)
     assert isinstance(pts[0], ExpectedPricePoint)
     assert pts[0].expected_price == Decimal(72600)

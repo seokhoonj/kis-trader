@@ -10,14 +10,14 @@ import threading
 
 import pytest
 
-from kis_openapi import KISClient
-from kis_openapi.errors import (
+from kis_trader import KISClient
+from kis_trader.errors import (
     KISError,
     KISUsageError,
     OrderRejectedError,
     OrderTimeoutError,
 )
-from kis_openapi.transport import RawResponse, TransportTimeout
+from kis_trader.transport import RawResponse, TransportTimeout
 
 _CHANGE = "/uapi/domestic-stock/v1/trading/order-resv-rvsecncl"
 

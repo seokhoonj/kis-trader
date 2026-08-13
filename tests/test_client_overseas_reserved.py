@@ -11,9 +11,9 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import KISClient, OverseasReservedOrder
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader import KISClient, OverseasReservedOrder
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _PATH = "/uapi/overseas-stock/v1/trading/order-resv-list"
 

@@ -11,9 +11,9 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, BondQuote, BondValuation, KISClient, OrderBook, Trade
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader import Bar, BondQuote, BondValuation, KISClient, OrderBook, Trade
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _PRICE = "/uapi/domestic-bond/v1/quotations/inquire-price"
 _ASKING = "/uapi/domestic-bond/v1/quotations/inquire-asking-price"
@@ -263,7 +263,7 @@ def test_bond_daily_prices_maps_change_and_continuation():
                          body={"output": [_daily_row("20240607", "10995.00", "5.00", "5", "0.05")]})
     fake = DailyPriceTransport([first, second])
 
-    from kis_openapi import BondDailyPrice
+    from kis_trader import BondDailyPrice
     prices = _client(fake).domestic.bond("KR101501D967").daily_prices()
 
     assert all(isinstance(price, BondDailyPrice) for price in prices)

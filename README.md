@@ -1,9 +1,9 @@
-# kis-openapi
+# kis-trader
 
 한국투자증권(KIS) Open API 파이썬 클라이언트. Python ≥ 3.11.
 
 ```python
-from kis_openapi import KISClient
+from kis_trader import KISClient
 
 kis = KISClient(app_key="…", app_secret="…", account="12345678-01")
 

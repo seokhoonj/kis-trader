@@ -1,7 +1,7 @@
-site_name: kis-openapi
+site_name: kis-trader
 site_description: 한국투자증권(KIS) Open API를 위한 깔끔한 파이썬 클라이언트
-repo_url: https://github.com/seokhoonj/kis-openapi
-repo_name: seokhoonj/kis-openapi
+repo_url: https://github.com/seokhoonj/kis-trader
+repo_name: seokhoonj/kis-trader
 
 theme:
   name: material

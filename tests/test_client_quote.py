@@ -12,7 +12,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import (
+from kis_trader import (
     Bar,
     IntradayExecutions,
     KISClient,
@@ -22,8 +22,8 @@ from kis_openapi import (
     RecentPricePoint,
     StockStatus,
 )
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-price"
 
@@ -332,7 +332,7 @@ def test_bar_and_order_book_value_semantics_hashable():
 
 # --- 구성/인증 ------------------------------------------------------------
 def test_default_http_transport_is_constructed_lazily():
-    from kis_openapi._http import RequestsTransport
+    from kis_trader._http import RequestsTransport
 
     client = KISClient(app_key="k", app_secret="s", account="12345678-01")
     assert isinstance(client.transport, RequestsTransport)

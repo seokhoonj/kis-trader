@@ -10,8 +10,8 @@ from typing import Any
 
 import pytest
 
-from kis_openapi._auth import TokenManager
-from kis_openapi.errors import KISAuthError, KISUsageError
+from kis_trader._auth import TokenManager
+from kis_trader.errors import KISAuthError, KISUsageError
 
 
 class FakePoster:

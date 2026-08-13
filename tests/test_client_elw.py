@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import (
+from kis_trader import (
     ELW,
     ELWIndicatorPoint,
     ELWLPFlow,
@@ -20,8 +20,8 @@ from kis_openapi import (
     ELWVolatilityPoint,
     KISClient,
 )
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _DAILY = "/uapi/elw/v1/quotations/sensitivity-trend-daily"
 _CCNL = "/uapi/elw/v1/quotations/sensitivity-trend-ccnl"

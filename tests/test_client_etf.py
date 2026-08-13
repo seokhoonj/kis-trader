@@ -11,15 +11,15 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import (
+from kis_trader import (
     ETFNAV,
     ETFNAVComparison,
     ETFNAVMinutePoint,
     ETFOrderBook,
     KISClient,
 )
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _ETF_NAV = "/uapi/etfetn/v1/quotations/inquire-price"
 
@@ -125,13 +125,13 @@ def _components_resp(rows, *, summary=None):
 
 
 def test_components_maps_fields_summary_and_params():
-    from kis_openapi import ETFComponent, ETFComponents, ETFComponentsSummary
+    from kis_trader import ETFComponent, ETFComponents, ETFComponentsSummary
     rows = [_component_row(), _component_row(symbol="000660", name="SK하이닉스")]
     fake = FakeTransport(response=_components_resp(rows))
     result = _client(fake).domestic.stock("069500").etf_components()
     assert isinstance(result, ETFComponents)
     # PARITY: .components tuple equals the former bare-list return element-for-element.
-    from kis_openapi._domestic.etf import _parse_etf_components
+    from kis_trader._domestic.etf import _parse_etf_components
     assert list(result.components) == _parse_etf_components(rows)
     assert isinstance(result.components, tuple)
     assert [c.symbol for c in result.components] == ["005930", "000660"]
@@ -202,7 +202,7 @@ def _nav_hist_resp(rows):
 def test_nav_history_maps_fields_sorted_and_params():
     from datetime import date as _date
 
-    from kis_openapi import ETFNAVHistoryPoint
+    from kis_trader import ETFNAVHistoryPoint
     fake = FakeTransport(response=_nav_hist_resp([
         _nav_hist_row("20240104", "36090", "36110", "95", "2", "0.26", "-0.06"),
         _nav_hist_row("20240103", "35980", "36015", "40", "2", "0.11", "-0.10"),

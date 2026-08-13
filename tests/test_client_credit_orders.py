@@ -12,9 +12,9 @@ import threading
 
 import pytest
 
-from kis_openapi import ExecutionReport, KISClient, Order, OrderStatus, OrderStore
-from kis_openapi.errors import KISUsageError, OrderRejectedError, OrderTimeoutError
-from kis_openapi.transport import RawResponse, TransportTimeout
+from kis_trader import ExecutionReport, KISClient, Order, OrderStatus, OrderStore
+from kis_trader.errors import KISUsageError, OrderRejectedError, OrderTimeoutError
+from kis_trader.transport import RawResponse, TransportTimeout
 
 _ORDER_CREDIT = "/uapi/domestic-stock/v1/trading/order-credit"
 _DAILY_CCLD = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
@@ -113,7 +113,7 @@ def test_credit_buy_limit_wire():
 
 
 def test_credit_buy_new_type_defaults_loan_date_to_today(monkeypatch):
-    monkeypatch.setattr("kis_openapi.order.datetime", _FrozenDatetime)
+    monkeypatch.setattr("kis_trader.order.datetime", _FrozenDatetime)
     fake = FakeTransport(response=_ACCEPTED)
     _client(fake).domestic.stock("009150").credit_buy(quantity=1, limit_price=130000, credit_type="21")  # 신규
     assert fake.calls[0]["body"]["LOAN_DT"] == "20240603"   # 고정된 오늘(KST)
@@ -121,7 +121,7 @@ def test_credit_buy_new_type_defaults_loan_date_to_today(monkeypatch):
 
 def test_credit_sell_new_type_defaults_loan_date(monkeypatch):
     # 대주신규(22)는 sell 이지만 신규라 loan_date 생략 가능 -> 오늘로 채움(side 아니라 operation 기준)
-    monkeypatch.setattr("kis_openapi.order.datetime", _FrozenDatetime)
+    monkeypatch.setattr("kis_trader.order.datetime", _FrozenDatetime)
     fake = FakeTransport(response=_ACCEPTED)
     _client(fake).domestic.stock("009150").credit_sell(quantity=1, limit_price=130000, credit_type="22")
     assert fake.calls[0]["tr_id"] == "TTTC0051U"

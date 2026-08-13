@@ -1,4 +1,4 @@
-"""날짜/시각 와이어 변환 헬퍼(:mod:`kis_openapi._datetime`) 회귀 테스트."""
+"""날짜/시각 와이어 변환 헬퍼(:mod:`kis_trader._datetime`) 회귀 테스트."""
 from __future__ import annotations
 
 from datetime import date, datetime, timedelta, timezone
@@ -7,8 +7,8 @@ _KST = timezone(timedelta(hours=9))
 
 import pytest
 
-from kis_openapi._datetime import _to_yyyymmdd, parse_optional_kst_date
-from kis_openapi.errors import KISError, KISUsageError
+from kis_trader._datetime import _to_yyyymmdd, parse_optional_kst_date
+from kis_trader.errors import KISError, KISUsageError
 
 
 def test_parse_optional_kst_date_none_is_none():

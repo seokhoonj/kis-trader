@@ -7,9 +7,9 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, KISClient, OverseasIndex
-from kis_openapi.errors import KISError, KISUsageError
-from kis_openapi.transport import RawResponse
+from kis_trader import Bar, KISClient, OverseasIndex
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.transport import RawResponse
 
 _BARS_PATH = "/uapi/overseas-price/v1/quotations/inquire-daily-chartprice"
 

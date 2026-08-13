@@ -14,8 +14,8 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import ExecutionReport, KISClient, OrderStatus, OrderStore
-from kis_openapi.errors import (
+from kis_trader import ExecutionReport, KISClient, OrderStatus, OrderStore
+from kis_trader.errors import (
     AccountNotOrderableError,
     KISError,
     KISUsageError,
@@ -24,7 +24,7 @@ from kis_openapi.errors import (
     OrderTimeoutError,
     UnsupportedSchemaVersionError,
 )
-from kis_openapi.transport import RawResponse, TransportTimeout
+from kis_trader.transport import RawResponse, TransportTimeout
 
 _ORDER_CASH = "/uapi/domestic-stock/v1/trading/order-cash"
 _ORDER_CHANGE = "/uapi/domestic-stock/v1/trading/order-rvsecncl"
@@ -542,7 +542,7 @@ def test_priceless_division_rejects_price(division):
 
 def test_division_requires_domestic_exchange():
     """division 은 국내 현금주문 전용 -- 해외 거래소와 조합하면 생성 시점에 거부."""
-    from kis_openapi.order import Order
+    from kis_trader.order import Order
     with pytest.raises(KISUsageError, match="국내 현금주문 전용"):
         Order.market("AAPL", side="buy", quantity=10, division="immediate_limit", exchange="NASD")
 
@@ -646,7 +646,7 @@ def test_division_persists_across_store_reopen(tmp_path):
 ])
 def test_order_construction_enforces_division_price_coupling(kwargs):
     """Order.* 생성자도 division↔order_type↔price 결합을 강제해야 한다(와이어 fail-open 방지)."""
-    from kis_openapi.order import Order
+    from kis_trader.order import Order
     with pytest.raises(KISUsageError):
         (Order.limit if "limit_price" in kwargs else Order.market)(**kwargs)
 
@@ -977,14 +977,14 @@ def test_reconcile_full_report_semantics():
                                  "nan", "inf", "-inf", "Infinity"])
 def test_coerce_decimal_rejects_non_finite(bad):
     """A-11: coerce_decimal 은 NaN/Infinity(및 "nan"/"inf" 문자열)를 지문·와이어 전에 거부한다."""
-    from kis_openapi.order import coerce_decimal
+    from kis_trader.order import coerce_decimal
     with pytest.raises(KISUsageError):
         coerce_decimal(bad, "quantity")
 
 
 def test_order_construction_rejects_non_finite_price():
     """A-11: 비유한 가격은 Order 생성 시점에 fail-closed -- 와이어에 NaN 이 실릴 수 없다."""
-    from kis_openapi.order import Order
+    from kis_trader.order import Order
     with pytest.raises(KISUsageError):
         Order.limit("005930", side="buy", quantity=10, limit_price=float("nan"))
 
@@ -1044,14 +1044,14 @@ def test_reconcile_blank_division_row_still_matches_plain_order():
                                  "2026-01-01", "２０２５０１０１"])
 def test_validate_yyyymmdd_requires_exactly_8_ascii_digits(bad):
     """A-19: 7/9자리·공백·비-ASCII 숫자는 거부(정확히 8자리 ASCII 숫자만)."""
-    from kis_openapi.order import validate_yyyymmdd
+    from kis_trader.order import validate_yyyymmdd
     with pytest.raises(KISUsageError):
         validate_yyyymmdd(bad, "date")
 
 
 def test_validate_yyyymmdd_accepts_valid_8_digit():
     """A-19: 정상 8자리 날짜는 통과(happy path 불변)."""
-    from kis_openapi.order import validate_yyyymmdd
+    from kis_trader.order import validate_yyyymmdd
     validate_yyyymmdd("20260101", "date")           # 예외 없음
 
 
@@ -1066,7 +1066,7 @@ def test_load_rejects_non_object_root(tmp_path):
 
 def test_fsync_dir_propagates_real_io_error(tmp_path, monkeypatch):
     """A-20: 디렉터리 fsync 의 진짜 IO 실패(EIO)는 삼키지 않고 올린다(거짓 '저장됨' 방지)."""
-    from kis_openapi import store as store_mod
+    from kis_trader import store as store_mod
 
     def boom(fd):
         raise OSError(errno.EIO, "I/O error")
@@ -1078,7 +1078,7 @@ def test_fsync_dir_propagates_real_io_error(tmp_path, monkeypatch):
 
 def test_fsync_dir_ignores_unsupported_platform(tmp_path, monkeypatch):
     """A-20: 디렉터리 fsync 미지원(EINVAL)은 종전대로 무시한다 -- 플랫폼 한계는 실패로 보지 않는다."""
-    from kis_openapi import store as store_mod
+    from kis_trader import store as store_mod
 
     def unsupported(fd):
         raise OSError(errno.EINVAL, "not supported")

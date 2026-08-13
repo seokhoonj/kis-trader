@@ -10,9 +10,9 @@
   // 브랜드 제목의 "KIS"만 포인트 컬러로 감싼다 (<title> 탭 텍스트는 건드리지 않음)
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll(".sidebar-title a, h1.title").forEach(function (el) {
-      if (el.textContent.trim() === "KIS Open API" && !el.querySelector(".kis-accent")) {
+      if (el.textContent.trim() === "KIS Trader" && !el.querySelector(".kis-accent")) {
         el.innerHTML = el.innerHTML.replace(
-          /KIS(\s+Open API)/,
+          /KIS(\s+Trader)/,
           '<span class="kis-accent">KIS</span>$1'
         );
       }
