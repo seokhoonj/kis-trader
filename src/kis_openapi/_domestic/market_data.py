@@ -123,7 +123,7 @@ def fetch_stock_status(
         volume=required_int(row.get("acml_vol"), "acml_vol"),
         previous_volume=required_int(row.get("prdy_vol"), "prdy_vol"),
         volume_ratio=required_decimal(row.get("prdy_vrss_vol_rate"), "prdy_vrss_vol_rate"),
-        amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+        cumulative_trading_amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
         credit_allowed=str(row.get("crdt_able_yn", "")).strip() == "Y",
         credit_ratio=required_decimal(row.get("crdt_rate"), "crdt_rate"),
         margin_ratio=required_decimal(row.get("marg_rate"), "marg_rate"),
@@ -706,7 +706,7 @@ def fetch_detailed_investor_history(
             change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
             change_percent=_apply_change_sign(required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign),
             volume=required_int(row.get("acml_vol"), "acml_vol"),
-            amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+            cumulative_trading_amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
             participants={name: _parse_detailed_investor_activity(row, prefix)
                           for name, prefix in _DETAILED_INVESTOR_PREFIX.items()},
             _raw=row,
@@ -730,9 +730,9 @@ def _parse_detailed_investor_activity(row: Mapping[str, Any], prefix: str) -> In
         buy_volume=required_int(row.get(f"{prefix}_shnu_vol"), f"{prefix}_shnu_vol"),
         sell_volume=required_int(row.get(f"{prefix}_seln_vol"), f"{prefix}_seln_vol"),
         net_buy_volume=required_int(row.get(net_key), net_key),
-        buy_value=required_decimal(row.get(f"{prefix}_shnu_tr_pbmn"), f"{prefix}_shnu_tr_pbmn"),
-        sell_value=required_decimal(row.get(f"{prefix}_seln_tr_pbmn"), f"{prefix}_seln_tr_pbmn"),
-        net_buy_value=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
+        buy_amount=required_decimal(row.get(f"{prefix}_shnu_tr_pbmn"), f"{prefix}_shnu_tr_pbmn"),
+        sell_amount=required_decimal(row.get(f"{prefix}_seln_tr_pbmn"), f"{prefix}_seln_tr_pbmn"),
+        net_buy_amount=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
     )
 
 
@@ -742,9 +742,9 @@ def _parse_investor_activity(row: Mapping[str, Any], investor: str) -> InvestorA
         buy_volume=required_int(row.get(f"{prefix}_shnu_vol"), f"{prefix}_shnu_vol"),
         sell_volume=required_int(row.get(f"{prefix}_seln_vol"), f"{prefix}_seln_vol"),
         net_buy_volume=required_int(row.get(f"{prefix}_ntby_qty"), f"{prefix}_ntby_qty"),
-        buy_value=required_decimal(row.get(f"{prefix}_shnu_tr_pbmn"), f"{prefix}_shnu_tr_pbmn"),
-        sell_value=required_decimal(row.get(f"{prefix}_seln_tr_pbmn"), f"{prefix}_seln_tr_pbmn"),
-        net_buy_value=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
+        buy_amount=required_decimal(row.get(f"{prefix}_shnu_tr_pbmn"), f"{prefix}_shnu_tr_pbmn"),
+        sell_amount=required_decimal(row.get(f"{prefix}_seln_tr_pbmn"), f"{prefix}_seln_tr_pbmn"),
+        net_buy_amount=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
     )
 
 
@@ -989,7 +989,7 @@ def fetch_after_hours_daily(
                     required_decimal(row.get("ovtm_untp_prdy_ctrt"), "ovtm_untp_prdy_ctrt"), sign
                 ),
                 volume=required_int(row.get("ovtm_untp_vol"), "ovtm_untp_vol"),
-                amount=required_decimal(row.get("ovtm_untp_tr_pbmn"), "ovtm_untp_tr_pbmn"),
+                trading_amount=required_decimal(row.get("ovtm_untp_tr_pbmn"), "ovtm_untp_tr_pbmn"),
                 _raw=row,
             )
         )
@@ -1146,7 +1146,7 @@ def fetch_program_trades(
                 change_percent=_apply_change_sign(
                     required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
                 ),
-                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                quantity=required_int(row.get("acml_vol"), "acml_vol"),
                 buy_volume=required_int(row.get("whol_smtn_shnu_vol"), "whol_smtn_shnu_vol"),
                 sell_volume=required_int(row.get("whol_smtn_seln_vol"), "whol_smtn_seln_vol"),
                 net_volume=required_int(row.get("whol_smtn_ntby_qty"), "whol_smtn_ntby_qty"),
@@ -1181,7 +1181,7 @@ def fetch_daily_program_trades(
             change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
             change_percent=_apply_change_sign(required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign),
             volume=required_int(row.get("acml_vol"), "acml_vol"),
-            amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+            cumulative_trading_amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
             sell_volume=required_int(row.get("whol_smtn_seln_vol"), "whol_smtn_seln_vol"),
             buy_volume=required_int(row.get("whol_smtn_shnu_vol"), "whol_smtn_shnu_vol"),
             net_volume=required_int(row.get("whol_smtn_ntby_qty"), "whol_smtn_ntby_qty"),

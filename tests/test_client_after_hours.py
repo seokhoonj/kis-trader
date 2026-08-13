@@ -151,7 +151,7 @@ def test_after_hours_daily_maps_output2():
     assert pts[0].change == Decimal(500)                 # sign 2 -> 양수
     assert pts[0].change_percent == Decimal("0.47")
     assert pts[0].volume == 12740
-    assert pts[0].amount == Decimal(1348318000)
+    assert pts[0].trading_amount == Decimal(1348318000)
     assert pts[0].timestamp.strftime("%Y%m%d") == "20240223"
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/quotations/inquire-daily-overtimeprice"

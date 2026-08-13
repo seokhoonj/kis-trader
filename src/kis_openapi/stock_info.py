@@ -70,7 +70,7 @@ class StockStatus:
     volume: int
     previous_volume: int
     volume_ratio: Decimal
-    amount: Decimal
+    cumulative_trading_amount: Decimal
     credit_allowed: bool
     credit_ratio: Decimal
     margin_ratio: Decimal

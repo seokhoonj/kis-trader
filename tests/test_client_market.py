@@ -127,7 +127,7 @@ def test_market_investor_snapshot_maps_participants_and_params():
     assert snapshot.industry_code == "0001"
     assert snapshot.participants["foreign"].buy_volume == 120
     assert snapshot.participants["private_equity"].net_buy_volume == 20
-    assert snapshot.participants["other_corporation"].net_buy_value == Decimal(2)
+    assert snapshot.participants["other_corporation"].net_buy_amount == Decimal(2)
     assert fake.calls[0] == {
         "path": "/uapi/domestic-stock/v1/quotations/inquire-investor-time-by-market",
         "tr_id": "FHPTJ04030000",
@@ -168,7 +168,7 @@ def test_investor_net_buy_stocks_maps_and_routes():
         market="KOSPI", basis="amount", direction="sell", investor="foreign"
     )
     assert isinstance(stocks[0], InvestorNetBuyStock)
-    assert stocks[0].participants["foreign"].quantity == 10
+    assert stocks[0].participants["foreign"].net_buy_quantity == 10
     assert fake.calls[0]["tr_id"] == "FHPTJ04400000"
     assert fake.calls[0]["params"] == {
         "FID_COND_MRKT_DIV_CODE": "V", "FID_COND_SCR_DIV_CODE": "16449",

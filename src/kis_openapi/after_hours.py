@@ -75,7 +75,7 @@ class AfterHoursDailyPrice:
     """시간외 단일가 세션의 하루 종가(불변).
 
     ``price`` 는 그날 시간외 단일가 종가, ``change`` / ``change_percent`` 는 그 시간외가의 전일대비
-    (하락이면 음수), ``volume`` / ``amount`` 는 시간외 거래량/거래대금이다.
+    (하락이면 음수), ``volume`` / ``trading_amount`` 는 시간외 거래량/거래대금이다.
     :meth:`~kis_openapi.stock.DomesticStock.after_hours_daily` 가 일자 리스트(최근->과거)로 돌려준다.
     ``timestamp`` 는 영업일(KST-aware).
     """
@@ -86,7 +86,7 @@ class AfterHoursDailyPrice:
     change: Decimal                   # 시간외가 전일대비(부호 포함, ovtm_untp_prdy_vrss)
     change_percent: Decimal           # 시간외가 전일대비율(부호 포함, ovtm_untp_prdy_ctrt)
     volume: int                       # 시간외 거래량(ovtm_untp_vol)
-    amount: Decimal                   # 시간외 거래대금(ovtm_untp_tr_pbmn)
+    trading_amount: Decimal           # 시간외 거래대금(ovtm_untp_tr_pbmn)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

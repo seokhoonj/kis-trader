@@ -409,9 +409,9 @@ def fetch_investor_net_buy_stocks(
             change_percent=_apply_change_sign(required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign),
             volume=required_int(row.get("acml_vol"), "acml_vol"),
             participants={name: InvestorNetActivity(
-                quantity=required_int(row.get(f"{prefix}_ntby_vol" if prefix in {"etc_orgt", "etc_corp"} else f"{prefix}_ntby_qty"),
+                net_buy_quantity=required_int(row.get(f"{prefix}_ntby_vol" if prefix in {"etc_orgt", "etc_corp"} else f"{prefix}_ntby_qty"),
                                       f"{prefix}_ntby_vol" if prefix in {"etc_orgt", "etc_corp"} else f"{prefix}_ntby_qty"),
-                amount=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
+                net_buy_amount=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
             ) for name, prefix in _NET_BUY_PARTICIPANT.items()}, _raw=row,
         ))
     return stocks
@@ -880,9 +880,9 @@ def _parse_market_investor_activity(
         buy_volume=required_int(row.get(f"{prefix}_shnu_vol"), f"{prefix}_shnu_vol"),
         sell_volume=required_int(row.get(f"{prefix}_seln_vol"), f"{prefix}_seln_vol"),
         net_buy_volume=required_int(row.get(net_key), net_key),
-        buy_value=required_decimal(row.get(f"{prefix}_shnu_tr_pbmn"), f"{prefix}_shnu_tr_pbmn"),
-        sell_value=required_decimal(row.get(f"{prefix}_seln_tr_pbmn"), f"{prefix}_seln_tr_pbmn"),
-        net_buy_value=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
+        buy_amount=required_decimal(row.get(f"{prefix}_shnu_tr_pbmn"), f"{prefix}_shnu_tr_pbmn"),
+        sell_amount=required_decimal(row.get(f"{prefix}_seln_tr_pbmn"), f"{prefix}_seln_tr_pbmn"),
+        net_buy_amount=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
     )
 
 

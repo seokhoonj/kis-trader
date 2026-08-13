@@ -64,16 +64,16 @@ def test_investor_flows_maps_nested_activity():
     assert flow.individual.buy_volume == 100
     assert flow.individual.sell_volume == 40
     assert flow.individual.net_buy_volume == 60
-    assert flow.individual.buy_value == Decimal(7_000_000)
-    assert flow.individual.sell_value == Decimal(2_800_000)
-    assert flow.individual.net_buy_value == Decimal(4_200_000)
+    assert flow.individual.buy_amount == Decimal(7_000_000)
+    assert flow.individual.sell_amount == Decimal(2_800_000)
+    assert flow.individual.net_buy_amount == Decimal(4_200_000)
     # 기관 6필드 전수
     assert flow.institutional.buy_volume == 50
     assert flow.institutional.sell_volume == 20
     assert flow.institutional.net_buy_volume == 30
-    assert flow.institutional.buy_value == Decimal(3_500_000)
-    assert flow.institutional.sell_value == Decimal(1_400_000)
-    assert flow.institutional.net_buy_value == Decimal(2_100_000)
+    assert flow.institutional.buy_amount == Decimal(3_500_000)
+    assert flow.institutional.sell_amount == Decimal(1_400_000)
+    assert flow.institutional.net_buy_amount == Decimal(2_100_000)
     assert fake.calls[0]["path"] == _INVESTOR_PATH
     assert fake.calls[0]["tr_id"] == "FHKST01010900"
     assert fake.calls[0]["params"] == {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": "005930"}
@@ -82,7 +82,7 @@ def test_investor_flows_maps_nested_activity():
 def test_investor_flows_handles_net_selling_negative():
     flow = _client(FakeTransport(response=_resp([_row()]))).domestic.stock("005930").investor_flows()[0]
     assert flow.foreign.net_buy_volume == -300             # 외국인 순매도
-    assert flow.foreign.net_buy_value == Decimal(-21_000_000)
+    assert flow.foreign.net_buy_amount == Decimal(-21_000_000)
 
 
 def test_investor_flows_skips_dateless_rows():
@@ -159,7 +159,7 @@ def test_detailed_investor_history_maps_all_participants_and_paginates():
     assert flow.trading_date == date(2024, 5, 10)
     assert flow.participants["foreign"].buy_volume == 120
     assert flow.participants["private_equity"].net_buy_volume == 20
-    assert flow.participants["other_corporation"].net_buy_value == Decimal(2)
+    assert flow.participants["other_corporation"].net_buy_amount == Decimal(2)
     assert fake.calls[0]["path"] == _DETAILED_PATH
     assert fake.calls[0]["tr_id"] == "FHPTJ04160001"
     assert fake.calls[0]["params"]["FID_ETC_CLS_CODE"] == "1"

@@ -31,7 +31,7 @@ class ProgramTradePoint:
     price: Decimal
     change: Decimal                   # 전일대비(부호 포함)
     change_percent: Decimal           # 전일대비율(부호 포함)
-    volume: int                       # 종목 누적 거래량
+    quantity: int                     # 종목 누적 거래량
     buy_volume: int                   # 프로그램 매수 수량
     sell_volume: int                  # 프로그램 매도 수량
     net_volume: int                   # 프로그램 순매수 수량(매수-매도)
@@ -54,7 +54,7 @@ class DailyProgramTradePoint:
     change: Decimal
     change_percent: Decimal
     volume: int
-    amount: Decimal
+    cumulative_trading_amount: Decimal
     sell_volume: int
     buy_volume: int
     net_volume: int

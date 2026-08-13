@@ -23,17 +23,17 @@ class InvestorActivity:
     buy_volume: int                   # 매수 수량(주)
     sell_volume: int                  # 매도 수량(주)
     net_buy_volume: int               # 순매수 수량(주; 음수면 순매도)
-    buy_value: Decimal                # 매수 대금(원)
-    sell_value: Decimal               # 매도 대금(원)
-    net_buy_value: Decimal            # 순매수 대금(원; 음수면 순매도)
+    buy_amount: Decimal               # 매수 대금(원)
+    sell_amount: Decimal              # 매도 대금(원)
+    net_buy_amount: Decimal           # 순매수 대금(원; 음수면 순매도)
 
 
 @dataclass(frozen=True, slots=True)
 class InvestorNetActivity:
     """한 투자자 주체의 순매수 수량과 대금."""
 
-    quantity: int
-    amount: Decimal
+    net_buy_quantity: int
+    net_buy_amount: Decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -71,7 +71,7 @@ class DetailedInvestorFlow:
     change: Decimal
     change_percent: Decimal
     volume: int
-    amount: Decimal
+    cumulative_trading_amount: Decimal
     participants: Mapping[str, InvestorActivity] = field(hash=False)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
