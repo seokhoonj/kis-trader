@@ -24,3 +24,5 @@ build/
 # Docs build output (Quarto)
 docs/_site/
 docs/.quarto/
+docs/objects.json
+docs/reference/

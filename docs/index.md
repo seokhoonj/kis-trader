@@ -13,7 +13,7 @@ kis.overseas.stock("AAPL").quote()             # AAPL (거래소 자동)
 kis.domestic.ranking.by_change(top="gainers")  # 오늘 상승률 순위
 ```
 
-## 이 책은
+## 이 문서는
 
 주식 하는 사람이 **실제로 하는 일** 위주로 코드와 함께 설명한다.
 
