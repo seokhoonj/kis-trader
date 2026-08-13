@@ -117,7 +117,7 @@ def fetch_etf_nav_comparison(
             required_decimal(price.get("prdy_ctrt"), "prdy_ctrt"), price_sign
         ),
         volume=required_int(price.get("acml_vol"), "acml_vol"),
-        amount=required_decimal(price.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+        cumulative_trading_amount=required_decimal(price.get("acml_tr_pbmn"), "acml_tr_pbmn"),
         nav=required_decimal(nav.get("nav"), "nav"),
         previous_nav=required_decimal(nav.get("prdy_clpr_nav"), "prdy_clpr_nav"),
         nav_open=required_decimal(nav.get("oprc_nav"), "oprc_nav"),
@@ -348,7 +348,7 @@ def _parse_etf_nav_history(rows: Sequence[Mapping[str, Any]]) -> list[ETFNAVHist
         change_sign_code = str(row.get("nav_prdy_vrss_sign", "")).strip()
         points.append(
             ETFNAVHistoryPoint(
-                date=_parse_kst_date(date_text),
+                trading_date=_parse_kst_date(date_text),
                 close=required_decimal(close_text, "stck_clpr"),
                 nav=required_decimal(row.get("nav"), "nav"),
                 nav_change=_apply_change_sign(
@@ -361,7 +361,7 @@ def _parse_etf_nav_history(rows: Sequence[Mapping[str, Any]]) -> list[ETFNAVHist
                 _raw=row,
             )
         )
-    points.sort(key=lambda p: p.date)          # 과거->현재
+    points.sort(key=lambda p: p.trading_date)  # 과거->현재
     return points
 
 

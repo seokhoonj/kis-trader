@@ -59,14 +59,14 @@ def test_index_quote_maps_fields_and_params():
     quote = _client(fake).domestic.index("0001").quote()
     assert isinstance(quote, IndexQuote)
     assert quote.code == "0001"
-    assert quote.value == Decimal("2650.32")
+    assert quote.index_value == Decimal("2650.32")
     assert quote.open == Decimal("2640.10")
     assert quote.high == Decimal("2655.00")
     assert quote.low == Decimal("2638.00")
     assert quote.change == Decimal("12.44")
     assert quote.change_percent == Decimal("0.47")
     assert quote.volume == 512000000
-    assert quote.amount == Decimal(9800000000000)
+    assert quote.cumulative_trading_amount == Decimal(9800000000000)
     assert (quote.advances, quote.declines, quote.unchanged) == (480, 360, 60)
     assert (quote.limit_up, quote.limit_down) == (3, 1)
     call = fake.calls[0]
@@ -231,9 +231,9 @@ def test_index_intraday_maps_fields_sorted_ascending():
         _intraday_row("100500", "2649.80", "12.00", "2", "460", "38"),
     ]))
     points = _client(fake).domestic.index("0001").intraday()
-    assert [f"{p.time:%H%M%S}" for p in points] == ["100500", "100600"]   # 오름차순 정렬
+    assert [f"{p.timestamp:%H%M%S}" for p in points] == ["100500", "100600"]   # 오름차순 정렬
     assert all(isinstance(p, IndexIntradayPoint) for p in points)
-    assert points[-1].value == Decimal("2650.10")
+    assert points[-1].index_value == Decimal("2650.10")
     assert points[-1].change == Decimal("12.30")
     assert points[-1].volume == 500
     assert points[-1].interval_volume == 40
@@ -287,8 +287,8 @@ def test_index_ticks_maps_fields_sorted_ascending():
     fake = FakeTransport(response=_intraday_resp(rows))
     points = _client(fake).domestic.index("1001").ticks()
 
-    assert [f"{point.time:%H%M%S}" for point in points] == ["100510", "100520"]
-    assert points[-1].value == Decimal("916.59")
+    assert [f"{point.timestamp:%H%M%S}" for point in points] == ["100510", "100520"]
+    assert points[-1].index_value == Decimal("916.59")
     assert points[-1].change == Decimal("11.09")
     assert points[-1].volume == 311514
     assert points[-1].interval_volume == 378
@@ -345,9 +345,9 @@ def test_index_daily_history_maps_snapshot_and_statistics():
 
     assert isinstance(history, IndexDailyHistory)
     assert history.snapshot.code == "0001"
-    assert history.snapshot.value == Decimal("2650.32")
+    assert history.snapshot.index_value == Decimal("2650.32")
     assert all(isinstance(point, IndexDailyPoint) for point in history.points)
-    assert [f"{point.date:%Y%m%d}" for point in history.points] == [
+    assert [f"{point.trading_date:%Y%m%d}" for point in history.points] == [
         "20240222",
         "20240223",
     ]
@@ -408,12 +408,12 @@ def test_expected_index_trend_maps_session_interval_and_sign():
         session="close", interval="30s"
     )
 
-    assert [f"{point.time:%H%M%S}" for point in points] == ["152000", "152010"]
-    assert points[-1].value == Decimal("2650.25")
+    assert [f"{point.timestamp:%H%M%S}" for point in points] == ["152000", "152010"]
+    assert points[-1].index_value == Decimal("2650.25")
     assert points[-1].change == Decimal("-10.50")
     assert points[-1].change_percent == Decimal("-0.40")
     assert points[-1].volume == 500000
-    assert points[-1].amount == Decimal(9000000)
+    assert points[-1].cumulative_trading_amount == Decimal(9000000)
     assert fake.calls[0] == {
         "path": "/uapi/domestic-stock/v1/quotations/exp-index-trend",
         "tr_id": "FHPST01840000",
@@ -480,11 +480,11 @@ def test_expected_index_snapshot_maps_summary_markets_and_params():
     )
 
     assert snapshot.summary.code == "0001"
-    assert snapshot.summary.base_value is None
+    assert snapshot.summary.base_index_value is None
     assert snapshot.summary.change == Decimal("12.5")
     assert len(snapshot.markets) == 2
     assert snapshot.markets[0].name == "코스피"
-    assert snapshot.markets[0].base_value == Decimal("2637.5")
+    assert snapshot.markets[0].base_index_value == Decimal("2637.5")
     assert snapshot.markets[1].change == Decimal("-12.5")
     assert snapshot.markets[1].change_percent == Decimal("-0.47")
     assert fake.calls[0] == {
@@ -541,7 +541,7 @@ def test_index_categories_maps_fields_and_market_class():
     first = cats[0]
     assert isinstance(first, CategoryIndex)
     assert first.name == "대형주"
-    assert first.value == Decimal("2700.10")
+    assert first.index_value == Decimal("2700.10")
     assert first.change == Decimal("15.0")
     assert first.change_percent == Decimal("0.56")
     assert first.volume_share == Decimal("23.4")

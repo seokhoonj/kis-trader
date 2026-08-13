@@ -49,7 +49,7 @@ class BondQuote:
 class BondDailyPrice:
     """한 거래일의 채권 가격·등락·누적거래량."""
 
-    date: date
+    trading_date: date
     code: str
     price: Decimal
     open: Decimal
@@ -145,7 +145,7 @@ class BondValuation:
     FNP)로 담는다. ``risk_free_prices`` 는 응답에 값이 있는 기관만 포함한다.
     """
 
-    date: date
+    valuation_date: date
     code: str
     name: str
     average_price: Decimal

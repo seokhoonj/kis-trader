@@ -216,7 +216,7 @@ def fetch_daily_prices(transport: Transport, *, code: str) -> list[BondDailyPric
             day = _parse_bar_timestamp(date_text).date()
             change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
             price = BondDailyPrice(
-                date=day,
+                trading_date=day,
                 code=code,
                 price=required_decimal(price_text, "bond_prpr"),
                 open=required_decimal(row.get("bond_oprc"), "bond_oprc"),
@@ -278,7 +278,7 @@ def fetch_valuations(
         if not date_text or not average_price_text:
             continue
         valuations.append(_parse_valuation(row, fallback_code=code, date_text=date_text))
-    valuations.sort(key=lambda valuation: valuation.date)
+    valuations.sort(key=lambda valuation: valuation.valuation_date)
     return valuations
 
 
@@ -440,7 +440,7 @@ def _parse_valuation(
         if risk_free_price is not None:
             risk_free_prices[agency] = risk_free_price
     return BondValuation(
-        date=_parse_kst_date(date_text),
+        valuation_date=_parse_kst_date(date_text),
         code=str(row.get("pdno", "")).strip() or fallback_code,
         name=str(row.get("prdt_name", "")).strip(),
         average_price=required_decimal(row.get("avg_evlu_unpr"), "avg_evlu_unpr"),

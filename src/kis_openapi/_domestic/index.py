@@ -292,8 +292,8 @@ def fetch_index_ticks(transport: Transport, *, code: str) -> list[IndexIntradayP
         change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             IndexIntradayPoint(
-                time=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
-                value=required_decimal(value_text, "bstp_nmix_prpr"),
+                timestamp=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
+                index_value=required_decimal(value_text, "bstp_nmix_prpr"),
                 change=_apply_change_sign(
                     required_decimal(
                         row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"
@@ -305,7 +305,7 @@ def fetch_index_ticks(transport: Transport, *, code: str) -> list[IndexIntradayP
                 _raw=row,
             )
         )
-    points.sort(key=lambda point: point.time)
+    points.sort(key=lambda point: point.timestamp)
     return points
 
 
@@ -353,8 +353,8 @@ def fetch_index_daily_history(
         change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             IndexDailyPoint(
-                date=_parse_kst_date(date_text),
-                value=required_decimal(value_text, "bstp_nmix_prpr"),
+                trading_date=_parse_kst_date(date_text),
+                index_value=required_decimal(value_text, "bstp_nmix_prpr"),
                 open=required_decimal(row.get("bstp_nmix_oprc"), "bstp_nmix_oprc"),
                 high=required_decimal(row.get("bstp_nmix_hgpr"), "bstp_nmix_hgpr"),
                 low=required_decimal(row.get("bstp_nmix_lwpr"), "bstp_nmix_lwpr"),
@@ -374,13 +374,13 @@ def fetch_index_daily_history(
                     row.get("acml_vol_rlim"), "acml_vol_rlim"
                 ),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
-                amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+                cumulative_trading_amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
                 sentiment=required_decimal(row.get("invt_new_psdg"), "invt_new_psdg"),
                 disparity_20d=required_decimal(row.get("d20_dsrt"), "d20_dsrt"),
                 _raw=row,
             )
         )
-    points.sort(key=lambda point: point.date)
+    points.sort(key=lambda point: point.trading_date)
     return IndexDailyHistory(
         snapshot=_parse_index_quote(
             snapshot_row,
@@ -434,8 +434,8 @@ def fetch_expected_index_trend(
         change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             ExpectedIndexPoint(
-                time=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
-                value=required_decimal(value_text, "bstp_nmix_prpr"),
+                timestamp=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
+                index_value=required_decimal(value_text, "bstp_nmix_prpr"),
                 change=_apply_change_sign(
                     required_decimal(
                         row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"
@@ -446,11 +446,11 @@ def fetch_expected_index_trend(
                     required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), change_sign_code
                 ),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
-                amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+                cumulative_trading_amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
                 _raw=row,
             )
         )
-    points.sort(key=lambda point: point.time)
+    points.sort(key=lambda point: point.timestamp)
     return points
 
 
@@ -490,8 +490,8 @@ def fetch_expected_index_snapshot(
         return ExpectedIndexQuote(
             code=str(row.get("bstp_cls_code", fallback_code)).strip(),
             name=str(row.get("hts_kor_isnm", "")).strip(),
-            value=required_decimal(row.get("bstp_nmix_prpr"), "bstp_nmix_prpr"),
-            base_value=optional_decimal(row.get("nmix_sdpr"), "nmix_sdpr"),
+            index_value=required_decimal(row.get("bstp_nmix_prpr"), "bstp_nmix_prpr"),
+            base_index_value=optional_decimal(row.get("nmix_sdpr"), "nmix_sdpr"),
             change=_apply_change_sign(
                 required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), change_sign_code
             ),
@@ -534,8 +534,8 @@ def _parse_index_intraday(
         change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             IndexIntradayPoint(
-                time=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
-                value=required_decimal(value_text, "bstp_nmix_prpr"),
+                timestamp=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
+                index_value=required_decimal(value_text, "bstp_nmix_prpr"),
                 change=_apply_change_sign(
                     required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), change_sign_code
                 ),
@@ -544,7 +544,7 @@ def _parse_index_intraday(
                 _raw=row,
             )
         )
-    points.sort(key=lambda p: p.time)          # 과거->현재
+    points.sort(key=lambda p: p.timestamp)     # 과거->현재
     return points
 
 
@@ -587,7 +587,7 @@ def _parse_index_categories(rows: Sequence[Mapping[str, Any]]) -> list[CategoryI
             CategoryIndex(
                 code=category_code,
                 name=str(row.get("hts_kor_isnm", "")).strip(),
-                value=required_decimal(value_text, "bstp_nmix_prpr"),
+                index_value=required_decimal(value_text, "bstp_nmix_prpr"),
                 change=_apply_change_sign(
                     required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), change_sign_code
                 ),
@@ -595,7 +595,7 @@ def _parse_index_categories(rows: Sequence[Mapping[str, Any]]) -> list[CategoryI
                     required_decimal(row.get("bstp_nmix_prdy_ctrt"), "bstp_nmix_prdy_ctrt"), change_sign_code
                 ),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
-                amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+                cumulative_trading_amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
                 volume_share=required_decimal(row.get("acml_vol_rlim"), "acml_vol_rlim"),
                 amount_share=required_decimal(row.get("acml_tr_pbmn_rlim"), "acml_tr_pbmn_rlim"),
                 _raw=row,
@@ -610,7 +610,7 @@ def _parse_index_quote(
     change_sign_code = str(output.get("prdy_vrss_sign", "")).strip()
     return IndexQuote(
         code=code,
-        value=required_decimal(output.get("bstp_nmix_prpr"), "bstp_nmix_prpr"),
+        index_value=required_decimal(output.get("bstp_nmix_prpr"), "bstp_nmix_prpr"),
         open=required_decimal(output.get("bstp_nmix_oprc"), "bstp_nmix_oprc"),
         high=required_decimal(output.get("bstp_nmix_hgpr"), "bstp_nmix_hgpr"),
         low=required_decimal(output.get("bstp_nmix_lwpr"), "bstp_nmix_lwpr"),
@@ -621,7 +621,7 @@ def _parse_index_quote(
             required_decimal(output.get("bstp_nmix_prdy_ctrt"), "bstp_nmix_prdy_ctrt"), change_sign_code
         ),
         volume=required_int(output.get("acml_vol"), "acml_vol"),
-        amount=required_decimal(output.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+        cumulative_trading_amount=required_decimal(output.get("acml_tr_pbmn"), "acml_tr_pbmn"),
         advances=required_int(output.get("ascn_issu_cnt"), "ascn_issu_cnt"),
         declines=required_int(output.get("down_issu_cnt"), "down_issu_cnt"),
         unchanged=required_int(output.get("stnr_issu_cnt"), "stnr_issu_cnt"),

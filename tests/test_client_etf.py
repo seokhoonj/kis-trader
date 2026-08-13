@@ -165,7 +165,7 @@ def test_nav_history_maps_fields_sorted_and_params():
         _nav_hist_row("20240103", "35980", "36015", "40", "2", "0.11", "-0.10"),
     ]))
     points = _client(fake).domestic.stock("069500").nav_history(start="20240103", end="20240104")
-    assert [p.date for p in points] == [_date(2024, 1, 3), _date(2024, 1, 4)]   # 오름차순
+    assert [p.trading_date for p in points] == [_date(2024, 1, 3), _date(2024, 1, 4)]   # 오름차순
     assert all(isinstance(p, ETFNAVHistoryPoint) for p in points)
     assert points[-1].close == Decimal(36090)
     assert points[-1].nav == Decimal(36110)

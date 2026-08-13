@@ -74,11 +74,11 @@ class ETFComponent:
 class ETFNAVHistoryPoint:
     """일별 NAV-가격 추이의 한 점(불변).
 
-    ``date`` 그 거래일, ``close`` 시장 종가, ``nav`` 그 날 NAV, ``premium`` 괴리율(시장가가 NAV 대비
+    ``trading_date`` 그 거래일, ``close`` 시장 종가, ``nav`` 그 날 NAV, ``premium`` 괴리율(시장가가 NAV 대비
     벗어난 정도, %). ``nav_change`` / ``nav_change_percent`` 는 NAV 전일대비로 하락이면 음수.
     """
 
-    date: date
+    trading_date: date
     close: Decimal                    # 시장 종가
     nav: Decimal
     nav_change: Decimal               # NAV 전일대비(부호 포함)
@@ -105,7 +105,7 @@ class ETFNAVComparison:
     change: Decimal
     change_percent: Decimal
     volume: int
-    amount: Decimal
+    cumulative_trading_amount: Decimal
     nav: Decimal
     previous_nav: Decimal
     nav_open: Decimal

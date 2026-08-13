@@ -267,7 +267,7 @@ def test_bond_daily_prices_maps_change_and_continuation():
     prices = _client(fake).domestic.bond("KR101501D967").daily_prices()
 
     assert all(isinstance(price, BondDailyPrice) for price in prices)
-    assert [f"{price.date:%Y%m%d}" for price in prices] == ["20240607", "20240610"]
+    assert [f"{price.trading_date:%Y%m%d}" for price in prices] == ["20240607", "20240610"]
     assert prices[0].change == Decimal("-5.00")
     assert prices[0].change_percent == Decimal("-0.05")
     assert prices[1].price == Decimal("10997.10")
@@ -315,7 +315,7 @@ def test_bond_valuations_maps_rows_and_sorts_oldest_first():
         start="2024-04-01", end="20240410"
     )
     assert all(isinstance(valuation, BondValuation) for valuation in valuations)
-    assert [valuation.date.isoformat() for valuation in valuations] == [
+    assert [valuation.valuation_date.isoformat() for valuation in valuations] == [
         "2024-04-09", "2024-04-10",
     ]
     first = valuations[0]
