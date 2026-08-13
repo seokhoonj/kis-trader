@@ -10,6 +10,7 @@ dependencies = ["requests>=2.31"]
 # Base install is REST-only. Heavier capabilities are opt-in extras.
 [dependency-groups]
 test = ["pytest>=8"]
+docs = ["mkdocs-material>=9.5", "mkdocstrings[python]>=0.25"]
 
 [build-system]
 requires = ["hatchling"]
