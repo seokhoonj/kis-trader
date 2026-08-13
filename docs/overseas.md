@@ -20,14 +20,21 @@ s.trades()  # 체결
 s.buy(quantity=1, limit_price=150)
 s.sell(quantity=1, limit_price=160)
 
-s.daytime_buy(quantity=1, limit_price=150)  # 미국 주간거래
-s.reserve_buy(quantity=1, limit_price=150)  # 미국 예약
+s.buy(quantity=1, limit_price=150)  # 미국 정규장 (한국 시간 밤~새벽)
+s.daytime_buy(quantity=1, limit_price=150)  # 한국 낮에 거래 (미국 오버나이트 세션)
+s.reserve_buy(quantity=1, limit_price=150)  # 미국 예약 (장 열리기 전 미리)
 ```
 
 ::: {.callout-note}
-**주간거래(daytime)** 는 한국 낮 시간대에 미국주식을 사고파는 별도 세션이다(정규장은 한국
-기준 밤). 낮에 대응하고 싶을 때 `daytime_buy`/`daytime_sell` 로 낸다. **예약(reserve)** 은
-장 열리기 전에 미리 걸어두는 주문.
+## 주간거래(daytime) — "주간"은 한국 낮이다
+미국 정규장(9:30–16:00 ET)은 **한국 시간으로 밤 11:30~새벽 6시**다. 그래서:
+
+- **`buy` / `sell`** — 미국 **정규장**에서 체결 (한국 기준 밤~새벽).
+- **`daytime_buy` / `daytime_sell`** — **한국 낮** 시간대에 거래. 미국 현지로는 밤이라
+  오버나이트(장외) 세션이다.
+
+밤새 안 깨어 있어도 낮에 미국주식을 매매하라고 KIS가 열어둔 세션이다. 미국 입장의 "그냥
+buy/sell"은 정규장(`buy`) 쪽이고, `daytime` 은 그와 다른 시간대의 별도 세션이다.
 :::
 
 주문 안전장치는 국내와 동일 → [주문](orders.md).
