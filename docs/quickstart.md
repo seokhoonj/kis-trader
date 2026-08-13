@@ -3,7 +3,7 @@
 ## 설치
 
 ```bash
-uv pip install -e .      # 아직 PyPI 미배포 (0.0.0)
+uv pip install -e .  # 아직 PyPI 미배포 (0.0.0)
 ```
 
 ## 세션 만들기
@@ -16,8 +16,8 @@ from kis_openapi import KISClient
 kis = KISClient(
     app_key="YOUR_APP_KEY",
     app_secret="YOUR_APP_SECRET",
-    account="12345678-01",    # 계좌번호 8자리-2자리
-    environment="real",        # "real" 실전 / "demo" 모의투자
+    account="12345678-01",  # 계좌번호 8자리-2자리
+    environment="real",  # "real" 실전 / "demo" 모의투자
 )
 ```
 
@@ -39,13 +39,13 @@ kis = KISClient(
 ## 첫 조회
 
 ```python
-s = kis.domestic.stock("005930")   # 삼성전자
+s = kis.domestic.stock("005930")  # 삼성전자
 q = s.quote()
 
-q.current_price   # 현재가
-q.change          # 전일대비
+q.current_price  # 현재가
+q.change  # 전일대비
 q.change_percent  # 등락률(%)
-q.volume          # 거래량
+q.volume  # 거래량
 ```
 
 ## 안전 스위치 (주문할 때)
@@ -53,9 +53,9 @@ q.volume          # 거래량
 ```python
 kis = KISClient(
     …,
-    orderable=True,      # 주문 가능 여부 (계좌 유형에서 자동 판단)
+    orderable=True,  # 주문 가능 여부 (계좌 유형에서 자동 판단)
     allow_credit=False,  # 신용주문은 명시적으로 켜야 함
-    throttle=True,       # 초당 호출 제한 자동 준수 (실전 15 / 모의 1)
+    throttle=True,  # 초당 호출 제한 자동 준수 (실전 15 / 모의 1)
 )
 ```
 
@@ -68,7 +68,7 @@ kis = KISClient(
 ```python
 q = kis.domestic.stock("005930").quote()
 
-q.current_price    # 매핑된 값 (Decimal)
-q._raw             # KIS 원본 응답 전체
-help(type(q))      # 이 결과의 필드 설명(한국어) + KIS URL·TR-id
+q.current_price  # 매핑된 값 (Decimal)
+q._raw  # KIS 원본 응답 전체
+help(type(q))  # 이 결과의 필드 설명(한국어) + KIS URL·TR-id
 ```

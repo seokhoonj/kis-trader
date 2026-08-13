@@ -8,20 +8,20 @@
 ```python
 s = kis.domestic.stock("005930")
 
-r = s.buy(quantity=10, limit_price=70000)   # 1) 지정가 매수
-print(r.client_order_id, r.status)           #    -> 주문 키, 상태
+r = s.buy(quantity=10, limit_price=70000)  # 1) 지정가 매수
+print(r.client_order_id, r.status)  #    -> 주문 키, 상태
 
-kis.orders.reconcile(r.client_order_id)      # 2) 실제 접수됐는지 확인
+kis.orders.reconcile(r.client_order_id)  # 2) 실제 접수됐는지 확인
 kis.orders.modify(r.client_order_id, limit_price=70500)  # 3) 가격 정정
-kis.orders.cancel(r.client_order_id)         # 4) 취소
+kis.orders.cancel(r.client_order_id)  # 4) 취소
 ```
 
 ## 매수·매도
 
 ```python
-s.buy(quantity=10, limit_price=70000)    # 지정가 매수
-s.buy(quantity=10)                        # 시장가 매수 (가격 생략)
-s.sell(quantity=10, limit_price=71000)   # 지정가 매도
+s.buy(quantity=10, limit_price=70000)  # 지정가 매수
+s.buy(quantity=10)  # 시장가 매수 (가격 생략)
+s.sell(quantity=10, limit_price=71000)  # 지정가 매도
 ```
 
 반환값 `ExecutionReport` 의 필드:
@@ -44,10 +44,10 @@ s.sell(quantity=10, limit_price=71000)   # 지정가 매도
 
 ```python
 s.buy(quantity=10, limit_price=70000, division="immediate_limit")  # 최유리 지정가
-s.buy(quantity=10, limit_price=70000, division="priority_limit")   # 최우선 지정가
+s.buy(quantity=10, limit_price=70000, division="priority_limit")  # 최우선 지정가
 s.buy(quantity=10, limit_price=70000, division="conditional_limit")# 조건부 지정가
-s.buy(quantity=10, limit_price=70000, time_in_force="ioc")         # IOC (즉시체결·잔량취소)
-s.buy(quantity=10, limit_price=70000, time_in_force="fok")         # FOK (전량아니면 취소)
+s.buy(quantity=10, limit_price=70000, time_in_force="ioc")  # IOC (즉시체결·잔량취소)
+s.buy(quantity=10, limit_price=70000, time_in_force="fok")  # FOK (전량아니면 취소)
 ```
 
 ## 정정·취소·확인
@@ -55,9 +55,9 @@ s.buy(quantity=10, limit_price=70000, time_in_force="fok")         # FOK (전량
 취소/정정은 `client_order_id` 로 지목한다.
 
 ```python
-kis.orders.modify(r.client_order_id, limit_price=70500)   # 가격 정정
-kis.orders.modify(r.client_order_id, quantity=5)          # 수량 정정
-kis.orders.cancel(r.client_order_id)                       # 취소
+kis.orders.modify(r.client_order_id, limit_price=70500)  # 가격 정정
+kis.orders.modify(r.client_order_id, quantity=5)  # 수량 정정
+kis.orders.cancel(r.client_order_id)  # 취소
 ```
 
 **주문이 진짜 들어갔는지 확인** — `reconcile`:
@@ -73,9 +73,9 @@ kis.orders.reconcile(r.client_order_id)
 ## 예약·주간거래
 
 ```python
-s.reserve_buy(quantity=10, limit_price=70000)     # 국내 예약(다음 영업일)
-kis.overseas.stock("AAPL").daytime_buy(quantity=1, limit_price=150)   # 미국 주간거래
-kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)   # 미국 예약
+s.reserve_buy(quantity=10, limit_price=70000)  # 국내 예약(다음 영업일)
+kis.overseas.stock("AAPL").daytime_buy(quantity=1, limit_price=150)  # 미국 주간거래
+kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)  # 미국 예약
 ```
 
 ## 신용주문
@@ -110,10 +110,10 @@ from kis_openapi import RiskLimits
 from decimal import Decimal
 
 kis = KISClient(…, risk=RiskLimits(
-    max_order_quantity=1000,                # 한 주문 최대 수량
-    max_order_notional=Decimal("50000000"), # 한 주문 최대 금액(원)
-    price_collar_percent=Decimal("5"),      # 현재가 대비 ±5% 벗어나면 거부
-    enforce_tick_size=True,                 # 호가단위 안 맞으면 거부
+    max_order_quantity=1000,  # 한 주문 최대 수량
+    max_order_notional=Decimal("50000000"),  # 한 주문 최대 금액(원)
+    price_collar_percent=Decimal("5"),  # 현재가 대비 ±5% 벗어나면 거부
+    enforce_tick_size=True,  # 호가단위 안 맞으면 거부
 ))
 ```
 

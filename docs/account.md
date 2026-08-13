@@ -53,25 +53,25 @@ for p in a.positions():
 ## 실현손익
 
 ```python
-a.trade_profits(start="20240101", end="20240630")   # 종목별 실현손익
-a.daily_profits(start="20240101", end="20240630")    # 일별 실현손익
-a.realized_profit_balance()                           # 실현손익 포함 잔고
+a.trade_profits(start="20240101", end="20240630")  # 종목별 실현손익
+a.daily_profits(start="20240101", end="20240630")  # 일별 실현손익
+a.realized_profit_balance()  # 실현손익 포함 잔고
 ```
 
 ## 미체결·주문가능
 
 ```python
-a.open_orders()                          # 미체결 / 정정취소 가능 주문
+a.open_orders()  # 미체결 / 정정취소 가능 주문
 s = kis.domestic.stock("005930")
-s.buyable()    # 매수 가능 수량·금액
-s.sellable()   # 매도 가능 수량
+s.buyable()  # 매수 가능 수량·금액
+s.sellable()  # 매도 가능 수량
 ```
 
 ## 권리·증거금
 
 ```python
-a.rights(start="20240101", end="20240630")   # 배정/신청/환불된 권리
-a.integrated_margin()                          # 통합증거금
+a.rights(start="20240101", end="20240630")  # 배정/신청/환불된 권리
+a.integrated_margin()  # 통합증거금
 ```
 
 ## 해외 계좌
@@ -80,10 +80,10 @@ a.integrated_margin()                          # 통합증거금
 
 ```python
 oa = kis.overseas.account
-oa.positions(market=None)   # None = 전체 시장 합산
-oa.balance(market="NAS")    # 통화별 요약이라 시장 지정
-oa.present_balance()        # 체결기준 현재잔고
-oa.period_profit(start="20240101", end="20240630")   # 기간 실현손익
-oa.transactions(start="20240101", end="20240630")     # 거래내역
-oa.foreign_margin()         # 통화별 외화 증거금
+oa.positions(market=None)  # None = 전체 시장 합산
+oa.balance(market="NAS")  # 통화별 요약이라 시장 지정
+oa.present_balance()  # 체결기준 현재잔고
+oa.period_profit(start="20240101", end="20240630")  # 기간 실현손익
+oa.transactions(start="20240101", end="20240630")  # 거래내역
+oa.foreign_margin()  # 통화별 외화 증거금
 ```

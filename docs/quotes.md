@@ -3,14 +3,14 @@
 종목 하나는 `kis.domestic.stock("종목코드")` 로 잡고, 거기서 시세를 조회한다.
 
 ```python
-s = kis.domestic.stock("005930")   # 삼성전자
+s = kis.domestic.stock("005930")  # 삼성전자
 ```
 
 ## 현재가
 
 ```python
 q = s.quote()
-print(q.current_price, q.change_percent)   # 예: 71500  0.70
+print(q.current_price, q.change_percent)  # 예: 71500  0.70
 ```
 
 `quote()` 가 돌려주는 `Quote` 의 필드:
@@ -32,15 +32,15 @@ print(q.current_price, q.change_percent)   # 예: 71500  0.70
 
 ```python
 s.bars("1d", start="20240101", end="20240630")  # 일봉
-s.bars("1wk", start="20230101")                  # 주봉
-s.bars("1m", max_bars=120)                        # 당일 1분봉 최근 120개
+s.bars("1wk", start="20230101")  # 주봉
+s.bars("1m", max_bars=120)  # 당일 1분봉 최근 120개
 ```
 
 과거→현재 순으로 온다. 각 봉(`Bar`)은 `timestamp / open / high / low / close / volume`.
 
 ```python
 bars = s.bars("1d", start="20240101")
-for b in bars[-5:]:                               # 최근 5봉
+for b in bars[-5:]:  # 최근 5봉
     print(f"{b.timestamp:%Y-%m-%d}  종가 {b.close}  거래량 {b.volume}")
 ```
 
@@ -50,10 +50,10 @@ for b in bars[-5:]:                               # 최근 5봉
 
 ```python
 ob = s.order_book()
-best_bid = ob.bids[0]        # 최우선 매수호가
-best_ask = ob.asks[0]        # 최우선 매도호가
+best_bid = ob.bids[0]  # 최우선 매수호가
+best_ask = ob.asks[0]  # 최우선 매도호가
 print(best_bid.price, best_bid.quantity)
-print(ob.total_bid_quantity, ob.total_ask_quantity)   # 총 매수/매도 잔량
+print(ob.total_bid_quantity, ob.total_ask_quantity)  # 총 매수/매도 잔량
 ```
 
 `bids` · `asks` 는 각각 (가격 `price`, 잔량 `quantity`) 호가 단계 튜플이다.
@@ -61,8 +61,8 @@ print(ob.total_bid_quantity, ob.total_ask_quantity)   # 총 매수/매도 잔량
 ## 체결·최근가
 
 ```python
-s.trades()          # 최근 체결 내역
-s.recent_prices()   # 최근 가격 추이
+s.trades()  # 최근 체결 내역
+s.recent_prices()  # 최근 가격 추이
 ```
 
 ## 여러 종목 한 번에
@@ -78,18 +78,18 @@ kis.domestic.quotes([("KRX", "005930"), ("NXT", "123456")])
 ## 시간외
 
 ```python
-s.after_hours_quote()         # 시간외 현재가
-s.after_hours_daily()         # 시간외 일별
-s.after_hours_conclusions()   # 시간외 체결
+s.after_hours_quote()  # 시간외 현재가
+s.after_hours_daily()  # 시간외 일별
+s.after_hours_conclusions()  # 시간외 체결
 ```
 
 ## 지수·해외
 
 ```python
-kis.domestic.index("0001").quote()      # KOSPI
-kis.domestic.index("1001").quote()      # KOSDAQ
+kis.domestic.index("0001").quote()  # KOSPI
+kis.domestic.index("1001").quote()  # KOSDAQ
 
-kis.overseas.stock("AAPL").quote()      # 거래소 자동 (NAS)
+kis.overseas.stock("AAPL").quote()  # 거래소 자동 (NAS)
 kis.overseas.stock("AAPL").bars("1d")
 ```
 

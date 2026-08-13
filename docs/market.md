@@ -7,23 +7,23 @@
 ```python
 s = kis.domestic.stock("005930")
 
-s.investor_flows()            # 개인/외국인/기관 매매동향
-s.foreign_net_buy_trend()     # 외국인 순매수 추이
-s.detailed_investor_history() # 상세 투자자별
+s.investor_flows()  # 개인/외국인/기관 매매동향
+s.foreign_net_buy_trend()  # 외국인 순매수 추이
+s.detailed_investor_history()  # 상세 투자자별
 ```
 
 ## 프로그램 매매
 
 ```python
-s.program_trades()        # 종목 프로그램 매매
+s.program_trades()  # 종목 프로그램 매매
 s.daily_program_trades()  # 일별
 ```
 
 ## 공매도·신용
 
 ```python
-s.short_sale_trend()        # 공매도 추이
-s.credit_balance_trend()    # 신용잔고 추이
+s.short_sale_trend()  # 공매도 추이
+s.credit_balance_trend()  # 신용잔고 추이
 ```
 
 ## 시장 전체 수급 — `kis.domestic.market`
@@ -31,14 +31,14 @@ s.credit_balance_trend()    # 신용잔고 추이
 ```python
 m = kis.domestic.market
 
-m.investor_flows()             # 시장 전체 투자자 동향
-m.investor_net_buy_stocks()    # 투자자별 순매수 상위 종목
-m.program_trades()             # 시장 프로그램 매매
-m.foreign_broker_trades()      # 외국계 창구 매매
-m.broker_opinions()            # 증권사 의견
-m.news()                        # 뉴스
-m.vi_events()                   # VI 발동 현황
-m.interest_rates()              # 시장 금리
+m.investor_flows()  # 시장 전체 투자자 동향
+m.investor_net_buy_stocks()  # 투자자별 순매수 상위 종목
+m.program_trades()  # 시장 프로그램 매매
+m.foreign_broker_trades()  # 외국계 창구 매매
+m.broker_opinions()  # 증권사 의견
+m.news()  # 뉴스
+m.vi_events()  # VI 발동 현황
+m.interest_rates()  # 시장 금리
 ```
 
 ## 캘린더 (배당·공모·권리)
@@ -48,13 +48,13 @@ m.interest_rates()              # 시장 금리
 ```python
 c = kis.domestic.calendar
 
-c.dividends(start="20240101", end="20241231")       # 배당
-c.ipo_subscriptions(start="20240101", end="…")       # 공모주 청약
-c.rights_offerings(…)                                 # 유상증자
-c.bonus_issues(…)                                     # 무상증자
-c.shareholder_meetings(…)                             # 주주총회
-c.merger_splits(…)                                    # 합병·분할
-c.listings(…)                                         # 상장
+c.dividends(start="20240101", end="20241231")  # 배당
+c.ipo_subscriptions(start="20240101", end="…")  # 공모주 청약
+c.rights_offerings(…)  # 유상증자
+c.bonus_issues(…)  # 무상증자
+c.shareholder_meetings(…)  # 주주총회
+c.merger_splits(…)  # 합병·분할
+c.listings(…)  # 상장
 ```
 
 ::: {.callout-note}

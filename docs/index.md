@@ -8,8 +8,8 @@ from kis_openapi import KISClient
 
 kis = KISClient(app_key="…", app_secret="…", account="12345678-01")
 
-kis.domestic.stock("005930").quote()           # 삼성전자 현재가
-kis.overseas.stock("AAPL").quote()             # AAPL (거래소 자동)
+kis.domestic.stock("005930").quote()  # 삼성전자 현재가
+kis.overseas.stock("AAPL").quote()  # AAPL (거래소 자동)
 kis.domestic.ranking.by_change(top="gainers")  # 오늘 상승률 순위
 ```
 
