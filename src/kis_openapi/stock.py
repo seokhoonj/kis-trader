@@ -1,7 +1,7 @@
 """종목 핸들 -- :class:`DomesticStock` / :class:`OverseasStock` (공통 베이스 :class:`_StockBase`).
 
 한 종목에 대해 행위를 시키는 핸들이다: ``kis.domestic.stock("005930").quote()`` 처럼. 국내와 해외는
-표면이 다르다 -- 국내는 재무/ETF/투자자/시세분석까지, 해외는 현재가·기간봉·미국주간거래를 준다.
+표면이 다르다 -- 국내는 재무/ETF/투자자/시세분석까지, 해외는 현재가·기간봉·미국 오버나이트 거래를 준다.
 겸용 핸들 하나가 아니라 자산군별 클래스로 나뉘어, 잘못된 조합(해외 종목에 국내 전용 조회)은 런타임
 오류가 아니라 애초에 그 메서드가 없다(타입체커가 먼저 잡는다).
 
@@ -667,32 +667,32 @@ class OverseasStock(_StockBase):
             self._client.transport, symbol=self.symbol, exchange=self.exchange
         )
 
-    # --- 미국주간거래(한국 낮 시간대; 미국 NAS/NYS/AMS 만) ---
-    def daytime_buy(
+    # --- 미국 오버나이트 거래(한국 낮 시간대; 미국 NAS/NYS/AMS 만) ---
+    def overnight_buy(
         self, *, quantity: Numeric, limit_price: Numeric, client_order_id: str | None = None,
     ) -> ExecutionReport:
-        """이 미국 종목을 **미국주간거래**로 매수한다(한국 낮 시간대). 지정가만(``limit_price`` 필수).
+        """이 미국 종목을 **미국 오버나이트 거래**로 매수한다(한국 낮 시간대). 지정가만(``limit_price`` 필수).
 
         정규 :meth:`buy` 와 같은 안전 엔진(이중체결 방지·재시도 금지)을 공유하되 세션이 달라 정정·취소는
         미국주간 전용 엔드포인트로 라우팅된다(반환 리포트의 ``client_order_id`` 로 ``kis.orders.cancel``/
         ``kis.orders.modify``). **모의투자 미지원**, 미국(NAS/NYS/AMS)만. 타임아웃 시 ``kis.orders.reconcile``
         은 주간 체결이 정규 체결내역에 없어 자동 확정하지 않고 None(in-flight 유지)을 준다 -- 수동 확인이
         필요하다. 예외는 :meth:`buy` 와 같다(접수 거부 ``OrderRejectedError``·타임아웃 ``OrderTimeoutError``)."""
-        return self._client._place_order(self._make_daytime_order(
+        return self._client._place_order(self._make_overnight_order(
             "buy", quantity=quantity, limit_price=limit_price, client_order_id=client_order_id))
 
-    def daytime_sell(
+    def overnight_sell(
         self, *, quantity: Numeric, limit_price: Numeric, client_order_id: str | None = None,
     ) -> ExecutionReport:
-        """이 미국 종목을 미국주간거래로 매도한다(계약은 :meth:`daytime_buy` 와 동일, 방향만 매도)."""
-        return self._client._place_order(self._make_daytime_order(
+        """이 미국 종목을 미국 오버나이트 거래로 매도한다(계약은 :meth:`overnight_buy` 와 동일, 방향만 매도)."""
+        return self._client._place_order(self._make_overnight_order(
             "sell", quantity=quantity, limit_price=limit_price, client_order_id=client_order_id))
 
-    def _make_daytime_order(
+    def _make_overnight_order(
         self, side: Side, *, quantity: Numeric, limit_price: Numeric, client_order_id: str | None,
     ) -> Order:
         return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=limit_price,
-                           exchange=self.exchange, session="daytime", client_order_id=client_order_id)
+                           exchange=self.exchange, session="overnight", client_order_id=client_order_id)
 
     def _make_order(
         self, side: Side, *, quantity: Numeric, limit_price: Numeric | None,

@@ -39,9 +39,9 @@ TimeInForce = Literal["day", "gtc", "ioc", "fok"]
 #:     우선순위 확보, 즉시 체결은 아님). 매도면 최우선 매도호가, 매수면 최우선 매수호가. 가격 없음.
 #: IOC/FOK 는 별도 주문구분이 아니라 ``time_in_force``(ioc/fok)로 조합한다.
 DomesticDivision = Literal["conditional_limit", "immediate_limit", "priority_limit"]
-#: 거래 세션. ``regular`` 정규장, ``daytime`` 미국주간거래(한국 낮 시간대 미국 종목 거래). 세션이
+#: 거래 세션. ``regular`` 정규장, ``overnight`` 미국 오버나이트 거래(한국 낮 시간대 미국 종목 거래). 세션이
 #: 다르면 서로 다른 주문이고 정정·취소 엔드포인트도 다르므로 지문·라우팅으로 구분한다.
-Session = Literal["regular", "daytime"]
+Session = Literal["regular", "overnight"]
 #: 접수된 주문에 대한 변경 동작(정정/취소). 국내(``_domestic``)·해외(``_overseas``) 주문
 #: 엔진이 공유하는 단일 타입 -- 두 엔진 모두 이 alias 를 import 한다(중복 정의 금지).
 ChangeAction = Literal["cancel", "modify"]
@@ -240,11 +240,11 @@ _CREDIT_SELL_TYPES = frozenset(("22", "24", "25", "27"))   # 유통대주신규/
 #: 신규(융자/대주 개시) vs 상환. 대출일자(LOAN_DT)는 신규면 개시일(오늘), 상환이면 대상 대출일자다.
 _CREDIT_NEW_TYPES = frozenset(("21", "22", "23", "24"))    # 자기융자/유통대주/유통융자/자기대주 신규
 _CREDIT_REPAY_TYPES = frozenset(("25", "26", "27", "28"))  # 자기융자/유통대주/유통융자/자기대주 상환
-_SESSIONS = frozenset(("regular", "daytime"))
-#: 미국주간거래 가능 거래소(시세 EXCD). 주간거래는 미국(NASD/NYSE/AMEX)만·지정가만. 여기서
+_SESSIONS = frozenset(("regular", "overnight"))
+#: 미국 오버나이트 거래 가능 거래소(시세 EXCD). 오버나이트 거래는 미국(NASD/NYSE/AMEX)만·지정가만. 여기서
 #: 구성 시점 검증에 쓴다(Order 는 _overseas 를 import 못 해 목록을 직접 든다) -- _overseas/orders.py
 #: `_ORDER_EXCHANGE` 의 US 그룹(market=="US")과 동일해야 하며, 와이어 빌더가 거기서 한 번 더 확인한다.
-_DAYTIME_EXCHANGES = frozenset(("NAS", "NYS", "AMS"))
+_OVERNIGHT_EXCHANGES = frozenset(("NAS", "NYS", "AMS"))
 #: 국내 거래소(MIC). ``division``(국내 주문구분)은 이 거래소에서만 유효하다. _domestic/orders.py
 #: `_DOMESTIC_MICS`/`_EXCHANGE_ID` 와 일치해야 한다.
 _DOMESTIC_EXCHANGES = frozenset(("XKRX", "XKOS", "NXTE"))
@@ -392,23 +392,23 @@ class Order:
 
         if self.session not in _SESSIONS:
             raise KISUsageError(f"지원하지 않는 session: {self.session!r}")
-        if self.session == "daytime":
-            # 미국주간거래는 미국(NASD/NYSE/AMEX)만·지정가만 -- 그 밖은 생성 시점에 fail-closed.
-            if self.exchange not in _DAYTIME_EXCHANGES:
+        if self.session == "overnight":
+            # 미국 오버나이트 거래는 미국(NASD/NYSE/AMEX)만·지정가만 -- 그 밖은 생성 시점에 fail-closed.
+            if self.exchange not in _OVERNIGHT_EXCHANGES:
                 raise KISUsageError(
-                    f"미국주간거래(session='daytime')는 미국 거래소만 지원한다 "
-                    f"({'/'.join(sorted(_DAYTIME_EXCHANGES))}): exchange={self.exchange!r}"
+                    f"미국 오버나이트 거래(session='overnight')는 미국 거래소만 지원한다 "
+                    f"({'/'.join(sorted(_OVERNIGHT_EXCHANGES))}): exchange={self.exchange!r}"
                 )
             if self.order_type != "limit":
-                raise KISUsageError("미국주간거래는 지정가만 지원한다(price 를 지정하라).")
+                raise KISUsageError("미국 오버나이트 거래는 지정가만 지원한다(price 를 지정하라).")
             if self.time_in_force != "day":
                 # 주간 와이어엔 TIF 필드가 없어 조용히 day 로 나간다 -- 정규 해외주문처럼 fail-closed
                 # (그렇지 않으면 지문의 TIF 와 실제 전송이 어긋난다).
                 raise KISUsageError(
-                    f"미국주간거래는 time_in_force='day' 만 지원한다: {self.time_in_force!r}"
+                    f"미국 오버나이트 거래는 time_in_force='day' 만 지원한다: {self.time_in_force!r}"
                 )
             if self.credit_type is not None:
-                raise KISUsageError("미국주간거래는 신용주문과 조합할 수 없다.")
+                raise KISUsageError("미국 오버나이트 거래는 신용주문과 조합할 수 없다.")
 
         # division(국내 주문구분: 최유리/최우선/조건부)은 국내 현금주문 전용 -- 해외 거래소·신용·주간과
         # 조합하면 라우팅이 어긋나 의도와 다른 주문이 나갈 수 있어, 생성 시점에 fail-closed.
@@ -421,7 +421,7 @@ class Order:
             if self.credit_type is not None:
                 raise KISUsageError("division 은 신용주문과 조합할 수 없다.")
             if self.session != "regular":
-                raise KISUsageError("division 은 미국주간거래와 조합할 수 없다.")
+                raise KISUsageError("division 은 미국 오버나이트 거래와 조합할 수 없다.")
             # division<->order_type<->price 결합을 DATA 경계에서 강제한다 -- 최유리/최우선은 시장이 가격을
             # 정하는 가격없는 시장가 기반, 조건부는 지정가 기반. 이 결합이 없으면 Order.market/limit 생성자로
             # 잘못된 조합이 만들어져 와이어에 조용히 틀린 가격(또는 price 0)이 나간다(fail-open).
@@ -527,7 +527,7 @@ class Order:
               time_in_force: TimeInForce = "day", exchange: str = "XKRX",
               session: Session = "regular", division: DomesticDivision | None = None,
               board: DomesticBoard = "KRX", client_order_id: str | None = None) -> Order:
-        """지정가 주문. ``session='daytime'`` 은 미국주간거래(미국 종목만). ``division`` 은 국내
+        """지정가 주문. ``session='overnight'`` 은 미국 오버나이트 거래(미국 종목만). ``division`` 은 국내
         현금주문 전용 주문구분(조건부지정가 등, 가격 필요). ``board`` 는 체결 보드(KRX/NXT/UN=SOR)."""
         return cls._make(symbol, side, "limit", quantity, limit_price=limit_price,
                           time_in_force=time_in_force, exchange=exchange, session=session,

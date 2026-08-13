@@ -82,7 +82,7 @@ kis.orders.reconcile(r.client_order_id)
 
 ```python
 s.reserve_buy(quantity=10, limit_price=70000)  # 국내 예약(다음 영업일)
-kis.overseas.stock("AAPL").daytime_buy(quantity=1, limit_price=150)  # 미국 주간거래
+kis.overseas.stock("AAPL").overnight_buy(quantity=1, limit_price=150)  # 미국 오버나이트(한국 낮)
 kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)  # 미국 예약
 ```
 

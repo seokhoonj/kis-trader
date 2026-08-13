@@ -231,8 +231,8 @@ class KISClient:
         builder: orders_engine._ChangeRequestBuilder | None = None
         if overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
             builder = (
-                overseas_orders_engine.make_daytime_change_request
-                if isinstance(fingerprint, ImmediateOrderFingerprint) and fingerprint.session == "daytime"
+                overseas_orders_engine.make_overnight_change_request
+                if isinstance(fingerprint, ImmediateOrderFingerprint) and fingerprint.session == "overnight"
                 else overseas_orders_engine.make_change_request
             )
         return orders_engine.submit_change(
@@ -264,8 +264,8 @@ class KISClient:
                     "국내 주문에만 risk 를 쓰라."
                 )
             build_request = (
-                overseas_orders_engine.make_daytime_order_request
-                if order.session == "daytime"
+                overseas_orders_engine.make_overnight_order_request
+                if order.session == "overnight"
                 else overseas_orders_engine.make_order_request
             )
         elif order.credit_type is not None:

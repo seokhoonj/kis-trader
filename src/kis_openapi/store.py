@@ -42,7 +42,7 @@ except ImportError:  # pragma: no cover -- 비-Unix
 _KST = timezone(timedelta(hours=9))
 
 #: 이 릴리스가 쓰는 스키마 버전.
-#: v2: Fingerprint 에 credit_type/loan_date(신용주문). v3: session(미국주간거래). v4: division(국내
+#: v2: Fingerprint 에 credit_type/loan_date(신용주문). v3: session(미국 오버나이트 거래). v4: division(국내
 #: 주문구분: 최유리/최우선/조건부). v5: board(국내 체결 보드 KRX/NXT/UN) 추가. v6: 리포트에
 #: organization_number(국내 조직번호) 영속 -- 재기동 후 정정취소가 조직번호를 읽게(전엔 미영속 _raw
 #: 에만 있어 재시작하면 취소 불가). v7: 리포트 레코드 키 submitted_at -> recorded_at(저장 시각임을

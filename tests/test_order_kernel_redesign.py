@@ -52,12 +52,12 @@ _FROZEN_BYTES = {
         ),
         ["009150", "buy", "limit", "1", "130000", "", "day", "XKRX", "26", "20211103", "regular", "", "KRX"],
     ),
-    "immediate_daytime": (  # session 슬롯(idx 10) 을 non-default 로 고정 -- 미국 주간거래
+    "immediate_daytime": (  # session 슬롯(idx 10) 을 non-default 로 고정 -- 미국 오버나이트 거래
         ImmediateOrderFingerprint(
             symbol="AAPL", side="buy", order_type="limit", quantity="5", limit_price="150",
-            stop_price="", time_in_force="day", exchange="NAS", session="daytime",
+            stop_price="", time_in_force="day", exchange="NAS", session="overnight",
         ),
-        ["AAPL", "buy", "limit", "5", "150", "", "day", "NAS", "", "", "daytime", "", "KRX"],
+        ["AAPL", "buy", "limit", "5", "150", "", "day", "NAS", "", "", "overnight", "", "KRX"],
     ),
     "immediate_division_board": (
         ImmediateOrderFingerprint(
@@ -270,7 +270,7 @@ def test_public_write_surface_uses_limit_price():
     assert "limit_price" in params(DomesticStock.buy)
     assert "limit_price" in params(DomesticStock.credit_buy)
     assert "limit_price" in params(DomesticStock.reserve_buy)
-    assert "limit_price" in params(OverseasStock.daytime_buy)
+    assert "limit_price" in params(OverseasStock.overnight_buy)
     assert "limit_price" in params(OrdersNamespace.modify) and "price" not in params(OrdersNamespace.modify)
     assert "limit_price" in params(DomesticAccount.modify_reserved_order)
 

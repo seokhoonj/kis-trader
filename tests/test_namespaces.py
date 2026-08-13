@@ -81,7 +81,7 @@ def test_stock_surfaces_are_asset_specific():
     # 자산군 분리의 핵심 계약: 국내 전용은 해외 핸들에 없고, 해외 전용은 국내 핸들에 없다(전수).
     dom = _public_methods(DomesticStock)
     ovs = _public_methods(OverseasStock)
-    assert ovs - dom == {"current_price", "daytime_buy", "daytime_sell"}   # 해외 전용은 정확히 이 셋
+    assert ovs - dom == {"current_price", "overnight_buy", "overnight_sell"}   # 해외 전용은 정확히 이 셋
     assert {"nav", "balance_sheet", "investor_flows", "credit_buy", "buyable"} <= dom - ovs
     assert {"quote", "bars", "order_book", "trades"} <= dom & ovs          # 공유 표면은 양쪽에
     # 추상 베이스는 직접 생성 불가.
