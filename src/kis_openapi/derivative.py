@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._domestic import derivatives as derivatives_api
-from .derivative_items import DerivativesQuote, ExpectedExecutionTrend, UnderlyingQuote
+from .derivative_items import DerivativeQuote, ExpectedExecutionTrend, UnderlyingQuote
 
 if TYPE_CHECKING:
     from datetime import date
@@ -39,7 +39,7 @@ class Derivative:
         self.code = code
         self.market = market
 
-    def quote(self) -> DerivativesQuote:
+    def quote(self) -> DerivativeQuote:
         """계약 현재가 스냅샷(가격·미결제약정·베이시스·이론가·괴리율; 옵션 그릭스는 ``_raw``)."""
         return derivatives_api.fetch_quote(
             self._client.transport, code=self.code, market=self.market

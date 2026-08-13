@@ -322,17 +322,17 @@ def test_mandatory_deposits_missing_output1_fails_closed():
         _client(fake).domestic.calendar.mandatory_deposits(start="20240301", end="20240331")
 
 
-def test_listing_infos_maps_and_params():
+def test_listings_maps_and_params():
     rows = [{"list_dt": "20240326", "sht_cd": "034220", "isin_name": "LG디스플레이",
              "stk_kind": "보통", "issue_type": "유상증자",
              "issue_stk_qty": "   142184300", "tot_issue_stk_qty": "   500000000",
              "issue_price": "     9090"}]
     fake = FakeTransport(response=_resp(rows))
-    from kis_openapi import ListingInfo
-    events = _client(fake).domestic.calendar.listing_infos(
+    from kis_openapi import ListingEvent
+    events = _client(fake).domestic.calendar.listings(
         start="20240301", end="20240331", symbol="034220"
     )
-    assert isinstance(events[0], ListingInfo)
+    assert isinstance(events[0], ListingEvent)
     e = events[0]
     assert e.symbol == "034220"
     assert e.list_date == date(2024, 3, 26)
@@ -346,10 +346,10 @@ def test_listing_infos_maps_and_params():
     assert call["params"]["SHT_CD"] == "034220"
 
 
-def test_listing_infos_missing_output1_fails_closed():
+def test_listings_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).domestic.calendar.listing_infos(start="20240301", end="20240331")
+        _client(fake).domestic.calendar.listings(start="20240301", end="20240331")
 
 
 def test_par_value_changes_maps_and_params():

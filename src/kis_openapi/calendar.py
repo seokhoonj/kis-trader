@@ -23,7 +23,7 @@ if TYPE_CHECKING:
         DividendEvent,
         ForfeitedShares,
         IPOSubscription,
-        ListingInfo,
+        ListingEvent,
         MandatoryDeposit,
         MergerSplit,
         ParValueChange,
@@ -111,11 +111,11 @@ class CalendarQueries:
             self._client.transport, start=start, end=end, symbol=symbol
         )
 
-    def listing_infos(
+    def listings(
         self, *, start: str | date, end: str | date, symbol: str | None = None
-    ) -> list[ListingInfo]:
+    ) -> list[ListingEvent]:
         """기간 [start, end] 의 상장정보. ``symbol`` 지정 시 그 종목만."""
-        return ksd_api.fetch_listing_infos(
+        return ksd_api.fetch_listings(
             self._client.transport, start=start, end=end, symbol=symbol
         )
 

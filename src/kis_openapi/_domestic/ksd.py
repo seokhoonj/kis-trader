@@ -27,7 +27,7 @@ from ..calendar_items import (
     DividendEvent,
     ForfeitedShares,
     IPOSubscription,
-    ListingInfo,
+    ListingEvent,
     MandatoryDeposit,
     MergerSplit,
     ParValueChange,
@@ -399,9 +399,9 @@ def fetch_mandatory_deposits(
     return events
 
 
-def fetch_listing_infos(
+def fetch_listings(
     transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
-) -> list[ListingInfo]:
+) -> list[ListingEvent]:
     """기간 [start, end] 의 상장정보. ``symbol`` 지정 시 그 종목만."""
     params = {
         "CTS": "",
@@ -409,13 +409,13 @@ def fetch_listing_infos(
         "T_DT": _to_yyyymmdd(end, "end"),
         "SHT_CD": symbol or "",
     }
-    events: list[ListingInfo] = []
+    events: list[ListingEvent] = []
     for row in _rows(transport, path=_LISTING_INFO_PATH, tr=_LISTING_INFO_TR, params=params):
         code = str(row.get("sht_cd", "")).strip()
         if not code:
             continue
         events.append(
-            ListingInfo(
+            ListingEvent(
                 symbol=code,
                 name=str(row.get("isin_name", "")).strip(),
                 list_date=_parse_ksd_date(row.get("list_dt"), required=True, name="list_dt"),

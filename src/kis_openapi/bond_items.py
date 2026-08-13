@@ -65,11 +65,11 @@ class BondDailyPrice:
 
 
 @dataclass(frozen=True, slots=True)
-class BondInfo:
+class BondProfile:
     """한 장내채권의 기본/발행 정보(불변).
 
     :meth:`~kis_openapi.bond.Bond.info` 가 돌려준다. 시세(:class:`BondQuote`)가 "지금 얼마"라면
-    ``BondInfo`` 는 "어떤 채권인가" -- 발행일·만기일·표면금리·만기수익률·통화 같은 채권의 계약 조건이다.
+    ``BondProfile`` 는 "어떤 채권인가" -- 발행일·만기일·표면금리·만기수익률·통화 같은 채권의 계약 조건이다.
     ``coupon_rate`` 는 표면금리(%), ``yield_to_maturity`` 는 만기수익률(%), ``interest_period_months``
     는 이자 지급 주기(개월). 날짜/비율은 없으면 ``None``. 세부는 ``_raw``.
     """

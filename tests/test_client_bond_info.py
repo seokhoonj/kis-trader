@@ -1,4 +1,4 @@
-"""채권 기본정보 -- kis.domestic.bond(code).info()."""
+"""채권 기본정보 -- kis.domestic.bond(code).profile()."""
 from __future__ import annotations
 
 import threading
@@ -7,7 +7,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import BondInfo, BondIssuance, KISClient
+from kis_openapi import BondIssuance, BondProfile, KISClient
 from kis_openapi.errors import KISError
 from kis_openapi.transport import RawResponse
 
@@ -35,8 +35,8 @@ def test_bond_info_maps():
            "ksd_rcvg_bond_dsct_rt": "0.000", "bond_expd_rdpt_rt": "100.0",
            "bond_expd_asrc_erng_rt": "3.85", "int_caltm_mcnt": "6"}
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
-    info = _client(fake).domestic.bond("KR2033022D33").info()
-    assert isinstance(info, BondInfo)
+    info = _client(fake).domestic.bond("KR2033022D33").profile()
+    assert isinstance(info, BondProfile)
     assert info.name == "국고03750-3312"
     assert info.currency == "KRW"
     assert f"{info.issue_date:%Y%m%d}" == "20201210"
@@ -57,7 +57,7 @@ def test_bond_info_optional_none():
            "ksd_rcvg_bond_dsct_rt": "", "bond_expd_rdpt_rt": "", "bond_expd_asrc_erng_rt": "",
            "int_caltm_mcnt": ""}
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
-    info = _client(fake).domestic.bond("KR2033022D33").info()
+    info = _client(fake).domestic.bond("KR2033022D33").profile()
     assert info.issue_date is None
     assert info.coupon_rate is None
     assert info.interest_period_months is None
@@ -69,7 +69,7 @@ def test_bond_info_date_fields_are_pure_date():
            "iso_crcy_cd": "KRW", "issu_dt": "20201210", "rdpt_dt": "20331210",
            "lstg_dt": "20201211"}
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
-    info = _client(fake).domestic.bond("KR2033022D33").info()
+    info = _client(fake).domestic.bond("KR2033022D33").profile()
     assert type(info.issue_date) is date
     assert info.issue_date == date(2020, 12, 10)
     assert type(info.maturity_date) is date
@@ -82,20 +82,20 @@ def test_bond_info_bad_date_fails_closed():
            "issu_dt": "20230230"}
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
     with pytest.raises(KISError):
-        _client(fake).domestic.bond("KR2033022D33").info()
+        _client(fake).domestic.bond("KR2033022D33").profile()
 
 
 def test_bond_info_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).domestic.bond("KR2033022D33").info()
+        _client(fake).domestic.bond("KR2033022D33").profile()
 
 
 def test_bond_info_zero_date_sentinel_is_none():
     out = {"ksd_bond_item_name": "x", "ksd_bond_item_eng_name": "x", "iso_crcy_cd": "KRW",
            "issu_dt": "00000000", "rdpt_dt": "00000000", "lstg_dt": "00000000"}
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
-    info = _client(fake).domestic.bond("KR2033022D33").info()
+    info = _client(fake).domestic.bond("KR2033022D33").profile()
     assert info.issue_date is None                        # 0-채움 센티넬 -> None (크래시 아님)
     assert info.maturity_date is None
     assert info.listing_date is None
@@ -106,7 +106,7 @@ def test_bond_info_bad_value_fails_closed():
            "ksd_rcvg_bond_srfc_inrt": "n/a"}
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": out}))
     with pytest.raises(KISError):
-        _client(fake).domestic.bond("KR2033022D33").info()
+        _client(fake).domestic.bond("KR2033022D33").profile()
 
 
 def _issuance_output(**over):

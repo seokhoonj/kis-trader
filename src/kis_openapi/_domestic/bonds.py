@@ -43,8 +43,8 @@ from .._wire import (
 from ..bar import Bar, Interval
 from ..bond_items import (
     BondDailyPrice,
-    BondInfo,
     BondIssuance,
+    BondProfile,
     BondQuote,
     BondValuation,
 )
@@ -282,7 +282,7 @@ def fetch_valuations(
     return valuations
 
 
-def fetch_info(transport: Transport, *, code: str) -> BondInfo:
+def fetch_profile(transport: Transport, *, code: str) -> BondProfile:
     """채권 기본/발행 정보(발행일·만기·표면금리·만기수익률·통화). ``code`` 는 표준코드(ISIN)."""
     params = {"PDNO": code, "PRDT_TYPE_CD": _BOND_PRODUCT_TYPE_CODE}
     resp = transport.request(
@@ -292,7 +292,7 @@ def fetch_info(transport: Transport, *, code: str) -> BondInfo:
     output = resp.body.get("output")
     if not isinstance(output, Mapping):
         raise _missing_block_error("output", resp)
-    return BondInfo(
+    return BondProfile(
         code=code,
         name=str(output.get("ksd_bond_item_name", "")).strip(),
         english_name=str(output.get("ksd_bond_item_eng_name", "")).strip(),

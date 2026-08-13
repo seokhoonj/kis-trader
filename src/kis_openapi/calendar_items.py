@@ -215,7 +215,7 @@ class MandatoryDeposit:
 
 
 @dataclass(frozen=True, slots=True)
-class ListingInfo:
+class ListingEvent:
     """한 종목의 상장정보(불변)."""
 
     symbol: str                       # 종목코드(sht_cd)

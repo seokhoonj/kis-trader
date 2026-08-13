@@ -66,7 +66,7 @@ from ..investor import (
 from ..order_book import OrderBook
 from ..program import DailyProgramTradePoint, ProgramTradePoint
 from ..quote import Quote
-from ..stock_info import StockInfo, StockStatus
+from ..stock_info import StockProfile, StockStatus
 from ..trade import Trade
 from ..transport import Transport
 
@@ -1240,7 +1240,7 @@ _STOCK_INFO_PATH = "/uapi/domestic-stock/v1/quotations/search-stock-info"
 _STOCK_INFO_TR = "CTPF1002R"
 
 
-def fetch_stock_info(transport: Transport, *, symbol: str) -> StockInfo:
+def fetch_stock_profile(transport: Transport, *, symbol: str) -> StockProfile:
     """한 종목의 기본정보(이름·상장주식수·자본금·액면가·업종·상장일)."""
     params = {"PRDT_TYPE_CD": "300", "PDNO": symbol}    # 300: 주식/ETF/ETN/ELW
     resp = transport.request(
@@ -1254,7 +1254,7 @@ def fetch_stock_info(transport: Transport, *, symbol: str) -> StockInfo:
     # 가리지 않는다(공백 primary 가 실제 코스닥 상장일을 덮는 버그 방지).
     listing = (str(output.get("scts_mket_lstg_dt", "")).strip()
                or str(output.get("kosdaq_mket_lstg_dt", "")).strip())
-    return StockInfo(
+    return StockProfile(
         symbol=symbol,
         name=str(output.get("prdt_name", "")).strip(),
         short_name=str(output.get("prdt_abrv_name", "")).strip(),

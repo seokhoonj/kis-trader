@@ -38,7 +38,13 @@ from .analysis import (
 from .balance import AccountAssets, Balance, Portfolio, Position
 from .bar import Bar, Interval
 from .bond import Bond
-from .bond_items import BondDailyPrice, BondInfo, BondIssuance, BondQuote, BondValuation
+from .bond_items import (
+    BondDailyPrice,
+    BondIssuance,
+    BondProfile,
+    BondQuote,
+    BondValuation,
+)
 from .broker import (
     BrokerActivity,
     BrokerActivitySummary,
@@ -54,7 +60,7 @@ from .calendar_items import (
     DividendEvent,
     ForfeitedShares,
     IPOSubscription,
-    ListingInfo,
+    ListingEvent,
     MandatoryDeposit,
     MergerSplit,
     ParValueChange,
@@ -64,7 +70,7 @@ from .calendar_items import (
 from .client import KISClient
 from .derivative import Derivative
 from .derivative_items import (
-    DerivativesQuote,
+    DerivativeQuote,
     ExpectedExecutionPoint,
     ExpectedExecutionTrend,
     FuturesBoardQuote,
@@ -217,7 +223,7 @@ from .saved_screen import (
     WatchlistStock,
 )
 from .stock import DomesticStock, OverseasStock
-from .stock_info import StockInfo, StockStatus
+from .stock_info import StockProfile, StockStatus
 from .store import OrderStore
 from .trade import Trade
 from .trade_profit import (
@@ -245,8 +251,8 @@ __all__ = [
     "Bar",
     "Bond",
     "BondDailyPrice",
-    "BondInfo",
     "BondIssuance",
+    "BondProfile",
     "BondQuote",
     "BondValuation",
     "BonusIssue",
@@ -268,7 +274,7 @@ __all__ = [
     "DailyProgramTradePoint",
     "DailyTradeVolume",
     "Derivative",
-    "DerivativesQuote",
+    "DerivativeQuote",
     "DetailedInvestorFlow",
     "DetailedInvestorHistory",
     "DividendEvent",
@@ -325,7 +331,7 @@ __all__ = [
     "KISClient",
     "LendableStock",
     "LimitStock",
-    "ListingInfo",
+    "ListingEvent",
     "LoanPoint",
     "MandatoryDeposit",
     "MarketFunds",
@@ -415,7 +421,7 @@ __all__ = [
     "ShortSalePoint",
     "ShortSaleRanking",
     "StabilityRatio",
-    "StockInfo",
+    "StockProfile",
     "StockStatus",
     "TopViewedStock",
     "Trade",

@@ -1,4 +1,4 @@
-"""선물/옵션(파생) 시세 DATA -- :class:`DerivativesQuote` / :class:`UnderlyingQuote`.
+"""선물/옵션(파생) 시세 DATA -- :class:`DerivativeQuote` / :class:`UnderlyingQuote`.
 
 :class:`~kis_openapi.derivative.Derivative` 핸들(``kis.domestic.futures(code)`` / ``kis.domestic.option(code)``)이
 돌려주는 한 계약의 현재가 스냅샷이다. 종목의 :class:`~kis_openapi.quote.Quote` 와 달리 파생 고유의
@@ -18,7 +18,7 @@ from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativesQuote:
+class DerivativeQuote:
     """선물/옵션 계약의 현재가 스냅샷(불변).
 
     ``change`` / ``change_percent`` 는 전일대비로 하락이면 음수. ``open_interest`` 는 미결제약정,

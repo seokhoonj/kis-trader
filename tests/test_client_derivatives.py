@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, DerivativesQuote, KISClient, OrderBook
+from kis_openapi import Bar, DerivativeQuote, KISClient, OrderBook
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
@@ -52,7 +52,7 @@ def _client(transport):
 def test_futures_quote_maps_fields_and_market():
     fake = FakeTransport(response=_resp(_output()))
     quote = _client(fake).domestic.futures("101W09").quote()
-    assert isinstance(quote, DerivativesQuote)
+    assert isinstance(quote, DerivativeQuote)
     assert quote.code == "101W09"
     assert quote.last == Decimal("335.20")
     assert quote.previous_close == Decimal("333.00")
