@@ -51,6 +51,7 @@ from ..analysis import (
     VolumeAtPrice,
     VolumeProfile,
 )
+from ..errors import KISUsageError
 from ..transport import Transport
 
 _CREDIT_PATH = "/uapi/domestic-stock/v1/quotations/daily-credit-balance"
@@ -149,6 +150,18 @@ def _default_start(end_yyyymmdd: str) -> str:
     return f"{end_day - timedelta(days=_DEFAULT_TREND_DAYS):%Y%m%d}"
 
 
+def _resolve_date_range(
+    start: str | date | None, end: str | date | None
+) -> tuple[str, str]:
+    """추이 조회의 [start, end] 기간을 정규화한다. end 미지정=오늘, start 미지정=기본 시작일.
+    정규화 후 start 가 end 보다 늦으면 와이어 전 fail-closed(:class:`KISUsageError`)."""
+    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
+    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
+    if start_date > end_date:
+        raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
+    return start_date, end_date
+
+
 def _rows(transport: Transport, *, path: str, tr: str, params: Mapping[str, str]
           ) -> Sequence[Mapping[str, Any]]:
     resp = transport.request(method="GET", path=path, tr_id=tr, params=dict(params),
@@ -216,8 +229,7 @@ def fetch_short_sale_trend(
     start: str | date | None = None, end: str | date | None = None,
 ) -> list[ShortSalePoint]:
     """일별 공매도 추이(기간 [start, end], 최근->과거). ``start`` 미지정이면 ``end`` 로부터 30일 전."""
-    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
-    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
+    start_date, end_date = _resolve_date_range(start, end)
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_INPUT_ISCD": symbol,
@@ -259,8 +271,7 @@ def fetch_loan_trend(
     start: str | date | None = None, end: str | date | None = None,
 ) -> list[LoanPoint]:
     """일별 대차거래(대여) 추이(기간 [start, end], 최근->과거). ``start`` 미지정이면 ``end`` 로부터 30일 전."""
-    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
-    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
+    start_date, end_date = _resolve_date_range(start, end)
     params = {
         "MRKT_DIV_CLS_CODE": "1",
         "MKSC_SHRN_ISCD": symbol,
@@ -305,8 +316,7 @@ def fetch_daily_trade_volume(
 ) -> list[DailyTradeVolumePoint]:
     """일별 매수/매도 체결량 추이(기간 [start, end], 최근->과거). ``start`` 미지정이면 ``end`` 로부터
     30일 전. 응답 배열은 ``output2`` (``output1`` 은 구간 합계)."""
-    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
-    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
+    start_date, end_date = _resolve_date_range(start, end)
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_INPUT_ISCD": symbol,
@@ -427,8 +437,7 @@ def fetch_analyst_opinions(
 ) -> list[AnalystOpinion]:
     """기간 [start, end] 의 애널리스트 투자의견·목표주가 시계열(최근->과거). ``start`` 미지정이면
     ``end`` 로부터 30일 전."""
-    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
-    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
+    start_date, end_date = _resolve_date_range(start, end)
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_COND_SCR_DIV_CODE": "16633",

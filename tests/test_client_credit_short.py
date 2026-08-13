@@ -13,7 +13,7 @@ from kis_openapi import (
     KISClient,
     ShortSalePoint,
 )
-from kis_openapi.errors import KISError
+from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
 
@@ -54,6 +54,14 @@ def test_credit_balance_trend_maps():
     assert call["path"] == "/uapi/domestic-stock/v1/quotations/daily-credit-balance"
     assert call["tr_id"] == "FHPST04760000"
     assert call["params"]["FID_INPUT_DATE_1"] == "20240102"
+
+
+def test_short_sale_trend_rejects_inverted_range_before_transport():
+    # start > end 는 와이어 전 fail-closed -- 추이 producer 도 형제와 동일하게 가드
+    fake = FakeTransport(response=_resp([]))
+    with pytest.raises(KISUsageError):
+        _client(fake).domestic.stock("005930").short_sale_trend(start="20240102", end="20240101")
+    assert fake.calls == []
 
 
 def test_short_sale_trend_maps():
