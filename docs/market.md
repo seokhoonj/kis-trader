@@ -26,7 +26,9 @@ s.short_sale_trend()      # 공매도 추이
 s.credit_balance_trend()  # 신용잔고 추이
 ```
 
-## 시장 전체 수급 — `kis.domestic.market`
+## 시장 전체 수급
+
+`kis.domestic.market` — 개별 종목이 아닌 **시장 전체** 투자자 수급·지수.
 
 ```python
 m = kis.domestic.market
