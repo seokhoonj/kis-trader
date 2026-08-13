@@ -11,7 +11,7 @@ KIS URL/TR-id:
 
 from __future__ import annotations
 
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from datetime import date, datetime
 from typing import Any
 
@@ -430,24 +430,19 @@ def _parse_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:
     return bars
 
 
-def _fetch_minute_bars(
-    transport: Transport, *, symbol: str, market: str, max_bars: int | None
+def _collect_minute_bars(
+    transport: Transport, *, symbol: str, path: str, tr: str,
+    build_params: Callable[[str], dict[str, str]], max_bars: int | None,
 ) -> list[Bar]:
-    """당일 1분봉을 과거->현재 오름차순으로. 최신(장 마감 기준시각)부터 시각을 뒤로 밀며 30건씩
-    모으고, 개장(_SESSION_OPEN)까지 닿거나 새 봉이 없으면 종료. 상한 초과는 fail-closed."""
-    market_div = _market_div(market)
+    """당일/특정일 1분봉 공통 수집 -- 최신 기준시각부터 시각을 뒤로 밀며 30건씩 모으고,
+    개장(_SESSION_OPEN)까지 닿거나 새 봉이 없으면 종료(무한 루프 방지). 페이지 상한을 넘도록
+    개장까지 못 미치면 부분 결과로 자르지 않고 fail-closed. ``build_params`` 는 기준시각(anchor)
+    으로 페이지 요청 파라미터를 만든다(엔드포인트별 키/순서 유지)."""
     bar_by_time: dict[str, Bar] = {}   # "HHMMSS" -> Bar (고정폭이라 문자열 정렬=시간순)
     anchor = _MINUTE_ANCHOR_START
     for _page in range(_MAX_MINUTE_PAGES):
-        params = {
-            "FID_ETC_CLS_CODE": "",
-            "FID_COND_MRKT_DIV_CODE": market_div,
-            "FID_INPUT_ISCD": symbol,
-            "FID_INPUT_HOUR_1": anchor,
-            "FID_PW_DATA_INCU_YN": "N",
-        }
         resp = transport.request(
-            method="GET", path=_MINUTE_BARS_PATH, tr_id=_MINUTE_BARS_TR, params=params,
+            method="GET", path=path, tr_id=tr, params=build_params(anchor),
             idempotent=True,
         )
         _raise_if_error(resp)
@@ -474,6 +469,28 @@ def _fetch_minute_bars(
     if max_bars is not None and len(bars) > max_bars:
         bars = bars[-max_bars:]
     return bars
+
+
+def _fetch_minute_bars(
+    transport: Transport, *, symbol: str, market: str, max_bars: int | None
+) -> list[Bar]:
+    """당일 1분봉을 과거->현재 오름차순으로. 최신(장 마감 기준시각)부터 시각을 뒤로 밀며 30건씩
+    모으고, 개장(_SESSION_OPEN)까지 닿거나 새 봉이 없으면 종료. 상한 초과는 fail-closed."""
+    market_div = _market_div(market)
+
+    def build_params(anchor: str) -> dict[str, str]:
+        return {
+            "FID_ETC_CLS_CODE": "",
+            "FID_COND_MRKT_DIV_CODE": market_div,
+            "FID_INPUT_ISCD": symbol,
+            "FID_INPUT_HOUR_1": anchor,
+            "FID_PW_DATA_INCU_YN": "N",
+        }
+
+    return _collect_minute_bars(
+        transport, symbol=symbol, path=_MINUTE_BARS_PATH, tr=_MINUTE_BARS_TR,
+        build_params=build_params, max_bars=max_bars,
+    )
 
 
 def fetch_minute_bars_on(
@@ -487,44 +504,20 @@ def fetch_minute_bars_on(
         raise KISUsageError(f"max_bars 는 양수여야 한다: {max_bars}")
     day_yyyymmdd = _to_yyyymmdd(day, "day")
     market_div = _market_div(market)
-    bar_by_time: dict[str, Bar] = {}   # "HHMMSS" -> Bar (하루치라 문자열 정렬=시간순)
-    anchor = _MINUTE_ANCHOR_START
-    for _page in range(_MAX_MINUTE_PAGES):
-        params = {
+
+    def build_params(anchor: str) -> dict[str, str]:
+        return {
             "FID_COND_MRKT_DIV_CODE": market_div,
             "FID_INPUT_ISCD": symbol,
             "FID_INPUT_HOUR_1": anchor,
             "FID_INPUT_DATE_1": day_yyyymmdd,
             "FID_PW_DATA_INCU_YN": "N",
         }
-        resp = transport.request(
-            method="GET", path=_MINUTE_DAILY_BARS_PATH, tr_id=_MINUTE_DAILY_BARS_TR, params=params,
-            idempotent=True,
-        )
-        _raise_if_error(resp)
-        rows = resp.body.get("output2")
-        if not isinstance(rows, list):  # 성공 응답인데 봉 배열 아님 -> fail-closed
-            raise _missing_block_error("output2", resp)
-        page = {f"{bar.timestamp:%H%M%S}": bar for bar in _parse_minute_bars(rows, symbol=symbol)}
-        fresh = {time: bar for time, bar in page.items() if time not in bar_by_time}
-        if not fresh:  # 빈 페이지거나 진전 없음 -> 종료(무한 루프 방지)
-            break
-        bar_by_time.update(fresh)
-        if max_bars is not None and len(bar_by_time) >= max_bars:
-            break
-        oldest = min(page)
-        if oldest <= _SESSION_OPEN:  # 개장까지 훑음
-            break
-        anchor = _subtract_one_minute(oldest)
-    else:
-        raise KISError(
-            f"분봉 조회가 {_MAX_MINUTE_PAGES}페이지 상한에 도달했으나 개장까지 못 미쳤다 "
-            f"-- 부분 결과로 자르지 않는다. max_bars 로 범위를 줄이거나 재시도하라."
-        )
-    bars = [bar_by_time[key] for key in sorted(bar_by_time)]
-    if max_bars is not None and len(bars) > max_bars:
-        bars = bars[-max_bars:]
-    return bars
+
+    return _collect_minute_bars(
+        transport, symbol=symbol, path=_MINUTE_DAILY_BARS_PATH, tr=_MINUTE_DAILY_BARS_TR,
+        build_params=build_params, max_bars=max_bars,
+    )
 
 
 def _parse_minute_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:

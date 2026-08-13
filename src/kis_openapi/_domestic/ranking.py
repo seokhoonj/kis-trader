@@ -669,6 +669,16 @@ def _fundamentals_params(
     }
 
 
+def _fetch_rows(
+    transport: Transport, *, path: str, tr_id: str, params: Mapping[str, str], output_key: str
+) -> list[Mapping[str, Any]]:
+    """GET 요청 + 봉투 오류 조기종료 + 행 배열 블록 검증(:func:`_require_mapping_rows`)까지 한 번에.
+    순위 필드 없이 응답 순서로 순번을 매기는 조회들이 공유한다."""
+    resp = transport.request(method="GET", path=path, tr_id=tr_id, params=params, idempotent=True)
+    _raise_if_error(resp)
+    return _require_mapping_rows(output_key, resp)
+
+
 def _fetch_ranking(
     transport: Transport, *, path: str, tr: str, params: dict[str, str]
 ) -> list[RankedStock]:
@@ -752,11 +762,9 @@ def fetch_expected_execution_change(
         "FID_APLY_RANG_PRC_1": "", "FID_VOL_CNT": "", "FID_PBMN": "",
         "FID_BLNG_CLS_CODE": "0", "FID_MKOP_CLS_CODE": "0",
     }
-    resp = transport.request(
-        method="GET", path=_EXP_UPDOWN_PATH, tr_id=_EXP_UPDOWN_TR, params=params, idempotent=True
+    rows = _fetch_rows(
+        transport, path=_EXP_UPDOWN_PATH, tr_id=_EXP_UPDOWN_TR, params=params, output_key="output"
     )
-    _raise_if_error(resp)
-    rows = _require_mapping_rows("output", resp)
     ranked: list[RankedStock] = []
     for row in rows:
         symbol = str(row.get("stck_shrn_iscd", "")).strip()
@@ -790,8 +798,8 @@ def fetch_expected_close(
     """장마감 예상체결 종목 목록과 직전·기준가 대비."""
     filter_code = _lookup(_EXPECTED_CLOSE_FILTER, key=filter_, argname="filter")
     market_code = _lookup(_EXPECTED_CLOSE_MARKET, key=market, argname="market")
-    resp = transport.request(
-        method="GET",
+    rows = _fetch_rows(
+        transport,
         path=_EXPECTED_CLOSE_PATH,
         tr_id=_EXPECTED_CLOSE_TR,
         params={
@@ -801,14 +809,10 @@ def fetch_expected_close(
             "FID_INPUT_ISCD": market_code,
             "FID_BLNG_CLS_CODE": "1" if extended_range else "0",
         },
-        idempotent=True,
+        output_key="output1",
     )
-    _raise_if_error(resp)
-    rows = _require_mapping_rows("output1", resp)
     ranked: list[RankedStock] = []
     for row in rows:
-        if not isinstance(row, Mapping):
-            raise _missing_block_error("output1[]", resp)
         symbol = str(row.get("stck_shrn_iscd", "")).strip()
         if not symbol:
             continue
@@ -969,12 +973,10 @@ def fetch_after_hour_balance(
         "FID_TRGT_EXLS_CLS_CODE": "0", "FID_TRGT_CLS_CODE": "0",
         "FID_VOL_CNT": "", "FID_INPUT_PRICE_2": "",
     }
-    resp = transport.request(
-        method="GET", path="/uapi/domestic-stock/v1/ranking/after-hour-balance",
-        tr_id="FHPST01760000", params=params, idempotent=True,
+    rows = _fetch_rows(
+        transport, path="/uapi/domestic-stock/v1/ranking/after-hour-balance",
+        tr_id="FHPST01760000", params=params, output_key="output",
     )
-    _raise_if_error(resp)
-    rows = _require_mapping_rows("output", resp)
     ranked: list[AfterHoursBalanceRanking] = []
     for row in rows:
         symbol = str(row.get("stck_shrn_iscd", "")).strip()
@@ -1007,12 +1009,10 @@ def fetch_after_hour_balance(
 
 def fetch_most_viewed(transport: Transport) -> list[TopViewedStock]:
     """HTS 조회 상위 종목(관심 상위). 코드와 시장구분만 준다(:class:`TopViewedStock`). 파라미터 없음."""
-    resp = transport.request(
-        method="GET", path="/uapi/domestic-stock/v1/ranking/hts-top-view",
-        tr_id="HHMCM000100C0", params={}, idempotent=True,
+    rows = _fetch_rows(
+        transport, path="/uapi/domestic-stock/v1/ranking/hts-top-view",
+        tr_id="HHMCM000100C0", params={}, output_key="output1",
     )
-    _raise_if_error(resp)
-    rows = _require_mapping_rows("output1", resp)
     ranked: list[TopViewedStock] = []
     for row in rows:
         symbol = str(row.get("mksc_shrn_iscd", "")).strip()

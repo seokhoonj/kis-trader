@@ -241,10 +241,7 @@ def fetch_broker_opinions(
     opinion_code = {"all": "0", "buy": "1", "neutral": "2", "sell": "3"}.get(opinion)
     if opinion_code is None:
         raise KISUsageError(f"opinion 은 all/buy/neutral/sell 중 하나: {opinion!r}")
-    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
-    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
-    if start_date > end_date:
-        raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
+    start_date, end_date = _resolve_date_range(start=start, end=end)
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_COND_SCR_DIV_CODE": "16634",
@@ -451,10 +448,7 @@ def fetch_program_trade_summary(
         market_code = _PROGRAM_MARKET[market]
     except KeyError:
         raise KISUsageError(f"market 은 {sorted(_PROGRAM_MARKET)} 중 하나: {market!r}") from None
-    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
-    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
-    if start_date > end_date:                  # 뒤집힌 기간 -> I/O 전 fail-closed
-        raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
+    start_date, end_date = _resolve_date_range(start=start, end=end)
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_MRKT_CLS_CODE": market_code,
@@ -870,6 +864,18 @@ def fetch_market_funds(
 def _default_start(end_yyyymmdd: str, days: int = 30) -> str:
     end_day = datetime.strptime(end_yyyymmdd, "%Y%m%d")  # noqa: DTZ007 -- 날짜 산술만
     return f"{end_day - timedelta(days=days):%Y%m%d}"
+
+
+def _resolve_date_range(
+    *, start: str | date | None, end: str | date | None
+) -> tuple[str, str]:
+    """기간조회 공통 [start, end] 정규화 -- ``end`` 미지정이면 오늘, ``start`` 미지정이면 ``end`` 로부터
+    30일 전으로 채운 뒤 YYYYMMDD 로 정규화한다. 뒤집힌 기간(``start > end``)은 I/O 전에 fail-closed."""
+    end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
+    start_date = _default_start(end_date) if start is None else _to_yyyymmdd(start, "start")
+    if start_date > end_date:                  # 뒤집힌 기간 -> I/O 전 fail-closed
+        raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
+    return start_date, end_date
 
 
 def _parse_market_investor_activity(

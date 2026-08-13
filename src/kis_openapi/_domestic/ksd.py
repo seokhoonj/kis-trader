@@ -90,6 +90,20 @@ def _rows(transport: Transport, *, path: str, tr: str, params: Mapping[str, str]
     return _require_mapping_rows(block, resp)
 
 
+def _ksd_query_params(
+    *, start: str | date, end: str | date, symbol: str | None = None
+) -> dict[str, str]:
+    """KSD 기간조회 공통 쿼리 파라미터 -- 고정 ``CTS`` + 기간 ``F_DT``~``T_DT`` + 선택 종목 ``SHT_CD``.
+    이 키 순서를 그대로 공유하는 엔드포인트들이 이 base 를 쓴다(키 순서가 다르거나 ``GB1`` 등 중간
+    삽입 키가 있는 조회는 순서 민감성 때문에 자체 dict 를 유지한다)."""
+    return {
+        "CTS": "",
+        "F_DT": _to_yyyymmdd(start, "start"),
+        "T_DT": _to_yyyymmdd(end, "end"),
+        "SHT_CD": symbol or "",
+    }
+
+
 def fetch_dividends(
     transport: Transport, *, start: str | date, end: str | date,
     symbol: str | None = None, dividend_kind: str = "all",
@@ -229,12 +243,7 @@ def fetch_bonus_issues(
     transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
 ) -> list[BonusIssue]:
     """기간 [start, end] 의 무상증자 일정. ``symbol`` 지정 시 그 종목만."""
-    params = {
-        "CTS": "",
-        "F_DT": _to_yyyymmdd(start, "start"),
-        "T_DT": _to_yyyymmdd(end, "end"),
-        "SHT_CD": symbol or "",
-    }
+    params = _ksd_query_params(start=start, end=end, symbol=symbol)
     events: list[BonusIssue] = []
     for row in _rows(transport, path=_BONUS_PATH, tr=_BONUS_TR, params=params):
         code = str(row.get("sht_cd", "")).strip()
@@ -266,12 +275,7 @@ def fetch_capital_reductions(
     transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
 ) -> list[CapitalReduction]:
     """기간 [start, end] 의 자본감소 일정. ``symbol`` 지정 시 그 종목만."""
-    params = {
-        "CTS": "",
-        "F_DT": _to_yyyymmdd(start, "start"),
-        "T_DT": _to_yyyymmdd(end, "end"),
-        "SHT_CD": symbol or "",
-    }
+    params = _ksd_query_params(start=start, end=end, symbol=symbol)
     events: list[CapitalReduction] = []
     for row in _rows(
         transport, path=_CAPITAL_REDUCTION_PATH, tr=_CAPITAL_REDUCTION_TR, params=params
@@ -301,12 +305,7 @@ def fetch_merger_splits(
     transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
 ) -> list[MergerSplit]:
     """기간 [start, end] 의 합병분할 일정. ``symbol`` 지정 시 그 종목만."""
-    params = {
-        "CTS": "",
-        "F_DT": _to_yyyymmdd(start, "start"),
-        "T_DT": _to_yyyymmdd(end, "end"),
-        "SHT_CD": symbol or "",
-    }
+    params = _ksd_query_params(start=start, end=end, symbol=symbol)
     events: list[MergerSplit] = []
     for row in _rows(transport, path=_MERGER_SPLIT_PATH, tr=_MERGER_SPLIT_TR, params=params):
         code = str(row.get("sht_cd", "")).strip()
@@ -340,12 +339,7 @@ def fetch_shareholder_meetings(
     transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
 ) -> list[ShareholderMeeting]:
     """기간 [start, end] 의 주주총회 일정. ``symbol`` 지정 시 그 종목만."""
-    params = {
-        "CTS": "",
-        "F_DT": _to_yyyymmdd(start, "start"),
-        "T_DT": _to_yyyymmdd(end, "end"),
-        "SHT_CD": symbol or "",
-    }
+    params = _ksd_query_params(start=start, end=end, symbol=symbol)
     events: list[ShareholderMeeting] = []
     for row in _rows(
         transport, path=_SHAREHOLDER_MEETING_PATH, tr=_SHAREHOLDER_MEETING_TR, params=params
@@ -374,12 +368,7 @@ def fetch_mandatory_deposits(
     transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
 ) -> list[MandatoryDeposit]:
     """기간 [start, end] 의 의무예치 내역. ``symbol`` 지정 시 그 종목만."""
-    params = {
-        "CTS": "",
-        "F_DT": _to_yyyymmdd(start, "start"),
-        "T_DT": _to_yyyymmdd(end, "end"),
-        "SHT_CD": symbol or "",
-    }
+    params = _ksd_query_params(start=start, end=end, symbol=symbol)
     events: list[MandatoryDeposit] = []
     for row in _rows(
         transport, path=_MANDATORY_DEPOSIT_PATH, tr=_MANDATORY_DEPOSIT_TR, params=params
@@ -407,12 +396,7 @@ def fetch_listings(
     transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
 ) -> list[ListingEvent]:
     """기간 [start, end] 의 상장정보. ``symbol`` 지정 시 그 종목만."""
-    params = {
-        "CTS": "",
-        "F_DT": _to_yyyymmdd(start, "start"),
-        "T_DT": _to_yyyymmdd(end, "end"),
-        "SHT_CD": symbol or "",
-    }
+    params = _ksd_query_params(start=start, end=end, symbol=symbol)
     events: list[ListingEvent] = []
     for row in _rows(transport, path=_LISTING_INFO_PATH, tr=_LISTING_INFO_TR, params=params):
         code = str(row.get("sht_cd", "")).strip()
@@ -438,12 +422,7 @@ def fetch_par_value_changes(
     transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
 ) -> list[ParValueChange]:
     """기간 [start, end] 의 액면교체 일정. ``symbol`` 지정 시 그 종목만."""
-    params = {
-        "CTS": "",
-        "F_DT": _to_yyyymmdd(start, "start"),
-        "T_DT": _to_yyyymmdd(end, "end"),
-        "SHT_CD": symbol or "",
-    }
+    params = _ksd_query_params(start=start, end=end, symbol=symbol)
     events: list[ParValueChange] = []
     for row in _rows(
         transport, path=_PAR_VALUE_CHANGE_PATH, tr=_PAR_VALUE_CHANGE_TR, params=params
@@ -475,12 +454,7 @@ def fetch_forfeited_shares(
     transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
 ) -> list[ForfeitedShares]:
     """기간 [start, end] 의 실권주 일정. ``symbol`` 지정 시 그 종목만."""
-    params = {
-        "CTS": "",
-        "F_DT": _to_yyyymmdd(start, "start"),
-        "T_DT": _to_yyyymmdd(end, "end"),
-        "SHT_CD": symbol or "",
-    }
+    params = _ksd_query_params(start=start, end=end, symbol=symbol)
     events: list[ForfeitedShares] = []
     for row in _rows(
         transport, path=_FORFEITED_SHARES_PATH, tr=_FORFEITED_SHARES_TR, params=params
@@ -511,12 +485,7 @@ def fetch_appraisal_rights(
     transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
 ) -> list[AppraisalRights]:
     """기간 [start, end] 의 주식매수청구 일정. ``symbol`` 지정 시 그 종목만."""
-    params = {
-        "CTS": "",
-        "F_DT": _to_yyyymmdd(start, "start"),
-        "T_DT": _to_yyyymmdd(end, "end"),
-        "SHT_CD": symbol or "",
-    }
+    params = _ksd_query_params(start=start, end=end, symbol=symbol)
     events: list[AppraisalRights] = []
     for row in _rows(
         transport, path=_APPRAISAL_RIGHTS_PATH, tr=_APPRAISAL_RIGHTS_TR, params=params

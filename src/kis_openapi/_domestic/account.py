@@ -17,7 +17,7 @@ from datetime import date, time
 from decimal import Decimal
 from typing import Any
 
-from .._response import _fetch_paginated_rows
+from .._response import _fetch_paginated_rows, _raise_if_error
 from .._wire import format_wire_decimal, optional_decimal, required_decimal
 from ..account_reports import (
     IntegratedMargin,
@@ -854,11 +854,3 @@ def _format_order_unit_price(limit_price: object | None) -> str:
     if not price.is_finite() or price <= 0:
         raise KISUsageError(f"limit_price 는 0보다 큰 유한값이어야 한다: {limit_price!r}")
     return format_wire_decimal(price)
-
-
-def _raise_if_error(resp: RawResponse) -> None:
-    if not resp.ok:
-        raise KISError(
-            f"KIS 조회 요청 실패: {resp.msg1}",
-            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-        )
