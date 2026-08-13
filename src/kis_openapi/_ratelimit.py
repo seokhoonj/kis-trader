@@ -22,7 +22,7 @@ from .errors import KISError
 #: 환경별 기본 초당 호출 한도. 공식 유량(실전 REST 18건/초, 모의 1건/초; 앱키 단위 합산)
 #: 아래로 마진을 둔 값이다 -- KIS 서버가 sliding window 로 세는 것으로 추정돼 경계값(18)에
 #: 붙이면 간헐 초과가 나므로 실전은 15 로 낮춘다. 모의는 원래 1 이라 그대로.
-DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT: dict[str, float] = {"real": 15.0, "demo": 1.0}
+DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT: dict[str, float] = {"real": 15.0, "paper": 1.0}
 
 
 class SlidingWindowRateLimiter:

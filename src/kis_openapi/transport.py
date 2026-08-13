@@ -15,8 +15,8 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Literal, Protocol, runtime_checkable
 
-#: 접속 환경 -- 실전(real) / 모의(demo). 세션/계좌/주문 TR 선택에 쓰인다(어느 KIS 서버냐).
-Environment = Literal["real", "demo"]
+#: 접속 환경 -- 실전(real) / 모의(paper). 세션/계좌/주문 TR 선택에 쓰인다(어느 KIS 서버냐).
+Environment = Literal["real", "paper"]
 
 
 class TransportTimeout(Exception):

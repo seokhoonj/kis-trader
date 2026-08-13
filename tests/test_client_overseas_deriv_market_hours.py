@@ -119,7 +119,7 @@ def test_market_hours_walks_ctx_area_pages_without_tr_cont():
 def test_market_hours_rejects_demo_environment():
     fake = FakeTransport(responses=[])
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas.derivatives_market_hours()
+        _client(fake, environment="paper").overseas.derivatives_market_hours()
     assert fake.calls == []
 
 

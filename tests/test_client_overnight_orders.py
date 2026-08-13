@@ -98,7 +98,7 @@ def test_daytime_absent_on_domestic_stock():
 def test_daytime_demo_rejected_before_io():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas.stock("AAPL", exchange="NAS").overnight_buy(quantity=1, limit_price="1")
+        _client(fake, environment="paper").overseas.stock("AAPL", exchange="NAS").overnight_buy(quantity=1, limit_price="1")
     assert fake.calls == []
 
 

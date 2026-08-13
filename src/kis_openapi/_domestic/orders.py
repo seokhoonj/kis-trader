@@ -90,12 +90,12 @@ _ORDER_CREDIT_TR = {"sell": "TTTC0051U", "buy": "TTTC0052U"}
 _DAILY_CCLD_PATH = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
 # (environment, side) -> tr_id
 _ORDER_CASH_TR = {
-    ("real", "buy"): "TTTC0012U", ("real", "sell"): "TTTC0011U",
-    ("demo", "buy"): "VTTC0012U", ("demo", "sell"): "VTTC0011U",
+    ("real", "buy"):  "TTTC0012U", ("real", "sell"):  "TTTC0011U",
+    ("paper", "buy"): "VTTC0012U", ("paper", "sell"): "VTTC0011U",
 }
-_DAILY_CCLD_TR = {"real": "TTTC0081R", "demo": "VTTC0081R"}
+_DAILY_CCLD_TR = {"real": "TTTC0081R", "paper": "VTTC0081R"}
 _CHANGE_PATH = "/uapi/domestic-stock/v1/trading/order-rvsecncl"
-_CHANGE_TR = {"real": "TTTC0013U", "demo": "VTTC0013U"}
+_CHANGE_TR = {"real": "TTTC0013U", "paper": "VTTC0013U"}
 # order_type -> KIS ORD_DVSN(주문구분): 00 지정가, 01 시장가. 신용주문·정정(order_type 만) 이 쓴다.
 _ORD_DVSN = {"limit": "00", "market": "01"}
 # (base, time_in_force) -> KIS ORD_DVSN. base = order.division 이 있으면 그것, 없으면 order_type.
@@ -478,7 +478,7 @@ def _make_order_cash_request(
             f"time_in_force={order.time_in_force!r})."
         )
     # 모의투자는 KRX 보드만 제공(KIS 명세) -- NXT/UN(SOR) 주문은 demo 에서 와이어 전 fail-closed.
-    if environment == "demo" and order.board != "KRX":
+    if environment == "paper" and order.board != "KRX":
         raise KISUsageError(f"모의투자는 KRX 보드만 지원한다(board={order.board!r}).")
     tr_id = _ORDER_CASH_TR[(environment, order.side)]
     body = {
@@ -501,7 +501,7 @@ def _make_credit_order_request(
 
     **모의투자 미지원**, **국내 KRX 만**, 지정가/시장가·day 만. credit_type/loan_date 는 :class:`Order`
     생성 시점에 검증·확정되므로(신규=오늘, 상환=대상 대출일자), 이 빌더는 주문의 순수 함수다."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("신용주문(order-credit)은 모의투자 미지원 -- 실전에서만.")
     if order.exchange not in _DOMESTIC_MICS:
         raise KISUsageError(f"신용주문은 국내 주식만 지원한다(exchange={order.exchange!r}).")

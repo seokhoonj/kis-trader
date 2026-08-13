@@ -95,7 +95,7 @@ def test_overseas_reserved_tr_and_params():
 def test_overseas_reserved_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas.account.reserved_orders(start="1", end="2")
+        _client(fake, environment="paper").overseas.account.reserved_orders(start="1", end="2")
     assert fake.calls == []
 
 

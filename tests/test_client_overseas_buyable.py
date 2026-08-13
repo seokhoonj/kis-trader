@@ -87,7 +87,7 @@ def test_overseas_buyable_tr_method_params_and_excg_mapping():
 
 def test_overseas_buyable_demo_tr():
     fake = FakeTransport(response=_resp())
-    _client(fake, environment="demo").overseas.account.buyable("AAPL", exchange="NAS", price="1")
+    _client(fake, environment="paper").overseas.account.buyable("AAPL", exchange="NAS", price="1")
     assert fake.calls[0]["tr_id"] == "VTTS3007R"
 
 

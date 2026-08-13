@@ -76,7 +76,7 @@ def test_pension_deposit_tr_and_params():
 def test_pension_deposit_demo_rejected_before_io():
     fake = FakeTransport(response=_resp(_DEPOSIT_OUT))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").pension.deposit()
+        _client(fake, environment="paper").pension.deposit()
     assert fake.calls == []
 
 
@@ -138,5 +138,5 @@ def test_pension_buyable_bad_price_rejected_before_io(bad):
 def test_pension_buyable_demo_rejected_before_io():
     fake = FakeTransport(response=_resp(_BUYABLE_OUT))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").pension.buyable("005930", limit_price="1")
+        _client(fake, environment="paper").pension.buyable("005930", limit_price="1")
     assert fake.calls == []

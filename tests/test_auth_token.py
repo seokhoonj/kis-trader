@@ -56,7 +56,7 @@ def manager(
     ("environment", "domain"),
     [
         ("real", "https://openapi.koreainvestment.com:9443"),
-        ("demo", "https://openapivts.koreainvestment.com:29443"),
+        ("paper", "https://openapivts.koreainvestment.com:29443"),
     ],
 )
 def test_first_access_posts_expected_request(

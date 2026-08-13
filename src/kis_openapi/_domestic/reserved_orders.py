@@ -129,7 +129,7 @@ def fetch_reserved_orders(
 ) -> list[ReservedOrder]:
     """예약주문 조회(연속조회 소진까지). ``start``/``end`` 는 예약주문일자 기간(YYYYMMDD),
     ``process`` = all/processed/unprocessed. 유효(취소 안 된) 예약만 준다. **모의투자 미지원**."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("예약주문조회(order-resv-ccnl)는 모의투자 미지원 -- 실전에서만.")
     try:
         process_code = _PROCESS_FILTER[process]
@@ -212,7 +212,7 @@ def place_reserved_order(
         raise AccountNotOrderableError(
             "이 계좌는 API 주문이 불가하다(퇴직연금 IRP/DC 등 조회전용). 일반/연금저축 계좌를 쓰라."
         )
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("예약주문(order-resv)은 모의투자 미지원 -- 실전에서만.")
     terms = _coerce_reserved_order_terms(
         side=side, quantity=quantity, limit_price=limit_price, end_date=end_date
@@ -332,7 +332,7 @@ def cancel_reserved_order(
     필수) 같은 순번이 여러 날에 재사용될 때 대상을 좁히는 용도다. **모의투자 미지원**. 실패는
     :class:`KISUsageError`(demo/빈 순번/잘못된 order_date)·:class:`OrderRejectedError`(rt_cd!=0)·
     :class:`KISError`(정상처리 아님)·:class:`OrderTimeoutError`(타임아웃)."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("예약주문 취소(order-resv-rvsecncl)는 모의투자 미지원 -- 실전에서만.")
     if not str(sequence).strip():
         raise KISUsageError("취소할 예약주문순번(sequence)이 필요하다.")
@@ -360,7 +360,7 @@ def modify_reserved_order(
     :func:`fetch_reserved_orders` 로 현재 순번을 재확인하라. 정정도 순번 대상의 절대 재지정이라 dedup
     스토어를 거치지 않되 타임아웃엔 재전송하지 않는다. 실패 예외는 :func:`cancel_reserved_order` 와 같고,
     인자 검증(side/quantity/limit_price/end_date)은 :class:`KISUsageError`."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("예약주문 정정(order-resv-rvsecncl)은 모의투자 미지원 -- 실전에서만.")
     if not str(sequence).strip():
         raise KISUsageError("정정할 예약주문순번(sequence)이 필요하다.")

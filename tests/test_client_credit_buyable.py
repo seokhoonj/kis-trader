@@ -100,7 +100,7 @@ def test_credit_buyable_unknown_credit_type_rejected_before_io():
 def test_credit_buyable_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").domestic.stock("005930").credit_buyable(limit_price="1")
+        _client(fake, environment="paper").domestic.stock("005930").credit_buyable(limit_price="1")
     assert fake.calls == []
 
 

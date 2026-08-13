@@ -214,7 +214,7 @@ def fetch_bars(
     environment: Environment,
 ) -> list[Bar]:
     """해외 선물/옵션의 최근 분·일·주·월 OHLCV 한 페이지."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외 선물/옵션 시계열 조회는 모의투자 미지원이다(실전만).")
     try:
         endpoint, tr, limit = _BARS[market][interval]
@@ -254,7 +254,7 @@ def fetch_trades(
     environment: Environment,
 ) -> list[Trade]:
     """해외 선물/옵션 최근 틱 체결(최대 40건, 시간 오름차순)."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외 선물/옵션 틱 조회는 모의투자 미지원이다(실전만).")
     if not exchange.strip():
         raise KISUsageError("해외 선물/옵션 틱 조회에는 exchange 가 필요하다.")
@@ -369,7 +369,7 @@ def fetch_open_interest(
     environment: Environment,
 ) -> list[OverseasFuturesOpenInterest]:
     """해외선물 상품의 CFTC 미결제약정 수량 또는 증감 추이."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외선물 미결제추이는 모의투자 미지원이다(실전만).")
     if not product.strip():
         raise KISUsageError("해외선물 미결제추이에는 product 가 필요하다.")
@@ -467,7 +467,7 @@ def fetch_details(
     environment: Environment
 ) -> list[OverseasDerivativeDetail]:
     """해외 선물/옵션 계약 명세를 한 번에 조회한다(선물 32개, 옵션 30개 한도)."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외 선물/옵션 상품기본정보 조회는 모의투자 미지원이다(실전만).")
     path, tr, limit = _BATCH_DETAIL[market]
     if not srs_codes:
@@ -558,7 +558,7 @@ def fetch_market_hours(
 
     성공 응답의 ``output`` 배열이 없거나 페이지 상한 뒤에도 커서가 남으면 부분 결과 대신 실패한다.
     """
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외 선물/옵션 장운영시간 조회는 모의투자 미지원이다(실전만).")
 
     rows: list[Mapping[str, Any]] = []

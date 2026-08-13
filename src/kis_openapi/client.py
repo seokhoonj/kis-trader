@@ -160,7 +160,7 @@ class KISClient:
 
     @property
     def environment(self) -> Environment:
-        """실전(real) / 모의(demo). 계좌·주문 TR 선택에 쓰인다."""
+        """실전(real) / 모의(paper). 계좌·주문 TR 선택에 쓰인다."""
         return self._environment
 
     def instrument(self, symbol: str, *, exchange: str | None = None) -> InstrumentRecord:

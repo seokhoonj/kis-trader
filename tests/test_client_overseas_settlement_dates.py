@@ -95,7 +95,7 @@ def test_settlement_dates_walks_ctx_area_pages_without_tr_cont():
 def test_settlement_dates_rejects_demo_environment():
     fake = FakeTransport(responses=[])
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas.settlement_dates()
+        _client(fake, environment="paper").overseas.settlement_dates()
     assert fake.calls == []
 
 

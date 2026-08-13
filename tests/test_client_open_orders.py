@@ -113,7 +113,7 @@ def test_open_orders_side_sell_maps():
 def test_open_orders_demo_rejected_before_io():
     fake = FakeTransport(response=_resp(rows=[_ROW_PLAIN]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").domestic.account.open_orders()
+        _client(fake, environment="paper").domestic.account.open_orders()
     assert fake.calls == []   # 와이어 접촉 전 거부
 
 

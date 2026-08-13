@@ -122,7 +122,7 @@ def test_pension_balance_tr_and_params():
 def test_pension_balance_demo_rejected_before_io():
     fake = FakeTransport(response=_resp2([_BAL_ROW], _BAL_SUMMARY))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").pension.balance()
+        _client(fake, environment="paper").pension.balance()
     assert fake.calls == []
 
 
@@ -200,7 +200,7 @@ def test_pension_orders_paginates():
 def test_pension_orders_demo_rejected_before_io():
     fake = FakeTransport(response=_resp_orders([]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").pension.orders()
+        _client(fake, environment="paper").pension.orders()
     assert fake.calls == []
 
 

@@ -111,7 +111,7 @@ def test_trade_profits_unknown_sort_rejected_before_io():
 def test_trade_profits_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").domestic.account.trade_profits(start="1", end="2")
+        _client(fake, environment="paper").domestic.account.trade_profits(start="1", end="2")
     assert fake.calls == []
 
 

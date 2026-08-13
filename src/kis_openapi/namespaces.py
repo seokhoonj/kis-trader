@@ -142,7 +142,7 @@ class DomesticAccount:
 
     모든 메서드는 계좌 미설정 시 :class:`~kis_openapi.errors.KISUsageError` 를 던진다(세션을
     ``KISClient(..., account=...)`` 로 열어야 한다). ``**모의투자 미지원**`` 이라 표시된 메서드는
-    ``environment="demo"`` 에서도 :class:`~kis_openapi.errors.KISUsageError` 다. 조회 실패·응답
+    ``environment="paper"`` 에서도 :class:`~kis_openapi.errors.KISUsageError` 다. 조회 실패·응답
     부재·파싱 실패는 :class:`~kis_openapi.errors.KISError`.
     """
 
@@ -278,7 +278,7 @@ class OverseasAccount:
     """``kis.overseas.account`` -- 해외 계좌 조회·계좌 단위 주문(잔고/손익/알고/예약주문).
 
     모든 메서드는 계좌 미설정 시 :class:`~kis_openapi.errors.KISUsageError` 를 던진다. ``**모의투자
-    미지원**`` 이라 표시된 메서드는 ``environment="demo"`` 에서도 :class:`~kis_openapi.errors.
+    미지원**`` 이라 표시된 메서드는 ``environment="paper"`` 에서도 :class:`~kis_openapi.errors.
     KISUsageError` 다. 조회 실패·응답 부재·파싱 실패는 :class:`~kis_openapi.errors.KISError`.
     """
 
@@ -711,7 +711,7 @@ class OverseasNamespace:
 class PensionNamespace:
     """``kis.pension`` -- 퇴직연금 계좌(예수금/매수가능/잔고/체결). 전부 실전전용.
 
-    모든 메서드는 계좌 미설정 시, 그리고 ``environment="demo"`` 에서(전부 모의 미지원)
+    모든 메서드는 계좌 미설정 시, 그리고 ``environment="paper"`` 에서(전부 모의 미지원)
     :class:`~kis_openapi.errors.KISUsageError` 를 던진다. 조회 실패·응답 부재·파싱 실패는
     :class:`~kis_openapi.errors.KISError`. 계좌 상품코드가 퇴직연금이어야 정상 응답한다.
     """

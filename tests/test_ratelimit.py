@@ -153,7 +153,7 @@ def test_from_rate_scales_max_wait_to_window():
 def test_default_rates_real_and_demo():
     # 공식 실전 18/모의 1 아래 마진.
     assert DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT["real"] == pytest.approx(15.0)
-    assert DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT["demo"] == pytest.approx(1.0)
+    assert DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT["paper"] == pytest.approx(1.0)
 
 
 def test_thread_safe_serializes_and_enforces_rate():

@@ -264,7 +264,7 @@ def _request_output(
 
 
 def _reject_demo(environment: Environment, *, what: str) -> None:
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError(f"{what}는 모의투자 미지원 -- 실전에서만.")
 
 

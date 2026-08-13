@@ -116,7 +116,7 @@ def test_present_balance_tr_env_and_params():
 
 def test_present_balance_demo_uses_demo_tr():
     fake = FakeTransport(response=_resp({"output3": _SUM3}))
-    bal = _client(fake, environment="demo").overseas.account.present_balance()
+    bal = _client(fake, environment="paper").overseas.account.present_balance()
     assert fake.calls[0]["tr_id"] == "VTRP6504R"
     assert bal.positions == ()          # 모의는 요약만
     assert bal.total_asset == Decimal(5000000)
@@ -154,7 +154,7 @@ def test_settlement_balance_tr_and_params():
 def test_settlement_balance_demo_rejected():
     fake = FakeTransport(response=_resp({"output3": _SUM3}))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas.account.settlement_balance(basis_date="20250523")
+        _client(fake, environment="paper").overseas.account.settlement_balance(basis_date="20250523")
     assert fake.calls == []
 
 
@@ -205,7 +205,7 @@ def test_period_profit_non_list_output1_fails_closed():
 def test_period_profit_demo_rejected():
     fake = FakeTransport(response=_resp({"output1": [_PROFIT_ROW], "output2": _PROFIT_SUM}))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas.account.period_profit(start="20250501", end="20250523")
+        _client(fake, environment="paper").overseas.account.period_profit(start="20250501", end="20250523")
     assert fake.calls == []
 
 

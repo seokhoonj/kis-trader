@@ -579,7 +579,7 @@ def fetch_industries(
 
     성공 응답의 ``output2`` 객체 배열이 없거나 항목이 객체가 아니면 부분 결과 대신 실패한다.
     """
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외 업종 코드 목록 조회는 모의투자 미지원이다(실전만).")
 
     resp = transport.request(
@@ -627,7 +627,7 @@ def fetch_industry_stocks(
     environment: Environment,
 ) -> list[OverseasIndustryStock]:
     """해외 거래소의 한 업종에 속한 종목 시세 목록."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외 업종별 시세 조회는 모의투자 미지원이다(실전만).")
     volume_code = _INDUSTRY_VOLUME_FILTER.get(min_volume)
     if volume_code is None:

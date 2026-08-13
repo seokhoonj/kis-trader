@@ -84,7 +84,7 @@ def test_cancel_overseas_reserved_bad_date_rejected_before_io():
 def test_cancel_overseas_reserved_demo_rejected():
     fake = FakeTransport(response=_OK)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas.account.cancel_reserved_order("0031111234", receipt_date="20250523")
+        _client(fake, environment="paper").overseas.account.cancel_reserved_order("0031111234", receipt_date="20250523")
     assert fake.calls == []
 
 

@@ -85,7 +85,7 @@ def test_account_assets_tr_method_params():
 def test_account_assets_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").domestic.account.assets()
+        _client(fake, environment="paper").domestic.account.assets()
     assert fake.calls == []
 
 

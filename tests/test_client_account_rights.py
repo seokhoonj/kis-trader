@@ -105,7 +105,7 @@ def test_account_rights_reads_output_key_not_output1():
 def test_account_rights_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").domestic.account.rights(start="1", end="2")
+        _client(fake, environment="paper").domestic.account.rights(start="1", end="2")
     assert fake.calls == []
 
 

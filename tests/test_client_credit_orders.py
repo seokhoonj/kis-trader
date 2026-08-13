@@ -175,7 +175,7 @@ def test_credit_bad_calendar_loan_date_rejected():
 def test_credit_demo_rejected_before_io():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").domestic.stock("009150").credit_buy(quantity=1, limit_price=1,
+        _client(fake, environment="paper").domestic.stock("009150").credit_buy(quantity=1, limit_price=1,
                                                                       credit_type="21",
                                                                       loan_date="20211103")
     assert fake.calls == []

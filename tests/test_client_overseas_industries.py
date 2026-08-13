@@ -71,7 +71,7 @@ def test_overseas_industries_routes_and_parses_single_call():
 def test_overseas_industries_rejects_demo_environment():
     fake = FakeTransport(responses=[])
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas.industries("NAS")
+        _client(fake, environment="paper").overseas.industries("NAS")
     assert fake.calls == []
 
 
@@ -155,7 +155,7 @@ def test_overseas_industry_stocks_maps_quote_and_volume_filter():
 def test_overseas_industry_stocks_validates_environment_and_volume():
     demo = FakeTransport(responses=[])
     with pytest.raises(KISUsageError):
-        _client(demo, environment="demo").overseas.industry_stocks("NAS", "010")
+        _client(demo, environment="paper").overseas.industry_stocks("NAS", "010")
     assert demo.calls == []
 
     fake = FakeTransport(responses=[])

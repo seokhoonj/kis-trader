@@ -45,9 +45,9 @@ def test_full_tr_table_matches_ledger():
     # (exchange, market)별 실전/모의 x 매수/매도 TR 전수 (원장 '해외주식 주문').
     cases = {
         ("NAS", "real"): ("TTTT1002U", "TTTT1006U"),
-        ("NAS", "demo"): ("VTTT1002U", "VTTT1001U"),   # 모의 미국매도는 VTTT1001U(비대칭)
+        ("NAS", "paper"): ("VTTT1002U", "VTTT1001U"),   # 모의 미국매도는 VTTT1001U(비대칭)
         ("TSE", "real"): ("TTTS0308U", "TTTS0307U"),
-        ("TSE", "demo"): ("VTTS0308U", "VTTS0307U"),
+        ("TSE", "paper"): ("VTTS0308U", "VTTS0307U"),
         ("SHS", "real"): ("TTTS0202U", "TTTS1005U"),
         ("HKS", "real"): ("TTTS1002U", "TTTS1001U"),
         ("SZS", "real"): ("TTTS0305U", "TTTS0304U"),

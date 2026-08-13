@@ -72,7 +72,7 @@ def test_cancel_reserved_needs_sequence():
 def test_cancel_reserved_demo_rejected():
     fake = FakeTransport(response=_OK)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").domestic.account.cancel_reserved_order("42401")
+        _client(fake, environment="paper").domestic.account.cancel_reserved_order("42401")
     assert fake.calls == []
 
 
@@ -135,7 +135,7 @@ def test_modify_reserved_rejected_raises():
 def test_modify_reserved_demo_rejected_before_io():
     fake = FakeTransport(response=_OK)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").domestic.account.modify_reserved_order(
+        _client(fake, environment="paper").domestic.account.modify_reserved_order(
             "42401", symbol="005930", side="buy", quantity=1, limit_price=1)
     assert fake.calls == []
 

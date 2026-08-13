@@ -111,7 +111,7 @@ def test_transactions_unknown_side_rejected_before_io():
 def test_transactions_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas.account.transactions(start="1", end="2")
+        _client(fake, environment="paper").overseas.account.transactions(start="1", end="2")
     assert fake.calls == []
 
 

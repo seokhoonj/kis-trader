@@ -108,7 +108,7 @@ def test_reserved_orders_unknown_process_rejected_before_io():
 def test_reserved_orders_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").domestic.account.reserved_orders(start="1", end="2")
+        _client(fake, environment="paper").domestic.account.reserved_orders(start="1", end="2")
     assert fake.calls == []
 
 

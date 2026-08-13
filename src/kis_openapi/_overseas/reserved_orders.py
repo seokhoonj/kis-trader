@@ -72,7 +72,7 @@ def fetch_reserved_orders(
 ) -> list[OverseasReservedOrder]:
     """미국 해외주식 예약주문 조회(연속조회 소진까지). ``start``/``end`` 는 기간(YYYYMMDD).
     거래소/상품유형 공백=미국 전체. **모의투자 미지원**."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외 예약주문조회(order-resv-list)는 모의투자 미지원 -- 실전에서만.")
     validate_yyyymmdd(start, "start")   # 조회 기간은 실재하는 YYYYMMDD 8자리여야 한다
     validate_yyyymmdd(end, "end")
@@ -146,7 +146,7 @@ def place_overseas_reserved_order(
         raise AccountNotOrderableError(
             "이 계좌는 API 주문이 불가하다(퇴직연금 IRP/DC 등 조회전용). 일반/연금저축 계좌를 쓰라."
         )
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외 예약주문(order-resv)은 모의투자 미지원 -- 실전에서만.")
     if side not in _SIDE_CODE:
         raise KISUsageError(f"side 는 buy/sell 이어야 한다: {side!r}")
@@ -277,7 +277,7 @@ def cancel_overseas_reserved_order(
     주문 dedup 스토어를 거치지 않되, 타임아웃(처리 불명)엔 재전송하지 않는다. **모의투자 미지원**. 실패는
     :class:`KISUsageError`(demo/빈 값/잘못된 날짜)·:class:`OrderRejectedError`(rt_cd!=0)·:class:`OrderTimeoutError`
     (타임아웃)·:class:`KISError`(정상 응답인데 취소 확인번호 부재/불일치)."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외 예약주문 취소(order-resv-ccnl)는 모의투자 미지원 -- 실전에서만.")
     if not str(reserved_order_id).strip():
         raise KISUsageError("취소할 해외예약주문번호(reserved_order_id)가 필요하다.")

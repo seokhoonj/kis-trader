@@ -87,7 +87,7 @@ def test_foreign_margin_tr_method_params():
 def test_foreign_margin_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas.account.foreign_margin()
+        _client(fake, environment="paper").overseas.account.foreign_margin()
     assert fake.calls == []
 
 

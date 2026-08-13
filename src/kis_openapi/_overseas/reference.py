@@ -291,7 +291,7 @@ def fetch_settlement_dates(
 
     성공 응답의 ``output`` 배열이 없거나 페이지 상한 뒤에도 커서가 남으면 부분 결과 대신 실패한다.
     """
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외 시장별 결제일자 조회는 모의투자 미지원이다(실전만).")
 
     rows: list[Mapping[str, Any]] = []

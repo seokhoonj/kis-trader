@@ -91,7 +91,7 @@ def test_overseas_positions_market_maps_exchange_and_currency():
 
 def test_overseas_positions_demo_tr():
     fake = FakeTransport(response=_resp([]))
-    _client(fake, environment="demo").overseas.account.positions(market="US")
+    _client(fake, environment="paper").overseas.account.positions(market="US")
     assert fake.calls[0]["tr_id"] == "VTTS3012R"
 
 
@@ -198,7 +198,7 @@ def test_overseas_open_orders_maps_fields():
 def test_overseas_open_orders_demo_unsupported():
     fake = FakeTransport(response=_open_resp([]))
     with pytest.raises(KISUsageError, match="모의투자 미지원"):
-        _client(fake, environment="demo").overseas.account.open_orders(market="US")
+        _client(fake, environment="paper").overseas.account.open_orders(market="US")
 
 
 def test_overseas_open_orders_paginates():

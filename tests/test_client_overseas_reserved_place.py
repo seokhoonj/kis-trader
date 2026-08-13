@@ -122,7 +122,7 @@ def test_overseas_reserve_requires_price():
 def test_overseas_reserve_demo_rejected():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas.stock("AAPL", exchange="NAS").reserve_buy(quantity=1, limit_price="1")
+        _client(fake, environment="paper").overseas.stock("AAPL", exchange="NAS").reserve_buy(quantity=1, limit_price="1")
     assert fake.calls == []
 
 

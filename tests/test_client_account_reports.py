@@ -132,7 +132,7 @@ def test_realized_balance_non_list_output1_fails_closed():
 def test_realized_balance_demo_rejected():
     fake = FakeTransport(response=_resp(output1=[_POS], output2=[_SUM]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").domestic.account.realized_profit_balance()
+        _client(fake, environment="paper").domestic.account.realized_profit_balance()
     assert fake.calls == []
 
 
@@ -175,7 +175,7 @@ def test_integrated_margin_non_object_output_fails_closed():
 def test_integrated_margin_demo_rejected():
     fake = FakeTransport(response=_resp(output=_MARGIN))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").domestic.account.integrated_margin()
+        _client(fake, environment="paper").domestic.account.integrated_margin()
     assert fake.calls == []
 
 

@@ -137,7 +137,7 @@ def test_reserve_bad_end_date_rejected_before_io():
 def test_reserve_demo_rejected_before_io():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").domestic.stock("005930").reserve_buy(quantity=1, limit_price=1)
+        _client(fake, environment="paper").domestic.stock("005930").reserve_buy(quantity=1, limit_price=1)
     assert fake.calls == []
 
 

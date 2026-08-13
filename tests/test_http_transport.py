@@ -184,7 +184,7 @@ def test_demo_uses_virtual_domain(tmp_path: Any) -> None:
         urls.append(url)
         return 200, {}, {"rt_cd": "0"}
 
-    _transport(tmp_path, send, environment="demo").request(
+    _transport(tmp_path, send, environment="paper").request(
         method="GET", path="/test", tr_id="TR", idempotent=True
     )
     assert urls == ["https://openapivts.koreainvestment.com:29443/test"]

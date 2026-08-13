@@ -35,7 +35,7 @@ from ..transport import Environment, Transport, TransportTimeout
 
 _ORDER_PATH = "/uapi/overseas-stock/v1/trading/order"
 _CHANGE_PATH = "/uapi/overseas-stock/v1/trading/order-rvsecncl"
-_CHANGE_TR = {"real": "TTTT1004U", "demo": "VTTT1004U"}
+_CHANGE_TR = {"real": "TTTT1004U", "paper": "VTTT1004U"}
 
 #: 시세 거래소코드(EXCD) -> (주문 거래소코드 OVRS_EXCG_CD, 시장 그룹). KIS 코드표.
 _ORDER_EXCHANGE: dict[str, tuple[str, str]] = {
@@ -49,18 +49,18 @@ _ORDER_EXCHANGE: dict[str, tuple[str, str]] = {
 
 #: (시장 그룹, 매수/매도, 실전/모의) -> tr_id. KIS 코드표('해외주식 주문').
 _ORDER_TR: dict[tuple[str, Side, Environment], str] = {
-    ("US", "buy", "real"): "TTTT1002U", ("US", "sell", "real"): "TTTT1006U",
-    ("US", "buy", "demo"): "VTTT1002U", ("US", "sell", "demo"): "VTTT1001U",
-    ("JP", "buy", "real"): "TTTS0308U", ("JP", "sell", "real"): "TTTS0307U",
-    ("JP", "buy", "demo"): "VTTS0308U", ("JP", "sell", "demo"): "VTTS0307U",
-    ("SH", "buy", "real"): "TTTS0202U", ("SH", "sell", "real"): "TTTS1005U",
-    ("SH", "buy", "demo"): "VTTS0202U", ("SH", "sell", "demo"): "VTTS1005U",
-    ("HK", "buy", "real"): "TTTS1002U", ("HK", "sell", "real"): "TTTS1001U",
-    ("HK", "buy", "demo"): "VTTS1002U", ("HK", "sell", "demo"): "VTTS1001U",
-    ("SZ", "buy", "real"): "TTTS0305U", ("SZ", "sell", "real"): "TTTS0304U",
-    ("SZ", "buy", "demo"): "VTTS0305U", ("SZ", "sell", "demo"): "VTTS0304U",
-    ("VN", "buy", "real"): "TTTS0311U", ("VN", "sell", "real"): "TTTS0310U",
-    ("VN", "buy", "demo"): "VTTS0311U", ("VN", "sell", "demo"): "VTTS0310U",
+    ("US", "buy", "real"):  "TTTT1002U", ("US", "sell", "real"):  "TTTT1006U",
+    ("US", "buy", "paper"): "VTTT1002U", ("US", "sell", "paper"): "VTTT1001U",
+    ("JP", "buy", "real"):  "TTTS0308U", ("JP", "sell", "real"):  "TTTS0307U",
+    ("JP", "buy", "paper"): "VTTS0308U", ("JP", "sell", "paper"): "VTTS0307U",
+    ("SH", "buy", "real"):  "TTTS0202U", ("SH", "sell", "real"):  "TTTS1005U",
+    ("SH", "buy", "paper"): "VTTS0202U", ("SH", "sell", "paper"): "VTTS1005U",
+    ("HK", "buy", "real"):  "TTTS1002U", ("HK", "sell", "real"):  "TTTS1001U",
+    ("HK", "buy", "paper"): "VTTS1002U", ("HK", "sell", "paper"): "VTTS1001U",
+    ("SZ", "buy", "real"):  "TTTS0305U", ("SZ", "sell", "real"):  "TTTS0304U",
+    ("SZ", "buy", "paper"): "VTTS0305U", ("SZ", "sell", "paper"): "VTTS0304U",
+    ("VN", "buy", "real"):  "TTTS0311U", ("VN", "sell", "real"):  "TTTS0310U",
+    ("VN", "buy", "paper"): "VTTS0311U", ("VN", "sell", "paper"): "VTTS0310U",
 }
 _ORD_DVSN_LIMIT = "00"  # 지정가
 
@@ -162,7 +162,7 @@ def make_overnight_order_request(
     """안전 코어(place)에 넘길 **미국 오버나이트 거래** 주문 빌더 -- 정규 해외주문과 같은 즉시체결·ODNO
     응답이라 dedup/무재시도/reconcile 안전 코어를 공유한다. **모의투자 미지원**, 미국(NASD/NYSE/
     AMEX)·지정가만(주문 정체성의 세션 구분은 :class:`Order` 가 생성 시점에 검증)."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("미국 오버나이트 거래 주문(daytime-order)은 모의투자 미지원 -- 실전에서만.")
     if order.limit_price is None or order.order_type != "limit":
         raise KISUsageError("미국 오버나이트 거래는 지정가만 지원한다 -- limit_price 를 지정하라.")
@@ -197,7 +197,7 @@ def make_overnight_change_request(
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
     """미국 오버나이트 거래 정정·취소 요청 와이어(daytime-order-rvsecncl TTTS6038U). **모의투자 미지원**."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("미국 오버나이트 거래 정정·취소는 모의투자 미지원 -- 실전에서만.")
     try:
         order_exchange, market = _ORDER_EXCHANGE[original_fingerprint.exchange]
@@ -254,7 +254,7 @@ def make_change_request(
 
 # --- 재조회(해외 주문체결내역) ---------------------------------------------
 _CCNL_PATH = "/uapi/overseas-stock/v1/trading/inquire-ccnl"
-_CCNL_TR = {"real": "TTTS3035R", "demo": "VTTS3035R"}
+_CCNL_TR = {"real": "TTTS3035R", "paper": "VTTS3035R"}
 #: 해외 체결내역 매매구분코드. 매수=02, 매도=01(도메스틱과 다르다).
 _SIDE_CODE = {"buy": "02", "sell": "01"}
 _MAX_CCNL_PAGES = 100

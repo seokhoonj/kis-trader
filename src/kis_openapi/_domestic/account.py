@@ -41,12 +41,12 @@ if TYPE_CHECKING:
     from .._literals import Numeric
 
 _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
-_BALANCE_TR = {"real": "TTTC8434R", "demo": "VTTC8434R"}
+_BALANCE_TR = {"real": "TTTC8434R", "paper": "VTTC8434R"}
 #: 잔고 종목배열 연속조회 페이지 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
 _MAX_BALANCE_PAGES = 100
 
 _BUYABLE_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-order"
-_BUYABLE_TR = {"real": "TTTC8908R", "demo": "VTTC8908R"}
+_BUYABLE_TR = {"real": "TTTC8908R", "paper": "VTTC8908R"}
 _SELLABLE_PATH = "/uapi/domestic-stock/v1/trading/inquire-psbl-sell"
 _SELLABLE_TR = "TTTC8408R"  # 모의투자 미지원 -- demo TR 없음
 
@@ -251,7 +251,7 @@ def fetch_sellable(
     transport: Transport, *, cano: str, product_code: str, environment: Environment, symbol: str
 ) -> SellableQuantity:
     """매도가능 수량. **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError(
             "매도가능수량조회(inquire-psbl-sell)는 모의투자 미지원 -- 실전에서만. "
             "모의에선 잔고의 sellable_quantity 를 참고하라."
@@ -280,7 +280,7 @@ def fetch_credit_buyable(
     현금 매수가능(:func:`fetch_buyable_amount`)과 output 형상이 같아 :class:`BuyableAmount` 를 공유한다
     -- 신용 전용 필드(주문가능대용·펀드환매대금·CMA평가금액 등)는 ``_raw`` 로 접근한다.
     """
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError(
             "신용매수가능조회(inquire-credit-psamount)는 모의투자 미지원 -- 실전에서만."
         )
@@ -343,7 +343,7 @@ def fetch_trade_profits(
     """기간별 매매손익(실현손익). ``start``/``end`` 는 기간(YYYYMMDD), ``symbol`` 없으면 전체,
     ``sort`` = recent/oldest. output1 종목행을 연속조회로 모으고 output2 총계를 함께 담는다.
     **모의투자 미지원**."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError(
             "기간별매매손익현황조회(inquire-period-trade-profit)는 모의투자 미지원 -- 실전에서만."
         )
@@ -433,7 +433,7 @@ def fetch_daily_profits(
 ) -> DailyProfitHistory:
     """기간별 일별 매매손익 합산. 파라미터는 :func:`fetch_trade_profits` 와 같되 output1 이 하루
     단위(종목 구분 없음)다. **모의투자 미지원**."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError(
             "기간별손익일별합산조회(inquire-period-profit)는 모의투자 미지원 -- 실전에서만."
         )
@@ -514,7 +514,7 @@ def fetch_account_rights(
 ) -> list[AccountRight]:
     """기간별 계좌 권리현황(유상·무상 배정·배당·상환 등). ``start``/``end`` 는 기간(YYYYMMDD).
     응답 배열 키는 KIS 예시 기준 ``output``(레이아웃의 output1 과 다름). **모의투자 미지원**."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError(
             "기간별계좌권리현황조회(period-rights)는 모의투자 미지원 -- 실전에서만."
         )
@@ -575,7 +575,7 @@ def fetch_realized_profit_balance(
     .. note:: output2 요약 필드는 KIS 응답예시로 확증되지 않았다(레이아웃 기준) -- 실제 응답과 다를
        수 있어 전체 원본을 결과의 ``_raw`` 로 함께 노출한다.
     """
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError(
             "주식잔고조회_실현손익(inquire-balance-rlz-pl)은 모의투자 미지원 -- 실전에서만."
         )
@@ -662,7 +662,7 @@ def fetch_integrated_margin(
     .. note:: 필드가 방대하고 KIS 예시에만 있는 (레이아웃 미기재) 홍콩위안화 재사용 필드가 있어,
        핵심 외 필드는 ``_raw`` 로만 노출한다.
     """
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError(
             "주식통합증거금 현황(intgr-margin)은 모의투자 미지원 -- 실전에서만."
         )
@@ -728,7 +728,7 @@ def fetch_account_assets(
 ) -> AccountAssets:
     """투자계좌 자산현황 요약(output2). 자산군별 내역(output1)은 위치기반이라 ``_raw`` 로만 둔다.
     **모의투자 미지원**."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError(
             "투자계좌자산현황조회(inquire-account-balance)는 모의투자 미지원 -- 실전에서만."
         )
@@ -772,7 +772,7 @@ def fetch_open_orders(
     브로커 측 뷰라 우리 ``client_order_id`` 는 없다 -- 정정/취소는 KIS ``order_id``/``branch_number``
     로 지목한다. 응답은 ``output`` 배열, 페이지당 최대 50건.
     """
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError(
             "정정취소가능주문조회(inquire-psbl-rvsecncl)는 모의투자 미지원 -- 실전에서만."
         )

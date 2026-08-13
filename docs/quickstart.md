@@ -17,11 +17,11 @@ kis = KISClient(
     app_key="YOUR_APP_KEY",
     app_secret="YOUR_APP_SECRET",
     account="12345678-01",  # 계좌번호 8자리-2자리
-    environment="real",     # "real" 실전 / "demo" 모의투자
+    environment="real",     # "real" 실전 / "paper" 모의투자
 )
 ```
 
-모의투자로 연습하려면 `environment="demo"` — 각 API 요청의 **TR-id**(KIS가 요청 종류를
+모의투자로 연습하려면 `environment="paper"` — 각 API 요청의 **TR-id**(KIS가 요청 종류를
 구분하는 거래 코드. 실전용과 모의용이 따로 있습니다)가 자동으로 모의용으로 바뀝니다.
 
 ## 자격증명 숨기기

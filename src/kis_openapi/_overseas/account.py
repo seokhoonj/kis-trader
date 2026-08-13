@@ -49,7 +49,7 @@ if TYPE_CHECKING:
     from .._literals import Numeric
 
 _POSITIONS_PATH = "/uapi/overseas-stock/v1/trading/inquire-balance"
-_POSITIONS_TR = {"real": "TTTS3012R", "demo": "VTTS3012R"}
+_POSITIONS_TR = {"real": "TTTS3012R", "paper": "VTTS3012R"}
 #: 잔고 종목배열 연속조회 페이지 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
 _MAX_PAGES = 100
 
@@ -57,7 +57,7 @@ _OPEN_ORDERS_PATH = "/uapi/overseas-stock/v1/trading/inquire-nccs"
 _OPEN_ORDERS_TR = "TTTS3018R"           # 모의투자 미지원(실전만)
 
 _BUYABLE_PATH = "/uapi/overseas-stock/v1/trading/inquire-psamount"
-_BUYABLE_TR = {"real": "TTTS3007R", "demo": "VTTS3007R"}
+_BUYABLE_TR = {"real": "TTTS3007R", "paper": "VTTS3007R"}
 
 _TRANSACTIONS_PATH = "/uapi/overseas-stock/v1/trading/inquire-period-trans"
 _TRANSACTIONS_TR = "CTOS4001R"          # 모의투자 미지원
@@ -71,7 +71,7 @@ _ALGO_CCNL_PATH = "/uapi/overseas-stock/v1/trading/inquire-algo-ccnl"
 _ALGO_CCNL_TR = "TTTS6059R"             # 모의투자 미지원
 
 _PRESENT_BALANCE_PATH = "/uapi/overseas-stock/v1/trading/inquire-present-balance"
-_PRESENT_BALANCE_TR = {"real": "CTRP6504R", "demo": "VTRP6504R"}  # 모의는 output3(요약)만
+_PRESENT_BALANCE_TR = {"real": "CTRP6504R", "paper": "VTRP6504R"}  # 모의는 output3(요약)만
 _SETTLEMENT_BALANCE_PATH = "/uapi/overseas-stock/v1/trading/inquire-paymt-stdr-balance"
 _SETTLEMENT_BALANCE_TR = "CTRP6010R"    # 모의투자 미지원
 _PERIOD_PROFIT_PATH = "/uapi/overseas-stock/v1/trading/inquire-period-profit"
@@ -156,7 +156,7 @@ def fetch_open_orders(
 ) -> list[OverseasOpenOrder]:
     """해외 미체결 주문 전체(연속조회 소진까지). ``market`` 생략(``None``)이면 전체 시장 그룹을 순회해
     합친다. **모의투자 미지원**(demo면 :class:`KISUsageError`)."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외 미체결내역 조회는 모의투자 미지원이다(실전 계좌만).")
     if market is None:
         out: list[OverseasOpenOrder] = []
@@ -265,7 +265,7 @@ def fetch_transactions(
 ) -> list[OverseasTransaction]:
     """해외주식 일별 거래내역(연속조회 소진까지). ``start``/``end`` 는 등록일자 기간(YYYYMMDD),
     ``symbol`` 없으면 전체 종목, ``side`` = all/sell/buy. **모의투자 미지원**."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외주식 일별거래내역(inquire-period-trans)은 모의투자 미지원 -- 실전에서만.")
     try:
         side_code = _TX_SIDE_FILTER[side]
@@ -317,7 +317,7 @@ def fetch_foreign_margin(
     transport: Transport, *, cano: str, product_code: str, environment: Environment
 ) -> list[OverseasForeignMargin]:
     """통화별 해외증거금(외화 예수금·증거금·주문가능금액). 단발 조회. **모의투자 미지원**."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외증거금 통화별조회(foreign-margin)는 모의투자 미지원 -- 실전에서만.")
     params = {"CANO": cano, "ACNT_PRDT_CD": product_code}
     resp = transport.request(
@@ -360,7 +360,7 @@ def fetch_algo_orders(
 ) -> list[OverseasAlgoOrder]:
     """해외 지정가(TWAP/VWAP 등 알고) 주문 목록. 각 건의 ``order_id``/``branch_number`` 로 체결내역을
     조회한다(:func:`fetch_algo_executions`). **모의투자 미지원**."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외 지정가주문번호조회(algo-ordno)는 모의투자 미지원 -- 실전에서만.")
     rows = _fetch_paginated_rows(
         transport,
@@ -393,7 +393,7 @@ def fetch_algo_executions(
 ) -> list[OverseasAlgoExecution]:
     """한 해외 알고주문(``order_id``)의 체결내역. ``order_date``(YYYYMMDD)는 주문일자, ``branch_number``
     는 주문채번지점번호(:func:`fetch_algo_orders` 의 ``branch_number``). 응답 키가 대문자다. **모의투자 미지원**."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError("해외 지정가체결내역조회(inquire-algo-ccnl)는 모의투자 미지원 -- 실전에서만.")
     rows = _fetch_paginated_rows(
         transport,
@@ -472,7 +472,7 @@ def fetch_settlement_balance(
 ) -> OverseasSettlementBalance:
     """해외주식 결제기준잔고 -- ``basis_date``(YYYYMMDD) 결제 기준의 보유 종목·통화별 예수금·계좌 요약.
     **모의투자 미지원**. ``won_basis`` 원화(True)/외화(False) 기준, ``inquiry`` 조회구분(``"00"`` 전체)."""
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError(
             "해외주식 결제기준잔고(inquire-paymt-stdr-balance)는 모의투자 미지원 -- 실전에서만."
         )
@@ -513,7 +513,7 @@ def fetch_period_profit(
     .. note:: KIS 응답예시가 비어 있어 필드는 레이아웃 기준이다 -- 실제 응답과 다를 수 있으므로 각 행과
        결과의 ``_raw`` 로 원본을 함께 노출한다.
     """
-    if environment == "demo":
+    if environment == "paper":
         raise KISUsageError(
             "해외주식 기간손익(inquire-period-profit)은 모의투자 미지원 -- 실전에서만."
         )
