@@ -19,6 +19,8 @@ from .errors import KISUsageError
 from .instrument import DomesticBoard
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     # 주문 수치 파라미터의 입력 허용형(int|float|Decimal|str). 주석 전용이라 런타임 순환 import
     # (_literals -> order)을 피하려 TYPE_CHECKING 아래에서 들여온다.
     from ._literals import Numeric
@@ -48,15 +50,52 @@ ChangeAction = Literal["cancel", "modify"]
 CreditType = Literal["21", "22", "23", "24", "25", "26", "27", "28"]
 
 
-class Fingerprint(NamedTuple):
-    """주문의 요청 지문(멱등 dedup 키). 필드를 이름으로 읽어 매직 인덱스를 없앤다 -- 특히
-    ``exchange`` 로 국내/해외 재조회 경로를 가르므로 위치 이동에 취약하면 안전 라우팅이 깨진다.
-    수치 필드는 와이어와 같은 정본 문자열(:func:`format_wire_decimal`)이다.
+class OrderFingerprint:
+    """주문 요청 지문(멱등 dedup 키)의 인메모리 태그드 유니온 베이스.
+
+    KIS 는 네이티브 멱등키가 없어 이 지문이 "같은 id 를 *다른* 주문에 재사용했는지"를 판별한다.
+    변형은 세 가지다 -- :class:`ImmediateOrderFingerprint`(즉시체결), :class:`ReservedOrderFingerprint`
+    (예약), :class:`ChangeActionFingerprint`(정정/취소 동작). 각 변형은 자기 의미의 필드만 가져
+    (예: 변경 지문의 ``action``, 예약 지문의 ``end_date``) **표현 불가능한 조합이 애초에 없다** --
+    예전처럼 action 을 ``stop_price`` 슬롯에, cid 를 ``symbol`` 슬롯에 밀어넣는 스머글링을 없앴다.
+
+    **온-디스크 형식은 바뀌지 않는다.** :func:`encode_fingerprint`/:func:`decode_fingerprint` 가
+    기존 위치 튜플(13-슬롯 문자열)과 왕복 코덱을 이룬다. dedup 정체성(무엇이 무엇과 같은가)은 그
+    위치 인코딩의 동등성으로 정의되므로 변형이 달라도 **예전 튜플 동등성과 바이트 단위로 동일**하다 --
+    재조회 매칭과 이중전송 장벽이 여기에 의존한다. 수치 필드는 와이어와 같은 정본
+    문자열(:func:`format_wire_decimal`)이다."""
+
+    __slots__ = ()
+
+    def _positional(self) -> tuple[str, ...]:
+        """이 지문의 온-디스크 위치 인코딩(13-슬롯). 각 변형이 구현한다."""
+        raise NotImplementedError
+
+    def __eq__(self, other: object) -> bool:
+        # dedup 정체성 = 위치 인코딩의 동등성. 변형(type)이 달라도 인코딩이 같으면 같다 -- 실제로는
+        # exchange 슬롯(action:/reserved/즉시)이 겹치지 않아 교차변형 충돌은 발생하지 않으며, 이
+        # 정의는 예전 NamedTuple 튜플 동등성과 정확히 일치한다.
+        if not isinstance(other, OrderFingerprint):
+            return NotImplemented
+        return self._positional() == other._positional()
+
+    def __hash__(self) -> int:
+        return hash(self._positional())
+
+    def __repr__(self) -> str:
+        return f"{type(self).__name__}({self._positional()!r})"
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class ImmediateOrderFingerprint(OrderFingerprint):
+    """즉시체결 주문(국내 현금/신용·해외 정규/주간)의 지문.
 
     ``credit_type`` 은 신용주문 유형(현금주문은 ``""``), ``loan_date`` 는 그 신용주문의 대출일자
     (현금주문·신규신용은 ``""``, 상환신용은 대상 대출일자) -- 같은 종목·수량·가격이라도 현금 vs
     신용, 또 서로 다른 대출을 상환하는 신용주문은 서로 다른 주문이므로 지문으로 구분해야
-    replay/conflict 판정이 정확하다."""
+    replay/conflict 판정이 정확하다. ``division`` 은 국내 주문구분(최유리/최우선/조건부; 그 밖은 ``""``),
+    ``board`` 는 국내 체결 보드(KRX/NXT/UN; 구버전 레코드는 기본 "KRX")로, 둘 다 같은 종목·수량이라도
+    서로 다른 주문이라 지문으로 구분한다."""
 
     symbol: str
     side: Side
@@ -69,12 +108,115 @@ class Fingerprint(NamedTuple):
     credit_type: str = ""
     loan_date: str = ""
     session: Session = "regular"
-    #: 국내 주문구분(최유리/최우선/조건부; 그 밖은 ``""``). 같은 종목·수량이라도 시장가 vs 최유리는
-    #: 서로 다른 주문(ORD_DVSN 01 vs 03)이므로 지문으로 구분해야 replay/conflict 판정이 정확하다.
     division: str = ""
-    #: 국내 체결 보드(KRX/NXT/UN). 같은 종목·수량이라도 KRX vs NXT 는 서로 다른 거래소 주문이므로
-    #: 지문으로 구분한다(구버전 레코드는 기본 "KRX"). 해외/신용은 "KRX" 기본.
     board: str = "KRX"
+
+    def _positional(self) -> tuple[str, ...]:
+        return (
+            self.symbol, self.side, self.order_type, self.quantity, self.limit_price,
+            self.stop_price, self.time_in_force, self.exchange, self.credit_type,
+            self.loan_date, self.session, self.division, self.board,
+        )
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class ReservedOrderFingerprint(OrderFingerprint):
+    """예약주문(국내 현금예약·해외 미국예약)의 지문 -- 예약은 지정가/시장가·day 뿐이라 stop/신용/세션/
+    보드 슬롯이 없다. ``end_date`` 는 예약 유효 종료일(없으면 ``""``; 종료일이 다르면 다른 주문),
+    ``exchange`` 는 예약 네임스페이스("reserved" 국내 / "overseas-reserved" 해외)로 즉시주문과
+    dedup 을 분리하고 reconcile 을 예약 경로로 라우팅한다."""
+
+    symbol: str
+    side: Side
+    order_type: OrderType
+    quantity: str
+    limit_price: str
+    end_date: str
+    exchange: str
+
+    def _positional(self) -> tuple[str, ...]:
+        # 온-디스크: end_date 는 예전 stop_price 슬롯, tif="day" 고정, 뒤쪽은 기본값.
+        return (
+            self.symbol, self.side, self.order_type, self.quantity, self.limit_price,
+            self.end_date, "day", self.exchange, "", "", "regular", "", "KRX",
+        )
+
+
+@dataclass(frozen=True, slots=True, eq=False)
+class ChangeActionFingerprint(OrderFingerprint):
+    """접수된 주문에 대한 정정/취소 동작의 지문(변경 요청의 멱등키). ``original_client_order_id`` 로만
+    원주문을 식별하고(그 order_id 로 파생하지 않는다 -- 정정은 원 id 를 새 ODNO 로 재바인딩하므로,
+    order_id 를 넣으면 같은 request_id 재시도 시 재계산 값이 달라져 replay 가 CONFLICT 로 깨진다),
+    ``action``(cancel/modify)·수량·가격이 변경 의도를 식별한다. ``exchange`` 는 원주문의 거래소(정직한
+    값)이며, 온-디스크에선 "action:" 접두가 붙어 원주문 지문과 네임스페이스가 갈린다."""
+
+    original_client_order_id: str
+    side: Side
+    order_type: OrderType
+    quantity: str
+    limit_price: str
+    action: ChangeAction
+    time_in_force: TimeInForce
+    exchange: str
+
+    def _positional(self) -> tuple[str, ...]:
+        # 온-디스크: symbol 슬롯=원 cid, stop_price 슬롯=action, exchange 슬롯="action:"+원 거래소.
+        return (
+            self.original_client_order_id, self.side, self.order_type, self.quantity,
+            self.limit_price, self.action, self.time_in_force, f"{_ACTION_EXCHANGE_PREFIX}{self.exchange}",
+            "", "", "regular", "", "KRX",
+        )
+
+
+#: 인메모리 지문 변형들의 공통 상위형 -- 저장소/재조회가 "어떤 지문이든" 을 annotate 할 때 쓴다.
+Fingerprint = OrderFingerprint
+
+#: 온-디스크 위치 인코딩의 슬롯 수(스키마 v5/v6/v7 공통). 인코딩은 항상 이 길이로 나간다.
+_FINGERPRINT_SLOTS = 13
+#: 위치 인코딩의 정직한 예약 네임스페이스(exchange 슬롯). decode 가 이 값으로 예약 변형을 판별한다.
+_RESERVED_EXCHANGES = frozenset(("reserved", "overseas-reserved"))
+#: 변경 동작 지문의 exchange 슬롯 접두 -- decode 가 이 접두로 변경 변형을 판별한다.
+_ACTION_EXCHANGE_PREFIX = "action:"
+#: 위치 인코딩 뒤쪽 선택 슬롯(idx 8..12)의 기본값 -- 구버전 레코드가 이보다 짧을 때 채운다.
+_TRAILING_DEFAULTS = ("", "", "regular", "", "KRX")  # credit_type, loan_date, session, division, board
+
+
+def encode_fingerprint(fingerprint: OrderFingerprint) -> list[str]:
+    """지문을 기존 온-디스크 위치 튜플(13-슬롯 문자열 리스트)로 인코딩한다 -- 변경 전 코드가 쓰던
+    ``list(fp)`` 와 **바이트 동일**해야 한다(dedup 정체성·재조회 매칭·이중전송 장벽이 여기 의존)."""
+    return list(fingerprint._positional())
+
+
+def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
+    """온-디스크 위치 튜플을 인메모리 지문으로 디코딩한다(구버전 짧은 레코드는 뒤쪽 기본값으로 채움 --
+    v1=8슬롯 .. v5+=13슬롯). exchange 슬롯(idx 7)으로 변형을 판별한다: "action:" 접두=변경 동작,
+    "reserved"/"overseas-reserved"=예약, 그 밖=즉시 주문. 슬롯이 8 미만이거나 13 초과면 손상/변조로
+    거부한다(예전 ``Fingerprint(*fp)`` 가 필수 필드 부족/인자 과다로 실패하던 것과 같은 fail-closed)."""
+    slots = [str(value) for value in row]
+    if len(slots) < 8:
+        raise ValueError(f"지문 레코드 슬롯이 부족하다(8 미만): {row!r}")
+    while len(slots) < _FINGERPRINT_SLOTS:
+        slots.append(_TRAILING_DEFAULTS[len(slots) - 8])
+    if len(slots) > _FINGERPRINT_SLOTS:                    # 과다 슬롯 = 손상/변조 -> fail-closed
+        raise ValueError(f"지문 레코드 슬롯이 과다하다({_FINGERPRINT_SLOTS} 초과): {row!r}")
+    symbol, side, order_type, quantity, limit_price, stop_slot, tif, exchange = slots[:8]
+    credit_type, loan_date, session, division, board = slots[8:_FINGERPRINT_SLOTS]
+    if exchange.startswith(_ACTION_EXCHANGE_PREFIX):
+        return ChangeActionFingerprint(
+            original_client_order_id=symbol, side=side, order_type=order_type,
+            quantity=quantity, limit_price=limit_price, action=stop_slot,
+            time_in_force=tif, exchange=exchange[len(_ACTION_EXCHANGE_PREFIX):],
+        )
+    if exchange in _RESERVED_EXCHANGES:
+        return ReservedOrderFingerprint(
+            symbol=symbol, side=side, order_type=order_type, quantity=quantity,
+            limit_price=limit_price, end_date=stop_slot, exchange=exchange,
+        )
+    return ImmediateOrderFingerprint(
+        symbol=symbol, side=side, order_type=order_type, quantity=quantity,
+        limit_price=limit_price, stop_price=stop_slot, time_in_force=tif, exchange=exchange,
+        credit_type=credit_type, loan_date=loan_date, session=session, division=division, board=board,
+    )
 
 
 class WireRequest(NamedTuple):
@@ -304,12 +446,12 @@ class Order:
                 )
 
     @property
-    def fingerprint(self) -> Fingerprint:
+    def fingerprint(self) -> ImmediateOrderFingerprint:
         """이 주문의 요청 지문 -- 같은 ``client_order_id`` 를 *다른* 주문에 재사용했는지
         판별하는 데 쓴다(멱등 replay 는 지문이 같을 때만 허용). 수치는 와이어와 **같은**
         정본(:func:`format_wire_decimal`)으로 -- 그래야 ``10`` 과 ``1E1`` 이 같은 지문이 된다.
         """
-        return Fingerprint(
+        return ImmediateOrderFingerprint(
             symbol=self.symbol, side=self.side, order_type=self.order_type,
             quantity=format_wire_decimal(self.quantity),
             limit_price="" if self.limit_price is None else format_wire_decimal(self.limit_price),
@@ -353,18 +495,18 @@ class Order:
     @classmethod
     def credit(
         cls, symbol: str, *, side: Side, quantity: Numeric, credit_type: CreditType,
-        price: Numeric | None = None, loan_date: str | None = None,
+        limit_price: Numeric | None = None, loan_date: str | None = None,
         time_in_force: TimeInForce = "day", client_order_id: str | None = None,
     ) -> Order:
-        """국내 신용(융자/대주) 주문 -- ``price`` 를 주면 지정가, 없으면 시장가. ``credit_type`` 은
+        """국내 신용(융자/대주) 주문 -- ``limit_price`` 를 주면 지정가, 없으면 시장가. ``credit_type`` 은
         매수/매도별 신용유형(매수 21/23/26/28, 매도 22/24/25/27).
 
         ``loan_date``(YYYYMMDD)는 대출일자다: **상환**유형(25/26/27/28)은 상환 대상 대출을 지정해야
         하므로 필수, **신규**유형(21/22/23/24)은 개시일이라 생략하면 생성 시점의 오늘(KST)로 채운다.
         신용주문은 국내(XKRX)만 가능하다."""
-        order_type: OrderType = "limit" if price is not None else "market"
+        order_type: OrderType = "limit" if limit_price is not None else "market"
         return cls._make(
-            symbol, side, order_type, quantity, limit_price=price,
+            symbol, side, order_type, quantity, limit_price=limit_price,
             credit_type=credit_type, loan_date=loan_date,
             time_in_force=time_in_force, client_order_id=client_order_id,
         )

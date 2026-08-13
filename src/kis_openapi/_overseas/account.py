@@ -207,7 +207,7 @@ def _parse_open_orders(
                 quantity=required_int(row.get("ft_ord_qty"), "ft_ord_qty"),
                 filled_quantity=required_int(row.get("ft_ccld_qty"), "ft_ccld_qty"),
                 unfilled_quantity=required_int(row.get("nccs_qty"), "nccs_qty"),
-                price=_money(row, "ft_ord_unpr3", currency),
+                order_price=_money(row, "ft_ord_unpr3", currency),
                 _raw=row,
             )
         )
@@ -377,7 +377,7 @@ def fetch_algo_orders(
             symbol=str(row.get("pdno", "")).strip(),
             name=str(row.get("item_name", "")).strip(),
             quantity=_decimal_or_zero(row, "ft_ord_qty"),
-            price=_decimal_or_zero(row, "ft_ord_unpr3"),
+            order_price=_decimal_or_zero(row, "ft_ord_unpr3"),
             filled_quantity=_decimal_or_zero(row, "ft_ccld_qty"),
             split_attribute=str(row.get("splt_buy_attr_name", "")).strip(),
             branch_number=str(row.get("ord_gno_brno", "")).strip(),

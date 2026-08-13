@@ -82,7 +82,7 @@ class OverseasOpenOrder:
     quantity: int                     # 주문수량
     filled_quantity: int              # 체결수량
     unfilled_quantity: int            # 미체결 잔량
-    price: Money                      # 주문단가(종목 통화)
+    order_price: Money                # 주문단가(종목 통화)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -104,7 +104,7 @@ class OverseasAlgoOrder:
     symbol: str
     name: str
     quantity: Decimal                 # 주문수량(ft_ord_qty)
-    price: Decimal                    # 주문단가(ft_ord_unpr3)
+    order_price: Decimal              # 주문단가(ft_ord_unpr3)
     filled_quantity: Decimal          # 체결수량(ft_ccld_qty)
     split_attribute: str              # 분할매수속성명(splt_buy_attr_name)
     branch_number: str                # 주문채번지점번호(ord_gno_brno)
@@ -154,7 +154,7 @@ class OverseasReservedOrder:
     status: str                       # 해외예약주문상태명(ovrs_rsvn_ord_stat_cd_name)
     exchange: str                     # 해외거래소코드(ovrs_excg_cd)
     quantity: Decimal                 # 주문수량(ft_ord_qty)
-    price: Decimal                    # 주문단가(ft_ord_unpr3)
+    order_price: Decimal              # 주문단가(ft_ord_unpr3)
     filled_quantity: Decimal          # 체결수량(ft_ccld_qty)
     canceled: bool                    # 취소여부(cncl_yn)
     unprocessed_reason: str           # 미처리사유(nprc_rson_text)

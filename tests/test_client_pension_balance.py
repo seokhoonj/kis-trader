@@ -165,7 +165,7 @@ def test_pension_orders_parses():
     assert o.quantity == Decimal(5)
     assert o.filled_quantity == Decimal(2)
     assert o.unfilled_quantity == Decimal(3)
-    assert o.price == Decimal(13235)
+    assert o.order_price == Decimal(13235)
     assert o.order_time == time(13, 14, 38)
 
 

@@ -816,7 +816,7 @@ def _parse_open_orders(rows: list[Mapping[str, Any]]) -> list[OpenOrder]:
                 filled_quantity=filled,
                 unfilled_quantity=quantity - filled,
                 cancelable_quantity=_decimal_or_zero(row.get("psbl_qty"), "psbl_qty"),
-                price=_decimal_or_zero(row.get("ord_unpr"), "ord_unpr"),
+                order_price=_decimal_or_zero(row.get("ord_unpr"), "ord_unpr"),
                 order_time=_parse_hhmmss(row.get("ord_tmd")),
                 _raw=row,
             )

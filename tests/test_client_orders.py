@@ -89,7 +89,7 @@ def _client(transport, *, environment="real", account="12345678-01", store=None,
 # --- 정상 전송 -------------------------------------------------------------
 def test_buy_limit_places_order():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
-    report = _client(fake).domestic.stock("005930").buy(quantity=10, price=70000)
+    report = _client(fake).domestic.stock("005930").buy(quantity=10, limit_price=70000)
     assert isinstance(report, ExecutionReport)
     assert report.order_id == "0000117057"
     assert report.symbol == "005930"
@@ -113,14 +113,14 @@ def test_buy_market_uses_market_division():
 
 def test_sell_uses_sell_tr():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
-    report = _client(fake).domestic.stock("005930").sell(quantity=10, price=70000)
+    report = _client(fake).domestic.stock("005930").sell(quantity=10, limit_price=70000)
     assert report.side == "sell"
     assert fake.calls[0]["tr_id"] == "TTTC0011U"        # 실전 매도
 
 
 def test_demo_uses_demo_tr():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
-    _client(fake, environment="demo").domestic.stock("005930").buy(quantity=10, price=70000)
+    _client(fake, environment="demo").domestic.stock("005930").buy(quantity=10, limit_price=70000)
     assert fake.calls[0]["tr_id"] == "VTTC0012U"
 
 
@@ -128,7 +128,7 @@ def test_cancel_domestic_order_uses_original_identifiers_and_deduplicates():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     kis = _client(fake)
     kis.domestic.stock("005930").buy(
-        quantity=10, price=70000, client_order_id="original-1"
+        quantity=10, limit_price=70000, client_order_id="original-1"
     )
     first = kis.orders.cancel("original-1", request_id="cancel-1")
     second = kis.orders.cancel("original-1", request_id="cancel-1")
@@ -152,10 +152,10 @@ def test_replace_domestic_order_maps_new_quantity_and_price():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     kis = _client(fake, environment="demo")
     kis.domestic.stock("005930").sell(
-        quantity=10, price=70000, client_order_id="original-2"
+        quantity=10, limit_price=70000, client_order_id="original-2"
     )
     report = kis.orders.modify(
-        "original-2", quantity=4, price=71000, request_id="modify-1"
+        "original-2", quantity=4, limit_price=71000, request_id="modify-1"
     )
 
     assert report.status is OrderStatus.PENDING_REPLACE
@@ -182,8 +182,8 @@ def test_modify_rebinds_client_order_id_to_new_odno_so_cancel_targets_it():
                                   _ORDER_CHANGE: [modify_response, cancel_response]})
     store = OrderStore()
     kis = _client(fake, store=store)
-    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
-    report = kis.orders.modify("orig-1", price=71000, request_id="modify-1")
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-1")
+    report = kis.orders.modify("orig-1", limit_price=71000, request_id="modify-1")
 
     # 정정 응답의 새 ODNO 가 원 id 의 표준 상태로 반영된다.
     assert report.order_id == "0000117061"
@@ -204,14 +204,14 @@ def test_modify_of_partially_filled_order_resets_filled_and_avg_price():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     store = OrderStore()
     kis = _client(fake, store=store)
-    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-1")
     # 부분체결 시뮬레이션: 저장된 리포트를 3/10 체결·평균가로 갱신(지문은 유지).
     placed = store.report_for("orig-1")
     store.record(
         dataclasses.replace(placed, status=OrderStatus.PARTIALLY_FILLED,
                             filled_quantity=Decimal(3), average_price=Decimal(70000)),
         store.fingerprint_for("orig-1"))
-    kis.orders.modify("orig-1", price=71000, request_id="modify-1")
+    kis.orders.modify("orig-1", limit_price=71000, request_id="modify-1")
     rebound = store.report_for("orig-1")
     assert rebound.filled_quantity == Decimal(0)              # 신규 대기주문 = 0 체결
     assert rebound.average_price is None                      # filled==0 => 평균가 없음
@@ -229,9 +229,9 @@ def test_modify_with_missing_odno_fails_closed_and_does_not_rebind():
     fake = FakeTransport(by_path={_ORDER_CASH: place, _ORDER_CHANGE: modify_no_odno})
     store = OrderStore()
     kis = _client(fake, store=store)
-    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-1")
     with pytest.raises(OrderError):
-        kis.orders.modify("orig-1", price=71000, request_id="modify-1")
+        kis.orders.modify("orig-1", limit_price=71000, request_id="modify-1")
     # 원 id 는 여전히 원 ODNO -- 낡은 값에 재바인딩하지 않는다.
     assert store.report_for("orig-1").order_id == "0000117057"
     assert store.report_for("orig-1").status is OrderStatus.NEW
@@ -251,9 +251,9 @@ def test_modify_replay_same_request_id_returns_prior_not_conflict():
     fake = FakeTransport(by_path={_ORDER_CASH: place, _ORDER_CHANGE: modify_response})
     store = OrderStore()
     kis = _client(fake, store=store)
-    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
-    first = kis.orders.modify("orig-1", price=71000, request_id="modify-1")
-    second = kis.orders.modify("orig-1", price=71000, request_id="modify-1")
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-1")
+    first = kis.orders.modify("orig-1", limit_price=71000, request_id="modify-1")
+    second = kis.orders.modify("orig-1", limit_price=71000, request_id="modify-1")
     assert second == first
     assert len([c for c in fake.calls if c["path"] == _ORDER_CHANGE]) == 1   # 한 번만 전송
 
@@ -272,9 +272,9 @@ def test_modify_quantity_rebinds_remaining_for_next_change():
                                   _ORDER_CHANGE: [modify_response, change_response]})
     store = OrderStore()
     kis = _client(fake, store=store)
-    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
-    kis.orders.modify("orig-1", quantity=4, price=71000, request_id="modify-1")
-    kis.orders.modify("orig-1", price=72000, request_id="modify-2")
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-1")
+    kis.orders.modify("orig-1", quantity=4, limit_price=71000, request_id="modify-1")
+    kis.orders.modify("orig-1", limit_price=72000, request_id="modify-2")
     change_calls = [c for c in fake.calls if c["path"] == _ORDER_CHANGE]
     # 2차 정정은 1차 정정이 부여한 새 ODNO·조직번호를 지목한다(원 주문번호가 아니라).
     assert change_calls[1]["body"]["ORGN_ODNO"] == "0000117061"
@@ -295,12 +295,12 @@ def test_modify_rebind_persists_in_a_single_store_write(monkeypatch):
     fake = FakeTransport(by_path={_ORDER_CASH: place, _ORDER_CHANGE: modify_response})
     store = OrderStore()
     kis = _client(fake, store=store)
-    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-1")
     saves = {"n": 0}
     original_save = store._save_locked
     monkeypatch.setattr(store, "_save_locked",
                         lambda: (saves.__setitem__("n", saves["n"] + 1), original_save())[1])
-    kis.orders.modify("orig-1", price=71000, request_id="modify-1")
+    kis.orders.modify("orig-1", limit_price=71000, request_id="modify-1")
     assert saves["n"] == 2          # claim 1회 + 결과기록(변경요청+재바인딩) 단일 save 1회
     # 그 단일 save 가 두 전이를 모두 담았는지(횟수만이 아니라 내용) 확인.
     assert store.report_for("orig-1").order_id == "0000117061"           # 재바인딩됨
@@ -315,7 +315,7 @@ def test_cancel_survives_store_restart_via_persisted_org_number(tmp_path):
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     with OrderStore(path=path) as store:
         _client(fake, store=store).domestic.stock("005930").buy(
-            quantity=10, price=70000, client_order_id="orig-1")
+            quantity=10, limit_price=70000, client_order_id="orig-1")
     with OrderStore(path=path) as store2:                 # 재기동 시뮬레이션(새 인스턴스)
         assert not store2.report_for("orig-1")._raw       # _raw 는 재로드에서 비어있음(설계)
         _client(fake, store=store2).orders.cancel("orig-1", request_id="cancel-1")
@@ -333,9 +333,9 @@ def test_reconcile_of_change_request_is_explicitly_rejected():
                                   _ORDER_CHANGE: TransportTimeout()})
     store = OrderStore()
     kis = _client(fake, store=store)
-    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-1")
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-1")
     with pytest.raises(OrderTimeoutError):
-        kis.orders.modify("orig-1", price=71000, request_id="modify-1")
+        kis.orders.modify("orig-1", limit_price=71000, request_id="modify-1")
     assert store.is_in_flight("modify-1")
     with pytest.raises(KISUsageError, match="자동 reconcile"):
         kis.orders.reconcile("modify-1")
@@ -350,7 +350,7 @@ def test_domestic_change_timeout_stays_in_flight_and_is_not_resent():
     )
     kis = _client(fake)
     kis.domestic.stock("005930").buy(
-        quantity=10, price=70000, client_order_id="original-3"
+        quantity=10, limit_price=70000, client_order_id="original-3"
     )
     with pytest.raises(OrderTimeoutError):
         kis.orders.cancel("original-3", request_id="cancel-timeout")
@@ -363,8 +363,8 @@ def test_domestic_change_timeout_stays_in_flight_and_is_not_resent():
 def test_same_client_order_id_replays_without_resend():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     kis = _client(fake)
-    first = kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
-    second = kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+    first = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
+    second = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     assert second.order_id == first.order_id
     assert len(fake.calls) == 1                          # 재전송 안 함(replay)
 
@@ -372,16 +372,16 @@ def test_same_client_order_id_replays_without_resend():
 def test_same_id_different_order_conflicts():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     kis = _client(fake)
-    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     with pytest.raises(KISUsageError):                   # 같은 id 다른 주문 -> 충돌 거부
-        kis.domestic.stock("005930").buy(quantity=99, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=99, limit_price=70000, client_order_id="ID-1")
 
 
 # --- 타임아웃 = 재시도 금지, in-flight 유지 --------------------------------
 def test_write_timeout_raises_and_does_not_retry():
     fake = FakeTransport(raises=TransportTimeout("timeout"))
     with pytest.raises(OrderTimeoutError) as excinfo:
-        _client(fake).domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        _client(fake).domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     assert excinfo.value.client_order_id == "ID-1"
     assert len(fake.calls) == 1                          # 재시도 없음
 
@@ -390,9 +390,9 @@ def test_in_flight_after_timeout_refuses_resend():
     fake = FakeTransport(by_path={_ORDER_CASH: [TransportTimeout("t"), _ACCEPTED_ORDER_RESPONSE]})
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     with pytest.raises(KISUsageError):                   # in-flight -> 재전송 거부(재조회 요구)
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
 
 
 # --- 접수 거부 / ODNO 부재 -------------------------------------------------
@@ -400,37 +400,37 @@ def test_rejected_raises_and_clears_in_flight():
     fake = FakeTransport(by_path={_ORDER_CASH: [_REJECTED_ORDER_RESPONSE, _ACCEPTED_ORDER_RESPONSE]})
     kis = _client(fake)
     with pytest.raises(OrderRejectedError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     # 거부는 in-flight 를 해제하므로 같은 id 재전송이 허용된다(이번엔 접수).
-    report = kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+    report = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     assert report.order_id == "0000117057"
 
 
 def test_accepted_without_odno_raises():
     resp = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="ok", body={"output": {}})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).domestic.stock("005930").buy(quantity=10, price=70000)
+        _client(FakeTransport(response=resp)).domestic.stock("005930").buy(quantity=10, limit_price=70000)
 
 
 # --- 계좌 가드 -------------------------------------------------------------
 def test_retirement_account_blocked():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     with pytest.raises(AccountNotOrderableError):
-        _client(fake, orderable=False).domestic.stock("005930").buy(quantity=10, price=70000)
+        _client(fake, orderable=False).domestic.stock("005930").buy(quantity=10, limit_price=70000)
     assert fake.calls == []                              # 와이어에 닿기 전 차단
 
 
 def test_order_requires_account():
     kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_ACCEPTED_ORDER_RESPONSE))
     with pytest.raises(KISUsageError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000)
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)
 
 
 # --- 재조회(reconcile) -----------------------------------------------------
 def test_reconcile_replays_completed():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     kis = _client(fake)
-    placed = kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+    placed = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     again = kis.orders.reconcile("ID-1")
     assert again is not None
     assert again.order_id == placed.order_id
@@ -450,7 +450,7 @@ def test_timeout_then_reconcile_confirms_fill():
     })
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     report = kis.orders.reconcile("ID-1")
     assert report is not None
     assert report.status is OrderStatus.FILLED
@@ -467,7 +467,7 @@ def test_cancel_after_reconcile_uses_org_from_daily_row():
     })
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     report = kis.orders.reconcile("ID-1")
     assert report is not None and report.status is OrderStatus.NEW    # 미체결 -> 취소 가능
     kis.orders.cancel("ID-1", request_id="cancel-1")
@@ -483,7 +483,7 @@ def test_reconcile_empty_scan_stays_in_flight():
     })
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     assert kis.orders.reconcile("ID-1") is None                 # 0건 -> 미접수로 단정 안 함(재전송 금지 유지)
 
 
@@ -494,7 +494,7 @@ def test_reconcile_ambiguous_multiple_matches_raises():
     })
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     with pytest.raises(KISError):                         # 지문 일치 2건 -> 자동 확정 불가
         kis.orders.reconcile("ID-1")
 
@@ -503,8 +503,8 @@ def test_reconcile_ambiguous_multiple_matches_raises():
 def test_dedup_shared_across_tickers_via_client_store():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     kis = _client(fake)
-    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
-    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")   # 같은 세션 store
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")   # 같은 세션 store
     assert len(fake.calls) == 1
 
 
@@ -512,16 +512,16 @@ def test_injected_store_used():
     store = OrderStore()
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     kis = _client(fake, store=store)
-    report = kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+    report = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     assert store.report_for("ID-1") is not None
     assert store.report_for("ID-1").order_id == report.order_id
 
 
 # --- 미매핑/부적합 주문구분 fail-closed -------------------------------------
 @pytest.mark.parametrize("kwargs", [
-    {"quantity": 10, "price": 70000, "division": "conditional_limit", "time_in_force": "ioc"},
+    {"quantity": 10, "limit_price": 70000, "division": "conditional_limit", "time_in_force": "ioc"},
     {"quantity": 10, "division": "priority_limit", "time_in_force": "fok"},
-    {"quantity": 10, "price": 70000, "time_in_force": "gtc"},          # gtc 미지원
+    {"quantity": 10, "limit_price": 70000, "time_in_force": "gtc"},          # gtc 미지원
 ])
 def test_unmapped_division_tif_rejected_before_wire(kwargs):
     """조건부/최우선엔 IOC/FOK 가 없고 gtc 는 미지원 -- 조용히 day 로 안 바꾸고 fail-closed."""
@@ -536,7 +536,7 @@ def test_priceless_division_rejects_price(division):
     """최유리/최우선은 시장이 가격을 정한다 -- price 를 주면 조용히 무시하지 않고 거부."""
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     with pytest.raises(KISUsageError, match="price 를 줄 수 없다"):
-        _client(fake).domestic.stock("005930").buy(quantity=10, price=70000, division=division)
+        _client(fake).domestic.stock("005930").buy(quantity=10, limit_price=70000, division=division)
     assert fake.calls == []
 
 
@@ -555,7 +555,7 @@ def test_division_requires_domestic_exchange():
 )
 def test_order_wire_quantity_and_division(side, price, expected_tr, expected_dvsn, expected_unpr):
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
-    getattr(_client(fake).domestic.stock("005930"), side)(quantity=17, price=price)
+    getattr(_client(fake).domestic.stock("005930"), side)(quantity=17, limit_price=price)
     body = fake.calls[0]["body"]
     assert body["ORD_QTY"] == "17"
     assert body["ORD_DVSN"] == expected_dvsn
@@ -568,11 +568,11 @@ def test_order_wire_quantity_and_division(side, price, expected_tr, expected_dvs
     [
         # 가격기준 division (Tier 1)
         ({"quantity": 10, "division": "immediate_limit"}, "03", "0"),
-        ({"quantity": 10, "price": 70000, "division": "conditional_limit"}, "02", "70000"),
+        ({"quantity": 10, "limit_price": 70000, "division": "conditional_limit"}, "02", "70000"),
         ({"quantity": 10, "division": "priority_limit"}, "04", "0"),
         # IOC/FOK 는 time_in_force 재사용
-        ({"quantity": 10, "price": 70000, "time_in_force": "ioc"}, "11", "70000"),
-        ({"quantity": 10, "price": 70000, "time_in_force": "fok"}, "12", "70000"),
+        ({"quantity": 10, "limit_price": 70000, "time_in_force": "ioc"}, "11", "70000"),
+        ({"quantity": 10, "limit_price": 70000, "time_in_force": "fok"}, "12", "70000"),
         ({"quantity": 10, "time_in_force": "ioc"}, "13", "0"),
         ({"quantity": 10, "time_in_force": "fok"}, "14", "0"),
         ({"quantity": 10, "division": "immediate_limit", "time_in_force": "ioc"}, "15", "0"),
@@ -614,7 +614,7 @@ def test_modify_division_order_sends_its_order_division():
         quantity=10, division="immediate_limit", client_order_id=cid)
     change_t = FakeTransport(response=RawResponse(
         rt_cd="0", msg_cd="A", msg1="", body={"output": {"ODNO": "0030000999"}}))
-    _client(change_t, store=store).orders.modify(cid, price=71000, request_id="mod-1")
+    _client(change_t, store=store).orders.modify(cid, limit_price=71000, request_id="mod-1")
     assert change_t.calls[0]["body"]["ORD_DVSN"] == "03"
 
 
@@ -661,8 +661,8 @@ def test_board_routes_exchange_id(market, expected_excg):
 
 @pytest.mark.parametrize("market,kwargs", [
     ("NXT", {"quantity": 10}),                                          # NXT 시장가 미지원
-    ("NXT", {"quantity": 10, "price": 70000, "division": "conditional_limit"}),  # NXT 조건부 미지원
-    ("UN", {"quantity": 10, "price": 70000, "division": "conditional_limit"}),   # SOR 조건부 미지원
+    ("NXT", {"quantity": 10, "limit_price": 70000, "division": "conditional_limit"}),  # NXT 조건부 미지원
+    ("UN", {"quantity": 10, "limit_price": 70000, "division": "conditional_limit"}),   # SOR 조건부 미지원
 ])
 def test_board_rejects_unsupported_division(market, kwargs):
     """보드별 미지원 주문구분은 와이어 전 거부(NXT=시장가·조건부, SOR=조건부)."""
@@ -801,7 +801,7 @@ def test_irp_account_is_auto_read_only():
     """IRP(상품코드 29)는 주문불가 계좌(공식 FAQ) -- 계좌 상품코드로 자동 유도해 주문을 막는다."""
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     with pytest.raises(AccountNotOrderableError):
-        _client(fake, account="12345678-29").domestic.stock("005930").buy(quantity=1, price=70000)
+        _client(fake, account="12345678-29").domestic.stock("005930").buy(quantity=1, limit_price=70000)
 
 
 def test_irp_manual_orderable_true_still_blocked():
@@ -809,7 +809,7 @@ def test_irp_manual_orderable_true_still_blocked():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     with pytest.raises(AccountNotOrderableError):
         _client(fake, account="12345678-29", orderable=True).domestic.stock(
-            "005930").buy(quantity=1, price=70000)
+            "005930").buy(quantity=1, limit_price=70000)
 
 
 def test_dc_account_rejected_at_construction():
@@ -823,7 +823,7 @@ def test_pension_savings_22_is_orderable():
     """연금저축(22)은 주문 가능 -- IRP(29)와 달리 막지 않는다(혼동 주의)."""
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     report = _client(fake, account="12345678-22").domestic.stock("005930").buy(
-        quantity=1, price=70000)
+        quantity=1, limit_price=70000)
     assert report.order_id == "0000117057"
 
 
@@ -832,11 +832,11 @@ def test_ordinary_code_and_no_account_are_not_special_cased():
     우회, DC/IRP 오탐 없음)."""
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     report = _client(fake, account="12345678-01").domestic.stock("005930").buy(
-        quantity=1, price=70000)
+        quantity=1, limit_price=70000)
     assert report.order_id == "0000117057"                       # 01 은 주문 가능
     kis = _client(fake, account=None)                            # 생성 성공(DC 거부 아님)
     with pytest.raises(KISUsageError):                           # 주문은 계좌 필요(orderable 거부 아님)
-        kis.domestic.stock("005930").buy(quantity=1, price=70000)
+        kis.domestic.stock("005930").buy(quantity=1, limit_price=70000)
 
 
 @pytest.mark.parametrize("market", ["NXT", "UN"])
@@ -854,7 +854,7 @@ def test_reserved_order_rejects_non_krx_board(market):
     """예약주문도 보드 배선이 아직 없어 KRX 만 -- NXT/UN 종목의 예약주문은 거부."""
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.stock("005930", market=market).reserve_buy(quantity=10, price=70000)
+        _client(fake).domestic.stock("005930", market=market).reserve_buy(quantity=10, limit_price=70000)
     assert fake.calls == []
 
 
@@ -885,8 +885,8 @@ def test_rejected_then_retry_sends_twice():
     fake = FakeTransport(by_path={_ORDER_CASH: [_REJECTED_ORDER_RESPONSE, _ACCEPTED_ORDER_RESPONSE]})
     kis = _client(fake)
     with pytest.raises(OrderRejectedError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
-    report = kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
+    report = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     assert report.order_id == "0000117057"
     assert len(fake.calls) == 2                   # 거부 후 재전송이 실제로 한 번 더 나감
 
@@ -905,7 +905,7 @@ def test_reconcile_ignores_mismatched_fingerprint(mismatch):
     })
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     assert kis.orders.reconcile("ID-1") is None          # 지문 불일치 -> 0건 -> 오귀속 안 함
 
 
@@ -923,7 +923,7 @@ def test_reconcile_maps_daily_row_status(row_updates, expected_status, expected_
     })
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     report = kis.orders.reconcile("ID-1")
     assert report is not None
     assert report.status is expected_status
@@ -935,7 +935,7 @@ def test_reconcile_daily_ccld_failure_fails_closed():
     fake = FakeTransport(by_path={_ORDER_CASH: [TransportTimeout("t")], _DAILY_CCLD: [failed]})
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     with pytest.raises(KISError):                 # 조회 실패를 빈 결과(미접수)로 오인하지 않음
         kis.orders.reconcile("ID-1")
 
@@ -948,7 +948,7 @@ def test_reconcile_scans_all_daily_ccld_pages():
     fake = FakeTransport(by_path={_ORDER_CASH: [TransportTimeout("t")], _DAILY_CCLD: [page1, page2]})
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     with pytest.raises(KISError):                 # 두 페이지 걸쳐 2건 -> 모호 -> 자동확정 불가
         kis.orders.reconcile("ID-1")
     assert fake.calls[2]["params"]["CTX_AREA_NK100"] == "NK2"   # 2페이지째에 연속키 전달
@@ -961,7 +961,7 @@ def test_reconcile_full_report_semantics():
     })
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     report = kis.orders.reconcile("ID-1")
     assert report is not None
     assert report.client_order_id == "ID-1"
@@ -994,10 +994,10 @@ def test_modify_rejects_non_finite_price_before_wire():
     store = OrderStore()
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     kis = _client(fake, store=store)
-    kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="orig-nf")
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-nf")
     calls_before = len(fake.calls)
     with pytest.raises(KISUsageError):
-        kis.orders.modify("orig-nf", price=float("inf"), request_id="mod-nf")
+        kis.orders.modify("orig-nf", limit_price=float("inf"), request_id="mod-nf")
     assert len(fake.calls) == calls_before          # 정정 와이어에 닿기 전 거부
 
 
@@ -1009,7 +1009,7 @@ def test_reconcile_non_finite_row_quantity_fails_closed():
     })
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     with pytest.raises(KISError):
         kis.orders.reconcile("ID-1")
 
@@ -1035,7 +1035,7 @@ def test_reconcile_blank_division_row_still_matches_plain_order():
     })
     kis = _client(fake)
     with pytest.raises(OrderTimeoutError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     report = kis.orders.reconcile("ID-1")
     assert report is not None       # 빈 구분 관용(일반 주문) -- 종전 동작 유지
 

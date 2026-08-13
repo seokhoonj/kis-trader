@@ -71,7 +71,7 @@ def test_reserved_orders_parses_ledger_row():
     assert o.order_type_name == "현금매수"
     assert o.reserved_quantity == Decimal(1)
     assert o.filled_quantity == Decimal(0)
-    assert o.reserved_price == Decimal(6000)
+    assert o.order_price == Decimal(6000)
     assert o.status == "미처리"
     assert o.executed_order_id == ""                # 미집행
     assert o.reservation_end_date == date(2022, 5, 23)

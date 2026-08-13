@@ -104,7 +104,7 @@ def test_cancel_reserved_bad_order_date_rejected_before_io():
 def test_modify_reserved_wire():
     fake = FakeTransport(response=_OK)
     _client(fake).domestic.account.modify_reserved_order("42401", symbol="005930", side="buy", quantity=2,
-                                        price=71000, end_date="20240610", order_date="20240603")
+                                        limit_price=71000, end_date="20240610", order_date="20240603")
     call = fake.calls[0]
     assert call["method"] == "POST"
     assert call["tr_id"] == "CTSC0013U"             # 정정
@@ -129,14 +129,14 @@ def test_modify_reserved_wire():
 def test_modify_reserved_rejected_raises():
     with pytest.raises(OrderRejectedError):
         _client(FakeTransport(response=_REJECTED)).domestic.account.modify_reserved_order(
-            "42401", symbol="005930", side="buy", quantity=1, price=1)
+            "42401", symbol="005930", side="buy", quantity=1, limit_price=1)
 
 
 def test_modify_reserved_demo_rejected_before_io():
     fake = FakeTransport(response=_OK)
     with pytest.raises(KISUsageError):
         _client(fake, environment="demo").domestic.account.modify_reserved_order(
-            "42401", symbol="005930", side="buy", quantity=1, price=1)
+            "42401", symbol="005930", side="buy", quantity=1, limit_price=1)
     assert fake.calls == []
 
 
@@ -147,7 +147,7 @@ def test_modify_reserved_bad_dates_rejected_before_io(kwargs):
     fake = FakeTransport(response=_OK)
     with pytest.raises(KISUsageError):
         _client(fake).domestic.account.modify_reserved_order("42401", symbol="005930", side="buy", quantity=1,
-                                            price=1, **kwargs)
+                                            limit_price=1, **kwargs)
     assert fake.calls == []
 
 
@@ -165,28 +165,28 @@ def test_modify_reserved_bad_quantity_rejected_before_io(bad_qty):
     fake = FakeTransport(response=_OK)
     with pytest.raises(KISUsageError):
         _client(fake).domestic.account.modify_reserved_order("42401", symbol="005930", side="buy", quantity=bad_qty,
-                                            price=1)
+                                            limit_price=1)
     assert fake.calls == []
 
 
 def test_modify_reserved_needs_sequence():
     fake = FakeTransport(response=_OK)
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.account.modify_reserved_order("", symbol="005930", side="buy", quantity=1, price=1)
+        _client(fake).domestic.account.modify_reserved_order("", symbol="005930", side="buy", quantity=1, limit_price=1)
     assert fake.calls == []
 
 
 def test_modify_reserved_timeout_no_retry():
     fake = FakeTransport(raises=TransportTimeout("t"))
     with pytest.raises(OrderTimeoutError):
-        _client(fake).domestic.account.modify_reserved_order("42401", symbol="005930", side="buy", quantity=1, price=1)
+        _client(fake).domestic.account.modify_reserved_order("42401", symbol="005930", side="buy", quantity=1, limit_price=1)
     assert len(fake.calls) == 1
 
 
 def test_modify_reserved_not_processed_raises():
     with pytest.raises(KISError):
         _client(FakeTransport(response=_NOT_PROCESSED)).domestic.account.modify_reserved_order(
-            "42401", symbol="005930", side="buy", quantity=1, price=1)
+            "42401", symbol="005930", side="buy", quantity=1, limit_price=1)
 
 
 def test_reserved_change_array_output_success():

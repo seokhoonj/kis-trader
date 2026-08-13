@@ -19,19 +19,19 @@ replay 하지 않고 충돌로 거부한다.
 from __future__ import annotations
 
 import contextlib
-import enum
 import errno
 import json
 import os
 import tempfile
 import threading
+from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import NamedTuple, Self
 
 from .errors import KISError, UnsupportedSchemaVersionError
-from .order import Fingerprint
+from .order import Fingerprint, decode_fingerprint, encode_fingerprint
 from .report import ExecutionReport, OrderStatus
 
 try:
@@ -45,12 +45,14 @@ _KST = timezone(timedelta(hours=9))
 #: v2: Fingerprint 에 credit_type/loan_date(신용주문). v3: session(미국주간거래). v4: division(국내
 #: 주문구분: 최유리/최우선/조건부). v5: board(국내 체결 보드 KRX/NXT/UN) 추가. v6: 리포트에
 #: organization_number(국내 조직번호) 영속 -- 재기동 후 정정취소가 조직번호를 읽게(전엔 미영속 _raw
-#: 에만 있어 재시작하면 취소 불가). 구버전 레코드는 새 필드가 기본값("", "regular", "KRX", None)으로
-#: 채워져 그대로 읽힌다(Fingerprint(*fp) 가 뒤쪽 누락 필드를, 리포트는 dict.get 이 누락 키를 기본값으로).
+#: 에만 있어 재시작하면 취소 불가). v7: 리포트 레코드 키 submitted_at -> recorded_at(저장 시각임을
+#: 정직하게; 지문 위치 형식은 그대로다). 구버전 레코드는 새 지문 필드가 기본값("", "regular", "KRX")으로
+#: 채워지고(decode_fingerprint 가 뒤쪽 누락 슬롯을), 리포트는 dict.get 이 누락 키를, v6 이하의
+#: submitted_at 키는 recorded_at 으로 매핑돼 그대로 읽힌다(하위호환 로드, _report_from_dict).
 #: 구 바이너리는 새 버전 파일을 손상이 아니라 미지원 버전으로 거부하게 해 오진단을 막는다.
-_SCHEMA_VERSION = 6
+_SCHEMA_VERSION = 7
 #: 읽을 수 있는 스키마 버전 집합(이 밖은 UnsupportedSchemaVersionError 로 거부).
-_READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5, 6})
+_READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5, 6, 7})
 #: 완료(비-in-flight) 리포트 보존 기본 일수 -- 이 이후엔 정리(무한 성장 방지). client_order_id
 #: 가 날짜를 포함하므로 같은 id 재전송 위험 창은 당일이라, 넉넉한 기본값이 dedup 을 약화하지 않는다.
 _DEFAULT_RETENTION_DAYS = 7
@@ -64,13 +66,35 @@ class Binding(NamedTuple):
     fingerprint: Fingerprint
 
 
-class ClaimOutcome(enum.Enum):
-    """:meth:`OrderStore.try_claim` 의 결과(주문 전송 여부를 가르는 결정)."""
+@dataclass(frozen=True, slots=True)
+class Claimed:
+    """새로 in-flight 를 확보했다 -- 전송해도 된다(이 변형만 와이어에 닿는다)."""
 
-    CLAIMED = "claimed"        # 새로 in-flight 확보 -> 전송해도 됨
-    IN_FLIGHT = "in_flight"    # 이미 전송됐고 결과 미확인 -> 재조회 요구
-    COMPLETED = "completed"    # 이미 완료 리포트 있음 -> replay
-    CONFLICT = "conflict"      # 같은 id, 다른 지문 -> 거부
+
+@dataclass(frozen=True, slots=True)
+class Completed:
+    """이미 완료된 주문이다 -- 이 ``report`` 를 그대로 replay 한다. 리포트는 **항상 존재**하므로
+    "완료인데 리포트 없음" 은 구조적으로 표현 불가능하다(호출자의 방어적 재확인이 사라진다)."""
+
+    report: ExecutionReport
+
+
+@dataclass(frozen=True, slots=True)
+class InFlight:
+    """이미 전송됐고 결과가 미확인이다 -- 재조회를 요구한다(재전송 금지)."""
+
+
+@dataclass(frozen=True, slots=True)
+class Conflict:
+    """같은 id 를 다른 지문(다른 주문)에 재사용했다 -- 거부한다. ``prior`` 는 원 id 가 완료 상태면
+    그 리포트, in-flight 충돌이면 ``None``."""
+
+    prior: ExecutionReport | None
+
+
+#: :meth:`OrderStore.try_claim` 의 판별 결과(주문 전송 여부를 가르는 결정) -- 변형별로 필요한
+#: 필드만 담아 "완료인데 리포트 없음" 같은 반쪽 상태를 표현 불가능하게 한다.
+ClaimResult = Claimed | Completed | InFlight | Conflict
 
 
 class OrderStore:
@@ -108,29 +132,28 @@ class OrderStore:
                 raise
 
     # --- 원자적 check-and-claim(핵심 안전 연산) ----------------------
-    def try_claim(
-        self, client_order_id: str, fingerprint: Fingerprint
-    ) -> tuple[ClaimOutcome, ExecutionReport | None]:
-        """한 락 안에서 상태를 판정하고 필요 시 in-flight 로 확보한다.
+    def try_claim(self, client_order_id: str, fingerprint: Fingerprint) -> ClaimResult:
+        """한 락 안에서 상태를 판정하고 필요 시 in-flight 로 확보한다(원자적 check-and-claim).
 
-        반환: ``(CLAIMED, None)`` 전송 가능 / ``(COMPLETED, report)`` replay /
-        ``(IN_FLIGHT, None)`` 재조회 요구 / ``(CONFLICT, report|None)`` 같은 id 다른 주문.
+        반환은 판별 결과다: :class:`Claimed` 전송 가능 / :class:`Completed` (report) replay /
+        :class:`InFlight` 재조회 요구 / :class:`Conflict` (prior) 같은 id 다른 주문. 리포트가 있는
+        변형에는 리포트가 항상 실려, 호출자가 "완료인데 리포트 없음" 을 다시 점검할 필요가 없다.
         """
         with self._lock:
             self._require_open()
             prior = self._reports.get(client_order_id)
             if prior is not None:
                 if self._fingerprints.get(client_order_id) != fingerprint:
-                    return ClaimOutcome.CONFLICT, prior
-                return ClaimOutcome.COMPLETED, prior
+                    return Conflict(prior)
+                return Completed(prior)
             if client_order_id in self._in_flight:
                 if self._fingerprints.get(client_order_id) != fingerprint:
-                    return ClaimOutcome.CONFLICT, None
-                return ClaimOutcome.IN_FLIGHT, None
+                    return Conflict(None)
+                return InFlight()
             self._in_flight.add(client_order_id)
             self._fingerprints[client_order_id] = fingerprint
             self._save_locked()
-            return ClaimOutcome.CLAIMED, None
+            return Claimed()
 
     # --- 조회 ---------------------------------------------------------
     def report_for(self, client_order_id: str) -> ExecutionReport | None:
@@ -252,7 +275,7 @@ class OrderStore:
         cutoff = datetime.now(_KST) - self._retention
         stale = [
             cid for cid, report in self._reports.items()
-            if cid not in self._in_flight and report.submitted_at < cutoff
+            if cid not in self._in_flight and report.recorded_at < cutoff
         ]
         for cid in stale:
             del self._reports[cid]
@@ -271,7 +294,7 @@ class OrderStore:
         data = {
             "schema_version": _SCHEMA_VERSION,
             "in_flight": sorted(self._in_flight),
-            "fingerprints": {cid: list(fp) for cid, fp in self._fingerprints.items()},
+            "fingerprints": {cid: encode_fingerprint(fp) for cid, fp in self._fingerprints.items()},
             "reports": {cid: _report_to_dict(r) for cid, r in self._reports.items()},
         }
         self._path.parent.mkdir(parents=True, exist_ok=True)
@@ -321,7 +344,9 @@ class OrderStore:
             )
         try:
             self._in_flight = set(data.get("in_flight", []))
-            self._fingerprints = {cid: Fingerprint(*fp) for cid, fp in data.get("fingerprints", {}).items()}
+            self._fingerprints = {
+                cid: decode_fingerprint(fp) for cid, fp in data.get("fingerprints", {}).items()
+            }
             self._reports = {cid: _report_from_dict(d) for cid, d in data.get("reports", {}).items()}
         except (ValueError, InvalidOperation, TypeError, KeyError, AttributeError) as err:
             # 스키마는 맞지만 레코드 값이 손상(잘못된 status/수량/날짜 등) -> 도메인 에러로 fail-closed.
@@ -362,13 +387,16 @@ def _report_to_dict(report: ExecutionReport) -> dict[str, object]:
         "status": report.status.value,
         "filled_quantity": str(report.filled_quantity),
         "average_price": None if report.average_price is None else str(report.average_price),
-        "submitted_at": report.submitted_at.isoformat(),
+        "recorded_at": report.recorded_at.isoformat(),
         "organization_number": report.organization_number,
     }
 
 
 def _report_from_dict(report_data: dict[str, object]) -> ExecutionReport:
     average_price = report_data["average_price"]
+    # v7 은 "recorded_at" 키, v6 이하는 "submitted_at" 키를 쓴다 -- 구 저장소를 재작성 없이 열도록
+    # 옛 키를 recorded_at 으로 매핑한다(charter: 온-디스크 스키마 변경엔 하위호환 로드 경로가 따라온다).
+    recorded_raw = report_data.get("recorded_at", report_data.get("submitted_at"))
     return ExecutionReport(
         client_order_id=str(report_data["client_order_id"]),
         order_id=None if report_data["order_id"] is None else str(report_data["order_id"]),
@@ -377,7 +405,7 @@ def _report_from_dict(report_data: dict[str, object]) -> ExecutionReport:
         status=OrderStatus(str(report_data["status"])),
         filled_quantity=Decimal(str(report_data["filled_quantity"])),
         average_price=None if average_price is None else Decimal(str(average_price)),
-        submitted_at=datetime.fromisoformat(str(report_data["submitted_at"])),
+        recorded_at=datetime.fromisoformat(str(recorded_raw)),
         # 구버전(v5 이하) 레코드엔 없으니 누락 시 None (해당 주문은 재기동 후 취소 불가 -- 종전과 동일).
         organization_number=(
             None if report_data.get("organization_number") is None

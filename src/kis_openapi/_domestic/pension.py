@@ -227,7 +227,7 @@ def _parse_order(row: Mapping[str, Any]) -> PensionOrder:
         quantity=_decimal_or_zero(row, "ord_qty"),
         filled_quantity=_decimal_or_zero(row, "tot_ccld_qty"),
         unfilled_quantity=_decimal_or_zero(row, "nccs_qty"),
-        price=_decimal_or_zero(row, "ord_unpr"),
+        order_price=_decimal_or_zero(row, "ord_unpr"),
         average_purchase_price=_decimal_or_zero(row, "pchs_avg_pric"),
         order_time=_parse_hhmmss(row.get("ord_tmd")),
         _raw=row,

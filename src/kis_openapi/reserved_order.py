@@ -33,7 +33,7 @@ class ReservedOrder:
     order_type_name: str              # 주문구분명(ord_dvsn_name), 예: "현금매수"
     reserved_quantity: Decimal        # 주문예약수량(ord_rsvn_qty)
     filled_quantity: Decimal          # 총체결수량(tot_ccld_qty)
-    reserved_price: Decimal           # 주문예약단가(ord_rsvn_unpr)
+    order_price: Decimal              # 주문예약단가(ord_rsvn_unpr)
     status: str                       # 처리결과(prcs_rslt)
     reject_reason: str                # 거부사유(rjct_rson2)
     executed_order_id: str            # 집행 주문번호(odno), 미집행이면 ""

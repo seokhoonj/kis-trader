@@ -22,7 +22,7 @@ from .._wire import format_wire_decimal
 from ..errors import KISError, KISUsageError, OrderTimeoutError
 from ..order import (
     ChangeAction,
-    Fingerprint,
+    ImmediateOrderFingerprint,
     Order,
     OrderType,
     Side,
@@ -95,7 +95,7 @@ def make_order_request_from_fields(
     if time_in_force != "day":
         raise KISUsageError(f"해외 주문은 아직 day 만 지원한다(time_in_force={time_in_force!r}).")
     if limit_price is None:
-        raise KISUsageError("해외 주문은 지정가만 지원한다 -- price 를 지정하라(시장가 미지원).")
+        raise KISUsageError("해외 주문은 지정가만 지원한다 -- limit_price 를 지정하라(시장가 미지원).")
     if quantity != quantity.to_integral_value():
         raise KISUsageError(f"해외 주문 수량은 정수여야 한다(주 단위): {quantity}")
     try:
@@ -165,7 +165,7 @@ def make_daytime_order_request(
     if environment == "demo":
         raise KISUsageError("미국주간거래 주문(daytime-order)은 모의투자 미지원 -- 실전에서만.")
     if order.limit_price is None or order.order_type != "limit":
-        raise KISUsageError("미국주간거래는 지정가만 지원한다 -- price 를 지정하라.")
+        raise KISUsageError("미국주간거래는 지정가만 지원한다 -- limit_price 를 지정하라.")
     if order.quantity != order.quantity.to_integral_value():
         raise KISUsageError(f"주문 수량은 정수여야 한다(주 단위): {order.quantity}")
     try:
@@ -192,8 +192,8 @@ def make_daytime_order_request(
 
 
 def make_daytime_change_request(
-    *, original_report: ExecutionReport, original_fingerprint: Fingerprint,
-    action: ChangeAction, quantity: Decimal, price: Decimal | None,
+    *, original_report: ExecutionReport, original_fingerprint: ImmediateOrderFingerprint,
+    action: ChangeAction, quantity: Decimal, limit_price: Decimal | None,
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
     """미국주간거래 정정·취소 요청 와이어(daytime-order-rvsecncl TTTS6038U). **모의투자 미지원**."""
@@ -215,7 +215,7 @@ def make_daytime_change_request(
         "ORGN_ODNO": str(original_report.order_id),
         "RVSE_CNCL_DVSN_CD": "02" if action == "cancel" else "01",
         "ORD_QTY": format_wire_decimal(quantity),
-        "OVRS_ORD_UNPR": "0" if price is None else format_wire_decimal(price),
+        "OVRS_ORD_UNPR": "0" if limit_price is None else format_wire_decimal(limit_price),
         "CTAC_TLNO": "",
         "MGCO_APTM_ODNO": "",
         "ORD_SVR_DVSN_CD": "0",
@@ -224,8 +224,8 @@ def make_daytime_change_request(
 
 
 def make_change_request(
-    *, original_report: ExecutionReport, original_fingerprint: Fingerprint,
-    action: ChangeAction, quantity: Decimal, price: Decimal | None,
+    *, original_report: ExecutionReport, original_fingerprint: ImmediateOrderFingerprint,
+    action: ChangeAction, quantity: Decimal, limit_price: Decimal | None,
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
     """해외주식 정정·취소 요청을 공식 단일 TR 와이어로 조립한다."""
@@ -245,7 +245,7 @@ def make_change_request(
         "ORGN_ODNO": str(original_report.order_id),
         "RVSE_CNCL_DVSN_CD": "02" if action == "cancel" else "01",
         "ORD_QTY": format_wire_decimal(quantity),
-        "OVRS_ORD_UNPR": "0" if price is None else format_wire_decimal(price),
+        "OVRS_ORD_UNPR": "0" if limit_price is None else format_wire_decimal(limit_price),
         "MGCO_APTM_ODNO": "",
         "ORD_SVR_DVSN_CD": "0",
     }
@@ -357,7 +357,7 @@ def _fetch_ccnl(
 
 
 def _filter_matching_ccnl_rows(
-    rows: list[Mapping[str, Any]], fingerprint: Fingerprint
+    rows: list[Mapping[str, Any]], fingerprint: ImmediateOrderFingerprint
 ) -> list[Mapping[str, Any]]:
     """체결내역 행 중 요청 지문과 맞는 것만(순수). 종목+매매구분+주문수량, 지정가는 주문단가까지 비교."""
     symbol, side = fingerprint.symbol, fingerprint.side
@@ -385,7 +385,7 @@ def _filter_matching_ccnl_rows(
 
 
 def _ccnl_report(
-    client_order_id: str, fingerprint: Fingerprint, row: Mapping[str, Any]
+    client_order_id: str, fingerprint: ImmediateOrderFingerprint, row: Mapping[str, Any]
 ) -> ExecutionReport:
     ordered = _parse_decimal(row.get("ft_ord_qty"))
     filled = _parse_decimal(row.get("ft_ccld_qty"))
@@ -409,7 +409,7 @@ def _ccnl_report(
         status=status,
         filled_quantity=filled,
         average_price=avg if filled > 0 and avg > 0 else None,
-        submitted_at=datetime.now(_KST),
+        recorded_at=datetime.now(_KST),
         _raw=row,
     )
 

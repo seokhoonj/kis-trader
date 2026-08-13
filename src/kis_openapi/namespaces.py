@@ -113,11 +113,11 @@ class OrdersNamespace:
     ) -> ExecutionReport:
         """접수된 주문을 취소한다(부분 취소는 ``quantity``)."""
         return self._c._change_order(
-            client_order_id, action="cancel", quantity=quantity, price=None, request_id=request_id
+            client_order_id, action="cancel", quantity=quantity, limit_price=None, request_id=request_id
         )
 
     def modify(
-        self, client_order_id: str, *, price: object, quantity: object | None = None,
+        self, client_order_id: str, *, limit_price: object, quantity: object | None = None,
         request_id: str | None = None,
     ) -> ExecutionReport:
         """접수된 주문의 가격(또는 수량)을 정정한다.
@@ -132,7 +132,8 @@ class OrdersNamespace:
         이뤄 이후 잔량 계산이 맞는다). 원주문의 누적 체결량을 이 id 로만 읽으면 과소 집계되니,
         정정 이전 체결은 정정이 반환한 리포트/기존 실행에서 확인하라."""
         return self._c._change_order(
-            client_order_id, action="modify", quantity=quantity, price=price, request_id=request_id
+            client_order_id, action="modify", quantity=quantity, limit_price=limit_price,
+            request_id=request_id,
         )
 
 
@@ -259,15 +260,16 @@ class DomesticAccount:
 
     def modify_reserved_order(
         self, sequence: str, *, symbol: str, side: Side, quantity: object,
-        price: object | None = None, end_date: str | None = None, order_date: str | None = None,
+        limit_price: object | None = None, end_date: str | None = None, order_date: str | None = None,
     ) -> None:
         """예약주문을 정정한다 -- 브로커 규격상 종목/방향/수량/단가/종료일을 **전체 재지정**한다.
-        ``price`` 를 생략하면 기존 단가 유지가 아니라 **시장가**로 바뀐다. 정정 후 순번이 바뀔 수 있으니
-        이후 정정·취소가 필요하면 :meth:`reserved_orders` 로 재확인하라. **모의투자 미지원**, 국내 현금 예약만."""
+        ``limit_price`` 를 생략하면 기존 단가 유지가 아니라 **시장가**로 바뀐다. 정정 후 순번이 바뀔 수
+        있으니 이후 정정·취소가 필요하면 :meth:`reserved_orders` 로 재확인하라. **모의투자 미지원**, 국내
+        현금 예약만."""
         cano, product_code = self._c._require_account()
         reserved_orders_api.modify_reserved_order(
             self._c.transport, sequence=sequence, symbol=symbol, side=side, quantity=quantity,
-            price=price, end_date=end_date, order_date=order_date,
+            limit_price=limit_price, end_date=end_date, order_date=order_date,
             cano=cano, product_code=product_code, environment=self._c.environment,
         )
 

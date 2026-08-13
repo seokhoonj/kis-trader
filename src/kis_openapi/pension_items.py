@@ -106,7 +106,7 @@ class PensionOrder:
     quantity: Decimal                 # 주문수량(ord_qty)
     filled_quantity: Decimal          # 총체결수량(tot_ccld_qty)
     unfilled_quantity: Decimal        # 미체결수량(nccs_qty)
-    price: Decimal                    # 주문단가(ord_unpr)
+    order_price: Decimal              # 주문단가(ord_unpr)
     average_purchase_price: Decimal   # 매입평균가격(pchs_avg_pric)
     order_time: time | None           # 주문시각(ord_tmd)
     _raw: Mapping[str, Any] = field(

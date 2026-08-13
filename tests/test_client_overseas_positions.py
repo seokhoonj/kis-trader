@@ -188,7 +188,7 @@ def test_overseas_open_orders_maps_fields():
     assert o.quantity == 10
     assert o.filled_quantity == 3
     assert o.unfilled_quantity == 7
-    assert o.price == Money(Decimal("150.25"), "USD")
+    assert o.order_price == Money(Decimal("150.25"), "USD")
     call = fake.calls[0]
     assert call["path"] == "/uapi/overseas-stock/v1/trading/inquire-nccs"
     assert call["tr_id"] == "TTTS3018R"

@@ -57,7 +57,7 @@ def _client(transport, *, environment="real", account="12345678-01", store=None)
 # --- 정상 전송 -------------------------------------------------------------
 def test_daytime_buy_wire():
     fake = FakeTransport(response=_ACCEPTED)
-    report = _client(fake).overseas.stock("AAPL", exchange="NAS").daytime_buy(quantity=1, price="150.25")
+    report = _client(fake).overseas.stock("AAPL", exchange="NAS").daytime_buy(quantity=1, limit_price="150.25")
     assert isinstance(report, ExecutionReport)
     assert report.order_id == "0030000123"
     assert report.status is OrderStatus.NEW
@@ -75,7 +75,7 @@ def test_daytime_buy_wire():
 
 def test_daytime_sell_uses_sell_tr():
     fake = FakeTransport(response=_ACCEPTED)
-    _client(fake).overseas.stock("AAPL", exchange="NYS").daytime_sell(quantity=2, price="150.00")
+    _client(fake).overseas.stock("AAPL", exchange="NYS").daytime_sell(quantity=2, limit_price="150.00")
     assert fake.calls[0]["tr_id"] == "TTTS6037U"
     assert fake.calls[0]["body"]["OVRS_EXCG_CD"] == "NYSE"
 
@@ -84,7 +84,7 @@ def test_daytime_sell_uses_sell_tr():
 def test_daytime_non_us_exchange_rejected():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):     # 홍콩(HKS)은 주간거래 불가
-        _client(fake).overseas.stock("00700", exchange="HKS").daytime_buy(quantity=1, price="1")
+        _client(fake).overseas.stock("00700", exchange="HKS").daytime_buy(quantity=1, limit_price="1")
     assert fake.calls == []
 
 
@@ -98,7 +98,7 @@ def test_daytime_absent_on_domestic_stock():
 def test_daytime_demo_rejected_before_io():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="demo").overseas.stock("AAPL", exchange="NAS").daytime_buy(quantity=1, price="1")
+        _client(fake, environment="demo").overseas.stock("AAPL", exchange="NAS").daytime_buy(quantity=1, limit_price="1")
     assert fake.calls == []
 
 
@@ -133,7 +133,7 @@ def test_daytime_timeout_no_retry():
     cid = "20240101-daytime0001"
     with pytest.raises(OrderTimeoutError):
         _client(fake, store=store).overseas.stock("AAPL", exchange="NAS").daytime_buy(
-            quantity=1, price="150", client_order_id=cid)
+            quantity=1, limit_price="150", client_order_id=cid)
     assert len(fake.calls) == 1
     assert store.fingerprint_for(cid) is not None
     assert store.fingerprint_for(cid).session == "daytime"
@@ -146,11 +146,11 @@ def test_daytime_and_regular_same_id_conflicts():
         rt_cd="0", msg_cd="A", msg1="",
         body={"output": {"KRX_FWDG_ORD_ORGNO": "01", "ODNO": "0001", "ORD_TMD": "1"}}))
     _client(regular, store=store).overseas.stock("AAPL", exchange="NAS").buy(
-        quantity=1, price="150", client_order_id=cid)
+        quantity=1, limit_price="150", client_order_id=cid)
     daytime = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):     # 같은 id, 세션만 달라 -> 충돌
         _client(daytime, store=store).overseas.stock("AAPL", exchange="NAS").daytime_buy(
-            quantity=1, price="150", client_order_id=cid)
+            quantity=1, limit_price="150", client_order_id=cid)
     assert daytime.calls == []
 
 
@@ -160,7 +160,7 @@ def test_daytime_order_cancel_routes_to_daytime_endpoint():
     cid = "20240101-daytime0003"
     place_t = FakeTransport(response=_ACCEPTED)
     _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").daytime_buy(
-        quantity=1, price="150", client_order_id=cid)
+        quantity=1, limit_price="150", client_order_id=cid)
     # 취소는 미국주간 전용 rvsecncl 로 라우팅돼야 한다
     change_t = FakeTransport(response=RawResponse(
         rt_cd="0", msg_cd="A", msg1="", body={"output": {"ODNO": "0030000123"}}))
@@ -177,10 +177,10 @@ def test_daytime_order_replace_routes_to_daytime_endpoint():
     cid = "20240101-daytime0004"
     place_t = FakeTransport(response=_ACCEPTED)
     _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").daytime_buy(
-        quantity=2, price="150", client_order_id=cid)
+        quantity=2, limit_price="150", client_order_id=cid)
     change_t = FakeTransport(response=RawResponse(
         rt_cd="0", msg_cd="A", msg1="", body={"output": {"ODNO": "0030000123"}}))
-    _client(change_t, store=store).orders.modify(cid, price="151")
+    _client(change_t, store=store).orders.modify(cid, limit_price="151")
     call = change_t.calls[0]
     assert call["path"] == _DAYTIME_CHANGE
     assert call["tr_id"] == "TTTS6038U"
@@ -193,8 +193,8 @@ def test_daytime_replay_same_id_returns_prior():
     fake = FakeTransport(response=_ACCEPTED)
     cid = "20240101-daytime-rp01"
     t = _client(fake, store=store).overseas.stock("AAPL", exchange="NAS")
-    r1 = t.daytime_buy(quantity=1, price="150", client_order_id=cid)
-    r2 = t.daytime_buy(quantity=1, price="150", client_order_id=cid)
+    r1 = t.daytime_buy(quantity=1, limit_price="150", client_order_id=cid)
+    r2 = t.daytime_buy(quantity=1, limit_price="150", client_order_id=cid)
     assert r1.order_id == r2.order_id
     assert len(fake.calls) == 1                      # replay -- 재전송 없음
 
@@ -207,7 +207,7 @@ def test_daytime_reconcile_does_not_confirm_from_regular_ccnl():
     place_t = FakeTransport(raises=TransportTimeout("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").daytime_buy(
-            quantity=1, price="150", client_order_id=cid)
+            quantity=1, limit_price="150", client_order_id=cid)
     # reconcile: 정규 ccnl 에 지문과 같은 행이 있어도 주간 주문은 확정하지 않는다
     ccnl_row = {"pdno": "AAPL", "sll_buy_dvsn_cd": "02", "ft_ord_qty": "1", "ft_ord_unpr3": "150",
                 "ft_ccld_qty": "1", "ft_ccld_unpr3": "150", "odno": "0009999999"}
@@ -225,7 +225,7 @@ def test_daytime_session_persists_across_store_reopen(tmp_path):
     cid = "20240101-daytime-persist01"
     store1 = OrderStore(path=path)
     _client(FakeTransport(response=_ACCEPTED), store=store1).overseas.stock("AAPL", exchange="NAS").daytime_buy(
-        quantity=1, price="150", client_order_id=cid)
+        quantity=1, limit_price="150", client_order_id=cid)
     store1.close()
     store2 = OrderStore(path=path)
     assert store2.fingerprint_for(cid).session == "daytime"       # v3 라운드트립 보존
@@ -240,4 +240,4 @@ def test_daytime_session_persists_across_store_reopen(tmp_path):
 def test_daytime_requires_account():
     with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_ACCEPTED), account=None).overseas.stock(
-            "AAPL", exchange="NAS").daytime_buy(quantity=1, price="1")
+            "AAPL", exchange="NAS").daytime_buy(quantity=1, limit_price="1")

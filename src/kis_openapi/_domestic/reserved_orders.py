@@ -27,10 +27,10 @@ from ..errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from ..order import Fingerprint, Side, coerce_decimal, validate_yyyymmdd
+from ..order import ReservedOrderFingerprint, Side, coerce_decimal, validate_yyyymmdd
 from ..report import ExecutionReport, OrderStatus
 from ..reserved_order import ReservedOrder
-from ..store import ClaimOutcome, OrderStore
+from ..store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ..transport import Environment, Transport, TransportTimeout
 from .orders import parse_response_decimal
 
@@ -85,25 +85,25 @@ class _ReservedTerms(NamedTuple):
 
 
 def _coerce_reserved_order_terms(
-    *, side: Side, quantity: Numeric, price: Numeric | None, end_date: str | None
+    *, side: Side, quantity: Numeric, limit_price: Numeric | None, end_date: str | None
 ) -> _ReservedTerms:
     """예약 발주·정정이 공유하는 항목 검증/정규화(순수) -- 방향, 수량(양의 정수), 단가(있으면 유한·양수),
     종료일(있으면 실재 YYYYMMDD)을 **한 경로**로 확정한다. 발주와 정정이 각자 검증하다 종료일 검증이
-    어긋나던 것을 하나로 모은다. ``price`` 없으면 시장가(01), 있으면 지정가(00)."""
+    어긋나던 것을 하나로 모은다. ``limit_price`` 없으면 시장가(01), 있으면 지정가(00)."""
     if side not in _SIDE_CODE:
         raise KISUsageError(f"side 는 buy/sell 이어야 한다: {side!r}")
     qty = coerce_decimal(quantity, "quantity")
     if qty <= 0 or qty != qty.to_integral_value():
         raise KISUsageError(f"예약주문 수량은 0보다 큰 정수(주)여야 한다: {qty}")
-    order_type = "limit" if price is not None else "market"
-    limit_price = None
-    if price is not None:
-        limit_price = coerce_decimal(price, "price")
-        if not limit_price.is_finite() or limit_price <= 0:
-            raise KISUsageError(f"price 는 0보다 큰 유한값이어야 한다: {price!r}")
+    order_type = "limit" if limit_price is not None else "market"
+    limit = None
+    if limit_price is not None:
+        limit = coerce_decimal(limit_price, "limit_price")
+        if not limit.is_finite() or limit <= 0:
+            raise KISUsageError(f"limit_price 는 0보다 큰 유한값이어야 한다: {limit_price!r}")
     if end_date is not None:
         validate_yyyymmdd(end_date, "end_date")  # 실재 달력 날짜(신용 loan_date 와 동일 강도)
-    return _ReservedTerms(order_type=order_type, quantity=qty, limit_price=limit_price)
+    return _ReservedTerms(order_type=order_type, quantity=qty, limit_price=limit)
 
 
 def _make_reserved_order_fields(
@@ -191,14 +191,14 @@ def _walk_reserved(
 # --- 예약주문 발주 (뮤테이션, 안전 흐름) -----------------------------------
 def place_reserved_order(
     transport: Transport, store: OrderStore, *,
-    symbol: str, side: Side, quantity: Numeric, price: Numeric | None = None,
+    symbol: str, side: Side, quantity: Numeric, limit_price: Numeric | None = None,
     end_date: str | None = None, client_order_id: str, orderable: bool = True,
     cano: str, product_code: str, environment: Environment,
 ) -> ExecutionReport:
     """현금 예약주문을 안전 규칙으로 발주한다 -- 즉시주문(place)과 같은 이중발주 방지·재시도 금지·
     보수적 재조회를, 예약 라이프사이클(rsvn_ord_seq·체결개념 없음)에 맞춰 구현한다.
 
-    ``price`` 를 주면 지정가(00), 없으면 시장가(01). ``end_date``(YYYYMMDD, 실재 날짜)는 예약 유효
+    ``limit_price`` 를 주면 지정가(00), 없으면 시장가(01). ``end_date``(YYYYMMDD, 실재 날짜)는 예약 유효
     종료일(현재 이후 여부는 브로커가 검증, 생략 시 브로커 기본). 반환 :class:`ExecutionReport` 의
     ``order_id`` 는 예약주문순번(rsvn_ord_seq), ``status`` 는 :attr:`OrderStatus.PENDING_NEW`(접수됨·
     미집행). **모의투자 미지원**, 현금 예약만(신용/대여 예약 미지원).
@@ -214,37 +214,36 @@ def place_reserved_order(
         )
     if environment == "demo":
         raise KISUsageError("예약주문(order-resv)은 모의투자 미지원 -- 실전에서만.")
-    terms = _coerce_reserved_order_terms(side=side, quantity=quantity, price=price, end_date=end_date)
+    terms = _coerce_reserved_order_terms(
+        side=side, quantity=quantity, limit_price=limit_price, end_date=end_date
+    )
 
-    # end_date 는 예약의 정체성 일부(유효 종료일이 다르면 다른 주문)라 지문에 담는다. 예약 지문은
-    # order_type 이 limit/market 뿐이라 stop_price 슬롯이 비어 이를 재사용한다(exchange="reserved"
-    # 네임스페이스 안이라 모호하지 않다).
-    fingerprint = Fingerprint(
+    # end_date 는 예약의 정체성 일부(유효 종료일이 다르면 다른 주문)라 지문에 정직한 필드로 담는다
+    # (exchange="reserved" 네임스페이스가 즉시주문과 분리한다).
+    fingerprint = ReservedOrderFingerprint(
         symbol=symbol, side=side, order_type=terms.order_type,
         quantity=format_wire_decimal(terms.quantity),
         limit_price="" if terms.limit_price is None else format_wire_decimal(terms.limit_price),
-        stop_price=end_date or "", time_in_force="day", exchange=_RESERVED_EXCHANGE,
+        end_date=end_date or "", exchange=_RESERVED_EXCHANGE,
     )
     body = _make_reserved_order_fields(
         cano=cano, product_code=product_code, symbol=symbol, side=side, terms=terms, end_date=end_date,
     )
 
-    outcome, prior = store.try_claim(client_order_id, fingerprint)
-    if outcome is ClaimOutcome.COMPLETED:
-        if prior is None:
-            raise OrderError("claim 이 COMPLETED 인데 리포트가 없다(store 불변식 위반).")
-        return prior
-    if outcome is ClaimOutcome.CONFLICT:
+    claim = store.try_claim(client_order_id, fingerprint)
+    if isinstance(claim, Completed):
+        return claim.report
+    if isinstance(claim, Conflict):
         raise KISUsageError(
             f"client_order_id {client_order_id!r} 는 이미 다른 주문에 사용됐다. 새 id를 발행하라."
         )
-    if outcome is ClaimOutcome.IN_FLIGHT:
+    if isinstance(claim, InFlight):
         raise KISUsageError(
             f"예약주문 {client_order_id} 은 전송됐으나 결과가 확인되지 않았다. "
             f"kis.orders.reconcile({client_order_id!r}) 로 재조회한 뒤 판단하라."
         )
-    if outcome is not ClaimOutcome.CLAIMED:
-        raise OrderError(f"예상치 못한 claim outcome: {outcome!r}")
+    if not isinstance(claim, Claimed):
+        raise OrderError(f"예상치 못한 claim 결과: {claim!r}")
 
     try:
         resp = transport.request(
@@ -349,23 +348,25 @@ def cancel_reserved_order(
 
 def modify_reserved_order(
     transport: Transport, *, sequence: str, symbol: str, side: Side, quantity: Numeric,
-    price: Numeric | None = None, end_date: str | None = None, order_date: str | None = None,
+    limit_price: Numeric | None = None, end_date: str | None = None, order_date: str | None = None,
     cano: str, product_code: str, environment: Environment,
 ) -> None:
     """예약주문을 정정한다 -- 브로커 규격상 **전체 재지정**(종목/방향/수량/단가/종료일)을 요구한다.
     ``sequence`` 로 대상을 지목한다. 정상 처리면 조용히 반환(응답에 새 순번/리포트가 없다), 아니면 예외.
     **모의투자 미지원**, 국내 현금 예약만.
 
-    주의: ``price`` 를 생략하면 **시장가**가 된다(기존 단가 유지가 아니라 시장가 전환). 정정 후 브로커가
-    순번을 바꿀 수 있으므로(응답은 새 순번을 주지 않는다) 이후 정정·취소가 필요하면 :func:`fetch_reserved_orders`
-    로 현재 순번을 재확인하라. 정정도 순번 대상의 절대 재지정이라 dedup 스토어를 거치지 않되 타임아웃엔
-    재전송하지 않는다. 실패 예외는 :func:`cancel_reserved_order` 와 같고, 인자 검증(side/quantity/price/
-    end_date)은 :class:`KISUsageError`."""
+    주의: ``limit_price`` 를 생략하면 **시장가**가 된다(기존 단가 유지가 아니라 시장가 전환). 정정 후
+    브로커가 순번을 바꿀 수 있으므로(응답은 새 순번을 주지 않는다) 이후 정정·취소가 필요하면
+    :func:`fetch_reserved_orders` 로 현재 순번을 재확인하라. 정정도 순번 대상의 절대 재지정이라 dedup
+    스토어를 거치지 않되 타임아웃엔 재전송하지 않는다. 실패 예외는 :func:`cancel_reserved_order` 와 같고,
+    인자 검증(side/quantity/limit_price/end_date)은 :class:`KISUsageError`."""
     if environment == "demo":
         raise KISUsageError("예약주문 정정(order-resv-rvsecncl)은 모의투자 미지원 -- 실전에서만.")
     if not str(sequence).strip():
         raise KISUsageError("정정할 예약주문순번(sequence)이 필요하다.")
-    terms = _coerce_reserved_order_terms(side=side, quantity=quantity, price=price, end_date=end_date)
+    terms = _coerce_reserved_order_terms(
+        side=side, quantity=quantity, limit_price=limit_price, end_date=end_date
+    )
     if order_date is not None:
         validate_yyyymmdd(order_date, "order_date")
     body = _make_reserved_order_fields(
@@ -426,7 +427,7 @@ def _send_change(
 
 
 def _filter_matching_reserved(
-    rows: list[Mapping[str, Any]], fingerprint: Fingerprint
+    rows: list[Mapping[str, Any]], fingerprint: ReservedOrderFingerprint
 ) -> list[Mapping[str, Any]]:
     """예약주문조회 행 중 요청 지문과 맞는 것만(순수). 종목+매매구분+주문구분+수량, 지정가면 단가,
     지문에 종료일이 있으면 예약종료일(rsvn_end_dt)까지 비교한다. 순번 없는 행은 매칭 불가라 제외."""
@@ -434,7 +435,7 @@ def _filter_matching_reserved(
     limit_price = Decimal(fingerprint.limit_price) if fingerprint.limit_price else None
     want_side = _SIDE_CODE[fingerprint.side]
     want_dvsn = _ORD_DVSN_CD.get(fingerprint.order_type)
-    want_end_date = fingerprint.stop_price   # 예약 지문에선 종료일(없으면 "")
+    want_end_date = fingerprint.end_date   # 예약 지문의 유효 종료일(없으면 "")
     matched = []
     for row in rows:
         if not str(row.get("rsvn_ord_seq", "")).strip():  # 순번 없는 패딩 행 -- 매칭 불가
@@ -470,7 +471,7 @@ def _make_reserved_order_report(
         status=OrderStatus.PENDING_NEW,  # 접수됨·미집행(향후 동시호가 집행)
         filled_quantity=Decimal(0),
         average_price=None,
-        submitted_at=datetime.now(_KST),
+        recorded_at=datetime.now(_KST),
         _raw=raw,
     )
 
@@ -499,7 +500,7 @@ def _parse_reserved(row: Mapping[str, Any]) -> ReservedOrder:
         order_type_name=str(row.get("ord_dvsn_name", "")).strip(),
         reserved_quantity=_decimal_or_zero(row, "ord_rsvn_qty"),
         filled_quantity=_decimal_or_zero(row, "tot_ccld_qty"),
-        reserved_price=_decimal_or_zero(row, "ord_rsvn_unpr"),
+        order_price=_decimal_or_zero(row, "ord_rsvn_unpr"),
         status=str(row.get("prcs_rslt", "")).strip(),
         reject_reason=str(row.get("rjct_rson2", "")).strip(),
         executed_order_id=str(row.get("odno", "")).strip(),

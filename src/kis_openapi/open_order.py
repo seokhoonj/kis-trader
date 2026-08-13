@@ -27,7 +27,7 @@ class OpenOrder:
     ``order_id`` KIS 주문번호(odno), ``original_order_id`` 는 이 건이 정정/취소 주문이면 그
     원주문번호(아니면 빈 문자열), ``branch_number`` 주문 채번 지점번호. ``quantity`` 주문수량,
     ``filled_quantity`` 체결수량, ``unfilled_quantity`` 미체결 잔량(주문-체결), ``cancelable_quantity``
-    정정/취소 가능수량. ``price`` 주문단가(KRW), ``order_time`` 주문시각(HH:MM:SS, 없으면 None).
+    정정/취소 가능수량. ``order_price`` 주문단가(KRW), ``order_time`` 주문시각(HH:MM:SS, 없으면 None).
     """
 
     symbol: str
@@ -41,7 +41,7 @@ class OpenOrder:
     filled_quantity: Decimal          # 총체결수량
     unfilled_quantity: Decimal        # 미체결 잔량(주문-체결)
     cancelable_quantity: Decimal      # 정정/취소 가능수량(psbl_qty)
-    price: Decimal                    # 주문단가(KRW)
+    order_price: Decimal              # 주문단가(KRW)
     order_time: time | None           # 주문시각
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

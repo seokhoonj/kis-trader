@@ -62,9 +62,10 @@ class ExecutionReport:
     #: (정정 이전 체결은 정정이 반환한 리포트에 남는다). 재조회(reconcile)로 만든 리포트에선 조회 시점 값.
     filled_quantity: Decimal
     average_price: Decimal | None
-    #: 이 리포트를 로컬에 기록한 시각(보존 정리 기준). 전송 경로에선 접수 시각과 사실상
-    #: 같지만, 재조회(reconcile)로 만든 리포트에선 원 접수 시각이 아니라 재조회 시각이다.
-    submitted_at: datetime
+    #: 이 리포트를 로컬 저장소에 **기록한** 시각(보존 정리 기준) -- 와이어 전송 시각이 아니다.
+    #: 전송 경로에선 접수 시각과 사실상 같지만, 재조회(reconcile)로 만든 리포트에선 원 접수 시각이
+    #: 아니라 재조회 시각이다.
+    recorded_at: datetime
     #: 한국거래소전송주문조직번호(KRX_FWDG_ORD_ORGNO) -- **국내** 정정·취소가 ``order_id`` 와 함께
     #: 대상 식별에 쓴다. 접수/재조회 응답에서 뽑아 보관하며, ``_raw`` 와 달리 영속되므로 재기동 뒤에도
     #: 정정·취소가 가능하다. 해외 주문은 이 값을 **소비하지 않고** ``order_id``(ORGN_ODNO)로 지목하지만,

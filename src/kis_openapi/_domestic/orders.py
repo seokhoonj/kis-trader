@@ -39,10 +39,17 @@ from ..errors import (
     OrderTimeoutError,
 )
 from ..instrument import resolve_market
-from ..order import ChangeAction, Fingerprint, Order, WireRequest, format_wire_decimal
+from ..order import (
+    ChangeAction,
+    ChangeActionFingerprint,
+    ImmediateOrderFingerprint,
+    Order,
+    WireRequest,
+    format_wire_decimal,
+)
 from ..report import ExecutionReport, OrderStatus
 from ..risk import RiskLimits
-from ..store import Binding, ClaimOutcome, OrderStore
+from ..store import Binding, Claimed, Completed, Conflict, InFlight, OrderStore
 from ..transport import Environment, Transport, TransportTimeout
 from . import market_data
 
@@ -71,8 +78,8 @@ class _ChangeRequestBuilder(Protocol):
     (:func:`_make_domestic_change_request`)·해외 정규/주간 정정취소 빌더가 이를 만족한다."""
 
     def __call__(
-        self, *, original_report: ExecutionReport, original_fingerprint: Fingerprint,
-        action: ChangeAction, quantity: Decimal, price: Decimal | None,
+        self, *, original_report: ExecutionReport, original_fingerprint: ImmediateOrderFingerprint,
+        action: ChangeAction, quantity: Decimal, limit_price: Decimal | None,
         cano: str, product_code: str, environment: Environment,
     ) -> WireRequest: ...
 
@@ -89,7 +96,6 @@ _ORDER_CASH_TR = {
 _DAILY_CCLD_TR = {"real": "TTTC0081R", "demo": "VTTC0081R"}
 _CHANGE_PATH = "/uapi/domestic-stock/v1/trading/order-rvsecncl"
 _CHANGE_TR = {"real": "TTTC0013U", "demo": "VTTC0013U"}
-_ACTION_EXCHANGE_PREFIX = "action:"
 # order_type -> KIS ORD_DVSN(주문구분): 00 지정가, 01 시장가. 신용주문·정정(order_type 만) 이 쓴다.
 _ORD_DVSN = {"limit": "00", "market": "01"}
 # (base, time_in_force) -> KIS ORD_DVSN. base = order.division 이 있으면 그것, 없으면 order_type.
@@ -146,22 +152,20 @@ def place(
     # 와이어 변환을 먼저 -- 미구현/부적합이면 claim 전에 중단(stuck in-flight 방지).
     method, path, tr_id, body = build(order, cano, product_code, environment)
 
-    outcome, prior = store.try_claim(client_order_id, fingerprint)
-    if outcome is ClaimOutcome.COMPLETED:
-        if prior is None:  # store 불변식 위반 -- assert 가 아니라(python -O 안전)
-            raise OrderError("claim 이 COMPLETED 인데 리포트가 없다(store 불변식 위반).")
-        return prior
-    if outcome is ClaimOutcome.CONFLICT:
+    claim = store.try_claim(client_order_id, fingerprint)
+    if isinstance(claim, Completed):
+        return claim.report        # 완료 replay -- 리포트는 변형이 보장(재확인 불필요)
+    if isinstance(claim, Conflict):
         raise KISUsageError(
             f"client_order_id {client_order_id!r} 는 이미 다른 주문에 사용됐다. 새 id를 발행하라."
         )
-    if outcome is ClaimOutcome.IN_FLIGHT:
+    if isinstance(claim, InFlight):
         raise KISUsageError(
             f"주문 {client_order_id} 은 전송됐으나 결과가 확인되지 않았다. "
             f"kis.orders.reconcile({client_order_id!r}) 로 재조회한 뒤 판단하라."
         )
-    if outcome is not ClaimOutcome.CLAIMED:  # 전송은 좁게 가드 -- CLAIMED 만 와이어에 닿는다
-        raise OrderError(f"예상치 못한 claim outcome: {outcome!r}")
+    if not isinstance(claim, Claimed):  # 전송은 좁게 가드 -- Claimed 만 와이어에 닿는다
+        raise OrderError(f"예상치 못한 claim 결과: {claim!r}")
 
     try:
         resp = transport.request(
@@ -200,7 +204,7 @@ def place(
         status=OrderStatus.NEW,          # 접수됨 -- 체결은 이후 리포트/재조회로 확인
         filled_quantity=Decimal(0),
         average_price=None,
-        submitted_at=datetime.now(_KST),
+        recorded_at=datetime.now(_KST),
         organization_number=_extract_organization_number(output),
         _raw=resp.body,
     )
@@ -257,7 +261,7 @@ def submit_change(
     request_id: str,
     action: ChangeAction,
     quantity: Decimal,
-    price: Decimal | None,
+    limit_price: Decimal | None,
     cano: str,
     product_code: str,
     environment: Environment,
@@ -284,6 +288,11 @@ def submit_change(
     original_fingerprint = store.fingerprint_for(original_client_order_id)
     if original_report is None or original_fingerprint is None:
         raise KISUsageError(f"확정된 원주문을 찾을 수 없다: {original_client_order_id!r}")
+    if not isinstance(original_fingerprint, ImmediateOrderFingerprint):
+        # 정정·취소(order-rvsecncl)는 즉시체결 주문만 -- 예약주문은 예약 전용 정정취소(순번 지목)를 쓴다.
+        raise KISUsageError(
+            "이 주문은 즉시체결 정정·취소를 지원하지 않는다(예약주문은 예약 정정·취소를 쓰라)."
+        )
     if not original_report.order_id:
         raise KISUsageError("원주문에 거래소 주문번호가 없어 정정·취소할 수 없다.")
     if original_report.is_terminal:
@@ -294,24 +303,24 @@ def submit_change(
         raise KISUsageError(f"지원하지 않는 주문 변경: {action!r}")
     if quantity <= 0 or quantity != quantity.to_integral_value():
         raise KISUsageError(f"정정·취소 수량은 양의 정수여야 한다: {quantity}")
-    if action == "modify" and (price is None or price <= 0):
-        raise KISUsageError("정정 주문에는 0보다 큰 price가 필요하다.")
-    if action == "cancel" and price is not None:
-        raise KISUsageError("취소 주문에는 price를 지정할 수 없다.")
+    if action == "modify" and (limit_price is None or limit_price <= 0):
+        raise KISUsageError("정정 주문에는 0보다 큰 limit_price가 필요하다.")
+    if action == "cancel" and limit_price is not None:
+        raise KISUsageError("취소 주문에는 limit_price를 지정할 수 없다.")
 
-    action_fingerprint = Fingerprint(
+    action_fingerprint = ChangeActionFingerprint(
         # 원 client_order_id 로만 식별한다(그 order_id 로 파생하지 않는다) -- 정정은 원 id 를
         # 새 ODNO 로 재바인딩하므로, order_id 를 지문에 넣으면 같은 request_id 재시도 시 재계산
-        # 값이 달라져 replay 가 CONFLICT 로 깨진다. request_id 가 1차 멱등키, 나머지 필드가
-        # 변경 의도(action/수량/가격)를 식별하며, "action:" 접두 exchange 로 원주문 지문과 구분된다.
-        symbol=original_client_order_id,
+        # 값이 달라져 replay 가 CONFLICT 로 깨진다. request_id 가 1차 멱등키, action/수량/가격이
+        # 변경 의도를 식별하며, exchange 는 원주문 거래소(온-디스크엔 "action:" 접두로 네임스페이스 분리).
+        original_client_order_id=original_client_order_id,
         side=original_fingerprint.side,
         order_type=original_fingerprint.order_type,
         quantity=format_wire_decimal(quantity),
-        limit_price="" if price is None else format_wire_decimal(price),
-        stop_price=action,
+        limit_price="" if limit_price is None else format_wire_decimal(limit_price),
+        action=action,
         time_in_force=original_fingerprint.time_in_force,
-        exchange=f"{_ACTION_EXCHANGE_PREFIX}{original_fingerprint.exchange}",
+        exchange=original_fingerprint.exchange,
     )
     builder = build_request or _make_domestic_change_request
     request = builder(
@@ -319,24 +328,22 @@ def submit_change(
         original_fingerprint=original_fingerprint,
         action=action,
         quantity=quantity,
-        price=price,
+        limit_price=limit_price,
         cano=cano,
         product_code=product_code,
         environment=environment,
     )
-    outcome, prior = store.try_claim(request_id, action_fingerprint)
-    if outcome is ClaimOutcome.COMPLETED:
-        if prior is None:
-            raise OrderError("변경 요청 claim이 COMPLETED인데 리포트가 없다.")
-        return prior
-    if outcome is ClaimOutcome.CONFLICT:
+    claim = store.try_claim(request_id, action_fingerprint)
+    if isinstance(claim, Completed):
+        return claim.report
+    if isinstance(claim, Conflict):
         raise KISUsageError(f"request_id {request_id!r}는 이미 다른 요청에 사용됐다.")
-    if outcome is ClaimOutcome.IN_FLIGHT:
+    if isinstance(claim, InFlight):
         raise KISUsageError(
             f"변경 요청 {request_id}의 결과가 아직 확인되지 않았다. 재전송하지 말라."
         )
-    if outcome is not ClaimOutcome.CLAIMED:
-        raise OrderError(f"예상치 못한 claim outcome: {outcome!r}")
+    if not isinstance(claim, Claimed):
+        raise OrderError(f"예상치 못한 claim 결과: {claim!r}")
     try:
         resp = transport.request(
             method=request.method,
@@ -374,7 +381,7 @@ def submit_change(
         status=OrderStatus.PENDING_CANCEL if action == "cancel" else OrderStatus.PENDING_REPLACE,
         filled_quantity=original_report.filled_quantity,
         average_price=original_report.average_price,
-        submitted_at=datetime.now(_KST),
+        recorded_at=datetime.now(_KST),
         # 정정 응답의 새 조직번호(없으면 원주문 것 유지) -- 정정 시 새 ODNO 와 짝이 되어 영속된다.
         organization_number=_extract_organization_number(output) or original_report.organization_number,
         _raw=resp.body,
@@ -386,9 +393,10 @@ def submit_change(
         # order_id/조직번호(report._raw)는 정정 응답값, 지문 수량/가격은 정정값(이후 잔량 계산 정확),
         # 리포트 filled=0 (새 ODNO 는 정정 수량만큼의 신규 대기주문 -- 기체결분은 이전 실행에 남는다).
         # 변경요청 기록과 이 재바인딩은 record_change 로 한 번에 커밋해 크래시 창을 없앤다.
-        resting_fingerprint = original_fingerprint._replace(
+        resting_fingerprint = replace(
+            original_fingerprint,
             quantity=format_wire_decimal(quantity),
-            limit_price="" if price is None else format_wire_decimal(price),
+            limit_price="" if limit_price is None else format_wire_decimal(limit_price),
         )
         rebound_report = replace(
             report, client_order_id=original_client_order_id,
@@ -400,8 +408,8 @@ def submit_change(
 
 
 def _make_domestic_change_request(
-    *, original_report: ExecutionReport, original_fingerprint: Fingerprint,
-    action: ChangeAction, quantity: Decimal, price: Decimal | None,
+    *, original_report: ExecutionReport, original_fingerprint: ImmediateOrderFingerprint,
+    action: ChangeAction, quantity: Decimal, limit_price: Decimal | None,
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
     # 영속되는 리포트 필드를 우선 쓰고(재기동 후에도 유효), 없으면 미영속 _raw 에서 뽑는다
@@ -429,8 +437,8 @@ def _make_domestic_change_request(
         "ORD_QTY": format_wire_decimal(quantity),
         "ORD_UNPR": (
             original_fingerprint.limit_price
-            if price is None and original_fingerprint.limit_price
-            else "0" if price is None else format_wire_decimal(price)
+            if limit_price is None and original_fingerprint.limit_price
+            else "0" if limit_price is None else format_wire_decimal(limit_price)
         ),
         "QTY_ALL_ORD_YN": "Y" if action == "cancel" else "N",
         "EXCG_ID_DVSN_CD": _BOARD_EXCG[original_fingerprint.board],
@@ -570,7 +578,7 @@ def _fetch_daily_orders(
 
 
 def _filter_matching_daily_rows(
-    rows: list[Mapping[str, Any]], fingerprint: Fingerprint
+    rows: list[Mapping[str, Any]], fingerprint: ImmediateOrderFingerprint
 ) -> list[Mapping[str, Any]]:
     """일별체결조회 행 중 요청 지문과 맞는 것만(순수). 종목+매매구분+주문구분+수량, 지정가면
     단가까지 비교해 무관한 동일수량 주문의 오귀속을 줄인다. 신용/현금은 행의 대출일자(loan_dt)로
@@ -622,7 +630,7 @@ def _filter_matching_daily_rows(
 
 
 def _execution_report_from_daily_row(
-    client_order_id: str, fingerprint: Fingerprint, row: Mapping[str, Any]
+    client_order_id: str, fingerprint: ImmediateOrderFingerprint, row: Mapping[str, Any]
 ) -> ExecutionReport:
     ordered = parse_response_decimal(row.get("ord_qty"))
     filled = parse_response_decimal(row.get("tot_ccld_qty"))
@@ -646,7 +654,7 @@ def _execution_report_from_daily_row(
         status=status,
         filled_quantity=filled,
         average_price=avg if filled > 0 and avg > 0 else None,
-        submitted_at=datetime.now(_KST),
+        recorded_at=datetime.now(_KST),
         organization_number=_extract_organization_number(row),
         _raw=row,
     )

@@ -53,7 +53,7 @@ def _client(transport, *, environment="real"):
 
 
 def _place_body(**over):
-    args = {"quantity": 2, "price": 71000, "end_date": "20240610"}
+    args = {"quantity": 2, "limit_price": 71000, "end_date": "20240610"}
     args.update(over)
     fake = FakeTransport(_PLACE_OK)
     _client(fake).domestic.stock("005930").reserve_buy(**args)
@@ -61,7 +61,7 @@ def _place_body(**over):
 
 
 def _modify_body(**over):
-    args = {"symbol": "005930", "side": "buy", "quantity": 2, "price": 71000, "end_date": "20240610"}
+    args = {"symbol": "005930", "side": "buy", "quantity": 2, "limit_price": 71000, "end_date": "20240610"}
     args.update(over)
     fake = FakeTransport(_MODIFY_OK)
     _client(fake).domestic.account.modify_reserved_order("42401", **args)
@@ -80,9 +80,9 @@ def test_place_and_modify_share_byte_identical_common_body():
 
 
 def test_place_and_modify_market_price_share_common_body():
-    """price 생략(시장가)도 두 경로가 동일 정규화(ORD_DVSN_CD=01, ORD_UNPR=0)."""
-    place = _place_body(price=None, end_date=None)
-    modify = _modify_body(price=None, end_date=None)
+    """limit_price 생략(시장가)도 두 경로가 동일 정규화(ORD_DVSN_CD=01, ORD_UNPR=0)."""
+    place = _place_body(limit_price=None, end_date=None)
+    modify = _modify_body(limit_price=None, end_date=None)
     for key in _SHARED_KEYS:
         assert place[key] == modify[key], key
     assert place["ORD_DVSN_CD"] == "01" and place["ORD_UNPR"] == "0"
@@ -94,24 +94,24 @@ def test_end_date_validation_consistent_across_place_and_modify(bad_end_date):
     (예전엔 place 만 별도 폭-사전검사를 가졌다)."""
     place_fake = FakeTransport(_PLACE_OK)
     with pytest.raises(KISUsageError):
-        _client(place_fake).domestic.stock("005930").reserve_buy(quantity=1, price=1, end_date=bad_end_date)
+        _client(place_fake).domestic.stock("005930").reserve_buy(quantity=1, limit_price=1, end_date=bad_end_date)
     assert place_fake.calls == []
 
     modify_fake = FakeTransport(_MODIFY_OK)
     with pytest.raises(KISUsageError):
         _client(modify_fake).domestic.account.modify_reserved_order(
-            "42401", symbol="005930", side="buy", quantity=1, price=1, end_date=bad_end_date)
+            "42401", symbol="005930", side="buy", quantity=1, limit_price=1, end_date=bad_end_date)
     assert modify_fake.calls == []
 
 
 def test_coerce_reserved_order_terms_shared_helper():
     """공유 정규화 헬퍼 단위 검증: 지정가/시장가, 정수 수량, 유한·양수 단가."""
-    limit = _coerce_reserved_order_terms(side="buy", quantity=2, price=71000, end_date="20240610")
+    limit = _coerce_reserved_order_terms(side="buy", quantity=2, limit_price=71000, end_date="20240610")
     assert (limit.order_type, str(limit.quantity), str(limit.limit_price)) == ("limit", "2", "71000")
-    market = _coerce_reserved_order_terms(side="sell", quantity=3, price=None, end_date=None)
+    market = _coerce_reserved_order_terms(side="sell", quantity=3, limit_price=None, end_date=None)
     assert market.order_type == "market" and market.limit_price is None
-    for bad in ({"quantity": "1.5"}, {"quantity": 0}, {"price": 0}, {"price": "Infinity"}):
-        args = {"side": "buy", "quantity": 1, "price": 1, "end_date": None}
+    for bad in ({"quantity": "1.5"}, {"quantity": 0}, {"limit_price": 0}, {"limit_price": "Infinity"}):
+        args = {"side": "buy", "quantity": 1, "limit_price": 1, "end_date": None}
         args.update(bad)
         with pytest.raises(KISUsageError):
             _coerce_reserved_order_terms(**args)
@@ -119,7 +119,7 @@ def test_coerce_reserved_order_terms_shared_helper():
 
 def test_make_reserved_order_fields_common_shape():
     """공유 바디 헬퍼는 정확히 공통 키만, 지정 순서대로 낸다."""
-    terms = _coerce_reserved_order_terms(side="buy", quantity=2, price=71000, end_date="20240610")
+    terms = _coerce_reserved_order_terms(side="buy", quantity=2, limit_price=71000, end_date="20240610")
     body = _make_reserved_order_fields(
         cano="12345678", product_code="01", symbol="005930", side="buy",
         terms=terms, end_date="20240610",

@@ -72,7 +72,7 @@ def test_overseas_reserved_parses_ledger_row():
     assert o.status == "접수"
     assert o.exchange == "NASD"
     assert o.quantity == Decimal(1)
-    assert o.price == Decimal("150.25")
+    assert o.order_price == Decimal("150.25")
     assert o.filled_quantity == Decimal(0)
     assert o.canceled is False
 

@@ -25,10 +25,10 @@ from ..errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from ..order import Fingerprint, Side, coerce_decimal, validate_yyyymmdd
+from ..order import ReservedOrderFingerprint, Side, coerce_decimal, validate_yyyymmdd
 from ..overseas_items import OverseasReservedOrder
 from ..report import ExecutionReport, OrderStatus
-from ..store import ClaimOutcome, OrderStore
+from ..store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ..transport import Environment, Transport, TransportTimeout
 from .orders import _ORDER_EXCHANGE
 
@@ -128,13 +128,13 @@ def _walk(
 # --- 미국 해외예약 발주 (뮤테이션, 안전 흐름) ------------------------------
 def place_overseas_reserved_order(
     transport: Transport, store: OrderStore, *,
-    symbol: str, side: Side, quantity: Numeric, price: Numeric, exchange: str,
+    symbol: str, side: Side, quantity: Numeric, limit_price: Numeric, exchange: str,
     client_order_id: str, orderable: bool = True,
     cano: str, product_code: str, environment: Environment,
 ) -> ExecutionReport:
     """미국 해외주식 예약주문을 안전 규칙으로 발주한다 -- 즉시주문(place)과 같은 이중발주 방지·재시도
     금지·보수적 재조회를, 예약 라이프사이클(예약번호·체결개념 없음)에 맞춰 구현한다. **지정가만**
-    (``price`` 필수), **미국(NAS/NYS/AMS)만**, **모의투자 미지원**.
+    (``limit_price`` 필수), **미국(NAS/NYS/AMS)만**, **모의투자 미지원**.
 
     반환 :class:`ExecutionReport` 의 ``order_id`` 는 해외예약주문번호(KIS 명세상 발주 Output ODNO = 취소 시
     OVRS_RSVN_ODNO), ``status`` 는 :attr:`OrderStatus.PENDING_NEW`. 조회전용 계좌면
@@ -161,39 +161,37 @@ def place_overseas_reserved_order(
     qty = coerce_decimal(quantity, "quantity")
     if qty <= 0 or qty != qty.to_integral_value():
         raise KISUsageError(f"예약주문 수량은 0보다 큰 정수(주)여야 한다: {qty}")
-    limit_price = coerce_decimal(price, "price")
-    if not limit_price.is_finite() or limit_price <= 0:
-        raise KISUsageError(f"price 는 0보다 큰 유한값이어야 한다: {price!r}")
+    limit = coerce_decimal(limit_price, "limit_price")
+    if not limit.is_finite() or limit <= 0:
+        raise KISUsageError(f"limit_price 는 0보다 큰 유한값이어야 한다: {limit_price!r}")
 
-    fingerprint = Fingerprint(
+    fingerprint = ReservedOrderFingerprint(
         symbol=symbol, side=side, order_type="limit",
-        quantity=format_wire_decimal(qty), limit_price=format_wire_decimal(limit_price),
-        stop_price="", time_in_force="day", exchange=_RESERVED_EXCHANGE,
+        quantity=format_wire_decimal(qty), limit_price=format_wire_decimal(limit),
+        end_date="", exchange=_RESERVED_EXCHANGE,
     )
     body = {
         "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": symbol,
         "OVRS_EXCG_CD": order_exchange,
         "FT_ORD_QTY": format_wire_decimal(qty),
-        "FT_ORD_UNPR3": format_wire_decimal(limit_price),
+        "FT_ORD_UNPR3": format_wire_decimal(limit),
         "ORD_SVR_DVSN_CD": "0", "ORD_DVSN": _ORD_DVSN_LIMIT,
     }
 
-    outcome, prior = store.try_claim(client_order_id, fingerprint)
-    if outcome is ClaimOutcome.COMPLETED:
-        if prior is None:
-            raise OrderError("claim 이 COMPLETED 인데 리포트가 없다(store 불변식 위반).")
-        return prior
-    if outcome is ClaimOutcome.CONFLICT:
+    claim = store.try_claim(client_order_id, fingerprint)
+    if isinstance(claim, Completed):
+        return claim.report
+    if isinstance(claim, Conflict):
         raise KISUsageError(
             f"client_order_id {client_order_id!r} 는 이미 다른 주문에 사용됐다. 새 id를 발행하라."
         )
-    if outcome is ClaimOutcome.IN_FLIGHT:
+    if isinstance(claim, InFlight):
         raise KISUsageError(
             f"해외 예약주문 {client_order_id} 은 전송됐으나 결과가 확인되지 않았다. "
             f"kis.orders.reconcile({client_order_id!r}) 로 재조회한 뒤 판단하라."
         )
-    if outcome is not ClaimOutcome.CLAIMED:
-        raise OrderError(f"예상치 못한 claim outcome: {outcome!r}")
+    if not isinstance(claim, Claimed):
+        raise OrderError(f"예상치 못한 claim 결과: {claim!r}")
 
     try:
         resp = transport.request(
@@ -318,7 +316,7 @@ def cancel_overseas_reserved_order(
 
 
 def _filter_matching(
-    rows: list[Mapping[str, Any]], fingerprint: Fingerprint, today: date
+    rows: list[Mapping[str, Any]], fingerprint: ReservedOrderFingerprint, today: date
 ) -> list[Mapping[str, Any]]:
     """예약주문조회 행 중 요청 지문과 맞는 것만(순수). 종목+매매구분+수량+단가에 더해 **접수일자**로
     좁힌다 -- 해외예약 지문엔 end_date 등 추가 판별자가 없어(국내와 달리) 같은 종목/수량/가격의 옛
@@ -362,7 +360,7 @@ def _make_report(
         status=OrderStatus.PENDING_NEW,  # 접수됨·미집행
         filled_quantity=Decimal(0),
         average_price=None,
-        submitted_at=datetime.now(_KST),
+        recorded_at=datetime.now(_KST),
         _raw=raw,
     )
 
@@ -402,7 +400,7 @@ def _parse(row: Mapping[str, Any]) -> OverseasReservedOrder:
         status=str(row.get("ovrs_rsvn_ord_stat_cd_name", "")).strip(),
         exchange=str(row.get("ovrs_excg_cd", "")).strip(),
         quantity=_decimal_or_zero(row, "ft_ord_qty"),
-        price=_decimal_or_zero(row, "ft_ord_unpr3"),
+        order_price=_decimal_or_zero(row, "ft_ord_unpr3"),
         filled_quantity=_decimal_or_zero(row, "ft_ccld_qty"),
         canceled=str(row.get("cncl_yn", "")).strip().upper() == "Y",
         unprocessed_reason=str(row.get("nprc_rson_text", "")).strip(),

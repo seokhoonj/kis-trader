@@ -117,13 +117,13 @@ def test_quantity_cap_blocks_before_wire():
     fake = FakeTransport(response=_ACCEPTED)
     kis = _client(fake, risk=RiskLimits(max_order_quantity=100))
     with pytest.raises(PreTradeRiskError):
-        kis.domestic.stock("005930").buy(quantity=101, price=70000)
+        kis.domestic.stock("005930").buy(quantity=101, limit_price=70000)
     assert fake.calls == []                              # 와이어에 닿기 전 차단
 
 
 def test_quantity_within_cap_passes():
     fake = FakeTransport(response=_ACCEPTED)
-    report = _client(fake, risk=RiskLimits(max_order_quantity=100)).domestic.stock("005930").buy(quantity=100, price=70000)
+    report = _client(fake, risk=RiskLimits(max_order_quantity=100)).domestic.stock("005930").buy(quantity=100, limit_price=70000)
     assert isinstance(report, ExecutionReport)
     assert _paths(fake) == [_ORDER_CASH]                # 참조 조회 없이 바로 전송
 
@@ -133,13 +133,13 @@ def test_notional_cap_on_limit_uses_own_price_no_quote():
     fake = FakeTransport(response=_ACCEPTED)
     kis = _client(fake, risk=RiskLimits(max_order_notional=1_000_000))
     with pytest.raises(PreTradeRiskError):
-        kis.domestic.stock("005930").buy(quantity=20, price=70000)   # 20 x 70000 = 1.4M > 1M
+        kis.domestic.stock("005930").buy(quantity=20, limit_price=70000)   # 20 x 70000 = 1.4M > 1M
     assert fake.calls == []                              # 지정가는 자체 단가로 계산 -- 시세 조회 안 함
 
 
 def test_notional_cap_on_limit_within_passes():
     fake = FakeTransport(response=_ACCEPTED)
-    _client(fake, risk=RiskLimits(max_order_notional=1_000_000)).domestic.stock("005930").buy(quantity=10, price=70000)
+    _client(fake, risk=RiskLimits(max_order_notional=1_000_000)).domestic.stock("005930").buy(quantity=10, limit_price=70000)
     assert _paths(fake) == [_ORDER_CASH]                # 700k <= 1M, 시세 조회 없이 전송
 
 
@@ -162,13 +162,13 @@ def test_collar_blocks_far_limit_price():
     fake = FakeTransport(by_path={_QUOTE: [_QUOTE_OK], _ORDER_CASH: [_ACCEPTED]})
     kis = _client(fake, risk=RiskLimits(price_collar_percent=10))
     with pytest.raises(PreTradeRiskError):
-        kis.domestic.stock("005930").buy(quantity=10, price=90000)   # 현재가 71500 대비 +25.9% > 10%
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=90000)   # 현재가 71500 대비 +25.9% > 10%
     assert _paths(fake) == [_QUOTE]                      # 조회 후 거부, 미전송
 
 
 def test_collar_allows_price_within_band():
     fake = FakeTransport(by_path={_QUOTE: [_QUOTE_OK], _ORDER_CASH: [_ACCEPTED]})
-    _client(fake, risk=RiskLimits(price_collar_percent=10)).domestic.stock("005930").buy(quantity=10, price=75000)
+    _client(fake, risk=RiskLimits(price_collar_percent=10)).domestic.stock("005930").buy(quantity=10, limit_price=75000)
     assert _paths(fake) == [_QUOTE, _ORDER_CASH]        # +4.9% <= 10% -> 전송
 
 
@@ -182,7 +182,7 @@ def test_collar_fails_closed_when_quote_unavailable():
     fake = FakeTransport(by_path={_QUOTE: [_QUOTE_FAIL], _ORDER_CASH: [_ACCEPTED]})
     kis = _client(fake, risk=RiskLimits(price_collar_percent=10))
     with pytest.raises(KISError):                        # 참조 시세 조회 실패 -> 한도 확인 불가 -> 주문 중단
-        kis.domestic.stock("005930").buy(quantity=10, price=72000)
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=72000)
     assert _paths(fake) == [_QUOTE]                      # 시세 1회만 조회하고 주문은 나가지 않는다
 
 
@@ -191,13 +191,13 @@ def test_tick_size_blocks_misaligned_price():
     fake = FakeTransport(response=_ACCEPTED)
     kis = _client(fake, risk=RiskLimits(enforce_tick_size=True))
     with pytest.raises(PreTradeRiskError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70050)   # 5만~20만 구간 호가단위 100, 70050 은 위반
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70050)   # 5만~20만 구간 호가단위 100, 70050 은 위반
     assert fake.calls == []
 
 
 def test_tick_size_allows_aligned_price():
     fake = FakeTransport(response=_ACCEPTED)
-    _client(fake, risk=RiskLimits(enforce_tick_size=True)).domestic.stock("005930").buy(quantity=10, price=70000)
+    _client(fake, risk=RiskLimits(enforce_tick_size=True)).domestic.stock("005930").buy(quantity=10, limit_price=70000)
     assert _paths(fake) == [_ORDER_CASH]                # 70000 은 호가단위 100 의 배수 -- 통과
 
 
@@ -213,11 +213,11 @@ def test_tick_size_table_boundaries(price, expected_tick_ok):
     fake = FakeTransport(response=_ACCEPTED)
     kis = _client(fake, risk=RiskLimits(enforce_tick_size=True))
     if expected_tick_ok:
-        kis.domestic.stock("005930").buy(quantity=10, price=price)
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=price)
         assert _paths(fake) == [_ORDER_CASH]
     else:
         with pytest.raises(PreTradeRiskError):
-            kis.domestic.stock("005930").buy(quantity=10, price=price)
+            kis.domestic.stock("005930").buy(quantity=10, limit_price=price)
         assert fake.calls == []
 
 
@@ -225,13 +225,13 @@ def test_tick_size_table_boundaries(price, expected_tick_ok):
 def test_fractional_quantity_rejected_without_risk_config():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):                  # 리스크 설정 없이도 소수 수량은 거부
-        _client(fake).domestic.stock("005930").buy(quantity=Decimal("10.5"), price=70000)
+        _client(fake).domestic.stock("005930").buy(quantity=Decimal("10.5"), limit_price=70000)
     assert fake.calls == []
 
 
 def test_whole_quantity_passes_without_risk_config():
     fake = FakeTransport(response=_ACCEPTED)
-    _client(fake).domestic.stock("005930").buy(quantity=Decimal("10.0"), price=70000)
+    _client(fake).domestic.stock("005930").buy(quantity=Decimal("10.0"), limit_price=70000)
     assert _paths(fake) == [_ORDER_CASH]               # 10.0 은 정수 -- 통과
 
 
@@ -240,7 +240,7 @@ def test_sell_quantity_over_cap_is_rejected_before_wire():
     fake = FakeTransport(response=_ACCEPTED)
     kis = _client(fake, risk=RiskLimits(max_order_quantity=100))
     with pytest.raises(PreTradeRiskError):
-        kis.domestic.stock("005930").sell(quantity=101, price=70000)
+        kis.domestic.stock("005930").sell(quantity=101, limit_price=70000)
     assert fake.calls == []
 
 
@@ -248,14 +248,14 @@ def test_sell_quantity_over_cap_is_rejected_before_wire():
 def test_collar_allows_limit_price_at_exact_boundary():
     fake = FakeTransport(by_path={_QUOTE: [_QUOTE_OK], _ORDER_CASH: [_ACCEPTED]})
     # 현재가 71500 의 +10% = 78650 -- 정확히 collar 경계, 초과 아님 -> 통과.
-    _client(fake, risk=RiskLimits(price_collar_percent=10)).domestic.stock("005930").buy(quantity=10, price=78650)
+    _client(fake, risk=RiskLimits(price_collar_percent=10)).domestic.stock("005930").buy(quantity=10, limit_price=78650)
     assert _paths(fake) == [_QUOTE, _ORDER_CASH]
 
 
 def test_limit_notional_equal_to_cap_passes_without_quote():
     fake = FakeTransport(response=_ACCEPTED)
     # 10 x 100000 = 1_000_000 == 한도 -- 초과 아님 -> 통과(지정가라 시세 조회도 없음).
-    _client(fake, risk=RiskLimits(max_order_notional=1_000_000)).domestic.stock("005930").buy(quantity=10, price=100000)
+    _client(fake, risk=RiskLimits(max_order_notional=1_000_000)).domestic.stock("005930").buy(quantity=10, limit_price=100000)
     assert _paths(fake) == [_ORDER_CASH]
 
 
@@ -285,7 +285,7 @@ def test_combined_limits_fetch_one_quote_and_submit_when_all_pass():
     fake = FakeTransport(by_path={_QUOTE: [_QUOTE_OK], _ORDER_CASH: [_ACCEPTED]})
     risk = RiskLimits(max_order_quantity=100, max_order_notional=10_000_000,
                       price_collar_percent=10, enforce_tick_size=True)
-    _client(fake, risk=risk).domestic.stock("005930").buy(quantity=10, price=70000)
+    _client(fake, risk=risk).domestic.stock("005930").buy(quantity=10, limit_price=70000)
     assert _paths(fake) == [_QUOTE, _ORDER_CASH]        # collar 참조 1회만, 나머지는 무-조회 검사
 
 
@@ -294,9 +294,9 @@ def test_risk_rejection_does_not_consume_client_order_id():
     fake = FakeTransport(response=_ACCEPTED)
     kis = _client(fake, risk=RiskLimits(max_order_quantity=5))
     with pytest.raises(PreTradeRiskError):
-        kis.domestic.stock("005930").buy(quantity=10, price=70000, client_order_id="ID-1")
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     # 리스크로 막힌 주문은 전송되지 않았으니 같은 id 로 정상 주문을 다시 낼 수 있다.
-    report = kis.domestic.stock("005930").buy(quantity=3, price=70000, client_order_id="ID-1")
+    report = kis.domestic.stock("005930").buy(quantity=3, limit_price=70000, client_order_id="ID-1")
     assert report.order_id == "0000117057"
     assert _paths(fake) == [_ORDER_CASH]
 
@@ -306,8 +306,8 @@ def test_quote_dependent_rejection_does_not_consume_client_order_id():
     fake = FakeTransport(by_path={_QUOTE: [_QUOTE_OK, _QUOTE_OK], _ORDER_CASH: [_ACCEPTED]})
     kis = _client(fake, risk=RiskLimits(price_collar_percent=10))
     with pytest.raises(PreTradeRiskError):
-        kis.domestic.stock("005930").buy(quantity=10, price=90000, client_order_id="ID-1")   # +25.9% 거부
-    report = kis.domestic.stock("005930").buy(quantity=10, price=75000, client_order_id="ID-1")  # +4.9% 통과
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=90000, client_order_id="ID-1")   # +25.9% 거부
+    report = kis.domestic.stock("005930").buy(quantity=10, limit_price=75000, client_order_id="ID-1")  # +4.9% 통과
     assert report.order_id == "0000117057"
     assert _paths(fake) == [_QUOTE, _QUOTE, _ORDER_CASH]
 

@@ -31,7 +31,16 @@ from .namespaces import (
     OverseasNamespace,
     PensionNamespace,
 )
-from .order import ChangeAction, Order, Side, coerce_decimal, mint_client_order_id
+from .order import (
+    ChangeAction,
+    ChangeActionFingerprint,
+    ImmediateOrderFingerprint,
+    Order,
+    ReservedOrderFingerprint,
+    Side,
+    coerce_decimal,
+    mint_client_order_id,
+)
 from .store import OrderStore
 
 if TYPE_CHECKING:
@@ -177,22 +186,23 @@ class KISClient:
         # 한다(엉뚱한 미접수 판정 방지) -- 지문의 거래소로 국내/해외 경로를 가른다. 완료 리포트가 있으면
         # 어느 엔진이든 그대로 반환한다.
         fingerprint = self._store.fingerprint_for(client_order_id)
-        if fingerprint is not None and fingerprint.exchange.startswith("action:"):
+        if isinstance(fingerprint, ChangeActionFingerprint):
             raise KISUsageError(
                 "정정·취소 요청은 자동 reconcile을 지원하지 않는다. 원주문 상태를 조회해 확인하라."
             )
-        if fingerprint is not None and fingerprint.exchange == "reserved":
-            # 예약주문은 일별체결이 아니라 예약주문조회로 확인한다.
+        if isinstance(fingerprint, ReservedOrderFingerprint):
+            # 예약주문은 일별체결이 아니라 예약주문조회로 확인한다(국내/해외 예약 경로를 exchange 로 가른다).
+            if fingerprint.exchange == "overseas-reserved":
+                return overseas_reserved_orders_api.reconcile_overseas_reserved_order(
+                    self._transport, self._store, client_order_id,
+                    cano=cano, product_code=product_code, environment=self._environment,
+                )
             return reserved_orders_api.reconcile_reserved_order(
                 self._transport, self._store, client_order_id,
                 cano=cano, product_code=product_code, environment=self._environment,
             )
-        if fingerprint is not None and fingerprint.exchange == "overseas-reserved":
-            return overseas_reserved_orders_api.reconcile_overseas_reserved_order(
-                self._transport, self._store, client_order_id,
-                cano=cano, product_code=product_code, environment=self._environment,
-            )
-        if fingerprint is not None and overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
+        if isinstance(fingerprint, ImmediateOrderFingerprint) and \
+                overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
             return overseas_orders_engine.reconcile(
                 self._transport, self._store, client_order_id,
                 cano=cano, product_code=product_code, environment=self._environment,
@@ -204,7 +214,7 @@ class KISClient:
 
     def _change_order(
         self, client_order_id: str, *, action: ChangeAction, quantity: Numeric | None,
-        price: Numeric | None, request_id: str | None,
+        limit_price: Numeric | None, request_id: str | None,
     ) -> ExecutionReport:
         """접수된 국내·해외 주식 주문의 미체결 수량을 취소/정정한다(``kis.orders.cancel`` / ``.modify``)."""
         cano, product_code = self._require_account()
@@ -217,12 +227,12 @@ class KISClient:
         # 정정 경로도 발주(place)와 같은 수치 강제변환을 거쳐 NaN/Infinity 등 비유한 입력을 fail-closed
         # 로 막는다(raw Decimal(str(...)) 는 "nan"/"inf" 를 통과시켜 와이어에 실릴 수 있다).
         change_quantity = remaining_quantity if quantity is None else coerce_decimal(quantity, "quantity")
-        change_price = None if price is None else coerce_decimal(price, "price")
+        change_limit_price = None if limit_price is None else coerce_decimal(limit_price, "limit_price")
         builder: orders_engine._ChangeRequestBuilder | None = None
         if overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
             builder = (
                 overseas_orders_engine.make_daytime_change_request
-                if fingerprint.session == "daytime"
+                if isinstance(fingerprint, ImmediateOrderFingerprint) and fingerprint.session == "daytime"
                 else overseas_orders_engine.make_change_request
             )
         return orders_engine.submit_change(
@@ -231,7 +241,7 @@ class KISClient:
             request_id=request_id or mint_client_order_id(),
             action=action,
             quantity=change_quantity,
-            price=change_price,
+            limit_price=change_limit_price,
             cano=cano,
             product_code=product_code,
             environment=self._environment,
@@ -269,7 +279,7 @@ class KISClient:
         )
 
     def _place_reserved_order(
-        self, *, symbol: str, side: Side, quantity: Numeric, price: Numeric | None,
+        self, *, symbol: str, side: Side, quantity: Numeric, limit_price: Numeric | None,
         end_date: str | None, client_order_id: str | None,
     ) -> ExecutionReport:
         """예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 호출). 계좌 정보 필요.
@@ -280,20 +290,20 @@ class KISClient:
         cano, product_code = self._require_account()
         return reserved_orders_api.place_reserved_order(
             self._transport, self._store,
-            symbol=symbol, side=side, quantity=quantity, price=price, end_date=end_date,
+            symbol=symbol, side=side, quantity=quantity, limit_price=limit_price, end_date=end_date,
             client_order_id=client_order_id or mint_client_order_id(), orderable=self._orderable,
             cano=cano, product_code=product_code, environment=self._environment,
         )
 
     def _place_overseas_reserved_order(
-        self, *, symbol: str, side: Side, quantity: Numeric, price: Numeric, exchange: str,
+        self, *, symbol: str, side: Side, quantity: Numeric, limit_price: Numeric, exchange: str,
         client_order_id: str | None,
     ) -> ExecutionReport:
         """미국 해외예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 해외 종목일 때 호출)."""
         cano, product_code = self._require_account()
         return overseas_reserved_orders_api.place_overseas_reserved_order(
             self._transport, self._store,
-            symbol=symbol, side=side, quantity=quantity, price=price, exchange=exchange,
+            symbol=symbol, side=side, quantity=quantity, limit_price=limit_price, exchange=exchange,
             client_order_id=client_order_id or mint_client_order_id(), orderable=self._orderable,
             cano=cano, product_code=product_code, environment=self._environment,
         )

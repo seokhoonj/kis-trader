@@ -83,11 +83,11 @@ def test_open_orders_parses_ledger_rows():
     assert first.filled_quantity == Decimal(0)
     assert first.unfilled_quantity == Decimal(1)
     assert first.cancelable_quantity == Decimal(1)
-    assert first.price == Decimal(140000)
+    assert first.order_price == Decimal(140000)
     assert first.order_time == time(13, 14, 38)
     # 정정 주문이 아닌 건은 원주문번호가 빈 문자열
     assert orders[1].original_order_id == ""
-    assert orders[1].price == Decimal(200000)
+    assert orders[1].order_price == Decimal(200000)
 
 
 def test_open_orders_tr_method_and_params():

@@ -86,10 +86,10 @@ class _StockBase(abc.ABC):
 
     # --- 주문 실행(안전 엔진 위임; 계좌 정보 필요) -- 와이어 조립기만 자산군별로 다르다 ---
     def buy(
-        self, *, quantity: Numeric, price: Numeric | None = None,
+        self, *, quantity: Numeric, limit_price: Numeric | None = None,
         time_in_force: TimeInForce = "day", client_order_id: str | None = None,
     ) -> ExecutionReport:
-        """이 종목을 매수한다 -- ``price`` 를 주면 지정가, 없으면 시장가(해외는 지정가만).
+        """이 종목을 매수한다 -- ``limit_price`` 를 주면 지정가, 없으면 시장가(해외는 지정가만).
 
         이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 계좌 정보가 없으면
         :class:`~kis_openapi.errors.KISUsageError`, 조회전용(퇴직연금 등) 계좌면
@@ -97,22 +97,22 @@ class _StockBase(abc.ABC):
         타임아웃(체결 불명)은 ``OrderTimeoutError`` -- 후자는 ``kis.orders.reconcile`` 로 확인한다.
         """
         return self._client._place_order(
-            self._make_order("buy", quantity=quantity, price=price,
+            self._make_order("buy", quantity=quantity, limit_price=limit_price,
                              time_in_force=time_in_force, client_order_id=client_order_id)
         )
 
     def sell(
-        self, *, quantity: Numeric, price: Numeric | None = None,
+        self, *, quantity: Numeric, limit_price: Numeric | None = None,
         time_in_force: TimeInForce = "day", client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 종목을 매도한다 -- 계약은 :meth:`buy` 와 동일(방향만 매도)."""
         return self._client._place_order(
-            self._make_order("sell", quantity=quantity, price=price,
+            self._make_order("sell", quantity=quantity, limit_price=limit_price,
                              time_in_force=time_in_force, client_order_id=client_order_id)
         )
 
     def reserve_buy(
-        self, *, quantity: Numeric, price: Numeric | None = None, end_date: str | None = None,
+        self, *, quantity: Numeric, limit_price: Numeric | None = None, end_date: str | None = None,
         client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 종목의 **예약매수** -- 다음 영업일(또는 ``end_date`` 까지) 아침 동시호가에 집행되도록 예약한다.
@@ -120,31 +120,31 @@ class _StockBase(abc.ABC):
         즉시 :meth:`buy` 와 같은 안전 규칙(이중발주 방지·재시도 금지·주문가능 계좌 가드)을 공유하되
         라이프사이클이 다르다: 반환 :class:`~kis_openapi.report.ExecutionReport` 의 ``order_id`` 는
         예약주문 식별자(정정·취소 시 지목), ``status`` 는 :attr:`~kis_openapi.report.OrderStatus.PENDING_NEW`.
-        **모의투자 미지원**. 국내는 현금 예약(``price`` 있으면 지정가·없으면 시장가, ``end_date`` 지원),
-        해외(미국)는 지정가 예약(``price`` 필수, ``end_date`` 미지원)이다. 잘못된 인자/계좌 미설정은
+        **모의투자 미지원**. 국내는 현금 예약(``limit_price`` 있으면 지정가·없으면 시장가, ``end_date`` 지원),
+        해외(미국)는 지정가 예약(``limit_price`` 필수, ``end_date`` 미지원)이다. 잘못된 인자/계좌 미설정은
         ``KISUsageError``, 조회전용 계좌는 ``AccountNotOrderableError``, 접수 거부는 ``OrderRejectedError``,
         타임아웃(접수 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile`` 로 확인)."""
-        return self._reserve("buy", quantity=quantity, price=price,
+        return self._reserve("buy", quantity=quantity, limit_price=limit_price,
                              end_date=end_date, client_order_id=client_order_id)
 
     def reserve_sell(
-        self, *, quantity: Numeric, price: Numeric | None = None, end_date: str | None = None,
+        self, *, quantity: Numeric, limit_price: Numeric | None = None, end_date: str | None = None,
         client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 종목의 **예약매도**. 계약·안전 규칙은 :meth:`reserve_buy` 와 같다(방향만 매도)."""
-        return self._reserve("sell", quantity=quantity, price=price,
+        return self._reserve("sell", quantity=quantity, limit_price=limit_price,
                              end_date=end_date, client_order_id=client_order_id)
 
     @abc.abstractmethod
     def _make_order(
-        self, side: Side, *, quantity: Numeric, price: Numeric | None,
+        self, side: Side, *, quantity: Numeric, limit_price: Numeric | None,
         time_in_force: TimeInForce, client_order_id: str | None,
     ) -> Order:
         """자산군별 즉시주문 와이어 조립(서브클래스 구현)."""
 
     @abc.abstractmethod
     def _reserve(
-        self, side: Side, *, quantity: Numeric, price: Numeric | None, end_date: str | None,
+        self, side: Side, *, quantity: Numeric, limit_price: Numeric | None, end_date: str | None,
         client_order_id: str | None,
     ) -> ExecutionReport:
         """자산군별 예약주문 발주(서브클래스 구현)."""
@@ -483,14 +483,14 @@ class DomesticStock(_StockBase):
 
     # --- 신용주문(국내 전용) ---
     def credit_buy(
-        self, *, quantity: Numeric, credit_type: CreditType, price: Numeric | None = None,
+        self, *, quantity: Numeric, credit_type: CreditType, limit_price: Numeric | None = None,
         loan_date: str | None = None, time_in_force: TimeInForce = "day",
         client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 종목을 신용(융자/대주)으로 매수한다.
 
         ``quantity`` 주문수량(주 단위 정수), ``credit_type`` 매수 신용유형(21 자기융자신규/23 유통융자
-        신규/26 유통대주상환/28 자기대주상환), ``price`` 지정가(생략 시 시장가), ``loan_date``(YYYYMMDD)
+        신규/26 유통대주상환/28 자기대주상환), ``limit_price`` 지정가(생략 시 시장가), ``loan_date``(YYYYMMDD)
         상환유형(26/28)일 때 대상 대출일자(필수)·신규유형(21/23)이면 생략(전송 시 오늘로 채움),
         ``time_in_force`` 현재 ``"day"`` 만, ``client_order_id`` 멱등키(생략 시 자동 발행).
 
@@ -501,12 +501,12 @@ class DomesticStock(_StockBase):
         self._client._require_credit_enabled()
         self._require_krx_board("신용주문")
         return self._client._place_order(Order.credit(
-            self.symbol, side="buy", quantity=quantity, credit_type=credit_type, price=price,
+            self.symbol, side="buy", quantity=quantity, credit_type=credit_type, limit_price=limit_price,
             loan_date=loan_date, time_in_force=time_in_force, client_order_id=client_order_id,
         ))
 
     def credit_sell(
-        self, *, quantity: Numeric, credit_type: CreditType, price: Numeric | None = None,
+        self, *, quantity: Numeric, credit_type: CreditType, limit_price: Numeric | None = None,
         loan_date: str | None = None, time_in_force: TimeInForce = "day",
         client_order_id: str | None = None,
     ) -> ExecutionReport:
@@ -518,23 +518,23 @@ class DomesticStock(_StockBase):
         self._client._require_credit_enabled()
         self._require_krx_board("신용주문")
         return self._client._place_order(Order.credit(
-            self.symbol, side="sell", quantity=quantity, credit_type=credit_type, price=price,
+            self.symbol, side="sell", quantity=quantity, credit_type=credit_type, limit_price=limit_price,
             loan_date=loan_date, time_in_force=time_in_force, client_order_id=client_order_id,
         ))
 
     # --- 주문 실행(국내 현금; KRX 주문구분 division 지원) -- _StockBase.buy/sell 을 오버라이드 ---
     def buy(
-        self, *, quantity: Numeric, price: Numeric | None = None,
+        self, *, quantity: Numeric, limit_price: Numeric | None = None,
         time_in_force: TimeInForce = "day", division: DomesticDivision | None = None,
         client_order_id: str | None = None,
     ) -> ExecutionReport:
-        """이 종목을 매수한다 -- ``price`` 를 주면 지정가, 없으면 시장가.
+        """이 종목을 매수한다 -- ``limit_price`` 를 주면 지정가, 없으면 시장가.
 
         ``division`` 으로 KRX 고유 주문구분을 고른다(국내 현금 전용):
-        ``conditional_limit`` 조건부지정가(장중 지정가->마감 시장가, ``price`` 필요),
+        ``conditional_limit`` 조건부지정가(장중 지정가->마감 시장가, ``limit_price`` 필요),
         ``immediate_limit`` 최유리지정가(접수 시점 상대편 최우선호가에 지정가로 즉시 체결 -- 매도면 최우선
-        매수호가, 매수면 최우선 매도호가; ``price`` 없음), ``priority_limit`` 최우선지정가(같은 방향 최우선
-        호가에 지정가로 대기, 체결 우선순위 확보; ``price`` 없음). IOC/FOK 는 ``time_in_force="ioc"/"fok"``
+        매수호가, 매수면 최우선 매도호가; ``limit_price`` 없음), ``priority_limit`` 최우선지정가(같은 방향 최우선
+        호가에 지정가로 대기, 체결 우선순위 확보; ``limit_price`` 없음). IOC/FOK 는 ``time_in_force="ioc"/"fok"``
         로 조합한다(지정가/시장가/최유리에서). ``immediate_limit`` 은 시장가의 슬리피지 없이 즉시 체결하려는
         안전 대안이다(얕은 호가에서 시장가는 나쁜 가격까지 쓸어담을 수 있다).
 
@@ -543,66 +543,66 @@ class DomesticStock(_StockBase):
         AccountNotOrderableError`, 접수 거부는 ``OrderRejectedError``, 타임아웃(체결 불명)은
         ``OrderTimeoutError`` -- 후자는 ``kis.orders.reconcile`` 로 확인한다."""
         return self._client._place_order(self._make_domestic_order(
-            "buy", quantity=quantity, price=price, time_in_force=time_in_force,
+            "buy", quantity=quantity, limit_price=limit_price, time_in_force=time_in_force,
             division=division, client_order_id=client_order_id,
         ))
 
     def sell(
-        self, *, quantity: Numeric, price: Numeric | None = None,
+        self, *, quantity: Numeric, limit_price: Numeric | None = None,
         time_in_force: TimeInForce = "day", division: DomesticDivision | None = None,
         client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 종목을 매도한다 -- 계약·``division`` 은 :meth:`buy` 와 동일(방향만 매도)."""
         return self._client._place_order(self._make_domestic_order(
-            "sell", quantity=quantity, price=price, time_in_force=time_in_force,
+            "sell", quantity=quantity, limit_price=limit_price, time_in_force=time_in_force,
             division=division, client_order_id=client_order_id,
         ))
 
     def _make_order(
-        self, side: Side, *, quantity: Numeric, price: Numeric | None,
+        self, side: Side, *, quantity: Numeric, limit_price: Numeric | None,
         time_in_force: TimeInForce, client_order_id: str | None,
     ) -> Order:
         return self._make_domestic_order(
-            side, quantity=quantity, price=price, time_in_force=time_in_force,
+            side, quantity=quantity, limit_price=limit_price, time_in_force=time_in_force,
             division=None, client_order_id=client_order_id,
         )
 
     def _make_domestic_order(
-        self, side: Side, *, quantity: Numeric, price: Numeric | None,
+        self, side: Side, *, quantity: Numeric, limit_price: Numeric | None,
         time_in_force: TimeInForce, division: DomesticDivision | None, client_order_id: str | None,
     ) -> Order:
-        # 최유리/최우선은 시장이 가격을 정하므로 price 없음(order_type="market" 기반), 조건부는 가격 필요
-        # (order_type="limit" 기반). division 없으면 기존 동작(price 유무로 시장가/지정가). 결합 불변식은
+        # 최유리/최우선은 시장이 가격을 정하므로 limit_price 없음(order_type="market" 기반), 조건부는 가격 필요
+        # (order_type="limit" 기반). division 없으면 기존 동작(limit_price 유무로 시장가/지정가). 결합 불변식은
         # Order.__post_init__ 에도 있으나, 여기서 미리 막아 division 을 지목하는 명확한 메시지를 준다.
         if division in ("immediate_limit", "priority_limit"):
-            if price is not None:
+            if limit_price is not None:
                 raise KISUsageError(
-                    f"{division} 은 시장이 가격을 정하므로 price 를 줄 수 없다(최유리/최우선호가 기준)."
+                    f"{division} 은 시장이 가격을 정하므로 limit_price 를 줄 수 없다(최유리/최우선호가 기준)."
                 )
             return Order.market(self.symbol, side=side, quantity=quantity,
                                 time_in_force=time_in_force, division=division,
                                 board=self.market, client_order_id=client_order_id)
         if division == "conditional_limit":
-            if price is None:
-                raise KISUsageError("conditional_limit(조건부지정가)은 price 가 필요하다.")
-            return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
+            if limit_price is None:
+                raise KISUsageError("conditional_limit(조건부지정가)은 limit_price 가 필요하다.")
+            return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=limit_price,
                                time_in_force=time_in_force, division=division,
                                board=self.market, client_order_id=client_order_id)
-        if price is None:
+        if limit_price is None:
             return Order.market(self.symbol, side=side, quantity=quantity,
                                 time_in_force=time_in_force, board=self.market,
                                 client_order_id=client_order_id)
-        return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
+        return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=limit_price,
                            time_in_force=time_in_force, board=self.market,
                            client_order_id=client_order_id)
 
     def _reserve(
-        self, side: Side, *, quantity: Numeric, price: Numeric | None, end_date: str | None,
+        self, side: Side, *, quantity: Numeric, limit_price: Numeric | None, end_date: str | None,
         client_order_id: str | None,
     ) -> ExecutionReport:
         self._require_krx_board("예약주문")
         return self._client._place_reserved_order(
-            symbol=self.symbol, side=side, quantity=quantity, price=price, end_date=end_date,
+            symbol=self.symbol, side=side, quantity=quantity, limit_price=limit_price, end_date=end_date,
             client_order_id=client_order_id,
         )
 
@@ -669,9 +669,9 @@ class OverseasStock(_StockBase):
 
     # --- 미국주간거래(한국 낮 시간대; 미국 NAS/NYS/AMS 만) ---
     def daytime_buy(
-        self, *, quantity: Numeric, price: Numeric, client_order_id: str | None = None,
+        self, *, quantity: Numeric, limit_price: Numeric, client_order_id: str | None = None,
     ) -> ExecutionReport:
-        """이 미국 종목을 **미국주간거래**로 매수한다(한국 낮 시간대). 지정가만(``price`` 필수).
+        """이 미국 종목을 **미국주간거래**로 매수한다(한국 낮 시간대). 지정가만(``limit_price`` 필수).
 
         정규 :meth:`buy` 와 같은 안전 엔진(이중체결 방지·재시도 금지)을 공유하되 세션이 달라 정정·취소는
         미국주간 전용 엔드포인트로 라우팅된다(반환 리포트의 ``client_order_id`` 로 ``kis.orders.cancel``/
@@ -679,40 +679,40 @@ class OverseasStock(_StockBase):
         은 주간 체결이 정규 체결내역에 없어 자동 확정하지 않고 None(in-flight 유지)을 준다 -- 수동 확인이
         필요하다. 예외는 :meth:`buy` 와 같다(접수 거부 ``OrderRejectedError``·타임아웃 ``OrderTimeoutError``)."""
         return self._client._place_order(self._make_daytime_order(
-            "buy", quantity=quantity, price=price, client_order_id=client_order_id))
+            "buy", quantity=quantity, limit_price=limit_price, client_order_id=client_order_id))
 
     def daytime_sell(
-        self, *, quantity: Numeric, price: Numeric, client_order_id: str | None = None,
+        self, *, quantity: Numeric, limit_price: Numeric, client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 미국 종목을 미국주간거래로 매도한다(계약은 :meth:`daytime_buy` 와 동일, 방향만 매도)."""
         return self._client._place_order(self._make_daytime_order(
-            "sell", quantity=quantity, price=price, client_order_id=client_order_id))
+            "sell", quantity=quantity, limit_price=limit_price, client_order_id=client_order_id))
 
     def _make_daytime_order(
-        self, side: Side, *, quantity: Numeric, price: Numeric, client_order_id: str | None,
+        self, side: Side, *, quantity: Numeric, limit_price: Numeric, client_order_id: str | None,
     ) -> Order:
-        return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
+        return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=limit_price,
                            exchange=self.exchange, session="daytime", client_order_id=client_order_id)
 
     def _make_order(
-        self, side: Side, *, quantity: Numeric, price: Numeric | None,
+        self, side: Side, *, quantity: Numeric, limit_price: Numeric | None,
         time_in_force: TimeInForce, client_order_id: str | None,
     ) -> Order:
-        if price is None:
-            raise KISUsageError("해외 주문은 지정가만 지원한다 -- price 를 지정하라(시장가 미지원).")
-        return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=price,
+        if limit_price is None:
+            raise KISUsageError("해외 주문은 지정가만 지원한다 -- limit_price 를 지정하라(시장가 미지원).")
+        return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=limit_price,
                            time_in_force=time_in_force, client_order_id=client_order_id,
                            exchange=self.exchange)
 
     def _reserve(
-        self, side: Side, *, quantity: Numeric, price: Numeric | None, end_date: str | None,
+        self, side: Side, *, quantity: Numeric, limit_price: Numeric | None, end_date: str | None,
         client_order_id: str | None,
     ) -> ExecutionReport:
         if end_date is not None:      # 미국 예약: 지정가만, end_date 미지원
             raise KISUsageError("해외 예약주문은 end_date 를 지원하지 않는다(미국 예약).")
-        if price is None:
-            raise KISUsageError("해외 예약주문은 지정가만 지원한다 -- price 를 지정하라.")
+        if limit_price is None:
+            raise KISUsageError("해외 예약주문은 지정가만 지원한다 -- limit_price 를 지정하라.")
         return self._client._place_overseas_reserved_order(
-            symbol=self.symbol, side=side, quantity=quantity, price=price,
+            symbol=self.symbol, side=side, quantity=quantity, limit_price=limit_price,
             exchange=self.exchange, client_order_id=client_order_id,
         )

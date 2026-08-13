@@ -64,7 +64,7 @@ def test_algo_orders_parses():
     assert o.order_id == "0030000123"
     assert o.symbol == "AAPL"
     assert o.quantity == Decimal(10)
-    assert o.price == Decimal("150.25")
+    assert o.order_price == Decimal("150.25")
     assert o.filled_quantity == Decimal(3)
     assert o.split_attribute == "정규장 종료"
     assert o.branch_number == "06010"
