@@ -28,6 +28,7 @@ book:
 format:
   html:
     theme: [default, custom.scss]
+    highlight-style: atom-one
     include-in-header: _head.html
     toc: true
     toc-depth: 3
