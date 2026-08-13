@@ -2,3 +2,16 @@
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
 <link rel="stylesheet" as="style" crossorigin
       href="https://cdn.jsdelivr.net/gh/fonts-archive/Paperlogy/Paperlogy.css" />
+<script>
+  // 브랜드 제목의 "KIS"만 포인트 컬러로 감싼다 (<title> 탭 텍스트는 건드리지 않음)
+  document.addEventListener("DOMContentLoaded", function () {
+    document.querySelectorAll(".sidebar-title a, h1.title").forEach(function (el) {
+      if (el.textContent.trim() === "KIS OpenAPI" && !el.querySelector(".kis-accent")) {
+        el.innerHTML = el.innerHTML.replace(
+          /KIS(\s+OpenAPI)/,
+          '<span class="kis-accent">KIS</span>$1'
+        );
+      }
+    });
+  });
+</script>
