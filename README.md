@@ -1,106 +1,59 @@
 # kis-openapi
 
-A clean Python client for the Korea Investment & Securities (KIS) Open API.
+한국투자증권(KIS) Open API 파이썬 클라이언트. Python ≥ 3.11.
 
 ```python
 from kis_openapi import KISClient
 
 kis = KISClient(app_key="…", app_secret="…", account="12345678-01")
 
-price = kis.domestic.stock("005930").quote()          # 삼성전자 현재가
-aapl  = kis.overseas.stock("AAPL").quote()             # AAPL (거래소 자동 해석)
-gainers = kis.domestic.ranking.by_change(top="gainers")
+kis.domestic.stock("005930").quote()           # 삼성전자 현재가
+kis.overseas.stock("AAPL").quote()             # AAPL (거래소 자동)
+kis.domestic.ranking.by_change(top="gainers")  # 등락률 순위
 ```
 
-**Audience: Korean KIS users.** Public **identifiers** use industry-standard English
-terms (as used across international market-data and brokerage APIs); the explanatory
-**docstrings are written in Korean** for the audience, and carry the underlying KIS URLs
-and TR-ids. The guides under [`docs/`](docs/) are likewise in Korean.
+공개 식별자는 영어, 설명 docstring은 한국어(+ KIS URL·TR-id).
 
-Requires Python ≥ 3.11.
-
-## Install
-
-Greenfield (version `0.0.0`, not yet on PyPI) — install from source:
+## 설치
 
 ```bash
-uv pip install -e .        # or: pip install -e .
+uv pip install -e .      # greenfield 0.0.0 (아직 PyPI 미배포)
 ```
 
-## The shape of the API
+## 구조
 
-Everything hangs off one session object, `KISClient`, split by **asset class** — you never
-mirror KIS's URL tree by hand.
-
-| Top level | What it is |
-|---|---|
-| `kis.domestic` | Domestic (KRX/NXT) stocks, indices, bonds, ELW, index futures/options, account, rankings, market, calendar |
-| `kis.overseas` | Overseas stocks, indices, futures/options, account, rankings, reference data |
-| `kis.pension` | Retirement-pension account (deposit / buyable / balance / orders) |
-| `kis.orders` | Asset-neutral order lifecycle (`reconcile` / `cancel` / `modify`) |
-| `kis.instrument` | Symbol resolution *before* an asset class is known |
-| `kis.transport` / `kis.environment` / `kis.revoke_token()` | Session plumbing |
-
-**Instrument handles** are how you talk to a single security or contract:
+세션 하나(`KISClient`)에서 자산군별로 갈라진다.
 
 ```python
-kis.domestic.stock("005930")     # -> DomesticStock  (quote/bars/order_book/buy/sell/…)
-kis.overseas.stock("AAPL")       # -> OverseasStock   (exchange auto-resolved from the master)
-kis.domestic.futures("101W09")   # -> FuturesContract (has underlying_quote())
-kis.domestic.option("201W09")    # -> OptionContract  (no underlying_quote — futures-only)
+kis.domestic     # 국내 주식·지수·채권·ELW·파생·계좌·순위·시장·캘린더
+kis.overseas     # 해외 주식·지수·파생·계좌·순위
+kis.pension      # 퇴직연금
+kis.orders       # 주문 라이프사이클 (reconcile / cancel / modify)
 ```
 
-A handle only exposes what that instrument actually supports: an `OptionContract` has no
-`underlying_quote()`, so a wrong call is caught by your type checker, not at runtime.
-
-Result objects are **frozen** and read-only; every one keeps the raw vendor payload on a
-private `_raw` escape hatch, and each field carries its KIS wire key + unit in the docstring.
-
-## Market-wide rankings
-
-`kis.domestic.ranking.*` returns market-wide rankings as lists of typed rows:
+종목 핸들로 한 종목을 다룬다.
 
 ```python
-kis.domestic.ranking.by_change(top="gainers")     # 등락률
-kis.domestic.ranking.by_volume()                  # 거래량
-kis.domestic.ranking.by_market_cap()              # 시가총액
-kis.domestic.ranking.by_short_sale(window="1d")   # 공매도
+kis.domestic.stock("005930")     # DomesticStock (quote/bars/order_book/buy/sell/…)
+kis.overseas.stock("AAPL")       # OverseasStock (거래소 자동)
+kis.domestic.futures("101W09")   # FuturesContract (underlying_quote 있음)
+kis.domestic.option("201W09")    # OptionContract  (없음 — 선물 전용)
 ```
 
-Overseas rankings live under `kis.overseas.ranking.*`.
-
-## Placing orders — a safety-first order path
-
-Orders go through a client-side safety kernel that treats a brokerage order as what it is:
-an irreversible, non-idempotent side effect.
+## 주문
 
 ```python
-report = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)
-report = kis.orders.reconcile(report.client_order_id)   # confirm against the broker
-kis.orders.cancel(report.client_order_id)
+r = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)
+kis.orders.reconcile(r.client_order_id)   # 브로커 대조 → 확정
+kis.orders.cancel(r.client_order_id)
 ```
 
-The guarantees:
+클라이언트측 안전 커널: **오확정 금지 · write 무재시도 · 보수적 reconcile**. 신용/주문가능은
+기본 차단. → [`docs/orders-and-safety.md`](docs/orders-and-safety.md)
 
-- **Client-side idempotency** — each order carries a `client_order_id`; a resend of the
-  same logical order is de-duplicated by a persisted fingerprint, so a retry can never
-  become a second order.
-- **No retry on a write** — a POST that times out is left *in-flight*, never resent.
-- **Conservative reconcile** — an ambiguous or non-finite broker response never confirms
-  an order; uncertainty leaves it in-flight for you to check.
+## 문서
 
-High-risk actions are **off by default**: `KISClient(orderable=…)` gates whether an account
-may order at all (auto-derived from the account product type), and credit orders require an
-explicit `allow_credit=True`. Optional `RiskLimits` add pre-trade quantity / notional /
-price-collar caps. See [`docs/orders-and-safety.md`](docs/orders-and-safety.md).
+[빠른 시작](docs/quickstart.md) · [국내](docs/domestic.md) · [해외](docs/overseas.md) ·
+[퇴직연금](docs/pension.md) · [주문·안전](docs/orders-and-safety.md)
 
-## Documentation
-
-- [`docs/quickstart.md`](docs/quickstart.md) — credentials, the client, your first calls
-- [`docs/domestic.md`](docs/domestic.md) — `kis.domestic` in full
-- [`docs/overseas.md`](docs/overseas.md) — `kis.overseas` in full
-- [`docs/pension.md`](docs/pension.md) — `kis.pension`
-- [`docs/orders-and-safety.md`](docs/orders-and-safety.md) — the order path and its safety model
-
-Per-endpoint detail (parameters, the KIS URL, the TR-id, every field) lives in the Korean
-docstring of each method — read it with `help(...)` or your IDE.
+엔드포인트별 상세는 각 메서드 docstring에 (`help(...)` / IDE).
