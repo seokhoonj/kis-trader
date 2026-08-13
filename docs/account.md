@@ -1,6 +1,6 @@
 # 계좌·잔고·손익
 
-계좌 조회는 `kis.domestic.account.*` 에 모여 있다. 세션을 `account=` 로 열어야 한다.
+계좌 조회는 `kis.domestic.account.*` 에 모여 있습니다. 세션을 `account=` 로 열어야 합니다.
 
 ```python
 a = kis.domestic.account
@@ -48,7 +48,7 @@ for p in a.positions():
 | `unrealized_pnl` | 평가손익 |
 | `unrealized_pnl_percent` | 수익률(%) |
 
-`sellable_quantity`(매도가능)는 담보·대주 등으로 `quantity`(보유)보다 적을 수 있다.
+`sellable_quantity`(매도가능)는 담보·대주 등으로 `quantity`(보유)보다 적을 수 있습니다.
 
 보유종목 + 요약을 한 번에: `a.portfolio()` → `.positions`, `.summary`.
 
@@ -63,10 +63,10 @@ a.realized_profit_balance()                        # 실현손익 포함 잔고
 ::: {.callout-note}
 ## 평가손익 vs 실현손익
 - **평가손익 (미실현, `unrealized_pnl`)** — 아직 **안 판** 보유종목의 장부상 손익. 현재가로
-  계산돼 계속 바뀌고, 팔기 전엔 확정이 아니다.
+  계산돼 계속 바뀌고, 팔기 전엔 확정이 아닙니다.
 - **실현손익 (`trade_profits` / `daily_profits`)** — 실제로 **팔아서 확정된** 손익.
 
-"평가손익 +100만"이라도 팔기 전엔 내 돈이 아니다. 판 순간 실현손익으로 고정된다.
+"평가손익 +100만"이라도 팔기 전엔 내 돈이 아닙니다. 판 순간 실현손익으로 고정됩니다.
 :::
 
 ## 미체결·주문가능
@@ -87,7 +87,7 @@ a.integrated_margin()                       # 통합증거금
 
 ## 해외 계좌
 
-해외는 통화·시장이 얽혀 있어 살짝 다르다.
+해외는 통화·시장이 얽혀 있어 살짝 다릅니다.
 
 ```python
 oa = kis.overseas.account

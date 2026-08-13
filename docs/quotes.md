@@ -1,6 +1,6 @@
 # 시세 보기
 
-종목 하나는 `kis.domestic.stock("종목코드")` 로 잡고, 거기서 시세를 조회한다.
+종목 하나는 `kis.domestic.stock("종목코드")` 로 잡고, 거기서 시세를 조회합니다.
 
 ```python
 s = kis.domestic.stock("005930")  # 삼성전자
@@ -28,7 +28,7 @@ print(q.current_price, q.change_percent)  # 예: 71500  0.70
 
 ## 차트 (봉)
 
-`bars(interval, start=, end=)` 하나로 분봉·일봉·주봉·월봉을 다 본다.
+`bars(interval, start=, end=)` 하나로 분봉·일봉·주봉·월봉을 다 봅니다.
 
 ```python
 s.bars("1d", start="20240101", end="20240630")  # 일봉
@@ -36,7 +36,7 @@ s.bars("1wk", start="20230101")                 # 주봉
 s.bars("1m", max_bars=120)                      # 당일 1분봉 최근 120개
 ```
 
-과거→현재 순으로 온다. 각 봉(`Bar`)은 `timestamp / open / high / low / close / volume`.
+과거→현재 순으로 옵니다. 각 봉(`Bar`)은 `timestamp / open / high / low / close / volume`.
 
 ```python
 bars = s.bars("1d", start="20240101")
@@ -56,7 +56,7 @@ print(best_bid.price, best_bid.quantity)
 print(ob.total_bid_quantity, ob.total_ask_quantity)  # 총 매수/매도 잔량
 ```
 
-`bids` · `asks` 는 각각 (가격 `price`, 잔량 `quantity`) 호가 단계 튜플이다.
+`bids` · `asks` 는 각각 (가격 `price`, 잔량 `quantity`) 호가 단계 튜플입니다.
 
 ## 체결·최근가
 
@@ -77,7 +77,7 @@ kis.domestic.quotes([("KRX", "005930"), ("NXT", "123456")])
 
 ::: {.callout-note}
 **KRX vs NXT** — KRX는 한국거래소 정규시장, NXT(넥스트레이드)는 2025년 출범한 대체거래소(ATS,
-정규거래소 밖의 또 다른 매매 장)다. 같은 종목이 두 곳에서 거래되며, 보드를 안 주면 KRX 기준이다.
+정규거래소 밖의 또 다른 매매 장)입니다. 같은 종목이 두 곳에서 거래되며, 보드를 안 주면 KRX 기준입니다.
 :::
 
 ## 시간외
@@ -99,6 +99,6 @@ kis.overseas.stock("AAPL").bars("1d")
 ```
 
 ::: {.callout-tip}
-필드가 더 궁금하면 `help(type(q))` — 각 필드의 한국어 설명과 KIS 원본 키(TR-id 포함)가 나온다.
+필드가 더 궁금하면 `help(type(q))` — 각 필드의 한국어 설명과 KIS 원본 키(TR-id 포함)가 나옵니다.
 원본 응답 전체는 `q._raw` 로 접근.
 :::

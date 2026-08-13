@@ -20,7 +20,7 @@ for row in r.by_change(top="gainers")[:10]:
     print(f"{row.rank:2d}. {row.name:10s} {row.price:>8,}  {row.change_percent:>6}%")
 ```
 
-순위별 고유 지표(공매도량·신용잔고 등)는 각 결과의 `_raw` 에 있다.
+순위별 고유 지표(공매도량·신용잔고 등)는 각 결과의 `_raw` 에 있습니다.
 
 더 있는 순위:
 
@@ -36,7 +36,7 @@ r.by_views()                  # HTS 조회 상위
 
 ## 조건검색 (HTS 저장조건)
 
-HTS에 저장해둔 조건검색을 불러 실행한다.
+HTS에 저장해둔 조건검색을 불러 실행합니다.
 
 ```python
 kis.domestic.saved_screens()               # 저장된 조건 목록
@@ -52,7 +52,7 @@ kis.domestic.watchlist(group="…")  # 그룹 안 종목
 
 ## 재무·가치 순위
 
-재무비율·밸류에이션으로 정렬된 순위도 있다.
+재무비율·밸류에이션으로 정렬된 순위도 있습니다.
 
 ```python
 r.by_finance_ratio()  # 재무비율
