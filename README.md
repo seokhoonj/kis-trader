@@ -3,47 +3,104 @@
 A clean Python client for the Korea Investment & Securities (KIS) Open API.
 
 ```python
-from kis_openapi import ...  # design in progress
+from kis_openapi import KISClient
+
+kis = KISClient(app_key="…", app_secret="…", account="12345678-01")
+
+price = kis.domestic.stock("005930").quote()          # 삼성전자 현재가
+aapl  = kis.overseas.stock("AAPL").quote()             # AAPL (거래소 자동 해석)
+gainers = kis.domestic.ranking.by_change(top="gainers")
 ```
 
 **Audience: Korean KIS users.** Public **identifiers** use industry-standard English
 terms (as used across international market-data and brokerage APIs); the explanatory
 **docstrings are written in Korean** for the audience, and carry the underlying KIS URLs
-and TR-ids. (This audience choice is deliberate — see the source's docstring language.)
+and TR-ids. The guides under [`docs/`](docs/) are likewise in Korean.
 
-Design goals: standard English identifiers, semantic grouping of related vendor endpoints
-into single clean functions (with the underlying KIS URLs in each docstring), market data
-including analyst opinions/estimates where KIS provides them, domestic and overseas stock
-orders and balances across account types, and an order path built to a safety standard
-(client-side idempotency, no write-retries, conservative reconciliation).
+Requires Python ≥ 3.11.
 
-## Market-wide rankings — `kis.domestic.ranking`
+## Install
 
-`kis.domestic.ranking.*` returns market-wide rankings (top movers, most traded, and so
-on) as lists of typed rows. Coverage of the KIS ranking endpoints:
+Greenfield (version `0.0.0`, not yet on PyPI) — install from source:
 
-| Ranking | Verb | Done |
-|---|---|:---:|
-| Price change (등락률) | `by_change` | ✅ |
-| Volume (거래량) | `by_volume` | ✅ |
-| Market cap (시가총액) | `by_market_cap` | ✅ |
-| Disparity (이격도) | `by_disparity` | ✅ |
-| Quote balance (호가잔량) | `by_quote_balance` | ✅ |
-| Execution strength (체결강도) | `by_volume_power` | ✅ |
-| Bulk-trade count (대량체결건수) | `by_bulk_trades` | ✅ |
-| Watchlist registrations (관심종목 등록상위) | `by_interest` | ✅ |
-| Preferred-vs-common disparity (우선주 괴리율) | `by_preferred_disparity` | ✅ |
-| Financial ratios (재무비율) | `by_finance_ratio` | ✅ |
-| Valuation multiples (시장가치) | `by_valuation` | ✅ |
-| Profit & asset figures (수익자산지표) | `by_profit_asset` | ✅ |
-| Firm's own trading (당사매매종목) | `by_company_trades` | ✅ |
-| Dividend rate (배당률) | `by_dividend` | ✅ |
-| Short selling (공매도) | `by_short_sale` | ✅ |
-| Credit balance (신용잔고) | `by_credit_balance` | ✅ |
-| Near new high/low (신고신저근접) | `by_near_high_low` | ✅ |
-| Expected-open change (예상체결 등락) | | |
-| After-hours quote balance (시간외잔량) | | |
-| After-hours change (시간외 등락) | | |
-| After-hours volume (시간외 거래량) | | |
-| After-hours expected change (시간외 예상체결) | | |
-| Most-viewed on HTS (HTS 조회상위) | | |
+```bash
+uv pip install -e .        # or: pip install -e .
+```
+
+## The shape of the API
+
+Everything hangs off one session object, `KISClient`, split by **asset class** — you never
+mirror KIS's URL tree by hand.
+
+| Top level | What it is |
+|---|---|
+| `kis.domestic` | Domestic (KRX/NXT) stocks, indices, bonds, ELW, index futures/options, account, rankings, market, calendar |
+| `kis.overseas` | Overseas stocks, indices, futures/options, account, rankings, reference data |
+| `kis.pension` | Retirement-pension account (deposit / buyable / balance / orders) |
+| `kis.orders` | Asset-neutral order lifecycle (`reconcile` / `cancel` / `modify`) |
+| `kis.instrument` | Symbol resolution *before* an asset class is known |
+| `kis.transport` / `kis.environment` / `kis.revoke_token()` | Session plumbing |
+
+**Instrument handles** are how you talk to a single security or contract:
+
+```python
+kis.domestic.stock("005930")     # -> DomesticStock  (quote/bars/order_book/buy/sell/…)
+kis.overseas.stock("AAPL")       # -> OverseasStock   (exchange auto-resolved from the master)
+kis.domestic.futures("101W09")   # -> FuturesContract (has underlying_quote())
+kis.domestic.option("201W09")    # -> OptionContract  (no underlying_quote — futures-only)
+```
+
+A handle only exposes what that instrument actually supports: an `OptionContract` has no
+`underlying_quote()`, so a wrong call is caught by your type checker, not at runtime.
+
+Result objects are **frozen** and read-only; every one keeps the raw vendor payload on a
+private `_raw` escape hatch, and each field carries its KIS wire key + unit in the docstring.
+
+## Market-wide rankings
+
+`kis.domestic.ranking.*` returns market-wide rankings as lists of typed rows:
+
+```python
+kis.domestic.ranking.by_change(top="gainers")     # 등락률
+kis.domestic.ranking.by_volume()                  # 거래량
+kis.domestic.ranking.by_market_cap()              # 시가총액
+kis.domestic.ranking.by_short_sale(window="1d")   # 공매도
+```
+
+Overseas rankings live under `kis.overseas.ranking.*`.
+
+## Placing orders — a safety-first order path
+
+Orders go through a client-side safety kernel that treats a brokerage order as what it is:
+an irreversible, non-idempotent side effect.
+
+```python
+report = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)
+report = kis.orders.reconcile(report.client_order_id)   # confirm against the broker
+kis.orders.cancel(report.client_order_id)
+```
+
+The guarantees:
+
+- **Client-side idempotency** — each order carries a `client_order_id`; a resend of the
+  same logical order is de-duplicated by a persisted fingerprint, so a retry can never
+  become a second order.
+- **No retry on a write** — a POST that times out is left *in-flight*, never resent.
+- **Conservative reconcile** — an ambiguous or non-finite broker response never confirms
+  an order; uncertainty leaves it in-flight for you to check.
+
+High-risk actions are **off by default**: `KISClient(orderable=…)` gates whether an account
+may order at all (auto-derived from the account product type), and credit orders require an
+explicit `allow_credit=True`. Optional `RiskLimits` add pre-trade quantity / notional /
+price-collar caps. See [`docs/orders-and-safety.md`](docs/orders-and-safety.md).
+
+## Documentation
+
+- [`docs/quickstart.md`](docs/quickstart.md) — credentials, the client, your first calls
+- [`docs/domestic.md`](docs/domestic.md) — `kis.domestic` in full
+- [`docs/overseas.md`](docs/overseas.md) — `kis.overseas` in full
+- [`docs/pension.md`](docs/pension.md) — `kis.pension`
+- [`docs/orders-and-safety.md`](docs/orders-and-safety.md) — the order path and its safety model
+
+Per-endpoint detail (parameters, the KIS URL, the TR-id, every field) lives in the Korean
+docstring of each method — read it with `help(...)` or your IDE.
