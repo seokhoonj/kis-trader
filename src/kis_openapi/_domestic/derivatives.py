@@ -1,6 +1,7 @@
 """국내 선물/옵션(파생) 시세 조회 (내부) -- 계약 현재가를 :class:`DerivativeQuote` 로.
 
-사용자면은 파생 핸들(:class:`~kis_openapi.derivative.Derivative`, ``kis.domestic.futures(code)`` /
+사용자면은 파생 핸들(:class:`~kis_openapi.derivative.FuturesContract` /
+:class:`~kis_openapi.derivative.OptionContract`, ``kis.domestic.futures(code)`` /
 ``kis.domestic.option(code)``)이다. 파생은 종목이 아니라 시장구분(F:지수선물 / O:지수옵션) + 계약코드로
 조회한다. 스캘핑에 필요한 미결제약정·베이시스·이론가는 output1 에서 매핑한다.
 
@@ -17,7 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from .._bars import (
     _MAX_MINUTE_PAGES,
@@ -197,9 +198,11 @@ def fetch_option_board(
 
 
 def fetch_underlying_quote(
-    transport: Transport, *, code: str, market: DerivativeMarket
+    transport: Transport, *, code: str, market: Literal["F"]
 ) -> UnderlyingQuote:
     """선물 계약과 그 기초자산(지수)을 나란히 담는 스냅샷. ``code`` 는 선물 최근월물, ``market`` 은 F.
+    이 조회는 선물 전용이라 ``market`` 은 F 만 받는다(옵션은 :class:`~kis_openapi.derivative.OptionContract`
+    에 이 메서드가 없다).
     기초자산/선물 전일대비는 서로 다른 부호 필드(unas_prdy_vrss_sign / prdy_vrss_sign)로 복원한다."""
     params = {
         "FID_COND_MRKT_DIV_CODE": market,

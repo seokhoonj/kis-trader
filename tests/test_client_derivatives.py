@@ -11,7 +11,14 @@ from decimal import Decimal
 
 import pytest
 
-from kis_openapi import Bar, DerivativeQuote, KISClient, OrderBook
+from kis_openapi import (
+    Bar,
+    DerivativeQuote,
+    FuturesContract,
+    KISClient,
+    OptionContract,
+    OrderBook,
+)
 from kis_openapi.errors import KISError, KISUsageError
 from kis_openapi.transport import RawResponse
 
@@ -286,6 +293,29 @@ def test_underlying_quote_missing_output1_fails_closed():
     from kis_openapi.errors import KISError
     with pytest.raises(KISError):
         _client(fake).domestic.futures("101V06").underlying_quote()
+
+
+# --- 핸들 종류 분리(FuturesContract / OptionContract) -------------------------
+def test_futures_and_option_are_split_handles():
+    fake = FakeTransport(response=_resp(_output()))
+    client = _client(fake)
+    futures = client.domestic.futures("101W09")
+    option = client.domestic.option("201W09335")
+    assert isinstance(futures, FuturesContract)
+    assert isinstance(option, OptionContract)
+    assert futures.market == "F"       # 선물은 F 로 고정
+    assert option.market == "O"        # 옵션은 O 로 고정
+
+
+def test_underlying_quote_is_futures_only_structural_absence():
+    fake = FakeTransport(response=_resp(_output()))
+    option = _client(fake).domestic.option("201W09335")
+    # 기초자산 나란히 보기는 선물 전용 -- 옵션 핸들엔 아예 없다(런타임 미지원 요청이 아니라 구조적 부재).
+    assert not hasattr(option, "underlying_quote")
+    with pytest.raises(AttributeError):
+        option.underlying_quote()      # type: ignore[attr-defined]
+    # 선물 핸들에는 존재한다.
+    assert hasattr(_client(fake).domestic.futures("101W09"), "underlying_quote")
 
 
 def test_expected_execution_trend_maps_summary_and_sorted_points():

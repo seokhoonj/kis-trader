@@ -68,7 +68,7 @@ from .calendar_items import (
     ShareholderMeeting,
 )
 from .client import KISClient
-from .derivative import Derivative
+from .derivative import FuturesContract, OptionContract
 from .derivative_items import (
     DerivativeQuote,
     ExpectedExecutionPoint,
@@ -273,7 +273,6 @@ __all__ = [
     "DailyProfitHistory",
     "DailyProgramTradePoint",
     "DailyTradeVolumePoint",
-    "Derivative",
     "DerivativeQuote",
     "DetailedInvestorFlow",
     "DetailedInvestorHistory",
@@ -307,6 +306,7 @@ __all__ = [
     "ForeignNetBuyPoint",
     "ForfeitedShares",
     "FuturesBoardQuote",
+    "FuturesContract",
     "FuturesMarketSchedule",
     "GrowthRatio",
     "IPOSubscription",
@@ -346,6 +346,7 @@ __all__ = [
     "OpenOrder",
     "OptionBoard",
     "OptionBoardRow",
+    "OptionContract",
     "OptionExpiry",
     "Order",
     "OrderBook",

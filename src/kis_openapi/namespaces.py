@@ -26,7 +26,7 @@ from ._overseas import reference as overseas_reference_api
 from ._overseas import reserved_orders as overseas_reserved_orders_api
 from .bond import Bond
 from .calendar import CalendarQueries
-from .derivative import Derivative
+from .derivative import FuturesContract, OptionContract
 from .elw import ELW
 from .elw_ranking import ELWRankingQueries
 from .elw_screener import ELWScreenerQueries
@@ -445,13 +445,13 @@ class DomesticNamespace:
         """ELW 고유 지표 핸들. 기본 시세는 :meth:`stock` 으로, 이 핸들은 그릭스·변동성·투자지표만 얹는다."""
         return ELW(self._c, code)
 
-    def futures(self, code: str) -> Derivative:
+    def futures(self, code: str) -> FuturesContract:
         """지수선물 계약 핸들. ``code`` 는 계약코드(예: 101W09)."""
-        return Derivative(self._c, code, market="F")
+        return FuturesContract(self._c, code)
 
-    def option(self, code: str) -> Derivative:
+    def option(self, code: str) -> OptionContract:
         """지수옵션 계약 핸들. ``code`` 는 계약코드."""
-        return Derivative(self._c, code, market="O")
+        return OptionContract(self._c, code)
 
     # -- 파생 보드/조회 --
     def option_expiries(self) -> list[OptionExpiry]:
