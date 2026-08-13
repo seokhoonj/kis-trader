@@ -21,7 +21,7 @@ from .after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQ
 from .analysis import (
     AnalystOpinion,
     CreditBalancePoint,
-    DailyTradeVolume,
+    DailyTradeVolumePoint,
     EarningsEstimate,
     ExpectedPricePoint,
     ForeignNetBuyPoint,
@@ -272,7 +272,7 @@ __all__ = [
     "DailyProfit",
     "DailyProfitHistory",
     "DailyProgramTradePoint",
-    "DailyTradeVolume",
+    "DailyTradeVolumePoint",
     "Derivative",
     "DerivativeQuote",
     "DetailedInvestorFlow",

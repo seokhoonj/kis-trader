@@ -119,8 +119,8 @@ class ProgramTradeSummary:
     timestamp: datetime               # 영업일(KST-aware)
     arbitrage_net_volume: int         # 차익 합계 순매수 수량(arbt_smtn_ntby_qty)
     arbitrage_net_amount: Decimal     # 차익 합계 순매수 금액(arbt_smtn_ntby_tr_pbmn)
-    nonarb_net_volume: int            # 비차익 합계 순매수 수량(nabt_smtn_ntby_qty)
-    nonarb_net_amount: Decimal        # 비차익 합계 순매수 금액(nabt_smtn_ntby_tr_pbmn)
+    nonarbitrage_net_volume: int      # 비차익 합계 순매수 수량(nabt_smtn_ntby_qty)
+    nonarbitrage_net_amount: Decimal  # 비차익 합계 순매수 금액(nabt_smtn_ntby_tr_pbmn)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -131,7 +131,7 @@ class ProgramTradeSummary:
     @property
     def total_net_volume(self) -> int:
         """전체 프로그램 순매수 수량(차익 + 비차익)."""
-        return self.arbitrage_net_volume + self.nonarb_net_volume
+        return self.arbitrage_net_volume + self.nonarbitrage_net_volume
 
 
 @dataclass(frozen=True, slots=True)
@@ -200,7 +200,7 @@ class ProgramFlowPoint:
     """당일 한 시각의 프로그램매매 순매수 대금(불변).
 
     :class:`ProgramTradeSummary`(일별 종합)의 당일 시간판이다. ``arbitrage_net_amount`` /
-    ``nonarb_net_amount`` 는 차익/비차익 순매수 금액, ``total_net_amount`` 는 전체 순매수 금액
+    ``nonarbitrage_net_amount`` 는 차익/비차익 순매수 금액, ``total_net_amount`` 는 전체 순매수 금액
     (모두 pre-signed; 음수면 순매도). 매수/매도 원자료·비율은 ``_raw``. ``timestamp`` 는 조회일
     날짜를 붙인 시각(KST-aware).
     """
@@ -208,7 +208,7 @@ class ProgramFlowPoint:
     market: str
     timestamp: datetime               # 시각(조회일 날짜; KST)
     arbitrage_net_amount: Decimal     # 차익 순매수 대금(arbt_smtn_ntby_tr_pbmn)
-    nonarb_net_amount: Decimal        # 비차익 순매수 대금(nabt_smtn_ntby_tr_pbmn)
+    nonarbitrage_net_amount: Decimal  # 비차익 순매수 대금(nabt_smtn_ntby_tr_pbmn)
     total_net_amount: Decimal         # 전체 순매수 대금(whol_smtn_ntby_tr_pbmn)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

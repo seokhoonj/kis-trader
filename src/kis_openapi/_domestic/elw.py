@@ -264,7 +264,7 @@ def fetch_indicator_trend(
     ]
 
 
-def fetch_lp_trend(transport: Transport, *, code: str) -> list[ELWLPFlow]:
+def fetch_lp_flows(transport: Transport, *, code: str) -> list[ELWLPFlow]:
     """ELW 의 일별 LP(유동성공급자) 매매 흐름(최신순). ``code`` 는 ELW 표준코드.
 
     응답의 ``output2`` 가 일별 LP 매매내역이다(``output1`` 은 현재 요약이라 다루지 않는다 -- 레버리지/

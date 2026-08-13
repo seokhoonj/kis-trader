@@ -41,7 +41,7 @@ def test_program_flow_maps_amounts():
     assert isinstance(pts[0], ProgramFlowPoint)
     p = pts[0]
     assert p.arbitrage_net_amount == Decimal(276905)     # smtn (NOT the _rate field)
-    assert p.nonarb_net_amount == Decimal(859384)
+    assert p.nonarbitrage_net_amount == Decimal(859384)
     assert p.total_net_amount == Decimal(1136289)
     assert p.timestamp.hour == 17
     call = fake.calls[0]

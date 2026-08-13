@@ -107,13 +107,13 @@ def test_foreign_net_buy_trend_maps_ledger_values_and_preserves_order():
     fake = FakeTransport(response=_resp(rows))
     pts = _client(fake).domestic.stock("005930").foreign_net_buy_trend()
     assert isinstance(pts[0], ForeignNetBuyPoint)
-    assert pts[0].time.strftime("%H%M%S") == "153106"
+    assert pts[0].timestamp.strftime("%H%M%S") == "153106"
     assert pts[0].price == Decimal(81300)
     assert pts[0].change == Decimal(1200)
     assert pts[0].change_percent == Decimal("1.50")
     assert pts[0].foreign_net_buy == 3870530
     assert pts[0].foreign_net_buy_change == 194396
-    assert pts[1].time.strftime("%H%M%S") == "153006"
+    assert pts[1].timestamp.strftime("%H%M%S") == "153006"
     assert pts[1].change == Decimal(-200)
     assert pts[1].change_percent == Decimal("-0.25")
     call = fake.calls[0]
@@ -192,9 +192,9 @@ def test_daily_trade_volume_maps_output2():
                          "total_shnu_qty": "4008095"}]}
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
     fake = FakeTransport(response=resp)
-    from kis_openapi import DailyTradeVolume
+    from kis_openapi import DailyTradeVolumePoint
     pts = _client(fake).domestic.stock("005930").daily_trade_volume(start="20240120", end="20240126")
-    assert isinstance(pts[0], DailyTradeVolume)
+    assert isinstance(pts[0], DailyTradeVolumePoint)
     assert pts[0].buy_volume == 4520816
     assert pts[0].sell_volume == 5285722
     assert pts[1].timestamp.strftime("%Y%m%d") == "20240125"
@@ -247,7 +247,7 @@ def test_expected_price_trend_maps_output2():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
     fake = FakeTransport(response=resp)
     from kis_openapi import ExpectedPricePoint
-    pts = _client(fake).domestic.stock("005930").expected_price_trend(nonzero_only=True)
+    pts = _client(fake).domestic.stock("005930").expected_price_trend(exclude_zero_volume=True)
     assert isinstance(pts[0], ExpectedPricePoint)
     assert pts[0].expected_price == Decimal(72600)
     assert pts[0].change == Decimal(300)                 # sign 2 -> 양수
@@ -256,4 +256,4 @@ def test_expected_price_trend_maps_output2():
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/quotations/exp-price-trend"
     assert call["tr_id"] == "FHPST01810000"
-    assert call["params"]["fid_mkop_cls_code"] == "4"    # nonzero_only
+    assert call["params"]["fid_mkop_cls_code"] == "4"    # exclude_zero_volume

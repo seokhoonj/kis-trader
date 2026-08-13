@@ -481,10 +481,10 @@ def fetch_program_trade_summary(
                                                   "arbt_smtn_ntby_qty"),
                 arbitrage_net_amount=required_decimal(row.get("arbt_smtn_ntby_tr_pbmn"),
                                                       "arbt_smtn_ntby_tr_pbmn"),
-                nonarb_net_volume=required_int(row.get("nabt_smtn_ntby_qty"),
-                                               "nabt_smtn_ntby_qty"),
-                nonarb_net_amount=required_decimal(row.get("nabt_smtn_ntby_tr_pbmn"),
-                                                   "nabt_smtn_ntby_tr_pbmn"),
+                nonarbitrage_net_volume=required_int(row.get("nabt_smtn_ntby_qty"),
+                                                     "nabt_smtn_ntby_qty"),
+                nonarbitrage_net_amount=required_decimal(row.get("nabt_smtn_ntby_tr_pbmn"),
+                                                         "nabt_smtn_ntby_tr_pbmn"),
                 _raw=row,
             )
         )
@@ -605,7 +605,7 @@ def fetch_program_flow(
                 arbitrage_net_amount=required_decimal(
                     row.get("arbt_smtn_ntby_tr_pbmn"), "arbt_smtn_ntby_tr_pbmn"
                 ),
-                nonarb_net_amount=required_decimal(
+                nonarbitrage_net_amount=required_decimal(
                     row.get("nabt_smtn_ntby_tr_pbmn"), "nabt_smtn_ntby_tr_pbmn"
                 ),
                 total_net_amount=required_decimal(
@@ -729,7 +729,7 @@ def fetch_news(
     return items
 
 
-def fetch_foreign_broker_trades(
+def fetch_foreign_broker_flows(
     transport: Transport, *, sort: str = "amount"
 ) -> list[ForeignBrokerFlow]:
     """외국계 창구 매매종목 가집계(전 시장). ``sort`` 는 ``"amount"``(금액순)/``"volume"``(수량순)."""

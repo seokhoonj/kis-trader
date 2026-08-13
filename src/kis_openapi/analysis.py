@@ -133,8 +133,8 @@ class EarningsEstimate:
     """
 
     symbol: str
-    name: str
-    analyst: str
+    security_name: str
+    analyst_name: str
     estimate_date: date
     recommendation: str
     capital: Decimal | None
@@ -158,7 +158,8 @@ class EarningsEstimate:
 class RecentPricePoint:
     """최근 일·주·월 주가와 수급 보조지표 한 점(불변)."""
 
-    date: date
+    symbol: str
+    trading_date: date
     open: Decimal
     high: Decimal
     low: Decimal
@@ -222,6 +223,7 @@ class IntradayExecutionPoint:
 class IntradayExecutions:
     """현재 종목 요약과 기준시각 이전의 당일 체결 목록(불변)."""
 
+    symbol: str
     summary: IntradayExecutionSummary
     points: tuple[IntradayExecutionPoint, ...]
     _raw: Mapping[str, Any] = field(
@@ -287,7 +289,7 @@ class ExpectedPricePoint:
 
 
 @dataclass(frozen=True, slots=True)
-class DailyTradeVolume:
+class DailyTradeVolumePoint:
     """하루의 매수/매도 체결량 합계(불변).
 
     ``buy_volume`` 은 그날 총 매수 체결량, ``sell_volume`` 은 총 매도 체결량이다.
@@ -312,10 +314,11 @@ class ForeignNetBuyPoint:
     """한 시점의 장중 외국계(외국인 회원사) 순매수 스냅샷(불변).
 
     ``foreign_net_buy`` 는 누적 외국계 순매수 수량, ``foreign_net_buy_change`` 는 해당 시간대의
-    순매수 증감이다. ``time`` 은 당일 체결시각(KST-aware)이며 응답 순서대로 제공된다.
+    순매수 증감이다. ``timestamp`` 는 당일 체결시각(KST-aware)이며 응답 순서대로 제공된다.
     """
 
-    time: datetime
+    symbol: str
+    timestamp: datetime
     price: Decimal
     change: Decimal
     change_percent: Decimal

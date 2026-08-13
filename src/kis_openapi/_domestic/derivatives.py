@@ -301,7 +301,7 @@ def fetch_expected_execution_trend(
     )
 
 
-def fetch_option_board_futures(
+def fetch_futures_board_quotes(
     transport: Transport, *, market_class: str
 ) -> list[FuturesBoardQuote]:
     """옵션 전광판 하단의 선물 계약별 시세를 조회한다."""

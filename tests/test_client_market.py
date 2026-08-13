@@ -491,7 +491,7 @@ def test_program_trade_summary_maps_smtn_fields():
     assert isinstance(s, ProgramTradeSummary)
     assert s.arbitrage_net_volume == 12000               # arbt_smtn_ntby_qty (NOT the _rate field)
     assert s.arbitrage_net_amount == Decimal(84000000)
-    assert s.nonarb_net_volume == -5000                  # pre-signed 순매도
+    assert s.nonarbitrage_net_volume == -5000            # pre-signed 순매도
     assert s.total_net_volume == 12000 - 5000            # 차익 + 비차익
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/quotations/comp-program-trade-daily"

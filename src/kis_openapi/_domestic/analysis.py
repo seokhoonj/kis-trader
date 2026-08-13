@@ -41,7 +41,7 @@ from .._wire import (
 from ..analysis import (
     AnalystOpinion,
     CreditBalancePoint,
-    DailyTradeVolume,
+    DailyTradeVolumePoint,
     EarningsEstimate,
     ExpectedPricePoint,
     ForeignNetBuyPoint,
@@ -122,8 +122,8 @@ def fetch_earnings_estimate(transport: Transport, *, symbol: str) -> EarningsEst
     date_text = str(header.get("estdate", "")).strip()
     return EarningsEstimate(
         symbol=symbol,
-        name=str(header.get("item_kor_nm", "")).strip(),
-        analyst=str(header.get("name1", "")).strip(),
+        security_name=str(header.get("item_kor_nm", "")).strip(),
+        analyst_name=str(header.get("name1", "")).strip(),
         estimate_date=_parse_kst_date(date_text),
         recommendation=str(header.get("rcmd_name", "")).strip(),
         capital=optional_decimal(header.get("capital"), "capital"),
@@ -161,10 +161,10 @@ def _rows(transport: Transport, *, path: str, tr: str, params: Mapping[str, str]
 
 
 def fetch_credit_balance_trend(
-    transport: Transport, *, symbol: str, date_: str | date | None = None
+    transport: Transport, *, symbol: str, as_of_date: str | date | None = None
 ) -> list[CreditBalancePoint]:
-    """일별 신용잔고(융자/대주) 추이(기준일에서 과거로). ``date_`` 없으면 오늘 기준."""
-    base = _today_kst() if date_ is None else _to_yyyymmdd(date_, "date")
+    """일별 신용잔고(융자/대주) 추이(기준일에서 과거로). ``as_of_date`` 없으면 오늘 기준."""
+    base = _today_kst() if as_of_date is None else _to_yyyymmdd(as_of_date, "as_of_date")
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_COND_SCR_DIV_CODE": "20476",
@@ -302,7 +302,7 @@ _DAILY_TRADE_VOL_TR = "FHKST03010800"
 def fetch_daily_trade_volume(
     transport: Transport, *, symbol: str,
     start: str | date | None = None, end: str | date | None = None,
-) -> list[DailyTradeVolume]:
+) -> list[DailyTradeVolumePoint]:
     """일별 매수/매도 체결량 추이(기간 [start, end], 최근->과거). ``start`` 미지정이면 ``end`` 로부터
     30일 전. 응답 배열은 ``output2`` (``output1`` 은 구간 합계)."""
     end_date = _today_kst() if end is None else _to_yyyymmdd(end, "end")
@@ -318,13 +318,13 @@ def fetch_daily_trade_volume(
                              params=params, idempotent=True)
     _raise_if_error(resp)
     rows = _require_mapping_rows("output2", resp)
-    points: list[DailyTradeVolume] = []
+    points: list[DailyTradeVolumePoint] = []
     for row in rows:
         day = str(row.get("stck_bsop_date", "")).strip()
         if not day:
             continue
         points.append(
-            DailyTradeVolume(
+            DailyTradeVolumePoint(
                 symbol=symbol,
                 timestamp=_parse_bar_timestamp(day),
                 buy_volume=required_int(row.get("total_shnu_qty"), "total_shnu_qty"),
@@ -381,12 +381,12 @@ _EXP_PRICE_TR = "FHPST01810000"
 
 
 def fetch_expected_price_trend(
-    transport: Transport, *, symbol: str, nonzero_only: bool = False
+    transport: Transport, *, symbol: str, exclude_zero_volume: bool = False
 ) -> list[ExpectedPricePoint]:
-    """동시호가 예상 체결가 추이(시각 리스트, 최근->과거). ``nonzero_only`` 면 체결량 0 시각 제외.
+    """동시호가 예상 체결가 추이(시각 리스트, 최근->과거). ``exclude_zero_volume`` 면 체결량 0 시각 제외.
     응답 배열은 ``output2`` (``output1`` 은 현재 예상체결 스냅샷)."""
     params = {
-        "fid_mkop_cls_code": "4" if nonzero_only else "0",
+        "fid_mkop_cls_code": "4" if exclude_zero_volume else "0",
         "fid_cond_mrkt_div_code": "J",
         "fid_input_iscd": symbol,
     }
@@ -486,7 +486,8 @@ def fetch_foreign_net_buy_trend(
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             ForeignNetBuyPoint(
-                time=_parse_intraday_timestamp(str(row.get("bsop_hour", "")).strip(), as_of),
+                symbol=symbol,
+                timestamp=_parse_intraday_timestamp(str(row.get("bsop_hour", "")).strip(), as_of),
                 price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
                 change=_apply_change_sign(
                     required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign

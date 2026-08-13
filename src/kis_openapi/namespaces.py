@@ -466,7 +466,7 @@ class DomesticNamespace:
 
     def option_board_futures(self, *, market_class: str = "MKI") -> list[FuturesBoardQuote]:
         """옵션 전광판 하단의 선물 계약별 현재가·호가·미결제약정·예상체결가."""
-        return derivatives_api.fetch_option_board_futures(
+        return derivatives_api.fetch_futures_board_quotes(
             self._c.transport, market_class=market_class
         )
 

@@ -216,7 +216,9 @@ def fetch_intraday_executions(
             )
         )
     points.sort(key=lambda point: point.timestamp)
-    return IntradayExecutions(summary=summary, points=tuple(points), _raw=resp.body)
+    return IntradayExecutions(
+        symbol=symbol, summary=summary, points=tuple(points), _raw=resp.body
+    )
 
 _BARS_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-itemchartprice"
 _BARS_TR = "FHKST03010100"
@@ -260,7 +262,8 @@ def fetch_recent_prices(
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
             RecentPricePoint(
-                date=_parse_kst_date(date_text),
+                symbol=symbol,
+                trading_date=_parse_kst_date(date_text),
                 open=required_decimal(row.get("stck_oprc"), "stck_oprc"),
                 high=required_decimal(row.get("stck_hgpr"), "stck_hgpr"),
                 low=required_decimal(row.get("stck_lwpr"), "stck_lwpr"),
@@ -288,7 +291,7 @@ def fetch_recent_prices(
                 _raw=row,
             )
         )
-    points.sort(key=lambda point: point.date)
+    points.sort(key=lambda point: point.trading_date)
     return points
 
 #: 당일 분봉(1분 고정). KIS는 당일치만 제공하고 한 번에 30건씩 시각을 뒤로 밀며 준다.

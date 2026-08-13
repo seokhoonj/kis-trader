@@ -61,7 +61,7 @@ def _client(transport):
 
 def test_by_change_gainers_uses_rise_sort_code():
     fake = FakeTransport(response=_resp([_row(symbol_field="stck_shrn_iscd")]))
-    ranked = _client(fake).domestic.ranking.by_change(top="gainers")
+    ranked = _client(fake).domestic.ranking.by_change(direction="gainers")
     assert len(ranked) == 1
     first = ranked[0]
     assert isinstance(first, RankedStock)
@@ -81,16 +81,16 @@ def test_by_change_gainers_uses_rise_sort_code():
 
 def test_by_change_losers_uses_fall_sort_code():
     fake = FakeTransport(response=_resp([_row(symbol_field="stck_shrn_iscd", sign="5")]))
-    ranked = _client(fake).domestic.ranking.by_change(top="losers")
+    ranked = _client(fake).domestic.ranking.by_change(direction="losers")
     assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "1"   # 하락율순
     assert ranked[0].change == Decimal(-400)                     # 하락 -> 음수
     assert ranked[0].change_percent == Decimal("-0.55")
 
 
-def test_by_change_rejects_bad_top():
+def test_by_change_rejects_bad_direction():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.ranking.by_change(top="up")
+        _client(fake).domestic.ranking.by_change(direction="up")
 
 
 def test_by_volume_uses_volume_endpoint():
@@ -128,7 +128,7 @@ def test_by_disparity_defaults_to_highest_and_20day():
 
 def test_by_disparity_lowest_and_period():
     fake = FakeTransport(response=_resp([_row(d5_dsrt="97.1")]))
-    _client(fake).domestic.ranking.by_disparity(top="lowest", period=5)
+    _client(fake).domestic.ranking.by_disparity(extreme="lowest", period=5)
     call = fake.calls[0]
     assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "1"       # lowest
     assert call["params"]["FID_HOUR_CLS_CODE"] == "5"
@@ -140,10 +140,10 @@ def test_by_disparity_rejects_bad_period():
         _client(fake).domestic.ranking.by_disparity(period=7)
 
 
-def test_by_disparity_rejects_bad_top():
+def test_by_disparity_rejects_bad_extreme():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.ranking.by_disparity(top="above")
+        _client(fake).domestic.ranking.by_disparity(extreme="above")
 
 
 def test_by_quote_balance_defaults_to_net_buy():
@@ -158,16 +158,16 @@ def test_by_quote_balance_defaults_to_net_buy():
 
 
 def test_by_quote_balance_sort_variants():
-    for top, code in [("net_sell", "1"), ("buy_ratio", "2"), ("sell_ratio", "3")]:
+    for metric, code in [("net_sell", "1"), ("buy_ratio", "2"), ("sell_ratio", "3")]:
         fake = FakeTransport(response=_resp([_row()]))
-        _client(fake).domestic.ranking.by_quote_balance(top=top)
+        _client(fake).domestic.ranking.by_quote_balance(metric=metric)
         assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == code
 
 
-def test_by_quote_balance_rejects_bad_top():
+def test_by_quote_balance_rejects_bad_metric():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.ranking.by_quote_balance(top="bogus")
+        _client(fake).domestic.ranking.by_quote_balance(metric="bogus")
 
 
 def test_by_volume_power_uses_endpoint_without_sort():
@@ -192,12 +192,12 @@ def test_by_bulk_trades_defaults_to_buy():
     assert ranked[0]._raw["shnu_cntg_csnu"] == "42"
 
 
-def test_by_bulk_trades_sell_and_bad_top():
+def test_by_bulk_trades_sell_and_bad_side():
     fake = FakeTransport(response=_resp([_row()]))
-    _client(fake).domestic.ranking.by_bulk_trades(top="sell")
+    _client(fake).domestic.ranking.by_bulk_trades(side="sell")
     assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "1"   # sell
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp([]))).domestic.ranking.by_bulk_trades(top="both")
+        _client(FakeTransport(response=_resp([]))).domestic.ranking.by_bulk_trades(side="both")
 
 
 def test_by_interest_uses_endpoint_without_sort():
@@ -282,7 +282,7 @@ def test_by_profit_asset_default_metric_is_net_income():
 def test_by_company_trades_buy_with_date_range():
     fake = FakeTransport(response=_resp([_row(ntby_cnqn="9800")]))
     ranked = _client(fake).domestic.ranking.by_company_trades(
-        top="buy", start="20240314", end="20240315"
+        side="buy", start="20240314", end="20240315"
     )
     call = fake.calls[0]
     assert call["path"] == _COMPANY_TRADES
@@ -298,17 +298,17 @@ def test_by_company_trades_accepts_date_objects_and_sell():
     from datetime import date
     fake = FakeTransport(response=_resp([_row()]))
     _client(fake).domestic.ranking.by_company_trades(
-        top="sell", start=date(2024, 3, 14), end=date(2024, 3, 15)
+        side="sell", start=date(2024, 3, 14), end=date(2024, 3, 15)
     )
     call = fake.calls[0]
     assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "0"       # sell = 매도상위
     assert call["params"]["FID_INPUT_DATE_1"] == "20240314"
 
 
-def test_by_company_trades_bad_top():
+def test_by_company_trades_bad_side():
     with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_resp([]))).domestic.ranking.by_company_trades(
-            top="net", start="20240314", end="20240315"
+            side="net", start="20240314", end="20240315"
         )
 
 
@@ -316,7 +316,7 @@ def test_by_company_trades_rejects_inverted_range_before_transport():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
         _client(fake).domestic.ranking.by_company_trades(
-            top="buy", start="20240315", end="20240314"
+            side="buy", start="20240315", end="20240314"
         )
     assert fake.calls == []                                       # I/O 전 거부
 
@@ -471,12 +471,12 @@ def test_by_credit_balance_parses_output2_and_synthesizes_rank():
 
 def test_by_credit_balance_sort_and_days():
     fake = FakeTransport(response=_credit_resp([_credit_row()]))
-    _client(fake).domestic.ranking.by_credit_balance(top="loan_ratio_increase", days=30)
+    _client(fake).domestic.ranking.by_credit_balance(metric="loan_ratio_increase", days=30)
     call = fake.calls[0]
     assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "8"       # loan_ratio_increase
     assert call["params"]["FID_OPTION"] == "30"
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_credit_resp([]))).domestic.ranking.by_credit_balance(top="x")
+        _client(FakeTransport(response=_credit_resp([]))).domestic.ranking.by_credit_balance(metric="x")
 
 
 def test_by_credit_balance_missing_output2_fails_closed():

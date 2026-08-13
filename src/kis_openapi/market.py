@@ -158,4 +158,4 @@ class MarketQueries:
     def foreign_broker_trades(self, *, sort: str = "amount") -> list[ForeignBrokerFlow]:
         """외국계 창구 매매종목 가집계(전 시장). ``sort``: ``"amount"``(금액순)/``"volume"``(수량순).
         각 행의 ``estimated_net`` 이 외국계 추정 순매수."""
-        return market_api.fetch_foreign_broker_trades(self._client.transport, sort=sort)
+        return market_api.fetch_foreign_broker_flows(self._client.transport, sort=sort)

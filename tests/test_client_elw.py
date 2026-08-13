@@ -352,9 +352,9 @@ def _lp_row(bsop="20240516", price="35", vrss="0", sign="3", ctrt="0.00",
             "lp_shnu_avrg_unpr": shnu_unpr, "lp_hvol": hvol, "lp_hldn_rate": hldn}
 
 
-def test_lp_trend_maps_flow_from_output2():
+def test_lp_flows_maps_flow_from_output2():
     fake = FakeTransport(response=_resp2([_lp_row()]))
-    flows = _client(fake).domestic.elw("52K577").lp_trend()
+    flows = _client(fake).domestic.elw("52K577").lp_flows()
     assert all(isinstance(f, ELWLPFlow) for f in flows)
     flow = flows[0]
     assert flow.code == "52K577"
@@ -372,25 +372,25 @@ def test_lp_trend_maps_flow_from_output2():
     assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "W"
 
 
-def test_lp_trend_net_quantity_negative_when_lp_supplies():
+def test_lp_flows_net_quantity_negative_when_lp_supplies():
     fake = FakeTransport(response=_resp2([_lp_row(seln="90000", shnu="10000")]))
-    flow = _client(fake).domestic.elw("52K577").lp_trend()[0]
+    flow = _client(fake).domestic.elw("52K577").lp_flows()[0]
     assert flow.net_quantity == 10000 - 90000             # LP 순매도(공급) -> 음수
 
 
-def test_lp_trend_skips_empty_rows():
+def test_lp_flows_skips_empty_rows():
     fake = FakeTransport(response=_resp2([_lp_row(), {"stck_bsop_date": ""}]))
-    assert len(_client(fake).domestic.elw("52K577").lp_trend()) == 1
+    assert len(_client(fake).domestic.elw("52K577").lp_flows()) == 1
 
 
-def test_lp_trend_missing_output2_fails_closed():
+def test_lp_flows_missing_output2_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {"elw_prpr": "40"}})
     fake = FakeTransport(response=resp)
     with pytest.raises(KISError):
-        _client(fake).domestic.elw("52K577").lp_trend()
+        _client(fake).domestic.elw("52K577").lp_flows()
 
 
-def test_lp_trend_bad_quantity_fails_closed():
+def test_lp_flows_bad_quantity_fails_closed():
     fake = FakeTransport(response=_resp2([_lp_row(shnu="n/a")]))
     with pytest.raises(KISError):
-        _client(fake).domestic.elw("52K577").lp_trend()
+        _client(fake).domestic.elw("52K577").lp_flows()

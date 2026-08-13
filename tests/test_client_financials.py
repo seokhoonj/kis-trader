@@ -87,8 +87,8 @@ def test_earnings_estimate_maps_ordered_metrics_and_periods():
 
     assert isinstance(estimate, EarningsEstimate)
     assert estimate.symbol == "005930"
-    assert estimate.name == "삼성전자"
-    assert estimate.analyst == "홍길동"
+    assert estimate.security_name == "삼성전자"
+    assert estimate.analyst_name == "홍길동"
     assert estimate.estimate_date == date(2024, 2, 29)
     assert estimate.recommendation == "매수"
     assert estimate.capital == Decimal(8975)

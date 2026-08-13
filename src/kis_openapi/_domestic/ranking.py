@@ -197,13 +197,13 @@ _NEAR_HIGH_LOW_SCR = "20187"
 _NEAR_HIGH_LOW_SIDE = {"high": "0", "low": "1"}
 
 
-def fetch_fluctuation(transport: Transport, *, top: str, market: str) -> list[RankedStock]:
-    """등락률 순위. ``top="gainers"`` 상승율순 / ``"losers"`` 하락율순. 최대 30건(다음조회 없음)."""
+def fetch_fluctuation(transport: Transport, *, direction: str, market: str) -> list[RankedStock]:
+    """등락률 순위. ``direction="gainers"`` 상승율순 / ``"losers"`` 하락율순. 최대 30건(다음조회 없음)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _FLUCTUATION_SCR,
         "FID_INPUT_ISCD": "0000",              # 전체
-        "FID_RANK_SORT_CLS_CODE": _lookup(_RANK_SORT, key=top, argname="top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_RANK_SORT, key=direction, argname="direction"),
         "FID_INPUT_CNT_1": "0",
         "FID_PRC_CLS_CODE": "0",
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",   # 가격 전체
@@ -215,7 +215,7 @@ def fetch_fluctuation(transport: Transport, *, top: str, market: str) -> list[Ra
     return _fetch_ranking(transport, path=_FLUCTUATION_PATH, tr=_FLUCTUATION_TR, params=params)
 
 
-def fetch_volume_rank(transport: Transport, *, market: str) -> list[RankedStock]:
+def fetch_volume(transport: Transport, *, market: str) -> list[RankedStock]:
     """거래량 순위(평균거래량 기준). 최대 30건(다음조회 없음)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
@@ -247,9 +247,9 @@ def fetch_market_cap(transport: Transport, *, market: str) -> list[RankedStock]:
 
 
 def fetch_disparity(
-    transport: Transport, *, top: str, period: int, market: str
+    transport: Transport, *, extreme: str, period: int, market: str
 ) -> list[RankedStock]:
-    """이격도 순위. ``top="highest"`` 이격도상위 / ``"lowest"`` 하위. ``period`` 이동평균 일수
+    """이격도 순위. ``extreme="highest"`` 이격도상위 / ``"lowest"`` 하위. ``period`` 이동평균 일수
     (5/10/20/60/120). 이격도 값은 각 항목의 ``_raw['d{period}_dsrt']``(%). 최대 30건(다음조회 없음)."""
     if period not in _DISPARITY_PERIODS:
         raise KISUsageError(f"period 는 5/10/20/60/120 중 하나여야 한다: {period!r}")
@@ -257,7 +257,7 @@ def fetch_disparity(
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _DISPARITY_SCR,
         "FID_DIV_CLS_CODE": "0",
-        "FID_RANK_SORT_CLS_CODE": _lookup(_DISPARITY_SORT, key=top, argname="top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_DISPARITY_SORT, key=extreme, argname="extreme"),
         "FID_HOUR_CLS_CODE": str(period),
         "FID_INPUT_ISCD": "0000",              # 전체
         "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
@@ -267,14 +267,14 @@ def fetch_disparity(
     return _fetch_ranking(transport, path=_DISPARITY_PATH, tr=_DISPARITY_TR, params=params)
 
 
-def fetch_quote_balance(transport: Transport, *, top: str, market: str) -> list[RankedStock]:
-    """호가잔량 순위. ``top`` = net_buy(순매수잔량)/net_sell(순매도잔량)/buy_ratio(매수비율)/
+def fetch_quote_balance(transport: Transport, *, metric: str, market: str) -> list[RankedStock]:
+    """호가잔량 순위. ``metric`` = net_buy(순매수잔량)/net_sell(순매도잔량)/buy_ratio(매수비율)/
     sell_ratio(매도비율). 잔량 지표는 ``_raw`` (total_askp_rsqn/total_bidp_rsqn/...). 최대 30건."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _QUOTE_BALANCE_SCR,
         "FID_INPUT_ISCD": "0000",
-        "FID_RANK_SORT_CLS_CODE": _lookup(_QUOTE_BALANCE_SORT, key=top, argname="top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_QUOTE_BALANCE_SORT, key=metric, argname="metric"),
         "FID_DIV_CLS_CODE": "0",
         "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
@@ -297,14 +297,14 @@ def fetch_volume_power(transport: Transport, *, market: str) -> list[RankedStock
     return _fetch_ranking(transport, path=_VOLUME_POWER_PATH, tr=_VOLUME_POWER_TR, params=params)
 
 
-def fetch_bulk_trades(transport: Transport, *, top: str, market: str) -> list[RankedStock]:
-    """대량체결건수 순위. ``top="buy"`` 매수상위 / ``"sell"`` 매도상위. 체결건수는 각 항목의
+def fetch_bulk_trades(transport: Transport, *, side: str, market: str) -> list[RankedStock]:
+    """대량체결건수 순위. ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. 체결건수는 각 항목의
     ``_raw`` (shnu_cntg_csnu/seln_cntg_csnu/ntby_cnqn). 최대 30건(다음조회 없음)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _BULK_TRADES_SCR,
         "FID_INPUT_ISCD": "0000",              # 전체
-        "FID_RANK_SORT_CLS_CODE": _lookup(_BULK_TRADES_SORT, key=top, argname="top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_BULK_TRADES_SORT, key=side, argname="side"),
         "FID_DIV_CLS_CODE": "0",
         "FID_INPUT_ISCD_2": "",
         "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
@@ -387,9 +387,9 @@ def fetch_profit_asset(
 
 
 def fetch_company_trades(
-    transport: Transport, *, top: str, start: str | date, end: str | date, market: str
+    transport: Transport, *, side: str, start: str | date, end: str | date, market: str
 ) -> list[RankedStock]:
-    """당사매매종목 순위(기간). ``top="buy"`` 매수상위 / ``"sell"`` 매도상위. ``start``/``end`` 는
+    """당사매매종목 순위(기간). ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. ``start``/``end`` 는
     조회 기간(YYYYMMDD 또는 date). 당사 매수/매도/순매수 수량은 각 항목의 ``_raw`` (shnu_cnqn_smtn/
     seln_cnqn_smtn/ntby_cnqn). 최대 30건(다음조회 없음)."""
     start_date = _to_yyyymmdd(start, "start")
@@ -400,7 +400,7 @@ def fetch_company_trades(
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _COMPANY_TRADES_SCR,
         "FID_DIV_CLS_CODE": "0",
-        "FID_RANK_SORT_CLS_CODE": _lookup(_COMPANY_TRADES_SORT, key=top, argname="top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_COMPANY_TRADES_SORT, key=side, argname="side"),
         "FID_INPUT_DATE_1": start_date,
         "FID_INPUT_DATE_2": end_date,
         "FID_INPUT_ISCD": "0000",              # 전체
@@ -529,9 +529,9 @@ def _parse_short_sale(rows: Sequence[Mapping[str, Any]]) -> list[ShortSaleRankin
 
 
 def fetch_credit_balance(
-    transport: Transport, *, top: str, days: int, market: str
+    transport: Transport, *, metric: str, days: int, market: str
 ) -> list[CreditBalanceRanking]:
-    """신용잔고 순위. ``top`` = margin_*(융자) / loan_*(대주) x ratio/shares/amount/ratio_increase/
+    """신용잔고 순위. ``metric`` = margin_*(융자) / loan_*(대주) x ratio/shares/amount/ratio_increase/
     ratio_decrease. ``days`` 는 증가율 계산 기간(2~999). 응답 output2를 :class:`CreditBalanceRanking`
     로 돌려준다(순위는 응답 순서). 최대 30건(다음조회 없음)."""
     if not 2 <= days <= 999:                   # KIS 명세 증가율기간 범위 -> I/O 전 fail-closed
@@ -541,7 +541,7 @@ def fetch_credit_balance(
         "FID_INPUT_ISCD": "0000",              # 전체
         "FID_OPTION": str(days),
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
-        "FID_RANK_SORT_CLS_CODE": _lookup(_CREDIT_BALANCE_SORT, key=top, argname="top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_CREDIT_BALANCE_SORT, key=metric, argname="metric"),
     }
     resp = transport.request(
         method="GET", path=_CREDIT_BALANCE_PATH, tr_id=_CREDIT_BALANCE_TR,
@@ -738,13 +738,13 @@ _EXPECTED_CLOSE_MARKET = {
 }
 
 
-def fetch_expected_conclusion(
-    transport: Transport, *, top: str, market: str
+def fetch_expected_execution_change(
+    transport: Transport, *, direction: str, market: str
 ) -> list[RankedStock]:
-    """장 시작 전 예상체결 기준 상승/하락 상위. ``top="up"`` 상승 / ``"down"`` 하락. 예상체결가를
+    """장 시작 전 예상체결 기준 상승/하락 상위. ``direction="up"`` 상승 / ``"down"`` 하락. 예상체결가를
     현재가로, 예상체결량(cntg_vol)을 거래량으로 담는다(:class:`RankedStock`, 순위는 응답 순서)."""
     params = {
-        "FID_RANK_SORT_CLS_CODE": _lookup(_EXP_UPDOWN_TOP, key=top, argname="top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_EXP_UPDOWN_TOP, key=direction, argname="direction"),
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": "20182",
         "FID_INPUT_ISCD": "0000",
@@ -871,15 +871,15 @@ def _parse_overtime(
 
 
 def fetch_overtime_change(
-    transport: Transport, *, top: str, market: str
+    transport: Transport, *, direction: str, market: str
 ) -> list[OvertimeRanking]:
-    """시간외 단일가 등락률 순위. ``top="up"`` 상승 / ``"down"`` 하락(:class:`OvertimeRanking`)."""
+    """시간외 단일가 등락률 순위. ``direction="up"`` 상승 / ``"down"`` 하락(:class:`OvertimeRanking`)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_MRKT_CLS_CODE": "",
         "FID_COND_SCR_DIV_CODE": "20234",
         "FID_INPUT_ISCD": "0000",
-        "FID_DIV_CLS_CODE": _lookup(_OVERTIME_CHANGE, key=top, argname="top"),
+        "FID_DIV_CLS_CODE": _lookup(_OVERTIME_CHANGE, key=direction, argname="direction"),
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
         "FID_VOL_CNT": "", "FID_TRGT_CLS_CODE": "", "FID_TRGT_EXLS_CLS_CODE": "",
     }
@@ -924,15 +924,15 @@ def fetch_overtime_volume(transport: Transport, *, market: str) -> list[Overtime
 
 
 def fetch_overtime_expected_change(
-    transport: Transport, *, top: str, market: str
+    transport: Transport, *, direction: str, market: str
 ) -> list[OvertimeRanking]:
-    """시간외 예상체결 등락률 순위. ``top="up"`` 상승 / ``"down"`` 하락. 시간외 예상체결가·예상체결량
+    """시간외 예상체결 등락률 순위. ``direction="up"`` 상승 / ``"down"`` 하락. 시간외 예상체결가·예상체결량
     을 담는다(:class:`OvertimeRanking`)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": "11186",
         "FID_INPUT_ISCD": "0000",
-        "FID_RANK_SORT_CLS_CODE": _lookup(_EXP_UPDOWN_TOP, key=top, argname="top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_EXP_UPDOWN_TOP, key=direction, argname="direction"),
         "FID_DIV_CLS_CODE": "0",
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "", "FID_INPUT_VOL_1": "",
     }
@@ -955,15 +955,15 @@ _AFTER_HOUR_TOP = {"ask": "1", "bid": "2"}   # FID_RANK_SORT_CLS_CODE (매도잔
 
 
 def fetch_after_hour_balance(
-    transport: Transport, *, top: str, market: str
+    transport: Transport, *, side: str, market: str
 ) -> list[AfterHourBalanceRanking]:
-    """시간외 잔량 순위. ``top="ask"`` 매도잔량 상위 / ``"bid"`` 매수잔량 상위. 시간외 총 매도/매수
+    """시간외 잔량 순위. ``side="ask"`` 매도잔량 상위 / ``"bid"`` 매수잔량 상위. 시간외 총 매도/매수
     잔량과 장전/장후 체결량을 담는다(:class:`AfterHourBalanceRanking`)."""
     params = {
         "FID_INPUT_PRICE_1": "",
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": "20176",
-        "FID_RANK_SORT_CLS_CODE": _lookup(_AFTER_HOUR_TOP, key=top, argname="top"),
+        "FID_RANK_SORT_CLS_CODE": _lookup(_AFTER_HOUR_TOP, key=side, argname="side"),
         "FID_DIV_CLS_CODE": "0",
         "FID_INPUT_ISCD": "0000",
         "FID_TRGT_EXLS_CLS_CODE": "0", "FID_TRGT_CLS_CODE": "0",

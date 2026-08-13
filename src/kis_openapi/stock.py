@@ -25,7 +25,7 @@ from .after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQ
 from .analysis import (
     AnalystOpinion,
     CreditBalancePoint,
-    DailyTradeVolume,
+    DailyTradeVolumePoint,
     EarningsEstimate,
     ExpectedPricePoint,
     ForeignNetBuyPoint,
@@ -357,7 +357,7 @@ class DomesticStock(_StockBase):
     ) -> list[CreditBalancePoint]:
         """일별 신용잔고(융자/대주) 추이(기준일에서 과거로). ``as_of`` 없으면 오늘 기준."""
         return analysis_api.fetch_credit_balance_trend(
-            self._client.transport, symbol=self.symbol, date_=as_of
+            self._client.transport, symbol=self.symbol, as_of_date=as_of
         )
 
     def short_sale_trend(
@@ -400,16 +400,16 @@ class DomesticStock(_StockBase):
 
     def daily_trade_volume(
         self, *, start: str | date | None = None, end: str | date | None = None
-    ) -> list[DailyTradeVolume]:
+    ) -> list[DailyTradeVolumePoint]:
         """일별 매수/매도 체결량 추이(기간 [start, end], 최근->과거). start 미지정이면 최근 30일."""
         return analysis_api.fetch_daily_trade_volume(
             self._client.transport, symbol=self.symbol, start=start, end=end
         )
 
-    def expected_price_trend(self, *, nonzero_only: bool = False) -> list[ExpectedPricePoint]:
-        """동시호가 예상 체결가 추이(시각 리스트, 최근->과거). ``nonzero_only=True`` 면 체결량 0 시각 제외."""
+    def expected_price_trend(self, *, exclude_zero_volume: bool = False) -> list[ExpectedPricePoint]:
+        """동시호가 예상 체결가 추이(시각 리스트, 최근->과거). ``exclude_zero_volume=True`` 면 체결량 0 시각 제외."""
         return analysis_api.fetch_expected_price_trend(
-            self._client.transport, symbol=self.symbol, nonzero_only=nonzero_only
+            self._client.transport, symbol=self.symbol, exclude_zero_volume=exclude_zero_volume
         )
 
     def trade_amount_bands(self) -> list[TradeAmountBand]:

@@ -373,7 +373,7 @@ def test_recent_prices_maps_extended_history_fields():
     )
 
     assert isinstance(points[0], RecentPricePoint)
-    assert f"{points[0].date:%Y%m%d}" == "20240223"
+    assert f"{points[0].trading_date:%Y%m%d}" == "20240223"
     assert points[0].close == Decimal(73000)
     assert points[0].change == Decimal(-1200)
     assert points[0].foreign_net_quantity == -250000
