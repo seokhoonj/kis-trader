@@ -1,7 +1,8 @@
 /*-- scss:defaults --*/
 // 본문: Pretendard (한글+영문 한 세트)
 $font-family-sans-serif: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif !default;
-$font-family-monospace: "JetBrains Mono", "D2Coding", ui-monospace, SFMono-Regular, Menlo, monospace !default;
+// 코드: JetBrains Mono (ASCII 코드) -> Pretendard (한글 주석)
+$font-family-monospace: "JetBrains Mono", "Pretendard Variable", Pretendard, "D2Coding", ui-monospace, SFMono-Regular, Menlo, monospace !default;
 // 제목: Paperlogy (개성 있는 무료 한글 디스플레이 폰트) -> Pretendard 폴백
 $headings-font-family: "Paperlogy", "Pretendard Variable", Pretendard, sans-serif !default;
 $headings-font-weight: 700 !default;
@@ -13,6 +14,36 @@ h1, h2, h3, h4, h5, .quarto-title .title, .sidebar-title {
   font-family: "Paperlogy", "Pretendard Variable", Pretendard, sans-serif;
   letter-spacing: -0.015em;
 }
-pre code { font-size: 0.9em; }
 // 브랜드 제목의 "KIS" 포인트 컬러
 .kis-accent { color: #2563eb; }
+
+// ── 코드블록: 부드럽고 유려하게 ──────────────────────────────
+div.sourceCode {
+  border: 1px solid rgba(15, 23, 42, 0.07);
+  border-radius: 12px;
+  background: #fbfcfe;
+  margin: 1.15rem 0;
+  overflow: hidden;
+  box-shadow: 0 1px 2px rgba(15, 23, 42, 0.04);
+}
+div.sourceCode pre.sourceCode {
+  padding: 1rem 1.2rem;
+  margin: 0;
+  background: transparent;
+  border: 0;
+}
+pre.sourceCode code {
+  font-size: 0.85rem;
+  line-height: 1.65;
+  font-variant-ligatures: none;
+  -webkit-font-smoothing: antialiased;
+}
+// 주석은 차분한 회청색으로 (정렬된 # 열이 코드를 방해하지 않게)
+pre.sourceCode code .co { color: #94a3b8; font-style: normal; }
+// 인라인 코드
+:not(pre) > code {
+  background: #f1f3f7;
+  padding: 0.12em 0.38em;
+  border-radius: 5px;
+  font-size: 0.88em;
+}

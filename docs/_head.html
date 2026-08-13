@@ -1,14 +1,18 @@
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link rel="stylesheet" as="style" crossorigin
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
 <link rel="stylesheet" as="style" crossorigin
       href="https://cdn.jsdelivr.net/gh/fonts-archive/Paperlogy/Paperlogy.css" />
+<link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" />
 <script>
   // 브랜드 제목의 "KIS"만 포인트 컬러로 감싼다 (<title> 탭 텍스트는 건드리지 않음)
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll(".sidebar-title a, h1.title").forEach(function (el) {
-      if (el.textContent.trim() === "KIS OpenAPI" && !el.querySelector(".kis-accent")) {
+      if (el.textContent.trim() === "KIS Open API" && !el.querySelector(".kis-accent")) {
         el.innerHTML = el.innerHTML.replace(
-          /KIS(\s+OpenAPI)/,
+          /KIS(\s+Open API)/,
           '<span class="kis-accent">KIS</span>$1'
         );
       }

@@ -32,8 +32,8 @@ print(q.current_price, q.change_percent)  # 예: 71500  0.70
 
 ```python
 s.bars("1d", start="20240101", end="20240630")  # 일봉
-s.bars("1wk", start="20230101")  # 주봉
-s.bars("1m", max_bars=120)  # 당일 1분봉 최근 120개
+s.bars("1wk", start="20230101")                 # 주봉
+s.bars("1m", max_bars=120)                      # 당일 1분봉 최근 120개
 ```
 
 과거→현재 순으로 온다. 각 봉(`Bar`)은 `timestamp / open / high / low / close / volume`.
@@ -61,7 +61,7 @@ print(ob.total_bid_quantity, ob.total_ask_quantity)  # 총 매수/매도 잔량
 ## 체결·최근가
 
 ```python
-s.trades()  # 최근 체결 내역
+s.trades()         # 최근 체결 내역
 s.recent_prices()  # 최근 가격 추이
 ```
 
@@ -83,8 +83,8 @@ kis.domestic.quotes([("KRX", "005930"), ("NXT", "123456")])
 ## 시간외
 
 ```python
-s.after_hours_quote()  # 시간외 현재가
-s.after_hours_daily()  # 시간외 일별
+s.after_hours_quote()        # 시간외 현재가
+s.after_hours_daily()        # 시간외 일별
 s.after_hours_conclusions()  # 시간외 체결
 ```
 

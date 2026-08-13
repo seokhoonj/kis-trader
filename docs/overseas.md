@@ -7,11 +7,11 @@
 ```python
 s = kis.overseas.stock("AAPL")  # 거래소 자동 (NAS)
 
-s.quote()  # 현재가
+s.quote()          # 현재가
 s.current_price()  # 현재가(간단)
-s.bars("1d")  # 일봉
-s.order_book()  # 호가
-s.trades()  # 체결
+s.bars("1d")       # 일봉
+s.order_book()     # 호가
+s.trades()         # 체결
 ```
 
 ## 주문
@@ -20,9 +20,9 @@ s.trades()  # 체결
 s.buy(quantity=1, limit_price=150)
 s.sell(quantity=1, limit_price=160)
 
-s.buy(quantity=1, limit_price=150)  # 미국 정규장 (한국 시간 밤~새벽)
+s.buy(quantity=1, limit_price=150)            # 미국 정규장 (한국 시간 밤~새벽)
 s.overnight_buy(quantity=1, limit_price=150)  # 미국 오버나이트 세션 (한국 낮)
-s.reserve_buy(quantity=1, limit_price=150)  # 미국 예약 (장 열리기 전 미리)
+s.reserve_buy(quantity=1, limit_price=150)    # 미국 예약 (장 열리기 전 미리)
 ```
 
 ::: {.callout-note}
@@ -44,9 +44,9 @@ s.reserve_buy(quantity=1, limit_price=150)  # 미국 예약 (장 열리기 전 �
 a = kis.overseas.account
 
 a.positions(market=None)  # None = 전체 시장 합산
-a.balance(market="NAS")  # 통화별 요약(시장 지정)
-a.present_balance()  # 체결기준 잔고 (오늘 체결분 포함)
-a.settlement_balance()  # 결제기준 잔고 (결제 완료분만)
+a.balance(market="NAS")   # 통화별 요약(시장 지정)
+a.present_balance()       # 체결기준 잔고 (오늘 체결분 포함)
+a.settlement_balance()    # 결제기준 잔고 (결제 완료분만)
 a.buyable(symbol="AAPL", exchange="NAS", price=150)
 a.period_profit(start="20240101", end="20240630")
 a.transactions(start="20240101", end="20240630")
