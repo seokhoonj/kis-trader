@@ -13,7 +13,7 @@ from decimal import Decimal
 import pytest
 
 from kis_openapi import (
-    AfterHourBalanceRanking,
+    AfterHoursBalanceRanking,
     KISClient,
     OvertimeRanking,
     RankedStock,
@@ -121,7 +121,7 @@ def test_after_hour_balance_maps_residual_and_volumes():
              "mkob_otcp_vol": "451685", "mkfa_otcp_vol": "0"}]
     fake = FakeTransport(response=_resp({"output": rows}))
     ranked = _client(fake).domestic.ranking.by_after_hour_balance(side="bid")
-    assert isinstance(ranked[0], AfterHourBalanceRanking)
+    assert isinstance(ranked[0], AfterHoursBalanceRanking)
     assert ranked[0].overtime_ask_residual == 500
     assert ranked[0].overtime_bid_residual == 700
     assert ranked[0].pre_market_volume == 451685

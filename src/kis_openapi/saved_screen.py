@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import date, time
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -29,23 +30,24 @@ class SavedScreen:
 class SavedScreenStock:
     """저장 조건에 일치한 종목의 시세.
 
-    가격 필드(``price`` / ``open`` / ``high`` / ``low`` / ``week_52_high`` / ``week_52_low`` /
-    ``expected_price`` / ``base_price`` / ``upper_limit`` / ``lower_limit``)와 그 전일대비
-    (``change`` / ``expected_change``)는 원, ``volume`` / ``expected_volume`` 은 주,
-    ``change_percent`` / ``expected_change_percent`` / ``volume_change_percent`` 은 % 다.
+    가격 필드(``current_price`` / ``open_price`` / ``high_price`` / ``low_price`` /
+    ``week_52_high`` / ``week_52_low`` / ``expected_price`` / ``base_price`` / ``upper_limit`` /
+    ``lower_limit``)와 그 전일대비(``price_change`` / ``expected_change``)는 원,
+    ``cumulative_volume`` / ``expected_volume`` 은 주, ``change_percent`` /
+    ``expected_change_percent`` / ``volume_change_percent`` 은 % 다.
     """
 
     symbol: str
     name: str
-    price: Decimal
-    change: Decimal
+    current_price: Decimal
+    price_change: Decimal
     change_percent: Decimal
-    volume: int
-    amount: Decimal
-    strength: Decimal
-    open: Decimal
-    high: Decimal
-    low: Decimal
+    cumulative_volume: int
+    trading_amount: Decimal
+    execution_strength: Decimal
+    open_price: Decimal
+    high_price: Decimal
+    low_price: Decimal
     week_52_high: Decimal
     week_52_low: Decimal
     expected_price: Decimal
@@ -69,9 +71,9 @@ class SavedScreenStock:
 class WatchlistGroup:
     """HTS 관심종목 그룹."""
 
-    date: str
-    transmitted_at: str
-    rank: str
+    date: date
+    transmitted_at: time
+    rank: int
     code: str
     name: str
     requested_count: int
@@ -88,7 +90,7 @@ class WatchlistStock:
     """관심종목 그룹에 저장된 종목."""
 
     market_code: str
-    rank: str
+    rank: int
     exchange_code: str
     symbol: str
     color_code: str
@@ -109,7 +111,7 @@ class WatchlistStock:
 class Watchlist:
     """관심종목 그룹 요약과 저장 종목 목록."""
 
-    rank: str
+    rank: int
     name: str
     stocks: tuple[WatchlistStock, ...]
 

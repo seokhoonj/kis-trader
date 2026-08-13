@@ -326,7 +326,7 @@ def test_bond_valuations_maps_rows_and_sorts_oldest_first():
     assert first.agency_yields["FNP"] == Decimal("3.672")
     assert first.credit_ratings["KIS"] == "AA+"
     assert first.risk_free_prices["KBP"] == Decimal("0.00")
-    assert first.changed is True
+    assert first.has_valuation_changed is True
     call = fake.calls[0]
     assert call["path"] == _VALUATIONS
     assert call["tr_id"] == "CTPF2005R"

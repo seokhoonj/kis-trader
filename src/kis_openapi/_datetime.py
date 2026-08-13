@@ -10,7 +10,7 @@ fail-closed(:class:`KISError`)로 올리고, 사용자 입력 날짜의 정규�
 
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import date, datetime, time, timedelta, timezone
 
 from .errors import KISError, KISUsageError
 
@@ -62,6 +62,14 @@ def parse_optional_kst_date(value: object, *, required: bool = False) -> date | 
         return datetime.strptime(text, "%Y%m%d").date()  # noqa: DTZ007 -- date 만 취함
     except ValueError as err:
         raise KISError(f"날짜(YYYYMMDD) 파싱 실패: {value!r}") from err
+
+
+def _parse_kst_time(time_text: str) -> time:
+    """"HHMMSS" -> time. 전송 시각 등 날짜 없이 시각만 필요한 곳에서 쓴다."""
+    try:
+        return datetime.strptime(time_text, "%H%M%S").time()  # noqa: DTZ007 -- 시각만 취함
+    except ValueError as err:
+        raise KISError(f"시각(HHMMSS) 파싱 실패: {time_text!r}") from err
 
 
 def _parse_intraday_timestamp(time_text: str, as_of: datetime) -> datetime:

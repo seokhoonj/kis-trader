@@ -80,24 +80,24 @@ class Portfolio:
 class AccountAssets:
     """투자계좌 자산현황 요약(불변). 자산군 전반의 총자산·순자산·예수금·대출·외화까지 아우른다.
 
-    :class:`Balance`(주식 잔고 요약)보다 넓은 계좌 전체 관점이다 -- ``foreign_evaluation_total``
-    외화평가총액, ``overseas_stock_evaluation`` 해외주식평가금액, ``substitute_amount_total``
-    총대용금액, ``loan_amount_total`` 대출금액합계 등을 포함한다. 자산군별 내역(output1)은 계좌
+    :class:`Balance`(주식 잔고 요약)보다 넓은 계좌 전체 관점이다 -- ``total_foreign_evaluation``
+    외화평가총액, ``overseas_stock_evaluation`` 해외주식평가금액, ``total_substitute_amount``
+    총대용금액, ``total_loan_amount`` 대출금액합계 등을 포함한다. 자산군별 내역(output1)은 계좌
     유형에 따라 항목 순서가 달라 라벨을 단정하지 않고 ``_raw`` 로 남긴다. 금액은 KRW Decimal.
     """
 
-    total_asset_amount: Decimal       # 총자산금액(tot_asst_amt)
-    net_asset_total: Decimal          # 순자산총금액(nass_tot_amt)
-    purchase_amount_total: Decimal    # 매입금액합계(pchs_amt_smtl)
-    evaluation_amount_total: Decimal  # 평가금액합계(evlu_amt_smtl)
-    evaluation_pnl_total: Decimal     # 평가손익합계(evlu_pfls_amt_smtl)
-    loan_amount_total: Decimal        # 대출금액합계(loan_amt_smtl)
-    deposit_total: Decimal            # 총예수금액(tot_dncl_amt)
-    deposit: Decimal                  # 예수금액(dncl_amt)
-    foreign_evaluation_total: Decimal  # 외화평가총액(frcr_evlu_tota)
+    total_asset_amount: Decimal         # 총자산금액(tot_asst_amt)
+    total_net_asset_amount: Decimal     # 순자산총금액(nass_tot_amt)
+    total_purchase_amount: Decimal      # 매입금액합계(pchs_amt_smtl)
+    total_evaluation_amount: Decimal    # 평가금액합계(evlu_amt_smtl)
+    total_evaluation_pnl: Decimal       # 평가손익합계(evlu_pfls_amt_smtl)
+    total_loan_amount: Decimal          # 대출금액합계(loan_amt_smtl)
+    total_deposit: Decimal              # 총예수금액(tot_dncl_amt)
+    deposit: Decimal                    # 예수금액(dncl_amt)
+    total_foreign_evaluation: Decimal   # 외화평가총액(frcr_evlu_tota)
     overseas_stock_evaluation: Decimal  # 해외주식평가금액(ovrs_stck_evlu_amt1)
-    substitute_amount_total: Decimal  # 총대용금액(tot_sbst_amt)
-    today_receivable: Decimal         # 당일미수금액(thdt_rcvb_amt)
+    total_substitute_amount: Decimal    # 총대용금액(tot_sbst_amt)
+    today_receivable: Decimal           # 당일미수금액(thdt_rcvb_amt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

@@ -379,6 +379,13 @@ def test_option_board_futures_rejects_missing_output_and_blank_market_class():
         _client(fake).domestic.option_board_futures(market_class=" ")
 
 
+def test_option_board_futures_sends_normalized_market_class():
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": []})
+    fake = FakeTransport(response=response)
+    _client(fake).domestic.option_board_futures(market_class=" MKI ")
+    assert fake.calls[0]["params"]["FID_COND_MRKT_CLS_CODE"] == "MKI"
+
+
 def test_option_expiries_reads_output_array():
     # 원장 예시: 배열 키가 output(레이아웃엔 output1). 예시값 그대로.
     rows = [{"mtrt_yymm_code": "0V05", "mtrt_yymm": "202405"},

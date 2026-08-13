@@ -97,7 +97,7 @@ def _client(transport, *, environment="real", account="12345678-29"):
 def test_pension_balance_parses_positions_and_summary():
     bal = _client(FakeTransport(response=_resp2([_BAL_ROW], _BAL_SUMMARY))).pension.balance()
     assert isinstance(bal, PensionBalance)
-    assert bal.deposit_total == Decimal(100000)
+    assert bal.total_deposit == Decimal(100000)
     assert bal.total_evaluation == Decimal(100000)
     assert bal.today_buy_amount == Decimal(66175)
     assert len(bal.positions) == 1
@@ -137,8 +137,8 @@ def test_pension_balance_missing_summary_fails_closed():
 def test_pension_present_balance_parses():
     pre = _client(FakeTransport(response=_resp2([_PRE_ROW], _PRE_SUMMARY, summary_list=True))).pension.present_balance()
     assert isinstance(pre, PensionPresentBalance)
-    assert pre.purchase_amount_total == Decimal(464760)
-    assert pre.evaluation_pnl_total == Decimal(-67730)
+    assert pre.total_purchase_amount == Decimal(464760)
+    assert pre.total_evaluation_pnl == Decimal(-67730)
     assert pre.return_percent == Decimal("-14.57311300")
     p = pre.positions[0]
     assert p.symbol == "069500"

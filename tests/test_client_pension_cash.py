@@ -54,8 +54,8 @@ def _client(transport, *, environment="real", account="12345678-29"):
 def test_pension_deposit_parses():
     dep = _client(FakeTransport(response=_resp(_DEPOSIT_OUT))).pension.deposit()
     assert isinstance(dep, PensionDeposit)
-    assert dep.deposit_total == Decimal(57622382)
-    assert dep.next_day_settlement == Decimal(11054042)
+    assert dep.total_deposit == Decimal(57622382)
+    assert dep.next_day_estimated_settlement_amount == Decimal(11054042)
     assert dep.next_day_settlement_amount == Decimal(0)
     assert dep.second_day_settlement_amount == Decimal(0)
 

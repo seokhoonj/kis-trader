@@ -67,7 +67,7 @@ from .._wire import (
 )
 from ..errors import KISUsageError
 from ..ranking_items import (
-    AfterHourBalanceRanking,
+    AfterHoursBalanceRanking,
     CreditBalanceRanking,
     DividendRanking,
     NearHighLowRanking,
@@ -956,9 +956,9 @@ _AFTER_HOUR_TOP = {"ask": "1", "bid": "2"}   # FID_RANK_SORT_CLS_CODE (매도잔
 
 def fetch_after_hour_balance(
     transport: Transport, *, side: str, market: str
-) -> list[AfterHourBalanceRanking]:
+) -> list[AfterHoursBalanceRanking]:
     """시간외 잔량 순위. ``side="ask"`` 매도잔량 상위 / ``"bid"`` 매수잔량 상위. 시간외 총 매도/매수
-    잔량과 장전/장후 체결량을 담는다(:class:`AfterHourBalanceRanking`)."""
+    잔량과 장전/장후 체결량을 담는다(:class:`AfterHoursBalanceRanking`)."""
     params = {
         "FID_INPUT_PRICE_1": "",
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
@@ -975,14 +975,14 @@ def fetch_after_hour_balance(
     )
     _raise_if_error(resp)
     rows = _require_mapping_rows("output", resp)
-    ranked: list[AfterHourBalanceRanking] = []
+    ranked: list[AfterHoursBalanceRanking] = []
     for row in rows:
         symbol = str(row.get("stck_shrn_iscd", "")).strip()
         if not symbol:
             continue
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         ranked.append(
-            AfterHourBalanceRanking(
+            AfterHoursBalanceRanking(
                 rank=len(ranked) + 1,
                 symbol=symbol,
                 name=str(row.get("hts_kor_isnm", "")).strip(),

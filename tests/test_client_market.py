@@ -291,12 +291,12 @@ def test_market_interest_rates_combines_regions_and_maps_signs():
     assert [(quote.code, quote.region) for quote in quotes] == [
         ("Y0202", "overseas"), ("Y0101", "domestic"),
     ]
-    assert quotes[0].value == Decimal("4.5600")
+    assert quotes[0].quote_value == Decimal("4.5600")
     assert quotes[0].change == Decimal("0.0100")
     assert quotes[0].change_percent == Decimal("0.22")
     assert quotes[1].change == Decimal("-0.0580")
     assert quotes[1].change_percent == Decimal("-1.67")
-    assert quotes[1].date == date(2024, 4, 12)
+    assert quotes[1].observation_date == date(2024, 4, 12)
     assert fake.calls[0] == {
         "path": "/uapi/domestic-stock/v1/quotations/comp-interest",
         "tr_id": "FHPST07020000",

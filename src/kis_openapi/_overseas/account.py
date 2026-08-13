@@ -30,6 +30,7 @@ from ..overseas_items import (
     OverseasAlgoExecution,
     OverseasAlgoOrder,
     OverseasBalance,
+    OverseasBalancePosition,
     OverseasBuyableAmount,
     OverseasCurrencyBalance,
     OverseasForeignMargin,
@@ -38,7 +39,6 @@ from ..overseas_items import (
     OverseasPeriodProfitRow,
     OverseasPosition,
     OverseasPresentBalance,
-    OverseasReportPosition,
     OverseasSettlementBalance,
     OverseasTransaction,
 )
@@ -453,8 +453,8 @@ def fetch_present_balance(
     return OverseasPresentBalance(
         positions=tuple(_report_position(row) for row in _as_rows(resp.body.get("output1"))),
         currencies=tuple(_currency_balance(row) for row in _as_rows(resp.body.get("output2"))),
-        purchase_total=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
-        evaluation_total=_decimal_or_zero(summary, "evlu_amt_smtl_amt"),
+        total_purchase_amount=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
+        total_evaluation_amount=_decimal_or_zero(summary, "evlu_amt_smtl_amt"),
         total_eval_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
         total_asset=_decimal_or_zero(summary, "tot_asst_amt"),
         eval_return_rate=_decimal_or_zero(summary, "evlu_erng_rt1"),
@@ -486,11 +486,11 @@ def fetch_settlement_balance(
     return OverseasSettlementBalance(
         positions=tuple(_report_position(row) for row in _as_rows(resp.body.get("output1"))),
         currencies=tuple(_currency_balance(row) for row in _as_rows(resp.body.get("output2"))),
-        purchase_total=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
+        total_purchase_amount=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
         total_eval_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
         eval_return_rate=_decimal_or_zero(summary, "evlu_erng_rt1"),
         total_deposit=_decimal_or_zero(summary, "tot_dncl_amt"),
-        won_evaluation_total=_decimal_or_zero(summary, "wcrc_evlu_amt_smtl"),
+        total_won_evaluation=_decimal_or_zero(summary, "wcrc_evlu_amt_smtl"),
         total_asset=_decimal_or_zero(summary, "tot_asst_amt2"),
         total_loan=_decimal_or_zero(summary, "tot_loan_amt"),
         _raw=summary,
@@ -597,9 +597,9 @@ def _first_object(block: object) -> Mapping[str, Any]:
     return {}
 
 
-def _report_position(row: Mapping[str, Any]) -> OverseasReportPosition:
+def _report_position(row: Mapping[str, Any]) -> OverseasBalancePosition:
     currency = str(row.get("buy_crcy_cd", "")).strip()
-    return OverseasReportPosition(
+    return OverseasBalancePosition(
         symbol=str(row.get("pdno", "")).strip(),
         name=str(row.get("prdt_name", "")).strip(),
         balance_quantity=_decimal_or_zero(row, "cblc_qty13"),

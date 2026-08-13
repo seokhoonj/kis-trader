@@ -68,7 +68,7 @@ def test_dividends_maps_and_params():
 def test_dividends_symbol_and_kind_filters():
     fake = FakeTransport(response=_resp([]))
     _client(fake).domestic.calendar.dividends(
-        start=date(2024, 3, 1), end=date(2024, 3, 31), symbol="005930", kind="interim"
+        start=date(2024, 3, 1), end=date(2024, 3, 31), symbol="005930", dividend_kind="interim"
     )
     call = fake.calls[0]
     assert call["params"]["SHT_CD"] == "005930"
@@ -89,7 +89,9 @@ def test_dividends_high_dividend_flag_and_zero_sentinel_date():
 def test_dividends_bad_kind_raises():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.calendar.dividends(start="20240301", end="20240331", kind="nope")
+        _client(fake).domestic.calendar.dividends(
+            start="20240301", end="20240331", dividend_kind="nope"
+        )
 
 
 def test_dividends_missing_output1_fails_closed():
@@ -153,7 +155,7 @@ def test_rights_offerings_maps_and_basis():
                                               body={"output1": rows}))
     from kis_openapi import RightsOffering
     events = _client(fake).domestic.calendar.rights_offerings(
-        start="20240201", end="20240229", basis="record"
+        start="20240201", end="20240229", offering_date_basis="record"
     )
     assert isinstance(events[0], RightsOffering)
     e = events[0]
@@ -173,7 +175,9 @@ def test_rights_offerings_bad_basis_raises():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                                               body={"output1": []}))
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.calendar.rights_offerings(start="20240201", end="20240229", basis="nope")
+        _client(fake).domestic.calendar.rights_offerings(
+            start="20240201", end="20240229", offering_date_basis="nope"
+        )
 
 
 def test_bonus_issues_maps_and_params():

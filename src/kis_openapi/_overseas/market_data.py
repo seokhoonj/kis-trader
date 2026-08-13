@@ -47,7 +47,7 @@ from ..overseas_items import (
     OverseasIndustry,
     OverseasIndustryStock,
     OverseasStockSearch,
-    OverseasStockSearchItem,
+    OverseasStockSearchMatch,
 )
 from ..overseas_product import OverseasProductInfo
 from ..quote import Quote
@@ -113,7 +113,7 @@ def search_stocks(
                         ("SHAR", shares), ("VOLUME", volume), ("AMT", amount),
                         ("EPS", eps), ("PER", per)):
         params.update(_range_params(name, value))
-    items: list[OverseasStockSearchItem] = []
+    matches: list[OverseasStockSearchMatch] = []
     summary: Mapping[str, Any] | None = None
     tr_cont = ""
     for _page in range(_MAX_SEARCH_PAGES):
@@ -131,7 +131,7 @@ def search_stocks(
             summary = output1
         for row in rows:
             sign = str(row.get("sign", "")).strip()
-            items.append(OverseasStockSearchItem(
+            matches.append(OverseasStockSearchMatch(
                 realtime_symbol=str(row.get("rsym", "")).strip(),
                 exchange=str(row.get("excd", "")).strip(), symbol=str(row.get("symb", "")).strip(),
                 name=str(row.get("name", "")).strip(), english_name=str(row.get("ename", "")).strip(),
@@ -158,7 +158,7 @@ def search_stocks(
     return OverseasStockSearch(
         exchange=exchange.strip(), decimal_places=required_int(summary.get("zdiv"), "zdiv"),
         status=str(summary.get("stat", "")).strip(),
-        total_count=required_int(summary.get("trec"), "trec"), items=tuple(items),
+        total_count=required_int(summary.get("trec"), "trec"), matches=tuple(matches),
     )
 
 

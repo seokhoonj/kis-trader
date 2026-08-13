@@ -107,7 +107,7 @@ def test_realized_balance_object_output2_ok():
     # output2 가 객체(배열 아님)로 와도 요약을 잡는다.
     resp = _resp(output1=[_POS], output2=_SUM)
     bal = _client(FakeTransport(response=resp)).domestic.account.realized_profit_balance()
-    assert bal.deposit_total == Decimal(1000000)
+    assert bal.total_deposit == Decimal(1000000)
 
 
 def test_realized_balance_empty_positions_ok():

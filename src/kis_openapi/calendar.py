@@ -45,12 +45,12 @@ class CalendarQueries:
 
     def dividends(
         self, *, start: str | date, end: str | date,
-        symbol: str | None = None, kind: str = "all",
+        symbol: str | None = None, dividend_kind: str = "all",
     ) -> list[DividendEvent]:
-        """기간 [start, end] 의 배당 일정. ``symbol`` 지정 시 그 종목만, ``kind`` 는
+        """기간 [start, end] 의 배당 일정. ``symbol`` 지정 시 그 종목만, ``dividend_kind`` 는
         ``"all"``(전체) / ``"final"``(결산배당) / ``"interim"``(중간배당)."""
         return ksd_api.fetch_dividends(
-            self._client.transport, start=start, end=end, symbol=symbol, kind=kind
+            self._client.transport, start=start, end=end, symbol=symbol, dividend_kind=dividend_kind
         )
 
     def ipo_subscriptions(
@@ -63,12 +63,13 @@ class CalendarQueries:
 
     def rights_offerings(
         self, *, start: str | date, end: str | date,
-        symbol: str | None = None, basis: str = "subscription",
+        symbol: str | None = None, offering_date_basis: str = "subscription",
     ) -> list[RightsOffering]:
-        """기간 [start, end] 의 유상증자 일정. ``basis`` 는 ``"subscription"``(청약일별) /
+        """기간 [start, end] 의 유상증자 일정. ``offering_date_basis`` 는 ``"subscription"``(청약일별) /
         ``"record"``(기준일별). ``symbol`` 지정 시 그 종목만."""
         return ksd_api.fetch_rights_offerings(
-            self._client.transport, start=start, end=end, symbol=symbol, basis=basis
+            self._client.transport, start=start, end=end, symbol=symbol,
+            offering_date_basis=offering_date_basis,
         )
 
     def bonus_issues(

@@ -449,6 +449,6 @@ def _parse_valuation(
         agency_yields=agency_yields,
         credit_ratings=credit_ratings,
         risk_free_prices=risk_free_prices,
-        changed=str(row.get("chng_yn", "")).strip() == "Y",
+        has_valuation_changed=str(row.get("chng_yn", "")).strip() == "Y",
         _raw=row,
     )

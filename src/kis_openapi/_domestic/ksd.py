@@ -92,13 +92,15 @@ def _rows(transport: Transport, *, path: str, tr: str, params: Mapping[str, str]
 
 def fetch_dividends(
     transport: Transport, *, start: str | date, end: str | date,
-    symbol: str | None = None, kind: str = "all",
+    symbol: str | None = None, dividend_kind: str = "all",
 ) -> list[DividendEvent]:
-    """기간 [start, end] 의 배당 일정. ``symbol`` 지정 시 그 종목만, ``kind`` 는 all/final/interim."""
+    """기간 [start, end] 의 배당 일정. ``symbol`` 지정 시 그 종목만, ``dividend_kind`` 는 all/final/interim."""
     try:
-        gb1 = _DIVIDEND_KIND[kind]
+        gb1 = _DIVIDEND_KIND[dividend_kind]
     except KeyError:
-        raise KISUsageError(f"kind 는 {sorted(_DIVIDEND_KIND)} 중 하나: {kind!r}") from None
+        raise KISUsageError(
+            f"dividend_kind 는 {sorted(_DIVIDEND_KIND)} 중 하나: {dividend_kind!r}"
+        ) from None
     params = {
         "CTS": "",
         "GB1": gb1,
@@ -177,14 +179,16 @@ def fetch_ipo_subscriptions(
 
 def fetch_rights_offerings(
     transport: Transport, *, start: str | date, end: str | date,
-    symbol: str | None = None, basis: str = "subscription",
+    symbol: str | None = None, offering_date_basis: str = "subscription",
 ) -> list[RightsOffering]:
-    """기간 [start, end] 의 유상증자 일정. ``basis`` 는 조회 기준 -- ``"subscription"``(청약일별) /
+    """기간 [start, end] 의 유상증자 일정. ``offering_date_basis`` 는 조회 기준 -- ``"subscription"``(청약일별) /
     ``"record"``(기준일별). ``symbol`` 지정 시 그 종목만."""
     try:
-        gb1 = _RIGHTS_BASIS[basis]
+        gb1 = _RIGHTS_BASIS[offering_date_basis]
     except KeyError:
-        raise KISUsageError(f"basis 는 {sorted(_RIGHTS_BASIS)} 중 하나: {basis!r}") from None
+        raise KISUsageError(
+            f"offering_date_basis 는 {sorted(_RIGHTS_BASIS)} 중 하나: {offering_date_basis!r}"
+        ) from None
     params = {
         "CTS": "",
         "GB1": gb1,

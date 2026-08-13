@@ -338,7 +338,7 @@ class OverseasIndustryStock:
 
 
 @dataclass(frozen=True, slots=True)
-class OverseasStockSearchItem:
+class OverseasStockSearchMatch:
     """해외 조건검색 결과 종목."""
 
     realtime_symbol: str
@@ -376,10 +376,10 @@ class OverseasStockSearch:
     decimal_places: int
     status: str
     total_count: int
-    items: tuple[OverseasStockSearchItem, ...]
+    matches: tuple[OverseasStockSearchMatch, ...]
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "items", tuple(self.items))
+        object.__setattr__(self, "matches", tuple(self.matches))
 
 
 @dataclass(frozen=True, slots=True)
@@ -482,7 +482,7 @@ class OverseasCollateralStock:
 
 
 @dataclass(frozen=True, slots=True)
-class OverseasReportPosition:
+class OverseasBalancePosition:
     """해외 잔고 리포트(체결기준/결제기준)의 보유 종목 한 줄(불변). 금액은 매수통화(``currency``)
     :class:`~kis_openapi.money.Money`. ``collateral_quantity`` 는 결제기준잔고에만 채워진다(체결기준은 0).
 
@@ -539,10 +539,10 @@ class OverseasPresentBalance:
     .. note:: 요약(output3) 필드는 KIS 예시가 output1 에서 잘려 레이아웃 기준이다 -- 전체 원본은 ``_raw``.
     """
 
-    positions: tuple[OverseasReportPosition, ...]
+    positions: tuple[OverseasBalancePosition, ...]
     currencies: tuple[OverseasCurrencyBalance, ...]
-    purchase_total: Decimal            # 매입금액합계금액(pchs_amt_smtl_amt), 원화
-    evaluation_total: Decimal          # 평가금액합계금액(evlu_amt_smtl_amt), 원화
+    total_purchase_amount: Decimal     # 매입금액합계금액(pchs_amt_smtl_amt), 원화
+    total_evaluation_amount: Decimal   # 평가금액합계금액(evlu_amt_smtl_amt), 원화
     total_eval_pnl: Decimal            # 총평가손익금액(tot_evlu_pfls_amt), 원화
     total_asset: Decimal               # 총자산금액(tot_asst_amt), 원화
     eval_return_rate: Decimal          # 평가수익율(evlu_erng_rt1)
@@ -559,13 +559,13 @@ class OverseasSettlementBalance:
     """해외주식 결제기준잔고(불변) -- 기준일자(``BASS_DT``) 결제 기준의 보유 종목·통화별 예수금·계좌
     요약. **모의투자 미지원**. KIS 응답예시로 필드 전량 확증됨(단 ``_raw`` 는 대여평가 등 추가 필드 포함)."""
 
-    positions: tuple[OverseasReportPosition, ...]
+    positions: tuple[OverseasBalancePosition, ...]
     currencies: tuple[OverseasCurrencyBalance, ...]
-    purchase_total: Decimal            # 매입금액합계금액(pchs_amt_smtl_amt), 원화
+    total_purchase_amount: Decimal     # 매입금액합계금액(pchs_amt_smtl_amt), 원화
     total_eval_pnl: Decimal            # 총평가손익금액(tot_evlu_pfls_amt), 원화
     eval_return_rate: Decimal          # 평가수익율(evlu_erng_rt1)
     total_deposit: Decimal             # 총예수금액(tot_dncl_amt), 원화
-    won_evaluation_total: Decimal      # 원화평가금액합계(wcrc_evlu_amt_smtl)
+    total_won_evaluation: Decimal      # 원화평가금액합계(wcrc_evlu_amt_smtl)
     total_asset: Decimal               # 총자산금액(tot_asst_amt2), 원화
     total_loan: Decimal                # 총대출금액(tot_loan_amt), 원화
     _raw: Mapping[str, Any] = field(

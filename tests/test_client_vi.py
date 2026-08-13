@@ -44,7 +44,7 @@ def test_vi_events_maps_ledger_values():
     assert e.symbol == "337120"
     assert e.name == "KODEX Fn멀티팩터"
     assert e.trigger_price == Decimal(12135)
-    assert e.count == 2
+    assert e.daily_trigger_count == 2
     assert e.vi_class == "N"
     assert e.vi_kind == "2"
     assert f"{e.triggered_at:%Y%m%d %H%M%S}" == "20240126 174012"

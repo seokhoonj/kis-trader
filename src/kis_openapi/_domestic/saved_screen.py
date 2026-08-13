@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 
+from .._datetime import _parse_kst_date, _parse_kst_time
 from .._response import (
     _missing_block_error,
     _raise_if_error,
@@ -76,14 +77,15 @@ def fetch_saved_screen_stocks(
         sign, expected_sign = str(row.get("daebi", "")).strip(), str(row.get("expdaebi", "")).strip()
         stocks.append(SavedScreenStock(
             symbol=str(row.get("code", "")).strip(), name=str(row.get("name", "")).strip(),
-            price=required_decimal(row.get("price"), "price"),
-            change=_apply_change_sign(required_decimal(row.get("change"), "change"), sign),
+            current_price=required_decimal(row.get("price"), "price"),
+            price_change=_apply_change_sign(required_decimal(row.get("change"), "change"), sign),
             change_percent=_apply_change_sign(required_decimal(row.get("chgrate"), "chgrate"), sign),
-            volume=required_int(row.get("acml_vol"), "acml_vol"),
-            amount=required_decimal(row.get("trade_amt"), "trade_amt"),
-            strength=required_decimal(row.get("cttr"), "cttr"),
-            open=required_decimal(row.get("open"), "open"), high=required_decimal(row.get("high"), "high"),
-            low=required_decimal(row.get("low"), "low"),
+            cumulative_volume=required_int(row.get("acml_vol"), "acml_vol"),
+            trading_amount=required_decimal(row.get("trade_amt"), "trade_amt"),
+            execution_strength=required_decimal(row.get("cttr"), "cttr"),
+            open_price=required_decimal(row.get("open"), "open"),
+            high_price=required_decimal(row.get("high"), "high"),
+            low_price=required_decimal(row.get("low"), "low"),
             week_52_high=required_decimal(row.get("high52"), "high52"),
             week_52_low=required_decimal(row.get("low52"), "low52"),
             expected_price=required_decimal(row.get("expprice"), "expprice"),
@@ -120,9 +122,9 @@ def fetch_watchlist_groups(
     _raise_if_error(resp)
     rows = _rows(resp.body.get("output2"), "output2", resp)
     return [WatchlistGroup(
-        date=str(row.get("date", "")).strip(),
-        transmitted_at=str(row.get("trnm_hour", "")).strip(),
-        rank=str(row.get("data_rank", "")).strip(),
+        date=_parse_kst_date(str(row.get("date", "")).strip()),
+        transmitted_at=_parse_kst_time(str(row.get("trnm_hour", "")).strip()),
+        rank=required_int(row.get("data_rank"), "data_rank"),
         code=str(row.get("inter_grp_code", "")).strip(),
         name=str(row.get("inter_grp_name", "")).strip(),
         requested_count=required_int(row.get("ask_cnt"), "ask_cnt"), _raw=row,
@@ -146,11 +148,11 @@ def fetch_watchlist(
         raise _missing_block_error("output1", resp)
     rows = _rows(resp.body.get("output2"), "output2", resp)
     return Watchlist(
-        rank=str(summary.get("data_rank", "")).strip(),
+        rank=required_int(summary.get("data_rank"), "data_rank"),
         name=str(summary.get("inter_grp_name", "")).strip(),
         stocks=tuple(WatchlistStock(
             market_code=str(row.get("fid_mrkt_cls_code", "")).strip(),
-            rank=str(row.get("data_rank", "")).strip(),
+            rank=required_int(row.get("data_rank"), "data_rank"),
             exchange_code=str(row.get("exch_code", "")).strip(),
             symbol=str(row.get("jong_code", "")).strip(),
             color_code=str(row.get("color_code", "")).strip(), memo=str(row.get("memo", "")).strip(),

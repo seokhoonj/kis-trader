@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING
 
 from ._domestic import ranking as ranking_api
 from .ranking_items import (
-    AfterHourBalanceRanking,
+    AfterHoursBalanceRanking,
     CreditBalanceRanking,
     DividendRanking,
     NearHighLowRanking,
@@ -202,10 +202,10 @@ class RankingQueries:
             self._client.transport, direction=direction, market="KRX"
         )
 
-    def by_after_hour_balance(self, *, side: str = "ask") -> list[AfterHourBalanceRanking]:
+    def by_after_hour_balance(self, *, side: str = "ask") -> list[AfterHoursBalanceRanking]:
         """시간외 잔량 순위. ``side="ask"`` 매도잔량 상위 / ``"bid"`` 매수잔량 상위. 시간외 총 매도/
         매수 잔량과 장전/장후 체결량을 담아 돌려준다
-        (:class:`~kis_openapi.ranking_items.AfterHourBalanceRanking`, 최대 30건)."""
+        (:class:`~kis_openapi.ranking_items.AfterHoursBalanceRanking`, 최대 30건)."""
         return ranking_api.fetch_after_hour_balance(self._client.transport, side=side, market="KRX")
 
     def by_views(self) -> list[TopViewedStock]:

@@ -530,7 +530,7 @@ def fetch_vi_events(
                 trigger_price=required_decimal(row.get("vi_prc"), "vi_prc"),
                 base_price=optional_decimal(row.get("vi_stnd_prc"), "vi_stnd_prc"),
                 disparity_percent=optional_decimal(row.get("vi_dprt"), "vi_dprt"),
-                count=required_int(row.get("vi_count"), "vi_count"),
+                daily_trigger_count=required_int(row.get("vi_count"), "vi_count"),
                 _raw=row,
             )
         )
@@ -911,7 +911,7 @@ def _parse_interest_rates(
                 code=str(row.get("bcdt_code", "")).strip(),
                 name=str(row.get("hts_kor_isnm", "")).strip(),
                 region=region,
-                value=required_decimal(row.get("bond_mnrt_prpr"), "bond_mnrt_prpr"),
+                quote_value=required_decimal(row.get("bond_mnrt_prpr"), "bond_mnrt_prpr"),
                 change=_apply_change_sign(
                     required_decimal(row.get("bond_mnrt_prdy_vrss"), "bond_mnrt_prdy_vrss"),
                     sign,
@@ -919,7 +919,7 @@ def _parse_interest_rates(
                 change_percent=_apply_change_sign(
                     required_decimal(row.get(percent_field), percent_field), sign
                 ),
-                date=_parse_kst_date(str(row.get("stck_bsop_date", "")).strip()),
+                observation_date=_parse_kst_date(str(row.get("stck_bsop_date", "")).strip()),
                 _raw=row,
             )
         )

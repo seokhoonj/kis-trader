@@ -20,14 +20,14 @@ from .balance import Position
 class PensionDeposit:
     """퇴직연금 예수금 요약(불변).
 
-    ``deposit_total`` 예수금총액, ``next_day_settlement`` 익일정산액, ``next_day_settlement_amount``
+    ``total_deposit`` 예수금총액, ``next_day_estimated_settlement_amount`` 익일정산액, ``next_day_settlement_amount``
     익일결제금액, ``second_day_settlement_amount`` 2익일결제금액.
     """
 
-    deposit_total: Decimal            # 예수금총액(dnca_tota)
-    next_day_settlement: Decimal      # 익일정산액(nxdy_excc_amt)
-    next_day_settlement_amount: Decimal  # 익일결제금액(nxdy_sttl_amt)
-    second_day_settlement_amount: Decimal  # 2익일결제금액(nx2_day_sttl_amt)
+    total_deposit: Decimal                         # 예수금총액(dnca_tota)
+    next_day_estimated_settlement_amount: Decimal  # 익일정산액(nxdy_excc_amt)
+    next_day_settlement_amount: Decimal            # 익일결제금액(nxdy_sttl_amt)
+    second_day_settlement_amount: Decimal          # 2익일결제금액(nx2_day_sttl_amt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -40,19 +40,19 @@ class PensionDeposit:
 class PensionBalance:
     """퇴직연금 잔고(불변) -- 보유종목과 예수금 기준 계좌 요약을 한 스냅샷으로.
 
-    ``positions`` 보유종목(:class:`~kis_openapi.balance.Position` 재사용), ``deposit_total`` 예수금총액,
-    ``next_day_settlement`` 익일정산액, ``prior_settlement`` 가수도정산금액, ``securities_evaluation``
+    ``positions`` 보유종목(:class:`~kis_openapi.balance.Position` 재사용), ``total_deposit`` 예수금총액,
+    ``next_day_estimated_settlement_amount`` 익일정산액, ``prior_settlement`` 가수도정산금액, ``securities_evaluation``
     유가평가금액, ``total_evaluation`` 총평가금액, ``today_buy_amount``/``today_sell_amount`` 당일 매수/매도금액.
     """
 
     positions: tuple[Position, ...]
-    deposit_total: Decimal            # 예수금총액(dnca_tot_amt)
-    next_day_settlement: Decimal      # 익일정산액(nxdy_excc_amt)
-    prior_settlement: Decimal         # 가수도정산금액(prvs_rcdl_excc_amt)
-    securities_evaluation: Decimal    # 유가평가금액(scts_evlu_amt)
-    total_evaluation: Decimal         # 총평가금액(tot_evlu_amt)
-    today_buy_amount: Decimal         # 당일매수금액(thdt_buy_amt)
-    today_sell_amount: Decimal        # 당일매도금액(thdt_sll_amt)
+    total_deposit: Decimal                         # 예수금총액(dnca_tot_amt)
+    next_day_estimated_settlement_amount: Decimal  # 익일정산액(nxdy_excc_amt)
+    prior_settlement: Decimal                      # 가수도정산금액(prvs_rcdl_excc_amt)
+    securities_evaluation: Decimal                 # 유가평가금액(scts_evlu_amt)
+    total_evaluation: Decimal                      # 총평가금액(tot_evlu_amt)
+    today_buy_amount: Decimal                      # 당일매수금액(thdt_buy_amt)
+    today_sell_amount: Decimal                     # 당일매도금액(thdt_sll_amt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -65,16 +65,16 @@ class PensionBalance:
 class PensionPresentBalance:
     """퇴직연금 체결기준잔고(불변) -- 체결기준 보유종목과 손익 요약.
 
-    ``positions`` 보유종목, ``purchase_amount_total`` 매입금액합계, ``evaluation_amount_total``
-    평가금액합계, ``evaluation_pnl_total`` 평가손익합계, ``trade_pnl_total`` 매매손익합계,
+    ``positions`` 보유종목, ``total_purchase_amount`` 매입금액합계, ``total_evaluation_amount``
+    평가금액합계, ``total_evaluation_pnl`` 평가손익합계, ``total_trade_pnl`` 매매손익합계,
     ``today_total_pnl`` 당일총손익, ``return_percent`` 수익률(%).
     """
 
     positions: tuple[Position, ...]
-    purchase_amount_total: Decimal    # 매입금액합계(pchs_amt_smtl_amt)
-    evaluation_amount_total: Decimal  # 평가금액합계(evlu_amt_smtl_amt)
-    evaluation_pnl_total: Decimal     # 평가손익합계(evlu_pfls_smtl_amt)
-    trade_pnl_total: Decimal          # 매매손익합계(trad_pfls_smtl)
+    total_purchase_amount: Decimal    # 매입금액합계(pchs_amt_smtl_amt)
+    total_evaluation_amount: Decimal  # 평가금액합계(evlu_amt_smtl_amt)
+    total_evaluation_pnl: Decimal     # 평가손익합계(evlu_pfls_smtl_amt)
+    total_trade_pnl: Decimal          # 매매손익합계(trad_pfls_smtl)
     today_total_pnl: Decimal          # 당일총손익(thdt_tot_pfls_amt)
     return_percent: Decimal           # 수익률(pftrt)
     _raw: Mapping[str, Any] = field(

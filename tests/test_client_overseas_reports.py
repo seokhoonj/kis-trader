@@ -125,7 +125,7 @@ def test_present_balance_demo_uses_demo_tr():
 def test_present_balance_summary_as_single_list():
     body = {"output1": [_POS], "output2": [_CRCY], "output3": [_SUM3]}
     bal = _client(FakeTransport(response=_resp(body))).overseas.account.present_balance()
-    assert bal.purchase_total == Decimal(2000000)
+    assert bal.total_purchase_amount == Decimal(2000000)
 
 
 # --- 결제기준잔고 (CTRP6010R) ---------------------------------------------
@@ -138,7 +138,7 @@ def test_settlement_balance_parses():
     assert p.loan_balance == Money(Decimal(0), "USD")
     assert bal.total_deposit == Decimal(300000)
     assert bal.total_asset == Decimal(5000000)      # tot_asst_amt2
-    assert bal.won_evaluation_total == Decimal(2100000)
+    assert bal.total_won_evaluation == Decimal(2100000)
 
 
 def test_settlement_balance_tr_and_params():

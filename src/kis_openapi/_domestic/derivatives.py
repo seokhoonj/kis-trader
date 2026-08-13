@@ -305,7 +305,8 @@ def fetch_futures_board_quotes(
     transport: Transport, *, market_class: str
 ) -> list[FuturesBoardQuote]:
     """옵션 전광판 하단의 선물 계약별 시세를 조회한다."""
-    if not market_class.strip():
+    normalized_market_class = market_class.strip()
+    if not normalized_market_class:
         raise KISUsageError("market_class 는 비어 있을 수 없다.")
     resp = transport.request(
         method="GET",
@@ -314,7 +315,7 @@ def fetch_futures_board_quotes(
         params={
             "FID_COND_MRKT_DIV_CODE": "F",
             "FID_COND_SCR_DIV_CODE": _OPTION_BOARD_SCREEN_CODE,
-            "FID_COND_MRKT_CLS_CODE": market_class,
+            "FID_COND_MRKT_CLS_CODE": normalized_market_class,
         },
         idempotent=True,
     )

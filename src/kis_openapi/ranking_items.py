@@ -181,7 +181,7 @@ class OvertimeRanking:
 
 
 @dataclass(frozen=True, slots=True)
-class AfterHourBalanceRanking:
+class AfterHoursBalanceRanking:
     """시간외 잔량 순위의 한 행(불변).
 
     시간외 매도/매수 총잔량(``overtime_ask_residual`` / ``overtime_bid_residual``)과 장전/장후 시간외

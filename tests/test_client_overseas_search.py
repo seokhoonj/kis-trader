@@ -39,9 +39,9 @@ def test_overseas_search_maps_filters_and_paginates():
         "NAS", price=(160, 200), per=(10, 30), volume=(1000, 100000)
     )
     assert isinstance(result, OverseasStockSearch)
-    assert len(result.items) == 2
-    assert result.items[0].price == Decimal("160.5")
-    assert result.items[0].is_tradable
+    assert len(result.matches) == 2
+    assert result.matches[0].price == Decimal("160.5")
+    assert result.matches[0].is_tradable
     params = fake.calls[0]["params"]
     assert fake.calls[0]["tr_id"] == "HHDFS76410000"
     assert (params["CO_YN_PRICECUR"], params["CO_ST_PRICECUR"], params["CO_EN_PRICECUR"]) == ("1", "160", "200")

@@ -152,7 +152,7 @@ class BondValuation:
     agency_yields: Mapping[str, Decimal]
     credit_ratings: Mapping[str, str]
     risk_free_prices: Mapping[str, Decimal]
-    changed: bool
+    has_valuation_changed: bool
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
