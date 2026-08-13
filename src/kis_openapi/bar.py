@@ -14,6 +14,8 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any, Literal
 
+from ._freeze import freeze_vendor_payload
+
 #: 바 간격 -- 당일 1분봉(1m)과 일/주/월봉.
 Interval = Literal["1m", "1d", "1wk", "1mo"]
 
@@ -34,4 +36,4 @@ class Bar:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

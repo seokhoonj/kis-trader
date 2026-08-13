@@ -16,6 +16,7 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
+from ._freeze import freeze_vendor_payload
 from .order_book import OrderBook, PriceLevel
 
 
@@ -42,7 +43,7 @@ class ETFNAV:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -66,7 +67,7 @@ class ETFComponent:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -88,7 +89,7 @@ class ETFNAVHistoryPoint:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -117,7 +118,7 @@ class ETFNAVComparison:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -140,7 +141,7 @@ class ETFNAVMinutePoint:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -168,4 +169,4 @@ class ETFOrderBook:
         object.__setattr__(self, "lp_asks", tuple(self.lp_asks))
         object.__setattr__(self, "bid_quantity_changes", tuple(self.bid_quantity_changes))
         object.__setattr__(self, "ask_quantity_changes", tuple(self.ask_quantity_changes))
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

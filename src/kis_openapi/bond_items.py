@@ -14,6 +14,8 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
+from ._freeze import freeze_vendor_payload
+
 
 @dataclass(frozen=True, slots=True)
 class BondQuote:
@@ -40,7 +42,7 @@ class BondQuote:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -61,7 +63,7 @@ class BondDailyPrice:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,7 +93,7 @@ class BondProfile:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -121,7 +123,7 @@ class BondIssuance:
     redemption_date: date | None
     previous_interest_date: date | None
     next_interest_date: date | None
-    credit_ratings: Mapping[str, str]
+    credit_ratings: Mapping[str, str] = field(hash=False)
     is_inflation_linked: bool
     is_trade_suspended: bool
     is_electronic: bool
@@ -131,7 +133,7 @@ class BondIssuance:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "credit_ratings", MappingProxyType(dict(self.credit_ratings)))
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,10 +150,10 @@ class BondValuation:
     name: str
     average_price: Decimal
     average_yield: Decimal
-    agency_prices: Mapping[str, Decimal]
-    agency_yields: Mapping[str, Decimal]
-    credit_ratings: Mapping[str, str]
-    risk_free_prices: Mapping[str, Decimal]
+    agency_prices: Mapping[str, Decimal] = field(hash=False)
+    agency_yields: Mapping[str, Decimal] = field(hash=False)
+    credit_ratings: Mapping[str, str] = field(hash=False)
+    risk_free_prices: Mapping[str, Decimal] = field(hash=False)
     has_valuation_changed: bool
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -162,4 +164,4 @@ class BondValuation:
         object.__setattr__(self, "agency_yields", MappingProxyType(dict(self.agency_yields)))
         object.__setattr__(self, "credit_ratings", MappingProxyType(dict(self.credit_ratings)))
         object.__setattr__(self, "risk_free_prices", MappingProxyType(dict(self.risk_free_prices)))
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

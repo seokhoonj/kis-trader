@@ -14,6 +14,8 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
+from ._freeze import freeze_vendor_payload
+
 
 @dataclass(frozen=True, slots=True)
 class StockProfile:
@@ -44,7 +46,7 @@ class StockProfile:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -90,4 +92,4 @@ class StockStatus:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

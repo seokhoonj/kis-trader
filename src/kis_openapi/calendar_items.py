@@ -15,6 +15,8 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
+from ._freeze import freeze_vendor_payload
+
 
 @dataclass(frozen=True, slots=True)
 class DividendEvent:
@@ -44,7 +46,7 @@ class DividendEvent:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -74,7 +76,7 @@ class IPOSubscription:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,7 +106,7 @@ class RightsOffering:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -127,7 +129,7 @@ class BonusIssue:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -148,7 +150,7 @@ class CapitalReduction:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -174,7 +176,7 @@ class MergerSplit:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -193,7 +195,7 @@ class ShareholderMeeting:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -211,7 +213,7 @@ class MandatoryDeposit:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -231,7 +233,7 @@ class ListingEvent:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -250,7 +252,7 @@ class ParValueChange:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -271,7 +273,7 @@ class ForfeitedShares:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -292,4 +294,4 @@ class AppraisalRights:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

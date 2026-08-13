@@ -21,6 +21,8 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
+from ._freeze import freeze_vendor_payload
+
 
 @dataclass(frozen=True, slots=True)
 class RealizedProfitPosition:
@@ -46,7 +48,7 @@ class RealizedProfitPosition:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -75,7 +77,8 @@ class RealizedProfitBalance:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "positions", tuple(self.positions))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -107,4 +110,4 @@ class IntegratedMargin:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

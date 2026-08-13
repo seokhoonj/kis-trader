@@ -13,6 +13,8 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
+from ._freeze import freeze_vendor_payload
+
 
 @dataclass(frozen=True, slots=True)
 class PriceLevel:
@@ -42,4 +44,6 @@ class OrderBook:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "bids", tuple(self.bids))
+        object.__setattr__(self, "asks", tuple(self.asks))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

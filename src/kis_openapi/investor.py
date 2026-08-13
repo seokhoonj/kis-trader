@@ -13,6 +13,8 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
+from ._freeze import freeze_vendor_payload
+
 
 @dataclass(frozen=True, slots=True)
 class InvestorActivity:
@@ -49,7 +51,7 @@ class InvestorFlow:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,14 +72,14 @@ class DetailedInvestorFlow:
     change_percent: Decimal
     volume: int
     amount: Decimal
-    participants: Mapping[str, InvestorActivity]
+    participants: Mapping[str, InvestorActivity] = field(hash=False)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "participants", MappingProxyType(dict(self.participants)))
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,7 +100,7 @@ class DetailedInvestorHistory:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "flows", tuple(self.flows))
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,4 +122,4 @@ class InvestorEstimate:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
