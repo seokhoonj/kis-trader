@@ -9,29 +9,46 @@ a = kis.domestic.account
 ## 예수금·자산 요약
 
 ```python
-a.balance()      # 예수금, 총평가, 손익 요약
-a.assets()       # 총자산·순자산·예수금·대출·외화
+b = a.balance()
+print(b.deposit, b.total_evaluation, b.unrealized_pnl)
 ```
+
+`balance()` 가 돌려주는 `Balance` 의 주요 필드:
+
+| 필드 | 뜻 |
+|---|---|
+| `deposit` | 예수금 |
+| `settlement_cash_d1` · `settlement_cash_d2` | D+1 · D+2 정산 예정 현금 |
+| `total_evaluation` | 총 평가금액 |
+| `net_asset` | 순자산 |
+| `purchase_amount` | 매입금액 |
+| `market_value` | 평가금액 |
+| `unrealized_pnl` | 평가손익 |
+
+`a.assets()` 는 대출·외화까지 포함한 계좌 자산현황.
 
 ## 보유 종목
 
 ```python
 for p in a.positions():
-    p.symbol, p.name
-    p.quantity            # 보유 수량
-    p.average_price       # 평균 매입가
-    p.current_price       # 현재가
-    p.evaluation_profit   # 평가손익
-    p.profit_rate         # 수익률 %
+    print(f"{p.security_name:10s} {p.quantity}주  "
+          f"평가손익 {p.unrealized_pnl:>12,}  ({p.unrealized_pnl_percent}%)")
 ```
 
-보유종목 + 요약을 한 번에:
+`Position` 필드:
 
-```python
-pf = a.portfolio()
-pf.positions      # 보유 종목
-pf.summary        # 요약
-```
+| 필드 | 뜻 |
+|---|---|
+| `symbol` · `security_name` | 종목코드 · 종목명 |
+| `quantity` · `sellable_quantity` | 보유 · 매도가능 수량 |
+| `average_purchase_price` | 평균 매입가 |
+| `purchase_amount` | 매입금액 |
+| `current_price` | 현재가 |
+| `market_value` | 평가금액 |
+| `unrealized_pnl` | 평가손익 |
+| `unrealized_pnl_percent` | 수익률(%) |
+
+보유종목 + 요약을 한 번에: `a.portfolio()` → `.positions`, `.summary`.
 
 ## 실현손익
 
@@ -44,9 +61,10 @@ a.realized_profit_balance()                           # 실현손익 포함 잔�
 ## 미체결·주문가능
 
 ```python
-a.open_orders()                          # 미체결/정정취소 가능 주문
-kis.domestic.stock("005930").buyable()   # 매수 가능 수량·금액
-kis.domestic.stock("005930").sellable()  # 매도 가능 수량
+a.open_orders()                          # 미체결 / 정정취소 가능 주문
+s = kis.domestic.stock("005930")
+s.buyable()    # 매수 가능 수량·금액
+s.sellable()   # 매도 가능 수량
 ```
 
 ## 권리·증거금
@@ -67,4 +85,5 @@ oa.balance(market="NAS")    # 통화별 요약이라 시장 지정
 oa.present_balance()        # 체결기준 현재잔고
 oa.period_profit(start="20240101", end="20240630")   # 기간 실현손익
 oa.transactions(start="20240101", end="20240630")     # 거래내역
+oa.foreign_margin()         # 통화별 외화 증거금
 ```

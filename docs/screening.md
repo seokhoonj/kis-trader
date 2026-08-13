@@ -13,13 +13,14 @@ r.by_volume()                # 거래량 상위
 r.by_market_cap()            # 시가총액 상위
 ```
 
-각 행:
+각 행(`RankedStock`)은 `rank / symbol / name / price / change / change_percent / volume`:
 
 ```python
-for row in r.by_change(top="gainers"):
-    row.rank, row.symbol, row.name
-    row.current_price, row.change_percent, row.volume
+for row in r.by_change(top="gainers")[:10]:
+    print(f"{row.rank:2d}. {row.name:10s} {row.price:>8,}  {row.change_percent:>6}%")
 ```
+
+순위별 고유 지표(공매도량·신용잔고 등)는 각 결과의 `_raw` 에 있다.
 
 더 있는 순위:
 

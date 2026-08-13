@@ -27,7 +27,8 @@ book:
 
 format:
   html:
-    theme: [default]
+    theme: [default, custom.scss]
+    include-in-header: _head.html
     toc: true
     toc-depth: 3
     toc-title: "이 페이지"

@@ -3,24 +3,37 @@
 주문은 실수하면 돈이 나가는 일이라, 이 라이브러리는 **안전 우선**으로 설계됐다. 먼저 어떻게
 내는지 보고, 뒤에서 안전장치를 설명한다.
 
-## 매수·매도
+## 한눈에 — 매수부터 취소까지
 
 ```python
 s = kis.domestic.stock("005930")
 
+r = s.buy(quantity=10, limit_price=70000)   # 1) 지정가 매수
+print(r.client_order_id, r.status)           #    -> 주문 키, 상태
+
+kis.orders.reconcile(r.client_order_id)      # 2) 실제 접수됐는지 확인
+kis.orders.modify(r.client_order_id, limit_price=70500)  # 3) 가격 정정
+kis.orders.cancel(r.client_order_id)         # 4) 취소
+```
+
+## 매수·매도
+
+```python
 s.buy(quantity=10, limit_price=70000)    # 지정가 매수
 s.buy(quantity=10)                        # 시장가 매수 (가격 생략)
 s.sell(quantity=10, limit_price=71000)   # 지정가 매도
 ```
 
-반환값(`ExecutionReport`)으로 결과를 확인:
+반환값 `ExecutionReport` 의 필드:
 
-```python
-r = s.buy(quantity=10, limit_price=70000)
-r.client_order_id   # 이 주문의 고유 키 (취소/정정할 때 씀)
-r.order_id          # 증권사 주문번호 (접수돼야 채워짐)
-r.status            # 주문 상태
-```
+| 필드 | 뜻 |
+|---|---|
+| `client_order_id` | 이 주문의 고유 키 (취소/정정할 때 지목) |
+| `order_id` | 증권사 주문번호(ODNO), 접수돼야 채워짐 |
+| `side` | 매수/매도 |
+| `status` | 주문 상태 (`PENDING_NEW`, `FILLED`, `CANCELED` …) |
+| `filled_quantity` | 체결 수량 |
+| `average_price` | 평균 체결가 (체결 전이면 `None`) |
 
 ::: {.callout-important}
 `buy`/`sell` 은 **반드시 이름 붙여서**(`quantity=`, `limit_price=`) 호출한다. 순서 실수로
@@ -42,8 +55,6 @@ s.buy(quantity=10, limit_price=70000, time_in_force="fok")         # FOK (전량
 취소/정정은 `client_order_id` 로 지목한다.
 
 ```python
-r = s.buy(quantity=10, limit_price=70000)
-
 kis.orders.modify(r.client_order_id, limit_price=70500)   # 가격 정정
 kis.orders.modify(r.client_order_id, quantity=5)          # 수량 정정
 kis.orders.cancel(r.client_order_id)                       # 취소
@@ -63,8 +74,6 @@ kis.orders.reconcile(r.client_order_id)
 
 ```python
 s.reserve_buy(quantity=10, limit_price=70000)     # 국내 예약(다음 영업일)
-s.reserve_sell(quantity=10, limit_price=71000)
-
 kis.overseas.stock("AAPL").daytime_buy(quantity=1, limit_price=150)   # 미국 주간거래
 kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)   # 미국 예약
 ```

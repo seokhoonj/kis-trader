@@ -10,13 +10,21 @@ s = kis.domestic.stock("005930")   # 삼성전자
 
 ```python
 q = s.quote()
-
-q.current_price    # 현재가
-q.open, q.high, q.low, q.previous_close
-q.change           # 전일대비 (부호 포함)
-q.change_percent   # 등락률 %
-q.volume           # 누적 거래량
+print(q.current_price, q.change_percent)   # 예: 71500  0.70
 ```
+
+`quote()` 가 돌려주는 `Quote` 의 필드:
+
+| 필드 | 뜻 | 단위 |
+|---|---|---|
+| `current_price` | 현재가 | 원 |
+| `open` · `high` · `low` | 시가·고가·저가 | 원 |
+| `previous_close` | 전일 종가 | 원 |
+| `change` | 전일대비 (부호 포함) | 원 |
+| `change_percent` | 등락률 | % |
+| `volume` | 누적 거래량 | 주 |
+| `week_52_high` · `week_52_low` | 52주 최고·최저 (없으면 `None`) | 원 |
+| `as_of` | 조회 시각 | datetime |
 
 ## 차트 (봉)
 
@@ -28,41 +36,42 @@ s.bars("1wk", start="20230101")                  # 주봉
 s.bars("1m", max_bars=120)                        # 당일 1분봉 최근 120개
 ```
 
-과거→현재 순으로 정렬돼 온다. 각 봉:
+과거→현재 순으로 온다. 각 봉(`Bar`)은 `timestamp / open / high / low / close / volume`.
 
 ```python
 bars = s.bars("1d", start="20240101")
-b = bars[-1]                      # 가장 최근
-b.timestamp, b.open, b.high, b.low, b.close, b.volume
+for b in bars[-5:]:                               # 최근 5봉
+    print(f"{b.timestamp:%Y-%m-%d}  종가 {b.close}  거래량 {b.volume}")
 ```
 
-특정 날짜의 분봉은:
-
-```python
-s.minute_bars_on("20240102")
-```
+특정 날짜의 분봉은 `s.minute_bars_on("20240102")`.
 
 ## 호가
 
 ```python
 ob = s.order_book()
-ob.bids     # 매수 호가 (가격·잔량) 리스트
-ob.asks     # 매도 호가
+best_bid = ob.bids[0]        # 최우선 매수호가
+best_ask = ob.asks[0]        # 최우선 매도호가
+print(best_bid.price, best_bid.quantity)
+print(ob.total_bid_quantity, ob.total_ask_quantity)   # 총 매수/매도 잔량
 ```
 
-## 체결 내역
+`bids` · `asks` 는 각각 (가격 `price`, 잔량 `quantity`) 호가 단계 튜플이다.
+
+## 체결·최근가
 
 ```python
-s.trades()          # 최근 체결
+s.trades()          # 최근 체결 내역
 s.recent_prices()   # 최근 가격 추이
 ```
 
 ## 여러 종목 한 번에
 
 ```python
-kis.domestic.quotes(["005930", "000660", "035720"])   # 리스트로 한 방에
+for q in kis.domestic.quotes(["005930", "000660", "035720"]):
+    print(q.symbol, q.current_price, q.change_percent)
 
-# 보드가 다르면 (KRX/NXT) 튜플로
+# 보드가 다르면(KRX/NXT) 튜플로 지정
 kis.domestic.quotes([("KRX", "005930"), ("NXT", "123456")])
 ```
 
@@ -81,10 +90,10 @@ kis.domestic.index("0001").quote()      # KOSPI
 kis.domestic.index("1001").quote()      # KOSDAQ
 
 kis.overseas.stock("AAPL").quote()      # 거래소 자동 (NAS)
-kis.overseas.stock("AAPL").current_price()
 kis.overseas.stock("AAPL").bars("1d")
 ```
 
 ::: {.callout-tip}
-필드 이름·단위가 궁금하면 `help(type(q))` — 각 필드의 한국어 설명과 KIS 원본 키가 나온다.
+필드가 더 궁금하면 `help(type(q))` — 각 필드의 한국어 설명과 KIS 원본 키(TR-id 포함)가 나온다.
+원본 응답 전체는 `q._raw` 로 접근.
 :::

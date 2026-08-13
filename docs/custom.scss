@@ -1,0 +1,10 @@
+/*-- scss:defaults --*/
+$font-family-sans-serif: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif !default;
+$font-family-monospace: "JetBrains Mono", "D2Coding", ui-monospace, SFMono-Regular, Menlo, monospace !default;
+$body-font-size: 1rem !default;
+$headings-font-weight: 650 !default;
+
+/*-- scss:rules --*/
+body { line-height: 1.7; letter-spacing: -0.003em; }
+h1, h2, h3 { letter-spacing: -0.01em; }
+pre code { font-size: 0.9em; }
