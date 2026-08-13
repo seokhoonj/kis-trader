@@ -19,12 +19,13 @@ h1, h2, h3, h4, h5, .quarto-title .title, .sidebar-title {
 
 // ── 코드블록: 부드럽고 유려하게 ──────────────────────────────
 div.sourceCode {
-  border: 1px solid rgba(15, 23, 42, 0.09);
+  border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 12px;
-  background: linear-gradient(180deg, #f9fbfd 0%, #eceff4 100%);
-  margin: 1.15rem 0;
+  background: #f7f9fb;
+  margin: 1.3rem 0;
   overflow: hidden;
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.7);
+  // 바깥으로 살짝 볼록하게 떠 보이는 그림자 (내부 그라디언트 대신)
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.10), 0 1px 3px rgba(15, 23, 42, 0.07);
 }
 div.sourceCode pre.sourceCode {
   padding: 1rem 1.2rem;
