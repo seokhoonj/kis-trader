@@ -1,10 +1,16 @@
 /*-- scss:defaults --*/
+// 본문: Pretendard (한글+영문 한 세트)
 $font-family-sans-serif: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif !default;
 $font-family-monospace: "JetBrains Mono", "D2Coding", ui-monospace, SFMono-Regular, Menlo, monospace !default;
+// 제목: Paperlogy (개성 있는 무료 한글 디스플레이 폰트) -> Pretendard 폴백
+$headings-font-family: "Paperlogy", "Pretendard Variable", Pretendard, sans-serif !default;
+$headings-font-weight: 700 !default;
 $body-font-size: 1rem !default;
-$headings-font-weight: 650 !default;
 
 /*-- scss:rules --*/
 body { line-height: 1.7; letter-spacing: -0.003em; }
-h1, h2, h3 { letter-spacing: -0.01em; }
+h1, h2, h3, h4, h5, .quarto-title .title, .sidebar-title {
+  font-family: "Paperlogy", "Pretendard Variable", Pretendard, sans-serif;
+  letter-spacing: -0.015em;
+}
 pre code { font-size: 0.9em; }
