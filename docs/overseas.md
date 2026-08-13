@@ -24,6 +24,12 @@ s.daytime_buy(quantity=1, limit_price=150)  # 미국 주간거래
 s.reserve_buy(quantity=1, limit_price=150)  # 미국 예약
 ```
 
+::: {.callout-note}
+**주간거래(daytime)** 는 한국 낮 시간대에 미국주식을 사고파는 별도 세션이다(정규장은 한국
+기준 밤). 낮에 대응하고 싶을 때 `daytime_buy`/`daytime_sell` 로 낸다. **예약(reserve)** 은
+장 열리기 전에 미리 걸어두는 주문.
+:::
+
 주문 안전장치는 국내와 동일 → [주문](orders.md).
 
 ## 계좌

@@ -75,6 +75,11 @@ for q in kis.domestic.quotes(["005930", "000660", "035720"]):
 kis.domestic.quotes([("KRX", "005930"), ("NXT", "123456")])
 ```
 
+::: {.callout-note}
+**KRX vs NXT** — KRX는 한국거래소 정규시장, NXT(넥스트레이드)는 2025년 출범한 대체거래소(ATS,
+정규거래소 밖의 또 다른 매매 장)다. 같은 종목이 두 곳에서 거래되며, 보드를 안 주면 KRX 기준이다.
+:::
+
 ## 시간외
 
 ```python
