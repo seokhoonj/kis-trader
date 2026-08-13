@@ -47,7 +47,7 @@ def test_domestic_quotes_maps_and_slot_params():
     quotes = _client(fake).domestic.quotes(["005930", "035720"])
     assert all(isinstance(q, Quote) for q in quotes)
     assert quotes[0].symbol == "005930"
-    assert quotes[0].last == Decimal(71500)
+    assert quotes[0].current_price == Decimal(71500)
     assert quotes[0].change == Decimal(500)              # sign 2 -> 양수
     assert quotes[1].change == Decimal(-300)             # sign 5 -> 음수
     assert quotes[0].market == "KRX"                     # 기본 보드
@@ -114,7 +114,7 @@ def test_overseas_quotes_maps_and_mixed_exchanges():
     aapl = by_symbol["AAPL"]
     assert aapl.market == "NAS"
     assert aapl.currency == "USD"
-    assert aapl.last == Decimal("197.0")
+    assert aapl.current_price == Decimal("197.0")
     assert aapl.previous_close == Decimal("195.0")       # base
     assert aapl.change == Decimal("2.0")                 # last - base
     tencent = by_symbol["00700"]

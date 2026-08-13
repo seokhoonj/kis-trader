@@ -409,7 +409,7 @@ def _parse_quote(output: Mapping[str, Any], *, code: str, as_of: datetime) -> De
     return DerivativeQuote(
         code=code,
         name=str(output.get("hts_kor_isnm", "")).strip(),
-        last=required_decimal(output.get("futs_prpr"), "futs_prpr"),
+        current_price=required_decimal(output.get("futs_prpr"), "futs_prpr"),
         open=required_decimal(output.get("futs_oprc"), "futs_oprc"),
         high=required_decimal(output.get("futs_hgpr"), "futs_hgpr"),
         low=required_decimal(output.get("futs_lwpr"), "futs_lwpr"),

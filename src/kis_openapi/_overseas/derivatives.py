@@ -114,7 +114,7 @@ def _parse_quote(
     sign = str(output.get("prev_diff_flag", "")).strip()
     return OverseasDerivativeQuote(
         symbol=srs_cd,
-        last=required_decimal(output.get("last_price"), "last_price"),
+        current_price=required_decimal(output.get("last_price"), "last_price"),
         open=required_decimal(output.get("open_price"), "open_price"),
         high=required_decimal(output.get("high_price"), "high_price"),
         low=required_decimal(output.get("low_price"), "low_price"),

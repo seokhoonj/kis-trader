@@ -21,7 +21,7 @@ from ._freeze import freeze_vendor_payload
 class RankedOverseasStock:
     """해외주식 순위의 한 행(불변).
 
-    ``rank`` 는 KIS 가 준 순위, ``exchange`` 는 거래소코드(NAS/NYS/HKS/...). ``last`` 는 현재가,
+    ``rank`` 는 KIS 가 준 순위, ``exchange`` 는 거래소코드(NAS/NYS/HKS/...). ``current_price`` 는 현재가,
     ``change`` / ``change_percent`` 는 전일대비(하락이면 음수), ``volume`` / ``amount`` 는 거래량/
     거래대금(거래소 통화). 순위 종류마다 다른 지표는 ``_raw`` 에 있다.
     """
@@ -31,7 +31,7 @@ class RankedOverseasStock:
     symbol: str                       # 종목코드(symb)
     name: str                         # 종목명(name)
     english_name: str                 # 영문 종목명(ename)
-    last: Decimal                     # 현재가(last)
+    current_price: Decimal            # 현재가(last)
     change: Decimal                   # 전일대비(부호 포함)
     change_percent: Decimal           # 전일대비율(부호 포함)
     volume: int                       # 거래량(tvol)

@@ -288,7 +288,7 @@ def fetch_current_price(
     return OverseasCurrentPrice(
         symbol=symbol,
         exchange=exchange,
-        last=required_decimal(output.get("last"), "last"),
+        current_price=required_decimal(output.get("last"), "last"),
         previous_close=required_decimal(output.get("base"), "base"),
         change=_apply_change_sign(required_decimal(output.get("diff"), "diff"), sign),
         change_percent=_apply_change_sign(required_decimal(output.get("rate"), "rate"), sign),
@@ -537,9 +537,9 @@ def _parse_trades(
 def _parse_quote(
     output: Mapping[str, Any], *, symbol: str, exchange: str, as_of: datetime
 ) -> Quote:
-    last = required_decimal(output.get("last"), "last")
+    current_price = required_decimal(output.get("last"), "last")
     previous_close = required_decimal(output.get("base"), "base")
-    change = last - previous_close
+    change = current_price - previous_close
     # native 등락률은 응답에 없어 계산한다(전일종가 0 이면 나눗셈 불가 -> 0).
     change_percent = (
         (change / previous_close * 100).quantize(_PERCENT)
@@ -550,7 +550,7 @@ def _parse_quote(
         symbol=symbol,
         market=exchange,
         currency=str(output.get("curr", "")).strip(),
-        last=last,
+        current_price=current_price,
         open=required_decimal(output.get("open"), "open"),
         high=required_decimal(output.get("high"), "high"),
         low=required_decimal(output.get("low"), "low"),
@@ -668,7 +668,7 @@ def fetch_industry_stocks(
                 symbol=symbol,
                 name=str(row.get("name", "")).strip(),
                 english_name=str(row.get("ename", "")).strip(),
-                last=required_decimal(row.get("last"), "last"),
+                current_price=required_decimal(row.get("last"), "last"),
                 change=_apply_change_sign(
                     required_decimal(row.get("diff"), "diff"), sign
                 ),

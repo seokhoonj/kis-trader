@@ -63,7 +63,7 @@ def test_overseas_futures_quote_maps_and_routes():
     quote = _client(fake).overseas.futures("BONU25").quote()
     assert isinstance(quote, OverseasDerivativeQuote)
     assert quote.symbol == "BONU25"
-    assert quote.last == Decimal("74.90")                 # 공백 패딩 strip
+    assert quote.current_price == Decimal("74.90")                 # 공백 패딩 strip
     assert quote.open == Decimal("75.55")
     assert quote.previous_close == Decimal("75.57")
     assert quote.settlement_price == Decimal("74.88")
@@ -106,7 +106,7 @@ def test_overseas_derivative_quote_optional_none():
     assert quote.settlement_price is None
     assert quote.tick_size is None
     assert quote.expiry_date is None
-    assert quote.last == Decimal("74.90")                 # 핵심 필드는 여전히 파싱
+    assert quote.current_price == Decimal("74.90")                 # 핵심 필드는 여전히 파싱
 
 
 def test_overseas_derivative_quote_missing_output_fails_closed():

@@ -47,7 +47,7 @@ def test_by_volume_maps_and_params():
     assert r.rank == 1
     assert r.exchange == "NAS"
     assert r.symbol == "TSLA"
-    assert r.last == Decimal("250.5")
+    assert r.current_price == Decimal("250.5")
     assert r.change == Decimal("5.5")                    # sign 2 -> 상승
     assert r.volume == 120000000
     assert r._raw["a_tvol"] == "90000000"                # 평균거래량은 _raw

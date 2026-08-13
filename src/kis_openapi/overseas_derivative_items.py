@@ -22,7 +22,7 @@ from ._freeze import freeze_vendor_payload
 class OverseasDerivativeQuote:
     """한 해외 선물/옵션 계약의 현재가 스냅샷(불변).
 
-    ``last`` 는 현재가, ``settlement_price`` 는 정산가. ``change`` / ``change_percent`` 는 전일대비
+    ``current_price`` 는 현재가, ``settlement_price`` 는 정산가. ``change`` / ``change_percent`` 는 전일대비
     (하락이면 음수). ``bid`` / ``ask`` 는 최우선 호가와 그 수량(``bid_size`` / ``ask_size``),
     ``total_bid_quantity`` / ``total_ask_quantity`` 는 총 잔량. 금액은 계약 통화(``currency``) 기준
     이고 ``exchange`` 는 상장 거래소, ``expiry_date`` / ``last_trade_date`` / ``remaining_days`` 는
@@ -30,7 +30,7 @@ class OverseasDerivativeQuote:
     """
 
     symbol: str                       # 시리즈코드(srs_cd)
-    last: Decimal
+    current_price: Decimal
     open: Decimal
     high: Decimal
     low: Decimal

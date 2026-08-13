@@ -28,7 +28,7 @@ class Quote:
     symbol: str
     market: str                       # 조회한 시장(예: KRX)
     currency: str                     # 국내는 KRW
-    last: Decimal                     # 현재가
+    current_price: Decimal            # 현재가
     open: Decimal
     high: Decimal
     low: Decimal

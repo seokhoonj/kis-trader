@@ -54,7 +54,7 @@ def test_futures_quote_maps_fields_and_market():
     quote = _client(fake).domestic.futures("101W09").quote()
     assert isinstance(quote, DerivativeQuote)
     assert quote.code == "101W09"
-    assert quote.last == Decimal("335.20")
+    assert quote.current_price == Decimal("335.20")
     assert quote.previous_close == Decimal("333.00")
     assert quote.change == Decimal("2.20")
     assert quote.change_percent == Decimal("0.66")

@@ -59,7 +59,7 @@ def _parse_ranking(rows: list[Mapping[str, Any]]) -> list[RankedOverseasStock]:
                 symbol=symbol,
                 name=str(row.get("name", "")).strip(),
                 english_name=str(row.get("ename", "")).strip(),
-                last=required_decimal(row.get("last"), "last"),
+                current_price=required_decimal(row.get("last"), "last"),
                 change=_apply_change_sign(required_decimal(row.get("diff"), "diff"), sign),
                 change_percent=_apply_change_sign(required_decimal(row.get("rate"), "rate"), sign),
                 volume=required_int(row.get("tvol"), "tvol"),

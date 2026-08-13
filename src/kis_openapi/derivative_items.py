@@ -30,7 +30,7 @@ class DerivativeQuote:
 
     code: str
     name: str
-    last: Decimal
+    current_price: Decimal
     open: Decimal
     high: Decimal
     low: Decimal

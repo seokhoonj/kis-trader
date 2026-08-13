@@ -51,7 +51,7 @@ def test_overseas_quote_routes_and_maps():
     assert quote.symbol == "AAPL"
     assert quote.market == "NAS"                  # 거래소코드
     assert quote.currency == "USD"
-    assert quote.last == Decimal("150.25")
+    assert quote.current_price == Decimal("150.25")
     assert quote.open == Decimal("149.00")
     assert quote.high == Decimal("151.00")
     assert quote.low == Decimal("148.50")
@@ -101,7 +101,7 @@ def test_overseas_current_price_maps_compact_endpoint():
     assert isinstance(price, OverseasCurrentPrice)
     assert price.symbol == "AAPL"
     assert price.exchange == "NAS"
-    assert price.last == Decimal("150.25")
+    assert price.current_price == Decimal("150.25")
     assert price.previous_close == Decimal("148.00")
     assert price.change == Decimal("2.25")
     assert price.change_percent == Decimal("1.52")

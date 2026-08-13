@@ -74,7 +74,7 @@ def test_ticker_quote_returns_unified_quote():
     assert quote.symbol == "005930"
     assert quote.market == "KRX"
     assert quote.currency == "KRW"
-    assert quote.last == Decimal(71500)
+    assert quote.current_price == Decimal(71500)
     assert quote.open == Decimal(70800)
     assert quote.previous_close == Decimal(70900)
     assert quote.change == Decimal(600)           # sign 2 상승 -> 양수
@@ -137,7 +137,7 @@ def test_quote_value_semantics_ignore_raw_and_hashable():
     when = datetime(2024, 1, 2, tzinfo=timezone(timedelta(hours=9)))   # as_of 고정
     fields = {
         "symbol": "005930", "market": "KRX", "currency": "KRW",
-        "last": Decimal(1), "open": Decimal(1), "high": Decimal(1), "low": Decimal(1),
+        "current_price": Decimal(1), "open": Decimal(1), "high": Decimal(1), "low": Decimal(1),
         "previous_close": Decimal(1), "change": Decimal(0), "change_percent": Decimal(0),
         "volume": 1, "week_52_high": None, "week_52_low": None, "as_of": when,
     }
@@ -347,7 +347,7 @@ def test_bad_account_format_rejected(account):
 
 def test_account_optional_for_market_data():
     kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_quote_resp()))
-    assert kis.domestic.stock("005930").quote().last == Decimal(71500)   # 계좌 없이 시세 OK
+    assert kis.domestic.stock("005930").quote().current_price == Decimal(71500)   # 계좌 없이 시세 OK
 
 
 def test_recent_prices_maps_extended_history_fields():

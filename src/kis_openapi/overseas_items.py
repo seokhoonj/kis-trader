@@ -25,7 +25,7 @@ class OverseasCurrentPrice:
 
     symbol: str
     exchange: str
-    last: Decimal
+    current_price: Decimal
     previous_close: Decimal
     change: Decimal
     change_percent: Decimal
@@ -320,7 +320,7 @@ class OverseasIndustryStock:
     symbol: str
     name: str
     english_name: str
-    last: Decimal
+    current_price: Decimal
     change: Decimal
     change_percent: Decimal
     volume: int

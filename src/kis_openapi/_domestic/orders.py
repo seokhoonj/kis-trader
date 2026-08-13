@@ -429,7 +429,7 @@ def _run_pre_trade_risk(transport: Transport, order: Order, risk: RiskLimits) ->
         quote = market_data.fetch_quote(
             transport, symbol=order.symbol, market=resolve_market(order.symbol)
         )
-        reference_price = quote.last
+        reference_price = quote.current_price
     risk.check(order, reference_price=reference_price)
 
 

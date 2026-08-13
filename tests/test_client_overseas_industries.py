@@ -130,7 +130,7 @@ def test_overseas_industry_stocks_maps_quote_and_volume_filter():
         "XOM",
         "Exxon Mobil",
     )
-    assert stock.last == Decimal("112.50")
+    assert stock.current_price == Decimal("112.50")
     assert stock.change == Decimal("-1.25")
     assert stock.change_percent == Decimal("-1.10")
     assert stock.volume == 1234567
