@@ -6,3 +6,5 @@ async 코어(:mod:`._connection`) 위에 동기 래퍼(:mod:`.client`)를 얹어
 """
 
 from __future__ import annotations
+
+from . import parsers  # noqa: F401  (import 부작용: TR 파서 레지스트리 등록)

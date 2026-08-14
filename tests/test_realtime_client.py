@@ -47,13 +47,13 @@ def _client(ws):
 def test_callback_receives_messages_and_subscription_sent():
     ws = FakeWebSocket(
         incoming=[
-            "0|H0STCNT0|001|005930^093000^71500",
-            "0|H0STCNT0|001|005930^093001^71600",
+            "0|DUMMYTR0|001|005930^093000^71500",
+            "0|DUMMYTR0|001|005930^093001^71600",
         ]
     )
     received = []
     client = _client(ws)
-    client.subscribe("H0STCNT0", "005930", on=received.append)
+    client.subscribe("DUMMYTR0", "005930", on=received.append)
     client.start()
     # 소비를 stream 으로 유도(백그라운드가 큐에 넣음), 스트림이 끝나면 프레임 소진됨.
     streamed = list(client.stream(timeout=2.0))
@@ -66,14 +66,14 @@ def test_callback_receives_messages_and_subscription_sent():
     assert [m.data for m in streamed] == [m.data for m in received]
     # 구독 등록 메시지가 실제로 나갔는지
     sub = json.loads(ws.sent[0])
-    assert sub["body"]["input"] == {"tr_id": "H0STCNT0", "tr_key": "005930"}
+    assert sub["body"]["input"] == {"tr_id": "DUMMYTR0", "tr_key": "005930"}
 
 
 def test_context_manager_starts_and_stops():
-    ws = FakeWebSocket(incoming=["0|H0STCNT0|001|005930^1"])
+    ws = FakeWebSocket(incoming=["0|DUMMYTR0|001|005930^1"])
     got = []
     client = _client(ws)
-    client.subscribe("H0STCNT0", "005930", on=got.append)
+    client.subscribe("DUMMYTR0", "005930", on=got.append)
     with client:
         list(client.stream(timeout=2.0))
     assert len(got) == 1

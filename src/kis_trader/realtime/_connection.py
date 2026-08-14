@@ -146,29 +146,41 @@ class RealtimeConnection:
             await self._reopen_with_backoff()
 
     async def _handle(self, raw: str) -> AsyncIterator[RealtimeMessage]:
-        frame = parse_frame(raw)
+        try:
+            frame = parse_frame(raw)
+        except Exception:  # noqa: BLE001 - 깨진 프레임은 드롭(스트림 유지)
+            return
         if isinstance(frame, SystemMessage):
             if frame.is_pingpong:
                 await self._ws.send(raw)  # PINGPONG echo
             elif frame.encryption_key is not None:
                 self._crypto[frame.tr_id] = frame.encryption_key
             return
-        # DataFrame -- 필요 시 복호화 후 파싱
+        # DataFrame -- 필요 시 복호화 후 파싱. 실패 프레임은 드롭(fail-safe, 스트림 미중단).
+        try:
+            messages = self._decode(frame)
+        except Exception:  # noqa: BLE001
+            return
+        for message in messages:
+            yield message
+
+    def _decode(self, frame: DataFrame) -> list[RealtimeMessage]:
         working = frame
         if frame.encrypted:
             crypto = self._crypto.get(frame.tr_id)
             if crypto is None:
-                return  # 키 미수신 -> 드롭(다음 ACK 대기)
+                return []  # 키 미수신 -> 드롭(다음 ACK 대기)
             plain = aes_cbc_decrypt(crypto[0], crypto[1], frame.payload)
             working = DataFrame(False, frame.tr_id, frame.record_count, plain)
         spec = _registry.lookup(working.tr_id)
         if spec is None:
             # 파서 미등록 -> 원시 필드로 흘려보냄(파서는 나중에 등록됨).
             fields = working.payload.split("^")
-            yield RealtimeMessage(working.tr_id, fields[0] if fields else "", fields)
-            return
-        for record in working.records(spec.field_count):
-            yield RealtimeMessage(working.tr_id, record[0] if record else "", spec.parser(record))
+            return [RealtimeMessage(working.tr_id, fields[0] if fields else "", fields)]
+        return [
+            RealtimeMessage(working.tr_id, record[0] if record else "", spec.parser(record))
+            for record in working.records(spec.field_count)
+        ]
 
     async def _reopen_with_backoff(self) -> bool:
         backoff = 1.0

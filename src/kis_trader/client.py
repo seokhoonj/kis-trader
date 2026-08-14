@@ -320,6 +320,23 @@ class KISClient:
             )
         revoke()
 
+    def realtime(self, *, reconnect: bool = True):
+        """실시간(웹소켓) 클라이언트를 만든다.
+
+        ``/oauth2/Approval`` 로 접속키를 발급받아 :class:`~kis_trader.realtime.client.RealtimeClient`
+        (동기 래퍼)를 돌려준다. ``ws.subscribe_trade(...)`` / ``for msg in ws.stream()`` /
+        콜백으로 실시간 시세·통보를 받는다. async 앱은 코어(:class:`RealtimeConnection`)를 직접 쓴다.
+        REST 는 그대로 동기다.
+        """
+        from ._endpoints import websocket_url
+        from .realtime._approval import fetch_approval_key
+        from .realtime.client import RealtimeClient
+
+        approval_key = fetch_approval_key(self._app_key, self._app_secret, self._environment)
+        return RealtimeClient(
+            approval_key, websocket_url(self._environment), reconnect=reconnect
+        )
+
     def _require_credit_enabled(self) -> None:
         """신용주문이 opt-in(``allow_credit=True``)됐는지 확인 -- 안 됐으면 와이어 전에 막는다."""
         if not self._allow_credit:

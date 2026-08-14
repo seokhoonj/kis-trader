@@ -71,10 +71,11 @@ def test_subscribe_sends_registration_message():
 
 
 def test_unregistered_tr_yields_raw_fields():
-    ws = FakeWebSocket(incoming=["0|H0STCNT0|001|005930^093000^71500"])
+    # 파서 미등록 TR 은 원시 필드 그대로 흘려보낸다.
+    ws = FakeWebSocket(incoming=["0|DUMMYTR0|001|005930^093000^71500"])
     msgs = _drive(ws)
     assert len(msgs) == 1
-    assert msgs[0].tr_id == "H0STCNT0"
+    assert msgs[0].tr_id == "DUMMYTR0"
     assert msgs[0].tr_key == "005930"
     assert msgs[0].data == ["005930", "093000", "71500"]
 
@@ -119,6 +120,19 @@ def test_encrypted_frame_without_key_is_dropped():
     assert _drive(ws) == []  # 키 미수신 -> 드롭, 예외 없음
 
 
+def test_malformed_registered_frame_is_dropped():
+    # 등록된 TR(H0STCNT0=46필드)인데 필드가 모자라면 예외 없이 드롭(fail-safe, 스트림 유지).
+    ws = FakeWebSocket(incoming=["0|H0STCNT0|001|too^few^fields"])
+    assert _drive(ws) == []
+
+
+def test_malformed_json_system_frame_is_dropped():
+    # 파싱 불가한 시스템 프레임도 스트림을 죽이지 않는다.
+    ws = FakeWebSocket(incoming=["{not valid json", "0|DUMMYTR0|001|a^b"])
+    msgs = _drive(ws)
+    assert [m.data for m in msgs] == [["a", "b"]]
+
+
 def test_subscribe_registration_cap():
     async def scenario():
         ws = FakeWebSocket(incoming=[])
@@ -135,7 +149,7 @@ def test_subscribe_registration_cap():
 def test_reconnect_resubscribes_active_registrations():
     # 첫 소켓은 즉시 소진(끊김 모사), 두 번째 소켓으로 재연결 후 기존 구독 재등록되는지.
     first = FakeWebSocket(incoming=[])
-    second = FakeWebSocket(incoming=["0|H0STCNT0|001|005930^1"])
+    second = FakeWebSocket(incoming=["0|DUMMYTR0|001|005930^1"])
     sockets = [first, second]
 
     async def scenario():
@@ -144,7 +158,7 @@ def test_reconnect_resubscribes_active_registrations():
 
         conn = RealtimeConnection("KEY", "ws://x", connect=connect, reconnect=True)
         async with conn:
-            await conn.subscribe("H0STCNT0", "005930")
+            await conn.subscribe("DUMMYTR0", "005930")
             out = []
             async for m in conn:
                 out.append(m)
@@ -154,4 +168,4 @@ def test_reconnect_resubscribes_active_registrations():
     out = asyncio.run(scenario())
     assert len(out) == 1
     # 재연결된 두 번째 소켓에도 재등록 메시지가 나갔는지
-    assert any("H0STCNT0" in s for s in second.sent)
+    assert any("DUMMYTR0" in s for s in second.sent)
