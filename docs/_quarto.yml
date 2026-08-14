@@ -29,19 +29,18 @@ book:
       chapters:
         - screening.md
         - market.md
-        - indices.md
         - corporate-actions.md
+    - part: "해외·연금·실시간"
+      chapters:
+        - overseas.md
+        - pension.md
+        - realtime.md
     - part: "다른 상품"
       chapters:
         - etf.md
         - elw.md
         - derivatives.md
         - bonds.md
-    - part: "해외·연금·실시간"
-      chapters:
-        - overseas.md
-        - pension.md
-        - realtime.md
     - part: "부록"
       chapters:
         - limits.md
