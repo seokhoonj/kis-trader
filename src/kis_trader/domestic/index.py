@@ -10,9 +10,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .domestic._engine import index as index_api
-from .bar import Bar, Interval
-from .index_items import (
+from ._engine import index as index_api
+from ..bar import Bar, Interval
+from ..index_items import (
     ExpectedIndexPoint,
     ExpectedIndexSnapshot,
     IndexCategories,
@@ -24,7 +24,7 @@ from .index_items import (
 if TYPE_CHECKING:
     from datetime import date
 
-    from .client import KISClient
+    from ..client import KISClient
 
 
 #: 잘 알려진 지수 이름 -> 업종코드 별칭. 그 밖의 값(업종코드)은 그대로 통과한다.

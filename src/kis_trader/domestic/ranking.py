@@ -12,8 +12,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .domestic._engine import ranking as ranking_api
-from .ranking_items import (
+from ._engine import ranking as ranking_api
+from ..ranking_items import (
     AfterHoursBalanceRanking,
     CreditBalanceRanking,
     DividendRanking,
@@ -27,7 +27,7 @@ from .ranking_items import (
 if TYPE_CHECKING:
     from datetime import date
 
-    from .client import KISClient
+    from ..client import KISClient
 
 
 class RankingQueries:

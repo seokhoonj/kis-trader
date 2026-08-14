@@ -11,12 +11,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .domestic._engine import ksd as ksd_api
+from ._engine import ksd as ksd_api
 
 if TYPE_CHECKING:
     from datetime import date
 
-    from .calendar_items import (
+    from ..calendar_items import (
         AppraisalRights,
         BonusIssue,
         CapitalReduction,
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
         RightsOffering,
         ShareholderMeeting,
     )
-    from .client import KISClient
+    from ..client import KISClient
 
 
 class CalendarQueries:

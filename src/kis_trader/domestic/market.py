@@ -11,13 +11,13 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .domestic._engine import market_analysis as market_api
+from ._engine import market_analysis as market_api
 
 if TYPE_CHECKING:
     from datetime import date
 
-    from .client import KISClient
-    from .market_items import (
+    from ..client import KISClient
+    from ..market_items import (
         BrokerOpinion,
         CreditEligibleStock,
         ForeignBrokerFlow,

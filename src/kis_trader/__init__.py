@@ -37,7 +37,7 @@ from .analysis import (
 )
 from .balance import AccountAssets, Balance, Portfolio, Position
 from .bar import Bar, Interval
-from .bond import Bond
+from .domestic.bond import Bond
 from .bond_items import (
     BondDailyPrice,
     BondIssuance,
@@ -52,7 +52,7 @@ from .broker import (
     BrokerTradeTick,
     BrokerTradeTicks,
 )
-from .calendar import CalendarQueries
+from .domestic.calendar import CalendarQueries
 from .calendar_items import (
     AppraisalRights,
     BonusIssue,
@@ -68,7 +68,7 @@ from .calendar_items import (
     ShareholderMeeting,
 )
 from .client import KISClient
-from .derivative import FuturesContract, OptionContract
+from .domestic.derivative import FuturesContract, OptionContract
 from .derivative_items import (
     DerivativeQuote,
     ExpectedExecutionPoint,
@@ -80,7 +80,7 @@ from .derivative_items import (
     UnderlyingQuote,
 )
 from .domestic.stock import DomesticStock
-from .elw import ELW
+from .domestic.elw import ELW
 from .elw_items import (
     ELWIndicatorPoint,
     ELWListing,
@@ -91,8 +91,8 @@ from .elw_items import (
     ELWVolatilityPoint,
     RankedELW,
 )
-from .elw_ranking import ELWRankingQueries
-from .elw_screener import ELWScreenerQueries
+from .domestic.elw_ranking import ELWRankingQueries
+from .domestic.elw_screener import ELWScreenerQueries
 from .etf_items import (
     ETFNAV,
     ETFComponent,
@@ -112,7 +112,7 @@ from .financials import (
     ProfitabilityRatio,
     StabilityRatio,
 )
-from .index import Index
+from .domestic.index import Index
 from .index_items import (
     CategoryIndex,
     ExpectedIndexPoint,
@@ -132,7 +132,7 @@ from .investor import (
     InvestorFlow,
     InvestorNetActivity,
 )
-from .market import MarketQueries
+from .domestic.market import MarketQueries
 from .news import NewsHeadline
 from .market_items import (
     BrokerOpinion,
@@ -208,7 +208,7 @@ from .pension_items import (
 from .product import ProductInfo
 from .program import DailyProgramTradePoint, ProgramTradeActivity, ProgramTradePoint
 from .quote import Quote
-from .ranking import RankingQueries
+from .domestic.ranking import RankingQueries
 from .ranking_items import (
     AfterHoursBalanceRanking,
     CreditBalanceRanking,
