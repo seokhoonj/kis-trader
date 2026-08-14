@@ -73,7 +73,19 @@ def test_registry_has_trade_tick_variants():
         spec = _registry.lookup(tr_id)
         assert spec is not None
         assert spec.field_count == 46
-        assert spec.parser is parse_trade_tick
+
+
+def test_nxt_and_unified_raw_use_ledger_key_cntg_cls_code():
+    # NXT/통합 시트는 index 21 을 CNTG_CLS_CODE 로 명명(KRX 는 CCLD_DVSN). _raw 가 각 원장 키로.
+    fields = _sample_fields()
+    fields[21] = "1"  # 체결구분(매수)
+    krx = _registry.lookup("H0STCNT0").parser(fields)
+    nxt = _registry.lookup("H0NXCNT0").parser(fields)
+    assert "CCLD_DVSN" in krx._raw and "CNTG_CLS_CODE" not in krx._raw
+    assert "CNTG_CLS_CODE" in nxt._raw and "CCLD_DVSN" not in nxt._raw
+    # 값(체결구분)은 두 경우 모두 올바르게 읽힌다.
+    assert krx.trade_sign == "1"
+    assert nxt.trade_sign == "1"
 
 
 def test_connection_dispatches_typed_trade_tick():

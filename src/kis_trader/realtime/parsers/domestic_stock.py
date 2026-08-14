@@ -32,6 +32,12 @@ _TRADE_TICK_FIELDS = (
     "MRKT_TRTM_CLS_CODE", "VI_STND_PRC",
 )
 
+# NXT/통합 체결가는 index 21 의 Element 이름만 다르다(KRX=CCLD_DVSN, NXT/통합=CNTG_CLS_CODE).
+# 위치·의미(체결구분)는 동일. _raw 를 각 시트의 원장 키로 정직하게 노출하려고 튜플만 분리한다.
+_TRADE_TICK_FIELDS_NXT = (
+    _TRADE_TICK_FIELDS[:21] + ("CNTG_CLS_CODE",) + _TRADE_TICK_FIELDS[22:]
+)
+
 
 def _decimal(value: str) -> Decimal:
     """실시간 숫자 필드 -> Decimal. 빈 값/파싱 불가는 0 으로(스트림 중단 방지)."""
@@ -41,9 +47,15 @@ def _decimal(value: str) -> Decimal:
         return Decimal(0)
 
 
-def parse_trade_tick(fields: list[str]) -> TradeTick:
-    """H0STCNT0/H0NXCNT0/H0UNCNT0 한 레코드(46필드) -> :class:`TradeTick`."""
-    raw = MappingProxyType(dict(zip(_TRADE_TICK_FIELDS, fields, strict=False)))
+def parse_trade_tick(
+    fields: list[str], field_names: tuple[str, ...] = _TRADE_TICK_FIELDS
+) -> TradeTick:
+    """체결가 한 레코드(46필드) -> :class:`TradeTick`.
+
+    ``field_names`` 로 KRX(H0STCNT0)와 NXT/통합(H0NXCNT0/H0UNCNT0)의 index 21 이름 차이를
+    흡수한다(기본 = KRX 레이아웃).
+    """
+    raw = MappingProxyType(dict(zip(field_names, fields, strict=False)))
     return TradeTick(
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["STCK_CNTG_HOUR"],
@@ -60,7 +72,7 @@ def parse_trade_tick(fields: list[str]) -> TradeTick:
         accumulated_volume=_decimal(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         conclusion_strength=_decimal(raw["CTTR"]),
-        trade_sign=raw["CCLD_DVSN"],
+        trade_sign=raw.get("CCLD_DVSN") or raw.get("CNTG_CLS_CODE", ""),
         business_date=raw["BSOP_DATE"],
         trading_halted=raw["TRHT_YN"] == "Y",
         static_vi_reference_price=_decimal(raw["VI_STND_PRC"]),
@@ -68,9 +80,16 @@ def parse_trade_tick(fields: list[str]) -> TradeTick:
     )
 
 
-# KRX / NXT / 통합 체결가는 같은 46필드 레이아웃 -> 파서 공유.
-for _tr_id in ("H0STCNT0", "H0NXCNT0", "H0UNCNT0"):
-    register(TRSpec(_tr_id, field_count=len(_TRADE_TICK_FIELDS), parser=parse_trade_tick))
+# KRX 는 CCLD_DVSN, NXT/통합은 CNTG_CLS_CODE 레이아웃(index 21만 다름, 둘 다 46필드).
+register(TRSpec("H0STCNT0", field_count=len(_TRADE_TICK_FIELDS), parser=parse_trade_tick))
+for _tr_id in ("H0NXCNT0", "H0UNCNT0"):
+    register(
+        TRSpec(
+            _tr_id,
+            field_count=len(_TRADE_TICK_FIELDS_NXT),
+            parser=lambda fields: parse_trade_tick(fields, _TRADE_TICK_FIELDS_NXT),
+        )
+    )
 
 
 # ---------------------------------------------------------------------------
