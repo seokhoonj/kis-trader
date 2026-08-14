@@ -73,6 +73,6 @@ r.by_amount(exchange="NAS")
 r.by_market_cap(exchange="NAS")
 
 kis.overseas.search_stocks("NAS", price=(10, 500), change_percent=(5, 30))  # 거래소 + 범위 조건
-kis.overseas.news(…)
+kis.overseas.news(…)  # 뉴스 헤드라인
 kis.overseas.industries("NAS")  # 업종
 ```
