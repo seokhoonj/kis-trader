@@ -51,22 +51,22 @@ from collections.abc import Mapping, Sequence
 from datetime import date
 from typing import Any
 
-from .._internal._datetime import (
+from ..._internal._datetime import (
     _parse_kst_date,
     _to_yyyymmdd,
 )
-from .._internal._response import (
+from ..._internal._response import (
     _missing_block_error,
     _raise_if_error,
     _require_mapping_rows,
 )
-from .._internal._wire import (
+from ..._internal._wire import (
     _apply_change_sign,
     required_decimal,
     required_int,
 )
-from ..errors import KISUsageError
-from ..ranking_items import (
+from ...errors import KISUsageError
+from ...ranking_items import (
     AfterHoursBalanceRanking,
     CreditBalanceRanking,
     DividendRanking,
@@ -76,7 +76,7 @@ from ..ranking_items import (
     ShortSaleRanking,
     TopViewedStock,
 )
-from ..transport import Transport
+from ...transport import Transport
 from .market_data import _market_div
 
 _FLUCTUATION_PATH = "/uapi/domestic-stock/v1/ranking/fluctuation"

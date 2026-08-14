@@ -5,14 +5,14 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import date
 
-from .._internal._datetime import _parse_kst_date
-from .._internal._response import (
+from ..._internal._datetime import _parse_kst_date
+from ..._internal._response import (
     _missing_block_error,
     _raise_if_error,
 )
-from ..errors import KISUsageError
-from ..product import ProductInfo
-from ..transport import Transport
+from ...errors import KISUsageError
+from ...product import ProductInfo
+from ...transport import Transport
 
 _PRODUCT_INFO_PATH = "/uapi/domestic-stock/v1/quotations/search-info"
 _PRODUCT_INFO_TR = "CTPF1604R"

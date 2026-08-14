@@ -1,6 +1,6 @@
 """해외주식 계좌 조회 (내부) -- 잔고(보유종목)를 :class:`OverseasPosition` 리스트로.
 
-국내(:mod:`kis_trader._domestic.account`)와 대칭. 해외 잔고는 **거래소 그룹(OVRS_EXCG_CD)+통화
+국내(:mod:`kis_trader.domestic._engine.account`)와 대칭. 해외 잔고는 **거래소 그룹(OVRS_EXCG_CD)+통화
 (TR_CRCY_CD)별**로 조회하며 금액이 외화라 :class:`~kis_trader.money.Money` 로 통화를 함께 담는다.
 
 KIS URL/TR-ID (KIS 명세 대조):

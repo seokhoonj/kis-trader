@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._domestic import ksd as ksd_api
+from .domestic._engine import ksd as ksd_api
 
 if TYPE_CHECKING:
     from datetime import date

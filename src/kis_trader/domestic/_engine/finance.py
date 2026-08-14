@@ -15,12 +15,12 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from .._internal._response import (
+from ..._internal._response import (
     _missing_block_error,
     _raise_if_error,
 )
-from .._internal._wire import optional_decimal, required_decimal
-from ..financials import (
+from ..._internal._wire import optional_decimal, required_decimal
+from ...financials import (
     BalanceSheet,
     FinancialRatio,
     GrowthRatio,
@@ -29,7 +29,7 @@ from ..financials import (
     ProfitabilityRatio,
     StabilityRatio,
 )
-from ..transport import Transport
+from ...transport import Transport
 
 _BALANCE_SHEET = ("/uapi/domestic-stock/v1/finance/balance-sheet", "FHKST66430100")
 _INCOME_STATEMENT = ("/uapi/domestic-stock/v1/finance/income-statement", "FHKST66430200")

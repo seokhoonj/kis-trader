@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._domestic import index as index_api
+from .domestic._engine import index as index_api
 from .bar import Bar, Interval
 from .index_items import (
     ExpectedIndexPoint,

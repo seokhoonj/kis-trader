@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._domestic import ranking as ranking_api
+from .domestic._engine import ranking as ranking_api
 from .ranking_items import (
     AfterHoursBalanceRanking,
     CreditBalanceRanking,

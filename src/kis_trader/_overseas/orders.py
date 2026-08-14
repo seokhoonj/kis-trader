@@ -133,7 +133,7 @@ def is_overseas_exchange(exchange: str) -> bool:
 def make_order_request(
     order: Order, cano: str, product_code: str, environment: Environment
 ) -> WireRequest:
-    """안전 코어(:func:`~kis_trader._domestic.orders.place`)에 넘길 해외 주문 빌더.
+    """안전 코어(:func:`~kis_trader.domestic._engine.orders.place`)에 넘길 해외 주문 빌더.
 
     :class:`~kis_trader.order.Order` 를 :func:`make_order_request_from_fields` 인자로 풀어 넘긴다.
     ``order.exchange`` 는 시세 거래소코드(NAS/NYS/...)를 담고, ``order_type``/``time_in_force`` 도 넘겨

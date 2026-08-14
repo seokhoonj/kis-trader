@@ -14,8 +14,8 @@ from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 from typing import Literal
 
-from .._bars import _parse_bar_timestamp
-from .._internal._datetime import (
+from ..._bars import _parse_bar_timestamp
+from ..._internal._datetime import (
     _KST,
     _combine_date_time,
     _parse_intraday_timestamp,
@@ -23,21 +23,21 @@ from .._internal._datetime import (
     _to_yyyymmdd,
     _today_kst,
 )
-from .._internal._response import (
+from ..._internal._response import (
     _missing_block_error,
     _raise_if_error,
     _require_mapping_rows,
 )
-from .._internal._wire import (
+from ..._internal._wire import (
     _apply_change_sign,
     optional_decimal,
     required_decimal,
     required_int,
 )
-from ..errors import KISUsageError
-from ..investor import InvestorActivity, InvestorNetActivity
-from ..news import NewsHeadline
-from ..market_items import (
+from ...errors import KISUsageError
+from ...investor import InvestorActivity, InvestorNetActivity
+from ...news import NewsHeadline
+from ...market_items import (
     BrokerOpinion,
     CreditEligibleStock,
     ForeignBrokerFlow,
@@ -56,8 +56,8 @@ from ..market_items import (
     TradingDay,
     VIEvent,
 )
-from ..program import ProgramTradeActivity
-from ..transport import RawResponse, Transport
+from ...program import ProgramTradeActivity
+from ...transport import RawResponse, Transport
 
 _INVESTOR_BY_MARKET_PATH = "/uapi/domestic-stock/v1/quotations/inquire-investor-daily-by-market"
 _INVESTOR_BY_MARKET_TR = "FHPTJ04040000"
