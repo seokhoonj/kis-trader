@@ -99,9 +99,14 @@ def _strip(value: object) -> str:
 
 def _to_decimal(text: str, field_name: str) -> Decimal:
     try:
-        return Decimal(text)
+        number = Decimal(text)
     except (InvalidOperation, ValueError, TypeError) as err:
         raise KISError(f"KIS 수치 필드 {field_name!r} 파싱 실패: {text!r}") from err
+    # "NaN"/"Infinity" 는 Decimal 로 파싱은 되지만 비유한값이라 이후 비교(가격/수량 일치)가 무너져
+    # 오판을 부른다 -- required/optional decimal·int 전부 여기서 fail-closed 한다.
+    if not number.is_finite():
+        raise KISError(f"KIS 수치 필드 {field_name!r} 가 유한하지 않다(NaN/Infinity): {text!r}")
+    return number
 
 
 def parse_response_decimal(value: object) -> Decimal:
