@@ -39,8 +39,6 @@ kis.domestic.ranking.by_change(direction="gainers")  # 오늘 상승률 순위
 
 - 이 프로젝트는 한국투자증권의 [공식 API 포털](https://apiportal.koreainvestment.com/apiservice)과
   [공식 저장소](https://github.com/koreainvestment)를 참조해 만든 **"비공식"** 오픈소스 클라이언트입니다.
-- 소프트웨어는 **"있는 그대로(as-is)"** 제공되며, 상품성·특정 목적 적합성을 포함해 명시적이든 묵시적이든
-  어떤 보증도 하지 않습니다.
 - **모든 사용은 사용자 본인의 책임**입니다. 이 소프트웨어의 사용(주문 실행·조회 포함)으로 발생한 금전적
   손실, 주문 오류, 데이터 오류, API 변경으로 인한 오작동 등 어떠한 손해에 대해서도 제작자는
   책임지지 않습니다.
