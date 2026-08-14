@@ -44,6 +44,7 @@ book:
         - bonds.md
     - part: "참고"
       chapters:
+        - cli.md
         - realtime.md
         - limits.md
 
