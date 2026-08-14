@@ -107,16 +107,16 @@ def test_encrypted_frame_decrypted_after_ack():
     cipher_b64 = base64.b64encode(enc.update(padded) + enc.finalize()).decode()
 
     ack = json.dumps(
-        {"header": {"tr_id": "H0STCNI0"}, "body": {"rt_cd": "0", "output": {"key": key, "iv": iv}}}
+        {"header": {"tr_id": "ENCDUMMY0"}, "body": {"rt_cd": "0", "output": {"key": key, "iv": iv}}}
     )
-    ws = FakeWebSocket(incoming=[ack, f"1|H0STCNI0|001|{cipher_b64}"])
+    ws = FakeWebSocket(incoming=[ack, f"1|ENCDUMMY0|001|{cipher_b64}"])
     msgs = _drive(ws)
     assert len(msgs) == 1
     assert msgs[0].data == ["AAA", "BBB", "CCC"]
 
 
 def test_encrypted_frame_without_key_is_dropped():
-    ws = FakeWebSocket(incoming=["1|H0STCNI0|001|garbage"])
+    ws = FakeWebSocket(incoming=["1|ENCDUMMY0|001|garbage"])
     assert _drive(ws) == []  # 키 미수신 -> 드롭, 예외 없음
 
 
