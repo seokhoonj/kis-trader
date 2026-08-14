@@ -7,11 +7,13 @@ from __future__ import annotations
 
 import asyncio
 import json
+import queue
 import threading
 
 import pytest
 
 from kis_trader.errors import RealtimeError
+from kis_trader.realtime._connection import RealtimeMessage
 from kis_trader.realtime.client import RealtimeClient
 
 
@@ -118,3 +120,87 @@ def test_subscribe_before_start_is_deferred_then_sent():
     list(client.stream(timeout=1.0))
     client.stop()
     assert any("H0STASP0" in s for s in ws.sent)  # start 시 전송됨
+
+
+class OpenWebSocket:
+    """메시지 없이 열린 채로 유지되는 가짜 소켓 -- start 후 등록/해제 프레임을 관찰하려면
+    수신 루프가 곧장 끝나지 않고 살아 있어야 한다(close 될 때까지 __anext__ 가 대기)."""
+
+    def __init__(self):
+        self.sent: list[str] = []
+        self._closed = asyncio.Event()
+
+    def __aiter__(self):
+        return self
+
+    async def __anext__(self):
+        await self._closed.wait()
+        raise StopAsyncIteration
+
+    async def send(self, message):
+        self.sent.append(message)
+
+    async def pong(self, data):
+        pass
+
+    async def close(self):
+        self._closed.set()
+
+
+def _open_client(ws):
+    return RealtimeClient("KEY", "ws://x", connect=_connector(ws), reconnect=False)
+
+
+def test_subscribe_after_start_sends_frame():
+    # start 후 등록은 보관만 하지 않고 즉시 전송된다(_call_async 의 블로킹 브랜치).
+    ws = OpenWebSocket()
+    client = _open_client(ws)
+    client.start()
+    client.subscribe("H0STASP0", "005930")
+    client.stop()
+    assert any("H0STASP0" in s for s in ws.sent)
+
+
+def test_unsubscribe_sends_unregister_frame_and_discards():
+    ws = OpenWebSocket()
+    client = _open_client(ws)
+    client.subscribe("H0STASP0", "005930")
+    client.start()
+    client.unsubscribe("H0STASP0", "005930")
+    client.stop()
+    assert ("H0STASP0", "005930") not in client._desired
+    frames = [json.loads(s) for s in ws.sent]
+    assert any(f["header"]["tr_type"] == "1" for f in frames)   # 등록(1)
+    assert any(f["header"]["tr_type"] == "2" for f in frames)   # 해제(2)
+
+
+def test_subscribe_from_callback_does_not_deadlock():
+    # 콜백(수신 스레드)에서 subscribe 를 부르면 자기 루프를 기다려 self-deadlock 이 될 수 있다 --
+    # fire-and-forget 로 스케줄해 막는다. 데드락이면 stop() 의 join 이 풀리지 않아 실패한다.
+    ws = FakeWebSocket(incoming=["0|DUMMYTR0|001|005930^1"])
+    client = _client(ws)
+
+    def on_msg(_message):
+        client.subscribe("H0STASP0", "000660")
+
+    client.subscribe("DUMMYTR0", "005930", on=on_msg)
+    client.start()
+    list(client.stream(timeout=2.0))
+    client.stop()
+    assert client._running is False
+
+
+def test_enqueue_drops_oldest_when_queue_full():
+    # 상한 도달 시 가장 오래된 틱을 버리고 최신을 넣는다(콜백 전용/느린 소비자 메모리 누수 방지).
+    client = RealtimeClient("KEY", "ws://x")
+    client._queue = queue.Queue(maxsize=2)
+    first, second, third = (
+        RealtimeMessage(tr_id="T", tr_key="1", data=[str(i)]) for i in range(3)
+    )
+    for message in (first, second, third):
+        client._enqueue(message)
+    drained = []
+    while not client._queue.empty():
+        drained.append(client._queue.get_nowait())
+    assert drained == [second, third]                # 가장 오래된 first 는 드롭
+    assert client._queue_overflow_warned is True

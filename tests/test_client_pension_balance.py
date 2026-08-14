@@ -119,6 +119,24 @@ def test_pension_balance_tr_and_params():
     assert call["params"]["INQR_DVSN"] == "00"
 
 
+def test_pension_balance_non_list_output_fails_closed():
+    # 성공 응답인데 output1 이 배열이 아니면 빈 결과로 오인하지 않고 fail-closed.
+    malformed = RawResponse(rt_cd="0", msg_cd="KIOK0510", msg1="조회",
+                            body={"output1": {"bad": "object"}, "output2": _BAL_SUMMARY})
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=malformed)).pension.balance()
+
+
+def test_pension_balance_page_cap_fails_closed(monkeypatch):
+    # 연속조회가 끝나지 않으면 상한에서 부분 결과로 자르지 않고 fail-closed(부분 잔고 오인 방지).
+    from kis_trader.pension import _engine
+    monkeypatch.setattr(_engine, "_MAX_PAGES", 2)
+    endless = _resp2([_BAL_ROW], _BAL_SUMMARY, nk="MORE", tr_cont="M")  # 항상 다음 페이지 있음
+    fake = FakeTransport(pages=[endless, endless, endless])
+    with pytest.raises(KISError, match="페이지 상한"):
+        _client(fake).pension.balance()
+
+
 def test_pension_balance_demo_rejected_before_io():
     fake = FakeTransport(response=_resp2([_BAL_ROW], _BAL_SUMMARY))
     with pytest.raises(KISUsageError):

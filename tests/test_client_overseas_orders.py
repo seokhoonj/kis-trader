@@ -236,6 +236,27 @@ def test_overseas_reconcile_two_matches_raises():
         client.orders.reconcile("m2")
 
 
+@pytest.mark.parametrize(("ccld_qty", "rjct", "expected_status", "expected_filled"), [
+    ("0", "주문거부", "REJECTED", 0),          # 거부 + 미체결
+    ("3", "", "PARTIALLY_FILLED", 3),          # 일부 체결
+    ("0", "", "NEW", 0),                        # 접수만(working)
+])
+def test_overseas_reconcile_classifies_ccnl_status(ccld_qty, rjct, expected_status, expected_filled):
+    # 재조회가 체결내역 행을 REJECTED/PARTIALLY_FILLED/NEW 로 정확히 분류하는지(FILLED 외 분기).
+    from kis_trader import OrderStatus
+    row = _ccnl_row(qty="10", ord_unpr="150.00", ccld_qty=ccld_qty, rjct=rjct)
+    fake = FakeTransport(on_post=TransportTimeout("timeout"), on_get=_ccnl([row]))
+    client = _client(fake)
+    with pytest.raises(OrderTimeoutError):
+        client.overseas.stock("AAPL", exchange="NAS").buy(
+            quantity=10, limit_price="150.00", client_order_id="cls",
+        )
+    report = client.orders.reconcile("cls")
+    assert report is not None
+    assert report.status is getattr(OrderStatus, expected_status)
+    assert report.filled_quantity == Decimal(expected_filled)
+
+
 def test_overseas_write_timeout_does_not_retry():
     # POST timeout 이면 정확히 1회만 전송(재전송 금지)하고 idempotent=False 로 나간다.
     fake = FakeTransport(on_post=TransportTimeout("timeout"))
