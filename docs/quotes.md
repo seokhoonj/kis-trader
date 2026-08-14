@@ -98,7 +98,7 @@ s.status()                   # 현재가 + 거래·규제·경고 상태
 s.minute_bars_on("20240102")  # 특정 과거일의 1분봉
 ```
 
-지수는 [시장·지수](market.md), 해외는 [해외주식](overseas.md), ETF·ELW·선물옵션·채권은 각 상품 챕터를 보세요.
+지수는 [지수·시장](market.md), 해외는 [해외주식](overseas.md), ETF·ELW·선물옵션·채권은 각 상품 챕터를 보세요.
 
 ::: {.callout-tip}
 필드가 더 궁금하면 `help(type(q))` — 각 필드의 한국어 설명과 KIS 원본 키(TR-ID 포함)가 나옵니다.
