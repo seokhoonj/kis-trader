@@ -20,10 +20,7 @@ if TYPE_CHECKING:
     from .._literals import DerivativeProduct
     from ..client import KISClient
     from ..order_book import OrderBook
-    from ..overseas_derivative_items import (
-        OverseasDerivativeDetail,
-        OverseasDerivativeQuote,
-    )
+    from .entities.derivative import OverseasDerivativeDetail, OverseasDerivativeQuote
     from ..trade import Trade
 
 

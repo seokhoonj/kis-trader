@@ -30,34 +30,40 @@ if TYPE_CHECKING:
 
     from .client import KISClient
     from .news import NewsHeadline
-    from .overseas_derivative_items import (
+    from .overseas.entities.derivative import (
         OverseasDerivativeDetail,
         OverseasDerivativeMarketHours,
         OverseasFuturesOpenInterest,
     )
-    from .overseas_items import (
+    from .overseas.entities.account import (
+        OverseasBuyableAmount,
+        OverseasForeignMargin,
+        OverseasPeriodProfit,
+        OverseasTransaction,
+    )
+    from .overseas.entities.balance import (
+        OverseasBalance,
+        OverseasPosition,
+        OverseasPresentBalance,
+        OverseasSettlementBalance,
+        OverseasSettlementDate,
+    )
+    from .overseas.entities.collateral import OverseasCollateralStockSearch
+    from .overseas.entities.orders import (
         OverseasAlgoExecution,
         OverseasAlgoOrder,
-        OverseasBalance,
-        OverseasBuyableAmount,
-        OverseasCollateralStockSearch,
+        OverseasOpenOrder,
+        OverseasReservedOrder,
+    )
+    from .overseas.entities.reference import (
         OverseasCorporateAction,
-        OverseasForeignMargin,
         OverseasIndustry,
         OverseasIndustryStock,
         OverseasNewsHeadline,
-        OverseasOpenOrder,
-        OverseasPeriodProfit,
-        OverseasPosition,
-        OverseasPresentBalance,
-        OverseasReservedOrder,
         OverseasRight,
-        OverseasSettlementBalance,
-        OverseasSettlementDate,
         OverseasStockSearch,
-        OverseasTransaction,
     )
-    from .overseas_product import OverseasProductInfo
+    from .overseas.entities.product import OverseasProductInfo
     from .pension_items import (
         PensionBalance,
         PensionBuyableAmount,

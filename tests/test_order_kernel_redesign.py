@@ -280,7 +280,7 @@ def test_public_write_surface_uses_limit_price():
 def test_order_result_types_expose_order_price():
     """주문 결과 타입은 주문단가를 order_price 로 노출한다(체결단가 price 와 구분)."""
     from kis_trader.open_order import OpenOrder
-    from kis_trader.overseas_items import (
+    from kis_trader.overseas.entities.orders import (
         OverseasAlgoOrder,
         OverseasOpenOrder,
         OverseasReservedOrder,

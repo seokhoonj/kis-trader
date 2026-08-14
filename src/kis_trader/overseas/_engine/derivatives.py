@@ -39,7 +39,7 @@ from ..._internal._wire import (
 from ...bar import Bar, Interval
 from ...errors import KISError, KISUsageError
 from ...order_book import OrderBook, PriceLevel
-from ...overseas_derivative_items import (
+from ..entities.derivative import (
     OverseasDerivativeDetail,
     OverseasDerivativeMarketHours,
     OverseasDerivativeQuote,

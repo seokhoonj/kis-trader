@@ -26,7 +26,7 @@ from ...errors import (
     OrderTimeoutError,
 )
 from ...order import ReservedOrderFingerprint, Side, coerce_decimal, validate_yyyymmdd
-from ...overseas_items import OverseasReservedOrder
+from ..entities.orders import OverseasReservedOrder
 from ...report import ExecutionReport, OrderStatus
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ...transport import Environment, Transport, TransportTimeout

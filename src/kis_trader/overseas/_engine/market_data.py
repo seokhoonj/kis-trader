@@ -42,14 +42,14 @@ from ..._internal._wire import (
 from ...bar import Bar, Interval
 from ...errors import KISError, KISUsageError
 from ...order_book import OrderBook
-from ...overseas_items import (
-    OverseasCurrentPrice,
+from ..entities.quote import OverseasCurrentPrice
+from ..entities.reference import (
     OverseasIndustry,
     OverseasIndustryStock,
     OverseasStockSearch,
     OverseasStockSearchMatch,
 )
-from ...overseas_product import OverseasProductInfo
+from ..entities.product import OverseasProductInfo
 from ...quote import Quote
 from ...trade import Trade
 from ...transport import Environment, Transport

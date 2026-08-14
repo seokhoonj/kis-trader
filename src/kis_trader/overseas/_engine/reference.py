@@ -17,15 +17,13 @@ from ..._internal._response import (
 from ..._internal._wire import optional_decimal, required_int
 from ...errors import KISError, KISUsageError
 from ...news import NewsHeadline
-from ...overseas_items import (
+from ..entities.balance import OverseasSettlementDate
+from ..entities.collateral import (
     OverseasCollateralStock,
     OverseasCollateralStockSearch,
     OverseasCollateralSummary,
-    OverseasCorporateAction,
-    OverseasNewsHeadline,
-    OverseasRight,
-    OverseasSettlementDate,
 )
+from ..entities.reference import OverseasCorporateAction, OverseasNewsHeadline, OverseasRight
 from ...transport import Environment, Transport
 
 _SETTLEMENT_DATES_PATH = "/uapi/overseas-stock/v1/quotations/countries-holiday"

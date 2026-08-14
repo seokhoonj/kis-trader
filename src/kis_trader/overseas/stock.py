@@ -20,7 +20,7 @@ from ..bar import Bar, Interval
 from ..errors import KISUsageError
 from ..order import Order, Side, TimeInForce
 from ..order_book import OrderBook
-from ..overseas_items import OverseasCurrentPrice
+from .entities.quote import OverseasCurrentPrice
 from ..quote import Quote
 from ..report import ExecutionReport
 from ..trade import Trade
