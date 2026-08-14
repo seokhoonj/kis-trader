@@ -13,21 +13,21 @@ from collections.abc import Mapping, Sequence
 from datetime import date
 from typing import Any
 
-from .._bars import (
+from ..._bars import (
     _parse_bar_timestamp,
     _parse_minute_bar_timestamp,
     _period_code_for,
     collect_period_bars,
 )
-from .._internal._datetime import _to_yyyymmdd, _today_kst
-from .._internal._response import (
+from ..._internal._datetime import _to_yyyymmdd, _today_kst
+from ..._internal._response import (
     _missing_block_error,
     _raise_if_error,
 )
-from .._internal._wire import required_decimal, required_int
-from ..bar import Bar, Interval
-from ..errors import KISUsageError
-from ..transport import RawResponse, Transport
+from ..._internal._wire import required_decimal, required_int
+from ...bar import Bar, Interval
+from ...errors import KISUsageError
+from ...transport import RawResponse, Transport
 
 _BARS_PATH = "/uapi/overseas-price/v1/quotations/inquire-daily-chartprice"
 _BARS_TR   = "FHKST03030100"

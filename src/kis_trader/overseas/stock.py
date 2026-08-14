@@ -14,7 +14,7 @@ from __future__ import annotations
 from datetime import date
 from typing import TYPE_CHECKING
 
-from .._overseas import market_data as overseas_market_data
+from ._engine import market_data as overseas_market_data
 from .._stock_base import _StockBase
 from ..bar import Bar, Interval
 from ..errors import KISUsageError

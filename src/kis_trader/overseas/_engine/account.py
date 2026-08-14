@@ -16,17 +16,17 @@ from datetime import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from .._internal._datetime import parse_optional_kst_date
-from .._internal._response import _fetch_paginated_rows, _raise_if_error
-from .._internal._wire import (
+from ..._internal._datetime import parse_optional_kst_date
+from ..._internal._response import _fetch_paginated_rows, _raise_if_error
+from ..._internal._wire import (
     format_wire_decimal,
     optional_decimal,
     required_decimal,
     required_int,
 )
-from ..errors import KISError, KISUsageError
-from ..money import Money
-from ..overseas_items import (
+from ...errors import KISError, KISUsageError
+from ...money import Money
+from ...overseas_items import (
     OverseasAlgoExecution,
     OverseasAlgoOrder,
     OverseasBalance,
@@ -42,11 +42,11 @@ from ..overseas_items import (
     OverseasSettlementBalance,
     OverseasTransaction,
 )
-from ..transport import Environment, Transport
+from ...transport import Environment, Transport
 from .orders import _ORDER_EXCHANGE
 
 if TYPE_CHECKING:
-    from .._literals import Numeric
+    from ..._literals import Numeric
 
 _POSITIONS_PATH = "/uapi/overseas-stock/v1/trading/inquire-balance"
 _POSITIONS_TR = {"real": "TTTS3012R", "paper": "VTTS3012R"}

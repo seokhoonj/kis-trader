@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._overseas import derivatives as overseas_derivatives_api
+from .overseas._engine import derivatives as overseas_derivatives_api
 from .bar import Bar, Interval
 
 if TYPE_CHECKING:

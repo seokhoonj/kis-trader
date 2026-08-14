@@ -14,18 +14,18 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from .._internal._response import (
+from ..._internal._response import (
     _missing_block_error,
     _raise_if_error,
 )
-from .._internal._wire import (
+from ..._internal._wire import (
     _apply_change_sign,
     required_decimal,
     required_int,
 )
-from ..errors import KISUsageError
-from ..overseas_ranking_items import RankedOverseasStock
-from ..transport import Transport
+from ...errors import KISUsageError
+from ...overseas_ranking_items import RankedOverseasStock
+from ...transport import Transport
 
 _TRADE_VOL = ("/uapi/overseas-stock/v1/ranking/trade-vol", "HHDFS76310010")
 _TRADE_AMOUNT = ("/uapi/overseas-stock/v1/ranking/trade-pbmn", "HHDFS76320010")

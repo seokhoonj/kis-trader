@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._overseas import index as overseas_index_api
+from .overseas._engine import index as overseas_index_api
 from .bar import Bar, Interval
 
 if TYPE_CHECKING:

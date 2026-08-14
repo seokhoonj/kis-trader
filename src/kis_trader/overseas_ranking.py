@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._overseas import ranking as overseas_ranking_api
+from .overseas._engine import ranking as overseas_ranking_api
 
 if TYPE_CHECKING:
     from .client import KISClient

@@ -251,7 +251,7 @@ def test_overseas_reconcile_date_window_is_deterministic():
     # reconcile 날짜창은 주입 시각(now) 기준으로 결정적 -- 벽시계에 의존하지 않는다.
     from datetime import datetime, timezone
 
-    from kis_trader._overseas import orders as engine
+    from kis_trader.overseas._engine import orders as engine
     from kis_trader.store import OrderStore
     kst = timezone(__import__("datetime").timedelta(hours=9))
     store = OrderStore()
@@ -319,7 +319,7 @@ def test_overseas_unknown_exchange_rejected_before_wire():
 
 def test_overseas_full_demo_tr_matrix():
     # 실전에 이어 모의 TR 도 시장 x 매수/매도 전수 검증(원장 [모의투자]).
-    from kis_trader._overseas.orders import make_order_request_from_fields
+    from kis_trader.overseas._engine.orders import make_order_request_from_fields
     demo = {
         ("NAS", "buy"): "VTTT1002U", ("NAS", "sell"): "VTTT1001U",
         ("TSE", "buy"): "VTTS0308U", ("TSE", "sell"): "VTTS0307U",

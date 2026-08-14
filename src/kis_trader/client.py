@@ -23,8 +23,8 @@ from ._internal._masters import (
     load_overseas_index,
     urlopen_fetch,
 )
-from ._overseas import orders as overseas_orders_engine
-from ._overseas import reserved_orders as overseas_reserved_orders_api
+from .overseas._engine import orders as overseas_orders_engine
+from .overseas._engine import reserved_orders as overseas_reserved_orders_api
 from .errors import KISUsageError
 from .namespaces import (
     OrdersNamespace,
