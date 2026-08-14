@@ -17,7 +17,9 @@ book:
     style: docked
   chapters:
     - index.md
-    - quickstart.md
+    - part: "시작하기"
+      chapters:
+        - quickstart.md
     - part: "국내 주식"
       chapters:
         - quotes.md
@@ -30,19 +32,19 @@ book:
         - screening.md
         - market.md
         - corporate-actions.md
-    - part: "해외·연금·실시간"
+    - part: "해외·연금"
       chapters:
         - overseas.md
         - pension.md
-        - realtime.md
     - part: "다른 상품"
       chapters:
         - etf.md
         - elw.md
         - derivatives.md
         - bonds.md
-    - part: "부록"
+    - part: "참고"
       chapters:
+        - realtime.md
         - limits.md
 
 format:
