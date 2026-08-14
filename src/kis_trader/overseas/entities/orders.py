@@ -73,7 +73,7 @@ class OverseasAlgoExecution:
     name: str
     quantity: Decimal                 # 체결수량(FT_CCLD_QTY)
     price: Decimal                    # 체결단가(FT_CCLD_UNPR3)
-    amount: Decimal                   # 체결금액(FT_CCLD_AMT3)
+    executed_amount: Decimal          # 체결금액(FT_CCLD_AMT3)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
