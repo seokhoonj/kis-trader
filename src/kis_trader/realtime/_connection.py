@@ -95,6 +95,11 @@ class RealtimeConnection:
             await self._ws.close()
             self._ws = None
 
+    async def stop(self) -> None:
+        """재연결을 끄고 소켓을 닫아 수신 루프(``async for``)를 종료시킨다."""
+        self._reconnect = False
+        await self.close()
+
     async def subscribe(self, tr_id: str, tr_key: str) -> None:
         """실시간 등록. 상한(41) 초과면 ``RuntimeError``. 재연결 후 자동 재등록된다."""
         if (tr_id, tr_key) in self._subscriptions:
