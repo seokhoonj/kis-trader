@@ -26,6 +26,14 @@ book:
     - overseas.md
     - pension.md
     - realtime.md
+    - part: "자산군별 상세"
+      chapters:
+        - financials.md
+        - etf.md
+        - elw.md
+        - derivatives.md
+        - bonds.md
+        - corporate-actions.md
 
 format:
   html:
