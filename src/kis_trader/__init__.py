@@ -207,19 +207,21 @@ from .overseas.entities.balance import (
     OverseasPosition,
     OverseasPresentBalance,
     OverseasSettlementBalance,
-    OverseasSettlementDate,
 )
 from .overseas.entities.collateral import (
     OverseasCollateralStock,
     OverseasCollateralStockSearch,
     OverseasCollateralSummary,
 )
+from .overseas.entities.corporate_action import OverseasCorporateAction, OverseasRight
 from .overseas.entities.derivative import (
     OverseasDerivativeDetail,
     OverseasDerivativeMarketHours,
     OverseasDerivativeQuote,
     OverseasFuturesOpenInterest,
 )
+from .overseas.entities.industry import OverseasIndustry, OverseasIndustryStock
+from .overseas.entities.news import OverseasNewsHeadline
 from .overseas.entities.orders import (
     OverseasAlgoExecution,
     OverseasAlgoOrder,
@@ -229,15 +231,8 @@ from .overseas.entities.orders import (
 from .overseas.entities.product import OverseasProductInfo
 from .overseas.entities.quote import OverseasCurrentPrice
 from .overseas.entities.ranking import RankedOverseasStock
-from .overseas.entities.reference import (
-    OverseasCorporateAction,
-    OverseasIndustry,
-    OverseasIndustryStock,
-    OverseasNewsHeadline,
-    OverseasRight,
-    OverseasStockSearch,
-    OverseasStockSearchMatch,
-)
+from .overseas.entities.search import OverseasStockSearch, OverseasStockSearchMatch
+from .overseas.entities.settlement import OverseasSettlementDate
 from .overseas.index import OverseasIndex
 from .overseas.ranking import OverseasRankingQueries
 from .overseas.stock import OverseasStock

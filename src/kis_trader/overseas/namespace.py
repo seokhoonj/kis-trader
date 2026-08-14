@@ -38,14 +38,16 @@ if TYPE_CHECKING:
         OverseasPosition,
         OverseasPresentBalance,
         OverseasSettlementBalance,
-        OverseasSettlementDate,
     )
     from .entities.collateral import OverseasCollateralStockSearch
+    from .entities.corporate_action import OverseasCorporateAction, OverseasRight
     from .entities.derivative import (
         OverseasDerivativeDetail,
         OverseasDerivativeMarketHours,
         OverseasFuturesOpenInterest,
     )
+    from .entities.industry import OverseasIndustry, OverseasIndustryStock
+    from .entities.news import OverseasNewsHeadline
     from .entities.orders import (
         OverseasAlgoExecution,
         OverseasAlgoOrder,
@@ -53,14 +55,8 @@ if TYPE_CHECKING:
         OverseasReservedOrder,
     )
     from .entities.product import OverseasProductInfo
-    from .entities.reference import (
-        OverseasCorporateAction,
-        OverseasIndustry,
-        OverseasIndustryStock,
-        OverseasNewsHeadline,
-        OverseasRight,
-        OverseasStockSearch,
-    )
+    from .entities.search import OverseasStockSearch
+    from .entities.settlement import OverseasSettlementDate
 
 # 해외 지수류 kind -> FID_COND_MRKT_DIV_CODE. ``kis.overseas.index`` 가 쓴다.
 _OVERSEAS_INDEX_KIND = {"index": "N", "fx": "X", "bond": "I", "gold": "S"}

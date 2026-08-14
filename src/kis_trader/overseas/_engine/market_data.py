@@ -43,12 +43,8 @@ from ...bar import Bar, Interval
 from ...errors import KISError, KISUsageError
 from ...order_book import OrderBook
 from ..entities.quote import OverseasCurrentPrice
-from ..entities.reference import (
-    OverseasIndustry,
-    OverseasIndustryStock,
-    OverseasStockSearch,
-    OverseasStockSearchMatch,
-)
+from ..entities.industry import OverseasIndustry, OverseasIndustryStock
+from ..entities.search import OverseasStockSearch, OverseasStockSearchMatch
 from ..entities.product import OverseasProductInfo
 from ...quote import Quote
 from ...trade import Trade
