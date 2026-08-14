@@ -260,8 +260,9 @@ def test_public_write_surface_uses_limit_price():
     """대표 write 진입점들이 limit_price 를 받는다(price 가 아니라)."""
     import inspect
 
+    from kis_trader.domestic.namespace import DomesticAccount
     from kis_trader.domestic.stock import DomesticStock
-    from kis_trader.namespaces import DomesticAccount, OrdersNamespace
+    from kis_trader.namespaces import OrdersNamespace
     from kis_trader.overseas.stock import OverseasStock
 
     def params(func):

@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 from .domestic._engine import orders as orders_engine
 from .domestic._engine import reserved_orders as reserved_orders_api
+from .domestic.namespace import DomesticNamespace
 from ._internal._masters import (
     Fetch,
     MasterIndex,
@@ -26,7 +27,6 @@ from ._overseas import orders as overseas_orders_engine
 from ._overseas import reserved_orders as overseas_reserved_orders_api
 from .errors import KISUsageError
 from .namespaces import (
-    DomesticNamespace,
     OrdersNamespace,
     OverseasNamespace,
     PensionNamespace,
