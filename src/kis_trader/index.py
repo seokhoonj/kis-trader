@@ -27,18 +27,40 @@ if TYPE_CHECKING:
     from .client import KISClient
 
 
+#: 잘 알려진 지수 이름 -> 업종코드 별칭. 그 밖의 값(업종코드)은 그대로 통과한다.
+_INDEX_NAME_TO_CODE = {
+    "KOSPI": "0001",
+    "코스피": "0001",
+    "KOSDAQ": "1001",
+    "코스닥": "1001",
+    "KOSPI200": "2001",
+    "코스피200": "2001",
+}
+
+
+def _resolve_index_code(code: str) -> str:
+    """업종코드 또는 잘 알려진 지수 이름을 업종코드로 정규화한다.
+
+    ``kis.domestic.index("KOSPI")`` 처럼 이름으로도 부를 수 있게 한다(영문 대소문자 무관).
+    이미 업종코드(예: ``"0001"``)이거나 매핑에 없는 값이면 그대로 돌려준다.
+    """
+    return _INDEX_NAME_TO_CODE.get(code.strip().upper(), code)
+
+
 class Index:
     """한 지수(업종)에 대한 조회 핸들. 세션(:class:`KISClient`)과 업종코드를 안다.
 
     보통 직접 만들지 않고 ``kis.domestic.index`` 로 얻는다. ``code`` 는 업종코드(예: 0001 KOSPI
-    종합, 1001 KOSDAQ 종합, 2001 KOSPI200).
+    종합, 1001 KOSDAQ 종합, 2001 KOSPI200) 또는 잘 알려진 지수 이름(``"KOSPI"``/``"KOSDAQ"``/
+    ``"KOSPI200"``, 영문 대소문자 무관)을 받는다 -- 이름은 생성 시점에 업종코드로 정규화되어
+    ``code`` 에 저장된다.
     """
 
     code: str
 
     def __init__(self, client: KISClient, code: str) -> None:
         self._client = client
-        self.code = code
+        self.code = _resolve_index_code(code)
 
     def quote(self) -> IndexQuote:
         """지수 현재가 스냅샷(레벨·시고저·등락종목수)."""

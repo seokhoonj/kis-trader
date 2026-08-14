@@ -589,3 +589,24 @@ def test_index_categories_missing_output1_fails_closed():
                                               body={"output2": [_category_row()]}))
     with pytest.raises(KISError):
         _client(fake).domestic.index("0001").categories()
+
+
+def test_index_accepts_well_known_names():
+    # 잘 알려진 지수 이름으로도 부를 수 있고(영문 대소문자 무관), 생성 시 업종코드로 정규화되어
+    # 와이어에도 업종코드가 실린다.
+    for name, code in [("KOSPI", "0001"), ("kospi", "0001"), ("코스피", "0001"),
+                       ("KOSDAQ", "1001"), ("KOSPI200", "2001"), ("코스닥", "1001")]:
+        fake = FakeTransport(response=_resp(_output()))
+        idx = _client(fake).domestic.index(name)
+        assert idx.code == code
+        idx.quote()
+        assert fake.calls[0]["params"]["FID_INPUT_ISCD"] == code
+
+
+def test_index_passes_through_unknown_codes():
+    # 매핑에 없는 값(업종코드)은 그대로 통과한다.
+    fake = FakeTransport(response=_resp(_output()))
+    idx = _client(fake).domestic.index("2203")
+    assert idx.code == "2203"
+    idx.quote()
+    assert fake.calls[0]["params"]["FID_INPUT_ISCD"] == "2203"
