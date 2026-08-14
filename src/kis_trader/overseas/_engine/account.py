@@ -12,7 +12,6 @@ KIS URL/TR-ID (KIS 명세 대조):
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -41,8 +40,8 @@ from ..entities.balance import (
     OverseasPresentBalance,
     OverseasSettlementBalance,
 )
-from ..entities.orders import OverseasAlgoExecution, OverseasAlgoOrder, OverseasOpenOrder
 from ...transport import Environment, Transport
+from ._parse import _MARKETS, _MAX_PAGES, _SIDE, _decimal_or_zero, _money
 from .orders import _ORDER_EXCHANGE
 
 if TYPE_CHECKING:
@@ -51,11 +50,6 @@ if TYPE_CHECKING:
 _POSITIONS_PATH = "/uapi/overseas-stock/v1/trading/inquire-balance"
 _POSITIONS_TR = {"real": "TTTS3012R", "paper": "VTTS3012R"}
 #: 잔고 종목배열 연속조회 페이지 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
-_MAX_PAGES = 100
-
-_OPEN_ORDERS_PATH = "/uapi/overseas-stock/v1/trading/inquire-nccs"
-_OPEN_ORDERS_TR = "TTTS3018R"           # 모의투자 미지원(실전만)
-
 _BUYABLE_PATH = "/uapi/overseas-stock/v1/trading/inquire-psamount"
 _BUYABLE_TR = {"real": "TTTS3007R", "paper": "VTTS3007R"}
 
@@ -64,11 +58,6 @@ _TRANSACTIONS_TR = "CTOS4001R"          # 모의투자 미지원
 
 _FOREIGN_MARGIN_PATH = "/uapi/overseas-stock/v1/trading/foreign-margin"
 _FOREIGN_MARGIN_TR = "TTTC2101R"        # 모의투자 미지원
-
-_ALGO_ORDNO_PATH = "/uapi/overseas-stock/v1/trading/algo-ordno"
-_ALGO_ORDNO_TR = "TTTS6058R"            # 모의투자 미지원
-_ALGO_CCNL_PATH = "/uapi/overseas-stock/v1/trading/inquire-algo-ccnl"
-_ALGO_CCNL_TR = "TTTS6059R"             # 모의투자 미지원
 
 _PRESENT_BALANCE_PATH = "/uapi/overseas-stock/v1/trading/inquire-present-balance"
 _PRESENT_BALANCE_TR = {"real": "CTRP6504R", "paper": "VTRP6504R"}  # 모의는 output3(요약)만
@@ -83,20 +72,6 @@ _NATION_CODE = {"all": "000", "US": "840", "HK": "344", "CN": "156", "JP": "392"
 _TX_SIDE_FILTER = {"all": "00", "sell": "01", "buy": "02"}
 
 #: 미체결 매매구분코드(KIS 명세). 01:매도, 02:매수.
-_SIDE = {"01": "sell", "02": "buy"}
-
-#: 해외 잔고 시장 -> (OVRS_EXCG_CD, TR_CRCY_CD). KIS 코드표. 미국은 NASD(실전=미국전체).
-_MARKETS: dict[str, tuple[str, str]] = {
-    "US": ("NASD", "USD"),
-    "HK": ("SEHK", "HKD"),
-    "CN_SH": ("SHAA", "CNY"),
-    "CN_SZ": ("SZAA", "CNY"),
-    "JP": ("TKSE", "JPY"),
-    "VN_HN": ("HASE", "VND"),
-    "VN_HCM": ("VNSE", "VND"),
-}
-
-
 def fetch_positions(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     market: str | None = None,
@@ -148,70 +123,6 @@ def fetch_balance(
         return_percent=required_decimal(summary.get("tot_pftrt"), "tot_pftrt"),
         _raw=summary,
     )
-
-
-def fetch_open_orders(
-    transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    market: str | None = None,
-) -> list[OverseasOpenOrder]:
-    """해외 미체결 주문 전체(연속조회 소진까지). ``market`` 생략(``None``)이면 전체 시장 그룹을 순회해
-    합친다. **모의투자 미지원**(demo면 :class:`KISUsageError`)."""
-    if environment == "paper":
-        raise KISUsageError("해외 미체결내역 조회는 모의투자 미지원이다(실전 계좌만).")
-    if market is None:
-        out: list[OverseasOpenOrder] = []
-        for group in _MARKETS:
-            out.extend(fetch_open_orders(
-                transport, cano=cano, product_code=product_code, environment=environment,
-                market=group,
-            ))
-        return out
-    try:
-        exchange, currency = _MARKETS[market]
-    except KeyError:
-        raise KISUsageError(
-            f"지원하지 않는 해외 시장: {market!r} ({'/'.join(_MARKETS)})."
-        ) from None
-    rows = _fetch_paginated_rows(
-        transport,
-        path=_OPEN_ORDERS_PATH, tr_id=_OPEN_ORDERS_TR,
-        base_params={
-            "CANO": cano, "ACNT_PRDT_CD": product_code, "OVRS_EXCG_CD": exchange,
-            "SORT_SQN": "DS", "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
-        },
-        output_key="output", max_pages=_MAX_PAGES, ctx_width=200,
-        cap_message=(
-            f"해외 미체결 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
-            f"-- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
-        ),
-    )
-    return _parse_open_orders(rows, default_currency=currency)
-
-
-def _parse_open_orders(
-    rows: list[Mapping[str, Any]], *, default_currency: str
-) -> list[OverseasOpenOrder]:
-    orders: list[OverseasOpenOrder] = []
-    for row in rows:
-        order_id = str(row.get("odno", "")).strip()
-        if not order_id:  # 빈 행 skip
-            continue
-        currency = str(row.get("tr_crcy_cd", "")).strip() or default_currency
-        orders.append(
-            OverseasOpenOrder(
-                symbol=str(row.get("pdno", "")).strip(),
-                name=str(row.get("prdt_name", "")).strip(),
-                exchange=str(row.get("ovrs_excg_cd", "")).strip(),
-                order_id=order_id,
-                side=_SIDE.get(str(row.get("sll_buy_dvsn_cd", "")).strip(), ""),
-                quantity=required_int(row.get("ft_ord_qty"), "ft_ord_qty"),
-                filled_quantity=required_int(row.get("ft_ccld_qty"), "ft_ccld_qty"),
-                unfilled_quantity=required_int(row.get("nccs_qty"), "nccs_qty"),
-                order_price=_money(row, "ft_ord_unpr3", currency),
-                _raw=row,
-            )
-        )
-    return orders
 
 
 def fetch_buyable_amount(
@@ -355,73 +266,6 @@ def fetch_foreign_margin(
     return margins
 
 
-def fetch_algo_orders(
-    transport: Transport, *, cano: str, product_code: str, environment: Environment
-) -> list[OverseasAlgoOrder]:
-    """해외 지정가(TWAP/VWAP 등 알고) 주문 목록. 각 건의 ``order_id``/``branch_number`` 로 체결내역을
-    조회한다(:func:`fetch_algo_executions`). **모의투자 미지원**."""
-    if environment == "paper":
-        raise KISUsageError("해외 지정가주문번호조회(algo-ordno)는 모의투자 미지원 -- 실전에서만.")
-    rows = _fetch_paginated_rows(
-        transport,
-        path=_ALGO_ORDNO_PATH, tr_id=_ALGO_ORDNO_TR,
-        base_params={"CANO": cano, "ACNT_PRDT_CD": product_code,
-                     "CTX_AREA_FK200": "", "CTX_AREA_NK200": ""},
-        output_key="output", max_pages=_MAX_PAGES, ctx_width=200,
-        cap_message="해외 지정가주문번호조회가 페이지 상한에 도달했으나 연속조회가 남아있다.",
-    )
-    return [
-        OverseasAlgoOrder(
-            order_id=str(row.get("odno", "")).strip(),
-            trade_type=str(row.get("trad_dvsn_name", "")).strip(),
-            symbol=str(row.get("pdno", "")).strip(),
-            name=str(row.get("item_name", "")).strip(),
-            quantity=_decimal_or_zero(row, "ft_ord_qty"),
-            order_price=_decimal_or_zero(row, "ft_ord_unpr3"),
-            filled_quantity=_decimal_or_zero(row, "ft_ccld_qty"),
-            split_attribute=str(row.get("splt_buy_attr_name", "")).strip(),
-            branch_number=str(row.get("ord_gno_brno", "")).strip(),
-            _raw=row,
-        )
-        for row in rows if str(row.get("odno", "")).strip()
-    ]
-
-
-def fetch_algo_executions(
-    transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    order_date: str, order_id: str, branch_number: str = "",
-) -> list[OverseasAlgoExecution]:
-    """한 해외 알고주문(``order_id``)의 체결내역. ``order_date``(YYYYMMDD)는 주문일자, ``branch_number``
-    는 주문채번지점번호(:func:`fetch_algo_orders` 의 ``branch_number``). 응답 키가 대문자다. **모의투자 미지원**."""
-    if environment == "paper":
-        raise KISUsageError("해외 지정가체결내역조회(inquire-algo-ccnl)는 모의투자 미지원 -- 실전에서만.")
-    rows = _fetch_paginated_rows(
-        transport,
-        path=_ALGO_CCNL_PATH, tr_id=_ALGO_CCNL_TR,
-        base_params={
-            "CANO": cano, "ACNT_PRDT_CD": product_code,
-            "ORD_DT": order_date, "ORD_GNO_BRNO": branch_number, "ODNO": order_id,
-            "TTLZ_ICLD_YN": "", "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
-        },
-        output_key="output", max_pages=_MAX_PAGES, ctx_width=200,
-        cap_message="해외 지정가체결내역조회가 페이지 상한에 도달했으나 연속조회가 남아있다.",
-    )
-    return [
-        OverseasAlgoExecution(
-            sequence=str(row.get("CCLD_SEQ", "")).strip(),
-            executed_at=_parse_hhmmss(row.get("CCLD_BTWN")),
-            symbol=str(row.get("PDNO", "")).strip(),
-            name=str(row.get("ITEM_NAME", "")).strip(),
-            quantity=_decimal_or_zero(row, "FT_CCLD_QTY"),
-            price=_decimal_or_zero(row, "FT_CCLD_UNPR3"),
-            executed_amount=_decimal_or_zero(row, "FT_CCLD_AMT3"),
-            _raw=row,
-        )
-        for row in rows if str(row.get("CCLD_SEQ", "")).strip()
-    ]
-
-
-# --- 체결기준현재잔고 (CTRP6504R) -----------------------------------------
 def fetch_present_balance(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     won_basis: bool = True, nation: str = "all", market_code: str = "00", inquiry: str = "00",
@@ -635,16 +479,6 @@ def _currency_balance(row: Mapping[str, Any]) -> OverseasCurrencyBalance:
     )
 
 
-def _parse_hhmmss(value: object) -> time | None:
-    text = str(value or "").strip()
-    if len(text) != 6 or not text.isdigit():
-        return None
-    hour, minute, second = int(text[0:2]), int(text[2:4]), int(text[4:6])
-    if hour > 23 or minute > 59 or second > 59:
-        return None
-    return time(hour, minute, second)
-
-
 def _format_order_unit_price(price: object) -> str:
     """주문단가를 KIS 와이어 정본으로. 0보다 큰 유한값이 아니면 거부."""
     try:
@@ -660,11 +494,6 @@ def _money_or_zero(row: Mapping[str, Any], key: str, currency: str) -> Money:
     """없으면 0(해당 통화), 있으면 파싱(값 있는데 실패면 예외). 매수가능금액 필드는 모두 optional."""
     amount = optional_decimal(row.get(key), key)
     return Money(Decimal(0) if amount is None else amount, currency)
-
-
-def _decimal_or_zero(row: Mapping[str, Any], key: str) -> Decimal:
-    amount = optional_decimal(row.get(key), key)
-    return Decimal(0) if amount is None else amount
 
 
 def _request_page(
@@ -701,10 +530,6 @@ def _walk_holdings(
             f"-- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
         ),
     )
-
-
-def _money(row: Mapping[str, Any], key: str, currency: str) -> Money:
-    return Money(required_decimal(row.get(key), key), currency)
 
 
 def _parse_positions(
