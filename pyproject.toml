@@ -5,12 +5,8 @@ description = "A clean Python client for the Korea Investment & Securities (KIS)
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-dependencies = ["requests>=2.31"]
-
-# Base install is REST-only. Heavier capabilities are opt-in extras.
-[project.optional-dependencies]
-# 실시간 WebSocket 시세/통보. async 코어(websockets) + 체결통보 복호화(cryptography).
-realtime = ["websockets>=12", "cryptography>=42"]
+# REST(requests) + 실시간 WebSocket(websockets) + 체결통보 AES-CBC 복호화(cryptography).
+dependencies = ["requests>=2.31", "websockets>=12", "cryptography>=42"]
 
 [dependency-groups]
 test = ["pytest>=8"]

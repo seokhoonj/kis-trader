@@ -1,11 +1,8 @@
 # 실시간 (WebSocket)
 
 실시간 시세·체결·호가·체결통보는 WebSocket으로 받습니다. REST는 그대로 동기지만, 실시간은
-`kis.realtime()`으로 얻는 별도 클라이언트입니다. 설치 시 extra가 필요합니다:
-
-```bash
-uv pip install -e '.[realtime]'   # websockets + cryptography
-```
+`kis.realtime()`으로 얻는 별도 클라이언트입니다. 필요한 의존성(`websockets`·`cryptography`)은
+기본 설치에 포함됩니다.
 
 ## 기본 사용 (동기)
 

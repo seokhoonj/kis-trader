@@ -66,7 +66,7 @@ async def _default_connector(url: str) -> WebSocketLike:
         import websockets
     except ImportError as exc:  # pragma: no cover - 설치 안내
         raise RuntimeError(
-            "실시간 WebSocket 에는 'websockets' 가 필요합니다: pip install kis-trader[realtime]"
+            "'websockets' 를 import 할 수 없습니다(기본 의존성이어야 함): pip install kis-trader"
         ) from exc
     return await websockets.connect(url)
 

@@ -137,16 +137,15 @@ def aes_cbc_decrypt(key: str, iv: str, cipher_text_base64: str) -> str:
     """AES-CBC/PKCS7 복호화(체결통보 등 암호 프레임).
 
     ``key``/``iv`` 는 구독 ACK 에서 받은 문자열(utf-8 bytes 로 사용). ``cipher_text_base64`` 는
-    base64 로 인코딩된 암호문. :mod:`cryptography` 를 지연 import 하므로, 암호 TR 을 구독하지
-    않으면 이 의존성은 필요 없다.
+    base64 로 인코딩된 암호문. :mod:`cryptography` 는 암호 프레임을 실제로 복호화할 때만 쓰이도록
+    지연 import 한다(평문 피드만 쓰면 로드조차 안 됨).
     """
     try:
         from cryptography.hazmat.primitives import padding
         from cryptography.hazmat.primitives.ciphers import Cipher, algorithms, modes
     except ImportError as exc:  # pragma: no cover - 설치 안내
         raise RuntimeError(
-            "암호화 실시간(체결통보 등) 복호화에는 'cryptography' 가 필요합니다: "
-            "pip install kis-trader[realtime]"
+            "'cryptography' 를 import 할 수 없습니다(기본 의존성이어야 함): pip install kis-trader"
         ) from exc
 
     cipher_bytes = base64.b64decode(cipher_text_base64)

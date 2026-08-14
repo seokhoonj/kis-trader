@@ -328,7 +328,7 @@ class KISClient:
         (동기 래퍼)를 돌려준다. ``ws.subscribe(tr_id, tr_key, on=콜백)`` 로 등록하고
         ``ws.start()`` 후 콜백 또는 ``for msg in ws.stream()`` 로 실시간 시세·통보를 받는다.
         async 앱은 코어(:class:`~kis_trader.realtime._connection.RealtimeConnection`)를 직접 쓴다.
-        REST 는 그대로 동기다. ``pip install kis-trader[realtime]`` 필요.
+        REST 는 그대로 동기다.
         """
         from ._endpoints import websocket_url
         from .realtime._approval import fetch_approval_key
