@@ -19,21 +19,21 @@ book:
     - index.md
     - quickstart.md
     - quotes.md
+    - financials.md
     - account.md
     - orders.md
     - screening.md
     - market.md
+    - corporate-actions.md
     - overseas.md
     - pension.md
     - realtime.md
     - part: "자산군별 상세"
       chapters:
-        - financials.md
         - etf.md
         - elw.md
         - derivatives.md
         - bonds.md
-        - corporate-actions.md
 
 format:
   html:
