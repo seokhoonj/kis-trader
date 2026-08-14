@@ -99,6 +99,6 @@ kis.overseas.stock("AAPL").bars("1d")
 ```
 
 ::: {.callout-tip}
-필드가 더 궁금하면 `help(type(q))` — 각 필드의 한국어 설명과 KIS 원본 키(tr-id 포함)가 나옵니다.
+필드가 더 궁금하면 `help(type(q))` — 각 필드의 한국어 설명과 KIS 원본 키(TR-ID 포함)가 나옵니다.
 원본 응답 전체는 `q._raw` 로 접근.
 :::

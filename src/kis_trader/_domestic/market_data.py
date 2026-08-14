@@ -3,7 +3,7 @@
 사용자면(종목 핸들)이 이 함수들을 호출해 통합 반환 타입(:class:`Quote`/:class:`Bar`/
 :class:`OrderBook`)을 받는다. KIS 원본 필드 매핑과 fail-closed 파싱은 여기 갇힌다.
 
-KIS URL/tr-id:
+KIS URL/TR-ID:
 - 현재가: ``GET .../quotations/inquire-price`` (``FHKST01010100``, 모의 지원).
 - 기간별 OHLCV: ``GET .../quotations/inquire-daily-itemchartprice`` (``FHKST03010100``, 모의 지원).
 - 호가/예상체결: ``GET .../quotations/inquire-asking-price-exp-ccn`` (``FHKST01010200``, 모의 지원).

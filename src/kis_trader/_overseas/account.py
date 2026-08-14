@@ -3,7 +3,7 @@
 국내(:mod:`kis_trader._domestic.account`)와 대칭. 해외 잔고는 **거래소 그룹(OVRS_EXCG_CD)+통화
 (TR_CRCY_CD)별**로 조회하며 금액이 외화라 :class:`~kis_trader.money.Money` 로 통화를 함께 담는다.
 
-KIS URL/tr-id (KIS 명세 대조):
+KIS URL/TR-ID (KIS 명세 대조):
 - 잔고: ``GET /uapi/overseas-stock/v1/trading/inquire-balance`` (실전 ``TTTS3012R`` / 모의 ``VTTS3012R``).
   ``OVRS_EXCG_CD`` 는 NASD(미국전체)/SEHK(홍콩)/SHAA(상해)/SZAA(심천)/TKSE(일본)/HASE(하노이)/VNSE(호치민),
   ``TR_CRCY_CD`` 는 USD/HKD/CNY/JPY/VND. (시세 조회의 EXCD 코드와 다르다.)

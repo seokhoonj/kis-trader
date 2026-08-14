@@ -6,7 +6,7 @@
 사용자에겐 하나의 "ranking" 개념으로 모은다. 각 순위는 한 페이지(대개 상위 30건)만 주고 다음
 조회가 없다(KIS 명세 명시).
 
-KIS URL/tr-id/화면코드/코드표(KIS 명세 대조):
+KIS URL/TR-ID/화면코드/코드표(KIS 명세 대조):
 - 등락률: ``GET .../ranking/fluctuation`` ``FHPST01700000`` 화면 20170.
   ``FID_RANK_SORT_CLS_CODE`` 0:상승율순 1:하락율순 2:시가대비상승 3:시가대비하락 4:변동율.
 - 거래량: ``GET .../quotations/volume-rank`` ``FHPST01710000`` 화면 20171

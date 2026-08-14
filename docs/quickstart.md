@@ -21,7 +21,7 @@ kis = KISClient(
 )
 ```
 
-모의투자로 연습하려면 `environment="paper"` — 각 API 요청의 **tr-id**(KIS가 요청 종류를
+모의투자로 연습하려면 `environment="paper"` — 각 API 요청의 **TR-ID**(KIS가 요청 종류를
 구분하는 거래 코드. 실전용과 모의용이 따로 있습니다)가 자동으로 모의용으로 바뀝니다.
 
 ## 자격증명 숨기기
@@ -71,5 +71,5 @@ q = kis.domestic.stock("005930").quote()
 
 q.current_price  # 매핑된 값 (Decimal)
 q._raw           # KIS 원본 응답 전체
-help(type(q))    # 이 결과의 필드 설명(한국어) + KIS URL·tr-id
+help(type(q))    # 이 결과의 필드 설명(한국어) + KIS URL·TR-ID
 ```

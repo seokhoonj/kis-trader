@@ -4,7 +4,7 @@
 코어(:class:`~kis_trader.store.OrderStore`)가 맡는다. 이 모듈은 그 코어에 넘길 **해외 주문의
 와이어 요청**만 조립한다 -- 순수 함수라 오케스트레이션 없이 단독 검증된다.
 
-KIS URL/tr-id (KIS 명세 대조, sheet '해외주식 주문'):
+KIS URL/TR-ID (KIS 명세 대조, sheet '해외주식 주문'):
 - 주문: ``POST /uapi/overseas-stock/v1/trading/order``. TR 은 시장 x 매수/매도 x 실전/모의로 갈린다
   (아래 :data:`_ORDER_TR`). 시세 조회의 거래소코드(NAS/NYS/...)와 주문 거래소코드(NASD/NYSE/...)가
   다르므로 :data:`_ORDER_EXCHANGE` 로 매핑한다. 해외 주문은 지정가(ORD_DVSN=00) 중심이다.
