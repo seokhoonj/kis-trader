@@ -414,7 +414,7 @@ def fetch_algo_executions(
             name=str(row.get("ITEM_NAME", "")).strip(),
             quantity=_decimal_or_zero(row, "FT_CCLD_QTY"),
             price=_decimal_or_zero(row, "FT_CCLD_UNPR3"),
-            amount=_decimal_or_zero(row, "FT_CCLD_AMT3"),
+            executed_amount=_decimal_or_zero(row, "FT_CCLD_AMT3"),
             _raw=row,
         )
         for row in rows if str(row.get("CCLD_SEQ", "")).strip()

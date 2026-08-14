@@ -63,7 +63,7 @@ def _parse_ranking(rows: list[Mapping[str, Any]]) -> list[RankedOverseasStock]:
                 change=_apply_change_sign(required_decimal(row.get("diff"), "diff"), sign),
                 change_percent=_apply_change_sign(required_decimal(row.get("rate"), "rate"), sign),
                 volume=required_int(row.get("tvol"), "tvol"),
-                amount=required_decimal(row.get("tamt"), "tamt"),
+                trading_amount=required_decimal(row.get("tamt"), "tamt"),
                 _raw=row,
             )
         )

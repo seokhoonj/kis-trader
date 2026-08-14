@@ -109,7 +109,7 @@ def test_algo_executions_parses():
     assert e.symbol == "AAPL"
     assert e.quantity == Decimal(3)
     assert e.price == Decimal("150.30")
-    assert e.amount == Decimal("450.90")
+    assert e.executed_amount == Decimal("450.90")
 
 
 def test_algo_executions_tr_and_params():
