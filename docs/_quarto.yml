@@ -42,7 +42,9 @@ book:
         - overseas.md
         - pension.md
         - realtime.md
-    - limits.md
+    - part: "부록"
+      chapters:
+        - limits.md
 
 format:
   html:
