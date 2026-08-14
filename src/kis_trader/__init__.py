@@ -210,7 +210,7 @@ from .overseas.entities.reference import (
 from .overseas.entities.product import OverseasProductInfo
 from .overseas.ranking import OverseasRankingQueries
 from .overseas.entities.ranking import RankedOverseasStock
-from .pension_items import (
+from .pension.entities import (
     PensionBalance,
     PensionBuyableAmount,
     PensionDeposit,

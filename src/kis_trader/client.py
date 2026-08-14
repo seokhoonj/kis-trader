@@ -26,11 +26,9 @@ from ._internal._masters import (
 from .overseas._engine import orders as overseas_orders_engine
 from .overseas._engine import reserved_orders as overseas_reserved_orders_api
 from .overseas.namespace import OverseasNamespace
+from .pension.namespace import PensionNamespace
 from .errors import KISUsageError
-from .namespaces import (
-    OrdersNamespace,
-    PensionNamespace,
-)
+from .namespaces import OrdersNamespace
 from .order import (
     ChangeAction,
     ChangeActionFingerprint,

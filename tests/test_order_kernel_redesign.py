@@ -285,7 +285,7 @@ def test_order_result_types_expose_order_price():
         OverseasOpenOrder,
         OverseasReservedOrder,
     )
-    from kis_trader.pension_items import PensionOrder
+    from kis_trader.pension.entities import PensionOrder
     from kis_trader.reserved_order import ReservedOrder
 
     for dto in (OpenOrder, OverseasOpenOrder, OverseasAlgoOrder, OverseasReservedOrder,

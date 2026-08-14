@@ -18,8 +18,9 @@ from kis_trader.domestic.market import MarketQueries
 from kis_trader.domestic.namespace import DomesticAccount, DomesticNamespace
 from kis_trader.domestic.ranking import RankingQueries
 from kis_trader.domestic.stock import DomesticStock
-from kis_trader.namespaces import OrdersNamespace, PensionNamespace
+from kis_trader.namespaces import OrdersNamespace
 from kis_trader.overseas.namespace import OverseasAccount, OverseasNamespace
+from kis_trader.pension.namespace import PensionNamespace
 from kis_trader.overseas.stock import OverseasStock
 from kis_trader.transport import RawResponse
 

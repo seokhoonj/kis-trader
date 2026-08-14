@@ -1,26 +1,17 @@
-"""자산 무관 네임스페이스 -- ``kis.orders`` (:class:`OrdersNamespace`) 와 ``kis.pension``
-(:class:`PensionNamespace`).
+"""주문 lifecycle 네임스페이스 -- ``kis.orders`` (:class:`OrdersNamespace`).
 
-주문 lifecycle(``client_order_id`` 로 동작, 자산 무관)과 퇴직연금 계좌 행위를 담는다. 자산군별
+주문 lifecycle(``client_order_id`` 로 동작, 자산 무관)의 reconcile/cancel/modify 를 담는다. 자산군별
 시세/계좌 표면은 각 자산군 패키지의 네임스페이스(:class:`~kis_trader.domestic.namespace.
-DomesticNamespace` / :class:`~kis_trader.overseas.namespace.OverseasNamespace`)가 담당한다.
+DomesticNamespace` / :class:`~kis_trader.overseas.namespace.OverseasNamespace` /
+:class:`~kis_trader.pension.namespace.PensionNamespace`)가 담당한다.
 """
 
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .domestic._engine import pension as pension_api
-
 if TYPE_CHECKING:
     from .client import KISClient
-    from .pension_items import (
-        PensionBalance,
-        PensionBuyableAmount,
-        PensionDeposit,
-        PensionOrder,
-        PensionPresentBalance,
-    )
     from .report import ExecutionReport
 
 
@@ -60,55 +51,4 @@ class OrdersNamespace:
         return self._c._change_order(
             client_order_id, action="modify", quantity=quantity, limit_price=limit_price,
             request_id=request_id,
-        )
-
-
-class PensionNamespace:
-    """``kis.pension`` -- 퇴직연금 계좌(예수금/매수가능/잔고/체결). 전부 실전전용.
-
-    모든 메서드는 계좌 미설정 시, 그리고 ``environment="paper"`` 에서(전부 모의 미지원)
-    :class:`~kis_trader.errors.KISUsageError` 를 던진다. 조회 실패·응답 부재·파싱 실패는
-    :class:`~kis_trader.errors.KISError`. 계좌 상품코드가 퇴직연금이어야 정상 응답한다.
-    """
-
-    def __init__(self, client: KISClient) -> None:
-        self._c = client
-
-    def deposit(self) -> PensionDeposit:
-        """예수금 총액·익일/2익일 정산·결제금액. 일반 위탁계좌 예수금과 별개인 퇴직연금 전용 조회다.
-        계좌 상품코드가 퇴직연금이어야 정상 응답한다. **모의투자 미지원**."""
-        cano, product_code = self._c._require_account()
-        return pension_api.fetch_deposit(
-            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment
-        )
-
-    def buyable(self, symbol: str, *, limit_price: object | None = None) -> PensionBuyableAmount:
-        """매수가능 여력 -- 주문가능현금·재사용가능금액·최대 매수금액/수량. ``limit_price`` 없으면 시장가 기준.
-        **모의투자 미지원**."""
-        cano, product_code = self._c._require_account()
-        return pension_api.fetch_buyable_amount(
-            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
-            symbol=symbol, limit_price=limit_price,
-        )
-
-    def balance(self) -> PensionBalance:
-        """잔고 -- 보유종목과 예수금 기준 계좌 요약을 한 조회로. **모의투자 미지원**."""
-        cano, product_code = self._c._require_account()
-        return pension_api.fetch_balance(
-            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment
-        )
-
-    def present_balance(self) -> PensionPresentBalance:
-        """체결기준잔고 -- 체결기준 보유종목과 손익 요약. **모의투자 미지원**."""
-        cano, product_code = self._c._require_account()
-        return pension_api.fetch_present_balance(
-            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment
-        )
-
-    def orders(self, *, only_unfilled: bool = False) -> list[PensionOrder]:
-        """당일 주문 내역(체결/미체결). ``only_unfilled=True`` 면 미체결만. **모의투자 미지원**."""
-        cano, product_code = self._c._require_account()
-        return pension_api.fetch_orders(
-            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
-            only_unfilled=only_unfilled,
         )
