@@ -1,0 +1,186 @@
+"""``kis`` 명령 애플리케이션 -- 파서 조립, dispatch, 오류 -> 종료 코드 번역.
+
+CLI 는 consumer(어댑터)다: 인자를 공개 :class:`~kis_trader.client.KISClient` 호출로 옮기고
+결과를 표시할 뿐, 잔고 합산·순위 재계산·주문 판정 같은 도메인 로직을 만들지 않는다.
+"""
+from __future__ import annotations
+
+import argparse
+import json
+import os
+import sys
+from collections.abc import Sequence
+from importlib.metadata import PackageNotFoundError, version
+from typing import Any
+
+from ..errors import KISError
+from .commands import account, market, order, stock
+from .context import account_suffix, build_client, resolve_account
+from .errors import CliAborted, CliConfigError, translate
+from .output import render
+
+
+def _distribution_version() -> str:
+    try:
+        return version("kis-trader")
+    except PackageNotFoundError:  # 개발 트리에서 미설치
+        return "0.0.0"
+
+
+def _add_venue(sub: argparse.ArgumentParser) -> None:
+    sub.add_argument("--venue", choices=["domestic", "overseas"], default="domestic",
+                     help="국내(기본)/해외")
+    sub.add_argument("--exchange", default=None, help="해외 거래소코드(생략 시 자동 판별)")
+
+
+def _add_order_gate(sub: argparse.ArgumentParser) -> None:
+    sub.add_argument("--execute", choices=["paper", "real"], default=None,
+                     help="전송 권한 겸 환경 선언(세션 --env 와 일치해야 함). 없으면 dry-run")
+    sub.add_argument("--yes", action="store_true", help="비대화형 전송 확인(대화형이면 프롬프트)")
+    sub.add_argument("--confirm-account", dest="confirm_account", default=None,
+                     help="비대화형 real 주문: 계좌 끝 4자리")
+
+
+def _common_flags() -> argparse.ArgumentParser:
+    """모든 하위 명령이 공유하는 전역 플래그(부모 파서). ``SUPPRESS`` 기본값이라, 하위 명령에서
+    주지 않으면 최상위 파서가 정한 값을 덮어쓰지 않는다 -- 그래서 ``--format`` 등을 하위 명령
+    앞·뒤 어디에 놓아도 동작한다."""
+    common = argparse.ArgumentParser(add_help=False)
+    common.add_argument("--env", choices=["paper", "real"], default=argparse.SUPPRESS,
+                        help="세션 환경(기본 paper; KIS_ENVIRONMENT 로 변경)")
+    common.add_argument("--account", default=argparse.SUPPRESS, help="계좌번호(생략 시 KIS_ACCOUNT)")
+    common.add_argument("--format", dest="fmt", choices=["table", "json", "jsonl"],
+                        default=argparse.SUPPRESS, help="출력 형식(기본 table)")
+    common.add_argument("--no-header", dest="no_header", action="store_true",
+                        default=argparse.SUPPRESS, help="표 머리글 생략")
+    common.add_argument("--include-raw", dest="include_raw", action="store_true",
+                        default=argparse.SUPPRESS, help="._raw 원본 포함(--format json 과 함께만)")
+    return common
+
+
+def build_parser() -> argparse.ArgumentParser:
+    common = _common_flags()  # 하위 명령용(SUPPRESS 기본값)
+    parser = argparse.ArgumentParser(
+        prog="kis", description="한국투자증권(KIS) Open API 클라이언트 kis_trader 의 명령줄 도구.")
+    parser.add_argument("--version", action="version", version=f"kis {_distribution_version()}")
+    # 최상위는 실제 기본값을 직접 가진다. 하위 명령은 common(SUPPRESS)이라, 미지정 시 이 값을
+    # 덮어쓰지 않고 그대로 유지한다 -- 그래서 전역 플래그를 하위 명령 앞뒤 어디에 놓아도 된다.
+    parser.add_argument("--env", choices=["paper", "real"],
+                        default=os.environ.get("KIS_ENVIRONMENT", "paper"),
+                        help="세션 환경(기본 paper; KIS_ENVIRONMENT 로 변경)")
+    parser.add_argument("--account", default=None, help="계좌번호(생략 시 KIS_ACCOUNT)")
+    parser.add_argument("--format", dest="fmt", choices=["table", "json", "jsonl"], default="table",
+                        help="출력 형식(기본 table)")
+    parser.add_argument("--no-header", dest="no_header", action="store_true", help="표 머리글 생략")
+    parser.add_argument("--include-raw", dest="include_raw", action="store_true",
+                        help="._raw 원본 포함(--format json 과 함께만)")
+    groups = parser.add_subparsers(dest="group", required=True)
+
+    def leaf(subparsers: Any, name: str, **kw: Any) -> argparse.ArgumentParser:
+        return subparsers.add_parser(name, parents=[common], **kw)
+
+    # kis stock quote|bars|book|trades|status
+    stock_p = groups.add_parser("stock", help="종목 시세")
+    stock_sub = stock_p.add_subparsers(dest="action", required=True)
+    for name, func in [("quote", stock.cmd_quote), ("book", stock.cmd_book),
+                       ("trades", stock.cmd_trades), ("status", stock.cmd_status)]:
+        sp = leaf(stock_sub, name)
+        sp.add_argument("identifier", help="종목코드(국내 6자리) 또는 심볼(해외)")
+        _add_venue(sp)
+        sp.set_defaults(func=func)
+    bars_p = leaf(stock_sub, "bars")
+    bars_p.add_argument("identifier")
+    bars_p.add_argument("--interval", required=True, help="1m/1d/1wk/1mo 등")
+    bars_p.add_argument("--start", default=None, help="YYYYMMDD")
+    bars_p.add_argument("--end", default=None, help="YYYYMMDD")
+    _add_venue(bars_p)
+    bars_p.set_defaults(func=stock.cmd_bars)
+
+    # kis search
+    search_p = leaf(groups, "search", help="이름/코드로 국내 종목 검색")
+    search_p.add_argument("query")
+    search_p.add_argument("--market", choices=["all", "KOSPI", "KOSDAQ"], default="all")
+    search_p.set_defaults(func=market.cmd_search)
+
+    # kis ranking change|volume|market-cap
+    ranking_p = groups.add_parser("ranking", help="시장 순위")
+    ranking_sub = ranking_p.add_subparsers(dest="action", required=True)
+    rc = leaf(ranking_sub, "change")
+    rc.add_argument("--direction", choices=["gainers", "losers"], required=True)
+    rc.set_defaults(func=market.cmd_ranking_change)
+    leaf(ranking_sub, "volume").set_defaults(func=market.cmd_ranking_volume)
+    leaf(ranking_sub, "market-cap").set_defaults(func=market.cmd_ranking_market_cap)
+
+    # kis account balance|positions|orders
+    account_p = groups.add_parser("account", help="계좌 잔고·보유·미체결")
+    account_sub = account_p.add_subparsers(dest="action", required=True)
+    for name, func in [("balance", account.cmd_balance), ("positions", account.cmd_positions),
+                       ("orders", account.cmd_orders)]:
+        sp = leaf(account_sub, name)
+        sp.add_argument("--venue", choices=["domestic", "overseas"], default="domestic")
+        sp.add_argument("--market", default=None, help="해외 시장(US/HK/CN_SH/...)")
+        sp.set_defaults(func=func)
+
+    # kis order buy|sell|reconcile|modify|cancel
+    order_p = groups.add_parser("order", help="주문(기본 dry-run; --execute 로 전송)")
+    order_sub = order_p.add_subparsers(dest="action", required=True)
+    for name, func in [("buy", order.cmd_buy), ("sell", order.cmd_sell)]:
+        sp = leaf(order_sub, name)
+        sp.add_argument("identifier")
+        sp.add_argument("quantity", type=int)
+        sp.add_argument("--limit-price", dest="limit_price", default=None,
+                        help="지정가(생략 시 시장가)")
+        _add_venue(sp)
+        _add_order_gate(sp)
+        sp.set_defaults(func=func)
+    rec = leaf(order_sub, "reconcile")
+    rec.add_argument("client_order_id")
+    rec.set_defaults(func=order.cmd_reconcile)
+    mod = leaf(order_sub, "modify")
+    mod.add_argument("client_order_id")
+    mod.add_argument("--limit-price", dest="limit_price", required=True)
+    mod.add_argument("--quantity", type=int, default=None)
+    _add_order_gate(mod)
+    mod.set_defaults(func=order.cmd_modify)
+    can = leaf(order_sub, "cancel")
+    can.add_argument("client_order_id")
+    can.add_argument("--quantity", type=int, default=None)
+    _add_order_gate(can)
+    can.set_defaults(func=order.cmd_cancel)
+
+    return parser
+
+
+def _emit(result: Any, args: argparse.Namespace) -> None:
+    meta = {"environment": args.env, "account_suffix": account_suffix(resolve_account(args))}
+    print(render(result, fmt=args.fmt, include_raw=args.include_raw,
+                 no_header=args.no_header, meta=meta))
+
+
+def _emit_error(translated: Any, args: argparse.Namespace) -> None:
+    if args.fmt in ("json", "jsonl"):
+        payload = {"error": {
+            "outcome": translated.outcome, "message": translated.message,
+            "retryable": translated.retryable, "reconcile_required": translated.reconcile_required,
+        }}
+        print(json.dumps(payload, ensure_ascii=False), file=sys.stderr)
+    else:
+        print(f"오류: {translated.message}", file=sys.stderr)
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    """진입점. 종료 코드를 돌려준다(``__main__`` 과 콘솔 스크립트가 ``SystemExit`` 로 감싼다)."""
+    parser = build_parser()
+    args = parser.parse_args(argv)
+    try:
+        kis = build_client(args)
+        result = args.func(kis, args)
+    except KeyboardInterrupt:
+        print("중단됨.", file=sys.stderr)
+        return 130
+    except (CliConfigError, CliAborted, KISError) as exc:
+        translated = translate(exc)
+        _emit_error(translated, args)
+        return translated.exit_code
+    _emit(result, args)
+    return 0

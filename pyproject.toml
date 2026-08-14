@@ -9,6 +9,9 @@ license-files = ["LICENSE"]
 # REST(requests) + 실시간 WebSocket(websockets) + 체결통보 AES-CBC 복호화(cryptography).
 dependencies = ["requests>=2.31", "websockets>=12", "cryptography>=42"]
 
+[project.scripts]
+kis = "kis_trader.cli:main"
+
 [dependency-groups]
 test = ["pytest>=8"]
 docs = ["quartodoc>=0.11", "griffe<2"]  # + quarto CLI(외부 설치)
