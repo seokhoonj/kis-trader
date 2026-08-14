@@ -29,6 +29,7 @@ from .stock import DomesticStock
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from .._literals import Numeric
     from ..client import KISClient
     from ..instrument import DomesticBoard
     from ..open_order import OpenOrder
@@ -166,8 +167,8 @@ class DomesticAccount:
         )
 
     def modify_reserved_order(
-        self, sequence: str, *, symbol: str, side: Side, quantity: object,
-        limit_price: object | None = None, end_date: str | None = None, order_date: str | None = None,
+        self, sequence: str, *, symbol: str, side: Side, quantity: Numeric,
+        limit_price: Numeric | None = None, end_date: str | None = None, order_date: str | None = None,
     ) -> None:
         """예약주문을 정정한다 -- 브로커 규격상 종목/방향/수량/단가/종료일을 **전체 재지정**한다.
         ``limit_price`` 를 생략하면 기존 단가 유지가 아니라 **시장가**로 바뀐다. 정정 후 순번이 바뀔 수

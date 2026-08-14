@@ -64,7 +64,7 @@ class OrdersNamespace:
         return self._c._reconcile(client_order_id)
 
     def cancel(
-        self, client_order_id: str, *, quantity: object | None = None, request_id: str | None = None
+        self, client_order_id: str, *, quantity: Numeric | None = None, request_id: str | None = None
     ) -> ExecutionReport:
         """접수된 주문을 취소한다(부분 취소는 ``quantity``)."""
         return self._c._change_order(
@@ -72,7 +72,7 @@ class OrdersNamespace:
         )
 
     def modify(
-        self, client_order_id: str, *, limit_price: object, quantity: object | None = None,
+        self, client_order_id: str, *, limit_price: Numeric, quantity: Numeric | None = None,
         request_id: str | None = None,
     ) -> ExecutionReport:
         """접수된 주문의 가격(또는 수량)을 정정한다.
@@ -269,7 +269,7 @@ class KISClient:
         # 로 막는다(raw Decimal(str(...)) 는 "nan"/"inf" 를 통과시켜 와이어에 실릴 수 있다).
         change_quantity = remaining_quantity if quantity is None else coerce_decimal(quantity, "quantity")
         change_limit_price = None if limit_price is None else coerce_decimal(limit_price, "limit_price")
-        builder: orders_engine._ChangeRequestBuilder | None = None
+        builder: orders_engine.ChangeRequestBuilder | None = None
         if overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
             builder = (
                 overseas_orders_engine.make_overnight_change_request
@@ -296,7 +296,7 @@ class KISClient:
         시장별로 바꾼다. 해외 주문엔 아직 사전 리스크 게이트가 없어(참조가가 국내 시세 기반),
         ``risk`` 를 켠 세션에서 해외 주문을 내면 명확히 거부한다."""
         cano, product_code = self._require_account()
-        build_request: orders_engine._PlaceRequestBuilder | None = None
+        build_request: orders_engine.PlaceRequestBuilder | None = None
         risk = self._risk
         if overseas_orders_engine.is_overseas_exchange(order.exchange):
             if risk is not None:
@@ -312,7 +312,7 @@ class KISClient:
         elif order.credit_type is not None:
             # 국내 신용주문 -- 안전 코어(place)는 공유, 와이어 조립기만 신용용으로. risk 는 국내라
             # 그대로 적용된다(참조가=국내 시세).
-            build_request = orders_engine._make_credit_order_request
+            build_request = orders_engine.make_credit_order_request
         return orders_engine.place(
             self._transport, self._store, order,
             cano=cano, product_code=product_code, environment=self._environment,

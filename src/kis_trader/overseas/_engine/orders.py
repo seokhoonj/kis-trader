@@ -134,7 +134,7 @@ def is_overseas_exchange(exchange: str) -> bool:
 
 
 def make_order_request(
-    order: Order, cano: str, product_code: str, environment: Environment
+    order: Order, *, cano: str, product_code: str, environment: Environment
 ) -> WireRequest:
     """안전 코어(:func:`~kis_trader.domestic._engine.orders.place`)에 넘길 해외 주문 빌더.
 
@@ -160,7 +160,7 @@ _OVERNIGHT_MARKET = "US"
 
 
 def make_overnight_order_request(
-    order: Order, cano: str, product_code: str, environment: Environment
+    order: Order, *, cano: str, product_code: str, environment: Environment
 ) -> WireRequest:
     """안전 코어(place)에 넘길 **미국 오버나이트 거래** 주문 빌더 -- 정규 해외주문과 같은 즉시체결·ODNO
     응답이라 dedup/무재시도/reconcile 안전 코어를 공유한다. **모의투자 미지원**, 미국(NASD/NYSE/

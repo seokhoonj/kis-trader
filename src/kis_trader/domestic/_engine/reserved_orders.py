@@ -129,12 +129,14 @@ def fetch_reserved_orders(
         ) from None
     validate_yyyymmdd(start, "start")   # 조회 기간은 실재하는 YYYYMMDD 8자리여야 한다(발주 날짜와 동일 강도)
     validate_yyyymmdd(end, "end")
-    rows = _walk_reserved(transport, cano, product_code, start, end, process_code)
+    rows = _walk_reserved(
+        transport, cano=cano, product_code=product_code, start=start, end=end, process_code=process_code
+    )
     return [_parse_reserved(row) for row in rows if str(row.get("rsvn_ord_seq", "")).strip()]
 
 
 def _walk_reserved(
-    transport: Transport, cano: str, product_code: str, start: str, end: str, process_code: str
+    transport: Transport, *, cano: str, product_code: str, start: str, end: str, process_code: str
 ) -> list[Mapping[str, Any]]:
     """예약주문조회를 연속조회 소진까지 읽어 원본 행을 돌려준다(순수 I/O)."""
     rows: list[Mapping[str, Any]] = []
@@ -258,7 +260,9 @@ def place_reserved_order(
             "예약주문 접수 응답(rt_cd=0)에 예약주문순번(rsvn_ord_seq)이 없다 -- 재조회 불가.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
-    report = _make_reserved_order_report(client_order_id, sequence, symbol, side, resp.body)
+    report = _make_reserved_order_report(
+        client_order_id, sequence=sequence, symbol=symbol, side=side, raw=resp.body
+    )
     store.record(report, fingerprint)
     return report
 
@@ -284,7 +288,10 @@ def reconcile_reserved_order(
     try:
         # 처리/미처리 모두(all) -- 집행 완료된 예약도 '접수됐음' 은 확정할 수 있어야 한다(취소 제외는
         # fetch 의 CNCL_YN="Y" 가 이미 처리).
-        rows = _walk_reserved(transport, cano, product_code, start, end, _PROCESS_FILTER["all"])
+        rows = _walk_reserved(
+            transport, cano=cano, product_code=product_code, start=start, end=end,
+            process_code=_PROCESS_FILTER["all"],
+        )
     except TransportTimeout as err:
         raise OrderTimeoutError(
             f"예약주문 재조회 시간초과 -- 주문 {client_order_id} 상태 여전히 불명. "
@@ -303,7 +310,8 @@ def reconcile_reserved_order(
     if not sequence:  # 순번 없는 행으론 정정·취소가 불가 -> 확정하지 않고 in-flight 유지
         return None
     report = _make_reserved_order_report(
-        client_order_id, sequence, fingerprint.symbol, fingerprint.side, matches[0]
+        client_order_id, sequence=sequence, symbol=fingerprint.symbol, side=fingerprint.side,
+        raw=matches[0],
     )
     store.record(report, fingerprint)
     return report
@@ -451,7 +459,7 @@ def _filter_matching_reserved(
 
 
 def _make_reserved_order_report(
-    client_order_id: str, sequence: str, symbol: str, side: Side, raw: Mapping[str, Any]
+    client_order_id: str, *, sequence: str, symbol: str, side: Side, raw: Mapping[str, Any]
 ) -> ExecutionReport:
     return ExecutionReport(
         client_order_id=client_order_id,

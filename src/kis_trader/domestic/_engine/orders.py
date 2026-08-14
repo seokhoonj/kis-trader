@@ -62,18 +62,18 @@ _MAX_RECONCILE_PAGES = 100
 #: 국내(KRX/KOSDAQ/Nextrade) 시장 식별코드 -- 이 셋은 국내 현금주문으로 라우팅.
 _DOMESTIC_MICS = frozenset(("XKRX", "XKOS", "NXTE"))
 
-class _PlaceRequestBuilder(Protocol):
+class PlaceRequestBuilder(Protocol):
     """발주 와이어 빌더의 정확한 호출 계약 -- 안전 코어(:func:`place`)는 시장 중립이라 이 형태의
     빌더를 주입받아 ``(order, cano, product_code, environment)`` 로 호출한다. 국내 현금
-    (:func:`_make_order_cash_request`)·신용(:func:`_make_credit_order_request`), 해외 정규·주간 빌더가
+    (:func:`_make_order_cash_request`)·신용(:func:`make_credit_order_request`), 해외 정규·주간 빌더가
     이를 만족한다. 세 문자열이 자리로만 구분되던 것을 이름 있는 계약으로 고정한다(bare ``Callable`` 대체)."""
 
     def __call__(
-        self, order: Order, cano: str, product_code: str, environment: Environment
+        self, order: Order, *, cano: str, product_code: str, environment: Environment
     ) -> WireRequest: ...
 
 
-class _ChangeRequestBuilder(Protocol):
+class ChangeRequestBuilder(Protocol):
     """정정·취소 와이어 빌더의 정확한 호출 계약 -- 안전 코어(:func:`submit_change`)가 주입받아 호출한다.
     전 인자 키워드 전용이며 원주문 리포트·지문 + 변경 의도(action/수량/가격)로 조립한다. 국내
     (:func:`_make_domestic_change_request`)·해외 정규/주간 정정취소 빌더가 이를 만족한다."""
@@ -126,7 +126,7 @@ _BOARD_EXCG = {"KRX": "KRX", "NXT": "NXT", "UN": "SOR"}
 def place(
     transport: Transport, store: OrderStore, order: Order, *,
     cano: str, product_code: str, environment: Environment, orderable: bool = True,
-    risk: RiskLimits | None = None, build_request: _PlaceRequestBuilder | None = None,
+    risk: RiskLimits | None = None, build_request: PlaceRequestBuilder | None = None,
 ) -> ExecutionReport:
     """주문을 안전 규칙(모듈 docstring 6단계)에 따라 전송한다.
 
@@ -151,7 +151,7 @@ def place(
     if risk is not None:
         _run_pre_trade_risk(transport, order, risk)
     # 와이어 변환을 먼저 -- 미구현/부적합이면 claim 전에 중단(stuck in-flight 방지).
-    method, path, tr_id, body = build(order, cano, product_code, environment)
+    method, path, tr_id, body = build(order, cano=cano, product_code=product_code, environment=environment)
 
     claim = store.try_claim(client_order_id, fingerprint)
     if isinstance(claim, Completed):
@@ -266,7 +266,7 @@ def submit_change(
     cano: str,
     product_code: str,
     environment: Environment,
-    build_request: _ChangeRequestBuilder | None = None,
+    build_request: ChangeRequestBuilder | None = None,
 ) -> ExecutionReport:
     """접수된 주문을 정정하거나 취소한다. 변경 요청도 별도 멱등키(``request_id``)로 중복 전송을 막는다.
 
@@ -462,7 +462,7 @@ def _run_pre_trade_risk(transport: Transport, order: Order, risk: RiskLimits) ->
 
 # --- 와이어 매핑(국내 현금주문) --------------------------------------------
 def _make_order_cash_request(
-    order: Order, cano: str, product_code: str, environment: Environment
+    order: Order, *, cano: str, product_code: str, environment: Environment
 ) -> WireRequest:
     if order.exchange not in _DOMESTIC_MICS:
         raise NotImplementedError(
@@ -494,8 +494,8 @@ def _make_order_cash_request(
     return WireRequest("POST", _ORDER_CASH_PATH, tr_id, body)
 
 
-def _make_credit_order_request(
-    order: Order, cano: str, product_code: str, environment: Environment
+def make_credit_order_request(
+    order: Order, *, cano: str, product_code: str, environment: Environment
 ) -> WireRequest:
     """국내 신용(융자/대주) 주문 와이어. 안전 코어(place)가 ``build_request`` 로 주입해 쓴다 --
     현금주문과 같은 즉시체결·ODNO 응답이라 dedup/재시도금지/reconcile 은 그대로 공유된다.

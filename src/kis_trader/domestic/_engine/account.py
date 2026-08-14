@@ -846,7 +846,7 @@ def _decimal_or_zero(value: object, field_name: str) -> Decimal:
     return Decimal(0) if amount is None else amount
 
 
-def _format_order_unit_price(limit_price: object | None) -> str:
+def _format_order_unit_price(limit_price: Numeric | None) -> str:
     """주문 단가를 KIS 와이어 정본으로 -- ``None`` 이면 빈 문자열. 유한 양수 아니면 거부."""
     if limit_price is None:
         return ""

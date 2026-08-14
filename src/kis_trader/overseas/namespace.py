@@ -298,11 +298,20 @@ class OverseasNamespace:
         )
 
     def search_stocks(
-        self, exchange: str, **filters: tuple[object, object] | None
+        self, exchange: str, *,
+        price: tuple[Numeric, Numeric] | None = None,
+        change_percent: tuple[Numeric, Numeric] | None = None,
+        market_cap: tuple[Numeric, Numeric] | None = None,
+        shares: tuple[Numeric, Numeric] | None = None,
+        volume: tuple[Numeric, Numeric] | None = None,
+        amount: tuple[Numeric, Numeric] | None = None,
+        eps: tuple[Numeric, Numeric] | None = None,
+        per: tuple[Numeric, Numeric] | None = None,
     ) -> OverseasStockSearch:
-        """해외 종목을 가격·등락률·규모·거래·밸류에이션 범위로 검색한다."""
+        """해외 종목을 가격·등락률·규모·거래·밸류에이션 범위로 검색한다. 각 필터는 (시작, 끝) 범위."""
         return overseas_market_data_api.search_stocks(
-            self._c.transport, exchange=exchange, **filters
+            self._c.transport, exchange=exchange, price=price, change_percent=change_percent,
+            market_cap=market_cap, shares=shares, volume=volume, amount=amount, eps=eps, per=per,
         )
 
     def product_info(self, exchange: str, symbol: str) -> OverseasProductInfo:

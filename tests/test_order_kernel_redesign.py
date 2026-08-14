@@ -97,6 +97,16 @@ _FROZEN_BYTES = {
 }
 
 
+def test_order_rejects_positional_construction():
+    # 인접한 동일타입 필드(quantity/limit_price 등) 위치 전치를 막기 위해 Order 는 keyword-only.
+    with pytest.raises(TypeError):
+        Order("005930", "buy", "limit", 10, 70000)  # type: ignore[misc]
+    # 키워드로는 정상 생성된다.
+    order = Order(symbol="005930", side="buy", order_type="limit", quantity=10, limit_price=70000)
+    assert order.quantity == Decimal(10)
+    assert order.limit_price == Decimal(70000)
+
+
 @pytest.mark.parametrize("name", list(_FROZEN_BYTES))
 def test_fingerprint_encode_matches_frozen_on_disk_bytes(name):
     """encode(fp) 는 재설계 전 코드가 내던 위치 튜플과 **바이트 동일**해야 한다."""

@@ -301,7 +301,7 @@ def validate_yyyymmdd(value: str, field_name: str) -> None:
         raise KISUsageError(f"{field_name} 는 실재하는 YYYYMMDD 날짜여야 한다: {value!r}") from err
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, kw_only=True)
 class Order:
     """한 건의 주문 요청(불변).
 
@@ -478,14 +478,14 @@ class Order:
         # (None 을 넘기면 factory 를 덮어써 멱등키가 사라진다).
         if client_order_id is None:
             return cls(
-                symbol, side, order_type, quantity_dec,
+                symbol=symbol, side=side, order_type=order_type, quantity=quantity_dec,
                 limit_price=limit_dec, stop_price=stop_dec,
                 time_in_force=time_in_force, exchange=exchange,
                 credit_type=credit_type, loan_date=loan_date, session=session,
                 division=division, board=board,
             )
         return cls(
-            symbol, side, order_type, quantity_dec,
+            symbol=symbol, side=side, order_type=order_type, quantity=quantity_dec,
             limit_price=limit_dec, stop_price=stop_dec,
             time_in_force=time_in_force, exchange=exchange,
             credit_type=credit_type, loan_date=loan_date, session=session,
