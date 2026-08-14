@@ -10,10 +10,9 @@ from __future__ import annotations
 
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
 
-#: 한 레코드(필드 리스트)를 결과 엔티티로 바꾸는 순수 함수.
-RecordParser = Callable[[list[str]], Any]
+#: 한 레코드(필드 리스트)를 결과 엔티티로 바꾸는 순수 함수(엔티티 종류가 열려 있어 반환은 object).
+RecordParser = Callable[[list[str]], object]
 
 
 @dataclass(frozen=True, slots=True)

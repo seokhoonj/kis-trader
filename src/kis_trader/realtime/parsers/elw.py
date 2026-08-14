@@ -185,7 +185,7 @@ class ExpectedConclusion:
 
     symbol: str
     time: str  # HHMMSS (주식체결시간)
-    current_price: Decimal  # 예상체결가
+    expected_price: Decimal  # 예상체결가
     change_sign: str  # 1상한 2상승 3보합 4하한 5하락
     change: Decimal
     change_percent: Decimal
@@ -194,7 +194,7 @@ class ExpectedConclusion:
     low: Decimal
     best_ask: Decimal
     best_bid: Decimal
-    trade_volume: Decimal  # 이번 체결 수량
+    expected_volume: Decimal  # 예상체결량
     accumulated_volume: Decimal
     accumulated_value: Decimal  # 누적 거래대금
     conclusion_strength: Decimal  # 체결강도
@@ -303,7 +303,7 @@ def parse_expected_conclusion(fields: list[str]) -> ExpectedConclusion:
     return ExpectedConclusion(
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["STCK_CNTG_HOUR"],
-        current_price=_decimal(raw["STCK_PRPR"]),
+        expected_price=_decimal(raw["STCK_PRPR"]),
         change_sign=raw["PRDY_VRSS_SIGN"],
         change=_decimal(raw["PRDY_VRSS"]),
         change_percent=_decimal(raw["PRDY_CTRT"]),
@@ -312,7 +312,7 @@ def parse_expected_conclusion(fields: list[str]) -> ExpectedConclusion:
         low=_decimal(raw["STCK_LWPR"]),
         best_ask=_decimal(raw["ASKP1"]),
         best_bid=_decimal(raw["BIDP1"]),
-        trade_volume=_decimal(raw["CNTG_VOL"]),
+        expected_volume=_decimal(raw["CNTG_VOL"]),
         accumulated_volume=_decimal(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         conclusion_strength=_decimal(raw["CTTR"]),

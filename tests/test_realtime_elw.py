@@ -241,7 +241,7 @@ def test_parse_expected_conclusion_maps_headline_fields():
     assert isinstance(ec, ExpectedConclusion)
     assert ec.symbol == "58J300"
     assert ec.time == "085959"
-    assert ec.current_price == Decimal("123")
+    assert ec.expected_price == Decimal("123")
     assert ec.change_sign == "5"
     assert ec.change == Decimal("3")
     assert ec.change_percent == Decimal("-2.38")
@@ -250,7 +250,7 @@ def test_parse_expected_conclusion_maps_headline_fields():
     assert ec.low == Decimal("121")
     assert ec.best_ask == Decimal("124")
     assert ec.best_bid == Decimal("122")
-    assert ec.trade_volume == Decimal("7")
+    assert ec.expected_volume == Decimal("7")
     assert ec.accumulated_volume == Decimal("12000")
     assert ec.accumulated_value == Decimal("1476000")
     assert ec.conclusion_strength == Decimal("95.0")

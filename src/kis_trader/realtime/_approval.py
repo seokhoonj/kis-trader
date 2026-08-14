@@ -7,8 +7,8 @@ REST OAuth 토큰(``/oauth2/tokenP``)과 별개인 ``/oauth2/Approval`` 을 쓴�
 
 from __future__ import annotations
 
-from collections.abc import Mapping
-from typing import TYPE_CHECKING, Any, Callable
+from collections.abc import Callable, Mapping
+from typing import TYPE_CHECKING, Any
 
 from .._auth import _requests_post
 from .._endpoints import base_url
@@ -17,7 +17,7 @@ from ..errors import KISAuthError
 if TYPE_CHECKING:
     from ..transport import Environment
 
-Poster = Callable[[str, Mapping[str, str]], "tuple[int, Mapping[str, Any]]"]
+Poster = Callable[[str, Mapping[str, str]], tuple[int, Mapping[str, Any]]]
 
 
 def fetch_approval_key(

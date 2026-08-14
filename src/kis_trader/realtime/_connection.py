@@ -15,10 +15,12 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Protocol
 
+from ..errors import KISUsageError
 from . import _registry
 from ._protocol import (
     CustomerType,
@@ -29,22 +31,37 @@ from ._protocol import (
     parse_frame,
 )
 
-#: ``connect(url) -> ws`` -- ws 는 ``async for`` / ``send`` / ``close`` 를 지원하는 연결 객체.
-Connector = Callable[[str], Awaitable[Any]]
+_logger = logging.getLogger("kis_trader.realtime")
+
+
+class WebSocketLike(Protocol):
+    """연결 객체의 최소 계약(주입 가능한 시임/실 ``websockets`` 연결이 모두 만족)."""
+
+    async def send(self, message: str) -> None: ...
+    async def close(self) -> None: ...
+    def __aiter__(self) -> AsyncIterator[str]: ...
+
+
+#: ``connect(url) -> ws`` -- ws 는 :class:`WebSocketLike` 를 만족하는 연결 객체.
+Connector = Callable[[str], Awaitable[WebSocketLike]]
 
 _MAX_REGISTRATIONS = 41  # approval_key 당 실시간 등록 상한(KIS)
 
 
 @dataclass(frozen=True, slots=True)
 class RealtimeMessage:
-    """한 실시간 레코드. ``data`` 는 파서가 있으면 엔티티, 없으면 원시 필드(``list[str]``)."""
+    """한 실시간 레코드. ``data`` 는 파서가 있으면 엔티티, 없으면 원시 필드(``list[str]``).
+
+    엔티티 종류가 열려 있어 공통 베이스가 없으므로 ``data`` 는 ``object`` 다 -- 소비자는
+    ``isinstance`` 로 좁혀 쓴다(정직한 계약).
+    """
 
     tr_id: str
     tr_key: str
-    data: Any
+    data: object
 
 
-async def _default_connector(url: str) -> Any:
+async def _default_connector(url: str) -> WebSocketLike:
     try:
         import websockets
     except ImportError as exc:  # pragma: no cover - 설치 안내
@@ -77,7 +94,7 @@ class RealtimeConnection:
         self._customer_type: CustomerType = customer_type
         self._reconnect = reconnect
         self._max_backoff = max_backoff
-        self._ws: Any = None
+        self._ws: WebSocketLike | None = None
         # 재연결 시 재등록할 활성 구독. 값은 순서 보존 불필요(집합).
         self._subscriptions: set[tuple[str, str]] = set()
         # 암호 TR 의 (key, iv) -- 구독 ACK 에서 수신.
@@ -101,11 +118,11 @@ class RealtimeConnection:
         await self.close()
 
     async def subscribe(self, tr_id: str, tr_key: str) -> None:
-        """실시간 등록. 상한(41) 초과면 ``RuntimeError``. 재연결 후 자동 재등록된다."""
+        """실시간 등록. 상한(41) 초과면 :class:`KISUsageError`. 재연결 후 자동 재등록된다."""
         if (tr_id, tr_key) in self._subscriptions:
             return
         if len(self._subscriptions) >= _MAX_REGISTRATIONS:
-            raise RuntimeError(
+            raise KISUsageError(
                 f"실시간 등록 상한({_MAX_REGISTRATIONS}) 초과 -- 일부 해제 후 등록하세요."
             )
         await self._send_subscription(tr_id, tr_key, subscribe=True)
@@ -159,6 +176,7 @@ class RealtimeConnection:
         try:
             frame = parse_frame(raw)
         except Exception:  # noqa: BLE001 - 깨진 프레임은 드롭(스트림 유지)
+            _logger.warning("drop unparseable frame: %r", raw[:80], exc_info=True)
             return
         if isinstance(frame, SystemMessage):
             if frame.is_pingpong:
@@ -170,6 +188,7 @@ class RealtimeConnection:
         try:
             messages = self._decode(frame)
         except Exception:  # noqa: BLE001
+            _logger.warning("drop frame tr_id=%s (decode failed)", frame.tr_id, exc_info=True)
             return
         for message in messages:
             yield message

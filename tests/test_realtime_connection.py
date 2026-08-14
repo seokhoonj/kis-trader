@@ -12,6 +12,7 @@ import json
 
 import pytest
 
+from kis_trader.errors import KISUsageError
 from kis_trader.realtime import _registry
 from kis_trader.realtime._connection import RealtimeConnection
 from kis_trader.realtime._registry import TRSpec
@@ -140,7 +141,7 @@ def test_subscribe_registration_cap():
         async with conn:
             for i in range(41):
                 await conn.subscribe("H0STCNT0", f"{i:06d}")
-            with pytest.raises(RuntimeError):
+            with pytest.raises(KISUsageError):
                 await conn.subscribe("H0STCNT0", "999999")
 
     asyncio.run(scenario())

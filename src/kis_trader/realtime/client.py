@@ -12,6 +12,7 @@ async 코어(:class:`~kis_trader.realtime._connection.RealtimeConnection`)를 **
 from __future__ import annotations
 
 import asyncio
+import logging
 import queue
 import threading
 from collections import defaultdict
@@ -22,6 +23,7 @@ from ._protocol import CustomerType
 
 MessageCallback = Callable[[RealtimeMessage], None]
 
+_logger = logging.getLogger("kis_trader.realtime")
 _STREAM_SENTINEL = object()  # stream() 종료 신호
 
 
@@ -171,7 +173,7 @@ class RealtimeClient:
             try:
                 callback(message)
             except Exception:  # noqa: BLE001 - 콜백 오류가 수신 루프를 죽이지 않게
-                pass
+                _logger.warning("realtime callback for %s raised", message.tr_id, exc_info=True)
         self._queue.put(message)
 
     def _call_async(self, coro, *, timeout: float = 5.0) -> None:
