@@ -236,7 +236,7 @@ class DomesticNamespace:
     ) -> list[Quote]:
         """여러 국내 종목의 현재가를 한 번에(최대 30). 원소가 종목코드 문자열이면 보드는 ``market`` 기본
         (KRX), ``(board, symbol)`` 튜플이면 그 보드를 쓴다 -- KRX/NXT/통합(UN) 혼합 가능. 해외는
-        :meth:`~kis_trader.namespaces.OverseasNamespace.quotes`."""
+        :meth:`~kis_trader.overseas.namespace.OverseasNamespace.quotes`."""
         requests = [
             item if isinstance(item, tuple) else (market, item) for item in symbols
         ]
