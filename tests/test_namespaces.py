@@ -13,15 +13,15 @@ import pytest
 
 from kis_trader import InstrumentRecord, KISClient, MasterIndex
 from kis_trader._stock_base import _StockBase
+from kis_trader.client import OrdersNamespace
 from kis_trader.domestic.calendar import CalendarQueries
 from kis_trader.domestic.market import MarketQueries
 from kis_trader.domestic.namespace import DomesticAccount, DomesticNamespace
 from kis_trader.domestic.ranking import RankingQueries
 from kis_trader.domestic.stock import DomesticStock
-from kis_trader.namespaces import OrdersNamespace
 from kis_trader.overseas.namespace import OverseasAccount, OverseasNamespace
-from kis_trader.pension.namespace import PensionNamespace
 from kis_trader.overseas.stock import OverseasStock
+from kis_trader.pension.namespace import PensionNamespace
 from kis_trader.transport import RawResponse
 
 

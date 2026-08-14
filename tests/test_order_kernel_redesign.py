@@ -262,7 +262,7 @@ def test_public_write_surface_uses_limit_price():
 
     from kis_trader.domestic.namespace import DomesticAccount
     from kis_trader.domestic.stock import DomesticStock
-    from kis_trader.namespaces import OrdersNamespace
+    from kis_trader.client import OrdersNamespace
     from kis_trader.overseas.stock import OverseasStock
 
     def params(func):
