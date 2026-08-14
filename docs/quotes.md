@@ -65,14 +65,14 @@ s.trades()         # 최근 체결 내역
 s.recent_prices()  # 최근 가격 추이
 ```
 
-## 여러 종목 한 번에
+## 여러 종목을 한 번에
 
 ```python
 for q in kis.domestic.quotes(["005930", "000660", "035720"]):
     print(q.symbol, q.current_price, q.change_percent)
 
 # 보드가 다르면(KRX/NXT) 튜플로 지정
-kis.domestic.quotes([("KRX", "005930"), ("NXT", "123456")])
+kis.domestic.quotes([("KRX", "005930"), ("NXT", "000660")])
 ```
 
 ::: {.callout-note}
@@ -91,14 +91,14 @@ s.after_hours_conclusions()  # 시간외 체결
 ## 지수·해외
 
 ```python
-kis.domestic.index("0001").quote()  # KOSPI
-kis.domestic.index("1001").quote()  # KOSDAQ
+kis.domestic.index("KOSPI").quote()   # 이름으로 (업종코드 "0001" 도 가능)
+kis.domestic.index("KOSDAQ").quote()  # 이름으로 (업종코드 "1001" 도 가능)
 
-kis.overseas.stock("AAPL").quote()  # 거래소 자동 (NAS)
+kis.overseas.stock("AAPL").quote()    # 거래소 자동 (NAS)
 kis.overseas.stock("AAPL").bars("1d")
 ```
 
 ::: {.callout-tip}
-필드가 더 궁금하면 `help(type(q))` — 각 필드의 한국어 설명과 KIS 원본 키(TR-id 포함)가 나옵니다.
+필드가 더 궁금하면 `help(type(q))` — 각 필드의 한국어 설명과 KIS 원본 키(tr-id 포함)가 나옵니다.
 원본 응답 전체는 `q._raw` 로 접근.
 :::
