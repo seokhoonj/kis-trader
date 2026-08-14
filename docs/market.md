@@ -1,73 +1,55 @@
-# 시장·수급
+# 시장 전체
 
-한 종목의 수급, 그리고 시장 전체의 흐름을 봅니다.
+개별 종목이 아닌 **시장 전체**의 투자자 수급·프로그램매매·자금·제도 정보. `kis.domestic.market`
+에 모여 있습니다. (한 종목의 수급은 [종목 수급](flows.md).)
 
-## 종목 수급 (외국인·기관)
+## 투자자 수급
 
 ```python
-s = kis.domestic.stock("005930")
+m = kis.domestic.market
 
-s.investor_flows()                # 개인/외국인/기관 매매동향
-s.foreign_net_buy_trend()         # 외국인 순매수 추이
-s.detailed_investor_history()     # 상세 투자자별
+m.investor_flows()           # 시장 전체 투자자 동향
+m.investor_net_buy_stocks()  # 투자자별 순매수 상위 종목
+m.investor_snapshot(market_code="0001", industry_code="0001")  # 시장·업종별 세부 매수/매도/순매수
 ```
 
 ## 프로그램 매매
 
 ```python
-s.program_trades()        # 종목 프로그램 매매
-s.daily_program_trades()  # 일별
+m.program_trades()             # 일별 프로그램매매 종합(차익/비차익; KOSPI/KOSDAQ)
+m.program_flow()               # 당일 시간대별 프로그램 순매수 대금
+m.program_investor_trades()    # 당일 프로그램매매 투자자 집계
+m.foreign_broker_trades()      # 외국계 창구 매매
 ```
 
-## 공매도·신용
+## 자금·금리
 
 ```python
-s.short_sale_trend()      # 공매도 추이
-s.credit_balance_trend()  # 신용잔고 추이
+m.funds()           # 증시자금 종합(예탁금·신용융자잔고·펀드유형별·시가총액) 추이
+m.interest_rates()  # 국내·해외 주요 금리·채권지수 스냅샷
 ```
 
-## 시장 전체 수급
-
-`kis.domestic.market` — 개별 종목이 아닌 **시장 전체** 투자자 수급·지수.
+## 제도·상태
 
 ```python
-m = kis.domestic.market
+m.limit_stocks()             # 상한가/하한가 도달 종목
+m.vi_events()                # VI(변동성완화장치) 발동 현황
+m.lendable_stocks()          # 대주 가능 종목·한도
+m.credit_eligible_stocks()   # 신용주문 가능·불가 종목
+m.futures_market_schedule()  # 국내선물 인접 영업일·장 시작/종료
+```
 
-m.investor_flows()               # 시장 전체 투자자 동향
-m.investor_net_buy_stocks()      # 투자자별 순매수 상위 종목
-m.program_trades()               # 시장 프로그램 매매
-m.foreign_broker_trades()        # 외국계 창구 매매
-m.broker_opinions(broker="003")  # 한 증권사(회원사 코드)의 종목 의견
-m.news()                         # 뉴스
-m.vi_events()                    # VI 발동 현황
-m.interest_rates()               # 시장 금리
+## 의견·뉴스
+
+```python
+m.broker_opinions(broker="003")  # 한 증권사(회원사 코드)가 낸 종목 투자의견·목표가
+m.news()                         # 시황·공시 뉴스 제목 피드
 ```
 
 ::: {.callout-note}
 ## 알아두면 좋은 용어
 - **VI (변동성완화장치)** — 가격이 급변하면 2~10분 단일가로 전환하는 안전장치. `vi_events` 로 발동 현황.
 - **프로그램매매** — 여러 종목을 바스켓으로 한 번에 사고파는 기관 매매. **차익**(선물-현물 차익거래)과
-  **비차익**으로 나뉩니다.
-- **수급** — 누가 사고 파는지(개인·외국인·기관). 외국인/기관 순매수는 방향성 힌트로 자주 봅니다.
-:::
-
-## 캘린더 (배당·공모·권리)
-
-`kis.domestic.calendar.*` — 시장 전체 일정.
-
-```python
-c = kis.domestic.calendar
-
-c.dividends(start="20240101", end="20241231")   # 배당
-c.ipo_subscriptions(start="20240101", end="…")  # 공모주 청약
-c.rights_offerings(…)                           # 유상증자
-c.bonus_issues(…)                               # 무상증자
-c.shareholder_meetings(…)                       # 주주총회
-c.merger_splits(…)                              # 합병·분할
-c.listings(…)                                   # 상장
-```
-
-::: {.callout-note}
-계좌에 배정된 **내** 권리 내역은 [계좌](account.md)의 `account.rights(...)` 로 봅니다.
-여기 캘린더는 시장 전체 일정입니다.
+  **비차익**으로 나뉩니다. 일별 종합은 `program_trades`, 당일 시간대별 흐름은 `program_flow`.
+- **대주(貸株)** — 없는 주식을 빌려서 파는 공매도의 재원. `lendable_stocks` 로 빌릴 수 있는 종목·한도를 봅니다.
 :::

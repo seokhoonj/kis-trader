@@ -18,22 +18,31 @@ book:
   chapters:
     - index.md
     - quickstart.md
-    - quotes.md
-    - financials.md
-    - account.md
-    - orders.md
-    - screening.md
-    - market.md
-    - corporate-actions.md
-    - overseas.md
-    - pension.md
-    - realtime.md
-    - part: "자산군별 상세"
+    - part: "국내 주식"
+      chapters:
+        - quotes.md
+        - financials.md
+        - flows.md
+        - account.md
+        - orders.md
+    - part: "시장·검색"
+      chapters:
+        - screening.md
+        - market.md
+        - indices.md
+        - corporate-actions.md
+    - part: "다른 상품"
       chapters:
         - etf.md
         - elw.md
         - derivatives.md
         - bonds.md
+    - part: "해외·연금·실시간"
+      chapters:
+        - overseas.md
+        - pension.md
+        - realtime.md
+    - limits.md
 
 format:
   html:

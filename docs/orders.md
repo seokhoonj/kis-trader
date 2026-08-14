@@ -89,13 +89,27 @@ kis.overseas.stock("AAPL").overnight_buy(quantity=1, limit_price=150)  # 미국 
 kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)    # 미국 예약
 ```
 
+예약주문 조회·정정·취소(순번 `sequence` 로 지목):
+
+```python
+a = kis.domestic.account
+
+a.reserved_orders(start="20240101", end="20240131")  # 예약주문 목록
+a.modify_reserved_order("0001", symbol="005930", side="buy", quantity=5, limit_price=71000)
+a.cancel_reserved_order("0001")                      # 취소
+```
+
 ## 신용주문
 
 기본으로 **막혀 있습니다**. 쓰려면 세션에서 명시적으로 켭니다.
 
 ```python
 kis = KISClient(…, allow_credit=True)
-kis.domestic.stock("005930").credit_buy(quantity=10, credit_type="…", limit_price=70000)
+
+s = kis.domestic.stock("005930")
+s.credit_buyable(credit_type="21")                               # 신용 매수가능 여력
+s.credit_buy(quantity=10, credit_type="21", limit_price=70000)   # 신용 매수(융자신규)
+s.credit_sell(quantity=10, credit_type="25", limit_price=71000)  # 신용 매도(융자상환)
 ```
 
 ---

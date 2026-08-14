@@ -71,8 +71,28 @@ r.by_change(exchange="NAS")  # 모든 순위가 거래소(exchange)를 받습니
 r.by_volume(exchange="NAS")
 r.by_amount(exchange="NAS")
 r.by_market_cap(exchange="NAS")
+r.by_turnover(exchange="NAS")           # 거래회전율
+r.by_buy_strength(exchange="NAS")       # 매수 체결강도
+r.by_trade_growth(exchange="NAS")       # 거래증가율
+r.by_volume_surge(exchange="NAS")       # 거래량 급증
+r.by_new_highlow(exchange="NAS")        # 신고가/신저가
+r.by_price_fluctuation(exchange="NAS")  # 급등/급락
 
 kis.overseas.search_stocks("NAS", price=(10, 500), change_percent=(5, 30))  # 거래소 + 범위 조건
 kis.overseas.news(…)  # 뉴스 헤드라인
 kis.overseas.industries("NAS")  # 업종
 ```
+
+## 종목정보·기업행위·심화
+
+```python
+kis.overseas.product_info("NAS", "AAPL")               # 상품기본정보(통화·상장주식수·SEDOL…)
+kis.overseas.industry_stocks("NAS", "010")             # 업종별 종목 시세
+kis.overseas.breaking_news()                           # 해외속보
+kis.overseas.corporate_actions("US", "AAPL")           # 권리·기업행사 일정
+kis.overseas.rights(start="20240101", end="20240630")  # 배당·증자·합병 권리
+kis.overseas.collateral_stocks("AAPL", "US")           # 담보대출 가능종목
+kis.overseas.settlement_dates()                        # 시장별 결제일자
+```
+
+미국 종목 오버나이트 매도: `kis.overseas.stock("AAPL").overnight_sell(quantity=1, limit_price=150)`.

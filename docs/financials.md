@@ -5,6 +5,7 @@
 ```python
 s = kis.domestic.stock("005930")
 
+s.profile()                         # 종목 기본정보 (이름·상장주식수·업종·상장일)
 s.income_statement()                # 손익계산서 (연간)
 s.income_statement(quarterly=True)  # 손익계산서 (분기)
 s.balance_sheet()                   # 대차대조표

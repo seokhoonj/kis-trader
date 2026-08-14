@@ -78,10 +78,21 @@ r.by_valuation(year=2024)      # 밸류에이션(PER/PBR 등)
 r.by_profit_asset(year=2024)   # 수익성·자산
 ```
 
-## ELW 스크리너
+## 시간외·예상·기타 순위
 
 ```python
-kis.domestic.elw_screener.search(…)         # 조건 검색
-kis.domestic.elw_screener.by_underlying(…)  # 기초자산별
-kis.domestic.elw_ranking.by_volume()        # ELW 거래량 순위
+r.by_bulk_trades(side="buy")                     # 대량체결건수
+r.by_quote_balance(metric="net_buy")             # 호가잔량
+r.by_interest()                                  # 관심종목 등록상위
+r.by_preferred_disparity()                       # 우선주 괴리율
+r.by_expected_close()                            # 장마감 예상체결
+r.by_expected_execution_change(direction="up")   # 장전 예상체결 등락
+r.by_company_trades(side="buy", start="20240101", end="20240131")  # 당사매매 종목
+
+r.by_after_hour_balance(side="ask")              # 시간외 잔량
+r.by_overtime_change(direction="up")             # 시간외 등락률
+r.by_overtime_expected_change(direction="up")    # 시간외 예상체결 등락
+r.by_overtime_volume()                           # 시간외 거래량
 ```
+
+(ELW 스크리너·순위는 [ELW](elw.md) 챕터에 있습니다.)

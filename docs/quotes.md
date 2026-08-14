@@ -88,15 +88,17 @@ s.after_hours_daily()        # 시간외 일별
 s.after_hours_conclusions()  # 시간외 체결
 ```
 
-## 지수·해외
+## 시간외 심화·상태
 
 ```python
-kis.domestic.index("KOSPI").quote()                      # 이름으로 (업종코드 "0001" 도 가능)
-kis.domestic.index("KOSDAQ").quote()                     # 이름으로 (업종코드 "1001" 도 가능)
-
-kis.overseas.stock("AAPL").quote()                       # 거래소 자동 (NAS)
-kis.overseas.stock("AAPL").bars("1d", start="20240101")
+s.after_hours_daily()        # 시간외 단일가 일자별 종가
+s.after_hours_conclusions()  # 시간외 시간별 체결
+s.after_hours_order_book()   # 시간외 호가창
+s.status()                   # 현재가 + 거래·규제·경고 상태
+s.minute_bars_on("20240102")  # 특정 과거일의 1분봉
 ```
+
+지수는 [지수](indices.md), 해외는 [해외주식](overseas.md), ETF·ELW·선물옵션·채권은 각 상품 챕터를 보세요.
 
 ::: {.callout-tip}
 필드가 더 궁금하면 `help(type(q))` — 각 필드의 한국어 설명과 KIS 원본 키(TR-ID 포함)가 나옵니다.
