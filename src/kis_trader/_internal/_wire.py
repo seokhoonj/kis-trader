@@ -109,7 +109,7 @@ def _to_decimal(text: str, field_name: str) -> Decimal:
     return number
 
 
-def parse_response_decimal(value: object) -> Decimal:
+def decimal_or_zero(value: object) -> Decimal:
     """KIS 문자열 수치를 Decimal 로. 공백/None 은 0. 값이 있는데 파싱 실패면 :class:`KISError`
     로 fail-closed -- 신뢰 못 할 숫자를 0으로 조작하면 재조회가 체결을 '미체결'로 오판한다.
 

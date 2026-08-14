@@ -30,7 +30,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import Any, Protocol
 
-from ..._internal._wire import parse_response_decimal
+from ..._internal._wire import decimal_or_zero
 from ...errors import (
     AccountNotOrderableError,
     KISError,
@@ -625,13 +625,13 @@ def _filter_matching_daily_rows(
         # 현금주문 지문("")은 행에 대출일자가 없어야 매칭한다(cash<->credit 오확정 방지).
         if _normalize_loan_date(row.get("loan_dt")) != want_loan_date:
             continue
-        if parse_response_decimal(row.get("ord_qty")) != quantity:
+        if decimal_or_zero(row.get("ord_qty")) != quantity:
             continue
         # 지정가 주문은 단가가 있고 같아야 한다(fail-closed) -- 단가 없는 행 통과 시 무관한
         # 동일수량 주문을 오귀속할 수 있다. 단가 없으면 제외(안전 방향).
         if limit_price is not None:
             row_price = row.get("ord_unpr")
-            if row_price in (None, "") or parse_response_decimal(row_price) != limit_price:
+            if row_price in (None, "") or decimal_or_zero(row_price) != limit_price:
                 continue
         matched.append(row)
     return matched
@@ -640,9 +640,9 @@ def _filter_matching_daily_rows(
 def _execution_report_from_daily_row(
     client_order_id: str, fingerprint: ImmediateOrderFingerprint, row: Mapping[str, Any]
 ) -> ExecutionReport:
-    ordered = parse_response_decimal(row.get("ord_qty"))
-    filled = parse_response_decimal(row.get("tot_ccld_qty"))
-    rejected = parse_response_decimal(row.get("rjct_qty"))
+    ordered = decimal_or_zero(row.get("ord_qty"))
+    filled = decimal_or_zero(row.get("tot_ccld_qty"))
+    rejected = decimal_or_zero(row.get("rjct_qty"))
     if str(row.get("cncl_yn", "")).upper() == "Y":
         status = OrderStatus.CANCELED
     elif rejected > 0 and filled == 0:
@@ -653,7 +653,7 @@ def _execution_report_from_daily_row(
         status = OrderStatus.PARTIALLY_FILLED
     else:
         status = OrderStatus.NEW
-    avg = parse_response_decimal(row.get("avg_prvs"))
+    avg = decimal_or_zero(row.get("avg_prvs"))
     return ExecutionReport(
         client_order_id=client_order_id,
         order_id=str(row.get("odno")) if row.get("odno") else None,

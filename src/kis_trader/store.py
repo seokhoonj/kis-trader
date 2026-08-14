@@ -395,7 +395,7 @@ def _report_to_dict(report: ExecutionReport) -> dict[str, object]:
 def _report_from_dict(report_data: dict[str, object]) -> ExecutionReport:
     average_price = report_data["average_price"]
     # v7 은 "recorded_at" 키, v6 이하는 "submitted_at" 키를 쓴다 -- 구 저장소를 재작성 없이 열도록
-    # 옛 키를 recorded_at 으로 매핑한다(charter: 온-디스크 스키마 변경엔 하위호환 로드 경로가 따라온다).
+    # 옛 키를 recorded_at 으로 매핑한다(온-디스크 스키마가 바뀌면 하위호환 로드 경로를 함께 둔다).
     recorded_raw = report_data.get("recorded_at", report_data.get("submitted_at"))
     return ExecutionReport(
         client_order_id=str(report_data["client_order_id"]),

@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from ..._internal._wire import parse_response_decimal as _parse_response_decimal
+from ..._internal._wire import decimal_or_zero
 from ..._internal._wire import format_wire_decimal, optional_decimal
 from ...errors import (
     AccountNotOrderableError,
@@ -329,11 +329,11 @@ def _filter_matching(
             continue
         if str(row.get("sll_buy_dvsn_cd", "")).strip() != want_side:
             continue
-        if _parse_response_decimal(row.get("ft_ord_qty")) != quantity:
+        if decimal_or_zero(row.get("ft_ord_qty")) != quantity:
             continue
         if limit_price is not None:
             row_price = row.get("ft_ord_unpr3")
-            if row_price in (None, "") or _parse_response_decimal(row_price) != limit_price:
+            if row_price in (None, "") or decimal_or_zero(row_price) != limit_price:
                 continue
         matched.append(row)
     return matched

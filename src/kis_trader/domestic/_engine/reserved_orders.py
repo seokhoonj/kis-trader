@@ -18,7 +18,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, NamedTuple
 
-from ..._internal._wire import format_wire_decimal, optional_decimal
+from ..._internal._wire import decimal_or_zero, format_wire_decimal, optional_decimal
 from ...errors import (
     AccountNotOrderableError,
     KISError,
@@ -33,7 +33,6 @@ from ...reserved_order import ReservedOrder
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ...transport import Environment, Transport, TransportTimeout
 from ._parse import _side_from_code
-from ..._internal._wire import parse_response_decimal
 
 if TYPE_CHECKING:
     from ..._literals import Numeric
@@ -444,11 +443,11 @@ def _filter_matching_reserved(
             continue
         if want_dvsn is not None and str(row.get("ord_dvsn_cd", "")).strip() not in ("", want_dvsn):
             continue
-        if parse_response_decimal(row.get("ord_rsvn_qty")) != quantity:
+        if decimal_or_zero(row.get("ord_rsvn_qty")) != quantity:
             continue
         if limit_price is not None:
             row_price = row.get("ord_rsvn_unpr")
-            if row_price in (None, "") or parse_response_decimal(row_price) != limit_price:
+            if row_price in (None, "") or decimal_or_zero(row_price) != limit_price:
                 continue
         # 종료일을 명시했으면 그 예약만(브로커 기본으로 채워진 다른 종료일 예약과 구분). 미명시("")면
         # 브로커 기본값을 예측할 수 없으므로 종료일로 좁히지 않는다.

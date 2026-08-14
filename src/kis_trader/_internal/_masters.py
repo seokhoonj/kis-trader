@@ -19,7 +19,7 @@ from collections.abc import Callable, Iterable
 from dataclasses import dataclass
 from typing import Literal
 
-from ._fsutil import atomic_write_bytes
+from ._fsutil import atomic_write_bytes, xdg_cache_subdir
 from ..errors import KISError, KISUsageError
 
 #: 마스터 캐시 기본 수명(초). 하루 -- KIS 가 마스터를 매일 갱신한다.
@@ -173,8 +173,7 @@ class MasterIndex:
 
 def default_cache_dir() -> str:
     """마스터 캐시 디렉터리(repo 밖, 런타임 캐시). ``XDG_CACHE_HOME`` 을 존중한다."""
-    base = os.environ.get("XDG_CACHE_HOME") or os.path.join(os.path.expanduser("~"), ".cache")
-    return os.path.join(base, "kis-trader", "masters")
+    return str(xdg_cache_subdir("kis-trader", "masters"))
 
 
 def load_overseas_master(

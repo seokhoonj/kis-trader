@@ -15,6 +15,7 @@ from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from ._endpoints import base_url
+from ._fsutil import xdg_cache_subdir
 from ..errors import KISAuthError, KISUsageError
 
 if TYPE_CHECKING:
@@ -33,10 +34,7 @@ def _requests_post(url: str, body: Mapping[str, str]) -> tuple[int, Mapping[str,
 
 def default_token_cache_dir() -> str:
     """토큰 캐시 디렉터리(repo 밖, 런타임 캐시). ``XDG_CACHE_HOME`` 을 존중한다."""
-    base = os.environ.get("XDG_CACHE_HOME") or os.path.join(
-        os.path.expanduser("~"), ".cache"
-    )
-    return os.path.join(base, "kis-trader", "tokens")
+    return str(xdg_cache_subdir("kis-trader", "tokens"))
 
 
 class TokenManager:
@@ -76,7 +74,7 @@ class TokenManager:
         digest = hashlib.sha256(self._app_key.encode()).hexdigest()[:16]
         return os.path.join(self._cache_dir, f"{self._environment}-{digest}.json")
 
-    def _valid(self, token: object, expires_at: object, now: float) -> bool:
+    def _is_valid(self, token: object, expires_at: object, now: float) -> bool:
         return (
             isinstance(token, str)
             and bool(token.strip())
@@ -95,7 +93,7 @@ class TokenManager:
             return None
         token = payload.get("access_token")
         expires_at = payload.get("expires_at")
-        if not self._valid(token, expires_at, now):
+        if not self._is_valid(token, expires_at, now):
             return None
         return token, float(expires_at)
 
@@ -148,7 +146,7 @@ class TokenManager:
         except (TypeError, ValueError) as err:
             raise KISAuthError("KIS OAuth 응답의 토큰 유효기간이 올바르지 않다.") from err
         expires_at = now + expires_in
-        if not self._valid(token, expires_at, now):
+        if not self._is_valid(token, expires_at, now):
             raise KISAuthError("KIS OAuth 응답의 토큰 유효기간이 너무 짧다.")
         return token, expires_at
 
@@ -160,7 +158,7 @@ class TokenManager:
         """
         with self._lock:
             now = self._clock()
-            if self._valid(self._token, self._expires_at, now):
+            if self._is_valid(self._token, self._expires_at, now):
                 assert self._token is not None
                 return self._token
             cached = self._read_cache(now)
@@ -181,7 +179,7 @@ class TokenManager:
         """
         with self._lock:
             now = self._clock()
-            token = self._token if self._valid(self._token, self._expires_at, now) else None
+            token = self._token if self._is_valid(self._token, self._expires_at, now) else None
             if token is None:
                 cached = self._read_cache(now)
                 token = cached[0] if cached is not None else None

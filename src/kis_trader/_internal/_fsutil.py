@@ -16,7 +16,14 @@ import os
 import tempfile
 from pathlib import Path
 
-__all__ = ["atomic_write_bytes"]
+__all__ = ["atomic_write_bytes", "xdg_cache_subdir"]
+
+
+def xdg_cache_subdir(*parts: str) -> Path:
+    """``XDG_CACHE_HOME`` (없으면 ``~/.cache``) 아래의 하위 경로. 재생성 가능한 런타임 캐시 전용
+    -- 토큰/마스터 캐시가 이 한 경로 규칙을 공유하도록 여기 한 곳에 둔다."""
+    base = os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache"
+    return Path(base).joinpath(*parts)
 
 
 def atomic_write_bytes(path: str | os.PathLike[str], data: bytes, *, mode: int = 0o600) -> None:

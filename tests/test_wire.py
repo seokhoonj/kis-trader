@@ -16,7 +16,7 @@ from kis_trader._internal._wire import (
     format_wire_decimal,
     optional_decimal,
     optional_int,
-    parse_response_decimal,
+    decimal_or_zero,
     required_decimal,
     required_int,
 )
@@ -112,17 +112,17 @@ def test_format_wire_decimal_is_fixed_point(value, expected):
     assert format_wire_decimal(value) == expected
 
 
-# --- parse_response_decimal (재조회 경로) ----------------------------------
+# --- decimal_or_zero (재조회 경로) ----------------------------------
 @pytest.mark.parametrize("value", [None, ""])
-def test_parse_response_decimal_blank_is_zero(value):
-    assert parse_response_decimal(value) == Decimal(0)
+def test_decimal_or_zero_blank_is_zero(value):
+    assert decimal_or_zero(value) == Decimal(0)
 
 
-def test_parse_response_decimal_parses_value():
-    assert parse_response_decimal("71500") == Decimal("71500")
+def test_decimal_or_zero_parses_value():
+    assert decimal_or_zero("71500") == Decimal("71500")
 
 
 @pytest.mark.parametrize("value", ["abc", "NaN", "Infinity", "-Infinity"])
-def test_parse_response_decimal_rejects_malformed_or_nonfinite(value):
+def test_decimal_or_zero_rejects_malformed_or_nonfinite(value):
     with pytest.raises(KISError):
-        parse_response_decimal(value)
+        decimal_or_zero(value)
