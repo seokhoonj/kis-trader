@@ -35,7 +35,7 @@ from ...transport import Environment, Transport, TransportTimeout
 from ..._internal._wire import parse_response_decimal
 
 if TYPE_CHECKING:
-    from .._literals import Numeric
+    from ..._literals import Numeric
 
 _KST = timezone(timedelta(hours=9))
 

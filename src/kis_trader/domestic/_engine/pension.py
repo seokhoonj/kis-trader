@@ -25,7 +25,7 @@ from ...pension_items import (
 from ...transport import Environment, Transport
 
 if TYPE_CHECKING:
-    from .._literals import Numeric
+    from ..._literals import Numeric
 
 _DEPOSIT_PATH = "/uapi/domestic-stock/v1/trading/pension/inquire-deposit"
 _DEPOSIT_TR = "TTTC0506R"

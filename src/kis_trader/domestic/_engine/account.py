@@ -38,7 +38,7 @@ from ..entities.trade_profit import (
 from ...transport import Environment, RawResponse, Transport
 
 if TYPE_CHECKING:
-    from .._literals import Numeric
+    from ..._literals import Numeric
 
 _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
 _BALANCE_TR = {"real": "TTTC8434R", "paper": "VTTC8434R"}
