@@ -1,4 +1,6 @@
-"""해외 선물/옵션 시세 DATA -- :class:`OverseasDerivativeQuote`.
+"""해외 선물/옵션 DATA -- :class:`OverseasDerivativeQuote`(현재가) / :class:`OverseasDerivativeDetail`
+(계약 명세) / :class:`OverseasDerivativeMarketHours`(장운영시간) / :class:`OverseasFuturesOpenInterest`
+(미결제약정 추이).
 
 해외 파생(선물/옵션)은 시리즈코드(``srs_cd``, 예: ESZ25 = E-mini S&P 2025.12) 하나로 계약을
 식별한다. 국내 파생 :class:`~kis_trader.domestic.entities.derivative.DerivativeQuote` 와 달리 계약 통화
