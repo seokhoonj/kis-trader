@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import io
+import os
 import zipfile
 
 import pytest
@@ -17,6 +18,7 @@ from kis_trader._internal._masters import (
     DomesticListingIndex,
     download_domestic_master,
     load_domestic_index,
+    load_domestic_master,
     parse_domestic_master,
 )
 from kis_trader.errors import KISError, KISUsageError
@@ -57,6 +59,20 @@ def test_search_by_six_digit_code_reverse_lookup():
     assert [h.name for h in hits] == ["삼성전자"]
 
 
+def test_search_short_numeric_query_matches_code_prefix():
+    # 6자리 미만 숫자는 코드 접두 검색.
+    assert {h.symbol for h in _index().search("0059")} == {"005930", "005935"}
+
+
+def test_search_orders_exact_then_prefix_then_substring():
+    idx = DomesticListingIndex([
+        DomesticListing("100000", "KODEX 삼성전자레버리지", "KOSPI"),  # 부분(이름 중간에 포함)
+        DomesticListing("005935", "삼성전자우", "KOSPI"),               # 접두
+        DomesticListing("005930", "삼성전자", "KOSPI"),                 # 정확
+    ])
+    assert [h.symbol for h in idx.search("삼성전자")] == ["005930", "005935", "100000"]
+
+
 def test_search_no_match_is_empty_not_error():
     assert _index().search("존재하지않는종목") == []
 
@@ -83,8 +99,8 @@ def test_parse_domestic_master_slices_code_and_name(market):
         _mst_line("005930", "KR7005930003", "삼성전자", market=market),
         _mst_line("035720", "KR7035720002", "카카오", market=market),
     ]
-    data = ("\n".join(lines) + "\n").encode("cp949")
-    parsed = parse_domestic_master(data, market=market)
+    master_bytes = ("\n".join(lines) + "\n").encode("cp949")
+    parsed = parse_domestic_master(master_bytes, market=market)
     assert parsed == [
         DomesticListing("005930", "삼성전자", market),
         DomesticListing("035720", "카카오", market),
@@ -93,10 +109,27 @@ def test_parse_domestic_master_slices_code_and_name(market):
 
 def test_parse_domestic_master_skips_short_or_blank_lines():
     good = _mst_line("005930", "KR7005930003", "삼성전자", market="KOSPI")
-    data = f"\ntoo-short\n{good}\n".encode("cp949")
-    assert parse_domestic_master(data, market="KOSPI") == [
+    master_bytes = f"\ntoo-short\n{good}\n".encode("cp949")
+    assert parse_domestic_master(master_bytes, market="KOSPI") == [
         DomesticListing("005930", "삼성전자", "KOSPI")
     ]
+
+
+def test_parse_domestic_master_skips_line_with_code_but_no_name():
+    # 단축코드는 6자리지만 이름이 빈 손상 레코드는 건너뛴다.
+    no_name = "005930".ljust(9) + "KR7005930003" + "" + ("X" * _DOMESTIC_PART2_WIDTH["KOSPI"])
+    good = _mst_line("035720", "KR7035720002", "카카오", market="KOSPI")
+    master_bytes = f"{no_name}\n{good}\n".encode("cp949")
+    assert parse_domestic_master(master_bytes, market="KOSPI") == [
+        DomesticListing("035720", "카카오", "KOSPI")
+    ]
+
+
+def test_parse_domestic_master_fails_closed_on_format_drift():
+    # 비지 않은 입력인데 유효 종목 0건(part2 폭 변경 등) -> 조용히 [] 가 아니라 raise(해외 파서와 대칭).
+    drifted = ("x" * 50 + "\n").encode("cp949")   # 어떤 줄도 6자리 코드+이름을 못 낸다
+    with pytest.raises(KISError):
+        parse_domestic_master(drifted, market="KOSPI")
 
 
 def test_parse_domestic_master_rejects_unknown_market():
@@ -133,6 +166,36 @@ def test_download_domestic_master_fails_closed_on_missing_member():
         download_domestic_master("KOSPI", fetch=fetch)
 
 
+def test_download_domestic_master_selects_named_member_not_first():
+    # zip 에 오답 멤버가 먼저 있어도 이름으로 kospi_code.mst 를 골라야 한다(첫 엔트리 가정 금지).
+    body = (_mst_line("005930", "KR7005930003", "삼성전자", market="KOSPI") + "\n").encode("cp949")
+
+    def fetch(url: str) -> bytes:
+        buffer = io.BytesIO()
+        with zipfile.ZipFile(buffer, "w") as archive:
+            archive.writestr("_decoy_first.mst", b"garbage")
+            archive.writestr("kospi_code.mst", body)
+        return buffer.getvalue()
+
+    assert download_domestic_master("KOSPI", fetch=fetch) == [
+        DomesticListing("005930", "삼성전자", "KOSPI")
+    ]
+
+
+def test_load_domestic_master_reads_fresh_cache_without_fetching(tmp_path):
+    # 캐시가 max_age 안이면 fetch 없이 캐시를 읽는다(호출되면 실패하는 fetch 로 확인).
+    body = (_mst_line("005930", "KR7005930003", "삼성전자", market="KOSPI") + "\n").encode("cp949")
+    cache = tmp_path / "kospi_code.mst"
+    cache.write_bytes(body)
+    os.utime(cache, (1000.0, 1000.0))     # mtime 고정
+
+    def fetch(url: str) -> bytes:
+        raise AssertionError("신선한 캐시는 다운로드하지 않아야 한다")
+
+    listings = load_domestic_master("KOSPI", cache_dir=str(tmp_path), fetch=fetch, now=1000.0)
+    assert listings == [DomesticListing("005930", "삼성전자", "KOSPI")]
+
+
 def test_load_domestic_index_merges_both_markets_via_injected_fetch(tmp_path):
     bodies = {
         "kospi_code": _mst_line("005930", "KR7005930003", "삼성전자", market="KOSPI"),
@@ -151,7 +214,7 @@ def test_load_domestic_index_merges_both_markets_via_injected_fetch(tmp_path):
 # --- 파사드 + stock() 은 이름을 받지 않음(안전) ----------------------------
 def test_domestic_search_facade_uses_injected_index():
     kis = KISClient(app_key="k", app_secret="s", account="12345678-01",
-                    transport=object(), domestic_listings=_index())
+                    transport=object(), domestic_index=_index())
     hits = kis.domestic.search("카카오")
     assert [h.symbol for h in hits] == ["035720"]
 

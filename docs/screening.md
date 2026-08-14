@@ -6,8 +6,8 @@
 **후보를 모두** 돌려줍니다 — 코드를 골라 `stock()`에 넘기세요. (`stock()`은 이름을 받지 않습니다.)
 
 ```python
-kis.domestic.search("삼성전자")              # -> [DomesticListing(symbol, name, market), ...]
-kis.domestic.search("에코", market="KOSDAQ")  # 부분매치, 시장 한정(all/KOSPI/KOSDAQ)
+kis.domestic.search("삼성전자")                  # 이름으로 후보 찾기
+kis.domestic.search("에코프로", market="KOSDAQ")  # 부분매치, 시장 한정(all/KOSPI/KOSDAQ)
 
 hits = kis.domestic.search("카카오")
 kis.domestic.stock(hits[0].symbol).quote()   # 골라서 시세 조회
@@ -41,13 +41,13 @@ for row in r.by_change(direction="gainers")[:10]:
 더 있는 순위:
 
 ```python
-r.by_short_sale(window="1d")  # 공매도 상위
-r.by_credit_balance()         # 신용잔고 상위
-r.by_near_high_low()          # 신고가/신저가 근접
+r.by_short_sale(window="1d")                     # 공매도 상위
+r.by_credit_balance()                            # 신용잔고 상위
+r.by_near_high_low()                             # 신고가/신저가 근접
 r.by_dividend(start="20240101", end="20240630")  # 배당률 상위
-r.by_disparity()              # 이격도
-r.by_volume_power()           # 체결강도
-r.by_views()                  # HTS 조회 상위
+r.by_disparity()                                 # 이격도
+r.by_volume_power()                              # 체결강도
+r.by_views()                                     # HTS 조회 상위
 ```
 
 ## 조건검색 (HTS 저장조건)
