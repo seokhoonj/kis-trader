@@ -5,7 +5,7 @@
 ``kis.domestic.option(code)``)이다. 파생은 종목이 아니라 시장구분(F:지수선물 / O:지수옵션) + 계약코드로
 조회한다. 스캘핑에 필요한 미결제약정·베이시스·이론가는 output1 에서 매핑한다.
 
-KIS URL/TR-id (KIS 명세 대조):
+KIS URL/tr-id (KIS 명세 대조):
 - 선물옵션 현재가: ``GET .../domestic-futureoption/v1/quotations/inquire-price`` ``FHMIF10000000``.
 - 선물옵션 호가: ``GET .../domestic-futureoption/v1/quotations/inquire-asking-price`` ``FHMIF10010000``
   (호가 사다리는 ``output2``).

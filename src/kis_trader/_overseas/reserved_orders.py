@@ -4,7 +4,7 @@
 아시아(일/중/홍/베) 예약은 request/response 규격이 다른 별 프로토콜(TTTS3013U/TTTS3014R)이라 여기서
 다루지 않는다. 전부 **모의투자 미지원**.
 
-KIS URL/TR-id:
+KIS URL/tr-id:
 - 조회: ``GET .../trading/order-resv-list`` (미국 ``TTTT3039R``).
 """
 

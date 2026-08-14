@@ -3,7 +3,7 @@
 사용자면은 종목 핸들(:meth:`~kis_trader.stock.DomesticStock.credit_balance_trend` /
 :meth:`~kis_trader.stock.DomesticStock.short_sale_trend`)이다. 둘 다 기준일에서 과거로 일별 추이를 준다.
 
-KIS URL/TR-id:
+KIS URL/tr-id:
 - 신용잔고 일별추이: ``GET .../quotations/daily-credit-balance`` ``FHPST04760000``
   (시장 J + 화면 20476 + 종목 + 기준일 FID_INPUT_DATE_1).
 - 공매도 일별추이: ``GET .../quotations/daily-short-sale`` ``FHPST04830000``
@@ -472,7 +472,7 @@ def fetch_foreign_net_buy_trend(
 
     KIS 국내주식 외국계 매매종목 가집계 API를 조회한다.
     URL: ``GET /uapi/domestic-stock/v1/quotations/frgnmem-pchs-trend``.
-    TR-id: ``FHKST644400C0``.
+    tr-id: ``FHKST644400C0``.
     ``tr_cont`` 미지원으로 단일 호출하며 ``output`` 배열을 반환한다.
     """
     params = {
@@ -522,7 +522,7 @@ def fetch_volume_profile(transport: Transport, *, symbol: str) -> VolumeProfile:
 
     KIS 국내주식 매물대/거래비중 API를 조회한다.
     URL: ``GET /uapi/domestic-stock/v1/quotations/pbar-tratio``.
-    TR-id: ``FHPST01130000``.
+    tr-id: ``FHPST01130000``.
     ``tr_cont`` 미지원으로 단일 호출하며 ``output1`` 요약과 ``output2`` 가격대를 반환한다.
     """
     params = {

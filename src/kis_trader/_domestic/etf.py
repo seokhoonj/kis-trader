@@ -4,7 +4,7 @@
 ETF/ETN 은 종목처럼 거래되므로 시세/주문은 일반 verb 로 하고, 여기선 NAV/괴리율/추적오차 같은 ETF
 고유 필드만 다룬다. 엔드포인트는 ``etfetn`` 세그먼트라 경로가 ``/uapi/etfetn/...`` 로 다르다.
 
-KIS URL/TR-id (KIS 명세 대조):
+KIS URL/tr-id (KIS 명세 대조):
 - ETF/ETN 현재가(NAV 포함): ``GET /uapi/etfetn/v1/quotations/inquire-price`` ``FHPST02400000``
   (``FID_COND_MRKT_DIV_CODE=J``).
 - ETF 구성종목시세: ``GET /uapi/etfetn/v1/quotations/inquire-component-stock-price`` ``FHKST121600C0``

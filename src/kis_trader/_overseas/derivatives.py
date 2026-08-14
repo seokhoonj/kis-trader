@@ -4,7 +4,7 @@
 ``kis.overseas.futures(srs_cd)`` / ``kis.overseas.option(srs_cd)``)이다. 계약은 시리즈코드(``srs_cd``)
 하나로 식별한다. 선물/옵션은 URL/TR 만 다르고 출력 구조는 같아 한 파서를 공유한다(KIS 명세 대조).
 
-KIS URL/TR-id:
+KIS URL/tr-id:
 - 선물 현재가: ``GET .../overseas-futureoption/v1/quotations/inquire-price`` ``HHDFC55010000``.
 - 옵션 현재가: ``GET .../overseas-futureoption/v1/quotations/opt-price`` ``HHDFO55010000``.
   (둘 다 파라미터 ``SRS_CD``, 응답은 ``output1`` 단일 객체.)

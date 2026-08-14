@@ -5,7 +5,7 @@
 목록이다(``output1`` 은 조회 요약). 공통 행(순위/코드/이름/현재가/전일대비/거래량/거래대금)만 매핑
 하고 순위별 고유 지표는 ``_raw`` 에 둔다.
 
-KIS URL/TR-id:
+KIS URL/tr-id:
 - 거래량순위: ``GET .../overseas-stock/v1/ranking/trade-vol`` ``HHDFS76310010``.
 """
 

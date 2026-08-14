@@ -46,7 +46,7 @@ JSONObject: TypeAlias = Mapping[str, JSONValue]
 DerivativeMarket: TypeAlias = Literal["F", "O"]
 
 #: 해외 파생 상품 구분 -- ``"future"``(선물)/``"option"``(옵션). 국내의 F/O 와 달리 보드가
-#: 아니라 상품 종류이며, 엔드포인트/TR-id 선택 키로 쓰인다.
+#: 아니라 상품 종류이며, 엔드포인트/tr-id 선택 키로 쓰인다.
 DerivativeProduct: TypeAlias = Literal["future", "option"]
 
 __all__ = [

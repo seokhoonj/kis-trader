@@ -5,7 +5,7 @@
 집행 전 체결 없음). 그래서 즉시주문 안전코어(place/reconcile)를 재사용하지 않고 이 모듈이
 예약 전용 흐름을 담는다. 발주/정정취소(뮤테이션)는 별도 슬라이스에서 dedup·무재시도로 추가한다.
 
-KIS URL/TR-id (전부 모의투자 미지원):
+KIS URL/tr-id (전부 모의투자 미지원):
 - 조회: ``GET .../trading/order-resv-ccnl`` (``CTSC0004R``).
 - 발주: ``POST .../trading/order-resv`` (``CTSC0008U``).
 - 정정취소: ``POST .../trading/order-resv-rvsecncl`` (취소 ``CTSC0009U`` / 정정 ``CTSC0013U``).
