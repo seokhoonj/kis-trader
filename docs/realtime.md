@@ -36,7 +36,7 @@ def on_tick(msg):
 ws.subscribe("H0STCNT0", "005930", on=on_tick)
 ```
 
-## 무엇을 구독하나 (TR ID)
+## 구독 대상 (TR ID)
 
 `tr_id`는 KIS 실시간 거래 코드, `tr_key`는 종목번호(6자리)·심볼·HTS ID입니다. 자주 쓰는 것:
 
