@@ -17,12 +17,14 @@ kis.domestic.ranking.by_change(direction="gainers")  # 오늘 상승률 순위
 
 투자자가 **실제로 하는 일** 위주로 코드와 함께 설명합니다. 왼쪽 차례는 파트로 묶여 있습니다.
 
-- **[빠른 시작](quickstart.md)** — 자격증명, 세션 만들기
-- **국내 주식** — [시세 보기](quotes.md) · [재무·실적](financials.md) · [종목 수급](flows.md) · [계좌·잔고·손익](account.md) · [주문](orders.md)
-- **시장·검색** — [순위·조건검색](screening.md) · [시장·지수](market.md) · [기업행위·일정](corporate-actions.md)
-- **해외·연금** — [해외주식](overseas.md) · [퇴직연금](pension.md)
-- **다른 상품** — [ETF·ETN](etf.md) · [ELW](elw.md) · [선물·옵션](derivatives.md) · [채권](bonds.md)
-- **참고** — [실시간(WebSocket)](realtime.md) · [한계·미구현](limits.md)
+| 파트 | 장 |
+|------|----|
+| **시작하기** | [빠른 시작](quickstart.md) — 자격증명, 세션 만들기 |
+| **국내 주식** | [시세 보기](quotes.md) · [재무·실적](financials.md) · [종목 수급](flows.md) · [계좌·잔고·손익](account.md) · [주문](orders.md) |
+| **시장·검색** | [순위·조건검색](screening.md) · [시장·지수](market.md) · [기업행위·일정](corporate-actions.md) |
+| **해외·연금** | [해외주식](overseas.md) · [퇴직연금](pension.md) |
+| **다른 상품** | [ETF·ETN](etf.md) · [ELW](elw.md) · [선물·옵션](derivatives.md) · [채권](bonds.md) |
+| **참고** | [실시간(WebSocket)](realtime.md) · [한계·미구현](limits.md) |
 
 ## 알아둘 것
 
