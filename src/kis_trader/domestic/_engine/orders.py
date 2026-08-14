@@ -562,7 +562,14 @@ def _fetch_daily_orders(
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         page = resp.body.get("output1")
-        rows.extend(page if isinstance(page, list) else [])  # 리스트 아니면 무시
+        if not isinstance(page, list):
+            # 성공 응답인데 output1 이 리스트가 아니면 빈 결과로 오인하지 않는다 -- '미접수'로 단정하면
+            # 이중체결 위험. fail-closed 로 올려 재시도/수동확인을 유도한다.
+            raise KISError(
+                "재조회(일별체결조회) 응답의 output1 이 리스트가 아니다 -- 부분/오응답으로 확정하지 않는다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
         ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
         # 재조회는 조기 종료 금지(체결 누락->오재주문 위험): tr_cont 정본 종료(D/E/공백)이면서

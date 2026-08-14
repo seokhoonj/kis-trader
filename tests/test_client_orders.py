@@ -104,6 +104,17 @@ def test_buy_limit_places_order():
     assert call["body"]["ORD_UNPR"] == "70000"
 
 
+@pytest.mark.parametrize("quantity", ["0", "-1"])
+@pytest.mark.parametrize("side", ["buy", "sell"])
+def test_immediate_order_rejects_nonpositive_quantity(side, quantity):
+    # 수량<=0 가드는 즉시 매수/매도 경로에서도 걸려야 하고, 거부는 와이어 전(전송 미호출)에 일어난다.
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    ticker = _client(fake).domestic.stock("005930")
+    with pytest.raises(KISUsageError):
+        getattr(ticker, side)(quantity=quantity, limit_price=70000)
+    assert fake.calls == []
+
+
 def test_buy_market_uses_market_division():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     _client(fake).domestic.stock("005930").buy(quantity=10)
@@ -485,6 +496,21 @@ def test_reconcile_empty_scan_stays_in_flight():
     with pytest.raises(OrderTimeoutError):
         kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     assert kis.orders.reconcile("ID-1") is None                 # 0건 -> 미접수로 단정 안 함(재전송 금지 유지)
+
+
+def test_reconcile_non_list_output1_fails_closed():
+    # 성공 응답인데 output1 이 리스트가 아니면(오/부분응답) 빈 결과로 오인하지 않고 fail-closed.
+    malformed = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="조회 완료",
+                            body={"output1": {"unexpected": "object"}})
+    fake = FakeTransport(by_path={
+        _ORDER_CASH: [TransportTimeout("t")],
+        _DAILY_CCLD: [malformed],
+    })
+    kis = _client(fake)
+    with pytest.raises(OrderTimeoutError):
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
+    with pytest.raises(KISError):                        # output1 비리스트 -> 미접수로 단정 금지
+        kis.orders.reconcile("ID-1")
 
 
 def test_reconcile_ambiguous_multiple_matches_raises():
