@@ -32,6 +32,7 @@ from ...report import ExecutionReport, OrderStatus
 from ...reserved_order import ReservedOrder
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ...transport import Environment, Transport, TransportTimeout
+from ._parse import _side_from_code
 from ..._internal._wire import parse_response_decimal
 
 if TYPE_CHECKING:
@@ -48,7 +49,6 @@ _CANCEL_TR = "CTSC0009U"           # 예약취소, 모의투자 미지원
 _MODIFY_TR = "CTSC0013U"           # 예약정정, 모의투자 미지원
 #: 예약주문 조회 연속조회 페이지 상한. 닿으면 fail-closed.
 _MAX_PAGES = 100
-_SIDE: dict[str, Side] = {"01": "sell", "02": "buy"}
 _SIDE_CODE = {"buy": "02", "sell": "01"}
 #: 우리 주문타입 -> ORD_DVSN_CD(예약). 00 지정가 / 01 시장가.
 _ORD_DVSN_CD = {"limit": "00", "market": "01"}
@@ -64,16 +64,6 @@ _CASH_BALANCE_DIVISION = "10"
 #: -- 어느 쪽이든 최근 예약을 포함하도록. 실 API 왕복으로 필드 의미를 확정하면 창을 좁힌다.
 _RECONCILE_LOOKBACK_DAYS = 7
 _RECONCILE_FORWARD_DAYS = 31
-
-
-def _side_from_code(code: object) -> Side:
-    """벤더 매매구분코드(01 매도 / 02 매수)를 방향으로 -- 알 수 없는 코드는 fail-closed(:class:`KISError`).
-    ``side=""`` 로 뭉개면 buy/sell 어느 쪽도 아닌 주문 레코드가 새어 이후 오귀속/오매칭을 부른다."""
-    text = str(code or "").strip()
-    try:
-        return _SIDE[text]
-    except KeyError:
-        raise KISError(f"알 수 없는 매매구분코드: {text!r} (01 매도 / 02 매수만 유효).") from None
 
 
 class _ReservedTerms(NamedTuple):

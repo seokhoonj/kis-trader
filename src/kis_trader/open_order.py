@@ -18,6 +18,7 @@ from types import MappingProxyType
 from typing import Any
 
 from ._internal._freeze import freeze_vendor_payload
+from .order import Side
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,7 +36,7 @@ class OpenOrder:
     order_id: str                     # 주문번호(odno)
     original_order_id: str            # 원주문번호(orgn_odno) -- 정정/취소 주문이 아니면 ""
     branch_number: str                # 주문채번지점번호(ord_gno_brno)
-    side: str                         # buy / sell
+    side: Side                        # buy / sell
     order_type: str                   # 주문구분명(ord_dvsn_name), 예: "지정가"
     quantity: Decimal                 # 주문수량
     filled_quantity: Decimal          # 총체결수량

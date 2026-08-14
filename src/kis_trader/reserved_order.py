@@ -14,6 +14,8 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
+from .order import Side
+
 
 @dataclass(frozen=True, slots=True)
 class ReservedOrder:
@@ -29,7 +31,7 @@ class ReservedOrder:
     received_date: date | None        # 예약주문접수일자(rsvn_ord_rcit_dt)
     symbol: str
     name: str
-    side: str                         # buy / sell
+    side: Side                        # buy / sell
     order_type_name: str              # 주문구분명(ord_dvsn_name), 예: "현금매수"
     reserved_quantity: Decimal        # 주문예약수량(ord_rsvn_qty)
     filled_quantity: Decimal          # 총체결수량(tot_ccld_qty)

@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING
 from ._engine import account as overseas_account
 from ._engine import derivatives as overseas_derivatives_api
 from ._engine import market_data as overseas_market_data_api
+from ._engine import orders as overseas_orders_api
 from ._engine import reference as overseas_reference_api
 from ._engine import reserved_orders as overseas_reserved_orders_api
 from ..errors import KISUsageError
@@ -169,7 +170,7 @@ class OverseasAccount:
         """미체결(열린) 주문. 거래소 주문번호·미체결 잔량을 준다. ``market`` 생략(``None``)하면 **전체 시장
         그룹을 순회해 합친다**. **모의투자 미지원**."""
         cano, product_code = self._c._require_account()
-        return overseas_account.fetch_open_orders(
+        return overseas_orders_api.fetch_open_orders(
             self._c.transport, cano=cano, product_code=product_code,
             environment=self._c.environment, market=market,
         )
@@ -178,7 +179,7 @@ class OverseasAccount:
         """알고(TWAP/VWAP 등 분할집행) 주문 목록. 각 건의 ``order_id``/``branch_number`` 로 :meth:`algo_executions`
         를 조회한다. **모의투자 미지원**."""
         cano, product_code = self._c._require_account()
-        return overseas_account.fetch_algo_orders(
+        return overseas_orders_api.fetch_algo_orders(
             self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment
         )
 
@@ -188,7 +189,7 @@ class OverseasAccount:
         """한 알고주문의 체결내역. ``order_id`` 는 :meth:`algo_orders` 의 주문번호, ``order_date``(YYYYMMDD)는
         주문일자, ``branch_number`` 는 그 주문의 채번지점번호. **모의투자 미지원**."""
         cano, product_code = self._c._require_account()
-        return overseas_account.fetch_algo_executions(
+        return overseas_orders_api.fetch_algo_executions(
             self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
             order_date=order_date, order_id=order_id, branch_number=branch_number,
         )
