@@ -17,7 +17,7 @@ if TYPE_CHECKING:
     from datetime import date
 
     from ..client import KISClient
-    from ..market_items import (
+    from .entities.market import (
         BrokerOpinion,
         CreditEligibleStock,
         ForeignBrokerFlow,

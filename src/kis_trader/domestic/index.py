@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from ._engine import index as index_api
 from ..bar import Bar, Interval
-from ..index_items import (
+from .entities.index import (
     ExpectedIndexPoint,
     ExpectedIndexSnapshot,
     IndexCategories,

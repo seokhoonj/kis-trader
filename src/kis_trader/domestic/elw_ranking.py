@@ -1,7 +1,7 @@
 """ELW 시장 순위 네임스페이스 -- :class:`ELWRankingQueries`.
 
 ``kis.domestic.elw_ranking.by_volume()`` 처럼, 개별 ELW 가 아니라 **시장 전체 ELW** 를 어떤 기준으로 줄
-세운 결과(:class:`~kis_trader.elw_items.RankedELW` 리스트)를 돌려준다. 종목 순위(``kis.domestic.ranking``)
+세운 결과(:class:`~kis_trader.domestic.entities.elw.RankedELW` 리스트)를 돌려준다. 종목 순위(``kis.domestic.ranking``)
 와 나란한 ELW 판이되, ELW 순위는 지표(그릭스·레버리지·변동성)가 고유해 별도 네임스페이스로 둔다.
 
 직접 만들지 않고 ``kis.domestic.elw_ranking`` 로 얻는다. 각 순위는 한 번에
@@ -17,7 +17,7 @@ from ._engine import elw as elw_api
 
 if TYPE_CHECKING:
     from ..client import KISClient
-    from ..elw_items import RankedELW
+    from .entities.elw import RankedELW
 
 
 class ELWRankingQueries:

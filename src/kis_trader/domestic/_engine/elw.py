@@ -38,7 +38,7 @@ from ..._internal._wire import (
     required_decimal,
     required_int,
 )
-from ...elw_items import (
+from ..entities.elw import (
     ELWIndicatorPoint,
     ELWListing,
     ELWLPFlow,

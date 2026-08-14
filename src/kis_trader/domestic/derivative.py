@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._engine import derivatives as derivatives_api
-from ..derivative_items import DerivativeQuote, ExpectedExecutionTrend, UnderlyingQuote
+from .entities.derivative import DerivativeQuote, ExpectedExecutionTrend, UnderlyingQuote
 
 if TYPE_CHECKING:
     from datetime import date

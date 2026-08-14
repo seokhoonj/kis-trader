@@ -11,14 +11,14 @@ Securities (KIS) Open API.
 from __future__ import annotations
 
 from ._internal._masters import InstrumentRecord, MasterIndex
-from .account_reports import (
+from .domestic.entities.account_reports import (
     IntegratedMargin,
     RealizedProfitBalance,
     RealizedProfitPosition,
 )
-from .account_right import AccountRight
-from .after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
-from .analysis import (
+from .domestic.entities.account_right import AccountRight
+from .domestic.entities.after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
+from .domestic.entities.analysis import (
     AnalystOpinion,
     CreditBalancePoint,
     DailyTradeVolumePoint,
@@ -35,17 +35,17 @@ from .analysis import (
     VolumeAtPrice,
     VolumeProfile,
 )
-from .balance import AccountAssets, Balance, Portfolio, Position
+from .domestic.entities.balance import AccountAssets, Balance, Portfolio, Position
 from .bar import Bar, Interval
 from .domestic.bond import Bond
-from .bond_items import (
+from .domestic.entities.bond import (
     BondDailyPrice,
     BondIssuance,
     BondProfile,
     BondQuote,
     BondValuation,
 )
-from .broker import (
+from .domestic.entities.broker import (
     BrokerActivity,
     BrokerActivitySummary,
     BrokerDailyActivity,
@@ -53,7 +53,7 @@ from .broker import (
     BrokerTradeTicks,
 )
 from .domestic.calendar import CalendarQueries
-from .calendar_items import (
+from .domestic.entities.calendar import (
     AppraisalRights,
     BonusIssue,
     CapitalReduction,
@@ -69,7 +69,7 @@ from .calendar_items import (
 )
 from .client import KISClient
 from .domestic.derivative import FuturesContract, OptionContract
-from .derivative_items import (
+from .domestic.entities.derivative import (
     DerivativeQuote,
     ExpectedExecutionPoint,
     ExpectedExecutionTrend,
@@ -81,7 +81,7 @@ from .derivative_items import (
 )
 from .domestic.stock import DomesticStock
 from .domestic.elw import ELW
-from .elw_items import (
+from .domestic.entities.elw import (
     ELWIndicatorPoint,
     ELWListing,
     ELWLPFlow,
@@ -93,7 +93,7 @@ from .elw_items import (
 )
 from .domestic.elw_ranking import ELWRankingQueries
 from .domestic.elw_screener import ELWScreenerQueries
-from .etf_items import (
+from .domestic.entities.etf import (
     ETFNAV,
     ETFComponent,
     ETFComponents,
@@ -103,7 +103,7 @@ from .etf_items import (
     ETFNAVMinutePoint,
     ETFOrderBook,
 )
-from .financials import (
+from .domestic.entities.financials import (
     BalanceSheet,
     FinancialRatio,
     GrowthRatio,
@@ -113,7 +113,7 @@ from .financials import (
     StabilityRatio,
 )
 from .domestic.index import Index
-from .index_items import (
+from .domestic.entities.index import (
     CategoryIndex,
     ExpectedIndexPoint,
     ExpectedIndexQuote,
@@ -124,7 +124,7 @@ from .index_items import (
     IndexIntradayPoint,
     IndexQuote,
 )
-from .investor import (
+from .domestic.entities.investor import (
     DetailedInvestorFlow,
     DetailedInvestorHistory,
     InvestorActivity,
@@ -134,7 +134,7 @@ from .investor import (
 )
 from .domestic.market import MarketQueries
 from .news import NewsHeadline
-from .market_items import (
+from .domestic.entities.market import (
     BrokerOpinion,
     CreditEligibleStock,
     ForeignBrokerFlow,
@@ -205,11 +205,11 @@ from .pension_items import (
     PensionOrder,
     PensionPresentBalance,
 )
-from .product import ProductInfo
-from .program import DailyProgramTradePoint, ProgramTradeActivity, ProgramTradePoint
+from .domestic.entities.product import ProductInfo
+from .domestic.entities.program import DailyProgramTradePoint, ProgramTradeActivity, ProgramTradePoint
 from .quote import Quote
 from .domestic.ranking import RankingQueries
-from .ranking_items import (
+from .domestic.entities.ranking import (
     AfterHoursBalanceRanking,
     CreditBalanceRanking,
     DividendRanking,
@@ -222,17 +222,17 @@ from .ranking_items import (
 from .report import ExecutionReport, OrderStatus
 from .reserved_order import ReservedOrder
 from .risk import RiskLimits
-from .saved_screen import (
+from .domestic.entities.saved_screen import (
     SavedScreen,
     SavedScreenStock,
     Watchlist,
     WatchlistGroup,
     WatchlistStock,
 )
-from .stock_info import StockProfile, StockStatus
+from .domestic.entities.stock_info import StockProfile, StockStatus
 from .store import OrderStore
 from .trade import Trade
-from .trade_profit import (
+from .domestic.entities.trade_profit import (
     DailyProfit,
     DailyProfitHistory,
     TradeProfit,

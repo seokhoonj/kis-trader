@@ -20,8 +20,8 @@ from ._engine import etf as etf_api
 from ._engine import finance as finance_api
 from ._engine import market_data
 from .._stock_base import _StockBase
-from ..after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
-from ..analysis import (
+from .entities.after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
+from .entities.analysis import (
     AnalystOpinion,
     CreditBalancePoint,
     DailyTradeVolumePoint,
@@ -36,9 +36,9 @@ from ..analysis import (
     VolumeProfile,
 )
 from ..bar import Bar, Interval
-from ..broker import BrokerActivitySummary, BrokerDailyActivity, BrokerTradeTicks
+from .entities.broker import BrokerActivitySummary, BrokerDailyActivity, BrokerTradeTicks
 from ..errors import KISUsageError
-from ..etf_items import (
+from .entities.etf import (
     ETFNAV,
     ETFComponents,
     ETFNAVComparison,
@@ -46,7 +46,7 @@ from ..etf_items import (
     ETFNAVMinutePoint,
     ETFOrderBook,
 )
-from ..financials import (
+from .entities.financials import (
     BalanceSheet,
     FinancialRatio,
     GrowthRatio,
@@ -56,14 +56,14 @@ from ..financials import (
     StabilityRatio,
 )
 from ..instrument import DomesticBoard, resolve_market
-from ..investor import DetailedInvestorHistory, InvestorEstimate, InvestorFlow
+from .entities.investor import DetailedInvestorHistory, InvestorEstimate, InvestorFlow
 from ..order import CreditType, DomesticDivision, Order, Side, TimeInForce
 from ..order_book import OrderBook
 from ..orderable import BuyableAmount, SellableQuantity
-from ..program import DailyProgramTradePoint, ProgramTradePoint
+from .entities.program import DailyProgramTradePoint, ProgramTradePoint
 from ..quote import Quote
 from ..report import ExecutionReport
-from ..stock_info import StockProfile, StockStatus
+from .entities.stock_info import StockProfile, StockStatus
 from ..trade import Trade
 
 if TYPE_CHECKING:

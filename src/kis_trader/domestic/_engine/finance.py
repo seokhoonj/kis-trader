@@ -20,7 +20,7 @@ from ..._internal._response import (
     _raise_if_error,
 )
 from ..._internal._wire import optional_decimal, required_decimal
-from ...financials import (
+from ..entities.financials import (
     BalanceSheet,
     FinancialRatio,
     GrowthRatio,

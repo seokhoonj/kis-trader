@@ -17,8 +17,8 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
-from ._internal._freeze import freeze_vendor_payload
-from .order_book import OrderBook, PriceLevel
+from ..._internal._freeze import freeze_vendor_payload
+from ...order_book import OrderBook, PriceLevel
 
 
 @dataclass(frozen=True, slots=True)

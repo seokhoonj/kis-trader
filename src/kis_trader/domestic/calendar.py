@@ -16,7 +16,7 @@ from ._engine import ksd as ksd_api
 if TYPE_CHECKING:
     from datetime import date
 
-    from ..calendar_items import (
+    from .entities.calendar import (
         AppraisalRights,
         BonusIssue,
         CapitalReduction,

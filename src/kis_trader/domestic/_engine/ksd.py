@@ -20,7 +20,7 @@ from ..._internal._response import (
     _require_mapping_rows,
 )
 from ..._internal._wire import optional_decimal, optional_int
-from ...calendar_items import (
+from ..entities.calendar import (
     AppraisalRights,
     BonusIssue,
     CapitalReduction,

@@ -15,7 +15,7 @@ from ..._internal._wire import (
     required_int,
 )
 from ...errors import KISUsageError
-from ...saved_screen import (
+from ..entities.saved_screen import (
     SavedScreen,
     SavedScreenStock,
     Watchlist,

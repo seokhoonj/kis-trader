@@ -3,7 +3,7 @@
 해외 잔고가 돌려주는 보유 종목(``kis.overseas.account.positions``)과 계좌
 손익 요약(``kis.overseas.account.balance``). 금액은 종목/조회 통화
 (USD/HKD/JPY/...)라 :class:`~kis_trader.money.Money` 로 통화를 함께 담는다 -- 국내
-:class:`~kis_trader.balance.Position`(KRW Decimal)와 달리 다통화이기 때문이다.
+:class:`~kis_trader.domestic.entities.balance.Position`(KRW Decimal)와 달리 다통화이기 때문이다.
 """
 
 from __future__ import annotations

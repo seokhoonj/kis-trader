@@ -40,15 +40,15 @@ from ..._internal._wire import (
     required_decimal,
     required_int,
 )
-from ...after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
-from ...analysis import (
+from ..entities.after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
+from ..entities.analysis import (
     IntradayExecutionPoint,
     IntradayExecutions,
     IntradayExecutionSummary,
     RecentPricePoint,
 )
 from ...bar import Bar, Interval
-from ...broker import (
+from ..entities.broker import (
     BrokerActivity,
     BrokerActivitySummary,
     BrokerDailyActivity,
@@ -56,7 +56,7 @@ from ...broker import (
     BrokerTradeTicks,
 )
 from ...errors import KISError, KISUsageError
-from ...investor import (
+from ..entities.investor import (
     DetailedInvestorFlow,
     DetailedInvestorHistory,
     InvestorActivity,
@@ -64,9 +64,9 @@ from ...investor import (
     InvestorFlow,
 )
 from ...order_book import OrderBook
-from ...program import DailyProgramTradePoint, ProgramTradePoint
+from ..entities.program import DailyProgramTradePoint, ProgramTradePoint
 from ...quote import Quote
-from ...stock_info import StockProfile, StockStatus
+from ..entities.stock_info import StockProfile, StockStatus
 from ...trade import Trade
 from ...transport import Transport
 

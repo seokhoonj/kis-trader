@@ -5,7 +5,7 @@ ELW 가 상장된 기초자산 목록, 한 기초자산의 ELW 들, 신규상장
 (``kis.domestic.elw_ranking``)가 "줄 세우기"라면 스크리너는 "골라내기"다.
 
 직접 만들지 않고 ``kis.domestic.elw_screener`` 로 얻는다. 목록 행은
-:class:`~kis_trader.elw_items.ELWListing`(기초자산 목록만 :class:`~kis_trader.elw_items.ELWUnderlying`).
+:class:`~kis_trader.domestic.entities.elw.ELWListing`(기초자산 목록만 :class:`~kis_trader.domestic.entities.elw.ELWUnderlying`).
 """
 
 from __future__ import annotations
@@ -16,7 +16,7 @@ from ._engine import elw as elw_api
 
 if TYPE_CHECKING:
     from ..client import KISClient
-    from ..elw_items import ELWListing, ELWUnderlying
+    from .entities.elw import ELWListing, ELWUnderlying
 
 
 class ELWScreenerQueries:

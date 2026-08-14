@@ -1,7 +1,7 @@
 """기간별 매매손익(DATA) -- :class:`TradeProfit`/:class:`TradeProfitHistory`(종목별),
 :class:`DailyProfit`/:class:`DailyProfitHistory`(일별합산).
 
-체결된 매매의 **실현손익** 원장이다. 미실현 평가손익(:class:`~kis_trader.balance.Position`)과
+체결된 매매의 **실현손익** 원장이다. 미실현 평가손익(:class:`~kis_trader.domestic.entities.balance.Position`)과
 달리 매도로 확정된 손익을 기간별로 본다. 종목별(:class:`TradeProfit`)은 종목/매매 한 줄, 일별
 (:class:`DailyProfit`)은 하루 합산 한 줄이다. 각 History 컨테이너가 그 목록과 기간 총계를 담는다.
 금액은 KRW Decimal.
@@ -16,7 +16,7 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
-from ._internal._freeze import freeze_vendor_payload
+from ..._internal._freeze import freeze_vendor_payload
 
 
 @dataclass(frozen=True, slots=True)

@@ -44,11 +44,11 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from datetime import date
 
-    from .account_reports import IntegratedMargin, RealizedProfitBalance
-    from .account_right import AccountRight
-    from .balance import AccountAssets, Balance, Portfolio, Position
+    from .domestic.entities.account_reports import IntegratedMargin, RealizedProfitBalance
+    from .domestic.entities.account_right import AccountRight
+    from .domestic.entities.balance import AccountAssets, Balance, Portfolio, Position
     from .client import KISClient
-    from .derivative_items import FuturesBoardQuote, OptionBoard, OptionExpiry
+    from .domestic.entities.derivative import FuturesBoardQuote, OptionBoard, OptionExpiry
     from .instrument import DomesticBoard
     from .news import NewsHeadline
     from .open_order import OpenOrder
@@ -88,12 +88,12 @@ if TYPE_CHECKING:
         PensionOrder,
         PensionPresentBalance,
     )
-    from .product import ProductInfo
+    from .domestic.entities.product import ProductInfo
     from .quote import Quote
     from .report import ExecutionReport
     from .reserved_order import ReservedOrder
-    from .saved_screen import SavedScreen, SavedScreenStock, Watchlist, WatchlistGroup
-    from .trade_profit import DailyProfitHistory, TradeProfitHistory
+    from .domestic.entities.saved_screen import SavedScreen, SavedScreenStock, Watchlist, WatchlistGroup
+    from .domestic.entities.trade_profit import DailyProfitHistory, TradeProfitHistory
 
 # 해외 지수류 kind -> FID_COND_MRKT_DIV_CODE. ``kis.overseas.index`` 가 쓴다.
 _OVERSEAS_INDEX_KIND = {"index": "N", "fx": "X", "bond": "I", "gold": "S"}

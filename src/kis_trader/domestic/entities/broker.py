@@ -13,7 +13,7 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
-from ._internal._freeze import freeze_vendor_payload
+from ..._internal._freeze import freeze_vendor_payload
 
 
 @dataclass(frozen=True, slots=True)

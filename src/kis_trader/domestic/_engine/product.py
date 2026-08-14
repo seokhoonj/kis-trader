@@ -11,7 +11,7 @@ from ..._internal._response import (
     _raise_if_error,
 )
 from ...errors import KISUsageError
-from ...product import ProductInfo
+from ..entities.product import ProductInfo
 from ...transport import Transport
 
 _PRODUCT_INFO_PATH = "/uapi/domestic-stock/v1/quotations/search-info"

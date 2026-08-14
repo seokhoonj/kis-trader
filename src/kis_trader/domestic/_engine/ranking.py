@@ -66,7 +66,7 @@ from ..._internal._wire import (
     required_int,
 )
 from ...errors import KISUsageError
-from ...ranking_items import (
+from ..entities.ranking import (
     AfterHoursBalanceRanking,
     CreditBalanceRanking,
     DividendRanking,

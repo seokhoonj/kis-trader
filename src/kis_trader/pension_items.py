@@ -14,7 +14,7 @@ from types import MappingProxyType
 from typing import Any
 
 from ._internal._freeze import freeze_vendor_payload
-from .balance import Position
+from .domestic.entities.balance import Position
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,7 +41,7 @@ class PensionDeposit:
 class PensionBalance:
     """퇴직연금 잔고(불변) -- 보유종목과 예수금 기준 계좌 요약을 한 스냅샷으로.
 
-    ``positions`` 보유종목(:class:`~kis_trader.balance.Position` 재사용), ``total_deposit`` 예수금총액,
+    ``positions`` 보유종목(:class:`~kis_trader.domestic.entities.balance.Position` 재사용), ``total_deposit`` 예수금총액,
     ``next_day_estimated_settlement_amount`` 익일정산액, ``prior_settlement`` 가수도정산금액, ``securities_evaluation``
     유가평가금액, ``total_evaluation`` 총평가금액, ``today_buy_amount``/``today_sell_amount`` 당일 매수/매도금액.
     """

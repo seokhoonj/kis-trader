@@ -17,7 +17,7 @@ from ._engine import elw as elw_api
 if TYPE_CHECKING:
     from ._engine.elw import TrendInterval
     from ..client import KISClient
-    from ..elw_items import (
+    from .entities.elw import (
         ELWIndicatorPoint,
         ELWLPFlow,
         ELWQuote,

@@ -20,7 +20,7 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
-from ._internal._freeze import freeze_vendor_payload
+from ..._internal._freeze import freeze_vendor_payload
 
 
 def _empty_raw() -> Mapping[str, Any]:

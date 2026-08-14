@@ -40,7 +40,7 @@ from ..._internal._wire import (
     required_int,
 )
 from ...errors import KISUsageError
-from ...etf_items import (
+from ..entities.etf import (
     ETFNAV,
     ETFComponent,
     ETFComponents,

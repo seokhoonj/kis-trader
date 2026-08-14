@@ -17,7 +17,7 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
-from ._internal._freeze import freeze_vendor_payload
+from ..._internal._freeze import freeze_vendor_payload
 
 
 @dataclass(frozen=True, slots=True)
@@ -229,7 +229,7 @@ class ELWListing:
 class RankedELW:
     """시장 전체 ELW 순위의 한 행(불변).
 
-    :class:`~kis_trader.ranking_items.RankedStock` 과 대칭인 ELW 판으로, 어떤 기준으로 줄 세운
+    :class:`~kis_trader.domestic.entities.ranking.RankedStock` 과 대칭인 ELW 판으로, 어떤 기준으로 줄 세운
     ELW 목록의 낱개 행이다. 공통 축(순위/코드/이름/가격/전일대비/거래량)만 담고, 순위 종류마다
     다른 고유 지표(그릭스·레버리지·회전율·호가잔량 등)는 ``_raw`` 에 있다. ``rank`` 는 응답 순서
     기반 1-베이스 순위다(KIS 가 별도 순위 필드를 주지 않음).

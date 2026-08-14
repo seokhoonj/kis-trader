@@ -49,7 +49,7 @@ from ..._internal._wire import (
     required_int,
 )
 from ...bar import Bar, Interval
-from ...derivative_items import (
+from ..entities.derivative import (
     DerivativeQuote,
     ExpectedExecutionPoint,
     ExpectedExecutionTrend,

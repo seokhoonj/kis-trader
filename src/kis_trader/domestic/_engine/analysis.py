@@ -38,7 +38,7 @@ from ..._internal._wire import (
     required_decimal,
     required_int,
 )
-from ...analysis import (
+from ..entities.analysis import (
     AnalystOpinion,
     CreditBalancePoint,
     DailyTradeVolumePoint,

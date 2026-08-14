@@ -49,7 +49,7 @@ from ..._internal._wire import (
 )
 from ...bar import Bar, Interval
 from ...errors import KISUsageError
-from ...index_items import (
+from ..entities.index import (
     CategoryIndex,
     ExpectedIndexPoint,
     ExpectedIndexQuote,

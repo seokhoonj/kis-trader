@@ -35,9 +35,9 @@ from ..._internal._wire import (
     required_int,
 )
 from ...errors import KISUsageError
-from ...investor import InvestorActivity, InvestorNetActivity
+from ..entities.investor import InvestorActivity, InvestorNetActivity
 from ...news import NewsHeadline
-from ...market_items import (
+from ..entities.market import (
     BrokerOpinion,
     CreditEligibleStock,
     ForeignBrokerFlow,
@@ -56,7 +56,7 @@ from ...market_items import (
     TradingDay,
     VIEvent,
 )
-from ...program import ProgramTradeActivity
+from ..entities.program import ProgramTradeActivity
 from ...transport import RawResponse, Transport
 
 _INVESTOR_BY_MARKET_PATH = "/uapi/domestic-stock/v1/quotations/inquire-investor-daily-by-market"
