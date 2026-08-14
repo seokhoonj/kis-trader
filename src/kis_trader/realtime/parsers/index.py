@@ -1,10 +1,10 @@
-"""국내지수 실시간 파서 -- 예상체결 / 프로그램매매.
+"""국내지수 실시간 파서 -- 체결 / 예상체결 / 프로그램매매.
 
 원장 Response Body 필드순을 그대로 ``^`` 인덱스에 매핑한다(필드순이 정본). 자산군 엔티티는
 :mod:`..messages` 의 스타일(frozen dataclass, 산업표준 영어 식별자, 한국어 docstring,
 ``_raw`` = 전체 Element->원문, 숫자는 :class:`~decimal.Decimal`)을 그대로 따른다.
 
-실시간체결(H0UPCNT0)은 원장에서 필드 레이아웃을 아직 확보하지 못해 파서를 등록하지 않는다.
+체결(H0UPCNT0)과 예상체결(H0UPANC0)은 동일한 30필드 레이아웃을 공유한다.
 """
 
 from __future__ import annotations
@@ -86,6 +86,35 @@ class ExpectedConclusion:
 
 
 @dataclass(frozen=True, slots=True)
+class IndexTick:
+    """국내지수 실시간체결(H0UPCNT0). 실시간 지수 레벨·등락·거래량·등락종목수(breadth).
+
+    예상체결(:class:`ExpectedConclusion`, H0UPANC0)과 동일한 30필드 레이아웃을 공유하되
+    값이 예상이 아닌 실제 체결 지수다. 전체 필드는 ``_raw`` 에 있다.
+    """
+
+    sector_code: str  # 업종 구분 코드
+    time: str  # HHMMSS
+    index_value: Decimal  # 현재가 지수
+    change_sign: str  # 전일 대비 부호 1상한 2상승 3보합 4하한 5하락
+    change: Decimal  # 업종 지수 전일 대비
+    change_percent: Decimal  # 전일 대비율
+    accumulated_volume: Decimal
+    accumulated_value: Decimal  # 누적 거래대금
+    open: Decimal  # 시가 지수
+    high: Decimal  # 지수 최고가
+    low: Decimal  # 지수 최저가
+    rising_count: Decimal  # 상승 종목 수
+    unchanged_count: Decimal  # 보합 종목 수
+    falling_count: Decimal  # 하락 종목 수
+    upper_limit_count: Decimal  # 상한 종목 수
+    lower_limit_count: Decimal  # 하한 종목 수
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class ProgramTrade:
     """국내지수 실시간 프로그램매매(H0UPPGM0). 차익/비차익, 위탁/자기, 순매수 수량/대금 등.
 
@@ -130,6 +159,33 @@ def parse_expected_conclusion(fields: list[str]) -> ExpectedConclusion:
     )
 
 
+def parse_index_tick(fields: list[str]) -> IndexTick:
+    """H0UPCNT0 한 레코드(30필드) -> :class:`IndexTick`.
+
+    예상체결(H0UPANC0)과 동일한 30필드 레이아웃이라 그 튜플을 공유한다.
+    """
+    raw = MappingProxyType(dict(zip(_EXPECTED_CONCLUSION_FIELDS, fields, strict=False)))
+    return IndexTick(
+        sector_code=raw["BSTP_CLS_CODE"],
+        time=raw["BSOP_HOUR"],
+        index_value=_decimal(raw["PRPR_NMIX"]),
+        change_sign=raw["PRDY_VRSS_SIGN"],
+        change=_decimal(raw["BSTP_NMIX_PRDY_VRSS"]),
+        change_percent=_decimal(raw["PRDY_CTRT"]),
+        accumulated_volume=_decimal(raw["ACML_VOL"]),
+        accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
+        open=_decimal(raw["OPRC_NMIX"]),
+        high=_decimal(raw["NMIX_HGPR"]),
+        low=_decimal(raw["NMIX_LWPR"]),
+        rising_count=_decimal(raw["ASCN_ISSU_CNT"]),
+        unchanged_count=_decimal(raw["STNR_ISSU_CNT"]),
+        falling_count=_decimal(raw["DOWN_ISSU_CNT"]),
+        upper_limit_count=_decimal(raw["UPLM_ISSU_CNT"]),
+        lower_limit_count=_decimal(raw["LSLM_ISSU_CNT"]),
+        _raw=raw,
+    )
+
+
 def parse_program_trade(fields: list[str]) -> ProgramTrade:
     """H0UPPGM0 한 레코드(88필드) -> :class:`ProgramTrade`."""
     raw = MappingProxyType(dict(zip(_PROGRAM_TRADE_FIELDS, fields, strict=False)))
@@ -148,5 +204,6 @@ def parse_program_trade(fields: list[str]) -> ProgramTrade:
     )
 
 
+register(TRSpec("H0UPCNT0", field_count=len(_EXPECTED_CONCLUSION_FIELDS), parser=parse_index_tick))
 register(TRSpec("H0UPANC0", field_count=len(_EXPECTED_CONCLUSION_FIELDS), parser=parse_expected_conclusion))
 register(TRSpec("H0UPPGM0", field_count=len(_PROGRAM_TRADE_FIELDS), parser=parse_program_trade))

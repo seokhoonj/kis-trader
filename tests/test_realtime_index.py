@@ -11,10 +11,33 @@ from decimal import Decimal
 from kis_trader.realtime import _registry
 from kis_trader.realtime.parsers.index import (
     ExpectedConclusion,
+    IndexTick,
     ProgramTrade,
     parse_expected_conclusion,
+    parse_index_tick,
     parse_program_trade,
 )
+
+
+def test_parse_index_tick_shares_layout_and_registers():
+    # H0UPCNT0(체결)은 H0UPANC0(예상체결)과 동일한 30필드 레이아웃을 공유한다.
+    fields = _expected_conclusion_fields()
+    fields[22] = "3"  # UPLM_ISSU_CNT -> upper_limit_count
+    fields[26] = "1"  # LSLM_ISSU_CNT -> lower_limit_count
+    tick = parse_index_tick(fields)
+    assert isinstance(tick, IndexTick)
+    assert tick.sector_code == "0001"
+    assert tick.time == "153000"
+    assert tick.index_value == Decimal("2650.55")
+    assert tick.change == Decimal("12.30")
+    assert tick.change_percent == Decimal("0.47")
+    assert tick.rising_count == Decimal("480")
+    assert tick.falling_count == Decimal("360")
+    assert tick.upper_limit_count == Decimal("3")
+    assert tick.lower_limit_count == Decimal("1")
+    assert len(tick._raw) == 30
+    spec = _registry.lookup("H0UPCNT0")
+    assert spec is not None and spec.field_count == 30
 
 
 def _expected_conclusion_fields() -> list[str]:
