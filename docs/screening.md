@@ -6,11 +6,11 @@
 **후보를 모두** 돌려줍니다 — 코드를 골라 `stock()`에 넘기세요. (`stock()`은 이름을 받지 않습니다.)
 
 ```python
-kis.domestic.search("삼성전자")                  # 이름으로 후보 찾기
+kis.domestic.search("삼성전자")
 kis.domestic.search("에코프로", market="KOSDAQ")  # 부분매치, 시장 한정(all/KOSPI/KOSDAQ)
 
 hits = kis.domestic.search("카카오")
-kis.domestic.stock(hits[0].symbol).quote()   # 골라서 시세 조회
+kis.domestic.stock(hits[0].symbol).quote()
 ```
 
 각 후보(`DomesticListing`)는 `symbol`(6자리 코드) / `name` / `market`. 첫 호출은 KOSPI·KOSDAQ
@@ -55,7 +55,7 @@ r.by_views()                                     # HTS 조회 상위
 HTS에 저장해둔 조건검색을 불러 실행합니다.
 
 ```python
-uid = "your_hts_id"  # 조건검색·관심종목은 HTS 로그인 ID 가 필요합니다
+uid = "your_hts_id"                                  # 조건검색·관심종목은 HTS 로그인 ID 가 필요합니다
 
 kis.domestic.saved_screens(uid)                      # 저장된 조건 목록
 kis.domestic.saved_screen_stocks(uid, sequence="0")  # 특정 조건의 종목들

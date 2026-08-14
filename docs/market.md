@@ -7,9 +7,9 @@
 ```python
 s = kis.domestic.stock("005930")
 
-s.investor_flows()             # 개인/외국인/기관 매매동향
-s.foreign_net_buy_trend()      # 외국인 순매수 추이
-s.detailed_investor_history()  # 상세 투자자별
+s.investor_flows()                # 개인/외국인/기관 매매동향
+s.foreign_net_buy_trend()         # 외국인 순매수 추이
+s.detailed_investor_history()     # 상세 투자자별
 ```
 
 ## 프로그램 매매

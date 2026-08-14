@@ -50,8 +50,8 @@ for b in bars[-5:]:  # 최근 5봉
 
 ```python
 ob = s.order_book()
-best_bid = ob.bids[0]  # 최우선 매수호가
-best_ask = ob.asks[0]  # 최우선 매도호가
+best_bid = ob.bids[0]                                # 최우선 매수호가
+best_ask = ob.asks[0]                                # 최우선 매도호가
 print(best_bid.price, best_bid.quantity)
 print(ob.total_bid_quantity, ob.total_ask_quantity)  # 총 매수/매도 잔량
 ```
@@ -91,10 +91,10 @@ s.after_hours_conclusions()  # 시간외 체결
 ## 지수·해외
 
 ```python
-kis.domestic.index("KOSPI").quote()   # 이름으로 (업종코드 "0001" 도 가능)
-kis.domestic.index("KOSDAQ").quote()  # 이름으로 (업종코드 "1001" 도 가능)
+kis.domestic.index("KOSPI").quote()                      # 이름으로 (업종코드 "0001" 도 가능)
+kis.domestic.index("KOSDAQ").quote()                     # 이름으로 (업종코드 "1001" 도 가능)
 
-kis.overseas.stock("AAPL").quote()    # 거래소 자동 (NAS)
+kis.overseas.stock("AAPL").quote()                       # 거래소 자동 (NAS)
 kis.overseas.stock("AAPL").bars("1d", start="20240101")
 ```
 

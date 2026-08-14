@@ -43,14 +43,14 @@ s.reserve_buy(quantity=1, limit_price=150)    # 미국 예약 (장 열리기 전
 ```python
 a = kis.overseas.account
 
-a.positions(market=None)                     # None = 전체 시장 합산
-a.balance(market="US")                       # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
-a.present_balance()                          # 체결기준 잔고 (오늘 체결분 포함)
-a.settlement_balance(basis_date="20240630")  # 결제기준 잔고 (결제일 기준)
+a.positions(market=None)                             # None = 전체 시장 합산
+a.balance(market="US")                               # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
+a.present_balance()                                  # 체결기준 잔고 (오늘 체결분 포함)
+a.settlement_balance(basis_date="20240630")          # 결제기준 잔고 (결제일 기준)
 a.buyable(symbol="AAPL", exchange="NAS", price=150)
 a.period_profit(start="20240101", end="20240630")
 a.transactions(start="20240101", end="20240630")
-a.foreign_margin()  # 통화별 외화 증거금
+a.foreign_margin()                                   # 통화별 외화 증거금
 ```
 
 ::: {.callout-note}
@@ -67,10 +67,10 @@ a.foreign_margin()  # 통화별 외화 증거금
 
 ```python
 r = kis.overseas.ranking
-r.by_change(exchange="NAS")  # 모든 순위가 거래소(exchange)를 받습니다
+r.by_change(exchange="NAS")                                                                # 모든 순위가 거래소(exchange)를 받습니다
 r.by_volume(exchange="NAS"); r.by_amount(exchange="NAS"); r.by_market_cap(exchange="NAS")
 
-kis.overseas.search_stocks("NAS", price=(10, 500), change_percent=(5, 30))  # 거래소 + 범위 조건
+kis.overseas.search_stocks("NAS", price=(10, 500), change_percent=(5, 30))                 # 거래소 + 범위 조건
 kis.overseas.news(…)
-kis.overseas.industries("NAS")  # 업종
+kis.overseas.industries("NAS")                                                             # 업종
 ```

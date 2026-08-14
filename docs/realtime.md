@@ -7,15 +7,15 @@
 ## 기본 사용 (동기)
 
 ```python
-ws = kis.realtime()                                  # /oauth2/Approval 로 접속키 발급
+ws = kis.realtime()                           # /oauth2/Approval 로 접속키 발급
 
-ws.subscribe("H0STCNT0", "005930", on=print)         # 삼성전자 실시간 체결(콜백)
-ws.start()                                           # 백그라운드 스레드에서 수신 시작
+ws.subscribe("H0STCNT0", "005930", on=print)  # 삼성전자 실시간 체결(콜백)
+ws.start()                                    # 백그라운드 스레드에서 수신 시작
 
-for tick in ws.stream():                             # 또는 이터레이터로
+for tick in ws.stream():                      # 또는 이터레이터로
     print(tick.tr_id, tick.data.current_price, tick.data.trade_volume)
 
-ws.stop()                                            # 종료 (with 문도 가능)
+ws.stop()                                     # 종료 (with 문도 가능)
 ```
 
 `subscribe`는 `start` 전에 불러도 되고(연결 후 자동 전송), 후에 불러도 됩니다. 수신 메시지는

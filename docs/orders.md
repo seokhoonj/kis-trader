@@ -8,8 +8,8 @@
 ```python
 s = kis.domestic.stock("005930")
 
-r = s.buy(quantity=10, limit_price=70000)  # 1) 지정가 매수
-print(r.client_order_id, r.status)         #    -> 주문 키, 상태
+r = s.buy(quantity=10, limit_price=70000)                # 1) 지정가 매수
+print(r.client_order_id, r.status)                       #    -> 주문 키, 상태
 
 kis.orders.reconcile(r.client_order_id)                  # 2) 실제 접수됐는지 확인
 kis.orders.modify(r.client_order_id, limit_price=70500)  # 3) 가격 정정

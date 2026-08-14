@@ -72,10 +72,10 @@ a.realized_profit_balance()                        # 실현손익 포함 잔고
 ## 미체결·주문가능
 
 ```python
-a.open_orders()  # 미체결 / 정정취소 가능 주문
+a.open_orders()                   # 미체결 / 정정취소 가능 주문
 s = kis.domestic.stock("005930")
-s.buyable()   # 매수 가능 수량·금액
-s.sellable()  # 매도 가능 수량
+s.buyable()                       # 매수 가능 수량·금액
+s.sellable()                      # 매도 가능 수량
 ```
 
 ## 권리·증거금

@@ -16,8 +16,8 @@ from kis_trader import KISClient
 kis = KISClient(
     app_key="YOUR_APP_KEY",
     app_secret="YOUR_APP_SECRET",
-    account="12345678-01",  # 계좌번호 8자리-2자리
-    environment="real",     # "real" 실전 / "paper" 모의투자
+    account="12345678-01",         # 계좌번호 8자리-2자리
+    environment="real",            # "real" 실전 / "paper" 모의투자
 )
 ```
 
@@ -43,10 +43,10 @@ kis = KISClient(
 s = kis.domestic.stock("005930")  # 삼성전자
 q = s.quote()
 
-q.current_price   # 현재가
-q.change          # 전일대비
-q.change_percent  # 등락률(%)
-q.volume          # 거래량
+q.current_price                   # 현재가
+q.change                          # 전일대비
+q.change_percent                  # 등락률(%)
+q.volume                          # 거래량
 ```
 
 ## 안전 스위치 (주문할 때)
@@ -69,7 +69,7 @@ kis = KISClient(
 ```python
 q = kis.domestic.stock("005930").quote()
 
-q.current_price  # 매핑된 값 (Decimal)
-q._raw           # KIS 원본 응답 전체
-help(type(q))    # 이 결과의 필드 설명(한국어) + KIS URL·TR-ID
+q.current_price                           # 매핑된 값 (Decimal)
+q._raw                                    # KIS 원본 응답 전체
+help(type(q))                             # 이 결과의 필드 설명(한국어) + KIS URL·TR-ID
 ```
