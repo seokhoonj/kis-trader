@@ -78,7 +78,6 @@ _MULTI_QUOTE_TR = "HHDFS76220000"
 _MAX_MULTI_QUOTE = 10           # KIS 명세: 슬롯 10개(EXCD_01 ~ _10, NREC 최대 10)
 _SEARCH_PATH = "/uapi/overseas-price/v1/quotations/inquire-search"
 _SEARCH_TR = "HHDFS76410000"
-_MAX_SEARCH_PAGES = 100
 
 
 def _range_params(name: str, value: tuple[object, object] | None) -> dict[str, str]:
@@ -109,52 +108,41 @@ def search_stocks(
                         ("SHAR", shares), ("VOLUME", volume), ("AMT", amount),
                         ("EPS", eps), ("PER", per)):
         params.update(_range_params(name, value))
+    # KIS 조건검색(HHDFS76410000)은 다음조회를 지원하지 않는다(KEYB 공백 고정, 최대 100건 단일 응답).
+    resp = transport.request(
+        method="GET", path=_SEARCH_PATH, tr_id=_SEARCH_TR, params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    output1, rows = resp.body.get("output1"), resp.body.get("output2")
+    if not isinstance(output1, Mapping):
+        raise _missing_block_error("output1", resp)
+    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+        raise _missing_block_error("output2", resp)
     matches: list[OverseasStockSearchMatch] = []
-    summary: Mapping[str, Any] | None = None
-    tr_cont = ""
-    for _page in range(_MAX_SEARCH_PAGES):
-        resp = transport.request(
-            method="GET", path=_SEARCH_PATH, tr_id=_SEARCH_TR, params=params,
-            idempotent=True, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        output1, rows = resp.body.get("output1"), resp.body.get("output2")
-        if not isinstance(output1, Mapping):
-            raise _missing_block_error("output1", resp)
-        if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
-            raise _missing_block_error("output2", resp)
-        if summary is None:
-            summary = output1
-        for row in rows:
-            sign = str(row.get("sign", "")).strip()
-            matches.append(OverseasStockSearchMatch(
-                realtime_symbol=str(row.get("rsym", "")).strip(),
-                exchange=str(row.get("excd", "")).strip(), symbol=str(row.get("symb", "")).strip(),
-                name=str(row.get("name", "")).strip(), english_name=str(row.get("ename", "")).strip(),
-                price=required_decimal(row.get("last"), "last"),
-                change=_apply_change_sign(required_decimal(row.get("diff"), "diff"), sign),
-                change_percent=_apply_change_sign(required_decimal(row.get("rate"), "rate"), sign),
-                open=required_decimal(row.get("popen"), "popen"),
-                high=required_decimal(row.get("phigh"), "phigh"),
-                low=required_decimal(row.get("plow"), "plow"),
-                volume=required_int(row.get("tvol"), "tvol"),
-                amount=required_decimal(row.get("avol"), "avol"),
-                shares=required_decimal(row.get("shar"), "shar"),
-                market_cap=required_decimal(row.get("valx"), "valx"),
-                eps=optional_decimal(row.get("eps"), "eps"), per=optional_decimal(row.get("per"), "per"),
-                rank=required_int(row.get("rank"), "rank"),
-                is_tradable=str(row.get("e_ordyn", "")).strip() == "O", _raw=row,
-            ))
-        if resp.tr_cont not in {"F", "M"}:
-            break
-        tr_cont = "N"
-    else:
-        raise KISError(f"해외 종목검색이 {_MAX_SEARCH_PAGES}페이지 상한을 넘겼다(다음조회 미종료).")
-    assert summary is not None
+    for row in rows:
+        sign = str(row.get("sign", "")).strip()
+        matches.append(OverseasStockSearchMatch(
+            realtime_symbol=str(row.get("rsym", "")).strip(),
+            exchange=str(row.get("excd", "")).strip(), symbol=str(row.get("symb", "")).strip(),
+            name=str(row.get("name", "")).strip(), english_name=str(row.get("ename", "")).strip(),
+            price=required_decimal(row.get("last"), "last"),
+            change=_apply_change_sign(required_decimal(row.get("diff"), "diff"), sign),
+            change_percent=_apply_change_sign(required_decimal(row.get("rate"), "rate"), sign),
+            open=required_decimal(row.get("popen"), "popen"),
+            high=required_decimal(row.get("phigh"), "phigh"),
+            low=required_decimal(row.get("plow"), "plow"),
+            volume=required_int(row.get("tvol"), "tvol"),
+            amount=required_decimal(row.get("avol"), "avol"),
+            shares=required_decimal(row.get("shar"), "shar"),
+            market_cap=required_decimal(row.get("valx"), "valx"),
+            eps=optional_decimal(row.get("eps"), "eps"), per=optional_decimal(row.get("per"), "per"),
+            rank=required_int(row.get("rank"), "rank"),
+            is_tradable=str(row.get("e_ordyn", "")).strip() == "O", _raw=row,
+        ))
     return OverseasStockSearch(
-        exchange=exchange.strip(), decimal_places=required_int(summary.get("zdiv"), "zdiv"),
-        status=str(summary.get("stat", "")).strip(),
-        total_count=required_int(summary.get("trec"), "trec"), matches=tuple(matches),
+        exchange=exchange.strip(), decimal_places=required_int(output1.get("zdiv"), "zdiv"),
+        status=str(output1.get("stat", "")).strip(),
+        total_count=required_int(output1.get("trec"), "trec"), matches=tuple(matches),
     )
 
 

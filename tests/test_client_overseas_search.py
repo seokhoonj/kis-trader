@@ -32,24 +32,27 @@ def _response(symbol, *, tr_cont=""):
     })
 
 
-def test_overseas_search_maps_filters_and_paginates():
-    fake = FakeTransport([_response("AAPL", tr_cont="M"), _response("MSFT")])
+def test_overseas_search_maps_filters():
+    # KIS 조건검색(HHDFS76410000)은 다음조회를 지원하지 않는다 -- 단일 응답(최대 100건)을 그대로 매핑한다.
+    fake = FakeTransport([_response("AAPL")])
     client = KISClient(app_key="k", app_secret="s", transport=fake)
     result = client.overseas.search_stocks(
         "NAS", price=(160, 200), per=(10, 30), volume=(1000, 100000)
     )
     assert isinstance(result, OverseasStockSearch)
-    assert len(result.matches) == 2
+    assert len(result.matches) == 1
     assert result.matches[0].price == Decimal("160.5")
     assert result.matches[0].is_tradable
+    assert result.total_count == 2
     params = fake.calls[0]["params"]
     assert fake.calls[0]["tr_id"] == "HHDFS76410000"
+    assert params["KEYB"] == ""                # 다음조회 미지원 -- KEYB 공백 고정
     assert (params["CO_YN_PRICECUR"], params["CO_ST_PRICECUR"], params["CO_EN_PRICECUR"]) == ("1", "160", "200")
     # 모든 필터가 전달되는지(price 만이 아니라 per/volume 도) -- **filters forward 회귀 가드.
     assert (params["CO_YN_PER"], params["CO_ST_PER"], params["CO_EN_PER"]) == ("1", "10", "30")
     assert (params["CO_YN_VOLUME"], params["CO_ST_VOLUME"], params["CO_EN_VOLUME"]) == ("1", "1000", "100000")
     assert params["CO_YN_RATE"] == ""          # 미지정 필터는 빈 값
-    assert [call["tr_cont"] for call in fake.calls] == ["", "N"]
+    assert len(fake.calls) == 1                # 단일 조회 -- 페이지 루프 없음
 
 
 def test_overseas_search_rejects_blank_exchange():
