@@ -7,16 +7,16 @@
 ```python
 r = kis.domestic.ranking
 
-r.by_change(top="gainers")  # 상승률 상위
-r.by_change(top="losers")   # 하락률 상위
-r.by_volume()               # 거래량 상위
-r.by_market_cap()           # 시가총액 상위
+r.by_change(direction="gainers")  # 상승률 상위
+r.by_change(direction="losers")   # 하락률 상위
+r.by_volume()                     # 거래량 상위
+r.by_market_cap()                 # 시가총액 상위
 ```
 
 각 행(`RankedStock`)은 `rank / symbol / name / price / change / change_percent / volume`:
 
 ```python
-for row in r.by_change(top="gainers")[:10]:
+for row in r.by_change(direction="gainers")[:10]:
     print(f"{row.rank:2d}. {row.name:10s} {row.price:>8,}  {row.change_percent:>6}%")
 ```
 
@@ -28,7 +28,7 @@ for row in r.by_change(top="gainers")[:10]:
 r.by_short_sale(window="1d")  # 공매도 상위
 r.by_credit_balance()         # 신용잔고 상위
 r.by_near_high_low()          # 신고가/신저가 근접
-r.by_dividend()               # 배당률 상위
+r.by_dividend(start="20240101", end="20240630")  # 배당률 상위
 r.by_disparity()              # 이격도
 r.by_volume_power()           # 체결강도
 r.by_views()                  # HTS 조회 상위
@@ -57,9 +57,9 @@ kis.domestic.watchlist(uid, group_code="…")    # 그룹 안 종목
 재무비율·밸류에이션으로 정렬된 순위도 있습니다.
 
 ```python
-r.by_finance_ratio()  # 재무비율
-r.by_valuation()      # 밸류에이션(PER/PBR 등)
-r.by_profit_asset()   # 수익성·자산
+r.by_finance_ratio(year=2024)  # 재무비율
+r.by_valuation(year=2024)      # 밸류에이션(PER/PBR 등)
+r.by_profit_asset(year=2024)   # 수익성·자산
 ```
 
 ## ELW 스크리너

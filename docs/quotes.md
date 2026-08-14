@@ -95,7 +95,7 @@ kis.domestic.index("KOSPI").quote()   # 이름으로 (업종코드 "0001" 도 �
 kis.domestic.index("KOSDAQ").quote()  # 이름으로 (업종코드 "1001" 도 가능)
 
 kis.overseas.stock("AAPL").quote()    # 거래소 자동 (NAS)
-kis.overseas.stock("AAPL").bars("1d")
+kis.overseas.stock("AAPL").bars("1d", start="20240101")
 ```
 
 ::: {.callout-tip}

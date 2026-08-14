@@ -105,7 +105,7 @@ class DomesticStock(_StockBase):
         )
 
     def bars(
-        self, *, interval: Interval = "1d", start: str | date | None = None,
+        self, interval: Interval = "1d", *, start: str | date | None = None,
         end: str | date | None = None, adjusted: bool = True, max_bars: int | None = None,
     ) -> list[Bar]:
         """OHLCV 바(과거->현재). ``interval="1m"`` 은 당일 1분봉(``start``/``end``/``adjusted`` 무시,

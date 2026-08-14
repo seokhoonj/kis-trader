@@ -37,7 +37,7 @@ m.investor_flows()           # 시장 전체 투자자 동향
 m.investor_net_buy_stocks()  # 투자자별 순매수 상위 종목
 m.program_trades()           # 시장 프로그램 매매
 m.foreign_broker_trades()    # 외국계 창구 매매
-m.broker_opinions()          # 증권사 의견
+m.broker_opinions(broker="003")  # 한 증권사(회원사 코드)의 종목 의견
 m.news()                     # 뉴스
 m.vi_events()                # VI 발동 현황
 m.interest_rates()           # 시장 금리

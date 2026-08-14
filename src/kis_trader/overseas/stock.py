@@ -57,7 +57,7 @@ class OverseasStock(_StockBase):
         )
 
     def bars(
-        self, *, interval: Interval = "1d", start: str | date | None = None,
+        self, interval: Interval = "1d", *, start: str | date | None = None,
         end: str | date | None = None, adjusted: bool = True, max_bars: int | None = None,
     ) -> list[Bar]:
         """OHLCV 바(과거->현재). ``1d``/``1wk``/``1mo`` 는 [start, end] 기간봉(``start`` 필요), ``1m`` 은

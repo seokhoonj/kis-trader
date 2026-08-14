@@ -92,7 +92,7 @@ a.integrated_margin()                       # 통합증거금
 ```python
 oa = kis.overseas.account
 oa.positions(market=None)                           # None = 전체 시장 합산
-oa.balance(market="NAS")                            # 통화별 요약이라 시장 지정
+oa.balance(market="US")                             # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
 oa.present_balance()                                # 체결기준 현재잔고
 oa.period_profit(start="20240101", end="20240630")  # 기간 실현손익
 oa.transactions(start="20240101", end="20240630")   # 거래내역

@@ -11,7 +11,7 @@ kis = KISClient(app_key="…", app_secret="…", account="12345678-01")
 
 kis.domestic.stock("005930").quote()           # 삼성전자 현재가
 kis.overseas.stock("AAPL").quote()             # AAPL (거래소 자동)
-kis.domestic.ranking.by_change(top="gainers")  # 등락률 순위
+kis.domestic.ranking.by_change(direction="gainers")  # 등락률 순위
 ```
 
 공개 식별자는 영어, 설명 docstring은 한국어(+ KIS URL·TR-id).
