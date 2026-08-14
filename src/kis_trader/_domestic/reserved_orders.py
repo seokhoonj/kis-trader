@@ -32,7 +32,7 @@ from ..report import ExecutionReport, OrderStatus
 from ..reserved_order import ReservedOrder
 from ..store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ..transport import Environment, Transport, TransportTimeout
-from .orders import parse_response_decimal
+from .._wire import parse_response_decimal
 
 if TYPE_CHECKING:
     from .._literals import Numeric

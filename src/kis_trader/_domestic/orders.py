@@ -27,9 +27,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Any, Protocol
 
+from .._wire import parse_response_decimal
 from ..errors import (
     AccountNotOrderableError,
     KISError,
@@ -678,23 +679,6 @@ def _extract_organization_number(output: Mapping[str, Any]) -> str | None:
     접수/정정 응답은 ``KRX_FWDG_ORD_ORGNO``, 일별체결 행은 ``ord_gno_brno`` 키를 쓴다."""
     org = str(output.get("KRX_FWDG_ORD_ORGNO") or output.get("ord_gno_brno") or "").strip()
     return org or None
-
-
-def parse_response_decimal(value: object) -> Decimal:
-    """KIS 문자열 수치를 Decimal 로. 공백/None 은 0. 값이 있는데 파싱 실패면 :class:`KISError`
-    로 fail-closed -- 신뢰 못 할 숫자를 0으로 조작하면 재조회가 체결을 '미체결'로 오판한다.
-
-    ``"nan"``/``"inf"`` 는 파싱은 되지만 비유한값이라 이후 비교(수량·단가 일치)가 항상 거짓/참으로
-    무너져 오확정·오귀속을 부른다 -- :meth:`Decimal.is_finite` 로 fail-closed 한다."""
-    if value is None or value == "":
-        return Decimal(0)
-    try:
-        number = Decimal(str(value))
-    except (InvalidOperation, ValueError, TypeError) as err:
-        raise KISError(f"재조회 응답의 수치 파싱 실패: {value!r}") from err
-    if not number.is_finite():
-        raise KISError(f"재조회 응답의 수치가 유한하지 않다(NaN/Infinity): {value!r}")
-    return number
 
 
 def _format_optional_wire_decimal(value: Decimal | None) -> str:

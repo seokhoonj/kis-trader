@@ -102,3 +102,20 @@ def _to_decimal(text: str, field_name: str) -> Decimal:
         return Decimal(text)
     except (InvalidOperation, ValueError, TypeError) as err:
         raise KISError(f"KIS 수치 필드 {field_name!r} 파싱 실패: {text!r}") from err
+
+
+def parse_response_decimal(value: object) -> Decimal:
+    """KIS 문자열 수치를 Decimal 로. 공백/None 은 0. 값이 있는데 파싱 실패면 :class:`KISError`
+    로 fail-closed -- 신뢰 못 할 숫자를 0으로 조작하면 재조회가 체결을 '미체결'로 오판한다.
+
+    ``"nan"``/``"inf"`` 는 파싱은 되지만 비유한값이라 이후 비교(수량·단가 일치)가 항상 거짓/참으로
+    무너져 오확정·오귀속을 부른다 -- :meth:`Decimal.is_finite` 로 fail-closed 한다."""
+    if value is None or value == "":
+        return Decimal(0)
+    try:
+        number = Decimal(str(value))
+    except (InvalidOperation, ValueError, TypeError) as err:
+        raise KISError(f"재조회 응답의 수치 파싱 실패: {value!r}") from err
+    if not number.is_finite():
+        raise KISError(f"재조회 응답의 수치가 유한하지 않다(NaN/Infinity): {value!r}")
+    return number
