@@ -4,13 +4,38 @@
       href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/variable/pretendardvariable.min.css" />
 <link rel="stylesheet" as="style" crossorigin
       href="https://cdn.jsdelivr.net/gh/fonts-archive/Paperlogy/Paperlogy.css" />
+<style>
+  /* 본문 글씨 폰트: CookieRun (noonnu, jsDelivr) */
+  @font-face {
+    font-family: 'CookieRun';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_2001@1.1/CookieRun-Regular.woff') format('woff');
+    font-weight: 400;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'CookieRun';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_twelve@1.0/CookieRunOTF-Bold00.woff') format('woff');
+    font-weight: 700;
+    font-display: swap;
+  }
+  @font-face {
+    font-family: 'CookieRun';
+    src: url('https://cdn.jsdelivr.net/gh/projectnoonnu/noonfonts_twelve@1.0/CookieRunOTF-Black00.woff') format('woff');
+    font-weight: 900;
+    font-display: swap;
+  }
+</style>
 <link rel="stylesheet"
       href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&display=swap" />
+<link rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&display=swap" />
 <script>
   // 브랜드 제목의 "KIS"만 포인트 컬러로 감싼다 (<title> 탭 텍스트는 건드리지 않음)
   document.addEventListener("DOMContentLoaded", function () {
     document.querySelectorAll(".sidebar-title a, h1.title").forEach(function (el) {
-      if (el.textContent.trim() === "KIS Trader" && !el.querySelector(".kis-accent")) {
+      if (el.textContent.trim() !== "KIS Trader") return;
+      el.classList.add("kis-brand"); // shading 은 브랜드 제목에만 (챕터 제목 제외)
+      if (!el.querySelector(".kis-accent")) {
         el.innerHTML = el.innerHTML.replace(
           /KIS(\s+Trader)/,
           '<span class="kis-accent">KIS</span>$1'

@@ -1,12 +1,16 @@
 /*-- scss:defaults --*/
-// 본문: Pretendard (한글+영문 한 세트)
-$font-family-sans-serif: "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif !default;
+// 본문 글씨: CookieRun (라운드한 무료 한글 디스플레이 폰트) -> Pretendard 폴백
+$font-family-sans-serif: "CookieRun", "Pretendard Variable", Pretendard, -apple-system, BlinkMacSystemFont, system-ui, "Apple SD Gothic Neo", "Noto Sans KR", sans-serif !default;
 // 코드: JetBrains Mono (ASCII 코드) -> Pretendard (한글 주석)
 $font-family-monospace: "JetBrains Mono", "Pretendard Variable", Pretendard, "D2Coding", ui-monospace, SFMono-Regular, Menlo, monospace !default;
 // 제목: Paperlogy (개성 있는 무료 한글 디스플레이 폰트) -> Pretendard 폴백
 $headings-font-family: "Paperlogy", "Pretendard Variable", Pretendard, sans-serif !default;
 $headings-font-weight: 700 !default;
 $body-font-size: 1rem !default;
+// 전체 배경: 따뜻한 페이퍼톤 (흰색 대신 미색 오프화이트)
+$body-bg: #faf9f7 !default;
+// 브랜드 블루: KIS 오픈API 포털 색상
+$primary: #407bff !default;
 
 /*-- scss:rules --*/
 body { line-height: 1.7; letter-spacing: -0.003em; }
@@ -14,14 +18,43 @@ h1, h2, h3, h4, h5, .quarto-title .title, .sidebar-title {
   font-family: "Paperlogy", "Pretendard Variable", Pretendard, sans-serif;
   letter-spacing: -0.015em;
 }
-// 브랜드 제목의 "KIS" 포인트 컬러
-.kis-accent { color: #2563eb; }
+// 브랜드 제목의 "KIS" 포인트 컬러 (KIS 오픈API 포털 블루)
+.kis-accent { color: #407bff; }
+// "KIS Trader" 워드마크만 JetBrains Mono (다른 제목은 Paperlogy 그대로)
+// 히어로 제목 규칙(.quarto-title .title)을 이기게 특이도 확보
+.quarto-title .title.kis-brand,
+.sidebar-title a.kis-brand {
+  font-family: "CookieRun", "Pretendard Variable", Pretendard, sans-serif;
+  letter-spacing: -0.02em; // 워드마크는 자간 좁게
+}
+// 대각선으로 길게 뻗는 캐스트 섀도우 (long shadow) 믹스인
+// 1px씩 우하향으로 계단처럼 쌓아 그림자가 뻗어나가게 하고, 끝에서 부드럽게 흐려지게.
+// $steps=길이(단계 수), $unit=단계당 불투명도(맨 앞이 가장 진함 = $steps*$unit).
+@mixin long-shadow($steps, $unit, $tail-dist, $tail-alpha) {
+  $s: ();
+  @for $i from 1 through $steps {
+    $alpha: ($steps + 1 - $i) * $unit; // 가까울수록 진하고 멀수록 옅게
+    $s: append($s, #{$i}px #{$i}px 0 rgba(15, 23, 42, $alpha), comma);
+  }
+  $s: append($s, #{$tail-dist}px #{$tail-dist}px #{round($tail-dist * 0.8)}px rgba(15, 23, 42, $tail-alpha), comma);
+  text-shadow: $s;
+}
+// 좌측 사이드바 제목: 굵게 + 같은 캐스트 섀도우 (작은 글자라 길이만 축소, 진하기는 히어로와 동일)
+.sidebar-title {
+  font-weight: 700;
+  @include long-shadow(6, 0.0107, 7, 0.03);
+}
+// 첫화면 히어로 "KIS Trader" 브랜드 제목에만 대각선 캐스트 섀도우
+// (.kis-brand 는 _head.html JS 가 "KIS Trader" 제목에만 붙임 -> 챕터 제목엔 안 걸림)
+.quarto-title .title.kis-brand {
+  @include long-shadow(9, 0.003, 11, 0.02);
+}
 
 // ── 코드블록: 부드럽고 유려하게 ──────────────────────────────
 div.sourceCode {
   border: 1px solid rgba(15, 23, 42, 0.08);
   border-radius: 12px;
-  background: #f7f9fb;
+  background: #ffffff;
   margin: 1.3rem 0;
   overflow: hidden;
   // 바깥으로 살짝 볼록하게 떠 보이는 그림자 (내부 그라디언트 대신)
@@ -47,4 +80,48 @@ pre.sourceCode code .co { font-style: normal; }
   padding: 0.12em 0.38em;
   border-radius: 5px;
   font-size: 0.88em;
+}
+
+// ── 본문 표: 깔끔하고 세련되게 (브랜드 블루 톤 헤더 + 지브라 + 라운드) ──
+#quarto-document-content table {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  margin: 1.4rem 0;
+  font-size: 0.94rem;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  overflow: hidden;
+  // 코드블록과 동일한 떠 보이는 그림자
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.10), 0 1px 3px rgba(15, 23, 42, 0.07);
+}
+#quarto-document-content thead th {
+  background: #eef3fb; // KIS 브랜드 블루의 옅은 틴트
+  color: #1e335c;
+  font-weight: 700;
+  border-bottom: 2px solid rgba(64, 123, 255, 0.28);
+  padding: 0.7em 0.9em;
+}
+#quarto-document-content tbody td {
+  padding: 0.6em 0.9em;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+#quarto-document-content tbody tr:nth-child(odd) { background: rgba(64, 123, 255, 0.035); }
+#quarto-document-content tbody tr:hover { background: rgba(64, 123, 255, 0.09); }
+
+// ── 좌측 사이드바 nav: hover 시 살짝 오른쪽으로 미끄러지는 마이크로 인터랙션 ──
+.sidebar-navigation .sidebar-link {
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+.sidebar-navigation .sidebar-link:hover {
+  transform: translateX(4px);
+  color: #407bff; // 브랜드 블루
+}
+// 오른쪽 TOC(이 페이지 목차)도 같은 hover 인터랙션
+#TOC .nav-link {
+  transition: transform 0.15s ease, color 0.15s ease;
+}
+#TOC .nav-link:hover {
+  transform: translateX(4px);
+  color: #407bff;
 }

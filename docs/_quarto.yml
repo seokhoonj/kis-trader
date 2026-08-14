@@ -8,7 +8,7 @@ number-depth: 2
 
 book:
   title: "KIS Trader"
-  subtitle: "한국투자증권 KIS Open API 파이썬 클라이언트"
+  subtitle: '한국투자증권 KIS Open API "비공식" 파이썬 클라이언트'
   repo-url: "https://github.com/seokhoonj/kis-trader"
   repo-actions: [source]
   search: true
