@@ -3,7 +3,7 @@
 사용자면은 시장 분석 네임스페이스(:class:`~kis_trader.market.MarketQueries`, ``kis.domestic.market``)다.
 종목이 아니라 시장(코스피/코스닥) 전체가 대상이라 종목 핸들이 아닌 세션 네임스페이스에 둔다.
 
-KIS URL/tr-id:
+KIS URL/TR-ID:
 - 시장별 투자자매매동향(일별): ``GET .../quotations/inquire-investor-daily-by-market``
   ``FHPTJ04040000`` (시장구분 U + 시장코드 + 기준일). 시장코드: 코스피 0001/KSP, 코스닥 1001/KSQ.
 """
@@ -810,7 +810,7 @@ def fetch_market_funds(
     고객예탁금·신용융자잔고·펀드유형별 잔고·시가총액을 시장 전체 기준으로 돌려준다.
     ``as_of`` 는 앵커 날짜이며 미지정하면 오늘을 사용하고, 응답의 최신순을 보존한다.
     KIS URL: ``GET /uapi/domestic-stock/v1/quotations/mktfunds``.
-    tr-id: ``FHKST649100C0``. 연속조회 미지원으로 한 번만 호출한다.
+    TR-ID: ``FHKST649100C0``. 연속조회 미지원으로 한 번만 호출한다.
     """
     anchor = _today_kst() if as_of is None else _to_yyyymmdd(as_of, "as_of")
     params = {"FID_INPUT_DATE_1": anchor}

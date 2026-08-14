@@ -5,9 +5,9 @@ description = "A clean Python client for the Korea Investment & Securities (KIS)
 readme = "README.md"
 requires-python = ">=3.11"
 license = { text = "MIT" }
-dependencies = ["requests>=2.31"]
+# REST(requests) + 실시간 WebSocket(websockets) + 체결통보 AES-CBC 복호화(cryptography).
+dependencies = ["requests>=2.31", "websockets>=12", "cryptography>=42"]
 
-# Base install is REST-only. Heavier capabilities are opt-in extras.
 [dependency-groups]
 test = ["pytest>=8"]
 docs = ["quartodoc>=0.11", "griffe<2"]  # + quarto CLI(외부 설치)

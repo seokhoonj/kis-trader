@@ -4,7 +4,7 @@
 아니라 시장구분 ``U`` + 업종코드(``FID_INPUT_ISCD``)로 조회한다. 업종코드는 포털의 업종코드표를
 따르며, 대표값은 0001 KOSPI 종합 / 1001 KOSDAQ 종합 / 2001 KOSPI200.
 
-KIS URL/tr-id (KIS 명세 대조):
+KIS URL/TR-ID (KIS 명세 대조):
 - 지수 현재가: ``GET .../quotations/inquire-index-price`` ``FHPUP02100000`` (``FID_COND_MRKT_DIV_CODE=U``).
 - 지수 기간봉(일/주/월/년): ``GET .../quotations/inquire-daily-indexchartprice`` ``FHKUP03500100``
   (``FID_PERIOD_DIV_CODE`` D:일 W:주 M:월 Y:년). 종목 일봉과 페이지네이션은 같고 필드명만

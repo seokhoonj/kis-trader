@@ -3,7 +3,7 @@
 사용자면은 채권 핸들(:class:`~kis_trader.bond.Bond`, ``kis.domestic.bond(code)``)이다. 채권은 시장구분 ``B`` +
 표준코드(ISIN, 예: KR2033022D33)로 조회한다.
 
-KIS URL/tr-id (KIS 명세 대조):
+KIS URL/TR-ID (KIS 명세 대조):
 - 채권 현재가: ``GET .../domestic-bond/v1/quotations/inquire-price`` ``FHKBJ773400C0``.
 - 채권 호가: ``GET .../domestic-bond/v1/quotations/inquire-asking-price`` ``FHKBJ773401C0``.
 - 채권 체결: ``GET .../domestic-bond/v1/quotations/inquire-ccnl`` ``FHKBJ773403C0``.

@@ -3,7 +3,7 @@
 사용자면(:class:`~kis_trader.overseas_index.OverseasIndex`)이 호출한다. 해외 지수류는
 ``FID_COND_MRKT_DIV_CODE`` 로 자산 종류를 구분하고 ``FID_INPUT_ISCD`` 로 심볼을 조회한다.
 
-KIS URL/tr-id (KIS 명세 대조):
+KIS URL/TR-ID (KIS 명세 대조):
 - 기간봉: ``GET .../quotations/inquire-daily-chartprice`` ``FHKST03030100``.
 """
 

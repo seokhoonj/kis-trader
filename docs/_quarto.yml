@@ -24,6 +24,7 @@ book:
     - market.md
     - overseas.md
     - pension.md
+    - realtime.md
 
 format:
   html:

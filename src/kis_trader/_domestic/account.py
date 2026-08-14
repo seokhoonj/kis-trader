@@ -4,7 +4,7 @@
 (``cano``/``product_code``)와 환경(``environment``)은 세션에서 온다. KIS 원본 필드 매핑과
 fail-closed 파싱은 여기 갇힌다.
 
-KIS URL/tr-id:
+KIS URL/TR-ID:
 - 잔고: ``GET .../trading/inquire-balance`` (실전 ``TTTC8434R`` / 모의 ``VTTC8434R``).
 - 매수가능: ``GET .../trading/inquire-psbl-order`` (실전 ``TTTC8908R`` / 모의 ``VTTC8908R``).
 - 매도가능수량: ``GET .../trading/inquire-psbl-sell`` (``TTTC8408R``, **모의 미지원**).

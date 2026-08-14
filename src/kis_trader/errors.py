@@ -72,6 +72,10 @@ class UnsupportedSchemaVersionError(KISError):
     """영속 저장소의 스키마 버전이 이 릴리스가 읽을 수 있는 집합에 없다(내구 형식 계약)."""
 
 
+class RealtimeError(KISError):
+    """실시간(웹소켓) 프레임 파싱/복호화 실패의 뿌리."""
+
+
 class OrderError(KISError):
     """주문 관련 실패의 뿌리."""
 

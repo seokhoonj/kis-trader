@@ -16,7 +16,7 @@
 :func:`reconcile` 는 미확인 주문을 일별체결조회로 재조회한다 -- **보수적**: 스캔이 비거나
 모호하면 미접수로 단정하지 않고 in-flight 유지(부재는 미접수의 증거가 아니다).
 
-KIS URL/tr-id (국내주식):
+KIS URL/TR-ID (국내주식):
 - 현금주문: ``POST .../trading/order-cash`` 실전 매수 ``TTTC0012U`` / 매도 ``TTTC0011U``,
   모의 매수 ``VTTC0012U`` / 매도 ``VTTC0011U``.
 - 일별체결조회(재조회): ``GET .../trading/inquire-daily-ccld`` 실전 ``TTTC0081R`` / 모의 ``VTTC0081R``.

@@ -5,7 +5,7 @@
 아래에 있고, 파라미터는 시장구분(J)+종목코드+분류(FID_DIV_CLS_CODE 0:년/1:분기)를 공유하며 응답은
 ``output`` 결산기 배열이다(최근->과거).
 
-KIS URL/tr-id:
+KIS URL/TR-ID:
 - 대차대조표: ``GET .../finance/balance-sheet`` ``FHKST66430100``.
 - 손익계산서: ``GET .../finance/income-statement`` ``FHKST66430200``.
 """

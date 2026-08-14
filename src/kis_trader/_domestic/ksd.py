@@ -4,7 +4,7 @@
 ``/uapi/domestic-stock/v1/ksdinfo/`` 아래에 있고, 기간(``F_DT`` ~ ``T_DT``) + 선택 종목(``SHT_CD``)
 으로 이벤트 배열(``output1``)을 준다. 날짜는 순수 달력 날짜라 :class:`datetime.date` 로 돌려준다.
 
-KIS URL/tr-id:
+KIS URL/TR-ID:
 - 배당일정: ``GET .../ksdinfo/dividend`` ``HHKDB669102C0``.
 """
 
