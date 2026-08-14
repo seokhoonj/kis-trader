@@ -109,6 +109,13 @@ pre.sourceCode code .co { font-style: normal; }
 #quarto-document-content tbody tr:nth-child(odd) { background: rgba(64, 123, 255, 0.035); }
 #quarto-document-content tbody tr:hover { background: rgba(64, 123, 255, 0.09); }
 
+// 챕터 9(실시간) 다음, 새 파트("자산군별 상세") 앞에 한 칸 띄우고 옅은 구분선
+.sidebar-navigation .sidebar-item-section {
+  margin-top: 1.1rem;
+  padding-top: 0.7rem;
+  border-top: 1px solid rgba(15, 23, 42, 0.09);
+}
+
 // ── 좌측 사이드바 nav: hover 시 살짝 오른쪽으로 미끄러지는 마이크로 인터랙션 ──
 .sidebar-navigation .sidebar-link {
   transition: transform 0.15s ease, color 0.15s ease;
