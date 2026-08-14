@@ -11,6 +11,7 @@ from typing import TYPE_CHECKING
 from . import _engine as pension_api
 
 if TYPE_CHECKING:
+    from .._literals import Numeric
     from ..client import KISClient
     from .entities import (
         PensionBalance,
@@ -40,7 +41,7 @@ class PensionNamespace:
             self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment
         )
 
-    def buyable(self, symbol: str, *, limit_price: object | None = None) -> PensionBuyableAmount:
+    def buyable(self, symbol: str, *, limit_price: Numeric | None = None) -> PensionBuyableAmount:
         """매수가능 여력 -- 주문가능현금·재사용가능금액·최대 매수금액/수량. ``limit_price`` 없으면 시장가 기준.
         **모의투자 미지원**."""
         cano, product_code = self._c._require_account()

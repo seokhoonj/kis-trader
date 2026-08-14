@@ -24,6 +24,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from datetime import date
 
+    from .._literals import Numeric
     from ..client import KISClient
     from ..news import NewsHeadline
     from ..quote import Quote
@@ -92,7 +93,7 @@ class OverseasAccount:
             environment=self._c.environment, market=market,
         )
 
-    def buyable(self, symbol: str, *, exchange: str, price: object) -> OverseasBuyableAmount:
+    def buyable(self, symbol: str, *, exchange: str, price: Numeric) -> OverseasBuyableAmount:
         """매수가능금액. ``exchange`` 는 시세 거래소코드(NAS/NYS/AMS/HKS/SHS/SZS/TSE/HNX/HSX), ``price`` 는
         의도한 주문단가. 외화·통합 기준 주문가능금액·최대수량을 :class:`~kis_trader.money.Money` 로 준다.
         **매수 시 수량단위 절사가 필요**하다."""
