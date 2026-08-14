@@ -614,8 +614,9 @@ def fetch_program_flow(
 def fetch_trading_calendar(
     transport: Transport, *, base_date: str | date | None = None
 ) -> list[TradingDay]:
-    """거래 캘린더(``base_date`` 기준일에서 앞으로 한 페이지). 각 날짜의 영업/거래/개장/결제 여부.
-    ``base_date`` 없으면 오늘. (연속조회 페이지네이션은 미구현 -- 첫 페이지만.)"""
+    """거래 캘린더(``base_date`` 기준일에서 앞으로). 각 날짜의 영업/거래/개장/결제 여부.
+    ``base_date`` 없으면 오늘. KIS 국내휴장일조회(CTCA0903R)는 연속조회를 지원하지 않아
+    (CTX_AREA 공백 고정) 한 응답에 기준일 이후 구간을 모두 싣는다 -- 잘린 페이지가 아니다."""
     base = _today_kst() if base_date is None else _to_yyyymmdd(base_date, "base_date")
     params = {"BASS_DT": base, "CTX_AREA_NK": "", "CTX_AREA_FK": ""}
     resp = transport.request(
