@@ -146,6 +146,16 @@ def test_subscribe_registration_cap():
     asyncio.run(scenario())
 
 
+def test_reopen_returns_false_when_stop_disabled_reconnect():
+    # stop() 이 _reconnect 를 끄면 재연결 창(backoff)에서도 재연결하지 않고 False 반환.
+    async def scenario():
+        conn = RealtimeConnection("KEY", "ws://x", connect=_connector(FakeWebSocket([])))
+        conn._reconnect = False
+        return await conn._reopen_with_backoff()
+
+    assert asyncio.run(scenario()) is False
+
+
 def test_reconnect_resubscribes_active_registrations():
     # 첫 소켓은 즉시 소진(끊김 모사), 두 번째 소켓으로 재연결 후 기존 구독 재등록되는지.
     first = FakeWebSocket(incoming=[])

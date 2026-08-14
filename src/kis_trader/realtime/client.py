@@ -55,6 +55,7 @@ class RealtimeClient:
         self._desired: set[tuple[str, str]] = set()  # start 전 등록 요청 보관
         self._queue: queue.Queue = queue.Queue()
         self._running = False
+        self._startup_error: BaseException | None = None  # start() 로 전달할 연결/구독 실패
 
     # -- 구독 (start 전/후 모두 가능) --
     def subscribe(self, tr_id: str, tr_key: str, *, on: MessageCallback | None = None) -> None:
@@ -77,12 +78,19 @@ class RealtimeClient:
 
     # -- 수명주기 --
     def start(self) -> None:
-        """백그라운드 수신 시작. 연결이 열리고 보관된 구독이 전송될 때까지 블록한다."""
+        """백그라운드 수신 시작. 연결이 열리고 보관된 구독이 전송될 때까지 블록한다.
+
+        연결/초기구독이 실패하면 hang 하지 않고 그 예외를 호출자에게 그대로 raise 한다.
+        """
         if self._running:
             return
+        self._startup_error = None
         self._thread = threading.Thread(target=self._run, name="kis-realtime", daemon=True)
         self._thread.start()
         self._ready.wait()
+        if self._startup_error is not None:
+            self._thread.join(timeout=5.0)
+            raise self._startup_error
         self._running = True
 
     def stop(self, *, timeout: float = 5.0) -> None:
@@ -136,11 +144,18 @@ class RealtimeClient:
             customer_type=self._customer_type,
             reconnect=self._reconnect,
         )
-        await self._conn.__aenter__()
-        with self._lock:
-            desired = list(self._desired)
-        for tr_id, tr_key in desired:
-            await self._conn.subscribe(tr_id, tr_key)
+        try:
+            await self._conn.__aenter__()
+            with self._lock:
+                desired = list(self._desired)
+            for tr_id, tr_key in desired:
+                await self._conn.subscribe(tr_id, tr_key)
+        except BaseException as exc:  # noqa: BLE001 - 실패를 start() 로 전달(hang 방지)
+            self._startup_error = exc
+            await self._conn.close()  # 소켓 누수 방지
+            self._queue.put(_STREAM_SENTINEL)
+            self._ready.set()
+            return
         self._ready.set()  # 준비 완료 신호
         try:
             async for message in self._conn:

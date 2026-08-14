@@ -80,6 +80,13 @@ def test_dataframe_records_field_shortfall_fails_closed():
         frame.records(3)
 
 
+def test_dataframe_records_field_excess_fails_closed():
+    # 초과도 레이아웃 불일치 -> 조용히 자르지 않고 raise(오정렬 방지).
+    frame = DataFrame(encrypted=False, tr_id="T", record_count=1, payload="a^b^c^EXTRA")
+    with pytest.raises(ValueError):
+        frame.records(3)
+
+
 def test_parse_frame_system_message_and_pingpong():
     ping = parse_frame(json.dumps({"header": {"tr_id": "PINGPONG", "datetime": "1"}}))
     assert isinstance(ping, SystemMessage)

@@ -133,17 +133,27 @@ class RealtimeConnection:
 
     async def _messages(self) -> AsyncIterator[RealtimeMessage]:
         connection_closed = _connection_closed_errors()
+        idle_backoff = 1.0
         while True:
+            delivered = False
             try:
                 async for raw in self._ws:
                     async for message in self._handle(raw):
+                        delivered = True
                         yield message
             except connection_closed:
                 pass
             # 정상 종료(async for 소진) 또는 연결 끊김 -> 재연결 여부 결정
             if not self._reconnect:
                 return
-            await self._reopen_with_backoff()
+            if delivered:
+                idle_backoff = 1.0  # 정상 세션 뒤엔 즉시 재연결
+            else:
+                # accept-후-즉시-close(스로틀/장애) 재연결 폭주 방지: 프레임 없이 끝난 세션은 backoff.
+                await asyncio.sleep(idle_backoff)
+                idle_backoff = min(idle_backoff * 2, self._max_backoff)
+            if not await self._reopen_with_backoff():
+                return  # stop() 이 재연결을 껐다
 
     async def _handle(self, raw: str) -> AsyncIterator[RealtimeMessage]:
         try:
@@ -183,18 +193,23 @@ class RealtimeConnection:
         ]
 
     async def _reopen_with_backoff(self) -> bool:
+        """재연결 + 기존 구독 재등록. ``stop()`` 이 ``_reconnect`` 를 끄면 ``False`` 반환.
+
+        연결 실패는 backoff 로 재시도하되, 매 시도 전 ``_reconnect`` 를 확인해 backoff sleep
+        중 온 ``stop()`` 도 즉시 반영한다(스레드/소켓 누수 방지).
+        """
         backoff = 1.0
-        while True:
+        while self._reconnect:
             try:
                 self._ws = await self._connect(self._url)
-            except Exception:
+            except Exception:  # noqa: BLE001 - 연결 실패는 backoff 재시도
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, self._max_backoff)
                 continue
-            # 재등록
             for tr_id, tr_key in list(self._subscriptions):
                 await self._send_subscription(tr_id, tr_key, subscribe=True)
             return True
+        return False
 
 
 def _connection_closed_errors() -> type[BaseException]:

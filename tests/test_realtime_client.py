@@ -8,6 +8,8 @@ from __future__ import annotations
 import json
 import threading
 
+import pytest
+
 from kis_trader.realtime.client import RealtimeClient
 
 
@@ -78,6 +80,17 @@ def test_context_manager_starts_and_stops():
         list(client.stream(timeout=2.0))
     assert len(got) == 1
     assert not client._running  # stop 됨
+
+
+def test_start_propagates_connector_failure_without_hanging():
+    # 연결 실패 시 start() 는 hang 하지 않고 그 예외를 raise 한다(P0 회귀).
+    async def failing_connect(url):
+        raise ConnectionError("connect refused")
+
+    client = RealtimeClient("KEY", "ws://x", connect=failing_connect, reconnect=False)
+    with pytest.raises(ConnectionError):
+        client.start()
+    assert client._running is False
 
 
 def test_subscribe_before_start_is_deferred_then_sent():

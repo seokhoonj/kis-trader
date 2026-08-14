@@ -77,9 +77,10 @@ class DataFrame:
         """
         fields = self.payload.split("^")
         expected = self.record_count * field_count
-        if len(fields) < expected:
+        if len(fields) != expected:
+            # 부족·초과 모두 레이아웃 불일치 -> fail-closed(초과를 조용히 잘라 오정렬 방지).
             raise ValueError(
-                f"{self.tr_id}: 필드 부족 (기대 {expected}, 실제 {len(fields)})"
+                f"{self.tr_id}: 필드 수 불일치 (기대 {expected}, 실제 {len(fields)})"
             )
         return [
             fields[i * field_count : (i + 1) * field_count]
