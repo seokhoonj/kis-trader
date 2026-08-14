@@ -62,9 +62,7 @@ ws.subscribe("H0STCNT0", "005930", on=on_tick)
 async 서버는 동기 래퍼 대신 **코어를 직접** 씁니다:
 
 ```python
-from kis_trader.realtime._connection import RealtimeConnection
-from kis_trader.realtime._approval import fetch_approval_key
-from kis_trader._endpoints import websocket_url
+from kis_trader.realtime import RealtimeConnection, fetch_approval_key, websocket_url
 
 approval = fetch_approval_key(app_key, app_secret, "real")
 async with RealtimeConnection(approval, websocket_url("real")) as conn:

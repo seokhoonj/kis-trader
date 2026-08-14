@@ -7,4 +7,9 @@ async 코어(:mod:`._connection`) 위에 동기 래퍼(:mod:`.client`)를 얹어
 
 from __future__ import annotations
 
+from .._internal._endpoints import websocket_url
 from . import parsers  # noqa: F401  (import 부작용: TR 파서 레지스트리 등록)
+from ._approval import fetch_approval_key
+from ._connection import RealtimeConnection
+
+__all__ = ["RealtimeConnection", "fetch_approval_key", "websocket_url"]

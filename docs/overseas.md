@@ -67,9 +67,10 @@ a.foreign_margin()  # 통화별 외화 증거금
 
 ```python
 r = kis.overseas.ranking
-r.by_change(); r.by_volume(); r.by_amount(); r.by_market_cap()
+r.by_change(exchange="NAS")  # 모든 순위가 거래소(exchange)를 받습니다
+r.by_volume(exchange="NAS"); r.by_amount(exchange="NAS"); r.by_market_cap(exchange="NAS")
 
-kis.overseas.search_stocks(**filters)  # 종목 검색(가격·규모 등)
+kis.overseas.search_stocks("NAS", price=(10, 500), change_percent=(5, 30))  # 거래소 + 범위 조건
 kis.overseas.news(…)
-kis.overseas.industries(…)  # 업종
+kis.overseas.industries("NAS")  # 업종
 ```

@@ -39,15 +39,17 @@ r.by_views()                  # HTS 조회 상위
 HTS에 저장해둔 조건검색을 불러 실행합니다.
 
 ```python
-kis.domestic.saved_screens()               # 저장된 조건 목록
-kis.domestic.saved_screen_stocks(seq="0")  # 특정 조건의 종목들
+uid = "your_hts_id"  # 조건검색·관심종목은 HTS 로그인 ID 가 필요합니다
+
+kis.domestic.saved_screens(uid)                      # 저장된 조건 목록
+kis.domestic.saved_screen_stocks(uid, sequence="0")  # 특정 조건의 종목들
 ```
 
 ## 관심종목
 
 ```python
-kis.domestic.watchlist_groups()    # 관심종목 그룹
-kis.domestic.watchlist(group="…")  # 그룹 안 종목
+kis.domestic.watchlist_groups(uid)             # 관심종목 그룹
+kis.domestic.watchlist(uid, group_code="…")    # 그룹 안 종목
 ```
 
 ## 재무·가치 순위

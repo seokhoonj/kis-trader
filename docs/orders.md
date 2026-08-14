@@ -43,9 +43,9 @@ s.sell(quantity=10, limit_price=71000)  # 지정가 매도
 ## 주문 종류
 
 ```python
-s.buy(quantity=10, limit_price=70000, division="immediate_limit")    # 최유리 지정가
-s.buy(quantity=10, limit_price=70000, division="priority_limit")     # 최우선 지정가
-s.buy(quantity=10, limit_price=70000, division="conditional_limit")  # 조건부 지정가
+s.buy(quantity=10, division="immediate_limit")                       # 최유리 지정가 (상대편 최우선호가로)
+s.buy(quantity=10, division="priority_limit")                        # 최우선 지정가 (내 방향 최우선호가로)
+s.buy(quantity=10, limit_price=70000, division="conditional_limit")  # 조건부 지정가 (limit_price 필요)
 s.buy(quantity=10, limit_price=70000, time_in_force="ioc")           # IOC (즉시체결·잔량취소)
 s.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (전량아니면 취소)
 ```
@@ -109,8 +109,15 @@ kis.domestic.stock("005930").credit_buy(quantity=10, credit_type="…", limit_pr
 - **재시도 금지** — 타임아웃 난 주문은 재전송하지 않습니다 (재시도 = 이중주문)
 - **보수적 확인** — 조회 결과가 애매하면(같은 조건 주문이 여러 건 등) 확정하지 않습니다
 
-같은 주문을 실수로 두 번 내도 **지문으로 중복 감지**해 막고, 이 기록은 디스크에 남아
-프로그램을 재시작해도 유지됩니다.
+같은 주문을 실수로 두 번 내도 **지문으로 중복 감지**해 막습니다. 다만 이 중복 방지 기록은 기본적으로
+**프로세스 메모리 안에만** 있어, 프로그램을 재시작하면 사라집니다. 재시작 뒤에도 중복 방지를 유지하려면
+영속 저장소를 주입하세요:
+
+```python
+from kis_trader import OrderStore
+
+kis = KISClient(…, store=OrderStore(path="orders.db"))  # 지문 dedup 을 재시작에도 유지
+```
 
 ## 사전 리스크 한도
 
