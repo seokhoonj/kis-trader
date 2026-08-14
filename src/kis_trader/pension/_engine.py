@@ -15,6 +15,7 @@ from typing import TYPE_CHECKING, Any
 from .._internal._wire import format_wire_decimal, optional_decimal
 from ..domestic.entities.balance import Position
 from ..errors import KISError, KISUsageError
+from ..order import Side
 from .entities import (
     PensionBalance,
     PensionBuyableAmount,
@@ -39,7 +40,17 @@ _ORDERS_PATH = "/uapi/domestic-stock/v1/trading/pension/inquire-daily-ccld"
 _ORDERS_TR = "TTTC2210R"  # KRX+NXT/SOR (구 KRX전용 TTTC2201R)
 #: 연속조회 페이지 상한. 닿으면 fail-closed.
 _MAX_PAGES = 100
-_SIDE = {"01": "sell", "02": "buy"}
+_SIDE: dict[str, Side] = {"01": "sell", "02": "buy"}
+
+
+def _side_from_code(code: object) -> Side:
+    """벤더 매매구분코드(01 매도 / 02 매수)를 방향으로 -- 알 수 없는 코드는 fail-closed(:class:`KISError`).
+    ``side=""`` 로 뭉개면 buy/sell 어느 쪽도 아닌 주문 레코드가 새어 이후 오귀속/오매칭을 부른다."""
+    text = str(code or "").strip()
+    try:
+        return _SIDE[text]
+    except KeyError:
+        raise KISError(f"알 수 없는 매매구분코드: {text!r} (01 매도 / 02 매수만 유효).") from None
 
 
 def fetch_deposit(
@@ -220,7 +231,7 @@ def _parse_order(row: Mapping[str, Any]) -> PensionOrder:
         order_id=str(row.get("odno", "")).strip(),
         original_order_id=str(row.get("orgn_odno", "")).strip(),
         branch_number=str(row.get("ord_gno_brno", "")).strip(),
-        side=_SIDE.get(str(row.get("sll_buy_dvsn_cd", "")).strip(), ""),
+        side=_side_from_code(row.get("sll_buy_dvsn_cd")),
         order_type=str(row.get("ord_dvsn_name", "")).strip(),
         symbol=str(row.get("pdno", "")).strip(),
         name=str(row.get("prdt_name", "")).strip(),

@@ -12,10 +12,22 @@ from decimal import Decimal
 from typing import Any
 
 from ..._internal._wire import optional_decimal, required_decimal
+from ...errors import KISError
 from ...money import Money
+from ...order import Side
 
 _MAX_PAGES = 100
-_SIDE = {"01": "sell", "02": "buy"}
+_SIDE: dict[str, Side] = {"01": "sell", "02": "buy"}
+
+
+def _side_from_code(code: object) -> Side:
+    """벤더 매매구분코드(01 매도 / 02 매수)를 방향으로 -- 알 수 없는 코드는 fail-closed(:class:`KISError`).
+    ``side=""`` 로 뭉개면 buy/sell 어느 쪽도 아닌 주문 레코드가 새어 이후 오귀속/오매칭을 부른다."""
+    text = str(code or "").strip()
+    try:
+        return _SIDE[text]
+    except KeyError:
+        raise KISError(f"알 수 없는 매매구분코드: {text!r} (01 매도 / 02 매수만 유효).") from None
 
 #: 해외 잔고 시장 -> (OVRS_EXCG_CD, TR_CRCY_CD). KIS 코드표. 미국은 NASD(실전=미국전체).
 _MARKETS: dict[str, tuple[str, str]] = {

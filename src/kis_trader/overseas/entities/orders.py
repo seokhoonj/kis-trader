@@ -14,6 +14,7 @@ from typing import Any
 
 from ..._internal._freeze import freeze_vendor_payload
 from ...money import Money
+from ...order import Side
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,7 +26,7 @@ class OverseasOpenOrder:
     name: str
     exchange: str                     # 해외거래소코드
     order_id: str                     # 거래소 주문번호(odno)
-    side: str                         # buy / sell
+    side: Side                        # buy / sell
     quantity: int                     # 주문수량
     filled_quantity: int              # 체결수량
     unfilled_quantity: int            # 미체결 잔량
@@ -97,7 +98,7 @@ class OverseasReservedOrder:
     executed_order_id: str            # 집행 주문번호(odno), 미집행이면 ""
     symbol: str
     name: str
-    side: str                         # buy / sell
+    side: Side                        # buy / sell
     status: str                       # 해외예약주문상태명(ovrs_rsvn_ord_stat_cd_name)
     exchange: str                     # 해외거래소코드(ovrs_excg_cd)
     quantity: Decimal                 # 주문수량(ft_ord_qty)

@@ -41,7 +41,7 @@ from ..entities.balance import (
     OverseasSettlementBalance,
 )
 from ...transport import Environment, Transport
-from ._parse import _MARKETS, _MAX_PAGES, _SIDE, _decimal_or_zero, _money
+from ._parse import _MARKETS, _MAX_PAGES, _decimal_or_zero, _money, _side_from_code
 from .orders import _ORDER_EXCHANGE
 
 if TYPE_CHECKING:
@@ -49,7 +49,6 @@ if TYPE_CHECKING:
 
 _POSITIONS_PATH = "/uapi/overseas-stock/v1/trading/inquire-balance"
 _POSITIONS_TR = {"real": "TTTS3012R", "paper": "VTTS3012R"}
-#: 잔고 종목배열 연속조회 페이지 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
 _BUYABLE_PATH = "/uapi/overseas-stock/v1/trading/inquire-psamount"
 _BUYABLE_TR = {"real": "TTTS3007R", "paper": "VTTS3007R"}
 
@@ -71,7 +70,6 @@ _NATION_CODE = {"all": "000", "US": "840", "HK": "344", "CN": "156", "JP": "392"
 #: 거래내역 매도매수 필터 -> SLL_BUY_DVSN_CD. all:전체/sell:매도/buy:매수.
 _TX_SIDE_FILTER = {"all": "00", "sell": "01", "buy": "02"}
 
-#: 미체결 매매구분코드(KIS 명세). 01:매도, 02:매수.
 def fetch_positions(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     market: str | None = None,
@@ -208,7 +206,7 @@ def _parse_transaction(row: Mapping[str, Any]) -> OverseasTransaction:
     return OverseasTransaction(
         trade_date=parse_optional_kst_date(row.get("trad_dt")),
         settlement_date=parse_optional_kst_date(row.get("sttl_dt")),
-        side=_SIDE.get(str(row.get("sll_buy_dvsn_cd", "")).strip(), ""),
+        side=_side_from_code(row.get("sll_buy_dvsn_cd")),
         symbol=str(row.get("pdno", "")).strip(),
         name=str(row.get("ovrs_item_name", "")).strip(),
         quantity=_decimal_or_zero(row, "ccld_qty"),

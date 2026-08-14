@@ -34,7 +34,7 @@ from ...report import ExecutionReport, OrderStatus
 from ...store import OrderStore
 from ...transport import Environment, Transport, TransportTimeout
 from ..entities.orders import OverseasAlgoExecution, OverseasAlgoOrder, OverseasOpenOrder
-from ._parse import _MARKETS, _MAX_PAGES, _SIDE, _decimal_or_zero, _money
+from ._parse import _MARKETS, _MAX_PAGES, _decimal_or_zero, _money, _side_from_code
 
 _ORDER_PATH = "/uapi/overseas-stock/v1/trading/order"
 _CHANGE_PATH = "/uapi/overseas-stock/v1/trading/order-rvsecncl"
@@ -495,7 +495,7 @@ def _parse_open_orders(
                 name=str(row.get("prdt_name", "")).strip(),
                 exchange=str(row.get("ovrs_excg_cd", "")).strip(),
                 order_id=order_id,
-                side=_SIDE.get(str(row.get("sll_buy_dvsn_cd", "")).strip(), ""),
+                side=_side_from_code(row.get("sll_buy_dvsn_cd")),
                 quantity=required_int(row.get("ft_ord_qty"), "ft_ord_qty"),
                 filled_quantity=required_int(row.get("ft_ccld_qty"), "ft_ccld_qty"),
                 unfilled_quantity=required_int(row.get("nccs_qty"), "nccs_qty"),

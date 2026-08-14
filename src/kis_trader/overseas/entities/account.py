@@ -14,6 +14,7 @@ from typing import Any
 
 from ..._internal._freeze import freeze_vendor_payload
 from ...money import Money
+from ...order import Side
 
 
 @dataclass(frozen=True, slots=True)
@@ -58,7 +59,7 @@ class OverseasTransaction:
 
     trade_date: date | None           # 매매일자(trad_dt)
     settlement_date: date | None      # 결제일자(sttl_dt)
-    side: str                         # buy / sell
+    side: Side                        # buy / sell
     symbol: str
     name: str
     quantity: Decimal                 # 체결수량(ccld_qty)

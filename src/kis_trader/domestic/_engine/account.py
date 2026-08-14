@@ -36,6 +36,7 @@ from ..entities.trade_profit import (
     TradeProfitHistory,
 )
 from ...transport import Environment, RawResponse, Transport
+from ._parse import _side_from_code
 
 if TYPE_CHECKING:
     from ..._literals import Numeric
@@ -84,7 +85,6 @@ _INTEGRATED_MARGIN_PATH = "/uapi/domestic-stock/v1/trading/intgr-margin"
 _INTEGRATED_MARGIN_TR = "TTTC0869R"  # 주식통합증거금 현황, 모의투자 미지원
 #: 미체결 주문 연속조회 페이지 상한(한 콜 최대 50건). 닿으면 fail-closed.
 _MAX_OPEN_ORDER_PAGES = 100
-_SIDE = {"01": "sell", "02": "buy"}
 
 
 # --- 잔고 / 보유종목 / 포트폴리오 -----------------------------------------
@@ -810,7 +810,7 @@ def _parse_open_orders(rows: list[Mapping[str, Any]]) -> list[OpenOrder]:
                 order_id=order_id,
                 original_order_id=str(row.get("orgn_odno", "")).strip(),
                 branch_number=str(row.get("ord_gno_brno", "")).strip(),
-                side=_SIDE.get(str(row.get("sll_buy_dvsn_cd", "")).strip(), ""),
+                side=_side_from_code(row.get("sll_buy_dvsn_cd")),
                 order_type=str(row.get("ord_dvsn_name", "")).strip(),
                 quantity=quantity,
                 filled_quantity=filled,

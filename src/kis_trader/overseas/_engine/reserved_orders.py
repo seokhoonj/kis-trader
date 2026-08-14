@@ -28,6 +28,7 @@ from ...errors import (
 from ...order import ReservedOrderFingerprint, Side, coerce_decimal, validate_yyyymmdd
 from ..entities.orders import OverseasReservedOrder
 from ...report import ExecutionReport, OrderStatus
+from ._parse import _side_from_code
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ...transport import Environment, Transport, TransportTimeout
 from .orders import _ORDER_EXCHANGE
@@ -45,7 +46,6 @@ _CANCEL_PATH = "/uapi/overseas-stock/v1/trading/order-resv-ccnl"
 _CANCEL_TR = "TTTT3017U"           # 미국 예약취소, 모의투자 미지원
 #: 연속조회 페이지 상한. 닿으면 fail-closed.
 _MAX_PAGES = 100
-_SIDE: dict[str, Side] = {"01": "sell", "02": "buy"}
 _SIDE_CODE = {"buy": "02", "sell": "01"}
 _US_MARKET = "US"
 _ORD_DVSN_LIMIT = "00"             # 지정가
@@ -54,16 +54,6 @@ _RESERVED_EXCHANGE = "overseas-reserved"
 #: reconcile 창(양방향). KIS 명세상 예약 조회일자 필드 의미가 모호해 앞뒤로 스캔한다(실 API 검증 후 축소).
 _RECONCILE_LOOKBACK_DAYS = 7
 _RECONCILE_FORWARD_DAYS = 31
-
-
-def _side_from_code(code: object) -> Side:
-    """벤더 매매구분코드(01 매도 / 02 매수)를 방향으로 -- 알 수 없는 코드는 fail-closed(:class:`KISError`).
-    ``side=""`` 로 뭉개면 buy/sell 어느 쪽도 아닌 주문 레코드가 새어 이후 오귀속/오매칭을 부른다."""
-    text = str(code or "").strip()
-    try:
-        return _SIDE[text]
-    except KeyError:
-        raise KISError(f"알 수 없는 매매구분코드: {text!r} (01 매도 / 02 매수만 유효).") from None
 
 
 def fetch_reserved_orders(
