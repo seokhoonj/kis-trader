@@ -155,7 +155,7 @@ class OptionBoardRow:
     theoretical_price: Decimal | None
     time_value: Decimal | None
     intrinsic_value: Decimal | None
-    atm_class: str
+    moneyness: str
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

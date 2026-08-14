@@ -168,7 +168,7 @@ def test_investor_net_buy_stocks_maps_and_routes():
         market="KOSPI", basis="amount", direction="sell", investor="foreign"
     )
     assert isinstance(stocks[0], InvestorNetBuyStock)
-    assert stocks[0].participants["foreign"].net_buy_quantity == 10
+    assert stocks[0].participants["foreign"].net_buy_volume == 10
     assert fake.calls[0]["tr_id"] == "FHPTJ04400000"
     assert fake.calls[0]["params"] == {
         "FID_COND_MRKT_DIV_CODE": "V", "FID_COND_SCR_DIV_CODE": "16449",
@@ -192,7 +192,7 @@ def test_program_investor_trades_maps_and_routes():
     fake = FakeTransport(response=response)
     rows = _client(fake).domestic.market.program_investor_trades(market="KOSDAQ")
     assert isinstance(rows[0], ProgramInvestorTrade)
-    assert rows[0].total.net_buy_quantity == 30
+    assert rows[0].total.net_buy_volume == 30
     assert rows[0].arbitrage.buy_amount == Decimal(13)
     assert fake.calls[0]["tr_id"] == "HHPPG046600C1"
     assert fake.calls[0]["params"] == {"MRKT_DIV_CLS_CODE": "4"}

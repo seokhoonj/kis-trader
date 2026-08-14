@@ -93,7 +93,7 @@ def test_watchlist_groups_and_stocks_map_and_route():
     })
     client = _client(groups_response, stocks_response)
     groups = client.domestic.watchlist_groups("user")
-    watchlist = client.domestic.watchlist("user", groups[0].code)
+    watchlist = client.domestic.watchlist("user", groups[0].group_code)
     assert isinstance(groups[0], WatchlistGroup)
     assert groups[0].date == date(2024, 5, 10)
     assert groups[0].transmitted_at == time(9, 15, 0)

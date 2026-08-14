@@ -76,7 +76,7 @@ class WatchlistGroup:
     date: date
     transmitted_at: time
     rank: int
-    code: str
+    group_code: str
     name: str
     requested_count: int
     _raw: Mapping[str, Any] = field(
@@ -98,7 +98,7 @@ class WatchlistStock:
     color_code: str
     memo: str
     name: str
-    base_date_net_buy_quantity: int
+    base_date_net_buy_volume: int
     execution_price: Decimal
     execution_class_code: str
     _raw: Mapping[str, Any] = field(

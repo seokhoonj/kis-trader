@@ -32,7 +32,7 @@ class InvestorActivity:
 class InvestorNetActivity:
     """한 투자자 주체의 순매수 수량과 대금."""
 
-    net_buy_quantity: int
+    net_buy_volume: int
     net_buy_amount: Decimal
 
 

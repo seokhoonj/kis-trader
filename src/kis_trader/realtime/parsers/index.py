@@ -126,10 +126,10 @@ class ProgramTrade:
     time: str  # HHMMSS
     total_sell_quantity: Decimal  # 총 매도 수량
     total_buy_quantity: Decimal  # 총 매수 수량(SHNU_CNTG_SMTN)
-    whole_net_buy_quantity: Decimal  # 전체 순매수 수량
+    whole_net_buy_volume: Decimal  # 전체 순매수 수량
     whole_net_buy_value: Decimal  # 전체 순매수 거래 대금
-    arbitrage_net_buy_quantity: Decimal  # 차익 합계 순매수 수량
-    nonarbitrage_net_buy_quantity: Decimal  # 비차익 합계 순매수 수량
+    arbitrage_net_buy_volume: Decimal  # 차익 합계 순매수 수량
+    nonarbitrage_net_buy_volume: Decimal  # 비차익 합계 순매수 수량
     accumulated_volume: Decimal
     accumulated_value: Decimal  # 누적 거래대금
     _raw: Mapping[str, Any] = field(
@@ -194,10 +194,10 @@ def parse_program_trade(fields: list[str]) -> ProgramTrade:
         time=raw["BSOP_HOUR"],
         total_sell_quantity=_decimal(raw["TOTAL_SELN_QTY"]),
         total_buy_quantity=_decimal(raw["SHNU_CNTG_SMTN"]),
-        whole_net_buy_quantity=_decimal(raw["WHOL_NTBY_QTY"]),
+        whole_net_buy_volume=_decimal(raw["WHOL_NTBY_QTY"]),
         whole_net_buy_value=_decimal(raw["WHOL_NTBY_TR_PBMN"]),
-        arbitrage_net_buy_quantity=_decimal(raw["ARBT_SMTN_NTBY_QTY"]),
-        nonarbitrage_net_buy_quantity=_decimal(raw["NABT_SMTN_NTBY_QTY"]),
+        arbitrage_net_buy_volume=_decimal(raw["ARBT_SMTN_NTBY_QTY"]),
+        nonarbitrage_net_buy_volume=_decimal(raw["NABT_SMTN_NTBY_QTY"]),
         accumulated_volume=_decimal(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         _raw=raw,

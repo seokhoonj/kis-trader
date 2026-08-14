@@ -77,7 +77,7 @@ class ProgramTradeActivity:
 
     sell_quantity: int
     buy_quantity: int
-    net_buy_quantity: int
+    net_buy_volume: int
     sell_amount: Decimal
     buy_amount: Decimal
     net_buy_amount: Decimal

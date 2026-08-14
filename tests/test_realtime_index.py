@@ -65,10 +65,10 @@ def _program_trade_fields() -> list[str]:
     fields[1] = "153000"     # time
     fields[66] = "1000"      # TOTAL_SELN_QTY -> total_sell_quantity
     fields[70] = "1200"      # SHNU_CNTG_SMTN -> total_buy_quantity
-    fields[74] = "200"       # WHOL_NTBY_QTY -> whole_net_buy_quantity
+    fields[74] = "200"       # WHOL_NTBY_QTY -> whole_net_buy_volume
     fields[76] = "5500000"   # WHOL_NTBY_TR_PBMN -> whole_net_buy_value
-    fields[26] = "80"        # ARBT_SMTN_NTBY_QTY -> arbitrage_net_buy_quantity
-    fields[38] = "120"       # NABT_SMTN_NTBY_QTY -> nonarbitrage_net_buy_quantity
+    fields[26] = "80"        # ARBT_SMTN_NTBY_QTY -> arbitrage_net_buy_volume
+    fields[38] = "120"       # NABT_SMTN_NTBY_QTY -> nonarbitrage_net_buy_volume
     fields[86] = "900000"    # ACML_VOL -> accumulated_volume
     fields[87] = "45000000"  # ACML_TR_PBMN -> accumulated_value
     return fields
@@ -107,10 +107,10 @@ def test_parse_program_trade_maps_headline_fields():
     assert pt.time == "153000"
     assert pt.total_sell_quantity == Decimal("1000")
     assert pt.total_buy_quantity == Decimal("1200")
-    assert pt.whole_net_buy_quantity == Decimal("200")
+    assert pt.whole_net_buy_volume == Decimal("200")
     assert pt.whole_net_buy_value == Decimal("5500000")
-    assert pt.arbitrage_net_buy_quantity == Decimal("80")
-    assert pt.nonarbitrage_net_buy_quantity == Decimal("120")
+    assert pt.arbitrage_net_buy_volume == Decimal("80")
+    assert pt.nonarbitrage_net_buy_volume == Decimal("120")
     assert pt.accumulated_volume == Decimal("900000")
     assert pt.accumulated_value == Decimal("45000000")
 

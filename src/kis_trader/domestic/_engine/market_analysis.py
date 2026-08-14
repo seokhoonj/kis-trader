@@ -400,13 +400,13 @@ def fetch_investor_net_buy_stocks(
         stocks.append(InvestorNetBuyStock(
             symbol=str(row.get("mksc_shrn_iscd", "")).strip(),
             name=str(row.get("hts_kor_isnm", "")).strip(),
-            net_buy_quantity=required_int(row.get("ntby_qty"), "ntby_qty"),
+            net_buy_volume=required_int(row.get("ntby_qty"), "ntby_qty"),
             price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
             change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
             change_percent=_apply_change_sign(required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign),
             volume=required_int(row.get("acml_vol"), "acml_vol"),
             participants={name: InvestorNetActivity(
-                net_buy_quantity=required_int(row.get(f"{prefix}_ntby_vol" if prefix in {"etc_orgt", "etc_corp"} else f"{prefix}_ntby_qty"),
+                net_buy_volume=required_int(row.get(f"{prefix}_ntby_vol" if prefix in {"etc_orgt", "etc_corp"} else f"{prefix}_ntby_qty"),
                                       f"{prefix}_ntby_vol" if prefix in {"etc_orgt", "etc_corp"} else f"{prefix}_ntby_qty"),
                 net_buy_amount=required_decimal(row.get(f"{prefix}_ntby_tr_pbmn"), f"{prefix}_ntby_tr_pbmn"),
             ) for name, prefix in _NET_BUY_PARTICIPANT.items()}, _raw=row,
@@ -897,7 +897,7 @@ def _parse_program_trade_activity(row: Mapping[str, object], prefix: str) -> Pro
     return ProgramTradeActivity(
         sell_quantity=required_int(row.get(f"{prefix}_seln_qty"), f"{prefix}_seln_qty"),
         buy_quantity=required_int(row.get(f"{prefix}_shnu_qty"), f"{prefix}_shnu_qty"),
-        net_buy_quantity=required_int(row.get(f"{prefix}_ntby_qty"), f"{prefix}_ntby_qty"),
+        net_buy_volume=required_int(row.get(f"{prefix}_ntby_qty"), f"{prefix}_ntby_qty"),
         sell_amount=required_decimal(row.get(f"{prefix}_seln_amt"), f"{prefix}_seln_amt"),
         buy_amount=required_decimal(row.get(f"{prefix}_shnu_amt"), f"{prefix}_shnu_amt"),
         net_buy_amount=required_decimal(row.get(f"{prefix}_ntby_amt"), f"{prefix}_ntby_amt"),

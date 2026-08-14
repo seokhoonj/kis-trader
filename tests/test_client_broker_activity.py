@@ -92,7 +92,7 @@ def test_broker_daily_activity_maps_and_routes():
         "0003", start="20240501", end="20240510"
     )
     assert isinstance(activities[0], BrokerDailyActivity)
-    assert activities[0].net_buy_quantity == 30
+    assert activities[0].net_buy_volume == 30
     assert activities[0].change == Decimal(-500)
     assert fake.calls[0] == {
         "path": "/uapi/domestic-stock/v1/quotations/inquire-member-daily",

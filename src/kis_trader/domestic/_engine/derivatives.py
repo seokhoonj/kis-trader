@@ -458,7 +458,7 @@ def _parse_board_row(row: Mapping[str, Any]) -> OptionBoardRow:
         theoretical_price=optional_decimal(row.get("hts_thpr"), "hts_thpr"),
         time_value=optional_decimal(row.get("tmvl_val"), "tmvl_val"),
         intrinsic_value=optional_decimal(row.get("invl_val"), "invl_val"),
-        atm_class=str(row.get("atm_cls_name", "")).strip(),
+        moneyness=str(row.get("atm_cls_name", "")).strip(),
         _raw=row,
     )
 

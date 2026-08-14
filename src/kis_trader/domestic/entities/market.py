@@ -74,7 +74,7 @@ class InvestorNetBuyStock:
 
     symbol: str
     name: str
-    net_buy_quantity: int
+    net_buy_volume: int
     price: Decimal
     change: Decimal
     change_percent: Decimal

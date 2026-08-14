@@ -125,7 +125,7 @@ def fetch_watchlist_groups(
         date=_parse_kst_date(str(row.get("date", "")).strip()),
         transmitted_at=_parse_kst_time(str(row.get("trnm_hour", "")).strip()),
         rank=required_int(row.get("data_rank"), "data_rank"),
-        code=str(row.get("inter_grp_code", "")).strip(),
+        group_code=str(row.get("inter_grp_code", "")).strip(),
         name=str(row.get("inter_grp_name", "")).strip(),
         requested_count=required_int(row.get("ask_cnt"), "ask_cnt"), _raw=row,
     ) for row in rows]
@@ -157,7 +157,7 @@ def fetch_watchlist(
             symbol=str(row.get("jong_code", "")).strip(),
             color_code=str(row.get("color_code", "")).strip(), memo=str(row.get("memo", "")).strip(),
             name=str(row.get("hts_kor_isnm", "")).strip(),
-            base_date_net_buy_quantity=required_int(row.get("fxdt_ntby_qty"), "fxdt_ntby_qty"),
+            base_date_net_buy_volume=required_int(row.get("fxdt_ntby_qty"), "fxdt_ntby_qty"),
             execution_price=required_decimal(row.get("cntg_unpr"), "cntg_unpr"),
             execution_class_code=str(row.get("cntg_cls_code", "")).strip(), _raw=row,
         ) for row in rows),

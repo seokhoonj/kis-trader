@@ -53,7 +53,7 @@ class BrokerDailyActivity:
     trading_date: date
     sell_quantity: int
     buy_quantity: int
-    net_buy_quantity: int
+    net_buy_volume: int
     price: Decimal
     change: Decimal
     change_percent: Decimal
@@ -76,8 +76,8 @@ class BrokerTradeTick:
     price: Decimal
     change: Decimal
     execution_volume: int
-    cumulative_net_buy_quantity: int
-    foreign_broker_net_buy_quantity: int
+    cumulative_net_buy_volume: int
+    foreign_broker_net_buy_volume: int
     foreign_net_buy_change: int
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
