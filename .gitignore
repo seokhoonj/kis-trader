@@ -20,6 +20,7 @@ __pycache__/
 .pytest_cache/
 dist/
 build/
+uv.lock
 
 # Docs build output (Quarto)
 docs/_site/
