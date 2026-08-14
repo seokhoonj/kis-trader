@@ -10,6 +10,7 @@ from decimal import Decimal
 
 from kis_trader.realtime import _registry  # noqa: F401  (import 시 파서 등록)
 from kis_trader.realtime.parsers.overseas import (
+    _ASIA_ORDERBOOK_FIELDS,
     _DELAYED_TRADE_FIELDS,
     _EXECUTION_NOTICE_FIELDS,
     _FUTURES_EXECUTION_NOTICE_FIELDS,
@@ -17,6 +18,7 @@ from kis_trader.realtime.parsers.overseas import (
     _FUTURES_ORDERBOOK_FIELDS,
     _FUTURES_TRADE_FIELDS,
     _ORDERBOOK_FIELDS,
+    AsiaDelayedOrderBook,
     DelayedTradeTick,
     ExecutionNotice,
     FuturesExecutionNotice,
@@ -24,6 +26,7 @@ from kis_trader.realtime.parsers.overseas import (
     FuturesOrderNotice,
     FuturesTradeTick,
     OrderBook,
+    parse_asia_orderbook,
     parse_delayed_trade_tick,
     parse_execution_notice,
     parse_futures_execution_notice,
@@ -92,6 +95,59 @@ def test_registry_orderbook():
     assert spec is not None
     assert spec.field_count == len(_ORDERBOOK_FIELDS)
     assert spec.parser is parse_orderbook
+    assert spec.encrypted is False
+
+
+# ---------------------------------------------------------------------------
+# HDFSASP1 -- AsiaDelayedOrderBook (1단계)
+# ---------------------------------------------------------------------------
+
+
+def _asia_orderbook_fields() -> list[str]:
+    fields = _blank(_ASIA_ORDERBOOK_FIELDS)
+    fields[0] = "TSE7203"   # RSYM
+    fields[1] = "7203"      # SYMB
+    fields[2] = "0"         # ZDIV
+    fields[3] = "20260814"  # XYMD
+    fields[4] = "093000"    # XHMS
+    fields[5] = "20260814"  # KYMD
+    fields[6] = "093000"    # KHMS
+    fields[7] = "1500"      # BVOL (total bid volume)
+    fields[8] = "2200"      # AVOL (total ask volume)
+    fields[11] = "2850.0"   # PBID1
+    fields[12] = "2851.0"   # PASK1
+    fields[13] = "300"      # VBID1
+    fields[14] = "450"      # VASK1
+    return fields
+
+
+def test_parse_asia_orderbook_headline():
+    ob = parse_asia_orderbook(_asia_orderbook_fields())
+    assert isinstance(ob, AsiaDelayedOrderBook)
+    assert ob.symbol == "7203"
+    assert ob.realtime_symbol == "TSE7203"
+    assert ob.decimal_places == "0"
+    assert ob.local_date == "20260814"
+    assert ob.local_time == "093000"
+    assert ob.korea_date == "20260814"
+    assert ob.korea_time == "093000"
+    assert ob.total_bid_volume == Decimal("1500")
+    assert ob.total_ask_volume == Decimal("2200")
+    assert ob.best_bid == Decimal("2850.0")
+    assert ob.best_ask == Decimal("2851.0")
+    assert ob.best_bid_volume == Decimal("300")
+    assert ob.best_ask_volume == Decimal("450")
+
+
+def test_asia_orderbook_raw_and_registry():
+    ob = parse_asia_orderbook(_asia_orderbook_fields())
+    assert len(ob._raw) == len(_ASIA_ORDERBOOK_FIELDS) == 17
+    assert ob._raw["DASK1"] == "0"
+    assert ob._raw["SYMB"] == "7203"
+    spec = _registry.lookup("HDFSASP1")
+    assert spec is not None
+    assert spec.field_count == len(_ASIA_ORDERBOOK_FIELDS)
+    assert spec.parser is parse_asia_orderbook
     assert spec.encrypted is False
 
 

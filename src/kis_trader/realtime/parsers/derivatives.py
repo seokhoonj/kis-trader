@@ -590,4 +590,6 @@ register(TRSpec("H0ZFANC0", field_count=len(_STOCK_FUTURES_EXPECTED_FIELDS), par
 register(TRSpec("H0ZOANC0", field_count=len(_STOCK_OPTION_EXPECTED_FIELDS), parser=parse_stock_option_expected))
 
 register(TRSpec("H0IFCNI0", field_count=len(_EXECUTION_NOTICE_FIELDS), parser=parse_execution_notice, encrypted=True))
-register(TRSpec("H0MFCNI0", field_count=len(_NIGHT_EXECUTION_NOTICE_FIELDS), parser=parse_night_execution_notice, encrypted=True))
+# KRX야간선물/야간옵션 체결통보(H0MFCNI0/H0EUCNI0)는 동일 19필드 레이아웃 -> 파서 공유.
+for _tr_id in ("H0MFCNI0", "H0EUCNI0"):
+    register(TRSpec(_tr_id, field_count=len(_NIGHT_EXECUTION_NOTICE_FIELDS), parser=parse_night_execution_notice, encrypted=True))

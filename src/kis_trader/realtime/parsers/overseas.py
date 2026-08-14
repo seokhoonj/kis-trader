@@ -465,10 +465,66 @@ def parse_futures_execution_notice(fields: list[str]) -> FuturesExecutionNotice:
 
 
 # ---------------------------------------------------------------------------
+# 해외주식 실시간지연호가 아시아 (HDFSASP1)
+# ---------------------------------------------------------------------------
+
+_ASIA_ORDERBOOK_FIELDS = (
+    "RSYM", "SYMB", "ZDIV", "XYMD", "XHMS", "KYMD", "KHMS", "BVOL", "AVOL", "BDVL", "ADVL",
+    "PBID1", "PASK1", "VBID1", "VASK1", "DBID1", "DASK1",
+)
+
+
+@dataclass(frozen=True, slots=True)
+class AsiaDelayedOrderBook:
+    """해외주식 실시간지연호가 아시아(HDFSASP1). 아시아 거래소 1단계 매수/매도 호가·잔량 스냅샷.
+
+    아시아권 지연호가는 최우선 1단계만 제공한다(미주/유럽의 10단계 :class:`OrderBook` 과 구분).
+    전체 필드는 ``_raw`` (KIS Element 이름 기준)에 있고, 아래는 헤드라인만 타입화한 것.
+    """
+
+    symbol: str
+    realtime_symbol: str
+    decimal_places: str
+    local_date: str
+    local_time: str
+    korea_date: str
+    korea_time: str
+    total_bid_volume: Decimal
+    total_ask_volume: Decimal
+    best_bid: Decimal
+    best_ask: Decimal
+    best_bid_volume: Decimal
+    best_ask_volume: Decimal
+    _raw: Mapping[str, Any] = _raw_field()
+
+
+def parse_asia_orderbook(fields: list[str]) -> AsiaDelayedOrderBook:
+    """HDFSASP1 한 레코드(17필드) -> :class:`AsiaDelayedOrderBook`."""
+    raw = MappingProxyType(dict(zip(_ASIA_ORDERBOOK_FIELDS, fields, strict=False)))
+    return AsiaDelayedOrderBook(
+        symbol=raw["SYMB"],
+        realtime_symbol=raw["RSYM"],
+        decimal_places=raw["ZDIV"],
+        local_date=raw["XYMD"],
+        local_time=raw["XHMS"],
+        korea_date=raw["KYMD"],
+        korea_time=raw["KHMS"],
+        total_bid_volume=_decimal(raw["BVOL"]),
+        total_ask_volume=_decimal(raw["AVOL"]),
+        best_bid=_decimal(raw["PBID1"]),
+        best_ask=_decimal(raw["PASK1"]),
+        best_bid_volume=_decimal(raw["VBID1"]),
+        best_ask_volume=_decimal(raw["VASK1"]),
+        _raw=raw,
+    )
+
+
+# ---------------------------------------------------------------------------
 # 레지스트리 등록
 # ---------------------------------------------------------------------------
 
 register(TRSpec("HDFSASP0", field_count=len(_ORDERBOOK_FIELDS), parser=parse_orderbook))
+register(TRSpec("HDFSASP1", field_count=len(_ASIA_ORDERBOOK_FIELDS), parser=parse_asia_orderbook))
 register(TRSpec("HDFSCNT0", field_count=len(_DELAYED_TRADE_FIELDS), parser=parse_delayed_trade_tick))
 register(
     TRSpec(

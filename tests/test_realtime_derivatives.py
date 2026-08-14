@@ -354,12 +354,36 @@ def test_registry_execution_notices_marked_encrypted():
         assert spec.encrypted is True
 
 
+def test_registry_night_option_notice_reuses_night_parser():
+    # KRX야간옵션 체결통보(H0EUCNI0)는 야간선물(H0MFCNI0)과 동일 19필드 레이아웃을 공유한다.
+    spec = _registry.lookup("H0EUCNI0")
+    assert spec is not None
+    assert spec.field_count == 19
+    assert spec.parser is der.parse_night_execution_notice
+    assert spec.encrypted is True
+
+
+def test_parse_night_option_notice_via_shared_parser():
+    fields = _fields(
+        der._NIGHT_EXECUTION_NOTICE_FIELDS,
+        CUST_ID="CUST01", ACNT_NO="12345678", ODER_NO="0003", SELN_BYOV_CLS="02",
+        STCK_SHRN_ISCD="201S1305", CNTG_QTY="1", CNTG_UNPR="2.50",
+        STCK_CNTG_HOUR="181500", RFUS_YN="N", CNTG_YN="2", ACPT_YN="Y",
+    )
+    note = der.parse_night_execution_notice(fields)
+    assert note.symbol == "201S1305"
+    assert note.filled_price == Decimal("2.50")
+    assert note.accepted is True
+    assert note.order_price == Decimal(0)  # 야간 통보엔 주문가격 없음
+    assert len(note._raw) == 19
+
+
 def test_registry_field_counts_match_layouts():
     expected = {
         "H0ZOASP0": 68, "H0ZFASP0": 68, "H0IOASP0": 38, "H0EUASP0": 38,
         "H0MFCNT0": 49, "H0ZFCNT0": 49, "H0EUCNT0": 56, "H0IOCNT0": 58,
         "H0ZOCNT0": 53, "H0EUANC0": 8, "H0ZFANC0": 8, "H0ZOANC0": 7,
-        "H0IFCNI0": 22, "H0MFCNI0": 19,
+        "H0IFCNI0": 22, "H0MFCNI0": 19, "H0EUCNI0": 19,
     }
     for tr_id, count in expected.items():
         spec = _registry.lookup(tr_id)

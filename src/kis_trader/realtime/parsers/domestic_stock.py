@@ -558,3 +558,122 @@ def parse_execution_notice(fields: list[str]) -> ExecutionNotice:
 register(TRSpec(
     "H0STCNI0", field_count=len(_EXECUTION_NOTICE_FIELDS), parser=parse_execution_notice, encrypted=True
 ))
+
+
+# ---------------------------------------------------------------------------
+# ETF NAV 추이 (ETFNav) -- 국내 ETF
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class ETFNav:
+    """국내 ETF 실시간 NAV(순자산가치) 추이. 현재 NAV 와 전일대비/시가/고가/저가 NAV.
+
+    NAV(순자산가치)는 ETF 1주가 담는 기초자산의 실질 가치로, 시장 체결가와는 별개로 산출된다.
+    NAV추이(H0STNAV0)가 이 엔티티로 매핑된다. 전체 8필드는 ``_raw`` 에 있다.
+    """
+
+    symbol: str  # MKSC_SHRN_ISCD
+    nav: Decimal  # NAV 현재 순자산가치
+    nav_change_sign: str  # NAV_PRDY_VRSS_SIGN 전일대비 부호
+    nav_change: Decimal  # NAV_PRDY_VRSS 전일대비
+    nav_change_percent: Decimal  # NAV_PRDY_CTRT 전일대비율
+    nav_open: Decimal  # OPRC_NAV 시가 NAV
+    nav_high: Decimal  # HPRC_NAV 고가 NAV
+    nav_low: Decimal  # LPRC_NAV 저가 NAV
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+
+_ETF_NAV_FIELDS = (
+    "MKSC_SHRN_ISCD", "NAV", "NAV_PRDY_VRSS_SIGN", "NAV_PRDY_VRSS", "NAV_PRDY_CTRT",
+    "OPRC_NAV", "HPRC_NAV", "LPRC_NAV",
+)
+
+
+def parse_etf_nav(fields: list[str]) -> ETFNav:
+    """H0STNAV0 한 레코드(8필드) -> :class:`ETFNav`."""
+    raw = MappingProxyType(dict(zip(_ETF_NAV_FIELDS, fields, strict=False)))
+    return ETFNav(
+        symbol=raw["MKSC_SHRN_ISCD"],
+        nav=_decimal(raw["NAV"]),
+        nav_change_sign=raw["NAV_PRDY_VRSS_SIGN"],
+        nav_change=_decimal(raw["NAV_PRDY_VRSS"]),
+        nav_change_percent=_decimal(raw["NAV_PRDY_CTRT"]),
+        nav_open=_decimal(raw["OPRC_NAV"]),
+        nav_high=_decimal(raw["HPRC_NAV"]),
+        nav_low=_decimal(raw["LPRC_NAV"]),
+        _raw=raw,
+    )
+
+
+register(TRSpec("H0STNAV0", field_count=len(_ETF_NAV_FIELDS), parser=parse_etf_nav))
+
+
+# ---------------------------------------------------------------------------
+# 장운영정보 (MarketOperation) -- KRX / NXT / 통합
+# ---------------------------------------------------------------------------
+
+
+@dataclass(frozen=True, slots=True)
+class MarketOperation:
+    """국내주식 실시간 장운영정보. 매매정지 여부/사유와 장운영/VI/거래소 구분 코드.
+
+    KRX(H0STMKO0)/NXT(H0NXMKO0)는 종목코드를 포함한 11필드 동일 레이아웃을 공유하고, 통합
+    (H0UNMKO0)은 종목코드가 없는 10필드다(통합 피드엔 종목 식별자가 실리지 않아 ``symbol`` 이
+    빈 문자열이 된다). 전체 필드는 ``_raw`` 에 있다.
+    """
+
+    symbol: str  # MKSC_SHRN_ISCD (통합 피드엔 없음 -> "")
+    trading_halted: bool  # TRHT_YN 매매정지 여부
+    halt_reason: str  # TR_SUSP_REAS_CNTT 매매정지 사유
+    operation_code: str  # MKOP_CLS_CODE 장운영구분코드
+    expected_operation_code: str  # ANTC_MKOP_CLS_CODE 예상장운영구분코드
+    vi_code: str  # VI_CLS_CODE VI 적용구분코드
+    exchange_code: str  # EXCH_CLS_CODE 거래소구분코드
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+
+def _market_operation(raw: Mapping[str, str]) -> MarketOperation:
+    """장운영정보 원장 매핑 -> :class:`MarketOperation` (종목코드 유무를 흡수)."""
+    return MarketOperation(
+        symbol=raw.get("MKSC_SHRN_ISCD", ""),
+        trading_halted=raw["TRHT_YN"] == "Y",
+        halt_reason=raw["TR_SUSP_REAS_CNTT"],
+        operation_code=raw["MKOP_CLS_CODE"],
+        expected_operation_code=raw["ANTC_MKOP_CLS_CODE"],
+        vi_code=raw["VI_CLS_CODE"],
+        exchange_code=raw["EXCH_CLS_CODE"],
+        _raw=MappingProxyType(dict(raw)),
+    )
+
+
+# KRX/NXT 장운영정보(H0STMKO0/H0NXMKO0): 종목코드 포함 11필드.
+_MARKET_OPERATION_FIELDS = (
+    "MKSC_SHRN_ISCD", "TRHT_YN", "TR_SUSP_REAS_CNTT", "MKOP_CLS_CODE", "ANTC_MKOP_CLS_CODE",
+    "MRKT_TRTM_CLS_CODE", "DIVI_APP_CLS_CODE", "ISCD_STAT_CLS_CODE", "VI_CLS_CODE",
+    "OVTM_VI_CLS_CODE", "EXCH_CLS_CODE",
+)
+
+# 통합 장운영정보(H0UNMKO0): 종목코드 없는 10필드(TRHT_YN 부터 시작).
+_MARKET_OPERATION_UNIFIED_FIELDS = _MARKET_OPERATION_FIELDS[1:]
+
+
+def parse_market_operation(fields: list[str]) -> MarketOperation:
+    """H0STMKO0/H0NXMKO0 한 레코드(11필드) -> :class:`MarketOperation`."""
+    return _market_operation(dict(zip(_MARKET_OPERATION_FIELDS, fields, strict=False)))
+
+
+def parse_market_operation_unified(fields: list[str]) -> MarketOperation:
+    """H0UNMKO0 한 레코드(10필드, 종목코드 없음) -> :class:`MarketOperation`. ``symbol`` 은 ""."""
+    return _market_operation(dict(zip(_MARKET_OPERATION_UNIFIED_FIELDS, fields, strict=False)))
+
+
+for _tr_id in ("H0STMKO0", "H0NXMKO0"):
+    register(TRSpec(_tr_id, field_count=len(_MARKET_OPERATION_FIELDS), parser=parse_market_operation))
+register(TRSpec(
+    "H0UNMKO0", field_count=len(_MARKET_OPERATION_UNIFIED_FIELDS), parser=parse_market_operation_unified
+))

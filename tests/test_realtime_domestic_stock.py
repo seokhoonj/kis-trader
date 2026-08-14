@@ -11,15 +11,20 @@ from decimal import Decimal
 from kis_trader.realtime import _registry  # noqa: F401  (import 시 파서 등록)
 from kis_trader.realtime.parsers.domestic_stock import (
     AfterHoursTick,
+    ETFNav,
     ExecutionNotice,
     ExpectedConclusion,
+    MarketOperation,
     MemberActivity,
     OrderBook,
     ProgramTrade,
     _AFTER_HOURS_TICK_FIELDS,
+    _ETF_NAV_FIELDS,
     _EXECUTION_NOTICE_FIELDS,
     _EXPECTED_CONCLUSION_EXT_FIELDS,
     _EXPECTED_CONCLUSION_KRX_FIELDS,
+    _MARKET_OPERATION_FIELDS,
+    _MARKET_OPERATION_UNIFIED_FIELDS,
     _MEMBER_ACTIVITY_FIELDS,
     _ORDER_BOOK_AFTER_HOURS_FIELDS,
     _ORDER_BOOK_KRX_FIELDS,
@@ -27,9 +32,12 @@ from kis_trader.realtime.parsers.domestic_stock import (
     _ORDER_BOOK_UNIFIED_FIELDS,
     _PROGRAM_TRADE_FIELDS,
     parse_after_hours_tick,
+    parse_etf_nav,
     parse_execution_notice,
     parse_expected_conclusion_ext,
     parse_expected_conclusion_krx,
+    parse_market_operation,
+    parse_market_operation_unified,
     parse_member_activity,
     parse_order_book_after_hours,
     parse_order_book_krx,
@@ -329,3 +337,81 @@ def test_execution_notice_empty_numbers_default_to_zero():
     en = parse_execution_notice(record)
     assert en.executed_qty == Decimal(0)
     assert en.executed_price == Decimal(0)
+
+
+# --------------------------------------------------------------------------- ETFNav
+
+
+def test_parse_etf_nav():
+    record = _at(_ETF_NAV_FIELDS, {
+        "MKSC_SHRN_ISCD": "069500", "NAV": "39250.15", "NAV_PRDY_VRSS_SIGN": "2",
+        "NAV_PRDY_VRSS": "120.30", "NAV_PRDY_CTRT": "0.31", "OPRC_NAV": "39100.00",
+        "HPRC_NAV": "39400.50", "LPRC_NAV": "39050.75",
+    })
+    nav = parse_etf_nav(record)
+    assert isinstance(nav, ETFNav)
+    assert nav.symbol == "069500"
+    assert nav.nav == Decimal("39250.15")
+    assert nav.nav_change_sign == "2"
+    assert nav.nav_change == Decimal("120.30")
+    assert nav.nav_change_percent == Decimal("0.31")
+    assert nav.nav_open == Decimal("39100.00")
+    assert nav.nav_high == Decimal("39400.50")
+    assert nav.nav_low == Decimal("39050.75")
+    assert len(nav._raw) == 8
+    assert nav._raw["LPRC_NAV"] == "39050.75"
+
+
+def test_registry_etf_nav():
+    spec = _registry.lookup("H0STNAV0")
+    assert spec is not None
+    assert spec.field_count == 8
+    assert spec.parser is parse_etf_nav
+
+
+# --------------------------------------------------------------------------- MarketOperation
+
+
+def test_parse_market_operation_krx():
+    record = _at(_MARKET_OPERATION_FIELDS, {
+        "MKSC_SHRN_ISCD": "005930", "TRHT_YN": "Y", "TR_SUSP_REAS_CNTT": "VI 발동",
+        "MKOP_CLS_CODE": "20", "ANTC_MKOP_CLS_CODE": "21", "VI_CLS_CODE": "1",
+        "EXCH_CLS_CODE": "1",
+    })
+    mo = parse_market_operation(record)
+    assert isinstance(mo, MarketOperation)
+    assert mo.symbol == "005930"
+    assert mo.trading_halted is True
+    assert mo.halt_reason == "VI 발동"
+    assert mo.operation_code == "20"
+    assert mo.expected_operation_code == "21"
+    assert mo.vi_code == "1"
+    assert mo.exchange_code == "1"
+    assert len(mo._raw) == 11
+    assert mo._raw["OVTM_VI_CLS_CODE"] == "0"
+
+
+def test_parse_market_operation_unified_has_no_symbol():
+    record = _at(_MARKET_OPERATION_UNIFIED_FIELDS, {
+        "TRHT_YN": "N", "TR_SUSP_REAS_CNTT": "", "MKOP_CLS_CODE": "11",
+        "ANTC_MKOP_CLS_CODE": "0", "VI_CLS_CODE": "0", "EXCH_CLS_CODE": "3",
+    })
+    mo = parse_market_operation_unified(record)
+    assert mo.symbol == ""  # 통합 피드엔 종목코드가 없다
+    assert mo.trading_halted is False
+    assert mo.operation_code == "11"
+    assert mo.exchange_code == "3"
+    assert "MKSC_SHRN_ISCD" not in mo._raw
+    assert len(mo._raw) == 10
+
+
+def test_registry_market_operation_variants():
+    for tr_id in ("H0STMKO0", "H0NXMKO0"):
+        spec = _registry.lookup(tr_id)
+        assert spec is not None
+        assert spec.field_count == 11
+        assert spec.parser is parse_market_operation
+    unified = _registry.lookup("H0UNMKO0")
+    assert unified is not None
+    assert unified.field_count == 10
+    assert unified.parser is parse_market_operation_unified
