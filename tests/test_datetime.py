@@ -7,7 +7,7 @@ _KST = timezone(timedelta(hours=9))
 
 import pytest
 
-from kis_trader._datetime import _to_yyyymmdd, parse_optional_kst_date
+from kis_trader._internal._datetime import _to_yyyymmdd, parse_optional_kst_date
 from kis_trader.errors import KISError, KISUsageError
 
 

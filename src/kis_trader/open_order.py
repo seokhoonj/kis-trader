@@ -1,7 +1,7 @@
 """국내주식 미체결(정정·취소 가능) 주문 한 건(DATA) -- :class:`OpenOrder`.
 
 브로커(한국투자증권)에 남아 있는 접수 주문 중 아직 정정·취소할 수 있는 건들이다. 해외의
-:class:`~kis_trader.overseas_items.OverseasOpenOrder` 와 대칭인 국내판으로, 브로커 측 뷰라
+:class:`~kis_trader.overseas.entities.orders.OverseasOpenOrder` 와 대칭인 국내판으로, 브로커 측 뷰라
 우리 ``client_order_id`` 는 없고 KIS 주문번호(``order_id``)로 식별한다.
 
 정정·취소 전에 ``cancelable_quantity`` (KIS ``psbl_qty``, 정정/취소 가능수량)를 확인하라 --
@@ -17,7 +17,7 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
-from ._freeze import freeze_vendor_payload
+from ._internal._freeze import freeze_vendor_payload
 
 
 @dataclass(frozen=True, slots=True)

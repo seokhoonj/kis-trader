@@ -1,6 +1,6 @@
 """심볼 -> 시장 판별.
 
-종목 핸들(:class:`~kis_trader.stock.DomesticStock`)이 심볼만으로 어느 시장을 부를지 정한다.
+종목 핸들(:class:`~kis_trader.domestic.stock.DomesticStock`)이 심볼만으로 어느 시장을 부를지 정한다.
 6자리 숫자 심볼은 국내(KRX 보드)로 본다. 그 밖(영문 등 해외 심볼)은 아직 지원하지 않아
 명시적으로 거부한다. 국내 다른 보드(NXT/통합)를 쓰려면 ``market=`` 로 지정한다.
 """

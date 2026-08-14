@@ -14,7 +14,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Literal, NamedTuple
 
-from ._wire import format_wire_decimal
+from ._internal._wire import format_wire_decimal
 from .errors import KISUsageError
 from .instrument import DomesticBoard
 

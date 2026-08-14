@@ -218,7 +218,7 @@ def test_overseas_immediate_and_reserved_same_id_cross_lifecycle_conflict():
 
 # --- reconcile (예약주문조회 기반) -----------------------------------------
 def test_overseas_reserve_reconcile_confirms_single_match(monkeypatch):
-    monkeypatch.setattr("kis_trader._overseas.reserved_orders.datetime", _FrozenDatetime)
+    monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
     cid = "20240101-ovsresv-rc01"
     place_t = FakeTransport(raises=TransportTimeout("t"))
@@ -237,7 +237,7 @@ def test_overseas_reserve_reconcile_confirms_single_match(monkeypatch):
 
 
 def test_overseas_reserve_reconcile_ignores_canceled_mismatch_and_old_receipt(monkeypatch):
-    monkeypatch.setattr("kis_trader._overseas.reserved_orders.datetime", _FrozenDatetime)
+    monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
     cid = "20240101-ovsresv-rc02"
     place_t = FakeTransport(raises=TransportTimeout("t"))
@@ -255,7 +255,7 @@ def test_overseas_reserve_reconcile_ignores_canceled_mismatch_and_old_receipt(mo
 
 
 def test_overseas_reserve_reconcile_multi_match_raises(monkeypatch):
-    monkeypatch.setattr("kis_trader._overseas.reserved_orders.datetime", _FrozenDatetime)
+    monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
     cid = "20240101-ovsresv-rc03"
     place_t = FakeTransport(raises=TransportTimeout("t"))
@@ -275,7 +275,7 @@ def test_overseas_reserve_reconcile_scans_all_pages_before_confirming(monkeypatc
     # 재조회는 조기 종료 금지: 첫 페이지 tr_cont 소진(D)이라도 커서(ctx_area_nk200)가 남으면 계속
     # 스캔해야 둘째 페이지의 두 번째 일치를 본다. 그러지 않으면 ≥2 모호를 1건으로 오판해 접수 여부
     # 불명 주문을 잘못 확정한다(이중발주 위험). 국내 예약/즉시 재조회와 같은 보수적 종료.
-    monkeypatch.setattr("kis_trader._overseas.reserved_orders.datetime", _FrozenDatetime)
+    monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
     cid = "20240101-ovsresv-pg01"
     place_t = FakeTransport(raises=TransportTimeout("t"))

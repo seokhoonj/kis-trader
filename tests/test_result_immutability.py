@@ -13,9 +13,9 @@ from types import MappingProxyType
 
 import pytest
 
-from kis_trader._freeze import freeze_vendor_payload
-from kis_trader.broker import BrokerActivitySummary
-from kis_trader.market_items import MarketInvestorSnapshot
+from kis_trader._internal._freeze import freeze_vendor_payload
+from kis_trader.domestic.entities.broker import BrokerActivitySummary
+from kis_trader.domestic.entities.market import MarketInvestorSnapshot
 
 
 def test_freeze_vendor_payload_deep_and_readonly() -> None:

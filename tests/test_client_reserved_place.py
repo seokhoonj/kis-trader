@@ -357,7 +357,7 @@ def test_reserve_reconcile_rejects_partial_match(changed):
 
 
 def test_reserve_reconcile_window_and_process_params(monkeypatch):
-    monkeypatch.setattr("kis_trader._domestic.reserved_orders.datetime", _FrozenDatetime)
+    monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
     cid = "20240101-reserved-win01"
     place_t = FakeTransport(raises=TransportTimeout("t"))

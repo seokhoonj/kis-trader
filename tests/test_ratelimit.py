@@ -7,7 +7,7 @@ import time
 
 import pytest
 
-from kis_trader._ratelimit import (
+from kis_trader._internal._ratelimit import (
     DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT,
     SlidingWindowRateLimiter,
 )

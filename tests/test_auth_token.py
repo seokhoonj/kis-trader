@@ -10,7 +10,7 @@ from typing import Any
 
 import pytest
 
-from kis_trader._auth import TokenManager
+from kis_trader._internal._auth import TokenManager
 from kis_trader.errors import KISAuthError, KISUsageError
 
 

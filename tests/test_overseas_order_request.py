@@ -10,7 +10,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader._overseas.orders import make_order_request_from_fields
+from kis_trader.overseas._engine.orders import make_order_request_from_fields
 from kis_trader.errors import KISUsageError
 
 

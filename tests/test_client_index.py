@@ -539,7 +539,7 @@ def test_index_categories_maps_fields_summary_and_market_class():
     result = _client(fake).domestic.index("0001").categories()
     assert isinstance(result, IndexCategories)
     # PARITY: .categories tuple equals the former bare-list return element-for-element.
-    from kis_trader._domestic.index import _parse_index_categories
+    from kis_trader.domestic._engine.index import _parse_index_categories
     assert list(result.categories) == _parse_index_categories(rows)
     assert isinstance(result.categories, tuple)
     assert [c.code for c in result.categories] == ["0002", "0003"]

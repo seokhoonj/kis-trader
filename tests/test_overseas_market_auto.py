@@ -9,7 +9,7 @@ from __future__ import annotations
 import threading
 
 from kis_trader import KISClient
-from kis_trader._overseas.account import _MARKETS
+from kis_trader.overseas._engine.account import _MARKETS
 from kis_trader.transport import RawResponse
 
 _ALL = list(_MARKETS)          # US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM

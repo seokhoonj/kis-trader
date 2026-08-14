@@ -131,7 +131,7 @@ def test_components_maps_fields_summary_and_params():
     result = _client(fake).domestic.stock("069500").etf_components()
     assert isinstance(result, ETFComponents)
     # PARITY: .components tuple equals the former bare-list return element-for-element.
-    from kis_trader._domestic.etf import _parse_etf_components
+    from kis_trader.domestic._engine.etf import _parse_etf_components
     assert list(result.components) == _parse_etf_components(rows)
     assert isinstance(result.components, tuple)
     assert [c.symbol for c in result.components] == ["005930", "000660"]

@@ -1,7 +1,7 @@
 """체결(DATA) -- :class:`Trade`.
 
 한 건의 체결(가격/수량/시각)이다. 종목의 최근 체결 목록(time & sales)을 이루는 낱개 단위로,
-:meth:`~kis_trader.stock.DomesticStock.trades` 가 최신순 리스트로 돌려준다. 호가창(:class:`~kis_trader
+:meth:`~kis_trader.domestic.stock.DomesticStock.trades` 가 최신순 리스트로 돌려준다. 호가창(:class:`~kis_trader
 .order_book.OrderBook`)이 "지금 걸린 주문"이라면 ``Trade`` 는 "이미 이뤄진 거래"다.
 """
 
@@ -14,7 +14,7 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
-from ._freeze import freeze_vendor_payload
+from ._internal._freeze import freeze_vendor_payload
 
 
 @dataclass(frozen=True, slots=True)

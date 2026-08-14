@@ -332,7 +332,7 @@ def test_bar_and_order_book_value_semantics_hashable():
 
 # --- 구성/인증 ------------------------------------------------------------
 def test_default_http_transport_is_constructed_lazily():
-    from kis_trader._http import RequestsTransport
+    from kis_trader._internal._http import RequestsTransport
 
     client = KISClient(app_key="k", app_secret="s", account="12345678-01")
     assert isinstance(client.transport, RequestsTransport)

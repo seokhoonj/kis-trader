@@ -11,7 +11,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from ._wire import optional_decimal, required_int
+from ._internal._wire import optional_decimal, required_int
 from .errors import KISError
 from .order_book import PriceLevel
 

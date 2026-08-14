@@ -18,7 +18,7 @@ from kis_trader import (
     Position,
     SellableQuantity,
 )
-from kis_trader._domestic import account as account_module
+from kis_trader.domestic._engine import account as account_module
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 

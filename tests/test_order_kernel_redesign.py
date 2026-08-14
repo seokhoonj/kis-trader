@@ -260,8 +260,10 @@ def test_public_write_surface_uses_limit_price():
     """대표 write 진입점들이 limit_price 를 받는다(price 가 아니라)."""
     import inspect
 
-    from kis_trader.namespaces import DomesticAccount, OrdersNamespace
-    from kis_trader.stock import DomesticStock, OverseasStock
+    from kis_trader.domestic.namespace import DomesticAccount
+    from kis_trader.domestic.stock import DomesticStock
+    from kis_trader.client import OrdersNamespace
+    from kis_trader.overseas.stock import OverseasStock
 
     def params(func):
         return set(inspect.signature(func).parameters)
@@ -278,12 +280,12 @@ def test_public_write_surface_uses_limit_price():
 def test_order_result_types_expose_order_price():
     """주문 결과 타입은 주문단가를 order_price 로 노출한다(체결단가 price 와 구분)."""
     from kis_trader.open_order import OpenOrder
-    from kis_trader.overseas_items import (
+    from kis_trader.overseas.entities.orders import (
         OverseasAlgoOrder,
         OverseasOpenOrder,
         OverseasReservedOrder,
     )
-    from kis_trader.pension_items import PensionOrder
+    from kis_trader.pension.entities import PensionOrder
     from kis_trader.reserved_order import ReservedOrder
 
     for dto in (OpenOrder, OverseasOpenOrder, OverseasAlgoOrder, OverseasReservedOrder,

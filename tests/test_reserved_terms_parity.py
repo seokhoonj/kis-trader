@@ -12,7 +12,7 @@ import threading
 import pytest
 
 from kis_trader import KISClient
-from kis_trader._domestic.reserved_orders import (
+from kis_trader.domestic._engine.reserved_orders import (
     _coerce_reserved_order_terms,
     _make_reserved_order_fields,
 )

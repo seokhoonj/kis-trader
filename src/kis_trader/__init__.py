@@ -1,7 +1,7 @@
 """kis_trader -- a clean, action-centric Python client for the Korea Investment &
 Securities (KIS) Open API.
 
-행위 중심 API: 세션 :class:`KISClient` 에서 종목 핸들 :class:`~kis_trader.stock.DomesticStock`
+행위 중심 API: 세션 :class:`KISClient` 에서 종목 핸들 :class:`~kis_trader.domestic.stock.DomesticStock`
 (``kis.domestic.stock("005930").quote()``)와 계좌 조회를 시킨다. KIS URL 구조는 노출되지 않는다.
 
 공개 식별자는 국제 표준 금융 영어(FIX/ISO 용어); KIS URL·TR-ID 매핑은
@@ -10,15 +10,27 @@ Securities (KIS) Open API.
 
 from __future__ import annotations
 
-from ._masters import InstrumentRecord, MasterIndex
-from .account_reports import (
+from ._internal._masters import InstrumentRecord, MasterIndex
+from .bar import Bar, Interval
+from .client import KISClient
+from .domestic.bond import Bond
+from .domestic.calendar import CalendarQueries
+from .domestic.derivative import FuturesContract, OptionContract
+from .domestic.elw import ELW
+from .domestic.elw_ranking import ELWRankingQueries
+from .domestic.elw_screener import ELWScreenerQueries
+from .domestic.entities.account_reports import (
     IntegratedMargin,
     RealizedProfitBalance,
     RealizedProfitPosition,
 )
-from .account_right import AccountRight
-from .after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
-from .analysis import (
+from .domestic.entities.account_right import AccountRight
+from .domestic.entities.after_hours import (
+    AfterHoursConclusion,
+    AfterHoursDailyPrice,
+    AfterHoursQuote,
+)
+from .domestic.entities.analysis import (
     AnalystOpinion,
     CreditBalancePoint,
     DailyTradeVolumePoint,
@@ -35,25 +47,22 @@ from .analysis import (
     VolumeAtPrice,
     VolumeProfile,
 )
-from .balance import AccountAssets, Balance, Portfolio, Position
-from .bar import Bar, Interval
-from .bond import Bond
-from .bond_items import (
+from .domestic.entities.balance import AccountAssets, Balance, Portfolio, Position
+from .domestic.entities.bond import (
     BondDailyPrice,
     BondIssuance,
     BondProfile,
     BondQuote,
     BondValuation,
 )
-from .broker import (
+from .domestic.entities.broker import (
     BrokerActivity,
     BrokerActivitySummary,
     BrokerDailyActivity,
     BrokerTradeTick,
     BrokerTradeTicks,
 )
-from .calendar import CalendarQueries
-from .calendar_items import (
+from .domestic.entities.calendar import (
     AppraisalRights,
     BonusIssue,
     CapitalReduction,
@@ -67,9 +76,7 @@ from .calendar_items import (
     RightsOffering,
     ShareholderMeeting,
 )
-from .client import KISClient
-from .derivative import FuturesContract, OptionContract
-from .derivative_items import (
+from .domestic.entities.derivative import (
     DerivativeQuote,
     ExpectedExecutionPoint,
     ExpectedExecutionTrend,
@@ -79,8 +86,7 @@ from .derivative_items import (
     OptionExpiry,
     UnderlyingQuote,
 )
-from .elw import ELW
-from .elw_items import (
+from .domestic.entities.elw import (
     ELWIndicatorPoint,
     ELWListing,
     ELWLPFlow,
@@ -90,9 +96,7 @@ from .elw_items import (
     ELWVolatilityPoint,
     RankedELW,
 )
-from .elw_ranking import ELWRankingQueries
-from .elw_screener import ELWScreenerQueries
-from .etf_items import (
+from .domestic.entities.etf import (
     ETFNAV,
     ETFComponent,
     ETFComponents,
@@ -102,7 +106,7 @@ from .etf_items import (
     ETFNAVMinutePoint,
     ETFOrderBook,
 )
-from .financials import (
+from .domestic.entities.financials import (
     BalanceSheet,
     FinancialRatio,
     GrowthRatio,
@@ -111,8 +115,7 @@ from .financials import (
     ProfitabilityRatio,
     StabilityRatio,
 )
-from .index import Index
-from .index_items import (
+from .domestic.entities.index import (
     CategoryIndex,
     ExpectedIndexPoint,
     ExpectedIndexQuote,
@@ -123,7 +126,7 @@ from .index_items import (
     IndexIntradayPoint,
     IndexQuote,
 )
-from .investor import (
+from .domestic.entities.investor import (
     DetailedInvestorFlow,
     DetailedInvestorHistory,
     InvestorActivity,
@@ -131,8 +134,7 @@ from .investor import (
     InvestorFlow,
     InvestorNetActivity,
 )
-from .market import MarketQueries
-from .market_items import (
+from .domestic.entities.market import (
     BrokerOpinion,
     CreditEligibleStock,
     ForeignBrokerFlow,
@@ -144,70 +146,19 @@ from .market_items import (
     MarketFunds,
     MarketInvestorFlow,
     MarketInvestorSnapshot,
-    NewsHeadline,
     ProgramFlowPoint,
     ProgramInvestorTrade,
     ProgramTradeSummary,
     TradingDay,
     VIEvent,
 )
-from .money import Money
-from .open_order import OpenOrder
-from .order import Order
-from .order_book import OrderBook, PriceLevel
-from .orderable import BuyableAmount, SellableQuantity
-from .overseas_derivative import OverseasDerivative
-from .overseas_derivative_items import (
-    OverseasDerivativeDetail,
-    OverseasDerivativeMarketHours,
-    OverseasDerivativeQuote,
-    OverseasFuturesOpenInterest,
+from .domestic.entities.product import ProductInfo
+from .domestic.entities.program import (
+    DailyProgramTradePoint,
+    ProgramTradeActivity,
+    ProgramTradePoint,
 )
-from .overseas_index import OverseasIndex
-from .overseas_items import (
-    OverseasAlgoExecution,
-    OverseasAlgoOrder,
-    OverseasBalance,
-    OverseasBalancePosition,
-    OverseasBuyableAmount,
-    OverseasCollateralStock,
-    OverseasCollateralStockSearch,
-    OverseasCollateralSummary,
-    OverseasCorporateAction,
-    OverseasCurrencyBalance,
-    OverseasCurrentPrice,
-    OverseasForeignMargin,
-    OverseasIndustry,
-    OverseasIndustryStock,
-    OverseasNewsHeadline,
-    OverseasOpenOrder,
-    OverseasPeriodProfit,
-    OverseasPeriodProfitRow,
-    OverseasPosition,
-    OverseasPresentBalance,
-    OverseasReservedOrder,
-    OverseasRight,
-    OverseasSettlementBalance,
-    OverseasSettlementDate,
-    OverseasStockSearch,
-    OverseasStockSearchMatch,
-    OverseasTransaction,
-)
-from .overseas_product import OverseasProductInfo
-from .overseas_ranking import OverseasRankingQueries
-from .overseas_ranking_items import RankedOverseasStock
-from .pension_items import (
-    PensionBalance,
-    PensionBuyableAmount,
-    PensionDeposit,
-    PensionOrder,
-    PensionPresentBalance,
-)
-from .product import ProductInfo
-from .program import DailyProgramTradePoint, ProgramTradeActivity, ProgramTradePoint
-from .quote import Quote
-from .ranking import RankingQueries
-from .ranking_items import (
+from .domestic.entities.ranking import (
     AfterHoursBalanceRanking,
     CreditBalanceRanking,
     DividendRanking,
@@ -217,26 +168,87 @@ from .ranking_items import (
     ShortSaleRanking,
     TopViewedStock,
 )
-from .report import ExecutionReport, OrderStatus
-from .reserved_order import ReservedOrder
-from .risk import RiskLimits
-from .saved_screen import (
+from .domestic.entities.saved_screen import (
     SavedScreen,
     SavedScreenStock,
     Watchlist,
     WatchlistGroup,
     WatchlistStock,
 )
-from .stock import DomesticStock, OverseasStock
-from .stock_info import StockProfile, StockStatus
-from .store import OrderStore
-from .trade import Trade
-from .trade_profit import (
+from .domestic.entities.stock_info import StockProfile, StockStatus
+from .domestic.entities.trade_profit import (
     DailyProfit,
     DailyProfitHistory,
     TradeProfit,
     TradeProfitHistory,
 )
+from .domestic.index import Index
+from .domestic.market import MarketQueries
+from .domestic.ranking import RankingQueries
+from .domestic.stock import DomesticStock
+from .money import Money
+from .news import NewsHeadline
+from .open_order import OpenOrder
+from .order import Order
+from .order_book import OrderBook, PriceLevel
+from .orderable import BuyableAmount, SellableQuantity
+from .overseas.derivative import OverseasDerivative
+from .overseas.entities.account import (
+    OverseasBuyableAmount,
+    OverseasForeignMargin,
+    OverseasPeriodProfit,
+    OverseasPeriodProfitRow,
+    OverseasTransaction,
+)
+from .overseas.entities.balance import (
+    OverseasBalance,
+    OverseasBalancePosition,
+    OverseasCurrencyBalance,
+    OverseasPosition,
+    OverseasPresentBalance,
+    OverseasSettlementBalance,
+)
+from .overseas.entities.collateral import (
+    OverseasCollateralStock,
+    OverseasCollateralStockSearch,
+    OverseasCollateralSummary,
+)
+from .overseas.entities.corporate_action import OverseasCorporateAction, OverseasRight
+from .overseas.entities.derivative import (
+    OverseasDerivativeDetail,
+    OverseasDerivativeMarketHours,
+    OverseasDerivativeQuote,
+    OverseasFuturesOpenInterest,
+)
+from .overseas.entities.industry import OverseasIndustry, OverseasIndustryStock
+from .overseas.entities.news import OverseasNewsHeadline
+from .overseas.entities.orders import (
+    OverseasAlgoExecution,
+    OverseasAlgoOrder,
+    OverseasOpenOrder,
+    OverseasReservedOrder,
+)
+from .overseas.entities.product import OverseasProductInfo
+from .overseas.entities.quote import OverseasCurrentPrice
+from .overseas.entities.ranking import RankedOverseasStock
+from .overseas.entities.search import OverseasStockSearch, OverseasStockSearchMatch
+from .overseas.entities.settlement import OverseasSettlementDate
+from .overseas.index import OverseasIndex
+from .overseas.ranking import OverseasRankingQueries
+from .overseas.stock import OverseasStock
+from .pension.entities import (
+    PensionBalance,
+    PensionBuyableAmount,
+    PensionDeposit,
+    PensionOrder,
+    PensionPresentBalance,
+)
+from .quote import Quote
+from .report import ExecutionReport, OrderStatus
+from .reserved_order import ReservedOrder
+from .risk import RiskLimits
+from .store import OrderStore
+from .trade import Trade
 
 __version__ = "0.0.0"
 
