@@ -49,7 +49,7 @@ if TYPE_CHECKING:
     from .client import KISClient
     from .derivative_items import FuturesBoardQuote, OptionBoard, OptionExpiry
     from .instrument import DomesticBoard
-    from .market_items import NewsHeadline
+    from .news import NewsHeadline
     from .open_order import OpenOrder
     from .order import Side
     from .overseas_derivative_items import (

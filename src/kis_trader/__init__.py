@@ -132,6 +132,7 @@ from .investor import (
     InvestorNetActivity,
 )
 from .market import MarketQueries
+from .news import NewsHeadline
 from .market_items import (
     BrokerOpinion,
     CreditEligibleStock,
@@ -144,7 +145,6 @@ from .market_items import (
     MarketFunds,
     MarketInvestorFlow,
     MarketInvestorSnapshot,
-    NewsHeadline,
     ProgramFlowPoint,
     ProgramInvestorTrade,
     ProgramTradeSummary,

@@ -36,6 +36,7 @@ from .._internal._wire import (
 )
 from ..errors import KISUsageError
 from ..investor import InvestorActivity, InvestorNetActivity
+from ..news import NewsHeadline
 from ..market_items import (
     BrokerOpinion,
     CreditEligibleStock,
@@ -49,7 +50,6 @@ from ..market_items import (
     MarketFunds,
     MarketInvestorFlow,
     MarketInvestorSnapshot,
-    NewsHeadline,
     ProgramFlowPoint,
     ProgramInvestorTrade,
     ProgramTradeSummary,

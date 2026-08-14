@@ -16,7 +16,7 @@ from .._internal._response import (
 )
 from .._internal._wire import optional_decimal, required_int
 from ..errors import KISError, KISUsageError
-from ..market_items import NewsHeadline
+from ..news import NewsHeadline
 from ..overseas_items import (
     OverseasCollateralStock,
     OverseasCollateralStockSearch,
