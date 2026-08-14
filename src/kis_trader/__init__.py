@@ -10,7 +10,7 @@ Securities (KIS) Open API.
 
 from __future__ import annotations
 
-from ._internal._masters import InstrumentRecord, MasterIndex
+from ._internal._masters import DomesticListing, InstrumentRecord, MasterIndex
 from .bar import Bar, Interval
 from .client import KISClient
 from .domestic.bond import Bond
@@ -295,6 +295,7 @@ __all__ = [
     "DetailedInvestorHistory",
     "DividendEvent",
     "DividendRanking",
+    "DomesticListing",
     "DomesticStock",
     "ELWIndicatorPoint",
     "ELWLPFlow",

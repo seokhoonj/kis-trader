@@ -29,6 +29,7 @@ from .stock import DomesticStock
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
+    from .._internal._masters import DomesticListing
     from .._literals import Numeric
     from ..client import KISClient
     from ..instrument import DomesticBoard
@@ -193,6 +194,15 @@ class DomesticNamespace:
     def stock(self, code: str, *, market: DomesticBoard | None = None) -> DomesticStock:
         """국내 종목/ETF 핸들. 시장은 심볼로 자동 판별한다(6자리 숫자 -> KRX; ``market`` 로 보드 지정 가능)."""
         return DomesticStock(self._c, code, market=market)
+
+    def search(self, query: str, *, market: str = "all") -> list[DomesticListing]:
+        """국내 상장 종목을 **이름(부분/정확)** 또는 6자리 코드로 찾아 후보를 돌려준다.
+
+        이름은 모호할 수 있어("삼성전자" 는 "삼성전자우" 도 매치) **후보를 하나로 좁히지 않고 모두**
+        준다 -- 코드를 골라 :meth:`stock` 에 넘겨라(``stock()`` 은 이름을 안 받는다; 조용한 오확정 방지).
+        ``market`` 은 ``"all"``/``"KOSPI"``/``"KOSDAQ"``. 첫 호출은 KOSPI/KOSDAQ 마스터를 받아 캐시한다
+        (이후는 캐시). 빈 검색어/잘못된 ``market`` 은 :class:`~kis_trader.errors.KISUsageError`."""
+        return self._c._domestic_index().search(query, market=market)
 
     def index(self, code: str) -> Index:
         """지수/업종 핸들. ``code`` 는 업종코드(0001 KOSPI 종합, 1001 KOSDAQ 종합, 2001 KOSPI200 등)."""

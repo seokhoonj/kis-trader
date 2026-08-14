@@ -1,5 +1,21 @@
 # 순위·조건검색
 
+## 이름으로 종목 찾기
+
+코드를 모르면 이름으로 찾습니다. 이름은 모호할 수 있어(`"삼성전자"`는 `"삼성전자우"`도 매치)
+**후보를 모두** 돌려줍니다 — 코드를 골라 `stock()`에 넘기세요. (`stock()`은 이름을 받지 않습니다.)
+
+```python
+kis.domestic.search("삼성전자")              # -> [DomesticListing(symbol, name, market), ...]
+kis.domestic.search("에코", market="KOSDAQ")  # 부분매치, 시장 한정(all/KOSPI/KOSDAQ)
+
+hits = kis.domestic.search("카카오")
+kis.domestic.stock(hits[0].symbol).quote()   # 골라서 시세 조회
+```
+
+각 후보(`DomesticListing`)는 `symbol`(6자리 코드) / `name` / `market`. 첫 호출은 KOSPI·KOSDAQ
+종목 마스터를 받아 캐시합니다(이후는 캐시).
+
 ## 오늘의 순위
 
 `kis.domestic.ranking.*` — 급등주·거래량·시총 같은 시장 전체 순위.

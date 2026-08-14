@@ -221,3 +221,158 @@ def load_overseas_index(
             )
         )
     return MasterIndex(records)
+
+
+# ---------------------------------------------------------------------------
+# 국내 종목 마스터 (KOSPI/KOSDAQ) -- 이름 -> 코드 검색용
+# ---------------------------------------------------------------------------
+#: 국내 마스터 다운로드 URL 템플릿({name} = kospi_code / kosdaq_code).
+DOMESTIC_MASTER_URL = "https://new.real.download.dws.co.kr/common/master/{name}.mst.zip"
+
+#: 시장 -> 마스터 파일 이름(확장자 제외).
+_DOMESTIC_MASTER_FILE: dict[str, str] = {"KOSPI": "kospi_code", "KOSDAQ": "kosdaq_code"}
+
+#: 시장 -> part2(고정 꼬리) 문자 폭(개행 제외). KIS 공식 레이아웃(kospi 227 / kosdaq 221). 각 줄 =
+#: part1(가변: 단축코드9 + 표준코드12 + 한글명) + part2(고정: 시세/구분 플래그). 이름검색엔 part1 만 쓴다.
+_DOMESTIC_PART2_WIDTH: dict[str, int] = {"KOSPI": 227, "KOSDAQ": 221}
+
+
+@dataclass(frozen=True, slots=True)
+class DomesticListing:
+    """국내 상장 종목 한 건(불변) -- 이름검색 결과. ``symbol`` 6자리 단축코드, ``name`` 한글종목명,
+    ``market`` ``"KOSPI"``/``"KOSDAQ"``. 우선주(삼성전자우)·ETF 는 ``name`` 으로 구분한다."""
+
+    symbol: str
+    name: str
+    market: str
+
+
+def parse_domestic_master(data: bytes, *, market: str) -> list[DomesticListing]:
+    """국내 마스터(.mst) 원본 바이트 -> :class:`DomesticListing` 리스트(cp949 고정폭).
+
+    각 줄은 가변 head(part1)와 고정 tail(part2, :data:`_DOMESTIC_PART2_WIDTH`)로 나뉜다. part1 은
+    단축코드(폭9) + 표준코드(12) + 한글종목명(나머지). KIS 공식 파서(kis_kospi_code_mst.py) 레이아웃.
+    코드/이름이 비는 손상·짧은 줄은 건너뛴다."""
+    tail = _DOMESTIC_PART2_WIDTH.get(market)
+    if tail is None:
+        raise KISUsageError(f"market 은 {'/'.join(_DOMESTIC_PART2_WIDTH)} 중 하나: {market!r}")
+    text = data.decode("cp949")
+    listings: list[DomesticListing] = []
+    for line in text.splitlines():
+        head = line[:-tail]            # 고정 tail 을 떼면 가변 head(단축코드+표준코드+이름)
+        symbol = head[0:9].strip()     # 단축코드(폭9, 우측 패딩) -> 6자리 코드
+        name = head[21:].strip()       # 한글종목명(표준코드 12자 다음 전부)
+        if not symbol or not name:     # 손상/짧은 줄 skip
+            continue
+        listings.append(DomesticListing(symbol=symbol, name=name, market=market))
+    return listings
+
+
+def fetch_domestic_master_raw(market: str, *, fetch: Fetch) -> bytes:
+    """``market``(KOSPI/KOSDAQ) 마스터 zip 을 받아 압축 해제한 원본(.mst) 바이트를 돌려준다."""
+    name = _DOMESTIC_MASTER_FILE.get(market)
+    if name is None:
+        raise KISUsageError(f"market 은 {'/'.join(_DOMESTIC_MASTER_FILE)} 중 하나: {market!r}")
+    zip_bytes = fetch(DOMESTIC_MASTER_URL.format(name=name))
+    with zipfile.ZipFile(io.BytesIO(zip_bytes)) as archive:
+        expected = f"{name}.mst"       # 첫/유일 엔트리 가정 금지 -- 이름으로 명시 선택
+        member = next(
+            (entry for entry in archive.namelist() if entry.lower() == expected), None
+        )
+        if member is None:             # 기대 멤버 없음 -> fail-closed
+            raise KISError(
+                f"국내 마스터 zip 에 기대 멤버 {expected!r} 가 없다: {market} "
+                f"(멤버 {archive.namelist()})."
+            )
+        return archive.read(member)
+
+
+def download_domestic_master(market: str, *, fetch: Fetch) -> list[DomesticListing]:
+    """``market`` 마스터를 받아 :class:`DomesticListing` 리스트로(캐시 없이 매번 다운로드)."""
+    return parse_domestic_master(fetch_domestic_master_raw(market, fetch=fetch), market=market)
+
+
+class DomesticListingIndex:
+    """국내 상장 종목 이름검색 인덱스(불변). KOSPI+KOSDAQ 마스터를 합쳐 이름/코드로 후보를 찾는다.
+
+    이름은 모호할 수 있어("삼성전자"⊃"삼성전자우") **후보를 하나로 좁히지 않고 모두** 돌려준다 --
+    호출자가 코드를 골라 :meth:`~kis_trader.domestic.namespace.DomesticNamespace.stock` 로 넘긴다
+    (안전커널의 오확정 방지와 같은 결).
+    """
+
+    __slots__ = ("_listings",)
+
+    def __init__(self, listings: Iterable[DomesticListing]) -> None:
+        self._listings = tuple(listings)
+
+    def search(self, query: str, *, market: str = "all") -> list[DomesticListing]:
+        """이름(부분/정확) 또는 6자리 코드로 후보를 찾아 돌려준다.
+
+        매치 순서는 정확일치 -> 접두 -> 부분(정확이 먼저 오되 다건은 모두 포함한다). ``market`` 은
+        ``"all"``/``"KOSPI"``/``"KOSDAQ"``. 빈 검색어/잘못된 market 은 :class:`~kis_trader.errors.
+        KISUsageError`. 매치 없으면 빈 리스트."""
+        text = query.strip()
+        if not text:
+            raise KISUsageError("검색어(query)가 비어 있다.")
+        if market not in ("all", "KOSPI", "KOSDAQ"):
+            raise KISUsageError(f"market 은 all/KOSPI/KOSDAQ 중 하나: {market!r}")
+        by_code = text.isdigit()       # 숫자면 코드 역검색, 아니면 이름 검색
+        exact: list[DomesticListing] = []
+        prefix: list[DomesticListing] = []
+        substring: list[DomesticListing] = []
+        for listing in self._listings:
+            if market != "all" and listing.market != market:
+                continue
+            field = listing.symbol if by_code else listing.name
+            if field == text:
+                exact.append(listing)
+            elif field.startswith(text):
+                prefix.append(listing)
+            elif not by_code and text in field:
+                substring.append(listing)
+        return exact + prefix + substring
+
+
+def load_domestic_master(
+    market: str,
+    *,
+    cache_dir: str | None = None,
+    max_age: int = DEFAULT_MASTER_MAX_AGE,
+    fetch: Fetch = urlopen_fetch,
+    now: float | None = None,
+) -> list[DomesticListing]:
+    """``market``(KOSPI/KOSDAQ) 마스터를 캐시 우선으로 로드(``max_age`` 안이면 다운로드 없이 읽는다)."""
+    name = _DOMESTIC_MASTER_FILE.get(market)
+    if name is None:                   # 경로 조립 전 fail-closed(미지의 market 이 stray 캐시 경로 못 만들게)
+        raise KISUsageError(f"market 은 {'/'.join(_DOMESTIC_MASTER_FILE)} 중 하나: {market!r}")
+    cache_dir = cache_dir if cache_dir is not None else default_cache_dir()
+    path = os.path.join(cache_dir, f"{name}.mst")
+    stamp = time.time() if now is None else now
+    if os.path.exists(path) and (stamp - os.path.getmtime(path)) < max_age:
+        with open(path, "rb") as cached:
+            return parse_domestic_master(cached.read(), market=market)
+    raw = fetch_domestic_master_raw(market, fetch=fetch)
+    os.makedirs(cache_dir, exist_ok=True)
+    atomic_write_bytes(path, raw)
+    os.utime(path, (stamp, stamp))
+    return parse_domestic_master(raw, market=market)
+
+
+def load_domestic_index(
+    markets: Iterable[str] | None = None,
+    *,
+    cache_dir: str | None = None,
+    max_age: int = DEFAULT_MASTER_MAX_AGE,
+    fetch: Fetch = urlopen_fetch,
+    now: float | None = None,
+) -> DomesticListingIndex:
+    """KOSPI+KOSDAQ(기본) 마스터를 캐시 우선 로드해 합친 :class:`DomesticListingIndex` 를 만든다."""
+    names = list(_DOMESTIC_MASTER_FILE) if markets is None else list(markets)
+    listings: list[DomesticListing] = []
+    for market in names:
+        listings.extend(
+            load_domestic_master(
+                market, cache_dir=cache_dir, max_age=max_age, fetch=fetch, now=now
+            )
+        )
+    return DomesticListingIndex(listings)

@@ -19,8 +19,10 @@ from .domestic._engine import orders as orders_engine
 from .domestic._engine import reserved_orders as reserved_orders_api
 from .domestic.namespace import DomesticNamespace
 from ._internal._masters import (
+    DomesticListingIndex,
     Fetch,
     MasterIndex,
+    load_domestic_index,
     load_overseas_index,
     urlopen_fetch,
 )
@@ -111,6 +113,7 @@ class KISClient:
         risk: RiskLimits | None = None,
         master_index: MasterIndex | None = None,
         master_fetch: Fetch | None = None,
+        domestic_listings: DomesticListingIndex | None = None,
     ) -> None:
         """세션을 연다.
 
@@ -188,6 +191,8 @@ class KISClient:
         # 해외 심볼->거래소 해석용 마스터 인덱스. 주입 없으면 첫 instrument() 호출 때 지연 로드.
         self._master_index = master_index
         self._master_fetch = master_fetch if master_fetch is not None else urlopen_fetch
+        # 국내 이름->코드 검색 인덱스. 주입 없으면 첫 domestic.search() 때 지연 로드(같은 배포 서버).
+        self._domestic_listings = domestic_listings
         # 자산군 최상위 네임스페이스(공개 행위 표면). 세션이 쥔 전송/계좌/안전코어로 엔드포인트 엔진을 호출한다.
         self.domestic = DomesticNamespace(self)
         self.overseas = OverseasNamespace(self)
@@ -212,6 +217,12 @@ class KISClient:
         if self._master_index is None:
             self._master_index = load_overseas_index(fetch=self._master_fetch)
         return self._master_index.resolve(symbol, exchange=exchange)
+
+    def _domestic_index(self) -> DomesticListingIndex:
+        """국내 이름검색 인덱스(지연 로드). 첫 호출 때 KOSPI/KOSDAQ 마스터를 받아 캐시한다."""
+        if self._domestic_listings is None:
+            self._domestic_listings = load_domestic_index(fetch=self._master_fetch)
+        return self._domestic_listings
 
     def _reconcile(self, client_order_id: str) -> ExecutionReport | None:
         """미확인 주문(타임아웃 등)의 실제 상태를 브로커에 재조회한다 -- **보수적**. ``kis.orders.reconcile``.
