@@ -110,6 +110,9 @@ def test_connection_dispatches_typed_trade_tick():
         async def send(self, m):
             self.sent.append(m)
 
+        async def pong(self, data):
+            pass
+
         async def close(self):
             pass
 

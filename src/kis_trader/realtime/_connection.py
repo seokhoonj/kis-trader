@@ -38,6 +38,7 @@ class WebSocketLike(Protocol):
     """연결 객체의 최소 계약(주입 가능한 시임/실 ``websockets`` 연결이 모두 만족)."""
 
     async def send(self, message: str) -> None: ...
+    async def pong(self, data: str) -> None: ...
     async def close(self) -> None: ...
     def __aiter__(self) -> AsyncIterator[str]: ...
 
@@ -68,6 +69,7 @@ async def _default_connector(url: str) -> WebSocketLike:
         raise RuntimeError(
             "'websockets' 를 import 할 수 없습니다(기본 의존성이어야 함): pip install kis-trader"
         ) from exc
+    # 공식 KIS 샘플과 동일하게 라이브러리 기본값으로 연결(기본 open_timeout 10s 가 무한대기 방지).
     return await websockets.connect(url)
 
 
@@ -180,7 +182,8 @@ class RealtimeConnection:
             return
         if isinstance(frame, SystemMessage):
             if frame.is_pingpong:
-                await self._ws.send(raw)  # PINGPONG echo
+                # 공식 KIS 샘플과 동일하게 WebSocket PONG 제어프레임으로 응답(하트비트).
+                await self._ws.pong(raw)
             elif frame.encryption_key is not None:
                 self._crypto[frame.tr_id] = frame.encryption_key
             return

@@ -5,11 +5,13 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import threading
 
 import pytest
 
+from kis_trader.errors import RealtimeError
 from kis_trader.realtime.client import RealtimeClient
 
 
@@ -29,6 +31,9 @@ class FakeWebSocket:
 
     async def send(self, message):
         self.sent.append(message)
+
+    async def pong(self, data):
+        pass
 
     async def close(self):
         self._closed.set()
@@ -80,6 +85,17 @@ def test_context_manager_starts_and_stops():
         list(client.stream(timeout=2.0))
     assert len(got) == 1
     assert not client._running  # stop 됨
+
+
+def test_start_times_out_instead_of_hanging_on_slow_connect():
+    # 연결이 시간 내에 안 뜨면 무한 대기하지 않고 RealtimeError 를 던진다.
+    async def hanging_connect(url):
+        await asyncio.sleep(30)  # 준비되지 않음
+
+    client = RealtimeClient("KEY", "ws://x", connect=hanging_connect, reconnect=False)
+    with pytest.raises(RealtimeError):
+        client.start(timeout=0.3)
+    assert client._running is False
 
 
 def test_start_propagates_connector_failure_without_hanging():

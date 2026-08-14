@@ -24,6 +24,7 @@ class FakeWebSocket:
     def __init__(self, incoming):
         self.incoming = list(incoming)
         self.sent: list[str] = []
+        self.ponged: list[str] = []
         self.closed = False
 
     def __aiter__(self):
@@ -36,6 +37,9 @@ class FakeWebSocket:
 
     async def send(self, message):
         self.sent.append(message)
+
+    async def pong(self, data):
+        self.ponged.append(data)
 
     async def close(self):
         self.closed = True
@@ -86,7 +90,8 @@ def test_pingpong_is_echoed_and_not_yielded():
     ws = FakeWebSocket(incoming=[ping])
     msgs = _drive(ws)
     assert msgs == []
-    assert ws.sent == [ping]  # echo
+    assert ws.ponged == [ping]  # 공식과 동일하게 PONG 제어프레임으로 응답
+    assert ws.sent == []
 
 
 def test_registered_parser_produces_entity():

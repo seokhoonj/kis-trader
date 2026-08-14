@@ -18,6 +18,7 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable, Iterator
 
+from ..errors import RealtimeError
 from ._connection import Connector, RealtimeConnection, RealtimeMessage
 from ._protocol import CustomerType
 
@@ -79,17 +80,20 @@ class RealtimeClient:
             self._call_async(self._conn.unsubscribe(tr_id, tr_key))
 
     # -- 수명주기 --
-    def start(self) -> None:
+    def start(self, *, timeout: float = 15.0) -> None:
         """백그라운드 수신 시작. 연결이 열리고 보관된 구독이 전송될 때까지 블록한다.
 
         연결/초기구독이 실패하면 hang 하지 않고 그 예외를 호출자에게 그대로 raise 한다.
+        ``timeout`` 내에 연결이 준비되지 않으면(느린/멎은 연결) :class:`RealtimeError` 를 던진다
+        -- 무한 대기하지 않는다.
         """
         if self._running:
             return
         self._startup_error = None
         self._thread = threading.Thread(target=self._run, name="kis-realtime", daemon=True)
         self._thread.start()
-        self._ready.wait()
+        if not self._ready.wait(timeout=timeout):
+            raise RealtimeError(f"실시간 연결이 {timeout}s 내에 준비되지 않았습니다(연결 지연/실패).")
         if self._startup_error is not None:
             self._thread.join(timeout=5.0)
             raise self._startup_error
@@ -136,6 +140,15 @@ class RealtimeClient:
         try:
             self._loop.run_until_complete(self._main())
         finally:
+            # 스케줄돼 있던 태스크(예: run_coroutine_threadsafe 로 넣은 stop())를
+            # 취소·수거한 뒤 루프를 닫는다 -- "Task was destroyed but it is pending" 방지.
+            pending = [t for t in asyncio.all_tasks(self._loop) if not t.done()]
+            for task in pending:
+                task.cancel()
+            if pending:
+                self._loop.run_until_complete(
+                    asyncio.gather(*pending, return_exceptions=True)
+                )
             self._loop.close()
 
     async def _main(self) -> None:
