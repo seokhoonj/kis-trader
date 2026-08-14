@@ -26,6 +26,7 @@ MessageCallback = Callable[[RealtimeMessage], None]
 
 _logger = logging.getLogger("kis_trader.realtime")
 _STREAM_SENTINEL = object()  # stream() 종료 신호
+_QUEUE_MAXSIZE = 10_000  # stream() 큐 상한(틱) -- 초과 시 오래된 것부터 드롭
 
 
 class RealtimeClient:
@@ -56,7 +57,10 @@ class RealtimeClient:
         self._lock = threading.Lock()
         self._callbacks: dict[str, list[MessageCallback]] = defaultdict(list)
         self._desired: set[tuple[str, str]] = set()  # start 전 등록 요청 보관
-        self._queue: queue.Queue = queue.Queue()
+        # stream() 소비자가 없거나 느려도 무한정 자라지 않게 상한을 둔다(콜백 전용 사용자 메모리 누수 방지).
+        # 가득 차면 가장 오래된 틱을 버린다(시장데이터는 최신이 중요) -- 정책은 _dispatch 참고.
+        self._queue: queue.Queue = queue.Queue(maxsize=_QUEUE_MAXSIZE)
+        self._queue_overflow_warned = False
         self._running = False
         self._startup_error: BaseException | None = None  # start() 로 전달할 연결/구독 실패
 
@@ -105,15 +109,28 @@ class RealtimeClient:
         if not self._running:
             return
         self._running = False
+        stop_error: BaseException | None = None
         if self._conn is not None and self._loop is not None and self._loop.is_running():
             try:
                 future = asyncio.run_coroutine_threadsafe(self._conn.stop(), self._loop)
                 future.result(timeout=timeout)
-            except Exception:  # noqa: BLE001 - 루프가 그 사이 종료됐을 수 있음
-                pass
+            except TimeoutError:
+                # ws.close() 등이 멎음 -- 조용히 성공으로 보고하지 않고 강제 종료로 넘어간다.
+                _logger.warning("realtime stop() 이 %ss 내에 끝나지 않아 강제 종료합니다", timeout)
+            except RuntimeError:
+                pass  # 루프가 그 사이 종료됨 -- 정상 종료 경합
+            except Exception as exc:  # noqa: BLE001 - 예상 밖 실패는 정리 후 전파
+                stop_error = exc
+                _logger.warning("realtime 연결 stop() 이 예외를 던졌습니다", exc_info=True)
         self._queue.put(_STREAM_SENTINEL)
         if self._thread is not None:
             self._thread.join(timeout=timeout)
+            if self._thread.is_alive():
+                raise RealtimeError(
+                    f"실시간 백그라운드 스레드가 {timeout}s 내에 종료되지 않았습니다(연결/루프 미정리)."
+                )
+        if stop_error is not None:
+            raise stop_error
 
     def __enter__(self) -> RealtimeClient:
         self.start()
@@ -191,7 +208,30 @@ class RealtimeClient:
                 callback(message)
             except Exception:  # noqa: BLE001 - 콜백 오류가 수신 루프를 죽이지 않게
                 _logger.warning("realtime callback for %s raised", message.tr_id, exc_info=True)
-        self._queue.put(message)
+        self._enqueue(message)
+
+    def _enqueue(self, message: RealtimeMessage) -> None:
+        """stream() 큐에 적재. 상한 도달 시 가장 오래된 틱을 버리고 최신을 넣는다(콜백 전용/느린
+        소비자여도 메모리가 무한정 자라지 않게)."""
+        try:
+            self._queue.put_nowait(message)
+            return
+        except queue.Full:
+            pass
+        try:
+            self._queue.get_nowait()  # 가장 오래된 것 드롭
+        except queue.Empty:
+            pass
+        try:
+            self._queue.put_nowait(message)
+        except queue.Full:
+            pass
+        if not self._queue_overflow_warned:
+            self._queue_overflow_warned = True
+            _logger.warning(
+                "realtime stream 큐가 상한(%d)에 도달 -- 소비가 느리거나 없어 오래된 틱을 드롭합니다",
+                _QUEUE_MAXSIZE,
+            )
 
     def _call_async(self, coro, *, timeout: float = 5.0) -> None:
         """백그라운드 루프에 코루틴을 제출하고 완료를 기다린다(예외 전파).
