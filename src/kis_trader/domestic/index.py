@@ -68,8 +68,8 @@ class Index:
 
     def bars(
         self,
-        *,
         interval: Interval = "1d",
+        *,
         start: str | date | None = None,
         end: str | date | None = None,
         max_bars: int | None = None,
