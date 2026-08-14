@@ -4,7 +4,8 @@ version = "0.0.0"
 description = "A clean Python client for the Korea Investment & Securities (KIS) Open API (English identifiers, Korean docstrings for KIS users)"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "MIT" }
+license = "MIT"
+license-files = ["LICENSE"]
 # REST(requests) + 실시간 WebSocket(websockets) + 체결통보 AES-CBC 복호화(cryptography).
 dependencies = ["requests>=2.31", "websockets>=12", "cryptography>=42"]
 

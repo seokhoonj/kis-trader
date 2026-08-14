@@ -1,5 +1,7 @@
 # kis-trader
 
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+
 한국투자증권(KIS) Open API 파이썬 클라이언트. Python ≥ 3.11.
 
 ```python
@@ -49,11 +51,16 @@ kis.orders.cancel(r.client_order_id)
 ```
 
 클라이언트측 안전 커널: **오확정 금지 · write 무재시도 · 보수적 reconcile**. 신용/주문가능은
-기본 차단. → [`docs/orders-and-safety.md`](docs/orders-and-safety.md)
+기본 차단. → [`docs/orders.md`](docs/orders.md)
 
 ## 문서
 
-[빠른 시작](docs/quickstart.md) · [국내](docs/domestic.md) · [해외](docs/overseas.md) ·
-[퇴직연금](docs/pension.md) · [주문·안전](docs/orders-and-safety.md)
+[빠른 시작](docs/quickstart.md) · [시세](docs/quotes.md) · [계좌·손익](docs/account.md) ·
+[주문](docs/orders.md) · [순위·검색](docs/screening.md) · [시장·수급](docs/market.md) ·
+[해외](docs/overseas.md) · [퇴직연금](docs/pension.md) · [실시간](docs/realtime.md)
 
 엔드포인트별 상세는 각 메서드 docstring에 (`help(...)` / IDE).
+
+## 라이선스
+
+[MIT](LICENSE) © seokhoonj
