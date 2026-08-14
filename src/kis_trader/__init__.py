@@ -158,14 +158,14 @@ from .order import Order
 from .order_book import OrderBook, PriceLevel
 from .orderable import BuyableAmount, SellableQuantity
 from .overseas.stock import OverseasStock
-from .overseas_derivative import OverseasDerivative
+from .overseas.derivative import OverseasDerivative
 from .overseas_derivative_items import (
     OverseasDerivativeDetail,
     OverseasDerivativeMarketHours,
     OverseasDerivativeQuote,
     OverseasFuturesOpenInterest,
 )
-from .overseas_index import OverseasIndex
+from .overseas.index import OverseasIndex
 from .overseas_items import (
     OverseasAlgoExecution,
     OverseasAlgoOrder,
@@ -196,7 +196,7 @@ from .overseas_items import (
     OverseasTransaction,
 )
 from .overseas_product import OverseasProductInfo
-from .overseas_ranking import OverseasRankingQueries
+from .overseas.ranking import OverseasRankingQueries
 from .overseas_ranking_items import RankedOverseasStock
 from .pension_items import (
     PensionBalance,

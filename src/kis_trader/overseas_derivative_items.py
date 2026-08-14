@@ -67,7 +67,7 @@ class OverseasDerivativeDetail:
 
     시세(:class:`OverseasDerivativeQuote`)가 "지금 얼마"라면 이건 "어떤 계약인가" -- 거래소·통화·
     품목종류·틱사이즈/틱가치·계약크기·증거금·만기 관련·결제구분 같은 계약 조건이다.
-    :meth:`~kis_trader.overseas_derivative.OverseasDerivative.detail` 가 돌려준다.
+    :meth:`~kis_trader.overseas.derivative.OverseasDerivative.detail` 가 돌려준다.
     """
 
     symbol: str

@@ -20,9 +20,9 @@ from .overseas._engine import reference as overseas_reference_api
 from .overseas._engine import reserved_orders as overseas_reserved_orders_api
 from .errors import KISUsageError
 from .overseas.stock import OverseasStock
-from .overseas_derivative import OverseasDerivative
-from .overseas_index import OverseasIndex
-from .overseas_ranking import OverseasRankingQueries
+from .overseas.derivative import OverseasDerivative
+from .overseas.index import OverseasIndex
+from .overseas.ranking import OverseasRankingQueries
 
 if TYPE_CHECKING:
     from collections.abc import Sequence

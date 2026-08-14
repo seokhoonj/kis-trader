@@ -1,6 +1,6 @@
 """해외주식 시장 순위 조회 (내부).
 
-사용자면은 해외 순위 네임스페이스(:class:`~kis_trader.overseas_ranking.OverseasRankingQueries`,
+사용자면은 해외 순위 네임스페이스(:class:`~kis_trader.overseas.ranking.OverseasRankingQueries`,
 ``kis.overseas.ranking``)다. 모든 순위가 거래소(``EXCD``)를 받고 응답의 ``output2`` 배열이 순위
 목록이다(``output1`` 은 조회 요약). 공통 행(순위/코드/이름/현재가/전일대비/거래량/거래대금)만 매핑
 하고 순위별 고유 지표는 ``_raw`` 에 둔다.

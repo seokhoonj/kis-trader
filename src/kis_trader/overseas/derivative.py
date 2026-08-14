@@ -13,18 +13,18 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .overseas._engine import derivatives as overseas_derivatives_api
-from .bar import Bar, Interval
+from ._engine import derivatives as overseas_derivatives_api
+from ..bar import Bar, Interval
 
 if TYPE_CHECKING:
-    from ._literals import DerivativeProduct
-    from .client import KISClient
-    from .order_book import OrderBook
-    from .overseas_derivative_items import (
+    from .._literals import DerivativeProduct
+    from ..client import KISClient
+    from ..order_book import OrderBook
+    from ..overseas_derivative_items import (
         OverseasDerivativeDetail,
         OverseasDerivativeQuote,
     )
-    from .trade import Trade
+    from ..trade import Trade
 
 
 class OverseasDerivative:

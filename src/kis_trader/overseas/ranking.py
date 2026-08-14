@@ -11,11 +11,11 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from .overseas._engine import ranking as overseas_ranking_api
+from ._engine import ranking as overseas_ranking_api
 
 if TYPE_CHECKING:
-    from .client import KISClient
-    from .overseas_ranking_items import RankedOverseasStock
+    from ..client import KISClient
+    from ..overseas_ranking_items import RankedOverseasStock
 
 
 class OverseasRankingQueries:
