@@ -6,15 +6,15 @@ from collections.abc import Mapping
 from datetime import date, datetime
 from typing import Any
 
-from .._datetime import (
+from .._internal._datetime import (
     _KST,
     _to_yyyymmdd,
 )
-from .._response import (
+from .._internal._response import (
     _missing_block_error,
     _raise_if_error,
 )
-from .._wire import optional_decimal, required_int
+from .._internal._wire import optional_decimal, required_int
 from ..errors import KISError, KISUsageError
 from ..market_items import NewsHeadline
 from ..overseas_items import (

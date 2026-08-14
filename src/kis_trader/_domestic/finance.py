@@ -15,11 +15,11 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from typing import Any
 
-from .._response import (
+from .._internal._response import (
     _missing_block_error,
     _raise_if_error,
 )
-from .._wire import optional_decimal, required_decimal
+from .._internal._wire import optional_decimal, required_decimal
 from ..financials import (
     BalanceSheet,
     FinancialRatio,

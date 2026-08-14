@@ -17,7 +17,7 @@ from collections import deque
 from collections.abc import Callable
 from typing import Self
 
-from .errors import KISError
+from ..errors import KISError
 
 #: 환경별 기본 초당 호출 한도. 공식 유량(실전 REST 18건/초, 모의 1건/초; 앱키 단위 합산)
 #: 아래로 마진을 둔 값이다 -- KIS 서버가 sliding window 로 세는 것으로 추정돼 경계값(18)에

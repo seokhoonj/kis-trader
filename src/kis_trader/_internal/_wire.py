@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from decimal import Decimal, InvalidOperation
 
-from .errors import KISError
+from ..errors import KISError
 
 
 def required_decimal(value: object, field_name: str) -> Decimal:

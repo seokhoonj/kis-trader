@@ -5,7 +5,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from .transport import Environment
+    from ..transport import Environment
 
 _DOMAIN = {
     "real": "https://openapi.koreainvestment.com:9443",

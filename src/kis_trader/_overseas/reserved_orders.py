@@ -15,8 +15,8 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from .._wire import parse_response_decimal as _parse_response_decimal
-from .._wire import format_wire_decimal, optional_decimal
+from .._internal._wire import parse_response_decimal as _parse_response_decimal
+from .._internal._wire import format_wire_decimal, optional_decimal
 from ..errors import (
     AccountNotOrderableError,
     KISError,

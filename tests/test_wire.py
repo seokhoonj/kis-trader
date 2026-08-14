@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader._wire import _apply_change_sign
+from kis_trader._internal._wire import _apply_change_sign
 from kis_trader.errors import KISError
 
 

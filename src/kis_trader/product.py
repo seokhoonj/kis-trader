@@ -8,7 +8,7 @@ from datetime import date
 from types import MappingProxyType
 from typing import Any
 
-from ._freeze import freeze_vendor_payload
+from ._internal._freeze import freeze_vendor_payload
 
 
 @dataclass(frozen=True, slots=True)

@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from datetime import date, datetime, time, timedelta, timezone
 
-from .errors import KISError, KISUsageError
+from ..errors import KISError, KISUsageError
 
 _KST = timezone(timedelta(hours=9))
 

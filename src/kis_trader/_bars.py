@@ -13,8 +13,8 @@ from collections.abc import Callable, Mapping, Sequence
 from datetime import datetime, timedelta
 from typing import Any
 
-from ._datetime import _KST
-from ._response import _missing_block_error, _raise_if_error
+from ._internal._datetime import _KST
+from ._internal._response import _missing_block_error, _raise_if_error
 from .bar import Bar
 from .errors import KISError, KISUsageError
 from .transport import Transport

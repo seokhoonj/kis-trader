@@ -10,7 +10,7 @@ Securities (KIS) Open API.
 
 from __future__ import annotations
 
-from ._masters import InstrumentRecord, MasterIndex
+from ._internal._masters import InstrumentRecord, MasterIndex
 from .account_reports import (
     IntegratedMargin,
     RealizedProfitBalance,

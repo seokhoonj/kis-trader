@@ -11,8 +11,8 @@ from __future__ import annotations
 from collections.abc import Mapping
 from typing import Any
 
-from .errors import KISError
-from .transport import RawResponse, Transport
+from ..errors import KISError
+from ..transport import RawResponse, Transport
 
 
 def _missing_block_error(block: str, resp: RawResponse) -> KISError:

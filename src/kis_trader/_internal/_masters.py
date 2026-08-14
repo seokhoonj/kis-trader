@@ -20,7 +20,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from ._fsutil import atomic_write_bytes
-from .errors import KISError, KISUsageError
+from ..errors import KISError, KISUsageError
 
 #: 마스터 캐시 기본 수명(초). 하루 -- KIS 가 마스터를 매일 갱신한다.
 DEFAULT_MASTER_MAX_AGE = 86400

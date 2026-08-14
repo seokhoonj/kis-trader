@@ -12,7 +12,7 @@ from decimal import Decimal
 import pytest
 
 from kis_trader._bars import collect_period_bars
-from kis_trader._datetime import _KST
+from kis_trader._internal._datetime import _KST
 from kis_trader.bar import Bar
 from kis_trader.errors import KISUsageError
 from kis_trader.transport import RawResponse

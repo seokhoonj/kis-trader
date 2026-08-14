@@ -10,8 +10,8 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
-from .._auth import _requests_post
-from .._endpoints import base_url
+from .._internal._auth import _requests_post
+from .._internal._endpoints import base_url
 from ..errors import KISAuthError
 
 if TYPE_CHECKING:

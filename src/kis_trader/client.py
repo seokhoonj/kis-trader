@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING
 
 from ._domestic import orders as orders_engine
 from ._domestic import reserved_orders as reserved_orders_api
-from ._masters import (
+from ._internal._masters import (
     Fetch,
     MasterIndex,
     load_overseas_index,
@@ -45,7 +45,7 @@ from .store import OrderStore
 
 if TYPE_CHECKING:
     from ._literals import Numeric
-    from ._masters import InstrumentRecord
+    from ._internal._masters import InstrumentRecord
     from .realtime.client import RealtimeClient
     from .report import ExecutionReport
     from .risk import RiskLimits
@@ -99,9 +99,9 @@ class KISClient:
         self._app_secret = app_secret
         self._environment = environment
         if transport is None:
-            from ._auth import TokenManager
-            from ._http import RequestsTransport
-            from ._ratelimit import (
+            from ._internal._auth import TokenManager
+            from ._internal._http import RequestsTransport
+            from ._internal._ratelimit import (
                 DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT,
                 SlidingWindowRateLimiter,
             )
@@ -330,7 +330,7 @@ class KISClient:
         async 앱은 코어(:class:`~kis_trader.realtime._connection.RealtimeConnection`)를 직접 쓴다.
         REST 는 그대로 동기다.
         """
-        from ._endpoints import websocket_url
+        from ._internal._endpoints import websocket_url
         from .realtime._approval import fetch_approval_key
         from .realtime.client import RealtimeClient
 

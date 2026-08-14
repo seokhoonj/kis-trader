@@ -15,10 +15,10 @@ from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from ._endpoints import base_url
-from .errors import KISAuthError, KISUsageError
+from ..errors import KISAuthError, KISUsageError
 
 if TYPE_CHECKING:
-    from .transport import Environment
+    from ..transport import Environment
 
 TokenPoster = Callable[[str, Mapping[str, str]], tuple[int, Mapping[str, Any]]]
 

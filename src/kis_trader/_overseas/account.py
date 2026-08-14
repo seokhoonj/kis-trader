@@ -16,9 +16,9 @@ from datetime import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from .._datetime import parse_optional_kst_date
-from .._response import _fetch_paginated_rows, _raise_if_error
-from .._wire import (
+from .._internal._datetime import parse_optional_kst_date
+from .._internal._response import _fetch_paginated_rows, _raise_if_error
+from .._internal._wire import (
     format_wire_decimal,
     optional_decimal,
     required_decimal,

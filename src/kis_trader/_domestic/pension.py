@@ -12,7 +12,7 @@ from datetime import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from .._wire import format_wire_decimal, optional_decimal
+from .._internal._wire import format_wire_decimal, optional_decimal
 from ..balance import Position
 from ..errors import KISError, KISUsageError
 from ..pension_items import (

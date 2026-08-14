@@ -14,7 +14,7 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any, Literal
 
-from ._freeze import freeze_vendor_payload
+from ._internal._freeze import freeze_vendor_payload
 from .investor import InvestorActivity, InvestorNetActivity
 from .program import ProgramTradeActivity
 
