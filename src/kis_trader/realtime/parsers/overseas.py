@@ -220,9 +220,9 @@ def parse_execution_notice(fields: list[str]) -> ExecutionNotice:
         executed_price=_decimal(raw["CNTG_UNPR"]),
         time=raw["STCK_CNTG_HOUR"],
         order_quantity=_decimal(raw["ODER_QTY"]),
-        rejected=raw["RFUS_YN"] == "Y",
-        executed=raw["CNTG_YN"] == "Y",
-        accepted=raw["ACPT_YN"] == "Y",
+        rejected=raw["RFUS_YN"] == "1",  # RFUS_YN 0:승인 1:거부 (Y/N 아님)
+        executed=raw["CNTG_YN"] == "2",  # CNTG_YN 1:주문/정정/취소/거부 2:체결 (Y/N 아님)
+        accepted=raw["ACPT_YN"] in ("1", "2"),  # ACPT_YN 1:주문접수 2:확인 3:취소(FOK/IOC); 3 은 미접수 취급, 원코드는 _raw
         branch_no=raw["BRNC_NO"],
         _raw=raw,
     )

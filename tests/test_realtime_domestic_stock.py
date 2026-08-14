@@ -299,7 +299,7 @@ def test_parse_execution_notice():
         "CUST_ID": "CUST01", "ACNT_NO": "5000000000", "ODER_NO": "0001",
         "OODER_NO": "0000", "SELN_BYOV_CLS": "02", "STCK_SHRN_ISCD": "005930",
         "CNTG_QTY": "10", "CNTG_UNPR": "71500", "STCK_CNTG_HOUR": "093015",
-        "RFUS_YN": "N", "CNTG_YN": "2", "ACPT_YN": "2", "ODER_QTY": "10",
+        "RFUS_YN": "0", "CNTG_YN": "2", "ACPT_YN": "2", "ODER_QTY": "10",
         "ODER_PRC": "71500",
     })
     en = parse_execution_notice(record)
@@ -319,6 +319,21 @@ def test_parse_execution_notice():
     assert en.order_qty == Decimal("10")
     assert en.order_price == Decimal("71500")
     assert len(en._raw) == 26
+
+
+def test_parse_execution_notice_refused_uses_ledger_code():
+    # H0STCNI0 RFUS_YN 0:승인 1:거부 (Y/N 아님) -- 거부 통보에서 refused 가 True 여야 한다.
+    record = _at(_EXECUTION_NOTICE_FIELDS, {
+        "CUST_ID": "CUST01", "ACNT_NO": "5000000000", "ODER_NO": "0001",
+        "OODER_NO": "0000", "SELN_BYOV_CLS": "02", "STCK_SHRN_ISCD": "005930",
+        "CNTG_QTY": "0", "CNTG_UNPR": "0", "STCK_CNTG_HOUR": "093015",
+        "RFUS_YN": "1", "CNTG_YN": "1", "ACPT_YN": "3", "ODER_QTY": "10",
+        "ODER_PRC": "71500",
+    })
+    en = parse_execution_notice(record)
+    assert en.refused is True
+    assert en.conclusion_flag == "1"
+    assert en.accepted_flag == "3"
 
 
 def test_registry_execution_notice_is_encrypted():

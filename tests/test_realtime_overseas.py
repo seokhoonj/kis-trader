@@ -231,9 +231,9 @@ def _execution_notice_fields() -> list[str]:
     fields[8] = "5"         # CNTG_QTY
     fields[9] = "231.50"    # CNTG_UNPR
     fields[10] = "223015"   # STCK_CNTG_HOUR
-    fields[11] = "N"        # RFUS_YN
-    fields[12] = "Y"        # CNTG_YN
-    fields[13] = "Y"        # ACPT_YN
+    fields[11] = "0"        # RFUS_YN 0:승인 1:거부
+    fields[12] = "2"        # CNTG_YN 1:주문/정정/취소/거부 2:체결
+    fields[13] = "2"        # ACPT_YN 1:주문접수 2:확인 3:취소
     fields[14] = "01234"    # BRNC_NO
     fields[15] = "10"       # ODER_QTY
     fields[17] = "APPLE INC"  # CNTG_ISNM
@@ -258,6 +258,19 @@ def test_parse_execution_notice_headline():
     assert notice.executed is True
     assert notice.accepted is True
     assert notice.branch_no == "01234"
+
+
+def test_execution_notice_flags_use_ledger_codes_not_y_n():
+    # H0GSCNI0: RFUS_YN 0:승인 1:거부, CNTG_YN 1:주문/정정/취소/거부 2:체결,
+    # ACPT_YN 1:주문접수 2:확인 3:취소(FOK/IOC) -- 어느 것도 Y/N 이 아니다.
+    fields = _execution_notice_fields()
+    fields[11] = "1"  # RFUS_YN 거부
+    fields[12] = "1"  # CNTG_YN 접수(미체결)
+    fields[13] = "3"  # ACPT_YN 취소
+    notice = parse_execution_notice(fields)
+    assert notice.rejected is True
+    assert notice.executed is False
+    assert notice.accepted is False
 
 
 def test_execution_notice_raw_and_registry():

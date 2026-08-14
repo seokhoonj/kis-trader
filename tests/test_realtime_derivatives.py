@@ -286,7 +286,7 @@ def test_parse_execution_notice():
         der._EXECUTION_NOTICE_FIELDS,
         CUST_ID="CUST01", ACNT_NO="12345678", ODER_NO="0001", OODER_NO="0000",
         SELN_BYOV_CLS="02", STCK_SHRN_ISCD="101W09", CNTG_QTY="2", CNTG_UNPR="330.45",
-        STCK_CNTG_HOUR="093015", RFUS_YN="N", CNTG_YN="2", ACPT_YN="Y",
+        STCK_CNTG_HOUR="093015", RFUS_YN="0", CNTG_YN="2", ACPT_YN="2",
         ODER_QTY="2", ACNT_NAME="홍길동", CNTG_ISNM="KOSPI200 F 202509",
         ORDER_PRC="330.45",
     )
@@ -310,12 +310,28 @@ def test_parse_execution_notice():
     assert len(note._raw) == 22
 
 
+def test_execution_notice_flags_use_ledger_codes_not_y_n():
+    # RFUS_YN 0:승인 1:거부, ACPT_YN 1/2 접수 3:취소(FOK/IOC) -- Y/N 아님.
+    fields = _fields(
+        der._EXECUTION_NOTICE_FIELDS,
+        CUST_ID="CUST01", ACNT_NO="12345678", ODER_NO="0001", OODER_NO="0000",
+        SELN_BYOV_CLS="02", STCK_SHRN_ISCD="101W09", CNTG_QTY="2", CNTG_UNPR="330.45",
+        STCK_CNTG_HOUR="093015", RFUS_YN="1", CNTG_YN="1", ACPT_YN="3",
+        ODER_QTY="2", ACNT_NAME="홍길동", CNTG_ISNM="KOSPI200 F 202509",
+        ORDER_PRC="330.45",
+    )
+    note = der.parse_execution_notice(fields)
+    assert note.rejected is True
+    assert note.fill_status == "1"
+    assert note.accepted is False
+
+
 def test_parse_night_execution_notice_has_no_order_price():
     fields = _fields(
         der._NIGHT_EXECUTION_NOTICE_FIELDS,
         CUST_ID="CUST01", ACNT_NO="12345678", ODER_NO="0002", SELN_BYOV_CLS="01",
         STCK_SHRN_ISCD="101W09", CNTG_QTY="1", CNTG_UNPR="331.00",
-        STCK_CNTG_HOUR="181500", RFUS_YN="N", CNTG_YN="2", ACPT_YN="Y",
+        STCK_CNTG_HOUR="181500", RFUS_YN="0", CNTG_YN="2", ACPT_YN="2",
     )
     note = der.parse_night_execution_notice(fields)
     assert note.customer_id == "CUST01"
@@ -368,7 +384,7 @@ def test_parse_night_option_notice_via_shared_parser():
         der._NIGHT_EXECUTION_NOTICE_FIELDS,
         CUST_ID="CUST01", ACNT_NO="12345678", ODER_NO="0003", SELN_BYOV_CLS="02",
         STCK_SHRN_ISCD="201S1305", CNTG_QTY="1", CNTG_UNPR="2.50",
-        STCK_CNTG_HOUR="181500", RFUS_YN="N", CNTG_YN="2", ACPT_YN="Y",
+        STCK_CNTG_HOUR="181500", RFUS_YN="0", CNTG_YN="2", ACPT_YN="2",
     )
     note = der.parse_night_execution_notice(fields)
     assert note.symbol == "201S1305"

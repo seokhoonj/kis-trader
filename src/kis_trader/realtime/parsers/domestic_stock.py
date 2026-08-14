@@ -546,7 +546,7 @@ def parse_execution_notice(fields: list[str]) -> ExecutionNotice:
         executed_qty=_decimal(raw["CNTG_QTY"]),
         executed_price=_decimal(raw["CNTG_UNPR"]),
         time=raw["STCK_CNTG_HOUR"],
-        refused=raw["RFUS_YN"] == "Y",
+        refused=raw["RFUS_YN"] == "1",  # RFUS_YN 0:승인 1:거부 (Y/N 아님)
         conclusion_flag=raw["CNTG_YN"],
         accepted_flag=raw["ACPT_YN"],
         order_qty=_decimal(raw["ODER_QTY"]),

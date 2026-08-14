@@ -526,9 +526,9 @@ def _execution_notice(fields: list[str], layout: tuple[str, ...]) -> ExecutionNo
         filled_quantity=_decimal(raw["CNTG_QTY"]),
         filled_price=_decimal(raw["CNTG_UNPR"]),
         time=raw["STCK_CNTG_HOUR"],
-        rejected=raw["RFUS_YN"] == "Y",
+        rejected=raw["RFUS_YN"] == "1",  # RFUS_YN 0:승인 1:거부 (Y/N 아님)
         fill_status=raw["CNTG_YN"],
-        accepted=raw["ACPT_YN"] == "Y",
+        accepted=raw["ACPT_YN"] in ("1", "2"),  # ACPT_YN 1:주문접수 2:확인 3:취소(FOK/IOC); 3 은 미접수 취급, 원코드는 _raw
         order_quantity=_decimal(raw["ODER_QTY"]),
         symbol_name=raw["CNTG_ISNM"],
         account_name=raw["ACNT_NAME"],
