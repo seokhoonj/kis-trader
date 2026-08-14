@@ -1,7 +1,7 @@
 """프로그램매매(DATA) -- :class:`ProgramTradePoint`.
 
 한 종목의 장중 시간대별 프로그램매매(기관·외국인의 바스켓/차익거래 자동주문) 흐름 한 점이다.
-:meth:`~kis_trader.stock.DomesticStock.program_trades` 가 시간 순 리스트로 돌려준다. 프로그램 순매수가
+:meth:`~kis_trader.domestic.stock.DomesticStock.program_trades` 가 시간 순 리스트로 돌려준다. 프로그램 순매수가
 크게 늘면 지수·수급에 영향이 커서 장중 관찰 지표로 쓴다.
 """
 

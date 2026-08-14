@@ -1,7 +1,7 @@
 """per-ticker 시세분석(DATA) -- :class:`CreditBalancePoint` / :class:`ShortSalePoint` 등.
 
 한 종목의 시세분석 결과 한 행이다: 일별 추이(신용잔고/공매도/대차/체결량)나 체결금액대별 매매비중 같은
-스냅샷. :class:`~kis_trader.stock.DomesticStock` 의 대응 메서드가 리스트로 돌려준다(추이는 최근->과거).
+스냅샷. :class:`~kis_trader.domestic.stock.DomesticStock` 의 대응 메서드가 리스트로 돌려준다(추이는 최근->과거).
 """
 
 from __future__ import annotations
@@ -107,7 +107,7 @@ class AnalystOpinion:
 
     ``opinion`` 은 투자의견(매수/중립/매도 등 텍스트), ``previous_opinion`` 은 직전 의견,
     ``target_price`` 는 HTS 목표주가, ``disparity_percent`` 는 목표가 대비 괴리율(%)이다.
-    :meth:`~kis_trader.stock.DomesticStock.analyst_opinions` 가 기간 시계열로 돌려준다.
+    :meth:`~kis_trader.domestic.stock.DomesticStock.analyst_opinions` 가 기간 시계열로 돌려준다.
     ``timestamp`` 는 영업일(KST-aware).
     """
 
@@ -244,7 +244,7 @@ class TradeAmountBand:
 
     당일 체결을 체결금액대(``band_label`` 예: "3백 이하")로 묶어 매수/매도/순매수를 나눈다.
     ``*_ratio`` 는 전체 대비 거래량 비율(%), ``*_count`` 는 체결 건수, ``net_buy_*`` 는 순매수(음수 가능).
-    :meth:`~kis_trader.stock.DomesticStock.trade_amount_bands` 가 금액대 리스트로 돌려준다.
+    :meth:`~kis_trader.domestic.stock.DomesticStock.trade_amount_bands` 가 금액대 리스트로 돌려준다.
     """
 
     symbol: str
@@ -273,7 +273,7 @@ class ExpectedPricePoint:
 
     장 시작 전/마감 동시호가 구간에 형성되는 예상 체결가 시계열의 한 점이다. ``expected_price`` 는
     그 시각의 예상 체결가, ``change`` / ``change_percent`` 는 전일 종가 대비(하락이면 음수), ``volume``
-    은 누적 예상 거래량이다. :meth:`~kis_trader.stock.DomesticStock.expected_price_trend` 가 시각 리스트
+    은 누적 예상 거래량이다. :meth:`~kis_trader.domestic.stock.DomesticStock.expected_price_trend` 가 시각 리스트
     (최근->과거)로 돌려준다. ``timestamp`` 는 체결시각(KST-aware).
     """
 
@@ -296,7 +296,7 @@ class DailyTradeVolumePoint:
     """하루의 매수/매도 체결량 합계(불변).
 
     ``buy_volume`` 은 그날 총 매수 체결량, ``sell_volume`` 은 총 매도 체결량이다.
-    :meth:`~kis_trader.stock.DomesticStock.daily_trade_volume` 이 일자 시계열(최근->과거)로 돌려준다.
+    :meth:`~kis_trader.domestic.stock.DomesticStock.daily_trade_volume` 이 일자 시계열(최근->과거)로 돌려준다.
     ``timestamp`` 는 영업일(KST-aware).
     """
 

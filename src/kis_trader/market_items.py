@@ -2,7 +2,7 @@
 
 종목이 아니라 **시장(코스피/코스닥) 전체**를 대상으로 한 분석 결과다. :class:`~kis_trader.market.
 MarketQueries`(``kis.domestic.market``)가 돌려준다. 종목 단위 투자자매매동향은 종목 핸들
-(:meth:`~kis_trader.stock.DomesticStock.investor_flows`)에 있다.
+(:meth:`~kis_trader.domestic.stock.DomesticStock.investor_flows`)에 있다.
 """
 
 from __future__ import annotations

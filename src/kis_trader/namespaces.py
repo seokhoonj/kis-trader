@@ -27,17 +27,18 @@ from ._overseas import reserved_orders as overseas_reserved_orders_api
 from .bond import Bond
 from .calendar import CalendarQueries
 from .derivative import FuturesContract, OptionContract
+from .domestic.stock import DomesticStock
 from .elw import ELW
 from .elw_ranking import ELWRankingQueries
 from .elw_screener import ELWScreenerQueries
 from .errors import KISUsageError
 from .index import Index
 from .market import MarketQueries
+from .overseas.stock import OverseasStock
 from .overseas_derivative import OverseasDerivative
 from .overseas_index import OverseasIndex
 from .overseas_ranking import OverseasRankingQueries
 from .ranking import RankingQueries
-from .stock import DomesticStock, OverseasStock
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -250,7 +251,7 @@ class DomesticAccount:
         )
 
     def cancel_reserved_order(self, sequence: str, *, order_date: str | None = None) -> None:
-        """예약주문을 취소한다 -- ``sequence`` 는 :meth:`~kis_trader.stock.DomesticStock.reserve_buy` 리포트의
+        """예약주문을 취소한다 -- ``sequence`` 는 :meth:`~kis_trader.domestic.stock.DomesticStock.reserve_buy` 리포트의
         ``order_id``(예약주문순번). 정상 처리면 조용히 반환, 아니면 예외. **모의투자 미지원**."""
         cano, product_code = self._c._require_account()
         reserved_orders_api.cancel_reserved_order(
@@ -414,7 +415,7 @@ class OverseasAccount:
         )
 
     def cancel_reserved_order(self, reserved_order_id: str, *, receipt_date: str) -> None:
-        """미국 예약주문을 취소한다 -- ``reserved_order_id`` 는 :meth:`~kis_trader.stock.OverseasStock.reserve_buy`
+        """미국 예약주문을 취소한다 -- ``reserved_order_id`` 는 :meth:`~kis_trader.overseas.stock.OverseasStock.reserve_buy`
         리포트의 ``order_id``, ``receipt_date``(YYYYMMDD)는 그 예약의 접수일자. **모의투자 미지원**."""
         cano, product_code = self._c._require_account()
         overseas_reserved_orders_api.cancel_overseas_reserved_order(

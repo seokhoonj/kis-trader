@@ -1,7 +1,7 @@
 """지수/업종 핸들 -- :class:`Index`.
 
 한 지수(업종)에 대해 조회를 시키는 핸들이다: ``kis.domestic.index("0001").quote()`` 처럼(0001=KOSPI 종합).
-종목 핸들 :class:`~kis_trader.stock.DomesticStock` 와 대칭이며, 지수는 종목이 아니라 업종코드로 조회한다.
+종목 핸들 :class:`~kis_trader.domestic.stock.DomesticStock` 와 대칭이며, 지수는 종목이 아니라 업종코드로 조회한다.
 
 핸들은 :class:`~kis_trader.client.KISClient` 가 만들어 준다 -- 직접 생성하지 않는다.
 """

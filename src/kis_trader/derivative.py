@@ -1,9 +1,9 @@
 """선물/옵션 핸들 -- :class:`FuturesContract` / :class:`OptionContract` (공통 베이스 :class:`_ContractBase`).
 
 한 파생 계약에 대해 조회를 시키는 핸들이다: ``kis.domestic.futures("101W09").quote()`` 처럼. 종목 핸들
-:class:`~kis_trader.stock.DomesticStock` 와 대칭이며, 파생은 종목이 아니라 계약코드 + 시장구분
-(F:지수선물 / O:지수옵션)으로 조회한다. 종목의 국내/해외 분리(:class:`~kis_trader.stock.DomesticStock` /
-:class:`~kis_trader.stock.OverseasStock`)처럼 선물과 옵션도 겸용 핸들 하나가 아니라 계약종류별 클래스로
+:class:`~kis_trader.domestic.stock.DomesticStock` 와 대칭이며, 파생은 종목이 아니라 계약코드 + 시장구분
+(F:지수선물 / O:지수옵션)으로 조회한다. 종목의 국내/해외 분리(:class:`~kis_trader.domestic.stock.DomesticStock` /
+:class:`~kis_trader.overseas.stock.OverseasStock`)처럼 선물과 옵션도 겸용 핸들 하나가 아니라 계약종류별 클래스로
 나뉜다 -- 선물에만 있는 조회(기초자산 나란히 보기)를 옵션 핸들에서 부르는 잘못된 조합은 런타임 오류가
 아니라 애초에 그 메서드가 없다(타입체커가 먼저 잡는다).
 

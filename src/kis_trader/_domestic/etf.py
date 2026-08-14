@@ -1,6 +1,6 @@
 """ETF/ETN 시세 조회 (내부) -- NAV 등 ETF 고유 정보를 :class:`ETFNAV` 로.
 
-사용자면은 종목 핸들(:class:`~kis_trader.stock.DomesticStock`)의 ETF 전용 verb(``kis.domestic.stock(code).nav()``)다.
+사용자면은 종목 핸들(:class:`~kis_trader.domestic.stock.DomesticStock`)의 ETF 전용 verb(``kis.domestic.stock(code).nav()``)다.
 ETF/ETN 은 종목처럼 거래되므로 시세/주문은 일반 verb 로 하고, 여기선 NAV/괴리율/추적오차 같은 ETF
 고유 필드만 다룬다. 엔드포인트는 ``etfetn`` 세그먼트라 경로가 ``/uapi/etfetn/...`` 로 다르다.
 

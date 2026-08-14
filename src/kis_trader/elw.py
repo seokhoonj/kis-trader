@@ -2,7 +2,7 @@
 
 한 ELW(주식워런트증권)에 대해 고유 지표를 조회하는 핸들이다: ``kis.domestic.elw("58J297").sensitivity_trend()``
 처럼. ELW 는 증권 형태로 상장된 옵션이라 기본 시세(현재가/호가/체결)는 6자리 코드로 종목 핸들
-(:class:`~kis_trader.stock.DomesticStock`)이 그대로 조회한다 -- 이 핸들은 그 위에 옵션 분석 지표
+(:class:`~kis_trader.domestic.stock.DomesticStock`)이 그대로 조회한다 -- 이 핸들은 그 위에 옵션 분석 지표
 (민감도 그릭스, 변동성, 투자지표 추이)만 얹는다.
 
 핸들은 :class:`~kis_trader.client.KISClient` 가 ``kis.domestic.elw(code)`` 로 만들어 준다 -- 직접 생성하지 않는다.

@@ -1,7 +1,7 @@
 """재무제표 조회 (내부) -- 결산기별 대차대조표/손익계산서.
 
-사용자면은 종목 핸들(:meth:`~kis_trader.stock.DomesticStock.balance_sheet` /
-:meth:`~kis_trader.stock.DomesticStock.income_statement`)이다. 모두 ``/uapi/domestic-stock/v1/finance/``
+사용자면은 종목 핸들(:meth:`~kis_trader.domestic.stock.DomesticStock.balance_sheet` /
+:meth:`~kis_trader.domestic.stock.DomesticStock.income_statement`)이다. 모두 ``/uapi/domestic-stock/v1/finance/``
 아래에 있고, 파라미터는 시장구분(J)+종목코드+분류(FID_DIV_CLS_CODE 0:년/1:분기)를 공유하며 응답은
 ``output`` 결산기 배열이다(최근->과거).
 

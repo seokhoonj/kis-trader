@@ -214,7 +214,7 @@ class TopViewedStock:
     """HTS 조회 상위 종목 한 행(불변).
 
     사용자들이 많이 조회한(관심을 받은) 종목 순위로, 코드와 시장구분(``market`` J:KOSPI/Q:KOSDAQ)만
-    준다 -- 시세는 없으니 관심 종목은 종목 핸들(:class:`~kis_trader.stock.DomesticStock`)로 따로 조회한다.
+    준다 -- 시세는 없으니 관심 종목은 종목 핸들(:class:`~kis_trader.domestic.stock.DomesticStock`)로 따로 조회한다.
     순위는 응답 순서 기반이다.
     """
 

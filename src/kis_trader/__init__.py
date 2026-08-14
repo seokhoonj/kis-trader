@@ -1,7 +1,7 @@
 """kis_trader -- a clean, action-centric Python client for the Korea Investment &
 Securities (KIS) Open API.
 
-행위 중심 API: 세션 :class:`KISClient` 에서 종목 핸들 :class:`~kis_trader.stock.DomesticStock`
+행위 중심 API: 세션 :class:`KISClient` 에서 종목 핸들 :class:`~kis_trader.domestic.stock.DomesticStock`
 (``kis.domestic.stock("005930").quote()``)와 계좌 조회를 시킨다. KIS URL 구조는 노출되지 않는다.
 
 공개 식별자는 국제 표준 금융 영어(FIX/ISO 용어); KIS URL·TR-ID 매핑은
@@ -79,6 +79,7 @@ from .derivative_items import (
     OptionExpiry,
     UnderlyingQuote,
 )
+from .domestic.stock import DomesticStock
 from .elw import ELW
 from .elw_items import (
     ELWIndicatorPoint,
@@ -156,6 +157,7 @@ from .open_order import OpenOrder
 from .order import Order
 from .order_book import OrderBook, PriceLevel
 from .orderable import BuyableAmount, SellableQuantity
+from .overseas.stock import OverseasStock
 from .overseas_derivative import OverseasDerivative
 from .overseas_derivative_items import (
     OverseasDerivativeDetail,
@@ -227,7 +229,6 @@ from .saved_screen import (
     WatchlistGroup,
     WatchlistStock,
 )
-from .stock import DomesticStock, OverseasStock
 from .stock_info import StockProfile, StockStatus
 from .store import OrderStore
 from .trade import Trade

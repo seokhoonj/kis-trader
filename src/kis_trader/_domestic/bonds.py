@@ -114,7 +114,7 @@ def fetch_quote(transport: Transport, *, code: str) -> BondQuote:
 def fetch_order_book(transport: Transport, *, code: str) -> OrderBook:
     """채권 호가창(5단계 매수/매도 심도). ``code`` 는 표준코드(ISIN).
 
-    채권 호가는 종목 :meth:`~kis_trader.stock.DomesticStock.order_book` 과 같은 :class:`OrderBook`
+    채권 호가는 종목 :meth:`~kis_trader.domestic.stock.DomesticStock.order_book` 과 같은 :class:`OrderBook`
     로 돌려주되, 채권은 5단계(주식은 10단계)다. 가격 키는 ``bond_askp``/``bond_bidp``, 잔량 키는
     ``askp_rsqn``/``bidp_rsqn`` -- 빈/0 단계는 건너뛴다.
     """
@@ -141,7 +141,7 @@ def fetch_order_book(transport: Transport, *, code: str) -> OrderBook:
 def fetch_trades(transport: Transport, *, code: str) -> list[Trade]:
     """채권의 최근 체결 목록(최신순). ``code`` 는 표준코드(ISIN).
 
-    종목 :meth:`~kis_trader.stock.DomesticStock.trades` 와 같은 :class:`Trade` 로 돌려준다. 체결가는
+    종목 :meth:`~kis_trader.domestic.stock.DomesticStock.trades` 와 같은 :class:`Trade` 로 돌려준다. 체결가는
     채권가(``bond_prpr``), 시각은 조회일 날짜를 붙인 KST-aware(장 밖 조회면 직전 세션 체결이 조회일
     날짜로 찍힐 수 있다).
     """

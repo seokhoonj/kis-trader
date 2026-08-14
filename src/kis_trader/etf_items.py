@@ -1,10 +1,10 @@
 """ETF/ETN 시세 DATA -- :class:`ETFNAV`, :class:`ETFComponent`, :class:`ETFNAVHistoryPoint`.
 
-ETF/ETN 은 호가창에서 거래되는 종목이라 시세/주문은 :class:`~kis_trader.stock.DomesticStock` 로 하고,
+ETF/ETN 은 호가창에서 거래되는 종목이라 시세/주문은 :class:`~kis_trader.domestic.stock.DomesticStock` 로 하고,
 ETF 고유 정보만 이 타입들로 돌려준다. :class:`ETFNAV` 는 순자산가치 스냅샷
-(:meth:`~kis_trader.stock.DomesticStock.nav`), :class:`ETFComponents` 는 구성종목(PDF) 목록과 ETF
-요약(:meth:`~kis_trader.stock.DomesticStock.etf_components`) -- 각 항목은 :class:`ETFComponent` --,
-:class:`ETFNAVHistoryPoint` 는 일별 NAV-가격 추이(:meth:`~kis_trader.stock.DomesticStock.nav_history`)의
+(:meth:`~kis_trader.domestic.stock.DomesticStock.nav`), :class:`ETFComponents` 는 구성종목(PDF) 목록과 ETF
+요약(:meth:`~kis_trader.domestic.stock.DomesticStock.etf_components`) -- 각 항목은 :class:`ETFComponent` --,
+:class:`ETFNAVHistoryPoint` 는 일별 NAV-가격 추이(:meth:`~kis_trader.domestic.stock.DomesticStock.nav_history`)의
 한 점이다.
 """
 
@@ -27,7 +27,7 @@ class ETFNAV:
 
     ``nav`` 는 현재 NAV(순자산가치), ``premium`` 은 괴리율(시장가가 NAV 대비 얼마나 벗어났는지, %),
     ``tracking_error`` 는 추적오차율(%). ``nav_change`` / ``nav_change_percent`` 는 NAV 전일대비로
-    하락이면 음수. 시장 체결가는 :meth:`~kis_trader.stock.DomesticStock.quote` 에 있다.
+    하락이면 음수. 시장 체결가는 :meth:`~kis_trader.domestic.stock.DomesticStock.quote` 에 있다.
     """
 
     symbol: str
