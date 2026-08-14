@@ -162,6 +162,23 @@ def test_reopen_returns_false_when_stop_disabled_reconnect():
     assert asyncio.run(scenario()) is False
 
 
+def test_reopen_closes_new_socket_if_stop_fires_during_connect():
+    # connect await 중 stop() 이 재연결을 끄면, 방금 연 소켓을 닫고 False 반환(누수·hang 방지).
+    new_ws = FakeWebSocket([])
+
+    async def scenario():
+        async def connect(url):
+            conn._reconnect = False  # connect 대기 중 stop() 이 발생한 상황
+            return new_ws
+
+        conn = RealtimeConnection("K", "ws://x", connect=connect, reconnect=True)
+        result = await conn._reopen_with_backoff()
+        return result
+
+    assert asyncio.run(scenario()) is False
+    assert new_ws.closed is True
+
+
 def test_reconnect_resubscribes_active_registrations():
     # 첫 소켓은 즉시 소진(끊김 모사), 두 번째 소켓으로 재연결 후 기존 구독 재등록되는지.
     first = FakeWebSocket(incoming=[])

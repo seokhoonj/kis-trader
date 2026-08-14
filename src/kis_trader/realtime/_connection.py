@@ -138,6 +138,8 @@ class RealtimeConnection:
         self._subscriptions.discard((tr_id, tr_key))
 
     async def _send_subscription(self, tr_id: str, tr_key: str, *, subscribe: bool) -> None:
+        if self._ws is None:
+            return  # 연결 없음(닫힘 중) -- 구독은 _subscriptions 에 남아 재연결 시 재전송된다.
         message = build_subscription_message(
             self._approval_key,
             tr_id,
@@ -181,9 +183,10 @@ class RealtimeConnection:
             _logger.warning("drop unparseable frame: %r", raw[:80], exc_info=True)
             return
         if isinstance(frame, SystemMessage):
-            if frame.is_pingpong:
+            ws = self._ws
+            if frame.is_pingpong and ws is not None:
                 # 공식 KIS 샘플과 동일하게 WebSocket PONG 제어프레임으로 응답(하트비트).
-                await self._ws.pong(raw)
+                await ws.pong(raw)
             elif frame.encryption_key is not None:
                 self._crypto[frame.tr_id] = frame.encryption_key
             return
@@ -228,6 +231,11 @@ class RealtimeConnection:
                 await asyncio.sleep(backoff)
                 backoff = min(backoff * 2, self._max_backoff)
                 continue
+            if not self._reconnect:
+                # connect await 중 stop() 이 재연결을 껐다 -- 방금 연 소켓을 닫고 중단(누수·hang 방지).
+                await self._ws.close()
+                self._ws = None
+                return False
             for tr_id, tr_key in list(self._subscriptions):
                 await self._send_subscription(tr_id, tr_key, subscribe=True)
             return True

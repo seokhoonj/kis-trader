@@ -490,7 +490,7 @@ def parse_stock_option_expected(fields: list[str]) -> ExpectedConclusion:
 class ExecutionNotice:
     """선물옵션 실시간 체결통보. 내 주문의 체결/접수/거부 통보(암호화 프레임을 복호화한 결과).
 
-    선물옵션(H0IFCNI0)과 KRX야간(H0MFCNI0) 체결통보가 이 엔티티로 매핑된다. 야간 통보에는
+    선물옵션(H0IFCNI0)과 KRX야간 선물/옵션(H0MFCNI0/H0EUCNI0) 체결통보가 이 엔티티로 매핑된다. 야간 통보에는
     주문가격(``order_price``)이 없어 0 이 된다. 전체 필드는 ``_raw`` 에 있다.
     """
 
@@ -557,7 +557,7 @@ def parse_execution_notice(fields: list[str]) -> ExecutionNotice:
 
 
 def parse_night_execution_notice(fields: list[str]) -> ExecutionNotice:
-    """KRX야간 선물/옵션 체결통보(H0MFCNI0, 19필드, 평문) -> :class:`ExecutionNotice`."""
+    """KRX야간 선물/옵션 체결통보(H0MFCNI0/H0EUCNI0, 19필드, 평문) -> :class:`ExecutionNotice`."""
     return _execution_notice(fields, _NIGHT_EXECUTION_NOTICE_FIELDS)
 
 

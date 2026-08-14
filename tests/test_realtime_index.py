@@ -28,7 +28,7 @@ def test_parse_index_tick_shares_layout_and_registers():
     assert isinstance(tick, IndexTick)
     assert tick.sector_code == "0001"
     assert tick.time == "153000"
-    assert tick.index_value == Decimal("2650.55")
+    assert tick.current_index == Decimal("2650.55")
     assert tick.change == Decimal("12.30")
     assert tick.change_percent == Decimal("0.47")
     assert tick.rising_count == Decimal("480")

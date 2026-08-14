@@ -90,6 +90,7 @@ class RealtimeClient:
         if self._running:
             return
         self._startup_error = None
+        self._ready.clear()  # 재시작 시 이전 set 이 남아 조기 ready 로 오판되지 않게
         self._thread = threading.Thread(target=self._run, name="kis-realtime", daemon=True)
         self._thread.start()
         if not self._ready.wait(timeout=timeout):
@@ -140,12 +141,15 @@ class RealtimeClient:
         try:
             self._loop.run_until_complete(self._main())
         finally:
-            # 스케줄돼 있던 태스크(예: run_coroutine_threadsafe 로 넣은 stop())를
-            # 취소·수거한 뒤 루프를 닫는다 -- "Task was destroyed but it is pending" 방지.
-            pending = [t for t in asyncio.all_tasks(self._loop) if not t.done()]
-            for task in pending:
-                task.cancel()
-            if pending:
+            # 스케줄돼 있던 태스크(예: run_coroutine_threadsafe 로 넣은 stop())를 취소·수거한 뒤
+            # 루프를 닫는다 -- "Task was destroyed but it is pending" 방지. 종료 직전 도착한 제출이
+            # 새 태스크를 만들 수 있어 quiescent 할 때까지 반복한다.
+            while True:
+                pending = [t for t in asyncio.all_tasks(self._loop) if not t.done()]
+                if not pending:
+                    break
+                for task in pending:
+                    task.cancel()
                 self._loop.run_until_complete(
                     asyncio.gather(*pending, return_exceptions=True)
                 )
@@ -192,10 +196,15 @@ class RealtimeClient:
     def _call_async(self, coro, *, timeout: float = 5.0) -> None:
         """백그라운드 루프에 코루틴을 제출하고 완료를 기다린다(예외 전파).
 
-        루프가 돌고 있지 않으면(이미 종료) 코루틴을 닫고 조용히 무시한다.
+        루프가 돌고 있지 않으면(이미 종료) 코루틴을 닫고 조용히 무시한다. 콜백이 수신 루프
+        스레드에서 subscribe/unsubscribe 를 부르면 자기 루프를 기다려 self-deadlock 이 되므로,
+        그 경우엔 블록하지 않고 fire-and-forget 으로 스케줄한다.
         """
         if self._loop is None or not self._loop.is_running():
             coro.close()
+            return
+        if threading.current_thread() is self._thread:
+            self._loop.call_soon_threadsafe(asyncio.ensure_future, coro)
             return
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         future.result(timeout=timeout)

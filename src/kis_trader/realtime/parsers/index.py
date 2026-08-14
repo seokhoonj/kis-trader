@@ -95,7 +95,7 @@ class IndexTick:
 
     sector_code: str  # 업종 구분 코드
     time: str  # HHMMSS
-    index_value: Decimal  # 현재가 지수
+    current_index: Decimal  # 현재가 지수
     change_sign: str  # 전일 대비 부호 1상한 2상승 3보합 4하한 5하락
     change: Decimal  # 업종 지수 전일 대비
     change_percent: Decimal  # 전일 대비율
@@ -168,7 +168,7 @@ def parse_index_tick(fields: list[str]) -> IndexTick:
     return IndexTick(
         sector_code=raw["BSTP_CLS_CODE"],
         time=raw["BSOP_HOUR"],
-        index_value=_decimal(raw["PRPR_NMIX"]),
+        current_index=_decimal(raw["PRPR_NMIX"]),
         change_sign=raw["PRDY_VRSS_SIGN"],
         change=_decimal(raw["BSTP_NMIX_PRDY_VRSS"]),
         change_percent=_decimal(raw["PRDY_CTRT"]),
