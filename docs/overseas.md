@@ -47,9 +47,9 @@ a.positions(market=None)                             # None = 전체 시장 합�
 a.balance(market="US")                               # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
 a.present_balance()                                  # 체결기준 잔고 (오늘 체결분 포함)
 a.settlement_balance(basis_date="20240630")          # 결제기준 잔고 (결제일 기준)
-a.buyable(symbol="AAPL", exchange="NAS", price=150)
-a.period_profit(start="20240101", end="20240630")
-a.transactions(start="20240101", end="20240630")
+a.buyable(symbol="AAPL", exchange="NAS", price=150)  # 매수가능 수량·금액 (해당 단가 기준)
+a.period_profit(start="20240101", end="20240630")    # 기간 실현손익 (매도청산 종목별)
+a.transactions(start="20240101", end="20240630")     # 거래내역
 a.foreign_margin()                                   # 통화별 외화 증거금
 ```
 
