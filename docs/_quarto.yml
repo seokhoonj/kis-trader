@@ -15,7 +15,7 @@ book:
   search: true
   sidebar:
     style: docked
-    collapse-level: 1
+    collapse-level: 2
   chapters:
     - index.md
     - part: "시작하기"
@@ -46,7 +46,8 @@ book:
     - part: "명령줄·에이전트"
       chapters:
         - cli.md
-        - skill.md
+        - claude-skill.md
+        - codex-skill.md
     - part: "참고"
       chapters:
         - realtime.md

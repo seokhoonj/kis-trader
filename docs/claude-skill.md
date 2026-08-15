@@ -1,4 +1,4 @@
-# Claude Code 스킬
+# Claude Code Skill
 
 이 저장소에는 Claude Code(에이전트)가 kis_trader 를 **정해진 규율대로** 다루도록 안내하는
 스킬이 함께 들어 있습니다: `skills/kis-trader/SKILL.md`. 도구가 아니라 "언제·어떻게" 판단하는
@@ -19,9 +19,10 @@
 - 매수/매도/정정/취소를 **정확히 1회** 호출하고, 타임아웃은 재전송하지 않고 `reconcile` 로만 확정합니다.
 - 자격증명·`._raw`·전체 계좌번호를 출력에 흘리지 않습니다.
 
-요컨대 [주문](orders.md)의 안전커널 규율을 에이전트 행동 지침으로 옮긴 것입니다.
+요컨대 [주문](orders.md)의 안전커널 규율을 에이전트 행동 지침으로 옮긴 것입니다. (Codex 에서
+쓰려면 → [Codex Skill](codex-skill.md).)
 
-## 설치 — Claude Code (마켓플레이스)
+## 설치 — 마켓플레이스
 
 이 저장소는 Claude Code 플러그인 마켓플레이스로 등록돼 있습니다. 마켓플레이스를 추가하고
 설치합니다.
@@ -35,7 +36,7 @@
 주문")을 말하면 설명이 요청과 맞아 활성화됩니다. `/plugin marketplace update kis-trader` 로
 최신본을 당겨오고, `/plugin` 으로 관리합니다.
 
-## 설치 — Claude Code (직접 복사)
+## 설치 — 직접 복사
 
 마켓플레이스 없이 개인 스킬 폴더에 바로 둘 수도 있습니다.
 
@@ -43,22 +44,6 @@
 mkdir -p ~/.claude/skills
 cp -r skills/kis-trader ~/.claude/skills/
 ```
-
-## Codex 에서 쓰기
-
-Codex CLI 에는 플러그인 마켓플레이스가 없습니다. 대신 **`AGENTS.md`** (저장소 루트 또는
-`~/.codex/AGENTS.md`)에 항상 로드되는 지침을 둡니다. 같은 규율을 Codex 에 주려면 그 파일에서
-이 스킬을 가리키거나 핵심 규칙을 옮겨 적습니다(이 저장소의 `AGENTS.md` 는 로컬 전용이라
-공유되지 않으니, 각자 추가합니다).
-
-```text
-# AGENTS.md (사용자 각자)
-KIS 계좌 작업은 kis_trader 공개 API 로만 하고, skills/kis-trader/SKILL.md 의 규율을 따른다:
-심볼은 search 로 해석 후 주문, 실전 주문 전 티켓 확인, 타임아웃은 재전송 대신 reconcile.
-```
-
-Codex 버전에 따라 `~/.codex/skills/` 스킬 디렉터리를 읽기도 하지만(에이전트 스킬 표준),
-지원 여부가 버전마다 다를 수 있으니 확실한 경로는 `AGENTS.md` 입니다.
 
 ::: {.callout-note}
 스킬은 저장소에 실려 있지만 `pip install kis-trader` 로는 배포되지 않습니다(파이썬 아티팩트가

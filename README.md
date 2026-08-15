@@ -68,14 +68,15 @@ kis order buy 005930 10 --limit-price 70000 --execute paper --yes  # 모의 전�
 
 자격증명은 환경변수(`KIS_APP_KEY`/`KIS_APP_SECRET`/`KIS_ACCOUNT`). → [`docs/cli.md`](docs/cli.md)
 
-Claude Code로 계좌를 몰려면 `skills/kis-trader/` 스킬을 쓴다. → [`docs/skill.md`](docs/skill.md)
+Claude Code / Codex 로 계좌를 몰려면 `skills/kis-trader/` 스킬을 쓴다. →
+[`docs/claude-skill.md`](docs/claude-skill.md) · [`docs/codex-skill.md`](docs/codex-skill.md)
 
 ## 문서
 
 [빠른 시작](docs/quickstart.md) · [시세](docs/quotes.md) · [계좌·손익](docs/account.md) ·
 [주문](docs/orders.md) · [순위·검색](docs/screening.md) · [시장·지수](docs/market.md) ·
 [해외](docs/overseas.md) · [퇴직연금](docs/pension.md) · [실시간](docs/realtime.md) ·
-[명령줄](docs/cli.md) · [스킬](docs/skill.md)
+[명령줄](docs/cli.md) · [Claude 스킬](docs/claude-skill.md) · [Codex 스킬](docs/codex-skill.md)
 
 엔드포인트별 상세는 각 메서드 docstring에 (`help(...)` / IDE).
 

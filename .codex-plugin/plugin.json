@@ -1,0 +1,15 @@
+{
+  "name": "kis-trader",
+  "version": "0.0.0",
+  "description": "Playbook skill for driving the kis_trader KIS Open API client under its safety-kernel discipline (search-before-trade, ticket confirmation, reconcile-not-resend).",
+  "author": { "name": "seokhoonj", "url": "https://github.com/seokhoonj" },
+  "homepage": "https://github.com/seokhoonj/kis-trader",
+  "repository": "https://github.com/seokhoonj/kis-trader",
+  "license": "MIT",
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "KIS Trader",
+    "shortDescription": "Drive the kis_trader KIS Open API client under its safety kernel.",
+    "category": "Productivity"
+  }
+}

@@ -24,7 +24,7 @@ kis.domestic.ranking.by_change(direction="gainers")  # 오늘 상승률 순위
 | **시장·검색** | [순위·조건검색](screening.md) · [시장·지수](market.md) · [기업행위·일정](corporate-actions.md) |
 | **해외·연금** | [해외주식](overseas.md) · [퇴직연금](pension.md) |
 | **다른 상품** | [ETF·ETN](etf.md) · [ELW](elw.md) · [선물·옵션](derivatives.md) · [채권](bonds.md) |
-| **명령줄·에이전트** | [Command Line](cli.md) · [Claude Code 스킬](skill.md) |
+| **명령줄·에이전트** | [Command Line](cli.md) · [Claude Code Skill](claude-skill.md) · [Codex Skill](codex-skill.md) |
 | **참고** | [실시간(WebSocket)](realtime.md) · [한계·미구현](limits.md) |
 
 ## 알아둘 것
