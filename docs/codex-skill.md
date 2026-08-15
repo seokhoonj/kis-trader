@@ -10,7 +10,7 @@
 
 ## 설치 (마켓플레이스, 터미널)
 
-Codex 도 플러그인 마켓플레이스가 있어 **터미널에서** 바로 설치합니다(Codex CLI v0.122+).
+Codex 도 플러그인 마켓플레이스가 있어 **터미널에서** 바로 설치합니다. (Codex CLI v0.122+)
 
 ```bash
 codex plugin marketplace add seokhoonj/kis-trader
