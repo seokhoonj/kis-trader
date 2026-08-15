@@ -205,7 +205,9 @@ def fetch_fluctuation(transport: Transport, *, direction: str, market: str) -> l
         "FID_INPUT_ISCD": "0000",              # 전체
         "FID_RANK_SORT_CLS_CODE": _lookup(_RANK_SORT, key=direction, argname="direction"),
         "FID_INPUT_CNT_1": "0",
-        "FID_PRC_CLS_CODE": "0",
+        # 대비 기준: "1"=전일대비(종가대비) 등락률. "0"=저가대비(반등률)이라 정렬이 전일대비
+        # 등락률(우리가 표시하는 prdy_ctrt)과 어긋나므로 "1" 이어야 한다(실 API 검증).
+        "FID_PRC_CLS_CODE": "1",
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",   # 가격 전체
         "FID_VOL_CNT": "",                      # 거래량 전체
         "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",

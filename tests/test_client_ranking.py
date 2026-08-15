@@ -77,6 +77,8 @@ def test_by_change_gainers_uses_rise_sort_code():
     assert call["tr_id"] == "FHPST01700000"
     assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20170"
     assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "0"       # 상승율순
+    # 대비 기준은 전일대비("1") -- "0"(저가대비)이면 정렬이 표시 등락률과 어긋난다(실 API 검증).
+    assert call["params"]["FID_PRC_CLS_CODE"] == "1"
 
 
 def test_by_change_losers_uses_fall_sort_code():
