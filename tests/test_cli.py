@@ -11,7 +11,7 @@ from kis_trader.cli.app import build_parser
 from kis_trader.cli.commands import order
 from kis_trader.cli.context import account_suffix
 from kis_trader.cli.errors import CliAborted, CliConfigError, translate
-from kis_trader.cli.output import render, to_jsonable
+from kis_trader.cli.output import _display_width, _pad, render, to_jsonable
 from kis_trader.errors import (
     AccountNotOrderableError,
     KISAuthError,
@@ -23,7 +23,6 @@ from kis_trader.errors import (
     OrderTimeoutError,
     PreTradeRiskError,
 )
-
 
 # --- 스텁 클라이언트: 네트워크 없이 어떤 공개 메서드가 불렸는지만 기록 --------------
 
@@ -313,3 +312,23 @@ def test_render_table_covers_list_single_dict_and_empty():
     assert render([], fmt="table") == "(빈 결과)"
     no_header = render(rows, fmt="table", no_header=True)
     assert "symbol" not in no_header.splitlines()[0]  # 머리글 없음
+
+
+@dataclass(frozen=True)
+class _NamedRow:
+    name: str
+    tag: str
+    _raw: dict
+
+
+def test_display_width_counts_hangul_as_two_cells():
+    assert _display_width("삼성전자") == 8  # 한글 4자 x 2칸
+    assert _display_width("AAPL") == 4
+    assert _pad("삼성전자", 10) == "삼성전자  "  # 표시폭 8 -> 2칸 채움
+
+
+def test_table_aligns_columns_across_cjk_and_ascii_rows():
+    rows = [_NamedRow("삼성전자", "A", {}), _NamedRow("SK하이닉스", "B", {}), _NamedRow("AAPL", "C", {})]
+    lines = render(rows, fmt="table", no_header=True).splitlines()
+    # 한글/ASCII 폭이 섞여도 모든 행의 표시폭이 같으면 tag 열이 세로로 맞은 것
+    assert len({_display_width(line) for line in lines}) == 1

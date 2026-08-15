@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import dataclasses
 import json
+import unicodedata
 from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum
@@ -68,6 +69,17 @@ def _public_fields(obj: Any) -> list[str]:
     return [f.name for f in dataclasses.fields(obj) if not f.name.startswith("_")]
 
 
+def _display_width(text: str) -> int:
+    """터미널 표시 폭 -- 한글·전각(CJK)은 한 글자가 두 칸을 차지한다. 열 정렬을 문자 수가 아니라
+    실제 표시 폭으로 맞춰, 종목명 등 한글이 섞여도 어긋나지 않게 한다."""
+    return sum(2 if unicodedata.east_asian_width(ch) in ("W", "F") else 1 for ch in text)
+
+
+def _pad(text: str, width: int) -> str:
+    """``text`` 를 표시 폭 ``width`` 까지 오른쪽 공백으로 채운다(CJK 폭 반영)."""
+    return text + " " * max(0, width - _display_width(text))
+
+
 def _render_table(value: Any, *, no_header: bool) -> str:
     # 리스트(행 모음) -> 컬럼 정렬 격자. 단일 dataclass -> key/value 2열.
     if isinstance(value, (list, tuple)):
@@ -78,23 +90,23 @@ def _render_table(value: Any, *, no_header: bool) -> str:
             return "\n".join(_cell(item) for item in rows)
         columns = _public_fields(rows[0])
         table = [[_cell(getattr(row, col)) for col in columns] for row in rows]
-        widths = [len(col) for col in columns]
+        widths = [_display_width(col) for col in columns]
         for record in table:
             for i, cell in enumerate(record):
-                widths[i] = max(widths[i], len(cell))
+                widths[i] = max(widths[i], _display_width(cell))
         lines = []
         if not no_header:
-            lines.append("  ".join(col.ljust(widths[i]) for i, col in enumerate(columns)))
+            lines.append("  ".join(_pad(col, widths[i]) for i, col in enumerate(columns)).rstrip())
         for record in table:
-            lines.append("  ".join(cell.ljust(widths[i]) for i, cell in enumerate(record)))
+            lines.append("  ".join(_pad(cell, widths[i]) for i, cell in enumerate(record)).rstrip())
         return "\n".join(lines)
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         columns = _public_fields(value)
-        width = max((len(col) for col in columns), default=0)
-        return "\n".join(f"{col.ljust(width)}  {_cell(getattr(value, col))}" for col in columns)
+        width = max((_display_width(col) for col in columns), default=0)
+        return "\n".join(f"{_pad(col, width)}  {_cell(getattr(value, col))}" for col in columns)
     if isinstance(value, dict):
-        width = max((len(str(key)) for key in value), default=0)
-        return "\n".join(f"{str(key).ljust(width)}  {_cell(val)}" for key, val in value.items())
+        width = max((_display_width(str(key)) for key in value), default=0)
+        return "\n".join(f"{_pad(str(key), width)}  {_cell(val)}" for key, val in value.items())
     return _cell(value)
 
 
