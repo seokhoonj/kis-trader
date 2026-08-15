@@ -28,6 +28,12 @@ kis account positions --venue overseas --market US
 kis stock quote 005930 --format json
 ```
 
+::: {.callout-note}
+CLI 는 결과를 **터미널용 텍스트**(표 또는 JSON)로 찍습니다. 파이썬에서 `import kis_trader` 로
+쓰면 같은 조회가 **읽기전용 객체**(예: `Quote`)를 돌려줍니다 -- 표 렌더링은 CLI 만의 일이고,
+결과를 코드로 다루려면 파이썬 API 를 쓰세요. (표의 한글 열 정렬도 CLI 전용입니다.)
+:::
+
 ## 주문 — 기본은 dry-run
 
 주문 명령은 **`--execute` 가 없으면 전송하지 않고** 주문 티켓만 되읽어 보여줍니다.
