@@ -1,0 +1,12 @@
+{
+  "version": "1",
+  "name": "kis-trader",
+  "owner": { "name": "seokhoonj" },
+  "plugins": [
+    {
+      "name": "kis-trader",
+      "source": "./",
+      "description": "Playbook skill for driving the kis_trader KIS Open API client under its safety-kernel discipline."
+    }
+  ]
+}

@@ -1,4 +1,4 @@
-# 명령줄 도구 (`kis`)
+# Command Line (kis)
 
 패키지를 설치하면 터미널 명령 `kis` 가 함께 깔립니다. 파이썬을 짜지 않고도 조회·주문을 할 수
 있는 얇은 래퍼입니다(내부적으로 같은 공개 API 를 부릅니다). 자격증명은 **환경변수**로 줍니다.
@@ -10,17 +10,19 @@ export KIS_APP_KEY=... KIS_APP_SECRET=... KIS_ACCOUNT=12345678-01
 ## 조회
 
 ```bash
-kis stock quote 005930                 # 현재가
-kis stock quote AAPL --venue overseas  # 해외(거래소 자동)
+kis stock quote 005930                                # 현재가
+kis stock quote AAPL --venue overseas                 # 해외(거래소 자동)
 kis stock bars 005930 --interval 1d --start 20240101
-kis stock book 005930                  # 호가
-kis search 삼성전자 --market KOSPI      # 이름으로 검색
-kis ranking change --direction gainers # 상승률 상위
-kis account balance                    # 국내 잔고
+kis stock book 005930                                 # 호가
+kis search 삼성전자 --market KOSPI
+kis ranking change --direction gainers                # 상승률 상위
+kis account balance                                   # 국내 잔고
 kis account positions --venue overseas --market US
 ```
 
-기본 출력은 사람용 표입니다. 기계가 읽으려면 `--format json`(또는 `--format jsonl`):
+아무 옵션 없이 쓰면 결과가 **눈으로 보기 좋은 표**로 나옵니다. 이 출력을 다른 프로그램이나
+스크립트에서 자동으로 읽어(파싱해) 쓰려면 `--format json` 을 붙여 JSON 으로 받습니다(결과가
+여러 행이면 한 줄에 한 건씩 주는 `--format jsonl` 도 있습니다).
 
 ```bash
 kis stock quote 005930 --format json
@@ -54,7 +56,7 @@ kis order reconcile <client_order_id>
 ```
 
 ::: {.callout-important}
-CLI 의 `--yes` 는 **사람의 오타 방어**용입니다. 에이전트(Claude 등)가 계좌를 몰 때는 CLI 가
+CLI 의 `--yes` 는 **오타 방어**용입니다. 에이전트(Claude 등)가 계좌를 몰 때는 CLI 가
 아니라 파이썬 API 를 안전커널 규율대로 쓰는 것이 맞습니다 -- [주문](orders.md)의 안전장치 참고.
 :::
 
@@ -71,4 +73,8 @@ CLI 의 `--yes` 는 **사람의 오타 방어**용입니다. 에이전트(Claude
 | 5 | 전송 실패 |
 | 6 | 브로커 거부 |
 | 7 | 주문 결과 불확실(`reconcile` 필요) |
-| 130 | 사용자 중단 |
+| 130 | 사용자 중단(Ctrl-C) |
+
+이 종료 코드는 KIS 가 정한 게 아니라 **이 CLI 가 스크립트용으로 매긴 규약**입니다. `2` 는
+argparse 표준(인자 오류), `130` 은 유닉스 관례(Ctrl-C 중단 = 128 + 시그널 2)를 따른 것이고,
+`3`~`7` 은 주문 결과를 스크립트가 구분할 수 있게 이 도구가 정했습니다.

@@ -13,6 +13,9 @@ $body-bg: #faf9f7 !default;
 $primary: #407bff !default;
 
 /*-- scss:rules --*/
+// 배경을 html 에도 줘서 스크롤 높이가 본문보다 길 때 아래에 다른 색 띠가 보이지 않게 한다
+// ($body-bg 는 body 에만 칠해져, 짧은 페이지·overscroll 에서 틈이 생길 수 있다).
+html { background-color: #faf9f7; }
 body { line-height: 1.7; letter-spacing: -0.003em; }
 h1, h2, h3, h4, h5, .quarto-title .title, .sidebar-title {
   font-family: "Paperlogy", "Pretendard Variable", Pretendard, sans-serif;
