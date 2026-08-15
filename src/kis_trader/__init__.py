@@ -195,7 +195,7 @@ from .domestic.stock import DomesticStock
 from .money import Money
 from .news import NewsHeadline
 from .open_order import OpenOrder
-from .order import Order
+from .order import DomesticDivision, Order
 from .order_book import OrderBook, PriceLevel
 from .orderable import BuyableAmount, SellableQuantity
 from .overseas.derivative import OverseasDerivative
@@ -300,6 +300,7 @@ __all__ = [
     "DetailedInvestorFlow",
     "DetailedInvestorHistory",
     "Direction",
+    "DomesticDivision",
     "DividendEvent",
     "DividendRanking",
     "DomesticListing",

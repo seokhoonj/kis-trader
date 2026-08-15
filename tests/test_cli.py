@@ -48,11 +48,11 @@ class _Handle:
     def quote(self):
         self._log.append(("quote", self._code)); return "QUOTE"
 
-    def buy(self, *, quantity, limit_price):
-        self._log.append(("buy", self._code, quantity, limit_price)); return "REPORT"
+    def buy(self, *, quantity, limit_price, division=None):
+        self._log.append(("buy", self._code, quantity, limit_price, division)); return "REPORT"
 
-    def sell(self, *, quantity, limit_price):
-        self._log.append(("sell", self._code, quantity, limit_price)); return "REPORT"
+    def sell(self, *, quantity, limit_price, division=None):
+        self._log.append(("sell", self._code, quantity, limit_price, division)); return "REPORT"
 
 
 class _Domestic:
@@ -183,7 +183,27 @@ def test_order_paper_noninteractive_with_yes_sends_once():
                   "--limit-price", "70000", "--execute", "paper", "--yes"])
     kis = StubKis()
     assert order.cmd_buy(kis, args, is_tty=False) == "REPORT"
-    assert kis.log == [("buy", "005930", 10, "70000")]
+    assert kis.log == [("buy", "005930", 10, "70000", None)]
+
+
+def test_order_division_dry_run_shows_it_and_execute_forwards_it():
+    # 최유리지정가(immediate_limit): 시장이 가격을 정하므로 limit_price 없이. dry-run 은 티켓에 노출.
+    dry = order.cmd_buy(StubKis(), _args(
+        ["order", "buy", "005930", "10", "--division", "immediate_limit"]), is_tty=False)
+    assert dry["division"] == "immediate_limit"
+    # 전송 시 국내 핸들 buy 에 division 이 그대로 전달된다.
+    kis = StubKis()
+    order.cmd_buy(kis, _args(["--profile", "paper", "order", "buy", "005930", "10",
+                              "--division", "immediate_limit", "--execute", "paper", "--yes"]),
+                  is_tty=False)
+    assert kis.log == [("buy", "005930", 10, None, "immediate_limit")]
+
+
+def test_order_division_rejected_for_overseas():
+    args = _args(["order", "buy", "AAPL", "10", "--venue", "overseas",
+                  "--division", "immediate_limit"])
+    with pytest.raises(CliConfigError):  # KRX 주문구분은 국내 전용
+        order.cmd_buy(StubKis(), args, is_tty=False)
 
 
 def test_order_real_noninteractive_needs_matching_confirm_account():
@@ -223,7 +243,7 @@ def test_order_paper_interactive_rejects_non_affirmative():
     with pytest.raises(CliAborted):
         order.cmd_buy(kis, args, is_tty=True, prompt=lambda _p: "")
     assert order.cmd_buy(kis, args, is_tty=True, prompt=lambda _p: "y") == "REPORT"
-    assert kis.log == [("buy", "005930", 10, "70000")]
+    assert kis.log == [("buy", "005930", 10, "70000", None)]
 
 
 def test_order_modify_dry_run_then_executes_once():
@@ -301,7 +321,7 @@ def test_main_config_error_exits_three(monkeypatch, capsys):
 
 def test_main_order_timeout_exits_seven_with_reconcile(monkeypatch, capsys):
     class _TimeoutHandle:
-        def buy(self, *, quantity, limit_price):
+        def buy(self, *, quantity, limit_price, division=None):
             raise OrderTimeoutError("전송 시간초과", client_order_id="cid-1")
 
     class _Domestic:

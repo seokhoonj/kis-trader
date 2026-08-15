@@ -37,6 +37,7 @@ def _ticket(args: Namespace, *, side: Side, account: str | None) -> dict[str, An
         "side": side,
         "quantity": args.quantity,
         "limit_price": args.limit_price,
+        "division": getattr(args, "division", None),
     }
 
 
@@ -80,6 +81,10 @@ _DRY_RUN_NOTE = (
 
 def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_tty: bool | None, prompt: Callable[[str], str]) -> Any:
     account = kis.account  # 세션 생성 시 한 번 해석된 계좌(자격증명 재조회 없음)
+    division = getattr(args, "division", None)
+    # division(KRX 주문구분)은 국내 현금 전용 -- 해외 핸들엔 그 파라미터가 없다. fail-closed 로 막는다.
+    if division is not None and args.venue == "overseas":
+        raise CliConfigError("--division 은 국내(domestic) 현금주문 전용입니다.")
     if args.execute is None:
         return {**_ticket(args, side=side, account=account), "note": _DRY_RUN_NOTE}
     if is_tty is None:
@@ -87,7 +92,8 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
     _authorize(args, account=account, is_tty=is_tty, prompt=prompt)
     handle = resolve_stock(kis, args)
     place = handle.buy if side == "buy" else handle.sell
-    return place(quantity=args.quantity, limit_price=args.limit_price)
+    extra = {} if args.venue == "overseas" else {"division": division}
+    return place(quantity=args.quantity, limit_price=args.limit_price, **extra)
 
 
 def cmd_buy(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:

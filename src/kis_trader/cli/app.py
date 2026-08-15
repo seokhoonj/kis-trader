@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any, get_args
 
-from .. import Direction, SearchMarket
+from .. import Direction, DomesticDivision, SearchMarket
 from ..config import Profile
 from ..errors import KISError
 from .commands import account, market, order, stock
@@ -135,6 +135,9 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("quantity", type=int)
         sp.add_argument("--limit-price", dest="limit_price", default=None,
                         help="지정가(생략 시 시장가)")
+        sp.add_argument("--division", choices=list(get_args(DomesticDivision)), default=None,
+                        help="KRX 주문구분(국내 현금 전용): conditional_limit(조건부지정가)/"
+                             "immediate_limit(최유리지정가)/priority_limit(최우선지정가)")
         _add_venue(sp)
         _add_order_gate(sp)
         sp.set_defaults(func=func)

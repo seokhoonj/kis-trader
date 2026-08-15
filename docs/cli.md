@@ -45,6 +45,14 @@ kis order buy 005930 10 --limit-price 70000                          # dry-run (
 kis --profile paper order buy 005930 10 --limit-price 70000 --execute paper   # 모의 전송(확인 후)
 ```
 
+국내 현금주문은 `--division` 으로 KRX 주문구분을 고릅니다 -- `conditional_limit`(조건부지정가,
+`--limit-price` 필요), `immediate_limit`(최유리지정가), `priority_limit`(최우선지정가). 최유리/최우선은
+시장이 가격을 정하므로 `--limit-price` 를 주지 않습니다(해외 `--venue overseas` 엔 미지원).
+
+```bash
+kis --profile main order buy 005930 10 --division immediate_limit --execute real --yes --confirm-account 7801
+```
+
 실제 전송하려면 `--execute` 값이 프로필 환경(`--profile` 이 정한 실전/모의)과 같아야 합니다. 대화형에서는 확인을
 받습니다(모의는 y/N, 실전은 계좌 끝 4자리 입력). 스크립트(비대화형)에서는 `--yes` 가
 필요하고, 실전은 `--confirm-account` 로 계좌 끝 4자리를 한 번 더 맞춰야 합니다.
