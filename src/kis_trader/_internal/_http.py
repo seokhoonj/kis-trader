@@ -159,13 +159,21 @@ class RequestsTransport:
                     params=params if method.upper() == "GET" else None,
                     json_body=None if method.upper() == "GET" else body,
                 )
-                break
             except TransportTimeout:
                 if not is_retryable or attempt + 1 == attempts:
                     raise
                 self._sleep(0.1 * (attempt + 1))
+                continue
             except ValueError as err:
                 raise KISError("KIS HTTP 응답이 올바른 JSON이 아니다.") from err
+            # KIS 는 앱키 유량 초과를 HTTP 500 으로 알린다(공식 429 가 아니라) -- 같은 앱키를 다른
+            # 앱/프로세스가 동시에 쓰거나 연속조회가 몰릴 때 흔하다. 재조회가 안전한 멱등 GET 은
+            # 백오프 후 재시도해 자연히 회복한다(장기간 bars 등의 연속조회가 통째로 실패하지 않게).
+            # 쓰기는 is_retryable=False 라 여기 안 걸리고 아래에서 즉시 오류가 된다.
+            if status == 500 and is_retryable and attempt + 1 < attempts:
+                self._sleep(0.2 * (attempt + 1))
+                continue
+            break
         else:  # attempts>=1 이 보장돼(위 생성자 검증) 정상 흐름에선 닿지 않는 백스톱 -- payload 미정의 방지
             raise TransportTimeout("KIS HTTP 요청의 결과를 확인할 수 없다.")
 

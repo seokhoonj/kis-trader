@@ -311,6 +311,54 @@ def test_http_status_errors(tmp_path: Any, status: int, error_type: type[KISErro
         )
 
 
+def test_get_500_throttle_retries_then_succeeds(tmp_path: Any) -> None:
+    # KIS 는 유량 초과를 500 으로 알린다 -- 멱등 읽기는 백오프 후 재시도해 회복해야 한다.
+    calls = 0
+
+    def send(method: str, url: str, **kwargs: Any) -> tuple[int, Mapping[str, str], Mapping[str, Any]]:
+        nonlocal calls
+        calls += 1
+        if calls < 3:
+            return 500, {}, {}
+        return 200, {}, {"rt_cd": "0", "msg_cd": "OK", "msg1": "정상"}
+
+    response = _transport(tmp_path, send, max_attempts=3).request(
+        method="GET", path="/bars", tr_id="TR", idempotent=True
+    )
+    assert calls == 3 and response.ok
+
+
+def test_get_500_throttle_exhausts_then_raises(tmp_path: Any) -> None:
+    calls = 0
+
+    def send(method: str, url: str, **kwargs: Any) -> tuple[int, Mapping[str, str], Mapping[str, Any]]:
+        nonlocal calls
+        calls += 1
+        return 500, {}, {}
+
+    with pytest.raises(KISError):
+        _transport(tmp_path, send, max_attempts=3).request(
+            method="GET", path="/bars", tr_id="TR", idempotent=True
+        )
+    assert calls == 3
+
+
+def test_write_500_is_not_retried(tmp_path: Any) -> None:
+    # 쓰기(주문)는 500 이어도 재시도 금지(이중체결 방지) -- 1회만 시도하고 바로 오류.
+    calls = 0
+
+    def send(method: str, url: str, **kwargs: Any) -> tuple[int, Mapping[str, str], Mapping[str, Any]]:
+        nonlocal calls
+        calls += 1
+        return 500, {}, {}
+
+    with pytest.raises(KISError):
+        _transport(tmp_path, send, max_attempts=3).request(
+            method="POST", path="/order", tr_id="TR", idempotent=False, body={"QTY": "1"}
+        )
+    assert calls == 1
+
+
 def test_client_constructs_lazy_real_transport() -> None:
     client = KISClient(app_key="k", app_secret="s")
     assert isinstance(client.transport, RequestsTransport)
