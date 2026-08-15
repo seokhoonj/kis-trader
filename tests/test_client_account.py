@@ -93,9 +93,9 @@ def _sellable_resp(output1=None):
 _ERROR = RawResponse(rt_cd="1", msg_cd="EGW00215", msg1="초당 거래건수 초과", body={})
 
 
-def _client(transport, *, environment="real", account="12345678-01"):
+def _client(transport, *, profile="main", account="12345678-01"):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     environment=environment, transport=transport)
+                     profile=profile, transport=transport)
 
 
 # --- balance ---------------------------------------------------------------
@@ -112,13 +112,13 @@ def test_balance_parses_summary():
 
 def test_balance_real_and_demo_tr():
     fake = FakeTransport(response=_balance_resp())
-    _client(fake, environment="real").domestic.account.balance()
+    _client(fake, profile="main").domestic.account.balance()
     assert fake.calls[0]["tr_id"] == "TTTC8434R"
     assert fake.calls[0]["method"] == "GET"
     assert fake.calls[0]["params"]["CANO"] == "12345678"
     assert fake.calls[0]["params"]["ACNT_PRDT_CD"] == "01"
     fake2 = FakeTransport(response=_balance_resp())
-    _client(fake2, environment="paper").domestic.account.balance()
+    _client(fake2, profile="paper").domestic.account.balance()
     assert fake2.calls[0]["tr_id"] == "VTTC8434R"
 
 
@@ -223,7 +223,7 @@ def test_ticker_buyable_market_division_without_price():
 
 def test_ticker_buyable_demo_tr():
     fake = FakeTransport(response=_buyable_resp())
-    _client(fake, environment="paper").domestic.stock("005930").buyable()
+    _client(fake, profile="paper").domestic.stock("005930").buyable()
     assert fake.calls[0]["tr_id"] == "VTTC8908R"
 
 
@@ -259,7 +259,7 @@ def test_ticker_sellable_not_held_reads_zero():
 def test_ticker_sellable_demo_rejected_before_io():
     fake = FakeTransport(response=_sellable_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").domestic.stock("005930").sellable()
+        _client(fake, profile="paper").domestic.stock("005930").sellable()
     assert fake.calls == []
 
 
@@ -272,7 +272,7 @@ def test_ticker_buyable_requires_account():
 # --- 추가 엣지 ------------------------------------------------------------
 def test_positions_use_environment_tr_and_params():
     fake = FakeTransport(response=_balance_resp(rows=[]))
-    _client(fake, environment="paper").domestic.account.positions()
+    _client(fake, profile="paper").domestic.account.positions()
     call = fake.calls[0]
     assert call["method"] == "GET"
     assert call["tr_id"] == "VTTC8434R"

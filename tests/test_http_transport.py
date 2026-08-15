@@ -112,7 +112,7 @@ def test_no_limiter_by_default_does_not_throttle(tmp_path: Any) -> None:
 
 
 def test_client_builds_rate_limiter_by_default(tmp_path: Any) -> None:
-    kis = KISClient(app_key="k", app_secret="s", environment="real")
+    kis = KISClient(app_key="k", app_secret="s")
     assert kis.transport._rate_limiter is not None       # 기본 on
 
 

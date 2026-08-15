@@ -80,9 +80,9 @@ def _daily_order_row(*, odno="0000117057", symbol="005930", side_code="02", orde
             "rjct_qty": rejected_quantity, "cncl_yn": canceled, "excg_id_dvsn_cd": excg}
 
 
-def _client(transport, *, environment="real", account="12345678-01", store=None, orderable=True,
+def _client(transport, *, profile="main", account="12345678-01", store=None, orderable=True,
             allow_credit=False):
-    return KISClient(app_key="k", app_secret="s", account=account, environment=environment,
+    return KISClient(app_key="k", app_secret="s", account=account, profile=profile,
                      transport=transport, store=store, orderable=orderable, allow_credit=allow_credit)
 
 
@@ -131,7 +131,7 @@ def test_sell_uses_sell_tr():
 
 def test_demo_uses_demo_tr():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
-    _client(fake, environment="paper").domestic.stock("005930").buy(quantity=10, limit_price=70000)
+    _client(fake, profile="paper").domestic.stock("005930").buy(quantity=10, limit_price=70000)
     assert fake.calls[0]["tr_id"] == "VTTC0012U"
 
 
@@ -161,7 +161,7 @@ def test_cancel_domestic_order_uses_original_identifiers_and_deduplicates():
 
 def test_replace_domestic_order_maps_new_quantity_and_price():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
-    kis = _client(fake, environment="paper")
+    kis = _client(fake, profile="paper")
     kis.domestic.stock("005930").sell(
         quantity=10, limit_price=70000, client_order_id="original-2"
     )
@@ -702,7 +702,7 @@ def test_non_krx_board_rejected_in_demo():
     """모의투자는 KRX만 -- NXT/UN 주문은 demo 에서 와이어 전 거부."""
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").domestic.stock("005930", market="NXT").buy(
+        _client(fake, profile="paper").domestic.stock("005930", market="NXT").buy(
             quantity=10, division="immediate_limit")
     assert fake.calls == []
 

@@ -50,9 +50,9 @@ class FakeTransport:
         return self.response
 
 
-def _client(transport, *, environment="real", account="12345678-01"):
+def _client(transport, *, profile="main", account="12345678-01"):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     environment=environment, transport=transport)
+                     profile=profile, transport=transport)
 
 
 # --- 주문번호 목록 (TTTS6058R) ---------------------------------------------
@@ -83,7 +83,7 @@ def test_algo_orders_tr_and_params():
 def test_algo_orders_demo_rejected():
     fake = FakeTransport(response=_resp([_ORD_ROW]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").overseas.account.algo_orders()
+        _client(fake, profile="paper").overseas.account.algo_orders()
     assert fake.calls == []
 
 
@@ -126,7 +126,7 @@ def test_algo_executions_tr_and_params():
 def test_algo_executions_demo_rejected():
     fake = FakeTransport(response=_resp([_CCNL_ROW]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").overseas.account.algo_executions("1", order_date="20250523")
+        _client(fake, profile="paper").overseas.account.algo_executions("1", order_date="20250523")
     assert fake.calls == []
 
 

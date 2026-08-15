@@ -43,9 +43,9 @@ class FakeTransport:
         return self.response
 
 
-def _client(transport, *, environment="real", account="12345678-01"):
+def _client(transport, *, profile="main", account="12345678-01"):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     environment=environment, transport=transport)
+                     profile=profile, transport=transport)
 
 
 def test_cancel_overseas_reserved_wire():
@@ -84,7 +84,7 @@ def test_cancel_overseas_reserved_bad_date_rejected_before_io():
 def test_cancel_overseas_reserved_demo_rejected():
     fake = FakeTransport(response=_OK)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").overseas.account.cancel_reserved_order("0031111234", receipt_date="20250523")
+        _client(fake, profile="paper").overseas.account.cancel_reserved_order("0031111234", receipt_date="20250523")
     assert fake.calls == []
 
 

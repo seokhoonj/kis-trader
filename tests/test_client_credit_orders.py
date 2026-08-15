@@ -60,9 +60,9 @@ class FakeTransport:
         return outcome
 
 
-def _client(transport, *, environment="real", account="12345678-01", store=None, risk=None):
+def _client(transport, *, profile="main", account="12345678-01", store=None, risk=None):
     # 이 파일은 신용주문을 테스트하므로 opt-in(allow_credit=True). 기본 차단은 아래 전용 테스트에서 확인.
-    return KISClient(app_key="k", app_secret="s", account=account, environment=environment,
+    return KISClient(app_key="k", app_secret="s", account=account, profile=profile,
                      transport=transport, store=store, risk=risk, allow_credit=True)
 
 
@@ -175,7 +175,7 @@ def test_credit_bad_calendar_loan_date_rejected():
 def test_credit_demo_rejected_before_io():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").domestic.stock("009150").credit_buy(quantity=1, limit_price=1,
+        _client(fake, profile="paper").domestic.stock("009150").credit_buy(quantity=1, limit_price=1,
                                                                       credit_type="21",
                                                                       loan_date="20211103")
     assert fake.calls == []

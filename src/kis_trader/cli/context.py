@@ -10,7 +10,7 @@ from argparse import Namespace
 from typing import TYPE_CHECKING
 
 from ..client import KISClient
-from ..config import KISConfig, environment_for_profile
+from ..config import environment_for_profile
 from ..errors import KISUsageError
 from .errors import CliConfigError
 
@@ -20,7 +20,7 @@ if TYPE_CHECKING:
     from ..transport import Environment
 
 
-def resolve_environment(args: Namespace) -> "Environment":
+def resolve_environment(args: Namespace) -> Environment:
     """접속 환경(실전/모의) -- ``--profile`` 이 정한다. 주문 게이트·출력 메타가 이걸로 판정한다."""
     return environment_for_profile(args.profile)
 
@@ -46,10 +46,9 @@ def build_client(args: Namespace) -> KISClient:
 
     ``--profile`` 이 어느 자격증명 묶음과 환경(실전/모의)을 쓸지 정한다. ``--account`` 플래그가
     있으면 프로필이 해석한 계좌 대신 그것을 쓴다."""
-    config = KISConfig(profile=args.profile)
     account = getattr(args, "account", None) or None
     try:
-        return KISClient.from_config(config, account=account)
+        return KISClient(profile=args.profile, account=account)
     except KISUsageError as err:
         # 자격증명 누락/형상 오류(변수 이름만 담김) -> CLI 설정 오류로 번역(값은 노출 안 됨).
         raise CliConfigError(str(err)) from err

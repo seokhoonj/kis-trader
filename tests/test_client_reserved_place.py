@@ -75,8 +75,8 @@ class FakeTransport:
         return outcome
 
 
-def _client(transport, *, environment="real", account="12345678-01", store=None):
-    return KISClient(app_key="k", app_secret="s", account=account, environment=environment,
+def _client(transport, *, profile="main", account="12345678-01", store=None):
+    return KISClient(app_key="k", app_secret="s", account=account, profile=profile,
                      transport=transport, store=store)
 
 
@@ -137,7 +137,7 @@ def test_reserve_bad_end_date_rejected_before_io():
 def test_reserve_demo_rejected_before_io():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").domestic.stock("005930").reserve_buy(quantity=1, limit_price=1)
+        _client(fake, profile="paper").domestic.stock("005930").reserve_buy(quantity=1, limit_price=1)
     assert fake.calls == []
 
 
@@ -171,7 +171,7 @@ def test_reserve_non_orderable_account_rejected_before_io():
     # 조회전용(퇴직연금 등) 계좌는 예약주문도 전송 전에 거부해야 한다(즉시주문과 동일 가드)
     fake = FakeTransport(response=_ACCEPTED)
     client = KISClient(app_key="k", app_secret="s", account="12345678-01",
-                       environment="real", transport=fake, orderable=False)
+                       profile="main", transport=fake, orderable=False)
     with pytest.raises(AccountNotOrderableError):
         client.domestic.stock("005930").reserve_buy(quantity=1, limit_price=70000)
     assert fake.calls == []

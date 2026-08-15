@@ -73,8 +73,8 @@ class FakeTransport:
         return outcome
 
 
-def _client(transport, *, environment="real", account="12345678-01", store=None, orderable=True):
-    return KISClient(app_key="k", app_secret="s", account=account, environment=environment,
+def _client(transport, *, profile="main", account="12345678-01", store=None, orderable=True):
+    return KISClient(app_key="k", app_secret="s", account=account, profile=profile,
                      transport=transport, store=store, orderable=orderable)
 
 
@@ -122,7 +122,7 @@ def test_overseas_reserve_requires_price():
 def test_overseas_reserve_demo_rejected():
     fake = FakeTransport(response=_ACCEPTED)
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").overseas.stock("AAPL", exchange="NAS").reserve_buy(quantity=1, limit_price="1")
+        _client(fake, profile="paper").overseas.stock("AAPL", exchange="NAS").reserve_buy(quantity=1, limit_price="1")
     assert fake.calls == []
 
 

@@ -58,9 +58,9 @@ class FakeTransport:
         return outcome
 
 
-def _client(transport, *, environment="real", account="12345678-01"):
+def _client(transport, *, profile="main", account="12345678-01"):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     environment=environment, transport=transport)
+                     profile=profile, transport=transport)
 
 
 def test_trade_profits_parses_rows_and_totals():
@@ -111,7 +111,7 @@ def test_trade_profits_unknown_sort_rejected_before_io():
 def test_trade_profits_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").domestic.account.trade_profits(start="1", end="2")
+        _client(fake, profile="paper").domestic.account.trade_profits(start="1", end="2")
     assert fake.calls == []
 
 

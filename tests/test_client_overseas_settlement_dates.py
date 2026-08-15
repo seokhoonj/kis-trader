@@ -28,9 +28,9 @@ class FakeTransport:
         return next(self.responses)
 
 
-def _client(transport, *, environment="real"):
+def _client(transport, *, profile="main"):
     return KISClient(
-        app_key="k", app_secret="s", environment=environment, transport=transport
+        app_key="k", app_secret="s", profile=profile, transport=transport
     )
 
 
@@ -95,7 +95,7 @@ def test_settlement_dates_walks_ctx_area_pages_without_tr_cont():
 def test_settlement_dates_rejects_demo_environment():
     fake = FakeTransport(responses=[])
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").overseas.settlement_dates()
+        _client(fake, profile="paper").overseas.settlement_dates()
     assert fake.calls == []
 
 

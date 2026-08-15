@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import TYPE_CHECKING, TypedDict, Unpack
+from typing import TYPE_CHECKING
 
 from .domestic._engine import orders as orders_engine
 from .domestic._engine import reserved_orders as reserved_orders_api
@@ -30,6 +30,7 @@ from .overseas._engine import orders as overseas_orders_engine
 from .overseas._engine import reserved_orders as overseas_reserved_orders_api
 from .overseas.namespace import OverseasNamespace
 from .pension.namespace import PensionNamespace
+from .config import _fill_credentials, _split_account, environment_for_profile, token_cache_path
 from .errors import KISUsageError
 from .order import (
     ChangeAction,
@@ -44,29 +45,15 @@ from .order import (
 from .store import OrderStore
 
 if TYPE_CHECKING:
+    from pathlib import Path
+
     from ._literals import Numeric
     from ._internal._masters import InstrumentRecord
-    from .config import KISConfig
+    from .config import Profile
     from .realtime.client import RealtimeClient
     from .report import ExecutionReport
     from .risk import RiskLimits
     from .transport import Environment, Transport
-
-
-class _ForwardedKwargs(TypedDict, total=False):
-    """:meth:`KISClient.from_config` 가 :meth:`KISClient.__init__` 로 그대로 넘기는 인자들 --
-    자격증명/환경/토큰캐시(프로필이 소유)를 뺀 나머지. 새 __init__ 옵션을 추가하면 여기도 더한다."""
-
-    transport: Transport | None
-    throttle: bool
-    requests_per_second: float | None
-    store: OrderStore | None
-    orderable: bool
-    allow_credit: bool
-    risk: RiskLimits | None
-    master_index: MasterIndex | None
-    master_fetch: Fetch | None
-    domestic_index: DomesticListingIndex | None
 
 
 class OrdersNamespace:
@@ -117,12 +104,13 @@ class KISClient:
     def __init__(
         self,
         *,
+        profile: Profile = "main",
         app_key: str | None = None,
         app_secret: str | None = None,
         account: str | None = None,
-        environment: Environment = "real",
+        config_dir: str | Path | None = None,
         transport: Transport | None = None,
-        token_cache_dir: str | None = None,
+        token_cache_dir: str | Path | None = None,
         throttle: bool = True,
         requests_per_second: float | None = None,
         store: OrderStore | None = None,
@@ -156,25 +144,28 @@ class KISClient:
         를 주면 그 인덱스를 쓰고(테스트/고급), 없으면 첫 조회 때 마스터를 받아 캐시한다. ``master_fetch``
         로 다운로더를 바꿀 수 있다(기본은 KIS 배포 서버).
 
-        ``token_cache_dir`` 로 OAuth 토큰 캐시 디렉터리를 바꾼다(기본은 XDG
-        ``~/.cache/kis-trader/tokens``). 보통 직접 주지 않고 :meth:`from_config` 가 ``KISConfig``
-        의 경로를 전달한다.
-
-        ``app_key``/``app_secret`` 을 생략하면 **저장된 설정에서 자동으로 읽는다**(환경변수 ->
-        ``~/.config/kis-trader/credentials.json``). ``environment`` 에 맞는 기본 프로필을 쓴다
-        (``real`` -> ``main``, ``paper`` -> ``paper``). 즉 설정만 해두면 ``KISClient()`` 한 줄로 열린다.
-        ISA/IRP/연금 등 다른 프로필이나 격리가 필요하면 :meth:`from_config`
-        (``KISClient.from_config(KISConfig(profile=...))``)를 쓴다. 값을 명시하면 파일을 읽지 않는다.
+        ``profile`` 이 어느 계좌 묶음으로 열지 정한다(``main`` 실전 주계좌·``paper`` 모의·``isa``/``irp``/
+        ``pension``). 환경(실전/모의)도 프로필이 정한다(모의계좌만 모의). ``app_key``/``app_secret`` 을
+        생략하면 **그 프로필의 저장된 자격증명을 읽는다**(환경변수 -> ``~/.config/kis-trader/credentials.json``;
+        `:func:`~kis_trader.config.KISConfig.save` 로 저장). 즉 설정만 해두면 ``KISClient(profile=...)`` 한
+        줄로 열린다. 값을 명시하면 파일을 읽지 않는다. ``config_dir`` 로 설정·토큰캐시 위치를 바꾼다
+        (테스트/특수 위치). ``token_cache_dir`` 로 토큰 캐시만 따로 바꾼다(기본은 XDG
+        ``~/.cache/kis-trader/tokens``, ``config_dir`` 을 주면 그 아래 ``tokens``).
         """
+        environment = environment_for_profile(profile)
         if app_key is None or app_secret is None:
-            from .config import KISConfig
-            config = KISConfig(profile="paper" if environment == "paper" else "main")
-            if app_key is None:
-                app_key = config.app_key()
-            if app_secret is None:
-                app_secret = config.app_secret()
+            # 실제로 빠진 항목만 저장분에서 채운다 -- 사용자가 app_key 만 넘겼는데 '없다'고
+            # 오도하지 않도록(둘 다 넘겼으면 이 블록을 건너뛰어 파일을 아예 안 읽는다).
+            resolved = _fill_credentials(
+                profile, app_key=app_key, app_secret=app_secret, account=account, config_dir=config_dir
+            )
+            app_key, app_secret = resolved.app_key, resolved.app_secret
             if account is None:
-                account = config.account()
+                account = resolved.account
+        if token_cache_dir is None and config_dir is not None:
+            token_cache_dir = str(token_cache_path(config_dir))
+        elif token_cache_dir is not None:
+            token_cache_dir = str(token_cache_dir)   # Path 도 받아 내부는 str 로 통일
         self._app_key = app_key
         self._app_secret = app_secret
         self._environment = environment
@@ -209,7 +200,7 @@ class KISClient:
                 rate_limiter=rate_limiter,
             )
         self._transport = transport
-        self._cano, self._product_code = _split_account(account)
+        self._cano, self._product_code = _split_optional_account(account)
         # 상품계좌종류(ACNT_PRDT_CD)로 이용 가능 범위를 자동 반영한다(공식 FAQ 2026-03-26):
         # DC가입자(55)는 Open API 이용 자체가 불가 -> 생성 거부. IRP(29)는 조회만 가능(주문 불가)
         # -> orderable 을 자동으로 끈다. 수동 orderable 플래그는 더 제약만 가능(주문불가 계좌를
@@ -236,36 +227,6 @@ class KISClient:
         self.overseas = OverseasNamespace(self)
         self.pension = PensionNamespace(self)
         self.orders = OrdersNamespace(self)
-
-    @classmethod
-    def from_config(
-        cls, config: KISConfig, *, account: str | None = None,
-        **kwargs: Unpack[_ForwardedKwargs],
-    ) -> KISClient:
-        """:class:`~kis_trader.config.KISConfig` 로 세션을 연다 -- 앱키/시크릿/계좌/환경을 해석해
-        :meth:`__init__` 에 넘긴다(명시 인자로 직접 여는 것의 편의 경로).
-
-        환경(실전/모의)과 앱키/시크릿은 프로필이 정하므로 ``kwargs`` 로 다시 줄 수 없다(모호함
-        방지, 준 경우 :class:`~kis_trader.errors.KISUsageError`). ``account`` 를 명시하면 프로필이
-        해석한 계좌 대신 그것을 쓴다(같은 앱키의 다른 하위계좌). ``config`` 의 ``config_dir_override``
-        는 토큰 캐시 경로로도 전달된다. 나머지 ``kwargs``(``store``/``orderable``/``risk`` 등,
-        :class:`_ForwardedKwargs`)는 :meth:`__init__` 로 그대로 전달된다.
-        """
-        # 정적 타입에선 _ForwardedKwargs 가 이미 막지만, 동적 **dict 전개로도 못 새게 런타임에서도 막는다.
-        reserved = {"app_key", "app_secret", "environment", "token_cache_dir"} & kwargs.keys()
-        if reserved:
-            raise KISUsageError(
-                f"이 인자들은 KISConfig(프로필)이 정한다 -- from_config 에 직접 줄 수 없다: "
-                f"{', '.join(sorted(reserved))}"
-            )
-        return cls(
-            app_key=config.app_key(),
-            app_secret=config.app_secret(),
-            account=account if account is not None else config.account(),
-            environment=config.environment,
-            token_cache_dir=str(config.cache_dir()),
-            **kwargs,
-        )
 
     @property
     def transport(self) -> Transport:
@@ -491,13 +452,10 @@ _API_UNAVAILABLE_PRODUCT_CODES = frozenset({"55"})
 _READ_ONLY_PRODUCT_CODES = frozenset({"29"})
 
 
-def _split_account(account: str | None) -> tuple[str, str] | tuple[None, None]:
-    """``"12345678-01"`` -> (계좌번호 ``"12345678"``, 상품코드 ``"01"``). ``None`` 은 (None, None)."""
+def _split_optional_account(account: str | None) -> tuple[str, str] | tuple[None, None]:
+    """``"12345678-01"`` -> (계좌번호 ``"12345678"``, 상품코드 ``"01"``). ``None`` 은 (None, None).
+    계좌를 준 경우의 형식 검증은 저장 경로와 같은 :func:`~kis_trader.config._split_account` 를 쓴다
+    -- 쓰기와 읽기가 한 계약을 공유하도록(발산 방지)."""
     if account is None:
         return None, None
-    cano, _, product_code = account.partition("-")
-    if not cano or not product_code or "-" in product_code:
-        raise KISUsageError(
-            f"account 형식은 '계좌번호-상품코드'여야 한다(예: '12345678-01'): {account!r}"
-        )
-    return cano, product_code
+    return _split_account(account)

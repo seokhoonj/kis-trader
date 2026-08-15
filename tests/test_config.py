@@ -1,12 +1,13 @@
-"""KISConfig -- 프로필별 자격증명/계좌/환경 해석과 KISClient.from_config 배선."""
+"""자격증명 API -- KISConfig(값 저장) / resolve_credentials(읽기) / KISClient(profile=)."""
 from __future__ import annotations
 
 import json
+import os
 
 import pytest
 
 from kis_trader import KISClient, KISConfig
-from kis_trader.config import environment_for_profile
+from kis_trader.config import environment_for_profile, resolve_credentials
 from kis_trader.errors import KISUsageError
 from kis_trader.transport import RawResponse
 
@@ -16,264 +17,243 @@ def _isolate(tmp_path, monkeypatch):
     """실 사용자의 ~/.config/kis-trader 를 읽지 않도록 XDG 를 빈 임시 경로로 돌리고 KIS_* 를 지운다."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
-    import os
     for var in [name for name in os.environ if name.startswith("KIS_")]:
         monkeypatch.delenv(var, raising=False)
 
 
 class _FakeTransport:
-    """네트워크 없이 세션을 열게 하는 가짜 전송(요청 내용은 검증하지 않는다)."""
+    """네트워크 없이 세션을 열게 하는 가짜 전송."""
     def request(self, **kwargs):
         return RawResponse(rt_cd="0", msg_cd="", msg1="")
+
+
+def _read_saved_credentials(config_dir):
+    return json.loads((config_dir / "credentials.json").read_text(encoding="utf-8"))
 
 
 # --- 프로필 -> 환경 매핑 ------------------------------------------------------
 
 @pytest.mark.parametrize("profile, environment", [
-    ("main", "real"), ("paper", "paper"), ("isa", "real"),
-    ("irp", "real"), ("pension", "real"),
+    ("main", "real"), ("paper", "paper"), ("isa", "real"), ("irp", "real"), ("pension", "real"),
 ])
 def test_profile_maps_to_environment(profile, environment):
-    assert KISConfig(profile=profile).environment == environment
     assert environment_for_profile(profile) == environment
 
 
 def test_unknown_profile_is_rejected():
     with pytest.raises(KISUsageError):
-        KISConfig(profile="bogus")  # type: ignore[arg-type]
+        environment_for_profile("bogus")  # type: ignore[arg-type]
     with pytest.raises(KISUsageError):
-        environment_for_profile("bogus")
+        KISConfig(profile="bogus", app_key="k", app_secret="s")  # type: ignore[arg-type]
+    with pytest.raises(KISUsageError):
+        resolve_credentials("bogus")  # type: ignore[arg-type]
 
 
-# --- 해석 순서: env -> credentials.json -> config.toml ------------------------
+# --- KISConfig.save() (쓰기) --------------------------------------------------
 
-def test_environment_variable_is_read_for_profile(monkeypatch):
-    monkeypatch.setenv("KIS_PAPER_APP_KEY", "pk")
-    monkeypatch.setenv("KIS_PAPER_APP_SECRET", "ps")
-    config = KISConfig(profile="paper")
-    assert config.app_key() == "pk"
-    assert config.app_secret() == "ps"
-
-
-def test_credentials_json_read_when_env_absent(tmp_path):
-    directory = tmp_path / "cfg"
-    directory.mkdir()
-    (directory / "credentials.json").write_text(json.dumps({
-        "KIS_APP_KEY": "fk", "KIS_APP_SECRET": "fs",
+def test_save_writes_prefixed_keys_and_splits_account(tmp_path):
+    KISConfig(profile="main", app_key="AK", app_secret="SK",
+              account="12345678-01", config_dir=tmp_path).save()
+    saved = _read_saved_credentials(tmp_path)
+    assert saved == {
+        "KIS_APP_KEY": "AK", "KIS_APP_SECRET": "SK",
         "KIS_CANO": "12345678", "KIS_ACNT_PRDT_CD": "01",
-    }), encoding="utf-8")
-    config = KISConfig(profile="main", config_dir_override=directory)
-    assert config.app_key() == "fk"
-    assert config.account() == "12345678-01"
+    }
 
 
-def test_environment_wins_over_credentials_file(tmp_path, monkeypatch):
-    directory = tmp_path / "cfg"
-    directory.mkdir()
-    (directory / "credentials.json").write_text(
-        json.dumps({"KIS_APP_KEY": "from_file", "KIS_APP_SECRET": "s"}), encoding="utf-8")
-    monkeypatch.setenv("KIS_APP_KEY", "from_env")
-    config = KISConfig(profile="main", config_dir_override=directory)
-    assert config.app_key() == "from_env"  # 환경변수가 파일보다 우선
+def test_save_uses_profile_prefix(tmp_path):
+    KISConfig(profile="irp", app_key="AK", app_secret="SK",
+              account="87654321-29", config_dir=tmp_path).save()
+    saved = _read_saved_credentials(tmp_path)
+    assert saved["KIS_IRP_APP_KEY"] == "AK"
+    assert saved["KIS_IRP_CANO"] == "87654321" and saved["KIS_IRP_ACNT_PRDT_CD"] == "29"
 
 
-def test_config_toml_is_last_fallback(tmp_path):
-    directory = tmp_path / "cfg"
-    directory.mkdir()
-    (directory / "config.toml").write_text(
-        'KIS_APP_KEY = "tk"\nKIS_APP_SECRET = "ts"\n', encoding="utf-8")
-    config = KISConfig(profile="main", config_dir_override=directory)
-    assert config.app_key() == "tk"
+def test_save_merges_and_preserves_other_profiles(tmp_path):
+    KISConfig(profile="main", app_key="MK", app_secret="MS", config_dir=tmp_path).save()
+    KISConfig(profile="paper", app_key="PK", app_secret="PS", config_dir=tmp_path).save()
+    saved = _read_saved_credentials(tmp_path)
+    assert saved["KIS_APP_KEY"] == "MK" and saved["KIS_PAPER_APP_KEY"] == "PK"  # 둘 다 보존
 
 
-def test_resolver_hook_overrides_env_and_files(monkeypatch):
-    monkeypatch.setenv("KIS_APP_KEY", "env_key")
-    seen = {}
-    def resolver(name):
-        seen[name] = seen.get(name, 0) + 1
-        return {"KIS_APP_KEY": "host_key", "KIS_APP_SECRET": "host_secret"}.get(name)
-    config = KISConfig(profile="main", resolver=resolver)
-    assert config.app_key() == "host_key"  # resolver 가 환경변수보다 우선
-    assert "KIS_APP_KEY" in seen
+def test_save_without_account_writes_only_keys(tmp_path):
+    KISConfig(profile="main", app_key="AK", app_secret="SK", config_dir=tmp_path).save()
+    saved = _read_saved_credentials(tmp_path)
+    assert set(saved) == {"KIS_APP_KEY", "KIS_APP_SECRET"}
 
 
-# --- 계좌 조립 ---------------------------------------------------------------
+def test_secrets_are_hidden_from_repr():
+    # KISConfig 가 값을 담으므로 repr/로그에 앱키·시크릿이 새면 안 된다.
+    text = repr(KISConfig(profile="main", app_key="SECRETKEY", app_secret="SECRETSEC",
+                          account="12345678-01"))
+    assert "SECRETKEY" not in text and "SECRETSEC" not in text
 
-def test_account_none_when_absent():
-    assert KISConfig(profile="main").account() is None
+
+def test_resolved_credentials_hides_secrets_from_repr(tmp_path):
+    # 세션에 넘어가는 해석 결과도 실제 시크릿을 담으므로 repr 에 새면 안 된다.
+    KISConfig(profile="main", app_key="SECRETKEY", app_secret="SECRETSEC",
+              config_dir=tmp_path).save()
+    text = repr(resolve_credentials("main", config_dir=tmp_path))
+    assert "SECRETKEY" not in text and "SECRETSEC" not in text
 
 
-def test_account_cano_without_product_code_fails_closed(monkeypatch):
-    monkeypatch.setenv("KIS_CANO", "12345678")  # 상품코드 없음
+def test_construction_requires_nonblank_app_key_and_secret():
     with pytest.raises(KISUsageError):
-        KISConfig(profile="main").account()
+        KISConfig(profile="main", app_key="AK", app_secret="   ")  # 공백 시크릿
+    with pytest.raises(TypeError):
+        KISConfig(profile="main", app_key="AK")  # type: ignore[call-arg]  # secret 자체가 없음
 
 
-# --- 누락 시 예외엔 값이 아니라 변수 이름만 --------------------------------------
+def test_construction_rejects_malformed_account(tmp_path):
+    with pytest.raises(KISUsageError):
+        KISConfig(profile="main", app_key="AK", app_secret="SK",
+                  account="12345678", config_dir=tmp_path)  # 상품코드 없음
+    assert not (tmp_path / "credentials.json").exists()  # 파일도 안 남는다
 
-def test_missing_secret_names_the_variable_not_a_value():
+
+def test_construction_rejects_account_with_multiple_separators(tmp_path):
+    # 쓰기(save)와 읽기(session)가 같은 _split_account 계약을 공유하므로, 세션이 못 읽을
+    # 형식은 저장 자체를 막는다(저장은 됐는데 못 읽는 상태 방지).
+    with pytest.raises(KISUsageError):
+        KISConfig(profile="main", app_key="AK", app_secret="SK",
+                  account="12345678-01-02", config_dir=tmp_path)
+    assert not (tmp_path / "credentials.json").exists()
+
+
+def test_save_creates_missing_directory(tmp_path):
+    target = tmp_path / "sub" / "dir"   # 아직 없음
+    KISConfig(profile="main", app_key="AK", app_secret="SK", config_dir=target).save()
+    assert (target / "credentials.json").exists()
+
+
+def test_save_returns_path_and_file_is_owner_only(tmp_path):
+    path = KISConfig(profile="main", app_key="AK", app_secret="SK", config_dir=tmp_path).save()
+    assert path == tmp_path / "credentials.json"
+    # POSIX 에서 0600 (Windows 는 ACL 이라 검증 생략)
+    if os.name == "posix":
+        assert (path.stat().st_mode & 0o777) == 0o600
+
+
+# --- resolve_credentials (읽기) -----------------------------------------------
+
+def test_resolve_reads_saved_credentials(tmp_path):
+    KISConfig(profile="isa", app_key="AK", app_secret="SK",
+              account="87654321-01", config_dir=tmp_path).save()
+    resolved = resolve_credentials("isa", config_dir=tmp_path)
+    assert resolved.app_key == "AK" and resolved.account == "87654321-01"
+    assert resolved.environment == "real"
+
+
+def test_environment_variable_wins_over_file(tmp_path, monkeypatch):
+    KISConfig(profile="main", app_key="from_file", app_secret="s", config_dir=tmp_path).save()
+    monkeypatch.setenv("KIS_APP_KEY", "from_env")
+    assert resolve_credentials("main", config_dir=tmp_path).app_key == "from_env"
+
+
+def test_environment_account_wins_over_saved_account(tmp_path, monkeypatch):
+    # 앱키뿐 아니라 계좌 구성요소(CANO/ACNT_PRDT_CD)도 env 가 파일을 이긴다.
+    KISConfig(profile="main", app_key="AK", app_secret="SK",
+              account="12345678-01", config_dir=tmp_path).save()
+    monkeypatch.setenv("KIS_CANO", "87654321")
+    monkeypatch.setenv("KIS_ACNT_PRDT_CD", "02")
+    assert resolve_credentials("main", config_dir=tmp_path).account == "87654321-02"
+
+
+def test_save_does_not_clobber_malformed_credentials_file(tmp_path):
+    # 병합 바탕이 손상돼 있으면 -- 남의 프로필을 덮어써 날리지 않도록 -- 저장을 멈춘다.
+    path = tmp_path / "credentials.json"
+    original = "{ this is not valid json"
+    path.write_text(original, encoding="utf-8")
+    with pytest.raises(KISUsageError):
+        KISConfig(profile="paper", app_key="PK", app_secret="PS", config_dir=tmp_path).save()
+    assert path.read_text(encoding="utf-8") == original  # 원본 그대로
+
+
+def test_resolve_missing_credentials_names_the_variable():
     with pytest.raises(KISUsageError) as excinfo:
-        KISConfig(profile="paper").app_key()
+        resolve_credentials("paper")
     assert "KIS_PAPER_APP_KEY" in str(excinfo.value)
 
 
-# --- 캐시/설정 디렉터리 ------------------------------------------------------
-
-def test_config_dir_override_redirects_files_and_cache(tmp_path):
-    config = KISConfig(profile="main", config_dir_override=tmp_path)
-    assert config.config_dir() == tmp_path
-    assert config.cache_dir() == tmp_path / "tokens"
+def test_resolve_account_none_when_absent(monkeypatch):
+    monkeypatch.setenv("KIS_APP_KEY", "k")
+    monkeypatch.setenv("KIS_APP_SECRET", "s")
+    assert resolve_credentials("main").account is None
 
 
-def test_default_dirs_follow_xdg(tmp_path, monkeypatch):
-    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "c"))
-    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "k"))
-    config = KISConfig(profile="main")
-    assert config.config_dir() == tmp_path / "c" / "kis-trader"
-    assert config.cache_dir() == tmp_path / "k" / "kis-trader" / "tokens"
-
-
-# --- KISClient.from_config ---------------------------------------------------
-
-def test_from_config_opens_session_with_resolved_values(monkeypatch):
+def test_resolve_cano_without_product_code_fails_closed(monkeypatch):
     monkeypatch.setenv("KIS_APP_KEY", "k")
     monkeypatch.setenv("KIS_APP_SECRET", "s")
     monkeypatch.setenv("KIS_CANO", "12345678")
-    monkeypatch.setenv("KIS_ACNT_PRDT_CD", "01")
-    kis = KISClient.from_config(KISConfig(profile="main"), transport=_FakeTransport())
-    assert kis.environment == "real"
-
-
-def test_from_config_paper_profile_uses_paper_environment(monkeypatch):
-    monkeypatch.setenv("KIS_PAPER_APP_KEY", "k")
-    monkeypatch.setenv("KIS_PAPER_APP_SECRET", "s")
-    kis = KISClient.from_config(KISConfig(profile="paper"), transport=_FakeTransport())
-    assert kis.environment == "paper"
-
-
-def test_from_config_account_override_wins(monkeypatch):
-    monkeypatch.setenv("KIS_APP_KEY", "k")
-    monkeypatch.setenv("KIS_APP_SECRET", "s")
-    monkeypatch.setenv("KIS_CANO", "12345678")
-    monkeypatch.setenv("KIS_ACNT_PRDT_CD", "01")
-    kis = KISClient.from_config(
-        KISConfig(profile="main"), account="87654321-02", transport=_FakeTransport())
-    assert kis.account == "87654321-02"
-
-
-@pytest.mark.parametrize("reserved", ["app_key", "app_secret", "environment", "token_cache_dir"])
-def test_from_config_rejects_profile_owned_kwargs(monkeypatch, reserved):
-    monkeypatch.setenv("KIS_APP_KEY", "k")
-    monkeypatch.setenv("KIS_APP_SECRET", "s")
     with pytest.raises(KISUsageError):
-        KISClient.from_config(KISConfig(profile="main"), **{reserved: "x"})
+        resolve_credentials("main")
 
 
-def test_from_config_missing_credentials_raises_usage_error():
+@pytest.mark.parametrize("blank", ["", "   "])
+def test_blank_value_is_absent(monkeypatch, blank):
+    monkeypatch.setenv("KIS_APP_KEY", blank)  # 빈/공백 시크릿은 유효하지 않다
     with pytest.raises(KISUsageError):
-        KISClient.from_config(KISConfig(profile="main"), transport=_FakeTransport())
+        resolve_credentials("main")
 
 
-# --- KISClient() 자격증명 생략 시 저장분 자동 로드 --------------------------------
+def test_malformed_credentials_file_raises(tmp_path):
+    (tmp_path / "credentials.json").write_text("{", encoding="utf-8")
+    with pytest.raises(KISUsageError):
+        resolve_credentials("main", config_dir=tmp_path)
 
-def test_bare_client_reads_saved_main_credentials(monkeypatch):
-    monkeypatch.setenv("KIS_APP_KEY", "k")
-    monkeypatch.setenv("KIS_APP_SECRET", "s")
-    monkeypatch.setenv("KIS_CANO", "12345678")
-    monkeypatch.setenv("KIS_ACNT_PRDT_CD", "01")
-    kis = KISClient(transport=_FakeTransport())   # 자격증명 생략 -> 저장분 자동
+
+def test_config_toml_is_last_fallback(tmp_path):
+    (tmp_path / "config.toml").write_text('KIS_APP_KEY = "tk"\nKIS_APP_SECRET = "ts"\n', encoding="utf-8")
+    assert resolve_credentials("main", config_dir=tmp_path).app_key == "tk"
+
+
+# --- KISClient(profile=) 세션 -------------------------------------------------
+
+def test_client_reads_saved_profile(tmp_path):
+    KISConfig(profile="main", app_key="AK", app_secret="SK",
+              account="12345678-01", config_dir=tmp_path).save()
+    kis = KISClient(profile="main", config_dir=tmp_path, transport=_FakeTransport())
     assert kis.environment == "real" and kis.account == "12345678-01"
 
 
-def test_bare_client_paper_env_uses_paper_profile(monkeypatch):
-    monkeypatch.setenv("KIS_PAPER_APP_KEY", "k")
-    monkeypatch.setenv("KIS_PAPER_APP_SECRET", "s")
-    kis = KISClient(environment="paper", transport=_FakeTransport())
+def test_client_paper_profile_uses_paper_environment(tmp_path):
+    KISConfig(profile="paper", app_key="AK", app_secret="SK", config_dir=tmp_path).save()
+    kis = KISClient(profile="paper", config_dir=tmp_path, transport=_FakeTransport())
     assert kis.environment == "paper"
 
 
-def test_bare_client_missing_credentials_raises():
-    with pytest.raises(KISUsageError):   # 저장분·env 모두 없음(격리 픽스처)
-        KISClient(transport=_FakeTransport())
-
-
-def test_explicit_credentials_skip_config_lookup():
+def test_client_explicit_keys_skip_file_lookup():
     # 값을 명시하면 파일/env 를 읽지 않는다(격리 환경에 자격증명이 없어도 열린다).
     kis = KISClient(app_key="k", app_secret="s", transport=_FakeTransport())
     assert kis.environment == "real"
 
 
-# --- fail-closed: 형상/빈값 오류 (P1 회귀 방지) --------------------------------
-
-@pytest.mark.parametrize(("filename", "contents"), [
-    ("credentials.json", "{"),        # 깨진 JSON
-    ("credentials.json", "[]"),       # 최상위가 객체가 아님
-    ("config.toml", "invalid = ["),   # 깨진 TOML
-])
-def test_malformed_config_file_raises(tmp_path, filename, contents):
-    (tmp_path / filename).write_text(contents, encoding="utf-8")
-    with pytest.raises(KISUsageError):
-        KISConfig(profile="main", config_dir_override=tmp_path).app_key()
+def test_client_keeps_explicit_app_key_and_reads_missing_secret(tmp_path):
+    # app_key 만 직접 넘기고 secret 은 저장분에서 채운다 -- 사용자가 준 app_key 를
+    # '없다'고 오도하지 않고, 실제로 빠진 secret 만 읽어야 한다.
+    KISConfig(profile="main", app_key="saved_key", app_secret="saved_secret",
+              config_dir=tmp_path).save()
+    kis = KISClient(app_key="explicit_key", profile="main", config_dir=tmp_path,
+                    transport=_FakeTransport())
+    assert kis._app_key == "explicit_key" and kis._app_secret == "saved_secret"
 
 
-@pytest.mark.parametrize("filename", ["credentials.json", "config.toml"])
-def test_unreadable_config_file_raises(tmp_path, filename):
-    (tmp_path / filename).mkdir()  # 파일 자리에 디렉터리 -> OSError
-    with pytest.raises(KISUsageError):
-        KISConfig(profile="main", config_dir_override=tmp_path).app_key()
+def test_client_missing_credentials_raises():
+    with pytest.raises(KISUsageError):   # 저장분·env 모두 없음(격리)
+        KISClient(profile="main", transport=_FakeTransport())
 
 
-def test_toml_boolean_value_is_not_stringified_into_garbage(tmp_path):
-    # 무검증 str() 이면 true -> "True" 라는 쓰레기 시크릿이 됐다 -- 형상 오류로 닫아야 한다.
-    (tmp_path / "config.toml").write_text('KIS_APP_KEY = true\n', encoding="utf-8")
-    with pytest.raises(KISUsageError):
-        KISConfig(profile="main", config_dir_override=tmp_path).app_key()
-
-
-def test_json_nonscalar_value_raises(tmp_path):
-    (tmp_path / "credentials.json").write_text(
-        json.dumps({"KIS_APP_KEY": {"nested": 1}}), encoding="utf-8")
-    with pytest.raises(KISUsageError):
-        KISConfig(profile="main", config_dir_override=tmp_path).app_key()
-
-
-@pytest.mark.parametrize("blank", ["", "   "])
-def test_blank_required_value_is_absent(monkeypatch, blank):
-    monkeypatch.setenv("KIS_APP_KEY", blank)  # 빈/공백 시크릿은 유효하지 않다
-    with pytest.raises(KISUsageError):
-        KISConfig(profile="main").app_key()
-
-
-def test_blank_cano_is_treated_as_absent(monkeypatch):
-    monkeypatch.setenv("KIS_CANO", "")
-    monkeypatch.setenv("KIS_ACNT_PRDT_CD", "01")
-    assert KISConfig(profile="main").account() is None
-
-
-def test_blank_product_code_with_cano_fails_closed(monkeypatch):
+def test_client_account_override(monkeypatch):
+    monkeypatch.setenv("KIS_APP_KEY", "k")
+    monkeypatch.setenv("KIS_APP_SECRET", "s")
     monkeypatch.setenv("KIS_CANO", "12345678")
-    monkeypatch.setenv("KIS_ACNT_PRDT_CD", "   ")
-    with pytest.raises(KISUsageError):
-        KISConfig(profile="main").account()
+    monkeypatch.setenv("KIS_ACNT_PRDT_CD", "01")
+    kis = KISClient(profile="main", account="87654321-02", transport=_FakeTransport())
+    assert kis.account == "87654321-02"
 
 
-# --- 해석 순서·resolver 계약 --------------------------------------------------
-
-def test_credentials_json_wins_over_config_toml(tmp_path):
-    (tmp_path / "credentials.json").write_text(
-        json.dumps({"KIS_APP_KEY": "json_key"}), encoding="utf-8")
-    (tmp_path / "config.toml").write_text('KIS_APP_KEY = "toml_key"\n', encoding="utf-8")
-    assert KISConfig(profile="main", config_dir_override=tmp_path).app_key() == "json_key"
-
-
-def test_resolver_returning_none_does_not_fall_back(monkeypatch):
-    monkeypatch.setenv("KIS_APP_KEY", "env_key")  # resolver 가 전권 -> env 로 폴백하지 않는다
-    config = KISConfig(profile="main", resolver=lambda name: None)
-    with pytest.raises(KISUsageError):
-        config.app_key()
-
-
-def test_resolver_is_excluded_from_repr():
-    # resolver 가 바인딩된 시크릿을 품을 수 있으므로 repr 에서 제외한다.
-    config = KISConfig(profile="main", resolver=lambda name: "x")
-    assert "resolver" not in repr(config)
+def test_save_then_client_round_trip(tmp_path):
+    KISConfig(profile="isa", app_key="AK", app_secret="SK",
+              account="11112222-01", config_dir=tmp_path).save()
+    kis = KISClient(profile="isa", config_dir=tmp_path, transport=_FakeTransport())
+    assert kis.account == "11112222-01" and kis.environment == "real"

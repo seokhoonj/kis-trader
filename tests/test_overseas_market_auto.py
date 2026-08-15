@@ -41,7 +41,7 @@ class FakeTransport:
 
 def _client(transport):
     return KISClient(app_key="k", app_secret="s", account="12345678-01",
-                     environment="real", transport=transport)
+                     profile="main", transport=transport)
 
 
 def test_positions_market_omitted_visits_all_groups():

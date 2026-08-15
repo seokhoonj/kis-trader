@@ -124,7 +124,7 @@ def test_overseas_derivative_details_rejects_invalid_requests(method, symbols):
 
 def test_overseas_derivative_details_rejects_demo_before_transport():
     fake = FakeTransport(response=None)
-    client = KISClient(app_key="k", app_secret="s", transport=fake, environment="paper")
+    client = KISClient(app_key="k", app_secret="s", transport=fake, profile="paper")
     with pytest.raises(KISUsageError):
         client.overseas.futures_details(["6AM24"])
     assert fake.calls == []

@@ -28,9 +28,9 @@ class FakeTransport:
         return next(self.responses)
 
 
-def _client(transport, *, environment="real"):
+def _client(transport, *, profile="main"):
     return KISClient(
-        app_key="k", app_secret="s", environment=environment, transport=transport
+        app_key="k", app_secret="s", profile=profile, transport=transport
     )
 
 
@@ -71,7 +71,7 @@ def test_overseas_industries_routes_and_parses_single_call():
 def test_overseas_industries_rejects_demo_environment():
     fake = FakeTransport(responses=[])
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").overseas.industries("NAS")
+        _client(fake, profile="paper").overseas.industries("NAS")
     assert fake.calls == []
 
 
@@ -155,7 +155,7 @@ def test_overseas_industry_stocks_maps_quote_and_volume_filter():
 def test_overseas_industry_stocks_validates_environment_and_volume():
     demo = FakeTransport(responses=[])
     with pytest.raises(KISUsageError):
-        _client(demo, environment="paper").overseas.industry_stocks("NAS", "010")
+        _client(demo, profile="paper").overseas.industry_stocks("NAS", "010")
     assert demo.calls == []
 
     fake = FakeTransport(responses=[])

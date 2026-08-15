@@ -53,9 +53,9 @@ class FakeTransport:
         return self.response
 
 
-def _client(transport, *, environment="real", account="12345678-01"):
+def _client(transport, *, profile="main", account="12345678-01"):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     environment=environment, transport=transport)
+                     profile=profile, transport=transport)
 
 
 def test_foreign_margin_parses_per_currency():
@@ -87,7 +87,7 @@ def test_foreign_margin_tr_method_params():
 def test_foreign_margin_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").overseas.account.foreign_margin()
+        _client(fake, profile="paper").overseas.account.foreign_margin()
     assert fake.calls == []
 
 

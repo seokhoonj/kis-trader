@@ -43,7 +43,7 @@ def test_client_realtime_builds_client_with_ws_url(monkeypatch):
         "kis_trader.realtime._approval.fetch_approval_key",
         lambda *a, **k: "APPROVAL-XYZ",
     )
-    kis = KISClient(app_key="k", app_secret="s", account="12345678-01", environment="real")
+    kis = KISClient(app_key="k", app_secret="s", account="12345678-01", profile="main")
     rt = kis.realtime()
     assert rt._approval_key == "APPROVAL-XYZ"
     assert rt._url == "ws://ops.koreainvestment.com:21000"
@@ -55,6 +55,6 @@ def test_client_realtime_paper_url(monkeypatch):
         "kis_trader.realtime._approval.fetch_approval_key",
         lambda *a, **k: "K",
     )
-    kis = KISClient(app_key="k", app_secret="s", account="12345678-01", environment="paper")
+    kis = KISClient(app_key="k", app_secret="s", account="12345678-01", profile="paper")
     rt = kis.realtime()
     assert rt._url == "ws://ops.koreainvestment.com:31000"

@@ -56,7 +56,7 @@ class FakeTransport:
 
 def _client(transport, *, risk=None):
     return KISClient(app_key="k", app_secret="s", account="12345678-01",
-                     environment="real", transport=transport, risk=risk)
+                     profile="main", transport=transport, risk=risk)
 
 
 def _paths(fake):

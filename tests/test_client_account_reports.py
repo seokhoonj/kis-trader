@@ -58,9 +58,9 @@ class FakeTransport:
         return self.response
 
 
-def _client(transport, *, environment="real", account="12345678-01"):
+def _client(transport, *, profile="main", account="12345678-01"):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     environment=environment, transport=transport)
+                     profile=profile, transport=transport)
 
 
 def _resp(*, output1=None, output2=None, output=None):
@@ -132,7 +132,7 @@ def test_realized_balance_non_list_output1_fails_closed():
 def test_realized_balance_demo_rejected():
     fake = FakeTransport(response=_resp(output1=[_POS], output2=[_SUM]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").domestic.account.realized_profit_balance()
+        _client(fake, profile="paper").domestic.account.realized_profit_balance()
     assert fake.calls == []
 
 
@@ -175,7 +175,7 @@ def test_integrated_margin_non_object_output_fails_closed():
 def test_integrated_margin_demo_rejected():
     fake = FakeTransport(response=_resp(output=_MARGIN))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").domestic.account.integrated_margin()
+        _client(fake, profile="paper").domestic.account.integrated_margin()
     assert fake.calls == []
 
 

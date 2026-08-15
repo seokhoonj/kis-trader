@@ -47,9 +47,9 @@ class FakeTransport:
         return self.response
 
 
-def _client(transport, *, environment="real"):
+def _client(transport, *, profile="main"):
     return KISClient(app_key="k", app_secret="s", account="12345678-01",
-                     environment=environment, transport=transport)
+                     profile=profile, transport=transport)
 
 
 def _place_body(**over):
