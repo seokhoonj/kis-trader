@@ -9,10 +9,27 @@ from __future__ import annotations
 import dataclasses
 import json
 import unicodedata
-from datetime import date, datetime, time
+from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from enum import Enum
 from typing import Any, Literal
+
+#: KIS 데이터는 KST(+09:00) 고정 오프셋으로 온다 -- 사람용 표에선 이를 "KST" 라벨로 보인다.
+_KST_OFFSET = timedelta(hours=9)
+
+
+def _tz_label(value: datetime) -> str:
+    """사람용 표의 시각 뒤에 붙일 타임존 라벨(앞 공백 포함). +09:00 은 `KST`, 그 밖의 오프셋은
+    `+HH:MM`, naive(오프셋 없음)면 빈 문자열."""
+    offset = value.utcoffset()
+    if offset is None:
+        return ""
+    if offset == _KST_OFFSET:
+        return " KST"
+    total = int(offset.total_seconds())
+    sign = "+" if total >= 0 else "-"
+    hours, minutes = divmod(abs(total) // 60, 60)
+    return f" {sign}{hours:02d}:{minutes:02d}"
 
 
 def to_jsonable(value: Any, *, include_raw: bool = False) -> Any:
@@ -50,7 +67,11 @@ def _cell(value: Any) -> str:
         return "true" if value else "false"
     if isinstance(value, Decimal):
         return str(value)
-    if isinstance(value, (datetime, date, time)):
+    if isinstance(value, datetime):
+        # 사람용 표: `2026-08-15 19:57:45 KST` (T 대신 공백, 초 단위, 오프셋을 라벨로).
+        # 기계용 JSON 은 to_jsonable 이 ISO 8601 전체를 그대로 싣는다(마이크로초·오프셋 보존).
+        return f"{value.strftime('%Y-%m-%d %H:%M:%S')}{_tz_label(value)}"
+    if isinstance(value, (date, time)):
         return value.isoformat()
     if isinstance(value, Enum):
         return str(value.value)

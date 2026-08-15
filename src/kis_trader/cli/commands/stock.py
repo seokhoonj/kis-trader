@@ -20,7 +20,20 @@ def cmd_bars(kis: KISClient, args: Namespace) -> Any:
 
 
 def cmd_book(kis: KISClient, args: Namespace) -> Any:
-    return resolve_stock(kis, args).order_book()
+    book = resolve_stock(kis, args).order_book()
+    if args.fmt != "table":
+        return book  # JSON/jsonl: 구조화된 원본(각 변 최우선 먼저, ISO 시각) 그대로
+    # 사람용 표: 표준 호가창 배치 -- 매도(asks)를 높은 가격부터 위에 두어(best ask 가 맨 아래),
+    # 그 아래 매수(bids)가 높은 가격부터. 위에서 아래로 가격이 단조감소하고 스프레드가 가운데 온다.
+    return {
+        "symbol": book.symbol,
+        "market": book.market,
+        "asks": list(reversed(book.asks)),
+        "bids": list(book.bids),
+        "total_ask_quantity": book.total_ask_quantity,
+        "total_bid_quantity": book.total_bid_quantity,
+        "as_of": book.as_of,
+    }
 
 
 def cmd_trades(kis: KISClient, args: Namespace) -> Any:

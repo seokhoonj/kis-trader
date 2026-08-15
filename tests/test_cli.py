@@ -384,6 +384,56 @@ def test_render_table_expands_nested_record_list_as_subtable():
     assert "[{" not in out                            # JSON 블롭으로 접지 않음
 
 
+def test_render_table_datetime_is_kst_seconds_but_json_keeps_iso():
+    from datetime import datetime, timedelta, timezone
+
+    @dataclass(frozen=True)
+    class _Stamped:
+        as_of: datetime
+        _raw: dict
+
+    dt = datetime(2026, 8, 15, 19, 57, 45, 694957, tzinfo=timezone(timedelta(hours=9)))
+    table = render(_Stamped(dt, {}), fmt="table")
+    assert "2026-08-15 19:57:45 KST" in table       # 공백·초단위·KST 라벨
+    assert "T19" not in table and "+09:00" not in table
+    assert "2026-08-15T19:57:45.694957+09:00" in render(_Stamped(dt, {}), fmt="json")  # JSON은 ISO
+
+
+def test_order_book_table_is_ladder_and_json_is_raw():
+    from datetime import datetime, timedelta, timezone
+
+    from kis_trader.cli.commands import stock as stock_cmd
+    from kis_trader.order_book import OrderBook, PriceLevel
+
+    book = OrderBook(
+        symbol="005930", market="KRX",
+        bids=[PriceLevel(Decimal("274000"), 100), PriceLevel(Decimal("273500"), 50)],
+        asks=[PriceLevel(Decimal("274500"), 80), PriceLevel(Decimal("275000"), 60)],
+        total_bid_quantity=150, total_ask_quantity=140,
+        as_of=datetime(2026, 8, 15, 20, 0, 0, tzinfo=timezone(timedelta(hours=9))),
+    )
+
+    class _BookHandle:
+        def order_book(self):
+            return book
+
+    class _BookNamespace:
+        def stock(self, code):
+            return _BookHandle()
+
+    class _Kis:
+        def __init__(self):
+            self.domestic = _BookNamespace()
+
+    # table: 표준 호가창 -- asks 는 높은 가격 먼저(275000 -> 274500), asks 블록이 bids 앞
+    ladder = stock_cmd.cmd_book(_Kis(), _args(["stock", "book", "005930"]))
+    assert isinstance(ladder, dict)
+    assert [str(level.price) for level in ladder["asks"]] == ["275000", "274500"]
+    assert [str(level.price) for level in ladder["bids"]] == ["274000", "273500"]
+    # json: 구조화된 원본 OrderBook 을 그대로(각 변 최우선 먼저)
+    assert stock_cmd.cmd_book(_Kis(), _args(["--format", "json", "stock", "book", "005930"])) is book
+
+
 def test_display_width_counts_hangul_as_two_cells():
     assert _display_width("삼성전자") == 8  # 한글 4자 x 2칸
     assert _display_width("AAPL") == 4
