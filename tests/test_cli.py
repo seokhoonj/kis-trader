@@ -380,8 +380,28 @@ def test_render_table_expands_nested_record_list_as_subtable():
     out = render(book, fmt="table")
     assert "bids" in out                              # 필드명이 머리로
     assert "price" in out and "quantity" in out       # 하위 표 헤더
-    assert "274000" in out and "273500" in out        # 각 호가 행
+    assert "274,000" in out and "273,500" in out      # 각 호가 행(천단위 콤마)
     assert "[{" not in out                            # JSON 블롭으로 접지 않음
+
+
+def test_render_table_commas_and_right_align_in_key_value_but_json_plain():
+    @dataclass(frozen=True)
+    class _Balance:
+        currency: str
+        deposit: Decimal
+        net_asset: Decimal
+        _raw: dict
+
+    obj = _Balance("KRW", Decimal("399684"), Decimal("127776156"), {})
+    table = render(obj, fmt="table")
+    assert "127,776,156" in table and "399,684" in table       # 표엔 천단위 콤마
+    # 숫자는 공통 폭으로 우측정렬 -> 두 금액 줄의 오른끝(표시폭)이 같다
+    deposit_line = next(line for line in table.splitlines() if line.startswith("deposit"))
+    net_line = next(line for line in table.splitlines() if line.startswith("net_asset"))
+    assert _display_width(deposit_line) == _display_width(net_line)
+    # JSON 은 콤마 없이(기계 파싱 가능)
+    j = render(obj, fmt="json")
+    assert "127776156" in j and "127,776,156" not in j
 
 
 def test_render_table_right_aligns_numeric_columns_only():

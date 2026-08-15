@@ -66,7 +66,7 @@ def _cell(value: Any) -> str:
     if isinstance(value, bool):
         return "true" if value else "false"
     if isinstance(value, Decimal):
-        return str(value)
+        return f"{value:,}"  # 천단위 콤마(사람용 표 전용). JSON 은 to_jsonable 이 콤마 없이 싣는다.
     if isinstance(value, datetime):
         # 사람용 표: `2026-08-15 19:57:45 KST` (T 대신 공백, 초 단위, 오프셋을 라벨로).
         # 기계용 JSON 은 to_jsonable 이 ISO 8601 전체를 그대로 싣는다(마이크로초·오프셋 보존).
@@ -75,13 +75,15 @@ def _cell(value: Any) -> str:
         return value.isoformat()
     if isinstance(value, Enum):
         return str(value.value)
-    if isinstance(value, (str, int, float)):
-        return str(value)
+    if isinstance(value, (int, float)):
+        return f"{value:,}"  # 천단위 콤마(사람용 표 전용)
+    if isinstance(value, str):
+        return value
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         # Money 같은 소형 값객체는 "amount currency" 로, 그 외는 compact JSON.
         fields = [f.name for f in dataclasses.fields(value) if not f.name.startswith("_")]
         if fields == ["amount", "currency"]:
-            return f"{value.amount} {value.currency}"
+            return f"{value.amount:,} {value.currency}"
         return json.dumps(to_jsonable(value), ensure_ascii=False, separators=(",", ":"))
     return json.dumps(to_jsonable(value), ensure_ascii=False, separators=(",", ":"))
 
@@ -172,15 +174,19 @@ def _render_table(value: Any, *, no_header: bool) -> str:
 def _render_fields(items: list[tuple[Any, Any]], *, no_header: bool) -> str:
     """단일 객체의 (이름, 값) 쌍들을 key/value 2열로. 값이 레코드 리스트면 JSON 으로 접지 않고
     이름을 머리로 두고 들여쓴 하위 표로 펼친다(중첩 표)."""
-    scalar_keys = [str(key) for key, val in items if not _is_record_list(val)]
-    width = max((_display_width(key) for key in scalar_keys), default=0)
+    key_width = max(
+        (_display_width(str(key)) for key, val in items if not _is_record_list(val)), default=0)
+    # 숫자 값은 공통 폭으로 우측정렬해 자릿수를 맞춘다(잔고·시세 등). 텍스트·시각은 좌측 그대로.
+    num_width = max((_display_width(_cell(val)) for _, val in items if _is_numeric(val)), default=0)
     lines = []
     for key, val in items:
         if _is_record_list(val):
             lines.append(str(key))
             lines.append(_indent(_render_table(list(val), no_header=no_header)))
+        elif _is_numeric(val):
+            lines.append(f"{_pad(str(key), key_width)}  {_align(_cell(val), num_width, right=True)}")
         else:
-            lines.append(f"{_pad(str(key), width)}  {_cell(val)}")
+            lines.append(f"{_pad(str(key), key_width)}  {_cell(val)}")
     return "\n".join(lines)
 
 
