@@ -1,8 +1,105 @@
 # 설정과 자격증명
 
 세션을 열려면 KIS 개발자센터에서 발급한 **앱키·앱시크릿**과, 계좌 조회·주문에는 **계좌번호**가
-필요합니다. 이 값들을 코드에 직접 쓰지 않고, 프로필 단위로 환경변수나 설정 파일에서 읽는 방법을
-설명합니다.
+필요합니다. 이 값들을 코드에 직접 쓰지 않고, 프로필 단위로 환경변수나 설정 파일에서 읽습니다.
+
+**처음이라면 아래 "처음 설정하기"만 따라 하면 됩니다.** 그 아래 절들은 원리·고급 설정 참고용입니다.
+
+## 처음 설정하기 (한 번만)
+
+컴퓨터를 잘 몰라도 이 순서대로 하면 됩니다. 예시는 삼성전자(`005930`) 현재가 조회까지입니다.
+
+### 1단계 — KIS에서 앱키 발급받기
+
+1. 한국투자증권 **실계좌**가 있어야 합니다(없으면 먼저 계좌 개설). 그리고 HTS/MTS 등에서 **API
+   서비스 신청(사용 동의)**을 해야 앱키를 받을 수 있습니다.
+2. KIS 개발자센터 <https://apiportal.koreainvestment.com/intro> 에 로그인 →
+   **App Key 발급** 메뉴에서 **APP KEY**와 **APP SECRET**을 받습니다.
+   - **실전투자용**과 **모의투자용**은 앱키가 **따로**입니다. 우선 실전용 하나만 받아도 됩니다.
+   - 모의투자로 연습하려면 개발자센터에서 **모의투자 신청**도 해두면 모의용 앱키가 생깁니다.
+3. 이 두 값(APP KEY, APP SECRET)은 **비밀번호처럼 취급**하세요. 남에게 보이거나 깃허브에 올리면 안 됩니다.
+
+### 2단계 — 내 계좌번호 확인
+
+계좌번호는 **종합계좌번호 8자리 + 상품코드 2자리**로 나뉩니다. 예: 계좌가 `12345678-01` 이면
+앞 8자리(`12345678`)가 종합계좌번호(CANO), 뒤 2자리(`01`)가 상품코드(주식은 보통 `01`)입니다.
+HTS/MTS 계좌 화면에서 확인할 수 있습니다.
+
+### 3단계 — 설정 파일 만들기 (`credentials.json`)
+
+앱키·계좌번호를 담는 파일 하나를 정해진 위치에 만듭니다. 위치는 **세 운영체제 공통**으로
+홈 폴더 아래 `.config/kis-trader/` 입니다.
+
+**Linux / macOS** (터미널):
+
+```bash
+mkdir -p ~/.config/kis-trader                       # 폴더 생성
+nano ~/.config/kis-trader/credentials.json          # 편집기 열기(nano 없으면 vi/gedit 등)
+# 아래 JSON을 붙여넣고 값 채우기 -> 저장(nano: Ctrl+O, Enter, Ctrl+X)
+chmod 600 ~/.config/kis-trader/credentials.json     # 나만 읽게 권한 잠그기(중요)
+```
+
+**Windows** (PowerShell):
+
+```powershell
+mkdir $HOME\.config\kis-trader
+notepad $HOME\.config\kis-trader\credentials.json    # 메모장 열림 -> 붙여넣고 저장
+```
+
+**붙여넣을 내용** — 따옴표 안의 값을 1·2단계에서 받은 실제 값으로 바꾸세요:
+
+```json
+{
+  "KIS_APP_KEY": "여기에_실전_APP_KEY",
+  "KIS_APP_SECRET": "여기에_실전_APP_SECRET",
+  "KIS_CANO": "12345678",
+  "KIS_ACNT_PRDT_CD": "01"
+}
+```
+
+모의투자도 쓰려면 같은 파일에 `KIS_PAPER_APP_KEY` / `KIS_PAPER_APP_SECRET` / `KIS_PAPER_CANO` /
+`KIS_PAPER_ACNT_PRDT_CD` 를 **추가**하면 됩니다(아래 "파일 위치" 절의 전체 예시 참고).
+
+::: {.callout-warning}
+JSON은 **쉼표·따옴표**가 하나라도 틀리면 안 읽힙니다. 마지막 항목 뒤에는 쉼표를 붙이지 마세요.
+값은 큰따옴표 `"..."` 로 감쌉니다.
+:::
+
+### 4단계 — 첫 명령 실행
+
+설치와 실행 방법은 [빠른 시작](quickstart.md)에 있습니다. 설치했다면:
+
+```bash
+kis account balance          # 내 실전 주계좌 잔고
+kis stock quote 005930       # 삼성전자 현재가
+```
+
+`--profile` 을 안 붙이면 **실전 주계좌(main)**를 씁니다. 조회는 안전하고, **주문은 `--execute` 를
+붙이기 전까지 절대 전송되지 않습니다**(dry-run).
+
+### 5단계 (선택) — 기본을 모의투자로 바꾸기
+
+연습 위주라면 기본 프로필을 모의로 바꿔 매번 `--profile paper` 를 안 쳐도 되게 할 수 있습니다.
+
+```bash
+# Linux/macOS: 셸 설정에 한 줄 추가(한 번만)
+echo 'export KIS_PROFILE=paper' >> ~/.bashrc && source ~/.bashrc
+# 이제 kis account balance 는 모의투자 계좌를 봅니다. 실전은 그때만 --profile main.
+```
+
+Windows(PowerShell)는 `setx KIS_PROFILE paper` 후 새 창을 여세요.
+
+### 안 될 때 (자주 겪는 문제)
+
+| 증상 | 원인 | 해결 |
+|---|---|---|
+| `command not found: kis` | 설치 안 됨/PATH 밖 | [빠른 시작](quickstart.md)의 설치. 임시로 `.venv/bin/kis …` |
+| `자격증명이 없습니다 …` | 파일 경로·이름 오타, 키 이름 오타 | 경로가 정확히 `~/.config/kis-trader/credentials.json` 인지, 키 이름이 `KIS_APP_KEY` 등과 **정확히** 같은지 확인 |
+| `… config 파일을 읽을 수 없다` | JSON 문법 오류(쉼표/따옴표) | 마지막 쉼표 제거, 모든 값 `"..."` 확인 |
+| `status 500` | **호출 과속**(KIS의 rate 제한 신호) | 명령을 한 번에 몰아 붙여넣지 말고 한 줄씩. 모의는 초당 1회 |
+| 잔고가 가짜다/`net_asset` 이 이상 | 모의투자 계좌를 보고 있음 | `--profile main` 또는 `KIS_PROFILE=main` |
+
+---
 
 ## 자격증명 해석 순서
 
@@ -69,8 +166,9 @@ kis --profile main  account balance         # 실전 주계좌
 kis --profile isa   account positions       # 실전 ISA
 ```
 
-기본 프로필은 안전을 위해 `paper` 입니다(`KIS_PROFILE` 환경변수로 기본값 변경). 실전은 항상
-`--profile main` 처럼 명시해야 합니다.
+기본 프로필은 `main`(실전 주계좌)입니다. 모의투자로 연습하려면 `--profile paper` 를 붙이거나
+`KIS_PROFILE=paper` 로 기본값을 바꾸세요. 실전이 기본이어도 **주문은 안전합니다** — 주문은
+`--execute` 가 없으면 전송되지 않고(dry-run), 실전 전송은 계좌 끝 4자리 확인까지 요구합니다.
 
 ## 파일 위치 (Linux · macOS · Windows 공통)
 

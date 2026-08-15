@@ -2,11 +2,30 @@
 
 ## 설치
 
+먼저 [uv](https://docs.astral.sh/uv/)(파이썬 패키지 도구)가 필요합니다. 없으면:
+`curl -LsSf https://astral.sh/uv/install.sh | sh` (Windows는 uv 문서의 PowerShell 명령).
+
+**명령줄 `kis` 를 어디서나 쓰려면** — 리포 폴더에서 한 번:
+
 ```bash
-uv pip install -e .  # 아직 PyPI 미배포 (0.0.0)
+uv tool install .            # `kis` 명령이 ~/.local/bin 에 설치됨. 코드 갱신 시 --reinstall
+kis --version                # kis 0.0.0 나오면 성공
 ```
 
-## 세션 만들기
+`~/.local/bin` 이 PATH에 없다는 경고가 나오면 `uv tool update-shell` 후 새 터미널을 여세요.
+
+**설치 없이 리포 폴더에서만** 쓰려면 `uv run kis …` 또는 `.venv/bin/kis …` 도 됩니다.
+**파이썬에서 import** 하려면 `uv pip install -e .` (아직 PyPI 미배포, 0.0.0).
+
+다음으로 앱키·계좌를 설정합니다 → [설정과 자격증명](configuration.md)의 "처음 설정하기"를
+그대로 따라 하세요(초보자용 단계별). 설정이 끝나면:
+
+```bash
+kis account balance          # 실전 주계좌 잔고(기본 프로필 main)
+kis stock quote 005930       # 삼성전자 현재가
+```
+
+## 세션 만들기 (파이썬)
 
 KIS 개발자센터에서 발급한 **앱키·앱시크릿**과 **계좌번호**가 필요합니다.
 
@@ -32,8 +51,8 @@ kis = KISClient(
 ```python
 from kis_trader import KISClient, KISConfig
 
+kis = KISClient.from_config(KISConfig(profile="main"))    # 실전 주계좌(기본)
 kis = KISClient.from_config(KISConfig(profile="paper"))   # 모의투자
-kis = KISClient.from_config(KISConfig(profile="main"))    # 실전 주계좌
 ```
 
 프로필·파일 위치(Linux·macOS·Windows 공통)·해석 순서는 [설정과 자격증명](configuration.md)을
