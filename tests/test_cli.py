@@ -102,11 +102,11 @@ def test_parser_routes_stock_quote_to_handler():
     assert kis.log == [("quote", "005930")]
 
 
-def test_parser_defaults_to_paper_and_table():
+def test_parser_defaults_to_main_and_table():
     from kis_trader.cli.context import resolve_environment
     args = _args(["search", "삼성전자"])
-    assert args.profile == "paper"
-    assert resolve_environment(args) == "paper"  # 기본 프로필이 모의 환경
+    assert args.profile == "main"                 # 기본 프로필 = 실전 주계좌
+    assert resolve_environment(args) == "real"    # main 은 실전 환경
     assert args.fmt == "table"
 
 
@@ -359,6 +359,29 @@ class _NamedRow:
     name: str
     tag: str
     _raw: dict
+
+
+@dataclass(frozen=True)
+class _Level:
+    price: int
+    quantity: int
+    _raw: dict
+
+
+@dataclass(frozen=True)
+class _Book:
+    symbol: str
+    bids: list
+    _raw: dict
+
+
+def test_render_table_expands_nested_record_list_as_subtable():
+    book = _Book("005930", [_Level(274000, 100, {}), _Level(273500, 50, {})], {})
+    out = render(book, fmt="table")
+    assert "bids" in out                              # 필드명이 머리로
+    assert "price" in out and "quantity" in out       # 하위 표 헤더
+    assert "274000" in out and "273500" in out        # 각 호가 행
+    assert "[{" not in out                            # JSON 블롭으로 접지 않음
 
 
 def test_display_width_counts_hangul_as_two_cells():

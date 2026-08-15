@@ -69,6 +69,19 @@ def _public_fields(obj: Any) -> list[str]:
     return [f.name for f in dataclasses.fields(obj) if not f.name.startswith("_")]
 
 
+def _is_record_list(value: Any) -> bool:
+    """비어있지 않은, dataclass/dict 레코드들의 리스트인가 -- 표 안에서 JSON 으로 접지 않고
+    들여쓴 하위 표로 펼칠 대상(예: 호가창의 bids/asks, 리포트의 종목/통화 행)."""
+    if not isinstance(value, (list, tuple)) or not value:
+        return False
+    first = value[0]
+    return isinstance(first, dict) or (dataclasses.is_dataclass(first) and not isinstance(first, type))
+
+
+def _indent(text: str, prefix: str = "  ") -> str:
+    return "\n".join(prefix + line for line in text.splitlines())
+
+
 def _display_width(text: str) -> int:
     """터미널 표시 폭 -- 한글·전각(CJK)은 한 글자가 두 칸을 차지한다. 열 정렬을 문자 수가 아니라
     실제 표시 폭으로 맞춰, 종목명 등 한글이 섞여도 어긋나지 않게 한다."""
@@ -101,13 +114,26 @@ def _render_table(value: Any, *, no_header: bool) -> str:
             lines.append("  ".join(_pad(cell, widths[i]) for i, cell in enumerate(record)).rstrip())
         return "\n".join(lines)
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
-        columns = _public_fields(value)
-        width = max((_display_width(col) for col in columns), default=0)
-        return "\n".join(f"{_pad(col, width)}  {_cell(getattr(value, col))}" for col in columns)
+        return _render_fields(
+            [(col, getattr(value, col)) for col in _public_fields(value)], no_header=no_header)
     if isinstance(value, dict):
-        width = max((_display_width(str(key)) for key in value), default=0)
-        return "\n".join(f"{_pad(str(key), width)}  {_cell(val)}" for key, val in value.items())
+        return _render_fields(list(value.items()), no_header=no_header)
     return _cell(value)
+
+
+def _render_fields(items: list[tuple[Any, Any]], *, no_header: bool) -> str:
+    """단일 객체의 (이름, 값) 쌍들을 key/value 2열로. 값이 레코드 리스트면 JSON 으로 접지 않고
+    이름을 머리로 두고 들여쓴 하위 표로 펼친다(중첩 표)."""
+    scalar_keys = [str(key) for key, val in items if not _is_record_list(val)]
+    width = max((_display_width(key) for key in scalar_keys), default=0)
+    lines = []
+    for key, val in items:
+        if _is_record_list(val):
+            lines.append(str(key))
+            lines.append(_indent(_render_table(list(val), no_header=no_header)))
+        else:
+            lines.append(f"{_pad(str(key), width)}  {_cell(val)}")
+    return "\n".join(lines)
 
 
 def render(
