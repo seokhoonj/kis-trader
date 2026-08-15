@@ -11,14 +11,18 @@ import os
 import sys
 from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
-from typing import Any, get_args
+from typing import TYPE_CHECKING, Any, get_args
 
 from .. import Direction, SearchMarket
+from ..config import Profile
 from ..errors import KISError
 from .commands import account, market, order, stock
-from .context import account_suffix, build_client, resolve_account
+from .context import account_suffix, build_client
 from .errors import CliAborted, CliConfigError, Translated, translate
 from .output import render
+
+if TYPE_CHECKING:
+    from ..client import KISClient
 
 
 def _distribution_version() -> str:
@@ -36,7 +40,7 @@ def _add_venue(sub: argparse.ArgumentParser) -> None:
 
 def _add_order_gate(sub: argparse.ArgumentParser) -> None:
     sub.add_argument("--execute", choices=["paper", "real"], default=None,
-                     help="전송 권한 겸 환경 선언(세션 --env 와 일치해야 함). 없으면 dry-run")
+                     help="전송 권한 겸 환경 선언(프로필 환경과 일치해야 함). 없으면 dry-run")
     sub.add_argument("--yes", action="store_true", help="비대화형 전송 확인(대화형이면 프롬프트)")
     sub.add_argument("--confirm-account", dest="confirm_account", default=None,
                      help="비대화형 real 주문: 계좌 끝 4자리")
@@ -47,9 +51,9 @@ def _common_flags() -> argparse.ArgumentParser:
     주지 않으면 최상위 파서가 정한 값을 덮어쓰지 않는다 -- 그래서 ``--format`` 등을 하위 명령
     앞·뒤 어디에 놓아도 동작한다."""
     common = argparse.ArgumentParser(add_help=False)
-    common.add_argument("--env", choices=["paper", "real"], default=argparse.SUPPRESS,
-                        help="세션 환경(기본 paper; KIS_ENVIRONMENT 로 변경)")
-    common.add_argument("--account", default=argparse.SUPPRESS, help="계좌번호(생략 시 KIS_ACCOUNT)")
+    common.add_argument("--profile", choices=list(get_args(Profile)), default=argparse.SUPPRESS,
+                        help="자격증명 프로필(기본 paper; KIS_PROFILE 로 변경). 환경도 프로필이 정한다")
+    common.add_argument("--account", default=argparse.SUPPRESS, help="계좌번호(생략 시 프로필 계좌)")
     common.add_argument("--format", dest="fmt", choices=["table", "json", "jsonl"],
                         default=argparse.SUPPRESS, help="출력 형식(기본 table)")
     common.add_argument("--no-header", dest="no_header", action="store_true",
@@ -66,10 +70,10 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--version", action="version", version=f"kis {_distribution_version()}")
     # 최상위는 실제 기본값을 직접 가진다. 하위 명령은 common(SUPPRESS)이라, 미지정 시 이 값을
     # 덮어쓰지 않고 그대로 유지한다 -- 그래서 전역 플래그를 하위 명령 앞뒤 어디에 놓아도 된다.
-    parser.add_argument("--env", choices=["paper", "real"],
-                        default=os.environ.get("KIS_ENVIRONMENT", "paper"),
-                        help="세션 환경(기본 paper; KIS_ENVIRONMENT 로 변경)")
-    parser.add_argument("--account", default=None, help="계좌번호(생략 시 KIS_ACCOUNT)")
+    parser.add_argument("--profile", choices=list(get_args(Profile)),
+                        default=os.environ.get("KIS_PROFILE", "paper"),
+                        help="자격증명 프로필(기본 paper; KIS_PROFILE 로 변경). 환경도 프로필이 정한다")
+    parser.add_argument("--account", default=None, help="계좌번호(생략 시 프로필 계좌)")
     parser.add_argument("--format", dest="fmt", choices=["table", "json", "jsonl"], default="table",
                         help="출력 형식(기본 table)")
     parser.add_argument("--no-header", dest="no_header", action="store_true", help="표 머리글 생략")
@@ -152,8 +156,10 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _emit(result: Any, args: argparse.Namespace) -> None:
-    meta = {"environment": args.env, "account_suffix": account_suffix(resolve_account(args))}
+def _emit(result: Any, args: argparse.Namespace, kis: KISClient) -> None:
+    # 환경·계좌는 세션(kis)이 생성 시 이미 해석한 값을 재사용한다(자격증명 재조회 없음).
+    meta = {"environment": kis.environment,
+            "account_suffix": account_suffix(kis.account)}
     print(render(result, fmt=args.fmt, include_raw=args.include_raw,
                  no_header=args.no_header, meta=meta))
 
@@ -183,5 +189,5 @@ def main(argv: Sequence[str] | None = None) -> int:
         translated = translate(exc)
         _emit_error(translated, args)
         return translated.exit_code
-    _emit(result, args)
+    _emit(result, args, kis)
     return 0

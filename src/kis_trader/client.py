@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, TypedDict, Unpack
 
 from .domestic._engine import orders as orders_engine
 from .domestic._engine import reserved_orders as reserved_orders_api
@@ -46,10 +46,27 @@ from .store import OrderStore
 if TYPE_CHECKING:
     from ._literals import Numeric
     from ._internal._masters import InstrumentRecord
+    from .config import KISConfig
     from .realtime.client import RealtimeClient
     from .report import ExecutionReport
     from .risk import RiskLimits
     from .transport import Environment, Transport
+
+
+class _ForwardedKwargs(TypedDict, total=False):
+    """:meth:`KISClient.from_config` 가 :meth:`KISClient.__init__` 로 그대로 넘기는 인자들 --
+    자격증명/환경/토큰캐시(프로필이 소유)를 뺀 나머지. 새 __init__ 옵션을 추가하면 여기도 더한다."""
+
+    transport: Transport | None
+    throttle: bool
+    requests_per_second: float | None
+    store: OrderStore | None
+    orderable: bool
+    allow_credit: bool
+    risk: RiskLimits | None
+    master_index: MasterIndex | None
+    master_fetch: Fetch | None
+    domestic_index: DomesticListingIndex | None
 
 
 class OrdersNamespace:
@@ -105,6 +122,7 @@ class KISClient:
         account: str | None = None,
         environment: Environment = "real",
         transport: Transport | None = None,
+        token_cache_dir: str | None = None,
         throttle: bool = True,
         requests_per_second: float | None = None,
         store: OrderStore | None = None,
@@ -137,6 +155,10 @@ class KISClient:
         해외 심볼 조회(:meth:`instrument`)는 KIS 종목 마스터로 심볼->거래소를 찾는다. ``master_index``
         를 주면 그 인덱스를 쓰고(테스트/고급), 없으면 첫 조회 때 마스터를 받아 캐시한다. ``master_fetch``
         로 다운로더를 바꿀 수 있다(기본은 KIS 배포 서버).
+
+        ``token_cache_dir`` 로 OAuth 토큰 캐시 디렉터리를 바꾼다(기본은 XDG
+        ``~/.cache/kis-trader/tokens``). 보통 직접 주지 않고 :meth:`from_config` 가 ``KISConfig``
+        의 경로를 전달한다.
         """
         self._app_key = app_key
         self._app_secret = app_secret
@@ -167,6 +189,7 @@ class KISClient:
                     app_key=app_key,
                     app_secret=app_secret,
                     environment=environment,
+                    cache_dir=token_cache_dir,
                 ),
                 rate_limiter=rate_limiter,
             )
@@ -199,6 +222,36 @@ class KISClient:
         self.pension = PensionNamespace(self)
         self.orders = OrdersNamespace(self)
 
+    @classmethod
+    def from_config(
+        cls, config: KISConfig, *, account: str | None = None,
+        **kwargs: Unpack[_ForwardedKwargs],
+    ) -> KISClient:
+        """:class:`~kis_trader.config.KISConfig` 로 세션을 연다 -- 앱키/시크릿/계좌/환경을 해석해
+        :meth:`__init__` 에 넘긴다(명시 인자로 직접 여는 것의 편의 경로).
+
+        환경(실전/모의)과 앱키/시크릿은 프로필이 정하므로 ``kwargs`` 로 다시 줄 수 없다(모호함
+        방지, 준 경우 :class:`~kis_trader.errors.KISUsageError`). ``account`` 를 명시하면 프로필이
+        해석한 계좌 대신 그것을 쓴다(같은 앱키의 다른 하위계좌). ``config`` 의 ``config_dir_override``
+        는 토큰 캐시 경로로도 전달된다. 나머지 ``kwargs``(``store``/``orderable``/``risk`` 등,
+        :class:`_ForwardedKwargs`)는 :meth:`__init__` 로 그대로 전달된다.
+        """
+        # 정적 타입에선 _ForwardedKwargs 가 이미 막지만, 동적 **dict 전개로도 못 새게 런타임에서도 막는다.
+        reserved = {"app_key", "app_secret", "environment", "token_cache_dir"} & kwargs.keys()
+        if reserved:
+            raise KISUsageError(
+                f"이 인자들은 KISConfig(프로필)이 정한다 -- from_config 에 직접 줄 수 없다: "
+                f"{', '.join(sorted(reserved))}"
+            )
+        return cls(
+            app_key=config.app_key(),
+            app_secret=config.app_secret(),
+            account=account if account is not None else config.account(),
+            environment=config.environment,
+            token_cache_dir=str(config.cache_dir()),
+            **kwargs,
+        )
+
     @property
     def transport(self) -> Transport:
         """저수준 전송(내부 조회 계층이 사용)."""
@@ -208,6 +261,14 @@ class KISClient:
     def environment(self) -> Environment:
         """실전(real) / 모의(paper). 계좌·주문 TR 선택에 쓰인다."""
         return self._environment
+
+    @property
+    def account(self) -> str | None:
+        """세션 기본 계좌번호 ``CANO-ACNT_PRDT_CD`` (계좌 없이 열었으면 ``None``). 생성 시 한 번
+        해석된 값이라, 컨슈머(CLI 등)가 자격증명을 다시 읽지 않고 이 값을 재사용한다."""
+        if self._cano is None:
+            return None
+        return f"{self._cano}-{self._product_code}"
 
     def instrument(self, symbol: str, *, exchange: str | None = None) -> InstrumentRecord:
         """해외 심볼을 KIS 종목 마스터로 조회한다 -- 거래소코드/통화/종목유형/이름을 돌려준다.

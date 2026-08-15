@@ -1,6 +1,7 @@
 """CLI(``kis``) -- 인자 배선, 출력 렌더링, 주문 안전 게이트, 오류 번역."""
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass
 from decimal import Decimal
 
@@ -23,6 +24,19 @@ from kis_trader.errors import (
     OrderTimeoutError,
     PreTradeRiskError,
 )
+
+
+@pytest.fixture(autouse=True)
+def _isolate_credentials(tmp_path, monkeypatch):
+    """CLI 테스트를 자격증명 해석에서 격리한다. 실 사용자의 ``~/.config/kis-trader`` 를 읽지 않도록
+    XDG 경로를 빈 임시 디렉터리로 돌리고, 상속된 ``KIS_*`` 환경변수를 지운다 -- 각 테스트가 필요한
+    자격증명만 명시적으로 설정하게 한다(hermetic + 실 자격증명 미접촉)."""
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.delenv("KIS_PROFILE", raising=False)
+    for var in [name for name in os.environ if name.startswith("KIS_")]:
+        monkeypatch.delenv(var, raising=False)
+
 
 # --- 스텁 클라이언트: 네트워크 없이 어떤 공개 메서드가 불렸는지만 기록 --------------
 
@@ -67,8 +81,10 @@ class _Orders:
 
 
 class StubKis:
-    def __init__(self):
+    def __init__(self, account=None, environment="paper"):
         self.log: list = []
+        self.account = account        # 세션이 해석한 계좌(주문 게이트가 kis.account 로 읽음)
+        self.environment = environment
         self.domestic = _Domestic(self.log)
         self.orders = _Orders(self.log)
 
@@ -87,8 +103,10 @@ def test_parser_routes_stock_quote_to_handler():
 
 
 def test_parser_defaults_to_paper_and_table():
+    from kis_trader.cli.context import resolve_environment
     args = _args(["search", "삼성전자"])
-    assert args.env == "paper"
+    assert args.profile == "paper"
+    assert resolve_environment(args) == "paper"  # 기본 프로필이 모의 환경
     assert args.fmt == "table"
 
 
@@ -147,21 +165,21 @@ def test_order_dry_run_shows_ticket_and_sends_nothing():
 
 
 def test_order_execute_environment_mismatch_is_rejected():
-    args = _args(["--env", "paper", "order", "buy", "005930", "10",
+    args = _args(["--profile", "paper", "order", "buy", "005930", "10",
                   "--limit-price", "70000", "--execute", "real"])
     with pytest.raises(CliConfigError):
         order.cmd_buy(StubKis(), args, is_tty=False)
 
 
 def test_order_noninteractive_requires_yes():
-    args = _args(["--env", "paper", "order", "buy", "005930", "10",
+    args = _args(["--profile", "paper", "order", "buy", "005930", "10",
                   "--limit-price", "70000", "--execute", "paper"])
     with pytest.raises(CliConfigError):
         order.cmd_buy(StubKis(), args, is_tty=False)
 
 
 def test_order_paper_noninteractive_with_yes_sends_once():
-    args = _args(["--env", "paper", "order", "buy", "005930", "10",
+    args = _args(["--profile", "paper", "order", "buy", "005930", "10",
                   "--limit-price", "70000", "--execute", "paper", "--yes"])
     kis = StubKis()
     assert order.cmd_buy(kis, args, is_tty=False) == "REPORT"
@@ -169,18 +187,18 @@ def test_order_paper_noninteractive_with_yes_sends_once():
 
 
 def test_order_real_noninteractive_needs_matching_confirm_account():
-    base = ["--env", "real", "--account", "12345678-01", "order", "buy",
+    base = ["--profile", "main", "order", "buy",
             "005930", "10", "--limit-price", "70000", "--execute", "real", "--yes"]
-    kis = StubKis()
+    kis = StubKis(account="12345678-01", environment="real")
     with pytest.raises(CliConfigError):
         order.cmd_buy(kis, _args(base + ["--confirm-account", "0000"]), is_tty=False)
     assert order.cmd_buy(kis, _args(base + ["--confirm-account", "7801"]), is_tty=False) == "REPORT"
 
 
 def test_order_interactive_real_confirms_by_account_suffix():
-    args = _args(["--env", "real", "--account", "12345678-01", "order", "buy",
+    args = _args(["--profile", "main", "order", "buy",
                   "005930", "10", "--limit-price", "70000", "--execute", "real"])
-    kis = StubKis()
+    kis = StubKis(account="12345678-01", environment="real")
     with pytest.raises(CliAborted):
         order.cmd_buy(kis, args, is_tty=True, prompt=lambda _p: "0000")
     assert order.cmd_buy(kis, args, is_tty=True, prompt=lambda _p: "7801") == "REPORT"
@@ -188,7 +206,7 @@ def test_order_interactive_real_confirms_by_account_suffix():
 
 def test_order_real_fails_closed_when_account_unresolved():
     # 계좌 미해석(suffix "") 이면 빈 확인이 통과해선 안 된다 -- 실주문 우회 회귀 방지.
-    noninteractive = _args(["--env", "real", "order", "buy", "005930", "10",
+    noninteractive = _args(["--profile", "main", "order", "buy", "005930", "10",
                             "--limit-price", "70000", "--execute", "real", "--yes"])
     kis = StubKis()
     with pytest.raises(CliConfigError):
@@ -199,7 +217,7 @@ def test_order_real_fails_closed_when_account_unresolved():
 
 
 def test_order_paper_interactive_rejects_non_affirmative():
-    args = _args(["--env", "paper", "order", "buy", "005930", "10",
+    args = _args(["--profile", "paper", "order", "buy", "005930", "10",
                   "--limit-price", "70000", "--execute", "paper"])
     kis = StubKis()
     with pytest.raises(CliAborted):
@@ -209,7 +227,7 @@ def test_order_paper_interactive_rejects_non_affirmative():
 
 
 def test_order_modify_dry_run_then_executes_once():
-    modify_base_argv = ["--env", "paper", "order", "modify", "abc-123", "--limit-price", "70500"]
+    modify_base_argv = ["--profile", "paper", "order", "modify", "abc-123", "--limit-price", "70500"]
     kis = StubKis()
     plan = order.cmd_modify(kis, _args(modify_base_argv), is_tty=False)
     assert "note" in plan and kis.log == []
@@ -219,7 +237,7 @@ def test_order_modify_dry_run_then_executes_once():
 
 
 def test_order_cancel_dry_run_then_executes_once():
-    cancel_base_argv = ["--env", "paper", "order", "cancel", "abc-123"]
+    cancel_base_argv = ["--profile", "paper", "order", "cancel", "abc-123"]
     kis = StubKis()
     plan = order.cmd_cancel(kis, _args(cancel_base_argv), is_tty=False)
     assert "note" in plan and kis.log == []
@@ -291,10 +309,12 @@ def test_main_order_timeout_exits_seven_with_reconcile(monkeypatch, capsys):
             return _TimeoutHandle()
 
     class _Kis:
+        account = None
+        environment = "paper"
         domestic = _Domestic()
 
     monkeypatch.setattr(cli_main, "build_client", lambda args: _Kis())
-    code = cli_main.main(["--env", "paper", "order", "buy", "005930", "10",
+    code = cli_main.main(["--profile", "paper", "order", "buy", "005930", "10",
                           "--limit-price", "70000", "--execute", "paper", "--yes", "--format", "json"])
     assert code == 7  # 결과 불명 -> reconcile
     err = capsys.readouterr().err
@@ -332,3 +352,22 @@ def test_table_aligns_columns_across_cjk_and_ascii_rows():
     lines = render(rows, fmt="table", no_header=True).splitlines()
     # 한글/ASCII 폭이 섞여도 모든 행의 표시폭이 같으면 tag 열이 세로로 맞은 것
     assert len({_display_width(line) for line in lines}) == 1
+
+
+# --- build_client: 프로필 -> 세션(계좌·환경 1회 해석) --------------------------
+
+def test_build_client_resolves_account_and_environment_from_profile(monkeypatch):
+    from kis_trader.cli.context import build_client
+    monkeypatch.setenv("KIS_PAPER_APP_KEY", "k")
+    monkeypatch.setenv("KIS_PAPER_APP_SECRET", "s")
+    monkeypatch.setenv("KIS_PAPER_CANO", "12345678")
+    monkeypatch.setenv("KIS_PAPER_ACNT_PRDT_CD", "01")
+    kis = build_client(_args(["--profile", "paper", "stock", "quote", "005930"]))
+    assert kis.account == "12345678-01"
+    assert kis.environment == "paper"
+
+
+def test_build_client_missing_credentials_raises_config_error():
+    from kis_trader.cli.context import build_client
+    with pytest.raises(CliConfigError):  # KIS_* 없음(격리 픽스처) -> exit 3
+        build_client(_args(["--profile", "paper", "stock", "quote", "005930"]))

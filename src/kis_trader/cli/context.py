@@ -1,26 +1,28 @@
-"""세션 조립 -- 환경변수와 플래그를 :class:`~kis_trader.client.KISClient` 로 해석.
+"""세션 조립 -- 프로필과 플래그를 :class:`~kis_trader.client.KISClient` 로 해석.
 
-자격증명은 오직 환경변수(``KIS_APP_KEY``/``KIS_APP_SECRET``/``KIS_ACCOUNT``)에서 읽는다.
-플래그로 받지 않는 이유: 셸 히스토리·``ps`` 출력도 노출 경로이기 때문이다. 값은 어디에도
-echo 하지 않는다(누락 여부만 확인).
+자격증명은 :class:`~kis_trader.config.KISConfig` 가 프로필별로 해석한다(환경변수 ->
+``credentials.json`` -> ``config.toml``). 자격증명을 플래그로 받지 않는 이유: 셸 히스토리·``ps``
+출력도 노출 경로이기 때문이다. 값은 어디에도 echo 하지 않는다(누락 여부만 확인).
 """
 from __future__ import annotations
 
-import os
 from argparse import Namespace
 from typing import TYPE_CHECKING
 
 from ..client import KISClient
+from ..config import KISConfig, environment_for_profile
+from ..errors import KISUsageError
 from .errors import CliConfigError
 
 if TYPE_CHECKING:
     from ..domestic.stock import DomesticStock
     from ..overseas.stock import OverseasStock
+    from ..transport import Environment
 
 
-def resolve_account(args: Namespace) -> str | None:
-    """계좌번호 결정 -- ``--account`` 플래그 우선, 없으면 ``KIS_ACCOUNT``."""
-    return getattr(args, "account", None) or os.environ.get("KIS_ACCOUNT") or None
+def resolve_environment(args: Namespace) -> "Environment":
+    """접속 환경(실전/모의) -- ``--profile`` 이 정한다. 주문 게이트·출력 메타가 이걸로 판정한다."""
+    return environment_for_profile(args.profile)
 
 
 def account_suffix(account: str | None) -> str:
@@ -40,16 +42,14 @@ def resolve_stock(kis: KISClient, args: Namespace) -> DomesticStock | OverseasSt
 
 
 def build_client(args: Namespace) -> KISClient:
-    """플래그·환경변수로 세션을 연다. 자격증명이 없으면 :class:`CliConfigError`(종료 코드 3)."""
-    app_key = os.environ.get("KIS_APP_KEY")
-    app_secret = os.environ.get("KIS_APP_SECRET")
-    if not app_key or not app_secret:
-        raise CliConfigError(
-            "자격증명이 없습니다 -- KIS_APP_KEY / KIS_APP_SECRET 환경변수를 설정하세요."
-        )
-    return KISClient(
-        app_key=app_key,
-        app_secret=app_secret,
-        account=resolve_account(args),
-        environment=args.env,
-    )
+    """프로필로 세션을 연다. 자격증명이 없거나 형상 오류면 :class:`CliConfigError`(종료 코드 3).
+
+    ``--profile`` 이 어느 자격증명 묶음과 환경(실전/모의)을 쓸지 정한다. ``--account`` 플래그가
+    있으면 프로필이 해석한 계좌 대신 그것을 쓴다."""
+    config = KISConfig(profile=args.profile)
+    account = getattr(args, "account", None) or None
+    try:
+        return KISClient.from_config(config, account=account)
+    except KISUsageError as err:
+        # 자격증명 누락/형상 오류(변수 이름만 담김) -> CLI 설정 오류로 번역(값은 노출 안 됨).
+        raise CliConfigError(str(err)) from err
