@@ -11,7 +11,7 @@ import json
 from datetime import date, datetime, time
 from decimal import Decimal
 from enum import Enum
-from typing import Any
+from typing import Any, Literal
 
 
 def to_jsonable(value: Any, *, include_raw: bool = False) -> Any:
@@ -99,8 +99,8 @@ def _render_table(value: Any, *, no_header: bool) -> str:
 
 
 def render(
-    value: Any, *, fmt: str = "table", include_raw: bool = False, no_header: bool = False,
-    meta: dict[str, Any] | None = None,
+    value: Any, *, fmt: Literal["table", "json", "jsonl"] = "table", include_raw: bool = False,
+    no_header: bool = False, meta: dict[str, Any] | None = None,
 ) -> str:
     """결과 객체를 최종 문자열로. ``fmt`` = ``table``/``json``/``jsonl``."""
     if fmt == "json":

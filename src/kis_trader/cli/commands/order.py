@@ -15,19 +15,20 @@ from __future__ import annotations
 import sys
 from argparse import Namespace
 from collections.abc import Callable
-from typing import Any
+from typing import TYPE_CHECKING, Any, Literal
 
-from ..context import account_suffix, resolve_account
+from ..context import account_suffix, resolve_account, resolve_stock
 from ..errors import CliAborted, CliConfigError
 
+if TYPE_CHECKING:
+    from ...client import KISClient
 
-def _order_handle(kis: Any, args: Namespace) -> Any:
-    if args.venue == "overseas":
-        return kis.overseas.stock(args.identifier, exchange=args.exchange)
-    return kis.domestic.stock(args.identifier)
+Side = Literal["buy", "sell"]
 
 
-def _ticket(args: Namespace, *, side: str, account: str | None) -> dict[str, Any]:
+def _ticket(args: Namespace, *, side: Side, account: str | None) -> dict[str, Any]:
+    # 입력을 그대로 되읽는 티켓. 시장가/지정가 같은 주문유형 분류는 CLI 가 만들지 않는다
+    # (limit_price 유무는 사용자가 이미 준 값이라 그대로 노출).
     return {
         "environment": args.env,
         "account_suffix": account_suffix(account),
@@ -36,7 +37,6 @@ def _ticket(args: Namespace, *, side: str, account: str | None) -> dict[str, Any
         "side": side,
         "quantity": args.quantity,
         "limit_price": args.limit_price,
-        "order_type": "market" if args.limit_price is None else "limit",
     }
 
 
@@ -48,6 +48,13 @@ def _authorize(args: Namespace, *, account: str | None, is_tty: bool, prompt: Ca
             "(두 값이 같아야 전송합니다)."
         )
     suffix = account_suffix(account)
+    # fail-closed: 확인할 계좌가 없으면(빈 suffix) real 주문을 막는다. 빈 입력이 빈 suffix 와
+    # 우연히 같아져 확인을 통과하는 우회를 원천 차단한다.
+    if args.env == "real" and not suffix:
+        raise CliConfigError(
+            "실전 주문에는 계좌번호가 필요합니다(--account 또는 KIS_ACCOUNT). "
+            "확인할 계좌가 없어 전송하지 않았습니다."
+        )
     if is_tty:
         if args.env == "real":
             typed = prompt("실전 주문입니다. 확인하려면 계좌 끝 4자리를 입력하세요: ")
@@ -70,32 +77,32 @@ _DRY_RUN_NOTE = (
 )
 
 
-def _place(kis: Any, args: Namespace, *, side: str, is_tty: bool | None, prompt: Callable[[str], str]) -> Any:
+def _place(kis: KISClient, args: Namespace, *, side: Side, is_tty: bool | None, prompt: Callable[[str], str]) -> Any:
     account = resolve_account(args)
     if args.execute is None:
         return {**_ticket(args, side=side, account=account), "note": _DRY_RUN_NOTE}
     if is_tty is None:
         is_tty = sys.stdin.isatty()
     _authorize(args, account=account, is_tty=is_tty, prompt=prompt)
-    handle = _order_handle(kis, args)
+    handle = resolve_stock(kis, args)
     place = handle.buy if side == "buy" else handle.sell
     return place(quantity=args.quantity, limit_price=args.limit_price)
 
 
-def cmd_buy(kis: Any, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
+def cmd_buy(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
     return _place(kis, args, side="buy", is_tty=is_tty, prompt=prompt)
 
 
-def cmd_sell(kis: Any, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
+def cmd_sell(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
     return _place(kis, args, side="sell", is_tty=is_tty, prompt=prompt)
 
 
-def cmd_reconcile(kis: Any, args: Namespace) -> Any:
+def cmd_reconcile(kis: KISClient, args: Namespace) -> Any:
     """접수 여부가 불확실한 주문의 실제 상태를 확정한다. 재전송하지 않는다."""
     return kis.orders.reconcile(args.client_order_id)
 
 
-def cmd_modify(kis: Any, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
+def cmd_modify(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
     if args.execute is None:
         return {
             "client_order_id": args.client_order_id,
@@ -109,7 +116,7 @@ def cmd_modify(kis: Any, args: Namespace, *, is_tty: bool | None = None, prompt:
     return kis.orders.modify(args.client_order_id, limit_price=args.limit_price, quantity=args.quantity)
 
 
-def cmd_cancel(kis: Any, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
+def cmd_cancel(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
     if args.execute is None:
         return {"client_order_id": args.client_order_id, "quantity": args.quantity, "note": _DRY_RUN_NOTE}
     if is_tty is None:

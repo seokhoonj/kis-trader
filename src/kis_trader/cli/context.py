@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import os
 from argparse import Namespace
+from typing import Any
 
 from ..client import KISClient
 from .errors import CliConfigError
@@ -24,6 +25,14 @@ def account_suffix(account: str | None) -> str:
         return ""
     digits = account.replace("-", "")
     return digits[-4:]
+
+
+def resolve_stock(kis: KISClient, args: Namespace) -> Any:
+    """``--venue`` 로 국내/해외 종목 핸들을 만든다(해외는 ``--exchange``, 생략 시 자동 판별).
+    반환은 DomesticStock 또는 OverseasStock -- 둘의 공통 시세·주문 메서드를 CLI 가 쓴다."""
+    if args.venue == "overseas":
+        return kis.overseas.stock(args.identifier, exchange=args.exchange)
+    return kis.domestic.stock(args.identifier)
 
 
 def build_client(args: Namespace) -> KISClient:

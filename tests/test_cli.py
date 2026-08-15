@@ -16,6 +16,8 @@ from kis_trader.errors import (
     AccountNotOrderableError,
     KISAuthError,
     KISError,
+    KISRateLimitError,
+    KISUsageError,
     OrderRejectedError,
     OrderTimeoutError,
     PreTradeRiskError,
@@ -56,6 +58,9 @@ class _Orders:
 
     def reconcile(self, client_order_id):
         self._log.append(("reconcile", client_order_id))
+
+    def modify(self, client_order_id, *, limit_price, quantity=None):
+        self._log.append(("modify", client_order_id, limit_price, quantity)); return "REPORT"
 
     def cancel(self, client_order_id, *, quantity=None):
         self._log.append(("cancel", client_order_id, quantity)); return "REPORT"
@@ -136,7 +141,7 @@ def test_order_dry_run_shows_ticket_and_sends_nothing():
     kis = StubKis()
     result = order.cmd_buy(kis, args, is_tty=False)
     assert result["side"] == "buy"
-    assert result["order_type"] == "limit"
+    assert result["limit_price"] == "70000"
     assert "note" in result
     assert kis.log == []  # 전송 없음
 
@@ -181,6 +186,48 @@ def test_order_interactive_real_confirms_by_account_suffix():
     assert order.cmd_buy(kis, args, is_tty=True, prompt=lambda _p: "7801") == "REPORT"
 
 
+def test_order_real_fails_closed_when_account_unresolved():
+    # 계좌 미해석(suffix "") 이면 빈 확인이 통과해선 안 된다 -- 실주문 우회 회귀 방지.
+    noninteractive = _args(["--env", "real", "order", "buy", "005930", "10",
+                            "--limit-price", "70000", "--execute", "real", "--yes"])
+    kis = StubKis()
+    with pytest.raises(CliConfigError):
+        order.cmd_buy(kis, noninteractive, is_tty=False)  # --confirm-account 생략
+    with pytest.raises(CliConfigError):
+        order.cmd_buy(kis, noninteractive, is_tty=True, prompt=lambda _p: "")  # 빈 Enter
+    assert kis.log == []  # 어느 경로로도 전송 없음
+
+
+def test_order_paper_interactive_rejects_non_affirmative():
+    args = _args(["--env", "paper", "order", "buy", "005930", "10",
+                  "--limit-price", "70000", "--execute", "paper"])
+    kis = StubKis()
+    with pytest.raises(CliAborted):
+        order.cmd_buy(kis, args, is_tty=True, prompt=lambda _p: "")
+    assert order.cmd_buy(kis, args, is_tty=True, prompt=lambda _p: "y") == "REPORT"
+    assert kis.log == [("buy", "005930", 10, "70000")]
+
+
+def test_order_modify_dry_run_then_executes_once():
+    base = ["--env", "paper", "order", "modify", "abc-123", "--limit-price", "70500"]
+    kis = StubKis()
+    plan = order.cmd_modify(kis, _args(base), is_tty=False)
+    assert "note" in plan and kis.log == []
+    args = _args(base + ["--execute", "paper", "--yes"])
+    assert order.cmd_modify(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [("modify", "abc-123", "70500", None)]
+
+
+def test_order_cancel_dry_run_then_executes_once():
+    base = ["--env", "paper", "order", "cancel", "abc-123"]
+    kis = StubKis()
+    plan = order.cmd_cancel(kis, _args(base), is_tty=False)
+    assert "note" in plan and kis.log == []
+    args = _args(base + ["--execute", "paper", "--yes"])
+    assert order.cmd_cancel(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [("cancel", "abc-123", None)]
+
+
 def test_order_reconcile_never_resends():
     args = _args(["order", "reconcile", "abc-123"])
     kis = StubKis()
@@ -190,17 +237,27 @@ def test_order_reconcile_never_resends():
 
 # --- 오류 번역 --------------------------------------------------------------
 
-@pytest.mark.parametrize("exc, exit_code, outcome, reconcile", [
-    (OrderTimeoutError("timeout", client_order_id="abc-123"), 7, "unknown", True),
-    (OrderRejectedError("rejected"), 6, "rejected", False),
-    (PreTradeRiskError("risk"), 4, "not_sent", False),
-    (AccountNotOrderableError("irp"), 4, "not_sent", False),
-    (KISAuthError("bad key"), 3, "config", False),
-    (KISError("boom"), 5, "failed", False),
+@pytest.mark.parametrize("exc, exit_code, outcome, reconcile, retryable", [
+    (OrderTimeoutError("timeout", client_order_id="abc-123"), 7, "unknown", True, False),
+    (OrderRejectedError("rejected"), 6, "rejected", False, False),
+    (PreTradeRiskError("risk"), 4, "not_sent", False, False),
+    (AccountNotOrderableError("irp"), 4, "not_sent", False, False),
+    (KISUsageError("bad use"), 4, "not_sent", False, False),
+    (KISAuthError("bad key"), 3, "config", False, False),
+    (KISRateLimitError("slow down"), 5, "failed", False, True),
+    (KISError("boom"), 5, "failed", False, False),
+    (CliConfigError("no creds"), 3, "config", False, False),
+    (CliAborted("user said no"), 3, "not_sent", False, False),
 ])
-def test_translate_maps_exceptions_to_exit_codes(exc, exit_code, outcome, reconcile):
+def test_translate_maps_exceptions_to_exit_codes(exc, exit_code, outcome, reconcile, retryable):
     t = translate(exc)
-    assert (t.exit_code, t.outcome, t.reconcile_required) == (exit_code, outcome, reconcile)
+    assert (t.exit_code, t.outcome, t.reconcile_required, t.retryable) == (
+        exit_code, outcome, reconcile, retryable)
+
+
+def test_translate_reraises_unknown_exception():
+    with pytest.raises(ValueError):
+        translate(ValueError("not a KIS error"))
 
 
 # --- main() 종단 --------------------------------------------------------------

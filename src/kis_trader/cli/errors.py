@@ -10,6 +10,7 @@ CLI 는 도메인 조건을 **탐지하지 않고 번역만** 한다: 패키지 
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Literal
 
 from ..errors import (
     AccountNotOrderableError,
@@ -36,7 +37,7 @@ class Translated:
     """번역 결과 -- 종료 코드와 사용자에게 보일 안정 필드."""
 
     exit_code: int
-    outcome: str  # unknown | rejected | not_sent | failed | config
+    outcome: Literal["unknown", "rejected", "not_sent", "failed", "config"]
     retryable: bool
     reconcile_required: bool
     message: str

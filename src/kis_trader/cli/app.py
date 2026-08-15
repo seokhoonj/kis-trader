@@ -16,7 +16,7 @@ from typing import Any
 from ..errors import KISError
 from .commands import account, market, order, stock
 from .context import account_suffix, build_client, resolve_account
-from .errors import CliAborted, CliConfigError, translate
+from .errors import CliAborted, CliConfigError, Translated, translate
 from .output import render
 
 
@@ -157,7 +157,7 @@ def _emit(result: Any, args: argparse.Namespace) -> None:
                  no_header=args.no_header, meta=meta))
 
 
-def _emit_error(translated: Any, args: argparse.Namespace) -> None:
+def _emit_error(translated: Translated, args: argparse.Namespace) -> None:
     if args.fmt in ("json", "jsonl"):
         payload = {"error": {
             "outcome": translated.outcome, "message": translated.message,
