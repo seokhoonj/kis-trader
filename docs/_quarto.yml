@@ -42,9 +42,12 @@ book:
         - elw.md
         - derivatives.md
         - bonds.md
-    - part: "참고"
+    - part: "명령줄·에이전트"
       chapters:
         - cli.md
+        - skill.md
+    - part: "참고"
+      chapters:
         - realtime.md
         - limits.md
 
