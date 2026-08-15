@@ -54,7 +54,7 @@ def _common_flags() -> argparse.ArgumentParser:
     common.add_argument("--no-header", dest="no_header", action="store_true",
                         default=argparse.SUPPRESS, help="표 머리글 생략")
     common.add_argument("--include-raw", dest="include_raw", action="store_true",
-                        default=argparse.SUPPRESS, help="._raw 원본 포함(--format json 과 함께만)")
+                        default=argparse.SUPPRESS, help="._raw 원본 포함(--format json/jsonl 과 함께만)")
     return common
 
 
@@ -73,7 +73,7 @@ def build_parser() -> argparse.ArgumentParser:
                         help="출력 형식(기본 table)")
     parser.add_argument("--no-header", dest="no_header", action="store_true", help="표 머리글 생략")
     parser.add_argument("--include-raw", dest="include_raw", action="store_true",
-                        help="._raw 원본 포함(--format json 과 함께만)")
+                        help="._raw 원본 포함(--format json/jsonl 과 함께만)")
     groups = parser.add_subparsers(dest="group", required=True)
 
     def leaf(subparsers: Any, name: str, **kw: Any) -> argparse.ArgumentParser:

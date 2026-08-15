@@ -77,7 +77,7 @@ _DRY_RUN_NOTE = (
 )
 
 
-def _place(kis: KISClient, args: Namespace, *, side: Side, is_tty: bool | None, prompt: Callable[[str], str]) -> Any:
+def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_tty: bool | None, prompt: Callable[[str], str]) -> Any:
     account = resolve_account(args)
     if args.execute is None:
         return {**_ticket(args, side=side, account=account), "note": _DRY_RUN_NOTE}
@@ -90,11 +90,11 @@ def _place(kis: KISClient, args: Namespace, *, side: Side, is_tty: bool | None, 
 
 
 def cmd_buy(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
-    return _place(kis, args, side="buy", is_tty=is_tty, prompt=prompt)
+    return _preview_or_submit_order(kis, args, side="buy", is_tty=is_tty, prompt=prompt)
 
 
 def cmd_sell(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
-    return _place(kis, args, side="sell", is_tty=is_tty, prompt=prompt)
+    return _preview_or_submit_order(kis, args, side="sell", is_tty=is_tty, prompt=prompt)
 
 
 def cmd_reconcile(kis: KISClient, args: Namespace) -> Any:

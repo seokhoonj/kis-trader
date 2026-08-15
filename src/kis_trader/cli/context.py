@@ -8,10 +8,14 @@ from __future__ import annotations
 
 import os
 from argparse import Namespace
-from typing import Any
+from typing import TYPE_CHECKING
 
 from ..client import KISClient
 from .errors import CliConfigError
+
+if TYPE_CHECKING:
+    from ..domestic.stock import DomesticStock
+    from ..overseas.stock import OverseasStock
 
 
 def resolve_account(args: Namespace) -> str | None:
@@ -27,7 +31,7 @@ def account_suffix(account: str | None) -> str:
     return digits[-4:]
 
 
-def resolve_stock(kis: KISClient, args: Namespace) -> Any:
+def resolve_stock(kis: KISClient, args: Namespace) -> DomesticStock | OverseasStock:
     """``--venue`` 로 국내/해외 종목 핸들을 만든다(해외는 ``--exchange``, 생략 시 자동 판별).
     반환은 DomesticStock 또는 OverseasStock -- 둘의 공통 시세·주문 메서드를 CLI 가 쓴다."""
     if args.venue == "overseas":

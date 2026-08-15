@@ -18,6 +18,7 @@ from kis_trader.errors import (
     KISError,
     KISRateLimitError,
     KISUsageError,
+    OrderError,
     OrderRejectedError,
     OrderTimeoutError,
     PreTradeRiskError,
@@ -130,8 +131,8 @@ def test_render_json_includes_raw_only_when_asked():
 
 def test_to_jsonable_serializes_nested_list_of_dataclasses():
     rows = [_Row("005930", Decimal("1"), {}), _Row("000660", Decimal("2"), {})]
-    data = to_jsonable(rows)
-    assert data == [{"symbol": "005930", "price": "1"}, {"symbol": "000660", "price": "2"}]
+    jsonable_rows = to_jsonable(rows)
+    assert jsonable_rows == [{"symbol": "005930", "price": "1"}, {"symbol": "000660", "price": "2"}]
 
 
 # --- 주문 안전 게이트 -------------------------------------------------------
@@ -209,21 +210,21 @@ def test_order_paper_interactive_rejects_non_affirmative():
 
 
 def test_order_modify_dry_run_then_executes_once():
-    base = ["--env", "paper", "order", "modify", "abc-123", "--limit-price", "70500"]
+    modify_base_argv = ["--env", "paper", "order", "modify", "abc-123", "--limit-price", "70500"]
     kis = StubKis()
-    plan = order.cmd_modify(kis, _args(base), is_tty=False)
+    plan = order.cmd_modify(kis, _args(modify_base_argv), is_tty=False)
     assert "note" in plan and kis.log == []
-    args = _args(base + ["--execute", "paper", "--yes"])
+    args = _args(modify_base_argv + ["--execute", "paper", "--yes"])
     assert order.cmd_modify(kis, args, is_tty=False) == "REPORT"
     assert kis.log == [("modify", "abc-123", "70500", None)]
 
 
 def test_order_cancel_dry_run_then_executes_once():
-    base = ["--env", "paper", "order", "cancel", "abc-123"]
+    cancel_base_argv = ["--env", "paper", "order", "cancel", "abc-123"]
     kis = StubKis()
-    plan = order.cmd_cancel(kis, _args(base), is_tty=False)
+    plan = order.cmd_cancel(kis, _args(cancel_base_argv), is_tty=False)
     assert "note" in plan and kis.log == []
-    args = _args(base + ["--execute", "paper", "--yes"])
+    args = _args(cancel_base_argv + ["--execute", "paper", "--yes"])
     assert order.cmd_cancel(kis, args, is_tty=False) == "REPORT"
     assert kis.log == [("cancel", "abc-123", None)]
 
@@ -237,8 +238,9 @@ def test_order_reconcile_never_resends():
 
 # --- 오류 번역 --------------------------------------------------------------
 
-@pytest.mark.parametrize("exc, exit_code, outcome, reconcile, retryable", [
+@pytest.mark.parametrize("exc, exit_code, outcome, reconcile_required, retryable", [
     (OrderTimeoutError("timeout", client_order_id="abc-123"), 7, "unknown", True, False),
+    (OrderError("accepted but no ODNO"), 7, "unknown", True, False),  # 결과불명 -> reconcile, 재전송 금지
     (OrderRejectedError("rejected"), 6, "rejected", False, False),
     (PreTradeRiskError("risk"), 4, "not_sent", False, False),
     (AccountNotOrderableError("irp"), 4, "not_sent", False, False),
@@ -249,10 +251,12 @@ def test_order_reconcile_never_resends():
     (CliConfigError("no creds"), 3, "config", False, False),
     (CliAborted("user said no"), 3, "not_sent", False, False),
 ])
-def test_translate_maps_exceptions_to_exit_codes(exc, exit_code, outcome, reconcile, retryable):
-    t = translate(exc)
-    assert (t.exit_code, t.outcome, t.reconcile_required, t.retryable) == (
-        exit_code, outcome, reconcile, retryable)
+def test_translate_maps_known_exceptions_to_translated_fields(
+    exc, exit_code, outcome, reconcile_required, retryable
+):
+    translated = translate(exc)
+    assert (translated.exit_code, translated.outcome, translated.reconcile_required,
+            translated.retryable) == (exit_code, outcome, reconcile_required, retryable)
 
 
 def test_translate_reraises_unknown_exception():
@@ -276,3 +280,36 @@ def test_main_config_error_exits_three(monkeypatch, capsys):
     code = cli_main.main(["stock", "quote", "005930"])
     assert code == 3
     assert "오류" in capsys.readouterr().err
+
+
+def test_main_order_timeout_exits_seven_with_reconcile(monkeypatch, capsys):
+    class _TimeoutHandle:
+        def buy(self, *, quantity, limit_price):
+            raise OrderTimeoutError("전송 시간초과", client_order_id="cid-1")
+
+    class _Domestic:
+        def stock(self, code):
+            return _TimeoutHandle()
+
+    class _Kis:
+        domestic = _Domestic()
+
+    monkeypatch.setattr(cli_main, "build_client", lambda args: _Kis())
+    code = cli_main.main(["--env", "paper", "order", "buy", "005930", "10",
+                          "--limit-price", "70000", "--execute", "paper", "--yes", "--format", "json"])
+    assert code == 7  # 결과 불명 -> reconcile
+    err = capsys.readouterr().err
+    assert "reconcile" in err and "unknown" in err
+
+
+def test_render_table_covers_list_single_dict_and_empty():
+    rows = [_Row("005930", Decimal("71500"), {}), _Row("000660", Decimal("120000"), {})]
+    table = render(rows, fmt="table")
+    assert "symbol" in table and "005930" in table and "000660" in table
+    single = render(_Row("005930", Decimal("71500"), {}), fmt="table")
+    assert "symbol" in single and "005930" in single
+    plan = render({"symbol": "005930", "note": "dry-run"}, fmt="table")
+    assert "symbol" in plan and "note" in plan
+    assert render([], fmt="table") == "(빈 결과)"
+    no_header = render(rows, fmt="table", no_header=True)
+    assert "symbol" not in no_header.splitlines()[0]  # 머리글 없음
