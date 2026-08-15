@@ -43,6 +43,8 @@ s.sell(quantity=10, limit_price=71000)  # 지정가 매도
 ## 주문 종류
 
 ```python
+s.buy(quantity=10, limit_price=70000)                                # 지정가
+s.buy(quantity=10)                                                   # 시장가 (가격 생략)
 s.buy(quantity=10, division="immediate_limit")                       # 최유리 지정가 (상대편 최우선호가로)
 s.buy(quantity=10, division="priority_limit")                        # 최우선 지정가 (내 방향 최우선호가로)
 s.buy(quantity=10, limit_price=70000, division="conditional_limit")  # 조건부 지정가 (limit_price 필요)
@@ -50,16 +52,35 @@ s.buy(quantity=10, limit_price=70000, time_in_force="ioc")           # IOC (즉�
 s.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (전량아니면 취소)
 ```
 
-::: {.callout-note}
-## 주문 구분·조건이 뭔가
-- **지정가** — 원하는 가격 지정(`limit_price`).
-- **시장가** — 가격 생략, 지금 시세로 즉시 체결.
-- **최유리 지정가** — 주문 순간 **상대편 최우선 호가**로.
-- **최우선 지정가** — **내 방향 최우선 호가**로.
-- **조건부 지정가** — 장중엔 지정가, 미체결이면 장마감 동시호가에서 시장가로 전환.
-- **IOC** — 지금 체결되는 만큼만 체결하고 잔량 취소.
-- **FOK** — 전량 즉시 체결 안 되면 전량 취소.
-:::
+### 주문 구분·조건 한눈에
+
+**기본 종류** — `limit_price` 유무로 정해집니다.
+
+| 함수 사용 | 한글 | English | 설명 |
+|---|---|---|---|
+| `limit_price=70000` | 지정가 | Limit | 지정한 가격으로 |
+| `limit_price` 생략 | 시장가 | Market | 지금 시세로 즉시 (얕은 호가면 슬리피지 주의) |
+
+**`division=` (KRX 주문구분, 국내 현금 전용)** — CLI 는 `--division`.
+
+| 값 (`division=`) | 한글 | English | `limit_price` |
+|---|---|---|---|
+| `"conditional_limit"` | 조건부지정가 | Conditional limit (falls to market at close) | 필요 |
+| `"immediate_limit"` | 최유리지정가 | Best-opposite-quote limit | 주지 않음 (상대편 최우선호가) |
+| `"priority_limit"` | 최우선지정가 | Best-same-quote limit | 주지 않음 (내 방향 최우선호가) |
+
+**`time_in_force=` (체결·유효조건)** — 지정가/시장가/최유리와 조합.
+
+| 값 (`time_in_force=`) | 한글 | English | 설명 |
+|---|---|---|---|
+| `"day"` | 당일 | Day (default) | 당일 유효 (기본값) |
+| `"gtc"` | 취소전유효 | Good-til-canceled | 취소 전까지 유효 |
+| `"ioc"` | 즉시체결·잔량취소 | Immediate-or-cancel | 지금 체결되는 만큼만, 잔량 취소 |
+| `"fok"` | 전량체결·아니면취소 | Fill-or-kill | 전량 즉시 아니면 전량 취소 |
+
+최유리/최우선 지정가는 시장이 가격을 정하므로 `limit_price` 를 주면 오류입니다. 최유리 지정가는
+시장가의 슬리피지 없이 즉시 체결하려는 안전한 대안입니다(얕은 호가에서 시장가는 나쁜 가격까지
+쓸어담을 수 있습니다).
 
 ## 정정·취소·확인
 
