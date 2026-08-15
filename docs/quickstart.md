@@ -25,45 +25,47 @@ kis account balance          # 실전 주계좌 잔고(기본 프로필 main)
 kis stock quote 005930       # 삼성전자 현재가
 ```
 
+## 자격증명 저장 (한 번)
+
+`KISConfig` 에 앱키를 담아 `.save()` 하면 표준 위치(`~/.config/kis-trader/credentials.json`)에 안전하게
+기록됩니다(`aws configure` 와 같은 자리 -- 손으로 JSON 을 짤 필요 없습니다).
+
+```python
+from kis_trader import KISConfig
+
+KISConfig(profile="main", app_key="...", app_secret="...", account="12345678-01").save()  # 실전 주계좌
+KISConfig(profile="paper", app_key="...", app_secret="...", account="...").save()          # 모의투자
+```
+
+`profile` 이 어느 계좌 묶음으로 저장할지 정합니다(`main` 실전 주계좌·`paper` 모의·`isa`/`irp`/`pension`).
+같은 파일에 여러 프로필을 저장해도 서로 덮어쓰지 않고 병합됩니다. 파일은 소유자만 읽게(`0600`) 원자적으로
+씁니다(Windows 는 사용자 프로필 폴더 권한에 의존).
+
 ## 세션 만들기 (파이썬)
 
-[설정과 자격증명](configuration.md)의 "처음 설정하기"로 `credentials.json` 을 한 번 만들어 두면,
-**`KISClient()` 한 줄로 열립니다** — 저장된 자격증명을 알아서 읽습니다.
+저장해 두면 **`KISClient(profile=...)` 한 줄로 열립니다** -- 그 프로필의 자격증명을 알아서 읽습니다.
 
 ```python
 from kis_trader import KISClient
 
-kis = KISClient()                       # 실전 주계좌(저장분 자동 로드)
-kis = KISClient(environment="paper")    # 모의투자(KIS_PAPER_* 사용)
+kis = KISClient()                 # 실전 주계좌(profile="main" 기본)
+kis = KISClient(profile="paper")  # 모의투자
+kis = KISClient(profile="isa")    # 실전 ISA
 ```
 
-`environment="paper"` 면 모의 프로필을 읽고, 각 API 요청의 **TR-ID**(KIS가 요청 종류를 구분하는
-거래 코드. 실전용과 모의용이 따로 있습니다)도 자동으로 모의용으로 바뀝니다.
-
-ISA·IRP·연금 등 다른 계좌 프로필이나 격리가 필요하면 프로필을 명시합니다:
-
-```python
-from kis_trader import KISClient, KISConfig
-
-kis = KISClient.from_config(KISConfig(profile="isa"))     # 실전 ISA
-kis = KISClient.from_config(KISConfig(profile="pension")) # 퇴직연금(조회 전용)
-```
+프로필이 환경(실전/모의)도 정합니다(`paper` 만 모의). 각 API 요청의 **TR-ID**(KIS가 요청 종류를
+구분하는 거래 코드. 실전용과 모의용이 따로 있습니다)도 프로필에 맞게 자동으로 바뀝니다.
 
 ## 값을 직접 주기 (파일 안 읽음)
 
-설정 파일을 쓰지 않고 앱키를 코드/환경변수로 직접 넘길 수도 있습니다(이 경우 파일을 읽지 않습니다):
+설정 파일을 쓰지 않고 앱키를 직접 넘길 수도 있습니다(이 경우 파일을 읽지 않습니다):
 
 ```python
-kis = KISClient(
-    app_key="YOUR_APP_KEY",
-    app_secret="YOUR_APP_SECRET",
-    account="12345678-01",         # 계좌번호 8자리-2자리
-    environment="real",
-)
+kis = KISClient(app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET", account="12345678-01")
 ```
 
-해석 순서(환경변수 → `credentials.json` → `config.toml`)·프로필·파일 위치(Linux·macOS·Windows
-공통)는 [설정과 자격증명](configuration.md)을 참고하세요.
+프로필·파일 위치(Linux·macOS·Windows 공통)·해석 순서(환경변수 → `credentials.json` → `config.toml`)는
+[설정과 자격증명](configuration.md)을 참고하세요.
 
 ## 첫 조회
 

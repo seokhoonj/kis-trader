@@ -27,8 +27,21 @@ HTS/MTS 계좌 화면에서 확인할 수 있습니다.
 
 ### 3단계 — 설정 파일 만들기 (`credentials.json`)
 
-앱키·계좌번호를 담는 파일 하나를 정해진 위치에 만듭니다. 위치는 **세 운영체제 공통**으로
-홈 폴더 아래 `.config/kis-trader/` 입니다.
+**가장 쉬운 방법 — 파이썬으로 저장(권장).** 손으로 JSON 을 짜지 말고 `KISConfig(...).save()` 를 쓰면
+정해진 위치에 안전하게(`0600`·원자적) 기록됩니다. 다른 프로필은 보존하며 병합됩니다.
+
+```python
+from kis_trader import KISConfig
+
+KISConfig(profile="main", app_key="발급받은_APP_KEY", app_secret="발급받은_APP_SECRET",
+          account="12345678-01").save()
+# 모의투자도 쓰면:
+KISConfig(profile="paper", app_key="모의_APP_KEY", app_secret="모의_APP_SECRET",
+          account="12345678-01").save()
+```
+
+**직접 파일로 만들기(대안).** 저장 위치는 **세 운영체제 공통**으로 홈 폴더 아래
+`.config/kis-trader/` 입니다.
 
 **Linux / macOS** (터미널):
 
@@ -103,12 +116,11 @@ Windows(PowerShell)는 `setx KIS_PROFILE paper` 후 새 창을 여세요.
 
 ## 자격증명 해석 순서
 
-`KISConfig` 는 값을 다음 순서로 찾습니다. 앞에서 찾으면 뒤는 보지 않습니다.
+세션(`KISClient`)이 프로필의 자격증명을 다음 순서로 찾습니다. 앞에서 찾으면 뒤는 보지 않습니다.
 
-1. **`resolver` 콜백** — 자기 시크릿 저장소를 쓰는 앱이 주입(선택).
-2. **환경변수** — 예: `KIS_APP_KEY`.
-3. **`credentials.json`** — 설정 디렉터리의 시크릿 파일.
-4. **`config.toml`** — 설정 디렉터리의 낮은 우선순위 폴백. 주로 비밀이 아닌 설정을 두지만
+1. **환경변수** — 예: `KIS_APP_KEY`.
+2. **`credentials.json`** — 설정 디렉터리의 시크릿 파일(`KISConfig(...).save()` 가 기록).
+3. **`config.toml`** — 설정 디렉터리의 낮은 우선순위 폴백. 주로 비밀이 아닌 설정을 두지만
    자격증명도 여기서 폴백으로 읽히므로, 값을 넣는다면 `credentials.json` 과 같이 `0600` 으로 보호한다.
 
 환경변수가 파일보다 우선하므로, CI·컨테이너에서는 환경변수로 덮어쓰고 개인 머신에서는 파일을
@@ -133,27 +145,34 @@ Windows(PowerShell)는 `setx KIS_PROFILE paper` 후 새 창을 여세요.
 `KIS_PAPER_ACNT_PRDT_CD` 를 읽고, 계좌번호는 `CANO-ACNT_PRDT_CD` 로 조립합니다. **환경(실전/모의)은
 프로필이 정합니다** — 모의계좌만 모의, 나머지는 실전.
 
-### 파이썬에서
+### 파이썬에서 -- 저장
+
+`KISConfig` 에 값을 담아 `.save()` 하면 프로필 접두어로 `credentials.json` 에 기록합니다(다른
+프로필은 보존하며 병합, `0600`, 원자적).
 
 ```python
-from kis_trader import KISClient, KISConfig
+from kis_trader import KISConfig
 
-kis = KISClient.from_config(KISConfig(profile="paper"))   # 모의투자
-kis = KISClient.from_config(KISConfig(profile="main"))    # 실전 주계좌
-kis = KISClient.from_config(KISConfig(profile="isa"))     # 실전 ISA
+KISConfig(profile="main", app_key="...", app_secret="...", account="12345678-01").save()
+KISConfig(profile="isa",  app_key="...", app_secret="...", account="...").save()
 ```
 
-앱키/시크릿/환경은 프로필이 정하므로 `from_config` 에 다시 줄 수 없습니다. 같은 앱키의 다른
-하위계좌를 쓰려면 `account=` 만 덮어씁니다.
+### 파이썬에서 -- 세션 열기
 
 ```python
-kis = KISClient.from_config(KISConfig(profile="main"), account="87654321-02")
+from kis_trader import KISClient
+
+kis = KISClient()                 # 실전 주계좌(profile="main" 기본)
+kis = KISClient(profile="paper")  # 모의투자
+kis = KISClient(profile="isa")    # 실전 ISA
 ```
 
-명시 인자로 직접 여는 저수준 경로도 그대로 있습니다(프로필/파일을 거치지 않음).
+프로필이 환경(실전/모의)까지 정합니다. 같은 앱키의 다른 하위계좌는 `account=` 로 덮어씁니다. 값을
+명시하면 파일을 읽지 않습니다:
 
 ```python
-kis = KISClient(app_key="...", app_secret="...", account="12345678-01", environment="real")
+kis = KISClient(profile="main", account="87654321-02")          # 계좌만 덮어쓰기
+kis = KISClient(app_key="...", app_secret="...", account="12345678-01")  # 값 직접(파일 무시)
 ```
 
 ### CLI 에서
@@ -187,7 +206,7 @@ kis --profile isa   account positions       # 실전 ISA
   `C:\Users\<사용자>\.cache\kis-trader\`. `%XDG_CONFIG_HOME%` / `%XDG_CACHE_HOME%` 를 설정하면
   그 경로를 씁니다.
 
-테스트나 격리가 필요하면 `KISConfig(config_dir_override=...)` 로 설정 파일과 토큰 캐시를 한
+테스트나 격리가 필요하면 `config_dir=` (`KISConfig(config_dir=...)` 저장, `KISClient(config_dir=...)` 읽기)로 설정 파일과 토큰 캐시를 한
 경로로 돌릴 수 있습니다(그 경우 캐시는 그 경로 아래 `tokens/` 에 함께 둡니다 — '전부 한 곳'이
 격리 계약입니다).
 
