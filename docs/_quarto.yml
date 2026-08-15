@@ -15,6 +15,7 @@ book:
   search: true
   sidebar:
     style: docked
+    collapse-level: 1
   chapters:
     - index.md
     - part: "시작하기"
