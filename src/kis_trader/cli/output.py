@@ -110,8 +110,19 @@ def _display_width(text: str) -> int:
 
 
 def _pad(text: str, width: int) -> str:
-    """``text`` 를 표시 폭 ``width`` 까지 오른쪽 공백으로 채운다(CJK 폭 반영)."""
+    """``text`` 를 표시 폭 ``width`` 까지 오른쪽 공백으로 채운다(좌측 정렬, CJK 폭 반영)."""
     return text + " " * max(0, width - _display_width(text))
+
+
+def _align(text: str, width: int, *, right: bool) -> str:
+    """표시 폭 ``width`` 로 정렬 -- ``right`` 면 앞을 채워 우측 정렬, 아니면 좌측(CJK 폭 반영)."""
+    fill = " " * max(0, width - _display_width(text))
+    return fill + text if right else text + fill
+
+
+def _is_numeric(value: Any) -> bool:
+    """숫자 값인가(우측 정렬 대상). ``bool`` 은 숫자로 보지 않는다(True/False 는 좌측)."""
+    return isinstance(value, (int, float, Decimal)) and not isinstance(value, bool)
 
 
 def _render_table(value: Any, *, no_header: bool) -> str:
@@ -123,16 +134,26 @@ def _render_table(value: Any, *, no_header: bool) -> str:
         if not (dataclasses.is_dataclass(rows[0]) and not isinstance(rows[0], type)):
             return "\n".join(_cell(item) for item in rows)
         columns = _public_fields(rows[0])
-        table = [[_cell(getattr(row, col)) for col in columns] for row in rows]
+        raw = [[getattr(row, col) for col in columns] for row in rows]
+        table = [[_cell(cell) for cell in record] for record in raw]
         widths = [_display_width(col) for col in columns]
         for record in table:
             for i, cell in enumerate(record):
                 widths[i] = max(widths[i], _display_width(cell))
+        # 열의 값이 (결측 제외) 전부 숫자면 우측 정렬해 자릿수를 맞춘다(가격·잔량·거래량 등),
+        # 그 외(종목명 등 텍스트)는 좌측. 헤더도 열 정렬을 따른다.
+        right = [
+            any(_is_numeric(record[i]) for record in raw)
+            and all(record[i] is None or _is_numeric(record[i]) for record in raw)
+            for i in range(len(columns))
+        ]
         lines = []
         if not no_header:
-            lines.append("  ".join(_pad(col, widths[i]) for i, col in enumerate(columns)).rstrip())
+            lines.append("  ".join(
+                _align(col, widths[i], right=right[i]) for i, col in enumerate(columns)).rstrip())
         for record in table:
-            lines.append("  ".join(_pad(cell, widths[i]) for i, cell in enumerate(record)).rstrip())
+            lines.append("  ".join(
+                _align(cell, widths[i], right=right[i]) for i, cell in enumerate(record)).rstrip())
         return "\n".join(lines)
     if dataclasses.is_dataclass(value) and not isinstance(value, type):
         return _render_fields(

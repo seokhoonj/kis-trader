@@ -384,6 +384,19 @@ def test_render_table_expands_nested_record_list_as_subtable():
     assert "[{" not in out                            # JSON 블롭으로 접지 않음
 
 
+def test_render_table_right_aligns_numeric_columns_only():
+    @dataclass(frozen=True)
+    class _R:
+        name: str
+        qty: int
+        _raw: dict
+
+    out = render([_R("삼성", 100, {}), _R("SK", 110873, {})], fmt="table")
+    assert "   qty" in out       # 숫자 헤더도 열 정렬 따라 우측
+    assert "   100" in out       # 작은 숫자는 앞을 채워 우측정렬(폭 6)
+    assert any(line.startswith("삼성") for line in out.splitlines())  # 텍스트는 좌측정렬
+
+
 def test_render_table_datetime_is_kst_seconds_but_json_keeps_iso():
     from datetime import datetime, timedelta, timezone
 
