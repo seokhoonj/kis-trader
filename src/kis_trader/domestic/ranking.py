@@ -10,7 +10,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from ._engine import ranking as ranking_api
 from .entities.ranking import (
@@ -29,6 +29,9 @@ if TYPE_CHECKING:
 
     from ..client import KISClient
 
+#: 등락률 순위 방향 -- 상승률 상위(``"gainers"``) / 하락률 상위(``"losers"``).
+Direction = Literal["gainers", "losers"]
+
 
 class RankingQueries:
     """세션에 달린 순위 질의 네임스페이스. ``kis.domestic.ranking`` 이 만들어 준다."""
@@ -36,7 +39,7 @@ class RankingQueries:
     def __init__(self, client: KISClient) -> None:
         self._client = client
 
-    def by_change(self, *, direction: str = "gainers") -> list[RankedStock]:
+    def by_change(self, *, direction: Direction = "gainers") -> list[RankedStock]:
         """등락률 순위. ``direction="gainers"`` 상승률 상위 / ``"losers"`` 하락률 상위(최대 30건)."""
         return ranking_api.fetch_fluctuation(
             self._client.transport, direction=direction, market="KRX"

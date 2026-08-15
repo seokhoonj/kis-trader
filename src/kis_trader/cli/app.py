@@ -11,8 +11,9 @@ import os
 import sys
 from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
-from typing import Any
+from typing import Any, get_args
 
+from .. import Direction, SearchMarket
 from ..errors import KISError
 from .commands import account, market, order, stock
 from .context import account_suffix, build_client, resolve_account
@@ -99,14 +100,14 @@ def build_parser() -> argparse.ArgumentParser:
     # kis search
     search_p = leaf(groups, "search", help="이름/코드로 국내 종목 검색")
     search_p.add_argument("query")
-    search_p.add_argument("--market", choices=["all", "KOSPI", "KOSDAQ"], default="all")
+    search_p.add_argument("--market", choices=list(get_args(SearchMarket)), default="all")
     search_p.set_defaults(func=market.cmd_search)
 
     # kis ranking change|volume|market-cap
     ranking_p = groups.add_parser("ranking", help="시장 순위")
     ranking_sub = ranking_p.add_subparsers(dest="action", required=True)
     rc = leaf(ranking_sub, "change")
-    rc.add_argument("--direction", choices=["gainers", "losers"], required=True)
+    rc.add_argument("--direction", choices=list(get_args(Direction)), required=True)
     rc.set_defaults(func=market.cmd_ranking_change)
     leaf(ranking_sub, "volume").set_defaults(func=market.cmd_ranking_volume)
     leaf(ranking_sub, "market-cap").set_defaults(func=market.cmd_ranking_market_cap)
