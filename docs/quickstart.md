@@ -27,37 +27,43 @@ kis stock quote 005930       # 삼성전자 현재가
 
 ## 세션 만들기 (파이썬)
 
-KIS 개발자센터에서 발급한 **앱키·앱시크릿**과 **계좌번호**가 필요합니다.
+[설정과 자격증명](configuration.md)의 "처음 설정하기"로 `credentials.json` 을 한 번 만들어 두면,
+**`KISClient()` 한 줄로 열립니다** — 저장된 자격증명을 알아서 읽습니다.
 
 ```python
 from kis_trader import KISClient
 
-kis = KISClient(
-    app_key="YOUR_APP_KEY",
-    app_secret="YOUR_APP_SECRET",
-    account="12345678-01",         # 계좌번호 8자리-2자리
-    environment="real",            # "real" 실전 / "paper" 모의투자
-)
+kis = KISClient()                       # 실전 주계좌(저장분 자동 로드)
+kis = KISClient(environment="paper")    # 모의투자(KIS_PAPER_* 사용)
 ```
 
-모의투자로 연습하려면 `environment="paper"` — 각 API 요청의 **TR-ID**(KIS가 요청 종류를
-구분하는 거래 코드. 실전용과 모의용이 따로 있습니다)가 자동으로 모의용으로 바뀝니다.
+`environment="paper"` 면 모의 프로필을 읽고, 각 API 요청의 **TR-ID**(KIS가 요청 종류를 구분하는
+거래 코드. 실전용과 모의용이 따로 있습니다)도 자동으로 모의용으로 바뀝니다.
 
-## 자격증명 숨기기
-
-코드에 키를 직접 쓰지 말고 프로필로 여세요. `KISConfig` 가 환경변수나 설정 파일
-(`~/.config/kis-trader/credentials.json`)에서 프로필별로 읽습니다.
+ISA·IRP·연금 등 다른 계좌 프로필이나 격리가 필요하면 프로필을 명시합니다:
 
 ```python
 from kis_trader import KISClient, KISConfig
 
-kis = KISClient.from_config(KISConfig(profile="main"))    # 실전 주계좌(기본)
-kis = KISClient.from_config(KISConfig(profile="paper"))   # 모의투자
+kis = KISClient.from_config(KISConfig(profile="isa"))     # 실전 ISA
+kis = KISClient.from_config(KISConfig(profile="pension")) # 퇴직연금(조회 전용)
 ```
 
-프로필·파일 위치(Linux·macOS·Windows 공통)·해석 순서는 [설정과 자격증명](configuration.md)을
-참고하세요. 환경변수로 직접 주고 싶으면 `KIS_APP_KEY` / `KIS_APP_SECRET` 등을 설정한 뒤 같은
-`from_config` 를 쓰면 됩니다(환경변수가 파일보다 우선).
+## 값을 직접 주기 (파일 안 읽음)
+
+설정 파일을 쓰지 않고 앱키를 코드/환경변수로 직접 넘길 수도 있습니다(이 경우 파일을 읽지 않습니다):
+
+```python
+kis = KISClient(
+    app_key="YOUR_APP_KEY",
+    app_secret="YOUR_APP_SECRET",
+    account="12345678-01",         # 계좌번호 8자리-2자리
+    environment="real",
+)
+```
+
+해석 순서(환경변수 → `credentials.json` → `config.toml`)·프로필·파일 위치(Linux·macOS·Windows
+공통)는 [설정과 자격증명](configuration.md)을 참고하세요.
 
 ## 첫 조회
 

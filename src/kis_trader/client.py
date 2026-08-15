@@ -117,8 +117,8 @@ class KISClient:
     def __init__(
         self,
         *,
-        app_key: str,
-        app_secret: str,
+        app_key: str | None = None,
+        app_secret: str | None = None,
         account: str | None = None,
         environment: Environment = "real",
         transport: Transport | None = None,
@@ -159,7 +159,22 @@ class KISClient:
         ``token_cache_dir`` 로 OAuth 토큰 캐시 디렉터리를 바꾼다(기본은 XDG
         ``~/.cache/kis-trader/tokens``). 보통 직접 주지 않고 :meth:`from_config` 가 ``KISConfig``
         의 경로를 전달한다.
+
+        ``app_key``/``app_secret`` 을 생략하면 **저장된 설정에서 자동으로 읽는다**(환경변수 ->
+        ``~/.config/kis-trader/credentials.json``). ``environment`` 에 맞는 기본 프로필을 쓴다
+        (``real`` -> ``main``, ``paper`` -> ``paper``). 즉 설정만 해두면 ``KISClient()`` 한 줄로 열린다.
+        ISA/IRP/연금 등 다른 프로필이나 격리가 필요하면 :meth:`from_config`
+        (``KISClient.from_config(KISConfig(profile=...))``)를 쓴다. 값을 명시하면 파일을 읽지 않는다.
         """
+        if app_key is None or app_secret is None:
+            from .config import KISConfig
+            config = KISConfig(profile="paper" if environment == "paper" else "main")
+            if app_key is None:
+                app_key = config.app_key()
+            if app_secret is None:
+                app_secret = config.app_secret()
+            if account is None:
+                account = config.account()
         self._app_key = app_key
         self._app_secret = app_secret
         self._environment = environment

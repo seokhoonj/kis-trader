@@ -174,6 +174,35 @@ def test_from_config_missing_credentials_raises_usage_error():
         KISClient.from_config(KISConfig(profile="main"), transport=_FakeTransport())
 
 
+# --- KISClient() 자격증명 생략 시 저장분 자동 로드 --------------------------------
+
+def test_bare_client_reads_saved_main_credentials(monkeypatch):
+    monkeypatch.setenv("KIS_APP_KEY", "k")
+    monkeypatch.setenv("KIS_APP_SECRET", "s")
+    monkeypatch.setenv("KIS_CANO", "12345678")
+    monkeypatch.setenv("KIS_ACNT_PRDT_CD", "01")
+    kis = KISClient(transport=_FakeTransport())   # 자격증명 생략 -> 저장분 자동
+    assert kis.environment == "real" and kis.account == "12345678-01"
+
+
+def test_bare_client_paper_env_uses_paper_profile(monkeypatch):
+    monkeypatch.setenv("KIS_PAPER_APP_KEY", "k")
+    monkeypatch.setenv("KIS_PAPER_APP_SECRET", "s")
+    kis = KISClient(environment="paper", transport=_FakeTransport())
+    assert kis.environment == "paper"
+
+
+def test_bare_client_missing_credentials_raises():
+    with pytest.raises(KISUsageError):   # 저장분·env 모두 없음(격리 픽스처)
+        KISClient(transport=_FakeTransport())
+
+
+def test_explicit_credentials_skip_config_lookup():
+    # 값을 명시하면 파일/env 를 읽지 않는다(격리 환경에 자격증명이 없어도 열린다).
+    kis = KISClient(app_key="k", app_secret="s", transport=_FakeTransport())
+    assert kis.environment == "real"
+
+
 # --- fail-closed: 형상/빈값 오류 (P1 회귀 방지) --------------------------------
 
 @pytest.mark.parametrize(("filename", "contents"), [
