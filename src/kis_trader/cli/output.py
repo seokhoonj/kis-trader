@@ -131,10 +131,16 @@ def _render_table(value: Any, *, no_header: bool) -> str:
         rows = list(value)
         if not rows:
             return "(빈 결과)"
-        if not (dataclasses.is_dataclass(rows[0]) and not isinstance(rows[0], type)):
+        first = rows[0]
+        if dataclasses.is_dataclass(first) and not isinstance(first, type):
+            columns = _public_fields(first)
+            raw = [[getattr(row, col) for col in columns] for row in rows]
+        elif isinstance(first, dict):
+            # dict 행 -> 첫 행의 키 순서를 컬럼으로(호가창 사다리처럼 임의 헤더가 필요할 때).
+            columns = list(first.keys())
+            raw = [[row.get(col) for col in columns] for row in rows]
+        else:
             return "\n".join(_cell(item) for item in rows)
-        columns = _public_fields(rows[0])
-        raw = [[getattr(row, col) for col in columns] for row in rows]
         table = [[_cell(cell) for cell in record] for record in raw]
         widths = [_display_width(col) for col in columns]
         for record in table:

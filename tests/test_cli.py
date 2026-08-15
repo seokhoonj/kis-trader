@@ -438,13 +438,21 @@ def test_order_book_table_is_ladder_and_json_is_raw():
         def __init__(self):
             self.domestic = _BookNamespace()
 
-    # table: 표준 호가창 -- asks 는 높은 가격 먼저(275000 -> 274500), asks 블록이 bids 앞
-    ladder = stock_cmd.cmd_book(_Kis(), _args(["stock", "book", "005930"]))
-    assert isinstance(ladder, dict)
-    assert [str(level.price) for level in ladder["asks"]] == ["275000", "274500"]
-    assert [str(level.price) for level in ladder["bids"]] == ["274000", "273500"]
+    # table: 센터 사다리 -- 호가가 위->아래 내림차순(매도 높은가격부터 -> 매수), 스프레드 가운데
+    result = stock_cmd.cmd_book(_Kis(), _args(["stock", "book", "005930"]))
+    assert isinstance(result, dict)
+    rows = result["order_book"]
+    assert [str(row["price"]) for row in rows] == ["275000", "274500", "274000", "273500"]
+    assert rows[0]["ask_size"] == 60 and rows[0]["bid_size"] is None      # 매도 행
+    assert rows[-1]["bid_size"] == 50 and rows[-1]["ask_size"] is None     # 매수 행
     # json: 구조화된 원본 OrderBook 을 그대로(각 변 최우선 먼저)
     assert stock_cmd.cmd_book(_Kis(), _args(["--format", "json", "stock", "book", "005930"])) is book
+
+
+def test_render_table_builds_grid_from_list_of_dicts():
+    out = render([{"a": 1, "b": "x"}, {"a": 22, "b": "y"}], fmt="table")
+    assert "a" in out and "b" in out          # dict 키가 헤더
+    assert "22" in out and "y" in out          # 값이 격자로
 
 
 def test_display_width_counts_hangul_as_two_cells():

@@ -23,13 +23,19 @@ def cmd_book(kis: KISClient, args: Namespace) -> Any:
     book = resolve_stock(kis, args).order_book()
     if args.fmt != "table":
         return book  # JSON/jsonl: 구조화된 원본(각 변 최우선 먼저, ISO 시각) 그대로
-    # 사람용 표: 표준 호가창 배치 -- 매도(asks)를 높은 가격부터 위에 두어(best ask 가 맨 아래),
-    # 그 아래 매수(bids)가 높은 가격부터. 위에서 아래로 가격이 단조감소하고 스프레드가 가운데 온다.
+    # 사람용 표: 표준 호가창 사다리 -- 가격이 가운데 한 열(호가)로 위에서 아래로 내림차순,
+    # 매도잔량은 왼쪽(매도 행에만)·매수잔량은 오른쪽(매수 행에만), 스프레드가 가운데 온다.
+    ladder = [
+        {"ask_size": level.quantity, "price": level.price, "bid_size": None}
+        for level in reversed(book.asks)  # 높은 가격이 위(best ask 가 매도 블록 맨 아래)
+    ] + [
+        {"ask_size": None, "price": level.price, "bid_size": level.quantity}
+        for level in book.bids  # best bid(가장 높은 매수호가)부터 아래로
+    ]
     return {
         "symbol": book.symbol,
         "market": book.market,
-        "asks": list(reversed(book.asks)),
-        "bids": list(book.bids),
+        "order_book": ladder,
         "total_ask_quantity": book.total_ask_quantity,
         "total_bid_quantity": book.total_bid_quantity,
         "as_of": book.as_of,
