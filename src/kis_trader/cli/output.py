@@ -144,6 +144,13 @@ def _render_table(value: Any, *, no_header: bool) -> str:
         else:
             return "\n".join(_cell(item) for item in rows)
         table = [[_cell(cell) for cell in record] for record in raw]
+        # 전부 빈 값인 열은 숨긴다 -- 순위마다 없는 필드(예: 거래대금이 없는 순위의 trading_value)가
+        # 빈 열로 남지 않게. 모든 열이 비면(엣지) 그대로 둔다.
+        keep = [i for i, _ in enumerate(columns) if any(record[i] != "" for record in table)]
+        if 0 < len(keep) < len(columns):
+            columns = [columns[i] for i in keep]
+            raw = [[record[i] for i in keep] for record in raw]
+            table = [[record[i] for i in keep] for record in table]
         widths = [_display_width(col) for col in columns]
         for record in table:
             for i, cell in enumerate(record):

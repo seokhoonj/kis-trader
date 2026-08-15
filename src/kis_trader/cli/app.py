@@ -13,7 +13,7 @@ from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any, get_args
 
-from .. import Direction, DomesticDivision, SearchMarket
+from .. import Direction, DomesticDivision, SearchMarket, VolumeMetric
 from ..config import Profile
 from ..errors import KISError
 from .commands import account, market, order, stock
@@ -113,7 +113,11 @@ def build_parser() -> argparse.ArgumentParser:
     rc = leaf(ranking_sub, "change")
     rc.add_argument("--direction", choices=list(get_args(Direction)), required=True)
     rc.set_defaults(func=market.cmd_ranking_change)
-    leaf(ranking_sub, "volume").set_defaults(func=market.cmd_ranking_volume)
+    rv = leaf(ranking_sub, "volume")
+    rv.add_argument("--metric", choices=list(get_args(VolumeMetric)), default="trading_value",
+                    help="거래량 기준(기본 trading_value 거래대금): trading_volume(거래량)/"
+                         "trading_value(거래대금)/volume_growth(거래증가율)/turnover(회전율)")
+    rv.set_defaults(func=market.cmd_ranking_volume)
     leaf(ranking_sub, "market-cap").set_defaults(func=market.cmd_ranking_market_cap)
 
     # kis account balance|positions|orders

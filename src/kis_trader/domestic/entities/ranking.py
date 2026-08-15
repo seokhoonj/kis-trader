@@ -40,7 +40,9 @@ class RankedStock:
     price: Decimal
     change: Decimal                   # 전일대비(부호 포함)
     change_percent: Decimal           # 전일대비율(부호 포함)
-    volume: int                       # 누적 거래량
+    volume: int                       # 누적 거래량(주식 수)
+    #: 누적 거래대금(원) -- 거래량 순위 응답에만 있어(그 외 순위는 None). 거래대금 기준 정렬의 근거값.
+    trading_value: Decimal | None = None
     _raw: Mapping[str, Any] = field(
         default_factory=_empty_raw, compare=False, hash=False, repr=False
     )

@@ -190,7 +190,7 @@ from .domestic.entities.trade_profit import (
 )
 from .domestic.index import Index
 from .domestic.market import MarketQueries
-from .domestic.ranking import Direction, RankingQueries
+from .domestic.ranking import Direction, RankingQueries, VolumeMetric
 from .domestic.stock import DomesticStock
 from .money import Money
 from .news import NewsHeadline
@@ -301,6 +301,7 @@ __all__ = [
     "DetailedInvestorHistory",
     "Direction",
     "DomesticDivision",
+    "VolumeMetric",
     "DividendEvent",
     "DividendRanking",
     "DomesticListing",

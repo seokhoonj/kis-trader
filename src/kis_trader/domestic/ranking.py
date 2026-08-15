@@ -32,6 +32,10 @@ if TYPE_CHECKING:
 #: 등락률 순위 방향 -- 상승률 상위(``"gainers"``) / 하락률 상위(``"losers"``).
 Direction = Literal["gainers", "losers"]
 
+#: 거래량 계열 순위 기준 -- 거래량(``"trading_volume"``) / 거래대금(``"trading_value"``) /
+#: 거래증가율(``"volume_growth"``) / 회전율(``"turnover"``).
+VolumeMetric = Literal["trading_volume", "trading_value", "volume_growth", "turnover"]
+
 
 class RankingQueries:
     """세션에 달린 순위 질의 네임스페이스. ``kis.domestic.ranking`` 이 만들어 준다."""
@@ -45,9 +49,12 @@ class RankingQueries:
             self._client.transport, direction=direction, market="KRX"
         )
 
-    def by_volume(self) -> list[RankedStock]:
-        """거래량 순위(최대 30건)."""
-        return ranking_api.fetch_volume(self._client.transport, market="KRX")
+    def by_volume(self, *, metric: VolumeMetric = "trading_value") -> list[RankedStock]:
+        """거래량 계열 순위(최대 30건). ``metric`` 으로 기준을 고른다(기본 ``trading_value`` 거래대금 --
+        저가주가 주식 수로 상위를 독식하지 않아 cross-stock 비교에 정확하다): ``trading_volume`` 거래량
+        (주식 수) / ``trading_value`` 거래대금(원) / ``volume_growth`` 거래증가율 / ``turnover`` 회전율.
+        각 항목의 ``trading_value`` 로 거래대금(원)을 함께 볼 수 있다."""
+        return ranking_api.fetch_volume(self._client.transport, metric=metric, market="KRX")
 
     def by_market_cap(self) -> list[RankedStock]:
         """시가총액 순위(최대 30건). 시가총액 값은 각 항목의 ``_raw['stck_avls']``."""

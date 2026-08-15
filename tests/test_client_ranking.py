@@ -103,7 +103,33 @@ def test_by_volume_uses_volume_endpoint():
     assert call["path"] == _VOLUME
     assert call["tr_id"] == "FHPST01710000"
     assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20171"
-    assert call["params"]["FID_BLNG_CLS_CODE"] == "0"           # 평균거래량
+    assert call["params"]["FID_BLNG_CLS_CODE"] == "3"           # 기본 = trading_value(거래대금)
+
+
+@pytest.mark.parametrize("metric, blng", [
+    ("trading_volume", "0"), ("volume_growth", "1"), ("turnover", "2"), ("trading_value", "3"),
+])
+def test_by_volume_metric_maps_to_blng_code(metric, blng):
+    fake = FakeTransport(response=_resp([_row()]))
+    _client(fake).domestic.ranking.by_volume(metric=metric)
+    assert fake.calls[0]["params"]["FID_BLNG_CLS_CODE"] == blng
+
+
+def test_by_volume_reads_trading_value_from_acml_tr_pbmn():
+    fake = FakeTransport(response=_resp([_row(acml_tr_pbmn="7489699281000")]))
+    ranked = _client(fake).domestic.ranking.by_volume(metric="trading_value")
+    assert ranked[0].trading_value == Decimal("7489699281000")
+
+
+def test_by_volume_trading_value_is_none_when_absent():
+    fake = FakeTransport(response=_resp([_row()]))  # acml_tr_pbmn 없음
+    assert _client(fake).domestic.ranking.by_volume()[0].trading_value is None
+
+
+def test_by_volume_rejects_bad_metric():
+    fake = FakeTransport(response=_resp([_row()]))
+    with pytest.raises(KISUsageError):
+        _client(fake).domestic.ranking.by_volume(metric="bogus")  # type: ignore[arg-type]
 
 
 def test_by_market_cap_exposes_market_cap_in_raw():

@@ -18,7 +18,7 @@ def cmd_ranking_change(kis: KISClient, args: Namespace) -> Any:
 
 
 def cmd_ranking_volume(kis: KISClient, args: Namespace) -> Any:
-    return kis.domestic.ranking.by_volume()
+    return kis.domestic.ranking.by_volume(metric=args.metric)
 
 
 def cmd_ranking_market_cap(kis: KISClient, args: Namespace) -> Any:

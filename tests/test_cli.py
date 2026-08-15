@@ -475,6 +475,14 @@ def test_render_table_builds_grid_from_list_of_dicts():
     assert "22" in out and "y" in out          # 값이 격자로
 
 
+def test_render_table_hides_all_empty_columns():
+    # 전 행이 비어있는 열(gap)은 숨기고, 값 있는 열만 남긴다.
+    out = render([{"name": "삼성", "gap": None, "qty": 1},
+                  {"name": "SK", "gap": None, "qty": 2}], fmt="table")
+    assert "gap" not in out                    # 전부 빈 열은 숨김
+    assert "name" in out and "qty" in out       # 값 있는 열은 유지
+
+
 def test_display_width_counts_hangul_as_two_cells():
     assert _display_width("삼성전자") == 8  # 한글 4자 x 2칸
     assert _display_width("AAPL") == 4
