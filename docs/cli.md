@@ -1,11 +1,19 @@
 # Command Line (kis)
 
 패키지를 설치하면 터미널 명령 `kis` 가 함께 깔립니다. 파이썬을 짜지 않고도 조회·주문을 할 수
-있는 얇은 래퍼입니다(내부적으로 같은 공개 API 를 부릅니다). 자격증명은 **환경변수**로 줍니다.
+있는 얇은 래퍼입니다(내부적으로 같은 공개 API 를 부릅니다).
+
+자격증명과 환경은 **`--profile`** 하나로 정합니다. 프로필은 환경변수나 설정 파일에서 읽으며,
+환경(실전/모의)도 프로필이 결정합니다(`paper` 만 모의, 나머지는 실전). 기본 프로필은 안전을 위해
+`paper` 입니다.
 
 ```bash
-export KIS_APP_KEY=... KIS_APP_SECRET=... KIS_ACCOUNT=12345678-01
+kis --profile paper stock quote 005930     # 모의(기본)
+kis --profile main  account balance         # 실전 주계좌
 ```
+
+프로필별 변수 접두어·설정 파일 위치(Linux·macOS·Windows 공통)는 [설정과 자격증명](configuration.md)
+을 참고하세요.
 
 ## 조회
 
@@ -33,16 +41,16 @@ kis stock quote 005930 --format json
 주문 명령은 **`--execute` 가 없으면 전송하지 않고** 주문 티켓만 되읽어 보여줍니다.
 
 ```bash
-kis order buy 005930 10 --limit-price 70000              # dry-run (전송 안 됨)
-kis order buy 005930 10 --limit-price 70000 --execute paper   # 모의 전송(확인 후)
+kis order buy 005930 10 --limit-price 70000                          # dry-run (전송 안 됨)
+kis --profile paper order buy 005930 10 --limit-price 70000 --execute paper   # 모의 전송(확인 후)
 ```
 
-실제 전송하려면 `--execute` 값이 세션 환경(`--env`)과 같아야 합니다. 대화형에서는 확인을
+실제 전송하려면 `--execute` 값이 프로필 환경(`--profile` 이 정한 실전/모의)과 같아야 합니다. 대화형에서는 확인을
 받습니다(모의는 y/N, 실전은 계좌 끝 4자리 입력). 스크립트(비대화형)에서는 `--yes` 가
 필요하고, 실전은 `--confirm-account` 로 계좌 끝 4자리를 한 번 더 맞춰야 합니다.
 
 ```bash
-kis --env real order buy 005930 10 --limit-price 70000 \
+kis --profile main order buy 005930 10 --limit-price 70000 \
     --execute real --yes --confirm-account 7801
 ```
 

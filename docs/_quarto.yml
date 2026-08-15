@@ -21,6 +21,7 @@ book:
     - part: "시작하기"
       chapters:
         - quickstart.md
+        - configuration.md
     - part: "국내 주식"
       chapters:
         - quotes.md

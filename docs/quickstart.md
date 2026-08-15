@@ -26,16 +26,19 @@ kis = KISClient(
 
 ## 자격증명 숨기기
 
-코드에 키를 직접 쓰지 말고 환경변수로:
+코드에 키를 직접 쓰지 말고 프로필로 여세요. `KISConfig` 가 환경변수나 설정 파일
+(`~/.config/kis-trader/credentials.json`)에서 프로필별로 읽습니다.
 
 ```python
-import os
-kis = KISClient(
-    app_key=os.environ["KIS_APP_KEY"],
-    app_secret=os.environ["KIS_APP_SECRET"],
-    account=os.environ["KIS_ACCOUNT"],
-)
+from kis_trader import KISClient, KISConfig
+
+kis = KISClient.from_config(KISConfig(profile="paper"))   # 모의투자
+kis = KISClient.from_config(KISConfig(profile="main"))    # 실전 주계좌
 ```
+
+프로필·파일 위치(Linux·macOS·Windows 공통)·해석 순서는 [설정과 자격증명](configuration.md)을
+참고하세요. 환경변수로 직접 주고 싶으면 `KIS_APP_KEY` / `KIS_APP_SECRET` 등을 설정한 뒤 같은
+`from_config` 를 쓰면 됩니다(환경변수가 파일보다 우선).
 
 ## 첫 조회
 
