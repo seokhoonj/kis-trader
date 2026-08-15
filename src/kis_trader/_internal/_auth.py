@@ -15,7 +15,7 @@ from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
 from ._endpoints import base_url
-from ._fsutil import xdg_cache_subdir
+from ._fsutil import atomic_write_bytes, xdg_cache_subdir
 from ..errors import KISAuthError, KISUsageError
 
 if TYPE_CHECKING:
@@ -99,15 +99,14 @@ class TokenManager:
 
     def _write_cache(self, token: str, expires_at: float) -> None:
         # 토큰(브로커 접근권한)은 캐시 파일에 절대 world-readable 로 잠깐도 노출되면 안 된다.
-        # 임시 파일을 처음부터 0o600 으로 만들고(먼저 열고 chmod 하면 그 사이 창에서 읽힌다),
-        # 디렉터리도 0o700 으로 잠근 뒤 원자적 교체한다.
+        # 디렉터리를 0o700 으로 잠그고(makedirs 의 exist_ok 는 기존 디렉터리의 모드를 안 바꾸므로
+        # chmod 로 강제한다 -- config_dir_override 로 caller 가 미리 만든 느슨한 디렉터리 대비), 예측
+        # 불가한 임시파일에 0o600 으로 원자적으로 쓴다(atomic_write_bytes 는 mkstemp 라 고정 tmp 경로의
+        # 심볼릭링크 선점/토큰 유출을 원천 차단한다).
         os.makedirs(self._cache_dir, mode=0o700, exist_ok=True)
-        path = self._cache_path
-        tmp = f"{path}.tmp"
-        fd = os.open(tmp, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(fd, "w", encoding="utf-8") as out:
-            json.dump({"access_token": token, "expires_at": expires_at}, out)
-        os.replace(tmp, path)
+        os.chmod(self._cache_dir, 0o700)
+        payload = json.dumps({"access_token": token, "expires_at": expires_at}).encode("utf-8")
+        atomic_write_bytes(self._cache_path, payload, mode=0o600)
 
     def _clear_cache(self) -> None:
         """디스크 토큰 캐시 파일을 지운다(폐기 후 재사용 방지). 없으면 무시."""
