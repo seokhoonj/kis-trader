@@ -14,9 +14,9 @@ import time
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any
 
+from ..errors import KISAuthError, KISUsageError
 from ._endpoints import base_url
 from ._fsutil import atomic_write_bytes, xdg_cache_subdir
-from ..errors import KISAuthError, KISUsageError
 
 if TYPE_CHECKING:
     from ..transport import Environment

@@ -15,8 +15,8 @@ from typing import TYPE_CHECKING
 from ._engine import elw as elw_api
 
 if TYPE_CHECKING:
-    from ._engine.elw import TrendInterval
     from ..client import KISClient
+    from ._engine.elw import TrendInterval
     from .entities.elw import (
         ELWIndicatorPoint,
         ELWLPFlow,

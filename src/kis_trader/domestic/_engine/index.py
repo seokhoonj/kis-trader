@@ -49,6 +49,7 @@ from ..._internal._wire import (
 )
 from ...bar import Bar, Interval
 from ...errors import KISUsageError
+from ...transport import RawResponse, Transport
 from ..entities.index import (
     CategoryIndex,
     ExpectedIndexPoint,
@@ -60,7 +61,6 @@ from ..entities.index import (
     IndexIntradayPoint,
     IndexQuote,
 )
-from ...transport import RawResponse, Transport
 
 _INDEX_QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-price"
 _INDEX_QUOTE_TR = "FHPUP02100000"

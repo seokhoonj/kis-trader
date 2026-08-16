@@ -17,6 +17,7 @@ import queue
 import threading
 from collections import defaultdict
 from collections.abc import Callable, Iterator
+from typing import Self
 
 from ..errors import RealtimeError
 from ._connection import Connector, RealtimeConnection, RealtimeMessage
@@ -119,7 +120,7 @@ class RealtimeClient:
                 _logger.warning("realtime stop() 이 %ss 내에 끝나지 않아 강제 종료합니다", timeout)
             except RuntimeError:
                 pass  # 루프가 그 사이 종료됨 -- 정상 종료 경합
-            except Exception as exc:  # noqa: BLE001 - 예상 밖 실패는 정리 후 전파
+            except Exception as exc:
                 stop_error = exc
                 _logger.warning("realtime 연결 stop() 이 예외를 던졌습니다", exc_info=True)
         self._queue.put(_STREAM_SENTINEL)
@@ -132,7 +133,7 @@ class RealtimeClient:
         if stop_error is not None:
             raise stop_error
 
-    def __enter__(self) -> RealtimeClient:
+    def __enter__(self) -> Self:
         self.start()
         return self
 
@@ -206,7 +207,7 @@ class RealtimeClient:
         for callback in callbacks:
             try:
                 callback(message)
-            except Exception:  # noqa: BLE001 - 콜백 오류가 수신 루프를 죽이지 않게
+            except Exception:
                 _logger.warning("realtime callback for %s raised", message.tr_id, exc_info=True)
         self._enqueue(message)
 

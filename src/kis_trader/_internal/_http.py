@@ -10,11 +10,11 @@ import time
 from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
+from ..errors import KISAuthError, KISError, KISRateLimitError
+from ..transport import Environment, RawResponse, TransportTimeout
 from ._auth import TokenManager
 from ._endpoints import base_url
 from ._ratelimit import SlidingWindowRateLimiter
-from ..errors import KISAuthError, KISError, KISRateLimitError
-from ..transport import Environment, RawResponse, TransportTimeout
 
 HTTPResult = tuple[int, Mapping[str, str], object]
 

@@ -15,6 +15,7 @@ from ..._internal._wire import (
     required_int,
 )
 from ...errors import KISUsageError
+from ...transport import RawResponse, Transport
 from ..entities.saved_screen import (
     SavedScreen,
     SavedScreenStock,
@@ -22,7 +23,6 @@ from ..entities.saved_screen import (
     WatchlistGroup,
     WatchlistStock,
 )
-from ...transport import RawResponse, Transport
 
 _SCREENS_PATH = "/uapi/domestic-stock/v1/quotations/psearch-title"
 _SCREENS_TR = "HHKST03900300"

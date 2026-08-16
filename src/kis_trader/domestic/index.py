@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._engine import index as index_api
 from ..bar import Bar, Interval
+from ._engine import index as index_api
 from .entities.index import (
     ExpectedIndexPoint,
     ExpectedIndexSnapshot,

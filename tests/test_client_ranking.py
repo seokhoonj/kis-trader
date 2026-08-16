@@ -118,7 +118,7 @@ def test_by_volume_metric_maps_to_blng_code(metric, blng):
 def test_by_volume_reads_trading_value_from_acml_tr_pbmn():
     fake = FakeTransport(response=_resp([_row(acml_tr_pbmn="7489699281000")]))
     ranked = _client(fake).domestic.ranking.by_volume(metric="trading_value")
-    assert ranked[0].trading_value == Decimal("7489699281000")
+    assert ranked[0].trading_value == Decimal(7489699281000)
 
 
 def test_by_volume_trading_value_is_none_when_absent():

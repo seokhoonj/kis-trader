@@ -17,7 +17,7 @@ from ..._internal._response import (
 from ..._internal._wire import optional_decimal, required_int
 from ...errors import KISError, KISUsageError
 from ...news import NewsHeadline
-from ..entities.settlement import OverseasSettlementDate
+from ...transport import Environment, Transport
 from ..entities.collateral import (
     OverseasCollateralStock,
     OverseasCollateralStockSearch,
@@ -25,7 +25,7 @@ from ..entities.collateral import (
 )
 from ..entities.corporate_action import OverseasCorporateAction, OverseasRight
 from ..entities.news import OverseasNewsHeadline
-from ...transport import Environment, Transport
+from ..entities.settlement import OverseasSettlementDate
 
 _SETTLEMENT_DATES_PATH = "/uapi/overseas-stock/v1/quotations/countries-holiday"
 _SETTLEMENT_DATES_TR = "CTOS5011R"

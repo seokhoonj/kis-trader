@@ -16,6 +16,7 @@ from ._engine import ksd as ksd_api
 if TYPE_CHECKING:
     from datetime import date
 
+    from ..client import KISClient
     from .entities.calendar import (
         AppraisalRights,
         BonusIssue,
@@ -30,7 +31,6 @@ if TYPE_CHECKING:
         RightsOffering,
         ShareholderMeeting,
     )
-    from ..client import KISClient
 
 
 class CalendarQueries:

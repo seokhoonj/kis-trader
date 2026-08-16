@@ -15,9 +15,6 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from .domestic._engine import orders as orders_engine
-from .domestic._engine import reserved_orders as reserved_orders_api
-from .domestic.namespace import DomesticNamespace
 from ._internal._masters import (
     DomesticListingIndex,
     Fetch,
@@ -26,11 +23,10 @@ from ._internal._masters import (
     load_overseas_index,
     urlopen_fetch,
 )
-from .overseas._engine import orders as overseas_orders_engine
-from .overseas._engine import reserved_orders as overseas_reserved_orders_api
-from .overseas.namespace import OverseasNamespace
-from .pension.namespace import PensionNamespace
 from .config import _ENVIRONMENTS, _fill_credentials, _split_account, token_cache_path
+from .domestic._engine import orders as orders_engine
+from .domestic._engine import reserved_orders as reserved_orders_api
+from .domestic.namespace import DomesticNamespace
 from .errors import KISUsageError
 from .order import (
     ChangeAction,
@@ -42,13 +38,17 @@ from .order import (
     coerce_decimal,
     mint_client_order_id,
 )
+from .overseas._engine import orders as overseas_orders_engine
+from .overseas._engine import reserved_orders as overseas_reserved_orders_api
+from .overseas.namespace import OverseasNamespace
+from .pension.namespace import PensionNamespace
 from .store import OrderStore
 
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from ._literals import Numeric
     from ._internal._masters import InstrumentRecord
+    from ._literals import Numeric
     from .realtime.client import RealtimeClient
     from .report import ExecutionReport
     from .risk import RiskLimits
@@ -421,7 +421,7 @@ class KISClient:
             )
         revoke()
 
-    def realtime(self, *, reconnect: bool = True) -> "RealtimeClient":
+    def realtime(self, *, reconnect: bool = True) -> RealtimeClient:
         """실시간(웹소켓) 클라이언트를 만든다.
 
         ``/oauth2/Approval`` 로 접속키를 발급받아 :class:`~kis_trader.realtime.client.RealtimeClient`

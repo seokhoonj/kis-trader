@@ -13,10 +13,10 @@ import pytest
 
 from kis_trader._internal._wire import (
     _apply_change_sign,
+    decimal_or_zero,
     format_wire_decimal,
     optional_decimal,
     optional_int,
-    decimal_or_zero,
     required_decimal,
     required_int,
 )
@@ -47,7 +47,7 @@ def test_apply_change_sign_unknown_code_fails_closed(sign):
 
 # --- required/optional decimal ---------------------------------------------
 def test_required_decimal_parses_and_strips():
-    assert required_decimal("70000", "px") == Decimal("70000")
+    assert required_decimal("70000", "px") == Decimal(70000)
     assert required_decimal("  -1.23 ", "px") == Decimal("-1.23")
 
 
@@ -104,7 +104,7 @@ def test_optional_int_blank_is_none_and_rejects_fractional():
 # --- format_wire_decimal (지문/와이어 정본) --------------------------------
 @pytest.mark.parametrize(("value", "expected"), [
     (Decimal("1E+3"), "1000"),        # 지수표기를 펼친다
-    (Decimal("10"), "10"),
+    (Decimal(10), "10"),
     (Decimal("70000.00"), "70000.00"),  # 반올림/정규화 없이 고정소수점 그대로
     (Decimal("-1.23"), "-1.23"),
 ])
@@ -119,7 +119,7 @@ def test_decimal_or_zero_blank_is_zero(value):
 
 
 def test_decimal_or_zero_parses_value():
-    assert decimal_or_zero("71500") == Decimal("71500")
+    assert decimal_or_zero("71500") == Decimal(71500)
 
 
 @pytest.mark.parametrize("value", ["abc", "NaN", "Infinity", "-Infinity"])

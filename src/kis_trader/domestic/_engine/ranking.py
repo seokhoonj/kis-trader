@@ -67,6 +67,7 @@ from ..._internal._wire import (
     required_int,
 )
 from ...errors import KISUsageError
+from ...transport import Transport
 from ..entities.ranking import (
     AfterHoursBalanceRanking,
     CreditBalanceRanking,
@@ -77,7 +78,6 @@ from ..entities.ranking import (
     ShortSaleRanking,
     TopViewedStock,
 )
-from ...transport import Transport
 from .market_data import _market_div
 
 _FLUCTUATION_PATH = "/uapi/domestic-stock/v1/ranking/fluctuation"

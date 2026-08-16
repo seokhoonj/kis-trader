@@ -16,6 +16,7 @@ from .._internal._wire import format_wire_decimal, optional_decimal
 from ..domestic.entities.balance import Position
 from ..errors import KISError, KISUsageError
 from ..order import Side
+from ..transport import Environment, Transport
 from .entities import (
     PensionBalance,
     PensionBuyableAmount,
@@ -23,7 +24,6 @@ from .entities import (
     PensionOrder,
     PensionPresentBalance,
 )
-from ..transport import Environment, Transport
 
 if TYPE_CHECKING:
     from .._literals import Numeric

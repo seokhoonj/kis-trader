@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from kis_trader.realtime import _registry  # noqa: F401  (import 시 파서 등록)
+from kis_trader.realtime import _registry
 from kis_trader.realtime.parsers.overseas import (
     _ASIA_ORDERBOOK_FIELDS,
     _DELAYED_TRADE_FIELDS,
@@ -74,12 +74,12 @@ def test_parse_orderbook_headline():
     assert ob.local_time == "093000"
     assert ob.korea_date == "20260814"
     assert ob.korea_time == "223000"
-    assert ob.total_bid_volume == Decimal("1500")
-    assert ob.total_ask_volume == Decimal("2200")
+    assert ob.total_bid_volume == Decimal(1500)
+    assert ob.total_ask_volume == Decimal(2200)
     assert ob.best_bid == Decimal("231.50")
     assert ob.best_ask == Decimal("231.55")
-    assert ob.best_bid_volume == Decimal("300")
-    assert ob.best_ask_volume == Decimal("450")
+    assert ob.best_bid_volume == Decimal(300)
+    assert ob.best_ask_volume == Decimal(450)
 
 
 def test_orderbook_raw_has_unique_ledger_keys():
@@ -131,12 +131,12 @@ def test_parse_asia_orderbook_headline():
     assert ob.local_time == "093000"
     assert ob.korea_date == "20260814"
     assert ob.korea_time == "093000"
-    assert ob.total_bid_volume == Decimal("1500")
-    assert ob.total_ask_volume == Decimal("2200")
+    assert ob.total_bid_volume == Decimal(1500)
+    assert ob.total_ask_volume == Decimal(2200)
     assert ob.best_bid == Decimal("2850.0")
     assert ob.best_ask == Decimal("2851.0")
-    assert ob.best_bid_volume == Decimal("300")
-    assert ob.best_ask_volume == Decimal("450")
+    assert ob.best_bid_volume == Decimal(300)
+    assert ob.best_ask_volume == Decimal(450)
 
 
 def test_asia_orderbook_raw_and_registry():
@@ -197,9 +197,9 @@ def test_parse_delayed_trade_tick_headline():
     assert tick.change_percent == Decimal("0.65")
     assert tick.best_bid == Decimal("231.45")
     assert tick.best_ask == Decimal("231.55")
-    assert tick.trade_volume == Decimal("10")
-    assert tick.accumulated_volume == Decimal("50000")
-    assert tick.accumulated_value == Decimal("11500000")
+    assert tick.trade_volume == Decimal(10)
+    assert tick.accumulated_volume == Decimal(50000)
+    assert tick.accumulated_value == Decimal(11500000)
     assert tick.conclusion_strength == Decimal("115.2")
     assert tick.market_type == "1"
 
@@ -250,10 +250,10 @@ def test_parse_execution_notice_headline():
     assert notice.sell_buy == "02"
     assert notice.symbol == "AAPL"
     assert notice.symbol_name == "APPLE INC"
-    assert notice.executed_quantity == Decimal("5")
+    assert notice.executed_quantity == Decimal(5)
     assert notice.executed_price == Decimal("231.50")
     assert notice.time == "223015"
-    assert notice.order_quantity == Decimal("10")
+    assert notice.order_quantity == Decimal(10)
     assert notice.rejected is False
     assert notice.executed is True
     assert notice.accepted is True
@@ -319,13 +319,13 @@ def test_parse_futures_trade_tick_headline():
     assert tick.recv_time == "223000"
     assert tick.prev_close == Decimal("5500.25")
     assert tick.current_price == Decimal("5510.50")
-    assert tick.trade_volume == Decimal("3")
+    assert tick.trade_volume == Decimal(3)
     assert tick.change == Decimal("10.25")
     assert tick.change_percent == Decimal("0.19")
     assert tick.open == Decimal("5502.00")
     assert tick.high == Decimal("5515.00")
     assert tick.low == Decimal("5498.00")
-    assert tick.accumulated_volume == Decimal("120000")
+    assert tick.accumulated_volume == Decimal(120000)
     assert tick.change_sign == "2"
     assert tick.trade_sign == "1"
     assert tick.prev_settlement_price == Decimal("5501.00")
@@ -369,9 +369,9 @@ def test_parse_futures_orderbook_headline():
     assert ob.recv_time == "223000"
     assert ob.prev_close == Decimal("5500.25")
     assert ob.best_bid == Decimal("5510.00")
-    assert ob.best_bid_volume == Decimal("12")
+    assert ob.best_bid_volume == Decimal(12)
     assert ob.best_ask == Decimal("5510.50")
-    assert ob.best_ask_volume == Decimal("8")
+    assert ob.best_ask_volume == Decimal(8)
     assert ob.settlement_price == Decimal("5501.00")
 
 
@@ -423,12 +423,12 @@ def test_parse_futures_order_notice_headline():
     assert notice.original_order_no == "0000100"
     assert notice.symbol == "ESU26"
     assert notice.sell_buy == "02"
-    assert notice.order_quantity == Decimal("2")
+    assert notice.order_quantity == Decimal(2)
     assert notice.limit_price == Decimal("5510.00")
     assert notice.stop_price == Decimal("5490.00")
-    assert notice.total_executed_quantity == Decimal("1")
+    assert notice.total_executed_quantity == Decimal(1)
     assert notice.total_executed_price == Decimal("5509.50")
-    assert notice.remaining_quantity == Decimal("1")
+    assert notice.remaining_quantity == Decimal(1)
     assert notice.currency == "USD"
     assert notice.liquidation is True
 
@@ -478,10 +478,10 @@ def test_parse_futures_execution_notice_headline():
     assert notice.order_no == "0000123"
     assert notice.symbol == "ESU26"
     assert notice.sell_buy == "02"
-    assert notice.order_quantity == Decimal("2")
+    assert notice.order_quantity == Decimal(2)
     assert notice.executed_date == "20260814"
     assert notice.execution_no == "0000999"
-    assert notice.executed_quantity == Decimal("1")
+    assert notice.executed_quantity == Decimal(1)
     assert notice.executed_price == Decimal("5509.50")
     assert notice.executed_amount == Decimal("5509.50")
     assert notice.commission == Decimal("2.50")

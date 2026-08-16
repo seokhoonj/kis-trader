@@ -7,7 +7,7 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from kis_trader.realtime import _registry  # noqa: F401  (import 시 파서 등록)
+from kis_trader.realtime import _registry
 from kis_trader.realtime.parsers.bond import (
     BondIndexTick,
     BondOrderBook,
@@ -16,7 +16,6 @@ from kis_trader.realtime.parsers.bond import (
     parse_bond_order_book,
     parse_bond_trade_tick,
 )
-
 
 # --- 일반채권 실시간체결가 (H0BJCNT0) -------------------------------------------------
 
@@ -47,16 +46,16 @@ def test_parse_bond_trade_tick_maps_headline_fields():
     assert tick.name == "국고01500-3006"
     assert tick.time == "093000"
     assert tick.change_sign == "2"
-    assert tick.change == Decimal("5")
+    assert tick.change == Decimal(5)
     assert tick.change_percent == Decimal("0.05")
-    assert tick.current_price == Decimal("10250")
-    assert tick.trade_volume == Decimal("100")
-    assert tick.open == Decimal("10240")
-    assert tick.high == Decimal("10260")
-    assert tick.low == Decimal("10230")
-    assert tick.previous_close == Decimal("10245")
+    assert tick.current_price == Decimal(10250)
+    assert tick.trade_volume == Decimal(100)
+    assert tick.open == Decimal(10240)
+    assert tick.high == Decimal(10260)
+    assert tick.low == Decimal(10230)
+    assert tick.previous_close == Decimal(10245)
     assert tick.current_yield == Decimal("3.512")
-    assert tick.accumulated_volume == Decimal("50000")
+    assert tick.accumulated_volume == Decimal(50000)
     assert tick.trade_type_code == "1"
 
 
@@ -89,14 +88,14 @@ def test_parse_bond_order_book_maps_headline_fields():
     assert isinstance(book, BondOrderBook)
     assert book.symbol == "KR103501GA34"
     assert book.time == "093000"
-    assert book.best_ask_price == Decimal("10251")
-    assert book.best_bid_price == Decimal("10249")
+    assert book.best_ask_price == Decimal(10251)
+    assert book.best_bid_price == Decimal(10249)
     assert book.best_ask_yield == Decimal("3.510")
     assert book.best_bid_yield == Decimal("3.515")
-    assert book.best_ask_volume == Decimal("300")
-    assert book.best_bid_volume == Decimal("250")
-    assert book.total_ask_volume == Decimal("9000")
-    assert book.total_bid_volume == Decimal("8500")
+    assert book.best_ask_volume == Decimal(300)
+    assert book.best_bid_volume == Decimal(250)
+    assert book.total_ask_volume == Decimal(9000)
+    assert book.total_bid_volume == Decimal(8500)
 
 
 def test_bond_order_book_raw_has_all_ledger_keys():

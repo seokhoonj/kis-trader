@@ -8,16 +8,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
-from kis_trader.realtime import _registry  # noqa: F401  (import 시 파서 등록)
+from kis_trader.realtime import _registry
 from kis_trader.realtime.parsers.domestic_stock import (
-    AfterHoursTick,
-    ETFNav,
-    ExecutionNotice,
-    ExpectedConclusion,
-    MarketOperation,
-    MemberActivity,
-    OrderBook,
-    ProgramTrade,
     _AFTER_HOURS_TICK_FIELDS,
     _ETF_NAV_FIELDS,
     _EXECUTION_NOTICE_FIELDS,
@@ -31,6 +23,14 @@ from kis_trader.realtime.parsers.domestic_stock import (
     _ORDER_BOOK_NXT_FIELDS,
     _ORDER_BOOK_UNIFIED_FIELDS,
     _PROGRAM_TRADE_FIELDS,
+    AfterHoursTick,
+    ETFNav,
+    ExecutionNotice,
+    ExpectedConclusion,
+    MarketOperation,
+    MemberActivity,
+    OrderBook,
+    ProgramTrade,
     parse_after_hours_tick,
     parse_etf_nav,
     parse_execution_notice,
@@ -71,14 +71,14 @@ def test_parse_order_book_krx_headline_and_raw():
     assert ob.symbol == "005930"
     assert ob.time == "093000"
     assert ob.hour_class == "0"
-    assert ob.best_ask == Decimal("71500")
-    assert ob.best_bid == Decimal("71400")
-    assert ob.best_ask_qty == Decimal("120")
-    assert ob.best_bid_qty == Decimal("300")
-    assert ob.total_ask_qty == Decimal("5000")
-    assert ob.total_bid_qty == Decimal("6000")
-    assert ob.expected_price == Decimal("71450")
-    assert ob.expected_qty == Decimal("42")
+    assert ob.best_ask == Decimal(71500)
+    assert ob.best_bid == Decimal(71400)
+    assert ob.best_ask_qty == Decimal(120)
+    assert ob.best_bid_qty == Decimal(300)
+    assert ob.total_ask_qty == Decimal(5000)
+    assert ob.total_bid_qty == Decimal(6000)
+    assert ob.expected_price == Decimal(71450)
+    assert ob.expected_qty == Decimal(42)
     assert ob._raw["MID_PRC"] == "71450"
     assert ob._raw["ASKP10"] == "0"
     assert len(ob._raw) == len(_ORDER_BOOK_KRX_FIELDS) == 62
@@ -91,7 +91,7 @@ def test_parse_order_book_nxt_uses_nxt_mid_price():
     })
     ob = parse_order_book_nxt(record)
     assert ob.symbol == "000660"
-    assert ob.best_ask == Decimal("180000")
+    assert ob.best_ask == Decimal(180000)
     assert ob._raw["NMID_PRC"] == "179800"
     assert len(ob._raw) == 62
 
@@ -116,7 +116,7 @@ def test_parse_order_book_after_hours_nine_levels():
     ob = parse_order_book_after_hours(record)
     assert ob.symbol == "005930"
     assert ob.time == "173000"
-    assert ob.expected_price == Decimal("71450")
+    assert ob.expected_price == Decimal(71450)
     assert "ASKP9" in ob._raw
     assert "ASKP10" not in ob._raw  # 시간외는 9단계
     assert len(ob._raw) == len(_ORDER_BOOK_AFTER_HOURS_FIELDS) == 54
@@ -150,15 +150,15 @@ def test_parse_expected_conclusion_krx():
     assert isinstance(ec, ExpectedConclusion)
     assert ec.symbol == "005930"
     assert ec.time == "090000"
-    assert ec.expected_price == Decimal("71500")
+    assert ec.expected_price == Decimal(71500)
     assert ec.change_sign == "2"
-    assert ec.change == Decimal("100")
+    assert ec.change == Decimal(100)
     assert ec.change_percent == Decimal("0.14")
-    assert ec.open == Decimal("71400")
-    assert ec.high == Decimal("71800")
-    assert ec.low == Decimal("70900")
-    assert ec.expected_volume == Decimal("1234")
-    assert ec.accumulated_volume == Decimal("5000000")
+    assert ec.open == Decimal(71400)
+    assert ec.high == Decimal(71800)
+    assert ec.low == Decimal(70900)
+    assert ec.expected_volume == Decimal(1234)
+    assert ec.accumulated_volume == Decimal(5000000)
     assert ec.business_date == "20260814"
     assert ec.trading_halted is False
     assert len(ec._raw) == 45
@@ -171,7 +171,7 @@ def test_parse_expected_conclusion_ext_has_vi_reference():
         "TRHT_YN": "Y", "VI_STND_PRC": "175000",
     })
     ec = parse_expected_conclusion_ext(record)
-    assert ec.expected_price == Decimal("180000")
+    assert ec.expected_price == Decimal(180000)
     assert ec.trading_halted is True
     assert ec._raw["VI_STND_PRC"] == "175000"
     assert len(ec._raw) == 46
@@ -204,16 +204,16 @@ def test_parse_after_hours_tick():
     assert isinstance(tick, AfterHoursTick)
     assert tick.symbol == "005930"
     assert tick.time == "173000"
-    assert tick.current_price == Decimal("71000")
+    assert tick.current_price == Decimal(71000)
     assert tick.change_sign == "5"
-    assert tick.change == Decimal("-500")
+    assert tick.change == Decimal(-500)
     assert tick.change_percent == Decimal("-0.70")
-    assert tick.open == Decimal("71500")
-    assert tick.high == Decimal("71600")
-    assert tick.low == Decimal("70900")
-    assert tick.trade_volume == Decimal("10")
-    assert tick.accumulated_volume == Decimal("123456")
-    assert tick.accumulated_value == Decimal("8765432100")
+    assert tick.open == Decimal(71500)
+    assert tick.high == Decimal(71600)
+    assert tick.low == Decimal(70900)
+    assert tick.trade_volume == Decimal(10)
+    assert tick.accumulated_volume == Decimal(123456)
+    assert tick.accumulated_value == Decimal(8765432100)
     assert tick.business_date == "20260814"
     assert tick.trading_halted is False
     assert len(tick._raw) == 43
@@ -241,12 +241,12 @@ def test_parse_program_trade():
     assert isinstance(pt, ProgramTrade)
     assert pt.symbol == "005930"
     assert pt.time == "100000"
-    assert pt.sell_volume == Decimal("1000")
-    assert pt.sell_value == Decimal("71500000")
-    assert pt.buy_volume == Decimal("1500")
-    assert pt.buy_value == Decimal("107250000")
-    assert pt.net_buy_volume == Decimal("500")
-    assert pt.net_buy_value == Decimal("35750000")
+    assert pt.sell_volume == Decimal(1000)
+    assert pt.sell_value == Decimal(71500000)
+    assert pt.buy_volume == Decimal(1500)
+    assert pt.buy_value == Decimal(107250000)
+    assert pt.net_buy_volume == Decimal(500)
+    assert pt.net_buy_value == Decimal(35750000)
     assert len(pt._raw) == 11
     assert pt._raw["WHOL_NTBY_QTY"] == "0"
 
@@ -276,9 +276,9 @@ def test_parse_member_activity():
     assert ma.symbol == "005930"
     assert ma.top_seller == "미래에셋"
     assert ma.top_buyer == "키움증권"
-    assert ma.foreign_sell_volume == Decimal("12000")
-    assert ma.foreign_buy_volume == Decimal("20000")
-    assert ma.foreign_net_buy_volume == Decimal("8000")
+    assert ma.foreign_sell_volume == Decimal(12000)
+    assert ma.foreign_buy_volume == Decimal(20000)
+    assert ma.foreign_net_buy_volume == Decimal(8000)
     assert len(ma._raw) == 78
     assert ma._raw["BYOV_MBCR_ENG_NAME5"] == "0"
 
@@ -310,14 +310,14 @@ def test_parse_execution_notice():
     assert en.original_order_no == "0000"
     assert en.sell_buy_class == "02"
     assert en.symbol == "005930"
-    assert en.executed_qty == Decimal("10")
-    assert en.executed_price == Decimal("71500")
+    assert en.executed_qty == Decimal(10)
+    assert en.executed_price == Decimal(71500)
     assert en.time == "093015"
     assert en.refused is False
     assert en.conclusion_flag == "2"
     assert en.accepted_flag == "2"
-    assert en.order_qty == Decimal("10")
-    assert en.order_price == Decimal("71500")
+    assert en.order_qty == Decimal(10)
+    assert en.order_price == Decimal(71500)
     assert len(en._raw) == 26
 
 

@@ -10,12 +10,12 @@ from decimal import Decimal
 
 from kis_trader.realtime import _registry
 from kis_trader.realtime.parsers.elw import (
-    ExecutionTick,
-    ExpectedConclusion,
-    OrderBook,
     _EXECUTION_TICK_FIELDS,
     _EXPECTED_CONCLUSION_FIELDS,
     _ORDER_BOOK_FIELDS,
+    ExecutionTick,
+    ExpectedConclusion,
+    OrderBook,
     parse_execution_tick,
     parse_expected_conclusion,
     parse_order_book,
@@ -67,17 +67,17 @@ def test_parse_order_book_maps_headline_fields():
     assert ob.bid_prices == tuple(Decimal(90 - i) for i in range(1, 11))
     assert ob.ask_volumes == tuple(Decimal(1000 + i) for i in range(1, 11))
     assert ob.bid_volumes == tuple(Decimal(2000 + i) for i in range(1, 11))
-    assert ob.ask_prices[0] == Decimal("101")
-    assert ob.bid_prices[0] == Decimal("89")
-    assert ob.total_ask_volume == Decimal("50000")
-    assert ob.total_bid_volume == Decimal("60000")
-    assert ob.expected_price == Decimal("105")
-    assert ob.expected_volume == Decimal("42")
+    assert ob.ask_prices[0] == Decimal(101)
+    assert ob.bid_prices[0] == Decimal(89)
+    assert ob.total_ask_volume == Decimal(50000)
+    assert ob.total_bid_volume == Decimal(60000)
+    assert ob.expected_price == Decimal(105)
+    assert ob.expected_volume == Decimal(42)
     assert ob.expected_change_sign == "2"
-    assert ob.expected_change == Decimal("5")
+    assert ob.expected_change == Decimal(5)
     assert ob.expected_change_percent == Decimal("5.0")
-    assert ob.lp_total_ask_volume == Decimal("7000")
-    assert ob.lp_total_bid_volume == Decimal("8000")
+    assert ob.lp_total_ask_volume == Decimal(7000)
+    assert ob.lp_total_bid_volume == Decimal(8000)
 
 
 def test_order_book_raw_has_all_ledger_keys():
@@ -143,18 +143,18 @@ def test_parse_execution_tick_maps_headline_fields():
     assert isinstance(tick, ExecutionTick)
     assert tick.symbol == "58J300"
     assert tick.time == "093030"
-    assert tick.current_price == Decimal("125")
+    assert tick.current_price == Decimal(125)
     assert tick.change_sign == "2"
-    assert tick.change == Decimal("5")
+    assert tick.change == Decimal(5)
     assert tick.change_percent == Decimal("4.17")
-    assert tick.open == Decimal("120")
-    assert tick.high == Decimal("130")
-    assert tick.low == Decimal("118")
-    assert tick.best_ask == Decimal("126")
-    assert tick.best_bid == Decimal("124")
-    assert tick.trade_volume == Decimal("10")
-    assert tick.accumulated_volume == Decimal("500000")
-    assert tick.accumulated_value == Decimal("62500000")
+    assert tick.open == Decimal(120)
+    assert tick.high == Decimal(130)
+    assert tick.low == Decimal(118)
+    assert tick.best_ask == Decimal(126)
+    assert tick.best_bid == Decimal(124)
+    assert tick.trade_volume == Decimal(10)
+    assert tick.accumulated_volume == Decimal(500000)
+    assert tick.accumulated_value == Decimal(62500000)
     assert tick.conclusion_strength == Decimal("110.5")
     assert tick.trade_sign == "1"
     assert tick.business_date == "20260814"
@@ -174,9 +174,9 @@ def test_parse_execution_tick_maps_headline_fields():
     assert tick.rho == Decimal("0.03")
     assert tick.implied_volatility == Decimal("35.7")
     assert tick.theoretical_price == Decimal("124.8")
-    assert tick.lp_holding == Decimal("300000")
+    assert tick.lp_holding == Decimal(300000)
     assert tick.lp_holding_percent == Decimal("12.5")
-    assert tick.lp_net_sell_volume == Decimal("-1500")
+    assert tick.lp_net_sell_volume == Decimal(-1500)
 
 
 def test_execution_tick_raw_has_all_ledger_keys():
@@ -241,18 +241,18 @@ def test_parse_expected_conclusion_maps_headline_fields():
     assert isinstance(ec, ExpectedConclusion)
     assert ec.symbol == "58J300"
     assert ec.time == "085959"
-    assert ec.expected_price == Decimal("123")
+    assert ec.expected_price == Decimal(123)
     assert ec.change_sign == "5"
-    assert ec.change == Decimal("3")
+    assert ec.change == Decimal(3)
     assert ec.change_percent == Decimal("-2.38")
-    assert ec.open == Decimal("125")
-    assert ec.high == Decimal("127")
-    assert ec.low == Decimal("121")
-    assert ec.best_ask == Decimal("124")
-    assert ec.best_bid == Decimal("122")
-    assert ec.expected_volume == Decimal("7")
-    assert ec.accumulated_volume == Decimal("12000")
-    assert ec.accumulated_value == Decimal("1476000")
+    assert ec.open == Decimal(125)
+    assert ec.high == Decimal(127)
+    assert ec.low == Decimal(121)
+    assert ec.best_ask == Decimal(124)
+    assert ec.best_bid == Decimal(122)
+    assert ec.expected_volume == Decimal(7)
+    assert ec.accumulated_volume == Decimal(12000)
+    assert ec.accumulated_value == Decimal(1476000)
     assert ec.conclusion_strength == Decimal("95.0")
     assert ec.trade_sign == "5"
     assert ec.business_date == "20260814"
@@ -272,7 +272,7 @@ def test_parse_expected_conclusion_maps_headline_fields():
     assert ec.rho == Decimal("0.02")
     assert ec.implied_volatility == Decimal("33.2")
     assert ec.theoretical_price == Decimal("122.9")
-    assert ec.lp_holding == Decimal("250000")
+    assert ec.lp_holding == Decimal(250000)
     assert ec.lp_holding_percent == Decimal("10.8")
 
 

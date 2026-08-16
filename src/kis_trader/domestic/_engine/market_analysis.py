@@ -35,8 +35,9 @@ from ..._internal._wire import (
     required_int,
 )
 from ...errors import KISUsageError
-from ..entities.investor import InvestorActivity, InvestorNetActivity
 from ...news import NewsHeadline
+from ...transport import RawResponse, Transport
+from ..entities.investor import InvestorActivity, InvestorNetActivity
 from ..entities.market import (
     BrokerOpinion,
     CreditEligibleStock,
@@ -57,7 +58,6 @@ from ..entities.market import (
     VIEvent,
 )
 from ..entities.program import ProgramTradeActivity
-from ...transport import RawResponse, Transport
 
 _INVESTOR_BY_MARKET_PATH = "/uapi/domestic-stock/v1/quotations/inquire-investor-daily-by-market"
 _INVESTOR_BY_MARKET_TR = "FHPTJ04040000"

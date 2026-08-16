@@ -18,7 +18,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
-from typing import Protocol
+from typing import Protocol, Self
 
 from ..errors import KISUsageError
 from . import _registry
@@ -102,7 +102,7 @@ class RealtimeConnection:
         # 암호 TR 의 (key, iv) -- 구독 ACK 에서 수신.
         self._crypto: dict[str, tuple[str, str]] = {}
 
-    async def __aenter__(self) -> RealtimeConnection:
+    async def __aenter__(self) -> Self:
         self._ws = await self._connect(self._url)
         return self
 
@@ -179,7 +179,7 @@ class RealtimeConnection:
     async def _handle(self, raw: str) -> AsyncIterator[RealtimeMessage]:
         try:
             frame = parse_frame(raw)
-        except Exception:  # noqa: BLE001 - 깨진 프레임은 드롭(스트림 유지)
+        except Exception:
             _logger.warning("drop unparseable frame: %r", raw[:80], exc_info=True)
             return
         if isinstance(frame, SystemMessage):
@@ -193,7 +193,7 @@ class RealtimeConnection:
         # DataFrame -- 필요 시 복호화 후 파싱. 실패 프레임은 드롭(fail-safe, 스트림 미중단).
         try:
             messages = self._decode(frame)
-        except Exception:  # noqa: BLE001
+        except Exception:
             _logger.warning("drop frame tr_id=%s (decode failed)", frame.tr_id, exc_info=True)
             return
         for message in messages:

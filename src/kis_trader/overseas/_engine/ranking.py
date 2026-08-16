@@ -24,8 +24,8 @@ from ..._internal._wire import (
     required_int,
 )
 from ...errors import KISUsageError
-from ..entities.ranking import RankedOverseasStock
 from ...transport import Transport
+from ..entities.ranking import RankedOverseasStock
 
 _TRADE_VOL = ("/uapi/overseas-stock/v1/ranking/trade-vol", "HHDFS76310010")
 _TRADE_AMOUNT = ("/uapi/overseas-stock/v1/ranking/trade-pbmn", "HHDFS76320010")

@@ -40,6 +40,8 @@ from ..._internal._wire import (
     required_int,
 )
 from ...errors import KISUsageError
+from ...order_book import OrderBook, PriceLevel
+from ...transport import Transport
 from ..entities.etf import (
     ETFNAV,
     ETFComponent,
@@ -50,8 +52,6 @@ from ..entities.etf import (
     ETFNAVMinutePoint,
     ETFOrderBook,
 )
-from ...order_book import OrderBook, PriceLevel
-from ...transport import Transport
 
 _ETF_NAV_PATH = "/uapi/etfetn/v1/quotations/inquire-price"
 _ETF_NAV_TR = "FHPST02400000"

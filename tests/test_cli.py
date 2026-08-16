@@ -131,7 +131,7 @@ class _Row:
 
 
 def test_render_json_preserves_decimal_as_string_and_hides_raw():
-    row = _Row(symbol="005930", price=Decimal("71500"), _raw={"x": 1})
+    row = _Row(symbol="005930", price=Decimal(71500), _raw={"x": 1})
     out = render(row, fmt="json")
     assert '"price": "71500"' in out
     assert "_raw" not in out
@@ -139,12 +139,12 @@ def test_render_json_preserves_decimal_as_string_and_hides_raw():
 
 
 def test_render_json_includes_raw_only_when_asked():
-    row = _Row(symbol="005930", price=Decimal("71500"), _raw={"x": 1})
+    row = _Row(symbol="005930", price=Decimal(71500), _raw={"x": 1})
     assert "_raw" in render(row, fmt="json", include_raw=True)
 
 
 def test_to_jsonable_serializes_nested_list_of_dataclasses():
-    rows = [_Row("005930", Decimal("1"), {}), _Row("000660", Decimal("2"), {})]
+    rows = [_Row("005930", Decimal(1), {}), _Row("000660", Decimal(2), {})]
     jsonable_rows = to_jsonable(rows)
     assert jsonable_rows == [{"symbol": "005930", "price": "1"}, {"symbol": "000660", "price": "2"}]
 
@@ -354,10 +354,10 @@ def test_main_order_timeout_exits_seven_with_reconcile(monkeypatch, capsys):
 
 
 def test_render_table_covers_list_single_dict_and_empty():
-    rows = [_Row("005930", Decimal("71500"), {}), _Row("000660", Decimal("120000"), {})]
+    rows = [_Row("005930", Decimal(71500), {}), _Row("000660", Decimal(120000), {})]
     table = render(rows, fmt="table")
     assert "symbol" in table and "005930" in table and "000660" in table
-    single = render(_Row("005930", Decimal("71500"), {}), fmt="table")
+    single = render(_Row("005930", Decimal(71500), {}), fmt="table")
     assert "symbol" in single and "005930" in single
     plan = render({"symbol": "005930", "note": "dry-run"}, fmt="table")
     assert "symbol" in plan and "note" in plan
@@ -404,7 +404,7 @@ def test_render_table_commas_and_right_align_in_key_value_but_json_plain():
         net_asset: Decimal
         _raw: dict
 
-    obj = _Balance("KRW", Decimal("399684"), Decimal("127776156"), {})
+    obj = _Balance("KRW", Decimal(399684), Decimal(127776156), {})
     table = render(obj, fmt="table")
     assert "127,776,156" in table and "399,684" in table       # 표엔 천단위 콤마
     # 숫자는 공통 폭으로 우측정렬 -> 두 금액 줄의 오른끝(표시폭)이 같다
@@ -452,8 +452,8 @@ def test_order_book_table_is_ladder_and_json_is_raw():
 
     book = OrderBook(
         symbol="005930", market="KRX",
-        bids=[PriceLevel(Decimal("274000"), 100), PriceLevel(Decimal("273500"), 50)],
-        asks=[PriceLevel(Decimal("274500"), 80), PriceLevel(Decimal("275000"), 60)],
+        bids=[PriceLevel(Decimal(274000), 100), PriceLevel(Decimal(273500), 50)],
+        asks=[PriceLevel(Decimal(274500), 80), PriceLevel(Decimal(275000), 60)],
         total_bid_quantity=150, total_ask_quantity=140,
         as_of=datetime(2026, 8, 15, 20, 0, 0, tzinfo=timezone(timedelta(hours=9))),
     )

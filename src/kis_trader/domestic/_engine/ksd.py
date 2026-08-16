@@ -20,6 +20,8 @@ from ..._internal._response import (
     _require_mapping_rows,
 )
 from ..._internal._wire import optional_decimal, optional_int
+from ...errors import KISError, KISUsageError
+from ...transport import Transport
 from ..entities.calendar import (
     AppraisalRights,
     BonusIssue,
@@ -34,8 +36,6 @@ from ..entities.calendar import (
     RightsOffering,
     ShareholderMeeting,
 )
-from ...errors import KISError, KISUsageError
-from ...transport import Transport
 
 _DIVIDEND_PATH = "/uapi/domestic-stock/v1/ksdinfo/dividend"
 _DIVIDEND_TR = "HHKDB669102C0"

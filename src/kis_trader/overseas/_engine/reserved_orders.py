@@ -15,8 +15,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from ..._internal._wire import decimal_or_zero
-from ..._internal._wire import format_wire_decimal, optional_decimal
+from ..._internal._wire import decimal_or_zero, format_wire_decimal, optional_decimal
 from ...errors import (
     AccountNotOrderableError,
     KISError,
@@ -26,11 +25,11 @@ from ...errors import (
     OrderTimeoutError,
 )
 from ...order import ReservedOrderFingerprint, Side, coerce_decimal, validate_yyyymmdd
-from ..entities.orders import OverseasReservedOrder
 from ...report import ExecutionReport, OrderStatus
-from ._parse import _side_from_code
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ...transport import Environment, Transport, TransportTimeout
+from ..entities.orders import OverseasReservedOrder
+from ._parse import _side_from_code
 from .orders import _ORDER_EXCHANGE
 
 if TYPE_CHECKING:

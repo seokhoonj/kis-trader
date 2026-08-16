@@ -37,10 +37,10 @@ def test_parse_futures_order_book():
     assert ob.time == "093000"
     assert ob.best_ask == Decimal("330.50")
     assert ob.best_bid == Decimal("330.40")
-    assert ob.best_ask_quantity == Decimal("12")
-    assert ob.best_bid_quantity == Decimal("8")
-    assert ob.total_ask_quantity == Decimal("500")
-    assert ob.total_bid_quantity == Decimal("450")
+    assert ob.best_ask_quantity == Decimal(12)
+    assert ob.best_bid_quantity == Decimal(8)
+    assert ob.total_ask_quantity == Decimal(500)
+    assert ob.total_bid_quantity == Decimal(450)
     assert ob._raw["TOTAL_BIDP_RSQN_ICDC"] == "0"
     assert len(ob._raw) == len(der._FUTURES_ORDER_BOOK_FIELDS)
 
@@ -55,8 +55,8 @@ def test_parse_option_order_book():
     assert ob.symbol == "201S1305"
     assert ob.best_ask == Decimal("2.35")
     assert ob.best_bid == Decimal("2.30")
-    assert ob.best_ask_quantity == Decimal("40")
-    assert ob.best_bid_quantity == Decimal("55")
+    assert ob.best_ask_quantity == Decimal(40)
+    assert ob.best_bid_quantity == Decimal(55)
     assert len(ob._raw) == len(der._OPTION_ORDER_BOOK_FIELDS)
 
 
@@ -82,8 +82,8 @@ def test_parse_stock_futures_order_book_10_depth():
     )
     ob = der.parse_stock_futures_order_book(fields)
     assert ob.symbol == "111V06"
-    assert ob.best_ask == Decimal("72500")
-    assert ob.best_bid == Decimal("72400")
+    assert ob.best_ask == Decimal(72500)
+    assert ob.best_bid == Decimal(72400)
     assert ob._raw["ASKP10"] == "73000"
     assert len(ob._raw) == 68
 
@@ -111,13 +111,13 @@ def test_parse_futures_tick():
     assert tick.open == Decimal("329.00")
     assert tick.high == Decimal("331.00")
     assert tick.low == Decimal("328.50")
-    assert tick.trade_volume == Decimal("3")
-    assert tick.accumulated_volume == Decimal("120000")
-    assert tick.accumulated_value == Decimal("9500000000")
+    assert tick.trade_volume == Decimal(3)
+    assert tick.accumulated_volume == Decimal(120000)
+    assert tick.accumulated_value == Decimal(9500000000)
     assert tick.theoretical_price == Decimal("330.60")
     assert tick.market_basis == Decimal("0.85")
     assert tick.conclusion_strength == Decimal("98.5")
-    assert tick.open_interest == Decimal("250000")
+    assert tick.open_interest == Decimal(250000)
     assert tick.best_ask == Decimal("330.50")
     assert tick.best_bid == Decimal("330.40")
     assert tick._raw["DSCS_BLTR_ACML_QTY"] == "0"
@@ -148,15 +148,15 @@ def test_parse_stock_futures_tick_uses_stock_price_keys():
     )
     tick = der.parse_stock_futures_tick(fields)
     assert tick.symbol == "111V06"
-    assert tick.current_price == Decimal("72450")
+    assert tick.current_price == Decimal(72450)
     assert tick.change_sign == "5"
-    assert tick.change == Decimal("-150")
+    assert tick.change == Decimal(-150)
     assert tick.change_percent == Decimal("-0.21")
-    assert tick.open == Decimal("72600")
-    assert tick.high == Decimal("72900")
-    assert tick.low == Decimal("72300")
-    assert tick.best_ask == Decimal("72500")
-    assert tick.best_bid == Decimal("72400")
+    assert tick.open == Decimal(72600)
+    assert tick.high == Decimal(72900)
+    assert tick.low == Decimal(72300)
+    assert tick.best_ask == Decimal(72500)
+    assert tick.best_bid == Decimal(72400)
     assert len(tick._raw) == 49
 
 
@@ -184,9 +184,9 @@ def test_parse_index_option_tick_greeks():
     assert tick.open == Decimal("2.20")
     assert tick.high == Decimal("2.40")
     assert tick.low == Decimal("2.15")
-    assert tick.trade_volume == Decimal("5")
+    assert tick.trade_volume == Decimal(5)
     assert tick.theoretical_price == Decimal("2.35")
-    assert tick.open_interest == Decimal("18000")
+    assert tick.open_interest == Decimal(18000)
     assert tick.delta == Decimal("0.48")
     assert tick.gamma == Decimal("0.03")
     assert tick.vega == Decimal("0.12")
@@ -241,12 +241,12 @@ def test_parse_stock_futures_expected():
     assert isinstance(exp, der.ExpectedConclusion)
     assert exp.symbol == "111V06"
     assert exp.time == "153000"
-    assert exp.expected_price == Decimal("72500")
-    assert exp.expected_change == Decimal("100")
+    assert exp.expected_price == Decimal(72500)
+    assert exp.expected_change == Decimal(100)
     assert exp.expected_change_sign == "2"
     assert exp.expected_change_percent == Decimal("0.14")
     assert exp.market_operation_code == "1"
-    assert exp.expected_volume == Decimal("1200")
+    assert exp.expected_volume == Decimal(1200)
     assert len(exp._raw) == 8
 
 
@@ -259,7 +259,7 @@ def test_parse_night_option_expected():
     exp = der.parse_night_option_expected(fields)
     assert exp.symbol == "201S1305"
     assert exp.expected_price == Decimal("2.40")
-    assert exp.expected_volume == Decimal("300")
+    assert exp.expected_volume == Decimal(300)
     assert len(exp._raw) == 8
 
 
@@ -297,13 +297,13 @@ def test_parse_execution_notice():
     assert note.order_number == "0001"
     assert note.sell_buy == "02"
     assert note.symbol == "101W09"
-    assert note.filled_quantity == Decimal("2")
+    assert note.filled_quantity == Decimal(2)
     assert note.filled_price == Decimal("330.45")
     assert note.time == "093015"
     assert note.rejected is False
     assert note.fill_status == "2"
     assert note.accepted is True
-    assert note.order_quantity == Decimal("2")
+    assert note.order_quantity == Decimal(2)
     assert note.symbol_name == "KOSPI200 F 202509"
     assert note.account_name == "홍길동"
     assert note.order_price == Decimal("330.45")

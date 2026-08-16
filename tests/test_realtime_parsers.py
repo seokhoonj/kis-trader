@@ -8,7 +8,7 @@ from __future__ import annotations
 import asyncio
 from decimal import Decimal
 
-from kis_trader.realtime import _registry  # noqa: F401  (import 시 파서 등록)
+from kis_trader.realtime import _registry
 from kis_trader.realtime.messages import TradeTick
 from kis_trader.realtime.parsers.domestic_stock import parse_trade_tick
 
@@ -42,23 +42,23 @@ def test_parse_trade_tick_maps_headline_fields():
     assert isinstance(tick, TradeTick)
     assert tick.symbol == "005930"
     assert tick.time == "093000"
-    assert tick.current_price == Decimal("71500")
+    assert tick.current_price == Decimal(71500)
     assert tick.change_sign == "2"
-    assert tick.change == Decimal("100")
+    assert tick.change == Decimal(100)
     assert tick.change_percent == Decimal("0.14")
-    assert tick.open == Decimal("71400")
-    assert tick.high == Decimal("71800")
-    assert tick.low == Decimal("70900")
-    assert tick.best_ask == Decimal("71500")
-    assert tick.best_bid == Decimal("71400")
-    assert tick.trade_volume == Decimal("50")
-    assert tick.accumulated_volume == Decimal("1000000")
-    assert tick.accumulated_value == Decimal("71500000000")
+    assert tick.open == Decimal(71400)
+    assert tick.high == Decimal(71800)
+    assert tick.low == Decimal(70900)
+    assert tick.best_ask == Decimal(71500)
+    assert tick.best_bid == Decimal(71400)
+    assert tick.trade_volume == Decimal(50)
+    assert tick.accumulated_volume == Decimal(1000000)
+    assert tick.accumulated_value == Decimal(71500000000)
     assert tick.conclusion_strength == Decimal("120.5")
     assert tick.trade_sign == "1"
     assert tick.business_date == "20260814"
     assert tick.trading_halted is False
-    assert tick.static_vi_reference_price == Decimal("64350")
+    assert tick.static_vi_reference_price == Decimal(64350)
 
 
 def test_trade_tick_raw_has_all_ledger_keys():
@@ -130,4 +130,4 @@ def test_connection_dispatches_typed_trade_tick():
     assert len(msgs) == 1
     assert isinstance(msgs[0].data, TradeTick)
     assert msgs[0].data.symbol == "005930"
-    assert msgs[0].data.current_price == Decimal("71500")
+    assert msgs[0].data.current_price == Decimal(71500)

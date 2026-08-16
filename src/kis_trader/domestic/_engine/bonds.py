@@ -20,6 +20,7 @@ from decimal import Decimal
 from typing import Any, NamedTuple
 
 from ..._bars import _parse_bar_timestamp
+from ..._depth import _price_levels
 from ..._internal._datetime import (
     _KST,
     _parse_intraday_timestamp,
@@ -27,7 +28,6 @@ from ..._internal._datetime import (
     _to_yyyymmdd,
     parse_optional_kst_date,
 )
-from ..._depth import _price_levels
 from ..._internal._response import (
     _missing_block_error,
     _raise_if_error,
@@ -41,6 +41,10 @@ from ..._internal._wire import (
     required_int,
 )
 from ...bar import Bar, Interval
+from ...errors import KISError, KISUsageError
+from ...order_book import OrderBook
+from ...trade import Trade
+from ...transport import Transport
 from ..entities.bond import (
     BondDailyPrice,
     BondIssuance,
@@ -48,10 +52,6 @@ from ..entities.bond import (
     BondQuote,
     BondValuation,
 )
-from ...errors import KISError, KISUsageError
-from ...order_book import OrderBook
-from ...trade import Trade
-from ...transport import Transport
 
 _QUOTE_PATH = "/uapi/domestic-bond/v1/quotations/inquire-price"
 _QUOTE_TR = "FHKBJ773400C0"

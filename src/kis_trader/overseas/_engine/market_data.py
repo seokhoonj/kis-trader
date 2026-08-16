@@ -21,12 +21,12 @@ from ..._bars import (
     _parse_bar_timestamp,
     _parse_minute_bar_timestamp,
 )
+from ..._depth import _price_levels
 from ..._internal._datetime import (
     _KST,
     _to_yyyymmdd,
     _today_kst,
 )
-from ..._depth import _price_levels
 from ..._internal._response import (
     _missing_block_error,
     _raise_if_error,
@@ -42,13 +42,13 @@ from ..._internal._wire import (
 from ...bar import Bar, Interval
 from ...errors import KISError, KISUsageError
 from ...order_book import OrderBook
-from ..entities.quote import OverseasCurrentPrice
-from ..entities.industry import OverseasIndustry, OverseasIndustryStock
-from ..entities.search import OverseasStockSearch, OverseasStockSearchMatch
-from ..entities.product import OverseasProductInfo
 from ...quote import Quote
 from ...trade import Trade
 from ...transport import Environment, Transport
+from ..entities.industry import OverseasIndustry, OverseasIndustryStock
+from ..entities.product import OverseasProductInfo
+from ..entities.quote import OverseasCurrentPrice
+from ..entities.search import OverseasStockSearch, OverseasStockSearchMatch
 
 _QUOTE_PATH = "/uapi/overseas-price/v1/quotations/price-detail"
 _QUOTE_TR = "HHDFS76200200"

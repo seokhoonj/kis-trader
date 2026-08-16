@@ -20,6 +20,7 @@ from ..._internal._response import (
     _raise_if_error,
 )
 from ..._internal._wire import optional_decimal, required_decimal
+from ...transport import Transport
 from ..entities.financials import (
     BalanceSheet,
     FinancialRatio,
@@ -29,7 +30,6 @@ from ..entities.financials import (
     ProfitabilityRatio,
     StabilityRatio,
 )
-from ...transport import Transport
 
 _BALANCE_SHEET = ("/uapi/domestic-stock/v1/finance/balance-sheet", "FHKST66430100")
 _INCOME_STATEMENT = ("/uapi/domestic-stock/v1/finance/income-statement", "FHKST66430200")

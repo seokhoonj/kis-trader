@@ -38,6 +38,8 @@ from ..._internal._wire import (
     required_decimal,
     required_int,
 )
+from ...errors import KISUsageError
+from ...transport import Transport
 from ..entities.analysis import (
     AnalystOpinion,
     CreditBalancePoint,
@@ -51,8 +53,6 @@ from ..entities.analysis import (
     VolumeAtPrice,
     VolumeProfile,
 )
-from ...errors import KISUsageError
-from ...transport import Transport
 
 _CREDIT_PATH = "/uapi/domestic-stock/v1/quotations/daily-credit-balance"
 _CREDIT_TR = "FHPST04760000"

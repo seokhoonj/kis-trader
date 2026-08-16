@@ -10,8 +10,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._engine import index as overseas_index_api
 from ..bar import Bar, Interval
+from ._engine import index as overseas_index_api
 
 if TYPE_CHECKING:
     from datetime import date
