@@ -9,45 +9,30 @@
 
 ## 프로필이란
 
-**프로필**은 한 계좌 묶음(앱키·시크릿·계좌번호)과 그 **접속 환경**을 이름 하나로 가리킵니다.
-`KISClient(profile="main")` 처럼 이름만 고르면 그 계좌의 자격증명과 환경(실전/모의)이 함께 정해집니다.
+**프로필**은 한 계좌(앱키·시크릿·계좌번호)와 그 접속 환경(실전/모의)을 담은, **사용자가 이름 붙이는**
+묶음입니다. `KISClient(profile="pension_a")` 처럼 이름으로 그 계좌를 엽니다.
 
-| `profile=` | 계좌 | 환경 | 조회 | 주문 |
-|---|---|:--:|:--:|:--:|
-| `"main"` (기본) | 주계좌(위탁/종합) | 실전 | O | O |
-| `"paper"` | 모의투자 | 모의 | O | O |
-| `"isa"` | ISA | 실전 | O | O |
-| `"pension"` | 연금저축 | 실전 | O | O |
-| `"irp"` | IRP | 실전 | O | X |
+앱키·시크릿은 **종합계좌번호(CANO) 단위**라 계좌마다 다르고, 같은 유형 계좌도 여러 개 가질 수
+있습니다(연금저축 2개 등). 그래서 **"계좌 하나 = 프로필 하나"**로 원하는 만큼 이름 붙여 둡니다 --
+`main`, `pension_a`, `pension_b`, `overseas_futures` 등(영문·숫자·밑줄).
+
+- **환경(실전/모의)은 프로필에 저장된 값이 정합니다**(기본 `real`; 모의는 저장할 때
+  `environment="paper"`). 이름이 정하지 않습니다 -- `paper` 라는 이름도 그냥 한 프로필일 뿐입니다.
+- **`main` 은 기본 프로필 이름**입니다(`KISClient()` 가 인자 없이 여는 이름, `KIS_PROFILE` 로 변경).
+- **주문 가능 여부는 계좌의 상품코드(`ACNT_PRDT_CD`)로 결정**되며 세션이 자동 판정합니다
+  (아래 "내 계좌번호 확인"의 상품코드 표 참고: 예로 IRP `29` 는 조회 전용).
 
 ::: {.callout-note}
-**주문 가능 여부는 프로필 이름이 아니라 계좌의 상품코드(`ACNT_PRDT_CD`)로 결정되며, 세션이 자동으로
-판정합니다.** 위 표는 각 프로필에 그 종류의 계좌를 넣은 일반적인 경우입니다.
-
-- **연금저축(상품코드 `22`)**: 주문 가능(IRP와 혼동 주의).
-- **IRP(상품코드 `29`)**: 조회만 가능 -- KIS가 주문을 거부하므로 세션이 `orderable` 을 자동으로 끕니다.
-- **DC가입자(상품코드 `55`)**: Open API 이용 자체가 불가 -- 세션 생성이 거부됩니다.
-
-`orderable=False` 로 더 제한할 수는 있어도, 주문 불가 계좌를 강제로 켤 수는 없습니다. 조회 중에도
-잔고·주문내역은 계좌번호가 필요하고, 시세만 볼 때는 계좌 없이도 됩니다.
+각 프로필은 **환경변수**로도 줄 수 있습니다. 기본 프로필 `main` 은 접두어 없이
+`KIS_APP_KEY` / `KIS_APP_SECRET` / `KIS_ACCOUNT` / `KIS_ENVIRONMENT`, 이름 붙인 프로필은 대문자
+접두어를 붙여 `KIS_<이름>_APP_KEY` 식입니다(예: `pension_a` -> `KIS_PENSION_A_APP_KEY` ·
+`KIS_PENSION_A_ACCOUNT` · `KIS_PENSION_A_ENVIRONMENT`). `ACCOUNT` 는 `종합계좌번호-상품코드` 형식.
 :::
-
-**환경(실전/모의)은 프로필이 정합니다** -- `paper` 만 모의, 나머지는 전부 실전. 각 프로필은 자기
-접두어에 세 값(`APP_KEY` / `APP_SECRET` / `ACCOUNT`)을 붙여 읽습니다(예: `paper` 는 `KIS_PAPER_APP_KEY`
-· `KIS_PAPER_APP_SECRET` · `KIS_PAPER_ACCOUNT`). `ACCOUNT` 는 `종합계좌번호-상품코드` 형식입니다.
-
-| 프로필 | 접두어 | 예: 앱키 환경변수 |
-|---|---|---|
-| `main` (기본) | `KIS_` | `KIS_APP_KEY` |
-| `paper` | `KIS_PAPER_` | `KIS_PAPER_APP_KEY` |
-| `isa` | `KIS_ISA_` | `KIS_ISA_APP_KEY` |
-| `pension` | `KIS_PENSION_` | `KIS_PENSION_APP_KEY` |
-| `irp` | `KIS_IRP_` | `KIS_IRP_APP_KEY` |
 
 ## 자격증명 넣는 세 가지 방법
 
-같은 자격증명을 세 가지로 줄 수 있습니다. 세션은 **환경변수 -> `credentials.json` -> `config.toml`**
-순으로 찾습니다(뒤의 [해석 순서](#자격증명-해석-순서) 참고).
+같은 자격증명을 세 가지로 줄 수 있습니다. 세션은 **환경변수 -> `credentials.json`** 순으로
+찾습니다(뒤의 [해석 순서](#자격증명-해석-순서) 참고).
 
 **방법 1 (권장) -- `KISConfig(...).save()`.** 손으로 파일을 짜지 말고 파이썬으로 저장하면 정해진
 위치에 안전하게(`0600`·원자적) 기록되고, 다른 프로필은 보존하며 병합됩니다.
@@ -56,7 +41,8 @@
 from kis_trader import KISConfig
 
 KISConfig(profile="main", app_key="...", app_secret="...", account="12345678-01").save()
-KISConfig(profile="paper", app_key="...", app_secret="...", account="12345678-01").save()  # 모의도 쓰면
+KISConfig(profile="pension_a", app_key="...", app_secret="...", account="87654321-22").save()  # 다른 계좌
+KISConfig(profile="paper", app_key="...", app_secret="...", account="...", environment="paper").save()  # 모의
 ```
 
 **방법 2 -- 환경변수(CI·컨테이너·노트북).** `export` 해두면 `KISClient()` 가 자동으로 읽습니다(해석
@@ -65,17 +51,19 @@ KISConfig(profile="paper", app_key="...", app_secret="...", account="12345678-01
 ```bash
 export KIS_APP_KEY=YOUR_APP_KEY
 export KIS_APP_SECRET=YOUR_APP_SECRET
-export KIS_ACCOUNT=12345678-01    # 종합계좌번호-상품코드 (시세만 볼 거면 생략 가능)
+export KIS_ACCOUNT=12345678-01        # 종합계좌번호-상품코드 (시세만 볼 거면 생략 가능)
+# export KIS_ENVIRONMENT=paper        # 모의 계좌면
 ```
 
 **방법 3 -- 값 직접 전달.** 파일·환경변수를 안 쓰고 코드에서 바로 넘깁니다(이 경우 파일을 읽지 않음).
 
 ```python
-kis = KISClient(app_key="...", app_secret="...", account="12345678-01")
+kis = KISClient(app_key="...", app_secret="...", account="12345678-01")                 # 실전
+kis = KISClient(app_key="...", app_secret="...", account="...", environment="paper")    # 모의
 ```
 
-세션·CLI 여는 법은 [빠른 시작](quickstart.md) 참고. CLI는 `--profile` 하나가 계좌와 환경을 모두
-정합니다(`kis --profile paper stock quote 005930`).
+세션·CLI 여는 법은 [빠른 시작](quickstart.md) 참고. CLI는 `--profile` 로 어느 계좌·환경을 쓸지
+정합니다(환경은 그 프로필에 저장된 값). 예: `kis --profile pension_a account balance`.
 
 ## 처음 설정하기 (한 번만)
 
@@ -139,14 +127,18 @@ notepad $HOME\.config\kis-trader\credentials.json    # 메모장 열림 -> 붙�
 
 ```json
 {
-  "KIS_APP_KEY": "여기에_실전_APP_KEY",
-  "KIS_APP_SECRET": "여기에_실전_APP_SECRET",
-  "KIS_ACCOUNT": "12345678-01"
+  "main": {
+    "app_key": "여기에_실전_APP_KEY",
+    "app_secret": "여기에_실전_APP_SECRET",
+    "account": "12345678-01",
+    "environment": "real"
+  }
 }
 ```
 
-모의투자도 쓰려면 같은 파일에 `KIS_PAPER_APP_KEY` / `KIS_PAPER_APP_SECRET` / `KIS_PAPER_ACCOUNT` 를
-**추가**하면 됩니다(아래 "파일 위치" 절의 전체 예시 참고).
+계좌를 더 쓰려면 같은 파일에 프로필을 **추가**합니다 -- 원하는 이름(`pension_a`, `paper` 등)으로
+같은 모양의 객체를 넣으면 됩니다. 모의투자 프로필은 `"environment": "paper"` 로 둡니다(아래
+"파일 위치" 절의 전체 예시 참고).
 
 ::: {.callout-warning}
 JSON은 **쉼표·따옴표**가 하나라도 틀리면 안 읽힙니다. 마지막 항목 뒤에는 쉼표를 붙이지 마세요.
@@ -179,12 +171,10 @@ Windows(PowerShell)는 `setx KIS_PROFILE paper` 후 새 창을 여세요.
 
 ## 자격증명 해석 순서
 
-세션(`KISClient`)이 프로필의 자격증명을 다음 순서로 찾습니다. 앞에서 찾으면 뒤는 보지 않습니다.
+세션(`KISClient`)이 프로필의 각 값을 다음 순서로 찾습니다. 앞에서 찾으면 뒤는 보지 않습니다.
 
-1. **환경변수** -- 예: `KIS_APP_KEY`.
+1. **환경변수** -- 프로필 접두어를 붙인 키(예: `KIS_APP_KEY`, `KIS_PENSION_A_APP_KEY`).
 2. **`credentials.json`** -- 설정 디렉터리의 시크릿 파일(`KISConfig(...).save()` 가 기록).
-3. **`config.toml`** -- 설정 디렉터리의 낮은 우선순위 폴백. 주로 비밀이 아닌 설정을 두지만
-   자격증명도 여기서 폴백으로 읽히므로, 값을 넣는다면 `credentials.json` 과 같이 `0600` 으로 보호하세요.
 
 환경변수가 파일보다 우선하므로, CI·컨테이너에서는 환경변수로 덮어쓰고 개인 머신에서는 파일을
 쓰는 식으로 섞을 수 있습니다. 일부만 직접 넘기면 **빠진 값만** 저장분에서 채웁니다. 값은 화면·로그·
@@ -213,20 +203,17 @@ Windows(PowerShell)는 `setx KIS_PROFILE paper` 후 새 창을 여세요.
 
 ### `~/.config/kis-trader/` — 편집 설정
 
-- **`credentials.json`** -- 시크릿(앱키·시크릿·계좌번호). 프로필 접두어별 키를 한 파일에 담습니다.
+- **`credentials.json`** -- 시크릿(앱키·시크릿·계좌번호). 프로필별 객체를 한 파일에 담습니다.
   파일 권한은 `0600`(소유자만 읽기)로 두세요.
 
   ```json
   {
-    "KIS_APP_KEY": "...",        "KIS_APP_SECRET": "...",        "KIS_ACCOUNT": "12345678-01",
-    "KIS_PAPER_APP_KEY": "...",  "KIS_PAPER_APP_SECRET": "...",  "KIS_PAPER_ACCOUNT": "12345678-01",
-    "KIS_ISA_APP_KEY": "...",    "KIS_ISA_APP_SECRET": "...",    "KIS_ISA_ACCOUNT": "..."
+    "main":      {"app_key": "...", "app_secret": "...", "account": "12345678-01", "environment": "real"},
+    "pension_a": {"app_key": "...", "app_secret": "...", "account": "87654321-22", "environment": "real"},
+    "pension_b": {"app_key": "...", "app_secret": "...", "account": "11112222-22", "environment": "real"},
+    "paper":     {"app_key": "...", "app_secret": "...", "account": "...",         "environment": "paper"}
   }
   ```
-
-- **`config.toml`** -- 낮은 우선순위 폴백(주로 비밀 아닌 설정, 단 자격증명 폴백으로도 읽힘 ->
-  값을 넣으면 `0600`). 파일이 있는데 읽거나 파싱할 수 없으면, 있는 자격증명을 '없음'으로 오진하지
-  않도록 오류로 닫습니다.
 
 ### `~/.cache/kis-trader/` — 재생성 캐시
 
