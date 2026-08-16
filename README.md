@@ -66,7 +66,8 @@ kis order buy 005930 10 --limit-price 70000                      # dry-run (전�
 kis order buy 005930 10 --limit-price 70000 --execute paper --yes  # 모의 전송
 ```
 
-자격증명은 환경변수(`KIS_APP_KEY`/`KIS_APP_SECRET`/`KIS_ACCOUNT`). → [`docs/cli.md`](docs/cli.md)
+자격증명은 환경변수(`KIS_APP_KEY`/`KIS_APP_SECRET`/`KIS_CANO`/`KIS_ACNT_PRDT_CD`; 프로필별 접두어)나
+`KISConfig(...).save()`. → [`docs/cli.md`](docs/cli.md)
 
 Claude Code / Codex 로 계좌를 몰려면 `skills/kis-trader/` 스킬을 쓴다. →
 [`docs/claude-skill.md`](docs/claude-skill.md) · [`docs/codex-skill.md`](docs/codex-skill.md)
