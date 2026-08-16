@@ -16,6 +16,8 @@ kis.domestic.ranking.by_change(direction="gainers")  # 등락률 순위
 
 공개 식별자는 영어, 설명 docstring은 한국어(+ KIS URL·TR-id).
 
+📖 **문서: <https://seokhoonj.github.io/kis-trader/>**
+
 ## 설치
 
 ```bash
@@ -51,7 +53,7 @@ kis.orders.cancel(r.client_order_id)
 ```
 
 클라이언트측 안전 커널: **오확정 금지 · write 무재시도 · 보수적 reconcile**. 신용/주문가능은
-기본 차단. → [`docs/orders.md`](docs/orders.md)
+기본 차단. → [주문](https://seokhoonj.github.io/kis-trader/orders.html)
 
 ## 명령줄 (`kis`)
 
@@ -67,17 +69,22 @@ kis order buy 005930 10 --limit-price 70000 --execute paper --yes  # 모의 전�
 ```
 
 자격증명은 환경변수(`KIS_APP_KEY`/`KIS_APP_SECRET`/`KIS_ACCOUNT`; 프로필별 접두어)나
-`KISConfig(...).save()`. → [`docs/cli.md`](docs/cli.md)
+`KISConfig(...).save()`. → [자격증명과 프로필](https://seokhoonj.github.io/kis-trader/configuration.html)
 
 Claude Code / Codex 로 계좌를 몰려면 `skills/kis-trader/` 스킬을 쓴다. →
-[`docs/claude-skill.md`](docs/claude-skill.md) · [`docs/codex-skill.md`](docs/codex-skill.md)
+[Claude 스킬](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex 스킬](https://seokhoonj.github.io/kis-trader/codex-skill.html)
 
 ## 문서
 
-[빠른 시작](docs/quickstart.md) · [시세](docs/quotes.md) · [계좌·손익](docs/account.md) ·
-[주문](docs/orders.md) · [순위·검색](docs/screening.md) · [시장·지수](docs/market.md) ·
-[해외](docs/overseas.md) · [퇴직연금](docs/pension.md) · [실시간](docs/realtime.md) ·
-[명령줄](docs/cli.md) · [Claude 스킬](docs/claude-skill.md) · [Codex 스킬](docs/codex-skill.md)
+전체 문서는 **<https://seokhoonj.github.io/kis-trader/>** 에 있습니다(소스: `docs/`).
+
+- **시작하기** — [빠른 시작](https://seokhoonj.github.io/kis-trader/quickstart.html) · [앱키 발급](https://seokhoonj.github.io/kis-trader/appkey.html) · [자격증명과 프로필](https://seokhoonj.github.io/kis-trader/configuration.html)
+- **국내 주식** — [시세](https://seokhoonj.github.io/kis-trader/quotes.html) · [재무·실적](https://seokhoonj.github.io/kis-trader/financials.html) · [종목 수급](https://seokhoonj.github.io/kis-trader/flows.html) · [계좌·손익](https://seokhoonj.github.io/kis-trader/account.html) · [주문](https://seokhoonj.github.io/kis-trader/orders.html)
+- **시장·검색** — [순위·조건검색](https://seokhoonj.github.io/kis-trader/screening.html) · [시장·지수](https://seokhoonj.github.io/kis-trader/market.html) · [기업행위·일정](https://seokhoonj.github.io/kis-trader/corporate-actions.html)
+- **해외·연금** — [해외주식](https://seokhoonj.github.io/kis-trader/overseas.html) · [퇴직연금](https://seokhoonj.github.io/kis-trader/pension.html)
+- **다른 상품** — [ETF·ETN](https://seokhoonj.github.io/kis-trader/etf.html) · [ELW](https://seokhoonj.github.io/kis-trader/elw.html) · [선물·옵션](https://seokhoonj.github.io/kis-trader/derivatives.html) · [채권](https://seokhoonj.github.io/kis-trader/bonds.html)
+- **명령줄·에이전트** — [Command Line](https://seokhoonj.github.io/kis-trader/cli.html) · [Claude Skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex Skill](https://seokhoonj.github.io/kis-trader/codex-skill.html)
+- **참고** — [실시간(WebSocket)](https://seokhoonj.github.io/kis-trader/realtime.html) · [한계·미구현](https://seokhoonj.github.io/kis-trader/limits.html)
 
 엔드포인트별 상세는 각 메서드 docstring에 (`help(...)` / IDE).
 
