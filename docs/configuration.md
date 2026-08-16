@@ -55,14 +55,14 @@ KISClient(profile="main")   # "main" 이라 저장해 둔 계좌로 세션을 �
 
 ```python
 from kis_trader import KISConfig
-KISConfig.set_default("isa")   # credentials.json 최상위에 "default_profile": "isa" 기록
+KISConfig.set_default("main")   # credentials.json 최상위에 "default_profile": "main" 기록
 ```
 
 **환경변수** (그 셸 세션에서만, 파일보다 우선) -- `KIS_DEFAULT_PROFILE` 은 OS 환경변수라 셸에서 정합니다:
 
 ```bash
-export KIS_DEFAULT_PROFILE=isa           # Linux·macOS (영구히 하려면 ~/.bashrc·~/.zshrc 에 추가)
-# $env:KIS_DEFAULT_PROFILE="isa"         # Windows PowerShell
+export KIS_DEFAULT_PROFILE=main          # Linux·macOS (영구히 하려면 ~/.bashrc·~/.zshrc 에 추가)
+# $env:KIS_DEFAULT_PROFILE="main"        # Windows PowerShell
 ```
 
 ### 이름은 라벨일 뿐
@@ -88,7 +88,7 @@ export KIS_DEFAULT_PROFILE=isa           # Linux·macOS (영구히 하려면 ~/.
 from kis_trader import KISConfig
 KISConfig(profile="main",    app_key="...", app_secret="...", account="12345678-01").save()
 KISConfig(profile="pension", app_key="...", app_secret="...", account="87654321-22").save()
-KISConfig(profile="paper",   app_key="...", app_secret="...", account="...", environment="paper").save()
+KISConfig(profile="paper",   app_key="...", app_secret="...", account="50123456-01", environment="paper").save()
 ```
 
 **② 환경변수** (터미널/셸 프롬프트에서 실행) -- `export` 해두면 `KISClient()` 가 자동으로 읽습니다.
