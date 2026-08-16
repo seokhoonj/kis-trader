@@ -17,7 +17,7 @@ KISClient(profile="pension")   # "pension" 이라 저장해 둔 계좌로 세션
 
 | 프로필 이름 (자유롭게) | 담는 계좌 |
 |---|---|
-| `main` | 평소 쓰는 주계좌 |
+| `main` | 주계좌 |
 | `pension` | 연금저축 |
 | `irp` | IRP(개인형퇴직연금, 조회 전용) |
 | `paper` | 모의투자 |
@@ -27,7 +27,7 @@ KISClient(profile="pension")   # "pension" 이라 저장해 둔 계좌로 세션
 `KISClient()` 처럼 이름 없이 열면 **기본 프로필**이 열립니다. 무엇이 기본인지는 이 순서로 정합니다:
 
 1. `KIS_DEFAULT_PROFILE` **환경변수**가 있으면 그 이름
-2. 없으면 -- `credentials.json` 의 **`default` 마커**(`KISConfig.set_default(...)` 로 기록)
+2. 없으면 -- `credentials.json` 에 **기본으로 지정해 둔 프로필**(아래 ①의 `KISConfig.set_default` 로 저장)
 3. 그것도 없으면 -- `credentials.json` 에 **맨 처음 저장한 프로필**
 4. 파일도 환경변수도 없으면 -- `main`
 
@@ -38,7 +38,7 @@ KISClient(profile="pension")   # "pension" 이라 저장해 둔 계좌로 세션
 
 ```python
 from kis_trader import KISConfig
-KISConfig.set_default("pension")   # credentials.json 최상위에 "default": "pension" 기록
+KISConfig.set_default("pension")   # credentials.json 최상위에 "default_profile": "pension" 기록
 ```
 
 **② 환경변수** (그 셸 세션에서만, ①보다 우선) -- `KIS_DEFAULT_PROFILE` 은 OS 환경변수라 셸에서 정합니다:
