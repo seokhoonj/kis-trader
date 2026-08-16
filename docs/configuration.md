@@ -9,7 +9,7 @@
 계좌번호, 그리고 실전이냐 모의냐(환경)까지. 이름으로 엽니다:
 
 ```python
-KISClient(profile="pension")   # "pension" 이라 저장해 둔 계좌로 세션을 엽니다
+KISClient(profile="isa")   # "isa" 라 저장해 둔 계좌로 세션을 엽니다
 ```
 
 계좌마다 프로필을 따로 두는 이유 -- 앱키·앱시크릿이 종합계좌번호(CANO) 단위라 계좌마다 다르고, 같은
@@ -18,6 +18,7 @@ KISClient(profile="pension")   # "pension" 이라 저장해 둔 계좌로 세션
 | 프로필 이름 (자유롭게) | 담는 계좌 |
 |---|---|
 | `main` | 주계좌 |
+| `isa` | ISA(개인종합자산관리) |
 | `pension` | 연금저축 |
 | `irp` | IRP(개인형퇴직연금, 조회 전용) |
 | `paper` | 모의투자 |
@@ -38,14 +39,14 @@ KISClient(profile="pension")   # "pension" 이라 저장해 둔 계좌로 세션
 
 ```python
 from kis_trader import KISConfig
-KISConfig.set_default("pension")   # credentials.json 최상위에 "default_profile": "pension" 기록
+KISConfig.set_default("isa")   # credentials.json 최상위에 "default_profile": "isa" 기록
 ```
 
 **② 환경변수** (그 셸 세션에서만, ①보다 우선) -- `KIS_DEFAULT_PROFILE` 은 OS 환경변수라 셸에서 정합니다:
 
 ```bash
-export KIS_DEFAULT_PROFILE=pension       # Linux·macOS (영구히 하려면 ~/.bashrc·~/.zshrc 에 추가)
-# $env:KIS_DEFAULT_PROFILE="pension"     # Windows PowerShell
+export KIS_DEFAULT_PROFILE=isa           # Linux·macOS (영구히 하려면 ~/.bashrc·~/.zshrc 에 추가)
+# $env:KIS_DEFAULT_PROFILE="isa"         # Windows PowerShell
 ```
 
 ### 이름은 라벨일 뿐
@@ -94,7 +95,7 @@ export KIS_ACCOUNT=12345678-01        # 종합계좌번호-상품코드 (시세�
 | `KIS_DEFAULT_PROFILE` | `default_profile`(최상위) | 기본 프로필 |
 
 접두어 없는 `KIS_APP_KEY` 는 `main` 프로필용이고, 다른 프로필은 이름을 끼웁니다 --
-`KIS_PENSION_APP_KEY` ↔ `credentials.json` 의 `pension.app_key`.
+`KIS_ISA_APP_KEY` ↔ `credentials.json` 의 `isa.app_key`.
 
 **③ 직접 전달** (파이썬 코드로 실행) -- 저장 없이 그때만 씁니다. (앱키·앱시크릿을 **둘 다** 주면 파일을 읽지 않음)
 
@@ -104,7 +105,7 @@ kis = KISClient(app_key="...", app_secret="...", account="12345678-01")
 ```
 
 ::: {.callout-note}
-CLI 에서도 `--profile` 로 계좌·환경을 고릅니다: `kis --profile pension account balance`
+CLI 에서도 `--profile` 로 계좌·환경을 고릅니다: `kis --profile isa account balance`
 :::
 
 ## 계좌번호와 상품코드
