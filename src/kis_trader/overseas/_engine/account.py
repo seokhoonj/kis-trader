@@ -25,7 +25,7 @@ from ..._internal._wire import (
 )
 from ...errors import KISError, KISUsageError
 from ...money import Money
-from ...transport import Environment, Transport
+from ...transport import Environment, RawResponse, Transport
 from ..entities.account import (
     OverseasBuyableAmount,
     OverseasForeignMargin,
@@ -498,7 +498,7 @@ def _request_page(
     transport: Transport, cano: str, product_code: str, environment: Environment,
     exchange: str, currency: str, ctx_fk: str, ctx_nk: str,
     *, tr_cont: str = "",
-):
+) -> RawResponse:
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
         "OVRS_EXCG_CD": exchange, "TR_CRCY_CD": currency,

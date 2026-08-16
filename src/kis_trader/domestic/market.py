@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from datetime import date
 
     from ..client import KISClient
+    from ..news import NewsHeadline
     from .entities.market import (
         BrokerOpinion,
         CreditEligibleStock,
@@ -30,7 +31,6 @@ if TYPE_CHECKING:
         MarketFunds,
         MarketInvestorFlow,
         MarketInvestorSnapshot,
-        NewsHeadline,
         ProgramFlowPoint,
         ProgramInvestorTrade,
         ProgramTradeSummary,

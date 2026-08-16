@@ -28,10 +28,10 @@ from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
-from typing import NamedTuple, Self
+from typing import NamedTuple, Self, cast
 
 from .errors import KISError, UnsupportedSchemaVersionError
-from .order import Fingerprint, decode_fingerprint, encode_fingerprint
+from .order import Fingerprint, Side, decode_fingerprint, encode_fingerprint
 from .report import ExecutionReport, OrderStatus
 
 try:
@@ -401,7 +401,7 @@ def _report_from_dict(report_data: dict[str, object]) -> ExecutionReport:
         client_order_id=str(report_data["client_order_id"]),
         order_id=None if report_data["order_id"] is None else str(report_data["order_id"]),
         symbol=str(report_data["symbol"]),
-        side=str(report_data["side"]),
+        side=cast(Side, str(report_data["side"])),
         status=OrderStatus(str(report_data["status"])),
         filled_quantity=Decimal(str(report_data["filled_quantity"])),
         average_price=None if average_price is None else Decimal(str(average_price)),

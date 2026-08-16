@@ -23,7 +23,7 @@ import base64
 import json
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Any, Literal
+from typing import Any, Literal, cast
 
 CustomerType = Literal["P", "B"]  # P: 개인, B: 법인
 
@@ -109,7 +109,7 @@ class SystemMessage:
     @property
     def return_code(self) -> str | None:
         """구독 ACK 의 처리 결과 코드(``body.rt_cd``). ``"0"`` 성공."""
-        return self.raw.get("body", {}).get("rt_cd")
+        return cast("str | None", self.raw.get("body", {}).get("rt_cd"))
 
 
 def parse_frame(raw: str) -> DataFrame | SystemMessage:

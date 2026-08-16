@@ -18,7 +18,7 @@ import asyncio
 import logging
 from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
-from typing import Protocol, Self
+from typing import Protocol, Self, cast
 
 from ..errors import KISUsageError
 from . import _registry
@@ -70,7 +70,8 @@ async def _default_connector(url: str) -> WebSocketLike:
             "'websockets' 를 import 할 수 없습니다(기본 의존성이어야 함): pip install kis-trader"
         ) from exc
     # 공식 KIS 샘플과 동일하게 라이브러리 기본값으로 연결(기본 open_timeout 10s 가 무한대기 방지).
-    return await websockets.connect(url)
+    # KIS 실시간은 텍스트 프레임만 보낸다 -- WebSocketLike 는 str 스트림으로 좁혀 계약한다.
+    return cast(WebSocketLike, await websockets.connect(url))
 
 
 class RealtimeConnection:
@@ -155,6 +156,7 @@ class RealtimeConnection:
     async def _messages(self) -> AsyncIterator[RealtimeMessage]:
         connection_closed = _connection_closed_errors()
         idle_backoff = 1.0
+        assert self._ws is not None  # __aenter__ 가 연결을 채운 뒤에만 호출된다
         while True:
             delivered = False
             try:

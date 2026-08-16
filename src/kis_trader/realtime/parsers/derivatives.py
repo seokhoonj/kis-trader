@@ -23,7 +23,7 @@ from typing import Any
 
 from .._registry import TRSpec, register
 
-_RAW_FIELD = field(  # 모든 엔티티가 공유하는 원본 매핑 필드 정의.
+_RAW_FIELD: Any = field(  # 모든 엔티티가 공유하는 원본 매핑 필드 정의.
     default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
 )
 

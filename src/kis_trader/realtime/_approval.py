@@ -8,7 +8,7 @@ REST OAuth 토큰(``/oauth2/tokenP``)과 별개인 ``/oauth2/Approval`` 을 쓴�
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from .._internal._auth import _requests_post
 from .._internal._endpoints import base_url
@@ -41,4 +41,4 @@ def fetch_approval_key(
         raise KISAuthError(
             f"실시간 접속키 발급 실패 (status={status}, 응답={data})"
         )
-    return approval_key
+    return cast(str, approval_key)

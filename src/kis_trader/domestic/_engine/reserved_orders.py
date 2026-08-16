@@ -16,7 +16,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
 from ..._internal._wire import decimal_or_zero, format_wire_decimal, optional_decimal
 from ...errors import (
@@ -27,7 +27,13 @@ from ...errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from ...order import ReservedOrderFingerprint, Side, coerce_decimal, validate_yyyymmdd
+from ...order import (
+    OrderType,
+    ReservedOrderFingerprint,
+    Side,
+    coerce_decimal,
+    validate_yyyymmdd,
+)
 from ...report import ExecutionReport, OrderStatus
 from ...reserved_order import ReservedOrder
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
@@ -212,7 +218,7 @@ def place_reserved_order(
     # end_date 는 예약의 정체성 일부(유효 종료일이 다르면 다른 주문)라 지문에 정직한 필드로 담는다
     # (exchange="reserved" 네임스페이스가 즉시주문과 분리한다).
     fingerprint = ReservedOrderFingerprint(
-        symbol=symbol, side=side, order_type=terms.order_type,
+        symbol=symbol, side=side, order_type=cast(OrderType, terms.order_type),
         quantity=format_wire_decimal(terms.quantity),
         limit_price="" if terms.limit_price is None else format_wire_decimal(terms.limit_price),
         end_date=end_date or "", exchange=_RESERVED_EXCHANGE,
@@ -281,6 +287,7 @@ def reconcile_reserved_order(
         raise KISUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
         )
+    fingerprint = cast(ReservedOrderFingerprint, fingerprint)  # 예약주문 reconcile 경로
     today = datetime.now(_KST).date()
     start = f"{today - timedelta(days=_RECONCILE_LOOKBACK_DAYS):%Y%m%d}"
     end = f"{today + timedelta(days=_RECONCILE_FORWARD_DAYS):%Y%m%d}"

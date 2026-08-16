@@ -464,7 +464,7 @@ _API_UNAVAILABLE_PRODUCT_CODES = frozenset({"55"})
 _READ_ONLY_PRODUCT_CODES = frozenset({"29"})
 
 
-def _split_optional_account(account: str | None) -> tuple[str, str] | tuple[None, None]:
+def _split_optional_account(account: str | None) -> tuple[str | None, str | None]:
     """``"12345678-01"`` -> (계좌번호 ``"12345678"``, 상품코드 ``"01"``). ``None`` 은 (None, None).
     계좌를 준 경우의 형식 검증은 저장 경로와 같은 :func:`~kis_trader.config._split_account` 를 쓴다
     -- 쓰기와 읽기가 한 계약을 공유하도록(발산 방지)."""

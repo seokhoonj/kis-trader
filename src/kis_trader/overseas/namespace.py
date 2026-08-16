@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from ..errors import KISUsageError
 from ._engine import account as overseas_account
@@ -273,7 +273,7 @@ class OverseasNamespace:
         )
 
     def futures_open_interest(
-        self, product: str, *, as_of: str | date, mode: str = "quantity"
+        self, product: str, *, as_of: str | date, mode: Literal["quantity", "change"] = "quantity"
     ) -> list[OverseasFuturesOpenInterest]:
         """해외선물 상품의 CFTC 미결제약정 수량 또는 증감 추이(실전만)."""
         return overseas_derivatives_api.fetch_open_interest(
@@ -294,7 +294,7 @@ class OverseasNamespace:
         NAS/NYS/AMS/HKS/TSE/... 혼합 가능). 국내는
         :meth:`~kis_trader.domestic.namespace.DomesticNamespace.quotes`."""
         return overseas_market_data_api.fetch_multi_quotes(
-            self._c.transport, requests=[tuple(item) for item in symbols]
+            self._c.transport, requests=[(exchange, symbol) for exchange, symbol in symbols]
         )
 
     def search_stocks(

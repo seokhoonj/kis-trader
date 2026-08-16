@@ -15,7 +15,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
-from typing import TypeAlias
+from typing import TypeAlias, cast
 
 from .errors import KISUsageError, PreTradeRiskError
 from .order import Order
@@ -111,7 +111,8 @@ class RiskLimits:
                     "notional 한도를 확인할 유효한 가격이 없다(시장가인데 현재가 참조가 없거나 0). 주문 중단."
                 )
             notional = price * order.quantity
-            if notional > self.max_order_notional:
+            # __post_init__ 이 Decimal 로 정규화한 값(입력형 DecimalInput 는 생성자 표면일 뿐).
+            if notional > cast(Decimal, self.max_order_notional):
                 raise PreTradeRiskError(
                     f"주문금액 {notional} 가 1주문 한도 {self.max_order_notional} 를 초과한다."
                 )
@@ -121,7 +122,7 @@ class RiskLimits:
                     "가격 collar 를 확인할 현재가가 없다(시세 조회 실패/0). 주문 중단."
                 )
             deviation = abs(order.limit_price - reference_price) / reference_price * 100
-            if deviation > self.price_collar_percent:
+            if deviation > cast(Decimal, self.price_collar_percent):
                 raise PreTradeRiskError(
                     f"지정가 {order.limit_price} 가 현재가 {reference_price} 에서 {deviation:.1f}% "
                     f"벗어나 collar {self.price_collar_percent}% 를 초과한다."

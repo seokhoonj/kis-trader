@@ -43,8 +43,11 @@ python_version = "3.11"
 files = ["src", "tests"]
 strict = true
 
-# 테스트 함수엔 애노테이션 강제를 면제한다(`-> None` 반복은 소음). 패키지 본체는 예외 없이 strict.
+# 테스트엔 애노테이션 강제·본문 타입검사를 면제한다(대규모 legacy 스위트라 애노테이션 부재; 배송되는
+# 패키지 본체는 예외 없이 strict -- 계약을 가진 쪽은 src 다).
 [[tool.mypy.overrides]]
 module = "tests.*"
 disallow_untyped_defs = false
 disallow_incomplete_defs = false
+disallow_untyped_calls = false
+check_untyped_defs = false

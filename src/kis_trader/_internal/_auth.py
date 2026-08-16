@@ -12,7 +12,7 @@ import os
 import threading
 import time
 from collections.abc import Callable, Mapping
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from ..errors import KISAuthError, KISUsageError
 from ._endpoints import base_url
@@ -67,7 +67,7 @@ class TokenManager:
         self._refresh_margin = refresh_margin
         self._lock = threading.Lock()
         self._token: str | None = None
-        self._expires_at = 0.0
+        self._expires_at: float | None = 0.0
 
     @property
     def _cache_path(self) -> str:
@@ -95,7 +95,8 @@ class TokenManager:
         expires_at = payload.get("expires_at")
         if not self._is_valid(token, expires_at, now):
             return None
-        return token, float(expires_at)
+        # _is_valid 가 token: str, expires_at: 숫자임을 이미 보장(TypeGuard 아님이라 mypy 는 못 좁힘).
+        return cast(str, token), float(cast(float, expires_at))
 
     def _write_cache(self, token: str, expires_at: float) -> None:
         # 토큰(브로커 접근권한)은 캐시 파일에 절대 world-readable 로 잠깐도 노출되면 안 된다.
@@ -141,7 +142,7 @@ class TokenManager:
         if not isinstance(token, str) or not token.strip():
             raise KISAuthError("KIS OAuth 응답에 접근 토큰이 없다.")
         try:
-            expires_in = int(payload.get("expires_in"))
+            expires_in = int(cast(Any, payload.get("expires_in")))
         except (TypeError, ValueError) as err:
             raise KISAuthError("KIS OAuth 응답의 토큰 유효기간이 올바르지 않다.") from err
         expires_at = now + expires_in

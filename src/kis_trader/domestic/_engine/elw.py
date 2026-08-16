@@ -601,7 +601,9 @@ def _minute_extra_params(
 
 def _spec_has_time(row: Mapping[str, Any], spec: _TrendSpec) -> bool:
     key = spec.time_key or spec.date_key
-    return bool(key) and bool(str(row.get(key, "")).strip())
+    if not key:
+        return False
+    return bool(str(row.get(key, "")).strip())
 
 
 def _spec_timestamp(row: Mapping[str, Any], *, as_of: datetime, spec: _TrendSpec) -> datetime:

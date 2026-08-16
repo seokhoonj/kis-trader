@@ -16,8 +16,8 @@ import logging
 import queue
 import threading
 from collections import defaultdict
-from collections.abc import Callable, Iterator
-from typing import Self
+from collections.abc import Callable, Coroutine, Iterator
+from typing import Any, Self
 
 from ..errors import RealtimeError
 from ._connection import Connector, RealtimeConnection, RealtimeMessage
@@ -60,7 +60,7 @@ class RealtimeClient:
         self._desired: set[tuple[str, str]] = set()  # start 전 등록 요청 보관
         # stream() 소비자가 없거나 느려도 무한정 자라지 않게 상한을 둔다(콜백 전용 사용자 메모리 누수 방지).
         # 가득 차면 가장 오래된 틱을 버린다(시장데이터는 최신이 중요) -- 정책은 _dispatch 참고.
-        self._queue: queue.Queue = queue.Queue(maxsize=_QUEUE_MAXSIZE)
+        self._queue: queue.Queue[Any] = queue.Queue(maxsize=_QUEUE_MAXSIZE)
         self._queue_overflow_warned = False
         self._running = False
         self._startup_error: BaseException | None = None  # start() 로 전달할 연결/구독 실패
@@ -234,7 +234,7 @@ class RealtimeClient:
                 _QUEUE_MAXSIZE,
             )
 
-    def _call_async(self, coro, *, timeout: float = 5.0) -> None:
+    def _call_async(self, coro: Coroutine[Any, Any, Any], *, timeout: float = 5.0) -> None:
         """백그라운드 루프에 코루틴을 제출하고 완료를 기다린다(예외 전파).
 
         루프가 돌고 있지 않으면(이미 종료) 코루틴을 닫고 조용히 무시한다. 콜백이 수신 루프

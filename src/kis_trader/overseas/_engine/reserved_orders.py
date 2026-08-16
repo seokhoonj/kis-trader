@@ -13,7 +13,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast
 
 from ..._internal._wire import decimal_or_zero, format_wire_decimal, optional_decimal
 from ...errors import (
@@ -224,6 +224,7 @@ def reconcile_overseas_reserved_order(
         raise KISUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
         )
+    fingerprint = cast(ReservedOrderFingerprint, fingerprint)  # 해외 예약주문 reconcile 경로
     today = (now or datetime.now(_KST)).date()
     start = f"{today - timedelta(days=_RECONCILE_LOOKBACK_DAYS):%Y%m%d}"
     end = f"{today + timedelta(days=_RECONCILE_FORWARD_DAYS):%Y%m%d}"

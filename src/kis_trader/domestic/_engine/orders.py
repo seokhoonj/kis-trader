@@ -28,9 +28,9 @@ from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
-from ..._internal._wire import decimal_or_zero
+from ..._internal._wire import decimal_or_zero, format_wire_decimal
 from ...errors import (
     AccountNotOrderableError,
     KISError,
@@ -46,7 +46,6 @@ from ...order import (
     ImmediateOrderFingerprint,
     Order,
     WireRequest,
-    format_wire_decimal,
 )
 from ...report import ExecutionReport, OrderStatus
 from ...risk import RiskLimits
@@ -232,6 +231,7 @@ def reconcile(
         raise KISUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
         )
+    fingerprint = cast(ImmediateOrderFingerprint, fingerprint)  # 즉시주문 reconcile 경로
     try:
         rows = _fetch_daily_orders(transport, fingerprint.symbol, cano=cano,
                                    product_code=product_code, environment=environment)

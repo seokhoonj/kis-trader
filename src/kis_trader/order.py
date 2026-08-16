@@ -12,7 +12,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
-from typing import TYPE_CHECKING, Literal, NamedTuple
+from typing import TYPE_CHECKING, Literal, NamedTuple, cast
 
 from ._internal._wire import format_wire_decimal
 from .errors import KISUsageError
@@ -64,6 +64,15 @@ class OrderFingerprint:
     위치 인코딩의 동등성으로 정의되므로 변형이 달라도 **예전 튜플 동등성과 바이트 단위로 동일**하다 --
     재조회 매칭과 이중전송 장벽이 여기에 의존한다. 수치 필드는 와이어와 같은 정본
     문자열(:func:`format_wire_decimal`)이다."""
+
+    if TYPE_CHECKING:
+        # 세 변형이 모두 갖는 공통 필드의 타입만 베이스에 노출한다(각 dataclass 변형이 실제 선언;
+        # 런타임 필드/슬롯 추가 없음). ``symbol``/``session`` 등 일부 변형에만 있는 필드는 제외한다.
+        side: Side
+        order_type: OrderType
+        quantity: str
+        limit_price: str
+        exchange: str
 
     __slots__ = ()
 
@@ -201,21 +210,26 @@ def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
         raise ValueError(f"지문 레코드 슬롯이 과다하다({_FINGERPRINT_SLOTS} 초과): {row!r}")
     symbol, side, order_type, quantity, limit_price, stop_slot, tif, exchange = slots[:8]
     credit_type, loan_date, session, division, board = slots[8:_FINGERPRINT_SLOTS]
+    # 저장분은 전부 str 로 복원된다 -- 생성 시 검증된 값이므로 도메인 Literal 로 좁힌다.
+    side_lit = cast(Side, side)
+    order_type_lit = cast(OrderType, order_type)
+    tif_lit = cast(TimeInForce, tif)
     if exchange.startswith(_ACTION_EXCHANGE_PREFIX):
         return ChangeActionFingerprint(
-            original_client_order_id=symbol, side=side, order_type=order_type,
-            quantity=quantity, limit_price=limit_price, action=stop_slot,
-            time_in_force=tif, exchange=exchange[len(_ACTION_EXCHANGE_PREFIX):],
+            original_client_order_id=symbol, side=side_lit, order_type=order_type_lit,
+            quantity=quantity, limit_price=limit_price, action=cast(ChangeAction, stop_slot),
+            time_in_force=tif_lit, exchange=exchange[len(_ACTION_EXCHANGE_PREFIX):],
         )
     if exchange in _RESERVED_EXCHANGES:
         return ReservedOrderFingerprint(
-            symbol=symbol, side=side, order_type=order_type, quantity=quantity,
+            symbol=symbol, side=side_lit, order_type=order_type_lit, quantity=quantity,
             limit_price=limit_price, end_date=stop_slot, exchange=exchange,
         )
     return ImmediateOrderFingerprint(
-        symbol=symbol, side=side, order_type=order_type, quantity=quantity,
-        limit_price=limit_price, stop_price=stop_slot, time_in_force=tif, exchange=exchange,
-        credit_type=credit_type, loan_date=loan_date, session=session, division=division, board=board,
+        symbol=symbol, side=side_lit, order_type=order_type_lit, quantity=quantity,
+        limit_price=limit_price, stop_price=stop_slot, time_in_force=tif_lit, exchange=exchange,
+        credit_type=credit_type, loan_date=loan_date, session=cast(Session, session),
+        division=division, board=board,
     )
 
 

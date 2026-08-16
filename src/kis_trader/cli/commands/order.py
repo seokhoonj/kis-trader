@@ -92,7 +92,7 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
     _authorize(args, account=account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
     handle = resolve_stock(kis, args)
     place = handle.buy if side == "buy" else handle.sell
-    extra = {} if args.venue == "overseas" else {"division": division}
+    extra: dict[str, Any] = {} if args.venue == "overseas" else {"division": division}
     return place(quantity=args.quantity, limit_price=args.limit_price, **extra)
 
 

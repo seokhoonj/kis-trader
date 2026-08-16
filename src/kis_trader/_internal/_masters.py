@@ -17,7 +17,7 @@ import time
 import zipfile
 from collections.abc import Callable, Iterable
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast
 
 from ..errors import KISError, KISUsageError
 from ._fsutil import atomic_write_bytes, xdg_cache_subdir
@@ -133,7 +133,8 @@ def urlopen_fetch(url: str) -> bytes:
 
     # URL 은 고정 KIS 호스트 + 검증된 시장코드 템플릿이라 사용자 입력이 섞이지 않는다.
     with urllib.request.urlopen(url, timeout=30) as resp:
-        return resp.read()
+        data: bytes = resp.read()
+        return data
 
 
 class MasterIndex:
@@ -383,7 +384,11 @@ def load_domestic_index(
     now: float | None = None,
 ) -> DomesticListingIndex:
     """KOSPI+KOSDAQ(기본) 마스터를 캐시 우선 로드해 합친 :class:`DomesticListingIndex` 를 만든다."""
-    load_markets = list(_DOMESTIC_MASTER_FILE) if markets is None else list(markets)
+    load_markets = (
+        cast("list[DomesticMarket]", list(_DOMESTIC_MASTER_FILE))  # dict 키가 곧 DomesticMarket 리터럴
+        if markets is None
+        else list(markets)
+    )
     listings: list[DomesticListing] = []
     for market in load_markets:
         listings.extend(

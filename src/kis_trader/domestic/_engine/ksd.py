@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal, overload
 
 from ..._internal._datetime import _to_yyyymmdd
 from ..._internal._response import (
@@ -68,6 +68,10 @@ _DIVIDEND_KIND = {"all": "0", "final": "1", "interim": "2"}
 _RIGHTS_BASIS = {"subscription": "1", "record": "2"}
 
 
+@overload
+def _parse_ksd_date(value: object, *, required: Literal[True], name: str) -> date: ...
+@overload
+def _parse_ksd_date(value: object, *, required: Literal[False], name: str) -> date | None: ...
 def _parse_ksd_date(value: object, *, required: bool, name: str) -> date | None:
     """KSD 날짜 -> date. KSD는 "YYYYMMDD" 와 "YYYY/MM/DD" 를 섞어 주므로 구분자를 벗겨 통일한다.
     빈 값/"00000000"(미정 sentinel)은 ``None``(required 면 예외). 형식이 깨지면 fail-closed."""
