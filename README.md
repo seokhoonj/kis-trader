@@ -51,7 +51,7 @@ kis.orders.reconcile(r.client_order_id)   # 주문이 실제로 들어갔는지 
 kis.orders.cancel(r.client_order_id)      # 취소
 ```
 
-주문은 되돌릴 수 없어서, 실수로 **두 번 나가지 않도록** 안전장치가 들어 있습니다(신용거래는 기본으로
+주문은 되돌릴 수 없어서, **실수로 인한 중복주문 안전장치**가 들어 있습니다(신용거래는 기본으로
 막아 둠). → [주문 설명](https://seokhoonj.github.io/kis-trader/orders.html)
 
 ## 명령줄 (`kis`)
