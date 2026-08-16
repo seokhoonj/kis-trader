@@ -101,11 +101,9 @@ def test_parser_routes_stock_quote_to_handler():
     assert kis.log == [("quote", "005930")]
 
 
-def test_parser_leaves_profile_unset_and_resolves_default():
-    from kis_trader.config import resolve_environment
+def test_parser_leaves_profile_unset():
     args = _args(["search", "삼성전자"])
-    assert args.profile is None                          # 미지정 -> 라이브러리가 기본 프로필 해석
-    assert resolve_environment(args.profile) == "real"   # 파일·env 없으면 main 폴백 = 실전
+    assert args.profile is None    # 미지정 -> 라이브러리가 기본 프로필 해석(값은 config 테스트가 검증)
     assert args.fmt == "table"
 
 

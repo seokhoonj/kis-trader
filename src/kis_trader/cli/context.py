@@ -1,7 +1,7 @@
 """세션 조립 -- 프로필과 플래그를 :class:`~kis_trader.client.KISClient` 로 해석.
 
-자격증명은 :class:`~kis_trader.config.KISConfig` 가 프로필별로 해석한다(환경변수 ->
-``credentials.json`` -> ``config.toml``). 자격증명을 플래그로 받지 않는 이유: 셸 히스토리·``ps``
+자격증명은 :func:`~kis_trader.config.resolve_credentials` 가 프로필별로 해석한다(환경변수 ->
+``credentials.json``). 자격증명을 플래그로 받지 않는 이유: 셸 히스토리·``ps``
 출력도 노출 경로이기 때문이다. 값은 어디에도 echo 하지 않는다(누락 여부만 확인).
 """
 from __future__ import annotations

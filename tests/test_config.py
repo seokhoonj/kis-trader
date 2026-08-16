@@ -10,7 +10,7 @@ import os
 import pytest
 
 from kis_trader import KISClient, KISConfig
-from kis_trader.config import resolve_credentials, resolve_environment
+from kis_trader.config import resolve_credentials
 from kis_trader.errors import KISUsageError
 from kis_trader.transport import RawResponse
 
@@ -234,16 +234,13 @@ def test_save_does_not_clobber_non_object_profile_section(tmp_path):
     assert path.read_text(encoding="utf-8") == original
 
 
-# --- resolve_environment (환경만) ---------------------------------------------
+# --- 환경 기본값(읽기 경로) ---------------------------------------------------
 
-def test_resolve_environment_defaults_real_without_creds():
-    assert resolve_environment("whatever") == "real"
-
-
-def test_resolve_environment_reads_saved(tmp_path):
-    KISConfig(profile="demo", app_key="AK", app_secret="SK",
-              environment="paper", config_dir=tmp_path).save()
-    assert resolve_environment("demo", config_dir=tmp_path) == "paper"
+def test_resolve_credentials_environment_defaults_real_when_absent(tmp_path):
+    # environment 필드가 없는 섹션(손 편집 등) -> real 로 폴백
+    (tmp_path / "credentials.json").write_text(
+        '{"demo": {"app_key": "AK", "app_secret": "SK"}}', encoding="utf-8")
+    assert resolve_credentials("demo", config_dir=tmp_path).environment == "real"
 
 
 # --- KISClient(profile=) 세션 -------------------------------------------------
@@ -345,7 +342,7 @@ def test_default_environment_uses_first_entry(tmp_path):
     KISConfig(profile="demo", app_key="DK", app_secret="DS",
               environment="paper", config_dir=tmp_path).save()
     KISConfig(profile="live", app_key="LK", app_secret="LS", config_dir=tmp_path).save()
-    assert resolve_environment(config_dir=tmp_path) == "paper"        # 첫 항목 demo = 모의
+    assert resolve_credentials(config_dir=tmp_path).environment == "paper"   # 첫 항목 demo = 모의
 
 
 def test_client_opens_default_profile_first_entry(tmp_path):
@@ -359,7 +356,8 @@ def test_client_opens_default_profile_first_entry(tmp_path):
 def test_default_profile_env_nonexistent_fails_closed(tmp_path, monkeypatch):
     KISConfig(profile="isa", app_key="IK", app_secret="IS", config_dir=tmp_path).save()
     monkeypatch.setenv("KIS_DEFAULT_PROFILE", "missing")   # 저장 없는 프로필 지목
-    with pytest.raises(KISUsageError):                     # 첫 항목으로 새지 않고 fail-closed
+    # 첫 항목으로 새지 않고 fail-closed -- 지목한 프로필의 변수 이름을 짚는다
+    with pytest.raises(KISUsageError, match="KIS_MISSING_APP_KEY"):
         resolve_credentials(config_dir=tmp_path)
 
 
@@ -367,7 +365,7 @@ def test_default_profile_env_nonexistent_fails_closed(tmp_path, monkeypatch):
 def test_default_profile_env_invalid_name_raises(tmp_path, monkeypatch, bad):
     KISConfig(profile="isa", app_key="IK", app_secret="IS", config_dir=tmp_path).save()
     monkeypatch.setenv("KIS_DEFAULT_PROFILE", bad)        # 형식오류 이름은 접두어로 새지 않고 거부
-    with pytest.raises(KISUsageError):
+    with pytest.raises(KISUsageError, match="소문자/숫자/밑줄"):
         resolve_credentials(config_dir=tmp_path)
 
 
@@ -378,3 +376,63 @@ def test_default_first_entry_uses_its_profile_env_prefix(tmp_path, monkeypatch):
     monkeypatch.setenv("KIS_ISA_APP_KEY", "prefixed_isa") # 첫 항목 isa 의 접두어
     # 미지정 -> 첫 항목 isa -> KIS_ISA_* 로 읽는다(KIS_APP_KEY 도 파일값도 아님)
     assert resolve_credentials(config_dir=tmp_path).app_key == "prefixed_isa"
+
+
+def test_default_profile_env_strips_surrounding_whitespace(tmp_path, monkeypatch):
+    KISConfig(profile="isa",     app_key="IK", app_secret="IS", config_dir=tmp_path).save()
+    KISConfig(profile="pension", app_key="PK", app_secret="PS", config_dir=tmp_path).save()
+    monkeypatch.setenv("KIS_DEFAULT_PROFILE", "  pension  ")   # 주변 공백 제거 후 pension
+    assert resolve_credentials(config_dir=tmp_path).app_key == "PK"
+
+
+def test_empty_credentials_file_falls_back_to_main(tmp_path, monkeypatch):
+    (tmp_path / "credentials.json").write_text("{}", encoding="utf-8")   # 빈 객체(파일 있음)
+    monkeypatch.setenv("KIS_APP_KEY", "main_k")
+    monkeypatch.setenv("KIS_APP_SECRET", "main_s")
+    assert resolve_credentials(config_dir=tmp_path).app_key == "main_k"   # -> main 폴백
+
+
+# --- 기본 프로필 마커 (KISConfig.set_default) ---------------------------------
+
+def test_set_default_marks_and_resolution_uses_it(tmp_path):
+    KISConfig(profile="main",    app_key="MK", app_secret="MS", config_dir=tmp_path).save()
+    KISConfig(profile="pension", app_key="PK", app_secret="PS", config_dir=tmp_path).save()
+    KISConfig.set_default("pension", config_dir=tmp_path)
+    # 첫 항목은 main 이지만 마커가 pension -> 미지정 해석은 pension
+    assert resolve_credentials(config_dir=tmp_path).app_key == "PK"
+    assert _creds(tmp_path)["default"] == "pension"
+
+
+def test_default_marker_loses_to_env_var(tmp_path, monkeypatch):
+    KISConfig(profile="main", app_key="MK", app_secret="MS", config_dir=tmp_path).save()
+    KISConfig(profile="isa",  app_key="IK", app_secret="IS", config_dir=tmp_path).save()
+    KISConfig.set_default("isa", config_dir=tmp_path)
+    monkeypatch.setenv("KIS_DEFAULT_PROFILE", "main")   # env 가 마커보다 우선
+    assert resolve_credentials(config_dir=tmp_path).app_key == "MK"
+
+
+def test_set_default_nonexistent_profile_rejected(tmp_path):
+    KISConfig(profile="main", app_key="MK", app_secret="MS", config_dir=tmp_path).save()
+    with pytest.raises(KISUsageError, match="없다"):
+        KISConfig.set_default("missing", config_dir=tmp_path)
+
+
+def test_set_default_preserves_other_profiles_and_is_owner_only(tmp_path):
+    KISConfig(profile="main", app_key="MK", app_secret="MS", config_dir=tmp_path).save()
+    KISConfig(profile="isa",  app_key="IK", app_secret="IS", config_dir=tmp_path).save()
+    path = KISConfig.set_default("isa", config_dir=tmp_path)
+    data = _creds(tmp_path)
+    assert data["main"]["app_key"] == "MK" and data["isa"]["app_key"] == "IK"   # 다른 프로필 보존
+    assert (path.stat().st_mode & 0o777) == 0o600
+
+
+def test_profile_named_default_is_reserved():
+    with pytest.raises(KISUsageError, match="예약"):
+        KISConfig(profile="default", app_key="k", app_secret="s")
+
+
+def test_first_entry_skips_default_meta_key(tmp_path):
+    # "default" 마커가 공백이라 무시될 때, 첫 항목 계산에서 "default" 키 자체는 건너뛴다
+    (tmp_path / "credentials.json").write_text(
+        '{"default": "  ", "isa": {"app_key": "IK", "app_secret": "IS"}}', encoding="utf-8")
+    assert resolve_credentials(config_dir=tmp_path).app_key == "IK"

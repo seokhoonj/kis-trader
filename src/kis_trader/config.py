@@ -8,9 +8,9 @@
 **프로필은 사용자가 이름 붙이는 자유 문자열이다.** 앱키/시크릿은 종합계좌번호(CANO) 단위라 계좌마다
 따로이고 같은 유형 계좌도 여럿일 수 있으므로(연금저축 2개 등), "계좌 하나 = 프로필 하나"로 다룬다.
 각 프로필은 앱키·시크릿·계좌번호와 **접속 환경(실전/모의)**을 갖는다. 이름을 지정하지 않으면 기본
-프로필을 연다 -- ``KIS_DEFAULT_PROFILE`` 환경변수 > ``credentials.json`` 첫 항목(삽입 순서) >
-``"main"``(폴백) 순으로 정한다. 환경은 이름이 아니라 프로필에 저장된 값이 정한다(기본 ``real``;
-모의는 ``environment="paper"``).
+프로필을 연다 -- ``KIS_DEFAULT_PROFILE`` 환경변수 > ``credentials.json`` 최상위 ``"default"`` 마커
+(:meth:`KISConfig.set_default`) > 첫 항목(삽입 순서) > ``"main"``(폴백) 순으로 정한다. 환경은 이름이
+아니라 프로필에 저장된 값이 정한다(기본 ``real``; 모의는 ``environment="paper"``).
 
 ``credentials.json`` 은 프로필별 중첩 객체다::
 
@@ -60,11 +60,19 @@ _PROFILE_NAME = re.compile(r"[a-z0-9_]+")
 #: profile 미지정 시 기본 프로필을 못박는 환경변수(빈/공백 값은 미설정 취급).
 _DEFAULT_PROFILE_ENV_VAR = "KIS_DEFAULT_PROFILE"
 
+#: credentials.json 최상위에서 기본 프로필 이름을 담는 예약 키(프로필 이름으로는 못 쓴다).
+#: 프로필 섹션은 객체, 이 마커는 문자열이라 값 타입으로 구분한다.
+_DEFAULT_MARKER_KEY = "default"
+
 
 def _validate_profile_name(profile: str) -> None:
     if not _PROFILE_NAME.fullmatch(profile):
         raise KISUsageError(
             f"프로필 이름은 소문자/숫자/밑줄만 쓸 수 있다(환경변수 키로 쓰이기 때문): {profile!r}"
+        )
+    if profile == _DEFAULT_MARKER_KEY:
+        raise KISUsageError(
+            f"{_DEFAULT_MARKER_KEY!r} 은 기본 프로필 마커로 예약된 이름이라 프로필 이름으로 쓸 수 없다."
         )
 
 
@@ -148,12 +156,16 @@ def _select_profile_section(loaded: dict[str, object], profile: str) -> dict[str
 
 def _resolve_default_profile_name(loaded: dict[str, object]) -> str:
     """``profile`` 미지정 시 열 기본 프로필 이름. 해석 순서: ``KIS_DEFAULT_PROFILE`` 환경변수
-    (빈/공백은 미설정) > ``credentials.json`` 첫 항목(삽입 순서) > ``"main"``(파일도 env 도 없을 때
+    (빈/공백은 미설정) > ``credentials.json`` 최상위 ``"default"`` 마커(:meth:`KISConfig.set_default` 가
+    기록) > 첫 프로필 항목(삽입 순서, ``"default"`` 메타키는 제외) > ``"main"``(파일도 env 도 없을 때
     폴백 -- 접두어 없는 ``KIS_APP_KEY`` 로 여는 이름). 이름 형식 검증은 하위에서 한다."""
     override = os.environ.get(_DEFAULT_PROFILE_ENV_VAR)
     if override is not None and override.strip():
         return override.strip()
-    return next(iter(loaded), "main")
+    marker = loaded.get(_DEFAULT_MARKER_KEY)
+    if isinstance(marker, str) and marker.strip():
+        return marker.strip()
+    return next((name for name in loaded if name != _DEFAULT_MARKER_KEY), "main")
 
 
 def _resolve_profile_field(field_name: str, *, profile: str, section: dict[str, object]) -> str | None:
@@ -230,23 +242,6 @@ def _fill_credentials(
     )
 
 
-def resolve_environment(profile: str | None = None, *, config_dir: str | Path | None = None) -> Environment:
-    """프로필의 접속 환경(실전/모의)만 읽는다(기본 ``real``). 앱키/시크릿 없이도 되므로 CLI 가
-    자격증명을 다 갖추기 전에 환경만 알아야 할 때(주문 게이트 등) 쓴다. ``profile`` 이 ``None`` 이면
-    기본 프로필로 해석한다(:func:`_resolve_default_profile_name`)."""
-    if profile is not None:
-        _validate_profile_name(profile)          # 명시 이름은 파일 읽기 전에 검증(기존 순서 보존)
-    loaded = _load_credentials(_config_dir_path(config_dir))
-    if profile is None:
-        profile = _resolve_default_profile_name(loaded)
-        _validate_profile_name(profile)
-    section = _select_profile_section(loaded, profile)
-    value = _resolve_profile_field("environment", profile=profile, section=section) or "real"
-    if value not in _ENVIRONMENTS:
-        raise KISUsageError(f"{_env_var_prefix(profile)}ENVIRONMENT 는 {_ENVIRONMENTS} 중 하나여야 한다: {value!r}")
-    return cast("Environment", value)
-
-
 # --- 쓰기 (KISConfig.save) ----------------------------------------------------
 
 @dataclass(frozen=True, kw_only=True)
@@ -303,10 +298,36 @@ class KISConfig:
         )
         return path
 
+    @classmethod
+    def set_default(cls, profile: str, *, config_dir: str | Path | None = None) -> Path:
+        """이름 없이 :class:`~kis_trader.client.KISClient` 를 열 때 여는 **기본 프로필**을 못박는다.
+        ``credentials.json`` 최상위 ``"default"`` 마커에 이름을 기록하고 그 경로를 돌려준다.
 
-def _read_existing(path: Path) -> dict[str, dict[str, object]]:
+        파일 순서·환경변수와 무관하며 재시작 후에도 유지된다(``KIS_DEFAULT_PROFILE`` 환경변수가 있으면
+        그쪽이 우선). ``profile`` 은 이미 :meth:`save` 로 저장돼 있어야 한다 -- 없으면
+        :class:`KISUsageError` (존재하지 않는 프로필을 기본으로 못박는 것을 막는다). 마커만 갱신하고
+        다른 프로필은 보존하며, 파일은 소유자만 읽게 ``0600`` 으로 원자적으로 쓴다."""
+        _validate_profile_name(profile)
+        directory = _config_dir_path(config_dir)
+        path = directory / "credentials.json"
+        data = _read_existing(path)
+        if not isinstance(data.get(profile), dict):
+            raise KISUsageError(
+                f"기본으로 지정할 프로필 {profile!r} 가 credentials.json 에 없다 -- "
+                "먼저 KISConfig(...).save() 로 저장하라."
+            )
+        data[_DEFAULT_MARKER_KEY] = profile
+        directory.mkdir(parents=True, exist_ok=True)
+        atomic_write_bytes(
+            path, (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode("utf-8"), mode=0o600
+        )
+        return path
+
+
+def _read_existing(path: Path) -> dict[str, object]:
     """기존 credentials.json 을 읽어 병합 바탕으로 쓴다. 없으면 빈 dict. 있는데 파손이거나 프로필
-    섹션이 객체가 아니면 -- 덮어써 남의 프로필을 날리지 않도록 -- :class:`KISUsageError` 로 멈춘다."""
+    섹션이 객체가 아니면 -- 덮어써 남의 프로필을 날리지 않도록 -- :class:`KISUsageError` 로 멈춘다.
+    ``"default"`` 메타키(기본 프로필 마커 문자열)는 프로필 섹션이 아니므로 검증에서 제외한다."""
     try:
         parsed = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
@@ -316,9 +337,11 @@ def _read_existing(path: Path) -> dict[str, dict[str, object]]:
     if not isinstance(parsed, dict):
         raise KISUsageError(f"{path} 의 최상위가 프로필 객체가 아니라 병합할 수 없다.")
     for name, section in parsed.items():
+        if name == _DEFAULT_MARKER_KEY:
+            continue
         if not isinstance(section, dict):
             raise KISUsageError(f"{path} 의 프로필 {name!r} 항목이 객체가 아니라 병합할 수 없다.")
     return parsed
 
 
-__all__ = ["KISConfig", "ResolvedCredentials", "resolve_credentials", "resolve_environment"]
+__all__ = ["KISConfig", "ResolvedCredentials", "resolve_credentials"]
