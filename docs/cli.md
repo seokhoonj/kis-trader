@@ -3,17 +3,17 @@
 패키지를 설치하면 터미널 명령 `kis` 가 함께 깔립니다. 파이썬을 짜지 않고도 조회·주문을 할 수
 있는 얇은 래퍼입니다(내부적으로 같은 공개 API 를 부릅니다).
 
-자격증명과 환경은 **`--profile`** 하나로 정합니다. 프로필은 환경변수나 설정 파일에서 읽으며,
-환경(실전/모의)도 프로필이 결정합니다(`paper` 만 모의, 나머지는 실전). 기본 프로필은 `main`(실전
-주계좌)이고, 모의는 `--profile paper` 또는 `KIS_PROFILE=paper` 로 씁니다. 실전이 기본이어도 주문은
-`--execute` 전까지 전송되지 않아 안전합니다.
+자격증명과 환경은 **`--profile`** 로 정합니다. 프로필은 환경변수나 설정 파일에서 읽으며,
+환경(실전/모의)은 **그 프로필에 저장된 값**입니다(이름이 정하지 않음). 기본 프로필은 `main`(실전
+주계좌)이고, 다른 계좌·모의는 저장해 둔 프로필 이름을 `--profile` 로 고릅니다(`KIS_PROFILE` 로 기본
+변경). 실전이 기본이어도 주문은 `--execute` 전까지 전송되지 않아 안전합니다.
 
 ```bash
-kis --profile paper stock quote 005930     # 모의(기본)
-kis --profile main  account balance         # 실전 주계좌
+kis --profile paper account balance     # 모의 프로필(저장 시 environment=paper)
+kis --profile main  account balance     # 실전 주계좌
 ```
 
-프로필별 변수 접두어·설정 파일 위치(Linux·macOS·Windows 공통)는 [자격증명과 프로필](configuration.md)
+프로필별 변수 접두어·설정 파일 위치(Linux·macOS·Windows 공통)는 [3. 자격증명과 프로필](configuration.md)
 을 참고하세요.
 
 ## 조회
@@ -54,7 +54,7 @@ kis --profile paper order buy 005930 10 --limit-price 70000 --execute paper   # 
 kis --profile main order buy 005930 10 --division immediate_limit --execute real --yes --confirm-account 7801
 ```
 
-실제 전송하려면 `--execute` 값이 프로필 환경(`--profile` 이 정한 실전/모의)과 같아야 합니다. 대화형에서는 확인을
+실제 전송하려면 `--execute` 값이 세션 환경(프로필에 저장된 실전/모의)과 같아야 합니다. 대화형에서는 확인을
 받습니다(모의는 y/N, 실전은 계좌 끝 4자리 입력). 스크립트(비대화형)에서는 `--yes` 가
 필요하고, 실전은 `--confirm-account` 로 계좌 끝 4자리를 한 번 더 맞춰야 합니다.
 

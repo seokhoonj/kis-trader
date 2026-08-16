@@ -26,7 +26,7 @@ kis = KISClient(app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET", account="1
 ```
 
 매번 키를 넣기 번거로우면 **한 번 저장**해 두고 `KISClient(profile="main")` 한 줄로 열 수 있습니다.
-자격증명 저장·환경변수·프로필(실전/모의)·CLI 사용법은 **[자격증명과 프로필](configuration.md)**을 보세요.
+자격증명 저장·환경변수·프로필(실전/모의)·CLI 사용법은 **[3. 자격증명과 프로필](configuration.md)**을 보세요.
 
 ## 첫 조회
 
@@ -45,6 +45,6 @@ q.volume          # 거래량
 
 ## 다음
 
-- 자격증명·프로필 상세(저장·환경변수·실전/모의) → [자격증명과 프로필](configuration.md)
+- 자격증명·프로필 상세(저장·환경변수·실전/모의) → [3. 자격증명과 프로필](configuration.md)
 - 시세·차트·호가 → [시세](quotes.md)
 - 주문과 안전장치 → [주문](orders.md)

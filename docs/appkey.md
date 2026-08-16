@@ -1,7 +1,7 @@
 # 앱키 발급받기
 
 한국투자증권 홈페이지에서 Open API 앱키(**APP Key**)·앱시크릿(**APP Secret**)을 발급받는 과정을
-화면과 함께 따라합니다. 발급받은 두 값은 [자격증명과 프로필](configuration.md)에서 저장합니다.
+화면과 함께 따라합니다. 발급받은 두 값은 [3. 자격증명과 프로필](configuration.md)에서 저장합니다.
 
 ::: {.callout-tip}
 처음이라면 **모의투자용부터** 발급받아 연습하는 것을 권장합니다. 실전은 익숙해진 뒤에 발급하세요.
@@ -57,10 +57,10 @@
 ![신청현황 -- 계좌별 APP Key / APP Secret](img/kis-appkey-step3-list.png)
 
 ::: {.callout-warning}
-APP Key·APP Secret은 **비밀번호처럼** 다루세요 -- 남에게 보이거나 공개 저장소(GitHub)에 올리면 안 됩니다.
+APP Key·APP Secret은 남에게 보이거나 공개 저장소(GitHub)에 올라가지 않도록 조심해 주세요.
 :::
 
 ## 다음 — 자격증명 저장
 
-복사한 APP Key·APP Secret(과 계좌번호)을 [자격증명과 프로필](configuration.md)의
+복사한 APP Key·APP Secret(과 계좌번호)을 [3. 자격증명과 프로필](configuration.md)의
 `KISConfig(...).save()` 로 저장하면, 이후 `KISClient(profile=...)` 한 줄로 세션이 열립니다.

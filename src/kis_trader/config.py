@@ -14,13 +14,13 @@
 
     {
       "main":      {"app_key": "...", "app_secret": "...", "account": "12345678-01", "environment": "real"},
-      "pension_a": {"app_key": "...", "app_secret": "...", "account": "87654321-22", "environment": "real"},
+      "pension":   {"app_key": "...", "app_secret": "...", "account": "87654321-22", "environment": "real"},
       "paper":     {"app_key": "...", "app_secret": "...", "account": "...",         "environment": "paper"}
     }
 
 읽기 순서: 환경변수 -> ``credentials.json``. 환경변수는 프로필 접두어를 붙인 평평한 키를 쓴다
-(``main`` -> ``KIS_APP_KEY`` / ``KIS_ACCOUNT`` / ``KIS_ENVIRONMENT``; ``pension_a`` ->
-``KIS_PENSION_A_APP_KEY`` ...). **앱키·시크릿 값은 어디에도 출력하지 않는다**(화면·로그·예외 모두);
+(``main`` -> ``KIS_APP_KEY`` / ``KIS_ACCOUNT`` / ``KIS_ENVIRONMENT``; ``pension`` ->
+``KIS_PENSION_APP_KEY`` ...). **앱키·시크릿 값은 어디에도 출력하지 않는다**(화면·로그·예외 모두);
 누락 예외에는 변수 이름만 담는다. (형식 오류 진단을 위해 계좌·프로필 문자열은 예외 메시지에 담을 수
 있다 -- 이들은 시크릿이 아니다.)
 
@@ -65,7 +65,7 @@ def _validate_profile_name(profile: str) -> None:
 
 def _env_var_prefix(profile: str) -> str:
     """프로필 -> 환경변수 키 접두어. 기본 프로필 ``main`` 은 접두어 없이(``KIS_``), 나머지는
-    ``KIS_<이름대문자>_``. 예: ``pension_a`` -> ``KIS_PENSION_A_``."""
+    ``KIS_<이름대문자>_``. 예: ``pension`` -> ``KIS_PENSION_``."""
     return "KIS_" if profile == "main" else f"KIS_{profile.upper()}_"
 
 
@@ -226,7 +226,7 @@ def resolve_environment(profile: str = "main", *, config_dir: str | Path | None 
 class KISConfig:
     """한 프로필의 자격증명을 담아 :meth:`save` 로 파일에 기록하는 값 객체.
 
-    ``KISConfig(profile="pension_a", app_key=..., app_secret=..., account="87654321-22").save()`` 처럼
+    ``KISConfig(profile="pension", app_key=..., app_secret=..., account="87654321-22").save()`` 처럼
     쓴다(``aws configure`` 와 같은 자리). ``profile`` 은 사용자가 붙이는 자유 이름(계좌마다 하나;
     소문자·숫자·밑줄). ``app_key``/``app_secret`` 은 필수(비면 구성 시점에 거부). ``account`` 는
     ``"CANO-상품코드"`` 형식이며 생략 가능(시세만 볼 계좌). ``environment`` 는 실전/모의(기본 ``real``;
