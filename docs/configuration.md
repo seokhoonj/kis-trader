@@ -1,7 +1,24 @@
 # 자격증명과 프로필
 
-세션을 열려면 KIS 개발자센터에서 발급한 **앱키·앱시크릿**과 **계좌번호**가 필요합니다. 발급 과정은
-[2. 앱키 발급받기](appkey.md)를 보고, 여기서는 그 값을 **프로필**로 저장·사용하는 법을 다룹니다.
+세션을 열려면 KIS 개발자센터에서 발급한 **앱키·앱시크릿**과 **계좌번호**가 필요합니다(발급은
+[2. 앱키 발급받기](appkey.md)). 가장 간단하게는 이 값을 그대로 넘겨 세션을 엽니다:
+
+```python
+from kis_trader import KISClient
+kis = KISClient(app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET", account="12345678-01")
+```
+
+하지만 이러면 **열 때마다 키를 다시 적어야 하고, 코드에 키가 그대로 남습니다.** 그래서 보통은 값을 한 번
+**프로필**로 저장해 두고, 다음부터는 이름만으로 엽니다:
+
+```python
+from kis_trader import KISConfig
+KISConfig(profile="main", app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET", account="12345678-01").save()
+
+KISClient(profile="main")   # 저장된 자격증명을 자동으로 읽어 세션을 엽니다
+```
+
+이 장은 그 **프로필**을 다룹니다 -- 무엇인지, 자격증명을 넣는 방법이 무엇인지 차례로 봅니다.
 
 ## 프로필 = 계좌 하나
 
@@ -17,7 +34,7 @@ KISClient(profile="isa")   # "isa" 라 저장해 둔 계좌로 세션을 엽니�
 
 | 프로필 이름 (자유롭게) | 담는 계좌 |
 |---|---|
-| `main` | 주계좌 |
+| `main` | 메인계좌 |
 | `isa` | ISA(개인종합자산관리) |
 | `pension` | 연금저축 |
 | `irp` | IRP(개인형퇴직연금, 조회 전용) |
