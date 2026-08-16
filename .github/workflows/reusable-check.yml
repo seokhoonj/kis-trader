@@ -1,0 +1,98 @@
+name: reusable check
+
+# The full check -- tests, lint, types, and the packaging assertions -- factored
+# into one reusable job so both `check.yml` (on push / PR) and the release gate in
+# `publish.yml` run the *identical* thing. One definition is what makes "publish
+# gates on the full check" true; a second hand-maintained copy would drift, and a
+# check added here silently would not gate releases.
+
+on:
+  workflow_call:
+
+# The floor lives on the shared body, not only on `check.yml`: `publish.yml`'s gate
+# calls this same workflow, and if the floor were only on `check.yml` the gate would
+# run this check with the repo-default (possibly write) token. Declared here, the
+# check is read-only from every caller. A reusable workflow can only downscope from
+# the caller, so this never widens anyone's token.
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        # The floor and the versions the runtime deps ship wheels for.
+        # requires-python says >=3.11, so 3.11 is the version that claim must hold on.
+        python-version: ["3.11", "3.12", "3.13"]
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+
+      - name: Install
+        # A venv per matrix version, not `uv pip --system`: the runner's system
+        # Python is externally managed and is one fixed version whatever the matrix
+        # says. This is also what the docs tell a person to run.
+        run: |
+          uv venv --python ${{ matrix.python-version }}
+          uv pip install -e ".[dev]"
+          .venv/bin/python -c "import sys; print('testing on', sys.version)"
+
+      - name: Test
+        run: .venv/bin/pytest -q
+
+      - name: Lint
+        run: .venv/bin/ruff check src tests
+
+      - name: Types
+        run: .venv/bin/mypy
+
+      - name: Confirm the runtime dependencies are exactly the declared three
+        # The three-dependency claim is documented in the pyproject comment; a claim
+        # nothing checks quietly stops being true. Installed into a bare environment,
+        # kis_trader must import with nothing beyond requests, websockets, and
+        # cryptography present.
+        run: |
+          uv venv /tmp/bare --python ${{ matrix.python-version }}
+          uv pip install --python /tmp/bare/bin/python .
+          /tmp/bare/bin/python -c "
+          import re
+          import importlib.metadata as md
+          requires = md.requires('kis-trader') or []
+          runtime = [r for r in requires if 'extra ==' not in r]
+          # Extract each requirement's bare name (before any version/marker/extra) and
+          # normalize to PEP 503 form; the runtime set must be exactly the declared
+          # three, so a fourth dependency slipping in fails here.
+          names = sorted(re.split(r'[<>=!~;\[\s]', r, 1)[0].replace('_', '-').lower() for r in runtime)
+          assert names == ['cryptography', 'requests', 'websockets'], f'unexpected runtime dependencies: {runtime}'
+          import kis_trader
+          print('kis_trader imports with only the declared runtime dependencies present')
+          "
+          # The console script runs, and its top-level --version prints (not shoved
+          # into a required subcommand).
+          /tmp/bare/bin/kis --version
+
+      - name: Confirm a user's type checker can see the hints
+        # Every hint in this package is invisible to a user unless py.typed ships
+        # alongside it (PEP 561), and the source cannot answer whether it did:
+        # src/kis_trader/py.typed can sit in git while the built wheel omits it. So ask
+        # it the way a user does -- install the built package into a clean environment
+        # and run their checker over their code.
+        run: |
+          uv venv /tmp/typed --python ${{ matrix.python-version }}
+          uv pip install --python /tmp/typed/bin/python . mypy
+          cat > /tmp/user_code.py <<'PY'
+          from kis_trader import KISClient
+
+          # profile is str | None; an int is neither, so a checker that can see the
+          # shipped hints must reject it and name the expected type.
+          KISClient(profile=123)
+          PY
+          /tmp/typed/bin/mypy /tmp/user_code.py > /tmp/mypy_out 2>&1 || true
+          cat /tmp/mypy_out
+          grep -q 'str' /tmp/mypy_out
