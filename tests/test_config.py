@@ -187,6 +187,27 @@ def test_resolve_malformed_account_fails_closed(monkeypatch):
         resolve_credentials("main")
 
 
+def test_resolve_account_with_multiple_separators_fails_closed(monkeypatch):
+    # 읽기 경로도 여분 하이픈을 거부해야 한다(쓰기 경로와 대칭).
+    monkeypatch.setenv("KIS_APP_KEY", "k")
+    monkeypatch.setenv("KIS_APP_SECRET", "s")
+    monkeypatch.setenv("KIS_ACCOUNT", "12345678-01-02")
+    with pytest.raises(KISUsageError):
+        resolve_credentials("main")
+
+
+def test_resolve_legacy_split_keys_hint_migration(tmp_path):
+    # 구형(분리 키)로만 저장된 파일은 조용히 '계좌 없음'이 아니라 이전하라는 오류를 낸다.
+    (tmp_path / "credentials.json").write_text(
+        json.dumps({"KIS_APP_KEY": "k", "KIS_APP_SECRET": "s",
+                    "KIS_CANO": "12345678", "KIS_ACNT_PRDT_CD": "01"}),
+        encoding="utf-8",
+    )
+    with pytest.raises(KISUsageError) as excinfo:
+        resolve_credentials("main", config_dir=tmp_path)
+    assert "KIS_ACCOUNT" in str(excinfo.value)
+
+
 @pytest.mark.parametrize("blank", ["", "   "])
 def test_blank_value_is_absent(monkeypatch, blank):
     monkeypatch.setenv("KIS_APP_KEY", blank)  # 빈/공백 시크릿은 유효하지 않다

@@ -82,10 +82,16 @@ def _split_account(account: str) -> tuple[str, str]:
     """``"12345678-01"`` -> (종합계좌번호 ``"12345678"``, 상품코드 ``"01"``). 정확히 하이픈 하나로
     나뉘지 않으면(빈 조각·여분 하이픈) fail-closed -- 저장분을 세션이 다시 못 읽는 일이 없도록.
     쓰기(:meth:`KISConfig.save`)와 읽기(세션)가 이 한 계약을 공유한다."""
-    cano, _, product_code = account.partition("-")
+    cano, _, product_code = account.strip().partition("-")   # 앞뒤 공백은 계좌번호가 아니다
     if not cano or not product_code or "-" in product_code:
         raise KISUsageError(f"계좌번호는 'CANO-상품코드'(예: 12345678-01) 형식이어야 한다: {account!r}")
     return cano, product_code
+
+
+def _validate_account(account: str) -> None:
+    """계좌 형식만 fail-closed 로 검증한다(실제 CANO/상품코드 분해는 세션이 :func:`_split_account` 로).
+    분해 결과를 버리는 호출이 아니라 '검증'이라는 의도를 이름으로 드러내기 위한 얇은 래퍼."""
+    _split_account(account)
 
 
 # --- 읽기 (프로필 -> 저장분) --------------------------------------------------
@@ -194,8 +200,15 @@ def _fill_credentials(
 def _resolve_account(prefix: str, *, directory: Path) -> str | None:
     account = _lookup(prefix + "ACCOUNT", directory=directory)
     if account is not None:
-        _split_account(account)   # 형식 검증(fail-closed) -- 세션이 CANO/상품코드로 쪼갤 수 있게
-    return account
+        _validate_account(account)   # 형식 검증(fail-closed) -- 세션이 CANO/상품코드로 쪼갤 수 있게
+        return account
+    # 구형(분리 키)로 저장된 파일을 조용히 '계좌 없음'으로 오해하지 않도록 -- 이전하라고 알린다.
+    if _lookup(prefix + "CANO", directory=directory) is not None:
+        raise KISUsageError(
+            f"{prefix}CANO 는 더 이상 쓰지 않는다 -- {prefix}ACCOUNT 에 "
+            "'종합계좌번호-상품코드'(예: 12345678-01) 형식으로 합쳐 넣어라."
+        )
+    return None
 
 
 # --- 쓰기 (KISConfig.save) ----------------------------------------------------
@@ -230,7 +243,7 @@ class KISConfig:
         if not self.app_key.strip() or not self.app_secret.strip():
             raise KISUsageError("app_key 와 app_secret 은 비어 있을 수 없다.")
         if self.account is not None:
-            _split_account(self.account)   # 형식 검증(fail-closed) -- 세션이 읽을 수 있게
+            _validate_account(self.account)   # 형식 검증(fail-closed) -- 세션이 읽을 수 있게
 
     def save(self) -> Path:
         """이 프로필의 자격증명을 ``credentials.json`` 에 기록하고 그 경로를 돌려준다.
