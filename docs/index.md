@@ -19,7 +19,7 @@ kis.domestic.ranking.by_change(direction="gainers")  # 오늘 상승률 순위
 
 | 파트 | 장 |
 |------|----|
-| **시작하기** | [빠른 시작](quickstart.md) |
+| **시작하기** | [빠른 시작](quickstart.md) · [앱키 발급](appkey.md) · [자격증명과 프로필](configuration.md) |
 | **국내 주식** | [시세 보기](quotes.md) · [재무·실적](financials.md) · [종목 수급](flows.md) · [계좌·잔고·손익](account.md) · [주문](orders.md) |
 | **시장·검색** | [순위·조건검색](screening.md) · [시장·지수](market.md) · [기업행위·일정](corporate-actions.md) |
 | **해외·연금** | [해외주식](overseas.md) · [퇴직연금](pension.md) |
