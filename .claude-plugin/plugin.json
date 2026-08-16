@@ -1,6 +1,0 @@
-{
-  "name": "kis-trader",
-  "version": "0.0.0",
-  "description": "Playbook skill for driving the kis_trader KIS Open API client under its safety-kernel discipline (search-before-trade, ticket confirmation, reconcile-not-resend).",
-  "author": { "name": "seokhoonj" }
-}

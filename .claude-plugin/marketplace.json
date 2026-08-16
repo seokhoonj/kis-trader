@@ -2,11 +2,17 @@
   "version": "1",
   "name": "kis-trader",
   "owner": { "name": "seokhoonj" },
+  "description": "Drive the kis_trader Korea Investment & Securities (KIS) Open API client under its safety-kernel discipline",
   "plugins": [
     {
       "name": "kis-trader",
-      "source": "./",
-      "description": "Playbook skill for driving the kis_trader KIS Open API client under its safety-kernel discipline."
+      "displayName": "KIS Trader",
+      "source": "./plugins/kis-trader",
+      "description": "Playbook skill for driving the kis_trader KIS Open API client under its safety-kernel discipline (search-before-trade, ticket confirmation, reconcile-not-resend).",
+      "author": { "name": "seokhoonj" },
+      "homepage": "https://github.com/seokhoonj/kis-trader",
+      "category": "Productivity",
+      "keywords": ["kis", "korea-investment", "trading", "stocks", "open-api", "korean-stocks"]
     }
   ]
 }

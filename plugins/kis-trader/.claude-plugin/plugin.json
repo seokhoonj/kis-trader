@@ -1,0 +1,11 @@
+{
+  "name": "kis-trader",
+  "displayName": "KIS Trader",
+  "description": "Playbook skill for driving the kis_trader KIS Open API client under its safety-kernel discipline (search-before-trade, ticket confirmation, reconcile-not-resend).",
+  "version": "0.0.0",
+  "author": { "name": "seokhoonj" },
+  "homepage": "https://github.com/seokhoonj/kis-trader",
+  "repository": "https://github.com/seokhoonj/kis-trader",
+  "license": "MIT",
+  "keywords": ["kis", "korea-investment", "trading", "stocks", "open-api", "korean-stocks"]
+}

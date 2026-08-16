@@ -6,6 +6,7 @@
   "homepage": "https://github.com/seokhoonj/kis-trader",
   "repository": "https://github.com/seokhoonj/kis-trader",
   "license": "MIT",
+  "keywords": ["kis", "korea-investment", "trading", "stocks", "open-api", "korean-stocks"],
   "skills": "./skills/",
   "interface": {
     "displayName": "KIS Trader",
