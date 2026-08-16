@@ -106,7 +106,7 @@ class KISClient:
     def __init__(
         self,
         *,
-        profile: str = "main",
+        profile: str | None = None,
         app_key: str | None = None,
         app_secret: str | None = None,
         account: str | None = None,
@@ -147,8 +147,9 @@ class KISClient:
         를 주면 그 인덱스를 쓰고(테스트/고급), 없으면 첫 조회 때 마스터를 받아 캐시한다. ``master_fetch``
         로 다운로더를 바꿀 수 있다(기본은 KIS 배포 서버).
 
-        ``profile`` 이 어느 계좌 묶음으로 열지 정한다(사용자가 이름 붙이는 자유 프로필; ``main`` 은 기본
-        이름). ``app_key``/``app_secret`` 을 생략하면 **그 프로필의 저장된 자격증명을 읽는다**(환경변수 ->
+        ``profile`` 이 어느 계좌 묶음으로 열지 정한다(사용자가 이름 붙이는 자유 프로필). 생략하면 기본
+        프로필을 연다 -- ``KIS_DEFAULT_PROFILE`` 환경변수 > ``credentials.json`` 첫 항목 > ``"main"``.
+        ``app_key``/``app_secret`` 을 생략하면 **그 프로필의 저장된 자격증명을 읽는다**(환경변수 ->
         ``~/.config/kis-trader/credentials.json``; :func:`~kis_trader.config.KISConfig.save` 로 저장). 즉
         설정만 해두면 ``KISClient(profile=...)`` 한 줄로 열린다. 앱키·시크릿을 직접 주면 파일을 읽지 않는다.
         ``environment`` (``"real"``/``"paper"``)는 프로필에 저장된 값을 쓰되, 직접 주면 그것으로 덮는다

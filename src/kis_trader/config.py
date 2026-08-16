@@ -7,8 +7,10 @@
 
 **프로필은 사용자가 이름 붙이는 자유 문자열이다.** 앱키/시크릿은 종합계좌번호(CANO) 단위라 계좌마다
 따로이고 같은 유형 계좌도 여럿일 수 있으므로(연금저축 2개 등), "계좌 하나 = 프로필 하나"로 다룬다.
-각 프로필은 앱키·시크릿·계좌번호와 **접속 환경(실전/모의)**을 갖는다. ``main`` 은 기본 프로필 이름일
-뿐이며, 환경은 이름이 아니라 프로필에 저장된 값이 정한다(기본 ``real``; 모의는 ``environment="paper"``).
+각 프로필은 앱키·시크릿·계좌번호와 **접속 환경(실전/모의)**을 갖는다. 이름을 지정하지 않으면 기본
+프로필을 연다 -- ``KIS_DEFAULT_PROFILE`` 환경변수 > ``credentials.json`` 첫 항목(삽입 순서) >
+``"main"``(폴백) 순으로 정한다. 환경은 이름이 아니라 프로필에 저장된 값이 정한다(기본 ``real``;
+모의는 ``environment="paper"``).
 
 ``credentials.json`` 은 프로필별 중첩 객체다::
 
@@ -54,6 +56,9 @@ _ENVIRONMENTS = ("real", "paper")
 #: 프로필 이름 규칙 -- 소문자/숫자/밑줄. 환경변수 키(``KIS_<이름대문자>_APP_KEY``)로 안전히 올릴 수
 #: 있고, 대문자로 접힐 때 서로 다른 이름이 같은 키로 aliasing 되지 않도록 소문자만 허용한다.
 _PROFILE_NAME = re.compile(r"[a-z0-9_]+")
+
+#: profile 미지정 시 기본 프로필을 못박는 환경변수(빈/공백 값은 미설정 취급).
+_DEFAULT_PROFILE_ENV_VAR = "KIS_DEFAULT_PROFILE"
 
 
 def _validate_profile_name(profile: str) -> None:
@@ -130,14 +135,25 @@ def _load_credentials(directory: Path) -> dict[str, object]:
     return parsed
 
 
-def _profile_section(directory: Path, profile: str) -> dict[str, object]:
-    """한 프로필의 저장 섹션(없으면 빈 dict). 섹션이 객체가 아니면 fail-closed."""
-    section = _load_credentials(directory).get(profile)
+def _select_profile_section(loaded: dict[str, object], profile: str) -> dict[str, object]:
+    """이미 파싱한 credentials 에서 한 프로필의 섹션(없으면 빈 dict). 객체가 아니면 fail-closed.
+    ``loaded`` 를 넘겨받아 resolution 당 파일을 한 번만 파싱하게 한다."""
+    section = loaded.get(profile)
     if section is None:
         return {}
     if not isinstance(section, dict):
         raise KISUsageError(f"credentials.json 의 프로필 {profile!r} 항목이 객체가 아니다.")
-    return section
+    return cast("dict[str, object]", section)
+
+
+def _resolve_default_profile_name(loaded: dict[str, object]) -> str:
+    """``profile`` 미지정 시 열 기본 프로필 이름. 해석 순서: ``KIS_DEFAULT_PROFILE`` 환경변수
+    (빈/공백은 미설정) > ``credentials.json`` 첫 항목(삽입 순서) > ``"main"``(파일도 env 도 없을 때
+    폴백 -- 접두어 없는 ``KIS_APP_KEY`` 로 여는 이름). 이름 형식 검증은 하위에서 한다."""
+    override = os.environ.get(_DEFAULT_PROFILE_ENV_VAR)
+    if override is not None and override.strip():
+        return override.strip()
+    return next(iter(loaded), "main")
 
 
 def _resolve_profile_field(field_name: str, *, profile: str, section: dict[str, object]) -> str | None:
@@ -172,24 +188,29 @@ class ResolvedCredentials:
     environment: Environment
 
 
-def resolve_credentials(profile: str = "main", *, config_dir: str | Path | None = None) -> ResolvedCredentials:
-    """프로필의 저장된 자격증명을 읽는다(환경변수 -> credentials.json). 앱키/시크릿이 없으면
-    :class:`KISUsageError`(변수 이름만 담는다). 계좌번호는 없으면 ``None``(시세만 볼 때). 환경은
-    저장값(기본 ``real``)."""
+def resolve_credentials(profile: str | None = None, *, config_dir: str | Path | None = None) -> ResolvedCredentials:
+    """프로필의 저장된 자격증명을 읽는다(환경변수 -> credentials.json). ``profile`` 이 ``None`` 이면
+    기본 프로필로 해석한다(:func:`_resolve_default_profile_name`). 앱키/시크릿이 없으면 :class:`KISUsageError`
+    (변수 이름만 담는다). 계좌번호는 없으면 ``None``(시세만 볼 때). 환경은 저장값(기본 ``real``)."""
     return _fill_credentials(profile, app_key=None, app_secret=None, account=None,
                              environment=None, config_dir=config_dir)
 
 
 def _fill_credentials(
-    profile: str, *, app_key: str | None, app_secret: str | None, account: str | None,
+    profile: str | None, *, app_key: str | None, app_secret: str | None, account: str | None,
     environment: Environment | None, config_dir: str | Path | None,
 ) -> ResolvedCredentials:
     """명시된 값은 그대로 쓰고 ``None`` 인 것만 저장분에서 채운다(부분 해석). 세션이 일부 자격증명만
     직접 넘겼을 때, 실제로 빠진 항목만 파일/env 에서 읽어 -- 사용자가 준 항목을 '없다'고 오도하지
-    않도록 -- 채우는 데 쓴다. 파일은 한 번만 파싱한다."""
-    _validate_profile_name(profile)
+    않도록 -- 채우는 데 쓴다. 파일은 한 번만 파싱한다. ``profile`` 이 ``None`` 이면 기본 프로필로 해석한다."""
+    if profile is not None:
+        _validate_profile_name(profile)          # 명시 이름은 파일 읽기 전에 검증(기존 순서 보존)
     directory = _config_dir_path(config_dir)
-    section = _profile_section(directory, profile)
+    loaded = _load_credentials(directory)
+    if profile is None:
+        profile = _resolve_default_profile_name(loaded)
+        _validate_profile_name(profile)
+    section = _select_profile_section(loaded, profile)
     resolved_environment = environment if environment is not None \
         else _resolve_profile_field("environment", profile=profile, section=section) or "real"
     if resolved_environment not in _ENVIRONMENTS:
@@ -209,11 +230,17 @@ def _fill_credentials(
     )
 
 
-def resolve_environment(profile: str = "main", *, config_dir: str | Path | None = None) -> Environment:
+def resolve_environment(profile: str | None = None, *, config_dir: str | Path | None = None) -> Environment:
     """프로필의 접속 환경(실전/모의)만 읽는다(기본 ``real``). 앱키/시크릿 없이도 되므로 CLI 가
-    자격증명을 다 갖추기 전에 환경만 알아야 할 때(주문 게이트 등) 쓴다."""
-    _validate_profile_name(profile)
-    section = _profile_section(_config_dir_path(config_dir), profile)
+    자격증명을 다 갖추기 전에 환경만 알아야 할 때(주문 게이트 등) 쓴다. ``profile`` 이 ``None`` 이면
+    기본 프로필로 해석한다(:func:`_resolve_default_profile_name`)."""
+    if profile is not None:
+        _validate_profile_name(profile)          # 명시 이름은 파일 읽기 전에 검증(기존 순서 보존)
+    loaded = _load_credentials(_config_dir_path(config_dir))
+    if profile is None:
+        profile = _resolve_default_profile_name(loaded)
+        _validate_profile_name(profile)
+    section = _select_profile_section(loaded, profile)
     value = _resolve_profile_field("environment", profile=profile, section=section) or "real"
     if value not in _ENVIRONMENTS:
         raise KISUsageError(f"{_env_var_prefix(profile)}ENVIRONMENT 는 {_ENVIRONMENTS} 중 하나여야 한다: {value!r}")

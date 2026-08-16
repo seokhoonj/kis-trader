@@ -33,7 +33,6 @@ def _isolate_credentials(tmp_path, monkeypatch):
     자격증명만 명시적으로 설정하게 한다(hermetic + 실 자격증명 미접촉)."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
-    monkeypatch.delenv("KIS_PROFILE", raising=False)
     for var in [name for name in os.environ if name.startswith("KIS_")]:
         monkeypatch.delenv(var, raising=False)
 
@@ -102,11 +101,11 @@ def test_parser_routes_stock_quote_to_handler():
     assert kis.log == [("quote", "005930")]
 
 
-def test_parser_defaults_to_main_and_table():
-    from kis_trader.cli.context import resolve_environment
+def test_parser_leaves_profile_unset_and_resolves_default():
+    from kis_trader.config import resolve_environment
     args = _args(["search", "삼성전자"])
-    assert args.profile == "main"                 # 기본 프로필 = 실전 주계좌
-    assert resolve_environment(args) == "real"    # main 은 실전 환경
+    assert args.profile is None                          # 미지정 -> 라이브러리가 기본 프로필 해석
+    assert resolve_environment(args.profile) == "real"   # 파일·env 없으면 main 폴백 = 실전
     assert args.fmt == "table"
 
 
@@ -521,6 +520,17 @@ def test_build_client_resolves_account_and_environment_from_profile(monkeypatch)
     monkeypatch.setenv("KIS_PAPER_ENVIRONMENT", "paper")   # 환경은 프로필에 저장된 값이 정한다
     kis = build_client(_args(["--profile", "paper", "stock", "quote", "005930"]))
     assert kis.account == "12345678-01"
+    assert kis.environment == "paper"
+
+
+def test_build_client_uses_default_profile_env_when_profile_unset(monkeypatch):
+    from kis_trader.cli.context import build_client
+    monkeypatch.setenv("KIS_DEFAULT_PROFILE", "paper")
+    monkeypatch.setenv("KIS_PAPER_APP_KEY", "k")
+    monkeypatch.setenv("KIS_PAPER_APP_SECRET", "s")
+    monkeypatch.setenv("KIS_PAPER_ACCOUNT", "12345678-01")
+    monkeypatch.setenv("KIS_PAPER_ENVIRONMENT", "paper")
+    kis = build_client(_args(["stock", "quote", "005930"]))   # --profile 없음 -> 기본 프로필 env
     assert kis.environment == "paper"
 
 

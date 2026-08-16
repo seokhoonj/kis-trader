@@ -312,3 +312,69 @@ def test_save_then_client_round_trip(tmp_path):
               account="11112222-22", config_dir=tmp_path).save()
     kis = KISClient(profile="pension_b", config_dir=tmp_path, transport=_FakeTransport())
     assert kis.account == "11112222-22" and kis.environment == "real"
+
+
+# --- 기본 프로필 해석 (profile 미지정) ---------------------------------------
+
+def test_default_profile_uses_first_entry(tmp_path):
+    KISConfig(profile="isa",     app_key="IK", app_secret="IS", config_dir=tmp_path).save()
+    KISConfig(profile="pension", app_key="PK", app_secret="PS", config_dir=tmp_path).save()
+    assert resolve_credentials(config_dir=tmp_path).app_key == "IK"   # 첫 항목 isa
+
+
+def test_default_profile_env_overrides_first_entry(tmp_path, monkeypatch):
+    KISConfig(profile="isa",     app_key="IK", app_secret="IS", config_dir=tmp_path).save()
+    KISConfig(profile="pension", app_key="PK", app_secret="PS", config_dir=tmp_path).save()
+    monkeypatch.setenv("KIS_DEFAULT_PROFILE", "pension")
+    assert resolve_credentials(config_dir=tmp_path).app_key == "PK"   # env 가 첫 항목을 덮음
+
+
+def test_default_profile_blank_env_is_ignored(tmp_path, monkeypatch):
+    KISConfig(profile="isa", app_key="IK", app_secret="IS", config_dir=tmp_path).save()
+    monkeypatch.setenv("KIS_DEFAULT_PROFILE", "   ")                  # 공백 = 미설정
+    assert resolve_credentials(config_dir=tmp_path).app_key == "IK"
+
+
+def test_default_profile_falls_back_to_main_env_only(monkeypatch):
+    monkeypatch.setenv("KIS_APP_KEY", "main_k")                       # 파일 없음 + 접두어 없는 키
+    monkeypatch.setenv("KIS_APP_SECRET", "main_s")
+    assert resolve_credentials().app_key == "main_k"                 # -> main 폴백
+
+
+def test_default_environment_uses_first_entry(tmp_path):
+    KISConfig(profile="demo", app_key="DK", app_secret="DS",
+              environment="paper", config_dir=tmp_path).save()
+    KISConfig(profile="live", app_key="LK", app_secret="LS", config_dir=tmp_path).save()
+    assert resolve_environment(config_dir=tmp_path) == "paper"        # 첫 항목 demo = 모의
+
+
+def test_client_opens_default_profile_first_entry(tmp_path):
+    KISConfig(profile="isa", app_key="IK", app_secret="IS", account="12345678-01",
+              environment="paper", config_dir=tmp_path).save()
+    kis = KISClient(config_dir=tmp_path, transport=_FakeTransport())  # profile 미지정
+    assert kis.environment == "paper"        # 첫 항목 isa(paper) 를 열었다(main real 폴백 아님)
+    assert kis.account == "12345678-01"      # 게이트가 판정하는 계좌도 첫 항목 것
+
+
+def test_default_profile_env_nonexistent_fails_closed(tmp_path, monkeypatch):
+    KISConfig(profile="isa", app_key="IK", app_secret="IS", config_dir=tmp_path).save()
+    monkeypatch.setenv("KIS_DEFAULT_PROFILE", "missing")   # 저장 없는 프로필 지목
+    with pytest.raises(KISUsageError):                     # 첫 항목으로 새지 않고 fail-closed
+        resolve_credentials(config_dir=tmp_path)
+
+
+@pytest.mark.parametrize("bad", ["Paper", "paper-name", "paper name"])
+def test_default_profile_env_invalid_name_raises(tmp_path, monkeypatch, bad):
+    KISConfig(profile="isa", app_key="IK", app_secret="IS", config_dir=tmp_path).save()
+    monkeypatch.setenv("KIS_DEFAULT_PROFILE", bad)        # 형식오류 이름은 접두어로 새지 않고 거부
+    with pytest.raises(KISUsageError):
+        resolve_credentials(config_dir=tmp_path)
+
+
+def test_default_first_entry_uses_its_profile_env_prefix(tmp_path, monkeypatch):
+    KISConfig(profile="isa",     app_key="file_isa", app_secret="s", config_dir=tmp_path).save()
+    KISConfig(profile="pension", app_key="file_pen", app_secret="s", config_dir=tmp_path).save()
+    monkeypatch.setenv("KIS_APP_KEY", "unprefixed")       # main 접두어(첫 항목 아님)
+    monkeypatch.setenv("KIS_ISA_APP_KEY", "prefixed_isa") # 첫 항목 isa 의 접두어
+    # 미지정 -> 첫 항목 isa -> KIS_ISA_* 로 읽는다(KIS_APP_KEY 도 파일값도 아님)
+    assert resolve_credentials(config_dir=tmp_path).app_key == "prefixed_isa"
