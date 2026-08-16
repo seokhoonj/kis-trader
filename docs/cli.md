@@ -13,7 +13,7 @@ kis --profile paper stock quote 005930     # 모의(기본)
 kis --profile main  account balance         # 실전 주계좌
 ```
 
-프로필별 변수 접두어·설정 파일 위치(Linux·macOS·Windows 공통)는 [설정과 자격증명](configuration.md)
+프로필별 변수 접두어·설정 파일 위치(Linux·macOS·Windows 공통)는 [자격증명과 프로필](configuration.md)
 을 참고하세요.
 
 ## 조회
