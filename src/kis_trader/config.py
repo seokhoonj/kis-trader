@@ -10,7 +10,7 @@
 
 **프로필**은 한 계좌 묶음(앱키/시크릿/계좌번호)과 그 접속 환경을 이름 하나로 가리킨다. 각 프로필은
 자기 접두어로 변수를 읽고 쓴다 -- ``paper`` 는 ``KIS_PAPER_APP_KEY`` / ``KIS_PAPER_APP_SECRET`` /
-``KIS_PAPER_CANO`` / ``KIS_PAPER_ACNT_PRDT_CD``. 환경(실전/모의)은 프로필이 정한다(모의계좌만 모의).
+``KIS_PAPER_ACCOUNT``. 환경(실전/모의)은 프로필이 정한다(모의계좌만 모의).
 
 설정 위치는 XDG 규약을 따라 세 OS 공통이다: 편집 대상(``credentials.json`` 0600, ``config.toml``)은
 ``$XDG_CONFIG_HOME/kis-trader`` (없으면 ``~/.config/kis-trader``), 재생성 가능한 OAuth 토큰 캐시는
@@ -38,7 +38,7 @@ _APP_DIR_NAME = "kis-trader"
 #: 프로필 이름 -- 자격증명 묶음 하나이자 그 접속 환경. ``main`` 은 접두어 없는 실전 주계좌(위탁/종합).
 Profile = Literal["main", "paper", "isa", "irp", "pension"]
 
-#: 프로필 -> 환경변수/파일 키 접두어. 접두어에 ``APP_KEY``/``APP_SECRET``/``CANO``/``ACNT_PRDT_CD`` 를 붙인다.
+#: 프로필 -> 환경변수/파일 키 접두어. 접두어에 ``APP_KEY``/``APP_SECRET``/``ACCOUNT`` 를 붙인다.
 _PROFILE_PREFIX: dict[str, str] = {
     "main":    "KIS_",
     "paper":   "KIS_PAPER_",
@@ -192,15 +192,10 @@ def _fill_credentials(
 
 
 def _resolve_account(prefix: str, *, directory: Path) -> str | None:
-    cano = _lookup(prefix + "CANO", directory=directory)
-    product_code = _lookup(prefix + "ACNT_PRDT_CD", directory=directory)
-    if cano is None:
-        return None
-    if product_code is None:
-        raise KISUsageError(
-            f"{prefix}CANO 는 있으나 {prefix}ACNT_PRDT_CD 가 없다 -- 상품계좌종류를 함께 설정하라."
-        )
-    return f"{cano}-{product_code}"
+    account = _lookup(prefix + "ACCOUNT", directory=directory)
+    if account is not None:
+        _split_account(account)   # 형식 검증(fail-closed) -- 세션이 CANO/상품코드로 쪼갤 수 있게
+    return account
 
 
 # --- 쓰기 (KISConfig.save) ----------------------------------------------------
@@ -241,15 +236,13 @@ class KISConfig:
         """이 프로필의 자격증명을 ``credentials.json`` 에 기록하고 그 경로를 돌려준다.
 
         기존 파일의 다른 프로필 항목은 보존하며 이 프로필의 키만 갱신(병합)한다. 파일은 소유자만
-        읽게 ``0600``, 원자적으로 쓴다(부분 파일/유출 방지). ``account`` 를 주면 ``CANO``/``ACNT_PRDT_CD``
-        로 분해해 함께 기록한다(형식은 구성 시점에 검증됨).
+        읽게 ``0600``, 원자적으로 쓴다(부분 파일/유출 방지). ``account`` 를 주면 ``ACCOUNT`` 키로
+        함께 기록한다(형식은 구성 시점에 검증됨).
         """
         prefix = _PROFILE_PREFIX[self.profile]
         entries = {prefix + "APP_KEY": self.app_key, prefix + "APP_SECRET": self.app_secret}
         if self.account is not None:
-            cano, product_code = _split_account(self.account)
-            entries[prefix + "CANO"] = cano
-            entries[prefix + "ACNT_PRDT_CD"] = product_code
+            entries[prefix + "ACCOUNT"] = self.account   # 형식은 __post_init__ 에서 검증됨
 
         directory = _config_dir_path(self.config_dir)
         directory.mkdir(parents=True, exist_ok=True)

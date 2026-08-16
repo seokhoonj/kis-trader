@@ -51,13 +51,12 @@ def test_unknown_profile_is_rejected():
 
 # --- KISConfig.save() (쓰기) --------------------------------------------------
 
-def test_save_writes_prefixed_keys_and_splits_account(tmp_path):
+def test_save_writes_prefixed_keys_and_account(tmp_path):
     KISConfig(profile="main", app_key="AK", app_secret="SK",
               account="12345678-01", config_dir=tmp_path).save()
     saved = _read_saved_credentials(tmp_path)
     assert saved == {
-        "KIS_APP_KEY": "AK", "KIS_APP_SECRET": "SK",
-        "KIS_CANO": "12345678", "KIS_ACNT_PRDT_CD": "01",
+        "KIS_APP_KEY": "AK", "KIS_APP_SECRET": "SK", "KIS_ACCOUNT": "12345678-01",
     }
 
 
@@ -66,7 +65,7 @@ def test_save_uses_profile_prefix(tmp_path):
               account="87654321-29", config_dir=tmp_path).save()
     saved = _read_saved_credentials(tmp_path)
     assert saved["KIS_IRP_APP_KEY"] == "AK"
-    assert saved["KIS_IRP_CANO"] == "87654321" and saved["KIS_IRP_ACNT_PRDT_CD"] == "29"
+    assert saved["KIS_IRP_ACCOUNT"] == "87654321-29"
 
 
 def test_save_merges_and_preserves_other_profiles(tmp_path):
@@ -151,11 +150,10 @@ def test_environment_variable_wins_over_file(tmp_path, monkeypatch):
 
 
 def test_environment_account_wins_over_saved_account(tmp_path, monkeypatch):
-    # 앱키뿐 아니라 계좌 구성요소(CANO/ACNT_PRDT_CD)도 env 가 파일을 이긴다.
+    # 앱키뿐 아니라 계좌도 env 가 파일을 이긴다.
     KISConfig(profile="main", app_key="AK", app_secret="SK",
               account="12345678-01", config_dir=tmp_path).save()
-    monkeypatch.setenv("KIS_CANO", "87654321")
-    monkeypatch.setenv("KIS_ACNT_PRDT_CD", "02")
+    monkeypatch.setenv("KIS_ACCOUNT", "87654321-02")
     assert resolve_credentials("main", config_dir=tmp_path).account == "87654321-02"
 
 
@@ -181,10 +179,10 @@ def test_resolve_account_none_when_absent(monkeypatch):
     assert resolve_credentials("main").account is None
 
 
-def test_resolve_cano_without_product_code_fails_closed(monkeypatch):
+def test_resolve_malformed_account_fails_closed(monkeypatch):
     monkeypatch.setenv("KIS_APP_KEY", "k")
     monkeypatch.setenv("KIS_APP_SECRET", "s")
-    monkeypatch.setenv("KIS_CANO", "12345678")
+    monkeypatch.setenv("KIS_ACCOUNT", "12345678")  # 상품코드 없음(하이픈 누락)
     with pytest.raises(KISUsageError):
         resolve_credentials("main")
 
@@ -246,8 +244,7 @@ def test_client_missing_credentials_raises():
 def test_client_account_override(monkeypatch):
     monkeypatch.setenv("KIS_APP_KEY", "k")
     monkeypatch.setenv("KIS_APP_SECRET", "s")
-    monkeypatch.setenv("KIS_CANO", "12345678")
-    monkeypatch.setenv("KIS_ACNT_PRDT_CD", "01")
+    monkeypatch.setenv("KIS_ACCOUNT", "12345678-01")
     kis = KISClient(profile="main", account="87654321-02", transport=_FakeTransport())
     assert kis.account == "87654321-02"
 

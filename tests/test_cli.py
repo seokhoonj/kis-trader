@@ -502,8 +502,7 @@ def test_build_client_resolves_account_and_environment_from_profile(monkeypatch)
     from kis_trader.cli.context import build_client
     monkeypatch.setenv("KIS_PAPER_APP_KEY", "k")
     monkeypatch.setenv("KIS_PAPER_APP_SECRET", "s")
-    monkeypatch.setenv("KIS_PAPER_CANO", "12345678")
-    monkeypatch.setenv("KIS_PAPER_ACNT_PRDT_CD", "01")
+    monkeypatch.setenv("KIS_PAPER_ACCOUNT", "12345678-01")
     kis = build_client(_args(["--profile", "paper", "stock", "quote", "005930"]))
     assert kis.account == "12345678-01"
     assert kis.environment == "paper"
