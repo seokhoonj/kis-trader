@@ -78,13 +78,15 @@ Claude Code / Codex 로 계좌를 몰려면 `skills/kis-trader/` 스킬을 쓴�
 
 전체 문서는 **<https://seokhoonj.github.io/kis-trader/>** 에 있습니다(소스: `docs/`).
 
-- **시작하기** — [빠른 시작](https://seokhoonj.github.io/kis-trader/quickstart.html) · [앱키 발급](https://seokhoonj.github.io/kis-trader/appkey.html) · [자격증명과 프로필](https://seokhoonj.github.io/kis-trader/configuration.html)
-- **국내 주식** — [시세](https://seokhoonj.github.io/kis-trader/quotes.html) · [재무·실적](https://seokhoonj.github.io/kis-trader/financials.html) · [종목 수급](https://seokhoonj.github.io/kis-trader/flows.html) · [계좌·손익](https://seokhoonj.github.io/kis-trader/account.html) · [주문](https://seokhoonj.github.io/kis-trader/orders.html)
-- **시장·검색** — [순위·조건검색](https://seokhoonj.github.io/kis-trader/screening.html) · [시장·지수](https://seokhoonj.github.io/kis-trader/market.html) · [기업행위·일정](https://seokhoonj.github.io/kis-trader/corporate-actions.html)
-- **해외·연금** — [해외주식](https://seokhoonj.github.io/kis-trader/overseas.html) · [퇴직연금](https://seokhoonj.github.io/kis-trader/pension.html)
-- **다른 상품** — [ETF·ETN](https://seokhoonj.github.io/kis-trader/etf.html) · [ELW](https://seokhoonj.github.io/kis-trader/elw.html) · [선물·옵션](https://seokhoonj.github.io/kis-trader/derivatives.html) · [채권](https://seokhoonj.github.io/kis-trader/bonds.html)
-- **명령줄·에이전트** — [Command Line](https://seokhoonj.github.io/kis-trader/cli.html) · [Claude Skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex Skill](https://seokhoonj.github.io/kis-trader/codex-skill.html)
-- **참고** — [실시간(WebSocket)](https://seokhoonj.github.io/kis-trader/realtime.html) · [한계·미구현](https://seokhoonj.github.io/kis-trader/limits.html)
+| 파트 | 장 |
+|------|----|
+| **시작하기** | [빠른 시작](https://seokhoonj.github.io/kis-trader/quickstart.html) · [앱키 발급](https://seokhoonj.github.io/kis-trader/appkey.html) · [자격증명과 프로필](https://seokhoonj.github.io/kis-trader/configuration.html) |
+| **국내 주식** | [시세](https://seokhoonj.github.io/kis-trader/quotes.html) · [재무·실적](https://seokhoonj.github.io/kis-trader/financials.html) · [종목 수급](https://seokhoonj.github.io/kis-trader/flows.html) · [계좌·손익](https://seokhoonj.github.io/kis-trader/account.html) · [주문](https://seokhoonj.github.io/kis-trader/orders.html) |
+| **시장·검색** | [순위·조건검색](https://seokhoonj.github.io/kis-trader/screening.html) · [시장·지수](https://seokhoonj.github.io/kis-trader/market.html) · [기업행위·일정](https://seokhoonj.github.io/kis-trader/corporate-actions.html) |
+| **해외·연금** | [해외주식](https://seokhoonj.github.io/kis-trader/overseas.html) · [퇴직연금](https://seokhoonj.github.io/kis-trader/pension.html) |
+| **다른 상품** | [ETF·ETN](https://seokhoonj.github.io/kis-trader/etf.html) · [ELW](https://seokhoonj.github.io/kis-trader/elw.html) · [선물·옵션](https://seokhoonj.github.io/kis-trader/derivatives.html) · [채권](https://seokhoonj.github.io/kis-trader/bonds.html) |
+| **명령줄·에이전트** | [Command Line](https://seokhoonj.github.io/kis-trader/cli.html) · [Claude Skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex Skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) |
+| **참고** | [실시간(WebSocket)](https://seokhoonj.github.io/kis-trader/realtime.html) · [한계·미구현](https://seokhoonj.github.io/kis-trader/limits.html) |
 
 엔드포인트별 상세는 각 메서드 docstring에 (`help(...)` / IDE).
 
