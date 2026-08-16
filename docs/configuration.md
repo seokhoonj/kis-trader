@@ -83,6 +83,19 @@ export KIS_ACCOUNT=12345678-01        # 종합계좌번호-상품코드 (시세�
 # export KIS_ENVIRONMENT=paper        # 모의 계좌면
 ```
 
+어느 방법이든 **키 이름 규칙은 하나** -- 환경변수에서 `KIS_` 를 떼고 소문자로 바꾸면 파일 안 키입니다.
+
+| 환경변수(셸) | `credentials.json` 안 | 뜻 |
+|---|---|---|
+| `KIS_APP_KEY` | `app_key` | 앱키 |
+| `KIS_APP_SECRET` | `app_secret` | 앱시크릿 |
+| `KIS_ACCOUNT` | `account` | 계좌번호 |
+| `KIS_ENVIRONMENT` | `environment` | 실전/모의 |
+| `KIS_DEFAULT_PROFILE` | `default_profile`(최상위) | 기본 프로필 |
+
+접두어 없는 `KIS_APP_KEY` 는 `main` 프로필용이고, 다른 프로필은 이름을 끼웁니다 --
+`KIS_PENSION_APP_KEY` ↔ `credentials.json` 의 `pension.app_key`.
+
 **③ 직접 전달** (파이썬 코드로 실행) -- 저장 없이 그때만 씁니다. (앱키·앱시크릿을 **둘 다** 주면 파일을 읽지 않음)
 
 ```python
