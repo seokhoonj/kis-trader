@@ -78,11 +78,11 @@ export KIS_DEFAULT_PROFILE=main          # Linux·macOS (영구히 하려면 ~/.
 
 | 방법 | 언제 | 요약 |
 |---|---|---|
-| ① `KISConfig(...).save()` | **권장** | 정해진 위치에 안전 저장(사용자만 읽게 잠금·병합) |
+| ① 파일에 저장 | **권장** | `KISConfig(...).save()` -- 정해진 위치에 안전 저장(사용자만 읽게 잠금·병합) |
 | ② 환경변수 | CI·컨테이너 | `export KIS_APP_KEY=…`(명명 프로필은 `KIS_<이름대문자>_*`) |
 | ③ 직접 전달 | 일회성 | `KISClient(app_key=…, …)`(둘 다 직접 주면 파일 안 읽음) |
 
-**① 파이썬에서 저장** (파이썬 코드로 실행) -- 한 번 저장해 두면 이후 `KISClient(profile="...")` 로 엽니다.
+**① 파일에 저장** (파이썬 코드로 실행) -- 한 번 저장해 두면 이후 `KISClient(profile="...")` 로 엽니다.
 
 ```python
 from kis_trader import KISConfig
@@ -182,7 +182,7 @@ IRP(`29`)는 세션이 주문을 자동으로 막고, DC가입자(`55`)는 세�
 {
   "main":      {"app_key": "...", "app_secret": "...", "account": "12345678-01", "environment": "real"},
   "pension":   {"app_key": "...", "app_secret": "...", "account": "87654321-22", "environment": "real"},
-  "paper":     {"app_key": "...", "app_secret": "...", "account": "...",         "environment": "paper"}
+  "paper":     {"app_key": "...", "app_secret": "...", "account": "50123456-01", "environment": "paper"}
 }
 ```
 
