@@ -8,7 +8,7 @@
 **프로필은 사용자가 이름 붙이는 자유 문자열이다.** 앱키/시크릿은 종합계좌번호(CANO) 단위라 계좌마다
 따로이고 같은 유형 계좌도 여럿일 수 있으므로(연금저축 2개 등), "계좌 하나 = 프로필 하나"로 다룬다.
 각 프로필은 앱키·시크릿·계좌번호와 **접속 환경(실전/모의)**을 갖는다. 이름을 지정하지 않으면 기본
-프로필을 연다 -- ``KIS_DEFAULT_PROFILE`` 환경변수 > ``credentials.json`` 최상위 ``"default"`` 마커
+프로필을 연다 -- ``KIS_DEFAULT_PROFILE`` 환경변수 > ``credentials.json`` 최상위 ``"default_profile"`` 마커
 (:meth:`KISConfig.set_default`) > 첫 항목(삽입 순서) > ``"main"``(폴백) 순으로 정한다. 환경은 이름이
 아니라 프로필에 저장된 값이 정한다(기본 ``real``; 모의는 ``environment="paper"``).
 
@@ -62,7 +62,7 @@ _DEFAULT_PROFILE_ENV_VAR = "KIS_DEFAULT_PROFILE"
 
 #: credentials.json 최상위에서 기본 프로필 이름을 담는 예약 키(프로필 이름으로는 못 쓴다).
 #: 프로필 섹션은 객체, 이 마커는 문자열이라 값 타입으로 구분한다.
-_DEFAULT_MARKER_KEY = "default"
+_DEFAULT_MARKER_KEY = "default_profile"
 
 
 def _validate_profile_name(profile: str) -> None:
@@ -156,8 +156,8 @@ def _select_profile_section(loaded: dict[str, object], profile: str) -> dict[str
 
 def _resolve_default_profile_name(loaded: dict[str, object]) -> str:
     """``profile`` 미지정 시 열 기본 프로필 이름. 해석 순서: ``KIS_DEFAULT_PROFILE`` 환경변수
-    (빈/공백은 미설정) > ``credentials.json`` 최상위 ``"default"`` 마커(:meth:`KISConfig.set_default` 가
-    기록) > 첫 프로필 항목(삽입 순서, ``"default"`` 메타키는 제외) > ``"main"``(파일도 env 도 없을 때
+    (빈/공백은 미설정) > ``credentials.json`` 최상위 ``"default_profile"`` 마커(:meth:`KISConfig.set_default` 가
+    기록) > 첫 프로필 항목(삽입 순서, ``"default_profile"`` 메타키는 제외) > ``"main"``(파일도 env 도 없을 때
     폴백 -- 접두어 없는 ``KIS_APP_KEY`` 로 여는 이름). 이름 형식 검증은 하위에서 한다."""
     override = os.environ.get(_DEFAULT_PROFILE_ENV_VAR)
     if override is not None and override.strip():
@@ -301,7 +301,7 @@ class KISConfig:
     @classmethod
     def set_default(cls, profile: str, *, config_dir: str | Path | None = None) -> Path:
         """이름 없이 :class:`~kis_trader.client.KISClient` 를 열 때 여는 **기본 프로필**을 못박는다.
-        ``credentials.json`` 최상위 ``"default"`` 마커에 이름을 기록하고 그 경로를 돌려준다.
+        ``credentials.json`` 최상위 ``"default_profile"`` 마커에 이름을 기록하고 그 경로를 돌려준다.
 
         파일 순서·환경변수와 무관하며 재시작 후에도 유지된다(``KIS_DEFAULT_PROFILE`` 환경변수가 있으면
         그쪽이 우선). ``profile`` 은 이미 :meth:`save` 로 저장돼 있어야 한다 -- 없으면
@@ -327,7 +327,7 @@ class KISConfig:
 def _read_existing(path: Path) -> dict[str, object]:
     """기존 credentials.json 을 읽어 병합 바탕으로 쓴다. 없으면 빈 dict. 있는데 파손이거나 프로필
     섹션이 객체가 아니면 -- 덮어써 남의 프로필을 날리지 않도록 -- :class:`KISUsageError` 로 멈춘다.
-    ``"default"`` 메타키(기본 프로필 마커 문자열)는 프로필 섹션이 아니므로 검증에서 제외한다."""
+    ``"default_profile"`` 메타키(기본 프로필 마커 문자열)는 프로필 섹션이 아니므로 검증에서 제외한다."""
     try:
         parsed = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:

@@ -400,7 +400,7 @@ def test_set_default_marks_and_resolution_uses_it(tmp_path):
     KISConfig.set_default("pension", config_dir=tmp_path)
     # 첫 항목은 main 이지만 마커가 pension -> 미지정 해석은 pension
     assert resolve_credentials(config_dir=tmp_path).app_key == "PK"
-    assert _creds(tmp_path)["default"] == "pension"
+    assert _creds(tmp_path)["default_profile"] == "pension"
 
 
 def test_default_marker_loses_to_env_var(tmp_path, monkeypatch):
@@ -426,13 +426,13 @@ def test_set_default_preserves_other_profiles_and_is_owner_only(tmp_path):
     assert (path.stat().st_mode & 0o777) == 0o600
 
 
-def test_profile_named_default_is_reserved():
+def test_profile_named_default_profile_is_reserved():
     with pytest.raises(KISUsageError, match="예약"):
-        KISConfig(profile="default", app_key="k", app_secret="s")
+        KISConfig(profile="default_profile", app_key="k", app_secret="s")
 
 
 def test_first_entry_skips_default_meta_key(tmp_path):
-    # "default" 마커가 공백이라 무시될 때, 첫 항목 계산에서 "default" 키 자체는 건너뛴다
+    # "default_profile" 마커가 공백이라 무시될 때, 첫 항목 계산에서 "default_profile" 키 자체는 건너뛴다
     (tmp_path / "credentials.json").write_text(
-        '{"default": "  ", "isa": {"app_key": "IK", "app_secret": "IS"}}', encoding="utf-8")
+        '{"default_profile": "  ", "isa": {"app_key": "IK", "app_secret": "IS"}}', encoding="utf-8")
     assert resolve_credentials(config_dir=tmp_path).app_key == "IK"
