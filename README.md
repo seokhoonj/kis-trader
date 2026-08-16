@@ -1,77 +1,77 @@
 # kis-trader
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11+-blue.svg)](https://www.python.org/)
 
-한국투자증권(KIS) Open API 파이썬 클라이언트. Python ≥ 3.11.
+한국투자증권 KIS Open API **"비공식"** 파이썬 클라이언트.
 
 ```python
 from kis_trader import KISClient
 
 kis = KISClient(app_key="…", app_secret="…", account="12345678-01")
 
-kis.domestic.stock("005930").quote()           # 삼성전자 현재가
-kis.overseas.stock("AAPL").quote()             # AAPL (거래소 자동)
-kis.domestic.ranking.by_change(direction="gainers")  # 등락률 순위
+kis.domestic.stock("005930").quote()                 # 삼성전자 현재가
+kis.overseas.stock("AAPL").quote()                   # 애플 (거래소 자동)
+kis.domestic.ranking.by_change(direction="gainers")  # 오늘 상승률 순위
 ```
-
-공개 식별자는 영어, 설명 docstring은 한국어(+ KIS URL·TR-id).
 
 📖 **문서: <https://seokhoonj.github.io/kis-trader/>**
 
 ## 설치
 
 ```bash
-uv pip install -e .      # greenfield 0.0.0 (아직 PyPI 미배포)
+uv pip install -e .      # 아직 PyPI 에 올리기 전이라, 받은 폴더에서 바로 설치
 ```
 
-## 구조
+## 이렇게 생겼습니다
 
-세션 하나(`KISClient`)에서 자산군별로 갈라진다.
+`KISClient` 를 하나 만들면, 그 아래가 **국내·해외·연금·주문**으로 나뉩니다.
 
 ```python
-kis.domestic     # 국내 주식·지수·채권·ELW·파생·계좌·순위·시장·캘린더
-kis.overseas     # 해외 주식·지수·파생·계좌·순위
+kis.domestic     # 국내 주식·지수·채권·ELW·선물옵션·계좌·순위·시장·일정
+kis.overseas     # 해외 주식·지수·선물옵션·계좌·순위
 kis.pension      # 퇴직연금
-kis.orders       # 주문 라이프사이클 (reconcile / cancel / modify)
+kis.orders       # 낸 주문 확인·정정·취소
 ```
 
-종목 핸들로 한 종목을 다룬다.
+한 종목은 `stock("코드")` 로 잡아서, 거기서 시세를 보거나 주문합니다.
 
 ```python
-kis.domestic.stock("005930")     # DomesticStock (quote/bars/order_book/buy/sell/…)
-kis.overseas.stock("AAPL")       # OverseasStock (거래소 자동)
-kis.domestic.futures("101W09")   # FuturesContract (underlying_quote 있음)
-kis.domestic.option("201W09")    # OptionContract  (없음 — 선물 전용)
+kis.domestic.stock("005930")     # 국내 주식 (현재가·차트·호가·매수·매도 …)
+kis.overseas.stock("AAPL")       # 해외 주식 (거래소 자동)
+kis.domestic.futures("101W09")   # 지수선물
+kis.domestic.option("201W09")    # 지수옵션
 ```
 
 ## 주문
 
 ```python
-r = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)
-kis.orders.reconcile(r.client_order_id)   # 브로커 대조 → 확정
-kis.orders.cancel(r.client_order_id)
+r = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)  # 10주 매수
+kis.orders.reconcile(r.client_order_id)   # 주문이 실제로 들어갔는지 증권사에 확인
+kis.orders.cancel(r.client_order_id)      # 취소
 ```
 
-클라이언트측 안전 커널: **오확정 금지 · write 무재시도 · 보수적 reconcile**. 신용/주문가능은
-기본 차단. → [주문](https://seokhoonj.github.io/kis-trader/orders.html)
+주문은 되돌릴 수 없어서, 실수로 **두 번 나가지 않도록** 안전장치가 들어 있습니다(신용거래는 기본으로
+막아 둠). → [주문 설명](https://seokhoonj.github.io/kis-trader/orders.html)
 
 ## 명령줄 (`kis`)
 
-설치하면 `kis` 명령이 함께 깔린다. 주문은 **기본 dry-run**이고 `--execute` 로만 전송한다.
+설치하면 터미널 명령 `kis` 도 함께 깔립니다. 파이썬을 짜지 않고도 조회·주문을 할 수 있습니다.
+주문은 **`--execute` 를 붙이기 전엔 실제로 안 나갑니다** — 미리 확인만 하는 **실행 안 함(dry-run)** 상태입니다.
 
 ```bash
 kis stock quote 005930
 kis search 삼성전자
 kis ranking change --direction gainers
 kis account balance
-kis order buy 005930 10 --limit-price 70000                      # dry-run (전송 안 됨)
-kis order buy 005930 10 --limit-price 70000 --execute paper --yes  # 모의 전송
+kis order buy 005930 10 --limit-price 70000                       # 실행 안 함(dry-run), 전송 안 됨
+kis order buy 005930 10 --limit-price 70000 --execute paper --yes  # 모의투자로 실제 전송
 ```
 
-자격증명은 환경변수(`KIS_APP_KEY`/`KIS_APP_SECRET`/`KIS_ACCOUNT`; 프로필별 접두어)나
-`KISConfig(...).save()`. → [자격증명과 프로필](https://seokhoonj.github.io/kis-trader/configuration.html)
+앱키·계좌는 환경변수나 `KISConfig(...).save()` 로 한 번 저장해 둡니다. →
+[자격증명과 프로필](https://seokhoonj.github.io/kis-trader/configuration.html)
 
-Claude Code / Codex 로 계좌를 몰려면 `skills/kis-trader/` 스킬을 쓴다. →
+Claude Code / Codex 같은 AI 도구로 계좌를 다루려면 `skills/kis-trader/` 스킬을 씁니다. →
 [Claude 스킬](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex 스킬](https://seokhoonj.github.io/kis-trader/codex-skill.html)
 
 ## 문서
@@ -88,7 +88,7 @@ Claude Code / Codex 로 계좌를 몰려면 `skills/kis-trader/` 스킬을 쓴�
 | **명령줄·에이전트** | [Command Line](https://seokhoonj.github.io/kis-trader/cli.html) · [Claude Skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex Skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) |
 | **참고** | [실시간(WebSocket)](https://seokhoonj.github.io/kis-trader/realtime.html) · [한계·미구현](https://seokhoonj.github.io/kis-trader/limits.html) |
 
-엔드포인트별 상세는 각 메서드 docstring에 (`help(...)` / IDE).
+각 메서드의 자세한 설명(넣는 값·나오는 값)은 `help(그_메서드)` 로 바로 볼 수 있습니다.
 
 ## 라이선스
 
