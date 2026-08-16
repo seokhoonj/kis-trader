@@ -18,24 +18,24 @@
   - 또는 홈페이지 로그인 후 **트레이딩 > Open API > KIS Developers > KIS Developers 서비스 신청/조회**
     로 이동합니다.
 
-![KIS 개발자센터 -- 오른쪽 위 검정색 또는 본문 파란색 API신청 버튼(빨강 표시)로 들어갑니다](img/kis-appkey-portal.png)
+![KIS 개발자센터 -- 오른쪽 위 검정색 또는 본문 파란색 API신청 버튼(빨강 표시)로 들어갑니다](img/kis-appkey-1-portal.png)
 
 ## 휴대폰 인증
 
 본인 휴대폰으로 인증번호를 받아 인증합니다.
 
-![휴대폰 인증](img/kis-appkey-step1-phone-auth.png)
+![휴대폰 인증](img/kis-appkey-2-phone-auth.png)
 
 ## 신청정보 확인
 
 기본정보(고객명·고객 ID·이메일)를 확인합니다.
 
-![기본정보](img/kis-appkey-step3-info.png)
+![기본정보](img/kis-appkey-3-info.png)
 
 같은 페이지 아래쪽의 **추가신청하기**(최초라면 **신청하기**) 버튼으로 계좌에 API 이용을 신청합니다
 (유의사항도 함께 안내됩니다).
 
-![추가신청하기 버튼과 유의사항](img/kis-appkey-step3-notes.png)
+![추가신청하기 버튼과 유의사항](img/kis-appkey-4-notes.png)
 
 ## API 서비스 신청하기
 
@@ -43,18 +43,18 @@
 실전투자계좌는 종합계좌를 고르고 계좌 비밀번호로 인증하며, 모의투자계좌는 발급받은 모의계좌번호를
 입력합니다. **KIS Developers 사용자 ID**도 함께 정합니다.
 
-![신청하기 -- 계좌 선택과 사용자 ID](img/kis-appkey-apply-1.png)
+![신청하기 -- 계좌 선택과 사용자 ID](img/kis-appkey-5-account.png)
 
 사용할 **API 그룹**을 선택하고 **신청**을 누릅니다.
 
-![신청하기 -- API 그룹 선택](img/kis-appkey-apply-2.png)
+![신청하기 -- API 그룹 선택](img/kis-appkey-6-group.png)
 
 ## 신청현황에서 APP Key · APP Secret 복사
 
 신청이 완료되면 **신청현황** 목록에 계좌가 나타납니다. 각 계좌 행에서 **APP Key**와 **APP Secret**을
 각각 **복사** 버튼으로 복사합니다. 이 두 값이 세션을 여는 자격증명입니다.
 
-![신청현황 -- 계좌별 APP Key / APP Secret](img/kis-appkey-step3-list.png)
+![신청현황 -- 계좌별 APP Key / APP Secret](img/kis-appkey-7-keys.png)
 
 ::: {.callout-warning}
 APP Key·APP Secret은 남에게 보이거나 공개 저장소(GitHub)에 올라가지 않도록 조심해 주세요.
