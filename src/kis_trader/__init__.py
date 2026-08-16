@@ -18,7 +18,7 @@ from ._internal._masters import (
 )
 from .bar import Bar, Interval
 from .client import KISClient
-from .config import KISConfig, Profile
+from .config import KISConfig
 from .domestic.bond import Bond
 from .domestic.calendar import CalendarQueries
 from .domestic.derivative import FuturesContract, OptionContract
@@ -360,7 +360,6 @@ __all__ = [
     "InvestorNetBuyStock",
     "KISClient",
     "KISConfig",
-    "Profile",
     "LendableStock",
     "LimitStock",
     "ListingEvent",

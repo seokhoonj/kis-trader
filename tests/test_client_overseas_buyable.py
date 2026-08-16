@@ -50,9 +50,9 @@ class FakeTransport:
         return self.response
 
 
-def _client(transport, *, profile="main", account="12345678-01"):
+def _client(transport, *, environment="real", account="12345678-01"):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     profile=profile, transport=transport)
+                     environment=environment, transport=transport)
 
 
 def test_overseas_buyable_parses_ledger_output():
@@ -87,7 +87,7 @@ def test_overseas_buyable_tr_method_params_and_excg_mapping():
 
 def test_overseas_buyable_demo_tr():
     fake = FakeTransport(response=_resp())
-    _client(fake, profile="paper").overseas.account.buyable("AAPL", exchange="NAS", price="1")
+    _client(fake, environment="paper").overseas.account.buyable("AAPL", exchange="NAS", price="1")
     assert fake.calls[0]["tr_id"] == "VTTS3007R"
 
 

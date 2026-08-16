@@ -38,9 +38,9 @@ class FakeTransport:
         return self.response
 
 
-def _client(transport=None, *, profile="main", account="12345678-01"):
+def _client(transport=None, *, environment="real", account="12345678-01"):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     profile=profile, transport=transport or FakeTransport())
+                     environment=environment, transport=transport or FakeTransport())
 
 
 # --- 네임스페이스가 세션에 붙어 있고 타입이 맞나 ---------------------------

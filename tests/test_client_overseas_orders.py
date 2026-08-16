@@ -127,7 +127,7 @@ def test_overseas_cancel_maps_exchange_and_deduplicates():
 
 def test_overseas_replace_uses_demo_tr_and_new_price():
     fake = FakeTransport(response=_ack())
-    kis = _client(fake, profile="paper")
+    kis = _client(fake, environment="paper")
     kis.overseas.stock("0700", exchange="HKS").sell(
         quantity=4, limit_price="410.00", client_order_id="original-overseas-2"
     )

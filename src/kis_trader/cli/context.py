@@ -10,7 +10,7 @@ from argparse import Namespace
 from typing import TYPE_CHECKING
 
 from ..client import KISClient
-from ..config import environment_for_profile
+from ..config import resolve_environment as _profile_environment
 from ..errors import KISUsageError
 from .errors import CliConfigError
 
@@ -21,8 +21,9 @@ if TYPE_CHECKING:
 
 
 def resolve_environment(args: Namespace) -> Environment:
-    """접속 환경(실전/모의) -- ``--profile`` 이 정한다. 주문 게이트·출력 메타가 이걸로 판정한다."""
-    return environment_for_profile(args.profile)
+    """접속 환경(실전/모의) -- ``--profile`` 에 저장된 값(기본 real). 주문 게이트·출력 메타가 이걸로
+    판정한다. 프로필 이름이 아니라 저장된 environment 필드가 정한다."""
+    return _profile_environment(args.profile)
 
 
 def account_suffix(account: str | None) -> str:

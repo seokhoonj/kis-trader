@@ -171,6 +171,21 @@ def test_order_execute_environment_mismatch_is_rejected():
         order.cmd_buy(StubKis(), args, is_tty=False)
 
 
+def test_order_gate_uses_session_environment_not_profile_name():
+    # 게이트는 세션(kis)이 해석한 실제 환경을 본다 -- 프로필 이름이 아니다.
+    # 세션이 real 이면 프로필 이름이 paper 여도 --execute paper 는 막힌다.
+    real_session = StubKis(account="12345678-01", environment="real")
+    reject = _args(["--profile", "paper", "order", "buy", "005930", "10",
+                    "--limit-price", "70000", "--execute", "paper", "--yes"])
+    with pytest.raises(CliConfigError):
+        order.cmd_buy(real_session, reject, is_tty=False)
+    # 세션이 paper 이면 프로필 이름이 main 이어도 --execute paper 가 통과(전송)된다.
+    paper_session = StubKis(environment="paper")
+    allow = _args(["--profile", "main", "order", "buy", "005930", "10",
+                   "--limit-price", "70000", "--execute", "paper", "--yes"])
+    assert order.cmd_buy(paper_session, allow, is_tty=False) == "REPORT"
+
+
 def test_order_noninteractive_requires_yes():
     args = _args(["--profile", "paper", "order", "buy", "005930", "10",
                   "--limit-price", "70000", "--execute", "paper"])
@@ -503,6 +518,7 @@ def test_build_client_resolves_account_and_environment_from_profile(monkeypatch)
     monkeypatch.setenv("KIS_PAPER_APP_KEY", "k")
     monkeypatch.setenv("KIS_PAPER_APP_SECRET", "s")
     monkeypatch.setenv("KIS_PAPER_ACCOUNT", "12345678-01")
+    monkeypatch.setenv("KIS_PAPER_ENVIRONMENT", "paper")   # 환경은 프로필에 저장된 값이 정한다
     kis = build_client(_args(["--profile", "paper", "stock", "quote", "005930"]))
     assert kis.account == "12345678-01"
     assert kis.environment == "paper"

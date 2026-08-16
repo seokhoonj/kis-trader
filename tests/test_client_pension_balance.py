@@ -88,9 +88,9 @@ class FakeTransport:
         return outcome
 
 
-def _client(transport, *, profile="main", account="12345678-29"):
+def _client(transport, *, environment="real", account="12345678-29"):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     profile=profile, transport=transport)
+                     environment=environment, transport=transport)
 
 
 # --- 잔고 ------------------------------------------------------------------
@@ -140,7 +140,7 @@ def test_pension_balance_page_cap_fails_closed(monkeypatch):
 def test_pension_balance_demo_rejected_before_io():
     fake = FakeTransport(response=_resp2([_BAL_ROW], _BAL_SUMMARY))
     with pytest.raises(KISUsageError):
-        _client(fake, profile="paper").pension.balance()
+        _client(fake, environment="paper").pension.balance()
     assert fake.calls == []
 
 
@@ -218,7 +218,7 @@ def test_pension_orders_paginates():
 def test_pension_orders_demo_rejected_before_io():
     fake = FakeTransport(response=_resp_orders([]))
     with pytest.raises(KISUsageError):
-        _client(fake, profile="paper").pension.orders()
+        _client(fake, environment="paper").pension.orders()
     assert fake.calls == []
 
 

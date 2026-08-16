@@ -30,7 +30,7 @@ from .overseas._engine import orders as overseas_orders_engine
 from .overseas._engine import reserved_orders as overseas_reserved_orders_api
 from .overseas.namespace import OverseasNamespace
 from .pension.namespace import PensionNamespace
-from .config import _fill_credentials, _split_account, environment_for_profile, token_cache_path
+from .config import _ENVIRONMENTS, _fill_credentials, _split_account, token_cache_path
 from .errors import KISUsageError
 from .order import (
     ChangeAction,
@@ -49,7 +49,6 @@ if TYPE_CHECKING:
 
     from ._literals import Numeric
     from ._internal._masters import InstrumentRecord
-    from .config import Profile
     from .realtime.client import RealtimeClient
     from .report import ExecutionReport
     from .risk import RiskLimits
@@ -99,15 +98,19 @@ class OrdersNamespace:
 
 
 class KISClient:
-    """KIS Open API 세션. ``transport`` 는 주입된 전송 구현(실제 HTTP 또는 테스트용 가짜)이다."""
+    """KIS Open API 세션. ``transport`` 는 주입된 전송 구현(실제 HTTP 또는 테스트용 가짜)이다.
+    주입 시 그 전송이 세션의 ``environment`` 와 같은 환경(실전/모의)을 향하도록 호출자가 맞춰야 한다
+    -- 주문 게이트는 세션의 ``environment`` 로 판정하므로 둘이 어긋나면 게이트가 실제 와이어와 다른
+    환경을 검사하게 된다."""
 
     def __init__(
         self,
         *,
-        profile: Profile = "main",
+        profile: str = "main",
         app_key: str | None = None,
         app_secret: str | None = None,
         account: str | None = None,
+        environment: Environment | None = None,
         config_dir: str | Path | None = None,
         transport: Transport | None = None,
         token_cache_dir: str | Path | None = None,
@@ -144,24 +147,31 @@ class KISClient:
         를 주면 그 인덱스를 쓰고(테스트/고급), 없으면 첫 조회 때 마스터를 받아 캐시한다. ``master_fetch``
         로 다운로더를 바꿀 수 있다(기본은 KIS 배포 서버).
 
-        ``profile`` 이 어느 계좌 묶음으로 열지 정한다(``main`` 실전 주계좌·``paper`` 모의·``isa``/``irp``/
-        ``pension``). 환경(실전/모의)도 프로필이 정한다(모의계좌만 모의). ``app_key``/``app_secret`` 을
-        생략하면 **그 프로필의 저장된 자격증명을 읽는다**(환경변수 -> ``~/.config/kis-trader/credentials.json``;
-        `:func:`~kis_trader.config.KISConfig.save` 로 저장). 즉 설정만 해두면 ``KISClient(profile=...)`` 한
-        줄로 열린다. 값을 명시하면 파일을 읽지 않는다. ``config_dir`` 로 설정·토큰캐시 위치를 바꾼다
+        ``profile`` 이 어느 계좌 묶음으로 열지 정한다(사용자가 이름 붙이는 자유 프로필; ``main`` 은 기본
+        이름). ``app_key``/``app_secret`` 을 생략하면 **그 프로필의 저장된 자격증명을 읽는다**(환경변수 ->
+        ``~/.config/kis-trader/credentials.json``; :func:`~kis_trader.config.KISConfig.save` 로 저장). 즉
+        설정만 해두면 ``KISClient(profile=...)`` 한 줄로 열린다. 앱키·시크릿을 직접 주면 파일을 읽지 않는다.
+        ``environment`` (``"real"``/``"paper"``)는 프로필에 저장된 값을 쓰되, 직접 주면 그것으로 덮는다
+        (앱키·시크릿을 직접 준 경우 미지정이면 실전 기본). ``config_dir`` 로 설정·토큰캐시 위치를 바꾼다
         (테스트/특수 위치). ``token_cache_dir`` 로 토큰 캐시만 따로 바꾼다(기본은 XDG
         ``~/.cache/kis-trader/tokens``, ``config_dir`` 을 주면 그 아래 ``tokens``).
         """
-        environment = environment_for_profile(profile)
         if app_key is None or app_secret is None:
             # 실제로 빠진 항목만 저장분에서 채운다 -- 사용자가 app_key 만 넘겼는데 '없다'고
-            # 오도하지 않도록(둘 다 넘겼으면 이 블록을 건너뛰어 파일을 아예 안 읽는다).
+            # 오도하지 않도록(앱키·시크릿을 둘 다 넘겼으면 이 블록을 건너뛰어 파일을 아예 안 읽는다).
+            # 명시한 값(account/environment 포함)은 _fill_credentials 가 그대로 쓰고 나머지만 채운다.
             resolved = _fill_credentials(
-                profile, app_key=app_key, app_secret=app_secret, account=account, config_dir=config_dir
+                profile, app_key=app_key, app_secret=app_secret, account=account,
+                environment=environment, config_dir=config_dir,
             )
-            app_key, app_secret = resolved.app_key, resolved.app_secret
-            if account is None:
-                account = resolved.account
+            app_key, app_secret, account, environment = (
+                resolved.app_key, resolved.app_secret, resolved.account, resolved.environment)
+        else:
+            # 앱키·시크릿을 직접 준 경우: 파일을 읽지 않는다. 환경 미지정이면 실전 기본, 주면 검증.
+            if environment is None:
+                environment = "real"
+            elif environment not in _ENVIRONMENTS:
+                raise KISUsageError(f"environment 는 {_ENVIRONMENTS} 중 하나여야 한다: {environment!r}")
         if token_cache_dir is None and config_dir is not None:
             token_cache_dir = str(token_cache_path(config_dir))
         elif token_cache_dir is not None:

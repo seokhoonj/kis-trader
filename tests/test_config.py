@@ -1,4 +1,7 @@
-"""자격증명 API -- KISConfig(값 저장) / resolve_credentials(읽기) / KISClient(profile=)."""
+"""자격증명 API -- KISConfig(값 저장) / resolve_credentials(읽기) / KISClient(profile=).
+
+프로필은 자유 이름, credentials.json 은 프로필별 중첩 객체, 환경(실전/모의)은 프로필별 저장 필드.
+"""
 from __future__ import annotations
 
 import json
@@ -7,7 +10,7 @@ import os
 import pytest
 
 from kis_trader import KISClient, KISConfig
-from kis_trader.config import environment_for_profile, resolve_credentials
+from kis_trader.config import resolve_credentials, resolve_environment
 from kis_trader.errors import KISUsageError
 from kis_trader.transport import RawResponse
 
@@ -27,120 +30,125 @@ class _FakeTransport:
         return RawResponse(rt_cd="0", msg_cd="", msg1="")
 
 
-def _read_saved_credentials(config_dir):
+def _creds(config_dir):
     return json.loads((config_dir / "credentials.json").read_text(encoding="utf-8"))
 
 
-# --- 프로필 -> 환경 매핑 ------------------------------------------------------
+# --- KISConfig.save() (쓰기, 중첩 프로필) -------------------------------------
 
-@pytest.mark.parametrize("profile, environment", [
-    ("main", "real"), ("paper", "paper"), ("isa", "real"), ("irp", "real"), ("pension", "real"),
-])
-def test_profile_maps_to_environment(profile, environment):
-    assert environment_for_profile(profile) == environment
-
-
-def test_unknown_profile_is_rejected():
-    with pytest.raises(KISUsageError):
-        environment_for_profile("bogus")  # type: ignore[arg-type]
-    with pytest.raises(KISUsageError):
-        KISConfig(profile="bogus", app_key="k", app_secret="s")  # type: ignore[arg-type]
-    with pytest.raises(KISUsageError):
-        resolve_credentials("bogus")  # type: ignore[arg-type]
-
-
-# --- KISConfig.save() (쓰기) --------------------------------------------------
-
-def test_save_writes_prefixed_keys_and_account(tmp_path):
+def test_save_writes_nested_profile_section(tmp_path):
     KISConfig(profile="main", app_key="AK", app_secret="SK",
               account="12345678-01", config_dir=tmp_path).save()
-    saved = _read_saved_credentials(tmp_path)
-    assert saved == {
-        "KIS_APP_KEY": "AK", "KIS_APP_SECRET": "SK", "KIS_ACCOUNT": "12345678-01",
+    assert _creds(tmp_path) == {
+        "main": {"app_key": "AK", "app_secret": "SK", "environment": "real",
+                 "account": "12345678-01"},
     }
 
 
-def test_save_uses_profile_prefix(tmp_path):
-    KISConfig(profile="irp", app_key="AK", app_secret="SK",
-              account="87654321-29", config_dir=tmp_path).save()
-    saved = _read_saved_credentials(tmp_path)
-    assert saved["KIS_IRP_APP_KEY"] == "AK"
-    assert saved["KIS_IRP_ACCOUNT"] == "87654321-29"
+def test_save_environment_defaults_real_and_paper_is_explicit(tmp_path):
+    KISConfig(profile="live", app_key="AK", app_secret="SK", config_dir=tmp_path).save()
+    KISConfig(profile="demo", app_key="PK", app_secret="PS",
+              environment="paper", config_dir=tmp_path).save()
+    data = _creds(tmp_path)
+    assert data["live"]["environment"] == "real"    # 기본 real
+    assert data["demo"]["environment"] == "paper"   # 명시해야 paper
+
+
+def test_save_multiple_same_type_profiles_coexist(tmp_path):
+    # 연금저축 2개처럼 같은 유형 여러 계좌 -- 자유 프로필 이름으로 각각.
+    KISConfig(profile="pension_a", app_key="A", app_secret="a",
+              account="11111111-22", config_dir=tmp_path).save()
+    KISConfig(profile="pension_b", app_key="B", app_secret="b",
+              account="22222222-22", config_dir=tmp_path).save()
+    data = _creds(tmp_path)
+    assert data["pension_a"]["account"] == "11111111-22"
+    assert data["pension_b"]["account"] == "22222222-22"
+    assert set(data) == {"pension_a", "pension_b"}
 
 
 def test_save_merges_and_preserves_other_profiles(tmp_path):
     KISConfig(profile="main", app_key="MK", app_secret="MS", config_dir=tmp_path).save()
-    KISConfig(profile="paper", app_key="PK", app_secret="PS", config_dir=tmp_path).save()
-    saved = _read_saved_credentials(tmp_path)
-    assert saved["KIS_APP_KEY"] == "MK" and saved["KIS_PAPER_APP_KEY"] == "PK"  # 둘 다 보존
+    KISConfig(profile="pension_a", app_key="PK", app_secret="PS", config_dir=tmp_path).save()
+    data = _creds(tmp_path)
+    assert data["main"]["app_key"] == "MK" and data["pension_a"]["app_key"] == "PK"
 
 
-def test_save_without_account_writes_only_keys(tmp_path):
+def test_save_without_account_omits_the_field(tmp_path):
     KISConfig(profile="main", app_key="AK", app_secret="SK", config_dir=tmp_path).save()
-    saved = _read_saved_credentials(tmp_path)
-    assert set(saved) == {"KIS_APP_KEY", "KIS_APP_SECRET"}
+    assert "account" not in _creds(tmp_path)["main"]
 
 
 def test_secrets_are_hidden_from_repr():
-    # KISConfig 가 값을 담으므로 repr/로그에 앱키·시크릿이 새면 안 된다.
     text = repr(KISConfig(profile="main", app_key="SECRETKEY", app_secret="SECRETSEC",
                           account="12345678-01"))
     assert "SECRETKEY" not in text and "SECRETSEC" not in text
 
 
 def test_resolved_credentials_hides_secrets_from_repr(tmp_path):
-    # 세션에 넘어가는 해석 결과도 실제 시크릿을 담으므로 repr 에 새면 안 된다.
     KISConfig(profile="main", app_key="SECRETKEY", app_secret="SECRETSEC",
               config_dir=tmp_path).save()
-    text = repr(resolve_credentials("main", config_dir=tmp_path))
-    assert "SECRETKEY" not in text and "SECRETSEC" not in text
+    assert "SECRETKEY" not in repr(resolve_credentials("main", config_dir=tmp_path))
 
 
 def test_construction_requires_nonblank_app_key_and_secret():
     with pytest.raises(KISUsageError):
-        KISConfig(profile="main", app_key="AK", app_secret="   ")  # 공백 시크릿
+        KISConfig(profile="main", app_key="AK", app_secret="   ")
     with pytest.raises(TypeError):
-        KISConfig(profile="main", app_key="AK")  # type: ignore[call-arg]  # secret 자체가 없음
+        KISConfig(profile="main", app_key="AK")  # type: ignore[call-arg]
+
+
+def test_construction_rejects_bad_profile_name():
+    # 대문자도 거부한다 -- 환경변수 키로 대문자 접힐 때 서로 다른 이름이 aliasing 되지 않도록.
+    for bad in ["", "  ", "pension-a", "pen sion", "연금", "Main", "Pension_A"]:
+        with pytest.raises(KISUsageError):
+            KISConfig(profile=bad, app_key="k", app_secret="s")
+
+
+def test_construction_rejects_bad_environment():
+    with pytest.raises(KISUsageError):
+        KISConfig(profile="main", app_key="k", app_secret="s", environment="prod")  # type: ignore[arg-type]
 
 
 def test_construction_rejects_malformed_account(tmp_path):
     with pytest.raises(KISUsageError):
         KISConfig(profile="main", app_key="AK", app_secret="SK",
-                  account="12345678", config_dir=tmp_path)  # 상품코드 없음
-    assert not (tmp_path / "credentials.json").exists()  # 파일도 안 남는다
-
-
-def test_construction_rejects_account_with_multiple_separators(tmp_path):
-    # 쓰기(save)와 읽기(session)가 같은 _split_account 계약을 공유하므로, 세션이 못 읽을
-    # 형식은 저장 자체를 막는다(저장은 됐는데 못 읽는 상태 방지).
+                  account="12345678", config_dir=tmp_path)      # 상품코드 없음
     with pytest.raises(KISUsageError):
         KISConfig(profile="main", app_key="AK", app_secret="SK",
-                  account="12345678-01-02", config_dir=tmp_path)
+                  account="12345678-01-02", config_dir=tmp_path)  # 여분 하이픈
     assert not (tmp_path / "credentials.json").exists()
-
-
-def test_save_creates_missing_directory(tmp_path):
-    target = tmp_path / "sub" / "dir"   # 아직 없음
-    KISConfig(profile="main", app_key="AK", app_secret="SK", config_dir=target).save()
-    assert (target / "credentials.json").exists()
 
 
 def test_save_returns_path_and_file_is_owner_only(tmp_path):
     path = KISConfig(profile="main", app_key="AK", app_secret="SK", config_dir=tmp_path).save()
     assert path == tmp_path / "credentials.json"
-    # POSIX 에서 0600 (Windows 는 ACL 이라 검증 생략)
     if os.name == "posix":
         assert (path.stat().st_mode & 0o777) == 0o600
 
 
+def test_save_does_not_clobber_malformed_credentials_file(tmp_path):
+    path = tmp_path / "credentials.json"
+    original = "{ not valid json"
+    path.write_text(original, encoding="utf-8")
+    with pytest.raises(KISUsageError):
+        KISConfig(profile="paper", app_key="PK", app_secret="PS", config_dir=tmp_path).save()
+    assert path.read_text(encoding="utf-8") == original
+
+
 # --- resolve_credentials (읽기) -----------------------------------------------
 
-def test_resolve_reads_saved_credentials(tmp_path):
-    KISConfig(profile="isa", app_key="AK", app_secret="SK",
-              account="87654321-01", config_dir=tmp_path).save()
-    resolved = resolve_credentials("isa", config_dir=tmp_path)
-    assert resolved.app_key == "AK" and resolved.account == "87654321-01"
+def test_resolve_reads_saved_profile(tmp_path):
+    KISConfig(profile="pension_a", app_key="AK", app_secret="SK",
+              account="87654321-22", config_dir=tmp_path).save()
+    resolved = resolve_credentials("pension_a", config_dir=tmp_path)
+    assert resolved.app_key == "AK" and resolved.account == "87654321-22"
     assert resolved.environment == "real"
+
+
+def test_resolve_reads_paper_environment(tmp_path):
+    KISConfig(profile="demo", app_key="AK", app_secret="SK",
+              environment="paper", config_dir=tmp_path).save()
+    assert resolve_credentials("demo", config_dir=tmp_path).environment == "paper"
 
 
 def test_environment_variable_wins_over_file(tmp_path, monkeypatch):
@@ -149,28 +157,29 @@ def test_environment_variable_wins_over_file(tmp_path, monkeypatch):
     assert resolve_credentials("main", config_dir=tmp_path).app_key == "from_env"
 
 
-def test_environment_account_wins_over_saved_account(tmp_path, monkeypatch):
-    # 앱키뿐 아니라 계좌도 env 가 파일을 이긴다.
-    KISConfig(profile="main", app_key="AK", app_secret="SK",
-              account="12345678-01", config_dir=tmp_path).save()
-    monkeypatch.setenv("KIS_ACCOUNT", "87654321-02")
-    assert resolve_credentials("main", config_dir=tmp_path).account == "87654321-02"
+def test_environment_variables_use_profile_prefix(monkeypatch):
+    monkeypatch.setenv("KIS_PENSION_A_APP_KEY", "k")
+    monkeypatch.setenv("KIS_PENSION_A_APP_SECRET", "s")
+    monkeypatch.setenv("KIS_PENSION_A_ACCOUNT", "87654321-22")
+    monkeypatch.setenv("KIS_PENSION_A_ENVIRONMENT", "paper")
+    resolved = resolve_credentials("pension_a")
+    assert resolved.account == "87654321-22" and resolved.environment == "paper"
 
 
-def test_save_does_not_clobber_malformed_credentials_file(tmp_path):
-    # 병합 바탕이 손상돼 있으면 -- 남의 프로필을 덮어써 날리지 않도록 -- 저장을 멈춘다.
-    path = tmp_path / "credentials.json"
-    original = "{ this is not valid json"
-    path.write_text(original, encoding="utf-8")
-    with pytest.raises(KISUsageError):
-        KISConfig(profile="paper", app_key="PK", app_secret="PS", config_dir=tmp_path).save()
-    assert path.read_text(encoding="utf-8") == original  # 원본 그대로
+def test_main_and_named_profile_env_vars_do_not_collide(monkeypatch):
+    # main 은 접두어 없이(KIS_APP_KEY), 명명 프로필은 KIS_<이름>_APP_KEY -- 서로 안 섞인다.
+    monkeypatch.setenv("KIS_APP_KEY", "main_k")
+    monkeypatch.setenv("KIS_APP_SECRET", "main_s")
+    monkeypatch.setenv("KIS_PENSION_A_APP_KEY", "pa_k")
+    monkeypatch.setenv("KIS_PENSION_A_APP_SECRET", "pa_s")
+    assert resolve_credentials("main").app_key == "main_k"
+    assert resolve_credentials("pension_a").app_key == "pa_k"
 
 
 def test_resolve_missing_credentials_names_the_variable():
     with pytest.raises(KISUsageError) as excinfo:
-        resolve_credentials("paper")
-    assert "KIS_PAPER_APP_KEY" in str(excinfo.value)
+        resolve_credentials("pension_a")
+    assert "KIS_PENSION_A_APP_KEY" in str(excinfo.value)
 
 
 def test_resolve_account_none_when_absent(monkeypatch):
@@ -182,35 +191,22 @@ def test_resolve_account_none_when_absent(monkeypatch):
 def test_resolve_malformed_account_fails_closed(monkeypatch):
     monkeypatch.setenv("KIS_APP_KEY", "k")
     monkeypatch.setenv("KIS_APP_SECRET", "s")
-    monkeypatch.setenv("KIS_ACCOUNT", "12345678")  # 상품코드 없음(하이픈 누락)
+    monkeypatch.setenv("KIS_ACCOUNT", "12345678-01-02")   # 여분 하이픈
     with pytest.raises(KISUsageError):
         resolve_credentials("main")
 
 
-def test_resolve_account_with_multiple_separators_fails_closed(monkeypatch):
-    # 읽기 경로도 여분 하이픈을 거부해야 한다(쓰기 경로와 대칭).
+def test_resolve_bad_environment_fails_closed(monkeypatch):
     monkeypatch.setenv("KIS_APP_KEY", "k")
     monkeypatch.setenv("KIS_APP_SECRET", "s")
-    monkeypatch.setenv("KIS_ACCOUNT", "12345678-01-02")
+    monkeypatch.setenv("KIS_ENVIRONMENT", "prod")
     with pytest.raises(KISUsageError):
         resolve_credentials("main")
-
-
-def test_resolve_legacy_split_keys_hint_migration(tmp_path):
-    # 구형(분리 키)로만 저장된 파일은 조용히 '계좌 없음'이 아니라 이전하라는 오류를 낸다.
-    (tmp_path / "credentials.json").write_text(
-        json.dumps({"KIS_APP_KEY": "k", "KIS_APP_SECRET": "s",
-                    "KIS_CANO": "12345678", "KIS_ACNT_PRDT_CD": "01"}),
-        encoding="utf-8",
-    )
-    with pytest.raises(KISUsageError) as excinfo:
-        resolve_credentials("main", config_dir=tmp_path)
-    assert "KIS_ACCOUNT" in str(excinfo.value)
 
 
 @pytest.mark.parametrize("blank", ["", "   "])
 def test_blank_value_is_absent(monkeypatch, blank):
-    monkeypatch.setenv("KIS_APP_KEY", blank)  # 빈/공백 시크릿은 유효하지 않다
+    monkeypatch.setenv("KIS_APP_KEY", blank)
     with pytest.raises(KISUsageError):
         resolve_credentials("main")
 
@@ -221,9 +217,33 @@ def test_malformed_credentials_file_raises(tmp_path):
         resolve_credentials("main", config_dir=tmp_path)
 
 
-def test_config_toml_is_last_fallback(tmp_path):
-    (tmp_path / "config.toml").write_text('KIS_APP_KEY = "tk"\nKIS_APP_SECRET = "ts"\n', encoding="utf-8")
-    assert resolve_credentials("main", config_dir=tmp_path).app_key == "tk"
+def test_non_object_profile_section_raises(tmp_path):
+    (tmp_path / "credentials.json").write_text(
+        json.dumps({"main": "not-an-object"}), encoding="utf-8")
+    with pytest.raises(KISUsageError):
+        resolve_credentials("main", config_dir=tmp_path)
+
+
+def test_save_does_not_clobber_non_object_profile_section(tmp_path):
+    # 프로필 섹션이 객체가 아니면 병합을 멈춘다 -- 남의(형상 이상한) 프로필을 날리지 않도록.
+    path = tmp_path / "credentials.json"
+    original = json.dumps({"other": "not-an-object"})
+    path.write_text(original, encoding="utf-8")
+    with pytest.raises(KISUsageError):
+        KISConfig(profile="main", app_key="AK", app_secret="SK", config_dir=tmp_path).save()
+    assert path.read_text(encoding="utf-8") == original
+
+
+# --- resolve_environment (환경만) ---------------------------------------------
+
+def test_resolve_environment_defaults_real_without_creds():
+    assert resolve_environment("whatever") == "real"
+
+
+def test_resolve_environment_reads_saved(tmp_path):
+    KISConfig(profile="demo", app_key="AK", app_secret="SK",
+              environment="paper", config_dir=tmp_path).save()
+    assert resolve_environment("demo", config_dir=tmp_path) == "paper"
 
 
 # --- KISClient(profile=) 세션 -------------------------------------------------
@@ -235,21 +255,38 @@ def test_client_reads_saved_profile(tmp_path):
     assert kis.environment == "real" and kis.account == "12345678-01"
 
 
-def test_client_paper_profile_uses_paper_environment(tmp_path):
-    KISConfig(profile="paper", app_key="AK", app_secret="SK", config_dir=tmp_path).save()
-    kis = KISClient(profile="paper", config_dir=tmp_path, transport=_FakeTransport())
+def test_client_reads_paper_environment_from_profile(tmp_path):
+    KISConfig(profile="demo", app_key="AK", app_secret="SK",
+              environment="paper", config_dir=tmp_path).save()
+    kis = KISClient(profile="demo", config_dir=tmp_path, transport=_FakeTransport())
     assert kis.environment == "paper"
 
 
-def test_client_explicit_keys_skip_file_lookup():
-    # 값을 명시하면 파일/env 를 읽지 않는다(격리 환경에 자격증명이 없어도 열린다).
+def test_client_explicit_keys_default_real_without_file():
     kis = KISClient(app_key="k", app_secret="s", transport=_FakeTransport())
     assert kis.environment == "real"
 
 
+def test_client_explicit_environment_overrides(tmp_path):
+    kis = KISClient(app_key="k", app_secret="s", environment="paper", transport=_FakeTransport())
+    assert kis.environment == "paper"
+
+
+def test_client_explicit_environment_overrides_saved_profile(tmp_path):
+    # 저장된 프로필이 paper 여도, 명시한 environment 가 이긴다(빠진 키만 파일에서 채우는 경우에도).
+    KISConfig(profile="demo", app_key="AK", app_secret="SK",
+              environment="paper", config_dir=tmp_path).save()
+    kis = KISClient(profile="demo", environment="real", config_dir=tmp_path,
+                    transport=_FakeTransport())
+    assert kis.environment == "real"
+
+
+def test_client_rejects_bad_explicit_environment():
+    with pytest.raises(KISUsageError):
+        KISClient(app_key="k", app_secret="s", environment="prod", transport=_FakeTransport())  # type: ignore[arg-type]
+
+
 def test_client_keeps_explicit_app_key_and_reads_missing_secret(tmp_path):
-    # app_key 만 직접 넘기고 secret 은 저장분에서 채운다 -- 사용자가 준 app_key 를
-    # '없다'고 오도하지 않고, 실제로 빠진 secret 만 읽어야 한다.
     KISConfig(profile="main", app_key="saved_key", app_secret="saved_secret",
               config_dir=tmp_path).save()
     kis = KISClient(app_key="explicit_key", profile="main", config_dir=tmp_path,
@@ -258,20 +295,20 @@ def test_client_keeps_explicit_app_key_and_reads_missing_secret(tmp_path):
 
 
 def test_client_missing_credentials_raises():
-    with pytest.raises(KISUsageError):   # 저장분·env 모두 없음(격리)
+    with pytest.raises(KISUsageError):
         KISClient(profile="main", transport=_FakeTransport())
 
 
-def test_client_account_override(monkeypatch):
-    monkeypatch.setenv("KIS_APP_KEY", "k")
-    monkeypatch.setenv("KIS_APP_SECRET", "s")
-    monkeypatch.setenv("KIS_ACCOUNT", "12345678-01")
-    kis = KISClient(profile="main", account="87654321-02", transport=_FakeTransport())
+def test_client_account_override(tmp_path):
+    KISConfig(profile="main", app_key="AK", app_secret="SK",
+              account="12345678-01", config_dir=tmp_path).save()
+    kis = KISClient(profile="main", account="87654321-02", config_dir=tmp_path,
+                    transport=_FakeTransport())
     assert kis.account == "87654321-02"
 
 
 def test_save_then_client_round_trip(tmp_path):
-    KISConfig(profile="isa", app_key="AK", app_secret="SK",
-              account="11112222-01", config_dir=tmp_path).save()
-    kis = KISClient(profile="isa", config_dir=tmp_path, transport=_FakeTransport())
-    assert kis.account == "11112222-01" and kis.environment == "real"
+    KISConfig(profile="pension_b", app_key="AK", app_secret="SK",
+              account="11112222-22", config_dir=tmp_path).save()
+    kis = KISClient(profile="pension_b", config_dir=tmp_path, transport=_FakeTransport())
+    assert kis.account == "11112222-22" and kis.environment == "real"

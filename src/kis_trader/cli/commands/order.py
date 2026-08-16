@@ -4,8 +4,8 @@
 - ``--execute`` 없으면 **dry-run**: 파싱된 주문 티켓만 되읽어 보여주고 아무것도 전송하지 않는다.
   CLI 는 리스크·주문가능성을 스스로 계산하지 않는다(그 판정은 패키지 소유) -- 입력을 그대로
   되비출 뿐이며 "비권위적"임을 명시한다.
-- ``--execute {paper,real}`` 는 실행 권한이자 환경 선언이다. 프로필 환경(``--profile`` 이 정한
-  실전/모의)과 다르면 거부한다(남은 셸 히스토리의 플래그가 다른 환경에서 오발동하지 못하게).
+- ``--execute {paper,real}`` 는 실행 권한이자 환경 선언이다. 세션 환경(프로필에 저장된 실전/모의)과
+  다르면 거부한다(남은 셸 히스토리의 플래그가 다른 환경에서 오작동하지 못하게).
 - 확인: 대화형이면 paper 는 y/N, real 은 계좌 끝 4자리 입력. 비대화형이면 ``--yes`` 필수이고
   real 은 ``--confirm-account`` 가 계좌 끝 4자리와 일치해야 한다.
 - 타임아웃/결과불명은 재전송하지 않는다 -- ``kis order reconcile`` 만이 사후 진실이다(errors 참조).
@@ -17,7 +17,7 @@ from argparse import Namespace
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
-from ..context import account_suffix, resolve_environment, resolve_stock
+from ..context import account_suffix, resolve_stock
 from ..errors import CliAborted, CliConfigError
 
 if TYPE_CHECKING:
@@ -26,11 +26,11 @@ if TYPE_CHECKING:
 Side = Literal["buy", "sell"]
 
 
-def _ticket(args: Namespace, *, side: Side, account: str | None) -> dict[str, Any]:
+def _ticket(args: Namespace, *, side: Side, account: str | None, environment: str) -> dict[str, Any]:
     # 입력을 그대로 되읽는 티켓. 시장가/지정가 같은 주문유형 분류는 CLI 가 만들지 않는다
-    # (limit_price 유무는 사용자가 이미 준 값이라 그대로 노출).
+    # (limit_price 유무는 사용자가 이미 준 값이라 그대로 노출). 환경은 세션(kis)이 이미 해석한 값.
     return {
-        "environment": resolve_environment(args),
+        "environment": environment,
         "account_suffix": account_suffix(account),
         "venue": args.venue,
         "symbol": args.identifier,
@@ -41,12 +41,12 @@ def _ticket(args: Namespace, *, side: Side, account: str | None) -> dict[str, An
     }
 
 
-def _authorize(args: Namespace, *, account: str | None, is_tty: bool, prompt: Callable[[str], str]) -> None:
-    """전송해도 되는지 판정 -- 안 되면 예외. ``--execute`` 가 있을 때만 호출된다."""
-    environment = resolve_environment(args)  # 프로필이 정한 실전/모의
+def _authorize(args: Namespace, *, account: str | None, environment: str, is_tty: bool, prompt: Callable[[str], str]) -> None:
+    """전송해도 되는지 판정 -- 안 되면 예외. ``--execute`` 가 있을 때만 호출된다. ``environment`` 는
+    세션(kis)이 이미 해석한 실전/모의."""
     if args.execute != environment:
         raise CliConfigError(
-            f"--execute {args.execute} 가 프로필 환경({environment})과 다릅니다 "
+            f"--execute {args.execute} 가 세션 환경({environment})과 다릅니다 "
             "(두 값이 같아야 전송합니다)."
         )
     suffix = account_suffix(account)
@@ -86,10 +86,10 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
     if division is not None and args.venue == "overseas":
         raise CliConfigError("--division 은 국내(domestic) 현금주문 전용입니다.")
     if args.execute is None:
-        return {**_ticket(args, side=side, account=account), "note": _DRY_RUN_NOTE}
+        return {**_ticket(args, side=side, account=account, environment=kis.environment), "note": _DRY_RUN_NOTE}
     if is_tty is None:
         is_tty = sys.stdin.isatty()
-    _authorize(args, account=account, is_tty=is_tty, prompt=prompt)
+    _authorize(args, account=account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
     handle = resolve_stock(kis, args)
     place = handle.buy if side == "buy" else handle.sell
     extra = {} if args.venue == "overseas" else {"division": division}
@@ -119,7 +119,7 @@ def cmd_modify(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, p
         }
     if is_tty is None:
         is_tty = sys.stdin.isatty()
-    _authorize(args, account=kis.account, is_tty=is_tty, prompt=prompt)
+    _authorize(args, account=kis.account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
     return kis.orders.modify(args.client_order_id, limit_price=args.limit_price, quantity=args.quantity)
 
 
@@ -128,5 +128,5 @@ def cmd_cancel(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, p
         return {"client_order_id": args.client_order_id, "quantity": args.quantity, "note": _DRY_RUN_NOTE}
     if is_tty is None:
         is_tty = sys.stdin.isatty()
-    _authorize(args, account=kis.account, is_tty=is_tty, prompt=prompt)
+    _authorize(args, account=kis.account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
     return kis.orders.cancel(args.client_order_id, quantity=args.quantity)

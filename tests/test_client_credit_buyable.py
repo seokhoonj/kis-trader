@@ -45,9 +45,9 @@ class FakeTransport:
         return self.response
 
 
-def _client(transport, *, profile="main", account="12345678-01"):
+def _client(transport, *, environment="real", account="12345678-01"):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     profile=profile, transport=transport)
+                     environment=environment, transport=transport)
 
 
 def test_credit_buyable_parses_shared_fields():
@@ -100,7 +100,7 @@ def test_credit_buyable_unknown_credit_type_rejected_before_io():
 def test_credit_buyable_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, profile="paper").domestic.stock("005930").credit_buyable(limit_price="1")
+        _client(fake, environment="paper").domestic.stock("005930").credit_buyable(limit_price="1")
     assert fake.calls == []
 
 

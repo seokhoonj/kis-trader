@@ -50,9 +50,9 @@ class FakeTransport:
         return self.response
 
 
-def _client(transport, *, profile="main", account="12345678-01"):
+def _client(transport, *, environment="real", account="12345678-01"):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     profile=profile, transport=transport)
+                     environment=environment, transport=transport)
 
 
 def test_account_assets_parses_summary():
@@ -85,7 +85,7 @@ def test_account_assets_tr_method_params():
 def test_account_assets_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, profile="paper").domestic.account.assets()
+        _client(fake, environment="paper").domestic.account.assets()
     assert fake.calls == []
 
 

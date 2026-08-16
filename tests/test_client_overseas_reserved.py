@@ -51,9 +51,9 @@ class FakeTransport:
         return outcome
 
 
-def _client(transport, *, profile="main", account="12345678-01"):
+def _client(transport, *, environment="real", account="12345678-01"):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     profile=profile, transport=transport)
+                     environment=environment, transport=transport)
 
 
 def test_overseas_reserved_parses_ledger_row():
@@ -95,7 +95,7 @@ def test_overseas_reserved_tr_and_params():
 def test_overseas_reserved_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, profile="paper").overseas.account.reserved_orders(start="1", end="2")
+        _client(fake, environment="paper").overseas.account.reserved_orders(start="1", end="2")
     assert fake.calls == []
 
 

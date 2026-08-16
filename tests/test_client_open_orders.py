@@ -62,9 +62,9 @@ def _resp(*, rows=None, ctx_nk="", ctx_fk="", tr_cont=""):
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
 
 
-def _client(transport, *, profile="main", account="12345678-01"):
+def _client(transport, *, environment="real", account="12345678-01"):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     profile=profile, transport=transport)
+                     environment=environment, transport=transport)
 
 
 def test_open_orders_parses_ledger_rows():
@@ -113,7 +113,7 @@ def test_open_orders_side_sell_maps():
 def test_open_orders_demo_rejected_before_io():
     fake = FakeTransport(response=_resp(rows=[_ROW_PLAIN]))
     with pytest.raises(KISUsageError):
-        _client(fake, profile="paper").domestic.account.open_orders()
+        _client(fake, environment="paper").domestic.account.open_orders()
     assert fake.calls == []   # 와이어 접촉 전 거부
 
 

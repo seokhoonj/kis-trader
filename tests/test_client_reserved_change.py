@@ -44,9 +44,9 @@ class FakeTransport:
         return self.response
 
 
-def _client(transport, *, profile="main", account="12345678-01"):
+def _client(transport, *, environment="real", account="12345678-01"):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     profile=profile, transport=transport)
+                     environment=environment, transport=transport)
 
 
 # --- 취소 ------------------------------------------------------------------
@@ -72,7 +72,7 @@ def test_cancel_reserved_needs_sequence():
 def test_cancel_reserved_demo_rejected():
     fake = FakeTransport(response=_OK)
     with pytest.raises(KISUsageError):
-        _client(fake, profile="paper").domestic.account.cancel_reserved_order("42401")
+        _client(fake, environment="paper").domestic.account.cancel_reserved_order("42401")
     assert fake.calls == []
 
 
@@ -135,7 +135,7 @@ def test_modify_reserved_rejected_raises():
 def test_modify_reserved_demo_rejected_before_io():
     fake = FakeTransport(response=_OK)
     with pytest.raises(KISUsageError):
-        _client(fake, profile="paper").domestic.account.modify_reserved_order(
+        _client(fake, environment="paper").domestic.account.modify_reserved_order(
             "42401", symbol="005930", side="buy", quantity=1, limit_price=1)
     assert fake.calls == []
 
