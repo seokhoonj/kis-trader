@@ -35,7 +35,7 @@ if TYPE_CHECKING:
     from ..client import KISClient
     from ..instrument import DomesticBoard
     from ..open_order import OpenOrder
-    from ..order import Side
+    from ..order import Right, Side
     from ..quote import Quote
     from ..reserved_order import ReservedOrder
     from .entities.account_reports import IntegratedMargin, RealizedProfitBalance
@@ -221,9 +221,10 @@ class DomesticNamespace:
         """지수선물 계약 핸들. ``code`` 는 계약코드(예: 101W09)."""
         return FuturesContract(self._c, code)
 
-    def option(self, code: str) -> OptionContract:
-        """지수옵션 계약 핸들. ``code`` 는 계약코드."""
-        return OptionContract(self._c, code)
+    def option(self, code: str, *, right: Right | None = None) -> OptionContract:
+        """지수옵션 계약 핸들. ``code`` 는 계약코드. ``right``(call/put)은 발주(매수/매도)에 필요하다 --
+        조회(시세·호가 등)만 할 땐 생략 가능하고, 발주하려면 ``option(code, right="call")`` 처럼 지정한다."""
+        return OptionContract(self._c, code, right)
 
     # -- 파생 보드/조회 --
     def option_expiries(self) -> list[OptionExpiry]:

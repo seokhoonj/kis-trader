@@ -26,6 +26,9 @@ if TYPE_CHECKING:
     from ._literals import Numeric
 
 Side = Literal["buy", "sell"]
+#: 옵션 권리 방향 -- 콜/풋. 파생(XKFE) 옵션 주문의 상품구분(derivative_item "02" 콜 / "03" 풋)을
+#: 정하는 사용자-대면 어휘다(선물엔 없다). 옵션 계약 핸들이 이 값을 받아 발주에 싣는다.
+Right = Literal["call", "put"]
 OrderType = Literal["market", "limit", "stop", "stop_limit"]
 TimeInForce = Literal["day", "gtc", "ioc", "fok"]
 #: 국내(KRX) 현금주문 전용 주문구분(가격 결정 방식). 지정가(order_type="limit")/시장가("market")를
@@ -448,6 +451,13 @@ class Order:
         # 여기서 파생 관점의 명시적 메시지를 준다).
         if self.exchange == _DERIVATIVE_EXCHANGE and self.session == "overnight":
             raise KISUsageError("XKFE(파생) 주문은 night 세션만 유효하다(overnight 은 미국 전용).")
+        # night(야간장)은 KRX 파생(XKFE) 전용 세션이다 -- 다른 거래소와 조합하면(예: KRX 주식 XKRX +
+        # night) 라우팅이 어긋나 의도와 다른 주문이 나갈 수 있어, overnight 의 미국 거래소 검증과
+        # 대칭으로 생성 시점에 fail-closed.
+        if self.session == "night" and self.exchange != _DERIVATIVE_EXCHANGE:
+            raise KISUsageError(
+                f"night 세션은 파생(XKFE) 전용이다 -- exchange={self.exchange!r} 와 조합할 수 없다."
+            )
         if self.session == "overnight":
             # 미국 오버나이트 거래는 미국(NASD/NYSE/AMEX)만·지정가만 -- 그 밖은 생성 시점에 fail-closed.
             if self.exchange not in _OVERNIGHT_EXCHANGES:
