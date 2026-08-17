@@ -101,7 +101,7 @@ def fetch_balance(
     _reject_demo(environment, what="퇴직연금 잔고조회(pension/inquire-balance)")
     rows, summary = _walk_holdings(
         transport, cano=cano, product_code=product_code, path=_BALANCE_PATH, tr_id=_BALANCE_TR,
-        extra={"INQR_DVSN": "00"}, label="잔고",
+        extra={"ACCA_DVSN_CD": "00", "INQR_DVSN": "00"}, label="잔고",   # ACCA_DVSN_CD(적립금구분) 필수
     )
     if summary is None:
         raise KISError("퇴직연금 잔고 응답에 계좌 요약(output2)이 없다.")
