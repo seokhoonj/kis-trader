@@ -45,17 +45,22 @@ q.volume          # 거래량
 
 ## 첫 주문
 
-매수·매도는 종목 핸들에서 바로 냅니다. 낸 주문은 `client_order_id` 로 지목해 확인·정정·취소합니다:
+`buy()` 한 번이면 주문이 **그 자리에서 접수**되고 결과 리포트를 돌려줍니다. 접수에 실패하면(거부)
+예외가 나므로, 매번 확인 절차를 덧붙일 필요가 없습니다:
 
 ```python
-r = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)  # 10주 지정가 매수
+r = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)  # 10주 지정가 매수 -- 바로 접수됨
 
-r.client_order_id   # 이 주문의 고유 키 (정정·취소할 때 지목)
-r.status            # 주문 상태
+r.order_id          # 거래소 주문번호(ODNO) -- 접수 성공
+r.status            # 주문 상태 (NEW = 접수됨. 체결 여부는 별개)
+r.client_order_id   # 이 주문의 고유 키 -- 정정·취소할 때 지목
 
-kis.orders.reconcile(r.client_order_id)   # 실제 접수됐는지 증권사에 확인
-kis.orders.cancel(r.client_order_id)      # 취소
+kis.orders.cancel(r.client_order_id)   # 정정·취소는 이 키로 지목
 ```
+
+`reconcile` 은 매 주문에 붙이는 단계가 **아닙니다**. 전송이 **타임아웃돼 접수 여부가 불명일 때만**
+씁니다 -- 재전송(=이중주문) 대신 KIS 에 실제로 들어갔는지 물어 확정합니다. 자세한 안전장치는
+[주문](orders.md) 참고.
 
 ::: {.callout-warning}
 조회와 달리 주문은 **실제로 돈이 오가는 실거래**입니다. `buy()`/`sell()` 은 즉시 전송되고 되돌릴 수

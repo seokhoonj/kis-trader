@@ -22,7 +22,7 @@ sc = kis.domestic.elw_screener
 sc.underlyings()                               # ELW 가 상장된 기초자산 목록
 sc.by_underlying("005930")                     # 한 기초자산(삼성전자)에 상장된 ELW
 sc.comparables("005930")                       # 비교대상 ELW (코드/이름)
-sc.newly_listed(date="20240102")               # 신규상장 ELW
+sc.newly_listed(date="20260814")               # 신규상장 ELW (기준일은 최근 영업일 -- 과거분은 미보관)
 sc.expiring(start="20240101", end="20240630")  # 만기예정 ELW
 ```
 

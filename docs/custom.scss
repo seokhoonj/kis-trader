@@ -77,6 +77,9 @@ pre.sourceCode code {
 }
 // 주석은 기울임만 해제 (색은 highlight-style 테마에 맡긴다)
 pre.sourceCode code .co { font-style: normal; }
+// Claude 명령 블록(```claude): 슬래시 명령을 Claude Code 채팅창과 같은 파랑으로 덮는다.
+// (atom-one 의 dsKeyword 는 빨강이라 이 블록에서만 브랜드 블루로 바꾼다.)
+code.sourceCode.claude .kw { color: #407bff; font-weight: 600; }
 // 언어 태그가 없는 플레인 코드블록(디렉터리 트리·슬래시 명령처럼 하이라이터가 없는 것)도
 // 하이라이트 블록과 똑같은 박스를 준다 -- 박스를 얻으려고 가짜 언어를 붙이지 않기 위해서다.
 // (박스는 원래 div.sourceCode 에서만 나오는데, 그건 "인식되는 언어"가 있어야 생긴다.)

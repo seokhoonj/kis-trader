@@ -3,14 +3,18 @@
 한국투자증권(KIS) Open API를 파이썬에서 쉽게 쓰기 위한 클라이언트입니다. 시세 조회부터
 주문·계좌·순위까지 **자산군별로 정리된 메서드** 하나로 부릅니다.
 
+## 설치
+
 ```bash
-pip install kis-trader
+pip install kis-trader   # 파이썬 3.11+
 ```
+
+## 예시
 
 ```python
 from kis_trader import KISClient
 
-kis = KISClient(app_key="…", app_secret="…", account="12345678-01")
+kis = KISClient(app_key="…", app_secret="…", account="12345678-01")   # 세션 열기
 
 kis.domestic.stock("005930").quote()                 # 삼성전자 현재가
 kis.overseas.stock("AAPL").quote()                   # AAPL (거래소 자동)
