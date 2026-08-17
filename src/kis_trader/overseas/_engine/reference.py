@@ -295,12 +295,13 @@ def fetch_settlement_dates(
 
     rows: list[Mapping[str, Any]] = []
     ctx_fk, ctx_nk = "", ""
+    trad_dt = datetime.now(_KST).strftime("%Y%m%d")   # TRAD_DT(기준일자, 필수) -- 오늘 기준
     for _page in range(_MAX_SETTLEMENT_PAGES):
         resp = transport.request(
             method="GET",
             path=_SETTLEMENT_DATES_PATH,
             tr_id=_SETTLEMENT_DATES_TR,
-            params={"CTX_AREA_NK": ctx_nk, "CTX_AREA_FK": ctx_fk},
+            params={"TRAD_DT": trad_dt, "CTX_AREA_NK": ctx_nk, "CTX_AREA_FK": ctx_fk},
             idempotent=True,
         )
         _raise_if_error(resp)

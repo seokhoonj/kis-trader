@@ -69,12 +69,10 @@ def test_settlement_dates_single_page_routes_and_parses():
     assert item.market_name == "나스닥"
     assert item.local_settlement_date == date(2026, 8, 10)
     assert item.domestic_settlement_date is None
-    assert fake.calls[0] == {
-        "method": "GET",
-        "path": _PATH,
-        "tr_id": "CTOS5011R",
-        "params": {"CTX_AREA_NK": "", "CTX_AREA_FK": ""},
-    }
+    call = fake.calls[0]
+    assert call["method"] == "GET" and call["path"] == _PATH and call["tr_id"] == "CTOS5011R"
+    assert call["params"]["CTX_AREA_NK"] == "" and call["params"]["CTX_AREA_FK"] == ""
+    assert len(call["params"]["TRAD_DT"]) == 8 and call["params"]["TRAD_DT"].isdigit()
 
 
 def test_settlement_dates_walks_ctx_area_pages_without_tr_cont():
@@ -86,10 +84,8 @@ def test_settlement_dates_walks_ctx_area_pages_without_tr_cont():
     )
     dates = _client(fake).overseas.settlement_dates()
     assert [item.market_type_code for item in dates] == ["512", "513"]
-    assert fake.calls[1]["params"] == {
-        "CTX_AREA_NK": "NEXT",
-        "CTX_AREA_FK": "FIRST",
-    }
+    assert fake.calls[1]["params"]["CTX_AREA_NK"] == "NEXT"
+    assert fake.calls[1]["params"]["CTX_AREA_FK"] == "FIRST"
 
 
 def test_settlement_dates_rejects_demo_environment():
