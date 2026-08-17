@@ -148,6 +148,38 @@ def test_day_reconcile_two_matches_raises():
         client.orders.reconcile("m2")
 
 
+def test_day_reconcile_error_response_fails_closed():
+    # rt_cd != "0" (조회 실패)는 빈 결과로 오인하지 않고 KISError -- 미접수 단정 -> 이중체결 방지.
+    fake = FakeTransport(on_post=TransportTimeout("t"),
+                         on_get=RawResponse(rt_cd="7", msg_cd="E", msg1="조회 실패", body={}))
+    client = _client(fake)
+    _place_timeout(client, "err")
+    with pytest.raises(KISError):
+        client.orders.reconcile("err")
+
+
+def test_day_reconcile_page_cap_fails_closed():
+    # 연속조회 커서가 끝없이 남으면(ctx_area_nk200 항상 존재) 페이지 상한에서 부분 스캔으로
+    # 확정하지 않고 KISError.
+    never_ends = RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
+                             body={"output1": [], "ctx_area_nk200": "NEXT"})
+    fake = FakeTransport(on_post=TransportTimeout("t"), on_get=never_ends)
+    client = _client(fake)
+    _place_timeout(client, "cap")
+    with pytest.raises(KISError, match="페이지 상한"):
+        client.orders.reconcile("cap")
+
+
+def test_day_reconcile_non_finite_numeric_fails_closed():
+    # 수량 필드가 "nan" 이면 비유한값이라 비교가 무너져 오확정을 부른다 -> KISError.
+    fake = FakeTransport(on_post=TransportTimeout("t"),
+                         on_get=_ccnl([_row(ord_qty="nan")]))
+    client = _client(fake)
+    _place_timeout(client, "nan")
+    with pytest.raises(KISError):
+        client.orders.reconcile("nan")
+
+
 def test_day_reconcile_output1_not_a_list_raises():
     fake = FakeTransport(on_post=TransportTimeout("t"),
                          on_get=RawResponse(rt_cd="0", msg_cd="0", msg1="정상",

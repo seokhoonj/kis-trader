@@ -19,9 +19,9 @@ def _fp():
 
 
 def test_claim_records_claim_time(tmp_path):
-    store = OrderStore(tmp_path / "s.json", now=_clock)
-    assert isinstance(store.try_claim("cid-1", _fp()), Claimed)
-    assert store.claim_time_for("cid-1") == _clock().isoformat()
+    with OrderStore(tmp_path / "s.json", now=_clock) as store:
+        assert isinstance(store.try_claim("cid-1", _fp()), Claimed)
+        assert store.claim_time_for("cid-1") == _clock().isoformat()
 
 
 def test_v8_persist_and_reload_roundtrip(tmp_path):
@@ -40,16 +40,16 @@ def test_v7_file_migrates_inflight_list_to_dict(tmp_path):
     p = tmp_path / "s.json"
     p.write_text(json.dumps({"schema_version": 7, "in_flight": ["old-cid"],
                              "fingerprints": {}, "reports": {}}))
-    store = OrderStore(p, now=_clock)
-    assert store.is_in_flight("old-cid")
-    assert store.claim_time_for("old-cid") == ""   # 구 레코드 = 시각 미상 -> 폴백 앵커
+    with OrderStore(p, now=_clock) as store:
+        assert store.is_in_flight("old-cid")
+        assert store.claim_time_for("old-cid") == ""   # 구 레코드 = 시각 미상 -> 폴백 앵커
 
 
 def test_in_flight_change_for_finds_pending_change(tmp_path):
-    store = OrderStore(tmp_path / "s.json", now=_clock)
-    change_fp = ChangeActionFingerprint(
-        original_client_order_id="orig-1", side="buy", order_type="limit",
-        quantity="1", limit_price="400.00", action="cancel", time_in_force="day", exchange="XKFE")
-    store.try_claim("req-1", change_fp)
-    assert store.in_flight_change_for("orig-1") == "req-1"
-    assert store.in_flight_change_for("orig-2") is None
+    with OrderStore(tmp_path / "s.json", now=_clock) as store:
+        change_fp = ChangeActionFingerprint(
+            original_client_order_id="orig-1", side="buy", order_type="limit",
+            quantity="1", limit_price="400.00", action="cancel", time_in_force="day", exchange="XKFE")
+        store.try_claim("req-1", change_fp)
+        assert store.in_flight_change_for("orig-1") == "req-1"
+        assert store.in_flight_change_for("orig-2") is None

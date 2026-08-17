@@ -84,11 +84,12 @@ def test_futures_maps_to_01(fake_client):
     assert order.derivative_item == "01"
 
 
-def test_option_order_without_right_is_rejected(fake_client):
+def test_option_order_without_right_is_rejected(fake_client, fake_transport):
     # right 없이 조회 핸들로는 살아있지만(quote 등), 발주에는 right 가 필요하다 -- fail-closed.
     opt = fake_client.domestic.option("201S03370")
     with pytest.raises(KISUsageError):
         opt.buy(quantity=1, limit_price=Decimal("2.5"))
+    assert fake_transport.request_count == 0            # 와이어 미접촉(pre-wire 거부)
 
 
 def test_option_query_handle_needs_no_right(fake_client):

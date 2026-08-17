@@ -458,6 +458,10 @@ class Order:
             raise KISUsageError(
                 f"night 세션은 파생(XKFE) 전용이다 -- exchange={self.exchange!r} 와 조합할 수 없다."
             )
+        # 야간(STTN) 발주·조회 와이어는 상품구분(FUOP_ITEM_DVSN_CD)이 필수라 derivative_item 이
+        # 비면 나갈 수 없다. 공개 핸들은 항상 채우므로 이 검사는 raw 생성의 fail-open 만 닫는다.
+        if self.session == "night" and not self.derivative_item:
+            raise KISUsageError("파생 야간 주문에는 종목구분(derivative_item)이 필요하다")
         if self.session == "overnight":
             # 미국 오버나이트 거래는 미국(NASD/NYSE/AMEX)만·지정가만 -- 그 밖은 생성 시점에 fail-closed.
             if self.exchange not in _OVERNIGHT_EXCHANGES:

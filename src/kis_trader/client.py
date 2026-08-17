@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+from dataclasses import fields
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -524,21 +525,20 @@ _READ_ONLY_PRODUCT_CODES = frozenset({"29"})
 def _reject_unsupported_derivative_risk(risk: RiskLimits) -> None:
     """파생(XKFE) 발주에 켜진 리스크 한도 중 지원하지 않는 것을 fail-closed 로 거부한다.
 
-    ``max_order_notional``/``price_collar_percent``/``enforce_tick_size`` 는 국내 *주식* 시세를
-    참조가·호가단위로 삼아 파생엔 의미가 없다 -- 조용히 건너뛰지 않고 명확히 :class:`KISUsageError`
-    로 막는다. ``max_order_quantity`` 만은 참조가 없이 순수 수량 검사라 그대로 허용한다."""
-    unsupported = [
-        name for name, value in (
-            ("max_order_notional", risk.max_order_notional),
-            ("price_collar_percent", risk.price_collar_percent),
-            ("enforce_tick_size", risk.enforce_tick_size or None),
-        )
-        if value is not None
+    파생이 지원하는 한도는 ``max_order_quantity`` 하나뿐이다 -- 참조가 없이 순수 수량만 보므로.
+    나머지 한도(notional/collar/tick)는 국내 *주식* 시세를 참조가·호가단위로 삼아 파생엔 의미가
+    없다. 지원 목록을 blocklist(특정 이름 나열)가 아니라 **allowlist**(``max_order_quantity`` 만
+    허용)로 두어, 앞으로 :class:`~kis_trader.risk.RiskLimits` 에 필드가 추가돼도 조용히 국내 주식
+    참조가 조회로 새지 않고 기본적으로 fail-closed 되게 한다. 켜진(비-None, 비-False) 다른 한도가
+    있으면 조용히 건너뛰지 않고 명확히 :class:`KISUsageError` 로 막는다."""
+    active_unsupported = [
+        f.name for f in fields(risk)
+        if f.name != "max_order_quantity" and getattr(risk, f.name) not in (None, False)
     ]
-    if unsupported:
+    if active_unsupported:
         raise KISUsageError(
             "파생(XKFE) 주문엔 max_order_quantity 리스크 한도만 지원한다 -- 지원하지 않는 한도가 "
-            f"켜져 있다: {', '.join(unsupported)}. 국내 주식 시세 기반 검사(참조가·호가단위)라 "
+            f"켜져 있다: {', '.join(active_unsupported)}. 국내 주식 시세 기반 검사(참조가·호가단위)라 "
             "파생엔 의미가 없어 거부한다."
         )
 

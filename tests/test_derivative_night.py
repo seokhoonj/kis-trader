@@ -130,11 +130,6 @@ def _paper_client(transport, *, store=None):
                      environment="paper", transport=transport, store=store)
 
 
-def _seed_night_in_flight(store, cid, *, now):
-    """야간 지문을 결정적 claim 시각으로 심어 date-window 앵커를 고정한다."""
-    store.try_claim(cid, _fp())
-
-
 # =====================================================================
 # T1: 야간 발주 골든바디 -- FUOP 필수 + STTN1101U
 # =====================================================================
@@ -225,6 +220,40 @@ def test_night_cancel_zero_remaining_rows_fails_closed():
     with pytest.raises(KISError):
         _real_client(change_t, store=store).orders.cancel(rep.client_order_id)
     assert not any(c["path"] == _CHANGE for c in change_t.calls)
+
+
+# =====================================================================
+# T3: 야간 지정가 정정 골든바디 -- STTN1103U + FUOP + 원지문 코드 산출
+# =====================================================================
+def test_night_modify_golden_body():
+    # 야간 지정가 정정(잔량 재지정)의 well-formed 바디: TR STTN1103U, RVSE_CNCL_DVSN_CD="01",
+    # FUOP_ITEM_DVSN_CD 는 원지문 상품구분(01), 세 주문구분 코드는 원지문(limit,day) -> (01,01,0).
+    from kis_trader.report import ExecutionReport, OrderStatus
+    report = ExecutionReport(client_order_id="n1", order_id="0000005605", symbol="101S03",
+                             side="buy", status=OrderStatus.NEW, filled_quantity=Decimal(0),
+                             average_price=None, recorded_at=datetime.now(_KST))
+    req = fo.make_night_change_request(
+        original_report=report, original_fingerprint=_fp(order_type="limit"),
+        action="modify", quantity=Decimal(1), limit_price=Decimal("401.00"),
+        cano="8", product_code="03", environment="real",
+    )
+    assert req.path == _CHANGE
+    assert req.tr_id == "STTN1103U"
+    assert req.body["RVSE_CNCL_DVSN_CD"] == "01"
+    assert req.body["FUOP_ITEM_DVSN_CD"] == "01"       # 야간 필수(원지문 derivative_item)
+    assert req.body["UNIT_PRICE"] == "401.00"
+    assert req.body["ORD_QTY"] == "1"
+    assert req.body["ORD_DVSN_CD"] == "01"             # (limit, day) 원지문 산출
+    assert req.body["NMPR_TYPE_CD"] == "01"
+    assert req.body["KRX_NMPR_CNDT_CD"] == "0"
+    assert req.body["RMN_QTY_YN"] == "Y"               # 야간은 잔량 전체가 대상
+    assert req.body["ORGN_ODNO"] == "0000005605"
+
+
+def test_fuop_dvsn_from_symbol_invalid_length_fails_closed():
+    # 6(선물)/9(옵션) 이 아닌 심볼 길이는 예상 밖 형상 -> KISError(엉뚱한 구분으로 훑지 않는다).
+    with pytest.raises(KISError):
+        fo._fuop_dvsn_from_symbol("1234")
 
 
 # =====================================================================

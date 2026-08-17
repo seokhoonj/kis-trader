@@ -112,7 +112,7 @@ def make_order_request(
     if session == "night" and environment == "paper":
         raise KISUsageError("파생 야간(STTN)은 모의투자 미지원 -- 실전에서만.")
     if order.quantity != order.quantity.to_integral_value():
-        raise KISUsageError(f"파생 주문 수량은 정수여야 한다(계약 단위): {order.quantity}")
+        raise KISUsageError(f"파생 주문 수량은 계약 단위 정수여야 한다: {order.quantity}")
     ord_dvsn, nmpr_type, krx_cndt = _resolve_fo_codes(
         order_type=order.order_type, division=order.division, time_in_force=order.time_in_force
     )
@@ -288,8 +288,6 @@ _INQUIRY_TR: dict[str, dict[str, str]] = {
 }
 #: 재조회 연속조회(페이지) 상한 -- 무한 루프 방지의 명시적 안전 상한.
 _MAX_INQUIRY_PAGES = 100
-#: 원주문 행의 원주문번호 센티넬(0-채움). 이와 다르면 그 행은 정정/취소 행이라 원주문 매칭에서 뺀다.
-_ORIGINAL_ODNO = "0000000000"
 #: 야간 union 재조회의 날짜창 폭 -- claim 앵커일(T) 기준 T-0 ~ T+N 영업일(주말 롤). 야간 체결은
 #: 주간 테이블로 이관되고 주문일자가 T+1(금->월)이라, 넉넉한 창으로 이관 후 행까지 덮는다. 넉넉한
 #: 창의 비용은 다중매칭 가능성뿐이고 그 결과는 KISError(안전 방향)다.
@@ -310,6 +308,10 @@ def reconcile(
     절대 하지 않는다.** 매칭은 원장 output1 에 실재하는 ``nmpr_type_cd``(호가유형) 기반이다 -- 그
     행에는 ``ord_dvsn_cd`` 가 없어 발주와 같은 리졸버(:func:`_resolve_fo_codes`)의 NMPR_TYPE_CD 로
     맞춘다. ``now`` 는 조회 날짜창의 기준시각(주입하면 결정적; 생략 시 현재 KST).
+
+    주간 조회창은 기준시각(``now``)의 국내(KST) **당일 하루**뿐이라, 주간 주문을 그 이후의 다른
+    달력일에 재조회하면 그 하루 창에 걸리지 않아 ``None``(재전송 금지의 in-flight 유지)이 된다 --
+    자동 해제 없이 수동 확인으로 드러나는 안전 방향이다.
 
     야간(STTN) 주문은 주간 체결내역에 담기지 않아 여기서 확정하면 오확정이다 -- 야간 전용 조회
     (union 스캔)는 별도 경로라, 야간 지문이면 fail-closed 로 올려 수동 확인을 유도한다."""
@@ -429,7 +431,12 @@ def _filter_matching_rows(
     """일별체결내역 행 중 요청 지문과 맞는 것만(순수). 종목+매매구분+호가유형(nmpr_type_cd)+주문수량,
     지정가는 주문단가(ord_idx)까지 비교한다. 호가유형은 발주와 **같은** 리졸버의 NMPR_TYPE_CD 로 --
     이 행에는 ord_dvsn_cd 가 없어 그걸 요구하면 매칭이 전부 사라진다. 정정/취소 행(원주문번호를
-    참조 -- orgn_odno != 0)은 원주문 지문 매칭에서 제외해 가짜 다중매칭을 줄인다."""
+    참조 -- orgn_odno != 0)은 원주문 지문 매칭에서 제외해 가짜 다중매칭을 줄인다.
+
+    한계: 대조에 쓰는 ``nmpr_type_cd``(호가유형)는 유효기간 변형이 공유한다 -- day/ioc/fok 은 같은
+    NMPR_TYPE_CD 로 풀려, 종목·수량·가격이 같고 ``time_in_force`` 만 다른 두 주문은 이 매처가
+    구별하지 못한다. 흔한 경우(두 행이 모두 존재)엔 다중매칭이 되어 :class:`KISError`(안전 방향)로
+    떨어진다."""
     symbol, side = fingerprint.symbol, fingerprint.side
     quantity = Decimal(fingerprint.quantity)
     limit_price = Decimal(fingerprint.limit_price) if fingerprint.limit_price else None
