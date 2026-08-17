@@ -212,12 +212,26 @@ def test_day_reconcile_paper_uses_paper_tr():
     assert fake.calls[0]["tr_id"] == "VTTO5201R"
 
 
-def test_day_reconcile_night_session_is_seamed_off():
-    # 야간(STTN) 재조회는 별도 경로(union 스캔) -- 아직 미구현이라 fail-closed(자동 확정 금지).
+def test_day_reconcile_night_session_uses_union_scan():
+    # 야간(STTN) 재조회는 두 테이블(야간 + 주간)의 union 스캔이다 -- 양측 0건이면 None(미접수 단정
+    # 금지, in-flight 유지)이고, 야간 전용 조회 경로를 함께 훑는다.
     store = OrderStore()
     order = _order(client_order_id="nite", session="night")
     store.try_claim("nite", order.fingerprint)
     fake = FakeTransport(on_get=_ccnl([]))
-    with pytest.raises(KISError, match="야간"):
-        fo.reconcile(fake, store, "nite", cano="1", product_code="03", environment="real")
+    assert fo.reconcile(fake, store, "nite", cano="1", product_code="03", environment="real") is None
+    paths = {c["path"] for c in fake.calls if c["method"] == "GET"}
+    assert "/uapi/domestic-futureoption/v1/trading/inquire-ngt-ccnl" in paths
+    assert _INQUIRY in paths
+
+
+def test_day_reconcile_night_session_on_paper_fails_closed():
+    # 야간은 실전 전용 -- paper 야간 지문 도달은 손상 신호라 KISUsageError(조회 미접촉).
+    from kis_trader.errors import KISUsageError
+    store = OrderStore()
+    order = _order(client_order_id="nite-pp", session="night")
+    store.try_claim("nite-pp", order.fingerprint)
+    fake = FakeTransport(on_get=_ccnl([]))
+    with pytest.raises(KISUsageError):
+        fo.reconcile(fake, store, "nite-pp", cano="1", product_code="03", environment="paper")
     assert not any(c["method"] == "GET" for c in fake.calls)

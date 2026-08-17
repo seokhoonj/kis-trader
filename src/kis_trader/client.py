@@ -360,7 +360,23 @@ class KISClient:
             )
         elif derivative_orders_engine.is_derivative_exchange(fingerprint.exchange):
             # 국내 파생(XKFE) 정정·취소는 파생 전용 와이어(order-rvsecncl, ORGN_ODNO only)로 조립한다.
-            builder = derivative_orders_engine.make_change_request
+            if isinstance(fingerprint, ImmediateOrderFingerprint) and fingerprint.session == "night":
+                # 야간(STTN)은 실전 전용 -- paper 야간 지문 도달은 손상 신호라 와이어 전에 fail-closed.
+                if self._environment == "paper":
+                    raise KISUsageError(
+                        "파생 야간(STTN) 정정·취소는 모의투자 미지원 -- 실전에서만."
+                    )
+                # 야간은 부분 정정·취소가 불가(잔량 전체가 대상)하고 ORD_QTY 에 실잔량이 필수라, 로컬
+                # 리포트의 stale 잔량 대신 inquire-ngt-ccnl 로 신선 잔량을 조회해 주입한다(읽기 -- claim
+                # 전). 조회 실패/0행/다행이면 여기서 fail-closed 로 올라가 취소 와이어에 닿지 않는다.
+                change_quantity = derivative_orders_engine.fetch_night_remaining(
+                    self._transport, order_id=str(report.order_id), symbol=fingerprint.symbol,
+                    cano=cano, product_code=product_code, environment=self._environment,
+                    anchor=self._store.claim_time_for(client_order_id),
+                )
+                builder = derivative_orders_engine.make_night_change_request
+            else:
+                builder = derivative_orders_engine.make_change_request
         return orders_engine.submit_change(
             self._transport, self._store,
             original_client_order_id=client_order_id,
@@ -396,6 +412,10 @@ class KISClient:
                 else overseas_orders_engine.make_order_request
             )
         elif derivative_orders_engine.is_derivative_exchange(order.exchange):
+            # 파생 야간(STTN)은 모의투자 미지원 -- claim/빌드 전에 조기 거부(paper 야간 발주 도달 차단).
+            # 빌더도 같은 거부를 하지만, 라우팅 자리에서 먼저 막아 client_order_id 를 소비하지 않는다.
+            if order.session == "night" and self._environment == "paper":
+                raise KISUsageError("파생 야간(STTN)은 모의투자 미지원 -- 실전에서만.")
             # 국내 파생(XKFE) -- 안전 코어(place)는 공유, 와이어 조립기와 엄격 output 파서만 파생용으로.
             # 파생 리스크는 참조가(국내 주식 시세) 기반 검사(notional/collar/tick)가 의미 없어 수량
             # 한도(max_order_quantity)만 허용한다 -- 그 밖의 한도가 켜져 있으면 명확히 거부한다.
