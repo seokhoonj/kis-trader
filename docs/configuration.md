@@ -5,6 +5,7 @@
 
 ```python
 from kis_trader import KISClient
+
 kis = KISClient(app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET", account="12345678-01")
 ```
 
@@ -13,6 +14,7 @@ kis = KISClient(app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET", account="1
 
 ```python
 from kis_trader import KISConfig
+
 KISConfig(profile="main", app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET", account="12345678-01").save()
 
 KISClient(profile="main")   # 저장된 자격증명을 자동으로 읽어 세션을 엽니다
@@ -55,6 +57,7 @@ KISClient(profile="main")   # "main" 이라 저장해 둔 계좌로 세션을 �
 
 ```python
 from kis_trader import KISConfig
+
 KISConfig.set_default("main")   # credentials.json 최상위에 "default_profile": "main" 기록
 ```
 
@@ -86,6 +89,7 @@ export KIS_DEFAULT_PROFILE=main          # Linux·macOS (영구히 하려면 ~/.
 
 ```python
 from kis_trader import KISConfig
+
 KISConfig(profile="main",    app_key="...", app_secret="...", account="12345678-01").save()
 KISConfig(profile="pension", app_key="...", app_secret="...", account="87654321-22").save()
 KISConfig(profile="paper",   app_key="...", app_secret="...", account="50123456-01", environment="paper").save()
@@ -117,6 +121,7 @@ export KIS_ACCOUNT=12345678-01        # 종합계좌번호-상품코드 (시세�
 
 ```python
 from kis_trader import KISClient
+
 kis = KISClient(app_key="...", app_secret="...", account="12345678-01")
 ```
 
