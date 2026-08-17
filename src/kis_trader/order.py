@@ -196,6 +196,15 @@ def encode_fingerprint(fingerprint: OrderFingerprint) -> list[str]:
     return list(fingerprint._positional())
 
 
+def _checked_slot(value: str, allowed: frozenset[str], label: str) -> str:
+    """지문 슬롯 값이 도메인 허용값에 드는지 확인하고 그대로 돌려준다. persistence 경계라 생성 시
+    검증을 우회한 값(손상/변조된 온-디스크 레코드)을 슬롯 개수 검증과 같은 태도로 fail-closed 거부한다
+    -- 통과한 값만 호출부에서 도메인 Literal 로 좁힌다(검증 없는 :func:`cast` 는 거짓 계약이다)."""
+    if value not in allowed:
+        raise ValueError(f"지문 {label} 슬롯이 손상됐다: {value!r}")
+    return value
+
+
 def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
     """온-디스크 위치 튜플을 인메모리 지문으로 디코딩한다(구버전 짧은 레코드는 뒤쪽 기본값으로 채움 --
     v1=8슬롯 .. v5+=13슬롯). exchange 슬롯(idx 7)으로 변형을 판별한다: "action:" 접두=변경 동작,
@@ -210,14 +219,16 @@ def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
         raise ValueError(f"지문 레코드 슬롯이 과다하다({_FINGERPRINT_SLOTS} 초과): {row!r}")
     symbol, side, order_type, quantity, limit_price, stop_slot, tif, exchange = slots[:8]
     credit_type, loan_date, session, division, board = slots[8:_FINGERPRINT_SLOTS]
-    # 저장분은 전부 str 로 복원된다 -- 생성 시 검증된 값이므로 도메인 Literal 로 제자리에서 좁힌다.
-    side = cast(Side, side)
-    order_type = cast(OrderType, order_type)
-    tif = cast(TimeInForce, tif)
+    # 저장분은 전부 str 로 복원된다 -- persistence 경계에서 도메인 허용값인지 검증한 뒤 Literal 로 좁힌다
+    # (검증 없이 cast 만 하면 손상/변조된 값을 유효 Literal 이라 거짓 단언하게 된다).
+    side = cast(Side, _checked_slot(side, _SIDES, "side"))
+    order_type = cast(OrderType, _checked_slot(order_type, _ORDER_TYPES, "order_type"))
+    tif = cast(TimeInForce, _checked_slot(tif, _TIFS, "time_in_force"))
     if exchange.startswith(_ACTION_EXCHANGE_PREFIX):
         return ChangeActionFingerprint(
             original_client_order_id=symbol, side=side, order_type=order_type,
-            quantity=quantity, limit_price=limit_price, action=cast(ChangeAction, stop_slot),
+            quantity=quantity, limit_price=limit_price,
+            action=cast(ChangeAction, _checked_slot(stop_slot, _CHANGE_ACTIONS, "action")),
             time_in_force=tif, exchange=exchange[len(_ACTION_EXCHANGE_PREFIX):],
         )
     if exchange in _RESERVED_EXCHANGES:
@@ -228,7 +239,8 @@ def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
     return ImmediateOrderFingerprint(
         symbol=symbol, side=side, order_type=order_type, quantity=quantity,
         limit_price=limit_price, stop_price=stop_slot, time_in_force=tif, exchange=exchange,
-        credit_type=credit_type, loan_date=loan_date, session=cast(Session, session),
+        credit_type=credit_type, loan_date=loan_date,
+        session=cast(Session, _checked_slot(session, _SESSIONS, "session")),
         division=division, board=board,
     )
 
@@ -255,6 +267,7 @@ _CREDIT_SELL_TYPES = frozenset(("22", "24", "25", "27"))   # 유통대주신규/
 _CREDIT_NEW_TYPES = frozenset(("21", "22", "23", "24"))    # 자기융자/유통대주/유통융자/자기대주 신규
 _CREDIT_REPAY_TYPES = frozenset(("25", "26", "27", "28"))  # 자기융자/유통대주/유통융자/자기대주 상환
 _SESSIONS = frozenset(("regular", "overnight"))
+_CHANGE_ACTIONS = frozenset(("cancel", "modify"))
 #: 미국 오버나이트 거래 가능 거래소(시세 EXCD). 오버나이트 거래는 미국(NASD/NYSE/AMEX)만·지정가만. 여기서
 #: 구성 시점 검증에 쓴다(Order 는 _overseas 를 import 못 해 목록을 직접 든다) -- _overseas/orders.py
 #: `_ORDER_EXCHANGE` 의 US 그룹(market=="US")과 동일해야 하며, 와이어 빌더가 거기서 한 번 더 확인한다.

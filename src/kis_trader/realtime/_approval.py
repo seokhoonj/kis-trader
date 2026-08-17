@@ -8,7 +8,7 @@ REST OAuth 토큰(``/oauth2/tokenP``)과 별개인 ``/oauth2/Approval`` 을 쓴�
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any
 
 from .._internal._auth import _requests_post
 from .._internal._endpoints import base_url
@@ -37,8 +37,9 @@ def fetch_approval_key(
     }
     status, data = poster(url, body)
     approval_key = data.get("approval_key")
-    if status != 200 or not approval_key:
+    # data 는 Mapping[str, Any] 라 truthy 만으론 str 을 보장 못 한다 -- isinstance 로 좁혀야 반환 계약이 정직하다.
+    if status != 200 or not isinstance(approval_key, str) or not approval_key:
         raise KISAuthError(
             f"실시간 접속키 발급 실패 (status={status}, 응답={data})"
         )
-    return cast(str, approval_key)
+    return approval_key
