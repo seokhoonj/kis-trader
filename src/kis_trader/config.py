@@ -39,6 +39,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -134,6 +135,20 @@ def token_cache_path(override: str | Path | None = None) -> Path:
     if override is not None:
         return Path(override).expanduser() / "tokens"
     return xdg_cache_subdir(_APP_DIR_NAME, "tokens")
+
+
+def order_store_path(*, account: str, environment: Environment, override: str | Path | None = None) -> Path:
+    """주문 dedup 저장소(:class:`~kis_trader.store.OrderStore`) 파일 경로. 재생성 불가한 상태라
+    토큰 캐시와 같은 XDG 캐시 트리 아래 ``orders`` 에 두되, **계좌·환경마다 파일을 가른다** -- 서로 다른
+    계좌/환경의 주문 dedup 이 한 파일에서 섞이지 않도록. ``override`` 가 있으면 그 아래 ``orders``,
+    없으면 ``$XDG_CACHE_HOME/kis-trader/orders``(:func:`token_cache_path` 와 같은 규칙).
+
+    파일명은 토큰 캐시와 같은 ``<환경>-<해시>.json`` 꼴이다. 계좌번호는 파일명에 그대로 노출하지 않고
+    SHA-256 앞 16자리로 해시한다(파일 목록에 계좌번호가 드러나지 않게)."""
+    directory = Path(override).expanduser() / "orders" if override is not None \
+        else xdg_cache_subdir(_APP_DIR_NAME, "orders")
+    digest = hashlib.sha256(account.encode()).hexdigest()[:16]
+    return directory / f"{environment}-{digest}.json"
 
 
 def _split_account(account: str) -> tuple[str, str]:
@@ -404,4 +419,4 @@ def _read_existing(path: Path) -> dict[str, object]:
     return parsed
 
 
-__all__ = ["KISConfig", "ResolvedCredentials", "resolve_credentials"]
+__all__ = ["KISConfig", "ResolvedCredentials", "order_store_path", "resolve_credentials"]

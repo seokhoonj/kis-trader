@@ -371,6 +371,15 @@ class KISClient:
         # 로 막는다(raw Decimal(str(...)) 는 "nan"/"inf" 를 통과시켜 와이어에 실릴 수 있다).
         change_quantity = remaining_quantity if quantity is None else coerce_decimal(quantity, "quantity")
         change_limit_price = None if limit_price is None else coerce_decimal(limit_price, "limit_price")
+        # 해외는 부분 취소·정정 메커니즘이 없다(라이브 확인) -- 취소는 부분 수량을 조용히 무시하고
+        # 전량 취소하고, 정정은 부분 수량을 거부한다. 잔량 전체가 아닌 변경은 와이어에 닿기 전에
+        # fail-closed 로 막아, 사용자가 '부분 취소했다'고 오인하는 일이 없게 한다(전량만 지원).
+        if overseas_orders_engine.is_overseas_exchange(fingerprint.exchange) and \
+                change_quantity != remaining_quantity:
+            raise KISUsageError(
+                "해외는 부분 취소·정정을 지원하지 않는다(전량만 가능) -- quantity 를 생략해 "
+                "잔량 전체를 취소·정정하라."
+            )
         builder: orders_engine.ChangeRequestBuilder | None = None
         if overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
             builder = (
