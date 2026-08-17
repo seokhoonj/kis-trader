@@ -24,6 +24,7 @@ from ._internal._masters import (
     urlopen_fetch,
 )
 from .config import _ENVIRONMENTS, _fill_credentials, _split_account, token_cache_path
+from .domestic._engine import derivative_orders as derivative_orders_engine
 from .domestic._engine import orders as orders_engine
 from .domestic._engine import reserved_orders as reserved_orders_api
 from .domestic.namespace import DomesticNamespace
@@ -371,6 +372,7 @@ class KISClient:
         ``risk`` 를 켠 세션에서 해외 주문을 내면 명확히 거부한다."""
         cano, product_code = self._require_account()
         build_request: orders_engine.PlaceRequestBuilder | None = None
+        extract_output = None
         risk = self._risk
         if overseas_orders_engine.is_overseas_exchange(order.exchange):
             if risk is not None:
@@ -383,6 +385,14 @@ class KISClient:
                 if order.session == "overnight"
                 else overseas_orders_engine.make_order_request
             )
+        elif derivative_orders_engine.is_derivative_exchange(order.exchange):
+            # 국내 파생(XKFE) -- 안전 코어(place)는 공유, 와이어 조립기와 엄격 output 파서만 파생용으로.
+            # 파생 리스크는 참조가(국내 주식 시세) 기반 검사(notional/collar/tick)가 의미 없어 수량
+            # 한도(max_order_quantity)만 허용한다 -- 그 밖의 한도가 켜져 있으면 명확히 거부한다.
+            if risk is not None:
+                _reject_unsupported_derivative_risk(risk)
+            build_request = derivative_orders_engine.make_order_request
+            extract_output = derivative_orders_engine._extract_fo_output
         elif order.credit_type is not None:
             # 국내 신용주문 -- 안전 코어(place)는 공유, 와이어 조립기만 신용용으로. risk 는 국내라
             # 그대로 적용된다(참조가=국내 시세).
@@ -391,6 +401,7 @@ class KISClient:
             self._transport, self._store, order,
             cano=cano, product_code=product_code, environment=self._environment,
             orderable=self._orderable, risk=risk, build_request=build_request,
+            extract_output=extract_output,
         )
 
     def _place_reserved_order(
@@ -480,6 +491,28 @@ _READ_ONLY_PRODUCT_CODES = frozenset({"29"})
 
 # 반환은 (계좌, 상품코드) 또는 (None, None) 이지만, 튜플-언팩 대입(self._cano, self._product_code)
 # 에서 mypy 가 상관 유니온을 좁히지 못해 var-annotated 를 요구한다 -- 두 자리 유니온으로 편다.
+def _reject_unsupported_derivative_risk(risk: RiskLimits) -> None:
+    """파생(XKFE) 발주에 켜진 리스크 한도 중 지원하지 않는 것을 fail-closed 로 거부한다.
+
+    ``max_order_notional``/``price_collar_percent``/``enforce_tick_size`` 는 국내 *주식* 시세를
+    참조가·호가단위로 삼아 파생엔 의미가 없다 -- 조용히 건너뛰지 않고 명확히 :class:`KISUsageError`
+    로 막는다. ``max_order_quantity`` 만은 참조가 없이 순수 수량 검사라 그대로 허용한다."""
+    unsupported = [
+        name for name, value in (
+            ("max_order_notional", risk.max_order_notional),
+            ("price_collar_percent", risk.price_collar_percent),
+            ("enforce_tick_size", risk.enforce_tick_size or None),
+        )
+        if value is not None
+    ]
+    if unsupported:
+        raise KISUsageError(
+            "파생(XKFE) 주문엔 max_order_quantity 리스크 한도만 지원한다 -- 지원하지 않는 한도가 "
+            f"켜져 있다: {', '.join(unsupported)}. 국내 주식 시세 기반 검사(참조가·호가단위)라 "
+            "파생엔 의미가 없어 거부한다."
+        )
+
+
 def _split_optional_account(account: str | None) -> tuple[str | None, str | None]:
     """``"12345678-01"`` -> (계좌번호 ``"12345678"``, 상품코드 ``"01"``). ``None`` 은 (None, None).
     계좌를 준 경우의 형식 검증은 저장 경로와 같은 :func:`~kis_trader.config._split_account` 를 쓴다

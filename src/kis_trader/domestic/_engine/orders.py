@@ -24,7 +24,7 @@ KIS URL/TR-ID (국내주식):
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
@@ -127,15 +127,19 @@ def place(
     transport: Transport, store: OrderStore, order: Order, *,
     cano: str, product_code: str, environment: Environment, orderable: bool = True,
     risk: RiskLimits | None = None, build_request: PlaceRequestBuilder | None = None,
+    extract_output: Callable[[Mapping[str, Any]], Mapping[str, Any]] | None = None,
 ) -> ExecutionReport:
     """주문을 안전 규칙(모듈 docstring 6단계)에 따라 전송한다.
 
     ``risk`` 를 주면 와이어 전에 사전 리스크 한도를 점검한다. ``build_request`` 는 와이어 요청을
     조립하는 시장별 빌더(기본은 국내 현금주문) -- 이중체결 방지·재시도 금지·재조회 등 안전 코어는
-    시장과 무관하게 공유한다. 계좌 가드/수량 정수/리스크 게이트는 모두 :meth:`OrderStore.try_claim`
-    **전**에 돈다 -- 거부되면 ``client_order_id`` 를 소비하지도 와이어에 닿지도 않는다.
+    시장과 무관하게 공유한다. ``extract_output`` 은 접수 응답에서 ODNO 를 담은 output 매핑을 뽑는
+    파서(기본 :func:`_extract_output_mapping`; 파생은 top-level 폴백을 금지하는 엄격 파서를 주입).
+    계좌 가드/수량 정수/리스크 게이트는 모두 :meth:`OrderStore.try_claim` **전**에 돈다 -- 거부되면
+    ``client_order_id`` 를 소비하지도 와이어에 닿지도 않는다.
     """
     build = build_request if build_request is not None else _make_order_cash_request
+    extract = extract_output if extract_output is not None else _extract_output_mapping
     client_order_id = order.client_order_id
     fingerprint = order.fingerprint
 
@@ -188,7 +192,7 @@ def place(
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
 
-    output = _extract_output_mapping(resp.body)
+    output = extract(resp.body)
     order_id = output.get("ODNO")
     if not order_id:
         # 접수(rt_cd=0)인데 거래소 주문번호 없음 -> 재조회 불가. in-flight 유지하고 raise.
