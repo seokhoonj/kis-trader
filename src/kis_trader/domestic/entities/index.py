@@ -181,8 +181,8 @@ class CategoryIndex:
     change_percent: Decimal           # 전일대비율(부호 포함)
     volume: int                       # 누적 거래량
     cumulative_trading_amount: Decimal  # 누적 거래대금
-    volume_share: Decimal             # 거래량 비중(%)
-    amount_share: Decimal             # 거래대금 비중(%)
+    volume_share: Decimal | None      # 거래량 비중(%); 시장 총계 등 일부 행은 빈 값
+    amount_share: Decimal | None      # 거래대금 비중(%); 위와 동일
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

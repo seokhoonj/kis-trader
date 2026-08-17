@@ -512,6 +512,7 @@ def fetch_minute_bars_on(
             "FID_INPUT_HOUR_1": anchor,
             "FID_INPUT_DATE_1": day_yyyymmdd,
             "FID_PW_DATA_INCU_YN": "N",
+            "FID_FAKE_TICK_INCU_YN": "N",   # 허봉 포함 여부(필수) -- 미포함
         }
 
     return _collect_minute_bars(
@@ -1039,20 +1040,16 @@ def fetch_multi_quotes(
         raise KISUsageError(f"국내 멀티시세는 한 번에 {_MAX_MULTI_QUOTE}종목까지: {len(requests)}개 요청")
     params: dict[str, str] = {}
     board_by_symbol: dict[str, str] = {}
-    for i in range(_MAX_MULTI_QUOTE):
-        n = i + 1
-        if i < len(requests):
-            board, symbol = requests[i]
-            params[f"FID_COND_MRKT_DIV_CODE_{n}"] = _market_div(board)
-            params[f"FID_INPUT_ISCD_{n}"] = symbol
-            if board_by_symbol.setdefault(symbol, board) != board:
-                raise KISUsageError(
-                    f"멀티시세는 응답을 종목코드로만 식별해 한 종목을 여러 보드로 조회할 수 없다: "
-                    f"{symbol!r} 이(가) 서로 다른 보드로 요청됨"
-                )
-        else:                                   # 남는 슬롯도 키는 있어야 함(모두 Required) -> 공백
-            params[f"FID_COND_MRKT_DIV_CODE_{n}"] = ""
-            params[f"FID_INPUT_ISCD_{n}"] = ""
+    # 채운 슬롯만 보낸다 -- 남는 슬롯을 공백으로 채우면 KIS 가 빈 FID_COND_MRKT_DIV_CODE_N 을 거부한다
+    # (INVALID INPUT). 공식 샘플도 값이 있는 슬롯만 조건부로 싣는다.
+    for i, (board, symbol) in enumerate(requests, start=1):
+        params[f"FID_COND_MRKT_DIV_CODE_{i}"] = _market_div(board)
+        params[f"FID_INPUT_ISCD_{i}"] = symbol
+        if board_by_symbol.setdefault(symbol, board) != board:
+            raise KISUsageError(
+                f"멀티시세는 응답을 종목코드로만 식별해 한 종목을 여러 보드로 조회할 수 없다: "
+                f"{symbol!r} 이(가) 서로 다른 보드로 요청됨"
+            )
     resp = transport.request(
         method="GET", path=_MULTI_QUOTE_PATH, tr_id=_MULTI_QUOTE_TR, params=params, idempotent=True
     )
@@ -1159,7 +1156,8 @@ def fetch_daily_program_trades(
     anchor = "" if as_of is None else _to_yyyymmdd(as_of, "as_of")
     resp = transport.request(
         method="GET", path=_PROGRAM_DAILY_PATH, tr_id=_PROGRAM_DAILY_TR,
-        params={"FID_INPUT_ISCD": symbol, "FID_INPUT_DATE_1": anchor}, idempotent=True,
+        params={"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": symbol,
+                "FID_INPUT_DATE_1": anchor}, idempotent=True,
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")

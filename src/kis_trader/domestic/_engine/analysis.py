@@ -318,8 +318,12 @@ def fetch_daily_trade_volume(
     30일 전. 응답 배열은 ``output2`` (``output1`` 은 구간 합계)."""
     start_date, end_date = _resolve_date_range(start, end)
     params = {
+        # 라이브 KIS 는 문서(접미사 없음)와 달리 이 조회의 시장/종목 필드에 _1 접미사를 요구한다
+        # (둘 다 보내 문서·라이브 양쪽에 안전).
         "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_COND_MRKT_DIV_CODE_1": "J",
         "FID_INPUT_ISCD": symbol,
+        "FID_INPUT_ISCD_1": symbol,
         "FID_INPUT_DATE_1": start_date,
         "FID_INPUT_DATE_2": end_date,
         "FID_PERIOD_DIV_CODE": "D",

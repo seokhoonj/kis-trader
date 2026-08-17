@@ -57,8 +57,8 @@ def test_domestic_quotes_maps_and_slot_params():
     assert call["params"]["FID_INPUT_ISCD_1"] == "005930"
     assert call["params"]["FID_COND_MRKT_DIV_CODE_1"] == "J"    # KRX -> J
     assert call["params"]["FID_INPUT_ISCD_2"] == "035720"
-    assert call["params"]["FID_INPUT_ISCD_30"] == ""           # 남는 슬롯 공백
-    assert call["params"]["FID_COND_MRKT_DIV_CODE_30"] == ""
+    assert "FID_INPUT_ISCD_3" not in call["params"]            # 남는 슬롯은 아예 안 보낸다
+    assert "FID_COND_MRKT_DIV_CODE_3" not in call["params"]    # (KIS 가 빈 FID_COND_MRKT_DIV_CODE_N 을 거부)
 
 
 def test_domestic_quotes_mixed_boards_via_tuples():

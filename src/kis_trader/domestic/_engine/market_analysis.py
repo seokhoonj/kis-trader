@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import date, datetime, timedelta
+from decimal import Decimal, InvalidOperation
 from typing import Literal
 
 from ..._bars import _parse_bar_timestamp
@@ -22,6 +23,7 @@ from ..._internal._datetime import (
     _parse_kst_date,
     _to_yyyymmdd,
     _today_kst,
+    parse_optional_kst_date,
 )
 from ..._internal._response import (
     _missing_block_error,
@@ -176,7 +178,8 @@ def fetch_lendable_stocks(
                 used_quantity=required_int(row.get("use_qty1"), "use_qty1"),
                 available_quantity=required_int(row.get("trad_psbl_qty2"), "trad_psbl_qty2"),
                 rights_type=str(row.get("rght_type_cd", "")).strip(),
-                base_date=_parse_kst_date(str(row.get("bass_dt", "")).strip()),
+                # 일부 대주가능 종목은 기준일(bass_dt)이 비어 오므로 optional 로 둔다.
+                base_date=parse_optional_kst_date(row.get("bass_dt")),
                 is_lendable=str(row.get("psbl_yn", "")).strip() == "Y",
                 _raw=row,
             )
@@ -423,7 +426,8 @@ def fetch_program_investor_trades(
         raise KISUsageError("market 은 KOSPI 또는 KOSDAQ 이어야 한다.")
     resp = transport.request(
         method="GET", path=_PROGRAM_INVESTOR_PATH, tr_id=_PROGRAM_INVESTOR_TR,
-        params={"MRKT_DIV_CLS_CODE": market_code}, idempotent=True,
+        # EXCH_DIV_CLS_CODE(필수) J:KRX, NX:NXT, UN:통합 -- 다른 프로그램 조회와 맞춰 KRX.
+        params={"MRKT_DIV_CLS_CODE": market_code, "EXCH_DIV_CLS_CODE": "J"}, idempotent=True,
     )
     _raise_if_error(resp)
     rows = resp.body.get("output1")
@@ -539,6 +543,11 @@ def fetch_limit_stocks(transport: Transport) -> list[LimitStock]:
         "FID_PRC_CLS_CODE": "0",           # 0: 상하한가 전체
         "FID_DIV_CLS_CODE": "0",
         "FID_INPUT_ISCD": "0000",
+        "FID_TRGT_CLS_CODE": "",           # 대상구분코드(전체) -- KIS 가 키 존재를 요구
+        "FID_TRGT_EXLS_CLS_CODE": "",      # 대상제외구분코드(없음)
+        "FID_INPUT_PRICE_1": "",           # 가격 하한(없음)
+        "FID_INPUT_PRICE_2": "",           # 가격 상한(없음)
+        "FID_VOL_CNT": "",                 # 거래량 하한(없음)
     }
     resp = transport.request(
         method="GET", path=_LIMIT_PATH, tr_id=_LIMIT_TR, params=params, idempotent=True
@@ -579,7 +588,14 @@ def fetch_program_flow(
         market_code = _PROGRAM_MARKET[market]
     except KeyError:
         raise KISUsageError(f"market 은 {sorted(_PROGRAM_MARKET)} 중 하나: {market!r}") from None
-    params = {"FID_COND_MRKT_DIV_CODE": "J", "FID_MRKT_CLS_CODE": market_code}
+    params = {
+        "FID_COND_MRKT_DIV_CODE": "J",
+        "FID_MRKT_CLS_CODE": market_code,
+        "FID_SCTN_CLS_CODE": "",            # 구간구분(없음) -- KIS 가 키 존재를 요구
+        "FID_INPUT_ISCD": "",              # 입력종목코드(없음)
+        "FID_COND_MRKT_DIV_CODE1": "",     # 시장분류코드(없음)
+        "FID_INPUT_HOUR_1": "",            # 입력시간(없음)
+    }
     resp = transport.request(
         method="GET", path=_PROGRAM_FLOW_PATH, tr_id=_PROGRAM_FLOW_TR, params=params,
         idempotent=True,
@@ -912,13 +928,21 @@ def _parse_interest_rates(
     for row in rows:
         if not isinstance(row, Mapping):
             raise _missing_block_error(f"{region} output[]", resp)
+        # KIS 는 국내(output2) 앞부분에 코드/범례 행(수치 아닌 값)을 섞어 준다 -- 실제 금리 행만 취한다.
+        quote_text = str(row.get("bond_mnrt_prpr", "")).strip()
+        try:
+            quote_value = Decimal(quote_text) if quote_text else None
+        except InvalidOperation:
+            quote_value = None
+        if quote_value is None:
+            continue
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         quotes.append(
             InterestRateQuote(
                 code=str(row.get("bcdt_code", "")).strip(),
                 name=str(row.get("hts_kor_isnm", "")).strip(),
                 region=region,
-                quote_value=required_decimal(row.get("bond_mnrt_prpr"), "bond_mnrt_prpr"),
+                quote_value=quote_value,
                 change=_apply_change_sign(
                     required_decimal(row.get("bond_mnrt_prdy_vrss"), "bond_mnrt_prdy_vrss"),
                     sign,

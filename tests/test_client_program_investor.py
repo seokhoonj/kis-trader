@@ -86,7 +86,8 @@ def test_daily_program_trades_maps_and_routes():
     assert fake.calls[0] == {
         "path": "/uapi/domestic-stock/v1/quotations/program-trade-by-stock-daily",
         "tr_id": "FHPPG04650201",
-        "params": {"FID_INPUT_ISCD": "005930", "FID_INPUT_DATE_1": "20240510"},
+        "params": {"FID_COND_MRKT_DIV_CODE": "J", "FID_INPUT_ISCD": "005930",
+                   "FID_INPUT_DATE_1": "20240510"},
     }
 
 

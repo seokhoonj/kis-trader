@@ -25,6 +25,7 @@ from datetime import date, datetime
 from typing import Any
 
 from ..._bars import (
+    _is_valid_bar_time,
     _parse_bar_timestamp,
     _parse_minute_bar_timestamp,
     _period_code_for,
@@ -196,13 +197,7 @@ def _parse_index_minute_bars(
         close_text = str(row.get("bstp_nmix_prpr", "")).strip()
         if not date_text or not time_text or not close_text:
             continue
-        if (
-            len(time_text) != 6
-            or not time_text.isdigit()
-            or int(time_text[:2]) > 23
-            or int(time_text[2:4]) > 59
-            or int(time_text[4:]) > 59
-        ):
+        if not _is_valid_bar_time(time_text):   # 센티널 시각(예: 999999) 배제
             continue
         bars.append(
             Bar(
@@ -288,7 +283,7 @@ def fetch_index_ticks(transport: Transport, *, code: str) -> list[IndexIntradayP
             raise _missing_block_error("output[]", resp)
         time_text = str(row.get("stck_cntg_hour", "")).strip()
         value_text = str(row.get("bstp_nmix_prpr", "")).strip()
-        if not time_text or not value_text:
+        if not time_text or not value_text or not _is_valid_bar_time(time_text):
             continue
         change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
@@ -430,7 +425,7 @@ def fetch_expected_index_trend(
             raise _missing_block_error("output[]", resp)
         time_text = str(row.get("stck_cntg_hour", "")).strip()
         value_text = str(row.get("bstp_nmix_prpr", "")).strip()
-        if not time_text or not value_text:
+        if not time_text or not value_text or not _is_valid_bar_time(time_text):
             continue
         change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
@@ -530,7 +525,7 @@ def _parse_index_intraday(
     for row in rows:
         time_text = str(row.get("bsop_hour", "")).strip()
         value_text = str(row.get("bstp_nmix_prpr", "")).strip()
-        if not time_text or not value_text:    # 빈 점 skip
+        if not time_text or not value_text or not _is_valid_bar_time(time_text):   # 빈 점·센티널 skip
             continue
         change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
@@ -606,8 +601,9 @@ def _parse_index_categories(rows: Sequence[Mapping[str, Any]]) -> list[CategoryI
                 ),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
                 cumulative_trading_amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
-                volume_share=required_decimal(row.get("acml_vol_rlim"), "acml_vol_rlim"),
-                amount_share=required_decimal(row.get("acml_tr_pbmn_rlim"), "acml_tr_pbmn_rlim"),
+                # 비중(share)은 일부 행(예: 시장 총계)에서 빈 값으로 와서 optional 로 둔다.
+                volume_share=optional_decimal(row.get("acml_vol_rlim"), "acml_vol_rlim"),
+                amount_share=optional_decimal(row.get("acml_tr_pbmn_rlim"), "acml_tr_pbmn_rlim"),
                 _raw=row,
             )
         )

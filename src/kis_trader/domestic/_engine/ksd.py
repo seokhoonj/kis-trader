@@ -74,8 +74,11 @@ def _parse_ksd_date(value: object, *, required: Literal[True], name: str) -> dat
 def _parse_ksd_date(value: object, *, required: Literal[False], name: str) -> date | None: ...
 def _parse_ksd_date(value: object, *, required: bool, name: str) -> date | None:
     """KSD 날짜 -> date. KSD는 "YYYYMMDD" 와 "YYYY/MM/DD" 를 섞어 주므로 구분자를 벗겨 통일한다.
-    빈 값/"00000000"(미정 sentinel)은 ``None``(required 면 예외). 형식이 깨지면 fail-closed."""
-    text = str(value).strip().replace("/", "").replace(".", "").replace("-", "")
+    빈 값/"00000000"(미정 sentinel)은 ``None``(required 면 예외). 형식이 깨지면 fail-closed.
+    KSD는 일부 필드(단주대금지급일 등)를 "시작 ~ 종료" 범위로 주기도 하는데, 이때는 시작일을 취한다
+    (대개 시작=종료)."""
+    text = str(value).split("~", 1)[0]                          # "시작 ~ 종료" 범위면 시작일만
+    text = text.strip().replace("/", "").replace(".", "").replace("-", "")
     if not text or text == "00000000":
         if required:
             raise KISError(f"필수 날짜 필드 {name!r} 가 비어 있다: {value!r}")
@@ -426,7 +429,8 @@ def fetch_par_value_changes(
     transport: Transport, *, start: str | date, end: str | date, symbol: str | None = None
 ) -> list[ParValueChange]:
     """기간 [start, end] 의 액면교체 일정. ``symbol`` 지정 시 그 종목만."""
-    params = _ksd_query_params(start=start, end=end, symbol=symbol)
+    # 액면교체(HHKDB669105C0)는 다른 KSD 조회와 달리 MARKET_GB(0:전체) 를 추가로 요구한다.
+    params = {**_ksd_query_params(start=start, end=end, symbol=symbol), "MARKET_GB": "0"}
     events: list[ParValueChange] = []
     for row in _rows(
         transport, path=_PAR_VALUE_CHANGE_PATH, tr=_PAR_VALUE_CHANGE_TR, params=params

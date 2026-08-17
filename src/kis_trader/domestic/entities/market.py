@@ -326,7 +326,7 @@ class LendableStock:
     used_quantity: int
     available_quantity: int
     rights_type: str
-    base_date: date
+    base_date: date | None          # 일부 종목은 기준일이 비어 올 수 있다
     is_lendable: bool
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

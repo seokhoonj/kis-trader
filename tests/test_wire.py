@@ -23,7 +23,7 @@ from kis_trader._internal._wire import (
 from kis_trader.errors import KISError
 
 
-@pytest.mark.parametrize("sign", ["1", "2", "3"])
+@pytest.mark.parametrize("sign", ["1", "2", "3", "0"])   # 0/3 = 보합·대비없음(실서버 반환)
 def test_apply_change_sign_up_and_flat_stay_positive(sign):
     assert _apply_change_sign(Decimal(400), sign) == Decimal(400)
     assert _apply_change_sign(Decimal(-400), sign) == Decimal(400)   # 크기로 정규화 후 방향
@@ -39,7 +39,7 @@ def test_apply_change_sign_empty_is_no_change_positive():
     assert _apply_change_sign(Decimal(400), "") == Decimal(400)
 
 
-@pytest.mark.parametrize("sign", ["0", "6", "9", "x", "12"])
+@pytest.mark.parametrize("sign", ["6", "9", "x", "12"])
 def test_apply_change_sign_unknown_code_fails_closed(sign):
     with pytest.raises(KISError):
         _apply_change_sign(Decimal(400), sign)

@@ -611,8 +611,10 @@ def fetch_near_high_low(
         "FID_APLY_RANG_VOL": "0",              # 거래량 전체
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _NEAR_HIGH_LOW_SCR,
+        "FID_INPUT_ISCD": "0000",              # 전체(필수)
         "FID_DIV_CLS_CODE": "0",               # 전체
         "FID_INPUT_CNT_1": "", "FID_INPUT_CNT_2": "",   # 근접범위 전체
+        "FID_APLY_RANG_PRC_1": "", "FID_APLY_RANG_PRC_2": "",   # 가격 전체(필수)
         "FID_PRC_CLS_CODE": _lookup(_NEAR_HIGH_LOW_SIDE, key=side, argname="side"),
         "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
     }

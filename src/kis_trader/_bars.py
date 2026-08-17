@@ -102,6 +102,18 @@ def _parse_bar_timestamp(date_text: str) -> datetime:
     return day.replace(tzinfo=_KST)
 
 
+def _is_valid_bar_time(time_text: str) -> bool:
+    """유효한 HHMMSS 시각인지 -- 센티널(자리표시) 시각을 배제한다. 동시호가·예상체결 응답은 실제
+    시각 대신 999999/888888/666666 같은 값을 섞어 보내므로, strptime 전에 이걸로 걸러 건너뛴다."""
+    return (
+        len(time_text) == 6
+        and time_text.isdigit()
+        and int(time_text[:2]) <= 23
+        and int(time_text[2:4]) <= 59
+        and int(time_text[4:]) <= 59
+    )
+
+
 def _parse_minute_bar_timestamp(*, date_text: str, time_text: str) -> datetime:
     try:
         moment = datetime.strptime(date_text + time_text, "%Y%m%d%H%M%S")  # noqa: DTZ007 -- KST 결합

@@ -448,7 +448,8 @@ def fetch_by_underlying(
 
 def fetch_comparables(transport: Transport, *, underlying: str) -> list[ELWListing]:
     """한 기초자산의 비교대상 ELW 목록(코드/이름만). ``underlying`` 은 기초자산 코드."""
-    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": underlying}
+    # FHKEW151701C0 은 시장분류(FID_COND_MRKT_DIV_CODE)가 아니라 화면분류코드(11517)를 요구한다.
+    params = {"FID_COND_SCR_DIV_CODE": "11517", "FID_INPUT_ISCD": underlying}
     return _fetch_listings(
         transport, path="/uapi/elw/v1/quotations/compare-stocks",
         tr="FHKEW151701C0", params=params,
@@ -457,11 +458,12 @@ def fetch_comparables(transport: Transport, *, underlying: str) -> list[ELWListi
 
 def fetch_newly_listed(
     transport: Transport, *, date: str, right: str = "all",
-    underlying: str = "000000", issuer: str = "00000",
+    underlying: str = "000000", issuer: str = "00003",
 ) -> list[ELWListing]:
     """신규상장 ELW 목록. ``date`` 는 기준일(YYYYMMDD), ``right`` 는 all/call/put(신규상장은 코드
-    02/00/01), ``underlying``/``issuer`` 는 기초자산/발행사 코드. ``issuer="00000"`` 은 전 발행사
-    (기본, 형제 만기예정 조회의 KIS 코드표와 동일한 발행회사코드 필드)이며 특정 발행사는 그 코드다."""
+    02/00/01), ``underlying`` 은 기초자산 코드(000000=전체). ``issuer`` 는 발행사 코드로 KIS 가
+    **필수**로 요구하며 '전 발행사' 값은 없다(00000 은 거부됨) -- 기본은 한국투자증권(00003)이고,
+    다른 발행사는 그 코드(예: 00017 KB증권)를 준다."""
     right_code = _code_of(right, {"all": "02", "call": "00", "put": "01"}, "right")
     params = {
         "FID_COND_MRKT_DIV_CODE": _MARKET_DIV,

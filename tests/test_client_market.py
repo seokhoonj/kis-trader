@@ -195,7 +195,7 @@ def test_program_investor_trades_maps_and_routes():
     assert rows[0].total.net_buy_volume == 30
     assert rows[0].arbitrage.buy_amount == Decimal(13)
     assert fake.calls[0]["tr_id"] == "HHPPG046600C1"
-    assert fake.calls[0]["params"] == {"MRKT_DIV_CLS_CODE": "4"}
+    assert fake.calls[0]["params"] == {"MRKT_DIV_CLS_CODE": "4", "EXCH_DIV_CLS_CODE": "J"}
 
 
 def test_market_investor_flows_bad_value_fails_closed():

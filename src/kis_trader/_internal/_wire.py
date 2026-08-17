@@ -68,8 +68,11 @@ def format_wire_decimal(value: Decimal) -> str:
 
 #: KIS 대비기호(prdy_vrss_sign) 중 하락을 뜻하는 코드(4=하한, 5=하락).
 _DOWN_SIGNS = frozenset(("4", "5"))
-#: 상승/보합을 뜻하는 코드(1=상한, 2=상승, 3=보합) -- 크기를 그대로(양수) 둔다.
-_UP_SIGNS = frozenset(("1", "2", "3"))
+#: 상승을 뜻하는 코드(1=상한, 2=상승) -- 크기를 그대로(양수) 둔다.
+_UP_SIGNS = frozenset(("1", "2"))
+#: 방향 없음(보합/대비없음) 코드 -- 크기를 그대로 둔다. 3=보합, 0=KIS가 선물·ELW·해외 등
+#: 실전 응답에서 대비없음/보합에 실어 보내는 값(문서표엔 없지만 실서버가 반환한다).
+_FLAT_SIGNS = frozenset(("0", "3"))
 
 
 def _apply_change_sign(magnitude: Decimal, sign_code: str) -> Decimal:
@@ -85,7 +88,7 @@ def _apply_change_sign(magnitude: Decimal, sign_code: str) -> Decimal:
     size = abs(magnitude)
     if sign_code in _DOWN_SIGNS:
         return -size
-    if sign_code in _UP_SIGNS or not sign_code:
+    if sign_code in _UP_SIGNS or sign_code in _FLAT_SIGNS or not sign_code:
         return size
     raise KISError(f"알 수 없는 KIS 대비부호(prdy_vrss_sign): {sign_code!r}")
 
