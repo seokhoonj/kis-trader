@@ -77,6 +77,26 @@ pre.sourceCode code {
 }
 // 주석은 기울임만 해제 (색은 highlight-style 테마에 맡긴다)
 pre.sourceCode code .co { font-style: normal; }
+// 언어 태그가 없는 플레인 코드블록(디렉터리 트리·슬래시 명령처럼 하이라이터가 없는 것)도
+// 하이라이트 블록과 똑같은 박스를 준다 -- 박스를 얻으려고 가짜 언어를 붙이지 않기 위해서다.
+// (박스는 원래 div.sourceCode 에서만 나오는데, 그건 "인식되는 언어"가 있어야 생긴다.)
+pre:not(.sourceCode) {
+  padding: 1rem 1.2rem;
+  margin: 1.3rem 0;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  overflow-x: auto;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.10), 0 1px 3px rgba(15, 23, 42, 0.07);
+}
+pre:not(.sourceCode) > code {
+  background: transparent;
+  padding: 0;
+  font-size: 0.85rem;
+  line-height: 1.65;
+  font-variant-ligatures: none;
+}
+
 // 인라인 코드
 :not(pre) > code {
   background: #f1f3f7;

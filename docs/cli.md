@@ -14,7 +14,7 @@ kis --profile paper account balance     # 모의 프로필(저장 시 environmen
 kis --profile main  account balance     # 실전 주계좌
 ```
 
-프로필별 변수 접두어·설정 파일 위치(Linux·macOS·Windows 공통)는 [3. 자격증명과 프로필](configuration.md)
+프로필별 변수 접두어·설정 파일 위치(Linux·macOS·Windows 공통)는 [자격증명과 프로필](configuration.md)
 을 참고하세요.
 
 ## 조회

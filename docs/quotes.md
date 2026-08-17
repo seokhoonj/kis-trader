@@ -91,10 +91,10 @@ s.after_hours_conclusions()  # 시간외 체결
 ## 시간외 심화·상태
 
 ```python
-s.after_hours_daily()        # 시간외 단일가 일자별 종가
-s.after_hours_conclusions()  # 시간외 시간별 체결
-s.after_hours_order_book()   # 시간외 호가창
-s.status()                   # 현재가 + 거래·규제·경고 상태
+s.after_hours_daily()         # 시간외 단일가 일자별 종가
+s.after_hours_conclusions()   # 시간외 시간별 체결
+s.after_hours_order_book()    # 시간외 호가창
+s.status()                    # 현재가 + 거래·규제·경고 상태
 s.minute_bars_on("20240102")  # 특정 과거일의 1분봉
 ```
 

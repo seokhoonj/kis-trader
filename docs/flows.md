@@ -16,8 +16,8 @@ s.daily_program_trades()       # 프로그램매매 일별 추이
 
 ```python
 s.short_sale_trend(start="20240101", end="20240630")  # 공매도 추이
-s.credit_balance_trend()                               # 신용잔고(융자/대주) 추이
-s.loan_trend(start="20240101", end="20240630")         # 대차거래(대여) 추이
+s.credit_balance_trend()                              # 신용잔고(융자/대주) 추이
+s.loan_trend(start="20240101", end="20240630")        # 대차거래(대여) 추이
 ```
 
 ## 회원사·체결분포
