@@ -323,6 +323,13 @@ class KISClient:
                 self._transport, self._store, client_order_id,
                 cano=cano, product_code=product_code, environment=self._environment,
             )
+        if isinstance(fingerprint, ImmediateOrderFingerprint) and \
+                derivative_orders_engine.is_derivative_exchange(fingerprint.exchange):
+            # 국내 파생(XKFE) 미확인 주문은 국내주식 일별체결조회가 아니라 파생 일별체결내역으로 확인한다.
+            return derivative_orders_engine.reconcile(
+                self._transport, self._store, client_order_id,
+                cano=cano, product_code=product_code, environment=self._environment,
+            )
         return orders_engine.reconcile(
             self._transport, self._store, client_order_id,
             cano=cano, product_code=product_code, environment=self._environment,
