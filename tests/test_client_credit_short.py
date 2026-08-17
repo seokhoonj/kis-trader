@@ -33,8 +33,9 @@ def _client(t):
     return KISClient(app_key="k", app_secret="s", transport=t)
 
 
-def _resp(rows):
-    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output": rows})
+def _resp(rows, block="output"):
+    # 실서버 블록명: 공매도 추이=output2, 대차거래 추이=output1, 신용잔고=output.
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={block: rows})
 
 
 def test_credit_balance_trend_maps():
@@ -69,7 +70,7 @@ def test_short_sale_trend_maps():
              "prdy_vrss_sign": "5", "prdy_ctrt": "0.72", "acml_vol": "10000",
              "ssts_cntg_qty": "1500", "ssts_vol_rlim": "15.0", "ssts_tr_pbmn": "105000000",
              "avrg_prc": "70050"}]
-    fake = FakeTransport(response=_resp(rows))
+    fake = FakeTransport(response=_resp(rows, "output2"))
     pts = _client(fake).domestic.stock("005930").short_sale_trend(start="20240101", end="20240102")
     assert isinstance(pts[0], ShortSalePoint)
     assert pts[0].short_volume == 1500
@@ -158,7 +159,7 @@ def test_loan_trend_maps():
              "prdy_vrss_sign": "3", "prdy_ctrt": "0", "acml_vol": "1000",
              "new_stcn": "5000", "rdmp_stcn": "2000", "rmnd_stcn": "100000",
              "rmnd_amt": "7000000000", "prdy_rmnd_vrss": "3000"}]
-    fake = FakeTransport(response=_resp(rows))
+    fake = FakeTransport(response=_resp(rows, "output1"))
     pts = _client(fake).domestic.stock("005930").loan_trend(start="20240101", end="20240102")
     assert isinstance(pts[0], LoanPoint)
     assert pts[0].new_shares == 5000
@@ -174,7 +175,7 @@ def test_loan_trend_maps():
 
 def test_short_sale_default_window_is_lookback_not_single_day():
     # start 미지정이면 end 로부터 30일 전이 되어야 한다(하루로 붕괴하면 _trend 가 무의미).
-    fake = FakeTransport(response=_resp([]))
+    fake = FakeTransport(response=_resp([], "output2"))
     _client(fake).domestic.stock("005930").short_sale_trend(end="20240131")
     call = fake.calls[0]
     assert call["params"]["FID_INPUT_DATE_2"] == "20240131"
@@ -183,7 +184,7 @@ def test_short_sale_default_window_is_lookback_not_single_day():
 
 
 def test_loan_default_window_is_lookback():
-    fake = FakeTransport(response=_resp([]))
+    fake = FakeTransport(response=_resp([], "output1"))
     _client(fake).domestic.stock("005930").loan_trend(end="20240131")
     call = fake.calls[0]
     assert call["params"]["END_DATE"] == "20240131"

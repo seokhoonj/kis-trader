@@ -357,6 +357,8 @@ def fetch_market_investor_snapshot(
     )
     _raise_if_error(resp)
     row = resp.body.get("output")
+    if isinstance(row, list):            # KIS 는 이 단일 스냅샷을 1-원소 리스트로 감싸 주기도 한다
+        row = row[0] if row else None
     if not isinstance(row, Mapping):
         raise _missing_block_error("output", resp)
     return MarketInvestorSnapshot(

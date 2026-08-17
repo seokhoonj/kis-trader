@@ -818,7 +818,7 @@ def fetch_expected_close(
             "FID_INPUT_ISCD": market_code,
             "FID_BLNG_CLS_CODE": "1" if extended_range else "0",
         },
-        output_key="output1",
+        output_key="output",
     )
     ranked: list[RankedStock] = []
     for row in rows:

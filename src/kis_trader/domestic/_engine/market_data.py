@@ -753,6 +753,8 @@ def fetch_broker_activity(
     )
     _raise_if_error(resp)
     output = resp.body.get("output")
+    if isinstance(output, list):        # KIS 는 이 단일 요약을 1-원소 리스트로 감싸 준다
+        output = output[0] if output else None
     if not isinstance(output, Mapping):
         raise _missing_block_error("output", resp)
     return BrokerActivitySummary(
@@ -1005,8 +1007,10 @@ def fetch_after_hours_order_book(
     )
     _raise_if_error(resp)
     output1 = resp.body.get("output1")
+    if not isinstance(output1, Mapping):     # KIS 는 이 호가창을 output(단일가) 으로 주기도 한다
+        output1 = resp.body.get("output")
     if not isinstance(output1, Mapping):
-        raise _missing_block_error("output1", resp)
+        raise _missing_block_error("output1/output", resp)
     return OrderBook(
         symbol=symbol,
         market=market,

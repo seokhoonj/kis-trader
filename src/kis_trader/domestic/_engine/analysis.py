@@ -162,14 +162,14 @@ def _resolve_date_range(
     return start_date, end_date
 
 
-def _rows(transport: Transport, *, path: str, tr: str, params: Mapping[str, str]
-          ) -> Sequence[Mapping[str, Any]]:
+def _rows(transport: Transport, *, path: str, tr: str, params: Mapping[str, str],
+          block: str = "output") -> Sequence[Mapping[str, Any]]:
     resp = transport.request(method="GET", path=path, tr_id=tr, params=dict(params),
                              idempotent=True)
     _raise_if_error(resp)
-    rows = resp.body.get("output")
+    rows = resp.body.get(block)
     if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
+        raise _missing_block_error(block, resp)
     return rows
 
 
@@ -237,7 +237,7 @@ def fetch_short_sale_trend(
         "FID_INPUT_DATE_2": end_date,
     }
     points: list[ShortSalePoint] = []
-    for row in _rows(transport, path=_SHORT_PATH, tr=_SHORT_TR, params=params):
+    for row in _rows(transport, path=_SHORT_PATH, tr=_SHORT_TR, params=params, block="output2"):
         day = str(row.get("stck_bsop_date", "")).strip()
         if not day:
             continue
@@ -280,7 +280,7 @@ def fetch_loan_trend(
         "CTS": "",
     }
     points: list[LoanPoint] = []
-    for row in _rows(transport, path=_LOAN_PATH, tr=_LOAN_TR, params=params):
+    for row in _rows(transport, path=_LOAN_PATH, tr=_LOAN_TR, params=params, block="output1"):
         day = str(row.get("bsop_date", "")).strip()
         if not day:
             continue

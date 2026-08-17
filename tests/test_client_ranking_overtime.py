@@ -171,7 +171,7 @@ def test_expected_close_maps_rows_and_filters():
             "cntg_vol": "35000",
         }
     ]
-    fake = FakeTransport(response=_resp({"output1": rows}))
+    fake = FakeTransport(response=_resp({"output": rows}))
     ranked = _client(fake).domestic.ranking.by_expected_close(
         filter="upper_limit", market="KOSPI", extended_range=True
     )
