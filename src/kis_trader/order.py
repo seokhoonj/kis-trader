@@ -39,9 +39,13 @@ TimeInForce = Literal["day", "gtc", "ioc", "fok"]
 #:     우선순위 확보, 즉시 체결은 아님). 매도면 최우선 매도호가, 매수면 최우선 매수호가. 가격 없음.
 #: IOC/FOK 는 별도 주문구분이 아니라 ``time_in_force``(ioc/fok)로 조합한다.
 DomesticDivision = Literal["conditional_limit", "immediate_limit", "priority_limit"]
-#: 거래 세션. ``regular`` 정규장, ``overnight`` 미국 오버나이트 거래(한국 낮 시간대 미국 종목 거래). 세션이
-#: 다르면 서로 다른 주문이고 정정·취소 엔드포인트도 다르므로 지문·라우팅으로 구분한다.
-Session = Literal["regular", "overnight"]
+#: 파생(선물/옵션, XKFE) 주문의 주문구분. 현금주문의 국내 주문구분과 같은 두 코드를 쓰되(조건부지정가·
+#: 최유리지정가), 최우선지정가(priority_limit)는 파생에 없어 뺀 좁힌 별칭이다.
+DerivativeDivision = Literal["conditional_limit", "immediate_limit"]
+#: 거래 세션. ``regular`` 정규장, ``overnight`` 미국 오버나이트 거래(한국 낮 시간대 미국 종목 거래),
+#: ``night`` KRX 파생(선물/옵션) 야간장. 세션이 다르면 서로 다른 주문이고 정정·취소 엔드포인트도
+#: 다르므로 지문·라우팅으로 구분한다(미국 ``overnight`` 과 KRX ``night`` 은 별개의 세션이다).
+Session = Literal["regular", "overnight", "night"]
 #: 접수된 주문에 대한 변경 동작(정정/취소). 국내(``_domestic``)·해외(``_overseas``) 주문
 #: 엔진이 공유하는 단일 타입 -- 두 엔진 모두 이 alias 를 import 한다(중복 정의 금지).
 ChangeAction = Literal["cancel", "modify"]
@@ -104,6 +108,8 @@ class ImmediateOrderFingerprint(OrderFingerprint):
     신용, 또 서로 다른 대출을 상환하는 신용주문은 서로 다른 주문이므로 지문으로 구분해야
     replay/conflict 판정이 정확하다. ``division`` 은 국내 주문구분(최유리/최우선/조건부; 그 밖은 ``""``),
     ``board`` 는 국내 체결 보드(KRX/NXT/UN; 구버전 레코드는 기본 "KRX")로, 둘 다 같은 종목·수량이라도
+    서로 다른 주문이라 지문으로 구분한다. ``derivative_item`` 은 파생(XKFE) 상품 구분("01" 선물 /
+    "02" 콜옵션 / "03" 풋옵션; 현금·해외 주문은 ``""``)으로, 같은 심볼·수량·가격이라도 콜 vs 풋은
     서로 다른 주문이라 지문으로 구분한다."""
 
     symbol: str
@@ -119,12 +125,13 @@ class ImmediateOrderFingerprint(OrderFingerprint):
     session: Session = "regular"
     division: str = ""
     board: str = "KRX"
+    derivative_item: str = ""
 
     def _positional(self) -> tuple[str, ...]:
         return (
             self.symbol, self.side, self.order_type, self.quantity, self.limit_price,
             self.stop_price, self.time_in_force, self.exchange, self.credit_type,
-            self.loan_date, self.session, self.division, self.board,
+            self.loan_date, self.session, self.division, self.board, self.derivative_item,
         )
 
 
@@ -144,10 +151,10 @@ class ReservedOrderFingerprint(OrderFingerprint):
     exchange: str
 
     def _positional(self) -> tuple[str, ...]:
-        # 온-디스크: end_date 는 예전 stop_price 슬롯, tif="day" 고정, 뒤쪽은 기본값.
+        # 온-디스크: end_date 는 예전 stop_price 슬롯, tif="day" 고정, 뒤쪽은 기본값(마지막=derivative_item).
         return (
             self.symbol, self.side, self.order_type, self.quantity, self.limit_price,
-            self.end_date, "day", self.exchange, "", "", "regular", "", "KRX",
+            self.end_date, "day", self.exchange, "", "", "regular", "", "KRX", "",
         )
 
 
@@ -173,21 +180,22 @@ class ChangeActionFingerprint(OrderFingerprint):
         return (
             self.original_client_order_id, self.side, self.order_type, self.quantity,
             self.limit_price, self.action, self.time_in_force, f"{_ACTION_EXCHANGE_PREFIX}{self.exchange}",
-            "", "", "regular", "", "KRX",
+            "", "", "regular", "", "KRX", "",
         )
 
 
 #: 인메모리 지문 변형들의 공통 상위형 -- 저장소/재조회가 "어떤 지문이든" 을 annotate 할 때 쓴다.
 Fingerprint = OrderFingerprint
 
-#: 온-디스크 위치 인코딩의 슬롯 수(스키마 v5/v6/v7 공통). 인코딩은 항상 이 길이로 나간다.
-_FINGERPRINT_SLOTS = 13
+#: 온-디스크 위치 인코딩의 슬롯 수(스키마 v8: 파생 derivative_item 슬롯 추가). 인코딩은 항상 이 길이로
+#: 나간다. 구버전(13-슬롯 이하) 레코드는 decode 가 뒤쪽 누락 슬롯을 기본값으로 채워 그대로 읽는다.
+_FINGERPRINT_SLOTS = 14
 #: 위치 인코딩의 정직한 예약 네임스페이스(exchange 슬롯). decode 가 이 값으로 예약 변형을 판별한다.
 _RESERVED_EXCHANGES = frozenset(("reserved", "overseas-reserved"))
 #: 변경 동작 지문의 exchange 슬롯 접두 -- decode 가 이 접두로 변경 변형을 판별한다.
 _ACTION_EXCHANGE_PREFIX = "action:"
-#: 위치 인코딩 뒤쪽 선택 슬롯(idx 8..12)의 기본값 -- 구버전 레코드가 이보다 짧을 때 채운다.
-_TRAILING_DEFAULTS = ("", "", "regular", "", "KRX")  # credit_type, loan_date, session, division, board
+#: 위치 인코딩 뒤쪽 선택 슬롯(idx 8..13)의 기본값 -- 구버전 레코드가 이보다 짧을 때 채운다.
+_TRAILING_DEFAULTS = ("", "", "regular", "", "KRX", "")  # credit_type, loan_date, session, division, board, derivative_item
 
 
 def encode_fingerprint(fingerprint: OrderFingerprint) -> list[str]:
@@ -218,7 +226,7 @@ def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
     if len(slots) > _FINGERPRINT_SLOTS:                    # 과다 슬롯 = 손상/변조 -> fail-closed
         raise ValueError(f"지문 레코드 슬롯이 과다하다({_FINGERPRINT_SLOTS} 초과): {row!r}")
     symbol, side, order_type, quantity, limit_price, stop_slot, tif, exchange = slots[:8]
-    credit_type, loan_date, session, division, board = slots[8:_FINGERPRINT_SLOTS]
+    credit_type, loan_date, session, division, board, derivative_item = slots[8:_FINGERPRINT_SLOTS]
     # 저장분은 전부 str 로 복원된다 -- persistence 경계에서 도메인 허용값인지 검증한 뒤 Literal 로 좁힌다
     # (검증 없이 cast 만 하면 손상/변조된 값을 유효 Literal 이라 거짓 단언하게 된다).
     side = cast(Side, _checked_slot(side, _SIDES, "side"))
@@ -241,7 +249,7 @@ def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
         limit_price=limit_price, stop_price=stop_slot, time_in_force=tif, exchange=exchange,
         credit_type=credit_type, loan_date=loan_date,
         session=cast(Session, _checked_slot(session, _SESSIONS, "session")),
-        division=division, board=board,
+        division=division, board=board, derivative_item=derivative_item,
     )
 
 
@@ -266,7 +274,7 @@ _CREDIT_SELL_TYPES = frozenset(("22", "24", "25", "27"))   # 유통대주신규/
 #: 신규(융자/대주 개시) vs 상환. 대출일자(LOAN_DT)는 신규면 개시일(오늘), 상환이면 대상 대출일자다.
 _CREDIT_NEW_TYPES = frozenset(("21", "22", "23", "24"))    # 자기융자/유통대주/유통융자/자기대주 신규
 _CREDIT_REPAY_TYPES = frozenset(("25", "26", "27", "28"))  # 자기융자/유통대주/유통융자/자기대주 상환
-_SESSIONS = frozenset(("regular", "overnight"))
+_SESSIONS = frozenset(("regular", "overnight", "night"))
 _CHANGE_ACTIONS = frozenset(("cancel", "modify"))
 #: 미국 오버나이트 거래 가능 거래소(시세 EXCD). 오버나이트 거래는 미국(NASD/NYSE/AMEX)만·지정가만. 여기서
 #: 구성 시점 검증에 쓴다(Order 는 _overseas 를 import 못 해 목록을 직접 든다) -- _overseas/orders.py
@@ -275,6 +283,10 @@ _OVERNIGHT_EXCHANGES = frozenset(("NAS", "NYS", "AMS"))
 #: 국내 거래소(MIC). ``division``(국내 주문구분)은 이 거래소에서만 유효하다. _domestic/orders.py
 #: `_DOMESTIC_MICS`/`_EXCHANGE_ID` 와 일치해야 한다.
 _DOMESTIC_EXCHANGES = frozenset(("XKRX", "XKOS", "NXTE"))
+#: KRX 파생상품(선물/옵션) 거래소 MIC. 파생 주문은 현금주문과 같은 Order/지문/스토어를 재사용하되
+#: 이 exchange 로 라우팅을 가른다(현금 국내주문과 별개의 와이어 빌더로). ``division`` 은 이 거래소에서도
+#: 유효하되 최우선지정가(priority_limit)는 파생에 없다.
+_DERIVATIVE_EXCHANGE = "XKFE"
 #: 국내 보드(NXT/UN)별 **미지원** 주문구분 base(= division 있으면 그것, 없으면 order_type). KIS 명세 대조:
 #: NXT 는 시장가(market)·조건부(conditional_limit) 미지원, SOR(UN)은 조건부 미지원(KRX 는 전부 지원).
 #: blocklist 라 여기 없는 base(stop 등 Tier 2/미매핑)는 이 검증이 아니라 와이어 빌더에서 판정한다.
@@ -349,6 +361,9 @@ class Order:
     session: Session = "regular"
     division: DomesticDivision | None = None
     board: DomesticBoard = "KRX"
+    #: 파생(XKFE) 상품 구분 -- "01" 선물 / "02" 콜옵션 / "03" 풋옵션. 현금·해외 주문은 ``""``.
+    #: 콜 vs 풋은 같은 심볼·수량·가격이라도 서로 다른 주문이라 지문에 함께 실어 dedup 을 가른다.
+    derivative_item: str = ""
     client_order_id: str = field(default_factory=mint_client_order_id)
 
     def __post_init__(self) -> None:
@@ -419,6 +434,11 @@ class Order:
 
         if self.session not in _SESSIONS:
             raise KISUsageError(f"지원하지 않는 session: {self.session!r}")
+        # KRX 파생(XKFE)은 night(야간장)만·미국 overnight 과 별개다 -- overnight 은 미국 전용이라
+        # XKFE 와 조합하면 fail-closed(아래 overnight 블록의 미국 거래소 검증도 XKFE 를 거부하지만,
+        # 여기서 파생 관점의 명시적 메시지를 준다).
+        if self.exchange == _DERIVATIVE_EXCHANGE and self.session == "overnight":
+            raise KISUsageError("XKFE(파생) 주문은 night 세션만 유효하다(overnight 은 미국 전용).")
         if self.session == "overnight":
             # 미국 오버나이트 거래는 미국(NASD/NYSE/AMEX)만·지정가만 -- 그 밖은 생성 시점에 fail-closed.
             if self.exchange not in _OVERNIGHT_EXCHANGES:
@@ -437,17 +457,20 @@ class Order:
             if self.credit_type is not None:
                 raise KISUsageError("미국 오버나이트 거래는 신용주문과 조합할 수 없다.")
 
-        # division(국내 주문구분: 최유리/최우선/조건부)은 국내 현금주문 전용 -- 해외 거래소·신용·주간과
-        # 조합하면 라우팅이 어긋나 의도와 다른 주문이 나갈 수 있어, 생성 시점에 fail-closed.
+        # division(주문구분: 최유리/최우선/조건부)은 국내 현금주문과 파생(XKFE) 전용 -- 그 밖의 해외
+        # 거래소·신용·미국 오버나이트와 조합하면 라우팅이 어긋나 의도와 다른 주문이 나갈 수 있어,
+        # 생성 시점에 fail-closed. 파생에는 최우선지정가(priority_limit)가 없다.
         if self.division is not None:
-            if self.exchange not in _DOMESTIC_EXCHANGES:
+            if self.exchange not in _DOMESTIC_EXCHANGES and self.exchange != _DERIVATIVE_EXCHANGE:
                 raise KISUsageError(
-                    f"division(국내 주문구분)은 국내 현금주문 전용이다 -- exchange={self.exchange!r} "
+                    f"division(주문구분)은 국내 현금주문·파생(XKFE) 전용이다 -- exchange={self.exchange!r} "
                     f"와 조합할 수 없다."
                 )
+            if self.exchange == _DERIVATIVE_EXCHANGE and self.division == "priority_limit":
+                raise KISUsageError("파생(XKFE) 주문에는 최우선지정가(priority_limit)가 없다.")
             if self.credit_type is not None:
                 raise KISUsageError("division 은 신용주문과 조합할 수 없다.")
-            if self.session != "regular":
+            if self.session == "overnight":
                 raise KISUsageError("division 은 미국 오버나이트 거래와 조합할 수 없다.")
             # division<->order_type<->price 결합을 DATA 경계에서 강제한다 -- 최유리/최우선은 시장이 가격을
             # 정하는 가격없는 시장가 기반, 조건부는 지정가 기반. 이 결합이 없으면 Order.market/limit 생성자로
@@ -486,6 +509,7 @@ class Order:
             time_in_force=self.time_in_force, exchange=self.exchange,
             credit_type=self.credit_type or "", loan_date=self.loan_date or "",
             session=self.session, division=self.division or "", board=self.board,
+            derivative_item=self.derivative_item,
         )
 
     # --- 타입별 생성자(권장 진입점) ------------------------------------
