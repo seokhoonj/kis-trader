@@ -340,6 +340,15 @@ def validate_yyyymmdd(value: str, field_name: str) -> None:
         raise KISUsageError(f"{field_name} 는 실재하는 YYYYMMDD 날짜여야 한다: {value!r}") from err
 
 
+def reject_bad_change_price_shape(action: ChangeAction, limit_price: Decimal | None) -> None:
+    """지정가 원주문 정정취소의 가격형상 검증 -- 지정가 전용 자산(주식/해외)이 공유한다.
+    정정=>0보다 큰 limit_price, 취소=>limit_price 없음. 파생은 자체 규칙이라 이걸 쓰지 않는다."""
+    if action == "modify" and (limit_price is None or limit_price <= 0):
+        raise KISUsageError("정정 주문에는 0보다 큰 limit_price가 필요하다.")
+    if action == "cancel" and limit_price is not None:
+        raise KISUsageError("취소 주문에는 limit_price를 지정할 수 없다.")
+
+
 @dataclass(frozen=True, slots=True, kw_only=True)
 class Order:
     """한 건의 주문 요청(불변).

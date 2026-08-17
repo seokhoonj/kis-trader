@@ -46,6 +46,7 @@ from ...order import (
     ImmediateOrderFingerprint,
     Order,
     WireRequest,
+    reject_bad_change_price_shape,
 )
 from ...report import ExecutionReport, OrderStatus
 from ...risk import RiskLimits
@@ -286,7 +287,11 @@ def submit_change(
     검증됨 -- 응답 output 에 ``ODNO``("채번된 주문번호" = 정정 시 새 주문번호)와 ``KRX_FWDG_ORD_ORGNO``
     가 있어 국내와 동일 구조이며, 재바인딩 대상(새 ODNO)이 정확하다.
 
-    Raises: 미확정/종료/수량·가격 위반은 :class:`KISUsageError`, 접수 거부(rt_cd!=0)는
+    원주문에 결과 미확인(in-flight) 변경이 이미 있으면 새(다른 ``request_id``) 변경은 :class:`KISUsageError`
+    로 거부한다(같은 원주문을 겨눈 두 변경의 경합 방지) -- 같은 ``request_id`` 재전송은 예외로,
+    아래 멱등 in-flight 경로가 처리한다.
+
+    Raises: 미확정/종료/수량·가격 위반·경합 변경은 :class:`KISUsageError`, 접수 거부(rt_cd!=0)는
     :class:`OrderRejectedError`, 전송 타임아웃(처리 불명)은 :class:`OrderTimeoutError`,
     정정 접수인데 ODNO 없음/예상외 outcome 은 :class:`OrderError`."""
     original_report = store.report_for(original_client_order_id)
@@ -308,10 +313,16 @@ def submit_change(
         raise KISUsageError(f"지원하지 않는 주문 변경: {action!r}")
     if quantity <= 0 or quantity != quantity.to_integral_value():
         raise KISUsageError(f"정정·취소 수량은 양의 정수여야 한다: {quantity}")
-    if action == "modify" and (limit_price is None or limit_price <= 0):
-        raise KISUsageError("정정 주문에는 0보다 큰 limit_price가 필요하다.")
-    if action == "cancel" and limit_price is not None:
-        raise KISUsageError("취소 주문에는 limit_price를 지정할 수 없다.")
+    # 원주문에 결과 미확인(in-flight) 변경이 이미 있으면 새(다른 request_id) 변경을 거부한다 -- 같은
+    # 원주문을 겨눈 두 번째 변경이 조용히 나가면 원 ODNO 상태를 두 요청이 경합해 확정 불가에 빠진다.
+    # 같은 request_id 재시도는 여기서 걸지 않고(아래 try_claim 의 in-flight 경로가 처리) 배제한다 --
+    # 그 경로는 멱등 재전송 거부라 의미가 다르다. 가격형상 검증은 각 자산 빌더로 옮겼다(BC-1).
+    pending = store.in_flight_change_for(original_client_order_id)
+    if pending is not None and pending != request_id:
+        raise KISUsageError(
+            f"원주문 {original_client_order_id!r} 에 결과 미확인 변경 {pending!r} 이 있다 -- "
+            f"kis.orders.reconcile({pending!r}) 로 해소한 뒤 재시도하라."
+        )
 
     action_fingerprint = ChangeActionFingerprint(
         # 원 client_order_id 로만 식별한다(그 order_id 로 파생하지 않는다) -- 정정은 원 id 를
@@ -417,6 +428,8 @@ def _make_domestic_change_request(
     action: ChangeAction, quantity: Decimal, limit_price: Decimal | None,
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
+    # 지정가 전용 자산이라 가격형상 규칙을 공유 헬퍼로 강제한다(정정=>가격>0, 취소=>가격 없음).
+    reject_bad_change_price_shape(action, limit_price)
     # 영속되는 리포트 필드를 우선 쓰고(재기동 후에도 유효), 없으면 미영속 _raw 에서 뽑는다
     # (구버전 레코드 하위호환). 둘 다 없으면 대상 식별 불가라 fail-closed.
     organization_number = original_report.organization_number or _extract_organization_number(

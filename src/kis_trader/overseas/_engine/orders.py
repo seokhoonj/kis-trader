@@ -29,6 +29,7 @@ from ...order import (
     Side,
     TimeInForce,
     WireRequest,
+    reject_bad_change_price_shape,
 )
 from ...report import ExecutionReport, OrderStatus
 from ...store import OrderStore
@@ -200,6 +201,8 @@ def make_overnight_change_request(
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
     """미국 오버나이트 거래 정정·취소 요청 와이어(daytime-order-rvsecncl TTTS6038U). **모의투자 미지원**."""
+    # 지정가 전용 자산이라 가격형상 규칙을 공유 헬퍼로 강제한다(정정=>가격>0, 취소=>가격 없음).
+    reject_bad_change_price_shape(action, limit_price)
     if environment == "paper":
         raise KISUsageError("미국 오버나이트 거래 정정·취소는 모의투자 미지원 -- 실전에서만.")
     try:
@@ -232,6 +235,8 @@ def make_change_request(
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
     """해외주식 정정·취소 요청을 공식 단일 TR 와이어로 조립한다."""
+    # 지정가 전용 자산이라 가격형상 규칙을 공유 헬퍼로 강제한다(정정=>가격>0, 취소=>가격 없음).
+    reject_bad_change_price_shape(action, limit_price)
     try:
         order_exchange = _ORDER_EXCHANGE[original_fingerprint.exchange][0]
     except KeyError:
