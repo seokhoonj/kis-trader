@@ -112,6 +112,7 @@ export KIS_ACCOUNT=12345678-01        # 종합계좌번호-상품코드 (시세�
 | `KIS_APP_SECRET` | `app_secret` | 앱시크릿 |
 | `KIS_ACCOUNT` | `account` | 계좌번호 |
 | `KIS_ENVIRONMENT` | `environment` | 실전/모의 |
+| `KIS_HTS_ID` | `hts_id`(최상위) | HTS 로그인 아이디 (선택·사용자당 하나; 조건검색·관심종목용, 인증엔 안 씀) |
 | `KIS_DEFAULT_PROFILE` | `default_profile`(최상위) | 기본 프로필 |
 
 접두어 없는 `KIS_APP_KEY` 는 `main` 프로필용이고, 다른 프로필은 이름을 끼웁니다 --

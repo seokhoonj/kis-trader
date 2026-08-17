@@ -63,6 +63,12 @@ _DEFAULT_PROFILE_ENV_VAR = "KIS_DEFAULT_PROFILE"
 #: credentials.json 최상위에서 기본 프로필 이름을 담는 예약 키(프로필 이름으로는 못 쓴다).
 #: 프로필 섹션은 객체, 이 마커는 문자열이라 값 타입으로 구분한다.
 _DEFAULT_MARKER_KEY = "default_profile"
+#: HTS 로그인 아이디를 담는 예약 최상위 키. HTS 아이디는 사용자당 하나라 프로필별이 아니라
+#: 최상위에 한 번 둔다(모든 프로필이 공유). 인증엔 안 쓰이고 조건검색·관심종목의 user_id 로 쓴다.
+_HTS_ID_KEY = "hts_id"
+_HTS_ID_ENV = "KIS_HTS_ID"
+#: 프로필 이름으로 쓸 수 없는 예약 최상위 키.
+_RESERVED_TOP_LEVEL_KEYS = frozenset((_DEFAULT_MARKER_KEY, _HTS_ID_KEY))
 
 
 def _validate_profile_name(profile: str) -> None:
@@ -70,9 +76,9 @@ def _validate_profile_name(profile: str) -> None:
         raise KISUsageError(
             f"프로필 이름은 소문자/숫자/밑줄만 쓸 수 있다(환경변수 키로 쓰이기 때문): {profile!r}"
         )
-    if profile == _DEFAULT_MARKER_KEY:
+    if profile in _RESERVED_TOP_LEVEL_KEYS:
         raise KISUsageError(
-            f"{_DEFAULT_MARKER_KEY!r} 은 기본 프로필 마커로 예약된 이름이라 프로필 이름으로 쓸 수 없다."
+            f"{profile!r} 은 예약된 최상위 키라 프로필 이름으로 쓸 수 없다."
         )
 
 
@@ -165,7 +171,19 @@ def _resolve_default_profile_name(loaded: dict[str, object]) -> str:
     marker = loaded.get(_DEFAULT_MARKER_KEY)
     if isinstance(marker, str) and marker.strip():
         return marker.strip()
-    return next((name for name in loaded if name != _DEFAULT_MARKER_KEY), "main")
+    return next((name for name in loaded if name not in _RESERVED_TOP_LEVEL_KEYS), "main")
+
+
+def _resolve_hts_id(loaded: dict[str, object]) -> str | None:
+    """HTS 로그인 아이디. ``KIS_HTS_ID`` 환경변수 > ``credentials.json`` 최상위 ``"hts_id"`` 키.
+    사용자당 하나라 프로필별이 아니라 최상위에서 한 번 읽는다(빈/공백은 미설정)."""
+    env = os.environ.get(_HTS_ID_ENV)
+    if env is not None and env.strip():
+        return env.strip()
+    value = loaded.get(_HTS_ID_KEY)
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    return None
 
 
 def _resolve_profile_field(field_name: str, *, profile: str, section: dict[str, object]) -> str | None:
@@ -198,6 +216,8 @@ class ResolvedCredentials:
     app_secret: str = field(repr=False)
     account: str | None
     environment: Environment
+    #: HTS 로그인 아이디 -- 인증엔 안 쓰이나 조건검색·관심종목(user_id 필요) 조회에 계정 식별로 쓴다.
+    hts_id: str | None = None
 
 
 def resolve_credentials(profile: str | None = None, *, config_dir: str | Path | None = None) -> ResolvedCredentials:
@@ -210,7 +230,7 @@ def resolve_credentials(profile: str | None = None, *, config_dir: str | Path | 
 
 def _fill_credentials(
     profile: str | None, *, app_key: str | None, app_secret: str | None, account: str | None,
-    environment: Environment | None, config_dir: str | Path | None,
+    environment: Environment | None, config_dir: str | Path | None, hts_id: str | None = None,
 ) -> ResolvedCredentials:
     """명시된 값은 그대로 쓰고 ``None`` 인 것만 저장분에서 채운다(부분 해석). 세션이 일부 자격증명만
     직접 넘겼을 때, 실제로 빠진 항목만 파일/env 에서 읽어 -- 사용자가 준 항목을 '없다'고 오도하지
@@ -232,6 +252,7 @@ def _fill_credentials(
         resolved_account = _resolve_profile_field("account", profile=profile, section=section)
         if resolved_account is not None:
             _validate_account(resolved_account)   # 형식 검증(fail-closed) -- 세션이 쪼갤 수 있게
+    resolved_hts_id = hts_id if hts_id is not None else _resolve_hts_id(loaded)
     return ResolvedCredentials(
         app_key=app_key if app_key is not None
         else _require_profile_field("app_key", profile=profile, section=section),
@@ -239,6 +260,7 @@ def _fill_credentials(
         else _require_profile_field("app_secret", profile=profile, section=section),
         account=resolved_account,
         environment=cast("Environment", resolved_environment),
+        hts_id=resolved_hts_id,
     )
 
 
@@ -337,7 +359,7 @@ def _read_existing(path: Path) -> dict[str, object]:
     if not isinstance(parsed, dict):
         raise KISUsageError(f"{path} 의 최상위가 프로필 객체가 아니라 병합할 수 없다.")
     for name, section in parsed.items():
-        if name == _DEFAULT_MARKER_KEY:
+        if name in _RESERVED_TOP_LEVEL_KEYS:   # 프로필이 아닌 최상위 메타키(문자열)
             continue
         if not isinstance(section, dict):
             raise KISUsageError(f"{path} 의 프로필 {name!r} 항목이 객체가 아니라 병합할 수 없다.")

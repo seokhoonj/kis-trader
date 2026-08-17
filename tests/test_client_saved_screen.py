@@ -49,7 +49,7 @@ def test_saved_screens_and_results_map_and_route():
         _response([_stock_row()]),
     )
     screens = client.domestic.saved_screens("user")
-    stocks = client.domestic.saved_screen_stocks("user", screens[0].sequence)
+    stocks = client.domestic.saved_screen_stocks(screens[0].sequence, "user")
     assert isinstance(screens[0], SavedScreen)
     assert screens[0].condition_name == "저PER"
     assert isinstance(stocks[0], SavedScreenStock)
@@ -93,7 +93,7 @@ def test_watchlist_groups_and_stocks_map_and_route():
     })
     client = _client(groups_response, stocks_response)
     groups = client.domestic.watchlist_groups("user")
-    watchlist = client.domestic.watchlist("user", groups[0].group_code)
+    watchlist = client.domestic.watchlist(groups[0].group_code, "user")
     assert isinstance(groups[0], WatchlistGroup)
     assert groups[0].date == date(2024, 5, 10)
     assert groups[0].transmitted_at == time(9, 15, 0)
@@ -124,4 +124,19 @@ def test_watchlist_queries_reject_blank_identifiers(method, args):
 def test_watchlist_queries_fail_closed(body):
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     with pytest.raises(KISError):
-        _client(response).domestic.watchlist("user", "001")
+        _client(response).domestic.watchlist("001", "user")
+
+
+def test_saved_screens_defaults_user_id_from_profile_hts_id():
+    # 프로필에 hts_id 가 있으면 user_id 를 생략해도 그 값으로 조회한다.
+    fake = FakeTransport([_response([])])
+    kis = KISClient(app_key="k", app_secret="s", hts_id="HTS123", transport=fake)
+    kis.domestic.saved_screens()
+    assert "HTS123" in (fake.calls[0]["params"] or {}).values()
+
+
+def test_saved_screens_without_user_id_or_hts_id_raises():
+    # hts_id 도 없고 user_id 도 안 주면 fail-closed(전송 전 KISUsageError).
+    kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport([]))
+    with pytest.raises(KISUsageError):
+        kis.domestic.saved_screens()

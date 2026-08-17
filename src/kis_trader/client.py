@@ -111,6 +111,7 @@ class KISClient:
         app_secret: str | None = None,
         account: str | None = None,
         environment: Environment | None = None,
+        hts_id: str | None = None,
         config_dir: str | Path | None = None,
         transport: Transport | None = None,
         token_cache_dir: str | Path | None = None,
@@ -164,10 +165,11 @@ class KISClient:
             # 명시한 값(account/environment 포함)은 _fill_credentials 가 그대로 쓰고 나머지만 채운다.
             resolved = _fill_credentials(
                 profile, app_key=app_key, app_secret=app_secret, account=account,
-                environment=environment, config_dir=config_dir,
+                environment=environment, config_dir=config_dir, hts_id=hts_id,
             )
-            app_key, app_secret, account, environment = (
-                resolved.app_key, resolved.app_secret, resolved.account, resolved.environment)
+            app_key, app_secret, account, environment, hts_id = (
+                resolved.app_key, resolved.app_secret, resolved.account, resolved.environment,
+                resolved.hts_id)
         else:
             # 앱키·시크릿을 직접 준 경우: 파일을 읽지 않는다. 환경 미지정이면 실전 기본, 주면 검증.
             if environment is None:
@@ -181,6 +183,7 @@ class KISClient:
         self._app_key = app_key
         self._app_secret = app_secret
         self._environment = environment
+        self._hts_id = hts_id
         if transport is None:
             from ._internal._auth import TokenManager
             from ._internal._http import RequestsTransport
@@ -249,6 +252,13 @@ class KISClient:
     def environment(self) -> Environment:
         """실전(real) / 모의(paper). 계좌·주문 TR 선택에 쓰인다."""
         return self._environment
+
+    @property
+    def hts_id(self) -> str | None:
+        """세션의 HTS 로그인 아이디(없으면 ``None``). 조건검색·관심종목 조회의 기본 ``user_id``.
+        인증엔 안 쓰이며, ``credentials.json`` 최상위 ``hts_id``(사용자당 하나) 또는 ``KIS_HTS_ID``
+        환경변수에서 읽는다."""
+        return self._hts_id
 
     @property
     def account(self) -> str | None:
