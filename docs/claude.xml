@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Claude Code 슬래시 명령용 최소 문법(하이라이터). 채팅창이 /명령을 색으로 표시하는 것과 맞춰,
+     docs 의 명령 블록도 정직하게(가짜 언어를 붙이지 않고) 같은 색을 갖게 한다.
+       - 줄 맨 앞의 /command  -> 키워드색 (예: /plugin, /install)
+       - @marketplace         -> 변수색 (예: @kis-trader)
+     그 밖(인자·경로 seokhoonj/kis-trader)은 무채색으로 둔다(중간의 / 는 명령이 아님). -->
+<language name="claude" version="1" kateversion="5.0" section="Other" extensions="*.claude" author="seokhoonj" license="MIT">
+  <highlighting>
+    <contexts>
+      <context name="Normal" attribute="Normal" lineEndContext="#stay">
+        <RegExpr attribute="Command" String="/[A-Za-z][A-Za-z0-9-]*" column="0"/>
+        <RegExpr attribute="Mention" String="@[A-Za-z0-9._-]+"/>
+      </context>
+    </contexts>
+    <itemDatas>
+      <itemData name="Normal"  defStyleNum="dsNormal"/>
+      <itemData name="Command" defStyleNum="dsKeyword"/>
+      <itemData name="Mention" defStyleNum="dsVariable"/>
+    </itemDatas>
+  </highlighting>
+  <general>
+    <keywords casesensitive="1"/>
+  </general>
+</language>

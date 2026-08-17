@@ -27,7 +27,7 @@
 이 저장소는 Claude Code 플러그인 마켓플레이스로 등록돼 있습니다. Claude Code **채팅창(프롬프트)에서**
 아래 `/plugin` 명령을 입력해 마켓플레이스를 추가하고 설치합니다(터미널이 아니라 Claude Code 안에서 칩니다).
 
-```
+```claude
 /plugin marketplace add seokhoonj/kis-trader
 /plugin install kis-trader@kis-trader
 ```
