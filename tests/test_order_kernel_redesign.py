@@ -198,14 +198,14 @@ def test_v6_store_loads_and_maps_submitted_at_to_recorded_at(tmp_path):
         assert store.fingerprint_for("ID-inflight") is not None
 
 
-def test_v6_store_resaves_as_schema_7_with_recorded_at_key(tmp_path):
-    """v6 를 로드해 저장하면 스키마 7 과 `recorded_at` 키로 재기록된다(마이그레이션 경로)."""
+def test_v6_store_resaves_as_current_schema_with_recorded_at_key(tmp_path):
+    """v6 를 로드해 저장하면 현재 스키마와 `recorded_at` 키로 재기록된다(마이그레이션 경로)."""
     path = tmp_path / "orders.json"
     path.write_text(json.dumps(_v6_store_json()), encoding="utf-8")
     with OrderStore(path=path) as store:
         store.clear_in_flight("ID-inflight")   # 아무 write 나 -> _save_locked 로 재기록
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["schema_version"] == 7 == _SCHEMA_VERSION
+    assert data["schema_version"] == _SCHEMA_VERSION
     record = data["reports"]["ID-done"]
     assert "recorded_at" in record and "submitted_at" not in record
     assert record["recorded_at"] == "2026-08-11T09:00:00+09:00"
@@ -223,7 +223,7 @@ def test_v7_report_dict_omits_submitted_at_key(tmp_path):
     with OrderStore(path=path) as store:
         store.record(report, fp)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["schema_version"] == 7
+    assert data["schema_version"] == _SCHEMA_VERSION
     assert set(data["reports"]["ID-new"]) >= {"recorded_at"}
     assert "submitted_at" not in data["reports"]["ID-new"]
 

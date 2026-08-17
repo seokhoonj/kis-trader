@@ -24,6 +24,7 @@ import json
 import os
 import tempfile
 import threading
+from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
@@ -31,7 +32,13 @@ from pathlib import Path
 from typing import NamedTuple, Self, cast
 
 from .errors import KISError, UnsupportedSchemaVersionError
-from .order import Fingerprint, Side, decode_fingerprint, encode_fingerprint
+from .order import (
+    ChangeActionFingerprint,
+    Fingerprint,
+    Side,
+    decode_fingerprint,
+    encode_fingerprint,
+)
 from .report import ExecutionReport, OrderStatus
 
 try:
@@ -49,10 +56,14 @@ _KST = timezone(timedelta(hours=9))
 #: 정직하게; 지문 위치 형식은 그대로다). 구버전 레코드는 새 지문 필드가 기본값("", "regular", "KRX")으로
 #: 채워지고(decode_fingerprint 가 뒤쪽 누락 슬롯을), 리포트는 dict.get 이 누락 키를, v6 이하의
 #: submitted_at 키는 recorded_at 으로 매핑돼 그대로 읽힌다(하위호환 로드, _report_from_dict).
+#: v8: in_flight 를 id 집합(list) -> {id: claim 시각(ISO8601)} 매핑으로 바꿔 각 claim 의 확보 시각을
+#: 영속한다(재기동 후 in-flight 나이를 알아 재조회 정책에 쓴다). 구버전(v1..v7) 파일은 in_flight 가
+#: list 라 로드 시 {id: ""}(시각 미상 폴백 앵커)로 마이그레이션된다. 지문 위치 형식도 v8 에서 14-슬롯
+#: (파생 derivative_item)으로 늘었으나 구 13-슬롯 이하 레코드는 decode 가 뒤쪽 기본값으로 채워 그대로 읽는다.
 #: 구 바이너리는 새 버전 파일을 손상이 아니라 미지원 버전으로 거부하게 해 오진단을 막는다.
-_SCHEMA_VERSION = 7
+_SCHEMA_VERSION = 8
 #: 읽을 수 있는 스키마 버전 집합(이 밖은 UnsupportedSchemaVersionError 로 거부).
-_READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5, 6, 7})
+_READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5, 6, 7, 8})
 #: 완료(비-in-flight) 리포트 보존 기본 일수 -- 이 이후엔 정리(무한 성장 방지). client_order_id
 #: 가 날짜를 포함하므로 같은 id 재전송 위험 창은 당일이라, 넉넉한 기본값이 dedup 을 약화하지 않는다.
 _DEFAULT_RETENTION_DAYS = 7
@@ -112,13 +123,17 @@ class OrderStore:
     """
 
     def __init__(
-        self, path: str | Path | None = None, *, retention_days: int = _DEFAULT_RETENTION_DAYS
+        self, path: str | Path | None = None, *, retention_days: int = _DEFAULT_RETENTION_DAYS,
+        now: Callable[[], datetime] | None = None,
     ) -> None:
         self._path = Path(path) if path is not None else None
         self._retention = timedelta(days=retention_days) if retention_days > 0 else None
+        # claim 시각의 시계 -- 주입 가능(테스트 결정성). 기본은 벽시계(KST).
+        self._now = now if now is not None else (lambda: datetime.now(_KST))
         self._reports: dict[str, ExecutionReport] = {}
         self._fingerprints: dict[str, Fingerprint] = {}
-        self._in_flight: set[str] = set()
+        # client_order_id -> claim 시각(ISO8601). 구 저장소에서 로드된 항목은 시각 미상("")일 수 있다.
+        self._in_flight: dict[str, str] = {}
         self._lock = threading.Lock()
         self._process_lock_fd: int | None = None
         self._closed = False
@@ -150,7 +165,7 @@ class OrderStore:
                 if self._fingerprints.get(client_order_id) != fingerprint:
                     return Conflict(None)
                 return InFlight()
-            self._in_flight.add(client_order_id)
+            self._in_flight[client_order_id] = self._now().isoformat()
             self._fingerprints[client_order_id] = fingerprint
             self._save_locked()
             return Claimed()
@@ -171,13 +186,29 @@ class OrderStore:
         with self._lock:
             return self._fingerprints.get(client_order_id)
 
+    def claim_time_for(self, client_order_id: str) -> str | None:
+        """이 id 의 in-flight claim 확보 시각(ISO8601). in-flight 가 아니면 None,
+        구 저장소에서 로드돼 시각 미상이면 ""(폴백 앵커)."""
+        with self._lock:
+            return self._in_flight.get(client_order_id)
+
+    def in_flight_change_for(self, original_client_order_id: str) -> str | None:
+        """이 원주문을 겨눈 in-flight 변경(정정/취소) 동작의 request_id (없으면 None)."""
+        with self._lock:
+            for cid in self._in_flight:
+                fp = self._fingerprints.get(cid)
+                if isinstance(fp, ChangeActionFingerprint) \
+                        and fp.original_client_order_id == original_client_order_id:
+                    return cid
+            return None
+
     # --- 상태 전이 ----------------------------------------------------
     def _bind_locked(self, report: ExecutionReport, fingerprint: Fingerprint) -> None:
         """락을 쥔 상태에서 한 주문의 (리포트, 지문)을 심고 in-flight 를 해제한다 -- 저장(persist)은
         호출자가 한다. 여러 바인딩을 한 번의 ``_save_locked`` 로 원자적으로 묶으려는 헬퍼."""
         self._reports[report.client_order_id] = report
         self._fingerprints[report.client_order_id] = fingerprint
-        self._in_flight.discard(report.client_order_id)
+        self._in_flight.pop(report.client_order_id, None)
 
     def record(self, report: ExecutionReport, fingerprint: Fingerprint) -> None:
         """접수 리포트를 기록하고 in-flight 를 해제(영속)."""
@@ -211,7 +242,7 @@ class OrderStore:
         """주문이 확실히 접수 안 됐을 때(거부 등) in-flight 와 지문을 해제(영속)."""
         with self._lock:
             self._require_open()
-            self._in_flight.discard(client_order_id)
+            self._in_flight.pop(client_order_id, None)
             self._fingerprints.pop(client_order_id, None)
             self._save_locked()
 
@@ -293,7 +324,7 @@ class OrderStore:
         self._prune_locked()
         data = {
             "schema_version": _SCHEMA_VERSION,
-            "in_flight": sorted(self._in_flight),
+            "in_flight": dict(self._in_flight),
             "fingerprints": {cid: encode_fingerprint(fp) for cid, fp in self._fingerprints.items()},
             "reports": {cid: _report_to_dict(r) for cid, r in self._reports.items()},
         }
@@ -343,7 +374,11 @@ class OrderStore:
                 f"(읽을 수 있는 버전 {sorted(_READABLE_SCHEMA_VERSIONS)}). {self._path}"
             )
         try:
-            self._in_flight = set(data.get("in_flight", []))
+            raw_in_flight = data.get("in_flight", {})
+            if isinstance(raw_in_flight, list):        # v1..v7: id 리스트 -> 시각 미상("")
+                self._in_flight = {str(cid): "" for cid in raw_in_flight}
+            else:                                       # v8: {id: claim 시각}
+                self._in_flight = {str(k): str(v) for k, v in raw_in_flight.items()}
             self._fingerprints = {
                 cid: decode_fingerprint(fp) for cid, fp in data.get("fingerprints", {}).items()
             }
