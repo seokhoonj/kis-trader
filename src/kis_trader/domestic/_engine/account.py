@@ -262,9 +262,11 @@ def fetch_sellable(
     )
     _raise_if_error(resp)
     output1 = resp.body.get("output1")
+    if not isinstance(output1, Mapping):     # KIS 는 이 단일 결과를 output 으로 준다
+        output1 = resp.body.get("output")
     if not isinstance(output1, Mapping):
         raise KISError(
-            "매도가능수량조회 응답에 output1 이 없다.",
+            "매도가능수량조회 응답에 output/output1 이 없다.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
     return _parse_sellable(output1, symbol=symbol)
