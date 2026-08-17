@@ -67,8 +67,20 @@ _DEFAULT_MARKER_KEY = "default_profile"
 #: 최상위에 한 번 둔다(모든 프로필이 공유). 인증엔 안 쓰이고 조건검색·관심종목의 user_id 로 쓴다.
 _HTS_ID_KEY = "hts_id"
 _HTS_ID_ENV = "KIS_HTS_ID"
+#: 예약 최상위 키를 파일에서 배치하는 순서(맨 위, 이 순서대로). 멤버십 검사는 아래 frozenset.
+_RESERVED_TOP_LEVEL_ORDER = (_HTS_ID_KEY, _DEFAULT_MARKER_KEY)
 #: 프로필 이름으로 쓸 수 없는 예약 최상위 키.
-_RESERVED_TOP_LEVEL_KEYS = frozenset((_DEFAULT_MARKER_KEY, _HTS_ID_KEY))
+_RESERVED_TOP_LEVEL_KEYS = frozenset(_RESERVED_TOP_LEVEL_ORDER)
+
+
+def _order_top_level(data: dict[str, object]) -> dict[str, object]:
+    """예약 최상위 키(hts_id, default_profile)를 정해진 순서로 맨 위에 모으고, 그 뒤 프로필의
+    삽입 순서를 보존한다 -- 파일 레이아웃을 예측 가능하게(마커가 프로필 사이에 흩어지지 않게)."""
+    ordered = {k: data[k] for k in _RESERVED_TOP_LEVEL_ORDER if k in data}
+    for name, value in data.items():
+        if name not in ordered:
+            ordered[name] = value
+    return ordered
 
 
 def _validate_profile_name(profile: str) -> None:
@@ -316,7 +328,8 @@ class KISConfig:
         data = _read_existing(path)
         data[self.profile] = entry
         atomic_write_bytes(
-            path, (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode("utf-8"), mode=0o600
+            path, (json.dumps(_order_top_level(data), ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+            mode=0o600,
         )
         return path
 
@@ -341,7 +354,8 @@ class KISConfig:
         data[_DEFAULT_MARKER_KEY] = profile
         directory.mkdir(parents=True, exist_ok=True)
         atomic_write_bytes(
-            path, (json.dumps(data, ensure_ascii=False, indent=2) + "\n").encode("utf-8"), mode=0o600
+            path, (json.dumps(_order_top_level(data), ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+            mode=0o600,
         )
         return path
 
