@@ -138,6 +138,27 @@ def test_pension_balance_page_cap_fails_closed(monkeypatch):
         _client(fake).pension.balance()
 
 
+def test_pension_balance_stops_when_continuation_key_repeats():
+    # KIS 가 tr_cont=M 를 유지한 채 같은 연속키를 반복하면(진전 없음) 무한 루프/상한 오류 없이
+    # 그 페이지까지 모아 종료한다. 두 페이지를 같은 nk 로 주면 2회 요청 후 멈춰야 한다.
+    pages = [_resp2([_BAL_ROW], _BAL_SUMMARY, nk="SAME", tr_cont="M"),
+             _resp2([_BAL_ROW], _BAL_SUMMARY, nk="SAME", tr_cont="M")]
+    fake = FakeTransport(pages=pages)
+    bal = _client(fake).pension.balance()
+    assert len(fake.calls) == 2                       # 반복 키에서 종료(재요청 안 함)
+    assert len(bal.positions) == 2                    # 두 페이지 모두 반영
+
+
+def test_pension_balance_stops_on_continuation_end_sentinel():
+    # 종료 센티널("^^")을 연속키로 받으면 그 키로 재요청하지 않는다(같은 페이지 재조회/이중집계 방지).
+    pages = [_resp2([_BAL_ROW], _BAL_SUMMARY, nk="^^", tr_cont="M"),
+             _resp2([_BAL_ROW], _BAL_SUMMARY, nk="^^", tr_cont="M")]   # 두 번째는 쓰이면 안 됨
+    fake = FakeTransport(pages=pages)
+    bal = _client(fake).pension.balance()
+    assert len(fake.calls) == 1                       # 첫 페이지에서 즉시 종료
+    assert len(bal.positions) == 1                    # 이중집계 없음
+
+
 def test_pension_balance_demo_rejected_before_io():
     fake = FakeTransport(response=_resp2([_BAL_ROW], _BAL_SUMMARY))
     with pytest.raises(KISUsageError):

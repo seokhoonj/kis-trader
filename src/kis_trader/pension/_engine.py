@@ -40,6 +40,9 @@ _ORDERS_PATH = "/uapi/domestic-stock/v1/trading/pension/inquire-daily-ccld"
 _ORDERS_TR = "TTTC2210R"  # KRX+NXT/SOR (구 KRX전용 TTTC2201R)
 #: 연속조회 페이지 상한. 닿으면 fail-closed.
 _MAX_PAGES = 100
+#: KIS 연속조회 종료 센티널. 일부 조회(주문내역 등)는 tr_cont 를 F/M 로 유지한 채 연속키를 이 값으로
+#: 돌려 "더 없음"을 알린다 -- 이 키로는 재요청하지 않는다(같은 페이지 재조회/이중집계 방지).
+_CONTINUATION_END = "^^"
 _SIDE: dict[str, Side] = {"01": "sell", "02": "buy"}
 
 
@@ -191,9 +194,10 @@ def _walk_holdings(
         if resp.tr_cont not in ("F", "M"):
             break
         next_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
-        # KIS 가 tr_cont 를 계속 F/M 로 주면서 연속키를 진전시키지 않는(같은 키 반복, 0행) 경우가
-        # 있다(예: 주문내역 조회의 "^^" 종료 센티널) -- 진전이 없으면 종료해 무한 루프를 막는다.
-        if not next_nk or next_nk == ctx_nk:
+        # KIS 가 tr_cont 를 계속 F/M 로 주면서 연속키를 진전시키지 않는 경우가 있다: 명시적 종료
+        # 센티널("^^")을 주거나, 같은 키를 반복(0행)하거나, 빈 키를 준다. 어느 쪽이든 그 키로 재요청하면
+        # 같은 페이지를 다시 받아(이중집계) 또는 무한 루프가 되므로 여기서 종료한다.
+        if not next_nk or next_nk == ctx_nk or next_nk == _CONTINUATION_END:
             break
         ctx_nk = next_nk
         ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
