@@ -233,7 +233,8 @@ def reconcile(
         )
     if not isinstance(fingerprint, ImmediateOrderFingerprint):  # 즉시주문 reconcile 경로
         raise KISError(
-            f"client_order_id {client_order_id!r} 의 지문이 즉시주문이 아니다(내부 상태 불일치)."
+            f"client_order_id {client_order_id!r} 의 지문이 즉시주문이 아니다"
+            f"({type(fingerprint).__name__}, 내부 상태 불일치)."
         )
     try:
         rows = _fetch_daily_orders(transport, fingerprint.symbol, cano=cano,

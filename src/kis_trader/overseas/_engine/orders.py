@@ -286,7 +286,8 @@ def reconcile(
         )
     if not isinstance(fingerprint, ImmediateOrderFingerprint):  # 즉시주문(정규/오버나이트) reconcile 경로
         raise KISError(
-            f"client_order_id {client_order_id!r} 의 지문이 즉시주문이 아니다(내부 상태 불일치)."
+            f"client_order_id {client_order_id!r} 의 지문이 즉시주문이 아니다"
+            f"({type(fingerprint).__name__}, 내부 상태 불일치)."
         )
     if fingerprint.session == "overnight":
         # 미국 오버나이트 거래 체결은 정규 체결내역(inquire-ccnl)에 담기지 않으므로, 여기서 단일 매칭되는 행은

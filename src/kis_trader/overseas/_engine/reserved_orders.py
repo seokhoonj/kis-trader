@@ -226,7 +226,8 @@ def reconcile_overseas_reserved_order(
         )
     if not isinstance(fingerprint, ReservedOrderFingerprint):  # 해외 예약주문 reconcile 경로
         raise KISError(
-            f"client_order_id {client_order_id!r} 의 지문이 예약주문이 아니다(내부 상태 불일치)."
+            f"client_order_id {client_order_id!r} 의 지문이 예약주문이 아니다"
+            f"({type(fingerprint).__name__}, 내부 상태 불일치)."
         )
     today = (now or datetime.now(_KST)).date()
     start = f"{today - timedelta(days=_RECONCILE_LOOKBACK_DAYS):%Y%m%d}"
