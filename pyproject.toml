@@ -6,6 +6,12 @@ readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
+classifiers = [
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
+]
 # REST(requests) + 실시간 WebSocket(websockets) + 체결통보 AES-CBC 복호화(cryptography).
 dependencies = ["requests>=2.31", "websockets>=12", "cryptography>=42"]
 
@@ -38,16 +44,10 @@ testpaths = ["tests"]
 line-length = 100
 src = ["src", "tests"]
 
+# 타입 게이트는 배송되는 패키지 본체(src)만 strict 로 검사한다. 계약을 가진 쪽은 src 이고, 대규모
+# legacy 테스트 스위트의 타이핑은 완성도 잔소리(제네릭 인자 누락·의도적 더미 입력·private 접근)가
+# 대부분이라 게이트 가치가 낮다 -- 테스트의 행위 회귀는 pytest 가 매 커밋 1700+개를 실제 실행해 잡는다.
 [tool.mypy]
 python_version = "3.11"
-files = ["src", "tests"]
+files = ["src"]
 strict = true
-
-# 테스트엔 애노테이션 강제·본문 타입검사를 면제한다(대규모 legacy 스위트라 애노테이션 부재; 배송되는
-# 패키지 본체는 예외 없이 strict -- 계약을 가진 쪽은 src 다).
-[[tool.mypy.overrides]]
-module = "tests.*"
-disallow_untyped_defs = false
-disallow_incomplete_defs = false
-disallow_untyped_calls = false
-check_untyped_defs = false

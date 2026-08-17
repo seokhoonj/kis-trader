@@ -24,9 +24,9 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # The floor and the versions the runtime deps ship wheels for.
-        # requires-python says >=3.11, so 3.11 is the version that claim must hold on.
-        python-version: ["3.11", "3.12", "3.13"]
+        # Every version the unbounded requires-python (>=3.11) actually claims, through
+        # the current stable release. 3.11 is the floor that claim has to hold on.
+        python-version: ["3.11", "3.12", "3.13", "3.14"]
 
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -49,7 +49,7 @@ jobs:
       - name: Lint
         run: .venv/bin/ruff check src tests
 
-      - name: Types
+      - name: Type check
         run: .venv/bin/mypy
 
       - name: Confirm the runtime dependencies are exactly the declared three
@@ -93,6 +93,13 @@ jobs:
           # shipped hints must reject it and name the expected type.
           KISClient(profile=123)
           PY
-          /tmp/typed/bin/mypy /tmp/user_code.py > /tmp/mypy_out 2>&1 || true
+          # The checker MUST reject the call (a pass would mean it saw no hints); then
+          # assert the specific arg-type diagnostic, not just any line containing "str".
+          if /tmp/typed/bin/mypy /tmp/user_code.py > /tmp/mypy_out 2>&1; then
+            cat /tmp/mypy_out
+            echo "mypy accepted KISClient(profile=123) -- shipped hints are not visible"
+            exit 1
+          fi
           cat /tmp/mypy_out
-          grep -q 'str' /tmp/mypy_out
+          grep -Fq 'Argument "profile" to "KISClient" has incompatible type "int"' /tmp/mypy_out
+          grep -Fq '[arg-type]' /tmp/mypy_out
