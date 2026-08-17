@@ -54,21 +54,21 @@ r.by_views()                                     # HTS 조회 상위
 
 HTS(홈트레이딩) 앱에 **저장해둔 조건검색**을 불러 실행합니다. 조건검색·관심종목은 HTS 로그인
 아이디(`user_id`)가 필요합니다. HTS 아이디는 **사용자당 하나**라 `credentials.json` **최상위**에
-한 번 넣어 두면(`"hts_id": "..."`; 또는 `KIS_HTS_ID` 환경변수) 모든 프로필이 공유하고 `user_id`
-를 생략할 수 있습니다. 아니면 호출마다 직접 넘깁니다.
+한 번 넣어 두면(`KISConfig.set_hts_id("...")`; 또는 `KIS_HTS_ID` 환경변수) 모든 프로필이 공유하고
+`user_id` 를 생략할 수 있습니다. 아니면 호출마다 직접 넘깁니다.
 
 ```python
-# credentials.json 최상위에 "hts_id": "your_hts_id" 한 줄 (또는 KIS_HTS_ID 환경변수)
+# 최상위 hts_id 저장: KISConfig.set_hts_id("your_hts_id")  (또는 KIS_HTS_ID 환경변수)
 
-kis.domestic.saved_screens()                     # 저장된 조건 목록 (user_id 는 저장된 hts_id)
-kis.domestic.saved_screen_stocks(sequence="0")   # 특정 조건의 종목들
+kis.domestic.saved_screens()                       # 저장된 조건 목록 (user_id 는 최상위 공유 hts_id)
+kis.domestic.saved_screen_stocks(sequence="0")     # 특정 조건의 종목들
 kis.domestic.saved_screens(user_id="your_hts_id")  # 또는 직접 지정
 ```
 
 ## 관심종목
 
 ```python
-kis.domestic.watchlist_groups()             # 관심종목 그룹 (user_id 는 프로필 hts_id)
+kis.domestic.watchlist_groups()             # 관심종목 그룹 (user_id 는 최상위 공유 hts_id)
 kis.domestic.watchlist(group_code="…")      # 그룹 안 종목
 ```
 

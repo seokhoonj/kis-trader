@@ -12,13 +12,18 @@
 (:meth:`KISConfig.set_default`) > 첫 항목(삽입 순서) > ``"main"``(폴백) 순으로 정한다. 환경은 이름이
 아니라 프로필에 저장된 값이 정한다(기본 ``real``; 모의는 ``environment="paper"``).
 
-``credentials.json`` 은 프로필별 중첩 객체다::
+``credentials.json`` 은 공유 최상위 필드(``hts_id``/``default_profile``, 예약 키)와 프로필별 중첩
+객체를 함께 담는다::
 
     {
+      "hts_id":    "your_hts_id",
       "main":      {"app_key": "...", "app_secret": "...", "account": "12345678-01", "environment": "real"},
       "pension":   {"app_key": "...", "app_secret": "...", "account": "87654321-22", "environment": "real"},
       "paper":     {"app_key": "...", "app_secret": "...", "account": "...",         "environment": "paper"}
     }
+
+``hts_id`` 는 조건검색·관심종목 조회의 ``user_id`` 로 쓰는 HTS 로그인 아이디다(사용자당 하나,
+모든 프로필 공유; 인증엔 안 씀). :meth:`KISConfig.set_hts_id` 로 기록하거나 손 편집한다.
 
 읽기 순서: 환경변수 -> ``credentials.json``. 환경변수는 프로필 접두어를 붙인 평평한 키를 쓴다
 (``main`` -> ``KIS_APP_KEY`` / ``KIS_ACCOUNT`` / ``KIS_ENVIRONMENT``; ``pension`` ->
@@ -66,7 +71,7 @@ _DEFAULT_MARKER_KEY = "default_profile"
 #: HTS 로그인 아이디를 담는 예약 최상위 키. HTS 아이디는 사용자당 하나라 프로필별이 아니라
 #: 최상위에 한 번 둔다(모든 프로필이 공유). 인증엔 안 쓰이고 조건검색·관심종목의 user_id 로 쓴다.
 _HTS_ID_KEY = "hts_id"
-_HTS_ID_ENV = "KIS_HTS_ID"
+_HTS_ID_ENV_VAR = "KIS_HTS_ID"
 #: 예약 최상위 키를 파일에서 배치하는 순서(맨 위, 이 순서대로). 멤버십 검사는 아래 frozenset.
 _RESERVED_TOP_LEVEL_ORDER = (_HTS_ID_KEY, _DEFAULT_MARKER_KEY)
 #: 프로필 이름으로 쓸 수 없는 예약 최상위 키.
@@ -81,6 +86,20 @@ def _order_top_level(data: dict[str, object]) -> dict[str, object]:
         if name not in ordered:
             ordered[name] = value
     return ordered
+
+
+def _write_credentials(directory: Path, data: dict[str, object]) -> Path:
+    """병합된 credentials 를 예약키 순서로 정렬해 ``directory/credentials.json`` 에 원자적(0600)으로
+    쓰고 경로를 돌려준다. 세 writer(:meth:`KISConfig.save`/:meth:`KISConfig.set_default`/
+    :meth:`KISConfig.set_hts_id`)가 공유한다 -- 병합(어느 키를 바꿀지)은 각 호출부가, 정렬·권한·
+    원자성은 여기서 한 번만."""
+    directory.mkdir(parents=True, exist_ok=True)
+    path = directory / "credentials.json"
+    atomic_write_bytes(
+        path, (json.dumps(_order_top_level(data), ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+        mode=0o600,
+    )
+    return path
 
 
 def _validate_profile_name(profile: str) -> None:
@@ -189,7 +208,7 @@ def _resolve_default_profile_name(loaded: dict[str, object]) -> str:
 def _resolve_hts_id(loaded: dict[str, object]) -> str | None:
     """HTS 로그인 아이디. ``KIS_HTS_ID`` 환경변수 > ``credentials.json`` 최상위 ``"hts_id"`` 키.
     사용자당 하나라 프로필별이 아니라 최상위에서 한 번 읽는다(빈/공백은 미설정)."""
-    env = os.environ.get(_HTS_ID_ENV)
+    env = os.environ.get(_HTS_ID_ENV_VAR)
     if env is not None and env.strip():
         return env.strip()
     value = loaded.get(_HTS_ID_KEY)
@@ -321,20 +340,13 @@ class KISConfig:
         }
         if self.account is not None:
             entry["account"] = self.account
-
         directory = _config_dir_path(self.config_dir)
-        directory.mkdir(parents=True, exist_ok=True)
-        path = directory / "credentials.json"
-        data = _read_existing(path)
+        data = _read_existing(directory / "credentials.json")
         data[self.profile] = entry
-        atomic_write_bytes(
-            path, (json.dumps(_order_top_level(data), ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
-            mode=0o600,
-        )
-        return path
+        return _write_credentials(directory, data)
 
-    @classmethod
-    def set_default(cls, profile: str, *, config_dir: str | Path | None = None) -> Path:
+    @staticmethod
+    def set_default(profile: str, *, config_dir: str | Path | None = None) -> Path:
         """이름 없이 :class:`~kis_trader.client.KISClient` 를 열 때 여는 **기본 프로필**을 못박는다.
         ``credentials.json`` 최상위 ``"default_profile"`` 마커에 이름을 기록하고 그 경로를 돌려준다.
 
@@ -344,20 +356,32 @@ class KISConfig:
         다른 프로필은 보존하며, 파일은 소유자만 읽게 ``0600`` 으로 원자적으로 쓴다."""
         _validate_profile_name(profile)
         directory = _config_dir_path(config_dir)
-        path = directory / "credentials.json"
-        data = _read_existing(path)
+        data = _read_existing(directory / "credentials.json")
         if not isinstance(data.get(profile), dict):
             raise KISUsageError(
                 f"기본으로 지정할 프로필 {profile!r} 가 credentials.json 에 없다 -- "
                 "먼저 KISConfig(...).save() 로 저장하라."
             )
         data[_DEFAULT_MARKER_KEY] = profile
-        directory.mkdir(parents=True, exist_ok=True)
-        atomic_write_bytes(
-            path, (json.dumps(_order_top_level(data), ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
-            mode=0o600,
-        )
-        return path
+        return _write_credentials(directory, data)
+
+    @staticmethod
+    def set_hts_id(hts_id: str, *, config_dir: str | Path | None = None) -> Path:
+        """조건검색·관심종목 조회에 쓰는 **HTS 로그인 아이디**를 저장하고 그 경로를 돌려준다.
+
+        HTS 아이디는 사용자당 하나라 프로필별이 아니라 ``credentials.json`` 최상위 ``"hts_id"``
+        키에 한 번 기록한다(모든 프로필이 공유). 프로필과 무관한 공유 값이라 :meth:`set_default` 와
+        같은 최상위 메타 writer 다(프로필 섹션은 :meth:`save`). 이후
+        :class:`~kis_trader.client.KISClient` 조회에서 ``user_id`` 를 생략하면 이 값을 쓴다
+        (``KIS_HTS_ID`` 환경변수가 있으면 그쪽이 우선). 인증엔 쓰이지 않는다. 다른 프로필·마커는
+        보존하며, 파일은 소유자만 읽게 ``0600`` 으로 원자적으로 쓴다."""
+        resolved = hts_id.strip()
+        if not resolved:
+            raise KISUsageError("hts_id 는 비어 있을 수 없다.")
+        directory = _config_dir_path(config_dir)
+        data = _read_existing(directory / "credentials.json")
+        data[_HTS_ID_KEY] = resolved
+        return _write_credentials(directory, data)
 
 
 def _read_existing(path: Path) -> dict[str, object]:

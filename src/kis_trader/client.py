@@ -149,11 +149,14 @@ class KISClient:
         로 다운로더를 바꿀 수 있다(기본은 KIS 배포 서버).
 
         ``profile`` 이 어느 계좌 묶음으로 열지 정한다(사용자가 이름 붙이는 자유 프로필). 생략하면 기본
-        프로필을 연다 -- ``KIS_DEFAULT_PROFILE`` 환경변수 > ``credentials.json`` ``"default"`` 마커 >
-        첫 항목 > ``"main"``.
+        프로필을 연다 -- ``KIS_DEFAULT_PROFILE`` 환경변수 > ``credentials.json`` ``"default_profile"`` 마커
+        (:meth:`~kis_trader.config.KISConfig.set_default`) > 첫 항목 > ``"main"``.
         ``app_key``/``app_secret`` 을 생략하면 **그 프로필의 저장된 자격증명을 읽는다**(환경변수 ->
         ``~/.config/kis-trader/credentials.json``; :func:`~kis_trader.config.KISConfig.save` 로 저장). 즉
         설정만 해두면 ``KISClient(profile=...)`` 한 줄로 열린다. 앱키·시크릿을 직접 주면 파일을 읽지 않는다.
+        ``hts_id`` 는 조건검색·관심종목 조회의 기본 ``user_id``(HTS 로그인 아이디, 사용자당 하나;
+        인증엔 안 씀) -- 생략하면 최상위 저장분(:meth:`~kis_trader.config.KISConfig.set_hts_id`) 또는
+        ``KIS_HTS_ID`` 환경변수에서 읽는다(앱키·시크릿을 직접 준 세션은 인자로 준 값만 쓴다).
         ``environment`` (``"real"``/``"paper"``)는 프로필에 저장된 값을 쓰되, 직접 주면 그것으로 덮는다
         (앱키·시크릿을 직접 준 경우 미지정이면 실전 기본). ``config_dir`` 로 설정·토큰캐시 위치를 바꾼다
         (테스트/특수 위치). ``token_cache_dir`` 로 토큰 캐시만 따로 바꾼다(기본은 XDG
@@ -256,8 +259,9 @@ class KISClient:
     @property
     def hts_id(self) -> str | None:
         """세션의 HTS 로그인 아이디(없으면 ``None``). 조건검색·관심종목 조회의 기본 ``user_id``.
-        인증엔 안 쓰이며, ``credentials.json`` 최상위 ``hts_id``(사용자당 하나) 또는 ``KIS_HTS_ID``
-        환경변수에서 읽는다."""
+        인증엔 안 쓰인다. 프로필로 연 세션은 ``credentials.json`` 최상위 ``hts_id``(사용자당 하나)
+        또는 ``KIS_HTS_ID`` 환경변수에서 읽고, 앱키·시크릿을 직접 준 세션은 ``hts_id`` 인자로 준
+        값만 쓴다(파일·환경변수를 읽지 않는다)."""
         return self._hts_id
 
     @property

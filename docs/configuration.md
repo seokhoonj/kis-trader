@@ -192,16 +192,20 @@ IRP(`29`)는 세션이 주문을 자동으로 막고, DC가입자(`55`)는 세�
 
 ## credentials.json
 
-설정 파일 하나에 프로필별 객체를 담습니다. `KISConfig(...).save()` 가 아래 형식으로 기록하고
-(손 편집도 가능), 저장할 때 **파일 소유자만 읽을 수 있게 잠급니다**:
+설정 파일 하나에 공유 최상위 필드와 프로필별 객체를 함께 담습니다. `KISConfig(...).save()` 가 아래
+형식으로 기록하고(손 편집도 가능), 저장할 때 **파일 소유자만 읽을 수 있게 잠급니다**:
 
 ```json
 {
+  "hts_id":    "your_hts_id",
   "main":      {"app_key": "...", "app_secret": "...", "account": "12345678-01", "environment": "real"},
   "pension":   {"app_key": "...", "app_secret": "...", "account": "87654321-22", "environment": "real"},
   "paper":     {"app_key": "...", "app_secret": "...", "account": "50123456-01", "environment": "paper"}
 }
 ```
+
+최상위 `hts_id` 는 조건검색·관심종목 조회의 `user_id`(HTS 로그인 아이디)로, 사용자당 하나라 모든
+프로필이 공유합니다(인증엔 안 씀). `KISConfig.set_hts_id("your_hts_id")` 로 기록하거나 손 편집합니다.
 
 | OS | `credentials.json` 위치 | 잠금 |
 |---|---|---|

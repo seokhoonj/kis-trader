@@ -49,7 +49,7 @@ def test_saved_screens_and_results_map_and_route():
         _response([_stock_row()]),
     )
     screens = client.domestic.saved_screens("user")
-    stocks = client.domestic.saved_screen_stocks(screens[0].sequence, "user")
+    stocks = client.domestic.saved_screen_stocks(screens[0].sequence, user_id="user")
     assert isinstance(screens[0], SavedScreen)
     assert screens[0].condition_name == "저PER"
     assert isinstance(stocks[0], SavedScreenStock)
@@ -66,11 +66,13 @@ def test_saved_screens_and_results_map_and_route():
     ]
 
 
-@pytest.mark.parametrize("method,args", [("saved_screens", ("",)),
-                                          ("saved_screen_stocks", ("user", ""))])
-def test_saved_screen_queries_reject_blank_identifiers(method, args):
+@pytest.mark.parametrize("method,args,kwargs", [
+    ("saved_screens", ("",), {}),
+    ("saved_screen_stocks", ("user",), {"user_id": ""}),
+])
+def test_saved_screen_queries_reject_blank_identifiers(method, args, kwargs):
     with pytest.raises(KISUsageError):
-        getattr(_client().domestic, method)(*args)
+        getattr(_client().domestic, method)(*args, **kwargs)
 
 
 def test_saved_screen_queries_fail_closed_on_missing_output():
@@ -93,7 +95,7 @@ def test_watchlist_groups_and_stocks_map_and_route():
     })
     client = _client(groups_response, stocks_response)
     groups = client.domestic.watchlist_groups("user")
-    watchlist = client.domestic.watchlist(groups[0].group_code, "user")
+    watchlist = client.domestic.watchlist(groups[0].group_code, user_id="user")
     assert isinstance(groups[0], WatchlistGroup)
     assert groups[0].date == date(2024, 5, 10)
     assert groups[0].transmitted_at == time(9, 15, 0)
@@ -113,41 +115,47 @@ def test_watchlist_groups_and_stocks_map_and_route():
     assert client.transport.calls[1]["params"]["FID_ETC_CLS_CODE"] == "4"
 
 
-@pytest.mark.parametrize("method,args", [("watchlist_groups", ("",)),
-                                          ("watchlist", ("user", ""))])
-def test_watchlist_queries_reject_blank_identifiers(method, args):
+@pytest.mark.parametrize("method,args,kwargs", [
+    ("watchlist_groups", ("",), {}),
+    ("watchlist", ("user",), {"user_id": ""}),
+])
+def test_watchlist_queries_reject_blank_identifiers(method, args, kwargs):
     with pytest.raises(KISUsageError):
-        getattr(_client().domestic, method)(*args)
+        getattr(_client().domestic, method)(*args, **kwargs)
 
 
 @pytest.mark.parametrize("body", [{}, {"output1": {}, "output2": "bad"}])
 def test_watchlist_queries_fail_closed(body):
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     with pytest.raises(KISError):
-        _client(response).domestic.watchlist("001", "user")
+        _client(response).domestic.watchlist("001", user_id="user")
 
 
-@pytest.mark.parametrize("method,args", [("saved_screens", ("user",)),
-                                          ("saved_screen_stocks", ("user", "0"))])
-def test_psearch_empty_continuation_signal_returns_empty(method, args):
+@pytest.mark.parametrize("method,args,kwargs", [
+    ("saved_screens", ("user",), {}),
+    ("saved_screen_stocks", ("0",), {"user_id": "user"}),
+])
+def test_psearch_empty_continuation_signal_returns_empty(method, args, kwargs):
     # 저장된 조건/종목이 없으면 KIS는 rt_cd=0 대신 연속조회 안내(rt_cd=1, MCA05762)를
     # 준다. 오류로 올리지 말고 빈 목록으로 다뤄야 한다.
     signal = RawResponse(rt_cd="1", msg_cd="MCA05762",
                          msg1="조회가 계속 됩니다. (다음을 누르십시오.)", body={})
-    assert getattr(_client(signal).domestic, method)(*args) == []
+    assert getattr(_client(signal).domestic, method)(*args, **kwargs) == []
 
 
-@pytest.mark.parametrize("method,args", [("saved_screens", ("user",)),
-                                          ("saved_screen_stocks", ("user", "0"))])
-def test_psearch_other_error_still_raises(method, args):
+@pytest.mark.parametrize("method,args,kwargs", [
+    ("saved_screens", ("user",), {}),
+    ("saved_screen_stocks", ("0",), {"user_id": "user"}),
+])
+def test_psearch_other_error_still_raises(method, args, kwargs):
     # 다른 rt_cd!=0(잘못된 TR/권한 등)은 빈 목록이 아니라 그대로 올린다.
     err = RawResponse(rt_cd="1", msg_cd="EGW00123", msg1="권한 없음", body={})
     with pytest.raises(KISError):
-        getattr(_client(err).domestic, method)(*args)
+        getattr(_client(err).domestic, method)(*args, **kwargs)
 
 
-def test_saved_screens_defaults_user_id_from_profile_hts_id():
-    # 프로필에 hts_id 가 있으면 user_id 를 생략해도 그 값으로 조회한다.
+def test_saved_screens_defaults_user_id_from_session_hts_id():
+    # 세션에 hts_id(최상위 공유)가 있으면 user_id 를 생략해도 그 값으로 조회한다.
     fake = FakeTransport([_response([])])
     kis = KISClient(app_key="k", app_secret="s", hts_id="HTS123", transport=fake)
     kis.domestic.saved_screens()

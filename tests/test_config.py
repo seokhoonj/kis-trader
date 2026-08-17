@@ -436,3 +436,47 @@ def test_first_entry_skips_default_meta_key(tmp_path):
     (tmp_path / "credentials.json").write_text(
         '{"default_profile": "  ", "isa": {"app_key": "IK", "app_secret": "IS"}}', encoding="utf-8")
     assert resolve_credentials(config_dir=tmp_path).app_key == "IK"
+
+
+# --- 공유 HTS 아이디 (KISConfig.set_hts_id) -----------------------------------
+
+def test_set_hts_id_writes_top_level_and_resolves(tmp_path):
+    KISConfig(profile="main", app_key="MK", app_secret="MS", config_dir=tmp_path).save()
+    KISConfig.set_hts_id("MY_HTS", config_dir=tmp_path)
+    assert _creds(tmp_path)["hts_id"] == "MY_HTS"                       # 최상위에 기록
+    assert resolve_credentials("main", config_dir=tmp_path).hts_id == "MY_HTS"  # 모든 프로필 공유
+
+
+def test_set_hts_id_blank_rejected(tmp_path):
+    with pytest.raises(KISUsageError, match="비어"):
+        KISConfig.set_hts_id("   ", config_dir=tmp_path)
+
+
+def test_set_hts_id_env_var_overrides_file(tmp_path, monkeypatch):
+    KISConfig(profile="main", app_key="MK", app_secret="MS", config_dir=tmp_path).save()
+    KISConfig.set_hts_id("FILE_HTS", config_dir=tmp_path)
+    monkeypatch.setenv("KIS_HTS_ID", "ENV_HTS")                         # env 가 파일보다 우선
+    assert resolve_credentials("main", config_dir=tmp_path).hts_id == "ENV_HTS"
+
+
+def test_set_hts_id_preserves_profiles_and_orders_reserved_first(tmp_path):
+    KISConfig(profile="main", app_key="MK", app_secret="MS", config_dir=tmp_path).save()
+    KISConfig(profile="isa",  app_key="IK", app_secret="IS", config_dir=tmp_path).save()
+    KISConfig.set_default("isa", config_dir=tmp_path)
+    path = KISConfig.set_hts_id("MY_HTS", config_dir=tmp_path)
+    data = _creds(tmp_path)
+    assert data["main"]["app_key"] == "MK" and data["isa"]["app_key"] == "IK"   # 프로필 보존
+    assert list(data)[:2] == ["hts_id", "default_profile"]             # 예약 키가 맨 위, 정해진 순서
+    assert (path.stat().st_mode & 0o777) == 0o600                      # 소유자만
+
+
+def test_client_profile_session_picks_up_saved_hts_id(tmp_path):
+    KISConfig(profile="main", app_key="MK", app_secret="MS", config_dir=tmp_path).save()
+    KISConfig.set_hts_id("MY_HTS", config_dir=tmp_path)
+    kis = KISClient(profile="main", config_dir=tmp_path, transport=_FakeTransport())
+    assert kis.hts_id == "MY_HTS"
+
+
+def test_profile_named_hts_id_is_reserved():
+    with pytest.raises(KISUsageError, match="예약"):
+        KISConfig(profile="hts_id", app_key="k", app_secret="s")

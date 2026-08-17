@@ -260,35 +260,35 @@ class DomesticNamespace:
             self._c.transport, symbol=symbol, product_type=product_type
         )
 
-    def _user_id(self, user_id: str | None) -> str:
+    def _resolve_user_id(self, user_id: str | None) -> str:
         """조건검색·관심종목 조회의 ``user_id``(HTS 아이디)를 정한다. 명시하면 그대로, 없으면
-        세션 프로필의 ``hts_id`` 를 쓴다. 둘 다 없으면 :class:`KISUsageError`."""
+        세션의 ``hts_id``(사용자당 하나, 모든 프로필 공유)를 쓴다. 둘 다 없으면 :class:`KISUsageError`."""
         resolved = user_id if user_id is not None else self._c.hts_id
         if not resolved:
             raise KISUsageError(
-                "user_id(HTS 아이디)가 필요하다 -- 직접 넘기거나 프로필에 hts_id 를 저장하라 "
-                "(KISConfig(..., hts_id='...').save())."
+                "user_id(HTS 아이디)가 필요하다 -- 직접 넘기거나 세션의 hts_id 를 저장하라 "
+                "(KISConfig.set_hts_id('...'); 또는 credentials.json 최상위 \"hts_id\" / KIS_HTS_ID 환경변수)."
             )
         return resolved
 
     def saved_screens(self, user_id: str | None = None) -> list[SavedScreen]:
-        """HTS에 서버 저장된 종목검색 조건 목록. ``user_id`` 생략 시 프로필의 ``hts_id`` 사용."""
-        return saved_screen_api.fetch_saved_screens(self._c.transport, user_id=self._user_id(user_id))
+        """HTS에 서버 저장된 종목검색 조건 목록. ``user_id`` 생략 시 세션의 ``hts_id`` 사용."""
+        return saved_screen_api.fetch_saved_screens(self._c.transport, user_id=self._resolve_user_id(user_id))
 
-    def saved_screen_stocks(self, sequence: str, user_id: str | None = None) -> list[SavedScreenStock]:
-        """저장 조건 하나에 일치하는 종목 시세(최대 100건). ``user_id`` 생략 시 프로필의 ``hts_id``."""
+    def saved_screen_stocks(self, sequence: str, *, user_id: str | None = None) -> list[SavedScreenStock]:
+        """저장 조건 하나에 일치하는 종목 시세(최대 100건). ``user_id`` 생략 시 세션의 ``hts_id``."""
         return saved_screen_api.fetch_saved_screen_stocks(
-            self._c.transport, user_id=self._user_id(user_id), sequence=sequence
+            self._c.transport, user_id=self._resolve_user_id(user_id), sequence=sequence
         )
 
     def watchlist_groups(self, user_id: str | None = None) -> list[WatchlistGroup]:
-        """HTS 관심종목 그룹 목록. ``user_id`` 생략 시 프로필의 ``hts_id`` 사용."""
-        return saved_screen_api.fetch_watchlist_groups(self._c.transport, user_id=self._user_id(user_id))
+        """HTS 관심종목 그룹 목록. ``user_id`` 생략 시 세션의 ``hts_id`` 사용."""
+        return saved_screen_api.fetch_watchlist_groups(self._c.transport, user_id=self._resolve_user_id(user_id))
 
-    def watchlist(self, group_code: str, user_id: str | None = None) -> Watchlist:
-        """HTS 관심종목 그룹 하나의 요약과 구성 종목(최대 30개). ``user_id`` 생략 시 프로필의 ``hts_id``."""
+    def watchlist(self, group_code: str, *, user_id: str | None = None) -> Watchlist:
+        """HTS 관심종목 그룹 하나의 요약과 구성 종목(최대 30개). ``user_id`` 생략 시 세션의 ``hts_id``."""
         return saved_screen_api.fetch_watchlist(
-            self._c.transport, user_id=self._user_id(user_id), group_code=group_code
+            self._c.transport, user_id=self._resolve_user_id(user_id), group_code=group_code
         )
 
     # -- 하위 질의 네임스페이스 --
