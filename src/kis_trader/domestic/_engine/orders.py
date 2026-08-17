@@ -28,7 +28,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 
 from ..._internal._wire import decimal_or_zero, format_wire_decimal
 from ...errors import (
@@ -231,7 +231,10 @@ def reconcile(
         raise KISUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
         )
-    fingerprint = cast(ImmediateOrderFingerprint, fingerprint)  # 즉시주문 reconcile 경로
+    if not isinstance(fingerprint, ImmediateOrderFingerprint):  # 즉시주문 reconcile 경로
+        raise KISError(
+            f"client_order_id {client_order_id!r} 의 지문이 즉시주문이 아니다(내부 상태 불일치)."
+        )
     try:
         rows = _fetch_daily_orders(transport, fingerprint.symbol, cano=cano,
                                    product_code=product_code, environment=environment)

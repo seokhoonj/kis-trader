@@ -20,7 +20,7 @@ from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass
 from typing import Protocol, Self, cast
 
-from ..errors import KISUsageError
+from ..errors import KISUsageError, RealtimeError
 from . import _registry
 from ._protocol import (
     CustomerType,
@@ -40,7 +40,7 @@ class WebSocketLike(Protocol):
     async def send(self, message: str) -> None: ...
     async def pong(self, data: str) -> None: ...
     async def close(self) -> None: ...
-    def __aiter__(self) -> AsyncIterator[str]: ...
+    def __aiter__(self) -> AsyncIterator[str | bytes]: ...
 
 
 #: ``connect(url) -> ws`` -- ws 는 :class:`WebSocketLike` 를 만족하는 연결 객체.
@@ -70,7 +70,7 @@ async def _default_connector(url: str) -> WebSocketLike:
             "'websockets' 를 import 할 수 없습니다(기본 의존성이어야 함): pip install kis-trader"
         ) from exc
     # 공식 KIS 샘플과 동일하게 라이브러리 기본값으로 연결(기본 open_timeout 10s 가 무한대기 방지).
-    # KIS 실시간은 텍스트 프레임만 보낸다 -- WebSocketLike 는 str 스트림으로 좁혀 계약한다.
+    # 실 websockets 연결은 구조적으로 WebSocketLike 를 만족한다(send/pong/close/__aiter__).
     return cast(WebSocketLike, await websockets.connect(url))
 
 
@@ -156,11 +156,16 @@ class RealtimeConnection:
     async def _messages(self) -> AsyncIterator[RealtimeMessage]:
         connection_closed = _connection_closed_errors()
         idle_backoff = 1.0
-        assert self._ws is not None  # __aenter__ 가 연결을 채운 뒤에만 호출된다
+        if self._ws is None:  # __aenter__ 가 연결을 채운 뒤에만 호출된다(-O 에서도 지켜져야 함)
+            raise RealtimeError("연결이 열리기 전에 메시지 루프가 시작됐다(내부 오류).")
         while True:
             delivered = False
             try:
                 async for raw in self._ws:
+                    if isinstance(raw, bytes):
+                        # KIS 실시간은 텍스트 프레임만 쓴다 -- 비-str 프레임은 계약상 드롭한다.
+                        _logger.warning("drop non-text frame (%d bytes)", len(raw))
+                        continue
                     async for message in self._handle(raw):
                         delivered = True
                         yield message

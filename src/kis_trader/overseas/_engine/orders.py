@@ -15,7 +15,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import datetime, time, timedelta
 from decimal import Decimal, InvalidOperation
-from typing import Any, cast
+from typing import Any
 
 from ..._internal._datetime import _KST
 from ..._internal._response import _fetch_paginated_rows
@@ -284,7 +284,10 @@ def reconcile(
         raise KISUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
         )
-    fingerprint = cast(ImmediateOrderFingerprint, fingerprint)  # 즉시주문(정규/오버나이트) reconcile 경로
+    if not isinstance(fingerprint, ImmediateOrderFingerprint):  # 즉시주문(정규/오버나이트) reconcile 경로
+        raise KISError(
+            f"client_order_id {client_order_id!r} 의 지문이 즉시주문이 아니다(내부 상태 불일치)."
+        )
     if fingerprint.session == "overnight":
         # 미국 오버나이트 거래 체결은 정규 체결내역(inquire-ccnl)에 담기지 않으므로, 여기서 단일 매칭되는 행은
         # 반드시 '정규 세션' 주문이다 -> 주간 주문을 그 행으로 확정하면 오확정이다. 자동 확정하지 않고

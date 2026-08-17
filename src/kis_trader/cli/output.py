@@ -12,10 +12,17 @@ import unicodedata
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Literal, cast
+from typing import Any, Literal, Protocol, cast
 
 #: KIS 데이터는 KST(+09:00) 고정 오프셋으로 온다 -- 사람용 표에선 이를 "KST" 라벨로 보인다.
 _KST_OFFSET = timedelta(hours=9)
+
+
+class _MoneyLike(Protocol):
+    """``amount``/``currency`` 필드만 갖는 소형 값객체(예: ``Money``)의 구조적 계약."""
+
+    amount: object
+    currency: object
 
 
 def _tz_label(value: datetime) -> str:
@@ -83,7 +90,7 @@ def _cell(value: Any) -> str:
         # Money 같은 소형 값객체는 "amount currency" 로, 그 외는 compact JSON.
         fields = [f.name for f in dataclasses.fields(value) if not f.name.startswith("_")]
         if fields == ["amount", "currency"]:
-            money = cast(Any, value)  # 위 필드 검사로 amount/currency 존재를 확인한 소형 값객체
+            money = cast(_MoneyLike, value)  # 위 필드 검사로 amount/currency 존재를 확인한 소형 값객체
             return f"{money.amount:,} {money.currency}"
         return json.dumps(to_jsonable(value), ensure_ascii=False, separators=(",", ":"))
     return json.dumps(to_jsonable(value), ensure_ascii=False, separators=(",", ":"))

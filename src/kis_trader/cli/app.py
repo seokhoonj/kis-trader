@@ -79,8 +79,10 @@ def build_parser() -> argparse.ArgumentParser:
     groups = parser.add_subparsers(dest="group", required=True)
 
     def leaf(subparsers: Any, name: str, **kw: Any) -> argparse.ArgumentParser:
-        sub: argparse.ArgumentParser = subparsers.add_parser(name, parents=[common], **kw)
-        return sub
+        subcommand_parser: argparse.ArgumentParser = subparsers.add_parser(
+            name, parents=[common], **kw
+        )
+        return subcommand_parser
 
     # kis stock quote|bars|book|trades|status
     stock_p = groups.add_parser("stock", help="종목 시세")

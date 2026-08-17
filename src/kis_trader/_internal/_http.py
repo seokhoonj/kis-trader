@@ -8,10 +8,13 @@ from __future__ import annotations
 
 import time
 from collections.abc import Callable, Mapping
-from typing import Any, Protocol
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
-from ..errors import KISAuthError, KISError, KISRateLimitError
+from ..errors import KISAuthError, KISError, KISRateLimitError, _KISErrorKwargs
 from ..transport import Environment, RawResponse, TransportTimeout
+
+if TYPE_CHECKING:
+    from .._literals import JSONObject
 from ._auth import TokenManager
 from ._endpoints import base_url
 from ._ratelimit import SlidingWindowRateLimiter
@@ -179,12 +182,12 @@ class RequestsTransport:
 
         # 에러 응답도 KIS 봉투(rt_cd/msg_cd/msg1)를 실어 올려 호출자가 프로그램으로 분기할 수 있게 한다.
         # (401/429 EGW 응답도 대개 이 3필드를 담고 있다.) 봉투를 실는 건 경계(transport)의 책임이다.
-        envelope: dict[str, Any] = (
+        envelope: _KISErrorKwargs = (
             {
                 "rt_cd": str(payload.get("rt_cd", "")) or None,
                 "msg_cd": str(payload.get("msg_cd", "")) or None,
                 "msg1": str(payload.get("msg1", "")) or None,
-                "raw": payload,
+                "raw": cast("JSONObject", payload),
             }
             if isinstance(payload, Mapping)
             else {}

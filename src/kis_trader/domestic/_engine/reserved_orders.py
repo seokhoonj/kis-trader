@@ -287,7 +287,10 @@ def reconcile_reserved_order(
         raise KISUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
         )
-    fingerprint = cast(ReservedOrderFingerprint, fingerprint)  # 예약주문 reconcile 경로
+    if not isinstance(fingerprint, ReservedOrderFingerprint):  # 예약주문 reconcile 경로
+        raise KISError(
+            f"client_order_id {client_order_id!r} 의 지문이 예약주문이 아니다(내부 상태 불일치)."
+        )
     today = datetime.now(_KST).date()
     start = f"{today - timedelta(days=_RECONCILE_LOOKBACK_DAYS):%Y%m%d}"
     end = f"{today + timedelta(days=_RECONCILE_FORWARD_DAYS):%Y%m%d}"

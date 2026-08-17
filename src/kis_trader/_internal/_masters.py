@@ -133,8 +133,8 @@ def urlopen_fetch(url: str) -> bytes:
 
     # URL 은 고정 KIS 호스트 + 검증된 시장코드 템플릿이라 사용자 입력이 섞이지 않는다.
     with urllib.request.urlopen(url, timeout=30) as resp:
-        data: bytes = resp.read()
-        return data
+        response_bytes: bytes = resp.read()
+        return response_bytes
 
 
 class MasterIndex:
@@ -384,13 +384,13 @@ def load_domestic_index(
     now: float | None = None,
 ) -> DomesticListingIndex:
     """KOSPI+KOSDAQ(기본) 마스터를 캐시 우선 로드해 합친 :class:`DomesticListingIndex` 를 만든다."""
-    load_markets = (
+    markets_to_load = (
         cast("list[DomesticMarket]", list(_DOMESTIC_MASTER_FILE))  # dict 키가 곧 DomesticMarket 리터럴
         if markets is None
         else list(markets)
     )
     listings: list[DomesticListing] = []
-    for market in load_markets:
+    for market in markets_to_load:
         listings.extend(
             load_domestic_master(
                 market, cache_dir=cache_dir, max_age=max_age, fetch=fetch, now=now

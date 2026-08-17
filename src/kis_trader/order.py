@@ -210,24 +210,24 @@ def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
         raise ValueError(f"지문 레코드 슬롯이 과다하다({_FINGERPRINT_SLOTS} 초과): {row!r}")
     symbol, side, order_type, quantity, limit_price, stop_slot, tif, exchange = slots[:8]
     credit_type, loan_date, session, division, board = slots[8:_FINGERPRINT_SLOTS]
-    # 저장분은 전부 str 로 복원된다 -- 생성 시 검증된 값이므로 도메인 Literal 로 좁힌다.
-    side_lit = cast(Side, side)
-    order_type_lit = cast(OrderType, order_type)
-    tif_lit = cast(TimeInForce, tif)
+    # 저장분은 전부 str 로 복원된다 -- 생성 시 검증된 값이므로 도메인 Literal 로 제자리에서 좁힌다.
+    side = cast(Side, side)
+    order_type = cast(OrderType, order_type)
+    tif = cast(TimeInForce, tif)
     if exchange.startswith(_ACTION_EXCHANGE_PREFIX):
         return ChangeActionFingerprint(
-            original_client_order_id=symbol, side=side_lit, order_type=order_type_lit,
+            original_client_order_id=symbol, side=side, order_type=order_type,
             quantity=quantity, limit_price=limit_price, action=cast(ChangeAction, stop_slot),
-            time_in_force=tif_lit, exchange=exchange[len(_ACTION_EXCHANGE_PREFIX):],
+            time_in_force=tif, exchange=exchange[len(_ACTION_EXCHANGE_PREFIX):],
         )
     if exchange in _RESERVED_EXCHANGES:
         return ReservedOrderFingerprint(
-            symbol=symbol, side=side_lit, order_type=order_type_lit, quantity=quantity,
+            symbol=symbol, side=side, order_type=order_type, quantity=quantity,
             limit_price=limit_price, end_date=stop_slot, exchange=exchange,
         )
     return ImmediateOrderFingerprint(
-        symbol=symbol, side=side_lit, order_type=order_type_lit, quantity=quantity,
-        limit_price=limit_price, stop_price=stop_slot, time_in_force=tif_lit, exchange=exchange,
+        symbol=symbol, side=side, order_type=order_type, quantity=quantity,
+        limit_price=limit_price, stop_price=stop_slot, time_in_force=tif, exchange=exchange,
         credit_type=credit_type, loan_date=loan_date, session=cast(Session, session),
         division=division, board=board,
     )

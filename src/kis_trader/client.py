@@ -464,6 +464,8 @@ _API_UNAVAILABLE_PRODUCT_CODES = frozenset({"55"})
 _READ_ONLY_PRODUCT_CODES = frozenset({"29"})
 
 
+# 반환은 (계좌, 상품코드) 또는 (None, None) 이지만, 튜플-언팩 대입(self._cano, self._product_code)
+# 에서 mypy 가 상관 유니온을 좁히지 못해 var-annotated 를 요구한다 -- 두 자리 유니온으로 편다.
 def _split_optional_account(account: str | None) -> tuple[str | None, str | None]:
     """``"12345678-01"`` -> (계좌번호 ``"12345678"``, 상품코드 ``"01"``). ``None`` 은 (None, None).
     계좌를 준 경우의 형식 검증은 저장 경로와 같은 :func:`~kis_trader.config._split_account` 를 쓴다
