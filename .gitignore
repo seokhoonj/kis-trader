@@ -27,3 +27,5 @@ docs/_site/
 docs/.quarto/
 docs/objects.json
 docs/reference/
+
+.superpowers/
