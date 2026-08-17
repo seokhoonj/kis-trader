@@ -34,9 +34,15 @@ _WATCHLIST_STOCKS_PATH = "/uapi/domestic-stock/v1/quotations/intstock-stocklist-
 _WATCHLIST_STOCKS_TR = "HHKCM113004C6"
 
 # psearch(조건검색) 목록/결과 조회에서 넘겨줄 조건/종목이 없을 때 KIS는 성공(rt_cd=0,
-# 빈 output2) 대신 이 연속조회 안내(rt_cd=1)를 돌려준다. 뒤이을 데이터가 없다는 뜻이므로
-# 오류로 올리지 않고 빈 목록으로 다룬다. 다른 rt_cd!=0(잘못된 TR/권한 등)은 그대로 올린다.
+# 빈 output2) 대신 이 연속조회 안내(rt_cd=1, 이 msg_cd)를 돌려준다. 뒤이을 데이터가 없다는
+# 뜻이므로 오류로 올리지 않고 빈 목록으로 다룬다. 다른 rt_cd!=0(잘못된 TR/권한 등)은 그대로 올린다.
 _PSEARCH_EMPTY_MSG_CD = "MCA05762"
+
+
+def _is_psearch_empty(resp: RawResponse) -> bool:
+    """psearch 조회의 "저장분 없음" 빈신호인가 -- 실패 봉투(rt_cd!=0)이면서 이 msg_cd 일 때만.
+    rt_cd 까지 확인해, 혹시 같은 msg_cd 가 데이터(rt_cd=0)와 함께 오는 경우를 삼키지 않는다."""
+    return not resp.ok and resp.msg_cd == _PSEARCH_EMPTY_MSG_CD
 
 
 def _required(value: str, name: str) -> str:
@@ -53,7 +59,7 @@ def fetch_saved_screens(transport: Transport, *, user_id: str) -> list[SavedScre
         method="GET", path=_SCREENS_PATH, tr_id=_SCREENS_TR,
         params={"user_id": user_id}, idempotent=True,
     )
-    if resp.msg_cd == _PSEARCH_EMPTY_MSG_CD:
+    if _is_psearch_empty(resp):
         return []
     _raise_if_error(resp)
     rows = resp.body.get("output2")
@@ -75,7 +81,7 @@ def fetch_saved_screen_stocks(
         method="GET", path=_RESULTS_PATH, tr_id=_RESULTS_TR,
         params={"user_id": user_id, "seq": sequence}, idempotent=True,
     )
-    if resp.msg_cd == _PSEARCH_EMPTY_MSG_CD:
+    if _is_psearch_empty(resp):
         return []
     _raise_if_error(resp)
     rows = resp.body.get("output2")
