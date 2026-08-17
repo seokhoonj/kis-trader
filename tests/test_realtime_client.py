@@ -190,6 +190,33 @@ def test_subscribe_from_callback_does_not_deadlock():
     assert client._running is False
 
 
+def test_stop_does_not_reraise_cancelled_stop_coroutine(monkeypatch):
+    # 종료 경합: _main 이 자연 종료하면 _run 의 정리 코드가 stop() 이 제출한 _conn.stop() 태스크를
+    # pending 으로 보고 cancel 한다 -- 그러면 future.result() 가 concurrent.futures.CancelledError 를
+    # 던진다. 이는 정상 종료 경합이므로 stop() 이 다시 던지지 않아야 한다(3.12 CI flaky 회귀).
+    import concurrent.futures
+
+    from kis_trader.realtime import client as client_module
+
+    ws = OpenWebSocket()
+    client = _open_client(ws)
+    client.start()
+
+    class _CancelledFuture:
+        def result(self, timeout=None):
+            raise concurrent.futures.CancelledError()
+
+    def _fake_submit(coro, loop):
+        coro.close()                                    # 실제 _conn.stop() 은 건너뛴다("never awaited" 방지)
+        loop.call_soon_threadsafe(ws._closed.set)       # 대신 소켓을 닫아 백그라운드 스레드가 종료되게
+        return _CancelledFuture()
+
+    monkeypatch.setattr(client_module.asyncio, "run_coroutine_threadsafe", _fake_submit)
+
+    client.stop()                                       # CancelledError 를 삼켜야 한다(재던지기 금지)
+    assert client._running is False
+
+
 def test_enqueue_drops_oldest_when_queue_full():
     # 상한 도달 시 가장 오래된 틱을 버리고 최신을 넣는다(콜백 전용/느린 소비자 메모리 누수 방지).
     client = RealtimeClient("KEY", "ws://x")

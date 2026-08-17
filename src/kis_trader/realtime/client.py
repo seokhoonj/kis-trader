@@ -17,6 +17,7 @@ import queue
 import threading
 from collections import defaultdict
 from collections.abc import Callable, Coroutine, Iterator
+from concurrent.futures import CancelledError as FutureCancelledError
 from typing import Any, Self
 
 from ..errors import RealtimeError
@@ -118,8 +119,11 @@ class RealtimeClient:
             except TimeoutError:
                 # ws.close() 등이 멎음 -- 조용히 성공으로 보고하지 않고 강제 종료로 넘어간다.
                 _logger.warning("realtime stop() 이 %ss 내에 끝나지 않아 강제 종료합니다", timeout)
-            except RuntimeError:
-                pass  # 루프가 그 사이 종료됨 -- 정상 종료 경합
+            except (RuntimeError, FutureCancelledError):
+                # 정상 종료 경합 -- 루프가 그 사이 종료됐거나(RuntimeError), _run 의 종료 정리가
+                # 방금 제출한 stop() 코루틴을 pending 태스크로서 취소했다(FutureCancelledError).
+                # 어느 쪽이든 연결은 _main 의 finally 가 이미 닫으므로 이 요청은 중복이라 조용히 넘어간다.
+                pass
             except Exception as exc:
                 stop_error = exc
                 _logger.warning("realtime 연결 stop() 이 예외를 던졌습니다", exc_info=True)
