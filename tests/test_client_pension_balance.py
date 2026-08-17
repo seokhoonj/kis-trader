@@ -128,11 +128,12 @@ def test_pension_balance_non_list_output_fails_closed():
 
 
 def test_pension_balance_page_cap_fails_closed(monkeypatch):
-    # 연속조회가 끝나지 않으면 상한에서 부분 결과로 자르지 않고 fail-closed(부분 잔고 오인 방지).
+    # 연속조회가 (연속키를 진전시키며) 끝나지 않으면 상한에서 부분 결과로 자르지 않고 fail-closed.
     from kis_trader.pension import _engine
     monkeypatch.setattr(_engine, "_MAX_PAGES", 2)
-    endless = _resp2([_BAL_ROW], _BAL_SUMMARY, nk="MORE", tr_cont="M")  # 항상 다음 페이지 있음
-    fake = FakeTransport(pages=[endless, endless, endless])
+    # 매 페이지 연속키를 바꿔 진짜 다음 페이지가 계속 있는 상황을 흉내낸다(같은 키 반복은 종료로 본다).
+    pages = [_resp2([_BAL_ROW], _BAL_SUMMARY, nk=f"MORE{i}", tr_cont="M") for i in range(1, 4)]
+    fake = FakeTransport(pages=pages)
     with pytest.raises(KISError, match="페이지 상한"):
         _client(fake).pension.balance()
 

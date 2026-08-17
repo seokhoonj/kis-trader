@@ -190,7 +190,12 @@ def _walk_holdings(
         rows.extend(page)
         if resp.tr_cont not in ("F", "M"):
             break
-        ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
+        next_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
+        # KIS 가 tr_cont 를 계속 F/M 로 주면서 연속키를 진전시키지 않는(같은 키 반복, 0행) 경우가
+        # 있다(예: 주문내역 조회의 "^^" 종료 센티널) -- 진전이 없으면 종료해 무한 루프를 막는다.
+        if not next_nk or next_nk == ctx_nk:
+            break
+        ctx_nk = next_nk
         ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
         tr_cont = "N"
     else:
