@@ -487,9 +487,9 @@ def fetch_trades(transport: Transport, *, symbol: str, exchange: str) -> list[Tr
         method="GET", path=_TRADES_PATH, tr_id=_TRADES_TR, params=params, idempotent=True
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output1")
+    rows = resp.body.get("output2")     # 체결 행은 output2, output1 은 메타(레코드수 등)
     if not isinstance(rows, list):     # 성공 응답인데 배열 아님 -> fail-closed
-        raise _missing_block_error("output1", resp)
+        raise _missing_block_error("output2", resp)
     return _parse_trades(rows, symbol=symbol, today=_today_kst())
 
 

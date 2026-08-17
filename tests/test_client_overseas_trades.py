@@ -23,7 +23,7 @@ def _trade_row(khms, last, evol, diff, sign, rate):
 
 
 def _resp(rows):
-    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output1": rows})
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output2": rows})
 
 
 class FakeTransport:
