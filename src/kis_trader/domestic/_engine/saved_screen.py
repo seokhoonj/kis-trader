@@ -33,6 +33,11 @@ _WATCHLIST_GROUPS_TR = "HHKCM113004C7"
 _WATCHLIST_STOCKS_PATH = "/uapi/domestic-stock/v1/quotations/intstock-stocklist-by-group"
 _WATCHLIST_STOCKS_TR = "HHKCM113004C6"
 
+# psearch(조건검색) 목록/결과 조회에서 넘겨줄 조건/종목이 없을 때 KIS는 성공(rt_cd=0,
+# 빈 output2) 대신 이 연속조회 안내(rt_cd=1)를 돌려준다. 뒤이을 데이터가 없다는 뜻이므로
+# 오류로 올리지 않고 빈 목록으로 다룬다. 다른 rt_cd!=0(잘못된 TR/권한 등)은 그대로 올린다.
+_PSEARCH_EMPTY_MSG_CD = "MCA05762"
+
 
 def _required(value: str, name: str) -> str:
     result = value.strip()
@@ -48,6 +53,8 @@ def fetch_saved_screens(transport: Transport, *, user_id: str) -> list[SavedScre
         method="GET", path=_SCREENS_PATH, tr_id=_SCREENS_TR,
         params={"user_id": user_id}, idempotent=True,
     )
+    if resp.msg_cd == _PSEARCH_EMPTY_MSG_CD:
+        return []
     _raise_if_error(resp)
     rows = resp.body.get("output2")
     if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
@@ -68,6 +75,8 @@ def fetch_saved_screen_stocks(
         method="GET", path=_RESULTS_PATH, tr_id=_RESULTS_TR,
         params={"user_id": user_id, "seq": sequence}, idempotent=True,
     )
+    if resp.msg_cd == _PSEARCH_EMPTY_MSG_CD:
+        return []
     _raise_if_error(resp)
     rows = resp.body.get("output2")
     if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):

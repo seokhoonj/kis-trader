@@ -127,6 +127,25 @@ def test_watchlist_queries_fail_closed(body):
         _client(response).domestic.watchlist("001", "user")
 
 
+@pytest.mark.parametrize("method,args", [("saved_screens", ("user",)),
+                                          ("saved_screen_stocks", ("user", "0"))])
+def test_psearch_empty_continuation_signal_returns_empty(method, args):
+    # 저장된 조건/종목이 없으면 KIS는 rt_cd=0 대신 연속조회 안내(rt_cd=1, MCA05762)를
+    # 준다. 오류로 올리지 말고 빈 목록으로 다뤄야 한다.
+    signal = RawResponse(rt_cd="1", msg_cd="MCA05762",
+                         msg1="조회가 계속 됩니다. (다음을 누르십시오.)", body={})
+    assert getattr(_client(signal).domestic, method)(*args) == []
+
+
+@pytest.mark.parametrize("method,args", [("saved_screens", ("user",)),
+                                          ("saved_screen_stocks", ("user", "0"))])
+def test_psearch_other_error_still_raises(method, args):
+    # 다른 rt_cd!=0(잘못된 TR/권한 등)은 빈 목록이 아니라 그대로 올린다.
+    err = RawResponse(rt_cd="1", msg_cd="EGW00123", msg1="권한 없음", body={})
+    with pytest.raises(KISError):
+        getattr(_client(err).domestic, method)(*args)
+
+
 def test_saved_screens_defaults_user_id_from_profile_hts_id():
     # 프로필에 hts_id 가 있으면 user_id 를 생략해도 그 값으로 조회한다.
     fake = FakeTransport([_response([])])
