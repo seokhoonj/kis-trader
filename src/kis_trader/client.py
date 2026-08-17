@@ -358,6 +358,9 @@ class KISClient:
                 if isinstance(fingerprint, ImmediateOrderFingerprint) and fingerprint.session == "overnight"
                 else overseas_orders_engine.make_change_request
             )
+        elif derivative_orders_engine.is_derivative_exchange(fingerprint.exchange):
+            # 국내 파생(XKFE) 정정·취소는 파생 전용 와이어(order-rvsecncl, ORGN_ODNO only)로 조립한다.
+            builder = derivative_orders_engine.make_change_request
         return orders_engine.submit_change(
             self._transport, self._store,
             original_client_order_id=client_order_id,

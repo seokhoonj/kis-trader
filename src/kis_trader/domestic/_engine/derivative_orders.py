@@ -25,7 +25,13 @@ from typing import TYPE_CHECKING, Any
 from ..._internal._datetime import _KST
 from ..._internal._wire import format_wire_decimal
 from ...errors import KISError, KISUsageError, OrderError, OrderTimeoutError
-from ...order import _DERIVATIVE_EXCHANGE, ImmediateOrderFingerprint, Order, WireRequest
+from ...order import (
+    _DERIVATIVE_EXCHANGE,
+    ChangeAction,
+    ImmediateOrderFingerprint,
+    Order,
+    WireRequest,
+)
 from ...report import ExecutionReport, OrderStatus
 from ...transport import TransportTimeout
 
@@ -43,6 +49,13 @@ _PLACE_TR: dict[str, dict[str, str]] = {
 
 _ACCOUNT_ORD_PROCESS = "02"                  # ORD_PRCS_DVSN_CD 고정(주문전송)
 _SIDE_CODE = {"sell": "01", "buy": "02"}     # SLL_BUY_DVSN_CD (매수/매도 동일 TR)
+
+_CHANGE_PATH = "/uapi/domestic-futureoption/v1/trading/order-rvsecncl"
+#: (session, environment) -> tr_id. 주간(정규)만 -- 야간(STTN1103U, 잔량 재지정)은 Task 7 이라
+#: 여기 없다. 야간 지문이 주간 빌더로 새는 것을 :func:`make_change_request` 가 fail-closed 로 막는다.
+_CHANGE_TR: dict[str, dict[str, str]] = {
+    "regular": {"real": "TTTO1103U", "paper": "VTTO1103U"},
+}
 
 #: (base, time_in_force) -> (ORD_DVSN_CD, NMPR_TYPE_CD, KRX_NMPR_CNDT_CD).
 #: base = ``division`` 있으면 그것, 없으면 ``order_type``. immediate_limit=최유리(04),
@@ -123,6 +136,71 @@ def make_order_request(
         "ORD_DVSN_CD": ord_dvsn,
     }
     return WireRequest("POST", _PLACE_PATH, tr_id, body)
+
+
+def make_change_request(
+    *, original_report: ExecutionReport, original_fingerprint: ImmediateOrderFingerprint,
+    action: ChangeAction, quantity: Decimal, limit_price: Decimal | None,
+    cano: str, product_code: str, environment: Environment,
+) -> WireRequest:
+    """국내 파생(XKFE) 주간 정정·취소 요청 와이어(order-rvsecncl TTTO1103U/VTTO1103U) -- 안전
+    코어(:func:`~kis_trader.domestic._engine.orders.submit_change`)에 ``build_request`` 로 주입한다.
+
+    파생은 원주문 지목에 ``ORGN_ODNO`` 만 쓴다 -- 국내주식의 ``KRX_FWDG_ORD_ORGNO``(조직번호) 계약을
+    재사용하지 않는다. 가격형상 규칙은 지정가 전용 자산의 공유 헬퍼(``reject_bad_change_price_shape``)가
+    아니라 파생 전용 규칙을 인라인으로 강제한다: 취소는 단가·수량 확정 고정값(전량취소 ``ORD_QTY="0"``),
+    지정가 정정은 새 단가(>0)를 요구하고 원지문에서 세 주문구분 코드를 :func:`_resolve_fo_codes` 로
+    산출한다. 주간 코어는 지정가 정정만 지원하므로 원주문이 시장가/최유리면 fail-closed(취소 후 재주문
+    유도). 야간(STTN1103U, 잔량 재지정)은 Task 7 -- 야간 지문은 여기서 막는다."""
+    session = "night" if original_fingerprint.session == "night" else "regular"
+    if session == "night":
+        # 야간 정정취소(STTN1103U)는 잔량 재지정 계약이 달라 별도 경로(Task 7)다. 주간 빌더로
+        # 조용히 흘리면 잘못된 TR/수량으로 나가므로 fail-closed 로 올린다.
+        raise KISUsageError("파생 야간(STTN) 정정·취소는 별도 경로다 -- 주간 빌더로 처리할 수 없다.")
+    try:
+        tr_id = _CHANGE_TR[session][environment]
+    except KeyError:
+        raise KISUsageError(
+            f"파생 정정·취소 TR 을 찾지 못했다: session={session} / {environment}."
+        ) from None
+    origin_odno = str(original_report.order_id)
+    if action == "cancel":
+        # 취소 확정 고정값(주간 전량취소): 단가·호가유형·체결조건을 원주문과 무관하게 고정하고
+        # ORD_QTY="0"(전량), RMN_QTY_YN="Y". limit_price 는 무시하고 UNIT_PRICE=0.
+        ord_dvsn, nmpr_type, krx_cndt, unit_price, ord_qty, rmn_qty = (
+            "01", "01", "0", "0", "0", "Y"
+        )
+        rvse_cncl = "02"
+    else:  # modify -- 주간 코어는 지정가 정정만
+        base = original_fingerprint.division or original_fingerprint.order_type
+        if original_fingerprint.order_type == "market" or base in ("market", "immediate_limit"):
+            raise KISUsageError("시장가/최유리 정정은 미지원 -- 취소 후 재주문")
+        if limit_price is None or limit_price <= 0:
+            raise KISUsageError(f"파생 지정가 정정은 새 지정가(>0)가 필요하다: {limit_price!r}")
+        ord_dvsn, nmpr_type, krx_cndt = _resolve_fo_codes(
+            order_type=original_fingerprint.order_type,
+            division=original_fingerprint.division,
+            time_in_force=original_fingerprint.time_in_force,
+        )
+        unit_price = format_wire_decimal(limit_price)
+        ord_qty = format_wire_decimal(quantity)
+        rmn_qty = "N"                              # 일부(지정 수량)
+        rvse_cncl = "01"
+    body = {
+        "ORD_PRCS_DVSN_CD": _ACCOUNT_ORD_PROCESS,
+        "CANO": cano,
+        "ACNT_PRDT_CD": product_code,
+        "RVSE_CNCL_DVSN_CD": rvse_cncl,
+        "ORGN_ODNO": origin_odno,
+        "ORD_QTY": ord_qty,
+        "UNIT_PRICE": unit_price,
+        "NMPR_TYPE_CD": nmpr_type,
+        "KRX_NMPR_CNDT_CD": krx_cndt,
+        "RMN_QTY_YN": rmn_qty,
+        "FUOP_ITEM_DVSN_CD": "",                   # 주간은 공란(야간은 Task 7)
+        "ORD_DVSN_CD": ord_dvsn,
+    }
+    return WireRequest("POST", _CHANGE_PATH, tr_id, body)
 
 
 def _extract_fo_output(body: Mapping[str, Any]) -> Mapping[str, Any]:
