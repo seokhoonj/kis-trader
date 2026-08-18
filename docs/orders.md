@@ -118,7 +118,7 @@ kis.overseas.stock("00700").reserve_buy(quantity=100, limit_price=350) # 홍콩 
 국내 예약주문 조회·정정·취소(순번 `sequence` 로 지목):
 
 ```python
-a = kis.domestic.account
+a = kis.account.domestic
 
 a.reserved_orders(start="20240101", end="20240131")  # 예약주문 목록
 a.modify_reserved_order("0001", symbol="005930", side="buy", quantity=5, limit_price=71000)
@@ -128,7 +128,7 @@ a.cancel_reserved_order("0001")                      # 취소
 해외 예약주문 조회·취소:
 
 ```python
-oa = kis.overseas.account
+oa = kis.account.overseas
 oa.reserved_orders(start="20240101", end="20240131")  # 미국+아시아 예약 목록(실전 전용)
 
 hk = kis.overseas.stock("00700").reserve_buy(quantity=100, limit_price=350)

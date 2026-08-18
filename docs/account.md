@@ -1,9 +1,9 @@
 # 계좌·잔고·손익
 
-계좌 조회는 `kis.domestic.account.*` 에 모여 있습니다. 세션을 `account=` 로 열어야 합니다.
+계좌 조회는 `kis.account` 에 모여 있으며, 세션이 연 계좌를 그대로 가리킵니다. 국내 주식은 `kis.account.domestic.*`, 해외 주식은 `kis.account.overseas.*` 를 씁니다. 세션을 `account=` 로 열어야 합니다.
 
 ```python
-a = kis.domestic.account
+a = kis.account.domestic
 ```
 
 ## 예수금·자산 요약
@@ -90,7 +90,7 @@ a.integrated_margin()                       # 통합증거금
 해외는 통화·시장이 얽혀 있어 살짝 다릅니다.
 
 ```python
-oa = kis.overseas.account
+oa = kis.account.overseas
 oa.positions(market=None)                           # None = 전체 시장 합산
 oa.balance(market="US")                             # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
 oa.present_balance()                                # 체결기준 현재잔고

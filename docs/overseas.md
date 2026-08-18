@@ -51,7 +51,7 @@ kis.orders.cancel(rep.client_order_id)                        # 아시아 예약
 ## 계좌
 
 ```python
-a = kis.overseas.account
+a = kis.account.overseas
 
 a.positions(market=None)                             # None = 전체 시장 합산
 a.balance(market="US")                               # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
