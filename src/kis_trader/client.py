@@ -24,6 +24,7 @@ from ._internal._masters import (
     load_overseas_index,
     urlopen_fetch,
 )
+from .account import StockAccounts
 from .config import _ENVIRONMENTS, _fill_credentials, _split_account, token_cache_path
 from .domestic._engine import derivative_orders as derivative_orders_engine
 from .domestic._engine import orders as orders_engine
@@ -257,6 +258,19 @@ class KISClient:
     def environment(self) -> Environment:
         """실전(real) / 모의(paper). 계좌·주문 TR 선택에 쓰인다."""
         return self._environment
+
+    @property
+    def account(self) -> StockAccounts:
+        """세션이 연 계좌의 조회 뷰 -- 상품코드로 계좌 종류를 정한다(위탁 01 = 주식).
+
+        계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError`. 파생(03) 등 다른 상품은
+        아직 미지원(추후 확장) -- 명확한 오류로 fail-closed 한다."""
+        _, product_code = self._require_account()
+        if product_code == "01":
+            return StockAccounts(self)
+        raise KISUsageError(
+            f"kis.account 는 현재 위탁(01) 계좌만 지원한다 -- 상품코드 {product_code} 는 미지원."
+        )
 
     @property
     def hts_id(self) -> str | None:
