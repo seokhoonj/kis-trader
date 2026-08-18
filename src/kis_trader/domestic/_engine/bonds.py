@@ -36,6 +36,7 @@ from ..._internal._response import (
 )
 from ..._internal._wire import (
     _apply_change_sign,
+    field_decimal_or_zero,
     format_wire_decimal,
     optional_decimal,
     optional_int,
@@ -528,14 +529,14 @@ def _parse_bond_positions(rows: list[Mapping[str, Any]]) -> list[BondPosition]:
                 name=str(row.get("prdt_name", "")).strip(),
                 buy_date=_parse_bond_date(row.get("buy_dt")),
                 buy_sequence=str(row.get("buy_sqno", "")).strip(),
-                quantity=_bond_decimal_or_zero(row.get("cblc_qty"), "cblc_qty"),
-                comprehensive_tax_quantity=_bond_decimal_or_zero(row.get("agrx_qty"), "agrx_qty"),
-                separate_tax_quantity=_bond_decimal_or_zero(row.get("sprx_qty"), "sprx_qty"),
+                quantity=field_decimal_or_zero(row.get("cblc_qty"), "cblc_qty"),
+                comprehensive_tax_quantity=field_decimal_or_zero(row.get("agrx_qty"), "agrx_qty"),
+                separate_tax_quantity=field_decimal_or_zero(row.get("sprx_qty"), "sprx_qty"),
                 maturity_date=_parse_bond_date(row.get("exdt")),
-                buy_yield=_bond_decimal_or_zero(row.get("buy_erng_rt"), "buy_erng_rt"),
-                buy_price=_bond_decimal_or_zero(row.get("buy_unpr"), "buy_unpr"),
-                buy_amount=_bond_decimal_or_zero(row.get("buy_amt"), "buy_amt"),
-                orderable_quantity=_bond_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
+                buy_yield=field_decimal_or_zero(row.get("buy_erng_rt"), "buy_erng_rt"),
+                buy_price=field_decimal_or_zero(row.get("buy_unpr"), "buy_unpr"),
+                buy_amount=field_decimal_or_zero(row.get("buy_amt"), "buy_amt"),
+                orderable_quantity=field_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
                 _raw=row,
             )
         )
@@ -627,12 +628,12 @@ def _parse_bond_open_orders(rows: list[Mapping[str, Any]]) -> list[BondOpenOrder
                 symbol=str(row.get("pdno", "")).strip(),
                 name=str(row.get("prdt_abrv_name", "")).strip(),
                 revise_cancel_type=str(row.get("rvse_cncl_dvsn_name", "")).strip(),
-                order_quantity=_bond_decimal_or_zero(row.get("ord_qty"), "ord_qty"),
-                order_price=_bond_decimal_or_zero(row.get("bond_ord_unpr"), "bond_ord_unpr"),
+                order_quantity=field_decimal_or_zero(row.get("ord_qty"), "ord_qty"),
+                order_price=field_decimal_or_zero(row.get("bond_ord_unpr"), "bond_ord_unpr"),
                 order_time=_parse_bond_time(row.get("ord_tmd")),
-                filled_quantity=_bond_decimal_or_zero(row.get("tot_ccld_qty"), "tot_ccld_qty"),
-                filled_amount=_bond_decimal_or_zero(row.get("tot_ccld_amt"), "tot_ccld_amt"),
-                cancelable_quantity=_bond_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
+                filled_quantity=field_decimal_or_zero(row.get("tot_ccld_qty"), "tot_ccld_qty"),
+                filled_amount=field_decimal_or_zero(row.get("tot_ccld_amt"), "tot_ccld_amt"),
+                cancelable_quantity=field_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
                 original_order_id=str(row.get("orgn_odno", "")).strip(),
                 side=_side_from_code(row.get("sll_buy_dvsn_cd")),
                 order_division=str(row.get("ord_dvsn_cd", "")).strip(),
@@ -742,13 +743,13 @@ def _parse_bond_fills(rows: list[Mapping[str, Any]]) -> list[BondFill]:
                 side=_side_from_code(row.get("sll_buy_dvsn_cd")),
                 symbol=str(row.get("shtn_pdno", "")).strip(),
                 name=str(row.get("prdt_abrv_name", "")).strip(),
-                order_quantity=_bond_decimal_or_zero(row.get("ord_qty"), "ord_qty"),
-                order_price=_bond_decimal_or_zero(row.get("bond_ord_unpr"), "bond_ord_unpr"),
+                order_quantity=field_decimal_or_zero(row.get("ord_qty"), "ord_qty"),
+                order_price=field_decimal_or_zero(row.get("bond_ord_unpr"), "bond_ord_unpr"),
                 order_time=_parse_bond_time(row.get("ord_tmd")),
-                filled_quantity=_bond_decimal_or_zero(row.get("tot_ccld_qty"), "tot_ccld_qty"),
-                avg_price=_bond_decimal_or_zero(row.get("bond_avg_unpr"), "bond_avg_unpr"),
-                filled_amount=_bond_decimal_or_zero(row.get("tot_ccld_amt"), "tot_ccld_amt"),
-                unfilled_quantity=_bond_decimal_or_zero(row.get("nccs_qty"), "nccs_qty"),
+                filled_quantity=field_decimal_or_zero(row.get("tot_ccld_qty"), "tot_ccld_qty"),
+                avg_price=field_decimal_or_zero(row.get("bond_avg_unpr"), "bond_avg_unpr"),
+                filled_amount=field_decimal_or_zero(row.get("tot_ccld_amt"), "tot_ccld_amt"),
+                unfilled_quantity=field_decimal_or_zero(row.get("nccs_qty"), "nccs_qty"),
                 branch_number=str(row.get("ord_gno_brno", "")).strip(),
                 _raw=row,
             )
@@ -777,15 +778,6 @@ def _format_bond_order_price(price: Numeric | None) -> str:
     if not value.is_finite() or value <= 0:
         raise KISUsageError(f"price 는 0보다 큰 유한값이어야 한다: {price!r}")
     return format_wire_decimal(value)
-
-
-def _bond_decimal_or_zero(value: object, field_name: str) -> Decimal:
-    """없으면 0, 있으면 Decimal(파싱 실패면 예외). '없음=0'인 수량·금액 필드용.
-
-    부재(None)/공백만 0으로 본다 -- 값이 있는데 파싱 실패면 조용히 0으로 만들지 않고 예외.
-    """
-    amount = optional_decimal(value, field_name)
-    return Decimal(0) if amount is None else amount
 
 
 def _parse_bond_date(value: object) -> date | None:

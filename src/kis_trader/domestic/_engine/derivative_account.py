@@ -17,7 +17,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from ..._internal._response import _raise_if_error
-from ..._internal._wire import format_wire_decimal, optional_decimal, required_decimal
+from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
 from ...transport import Environment, RawResponse, Transport
 from ..entities.derivative_account import (
@@ -420,9 +420,9 @@ def fetch_derivative_orderable(
         liquidatable = output.get(liquidatable_key)
     return DerivativeOrderable(
         orderable_quantity=required_decimal(output.get("ord_psbl_qty"), "ord_psbl_qty"),
-        total_quantity=_decimal_or_zero(output.get("tot_psbl_qty"), "tot_psbl_qty"),
-        liquidatable_quantity=_decimal_or_zero(liquidatable, liquidatable_key),
-        base_index=_decimal_or_zero(output.get("bass_idx"), "bass_idx"),
+        total_quantity=field_decimal_or_zero(output.get("tot_psbl_qty"), "tot_psbl_qty"),
+        liquidatable_quantity=field_decimal_or_zero(liquidatable, liquidatable_key),
+        base_index=field_decimal_or_zero(output.get("bass_idx"), "bass_idx"),
         _raw=output,
     )
 
@@ -460,9 +460,9 @@ def fetch_derivative_night_orderable(
         )
     return DerivativeOrderable(
         orderable_quantity=required_decimal(output.get("ord_psbl_qty"), "ord_psbl_qty"),
-        total_quantity=_decimal_or_zero(output.get("tot_psbl_qty"), "tot_psbl_qty"),
-        liquidatable_quantity=_decimal_or_zero(output.get("lqd_psbl_qty"), "lqd_psbl_qty"),
-        base_index=_decimal_or_zero(output.get("bass_idx"), "bass_idx"),
+        total_quantity=field_decimal_or_zero(output.get("tot_psbl_qty"), "tot_psbl_qty"),
+        liquidatable_quantity=field_decimal_or_zero(output.get("lqd_psbl_qty"), "lqd_psbl_qty"),
+        base_index=field_decimal_or_zero(output.get("bass_idx"), "bass_idx"),
         _raw=output,
     )
 
@@ -548,10 +548,10 @@ def _parse_fills(rows: list[Mapping[str, Any]]) -> list[DerivativeFill]:
                 order_id=order_id,
                 transaction_type=str(row.get("tr_type_name", "")).strip(),
                 final_settlement_date=_parse_date(row.get("last_sttldt")),
-                fill_index=_decimal_or_zero(row.get("ccld_idx"), "ccld_idx"),
-                fill_quantity=_decimal_or_zero(row.get("ccld_qty"), "ccld_qty"),
-                trade_amount=_decimal_or_zero(row.get("trad_amt"), "trad_amt"),
-                fee=_decimal_or_zero(row.get("fee"), "fee"),
+                fill_index=field_decimal_or_zero(row.get("ccld_idx"), "ccld_idx"),
+                fill_quantity=field_decimal_or_zero(row.get("ccld_qty"), "ccld_qty"),
+                trade_amount=field_decimal_or_zero(row.get("trad_amt"), "trad_amt"),
+                fee=field_decimal_or_zero(row.get("fee"), "fee"),
                 fill_time=str(row.get("ccld_btwn", "")).strip(),
                 _raw=row,
             )
@@ -590,12 +590,12 @@ def _parse_commissions(rows: list[Mapping[str, Any]]) -> list[DerivativeCommissi
                 order_date=_parse_date(order_date),
                 symbol=symbol,
                 name=str(row.get("item_name", "")).strip(),
-                sell_agreement_amount=_decimal_or_zero(row.get("sll_agrm_amt"), "sll_agrm_amt"),
-                sell_fee=_decimal_or_zero(row.get("sll_fee"), "sll_fee"),
-                buy_agreement_amount=_decimal_or_zero(row.get("buy_agrm_amt"), "buy_agrm_amt"),
-                buy_fee=_decimal_or_zero(row.get("buy_fee"), "buy_fee"),
-                total_fee=_decimal_or_zero(row.get("tot_fee_smtl"), "tot_fee_smtl"),
-                realized_pnl=_decimal_or_zero(row.get("trad_pfls"), "trad_pfls"),
+                sell_agreement_amount=field_decimal_or_zero(row.get("sll_agrm_amt"), "sll_agrm_amt"),
+                sell_fee=field_decimal_or_zero(row.get("sll_fee"), "sll_fee"),
+                buy_agreement_amount=field_decimal_or_zero(row.get("buy_agrm_amt"), "buy_agrm_amt"),
+                buy_fee=field_decimal_or_zero(row.get("buy_fee"), "buy_fee"),
+                total_fee=field_decimal_or_zero(row.get("tot_fee_smtl"), "tot_fee_smtl"),
+                realized_pnl=field_decimal_or_zero(row.get("trad_pfls"), "trad_pfls"),
                 _raw=row,
             )
         )
@@ -618,14 +618,14 @@ def _parse_settlement_positions(
                 symbol=symbol,
                 name=str(row.get("prdt_name", "")).strip(),
                 trade_type=str(row.get("trad_dvsn_name", "")).strip(),
-                prior_quantity=_decimal_or_zero(row.get("bfdy_cblc_qty"), "bfdy_cblc_qty"),
-                new_quantity=_decimal_or_zero(row.get("new_qty"), "new_qty"),
-                offset_quantity=_decimal_or_zero(row.get("mnpl_rpch_qty"), "mnpl_rpch_qty"),
-                quantity=_decimal_or_zero(row.get("cblc_qty"), "cblc_qty"),
-                balance_amount=_decimal_or_zero(row.get("cblc_amt"), "cblc_amt"),
-                realized_pnl=_decimal_or_zero(row.get("trad_pfls_amt"), "trad_pfls_amt"),
-                market_value=_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
-                unrealized_pnl=_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
+                prior_quantity=field_decimal_or_zero(row.get("bfdy_cblc_qty"), "bfdy_cblc_qty"),
+                new_quantity=field_decimal_or_zero(row.get("new_qty"), "new_qty"),
+                offset_quantity=field_decimal_or_zero(row.get("mnpl_rpch_qty"), "mnpl_rpch_qty"),
+                quantity=field_decimal_or_zero(row.get("cblc_qty"), "cblc_qty"),
+                balance_amount=field_decimal_or_zero(row.get("cblc_amt"), "cblc_amt"),
+                realized_pnl=field_decimal_or_zero(row.get("trad_pfls_amt"), "trad_pfls_amt"),
+                market_value=field_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
+                unrealized_pnl=field_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
                 _raw=row,
             )
         )
@@ -649,15 +649,15 @@ def _parse_valuation_positions(
                 isin=str(row.get("pdno", "")).strip(),
                 name=str(row.get("prdt_name", "")).strip(),
                 side=str(row.get("sll_buy_dvsn_name", "")).strip(),
-                quantity=_decimal_or_zero(row.get("cblc_qty1"), "cblc_qty1"),
-                settle_price=_decimal_or_zero(row.get("excc_unpr"), "excc_unpr"),
-                avg_price=_decimal_or_zero(row.get("ccld_avg_unpr1"), "ccld_avg_unpr1"),
-                index_close=_decimal_or_zero(row.get("idx_clpr"), "idx_clpr"),
-                purchase_amount=_decimal_or_zero(row.get("pchs_amt"), "pchs_amt"),
-                market_value=_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
-                unrealized_pnl=_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
-                realized_pnl=_decimal_or_zero(row.get("trad_pfls_amt"), "trad_pfls_amt"),
-                liquidatable_quantity=_decimal_or_zero(row.get("lqd_psbl_qty"), "lqd_psbl_qty"),
+                quantity=field_decimal_or_zero(row.get("cblc_qty1"), "cblc_qty1"),
+                settle_price=field_decimal_or_zero(row.get("excc_unpr"), "excc_unpr"),
+                avg_price=field_decimal_or_zero(row.get("ccld_avg_unpr1"), "ccld_avg_unpr1"),
+                index_close=field_decimal_or_zero(row.get("idx_clpr"), "idx_clpr"),
+                purchase_amount=field_decimal_or_zero(row.get("pchs_amt"), "pchs_amt"),
+                market_value=field_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
+                unrealized_pnl=field_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
+                realized_pnl=field_decimal_or_zero(row.get("trad_pfls_amt"), "trad_pfls_amt"),
+                liquidatable_quantity=field_decimal_or_zero(row.get("lqd_psbl_qty"), "lqd_psbl_qty"),
                 _raw=row,
             )
         )
@@ -681,14 +681,14 @@ def _parse_positions(rows: list[Mapping[str, Any]]) -> list[DerivativePosition]:
                 isin=str(row.get("pdno", "")).strip(),
                 name=str(row.get("prdt_name", "")).strip(),
                 side=str(row.get("sll_buy_dvsn_name", "")).strip(),
-                quantity=_decimal_or_zero(row.get("cblc_qty"), "cblc_qty"),
-                settle_price=_decimal_or_zero(row.get("excc_unpr"), "excc_unpr"),
-                avg_price=_decimal_or_zero(row.get("ccld_avg_unpr1"), "ccld_avg_unpr1"),
-                purchase_amount=_decimal_or_zero(row.get("pchs_amt"), "pchs_amt"),
-                market_value=_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
-                unrealized_pnl=_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
-                realized_pnl=_decimal_or_zero(row.get("trad_pfls_amt"), "trad_pfls_amt"),
-                liquidatable_quantity=_decimal_or_zero(row.get("lqd_psbl_qty"), "lqd_psbl_qty"),
+                quantity=field_decimal_or_zero(row.get("cblc_qty"), "cblc_qty"),
+                settle_price=field_decimal_or_zero(row.get("excc_unpr"), "excc_unpr"),
+                avg_price=field_decimal_or_zero(row.get("ccld_avg_unpr1"), "ccld_avg_unpr1"),
+                purchase_amount=field_decimal_or_zero(row.get("pchs_amt"), "pchs_amt"),
+                market_value=field_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
+                unrealized_pnl=field_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
+                realized_pnl=field_decimal_or_zero(row.get("trad_pfls_amt"), "trad_pfls_amt"),
+                liquidatable_quantity=field_decimal_or_zero(row.get("lqd_psbl_qty"), "lqd_psbl_qty"),
                 _raw=row,
             )
         )
@@ -733,16 +733,6 @@ def _require_wire_time(value: str, field_name: str) -> None:
         raise KISUsageError(
             f"시각 파라미터 {field_name!r} 는 6자리 숫자(HHMMSS)여야 한다: {value!r}"
         )
-
-
-def _decimal_or_zero(value: object, field_name: str) -> Decimal:
-    """없으면 0, 있으면 Decimal(파싱 실패면 예외). '없음=0'인 수량·금액 필드용.
-
-    부재(None)만 0으로 본다 -- 값 "0"도 Decimal(0)이라 결과는 같지만, 판정을 truthiness 가
-    아니라 명시적 None 검사로 해 의도를 분명히 한다.
-    """
-    amount = optional_decimal(value, field_name)
-    return Decimal(0) if amount is None else amount
 
 
 def _format_order_unit_price(limit_price: Numeric | None) -> str:
