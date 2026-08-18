@@ -16,13 +16,21 @@ import os
 import tempfile
 from pathlib import Path
 
-__all__ = ["atomic_write_bytes", "xdg_cache_subdir", "xdg_config_subdir"]
+__all__ = ["atomic_write_bytes", "xdg_cache_subdir", "xdg_config_subdir", "xdg_state_subdir"]
 
 
 def xdg_cache_subdir(*parts: str) -> Path:
     """``XDG_CACHE_HOME`` (없으면 ``~/.cache``) 아래의 하위 경로. 재생성 가능한 런타임 캐시 전용
     -- 토큰/마스터 캐시가 이 한 경로 규칙을 공유하도록 여기 한 곳에 둔다."""
     base = os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache"
+    return Path(base).joinpath(*parts)
+
+
+def xdg_state_subdir(*parts: str) -> Path:
+    """``XDG_STATE_HOME`` (없으면 ``~/.local/state``) 아래의 하위 경로. 재생성 불가한 영속 상태 전용
+    -- 잃으면 다시 만들 수 없는 데이터(주문 dedup 저장소 등)를 재생성 가능한 캐시(:func:`xdg_cache_subdir`)
+    와 XDG 규약대로 분리해 둔다(캐시 청소가 이 상태를 지우지 않도록)."""
+    base = os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
     return Path(base).joinpath(*parts)
 
 

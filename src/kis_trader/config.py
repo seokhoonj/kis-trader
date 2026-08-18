@@ -43,11 +43,17 @@ import hashlib
 import json
 import os
 import re
+import shutil
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
 
-from ._internal._fsutil import atomic_write_bytes, xdg_cache_subdir, xdg_config_subdir
+from ._internal._fsutil import (
+    atomic_write_bytes,
+    xdg_cache_subdir,
+    xdg_config_subdir,
+    xdg_state_subdir,
+)
 from .errors import KISUsageError
 
 if TYPE_CHECKING:
@@ -138,17 +144,37 @@ def token_cache_path(override: str | Path | None = None) -> Path:
 
 
 def order_store_path(*, account: str, environment: Environment, override: str | Path | None = None) -> Path:
-    """주문 dedup 저장소(:class:`~kis_trader.store.OrderStore`) 파일 경로. 재생성 불가한 상태라
-    토큰 캐시와 같은 XDG 캐시 트리 아래 ``orders`` 에 두되, **계좌·환경마다 파일을 가른다** -- 서로 다른
-    계좌/환경의 주문 dedup 이 한 파일에서 섞이지 않도록. ``override`` 가 있으면 그 아래 ``orders``,
-    없으면 ``$XDG_CACHE_HOME/kis-trader/orders``(:func:`token_cache_path` 와 같은 규칙).
+    """주문 dedup 저장소(:class:`~kis_trader.store.OrderStore`) 파일 경로. 이 저장소는 **재생성 불가한
+    영속 상태**다 -- 잃으면 프로세스 교차 dedup 이 무너져 이중 제출 위험이 생기므로, 재생성 가능한 토큰
+    캐시와 달리 XDG **state** 트리 아래 ``orders`` 에 둔다(캐시 청소가 이 상태를 지우지 않도록).
+    **계좌·환경마다 파일을 가른다** -- 서로 다른 계좌/환경의 주문 dedup 이 한 파일에서 섞이지 않도록.
+    ``override`` 가 있으면 그 아래 ``orders``, 없으면 ``$XDG_STATE_HOME/kis-trader/orders``
+    (없으면 ``~/.local/state/kis-trader/orders``).
 
-    파일명은 토큰 캐시와 같은 ``<환경>-<해시>.json`` 꼴이다. 계좌번호는 파일명에 그대로 노출하지 않고
-    SHA-256 앞 16자리로 해시한다(파일 목록에 계좌번호가 드러나지 않게)."""
-    directory = Path(override).expanduser() / "orders" if override is not None \
-        else xdg_cache_subdir(_APP_DIR_NAME, "orders")
+    파일명은 ``<환경>-<해시>.json`` 꼴이다. 계좌번호는 파일명에 그대로 노출하지 않고 SHA-256 앞
+    16자리로 해시한다(파일 목록에 계좌번호가 드러나지 않게).
+
+    이전 버전은 이 저장소를 캐시 트리(``$XDG_CACHE_HOME/kis-trader/orders``)에 뒀다. 기본 위치를
+    쓸 때(``override`` 없음) 옛 캐시 위치에 같은 이름의 파일이 있고 새 state 위치엔 없으면, 처음 쓸 때
+    새 위치로 옮겨(read-old-then-write-new) dedup 연속성을 지킨다 -- 기존 저장소를 잃지 않는다."""
     digest = hashlib.sha256(account.encode()).hexdigest()[:16]
-    return directory / f"{environment}-{digest}.json"
+    filename = f"{environment}-{digest}.json"
+    if override is not None:
+        return Path(override).expanduser() / "orders" / filename
+    new_path = xdg_state_subdir(_APP_DIR_NAME, "orders") / filename
+    old_path = xdg_cache_subdir(_APP_DIR_NAME, "orders") / filename
+    if old_path.exists() and not new_path.exists():
+        _migrate_order_store(old_path, new_path)
+    return new_path
+
+
+def _migrate_order_store(old_path: Path, new_path: Path) -> None:
+    """옛 캐시 위치의 주문 dedup 저장소를 새 state 위치로 한 번 옮긴다. 재생성 불가한 영속 상태라
+    위치 이전에서 잃으면 안 되므로 복제가 아니라 이동한다 -- 같은 파일이 두 곳에 남아 서로 다른
+    프로세스가 갈라진 dedup 을 보지 않도록. 캐시와 state 가 다른 파일시스템이면 rename 대신 복사 후
+    원본을 지운다(:func:`shutil.move` 가 두 경우를 모두 처리)."""
+    new_path.parent.mkdir(parents=True, exist_ok=True)
+    shutil.move(str(old_path), str(new_path))
 
 
 def _split_account(account: str) -> tuple[str, str]:

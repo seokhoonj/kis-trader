@@ -10,6 +10,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import threading
 from argparse import Namespace
 
@@ -84,13 +85,28 @@ def _seeded_overseas():
 
 # --- #1 미접수 거부 -> 재시도 가능한 하위 타입 --------------------------------
 
-def test_cancel_not_yet_accepted_maps_to_retryable_error():
+@pytest.mark.parametrize("route", ["cancel", "modify"])
+def test_change_not_yet_accepted_maps_to_retryable_error(route):
+    # 정정·취소 두 경로 모두 '거래소 미접수' 거부를 재시도 가능한 하위 타입으로 매핑한다.
     reject = RawResponse(rt_cd="1", msg_cd="APBK0919",
                          msg1="거래소 미접수로 정정취소주문이 불가합니다", body={})
     kis, _ = _seeded_domestic(reject=reject)
+    change = (lambda: kis.orders.cancel("cid-1", request_id="c-1")) if route == "cancel" \
+        else (lambda: kis.orders.modify("cid-1", limit_price=71000, request_id="c-1"))
     with pytest.raises(OrderNotAcceptedYetError) as ei:
-        kis.orders.cancel("cid-1", request_id="c-1")
+        change()
     assert isinstance(ei.value, OrderRejectedError)   # 하위호환: 기존 except 가 그대로 잡는다
+
+
+def test_place_not_yet_accepted_text_stays_orderrejected():
+    # 매핑은 정정·취소 경로에만 한정된다 -- 발주(place) 거부는 msg1 에 '미접수'가 있어도 평범한
+    # OrderRejectedError 로 남아야 한다(재시도 가능 하위 타입으로 승격하지 않는다).
+    reject = RawResponse(rt_cd="1", msg_cd="APBK0919", msg1="거래소 미접수 상태입니다", body={})
+    fake = FakeTransport(by_path={_ORDER_CASH: reject})
+    kis = _client(fake)
+    with pytest.raises(OrderRejectedError) as ei:
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="cid-9")
+    assert not isinstance(ei.value, OrderNotAcceptedYetError)
 
 
 def test_cancel_other_rejection_stays_orderrejected():
@@ -145,6 +161,7 @@ def test_cli_build_client_uses_persistent_store(monkeypatch, tmp_path):
     from kis_trader.cli.context import build_client
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     for var in [name for name in __import__("os").environ if name.startswith("KIS_")]:
         monkeypatch.delenv(var, raising=False)
     monkeypatch.setenv("KIS_PAPER_APP_KEY", "k")
@@ -153,3 +170,33 @@ def test_cli_build_client_uses_persistent_store(monkeypatch, tmp_path):
     monkeypatch.setenv("KIS_PAPER_ENVIRONMENT", "paper")
     kis = build_client(Namespace(profile="paper", account=None))
     assert kis._store._path is not None   # 영속(디스크) 저장소가 주입됐다
+
+
+def test_library_default_store_is_in_memory():
+    # 라이브러리 기본(store 미지정)은 인메모리 -- CLI 영속화 수정이 기대는 parity 보장.
+    kis = _client(FakeTransport())
+    assert kis._store._path is None
+
+
+def test_order_store_path_default_is_in_state_dir(monkeypatch, tmp_path):
+    # 재생성 불가한 영속 상태라 캐시가 아니라 XDG state 트리 아래 둔다.
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    p = order_store_path(account="12345678-01", environment="real")
+    assert str(p).startswith(str(tmp_path / "state"))
+    assert str(tmp_path / "cache") not in str(p)
+    assert p.parent.name == "orders"
+
+
+def test_order_store_path_migrates_from_old_cache_location(monkeypatch, tmp_path):
+    # 이전 버전이 캐시 위치에 남긴 저장소는 새 state 위치로 옮겨(복제 아님) dedup 연속성을 지킨다.
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
+    monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    digest = hashlib.sha256(b"12345678-01").hexdigest()[:16]
+    old_file = tmp_path / "cache" / "kis-trader" / "orders" / f"real-{digest}.json"
+    old_file.parent.mkdir(parents=True)
+    old_file.write_text('{"orders": {}}', encoding="utf-8")
+    new_path = order_store_path(account="12345678-01", environment="real")
+    assert new_path.exists()
+    assert new_path.read_text(encoding="utf-8") == '{"orders": {}}'
+    assert not old_file.exists()   # 이동(복제 아님) -- 두 곳에 갈라진 dedup 이 남지 않는다
