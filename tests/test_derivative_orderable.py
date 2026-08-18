@@ -19,6 +19,7 @@ from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 
 _ORDERABLE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-psbl-order"
+_NIGHT_ORDERABLE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-psbl-ngt-order"
 
 
 class FakeTransport:
@@ -108,3 +109,51 @@ def test_orderable_requires_account():
     with pytest.raises(KISUsageError):
         client.domestic.futures("101W09").orderable("buy")
     assert fake.calls == []
+
+
+# --- 야간 주문가능(STTN5105R, 실전 전용) -----------------------------------
+def _night_output(*, ord_psbl="5", tot_psbl="8", lqd="2", bass="410.25", max_ord="8"):
+    return {"max_ord_psbl_qty": max_ord, "tot_psbl_qty": tot_psbl, "lqd_psbl_qty": lqd,
+            "lqd_psbl_qty_1": lqd, "ord_psbl_qty": ord_psbl, "bass_idx": bass}
+
+
+def test_night_orderable_parses_and_routes():
+    fake = FakeTransport(response=_resp(_night_output()))
+    result = _client(fake, environment="real").domestic.futures("101W09").night_orderable(
+        "buy", limit_price=Decimal("410.50"))
+    assert isinstance(result, DerivativeOrderable)
+    assert result.orderable_quantity == Decimal(5)
+    assert result.total_quantity == Decimal(8)
+    assert result.liquidatable_quantity == Decimal(2)
+    assert result.base_index == Decimal("410.25")
+    assert result.raw["max_ord_psbl_qty"] == "8"        # 야간 전용 필드는 raw 로
+    call = fake.calls[0]
+    assert call["path"] == _NIGHT_ORDERABLE_PATH
+    assert call["tr_id"] == "STTN5105R"
+    assert call["params"]["PDNO"] == "101W09"
+    assert call["params"]["PRDT_TYPE_CD"] == "301"
+    assert call["params"]["SLL_BUY_DVSN_CD"] == "02"     # 매수
+    assert call["params"]["UNIT_PRICE"] == "410.50"
+    assert call["params"]["ORD_DVSN_CD"] == "01"         # 지정가
+
+
+def test_night_orderable_paper_fails_closed_no_wire():
+    fake = FakeTransport(response=_resp(_night_output()))
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").domestic.futures("101W09").night_orderable("buy")
+    assert fake.calls == []                              # 모의는 와이어 미접촉
+
+
+def test_night_orderable_missing_output_fails_closed():
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
+    with pytest.raises(KISError):
+        _client(fake, environment="real").domestic.futures("101W09").night_orderable("buy")
+
+
+def test_night_orderable_market_uses_zero_price():
+    fake = FakeTransport(response=_resp(_night_output()))
+    _client(fake, environment="real").domestic.option("201W09335").night_orderable("sell")
+    call = fake.calls[0]
+    assert call["params"]["UNIT_PRICE"] == "0"
+    assert call["params"]["ORD_DVSN_CD"] == "02"         # 시장가
+    assert call["params"]["SLL_BUY_DVSN_CD"] == "01"     # 매도

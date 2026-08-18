@@ -132,6 +132,20 @@ class _ContractBase:
             environment=self._client.environment, code=self.code, side=side, limit_price=limit_price,
         )
 
+    def night_orderable(
+        self, side: Side, *, limit_price: Numeric | None = None
+    ) -> DerivativeOrderable:
+        """이 계약의 야간장(EUREX 연계) 주문가능수량. 파라미터는 :meth:`orderable` 과 같되 야간
+        세션 기준이며 **실전 전용**(``environment="paper"`` 는 :class:`~kis_trader.errors.KISUsageError`).
+
+        KIS URL/TR-ID: ``GET .../trading/inquire-psbl-ngt-order`` (``STTN5105R``, 모의투자 미지원).
+        계좌 미설정도 :class:`~kis_trader.errors.KISUsageError`."""
+        cano, product_code = self._client._require_account()
+        return derivative_account_api.fetch_derivative_night_orderable(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, code=self.code, side=side, limit_price=limit_price,
+        )
+
     def _make_order(
         self, side: Side, *, quantity: Numeric, limit_price: Numeric | None = None,
         order_type: OrderType | None = None, time_in_force: TimeInForce = "day",

@@ -423,6 +423,46 @@ def fetch_derivative_orderable(
     )
 
 
+def fetch_derivative_night_orderable(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    code: str, side: Side, limit_price: Numeric | None = None,
+) -> DerivativeOrderable:
+    """선물옵션 야간(EUREX 연계) 주문가능수량(1콜, output 단일 객체). 주간
+    :func:`fetch_derivative_orderable` 과 같은 :class:`DerivativeOrderable` 로 돌려주되 야간 응답은
+    청산가능수량을 lqd_psbl_qty 로, 그리고 max_ord_psbl_qty 를 추가로 준다(후자는 ``raw`` 로).
+    **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "야간 주문가능조회(inquire-psbl-ngt-order)는 모의투자 미지원 -- 실전에서만."
+        )
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "PDNO": code,
+        "PRDT_TYPE_CD": "301",  # 상품유형코드 -- 301 선물옵션
+        "SLL_BUY_DVSN_CD": _SIDE_TO_SLL_BUY[side],
+        "UNIT_PRICE": _format_order_unit_price(limit_price),
+        "ORD_DVSN_CD": "01" if limit_price is not None else "02",  # 지정가/시장가
+    }
+    resp = transport.request(
+        method="GET", path=_NIGHT_ORDERABLE_PATH, tr_id=_NIGHT_ORDERABLE_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise KISError(
+            "선물옵션 야간 주문가능조회 응답에 output 이 없다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    return DerivativeOrderable(
+        orderable_quantity=_decimal_or_zero(output.get("ord_psbl_qty"), "ord_psbl_qty"),
+        total_quantity=_decimal_or_zero(output.get("tot_psbl_qty"), "tot_psbl_qty"),
+        liquidatable_quantity=_decimal_or_zero(output.get("lqd_psbl_qty"), "lqd_psbl_qty"),
+        base_index=_decimal_or_zero(output.get("bass_idx"), "bass_idx"),
+        raw=output,
+    )
+
+
 def _fetch_balance_page(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     ctx_fk: str, ctx_nk: str, tr_cont: str = "",
