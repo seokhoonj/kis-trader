@@ -309,6 +309,11 @@ class KISClient:
             )
         if isinstance(fingerprint, ReservedOrderFingerprint):
             # 예약주문은 일별체결이 아니라 예약주문조회로 확인한다(국내/해외 예약 경로를 exchange 로 가른다).
+            if fingerprint.exchange == "overseas-reserved-asia":
+                return overseas_reserved_orders_api.reconcile_asia_reserved_order(
+                    self._transport, self._store, client_order_id,
+                    cano=cano, product_code=product_code, environment=self._environment,
+                )
             if fingerprint.exchange == "overseas-reserved":
                 return overseas_reserved_orders_api.reconcile_overseas_reserved_order(
                     self._transport, self._store, client_order_id,
@@ -346,6 +351,20 @@ class KISClient:
         report = self._store.report_for(client_order_id)
         if fingerprint is None or report is None:
             raise KISUsageError(f"확정된 원주문을 찾을 수 없다: {client_order_id!r}")
+        # 아시아 해외예약은 전용 정정·취소 엔드포인트가 없어 발주 TR 에 원주문 전체를 재전송하는
+        # 취소만 가능하다 -- store 가 쥔 지문/리포트로 엔진이 body 를 복원하므로 여기서 위임한다.
+        if isinstance(fingerprint, ReservedOrderFingerprint) and \
+                fingerprint.exchange == "overseas-reserved-asia":
+            if action != "cancel":
+                raise KISUsageError("아시아 해외예약주문은 정정 미지원 -- 취소 후 재발주하라.")
+            if quantity is not None:
+                raise KISUsageError(
+                    "아시아 해외예약 취소는 전량만 가능(부분 취소 미지원) -- quantity 를 생략하라."
+                )
+            return overseas_reserved_orders_api.cancel_asia_reserved_order(
+                self._transport, self._store, client_order_id,
+                cano=cano, product_code=product_code, environment=self._environment,
+            )
         original_quantity = Decimal(fingerprint.quantity)
         remaining_quantity = original_quantity - report.filled_quantity
         # 정정 경로도 발주(place)와 같은 수치 강제변환을 거쳐 NaN/Infinity 등 비유한 입력을 fail-closed

@@ -1,17 +1,33 @@
-"""해외 아시아(홍콩/중국/일본/베트남) 예약주문 -- PRDT_TYPE_CD 파생.
+"""해외 아시아(홍콩/중국/일본/베트남) 예약주문 -- 발주/취소/조회/재조회 (TTTS3013U/TTTS3014R).
 
-원장(KIS 공식 전체문서, 시트 `해외주식 예약주문접수/조회/접수취소`) 기준: 아시아 예약
-발주(TTTS3013U)는 상품유형코드(PRDT_TYPE_CD)가 필수이며 거래소에서 파생된다 --
-515 일본 / 551 상해A / 552 심천A / 507 하노이 / 508 호치민, 홍콩만 통화별
-(501 HKD / 543 CNY / 558 USD).
+원장(KIS 공식 전체문서, 시트 `해외주식 예약주문접수/조회/접수취소`) 기준: 아시아 예약은
+발주·취소가 TR 하나(TTTS3013U, RVSE_CNCL_DVSN_CD 00/02)를 공유하고, 상품유형코드(PRDT_TYPE_CD)는
+거래소에서 파생된다 -- 515 일본 / 551 상해A / 552 심천A / 507 하노이 / 508 호치민, 홍콩만 통화별
+(501 HKD / 543 CNY / 558 USD). 조회(TTTS3014R)는 실전전용. 픽스처는 원장 응답예시 실값을 쓴다.
 """
+
+from __future__ import annotations
+
+import datetime as _dt
 
 import pytest
 
-from kis_trader.errors import KISUsageError
+from kis_trader import KISClient, OrderStatus, OrderStore
+from kis_trader.errors import (
+    KISError,
+    KISUsageError,
+    OrderError,
+    OrderRejectedError,
+    OrderTimeoutError,
+)
 from kis_trader.overseas._engine import reserved_orders as ro
+from kis_trader.transport import RawResponse, TransportTimeout
+
+_PLACE = "/uapi/overseas-stock/v1/trading/order-resv"
+_LIST = "/uapi/overseas-stock/v1/trading/order-resv-list"
 
 
+# --- PRDT_TYPE_CD 파생 ------------------------------------------------------
 def test_asia_prdt_type_cd_by_exchange():
     assert ro._asia_prdt_type_cd("TSE", "HKD") == "515"   # 일본
     assert ro._asia_prdt_type_cd("SHS", "HKD") == "551"   # 중국 상해A
@@ -39,3 +55,322 @@ def test_asia_prdt_type_cd_non_hk_rejects_non_hkd_currency():
 def test_asia_prdt_type_cd_unknown_exchange_rejected():
     with pytest.raises(KISUsageError, match="거래소"):
         ro._asia_prdt_type_cd("NAS", "HKD")   # 미국은 아시아 파생 대상이 아니다
+
+
+# --- 픽스처 ----------------------------------------------------------------
+class _Fake:
+    """가짜 전송 -- 고정 응답(response) 또는 예외(raises)를 돌려주고 호출을 기록한다."""
+
+    def __init__(self, response=None, *, raises=None):
+        self.response = response
+        self.raises = raises
+        self.calls: list[dict] = []
+
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
+        self.calls.append({"method": method, "path": path, "tr_id": tr_id,
+                           "params": params, "body": body, "idempotent": idempotent})
+        if self.raises is not None:
+            raise self.raises
+        assert self.response is not None
+        return self.response
+
+
+class _FrozenDatetime(_dt.datetime):
+    """now() 만 고정 -- reconcile 날짜창·접수일자 판별 결정성 확보."""
+
+    @classmethod
+    def now(cls, tz=None):
+        return _dt.datetime(2024, 6, 3, 10, 0, tzinfo=tz)
+
+
+def _place_resp():
+    # 원장 응답예시(TTTS3013U) 실값 -- output = 예약번호(OVRS_RSVN_ODNO) + 접수일자(RSVN_ORD_RCIT_DT).
+    return RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="정상",
+                       body={"output": {"OVRS_RSVN_ODNO": "0030138295",
+                                        "RSVN_ORD_RCIT_DT": "20260818"}})
+
+
+def _place(fake, store, **overrides):
+    kwargs = {"symbol": "00700", "side": "buy", "quantity": 100, "limit_price": 350.0,
+              "exchange": "HKS", "currency": "HKD", "client_order_id": "c1",
+              "cano": "12345678", "product_code": "01", "environment": "real"}
+    kwargs.update(overrides)
+    return ro.place_overseas_reserved_order(fake, store, **kwargs)
+
+
+def _client(transport, store, *, environment="real"):
+    return KISClient(app_key="k", app_secret="s", account="12345678-01",
+                     environment=environment, transport=transport, store=store)
+
+
+def _list_row(**overrides):
+    # 아시아 예약주문조회(TTTS3014R) 행 -- 미국(TTTT3039R)과 같은 소문자 키 스키마.
+    row = {"ovrs_rsvn_odno": "0030138295", "pdno": "00700", "sll_buy_dvsn_cd": "02",
+           "ft_ord_qty": "100", "ft_ord_unpr3": "350", "ft_ccld_qty": "0", "cncl_yn": "N",
+           "ovrs_excg_cd": "SEHK", "prdt_name": "텐센트", "ovrs_rsvn_ord_stat_cd_name": "접수",
+           "rsvn_ord_rcit_dt": "20240603", "ord_dt": "", "odno": "", "nprc_rson_text": ""}
+    row.update(overrides)
+    return row
+
+
+def _list_resp(rows):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output": rows, "ctx_area_nk200": "", "ctx_area_fk200": ""})
+
+
+# --- 발주 (TTTS3013U) -------------------------------------------------------
+def test_asia_place_builds_ttts3013u_body_and_stores_receipt_date():
+    fake = _Fake(_place_resp())
+    store = OrderStore()
+    rep = _place(fake, store)
+    call = fake.calls[0]
+    assert call["method"] == "POST"
+    assert call["path"] == _PLACE
+    assert call["idempotent"] is False
+    assert call["tr_id"] == "TTTS3013U"
+    assert call["body"]["SLL_BUY_DVSN_CD"] == "02"        # 매수
+    assert call["body"]["RVSE_CNCL_DVSN_CD"] == "00"      # 발주
+    assert call["body"]["OVRS_EXCG_CD"] == "SEHK"
+    assert call["body"]["PRDT_TYPE_CD"] == "501"          # 홍콩 / HKD
+    assert call["body"]["FT_ORD_QTY"] == "100"
+    assert call["body"]["ORD_SVR_DVSN_CD"] == "0"
+    assert rep.order_id == "0030138295"
+    assert rep.receipt_date == "20260818"
+    assert rep.status is OrderStatus.PENDING_NEW
+    fp = store.fingerprint_for("c1")
+    assert fp.exchange == "overseas-reserved-asia"
+    assert fp.overseas_exchange == "HKS"
+
+
+def test_asia_place_sell_uses_sell_code():
+    fake = _Fake(_place_resp())
+    _place(fake, OrderStore(), side="sell")
+    assert fake.calls[0]["body"]["SLL_BUY_DVSN_CD"] == "01"
+
+
+def test_asia_place_paper_uses_v_tr():
+    fake = _Fake(_place_resp())
+    rep = _place(fake, OrderStore(), environment="paper")
+    assert fake.calls[0]["tr_id"] == "VTTS3013U"
+    assert rep.status is OrderStatus.PENDING_NEW
+
+
+def test_asia_place_hong_kong_currency_override():
+    fake = _Fake(_place_resp())
+    _place(fake, OrderStore(), currency="CNY")
+    assert fake.calls[0]["body"]["PRDT_TYPE_CD"] == "543"  # 홍콩 CNY
+
+
+@pytest.mark.parametrize(("exchange", "wire_exchange", "prdt_type_cd"), [
+    ("TSE", "TKSE", "515"),
+    ("SHS", "SHAA", "551"),
+    ("SZS", "SZAA", "552"),
+    ("HNX", "HASE", "507"),
+    ("HSX", "VNSE", "508"),
+])
+def test_asia_place_exchange_wire(exchange, wire_exchange, prdt_type_cd):
+    fake = _Fake(_place_resp())
+    _place(fake, OrderStore(), exchange=exchange, symbol="7203")
+    assert fake.calls[0]["body"]["OVRS_EXCG_CD"] == wire_exchange
+    assert fake.calls[0]["body"]["PRDT_TYPE_CD"] == prdt_type_cd
+
+
+def test_asia_place_missing_reservation_id_fails_closed():
+    resp = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {}})
+    with pytest.raises(OrderError):
+        _place(_Fake(resp), OrderStore())
+
+
+def test_asia_place_timeout_no_retry():
+    store = OrderStore()
+    fake = _Fake(raises=TransportTimeout("t"))
+    with pytest.raises(OrderTimeoutError):
+        _place(fake, store)
+    assert len(fake.calls) == 1                      # 재전송 없음
+    assert store.fingerprint_for("c1").exchange == "overseas-reserved-asia"  # in-flight 유지
+
+
+def test_asia_place_rejected_clears_in_flight():
+    store = OrderStore()
+    rejected = RawResponse(rt_cd="1", msg_cd="APBK9999", msg1="예약 불가", body={})
+    with pytest.raises(OrderRejectedError):
+        _place(_Fake(rejected), store)
+    assert store.fingerprint_for("c1") is None       # id 재사용 가능
+
+
+def test_asia_place_replay_same_id_no_second_wire():
+    store = OrderStore()
+    fake = _Fake(_place_resp())
+    r1 = _place(fake, store)
+    r2 = _place(fake, store)
+    assert r1.order_id == r2.order_id
+    assert len(fake.calls) == 1
+
+
+# --- 취소 (TTTS3013U, RVSE_CNCL_DVSN_CD=02, store 경유) ---------------------
+def test_asia_cancel_resends_full_order_with_rvse_cncl_02():
+    store = OrderStore()
+    _place(_Fake(_place_resp()), store)
+    cancel = _Fake(_place_resp())
+    rep = ro.cancel_asia_reserved_order(cancel, store, "c1",
+                                        cano="12345678", product_code="01", environment="real")
+    call = cancel.calls[0]
+    body = call["body"]
+    assert call["path"] == _PLACE                    # 전용 취소 엔드포인트가 없다
+    assert call["tr_id"] == "TTTS3013U"
+    assert body["RVSE_CNCL_DVSN_CD"] == "02"
+    assert body["OVRS_RSVN_ODNO"] == "0030138295"
+    assert body["RSVN_ORD_RCIT_DT"] == "20260818"
+    assert body["OVRS_EXCG_CD"] == "SEHK"
+    assert body["PRDT_TYPE_CD"] == "501"
+    assert body["PDNO"] == "00700"
+    assert body["FT_ORD_QTY"] == "100"
+    assert body["SLL_BUY_DVSN_CD"] == "02"
+    assert rep.status is OrderStatus.PENDING_CANCEL
+    assert rep.receipt_date == "20260818"
+
+
+def test_asia_cancel_paper_uses_v_tr():
+    store = OrderStore()
+    _place(_Fake(_place_resp()), store, environment="paper")
+    cancel = _Fake(_place_resp())
+    ro.cancel_asia_reserved_order(cancel, store, "c1",
+                                  cano="12345678", product_code="01", environment="paper")
+    assert cancel.calls[0]["tr_id"] == "VTTS3013U"
+
+
+def test_asia_cancel_unknown_id_rejected_before_wire():
+    fake = _Fake(_place_resp())
+    with pytest.raises(KISUsageError):
+        ro.cancel_asia_reserved_order(fake, OrderStore(), "nope",
+                                      cano="12345678", product_code="01", environment="real")
+    assert fake.calls == []
+
+
+def test_asia_cancel_without_receipt_date_fails_closed():
+    # 접수일자 없는 접수 응답 -> 리포트 receipt_date=None -> 취소는 재조회를 유도하며 fail-closed.
+    store = OrderStore()
+    no_receipt = RawResponse(rt_cd="0", msg_cd="A", msg1="",
+                             body={"output": {"OVRS_RSVN_ODNO": "0030138295"}})
+    _place(_Fake(no_receipt), store)
+    fake = _Fake(_place_resp())
+    with pytest.raises(KISError, match="reconcile"):
+        ro.cancel_asia_reserved_order(fake, store, "c1",
+                                      cano="12345678", product_code="01", environment="real")
+    assert fake.calls == []
+
+
+def test_asia_cancel_rejected_raises():
+    store = OrderStore()
+    _place(_Fake(_place_resp()), store)
+    rejected = RawResponse(rt_cd="1", msg_cd="APBK9999", msg1="취소 불가", body={})
+    with pytest.raises(OrderRejectedError):
+        ro.cancel_asia_reserved_order(_Fake(rejected), store, "c1",
+                                      cano="12345678", product_code="01", environment="real")
+
+
+def test_asia_cancel_timeout_no_retry():
+    store = OrderStore()
+    _place(_Fake(_place_resp()), store)
+    fake = _Fake(raises=TransportTimeout("t"))
+    with pytest.raises(OrderTimeoutError):
+        ro.cancel_asia_reserved_order(fake, store, "c1",
+                                      cano="12345678", product_code="01", environment="real")
+    assert len(fake.calls) == 1                      # 재전송 없음
+
+
+def test_asia_cancel_routed_via_orders_cancel():
+    # kis.orders.cancel(client_order_id) 이 지문 네임스페이스(overseas-reserved-asia)로 아시아 취소
+    # 엔진에 라우팅된다(안전코어 경유 -- 스펙의 공개 취소 경로).
+    store = OrderStore()
+    _place(_Fake(_place_resp()), store)
+    cancel = _Fake(_place_resp())
+    rep = _client(cancel, store).orders.cancel("c1")
+    assert cancel.calls[0]["tr_id"] == "TTTS3013U"
+    assert cancel.calls[0]["body"]["RVSE_CNCL_DVSN_CD"] == "02"
+    assert rep.status is OrderStatus.PENDING_CANCEL
+
+
+def test_asia_modify_rejected_via_orders_modify():
+    store = OrderStore()
+    _place(_Fake(_place_resp()), store)
+    fake = _Fake(_place_resp())
+    with pytest.raises(KISUsageError, match="정정"):
+        _client(fake, store).orders.modify("c1", limit_price=360.0)
+    assert fake.calls == []
+
+
+def test_asia_partial_cancel_rejected_before_wire():
+    store = OrderStore()
+    _place(_Fake(_place_resp()), store)
+    fake = _Fake(_place_resp())
+    with pytest.raises(KISUsageError, match="전량"):
+        _client(fake, store).orders.cancel("c1", quantity=50)
+    assert fake.calls == []
+
+
+# --- 조회/재조회 (TTTS3014R, 실전전용) --------------------------------------
+def test_asia_list_sends_ttts3014r():
+    fake = _Fake(_list_resp([]))
+    ro.fetch_reserved_orders(fake, cano="12345678", product_code="01", environment="real",
+                             start="20260801", end="20260818", market="ASIA")
+    call = fake.calls[0]
+    assert call["tr_id"] == "TTTS3014R"
+    assert call["path"] == _LIST
+    assert call["params"]["PRDT_TYPE_CD"] == ""      # 공백 = 아시아 전체
+    assert call["params"]["OVRS_EXCG_CD"] == ""
+
+
+def test_asia_list_unknown_market_rejected_before_wire():
+    fake = _Fake(_list_resp([]))
+    with pytest.raises(KISUsageError):
+        ro.fetch_reserved_orders(fake, cano="12345678", product_code="01", environment="real",
+                                 start="20260801", end="20260818", market="EU")
+    assert fake.calls == []
+
+
+def test_asia_reconcile_paper_fails_closed():
+    store = OrderStore()
+    _place(_Fake(_place_resp()), store)
+    fake = _Fake(_place_resp())
+    with pytest.raises(KISUsageError, match="실전"):
+        ro.reconcile_asia_reserved_order(fake, store, "c1",
+                                         cano="12345678", product_code="01", environment="paper")
+    assert fake.calls == []                          # 조회 와이어에 닿지 않는다
+
+
+def test_asia_reconcile_confirms_single_match_with_receipt_date(monkeypatch):
+    monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
+    store = OrderStore()
+    place_t = _Fake(raises=TransportTimeout("t"))
+    with pytest.raises(OrderTimeoutError):
+        _place(place_t, store)
+    recon_t = _Fake(_list_resp([_list_row()]))
+    rep = _client(recon_t, store).orders.reconcile("c1")   # 지문으로 아시아 경로 라우팅
+    assert rep is not None
+    assert recon_t.calls[0]["tr_id"] == "TTTS3014R"
+    assert rep.order_id == "0030138295"
+    assert rep.receipt_date == "20240603"            # 재조회 확정도 접수일자를 실어 취소 가능
+    assert rep.status is OrderStatus.PENDING_NEW
+
+
+def test_asia_reconcile_zero_match_returns_none_keeps_in_flight(monkeypatch):
+    monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
+    store = OrderStore()
+    with pytest.raises(OrderTimeoutError):
+        _place(_Fake(raises=TransportTimeout("t")), store)
+    recon_t = _Fake(_list_resp([_list_row(ft_ord_qty="9")]))   # 수량 불일치 -> 매칭 0
+    assert _client(recon_t, store).orders.reconcile("c1") is None
+    assert store.fingerprint_for("c1") is not None
+
+
+def test_asia_reconcile_multi_match_raises(monkeypatch):
+    monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
+    store = OrderStore()
+    with pytest.raises(OrderTimeoutError):
+        _place(_Fake(raises=TransportTimeout("t")), store)
+    rows = [_list_row(), _list_row(ovrs_rsvn_odno="0030138299")]
+    recon_t = _Fake(_list_resp(rows))
+    with pytest.raises(KISError):                    # 2건 이상 -> 모호, 자동 확정 금지
+        _client(recon_t, store).orders.reconcile("c1")
+    assert store.fingerprint_for("c1") is not None

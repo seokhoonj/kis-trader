@@ -93,8 +93,9 @@ def test_overseas_reserved_tr_and_params():
 
 
 def test_overseas_reserved_demo_rejected_before_io():
+    # 발주/취소(V* TR)와 달리 조회(order-resv-list)는 원장상 모의투자 미지원 -- paper 는 와이어 전 거부.
     fake = FakeTransport(response=_resp())
-    with pytest.raises(KISUsageError):
+    with pytest.raises(KISUsageError, match="실전"):
         _client(fake, environment="paper").overseas.account.reserved_orders(start="1", end="2")
     assert fake.calls == []
 

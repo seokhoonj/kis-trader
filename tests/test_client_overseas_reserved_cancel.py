@@ -81,11 +81,12 @@ def test_cancel_overseas_reserved_bad_date_rejected_before_io():
     assert fake.calls == []
 
 
-def test_cancel_overseas_reserved_demo_rejected():
+def test_cancel_overseas_reserved_paper_allowed_uses_v_tr():
+    # 원장상 미국 예약취소는 모의(VTTT3017U)를 지원한다 -- paper 에서 막지 않고 V TR 로 나간다.
     fake = FakeTransport(response=_OK)
-    with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").overseas.account.cancel_reserved_order("0031111234", receipt_date="20250523")
-    assert fake.calls == []
+    _client(fake, environment="paper").overseas.account.cancel_reserved_order(
+        "0031111234", receipt_date="20250523")
+    assert fake.calls[0]["tr_id"] == "VTTT3017U"
 
 
 def test_cancel_overseas_reserved_rejected_raises():
