@@ -485,3 +485,110 @@ def test_derivative_fill_entities_importable():
 
     assert DerivativeFill is not None
     assert DerivativeFillHistory is not None
+
+
+_COMMISSIONS_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-daily-amount-fee"
+
+_COMMISSIONS_SUMMARY = {
+    "fee_smtl": "45678", "agrm_amt_smtl": "410000000",
+    "sll_fee": "20000", "buy_fee": "25678",
+    "futr_fee_smtl": "30000", "opt_fee_smtl": "15678",
+    "trad_pfls_smtl": "6789",
+}
+
+
+def _commission(ord_dt="20240216", *, pdno="KR4101RC0000", name="코스피200 F 202509",
+                sll_agrm="200000000", sll_fee="20000", buy_agrm="210000000", buy_fee="25678",
+                tot_fee="45678", trad="6789"):
+    return {"ord_dt": ord_dt, "pdno": pdno, "item_name": name,
+            "sll_agrm_amt": sll_agrm, "sll_fee": sll_fee,
+            "buy_agrm_amt": buy_agrm, "buy_fee": buy_fee,
+            "tot_fee_smtl": tot_fee, "trad_pfls": trad}
+
+
+def _commissions_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont="D"):
+    body = {"output1": rows if rows is not None else [],
+            "output2": summary if summary is not None else dict(_COMMISSIONS_SUMMARY),
+            "ctx_area_nk200": ctx_nk, "ctx_area_fk200": ctx_fk}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
+
+
+def test_commissions_parses_and_routes():
+    from datetime import date as _date
+
+    from kis_trader.domestic.entities.derivative_account import DerivativeCommissionHistory
+
+    fake = FakeTransport(response=_commissions_resp(rows=[_commission()]))
+    hist = _client(fake, environment="real").account.commissions("20240201", "20240229")
+    assert isinstance(hist, DerivativeCommissionHistory)
+    assert hist.days[0].order_date == _date(2024, 2, 16)  # ord_dt
+    assert hist.days[0].symbol == "KR4101RC0000"          # pdno
+    assert hist.days[0].sell_fee == Decimal(20000)        # sll_fee
+    assert hist.days[0].total_fee == Decimal(45678)       # tot_fee_smtl
+    assert hist.total_fee == Decimal(45678)               # fee_smtl
+    assert hist.futures_fee == Decimal(30000)             # futr_fee_smtl
+    assert hist.total_realized_pnl == Decimal(6789)       # trad_pfls_smtl
+    call = fake.calls[0]
+    assert call["tr_id"] == "CTFO6119R"
+    assert call["path"].endswith("inquire-daily-amount-fee")
+    assert call["params"]["INQR_STRT_DAY"] == "20240201"
+    assert call["params"]["INQR_END_DAY"] == "20240229"
+    assert call["params"]["CTX_AREA_FK200"] == ""
+    assert call["params"]["CTX_AREA_NK200"] == ""
+    assert call["params"]["CANO"] == "12345678"
+
+
+def test_commissions_paper_fails_closed():
+    fake = FakeTransport(response=_commissions_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").account.commissions("20240201", "20240229")
+    assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
+
+
+def test_commissions_bad_start_date_fails_closed():
+    fake = FakeTransport(response=_commissions_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="real").account.commissions("2024-02-01", "20240229")
+    assert fake.calls == []
+
+
+def test_commissions_bad_end_date_fails_closed():
+    fake = FakeTransport(response=_commissions_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="real").account.commissions("20240201", "2024/02/29")
+    assert fake.calls == []
+
+
+def test_commissions_paginates():
+    page1 = _commissions_resp(rows=[_commission("20240216")],
+                              ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    page2 = _commissions_resp(rows=[_commission("20240217")], tr_cont="D")
+    fake = FakeTransport(by_path={_COMMISSIONS_PATH: [page1, page2]})
+    hist = _client(fake, environment="real").account.commissions("20240201", "20240229")
+    assert len(hist.days) == 2
+    assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
+    assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
+
+
+def test_commissions_skips_blank_row():
+    rows = [_commission("20240216"), _commission("", pdno="")]
+    hist = _client(
+        FakeTransport(response=_commissions_resp(rows=rows)), environment="real"
+    ).account.commissions("20240201", "20240229")
+    assert len(hist.days) == 1
+
+
+def test_commissions_missing_output2_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": [], "ctx_area_nk200": "", "ctx_area_fk200": ""})
+    with pytest.raises(KISError):
+        _client(
+            FakeTransport(response=resp), environment="real"
+        ).account.commissions("20240201", "20240229")
+
+
+def test_derivative_commission_entities_importable():
+    from kis_trader import DerivativeCommission, DerivativeCommissionHistory
+
+    assert DerivativeCommission is not None
+    assert DerivativeCommissionHistory is not None

@@ -259,6 +259,59 @@ class DerivativeFillHistory:
 
 
 @dataclass(frozen=True, slots=True)
+class DerivativeCommission:
+    """선물옵션 기간약정수수료 하루치(불변).
+
+    ``order_date`` 주문일자(ord_dt) -- 형식오류/공백이면 None. ``symbol`` 상품번호(pdno),
+    ``name`` 종목명(item_name). ``sell_agreement_amount`` / ``sell_fee`` 매도약정금액/수수료,
+    ``buy_agreement_amount`` / ``buy_fee`` 매수약정금액/수수료, ``total_fee`` 수수료합계,
+    ``realized_pnl`` 매매손익. 주문일자·상품번호가 모두 빈 패딩 행은 담기지 않는다.
+    """
+
+    order_date: date | None            # 주문일자(ord_dt)
+    symbol: str                        # 상품번호(pdno)
+    name: str                          # 종목명(item_name)
+    sell_agreement_amount: Decimal     # 매도약정금액(sll_agrm_amt)
+    sell_fee: Decimal                  # 매도수수료(sll_fee)
+    buy_agreement_amount: Decimal      # 매수약정금액(buy_agrm_amt)
+    buy_fee: Decimal                   # 매수수수료(buy_fee)
+    total_fee: Decimal                 # 수수료합계(tot_fee_smtl)
+    realized_pnl: Decimal              # 매매손익(trad_pfls)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class DerivativeCommissionHistory:
+    """선물옵션 기간약정수수료 -- 기간 합계 요약과 일별 내역 한 벌(불변).
+
+    ``total_fee`` 수수료합계, ``total_agreement_amount`` 약정금액합계, ``total_sell_fee`` /
+    ``total_buy_fee`` 매도/매수 수수료합계, ``futures_fee`` / ``options_fee`` 선물/옵션 수수료합계,
+    ``total_realized_pnl`` 매매손익합계. 타입화하지 않은 요약 필드는 ``raw`` 로 접근한다.
+    """
+
+    days: tuple[DerivativeCommission, ...]  # 일별 내역(output1)
+    total_fee: Decimal                 # 수수료합계(fee_smtl)
+    total_agreement_amount: Decimal    # 약정금액합계(agrm_amt_smtl)
+    total_sell_fee: Decimal            # 매도수수료합계(sll_fee)
+    total_buy_fee: Decimal             # 매수수수료합계(buy_fee)
+    futures_fee: Decimal               # 선물수수료합계(futr_fee_smtl)
+    options_fee: Decimal               # 옵션수수료합계(opt_fee_smtl)
+    total_realized_pnl: Decimal        # 매매손익합계(trad_pfls_smtl)
+    raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "days", tuple(self.days))
+        object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))
+
+
+@dataclass(frozen=True, slots=True)
 class DerivativeDeposit:
     """선물옵션 총자산현황 -- 예수금·주문가능·위탁증거금·손익 요약(불변).
 

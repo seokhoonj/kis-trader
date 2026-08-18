@@ -11,12 +11,14 @@ from typing import TYPE_CHECKING
 from ._engine.derivative_account import (
     fetch_balance,
     fetch_base_date_fills,
+    fetch_commissions,
     fetch_deposit,
     fetch_settlement_pl,
     fetch_valuation_pl,
 )
 from .entities.derivative_account import (
     DerivativeBalance,
+    DerivativeCommissionHistory,
     DerivativeDeposit,
     DerivativeFillHistory,
     DerivativeSettlementBalance,
@@ -83,6 +85,19 @@ class DomesticDerivativesAccount:
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment,
             date=date, start_time=start_time, end_time=end_time,
+        )
+
+    def commissions(self, start: str, end: str) -> DerivativeCommissionHistory:
+        """선물옵션 기간약정수수료일별(일별 내역 + 기간 합계 요약).
+
+        ``start``/``end`` 는 조회 기간의 시작·종료일(YYYYMMDD, 8자리 숫자). ``GET .../
+        domestic-futureoption/v1/trading/inquire-daily-amount-fee`` (``CTFO6119R``).
+        **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_commissions(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, start=start, end=end,
         )
 
     def deposit(self) -> DerivativeDeposit:

@@ -22,6 +22,8 @@ from ...errors import KISError, KISUsageError
 from ...transport import Environment, RawResponse, Transport
 from ..entities.derivative_account import (
     DerivativeBalance,
+    DerivativeCommission,
+    DerivativeCommissionHistory,
     DerivativeDeposit,
     DerivativeFill,
     DerivativeFillHistory,
@@ -48,6 +50,9 @@ _SETTLEMENT_PL_TR = "CTFO6117R"  # 선물옵션 잔고정산손익내역, 모의
 
 _BASE_DATE_FILLS_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-ccnl-bstime"
 _BASE_DATE_FILLS_TR = "CTFO5139R"  # 선물옵션 기준일체결내역, 모의투자 미지원
+
+_COMMISSIONS_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-daily-amount-fee"
+_COMMISSIONS_TR = "CTFO6119R"  # 선물옵션 기간약정수수료일별, 모의투자 미지원
 
 
 def fetch_balance(
@@ -314,6 +319,62 @@ def fetch_base_date_fills(
     )
 
 
+def fetch_commissions(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str,
+) -> DerivativeCommissionHistory:
+    """선물옵션 기간약정수수료일별(일별 내역 output1 + 기간 합계 요약 output2). ``start``~``end``
+    (YYYYMMDD) 기간으로 조회하고 연속조회로 일별 내역을 소진까지 모은다(합계 요약은 첫 페이지에서
+    완결). **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "선물옵션 기간약정수수료일별(inquire-daily-amount-fee)은 모의투자 미지원 -- 실전에서만."
+        )
+    _require_wire_date(start, "start")
+    _require_wire_date(end, "end")
+    rows: list[Mapping[str, Any]] = []
+    summary: Mapping[str, Any] | None = None
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_BALANCE_PAGES):
+        resp = _fetch_commissions_page(
+            transport, cano=cano, product_code=product_code, start=start, end=end,
+            ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        if summary is None:  # 합계 요약은 첫 페이지에서(기간 단위라 페이지 불변)
+            summary = _extract_summary(resp.body)
+        page = resp.body.get("output1")
+        if not isinstance(page, list):  # 빈 결과도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
+            raise KISError(
+                "선물옵션 기간약정수수료일별 응답의 output1 이 일별 내역 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"선물옵션 기간약정수수료일별 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 "
+            f"연속조회가 남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        )
+    if summary is None:
+        raise KISError("선물옵션 기간약정수수료일별 응답에 합계 요약(output2)이 없다.")
+    return DerivativeCommissionHistory(
+        days=tuple(_parse_commissions(rows)),
+        total_fee=required_decimal(summary.get("fee_smtl"), "fee_smtl"),
+        total_agreement_amount=required_decimal(summary.get("agrm_amt_smtl"), "agrm_amt_smtl"),
+        total_sell_fee=required_decimal(summary.get("sll_fee"), "sll_fee"),
+        total_buy_fee=required_decimal(summary.get("buy_fee"), "buy_fee"),
+        futures_fee=required_decimal(summary.get("futr_fee_smtl"), "futr_fee_smtl"),
+        options_fee=required_decimal(summary.get("opt_fee_smtl"), "opt_fee_smtl"),
+        total_realized_pnl=required_decimal(summary.get("trad_pfls_smtl"), "trad_pfls_smtl"),
+        raw=summary,
+    )
+
+
 def _fetch_balance_page(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     ctx_fk: str, ctx_nk: str, tr_cont: str = "",
@@ -402,6 +463,47 @@ def _parse_fills(rows: list[Mapping[str, Any]]) -> list[DerivativeFill]:
             )
         )
     return fills
+
+
+def _fetch_commissions_page(
+    transport: Transport, *, cano: str, product_code: str, start: str, end: str,
+    ctx_fk: str, ctx_nk: str, tr_cont: str = "",
+) -> RawResponse:
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "INQR_STRT_DAY": start,  # 조회시작일(YYYYMMDD)
+        "INQR_END_DAY": end,     # 조회종료일(YYYYMMDD)
+        "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
+    }
+    return transport.request(
+        method="GET", path=_COMMISSIONS_PATH, tr_id=_COMMISSIONS_TR,
+        params=params, idempotent=True, tr_cont=tr_cont,
+    )
+
+
+def _parse_commissions(rows: list[Mapping[str, Any]]) -> list[DerivativeCommission]:
+    days: list[DerivativeCommission] = []
+    for row in rows:
+        order_date = str(row.get("ord_dt", "")).strip()
+        symbol = str(row.get("pdno", "")).strip()
+        if not order_date and not symbol:  # 주문일자·상품번호 모두 없는 패딩 행 -- 건너뜀
+            continue
+        days.append(
+            # 수치는 빈 값을 0으로 읽는다 -- 이유는 _parse_positions 와 동일.
+            DerivativeCommission(
+                order_date=_parse_date(order_date),
+                symbol=symbol,
+                name=str(row.get("item_name", "")).strip(),
+                sell_agreement_amount=_decimal_or_zero(row.get("sll_agrm_amt"), "sll_agrm_amt"),
+                sell_fee=_decimal_or_zero(row.get("sll_fee"), "sll_fee"),
+                buy_agreement_amount=_decimal_or_zero(row.get("buy_agrm_amt"), "buy_agrm_amt"),
+                buy_fee=_decimal_or_zero(row.get("buy_fee"), "buy_fee"),
+                total_fee=_decimal_or_zero(row.get("tot_fee_smtl"), "tot_fee_smtl"),
+                realized_pnl=_decimal_or_zero(row.get("trad_pfls"), "trad_pfls"),
+                _raw=row,
+            )
+        )
+    return days
 
 
 def _parse_settlement_positions(

@@ -94,6 +94,8 @@ from .domestic.entities.derivative import (
 )
 from .domestic.entities.derivative_account import (
     DerivativeBalance,
+    DerivativeCommission,
+    DerivativeCommissionHistory,
     DerivativeDeposit,
     DerivativeFill,
     DerivativeFillHistory,
@@ -308,6 +310,8 @@ __all__ = [
     "DailyProgramTradePoint",
     "DailyTradeVolumePoint",
     "DerivativeBalance",
+    "DerivativeCommission",
+    "DerivativeCommissionHistory",
     "DerivativeDeposit",
     "DerivativeFill",
     "DerivativeFillHistory",
