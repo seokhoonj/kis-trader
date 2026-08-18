@@ -281,3 +281,132 @@ def test_open_orders_paginates_two_pages():
     assert len(fake.calls) == 2
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NK"
     assert fake.calls[1]["tr_cont"] == "N"
+
+
+# --- fills (CTSC8013R -- output1/output2 SWAPPED at runtime) ----------------
+_FILLS_TOTALS = {
+    "tot_ord_qty": "3000", "tot_ccld_qty_smtl": "2000",
+    "tot_bond_ccld_avg_unpr": "9855", "tot_ccld_amt_smtl": "19710000",
+}
+
+
+def _fill(odno="0000000123", *, ord_dt="20240215", orgn="0000000100", ord_dvsn_name="지정가",
+          sll_buy="02", shtn="KR2033022D33", name="국민주택1종", ord_qty="2000", unpr="9855",
+          ord_tmd="131438", ccld_qty="2000", avg="9855", ccld_amt="19710000", nccs="0",
+          brno="12345"):
+    return {"ord_dt": ord_dt, "odno": odno, "orgn_odno": orgn, "ord_dvsn_name": ord_dvsn_name,
+            "sll_buy_dvsn_cd": sll_buy, "shtn_pdno": shtn, "prdt_abrv_name": name,
+            "ord_qty": ord_qty, "bond_ord_unpr": unpr, "ord_tmd": ord_tmd,
+            "tot_ccld_qty": ccld_qty, "bond_avg_unpr": avg, "tot_ccld_amt": ccld_amt,
+            "nccs_qty": nccs, "ord_gno_brno": brno}
+
+
+def _fills_resp(*, rows=None, totals=None, ctx_nk="", ctx_fk="", tr_cont=""):
+    # LIVE: output1 = fill ROWS, output2 = TOTALS (ledger has these swapped).
+    body = {"output1": rows if rows is not None else [],
+            "output2": totals if totals is not None else dict(_FILLS_TOTALS),
+            "ctx_area_nk200": ctx_nk, "ctx_area_fk200": ctx_fk}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
+
+
+def test_fills_parses_rows_and_totals():
+    fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
+    history = _bonds(fake).fills("20240201", "20240229")
+    assert history.total_order_quantity == Decimal(3000)
+    assert history.total_filled_quantity == Decimal(2000)
+    assert history.avg_price == Decimal(9855)
+    assert history.total_filled_amount == Decimal(19710000)
+    assert len(history.fills) == 1
+    fill = history.fills[0]
+    assert fill.order_date == date(2024, 2, 15)
+    assert fill.order_id == "0000000123"
+    assert fill.original_order_id == "0000000100"
+    assert fill.order_type == "지정가"
+    assert fill.side == "buy"
+    assert fill.symbol == "KR2033022D33"
+    assert fill.name == "국민주택1종"
+    assert fill.order_quantity == Decimal(2000)
+    assert fill.order_price == Decimal(9855)
+    assert fill.order_time == time(13, 14, 38)
+    assert fill.filled_quantity == Decimal(2000)
+    assert fill.avg_price == Decimal(9855)
+    assert fill.filled_amount == Decimal(19710000)
+    assert fill.unfilled_quantity == Decimal(0)
+    assert fill.branch_number == "12345"
+
+
+def test_fills_routes_with_params():
+    fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
+    _bonds(fake).fills("20240201", "20240229", side="buy", symbol="KR2033022D33",
+                       unfilled_only=True)
+    call = fake.calls[0]
+    assert call["path"] == _FILLS_PATH
+    assert call["tr_id"] == "CTSC8013R"
+    assert call["params"]["INQR_STRT_DT"] == "20240201"
+    assert call["params"]["INQR_END_DT"] == "20240229"
+    assert call["params"]["SLL_BUY_DVSN_CD"] == "02"
+    assert call["params"]["PDNO"] == "KR2033022D33"
+    assert call["params"]["NCCS_YN"] == "Y"
+    assert call["params"]["SORT_SQN_DVSN"] == "00"
+
+
+def test_fills_side_all_and_sell_codes():
+    fake_all = FakeTransport(response=_fills_resp(rows=[_fill()]))
+    _bonds(fake_all).fills("20240201", "20240229")
+    assert fake_all.calls[0]["params"]["SLL_BUY_DVSN_CD"] == "00"
+    assert fake_all.calls[0]["params"]["PDNO"] == ""
+    assert fake_all.calls[0]["params"]["NCCS_YN"] == "N"
+    fake_sell = FakeTransport(response=_fills_resp(rows=[_fill()]))
+    _bonds(fake_sell).fills("20240201", "20240229", side="sell")
+    assert fake_sell.calls[0]["params"]["SLL_BUY_DVSN_CD"] == "01"
+
+
+def test_fills_skips_blank_odno():
+    fake = FakeTransport(response=_fills_resp(rows=[_fill(), {"odno": "  "}]))
+    assert len(_bonds(fake).fills("20240201", "20240229").fills) == 1
+
+
+def test_fills_rejects_bad_side():
+    fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
+    with pytest.raises(KISUsageError):
+        _bonds(fake).fills("20240201", "20240229", side="both")
+    assert fake.calls == []
+
+
+def test_fills_rejects_bad_date():
+    fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
+    with pytest.raises(KISUsageError):
+        _bonds(fake).fills("2024", "20240229")
+    assert fake.calls == []
+
+
+def test_fills_paper_fails_closed():
+    fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
+    with pytest.raises(KISUsageError):
+        _bonds(fake, environment="paper").fills("20240201", "20240229")
+    assert fake.calls == []
+
+
+def test_fills_missing_output1_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output2": dict(_FILLS_TOTALS)})
+    with pytest.raises(KISError):
+        _bonds(FakeTransport(response=resp)).fills("20240201", "20240229")
+
+
+def test_fills_missing_totals_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output1": []})
+    with pytest.raises(KISError):
+        _bonds(FakeTransport(response=resp)).fills("20240201", "20240229")
+
+
+def test_fills_paginates_two_pages():
+    page1 = _fills_resp(rows=[_fill(odno="1")], ctx_nk="NK", ctx_fk="FK", tr_cont="F")
+    page2 = _fills_resp(rows=[_fill(odno="2")], tr_cont="D")
+    fake = FakeTransport(by_path={_FILLS_PATH: [page1, page2]})
+    history = _bonds(fake).fills("20240201", "20240229")
+    assert [f.order_id for f in history.fills] == ["1", "2"]
+    assert len(fake.calls) == 2
+    assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NK"
+    assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
+    assert fake.calls[1]["tr_cont"] == "N"

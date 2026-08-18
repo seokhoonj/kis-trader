@@ -12,13 +12,19 @@ from typing import TYPE_CHECKING
 from ._engine.bonds import (
     fetch_bond_balance,
     fetch_bond_buyable,
+    fetch_bond_fills,
     fetch_bond_open_orders,
 )
 
 if TYPE_CHECKING:
     from .._literals import Numeric
     from ..client import KISClient
-    from .entities.bond_account import BondBuyable, BondOpenOrder, BondPosition
+    from .entities.bond_account import (
+        BondBuyable,
+        BondFillHistory,
+        BondOpenOrder,
+        BondPosition,
+    )
 
 
 class DomesticBondAccount:
@@ -60,4 +66,21 @@ class DomesticBondAccount:
         return fetch_bond_open_orders(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment, order_date=order_date,
+        )
+
+    def fills(
+        self, start: str, end: str, *, side: str = "all", symbol: str | None = None,
+        unfilled_only: bool = False,
+    ) -> BondFillHistory:
+        """장내채권 일별 주문·체결 내역(개별 행 + 기간 합계). ``start``/``end`` 는 조회 기간의
+        시작·종료일(YYYYMMDD, 8자리 숫자), ``side`` = ``"all"``/``"sell"``/``"buy"``, ``symbol``
+        생략하면 전체 종목, ``unfilled_only`` 면 미체결만.
+
+        ``GET .../domestic-bond/v1/trading/inquire-daily-ccld`` (``CTSC8013R``). **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_bond_fills(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, start=start, end=end,
+            side=side, symbol=symbol, unfilled_only=unfilled_only,
         )

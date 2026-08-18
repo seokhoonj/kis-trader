@@ -46,7 +46,7 @@ from ...bar import Bar, Interval
 from ...errors import KISError, KISUsageError
 from ...order_book import OrderBook
 from ...trade import Trade
-from ...transport import Environment, Transport
+from ...transport import Environment, RawResponse, Transport
 from ..entities.bond import (
     BondDailyPrice,
     BondIssuance,
@@ -54,7 +54,13 @@ from ..entities.bond import (
     BondQuote,
     BondValuation,
 )
-from ..entities.bond_account import BondBuyable, BondOpenOrder, BondPosition
+from ..entities.bond_account import (
+    BondBuyable,
+    BondFill,
+    BondFillHistory,
+    BondOpenOrder,
+    BondPosition,
+)
 from ._parse import _side_from_code
 
 if TYPE_CHECKING:
@@ -470,6 +476,10 @@ _BOND_BUYABLE_PATH = "/uapi/domestic-bond/v1/trading/inquire-psbl-order"
 _BOND_BUYABLE_TR = "TTTC8910R"  # 장내채권 매수가능조회, 모의투자 미지원
 _BOND_OPEN_ORDERS_PATH = "/uapi/domestic-bond/v1/trading/inquire-psbl-rvsecncl"
 _BOND_OPEN_ORDERS_TR = "CTSC8035R"  # 장내채권 정정취소가능주문조회, 모의투자 미지원
+_BOND_FILLS_PATH = "/uapi/domestic-bond/v1/trading/inquire-daily-ccld"
+_BOND_FILLS_TR = "CTSC8013R"  # 장내채권 일별 주문체결조회, 모의투자 미지원
+#: 매도매수구분(SLL_BUY_DVSN_CD): 전체 00 / 매도 01 / 매수 02.
+_BOND_SIDE_TO_CODE = {"all": "00", "sell": "01", "buy": "02"}
 #: 채권 계좌 연속조회 페이지 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
 _MAX_BOND_ACCOUNT_PAGES = 100
 
@@ -626,6 +636,118 @@ def _parse_bond_open_orders(rows: list[Mapping[str, Any]]) -> list[BondOpenOrder
             )
         )
     return orders
+
+
+def fetch_bond_fills(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str, side: str = "all", symbol: str | None = None,
+    unfilled_only: bool = False,
+) -> BondFillHistory:
+    """장내채권 일별 주문·체결 내역(개별 행 + 기간 합계 요약). ``start``~``end`` (YYYYMMDD) 기간,
+    ``side`` = ``"all"``/``"sell"``/``"buy"``, ``symbol`` 없으면 전체, ``unfilled_only`` 면 미체결만.
+
+    **KIS 레이아웃과 달리 실서버는 output1 에 체결 행 배열을, output2 에 합계 요약을 싣는다**
+    (레이아웃의 output1/output2 가 뒤바뀜). 그래서 행은 output1 을 연속조회로 소진까지 모으고
+    합계는 output2 를 첫 페이지에서 완결한다(기간 단위라 페이지 불변). **모의투자 미지원**
+    (demo 면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "장내채권 일별 주문체결조회(inquire-daily-ccld)는 모의투자 미지원 -- 실전에서만."
+        )
+    _require_bond_wire_date(start, "start")
+    _require_bond_wire_date(end, "end")
+    try:
+        side_code = _BOND_SIDE_TO_CODE[side]
+    except KeyError:
+        raise KISUsageError(
+            f"지원하지 않는 side: {side!r} ({'/'.join(_BOND_SIDE_TO_CODE)})."
+        ) from None
+    rows: list[Mapping[str, Any]] = []
+    summary: Mapping[str, Any] | None = None
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_BOND_ACCOUNT_PAGES):
+        resp = _fetch_bond_fills_page(
+            transport, cano=cano, product_code=product_code,
+            start=start, end=end, side_code=side_code, symbol=symbol,
+            unfilled_only=unfilled_only, ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        if summary is None:  # 합계는 output2, 기간 단위라 첫 페이지로 완결
+            summary = _bond_summary(resp.body.get("output2"))
+        page = resp.body.get("output1")  # 실서버는 체결 행을 output1 로 준다(레이아웃과 스왑)
+        if not isinstance(page, list):  # 빈 내역도 배열 -> 부재/비배열은 손상
+            raise KISError(
+                "장내채권 일별 주문체결조회 응답의 output1 이 체결 행 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"장내채권 일별 주문체결조회가 {_MAX_BOND_ACCOUNT_PAGES}페이지 상한에 도달했으나 "
+            f"연속조회가 남아있다 -- 부분 결과로 자르지 않는다."
+        )
+    if summary is None:
+        raise KISError("장내채권 일별 주문체결조회 응답에 합계 요약(output2)이 없다.")
+    return BondFillHistory(
+        total_order_quantity=_bond_decimal_or_zero(summary.get("tot_ord_qty"), "tot_ord_qty"),
+        total_filled_quantity=_bond_decimal_or_zero(summary.get("tot_ccld_qty_smtl"), "tot_ccld_qty_smtl"),
+        avg_price=_bond_decimal_or_zero(summary.get("tot_bond_ccld_avg_unpr"), "tot_bond_ccld_avg_unpr"),
+        total_filled_amount=_bond_decimal_or_zero(summary.get("tot_ccld_amt_smtl"), "tot_ccld_amt_smtl"),
+        fills=tuple(_parse_bond_fills(rows)),
+        _raw=summary,
+    )
+
+
+def _fetch_bond_fills_page(
+    transport: Transport, *, cano: str, product_code: str, start: str, end: str,
+    side_code: str, symbol: str | None, unfilled_only: bool,
+    ctx_fk: str, ctx_nk: str, tr_cont: str = "",
+) -> RawResponse:
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "INQR_STRT_DT": start, "INQR_END_DT": end,
+        "SLL_BUY_DVSN_CD": side_code, "SORT_SQN_DVSN": "00",
+        "PDNO": symbol or "", "NCCS_YN": "Y" if unfilled_only else "N",
+        "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
+    }
+    return transport.request(
+        method="GET", path=_BOND_FILLS_PATH, tr_id=_BOND_FILLS_TR,
+        params=params, idempotent=True, tr_cont=tr_cont,
+    )
+
+
+def _parse_bond_fills(rows: list[Mapping[str, Any]]) -> list[BondFill]:
+    fills: list[BondFill] = []
+    for row in rows:
+        order_id = str(row.get("odno", "")).strip()
+        if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
+            continue
+        fills.append(
+            BondFill(
+                order_date=_parse_bond_date(row.get("ord_dt")),
+                order_id=order_id,
+                original_order_id=str(row.get("orgn_odno", "")).strip(),
+                order_type=str(row.get("ord_dvsn_name", "")).strip(),
+                side=_side_from_code(row.get("sll_buy_dvsn_cd")),
+                symbol=str(row.get("shtn_pdno", "")).strip(),
+                name=str(row.get("prdt_abrv_name", "")).strip(),
+                order_quantity=_bond_decimal_or_zero(row.get("ord_qty"), "ord_qty"),
+                order_price=_bond_decimal_or_zero(row.get("bond_ord_unpr"), "bond_ord_unpr"),
+                order_time=_parse_bond_time(row.get("ord_tmd")),
+                filled_quantity=_bond_decimal_or_zero(row.get("tot_ccld_qty"), "tot_ccld_qty"),
+                avg_price=_bond_decimal_or_zero(row.get("bond_avg_unpr"), "bond_avg_unpr"),
+                filled_amount=_bond_decimal_or_zero(row.get("tot_ccld_amt"), "tot_ccld_amt"),
+                unfilled_quantity=_bond_decimal_or_zero(row.get("nccs_qty"), "nccs_qty"),
+                branch_number=str(row.get("ord_gno_brno", "")).strip(),
+                _raw=row,
+            )
+        )
+    return fills
 
 
 # --- 채권 계좌 공용 파서 ---------------------------------------------------

@@ -101,3 +101,55 @@ class BondOpenOrder:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class BondFill:
+    """장내채권 일별 주문·체결 내역 한 건(불변).
+
+    한 주문의 주문·체결 상태를 함께 담는다: ``order_quantity`` / ``order_price`` 주문, ``filled_quantity``
+    / ``avg_price`` / ``filled_amount`` 체결, ``unfilled_quantity`` 미체결수량. ``side`` 는 매수/매도.
+    """
+
+    order_date: date | None           # 주문일자(ord_dt)
+    order_id: str                     # 주문번호(odno)
+    original_order_id: str            # 원주문번호(orgn_odno)
+    order_type: str                   # 주문구분명(ord_dvsn_name)
+    side: Side                        # 매도매수구분(sll_buy_dvsn_cd)
+    symbol: str                       # 단축상품번호(shtn_pdno)
+    name: str                         # 상품약어명(prdt_abrv_name)
+    order_quantity: Decimal           # 주문수량(ord_qty)
+    order_price: Decimal              # 채권주문단가(bond_ord_unpr)
+    order_time: time | None           # 주문시각(ord_tmd)
+    filled_quantity: Decimal          # 총체결수량(tot_ccld_qty)
+    avg_price: Decimal                # 채권평균단가(bond_avg_unpr)
+    filled_amount: Decimal            # 총체결금액(tot_ccld_amt)
+    unfilled_quantity: Decimal        # 미체결수량(nccs_qty)
+    branch_number: str                # 주문채번지점번호(ord_gno_brno)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class BondFillHistory:
+    """장내채권 일별 주문·체결 내역과 기간 합계 요약(불변).
+
+    ``fills`` 는 개별 주문·체결 행(:class:`BondFill`)이고, ``total_*`` 은 조회 기간의 합계다.
+    ``avg_price`` 는 기간 전체 채권 체결평균단가. 금액·수량은 KRW Decimal.
+    """
+
+    total_order_quantity: Decimal     # 총주문수량(tot_ord_qty)
+    total_filled_quantity: Decimal    # 총체결수량합계(tot_ccld_qty_smtl)
+    avg_price: Decimal                # 총채권체결평균단가(tot_bond_ccld_avg_unpr)
+    total_filled_amount: Decimal      # 총체결금액합계(tot_ccld_amt_smtl)
+    fills: tuple[BondFill, ...]       # 개별 주문·체결 내역(output1)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
