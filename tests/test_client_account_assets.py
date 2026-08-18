@@ -61,7 +61,7 @@ def test_account_assets_parses_summary():
     assert assets.total_asset_amount == Decimal(1651869889547)
     assert assets.total_net_asset_amount == Decimal(185550504)
     assert assets.total_purchase_amount == Decimal(161155333)
-    assert assets.total_evaluation_pnl == Decimal(24395171)
+    assert assets.total_unrealized_pnl == Decimal(24395171)
     assert assets.deposit == Decimal(249855300)
     assert assets.total_foreign_evaluation == Decimal(1651434483743)
     assert assets.overseas_stock_evaluation == Decimal("185144504.000000")

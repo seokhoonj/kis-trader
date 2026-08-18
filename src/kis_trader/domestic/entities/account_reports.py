@@ -65,7 +65,7 @@ class RealizedProfitBalance:
     total_value: Decimal               # 총평가금액(tot_evlu_amt)
     total_purchase_amount: Decimal     # 매입금액합계금액(pchs_amt_smtl_amt)
     total_evaluation_amount: Decimal   # 평가금액합계금액(evlu_amt_smtl_amt)
-    total_evaluation_pnl: Decimal      # 평가손익합계금액(evlu_pfls_smtl_amt)
+    total_unrealized_pnl: Decimal      # 평가손익합계금액(evlu_pfls_smtl_amt)
     asset_change: Decimal              # 자산증감액(asst_icdc_amt)
     asset_change_rate: Decimal         # 자산증감수익율(asst_icdc_erng_rt)
     realized_pnl: Decimal              # 실현손익(rlzt_pfls)
