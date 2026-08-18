@@ -102,11 +102,12 @@ def test_overseas_cancel_maps_exchange_and_deduplicates():
     kis.overseas.stock("AAPL", exchange="NAS").buy(
         quantity=3, limit_price="150.25", client_order_id="original-overseas-1"
     )
+    # 해외는 전량 취소만 지원한다(부분 취소 미지원) -- quantity 를 생략해 잔량 전체를 취소한다.
     first = kis.orders.cancel(
-        "original-overseas-1", quantity=2, request_id="cancel-overseas-1"
+        "original-overseas-1", request_id="cancel-overseas-1"
     )
     second = kis.orders.cancel(
-        "original-overseas-1", quantity=2, request_id="cancel-overseas-1"
+        "original-overseas-1", request_id="cancel-overseas-1"
     )
 
     from kis_trader import OrderStatus
@@ -121,7 +122,7 @@ def test_overseas_cancel_maps_exchange_and_deduplicates():
     assert call["body"]["PDNO"] == "AAPL"
     assert call["body"]["ORGN_ODNO"] == "0000123456"
     assert call["body"]["RVSE_CNCL_DVSN_CD"] == "02"
-    assert call["body"]["ORD_QTY"] == "2"
+    assert call["body"]["ORD_QTY"] == "3"          # 잔량 전체(3)
     assert call["body"]["OVRS_ORD_UNPR"] == "0"
 
 
@@ -131,8 +132,9 @@ def test_overseas_replace_uses_demo_tr_and_new_price():
     kis.overseas.stock("0700", exchange="HKS").sell(
         quantity=4, limit_price="410.00", client_order_id="original-overseas-2"
     )
+    # 해외는 전량 정정만 지원한다(부분 수량 정정 미지원) -- quantity 를 생략해 잔량 전체를 정정한다.
     report = kis.orders.modify(
-        "original-overseas-2", quantity=3, limit_price="412.50",
+        "original-overseas-2", limit_price="412.50",
         request_id="modify-overseas-1",
     )
 
@@ -142,7 +144,7 @@ def test_overseas_replace_uses_demo_tr_and_new_price():
     assert call["tr_id"] == "VTTT1004U"
     assert call["body"]["OVRS_EXCG_CD"] == "SEHK"
     assert call["body"]["RVSE_CNCL_DVSN_CD"] == "01"
-    assert call["body"]["ORD_QTY"] == "3"
+    assert call["body"]["ORD_QTY"] == "4"          # 잔량 전체(4)
     assert call["body"]["OVRS_ORD_UNPR"] == "412.50"
 
 

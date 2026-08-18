@@ -33,6 +33,7 @@ def _isolate_credentials(tmp_path, monkeypatch):
     자격증명만 명시적으로 설정하게 한다(hermetic + 실 자격증명 미접촉)."""
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
+    monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))   # 영속 주문 저장소도 격리
     for var in [name for name in os.environ if name.startswith("KIS_")]:
         monkeypatch.delenv(var, raising=False)
 

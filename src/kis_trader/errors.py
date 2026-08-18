@@ -96,6 +96,17 @@ class OrderRejectedError(OrderError):
     """
 
 
+class OrderNotAcceptedYetError(OrderRejectedError):
+    """정정·취소가 '거래소 미접수'로 거부됐다 -- **재시도 가능**(요청이 너무 이르다).
+
+    브로커는 방금 낸 원주문에 거래소 주문번호(ODNO)를 부여했으나 거래소가 아직 그 주문을 접수하지
+    않은 짧은 창에서, 곧바로 정정·취소를 내면 KIS 가 "거래소 미접수로 정정취소주문이 불가합니다"로
+    거부한다. 정상 거부(:class:`OrderRejectedError`)와 달리 요청 자체는 유효하며 **잠시 뒤 재시도하면
+    접수된다**. :class:`OrderRejectedError` 의 하위 타입이라 기존 ``except OrderRejectedError`` 가
+    그대로 잡는다(하위호환). 발주(place)가 아니라 정정·취소 경로에서만 매핑한다.
+    """
+
+
 class OrderTimeoutError(OrderError):
     """주문 전송이 시간초과됐다 -- 체결 여부가 **불명**이다.
 

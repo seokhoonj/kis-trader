@@ -36,6 +36,7 @@ from ...errors import (
     KISError,
     KISUsageError,
     OrderError,
+    OrderNotAcceptedYetError,
     OrderRejectedError,
     OrderTimeoutError,
 )
@@ -296,8 +297,9 @@ def submit_change(
     아래 멱등 in-flight 경로가 처리한다.
 
     Raises: 미확정/종료/수량·가격 위반·경합 변경은 :class:`KISUsageError`, 접수 거부(rt_cd!=0)는
-    :class:`OrderRejectedError`, 전송 타임아웃(처리 불명)은 :class:`OrderTimeoutError`,
-    정정 접수인데 ODNO 없음/예상외 outcome 은 :class:`OrderError`."""
+    :class:`OrderRejectedError` -- 그중 '거래소 미접수'(원주문이 아직 거래소에 접수 전이라 정정취소가
+    이른 경우)는 재시도 가능한 하위 타입 :class:`OrderNotAcceptedYetError`, 전송 타임아웃(처리 불명)은
+    :class:`OrderTimeoutError`, 정정 접수인데 ODNO 없음/예상외 outcome 은 :class:`OrderError`."""
     original_report = store.report_for(original_client_order_id)
     original_fingerprint = store.fingerprint_for(original_client_order_id)
     if original_report is None or original_fingerprint is None:
@@ -379,7 +381,14 @@ def submit_change(
         ) from err
     if not resp.ok:
         store.clear_in_flight(request_id)
-        raise OrderRejectedError(
+        # '거래소 미접수' 거부는 재시도 가능 -- 브로커는 ODNO 를 냈으나 거래소가 아직 원주문을
+        # 접수하지 않아 정정취소가 너무 이르다. 실거부와 구별되게 하위 타입으로 올려 호출자가 잠시
+        # 뒤 재시도하게 한다(발주 아닌 정정·취소 경로에서만 매핑). msg_cd 정본이 확인되면 msg1
+        # 부분일치 대신 그 코드로 판별하는 게 더 견고하다.
+        rejection = (
+            OrderNotAcceptedYetError if "미접수" in (resp.msg1 or "") else OrderRejectedError
+        )
+        raise rejection(
             f"주문 {action} 요청 거부: {resp.msg1}",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
