@@ -212,3 +212,75 @@ def test_derivative_deposit_missing_output_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={}, tr_cont="D")
     with pytest.raises(KISError):
         _client(FakeTransport(response=resp), environment="real").account.deposit()
+
+
+_VALUATION_PL_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-balance-valuation-pl"
+
+
+def _valuation_position(shtn="101W09", *, pdno="KR4101RC0000", name="코스피200 F 202509",
+                        side="매수", qty="3", excc="410.50", avg="408.25", idx="411.20",
+                        pchs="122475000", evlu="123150000", pnl="12345", trad="6789", lqd="3"):
+    return {"shtn_pdno": shtn, "pdno": pdno, "prdt_name": name, "sll_buy_dvsn_name": side,
+            "cblc_qty1": qty, "excc_unpr": excc, "ccld_avg_unpr1": avg, "idx_clpr": idx,
+            "pchs_amt": pchs, "evlu_amt": evlu, "evlu_pfls_amt": pnl, "trad_pfls_amt": trad,
+            "lqd_psbl_qty": lqd}
+
+
+def _valuation_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont="D"):
+    body = {"output1": rows if rows is not None else [],
+            "output2": summary if summary is not None else dict(_SUMMARY),
+            "ctx_area_nk200": ctx_nk, "ctx_area_fk200": ctx_fk}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
+
+
+def test_valuation_pl_parses_and_routes():
+    from kis_trader.domestic.entities.derivative_account import DerivativeValuationBalance
+
+    fake = FakeTransport(response=_valuation_resp(rows=[_valuation_position()]))
+    val = _client(fake, environment="real").account.valuation_pl()
+    assert isinstance(val, DerivativeValuationBalance)
+    assert val.positions[0].symbol == "101W09"          # shtn_pdno
+    assert val.positions[0].quantity == Decimal(3)      # cblc_qty1
+    assert val.positions[0].unrealized_pnl == Decimal(12345)  # evlu_pfls_amt
+    assert val.total_unrealized_pnl == Decimal(12345)   # evlu_pfls_amt_smtl
+    assert val.account_value == Decimal(51000000)       # prsm_dpast_amt
+    assert val.total_margin == Decimal(20000000)        # mgna_tota
+    call = fake.calls[0]
+    assert call["tr_id"] == "CTFO6159R"
+    assert call["path"].endswith("inquire-balance-valuation-pl")
+    assert call["params"]["MGNA_DVSN"] == "01"
+    assert call["params"]["EXCC_STAT_CD"] == "1"
+    assert call["params"]["CTX_AREA_FK200"] == ""
+    assert call["params"]["CTX_AREA_NK200"] == ""
+
+
+def test_valuation_pl_paper_fails_closed():
+    fake = FakeTransport(response=_valuation_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").account.valuation_pl()
+    assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
+
+
+def test_valuation_pl_paginates():
+    page1 = _valuation_resp(rows=[_valuation_position("101W09")],
+                            ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    page2 = _valuation_resp(rows=[_valuation_position("201X12", pdno="KR4201RC0000")], tr_cont="D")
+    fake = FakeTransport(by_path={_VALUATION_PL_PATH: [page1, page2]})
+    val = _client(fake, environment="real").account.valuation_pl()
+    assert [p.symbol for p in val.positions] == ["101W09", "201X12"]
+    assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
+    assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
+
+
+def test_valuation_pl_missing_output2_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": [], "ctx_area_nk200": "", "ctx_area_fk200": ""})
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp), environment="real").account.valuation_pl()
+
+
+def test_derivative_valuation_entities_importable():
+    from kis_trader import DerivativeValuationBalance, DerivativeValuationPosition
+
+    assert DerivativeValuationBalance is not None
+    assert DerivativeValuationPosition is not None

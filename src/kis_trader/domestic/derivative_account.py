@@ -8,8 +8,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._engine.derivative_account import fetch_balance, fetch_deposit
-from .entities.derivative_account import DerivativeBalance, DerivativeDeposit
+from ._engine.derivative_account import fetch_balance, fetch_deposit, fetch_valuation_pl
+from .entities.derivative_account import (
+    DerivativeBalance,
+    DerivativeDeposit,
+    DerivativeValuationBalance,
+)
 
 if TYPE_CHECKING:
     from ..client import KISClient
@@ -29,6 +33,18 @@ class DomesticDerivativesAccount:
         """
         cano, product_code = self._client._require_account()
         return fetch_balance(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment,
+        )
+
+    def valuation_pl(self) -> DerivativeValuationBalance:
+        """선물옵션 잔고평가손익내역(보유내역 + 예수금·증거금·손익 요약).
+
+        ``GET .../domestic-futureoption/v1/trading/inquire-balance-valuation-pl``
+        (``CTFO6159R``). 보유내역은 종목별 평가/매매 손익을 함께 싣는다. **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_valuation_pl(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment,
         )

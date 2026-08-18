@@ -96,6 +96,8 @@ from .domestic.entities.derivative_account import (
     DerivativeBalance,
     DerivativeDeposit,
     DerivativePosition,
+    DerivativeValuationBalance,
+    DerivativeValuationPosition,
 )
 from .domestic.entities.elw import (
     ELWIndicatorPoint,
@@ -305,6 +307,8 @@ __all__ = [
     "DerivativeDeposit",
     "DerivativePosition",
     "DerivativeQuote",
+    "DerivativeValuationBalance",
+    "DerivativeValuationPosition",
     "DetailedInvestorFlow",
     "DetailedInvestorHistory",
     "Direction",

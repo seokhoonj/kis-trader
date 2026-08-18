@@ -23,6 +23,8 @@ from ..entities.derivative_account import (
     DerivativeBalance,
     DerivativeDeposit,
     DerivativePosition,
+    DerivativeValuationBalance,
+    DerivativeValuationPosition,
 )
 
 _BALANCE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-balance"
@@ -32,6 +34,9 @@ _MAX_BALANCE_PAGES = 100
 
 _DEPOSIT_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-deposit"
 _DEPOSIT_TR = "CTRP6550R"  # 선물옵션 총자산현황, 모의투자 미지원
+
+_VALUATION_PL_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-balance-valuation-pl"
+_VALUATION_PL_TR = "CTFO6159R"  # 선물옵션 잔고평가손익내역, 모의투자 미지원
 
 
 def fetch_balance(
@@ -126,6 +131,64 @@ def fetch_deposit(
     )
 
 
+def fetch_valuation_pl(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment
+) -> DerivativeValuationBalance:
+    """선물옵션 잔고평가손익내역(보유내역 output1 + 계좌 요약 output2). 연속조회로 보유내역을
+    소진까지 모으고 계좌 요약은 첫 페이지에서 완결한다(계좌 단위라 페이지 불변).
+    **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "선물옵션 잔고평가손익내역(inquire-balance-valuation-pl)은 모의투자 미지원 -- 실전에서만."
+        )
+    rows: list[Mapping[str, Any]] = []
+    summary: Mapping[str, Any] | None = None
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_BALANCE_PAGES):
+        resp = _fetch_valuation_pl_page(
+            transport, cano=cano, product_code=product_code,
+            ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        if summary is None:  # 계좌 요약은 첫 페이지에서(계좌 단위라 페이지 불변)
+            summary = _extract_summary(resp.body)
+        page = resp.body.get("output1")
+        if not isinstance(page, list):  # 빈 계좌도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
+            raise KISError(
+                "선물옵션 잔고평가손익내역 응답의 output1 이 보유내역 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"선물옵션 잔고평가손익내역 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 "
+            f"연속조회가 남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        )
+    if summary is None:
+        raise KISError("선물옵션 잔고평가손익내역 응답에 계좌 요약(output2)이 없다.")
+    return DerivativeValuationBalance(
+        positions=tuple(_parse_valuation_positions(rows)),
+        total_deposit=required_decimal(summary.get("tot_dncl_amt"), "tot_dncl_amt"),
+        deposit_cash=required_decimal(summary.get("dnca_cash"), "dnca_cash"),
+        total_margin=required_decimal(summary.get("mgna_tota"), "mgna_tota"),
+        available_cash=required_decimal(summary.get("ord_psbl_cash"), "ord_psbl_cash"),
+        available_total=required_decimal(summary.get("ord_psbl_tota"), "ord_psbl_tota"),
+        total_unrealized_pnl=required_decimal(summary.get("evlu_pfls_amt_smtl"), "evlu_pfls_amt_smtl"),
+        total_realized_pnl=required_decimal(summary.get("trad_pfls_amt_smtl"), "trad_pfls_amt_smtl"),
+        futures_unrealized_pnl=required_decimal(summary.get("futr_evlu_pfls_amt"), "futr_evlu_pfls_amt"),
+        options_unrealized_pnl=required_decimal(summary.get("opt_evlu_pfls_amt"), "opt_evlu_pfls_amt"),
+        futures_realized_pnl=required_decimal(summary.get("futr_trad_pfls_amt"), "futr_trad_pfls_amt"),
+        options_realized_pnl=required_decimal(summary.get("opt_trad_pfls_amt"), "opt_trad_pfls_amt"),
+        account_value=required_decimal(summary.get("prsm_dpast_amt"), "prsm_dpast_amt"),
+        raw=summary,
+    )
+
+
 def _fetch_balance_page(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     ctx_fk: str, ctx_nk: str, tr_cont: str = "",
@@ -140,6 +203,52 @@ def _fetch_balance_page(
         method="GET", path=_BALANCE_PATH, tr_id=_BALANCE_TR[environment],
         params=params, idempotent=True, tr_cont=tr_cont,
     )
+
+
+def _fetch_valuation_pl_page(
+    transport: Transport, *, cano: str, product_code: str,
+    ctx_fk: str, ctx_nk: str, tr_cont: str = "",
+) -> RawResponse:
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "MGNA_DVSN": "01",   # 증거금구분 -- 01 개시
+        "EXCC_STAT_CD": "1",  # 정산상태 -- 1 정산
+        "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
+    }
+    return transport.request(
+        method="GET", path=_VALUATION_PL_PATH, tr_id=_VALUATION_PL_TR,
+        params=params, idempotent=True, tr_cont=tr_cont,
+    )
+
+
+def _parse_valuation_positions(
+    rows: list[Mapping[str, Any]]
+) -> list[DerivativeValuationPosition]:
+    positions: list[DerivativeValuationPosition] = []
+    for row in rows:
+        symbol = str(row.get("shtn_pdno", "")).strip()
+        if not symbol:  # 단축상품번호 없는 패딩 행 -- 건너뜀
+            continue
+        positions.append(
+            # 종목별 수치는 빈 값을 0으로 읽는다 -- 이유는 _parse_positions 와 동일.
+            DerivativeValuationPosition(
+                symbol=symbol,
+                isin=str(row.get("pdno", "")).strip(),
+                name=str(row.get("prdt_name", "")).strip(),
+                side=str(row.get("sll_buy_dvsn_name", "")).strip(),
+                quantity=_decimal_or_zero(row.get("cblc_qty1"), "cblc_qty1"),
+                settle_price=_decimal_or_zero(row.get("excc_unpr"), "excc_unpr"),
+                avg_price=_decimal_or_zero(row.get("ccld_avg_unpr1"), "ccld_avg_unpr1"),
+                index_close=_decimal_or_zero(row.get("idx_clpr"), "idx_clpr"),
+                purchase_amount=_decimal_or_zero(row.get("pchs_amt"), "pchs_amt"),
+                market_value=_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
+                unrealized_pnl=_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
+                realized_pnl=_decimal_or_zero(row.get("trad_pfls_amt"), "trad_pfls_amt"),
+                liquidatable_quantity=_decimal_or_zero(row.get("lqd_psbl_qty"), "lqd_psbl_qty"),
+                _raw=row,
+            )
+        )
+    return positions
 
 
 def _parse_positions(rows: list[Mapping[str, Any]]) -> list[DerivativePosition]:
