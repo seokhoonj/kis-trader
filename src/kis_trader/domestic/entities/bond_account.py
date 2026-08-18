@@ -53,7 +53,7 @@ class BondPosition:
 class BondBuyable:
     """한 장내채권을 지정 단가로 살 때의 매수가능 여력(불변).
 
-    ``orderable_cash`` 주문가능현금, ``orderable_substitute`` 주문가능대용, ``reusable_amount``
+    ``orderable_cash`` 주문가능현금, ``orderable_substitute`` 주문가능대용, ``reusable_cash``
     재사용가능금액, ``buyable_amount`` / ``buyable_quantity`` 매수가능금액/수량, ``cma_value``
     CMA평가금액. 금액은 KRW Decimal.
     """
@@ -61,7 +61,7 @@ class BondBuyable:
     symbol: str                       # 조회한 표준코드(요청 PDNO)
     orderable_cash: Decimal           # 주문가능현금(ord_psbl_cash)
     orderable_substitute: Decimal     # 주문가능대용(ord_psbl_sbst)
-    reusable_amount: Decimal          # 재사용가능금액(ruse_psbl_amt)
+    reusable_cash: Decimal            # 재사용가능금액(ruse_psbl_amt)
     buyable_amount: Decimal           # 매수가능금액(buy_psbl_amt)
     buyable_quantity: Decimal         # 매수가능수량(buy_psbl_qty)
     cma_value: Decimal                # CMA평가금액(cma_evlu_amt)

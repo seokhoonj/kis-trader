@@ -445,7 +445,7 @@ def _parse_margin_rate(row: Mapping[str, Any]) -> DerivativeMarginRate:
         futures_margin_per_contract=required_decimal(
             row.get("ctrt_per_futr_mgna"), "ctrt_per_futr_mgna"
         ),
-        raw=row,
+        _raw=row,
     )
 
 

@@ -419,7 +419,7 @@ def test_base_date_fills_parses_and_routes():
     assert hist.fills[0].final_settlement_date == _date(2024, 2, 20)  # last_sttldt
     assert hist.fills[0].fill_quantity == Decimal(3)    # ccld_qty
     assert hist.fills[0].fill_time == "0919"            # ccld_btwn, raw str
-    assert hist.total_fill_quantity == Decimal(5)       # tot_ccld_qty_smtl
+    assert hist.total_filled_quantity == Decimal(5)     # tot_ccld_qty_smtl
     assert hist.total_fee == Decimal(12345)             # fee_smtl
     call = fake.calls[0]
     assert call["tr_id"] == "CTFO5139R"

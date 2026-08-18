@@ -62,7 +62,7 @@ def test_margin_rates_parses_and_routes():
     assert rate.trading_margin_rate == Decimal("6.00")
     assert rate.trading_multiplier == Decimal(250000)
     assert rate.futures_margin_per_contract == Decimal(9230625)
-    assert rate.raw["bast_id"] == "101S"
+    assert rate._raw["bast_id"] == "101S"
     call = fake.calls[0]
     assert call["path"] == _MARGIN_RATE_PATH
     assert call["tr_id"] == "TTTO6032R"

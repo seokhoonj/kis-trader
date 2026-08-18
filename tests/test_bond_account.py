@@ -162,7 +162,7 @@ def test_buyable_parses_and_routes():
     assert result.symbol == "KR2033022D33"
     assert result.orderable_cash == Decimal(50000000)
     assert result.orderable_substitute == Decimal(0)
-    assert result.reusable_amount == Decimal(0)
+    assert result.reusable_cash == Decimal(0)
     assert result.buyable_amount == Decimal(49500000)
     assert result.buyable_quantity == Decimal(5000)
     assert result.cma_value == Decimal(0)

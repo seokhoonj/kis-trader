@@ -2,7 +2,7 @@
 
 :class:`DerivativePosition` 은 한 종목(선물/옵션)의 보유 현황, :class:`DerivativeBalance` 는
 계좌 예수금·증거금·손익 요약과 보유내역 한 벌이다. 금액·수량은 KRW Decimal(선물옵션은 원화).
-계좌 요약(output2)에는 여기 타입화하지 않은 필드가 많아 원본 요약을 ``raw`` 로 함께 노출한다.
+계좌 요약(output2)에는 여기 타입화하지 않은 필드가 많아 원본 요약을 ``_raw`` 로 함께 노출한다.
 """
 
 from __future__ import annotations
@@ -53,7 +53,7 @@ class DerivativeBalance:
     ``total_deposit`` 총예수금액, ``deposit_cash`` 예수금현금, ``total_margin`` 증거금총액,
     ``orderable_cash`` / ``orderable_total`` 주문가능현금/총액, ``account_value`` 추정예탁자산금액.
     평가·매매손익은 합계(``total_*``)와 선물/옵션 분해(``futures_*`` / ``options_*``)를 함께 담는다.
-    타입화하지 않은 요약 필드는 ``raw`` 로 접근한다.
+    타입화하지 않은 요약 필드는 ``_raw`` 로 접근한다.
     """
 
     positions: tuple[DerivativePosition, ...]  # 보유내역(output1)
@@ -69,13 +69,13 @@ class DerivativeBalance:
     futures_realized_pnl: Decimal         # 선물매매손익금액(futr_trad_pfls_amt)
     options_realized_pnl: Decimal         # 옵션매매손익금액(opt_trad_pfls_amt)
     account_value: Decimal                # 추정예탁자산금액(prsm_dpast_amt)
-    raw: Mapping[str, Any] = field(
+    _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "positions", tuple(self.positions))
-        object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -118,7 +118,7 @@ class DerivativeValuationBalance:
     실은 :class:`DerivativeValuationPosition` 이다. ``total_deposit`` 총예수금액, ``deposit_cash``
     예수금현금, ``total_margin`` 증거금총액, ``orderable_cash`` / ``orderable_total`` 주문가능현금/총액,
     ``account_value`` 추정예탁자산금액. 평가·매매손익은 합계(``total_*``)와 선물/옵션 분해
-    (``futures_*`` / ``options_*``)를 함께 담는다. 타입화하지 않은 요약 필드는 ``raw`` 로 접근한다.
+    (``futures_*`` / ``options_*``)를 함께 담는다. 타입화하지 않은 요약 필드는 ``_raw`` 로 접근한다.
     """
 
     positions: tuple[DerivativeValuationPosition, ...]  # 보유내역(output1)
@@ -134,13 +134,13 @@ class DerivativeValuationBalance:
     futures_realized_pnl: Decimal         # 선물매매손익금액(futr_trad_pfls_amt)
     options_realized_pnl: Decimal         # 옵션매매손익금액(opt_trad_pfls_amt)
     account_value: Decimal                # 추정예탁자산금액(prsm_dpast_amt)
-    raw: Mapping[str, Any] = field(
+    _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "positions", tuple(self.positions))
-        object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -181,7 +181,7 @@ class DerivativeSettlementBalance:
     ``deposit_cash`` 예수금현금, ``deposit_substitute`` 예수금대용. 옵션 대금은 ``option_buy_amount``
     (매수대금), ``option_sell_amount``(매도대금), ``option_liquidation_value``(청산평가금액)로 담는다.
     ``today_settlement_diff`` 당일정산차금, ``renewal_settlement_diff`` 갱신정산차금, ``fee`` 수수료.
-    타입화하지 않은 요약 필드는 ``raw`` 로 접근한다.
+    타입화하지 않은 요약 필드는 ``_raw`` 로 접근한다.
     """
 
     positions: tuple[DerivativeSettlementPosition, ...]  # 정산 보유내역(output1)
@@ -198,13 +198,13 @@ class DerivativeSettlementBalance:
     fee: Decimal                          # 수수료(fee)
     today_settlement_diff: Decimal        # 당일정산차금(thdt_dfpa)
     renewal_settlement_diff: Decimal      # 갱신정산차금(rnwl_dfpa)
-    raw: Mapping[str, Any] = field(
+    _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "positions", tuple(self.positions))
-        object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -240,22 +240,22 @@ class DerivativeFill:
 class DerivativeFillHistory:
     """선물옵션 기준일 체결내역 -- 기간 합계 요약과 체결 한 벌(불변).
 
-    ``total_fill_quantity`` 총체결수량합계, ``total_fill_amount`` 총체결금액합계,
-    ``fee_adjustment`` 수수료조정, ``total_fee`` 수수료합계. 타입화하지 않은 요약 필드는 ``raw``.
+    ``total_filled_quantity`` 총체결수량합계, ``total_filled_amount`` 총체결금액합계,
+    ``fee_adjustment`` 수수료조정, ``total_fee`` 수수료합계. 타입화하지 않은 요약 필드는 ``_raw``.
     """
 
     fills: tuple[DerivativeFill, ...]  # 체결내역(output1)
-    total_fill_quantity: Decimal       # 총체결수량합계(tot_ccld_qty_smtl)
-    total_fill_amount: Decimal         # 총체결금액합계(tot_ccld_amt_smtl)
+    total_filled_quantity: Decimal     # 총체결수량합계(tot_ccld_qty_smtl)
+    total_filled_amount: Decimal       # 총체결금액합계(tot_ccld_amt_smtl)
     fee_adjustment: Decimal            # 수수료조정(fee_adjt)
     total_fee: Decimal                 # 수수료합계(fee_smtl)
-    raw: Mapping[str, Any] = field(
+    _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "fills", tuple(self.fills))
-        object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -291,7 +291,7 @@ class DerivativeCommissionHistory:
 
     ``total_fee`` 수수료합계, ``total_agreement_amount`` 약정금액합계, ``total_sell_fee`` /
     ``total_buy_fee`` 매도/매수 수수료합계, ``futures_fee`` / ``options_fee`` 선물/옵션 수수료합계,
-    ``total_realized_pnl`` 매매손익합계. 타입화하지 않은 요약 필드는 ``raw`` 로 접근한다.
+    ``total_realized_pnl`` 매매손익합계. 타입화하지 않은 요약 필드는 ``_raw`` 로 접근한다.
     """
 
     days: tuple[DerivativeCommission, ...]  # 일별 내역(output1)
@@ -302,13 +302,13 @@ class DerivativeCommissionHistory:
     futures_fee: Decimal               # 선물수수료합계(futr_fee_smtl)
     options_fee: Decimal               # 옵션수수료합계(opt_fee_smtl)
     total_realized_pnl: Decimal        # 매매손익합계(trad_pfls_smtl)
-    raw: Mapping[str, Any] = field(
+    _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "days", tuple(self.days))
-        object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -319,19 +319,19 @@ class DerivativeOrderable:
     ``liquidatable_quantity`` 청산가능수량(주간 lqd_psbl_qty1 / 야간 lqd_psbl_qty), ``base_index``
     기준지수(bass_idx). 주간(:meth:`~kis_trader.derivative.FuturesContract.orderable`)과 야간
     (:meth:`~kis_trader.derivative.FuturesContract.night_orderable`)이 응답 필드가 조금 달라
-    (야간엔 max_ord_psbl_qty 등) 타입화하지 않은 필드는 ``raw`` 로 접근한다.
+    (야간엔 max_ord_psbl_qty 등) 타입화하지 않은 필드는 ``_raw`` 로 접근한다.
     """
 
     orderable_quantity: Decimal           # 주문가능수량(ord_psbl_qty)
     total_quantity: Decimal               # 총가능수량(tot_psbl_qty)
     liquidatable_quantity: Decimal        # 청산가능수량(lqd_psbl_qty1 / lqd_psbl_qty)
     base_index: Decimal                   # 기준지수(bass_idx)
-    raw: Mapping[str, Any] = field(
+    _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
 @dataclass(frozen=True, slots=True)
@@ -343,7 +343,7 @@ class DerivativeDeposit:
     ``maintenance_ratio`` 유지비율, ``account_value`` 추정예탁자산금액, ``receivable`` 미수금.
     평가·매매손익은 합계(``total_*``)와 선물/옵션 분해(``futures_*`` / ``options_*``)를 함께 담는다.
     이 엔드포인트에 증거금총액(mgna_tota)은 없다 -- 위탁증거금 현금/대용을 대신 노출한다.
-    타입화하지 않은 요약 필드는 ``raw`` 로 접근한다.
+    타입화하지 않은 요약 필드는 ``_raw`` 로 접근한다.
     """
 
     total_deposit: Decimal                # 예수금총액(dnca_tota)
@@ -360,9 +360,9 @@ class DerivativeDeposit:
     options_realized_pnl: Decimal         # 옵션매매손익금액(opt_trad_pfls_amt)
     account_value: Decimal                # 추정예탁자산금액(prsm_dpast_amt)
     receivable: Decimal                   # 미수금(rcva)
-    raw: Mapping[str, Any] = field(
+    _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

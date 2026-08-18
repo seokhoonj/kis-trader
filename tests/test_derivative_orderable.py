@@ -62,7 +62,7 @@ def test_orderable_parses_and_routes_real():
     assert result.total_quantity == Decimal(10)
     assert result.liquidatable_quantity == Decimal(3)
     assert result.base_index == Decimal("410.25")
-    assert result.raw["ord_psbl_qty"] == "7"
+    assert result._raw["ord_psbl_qty"] == "7"
     call = fake.calls[0]
     assert call["path"] == _ORDERABLE_PATH
     assert call["tr_id"] == "TTTO5105R"                 # 실전
@@ -126,7 +126,7 @@ def test_night_orderable_parses_and_routes():
     assert result.total_quantity == Decimal(8)
     assert result.liquidatable_quantity == Decimal(2)
     assert result.base_index == Decimal("410.25")
-    assert result.raw["max_ord_psbl_qty"] == "8"        # 야간 전용 필드는 raw 로
+    assert result._raw["max_ord_psbl_qty"] == "8"       # 야간 전용 필드는 _raw 로
     call = fake.calls[0]
     assert call["path"] == _NIGHT_ORDERABLE_PATH
     assert call["tr_id"] == "STTN5105R"

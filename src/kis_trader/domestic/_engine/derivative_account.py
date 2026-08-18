@@ -116,7 +116,7 @@ def fetch_balance(
         futures_realized_pnl=required_decimal(summary.get("futr_trad_pfls_amt"), "futr_trad_pfls_amt"),
         options_realized_pnl=required_decimal(summary.get("opt_trad_pfls_amt"), "opt_trad_pfls_amt"),
         account_value=required_decimal(summary.get("prsm_dpast_amt"), "prsm_dpast_amt"),
-        raw=summary,
+        _raw=summary,
     )
 
 
@@ -155,7 +155,7 @@ def fetch_deposit(
         options_realized_pnl=required_decimal(output.get("opt_trad_pfls_amt"), "opt_trad_pfls_amt"),
         account_value=required_decimal(output.get("prsm_dpast_amt"), "prsm_dpast_amt"),
         receivable=required_decimal(output.get("rcva"), "rcva"),
-        raw=output,
+        _raw=output,
     )
 
 
@@ -213,7 +213,7 @@ def fetch_valuation_pl(
         futures_realized_pnl=required_decimal(summary.get("futr_trad_pfls_amt"), "futr_trad_pfls_amt"),
         options_realized_pnl=required_decimal(summary.get("opt_trad_pfls_amt"), "opt_trad_pfls_amt"),
         account_value=required_decimal(summary.get("prsm_dpast_amt"), "prsm_dpast_amt"),
-        raw=summary,
+        _raw=summary,
     )
 
 
@@ -273,7 +273,7 @@ def fetch_settlement_pl(
         fee=required_decimal(summary.get("fee"), "fee"),
         today_settlement_diff=required_decimal(summary.get("thdt_dfpa"), "thdt_dfpa"),
         renewal_settlement_diff=required_decimal(summary.get("rnwl_dfpa"), "rnwl_dfpa"),
-        raw=summary,
+        _raw=summary,
     )
 
 
@@ -325,11 +325,11 @@ def fetch_base_date_fills(
         raise KISError("선물옵션 기준일체결내역 응답에 합계 요약(output2)이 없다.")
     return DerivativeFillHistory(
         fills=tuple(_parse_fills(rows)),
-        total_fill_quantity=required_decimal(summary.get("tot_ccld_qty_smtl"), "tot_ccld_qty_smtl"),
-        total_fill_amount=required_decimal(summary.get("tot_ccld_amt_smtl"), "tot_ccld_amt_smtl"),
+        total_filled_quantity=required_decimal(summary.get("tot_ccld_qty_smtl"), "tot_ccld_qty_smtl"),
+        total_filled_amount=required_decimal(summary.get("tot_ccld_amt_smtl"), "tot_ccld_amt_smtl"),
         fee_adjustment=required_decimal(summary.get("fee_adjt"), "fee_adjt"),
         total_fee=required_decimal(summary.get("fee_smtl"), "fee_smtl"),
-        raw=summary,
+        _raw=summary,
     )
 
 
@@ -385,7 +385,7 @@ def fetch_commissions(
         futures_fee=required_decimal(summary.get("futr_fee_smtl"), "futr_fee_smtl"),
         options_fee=required_decimal(summary.get("opt_fee_smtl"), "opt_fee_smtl"),
         total_realized_pnl=required_decimal(summary.get("trad_pfls_smtl"), "trad_pfls_smtl"),
-        raw=summary,
+        _raw=summary,
     )
 
 
@@ -423,7 +423,7 @@ def fetch_derivative_orderable(
         total_quantity=_decimal_or_zero(output.get("tot_psbl_qty"), "tot_psbl_qty"),
         liquidatable_quantity=_decimal_or_zero(liquidatable, liquidatable_key),
         base_index=_decimal_or_zero(output.get("bass_idx"), "bass_idx"),
-        raw=output,
+        _raw=output,
     )
 
 
@@ -463,7 +463,7 @@ def fetch_derivative_night_orderable(
         total_quantity=_decimal_or_zero(output.get("tot_psbl_qty"), "tot_psbl_qty"),
         liquidatable_quantity=_decimal_or_zero(output.get("lqd_psbl_qty"), "lqd_psbl_qty"),
         base_index=_decimal_or_zero(output.get("bass_idx"), "bass_idx"),
-        raw=output,
+        _raw=output,
     )
 
 

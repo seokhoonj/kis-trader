@@ -574,7 +574,7 @@ def fetch_bond_buyable(
         symbol=code,
         orderable_cash=required_decimal(output.get("ord_psbl_cash"), "ord_psbl_cash"),
         orderable_substitute=required_decimal(output.get("ord_psbl_sbst"), "ord_psbl_sbst"),
-        reusable_amount=required_decimal(output.get("ruse_psbl_amt"), "ruse_psbl_amt"),
+        reusable_cash=required_decimal(output.get("ruse_psbl_amt"), "ruse_psbl_amt"),
         buyable_amount=required_decimal(output.get("buy_psbl_amt"), "buy_psbl_amt"),
         buyable_quantity=required_decimal(output.get("buy_psbl_qty"), "buy_psbl_qty"),
         cma_value=required_decimal(output.get("cma_evlu_amt"), "cma_evlu_amt"),
