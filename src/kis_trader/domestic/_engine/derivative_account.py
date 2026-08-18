@@ -218,22 +218,22 @@ def fetch_valuation_pl(
 
 
 def fetch_settlement_pl(
-    transport: Transport, *, cano: str, product_code: str, environment: Environment, date: str
+    transport: Transport, *, cano: str, product_code: str, environment: Environment, base_date: str
 ) -> DerivativeSettlementBalance:
-    """선물옵션 잔고정산손익내역(정산 보유내역 output1 + 계좌 요약 output2). ``date`` (YYYYMMDD)
+    """선물옵션 잔고정산손익내역(정산 보유내역 output1 + 계좌 요약 output2). ``base_date`` (YYYYMMDD)
     기준일로 조회하고 연속조회로 보유내역을 소진까지 모은다(계좌 요약은 첫 페이지에서 완결).
     **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
         raise KISUsageError(
             "선물옵션 잔고정산손익내역(inquire-balance-settlement-pl)은 모의투자 미지원 -- 실전에서만."
         )
-    _require_wire_date(date, "date")
+    _require_wire_date(base_date, "base_date")
     rows: list[Mapping[str, Any]] = []
     summary: Mapping[str, Any] | None = None
     ctx_fk, ctx_nk, tr_cont = "", "", ""
     for _page in range(_MAX_BALANCE_PAGES):
         resp = _fetch_settlement_pl_page(
-            transport, cano=cano, product_code=product_code, date=date,
+            transport, cano=cano, product_code=product_code, base_date=base_date,
             ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
         )
         _raise_if_error(resp)
@@ -279,24 +279,26 @@ def fetch_settlement_pl(
 
 def fetch_base_date_fills(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    date: str, start_time: str, end_time: str,
+    order_date: str, start_time: str, end_time: str,
 ) -> DerivativeFillHistory:
-    """선물옵션 기준일체결내역(체결내역 output1 + 기간 합계 요약 output2). ``date`` (YYYYMMDD)
-    기준일과 ``start_time``/``end_time`` (HHMMSS) 시각 구간으로 조회하고 연속조회로 체결을
+    """선물옵션 기준일체결내역(체결내역 output1 + 기간 합계 요약 output2). ``order_date`` (YYYYMMDD)
+    주문일자와 ``start_time``/``end_time`` (HHMMSS) 시각 구간으로 조회하고 연속조회로 체결을
     소진까지 모은다(합계 요약은 첫 페이지에서 완결).
     **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
         raise KISUsageError(
             "선물옵션 기준일체결내역(inquire-ccnl-bstime)은 모의투자 미지원 -- 실전에서만."
         )
-    _require_wire_date(date, "date")
+    _require_wire_date(order_date, "order_date")
+    _require_wire_time(start_time, "start_time")
+    _require_wire_time(end_time, "end_time")
     rows: list[Mapping[str, Any]] = []
     summary: Mapping[str, Any] | None = None
     ctx_fk, ctx_nk, tr_cont = "", "", ""
     for _page in range(_MAX_BALANCE_PAGES):
         resp = _fetch_base_date_fills_page(
             transport, cano=cano, product_code=product_code,
-            date=date, start_time=start_time, end_time=end_time,
+            order_date=order_date, start_time=start_time, end_time=end_time,
             ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
         )
         _raise_if_error(resp)
@@ -411,13 +413,15 @@ def fetch_derivative_orderable(
             "선물옵션 주문가능조회 응답에 output 이 없다.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
-    liquidatable = output.get("lqd_psbl_qty1")
+    liquidatable_key = "lqd_psbl_qty1"
+    liquidatable = output.get(liquidatable_key)
     if liquidatable is None:  # 주간은 lqd_psbl_qty1, 부재면 lqd_psbl_qty 로 폴백
-        liquidatable = output.get("lqd_psbl_qty")
+        liquidatable_key = "lqd_psbl_qty"
+        liquidatable = output.get(liquidatable_key)
     return DerivativeOrderable(
-        orderable_quantity=_decimal_or_zero(output.get("ord_psbl_qty"), "ord_psbl_qty"),
+        orderable_quantity=required_decimal(output.get("ord_psbl_qty"), "ord_psbl_qty"),
         total_quantity=_decimal_or_zero(output.get("tot_psbl_qty"), "tot_psbl_qty"),
-        liquidatable_quantity=_decimal_or_zero(liquidatable, "lqd_psbl_qty1"),
+        liquidatable_quantity=_decimal_or_zero(liquidatable, liquidatable_key),
         base_index=_decimal_or_zero(output.get("bass_idx"), "bass_idx"),
         raw=output,
     )
@@ -455,7 +459,7 @@ def fetch_derivative_night_orderable(
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
     return DerivativeOrderable(
-        orderable_quantity=_decimal_or_zero(output.get("ord_psbl_qty"), "ord_psbl_qty"),
+        orderable_quantity=required_decimal(output.get("ord_psbl_qty"), "ord_psbl_qty"),
         total_quantity=_decimal_or_zero(output.get("tot_psbl_qty"), "tot_psbl_qty"),
         liquidatable_quantity=_decimal_or_zero(output.get("lqd_psbl_qty"), "lqd_psbl_qty"),
         base_index=_decimal_or_zero(output.get("bass_idx"), "bass_idx"),
@@ -496,12 +500,12 @@ def _fetch_valuation_pl_page(
 
 
 def _fetch_settlement_pl_page(
-    transport: Transport, *, cano: str, product_code: str, date: str,
+    transport: Transport, *, cano: str, product_code: str, base_date: str,
     ctx_fk: str, ctx_nk: str, tr_cont: str = "",
 ) -> RawResponse:
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
-        "INQR_DT": date,  # 조회일자(YYYYMMDD)
+        "INQR_DT": base_date,  # 조회일자(YYYYMMDD)
         "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
     }
     return transport.request(
@@ -512,12 +516,12 @@ def _fetch_settlement_pl_page(
 
 def _fetch_base_date_fills_page(
     transport: Transport, *, cano: str, product_code: str,
-    date: str, start_time: str, end_time: str,
+    order_date: str, start_time: str, end_time: str,
     ctx_fk: str, ctx_nk: str, tr_cont: str = "",
 ) -> RawResponse:
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
-        "ORD_DT": date,  # 주문일자(YYYYMMDD)
+        "ORD_DT": order_date,  # 주문일자(YYYYMMDD)
         "FUOP_TR_STRT_TMD": start_time,  # 선물옵션 거래 시작시각(HHMMSS)
         "FUOP_TR_END_TMD": end_time,     # 선물옵션 거래 종료시각(HHMMSS)
         "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
@@ -531,6 +535,8 @@ def _fetch_base_date_fills_page(
 def _parse_fills(rows: list[Mapping[str, Any]]) -> list[DerivativeFill]:
     fills: list[DerivativeFill] = []
     for row in rows:
+        if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
+            raise KISError("선물옵션 기준일체결내역 응답 행이 매핑이 아니다.")
         order_id = str(row.get("odno", "")).strip()
         if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
             continue
@@ -572,6 +578,8 @@ def _fetch_commissions_page(
 def _parse_commissions(rows: list[Mapping[str, Any]]) -> list[DerivativeCommission]:
     days: list[DerivativeCommission] = []
     for row in rows:
+        if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
+            raise KISError("선물옵션 기간약정수수료일별 응답 행이 매핑이 아니다.")
         order_date = str(row.get("ord_dt", "")).strip()
         symbol = str(row.get("pdno", "")).strip()
         if not order_date and not symbol:  # 주문일자·상품번호 모두 없는 패딩 행 -- 건너뜀
@@ -599,6 +607,8 @@ def _parse_settlement_positions(
 ) -> list[DerivativeSettlementPosition]:
     positions: list[DerivativeSettlementPosition] = []
     for row in rows:
+        if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
+            raise KISError("선물옵션 잔고정산손익내역 응답 행이 매핑이 아니다.")
         symbol = str(row.get("pdno", "")).strip()
         if not symbol:  # 상품번호 없는 패딩 행 -- 건너뜀
             continue
@@ -627,6 +637,8 @@ def _parse_valuation_positions(
 ) -> list[DerivativeValuationPosition]:
     positions: list[DerivativeValuationPosition] = []
     for row in rows:
+        if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
+            raise KISError("선물옵션 잔고평가손익내역 응답 행이 매핑이 아니다.")
         symbol = str(row.get("shtn_pdno", "")).strip()
         if not symbol:  # 단축상품번호 없는 패딩 행 -- 건너뜀
             continue
@@ -655,6 +667,8 @@ def _parse_valuation_positions(
 def _parse_positions(rows: list[Mapping[str, Any]]) -> list[DerivativePosition]:
     positions: list[DerivativePosition] = []
     for row in rows:
+        if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
+            raise KISError("선물옵션 잔고 응답 행이 매핑이 아니다.")
         symbol = str(row.get("shtn_pdno", "")).strip()
         if not symbol:  # 단축상품번호 없는 패딩 행 -- 건너뜀
             continue
@@ -709,6 +723,15 @@ def _require_wire_date(value: str, field_name: str) -> None:
     if len(value) != 8 or not value.isdigit():
         raise KISUsageError(
             f"일자 파라미터 {field_name!r} 는 8자리 숫자(YYYYMMDD)여야 한다: {value!r}"
+        )
+
+
+def _require_wire_time(value: str, field_name: str) -> None:
+    """조회 요청의 시각 파라미터를 와이어 이전에 검증한다 -- 6자리 숫자(HHMMSS)가 아니면
+    :class:`KISUsageError`. 잘못된 시각으로 조회를 날리는 대신 호출 즉시 실패시킨다."""
+    if len(value) != 6 or not value.isdigit():
+        raise KISUsageError(
+            f"시각 파라미터 {field_name!r} 는 6자리 숫자(HHMMSS)여야 한다: {value!r}"
         )
 
 

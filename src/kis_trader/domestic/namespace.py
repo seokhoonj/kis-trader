@@ -266,7 +266,8 @@ class DomesticNamespace:
         는 조회 기준일 ``"YYYYMMDD"``(8자리), ``underlying_id``(기초자산 ID) 공백(기본)이면 전체
         기초자산이다. 계약 핸들이 아니라 시장 표라 여기 둔다. **모의투자 미지원**(실전 전용)."""
         return derivatives_api.fetch_derivative_margin_rates(
-            self._c.transport, base_date=base_date, underlying_id=underlying_id
+            self._c.transport, environment=self._c.environment,
+            base_date=base_date, underlying_id=underlying_id,
         )
 
     # -- 다종목/상품 조회 --

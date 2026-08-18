@@ -142,14 +142,15 @@ class BondFillHistory:
     ``avg_price`` 는 기간 전체 채권 체결평균단가. 금액·수량은 KRW Decimal.
     """
 
+    fills: tuple[BondFill, ...]       # 개별 주문·체결 내역(output1)
     total_order_quantity: Decimal     # 총주문수량(tot_ord_qty)
     total_filled_quantity: Decimal    # 총체결수량합계(tot_ccld_qty_smtl)
     avg_price: Decimal                # 총채권체결평균단가(tot_bond_ccld_avg_unpr)
     total_filled_amount: Decimal      # 총체결금액합계(tot_ccld_amt_smtl)
-    fills: tuple[BondFill, ...]       # 개별 주문·체결 내역(output1)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "fills", tuple(self.fills))
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

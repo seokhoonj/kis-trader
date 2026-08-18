@@ -51,7 +51,7 @@ from ..._literals import DerivativeMarket
 from ...bar import Bar, Interval
 from ...errors import KISError, KISUsageError
 from ...order_book import OrderBook
-from ...transport import Transport
+from ...transport import Environment, Transport
 from ..entities.derivative import (
     DerivativeMarginRate,
     DerivativeQuote,
@@ -385,13 +385,17 @@ def fetch_futures_board_quotes(
 
 
 def fetch_derivative_margin_rates(
-    transport: Transport, *, base_date: str, underlying_id: str = ""
+    transport: Transport, *, environment: Environment, base_date: str, underlying_id: str = ""
 ) -> list[DerivativeMarginRate]:
     """기준일(``base_date``, YYYYMMDD)별 기초자산 선물 증거금율 표. ``underlying_id`` 는 기초자산
     ID(bast_id)로 좁히고, 공백(기본)이면 전체 기초자산을 돌려준다. **모의투자 미지원**(실전 전용 TR).
 
     응답은 output 배열이고 연속조회는 CTX_AREA_NK200 만 되먹인다(이 엔드포인트엔 FK200 이 없다).
     페이지 상한에 닿으면 부분 결과로 자르지 않고 예외. 기초자산 ID 가 빈 행은 건너뛴다."""
+    if environment == "paper":
+        raise KISUsageError(
+            "기초자산 증거금율(margin-rate)은 모의투자 미지원 -- 실전에서만."
+        )
     if len(base_date) != 8 or not base_date.isdigit():
         raise KISUsageError(
             f"base_date 는 8자리 숫자(YYYYMMDD)여야 한다: {base_date!r}"

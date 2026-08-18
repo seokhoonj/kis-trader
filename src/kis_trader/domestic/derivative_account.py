@@ -68,7 +68,7 @@ class DomesticDerivativesAccount:
         cano, product_code = self._client._require_account()
         return fetch_settlement_pl(
             self._client.transport, cano=cano, product_code=product_code,
-            environment=self._client.environment, date=date,
+            environment=self._client.environment, base_date=date,
         )
 
     def base_date_fills(
@@ -84,7 +84,7 @@ class DomesticDerivativesAccount:
         return fetch_base_date_fills(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment,
-            date=date, start_time=start_time, end_time=end_time,
+            order_date=date, start_time=start_time, end_time=end_time,
         )
 
     def commissions(self, start: str, end: str) -> DerivativeCommissionHistory:

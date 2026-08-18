@@ -515,6 +515,8 @@ def fetch_bond_balance(
 def _parse_bond_positions(rows: list[Mapping[str, Any]]) -> list[BondPosition]:
     positions: list[BondPosition] = []
     for row in rows:
+        if not isinstance(row, Mapping):  # output=[None] 등 손상 -> fail-closed
+            raise KISError("장내채권 잔고조회 응답 행이 매핑이 아니다.")
         symbol = str(row.get("pdno", "")).strip()
         if not symbol:  # 상품번호 없는 패딩 행 -- 건너뜀
             continue
@@ -614,6 +616,8 @@ def fetch_bond_open_orders(
 def _parse_bond_open_orders(rows: list[Mapping[str, Any]]) -> list[BondOpenOrder]:
     orders: list[BondOpenOrder] = []
     for row in rows:
+        if not isinstance(row, Mapping):  # output=[None] 등 손상 -> fail-closed
+            raise KISError("장내채권 정정취소가능주문조회 응답 행이 매핑이 아니다.")
         order_id = str(row.get("odno", "")).strip()
         if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
             continue
@@ -694,10 +698,10 @@ def fetch_bond_fills(
     if summary is None:
         raise KISError("장내채권 일별 주문체결조회 응답에 합계 요약(output2)이 없다.")
     return BondFillHistory(
-        total_order_quantity=_bond_decimal_or_zero(summary.get("tot_ord_qty"), "tot_ord_qty"),
-        total_filled_quantity=_bond_decimal_or_zero(summary.get("tot_ccld_qty_smtl"), "tot_ccld_qty_smtl"),
-        avg_price=_bond_decimal_or_zero(summary.get("tot_bond_ccld_avg_unpr"), "tot_bond_ccld_avg_unpr"),
-        total_filled_amount=_bond_decimal_or_zero(summary.get("tot_ccld_amt_smtl"), "tot_ccld_amt_smtl"),
+        total_order_quantity=required_decimal(summary.get("tot_ord_qty"), "tot_ord_qty"),
+        total_filled_quantity=required_decimal(summary.get("tot_ccld_qty_smtl"), "tot_ccld_qty_smtl"),
+        avg_price=required_decimal(summary.get("tot_bond_ccld_avg_unpr"), "tot_bond_ccld_avg_unpr"),
+        total_filled_amount=required_decimal(summary.get("tot_ccld_amt_smtl"), "tot_ccld_amt_smtl"),
         fills=tuple(_parse_bond_fills(rows)),
         _raw=summary,
     )
@@ -724,6 +728,8 @@ def _fetch_bond_fills_page(
 def _parse_bond_fills(rows: list[Mapping[str, Any]]) -> list[BondFill]:
     fills: list[BondFill] = []
     for row in rows:
+        if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
+            raise KISError("장내채권 일별 주문체결조회 응답 행이 매핑이 아니다.")
         order_id = str(row.get("odno", "")).strip()
         if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
             continue
