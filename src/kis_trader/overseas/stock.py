@@ -133,7 +133,7 @@ class OverseasStock(_StockBase):
         즉시 :meth:`buy` 와 같은 안전 규칙(이중발주 방지·재시도 금지·주문가능 계좌 가드)을 공유한다.
         반환 :class:`~kis_trader.report.ExecutionReport` 의 ``order_id`` 는 해외예약주문번호,
         ``receipt_date`` 는 아시아 접수일자(미국은 ``None``), ``status`` 는
-        :attr:`~kis_trader.report.OrderStatus.PENDING_NEW`. 취소는 미국이 ``kis.overseas.account.
+        :attr:`~kis_trader.report.OrderStatus.PENDING_NEW`. 취소는 미국이 ``kis.account.overseas.
         cancel_reserved_order(예약번호)``, 아시아가 ``kis.orders.cancel(리포트.client_order_id)`` 다
         (아시아는 전용 취소 엔드포인트가 없어 안전코어가 원주문을 복원 재전송한다). 접수 거부는
         ``OrderRejectedError``, 타임아웃(접수 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile``

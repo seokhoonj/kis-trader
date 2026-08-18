@@ -1,6 +1,6 @@
 """A-38: 예약주문 발주/정정의 공유 항목-정규화 -- 두 경로가 ONE 경로를 쓴다는 회귀 방지.
 
-발주(kis.domestic.stock(...).reserve_buy)와 정정(kis.domestic.account.modify_reserved_order)은
+발주(kis.domestic.stock(...).reserve_buy)와 정정(kis.account.domestic.modify_reserved_order)은
 방향/수량/주문구분/단가/종료일 정규화와 공통 바디 매핑을 공유한다. 공통 부분의 와이어가 바이트
 동일하고, 종료일 검증이 두 경로에서 일관됨(place 만 있던 폭-사전검사 drift 제거)을 검증한다.
 """
@@ -64,7 +64,7 @@ def _modify_body(**over):
     args = {"symbol": "005930", "side": "buy", "quantity": 2, "limit_price": 71000, "end_date": "20240610"}
     args.update(over)
     fake = FakeTransport(_MODIFY_OK)
-    _client(fake).domestic.account.modify_reserved_order("42401", **args)
+    _client(fake).account.domestic.modify_reserved_order("42401", **args)
     return next(c["body"] for c in fake.calls if c["path"] == _CHANGE)
 
 
@@ -99,7 +99,7 @@ def test_end_date_validation_consistent_across_place_and_modify(bad_end_date):
 
     modify_fake = FakeTransport(_MODIFY_OK)
     with pytest.raises(KISUsageError):
-        _client(modify_fake).domestic.account.modify_reserved_order(
+        _client(modify_fake).account.domestic.modify_reserved_order(
             "42401", symbol="005930", side="buy", quantity=1, limit_price=1, end_date=bad_end_date)
     assert modify_fake.calls == []
 

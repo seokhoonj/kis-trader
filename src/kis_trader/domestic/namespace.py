@@ -1,5 +1,5 @@
 """국내 자산군 네임스페이스 -- ``kis.domestic`` (:class:`DomesticNamespace`) 와 그 계좌 하위
-(:class:`DomesticAccount`, ``kis.domestic.account``).
+(:class:`DomesticAccount`, ``kis.account.domestic``).
 
 세션 :class:`~kis_trader.client.KISClient` 아래 국내 주식·지수·채권·ELW·파생의 시세/계좌/순위/
 시장/일정 행위를 모은다. 각 메서드는 세션이 쥔 전송/계좌/환경으로 국내 엔진을 직접 호출한다.
@@ -48,7 +48,7 @@ if TYPE_CHECKING:
 
 
 class DomesticAccount:
-    """``kis.domestic.account`` -- 국내 계좌 조회·계좌 단위 주문(잔고/손익/예약주문).
+    """``kis.account.domestic`` -- 국내 계좌 조회·계좌 단위 주문(잔고/손익/예약주문).
 
     모든 메서드는 계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError` 를 던진다(세션을
     ``KISClient(..., account=...)`` 로 열어야 한다). ``**모의투자 미지원**`` 이라 표시된 메서드는
@@ -189,7 +189,6 @@ class DomesticNamespace:
 
     def __init__(self, client: KISClient) -> None:
         self._c = client
-        self.account = DomesticAccount(client)
 
     # -- 종목/상품 핸들 --
     def stock(self, code: str, *, market: DomesticBoard | None = None) -> DomesticStock:

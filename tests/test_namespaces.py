@@ -50,8 +50,8 @@ def test_namespaces_present_and_typed():
     assert isinstance(k.overseas, OverseasNamespace)
     assert isinstance(k.pension, PensionNamespace)
     assert isinstance(k.orders, OrdersNamespace)
-    assert isinstance(k.domestic.account, DomesticAccount)
-    assert isinstance(k.overseas.account, OverseasAccount)
+    assert isinstance(k.account.domestic, DomesticAccount)
+    assert isinstance(k.account.overseas, OverseasAccount)
 
 
 # --- 핸들 팩토리가 올바른 자산군 핸들을 주나 -------------------------------
@@ -116,7 +116,7 @@ def test_domestic_account_balance_hits_balance_tr():
     # 네임스페이스 경로가 국내 잔고 조회 TR/경로를 때리는지.
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="M", msg1="", body={}, tr_cont=""))
     k = _client(fake)
-    call = _last_call(k.domestic.account.balance, fake)
+    call = _last_call(k.account.domestic.balance, fake)
     assert call["tr_id"] == "TTTC8434R"
     assert call["path"] == "/uapi/domestic-stock/v1/trading/inquire-balance"
 
@@ -126,7 +126,7 @@ def test_overseas_account_present_balance_delegates():
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body, tr_cont="")
     fake = FakeTransport(response=resp)
     k = _client(fake)
-    k.overseas.account.present_balance()
+    k.account.overseas.present_balance()
     assert fake.calls[-1]["tr_id"] == "CTRP6504R"
     assert fake.calls[-1]["path"] == "/uapi/overseas-stock/v1/trading/inquire-present-balance"
 
@@ -136,7 +136,7 @@ def test_overseas_algo_orders_delegates():
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body, tr_cont="")
     fake = FakeTransport(response=resp)
     k = _client(fake)
-    k.overseas.account.algo_orders()
+    k.account.overseas.algo_orders()
     assert fake.calls[-1]["tr_id"] == "TTTS6058R"
 
 

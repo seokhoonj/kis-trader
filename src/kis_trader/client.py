@@ -1,7 +1,7 @@
 """세션 루트 -- :class:`KISClient`.
 
 인증(앱키/시크릿)과 기본 계좌를 쥔 세션이다. 모든 행위가 여기서 시작한다:
-``kis.domestic.stock("005930")`` 로 종목 핸들을, ``kis.domestic.account.balance()`` 등으로 계좌를
+``kis.domestic.stock("005930")`` 로 종목 핸들을, ``kis.account.domestic.balance()`` 등으로 계좌를
 조회한다. KIS 토큰은 앱키 단위(24h, 재발급 제한)라 세션이 캐시해 재사용한다.
 
 세션은 전송·기본계좌·주문 안전코어(store/risk/place)만 쥐고, 공개 행위 표면은 자산군 네임스페이스

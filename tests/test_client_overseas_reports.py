@@ -83,7 +83,7 @@ def _resp(body):
 # --- 체결기준현재잔고 (CTRP6504R) -----------------------------------------
 def test_present_balance_parses():
     body = {"output1": [_POS], "output2": [_CRCY], "output3": _SUM3}
-    bal = _client(FakeTransport(response=_resp(body))).overseas.account.present_balance()
+    bal = _client(FakeTransport(response=_resp(body))).account.overseas.present_balance()
     assert isinstance(bal, OverseasPresentBalance)
     p = bal.positions[0]
     assert p.symbol == "AAPL"
@@ -100,13 +100,13 @@ def test_present_balance_rejects_unknown_nation_before_wire():
     # 미지원 nation 은 조용히 전체(000)로 넓히지 않고 와이어 접촉 전에 거부한다(fail-closed).
     fake = FakeTransport(response=_resp({"output1": [], "output2": [], "output3": _SUM3}))
     with pytest.raises(KISUsageError):
-        _client(fake).overseas.account.present_balance(nation="usa")
+        _client(fake).account.overseas.present_balance(nation="usa")
     assert fake.calls == []
 
 
 def test_present_balance_tr_env_and_params():
     fake = FakeTransport(response=_resp({"output1": [_POS], "output2": [_CRCY], "output3": _SUM3}))
-    _client(fake).overseas.account.present_balance(won_basis=False, nation="US")
+    _client(fake).account.overseas.present_balance(won_basis=False, nation="US")
     call = fake.calls[0]
     assert call["tr_id"] == "CTRP6504R"
     assert call["path"] == _PRESENT
@@ -116,7 +116,7 @@ def test_present_balance_tr_env_and_params():
 
 def test_present_balance_demo_uses_demo_tr():
     fake = FakeTransport(response=_resp({"output3": _SUM3}))
-    bal = _client(fake, environment="paper").overseas.account.present_balance()
+    bal = _client(fake, environment="paper").account.overseas.present_balance()
     assert fake.calls[0]["tr_id"] == "VTRP6504R"
     assert bal.positions == ()          # 모의는 요약만
     assert bal.total_asset == Decimal(5000000)
@@ -124,14 +124,14 @@ def test_present_balance_demo_uses_demo_tr():
 
 def test_present_balance_summary_as_single_list():
     body = {"output1": [_POS], "output2": [_CRCY], "output3": [_SUM3]}
-    bal = _client(FakeTransport(response=_resp(body))).overseas.account.present_balance()
+    bal = _client(FakeTransport(response=_resp(body))).account.overseas.present_balance()
     assert bal.total_purchase_amount == Decimal(2000000)
 
 
 # --- 결제기준잔고 (CTRP6010R) ---------------------------------------------
 def test_settlement_balance_parses():
     body = {"output1": [_POS], "output2": [_CRCY], "output3": _SUM3}
-    bal = _client(FakeTransport(response=_resp(body))).overseas.account.settlement_balance(basis_date="20250523")
+    bal = _client(FakeTransport(response=_resp(body))).account.overseas.settlement_balance(basis_date="20250523")
     assert isinstance(bal, OverseasSettlementBalance)
     p = bal.positions[0]
     assert p.collateral_quantity == Decimal(2)
@@ -143,7 +143,7 @@ def test_settlement_balance_parses():
 
 def test_settlement_balance_tr_and_params():
     fake = FakeTransport(response=_resp({"output1": [_POS], "output2": [_CRCY], "output3": _SUM3}))
-    _client(fake).overseas.account.settlement_balance(basis_date="20250523", won_basis=False)
+    _client(fake).account.overseas.settlement_balance(basis_date="20250523", won_basis=False)
     call = fake.calls[0]
     assert call["tr_id"] == "CTRP6010R"
     assert call["path"] == _SETTLE
@@ -154,14 +154,14 @@ def test_settlement_balance_tr_and_params():
 def test_settlement_balance_demo_rejected():
     fake = FakeTransport(response=_resp({"output3": _SUM3}))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").overseas.account.settlement_balance(basis_date="20250523")
+        _client(fake, environment="paper").account.overseas.settlement_balance(basis_date="20250523")
     assert fake.calls == []
 
 
 # --- 기간손익 (TTTS3039R) --------------------------------------------------
 def test_period_profit_parses():
     body = {"output1": [_PROFIT_ROW], "output2": _PROFIT_SUM}
-    pnl = _client(FakeTransport(response=_resp(body))).overseas.account.period_profit(
+    pnl = _client(FakeTransport(response=_resp(body))).account.overseas.period_profit(
         start="20250501", end="20250523")
     assert isinstance(pnl, OverseasPeriodProfit)
     row = pnl.rows[0]
@@ -175,7 +175,7 @@ def test_period_profit_parses():
 
 def test_period_profit_tr_and_params():
     fake = FakeTransport(response=_resp({"output1": [_PROFIT_ROW], "output2": _PROFIT_SUM}))
-    _client(fake).overseas.account.period_profit(
+    _client(fake).account.overseas.period_profit(
         start="20250501", end="20250523", exchange="NASD", currency="USD")
     call = fake.calls[0]
     assert call["tr_id"] == "TTTS3039R"
@@ -189,7 +189,7 @@ def test_period_profit_tr_and_params():
 
 def test_period_profit_empty_ok():
     body = {"output1": [], "output2": {}}
-    pnl = _client(FakeTransport(response=_resp(body))).overseas.account.period_profit(
+    pnl = _client(FakeTransport(response=_resp(body))).account.overseas.period_profit(
         start="20250501", end="20250523")
     assert pnl.rows == ()
     assert pnl.total_realized_pnl == Decimal(0)
@@ -198,17 +198,17 @@ def test_period_profit_empty_ok():
 def test_period_profit_non_list_output1_fails_closed():
     body = {"output1": {"ovrs_pdno": "x"}, "output2": _PROFIT_SUM}
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_resp(body))).overseas.account.period_profit(
+        _client(FakeTransport(response=_resp(body))).account.overseas.period_profit(
             start="20250501", end="20250523")
 
 
 def test_period_profit_demo_rejected():
     fake = FakeTransport(response=_resp({"output1": [_PROFIT_ROW], "output2": _PROFIT_SUM}))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").overseas.account.period_profit(start="20250501", end="20250523")
+        _client(fake, environment="paper").account.overseas.period_profit(start="20250501", end="20250523")
     assert fake.calls == []
 
 
 def test_reports_require_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp({"output3": _SUM3})), account=None).overseas.account.present_balance()
+        _client(FakeTransport(response=_resp({"output3": _SUM3})), account=None).account.overseas.present_balance()

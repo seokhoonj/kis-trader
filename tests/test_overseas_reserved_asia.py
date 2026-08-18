@@ -509,10 +509,10 @@ def test_handle_report_cancels_via_orders_cancel():
 
 
 def test_account_reserved_orders_unions_us_and_asia():
-    # kis.overseas.account.reserved_orders 는 미국(TTTT3039R)과 아시아(TTTS3014R)를 모두 조회해 합친다.
+    # kis.account.overseas.reserved_orders 는 미국(TTTT3039R)과 아시아(TTTS3014R)를 모두 조회해 합친다.
     fake = _Fake(_list_resp([_list_row()]))
     kis = _client(fake, OrderStore())
-    rows = kis.overseas.account.reserved_orders(start="20260801", end="20260818")
+    rows = kis.account.overseas.reserved_orders(start="20260801", end="20260818")
     assert [call["tr_id"] for call in fake.calls] == ["TTTT3039R", "TTTS3014R"]
     assert len(rows) == 2                            # 시장별 1건씩 합쳐진다
 
@@ -521,5 +521,5 @@ def test_account_reserved_orders_paper_fails_closed():
     fake = _Fake(_list_resp([]))
     kis = _client(fake, OrderStore(), environment="paper")
     with pytest.raises(KISUsageError, match="실전"):
-        kis.overseas.account.reserved_orders(start="20260801", end="20260818")
+        kis.account.overseas.reserved_orders(start="20260801", end="20260818")
     assert fake.calls == []                          # 조회 와이어에 닿지 않는다

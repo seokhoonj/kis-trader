@@ -14,17 +14,17 @@ def cmd_balance(kis: KISClient, args: Namespace) -> Any:
     if args.venue == "overseas":
         if not args.market:
             raise CliConfigError("해외 잔고는 시장을 지정해야 합니다(--market US/HK/CN_SH/...).")
-        return kis.overseas.account.balance(market=args.market)
-    return kis.domestic.account.balance()
+        return kis.account.overseas.balance(market=args.market)
+    return kis.account.domestic.balance()
 
 
 def cmd_positions(kis: KISClient, args: Namespace) -> Any:
     if args.venue == "overseas":
-        return kis.overseas.account.positions(market=args.market)
-    return kis.domestic.account.positions()
+        return kis.account.overseas.positions(market=args.market)
+    return kis.account.domestic.positions()
 
 
 def cmd_orders(kis: KISClient, args: Namespace) -> Any:
     if args.venue == "overseas":
-        return kis.overseas.account.open_orders(market=args.market)
-    return kis.domestic.account.open_orders()
+        return kis.account.overseas.open_orders(market=args.market)
+    return kis.account.domestic.open_orders()

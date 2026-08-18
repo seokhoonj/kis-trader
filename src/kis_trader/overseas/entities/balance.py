@@ -1,6 +1,6 @@
 """해외 계좌 잔고 DATA -- 보유 종목·통화별 잔고·현재/결제 기준 잔고.
 
-해외 잔고 조회(``kis.overseas.account.positions`` / ``.balance`` / ``.present_balance`` /
+해외 잔고 조회(``kis.account.overseas.positions`` / ``.balance`` / ``.present_balance`` /
 ``.settlement_balance``)가 돌려준다. 금액은 종목/조회 통화라 :class:`~kis_trader.money.Money`
 로 통화를 함께 담는다(다통화)."""
 

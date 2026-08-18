@@ -34,3 +34,11 @@ def test_account_unsupported_product_fails_closed():
     kis = _c("12345678-03")  # derivatives -- added in Plan B
     with pytest.raises(KISUsageError):
         _ = kis.account
+
+
+def test_old_market_account_path_removed():
+    kis = _c("12345678-01")
+    with pytest.raises(AttributeError):
+        _ = kis.domestic.account  # moved to kis.account.domestic
+    with pytest.raises(AttributeError):
+        _ = kis.overseas.account  # moved to kis.account.overseas

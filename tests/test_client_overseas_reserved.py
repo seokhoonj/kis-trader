@@ -1,4 +1,4 @@
-"""미국 해외주식 예약주문 조회 -- kis.overseas.account.reserved_orders(start=, end=) (TTTT3039R).
+"""미국 해외주식 예약주문 조회 -- kis.account.overseas.reserved_orders(start=, end=) (TTTT3039R).
 
 미국 예약주문 목록(order-resv-list)을 네트워크 없이 검증한다. 픽스처는 원장 응답예시 실값을 쓴다.
 reserved_orders 는 미국+아시아(TTTS3014R)를 합쳐 주므로, 미국 행만 검증하는 테스트는 아시아 쪽에
@@ -60,7 +60,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 
 def test_overseas_reserved_parses_ledger_row():
     fake = FakeTransport(pages=[_resp(), _resp([])])   # 미국 1건, 아시아 빈 페이지
-    orders = _client(fake).overseas.account.reserved_orders(
+    orders = _client(fake).account.overseas.reserved_orders(
         start="20250501", end="20250531")
     assert len(orders) == 1
     o = orders[0]
@@ -82,7 +82,7 @@ def test_overseas_reserved_parses_ledger_row():
 
 def test_overseas_reserved_tr_and_params():
     fake = FakeTransport(response=_resp())
-    _client(fake).overseas.account.reserved_orders(start="20250501", end="20250531")
+    _client(fake).account.overseas.reserved_orders(start="20250501", end="20250531")
     call = fake.calls[0]
     assert call["tr_id"] == "TTTT3039R"
     assert call["method"] == "GET"
@@ -99,12 +99,12 @@ def test_overseas_reserved_demo_rejected_before_io():
     # 발주/취소(V* TR)와 달리 조회(order-resv-list)는 원장상 모의투자 미지원 -- paper 는 와이어 전 거부.
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError, match="실전"):
-        _client(fake, environment="paper").overseas.account.reserved_orders(start="1", end="2")
+        _client(fake, environment="paper").account.overseas.reserved_orders(start="1", end="2")
     assert fake.calls == []
 
 
 def test_overseas_reserved_canceled_flag():
-    orders = _client(FakeTransport(response=_resp([dict(_ROW, cncl_yn="Y")]))).overseas.account.reserved_orders(
+    orders = _client(FakeTransport(response=_resp([dict(_ROW, cncl_yn="Y")]))).account.overseas.reserved_orders(
         start="20250501", end="20250531")
     assert orders[0].canceled is True
 
@@ -113,37 +113,37 @@ def test_overseas_reserved_paginates():
     page1 = _resp([_ROW], nk="NEXT", fk="FK", tr_cont="M")
     page2 = _resp([dict(_ROW, ovrs_rsvn_odno="0031111299")], tr_cont="D")
     fake = FakeTransport(pages=[page1, page2, _resp([])])   # 마지막은 아시아 빈 페이지
-    orders = _client(fake).overseas.account.reserved_orders(start="20250501", end="20250531")
+    orders = _client(fake).account.overseas.reserved_orders(start="20250501", end="20250531")
     assert [o.reserved_order_id for o in orders] == ["0031111234", "0031111299"]
     assert fake.calls[1]["tr_cont"] == "N"
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
 
 
 def test_overseas_reserved_empty_ok():
-    assert _client(FakeTransport(response=_resp([]))).overseas.account.reserved_orders(start="20250501", end="20250531") == []
+    assert _client(FakeTransport(response=_resp([]))).account.overseas.reserved_orders(start="20250501", end="20250531") == []
 
 
 def test_overseas_reserved_skips_padding_row():
     fake = FakeTransport(pages=[_resp([dict(_ROW, ovrs_rsvn_odno=""), _ROW]), _resp([])])
-    orders = _client(fake).overseas.account.reserved_orders(start="20250501", end="20250531")
+    orders = _client(fake).account.overseas.reserved_orders(start="20250501", end="20250531")
     assert len(orders) == 1
 
 
 def test_overseas_reserved_non_list_output_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body={"output": {"ovrs_rsvn_odno": "1"}}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).overseas.account.reserved_orders(start="1", end="2")
+        _client(FakeTransport(response=resp)).account.overseas.reserved_orders(start="1", end="2")
 
 
 def test_overseas_reserved_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="E", msg1="실패", body={"output": []}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).overseas.account.reserved_orders(start="1", end="2")
+        _client(FakeTransport(response=resp)).account.overseas.reserved_orders(start="1", end="2")
 
 
 def test_overseas_reserved_requires_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp()), account=None).overseas.account.reserved_orders(start="1", end="2")
+        _client(FakeTransport(response=_resp()), account=None).account.overseas.reserved_orders(start="1", end="2")
 
 
 @pytest.mark.parametrize("bad_code", ["99", "", "0", "XX"])
@@ -151,14 +151,14 @@ def test_overseas_reserved_unknown_side_code_fails_closed(bad_code):
     """A-12: 알 수 없는/빈 매매구분코드는 side="" 로 뭉개지 않고 fail-closed(KISError)."""
     fake = FakeTransport(response=_resp([dict(_ROW, sll_buy_dvsn_cd=bad_code)]))
     with pytest.raises(KISError):
-        _client(fake).overseas.account.reserved_orders(start="20250501", end="20250531")
+        _client(fake).account.overseas.reserved_orders(start="20250501", end="20250531")
 
 
 def test_overseas_reserved_known_side_codes_still_map():
     """A-12: 알려진 01(매도)/02(매수)는 종전과 동일하게 매핑된다(회귀 방지)."""
-    sell = _client(FakeTransport(response=_resp([dict(_ROW, sll_buy_dvsn_cd="01")]))).overseas.account.reserved_orders(
+    sell = _client(FakeTransport(response=_resp([dict(_ROW, sll_buy_dvsn_cd="01")]))).account.overseas.reserved_orders(
         start="20250501", end="20250531")
-    buy = _client(FakeTransport(response=_resp([dict(_ROW, sll_buy_dvsn_cd="02")]))).overseas.account.reserved_orders(
+    buy = _client(FakeTransport(response=_resp([dict(_ROW, sll_buy_dvsn_cd="02")]))).account.overseas.reserved_orders(
         start="20250501", end="20250531")
     assert sell[0].side == "sell"
     assert buy[0].side == "buy"

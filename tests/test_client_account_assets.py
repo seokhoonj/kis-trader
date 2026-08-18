@@ -1,4 +1,4 @@
-"""투자계좌 자산현황 -- kis.domestic.account.assets() (CTRP6548R).
+"""투자계좌 자산현황 -- kis.account.domestic.assets() (CTRP6548R).
 
 계좌 전반 자산 요약(output2)을 네트워크 없이 검증한다. 픽스처는 원장 응답예시
 (inquire-account-balance)의 실값을 쓴다.
@@ -56,7 +56,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 
 
 def test_account_assets_parses_summary():
-    assets = _client(FakeTransport(response=_resp())).domestic.account.assets()
+    assets = _client(FakeTransport(response=_resp())).account.domestic.assets()
     assert isinstance(assets, AccountAssets)
     assert assets.total_asset_amount == Decimal(1651869889547)
     assert assets.total_net_asset_amount == Decimal(185550504)
@@ -72,7 +72,7 @@ def test_account_assets_parses_summary():
 
 def test_account_assets_tr_method_params():
     fake = FakeTransport(response=_resp())
-    _client(fake).domestic.account.assets()
+    _client(fake).account.domestic.assets()
     call = fake.calls[0]
     assert call["tr_id"] == "CTRP6548R"
     assert call["method"] == "GET"
@@ -85,7 +85,7 @@ def test_account_assets_tr_method_params():
 def test_account_assets_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").domestic.account.assets()
+        _client(fake, environment="paper").account.domestic.assets()
     assert fake.calls == []
 
 
@@ -93,22 +93,22 @@ def test_account_assets_missing_summary_fails_closed():
     body = {"output1": _OUTPUT1, "output2": []}
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).domestic.account.assets()
+        _client(FakeTransport(response=resp)).account.domestic.assets()
 
 
 def test_account_assets_missing_field_fails_closed():
     thin = dict(_OUTPUT2)
     del thin["tot_asst_amt"]
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_resp(output2=thin))).domestic.account.assets()
+        _client(FakeTransport(response=_resp(output2=thin))).account.domestic.assets()
 
 
 def test_account_assets_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="ERR", msg1="실패", body={"output2": {}}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).domestic.account.assets()
+        _client(FakeTransport(response=resp)).account.domestic.assets()
 
 
 def test_account_assets_requires_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp()), account=None).domestic.account.assets()
+        _client(FakeTransport(response=_resp()), account=None).account.domestic.assets()

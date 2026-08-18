@@ -1,4 +1,4 @@
-"""기간별 매매손익 -- kis.domestic.account.trade_profits(start=, end=) (TTTC8715R).
+"""기간별 매매손익 -- kis.account.domestic.trade_profits(start=, end=) (TTTC8715R).
 
 종목별 실현손익(output1)과 기간 총계(output2)를 네트워크 없이 검증한다. 픽스처는 원장
 응답예시(inquire-period-trade-profit)의 실값을 쓴다.
@@ -64,7 +64,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 
 
 def test_trade_profits_parses_rows_and_totals():
-    history = _client(FakeTransport(response=_resp())).domestic.account.trade_profits(start="20240201", end="20240229")
+    history = _client(FakeTransport(response=_resp())).account.domestic.trade_profits(start="20240201", end="20240229")
     assert isinstance(history, TradeProfitHistory)
     assert history.total_realized_pnl == Decimal(22991)
     assert history.total_return_percent == Decimal("31.29560057")
@@ -83,7 +83,7 @@ def test_trade_profits_parses_rows_and_totals():
 
 def test_trade_profits_tr_method_and_params():
     fake = FakeTransport(response=_resp())
-    _client(fake).domestic.account.trade_profits(start="20240201", end="20240229", symbol="005930", sort="oldest")
+    _client(fake).account.domestic.trade_profits(start="20240201", end="20240229", symbol="005930", sort="oldest")
     call = fake.calls[0]
     assert call["tr_id"] == "TTTC8715R"
     assert call["method"] == "GET"
@@ -97,21 +97,21 @@ def test_trade_profits_tr_method_and_params():
 
 def test_trade_profits_default_sort_recent():
     fake = FakeTransport(response=_resp())
-    _client(fake).domestic.account.trade_profits(start="1", end="2")
+    _client(fake).account.domestic.trade_profits(start="1", end="2")
     assert fake.calls[0]["params"]["SORT_DVSN"] == "00"
 
 
 def test_trade_profits_unknown_sort_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.account.trade_profits(start="1", end="2", sort="weird")
+        _client(fake).account.domestic.trade_profits(start="1", end="2", sort="weird")
     assert fake.calls == []
 
 
 def test_trade_profits_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").domestic.account.trade_profits(start="1", end="2")
+        _client(fake, environment="paper").account.domestic.trade_profits(start="1", end="2")
     assert fake.calls == []
 
 
@@ -119,7 +119,7 @@ def test_trade_profits_paginates_and_merges():
     page1 = _resp([_ROW], nk="NEXT", fk="FK", tr_cont="M")
     page2 = _resp([dict(_ROW, pdno="005930")], tr_cont="D")
     fake = FakeTransport(pages=[page1, page2])
-    history = _client(fake).domestic.account.trade_profits(start="1", end="2")
+    history = _client(fake).account.domestic.trade_profits(start="1", end="2")
     assert [t.symbol for t in history.trades] == ["000J2552221D", "005930"]
     assert fake.calls[1]["tr_cont"] == "N"
     assert fake.calls[1]["params"]["CTX_AREA_NK100"] == "NEXT"
@@ -128,7 +128,7 @@ def test_trade_profits_paginates_and_merges():
 
 
 def test_trade_profits_empty_rows_ok_with_summary():
-    history = _client(FakeTransport(response=_resp([]))).domestic.account.trade_profits(start="1", end="2")
+    history = _client(FakeTransport(response=_resp([]))).account.domestic.trade_profits(start="1", end="2")
     assert history.trades == ()
     assert history.total_realized_pnl == Decimal(22991)
 
@@ -137,22 +137,22 @@ def test_trade_profits_missing_summary_fails_closed():
     body = {"output1": [_ROW], "output2": []}
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).domestic.account.trade_profits(start="1", end="2")
+        _client(FakeTransport(response=resp)).account.domestic.trade_profits(start="1", end="2")
 
 
 def test_trade_profits_non_list_output1_fails_closed():
     body = {"output1": {"pdno": "x"}, "output2": dict(_SUMMARY)}
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).domestic.account.trade_profits(start="1", end="2")
+        _client(FakeTransport(response=resp)).account.domestic.trade_profits(start="1", end="2")
 
 
 def test_trade_profits_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="E", msg1="실패", body={"output1": []}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).domestic.account.trade_profits(start="1", end="2")
+        _client(FakeTransport(response=resp)).account.domestic.trade_profits(start="1", end="2")
 
 
 def test_trade_profits_requires_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp()), account=None).domestic.account.trade_profits(start="1", end="2")
+        _client(FakeTransport(response=_resp()), account=None).account.domestic.trade_profits(start="1", end="2")
