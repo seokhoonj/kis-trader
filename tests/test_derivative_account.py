@@ -12,11 +12,12 @@ import pytest
 
 from kis_trader import KISClient
 from kis_trader.domestic.derivative_account import DomesticDerivativesAccount
-from kis_trader.domestic.entities.derivative_account import DerivativeBalance
-from kis_trader.errors import KISError
+from kis_trader.domestic.entities.derivative_account import DerivativeBalance, DerivativeDeposit
+from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 
 _BALANCE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-balance"
+_DEPOSIT_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-deposit"
 
 
 class FakeTransport:
@@ -125,3 +126,49 @@ def test_derivative_balance_skips_blank_symbol_row():
     rows = [_position("101W09"), _position("", pdno="")]
     bal = _client(FakeTransport(response=_balance_resp(rows=rows))).account.balance()
     assert [p.symbol for p in bal.positions] == ["101W09"]
+
+
+_DEPOSIT = {
+    "dnca_tota": "50000000", "ord_psbl_cash": "30000000", "ord_psbl_tota": "31000000",
+    "brkg_mgna_cash": "18000000", "brkg_mgna_sbst": "2000000", "mtnc_rt": "418.23000000",
+    "evlu_pfls_smtl": "12345", "trad_pfls_smtl": "6789",
+    "futr_evlu_pfls_amt": "12345", "opt_evlu_pfls_amt": "0",
+    "futr_trad_pfls": "6789", "opt_trad_pfls_amt": "0",
+    "prsm_dpast_amt": "51000000", "rcva": "0",
+}
+
+
+def _deposit_resp(*, output=None):
+    body = {"output": output if output is not None else dict(_DEPOSIT)}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont="D")
+
+
+def test_derivative_deposit_paper_fails_closed():
+    fake = FakeTransport(response=_deposit_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").account.deposit()
+    assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
+
+
+def test_derivative_deposit_parses_and_routes():
+    fake = FakeTransport(response=_deposit_resp())
+    dep = _client(fake, environment="real").account.deposit()
+    assert isinstance(dep, DerivativeDeposit)
+    assert dep.total_deposit == Decimal(50000000)              # dnca_tota
+    assert dep.available_cash == Decimal(30000000)             # ord_psbl_cash
+    assert dep.maintenance_ratio == Decimal("418.23000000")    # mtnc_rt
+    assert dep.account_value == Decimal(51000000)              # prsm_dpast_amt
+    assert dep.receivable == Decimal(0)                        # rcva
+    assert dep.brokerage_margin_cash == Decimal(18000000)      # brkg_mgna_cash
+    assert dep.brokerage_margin_substitute == Decimal(2000000)  # brkg_mgna_sbst
+    assert dep.futures_realized_pnl == Decimal(6789)           # futr_trad_pfls (no _amt)
+    call = fake.calls[0]
+    assert call["tr_id"] == "CTRP6550R"
+    assert call["path"].endswith("inquire-deposit")
+    assert call["params"] == {"CANO": "12345678", "ACNT_PRDT_CD": "03"}
+
+
+def test_derivative_deposit_missing_output_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={}, tr_cont="D")
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp), environment="real").account.deposit()

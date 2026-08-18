@@ -8,8 +8,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._engine.derivative_account import fetch_balance
-from .entities.derivative_account import DerivativeBalance
+from ._engine.derivative_account import fetch_balance, fetch_deposit
+from .entities.derivative_account import DerivativeBalance, DerivativeDeposit
 
 if TYPE_CHECKING:
     from ..client import KISClient
@@ -29,6 +29,18 @@ class DomesticDerivativesAccount:
         """
         cano, product_code = self._client._require_account()
         return fetch_balance(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment,
+        )
+
+    def deposit(self) -> DerivativeDeposit:
+        """선물옵션 총자산현황(예수금·주문가능·위탁증거금·손익 요약).
+
+        ``GET .../domestic-futureoption/v1/trading/inquire-deposit`` (``CTRP6550R``).
+        **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_deposit(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment,
         )

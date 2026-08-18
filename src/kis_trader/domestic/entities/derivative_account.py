@@ -75,3 +75,37 @@ class DerivativeBalance:
     def __post_init__(self) -> None:
         object.__setattr__(self, "positions", tuple(self.positions))
         object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))
+
+
+@dataclass(frozen=True, slots=True)
+class DerivativeDeposit:
+    """선물옵션 총자산현황 -- 예수금·주문가능·위탁증거금·손익 요약(불변).
+
+    ``total_deposit`` 예수금총액, ``available_cash`` / ``available_total`` 주문가능현금/총액,
+    ``brokerage_margin_cash`` / ``brokerage_margin_substitute`` 위탁증거금현금/대용,
+    ``maintenance_ratio`` 유지비율, ``account_value`` 추정예탁자산금액, ``receivable`` 미수금.
+    평가·매매손익은 합계(``total_*``)와 선물/옵션 분해(``futures_*`` / ``options_*``)를 함께 담는다.
+    이 엔드포인트에 증거금총액(mgna_tota)은 없다 -- 위탁증거금 현금/대용을 대신 노출한다.
+    타입화하지 않은 요약 필드는 ``raw`` 로 접근한다.
+    """
+
+    total_deposit: Decimal                # 예수금총액(dnca_tota)
+    available_cash: Decimal               # 주문가능현금(ord_psbl_cash)
+    available_total: Decimal              # 주문가능총액(ord_psbl_tota)
+    brokerage_margin_cash: Decimal        # 위탁증거금현금(brkg_mgna_cash)
+    brokerage_margin_substitute: Decimal  # 위탁증거금대용(brkg_mgna_sbst)
+    maintenance_ratio: Decimal            # 유지비율(mtnc_rt)
+    total_unrealized_pnl: Decimal         # 평가손익합계(evlu_pfls_smtl)
+    total_realized_pnl: Decimal           # 매매손익합계(trad_pfls_smtl)
+    futures_unrealized_pnl: Decimal       # 선물평가손익금액(futr_evlu_pfls_amt)
+    options_unrealized_pnl: Decimal       # 옵션평가손익금액(opt_evlu_pfls_amt)
+    futures_realized_pnl: Decimal         # 선물매매손익(futr_trad_pfls)
+    options_realized_pnl: Decimal         # 옵션매매손익금액(opt_trad_pfls_amt)
+    account_value: Decimal                # 추정예탁자산금액(prsm_dpast_amt)
+    receivable: Decimal                   # 미수금(rcva)
+    raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))

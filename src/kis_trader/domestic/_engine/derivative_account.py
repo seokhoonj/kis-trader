@@ -6,6 +6,7 @@ fail-closed 파싱은 여기 갇힌다.
 
 KIS URL/TR-ID:
 - 잔고: ``GET .../trading/inquire-balance`` (실전 ``CTFO6118R`` / 모의 ``VTFO6118R``).
+- 총자산현황: ``GET .../trading/inquire-deposit`` (``CTRP6550R``, **모의 미지원**).
 """
 
 from __future__ import annotations
@@ -16,14 +17,21 @@ from typing import Any
 
 from ..._internal._response import _raise_if_error
 from ..._internal._wire import optional_decimal, required_decimal
-from ...errors import KISError
+from ...errors import KISError, KISUsageError
 from ...transport import Environment, RawResponse, Transport
-from ..entities.derivative_account import DerivativeBalance, DerivativePosition
+from ..entities.derivative_account import (
+    DerivativeBalance,
+    DerivativeDeposit,
+    DerivativePosition,
+)
 
 _BALANCE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-balance"
 _BALANCE_TR = {"real": "CTFO6118R", "paper": "VTFO6118R"}
 #: 잔고 보유내역 연속조회 페이지 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
 _MAX_BALANCE_PAGES = 100
+
+_DEPOSIT_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-deposit"
+_DEPOSIT_TR = "CTRP6550R"  # 선물옵션 총자산현황, 모의투자 미지원
 
 
 def fetch_balance(
@@ -76,6 +84,45 @@ def fetch_balance(
         options_realized_pnl=required_decimal(summary.get("opt_trad_pfls_amt"), "opt_trad_pfls_amt"),
         account_value=required_decimal(summary.get("prsm_dpast_amt"), "prsm_dpast_amt"),
         raw=summary,
+    )
+
+
+def fetch_deposit(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment
+) -> DerivativeDeposit:
+    """선물옵션 총자산현황(1콜, output 단일 객체). 예수금·주문가능·위탁증거금·손익 요약.
+    **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "선물옵션 총자산현황(inquire-deposit)은 모의투자 미지원 -- 실전에서만."
+        )
+    params = {"CANO": cano, "ACNT_PRDT_CD": product_code}
+    resp = transport.request(
+        method="GET", path=_DEPOSIT_PATH, tr_id=_DEPOSIT_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise KISError(
+            "선물옵션 총자산현황 응답에 output 이 없다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    return DerivativeDeposit(
+        total_deposit=required_decimal(output.get("dnca_tota"), "dnca_tota"),
+        available_cash=required_decimal(output.get("ord_psbl_cash"), "ord_psbl_cash"),
+        available_total=required_decimal(output.get("ord_psbl_tota"), "ord_psbl_tota"),
+        brokerage_margin_cash=required_decimal(output.get("brkg_mgna_cash"), "brkg_mgna_cash"),
+        brokerage_margin_substitute=required_decimal(output.get("brkg_mgna_sbst"), "brkg_mgna_sbst"),
+        maintenance_ratio=required_decimal(output.get("mtnc_rt"), "mtnc_rt"),
+        total_unrealized_pnl=required_decimal(output.get("evlu_pfls_smtl"), "evlu_pfls_smtl"),
+        total_realized_pnl=required_decimal(output.get("trad_pfls_smtl"), "trad_pfls_smtl"),
+        futures_unrealized_pnl=required_decimal(output.get("futr_evlu_pfls_amt"), "futr_evlu_pfls_amt"),
+        options_unrealized_pnl=required_decimal(output.get("opt_evlu_pfls_amt"), "opt_evlu_pfls_amt"),
+        futures_realized_pnl=required_decimal(output.get("futr_trad_pfls"), "futr_trad_pfls"),
+        options_realized_pnl=required_decimal(output.get("opt_trad_pfls_amt"), "opt_trad_pfls_amt"),
+        account_value=required_decimal(output.get("prsm_dpast_amt"), "prsm_dpast_amt"),
+        receivable=required_decimal(output.get("rcva"), "rcva"),
+        raw=output,
     )
 
 
