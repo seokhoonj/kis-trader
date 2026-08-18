@@ -183,6 +183,33 @@ class OptionBoard:
 
 
 @dataclass(frozen=True, slots=True)
+class DerivativeMarginRate:
+    """한 기초자산의 선물 증거금율 한 행(불변).
+
+    기준일별 증거금율 표(``kis.domestic.derivative_margin_rates``)의 한 행이다. ``underlying_id``
+    기초자산 ID(bast_id), ``underlying_name`` 기초자산명(bast_name), ``underlying_price``
+    기초자산 가격(bast_pric), ``brokerage_margin_rate`` 위탁증거금율(brkg_mgna_rt),
+    ``trading_margin_rate`` 거래증거금율(tr_mgna_rt), ``trading_multiplier`` 거래승수(tr_mtpl_idx),
+    ``futures_margin_per_contract`` 계약당 선물증거금(ctrt_per_futr_mgna). 타입화하지 않은 필드는
+    ``raw`` 로 접근한다.
+    """
+
+    underlying_id: str                # 기초자산 ID(bast_id)
+    underlying_name: str              # 기초자산명(bast_name)
+    underlying_price: Decimal         # 기초자산 가격(bast_pric)
+    brokerage_margin_rate: Decimal    # 위탁증거금율(brkg_mgna_rt)
+    trading_margin_rate: Decimal      # 거래증거금율(tr_mgna_rt)
+    trading_multiplier: Decimal       # 거래승수(tr_mtpl_idx)
+    futures_margin_per_contract: Decimal  # 계약당 선물증거금(ctrt_per_futr_mgna)
+    raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))
+
+
+@dataclass(frozen=True, slots=True)
 class FuturesBoardQuote:
     """옵션 전광판 하단에 표시되는 한 선물 계약의 시세 스냅샷."""
 

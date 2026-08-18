@@ -83,6 +83,7 @@ from .domestic.entities.calendar import (
     ShareholderMeeting,
 )
 from .domestic.entities.derivative import (
+    DerivativeMarginRate,
     DerivativeQuote,
     ExpectedExecutionPoint,
     ExpectedExecutionTrend,
@@ -316,6 +317,7 @@ __all__ = [
     "DerivativeDeposit",
     "DerivativeFill",
     "DerivativeFillHistory",
+    "DerivativeMarginRate",
     "DerivativeOrderable",
     "DerivativePosition",
     "DerivativeQuote",

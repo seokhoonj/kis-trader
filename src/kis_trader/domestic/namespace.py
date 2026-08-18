@@ -41,7 +41,12 @@ if TYPE_CHECKING:
     from .entities.account_reports import IntegratedMargin, RealizedProfitBalance
     from .entities.account_right import AccountRight
     from .entities.balance import AccountAssets, Balance, Portfolio, Position
-    from .entities.derivative import FuturesBoardQuote, OptionBoard, OptionExpiry
+    from .entities.derivative import (
+        DerivativeMarginRate,
+        FuturesBoardQuote,
+        OptionBoard,
+        OptionExpiry,
+    )
     from .entities.product import ProductInfo
     from .entities.saved_screen import SavedScreen, SavedScreenStock, Watchlist, WatchlistGroup
     from .entities.trade_profit import DailyProfitHistory, TradeProfitHistory
@@ -244,6 +249,16 @@ class DomesticNamespace:
         """옵션 전광판 하단의 선물 계약별 현재가·호가·미결제약정·예상체결가."""
         return derivatives_api.fetch_futures_board_quotes(
             self._c.transport, market_class=market_class
+        )
+
+    def derivative_margin_rates(
+        self, base_date: str, *, underlying_id: str = ""
+    ) -> list[DerivativeMarginRate]:
+        """기준일별 기초자산 선물 증거금율 표(위탁/거래 증거금율·거래승수·계약당 증거금). ``base_date``
+        는 조회 기준일 ``"YYYYMMDD"``(8자리), ``underlying_id``(기초자산 ID) 공백(기본)이면 전체
+        기초자산이다. 계약 핸들이 아니라 시장 표라 여기 둔다. **모의투자 미지원**(실전 전용)."""
+        return derivatives_api.fetch_derivative_margin_rates(
+            self._c.transport, base_date=base_date, underlying_id=underlying_id
         )
 
     # -- 다종목/상품 조회 --
