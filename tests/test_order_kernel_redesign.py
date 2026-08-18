@@ -202,7 +202,9 @@ def test_v6_store_resaves_as_current_schema_with_recorded_at_key(tmp_path):
     """v6 를 로드해 저장하면 현재 스키마와 `recorded_at` 키로 재기록된다(마이그레이션 경로)."""
     path = tmp_path / "orders.json"
     path.write_text(json.dumps(_v6_store_json()), encoding="utf-8")
-    with OrderStore(path=path) as store:
+    # retention_days=0 으로 보존 정리를 끈다 -- 이 테스트는 스키마 마이그레이션만 보며,
+    # fixture 의 고정 날짜가 기본 보존창(7일)을 넘겨 ID-done 이 정리되면 안 된다.
+    with OrderStore(path=path, retention_days=0) as store:
         store.clear_in_flight("ID-inflight")   # 아무 write 나 -> _save_locked 로 재기록
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["schema_version"] == _SCHEMA_VERSION
