@@ -128,6 +128,46 @@ def test_derivative_balance_skips_blank_symbol_row():
     assert [p.symbol for p in bal.positions] == ["101W09"]
 
 
+def test_derivative_balance_page_cap_fails_closed():
+    # 연속조회가 끝나지 않는(항상 tr_cont="F") 응답 -- 페이지 상한에서 부분 결과로 자르지 않고 예외.
+    never_ends = _balance_resp(rows=[_position("101W09")], ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    fake = FakeTransport(response=never_ends)
+    with pytest.raises(KISError):
+        _client(fake).account.balance()
+
+
+def test_derivative_balance_output1_non_list_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": {"shtn_pdno": "101W09"}, "output2": dict(_SUMMARY),
+                             "ctx_area_nk200": "", "ctx_area_fk200": ""})
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp)).account.balance()
+
+
+def test_derivative_balance_output1_absent_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output2": dict(_SUMMARY),
+                             "ctx_area_nk200": "", "ctx_area_fk200": ""})
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp)).account.balance()
+
+
+def test_derivative_balance_summary_list_form():
+    # output2 를 길이 1 배열로 줘도 단일 객체와 동일하게 파싱한다.
+    bal = _client(
+        FakeTransport(response=_balance_resp(rows=[_position()], summary=[dict(_SUMMARY)]))
+    ).account.balance()
+    assert bal.total_margin == Decimal(20000000)       # mgna_tota
+
+
+def test_derivative_account_entities_importable():
+    from kis_trader import DerivativeBalance, DerivativeDeposit, DerivativePosition
+
+    assert DerivativeBalance is not None
+    assert DerivativeDeposit is not None
+    assert DerivativePosition is not None
+
+
 _DEPOSIT = {
     "dnca_tota": "50000000", "ord_psbl_cash": "30000000", "ord_psbl_tota": "31000000",
     "brkg_mgna_cash": "18000000", "brkg_mgna_sbst": "2000000", "mtnc_rt": "418.23000000",

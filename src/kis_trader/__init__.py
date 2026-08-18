@@ -92,6 +92,11 @@ from .domestic.entities.derivative import (
     OptionExpiry,
     UnderlyingQuote,
 )
+from .domestic.entities.derivative_account import (
+    DerivativeBalance,
+    DerivativeDeposit,
+    DerivativePosition,
+)
 from .domestic.entities.elw import (
     ELWIndicatorPoint,
     ELWListing,
@@ -296,6 +301,9 @@ __all__ = [
     "DailyProfitHistory",
     "DailyProgramTradePoint",
     "DailyTradeVolumePoint",
+    "DerivativeBalance",
+    "DerivativeDeposit",
+    "DerivativePosition",
     "DerivativeQuote",
     "DetailedInvestorFlow",
     "DetailedInvestorHistory",
