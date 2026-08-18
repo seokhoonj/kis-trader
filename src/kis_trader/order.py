@@ -222,7 +222,7 @@ def _checked_slot(value: str, allowed: frozenset[str], label: str) -> str:
 
 def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
     """온-디스크 위치 튜플을 인메모리 지문으로 디코딩한다(구버전 짧은 레코드는 뒤쪽 기본값으로 채움 --
-    v1=8슬롯 .. v5+=13슬롯). exchange 슬롯(idx 7)으로 변형을 판별한다: "action:" 접두=변경 동작,
+    v1=8슬롯 .. v5-v7=13슬롯, v8=14슬롯). exchange 슬롯(idx 7)으로 변형을 판별한다: "action:" 접두=변경 동작,
     "reserved"/"overseas-reserved"=예약, 그 밖=즉시 주문. 슬롯이 8 미만이거나
     ``_FINGERPRINT_SLOTS``(14) 초과면 손상/변조로 거부한다(예전 ``Fingerprint(*fp)`` 가 필수 필드
     부족/인자 과다로 실패하던 것과 같은 fail-closed)."""
