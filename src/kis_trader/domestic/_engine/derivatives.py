@@ -163,9 +163,20 @@ def fetch_option_expiries(transport: Transport) -> list[OptionExpiry]:
 
 
 def fetch_option_board(
-    transport: Transport, *, expiry: str, underlying: str = "KOSPI200"
+    transport: Transport, *, expiry: OptionExpiry | str, underlying: str = "KOSPI200"
 ) -> OptionBoard:
-    """한 만기월의 지수옵션 콜/풋 전광판을 행사가별로 조회한다."""
+    """한 만기월의 지수옵션 콜/풋 전광판을 행사가별로 조회한다.
+
+    ``expiry`` 는 :func:`fetch_option_expiries` 가 준 :class:`OptionExpiry`(권장) 또는 그 만기 년월
+    문자열 ``"YYYYMM"``(예: ``"202609"``)이다. KIS ``FID_MTRT_CNT`` 는 만기 년월(``mtrt_yymm``)을
+    받으므로, 만기코드(``OptionExpiry.code``, 예 ``"0609"``)를 넘기면 서버가 빈 판을 돌려준다 -- 그
+    형식은 조용한 빈 결과 대신 fail-closed 로 거부한다."""
+    year_month = expiry.year_month if isinstance(expiry, OptionExpiry) else str(expiry).strip()
+    if len(year_month) != 6 or not year_month.isdigit():
+        raise KISUsageError(
+            f"option_board 의 expiry 는 만기 년월 'YYYYMM'(예: '202609') 또는 option_expiries() 가 준 "
+            f"OptionExpiry 여야 한다 -- 만기코드(OptionExpiry.code, 예 '0609')가 아니다: {expiry!r}"
+        )
     try:
         underlying_code = _OPTION_UNDERLYING[underlying]
     except KeyError:
@@ -178,7 +189,7 @@ def fetch_option_board(
         "FID_COND_SCR_DIV_CODE": _OPTION_BOARD_SCREEN_CODE,
         "FID_MRKT_CLS_CODE": "CO",
         "FID_MRKT_CLS_CODE1": "PO",
-        "FID_MTRT_CNT": expiry,
+        "FID_MTRT_CNT": year_month,
         "FID_COND_MRKT_CLS_CODE": underlying_code,
     }
     resp = transport.request(
@@ -189,7 +200,7 @@ def fetch_option_board(
     call_rows = _require_mapping_rows("output1", resp)
     put_rows = _require_mapping_rows("output2", resp)
     return OptionBoard(
-        expiry=expiry,
+        expiry=year_month,
         underlying=underlying,
         calls=tuple(_parse_board_row(row) for row in call_rows),
         puts=tuple(_parse_board_row(row) for row in put_rows),

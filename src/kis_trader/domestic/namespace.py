@@ -231,8 +231,12 @@ class DomesticNamespace:
         """상장된 지수옵션 만기 월물 목록. 옵션 계약코드를 만들기 전에 유효한 만기를 확인하는 용도."""
         return derivatives_api.fetch_option_expiries(self._c.transport)
 
-    def option_board(self, expiry: str, *, underlying: str = "KOSPI200") -> OptionBoard:
-        """한 만기월의 옵션 콜/풋 전광판(행사가별 시세·그릭스). expiry 는 OptionExpiry.year_month."""
+    def option_board(
+        self, expiry: OptionExpiry | str, *, underlying: str = "KOSPI200"
+    ) -> OptionBoard:
+        """한 만기월의 옵션 콜/풋 전광판(행사가별 시세·그릭스). ``expiry`` 는 :meth:`option_expiries`
+        가 준 :class:`~kis_trader.domestic.entities.derivative.OptionExpiry`(그대로 넘기면 된다) 또는
+        그 만기 년월 문자열 ``"YYYYMM"``(예: ``"202609"``) -- 만기코드(``OptionExpiry.code``)가 아니다."""
         return derivatives_api.fetch_option_board(
             self._c.transport, expiry=expiry, underlying=underlying
         )

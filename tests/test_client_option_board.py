@@ -91,3 +91,21 @@ def test_option_board_missing_output2_fails_closed():
     fake = FakeTransport(_response(include_puts=False))
     with pytest.raises(KISError):
         _client(fake).domestic.option_board("202405")
+
+
+def test_option_board_accepts_option_expiry_object():
+    from kis_trader import OptionExpiry
+
+    fake = FakeTransport(_response())
+    expiry = OptionExpiry(code="0609", year_month="202609")
+    _client(fake).domestic.option_board(expiry)
+    # OptionExpiry 를 그대로 넘기면 그 year_month(만기코드 .code 가 아니라)가 FID_MTRT_CNT 로 나간다.
+    assert fake.calls[0]["params"]["FID_MTRT_CNT"] == "202609"
+
+
+def test_option_board_rejects_maturity_short_code():
+    # 만기코드(OptionExpiry.code, 예 "0609")를 넘기면 조용히 빈 판을 받지 않고 명확히 거부한다.
+    fake = FakeTransport(_response())
+    with pytest.raises(KISUsageError, match="YYYYMM"):
+        _client(fake).domestic.option_board("0609")
+    assert fake.calls == []
