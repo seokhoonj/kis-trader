@@ -29,6 +29,10 @@ Side = Literal["buy", "sell"]
 #: 옵션 권리 방향 -- 콜/풋. 파생(XKFE) 옵션 주문의 상품구분(derivative_item "02" 콜 / "03" 풋)을
 #: 정하는 사용자-대면 어휘다(선물엔 없다). 옵션 계약 핸들이 이 값을 받아 발주에 싣는다.
 Right = Literal["call", "put"]
+#: 파생(XKFE) 상품 구분(FUOP_ITEM_DVSN_CD) -- "01" 선물 / "02" 콜옵션 / "03" 풋옵션. 현금·해외
+#: 주문은 ``""``. 야간(STTN) 발주·조회 와이어에 필수이며, 야간 가드는 비어있음만 보므로("99" 같은
+#: 미지정 코드가 와이어에 새는 fail-open) 이 Literal 로 유효값만 받게 좁혀 타입체크에서 막는다.
+DerivativeItem = Literal["", "01", "02", "03"]
 OrderType = Literal["market", "limit", "stop", "stop_limit"]
 TimeInForce = Literal["day", "gtc", "ioc", "fok"]
 #: 국내(KRX) 현금주문 전용 주문구분(가격 결정 방식). 지정가(order_type="limit")/시장가("market")를
@@ -219,8 +223,9 @@ def _checked_slot(value: str, allowed: frozenset[str], label: str) -> str:
 def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
     """온-디스크 위치 튜플을 인메모리 지문으로 디코딩한다(구버전 짧은 레코드는 뒤쪽 기본값으로 채움 --
     v1=8슬롯 .. v5+=13슬롯). exchange 슬롯(idx 7)으로 변형을 판별한다: "action:" 접두=변경 동작,
-    "reserved"/"overseas-reserved"=예약, 그 밖=즉시 주문. 슬롯이 8 미만이거나 13 초과면 손상/변조로
-    거부한다(예전 ``Fingerprint(*fp)`` 가 필수 필드 부족/인자 과다로 실패하던 것과 같은 fail-closed)."""
+    "reserved"/"overseas-reserved"=예약, 그 밖=즉시 주문. 슬롯이 8 미만이거나
+    ``_FINGERPRINT_SLOTS``(14) 초과면 손상/변조로 거부한다(예전 ``Fingerprint(*fp)`` 가 필수 필드
+    부족/인자 과다로 실패하던 것과 같은 fail-closed)."""
     slots = [str(value) for value in row]
     if len(slots) < 8:
         raise ValueError(f"지문 레코드 슬롯이 부족하다(8 미만): {row!r}")
@@ -375,7 +380,7 @@ class Order:
     board: DomesticBoard = "KRX"
     #: 파생(XKFE) 상품 구분 -- "01" 선물 / "02" 콜옵션 / "03" 풋옵션. 현금·해외 주문은 ``""``.
     #: 콜 vs 풋은 같은 심볼·수량·가격이라도 서로 다른 주문이라 지문에 함께 실어 dedup 을 가른다.
-    derivative_item: str = ""
+    derivative_item: DerivativeItem = ""
     client_order_id: str = field(default_factory=mint_client_order_id)
 
     def __post_init__(self) -> None:

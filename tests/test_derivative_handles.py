@@ -62,6 +62,14 @@ def test_option_symbol_must_be_9(fake_client):
         fake_client.domestic.option("201S03", right="call").buy(quantity=1, limit_price=Decimal("2.5"))  # 6자리
 
 
+# --- 수량 형상검증 -- 계약 단위 정수(fat-finger 방지) ---------------------
+def test_futures_fractional_quantity_rejected_no_wire(fake_client, fake_transport):
+    # P1-4: 소수 계약수량(1.5)은 와이어 전에 KISUsageError -- 전송에 닿지 않는다.
+    with pytest.raises(KISUsageError):
+        fake_client.domestic.futures("101S03").buy(quantity=Decimal("1.5"), limit_price=Decimal(400))
+    assert fake_transport.request_count == 0
+
+
 # --- right -> derivative_item 매핑 -----------------------------------------
 def test_option_call_maps_to_02(fake_client):
     opt = fake_client.domestic.option("201S03370", right="call")

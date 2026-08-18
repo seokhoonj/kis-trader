@@ -13,7 +13,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, ClassVar
+from typing import TYPE_CHECKING, ClassVar, Literal
 
 from ..errors import KISUsageError
 from ..order import _DERIVATIVE_EXCHANGE, Order, coerce_decimal, mint_client_order_id
@@ -142,7 +142,7 @@ class _ContractBase:
             client_order_id=client_order_id or mint_client_order_id(),
         )
 
-    def _derivative_item(self) -> str:
+    def _derivative_item(self) -> Literal["01", "02", "03"]:
         """이 계약의 파생 상품구분 코드(FUOP_ITEM_DVSN_CD). 서브클래스가 구현한다."""
         raise NotImplementedError
 
@@ -163,7 +163,7 @@ class FuturesContract(_ContractBase):
             self._client.transport, code=self.code, market="F"
         )
 
-    def _derivative_item(self) -> str:
+    def _derivative_item(self) -> Literal["01", "02", "03"]:
         return "01"
 
 
@@ -187,9 +187,9 @@ class OptionContract(_ContractBase):
         super().__init__(client, code)
         self.right = right
 
-    def _derivative_item(self) -> str:
+    def _derivative_item(self) -> Literal["01", "02", "03"]:
         if self.right is None:
             raise KISUsageError(
                 "옵션 발주에는 right(call/put)가 필요하다 -- kis.domestic.option(code, right=...) 로 지정하라."
             )
-        return {"call": "02", "put": "03"}[self.right]
+        return "02" if self.right == "call" else "03"      # 콜 02 / 풋 03
