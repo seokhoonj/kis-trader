@@ -61,9 +61,13 @@ _KST = timezone(timedelta(hours=9))
 #: list 라 로드 시 {id: ""}(시각 미상 폴백 앵커)로 마이그레이션된다. 지문 위치 형식도 v8 에서 14-슬롯
 #: (파생 derivative_item)으로 늘었으나 구 13-슬롯 이하 레코드는 decode 가 뒤쪽 기본값으로 채워 그대로 읽는다.
 #: 구 바이너리는 새 버전 파일을 손상이 아니라 미지원 버전으로 거부하게 해 오진단을 막는다.
-_SCHEMA_VERSION = 8
+#: v9: 리포트에 receipt_date(해외 예약 접수일자 RSVN_ORD_RCIT_DT) 영속 -- 재기동 후에도 해외 예약
+#: 취소가 접수일자를 읽게(전엔 미영속 _raw 에만 있어 재시작하면 취소 불가). 지문 위치 형식도 v9 에서
+#: 15-슬롯(예약 overseas_exchange)으로 늘었으나 구 14-슬롯 이하 레코드는 decode 가 뒤쪽 기본값으로
+#: 채워 그대로 읽고, 구버전 리포트의 누락 receipt_date 키는 None 으로 로드된다(하위호환).
+_SCHEMA_VERSION = 9
 #: 읽을 수 있는 스키마 버전 집합(이 밖은 UnsupportedSchemaVersionError 로 거부).
-_READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5, 6, 7, 8})
+_READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 9})
 #: 완료(비-in-flight) 리포트 보존 기본 일수 -- 이 이후엔 정리(무한 성장 방지). client_order_id
 #: 가 날짜를 포함하므로 같은 id 재전송 위험 창은 당일이라, 넉넉한 기본값이 dedup 을 약화하지 않는다.
 _DEFAULT_RETENTION_DAYS = 7
@@ -424,6 +428,7 @@ def _report_to_dict(report: ExecutionReport) -> dict[str, object]:
         "average_price": None if report.average_price is None else str(report.average_price),
         "recorded_at": report.recorded_at.isoformat(),
         "organization_number": report.organization_number,
+        "receipt_date": report.receipt_date,
     }
 
 
@@ -445,6 +450,11 @@ def _report_from_dict(report_data: dict[str, object]) -> ExecutionReport:
         organization_number=(
             None if report_data.get("organization_number") is None
             else str(report_data["organization_number"])
+        ),
+        # 구버전(v8 이하) 레코드엔 없으니 누락 시 None (해당 해외 예약은 재기동 후 취소 불가 -- 종전과 동일).
+        receipt_date=(
+            None if report_data.get("receipt_date") is None
+            else str(report_data["receipt_date"])
         ),
         # raw 는 영속되지 않음 -- 재로드된 리포트는 raw={} (빈 와이어 바디와 구별 안 됨).
     )

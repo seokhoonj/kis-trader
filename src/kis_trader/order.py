@@ -70,8 +70,9 @@ class OrderFingerprint:
     (예: 변경 지문의 ``action``, 예약 지문의 ``end_date``) **표현 불가능한 조합이 애초에 없다** --
     예전처럼 action 을 ``stop_price`` 슬롯에, cid 를 ``symbol`` 슬롯에 밀어넣는 스머글링을 없앴다.
 
-    **온-디스크 형식은 바뀌지 않는다.** :func:`encode_fingerprint`/:func:`decode_fingerprint` 가
-    기존 위치 튜플(13-슬롯 문자열)과 왕복 코덱을 이룬다. dedup 정체성(무엇이 무엇과 같은가)은 그
+    **온-디스크 형식은 뒤쪽으로만 자란다.** :func:`encode_fingerprint`/:func:`decode_fingerprint` 가
+    기존 위치 튜플(현행 15-슬롯 문자열; 새 슬롯은 항상 뒤에 기본값과 함께 추가되고 decode 가 구
+    레코드의 누락 슬롯을 채운다)과 왕복 코덱을 이룬다. dedup 정체성(무엇이 무엇과 같은가)은 그
     위치 인코딩의 동등성으로 정의되므로 변형이 달라도 **예전 튜플 동등성과 바이트 단위로 동일**하다 --
     재조회 매칭과 이중전송 장벽이 여기에 의존한다. 수치 필드는 와이어와 같은 정본
     문자열(:func:`format_wire_decimal`)이다."""
@@ -88,7 +89,7 @@ class OrderFingerprint:
     __slots__ = ()
 
     def _positional(self) -> tuple[str, ...]:
-        """이 지문의 온-디스크 위치 인코딩(13-슬롯). 각 변형이 구현한다."""
+        """이 지문의 온-디스크 위치 인코딩(15-슬롯). 각 변형이 구현한다."""
         raise NotImplementedError
 
     def __eq__(self, other: object) -> bool:
@@ -135,19 +136,24 @@ class ImmediateOrderFingerprint(OrderFingerprint):
     derivative_item: str = ""
 
     def _positional(self) -> tuple[str, ...]:
+        # 마지막 "" = overseas_exchange 슬롯(예약 변형 전용; 즉시 주문은 항상 빈 값).
         return (
             self.symbol, self.side, self.order_type, self.quantity, self.limit_price,
             self.stop_price, self.time_in_force, self.exchange, self.credit_type,
             self.loan_date, self.session, self.division, self.board, self.derivative_item,
+            "",
         )
 
 
 @dataclass(frozen=True, slots=True, eq=False)
 class ReservedOrderFingerprint(OrderFingerprint):
-    """예약주문(국내 현금예약·해외 미국예약)의 지문 -- 예약은 지정가/시장가·day 뿐이라 stop/신용/세션/
-    보드 슬롯이 없다. ``end_date`` 는 예약 유효 종료일(없으면 ``""``; 종료일이 다르면 다른 주문),
-    ``exchange`` 는 예약 네임스페이스("reserved" 국내 / "overseas-reserved" 해외)로 즉시주문과
-    dedup 을 분리하고 reconcile 을 예약 경로로 라우팅한다."""
+    """예약주문(국내 현금예약·해외 미국/아시아예약)의 지문 -- 예약은 지정가/시장가·day 뿐이라 stop/신용/
+    세션/보드 슬롯이 없다. ``end_date`` 는 예약 유효 종료일(없으면 ``""``; 종료일이 다르면 다른 주문),
+    ``exchange`` 는 예약 네임스페이스("reserved" 국내 / "overseas-reserved" 해외 미국 /
+    "overseas-reserved-asia" 해외 아시아)로 즉시주문과 dedup 을 분리하고 reconcile 을 예약 경로로
+    라우팅한다. ``overseas_exchange`` 는 발주 시점에 해석된 해외 거래소코드(예: "HKS"; 국내·미국 예약은
+    ``""``) -- 아시아 취소가 여기서 ``OVRS_EXCG_CD``/``PRDT_TYPE_CD`` 를 재파생하며, 해석된 거래소가
+    다르면 다른 주문이라 지문 정체성에 포함한다."""
 
     symbol: str
     side: Side
@@ -156,12 +162,15 @@ class ReservedOrderFingerprint(OrderFingerprint):
     limit_price: str
     end_date: str
     exchange: str
+    overseas_exchange: str = ""
 
     def _positional(self) -> tuple[str, ...]:
-        # 온-디스크: end_date 는 예전 stop_price 슬롯, tif="day" 고정, 뒤쪽은 기본값(마지막=derivative_item).
+        # 온-디스크: end_date 는 예전 stop_price 슬롯, tif="day" 고정, 뒤쪽은 기본값(마지막 슬롯만
+        # overseas_exchange -- 해외 예약의 해석된 거래소, v9 에서 추가).
         return (
             self.symbol, self.side, self.order_type, self.quantity, self.limit_price,
             self.end_date, "day", self.exchange, "", "", "regular", "", "KRX", "",
+            self.overseas_exchange,
         )
 
 
@@ -184,30 +193,33 @@ class ChangeActionFingerprint(OrderFingerprint):
 
     def _positional(self) -> tuple[str, ...]:
         # 온-디스크: symbol 슬롯=원 cid, stop_price 슬롯=action, exchange 슬롯="action:"+원 거래소.
+        # 마지막 "" = overseas_exchange 슬롯(예약 변형 전용; 변경 동작은 항상 빈 값).
         return (
             self.original_client_order_id, self.side, self.order_type, self.quantity,
             self.limit_price, self.action, self.time_in_force, f"{_ACTION_EXCHANGE_PREFIX}{self.exchange}",
-            "", "", "regular", "", "KRX", "",
+            "", "", "regular", "", "KRX", "", "",
         )
 
 
 #: 인메모리 지문 변형들의 공통 상위형 -- 저장소/재조회가 "어떤 지문이든" 을 annotate 할 때 쓴다.
 Fingerprint = OrderFingerprint
 
-#: 온-디스크 위치 인코딩의 슬롯 수(스키마 v8: 파생 derivative_item 슬롯 추가). 인코딩은 항상 이 길이로
-#: 나간다. 구버전(13-슬롯 이하) 레코드는 decode 가 뒤쪽 누락 슬롯을 기본값으로 채워 그대로 읽는다.
-_FINGERPRINT_SLOTS = 14
+#: 온-디스크 위치 인코딩의 슬롯 수(스키마 v9: 예약 overseas_exchange 슬롯 추가; v8 은 파생
+#: derivative_item 슬롯). 인코딩은 항상 이 길이로 나간다. 구버전(14-슬롯 이하) 레코드는 decode 가
+#: 뒤쪽 누락 슬롯을 기본값으로 채워 그대로 읽는다.
+_FINGERPRINT_SLOTS = 15
 #: 위치 인코딩의 정직한 예약 네임스페이스(exchange 슬롯). decode 가 이 값으로 예약 변형을 판별한다.
-_RESERVED_EXCHANGES = frozenset(("reserved", "overseas-reserved"))
+_RESERVED_EXCHANGES = frozenset(("reserved", "overseas-reserved", "overseas-reserved-asia"))
 #: 변경 동작 지문의 exchange 슬롯 접두 -- decode 가 이 접두로 변경 변형을 판별한다.
 _ACTION_EXCHANGE_PREFIX = "action:"
-#: 위치 인코딩 뒤쪽 선택 슬롯(idx 8..13)의 기본값 -- 구버전 레코드가 이보다 짧을 때 채운다.
-_TRAILING_DEFAULTS = ("", "", "regular", "", "KRX", "")  # credit_type, loan_date, session, division, board, derivative_item
+#: 위치 인코딩 뒤쪽 선택 슬롯(idx 8..14)의 기본값 -- 구버전 레코드가 이보다 짧을 때 채운다.
+_TRAILING_DEFAULTS = ("", "", "regular", "", "KRX", "", "")  # credit_type, loan_date, session, division, board, derivative_item, overseas_exchange
 
 
 def encode_fingerprint(fingerprint: OrderFingerprint) -> list[str]:
-    """지문을 기존 온-디스크 위치 튜플(13-슬롯 문자열 리스트)로 인코딩한다 -- 변경 전 코드가 쓰던
-    ``list(fp)`` 와 **바이트 동일**해야 한다(dedup 정체성·재조회 매칭·이중전송 장벽이 여기 의존)."""
+    """지문을 온-디스크 위치 튜플(15-슬롯 문자열 리스트)로 인코딩한다 -- 기존 형식에서 뒤쪽 슬롯만
+    자란 형태로, 앞 슬롯들은 변경 전 코드가 쓰던 ``list(fp)`` 와 **바이트 동일**해야 한다(dedup
+    정체성·재조회 매칭·이중전송 장벽이 여기 의존)."""
     return list(fingerprint._positional())
 
 
@@ -222,10 +234,10 @@ def _checked_slot(value: str, allowed: frozenset[str], label: str) -> str:
 
 def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
     """온-디스크 위치 튜플을 인메모리 지문으로 디코딩한다(구버전 짧은 레코드는 뒤쪽 기본값으로 채움 --
-    v1=8슬롯 .. v5-v7=13슬롯, v8=14슬롯). exchange 슬롯(idx 7)으로 변형을 판별한다: "action:" 접두=변경 동작,
-    "reserved"/"overseas-reserved"=예약, 그 밖=즉시 주문. 슬롯이 8 미만이거나
-    ``_FINGERPRINT_SLOTS``(14) 초과면 손상/변조로 거부한다(예전 ``Fingerprint(*fp)`` 가 필수 필드
-    부족/인자 과다로 실패하던 것과 같은 fail-closed)."""
+    v1=8슬롯 .. v5-v7=13슬롯, v8=14슬롯, v9=15슬롯). exchange 슬롯(idx 7)으로 변형을 판별한다: "action:"
+    접두=변경 동작, "reserved"/"overseas-reserved"/"overseas-reserved-asia"=예약, 그 밖=즉시 주문. 슬롯이
+    8 미만이거나 ``_FINGERPRINT_SLOTS``(15) 초과면 손상/변조로 거부한다(예전 ``Fingerprint(*fp)`` 가 필수
+    필드 부족/인자 과다로 실패하던 것과 같은 fail-closed)."""
     slots = [str(value) for value in row]
     if len(slots) < 8:
         raise ValueError(f"지문 레코드 슬롯이 부족하다(8 미만): {row!r}")
@@ -234,7 +246,8 @@ def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
     if len(slots) > _FINGERPRINT_SLOTS:                    # 과다 슬롯 = 손상/변조 -> fail-closed
         raise ValueError(f"지문 레코드 슬롯이 과다하다({_FINGERPRINT_SLOTS} 초과): {row!r}")
     symbol, side, order_type, quantity, limit_price, stop_slot, tif, exchange = slots[:8]
-    credit_type, loan_date, session, division, board, derivative_item = slots[8:_FINGERPRINT_SLOTS]
+    credit_type, loan_date, session, division, board, derivative_item, overseas_exchange = \
+        slots[8:_FINGERPRINT_SLOTS]
     # 저장분은 전부 str 로 복원된다 -- persistence 경계에서 도메인 허용값인지 검증한 뒤 Literal 로 좁힌다
     # (검증 없이 cast 만 하면 손상/변조된 값을 유효 Literal 이라 거짓 단언하게 된다).
     side = cast(Side, _checked_slot(side, _SIDES, "side"))
@@ -251,6 +264,7 @@ def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
         return ReservedOrderFingerprint(
             symbol=symbol, side=side, order_type=order_type, quantity=quantity,
             limit_price=limit_price, end_date=stop_slot, exchange=exchange,
+            overseas_exchange=overseas_exchange,
         )
     return ImmediateOrderFingerprint(
         symbol=symbol, side=side, order_type=order_type, quantity=quantity,

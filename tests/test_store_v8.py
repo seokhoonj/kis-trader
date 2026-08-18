@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from kis_trader.order import ChangeActionFingerprint, Order
-from kis_trader.store import Claimed, OrderStore
+from kis_trader.store import _SCHEMA_VERSION, Claimed, OrderStore
 
 _KST = timezone(timedelta(hours=9))
 
@@ -29,7 +29,7 @@ def test_v8_persist_and_reload_roundtrip(tmp_path):
     with OrderStore(p, now=_clock) as store:
         store.try_claim("cid-1", _fp())
     data = json.loads(p.read_text())
-    assert data["schema_version"] == 8
+    assert data["schema_version"] == _SCHEMA_VERSION   # v8 에서 도입된 in_flight dict 형식이 대상
     assert data["in_flight"] == {"cid-1": _clock().isoformat()}
     with OrderStore(p, now=_clock) as reloaded:
         assert reloaded.is_in_flight("cid-1")
