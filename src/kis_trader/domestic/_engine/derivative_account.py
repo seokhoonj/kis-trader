@@ -23,6 +23,8 @@ from ..entities.derivative_account import (
     DerivativeBalance,
     DerivativeDeposit,
     DerivativePosition,
+    DerivativeSettlementBalance,
+    DerivativeSettlementPosition,
     DerivativeValuationBalance,
     DerivativeValuationPosition,
 )
@@ -37,6 +39,9 @@ _DEPOSIT_TR = "CTRP6550R"  # 선물옵션 총자산현황, 모의투자 미지�
 
 _VALUATION_PL_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-balance-valuation-pl"
 _VALUATION_PL_TR = "CTFO6159R"  # 선물옵션 잔고평가손익내역, 모의투자 미지원
+
+_SETTLEMENT_PL_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-balance-settlement-pl"
+_SETTLEMENT_PL_TR = "CTFO6117R"  # 선물옵션 잔고정산손익내역, 모의투자 미지원
 
 
 def fetch_balance(
@@ -189,6 +194,66 @@ def fetch_valuation_pl(
     )
 
 
+def fetch_settlement_pl(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment, date: str
+) -> DerivativeSettlementBalance:
+    """선물옵션 잔고정산손익내역(정산 보유내역 output1 + 계좌 요약 output2). ``date`` (YYYYMMDD)
+    기준일로 조회하고 연속조회로 보유내역을 소진까지 모은다(계좌 요약은 첫 페이지에서 완결).
+    **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "선물옵션 잔고정산손익내역(inquire-balance-settlement-pl)은 모의투자 미지원 -- 실전에서만."
+        )
+    _require_wire_date(date, "date")
+    rows: list[Mapping[str, Any]] = []
+    summary: Mapping[str, Any] | None = None
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_BALANCE_PAGES):
+        resp = _fetch_settlement_pl_page(
+            transport, cano=cano, product_code=product_code, date=date,
+            ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        if summary is None:  # 계좌 요약은 첫 페이지에서(계좌 단위라 페이지 불변)
+            summary = _extract_summary(resp.body)
+        page = resp.body.get("output1")
+        if not isinstance(page, list):  # 빈 계좌도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
+            raise KISError(
+                "선물옵션 잔고정산손익내역 응답의 output1 이 정산 보유내역 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"선물옵션 잔고정산손익내역 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 "
+            f"연속조회가 남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        )
+    if summary is None:
+        raise KISError("선물옵션 잔고정산손익내역 응답에 계좌 요약(output2)이 없다.")
+    return DerivativeSettlementBalance(
+        positions=tuple(_parse_settlement_positions(rows)),
+        next_day_deposit=required_decimal(summary.get("nxdy_dnca"), "nxdy_dnca"),
+        maintenance_margin_cash=required_decimal(summary.get("mmga_cash"), "mmga_cash"),
+        maintenance_margin_total=required_decimal(summary.get("mmga_tota"), "mmga_tota"),
+        brokerage_margin_cash=required_decimal(summary.get("brkg_mgna_cash"), "brkg_mgna_cash"),
+        brokerage_margin_total=required_decimal(summary.get("brkg_mgna_tota"), "brkg_mgna_tota"),
+        deposit_cash=required_decimal(summary.get("dnca_cash"), "dnca_cash"),
+        deposit_substitute=required_decimal(summary.get("dnca_sbst"), "dnca_sbst"),
+        option_buy_amount=required_decimal(summary.get("opt_buy_chgs"), "opt_buy_chgs"),
+        option_sell_amount=required_decimal(summary.get("opt_sll_chgs"), "opt_sll_chgs"),
+        option_liquidation_value=required_decimal(summary.get("opt_lqd_evlu_amt"), "opt_lqd_evlu_amt"),
+        fee=required_decimal(summary.get("fee"), "fee"),
+        today_settlement_diff=required_decimal(summary.get("thdt_dfpa"), "thdt_dfpa"),
+        renewal_settlement_diff=required_decimal(summary.get("rnwl_dfpa"), "rnwl_dfpa"),
+        raw=summary,
+    )
+
+
 def _fetch_balance_page(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     ctx_fk: str, ctx_nk: str, tr_cont: str = "",
@@ -219,6 +284,49 @@ def _fetch_valuation_pl_page(
         method="GET", path=_VALUATION_PL_PATH, tr_id=_VALUATION_PL_TR,
         params=params, idempotent=True, tr_cont=tr_cont,
     )
+
+
+def _fetch_settlement_pl_page(
+    transport: Transport, *, cano: str, product_code: str, date: str,
+    ctx_fk: str, ctx_nk: str, tr_cont: str = "",
+) -> RawResponse:
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "INQR_DT": date,  # 조회일자(YYYYMMDD)
+        "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
+    }
+    return transport.request(
+        method="GET", path=_SETTLEMENT_PL_PATH, tr_id=_SETTLEMENT_PL_TR,
+        params=params, idempotent=True, tr_cont=tr_cont,
+    )
+
+
+def _parse_settlement_positions(
+    rows: list[Mapping[str, Any]]
+) -> list[DerivativeSettlementPosition]:
+    positions: list[DerivativeSettlementPosition] = []
+    for row in rows:
+        symbol = str(row.get("pdno", "")).strip()
+        if not symbol:  # 상품번호 없는 패딩 행 -- 건너뜀
+            continue
+        positions.append(
+            # 종목별 수치는 빈 값을 0으로 읽는다 -- 이유는 _parse_positions 와 동일.
+            DerivativeSettlementPosition(
+                symbol=symbol,
+                name=str(row.get("prdt_name", "")).strip(),
+                trade_type=str(row.get("trad_dvsn_name", "")).strip(),
+                prior_quantity=_decimal_or_zero(row.get("bfdy_cblc_qty"), "bfdy_cblc_qty"),
+                new_quantity=_decimal_or_zero(row.get("new_qty"), "new_qty"),
+                offset_quantity=_decimal_or_zero(row.get("mnpl_rpch_qty"), "mnpl_rpch_qty"),
+                quantity=_decimal_or_zero(row.get("cblc_qty"), "cblc_qty"),
+                balance_amount=_decimal_or_zero(row.get("cblc_amt"), "cblc_amt"),
+                realized_pnl=_decimal_or_zero(row.get("trad_pfls_amt"), "trad_pfls_amt"),
+                market_value=_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
+                unrealized_pnl=_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
+                _raw=row,
+            )
+        )
+    return positions
 
 
 def _parse_valuation_positions(
@@ -289,6 +397,15 @@ def _extract_summary(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
     if isinstance(summary, Mapping):
         return summary
     return None
+
+
+def _require_wire_date(value: str, field_name: str) -> None:
+    """조회 요청의 일자 파라미터를 와이어 이전에 검증한다 -- 8자리 숫자(YYYYMMDD)가 아니면
+    :class:`KISUsageError`. 잘못된 일자로 조회를 날리는 대신 호출 즉시 실패시킨다."""
+    if len(value) != 8 or not value.isdigit():
+        raise KISUsageError(
+            f"일자 파라미터 {field_name!r} 는 8자리 숫자(YYYYMMDD)여야 한다: {value!r}"
+        )
 
 
 def _decimal_or_zero(value: object, field_name: str) -> Decimal:

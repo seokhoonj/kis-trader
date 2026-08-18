@@ -8,10 +8,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._engine.derivative_account import fetch_balance, fetch_deposit, fetch_valuation_pl
+from ._engine.derivative_account import (
+    fetch_balance,
+    fetch_deposit,
+    fetch_settlement_pl,
+    fetch_valuation_pl,
+)
 from .entities.derivative_account import (
     DerivativeBalance,
     DerivativeDeposit,
+    DerivativeSettlementBalance,
     DerivativeValuationBalance,
 )
 
@@ -47,6 +53,18 @@ class DomesticDerivativesAccount:
         return fetch_valuation_pl(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment,
+        )
+
+    def settlement_pl(self, date: str) -> DerivativeSettlementBalance:
+        """선물옵션 잔고정산손익내역(정산 보유내역 + 예수금·증거금·수수료 요약).
+
+        ``date`` 는 조회 기준일자(YYYYMMDD, 8자리 숫자). ``GET .../domestic-futureoption/v1/
+        trading/inquire-balance-settlement-pl`` (``CTFO6117R``). **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_settlement_pl(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, date=date,
         )
 
     def deposit(self) -> DerivativeDeposit:

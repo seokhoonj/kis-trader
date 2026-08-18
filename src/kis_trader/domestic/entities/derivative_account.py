@@ -143,6 +143,70 @@ class DerivativeValuationBalance:
 
 
 @dataclass(frozen=True, slots=True)
+class DerivativeSettlementPosition:
+    """한 선물옵션 종목의 잔고정산손익 현황(불변).
+
+    이 조회의 종목 식별은 상품번호(pdno)뿐이라 ``symbol`` 에 pdno 를 담는다(단축상품번호 없음).
+    ``trade_type`` 은 매매구분명(trad_dvsn_name)을 그대로(strip). ``prior_quantity`` 전일잔고수량,
+    ``new_quantity`` 신규수량, ``offset_quantity`` 상계환매수량, ``quantity`` 잔고수량,
+    ``balance_amount`` 잔고금액. 상품번호가 빈 패딩 행은 담기지 않는다.
+    """
+
+    symbol: str                       # 상품번호(pdno)
+    name: str                         # 상품명(prdt_name)
+    trade_type: str                   # 매매구분명(trad_dvsn_name)
+    prior_quantity: Decimal           # 전일잔고수량(bfdy_cblc_qty)
+    new_quantity: Decimal             # 신규수량(new_qty)
+    offset_quantity: Decimal          # 상계환매수량(mnpl_rpch_qty)
+    quantity: Decimal                 # 잔고수량(cblc_qty)
+    balance_amount: Decimal           # 잔고금액(cblc_amt)
+    realized_pnl: Decimal             # 매매손익금액(trad_pfls_amt)
+    market_value: Decimal             # 평가금액(evlu_amt)
+    unrealized_pnl: Decimal           # 평가손익금액(evlu_pfls_amt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class DerivativeSettlementBalance:
+    """선물옵션 잔고정산손익 뷰 -- 계좌 예수금·증거금·수수료 요약과 정산 보유내역 한 벌(불변).
+
+    ``next_day_deposit`` 익일예수금, ``maintenance_margin_cash`` / ``maintenance_margin_total``
+    유지증거금현금/총액, ``brokerage_margin_cash`` / ``brokerage_margin_total`` 위탁증거금현금/총액,
+    ``deposit_cash`` 예수금현금, ``deposit_substitute`` 예수금대용. 옵션 대금은 ``option_buy_amount``
+    (매수대금), ``option_sell_amount``(매도대금), ``option_liquidation_value``(청산평가금액)로 담는다.
+    ``today_settlement_diff`` 당일정산차금, ``renewal_settlement_diff`` 갱신정산차금, ``fee`` 수수료.
+    타입화하지 않은 요약 필드는 ``raw`` 로 접근한다.
+    """
+
+    positions: tuple[DerivativeSettlementPosition, ...]  # 정산 보유내역(output1)
+    next_day_deposit: Decimal             # 익일예수금(nxdy_dnca)
+    maintenance_margin_cash: Decimal      # 유지증거금현금(mmga_cash)
+    maintenance_margin_total: Decimal     # 유지증거금총액(mmga_tota)
+    brokerage_margin_cash: Decimal        # 위탁증거금현금(brkg_mgna_cash)
+    brokerage_margin_total: Decimal       # 위탁증거금총액(brkg_mgna_tota)
+    deposit_cash: Decimal                 # 예수금현금(dnca_cash)
+    deposit_substitute: Decimal           # 예수금대용(dnca_sbst)
+    option_buy_amount: Decimal            # 옵션매수대금(opt_buy_chgs)
+    option_sell_amount: Decimal           # 옵션매도대금(opt_sll_chgs)
+    option_liquidation_value: Decimal     # 옵션청산평가금액(opt_lqd_evlu_amt)
+    fee: Decimal                          # 수수료(fee)
+    today_settlement_diff: Decimal        # 당일정산차금(thdt_dfpa)
+    renewal_settlement_diff: Decimal      # 갱신정산차금(rnwl_dfpa)
+    raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "positions", tuple(self.positions))
+        object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))
+
+
+@dataclass(frozen=True, slots=True)
 class DerivativeDeposit:
     """선물옵션 총자산현황 -- 예수금·주문가능·위탁증거금·손익 요약(불변).
 

@@ -284,3 +284,99 @@ def test_derivative_valuation_entities_importable():
 
     assert DerivativeValuationBalance is not None
     assert DerivativeValuationPosition is not None
+
+
+_SETTLEMENT_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-balance-settlement-pl"
+
+_SETTLEMENT_SUMMARY = {
+    "nxdy_dnca": "48000000", "mmga_cash": "18000000", "mmga_tota": "20000000",
+    "brkg_mgna_cash": "18000000", "brkg_mgna_tota": "20000000",
+    "dnca_cash": "48000000", "dnca_sbst": "2000000",
+    "opt_buy_chgs": "1000000", "opt_sll_chgs": "500000", "opt_lqd_evlu_amt": "750000",
+    "fee": "12345", "thdt_dfpa": "6789", "rnwl_dfpa": "1111",
+}
+
+
+def _settlement_position(pdno="KR4101RC0000", *, name="코스피200 F 202509", trade="매수",
+                         bfdy="2", new="1", offset="0", cblc="3", cblc_amt="123150000",
+                         trad="6789", evlu="123150000", pnl="12345"):
+    return {"pdno": pdno, "prdt_name": name, "trad_dvsn_name": trade,
+            "bfdy_cblc_qty": bfdy, "new_qty": new, "mnpl_rpch_qty": offset,
+            "cblc_qty": cblc, "cblc_amt": cblc_amt, "trad_pfls_amt": trad,
+            "evlu_amt": evlu, "evlu_pfls_amt": pnl}
+
+
+def _settlement_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont="D"):
+    body = {"output1": rows if rows is not None else [],
+            "output2": summary if summary is not None else dict(_SETTLEMENT_SUMMARY),
+            "ctx_area_nk200": ctx_nk, "ctx_area_fk200": ctx_fk}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
+
+
+def test_settlement_pl_parses_and_routes():
+    from kis_trader.domestic.entities.derivative_account import DerivativeSettlementBalance
+
+    fake = FakeTransport(response=_settlement_resp(rows=[_settlement_position()]))
+    stl = _client(fake, environment="real").account.settlement_pl("20240216")
+    assert isinstance(stl, DerivativeSettlementBalance)
+    assert stl.positions[0].symbol == "KR4101RC0000"        # pdno
+    assert stl.positions[0].quantity == Decimal(3)          # cblc_qty
+    assert stl.positions[0].prior_quantity == Decimal(2)    # bfdy_cblc_qty
+    assert stl.positions[0].unrealized_pnl == Decimal(12345)  # evlu_pfls_amt
+    assert stl.next_day_deposit == Decimal(48000000)        # nxdy_dnca
+    assert stl.today_settlement_diff == Decimal(6789)       # thdt_dfpa
+    assert stl.fee == Decimal(12345)                        # fee
+    call = fake.calls[0]
+    assert call["tr_id"] == "CTFO6117R"
+    assert call["path"].endswith("inquire-balance-settlement-pl")
+    assert call["params"]["INQR_DT"] == "20240216"
+    assert call["params"]["CTX_AREA_FK200"] == ""
+    assert call["params"]["CTX_AREA_NK200"] == ""
+    assert call["params"]["CANO"] == "12345678"
+
+
+def test_settlement_pl_paper_fails_closed():
+    fake = FakeTransport(response=_settlement_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").account.settlement_pl("20240216")
+    assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
+
+
+def test_settlement_pl_bad_date_fails_closed():
+    fake = FakeTransport(response=_settlement_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="real").account.settlement_pl("2024-02-16")
+    assert fake.calls == []  # 날짜 검증도 와이어 이전
+
+
+def test_settlement_pl_paginates():
+    page1 = _settlement_resp(rows=[_settlement_position("KR4101RC0000")],
+                             ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    page2 = _settlement_resp(rows=[_settlement_position("KR4201RC0000")], tr_cont="D")
+    fake = FakeTransport(by_path={_SETTLEMENT_PATH: [page1, page2]})
+    stl = _client(fake, environment="real").account.settlement_pl("20240216")
+    assert [p.symbol for p in stl.positions] == ["KR4101RC0000", "KR4201RC0000"]
+    assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
+    assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
+
+
+def test_settlement_pl_skips_blank_symbol_row():
+    rows = [_settlement_position("KR4101RC0000"), _settlement_position("")]
+    stl = _client(
+        FakeTransport(response=_settlement_resp(rows=rows)), environment="real"
+    ).account.settlement_pl("20240216")
+    assert [p.symbol for p in stl.positions] == ["KR4101RC0000"]
+
+
+def test_settlement_pl_missing_output2_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": [], "ctx_area_nk200": "", "ctx_area_fk200": ""})
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp), environment="real").account.settlement_pl("20240216")
+
+
+def test_derivative_settlement_entities_importable():
+    from kis_trader import DerivativeSettlementBalance, DerivativeSettlementPosition
+
+    assert DerivativeSettlementBalance is not None
+    assert DerivativeSettlementPosition is not None
