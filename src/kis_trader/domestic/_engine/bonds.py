@@ -17,7 +17,7 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from decimal import Decimal
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ..._bars import _parse_bar_timestamp
 from ..._depth import _price_levels
@@ -36,6 +36,7 @@ from ..._internal._response import (
 )
 from ..._internal._wire import (
     _apply_change_sign,
+    format_wire_decimal,
     optional_decimal,
     optional_int,
     required_decimal,
@@ -53,7 +54,10 @@ from ..entities.bond import (
     BondQuote,
     BondValuation,
 )
-from ..entities.bond_account import BondPosition
+from ..entities.bond_account import BondBuyable, BondPosition
+
+if TYPE_CHECKING:
+    from ..._literals import Numeric
 
 _QUOTE_PATH = "/uapi/domestic-bond/v1/quotations/inquire-price"
 _QUOTE_TR = "FHKBJ773400C0"
@@ -461,6 +465,8 @@ def _parse_valuation(
 # **모의투자 미지원**이라 demo 면 와이어 이전에 :class:`KISUsageError` 로 fail-closed 한다.
 _BOND_BALANCE_PATH = "/uapi/domestic-bond/v1/trading/inquire-balance"
 _BOND_BALANCE_TR = "CTSC8407R"  # 장내채권 잔고조회, 모의투자 미지원
+_BOND_BUYABLE_PATH = "/uapi/domestic-bond/v1/trading/inquire-psbl-order"
+_BOND_BUYABLE_TR = "TTTC8910R"  # 장내채권 매수가능조회, 모의투자 미지원
 #: 채권 계좌 연속조회 페이지 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
 _MAX_BOND_ACCOUNT_PAGES = 100
 
@@ -521,7 +527,69 @@ def _parse_bond_positions(rows: list[Mapping[str, Any]]) -> list[BondPosition]:
     return positions
 
 
+def fetch_bond_buyable(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    code: str, price: Numeric | None = None,
+) -> BondBuyable:
+    """장내채권 매수가능조회. ``code`` 표준코드, ``price`` 주문 단가(없으면 시장가 기준).
+    응답 ``output`` 단일 객체(길이 1 배열로 올 수도 있어 둘 다 처리). **모의투자 미지원**
+    (demo 면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "장내채권 매수가능조회(inquire-psbl-order)는 모의투자 미지원 -- 실전에서만."
+        )
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "PDNO": code,
+        "BOND_ORD_UNPR": _format_bond_order_price(price),
+        "SAMT_MKET_PTCI_YN": "N",
+    }
+    resp = transport.request(
+        method="GET", path=_BOND_BUYABLE_PATH, tr_id=_BOND_BUYABLE_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    output = _bond_summary(resp.body.get("output"))
+    if output is None:
+        raise KISError(
+            "장내채권 매수가능조회 응답에 output 이 없다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    return BondBuyable(
+        symbol=code,
+        orderable_cash=required_decimal(output.get("ord_psbl_cash"), "ord_psbl_cash"),
+        orderable_substitute=required_decimal(output.get("ord_psbl_sbst"), "ord_psbl_sbst"),
+        reusable_amount=required_decimal(output.get("ruse_psbl_amt"), "ruse_psbl_amt"),
+        buyable_amount=required_decimal(output.get("buy_psbl_amt"), "buy_psbl_amt"),
+        buyable_quantity=required_decimal(output.get("buy_psbl_qty"), "buy_psbl_qty"),
+        cma_value=required_decimal(output.get("cma_evlu_amt"), "cma_evlu_amt"),
+        _raw=output,
+    )
+
+
 # --- 채권 계좌 공용 파서 ---------------------------------------------------
+def _bond_summary(block: object) -> Mapping[str, Any] | None:
+    """단일 요약 블록 -- KIS 가 단일 객체로도, '길이 1 배열'로도 준다. 비매핑이면 None."""
+    if isinstance(block, Mapping):
+        return block
+    if isinstance(block, list) and block and isinstance(block[0], Mapping):
+        return block[0]
+    return None
+
+
+def _format_bond_order_price(price: Numeric | None) -> str:
+    """채권 주문 단가를 KIS 와이어 정본으로 -- ``None`` 이면 빈 문자열(시장가). 유한 양수 아니면 거부."""
+    if price is None:
+        return ""
+    try:
+        value = Decimal(str(price))
+    except (ArithmeticError, ValueError) as err:
+        raise KISUsageError(f"price 는 숫자여야 한다: {price!r}") from err
+    if not value.is_finite() or value <= 0:
+        raise KISUsageError(f"price 는 0보다 큰 유한값이어야 한다: {price!r}")
+    return format_wire_decimal(value)
+
+
 def _bond_decimal_or_zero(value: object, field_name: str) -> Decimal:
     """없으면 0, 있으면 Decimal(파싱 실패면 예외). '없음=0'인 수량·금액 필드용.
 

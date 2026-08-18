@@ -9,11 +9,12 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._engine.bonds import fetch_bond_balance
+from ._engine.bonds import fetch_bond_balance, fetch_bond_buyable
 
 if TYPE_CHECKING:
+    from .._literals import Numeric
     from ..client import KISClient
-    from .entities.bond_account import BondPosition
+    from .entities.bond_account import BondBuyable, BondPosition
 
 
 class DomesticBondAccount:
@@ -31,4 +32,16 @@ class DomesticBondAccount:
         return fetch_bond_balance(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment,
+        )
+
+    def buyable(self, code: str, *, price: Numeric | None = None) -> BondBuyable:
+        """장내채권 매수가능조회(주문가능현금·대용, 재사용가능금액, 매수가능금액·수량, CMA평가금액).
+
+        ``code`` 는 표준코드(ISIN), ``price`` 는 주문 단가(생략하면 시장가 기준). ``GET .../
+        domestic-bond/v1/trading/inquire-psbl-order`` (``TTTC8910R``). **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_bond_buyable(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, code=code, price=price,
         )

@@ -142,3 +142,65 @@ def test_balance_paginates_two_pages():
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NK"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
     assert fake.calls[1]["tr_cont"] == "N"
+
+
+# --- buyable (TTTC8910R) ---------------------------------------------------
+_BUYABLE_OUTPUT = {
+    "ord_psbl_cash": "50000000", "ord_psbl_sbst": "0", "ruse_psbl_amt": "0",
+    "buy_psbl_amt": "49500000", "buy_psbl_qty": "5000", "cma_evlu_amt": "0",
+}
+
+
+def _buyable_resp(output=None):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output": output if output is not None else dict(_BUYABLE_OUTPUT)})
+
+
+def test_buyable_parses_and_routes():
+    fake = FakeTransport(response=_buyable_resp())
+    result = _bonds(fake).buyable("KR2033022D33", price=9850)
+    assert result.symbol == "KR2033022D33"
+    assert result.orderable_cash == Decimal(50000000)
+    assert result.orderable_substitute == Decimal(0)
+    assert result.reusable_amount == Decimal(0)
+    assert result.buyable_amount == Decimal(49500000)
+    assert result.buyable_quantity == Decimal(5000)
+    assert result.cma_value == Decimal(0)
+    call = fake.calls[0]
+    assert call["path"] == _BUYABLE_PATH
+    assert call["tr_id"] == "TTTC8910R"
+    assert call["params"]["PDNO"] == "KR2033022D33"
+    assert call["params"]["BOND_ORD_UNPR"] == "9850"
+    assert call["params"]["SAMT_MKET_PTCI_YN"] == "N"
+
+
+def test_buyable_market_price_blank_when_none():
+    fake = FakeTransport(response=_buyable_resp())
+    _bonds(fake).buyable("KR2033022D33")
+    assert fake.calls[0]["params"]["BOND_ORD_UNPR"] == ""
+
+
+def test_buyable_summary_as_length_one_list():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output": [dict(_BUYABLE_OUTPUT)]})
+    assert _bonds(FakeTransport(response=resp)).buyable("KR2033022D33").orderable_cash == Decimal(50000000)
+
+
+def test_buyable_paper_fails_closed():
+    fake = FakeTransport(response=_buyable_resp())
+    with pytest.raises(KISUsageError):
+        _bonds(fake, environment="paper").buyable("KR2033022D33", price=9850)
+    assert fake.calls == []
+
+
+def test_buyable_missing_output_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={})
+    with pytest.raises(KISError):
+        _bonds(FakeTransport(response=resp)).buyable("KR2033022D33")
+
+
+def test_buyable_rejects_non_positive_price():
+    fake = FakeTransport(response=_buyable_resp())
+    with pytest.raises(KISUsageError):
+        _bonds(fake).buyable("KR2033022D33", price=0)
+    assert fake.calls == []
