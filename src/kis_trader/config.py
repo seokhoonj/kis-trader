@@ -174,7 +174,13 @@ def _migrate_order_store(old_path: Path, new_path: Path) -> None:
     프로세스가 갈라진 dedup 을 보지 않도록. 캐시와 state 가 다른 파일시스템이면 rename 대신 복사 후
     원본을 지운다(:func:`shutil.move` 가 두 경우를 모두 처리)."""
     new_path.parent.mkdir(parents=True, exist_ok=True)
-    shutil.move(str(old_path), str(new_path))
+    try:
+        shutil.move(str(old_path), str(new_path))
+    except (FileNotFoundError, shutil.Error):
+        # 동시 첫 실행에서 다른 프로세스가 이미 옮겼으면 원본이 사라지거나 대상이 먼저 생긴다.
+        # 대상이 존재하면 이전은 완료된 것이니 조용히 넘어가 크래시를 막는다(중복 이동은 무해).
+        if not new_path.exists():
+            raise
 
 
 def _split_account(account: str) -> tuple[str, str]:
