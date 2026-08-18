@@ -554,13 +554,16 @@ def cancel_asia_reserved_order(
             f"아시아 예약주문 취소 요청 거부: {resp.msg1}",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
-    # 취소 응답의 유일한 업무 필드는 에코된 OVRS_RSVN_ODNO -- rt_cd=0 이어도 이 번호가 요청과 다르거나
-    # 비어 있으면 실제 취소가 안 된 것으로 보고 fail-closed(미국 예약 취소의 확인번호 검증과 동형).
-    echoed = _extract_ovrs_rsvn_odno(resp.body)
-    if echoed != report.order_id:
+    # 아시아 취소는 발주 TR(TTTS3013U, RVSE_CNCL=02)로 나가므로 취소 자체가 새 예약번호(취소주문 번호)를
+    # 받는다 -- 응답의 OVRS_RSVN_ODNO 는 '취소주문'의 번호이지 원 예약번호가 아니다(라이브 확인: 원 684 를
+    # 취소하면 응답 685). 미국 취소(전용 ccnl 엔드포인트)와 달리 원 예약번호를 에코하지 않으므로 원번호와의
+    # 일치를 요구하면 정상 취소를 오거부한다. 접수 확정은 rt_cd=0(=resp.ok)이고, 취소주문 번호가 실려 왔는지
+    # (비어있지 않은지)만 fail-closed 로 본다(rt_cd=0 인데 번호 부재면 부분/오응답).
+    cancel_odno = _extract_ovrs_rsvn_odno(resp.body)
+    if not cancel_odno:
         raise KISError(
-            f"아시아 예약주문 취소 응답의 확인번호가 요청과 일치하지 않는다(응답 {echoed!r} != 요청 "
-            f"{report.order_id!r}) -- 예약주문조회로 상태를 확인하라.",
+            "아시아 예약주문 취소 응답(rt_cd=0)에 취소주문번호(OVRS_RSVN_ODNO)가 없다 -- "
+            "예약주문조회로 상태를 확인하라.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
     cancelled = _make_report(client_order_id, report.order_id, fingerprint.symbol,

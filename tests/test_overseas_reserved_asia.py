@@ -261,20 +261,33 @@ def test_asia_cancel_without_receipt_date_fails_closed():
 
 
 @pytest.mark.parametrize("body", [
-    {},                                            # output 부재
-    {"output": {}},                                # OVRS_RSVN_ODNO 부재
-    {"output": {"OVRS_RSVN_ODNO": ""}},            # 빈 확인번호
-    {"output": {"OVRS_RSVN_ODNO": "9999999999"}},  # 다른 예약번호 에코
+    {},                                  # output 부재
+    {"output": {}},                      # OVRS_RSVN_ODNO 부재
+    {"output": {"OVRS_RSVN_ODNO": ""}},  # 빈 취소주문번호
 ])
-def test_asia_cancel_bad_echo_fails_closed(body):
-    # rt_cd=0 이어도 에코된 확인번호가 요청 예약번호와 다르면 취소 확정으로 오판하지 않는다
-    # (미국 예약 취소의 확인번호 검증과 동형) -- PENDING_CANCEL 리포트 대신 KISError.
+def test_asia_cancel_missing_number_fails_closed(body):
+    # rt_cd=0 이어도 취소주문번호(OVRS_RSVN_ODNO)가 아예 없으면 부분/오응답으로 보고 fail-closed --
+    # PENDING_CANCEL 리포트 대신 KISError.
     store = OrderStore()
     _place(_Fake(_place_resp()), store)
     bad = _Fake(RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="정상", body=body))
-    with pytest.raises(KISError, match="확인번호"):
+    with pytest.raises(KISError, match="취소주문번호"):
         ro.cancel_asia_reserved_order(bad, store, "c1",
                                       cano="12345678", product_code="01", environment="real")
+
+
+def test_asia_cancel_new_number_is_success():
+    # 아시아 취소는 발주 TR 로 나가 취소주문이 원 예약번호와 다른 새 번호를 받는다(라이브: 원 684 -> 응답
+    # 685). 원번호와 다르다고 오거부하지 않고, rt_cd=0 + 취소주문번호 존재면 PENDING_CANCEL 로 확정한다.
+    store = OrderStore()
+    place_odno = _place(_Fake(_place_resp()), store).order_id
+    cancel_odno = str(int(place_odno) + 1)           # 취소주문은 다른 번호
+    cancel = _Fake(RawResponse(rt_cd="0", msg_cd="40470000", msg1="모의투자 예약주문 완료",
+                               body={"output": {"OVRS_RSVN_ODNO": cancel_odno}}))
+    rep = ro.cancel_asia_reserved_order(cancel, store, "c1",
+                                        cano="12345678", product_code="01", environment="real")
+    assert rep.status is OrderStatus.PENDING_CANCEL
+    assert rep.order_id == place_odno                # 리포트는 원 예약번호를 유지(취소주문 번호 아님)
 
 
 @pytest.mark.parametrize(("currency", "prdt_type_cd"), [
