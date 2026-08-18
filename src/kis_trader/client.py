@@ -483,13 +483,16 @@ class KISClient:
 
     def _place_overseas_reserved_order(
         self, *, symbol: str, side: Side, quantity: Numeric, limit_price: Numeric, exchange: str,
-        client_order_id: str | None,
+        currency: str = "HKD", client_order_id: str | None,
     ) -> ExecutionReport:
-        """미국 해외예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 해외 종목일 때 호출)."""
+        """해외예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 해외 종목일 때 호출).
+        ``exchange`` 의 시장이 미국/아시아 와이어를 가르고, ``currency`` 는 홍콩(HKS) 예약의 상품유형
+        선택 전용이다."""
         cano, product_code = self._require_account()
         return overseas_reserved_orders_api.place_overseas_reserved_order(
             self._transport, self._store,
             symbol=symbol, side=side, quantity=quantity, limit_price=limit_price, exchange=exchange,
+            currency=currency,
             client_order_id=client_order_id or mint_client_order_id(), orderable=self._orderable,
             cano=cano, product_code=product_code, environment=self._environment,
         )

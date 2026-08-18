@@ -374,3 +374,78 @@ def test_asia_reconcile_multi_match_raises(monkeypatch):
     with pytest.raises(KISError):                    # 2건 이상 -> 모호, 자동 확정 금지
         _client(recon_t, store).orders.reconcile("c1")
     assert store.fingerprint_for("c1") is not None
+
+
+# --- 공개 표면 (핸들/네임스페이스 end-to-end) --------------------------------
+def test_handle_routes_hk_symbol_to_asia_reserve():
+    # 홍콩 종목 핸들의 reserve_buy 가 아시아 엔진(TTTS3013U)으로 라우팅되고, 리포트에 예약번호와
+    # 접수일자가 실린다. exchange 명시로 마스터 없이 결정적이다.
+    fake = _Fake(_place_resp())
+    store = OrderStore()
+    kis = _client(fake, store)
+    rep = kis.overseas.stock("00700", exchange="HKS").reserve_buy(quantity=100, limit_price=350.0)
+    call = fake.calls[0]
+    assert call["path"] == _PLACE
+    assert call["tr_id"] == "TTTS3013U"
+    assert call["body"]["RVSE_CNCL_DVSN_CD"] == "00"
+    assert call["body"]["OVRS_EXCG_CD"] == "SEHK"
+    assert call["body"]["PRDT_TYPE_CD"] == "501"      # currency 기본 HKD
+    assert rep.order_id == "0030138295"
+    assert rep.receipt_date == "20260818"
+    assert rep.status is OrderStatus.PENDING_NEW
+    assert store.fingerprint_for(rep.client_order_id).exchange == "overseas-reserved-asia"
+
+
+def test_handle_reserve_forwards_hong_kong_currency():
+    fake = _Fake(_place_resp())
+    kis = _client(fake, OrderStore())
+    kis.overseas.stock("00700", exchange="HKS").reserve_sell(
+        quantity=100, limit_price=350.0, currency="CNY")
+    assert fake.calls[0]["body"]["PRDT_TYPE_CD"] == "543"   # 홍콩 CNY
+    assert fake.calls[0]["body"]["SLL_BUY_DVSN_CD"] == "01"  # 매도
+
+
+def test_handle_us_symbol_still_routes_us_reserve():
+    # 미국 종목은 기존 미국 예약 경로(TTTT3014U) 그대로다 -- currency 는 홍콩 전용이라 안 실린다.
+    us_resp = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="정상",
+                          body={"output": {"ODNO": "0030135009"}})
+    fake = _Fake(us_resp)
+    kis = _client(fake, OrderStore())
+    rep = kis.overseas.stock("AAPL", exchange="NAS").reserve_buy(quantity=1, limit_price=148.0)
+    assert fake.calls[0]["tr_id"] == "TTTT3014U"
+    assert "RVSE_CNCL_DVSN_CD" not in fake.calls[0]["body"]
+    assert rep.order_id == "0030135009"
+    assert rep.receipt_date is None
+
+
+def test_handle_report_cancels_via_orders_cancel():
+    # 핸들 발주 리포트의 client_order_id 로 kis.orders.cancel 하면 아시아 취소 와이어
+    # (TTTS3013U, RVSE_CNCL_DVSN_CD=02)가 나간다 -- 공개 표면의 취소 계약.
+    fake = _Fake(_place_resp())
+    store = OrderStore()
+    kis = _client(fake, store)
+    rep = kis.overseas.stock("00700", exchange="HKS").reserve_buy(quantity=100, limit_price=350.0)
+    cancelled = kis.orders.cancel(rep.client_order_id)
+    cancel_call = fake.calls[1]
+    assert cancel_call["tr_id"] == "TTTS3013U"
+    assert cancel_call["body"]["RVSE_CNCL_DVSN_CD"] == "02"
+    assert cancel_call["body"]["OVRS_RSVN_ODNO"] == "0030138295"
+    assert cancel_call["body"]["RSVN_ORD_RCIT_DT"] == "20260818"
+    assert cancelled.status is OrderStatus.PENDING_CANCEL
+
+
+def test_account_reserved_orders_unions_us_and_asia():
+    # kis.overseas.account.reserved_orders 는 미국(TTTT3039R)과 아시아(TTTS3014R)를 모두 조회해 합친다.
+    fake = _Fake(_list_resp([_list_row()]))
+    kis = _client(fake, OrderStore())
+    rows = kis.overseas.account.reserved_orders(start="20260801", end="20260818")
+    assert [call["tr_id"] for call in fake.calls] == ["TTTT3039R", "TTTS3014R"]
+    assert len(rows) == 2                            # 시장별 1건씩 합쳐진다
+
+
+def test_account_reserved_orders_paper_fails_closed():
+    fake = _Fake(_list_resp([]))
+    kis = _client(fake, OrderStore(), environment="paper")
+    with pytest.raises(KISUsageError, match="실전"):
+        kis.overseas.account.reserved_orders(start="20260801", end="20260818")
+    assert fake.calls == []                          # 조회 와이어에 닿지 않는다

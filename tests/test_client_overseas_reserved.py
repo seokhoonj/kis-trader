@@ -1,6 +1,8 @@
 """미국 해외주식 예약주문 조회 -- kis.overseas.account.reserved_orders(start=, end=) (TTTT3039R).
 
 미국 예약주문 목록(order-resv-list)을 네트워크 없이 검증한다. 픽스처는 원장 응답예시 실값을 쓴다.
+reserved_orders 는 미국+아시아(TTTS3014R)를 합쳐 주므로, 미국 행만 검증하는 테스트는 아시아 쪽에
+빈 페이지를 준다(합집합 자체는 test_overseas_reserved_asia.py 가 검증).
 """
 
 from __future__ import annotations
@@ -57,7 +59,8 @@ def _client(transport, *, environment="real", account="12345678-01"):
 
 
 def test_overseas_reserved_parses_ledger_row():
-    orders = _client(FakeTransport(response=_resp())).overseas.account.reserved_orders(
+    fake = FakeTransport(pages=[_resp(), _resp([])])   # 미국 1건, 아시아 빈 페이지
+    orders = _client(fake).overseas.account.reserved_orders(
         start="20250501", end="20250531")
     assert len(orders) == 1
     o = orders[0]
@@ -109,7 +112,7 @@ def test_overseas_reserved_canceled_flag():
 def test_overseas_reserved_paginates():
     page1 = _resp([_ROW], nk="NEXT", fk="FK", tr_cont="M")
     page2 = _resp([dict(_ROW, ovrs_rsvn_odno="0031111299")], tr_cont="D")
-    fake = FakeTransport(pages=[page1, page2])
+    fake = FakeTransport(pages=[page1, page2, _resp([])])   # 마지막은 아시아 빈 페이지
     orders = _client(fake).overseas.account.reserved_orders(start="20250501", end="20250531")
     assert [o.reserved_order_id for o in orders] == ["0031111234", "0031111299"]
     assert fake.calls[1]["tr_cont"] == "N"
@@ -121,8 +124,8 @@ def test_overseas_reserved_empty_ok():
 
 
 def test_overseas_reserved_skips_padding_row():
-    orders = _client(FakeTransport(response=_resp([dict(_ROW, ovrs_rsvn_odno=""), _ROW]))).overseas.account.reserved_orders(
-        start="20250501", end="20250531")
+    fake = FakeTransport(pages=[_resp([dict(_ROW, ovrs_rsvn_odno=""), _ROW]), _resp([])])
+    orders = _client(fake).overseas.account.reserved_orders(start="20250501", end="20250531")
     assert len(orders) == 1
 
 
