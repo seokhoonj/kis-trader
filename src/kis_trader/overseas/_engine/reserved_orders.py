@@ -15,7 +15,7 @@ KIS URL/TR-ID:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
@@ -209,43 +209,93 @@ def place_overseas_reserved_order(
         raise KISUsageError(f"limit_price 는 0보다 큰 유한값이어야 한다: {limit_price!r}")
 
     if region == _US_MARKET:
-        if currency != "HKD":  # 통화는 홍콩 상품유형 선택 전용 -- 미국에 조용히 무시하면 의도 오해
-            raise KISUsageError(
-                f"통화 지정은 홍콩(HKS) 예약주문에만 유효하다: {exchange!r}, {currency!r}"
-            )
-        fingerprint = ReservedOrderFingerprint(
-            symbol=symbol, side=side, order_type="limit",
-            quantity=format_wire_decimal(qty), limit_price=format_wire_decimal(limit),
-            end_date="", exchange=_RESERVED_EXCHANGE,
+        return _place_us_reserved(
+            transport, store, symbol=symbol, side=side, qty=qty, limit=limit,
+            order_exchange=order_exchange, exchange=exchange, currency=currency,
+            client_order_id=client_order_id, cano=cano, product_code=product_code,
+            environment=environment,
         )
-        body = {
-            "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": symbol,
-            "OVRS_EXCG_CD": order_exchange,
-            "FT_ORD_QTY": format_wire_decimal(qty),
-            "FT_ORD_UNPR3": format_wire_decimal(limit),
-            "ORD_SVR_DVSN_CD": "0", "ORD_DVSN": _ORD_DVSN_LIMIT,
-        }
-        tr_id = _PLACE_TR["US"][side][environment]
-    elif region in _ASIA_MARKETS:
-        prdt_type_cd = _asia_prdt_type_cd(exchange, currency)
-        fingerprint = ReservedOrderFingerprint(
-            symbol=symbol, side=side, order_type="limit",
-            quantity=format_wire_decimal(qty), limit_price=format_wire_decimal(limit),
-            end_date="", exchange=_ASIA_RESERVED_EXCHANGE, overseas_exchange=exchange,
-            currency=currency,
+    if region in _ASIA_MARKETS:
+        return _place_asia_reserved(
+            transport, store, symbol=symbol, side=side, qty=qty, limit=limit,
+            order_exchange=order_exchange, exchange=exchange, currency=currency,
+            client_order_id=client_order_id, cano=cano, product_code=product_code,
+            environment=environment,
         )
-        body = {
-            "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": symbol,
-            "SLL_BUY_DVSN_CD": _SIDE_CODE[side], "RVSE_CNCL_DVSN_CD": "00",
-            "PRDT_TYPE_CD": prdt_type_cd, "OVRS_EXCG_CD": order_exchange,
-            "FT_ORD_QTY": format_wire_decimal(qty),
-            "FT_ORD_UNPR3": format_wire_decimal(limit),
-            "ORD_SVR_DVSN_CD": "0",
-        }
-        tr_id = _PLACE_TR["ASIA"]["any"][environment]
-    else:  # _ORDER_EXCHANGE 전 항목이 미국/아시아라 현재는 도달 불가 -- 맵 확장 대비 fail-closed
-        raise KISUsageError(f"해외 예약주문을 지원하지 않는 시장이다: {exchange!r}({region}).")
+    # _ORDER_EXCHANGE 전 항목이 미국/아시아라 현재는 도달 불가 -- 맵 확장 대비 fail-closed
+    raise KISUsageError(f"해외 예약주문을 지원하지 않는 시장이다: {exchange!r}({region}).")
 
+
+def _place_us_reserved(
+    transport: Transport, store: OrderStore, *,
+    symbol: str, side: Side, qty: Decimal, limit: Decimal, order_exchange: str,
+    exchange: str, currency: str, client_order_id: str,
+    cano: str, product_code: str, environment: Environment,
+) -> ExecutionReport:
+    """미국(NAS/NYS/AMS) 예약 발주 와이어를 만들어 공용 안전 셸에 넘긴다 -- 매수/매도 분리 TR +
+    ORD_DVSN 지정가 body. 통화는 홍콩 전용이라 미국에 비-HKD 를 주면 fail-closed(조용히 무시하면
+    의도 오해). 응답은 예약번호 ODNO 만 돌려주고 접수일자는 없다."""
+    if currency != "HKD":
+        raise KISUsageError(
+            f"통화 지정은 홍콩(HKS) 예약주문에만 유효하다: {exchange!r}, {currency!r}"
+        )
+    fingerprint = ReservedOrderFingerprint(
+        symbol=symbol, side=side, order_type="limit",
+        quantity=format_wire_decimal(qty), limit_price=format_wire_decimal(limit),
+        end_date="", exchange=_RESERVED_EXCHANGE,
+    )
+    body = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": symbol,
+        "OVRS_EXCG_CD": order_exchange,
+        "FT_ORD_QTY": format_wire_decimal(qty),
+        "FT_ORD_UNPR3": format_wire_decimal(limit),
+        "ORD_SVR_DVSN_CD": "0", "ORD_DVSN": _ORD_DVSN_LIMIT,
+    }
+    return _submit_reserved(
+        transport, store, client_order_id, fingerprint, body,
+        _PLACE_TR["US"][side][environment], _extract_us_reserved,
+    )
+
+
+def _place_asia_reserved(
+    transport: Transport, store: OrderStore, *,
+    symbol: str, side: Side, qty: Decimal, limit: Decimal, order_exchange: str,
+    exchange: str, currency: str, client_order_id: str,
+    cano: str, product_code: str, environment: Environment,
+) -> ExecutionReport:
+    """아시아(홍콩/상해/심천/일본/베트남) 예약 발주 와이어를 만들어 공용 안전 셸에 넘긴다 -- 공용 TR
+    (TTTS3013U) + SLL_BUY_DVSN_CD + RVSE_CNCL_DVSN_CD=00 + 거래소·통화에서 파생한 PRDT_TYPE_CD.
+    응답은 예약번호(OVRS_RSVN_ODNO)와 접수일자(RSVN_ORD_RCIT_DT)를 돌려준다."""
+    prdt_type_cd = _asia_prdt_type_cd(exchange, currency)
+    fingerprint = ReservedOrderFingerprint(
+        symbol=symbol, side=side, order_type="limit",
+        quantity=format_wire_decimal(qty), limit_price=format_wire_decimal(limit),
+        end_date="", exchange=_ASIA_RESERVED_EXCHANGE, overseas_exchange=exchange,
+        currency=currency,
+    )
+    body = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": symbol,
+        "SLL_BUY_DVSN_CD": _SIDE_CODE[side], "RVSE_CNCL_DVSN_CD": "00",
+        "PRDT_TYPE_CD": prdt_type_cd, "OVRS_EXCG_CD": order_exchange,
+        "FT_ORD_QTY": format_wire_decimal(qty),
+        "FT_ORD_UNPR3": format_wire_decimal(limit),
+        "ORD_SVR_DVSN_CD": "0",
+    }
+    return _submit_reserved(
+        transport, store, client_order_id, fingerprint, body,
+        _PLACE_TR["ASIA"]["any"][environment], _extract_asia_reserved,
+    )
+
+
+def _submit_reserved(
+    transport: Transport, store: OrderStore, client_order_id: str,
+    fingerprint: ReservedOrderFingerprint, body: dict[str, str], tr_id: str,
+    extract_reservation: Callable[[Mapping[str, Any]], tuple[str, str | None]],
+) -> ExecutionReport:
+    """해외예약 발주의 공용 안전 셸 -- 이중발주 방지(claim)·무재시도 타임아웃·거부 처리·기록을 미국/
+    아시아 공통으로 한 곳에서 처리한다(복제하면 두 경로의 이중발주 방어가 어긋날 수 있어 반드시 단일).
+    시장별 body/TR/지문은 호출부(:func:`_place_us_reserved`/:func:`_place_asia_reserved`)가 만들고,
+    응답의 예약번호/접수일자 추출만 ``extract_reservation`` 으로 주입받는다(미국은 접수일자 None)."""
     claim = store.try_claim(client_order_id, fingerprint)
     if isinstance(claim, Completed):
         return claim.report
@@ -277,21 +327,28 @@ def place_overseas_reserved_order(
             f"해외 예약주문 접수 거부: {resp.msg1}",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
-    receipt_date: str | None = None
-    if region == _US_MARKET:
-        reserved_id = _extract_reserved_id(resp.body)
-    else:
-        reserved_id, receipt = _extract_asia_reservation(resp.body)
-        receipt_date = receipt or None   # 접수일자 부재는 취소 시점에 fail-closed(재조회 유도)
+    reserved_id, receipt_date = extract_reservation(resp.body)
     if not reserved_id:
         raise OrderError(
             "해외 예약주문 접수 응답(rt_cd=0)에 예약주문번호(ODNO/OVRS_RSVN_ODNO)가 없다 -- 재조회 불가.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
-    report = _make_report(client_order_id, reserved_id, symbol, side, resp.body,
-                          receipt_date=receipt_date)
+    report = _make_report(client_order_id, reserved_id, fingerprint.symbol, fingerprint.side,
+                          resp.body, receipt_date=receipt_date)
     store.record(report, fingerprint)
     return report
+
+
+def _extract_us_reserved(body: Mapping[str, Any]) -> tuple[str, str | None]:
+    """미국 예약 발주 응답에서 (예약번호 ODNO, 접수일자=None) -- 미국은 접수일자를 돌려주지 않는다."""
+    return _extract_reserved_id(body), None
+
+
+def _extract_asia_reserved(body: Mapping[str, Any]) -> tuple[str, str | None]:
+    """아시아 예약 발주 응답에서 (예약번호 OVRS_RSVN_ODNO, 접수일자 RSVN_ORD_RCIT_DT 또는 None --
+    접수일자 부재는 취소 시점에 fail-closed 로 드러난다)."""
+    reserved_id, receipt = _extract_asia_reservation(body)
+    return reserved_id, (receipt or None)
 
 
 def reconcile_overseas_reserved_order(
