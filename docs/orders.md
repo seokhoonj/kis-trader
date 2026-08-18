@@ -138,6 +138,42 @@ us = kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)
 oa.cancel_reserved_order(us.order_id, receipt_date="20240102")  # 미국 취소 = 예약번호+접수일자
 ```
 
+## 선물·옵션 주문
+
+국내 선물·옵션은 계약 핸들에서 바로 매매합니다 — 선물은 `kis.domestic.futures(code)`, 옵션은
+`kis.domestic.option(code, right="call")`. 옵션 발주에는 콜/풋(`right`)을 지정해야 합니다(조회는 생략 가능).
+계약코드는 전광판(`kis.domestic.option_board_futures()`)이나 만기(`kis.domestic.option_expiries()`)로 얻습니다.
+
+```python
+f = kis.domestic.futures("101W09")            # 지수선물 계약
+f.buy(quantity=1, limit_price=350.0)          # 지정가 매수
+f.sell(quantity=1)                            # 시장가 매도 (limit_price 생략)
+
+o = kis.domestic.option("201W09350", right="call")   # 콜옵션 (발주엔 right 필수)
+o.buy(quantity=1, limit_price=2.5)
+```
+
+주문 구분(`division`)·유효기간(`time_in_force`)·야간장(`night`):
+
+```python
+f.buy(quantity=1, limit_price=350.0, division="immediate_limit")  # 최유리지정가(파생엔 최우선 없음)
+f.buy(quantity=1, limit_price=350.0, time_in_force="ioc")         # day/ioc/fok
+f.buy(quantity=1, limit_price=350.0, night=True)                  # KRX 파생 야간장(STTN, 실전 전용)
+```
+
+정정·취소·재조회는 현물과 같은 `kis.orders.*` 로 `client_order_id` 를 지목합니다:
+
+```python
+rep = f.buy(quantity=1, limit_price=350.0)
+kis.orders.modify(rep.client_order_id, limit_price=351.0)   # 가격 정정
+kis.orders.cancel(rep.client_order_id)                     # 취소
+```
+
+::: {.callout-note}
+파생 야간장(`night=True`, KRX STTN)은 **모의투자 미지원**이라 실전 세션에서만 나갑니다. 해외 선물·옵션은
+아직 **시세·차트·호가 조회만** 지원합니다([한계·미구현](limits.md) 참고).
+:::
+
 ## 신용주문
 
 기본으로 **막혀 있습니다**. 쓰려면 세션에서 명시적으로 켭니다.
