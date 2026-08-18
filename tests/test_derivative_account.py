@@ -592,3 +592,62 @@ def test_derivative_commission_entities_importable():
 
     assert DerivativeCommission is not None
     assert DerivativeCommissionHistory is not None
+
+
+# --- 비매핑 행 fail-closed (output1=[None]) ---------------------------------
+def test_derivative_balance_non_mapping_row_raises():
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=_balance_resp(rows=[None]))).account.balance()
+
+
+def test_valuation_pl_non_mapping_row_raises():
+    with pytest.raises(KISError):
+        _client(
+            FakeTransport(response=_valuation_resp(rows=[None])), environment="real"
+        ).account.valuation_pl()
+
+
+def test_settlement_pl_non_mapping_row_raises():
+    with pytest.raises(KISError):
+        _client(
+            FakeTransport(response=_settlement_resp(rows=[None])), environment="real"
+        ).account.settlement_pl("20240216")
+
+
+def test_base_date_fills_non_mapping_row_raises():
+    with pytest.raises(KISError):
+        _client(
+            FakeTransport(response=_fills_resp(rows=[None])), environment="real"
+        ).account.base_date_fills("20240220")
+
+
+def test_commissions_non_mapping_row_raises():
+    with pytest.raises(KISError):
+        _client(
+            FakeTransport(response=_commissions_resp(rows=[None])), environment="real"
+        ).account.commissions("20240201", "20240229")
+
+
+# --- 페이지 상한 fail-closed (연속조회가 끝나지 않는 tr_cont="F"/"M") --------
+def test_valuation_pl_page_cap_fails_closed():
+    never_ends = _valuation_resp(rows=[_valuation_position()], ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=never_ends), environment="real").account.valuation_pl()
+
+
+def test_settlement_pl_page_cap_fails_closed():
+    never_ends = _settlement_resp(rows=[_settlement_position()], ctx_nk="NEXT", ctx_fk="FK", tr_cont="M")
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=never_ends), environment="real").account.settlement_pl("20240216")
+
+
+def test_base_date_fills_page_cap_fails_closed():
+    never_ends = _fills_resp(rows=[_fill()], ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=never_ends), environment="real").account.base_date_fills("20240220")
+
+
+def test_commissions_page_cap_fails_closed():
+    never_ends = _commissions_resp(rows=[_commission()], ctx_nk="NEXT", ctx_fk="FK", tr_cont="M")
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=never_ends), environment="real").account.commissions("20240201", "20240229")

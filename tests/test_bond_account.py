@@ -280,6 +280,7 @@ def test_open_orders_paginates_two_pages():
     assert [o.order_id for o in orders] == ["1", "2"]
     assert len(fake.calls) == 2
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NK"
+    assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
     assert fake.calls[1]["tr_cont"] == "N"
 
 
@@ -410,3 +411,38 @@ def test_fills_paginates_two_pages():
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NK"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
     assert fake.calls[1]["tr_cont"] == "N"
+
+
+# --- 비매핑 행 fail-closed (output=[None] / output1=[None]) ------------------
+def test_balance_non_mapping_row_raises():
+    with pytest.raises(KISError):
+        _bonds(FakeTransport(response=_balance_resp(rows=[None]))).balance()
+
+
+def test_open_orders_non_mapping_row_raises():
+    with pytest.raises(KISError):
+        _bonds(FakeTransport(response=_open_orders_resp(rows=[None]))).open_orders("20240215")
+
+
+def test_fills_non_mapping_row_raises():
+    with pytest.raises(KISError):
+        _bonds(FakeTransport(response=_fills_resp(rows=[None]))).fills("20240201", "20240229")
+
+
+# --- 페이지 상한 fail-closed (연속조회가 끝나지 않는 tr_cont="F"/"M") --------
+def test_balance_page_cap_fails_closed():
+    never_ends = _balance_resp(rows=[_position()], ctx_nk="NK", ctx_fk="FK", tr_cont="F")
+    with pytest.raises(KISError):
+        _bonds(FakeTransport(response=never_ends)).balance()
+
+
+def test_open_orders_page_cap_fails_closed():
+    never_ends = _open_orders_resp(rows=[_open_order()], ctx_nk="NK", ctx_fk="FK", tr_cont="M")
+    with pytest.raises(KISError):
+        _bonds(FakeTransport(response=never_ends)).open_orders("20240215")
+
+
+def test_fills_page_cap_fails_closed():
+    never_ends = _fills_resp(rows=[_fill()], ctx_nk="NK", ctx_fk="FK", tr_cont="F")
+    with pytest.raises(KISError):
+        _bonds(FakeTransport(response=never_ends)).fills("20240201", "20240229")

@@ -106,3 +106,30 @@ def test_margin_rates_non_list_output_fails_closed():
     fake = FakeTransport(responses=[_resp({"bast_id": "101S"})])
     with pytest.raises(KISError):
         _client(fake).domestic.derivative_margin_rates("20260819")
+
+
+def test_margin_rates_paper_fails_closed_no_wire():
+    fake = FakeTransport(responses=[_resp([_row()])])
+    kis = KISClient(app_key="k", app_secret="s", environment="paper", transport=fake)
+    with pytest.raises(KISUsageError):
+        kis.domestic.derivative_margin_rates("20260819")
+    assert fake.calls == []                              # 가드는 와이어 이전 -- 호출 없음
+
+
+class _StickyTransport:
+    """연속조회가 끝나지 않는(항상 tr_cont="M") 응답을 무한히 돌려주는 전송."""
+
+    def __init__(self, response):
+        self.response = response
+        self.calls: list[dict] = []
+
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
+        self.calls.append({"params": params, "tr_cont": tr_cont})
+        return self.response
+
+
+def test_margin_rates_page_cap_fails_closed():
+    never_ends = _resp([_row()], tr_cont="M", ctx_nk="CURSOR")
+    fake = _StickyTransport(never_ends)
+    with pytest.raises(KISError):
+        _client(fake).domestic.derivative_margin_rates("20260819")
