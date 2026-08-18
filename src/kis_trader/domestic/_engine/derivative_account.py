@@ -14,10 +14,10 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import date
 from decimal import Decimal
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..._internal._response import _raise_if_error
-from ..._internal._wire import optional_decimal, required_decimal
+from ..._internal._wire import format_wire_decimal, optional_decimal, required_decimal
 from ...errors import KISError, KISUsageError
 from ...transport import Environment, RawResponse, Transport
 from ..entities.derivative_account import (
@@ -27,12 +27,17 @@ from ..entities.derivative_account import (
     DerivativeDeposit,
     DerivativeFill,
     DerivativeFillHistory,
+    DerivativeOrderable,
     DerivativePosition,
     DerivativeSettlementBalance,
     DerivativeSettlementPosition,
     DerivativeValuationBalance,
     DerivativeValuationPosition,
 )
+
+if TYPE_CHECKING:
+    from ..._literals import Numeric
+    from ...order import Side
 
 _BALANCE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-balance"
 _BALANCE_TR = {"real": "CTFO6118R", "paper": "VTFO6118R"}
@@ -53,6 +58,13 @@ _BASE_DATE_FILLS_TR = "CTFO5139R"  # 선물옵션 기준일체결내역, 모의�
 
 _COMMISSIONS_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-daily-amount-fee"
 _COMMISSIONS_TR = "CTFO6119R"  # 선물옵션 기간약정수수료일별, 모의투자 미지원
+
+_ORDERABLE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-psbl-order"
+_ORDERABLE_TR = {"real": "TTTO5105R", "paper": "VTTO5105R"}
+_NIGHT_ORDERABLE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-psbl-ngt-order"
+_NIGHT_ORDERABLE_TR = "STTN5105R"  # 야간 주문가능조회, 모의투자 미지원
+#: 매도매수구분코드(SLL_BUY_DVSN_CD): 매수 02 / 매도 01.
+_SIDE_TO_SLL_BUY = {"buy": "02", "sell": "01"}
 
 
 def fetch_balance(
@@ -375,6 +387,42 @@ def fetch_commissions(
     )
 
 
+def fetch_derivative_orderable(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    code: str, side: Side, limit_price: Numeric | None = None,
+) -> DerivativeOrderable:
+    """선물옵션 계약의 주문가능수량(1콜, output 단일 객체). ``code`` 계약코드, ``side`` 매수/매도,
+    ``limit_price`` 있으면 지정가(ORD_DVSN_CD 01)·없으면 시장가(02) 기준. 모의투자 지원."""
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "PDNO": code,
+        "SLL_BUY_DVSN_CD": _SIDE_TO_SLL_BUY[side],
+        "UNIT_PRICE": _format_order_unit_price(limit_price),
+        "ORD_DVSN_CD": "01" if limit_price is not None else "02",  # 지정가/시장가
+    }
+    resp = transport.request(
+        method="GET", path=_ORDERABLE_PATH, tr_id=_ORDERABLE_TR[environment],
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise KISError(
+            "선물옵션 주문가능조회 응답에 output 이 없다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    liquidatable = output.get("lqd_psbl_qty1")
+    if liquidatable is None:  # 주간은 lqd_psbl_qty1, 부재면 lqd_psbl_qty 로 폴백
+        liquidatable = output.get("lqd_psbl_qty")
+    return DerivativeOrderable(
+        orderable_quantity=_decimal_or_zero(output.get("ord_psbl_qty"), "ord_psbl_qty"),
+        total_quantity=_decimal_or_zero(output.get("tot_psbl_qty"), "tot_psbl_qty"),
+        liquidatable_quantity=_decimal_or_zero(liquidatable, "lqd_psbl_qty1"),
+        base_index=_decimal_or_zero(output.get("bass_idx"), "bass_idx"),
+        raw=output,
+    )
+
+
 def _fetch_balance_page(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     ctx_fk: str, ctx_nk: str, tr_cont: str = "",
@@ -632,3 +680,16 @@ def _decimal_or_zero(value: object, field_name: str) -> Decimal:
     """
     amount = optional_decimal(value, field_name)
     return Decimal(0) if amount is None else amount
+
+
+def _format_order_unit_price(limit_price: Numeric | None) -> str:
+    """주문가능조회의 단가를 KIS 와이어 정본으로 -- ``None`` 이면 시장가라 "0". 유한 양수 아니면 거부."""
+    if limit_price is None:
+        return "0"
+    try:
+        price = Decimal(str(limit_price))
+    except (ArithmeticError, ValueError) as err:
+        raise KISUsageError(f"limit_price 는 숫자여야 한다: {limit_price!r}") from err
+    if not price.is_finite() or price <= 0:
+        raise KISUsageError(f"limit_price 는 0보다 큰 유한값이어야 한다: {limit_price!r}")
+    return format_wire_decimal(price)

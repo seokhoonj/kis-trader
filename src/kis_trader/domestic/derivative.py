@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 
 from ..errors import KISUsageError
 from ..order import _DERIVATIVE_EXCHANGE, Order, coerce_decimal, mint_client_order_id
+from ._engine import derivative_account as derivative_account_api
 from ._engine import derivatives as derivatives_api
 from .entities.derivative import DerivativeQuote, ExpectedExecutionTrend, UnderlyingQuote
 
@@ -29,6 +30,7 @@ if TYPE_CHECKING:
     from ..order import DerivativeDivision, OrderType, Right, Side, TimeInForce
     from ..order_book import OrderBook
     from ..report import ExecutionReport
+    from .entities.derivative_account import DerivativeOrderable
 
 
 class _ContractBase:
@@ -117,6 +119,18 @@ class _ContractBase:
             time_in_force=time_in_force, division=division, night=night,
             client_order_id=client_order_id,
         ))
+
+    def orderable(self, side: Side, *, limit_price: Numeric | None = None) -> DerivativeOrderable:
+        """이 계약의 주문가능수량(주간). ``side`` 는 매수/매도, ``limit_price`` 를 주면 지정가 기준,
+        없으면 시장가 기준이다. 총가능·청산가능 수량과 기준지수를 함께 담는다.
+
+        KIS URL/TR-ID: ``GET .../trading/inquire-psbl-order`` (실전 ``TTTO5105R`` / 모의 ``VTTO5105R``).
+        계좌 미설정은 :class:`~kis_trader.errors.KISUsageError`."""
+        cano, product_code = self._client._require_account()
+        return derivative_account_api.fetch_derivative_orderable(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, code=self.code, side=side, limit_price=limit_price,
+        )
 
     def _make_order(
         self, side: Side, *, quantity: Numeric, limit_price: Numeric | None = None,

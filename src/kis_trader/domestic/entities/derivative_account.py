@@ -312,6 +312,29 @@ class DerivativeCommissionHistory:
 
 
 @dataclass(frozen=True, slots=True)
+class DerivativeOrderable:
+    """한 선물옵션 계약의 주문가능 수량(불변).
+
+    ``orderable_quantity`` 주문가능수량(ord_psbl_qty), ``total_quantity`` 총가능수량(tot_psbl_qty),
+    ``liquidatable_quantity`` 청산가능수량(주간 lqd_psbl_qty1 / 야간 lqd_psbl_qty), ``base_index``
+    기준지수(bass_idx). 주간(:meth:`~kis_trader.derivative.FuturesContract.orderable`)과 야간
+    (:meth:`~kis_trader.derivative.FuturesContract.night_orderable`)이 응답 필드가 조금 달라
+    (야간엔 max_ord_psbl_qty 등) 타입화하지 않은 필드는 ``raw`` 로 접근한다.
+    """
+
+    orderable_quantity: Decimal           # 주문가능수량(ord_psbl_qty)
+    total_quantity: Decimal               # 총가능수량(tot_psbl_qty)
+    liquidatable_quantity: Decimal        # 청산가능수량(lqd_psbl_qty1 / lqd_psbl_qty)
+    base_index: Decimal                   # 기준지수(bass_idx)
+    raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))
+
+
+@dataclass(frozen=True, slots=True)
 class DerivativeDeposit:
     """선물옵션 총자산현황 -- 예수금·주문가능·위탁증거금·손익 요약(불변).
 
