@@ -29,6 +29,7 @@ from ..._internal._datetime import (
     parse_optional_kst_date,
 )
 from ..._internal._response import (
+    _fetch_paginated_rows,
     _missing_block_error,
     _raise_if_error,
     _require_mapping_rows,
@@ -44,7 +45,7 @@ from ...bar import Bar, Interval
 from ...errors import KISError, KISUsageError
 from ...order_book import OrderBook
 from ...trade import Trade
-from ...transport import Transport
+from ...transport import Environment, Transport
 from ..entities.bond import (
     BondDailyPrice,
     BondIssuance,
@@ -52,6 +53,7 @@ from ..entities.bond import (
     BondQuote,
     BondValuation,
 )
+from ..entities.bond_account import BondPosition
 
 _QUOTE_PATH = "/uapi/domestic-bond/v1/quotations/inquire-price"
 _QUOTE_TR = "FHKBJ773400C0"
@@ -452,3 +454,89 @@ def _parse_valuation(
         has_valuation_changed=str(row.get("chng_yn", "")).strip() == "Y",
         _raw=row,
     )
+
+
+# --- 장내채권 계좌 조회 (위탁 01, domestic-bond 전용, 실전전용) -------------
+# 채권은 주식과 같은 위탁 계좌를 쓰되 조회는 domestic-bond 엔드포인트로 한다. 아래 조회는 모두
+# **모의투자 미지원**이라 demo 면 와이어 이전에 :class:`KISUsageError` 로 fail-closed 한다.
+_BOND_BALANCE_PATH = "/uapi/domestic-bond/v1/trading/inquire-balance"
+_BOND_BALANCE_TR = "CTSC8407R"  # 장내채권 잔고조회, 모의투자 미지원
+#: 채권 계좌 연속조회 페이지 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
+_MAX_BOND_ACCOUNT_PAGES = 100
+
+
+def fetch_bond_balance(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment
+) -> list[BondPosition]:
+    """장내채권 보유 잔고(매수 lot 별). 응답 ``output`` 배열을 연속조회로 소진까지 모은다.
+    **모의투자 미지원**(demo 면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "장내채권 잔고조회(inquire-balance)는 모의투자 미지원 -- 실전에서만."
+        )
+    rows = _fetch_paginated_rows(
+        transport,
+        path=_BOND_BALANCE_PATH, tr_id=_BOND_BALANCE_TR,
+        base_params={
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "INQR_CNDT": "00", "PDNO": "", "BUY_DT": "",
+            "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
+        },
+        output_key="output",
+        max_pages=_MAX_BOND_ACCOUNT_PAGES,
+        ctx_width=200,
+        cap_message=(
+            f"장내채권 잔고조회가 {_MAX_BOND_ACCOUNT_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다."
+        ),
+    )
+    return _parse_bond_positions(rows)
+
+
+def _parse_bond_positions(rows: list[Mapping[str, Any]]) -> list[BondPosition]:
+    positions: list[BondPosition] = []
+    for row in rows:
+        symbol = str(row.get("pdno", "")).strip()
+        if not symbol:  # 상품번호 없는 패딩 행 -- 건너뜀
+            continue
+        positions.append(
+            # 수치는 빈 값을 0으로 읽는다 -- 정산 대기 lot 에서 일부 필드가 빌 수 있는데 그 한 lot
+            # 때문에 잔고 전체 조회가 깨지면 안 된다(값이 있는데 파싱 실패면 여전히 예외).
+            BondPosition(
+                symbol=symbol,
+                name=str(row.get("prdt_name", "")).strip(),
+                buy_date=_parse_bond_date(row.get("buy_dt")),
+                buy_sequence=str(row.get("buy_sqno", "")).strip(),
+                quantity=_bond_decimal_or_zero(row.get("cblc_qty"), "cblc_qty"),
+                comprehensive_tax_quantity=_bond_decimal_or_zero(row.get("agrx_qty"), "agrx_qty"),
+                separate_tax_quantity=_bond_decimal_or_zero(row.get("sprx_qty"), "sprx_qty"),
+                maturity_date=_parse_bond_date(row.get("exdt")),
+                buy_yield=_bond_decimal_or_zero(row.get("buy_erng_rt"), "buy_erng_rt"),
+                buy_price=_bond_decimal_or_zero(row.get("buy_unpr"), "buy_unpr"),
+                buy_amount=_bond_decimal_or_zero(row.get("buy_amt"), "buy_amt"),
+                orderable_quantity=_bond_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
+                _raw=row,
+            )
+        )
+    return positions
+
+
+# --- 채권 계좌 공용 파서 ---------------------------------------------------
+def _bond_decimal_or_zero(value: object, field_name: str) -> Decimal:
+    """없으면 0, 있으면 Decimal(파싱 실패면 예외). '없음=0'인 수량·금액 필드용.
+
+    부재(None)/공백만 0으로 본다 -- 값이 있는데 파싱 실패면 조용히 0으로 만들지 않고 예외.
+    """
+    amount = optional_decimal(value, field_name)
+    return Decimal(0) if amount is None else amount
+
+
+def _parse_bond_date(value: object) -> date | None:
+    """``"20240216"`` -> ``date(2024, 2, 16)``. 공백/형식오류면 None(fail-soft)."""
+    text = str(value or "").strip()
+    if len(text) != 8 or not text.isdigit():
+        return None
+    try:
+        return date(int(text[0:4]), int(text[4:6]), int(text[6:8]))
+    except ValueError:
+        return None

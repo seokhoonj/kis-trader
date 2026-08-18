@@ -61,6 +61,7 @@ from .domestic.entities.bond import (
     BondQuote,
     BondValuation,
 )
+from .domestic.entities.bond_account import BondPosition
 from .domestic.entities.broker import (
     BrokerActivity,
     BrokerActivitySummary,
@@ -290,6 +291,7 @@ __all__ = [
     "Bond",
     "BondDailyPrice",
     "BondIssuance",
+    "BondPosition",
     "BondProfile",
     "BondQuote",
     "BondValuation",

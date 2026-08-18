@@ -17,6 +17,7 @@ from ._engine import product as product_api
 from ._engine import reserved_orders as reserved_orders_api
 from ._engine import saved_screen as saved_screen_api
 from .bond import Bond
+from .bond_account import DomesticBondAccount
 from .calendar import CalendarQueries
 from .derivative import FuturesContract, OptionContract
 from .elw import ELW
@@ -152,6 +153,13 @@ class DomesticAccount:
         return account_api.fetch_open_orders(
             self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment
         )
+
+    @property
+    def bonds(self) -> DomesticBondAccount:
+        """장내채권 계좌 조회 뷰 -- ``kis.account.domestic.bonds.balance()`` /
+        ``buyable(...)`` / ``open_orders(...)`` / ``fills(...)``. 위탁(01) 계좌를 주식과 함께
+        쓰되 ``domestic-bond`` 전용 엔드포인트로 조회한다. 모두 **모의투자 미지원**(실전 전용)."""
+        return DomesticBondAccount(self._c)
 
     def reserved_orders(
         self, *, start: str, end: str, process: str = "all"
