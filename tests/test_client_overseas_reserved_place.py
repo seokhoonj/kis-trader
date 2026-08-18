@@ -105,10 +105,10 @@ def test_overseas_reserve_sell_uses_sell_tr():
 
 
 # --- 검증/거부 -------------------------------------------------------------
-def test_overseas_reserve_non_us_rejected():
+def test_overseas_reserve_unknown_exchange_rejected():
     fake = FakeTransport(response=_ACCEPTED)
-    with pytest.raises(KISUsageError):   # 홍콩은 해외예약 미지원(미국만)
-        _client(fake).overseas.stock("00700", exchange="HKS").reserve_buy(quantity=1, limit_price="1")
+    with pytest.raises(KISUsageError):   # 미지원 거래소코드는 와이어 전에 거부
+        _client(fake).overseas.stock("AAPL", exchange="XXX").reserve_buy(quantity=1, limit_price="1")
     assert fake.calls == []
 
 
@@ -119,11 +119,36 @@ def test_overseas_reserve_requires_price():
     assert fake.calls == []
 
 
-def test_overseas_reserve_demo_rejected():
+# --- 모의(paper) -- 원장상 발주는 V* TR 로 지원, 조회(재조회)만 실전전용 ----
+def test_overseas_reserve_paper_place_allowed_uses_v_tr():
     fake = FakeTransport(response=_ACCEPTED)
-    with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").overseas.stock("AAPL", exchange="NAS").reserve_buy(quantity=1, limit_price="1")
-    assert fake.calls == []
+    report = _client(fake, environment="paper").overseas.stock("AAPL", exchange="NAS").reserve_buy(
+        quantity=1, limit_price="148")
+    assert report.status is OrderStatus.PENDING_NEW
+    assert fake.calls[0]["tr_id"] == "VTTT3014U"     # 모의 미국 예약 매수
+
+
+def test_overseas_reserve_paper_sell_uses_v_tr():
+    fake = FakeTransport(response=_ACCEPTED)
+    _client(fake, environment="paper").overseas.stock("AAPL", exchange="NYS").reserve_sell(
+        quantity=1, limit_price="148")
+    assert fake.calls[0]["tr_id"] == "VTTT3016U"     # 모의 미국 예약 매도
+
+
+def test_overseas_reserve_reconcile_paper_fails_closed():
+    # 발주는 paper 가 되지만 예약주문조회는 실전전용 -> paper 재조회는 조회 와이어 전에 fail-closed
+    # (in-flight 유지, 재전송 금지).
+    store = OrderStore()
+    cid = "20240101-ovsresv-pp01"
+    place_t = FakeTransport(raises=TransportTimeout("t"))
+    with pytest.raises(OrderTimeoutError):
+        _client(place_t, store=store, environment="paper").overseas.stock("AAPL", exchange="NAS").reserve_buy(
+            quantity=1, limit_price="150", client_order_id=cid)
+    recon_t = FakeTransport(response=_ACCEPTED)
+    with pytest.raises(KISUsageError, match="실전"):
+        _client(recon_t, store=store, environment="paper").orders.reconcile(cid)
+    assert recon_t.calls == []
+    assert store.fingerprint_for(cid) is not None    # in-flight 유지
 
 
 def test_overseas_reserve_non_orderable_rejected():

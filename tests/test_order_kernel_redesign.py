@@ -35,7 +35,8 @@ from kis_trader.store import (
 )
 
 # --- A-17: 지문 코덱 왕복 + 온-디스크 바이트 동결 ---------------------------------
-#: 각 변형의 인코딩이 재설계 전(``list(Fingerprint(...))``)이 내던 **정확한** 13-슬롯 바이트다.
+#: 각 변형의 인코딩이 내는 **정확한** 16-슬롯 바이트다(idx 13=derivative_item 비-파생은 "",
+#: idx 14=overseas_exchange 해외 예약 외엔 "", idx 15=currency 홍콩 예약 외엔 "HKD").
 #: 이 값이 바뀌면 dedup 정체성/재조회 매칭/이중전송 장벽이 기존 저장소와 어긋난다(회귀 감지).
 _FROZEN_BYTES = {
     "immediate": (
@@ -43,56 +44,56 @@ _FROZEN_BYTES = {
             symbol="005930", side="buy", order_type="limit", quantity="10",
             limit_price="70000", stop_price="", time_in_force="day", exchange="XKRX",
         ),
-        ["005930", "buy", "limit", "10", "70000", "", "day", "XKRX", "", "", "regular", "", "KRX"],
+        ["005930", "buy", "limit", "10", "70000", "", "day", "XKRX", "", "", "regular", "", "KRX", "", "", "HKD"],
     ),
     "immediate_credit": (
         ImmediateOrderFingerprint(
             symbol="009150", side="buy", order_type="limit", quantity="1", limit_price="130000",
             stop_price="", time_in_force="day", exchange="XKRX", credit_type="26", loan_date="20211103",
         ),
-        ["009150", "buy", "limit", "1", "130000", "", "day", "XKRX", "26", "20211103", "regular", "", "KRX"],
+        ["009150", "buy", "limit", "1", "130000", "", "day", "XKRX", "26", "20211103", "regular", "", "KRX", "", "", "HKD"],
     ),
     "immediate_daytime": (  # session 슬롯(idx 10) 을 non-default 로 고정 -- 미국 오버나이트 거래
         ImmediateOrderFingerprint(
             symbol="AAPL", side="buy", order_type="limit", quantity="5", limit_price="150",
             stop_price="", time_in_force="day", exchange="NAS", session="overnight",
         ),
-        ["AAPL", "buy", "limit", "5", "150", "", "day", "NAS", "", "", "overnight", "", "KRX"],
+        ["AAPL", "buy", "limit", "5", "150", "", "day", "NAS", "", "", "overnight", "", "KRX", "", "", "HKD"],
     ),
     "immediate_division_board": (
         ImmediateOrderFingerprint(
             symbol="005930", side="buy", order_type="market", quantity="10", limit_price="",
             stop_price="", time_in_force="day", exchange="NXTE", division="immediate_limit", board="NXT",
         ),
-        ["005930", "buy", "market", "10", "", "", "day", "NXTE", "", "", "regular", "immediate_limit", "NXT"],
+        ["005930", "buy", "market", "10", "", "", "day", "NXTE", "", "", "regular", "immediate_limit", "NXT", "", "", "HKD"],
     ),
     "reserved_domestic": (
         ReservedOrderFingerprint(
             symbol="005930", side="buy", order_type="limit", quantity="10",
             limit_price="70000", end_date="20240610", exchange="reserved",
         ),
-        ["005930", "buy", "limit", "10", "70000", "20240610", "day", "reserved", "", "", "regular", "", "KRX"],
+        ["005930", "buy", "limit", "10", "70000", "20240610", "day", "reserved", "", "", "regular", "", "KRX", "", "", "HKD"],
     ),
     "reserved_overseas": (
         ReservedOrderFingerprint(
             symbol="AAPL", side="buy", order_type="limit", quantity="1",
             limit_price="150", end_date="", exchange="overseas-reserved",
         ),
-        ["AAPL", "buy", "limit", "1", "150", "", "day", "overseas-reserved", "", "", "regular", "", "KRX"],
+        ["AAPL", "buy", "limit", "1", "150", "", "day", "overseas-reserved", "", "", "regular", "", "KRX", "", "", "HKD"],
     ),
     "change_cancel": (
         ChangeActionFingerprint(
             original_client_order_id="orig-1", side="buy", order_type="limit", quantity="10",
             limit_price="", action="cancel", time_in_force="day", exchange="XKRX",
         ),
-        ["orig-1", "buy", "limit", "10", "", "cancel", "day", "action:XKRX", "", "", "regular", "", "KRX"],
+        ["orig-1", "buy", "limit", "10", "", "cancel", "day", "action:XKRX", "", "", "regular", "", "KRX", "", "", "HKD"],
     ),
     "change_modify_overseas": (
         ChangeActionFingerprint(
             original_client_order_id="ov-1", side="sell", order_type="limit", quantity="3",
             limit_price="412.5", action="modify", time_in_force="day", exchange="NAS",
         ),
-        ["ov-1", "sell", "limit", "3", "412.5", "modify", "day", "action:NAS", "", "", "regular", "", "KRX"],
+        ["ov-1", "sell", "limit", "3", "412.5", "modify", "day", "action:NAS", "", "", "regular", "", "KRX", "", "", "HKD"],
     ),
 }
 
@@ -140,10 +141,10 @@ def test_decode_too_short_record_is_rejected():
 
 
 def test_decode_too_long_record_is_rejected():
-    """13슬롯 초과는 손상/변조로 거부한다(예전 Fingerprint(*fp) 가 인자 과다로 실패하던 fail-closed)."""
+    """16슬롯 초과는 손상/변조로 거부한다(예전 Fingerprint(*fp) 가 인자 과다로 실패하던 fail-closed)."""
     with pytest.raises(ValueError):
         decode_fingerprint(
-            ["005930", "buy", "limit", "10", "70000", "", "day", "XKRX", "", "", "regular", "", "KRX", "EXTRA"]
+            ["005930", "buy", "limit", "10", "70000", "", "day", "XKRX", "", "", "regular", "", "KRX", "", "", "HKD", "EXTRA"]
         )
 
 
@@ -198,14 +199,16 @@ def test_v6_store_loads_and_maps_submitted_at_to_recorded_at(tmp_path):
         assert store.fingerprint_for("ID-inflight") is not None
 
 
-def test_v6_store_resaves_as_schema_7_with_recorded_at_key(tmp_path):
-    """v6 를 로드해 저장하면 스키마 7 과 `recorded_at` 키로 재기록된다(마이그레이션 경로)."""
+def test_v6_store_resaves_as_current_schema_with_recorded_at_key(tmp_path):
+    """v6 를 로드해 저장하면 현재 스키마와 `recorded_at` 키로 재기록된다(마이그레이션 경로)."""
     path = tmp_path / "orders.json"
     path.write_text(json.dumps(_v6_store_json()), encoding="utf-8")
-    with OrderStore(path=path) as store:
+    # retention_days=0 으로 보존 정리를 끈다 -- 이 테스트는 스키마 마이그레이션만 보며,
+    # fixture 의 고정 날짜가 기본 보존창(7일)을 넘겨 ID-done 이 정리되면 안 된다.
+    with OrderStore(path=path, retention_days=0) as store:
         store.clear_in_flight("ID-inflight")   # 아무 write 나 -> _save_locked 로 재기록
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["schema_version"] == 7 == _SCHEMA_VERSION
+    assert data["schema_version"] == _SCHEMA_VERSION
     record = data["reports"]["ID-done"]
     assert "recorded_at" in record and "submitted_at" not in record
     assert record["recorded_at"] == "2026-08-11T09:00:00+09:00"
@@ -223,7 +226,7 @@ def test_v7_report_dict_omits_submitted_at_key(tmp_path):
     with OrderStore(path=path) as store:
         store.record(report, fp)
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["schema_version"] == 7
+    assert data["schema_version"] == _SCHEMA_VERSION
     assert set(data["reports"]["ID-new"]) >= {"recorded_at"}
     assert "submitted_at" not in data["reports"]["ID-new"]
 

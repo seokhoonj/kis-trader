@@ -195,17 +195,26 @@ class OverseasAccount:
         )
 
     def reserved_orders(self, *, start: str, end: str) -> list[OverseasReservedOrder]:
-        """미국 예약주문 목록(정규장 시작 전 예약). 각 건의 ``reserved_order_id`` 로 취소한다. 아시아
-        (일/중/홍/베) 예약은 별 프로토콜이라 미지원. **모의투자 미지원**."""
+        """해외 예약주문 목록(정규장 시작 전 예약) -- 미국과 아시아(일/중/홍/베)를 모두 조회해 합친다
+        (한 시장만 원하면 각 건의 ``exchange`` 로 거른다). 취소 경로가 시장별로 다르다: 미국은 각 건의
+        ``reserved_order_id`` 로 :meth:`cancel_reserved_order`, 아시아는 발주 리포트의
+        ``client_order_id`` 로 ``kis.orders.cancel``. **모의투자 미지원**(두 조회 TR 모두 실전전용)."""
         cano, product_code = self._c._require_account()
-        return overseas_reserved_orders_api.fetch_reserved_orders(
+        us = overseas_reserved_orders_api.fetch_reserved_orders(
             self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
-            start=start, end=end,
+            start=start, end=end, market="US",
         )
+        asia = overseas_reserved_orders_api.fetch_reserved_orders(
+            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
+            start=start, end=end, market="ASIA",
+        )
+        return us + asia
 
     def cancel_reserved_order(self, reserved_order_id: str, *, receipt_date: str) -> None:
-        """미국 예약주문을 취소한다 -- ``reserved_order_id`` 는 :meth:`~kis_trader.overseas.stock.OverseasStock.reserve_buy`
-        리포트의 ``order_id``, ``receipt_date``(YYYYMMDD)는 그 예약의 접수일자. **모의투자 미지원**."""
+        """**미국** 예약주문을 취소한다 -- ``reserved_order_id`` 는 :meth:`~kis_trader.overseas.stock.OverseasStock.reserve_buy`
+        리포트의 ``order_id``, ``receipt_date``(YYYYMMDD)는 그 예약의 접수일자. 아시아(일/중/홍/베)
+        예약은 이 경로가 아니라 발주 리포트의 ``client_order_id`` 로 ``kis.orders.cancel`` 이 취소한다
+        (전용 취소 엔드포인트가 없어 안전코어가 원주문을 복원 재전송). 모의(VTTT3017U)를 지원한다."""
         cano, product_code = self._c._require_account()
         overseas_reserved_orders_api.cancel_overseas_reserved_order(
             self._c.transport, reserved_order_id=reserved_order_id, receipt_date=receipt_date,

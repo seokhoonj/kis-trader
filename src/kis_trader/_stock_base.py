@@ -66,8 +66,9 @@ class _StockBase(abc.ABC):
         즉시 :meth:`buy` 와 같은 안전 규칙(이중발주 방지·재시도 금지·주문가능 계좌 가드)을 공유하되
         라이프사이클이 다르다: 반환 :class:`~kis_trader.report.ExecutionReport` 의 ``order_id`` 는
         예약주문 식별자(정정·취소 시 지목), ``status`` 는 :attr:`~kis_trader.report.OrderStatus.PENDING_NEW`.
-        **모의투자 미지원**. 국내는 현금 예약(``limit_price`` 있으면 지정가·없으면 시장가, ``end_date`` 지원),
-        해외(미국)는 지정가 예약(``limit_price`` 필수, ``end_date`` 미지원)이다. 잘못된 인자/계좌 미설정은
+        **모의투자 미지원**. 국내 현금 예약이다(``limit_price`` 있으면 지정가·없으면 시장가, ``end_date``
+        지원). 해외 종목 핸들은 이 메서드를 재정의해 미국·아시아 예약으로 라우팅한다(그쪽 문서 참조).
+        잘못된 인자/계좌 미설정은
         ``KISUsageError``, 조회전용 계좌는 ``AccountNotOrderableError``, 접수 거부는 ``OrderRejectedError``,
         타임아웃(접수 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile`` 로 확인)."""
         return self._reserve("buy", quantity=quantity, limit_price=limit_price,

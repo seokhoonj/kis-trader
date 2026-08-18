@@ -13,18 +13,22 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar, Literal
 
+from ..errors import KISUsageError
+from ..order import _DERIVATIVE_EXCHANGE, Order, coerce_decimal, mint_client_order_id
 from ._engine import derivatives as derivatives_api
 from .entities.derivative import DerivativeQuote, ExpectedExecutionTrend, UnderlyingQuote
 
 if TYPE_CHECKING:
     from datetime import date
 
-    from .._literals import DerivativeMarket
+    from .._literals import DerivativeMarket, Numeric
     from ..bar import Bar, Interval
     from ..client import KISClient
+    from ..order import DerivativeDivision, OrderType, Right, Side, TimeInForce
     from ..order_book import OrderBook
+    from ..report import ExecutionReport
 
 
 class _ContractBase:
@@ -34,6 +38,10 @@ class _ContractBase:
 
     #: 서브클래스가 고정하는 파생 시장(보드) 구분 코드. FID_COND_MRKT_DIV_CODE 로 나간다.
     _MARKET: DerivativeMarket
+
+    #: 서브클래스가 고정하는 계약코드 길이(선물 6 / 옵션 9). 발주 전 형상검증에 쓴다 -- 조회용
+    #: 종목코드나 오타를 발주 경로에서 조용히 통과시키지 않도록 :meth:`_make_order` 가 확인한다.
+    _SYMBOL_LENGTH: ClassVar[int]
 
     code: str
     market: DerivativeMarket
@@ -76,14 +84,78 @@ class _ContractBase:
             interval=interval, start=start, end=end, max_bars=max_bars,
         )
 
+    # --- 발주(선물/옵션 공통; 계좌 + 안전 엔진 -- 종목 핸들 buy/sell 과 대칭) ---
+    def buy(
+        self, *, quantity: Numeric, limit_price: Numeric | None = None,
+        order_type: OrderType | None = None, time_in_force: TimeInForce = "day",
+        division: DerivativeDivision | None = None, night: bool = False,
+        client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 계약을 매수한다 -- ``limit_price`` 를 주면 지정가, 없으면 시장가(``order_type`` 으로
+        명시 가능). ``division`` 은 파생 주문구분(조건부지정가/최유리지정가; 최우선지정가는 파생에
+        없다), ``night=True`` 면 KRX 파생 야간장(STTN, **모의투자 미지원**), ``time_in_force`` 는
+        day/ioc/fok, ``client_order_id`` 는 멱등키(생략 시 자동 발행).
+
+        이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 계좌 미설정은
+        :class:`~kis_trader.errors.KISUsageError`, 접수 거부는 ``OrderRejectedError``, 타임아웃(체결
+        불명)은 ``OrderTimeoutError`` -- 후자는 ``kis.orders.reconcile`` 로 확인한다."""
+        return self._client._place_order(self._make_order(
+            "buy", quantity=quantity, limit_price=limit_price, order_type=order_type,
+            time_in_force=time_in_force, division=division, night=night,
+            client_order_id=client_order_id,
+        ))
+
+    def sell(
+        self, *, quantity: Numeric, limit_price: Numeric | None = None,
+        order_type: OrderType | None = None, time_in_force: TimeInForce = "day",
+        division: DerivativeDivision | None = None, night: bool = False,
+        client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 계약을 매도한다 -- 계약·``division``·``night`` 은 :meth:`buy` 와 동일(방향만 매도)."""
+        return self._client._place_order(self._make_order(
+            "sell", quantity=quantity, limit_price=limit_price, order_type=order_type,
+            time_in_force=time_in_force, division=division, night=night,
+            client_order_id=client_order_id,
+        ))
+
+    def _make_order(
+        self, side: Side, *, quantity: Numeric, limit_price: Numeric | None = None,
+        order_type: OrderType | None = None, time_in_force: TimeInForce = "day",
+        division: DerivativeDivision | None = None, night: bool = False,
+        client_order_id: str | None = None,
+    ) -> Order:
+        """파생(XKFE) 발주 :class:`Order` 를 조립한다 -- 계약코드 길이 형상검증 후 세션(주간/야간)·
+        상품구분(선물 01 / 콜 02 / 풋 03)을 실어 준다. ``order_type`` 미지정 시 ``limit_price`` 유무로
+        시장가/지정가를 정한다."""
+        if len(self.code) != self._SYMBOL_LENGTH:
+            raise KISUsageError(
+                f"{type(self).__name__} 계약코드 길이는 {self._SYMBOL_LENGTH} 여야 한다: {self.code!r}"
+            )
+        resolved_type: OrderType = order_type or ("market" if limit_price is None else "limit")
+        return Order(
+            symbol=self.code, side=side, order_type=resolved_type,
+            quantity=coerce_decimal(quantity, "quantity"),
+            limit_price=None if limit_price is None else coerce_decimal(limit_price, "limit_price"),
+            time_in_force=time_in_force, exchange=_DERIVATIVE_EXCHANGE,
+            session="night" if night else "regular", division=division,
+            derivative_item=self._derivative_item(),
+            client_order_id=client_order_id or mint_client_order_id(),
+        )
+
+    def _derivative_item(self) -> Literal["01", "02", "03"]:
+        """이 계약의 파생 상품구분 코드(FUOP_ITEM_DVSN_CD). 서브클래스가 구현한다."""
+        raise NotImplementedError
+
 
 class FuturesContract(_ContractBase):
     """지수선물 계약 조회 핸들 -- ``kis.domestic.futures(code)``. 시장구분 F.
 
     공통 조회(:meth:`quote`·:meth:`order_book`·:meth:`expected_execution_trend`·:meth:`bars`)에 더해
-    선물 전용 :meth:`underlying_quote`(선물과 기초자산을 나란히 보는 베이시스 스냅샷)를 가진다."""
+    선물 전용 :meth:`underlying_quote`(선물과 기초자산을 나란히 보는 베이시스 스냅샷)를 가진다.
+    발주(:meth:`buy`/:meth:`sell`)는 상품구분 "01"(선물)로 나간다."""
 
     _MARKET: DerivativeMarket = "F"
+    _SYMBOL_LENGTH: ClassVar[int] = 6
 
     def underlying_quote(self) -> UnderlyingQuote:
         """선물과 그 기초자산(지수)을 나란히 담는 스냅샷(베이시스 판단용). 선물 최근월물 계약에서 쓴다."""
@@ -91,12 +163,33 @@ class FuturesContract(_ContractBase):
             self._client.transport, code=self.code, market="F"
         )
 
+    def _derivative_item(self) -> Literal["01", "02", "03"]:
+        return "01"
+
 
 class OptionContract(_ContractBase):
-    """지수옵션 계약 조회 핸들 -- ``kis.domestic.option(code)``. 시장구분 O.
+    """지수옵션 계약 조회 핸들 -- ``kis.domestic.option(code, right=...)``. 시장구분 O.
 
-    공통 조회(:meth:`quote`·:meth:`order_book`·:meth:`expected_execution_trend`·:meth:`bars`)만 가진다 --
-    기초자산 나란히 보기(``underlying_quote``)는 선물 전용이라 옵션 핸들엔 아예 없다(호출 시 구조적
-    ``AttributeError``, 타입체커가 먼저 잡는다)."""
+    공통 조회(:meth:`quote`·:meth:`order_book`·:meth:`expected_execution_trend`·:meth:`bars`)에 더해
+    발주(:meth:`buy`/:meth:`sell`)를 가진다. 기초자산 나란히 보기(``underlying_quote``)는 선물 전용이라
+    옵션 핸들엔 아예 없다(호출 시 구조적 ``AttributeError``, 타입체커가 먼저 잡는다).
+
+    ``right``(call/put)은 발주의 상품구분("02" 콜 / "03" 풋)을 정한다. 조회는 계약코드만으로 충분해
+    ``right`` 없이도 만들 수 있고(``kis.domestic.option(code)``), 그 상태로 발주하면 fail-closed 다 --
+    발주엔 ``option(code, right=...)`` 로 방향을 지정해야 한다."""
 
     _MARKET: DerivativeMarket = "O"
+    _SYMBOL_LENGTH: ClassVar[int] = 9
+
+    right: Right | None
+
+    def __init__(self, client: KISClient, code: str, right: Right | None = None) -> None:
+        super().__init__(client, code)
+        self.right = right
+
+    def _derivative_item(self) -> Literal["01", "02", "03"]:
+        if self.right is None:
+            raise KISUsageError(
+                "옵션 발주에는 right(call/put)가 필요하다 -- kis.domestic.option(code, right=...) 로 지정하라."
+            )
+        return "02" if self.right == "call" else "03"      # 콜 02 / 풋 03

@@ -12,7 +12,7 @@
 from __future__ import annotations
 
 from datetime import date
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from .._stock_base import _StockBase
 from ..bar import Bar, Interval
@@ -119,15 +119,45 @@ class OverseasStock(_StockBase):
                            time_in_force=time_in_force, client_order_id=client_order_id,
                            exchange=self.exchange)
 
+    # --- 예약주문(미국/아시아 자동 라우팅) ---
+    def reserve_buy(
+        self, *, quantity: Numeric, limit_price: Numeric | None = None, end_date: str | None = None,
+        client_order_id: str | None = None, currency: Literal["HKD", "CNY", "USD"] = "HKD",
+    ) -> ExecutionReport:
+        """이 해외 종목의 **예약매수** -- 정규장 시작 전에 걸어두는 예약. **지정가만**(``limit_price``
+        필수), ``end_date`` 미지원. 거래소의 시장이 와이어를 자동 라우팅한다: 미국(NAS/NYS/AMS)은
+        매수/매도 분리 TR, 아시아(홍콩/상해/심천/일본/베트남)는 공용 TR(TTTS3013U). ``currency`` 는
+        홍콩(HKS) 예약의 상품유형(HKD/CNY/USD) 선택 전용 -- 그 외 거래소에 비-HKD 를 주면
+        :class:`~kis_trader.errors.KISUsageError` 로 fail-closed.
+
+        즉시 :meth:`buy` 와 같은 안전 규칙(이중발주 방지·재시도 금지·주문가능 계좌 가드)을 공유한다.
+        반환 :class:`~kis_trader.report.ExecutionReport` 의 ``order_id`` 는 해외예약주문번호,
+        ``receipt_date`` 는 아시아 접수일자(미국은 ``None``), ``status`` 는
+        :attr:`~kis_trader.report.OrderStatus.PENDING_NEW`. 취소는 미국이 ``kis.overseas.account.
+        cancel_reserved_order(예약번호)``, 아시아가 ``kis.orders.cancel(리포트.client_order_id)`` 다
+        (아시아는 전용 취소 엔드포인트가 없어 안전코어가 원주문을 복원 재전송한다). 접수 거부는
+        ``OrderRejectedError``, 타임아웃(접수 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile``
+        로 확인 -- 재조회는 실전전용)."""
+        return self._reserve("buy", quantity=quantity, limit_price=limit_price,
+                             end_date=end_date, client_order_id=client_order_id, currency=currency)
+
+    def reserve_sell(
+        self, *, quantity: Numeric, limit_price: Numeric | None = None, end_date: str | None = None,
+        client_order_id: str | None = None, currency: Literal["HKD", "CNY", "USD"] = "HKD",
+    ) -> ExecutionReport:
+        """이 해외 종목의 **예약매도**. 계약·안전 규칙은 :meth:`reserve_buy` 와 같다(방향만 매도)."""
+        return self._reserve("sell", quantity=quantity, limit_price=limit_price,
+                             end_date=end_date, client_order_id=client_order_id, currency=currency)
+
     def _reserve(
         self, side: Side, *, quantity: Numeric, limit_price: Numeric | None, end_date: str | None,
-        client_order_id: str | None,
+        client_order_id: str | None, currency: Literal["HKD", "CNY", "USD"] = "HKD",
     ) -> ExecutionReport:
-        if end_date is not None:      # 미국 예약: 지정가만, end_date 미지원
-            raise KISUsageError("해외 예약주문은 end_date 를 지원하지 않는다(미국 예약).")
+        if end_date is not None:      # 해외 예약: 지정가만, end_date 미지원(미국·아시아 공통)
+            raise KISUsageError("해외 예약주문은 end_date 를 지원하지 않는다.")
         if limit_price is None:
             raise KISUsageError("해외 예약주문은 지정가만 지원한다 -- limit_price 를 지정하라.")
         return self._client._place_overseas_reserved_order(
             symbol=self.symbol, side=side, quantity=quantity, limit_price=limit_price,
-            exchange=self.exchange, client_order_id=client_order_id,
+            exchange=self.exchange, currency=currency, client_order_id=client_order_id,
         )

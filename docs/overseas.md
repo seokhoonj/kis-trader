@@ -25,6 +25,16 @@ s.overnight_buy(quantity=1, limit_price=150)  # 미국 오버나이트 세션 (�
 s.reserve_buy(quantity=1, limit_price=150)    # 미국 예약 (장 열리기 전 미리)
 ```
 
+아시아(홍콩·중국·일본·베트남) 예약도 같은 `reserve_buy`/`reserve_sell` 이며, 거래소는 자동 판별됩니다.
+취소는 `kis.orders.cancel(...)` 로 합니다(미국 예약은 예약번호로 취소).
+
+```python
+hk = kis.overseas.stock("00700")                              # 홍콩 (자동 판별)
+rep = hk.reserve_buy(quantity=100, limit_price=350)           # 홍콩 예약
+hk.reserve_buy(quantity=100, limit_price=350, currency="CNY") # 홍콩 CNY 결제 (기본 HKD)
+kis.orders.cancel(rep.client_order_id)                        # 아시아 예약 취소
+```
+
 ::: {.callout-note}
 ## 오버나이트(overnight) 세션이란
 미국 정규장(9:30–16:00 ET)은 **한국 시간으로 밤 11:30~새벽 6시**입니다. 그래서:

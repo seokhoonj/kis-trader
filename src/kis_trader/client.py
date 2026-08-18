@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+from dataclasses import fields
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
@@ -24,6 +25,7 @@ from ._internal._masters import (
     urlopen_fetch,
 )
 from .config import _ENVIRONMENTS, _fill_credentials, _split_account, token_cache_path
+from .domestic._engine import derivative_orders as derivative_orders_engine
 from .domestic._engine import orders as orders_engine
 from .domestic._engine import reserved_orders as reserved_orders_api
 from .domestic.namespace import DomesticNamespace
@@ -307,6 +309,11 @@ class KISClient:
             )
         if isinstance(fingerprint, ReservedOrderFingerprint):
             # 예약주문은 일별체결이 아니라 예약주문조회로 확인한다(국내/해외 예약 경로를 exchange 로 가른다).
+            if fingerprint.exchange == "overseas-reserved-asia":
+                return overseas_reserved_orders_api.reconcile_asia_reserved_order(
+                    self._transport, self._store, client_order_id,
+                    cano=cano, product_code=product_code, environment=self._environment,
+                )
             if fingerprint.exchange == "overseas-reserved":
                 return overseas_reserved_orders_api.reconcile_overseas_reserved_order(
                     self._transport, self._store, client_order_id,
@@ -319,6 +326,13 @@ class KISClient:
         if isinstance(fingerprint, ImmediateOrderFingerprint) and \
                 overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
             return overseas_orders_engine.reconcile(
+                self._transport, self._store, client_order_id,
+                cano=cano, product_code=product_code, environment=self._environment,
+            )
+        if isinstance(fingerprint, ImmediateOrderFingerprint) and \
+                derivative_orders_engine.is_derivative_exchange(fingerprint.exchange):
+            # 국내 파생(XKFE) 미확인 주문은 국내주식 일별체결조회가 아니라 파생 일별체결내역으로 확인한다.
+            return derivative_orders_engine.reconcile(
                 self._transport, self._store, client_order_id,
                 cano=cano, product_code=product_code, environment=self._environment,
             )
@@ -337,6 +351,20 @@ class KISClient:
         report = self._store.report_for(client_order_id)
         if fingerprint is None or report is None:
             raise KISUsageError(f"확정된 원주문을 찾을 수 없다: {client_order_id!r}")
+        # 아시아 해외예약은 전용 정정·취소 엔드포인트가 없어 발주 TR 에 원주문 전체를 재전송하는
+        # 취소만 가능하다 -- store 가 쥔 지문/리포트로 엔진이 body 를 복원하므로 여기서 위임한다.
+        if isinstance(fingerprint, ReservedOrderFingerprint) and \
+                fingerprint.exchange == "overseas-reserved-asia":
+            if action != "cancel":
+                raise KISUsageError("아시아 해외예약주문은 정정 미지원 -- 취소 후 재발주하라.")
+            if quantity is not None:
+                raise KISUsageError(
+                    "아시아 해외예약 취소는 전량만 가능(부분 취소 미지원) -- quantity 를 생략하라."
+                )
+            return overseas_reserved_orders_api.cancel_asia_reserved_order(
+                self._transport, self._store, client_order_id,
+                cano=cano, product_code=product_code, environment=self._environment,
+            )
         original_quantity = Decimal(fingerprint.quantity)
         remaining_quantity = original_quantity - report.filled_quantity
         # 정정 경로도 발주(place)와 같은 수치 강제변환을 거쳐 NaN/Infinity 등 비유한 입력을 fail-closed
@@ -350,6 +378,35 @@ class KISClient:
                 if isinstance(fingerprint, ImmediateOrderFingerprint) and fingerprint.session == "overnight"
                 else overseas_orders_engine.make_change_request
             )
+        elif derivative_orders_engine.is_derivative_exchange(fingerprint.exchange):
+            # 국내 파생(XKFE) 정정·취소는 파생 전용 와이어(order-rvsecncl, ORGN_ODNO only)로 조립한다.
+            if isinstance(fingerprint, ImmediateOrderFingerprint) and fingerprint.session == "night":
+                # 야간(STTN)은 실전 전용 -- paper 야간 지문 도달은 손상 신호라 와이어 전에 fail-closed.
+                if self._environment == "paper":
+                    raise KISUsageError(
+                        "파생 야간(STTN) 정정·취소는 모의투자 미지원 -- 실전에서만."
+                    )
+                # 야간은 부분 정정·취소가 불가(잔량 전체가 대상)라, 호출자가 명시 quantity 를 줬는데
+                # 그게 로컬 잔량과 다르면(부분 의도) 조용히 전량을 건드리지 않고 와이어 전에 거부한다
+                # -- 해외 슬라이스와 같은 태도(조회조차 하기 전에 막아 와이어에 닿지 않는다).
+                if quantity is not None and change_quantity != remaining_quantity:
+                    raise KISUsageError(
+                        "파생 야간은 부분 정정·취소 미지원 -- quantity 를 생략해 전량으로 하라"
+                    )
+                # ORD_QTY 에 실잔량이 필수라, 로컬 리포트의 stale 잔량 대신 inquire-ngt-ccnl 로 신선
+                # 잔량을 조회해 주입한다(읽기 -- claim 전). 날짜창 앵커는 접수(recorded) 일자다 -- 이
+                # 주문은 이미 확정돼 in-flight claim 시각이 없고(claim_time_for -> None -> 뒷방향
+                # 폴백창), 야간 주문일자는 T+1 이라 뒷방향 창엔 안 들어와 0행 KISError 로 취소가
+                # 와이어에 닿지 못한다. 접수 일자 앵커가 T+1 을 덮는 전방창을 만든다. 조회 실패/0행/
+                # 다행이면 여기서 fail-closed 로 올라가 취소 와이어에 닿지 않는다.
+                change_quantity = derivative_orders_engine.fetch_night_remaining(
+                    self._transport, order_id=str(report.order_id), symbol=fingerprint.symbol,
+                    cano=cano, product_code=product_code, environment=self._environment,
+                    anchor=report.recorded_at.isoformat(),
+                )
+                builder = derivative_orders_engine.make_night_change_request
+            else:
+                builder = derivative_orders_engine.make_change_request
         return orders_engine.submit_change(
             self._transport, self._store,
             original_client_order_id=client_order_id,
@@ -371,6 +428,7 @@ class KISClient:
         ``risk`` 를 켠 세션에서 해외 주문을 내면 명확히 거부한다."""
         cano, product_code = self._require_account()
         build_request: orders_engine.PlaceRequestBuilder | None = None
+        extract_output = None
         risk = self._risk
         if overseas_orders_engine.is_overseas_exchange(order.exchange):
             if risk is not None:
@@ -383,6 +441,18 @@ class KISClient:
                 if order.session == "overnight"
                 else overseas_orders_engine.make_order_request
             )
+        elif derivative_orders_engine.is_derivative_exchange(order.exchange):
+            # 파생 야간(STTN)은 모의투자 미지원 -- claim/빌드 전에 조기 거부(paper 야간 발주 도달 차단).
+            # 빌더도 같은 거부를 하지만, 라우팅 자리에서 먼저 막아 client_order_id 를 소비하지 않는다.
+            if order.session == "night" and self._environment == "paper":
+                raise KISUsageError("파생 야간(STTN)은 모의투자 미지원 -- 실전에서만.")
+            # 국내 파생(XKFE) -- 안전 코어(place)는 공유, 와이어 조립기와 엄격 output 파서만 파생용으로.
+            # 파생 리스크는 참조가(국내 주식 시세) 기반 검사(notional/collar/tick)가 의미 없어 수량
+            # 한도(max_order_quantity)만 허용한다 -- 그 밖의 한도가 켜져 있으면 명확히 거부한다.
+            if risk is not None:
+                _reject_unsupported_derivative_risk(risk)
+            build_request = derivative_orders_engine.make_order_request
+            extract_output = derivative_orders_engine._extract_fo_output
         elif order.credit_type is not None:
             # 국내 신용주문 -- 안전 코어(place)는 공유, 와이어 조립기만 신용용으로. risk 는 국내라
             # 그대로 적용된다(참조가=국내 시세).
@@ -391,6 +461,7 @@ class KISClient:
             self._transport, self._store, order,
             cano=cano, product_code=product_code, environment=self._environment,
             orderable=self._orderable, risk=risk, build_request=build_request,
+            extract_output=extract_output,
         )
 
     def _place_reserved_order(
@@ -412,13 +483,16 @@ class KISClient:
 
     def _place_overseas_reserved_order(
         self, *, symbol: str, side: Side, quantity: Numeric, limit_price: Numeric, exchange: str,
-        client_order_id: str | None,
+        currency: str = "HKD", client_order_id: str | None,
     ) -> ExecutionReport:
-        """미국 해외예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 해외 종목일 때 호출)."""
+        """해외예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 해외 종목일 때 호출).
+        ``exchange`` 의 시장이 미국/아시아 와이어를 가르고, ``currency`` 는 홍콩(HKS) 예약의 상품유형
+        선택 전용이다."""
         cano, product_code = self._require_account()
         return overseas_reserved_orders_api.place_overseas_reserved_order(
             self._transport, self._store,
             symbol=symbol, side=side, quantity=quantity, limit_price=limit_price, exchange=exchange,
+            currency=currency,
             client_order_id=client_order_id or mint_client_order_id(), orderable=self._orderable,
             cano=cano, product_code=product_code, environment=self._environment,
         )
@@ -480,6 +554,27 @@ _READ_ONLY_PRODUCT_CODES = frozenset({"29"})
 
 # 반환은 (계좌, 상품코드) 또는 (None, None) 이지만, 튜플-언팩 대입(self._cano, self._product_code)
 # 에서 mypy 가 상관 유니온을 좁히지 못해 var-annotated 를 요구한다 -- 두 자리 유니온으로 편다.
+def _reject_unsupported_derivative_risk(risk: RiskLimits) -> None:
+    """파생(XKFE) 발주에 켜진 리스크 한도 중 지원하지 않는 것을 fail-closed 로 거부한다.
+
+    파생이 지원하는 한도는 ``max_order_quantity`` 하나뿐이다 -- 참조가 없이 순수 수량만 보므로.
+    나머지 한도(notional/collar/tick)는 국내 *주식* 시세를 참조가·호가단위로 삼아 파생엔 의미가
+    없다. 지원 목록을 blocklist(특정 이름 나열)가 아니라 **allowlist**(``max_order_quantity`` 만
+    허용)로 두어, 앞으로 :class:`~kis_trader.risk.RiskLimits` 에 필드가 추가돼도 조용히 국내 주식
+    참조가 조회로 새지 않고 기본적으로 fail-closed 되게 한다. 켜진(비-None, 비-False) 다른 한도가
+    있으면 조용히 건너뛰지 않고 명확히 :class:`KISUsageError` 로 막는다."""
+    active_unsupported = [
+        f.name for f in fields(risk)
+        if f.name != "max_order_quantity" and getattr(risk, f.name) not in (None, False)
+    ]
+    if active_unsupported:
+        raise KISUsageError(
+            "파생(XKFE) 주문엔 max_order_quantity 리스크 한도만 지원한다 -- 지원하지 않는 한도가 "
+            f"켜져 있다: {', '.join(active_unsupported)}. 국내 주식 시세 기반 검사(참조가·호가단위)라 "
+            "파생엔 의미가 없어 거부한다."
+        )
+
+
 def _split_optional_account(account: str | None) -> tuple[str | None, str | None]:
     """``"12345678-01"`` -> (계좌번호 ``"12345678"``, 상품코드 ``"01"``). ``None`` 은 (None, None).
     계좌를 준 경우의 형식 검증은 저장 경로와 같은 :func:`~kis_trader.config._split_account` 를 쓴다

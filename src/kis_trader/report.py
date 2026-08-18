@@ -71,6 +71,10 @@ class ExecutionReport:
     #: 정정·취소가 가능하다. 해외 주문은 이 값을 **소비하지 않고** ``order_id``(ORGN_ODNO)로 지목하지만,
     #: 해외 응답에도 이 필드가 있어 채워질 수 있다(그래서 "해외=항상 None" 으로 단정하지 말 것).
     organization_number: str | None = None
+    #: 해외 예약주문 접수일자(RSVN_ORD_RCIT_DT, YYYYMMDD) -- 해외 예약 취소가 ``order_id``(예약번호)와
+    #: 함께 대상 특정에 쓴다. 접수/재조회 응답에서 뽑아 보관하며, ``_raw`` 와 달리 영속되므로 재기동
+    #: 뒤에도 예약 취소가 가능하다. 그 외 주문(즉시/국내 예약)은 ``None``.
+    receipt_date: str | None = None
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

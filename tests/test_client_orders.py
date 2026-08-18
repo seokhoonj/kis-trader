@@ -569,7 +569,7 @@ def test_priceless_division_rejects_price(division):
 def test_division_requires_domestic_exchange():
     """division 은 국내 현금주문 전용 -- 해외 거래소와 조합하면 생성 시점에 거부."""
     from kis_trader.order import Order
-    with pytest.raises(KISUsageError, match="국내 현금주문 전용"):
+    with pytest.raises(KISUsageError, match="국내 현금주문"):
         Order.market("AAPL", side="buy", quantity=10, division="immediate_limit", exchange="NASD")
 
 
