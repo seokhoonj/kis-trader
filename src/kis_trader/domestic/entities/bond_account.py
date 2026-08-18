@@ -11,12 +11,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, time
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
 from ..._internal._freeze import freeze_vendor_payload
+from ...order import Side
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +65,36 @@ class BondBuyable:
     buyable_amount: Decimal           # 매수가능금액(buy_psbl_amt)
     buyable_quantity: Decimal         # 매수가능수량(buy_psbl_qty)
     cma_value: Decimal                # CMA평가금액(cma_evlu_amt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class BondOpenOrder:
+    """정정·취소 가능한 장내채권 미체결 주문 한 건(불변).
+
+    브로커 측 뷰라 우리 ``client_order_id`` 는 없다 -- 정정/취소는 ``order_id`` 로 지목한다.
+    ``revise_cancel_type`` 정정취소구분명, ``cancelable_quantity`` 정정·취소 가능 수량,
+    ``original_order_id`` 원주문번호(정정·취소 주문이면 원주문). ``side`` 는 매수/매도.
+    """
+
+    order_id: str                     # 주문번호(odno)
+    symbol: str                       # 상품번호(pdno)
+    name: str                         # 상품약어명(prdt_abrv_name)
+    revise_cancel_type: str           # 정정취소구분명(rvse_cncl_dvsn_name)
+    order_quantity: Decimal           # 주문수량(ord_qty)
+    order_price: Decimal              # 채권주문단가(bond_ord_unpr)
+    order_time: time | None           # 주문시각(ord_tmd)
+    filled_quantity: Decimal          # 총체결수량(tot_ccld_qty)
+    filled_amount: Decimal            # 총체결금액(tot_ccld_amt)
+    cancelable_quantity: Decimal      # 주문가능수량(ord_psbl_qty)
+    original_order_id: str            # 원주문번호(orgn_odno)
+    side: Side                        # 매도매수구분(sll_buy_dvsn_cd)
+    order_division: str               # 주문구분코드(ord_dvsn_cd)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

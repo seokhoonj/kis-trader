@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 import threading
-from datetime import date
+from datetime import date, time
 from decimal import Decimal
 
 import pytest
@@ -204,3 +204,80 @@ def test_buyable_rejects_non_positive_price():
     with pytest.raises(KISUsageError):
         _bonds(fake).buyable("KR2033022D33", price=0)
     assert fake.calls == []
+
+
+# --- open_orders (CTSC8035R) -----------------------------------------------
+def _open_order(odno="0000000123", *, pdno="KR2033022D33", name="국민주택1종", rvse="정정",
+                ord_qty="1000", unpr="9850", ord_tmd="131438", ccld_qty="0", ccld_amt="0",
+                psbl="1000", orgn="0000000100", sll_buy="02", ord_dvsn="00"):
+    return {"odno": odno, "pdno": pdno, "prdt_abrv_name": name, "rvse_cncl_dvsn_name": rvse,
+            "ord_qty": ord_qty, "bond_ord_unpr": unpr, "ord_tmd": ord_tmd,
+            "tot_ccld_qty": ccld_qty, "tot_ccld_amt": ccld_amt, "ord_psbl_qty": psbl,
+            "orgn_odno": orgn, "sll_buy_dvsn_cd": sll_buy, "ord_dvsn_cd": ord_dvsn}
+
+
+def _open_orders_resp(*, rows=None, ctx_nk="", ctx_fk="", tr_cont=""):
+    body = {"output": rows if rows is not None else [],
+            "ctx_area_nk200": ctx_nk, "ctx_area_fk200": ctx_fk}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
+
+
+def test_open_orders_parses_and_routes():
+    fake = FakeTransport(response=_open_orders_resp(rows=[_open_order()]))
+    orders = _bonds(fake).open_orders("20240215")
+    assert len(orders) == 1
+    order = orders[0]
+    assert order.order_id == "0000000123"
+    assert order.symbol == "KR2033022D33"
+    assert order.name == "국민주택1종"
+    assert order.revise_cancel_type == "정정"
+    assert order.order_quantity == Decimal(1000)
+    assert order.order_price == Decimal(9850)
+    assert order.order_time == time(13, 14, 38)
+    assert order.filled_quantity == Decimal(0)
+    assert order.filled_amount == Decimal(0)
+    assert order.cancelable_quantity == Decimal(1000)
+    assert order.original_order_id == "0000000100"
+    assert order.side == "buy"
+    assert order.order_division == "00"
+    call = fake.calls[0]
+    assert call["path"] == _OPEN_ORDERS_PATH
+    assert call["tr_id"] == "CTSC8035R"
+    assert call["params"]["ORD_DT"] == "20240215"
+    assert call["params"]["ODNO"] == ""
+
+
+def test_open_orders_skips_blank_odno():
+    fake = FakeTransport(response=_open_orders_resp(rows=[_open_order(), {"odno": "  "}]))
+    assert len(_bonds(fake).open_orders("20240215")) == 1
+
+
+def test_open_orders_rejects_bad_date():
+    fake = FakeTransport(response=_open_orders_resp(rows=[_open_order()]))
+    with pytest.raises(KISUsageError):
+        _bonds(fake).open_orders("2024-02-15")
+    assert fake.calls == []
+
+
+def test_open_orders_paper_fails_closed():
+    fake = FakeTransport(response=_open_orders_resp(rows=[_open_order()]))
+    with pytest.raises(KISUsageError):
+        _bonds(fake, environment="paper").open_orders("20240215")
+    assert fake.calls == []
+
+
+def test_open_orders_missing_output_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={})
+    with pytest.raises(KISError):
+        _bonds(FakeTransport(response=resp)).open_orders("20240215")
+
+
+def test_open_orders_paginates_two_pages():
+    page1 = _open_orders_resp(rows=[_open_order(odno="1")], ctx_nk="NK", ctx_fk="FK", tr_cont="M")
+    page2 = _open_orders_resp(rows=[_open_order(odno="2")], tr_cont="D")
+    fake = FakeTransport(by_path={_OPEN_ORDERS_PATH: [page1, page2]})
+    orders = _bonds(fake).open_orders("20240215")
+    assert [o.order_id for o in orders] == ["1", "2"]
+    assert len(fake.calls) == 2
+    assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NK"
+    assert fake.calls[1]["tr_cont"] == "N"

@@ -61,7 +61,11 @@ from .domestic.entities.bond import (
     BondQuote,
     BondValuation,
 )
-from .domestic.entities.bond_account import BondBuyable, BondPosition
+from .domestic.entities.bond_account import (
+    BondBuyable,
+    BondOpenOrder,
+    BondPosition,
+)
 from .domestic.entities.broker import (
     BrokerActivity,
     BrokerActivitySummary,
@@ -292,6 +296,7 @@ __all__ = [
     "BondBuyable",
     "BondDailyPrice",
     "BondIssuance",
+    "BondOpenOrder",
     "BondPosition",
     "BondProfile",
     "BondQuote",

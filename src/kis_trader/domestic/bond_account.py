@@ -9,12 +9,16 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ._engine.bonds import fetch_bond_balance, fetch_bond_buyable
+from ._engine.bonds import (
+    fetch_bond_balance,
+    fetch_bond_buyable,
+    fetch_bond_open_orders,
+)
 
 if TYPE_CHECKING:
     from .._literals import Numeric
     from ..client import KISClient
-    from .entities.bond_account import BondBuyable, BondPosition
+    from .entities.bond_account import BondBuyable, BondOpenOrder, BondPosition
 
 
 class DomesticBondAccount:
@@ -44,4 +48,16 @@ class DomesticBondAccount:
         return fetch_bond_buyable(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment, code=code, price=price,
+        )
+
+    def open_orders(self, order_date: str) -> list[BondOpenOrder]:
+        """장내채권 정정·취소 가능한 미체결 주문. ``order_date`` 는 주문일자(YYYYMMDD, 8자리 숫자).
+
+        브로커 측 뷰라 ``client_order_id`` 는 없고 ``order_id`` 로 식별한다. ``GET .../
+        domestic-bond/v1/trading/inquire-psbl-rvsecncl`` (``CTSC8035R``). **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_bond_open_orders(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, order_date=order_date,
         )

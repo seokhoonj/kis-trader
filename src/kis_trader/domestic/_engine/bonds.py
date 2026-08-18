@@ -15,7 +15,7 @@ KIS URL/TR-ID (KIS 명세 대조):
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, NamedTuple
 
@@ -54,7 +54,8 @@ from ..entities.bond import (
     BondQuote,
     BondValuation,
 )
-from ..entities.bond_account import BondBuyable, BondPosition
+from ..entities.bond_account import BondBuyable, BondOpenOrder, BondPosition
+from ._parse import _side_from_code
 
 if TYPE_CHECKING:
     from ..._literals import Numeric
@@ -467,6 +468,8 @@ _BOND_BALANCE_PATH = "/uapi/domestic-bond/v1/trading/inquire-balance"
 _BOND_BALANCE_TR = "CTSC8407R"  # 장내채권 잔고조회, 모의투자 미지원
 _BOND_BUYABLE_PATH = "/uapi/domestic-bond/v1/trading/inquire-psbl-order"
 _BOND_BUYABLE_TR = "TTTC8910R"  # 장내채권 매수가능조회, 모의투자 미지원
+_BOND_OPEN_ORDERS_PATH = "/uapi/domestic-bond/v1/trading/inquire-psbl-rvsecncl"
+_BOND_OPEN_ORDERS_TR = "CTSC8035R"  # 장내채권 정정취소가능주문조회, 모의투자 미지원
 #: 채권 계좌 연속조회 페이지 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
 _MAX_BOND_ACCOUNT_PAGES = 100
 
@@ -567,6 +570,64 @@ def fetch_bond_buyable(
     )
 
 
+def fetch_bond_open_orders(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    order_date: str,
+) -> list[BondOpenOrder]:
+    """장내채권 정정·취소 가능한 미체결 주문. ``order_date`` (YYYYMMDD) 기준 주문일자.
+    응답 ``output`` 배열을 연속조회로 소진까지 모은다. **모의투자 미지원**(demo 면 사전
+    :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "장내채권 정정취소가능주문조회(inquire-psbl-rvsecncl)는 모의투자 미지원 -- 실전에서만."
+        )
+    _require_bond_wire_date(order_date, "order_date")
+    rows = _fetch_paginated_rows(
+        transport,
+        path=_BOND_OPEN_ORDERS_PATH, tr_id=_BOND_OPEN_ORDERS_TR,
+        base_params={
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "ORD_DT": order_date, "ODNO": "",
+            "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
+        },
+        output_key="output",
+        max_pages=_MAX_BOND_ACCOUNT_PAGES,
+        ctx_width=200,
+        cap_message=(
+            f"장내채권 정정취소가능주문조회가 {_MAX_BOND_ACCOUNT_PAGES}페이지 상한에 도달했으나 "
+            f"연속조회가 남아있다 -- 부분 결과로 자르지 않는다."
+        ),
+    )
+    return _parse_bond_open_orders(rows)
+
+
+def _parse_bond_open_orders(rows: list[Mapping[str, Any]]) -> list[BondOpenOrder]:
+    orders: list[BondOpenOrder] = []
+    for row in rows:
+        order_id = str(row.get("odno", "")).strip()
+        if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
+            continue
+        orders.append(
+            BondOpenOrder(
+                order_id=order_id,
+                symbol=str(row.get("pdno", "")).strip(),
+                name=str(row.get("prdt_abrv_name", "")).strip(),
+                revise_cancel_type=str(row.get("rvse_cncl_dvsn_name", "")).strip(),
+                order_quantity=_bond_decimal_or_zero(row.get("ord_qty"), "ord_qty"),
+                order_price=_bond_decimal_or_zero(row.get("bond_ord_unpr"), "bond_ord_unpr"),
+                order_time=_parse_bond_time(row.get("ord_tmd")),
+                filled_quantity=_bond_decimal_or_zero(row.get("tot_ccld_qty"), "tot_ccld_qty"),
+                filled_amount=_bond_decimal_or_zero(row.get("tot_ccld_amt"), "tot_ccld_amt"),
+                cancelable_quantity=_bond_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
+                original_order_id=str(row.get("orgn_odno", "")).strip(),
+                side=_side_from_code(row.get("sll_buy_dvsn_cd")),
+                order_division=str(row.get("ord_dvsn_cd", "")).strip(),
+                _raw=row,
+            )
+        )
+    return orders
+
+
 # --- 채권 계좌 공용 파서 ---------------------------------------------------
 def _bond_summary(block: object) -> Mapping[str, Any] | None:
     """단일 요약 블록 -- KIS 가 단일 객체로도, '길이 1 배열'로도 준다. 비매핑이면 None."""
@@ -608,3 +669,23 @@ def _parse_bond_date(value: object) -> date | None:
         return date(int(text[0:4]), int(text[4:6]), int(text[6:8]))
     except ValueError:
         return None
+
+
+def _parse_bond_time(value: object) -> time | None:
+    """``"131438"`` -> ``time(13, 14, 38)``. 공백/형식오류면 None(fail-soft)."""
+    text = str(value or "").strip()
+    if len(text) != 6 or not text.isdigit():
+        return None
+    hour, minute, second = int(text[0:2]), int(text[2:4]), int(text[4:6])
+    if hour > 23 or minute > 59 or second > 59:
+        return None
+    return time(hour, minute, second)
+
+
+def _require_bond_wire_date(value: str, field_name: str) -> None:
+    """조회 요청의 일자 파라미터를 와이어 이전에 검증한다 -- 8자리 숫자(YYYYMMDD)가 아니면
+    :class:`KISUsageError`. 잘못된 일자로 조회를 날리는 대신 호출 즉시 실패시킨다."""
+    if len(value) != 8 or not value.isdigit():
+        raise KISUsageError(
+            f"일자 파라미터 {field_name!r} 는 8자리 숫자(YYYYMMDD)여야 한다: {value!r}"
+        )
