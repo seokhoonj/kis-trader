@@ -29,6 +29,7 @@ from .config import _ENVIRONMENTS, _fill_credentials, _split_account, token_cach
 from .domestic._engine import derivative_orders as derivative_orders_engine
 from .domestic._engine import orders as orders_engine
 from .domestic._engine import reserved_orders as reserved_orders_api
+from .domestic.derivative_account import DomesticDerivativesAccount
 from .domestic.namespace import DomesticNamespace
 from .errors import KISUsageError
 from .order import (
@@ -260,16 +261,20 @@ class KISClient:
         return self._environment
 
     @property
-    def account(self) -> StockAccounts:
-        """세션이 연 계좌의 조회 뷰 -- 상품코드로 계좌 종류를 정한다(위탁 01 = 주식).
+    def account(self) -> StockAccounts | DomesticDerivativesAccount:
+        """세션이 연 계좌의 조회 뷰 -- 상품코드로 계좌 종류를 정한다(위탁 01 = 주식,
+        국내선물옵션 03 = 선물옵션).
 
-        계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError`. 파생(03) 등 다른 상품은
-        아직 미지원(추후 확장) -- 명확한 오류로 fail-closed 한다."""
+        계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError`. 그 밖의 상품은 아직
+        미지원(추후 확장) -- 명확한 오류로 fail-closed 한다."""
         _, product_code = self._require_account()
         if product_code == "01":
             return StockAccounts(self)
+        if product_code == "03":
+            return DomesticDerivativesAccount(self)
         raise KISUsageError(
-            f"kis.account 는 현재 위탁(01) 계좌만 지원한다 -- 상품코드 {product_code} 는 미지원."
+            f"kis.account 는 현재 위탁(01)/국내선물옵션(03) 계좌만 지원한다 -- 상품코드 "
+            f"{product_code} 는 미지원."
         )
 
     @property

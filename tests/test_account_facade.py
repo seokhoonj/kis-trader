@@ -31,7 +31,7 @@ def test_account_without_account_fails_closed():
 
 
 def test_account_unsupported_product_fails_closed():
-    kis = _c("12345678-03")  # derivatives -- added in Plan B
+    kis = _c("12345678-22")  # 연금저축 -- kis.account 뷰 미지원
     with pytest.raises(KISUsageError):
         _ = kis.account
 
