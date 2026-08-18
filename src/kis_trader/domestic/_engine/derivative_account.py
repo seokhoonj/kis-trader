@@ -12,6 +12,7 @@ KIS URL/TR-ID:
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import date
 from decimal import Decimal
 from typing import Any
 
@@ -22,6 +23,8 @@ from ...transport import Environment, RawResponse, Transport
 from ..entities.derivative_account import (
     DerivativeBalance,
     DerivativeDeposit,
+    DerivativeFill,
+    DerivativeFillHistory,
     DerivativePosition,
     DerivativeSettlementBalance,
     DerivativeSettlementPosition,
@@ -42,6 +45,9 @@ _VALUATION_PL_TR = "CTFO6159R"  # 선물옵션 잔고평가손익내역, 모의�
 
 _SETTLEMENT_PL_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-balance-settlement-pl"
 _SETTLEMENT_PL_TR = "CTFO6117R"  # 선물옵션 잔고정산손익내역, 모의투자 미지원
+
+_BASE_DATE_FILLS_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-ccnl-bstime"
+_BASE_DATE_FILLS_TR = "CTFO5139R"  # 선물옵션 기준일체결내역, 모의투자 미지원
 
 
 def fetch_balance(
@@ -254,6 +260,60 @@ def fetch_settlement_pl(
     )
 
 
+def fetch_base_date_fills(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    date: str, start_time: str, end_time: str,
+) -> DerivativeFillHistory:
+    """선물옵션 기준일체결내역(체결내역 output1 + 기간 합계 요약 output2). ``date`` (YYYYMMDD)
+    기준일과 ``start_time``/``end_time`` (HHMMSS) 시각 구간으로 조회하고 연속조회로 체결을
+    소진까지 모은다(합계 요약은 첫 페이지에서 완결).
+    **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "선물옵션 기준일체결내역(inquire-ccnl-bstime)은 모의투자 미지원 -- 실전에서만."
+        )
+    _require_wire_date(date, "date")
+    rows: list[Mapping[str, Any]] = []
+    summary: Mapping[str, Any] | None = None
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_BALANCE_PAGES):
+        resp = _fetch_base_date_fills_page(
+            transport, cano=cano, product_code=product_code,
+            date=date, start_time=start_time, end_time=end_time,
+            ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        if summary is None:  # 합계 요약은 첫 페이지에서(조회 단위라 페이지 불변)
+            summary = _extract_summary(resp.body)
+        page = resp.body.get("output1")
+        if not isinstance(page, list):  # 빈 결과도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
+            raise KISError(
+                "선물옵션 기준일체결내역 응답의 output1 이 체결내역 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"선물옵션 기준일체결내역 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 "
+            f"연속조회가 남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        )
+    if summary is None:
+        raise KISError("선물옵션 기준일체결내역 응답에 합계 요약(output2)이 없다.")
+    return DerivativeFillHistory(
+        fills=tuple(_parse_fills(rows)),
+        total_fill_quantity=required_decimal(summary.get("tot_ccld_qty_smtl"), "tot_ccld_qty_smtl"),
+        total_fill_amount=required_decimal(summary.get("tot_ccld_amt_smtl"), "tot_ccld_amt_smtl"),
+        fee_adjustment=required_decimal(summary.get("fee_adjt"), "fee_adjt"),
+        total_fee=required_decimal(summary.get("fee_smtl"), "fee_smtl"),
+        raw=summary,
+    )
+
+
 def _fetch_balance_page(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     ctx_fk: str, ctx_nk: str, tr_cont: str = "",
@@ -299,6 +359,49 @@ def _fetch_settlement_pl_page(
         method="GET", path=_SETTLEMENT_PL_PATH, tr_id=_SETTLEMENT_PL_TR,
         params=params, idempotent=True, tr_cont=tr_cont,
     )
+
+
+def _fetch_base_date_fills_page(
+    transport: Transport, *, cano: str, product_code: str,
+    date: str, start_time: str, end_time: str,
+    ctx_fk: str, ctx_nk: str, tr_cont: str = "",
+) -> RawResponse:
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "ORD_DT": date,  # 주문일자(YYYYMMDD)
+        "FUOP_TR_STRT_TMD": start_time,  # 선물옵션 거래 시작시각(HHMMSS)
+        "FUOP_TR_END_TMD": end_time,     # 선물옵션 거래 종료시각(HHMMSS)
+        "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
+    }
+    return transport.request(
+        method="GET", path=_BASE_DATE_FILLS_PATH, tr_id=_BASE_DATE_FILLS_TR,
+        params=params, idempotent=True, tr_cont=tr_cont,
+    )
+
+
+def _parse_fills(rows: list[Mapping[str, Any]]) -> list[DerivativeFill]:
+    fills: list[DerivativeFill] = []
+    for row in rows:
+        order_id = str(row.get("odno", "")).strip()
+        if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
+            continue
+        fills.append(
+            # 수치는 빈 값을 0으로 읽는다 -- 이유는 _parse_positions 와 동일.
+            DerivativeFill(
+                symbol=str(row.get("pdno", "")).strip(),
+                name=str(row.get("prdt_name", "")).strip(),
+                order_id=order_id,
+                transaction_type=str(row.get("tr_type_name", "")).strip(),
+                final_settlement_date=_parse_date(row.get("last_sttldt")),
+                fill_index=_decimal_or_zero(row.get("ccld_idx"), "ccld_idx"),
+                fill_quantity=_decimal_or_zero(row.get("ccld_qty"), "ccld_qty"),
+                trade_amount=_decimal_or_zero(row.get("trad_amt"), "trad_amt"),
+                fee=_decimal_or_zero(row.get("fee"), "fee"),
+                fill_time=str(row.get("ccld_btwn", "")).strip(),
+                _raw=row,
+            )
+        )
+    return fills
 
 
 def _parse_settlement_positions(
@@ -397,6 +500,17 @@ def _extract_summary(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
     if isinstance(summary, Mapping):
         return summary
     return None
+
+
+def _parse_date(value: object) -> date | None:
+    """``"20240216"`` -> ``date(2024, 2, 16)``. 공백/형식오류면 None(fail-soft)."""
+    text = str(value or "").strip()
+    if len(text) != 8 or not text.isdigit():
+        return None
+    try:
+        return date(int(text[0:4]), int(text[4:6]), int(text[6:8]))
+    except ValueError:
+        return None
 
 
 def _require_wire_date(value: str, field_name: str) -> None:

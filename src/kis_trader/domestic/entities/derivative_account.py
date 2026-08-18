@@ -9,6 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -203,6 +204,57 @@ class DerivativeSettlementBalance:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "positions", tuple(self.positions))
+        object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))
+
+
+@dataclass(frozen=True, slots=True)
+class DerivativeFill:
+    """선물옵션 기준일 체결 한 건(불변).
+
+    ``symbol`` 은 상품번호(pdno), ``order_id`` 주문번호(odno), ``transaction_type`` 거래유형명
+    (tr_type_name). ``final_settlement_date`` 는 최종결제일(last_sttldt) -- 형식오류/공백이면 None.
+    ``fill_index`` 체결지수, ``fill_quantity`` 체결수량, ``trade_amount`` 거래금액, ``fee`` 수수료.
+    ``fill_time`` 은 체결시각 구간(ccld_btwn)을 파싱하지 않고 원본 문자열 그대로 담는다.
+    주문번호가 빈 패딩 행은 담기지 않는다.
+    """
+
+    symbol: str                        # 상품번호(pdno)
+    name: str                          # 상품명(prdt_name)
+    order_id: str                      # 주문번호(odno)
+    transaction_type: str              # 거래유형명(tr_type_name)
+    final_settlement_date: date | None  # 최종결제일(last_sttldt)
+    fill_index: Decimal                # 체결지수(ccld_idx)
+    fill_quantity: Decimal             # 체결수량(ccld_qty)
+    trade_amount: Decimal              # 거래금액(trad_amt)
+    fee: Decimal                       # 수수료(fee)
+    fill_time: str                     # 체결시각구간(ccld_btwn) -- 원본 문자열
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class DerivativeFillHistory:
+    """선물옵션 기준일 체결내역 -- 기간 합계 요약과 체결 한 벌(불변).
+
+    ``total_fill_quantity`` 총체결수량합계, ``total_fill_amount`` 총체결금액합계,
+    ``fee_adjustment`` 수수료조정, ``total_fee`` 수수료합계. 타입화하지 않은 요약 필드는 ``raw``.
+    """
+
+    fills: tuple[DerivativeFill, ...]  # 체결내역(output1)
+    total_fill_quantity: Decimal       # 총체결수량합계(tot_ccld_qty_smtl)
+    total_fill_amount: Decimal         # 총체결금액합계(tot_ccld_amt_smtl)
+    fee_adjustment: Decimal            # 수수료조정(fee_adjt)
+    total_fee: Decimal                 # 수수료합계(fee_smtl)
+    raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "fills", tuple(self.fills))
         object.__setattr__(self, "raw", freeze_vendor_payload(self.raw))
 
 

@@ -10,6 +10,7 @@ from typing import TYPE_CHECKING
 
 from ._engine.derivative_account import (
     fetch_balance,
+    fetch_base_date_fills,
     fetch_deposit,
     fetch_settlement_pl,
     fetch_valuation_pl,
@@ -17,6 +18,7 @@ from ._engine.derivative_account import (
 from .entities.derivative_account import (
     DerivativeBalance,
     DerivativeDeposit,
+    DerivativeFillHistory,
     DerivativeSettlementBalance,
     DerivativeValuationBalance,
 )
@@ -65,6 +67,22 @@ class DomesticDerivativesAccount:
         return fetch_settlement_pl(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment, date=date,
+        )
+
+    def base_date_fills(
+        self, date: str, start_time: str = "000000", end_time: str = "240000"
+    ) -> DerivativeFillHistory:
+        """선물옵션 기준일체결내역(체결내역 + 기간 합계 요약).
+
+        ``date`` 는 주문일자(YYYYMMDD, 8자리 숫자), ``start_time``/``end_time`` 은 조회 시각
+        구간(HHMMSS, 기본 하루 전체). ``GET .../domestic-futureoption/v1/trading/
+        inquire-ccnl-bstime`` (``CTFO5139R``). **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_base_date_fills(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment,
+            date=date, start_time=start_time, end_time=end_time,
         )
 
     def deposit(self) -> DerivativeDeposit:

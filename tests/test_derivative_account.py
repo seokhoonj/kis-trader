@@ -380,3 +380,108 @@ def test_derivative_settlement_entities_importable():
 
     assert DerivativeSettlementBalance is not None
     assert DerivativeSettlementPosition is not None
+
+
+_FILLS_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-ccnl-bstime"
+
+_FILLS_SUMMARY = {
+    "tot_ccld_qty_smtl": "5", "tot_ccld_amt_smtl": "205000000",
+    "fee_adjt": "100", "fee_smtl": "12345",
+}
+
+
+def _fill(odno="0000012345", *, pdno="KR4101RC0000", name="코스피200 F 202509",
+          tr_type="매수", last="20240220", idx="1", qty="3", amt="123150000",
+          fee="6789", ccld_btwn="0919"):
+    return {"pdno": pdno, "prdt_name": name, "odno": odno, "tr_type_name": tr_type,
+            "last_sttldt": last, "ccld_idx": idx, "ccld_qty": qty, "trad_amt": amt,
+            "fee": fee, "ccld_btwn": ccld_btwn}
+
+
+def _fills_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont="D"):
+    body = {"output1": rows if rows is not None else [],
+            "output2": summary if summary is not None else dict(_FILLS_SUMMARY),
+            "ctx_area_nk200": ctx_nk, "ctx_area_fk200": ctx_fk}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
+
+
+def test_base_date_fills_parses_and_routes():
+    from datetime import date as _date
+
+    from kis_trader.domestic.entities.derivative_account import DerivativeFillHistory
+
+    fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
+    hist = _client(fake, environment="real").account.base_date_fills("20240220")
+    assert isinstance(hist, DerivativeFillHistory)
+    assert hist.fills[0].symbol == "KR4101RC0000"       # pdno
+    assert hist.fills[0].order_id == "0000012345"       # odno
+    assert hist.fills[0].transaction_type == "매수"      # tr_type_name
+    assert hist.fills[0].final_settlement_date == _date(2024, 2, 20)  # last_sttldt
+    assert hist.fills[0].fill_quantity == Decimal(3)    # ccld_qty
+    assert hist.fills[0].fill_time == "0919"            # ccld_btwn, raw str
+    assert hist.total_fill_quantity == Decimal(5)       # tot_ccld_qty_smtl
+    assert hist.total_fee == Decimal(12345)             # fee_smtl
+    call = fake.calls[0]
+    assert call["tr_id"] == "CTFO5139R"
+    assert call["path"].endswith("inquire-ccnl-bstime")
+    assert call["params"]["ORD_DT"] == "20240220"
+    assert call["params"]["FUOP_TR_STRT_TMD"] == "000000"
+    assert call["params"]["FUOP_TR_END_TMD"] == "240000"
+    assert call["params"]["CTX_AREA_FK200"] == ""
+    assert call["params"]["CTX_AREA_NK200"] == ""
+    assert call["params"]["CANO"] == "12345678"
+
+
+def test_base_date_fills_custom_time_window():
+    fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
+    _client(fake, environment="real").account.base_date_fills(
+        "20240220", start_time="090000", end_time="153000"
+    )
+    assert fake.calls[0]["params"]["FUOP_TR_STRT_TMD"] == "090000"
+    assert fake.calls[0]["params"]["FUOP_TR_END_TMD"] == "153000"
+
+
+def test_base_date_fills_paper_fails_closed():
+    fake = FakeTransport(response=_fills_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").account.base_date_fills("20240220")
+    assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
+
+
+def test_base_date_fills_bad_date_fails_closed():
+    fake = FakeTransport(response=_fills_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="real").account.base_date_fills("2024-02-20")
+    assert fake.calls == []
+
+
+def test_base_date_fills_paginates():
+    page1 = _fills_resp(rows=[_fill("0000012345")], ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    page2 = _fills_resp(rows=[_fill("0000067890")], tr_cont="D")
+    fake = FakeTransport(by_path={_FILLS_PATH: [page1, page2]})
+    hist = _client(fake, environment="real").account.base_date_fills("20240220")
+    assert [f.order_id for f in hist.fills] == ["0000012345", "0000067890"]
+    assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
+    assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
+
+
+def test_base_date_fills_skips_blank_order_id_row():
+    rows = [_fill("0000012345"), _fill("")]
+    hist = _client(
+        FakeTransport(response=_fills_resp(rows=rows)), environment="real"
+    ).account.base_date_fills("20240220")
+    assert [f.order_id for f in hist.fills] == ["0000012345"]
+
+
+def test_base_date_fills_missing_output2_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": [], "ctx_area_nk200": "", "ctx_area_fk200": ""})
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp), environment="real").account.base_date_fills("20240220")
+
+
+def test_derivative_fill_entities_importable():
+    from kis_trader import DerivativeFill, DerivativeFillHistory
+
+    assert DerivativeFill is not None
+    assert DerivativeFillHistory is not None
