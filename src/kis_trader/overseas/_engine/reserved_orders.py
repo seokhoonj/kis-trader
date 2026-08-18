@@ -47,12 +47,39 @@ _CANCEL_TR = "TTTT3017U"           # 미국 예약취소, 모의투자 미지원
 _MAX_PAGES = 100
 _SIDE_CODE = {"buy": "02", "sell": "01"}
 _US_MARKET = "US"
+#: 아시아 예약주문 대상 시장(`_ORDER_EXCHANGE` 의 market 값) -- 홍콩/상해/심천/일본/베트남.
+_ASIA_MARKETS = frozenset({"HK", "SH", "SZ", "JP", "VN"})
+#: 아시아 거래소 -> PRDT_TYPE_CD(상품유형코드, 홍콩 제외 고정). 홍콩은 통화별(501/543/558)이라 별도.
+_ASIA_PRDT_TYPE_CD = {"TSE": "515", "SHS": "551", "SZS": "552", "HNX": "507", "HSX": "508"}
+#: 홍콩(HKS) 예약의 통화별 PRDT_TYPE_CD -- HKD 기본, CNY/USD 는 명시 override.
+_HK_PRDT_TYPE_CD = {"HKD": "501", "CNY": "543", "USD": "558"}
 _ORD_DVSN_LIMIT = "00"             # 지정가
 #: 예약 지문의 exchange 네임스페이스 -- 즉시/주간/국내예약과 분리해 reconcile 을 해외예약 경로로 라우팅.
 _RESERVED_EXCHANGE = "overseas-reserved"
 #: reconcile 창(양방향). KIS 명세상 예약 조회일자 필드 의미가 모호해 앞뒤로 스캔한다(실 API 검증 후 축소).
 _RECONCILE_LOOKBACK_DAYS = 7
 _RECONCILE_FORWARD_DAYS = 31
+
+
+def _asia_prdt_type_cd(exchange: str, currency: str) -> str:
+    """아시아 예약주문의 PRDT_TYPE_CD(상품유형코드)를 거래소코드에서 파생한다(순수). ``currency`` 는
+    홍콩(HKS)에만 의미가 있다(501 HKD / 543 CNY / 558 USD) -- 그 외 거래소에 비-HKD 를 주면
+    fail-closed(조용히 무시하면 의도한 통화와 다른 상품유형으로 발주된다)."""
+    if exchange == "HKS":
+        try:
+            return _HK_PRDT_TYPE_CD[currency]
+        except KeyError:
+            raise KISUsageError(
+                f"홍콩 예약주문의 통화는 HKD/CNY/USD 여야 한다: {currency!r}"
+            ) from None
+    if currency != "HKD":
+        raise KISUsageError(
+            f"통화 지정은 홍콩(HKS) 예약주문에만 유효하다: {exchange!r}, {currency!r}"
+        )
+    try:
+        return _ASIA_PRDT_TYPE_CD[exchange]
+    except KeyError:
+        raise KISUsageError(f"아시아 예약주문을 지원하지 않는 거래소코드: {exchange!r}") from None
 
 
 def fetch_reserved_orders(
