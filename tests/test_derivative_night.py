@@ -409,6 +409,143 @@ def test_night_reconcile_legacy_blank_anchor_uses_wide_window():
     assert day_params["END_ORD_DT"] == "20220114"
 
 
+class _DateWindowNightTransport:
+    """야간 조회를 STRT/END 창(END 배타)으로 실제 필터한다 -- 창에 든 ord_dt 행만 돌려준다.
+
+    FakeTransport 는 날짜 파라미터를 무시해 창 오류를 감추지만, 이 전송은 창 밖 행을 실제로
+    떨어뜨려 신선조회 앵커가 잘못되면(뒷방향 창) 0행 -> KISError 로 드러나게 한다."""
+
+    def __init__(self, rows):
+        self._rows = rows
+        self.calls: list[dict] = []
+
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
+        self.calls.append({"method": method, "path": path, "tr_id": tr_id,
+                           "params": params, "body": body})
+        if path == _NIGHT_INQUIRY:
+            strt, end = params["STRT_ORD_DT"], params["END_ORD_DT"]     # 야간 END 는 배타
+            hit = [r for r in self._rows if strt <= r["ord_dt"] < end]
+            return _ngt_ccnl(hit)
+        if path == _CHANGE:
+            return _CHANGE_OK
+        raise AssertionError(f"unexpected {method} to {path}")
+
+
+def _recorded_night_store(*, recorded, cid="n1", quantity="2", filled="0", order_id="0000005605"):
+    # 접수 확정 상태(in-flight 아님)로 스토어를 심는다 -- 정정·취소는 확정 주문에만 걸리므로
+    # 이 상태가 실제 변경 경로의 입력이다. recorded_at 을 고정해 신선조회 날짜창을 결정적으로.
+    from kis_trader.report import ExecutionReport, OrderStatus
+    store = OrderStore()
+    report = ExecutionReport(client_order_id=cid, order_id=order_id, symbol="101S03",
+                             side="buy", status=OrderStatus.NEW, filled_quantity=Decimal(filled),
+                             average_price=None, recorded_at=recorded)
+    store.record(report, _fp(quantity=quantity))
+    return store
+
+
+# =====================================================================
+# P1-1: 야간 취소 공개경로 -- 신선조회 앵커는 접수(recorded) 일자(claim 이 아님)
+# =====================================================================
+_REC = datetime(2022, 1, 14, 23, 30, tzinfo=_KST)      # 금요일 야간 세션(T)
+_TPLUS1 = "20220117"                                    # 야간 주문일자 T+1(다음 거래일=월)
+
+
+def test_night_cancel_public_route_anchors_on_recorded_date():
+    # 확정 야간주문을 공개경로로 취소한다. 신선조회 창은 접수일(T) 기준 전방창이라 T+1 일자
+    # 행을 포함해 신선잔량이 잡히고 STTN1103U 취소가 와이어에 닿는다(예전엔 claim 앵커가 None
+    # 이라 뒷방향 창 -> T+1 미포함 -> 0행 -> KISError 로 취소가 와이어에 닿지 못했다).
+    store = _recorded_night_store(recorded=_REC)                       # 로컬 잔량 2
+    transport = _DateWindowNightTransport(
+        [_night_row(odno="0000005605", ord_dt=_TPLUS1, ord_qty="2", tot_ccld_qty="1")])
+    _real_client(transport, store=store).orders.cancel("n1")
+    change_call = next(c for c in transport.calls if c["path"] == _CHANGE)
+    assert change_call["tr_id"] == "STTN1103U"
+    assert change_call["body"]["ORD_QTY"] == "1"                       # 신선 잔량(2-1)
+    assert change_call["body"]["RVSE_CNCL_DVSN_CD"] == "02"
+    ngt = next(c["params"] for c in transport.calls if c["path"] == _NIGHT_INQUIRY)
+    assert ngt["STRT_ORD_DT"] == "20220114"                            # 접수일 기준(claim 아님)
+    assert ngt["STRT_ORD_DT"] <= _TPLUS1 < ngt["END_ORD_DT"]          # 전방창이 T+1 을 덮는다
+
+
+def test_night_modify_public_route_uses_fresh_remaining_before_wire():
+    # P1-3: 야간 정정 공개경로 -- 신선조회가 STTN1103U 정정보다 먼저 돌고 신선잔량을 싣는다.
+    store = _recorded_night_store(recorded=_REC)
+    transport = _DateWindowNightTransport(
+        [_night_row(odno="0000005605", ord_dt=_TPLUS1, ord_qty="2", tot_ccld_qty="1")])
+    _real_client(transport, store=store).orders.modify("n1", limit_price=Decimal("401.00"))
+    change_call = next(c for c in transport.calls if c["path"] == _CHANGE)
+    assert change_call["tr_id"] == "STTN1103U"
+    assert change_call["body"]["RVSE_CNCL_DVSN_CD"] == "01"
+    assert change_call["body"]["UNIT_PRICE"] == "401.00"
+    assert change_call["body"]["ORD_QTY"] == "1"                       # 신선 잔량
+    idx_inq = next(i for i, c in enumerate(transport.calls) if c["path"] == _NIGHT_INQUIRY)
+    idx_chg = next(i for i, c in enumerate(transport.calls) if c["path"] == _CHANGE)
+    assert idx_inq < idx_chg                                           # 조회가 와이어보다 먼저
+
+
+def test_night_modify_public_route_inquiry_failure_no_wire():
+    # P1-3: 신선조회가 창 밖(0행)이면 KISError 로 fail-closed 하고 정정 와이어에 닿지 않는다.
+    store = _recorded_night_store(recorded=_REC)
+    transport = _DateWindowNightTransport(
+        [_night_row(odno="0000005605", ord_dt="20991231", ord_qty="2", tot_ccld_qty="1")])
+    with pytest.raises(KISError):
+        _real_client(transport, store=store).orders.modify("n1", limit_price=Decimal("401.00"))
+    assert not any(c["path"] == _CHANGE for c in transport.calls)
+
+
+# =====================================================================
+# P2-5: 야간 부분 정정·취소 미지원 -- 명시 quantity != 전량이면 와이어 미접촉
+# =====================================================================
+def test_night_partial_cancel_rejected_no_wire():
+    store = _recorded_night_store(recorded=_REC, quantity="5")         # 로컬 잔량 5
+    fake = FakeTransport()                                             # 어떤 호출이든 unexpected
+    with pytest.raises(KISUsageError):
+        _real_client(fake, store=store).orders.cancel("n1", quantity=Decimal(2))
+    assert fake.request_count == 0                                     # 신선조회조차 미접촉
+
+
+def test_night_partial_modify_rejected_no_wire():
+    store = _recorded_night_store(recorded=_REC, quantity="5")
+    fake = FakeTransport()
+    with pytest.raises(KISUsageError):
+        _real_client(fake, store=store).orders.modify(
+            "n1", quantity=Decimal(2), limit_price=Decimal("401.00"))
+    assert fake.request_count == 0
+
+
+def test_night_full_cancel_with_explicit_quantity_equal_remaining_ok():
+    # 전량과 같은 명시 quantity 는 통과(부분이 아님) -- 이후 신선잔량으로 덮인다.
+    store = _recorded_night_store(recorded=_REC, quantity="2")         # 로컬 잔량 2
+    transport = _DateWindowNightTransport(
+        [_night_row(odno="0000005605", ord_dt=_TPLUS1, ord_qty="2", tot_ccld_qty="1")])
+    _real_client(transport, store=store).orders.cancel("n1", quantity=Decimal(2))
+    assert any(c["path"] == _CHANGE for c in transport.calls)
+
+
+# =====================================================================
+# P2-6: 신선 잔량 = 주문수량 - 체결수량(미검증 qty 필드 불신), 필드 누락 fail-closed
+# =====================================================================
+def test_fetch_night_remaining_computes_ordered_minus_filled():
+    fake = FakeTransport()
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl(
+        [_night_row(odno="0000005605", ord_qty="5", tot_ccld_qty="3", qty="99")]))
+    remaining = fo.fetch_night_remaining(
+        fake, order_id="0000005605", symbol="101S03", cano="8", product_code="03",
+        environment="real", anchor=_REC.isoformat())
+    assert remaining == Decimal(2)                                     # 5-3, 미검증 qty=99 무시
+
+
+def test_fetch_night_remaining_missing_field_fails_closed():
+    fake = FakeTransport()
+    row = _night_row(odno="0000005605", ord_qty="5")
+    del row["tot_ccld_qty"]                                            # 체결수량 누락 -> fail-closed
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([row]))
+    with pytest.raises(KISError):
+        fo.fetch_night_remaining(
+            fake, order_id="0000005605", symbol="101S03", cano="8", product_code="03",
+            environment="real", anchor=_REC.isoformat())
+
+
 def test_day_session_reconcile_still_single_day():
     # 회귀: 주간(regular) 지문은 종전대로 당일 하루만 조회한다(union 경로로 새지 않는다).
     store = OrderStore()

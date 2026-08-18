@@ -367,13 +367,23 @@ class KISClient:
                     raise KISUsageError(
                         "파생 야간(STTN) 정정·취소는 모의투자 미지원 -- 실전에서만."
                     )
-                # 야간은 부분 정정·취소가 불가(잔량 전체가 대상)하고 ORD_QTY 에 실잔량이 필수라, 로컬
-                # 리포트의 stale 잔량 대신 inquire-ngt-ccnl 로 신선 잔량을 조회해 주입한다(읽기 -- claim
-                # 전). 조회 실패/0행/다행이면 여기서 fail-closed 로 올라가 취소 와이어에 닿지 않는다.
+                # 야간은 부분 정정·취소가 불가(잔량 전체가 대상)라, 호출자가 명시 quantity 를 줬는데
+                # 그게 로컬 잔량과 다르면(부분 의도) 조용히 전량을 건드리지 않고 와이어 전에 거부한다
+                # -- 해외 슬라이스와 같은 태도(조회조차 하기 전에 막아 와이어에 닿지 않는다).
+                if quantity is not None and change_quantity != remaining_quantity:
+                    raise KISUsageError(
+                        "파생 야간은 부분 정정·취소 미지원 -- quantity 를 생략해 전량으로 하라"
+                    )
+                # ORD_QTY 에 실잔량이 필수라, 로컬 리포트의 stale 잔량 대신 inquire-ngt-ccnl 로 신선
+                # 잔량을 조회해 주입한다(읽기 -- claim 전). 날짜창 앵커는 접수(recorded) 일자다 -- 이
+                # 주문은 이미 확정돼 in-flight claim 시각이 없고(claim_time_for -> None -> 뒷방향
+                # 폴백창), 야간 주문일자는 T+1 이라 뒷방향 창엔 안 들어와 0행 KISError 로 취소가
+                # 와이어에 닿지 못한다. 접수 일자 앵커가 T+1 을 덮는 전방창을 만든다. 조회 실패/0행/
+                # 다행이면 여기서 fail-closed 로 올라가 취소 와이어에 닿지 않는다.
                 change_quantity = derivative_orders_engine.fetch_night_remaining(
                     self._transport, order_id=str(report.order_id), symbol=fingerprint.symbol,
                     cano=cano, product_code=product_code, environment=self._environment,
-                    anchor=self._store.claim_time_for(client_order_id),
+                    anchor=report.recorded_at.isoformat(),
                 )
                 builder = derivative_orders_engine.make_night_change_request
             else:

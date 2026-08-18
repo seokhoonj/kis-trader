@@ -20,7 +20,7 @@ from __future__ import annotations
 from collections.abc import Mapping
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from ..._internal._datetime import _KST
 from ..._internal._wire import format_wire_decimal
@@ -353,7 +353,7 @@ def reconcile(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
-    matches = _filter_matching_rows(rows, fingerprint)
+    matches = _filter_matching_day_rows(rows, fingerprint)
     if len(matches) > 1:
         raise KISError(
             f"주문 {client_order_id} 의 지문과 일치하는 체결내역이 {len(matches)}건이라 자동 확정 "
@@ -425,7 +425,7 @@ def _fetch_day_ccnl(
     return rows
 
 
-def _filter_matching_rows(
+def _filter_matching_day_rows(
     rows: list[Mapping[str, Any]], fingerprint: ImmediateOrderFingerprint
 ) -> list[Mapping[str, Any]]:
     """일별체결내역 행 중 요청 지문과 맞는 것만(순수). 종목+매매구분+호가유형(nmpr_type_cd)+주문수량,
@@ -482,7 +482,7 @@ def _night_union_reconcile(
     0건이면 ``None``(이관 과도기의 일시 부재 가능 -- in-flight 유지). odno 단독으로는 절대 dedup 하지
     않는다(교차 테이블 odno 유일성 미확정)."""
     anchor = store.claim_time_for(client_order_id)
-    strt, end_inclusive = _night_date_window(anchor, now)
+    start, end_inclusive = _night_date_window(anchor, now)
     fuop = _fuop_dvsn_from_symbol(fingerprint.symbol)
     try:
         # 두 다리를 모두 먼저 소진 조회한다(all-or-nothing) -- 한 다리라도 raise 하면 병합에 이르지
@@ -490,11 +490,11 @@ def _night_union_reconcile(
         rows_a = _fetch_night_ccnl(
             transport, symbol=fingerprint.symbol, cano=cano, product_code=product_code,
             environment=environment, fuop_dvsn=fuop,
-            strt_ord_dt=strt, end_ord_dt=_plus_one_day(end_inclusive),
+            strt_ord_dt=start, end_ord_dt=_plus_one_day(end_inclusive),
         )
         rows_b = _fetch_day_ccnl(
             transport, symbol=fingerprint.symbol, cano=cano, product_code=product_code,
-            environment=environment, strt_ord_dt=strt, end_ord_dt=end_inclusive,
+            environment=environment, strt_ord_dt=start, end_ord_dt=end_inclusive,
         )
     except TransportTimeout as err:
         raise OrderTimeoutError(
@@ -503,7 +503,7 @@ def _night_union_reconcile(
             client_order_id=client_order_id,
         ) from err
     matches_a = _filter_matching_night_rows(rows_a, fingerprint)
-    matches_b = _filter_matching_rows(rows_b, fingerprint)
+    matches_b = _filter_matching_day_rows(rows_b, fingerprint)
     if len(matches_a) > 1 or len(matches_b) > 1:
         raise KISError(
             f"야간 주문 {client_order_id} 의 지문과 일치하는 체결내역이 야간 {len(matches_a)}건/주간 "
@@ -535,18 +535,24 @@ def fetch_night_remaining(
     transport: Transport, *, order_id: str, symbol: str, cano: str, product_code: str,
     environment: Environment, anchor: str | None, now: datetime | None = None,
 ) -> Decimal:
-    """야간 정정·취소 직전 ``inquire-ngt-ccnl`` 로 원주문(``order_id``)의 **신선 잔량**(``qty``)을 읽는다.
+    """야간 정정·취소 직전 ``inquire-ngt-ccnl`` 로 원주문(``order_id``)의 **신선 잔량**을 읽는다.
 
     야간 취소·정정은 ``ORD_QTY`` 에 실잔량이 필수인데(0/공백 금지) 로컬 리포트의 잔량은 부분체결 직후
     stale 할 수 있어, 와이어 직전에 이 조회로 확정한다. 원주문 odno 는 접수 시 확정된 값이라 **odno
     단독 매칭**이 정확하다(재조회와 달리 대상이 명확). 정확히 1건이 아니거나(0행/다행) 조회 실패(rt_cd!=0/
     오형상)면 :class:`KISError` 로 fail-closed -- 취소 와이어에 닿지 않는다. 읽기 전용이라 claim 전에
-    수행할 수 있다."""
-    strt, end_inclusive = _night_date_window(anchor, now)
+    수행할 수 있다.
+
+    실잔량은 **주문수량(``ord_qty``) - 총체결수량(``tot_ccld_qty``)** 으로 계산한다 -- STTN5201R
+    응답예시가 원장에서 비어 있어 단일 ``qty`` 필드가 잔량인지 주문수량인지 확증되지 않아, 그 필드를
+    믿고 취소 수량으로 실으면 잘못된 수량이 나갈 수 있다. 두 확정 필드의 차분은 모호하지 않다. 둘 중
+    하나라도 없으면(누락/공백) 실잔량을 확정할 수 없어 fail-closed 한다. (야간 output1 의 정확한
+    필드명은 라이브 응답으로 재확인이 필요하다 -- 원장 응답예시 대조.)"""
+    start, end_inclusive = _night_date_window(anchor, now)
     rows = _fetch_night_ccnl(
         transport, symbol=symbol, cano=cano, product_code=product_code,
         environment=environment, fuop_dvsn=_fuop_dvsn_from_symbol(symbol),
-        strt_ord_dt=strt, end_ord_dt=_plus_one_day(end_inclusive),
+        strt_ord_dt=start, end_ord_dt=_plus_one_day(end_inclusive),
     )
     matched = [row for row in rows if str(row.get("odno")) == str(order_id)]
     if len(matched) != 1:
@@ -554,7 +560,14 @@ def fetch_night_remaining(
             f"야간 잔량 조회에서 원주문 {order_id} 행이 정확히 1건이 아니다({len(matched)}건) -- "
             f"신선 잔량을 확정할 수 없어 정정·취소를 중단한다(와이어 미접촉)."
         )
-    return _parse_decimal(matched[0].get("qty"))
+    row = matched[0]
+    ordered, filled = row.get("ord_qty"), row.get("tot_ccld_qty")
+    if ordered in (None, "") or filled in (None, ""):
+        raise KISError(
+            f"야간 잔량 조회 행에 주문수량/총체결수량이 없어 실잔량(주문-체결)을 확정할 수 없다 -- "
+            f"원주문 {order_id} 정정·취소를 중단한다(와이어 미접촉)."
+        )
+    return _parse_decimal(ordered) - _parse_decimal(filled)
 
 
 def _fetch_night_ccnl(
@@ -616,7 +629,7 @@ def _fetch_night_ccnl(
 def _filter_matching_night_rows(
     rows: list[Mapping[str, Any]], fingerprint: ImmediateOrderFingerprint
 ) -> list[Mapping[str, Any]]:
-    """(야간)주문체결내역 행 중 요청 지문과 맞는 것만(순수). 주간 매처(:func:`_filter_matching_rows`)와
+    """(야간)주문체결내역 행 중 요청 지문과 맞는 것만(순수). 주간 매처(:func:`_filter_matching_day_rows`)와
     같은 구조지만 야간 output1 의 필드명이 달라 **확정 필드만** 대조한다: 종목(``pdno``)·매매구분
     (``sll_buy_dvsn_cd``)·주문수량(``ord_qty``), 지정가는 주문가격(``ord_idx4``)까지. 야간 output1 에는
     호가유형코드(``nmpr_type_cd``)가 없고 이름(``nmpr_type_name``)만 있어(라이브 미검증) 호가유형은
@@ -644,7 +657,7 @@ def _filter_matching_night_rows(
     return matched
 
 
-def _fuop_dvsn_from_symbol(symbol: str) -> str:
+def _fuop_dvsn_from_symbol(symbol: str) -> Literal["01", "02"]:
     """야간 조회의 ``FUOP_DVSN_CD`` 를 심볼 길이로 정한다 -- 6자리는 선물("01"), 9자리는 옵션("02").
     그 밖의 길이는 예상 밖 심볼 형상이라 :class:`KISError` 로 fail-closed(엉뚱한 구분으로 훑지 않는다)."""
     length = len(symbol)
