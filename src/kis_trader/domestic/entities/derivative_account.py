@@ -50,7 +50,7 @@ class DerivativeBalance:
     """선물옵션 계좌의 예수금·증거금·손익 요약과 보유내역 한 벌(불변).
 
     ``total_deposit`` 총예수금액, ``deposit_cash`` 예수금현금, ``total_margin`` 증거금총액,
-    ``available_cash`` / ``available_total`` 주문가능현금/총액, ``account_value`` 추정예탁자산금액.
+    ``orderable_cash`` / ``orderable_total`` 주문가능현금/총액, ``account_value`` 추정예탁자산금액.
     평가·매매손익은 합계(``total_*``)와 선물/옵션 분해(``futures_*`` / ``options_*``)를 함께 담는다.
     타입화하지 않은 요약 필드는 ``raw`` 로 접근한다.
     """
@@ -59,8 +59,8 @@ class DerivativeBalance:
     total_deposit: Decimal                # 총예수금액(tot_dncl_amt)
     deposit_cash: Decimal                 # 예수금현금(dnca_cash)
     total_margin: Decimal                 # 증거금총액(mgna_tota)
-    available_cash: Decimal               # 주문가능현금(ord_psbl_cash)
-    available_total: Decimal              # 주문가능총액(ord_psbl_tota)
+    orderable_cash: Decimal               # 주문가능현금(ord_psbl_cash)
+    orderable_total: Decimal              # 주문가능총액(ord_psbl_tota)
     total_unrealized_pnl: Decimal         # 평가손익금액합계(evlu_pfls_amt_smtl)
     total_realized_pnl: Decimal           # 매매손익금액합계(trad_pfls_amt_smtl)
     futures_unrealized_pnl: Decimal       # 선물평가손익금액(futr_evlu_pfls_amt)
@@ -115,7 +115,7 @@ class DerivativeValuationBalance:
 
     :class:`DerivativeBalance` 와 같은 요약 필드 집합을 담되, 보유내역은 종목별 평가/매매 손익을
     실은 :class:`DerivativeValuationPosition` 이다. ``total_deposit`` 총예수금액, ``deposit_cash``
-    예수금현금, ``total_margin`` 증거금총액, ``available_cash`` / ``available_total`` 주문가능현금/총액,
+    예수금현금, ``total_margin`` 증거금총액, ``orderable_cash`` / ``orderable_total`` 주문가능현금/총액,
     ``account_value`` 추정예탁자산금액. 평가·매매손익은 합계(``total_*``)와 선물/옵션 분해
     (``futures_*`` / ``options_*``)를 함께 담는다. 타입화하지 않은 요약 필드는 ``raw`` 로 접근한다.
     """
@@ -124,8 +124,8 @@ class DerivativeValuationBalance:
     total_deposit: Decimal                # 총예수금액(tot_dncl_amt)
     deposit_cash: Decimal                 # 예수금현금(dnca_cash)
     total_margin: Decimal                 # 증거금총액(mgna_tota)
-    available_cash: Decimal               # 주문가능현금(ord_psbl_cash)
-    available_total: Decimal              # 주문가능총액(ord_psbl_tota)
+    orderable_cash: Decimal               # 주문가능현금(ord_psbl_cash)
+    orderable_total: Decimal              # 주문가능총액(ord_psbl_tota)
     total_unrealized_pnl: Decimal         # 평가손익금액합계(evlu_pfls_amt_smtl)
     total_realized_pnl: Decimal           # 매매손익금액합계(trad_pfls_amt_smtl)
     futures_unrealized_pnl: Decimal       # 선물평가손익금액(futr_evlu_pfls_amt)
@@ -146,7 +146,7 @@ class DerivativeValuationBalance:
 class DerivativeDeposit:
     """선물옵션 총자산현황 -- 예수금·주문가능·위탁증거금·손익 요약(불변).
 
-    ``total_deposit`` 예수금총액, ``available_cash`` / ``available_total`` 주문가능현금/총액,
+    ``total_deposit`` 예수금총액, ``orderable_cash`` / ``orderable_total`` 주문가능현금/총액,
     ``brokerage_margin_cash`` / ``brokerage_margin_substitute`` 위탁증거금현금/대용,
     ``maintenance_ratio`` 유지비율, ``account_value`` 추정예탁자산금액, ``receivable`` 미수금.
     평가·매매손익은 합계(``total_*``)와 선물/옵션 분해(``futures_*`` / ``options_*``)를 함께 담는다.
@@ -155,8 +155,8 @@ class DerivativeDeposit:
     """
 
     total_deposit: Decimal                # 예수금총액(dnca_tota)
-    available_cash: Decimal               # 주문가능현금(ord_psbl_cash)
-    available_total: Decimal              # 주문가능총액(ord_psbl_tota)
+    orderable_cash: Decimal               # 주문가능현금(ord_psbl_cash)
+    orderable_total: Decimal              # 주문가능총액(ord_psbl_tota)
     brokerage_margin_cash: Decimal        # 위탁증거금현금(brkg_mgna_cash)
     brokerage_margin_substitute: Decimal  # 위탁증거금대용(brkg_mgna_sbst)
     maintenance_ratio: Decimal            # 유지비율(mtnc_rt)

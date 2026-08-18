@@ -195,7 +195,7 @@ def test_derivative_deposit_parses_and_routes():
     dep = _client(fake, environment="real").account.deposit()
     assert isinstance(dep, DerivativeDeposit)
     assert dep.total_deposit == Decimal(50000000)              # dnca_tota
-    assert dep.available_cash == Decimal(30000000)             # ord_psbl_cash
+    assert dep.orderable_cash == Decimal(30000000)             # ord_psbl_cash
     assert dep.maintenance_ratio == Decimal("418.23000000")    # mtnc_rt
     assert dep.account_value == Decimal(51000000)              # prsm_dpast_amt
     assert dep.receivable == Decimal(0)                        # rcva
