@@ -14,6 +14,8 @@ from kis_trader.report import ExecutionReport, OrderStatus
 from kis_trader.store import OrderStore
 
 _KST = timezone(timedelta(hours=9))
+#: 고정 기록 시각 -- datetime.now 를 쓰면 영속 fixture 가 실행 시각에 따라 달라진다(결정성).
+_RECORDED_AT = datetime(2026, 8, 18, 9, 0, tzinfo=_KST)
 
 
 def _asia_fingerprint() -> ReservedOrderFingerprint:
@@ -27,18 +29,20 @@ def _asia_report() -> ExecutionReport:
     return ExecutionReport(
         client_order_id="c1", order_id="0030138295", symbol="00700", side="buy",
         status=OrderStatus.PENDING_NEW, filled_quantity=Decimal(0), average_price=None,
-        recorded_at=datetime.now(_KST), receipt_date="20260818",
+        recorded_at=_RECORDED_AT, receipt_date="20260818",
     )
 
 
 def test_receipt_date_round_trips(tmp_path):
+    # retention_days=0 으로 보존 정리를 끈다 -- 고정 기록 시각이 기본 보존창(7일)을 넘겨도
+    # c1 이 정리되면 안 된다(이 테스트는 receipt_date 왕복만 본다).
     path = tmp_path / "orders.json"
-    with OrderStore(path=path) as store:
+    with OrderStore(path=path, retention_days=0) as store:
         store.record(_asia_report(), _asia_fingerprint())
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["schema_version"] == 9
     assert data["reports"]["c1"]["receipt_date"] == "20260818"
-    with OrderStore(path=path) as reloaded:
+    with OrderStore(path=path, retention_days=0) as reloaded:
         report = reloaded.report_for("c1")
         assert report is not None
         assert report.receipt_date == "20260818"

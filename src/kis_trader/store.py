@@ -63,8 +63,8 @@ _KST = timezone(timedelta(hours=9))
 #: 구 바이너리는 새 버전 파일을 손상이 아니라 미지원 버전으로 거부하게 해 오진단을 막는다.
 #: v9: 리포트에 receipt_date(해외 예약 접수일자 RSVN_ORD_RCIT_DT) 영속 -- 재기동 후에도 해외 예약
 #: 취소가 접수일자를 읽게(전엔 미영속 _raw 에만 있어 재시작하면 취소 불가). 지문 위치 형식도 v9 에서
-#: 15-슬롯(예약 overseas_exchange)으로 늘었으나 구 14-슬롯 이하 레코드는 decode 가 뒤쪽 기본값으로
-#: 채워 그대로 읽고, 구버전 리포트의 누락 receipt_date 키는 None 으로 로드된다(하위호환).
+#: 16-슬롯(예약 overseas_exchange·currency)으로 늘었으나 구 14-슬롯 이하 레코드는 decode 가 뒤쪽
+#: 기본값으로 채워 그대로 읽고, 구버전 리포트의 누락 receipt_date 키는 None 으로 로드된다(하위호환).
 _SCHEMA_VERSION = 9
 #: 읽을 수 있는 스키마 버전 집합(이 밖은 UnsupportedSchemaVersionError 로 거부).
 _READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 9})

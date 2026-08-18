@@ -19,7 +19,7 @@ from collections.abc import Mapping
 from dataclasses import replace
 from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, Literal
 
 from ..._internal._wire import decimal_or_zero, format_wire_decimal, optional_decimal
 from ...errors import (
@@ -61,7 +61,7 @@ _US_CANCEL_TR = {"real": "TTTT3017U", "paper": "VTTT3017U"}
 _MAX_PAGES = 100
 _SIDE_CODE = {"buy": "02", "sell": "01"}
 _US_MARKET = "US"
-#: 아시아 예약주문 대상 시장(`_ORDER_EXCHANGE` 의 market 값) -- 홍콩/상해/심천/일본/베트남.
+#: 아시아 예약주문 대상 시장(`_ORDER_EXCHANGE` 의 시장 그룹 값) -- 홍콩/상해/심천/일본/베트남.
 _ASIA_MARKETS = frozenset({"HK", "SH", "SZ", "JP", "VN"})
 #: 아시아 거래소 -> PRDT_TYPE_CD(상품유형코드, 홍콩 제외 고정). 홍콩은 통화별(501/543/558)이라 별도.
 _ASIA_PRDT_TYPE_CD = {"TSE": "515", "SHS": "551", "SZS": "552", "HNX": "507", "HSX": "508"}
@@ -101,7 +101,7 @@ def _asia_prdt_type_cd(exchange: str, currency: str) -> str:
 
 def fetch_reserved_orders(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    start: str, end: str, market: str = "US",
+    start: str, end: str, market: Literal["US", "ASIA"] = "US",
 ) -> list[OverseasReservedOrder]:
     """해외주식 예약주문 조회(연속조회 소진까지). ``start``/``end`` 는 기간(YYYYMMDD), ``market`` 은
     조회 TR 선택("US"=TTTT3039R / "ASIA"=TTTS3014R -- 필터 공백이라 그 시장 전체가 나온다).
@@ -116,7 +116,7 @@ def fetch_reserved_orders(
 
 def _walk(
     transport: Transport, cano: str, product_code: str, start: str, end: str, *,
-    market: str = "US",
+    market: Literal["US", "ASIA"] = "US",
 ) -> list[Mapping[str, Any]]:
     """해외 예약주문 조회를 연속조회 소진까지 읽어 원본 행을 돌려준다(순수 I/O). ``market`` 이 조회
     TR 을 고른다 -- 미국/아시아가 같은 URL 을 TR 만 달리해 쓴다."""
@@ -196,7 +196,7 @@ def place_overseas_reserved_order(
     if side not in _SIDE_CODE:
         raise KISUsageError(f"side 는 buy/sell 이어야 한다: {side!r}")
     try:
-        order_exchange, market = _ORDER_EXCHANGE[exchange]
+        order_exchange, region = _ORDER_EXCHANGE[exchange]
     except KeyError:
         raise KISUsageError(
             f"해외 예약주문을 지원하지 않는 거래소코드: {exchange!r}."
@@ -208,7 +208,7 @@ def place_overseas_reserved_order(
     if not limit.is_finite() or limit <= 0:
         raise KISUsageError(f"limit_price 는 0보다 큰 유한값이어야 한다: {limit_price!r}")
 
-    if market == _US_MARKET:
+    if region == _US_MARKET:
         if currency != "HKD":  # 통화는 홍콩 상품유형 선택 전용 -- 미국에 조용히 무시하면 의도 오해
             raise KISUsageError(
                 f"통화 지정은 홍콩(HKS) 예약주문에만 유효하다: {exchange!r}, {currency!r}"
@@ -226,12 +226,13 @@ def place_overseas_reserved_order(
             "ORD_SVR_DVSN_CD": "0", "ORD_DVSN": _ORD_DVSN_LIMIT,
         }
         tr_id = _PLACE_TR["US"][side][environment]
-    elif market in _ASIA_MARKETS:
+    elif region in _ASIA_MARKETS:
         prdt_type_cd = _asia_prdt_type_cd(exchange, currency)
         fingerprint = ReservedOrderFingerprint(
             symbol=symbol, side=side, order_type="limit",
             quantity=format_wire_decimal(qty), limit_price=format_wire_decimal(limit),
             end_date="", exchange=_ASIA_RESERVED_EXCHANGE, overseas_exchange=exchange,
+            currency=currency,
         )
         body = {
             "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": symbol,
@@ -243,7 +244,7 @@ def place_overseas_reserved_order(
         }
         tr_id = _PLACE_TR["ASIA"]["any"][environment]
     else:  # _ORDER_EXCHANGE 전 항목이 미국/아시아라 현재는 도달 불가 -- 맵 확장 대비 fail-closed
-        raise KISUsageError(f"해외 예약주문을 지원하지 않는 시장이다: {exchange!r}({market}).")
+        raise KISUsageError(f"해외 예약주문을 지원하지 않는 시장이다: {exchange!r}({region}).")
 
     claim = store.try_claim(client_order_id, fingerprint)
     if isinstance(claim, Completed):
@@ -277,7 +278,7 @@ def place_overseas_reserved_order(
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
     receipt_date: str | None = None
-    if market == _US_MARKET:
+    if region == _US_MARKET:
         reserved_id = _extract_reserved_id(resp.body)
     else:
         reserved_id, receipt = _extract_asia_reservation(resp.body)
@@ -331,7 +332,7 @@ def reconcile_asia_reserved_order(
 
 def _reconcile_reserved(
     transport: Transport, store: OrderStore, client_order_id: str, *,
-    cano: str, product_code: str, market: str, now: datetime | None,
+    cano: str, product_code: str, market: Literal["US", "ASIA"], now: datetime | None,
 ) -> ExecutionReport | None:
     """미국/아시아 공용 예약 재조회 코어 -- 완료 리포트 우선, in-flight 면 최근 창을 지문 매칭.
     확정 리포트엔 행의 접수일자(RSVN_ORD_RCIT_DT)를 실어 이후 취소(아시아)가 재조회 없이 가능하다."""
@@ -440,12 +441,12 @@ def cancel_asia_reserved_order(
     ``receipt_date``=접수일자)에서 복원하므로 ``kis.orders.cancel(client_order_id)`` 로 라우팅된다.
     **지정가 예약 전용**, 전량 취소만. 모의(VTTS3013U)를 지원한다.
 
-    ``PRDT_TYPE_CD`` 는 지문의 거래소에서 재파생한다 -- 홍콩은 HKD 기본(501)이라, CNY/USD(543/558)로
-    발주한 홍콩 예약의 취소가 같은 코드로 재현되는지는 라이브에서 확인할 항목이다(통화는 지문에
-    영속되지 않는다). 반환 리포트의 ``status`` 는 :attr:`OrderStatus.PENDING_CANCEL`. 모르는/비-아시아
-    예약 id 는 :class:`KISUsageError`, 예약번호·접수일자가 리포트에 없으면 :class:`KISError`(재조회
-    유도), 거부는 :class:`OrderRejectedError`, 타임아웃(처리 불명)은 :class:`OrderTimeoutError`
-    (재전송 금지)."""
+    ``PRDT_TYPE_CD`` 는 지문의 거래소·통화에서 재파생한다 -- 통화가 지문에 영속되므로 CNY/USD
+    (543/558)로 발주한 홍콩 예약의 취소도 발주와 같은 코드로 재현된다. 반환 리포트의 ``status`` 는
+    :attr:`OrderStatus.PENDING_CANCEL`. 모르는/비-아시아 예약 id 는 :class:`KISUsageError`,
+    예약번호·접수일자가 리포트에 없으면 :class:`KISError`(재조회 유도), 거부는
+    :class:`OrderRejectedError`, 타임아웃(처리 불명)은 :class:`OrderTimeoutError`(재전송 금지),
+    정상 응답인데 취소 확인번호가 부재/불일치면 :class:`KISError`."""
     report = store.report_for(client_order_id)
     fingerprint = store.fingerprint_for(client_order_id)
     if (
@@ -460,21 +461,21 @@ def cancel_asia_reserved_order(
             f"kis.orders.reconcile({client_order_id!r}) 로 재조회한 뒤 다시 취소하라."
         )
     try:
-        order_exchange, market = _ORDER_EXCHANGE[fingerprint.overseas_exchange]
+        order_exchange, region = _ORDER_EXCHANGE[fingerprint.overseas_exchange]
     except KeyError:
         raise KISError(
             f"아시아 예약주문 {client_order_id!r} 지문의 거래소코드를 해석할 수 없다"
             f"({fingerprint.overseas_exchange!r}, 내부 상태 불일치)."
         ) from None
-    if market not in _ASIA_MARKETS:
+    if region not in _ASIA_MARKETS:
         raise KISError(
             f"아시아 예약주문 {client_order_id!r} 지문의 거래소가 아시아가 아니다"
-            f"({fingerprint.overseas_exchange!r} -> {market}, 내부 상태 불일치)."
+            f"({fingerprint.overseas_exchange!r} -> {region}, 내부 상태 불일치)."
         )
     body = {
         "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": fingerprint.symbol,
         "SLL_BUY_DVSN_CD": _SIDE_CODE[fingerprint.side], "RVSE_CNCL_DVSN_CD": "02",
-        "PRDT_TYPE_CD": _asia_prdt_type_cd(fingerprint.overseas_exchange, "HKD"),
+        "PRDT_TYPE_CD": _asia_prdt_type_cd(fingerprint.overseas_exchange, fingerprint.currency),
         "OVRS_EXCG_CD": order_exchange,
         "FT_ORD_QTY": fingerprint.quantity, "FT_ORD_UNPR3": fingerprint.limit_price,
         "ORD_SVR_DVSN_CD": "0",
@@ -494,6 +495,15 @@ def cancel_asia_reserved_order(
     if not resp.ok:
         raise OrderRejectedError(
             f"아시아 예약주문 취소 요청 거부: {resp.msg1}",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    # 취소 응답의 유일한 업무 필드는 에코된 OVRS_RSVN_ODNO -- rt_cd=0 이어도 이 번호가 요청과 다르거나
+    # 비어 있으면 실제 취소가 안 된 것으로 보고 fail-closed(미국 예약 취소의 확인번호 검증과 동형).
+    echoed = _extract_ovrs_rsvn_odno(resp.body)
+    if echoed != report.order_id:
+        raise KISError(
+            f"아시아 예약주문 취소 응답의 확인번호가 요청과 일치하지 않는다(응답 {echoed!r} != 요청 "
+            f"{report.order_id!r}) -- 예약주문조회로 상태를 확인하라.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
     cancelled = _make_report(client_order_id, report.order_id, fingerprint.symbol,
