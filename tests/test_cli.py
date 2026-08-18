@@ -83,7 +83,7 @@ class _Orders:
 class StubKis:
     def __init__(self, account=None, environment="paper"):
         self.log: list = []
-        self.account = account        # 세션이 해석한 계좌(주문 게이트가 kis.account 로 읽음)
+        self._account = account    # 세션이 해석한 계좌(주문 게이트가 kis._account 로 읽음)
         self.environment = environment
         self.domestic = _Domestic(self.log)
         self.orders = _Orders(self.log)
@@ -342,7 +342,7 @@ def test_main_order_timeout_exits_seven_with_reconcile(monkeypatch, capsys):
             return _TimeoutHandle()
 
     class _Kis:
-        account = None
+        _account = None
         environment = "paper"
         domestic = _Domestic()
 
@@ -518,7 +518,7 @@ def test_build_client_resolves_account_and_environment_from_profile(monkeypatch)
     monkeypatch.setenv("KIS_PAPER_ACCOUNT", "12345678-01")
     monkeypatch.setenv("KIS_PAPER_ENVIRONMENT", "paper")   # 환경은 프로필에 저장된 값이 정한다
     kis = build_client(_args(["--profile", "paper", "stock", "quote", "005930"]))
-    assert kis.account == "12345678-01"
+    assert kis._account == "12345678-01"
     assert kis.environment == "paper"
 
 

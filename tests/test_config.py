@@ -249,7 +249,7 @@ def test_client_reads_saved_profile(tmp_path):
     KISConfig(profile="main", app_key="AK", app_secret="SK",
               account="12345678-01", config_dir=tmp_path).save()
     kis = KISClient(profile="main", config_dir=tmp_path, transport=_FakeTransport())
-    assert kis.environment == "real" and kis.account == "12345678-01"
+    assert kis.environment == "real" and kis._account == "12345678-01"
 
 
 def test_client_reads_paper_environment_from_profile(tmp_path):
@@ -301,14 +301,14 @@ def test_client_account_override(tmp_path):
               account="12345678-01", config_dir=tmp_path).save()
     kis = KISClient(profile="main", account="87654321-02", config_dir=tmp_path,
                     transport=_FakeTransport())
-    assert kis.account == "87654321-02"
+    assert kis._account == "87654321-02"
 
 
 def test_save_then_client_round_trip(tmp_path):
     KISConfig(profile="pension_b", app_key="AK", app_secret="SK",
               account="11112222-22", config_dir=tmp_path).save()
     kis = KISClient(profile="pension_b", config_dir=tmp_path, transport=_FakeTransport())
-    assert kis.account == "11112222-22" and kis.environment == "real"
+    assert kis._account == "11112222-22" and kis.environment == "real"
 
 
 # --- 기본 프로필 해석 (profile 미지정) ---------------------------------------
@@ -350,7 +350,7 @@ def test_client_opens_default_profile_first_entry(tmp_path):
               environment="paper", config_dir=tmp_path).save()
     kis = KISClient(config_dir=tmp_path, transport=_FakeTransport())  # profile 미지정
     assert kis.environment == "paper"        # 첫 항목 isa(paper) 를 열었다(main real 폴백 아님)
-    assert kis.account == "12345678-01"      # 게이트가 판정하는 계좌도 첫 항목 것
+    assert kis._account == "12345678-01"  # 게이트가 판정하는 계좌도 첫 항목 것
 
 
 def test_default_profile_env_nonexistent_fails_closed(tmp_path, monkeypatch):

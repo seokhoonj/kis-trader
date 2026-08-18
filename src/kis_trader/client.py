@@ -267,9 +267,10 @@ class KISClient:
         return self._hts_id
 
     @property
-    def account(self) -> str | None:
-        """세션 기본 계좌번호 ``CANO-ACNT_PRDT_CD`` (계좌 없이 열었으면 ``None``). 생성 시 한 번
-        해석된 값이라, 컨슈머(CLI 등)가 자격증명을 다시 읽지 않고 이 값을 재사용한다."""
+    def _account(self) -> str | None:
+        """세션 기본 계좌번호 ``CANO-ACNT_PRDT_CD`` (계좌 없이 열었으면 ``None``). 내부 컨슈머
+        (CLI 등)가 자격증명을 다시 읽지 않고 이 값을 재사용한다. 공개 표면 ``kis.account`` 는
+        계좌 조회 파사드다(이 문자열이 아니다) -- 문자열이 필요하면 이 내부 접근자를 쓴다."""
         if self._cano is None:
             return None
         return f"{self._cano}-{self._product_code}"

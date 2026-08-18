@@ -166,7 +166,7 @@ def build_parser() -> argparse.ArgumentParser:
 def _emit(result: Any, args: argparse.Namespace, kis: KISClient) -> None:
     # 환경·계좌는 세션(kis)이 생성 시 이미 해석한 값을 재사용한다(자격증명 재조회 없음).
     meta = {"environment": kis.environment,
-            "account_suffix": account_suffix(kis.account)}
+            "account_suffix": account_suffix(kis._account)}
     print(render(result, fmt=args.fmt, include_raw=args.include_raw,
                  no_header=args.no_header, meta=meta))
 
