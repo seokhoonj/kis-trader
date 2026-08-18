@@ -108,9 +108,14 @@ kis.orders.reconcile(r.client_order_id)
 s.reserve_buy(quantity=10, limit_price=70000)                          # 국내 예약(다음 영업일)
 kis.overseas.stock("AAPL").overnight_buy(quantity=1, limit_price=150)  # 미국 오버나이트(한국 낮)
 kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)    # 미국 예약
+kis.overseas.stock("00700").reserve_buy(quantity=100, limit_price=350) # 홍콩 예약(거래소 자동판별)
 ```
 
-예약주문 조회·정정·취소(순번 `sequence` 로 지목):
+해외 예약은 **거래소로 자동 라우팅**됩니다 — `stock(symbol)` 이 종목 마스터로 거래소를 찾아
+미국(NAS/NYS/AMS)과 아시아(홍콩·중국·일본·베트남)를 알아서 가릅니다. 같은 코드가 여러 거래소에 있으면
+`exchange=` 를 명시합니다. 홍콩은 결제통화를 `currency="CNY"`/`"USD"` 로 바꿀 수 있습니다(기본 HKD).
+
+국내 예약주문 조회·정정·취소(순번 `sequence` 로 지목):
 
 ```python
 a = kis.domestic.account
@@ -118,6 +123,19 @@ a = kis.domestic.account
 a.reserved_orders(start="20240101", end="20240131")  # 예약주문 목록
 a.modify_reserved_order("0001", symbol="005930", side="buy", quantity=5, limit_price=71000)
 a.cancel_reserved_order("0001")                      # 취소
+```
+
+해외 예약주문 조회·취소:
+
+```python
+oa = kis.overseas.account
+oa.reserved_orders(start="20240101", end="20240131")  # 미국+아시아 예약 목록(실전 전용)
+
+hk = kis.overseas.stock("00700").reserve_buy(quantity=100, limit_price=350)
+kis.orders.cancel(hk.client_order_id)                 # 아시아 취소 = client_order_id 로
+
+us = kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)
+oa.cancel_reserved_order(us.order_id, receipt_date="20240102")  # 미국 취소 = 예약번호+접수일자
 ```
 
 ## 신용주문
