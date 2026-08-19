@@ -28,7 +28,7 @@ if TYPE_CHECKING:
 
 
 class OverseasDerivative:
-    """한 해외 선물/옵션 계약에 대한 조회 핸들. 세션과 시리즈코드·시장을 안다.
+    """한 해외 선물/옵션 계약에 대한 조회·주문 핸들. 세션과 시리즈코드·시장을 안다.
 
     보통 직접 만들지 않고 ``kis.overseas.futures`` / ``kis.overseas.option``
     으로 얻는다. ``market`` 은 ``"future"``(선물) 또는 ``"option"``(옵션)이고, ``symbol`` 은
@@ -88,6 +88,9 @@ class OverseasDerivative:
         둘 다 없으면 시장가(``order_type`` 으로 명시 가능). ``quantity`` 는 계약 수(정수)이며,
         결제통화는 계약이 정한다(해외 파생 종목코드가 통화별로 유일). ``client_order_id`` 는
         멱등키(생략 시 자동 발행).
+
+        KIS URL/TR-ID: ``POST /uapi/overseas-futureoption/v1/trading/order`` (실전 ``OTFM3001U``,
+        모의 미지원).
 
         **실전투자 전용**(모의투자 미지원)이라 ``environment="paper"`` 세션은 와이어 전에 fail-closed.
         이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 실제 주문 경로는 실거래이며

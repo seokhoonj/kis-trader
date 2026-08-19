@@ -88,6 +88,7 @@ def test_make_order_request_market_uses_price_division_2():
     req = osfo.make_order_request(_order(order_type="market", limit_price=None),
                                   cano="8", product_code="08", environment="real")
     assert req.body["PRIC_DVSN_CD"] == "2"
+    assert req.body["CCLD_CNDT_CD"] == "2"        # 시장가 체결조건은 "2"(지정가/STOP 은 "6")
     assert req.body["FM_LIMIT_ORD_PRIC"] == ""
     assert req.body["FM_STOP_ORD_PRIC"] == ""
 
@@ -143,9 +144,15 @@ def test_extract_output_rejects_non_mapping():
 
 
 def test_extract_output_accepts_mapping():
+    # ODNO 는 그대로 노출하고, ORD_DT 는 시장 중립 접수-일자 키로 정규화해 place 가 receipt_date 로 읽는다.
     assert osfo.extract_output({"output": {"ODNO": "0000007045", "ORD_DT": "20260819"}}) == {
-        "ODNO": "0000007045", "ORD_DT": "20260819",
+        "ODNO": "0000007045", "ORD_DT": "20260819", "_receipt_date": "20260819",
     }
+
+
+def test_extract_output_omits_receipt_key_when_no_ord_dt():
+    # ORD_DT 가 없으면 정규화 키를 넣지 않아 receipt_date 는 None 으로 남는다(다른 자산과 동일).
+    assert osfo.extract_output({"output": {"ODNO": "0000007045"}}) == {"ODNO": "0000007045"}
 
 
 # --- end-to-end: handle.buy -> _place_order -> 전송 -> ExecutionReport -----
@@ -221,3 +228,15 @@ def test_os_fo_buy_rejects_risk_gate():
     with pytest.raises(KISUsageError):
         client.overseas.futures("6BZ22").buy(quantity=1, limit_price="1.17")
     assert fake.request_count == 0
+
+
+# --- reconcile fail-closed (미확인 OSFO 주문은 국내주식 일별체결조회로 오조회하지 않는다) ---
+def test_os_fo_reconcile_fails_closed_not_silent_none():
+    # in-flight 해외선물옵션 지문의 재조회는 엉뚱한 테이블을 훑어 None 을 돌려주는 대신, 미지원임을
+    # 명시하며 fail-closed 해야 한다(채권 fail-closed 분기와 대칭).
+    store = OrderStore()
+    order = _order(client_order_id="osfo-inflight")
+    store.try_claim("osfo-inflight", order.fingerprint)
+    client = _client(FakeTransport(), store=store)
+    with pytest.raises(KISUsageError, match="재조회"):
+        client.orders.reconcile("osfo-inflight")

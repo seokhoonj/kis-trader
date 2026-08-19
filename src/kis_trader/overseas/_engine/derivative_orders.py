@@ -1,11 +1,13 @@
-"""해외선물옵션(08) 발주 와이어 빌더 (내부) -- domestic/_engine/bond_orders.py 의 형제.
+"""해외선물옵션(08) 발주 와이어 빌더 (내부) -- 국내 파생·채권 주문 빌더(domestic/_engine/derivative_orders.py,
+domestic/_engine/bond_orders.py)와 같은 주입 구조.
 
 주문 실행의 안전 규칙(이중체결 방지·쓰기 재시도 금지·보수적 재조회)은 국내주식·해외·파생·채권과
 공유하는 안전 코어(:func:`~kis_trader.domestic._engine.orders.place`)가 맡는다. 이 모듈은 그
 코어에 ``build_request`` 로 주입할 **해외선물옵션(OSFO) 발주의 와이어 요청**만 조립하고(순수 함수라
 오케스트레이션 없이 단독 검증된다), 접수 응답에서 output(``{ORD_DT, ODNO}``)을 엄격히 뽑는 파서를
-제공한다. ODNO 는 안전 코어가 ``order_id`` 로, ORD_DT 는 ``receipt_date`` 로 영속해 이후 정정·취소가
-원주문일자(ORGN_ORD_DT)로 대상을 특정할 수 있게 한다.
+제공한다. ODNO 는 안전 코어가 ``order_id`` 로 뽑고, ORD_DT 는 이 파서가 시장 중립 키
+(:data:`~kis_trader.domestic._engine.orders._RECEIPT_DATE_KEY`)로 정규화해 코어가 ``receipt_date`` 로
+영속하게 한다 -- 이후 정정·취소가 원주문일자(ORGN_ORD_DT)로 대상을 특정할 수 있게 하려는 것이다.
 
 KIS URL/TR-ID (KIS 명세 대조, sheet '해외선물옵션 주문'):
 - 발주: ``POST /uapi/overseas-futureoption/v1/trading/order``, 실전 ``OTFM3001U`` (**모의투자 미지원**).
@@ -22,6 +24,7 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from ..._internal._wire import format_wire_decimal
+from ...domestic._engine.orders import _RECEIPT_DATE_KEY
 from ...errors import KISUsageError, OrderError
 from ...order import _OVERSEAS_FO_EXCHANGE, Order, WireRequest
 
@@ -52,7 +55,8 @@ def make_order_request(
     ``order_type`` 에서 정한다(지정가 "1" / 시장가 "2" / STOP "3") -- 지원하지 않는 order_type
     (스탑지정가 등)은 조용히 지정가로 바꾸지 않고 거부한다. 지정가는 ``FM_LIMIT_ORD_PRIC``,
     STOP 은 ``FM_STOP_ORD_PRIC`` 에만 값을 싣고 나머지 가격은 공란이다. 헤지청산(``FM_LQD_*``)
-    필드는 v1 에서 공란 고정이며, 체결조건 EOD("6")·복합주문 없음("0")·예약 아님("N")도 고정값이다."""
+    필드는 v1 에서 공란 고정이며, 체결조건(``CCLD_CNDT_CD``)은 시장가면 "2"(시장가) 아니면 "6"(EOD
+    지정가)로, 복합주문 없음("0")·예약 아님("N")도 고정값이다."""
     if order.exchange != _OVERSEAS_FO_EXCHANGE:
         raise OrderError(
             f"해외선물옵션 빌더에 비-OSFO 주문이 들어왔다: {order.exchange!r} (라우팅 오류)."
@@ -79,6 +83,9 @@ def make_order_request(
         if order.order_type == "stop" and order.stop_price is not None
         else ""
     )
+    # 체결조건: 시장가는 "2"(시장가), 그 외는 "6"(EOD 지정가). STOP 의 CCLD_CNDT_CD 는 명세에 명시값이
+    # 없어 "6" 을 쓰되 라이브 확인 전까지 미검증이다(지정가와 같은 값으로 둔다).
+    ccld_cndt = "2" if order.order_type == "market" else "6"
     body = {
         "CANO": cano,
         "ACNT_PRDT_CD": product_code,
@@ -92,7 +99,7 @@ def make_order_request(
         "FM_ORD_QTY": format_wire_decimal(order.quantity),
         "FM_LQD_LMT_ORD_PRIC": "",                 # 헤지청산 지정가 -- v1 공란
         "FM_LQD_STOP_ORD_PRIC": "",                # 헤지청산 스탑가 -- v1 공란
-        "CCLD_CNDT_CD": "6",                       # 체결조건: EOD(장마감)
+        "CCLD_CNDT_CD": ccld_cndt,                 # 체결조건: 시장가 "2" / 그 외 EOD "6"
         "CPLX_ORD_DVSN_CD": "0",                   # 복합주문 아님
         "ECIS_RSVN_ORD_YN": "N",                   # 예약주문 아님
         "FM_HDGE_ORD_SCRN_YN": "N",                # 헤지주문화면 아님
@@ -105,10 +112,16 @@ def extract_output(body: Mapping[str, Any]) -> Mapping[str, Any]:
 
     ``output`` 키가 없거나 Mapping 이 아니면 :class:`~kis_trader.errors.OrderError` 로 fail-closed
     한다(top-level 로 폴백해 엉뚱한 ODNO/ORD_DT 를 읽으면 재조회·정정취소 대상이 어긋난다). 안전
-    코어(place)가 이 매핑에서 ``ODNO`` 를 ``order_id`` 로, ``ORD_DT`` 를 ``receipt_date`` 로 뽑는다."""
+    코어(place)가 이 매핑에서 ``ODNO`` 를 ``order_id`` 로 뽑는다. 이 응답의 주문일자(``ORD_DT``)는
+    시장 중립 키(:data:`~kis_trader.domestic._engine.orders._RECEIPT_DATE_KEY`)로 정규화해 넣어, 코어가
+    자산별 필드명을 모른 채 ``receipt_date`` 로 영속하게 한다(다른 자산은 이 키를 안 채워 None)."""
     out = body.get("output")
     if not isinstance(out, Mapping):
         raise OrderError(
             "해외선물옵션 발주 응답에 output(object)이 없다 -- top-level 폴백 금지, 재조회 불가."
         )
-    return out
+    normalized = dict(out)
+    receipt_date = out.get("ORD_DT")
+    if receipt_date:
+        normalized[_RECEIPT_DATE_KEY] = receipt_date
+    return normalized

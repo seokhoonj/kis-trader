@@ -63,6 +63,11 @@ _MAX_RECONCILE_PAGES = 100
 #: 국내(KRX/KOSDAQ/Nextrade) 시장 식별코드 -- 이 셋은 국내 현금주문으로 라우팅.
 _DOMESTIC_MICS = frozenset(("XKRX", "XKOS", "NXTE"))
 
+#: 시장 중립 접수-일자 키. 시장별 extract_output 파서가 접수 응답의 자기 일자 필드(예: 해외선물옵션의
+#: ORD_DT)를 이 키로 정규화해 넣으면, :func:`place` 가 필드명을 모른 채 ``receipt_date`` 로 영속한다.
+#: 이 키를 안 채우는 자산(국내주식/파생/채권 등)은 ``receipt_date`` 가 None 으로 남아 동작 불변이다.
+_RECEIPT_DATE_KEY = "_receipt_date"
+
 class PlaceRequestBuilder(Protocol):
     """발주 와이어 빌더의 정확한 호출 계약 -- 안전 코어(:func:`place`)는 시장 중립이라 이 형태의
     빌더를 주입받아 ``(order, cano, product_code, environment)`` 로 호출한다. 국내 현금
@@ -202,10 +207,11 @@ def place(
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
 
-    # 접수 응답의 주문일자(ORD_DT)가 있으면 리포트에 영속한다 -- 해외선물옵션(OTFM3001U)은 이후
-    # 정정·취소가 원주문일자(ORGN_ORD_DT)로 대상을 특정하므로 접수 시점에 잡아 둔다. 국내주식/파생/
-    # 채권 응답 output 엔 ORD_DT 가 없어 None 이 되고(receipt_date 기본값과 동일) 기존 동작은 불변이다.
-    receipt = output.get("ORD_DT")
+    # 시장 중립 접수-일자: 시장별 파서가 정규화 키(_RECEIPT_DATE_KEY)로 채운 값만 영속한다 -- place 는
+    # 자산별 응답 필드명(예: 해외선물옵션 ORD_DT)을 모른다. 해외선물옵션은 이후 정정·취소가 원주문일자
+    # (ORGN_ORD_DT)로 대상을 특정하므로 접수 시점에 잡아 둔다. 이 키를 안 채우는 자산(국내주식/파생/
+    # 채권)은 None 이 되어(receipt_date 기본값과 동일) 기존 동작은 불변이다.
+    receipt = output.get(_RECEIPT_DATE_KEY)
     report = ExecutionReport(
         client_order_id=client_order_id,
         order_id=str(order_id),
