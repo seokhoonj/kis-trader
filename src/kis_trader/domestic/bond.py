@@ -109,3 +109,38 @@ class Bond:
             client_order_id=client_order_id or mint_client_order_id(),
         )
         return self._client._place_order(order)
+
+    def sell(
+        self, *, quantity: Numeric, limit_price: Numeric,
+        buy_date: str, buy_seq: str, client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 채권의 특정 **매수 lot** 을 매도한다 -- 장내채권은 지정가(채권단가) 전용이라 ``limit_price``
+        는 필수다. 채권 잔고는 종목이 아니라 매수 단위로 쪼개져 있으므로, 어떤 lot 을 파는지
+        ``buy_date``(매수일자 YYYYMMDD)·``buy_seq``(매수순번)로 지목해야 한다. 이 값은
+        ``kis.account.domestic.bonds.balance()`` 가 돌려주는
+        :class:`~kis_trader.domestic.entities.bond_account.BondPosition` 의 ``buy_date``/``buy_sequence``
+        에서 얻는다. ``quantity`` 는 액면(face) 단위, ``limit_price`` 는 채권단가, ``client_order_id`` 는
+        멱등키(생략 시 자동 발행)다. 채권 주문은 당일(day) 전용이라 ``time_in_force`` 는 받지 않는다.
+
+        같은 종목·수량·가격이라도 서로 다른 lot 의 매도는 서로 다른 주문이므로, lot(buy_date/buy_seq)이
+        멱등 지문에 함께 실려 dedup 장벽이 다른 lot 의 매도를 오차단하지 않는다.
+
+        **실전투자 전용**(모의투자 미지원)이라 ``environment="paper"`` 세션에선
+        :class:`~kis_trader.errors.KISUsageError` 로 fail-closed 한다. 실주문이라 이 경로는 라이브로
+        검증하기 전까지 프로덕션 사용에 앞서 실계좌 확인이 필요하다. 이중체결 방지·타임아웃 재시도
+        금지는 국내주식·파생과 같은 안전 엔진에서 자동 적용된다. 채권 타임아웃은 ``kis.orders.reconcile``
+        로 확인되지 않으니(미지원, fail-closed) ``kis.account.domestic.bonds`` 의 체결/미체결
+        (fills/open_orders) 조회로 직접 확인한다.
+
+        분리과세(``SPRX_YN``)는 v1 에서 지원하지 않고 항상 미신청("N")으로 나간다.
+
+        KIS URL/TR-ID: ``POST /uapi/domestic-bond/v1/trading/sell`` (실전 ``TTTC0958U``, 모의 미지원)."""
+        order = Order(
+            symbol=self.code, side="sell", order_type="limit",
+            quantity=coerce_decimal(quantity, "quantity"),
+            limit_price=coerce_decimal(limit_price, "limit_price"),
+            time_in_force="day", exchange=_BOND_EXCHANGE,
+            bond_buy_date=buy_date, bond_buy_seq=str(buy_seq),
+            client_order_id=client_order_id or mint_client_order_id(),
+        )
+        return self._client._place_order(order)

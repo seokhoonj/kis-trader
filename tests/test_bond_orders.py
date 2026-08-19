@@ -22,6 +22,7 @@ from kis_trader.report import ExecutionReport, OrderStatus
 from kis_trader.transport import RawResponse
 
 _BUY = "/uapi/domestic-bond/v1/trading/buy"
+_SELL = "/uapi/domestic-bond/v1/trading/sell"
 _CHANGE = "/uapi/domestic-bond/v1/trading/order-rvsecncl"
 _ACCEPTED = RawResponse(
     rt_cd="0", msg_cd="APBK0013", msg1="주문 전송 완료",
@@ -99,9 +100,26 @@ def test_make_order_request_paper_rejected():
         bond.make_order_request(_bond_order(), cano="8", product_code="03", environment="paper")
 
 
-def test_make_order_request_sell_not_supported():
+def test_make_order_request_sell_body():
+    # 매도는 sell 엔드포인트/TR 로 라우팅하고 매수 lot(BUY_DT/BUY_SEQ)을 지문 재사용 슬롯에서 읽는다.
+    order = _bond_order(side="sell", bond_buy_date="20240215", bond_buy_seq="1")
+    req = bond.make_order_request(order, cano="81012345", product_code="03", environment="real")
+    assert req.method == "POST"
+    assert req.path == bond._SELL_PATH
+    assert req.tr_id == "TTTC0958U"
+    assert req.body == {
+        "CANO": "81012345", "ACNT_PRDT_CD": "03", "ORD_DVSN": "01", "PDNO": "KR2033022D33",
+        "ORD_QTY2": "10", "BOND_ORD_UNPR": "10000", "SPRX_YN": "N",
+        "BUY_DT": "20240215", "BUY_SEQ": "1",
+        "SAMT_MKET_PTCI_YN": "N", "SLL_AGCO_OPPS_SLL_YN": "N", "BOND_RTL_MKET_YN": "N",
+        "MGCO_APTM_ODNO": "", "ORD_SVR_DVSN_CD": "0", "CTAC_TLNO": "",
+    }
+
+
+def test_make_order_request_sell_requires_lot():
+    # 매수 lot 지목(BUY_DT/BUY_SEQ)이 없는 매도는 fail-closed -- 엉뚱한 lot 을 팔지 않는다.
     order = _bond_order(side="sell")
-    with pytest.raises(KISUsageError, match="매도"):
+    with pytest.raises(KISUsageError, match="lot"):
         bond.make_order_request(order, cano="8", product_code="03", environment="real")
 
 
@@ -181,6 +199,100 @@ def test_bond_buy_rejects_risk_gate():
     with pytest.raises(KISUsageError):
         client.domestic.bond("KR2033022D33").buy(quantity=10, limit_price=10000)
     assert fake.request_count == 0
+
+
+# --- end-to-end: handle.sell (매수 lot 지목, 실전 전용) ---------------------
+def test_bond_sell_wire():
+    fake = FakeTransport()
+    report = _client(fake).domestic.bond("KR2033022D33").sell(
+        quantity=10, limit_price=10000, buy_date="20240215", buy_seq="1")
+    assert isinstance(report, ExecutionReport)
+    assert report.order_id == "0001234567"
+    assert fake.request_count == 1
+    call = fake.calls[0]
+    assert call["method"] == "POST"
+    assert call["path"] == _SELL
+    assert call["tr_id"] == "TTTC0958U"
+    assert call["body"]["ORD_DVSN"] == "01"
+    assert call["body"]["PDNO"] == "KR2033022D33"
+    assert call["body"]["ORD_QTY2"] == "10"
+    assert call["body"]["BOND_ORD_UNPR"] == "10000"
+    assert call["body"]["BUY_DT"] == "20240215"
+    assert call["body"]["BUY_SEQ"] == "1"
+    assert call["body"]["SPRX_YN"] == "N"
+    assert call["body"]["ORD_SVR_DVSN_CD"] == "0"
+
+
+def test_bond_sell_lot_in_fingerprint():
+    # 같은 종목/수량/가격이라도 서로 다른 lot 의 매도는 서로 다른 주문이라 지문이 달라야 하고,
+    # dedup 장벽이 둘째 매도를 오차단하지 않고 둘 다 나가야 한다.
+    store = OrderStore()
+    fake = FakeTransport()
+    handle = _client(fake, store=store).domestic.bond("KR2033022D33")
+    r1 = handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_seq="1")
+    r2 = handle.sell(quantity=10, limit_price=10000, buy_date="20240216", buy_seq="1")
+    r3 = handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_seq="2")
+    assert fake.request_count == 3              # 세 lot 모두 서로 다른 주문 -> 전부 전송
+    assert r1.order_id == r2.order_id == r3.order_id  # 같은 고정 응답(구분은 지문에서)
+
+
+def test_bond_sell_same_lot_dedups():
+    # 같은 lot 의 같은 id 재발주는 공유 안전 코어가 재전송을 막는다(1회만 나감).
+    store = OrderStore()
+    fake = FakeTransport()
+    cid = "20260819-bondsell0000001"
+    handle = _client(fake, store=store).domestic.bond("KR2033022D33")
+    r1 = handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_seq="1",
+                     client_order_id=cid)
+    r2 = handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_seq="1",
+                     client_order_id=cid)
+    assert r1.order_id == r2.order_id
+    assert fake.request_count == 1
+
+
+def test_bond_sell_requires_lot():
+    # 빈 buy_date/buy_seq 로는 매도할 수 없다 -- 와이어에 닿기 전에 fail-closed.
+    fake = FakeTransport()
+    handle = _client(fake).domestic.bond("KR2033022D33")
+    with pytest.raises(KISUsageError):
+        handle.sell(quantity=10, limit_price=10000, buy_date="", buy_seq="1")
+    with pytest.raises(KISUsageError):
+        handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_seq="")
+    assert fake.request_count == 0
+
+
+def test_bond_sell_paper_fails_closed():
+    # 채권 매도도 실전 전용 -- 모의 세션은 claim 전에 거부하고 와이어에 닿지 않는다.
+    fake = FakeTransport()
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").domestic.bond("KR2033022D33").sell(
+            quantity=10, limit_price=10000, buy_date="20240215", buy_seq="1")
+    assert fake.request_count == 0
+
+
+def test_bond_sell_lot_slots_are_bond_only():
+    # 매수 lot 슬롯(bond_buy_date/seq)은 채권 주문 전용 -- 다른 거래소에 실리면 생성 시점에 거부.
+    with pytest.raises(KISUsageError):
+        Order(symbol="005930", side="sell", order_type="limit", quantity=Decimal(1),
+              limit_price=Decimal(70000), exchange="XKRX", bond_buy_date="20240215",
+              bond_buy_seq="1", client_order_id="c")
+
+
+def test_fingerprint_byte_compat_unchanged_for_existing_orders():
+    # 채권 매수·주식·파생 주문은 lot 슬롯을 "" 로 두므로 온-디스크 16-슬롯 인코딩이 종전과 바이트
+    # 동일해야 한다(loan_date 슬롯 idx9, derivative_item 슬롯 idx13 이 "").
+    from kis_trader.order import encode_fingerprint
+    bond_buy = _bond_order()                    # side="buy", lot 슬롯 미설정
+    enc = encode_fingerprint(bond_buy.fingerprint)
+    assert len(enc) == 16
+    assert enc == ["KR2033022D33", "buy", "limit", "10", "10000", "", "day", "BOND",
+                   "", "", "regular", "", "KRX", "", "", "HKD"]
+    # 매도는 lot 슬롯에 BUY_DT/BUY_SEQ 를 실어 매수와 구분된다(idx9=BUY_DT, idx13=BUY_SEQ).
+    sell = _bond_order(side="sell", bond_buy_date="20240215", bond_buy_seq="1")
+    enc_sell = encode_fingerprint(sell.fingerprint)
+    assert enc_sell[9] == "20240215"
+    assert enc_sell[13] == "1"
+    assert len(enc_sell) == 16
 
 
 # --- 정정·취소 와이어 빌더(TTTC0953U, 실전 전용) ------------------------------
