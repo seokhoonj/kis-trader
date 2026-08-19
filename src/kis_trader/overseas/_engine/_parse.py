@@ -11,7 +11,7 @@ from collections.abc import Mapping
 from decimal import Decimal
 from typing import Any
 
-from ..._internal._wire import optional_decimal, required_decimal
+from ..._internal._wire import field_decimal_or_zero, required_decimal
 from ...errors import KISError
 from ...money import Money
 from ...order import Side
@@ -46,5 +46,4 @@ def _money(row: Mapping[str, Any], key: str, currency: str) -> Money:
 
 
 def _decimal_or_zero(row: Mapping[str, Any], key: str) -> Decimal:
-    amount = optional_decimal(row.get(key), key)
-    return Decimal(0) if amount is None else amount
+    return field_decimal_or_zero(row.get(key), key)

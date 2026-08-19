@@ -12,7 +12,7 @@ from datetime import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from .._internal._wire import format_wire_decimal, optional_decimal
+from .._internal._wire import field_decimal_or_zero, format_wire_decimal
 from ..domestic.entities.balance import Position
 from ..errors import KISError, KISUsageError
 from ..order import Side
@@ -289,8 +289,7 @@ def _reject_demo(environment: Environment, *, what: str) -> None:
 
 
 def _decimal_or_zero(output: Mapping[str, Any], key: str) -> Decimal:
-    amount = optional_decimal(output.get(key), key)
-    return Decimal(0) if amount is None else amount
+    return field_decimal_or_zero(output.get(key), key)
 
 
 def _format_order_unit_price(limit_price: object | None) -> str:

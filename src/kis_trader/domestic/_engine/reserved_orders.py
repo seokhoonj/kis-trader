@@ -18,7 +18,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
-from ..._internal._wire import decimal_or_zero, format_wire_decimal, optional_decimal
+from ..._internal._wire import decimal_or_zero, field_decimal_or_zero, format_wire_decimal
 from ...errors import (
     AccountNotOrderableError,
     KISError,
@@ -518,8 +518,7 @@ def _parse_reserved(row: Mapping[str, Any]) -> ReservedOrder:
 
 
 def _decimal_or_zero(row: Mapping[str, Any], key: str) -> Decimal:
-    amount = optional_decimal(row.get(key), key)
-    return Decimal(0) if amount is None else amount
+    return field_decimal_or_zero(row.get(key), key)
 
 
 def _parse_date(value: object) -> date | None:
