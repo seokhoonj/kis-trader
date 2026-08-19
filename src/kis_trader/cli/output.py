@@ -55,8 +55,12 @@ def to_jsonable(value: Any, *, include_raw: bool = False) -> Any:
         return [to_jsonable(item, include_raw=include_raw) for item in value]
     if isinstance(value, Mapping):
         # dict 와 frozen MappingProxyType(``_raw`` 는 freeze_vendor_payload 로 깊게 얼려짐)을 모두
-        # 재귀 -- proxy 를 json.dumps 에 그대로 넘기면 TypeError 라 여기서 평범한 값으로 푼다.
-        return {key: to_jsonable(val, include_raw=include_raw) for key, val in value.items()}
+        # 재귀 -- proxy 를 json.dumps 에 그대로 넘기면 TypeError 라 여기서 평범한 값으로 푼다. 키는
+        # 문자열로 강제한다(json.dumps 는 str 키만 받는다 -- KIS _raw 는 str 키지만 방어적으로).
+        return {
+            (key if isinstance(key, str) else str(key)): to_jsonable(val, include_raw=include_raw)
+            for key, val in value.items()
+        }
     if dataclasses.is_dataclass(value):
         out: dict[str, Any] = {}
         for field in dataclasses.fields(value):

@@ -96,6 +96,13 @@ class RealtimeClient:
         """
         if self._running:
             return
+        # 이전 run 의 스레드가 아직 살아 있으면(예: timeout 정리의 join 마저 늦은 멎은 연결) 새 run 을
+        # 띄우지 않는다 -- 띄우면 self._conn/_loop/_queue 를 갈아치워, 뒤늦게 깨어난 옛 스레드가 새 run 의
+        # 소켓을 닫고 큐에 stale 센티넬을 넣는다(재시작 revive/clobber). 이전 정리가 끝날 때까지 fail-closed.
+        if self._thread is not None and self._thread.is_alive():
+            raise RealtimeError(
+                "이전 실시간 실행이 아직 종료되지 않았습니다 -- stop() 으로 정리가 끝난 뒤 다시 start() 하세요."
+            )
         self._startup_error = None
         self._ready.clear()  # 재시작 시 이전 set 이 남아 조기 ready 로 오판되지 않게
         self._stop_requested.clear()
@@ -118,6 +125,12 @@ class RealtimeClient:
         """수신 중단 및 스레드 종료. 백그라운드 루프가 이미 끝났으면 join 만 한다."""
         if not self._running:
             return
+        # 수신 콜백은 백그라운드 스레드에서 돈다 -- 거기서 stop() 을 부르면 자기 루프를 기다려
+        # self-deadlock 이고 self._thread.join() 은 현재 스레드를 join 하려다 RuntimeError 다. fail-closed.
+        if threading.current_thread() is self._thread:
+            raise RealtimeError(
+                "stop() 은 실시간 콜백(수신 스레드) 안에서 호출할 수 없습니다 -- 다른 스레드에서 부르세요."
+            )
         self._running = False
         self._stop_requested.set()
         stop_error: BaseException | None = None

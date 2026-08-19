@@ -247,3 +247,20 @@ def test_restart_drains_stale_queue():
     client.stop()
     assert all(m.tr_key != "STALE" for m in streamed)  # 낡은 틱이 새지 않았다
     assert [m.tr_key for m in streamed] == ["005930"]  # 새 run 의 틱만, 조기종료 없이
+
+
+def test_start_refused_while_previous_thread_alive():
+    # 이전 run 스레드가 아직 살아있으면(멎은 연결 등) start() 는 새 run 을 띄우지 않고 fail-closed 해야
+    # 한다 -- 안 그러면 self._conn/_queue 를 갈아치워 뒤늦게 깨어난 옛 스레드가 새 소켓을 닫고 큐를 오염시킨다.
+    client = _client(FakeWebSocket(incoming=[]))
+    blocker = threading.Event()
+    stuck = threading.Thread(target=blocker.wait, daemon=True)
+    stuck.start()
+    client._thread = stuck                       # 이전 run 이 아직 종료 안 된 상황을 흉내
+    try:
+        with pytest.raises(RealtimeError):
+            client.start(timeout=1.0)
+        assert client._running is False          # 새 run 을 띄우지 않았다
+    finally:
+        blocker.set()
+        stuck.join(timeout=1.0)
