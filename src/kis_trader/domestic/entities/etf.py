@@ -25,7 +25,7 @@ from ...order_book import OrderBook, PriceLevel
 class ETFNAV:
     """ETF/ETN 순자산가치(NAV) 스냅샷(불변).
 
-    ``nav`` 는 현재 NAV(순자산가치), ``disparity_rate`` 은 괴리율(시장가가 NAV 대비 얼마나 벗어났는지, %),
+    ``nav`` 는 현재 NAV(순자산가치), ``disparity_rate`` 는 괴리율(시장가가 NAV 대비 얼마나 벗어났는지, %),
     ``tracking_error`` 는 추적오차율(%). ``nav_change`` / ``nav_change_percent`` 는 NAV 전일대비로
     하락이면 음수. 시장 체결가는 :meth:`~kis_trader.domestic.stock.DomesticStock.quote` 에 있다.
     """

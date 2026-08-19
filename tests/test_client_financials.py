@@ -145,7 +145,11 @@ def test_balance_sheet_maps_and_annual_default():
     s = sheets[0]
     assert s.symbol == "000660"
     assert s.period == "202312"
+    assert s.current_assets == Decimal(1000)          # cras
+    assert s.noncurrent_assets == Decimal(2000)       # fxas
     assert s.total_assets == Decimal(3000)
+    assert s.current_liabilities == Decimal(500)      # flow_lblt
+    assert s.noncurrent_liabilities == Decimal(300)   # fix_lblt
     assert s.total_liabilities == Decimal(800)
     assert s.total_equity == Decimal(2200)
     assert sheets[1].period == "202212"
