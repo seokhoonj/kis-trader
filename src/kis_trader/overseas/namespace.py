@@ -223,7 +223,9 @@ class OverseasAccount:
 
 
 class OverseasNamespace:
-    """``kis.overseas`` -- 해외 자산(주식·지수·파생) 시세/계좌/순위/뉴스/기업행위."""
+    """``kis.overseas`` -- 해외 자산(주식·지수·파생) 시세/순위/뉴스/기업행위.
+
+    계좌 조회·계좌 단위 주문은 여기가 아니라 ``kis.account.overseas`` (:class:`OverseasAccount`)."""
 
     def __init__(self, client: KISClient) -> None:
         self._c = client

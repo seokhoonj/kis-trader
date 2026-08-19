@@ -198,7 +198,9 @@ class DomesticAccount:
 
 
 class DomesticNamespace:
-    """``kis.domestic`` -- 국내 자산(주식·지수·채권·ELW·파생) 시세/계좌/순위/시장/일정."""
+    """``kis.domestic`` -- 국내 자산(주식·지수·채권·ELW·파생) 시세/순위/시장/일정.
+
+    계좌 조회·계좌 단위 주문은 여기가 아니라 ``kis.account.domestic`` (:class:`DomesticAccount`)."""
 
     def __init__(self, client: KISClient) -> None:
         self._c = client
