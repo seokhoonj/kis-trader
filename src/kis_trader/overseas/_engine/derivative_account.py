@@ -12,15 +12,23 @@ KIS URL/TR-ID:
 from __future__ import annotations
 
 from collections.abc import Mapping
+from typing import Any
 
-from ..._internal._response import _raise_if_error
+from ..._internal._response import _fetch_paginated_rows, _raise_if_error
 from ..._internal._wire import field_decimal_or_zero
 from ...errors import KISError, KISUsageError
 from ...transport import Environment, Transport
-from ..entities.derivative_account import OverseasDerivativeDeposit
+from ..entities.derivative_account import (
+    OverseasDerivativeDeposit,
+    OverseasDerivativePosition,
+)
+from ._parse import _MAX_PAGES, _side_from_code
 
 _DEPOSIT_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-deposit"
 _DEPOSIT_TR = "OTFM1411R"  # 해외선물옵션 예수금현황, 모의투자 미지원
+
+_POSITIONS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-unpd"
+_POSITIONS_TR = "OTFM1412R"  # 해외선물옵션 미결제내역, 모의투자 미지원
 
 
 def fetch_deposit(
@@ -68,3 +76,61 @@ def fetch_deposit(
         fee=field_decimal_or_zero(output.get("fm_fee"), "fm_fee"),
         _raw=output,
     )
+
+
+def fetch_positions(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    fuop: str = "00",
+) -> list[OverseasDerivativePosition]:
+    """해외선물옵션 미결제내역(보유 종목 전체, 연속조회 소진까지). ``fuop`` 선물옵션구분
+    (FUOP_DVSN, 기본 "00" 전체). 금액·수량은 각 행 통화의 Decimal(원화 아님).
+    **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "해외선물옵션 미결제내역(inquire-unpd)은 모의투자 미지원 -- 실전에서만."
+        )
+    rows = _fetch_paginated_rows(
+        transport,
+        path=_POSITIONS_PATH, tr_id=_POSITIONS_TR,
+        base_params={
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "FUOP_DVSN": fuop,
+            "CTX_AREA_FK100": "", "CTX_AREA_NK100": "",
+        },
+        output_key="output", max_pages=_MAX_PAGES, ctx_width=100,
+        cap_message=(
+            f"해외선물옵션 미결제내역 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        ),
+    )
+    return _parse_positions(rows)
+
+
+def _parse_positions(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativePosition]:
+    positions: list[OverseasDerivativePosition] = []
+    for row in rows:
+        symbol = str(row.get("ovrs_futr_fx_pdno", "")).strip()
+        if not symbol:  # 상품번호 없는 패딩 행 -- 건너뜀
+            continue
+        positions.append(
+            # 종목별 수치는 빈 값을 0으로 읽되(외화 계좌 필드는 비어 올 수 있음), 값이 있는데 파싱
+            # 실패면 여전히 예외. 방향(side)은 종목이 있는 행에서만 코드->buy/sell 로 fail-closed 변환.
+            OverseasDerivativePosition(
+                symbol=symbol,
+                product_type=str(row.get("prdt_type_cd", "")).strip(),
+                currency=str(row.get("crcy_cd", "")).strip(),
+                side=_side_from_code(row.get("sll_buy_dvsn_cd")),
+                quantity=field_decimal_or_zero(row.get("fm_ustl_qty"), "fm_ustl_qty"),
+                average_price=field_decimal_or_zero(row.get("fm_ccld_avg_pric"), "fm_ccld_avg_pric"),
+                current_price=field_decimal_or_zero(row.get("fm_now_pric"), "fm_now_pric"),
+                unrealized_pnl=field_decimal_or_zero(row.get("fm_evlu_pfls_amt"), "fm_evlu_pfls_amt"),
+                option_value=field_decimal_or_zero(row.get("fm_opt_evlu_amt"), "fm_opt_evlu_amt"),
+                option_unrealized_pnl=field_decimal_or_zero(
+                    row.get("fm_otp_evlu_pfls_amt"), "fm_otp_evlu_pfls_amt"
+                ),
+                liquidatable_quantity=field_decimal_or_zero(row.get("fm_lqd_psbl_qty"), "fm_lqd_psbl_qty"),
+                exercise_reserved=str(row.get("ecis_rsvn_ord_yn", "")).strip(),
+                _raw=row,
+            )
+        )
+    return positions

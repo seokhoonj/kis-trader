@@ -14,10 +14,14 @@ import pytest
 from kis_trader import KISClient
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.overseas.derivative_account import OverseasDerivativesAccount
-from kis_trader.overseas.entities.derivative_account import OverseasDerivativeDeposit
+from kis_trader.overseas.entities.derivative_account import (
+    OverseasDerivativeDeposit,
+    OverseasDerivativePosition,
+)
 from kis_trader.transport import RawResponse
 
 _DEPOSIT_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-deposit"
+_POSITIONS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-unpd"
 
 
 class FakeTransport:
@@ -130,5 +134,106 @@ def test_deposit_blank_amounts_read_as_zero():
 
 def test_overseas_derivative_deposit_entity_importable():
     from kis_trader import OverseasDerivativeDeposit as Exported
+
+    assert Exported is not None
+
+
+# --- 미결제내역(보유) OTFM1412R -------------------------------------------
+
+def _position(pdno="6EU24", *, prdt="FX", crcy="USD", side="02", qty="3", avg="1.0850",
+              now="1.0865", pnl="1875.00", opt="0", opt_pnl="0", lqd="3", ecis="N"):
+    return {"ovrs_futr_fx_pdno": pdno, "prdt_type_cd": prdt, "crcy_cd": crcy,
+            "sll_buy_dvsn_cd": side, "fm_ustl_qty": qty, "fm_ccld_avg_pric": avg,
+            "fm_now_pric": now, "fm_evlu_pfls_amt": pnl, "fm_opt_evlu_amt": opt,
+            "fm_otp_evlu_pfls_amt": opt_pnl, "fm_lqd_psbl_qty": lqd, "ecis_rsvn_ord_yn": ecis}
+
+
+def _positions_resp(*, rows=None, ctx_nk="", ctx_fk="", tr_cont="D"):
+    body = {"output": rows if rows is not None else [],
+            "ctx_area_nk100": ctx_nk, "ctx_area_fk100": ctx_fk}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
+
+
+def test_positions_paper_fails_closed():
+    fake = FakeTransport(response=_positions_resp(rows=[_position()]))
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").account.positions()
+    assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
+
+
+def test_positions_parses_and_routes():
+    fake = FakeTransport(response=_positions_resp(rows=[_position()]))
+    pos = _client(fake).account.positions()
+    assert isinstance(pos, list)
+    assert isinstance(pos[0], OverseasDerivativePosition)
+    assert pos[0].symbol == "6EU24"                    # ovrs_futr_fx_pdno
+    assert pos[0].product_type == "FX"                 # prdt_type_cd
+    assert pos[0].currency == "USD"                    # crcy_cd
+    assert pos[0].side == "buy"                         # sll_buy_dvsn_cd 02 -> buy
+    assert pos[0].quantity == Decimal(3)             # fm_ustl_qty
+    assert pos[0].average_price == Decimal("1.0850")   # fm_ccld_avg_pric
+    assert pos[0].current_price == Decimal("1.0865")   # fm_now_pric
+    assert pos[0].unrealized_pnl == Decimal("1875.00")  # fm_evlu_pfls_amt
+    assert pos[0].liquidatable_quantity == Decimal(3)  # fm_lqd_psbl_qty
+    assert pos[0].exercise_reserved == "N"             # ecis_rsvn_ord_yn
+    call = fake.calls[0]
+    assert call["tr_id"] == "OTFM1412R"
+    assert call["path"].endswith("inquire-unpd")
+    assert call["params"]["FUOP_DVSN"] == "00"
+    assert call["params"]["CTX_AREA_FK100"] == ""
+    assert call["params"]["CTX_AREA_NK100"] == ""
+    assert call["params"]["CANO"] == "12345678"
+    assert call["params"]["ACNT_PRDT_CD"] == "08"
+
+
+def test_positions_sell_side():
+    fake = FakeTransport(response=_positions_resp(rows=[_position(side="01")]))
+    pos = _client(fake).account.positions()
+    assert pos[0].side == "sell"                       # sll_buy_dvsn_cd 01 -> sell
+
+
+def test_positions_custom_fuop():
+    fake = FakeTransport(response=_positions_resp(rows=[_position()]))
+    _client(fake).account.positions(fuop="01")
+    assert fake.calls[0]["params"]["FUOP_DVSN"] == "01"
+
+
+def test_positions_paginates():
+    page1 = _positions_resp(rows=[_position("6EU24")], ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    page2 = _positions_resp(rows=[_position("6JU24")], tr_cont="D")
+    fake = FakeTransport(by_path={_POSITIONS_PATH: [page1, page2]})
+    pos = _client(fake).account.positions()
+    assert [p.symbol for p in pos] == ["6EU24", "6JU24"]
+    assert fake.calls[1]["params"]["CTX_AREA_NK100"] == "NEXT"
+    assert fake.calls[1]["params"]["CTX_AREA_FK100"] == "FK"
+    assert fake.calls[1]["tr_cont"] == "N"             # 연속조회 헤더
+
+
+def test_positions_skips_blank_symbol_row():
+    rows = [_position("6EU24"), _position("")]
+    pos = _client(FakeTransport(response=_positions_resp(rows=rows))).account.positions()
+    assert [p.symbol for p in pos] == ["6EU24"]
+
+
+def test_positions_non_mapping_row_raises():
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=_positions_resp(rows=[None]))).account.positions()
+
+
+def test_positions_missing_output_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"ctx_area_nk100": "", "ctx_area_fk100": ""})
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp)).account.positions()
+
+
+def test_positions_page_cap_fails_closed():
+    never_ends = _positions_resp(rows=[_position()], ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=never_ends)).account.positions()
+
+
+def test_overseas_derivative_position_entity_importable():
+    from kis_trader import OverseasDerivativePosition as Exported
 
     assert Exported is not None

@@ -15,6 +15,7 @@ from types import MappingProxyType
 from typing import Any
 
 from ..._internal._freeze import freeze_vendor_payload
+from ...order import Side
 
 
 @dataclass(frozen=True, slots=True)
@@ -44,6 +45,37 @@ class OverseasDerivativeDeposit:
     next_day_deposit: Decimal         # 익일예수금액(fm_nxdy_dncl_amt)
     option_value: Decimal             # 옵션평가금액(fm_opt_evlu_amt)
     fee: Decimal                      # 수수료(fm_fee)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasDerivativePosition:
+    """한 해외선물옵션 종목의 미결제(보유) 현황(불변).
+
+    금액·수량은 ``currency`` 통화의 Decimal(원화 아님). ``symbol`` 해외선물FX상품번호,
+    ``product_type`` 상품유형코드, ``side`` 매수/매도, ``quantity`` 미결제수량, ``average_price``
+    체결평균가격, ``current_price`` 현재가격, ``unrealized_pnl`` 평가손익금액, ``option_value``
+    옵션평가금액, ``option_unrealized_pnl`` 옵션평가손익금액, ``liquidatable_quantity`` 청산가능수량,
+    ``exercise_reserved`` 행사예약주문여부("Y"/"N" 원본 문자열). 타입화하지 않은 필드는 ``_raw``.
+    """
+
+    symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
+    product_type: str                 # 상품유형코드(prdt_type_cd)
+    currency: str                     # 통화코드(crcy_cd)
+    side: Side                        # buy / sell (sll_buy_dvsn_cd: 01 매도 / 02 매수)
+    quantity: Decimal                 # 미결제수량(fm_ustl_qty)
+    average_price: Decimal            # 체결평균가격(fm_ccld_avg_pric)
+    current_price: Decimal            # 현재가격(fm_now_pric)
+    unrealized_pnl: Decimal           # 평가손익금액(fm_evlu_pfls_amt)
+    option_value: Decimal             # 옵션평가금액(fm_opt_evlu_amt)
+    option_unrealized_pnl: Decimal    # 옵션평가손익금액(fm_otp_evlu_pfls_amt)
+    liquidatable_quantity: Decimal    # 청산가능수량(fm_lqd_psbl_qty)
+    exercise_reserved: str            # 행사예약주문여부(ecis_rsvn_ord_yn) -- "Y"/"N"
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

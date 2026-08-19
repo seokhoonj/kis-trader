@@ -11,8 +11,11 @@ from typing import TYPE_CHECKING
 
 from .._internal._datetime import _today_kst
 from ..errors import KISUsageError
-from ._engine.derivative_account import fetch_deposit
-from .entities.derivative_account import OverseasDerivativeDeposit
+from ._engine.derivative_account import fetch_deposit, fetch_positions
+from .entities.derivative_account import (
+    OverseasDerivativeDeposit,
+    OverseasDerivativePosition,
+)
 
 if TYPE_CHECKING:
     from ..client import KISClient
@@ -36,6 +39,19 @@ class OverseasDerivativesAccount:
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment,
             currency=currency, date=_resolve_query_date(date),
+        )
+
+    def positions(self, fuop: str = "00") -> list[OverseasDerivativePosition]:
+        """해외선물옵션 미결제내역(보유 종목 전체).
+
+        ``fuop`` 선물옵션구분(FUOP_DVSN, 기본 "00" 전체). 금액·수량은 각 종목 통화의 Decimal
+        (원화 아님). ``GET .../overseas-futureoption/v1/trading/inquire-unpd`` (``OTFM1412R``).
+        **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_positions(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, fuop=fuop,
         )
 
 
