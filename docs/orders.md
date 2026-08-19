@@ -176,7 +176,7 @@ kis.orders.cancel(rep.client_order_id)                     # 취소
 
 ## 신용주문
 
-기본으로 **막혀 있습니다**. 쓰려면 세션에서 명시적으로 켭니다.
+디폴트는 **사용 불가**입니다. 사용하려면 세션에서 명시적으로 켭니다.
 
 ```python
 kis = KISClient(…, allow_credit=True)
@@ -224,4 +224,4 @@ kis = KISClient(…, risk=RiskLimits(
 ))
 ```
 
-현재가 대비 말도 안 되는 가격(손가락 실수)을 미리 막는 용도입니다.
+말도 안 되는 가격 주문을 미리 막는 용도입니다.
