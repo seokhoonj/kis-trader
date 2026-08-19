@@ -10,9 +10,9 @@ from __future__ import annotations
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
-from .domestic.entities.integrated import CurrencyDeposit, IntegratedBalance
 from .domestic.namespace import DomesticAccount
 from .errors import KISError, KISUsageError
+from .integrated import CurrencyDeposit, IntegratedBalance
 from .overseas.namespace import OverseasAccount
 
 if TYPE_CHECKING:
@@ -38,7 +38,7 @@ class StockAccounts:
         return self._overseas
 
     def balance(self) -> IntegratedBalance:
-        """국내주식+채권+해외주식 잔고를 한 :class:`~kis_trader.domestic.entities.integrated.IntegratedBalance`
+        """국내주식+채권+해외주식 잔고를 한 :class:`~kis_trader.integrated.IntegratedBalance`
         로 합친다(새 와이어 없이 세 기존 조회의 합성). 통화별 예수금이 진실의 원천이고,
         ``total_evaluation``/``total_unrealized_pnl`` 은 국내·해외 보유 평가의 순수 원화 합이다(서로 다른
         보유라 겹치지 않는다). 현금까지 더한 단일 총자산은 노출하지 않는다 -- 국내 순자산과 해외

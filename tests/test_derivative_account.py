@@ -113,6 +113,7 @@ def test_derivative_balance_paginates():
     assert [p.symbol for p in bal.positions] == ["101W09", "201X12"]
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
+    assert fake.calls[1]["tr_cont"] == "N"    # 연속조회 헤더
 
 
 def test_derivative_balance_missing_output2_raises():
@@ -270,6 +271,7 @@ def test_valuation_pl_paginates():
     assert [p.symbol for p in val.positions] == ["101W09", "201X12"]
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
+    assert fake.calls[1]["tr_cont"] == "N"    # 연속조회 헤더
 
 
 def test_valuation_pl_missing_output2_raises():
@@ -358,6 +360,7 @@ def test_settlement_pl_paginates():
     assert [p.symbol for p in stl.positions] == ["KR4101RC0000", "KR4201RC0000"]
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
+    assert fake.calls[1]["tr_cont"] == "N"    # 연속조회 헤더
 
 
 def test_settlement_pl_skips_blank_symbol_row():
@@ -463,6 +466,7 @@ def test_base_date_fills_paginates():
     assert [f.order_id for f in hist.fills] == ["0000012345", "0000067890"]
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
+    assert fake.calls[1]["tr_cont"] == "N"    # 연속조회 헤더
 
 
 def test_base_date_fills_skips_blank_order_id_row():
@@ -568,6 +572,7 @@ def test_commissions_paginates():
     assert len(hist.commissions) == 2
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
+    assert fake.calls[1]["tr_cont"] == "N"    # 연속조회 헤더
 
 
 def test_commissions_skips_blank_row():

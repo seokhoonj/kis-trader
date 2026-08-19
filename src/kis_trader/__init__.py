@@ -154,7 +154,6 @@ from .domestic.entities.index import (
     IndexIntradayPoint,
     IndexQuote,
 )
-from .domestic.entities.integrated import CurrencyDeposit, IntegratedBalance
 from .domestic.entities.investor import (
     DetailedInvestorFlow,
     DetailedInvestorHistory,
@@ -215,6 +214,7 @@ from .domestic.index import Index
 from .domestic.market import MarketQueries
 from .domestic.ranking import Direction, RankingQueries, VolumeMetric
 from .domestic.stock import DomesticStock
+from .integrated import CurrencyDeposit, IntegratedBalance
 from .money import Money
 from .news import NewsHeadline
 from .open_order import OpenOrder

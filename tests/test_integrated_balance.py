@@ -14,8 +14,8 @@ import pytest
 
 from kis_trader import KISClient
 from kis_trader.domestic.entities.balance import Balance
-from kis_trader.domestic.entities.integrated import CurrencyDeposit, IntegratedBalance
-from kis_trader.errors import KISUsageError
+from kis_trader.errors import KISError, KISUsageError
+from kis_trader.integrated import CurrencyDeposit, IntegratedBalance
 from kis_trader.overseas.entities.balance import OverseasPresentBalance
 from kis_trader.transport import RawResponse
 
@@ -60,11 +60,11 @@ def _domestic_summary():
     return {
         "dnca_tot_amt": "5000000",          # deposit
         "nxdy_excc_amt": "0",
-        "prvs_rcdl_excc_amt": "0",
-        "tot_evlu_amt": "12000000",         # total_evaluation
-        "nass_amt": "17000000",             # net_asset
+        "prvs_rcdl_excc_amt": "3000000",    # D+2 정산예정현금(settlement_cash_d2)
+        "tot_evlu_amt": "15000000",         # total_evaluation = 보유평가 12M + D+2 현금 3M
+        "nass_amt": "20000000",             # net_asset
         "pchs_amt_smtl_amt": "10000000",
-        "evlu_amt_smtl_amt": "12000000",
+        "evlu_amt_smtl_amt": "12000000",    # market_value(보유 평가만, D+2 현금 제외)
         "evlu_pfls_smtl_amt": "2000000",    # unrealized_pnl
     }
 
@@ -98,6 +98,19 @@ def _overseas_resp():
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
 
 
+def _overseas_resp_duplicate_currency():
+    body = {
+        "output1": [],
+        "output2": [{"crcy_cd": "USD", "crcy_cd_name": "미국달러",
+                     "frcr_dncl_amt_2": "1000.50", "frst_bltn_exrt": "1350.20"},
+                    {"crcy_cd": "USD", "crcy_cd_name": "미국달러",
+                     "frcr_dncl_amt_2": "2000.00", "frst_bltn_exrt": "1351.00"}],
+        "output3": {"pchs_amt_smtl_amt": "2500000", "evlu_amt_smtl_amt": "2800000",
+                    "tot_evlu_pfls_amt": "300000", "tot_asst_amt": "3000000"},
+    }
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
+
+
 def _all_paths_fake():
     return FakeTransport(by_path={
         _DOMESTIC_PATH: _domestic_resp(),
@@ -114,6 +127,21 @@ def test_integrated_balance_merges():
     assert isinstance(result, IntegratedBalance)
     assert result.base_currency == "KRW"
 
+    # 정확히 세 번의 와이어 -- 도메인별 경로·TR·계좌식별정보를 경로 색인으로 확인
+    assert len(fake.calls) == 3
+    by_path = {c["path"]: c for c in fake.calls}
+    expected_tr = {
+        _DOMESTIC_PATH: "TTTC8434R",   # 국내주식 잔고
+        _BOND_PATH: "CTSC8407R",       # 장내채권 잔고
+        _OVERSEAS_PATH: "CTRP6504R",   # 해외 체결기준현재잔고
+    }
+    assert set(by_path) == set(expected_tr)
+    for path, tr_id in expected_tr.items():
+        call = by_path[path]
+        assert call["tr_id"] == tr_id
+        assert call["params"]["CANO"] == "12345678"
+        assert call["params"]["ACNT_PRDT_CD"] == "01"
+
     # 통화별 예수금: KRW(국내) + USD(해외)
     by_currency = {d.currency: d for d in result.deposits}
     assert set(by_currency) == {"KRW", "USD"}
@@ -127,7 +155,11 @@ def test_integrated_balance_merges():
     assert usd.exchange_rate == Decimal("1350.20")
 
     # 평가 롤업 = 겹치지 않는 국내·해외 보유의 순수 원화 합(현금 포함 단일 총자산은 이중계상이라 미노출)
-    assert result.total_evaluation == Decimal(12000000) + Decimal(2800000)
+    assert result.total_evaluation == result.domestic.market_value + result.overseas.total_evaluation_amount
+    assert result.total_evaluation == Decimal(12000000) + Decimal(2800000)  # 보유 평가만
+    # D+2 정산현금은 롤업에서 제외 -- market_value(보유만) 사용, total_evaluation(D+2 포함) 아님
+    assert result.domestic.total_evaluation == Decimal(15000000)
+    assert result.domestic.market_value == Decimal(12000000)
     assert result.total_unrealized_pnl == Decimal(2000000) + Decimal(300000)
     assert not hasattr(result, "net_liquidation")
 
@@ -136,6 +168,17 @@ def test_integrated_balance_merges():
     assert isinstance(result.overseas, OverseasPresentBalance)
     assert len(result.bonds) == 1
     assert result.bonds[0].symbol == "KR2033022D33"
+
+
+def test_integrated_balance_duplicate_currency_fails_closed():
+    # 해외 output2 에 같은 통화(USD) 두 행이 오면 통화별 진실의 원천이 모호해져 fail-closed
+    fake = FakeTransport(by_path={
+        _DOMESTIC_PATH: _domestic_resp(),
+        _BOND_PATH: _bond_resp(),
+        _OVERSEAS_PATH: _overseas_resp_duplicate_currency(),
+    })
+    with pytest.raises(KISError):
+        _client(fake).account.balance()
 
 
 def test_integrated_balance_paper_fails_closed():
