@@ -406,3 +406,39 @@ class DerivativeNightBalance:
     def __post_init__(self) -> None:
         object.__setattr__(self, "positions", tuple(self.positions))
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class DerivativeNightMargin:
+    """(야간)선물옵션 증거금상세 -- 개시/유지 증거금과 예수금 요약(불변).
+
+    개시(initial, output1)와 유지(maintenance, output2)가 같은 필드 집합을 각각 실어
+    ``initial_*`` / ``maintenance_*`` 로 나눠 담는다: ``*_brokerage_margin`` 위탁증거금(brkg_mgna),
+    ``*_total_risk_margin`` 총위험증거금(tot_risk_mgna), ``*_new_margin`` 신규증거금액(new_mgn_amt).
+    예수금 요약(output3)은 ``total_deposit`` 예수금총액, ``deposit_cash`` 예수금현금,
+    ``orderable_cash`` / ``orderable_total`` 주문가능현금/총액, ``withdrawable_total`` 인출가능총금액,
+    ``brokerage_margin_total`` 위탁증거금총금액, ``additional_margin_total`` 추가증거금총금액,
+    ``account_value`` 추정예탁자산금액. output1/2/3 은 타입화한 값 외에도 필드가 많아 응답 전체를
+    ``_raw`` 로 함께 노출한다.
+    """
+
+    initial_brokerage_margin: Decimal     # 개시 위탁증거금(output1.brkg_mgna)
+    initial_total_risk_margin: Decimal    # 개시 총위험증거금(output1.tot_risk_mgna)
+    initial_new_margin: Decimal           # 개시 신규증거금액(output1.new_mgn_amt)
+    maintenance_brokerage_margin: Decimal   # 유지 위탁증거금(output2.brkg_mgna)
+    maintenance_total_risk_margin: Decimal  # 유지 총위험증거금(output2.tot_risk_mgna)
+    maintenance_new_margin: Decimal         # 유지 신규증거금액(output2.new_mgn_amt)
+    total_deposit: Decimal                # 예수금총액(output3.dnca_tota)
+    deposit_cash: Decimal                 # 예수금현금(output3.dnca_cash)
+    orderable_cash: Decimal               # 주문가능현금금액(output3.ord_psbl_cash_amt)
+    orderable_total: Decimal              # 주문가능총금액(output3.ord_psbl_tot_amt)
+    withdrawable_total: Decimal           # 인출가능총금액(output3.wdrw_psbl_tot_amt)
+    brokerage_margin_total: Decimal       # 위탁증거금총금액(output3.brkg_mgna_tot_amt)
+    additional_margin_total: Decimal      # 추가증거금총금액(output3.add_mgna_tot_amt)
+    account_value: Decimal                # 추정예탁자산금액(output3.prsm_dpast_amt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

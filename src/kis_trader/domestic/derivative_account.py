@@ -14,6 +14,7 @@ from ._engine.derivative_account import (
     fetch_commissions,
     fetch_deposit,
     fetch_night_balance,
+    fetch_night_margin,
     fetch_settlement_pl,
     fetch_valuation_pl,
 )
@@ -23,6 +24,7 @@ from .entities.derivative_account import (
     DerivativeDeposit,
     DerivativeFillHistory,
     DerivativeNightBalance,
+    DerivativeNightMargin,
     DerivativeSettlementBalance,
     DerivativeValuationBalance,
 )
@@ -114,6 +116,19 @@ class DomesticDerivativesAccount:
         return fetch_night_balance(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment, account_password=account_password,
+        )
+
+    def night_margin(self, margin_division: str = "01") -> DerivativeNightMargin:
+        """(야간)선물옵션 증거금상세(개시/유지 증거금 + 예수금 요약).
+
+        ``margin_division`` 은 증거금구분코드(MGNA_DVSN_CD, 기본 "01" 개시). ``GET .../
+        domestic-futureoption/v1/trading/ngt-margin-detail`` (``CTFN7107R``).
+        **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_night_margin(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, margin_division=margin_division,
         )
 
     def deposit(self) -> DerivativeDeposit:

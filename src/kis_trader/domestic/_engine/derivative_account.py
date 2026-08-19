@@ -28,6 +28,7 @@ from ..entities.derivative_account import (
     DerivativeFill,
     DerivativeFillHistory,
     DerivativeNightBalance,
+    DerivativeNightMargin,
     DerivativeOrderable,
     DerivativePosition,
     DerivativeSettlementBalance,
@@ -62,6 +63,9 @@ _COMMISSIONS_TR = "CTFO6119R"  # 선물옵션 기간약정수수료일별, 모�
 
 _NIGHT_BALANCE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-ngt-balance"
 _NIGHT_BALANCE_TR = "CTFN6118R"  # (야간)선물옵션 잔고현황, 모의투자 미지원
+
+_NIGHT_MARGIN_PATH = "/uapi/domestic-futureoption/v1/trading/ngt-margin-detail"
+_NIGHT_MARGIN_TR = "CTFN7107R"  # (야간)선물옵션 증거금상세, 모의투자 미지원
 
 _ORDERABLE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-psbl-order"
 _ORDERABLE_TR = {"real": "TTTO5105R", "paper": "VTTO5105R"}
@@ -225,6 +229,49 @@ def fetch_night_balance(
         maintenance_margin_total=required_decimal(summary.get("mmga_tot_amt"), "mmga_tot_amt"),
         maintenance_margin_cash=required_decimal(summary.get("mmga_cash_amt"), "mmga_cash_amt"),
         _raw=summary,
+    )
+
+
+def fetch_night_margin(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    margin_division: str,
+) -> DerivativeNightMargin:
+    """(야간)선물옵션 증거금상세(1콜, 3블록). ``margin_division`` 은 증거금구분코드(MGNA_DVSN_CD,
+    기본 "01" 개시). output1[0]=개시증거금 상세, output2[0]=유지증거금 상세, output3=예수금 요약.
+    페이지네이션·계좌비밀번호 없음. **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "(야간)선물옵션 증거금상세(ngt-margin-detail)은 모의투자 미지원 -- 실전에서만."
+        )
+    params = {"CANO": cano, "ACNT_PRDT_CD": product_code, "MGNA_DVSN_CD": margin_division}
+    resp = transport.request(
+        method="GET", path=_NIGHT_MARGIN_PATH, tr_id=_NIGHT_MARGIN_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    initial = _extract_first_row(resp.body, "output1")
+    maintenance = _extract_first_row(resp.body, "output2")
+    deposit = resp.body.get("output3")
+    if initial is None or maintenance is None or not isinstance(deposit, Mapping):
+        raise KISError(
+            "(야간)선물옵션 증거금상세 응답에 output1/output2/output3 가 없다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    return DerivativeNightMargin(
+        initial_brokerage_margin=required_decimal(initial.get("brkg_mgna"), "brkg_mgna"),
+        initial_total_risk_margin=required_decimal(initial.get("tot_risk_mgna"), "tot_risk_mgna"),
+        initial_new_margin=required_decimal(initial.get("new_mgn_amt"), "new_mgn_amt"),
+        maintenance_brokerage_margin=required_decimal(maintenance.get("brkg_mgna"), "brkg_mgna"),
+        maintenance_total_risk_margin=required_decimal(maintenance.get("tot_risk_mgna"), "tot_risk_mgna"),
+        maintenance_new_margin=required_decimal(maintenance.get("new_mgn_amt"), "new_mgn_amt"),
+        total_deposit=required_decimal(deposit.get("dnca_tota"), "dnca_tota"),
+        deposit_cash=required_decimal(deposit.get("dnca_cash"), "dnca_cash"),
+        orderable_cash=required_decimal(deposit.get("ord_psbl_cash_amt"), "ord_psbl_cash_amt"),
+        orderable_total=required_decimal(deposit.get("ord_psbl_tot_amt"), "ord_psbl_tot_amt"),
+        withdrawable_total=required_decimal(deposit.get("wdrw_psbl_tot_amt"), "wdrw_psbl_tot_amt"),
+        brokerage_margin_total=required_decimal(deposit.get("brkg_mgna_tot_amt"), "brkg_mgna_tot_amt"),
+        additional_margin_total=required_decimal(deposit.get("add_mgna_tot_amt"), "add_mgna_tot_amt"),
+        account_value=required_decimal(deposit.get("prsm_dpast_amt"), "prsm_dpast_amt"),
+        _raw=resp.body,
     )
 
 
@@ -790,6 +837,15 @@ def _extract_summary(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
         return first if isinstance(first, Mapping) else None
     if isinstance(summary, Mapping):
         return summary
+    return None
+
+
+def _extract_first_row(body: Mapping[str, Any], key: str) -> Mapping[str, Any] | None:
+    """``key`` 블록의 첫 행 -- KIS가 '길이 1 배열'로 주는 상세 블록에서 [0]을 꺼낸다.
+    배열이 아니거나 비었거나 첫 원소가 매핑이 아니면 None(fail-closed 판정은 호출부)."""
+    block = body.get(key)
+    if isinstance(block, list) and block and isinstance(block[0], Mapping):
+        return block[0]
     return None
 
 

@@ -776,3 +776,92 @@ def test_night_balance_entities_importable():
     from kis_trader import DerivativeNightBalance
 
     assert DerivativeNightBalance is not None
+
+
+# --- (야간)선물옵션 증거금상세 (CTFN7107R, 3블록) ------------------------------
+def _night_margin_detail(*, brkg="10000000", risk="12000000", new="8000000"):
+    # output1/output2 는 같은 필드 집합(개시/유지). 나머지 상세 필드는 _raw 로만.
+    return {"brkg_mgna": brkg, "tot_risk_mgna": risk, "new_mgn_amt": new,
+            "futr_new_mgn_amt": "5000000", "opt_pric_mgna": "0"}
+
+
+_NIGHT_MARGIN_DEPOSIT = {
+    "dnca_tota": "50000000", "dnca_cash": "48000000",
+    "ord_psbl_cash_amt": "30000000", "ord_psbl_tot_amt": "31000000",
+    "wdrw_psbl_tot_amt": "29000000", "brkg_mgna_tot_amt": "10000000",
+    "add_mgna_tot_amt": "0", "prsm_dpast_amt": "51000000",
+    "dnca_sbst": "0", "fee_amt": "0",
+}
+
+
+def _night_margin_resp(*, output1=None, output2=None, output3=None):
+    body = {
+        "output1": [output1 if output1 is not None else _night_margin_detail()],
+        "output2": [output2 if output2 is not None
+                    else _night_margin_detail(brkg="9000000", risk="11000000", new="7000000")],
+        "output3": output3 if output3 is not None else dict(_NIGHT_MARGIN_DEPOSIT),
+    }
+    return RawResponse(rt_cd="0", msg_cd="KIOK0510", msg1="정상", body=body, tr_cont="D")
+
+
+def test_night_margin_parses_and_routes():
+    from kis_trader.domestic.entities.derivative_account import DerivativeNightMargin
+
+    fake = FakeTransport(response=_night_margin_resp())
+    mgn = _client(fake, environment="real").account.night_margin()
+    assert isinstance(mgn, DerivativeNightMargin)
+    assert mgn.initial_brokerage_margin == Decimal(10000000)      # output1.brkg_mgna
+    assert mgn.initial_total_risk_margin == Decimal(12000000)     # output1.tot_risk_mgna
+    assert mgn.initial_new_margin == Decimal(8000000)             # output1.new_mgn_amt
+    assert mgn.maintenance_brokerage_margin == Decimal(9000000)   # output2.brkg_mgna
+    assert mgn.maintenance_total_risk_margin == Decimal(11000000)  # output2.tot_risk_mgna
+    assert mgn.maintenance_new_margin == Decimal(7000000)         # output2.new_mgn_amt
+    assert mgn.total_deposit == Decimal(50000000)                # output3.dnca_tota
+    assert mgn.deposit_cash == Decimal(48000000)                 # output3.dnca_cash
+    assert mgn.orderable_cash == Decimal(30000000)               # output3.ord_psbl_cash_amt
+    assert mgn.orderable_total == Decimal(31000000)              # output3.ord_psbl_tot_amt
+    assert mgn.withdrawable_total == Decimal(29000000)           # output3.wdrw_psbl_tot_amt
+    assert mgn.brokerage_margin_total == Decimal(10000000)       # output3.brkg_mgna_tot_amt
+    assert mgn.additional_margin_total == Decimal(0)             # output3.add_mgna_tot_amt
+    assert mgn.account_value == Decimal(51000000)                # output3.prsm_dpast_amt
+    # _raw 는 응답 전체(output1/2/3) 를 보존한다.
+    assert mgn._raw["output1"][0]["futr_new_mgn_amt"] == "5000000"
+    assert mgn._raw["output3"]["fee_amt"] == "0"
+    call = fake.calls[0]
+    assert call["tr_id"] == "CTFN7107R"
+    assert call["path"].endswith("ngt-margin-detail")
+    assert call["params"] == {"CANO": "12345678", "ACNT_PRDT_CD": "03", "MGNA_DVSN_CD": "01"}
+
+
+def test_night_margin_maintenance_division():
+    fake = FakeTransport(response=_night_margin_resp())
+    _client(fake, environment="real").account.night_margin(margin_division="02")
+    assert fake.calls[0]["params"]["MGNA_DVSN_CD"] == "02"
+
+
+def test_night_margin_paper_fails_closed():
+    fake = FakeTransport(response=_night_margin_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").account.night_margin()
+    assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
+
+
+def test_night_margin_missing_output3_raises():
+    body = {"output1": [_night_margin_detail()], "output2": [_night_margin_detail()]}
+    resp = RawResponse(rt_cd="0", msg_cd="KIOK0510", msg1="정상", body=body, tr_cont="D")
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp), environment="real").account.night_margin()
+
+
+def test_night_margin_missing_output1_raises():
+    body = {"output1": [], "output2": [_night_margin_detail()],
+            "output3": dict(_NIGHT_MARGIN_DEPOSIT)}
+    resp = RawResponse(rt_cd="0", msg_cd="KIOK0510", msg1="정상", body=body, tr_cont="D")
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp), environment="real").account.night_margin()
+
+
+def test_night_margin_entities_importable():
+    from kis_trader import DerivativeNightMargin
+
+    assert DerivativeNightMargin is not None
