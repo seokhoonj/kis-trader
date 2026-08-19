@@ -84,7 +84,7 @@ class RiskLimits:
                 _as_positive_decimal(self.price_collar_percent, "price_collar_percent"),
             )
 
-    def _needs_reference_price(self, order: Order) -> bool:
+    def needs_reference_price(self, order: Order) -> bool:
         """이 주문+한도 조합이 현재가 참조를 필요로 하는가 -- 지정가 collar, 또는 자체 가격이
         없는 주문(시장가)의 notional 한도. 필요할 때만 :meth:`check` 전에 시세를 조회하게 한다."""
         return (

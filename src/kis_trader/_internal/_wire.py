@@ -128,7 +128,7 @@ def decimal_or_zero(value: object) -> Decimal:
 
     ``"nan"``/``"inf"`` 는 파싱은 되지만 비유한값이라 이후 비교(수량·단가 일치)가 항상 거짓/참으로
     무너져 오확정·오귀속을 부른다 -- :meth:`Decimal.is_finite` 로 fail-closed 한다."""
-    if value is None or value == "":
+    if value is None or (isinstance(value, str) and not value.strip()):
         return Decimal(0)
     try:
         number = Decimal(str(value))

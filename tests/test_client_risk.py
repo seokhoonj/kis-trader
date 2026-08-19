@@ -316,7 +316,7 @@ def test_quote_dependent_rejection_does_not_consume_client_order_id():
 def test_stop_notional_uses_stop_price_without_quote():
     order = Order.stop("005930", side="buy", quantity=10, stop_price=200000)   # 2M > 1M
     limits = RiskLimits(max_order_notional=1_000_000)
-    assert limits._needs_reference_price(order) is False   # 자체 가격(stop_price) 있음 -> 조회 불필요
+    assert limits.needs_reference_price(order) is False   # 자체 가격(stop_price) 있음 -> 조회 불필요
     with pytest.raises(PreTradeRiskError):
         limits.check(order)
 
@@ -324,7 +324,7 @@ def test_stop_notional_uses_stop_price_without_quote():
 def test_stop_limit_notional_prefers_limit_price_without_quote():
     order = Order.stop_limit("005930", side="buy", quantity=10, limit_price=200000, stop_price=190000)
     limits = RiskLimits(max_order_notional=1_000_000)
-    assert limits._needs_reference_price(order) is False
+    assert limits.needs_reference_price(order) is False
     with pytest.raises(PreTradeRiskError):                 # limit_price 200000 x 10 = 2M > 1M
         limits.check(order)
 

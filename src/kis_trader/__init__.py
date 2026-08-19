@@ -294,7 +294,12 @@ from .risk import RiskLimits
 from .store import OrderStore
 from .trade import Trade
 
-__version__ = "0.0.0"
+try:
+    from importlib.metadata import PackageNotFoundError, version
+
+    __version__ = version("kis-trader")
+except PackageNotFoundError:  # 개발 트리에서 미설치
+    __version__ = "0.0.0"
 
 __all__ = [
     "ELW",

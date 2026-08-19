@@ -9,6 +9,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import unicodedata
+from collections.abc import Mapping
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from enum import Enum
@@ -52,7 +53,9 @@ def to_jsonable(value: Any, *, include_raw: bool = False) -> Any:
         return value.value
     if isinstance(value, (list, tuple)):
         return [to_jsonable(item, include_raw=include_raw) for item in value]
-    if isinstance(value, dict):
+    if isinstance(value, Mapping):
+        # dict 와 frozen MappingProxyType(``_raw`` 는 freeze_vendor_payload 로 깊게 얼려짐)을 모두
+        # 재귀 -- proxy 를 json.dumps 에 그대로 넘기면 TypeError 라 여기서 평범한 값으로 푼다.
         return {key: to_jsonable(val, include_raw=include_raw) for key, val in value.items()}
     if dataclasses.is_dataclass(value):
         out: dict[str, Any] = {}
@@ -61,7 +64,7 @@ def to_jsonable(value: Any, *, include_raw: bool = False) -> Any:
                 continue
             out[field.name] = to_jsonable(getattr(value, field.name), include_raw=include_raw)
         if include_raw and hasattr(value, "_raw"):
-            out["_raw"] = value._raw
+            out["_raw"] = to_jsonable(value._raw, include_raw=include_raw)
         return out
     return str(value)
 

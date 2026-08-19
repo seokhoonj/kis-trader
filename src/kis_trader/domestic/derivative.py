@@ -39,7 +39,7 @@ class _ContractBase:
     핸들(:class:`FuturesContract` / :class:`OptionContract`)로만 만든다."""
 
     #: 서브클래스가 고정하는 파생 시장(보드) 구분 코드. FID_COND_MRKT_DIV_CODE 로 나간다.
-    _MARKET: DerivativeMarket
+    _MARKET: ClassVar[DerivativeMarket]
 
     #: 서브클래스가 고정하는 계약코드 길이(선물 6 / 옵션 9). 발주 전 형상검증에 쓴다 -- 조회용
     #: 종목코드나 오타를 발주 경로에서 조용히 통과시키지 않도록 :meth:`_make_order` 가 확인한다.
@@ -182,7 +182,7 @@ class FuturesContract(_ContractBase):
     선물 전용 :meth:`underlying_quote`(선물과 기초자산을 나란히 보는 베이시스 스냅샷)를 가진다.
     발주(:meth:`buy`/:meth:`sell`)는 상품구분 "01"(선물)로 나간다."""
 
-    _MARKET: DerivativeMarket = "F"
+    _MARKET: ClassVar[DerivativeMarket] = "F"
     _SYMBOL_LENGTH: ClassVar[int] = 6
 
     def underlying_quote(self) -> UnderlyingQuote:
@@ -206,7 +206,7 @@ class OptionContract(_ContractBase):
     ``right`` 없이도 만들 수 있고(``kis.domestic.option(code)``), 그 상태로 발주하면 fail-closed 다 --
     발주엔 ``option(code, right=...)`` 로 방향을 지정해야 한다."""
 
-    _MARKET: DerivativeMarket = "O"
+    _MARKET: ClassVar[DerivativeMarket] = "O"
     _SYMBOL_LENGTH: ClassVar[int] = 9
 
     right: Right | None

@@ -499,7 +499,7 @@ def _run_pre_trade_risk(transport: Transport, order: Order, risk: RiskLimits) ->
     """리스크 한도를 점검한다. 참조가(현재가)가 필요하면 시세를 조회해 넘긴다 -- 조회 실패는
     잡지 않고 그대로 올린다(fail-closed: 한도를 확인 못 하면 주문을 보내지 않는다)."""
     reference_price = None
-    if risk._needs_reference_price(order):
+    if risk.needs_reference_price(order):
         quote = market_data.fetch_quote(
             transport, symbol=order.symbol, market=resolve_market(order.symbol)
         )
