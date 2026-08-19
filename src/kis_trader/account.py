@@ -7,9 +7,12 @@
 
 from __future__ import annotations
 
+from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from .domestic.entities.integrated import CurrencyDeposit, IntegratedBalance
 from .domestic.namespace import DomesticAccount
+from .errors import KISUsageError
 from .overseas.namespace import OverseasAccount
 
 if TYPE_CHECKING:
@@ -20,6 +23,7 @@ class StockAccounts:
     """``kis.account`` (위탁 01) -- 국내/해외 주식 계좌의 시장별 뷰."""
 
     def __init__(self, client: KISClient) -> None:
+        self._client = client
         self._domestic = DomesticAccount(client)
         self._overseas = OverseasAccount(client)
 
@@ -32,3 +36,41 @@ class StockAccounts:
     def overseas(self) -> OverseasAccount:
         """해외주식 계좌 조회(잔고/미체결/기간손익 등)."""
         return self._overseas
+
+    def balance(self) -> IntegratedBalance:
+        """국내주식+채권+해외주식 잔고를 한 :class:`~kis_trader.domestic.entities.integrated.IntegratedBalance`
+        로 합친다(새 와이어 없이 세 기존 조회의 합성). 통화별 예수금이 진실의 원천이고, 원화
+        headline 롤업은 KIS가 준 원화 집계의 순수 합이다(환율 임의 적용 없음). 채권 잔고는
+        매입금액 기준이라 ``net_liquidation`` 엔 포함하지 않는다(``bonds`` 로 별도 확인).
+        **모의투자 미지원**(채권/해외 현재잔고가 실전 전용) -- 모의는 와이어 전에 fail-closed."""
+        if self._client.environment == "paper":
+            raise KISUsageError(
+                "통합잔고(kis.account.balance)는 모의투자 미지원 -- 실전에서만"
+                "(채권/해외 현재잔고가 실전 전용)."
+            )
+        dom = self.domestic.balance()
+        bonds = tuple(self.domestic.bonds.balance())
+        ovs = self.overseas.present_balance()
+
+        deposits = (
+            CurrencyDeposit(currency="KRW", cash=dom.deposit, exchange_rate=Decimal(1)),
+            *(
+                CurrencyDeposit(
+                    currency=c.currency,
+                    cash=c.deposit.amount,
+                    exchange_rate=c.first_exchange_rate,
+                    _raw=c._raw,
+                )
+                for c in ovs.currencies
+            ),
+        )
+        return IntegratedBalance(
+            base_currency="KRW",
+            deposits=deposits,
+            domestic=dom,
+            bonds=bonds,
+            overseas=ovs,
+            net_liquidation=dom.net_asset + ovs.total_asset,
+            total_evaluation=dom.total_evaluation + ovs.total_evaluation_amount,
+            total_unrealized_pnl=dom.unrealized_pnl + ovs.total_eval_pnl,
+        )

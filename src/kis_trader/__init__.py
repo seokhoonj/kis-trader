@@ -154,6 +154,7 @@ from .domestic.entities.index import (
     IndexIntradayPoint,
     IndexQuote,
 )
+from .domestic.entities.integrated import CurrencyDeposit, IntegratedBalance
 from .domestic.entities.investor import (
     DetailedInvestorFlow,
     DetailedInvestorHistory,
@@ -319,6 +320,7 @@ __all__ = [
     "CreditBalancePoint",
     "CreditBalanceRanking",
     "CreditEligibleStock",
+    "CurrencyDeposit",
     "DailyProfit",
     "DailyProfitHistory",
     "DailyProgramTradePoint",
@@ -386,6 +388,7 @@ __all__ = [
     "IndexIntradayPoint",
     "IndexQuote",
     "InstrumentRecord",
+    "IntegratedBalance",
     "IntegratedMargin",
     "InterestRateQuote",
     "Interval",
