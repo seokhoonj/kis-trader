@@ -56,6 +56,7 @@ class RealtimeClient:
         self._thread: threading.Thread | None = None
         self._conn: RealtimeConnection | None = None
         self._ready = threading.Event()  # 루프+연결 준비 완료
+        self._stop_requested = threading.Event()  # start() 포기/stop() 시 수신루프 진입 차단
         self._lock = threading.Lock()
         self._callbacks: dict[str, list[MessageCallback]] = defaultdict(list)
         self._desired: set[tuple[str, str]] = set()  # start 전 등록 요청 보관
@@ -97,9 +98,16 @@ class RealtimeClient:
             return
         self._startup_error = None
         self._ready.clear()  # 재시작 시 이전 set 이 남아 조기 ready 로 오판되지 않게
+        self._stop_requested.clear()
+        # 재시작: 이전 run 의 잔여 틱/센티넬이 새 stream() 에 낡은 데이터·즉시종료로 새지 않게 큐를 비운다.
+        self._drain_queue()
+        self._queue_overflow_warned = False
         self._thread = threading.Thread(target=self._run, name="kis-realtime", daemon=True)
         self._thread.start()
         if not self._ready.wait(timeout=timeout):
+            # 연결이 timeout 뒤 늦게 열리면 소켓이 새므로(_running 이 False 라 stop() 이 무시됨)
+            # best-effort 로 백그라운드를 정리하고 나서 알린다.
+            self._abort_startup(timeout=5.0)
             raise RealtimeError(f"실시간 연결이 {timeout}s 내에 준비되지 않았습니다(연결 지연/실패).")
         if self._startup_error is not None:
             self._thread.join(timeout=5.0)
@@ -111,6 +119,7 @@ class RealtimeClient:
         if not self._running:
             return
         self._running = False
+        self._stop_requested.set()
         stop_error: BaseException | None = None
         if self._conn is not None and self._loop is not None and self._loop.is_running():
             try:
@@ -136,6 +145,30 @@ class RealtimeClient:
                 )
         if stop_error is not None:
             raise stop_error
+
+    def _abort_startup(self, *, timeout: float) -> None:
+        """timeout 난 :meth:`start` 정리 -- 늦게 연결이 열려도 소켓이 새지 않게 한다.
+
+        수신루프 진입을 :attr:`_stop_requested` 로 막고(연결이 이 직후 열리면 :meth:`_main` 이
+        그 플래그를 보고 곧장 close 한다), 루프가 이미 돌면 코어 stop 을 스케줄한다. 그마저도
+        올라오지 않았으면(그래서 timeout) 데몬 스레드라 프로세스 종료를 막지는 않는다."""
+        self._stop_requested.set()
+        if self._loop is not None and self._loop.is_running() and self._conn is not None:
+            try:
+                asyncio.run_coroutine_threadsafe(self._conn.stop(), self._loop).result(timeout=timeout)
+            except Exception:  # 원래의 timeout 오류를 가리지 않도록 정리 실패는 로깅만
+                _logger.warning("timeout 난 start() 정리 중 코어 stop() 실패", exc_info=True)
+        self._queue.put(_STREAM_SENTINEL)
+        if self._thread is not None:
+            self._thread.join(timeout=timeout)
+
+    def _drain_queue(self) -> None:
+        """stream() 큐를 비운다(재시작 시 이전 run 의 잔여 틱/센티넬 제거)."""
+        while True:
+            try:
+                self._queue.get_nowait()
+            except queue.Empty:
+                return
 
     def __enter__(self) -> Self:
         self.start()
@@ -199,8 +232,11 @@ class RealtimeClient:
             return
         self._ready.set()  # 준비 완료 신호
         try:
-            async for message in self._conn:
-                self._dispatch(message)
+            # start() 가 timeout 으로 이미 포기했으면(_abort_startup) 수신루프에 들어가지 않고
+            # 곧장 finally 로 소켓을 닫는다 -- 늦게 열린 연결이 방치돼 새지 않게.
+            if not self._stop_requested.is_set():
+                async for message in self._conn:
+                    self._dispatch(message)
         finally:
             await self._conn.close()
             self._queue.put(_STREAM_SENTINEL)

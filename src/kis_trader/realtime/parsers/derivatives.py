@@ -23,9 +23,11 @@ from typing import Any
 
 from .._registry import TRSpec, register
 
-_RAW_FIELD: Any = field(  # 모든 엔티티가 공유하는 원본 매핑 필드 정의.
-    default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
-)
+
+def _raw_field() -> Any:
+    """엔티티마다 새로 부여하는 ``_raw`` dataclass 필드 정의(하나의 ``field()`` 객체를 여러
+    dataclass 가 공유하면 데코레이터가 그 객체를 클래스마다 변형해 위험하므로 팩토리로 만든다)."""
+    return field(default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False)
 
 
 def _decimal(value: str) -> Decimal:
@@ -55,7 +57,7 @@ class OrderBook:
     best_bid_quantity: Decimal
     total_ask_quantity: Decimal
     total_bid_quantity: Decimal
-    _raw: Mapping[str, Any] = _RAW_FIELD
+    _raw: Mapping[str, Any] = _raw_field()
 
 
 def _order_book(fields: list[str], layout: tuple[str, ...], *, symbol: str, ask: str, bid: str) -> OrderBook:
@@ -181,7 +183,7 @@ class FuturesTick:
     open_interest: Decimal  # 미결제약정 수량
     best_ask: Decimal
     best_bid: Decimal
-    _raw: Mapping[str, Any] = _RAW_FIELD
+    _raw: Mapping[str, Any] = _raw_field()
 
 
 def _futures_tick(
@@ -323,7 +325,7 @@ class OptionTick:
     conclusion_strength: Decimal  # 체결강도
     best_ask: Decimal
     best_bid: Decimal
-    _raw: Mapping[str, Any] = _RAW_FIELD
+    _raw: Mapping[str, Any] = _raw_field()
 
 
 def _option_tick(fields: list[str], layout: tuple[str, ...]) -> OptionTick:
@@ -433,7 +435,7 @@ class ExpectedConclusion:
     expected_change_percent: Decimal
     market_operation_code: str  # 예상장운영구분코드
     expected_volume: Decimal
-    _raw: Mapping[str, Any] = _RAW_FIELD
+    _raw: Mapping[str, Any] = _raw_field()
 
 
 def _expected_conclusion(fields: list[str], layout: tuple[str, ...], *, symbol: str) -> ExpectedConclusion:
@@ -510,7 +512,7 @@ class ExecutionNotice:
     symbol_name: str  # 체결종목명
     account_name: str
     order_price: Decimal
-    _raw: Mapping[str, Any] = _RAW_FIELD
+    _raw: Mapping[str, Any] = _raw_field()
 
 
 def _execution_notice(fields: list[str], layout: tuple[str, ...]) -> ExecutionNotice:
