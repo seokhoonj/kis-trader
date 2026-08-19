@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING
 
 from .domestic.entities.integrated import CurrencyDeposit, IntegratedBalance
 from .domestic.namespace import DomesticAccount
-from .errors import KISUsageError
+from .errors import KISError, KISUsageError
 from .overseas.namespace import OverseasAccount
 
 if TYPE_CHECKING:
@@ -68,12 +68,14 @@ class StockAccounts:
                 if c.currency != "KRW"  # 원화 예수금은 국내(dom.deposit)가 진실의 원천 -- 중복 행 방지
             ),
         )
+        if len({d.currency for d in deposits}) != len(deposits):
+            raise KISError("통합잔고 통화별 예수금에 중복 통화가 있다.")
         return IntegratedBalance(
             base_currency="KRW",
             deposits=deposits,
             domestic=dom,
             bonds=bonds,
             overseas=ovs,
-            total_evaluation=dom.total_evaluation + ovs.total_evaluation_amount,
+            total_evaluation=dom.market_value + ovs.total_evaluation_amount,
             total_unrealized_pnl=dom.unrealized_pnl + ovs.total_eval_pnl,
         )

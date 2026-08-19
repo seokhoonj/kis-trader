@@ -429,9 +429,13 @@ def fetch_derivative_margin_rates(
             f"파생상품 증거금율 조회가 {_MAX_MARGIN_RATE_PAGES}페이지 상한에 도달했으나 연속조회가 "
             f"남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
         )
-    return [
-        _parse_margin_rate(row) for row in rows if str(row.get("bast_id", "")).strip()
-    ]
+    result: list[DerivativeMarginRate] = []
+    for row in rows:
+        if not isinstance(row, Mapping):  # output=[None] 등 손상 -> fail-closed
+            raise KISError("파생상품 증거금율 응답 행이 매핑이 아니다.")
+        if str(row.get("bast_id", "")).strip():
+            result.append(_parse_margin_rate(row))
+    return result
 
 
 def _parse_margin_rate(row: Mapping[str, Any]) -> DerivativeMarginRate:
