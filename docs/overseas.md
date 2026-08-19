@@ -5,34 +5,34 @@
 ## 시세
 
 ```python
-s = kis.overseas.stock("AAPL")  # 거래소 자동 (NAS)
+stock = kis.overseas.stock("AAPL")  # 거래소 자동 (NAS)
 
-s.quote()                       # 현재가
-s.current_price()               # 현재가(간단)
-s.bars("1d", start="20240101")  # 일봉 (기간봉은 start 필요)
-s.order_book()                  # 호가
-s.trades()                      # 체결
+stock.quote()                       # 현재가
+stock.current_price()               # 현재가(간단)
+stock.bars("1d", start="20240101")  # 일봉 (기간봉은 start 필요)
+stock.order_book()                  # 호가
+stock.trades()                      # 체결
 ```
 
 ## 주문
 
 ```python
-s.buy(quantity=1, limit_price=150)
-s.sell(quantity=1, limit_price=160)
+stock.buy(quantity=1, limit_price=150)
+stock.sell(quantity=1, limit_price=160)
 
-s.buy(quantity=1, limit_price=150)            # 미국 정규장 (한국 시간 밤~새벽)
-s.overnight_buy(quantity=1, limit_price=150)  # 미국 오버나이트 세션 (한국 낮)
-s.reserve_buy(quantity=1, limit_price=150)    # 미국 예약 (장 열리기 전 미리)
+stock.buy(quantity=1, limit_price=150)            # 미국 정규장 (한국 시간 밤~새벽)
+stock.overnight_buy(quantity=1, limit_price=150)  # 미국 오버나이트 세션 (한국 낮)
+stock.reserve_buy(quantity=1, limit_price=150)    # 미국 예약 (장 열리기 전 미리)
 ```
 
 아시아(홍콩·중국·일본·베트남) 예약도 같은 `reserve_buy`/`reserve_sell` 이며, 거래소는 자동 판별됩니다.
 취소는 `kis.orders.cancel(...)` 로 합니다(미국 예약은 예약번호로 취소).
 
 ```python
-hk = kis.overseas.stock("00700")                              # 홍콩 (자동 판별)
-rep = hk.reserve_buy(quantity=100, limit_price=350)           # 홍콩 예약
-hk.reserve_buy(quantity=100, limit_price=350, currency="CNY") # 홍콩 CNY 결제 (기본 HKD)
-kis.orders.cancel(rep.client_order_id)                        # 아시아 예약 취소
+hk_stock = kis.overseas.stock("00700")                              # 홍콩 (자동 판별)
+report = hk_stock.reserve_buy(quantity=100, limit_price=350)        # 홍콩 예약
+hk_stock.reserve_buy(quantity=100, limit_price=350, currency="CNY") # 홍콩 CNY 결제 (기본 HKD)
+kis.orders.cancel(report.client_order_id)                           # 아시아 예약 취소
 ```
 
 ::: {.callout-note}
@@ -51,16 +51,16 @@ kis.orders.cancel(rep.client_order_id)                        # 아시아 예약
 ## 계좌
 
 ```python
-a = kis.account.overseas
+account = kis.account.overseas
 
-a.positions(market=None)                             # None = 전체 시장 합산
-a.balance(market="US")                               # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
-a.present_balance()                                  # 체결기준 잔고 (오늘 체결분 포함)
-a.settlement_balance(basis_date="20240630")          # 결제기준 잔고 (결제일 기준)
-a.buyable(symbol="AAPL", exchange="NAS", price=150)  # 매수가능 수량·금액 (해당 단가 기준)
-a.period_profit(start="20240101", end="20240630")    # 기간 실현손익 (매도청산 종목별)
-a.transactions(start="20240101", end="20240630")     # 거래내역
-a.foreign_margin()                                   # 통화별 외화 증거금
+account.positions(market=None)                             # None = 전체 시장 합산
+account.balance(market="US")                               # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
+account.present_balance()                                  # 체결기준 잔고 (오늘 체결분 포함)
+account.settlement_balance(basis_date="20240630")          # 결제기준 잔고 (결제일 기준)
+account.buyable(symbol="AAPL", exchange="NAS", price=150)  # 매수가능 수량·금액 (해당 단가 기준)
+account.period_profit(start="20240101", end="20240630")    # 기간 실현손익 (매도청산 종목별)
+account.transactions(start="20240101", end="20240630")     # 거래내역
+account.foreign_margin()                                   # 통화별 외화 증거금
 ```
 
 ::: {.callout-note}
@@ -76,17 +76,17 @@ a.foreign_margin()                                   # 통화별 외화 증거�
 ## 순위·검색
 
 ```python
-r = kis.overseas.ranking
-r.by_change(exchange="NAS")  # 모든 순위가 거래소(exchange)를 받습니다
-r.by_volume(exchange="NAS")
-r.by_amount(exchange="NAS")
-r.by_market_cap(exchange="NAS")
-r.by_turnover(exchange="NAS")           # 거래회전율
-r.by_buy_strength(exchange="NAS")       # 매수 체결강도
-r.by_trade_growth(exchange="NAS")       # 거래증가율
-r.by_volume_surge(exchange="NAS")       # 거래량 급증
-r.by_new_highlow(exchange="NAS")        # 신고가/신저가
-r.by_price_fluctuation(exchange="NAS")  # 급등/급락
+ranking = kis.overseas.ranking
+ranking.by_change(exchange="NAS")  # 모든 순위가 거래소(exchange)를 받습니다
+ranking.by_volume(exchange="NAS")
+ranking.by_amount(exchange="NAS")
+ranking.by_market_cap(exchange="NAS")
+ranking.by_turnover(exchange="NAS")           # 거래회전율
+ranking.by_buy_strength(exchange="NAS")       # 매수 체결강도
+ranking.by_trade_growth(exchange="NAS")       # 거래증가율
+ranking.by_volume_surge(exchange="NAS")       # 거래량 급증
+ranking.by_new_highlow(exchange="NAS")        # 신고가/신저가
+ranking.by_price_fluctuation(exchange="NAS")  # 급등/급락
 
 kis.overseas.search_stocks("NAS", price=(10, 500), change_percent=(5, 30))  # 거래소 + 범위 조건
 kis.overseas.news(…)  # 뉴스 헤드라인
@@ -112,13 +112,13 @@ kis.overseas.settlement_dates()                        # 시장별 결제일자
 해외파생(08) 세션에서 `kis.account` 는 해외선물옵션 계좌 뷰를 돌려줍니다. 해외파생 계좌는 통화별로 조회하며, **금액·수량은 조회 통화(`currency`) 기준**(원화 아님)입니다. 모두 **실전투자 전용**입니다.
 
 ```python
-a = kis.account            # 08 세션
+account = kis.account            # 08 세션
 
-d = a.deposit(currency="USD")      # 예수금현황
-print(d.cash_balance, d.orderable_amount, d.unrealized_pnl)
+deposit = account.deposit(currency="USD")      # 예수금현황
+print(deposit.cash_balance, deposit.orderable_amount, deposit.unrealized_pnl)
 
-for p in a.positions():            # 미결제(보유) 현황 (fuop="00" 전체)
-    print(f"{p.symbol:10s} {p.side} {p.quantity}  평가손익 {p.unrealized_pnl}")
+for position in account.positions():            # 미결제(보유) 현황 (fuop="00" 전체)
+    print(f"{position.symbol:10s} {position.side} {position.quantity}  평가손익 {position.unrealized_pnl}")
 ```
 
 `deposit()` 의 `OverseasDerivativeDeposit` 주요 필드:
@@ -146,9 +146,9 @@ for p in a.positions():            # 미결제(보유) 현황 (fuop="00" 전체)
 주문가능·증거금상세·당일주문:
 
 ```python
-a.orderable("ESU24", "buy", price=5300)  # 계약 주문가능수량 (price 없으면 시장가 기준)
-a.margin_detail(currency="USD")           # 증거금상세 (주문가능·위탁/유지 증거금)
-a.today_orders()                          # 당일 주문 (체결/미체결)
+account.orderable("ESU24", "buy", price=5300)  # 계약 주문가능수량 (price 없으면 시장가 기준)
+account.margin_detail(currency="USD")           # 증거금상세 (주문가능·위탁/유지 증거금)
+account.today_orders()                          # 당일 주문 (체결/미체결)
 ```
 
 - `orderable()` → `OverseasDerivativeOrderable`: `new_orderable_quantity`(신규주문가능), `total_orderable_quantity`(총주문가능), `market_orderable_quantity`(시장가총주문가능), `liquidatable_quantity`(청산가능).
@@ -158,10 +158,10 @@ a.today_orders()                          # 당일 주문 (체결/미체결)
 기간 조회(체결·주문·손익·입출금):
 
 ```python
-a.daily_fills(start="20240101", end="20240630")   # 일별 체결내역 + 기간 합계
-a.daily_orders(start="20240101", end="20240630")  # 일별 주문내역
-a.period_pnl(start="20240101", end="20240630")    # 기간 손익 (통화별 + 종목별)
-a.transactions(start="20240101", end="20240630")  # 기간 입출금(원장)
+account.daily_fills(start="20240101", end="20240630")   # 일별 체결내역 + 기간 합계
+account.daily_orders(start="20240101", end="20240630")  # 일별 주문내역
+account.period_pnl(start="20240101", end="20240630")    # 기간 손익 (통화별 + 종목별)
+account.transactions(start="20240101", end="20240630")  # 기간 입출금(원장)
 ```
 
 - `daily_fills()` → `OverseasDerivativeFillHistory`: `fills`(`OverseasDerivativeFill`)와 합계(`total_filled_quantity`·`total_fee`).

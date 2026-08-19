@@ -11,14 +11,14 @@
 주식 세션은 국내·해외를 한 계좌에서 다루므로 시장별 뷰를 갖습니다. 세션을 `account=` 로 열어야 합니다.
 
 ```python
-a = kis.account.domestic
+account = kis.account.domestic
 ```
 
 ## 예수금·자산 요약
 
 ```python
-b = a.balance()
-print(b.deposit, b.total_evaluation, b.unrealized_pnl)
+balance = account.balance()
+print(balance.deposit, balance.total_evaluation, balance.unrealized_pnl)
 ```
 
 `balance()` 가 돌려주는 `Balance` 의 주요 필드:
@@ -33,14 +33,14 @@ print(b.deposit, b.total_evaluation, b.unrealized_pnl)
 | `market_value` | 평가금액 |
 | `unrealized_pnl` | 평가손익 |
 
-`a.assets()` 는 대출·외화까지 포함한 계좌 자산현황.
+`account.assets()` 는 대출·외화까지 포함한 계좌 자산현황.
 
 ## 보유 종목
 
 ```python
-for p in a.positions():
-    print(f"{p.security_name:10s} {p.quantity}주  "
-          f"평가손익 {p.unrealized_pnl:>12,}  ({p.unrealized_pnl_percent}%)")
+for position in account.positions():
+    print(f"{position.security_name:10s} {position.quantity}주  "
+          f"평가손익 {position.unrealized_pnl:>12,}  ({position.unrealized_pnl_percent}%)")
 ```
 
 `Position` 필드:
@@ -58,14 +58,14 @@ for p in a.positions():
 
 `sellable_quantity`(매도가능)는 담보·대주 등으로 `quantity`(보유)보다 적을 수 있습니다.
 
-보유종목 + 요약을 한 번에: `a.portfolio()` → `.balance`, `.positions`.
+보유종목 + 요약을 한 번에: `account.portfolio()` → `.balance`, `.positions`.
 
 ## 실현손익
 
 ```python
-a.trade_profits(start="20240101", end="20240630")  # 종목별 실현손익
-a.daily_profits(start="20240101", end="20240630")  # 일별 실현손익
-a.realized_profit_balance()                        # 실현손익 포함 잔고
+account.trade_profits(start="20240101", end="20240630")  # 종목별 실현손익
+account.daily_profits(start="20240101", end="20240630")  # 일별 실현손익
+account.realized_profit_balance()                        # 실현손익 포함 잔고
 ```
 
 ::: {.callout-note}
@@ -80,17 +80,17 @@ a.realized_profit_balance()                        # 실현손익 포함 잔고
 ## 미체결·주문가능
 
 ```python
-a.open_orders()                   # 미체결 / 정정취소 가능 주문
-s = kis.domestic.stock("005930")
-s.buyable()                       # 매수 가능 수량·금액
-s.sellable()                      # 매도 가능 수량
+account.open_orders()                 # 미체결 / 정정취소 가능 주문
+stock = kis.domestic.stock("005930")
+stock.buyable()                       # 매수 가능 수량·금액
+stock.sellable()                      # 매도 가능 수량
 ```
 
 ## 권리·증거금
 
 ```python
-a.rights(start="20240101", end="20240630")  # 배정/신청/환불된 권리
-a.integrated_margin()                       # 통합증거금
+account.rights(start="20240101", end="20240630")  # 배정/신청/환불된 권리
+account.integrated_margin()                       # 통합증거금
 ```
 
 ## 해외 계좌
@@ -98,13 +98,13 @@ a.integrated_margin()                       # 통합증거금
 해외는 통화·시장이 얽혀 있어 살짝 다릅니다.
 
 ```python
-oa = kis.account.overseas
-oa.positions(market=None)                           # None = 전체 시장 합산
-oa.balance(market="US")                             # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
-oa.present_balance()                                # 체결기준 현재잔고
-oa.period_profit(start="20240101", end="20240630")  # 기간 실현손익
-oa.transactions(start="20240101", end="20240630")   # 거래내역
-oa.foreign_margin()                                 # 통화별 외화 증거금
+account = kis.account.overseas
+account.positions(market=None)                           # None = 전체 시장 합산
+account.balance(market="US")                             # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
+account.present_balance()                                # 체결기준 현재잔고
+account.period_profit(start="20240101", end="20240630")  # 기간 실현손익
+account.transactions(start="20240101", end="20240630")   # 거래내역
+account.foreign_margin()                                 # 통화별 외화 증거금
 ```
 
 ## 채권 계좌
@@ -120,10 +120,10 @@ kis.account.domestic.bonds.balance()  # 채권 보유 lot
 `kis.account.balance()` 는 국내주식·채권·해외주식 잔고를 한 뷰로 합쳐 `IntegratedBalance` 로 돌려줍니다. **실전투자 전용**입니다.
 
 ```python
-ib = kis.account.balance()
-for d in ib.deposits:
-    print(f"{d.currency}  예수금 {d.cash:>15,}  (환율 {d.exchange_rate})")
-print("원화 총평가", ib.total_evaluation, "  평가손익", ib.total_unrealized_pnl)
+balance = kis.account.balance()
+for deposit in balance.deposits:
+    print(f"{deposit.currency}  예수금 {deposit.cash:>15,}  (환율 {deposit.exchange_rate})")
+print("원화 총평가", balance.total_evaluation, "  평가손익", balance.total_unrealized_pnl)
 ```
 
 `IntegratedBalance` 의 주요 필드:

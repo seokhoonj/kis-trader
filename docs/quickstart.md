@@ -31,17 +31,17 @@ kis = KISClient(app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET", account="1
 ## 첫 조회
 
 ```python
-s = kis.domestic.stock("005930")  # 삼성전자
-q = s.quote()
+stock = kis.domestic.stock("005930")  # 삼성전자
+quote = stock.quote()
 
-q.current_price   # 현재가
-q.change          # 전일대비
-q.change_percent  # 등락률(%)
-q.volume          # 거래량
+quote.current_price   # 현재가
+quote.change          # 전일대비
+quote.change_percent  # 등락률(%)
+quote.volume          # 거래량
 ```
 
-모든 결과는 **읽기전용**입니다. 필드 설명이 궁금하면 `help(type(q))`(한국어 설명 + KIS URL·TR-ID),
-원본 응답 전체는 `q._raw`.
+모든 결과는 **읽기전용**입니다. 필드 설명이 궁금하면 `help(type(quote))`(한국어 설명 + KIS URL·TR-ID),
+원본 응답 전체는 `quote._raw`.
 
 ## 첫 주문
 
@@ -49,13 +49,13 @@ q.volume          # 거래량
 예외가 나므로, 매번 확인 절차를 덧붙일 필요가 없습니다:
 
 ```python
-r = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)  # 10주 지정가 매수 -- 바로 접수됨
+report = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)  # 10주 지정가 매수 -- 바로 접수됨
 
-r.order_id          # 거래소 주문번호(ODNO) -- 접수 성공
-r.status            # 주문 상태 (NEW = 접수됨. 체결 여부는 별개)
-r.client_order_id   # 이 주문의 고유 키 -- 정정·취소할 때 지목
+report.order_id          # 거래소 주문번호(ODNO) -- 접수 성공
+report.status            # 주문 상태 (NEW = 접수됨. 체결 여부는 별개)
+report.client_order_id   # 이 주문의 고유 키 -- 정정·취소할 때 지목
 
-kis.orders.cancel(r.client_order_id)   # 정정·취소는 이 키로 지목
+kis.orders.cancel(report.client_order_id)   # 정정·취소는 이 키로 지목
 ```
 
 `reconcile` 은 매 주문에 붙이는 단계가 **아닙니다**. 전송이 **타임아웃돼 접수 여부가 불명일 때만**

@@ -3,13 +3,13 @@
 채권 핸들은 `kis.domestic.bond(표준코드)`.
 
 ```python
-b = kis.domestic.bond("KR6095572D97")
+bond = kis.domestic.bond("KR6095572D97")
 
-b.profile()                                     # 기본/발행 정보 (발행일·만기·표면금리·만기수익률·통화)
-b.issuance()                                    # 상세 발행조건·발행기관·신용등급·거래상태
-b.daily_prices()                                # 날짜별 현재가·등락·OHLCV (과거→현재)
+bond.profile()                                     # 기본/발행 정보 (발행일·만기·표면금리·만기수익률·통화)
+bond.issuance()                                    # 상세 발행조건·발행기관·신용등급·거래상태
+bond.daily_prices()                                # 날짜별 현재가·등락·OHLCV (과거→현재)
 
-b.valuations(start="20240101", end="20240630")  # 평가기관별 단가·수익률 일별 시계열
+bond.valuations(start="20240101", end="20240630")  # 평가기관별 단가·수익률 일별 시계열
 ```
 
 ## 채권 계좌·잔고
@@ -19,8 +19,8 @@ b.valuations(start="20240101", end="20240630")  # 평가기관별 단가·수익
 ```python
 bonds = kis.account.domestic.bonds
 
-for p in bonds.balance():
-    print(f"{p.name:16s} {p.quantity}  매수단가 {p.buy_price}  수익률 {p.buy_yield}%")
+for position in bonds.balance():
+    print(f"{position.name:16s} {position.quantity}  매수단가 {position.buy_price}  수익률 {position.buy_yield}%")
 ```
 
 채권 잔고는 종목이 아니라 매수 단위(`buy_date` + `buy_sequence`)로 쪼개져 오므로 같은 종목이 여러 lot 으로 나뉠 수 있습니다. `BondPosition` 주요 필드:

@@ -7,19 +7,19 @@
 ## 기본 사용 (동기)
 
 ```python
-ws = kis.realtime()                           # /oauth2/Approval 로 접속키 발급
+realtime = kis.realtime()                           # /oauth2/Approval 로 접속키 발급
 
-ws.subscribe("H0STCNT0", "005930", on=print)  # 삼성전자 실시간 체결(콜백)
-ws.start()                                    # 백그라운드 스레드에서 수신 시작
+realtime.subscribe("H0STCNT0", "005930", on=print)  # 삼성전자 실시간 체결(콜백)
+realtime.start()                                    # 백그라운드 스레드에서 수신 시작
 
-for tick in ws.stream():                      # 또는 이터레이터로
+for tick in realtime.stream():                      # 또는 이터레이터로
     print(tick.tr_id, tick.data.current_price, tick.data.trade_volume)
 
-ws.stop()                                     # 종료 (with 문도 가능)
+realtime.stop()                                     # 종료 (with 문도 가능)
 ```
 
 `subscribe`는 `start` 전에 불러도 되고(연결 후 자동 전송), 후에 불러도 됩니다. 수신 메시지는
-등록한 **콜백**과 `stream()` **이터레이터** 양쪽으로 전달됩니다. `with kis.realtime() as ws:`로
+등록한 **콜백**과 `stream()` **이터레이터** 양쪽으로 전달됩니다. `with kis.realtime() as realtime:`로
 쓰면 블록을 벗어날 때 자동으로 `stop()`됩니다.
 
 각 메시지는 `RealtimeMessage(tr_id, tr_key, data)`이고, `data`는 그 TR의 결과 엔티티(파서가 있으면)
@@ -33,7 +33,7 @@ def on_tick(msg):
     if isinstance(tick, TradeTick):
         print(tick.symbol, tick.current_price, tick.change_percent)
 
-ws.subscribe("H0STCNT0", "005930", on=on_tick)
+realtime.subscribe("H0STCNT0", "005930", on=on_tick)
 ```
 
 ## 구독 대상 (TR ID)

@@ -7,44 +7,44 @@
 ## 투자자 수급
 
 ```python
-m = kis.domestic.market
+market = kis.domestic.market
 
-m.investor_flows()           # 시장 전체 투자자 동향
-m.investor_net_buy_stocks()  # 투자자별 순매수 상위 종목
-m.investor_snapshot(market_code="0001", industry_code="0001")  # 시장·업종별 세부 매수/매도/순매수
+market.investor_flows()           # 시장 전체 투자자 동향
+market.investor_net_buy_stocks()  # 투자자별 순매수 상위 종목
+market.investor_snapshot(market_code="0001", industry_code="0001")  # 시장·업종별 세부 매수/매도/순매수
 ```
 
 ## 프로그램 매매
 
 ```python
-m.program_trades()             # 일별 프로그램매매 종합(차익/비차익; KOSPI/KOSDAQ)
-m.program_flow()               # 당일 시간대별 프로그램 순매수 대금
-m.program_investor_trades()    # 당일 프로그램매매 투자자 집계
-m.foreign_broker_trades()      # 외국계 창구 매매
+market.program_trades()             # 일별 프로그램매매 종합(차익/비차익; KOSPI/KOSDAQ)
+market.program_flow()               # 당일 시간대별 프로그램 순매수 대금
+market.program_investor_trades()    # 당일 프로그램매매 투자자 집계
+market.foreign_broker_trades()      # 외국계 창구 매매
 ```
 
 ## 자금·금리
 
 ```python
-m.funds()           # 증시자금 종합(예탁금·신용융자잔고·펀드유형별·시가총액) 추이
-m.interest_rates()  # 국내·해외 주요 금리·채권지수 스냅샷
+market.funds()           # 증시자금 종합(예탁금·신용융자잔고·펀드유형별·시가총액) 추이
+market.interest_rates()  # 국내·해외 주요 금리·채권지수 스냅샷
 ```
 
 ## 제도·상태
 
 ```python
-m.limit_stocks()             # 상한가/하한가 도달 종목
-m.vi_events()                # VI(변동성완화장치) 발동 현황
-m.lendable_stocks()          # 대주 가능 종목·한도
-m.credit_eligible_stocks()   # 신용주문 가능·불가 종목
-m.futures_market_schedule()  # 국내선물 인접 영업일·장 시작/종료
+market.limit_stocks()             # 상한가/하한가 도달 종목
+market.vi_events()                # VI(변동성완화장치) 발동 현황
+market.lendable_stocks()          # 대주 가능 종목·한도
+market.credit_eligible_stocks()   # 신용주문 가능·불가 종목
+market.futures_market_schedule()  # 국내선물 인접 영업일·장 시작/종료
 ```
 
 ## 의견·뉴스
 
 ```python
-m.broker_opinions(broker="003")  # 한 증권사(회원사 코드)가 낸 종목 투자의견·목표가
-m.news()                         # 시황·공시 뉴스 제목 피드
+market.broker_opinions(broker="003")  # 한 증권사(회원사 코드)가 낸 종목 투자의견·목표가
+market.news()                         # 시황·공시 뉴스 제목 피드
 ```
 
 ## 지수
@@ -52,21 +52,21 @@ m.news()                         # 시황·공시 뉴스 제목 피드
 지수 핸들은 `kis.domestic.index(이름_또는_코드)` — 이름(`"KOSPI"`)이나 업종코드(`"0001"`) 둘 다 됩니다.
 
 ```python
-i = kis.domestic.index("KOSPI")
+index = kis.domestic.index("KOSPI")
 
-i.quote()                       # 지수 현재가
-i.bars("1d", start="20240101")  # 지수 차트 (일/주/월)
-i.categories()                  # 시장 요약 + 하위 업종 지수 목록
-i.daily_history()               # 스냅샷 + 최근 100건 일/주/월 통계
-i.intraday()                    # 당일 시간대별 (1m/5m/10m)
-i.ticks()                       # 당일 10초 시계열
+index.quote()                       # 지수 현재가
+index.bars("1d", start="20240101")  # 지수 차트 (일/주/월)
+index.categories()                  # 시장 요약 + 하위 업종 지수 목록
+index.daily_history()               # 스냅샷 + 최근 100건 일/주/월 통계
+index.intraday()                    # 당일 시간대별 (1m/5m/10m)
+index.ticks()                       # 당일 10초 시계열
 ```
 
 예상체결 지수:
 
 ```python
-i.expected_snapshot()  # 동시호가 대표 예상체결 지수 + 시장별 목록
-i.expected_trend()     # 장 시작 전·마감 예상체결 지수 추이
+index.expected_snapshot()  # 동시호가 대표 예상체결 지수 + 시장별 목록
+index.expected_trend()     # 장 시작 전·마감 예상체결 지수 추이
 ```
 
 ::: {.callout-note}
