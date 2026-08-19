@@ -19,7 +19,7 @@ if TYPE_CHECKING:
     from .client import KISClient
 
 
-class StockAccounts:
+class StockAccount:
     """``kis.account`` (위탁 01) -- 국내/해외 주식 계좌의 시장별 뷰."""
 
     def __init__(self, client: KISClient) -> None:

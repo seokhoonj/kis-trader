@@ -69,7 +69,7 @@ class DomesticBondAccount:
         )
 
     def fills(
-        self, start: str, end: str, *, side: str = "all", symbol: str | None = None,
+        self, *, start: str, end: str, side: str = "all", symbol: str | None = None,
         unfilled_only: bool = False,
     ) -> BondFillHistory:
         """장내채권 일별 주문·체결 내역(개별 행 + 기간 합계). ``start``/``end`` 는 조회 기간의

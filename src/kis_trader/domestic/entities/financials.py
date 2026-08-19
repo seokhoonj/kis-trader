@@ -23,10 +23,10 @@ class BalanceSheet:
     symbol: str
     period: str                       # 결산년월(stac_yymm, "YYYYMM")
     current_assets: Decimal | None    # 유동자산(cras; 금융업은 공란)
-    fixed_assets: Decimal | None      # 고정(비유동)자산(fxas; 금융업은 공란)
+    noncurrent_assets: Decimal | None  # 비유동자산(fxas; 금융업은 공란)
     total_assets: Decimal             # 자산총계(total_aset)
     current_liabilities: Decimal | None  # 유동부채(flow_lblt; 금융업은 공란)
-    fixed_liabilities: Decimal | None  # 고정(비유동)부채(fix_lblt; 금융업은 공란)
+    noncurrent_liabilities: Decimal | None  # 비유동부채(fix_lblt; 금융업은 공란)
     total_liabilities: Decimal        # 부채총계(total_lblt)
     capital: Decimal                  # 자본금(cpfn)
     total_equity: Decimal             # 자본총계(total_cptl)

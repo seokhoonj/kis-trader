@@ -221,7 +221,7 @@ def test_balance_sheet_optional_line_items_none_for_financial_issuer():
     fake = FakeTransport(response=_resp(rows))
     s = _client(fake).domestic.stock("000660").balance_sheet()[0]
     assert s.current_assets is None
-    assert s.fixed_liabilities is None
+    assert s.noncurrent_liabilities is None
     assert s.total_assets == Decimal(3000)               # 합계는 여전히 required
     assert s.total_equity == Decimal(2200)
 

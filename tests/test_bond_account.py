@@ -312,7 +312,7 @@ def _fills_resp(*, rows=None, totals=None, ctx_nk="", ctx_fk="", tr_cont=""):
 
 def test_fills_parses_rows_and_totals():
     fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
-    history = _bonds(fake).fills("20240201", "20240229")
+    history = _bonds(fake).fills(start="20240201", end="20240229")
     assert history.total_order_quantity == Decimal(3000)
     assert history.total_filled_quantity == Decimal(2000)
     assert history.average_price == Decimal(9855)
@@ -338,7 +338,7 @@ def test_fills_parses_rows_and_totals():
 
 def test_fills_routes_with_params():
     fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
-    _bonds(fake).fills("20240201", "20240229", side="buy", symbol="KR2033022D33",
+    _bonds(fake).fills(start="20240201", end="20240229", side="buy", symbol="KR2033022D33",
                        unfilled_only=True)
     call = fake.calls[0]
     assert call["path"] == _FILLS_PATH
@@ -353,38 +353,38 @@ def test_fills_routes_with_params():
 
 def test_fills_side_all_and_sell_codes():
     fake_all = FakeTransport(response=_fills_resp(rows=[_fill()]))
-    _bonds(fake_all).fills("20240201", "20240229")
+    _bonds(fake_all).fills(start="20240201", end="20240229")
     assert fake_all.calls[0]["params"]["SLL_BUY_DVSN_CD"] == "00"
     assert fake_all.calls[0]["params"]["PDNO"] == ""
     assert fake_all.calls[0]["params"]["NCCS_YN"] == "N"
     fake_sell = FakeTransport(response=_fills_resp(rows=[_fill()]))
-    _bonds(fake_sell).fills("20240201", "20240229", side="sell")
+    _bonds(fake_sell).fills(start="20240201", end="20240229", side="sell")
     assert fake_sell.calls[0]["params"]["SLL_BUY_DVSN_CD"] == "01"
 
 
 def test_fills_skips_blank_odno():
     fake = FakeTransport(response=_fills_resp(rows=[_fill(), {"odno": "  "}]))
-    assert len(_bonds(fake).fills("20240201", "20240229").fills) == 1
+    assert len(_bonds(fake).fills(start="20240201", end="20240229").fills) == 1
 
 
 def test_fills_rejects_bad_side():
     fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
     with pytest.raises(KISUsageError):
-        _bonds(fake).fills("20240201", "20240229", side="both")
+        _bonds(fake).fills(start="20240201", end="20240229", side="both")
     assert fake.calls == []
 
 
 def test_fills_rejects_bad_date():
     fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
     with pytest.raises(KISUsageError):
-        _bonds(fake).fills("2024", "20240229")
+        _bonds(fake).fills(start="2024", end="20240229")
     assert fake.calls == []
 
 
 def test_fills_paper_fails_closed():
     fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
     with pytest.raises(KISUsageError):
-        _bonds(fake, environment="paper").fills("20240201", "20240229")
+        _bonds(fake, environment="paper").fills(start="20240201", end="20240229")
     assert fake.calls == []
 
 
@@ -392,20 +392,20 @@ def test_fills_missing_output1_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"output2": dict(_FILLS_TOTALS)})
     with pytest.raises(KISError):
-        _bonds(FakeTransport(response=resp)).fills("20240201", "20240229")
+        _bonds(FakeTransport(response=resp)).fills(start="20240201", end="20240229")
 
 
 def test_fills_missing_totals_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output1": []})
     with pytest.raises(KISError):
-        _bonds(FakeTransport(response=resp)).fills("20240201", "20240229")
+        _bonds(FakeTransport(response=resp)).fills(start="20240201", end="20240229")
 
 
 def test_fills_paginates_two_pages():
     page1 = _fills_resp(rows=[_fill(odno="1")], ctx_nk="NK", ctx_fk="FK", tr_cont="F")
     page2 = _fills_resp(rows=[_fill(odno="2")], tr_cont="D")
     fake = FakeTransport(by_path={_FILLS_PATH: [page1, page2]})
-    history = _bonds(fake).fills("20240201", "20240229")
+    history = _bonds(fake).fills(start="20240201", end="20240229")
     assert [f.order_id for f in history.fills] == ["1", "2"]
     assert len(fake.calls) == 2
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NK"
@@ -426,7 +426,7 @@ def test_open_orders_non_mapping_row_raises():
 
 def test_fills_non_mapping_row_raises():
     with pytest.raises(KISError):
-        _bonds(FakeTransport(response=_fills_resp(rows=[None]))).fills("20240201", "20240229")
+        _bonds(FakeTransport(response=_fills_resp(rows=[None]))).fills(start="20240201", end="20240229")
 
 
 # --- 페이지 상한 fail-closed (연속조회가 끝나지 않는 tr_cont="F"/"M") --------
@@ -445,4 +445,4 @@ def test_open_orders_page_cap_fails_closed():
 def test_fills_page_cap_fails_closed():
     never_ends = _fills_resp(rows=[_fill()], ctx_nk="NK", ctx_fk="FK", tr_cont="F")
     with pytest.raises(KISError):
-        _bonds(FakeTransport(response=never_ends)).fills("20240201", "20240229")
+        _bonds(FakeTransport(response=never_ends)).fills(start="20240201", end="20240229")

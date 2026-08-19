@@ -320,7 +320,7 @@ def test_settlement_pl_parses_and_routes():
     from kis_trader.domestic.entities.derivative_account import DerivativeSettlementBalance
 
     fake = FakeTransport(response=_settlement_resp(rows=[_settlement_position()]))
-    stl = _client(fake, environment="real").account.settlement_pl("20240216")
+    stl = _client(fake, environment="real").account.settlement_pl(base_date="20240216")
     assert isinstance(stl, DerivativeSettlementBalance)
     assert stl.positions[0].symbol == "KR4101RC0000"        # pdno
     assert stl.positions[0].quantity == Decimal(3)          # cblc_qty
@@ -341,14 +341,14 @@ def test_settlement_pl_parses_and_routes():
 def test_settlement_pl_paper_fails_closed():
     fake = FakeTransport(response=_settlement_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").account.settlement_pl("20240216")
+        _client(fake, environment="paper").account.settlement_pl(base_date="20240216")
     assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
 
 
 def test_settlement_pl_bad_date_fails_closed():
     fake = FakeTransport(response=_settlement_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="real").account.settlement_pl("2024-02-16")
+        _client(fake, environment="real").account.settlement_pl(base_date="2024-02-16")
     assert fake.calls == []  # 날짜 검증도 와이어 이전
 
 
@@ -357,7 +357,7 @@ def test_settlement_pl_paginates():
                              ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
     page2 = _settlement_resp(rows=[_settlement_position("KR4201RC0000")], tr_cont="D")
     fake = FakeTransport(by_path={_SETTLEMENT_PATH: [page1, page2]})
-    stl = _client(fake, environment="real").account.settlement_pl("20240216")
+    stl = _client(fake, environment="real").account.settlement_pl(base_date="20240216")
     assert [p.symbol for p in stl.positions] == ["KR4101RC0000", "KR4201RC0000"]
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
@@ -368,7 +368,7 @@ def test_settlement_pl_skips_blank_symbol_row():
     rows = [_settlement_position("KR4101RC0000"), _settlement_position("")]
     stl = _client(
         FakeTransport(response=_settlement_resp(rows=rows)), environment="real"
-    ).account.settlement_pl("20240216")
+    ).account.settlement_pl(base_date="20240216")
     assert [p.symbol for p in stl.positions] == ["KR4101RC0000"]
 
 
@@ -376,7 +376,7 @@ def test_settlement_pl_missing_output2_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"output1": [], "ctx_area_nk200": "", "ctx_area_fk200": ""})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp), environment="real").account.settlement_pl("20240216")
+        _client(FakeTransport(response=resp), environment="real").account.settlement_pl(base_date="20240216")
 
 
 def test_derivative_settlement_entities_importable():
@@ -415,7 +415,7 @@ def test_base_date_fills_parses_and_routes():
     from kis_trader.domestic.entities.derivative_account import DerivativeFillHistory
 
     fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
-    hist = _client(fake, environment="real").account.base_date_fills("20240220")
+    hist = _client(fake, environment="real").account.base_date_fills(order_date="20240220")
     assert isinstance(hist, DerivativeFillHistory)
     assert hist.fills[0].symbol == "KR4101RC0000"       # pdno
     assert hist.fills[0].order_id == "0000012345"       # odno
@@ -439,7 +439,7 @@ def test_base_date_fills_parses_and_routes():
 def test_base_date_fills_custom_time_window():
     fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
     _client(fake, environment="real").account.base_date_fills(
-        "20240220", start_time="090000", end_time="153000"
+        order_date="20240220", start_time="090000", end_time="153000"
     )
     assert fake.calls[0]["params"]["FUOP_TR_STRT_TMD"] == "090000"
     assert fake.calls[0]["params"]["FUOP_TR_END_TMD"] == "153000"
@@ -448,14 +448,14 @@ def test_base_date_fills_custom_time_window():
 def test_base_date_fills_paper_fails_closed():
     fake = FakeTransport(response=_fills_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").account.base_date_fills("20240220")
+        _client(fake, environment="paper").account.base_date_fills(order_date="20240220")
     assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
 
 
 def test_base_date_fills_bad_date_fails_closed():
     fake = FakeTransport(response=_fills_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="real").account.base_date_fills("2024-02-20")
+        _client(fake, environment="real").account.base_date_fills(order_date="2024-02-20")
     assert fake.calls == []
 
 
@@ -463,7 +463,7 @@ def test_base_date_fills_paginates():
     page1 = _fills_resp(rows=[_fill("0000012345")], ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
     page2 = _fills_resp(rows=[_fill("0000067890")], tr_cont="D")
     fake = FakeTransport(by_path={_FILLS_PATH: [page1, page2]})
-    hist = _client(fake, environment="real").account.base_date_fills("20240220")
+    hist = _client(fake, environment="real").account.base_date_fills(order_date="20240220")
     assert [f.order_id for f in hist.fills] == ["0000012345", "0000067890"]
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
@@ -474,7 +474,7 @@ def test_base_date_fills_skips_blank_order_id_row():
     rows = [_fill("0000012345"), _fill("")]
     hist = _client(
         FakeTransport(response=_fills_resp(rows=rows)), environment="real"
-    ).account.base_date_fills("20240220")
+    ).account.base_date_fills(order_date="20240220")
     assert [f.order_id for f in hist.fills] == ["0000012345"]
 
 
@@ -482,7 +482,7 @@ def test_base_date_fills_missing_output2_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"output1": [], "ctx_area_nk200": "", "ctx_area_fk200": ""})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp), environment="real").account.base_date_fills("20240220")
+        _client(FakeTransport(response=resp), environment="real").account.base_date_fills(order_date="20240220")
 
 
 def test_derivative_fill_entities_importable():
@@ -524,7 +524,7 @@ def test_commissions_parses_and_routes():
     from kis_trader.domestic.entities.derivative_account import DerivativeCommissionHistory
 
     fake = FakeTransport(response=_commissions_resp(rows=[_commission()]))
-    hist = _client(fake, environment="real").account.commissions("20240201", "20240229")
+    hist = _client(fake, environment="real").account.commissions(start="20240201", end="20240229")
     assert isinstance(hist, DerivativeCommissionHistory)
     assert hist.commissions[0].order_date == _date(2024, 2, 16)  # ord_dt
     assert hist.commissions[0].symbol == "KR4101RC0000"          # pdno
@@ -546,21 +546,21 @@ def test_commissions_parses_and_routes():
 def test_commissions_paper_fails_closed():
     fake = FakeTransport(response=_commissions_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").account.commissions("20240201", "20240229")
+        _client(fake, environment="paper").account.commissions(start="20240201", end="20240229")
     assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
 
 
 def test_commissions_bad_start_date_fails_closed():
     fake = FakeTransport(response=_commissions_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="real").account.commissions("2024-02-01", "20240229")
+        _client(fake, environment="real").account.commissions(start="2024-02-01", end="20240229")
     assert fake.calls == []
 
 
 def test_commissions_bad_end_date_fails_closed():
     fake = FakeTransport(response=_commissions_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="real").account.commissions("20240201", "2024/02/29")
+        _client(fake, environment="real").account.commissions(start="20240201", end="2024/02/29")
     assert fake.calls == []
 
 
@@ -569,7 +569,7 @@ def test_commissions_paginates():
                               ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
     page2 = _commissions_resp(rows=[_commission("20240217")], tr_cont="D")
     fake = FakeTransport(by_path={_COMMISSIONS_PATH: [page1, page2]})
-    hist = _client(fake, environment="real").account.commissions("20240201", "20240229")
+    hist = _client(fake, environment="real").account.commissions(start="20240201", end="20240229")
     assert len(hist.commissions) == 2
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
@@ -580,7 +580,7 @@ def test_commissions_skips_blank_row():
     rows = [_commission("20240216"), _commission("", pdno="")]
     hist = _client(
         FakeTransport(response=_commissions_resp(rows=rows)), environment="real"
-    ).account.commissions("20240201", "20240229")
+    ).account.commissions(start="20240201", end="20240229")
     assert len(hist.commissions) == 1
 
 
@@ -590,7 +590,7 @@ def test_commissions_missing_output2_raises():
     with pytest.raises(KISError):
         _client(
             FakeTransport(response=resp), environment="real"
-        ).account.commissions("20240201", "20240229")
+        ).account.commissions(start="20240201", end="20240229")
 
 
 def test_derivative_commission_entities_importable():
@@ -617,21 +617,21 @@ def test_settlement_pl_non_mapping_row_raises():
     with pytest.raises(KISError):
         _client(
             FakeTransport(response=_settlement_resp(rows=[None])), environment="real"
-        ).account.settlement_pl("20240216")
+        ).account.settlement_pl(base_date="20240216")
 
 
 def test_base_date_fills_non_mapping_row_raises():
     with pytest.raises(KISError):
         _client(
             FakeTransport(response=_fills_resp(rows=[None])), environment="real"
-        ).account.base_date_fills("20240220")
+        ).account.base_date_fills(order_date="20240220")
 
 
 def test_commissions_non_mapping_row_raises():
     with pytest.raises(KISError):
         _client(
             FakeTransport(response=_commissions_resp(rows=[None])), environment="real"
-        ).account.commissions("20240201", "20240229")
+        ).account.commissions(start="20240201", end="20240229")
 
 
 # --- 페이지 상한 fail-closed (연속조회가 끝나지 않는 tr_cont="F"/"M") --------
@@ -644,19 +644,19 @@ def test_valuation_pl_page_cap_fails_closed():
 def test_settlement_pl_page_cap_fails_closed():
     never_ends = _settlement_resp(rows=[_settlement_position()], ctx_nk="NEXT", ctx_fk="FK", tr_cont="M")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=never_ends), environment="real").account.settlement_pl("20240216")
+        _client(FakeTransport(response=never_ends), environment="real").account.settlement_pl(base_date="20240216")
 
 
 def test_base_date_fills_page_cap_fails_closed():
     never_ends = _fills_resp(rows=[_fill()], ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=never_ends), environment="real").account.base_date_fills("20240220")
+        _client(FakeTransport(response=never_ends), environment="real").account.base_date_fills(order_date="20240220")
 
 
 def test_commissions_page_cap_fails_closed():
     never_ends = _commissions_resp(rows=[_commission()], ctx_nk="NEXT", ctx_fk="FK", tr_cont="M")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=never_ends), environment="real").account.commissions("20240201", "20240229")
+        _client(FakeTransport(response=never_ends), environment="real").account.commissions(start="20240201", end="20240229")
 
 
 # --- (야간)선물옵션 잔고현황 (CTFN6118R, 계좌비밀번호 필요) ----------------------

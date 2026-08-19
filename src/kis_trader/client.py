@@ -24,7 +24,7 @@ from ._internal._masters import (
     load_overseas_index,
     urlopen_fetch,
 )
-from .account import StockAccounts
+from .account import StockAccount
 from .config import _ENVIRONMENTS, _fill_credentials, _split_account, token_cache_path
 from .domestic._engine import bond_orders as bond_orders_engine
 from .domestic._engine import derivative_orders as derivative_orders_engine
@@ -269,7 +269,7 @@ class KISClient:
         return self._environment
 
     @property
-    def account(self) -> StockAccounts | DomesticDerivativesAccount | OverseasDerivativesAccount:
+    def account(self) -> StockAccount | DomesticDerivativesAccount | OverseasDerivativesAccount:
         """세션이 연 계좌의 조회 뷰 -- 상품코드로 계좌 종류를 정한다(위탁 01 = 주식,
         국내선물옵션 03 = 선물옵션, 해외선물옵션 08 = 해외선물옵션).
 
@@ -277,7 +277,7 @@ class KISClient:
         미지원(추후 확장) -- 명확한 오류로 fail-closed 한다."""
         _, product_code = self._require_account()
         if product_code == "01":
-            return StockAccounts(self)
+            return StockAccount(self)
         if product_code == "03":
             return DomesticDerivativesAccount(self)
         if product_code == "08":

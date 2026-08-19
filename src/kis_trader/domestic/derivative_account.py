@@ -63,7 +63,7 @@ class DomesticDerivativesAccount:
             environment=self._client.environment,
         )
 
-    def settlement_pl(self, base_date: str) -> DerivativeSettlementBalance:
+    def settlement_pl(self, *, base_date: str) -> DerivativeSettlementBalance:
         """선물옵션 잔고정산손익내역(정산 보유내역 + 예수금·증거금·수수료 요약).
 
         ``base_date`` 는 조회 기준일자(YYYYMMDD, 8자리 숫자). ``GET .../domestic-futureoption/v1/
@@ -76,7 +76,7 @@ class DomesticDerivativesAccount:
         )
 
     def base_date_fills(
-        self, order_date: str, start_time: str = "000000", end_time: str = "240000"
+        self, *, order_date: str, start_time: str = "000000", end_time: str = "240000"
     ) -> DerivativeFillHistory:
         """선물옵션 기준일체결내역(체결내역 + 기간 합계 요약).
 
@@ -91,7 +91,7 @@ class DomesticDerivativesAccount:
             order_date=order_date, start_time=start_time, end_time=end_time,
         )
 
-    def commissions(self, start: str, end: str) -> DerivativeCommissionHistory:
+    def commissions(self, *, start: str, end: str) -> DerivativeCommissionHistory:
         """선물옵션 기간약정수수료일별(일별 내역 + 기간 합계 요약).
 
         ``start``/``end`` 는 조회 기간의 시작·종료일(YYYYMMDD, 8자리 숫자). ``GET .../

@@ -4,18 +4,18 @@ from __future__ import annotations
 from argparse import Namespace
 from typing import TYPE_CHECKING, Any
 
-from ...account import StockAccounts
+from ...account import StockAccount
 from ..errors import CliConfigError
 
 if TYPE_CHECKING:
     from ...client import KISClient
 
 
-def _stock_account(kis: KISClient) -> StockAccounts:
+def _stock_account(kis: KISClient) -> StockAccount:
     """주식(위탁 01) 계좌 뷰만 받는다 -- 잔고/보유/미체결 명령은 시장별(domestic/overseas)
     뷰가 필요하므로 다른 상품계좌(선물옵션 03 등)면 명확히 거부한다."""
     view = kis.account
-    if not isinstance(view, StockAccounts):
+    if not isinstance(view, StockAccount):
         raise CliConfigError("이 명령은 주식(위탁 01) 계좌에서만 사용할 수 있습니다.")
     return view
 

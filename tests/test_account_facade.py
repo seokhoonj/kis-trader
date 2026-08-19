@@ -1,6 +1,6 @@
 import pytest
 
-from kis_trader.account import StockAccounts
+from kis_trader.account import StockAccount
 from kis_trader.client import KISClient
 from kis_trader.domestic.namespace import DomesticAccount
 from kis_trader.errors import KISUsageError
@@ -19,7 +19,7 @@ def test_account_string_moved_to_private():
 def test_account_returns_stock_view_for_product_01():
     kis = _c("12345678-01")
     view = kis.account
-    assert isinstance(view, StockAccounts)
+    assert isinstance(view, StockAccount)
     assert isinstance(view.domestic, DomesticAccount)
     assert isinstance(view.overseas, OverseasAccount)
 
