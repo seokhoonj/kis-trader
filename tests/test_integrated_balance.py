@@ -117,6 +117,7 @@ def test_integrated_balance_merges():
     # 통화별 예수금: KRW(국내) + USD(해외)
     by_currency = {d.currency: d for d in result.deposits}
     assert set(by_currency) == {"KRW", "USD"}
+    assert len(result.deposits) == len(by_currency)  # 통화별 유일(KRW 중복 행 없음)
     assert isinstance(result.deposits[0], CurrencyDeposit)
     krw = by_currency["KRW"]
     assert krw.cash == Decimal(5000000)
@@ -125,10 +126,10 @@ def test_integrated_balance_merges():
     assert usd.cash == Decimal("1000.50")
     assert usd.exchange_rate == Decimal("1350.20")
 
-    # 원화 롤업 = KIS 원화 집계의 순수 합(환율 산술 없음)
-    assert result.net_liquidation == Decimal(17000000) + Decimal(3000000)
+    # 평가 롤업 = 겹치지 않는 국내·해외 보유의 순수 원화 합(현금 포함 단일 총자산은 이중계상이라 미노출)
     assert result.total_evaluation == Decimal(12000000) + Decimal(2800000)
     assert result.total_unrealized_pnl == Decimal(2000000) + Decimal(300000)
+    assert not hasattr(result, "net_liquidation")
 
     # 도메인별 서브잔고(원본 스키마 유지)
     assert isinstance(result.domestic, Balance)

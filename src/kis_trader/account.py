@@ -39,10 +39,13 @@ class StockAccounts:
 
     def balance(self) -> IntegratedBalance:
         """국내주식+채권+해외주식 잔고를 한 :class:`~kis_trader.domestic.entities.integrated.IntegratedBalance`
-        로 합친다(새 와이어 없이 세 기존 조회의 합성). 통화별 예수금이 진실의 원천이고, 원화
-        headline 롤업은 KIS가 준 원화 집계의 순수 합이다(환율 임의 적용 없음). 채권 잔고는
-        매입금액 기준이라 ``net_liquidation`` 엔 포함하지 않는다(``bonds`` 로 별도 확인).
-        **모의투자 미지원**(채권/해외 현재잔고가 실전 전용) -- 모의는 와이어 전에 fail-closed."""
+        로 합친다(새 와이어 없이 세 기존 조회의 합성). 통화별 예수금이 진실의 원천이고,
+        ``total_evaluation``/``total_unrealized_pnl`` 은 국내·해외 보유 평가의 순수 원화 합이다(서로 다른
+        보유라 겹치지 않는다). 현금까지 더한 단일 총자산은 노출하지 않는다 -- 국내 순자산과 해외
+        총자산이 같은 위탁계좌의 원화 예수금을 공유해(이중계상) net/gross 기준이 달라 신뢰 있게 합산할
+        수 없기 때문이다(필요하면 ``domestic``/``overseas`` 서브잔고를 직접 본다). 채권 잔고는 매입금액
+        기준이라 평가 합계에 넣지 않는다(``bonds`` 로 별도 확인). **모의투자 미지원**(채권/해외
+        현재잔고가 실전 전용) -- 모의는 와이어 전에 fail-closed."""
         if self._client.environment == "paper":
             raise KISUsageError(
                 "통합잔고(kis.account.balance)는 모의투자 미지원 -- 실전에서만"
@@ -62,6 +65,7 @@ class StockAccounts:
                     _raw=c._raw,
                 )
                 for c in ovs.currencies
+                if c.currency != "KRW"  # 원화 예수금은 국내(dom.deposit)가 진실의 원천 -- 중복 행 방지
             ),
         )
         return IntegratedBalance(
@@ -70,7 +74,6 @@ class StockAccounts:
             domestic=dom,
             bonds=bonds,
             overseas=ovs,
-            net_liquidation=dom.net_asset + ovs.total_asset,
             total_evaluation=dom.total_evaluation + ovs.total_evaluation_amount,
             total_unrealized_pnl=dom.unrealized_pnl + ovs.total_eval_pnl,
         )
