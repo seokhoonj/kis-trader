@@ -25,7 +25,6 @@ from .entities.bond import (
 if TYPE_CHECKING:
     from .._literals import Numeric
     from ..client import KISClient
-    from ..order import TimeInForce
     from ..order_book import OrderBook
     from ..report import ExecutionReport
     from ..trade import Trade
@@ -80,25 +79,33 @@ class Bond:
     # --- 발주(장내채권 매수; 계좌 + 안전 엔진 -- 종목 핸들 buy 와 대칭) ---
     def buy(
         self, *, quantity: Numeric, limit_price: Numeric,
-        time_in_force: TimeInForce = "day", client_order_id: str | None = None,
+        client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 채권을 매수한다 -- 장내채권은 지정가(채권단가) 전용이라 ``limit_price`` 는 필수다.
         ``quantity`` 는 액면(face) 단위, ``limit_price`` 는 채권단가, ``client_order_id`` 는 멱등키
-        (생략 시 자동 발행)다.
+        (생략 시 자동 발행)다. 채권 주문은 당일(day) 전용이라 ``time_in_force`` 는 받지 않는다 --
+        엔드포인트에 TIF 필드가 없어서 ioc/fok 를 받으면 지문에는 남고 와이어에는 안 실려 조용한
+        불일치가 된다.
 
         **실전투자 전용**(모의투자 미지원)이라 ``environment="paper"`` 세션에선
         :class:`~kis_trader.errors.KISUsageError` 로 fail-closed 한다. 실주문이라 이 경로는 라이브로
         검증하기 전까지 프로덕션 사용에 앞서 실계좌 확인이 필요하다. 이중체결 방지·타임아웃 재시도
         금지는 국내주식·파생과 같은 안전 엔진에서 자동 적용된다. 계좌 미설정은
         :class:`~kis_trader.errors.KISUsageError`, 접수 거부는 ``OrderRejectedError``, 타임아웃(체결
-        불명)은 ``OrderTimeoutError`` -- 후자는 ``kis.orders.reconcile`` 로 확인한다.
+        불명)은 ``OrderTimeoutError`` 다. 채권 타임아웃은 ``kis.orders.reconcile`` 로 확인되지 않으니
+        (미지원, fail-closed) ``kis.account.domestic.bonds`` 의 체결/미체결(fills/open_orders) 조회로
+        직접 확인한다.
+
+        일반시장(``SAMT_MKET_PTCI_YN="N"``)에서는 주문 수량이 액면 10단위의 배수여야 할 수 있다
+        (KIS 명세는 10단위 규칙을 적으면서도 자체 예시가 이를 어겨서, 라이브 검증 전까지 문서로만
+        남기고 강제하지 않는다).
 
         KIS URL/TR-ID: ``POST /uapi/domestic-bond/v1/trading/buy`` (실전 ``TTTC0952U``, 모의 미지원)."""
         order = Order(
             symbol=self.code, side="buy", order_type="limit",
             quantity=coerce_decimal(quantity, "quantity"),
             limit_price=coerce_decimal(limit_price, "limit_price"),
-            time_in_force=time_in_force, exchange=_BOND_EXCHANGE,
+            time_in_force="day", exchange=_BOND_EXCHANGE,
             client_order_id=client_order_id or mint_client_order_id(),
         )
         return self._client._place_order(order)

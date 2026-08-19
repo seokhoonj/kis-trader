@@ -24,8 +24,8 @@ from ...order import _BOND_EXCHANGE, Order, WireRequest
 if TYPE_CHECKING:
     from ...transport import Environment
 
-_BOND_BUY_PATH = "/uapi/domestic-bond/v1/trading/buy"
-_BOND_BUY_TR = "TTTC0952U"                        # 실전 전용(모의 미지원)
+_PLACE_PATH = "/uapi/domestic-bond/v1/trading/buy"
+_PLACE_TR = "TTTC0952U"                            # 실전 전용(모의 미지원)
 
 
 def is_bond_exchange(exchange: str) -> bool:
@@ -50,6 +50,14 @@ def make_order_request(
         raise KISUsageError("장내채권 매도는 아직 미지원 -- 매수만.")
     if order.limit_price is None:
         raise KISUsageError("장내채권 주문은 지정가(채권단가) 필수.")
+    if order.order_type != "limit":
+        raise KISUsageError("장내채권 주문은 지정가만 지원한다.")
+    if order.stop_price:
+        raise KISUsageError("장내채권 주문은 stop 가격을 지원하지 않는다.")
+    if order.session != "regular":
+        raise KISUsageError("장내채권 주문은 정규장만 지원한다.")
+    if order.time_in_force != "day":
+        raise KISUsageError("장내채권 주문은 day 만 지원한다.")
     body = {
         "CANO": cano,
         "ACNT_PRDT_CD": product_code,
@@ -63,4 +71,4 @@ def make_order_request(
         "ORD_SVR_DVSN_CD": "0",
         "CTAC_TLNO": "",
     }
-    return WireRequest("POST", _BOND_BUY_PATH, _BOND_BUY_TR, body)
+    return WireRequest("POST", _PLACE_PATH, _PLACE_TR, body)

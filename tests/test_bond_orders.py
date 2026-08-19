@@ -69,7 +69,7 @@ def test_make_order_request_buy_body():
     req = bond.make_order_request(_bond_order(), cano="81012345", product_code="03",
                                   environment="real")
     assert req.method == "POST"
-    assert req.path == bond._BOND_BUY_PATH
+    assert req.path == bond._PLACE_PATH
     assert req.tr_id == "TTTC0952U"
     assert req.body == {
         "CANO": "81012345", "ACNT_PRDT_CD": "03", "PDNO": "KR2033022D33",
@@ -101,6 +101,21 @@ def test_make_order_request_requires_limit_price():
     # 채권은 지정가(채권단가) 전용 -- 시장가(가격 없음)로 만든 주문은 빌더가 fail-closed.
     order = _bond_order(order_type="market", limit_price=None)
     with pytest.raises(KISUsageError, match="지정가"):
+        bond.make_order_request(order, cano="8", product_code="03", environment="real")
+
+
+@pytest.mark.parametrize(
+    "kw, match",
+    [
+        # 지정가 아님(스탑리밋) -- 직접 만든 주문이 평범한 지정가로 조용히 나가지 않게 거부.
+        ({"order_type": "stop_limit", "stop_price": Decimal(9000)}, "지정가만"),
+        # day 아님(ioc) -- 채권 엔드포인트에 TIF 필드가 없어 지문/와이어 불일치가 된다.
+        ({"time_in_force": "ioc"}, "day"),
+    ],
+)
+def test_make_order_request_rejects_non_representable_shape(kw, match):
+    order = _bond_order(**kw)
+    with pytest.raises(KISUsageError, match=match):
         bond.make_order_request(order, cano="8", product_code="03", environment="real")
 
 
@@ -158,3 +173,15 @@ def test_bond_buy_rejects_risk_gate():
     with pytest.raises(KISUsageError):
         client.domestic.bond("KR2033022D33").buy(quantity=10, limit_price=10000)
     assert fake.request_count == 0
+
+
+# --- reconcile fail-closed (미확인 채권 주문은 국내주식 일별체결조회로 오조회하지 않는다) ---
+def test_bond_reconcile_fails_closed_not_silent_none():
+    # in-flight 채권 지문의 재조회는 엉뚱한 테이블을 훑어 None 을 돌려주는 대신, 미지원임을
+    # 명시하며 fail-closed 해야 한다(파생·해외 fail-closed 분기와 대칭).
+    store = OrderStore()
+    order = _bond_order(client_order_id="bond-inflight")
+    store.try_claim("bond-inflight", order.fingerprint)
+    client = _client(FakeTransport(), store=store)
+    with pytest.raises(KISUsageError, match="재조회"):
+        client.orders.reconcile("bond-inflight")

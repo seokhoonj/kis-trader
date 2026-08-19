@@ -365,6 +365,15 @@ class KISClient:
                 self._transport, self._store, client_order_id,
                 cano=cano, product_code=product_code, environment=self._environment,
             )
+        if isinstance(fingerprint, ImmediateOrderFingerprint) and \
+                bond_orders_engine.is_bond_exchange(fingerprint.exchange):
+            # 국내 장내채권(BOND) 미확인 주문은 국내주식 일별체결조회로 확인할 수 없다(엉뚱한 테이블을
+            # 조회해 체결 여부와 무관하게 None 을 돌려주는 잘못된 복구). 재조회 슬라이스는 미지원이라
+            # fail-closed 한다 -- 이중체결 방지 장벽은 그대로다.
+            raise KISUsageError(
+                "장내채권 주문 재조회(reconcile)는 아직 미지원 -- 체결은 "
+                "계좌 조회(kis.account.domestic.bonds.fills / open_orders)로 수동 확인하라."
+            )
         return orders_engine.reconcile(
             self._transport, self._store, client_order_id,
             cano=cano, product_code=product_code, environment=self._environment,
