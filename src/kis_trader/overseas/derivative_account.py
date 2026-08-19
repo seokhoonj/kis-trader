@@ -17,6 +17,7 @@ from ._engine.derivative_account import (
     fetch_deposit,
     fetch_margin_detail,
     fetch_orderable,
+    fetch_period_pnl,
     fetch_positions,
     fetch_today_orders,
 )
@@ -27,6 +28,7 @@ from .entities.derivative_account import (
     OverseasDerivativeMargin,
     OverseasDerivativeOrder,
     OverseasDerivativeOrderable,
+    OverseasDerivativePnlHistory,
     OverseasDerivativePosition,
 )
 
@@ -121,6 +123,20 @@ class OverseasDerivativesAccount:
         """
         cano, product_code = self._client._require_account()
         return fetch_daily_orders(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, start=start, end=end,
+        )
+
+    def period_pnl(self, start: str, end: str) -> OverseasDerivativePnlHistory:
+        """해외선물옵션 기간 손익(통화별 집계 + 종목별 집계).
+
+        ``start``~``end`` (YYYYMMDD, 8자리 숫자) 기간을 전체 통화로 조회한다. 통화별 손익은
+        ``by_currency``, 종목별 손익은 ``by_symbol`` 에 담긴다. 금액·수량은 각 행 통화의
+        Decimal(원화 아님). ``GET .../overseas-futureoption/v1/trading/inquire-period-ccld``
+        (``OTFM3118R``). **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_period_pnl(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment, start=start, end=end,
         )

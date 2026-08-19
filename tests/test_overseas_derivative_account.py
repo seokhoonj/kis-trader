@@ -22,6 +22,8 @@ from kis_trader.overseas.entities.derivative_account import (
     OverseasDerivativeMargin,
     OverseasDerivativeOrder,
     OverseasDerivativeOrderable,
+    OverseasDerivativePnl,
+    OverseasDerivativePnlHistory,
     OverseasDerivativePosition,
 )
 from kis_trader.transport import RawResponse
@@ -33,6 +35,7 @@ _MARGIN_PATH = "/uapi/overseas-futureoption/v1/trading/margin-detail"
 _TODAY_ORDERS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-ccld"
 _DAILY_FILLS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-daily-ccld"
 _DAILY_ORDERS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-daily-order"
+_PERIOD_PNL_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-period-ccld"
 
 
 class FakeTransport:
@@ -756,3 +759,123 @@ def test_overseas_derivative_daily_order_entity_importable():
     from kis_trader import OverseasDerivativeDailyOrder as Exported
 
     assert Exported is not None
+
+
+# --- 기간 손익 OTFM3118R --------------------------------------------------
+
+def _pnl(*, crcy="USD", pdno="", buy_qty="5", sll_qty="5", lqd_pnl="300.00",
+         fee="31.25", net_pnl="268.75", ustl_buy="2", ustl_sll="0",
+         ustl_pnl="150.00", ustl_agrm="500000.00"):
+    return {"crcy_cd": crcy, "ovrs_futr_fx_pdno": pdno, "fm_buy_qty": buy_qty,
+            "fm_sll_qty": sll_qty, "fm_lqd_pfls_amt": lqd_pnl, "fm_fee": fee,
+            "fm_net_pfls_amt": net_pnl, "fm_ustl_buy_qty": ustl_buy,
+            "fm_ustl_sll_qty": ustl_sll, "fm_ustl_evlu_pfls_amt": ustl_pnl,
+            "fm_ustl_agrm_amt": ustl_agrm}
+
+
+def _period_pnl_resp(*, by_currency=None, by_symbol=None, ctx_nk="", ctx_fk="", tr_cont="D"):
+    body = {"output1": by_currency if by_currency is not None else [_pnl()],
+            "output2": by_symbol if by_symbol is not None else [_pnl(pdno="6BZ22")],
+            "ctx_area_nk200": ctx_nk, "ctx_area_fk200": ctx_fk}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
+
+
+def test_period_pnl_paper_fails_closed():
+    fake = FakeTransport(response=_period_pnl_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").account.period_pnl("20240201", "20240216")
+    assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
+
+
+def test_period_pnl_bad_date_fails_closed():
+    fake = FakeTransport(response=_period_pnl_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake).account.period_pnl("20240201", "2024-02-16")
+    assert fake.calls == []  # 날짜 검증도 와이어 이전
+
+
+def test_period_pnl_parses_and_routes():
+    fake = FakeTransport(response=_period_pnl_resp())
+    hist = _client(fake).account.period_pnl("20240201", "20240216")
+    assert isinstance(hist, OverseasDerivativePnlHistory)
+    assert len(hist.by_currency) == 1
+    assert len(hist.by_symbol) == 1
+    ccy = hist.by_currency[0]
+    assert isinstance(ccy, OverseasDerivativePnl)
+    assert ccy.currency == "USD"                              # crcy_cd
+    assert ccy.symbol == ""                                   # per-currency block
+    assert ccy.buy_quantity == Decimal(5)                     # fm_buy_qty
+    assert ccy.sell_quantity == Decimal(5)                    # fm_sll_qty
+    assert ccy.realized_pnl == Decimal("300.00")             # fm_lqd_pfls_amt
+    assert ccy.fee == Decimal("31.25")                       # fm_fee
+    assert ccy.net_pnl == Decimal("268.75")                  # fm_net_pfls_amt
+    assert ccy.open_buy_quantity == Decimal(2)               # fm_ustl_buy_qty
+    assert ccy.open_sell_quantity == Decimal(0)              # fm_ustl_sll_qty
+    assert ccy.unrealized_pnl == Decimal("150.00")           # fm_ustl_evlu_pfls_amt
+    assert ccy.open_agreement_amount == Decimal("500000.00")  # fm_ustl_agrm_amt
+    sym = hist.by_symbol[0]
+    assert sym.symbol == "6BZ22"                              # per-symbol block
+    call = fake.calls[0]
+    assert call["tr_id"] == "OTFM3118R"
+    assert call["path"].endswith("inquire-period-ccld")
+    assert call["params"]["INQR_TERM_FROM_DT"] == "20240201"
+    assert call["params"]["INQR_TERM_TO_DT"] == "20240216"
+    assert call["params"]["CRCY_CD"] == "%%%"                 # 전체 통화
+    assert call["params"]["WHOL_TRSL_YN"] == "N"
+    assert call["params"]["FUOP_DVSN"] == "00"
+    assert call["params"]["CTX_AREA_FK200"] == ""
+    assert call["params"]["CTX_AREA_NK200"] == ""
+    assert call["params"]["CANO"] == "12345678"
+    assert call["params"]["ACNT_PRDT_CD"] == "08"
+
+
+def test_period_pnl_paginates_accumulating_both_blocks():
+    page1 = _period_pnl_resp(by_currency=[_pnl(crcy="USD")],
+                             by_symbol=[_pnl(pdno="6BZ22")],
+                             ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    page2 = _period_pnl_resp(by_currency=[_pnl(crcy="EUR")],
+                             by_symbol=[_pnl(pdno="6EU24")], tr_cont="D")
+    fake = FakeTransport(by_path={_PERIOD_PNL_PATH: [page1, page2]})
+    hist = _client(fake).account.period_pnl("20240201", "20240216")
+    assert [p.currency for p in hist.by_currency] == ["USD", "EUR"]
+    assert [p.symbol for p in hist.by_symbol] == ["6BZ22", "6EU24"]
+    assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
+    assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
+    assert fake.calls[1]["tr_cont"] == "N"                    # 연속조회 헤더
+
+
+def test_period_pnl_skips_all_blank_row():
+    by_currency = [_pnl(crcy="USD"), _pnl(crcy="", pdno="")]
+    hist = _client(FakeTransport(response=_period_pnl_resp(by_currency=by_currency))).account.period_pnl(
+        "20240201", "20240216"
+    )
+    assert [p.currency for p in hist.by_currency] == ["USD"]
+
+
+def test_period_pnl_non_mapping_row_raises():
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=_period_pnl_resp(by_currency=[None]))).account.period_pnl(
+            "20240201", "20240216"
+        )
+
+
+def test_period_pnl_missing_output1_raises():
+    body = {"output2": [_pnl(pdno="6BZ22")], "ctx_area_nk200": "", "ctx_area_fk200": ""}
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont="D")
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp)).account.period_pnl("20240201", "20240216")
+
+
+def test_period_pnl_missing_output2_raises():
+    body = {"output1": [_pnl()], "ctx_area_nk200": "", "ctx_area_fk200": ""}
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont="D")
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp)).account.period_pnl("20240201", "20240216")
+
+
+def test_overseas_derivative_pnl_history_entity_importable():
+    from kis_trader import OverseasDerivativePnl as ExportedPnl
+    from kis_trader import OverseasDerivativePnlHistory as ExportedHistory
+
+    assert ExportedPnl is not None
+    assert ExportedHistory is not None

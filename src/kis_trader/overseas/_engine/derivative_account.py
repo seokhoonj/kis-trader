@@ -19,7 +19,7 @@ from typing import TYPE_CHECKING, Any
 from ..._internal._response import _fetch_paginated_rows, _raise_if_error
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
-from ...transport import Environment, Transport
+from ...transport import Environment, RawResponse, Transport
 from ..entities.derivative_account import (
     OverseasDerivativeDailyOrder,
     OverseasDerivativeDeposit,
@@ -28,6 +28,8 @@ from ..entities.derivative_account import (
     OverseasDerivativeMargin,
     OverseasDerivativeOrder,
     OverseasDerivativeOrderable,
+    OverseasDerivativePnl,
+    OverseasDerivativePnlHistory,
     OverseasDerivativePosition,
 )
 from ._parse import _MAX_PAGES, _side_from_code
@@ -56,6 +58,9 @@ _DAILY_FILLS_TR = "OTFM3122R"  # 해외선물옵션 일별체결내역, 모의�
 
 _DAILY_ORDERS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-daily-order"
 _DAILY_ORDERS_TR = "OTFM3120R"  # 해외선물옵션 일별주문내역, 모의투자 미지원
+
+_PERIOD_PNL_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-period-ccld"
+_PERIOD_PNL_TR = "OTFM3118R"  # 해외선물옵션 기간손익, 모의투자 미지원
 #: 매도매수구분코드(SLL_BUY_DVSN_CD): 매수 02 / 매도 01.
 _SIDE_TO_SLL_BUY = {"buy": "02", "sell": "01"}
 
@@ -442,6 +447,101 @@ def _extract_summary(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
     if isinstance(summary, Mapping):
         return summary
     return None
+
+
+def fetch_period_pnl(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str,
+) -> OverseasDerivativePnlHistory:
+    """해외선물옵션 기간 손익(통화별 output1 + 종목별 output2). ``start``~``end`` (YYYYMMDD)
+    기간을 전체 통화("%%%")·원화환산 안 함("N")으로 조회하고 연속조회로 두 집계 블록을
+    소진까지 함께 모은다(각 페이지의 output1/output2 를 모두 이어붙인다). 연속조회 커서는 200폭
+    (CTX_AREA_FK200/NK200)이다. 금액·수량은 각 행 통화의 Decimal(원화 아님).
+    **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "해외선물옵션 기간손익(inquire-period-ccld)은 모의투자 미지원 -- 실전에서만."
+        )
+    _require_wire_date(start, "start")
+    _require_wire_date(end, "end")
+    by_currency_rows: list[Mapping[str, Any]] = []
+    by_symbol_rows: list[Mapping[str, Any]] = []
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_PAGES):
+        params = {
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "INQR_TERM_FROM_DT": start, "INQR_TERM_TO_DT": end,
+            "CRCY_CD": "%%%",         # 통화코드 -- %%% 전체
+            "WHOL_TRSL_YN": "N",      # 원화환산여부 -- N
+            "FUOP_DVSN": "00",        # 선물옵션구분 -- 00 전체
+            "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
+        }
+        resp = transport.request(
+            method="GET", path=_PERIOD_PNL_PATH, tr_id=_PERIOD_PNL_TR,
+            params=params, idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        by_currency_rows.extend(_require_pnl_block(resp.body.get("output1"), "output1", resp))
+        by_symbol_rows.extend(_require_pnl_block(resp.body.get("output2"), "output2", resp))
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"해외선물옵션 기간손익 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        )
+    return OverseasDerivativePnlHistory(
+        by_currency=tuple(_parse_pnl_rows(by_currency_rows)),
+        by_symbol=tuple(_parse_pnl_rows(by_symbol_rows)),
+    )
+
+
+def _require_pnl_block(block: object, name: str, resp: RawResponse) -> list[Mapping[str, Any]]:
+    """기간손익 집계 블록(output1/output2)을 배열로 검증한다. 빈 결과도 배열로 오므로
+    부재/비배열은 손상으로 보고 fail-closed(:class:`KISError`)."""
+    if not isinstance(block, list):
+        raise KISError(
+            f"해외선물옵션 기간손익 응답의 {name} 이 손익 배열이 아니다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    return block
+
+
+def _parse_pnl_rows(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativePnl]:
+    pnls: list[OverseasDerivativePnl] = []
+    for row in rows:
+        if not isinstance(row, Mapping):  # output=[None] 등 손상 -> fail-closed
+            raise KISError("해외선물옵션 기간손익 응답 행이 매핑이 아니다.")
+        currency = str(row.get("crcy_cd", "")).strip()
+        symbol = str(row.get("ovrs_futr_fx_pdno", "")).strip()
+        if not currency and not symbol:  # 통화·종목 모두 빈 패딩 행 -- 건너뜀
+            continue
+        pnls.append(
+            # 수량·금액은 빈 값을 0으로 읽되(외화 필드는 비어 올 수 있음), 값이 있는데 파싱 실패면
+            # 여전히 예외로 fail-closed 한다.
+            OverseasDerivativePnl(
+                currency=currency,
+                symbol=symbol,
+                buy_quantity=field_decimal_or_zero(row.get("fm_buy_qty"), "fm_buy_qty"),
+                sell_quantity=field_decimal_or_zero(row.get("fm_sll_qty"), "fm_sll_qty"),
+                realized_pnl=field_decimal_or_zero(row.get("fm_lqd_pfls_amt"), "fm_lqd_pfls_amt"),
+                fee=field_decimal_or_zero(row.get("fm_fee"), "fm_fee"),
+                net_pnl=field_decimal_or_zero(row.get("fm_net_pfls_amt"), "fm_net_pfls_amt"),
+                open_buy_quantity=field_decimal_or_zero(row.get("fm_ustl_buy_qty"), "fm_ustl_buy_qty"),
+                open_sell_quantity=field_decimal_or_zero(row.get("fm_ustl_sll_qty"), "fm_ustl_sll_qty"),
+                unrealized_pnl=field_decimal_or_zero(
+                    row.get("fm_ustl_evlu_pfls_amt"), "fm_ustl_evlu_pfls_amt"
+                ),
+                open_agreement_amount=field_decimal_or_zero(
+                    row.get("fm_ustl_agrm_amt"), "fm_ustl_agrm_amt"
+                ),
+                _raw=row,
+            )
+        )
+    return pnls
 
 
 def _require_wire_date(value: str, field_name: str) -> None:

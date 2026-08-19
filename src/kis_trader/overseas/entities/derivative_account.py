@@ -261,3 +261,57 @@ class OverseasDerivativeFillHistory:
     def __post_init__(self) -> None:
         object.__setattr__(self, "fills", tuple(self.fills))
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasDerivativePnl:
+    """해외선물옵션 기간 손익 한 행 -- 통화별/종목별 손익 요약(불변).
+
+    금액·수량은 ``currency`` 통화의 Decimal(원화 아님). 통화별 집계 행에서는 ``symbol`` 이
+    빈 문자열이고, 종목별 집계 행에서는 종목번호가 채워진다. ``currency`` 통화코드(crcy_cd),
+    ``symbol`` 해외선물FX상품번호(ovrs_futr_fx_pdno), ``buy_quantity`` 매수수량(fm_buy_qty),
+    ``sell_quantity`` 매도수량(fm_sll_qty), ``realized_pnl`` 청산손익금액(fm_lqd_pfls_amt),
+    ``fee`` 수수료(fm_fee), ``net_pnl`` 순손익금액(fm_net_pfls_amt), ``open_buy_quantity``
+    미결제매수수량(fm_ustl_buy_qty), ``open_sell_quantity`` 미결제매도수량(fm_ustl_sll_qty),
+    ``unrealized_pnl`` 미결제평가손익금액(fm_ustl_evlu_pfls_amt), ``open_agreement_amount``
+    미결제약정금액(fm_ustl_agrm_amt). 타입화하지 않은 필드는 ``_raw``.
+    """
+
+    currency: str                     # 통화코드(crcy_cd)
+    symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
+    buy_quantity: Decimal             # 매수수량(fm_buy_qty)
+    sell_quantity: Decimal            # 매도수량(fm_sll_qty)
+    realized_pnl: Decimal             # 청산손익금액(fm_lqd_pfls_amt)
+    fee: Decimal                      # 수수료(fm_fee)
+    net_pnl: Decimal                  # 순손익금액(fm_net_pfls_amt)
+    open_buy_quantity: Decimal        # 미결제매수수량(fm_ustl_buy_qty)
+    open_sell_quantity: Decimal       # 미결제매도수량(fm_ustl_sll_qty)
+    unrealized_pnl: Decimal           # 미결제평가손익금액(fm_ustl_evlu_pfls_amt)
+    open_agreement_amount: Decimal    # 미결제약정금액(fm_ustl_agrm_amt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasDerivativePnlHistory:
+    """해외선물옵션 기간 손익 -- 통화별 집계와 종목별 집계 두 벌(불변).
+
+    ``by_currency`` 통화별 손익(output1), ``by_symbol`` 종목별 손익(output2). 두 벌 모두
+    :class:`OverseasDerivativePnl` 행이며 금액·수량은 각 행 통화의 Decimal(원화 아님).
+    타입화하지 않은 요약 필드는 ``_raw``.
+    """
+
+    by_currency: tuple[OverseasDerivativePnl, ...]  # 통화별 손익(output1)
+    by_symbol: tuple[OverseasDerivativePnl, ...]    # 종목별 손익(output2)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "by_currency", tuple(self.by_currency))
+        object.__setattr__(self, "by_symbol", tuple(self.by_symbol))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
