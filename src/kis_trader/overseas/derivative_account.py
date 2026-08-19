@@ -18,6 +18,7 @@ from ._engine.derivative_account import (
     fetch_margin_detail,
     fetch_orderable,
     fetch_period_pnl,
+    fetch_period_trans,
     fetch_positions,
     fetch_today_orders,
 )
@@ -30,6 +31,7 @@ from .entities.derivative_account import (
     OverseasDerivativeOrderable,
     OverseasDerivativePnlHistory,
     OverseasDerivativePosition,
+    OverseasDerivativeTransaction,
 )
 
 if TYPE_CHECKING:
@@ -137,6 +139,19 @@ class OverseasDerivativesAccount:
         """
         cano, product_code = self._client._require_account()
         return fetch_period_pnl(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, start=start, end=end,
+        )
+
+    def period_trans(self, start: str, end: str) -> list[OverseasDerivativeTransaction]:
+        """해외선물옵션 기간 입출금내역(원장 목록).
+
+        ``start``~``end`` (YYYYMMDD, 8자리 숫자) 기간을 전체 거래유형·전체 통화로 조회한다.
+        계좌 비밀번호는 필요 없다. 금액은 각 행 통화의 Decimal(원화 아님). ``GET .../overseas-
+        futureoption/v1/trading/inquire-period-trans`` (``OTFM3114R``). **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_period_trans(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment, start=start, end=end,
         )

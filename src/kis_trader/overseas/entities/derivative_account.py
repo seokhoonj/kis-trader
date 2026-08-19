@@ -315,3 +315,40 @@ class OverseasDerivativePnlHistory:
         object.__setattr__(self, "by_currency", tuple(self.by_currency))
         object.__setattr__(self, "by_symbol", tuple(self.by_symbol))
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasDerivativeTransaction:
+    """해외선물옵션 기간 입출금(원장) 한 건(불변).
+
+    금액은 ``currency`` 통화의 Decimal(원화 아님). ``base_date`` 기준일자(bass_dt) -- 형식오류/
+    공백이면 None. ``ledger_sequence`` 원장입출금순번(fm_ldgr_inog_seq), ``transaction_type``
+    계좌거래유형명(acnt_tr_type_name 원본 문자열), ``currency`` 통화코드(crcy_cd), ``item_name``
+    거래항목명(tr_itm_name 원본 문자열), ``amount`` 입출금액(fm_iofw_amt), ``fee`` 수수료(fm_fee),
+    ``tax`` 세금금액(fm_tax_amt), ``settlement_amount`` 결제금액(fm_sttl_amt), ``prior_deposit``
+    이전예수금액(fm_bf_dncl_amt), ``deposit`` 예수금액(fm_dncl_amt), ``receivable_incurred``
+    미수발생금액(fm_rcvb_occr_amt), ``receivable_repaid`` 미수변제금액(fm_rcvb_pybk_amt),
+    ``remarks`` 비고내용(rmks_text 원본 문자열). 순번·기준일자가 모두 빈 패딩 행은 담기지 않는다.
+    타입화하지 않은 필드는 ``_raw``.
+    """
+
+    base_date: datetime.date | None   # 기준일자(bass_dt)
+    ledger_sequence: str              # 원장입출금순번(fm_ldgr_inog_seq)
+    transaction_type: str             # 계좌거래유형명(acnt_tr_type_name)
+    currency: str                     # 통화코드(crcy_cd)
+    item_name: str                    # 거래항목명(tr_itm_name)
+    amount: Decimal                   # 입출금액(fm_iofw_amt)
+    fee: Decimal                      # 수수료(fm_fee)
+    tax: Decimal                      # 세금금액(fm_tax_amt)
+    settlement_amount: Decimal        # 결제금액(fm_sttl_amt)
+    prior_deposit: Decimal            # 이전예수금액(fm_bf_dncl_amt)
+    deposit: Decimal                  # 예수금액(fm_dncl_amt)
+    receivable_incurred: Decimal      # 미수발생금액(fm_rcvb_occr_amt)
+    receivable_repaid: Decimal        # 미수변제금액(fm_rcvb_pybk_amt)
+    remarks: str                      # 비고내용(rmks_text)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

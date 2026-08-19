@@ -25,6 +25,7 @@ from kis_trader.overseas.entities.derivative_account import (
     OverseasDerivativePnl,
     OverseasDerivativePnlHistory,
     OverseasDerivativePosition,
+    OverseasDerivativeTransaction,
 )
 from kis_trader.transport import RawResponse
 
@@ -36,6 +37,7 @@ _TODAY_ORDERS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-ccld"
 _DAILY_FILLS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-daily-ccld"
 _DAILY_ORDERS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-daily-order"
 _PERIOD_PNL_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-period-ccld"
+_PERIOD_TRANS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-period-trans"
 
 
 class FakeTransport:
@@ -879,3 +881,111 @@ def test_overseas_derivative_pnl_history_entity_importable():
 
     assert ExportedPnl is not None
     assert ExportedHistory is not None
+
+
+# --- 기간 입출금내역 OTFM3114R --------------------------------------------
+
+def _transaction(seq="0001", *, bass_dt="20240216", tr_type="입금", crcy="USD",
+                 item="원화입금", iofw="10000.00", fee="0", tax="0",
+                 sttl="0", bf_dncl="90000.00", dncl="100000.00",
+                 rcvb_occr="0", rcvb_pybk="0", rmks="ATM"):
+    return {"bass_dt": bass_dt, "fm_ldgr_inog_seq": seq, "acnt_tr_type_name": tr_type,
+            "crcy_cd": crcy, "tr_itm_name": item, "fm_iofw_amt": iofw, "fm_fee": fee,
+            "fm_tax_amt": tax, "fm_sttl_amt": sttl, "fm_bf_dncl_amt": bf_dncl,
+            "fm_dncl_amt": dncl, "fm_rcvb_occr_amt": rcvb_occr,
+            "fm_rcvb_pybk_amt": rcvb_pybk, "rmks_text": rmks}
+
+
+def _period_trans_resp(*, rows=None, ctx_nk="", ctx_fk="", tr_cont="D"):
+    body = {"output": rows if rows is not None else [],
+            "ctx_area_nk100": ctx_nk, "ctx_area_fk100": ctx_fk}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
+
+
+def test_period_trans_paper_fails_closed():
+    fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").account.period_trans("20240201", "20240216")
+    assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
+
+
+def test_period_trans_bad_date_fails_closed():
+    fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
+    with pytest.raises(KISUsageError):
+        _client(fake).account.period_trans("20240201", "2024-02-16")
+    assert fake.calls == []  # 날짜 검증도 와이어 이전
+
+
+def test_period_trans_parses_and_routes():
+    from datetime import date
+
+    fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
+    trans = _client(fake).account.period_trans("20240201", "20240216")
+    assert isinstance(trans, list)
+    assert isinstance(trans[0], OverseasDerivativeTransaction)
+    assert trans[0].base_date == date(2024, 2, 16)           # bass_dt
+    assert trans[0].ledger_sequence == "0001"                # fm_ldgr_inog_seq
+    assert trans[0].transaction_type == "입금"               # acnt_tr_type_name
+    assert trans[0].currency == "USD"                        # crcy_cd
+    assert trans[0].item_name == "원화입금"                  # tr_itm_name
+    assert trans[0].amount == Decimal("10000.00")           # fm_iofw_amt
+    assert trans[0].fee == Decimal(0)                        # fm_fee
+    assert trans[0].tax == Decimal(0)                        # fm_tax_amt
+    assert trans[0].settlement_amount == Decimal(0)          # fm_sttl_amt
+    assert trans[0].prior_deposit == Decimal("90000.00")     # fm_bf_dncl_amt
+    assert trans[0].deposit == Decimal("100000.00")          # fm_dncl_amt
+    assert trans[0].receivable_incurred == Decimal(0)        # fm_rcvb_occr_amt
+    assert trans[0].receivable_repaid == Decimal(0)          # fm_rcvb_pybk_amt
+    assert trans[0].remarks == "ATM"                         # rmks_text
+    call = fake.calls[0]
+    assert call["tr_id"] == "OTFM3114R"
+    assert call["path"].endswith("inquire-period-trans")
+    assert call["params"]["INQR_TERM_FROM_DT"] == "20240201"
+    assert call["params"]["INQR_TERM_TO_DT"] == "20240216"
+    assert call["params"]["ACNT_TR_TYPE_CD"] == "%%"          # 전체
+    assert call["params"]["CRCY_CD"] == "%%%"                 # 전체 통화
+    assert call["params"]["PWD_CHK_YN"] == "N"                # 비밀번호 확인 안 함
+    assert call["params"]["CTX_AREA_FK100"] == ""
+    assert call["params"]["CTX_AREA_NK100"] == ""
+    assert call["params"]["CANO"] == "12345678"
+    assert call["params"]["ACNT_PRDT_CD"] == "08"
+
+
+def test_period_trans_paginates():
+    page1 = _period_trans_resp(rows=[_transaction(seq="0001")],
+                               ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    page2 = _period_trans_resp(rows=[_transaction(seq="0002")], tr_cont="D")
+    fake = FakeTransport(by_path={_PERIOD_TRANS_PATH: [page1, page2]})
+    trans = _client(fake).account.period_trans("20240201", "20240216")
+    assert [t.ledger_sequence for t in trans] == ["0001", "0002"]
+    assert fake.calls[1]["params"]["CTX_AREA_NK100"] == "NEXT"
+    assert fake.calls[1]["params"]["CTX_AREA_FK100"] == "FK"
+    assert fake.calls[1]["tr_cont"] == "N"                    # 연속조회 헤더
+
+
+def test_period_trans_skips_blank_identifier_row():
+    rows = [_transaction(seq="0001"), _transaction(seq="", bass_dt="")]
+    trans = _client(FakeTransport(response=_period_trans_resp(rows=rows))).account.period_trans(
+        "20240201", "20240216"
+    )
+    assert [t.ledger_sequence for t in trans] == ["0001"]
+
+
+def test_period_trans_non_mapping_row_raises():
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=_period_trans_resp(rows=[None]))).account.period_trans(
+            "20240201", "20240216"
+        )
+
+
+def test_period_trans_missing_output_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"ctx_area_nk100": "", "ctx_area_fk100": ""})
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp)).account.period_trans("20240201", "20240216")
+
+
+def test_overseas_derivative_transaction_entity_importable():
+    from kis_trader import OverseasDerivativeTransaction as Exported
+
+    assert Exported is not None

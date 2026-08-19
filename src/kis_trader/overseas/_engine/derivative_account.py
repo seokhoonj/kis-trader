@@ -31,6 +31,7 @@ from ..entities.derivative_account import (
     OverseasDerivativePnl,
     OverseasDerivativePnlHistory,
     OverseasDerivativePosition,
+    OverseasDerivativeTransaction,
 )
 from ._parse import _MAX_PAGES, _side_from_code
 
@@ -61,6 +62,9 @@ _DAILY_ORDERS_TR = "OTFM3120R"  # 해외선물옵션 일별주문내역, 모의�
 
 _PERIOD_PNL_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-period-ccld"
 _PERIOD_PNL_TR = "OTFM3118R"  # 해외선물옵션 기간손익, 모의투자 미지원
+
+_PERIOD_TRANS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-period-trans"
+_PERIOD_TRANS_TR = "OTFM3114R"  # 해외선물옵션 기간입출금내역, 모의투자 미지원
 #: 매도매수구분코드(SLL_BUY_DVSN_CD): 매수 02 / 매도 01.
 _SIDE_TO_SLL_BUY = {"buy": "02", "sell": "01"}
 
@@ -542,6 +546,75 @@ def _parse_pnl_rows(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativePnl
             )
         )
     return pnls
+
+
+def fetch_period_trans(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str,
+) -> list[OverseasDerivativeTransaction]:
+    """해외선물옵션 기간 입출금내역(원장 목록, 연속조회 소진까지). ``start``~``end`` (YYYYMMDD)
+    기간을 전체 거래유형("%%")·전체 통화("%%%")로 조회한다. 계좌 비밀번호는 확인하지 않는다
+    (PWD_CHK_YN="N"). 연속조회 커서는 100폭(CTX_AREA_FK100/NK100)이다. 금액은 각 행 통화의
+    Decimal(원화 아님). **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "해외선물옵션 기간입출금내역(inquire-period-trans)은 모의투자 미지원 -- 실전에서만."
+        )
+    _require_wire_date(start, "start")
+    _require_wire_date(end, "end")
+    rows = _fetch_paginated_rows(
+        transport,
+        path=_PERIOD_TRANS_PATH, tr_id=_PERIOD_TRANS_TR,
+        base_params={
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "INQR_TERM_FROM_DT": start, "INQR_TERM_TO_DT": end,
+            "ACNT_TR_TYPE_CD": "%%",   # 계좌거래유형코드 -- %% 전체
+            "CRCY_CD": "%%%",          # 통화코드 -- %%% 전체
+            "PWD_CHK_YN": "N",         # 비밀번호확인여부 -- N(확인 안 함)
+            "CTX_AREA_FK100": "", "CTX_AREA_NK100": "",
+        },
+        output_key="output", max_pages=_MAX_PAGES, ctx_width=100,
+        cap_message=(
+            f"해외선물옵션 기간입출금내역 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        ),
+    )
+    return _parse_transactions(rows)
+
+
+def _parse_transactions(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativeTransaction]:
+    transactions: list[OverseasDerivativeTransaction] = []
+    for row in rows:
+        ledger_sequence = str(row.get("fm_ldgr_inog_seq", "")).strip()
+        base_date_text = str(row.get("bass_dt", "")).strip()
+        if not ledger_sequence and not base_date_text:  # 순번·기준일자 모두 빈 패딩 행 -- 건너뜀
+            continue
+        transactions.append(
+            # 금액은 빈 값을 0으로 읽되(외화 필드는 비어 올 수 있음), 값이 있는데 파싱 실패면
+            # 여전히 예외로 fail-closed 한다.
+            OverseasDerivativeTransaction(
+                base_date=_parse_date(base_date_text),
+                ledger_sequence=ledger_sequence,
+                transaction_type=str(row.get("acnt_tr_type_name", "")).strip(),
+                currency=str(row.get("crcy_cd", "")).strip(),
+                item_name=str(row.get("tr_itm_name", "")).strip(),
+                amount=field_decimal_or_zero(row.get("fm_iofw_amt"), "fm_iofw_amt"),
+                fee=field_decimal_or_zero(row.get("fm_fee"), "fm_fee"),
+                tax=field_decimal_or_zero(row.get("fm_tax_amt"), "fm_tax_amt"),
+                settlement_amount=field_decimal_or_zero(row.get("fm_sttl_amt"), "fm_sttl_amt"),
+                prior_deposit=field_decimal_or_zero(row.get("fm_bf_dncl_amt"), "fm_bf_dncl_amt"),
+                deposit=field_decimal_or_zero(row.get("fm_dncl_amt"), "fm_dncl_amt"),
+                receivable_incurred=field_decimal_or_zero(
+                    row.get("fm_rcvb_occr_amt"), "fm_rcvb_occr_amt"
+                ),
+                receivable_repaid=field_decimal_or_zero(
+                    row.get("fm_rcvb_pybk_amt"), "fm_rcvb_pybk_amt"
+                ),
+                remarks=str(row.get("rmks_text", "")).strip(),
+                _raw=row,
+            )
+        )
+    return transactions
 
 
 def _require_wire_date(value: str, field_name: str) -> None:
