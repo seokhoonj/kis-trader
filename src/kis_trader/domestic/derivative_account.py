@@ -59,24 +59,24 @@ class DomesticDerivativesAccount:
             environment=self._client.environment,
         )
 
-    def settlement_pl(self, date: str) -> DerivativeSettlementBalance:
+    def settlement_pl(self, base_date: str) -> DerivativeSettlementBalance:
         """선물옵션 잔고정산손익내역(정산 보유내역 + 예수금·증거금·수수료 요약).
 
-        ``date`` 는 조회 기준일자(YYYYMMDD, 8자리 숫자). ``GET .../domestic-futureoption/v1/
+        ``base_date`` 는 조회 기준일자(YYYYMMDD, 8자리 숫자). ``GET .../domestic-futureoption/v1/
         trading/inquire-balance-settlement-pl`` (``CTFO6117R``). **실전전용**(모의투자 미지원).
         """
         cano, product_code = self._client._require_account()
         return fetch_settlement_pl(
             self._client.transport, cano=cano, product_code=product_code,
-            environment=self._client.environment, base_date=date,
+            environment=self._client.environment, base_date=base_date,
         )
 
     def base_date_fills(
-        self, date: str, start_time: str = "000000", end_time: str = "240000"
+        self, order_date: str, start_time: str = "000000", end_time: str = "240000"
     ) -> DerivativeFillHistory:
         """선물옵션 기준일체결내역(체결내역 + 기간 합계 요약).
 
-        ``date`` 는 주문일자(YYYYMMDD, 8자리 숫자), ``start_time``/``end_time`` 은 조회 시각
+        ``order_date`` 는 주문일자(YYYYMMDD, 8자리 숫자), ``start_time``/``end_time`` 은 조회 시각
         구간(HHMMSS, 기본 하루 전체). ``GET .../domestic-futureoption/v1/trading/
         inquire-ccnl-bstime`` (``CTFO5139R``). **실전전용**(모의투자 미지원).
         """
@@ -84,7 +84,7 @@ class DomesticDerivativesAccount:
         return fetch_base_date_fills(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment,
-            order_date=date, start_time=start_time, end_time=end_time,
+            order_date=order_date, start_time=start_time, end_time=end_time,
         )
 
     def commissions(self, start: str, end: str) -> DerivativeCommissionHistory:

@@ -417,7 +417,7 @@ def test_base_date_fills_parses_and_routes():
     assert hist.fills[0].order_id == "0000012345"       # odno
     assert hist.fills[0].transaction_type == "매수"      # tr_type_name
     assert hist.fills[0].final_settlement_date == _date(2024, 2, 20)  # last_sttldt
-    assert hist.fills[0].fill_quantity == Decimal(3)    # ccld_qty
+    assert hist.fills[0].filled_quantity == Decimal(3)    # ccld_qty
     assert hist.fills[0].fill_time == "0919"            # ccld_btwn, raw str
     assert hist.total_filled_quantity == Decimal(5)     # tot_ccld_qty_smtl
     assert hist.total_fee == Decimal(12345)             # fee_smtl
@@ -521,11 +521,11 @@ def test_commissions_parses_and_routes():
     fake = FakeTransport(response=_commissions_resp(rows=[_commission()]))
     hist = _client(fake, environment="real").account.commissions("20240201", "20240229")
     assert isinstance(hist, DerivativeCommissionHistory)
-    assert hist.days[0].order_date == _date(2024, 2, 16)  # ord_dt
-    assert hist.days[0].symbol == "KR4101RC0000"          # pdno
-    assert hist.days[0].sell_fee == Decimal(20000)        # sll_fee
-    assert hist.days[0].total_fee == Decimal(45678)       # tot_fee_smtl
-    assert hist.total_fee == Decimal(45678)               # fee_smtl
+    assert hist.commissions[0].order_date == _date(2024, 2, 16)  # ord_dt
+    assert hist.commissions[0].symbol == "KR4101RC0000"          # pdno
+    assert hist.commissions[0].sell_fee == Decimal(20000)        # sll_fee
+    assert hist.commissions[0].total_fee == Decimal(45678)       # tot_fee_smtl
+    assert hist.total_fee == Decimal(45678)                      # fee_smtl
     assert hist.futures_fee == Decimal(30000)             # futr_fee_smtl
     assert hist.total_realized_pnl == Decimal(6789)       # trad_pfls_smtl
     call = fake.calls[0]
@@ -565,7 +565,7 @@ def test_commissions_paginates():
     page2 = _commissions_resp(rows=[_commission("20240217")], tr_cont="D")
     fake = FakeTransport(by_path={_COMMISSIONS_PATH: [page1, page2]})
     hist = _client(fake, environment="real").account.commissions("20240201", "20240229")
-    assert len(hist.days) == 2
+    assert len(hist.commissions) == 2
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
 
@@ -575,7 +575,7 @@ def test_commissions_skips_blank_row():
     hist = _client(
         FakeTransport(response=_commissions_resp(rows=rows)), environment="real"
     ).account.commissions("20240201", "20240229")
-    assert len(hist.days) == 1
+    assert len(hist.commissions) == 1
 
 
 def test_commissions_missing_output2_raises():

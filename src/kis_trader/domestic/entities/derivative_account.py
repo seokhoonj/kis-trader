@@ -31,8 +31,8 @@ class DerivativePosition:
     name: str                         # 상품명(prdt_name)
     side: str                         # 매도매수구분명(sll_buy_dvsn_name)
     quantity: Decimal                 # 잔고수량(cblc_qty)
-    settle_price: Decimal             # 정산단가(excc_unpr)
-    avg_price: Decimal                # 체결평균단가1(ccld_avg_unpr1)
+    settlement_price: Decimal         # 정산단가(excc_unpr)
+    average_price: Decimal            # 체결평균단가1(ccld_avg_unpr1)
     purchase_amount: Decimal          # 매입금액(pchs_amt)
     market_value: Decimal             # 평가금액(evlu_amt)
     unrealized_pnl: Decimal           # 평가손익금액(evlu_pfls_amt)
@@ -94,8 +94,8 @@ class DerivativeValuationPosition:
     name: str                         # 상품명(prdt_name)
     side: str                         # 매도매수구분명(sll_buy_dvsn_name)
     quantity: Decimal                 # 잔고수량1(cblc_qty1)
-    settle_price: Decimal             # 정산단가(excc_unpr)
-    avg_price: Decimal                # 체결평균단가1(ccld_avg_unpr1)
+    settlement_price: Decimal         # 정산단가(excc_unpr)
+    average_price: Decimal            # 체결평균단가1(ccld_avg_unpr1)
     index_close: Decimal              # 지수종가(idx_clpr)
     purchase_amount: Decimal          # 매입금액(pchs_amt)
     market_value: Decimal             # 평가금액(evlu_amt)
@@ -213,7 +213,7 @@ class DerivativeFill:
 
     ``symbol`` 은 상품번호(pdno), ``order_id`` 주문번호(odno), ``transaction_type`` 거래유형명
     (tr_type_name). ``final_settlement_date`` 는 최종결제일(last_sttldt) -- 형식오류/공백이면 None.
-    ``fill_index`` 체결지수, ``fill_quantity`` 체결수량, ``trade_amount`` 거래금액, ``fee`` 수수료.
+    ``fill_index`` 체결지수, ``filled_quantity`` 체결수량, ``trade_amount`` 거래금액, ``fee`` 수수료.
     ``fill_time`` 은 체결시각 구간(ccld_btwn)을 파싱하지 않고 원본 문자열 그대로 담는다.
     주문번호가 빈 패딩 행은 담기지 않는다.
     """
@@ -224,7 +224,7 @@ class DerivativeFill:
     transaction_type: str              # 거래유형명(tr_type_name)
     final_settlement_date: date | None  # 최종결제일(last_sttldt)
     fill_index: Decimal                # 체결지수(ccld_idx)
-    fill_quantity: Decimal             # 체결수량(ccld_qty)
+    filled_quantity: Decimal           # 체결수량(ccld_qty)
     trade_amount: Decimal              # 거래금액(trad_amt)
     fee: Decimal                       # 수수료(fee)
     fill_time: str                     # 체결시각구간(ccld_btwn) -- 원본 문자열
@@ -294,7 +294,7 @@ class DerivativeCommissionHistory:
     ``total_realized_pnl`` 매매손익합계. 타입화하지 않은 요약 필드는 ``_raw`` 로 접근한다.
     """
 
-    days: tuple[DerivativeCommission, ...]  # 일별 내역(output1)
+    commissions: tuple[DerivativeCommission, ...]  # 일별 내역(output1)
     total_fee: Decimal                 # 수수료합계(fee_smtl)
     total_agreement_amount: Decimal    # 약정금액합계(agrm_amt_smtl)
     total_sell_fee: Decimal            # 매도수수료합계(sll_fee)
@@ -307,7 +307,7 @@ class DerivativeCommissionHistory:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "days", tuple(self.days))
+        object.__setattr__(self, "commissions", tuple(self.commissions))
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 

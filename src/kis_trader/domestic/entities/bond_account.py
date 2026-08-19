@@ -108,7 +108,7 @@ class BondFill:
     """장내채권 일별 주문·체결 내역 한 건(불변).
 
     한 주문의 주문·체결 상태를 함께 담는다: ``order_quantity`` / ``order_price`` 주문, ``filled_quantity``
-    / ``avg_price`` / ``filled_amount`` 체결, ``unfilled_quantity`` 미체결수량. ``side`` 는 매수/매도.
+    / ``average_price`` / ``filled_amount`` 체결, ``unfilled_quantity`` 미체결수량. ``side`` 는 매수/매도.
     """
 
     order_date: date | None           # 주문일자(ord_dt)
@@ -122,7 +122,7 @@ class BondFill:
     order_price: Decimal              # 채권주문단가(bond_ord_unpr)
     order_time: time | None           # 주문시각(ord_tmd)
     filled_quantity: Decimal          # 총체결수량(tot_ccld_qty)
-    avg_price: Decimal                # 채권평균단가(bond_avg_unpr)
+    average_price: Decimal            # 채권평균단가(bond_avg_unpr)
     filled_amount: Decimal            # 총체결금액(tot_ccld_amt)
     unfilled_quantity: Decimal        # 미체결수량(nccs_qty)
     branch_number: str                # 주문채번지점번호(ord_gno_brno)
@@ -139,13 +139,13 @@ class BondFillHistory:
     """장내채권 일별 주문·체결 내역과 기간 합계 요약(불변).
 
     ``fills`` 는 개별 주문·체결 행(:class:`BondFill`)이고, ``total_*`` 은 조회 기간의 합계다.
-    ``avg_price`` 는 기간 전체 채권 체결평균단가. 금액·수량은 KRW Decimal.
+    ``average_price`` 는 기간 전체 채권 체결평균단가. 금액·수량은 KRW Decimal.
     """
 
     fills: tuple[BondFill, ...]       # 개별 주문·체결 내역(output1)
     total_order_quantity: Decimal     # 총주문수량(tot_ord_qty)
     total_filled_quantity: Decimal    # 총체결수량합계(tot_ccld_qty_smtl)
-    avg_price: Decimal                # 총채권체결평균단가(tot_bond_ccld_avg_unpr)
+    average_price: Decimal            # 총채권체결평균단가(tot_bond_ccld_avg_unpr)
     total_filled_amount: Decimal      # 총체결금액합계(tot_ccld_amt_smtl)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

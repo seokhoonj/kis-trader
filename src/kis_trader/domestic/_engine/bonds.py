@@ -701,7 +701,7 @@ def fetch_bond_fills(
     return BondFillHistory(
         total_order_quantity=required_decimal(summary.get("tot_ord_qty"), "tot_ord_qty"),
         total_filled_quantity=required_decimal(summary.get("tot_ccld_qty_smtl"), "tot_ccld_qty_smtl"),
-        avg_price=required_decimal(summary.get("tot_bond_ccld_avg_unpr"), "tot_bond_ccld_avg_unpr"),
+        average_price=required_decimal(summary.get("tot_bond_ccld_avg_unpr"), "tot_bond_ccld_avg_unpr"),
         total_filled_amount=required_decimal(summary.get("tot_ccld_amt_smtl"), "tot_ccld_amt_smtl"),
         fills=tuple(_parse_bond_fills(rows)),
         _raw=summary,
@@ -747,7 +747,7 @@ def _parse_bond_fills(rows: list[Mapping[str, Any]]) -> list[BondFill]:
                 order_price=field_decimal_or_zero(row.get("bond_ord_unpr"), "bond_ord_unpr"),
                 order_time=_parse_bond_time(row.get("ord_tmd")),
                 filled_quantity=field_decimal_or_zero(row.get("tot_ccld_qty"), "tot_ccld_qty"),
-                avg_price=field_decimal_or_zero(row.get("bond_avg_unpr"), "bond_avg_unpr"),
+                average_price=field_decimal_or_zero(row.get("bond_avg_unpr"), "bond_avg_unpr"),
                 filled_amount=field_decimal_or_zero(row.get("tot_ccld_amt"), "tot_ccld_amt"),
                 unfilled_quantity=field_decimal_or_zero(row.get("nccs_qty"), "nccs_qty"),
                 branch_number=str(row.get("ord_gno_brno", "")).strip(),

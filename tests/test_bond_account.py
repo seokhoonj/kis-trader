@@ -315,7 +315,7 @@ def test_fills_parses_rows_and_totals():
     history = _bonds(fake).fills("20240201", "20240229")
     assert history.total_order_quantity == Decimal(3000)
     assert history.total_filled_quantity == Decimal(2000)
-    assert history.avg_price == Decimal(9855)
+    assert history.average_price == Decimal(9855)
     assert history.total_filled_amount == Decimal(19710000)
     assert len(history.fills) == 1
     fill = history.fills[0]
@@ -330,7 +330,7 @@ def test_fills_parses_rows_and_totals():
     assert fill.order_price == Decimal(9855)
     assert fill.order_time == time(13, 14, 38)
     assert fill.filled_quantity == Decimal(2000)
-    assert fill.avg_price == Decimal(9855)
+    assert fill.average_price == Decimal(9855)
     assert fill.filled_amount == Decimal(19710000)
     assert fill.unfilled_quantity == Decimal(0)
     assert fill.branch_number == "12345"
