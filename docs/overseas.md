@@ -106,3 +106,67 @@ kis.overseas.settlement_dates()                        # 시장별 결제일자
 ```
 
 미국 종목 오버나이트 매도: `kis.overseas.stock("AAPL").overnight_sell(quantity=1, limit_price=150)`.
+
+## 해외파생(선물옵션) 계좌
+
+해외파생(08) 세션에서 `kis.account` 는 해외선물옵션 계좌 뷰를 돌려줍니다. 해외파생 계좌는 통화별로 조회하며, **금액·수량은 조회 통화(`currency`) 기준**(원화 아님)입니다. 모두 **실전투자 전용**입니다.
+
+```python
+a = kis.account            # 08 세션
+
+d = a.deposit(currency="USD")      # 예수금현황
+print(d.cash_balance, d.orderable_amount, d.unrealized_pnl)
+
+for p in a.positions():            # 미결제(보유) 현황 (fuop="00" 전체)
+    print(f"{p.symbol:10s} {p.side} {p.quantity}  평가손익 {p.unrealized_pnl}")
+```
+
+`deposit()` 의 `OverseasDerivativeDeposit` 주요 필드:
+
+| 필드 | 뜻 |
+|---|---|
+| `currency` | 통화코드 |
+| `cash_balance` | 예수금잔액 |
+| `total_asset` | 총자산평가금액 |
+| `unrealized_pnl` · `realized_pnl` | 선물옵션평가손익 · 청산손익 |
+| `brokerage_margin` · `maintenance_margin` | 위탁증거금 · 유지증거금 |
+| `orderable_amount` · `withdrawable_amount` | 주문가능금액 · 출금가능금액 |
+| `risk_rate` | 위험율 |
+
+`positions()` 의 `OverseasDerivativePosition`:
+
+| 필드 | 뜻 |
+|---|---|
+| `symbol` · `product_type` | 해외선물FX상품번호 · 상품유형코드 |
+| `side` · `quantity` | 매수/매도 · 미결제수량 |
+| `average_price` · `current_price` | 체결평균가격 · 현재가격 |
+| `unrealized_pnl` | 평가손익금액 |
+| `liquidatable_quantity` | 청산가능수량 |
+
+주문가능·증거금상세·당일주문:
+
+```python
+a.orderable("ESU24", "buy", price=5300)  # 계약 주문가능수량 (price 없으면 시장가 기준)
+a.margin_detail(currency="USD")           # 증거금상세 (주문가능·위탁/유지 증거금)
+a.today_orders()                          # 당일 주문 (체결/미체결)
+```
+
+- `orderable()` → `OverseasDerivativeOrderable`: `new_orderable_quantity`(신규주문가능), `total_orderable_quantity`(총주문가능), `market_orderable_quantity`(시장가총주문가능), `liquidatable_quantity`(청산가능).
+- `margin_detail()` → `OverseasDerivativeMargin`: `orderable_amount`, `brokerage_margin`, `maintenance_margin`, `order_margin`, `additional_margin`.
+- `today_orders()` → `OverseasDerivativeOrder` 목록: `order_id`·`status`·`order_quantity`·`filled_quantity`·`remaining_quantity`.
+
+기간 조회(체결·주문·손익·입출금):
+
+```python
+a.daily_fills(start="20240101", end="20240630")   # 일별 체결내역 + 기간 합계
+a.daily_orders(start="20240101", end="20240630")  # 일별 주문내역
+a.period_pnl(start="20240101", end="20240630")    # 기간 손익 (통화별 + 종목별)
+a.transactions(start="20240101", end="20240630")  # 기간 입출금(원장)
+```
+
+- `daily_fills()` → `OverseasDerivativeFillHistory`: `fills`(`OverseasDerivativeFill`)와 합계(`total_filled_quantity`·`total_fee`).
+- `daily_orders()` → `OverseasDerivativeDailyOrder` 목록.
+- `period_pnl()` → `OverseasDerivativePNLHistory`: `by_currency`(통화별) · `by_symbol`(종목별) 두 벌, 각 행은 `realized_pnl`·`net_pnl`·`fee`·`unrealized_pnl`.
+- `transactions()` → `OverseasDerivativeTransaction` 목록: `base_date`·`transaction_type`·`amount`·`deposit`.
+
+타입화하지 않은 벤더 필드는 각 결과의 `_raw` 로 접근합니다.
