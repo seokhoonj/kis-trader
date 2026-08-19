@@ -46,7 +46,7 @@ class OverseasDerivativesAccount:
     def __init__(self, client: KISClient) -> None:
         self._client = client
 
-    def deposit(self, currency: str = "USD", date: str | None = None) -> OverseasDerivativeDeposit:
+    def deposit(self, *, currency: str = "USD", date: str | None = None) -> OverseasDerivativeDeposit:
         """해외선물옵션 예수금현황(예수금·자산·증거금·손익 요약).
 
         ``currency`` 조회 통화(기본 USD), ``date`` 조회일자(YYYYMMDD, 8자리 숫자) -- 생략하면
@@ -103,7 +103,7 @@ class OverseasDerivativesAccount:
             environment=self._client.environment,
         )
 
-    def daily_fills(self, start: str, end: str) -> OverseasDerivativeFillHistory:
+    def daily_fills(self, *, start: str, end: str) -> OverseasDerivativeFillHistory:
         """해외선물옵션 일별 체결내역(기간 체결 목록 + 합계 요약).
 
         ``start``~``end`` (YYYYMMDD, 8자리 숫자) 기간을 전체 통화·전체 매매로 조회한다. 금액·수량은
@@ -116,7 +116,7 @@ class OverseasDerivativesAccount:
             environment=self._client.environment, start=start, end=end,
         )
 
-    def daily_orders(self, start: str, end: str) -> list[OverseasDerivativeDailyOrder]:
+    def daily_orders(self, *, start: str, end: str) -> list[OverseasDerivativeDailyOrder]:
         """해외선물옵션 일별 주문내역(기간 주문 목록).
 
         ``start``~``end`` (YYYYMMDD, 8자리 숫자) 기간을 전체 매매·전체 체결미체결로 조회한다.
@@ -129,7 +129,7 @@ class OverseasDerivativesAccount:
             environment=self._client.environment, start=start, end=end,
         )
 
-    def period_pnl(self, start: str, end: str) -> OverseasDerivativePNLHistory:
+    def period_pnl(self, *, start: str, end: str) -> OverseasDerivativePNLHistory:
         """해외선물옵션 기간 손익(통화별 집계 + 종목별 집계).
 
         ``start``~``end`` (YYYYMMDD, 8자리 숫자) 기간을 전체 통화로 조회한다. 통화별 손익은
@@ -143,7 +143,7 @@ class OverseasDerivativesAccount:
             environment=self._client.environment, start=start, end=end,
         )
 
-    def transactions(self, start: str, end: str) -> list[OverseasDerivativeTransaction]:
+    def transactions(self, *, start: str, end: str) -> list[OverseasDerivativeTransaction]:
         """해외선물옵션 기간 입출금내역(원장 목록).
 
         ``start``~``end`` (YYYYMMDD, 8자리 숫자) 기간을 전체 거래유형·전체 통화로 조회한다.

@@ -865,3 +865,14 @@ def test_night_margin_entities_importable():
     from kis_trader import DerivativeNightMargin
 
     assert DerivativeNightMargin is not None
+
+
+def test_account_date_args_are_keyword_only():
+    # 동일 타입 날짜 인자를 순서로 넘겨 뒤바뀌는 사고를 막기 위해 keyword-only 여야 한다.
+    account = _client(FakeTransport(response=_balance_resp(rows=[])), environment="real").account
+    with pytest.raises(TypeError):
+        account.settlement_pl("20240216")            # type: ignore[misc]  # positional 금지
+    with pytest.raises(TypeError):
+        account.base_date_fills("20240220")          # type: ignore[misc]
+    with pytest.raises(TypeError):
+        account.commissions("20240201", "20240229")  # type: ignore[misc]

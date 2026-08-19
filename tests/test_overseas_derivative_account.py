@@ -576,14 +576,14 @@ def _daily_fills_resp(*, rows=None, totals=None, ctx_nk="", ctx_fk="", tr_cont="
 def test_daily_fills_paper_fails_closed():
     fake = FakeTransport(response=_daily_fills_resp(rows=[_fill()]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").account.daily_fills("20240201", "20240216")
+        _client(fake, environment="paper").account.daily_fills(start="20240201", end="20240216")
     assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
 
 
 def test_daily_fills_bad_date_fails_closed():
     fake = FakeTransport(response=_daily_fills_resp(rows=[_fill()]))
     with pytest.raises(KISUsageError):
-        _client(fake).account.daily_fills("2024-02-01", "20240216")
+        _client(fake).account.daily_fills(start="2024-02-01", end="20240216")
     assert fake.calls == []  # 날짜 검증도 와이어 이전
 
 
@@ -591,7 +591,7 @@ def test_daily_fills_parses_and_routes():
     from datetime import date
 
     fake = FakeTransport(response=_daily_fills_resp(rows=[_fill()]))
-    hist = _client(fake).account.daily_fills("20240201", "20240216")
+    hist = _client(fake).account.daily_fills(start="20240201", end="20240216")
     assert isinstance(hist, OverseasDerivativeFillHistory)
     assert hist.total_filled_quantity == Decimal(5)                     # fm_tot_ccld_qty
     assert hist.total_futures_agreement_amount == Decimal("500000.00")  # fm_tot_futr_agrm_amt
@@ -629,7 +629,7 @@ def test_daily_fills_parses_and_routes():
 
 def test_daily_fills_sell_side():
     fake = FakeTransport(response=_daily_fills_resp(rows=[_fill(side="01")]))
-    hist = _client(fake).account.daily_fills("20240201", "20240216")
+    hist = _client(fake).account.daily_fills(start="20240201", end="20240216")
     assert hist.fills[0].side == "sell"                        # sll_buy_dvsn_cd 01 -> sell
 
 
@@ -640,7 +640,7 @@ def test_daily_fills_paginates_and_reads_totals_first_page():
     page2 = _daily_fills_resp(rows=[_fill(ccno="C0002", odno="0002")],
                               totals={"fm_tot_ccld_qty": "999"}, tr_cont="D")
     fake = FakeTransport(by_path={_DAILY_FILLS_PATH: [page1, page2]})
-    hist = _client(fake).account.daily_fills("20240201", "20240216")
+    hist = _client(fake).account.daily_fills(start="20240201", end="20240216")
     assert [f.fill_number for f in hist.fills] == ["C0001", "C0002"]
     assert hist.total_filled_quantity == Decimal(5)            # 첫 페이지 output2
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
@@ -651,7 +651,7 @@ def test_daily_fills_paginates_and_reads_totals_first_page():
 def test_daily_fills_skips_blank_identifier_row():
     rows = [_fill(ccno="C0001", odno="0001"), _fill(ccno="", odno="")]
     hist = _client(FakeTransport(response=_daily_fills_resp(rows=rows))).account.daily_fills(
-        "20240201", "20240216"
+        start="20240201", end="20240216"
     )
     assert [f.fill_number for f in hist.fills] == ["C0001"]
 
@@ -660,34 +660,34 @@ def test_daily_fills_missing_output1_raises():
     body = {"output2": dict(_FILL_TOTALS), "ctx_area_nk200": "", "ctx_area_fk200": ""}
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont="D")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).account.daily_fills("20240201", "20240216")
+        _client(FakeTransport(response=resp)).account.daily_fills(start="20240201", end="20240216")
 
 
 def test_daily_fills_missing_output2_raises():
     body = {"output1": [_fill()], "ctx_area_nk200": "", "ctx_area_fk200": ""}
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont="D")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).account.daily_fills("20240201", "20240216")
+        _client(FakeTransport(response=resp)).account.daily_fills(start="20240201", end="20240216")
 
 
 def test_daily_fills_invalid_output1_block_raises():
     with pytest.raises(KISError):  # output1 은 체결내역 배열이어야 -- 매핑은 손상
         _client(FakeTransport(response=_daily_fills_resp(rows={}))).account.daily_fills(
-            "20240201", "20240216"
+            start="20240201", end="20240216"
         )
 
 
 def test_daily_fills_invalid_output2_block_raises():
     with pytest.raises(KISError):  # output2 가 비매핑이면 합계 요약 부재로 손상
         _client(FakeTransport(response=_daily_fills_resp(totals=42))).account.daily_fills(
-            "20240201", "20240216"
+            start="20240201", end="20240216"
         )
 
 
 def test_daily_fills_non_mapping_row_raises():
     with pytest.raises(KISError):  # output1=[None] 등 손상 행 -> fail-closed
         _client(FakeTransport(response=_daily_fills_resp(rows=[None]))).account.daily_fills(
-            "20240201", "20240216"
+            start="20240201", end="20240216"
         )
 
 
@@ -721,14 +721,14 @@ def _daily_orders_resp(*, rows=None, ctx_nk="", ctx_fk="", tr_cont="D"):
 def test_daily_orders_paper_fails_closed():
     fake = FakeTransport(response=_daily_orders_resp(rows=[_daily_order()]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").account.daily_orders("20240201", "20240216")
+        _client(fake, environment="paper").account.daily_orders(start="20240201", end="20240216")
     assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
 
 
 def test_daily_orders_bad_date_fails_closed():
     fake = FakeTransport(response=_daily_orders_resp(rows=[_daily_order()]))
     with pytest.raises(KISUsageError):
-        _client(fake).account.daily_orders("2024-02-01", "20240216")
+        _client(fake).account.daily_orders(start="2024-02-01", end="20240216")
     assert fake.calls == []  # 날짜 검증도 와이어 이전
 
 
@@ -736,7 +736,7 @@ def test_daily_orders_parses_and_routes():
     from datetime import date
 
     fake = FakeTransport(response=_daily_orders_resp(rows=[_daily_order()]))
-    orders = _client(fake).account.daily_orders("20240201", "20240216")
+    orders = _client(fake).account.daily_orders(start="20240201", end="20240216")
     assert isinstance(orders, list)
     assert isinstance(orders[0], OverseasDerivativeDailyOrder)
     assert orders[0].date == date(2024, 2, 16)                # dt
@@ -770,7 +770,7 @@ def test_daily_orders_parses_and_routes():
 
 def test_daily_orders_sell_side():
     fake = FakeTransport(response=_daily_orders_resp(rows=[_daily_order(side="01")]))
-    orders = _client(fake).account.daily_orders("20240201", "20240216")
+    orders = _client(fake).account.daily_orders(start="20240201", end="20240216")
     assert orders[0].side == "sell"                           # sll_buy_dvsn_cd 01 -> sell
 
 
@@ -779,7 +779,7 @@ def test_daily_orders_paginates():
                                ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
     page2 = _daily_orders_resp(rows=[_daily_order(odno="0002", pdno="6EU24")], tr_cont="D")
     fake = FakeTransport(by_path={_DAILY_ORDERS_PATH: [page1, page2]})
-    orders = _client(fake).account.daily_orders("20240201", "20240216")
+    orders = _client(fake).account.daily_orders(start="20240201", end="20240216")
     assert [o.order_id for o in orders] == ["0001", "0002"]
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
@@ -789,7 +789,7 @@ def test_daily_orders_paginates():
 def test_daily_orders_skips_blank_order_id_row():
     rows = [_daily_order(odno="0001"), _daily_order(odno="")]
     orders = _client(FakeTransport(response=_daily_orders_resp(rows=rows))).account.daily_orders(
-        "20240201", "20240216"
+        start="20240201", end="20240216"
     )
     assert [o.order_id for o in orders] == ["0001"]
 
@@ -797,7 +797,7 @@ def test_daily_orders_skips_blank_order_id_row():
 def test_daily_orders_non_mapping_row_raises():
     with pytest.raises(KISError):
         _client(FakeTransport(response=_daily_orders_resp(rows=[None]))).account.daily_orders(
-            "20240201", "20240216"
+            start="20240201", end="20240216"
         )
 
 
@@ -805,13 +805,13 @@ def test_daily_orders_missing_output_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"ctx_area_nk200": "", "ctx_area_fk200": ""})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).account.daily_orders("20240201", "20240216")
+        _client(FakeTransport(response=resp)).account.daily_orders(start="20240201", end="20240216")
 
 
 def test_daily_orders_non_list_output_raises():
     with pytest.raises(KISError):  # 목록 조회는 output 이 배열이어야 -- 매핑은 손상
         _client(FakeTransport(response=_daily_orders_resp(rows={}))).account.daily_orders(
-            "20240201", "20240216"
+            start="20240201", end="20240216"
         )
 
 
@@ -843,20 +843,20 @@ def _period_pnl_resp(*, by_currency=None, by_symbol=None, ctx_nk="", ctx_fk="", 
 def test_period_pnl_paper_fails_closed():
     fake = FakeTransport(response=_period_pnl_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").account.period_pnl("20240201", "20240216")
+        _client(fake, environment="paper").account.period_pnl(start="20240201", end="20240216")
     assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
 
 
 def test_period_pnl_bad_date_fails_closed():
     fake = FakeTransport(response=_period_pnl_resp())
     with pytest.raises(KISUsageError):
-        _client(fake).account.period_pnl("20240201", "2024-02-16")
+        _client(fake).account.period_pnl(start="20240201", end="2024-02-16")
     assert fake.calls == []  # 날짜 검증도 와이어 이전
 
 
 def test_period_pnl_parses_and_routes():
     fake = FakeTransport(response=_period_pnl_resp())
-    hist = _client(fake).account.period_pnl("20240201", "20240216")
+    hist = _client(fake).account.period_pnl(start="20240201", end="20240216")
     assert isinstance(hist, OverseasDerivativePNLHistory)
     assert len(hist.by_currency) == 1
     assert len(hist.by_symbol) == 1
@@ -896,7 +896,7 @@ def test_period_pnl_paginates_accumulating_both_blocks():
     page2 = _period_pnl_resp(by_currency=[_pnl(crcy="EUR")],
                              by_symbol=[_pnl(pdno="6EU24")], tr_cont="D")
     fake = FakeTransport(by_path={_PERIOD_PNL_PATH: [page1, page2]})
-    hist = _client(fake).account.period_pnl("20240201", "20240216")
+    hist = _client(fake).account.period_pnl(start="20240201", end="20240216")
     assert [p.currency for p in hist.by_currency] == ["USD", "EUR"]
     assert [p.symbol for p in hist.by_symbol] == ["6BZ22", "6EU24"]
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
@@ -907,7 +907,7 @@ def test_period_pnl_paginates_accumulating_both_blocks():
 def test_period_pnl_skips_all_blank_row():
     by_currency = [_pnl(crcy="USD"), _pnl(crcy="", pdno="")]
     hist = _client(FakeTransport(response=_period_pnl_resp(by_currency=by_currency))).account.period_pnl(
-        "20240201", "20240216"
+        start="20240201", end="20240216"
     )
     assert [p.currency for p in hist.by_currency] == ["USD"]
 
@@ -916,7 +916,7 @@ def test_period_pnl_skips_all_blank_row():
 def test_period_pnl_non_mapping_row_raises(block):
     with pytest.raises(KISError):  # output1/output2 어느 쪽의 [None] 이든 -> fail-closed
         _client(FakeTransport(response=_period_pnl_resp(**block))).account.period_pnl(
-            "20240201", "20240216"
+            start="20240201", end="20240216"
         )
 
 
@@ -924,27 +924,27 @@ def test_period_pnl_missing_output1_raises():
     body = {"output2": [_pnl(pdno="6BZ22")], "ctx_area_nk200": "", "ctx_area_fk200": ""}
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont="D")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).account.period_pnl("20240201", "20240216")
+        _client(FakeTransport(response=resp)).account.period_pnl(start="20240201", end="20240216")
 
 
 def test_period_pnl_missing_output2_raises():
     body = {"output1": [_pnl()], "ctx_area_nk200": "", "ctx_area_fk200": ""}
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont="D")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).account.period_pnl("20240201", "20240216")
+        _client(FakeTransport(response=resp)).account.period_pnl(start="20240201", end="20240216")
 
 
 def test_period_pnl_invalid_output1_block_raises():
     with pytest.raises(KISError):  # output1 은 손익 배열이어야 -- 매핑은 손상
         _client(FakeTransport(response=_period_pnl_resp(by_currency={}))).account.period_pnl(
-            "20240201", "20240216"
+            start="20240201", end="20240216"
         )
 
 
 def test_period_pnl_invalid_output2_block_raises():
     with pytest.raises(KISError):  # output2 는 손익 배열이어야 -- 매핑은 손상
         _client(FakeTransport(response=_period_pnl_resp(by_symbol={}))).account.period_pnl(
-            "20240201", "20240216"
+            start="20240201", end="20240216"
         )
 
 
@@ -978,14 +978,14 @@ def _period_trans_resp(*, rows=None, ctx_nk="", ctx_fk="", tr_cont="D"):
 def test_period_trans_paper_fails_closed():
     fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").account.transactions("20240201", "20240216")
+        _client(fake, environment="paper").account.transactions(start="20240201", end="20240216")
     assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
 
 
 def test_period_trans_bad_date_fails_closed():
     fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
     with pytest.raises(KISUsageError):
-        _client(fake).account.transactions("20240201", "2024-02-16")
+        _client(fake).account.transactions(start="20240201", end="2024-02-16")
     assert fake.calls == []  # 날짜 검증도 와이어 이전
 
 
@@ -993,7 +993,7 @@ def test_period_trans_parses_and_routes():
     from datetime import date
 
     fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
-    trans = _client(fake).account.transactions("20240201", "20240216")
+    trans = _client(fake).account.transactions(start="20240201", end="20240216")
     assert isinstance(trans, list)
     assert isinstance(trans[0], OverseasDerivativeTransaction)
     assert trans[0].base_date == date(2024, 2, 16)           # bass_dt
@@ -1029,7 +1029,7 @@ def test_period_trans_paginates():
                                ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
     page2 = _period_trans_resp(rows=[_transaction(seq="0002")], tr_cont="D")
     fake = FakeTransport(by_path={_PERIOD_TRANS_PATH: [page1, page2]})
-    trans = _client(fake).account.transactions("20240201", "20240216")
+    trans = _client(fake).account.transactions(start="20240201", end="20240216")
     assert [t.ledger_sequence for t in trans] == ["0001", "0002"]
     assert fake.calls[1]["params"]["CTX_AREA_NK100"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK100"] == "FK"
@@ -1039,7 +1039,7 @@ def test_period_trans_paginates():
 def test_period_trans_skips_blank_identifier_row():
     rows = [_transaction(seq="0001"), _transaction(seq="", bass_dt="")]
     trans = _client(FakeTransport(response=_period_trans_resp(rows=rows))).account.transactions(
-        "20240201", "20240216"
+        start="20240201", end="20240216"
     )
     assert [t.ledger_sequence for t in trans] == ["0001"]
 
@@ -1047,7 +1047,7 @@ def test_period_trans_skips_blank_identifier_row():
 def test_period_trans_non_mapping_row_raises():
     with pytest.raises(KISError):
         _client(FakeTransport(response=_period_trans_resp(rows=[None]))).account.transactions(
-            "20240201", "20240216"
+            start="20240201", end="20240216"
         )
 
 
@@ -1055,13 +1055,13 @@ def test_period_trans_missing_output_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"ctx_area_nk100": "", "ctx_area_fk100": ""})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).account.transactions("20240201", "20240216")
+        _client(FakeTransport(response=resp)).account.transactions(start="20240201", end="20240216")
 
 
 def test_transactions_non_list_output_raises():
     with pytest.raises(KISError):  # 목록 조회는 output 이 배열이어야 -- 매핑은 손상
         _client(FakeTransport(response=_period_trans_resp(rows={}))).account.transactions(
-            "20240201", "20240216"
+            start="20240201", end="20240216"
         )
 
 
