@@ -22,8 +22,8 @@ from kis_trader.overseas.entities.derivative_account import (
     OverseasDerivativeMargin,
     OverseasDerivativeOrder,
     OverseasDerivativeOrderable,
-    OverseasDerivativePnl,
-    OverseasDerivativePnlHistory,
+    OverseasDerivativePNL,
+    OverseasDerivativePNLHistory,
     OverseasDerivativePosition,
     OverseasDerivativeTransaction,
 )
@@ -563,10 +563,10 @@ def test_daily_fills_parses_and_routes():
     fake = FakeTransport(response=_daily_fills_resp(rows=[_fill()]))
     hist = _client(fake).account.daily_fills("20240201", "20240216")
     assert isinstance(hist, OverseasDerivativeFillHistory)
-    assert hist.total_fill_quantity == Decimal(5)               # fm_tot_ccld_qty
-    assert hist.total_futures_amount == Decimal("500000.00")    # fm_tot_futr_agrm_amt
-    assert hist.total_options_amount == Decimal(0)              # fm_tot_opt_agrm_amt
-    assert hist.total_fee == Decimal("31.25")                   # fm_fee_smtl
+    assert hist.total_filled_quantity == Decimal(5)                     # fm_tot_ccld_qty
+    assert hist.total_futures_agreement_amount == Decimal("500000.00")  # fm_tot_futr_agrm_amt
+    assert hist.total_options_agreement_amount == Decimal(0)            # fm_tot_opt_agrm_amt
+    assert hist.total_fee == Decimal("31.25")                           # fm_fee_smtl
     assert len(hist.fills) == 1
     fill = hist.fills[0]
     assert isinstance(fill, OverseasDerivativeFill)
@@ -574,8 +574,8 @@ def test_daily_fills_parses_and_routes():
     assert fill.fill_number == "C0001"                          # ccno
     assert fill.symbol == "6BZ22"                               # ovrs_futr_fx_pdno
     assert fill.side == "buy"                                    # sll_buy_dvsn_cd 02 -> buy
-    assert fill.fill_quantity == Decimal(2)                     # fm_ccld_qty
-    assert fill.fill_amount == Decimal("253000.00")            # fm_ccld_amt
+    assert fill.filled_quantity == Decimal(2)                   # fm_ccld_qty
+    assert fill.filled_amount == Decimal("253000.00")          # fm_ccld_amt
     assert fill.currency == "USD"                               # crcy_cd
     assert fill.fee == Decimal("12.50")                        # fm_fee
     assert fill.order_date == date(2024, 2, 16)                # ord_dt
@@ -612,7 +612,7 @@ def test_daily_fills_paginates_and_reads_totals_first_page():
     fake = FakeTransport(by_path={_DAILY_FILLS_PATH: [page1, page2]})
     hist = _client(fake).account.daily_fills("20240201", "20240216")
     assert [f.fill_number for f in hist.fills] == ["C0001", "C0002"]
-    assert hist.total_fill_quantity == Decimal(5)              # 첫 페이지 output2
+    assert hist.total_filled_quantity == Decimal(5)            # 첫 페이지 output2
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
     assert fake.calls[1]["tr_cont"] == "N"                     # 연속조회 헤더
@@ -799,11 +799,11 @@ def test_period_pnl_bad_date_fails_closed():
 def test_period_pnl_parses_and_routes():
     fake = FakeTransport(response=_period_pnl_resp())
     hist = _client(fake).account.period_pnl("20240201", "20240216")
-    assert isinstance(hist, OverseasDerivativePnlHistory)
+    assert isinstance(hist, OverseasDerivativePNLHistory)
     assert len(hist.by_currency) == 1
     assert len(hist.by_symbol) == 1
     ccy = hist.by_currency[0]
-    assert isinstance(ccy, OverseasDerivativePnl)
+    assert isinstance(ccy, OverseasDerivativePNL)
     assert ccy.currency == "USD"                              # crcy_cd
     assert ccy.symbol == ""                                   # per-currency block
     assert ccy.buy_quantity == Decimal(5)                     # fm_buy_qty
@@ -876,8 +876,8 @@ def test_period_pnl_missing_output2_raises():
 
 
 def test_overseas_derivative_pnl_history_entity_importable():
-    from kis_trader import OverseasDerivativePnl as ExportedPnl
-    from kis_trader import OverseasDerivativePnlHistory as ExportedHistory
+    from kis_trader import OverseasDerivativePNL as ExportedPnl
+    from kis_trader import OverseasDerivativePNLHistory as ExportedHistory
 
     assert ExportedPnl is not None
     assert ExportedHistory is not None
@@ -905,14 +905,14 @@ def _period_trans_resp(*, rows=None, ctx_nk="", ctx_fk="", tr_cont="D"):
 def test_period_trans_paper_fails_closed():
     fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").account.period_trans("20240201", "20240216")
+        _client(fake, environment="paper").account.transactions("20240201", "20240216")
     assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
 
 
 def test_period_trans_bad_date_fails_closed():
     fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
     with pytest.raises(KISUsageError):
-        _client(fake).account.period_trans("20240201", "2024-02-16")
+        _client(fake).account.transactions("20240201", "2024-02-16")
     assert fake.calls == []  # 날짜 검증도 와이어 이전
 
 
@@ -920,7 +920,7 @@ def test_period_trans_parses_and_routes():
     from datetime import date
 
     fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
-    trans = _client(fake).account.period_trans("20240201", "20240216")
+    trans = _client(fake).account.transactions("20240201", "20240216")
     assert isinstance(trans, list)
     assert isinstance(trans[0], OverseasDerivativeTransaction)
     assert trans[0].base_date == date(2024, 2, 16)           # bass_dt
@@ -956,7 +956,7 @@ def test_period_trans_paginates():
                                ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
     page2 = _period_trans_resp(rows=[_transaction(seq="0002")], tr_cont="D")
     fake = FakeTransport(by_path={_PERIOD_TRANS_PATH: [page1, page2]})
-    trans = _client(fake).account.period_trans("20240201", "20240216")
+    trans = _client(fake).account.transactions("20240201", "20240216")
     assert [t.ledger_sequence for t in trans] == ["0001", "0002"]
     assert fake.calls[1]["params"]["CTX_AREA_NK100"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK100"] == "FK"
@@ -965,7 +965,7 @@ def test_period_trans_paginates():
 
 def test_period_trans_skips_blank_identifier_row():
     rows = [_transaction(seq="0001"), _transaction(seq="", bass_dt="")]
-    trans = _client(FakeTransport(response=_period_trans_resp(rows=rows))).account.period_trans(
+    trans = _client(FakeTransport(response=_period_trans_resp(rows=rows))).account.transactions(
         "20240201", "20240216"
     )
     assert [t.ledger_sequence for t in trans] == ["0001"]
@@ -973,7 +973,7 @@ def test_period_trans_skips_blank_identifier_row():
 
 def test_period_trans_non_mapping_row_raises():
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_period_trans_resp(rows=[None]))).account.period_trans(
+        _client(FakeTransport(response=_period_trans_resp(rows=[None]))).account.transactions(
             "20240201", "20240216"
         )
 
@@ -982,7 +982,7 @@ def test_period_trans_missing_output_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"ctx_area_nk100": "", "ctx_area_fk100": ""})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).account.period_trans("20240201", "20240216")
+        _client(FakeTransport(response=resp)).account.transactions("20240201", "20240216")
 
 
 def test_overseas_derivative_transaction_entity_importable():

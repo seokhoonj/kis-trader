@@ -28,8 +28,8 @@ from ..entities.derivative_account import (
     OverseasDerivativeMargin,
     OverseasDerivativeOrder,
     OverseasDerivativeOrderable,
-    OverseasDerivativePnl,
-    OverseasDerivativePnlHistory,
+    OverseasDerivativePNL,
+    OverseasDerivativePNLHistory,
     OverseasDerivativePosition,
     OverseasDerivativeTransaction,
 )
@@ -399,11 +399,11 @@ def fetch_daily_fills(
     return OverseasDerivativeFillHistory(
         # 외화 합계 필드는 비어 올 수 있어 '없음=0'(field_decimal_or_zero)으로 읽되, 값이 있는데
         # 파싱 실패면 여전히 예외로 fail-closed 한다.
-        total_fill_quantity=field_decimal_or_zero(summary.get("fm_tot_ccld_qty"), "fm_tot_ccld_qty"),
-        total_futures_amount=field_decimal_or_zero(
+        total_filled_quantity=field_decimal_or_zero(summary.get("fm_tot_ccld_qty"), "fm_tot_ccld_qty"),
+        total_futures_agreement_amount=field_decimal_or_zero(
             summary.get("fm_tot_futr_agrm_amt"), "fm_tot_futr_agrm_amt"
         ),
-        total_options_amount=field_decimal_or_zero(
+        total_options_agreement_amount=field_decimal_or_zero(
             summary.get("fm_tot_opt_agrm_amt"), "fm_tot_opt_agrm_amt"
         ),
         total_fee=field_decimal_or_zero(summary.get("fm_fee_smtl"), "fm_fee_smtl"),
@@ -429,8 +429,8 @@ def _parse_fills(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativeFill]:
                 fill_number=fill_number,
                 symbol=str(row.get("ovrs_futr_fx_pdno", "")).strip(),
                 side=_side_from_code(row.get("sll_buy_dvsn_cd")),
-                fill_quantity=field_decimal_or_zero(row.get("fm_ccld_qty"), "fm_ccld_qty"),
-                fill_amount=field_decimal_or_zero(row.get("fm_ccld_amt"), "fm_ccld_amt"),
+                filled_quantity=field_decimal_or_zero(row.get("fm_ccld_qty"), "fm_ccld_qty"),
+                filled_amount=field_decimal_or_zero(row.get("fm_ccld_amt"), "fm_ccld_amt"),
                 currency=str(row.get("crcy_cd", "")).strip(),
                 fee=field_decimal_or_zero(row.get("fm_fee"), "fm_fee"),
                 order_date=_parse_date(row.get("ord_dt")),
@@ -456,7 +456,7 @@ def _extract_summary(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
 def fetch_period_pnl(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     start: str, end: str,
-) -> OverseasDerivativePnlHistory:
+) -> OverseasDerivativePNLHistory:
     """해외선물옵션 기간 손익(통화별 output1 + 종목별 output2). ``start``~``end`` (YYYYMMDD)
     기간을 전체 통화("%%%")·원화환산 안 함("N")으로 조회하고 연속조회로 두 집계 블록을
     소진까지 함께 모은다(각 페이지의 output1/output2 를 모두 이어붙인다). 연속조회 커서는 200폭
@@ -497,7 +497,7 @@ def fetch_period_pnl(
             f"해외선물옵션 기간손익 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 "
             f"남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
         )
-    return OverseasDerivativePnlHistory(
+    return OverseasDerivativePNLHistory(
         by_currency=tuple(_parse_pnl_rows(by_currency_rows)),
         by_symbol=tuple(_parse_pnl_rows(by_symbol_rows)),
     )
@@ -514,8 +514,8 @@ def _require_pnl_block(block: object, name: str, resp: RawResponse) -> list[Mapp
     return block
 
 
-def _parse_pnl_rows(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativePnl]:
-    pnls: list[OverseasDerivativePnl] = []
+def _parse_pnl_rows(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativePNL]:
+    pnls: list[OverseasDerivativePNL] = []
     for row in rows:
         if not isinstance(row, Mapping):  # output=[None] 등 손상 -> fail-closed
             raise KISError("해외선물옵션 기간손익 응답 행이 매핑이 아니다.")
@@ -526,7 +526,7 @@ def _parse_pnl_rows(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativePnl
         pnls.append(
             # 수량·금액은 빈 값을 0으로 읽되(외화 필드는 비어 올 수 있음), 값이 있는데 파싱 실패면
             # 여전히 예외로 fail-closed 한다.
-            OverseasDerivativePnl(
+            OverseasDerivativePNL(
                 currency=currency,
                 symbol=symbol,
                 buy_quantity=field_decimal_or_zero(row.get("fm_buy_qty"), "fm_buy_qty"),
@@ -548,7 +548,7 @@ def _parse_pnl_rows(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativePnl
     return pnls
 
 
-def fetch_period_trans(
+def fetch_transactions(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     start: str, end: str,
 ) -> list[OverseasDerivativeTransaction]:
