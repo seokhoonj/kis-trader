@@ -16,10 +16,12 @@ from ._engine.derivative_account import (
     fetch_margin_detail,
     fetch_orderable,
     fetch_positions,
+    fetch_today_orders,
 )
 from .entities.derivative_account import (
     OverseasDerivativeDeposit,
     OverseasDerivativeMargin,
+    OverseasDerivativeOrder,
     OverseasDerivativeOrderable,
     OverseasDerivativePosition,
 )
@@ -78,6 +80,19 @@ class OverseasDerivativesAccount:
         return fetch_positions(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment, fuop=fuop,
+        )
+
+    def today_orders(self) -> list[OverseasDerivativeOrder]:
+        """해외선물옵션 당일 주문내역(체결+미체결 전체).
+
+        체결여부·매매·선물옵션 구분 필터 없이 당일 전체 주문을 돌려준다. 금액·수량은 각 계약
+        통화의 Decimal(원화 아님). ``GET .../overseas-futureoption/v1/trading/inquire-ccld``
+        (``OTFM3116R``). **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_today_orders(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment,
         )
 
     def orderable(

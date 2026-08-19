@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
+from datetime import date
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -129,6 +130,40 @@ class OverseasDerivativeOrderable:
     new_orderable_quantity: Decimal   # 신규주문가능수량(fm_new_ord_psbl_qty)
     total_orderable_quantity: Decimal  # 총주문가능수량(fm_tot_ord_psbl_qty)
     market_orderable_quantity: Decimal  # 시장가총주문가능수량(fm_mkpr_tot_ord_psbl_qty)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasDerivativeOrder:
+    """해외선물옵션 당일 주문 한 건(체결/미체결, 불변).
+
+    수량·가격은 각 계약 통화 기준(가격은 그 통화, 수량은 계약수). ``order_date`` 주문일자
+    (ord_dt) -- 형식오류/공백이면 None. ``order_id`` 주문번호(odno), ``original_order_id``
+    원주문번호(orgn_odno), ``symbol`` 해외선물FX상품번호, ``side`` 매수/매도, ``status``
+    주문상태코드(ord_stat_cd 원본 문자열), ``order_quantity`` 주문수량, ``order_price``
+    주문가격, ``filled_quantity`` 체결수량, ``filled_price`` 체결가격, ``remaining_quantity``
+    주문잔량, ``new_liquidation`` 신규청산구분코드(new_lqd_dvsn_cd 원본), ``fuop`` 선물옵션구분
+    (fuop_dvsn 원본). 주문번호가 빈 패딩 행은 담기지 않는다. 타입화하지 않은 필드는 ``_raw``.
+    """
+
+    order_date: date | None           # 주문일자(ord_dt)
+    order_id: str                     # 주문번호(odno)
+    original_order_id: str            # 원주문번호(orgn_odno)
+    symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
+    side: Side                        # buy / sell (sll_buy_dvsn_cd: 01 매도 / 02 매수)
+    status: str                       # 주문상태코드(ord_stat_cd)
+    order_quantity: Decimal           # 주문수량(fm_ord_qty)
+    order_price: Decimal              # 주문가격(fm_ord_pric)
+    filled_quantity: Decimal          # 체결수량(fm_ccld_qty)
+    filled_price: Decimal             # 체결가격(fm_ccld_pric)
+    remaining_quantity: Decimal       # 주문잔량(fm_ord_rmn_qty)
+    new_liquidation: str              # 신규청산구분코드(new_lqd_dvsn_cd)
+    fuop: str                         # 선물옵션구분(fuop_dvsn)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

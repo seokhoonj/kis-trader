@@ -12,6 +12,7 @@ KIS URL/TR-ID:
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -22,6 +23,7 @@ from ...transport import Environment, Transport
 from ..entities.derivative_account import (
     OverseasDerivativeDeposit,
     OverseasDerivativeMargin,
+    OverseasDerivativeOrder,
     OverseasDerivativeOrderable,
     OverseasDerivativePosition,
 )
@@ -42,6 +44,9 @@ _ORDERABLE_TR = "OTFM3304R"  # 해외선물옵션 주문가능수량, 모의투�
 
 _MARGIN_PATH = "/uapi/overseas-futureoption/v1/trading/margin-detail"
 _MARGIN_TR = "OTFM3115R"  # 해외선물옵션 증거금상세, 모의투자 미지원
+
+_TODAY_ORDERS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-ccld"
+_TODAY_ORDERS_TR = "OTFM3116R"  # 해외선물옵션 당일주문내역, 모의투자 미지원
 #: 매도매수구분코드(SLL_BUY_DVSN_CD): 매수 02 / 매도 01.
 _SIDE_TO_SLL_BUY = {"buy": "02", "sell": "01"}
 
@@ -194,6 +199,65 @@ def _parse_positions(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativePo
     return positions
 
 
+def fetch_today_orders(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+) -> list[OverseasDerivativeOrder]:
+    """해외선물옵션 당일 주문내역(체결+미체결 전체, 연속조회 소진까지). v1 은 전체를 돌려주므로
+    체결여부/매매/선물옵션 구분은 모두 "00"(전체)으로 고정한다. 연속조회 커서는 200폭
+    (CTX_AREA_FK200/NK200)이다. 금액·수량은 각 계약 통화의 Decimal(원화 아님).
+    **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "해외선물옵션 당일주문내역(inquire-ccld)은 모의투자 미지원 -- 실전에서만."
+        )
+    rows = _fetch_paginated_rows(
+        transport,
+        path=_TODAY_ORDERS_PATH, tr_id=_TODAY_ORDERS_TR,
+        base_params={
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "CCLD_NCCS_DVSN": "00",   # 체결미체결구분 -- 00 전체
+            "SLL_BUY_DVSN_CD": "00",  # 매도매수구분 -- 00 전체
+            "FUOP_DVSN": "00",        # 선물옵션구분 -- 00 전체
+            "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
+        },
+        output_key="output", max_pages=_MAX_PAGES, ctx_width=200,
+        cap_message=(
+            f"해외선물옵션 당일주문내역 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        ),
+    )
+    return _parse_today_orders(rows)
+
+
+def _parse_today_orders(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativeOrder]:
+    orders: list[OverseasDerivativeOrder] = []
+    for row in rows:
+        order_id = str(row.get("odno", "")).strip()
+        if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
+            continue
+        orders.append(
+            # 수량·가격은 빈 값을 0으로 읽되(외화 필드는 비어 올 수 있음), 값이 있는데 파싱 실패면
+            # 여전히 예외. 방향(side)은 주문번호가 있는 행에서만 코드->buy/sell 로 fail-closed 변환.
+            OverseasDerivativeOrder(
+                order_date=_parse_date(row.get("ord_dt")),
+                order_id=order_id,
+                original_order_id=str(row.get("orgn_odno", "")).strip(),
+                symbol=str(row.get("ovrs_futr_fx_pdno", "")).strip(),
+                side=_side_from_code(row.get("sll_buy_dvsn_cd")),
+                status=str(row.get("ord_stat_cd", "")).strip(),
+                order_quantity=field_decimal_or_zero(row.get("fm_ord_qty"), "fm_ord_qty"),
+                order_price=field_decimal_or_zero(row.get("fm_ord_pric"), "fm_ord_pric"),
+                filled_quantity=field_decimal_or_zero(row.get("fm_ccld_qty"), "fm_ccld_qty"),
+                filled_price=field_decimal_or_zero(row.get("fm_ccld_pric"), "fm_ccld_pric"),
+                remaining_quantity=field_decimal_or_zero(row.get("fm_ord_rmn_qty"), "fm_ord_rmn_qty"),
+                new_liquidation=str(row.get("new_lqd_dvsn_cd", "")).strip(),
+                fuop=str(row.get("fuop_dvsn", "")).strip(),
+                _raw=row,
+            )
+        )
+    return orders
+
+
 def fetch_orderable(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     symbol: str, side: Side, price: Numeric | None = None, exercise_reserved: bool = False,
@@ -236,6 +300,17 @@ def fetch_orderable(
         ),
         _raw=output,
     )
+
+
+def _parse_date(value: object) -> date | None:
+    """``"20240216"`` -> ``date(2024, 2, 16)``. 공백/형식오류면 None(fail-soft)."""
+    text = str(value or "").strip()
+    if len(text) != 8 or not text.isdigit():
+        return None
+    try:
+        return date(int(text[0:4]), int(text[4:6]), int(text[6:8]))
+    except ValueError:
+        return None
 
 
 def _format_order_price(price: Numeric | None) -> str:
