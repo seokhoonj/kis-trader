@@ -16,12 +16,14 @@ from kis_trader.errors import KISError, KISUsageError
 from kis_trader.overseas.derivative_account import OverseasDerivativesAccount
 from kis_trader.overseas.entities.derivative_account import (
     OverseasDerivativeDeposit,
+    OverseasDerivativeOrderable,
     OverseasDerivativePosition,
 )
 from kis_trader.transport import RawResponse
 
 _DEPOSIT_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-deposit"
 _POSITIONS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-unpd"
+_ORDERABLE_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-psamount"
 
 
 class FakeTransport:
@@ -235,5 +237,89 @@ def test_positions_page_cap_fails_closed():
 
 def test_overseas_derivative_position_entity_importable():
     from kis_trader import OverseasDerivativePosition as Exported
+
+    assert Exported is not None
+
+
+# --- 주문가능수량 OTFM3304R -----------------------------------------------
+
+_ORDERABLE = {
+    "ovrs_futr_fx_pdno": "6EU24", "crcy_cd": "USD",
+    "fm_ustl_qty": "3", "fm_lqd_psbl_qty": "3",
+    "fm_new_ord_psbl_qty": "10", "fm_tot_ord_psbl_qty": "13",
+    "fm_mkpr_tot_ord_psbl_qty": "13",
+}
+
+
+def _orderable_resp(*, output=None):
+    body = {"output": output if output is not None else dict(_ORDERABLE)}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont="D")
+
+
+def test_orderable_paper_fails_closed():
+    fake = FakeTransport(response=_orderable_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").account.orderable("6EU24", "buy")
+    assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
+
+
+def test_orderable_parses_and_routes():
+    fake = FakeTransport(response=_orderable_resp())
+    ord_ = _client(fake).account.orderable("6EU24", "buy", price="1.0850")
+    assert isinstance(ord_, OverseasDerivativeOrderable)
+    assert ord_.symbol == "6EU24"                             # ovrs_futr_fx_pdno
+    assert ord_.currency == "USD"                             # crcy_cd
+    assert ord_.open_quantity == Decimal(3)                   # fm_ustl_qty
+    assert ord_.liquidatable_quantity == Decimal(3)          # fm_lqd_psbl_qty
+    assert ord_.new_orderable_quantity == Decimal(10)        # fm_new_ord_psbl_qty
+    assert ord_.total_orderable_quantity == Decimal(13)      # fm_tot_ord_psbl_qty
+    assert ord_.market_orderable_quantity == Decimal(13)     # fm_mkpr_tot_ord_psbl_qty
+    call = fake.calls[0]
+    assert call["tr_id"] == "OTFM3304R"
+    assert call["path"].endswith("inquire-psamount")
+    assert call["params"]["OVRS_FUTR_FX_PDNO"] == "6EU24"
+    assert call["params"]["SLL_BUY_DVSN_CD"] == "02"          # buy -> 02
+    assert call["params"]["FM_ORD_PRIC"] == "1.0850"
+    assert call["params"]["ECIS_RSVN_ORD_YN"] == "N"
+    assert call["params"]["CANO"] == "12345678"
+    assert call["params"]["ACNT_PRDT_CD"] == "08"
+
+
+def test_orderable_sell_side_and_market_price():
+    fake = FakeTransport(response=_orderable_resp())
+    _client(fake).account.orderable("6EU24", "sell")
+    call = fake.calls[0]
+    assert call["params"]["SLL_BUY_DVSN_CD"] == "01"          # sell -> 01
+    assert call["params"]["FM_ORD_PRIC"] == "0"              # price 없음 -> 시장가 "0"
+
+
+def test_orderable_exercise_reserved_flag():
+    fake = FakeTransport(response=_orderable_resp())
+    _client(fake).account.orderable("6EU24", "buy", exercise_reserved=True)
+    assert fake.calls[0]["params"]["ECIS_RSVN_ORD_YN"] == "Y"
+
+
+def test_orderable_bad_price_fails_closed():
+    fake = FakeTransport(response=_orderable_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake).account.orderable("6EU24", "buy", price="-1")
+    assert fake.calls == []  # 단가 검증도 와이어 이전
+
+
+def test_orderable_missing_output_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={}, tr_cont="D")
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp)).account.orderable("6EU24", "buy")
+
+
+def test_orderable_missing_new_orderable_qty_raises():
+    output = dict(_ORDERABLE)
+    del output["fm_new_ord_psbl_qty"]
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=_orderable_resp(output=output))).account.orderable("6EU24", "buy")
+
+
+def test_overseas_derivative_orderable_entity_importable():
+    from kis_trader import OverseasDerivativeOrderable as Exported
 
     assert Exported is not None

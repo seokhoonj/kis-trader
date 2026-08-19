@@ -12,23 +12,34 @@ KIS URL/TR-ID:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from typing import Any
+from decimal import Decimal
+from typing import TYPE_CHECKING, Any
 
 from ..._internal._response import _fetch_paginated_rows, _raise_if_error
-from ..._internal._wire import field_decimal_or_zero
+from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
 from ...transport import Environment, Transport
 from ..entities.derivative_account import (
     OverseasDerivativeDeposit,
+    OverseasDerivativeOrderable,
     OverseasDerivativePosition,
 )
 from ._parse import _MAX_PAGES, _side_from_code
+
+if TYPE_CHECKING:
+    from ..._literals import Numeric
+    from ...order import Side
 
 _DEPOSIT_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-deposit"
 _DEPOSIT_TR = "OTFM1411R"  # 해외선물옵션 예수금현황, 모의투자 미지원
 
 _POSITIONS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-unpd"
 _POSITIONS_TR = "OTFM1412R"  # 해외선물옵션 미결제내역, 모의투자 미지원
+
+_ORDERABLE_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-psamount"
+_ORDERABLE_TR = "OTFM3304R"  # 해외선물옵션 주문가능수량, 모의투자 미지원
+#: 매도매수구분코드(SLL_BUY_DVSN_CD): 매수 02 / 매도 01.
+_SIDE_TO_SLL_BUY = {"buy": "02", "sell": "01"}
 
 
 def fetch_deposit(
@@ -134,3 +145,60 @@ def _parse_positions(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativePo
             )
         )
     return positions
+
+
+def fetch_orderable(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    symbol: str, side: Side, price: Numeric | None = None, exercise_reserved: bool = False,
+) -> OverseasDerivativeOrderable:
+    """해외선물옵션 계약의 주문가능수량(1콜, output 단일 객체). ``symbol`` 해외선물FX상품번호,
+    ``side`` 매수/매도, ``price`` 있으면 그 단가 기준·없으면 시장가("0"), ``exercise_reserved``
+    행사예약주문 여부. 수량은 그 통화 기준. **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "해외선물옵션 주문가능수량(inquire-psamount)은 모의투자 미지원 -- 실전에서만."
+        )
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "OVRS_FUTR_FX_PDNO": symbol,
+        "SLL_BUY_DVSN_CD": _SIDE_TO_SLL_BUY[side],
+        "FM_ORD_PRIC": _format_order_price(price),
+        "ECIS_RSVN_ORD_YN": "Y" if exercise_reserved else "N",
+    }
+    resp = transport.request(
+        method="GET", path=_ORDERABLE_PATH, tr_id=_ORDERABLE_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise KISError(
+            "해외선물옵션 주문가능수량 응답에 output 이 없다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    return OverseasDerivativeOrderable(
+        # 신규/총 주문가능수량은 조회의 핵심 답이라 required_decimal(부재면 손상->예외), 나머지
+        # 상태 필드는 '없음=0'(field_decimal_or_zero)으로 읽되 값이 있는데 파싱 실패면 예외.
+        symbol=str(output.get("ovrs_futr_fx_pdno", "")).strip() or symbol,
+        currency=str(output.get("crcy_cd", "")).strip(),
+        open_quantity=field_decimal_or_zero(output.get("fm_ustl_qty"), "fm_ustl_qty"),
+        liquidatable_quantity=field_decimal_or_zero(output.get("fm_lqd_psbl_qty"), "fm_lqd_psbl_qty"),
+        new_orderable_quantity=required_decimal(output.get("fm_new_ord_psbl_qty"), "fm_new_ord_psbl_qty"),
+        total_orderable_quantity=required_decimal(output.get("fm_tot_ord_psbl_qty"), "fm_tot_ord_psbl_qty"),
+        market_orderable_quantity=field_decimal_or_zero(
+            output.get("fm_mkpr_tot_ord_psbl_qty"), "fm_mkpr_tot_ord_psbl_qty"
+        ),
+        _raw=output,
+    )
+
+
+def _format_order_price(price: Numeric | None) -> str:
+    """주문가능조회의 단가를 KIS 와이어 정본으로 -- ``None`` 이면 시장가라 "0". 유한 양수 아니면 거부."""
+    if price is None:
+        return "0"
+    try:
+        amount = Decimal(str(price))
+    except (ArithmeticError, ValueError) as err:
+        raise KISUsageError(f"price 는 숫자여야 한다: {price!r}") from err
+    if not amount.is_finite() or amount <= 0:
+        raise KISUsageError(f"price 는 0보다 큰 유한값이어야 한다: {price!r}")
+    return format_wire_decimal(amount)

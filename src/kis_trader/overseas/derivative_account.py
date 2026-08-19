@@ -11,14 +11,17 @@ from typing import TYPE_CHECKING
 
 from .._internal._datetime import _today_kst
 from ..errors import KISUsageError
-from ._engine.derivative_account import fetch_deposit, fetch_positions
+from ._engine.derivative_account import fetch_deposit, fetch_orderable, fetch_positions
 from .entities.derivative_account import (
     OverseasDerivativeDeposit,
+    OverseasDerivativeOrderable,
     OverseasDerivativePosition,
 )
 
 if TYPE_CHECKING:
+    from .._literals import Numeric
     from ..client import KISClient
+    from ..order import Side
 
 
 class OverseasDerivativesAccount:
@@ -52,6 +55,23 @@ class OverseasDerivativesAccount:
         return fetch_positions(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment, fuop=fuop,
+        )
+
+    def orderable(
+        self, symbol: str, side: Side, *, price: Numeric | None = None,
+        exercise_reserved: bool = False,
+    ) -> OverseasDerivativeOrderable:
+        """해외선물옵션 계약의 주문가능수량(신규/총/시장가 등).
+
+        ``symbol`` 해외선물FX상품번호, ``side`` 매수/매도, ``price`` 있으면 그 단가 기준·없으면
+        시장가, ``exercise_reserved`` 행사예약주문 여부. 수량은 그 계약 통화 기준. ``GET .../
+        overseas-futureoption/v1/trading/inquire-psamount`` (``OTFM3304R``). **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_orderable(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment,
+            symbol=symbol, side=side, price=price, exercise_reserved=exercise_reserved,
         )
 
 

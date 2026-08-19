@@ -82,3 +82,28 @@ class OverseasDerivativePosition:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasDerivativeOrderable:
+    """한 해외선물옵션 계약의 주문가능 수량(불변).
+
+    수량은 ``currency`` 통화 기준(가격은 그 통화, 수량은 계약수). ``symbol`` 해외선물FX상품번호,
+    ``open_quantity`` 미결제수량, ``liquidatable_quantity`` 청산가능수량, ``new_orderable_quantity``
+    신규주문가능수량, ``total_orderable_quantity`` 총주문가능수량, ``market_orderable_quantity``
+    시장가총주문가능수량. 타입화하지 않은 필드는 ``_raw`` 로 접근한다.
+    """
+
+    symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
+    currency: str                     # 통화코드(crcy_cd)
+    open_quantity: Decimal            # 미결제수량(fm_ustl_qty)
+    liquidatable_quantity: Decimal    # 청산가능수량(fm_lqd_psbl_qty)
+    new_orderable_quantity: Decimal   # 신규주문가능수량(fm_new_ord_psbl_qty)
+    total_orderable_quantity: Decimal  # 총주문가능수량(fm_tot_ord_psbl_qty)
+    market_orderable_quantity: Decimal  # 시장가총주문가능수량(fm_mkpr_tot_ord_psbl_qty)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
