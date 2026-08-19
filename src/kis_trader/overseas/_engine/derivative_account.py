@@ -12,7 +12,6 @@ KIS URL/TR-ID:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -33,7 +32,7 @@ from ..entities.derivative_account import (
     OverseasDerivativePosition,
     OverseasDerivativeTransaction,
 )
-from ._parse import _MAX_PAGES, _side_from_code
+from ._parse import _MAX_PAGES, _parse_date, _side_from_code
 
 if TYPE_CHECKING:
     from ..._literals import Numeric
@@ -71,10 +70,10 @@ _SIDE_TO_SLL_BUY = {"buy": "02", "sell": "01"}
 
 def fetch_deposit(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    currency: str, date: str,
+    currency: str, query_date: str,
 ) -> OverseasDerivativeDeposit:
     """해외선물옵션 예수금현황(1콜, output 단일 객체). ``currency`` 조회 통화(CRCY_CD),
-    ``date`` 조회일자(YYYYMMDD). 금액은 그 통화의 Decimal(원화 아님).
+    ``query_date`` 조회일자(YYYYMMDD). 금액은 그 통화의 Decimal(원화 아님).
     **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
         raise KISUsageError(
@@ -82,7 +81,7 @@ def fetch_deposit(
         )
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
-        "CRCY_CD": currency, "INQR_DT": date,
+        "CRCY_CD": currency, "INQR_DT": query_date,
     }
     resp = transport.request(
         method="GET", path=_DEPOSIT_PATH, tr_id=_DEPOSIT_TR, params=params, idempotent=True
@@ -118,10 +117,10 @@ def fetch_deposit(
 
 def fetch_margin_detail(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    currency: str, date: str,
+    currency: str, query_date: str,
 ) -> OverseasDerivativeMargin:
     """해외선물옵션 증거금상세(1콜, output 단일 객체). ``currency`` 조회 통화(CRCY_CD),
-    ``date`` 조회일자(YYYYMMDD). 금액은 그 통화의 Decimal(원화 아님). SPAN/EUREX 등 상세
+    ``query_date`` 조회일자(YYYYMMDD). 금액은 그 통화의 Decimal(원화 아님). SPAN/EUREX 등 상세
     증거금 내역은 ``_raw`` 로만 노출한다. **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
         raise KISUsageError(
@@ -129,7 +128,7 @@ def fetch_margin_detail(
         )
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
-        "CRCY_CD": currency, "INQR_DT": date,
+        "CRCY_CD": currency, "INQR_DT": query_date,
     }
     resp = transport.request(
         method="GET", path=_MARGIN_PATH, tr_id=_MARGIN_TR, params=params, idempotent=True
@@ -668,17 +667,6 @@ def fetch_orderable(
         ),
         _raw=output,
     )
-
-
-def _parse_date(value: object) -> date | None:
-    """``"20240216"`` -> ``date(2024, 2, 16)``. 공백/형식오류면 None(fail-soft)."""
-    text = str(value or "").strip()
-    if len(text) != 8 or not text.isdigit():
-        return None
-    try:
-        return date(int(text[0:4]), int(text[4:6]), int(text[6:8]))
-    except ValueError:
-        return None
 
 
 def _format_order_price(price: Numeric | None) -> str:

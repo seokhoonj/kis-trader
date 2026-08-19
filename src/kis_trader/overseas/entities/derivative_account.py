@@ -303,7 +303,6 @@ class OverseasDerivativePNLHistory:
 
     ``by_currency`` 통화별 손익(output1), ``by_symbol`` 종목별 손익(output2). 두 벌 모두
     :class:`OverseasDerivativePNL` 행이며 금액·수량은 각 행 통화의 Decimal(원화 아님).
-    타입화하지 않은 요약 필드는 ``_raw``.
     """
 
     by_currency: tuple[OverseasDerivativePNL, ...]  # 통화별 손익(output1)

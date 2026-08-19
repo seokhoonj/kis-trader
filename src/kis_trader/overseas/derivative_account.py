@@ -57,7 +57,7 @@ class OverseasDerivativesAccount:
         return fetch_deposit(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment,
-            currency=currency, date=_resolve_query_date(date),
+            currency=currency, query_date=_resolve_query_date(date),
         )
 
     def margin_detail(
@@ -74,7 +74,7 @@ class OverseasDerivativesAccount:
         return fetch_margin_detail(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment,
-            currency=currency, date=_resolve_query_date(date),
+            currency=currency, query_date=_resolve_query_date(date),
         )
 
     def positions(self, fuop: str = "00") -> list[OverseasDerivativePosition]:

@@ -35,7 +35,7 @@ from ...report import ExecutionReport, OrderStatus
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ...transport import Environment, Transport, TransportTimeout
 from ..entities.orders import OverseasReservedOrder
-from ._parse import _side_from_code
+from ._parse import _parse_date, _side_from_code
 from .orders import _ORDER_EXCHANGE
 
 if TYPE_CHECKING:
@@ -684,13 +684,3 @@ def _parse(row: Mapping[str, Any]) -> OverseasReservedOrder:
 
 def _decimal_or_zero(row: Mapping[str, Any], key: str) -> Decimal:
     return field_decimal_or_zero(row.get(key), key)
-
-
-def _parse_date(value: object) -> date | None:
-    text = str(value or "").strip()
-    if len(text) != 8 or not text.isdigit():
-        return None
-    try:
-        return datetime.strptime(text, "%Y%m%d").date()  # noqa: DTZ007
-    except ValueError:
-        return None
