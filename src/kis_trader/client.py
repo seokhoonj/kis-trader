@@ -117,6 +117,7 @@ class KISClient:
         account: str | None = None,
         environment: Environment | None = None,
         hts_id: str | None = None,
+        account_password: str | None = None,
         config_dir: str | Path | None = None,
         transport: Transport | None = None,
         token_cache_dir: str | Path | None = None,
@@ -174,10 +175,11 @@ class KISClient:
             resolved = _fill_credentials(
                 profile, app_key=app_key, app_secret=app_secret, account=account,
                 environment=environment, config_dir=config_dir, hts_id=hts_id,
+                account_password=account_password,
             )
-            app_key, app_secret, account, environment, hts_id = (
+            app_key, app_secret, account, environment, hts_id, account_password = (
                 resolved.app_key, resolved.app_secret, resolved.account, resolved.environment,
-                resolved.hts_id)
+                resolved.hts_id, resolved.account_password)
         else:
             # 앱키·시크릿을 직접 준 경우: 파일을 읽지 않는다. 환경 미지정이면 실전 기본, 주면 검증.
             if environment is None:
@@ -192,6 +194,9 @@ class KISClient:
         self._app_secret = app_secret
         self._environment = environment
         self._hts_id = hts_id
+        #: 계좌비밀번호(야간 파생 잔고 등 일부 조회의 ACNT_PWD). **비밀값** -- 공개 프로퍼티로 노출하지
+        #: 않고, 어디에도 출력/로그하지 않는다. 내부 조회 함수만 이 접근자로 읽는다.
+        self._account_password = account_password
         if transport is None:
             from ._internal._auth import TokenManager
             from ._internal._http import RequestsTransport
@@ -575,6 +580,16 @@ class KISClient:
                 "KISClient(..., account='12345678-01') 로 생성하라."
             )
         return self._cano, self._product_code
+
+    def _require_account_password(self) -> str:
+        """계좌비밀번호가 필요한 조회(야간 파생 잔고 등)의 ``ACNT_PWD``. 없으면 :class:`KISUsageError`
+        (변수/경로만 안내하고 **비밀값은 절대 노출하지 않는다**)."""
+        if not self._account_password:
+            raise KISUsageError(
+                "이 조회에는 계좌비밀번호가 필요하다 -- credentials.json 최상위 'account_password' "
+                "또는 KIS_ACCOUNT_PASSWORD 환경변수에 설정하라(값은 코드가 출력하지 않는다)."
+            )
+        return self._account_password
 
 
 #: Open API 이용 자체가 불가한 상품계좌종류(ACNT_PRDT_CD). 공식 FAQ(2026-03-26): DC가입자(55).
