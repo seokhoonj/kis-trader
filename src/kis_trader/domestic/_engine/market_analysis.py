@@ -1,6 +1,6 @@
 """시장 전체 분석 조회 (내부) -- 시장별 투자자매매동향 등.
 
-사용자면은 시장 분석 네임스페이스(:class:`~kis_trader.market.MarketQueries`, ``kis.domestic.market``)다.
+사용자면은 시장 분석 네임스페이스(:class:`~kis_trader.domestic.market.MarketQueries`, ``kis.domestic.market``)다.
 종목이 아니라 시장(코스피/코스닥) 전체가 대상이라 종목 핸들이 아닌 세션 네임스페이스에 둔다.
 
 KIS URL/TR-ID:

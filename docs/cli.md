@@ -5,7 +5,7 @@
 
 자격증명과 환경은 **`--profile`** 로 정합니다. 프로필은 환경변수나 설정 파일에서 읽으며,
 환경(실전/모의)은 **그 프로필에 저장된 값**입니다(이름이 정하지 않음). `--profile` 을 생략하면 기본
-프로필을 씁니다(`KIS_DEFAULT_PROFILE` 환경변수 > `credentials.json` 첫 항목 > `main`). 다른 계좌·모의는
+프로필을 씁니다(`KIS_DEFAULT_PROFILE` 환경변수 > `credentials.json` 의 `default_profile` 마커 > 첫 항목 > `main`). 다른 계좌·모의는
 저장해 둔 프로필 이름을 `--profile` 로 고릅니다. 실전이 기본이어도 주문은 `--execute` 전까지 전송되지
 않아 안전합니다.
 

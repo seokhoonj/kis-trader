@@ -1,6 +1,6 @@
 """시장 전체 분석 DATA -- :class:`MarketInvestorFlow`.
 
-종목이 아니라 **시장(코스피/코스닥) 전체**를 대상으로 한 분석 결과다. :class:`~kis_trader.market.
+종목이 아니라 **시장(코스피/코스닥) 전체**를 대상으로 한 분석 결과다. :class:`~kis_trader.domestic.market.
 MarketQueries`(``kis.domestic.market``)가 돌려준다. 종목 단위 투자자매매동향은 종목 핸들
 (:meth:`~kis_trader.domestic.stock.DomesticStock.investor_flows`)에 있다.
 """
@@ -224,7 +224,7 @@ class TradingDay:
     """거래 캘린더의 하루(불변).
 
     ``date`` 기준으로 그날이 영업일/거래일/개장일/결제일인지 알려준다. ``is_open`` 이 거래소 개장
-    여부(휴장일이면 False), ``is_settlement_day`` 는 결제일 여부다. :meth:`~kis_trader.market.
+    여부(휴장일이면 False), ``is_settlement_day`` 는 결제일 여부다. :meth:`~kis_trader.domestic.market.
     MarketQueries.trading_calendar` 가 기준일에서 앞으로 한 페이지를 돌려준다. ``date`` 는 KST-aware.
     """
 

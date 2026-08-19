@@ -58,7 +58,7 @@ for p in a.positions():
 
 `sellable_quantity`(매도가능)는 담보·대주 등으로 `quantity`(보유)보다 적을 수 있습니다.
 
-보유종목 + 요약을 한 번에: `a.portfolio()` → `.positions`, `.summary`.
+보유종목 + 요약을 한 번에: `a.portfolio()` → `.balance`, `.positions`.
 
 ## 실현손익
 

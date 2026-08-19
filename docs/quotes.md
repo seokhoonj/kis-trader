@@ -83,17 +83,15 @@ kis.domestic.quotes([("KRX", "005930"), ("NXT", "000660")])
 ## 시간외
 
 ```python
-s.after_hours_quote()        # 시간외 현재가
-s.after_hours_daily()        # 시간외 일별
-s.after_hours_conclusions()  # 시간외 체결
-```
-
-## 시간외 심화·상태
-
-```python
+s.after_hours_quote()         # 시간외 현재가
 s.after_hours_daily()         # 시간외 단일가 일자별 종가
 s.after_hours_conclusions()   # 시간외 시간별 체결
 s.after_hours_order_book()    # 시간외 호가창
+```
+
+## 상태·과거 분봉
+
+```python
 s.status()                    # 현재가 + 거래·규제·경고 상태
 s.minute_bars_on("20240102")  # 특정 과거일의 1분봉
 ```

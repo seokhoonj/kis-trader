@@ -1,7 +1,8 @@
 """뉴스 헤드라인 -- :class:`NewsHeadline`.
 
-국내(:meth:`~kis_trader.market.MarketQueries.news`)와 해외(해외 속보) 양쪽이 돌려주는
-자산군-공용 결과 타입이라 어느 한 자산군 모듈이 아니라 최상위 공유 타입으로 둔다.
+국내 시장 뉴스(:meth:`~kis_trader.domestic.market.MarketQueries.news`)가 돌려주는 결과
+타입이다. 해외 속보는 자체 :class:`~kis_trader.overseas.entities.news.OverseasNewsHeadline`
+를 쓴다.
 """
 
 from __future__ import annotations

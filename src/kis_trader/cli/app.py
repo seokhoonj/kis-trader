@@ -50,7 +50,7 @@ def _common_flags() -> argparse.ArgumentParser:
     앞·뒤 어디에 놓아도 동작한다."""
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--profile", default=argparse.SUPPRESS,
-                        help="자격증명 프로필(자유 이름). 미지정 시 KIS_DEFAULT_PROFILE > credentials.json 첫 항목 > main. 환경은 프로필에 저장된 값")
+                        help="자격증명 프로필(자유 이름). 미지정 시 KIS_DEFAULT_PROFILE > default_profile 마커 > credentials.json 첫 항목 > main. 환경은 프로필에 저장된 값")
     common.add_argument("--account", default=argparse.SUPPRESS, help="계좌번호(생략 시 프로필 계좌)")
     common.add_argument("--format", dest="fmt", choices=["table", "json", "jsonl"],
                         default=argparse.SUPPRESS, help="출력 형식(기본 table)")
@@ -69,7 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
     # 최상위는 실제 기본값을 직접 가진다. 하위 명령은 common(SUPPRESS)이라, 미지정 시 이 값을
     # 덮어쓰지 않고 그대로 유지한다 -- 그래서 전역 플래그를 하위 명령 앞뒤 어디에 놓아도 된다.
     parser.add_argument("--profile", default=None,
-                        help="자격증명 프로필(자유 이름). 미지정 시 KIS_DEFAULT_PROFILE > credentials.json 첫 항목 > main. 환경은 프로필에 저장된 값")
+                        help="자격증명 프로필(자유 이름). 미지정 시 KIS_DEFAULT_PROFILE > default_profile 마커 > credentials.json 첫 항목 > main. 환경은 프로필에 저장된 값")
     parser.add_argument("--account", default=None, help="계좌번호(생략 시 프로필 계좌)")
     parser.add_argument("--format", dest="fmt", choices=["table", "json", "jsonl"], default="table",
                         help="출력 형식(기본 table)")

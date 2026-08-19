@@ -86,7 +86,7 @@ kis order buy 005930 10 --limit-price 70000 --execute paper --yes  # 모의투�
 
 ## 6. AI 코딩 에이전트에서 사용
 
-Claude Code·Codex 같은 AI 도구로 계좌를 다루려면 `skills/kis-trader/` 스킬을 씁니다.
+Claude Code·Codex 같은 AI 도구로 계좌를 다루려면 `plugins/kis-trader/skills/kis-trader/` 스킬을 씁니다.
 [Claude 스킬](https://seokhoonj.github.io/kis-trader/claude-skill.html) ·
 [Codex 스킬](https://seokhoonj.github.io/kis-trader/codex-skill.html) 문서를 참고하세요.
 
