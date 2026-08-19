@@ -55,7 +55,7 @@ class IntegratedBalance:
     bonds: tuple[BondPosition, ...]                # 채권 보유(매입금액 기준)
     overseas: OverseasPresentBalance               # 해외 체결기준현재잔고(통화별+원화집계)
     total_evaluation: Decimal     # 원화 총평가 = domestic.market_value + overseas.total_evaluation_amount
-    total_unrealized_pnl: Decimal # 원화 총평가손익 = domestic.unrealized_pnl + overseas.total_eval_pnl
+    total_unrealized_pnl: Decimal # 원화 총평가손익 = domestic.unrealized_pnl + overseas.total_unrealized_pnl
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

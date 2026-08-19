@@ -92,7 +92,7 @@ def test_present_balance_parses():
     assert p.current_price == Money(Decimal("155.00"), "USD")
     assert p.currency == "USD"
     assert bal.currencies[0].deposit == Money(Decimal("200.00"), "USD")
-    assert bal.total_eval_pnl == Decimal(100000)
+    assert bal.total_unrealized_pnl == Decimal(100000)
     assert bal.total_asset == Decimal(5000000)
 
 

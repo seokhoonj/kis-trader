@@ -127,7 +127,7 @@ class OverseasPresentBalance:
     currencies: tuple[OverseasCurrencyBalance, ...]
     total_purchase_amount: Decimal     # 매입금액합계금액(pchs_amt_smtl_amt), 원화
     total_evaluation_amount: Decimal   # 평가금액합계금액(evlu_amt_smtl_amt), 원화
-    total_eval_pnl: Decimal            # 총평가손익금액(tot_evlu_pfls_amt), 원화
+    total_unrealized_pnl: Decimal      # 총평가손익금액(tot_evlu_pfls_amt), 원화
     total_asset: Decimal               # 총자산금액(tot_asst_amt), 원화
     eval_return_rate: Decimal          # 평가수익율(evlu_erng_rt1)
     _raw: Mapping[str, Any] = field(
@@ -148,7 +148,7 @@ class OverseasSettlementBalance:
     positions: tuple[OverseasBalancePosition, ...]
     currencies: tuple[OverseasCurrencyBalance, ...]
     total_purchase_amount: Decimal     # 매입금액합계금액(pchs_amt_smtl_amt), 원화
-    total_eval_pnl: Decimal            # 총평가손익금액(tot_evlu_pfls_amt), 원화
+    total_unrealized_pnl: Decimal      # 총평가손익금액(tot_evlu_pfls_amt), 원화
     eval_return_rate: Decimal          # 평가수익율(evlu_erng_rt1)
     total_deposit: Decimal             # 총예수금액(tot_dncl_amt), 원화
     total_won_evaluation: Decimal      # 원화평가금액합계(wcrc_evlu_amt_smtl)

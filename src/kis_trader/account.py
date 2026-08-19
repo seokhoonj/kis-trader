@@ -77,5 +77,5 @@ class StockAccounts:
             bonds=bonds,
             overseas=ovs,
             total_evaluation=dom.market_value + ovs.total_evaluation_amount,
-            total_unrealized_pnl=dom.unrealized_pnl + ovs.total_eval_pnl,
+            total_unrealized_pnl=dom.unrealized_pnl + ovs.total_unrealized_pnl,
         )
