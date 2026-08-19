@@ -112,7 +112,7 @@ def test_deposit_parses_and_routes():
     assert dep.fee == Decimal("12.50")                           # fm_fee
     call = fake.calls[0]
     assert call["tr_id"] == "OTFM1411R"
-    assert call["path"].endswith("inquire-deposit")
+    assert call["path"] == _DEPOSIT_PATH
     assert call["params"]["CRCY_CD"] == "USD"
     assert call["params"]["INQR_DT"] == "20240216"
     assert call["params"]["CANO"] == "12345678"
@@ -141,6 +141,12 @@ def test_deposit_missing_output_raises():
         _client(FakeTransport(response=resp)).account.deposit()
 
 
+def test_deposit_non_mapping_output_raises():
+    for output in ([], 42):  # 단일블록 조회는 output 이 매핑이어야 -- 리스트/스칼라는 손상
+        with pytest.raises(KISError):
+            _client(FakeTransport(response=_deposit_resp(output=output))).account.deposit()
+
+
 def test_deposit_blank_amounts_read_as_zero():
     output = dict(_DEPOSIT, fm_add_mgn_amt="", fm_rcvb_amt="  ")
     dep = _client(FakeTransport(response=_deposit_resp(output=output))).account.deposit()
@@ -151,7 +157,7 @@ def test_deposit_blank_amounts_read_as_zero():
 def test_overseas_derivative_deposit_entity_importable():
     from kis_trader import OverseasDerivativeDeposit as Exported
 
-    assert Exported is not None
+    assert Exported is OverseasDerivativeDeposit
 
 
 # --- 미결제내역(보유) OTFM1412R -------------------------------------------
@@ -243,6 +249,11 @@ def test_positions_missing_output_raises():
         _client(FakeTransport(response=resp)).account.positions()
 
 
+def test_positions_non_list_output_raises():
+    with pytest.raises(KISError):  # 목록 조회는 output 이 배열이어야 -- 매핑은 손상
+        _client(FakeTransport(response=_positions_resp(rows={}))).account.positions()
+
+
 def test_positions_page_cap_fails_closed():
     never_ends = _positions_resp(rows=[_position()], ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
     with pytest.raises(KISError):
@@ -252,7 +263,7 @@ def test_positions_page_cap_fails_closed():
 def test_overseas_derivative_position_entity_importable():
     from kis_trader import OverseasDerivativePosition as Exported
 
-    assert Exported is not None
+    assert Exported is OverseasDerivativePosition
 
 
 # --- 주문가능수량 OTFM3304R -----------------------------------------------
@@ -290,7 +301,7 @@ def test_orderable_parses_and_routes():
     assert ord_.market_orderable_quantity == Decimal(13)     # fm_mkpr_tot_ord_psbl_qty
     call = fake.calls[0]
     assert call["tr_id"] == "OTFM3304R"
-    assert call["path"].endswith("inquire-psamount")
+    assert call["path"] == _ORDERABLE_PATH
     assert call["params"]["OVRS_FUTR_FX_PDNO"] == "6EU24"
     assert call["params"]["SLL_BUY_DVSN_CD"] == "02"          # buy -> 02
     assert call["params"]["FM_ORD_PRIC"] == "1.0850"
@@ -333,10 +344,18 @@ def test_orderable_missing_new_orderable_qty_raises():
         _client(FakeTransport(response=_orderable_resp(output=output))).account.orderable("6EU24", "buy")
 
 
+def test_orderable_non_mapping_output_raises():
+    for output in ([], 42):  # 단일블록 조회는 output 이 매핑이어야 -- 리스트/스칼라는 손상
+        with pytest.raises(KISError):
+            _client(FakeTransport(response=_orderable_resp(output=output))).account.orderable(
+                "6EU24", "buy"
+            )
+
+
 def test_overseas_derivative_orderable_entity_importable():
     from kis_trader import OverseasDerivativeOrderable as Exported
 
-    assert Exported is not None
+    assert Exported is OverseasDerivativeOrderable
 
 
 # --- 증거금상세 OTFM3115R -------------------------------------------------
@@ -380,7 +399,7 @@ def test_margin_detail_parses_and_routes():
     assert margin._raw["fm_span_mgn_amt"] == "16000.00"          # 상세 필드는 _raw 로
     call = fake.calls[0]
     assert call["tr_id"] == "OTFM3115R"
-    assert call["path"].endswith("margin-detail")
+    assert call["path"] == _MARGIN_PATH
     assert call["params"]["CRCY_CD"] == "USD"
     assert call["params"]["INQR_DT"] == "20240216"
     assert call["params"]["CANO"] == "12345678"
@@ -416,10 +435,16 @@ def test_margin_detail_missing_output_raises():
         _client(FakeTransport(response=resp)).account.margin_detail()
 
 
+def test_margin_detail_non_mapping_output_raises():
+    for output in ([], 42):  # 단일블록 조회는 output 이 매핑이어야 -- 리스트/스칼라는 손상
+        with pytest.raises(KISError):
+            _client(FakeTransport(response=_margin_resp(output=output))).account.margin_detail()
+
+
 def test_overseas_derivative_margin_entity_importable():
     from kis_trader import OverseasDerivativeMargin as Exported
 
-    assert Exported is not None
+    assert Exported is OverseasDerivativeMargin
 
 
 # --- 당일 주문내역 OTFM3116R ----------------------------------------------
@@ -514,10 +539,15 @@ def test_today_orders_missing_output_raises():
         _client(FakeTransport(response=resp)).account.today_orders()
 
 
+def test_today_orders_non_list_output_raises():
+    with pytest.raises(KISError):  # 목록 조회는 output 이 배열이어야 -- 매핑은 손상
+        _client(FakeTransport(response=_today_orders_resp(rows={}))).account.today_orders()
+
+
 def test_overseas_derivative_order_entity_importable():
     from kis_trader import OverseasDerivativeOrder as Exported
 
-    assert Exported is not None
+    assert Exported is OverseasDerivativeOrder
 
 
 # --- 일별 체결내역 OTFM3122R ----------------------------------------------
@@ -640,12 +670,33 @@ def test_daily_fills_missing_output2_raises():
         _client(FakeTransport(response=resp)).account.daily_fills("20240201", "20240216")
 
 
+def test_daily_fills_invalid_output1_block_raises():
+    with pytest.raises(KISError):  # output1 은 체결내역 배열이어야 -- 매핑은 손상
+        _client(FakeTransport(response=_daily_fills_resp(rows={}))).account.daily_fills(
+            "20240201", "20240216"
+        )
+
+
+def test_daily_fills_invalid_output2_block_raises():
+    with pytest.raises(KISError):  # output2 가 비매핑이면 합계 요약 부재로 손상
+        _client(FakeTransport(response=_daily_fills_resp(totals=42))).account.daily_fills(
+            "20240201", "20240216"
+        )
+
+
+def test_daily_fills_non_mapping_row_raises():
+    with pytest.raises(KISError):  # output1=[None] 등 손상 행 -> fail-closed
+        _client(FakeTransport(response=_daily_fills_resp(rows=[None]))).account.daily_fills(
+            "20240201", "20240216"
+        )
+
+
 def test_overseas_derivative_fill_history_entity_importable():
     from kis_trader import OverseasDerivativeFill as ExportedFill
     from kis_trader import OverseasDerivativeFillHistory as ExportedHistory
 
-    assert ExportedFill is not None
-    assert ExportedHistory is not None
+    assert ExportedFill is OverseasDerivativeFill
+    assert ExportedHistory is OverseasDerivativeFillHistory
 
 
 # --- 일별 주문내역 OTFM3120R ----------------------------------------------
@@ -757,10 +808,17 @@ def test_daily_orders_missing_output_raises():
         _client(FakeTransport(response=resp)).account.daily_orders("20240201", "20240216")
 
 
+def test_daily_orders_non_list_output_raises():
+    with pytest.raises(KISError):  # 목록 조회는 output 이 배열이어야 -- 매핑은 손상
+        _client(FakeTransport(response=_daily_orders_resp(rows={}))).account.daily_orders(
+            "20240201", "20240216"
+        )
+
+
 def test_overseas_derivative_daily_order_entity_importable():
     from kis_trader import OverseasDerivativeDailyOrder as Exported
 
-    assert Exported is not None
+    assert Exported is OverseasDerivativeDailyOrder
 
 
 # --- 기간 손익 OTFM3118R --------------------------------------------------
@@ -854,9 +912,10 @@ def test_period_pnl_skips_all_blank_row():
     assert [p.currency for p in hist.by_currency] == ["USD"]
 
 
-def test_period_pnl_non_mapping_row_raises():
-    with pytest.raises(KISError):
-        _client(FakeTransport(response=_period_pnl_resp(by_currency=[None]))).account.period_pnl(
+@pytest.mark.parametrize("block", [{"by_currency": [None]}, {"by_symbol": [None]}])
+def test_period_pnl_non_mapping_row_raises(block):
+    with pytest.raises(KISError):  # output1/output2 어느 쪽의 [None] 이든 -> fail-closed
+        _client(FakeTransport(response=_period_pnl_resp(**block))).account.period_pnl(
             "20240201", "20240216"
         )
 
@@ -875,12 +934,26 @@ def test_period_pnl_missing_output2_raises():
         _client(FakeTransport(response=resp)).account.period_pnl("20240201", "20240216")
 
 
+def test_period_pnl_invalid_output1_block_raises():
+    with pytest.raises(KISError):  # output1 은 손익 배열이어야 -- 매핑은 손상
+        _client(FakeTransport(response=_period_pnl_resp(by_currency={}))).account.period_pnl(
+            "20240201", "20240216"
+        )
+
+
+def test_period_pnl_invalid_output2_block_raises():
+    with pytest.raises(KISError):  # output2 는 손익 배열이어야 -- 매핑은 손상
+        _client(FakeTransport(response=_period_pnl_resp(by_symbol={}))).account.period_pnl(
+            "20240201", "20240216"
+        )
+
+
 def test_overseas_derivative_pnl_history_entity_importable():
     from kis_trader import OverseasDerivativePNL as ExportedPnl
     from kis_trader import OverseasDerivativePNLHistory as ExportedHistory
 
-    assert ExportedPnl is not None
-    assert ExportedHistory is not None
+    assert ExportedPnl is OverseasDerivativePNL
+    assert ExportedHistory is OverseasDerivativePNLHistory
 
 
 # --- 기간 입출금내역 OTFM3114R --------------------------------------------
@@ -985,7 +1058,14 @@ def test_period_trans_missing_output_raises():
         _client(FakeTransport(response=resp)).account.transactions("20240201", "20240216")
 
 
+def test_transactions_non_list_output_raises():
+    with pytest.raises(KISError):  # 목록 조회는 output 이 배열이어야 -- 매핑은 손상
+        _client(FakeTransport(response=_period_trans_resp(rows={}))).account.transactions(
+            "20240201", "20240216"
+        )
+
+
 def test_overseas_derivative_transaction_entity_importable():
     from kis_trader import OverseasDerivativeTransaction as Exported
 
-    assert Exported is not None
+    assert Exported is OverseasDerivativeTransaction
