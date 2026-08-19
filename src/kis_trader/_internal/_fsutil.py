@@ -19,26 +19,33 @@ from pathlib import Path
 __all__ = ["atomic_write_bytes", "xdg_cache_subdir", "xdg_config_subdir", "xdg_state_subdir"]
 
 
+def _xdg_base(env_var: str, default: Path) -> Path:
+    """``env_var`` 로 지정한 XDG base 디렉터리. XDG 규약대로 **절대경로일 때만** 존중하고,
+    미설정·빈값·상대경로면 ``default`` 로 폴백한다(상대 XDG 값을 그대로 쓰면 프로세스 CWD 에
+    상대적인 예측 불가 위치에 캐시/상태가 쓰인다)."""
+    value = os.environ.get(env_var)
+    if value and os.path.isabs(value):
+        return Path(value)
+    return default
+
+
 def xdg_cache_subdir(*parts: str) -> Path:
     """``XDG_CACHE_HOME`` (없으면 ``~/.cache``) 아래의 하위 경로. 재생성 가능한 런타임 캐시 전용
     -- 토큰/마스터 캐시가 이 한 경로 규칙을 공유하도록 여기 한 곳에 둔다."""
-    base = os.environ.get("XDG_CACHE_HOME") or Path.home() / ".cache"
-    return Path(base).joinpath(*parts)
+    return _xdg_base("XDG_CACHE_HOME", Path.home() / ".cache").joinpath(*parts)
 
 
 def xdg_state_subdir(*parts: str) -> Path:
     """``XDG_STATE_HOME`` (없으면 ``~/.local/state``) 아래의 하위 경로. 재생성 불가한 영속 상태 전용
     -- 잃으면 다시 만들 수 없는 데이터(주문 dedup 저장소 등)를 재생성 가능한 캐시(:func:`xdg_cache_subdir`)
     와 XDG 규약대로 분리해 둔다(캐시 청소가 이 상태를 지우지 않도록)."""
-    base = os.environ.get("XDG_STATE_HOME") or Path.home() / ".local" / "state"
-    return Path(base).joinpath(*parts)
+    return _xdg_base("XDG_STATE_HOME", Path.home() / ".local" / "state").joinpath(*parts)
 
 
 def xdg_config_subdir(*parts: str) -> Path:
     """``XDG_CONFIG_HOME`` (없으면 ``~/.config``) 아래의 하위 경로. 사용자가 편집하는 설정
     (자격증명/설정 파일) 전용 -- 재생성 가능한 캐시(:func:`xdg_cache_subdir`)와 XDG 규약대로 분리한다."""
-    base = os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config"
-    return Path(base).joinpath(*parts)
+    return _xdg_base("XDG_CONFIG_HOME", Path.home() / ".config").joinpath(*parts)
 
 
 def atomic_write_bytes(path: str | os.PathLike[str], data: bytes, *, mode: int = 0o600) -> None:
