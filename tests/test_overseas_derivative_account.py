@@ -15,6 +15,7 @@ from kis_trader import KISClient
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.overseas.derivative_account import OverseasDerivativesAccount
 from kis_trader.overseas.entities.derivative_account import (
+    OverseasDerivativeDailyOrder,
     OverseasDerivativeDeposit,
     OverseasDerivativeFill,
     OverseasDerivativeFillHistory,
@@ -31,6 +32,7 @@ _ORDERABLE_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-psamount"
 _MARGIN_PATH = "/uapi/overseas-futureoption/v1/trading/margin-detail"
 _TODAY_ORDERS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-ccld"
 _DAILY_FILLS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-daily-ccld"
+_DAILY_ORDERS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-daily-order"
 
 
 class FakeTransport:
@@ -639,3 +641,118 @@ def test_overseas_derivative_fill_history_entity_importable():
 
     assert ExportedFill is not None
     assert ExportedHistory is not None
+
+
+# --- 일별 주문내역 OTFM3120R ----------------------------------------------
+
+def _daily_order(odno="0001", *, orgn="0000", dt="20240216", ord_dt="20240216",
+                 pdno="6BZ22", rvse="00", side="02", ord_qty="2", ord_pric="1.2650",
+                 ccld_qty="2", ccld_pric="1.2648", rmn_qty="0", rjct="",
+                 trad_end="20240216"):
+    return {"dt": dt, "ord_dt": ord_dt, "odno": odno, "orgn_odno": orgn,
+            "ovrs_futr_fx_pdno": pdno, "rvse_cncl_dvsn_cd": rvse,
+            "sll_buy_dvsn_cd": side, "fm_ord_qty": ord_qty, "fm_ord_pric": ord_pric,
+            "fm_ccld_qty": ccld_qty, "fm_ccld_pric": ccld_pric,
+            "fm_ord_rmn_qty": rmn_qty, "rjct_rson_name": rjct, "trad_end_dt": trad_end}
+
+
+def _daily_orders_resp(*, rows=None, ctx_nk="", ctx_fk="", tr_cont="D"):
+    body = {"output": rows if rows is not None else [],
+            "ctx_area_nk200": ctx_nk, "ctx_area_fk200": ctx_fk}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
+
+
+def test_daily_orders_paper_fails_closed():
+    fake = FakeTransport(response=_daily_orders_resp(rows=[_daily_order()]))
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").account.daily_orders("20240201", "20240216")
+    assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
+
+
+def test_daily_orders_bad_date_fails_closed():
+    fake = FakeTransport(response=_daily_orders_resp(rows=[_daily_order()]))
+    with pytest.raises(KISUsageError):
+        _client(fake).account.daily_orders("2024-02-01", "20240216")
+    assert fake.calls == []  # 날짜 검증도 와이어 이전
+
+
+def test_daily_orders_parses_and_routes():
+    from datetime import date
+
+    fake = FakeTransport(response=_daily_orders_resp(rows=[_daily_order()]))
+    orders = _client(fake).account.daily_orders("20240201", "20240216")
+    assert isinstance(orders, list)
+    assert isinstance(orders[0], OverseasDerivativeDailyOrder)
+    assert orders[0].date == date(2024, 2, 16)                # dt
+    assert orders[0].order_date == date(2024, 2, 16)          # ord_dt
+    assert orders[0].order_id == "0001"                       # odno
+    assert orders[0].original_order_id == "0000"              # orgn_odno
+    assert orders[0].symbol == "6BZ22"                        # ovrs_futr_fx_pdno
+    assert orders[0].revise_cancel_type == "00"              # rvse_cncl_dvsn_cd
+    assert orders[0].side == "buy"                             # sll_buy_dvsn_cd 02 -> buy
+    assert orders[0].order_quantity == Decimal(2)             # fm_ord_qty
+    assert orders[0].order_price == Decimal("1.2650")         # fm_ord_pric
+    assert orders[0].filled_quantity == Decimal(2)            # fm_ccld_qty
+    assert orders[0].filled_price == Decimal("1.2648")        # fm_ccld_pric
+    assert orders[0].remaining_quantity == Decimal(0)         # fm_ord_rmn_qty
+    assert orders[0].reject_reason == ""                     # rjct_rson_name
+    assert orders[0].trade_end_date == date(2024, 2, 16)      # trad_end_dt
+    call = fake.calls[0]
+    assert call["tr_id"] == "OTFM3120R"
+    assert call["path"].endswith("inquire-daily-order")
+    assert call["params"]["STRT_DT"] == "20240201"
+    assert call["params"]["END_DT"] == "20240216"
+    assert call["params"]["FM_PDGR_CD"] == ""
+    assert call["params"]["CCLD_NCCS_DVSN"] == "00"
+    assert call["params"]["SLL_BUY_DVSN_CD"] == "%%"          # 전체
+    assert call["params"]["FUOP_DVSN"] == "00"
+    assert call["params"]["CTX_AREA_FK200"] == ""
+    assert call["params"]["CTX_AREA_NK200"] == ""
+    assert call["params"]["CANO"] == "12345678"
+    assert call["params"]["ACNT_PRDT_CD"] == "08"
+
+
+def test_daily_orders_sell_side():
+    fake = FakeTransport(response=_daily_orders_resp(rows=[_daily_order(side="01")]))
+    orders = _client(fake).account.daily_orders("20240201", "20240216")
+    assert orders[0].side == "sell"                           # sll_buy_dvsn_cd 01 -> sell
+
+
+def test_daily_orders_paginates():
+    page1 = _daily_orders_resp(rows=[_daily_order(odno="0001", pdno="6BZ22")],
+                               ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    page2 = _daily_orders_resp(rows=[_daily_order(odno="0002", pdno="6EU24")], tr_cont="D")
+    fake = FakeTransport(by_path={_DAILY_ORDERS_PATH: [page1, page2]})
+    orders = _client(fake).account.daily_orders("20240201", "20240216")
+    assert [o.order_id for o in orders] == ["0001", "0002"]
+    assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
+    assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
+    assert fake.calls[1]["tr_cont"] == "N"                    # 연속조회 헤더
+
+
+def test_daily_orders_skips_blank_order_id_row():
+    rows = [_daily_order(odno="0001"), _daily_order(odno="")]
+    orders = _client(FakeTransport(response=_daily_orders_resp(rows=rows))).account.daily_orders(
+        "20240201", "20240216"
+    )
+    assert [o.order_id for o in orders] == ["0001"]
+
+
+def test_daily_orders_non_mapping_row_raises():
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=_daily_orders_resp(rows=[None]))).account.daily_orders(
+            "20240201", "20240216"
+        )
+
+
+def test_daily_orders_missing_output_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"ctx_area_nk200": "", "ctx_area_fk200": ""})
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp)).account.daily_orders("20240201", "20240216")
+
+
+def test_overseas_derivative_daily_order_entity_importable():
+    from kis_trader import OverseasDerivativeDailyOrder as Exported
+
+    assert Exported is not None

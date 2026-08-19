@@ -204,6 +204,42 @@ class OverseasDerivativeFill:
 
 
 @dataclass(frozen=True, slots=True)
+class OverseasDerivativeDailyOrder:
+    """해외선물옵션 일별 주문 한 건(기간 주문내역, 불변).
+
+    수량·가격은 각 계약 통화 기준(가격은 그 통화, 수량은 계약수). ``date`` 주문접수일자(dt) --
+    형식오류/공백이면 None. ``order_date`` 주문일자(ord_dt) -- 형식오류/공백이면 None,
+    ``order_id`` 주문번호(odno), ``original_order_id`` 원주문번호(orgn_odno), ``symbol``
+    해외선물FX상품번호, ``revise_cancel_type`` 정정취소구분코드(rvse_cncl_dvsn_cd 원본 문자열),
+    ``side`` 매수/매도, ``order_quantity`` 주문수량, ``order_price`` 주문가격, ``filled_quantity``
+    체결수량, ``filled_price`` 체결가격, ``remaining_quantity`` 주문잔량, ``reject_reason``
+    거부사유명(rjct_rson_name 원본 문자열), ``trade_end_date`` 거래종료일자(trad_end_dt) --
+    형식오류/공백이면 None. 주문번호가 빈 패딩 행은 담기지 않는다. 타입화하지 않은 필드는 ``_raw``.
+    """
+
+    date: datetime.date | None        # 주문접수일자(dt)
+    order_date: datetime.date | None  # 주문일자(ord_dt)
+    order_id: str                     # 주문번호(odno)
+    original_order_id: str            # 원주문번호(orgn_odno)
+    symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
+    revise_cancel_type: str           # 정정취소구분코드(rvse_cncl_dvsn_cd)
+    side: Side                        # buy / sell (sll_buy_dvsn_cd: 01 매도 / 02 매수)
+    order_quantity: Decimal           # 주문수량(fm_ord_qty)
+    order_price: Decimal              # 주문가격(fm_ord_pric)
+    filled_quantity: Decimal          # 체결수량(fm_ccld_qty)
+    filled_price: Decimal             # 체결가격(fm_ccld_pric)
+    remaining_quantity: Decimal       # 주문잔량(fm_ord_rmn_qty)
+    reject_reason: str                # 거부사유명(rjct_rson_name)
+    trade_end_date: datetime.date | None  # 거래종료일자(trad_end_dt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
 class OverseasDerivativeFillHistory:
     """해외선물옵션 일별 체결내역 -- 기간 합계 요약과 체결 한 벌(불변).
 

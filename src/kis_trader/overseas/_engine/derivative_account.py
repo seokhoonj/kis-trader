@@ -21,6 +21,7 @@ from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, requi
 from ...errors import KISError, KISUsageError
 from ...transport import Environment, Transport
 from ..entities.derivative_account import (
+    OverseasDerivativeDailyOrder,
     OverseasDerivativeDeposit,
     OverseasDerivativeFill,
     OverseasDerivativeFillHistory,
@@ -52,6 +53,9 @@ _TODAY_ORDERS_TR = "OTFM3116R"  # 해외선물옵션 당일주문내역, 모의�
 
 _DAILY_FILLS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-daily-ccld"
 _DAILY_FILLS_TR = "OTFM3122R"  # 해외선물옵션 일별체결내역, 모의투자 미지원
+
+_DAILY_ORDERS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-daily-order"
+_DAILY_ORDERS_TR = "OTFM3120R"  # 해외선물옵션 일별주문내역, 모의투자 미지원
 #: 매도매수구분코드(SLL_BUY_DVSN_CD): 매수 02 / 매도 01.
 _SIDE_TO_SLL_BUY = {"buy": "02", "sell": "01"}
 
@@ -257,6 +261,71 @@ def _parse_today_orders(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativ
                 remaining_quantity=field_decimal_or_zero(row.get("fm_ord_rmn_qty"), "fm_ord_rmn_qty"),
                 new_liquidation=str(row.get("new_lqd_dvsn_cd", "")).strip(),
                 fuop=str(row.get("fuop_dvsn", "")).strip(),
+                _raw=row,
+            )
+        )
+    return orders
+
+
+def fetch_daily_orders(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str,
+) -> list[OverseasDerivativeDailyOrder]:
+    """해외선물옵션 일별 주문내역(기간 주문 목록, 연속조회 소진까지). ``start``~``end``
+    (YYYYMMDD) 기간을 전체 매매("%%")·전체 체결미체결("00")로 조회한다. 연속조회 커서는 200폭
+    (CTX_AREA_FK200/NK200)이다. 금액·수량은 각 계약 통화의 Decimal(원화 아님).
+    **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "해외선물옵션 일별주문내역(inquire-daily-order)은 모의투자 미지원 -- 실전에서만."
+        )
+    _require_wire_date(start, "start")
+    _require_wire_date(end, "end")
+    rows = _fetch_paginated_rows(
+        transport,
+        path=_DAILY_ORDERS_PATH, tr_id=_DAILY_ORDERS_TR,
+        base_params={
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "STRT_DT": start, "END_DT": end,
+            "FM_PDGR_CD": "",          # 상품군코드 -- 전체
+            "CCLD_NCCS_DVSN": "00",    # 체결미체결구분 -- 00 전체
+            "SLL_BUY_DVSN_CD": "%%",   # 매도매수구분 -- %% 전체
+            "FUOP_DVSN": "00",         # 선물옵션구분 -- 00 전체
+            "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
+        },
+        output_key="output", max_pages=_MAX_PAGES, ctx_width=200,
+        cap_message=(
+            f"해외선물옵션 일별주문내역 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        ),
+    )
+    return _parse_daily_orders(rows)
+
+
+def _parse_daily_orders(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativeDailyOrder]:
+    orders: list[OverseasDerivativeDailyOrder] = []
+    for row in rows:
+        order_id = str(row.get("odno", "")).strip()
+        if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
+            continue
+        orders.append(
+            # 수량·가격은 빈 값을 0으로 읽되(외화 필드는 비어 올 수 있음), 값이 있는데 파싱 실패면
+            # 여전히 예외. 방향(side)은 주문번호가 있는 행에서만 코드->buy/sell 로 fail-closed 변환.
+            OverseasDerivativeDailyOrder(
+                date=_parse_date(row.get("dt")),
+                order_date=_parse_date(row.get("ord_dt")),
+                order_id=order_id,
+                original_order_id=str(row.get("orgn_odno", "")).strip(),
+                symbol=str(row.get("ovrs_futr_fx_pdno", "")).strip(),
+                revise_cancel_type=str(row.get("rvse_cncl_dvsn_cd", "")).strip(),
+                side=_side_from_code(row.get("sll_buy_dvsn_cd")),
+                order_quantity=field_decimal_or_zero(row.get("fm_ord_qty"), "fm_ord_qty"),
+                order_price=field_decimal_or_zero(row.get("fm_ord_pric"), "fm_ord_pric"),
+                filled_quantity=field_decimal_or_zero(row.get("fm_ccld_qty"), "fm_ccld_qty"),
+                filled_price=field_decimal_or_zero(row.get("fm_ccld_pric"), "fm_ccld_pric"),
+                remaining_quantity=field_decimal_or_zero(row.get("fm_ord_rmn_qty"), "fm_ord_rmn_qty"),
+                reject_reason=str(row.get("rjct_rson_name", "")).strip(),
+                trade_end_date=_parse_date(row.get("trad_end_dt")),
                 _raw=row,
             )
         )

@@ -13,6 +13,7 @@ from .._internal._datetime import _today_kst
 from ..errors import KISUsageError
 from ._engine.derivative_account import (
     fetch_daily_fills,
+    fetch_daily_orders,
     fetch_deposit,
     fetch_margin_detail,
     fetch_orderable,
@@ -20,6 +21,7 @@ from ._engine.derivative_account import (
     fetch_today_orders,
 )
 from .entities.derivative_account import (
+    OverseasDerivativeDailyOrder,
     OverseasDerivativeDeposit,
     OverseasDerivativeFillHistory,
     OverseasDerivativeMargin,
@@ -106,6 +108,19 @@ class OverseasDerivativesAccount:
         """
         cano, product_code = self._client._require_account()
         return fetch_daily_fills(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, start=start, end=end,
+        )
+
+    def daily_orders(self, start: str, end: str) -> list[OverseasDerivativeDailyOrder]:
+        """해외선물옵션 일별 주문내역(기간 주문 목록).
+
+        ``start``~``end`` (YYYYMMDD, 8자리 숫자) 기간을 전체 매매·전체 체결미체결로 조회한다.
+        금액·수량은 각 계약 통화의 Decimal(원화 아님). ``GET .../overseas-futureoption/v1/
+        trading/inquire-daily-order`` (``OTFM3120R``). **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_daily_orders(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment, start=start, end=end,
         )
