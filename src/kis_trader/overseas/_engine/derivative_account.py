@@ -21,6 +21,7 @@ from ...errors import KISError, KISUsageError
 from ...transport import Environment, Transport
 from ..entities.derivative_account import (
     OverseasDerivativeDeposit,
+    OverseasDerivativeMargin,
     OverseasDerivativeOrderable,
     OverseasDerivativePosition,
 )
@@ -38,6 +39,9 @@ _POSITIONS_TR = "OTFM1412R"  # 해외선물옵션 미결제내역, 모의투자 
 
 _ORDERABLE_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-psamount"
 _ORDERABLE_TR = "OTFM3304R"  # 해외선물옵션 주문가능수량, 모의투자 미지원
+
+_MARGIN_PATH = "/uapi/overseas-futureoption/v1/trading/margin-detail"
+_MARGIN_TR = "OTFM3115R"  # 해외선물옵션 증거금상세, 모의투자 미지원
 #: 매도매수구분코드(SLL_BUY_DVSN_CD): 매수 02 / 매도 01.
 _SIDE_TO_SLL_BUY = {"buy": "02", "sell": "01"}
 
@@ -85,6 +89,49 @@ def fetch_deposit(
         next_day_deposit=field_decimal_or_zero(output.get("fm_nxdy_dncl_amt"), "fm_nxdy_dncl_amt"),
         option_value=field_decimal_or_zero(output.get("fm_opt_evlu_amt"), "fm_opt_evlu_amt"),
         fee=field_decimal_or_zero(output.get("fm_fee"), "fm_fee"),
+        _raw=output,
+    )
+
+
+def fetch_margin_detail(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    currency: str, date: str,
+) -> OverseasDerivativeMargin:
+    """해외선물옵션 증거금상세(1콜, output 단일 객체). ``currency`` 조회 통화(CRCY_CD),
+    ``date`` 조회일자(YYYYMMDD). 금액은 그 통화의 Decimal(원화 아님). SPAN/EUREX 등 상세
+    증거금 내역은 ``_raw`` 로만 노출한다. **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "해외선물옵션 증거금상세(margin-detail)는 모의투자 미지원 -- 실전에서만."
+        )
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "CRCY_CD": currency, "INQR_DT": date,
+    }
+    resp = transport.request(
+        method="GET", path=_MARGIN_PATH, tr_id=_MARGIN_TR, params=params, idempotent=True
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output")
+    if not isinstance(output, Mapping):
+        raise KISError(
+            "해외선물옵션 증거금상세 응답에 output 이 없다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    return OverseasDerivativeMargin(
+        # 외화 증거금 필드는 비어 올 수 있어 '없음=0'(field_decimal_or_zero)으로 읽되, 값이 있는데
+        # 파싱 실패면 여전히 예외로 fail-closed 한다.
+        currency=str(output.get("crcy_cd", "")).strip() or currency,
+        orderable_amount=field_decimal_or_zero(output.get("fm_ord_psbl_amt"), "fm_ord_psbl_amt"),
+        brokerage_margin=field_decimal_or_zero(output.get("fm_brkg_mgn_amt"), "fm_brkg_mgn_amt"),
+        settlement_brokerage_margin=field_decimal_or_zero(
+            output.get("fm_excc_brkg_mgn_amt"), "fm_excc_brkg_mgn_amt"
+        ),
+        open_margin=field_decimal_or_zero(output.get("fm_ustl_mgn_amt"), "fm_ustl_mgn_amt"),
+        maintenance_margin=field_decimal_or_zero(output.get("fm_mntn_mgn_amt"), "fm_mntn_mgn_amt"),
+        order_margin=field_decimal_or_zero(output.get("fm_ord_mgn_amt"), "fm_ord_mgn_amt"),
+        additional_margin=field_decimal_or_zero(output.get("fm_add_mgn_amt"), "fm_add_mgn_amt"),
+        net_risk_applied=str(output.get("acnt_net_risk_mgna_aply_yn", "")).strip(),
         _raw=output,
     )
 

@@ -16,6 +16,7 @@ from kis_trader.errors import KISError, KISUsageError
 from kis_trader.overseas.derivative_account import OverseasDerivativesAccount
 from kis_trader.overseas.entities.derivative_account import (
     OverseasDerivativeDeposit,
+    OverseasDerivativeMargin,
     OverseasDerivativeOrderable,
     OverseasDerivativePosition,
 )
@@ -24,6 +25,7 @@ from kis_trader.transport import RawResponse
 _DEPOSIT_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-deposit"
 _POSITIONS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-unpd"
 _ORDERABLE_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-psamount"
+_MARGIN_PATH = "/uapi/overseas-futureoption/v1/trading/margin-detail"
 
 
 class FakeTransport:
@@ -321,5 +323,88 @@ def test_orderable_missing_new_orderable_qty_raises():
 
 def test_overseas_derivative_orderable_entity_importable():
     from kis_trader import OverseasDerivativeOrderable as Exported
+
+    assert Exported is not None
+
+
+# --- 증거금상세 OTFM3115R -------------------------------------------------
+
+_MARGIN = {
+    "crcy_cd": "USD",
+    "fm_ord_psbl_amt": "80000.00", "fm_brkg_mgn_amt": "20000.00",
+    "fm_excc_brkg_mgn_amt": "19500.00", "fm_ustl_mgn_amt": "17000.00",
+    "fm_mntn_mgn_amt": "18000.00", "fm_ord_mgn_amt": "1000.00",
+    "fm_add_mgn_amt": "0", "acnt_net_risk_mgna_aply_yn": "Y",
+    # SPAN/EUREX 상세 필드는 헤드라인이 아니라 _raw 로만 노출된다.
+    "fm_span_mgn_amt": "16000.00", "fm_eurx_mgn_amt": "500.00",
+}
+
+
+def _margin_resp(*, output=None):
+    body = {"output": output if output is not None else dict(_MARGIN)}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont="D")
+
+
+def test_margin_detail_paper_fails_closed():
+    fake = FakeTransport(response=_margin_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").account.margin_detail()
+    assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
+
+
+def test_margin_detail_parses_and_routes():
+    fake = FakeTransport(response=_margin_resp())
+    margin = _client(fake).account.margin_detail(currency="USD", date="20240216")
+    assert isinstance(margin, OverseasDerivativeMargin)
+    assert margin.currency == "USD"                                  # crcy_cd
+    assert margin.orderable_amount == Decimal("80000.00")           # fm_ord_psbl_amt
+    assert margin.brokerage_margin == Decimal("20000.00")          # fm_brkg_mgn_amt
+    assert margin.settlement_brokerage_margin == Decimal("19500.00")  # fm_excc_brkg_mgn_amt
+    assert margin.open_margin == Decimal("17000.00")              # fm_ustl_mgn_amt
+    assert margin.maintenance_margin == Decimal("18000.00")       # fm_mntn_mgn_amt
+    assert margin.order_margin == Decimal("1000.00")             # fm_ord_mgn_amt
+    assert margin.additional_margin == Decimal(0)               # fm_add_mgn_amt
+    assert margin.net_risk_applied == "Y"                       # acnt_net_risk_mgna_aply_yn
+    assert margin._raw["fm_span_mgn_amt"] == "16000.00"          # 상세 필드는 _raw 로
+    call = fake.calls[0]
+    assert call["tr_id"] == "OTFM3115R"
+    assert call["path"].endswith("margin-detail")
+    assert call["params"]["CRCY_CD"] == "USD"
+    assert call["params"]["INQR_DT"] == "20240216"
+    assert call["params"]["CANO"] == "12345678"
+    assert call["params"]["ACNT_PRDT_CD"] == "08"
+
+
+def test_margin_detail_default_currency_and_date():
+    fake = FakeTransport(response=_margin_resp())
+    _client(fake).account.margin_detail()
+    call = fake.calls[0]
+    assert call["params"]["CRCY_CD"] == "USD"                        # 기본 통화
+    assert len(call["params"]["INQR_DT"]) == 8                       # 오늘(YYYYMMDD)
+    assert call["params"]["INQR_DT"].isdigit()
+
+
+def test_margin_detail_bad_date_fails_closed():
+    fake = FakeTransport(response=_margin_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake).account.margin_detail(date="2024-02-16")
+    assert fake.calls == []  # 날짜 검증도 와이어 이전
+
+
+def test_margin_detail_blank_amounts_read_as_zero():
+    output = dict(_MARGIN, fm_add_mgn_amt="", fm_ord_mgn_amt="  ")
+    margin = _client(FakeTransport(response=_margin_resp(output=output))).account.margin_detail()
+    assert margin.additional_margin == Decimal(0)
+    assert margin.order_margin == Decimal(0)
+
+
+def test_margin_detail_missing_output_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={}, tr_cont="D")
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp)).account.margin_detail()
+
+
+def test_overseas_derivative_margin_entity_importable():
+    from kis_trader import OverseasDerivativeMargin as Exported
 
     assert Exported is not None

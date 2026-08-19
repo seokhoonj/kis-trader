@@ -85,6 +85,34 @@ class OverseasDerivativePosition:
 
 
 @dataclass(frozen=True, slots=True)
+class OverseasDerivativeMargin:
+    """해외선물옵션 증거금상세 -- 계좌의 증거금·주문가능 요약(불변).
+
+    금액은 ``currency`` 통화의 Decimal(원화 아님). ``orderable_amount`` 주문가능금액,
+    ``brokerage_margin`` 위탁증거금액, ``settlement_brokerage_margin`` 정산위탁증거금액,
+    ``open_margin`` 미결제증거금액, ``maintenance_margin`` 유지증거금액, ``order_margin``
+    주문증거금액, ``additional_margin`` 추가증거금액, ``net_risk_applied`` 계좌순위험증거금
+    적용여부("Y"/"N" 원본 문자열). SPAN/EUREX 등 상세 증거금 내역은 ``_raw`` 로 접근한다.
+    """
+
+    currency: str                       # 통화코드(crcy_cd)
+    orderable_amount: Decimal           # 주문가능금액(fm_ord_psbl_amt)
+    brokerage_margin: Decimal           # 위탁증거금액(fm_brkg_mgn_amt)
+    settlement_brokerage_margin: Decimal  # 정산위탁증거금액(fm_excc_brkg_mgn_amt)
+    open_margin: Decimal                # 미결제증거금액(fm_ustl_mgn_amt)
+    maintenance_margin: Decimal         # 유지증거금액(fm_mntn_mgn_amt)
+    order_margin: Decimal               # 주문증거금액(fm_ord_mgn_amt)
+    additional_margin: Decimal          # 추가증거금액(fm_add_mgn_amt)
+    net_risk_applied: str               # 계좌순위험증거금적용여부(acnt_net_risk_mgna_aply_yn)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
 class OverseasDerivativeOrderable:
     """한 해외선물옵션 계약의 주문가능 수량(불변).
 

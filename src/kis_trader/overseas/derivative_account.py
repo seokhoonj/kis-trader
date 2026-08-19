@@ -11,9 +11,15 @@ from typing import TYPE_CHECKING
 
 from .._internal._datetime import _today_kst
 from ..errors import KISUsageError
-from ._engine.derivative_account import fetch_deposit, fetch_orderable, fetch_positions
+from ._engine.derivative_account import (
+    fetch_deposit,
+    fetch_margin_detail,
+    fetch_orderable,
+    fetch_positions,
+)
 from .entities.derivative_account import (
     OverseasDerivativeDeposit,
+    OverseasDerivativeMargin,
     OverseasDerivativeOrderable,
     OverseasDerivativePosition,
 )
@@ -39,6 +45,23 @@ class OverseasDerivativesAccount:
         """
         cano, product_code = self._client._require_account()
         return fetch_deposit(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment,
+            currency=currency, date=_resolve_query_date(date),
+        )
+
+    def margin_detail(
+        self, currency: str = "USD", date: str | None = None
+    ) -> OverseasDerivativeMargin:
+        """해외선물옵션 증거금상세(주문가능·위탁/정산/미결제/유지/주문/추가 증거금 요약).
+
+        ``currency`` 조회 통화(기본 USD), ``date`` 조회일자(YYYYMMDD, 8자리 숫자) -- 생략하면
+        오늘. 금액은 그 통화의 Decimal(원화 아님). SPAN/EUREX 등 상세 증거금 내역은 ``_raw``.
+        ``GET .../overseas-futureoption/v1/trading/margin-detail`` (``OTFM3115R``).
+        **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_margin_detail(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment,
             currency=currency, date=_resolve_query_date(date),
