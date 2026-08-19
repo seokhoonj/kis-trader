@@ -10,20 +10,28 @@ ORD_DT->receipt_date 가 리포트에 실려 이후 정정·취소(원주문일�
 from __future__ import annotations
 
 import threading
+from datetime import datetime
 from decimal import Decimal
 
 import pytest
 
 from kis_trader import KISClient, Order, OrderStore
+from kis_trader._internal._datetime import _KST
 from kis_trader.errors import KISUsageError, OrderError
+from kis_trader.order import ImmediateOrderFingerprint
 from kis_trader.overseas._engine import derivative_orders as osfo
-from kis_trader.report import ExecutionReport
+from kis_trader.report import ExecutionReport, OrderStatus
 from kis_trader.transport import RawResponse
 
 _PLACE = "/uapi/overseas-futureoption/v1/trading/order"
+_CHANGE = "/uapi/overseas-futureoption/v1/trading/order-rvsecncl"
 _ACCEPTED = RawResponse(
     rt_cd="0", msg_cd="APBK0013", msg1="주문 전송 완료",
     body={"output": {"ORD_DT": "20260819", "ODNO": "0000007045"}},
+)
+_CHANGE_ACCEPTED = RawResponse(
+    rt_cd="0", msg_cd="APBK0013", msg1="정정 전송 완료",
+    body={"output": {"ODNO": "0000009999"}},
 )
 
 
@@ -228,6 +236,154 @@ def test_os_fo_buy_rejects_risk_gate():
     with pytest.raises(KISUsageError):
         client.overseas.futures("6BZ22").buy(quantity=1, limit_price="1.17")
     assert fake.request_count == 0
+
+
+# --- 정정·취소 와이어 빌더(OTFM3002U 정정 / OTFM3003U 취소, 실전 전용) --------
+def _change_report(*, order_id: str = "0000007045", symbol: str = "6BZ22",
+                   receipt_date: str | None = "20260819") -> ExecutionReport:
+    return ExecutionReport(
+        client_order_id="c", order_id=order_id, symbol=symbol, side="buy",
+        status=OrderStatus.NEW, filled_quantity=Decimal(0), average_price=None,
+        recorded_at=datetime.now(_KST), receipt_date=receipt_date,
+    )
+
+
+def _change_fp(*, symbol: str = "6BZ22", limit_price: str = "1.17",
+               quantity: str = "1") -> ImmediateOrderFingerprint:
+    return ImmediateOrderFingerprint(
+        symbol=symbol, side="buy", order_type="limit", quantity=quantity,
+        limit_price=limit_price, stop_price="", time_in_force="day", exchange="OSFO",
+    )
+
+
+def test_make_change_request_cancel_body():
+    # 취소는 OTFM3003U, ORGN_ORD_DT=원주문일자(receipt_date), 가격 슬롯은 공란.
+    req = osfo.make_change_request(
+        original_report=_change_report(), original_fingerprint=_change_fp(),
+        action="cancel", quantity=Decimal(1), limit_price=None,
+        cano="81012345", product_code="08", environment="real",
+    )
+    assert req.method == "POST"
+    assert req.path == _CHANGE
+    assert req.tr_id == "OTFM3003U"
+    assert req.body == {
+        "CANO": "81012345", "ACNT_PRDT_CD": "08",
+        "ORGN_ORD_DT": "20260819", "ORGN_ODNO": "0000007045",
+        "FM_LIMIT_ORD_PRIC": "", "FM_STOP_ORD_PRIC": "",
+        "FM_LQD_LMT_ORD_PRIC": "", "FM_LQD_STOP_ORD_PRIC": "",
+        "FM_HDGE_ORD_SCRN_YN": "N", "FM_MKPR_CVSN_YN": "N",
+    }
+
+
+def test_make_change_request_modify_body():
+    # 정정은 OTFM3002U, FM_LIMIT_ORD_PRIC 에 새 지정가.
+    req = osfo.make_change_request(
+        original_report=_change_report(), original_fingerprint=_change_fp(),
+        action="modify", quantity=Decimal(1), limit_price=Decimal("1.20"),
+        cano="81012345", product_code="08", environment="real",
+    )
+    assert req.tr_id == "OTFM3002U"
+    assert req.body["FM_LIMIT_ORD_PRIC"] == "1.20"
+    assert req.body["ORGN_ORD_DT"] == "20260819"
+    assert req.body["ORGN_ODNO"] == "0000007045"
+
+
+def test_make_change_request_fails_closed_when_receipt_date_missing():
+    # 원주문일자(receipt_date) 미영속이면 대상 특정 불가 -- fail-closed.
+    with pytest.raises(KISUsageError, match="원주문일자"):
+        osfo.make_change_request(
+            original_report=_change_report(receipt_date=None),
+            original_fingerprint=_change_fp(), action="cancel",
+            quantity=Decimal(1), limit_price=None,
+            cano="8", product_code="08", environment="real",
+        )
+
+
+def test_make_change_request_paper_rejected():
+    with pytest.raises(KISUsageError, match="모의"):
+        osfo.make_change_request(
+            original_report=_change_report(), original_fingerprint=_change_fp(),
+            action="cancel", quantity=Decimal(1), limit_price=None,
+            cano="8", product_code="08", environment="paper",
+        )
+
+
+# --- end-to-end: place -> kis.orders.cancel/modify -> 전송 ------------------
+def test_os_fo_cancel_wire():
+    store = OrderStore()
+    cid = "20260819-osfochg000000001"
+    _client(FakeTransport(), store=store).overseas.futures("6BZ22").buy(
+        quantity=1, limit_price="1.17", client_order_id=cid)
+    change_t = FakeTransport(response=_CHANGE_ACCEPTED)
+    _client(change_t, store=store).orders.cancel(cid)
+    call = change_t.calls[0]
+    assert call["path"] == _CHANGE
+    assert call["tr_id"] == "OTFM3003U"
+    assert call["body"]["ORGN_ORD_DT"] == "20260819"       # 발주 응답의 ORD_DT
+    assert call["body"]["ORGN_ODNO"] == "0000007045"
+
+
+def test_os_fo_modify_wire():
+    store = OrderStore()
+    cid = "20260819-osfochg000000002"
+    _client(FakeTransport(), store=store).overseas.futures("6BZ22").buy(
+        quantity=1, limit_price="1.17", client_order_id=cid)
+    change_t = FakeTransport(response=_CHANGE_ACCEPTED)
+    _client(change_t, store=store).orders.modify(cid, limit_price="1.20")
+    call = change_t.calls[0]
+    assert call["path"] == _CHANGE
+    assert call["tr_id"] == "OTFM3002U"
+    assert call["body"]["FM_LIMIT_ORD_PRIC"] == "1.20"
+    assert call["body"]["ORGN_ORD_DT"] == "20260819"
+
+
+def test_os_fo_change_paper_fails_closed():
+    store = OrderStore()
+    order = _order(client_order_id="osfo-paper")
+    store.record(_change_report(), order.fingerprint)
+    change_t = FakeTransport(response=_CHANGE_ACCEPTED)
+    with pytest.raises(KISUsageError):
+        _client(change_t, environment="paper", store=store).orders.cancel("osfo-paper")
+    assert change_t.request_count == 0
+
+
+def test_os_fo_change_partial_quantity_rejected():
+    # 해외선물옵션 정정·취소는 전량만 -- 잔량 미만 수량 지정은 와이어 전에 거부.
+    store = OrderStore()
+    cid = "20260819-osfochg000000003"
+    _client(FakeTransport(), store=store).overseas.futures("6BZ22").buy(
+        quantity=5, limit_price="1.17", client_order_id=cid)
+    change_t = FakeTransport(response=_CHANGE_ACCEPTED)
+    with pytest.raises(KISUsageError, match="부분"):
+        _client(change_t, store=store).orders.cancel(cid, quantity=2)
+    assert change_t.request_count == 0
+
+
+def test_os_fo_change_fails_closed_when_receipt_date_missing():
+    # 발주 응답에 ORD_DT 가 없어 receipt_date 가 미영속이면, 정정·취소가 fail-closed.
+    store = OrderStore()
+    cid = "20260819-osfochg000000004"
+    place_t = FakeTransport(response=RawResponse(
+        rt_cd="0", msg_cd="A", msg1="", body={"output": {"ODNO": "0000007045"}}))
+    _client(place_t, store=store).overseas.futures("6BZ22").buy(
+        quantity=1, limit_price="1.17", client_order_id=cid)
+    change_t = FakeTransport(response=_CHANGE_ACCEPTED)
+    with pytest.raises(KISUsageError, match="원주문일자"):
+        _client(change_t, store=store).orders.cancel(cid)
+    assert change_t.request_count == 0
+
+
+def test_os_fo_change_idempotent():
+    store = OrderStore()
+    cid = "20260819-osfochg000000005"
+    _client(FakeTransport(), store=store).overseas.futures("6BZ22").buy(
+        quantity=1, limit_price="1.17", client_order_id=cid)
+    change_t = FakeTransport(response=_CHANGE_ACCEPTED)
+    client = _client(change_t, store=store)
+    rid = "20260819-osfochgreq00000001"
+    client.orders.cancel(cid, request_id=rid)
+    client.orders.cancel(cid, request_id=rid)
+    assert change_t.request_count == 1          # 공유 안전 코어가 재전송을 막는다
 
 
 # --- reconcile fail-closed (미확인 OSFO 주문은 국내주식 일별체결조회로 오조회하지 않는다) ---

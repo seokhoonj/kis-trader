@@ -26,13 +26,26 @@ from typing import TYPE_CHECKING, Any
 from ..._internal._wire import format_wire_decimal
 from ...domestic._engine.orders import _RECEIPT_DATE_KEY
 from ...errors import KISUsageError, OrderError
-from ...order import _OVERSEAS_FO_EXCHANGE, Order, WireRequest
+from ...order import (
+    _OVERSEAS_FO_EXCHANGE,
+    Order,
+    WireRequest,
+    reject_bad_change_price_shape,
+)
 
 if TYPE_CHECKING:
+    from decimal import Decimal
+
+    from ...order import ChangeAction, ImmediateOrderFingerprint
+    from ...report import ExecutionReport
     from ...transport import Environment
 
 _PLACE_PATH = "/uapi/overseas-futureoption/v1/trading/order"
 _PLACE_TR = "OTFM3001U"                             # 실전 전용(모의 미지원)
+
+_CHANGE_PATH = "/uapi/overseas-futureoption/v1/trading/order-rvsecncl"
+#: action -> tr_id. 정정(OTFM3002U) / 취소(OTFM3003U), 둘 다 실전 전용(모의 미지원).
+_CHANGE_TR = {"modify": "OTFM3002U", "cancel": "OTFM3003U"}
 
 _SIDE_CODE = {"sell": "01", "buy": "02"}            # SLL_BUY_DVSN_CD (매수/매도 동일 TR)
 #: order_type -> PRIC_DVSN_CD(가격구분). 지정가 "1" / 시장가 "2" / STOP "3". 스탑지정가(stop_limit)는
@@ -105,6 +118,42 @@ def make_order_request(
         "FM_HDGE_ORD_SCRN_YN": "N",                # 헤지주문화면 아님
     }
     return WireRequest("POST", _PLACE_PATH, _PLACE_TR, body)
+
+
+def make_change_request(
+    *, original_report: ExecutionReport, original_fingerprint: ImmediateOrderFingerprint,
+    action: ChangeAction, quantity: Decimal, limit_price: Decimal | None,
+    cano: str, product_code: str, environment: Environment,
+) -> WireRequest:
+    """안전 코어(:func:`~kis_trader.domestic._engine.orders.submit_change`)에 넘길 해외선물옵션
+    정정·취소 빌더(order-rvsecncl ``OTFM3002U`` 정정 / ``OTFM3003U`` 취소, 실전 전용).
+
+    해외선물옵션은 **실전 전용**(모의투자 미지원)이라 ``paper`` 면 fail-closed(client 라우팅에서 먼저
+    막지만 빌더에서도 방어). 원주문 지목은 **원주문일자**(``ORGN_ORD_DT`` = 발주 시 접수 응답의
+    ``ORD_DT`` 를 코어가 ``receipt_date`` 로 영속한 값)와 ``ORGN_ODNO`` 로 한다 -- 원주문일자가 없으면
+    (미영속/구버전 레코드) 대상 특정이 불가하므로 fail-closed 한다. 이 와이어는 전량 정정·취소만
+    지원하므로(부분 수량 개념 없음) ``quantity`` 는 싣지 않는다 -- 부분 변경 거부는 client 라우팅이
+    맡는다. 정정은 새 지정가(``FM_LIMIT_ORD_PRIC``)를 싣고, 취소는 가격 슬롯을 모두 공란으로 둔다."""
+    if environment == "paper":
+        raise KISUsageError("해외선물옵션 정정·취소는 모의투자 미지원 -- 실전에서만.")
+    # 지정가 기반 정정이라 가격형상 규칙을 공유 헬퍼로 강제한다(정정=>가격>0, 취소=>가격 없음).
+    reject_bad_change_price_shape(action, limit_price)
+    origin_ord_dt = original_report.receipt_date
+    if not origin_ord_dt:
+        raise KISUsageError("원주문일자(receipt_date)가 없어 정정·취소할 수 없다.")
+    body = {
+        "CANO": cano,
+        "ACNT_PRDT_CD": product_code,
+        "ORGN_ORD_DT": origin_ord_dt,
+        "ORGN_ODNO": str(original_report.order_id),
+        "FM_LIMIT_ORD_PRIC": "" if limit_price is None else format_wire_decimal(limit_price),
+        "FM_STOP_ORD_PRIC": "",                    # 스탑 재지정은 이 경로 미지원(공란)
+        "FM_LQD_LMT_ORD_PRIC": "",                 # 헤지청산 지정가 -- 공란
+        "FM_LQD_STOP_ORD_PRIC": "",                # 헤지청산 스탑가 -- 공란
+        "FM_HDGE_ORD_SCRN_YN": "N",                # 헤지주문화면 아님
+        "FM_MKPR_CVSN_YN": "N",                    # 시장가 전환 아님(취소 전용 필드, 고정 "N")
+    }
+    return WireRequest("POST", _CHANGE_PATH, _CHANGE_TR[action], body)
 
 
 def extract_output(body: Mapping[str, Any]) -> Mapping[str, Any]:

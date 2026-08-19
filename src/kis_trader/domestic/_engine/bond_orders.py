@@ -22,10 +22,17 @@ from ...errors import KISUsageError, OrderError
 from ...order import _BOND_EXCHANGE, Order, WireRequest
 
 if TYPE_CHECKING:
+    from decimal import Decimal
+
+    from ...order import ChangeAction, ImmediateOrderFingerprint
+    from ...report import ExecutionReport
     from ...transport import Environment
 
 _PLACE_PATH = "/uapi/domestic-bond/v1/trading/buy"
 _PLACE_TR = "TTTC0952U"                            # 실전 전용(모의 미지원)
+
+_CHANGE_PATH = "/uapi/domestic-bond/v1/trading/order-rvsecncl"
+_CHANGE_TR = "TTTC0953U"                            # 실전 전용(모의 미지원)
 
 
 def is_bond_exchange(exchange: str) -> bool:
@@ -72,3 +79,39 @@ def make_order_request(
         "CTAC_TLNO": "",
     }
     return WireRequest("POST", _PLACE_PATH, _PLACE_TR, body)
+
+
+def make_change_request(
+    *, original_report: ExecutionReport, original_fingerprint: ImmediateOrderFingerprint,
+    action: ChangeAction, quantity: Decimal, limit_price: Decimal | None,
+    cano: str, product_code: str, environment: Environment,
+) -> WireRequest:
+    """안전 코어(:func:`~kis_trader.domestic._engine.orders.submit_change`)에 넘길 국내 장내채권
+    정정·취소 빌더(order-rvsecncl ``TTTC0953U``, 실전 전용).
+
+    채권은 **실전 전용**(모의투자 미지원)이라 ``paper`` 면 fail-closed(client 라우팅에서 먼저 막지만
+    빌더에서도 방어). 원주문 지목은 ``ORGN_ODNO``(발주 응답의 거래소 주문번호)로 하고, 채권은 부분
+    정정·취소를 지원하므로(``ORD_QTY2``) 코어가 넘긴 목표 수량(잔량/지정)을 그대로 싣는다
+    (``QTY_ALL_ORD_YN="N"`` -- 잔량전부 플래그가 아니라 명시 수량). 채권은 지정가(채권단가) 전용이라
+    정정은 새 ``limit_price``(채권단가)가 필수이고, 취소는 원지문의 채권단가를 유지한다."""
+    if environment == "paper":
+        raise KISUsageError("장내채권 정정·취소는 모의투자 미지원 -- 실전에서만.")
+    if action == "modify" and limit_price is None:
+        raise KISUsageError("장내채권 정정은 새 지정가(채권단가)가 필요하다.")
+    body = {
+        "CANO": cano,
+        "ACNT_PRDT_CD": product_code,
+        "PDNO": original_report.symbol,
+        "ORGN_ODNO": str(original_report.order_id),
+        "ORD_QTY2": format_wire_decimal(quantity),
+        "BOND_ORD_UNPR": (
+            format_wire_decimal(limit_price) if limit_price is not None
+            else original_fingerprint.limit_price
+        ),
+        "RVSE_CNCL_DVSN_CD": "01" if action == "modify" else "02",
+        "QTY_ALL_ORD_YN": "N",
+        "MGCO_APTM_ODNO": "",
+        "ORD_SVR_DVSN_CD": "0",
+        "CTAC_TLNO": "",
+    }
+    return WireRequest("POST", _CHANGE_PATH, _CHANGE_TR, body)

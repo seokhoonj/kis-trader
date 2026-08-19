@@ -8,20 +8,28 @@
 from __future__ import annotations
 
 import threading
+from datetime import datetime
 from decimal import Decimal
 
 import pytest
 
 from kis_trader import KISClient, Order, OrderStore
+from kis_trader._internal._datetime import _KST
 from kis_trader.domestic._engine import bond_orders as bond
 from kis_trader.errors import KISUsageError, OrderError
-from kis_trader.report import ExecutionReport
+from kis_trader.order import ImmediateOrderFingerprint
+from kis_trader.report import ExecutionReport, OrderStatus
 from kis_trader.transport import RawResponse
 
 _BUY = "/uapi/domestic-bond/v1/trading/buy"
+_CHANGE = "/uapi/domestic-bond/v1/trading/order-rvsecncl"
 _ACCEPTED = RawResponse(
     rt_cd="0", msg_cd="APBK0013", msg1="주문 전송 완료",
     body={"output": {"KRX_FWDG_ORD_ORGNO": "06010", "ODNO": "0001234567", "ORD_TMD": "101530"}},
+)
+_CHANGE_ACCEPTED = RawResponse(
+    rt_cd="0", msg_cd="APBK0013", msg1="정정 전송 완료",
+    body={"output": {"KRX_FWDG_ORD_ORGNO": "06010", "ODNO": "0009999999"}},
 )
 
 
@@ -173,6 +181,139 @@ def test_bond_buy_rejects_risk_gate():
     with pytest.raises(KISUsageError):
         client.domestic.bond("KR2033022D33").buy(quantity=10, limit_price=10000)
     assert fake.request_count == 0
+
+
+# --- 정정·취소 와이어 빌더(TTTC0953U, 실전 전용) ------------------------------
+def _change_report(*, order_id: str = "0001234567", symbol: str = "KR2033022D33") -> ExecutionReport:
+    return ExecutionReport(
+        client_order_id="c", order_id=order_id, symbol=symbol, side="buy",
+        status=OrderStatus.NEW, filled_quantity=Decimal(0), average_price=None,
+        recorded_at=datetime.now(_KST),
+    )
+
+
+def _change_fp(*, symbol: str = "KR2033022D33", limit_price: str = "10000",
+               quantity: str = "10") -> ImmediateOrderFingerprint:
+    return ImmediateOrderFingerprint(
+        symbol=symbol, side="buy", order_type="limit", quantity=quantity,
+        limit_price=limit_price, stop_price="", time_in_force="day", exchange="BOND",
+    )
+
+
+def test_make_change_request_cancel_body():
+    # 취소는 RVSE_CNCL_DVSN_CD="02", 원단가(원지문의 채권단가)를 유지한다.
+    req = bond.make_change_request(
+        original_report=_change_report(), original_fingerprint=_change_fp(),
+        action="cancel", quantity=Decimal(10), limit_price=None,
+        cano="81012345", product_code="03", environment="real",
+    )
+    assert req.method == "POST"
+    assert req.path == _CHANGE
+    assert req.tr_id == "TTTC0953U"
+    assert req.body == {
+        "CANO": "81012345", "ACNT_PRDT_CD": "03", "PDNO": "KR2033022D33",
+        "ORGN_ODNO": "0001234567", "ORD_QTY2": "10", "BOND_ORD_UNPR": "10000",
+        "RVSE_CNCL_DVSN_CD": "02", "QTY_ALL_ORD_YN": "N",
+        "MGCO_APTM_ODNO": "", "ORD_SVR_DVSN_CD": "0", "CTAC_TLNO": "",
+    }
+
+
+def test_make_change_request_modify_body():
+    # 정정은 RVSE_CNCL_DVSN_CD="01", 새 채권단가를 싣는다.
+    req = bond.make_change_request(
+        original_report=_change_report(), original_fingerprint=_change_fp(),
+        action="modify", quantity=Decimal(10), limit_price=Decimal(10100),
+        cano="81012345", product_code="03", environment="real",
+    )
+    assert req.tr_id == "TTTC0953U"
+    assert req.body["RVSE_CNCL_DVSN_CD"] == "01"
+    assert req.body["BOND_ORD_UNPR"] == "10100"
+    assert req.body["ORGN_ODNO"] == "0001234567"
+    assert req.body["ORD_QTY2"] == "10"
+
+
+def test_make_change_request_modify_requires_price():
+    # 채권 정정은 새 지정가(채권단가)가 필수 -- 없으면 fail-closed.
+    with pytest.raises(KISUsageError, match="지정가"):
+        bond.make_change_request(
+            original_report=_change_report(), original_fingerprint=_change_fp(),
+            action="modify", quantity=Decimal(10), limit_price=None,
+            cano="8", product_code="03", environment="real",
+        )
+
+
+def test_make_change_request_paper_rejected():
+    with pytest.raises(KISUsageError, match="모의"):
+        bond.make_change_request(
+            original_report=_change_report(), original_fingerprint=_change_fp(),
+            action="cancel", quantity=Decimal(10), limit_price=None,
+            cano="8", product_code="03", environment="paper",
+        )
+
+
+def test_make_change_request_partial_quantity_allowed():
+    # 채권은 부분 정정·취소를 지원(ORD_QTY2) -- 잔량 미만 수량도 그대로 실린다.
+    req = bond.make_change_request(
+        original_report=_change_report(), original_fingerprint=_change_fp(),
+        action="cancel", quantity=Decimal(4), limit_price=None,
+        cano="8", product_code="03", environment="real",
+    )
+    assert req.body["ORD_QTY2"] == "4"
+
+
+# --- end-to-end: place -> kis.orders.cancel/modify -> 전송 ------------------
+def test_bond_cancel_wire():
+    store = OrderStore()
+    cid = "20260819-bondchg000000001"
+    _client(FakeTransport(), store=store).domestic.bond("KR2033022D33").buy(
+        quantity=10, limit_price=10000, client_order_id=cid)
+    change_t = FakeTransport(response=_CHANGE_ACCEPTED)
+    _client(change_t, store=store).orders.cancel(cid)
+    call = change_t.calls[0]
+    assert call["path"] == _CHANGE
+    assert call["tr_id"] == "TTTC0953U"
+    assert call["body"]["RVSE_CNCL_DVSN_CD"] == "02"
+    assert call["body"]["ORGN_ODNO"] == "0001234567"       # 발주 응답의 ODNO
+    assert call["body"]["BOND_ORD_UNPR"] == "10000"        # 원단가 유지
+
+
+def test_bond_modify_wire():
+    store = OrderStore()
+    cid = "20260819-bondchg000000002"
+    _client(FakeTransport(), store=store).domestic.bond("KR2033022D33").buy(
+        quantity=10, limit_price=10000, client_order_id=cid)
+    change_t = FakeTransport(response=_CHANGE_ACCEPTED)
+    _client(change_t, store=store).orders.modify(cid, limit_price=10100)
+    call = change_t.calls[0]
+    assert call["path"] == _CHANGE
+    assert call["tr_id"] == "TTTC0953U"
+    assert call["body"]["RVSE_CNCL_DVSN_CD"] == "01"
+    assert call["body"]["BOND_ORD_UNPR"] == "10100"
+
+
+def test_bond_change_paper_fails_closed():
+    # 모의 세션의 채권 정정·취소는 와이어에 닿기 전에 거부한다.
+    store = OrderStore()
+    order = _bond_order(client_order_id="bond-paper")
+    report = _change_report(order_id="0001234567")
+    store.record(report, order.fingerprint)
+    change_t = FakeTransport(response=_CHANGE_ACCEPTED)
+    with pytest.raises(KISUsageError):
+        _client(change_t, environment="paper", store=store).orders.cancel("bond-paper")
+    assert change_t.request_count == 0
+
+
+def test_bond_change_idempotent():
+    store = OrderStore()
+    cid = "20260819-bondchg000000003"
+    _client(FakeTransport(), store=store).domestic.bond("KR2033022D33").buy(
+        quantity=10, limit_price=10000, client_order_id=cid)
+    change_t = FakeTransport(response=_CHANGE_ACCEPTED)
+    client = _client(change_t, store=store)
+    rid = "20260819-bondchgreq00000001"
+    client.orders.cancel(cid, request_id=rid)
+    client.orders.cancel(cid, request_id=rid)
+    assert change_t.request_count == 1          # 공유 안전 코어가 재전송을 막는다
 
 
 # --- reconcile fail-closed (미확인 채권 주문은 국내주식 일별체결조회로 오조회하지 않는다) ---

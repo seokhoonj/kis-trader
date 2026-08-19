@@ -464,6 +464,24 @@ class KISClient:
                 builder = derivative_orders_engine.make_night_change_request
             else:
                 builder = derivative_orders_engine.make_change_request
+        elif bond_orders_engine.is_bond_exchange(fingerprint.exchange):
+            # 국내 장내채권(BOND) 정정·취소는 실전 전용 -- paper 지문 도달은 손상 신호라 와이어 전에
+            # fail-closed. 채권은 부분 정정·취소를 지원(ORD_QTY2)하므로 전량 강제는 하지 않는다.
+            if self._environment == "paper":
+                raise KISUsageError("장내채권 정정·취소는 모의투자 미지원 -- 실전에서만.")
+            builder = bond_orders_engine.make_change_request
+        elif overseas_deriv_orders_engine.is_overseas_fo_exchange(fingerprint.exchange):
+            # 해외선물옵션(OSFO) 정정·취소는 실전 전용 -- paper 지문 도달은 손상 신호라 와이어 전에
+            # fail-closed. 이 와이어는 전량 정정·취소만 지원(부분 수량 개념 없음)하므로, 호출자가 명시
+            # quantity 를 줬는데 로컬 잔량과 다르면(부분 의도) 조용히 전량을 건드리지 않고 거부한다
+            # -- 파생 야간 슬라이스와 같은 태도(와이어에 닿기 전에 막는다).
+            if self._environment == "paper":
+                raise KISUsageError("해외선물옵션 정정·취소는 모의투자 미지원 -- 실전에서만.")
+            if quantity is not None and change_quantity != remaining_quantity:
+                raise KISUsageError(
+                    "해외선물옵션은 부분 정정·취소를 지원하지 않는다(전량만 가능) -- quantity 를 생략하라."
+                )
+            builder = overseas_deriv_orders_engine.make_change_request
         return orders_engine.submit_change(
             self._transport, self._store,
             original_client_order_id=client_order_id,
