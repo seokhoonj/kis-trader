@@ -25,7 +25,7 @@ from ...order_book import OrderBook, PriceLevel
 class ETFNAV:
     """ETF/ETN 순자산가치(NAV) 스냅샷(불변).
 
-    ``nav`` 는 현재 NAV(순자산가치), ``premium`` 은 괴리율(시장가가 NAV 대비 얼마나 벗어났는지, %),
+    ``nav`` 는 현재 NAV(순자산가치), ``disparity_rate`` 은 괴리율(시장가가 NAV 대비 얼마나 벗어났는지, %),
     ``tracking_error`` 는 추적오차율(%). ``nav_change`` / ``nav_change_percent`` 는 NAV 전일대비로
     하락이면 음수. 시장 체결가는 :meth:`~kis_trader.domestic.stock.DomesticStock.quote` 에 있다.
     """
@@ -35,7 +35,7 @@ class ETFNAV:
     nav_change: Decimal               # NAV 전일대비(부호 포함)
     nav_change_percent: Decimal       # NAV 전일대비율(부호 포함)
     previous_nav: Decimal
-    premium: Decimal                  # 괴리율(%): 시장가 vs NAV
+    disparity_rate: Decimal                  # 괴리율(%): 시장가 vs NAV
     tracking_error: Decimal           # 추적오차율(%)
     net_assets: Decimal
     as_of: datetime                   # KST-aware
@@ -126,7 +126,7 @@ class ETFComponents:
 class ETFNAVHistoryPoint:
     """일별 NAV-가격 추이의 한 점(불변).
 
-    ``trading_date`` 그 거래일, ``close`` 시장 종가, ``nav`` 그 날 NAV, ``premium`` 괴리율(시장가가 NAV 대비
+    ``trading_date`` 그 거래일, ``close`` 시장 종가, ``nav`` 그 날 NAV, ``disparity_rate`` 괴리율(시장가가 NAV 대비
     벗어난 정도, %). ``nav_change`` / ``nav_change_percent`` 는 NAV 전일대비로 하락이면 음수.
     """
 
@@ -135,7 +135,7 @@ class ETFNAVHistoryPoint:
     nav: Decimal
     nav_change: Decimal               # NAV 전일대비(부호 포함)
     nav_change_percent: Decimal       # NAV 전일대비율(부호 포함)
-    premium: Decimal                  # 괴리율(%): 시장가 vs NAV
+    disparity_rate: Decimal                  # 괴리율(%): 시장가 vs NAV
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -187,7 +187,7 @@ class ETFNAVMinutePoint:
     nav_change: Decimal
     nav_change_percent: Decimal
     price_minus_nav: Decimal
-    premium: Decimal
+    disparity_rate: Decimal
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

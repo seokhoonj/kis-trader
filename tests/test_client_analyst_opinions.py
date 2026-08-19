@@ -40,7 +40,7 @@ def test_analyst_opinions_maps():
     assert ops[0].opinion == "매수"
     assert ops[0].previous_opinion == "중립"
     assert ops[0].target_price == Decimal(90000)
-    assert ops[0].disparity_percent == Decimal("20.0")
+    assert ops[0].disparity_rate == Decimal("20.0")
     assert f"{ops[0].timestamp:%Y%m%d}" == "20240510"
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/quotations/invest-opinion"
@@ -63,7 +63,7 @@ def test_analyst_opinions_optional_target_none():
     fake = FakeTransport(response=_resp(rows))
     op = _client(fake).domestic.stock("005930").analyst_opinions()[0]
     assert op.target_price is None
-    assert op.disparity_percent is None
+    assert op.disparity_rate is None
 
 
 def test_analyst_opinions_missing_output_fails_closed():

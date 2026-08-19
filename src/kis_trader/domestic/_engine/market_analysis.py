@@ -283,7 +283,7 @@ def fetch_broker_opinions(
                 ),
                 target_price=optional_decimal(row.get("hts_goal_prc"), "hts_goal_prc"),
                 previous_close=required_decimal(row.get("stck_prdy_clpr"), "stck_prdy_clpr"),
-                disparity_percent=optional_decimal(row.get("dprt"), "dprt"),
+                disparity_rate=optional_decimal(row.get("dprt"), "dprt"),
                 _raw=row,
             )
         )
@@ -529,7 +529,7 @@ def fetch_vi_events(
                 vi_kind=str(row.get("vi_kind_code", "")).strip(),
                 trigger_price=required_decimal(row.get("vi_prc"), "vi_prc"),
                 base_price=optional_decimal(row.get("vi_stnd_prc"), "vi_stnd_prc"),
-                disparity_percent=optional_decimal(row.get("vi_dprt"), "vi_dprt"),
+                disparity_rate=optional_decimal(row.get("vi_dprt"), "vi_dprt"),
                 daily_trigger_count=required_int(row.get("vi_count"), "vi_count"),
                 _raw=row,
             )

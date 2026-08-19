@@ -24,7 +24,7 @@ class DerivativeQuote:
     """선물/옵션 계약의 현재가 스냅샷(불변).
 
     ``change`` / ``change_percent`` 는 전일대비로 하락이면 음수. ``open_interest`` 는 미결제약정,
-    ``basis`` 는 선물-기초자산 베이시스, ``theoretical_price`` 는 이론가, ``premium`` 은 괴리율(%).
+    ``basis`` 는 선물-기초자산 베이시스, ``theoretical_price`` 는 이론가, ``disparity_rate`` 은 괴리율(%).
     베이시스/이론가/괴리율은 계약에 따라 없을 수 있어 ``None`` 이다.
     """
 
@@ -41,7 +41,7 @@ class DerivativeQuote:
     open_interest: int
     theoretical_price: Decimal | None
     basis: Decimal | None             # 베이시스(선물-기초자산)
-    premium: Decimal | None           # 괴리율(%)
+    disparity_rate: Decimal | None           # 괴리율(%)
     as_of: datetime                   # KST-aware
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

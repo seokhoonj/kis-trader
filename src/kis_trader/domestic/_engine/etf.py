@@ -186,7 +186,7 @@ def fetch_etf_nav_intraday(
                     required_decimal(row.get("nav_prdy_ctrt"), "nav_prdy_ctrt"), nav_sign
                 ),
                 price_minus_nav=required_decimal(row.get("nav_vrss_prpr"), "nav_vrss_prpr"),
-                premium=required_decimal(row.get("dprt"), "dprt"),
+                disparity_rate=required_decimal(row.get("dprt"), "dprt"),
                 _raw=row,
             )
         )
@@ -398,7 +398,7 @@ def _parse_etf_nav_history(rows: Sequence[Mapping[str, Any]]) -> list[ETFNAVHist
                 nav_change_percent=_apply_change_sign(
                     required_decimal(row.get("nav_prdy_ctrt"), "nav_prdy_ctrt"), change_sign_code
                 ),
-                premium=required_decimal(row.get("dprt"), "dprt"),
+                disparity_rate=required_decimal(row.get("dprt"), "dprt"),
                 _raw=row,
             )
         )
@@ -418,7 +418,7 @@ def _parse_etf_nav(output: Mapping[str, Any], *, symbol: str, as_of: datetime) -
             required_decimal(output.get("nav_prdy_ctrt"), "nav_prdy_ctrt"), change_sign_code
         ),
         previous_nav=required_decimal(output.get("prdy_last_nav"), "prdy_last_nav"),
-        premium=required_decimal(output.get("dprt"), "dprt"),
+        disparity_rate=required_decimal(output.get("dprt"), "dprt"),
         tracking_error=required_decimal(output.get("trc_errt"), "trc_errt"),
         net_assets=required_decimal(output.get("etf_ntas_ttam"), "etf_ntas_ttam"),
         as_of=as_of,

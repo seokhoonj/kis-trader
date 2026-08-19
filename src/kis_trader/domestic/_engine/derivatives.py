@@ -513,7 +513,7 @@ def _parse_quote(output: Mapping[str, Any], *, code: str, as_of: datetime) -> De
         open_interest=required_int(output.get("hts_otst_stpl_qty"), "hts_otst_stpl_qty"),
         theoretical_price=optional_decimal(output.get("hts_thpr"), "hts_thpr"),
         basis=optional_decimal(output.get("basis"), "basis"),
-        premium=optional_decimal(output.get("dprt"), "dprt"),
+        disparity_rate=optional_decimal(output.get("dprt"), "dprt"),
         as_of=as_of,
         _raw=output,
     )

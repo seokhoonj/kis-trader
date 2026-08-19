@@ -99,7 +99,7 @@ def test_elw_quote_maps_option_aware_fields():
     assert quote.bid == Decimal(130)
     assert quote.ask == Decimal(135)
     assert quote.theoretical_price == Decimal("140.50")
-    assert quote.premium == Decimal("-3.90")              # 괴리율
+    assert quote.disparity_rate == Decimal("-3.90")              # 괴리율
     assert quote.implied_volatility == Decimal("33.05")
     assert quote.strike == Decimal("360.00")              # 행사가
     assert quote.moneyness == "ITM"
