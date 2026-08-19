@@ -12,6 +12,7 @@ from datetime import date
 from typing import TYPE_CHECKING
 
 from ..bar import Bar, Interval
+from ..order import _BOND_EXCHANGE, Order, coerce_decimal, mint_client_order_id
 from ._engine import bonds as bonds_api
 from .entities.bond import (
     BondDailyPrice,
@@ -22,8 +23,11 @@ from .entities.bond import (
 )
 
 if TYPE_CHECKING:
+    from .._literals import Numeric
     from ..client import KISClient
+    from ..order import TimeInForce
     from ..order_book import OrderBook
+    from ..report import ExecutionReport
     from ..trade import Trade
 
 
@@ -72,3 +76,29 @@ class Bond:
     def trades(self) -> list[Trade]:
         """채권의 최근 체결 목록(최신순)."""
         return bonds_api.fetch_trades(self._client.transport, code=self.code)
+
+    # --- 발주(장내채권 매수; 계좌 + 안전 엔진 -- 종목 핸들 buy 와 대칭) ---
+    def buy(
+        self, *, quantity: Numeric, limit_price: Numeric,
+        time_in_force: TimeInForce = "day", client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 채권을 매수한다 -- 장내채권은 지정가(채권단가) 전용이라 ``limit_price`` 는 필수다.
+        ``quantity`` 는 액면(face) 단위, ``limit_price`` 는 채권단가, ``client_order_id`` 는 멱등키
+        (생략 시 자동 발행)다.
+
+        **실전투자 전용**(모의투자 미지원)이라 ``environment="paper"`` 세션에선
+        :class:`~kis_trader.errors.KISUsageError` 로 fail-closed 한다. 실주문이라 이 경로는 라이브로
+        검증하기 전까지 프로덕션 사용에 앞서 실계좌 확인이 필요하다. 이중체결 방지·타임아웃 재시도
+        금지는 국내주식·파생과 같은 안전 엔진에서 자동 적용된다. 계좌 미설정은
+        :class:`~kis_trader.errors.KISUsageError`, 접수 거부는 ``OrderRejectedError``, 타임아웃(체결
+        불명)은 ``OrderTimeoutError`` -- 후자는 ``kis.orders.reconcile`` 로 확인한다.
+
+        KIS URL/TR-ID: ``POST /uapi/domestic-bond/v1/trading/buy`` (실전 ``TTTC0952U``, 모의 미지원)."""
+        order = Order(
+            symbol=self.code, side="buy", order_type="limit",
+            quantity=coerce_decimal(quantity, "quantity"),
+            limit_price=coerce_decimal(limit_price, "limit_price"),
+            time_in_force=time_in_force, exchange=_BOND_EXCHANGE,
+            client_order_id=client_order_id or mint_client_order_id(),
+        )
+        return self._client._place_order(order)

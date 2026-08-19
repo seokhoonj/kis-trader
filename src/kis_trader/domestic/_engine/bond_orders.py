@@ -1,0 +1,66 @@
+"""국내 장내채권 매수 주문 와이어 빌더 (내부) -- derivative_orders.py 의 형제.
+
+주문 실행의 안전 규칙(이중체결 방지·쓰기 재시도 금지·보수적 재조회)은 국내주식·해외·파생과
+공유하는 안전 코어(:func:`~kis_trader.domestic._engine.orders.place`)가 맡는다. 이 모듈은 그
+코어에 ``build_request`` 로 주입할 **국내 장내채권(BOND) 매수 주문의 와이어 요청**만 조립한다 --
+순수 함수라 오케스트레이션 없이 단독 검증된다. 접수 응답(krx_fwdg_ord_orgno/odno/ord_tmd)은
+국내주식과 같은 표준 형상이라 안전 코어의 기본 output 파서를 그대로 쓴다(전용 파서 불필요).
+
+KIS URL/TR-ID (KIS 명세 대조, sheet '장내채권 매수주문'):
+- 매수: ``POST /uapi/domestic-bond/v1/trading/buy``, 실전 ``TTTC0952U`` (**모의투자 미지원**).
+  채권은 지정가(채권단가 ``BOND_ORD_UNPR``) 전용이라 시장가가 없다. 수량은 액면(face) 단위,
+  가격은 채권단가다. 매도(TTTC0958U)·정정취소(TTTC0953U)는 매수-lot 지목과 라이브 검증이 필요한
+  별도 슬라이스라, 이 빌더는 매수만 조립하고 매도는 fail-closed 로 거부한다.
+"""
+
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
+from ..._internal._wire import format_wire_decimal
+from ...errors import KISUsageError, OrderError
+from ...order import _BOND_EXCHANGE, Order, WireRequest
+
+if TYPE_CHECKING:
+    from ...transport import Environment
+
+_BOND_BUY_PATH = "/uapi/domestic-bond/v1/trading/buy"
+_BOND_BUY_TR = "TTTC0952U"                        # 실전 전용(모의 미지원)
+
+
+def is_bond_exchange(exchange: str) -> bool:
+    """``exchange`` 가 국내 장내채권(BOND)이면 True. 안전 코어의 주문 라우팅에 쓴다."""
+    return exchange == _BOND_EXCHANGE
+
+
+def make_order_request(
+    order: Order, *, cano: str, product_code: str, environment: Environment
+) -> WireRequest:
+    """안전 코어(:func:`~kis_trader.domestic._engine.orders.place`)에 넘길 국내 장내채권 매수 빌더.
+
+    채권은 **실전 전용**(모의투자 미지원)이라 ``paper`` 면 fail-closed(client 라우팅에서 먼저 막지만
+    빌더에서도 방어). 매수만 지원하므로 매도는 명확히 거부하고, 채권은 지정가(채권단가) 전용이라
+    ``limit_price`` 가 없으면 거부한다. 일반시장(``SAMT_MKET_PTCI_YN="N"``)·소매시장 아님
+    (``BOND_RTL_MKET_YN="N"``)·주문서버구분 "0" 는 고정값이다."""
+    if order.exchange != _BOND_EXCHANGE:
+        raise OrderError(f"채권 빌더에 비-BOND 주문이 들어왔다: {order.exchange!r} (라우팅 오류).")
+    if environment == "paper":
+        raise KISUsageError("장내채권 주문은 모의투자 미지원 -- 실전에서만.")
+    if order.side == "sell":
+        raise KISUsageError("장내채권 매도는 아직 미지원 -- 매수만.")
+    if order.limit_price is None:
+        raise KISUsageError("장내채권 주문은 지정가(채권단가) 필수.")
+    body = {
+        "CANO": cano,
+        "ACNT_PRDT_CD": product_code,
+        "PDNO": order.symbol,
+        "ORD_QTY2": format_wire_decimal(order.quantity),
+        "BOND_ORD_UNPR": format_wire_decimal(order.limit_price),
+        "SAMT_MKET_PTCI_YN": "N",                 # 일반시장(소액채권 시장참여 아님)
+        "BOND_RTL_MKET_YN": "N",                  # 소매시장 아님
+        "IDCR_STFNO": "",
+        "MGCO_APTM_ODNO": "",
+        "ORD_SVR_DVSN_CD": "0",
+        "CTAC_TLNO": "",
+    }
+    return WireRequest("POST", _BOND_BUY_PATH, _BOND_BUY_TR, body)

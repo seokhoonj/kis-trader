@@ -26,6 +26,7 @@ from ._internal._masters import (
 )
 from .account import StockAccounts
 from .config import _ENVIRONMENTS, _fill_credentials, _split_account, token_cache_path
+from .domestic._engine import bond_orders as bond_orders_engine
 from .domestic._engine import derivative_orders as derivative_orders_engine
 from .domestic._engine import orders as orders_engine
 from .domestic._engine import reserved_orders as reserved_orders_api
@@ -490,6 +491,20 @@ class KISClient:
                 _reject_unsupported_derivative_risk(risk)
             build_request = derivative_orders_engine.make_order_request
             extract_output = derivative_orders_engine._extract_fo_output
+        elif bond_orders_engine.is_bond_exchange(order.exchange):
+            # 국내 장내채권(BOND)은 모의투자 미지원 -- claim/빌드 전에 조기 거부(paper 발주 도달 차단).
+            # 빌더도 같은 거부를 하지만, 라우팅 자리에서 먼저 막아 client_order_id 를 소비하지 않는다.
+            if self._environment == "paper":
+                raise KISUsageError("장내채권 주문은 모의투자 미지원 -- 실전에서만.")
+            # 채권 리스크는 참조가(국내 주식 시세) 기반 검사(notional/collar/tick)가 의미 없어(해외·
+            # 파생과 같은 이유), 리스크가 켜진 세션에선 명확히 거부한다.
+            if risk is not None:
+                raise KISUsageError(
+                    "장내채권 주문엔 사전 리스크 게이트가 미지원이다(참조가 기반 검사가 채권엔 의미 "
+                    "없음) -- risk 없는 세션에서 내거나 국내 주식 주문에만 risk 를 쓰라."
+                )
+            # 접수 응답은 국내주식과 같은 표준 형상이라 기본 output 파서를 쓴다(extract_output=None).
+            build_request = bond_orders_engine.make_order_request
         elif order.credit_type is not None:
             # 국내 신용주문 -- 안전 코어(place)는 공유, 와이어 조립기만 신용용으로. risk 는 국내라
             # 그대로 적용된다(참조가=국내 시세).
