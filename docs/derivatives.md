@@ -12,7 +12,7 @@ futures.underlying_quote()                # 선물 + 기초지수 나란히 (베
 futures.expected_execution_trend()        # 예상체결 요약·추이
 futures.order_book()                      # 호가
 
-option = kis.domestic.option("201W09")   # 지수옵션 계약 핸들
+option = kis.domestic.option("201W09")    # 지수옵션 계약 핸들
 option.quote()
 ```
 
@@ -42,9 +42,9 @@ kis.overseas.derivatives_market_hours()                     # 상품군별 장�
 국내파생(03) 세션에서 `kis.account` 는 파생 계좌 뷰를 돌려줍니다. 금액·수량은 원화입니다.
 
 ```python
-account = kis.account            # 03 세션
+account = kis.account        # 03 세션
 
-balance = account.balance()            # 잔고 (보유내역 + 예수금·증거금·손익 요약, 모의 지원)
+balance = account.balance()  # 잔고 (보유내역 + 예수금·증거금·손익 요약, 모의 지원)
 print(balance.total_deposit, balance.orderable_cash, balance.total_unrealized_pnl)
 
 for position in balance.positions:

@@ -112,12 +112,12 @@ kis.overseas.settlement_dates()                        # 시장별 결제일자
 해외파생(08) 세션에서 `kis.account` 는 해외선물옵션 계좌 뷰를 돌려줍니다. 해외파생 계좌는 통화별로 조회하며, **금액·수량은 조회 통화(`currency`) 기준**(원화 아님)입니다. 모두 **실전투자 전용**입니다.
 
 ```python
-account = kis.account            # 08 세션
+account = kis.account                      # 08 세션
 
-deposit = account.deposit(currency="USD")      # 예수금현황
+deposit = account.deposit(currency="USD")  # 예수금현황
 print(deposit.cash_balance, deposit.orderable_amount, deposit.unrealized_pnl)
 
-for position in account.positions():            # 미결제(보유) 현황 (fuop="00" 전체)
+for position in account.positions():       # 미결제(보유) 현황 (fuop="00" 전체)
     print(f"{position.symbol:10s} {position.side} {position.quantity}  평가손익 {position.unrealized_pnl}")
 ```
 

@@ -14,6 +14,6 @@ stock.etf_order_book()                # 10단계 호가 + LP 잔량·잔량증�
 ## NAV 추이
 
 ```python
-stock.nav_history(start="20240101", end="20240630")  # 일별 NAV-가격 추이 (프리미엄/디스카운트)
+stock.nav_history(start="20240101", end="20240630")  # 일별 NAV-가격 추이 (괴리율)
 stock.nav_intraday(interval_minutes=1)               # 분별 시장가-NAV 비교 (최근 30개)
 ```
