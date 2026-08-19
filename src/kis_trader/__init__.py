@@ -251,6 +251,8 @@ from .overseas.entities.derivative import (
 )
 from .overseas.entities.derivative_account import (
     OverseasDerivativeDeposit,
+    OverseasDerivativeFill,
+    OverseasDerivativeFillHistory,
     OverseasDerivativeMargin,
     OverseasDerivativeOrder,
     OverseasDerivativeOrderable,
@@ -447,6 +449,8 @@ __all__ = [
     "OverseasDerivative",
     "OverseasDerivativeDeposit",
     "OverseasDerivativeDetail",
+    "OverseasDerivativeFill",
+    "OverseasDerivativeFillHistory",
     "OverseasDerivativeMargin",
     "OverseasDerivativeMarketHours",
     "OverseasDerivativeOrder",

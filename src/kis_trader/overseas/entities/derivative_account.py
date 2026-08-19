@@ -8,9 +8,9 @@ OverseasDerivativesAccount` 뷰가 돌려준다. **금액·수량은 조회 통�
 
 from __future__ import annotations
 
+import datetime
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import date
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -151,7 +151,7 @@ class OverseasDerivativeOrder:
     (fuop_dvsn 원본). 주문번호가 빈 패딩 행은 담기지 않는다. 타입화하지 않은 필드는 ``_raw``.
     """
 
-    order_date: date | None           # 주문일자(ord_dt)
+    order_date: datetime.date | None           # 주문일자(ord_dt)
     order_id: str                     # 주문번호(odno)
     original_order_id: str            # 원주문번호(orgn_odno)
     symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
@@ -169,4 +169,59 @@ class OverseasDerivativeOrder:
     )
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasDerivativeFill:
+    """해외선물옵션 일별 체결 한 건(불변).
+
+    금액·수량은 ``currency`` 통화의 Decimal(원화 아님). ``date`` 체결일자(dt) -- 형식오류/공백
+    이면 None. ``fill_number`` 체결번호(ccno), ``symbol`` 해외선물FX상품번호, ``side`` 매수/매도,
+    ``fill_quantity`` 체결수량, ``fill_amount`` 체결금액, ``fee`` 수수료, ``order_date`` 주문일자
+    (ord_dt) -- 형식오류/공백이면 None, ``order_id`` 주문번호(odno), ``order_medium`` 주문매체
+    구분명(ord_mdia_dvsn_name). 체결번호·주문번호가 빈 패딩 행은 담기지 않는다. 타입화하지 않은
+    필드는 ``_raw``.
+    """
+
+    date: datetime.date | None                 # 체결일자(dt)
+    fill_number: str                  # 체결번호(ccno)
+    symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
+    side: Side                        # buy / sell (sll_buy_dvsn_cd: 01 매도 / 02 매수)
+    fill_quantity: Decimal            # 체결수량(fm_ccld_qty)
+    fill_amount: Decimal              # 체결금액(fm_ccld_amt)
+    currency: str                     # 통화코드(crcy_cd)
+    fee: Decimal                      # 수수료(fm_fee)
+    order_date: datetime.date | None           # 주문일자(ord_dt)
+    order_id: str                     # 주문번호(odno)
+    order_medium: str                 # 주문매체구분명(ord_mdia_dvsn_name)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class OverseasDerivativeFillHistory:
+    """해외선물옵션 일별 체결내역 -- 기간 합계 요약과 체결 한 벌(불변).
+
+    금액·수량은 통화별 조회의 Decimal(전체 통화 조회면 통화가 섞일 수 있어 각 체결의
+    ``currency`` 를 함께 본다). ``total_fill_quantity`` 총체결수량, ``total_futures_amount``
+    총선물약정금액, ``total_options_amount`` 총옵션약정금액, ``total_fee`` 수수료합계.
+    ``fills`` 체결 목록. 타입화하지 않은 요약 필드는 ``_raw``.
+    """
+
+    total_fill_quantity: Decimal      # 총체결수량(fm_tot_ccld_qty)
+    total_futures_amount: Decimal     # 총선물약정금액(fm_tot_futr_agrm_amt)
+    total_options_amount: Decimal     # 총옵션약정금액(fm_tot_opt_agrm_amt)
+    total_fee: Decimal                # 수수료합계(fm_fee_smtl)
+    fills: tuple[OverseasDerivativeFill, ...]  # 체결내역(output1)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "fills", tuple(self.fills))
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

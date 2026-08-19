@@ -16,6 +16,8 @@ from kis_trader.errors import KISError, KISUsageError
 from kis_trader.overseas.derivative_account import OverseasDerivativesAccount
 from kis_trader.overseas.entities.derivative_account import (
     OverseasDerivativeDeposit,
+    OverseasDerivativeFill,
+    OverseasDerivativeFillHistory,
     OverseasDerivativeMargin,
     OverseasDerivativeOrder,
     OverseasDerivativeOrderable,
@@ -28,6 +30,7 @@ _POSITIONS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-unpd"
 _ORDERABLE_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-psamount"
 _MARGIN_PATH = "/uapi/overseas-futureoption/v1/trading/margin-detail"
 _TODAY_ORDERS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-ccld"
+_DAILY_FILLS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-daily-ccld"
 
 
 class FakeTransport:
@@ -508,3 +511,131 @@ def test_overseas_derivative_order_entity_importable():
     from kis_trader import OverseasDerivativeOrder as Exported
 
     assert Exported is not None
+
+
+# --- 일별 체결내역 OTFM3122R ----------------------------------------------
+
+def _fill(ccno="C0001", *, dt="20240216", pdno="6BZ22", side="02", ccld_qty="2",
+          ccld_amt="253000.00", crcy="USD", fee="12.50", ord_dt="20240216",
+          odno="0001", mdia="MTS"):
+    return {"dt": dt, "ccno": ccno, "ovrs_futr_fx_pdno": pdno, "sll_buy_dvsn_cd": side,
+            "fm_ccld_qty": ccld_qty, "fm_ccld_amt": ccld_amt, "crcy_cd": crcy,
+            "fm_fee": fee, "ord_dt": ord_dt, "odno": odno, "ord_mdia_dvsn_name": mdia}
+
+
+_FILL_TOTALS = {
+    "fm_tot_ccld_qty": "5", "fm_tot_futr_agrm_amt": "500000.00",
+    "fm_tot_opt_agrm_amt": "0", "fm_fee_smtl": "31.25",
+}
+
+
+def _daily_fills_resp(*, rows=None, totals=None, ctx_nk="", ctx_fk="", tr_cont="D"):
+    body = {"output1": rows if rows is not None else [],
+            "output2": totals if totals is not None else dict(_FILL_TOTALS),
+            "ctx_area_nk200": ctx_nk, "ctx_area_fk200": ctx_fk}
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
+
+
+def test_daily_fills_paper_fails_closed():
+    fake = FakeTransport(response=_daily_fills_resp(rows=[_fill()]))
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").account.daily_fills("20240201", "20240216")
+    assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
+
+
+def test_daily_fills_bad_date_fails_closed():
+    fake = FakeTransport(response=_daily_fills_resp(rows=[_fill()]))
+    with pytest.raises(KISUsageError):
+        _client(fake).account.daily_fills("2024-02-01", "20240216")
+    assert fake.calls == []  # 날짜 검증도 와이어 이전
+
+
+def test_daily_fills_parses_and_routes():
+    from datetime import date
+
+    fake = FakeTransport(response=_daily_fills_resp(rows=[_fill()]))
+    hist = _client(fake).account.daily_fills("20240201", "20240216")
+    assert isinstance(hist, OverseasDerivativeFillHistory)
+    assert hist.total_fill_quantity == Decimal(5)               # fm_tot_ccld_qty
+    assert hist.total_futures_amount == Decimal("500000.00")    # fm_tot_futr_agrm_amt
+    assert hist.total_options_amount == Decimal(0)              # fm_tot_opt_agrm_amt
+    assert hist.total_fee == Decimal("31.25")                   # fm_fee_smtl
+    assert len(hist.fills) == 1
+    fill = hist.fills[0]
+    assert isinstance(fill, OverseasDerivativeFill)
+    assert fill.date == date(2024, 2, 16)                       # dt
+    assert fill.fill_number == "C0001"                          # ccno
+    assert fill.symbol == "6BZ22"                               # ovrs_futr_fx_pdno
+    assert fill.side == "buy"                                    # sll_buy_dvsn_cd 02 -> buy
+    assert fill.fill_quantity == Decimal(2)                     # fm_ccld_qty
+    assert fill.fill_amount == Decimal("253000.00")            # fm_ccld_amt
+    assert fill.currency == "USD"                               # crcy_cd
+    assert fill.fee == Decimal("12.50")                        # fm_fee
+    assert fill.order_date == date(2024, 2, 16)                # ord_dt
+    assert fill.order_id == "0001"                              # odno
+    assert fill.order_medium == "MTS"                          # ord_mdia_dvsn_name
+    call = fake.calls[0]
+    assert call["tr_id"] == "OTFM3122R"
+    assert call["path"].endswith("inquire-daily-ccld")
+    assert call["params"]["STRT_DT"] == "20240201"
+    assert call["params"]["END_DT"] == "20240216"
+    assert call["params"]["FUOP_DVSN_CD"] == "00"
+    assert call["params"]["FM_PDGR_CD"] == ""
+    assert call["params"]["CRCY_CD"] == "%%%"                  # 전체 통화
+    assert call["params"]["FM_ITEM_FTNG_YN"] == "N"
+    assert call["params"]["SLL_BUY_DVSN_CD"] == "%%"           # 전체
+    assert call["params"]["CTX_AREA_FK200"] == ""
+    assert call["params"]["CTX_AREA_NK200"] == ""
+    assert call["params"]["CANO"] == "12345678"
+    assert call["params"]["ACNT_PRDT_CD"] == "08"
+
+
+def test_daily_fills_sell_side():
+    fake = FakeTransport(response=_daily_fills_resp(rows=[_fill(side="01")]))
+    hist = _client(fake).account.daily_fills("20240201", "20240216")
+    assert hist.fills[0].side == "sell"                        # sll_buy_dvsn_cd 01 -> sell
+
+
+def test_daily_fills_paginates_and_reads_totals_first_page():
+    page1 = _daily_fills_resp(rows=[_fill(ccno="C0001", odno="0001")],
+                              ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    # 후속 페이지의 output2 는 무시된다(합계는 첫 페이지에서 완결).
+    page2 = _daily_fills_resp(rows=[_fill(ccno="C0002", odno="0002")],
+                              totals={"fm_tot_ccld_qty": "999"}, tr_cont="D")
+    fake = FakeTransport(by_path={_DAILY_FILLS_PATH: [page1, page2]})
+    hist = _client(fake).account.daily_fills("20240201", "20240216")
+    assert [f.fill_number for f in hist.fills] == ["C0001", "C0002"]
+    assert hist.total_fill_quantity == Decimal(5)              # 첫 페이지 output2
+    assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
+    assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
+    assert fake.calls[1]["tr_cont"] == "N"                     # 연속조회 헤더
+
+
+def test_daily_fills_skips_blank_identifier_row():
+    rows = [_fill(ccno="C0001", odno="0001"), _fill(ccno="", odno="")]
+    hist = _client(FakeTransport(response=_daily_fills_resp(rows=rows))).account.daily_fills(
+        "20240201", "20240216"
+    )
+    assert [f.fill_number for f in hist.fills] == ["C0001"]
+
+
+def test_daily_fills_missing_output1_raises():
+    body = {"output2": dict(_FILL_TOTALS), "ctx_area_nk200": "", "ctx_area_fk200": ""}
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont="D")
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp)).account.daily_fills("20240201", "20240216")
+
+
+def test_daily_fills_missing_output2_raises():
+    body = {"output1": [_fill()], "ctx_area_nk200": "", "ctx_area_fk200": ""}
+    resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont="D")
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=resp)).account.daily_fills("20240201", "20240216")
+
+
+def test_overseas_derivative_fill_history_entity_importable():
+    from kis_trader import OverseasDerivativeFill as ExportedFill
+    from kis_trader import OverseasDerivativeFillHistory as ExportedHistory
+
+    assert ExportedFill is not None
+    assert ExportedHistory is not None

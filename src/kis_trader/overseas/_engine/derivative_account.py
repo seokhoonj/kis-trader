@@ -22,6 +22,8 @@ from ...errors import KISError, KISUsageError
 from ...transport import Environment, Transport
 from ..entities.derivative_account import (
     OverseasDerivativeDeposit,
+    OverseasDerivativeFill,
+    OverseasDerivativeFillHistory,
     OverseasDerivativeMargin,
     OverseasDerivativeOrder,
     OverseasDerivativeOrderable,
@@ -47,6 +49,9 @@ _MARGIN_TR = "OTFM3115R"  # 해외선물옵션 증거금상세, 모의투자 미
 
 _TODAY_ORDERS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-ccld"
 _TODAY_ORDERS_TR = "OTFM3116R"  # 해외선물옵션 당일주문내역, 모의투자 미지원
+
+_DAILY_FILLS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-daily-ccld"
+_DAILY_FILLS_TR = "OTFM3122R"  # 해외선물옵션 일별체결내역, 모의투자 미지원
 #: 매도매수구분코드(SLL_BUY_DVSN_CD): 매수 02 / 매도 01.
 _SIDE_TO_SLL_BUY = {"buy": "02", "sell": "01"}
 
@@ -256,6 +261,127 @@ def _parse_today_orders(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativ
             )
         )
     return orders
+
+
+def fetch_daily_fills(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str,
+) -> OverseasDerivativeFillHistory:
+    """해외선물옵션 일별 체결내역(체결내역 output1 + 기간 합계 요약 output2). ``start``~``end``
+    (YYYYMMDD) 기간을 전체 통화("%%%")·전체 매매("%%")로 조회하고 연속조회로 체결을 소진까지
+    모은다(합계 요약은 첫 페이지에서 완결 -- 기간 단위라 페이지 불변). 연속조회 커서는 200폭
+    (CTX_AREA_FK200/NK200)이다. 금액·수량은 각 체결 통화의 Decimal(원화 아님).
+    **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "해외선물옵션 일별체결내역(inquire-daily-ccld)은 모의투자 미지원 -- 실전에서만."
+        )
+    _require_wire_date(start, "start")
+    _require_wire_date(end, "end")
+    rows: list[Mapping[str, Any]] = []
+    summary: Mapping[str, Any] | None = None
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_PAGES):
+        params = {
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "STRT_DT": start, "END_DT": end,
+            "FUOP_DVSN_CD": "00",     # 선물옵션구분 -- 00 전체
+            "FM_PDGR_CD": "",         # 상품군코드 -- 전체
+            "CRCY_CD": "%%%",         # 통화코드 -- %%% 전체
+            "FM_ITEM_FTNG_YN": "N",   # 종목합산여부 -- N
+            "SLL_BUY_DVSN_CD": "%%",  # 매도매수구분 -- %% 전체
+            "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
+        }
+        resp = transport.request(
+            method="GET", path=_DAILY_FILLS_PATH, tr_id=_DAILY_FILLS_TR,
+            params=params, idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        if summary is None:  # 합계 요약은 첫 페이지에서(기간 단위라 페이지 불변)
+            summary = _extract_summary(resp.body)
+        page = resp.body.get("output1")
+        if not isinstance(page, list):  # 빈 결과도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
+            raise KISError(
+                "해외선물옵션 일별체결내역 응답의 output1 이 체결내역 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"해외선물옵션 일별체결내역 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        )
+    if summary is None:
+        raise KISError("해외선물옵션 일별체결내역 응답에 합계 요약(output2)이 없다.")
+    return OverseasDerivativeFillHistory(
+        # 외화 합계 필드는 비어 올 수 있어 '없음=0'(field_decimal_or_zero)으로 읽되, 값이 있는데
+        # 파싱 실패면 여전히 예외로 fail-closed 한다.
+        total_fill_quantity=field_decimal_or_zero(summary.get("fm_tot_ccld_qty"), "fm_tot_ccld_qty"),
+        total_futures_amount=field_decimal_or_zero(
+            summary.get("fm_tot_futr_agrm_amt"), "fm_tot_futr_agrm_amt"
+        ),
+        total_options_amount=field_decimal_or_zero(
+            summary.get("fm_tot_opt_agrm_amt"), "fm_tot_opt_agrm_amt"
+        ),
+        total_fee=field_decimal_or_zero(summary.get("fm_fee_smtl"), "fm_fee_smtl"),
+        fills=tuple(_parse_fills(rows)),
+        _raw=summary,
+    )
+
+
+def _parse_fills(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativeFill]:
+    fills: list[OverseasDerivativeFill] = []
+    for row in rows:
+        if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
+            raise KISError("해외선물옵션 일별체결내역 응답 행이 매핑이 아니다.")
+        fill_number = str(row.get("ccno", "")).strip()
+        order_id = str(row.get("odno", "")).strip()
+        if not fill_number or not order_id:  # 체결번호·주문번호 없는 패딩 행 -- 건너뜀
+            continue
+        fills.append(
+            # 수량·금액은 빈 값을 0으로 읽되(외화 필드는 비어 올 수 있음), 값이 있는데 파싱 실패면
+            # 여전히 예외. 방향(side)은 식별자가 있는 행에서만 코드->buy/sell 로 fail-closed 변환.
+            OverseasDerivativeFill(
+                date=_parse_date(row.get("dt")),
+                fill_number=fill_number,
+                symbol=str(row.get("ovrs_futr_fx_pdno", "")).strip(),
+                side=_side_from_code(row.get("sll_buy_dvsn_cd")),
+                fill_quantity=field_decimal_or_zero(row.get("fm_ccld_qty"), "fm_ccld_qty"),
+                fill_amount=field_decimal_or_zero(row.get("fm_ccld_amt"), "fm_ccld_amt"),
+                currency=str(row.get("crcy_cd", "")).strip(),
+                fee=field_decimal_or_zero(row.get("fm_fee"), "fm_fee"),
+                order_date=_parse_date(row.get("ord_dt")),
+                order_id=order_id,
+                order_medium=str(row.get("ord_mdia_dvsn_name", "")).strip(),
+                _raw=row,
+            )
+        )
+    return fills
+
+
+def _extract_summary(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
+    """합계 요약(output2) -- KIS가 단일 객체로도, '길이 1 배열'로도 준다. 비매핑이면 None."""
+    summary = body.get("output2")
+    if isinstance(summary, list):
+        first = summary[0] if summary else None
+        return first if isinstance(first, Mapping) else None
+    if isinstance(summary, Mapping):
+        return summary
+    return None
+
+
+def _require_wire_date(value: str, field_name: str) -> None:
+    """조회 요청의 일자 파라미터를 와이어 이전에 검증한다 -- 8자리 숫자(YYYYMMDD)가 아니면
+    :class:`KISUsageError`. 잘못된 일자로 조회를 날리는 대신 호출 즉시 실패시킨다."""
+    if len(value) != 8 or not value.isdigit():
+        raise KISUsageError(
+            f"일자 파라미터 {field_name!r} 는 8자리 숫자(YYYYMMDD)여야 한다: {value!r}"
+        )
 
 
 def fetch_orderable(
