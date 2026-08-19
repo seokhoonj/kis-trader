@@ -547,16 +547,30 @@ class Order:
             elif self.division == "conditional_limit" and self.order_type != "limit":
                 raise KISUsageError("conditional_limit(조건부지정가)은 지정가(limit) 기반이어야 한다.")
 
-        # 장내채권 매도 lot 지목(BUY_DT/BUY_SEQ)은 채권(BOND) 주문 전용이다 -- 다른 거래소에 실리면
-        # 재사용 지문 슬롯(loan_date/derivative_item)을 오염시켜 무관한 주문의 dedup 정체성을 바꾸므로
-        # 생성 시점에 fail-closed. 채권 매도는 둘 다 있어야(부분 lot 은 무의미) 하고, BUY_DT 는 실재하는
-        # YYYYMMDD 여야 한다.
-        if (self.bond_buy_date or self.bond_buy_seq) and self.exchange != _BOND_EXCHANGE:
-            raise KISUsageError(
-                "bond_buy_date/bond_buy_seq 는 장내채권(BOND) 주문에만 줄 수 있다."
-            )
+        # 장내채권 매도 lot 지목(BUY_DT/BUY_SEQ)은 채권(BOND) **매도** 전용이다 -- 다른 거래소나
+        # 채권 매수에 실리면 재사용 지문 슬롯(loan_date/derivative_item)을 오염시켜 무관한 주문의 dedup
+        # 정체성을 바꾸므로 생성 시점에 fail-closed. 채권 매도는 둘 다 있어야(부분 lot 은 무의미) 하고,
+        # BUY_DT 는 실재하는 YYYYMMDD 여야 한다.
+        is_bond = self.exchange == _BOND_EXCHANGE
+        if self.bond_buy_date or self.bond_buy_seq:
+            if not (is_bond and self.side == "sell"):
+                raise KISUsageError(
+                    "bond_buy_date/bond_buy_seq 는 장내채권(BOND) 매도 주문에만 줄 수 있다."
+                )
+            if not (self.bond_buy_date and self.bond_buy_seq):
+                raise KISUsageError(
+                    "장내채권 매도는 매수 lot 의 bond_buy_date 와 bond_buy_seq 가 모두 필요하다."
+                )
         if self.bond_buy_date:
             validate_yyyymmdd(self.bond_buy_date, "bond_buy_date")
+        # 채권 지문은 매수 lot 을 loan_date 슬롯(BUY_DT)·derivative_item 슬롯(BUY_SEQ)에 재사용한다 --
+        # BOND 주문이 그 필드를 독립적으로 실으면(신용/파생 의미) 지문 정체성이 겹쳐, 서로 다른 lot 의
+        # 매도가 한 지문으로 붕괴해 둘째 매도를 오차단하는 collision 이 난다. BOND 는 credit_type/loan_date/
+        # derivative_item 를 가질 수 없다(생성 시점 fail-closed로 그 슬롯을 순수하게 lot 전용으로 남긴다).
+        if is_bond and (self.derivative_item or self.loan_date or self.credit_type):
+            raise KISUsageError(
+                "장내채권(BOND) 주문은 credit_type/loan_date/derivative_item 를 가질 수 없다."
+            )
 
         if self.board not in _DOMESTIC_BOARDS:
             raise KISUsageError(f"지원하지 않는 board: {self.board!r} (KRX/NXT/UN).")

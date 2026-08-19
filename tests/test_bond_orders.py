@@ -278,6 +278,33 @@ def test_bond_sell_lot_slots_are_bond_only():
               bond_buy_seq="1", client_order_id="c")
 
 
+def test_bond_lot_slots_rejected_on_bond_buy():
+    # lot 지목은 채권 **매도** 전용 -- 채권 매수에 lot 을 실으면 생성 시점에 거부.
+    with pytest.raises(KISUsageError, match="매도"):
+        _bond_order(side="buy", bond_buy_date="20240215", bond_buy_seq="1")
+
+
+@pytest.mark.parametrize(
+    "kw",
+    [
+        {"bond_buy_date": "20240215", "bond_buy_seq": ""},   # 순번 없음
+        {"bond_buy_date": "", "bond_buy_seq": "1"},          # 매수일 없음
+    ],
+)
+def test_bond_sell_requires_both_lot_fields(kw):
+    # 채권 매도는 매수 lot 의 두 필드(BUY_DT/BUY_SEQ)가 모두 있어야 -- 하나만 주면 생성 시점 fail-closed.
+    with pytest.raises(KISUsageError):
+        _bond_order(side="sell", **kw)
+
+
+def test_bond_forbids_stray_derivative_item():
+    # BOND 지문은 derivative_item 슬롯을 BUY_SEQ 로 재사용한다 -- 독립 derivative_item 이 실리면
+    # 서로 다른 lot 의 매도가 한 지문으로 붕괴하는 collision 이 나므로 생성 시점에 거부한다.
+    with pytest.raises(KISUsageError, match="derivative_item"):
+        _bond_order(side="sell", bond_buy_date="20240215", bond_buy_seq="1",
+                    derivative_item="02")
+
+
 def test_fingerprint_byte_compat_unchanged_for_existing_orders():
     # 채권 매수·주식·파생 주문은 lot 슬롯을 "" 로 두므로 온-디스크 16-슬롯 인코딩이 종전과 바이트
     # 동일해야 한다(loan_date 슬롯 idx9, derivative_item 슬롯 idx13 이 "").
@@ -345,11 +372,31 @@ def test_make_change_request_modify_body():
 
 
 def test_make_change_request_modify_requires_price():
-    # 채권 정정은 새 지정가(채권단가)가 필수 -- 없으면 fail-closed.
-    with pytest.raises(KISUsageError, match="지정가"):
+    # 채권 정정은 새 지정가(채권단가)가 필수 -- 없으면 공유 가격형상 헬퍼가 fail-closed.
+    with pytest.raises(KISUsageError, match="limit_price"):
         bond.make_change_request(
             original_report=_change_report(), original_fingerprint=_change_fp(),
             action="modify", quantity=Decimal(10), limit_price=None,
+            cano="8", product_code="03", environment="real",
+        )
+
+
+def test_make_change_request_modify_rejects_nonpositive_price():
+    # 0/음수 채권단가 정정은 와이어에 닿기 전에 거부한다(공유 reject_bad_change_price_shape).
+    with pytest.raises(KISUsageError, match="limit_price"):
+        bond.make_change_request(
+            original_report=_change_report(), original_fingerprint=_change_fp(),
+            action="modify", quantity=Decimal(10), limit_price=Decimal(0),
+            cano="8", product_code="03", environment="real",
+        )
+
+
+def test_make_change_request_cancel_rejects_price():
+    # 취소에 채권단가를 주는 것은 형상 위반 -- 공유 헬퍼가 거부한다.
+    with pytest.raises(KISUsageError, match="취소"):
+        bond.make_change_request(
+            original_report=_change_report(), original_fingerprint=_change_fp(),
+            action="cancel", quantity=Decimal(10), limit_price=Decimal(10000),
             cano="8", product_code="03", environment="real",
         )
 

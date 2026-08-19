@@ -441,6 +441,12 @@ def submit_change(
         rebound_report = replace(
             report, client_order_id=original_client_order_id,
             filled_quantity=Decimal(0), average_price=None,   # filled==0 => 평균가 없음(규약)
+            # 원주문일자(접수 응답의 자기 일자)는 같은 날 정정 전후로 불변이다 -- 정정 응답엔
+            # 이 값이 없어 새로 만든 리포트에선 None 이 되므로 원리포트 값을 이어붙인다. 안 그러면
+            # 해외선물옵션(OSFO) 재바인딩 주문이 receipt_date=None 이 되어 이후 취소가 원주문일자
+            # (ORGN_ORD_DT) 부재로 fail-closed 되어 영영 취소 불가가 된다. 이 키를 안 쓰는 자산은
+            # original_report.receipt_date 가 None 이라 재바인딩 리포트가 종전과 동일하다.
+            receipt_date=original_report.receipt_date,
         )
         rebind = Binding(rebound_report, resting_fingerprint)
     store.record_change(report, action_fingerprint, rebind=rebind)

@@ -151,8 +151,11 @@ def make_change_request(
         "FM_LQD_LMT_ORD_PRIC": "",                 # 헤지청산 지정가 -- 공란
         "FM_LQD_STOP_ORD_PRIC": "",                # 헤지청산 스탑가 -- 공란
         "FM_HDGE_ORD_SCRN_YN": "N",                # 헤지주문화면 아님
-        "FM_MKPR_CVSN_YN": "N",                    # 시장가 전환 아님(취소 전용 필드, 고정 "N")
     }
+    if action == "cancel":
+        # FM_MKPR_CVSN_YN(시장가 전환 여부)은 취소(OTFM3003U) 전용 필드다 -- 정정(OTFM3002U) 바디엔
+        # 넣지 않는다(명세상 정정 요청에 없는 필드라 전송하면 거부/오작동 위험).
+        body["FM_MKPR_CVSN_YN"] = "N"
     return WireRequest("POST", _CHANGE_PATH, _CHANGE_TR[action], body)
 
 

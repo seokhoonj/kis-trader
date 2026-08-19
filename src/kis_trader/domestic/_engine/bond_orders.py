@@ -1,9 +1,9 @@
-"""국내 장내채권 매수 주문 와이어 빌더 (내부) -- derivative_orders.py 의 형제.
+"""국내 장내채권 주문 와이어 빌더 (내부) -- derivative_orders.py 의 형제.
 
 주문 실행의 안전 규칙(이중체결 방지·쓰기 재시도 금지·보수적 재조회)은 국내주식·해외·파생과
 공유하는 안전 코어(:func:`~kis_trader.domestic._engine.orders.place`)가 맡는다. 이 모듈은 그
-코어에 ``build_request`` 로 주입할 **국내 장내채권(BOND) 매수 주문의 와이어 요청**만 조립한다 --
-순수 함수라 오케스트레이션 없이 단독 검증된다. 접수 응답(krx_fwdg_ord_orgno/odno/ord_tmd)은
+코어에 ``build_request`` 로 주입할 **국내 장내채권(BOND) 매수·매도·정정·취소의 와이어 요청**만
+조립한다 -- 순수 함수라 오케스트레이션 없이 단독 검증된다. 접수 응답(krx_fwdg_ord_orgno/odno/ord_tmd)은
 국내주식과 같은 표준 형상이라 안전 코어의 기본 output 파서를 그대로 쓴다(전용 파서 불필요).
 
 KIS URL/TR-ID (KIS 명세 대조, sheet '장내채권 매수주문'/'장내채권 매도주문'):
@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 
 from ..._internal._wire import format_wire_decimal
 from ...errors import KISUsageError, OrderError
-from ...order import _BOND_EXCHANGE, Order, WireRequest
+from ...order import _BOND_EXCHANGE, Order, WireRequest, reject_bad_change_price_shape
 
 if TYPE_CHECKING:
     from decimal import Decimal
@@ -142,8 +142,9 @@ def make_change_request(
     정정은 새 ``limit_price``(채권단가)가 필수이고, 취소는 원지문의 채권단가를 유지한다."""
     if environment == "paper":
         raise KISUsageError("장내채권 정정·취소는 모의투자 미지원 -- 실전에서만.")
-    if action == "modify" and limit_price is None:
-        raise KISUsageError("장내채권 정정은 새 지정가(채권단가)가 필요하다.")
+    # 채권은 지정가(채권단가) 전용이라 가격형상 규칙을 공유 헬퍼로 강제한다(정정=>0보다 큰 채권단가,
+    # 취소=>가격 없음) -- 0/음수/비유한 채권단가가 와이어에 닿기 전에 fail-closed 한다.
+    reject_bad_change_price_shape(action, limit_price)
     body = {
         "CANO": cano,
         "ACNT_PRDT_CD": product_code,

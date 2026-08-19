@@ -286,6 +286,8 @@ def test_make_change_request_modify_body():
     assert req.body["FM_LIMIT_ORD_PRIC"] == "1.20"
     assert req.body["ORGN_ORD_DT"] == "20260819"
     assert req.body["ORGN_ODNO"] == "0000007045"
+    # FM_MKPR_CVSN_YN 은 취소(OTFM3003U) 전용 필드 -- 정정 바디엔 실리지 않는다.
+    assert "FM_MKPR_CVSN_YN" not in req.body
 
 
 def test_make_change_request_fails_closed_when_receipt_date_missing():
@@ -335,6 +337,25 @@ def test_os_fo_modify_wire():
     assert call["tr_id"] == "OTFM3002U"
     assert call["body"]["FM_LIMIT_ORD_PRIC"] == "1.20"
     assert call["body"]["ORGN_ORD_DT"] == "20260819"
+
+
+def test_os_fo_modify_then_cancel_carries_receipt_date():
+    # 정정 응답엔 ORD_DT 가 없어 재바인딩 리포트의 receipt_date 가 None 이 되면, 이후 취소가
+    # 원주문일자(ORGN_ORD_DT) 부재로 fail-closed 되어 영영 취소 불가가 된다. 원리포트의 receipt_date
+    # 를 재바인딩에 이어붙여, 정정 후에도 취소가 원주문일자로 와이어에 닿아야 한다.
+    store = OrderStore()
+    cid = "20260819-osfomodcxl00001"
+    _client(FakeTransport(), store=store).overseas.futures("6BZ22").buy(
+        quantity=1, limit_price="1.17", client_order_id=cid)
+    change_t = FakeTransport(response=_CHANGE_ACCEPTED)
+    client = _client(change_t, store=store)
+    client.orders.modify(cid, limit_price="1.20")
+    client.orders.cancel(cid)
+    assert change_t.request_count == 2                    # 정정·취소 둘 다 와이어에 닿음
+    cancel_call = change_t.calls[-1]
+    assert cancel_call["tr_id"] == "OTFM3003U"
+    assert cancel_call["body"]["ORGN_ORD_DT"] == "20260819"  # 원 ORD_DT 가 정정 후에도 유지
+    assert cancel_call["body"]["ORGN_ODNO"] == "0000009999"  # 정정으로 채번된 새 ODNO
 
 
 def test_os_fo_change_paper_fails_closed():

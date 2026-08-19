@@ -393,7 +393,11 @@ class KISClient:
         self, client_order_id: str, *, action: ChangeAction, quantity: Numeric | None,
         limit_price: Numeric | None, request_id: str | None,
     ) -> ExecutionReport:
-        """접수된 국내·해외 주식 주문의 미체결 수량을 취소/정정한다(``kis.orders.cancel`` / ``.modify``)."""
+        """접수된 주문의 미체결 수량을 취소/정정한다(``kis.orders.cancel`` / ``.modify``).
+
+        국내·해외 주식, 국내 파생(XKFE), 국내 장내채권(BOND), 해외선물옵션(OSFO) 즉시주문과 아시아
+        해외예약(취소 전용)을 모두 처리한다 -- ``fingerprint`` 의 거래소/세션으로 자산별 정정·취소 와이어
+        빌더를 골라 공유 안전 코어(:func:`~kis_trader.domestic._engine.orders.submit_change`)에 넘긴다."""
         cano, product_code = self._require_account()
         fingerprint = self._store.fingerprint_for(client_order_id)
         report = self._store.report_for(client_order_id)
