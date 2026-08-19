@@ -366,3 +366,43 @@ class DerivativeDeposit:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class DerivativeNightBalance:
+    """(야간)선물옵션 잔고현황 -- 계좌 예수금·증거금·손익 요약과 보유내역 한 벌(불변).
+
+    주간 :class:`DerivativeBalance` 와 같은 요약 필드 집합(``total_deposit`` 총예수금액,
+    ``deposit_cash`` 예수금현금, ``total_margin`` 증거금총액, ``orderable_cash`` /
+    ``orderable_total`` 주문가능현금/총액, 평가·매매손익 합계·선물/옵션 분해, ``account_value``
+    추정예탁자산)에 야간 전용 필드를 더한다: ``maintenance_ratio`` 유지비율, ``shortage_amount``
+    부족금액, ``maintenance_margin_total`` / ``maintenance_margin_cash`` 유지증거금총금액/현금금액.
+    보유내역은 주간과 같은 :class:`DerivativePosition` 이다. ``account_value`` 는 이 야간
+    엔드포인트에선 추정예탁자산(prsm_dpast) -- 주간 잔고의 prsm_dpast_amt 와 필드명이 다르다.
+    타입화하지 않은 요약 필드는 ``_raw`` 로 접근한다.
+    """
+
+    positions: tuple[DerivativePosition, ...]  # 보유내역(output1)
+    total_deposit: Decimal                # 총예수금액(tot_dncl_amt)
+    deposit_cash: Decimal                 # 예수금현금(dnca_cash)
+    total_margin: Decimal                 # 증거금총액(mgna_tota)
+    orderable_cash: Decimal               # 주문가능현금(ord_psbl_cash)
+    orderable_total: Decimal              # 주문가능총액(ord_psbl_tota)
+    total_unrealized_pnl: Decimal         # 평가손익금액합계(evlu_pfls_amt_smtl)
+    total_realized_pnl: Decimal           # 매매손익금액합계(trad_pfls_amt_smtl)
+    futures_unrealized_pnl: Decimal       # 선물평가손익금액(futr_evlu_pfls_amt)
+    options_unrealized_pnl: Decimal       # 옵션평가손익금액(opt_evlu_pfls_amt)
+    futures_realized_pnl: Decimal         # 선물매매손익금액(futr_trad_pfls_amt)
+    options_realized_pnl: Decimal         # 옵션매매손익금액(opt_trad_pfls_amt)
+    account_value: Decimal                # 추정예탁자산(prsm_dpast)
+    maintenance_ratio: Decimal            # 유지비율(mtnc_rt)
+    shortage_amount: Decimal              # 부족금액(isfc_amt)
+    maintenance_margin_total: Decimal     # 유지증거금총금액(mmga_tot_amt)
+    maintenance_margin_cash: Decimal      # 유지증거금현금금액(mmga_cash_amt)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "positions", tuple(self.positions))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

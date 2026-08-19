@@ -71,9 +71,10 @@ def _balance_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont="D")
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
 
 
-def _client(transport, *, environment="paper", account="12345678-03"):
+def _client(transport, *, environment="paper", account="12345678-03", account_password=None):
     return KISClient(app_key="k", app_secret="s", account=account,
-                     environment=environment, transport=transport)
+                     environment=environment, transport=transport,
+                     account_password=account_password)
 
 
 def test_derivative_balance_parses_and_routes():
@@ -656,3 +657,122 @@ def test_commissions_page_cap_fails_closed():
     never_ends = _commissions_resp(rows=[_commission()], ctx_nk="NEXT", ctx_fk="FK", tr_cont="M")
     with pytest.raises(KISError):
         _client(FakeTransport(response=never_ends), environment="real").account.commissions("20240201", "20240229")
+
+
+# --- (야간)선물옵션 잔고현황 (CTFN6118R, 계좌비밀번호 필요) ----------------------
+_NIGHT_BALANCE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-ngt-balance"
+
+# output2 는 주간 잔고 요약 + 야간 전용 필드. 추정예탁자산은 prsm_dpast(주간의 prsm_dpast_amt 아님).
+_NIGHT_SUMMARY = {
+    "tot_dncl_amt": "50000000", "dnca_cash": "48000000", "mgna_tota": "20000000",
+    "ord_psbl_cash": "30000000", "ord_psbl_tota": "31000000",
+    "evlu_pfls_amt_smtl": "12345", "trad_pfls_amt_smtl": "6789",
+    "futr_evlu_pfls_amt": "12345", "opt_evlu_pfls_amt": "0",
+    "futr_trad_pfls_amt": "6789", "opt_trad_pfls_amt": "0",
+    "prsm_dpast": "51000000",
+    "mtnc_rt": "418.23000000", "isfc_amt": "0",
+    "mmga_tot_amt": "19000000", "mmga_cash_amt": "17000000",
+}
+
+
+def _night_balance_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont="D"):
+    body = {"output1": rows if rows is not None else [],
+            "output2": summary if summary is not None else dict(_NIGHT_SUMMARY),
+            "ctx_area_nk200": ctx_nk, "ctx_area_fk200": ctx_fk}
+    return RawResponse(rt_cd="0", msg_cd="KIOK0510", msg1="정상", body=body, tr_cont=tr_cont)
+
+
+def test_night_balance_parses_and_routes():
+    from kis_trader.domestic.entities.derivative_account import DerivativeNightBalance
+
+    fake = FakeTransport(response=_night_balance_resp(rows=[_position()]))
+    kis = _client(fake, environment="real", account_password="testpw")
+    bal = kis.account.night_balance()
+    assert isinstance(bal, DerivativeNightBalance)
+    assert bal.positions[0].symbol == "101W09"           # shtn_pdno
+    assert bal.positions[0].isin == "KR4101RC0000"       # pdno
+    assert bal.positions[0].quantity == Decimal(3)       # cblc_qty
+    assert bal.total_margin == Decimal(20000000)         # mgna_tota
+    assert bal.total_unrealized_pnl == Decimal(12345)    # evlu_pfls_amt_smtl
+    assert bal.account_value == Decimal(51000000)        # prsm_dpast (NOT prsm_dpast_amt)
+    assert bal.maintenance_ratio == Decimal("418.23000000")  # mtnc_rt
+    assert bal.shortage_amount == Decimal(0)             # isfc_amt
+    assert bal.maintenance_margin_total == Decimal(19000000)  # mmga_tot_amt
+    assert bal.maintenance_margin_cash == Decimal(17000000)   # mmga_cash_amt
+    call = fake.calls[0]
+    assert call["tr_id"] == "CTFN6118R"
+    assert call["path"].endswith("inquire-ngt-balance")
+    assert call["params"]["ACNT_PWD"] == "testpw"        # 세션 계좌비밀번호가 실려야 한다
+    assert call["params"]["MGNA_DVSN"] == "01"
+    assert call["params"]["EXCC_STAT_CD"] == "1"
+    assert call["params"]["CTX_AREA_FK200"] == ""
+    assert call["params"]["CTX_AREA_NK200"] == ""
+    assert call["params"]["CANO"] == "12345678"
+
+
+def test_night_balance_paper_fails_closed():
+    fake = FakeTransport(response=_night_balance_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper", account_password="testpw").account.night_balance()
+    assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
+
+
+def test_night_balance_no_password_fails_closed():
+    fake = FakeTransport(response=_night_balance_resp())
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="real").account.night_balance()  # 비밀번호 미설정
+    assert fake.calls == []  # 비밀번호 가드도 와이어 이전 -- 호출 없음
+
+
+def test_night_balance_paginates():
+    page1 = _night_balance_resp(rows=[_position("101W09")], ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    page2 = _night_balance_resp(rows=[_position("201X12", pdno="KR4201RC0000")], tr_cont="D")
+    fake = FakeTransport(by_path={_NIGHT_BALANCE_PATH: [page1, page2]})
+    bal = _client(
+        fake, environment="real", account_password="testpw"
+    ).account.night_balance()
+    assert [p.symbol for p in bal.positions] == ["101W09", "201X12"]
+    assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
+    assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
+    assert fake.calls[1]["tr_cont"] == "N"    # 연속조회 헤더
+
+
+def test_night_balance_missing_output2_raises():
+    resp = RawResponse(rt_cd="0", msg_cd="KIOK0510", msg1="정상",
+                       body={"output1": [], "ctx_area_nk200": "", "ctx_area_fk200": ""})
+    with pytest.raises(KISError):
+        _client(
+            FakeTransport(response=resp), environment="real", account_password="testpw"
+        ).account.night_balance()
+
+
+def test_night_balance_password_never_leaks():
+    # 성공 결과의 repr 에도, 파싱 실패 예외 메시지에도 비밀번호가 새면 안 된다.
+    secret = "SUPERSECRET42"
+    ok = _client(
+        FakeTransport(response=_night_balance_resp(rows=[_position()])),
+        environment="real", account_password=secret,
+    ).account.night_balance()
+    assert secret not in repr(ok)
+    assert secret not in repr(ok.positions[0])
+    resp = RawResponse(rt_cd="0", msg_cd="KIOK0510", msg1="정상",
+                       body={"output1": [], "ctx_area_nk200": "", "ctx_area_fk200": ""})
+    with pytest.raises(KISError) as exc:
+        _client(
+            FakeTransport(response=resp), environment="real", account_password=secret
+        ).account.night_balance()
+    assert secret not in str(exc.value)
+
+
+def test_night_balance_non_mapping_row_raises():
+    with pytest.raises(KISError):
+        _client(
+            FakeTransport(response=_night_balance_resp(rows=[None])),
+            environment="real", account_password="testpw",
+        ).account.night_balance()
+
+
+def test_night_balance_entities_importable():
+    from kis_trader import DerivativeNightBalance
+
+    assert DerivativeNightBalance is not None

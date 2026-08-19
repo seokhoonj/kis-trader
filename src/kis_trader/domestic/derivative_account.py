@@ -13,6 +13,7 @@ from ._engine.derivative_account import (
     fetch_base_date_fills,
     fetch_commissions,
     fetch_deposit,
+    fetch_night_balance,
     fetch_settlement_pl,
     fetch_valuation_pl,
 )
@@ -21,6 +22,7 @@ from .entities.derivative_account import (
     DerivativeCommissionHistory,
     DerivativeDeposit,
     DerivativeFillHistory,
+    DerivativeNightBalance,
     DerivativeSettlementBalance,
     DerivativeValuationBalance,
 )
@@ -98,6 +100,20 @@ class DomesticDerivativesAccount:
         return fetch_commissions(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment, start=start, end=end,
+        )
+
+    def night_balance(self) -> DerivativeNightBalance:
+        """(야간)선물옵션 잔고현황(보유내역 + 예수금·증거금·손익 요약 + 야간 전용 유지증거금).
+
+        ``GET .../domestic-futureoption/v1/trading/inquire-ngt-balance`` (``CTFN6118R``).
+        계좌비밀번호(ACNT_PWD)가 필요해 세션에서 읽어 전달한다 -- 비밀번호가 없으면
+        :class:`KISUsageError`, 값 자체는 절대 노출하지 않는다. **실전전용**(모의투자 미지원).
+        """
+        cano, product_code = self._client._require_account()
+        account_password = self._client._require_account_password()
+        return fetch_night_balance(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, account_password=account_password,
         )
 
     def deposit(self) -> DerivativeDeposit:

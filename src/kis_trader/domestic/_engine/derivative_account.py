@@ -27,6 +27,7 @@ from ..entities.derivative_account import (
     DerivativeDeposit,
     DerivativeFill,
     DerivativeFillHistory,
+    DerivativeNightBalance,
     DerivativeOrderable,
     DerivativePosition,
     DerivativeSettlementBalance,
@@ -58,6 +59,9 @@ _BASE_DATE_FILLS_TR = "CTFO5139R"  # 선물옵션 기준일체결내역, 모의�
 
 _COMMISSIONS_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-daily-amount-fee"
 _COMMISSIONS_TR = "CTFO6119R"  # 선물옵션 기간약정수수료일별, 모의투자 미지원
+
+_NIGHT_BALANCE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-ngt-balance"
+_NIGHT_BALANCE_TR = "CTFN6118R"  # (야간)선물옵션 잔고현황, 모의투자 미지원
 
 _ORDERABLE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-psbl-order"
 _ORDERABLE_TR = {"real": "TTTO5105R", "paper": "VTTO5105R"}
@@ -156,6 +160,71 @@ def fetch_deposit(
         account_value=required_decimal(output.get("prsm_dpast_amt"), "prsm_dpast_amt"),
         receivable=required_decimal(output.get("rcva"), "rcva"),
         _raw=output,
+    )
+
+
+def fetch_night_balance(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    account_password: str,
+) -> DerivativeNightBalance:
+    """(야간)선물옵션 잔고현황(보유내역 output1 + 계좌 요약 output2). 주간 :func:`fetch_balance`
+    과 같은 보유내역/요약 형태에 야간 전용 요약 필드(유지비율·부족금액·유지증거금)를 더한다.
+    연속조회로 보유내역을 소진까지 모으고 계좌 요약은 첫 페이지에서 완결한다(계좌 단위라 페이지 불변).
+    ``account_password`` 는 ``ACNT_PWD`` 로만 쓰이고 로깅/예외 메시지/``_raw`` 어디에도 담지 않는다.
+    **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "(야간)선물옵션 잔고현황(inquire-ngt-balance)은 모의투자 미지원 -- 실전에서만."
+        )
+    rows: list[Mapping[str, Any]] = []
+    summary: Mapping[str, Any] | None = None
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_BALANCE_PAGES):
+        resp = _fetch_night_balance_page(
+            transport, cano=cano, product_code=product_code, account_password=account_password,
+            ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        if summary is None:  # 계좌 요약은 첫 페이지에서(계좌 단위라 페이지 불변)
+            summary = _extract_summary(resp.body)
+        page = resp.body.get("output1")
+        if not isinstance(page, list):  # 빈 계좌도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
+            raise KISError(
+                "(야간)선물옵션 잔고현황 응답의 output1 이 보유내역 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"(야간)선물옵션 잔고현황 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 "
+            f"연속조회가 남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        )
+    if summary is None:
+        raise KISError("(야간)선물옵션 잔고현황 응답에 계좌 요약(output2)이 없다.")
+    return DerivativeNightBalance(
+        positions=tuple(_parse_positions(rows)),
+        total_deposit=required_decimal(summary.get("tot_dncl_amt"), "tot_dncl_amt"),
+        deposit_cash=required_decimal(summary.get("dnca_cash"), "dnca_cash"),
+        total_margin=required_decimal(summary.get("mgna_tota"), "mgna_tota"),
+        orderable_cash=required_decimal(summary.get("ord_psbl_cash"), "ord_psbl_cash"),
+        orderable_total=required_decimal(summary.get("ord_psbl_tota"), "ord_psbl_tota"),
+        total_unrealized_pnl=required_decimal(summary.get("evlu_pfls_amt_smtl"), "evlu_pfls_amt_smtl"),
+        total_realized_pnl=required_decimal(summary.get("trad_pfls_amt_smtl"), "trad_pfls_amt_smtl"),
+        futures_unrealized_pnl=required_decimal(summary.get("futr_evlu_pfls_amt"), "futr_evlu_pfls_amt"),
+        options_unrealized_pnl=required_decimal(summary.get("opt_evlu_pfls_amt"), "opt_evlu_pfls_amt"),
+        futures_realized_pnl=required_decimal(summary.get("futr_trad_pfls_amt"), "futr_trad_pfls_amt"),
+        options_realized_pnl=required_decimal(summary.get("opt_trad_pfls_amt"), "opt_trad_pfls_amt"),
+        account_value=required_decimal(summary.get("prsm_dpast"), "prsm_dpast"),
+        maintenance_ratio=required_decimal(summary.get("mtnc_rt"), "mtnc_rt"),
+        shortage_amount=required_decimal(summary.get("isfc_amt"), "isfc_amt"),
+        maintenance_margin_total=required_decimal(summary.get("mmga_tot_amt"), "mmga_tot_amt"),
+        maintenance_margin_cash=required_decimal(summary.get("mmga_cash_amt"), "mmga_cash_amt"),
+        _raw=summary,
     )
 
 
@@ -479,6 +548,24 @@ def _fetch_balance_page(
     }
     return transport.request(
         method="GET", path=_BALANCE_PATH, tr_id=_BALANCE_TR[environment],
+        params=params, idempotent=True, tr_cont=tr_cont,
+    )
+
+
+def _fetch_night_balance_page(
+    transport: Transport, *, cano: str, product_code: str, account_password: str,
+    ctx_fk: str, ctx_nk: str, tr_cont: str = "",
+) -> RawResponse:
+    # ACNT_PWD 는 이 params 안에서만 쓰이고 어디에도 로깅/보관하지 않는다(비밀값).
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "ACNT_PWD": account_password,
+        "MGNA_DVSN": "01",    # 증거금구분 -- 01 개시
+        "EXCC_STAT_CD": "1",  # 정산상태 -- 1 정산
+        "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
+    }
+    return transport.request(
+        method="GET", path=_NIGHT_BALANCE_PATH, tr_id=_NIGHT_BALANCE_TR,
         params=params, idempotent=True, tr_cont=tr_cont,
     )
 
