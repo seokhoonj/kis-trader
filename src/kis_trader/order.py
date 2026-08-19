@@ -318,6 +318,11 @@ _DERIVATIVE_EXCHANGE = "XKFE"
 #: 온-디스크 지문에선 기존 exchange 슬롯의 한 값(새 슬롯·스키마 증가 없음)이라 기존 주문 지문과
 #: 바이트 호환을 유지한다.
 _BOND_EXCHANGE = "BOND"
+#: 해외선물옵션(08) 주문의 라우팅 마커. 해외 파생은 통화별로 유일한 종목코드(OVRS_FUTR_FX_PDNO,
+#: 예: "6BZ22")로 거래하고 국내 거래소 MIC 가 없어, 현금·파생·채권과 같은 Order/지문/스토어를
+#: 재사용하되 이 exchange 값으로 해외선물옵션 와이어 빌더로 라우팅을 가른다. 온-디스크 지문에선
+#: 기존 exchange 슬롯의 한 값(새 슬롯·스키마 증가 없음)이라 기존 주문 지문과 바이트 호환을 유지한다.
+_OVERSEAS_FO_EXCHANGE = "OSFO"
 #: 국내 보드(NXT/UN)별 **미지원** 주문구분 base(= division 있으면 그것, 없으면 order_type). KIS 명세 대조:
 #: NXT 는 시장가(market)·조건부(conditional_limit) 미지원, SOR(UN)은 조건부 미지원(KRX 는 전부 지원).
 #: blocklist 라 여기 없는 base(stop 등 Tier 2/미매핑)는 이 검증이 아니라 와이어 빌더에서 판정한다.

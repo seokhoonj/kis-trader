@@ -202,6 +202,10 @@ def place(
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
 
+    # 접수 응답의 주문일자(ORD_DT)가 있으면 리포트에 영속한다 -- 해외선물옵션(OTFM3001U)은 이후
+    # 정정·취소가 원주문일자(ORGN_ORD_DT)로 대상을 특정하므로 접수 시점에 잡아 둔다. 국내주식/파생/
+    # 채권 응답 output 엔 ORD_DT 가 없어 None 이 되고(receipt_date 기본값과 동일) 기존 동작은 불변이다.
+    receipt = output.get("ORD_DT")
     report = ExecutionReport(
         client_order_id=client_order_id,
         order_id=str(order_id),
@@ -212,6 +216,7 @@ def place(
         average_price=None,
         recorded_at=datetime.now(_KST),
         organization_number=_extract_organization_number(output),
+        receipt_date=str(receipt) if receipt else None,
         _raw=resp.body,
     )
     store.record(report, fingerprint)

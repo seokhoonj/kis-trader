@@ -43,6 +43,7 @@ from .order import (
     coerce_decimal,
     mint_client_order_id,
 )
+from .overseas._engine import derivative_orders as overseas_deriv_orders_engine
 from .overseas._engine import orders as overseas_orders_engine
 from .overseas._engine import reserved_orders as overseas_reserved_orders_api
 from .overseas.derivative_account import OverseasDerivativesAccount
@@ -514,6 +515,23 @@ class KISClient:
                 )
             # 접수 응답은 국내주식과 같은 표준 형상이라 기본 output 파서를 쓴다(extract_output=None).
             build_request = bond_orders_engine.make_order_request
+        elif overseas_deriv_orders_engine.is_overseas_fo_exchange(order.exchange):
+            # 해외선물옵션(OTFM3001U)은 모의투자 미지원 -- claim/빌드 전에 조기 거부(paper 발주 도달
+            # 차단). 빌더도 같은 거부를 하지만, 라우팅 자리에서 먼저 막아 client_order_id 를
+            # 소비하지 않는다.
+            if self._environment == "paper":
+                raise KISUsageError("해외선물옵션 주문은 모의투자 미지원 -- 실전에서만.")
+            # 해외선물옵션 리스크는 참조가(국내 주식 시세) 기반 검사(notional/collar/tick)가 의미
+            # 없어(해외·채권과 같은 이유), 리스크가 켜진 세션에선 명확히 거부한다.
+            if risk is not None:
+                raise KISUsageError(
+                    "해외선물옵션 주문엔 사전 리스크 게이트가 미지원이다(참조가 기반 검사가 의미 "
+                    "없음) -- risk 없는 세션에서 내거나 국내 주식 주문에만 risk 를 쓰라."
+                )
+            # 안전 코어(place)는 공유, 와이어 조립기와 엄격 output 파서(ORD_DT->receipt_date /
+            # ODNO->order_id)만 해외선물옵션용으로.
+            build_request = overseas_deriv_orders_engine.make_order_request
+            extract_output = overseas_deriv_orders_engine.extract_output
         elif order.credit_type is not None:
             # 국내 신용주문 -- 안전 코어(place)는 공유, 와이어 조립기만 신용용으로. risk 는 국내라
             # 그대로 적용된다(참조가=국내 시세).
