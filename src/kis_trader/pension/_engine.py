@@ -12,6 +12,7 @@ from datetime import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from .._internal._response import _require_mapping_rows
 from .._internal._wire import field_decimal_or_zero, format_wire_decimal
 from ..domestic.entities.balance import Position
 from ..errors import KISError, KISUsageError
@@ -184,13 +185,7 @@ def _walk_holdings(
             )
         if summary is None:
             summary = _extract_summary(resp.body, is_list=summary_is_list)
-        page = resp.body.get(output_key)
-        if not isinstance(page, list):
-            raise KISError(
-                f"퇴직연금 {label} 응답의 {output_key} 이 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
+        rows.extend(_require_mapping_rows(output_key, resp))
         if resp.tr_cont not in ("F", "M"):
             break
         next_nk = str(resp.body.get("ctx_area_nk100") or "").strip()

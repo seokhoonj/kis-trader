@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from ..._internal._datetime import parse_optional_kst_date
-from ..._internal._response import _fetch_paginated_rows, _raise_if_error
+from ..._internal._response import _fetch_paginated_rows, _raise_if_error, _require_mapping_rows
 from ..._internal._wire import (
     format_wire_decimal,
     optional_decimal,
@@ -234,12 +234,7 @@ def fetch_foreign_margin(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):  # 빈 계좌도 배열 -> 부재/비배열은 손상
-        raise KISError(
-            "해외증거금 응답의 output 이 배열이 아니다.",
-            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-        )
+    rows = _require_mapping_rows("output", resp)
     margins: list[OverseasForeignMargin] = []
     for row in rows:
         currency = str(row.get("crcy_cd", "")).strip()
@@ -375,13 +370,7 @@ def fetch_period_profit(
             params=params, idempotent=True, tr_cont=tr_cont,
         )
         _raise_if_error(resp)
-        page = resp.body.get("output1")
-        if not isinstance(page, list):
-            raise KISError(
-                "해외 기간손익 응답의 output1 이 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
+        rows.extend(_require_mapping_rows("output1", resp))
         summary = _first_object(resp.body.get("output2")) or summary
         if resp.tr_cont not in ("F", "M"):
             break

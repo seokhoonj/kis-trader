@@ -16,8 +16,8 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from ..._internal._response import (
-    _missing_block_error,
     _raise_if_error,
+    _require_mapping_rows,
 )
 from ..._internal._wire import optional_decimal, required_decimal
 from ...transport import Transport
@@ -51,10 +51,7 @@ def _fetch_finance(
     }
     resp = transport.request(method="GET", path=path, tr_id=tr, params=params, idempotent=True)
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
-    return rows
+    return _require_mapping_rows("output", resp)
 
 
 def fetch_balance_sheet(

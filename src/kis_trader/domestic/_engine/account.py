@@ -17,7 +17,7 @@ from datetime import date, time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from ..._internal._response import _fetch_paginated_rows, _raise_if_error
+from ..._internal._response import _fetch_paginated_rows, _raise_if_error, _require_mapping_rows
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
 from ...open_order import OpenOrder
@@ -129,13 +129,7 @@ def _walk_holdings(
         _raise_if_error(resp)
         if summary is None:  # 계좌 요약은 첫 페이지에서(계좌 단위라 페이지 불변)
             summary = _extract_summary(resp.body)
-        page = resp.body.get("output1")
-        if not isinstance(page, list):  # 빈 계좌도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
-            raise KISError(
-                "잔고 응답의 output1 이 종목 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
+        rows.extend(_require_mapping_rows("output1", resp))
         if resp.tr_cont not in ("F", "M"):
             break
         ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
