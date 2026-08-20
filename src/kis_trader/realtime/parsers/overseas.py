@@ -73,12 +73,12 @@ class OrderBook:
     local_time: str
     korea_date: str
     korea_time: str
-    total_bid_volume: Decimal
-    total_ask_volume: Decimal
+    total_bid_quantity: Decimal
+    total_ask_quantity: Decimal
     best_bid: Decimal
     best_ask: Decimal
-    best_bid_volume: Decimal
-    best_ask_volume: Decimal
+    best_bid_quantity: Decimal
+    best_ask_quantity: Decimal
     _raw: Mapping[str, Any] = _raw_field()
 
 
@@ -93,12 +93,12 @@ def parse_orderbook(fields: list[str]) -> OrderBook:
         local_time=raw["XHMS"],
         korea_date=raw["KYMD"],
         korea_time=raw["KHMS"],
-        total_bid_volume=_decimal(raw["BVOL"]),
-        total_ask_volume=_decimal(raw["AVOL"]),
+        total_bid_quantity=_decimal(raw["BVOL"]),
+        total_ask_quantity=_decimal(raw["AVOL"]),
         best_bid=_decimal(raw["PBID1"]),
         best_ask=_decimal(raw["PASK1"]),
-        best_bid_volume=_decimal(raw["VBID1"]),
-        best_ask_volume=_decimal(raw["VASK1"]),
+        best_bid_quantity=_decimal(raw["VBID1"]),
+        best_ask_quantity=_decimal(raw["VASK1"]),
         _raw=raw,
     )
 
@@ -312,9 +312,9 @@ class FuturesOrderBook:
     recv_time: str
     prev_close: Decimal
     best_bid: Decimal
-    best_bid_volume: Decimal
+    best_bid_quantity: Decimal
     best_ask: Decimal
-    best_ask_volume: Decimal
+    best_ask_quantity: Decimal
     settlement_price: Decimal
     _raw: Mapping[str, Any] = _raw_field()
 
@@ -328,9 +328,9 @@ def parse_futures_orderbook(fields: list[str]) -> FuturesOrderBook:
         recv_time=raw["RECV_TIME"],
         prev_close=_decimal(raw["PREV_PRICE"]),
         best_bid=_decimal(raw["BID_PRICE_1"]),
-        best_bid_volume=_decimal(raw["BID_QNTT_1"]),
+        best_bid_quantity=_decimal(raw["BID_QNTT_1"]),
         best_ask=_decimal(raw["ASK_PRICE_1"]),
-        best_ask_volume=_decimal(raw["ASK_QNTT_1"]),
+        best_ask_quantity=_decimal(raw["ASK_QNTT_1"]),
         settlement_price=_decimal(raw["STTL_PRICE"]),
         _raw=raw,
     )
@@ -489,12 +489,12 @@ class AsiaDelayedOrderBook:
     local_time: str
     korea_date: str
     korea_time: str
-    total_bid_volume: Decimal
-    total_ask_volume: Decimal
+    total_bid_quantity: Decimal
+    total_ask_quantity: Decimal
     best_bid: Decimal
     best_ask: Decimal
-    best_bid_volume: Decimal
-    best_ask_volume: Decimal
+    best_bid_quantity: Decimal
+    best_ask_quantity: Decimal
     _raw: Mapping[str, Any] = _raw_field()
 
 
@@ -509,12 +509,12 @@ def parse_asia_orderbook(fields: list[str]) -> AsiaDelayedOrderBook:
         local_time=raw["XHMS"],
         korea_date=raw["KYMD"],
         korea_time=raw["KHMS"],
-        total_bid_volume=_decimal(raw["BVOL"]),
-        total_ask_volume=_decimal(raw["AVOL"]),
+        total_bid_quantity=_decimal(raw["BVOL"]),
+        total_ask_quantity=_decimal(raw["AVOL"]),
         best_bid=_decimal(raw["PBID1"]),
         best_ask=_decimal(raw["PASK1"]),
-        best_bid_volume=_decimal(raw["VBID1"]),
-        best_ask_volume=_decimal(raw["VASK1"]),
+        best_bid_quantity=_decimal(raw["VBID1"]),
+        best_ask_quantity=_decimal(raw["VASK1"]),
         _raw=raw,
     )
 

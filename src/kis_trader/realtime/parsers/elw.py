@@ -101,7 +101,7 @@ def _ladder(raw: Mapping[str, str], prefix: str, levels: int = 10) -> tuple[Deci
 class OrderBook:
     """ELW 실시간호가(H0EWASP0). 매도/매수 10호가 사다리와 잔량, LP 총잔량, 예상체결.
 
-    ``ask_prices``/``bid_prices`` 와 ``ask_volumes``/``bid_volumes`` 는 1~10호가를 순서대로 담은
+    ``ask_prices``/``bid_prices`` 와 ``ask_quantities``/``bid_quantities`` 는 1~10호가를 순서대로 담은
     길이 10 튜플이다. 전체 73개 필드(개별 LP 잔량 포함)는 ``_raw`` 에 Element 이름으로 있다.
     """
 
@@ -110,17 +110,17 @@ class OrderBook:
     hour_class: str  # 시간구분코드
     ask_prices: tuple[Decimal, ...]  # ASKP1..10
     bid_prices: tuple[Decimal, ...]  # BIDP1..10
-    ask_volumes: tuple[Decimal, ...]  # ASKP_RSQN1..10
-    bid_volumes: tuple[Decimal, ...]  # BIDP_RSQN1..10
-    total_ask_volume: Decimal
-    total_bid_volume: Decimal
+    ask_quantities: tuple[Decimal, ...]  # ASKP_RSQN1..10
+    bid_quantities: tuple[Decimal, ...]  # BIDP_RSQN1..10
+    total_ask_quantity: Decimal
+    total_bid_quantity: Decimal
     expected_price: Decimal  # 예상체결가
     expected_volume: Decimal  # 예상체결량
     expected_change_sign: str  # 1상한 2상승 3보합 4하한 5하락
     expected_change: Decimal
     expected_change_percent: Decimal
-    lp_total_ask_volume: Decimal  # LP 총매도호가잔량
-    lp_total_bid_volume: Decimal  # LP 총매수호가잔량
+    lp_total_ask_quantity: Decimal  # LP 총매도호가잔량
+    lp_total_bid_quantity: Decimal  # LP 총매수호가잔량
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -238,17 +238,17 @@ def parse_order_book(fields: list[str]) -> OrderBook:
         hour_class=raw["HOUR_CLS_CODE"],
         ask_prices=_ladder(raw, "ASKP"),
         bid_prices=_ladder(raw, "BIDP"),
-        ask_volumes=_ladder(raw, "ASKP_RSQN"),
-        bid_volumes=_ladder(raw, "BIDP_RSQN"),
-        total_ask_volume=_decimal(raw["TOTAL_ASKP_RSQN"]),
-        total_bid_volume=_decimal(raw["TOTAL_BIDP_RSQN"]),
+        ask_quantities=_ladder(raw, "ASKP_RSQN"),
+        bid_quantities=_ladder(raw, "BIDP_RSQN"),
+        total_ask_quantity=_decimal(raw["TOTAL_ASKP_RSQN"]),
+        total_bid_quantity=_decimal(raw["TOTAL_BIDP_RSQN"]),
         expected_price=_decimal(raw["ANTC_CNPR"]),
         expected_volume=_decimal(raw["ANTC_CNQN"]),
         expected_change_sign=raw["ANTC_CNTG_VRSS_SIGN"],
         expected_change=_decimal(raw["ANTC_CNTG_VRSS"]),
         expected_change_percent=_decimal(raw["ANTC_CNTG_PRDY_CTRT"]),
-        lp_total_ask_volume=_decimal(raw["LP_TOTAL_ASKP_RSQN"]),
-        lp_total_bid_volume=_decimal(raw["LP_TOTAL_BIDP_RSQN"]),
+        lp_total_ask_quantity=_decimal(raw["LP_TOTAL_ASKP_RSQN"]),
+        lp_total_bid_quantity=_decimal(raw["LP_TOTAL_BIDP_RSQN"]),
         _raw=raw,
     )
 

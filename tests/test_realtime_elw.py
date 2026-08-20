@@ -65,19 +65,19 @@ def test_parse_order_book_maps_headline_fields():
     assert ob.hour_class == "0"
     assert ob.ask_prices == tuple(Decimal(100 + i) for i in range(1, 11))
     assert ob.bid_prices == tuple(Decimal(90 - i) for i in range(1, 11))
-    assert ob.ask_volumes == tuple(Decimal(1000 + i) for i in range(1, 11))
-    assert ob.bid_volumes == tuple(Decimal(2000 + i) for i in range(1, 11))
+    assert ob.ask_quantities == tuple(Decimal(1000 + i) for i in range(1, 11))
+    assert ob.bid_quantities == tuple(Decimal(2000 + i) for i in range(1, 11))
     assert ob.ask_prices[0] == Decimal(101)
     assert ob.bid_prices[0] == Decimal(89)
-    assert ob.total_ask_volume == Decimal(50000)
-    assert ob.total_bid_volume == Decimal(60000)
+    assert ob.total_ask_quantity == Decimal(50000)
+    assert ob.total_bid_quantity == Decimal(60000)
     assert ob.expected_price == Decimal(105)
     assert ob.expected_volume == Decimal(42)
     assert ob.expected_change_sign == "2"
     assert ob.expected_change == Decimal(5)
     assert ob.expected_change_percent == Decimal("5.0")
-    assert ob.lp_total_ask_volume == Decimal(7000)
-    assert ob.lp_total_bid_volume == Decimal(8000)
+    assert ob.lp_total_ask_quantity == Decimal(7000)
+    assert ob.lp_total_bid_quantity == Decimal(8000)
 
 
 def test_order_book_raw_has_all_ledger_keys():

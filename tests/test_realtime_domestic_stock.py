@@ -73,10 +73,10 @@ def test_parse_order_book_krx_headline_and_raw():
     assert ob.hour_class == "0"
     assert ob.best_ask == Decimal(71500)
     assert ob.best_bid == Decimal(71400)
-    assert ob.best_ask_qty == Decimal(120)
-    assert ob.best_bid_qty == Decimal(300)
-    assert ob.total_ask_qty == Decimal(5000)
-    assert ob.total_bid_qty == Decimal(6000)
+    assert ob.best_ask_quantity == Decimal(120)
+    assert ob.best_bid_quantity == Decimal(300)
+    assert ob.total_ask_quantity == Decimal(5000)
+    assert ob.total_bid_quantity == Decimal(6000)
     assert ob.expected_price == Decimal(71450)
     assert ob.expected_qty == Decimal(42)
     assert ob._raw["MID_PRC"] == "71450"

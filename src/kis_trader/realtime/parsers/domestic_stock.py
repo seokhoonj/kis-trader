@@ -111,10 +111,10 @@ class OrderBook:
     hour_class: str  # HOUR_CLS_CODE 시간구분(0 장중, 등)
     best_ask: Decimal  # ASKP1
     best_bid: Decimal  # BIDP1
-    best_ask_qty: Decimal  # ASKP_RSQN1
-    best_bid_qty: Decimal  # BIDP_RSQN1
-    total_ask_qty: Decimal  # TOTAL_ASKP_RSQN
-    total_bid_qty: Decimal  # TOTAL_BIDP_RSQN
+    best_ask_quantity: Decimal  # ASKP_RSQN1
+    best_bid_quantity: Decimal  # BIDP_RSQN1
+    total_ask_quantity: Decimal  # TOTAL_ASKP_RSQN
+    total_bid_quantity: Decimal  # TOTAL_BIDP_RSQN
     expected_price: Decimal  # ANTC_CNPR 예상체결가
     expected_qty: Decimal  # ANTC_CNQN 예상체결량
     _raw: Mapping[str, Any] = field(
@@ -130,10 +130,10 @@ def _order_book(raw: Mapping[str, str]) -> OrderBook:
         hour_class=raw["HOUR_CLS_CODE"],
         best_ask=_decimal(raw["ASKP1"]),
         best_bid=_decimal(raw["BIDP1"]),
-        best_ask_qty=_decimal(raw["ASKP_RSQN1"]),
-        best_bid_qty=_decimal(raw["BIDP_RSQN1"]),
-        total_ask_qty=_decimal(raw["TOTAL_ASKP_RSQN"]),
-        total_bid_qty=_decimal(raw["TOTAL_BIDP_RSQN"]),
+        best_ask_quantity=_decimal(raw["ASKP_RSQN1"]),
+        best_bid_quantity=_decimal(raw["BIDP_RSQN1"]),
+        total_ask_quantity=_decimal(raw["TOTAL_ASKP_RSQN"]),
+        total_bid_quantity=_decimal(raw["TOTAL_BIDP_RSQN"]),
         expected_price=_decimal(raw["ANTC_CNPR"]),
         expected_qty=_decimal(raw["ANTC_CNQN"]),
         _raw=MappingProxyType(dict(raw)),

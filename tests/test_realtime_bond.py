@@ -76,10 +76,10 @@ def _order_book_fields() -> list[str]:
     fields[3] = "3.515"           # best_bid_yield
     fields[4] = "10251"           # best_ask_price
     fields[5] = "10249"           # best_bid_price
-    fields[6] = "300"             # best_ask_volume
-    fields[7] = "250"             # best_bid_volume
-    fields[32] = "9000"           # total_ask_volume
-    fields[33] = "8500"           # total_bid_volume
+    fields[6] = "300"             # best_ask_quantity
+    fields[7] = "250"             # best_bid_quantity
+    fields[32] = "9000"           # total_ask_quantity
+    fields[33] = "8500"           # total_bid_quantity
     return fields
 
 
@@ -92,10 +92,10 @@ def test_parse_bond_order_book_maps_headline_fields():
     assert book.best_bid_price == Decimal(10249)
     assert book.best_ask_yield == Decimal("3.510")
     assert book.best_bid_yield == Decimal("3.515")
-    assert book.best_ask_volume == Decimal(300)
-    assert book.best_bid_volume == Decimal(250)
-    assert book.total_ask_volume == Decimal(9000)
-    assert book.total_bid_volume == Decimal(8500)
+    assert book.best_ask_quantity == Decimal(300)
+    assert book.best_bid_quantity == Decimal(250)
+    assert book.total_ask_quantity == Decimal(9000)
+    assert book.total_bid_quantity == Decimal(8500)
 
 
 def test_bond_order_book_raw_has_all_ledger_keys():
