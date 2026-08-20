@@ -93,7 +93,7 @@ def test_present_balance_parses():
     assert p.currency == "USD"
     assert bal.currencies[0].deposit == Money(Decimal("200.00"), "USD")
     assert bal.total_unrealized_pnl == Decimal(100000)
-    assert bal.total_asset == Decimal(5000000)
+    assert bal.total_asset_amount == Decimal(5000000)
 
 
 def test_present_balance_rejects_unknown_nation_before_wire():
@@ -119,7 +119,7 @@ def test_present_balance_demo_uses_demo_tr():
     bal = _client(fake, environment="paper").account.overseas.present_balance()
     assert fake.calls[0]["tr_id"] == "VTRP6504R"
     assert bal.positions == ()          # 모의는 요약만
-    assert bal.total_asset == Decimal(5000000)
+    assert bal.total_asset_amount == Decimal(5000000)
 
 
 def test_present_balance_summary_as_single_list():
@@ -137,7 +137,7 @@ def test_settlement_balance_parses():
     assert p.collateral_quantity == Decimal(2)
     assert p.loan_balance == Money(Decimal(0), "USD")
     assert bal.total_deposit == Decimal(300000)
-    assert bal.total_asset == Decimal(5000000)      # tot_asst_amt2
+    assert bal.total_asset_amount == Decimal(5000000)      # tot_asst_amt2
     assert bal.total_won_evaluation == Decimal(2100000)
 
 

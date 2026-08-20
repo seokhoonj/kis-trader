@@ -68,11 +68,11 @@ def test_overseas_positions_maps_money_and_params():
     assert pos.exchange == "NASD"
     assert pos.quantity == 10
     assert pos.sellable_quantity == 10
-    assert pos.average_price == Money(Decimal("140.00"), "USD")
+    assert pos.average_purchase_price == Money(Decimal("140.00"), "USD")
     assert pos.current_price == Money(Decimal("150.25"), "USD")
     assert pos.market_value == Money(Decimal("1502.50"), "USD")
     assert pos.unrealized_pnl == Money(Decimal("102.50"), "USD")
-    assert pos.pnl_percent == Decimal("7.32")
+    assert pos.unrealized_pnl_percent == Decimal("7.32")
     call = fake.calls[0]
     assert call["path"] == _BALANCE
     assert call["tr_id"] == "TTTS3012R"                # real
