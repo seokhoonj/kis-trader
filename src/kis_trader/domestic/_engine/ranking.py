@@ -738,7 +738,7 @@ def _lookup(table: Mapping[str, str], *, key: str, argname: str) -> str:
 _EXP_UPDOWN_PATH = "/uapi/domestic-stock/v1/ranking/exp-trans-updown"
 _EXP_UPDOWN_TR = "FHPST01820000"
 #: 예상체결 상승/하락 정렬(FID_RANK_SORT_CLS_CODE).
-_EXP_UPDOWN_TOP = {"up": "0", "down": "1"}
+_EXP_UPDOWN_TOP = {"gainers": "0", "losers": "1"}
 _EXPECTED_CLOSE_PATH = "/uapi/domestic-stock/v1/quotations/exp-closing-price"
 _EXPECTED_CLOSE_TR = "FHKST117300C0"
 _EXPECTED_CLOSE_FILTER = {
@@ -760,7 +760,7 @@ _EXPECTED_CLOSE_MARKET = {
 def fetch_expected_execution_change(
     transport: Transport, *, direction: str, market: str
 ) -> list[RankedStock]:
-    """장 시작 전 예상체결 기준 상승/하락 상위. ``direction="up"`` 상승 / ``"down"`` 하락. 예상체결가를
+    """장 시작 전 예상체결 기준 상승/하락 상위. ``direction="gainers"`` 상승 / ``"losers"`` 하락. 예상체결가를
     현재가로, 예상체결량(cntg_vol)을 거래량으로 담는다(:class:`RankedStock`, 순위는 응답 순서)."""
     params = {
         "FID_RANK_SORT_CLS_CODE": _lookup(_EXP_UPDOWN_TOP, key=direction, argname="direction"),
@@ -850,7 +850,7 @@ def fetch_expected_close(
 #   거래량: SCR 20235, output2, 같은 필드, 코드 stck_shrn_iscd, 정렬 FID_RANK_SORT_CLS_CODE
 #   예상체결: SCR 11186, output(flat), ovtm_untp_antc_cnpr/cntg_vrss/cnqn, 코드 stck_shrn_iscd
 _OVERTIME_CHANGE = {  # 시간외등락률순위 정렬(FID_DIV_CLS_CODE)
-    "up": "2", "down": "3",
+    "gainers": "2", "losers": "3",
 }
 
 
@@ -886,7 +886,7 @@ def _parse_overtime(
 def fetch_overtime_change(
     transport: Transport, *, direction: str, market: str
 ) -> list[OvertimeRanking]:
-    """시간외 단일가 등락률 순위. ``direction="up"`` 상승 / ``"down"`` 하락(:class:`OvertimeRanking`)."""
+    """시간외 단일가 등락률 순위. ``direction="gainers"`` 상승 / ``"losers"`` 하락(:class:`OvertimeRanking`)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_MRKT_CLS_CODE": "",
@@ -939,7 +939,7 @@ def fetch_overtime_volume(transport: Transport, *, market: str) -> list[Overtime
 def fetch_overtime_expected_change(
     transport: Transport, *, direction: str, market: str
 ) -> list[OvertimeRanking]:
-    """시간외 예상체결 등락률 순위. ``direction="up"`` 상승 / ``"down"`` 하락. 시간외 예상체결가·예상체결량
+    """시간외 예상체결 등락률 순위. ``direction="gainers"`` 상승 / ``"losers"`` 하락. 시간외 예상체결가·예상체결량
     을 담는다(:class:`OvertimeRanking`)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),

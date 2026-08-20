@@ -36,6 +36,8 @@ _BOND_ORDER_BOOK_FIELDS = (
     "BIDP_ERT3", "ASKP3", "BIDP3", "ASKP_RSQN3", "BIDP_RSQN3",
     "ASKP_ERT4", "BIDP_ERT4", "ASKP4", "BIDP4", "ASKP_RSQN4",
     "BIDP_RSQN4", "ASKP_ERT5", "BIDP_ERT5", "ASKP5", "BIDP5",
+    # ASKP_RSQN52/BIDP_RSQN53 은 레벨5 잔량인데 원장(H0BJASP0)이 RSQN5 가 아니라 RSQN52/53 으로
+    # 표기해 그대로 따른다(원장 필드명을 _raw 에 보존). RSQN5 로 "고치지" 말 것 -- 원장과 어긋난다.
     "ASKP_RSQN52", "BIDP_RSQN53", "TOTAL_ASKP_RSQN", "TOTAL_BIDP_RSQN",
 )
 

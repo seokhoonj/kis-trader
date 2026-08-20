@@ -172,8 +172,8 @@ class RankingQueries:
         근접 비율을 담은 :class:`~kis_trader.domestic.entities.ranking.NearHighLowRanking` 를 돌려준다(최대 30건)."""
         return ranking_api.fetch_near_high_low(self._client.transport, side=side, market="KRX")
 
-    def by_expected_execution_change(self, *, direction: str = "up") -> list[RankedStock]:
-        """장 시작 전 예상체결 기준 상승/하락 상위. ``direction="up"`` 상승 / ``"down"`` 하락. 예상체결가·
+    def by_expected_execution_change(self, *, direction: Direction = "gainers") -> list[RankedStock]:
+        """장 시작 전 예상체결 기준 상승/하락 상위. ``direction="gainers"`` 상승 / ``"losers"`` 하락. 예상체결가·
         예상체결량을 담은 :class:`~kis_trader.domestic.entities.ranking.RankedStock` 로 돌려준다(최대 30건)."""
         return ranking_api.fetch_expected_execution_change(
             self._client.transport, direction=direction, market="KRX"
@@ -194,8 +194,8 @@ class RankingQueries:
             extended_range=extended_range,
         )
 
-    def by_overtime_change(self, *, direction: str = "up") -> list[OvertimeRanking]:
-        """시간외 단일가 등락률 순위. ``direction="up"`` 상승 / ``"down"`` 하락
+    def by_overtime_change(self, *, direction: Direction = "gainers") -> list[OvertimeRanking]:
+        """시간외 단일가 등락률 순위. ``direction="gainers"`` 상승 / ``"losers"`` 하락
         (:class:`~kis_trader.domestic.entities.ranking.OvertimeRanking`, 최대 30건)."""
         return ranking_api.fetch_overtime_change(
             self._client.transport, direction=direction, market="KRX"
@@ -205,8 +205,8 @@ class RankingQueries:
         """시간외 단일가 거래량 순위(:class:`~kis_trader.domestic.entities.ranking.OvertimeRanking`, 최대 30건)."""
         return ranking_api.fetch_overtime_volume(self._client.transport, market="KRX")
 
-    def by_overtime_expected_change(self, *, direction: str = "up") -> list[OvertimeRanking]:
-        """시간외 예상체결 등락률 순위. ``direction="up"`` 상승 / ``"down"`` 하락. 시간외 예상체결가·예상
+    def by_overtime_expected_change(self, *, direction: Direction = "gainers") -> list[OvertimeRanking]:
+        """시간외 예상체결 등락률 순위. ``direction="gainers"`` 상승 / ``"losers"`` 하락. 시간외 예상체결가·예상
         체결량을 담아 돌려준다(:class:`~kis_trader.domestic.entities.ranking.OvertimeRanking`, 최대 30건)."""
         return ranking_api.fetch_overtime_expected_change(
             self._client.transport, direction=direction, market="KRX"
