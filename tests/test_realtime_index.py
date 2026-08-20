@@ -11,8 +11,8 @@ from decimal import Decimal
 from kis_trader.realtime import _registry
 from kis_trader.realtime.parsers.index import (
     IndexExpectedConclusion,
-    IndexTick,
     IndexProgramTrade,
+    IndexTick,
     parse_expected_conclusion,
     parse_index_tick,
     parse_program_trade,

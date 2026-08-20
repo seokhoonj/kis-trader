@@ -249,6 +249,19 @@ def test_restart_drains_stale_queue():
     assert [m.tr_key for m in streamed] == ["005930"]  # 새 run 의 틱만, 조기종료 없이
 
 
+def test_typed_subscriptions_map_to_tr_ids():
+    # 타입드 래퍼가 raw TR-id 로 정확히 매핑되는지(거래소별 체결/호가, 체결통보).
+    client = _client(FakeWebSocket(incoming=[]))
+    client.trades("005930")                       # KRX 기본
+    client.trades("005930", venue="NXT")
+    client.order_book("005930", venue="unified")
+    client.execution_notices("myhtsid")
+    assert ("H0STCNT0", "005930") in client._desired   # KRX 체결
+    assert ("H0NXCNT0", "005930") in client._desired   # NXT 체결
+    assert ("H0UNASP0", "005930") in client._desired   # 통합 호가
+    assert ("H0STCNI0", "myhtsid") in client._desired  # 체결통보(tr_key=HTS id)
+
+
 def test_start_refused_while_previous_thread_alive():
     # 이전 run 스레드가 아직 살아있으면(멎은 연결 등) start() 는 새 run 을 띄우지 않고 fail-closed 해야
     # 한다 -- 안 그러면 self._conn/_queue 를 갈아치워 뒤늦게 깨어난 옛 스레드가 새 소켓을 닫고 큐를 오염시킨다.

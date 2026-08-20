@@ -18,7 +18,7 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable, Coroutine, Iterator
 from concurrent.futures import CancelledError as FutureCancelledError
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from ..errors import RealtimeError
 from ._connection import Connector, RealtimeConnection, RealtimeMessage
@@ -29,6 +29,12 @@ MessageCallback = Callable[[RealtimeMessage], None]
 _logger = logging.getLogger("kis_trader.realtime")
 _STREAM_SENTINEL = object()  # stream() 종료 신호
 _QUEUE_MAXSIZE = 10_000  # stream() 큐 상한(틱) -- 초과 시 오래된 것부터 드롭
+
+#: 국내주식 실시간 피드의 거래소(venue) -- KRX 정규 / NXT 넥스트레이드(대체거래소) / unified 통합(NXT+KRX).
+StockVenue = Literal["KRX", "NXT", "unified"]
+_STOCK_TRADES_TR: dict[str, str] = {"KRX": "H0STCNT0", "NXT": "H0NXCNT0", "unified": "H0UNCNT0"}
+_STOCK_ORDER_BOOK_TR: dict[str, str] = {"KRX": "H0STASP0", "NXT": "H0NXASP0", "unified": "H0UNASP0"}
+_STOCK_EXECUTION_NOTICE_TR = "H0STCNI0"
 
 
 class RealtimeClient:
@@ -78,6 +84,25 @@ class RealtimeClient:
             self._desired.add((tr_id, tr_key))
         if self._running and self._conn is not None and self._loop is not None:
             self._call_async(self._conn.subscribe(tr_id, tr_key))
+
+    # -- 타입드 구독(자주 쓰는 국내주식 피드) -- raw TR-id 를 몰라도 되는 :meth:`subscribe` 래퍼 --
+    def trades(
+        self, symbol: str, *, venue: StockVenue = "KRX", on: MessageCallback | None = None
+    ) -> None:
+        """국내주식 실시간 체결가 구독. ``venue`` 는 거래소(``"KRX"`` 정규 / ``"NXT"`` 넥스트레이드 /
+        ``"unified"`` 통합). 수신은 콜백 ``on`` 또는 :meth:`stream`. raw TR-id 는 :meth:`subscribe`."""
+        self.subscribe(_STOCK_TRADES_TR[venue], symbol, on=on)
+
+    def order_book(
+        self, symbol: str, *, venue: StockVenue = "KRX", on: MessageCallback | None = None
+    ) -> None:
+        """국내주식 실시간 호가 구독. ``venue`` = ``"KRX"``/``"NXT"``/``"unified"``."""
+        self.subscribe(_STOCK_ORDER_BOOK_TR[venue], symbol, on=on)
+
+    def execution_notices(self, hts_id: str, *, on: MessageCallback | None = None) -> None:
+        """국내주식 실시간 체결통보 구독. ``hts_id`` 는 HTS 로그인 아이디(통보 tr_key). 암호화
+        프레임은 연결 계층이 복호화해 파서에 넘긴다."""
+        self.subscribe(_STOCK_EXECUTION_NOTICE_TR, hts_id, on=on)
 
     def unsubscribe(self, tr_id: str, tr_key: str) -> None:
         """실시간 해제."""
