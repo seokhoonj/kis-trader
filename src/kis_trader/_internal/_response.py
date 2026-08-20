@@ -8,7 +8,7 @@ KIS 표준 응답은 ``rt_cd``/``msg_cd``/``msg1`` 봉투에 ``output`` 블록(�
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from typing import Any
 
 from ..errors import KISError
@@ -99,3 +99,52 @@ def _fetch_paginated_rows(
     else:
         raise KISError(cap_message)
     return rows
+
+
+def _fetch_paginated_rows_with_summary(
+    transport: Transport,
+    *,
+    path: str,
+    tr_id: str,
+    base_params: Mapping[str, str],
+    output_key: str,
+    max_pages: int,
+    cap_message: str,
+    summary_from: Callable[[Mapping[str, Any]], Mapping[str, Any] | None],
+    ctx_width: int = 100,
+    idempotent: bool = True,
+) -> tuple[list[Mapping[str, Any]], Mapping[str, Any] | None]:
+    """:func:`_fetch_paginated_rows` 와 같은 연속조회 상태기계에, 계좌 요약(output2/output3 등)을
+    **첫 페이지에서 한 번** 함께 잡아 돌려주는 변형.
+
+    ``summary_from`` 은 응답 바디에서 요약 객체를 뽑는 순수 함수(첫 페이지 한정, 계좌 단위라 페이지
+    불변). 행 배열(``output_key``)은 :func:`_require_mapping_rows` 로 페이지마다 검증·누적하고, 상한
+    도달 시 부분 결과로 자르지 않고 ``cap_message`` 로 fail-closed 한다. 반환은 ``(rows, summary)``
+    -- ``summary`` 는 첫 페이지에서 못 뽑았으면 ``None`` (호출자가 필요하면 fail-closed 판단)."""
+    fk_key = f"CTX_AREA_FK{ctx_width}"
+    nk_key = f"CTX_AREA_NK{ctx_width}"
+    body_fk = f"ctx_area_fk{ctx_width}"
+    body_nk = f"ctx_area_nk{ctx_width}"
+    rows: list[Mapping[str, Any]] = []
+    summary: Mapping[str, Any] | None = None
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(max_pages):
+        params = dict(base_params)
+        params[fk_key] = ctx_fk
+        params[nk_key] = ctx_nk
+        resp = transport.request(
+            method="GET", path=path, tr_id=tr_id,
+            params=params, idempotent=idempotent, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        if summary is None:  # 요약은 첫 페이지에서(계좌 단위라 페이지 불변)
+            summary = summary_from(resp.body)
+        rows.extend(_require_mapping_rows(output_key, resp))
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get(body_nk) or "").strip()
+        ctx_fk = str(resp.body.get(body_fk) or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(cap_message)
+    return rows, summary

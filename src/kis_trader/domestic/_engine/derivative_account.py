@@ -16,7 +16,7 @@ from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from ..._internal._response import _raise_if_error
+from ..._internal._response import _fetch_paginated_rows_with_summary, _raise_if_error
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
 from ...transport import Environment, RawResponse, Transport
@@ -85,34 +85,21 @@ def fetch_balance(
 ) -> DerivativeBalance:
     """선물옵션 잔고(보유내역 output1 + 계좌 요약 output2). 연속조회로 보유내역을 소진까지 모으고
     계좌 요약은 첫 페이지에서 완결한다(계좌 단위라 페이지 불변). 모의투자 지원."""
-    rows: list[Mapping[str, Any]] = []
-    summary: Mapping[str, Any] | None = None
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_BALANCE_PAGES):
-        resp = _fetch_balance_page(
-            transport, cano=cano, product_code=product_code, environment=environment,
-            ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        if summary is None:  # 계좌 요약은 첫 페이지에서(계좌 단위라 페이지 불변)
-            summary = _extract_summary(resp.body)
-        page = resp.body.get("output1")
-        if not isinstance(page, list):  # 빈 계좌도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
-            raise KISError(
-                "선물옵션 잔고 응답의 output1 이 보유내역 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
-        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
-        tr_cont = "N"
-    else:
-        raise KISError(
+    base_params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "MGNA_DVSN": "01",   # 증거금구분 -- 01 개시
+        "EXCC_STAT_CD": "1",  # 정산상태 -- 1 정산
+        "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
+    }
+    rows, summary = _fetch_paginated_rows_with_summary(
+        transport, path=_BALANCE_PATH, tr_id=_BALANCE_TR[environment],
+        base_params=base_params, output_key="output1", max_pages=_MAX_BALANCE_PAGES,
+        cap_message=(
             f"선물옵션 잔고 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
             f"-- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
-        )
+        ),
+        summary_from=_extract_summary, ctx_width=200,
+    )
     if summary is None:
         raise KISError("선물옵션 잔고 응답에 계좌 요약(output2)이 없다.")
     return DerivativeBalance(
@@ -290,34 +277,21 @@ def fetch_valuation_pl(
         raise KISUsageError(
             "선물옵션 잔고평가손익내역(inquire-balance-valuation-pl)은 모의투자 미지원 -- 실전에서만."
         )
-    rows: list[Mapping[str, Any]] = []
-    summary: Mapping[str, Any] | None = None
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_BALANCE_PAGES):
-        resp = _fetch_valuation_pl_page(
-            transport, cano=cano, product_code=product_code,
-            ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        if summary is None:  # 계좌 요약은 첫 페이지에서(계좌 단위라 페이지 불변)
-            summary = _extract_summary(resp.body)
-        page = resp.body.get("output1")
-        if not isinstance(page, list):  # 빈 계좌도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
-            raise KISError(
-                "선물옵션 잔고평가손익내역 응답의 output1 이 보유내역 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
-        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
-        tr_cont = "N"
-    else:
-        raise KISError(
+    base_params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "MGNA_DVSN": "01",   # 증거금구분 -- 01 개시
+        "EXCC_STAT_CD": "1",  # 정산상태 -- 1 정산
+        "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
+    }
+    rows, summary = _fetch_paginated_rows_with_summary(
+        transport, path=_VALUATION_PL_PATH, tr_id=_VALUATION_PL_TR,
+        base_params=base_params, output_key="output1", max_pages=_MAX_BALANCE_PAGES,
+        cap_message=(
             f"선물옵션 잔고평가손익내역 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 "
             f"연속조회가 남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
-        )
+        ),
+        summary_from=_extract_summary, ctx_width=200,
+    )
     if summary is None:
         raise KISError("선물옵션 잔고평가손익내역 응답에 계좌 요약(output2)이 없다.")
     return DerivativeValuationBalance(
@@ -349,34 +323,20 @@ def fetch_settlement_pl(
             "선물옵션 잔고정산손익내역(inquire-balance-settlement-pl)은 모의투자 미지원 -- 실전에서만."
         )
     _require_wire_date(base_date, "base_date")
-    rows: list[Mapping[str, Any]] = []
-    summary: Mapping[str, Any] | None = None
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_BALANCE_PAGES):
-        resp = _fetch_settlement_pl_page(
-            transport, cano=cano, product_code=product_code, base_date=base_date,
-            ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        if summary is None:  # 계좌 요약은 첫 페이지에서(계좌 단위라 페이지 불변)
-            summary = _extract_summary(resp.body)
-        page = resp.body.get("output1")
-        if not isinstance(page, list):  # 빈 계좌도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
-            raise KISError(
-                "선물옵션 잔고정산손익내역 응답의 output1 이 정산 보유내역 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
-        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
-        tr_cont = "N"
-    else:
-        raise KISError(
+    base_params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "INQR_DT": base_date,  # 조회일자(YYYYMMDD)
+        "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
+    }
+    rows, summary = _fetch_paginated_rows_with_summary(
+        transport, path=_SETTLEMENT_PL_PATH, tr_id=_SETTLEMENT_PL_TR,
+        base_params=base_params, output_key="output1", max_pages=_MAX_BALANCE_PAGES,
+        cap_message=(
             f"선물옵션 잔고정산손익내역 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 "
             f"연속조회가 남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
-        )
+        ),
+        summary_from=_extract_summary, ctx_width=200,
+    )
     if summary is None:
         raise KISError("선물옵션 잔고정산손익내역 응답에 계좌 요약(output2)이 없다.")
     return DerivativeSettlementBalance(
@@ -413,35 +373,22 @@ def fetch_base_date_fills(
     _require_wire_date(order_date, "order_date")
     _require_wire_time(start_time, "start_time")
     _require_wire_time(end_time, "end_time")
-    rows: list[Mapping[str, Any]] = []
-    summary: Mapping[str, Any] | None = None
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_BALANCE_PAGES):
-        resp = _fetch_base_date_fills_page(
-            transport, cano=cano, product_code=product_code,
-            order_date=order_date, start_time=start_time, end_time=end_time,
-            ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        if summary is None:  # 합계 요약은 첫 페이지에서(조회 단위라 페이지 불변)
-            summary = _extract_summary(resp.body)
-        page = resp.body.get("output1")
-        if not isinstance(page, list):  # 빈 결과도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
-            raise KISError(
-                "선물옵션 기준일체결내역 응답의 output1 이 체결내역 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
-        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
-        tr_cont = "N"
-    else:
-        raise KISError(
+    base_params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "ORD_DT": order_date,  # 주문일자(YYYYMMDD)
+        "FUOP_TR_STRT_TMD": start_time,  # 선물옵션 거래 시작시각(HHMMSS)
+        "FUOP_TR_END_TMD": end_time,     # 선물옵션 거래 종료시각(HHMMSS)
+        "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
+    }
+    rows, summary = _fetch_paginated_rows_with_summary(
+        transport, path=_BASE_DATE_FILLS_PATH, tr_id=_BASE_DATE_FILLS_TR,
+        base_params=base_params, output_key="output1", max_pages=_MAX_BALANCE_PAGES,
+        cap_message=(
             f"선물옵션 기준일체결내역 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 "
             f"연속조회가 남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
-        )
+        ),
+        summary_from=_extract_summary, ctx_width=200,
+    )
     if summary is None:
         raise KISError("선물옵션 기준일체결내역 응답에 합계 요약(output2)이 없다.")
     return DerivativeFillHistory(
@@ -588,21 +535,6 @@ def fetch_derivative_night_orderable(
     )
 
 
-def _fetch_balance_page(
-    transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    ctx_fk: str, ctx_nk: str, tr_cont: str = "",
-) -> RawResponse:
-    params = {
-        "CANO": cano, "ACNT_PRDT_CD": product_code,
-        "MGNA_DVSN": "01",   # 증거금구분 -- 01 개시
-        "EXCC_STAT_CD": "1",  # 정산상태 -- 1 정산
-        "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
-    }
-    return transport.request(
-        method="GET", path=_BALANCE_PATH, tr_id=_BALANCE_TR[environment],
-        params=params, idempotent=True, tr_cont=tr_cont,
-    )
-
 
 def _fetch_night_balance_page(
     transport: Transport, *, cano: str, product_code: str, account_password: str,
@@ -622,53 +554,7 @@ def _fetch_night_balance_page(
     )
 
 
-def _fetch_valuation_pl_page(
-    transport: Transport, *, cano: str, product_code: str,
-    ctx_fk: str, ctx_nk: str, tr_cont: str = "",
-) -> RawResponse:
-    params = {
-        "CANO": cano, "ACNT_PRDT_CD": product_code,
-        "MGNA_DVSN": "01",   # 증거금구분 -- 01 개시
-        "EXCC_STAT_CD": "1",  # 정산상태 -- 1 정산
-        "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
-    }
-    return transport.request(
-        method="GET", path=_VALUATION_PL_PATH, tr_id=_VALUATION_PL_TR,
-        params=params, idempotent=True, tr_cont=tr_cont,
-    )
 
-
-def _fetch_settlement_pl_page(
-    transport: Transport, *, cano: str, product_code: str, base_date: str,
-    ctx_fk: str, ctx_nk: str, tr_cont: str = "",
-) -> RawResponse:
-    params = {
-        "CANO": cano, "ACNT_PRDT_CD": product_code,
-        "INQR_DT": base_date,  # 조회일자(YYYYMMDD)
-        "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
-    }
-    return transport.request(
-        method="GET", path=_SETTLEMENT_PL_PATH, tr_id=_SETTLEMENT_PL_TR,
-        params=params, idempotent=True, tr_cont=tr_cont,
-    )
-
-
-def _fetch_base_date_fills_page(
-    transport: Transport, *, cano: str, product_code: str,
-    order_date: str, start_time: str, end_time: str,
-    ctx_fk: str, ctx_nk: str, tr_cont: str = "",
-) -> RawResponse:
-    params = {
-        "CANO": cano, "ACNT_PRDT_CD": product_code,
-        "ORD_DT": order_date,  # 주문일자(YYYYMMDD)
-        "FUOP_TR_STRT_TMD": start_time,  # 선물옵션 거래 시작시각(HHMMSS)
-        "FUOP_TR_END_TMD": end_time,     # 선물옵션 거래 종료시각(HHMMSS)
-        "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
-    }
-    return transport.request(
-        method="GET", path=_BASE_DATE_FILLS_PATH, tr_id=_BASE_DATE_FILLS_TR,
-        params=params, idempotent=True, tr_cont=tr_cont,
-    )
 
 
 def _parse_fills(rows: list[Mapping[str, Any]]) -> list[DerivativeFill]:
