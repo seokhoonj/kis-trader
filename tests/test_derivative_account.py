@@ -876,3 +876,78 @@ def test_account_date_args_are_keyword_only():
         account.base_date_fills("20240220")          # type: ignore[misc]
     with pytest.raises(TypeError):
         account.commissions("20240201", "20240229")  # type: ignore[misc]
+
+
+# --- 미체결(정정취소가능) 주문 조회 -- inquire-ccnl CCLD_NCCS_DVSN=02 -------------
+
+def _open_order_row(*, odno="        33", orgn="", pdno="A05609", name="미니코스피 F 202609",
+                    side="02", ord_qty="1", ccld="0", ord_idx="1000.00", tmd="084419",
+                    ntype="지정가"):
+    return {"odno": odno, "orgn_odno": orgn, "pdno": pdno, "prdt_name": name,
+            "sll_buy_dvsn_cd": side, "ord_qty": ord_qty, "tot_ccld_qty": ccld,
+            "ord_idx": ord_idx, "ord_tmd": tmd, "nmpr_type_name": ntype}
+
+
+def _open_orders_resp(rows, *, tr_cont="D"):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
+                       body={"output1": rows, "ctx_area_nk200": "", "ctx_area_fk200": ""},
+                       tr_cont=tr_cont)
+
+
+def test_open_orders_wire_and_mapping():
+    from kis_trader import DerivativeOpenOrder
+    fake = FakeTransport(response=_open_orders_resp([_open_order_row()]))
+    orders = _client(fake, environment="real").account.open_orders(order_date="20240220")
+    call = fake.calls[0]
+    assert call["path"] == "/uapi/domestic-futureoption/v1/trading/inquire-ccnl"
+    assert call["tr_id"] == "TTTO5201R"                       # 실전
+    assert call["params"]["CCLD_NCCS_DVSN"] == "02"           # 미체결만
+    assert call["params"]["SLL_BUY_DVSN_CD"] == "00"          # side=all
+    assert call["params"]["STRT_ORD_DT"] == "20240220"
+    assert call["params"]["END_ORD_DT"] == "20240220"
+    assert len(orders) == 1
+    o = orders[0]
+    assert isinstance(o, DerivativeOpenOrder)
+    assert o.order_id == "33"                                 # 공백패딩 strip
+    assert o.symbol == "A05609"
+    assert o.name == "미니코스피 F 202609"
+    assert o.side == "buy"                                    # 02 -> buy
+    assert o.order_quantity == Decimal(1)
+    assert o.filled_quantity == Decimal(0)
+    assert o.unfilled_quantity == Decimal(1)                  # ord - ccld
+    assert o.price == Decimal("1000.00")
+    assert o.order_time == "084419"
+    assert o.order_type == "지정가"
+
+
+def test_open_orders_paper_tr_and_side_filter():
+    fake = FakeTransport(response=_open_orders_resp([_open_order_row(side="01")]))
+    orders = _client(fake, environment="paper").account.open_orders(order_date="20240220", side="sell")
+    call = fake.calls[0]
+    assert call["tr_id"] == "VTTO5201R"                       # 모의
+    assert call["params"]["SLL_BUY_DVSN_CD"] == "01"          # sell
+    assert orders[0].side == "sell"
+
+
+def test_open_orders_skips_blank_padded_rows():
+    fake = FakeTransport(response=_open_orders_resp([_open_order_row(), _open_order_row(odno="   ")]))
+    orders = _client(fake, environment="real").account.open_orders(order_date="20240220")
+    assert len(orders) == 1                                   # 빈 odno 패딩 행 제외
+
+
+def test_open_orders_non_list_output_raises():
+    fake = FakeTransport(response=_open_orders_resp({}))       # output1 이 매핑 -> 손상
+    with pytest.raises(KISError):
+        _client(fake, environment="real").account.open_orders(order_date="20240220")
+
+
+def test_open_orders_non_mapping_row_raises():
+    fake = FakeTransport(response=_open_orders_resp([None]))   # 행이 매핑 아님 -> 손상
+    with pytest.raises(KISError):
+        _client(fake, environment="real").account.open_orders(order_date="20240220")
+
+
+def test_open_orders_bad_side_rejected():
+    fake = FakeTransport(response=_open_orders_resp([]))
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="real").account.open_orders(order_date="20240220", side="both")

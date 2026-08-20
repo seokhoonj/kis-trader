@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from typing import TYPE_CHECKING
 
 from ._engine.derivative_account import (
@@ -15,6 +16,7 @@ from ._engine.derivative_account import (
     fetch_deposit,
     fetch_night_balance,
     fetch_night_margin,
+    fetch_open_orders,
     fetch_settlement_pl,
     fetch_valuation_pl,
 )
@@ -25,12 +27,15 @@ from .entities.derivative_account import (
     DerivativeFillHistory,
     DerivativeNightBalance,
     DerivativeNightMargin,
+    DerivativeOpenOrder,
     DerivativeSettlementBalance,
     DerivativeValuationBalance,
 )
 
 if TYPE_CHECKING:
     from ..client import KISClient
+
+_KST = timezone(timedelta(hours=9))
 
 
 class DomesticDerivativesAccount:
@@ -49,6 +54,25 @@ class DomesticDerivativesAccount:
         return fetch_balance(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment,
+        )
+
+    def open_orders(
+        self, *, order_date: str | None = None, side: str = "all", symbol: str | None = None,
+    ) -> list[DerivativeOpenOrder]:
+        """선물옵션 미체결(정정·취소 가능) 주문. ``order_date`` (YYYYMMDD, 생략하면 오늘 KST),
+        ``side`` = ``"all"``/``"buy"``/``"sell"``, ``symbol`` 생략하면 전체 종목.
+
+        브로커 측 미체결 목록이라 세션이 발주한 ``client_order_id`` 는 없고 거래소 주문번호(odno)만
+        온다 -- 재시작 등으로 세션 dedup store 를 잃었을 때 서버측 미체결을 확인하는 용도다.
+        ``GET .../domestic-futureoption/v1/trading/inquire-ccnl`` (주간, 실전 ``TTTO5201R`` / 모의
+        ``VTTO5201R``). 모의투자 지원.
+        """
+        cano, product_code = self._client._require_account()
+        return fetch_open_orders(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment,
+            order_date=order_date or datetime.now(_KST).strftime("%Y%m%d"),
+            side=side, symbol=symbol,
         )
 
     def valuation_pl(self) -> DerivativeValuationBalance:

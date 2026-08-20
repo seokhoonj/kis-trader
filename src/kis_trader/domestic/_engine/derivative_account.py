@@ -29,6 +29,7 @@ from ..entities.derivative_account import (
     DerivativeFillHistory,
     DerivativeNightBalance,
     DerivativeNightMargin,
+    DerivativeOpenOrder,
     DerivativeOrderable,
     DerivativePosition,
     DerivativeSettlementBalance,
@@ -71,8 +72,12 @@ _ORDERABLE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-psbl-order"
 _ORDERABLE_TR = {"real": "TTTO5105R", "paper": "VTTO5105R"}
 _NIGHT_ORDERABLE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-psbl-ngt-order"
 _NIGHT_ORDERABLE_TR = "STTN5105R"  # 야간 주문가능조회, 모의투자 미지원
+#: 미체결(정정취소가능) 주문 조회 -- 주문체결내역조회 inquire-ccnl 에 CCLD_NCCS_DVSN="02"(미체결).
+_OPEN_ORDERS_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-ccnl"
+_OPEN_ORDERS_TR = {"real": "TTTO5201R", "paper": "VTTO5201R"}  # 주간(정규), 실전·모의 모두 지원
 #: 매도매수구분코드(SLL_BUY_DVSN_CD): 매수 02 / 매도 01.
 _SIDE_TO_SLL_BUY = {"buy": "02", "sell": "01"}
+_SLL_BUY_TO_SIDE = {"02": "buy", "01": "sell"}
 
 
 def fetch_balance(
@@ -889,3 +894,77 @@ def _format_order_unit_price(limit_price: Numeric | None) -> str:
     if not price.is_finite() or price <= 0:
         raise KISUsageError(f"limit_price 는 0보다 큰 유한값이어야 한다: {limit_price!r}")
     return format_wire_decimal(price)
+
+
+def _open_order(row: Mapping[str, Any]) -> DerivativeOpenOrder:
+    """미체결 주문 한 행(output1) -> :class:`DerivativeOpenOrder`. 수량은 fail-closed Decimal."""
+    order_quantity = required_decimal(row.get("ord_qty"), "ord_qty")
+    filled_quantity = required_decimal(row.get("tot_ccld_qty"), "tot_ccld_qty")
+    side_code = str(row.get("sll_buy_dvsn_cd", "")).strip()
+    return DerivativeOpenOrder(
+        order_id=str(row.get("odno", "")).strip(),
+        original_order_id=str(row.get("orgn_odno", "")).strip(),
+        symbol=str(row.get("pdno", "")).strip(),
+        name=str(row.get("prdt_name", "")).strip(),
+        side=_SLL_BUY_TO_SIDE.get(side_code, side_code),
+        order_quantity=order_quantity,
+        filled_quantity=filled_quantity,
+        unfilled_quantity=order_quantity - filled_quantity,
+        price=field_decimal_or_zero(row.get("ord_idx"), "ord_idx"),
+        order_time=str(row.get("ord_tmd", "")).strip(),
+        order_type=str(row.get("nmpr_type_name", "")).strip(),
+        _raw=row,
+    )
+
+
+def fetch_open_orders(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    order_date: str, side: str = "all", symbol: str | None = None,
+) -> list[DerivativeOpenOrder]:
+    """선물옵션 미체결(정정·취소 가능) 주문 -- 주문체결내역조회(inquire-ccnl)에 CCLD_NCCS_DVSN="02"
+    (미체결)로 걸어 연속조회 소진까지 모은다. ``order_date`` (YYYYMMDD) 주문일자, ``side`` 는
+    ``"all"``/``"buy"``/``"sell"``, ``symbol`` 생략하면 전체 종목. 실전·모의 모두 지원."""
+    _require_wire_date(order_date, "order_date")
+    if side not in ("all", "buy", "sell"):
+        raise KISUsageError(f"side 는 'all'/'buy'/'sell' 여야 한다: {side!r}")
+    sll_buy = "00" if side == "all" else _SIDE_TO_SLL_BUY[side]
+    rows: list[Mapping[str, Any]] = []
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_BALANCE_PAGES):
+        params = {
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "STRT_ORD_DT": order_date, "END_ORD_DT": order_date,
+            "SLL_BUY_DVSN_CD": sll_buy, "CCLD_NCCS_DVSN": "02", "SORT_SQN": "DS",
+            "STRT_ODNO": "", "PDNO": symbol or "", "MKET_ID_CD": "00",
+            "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
+        }
+        resp = transport.request(
+            method="GET", path=_OPEN_ORDERS_PATH, tr_id=_OPEN_ORDERS_TR[environment],
+            params=params, idempotent=True, tr_cont=tr_cont,  # 읽기 -- 타임아웃 재시도 안전
+        )
+        _raise_if_error(resp)
+        page = resp.body.get("output1")
+        if not isinstance(page, list):  # 빈 결과도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
+            raise KISError(
+                "선물옵션 미체결내역 응답의 output1 이 주문 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        for order_row in page:
+            if not isinstance(order_row, Mapping):
+                raise KISError(
+                    "선물옵션 미체결내역 응답의 output1 에 매핑이 아닌 행이 있다.",
+                    rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+                )
+            if str(order_row.get("odno", "")).strip():  # 빈 패딩 행 제외
+                rows.append(order_row)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"선물옵션 미체결내역 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        )
+    return [_open_order(order_row) for order_row in rows]
