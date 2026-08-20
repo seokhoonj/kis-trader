@@ -14,8 +14,8 @@ from kis_trader.realtime.parsers.elw import (
     _EXPECTED_CONCLUSION_FIELDS,
     _ORDER_BOOK_FIELDS,
     ExecutionTick,
-    ExpectedConclusion,
-    OrderBook,
+    ElwExpectedConclusion,
+    ElwOrderBook,
     parse_execution_tick,
     parse_expected_conclusion,
     parse_order_book,
@@ -27,7 +27,7 @@ def _index(fields: tuple[str, ...], name: str) -> int:
 
 
 # --------------------------------------------------------------------------------------
-# OrderBook (H0EWASP0)
+# ElwOrderBook (H0EWASP0)
 # --------------------------------------------------------------------------------------
 
 
@@ -59,7 +59,7 @@ def _order_book_fields() -> list[str]:
 
 def test_parse_order_book_maps_headline_fields():
     ob = parse_order_book(_order_book_fields())
-    assert isinstance(ob, OrderBook)
+    assert isinstance(ob, ElwOrderBook)
     assert ob.symbol == "58J300"
     assert ob.time == "093015"
     assert ob.hour_class == "0"
@@ -188,7 +188,7 @@ def test_execution_tick_raw_has_all_ledger_keys():
 
 
 # --------------------------------------------------------------------------------------
-# ExpectedConclusion (H0EWANC0)
+# ElwExpectedConclusion (H0EWANC0)
 # --------------------------------------------------------------------------------------
 
 
@@ -238,7 +238,7 @@ def _expected_conclusion_fields() -> list[str]:
 
 def test_parse_expected_conclusion_maps_headline_fields():
     ec = parse_expected_conclusion(_expected_conclusion_fields())
-    assert isinstance(ec, ExpectedConclusion)
+    assert isinstance(ec, ElwExpectedConclusion)
     assert ec.symbol == "58J300"
     assert ec.time == "085959"
     assert ec.expected_price == Decimal(123)

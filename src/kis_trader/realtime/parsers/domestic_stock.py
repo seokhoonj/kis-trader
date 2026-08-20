@@ -93,12 +93,12 @@ for _tr_id in ("H0NXCNT0", "H0UNCNT0"):
 
 
 # ---------------------------------------------------------------------------
-# 호가 (OrderBook) -- KRX / NXT / 통합 / 시간외
+# 호가 (StockOrderBook) -- KRX / NXT / 통합 / 시간외
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
-class OrderBook:
+class StockOrderBook:
     """국내주식 실시간 호가. 매도/매수 각 호가단계 잔량과 총잔량, 예상체결가/량.
 
     KRX(H0STASP0, 10단계), NXT(H0NXASP0, 10단계), 통합(H0UNASP0, 10단계 + KRX/NXT
@@ -122,9 +122,9 @@ class OrderBook:
     )
 
 
-def _order_book(raw: Mapping[str, str]) -> OrderBook:
-    """호가 원장 매핑 -> :class:`OrderBook` (레이아웃별 공통 헤드라인)."""
-    return OrderBook(
+def _order_book(raw: Mapping[str, str]) -> StockOrderBook:
+    """호가 원장 매핑 -> :class:`StockOrderBook` (레이아웃별 공통 헤드라인)."""
+    return StockOrderBook(
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["BSOP_HOUR"],
         hour_class=raw["HOUR_CLS_CODE"],
@@ -185,23 +185,23 @@ _ORDER_BOOK_AFTER_HOURS_FIELDS = (
 )
 
 
-def parse_order_book_krx(fields: list[str]) -> OrderBook:
-    """H0STASP0 한 레코드(62필드) -> :class:`OrderBook`."""
+def parse_order_book_krx(fields: list[str]) -> StockOrderBook:
+    """H0STASP0 한 레코드(62필드) -> :class:`StockOrderBook`."""
     return _order_book(dict(zip(_ORDER_BOOK_KRX_FIELDS, fields, strict=False)))
 
 
-def parse_order_book_nxt(fields: list[str]) -> OrderBook:
-    """H0NXASP0 한 레코드(62필드) -> :class:`OrderBook`."""
+def parse_order_book_nxt(fields: list[str]) -> StockOrderBook:
+    """H0NXASP0 한 레코드(62필드) -> :class:`StockOrderBook`."""
     return _order_book(dict(zip(_ORDER_BOOK_NXT_FIELDS, fields, strict=False)))
 
 
-def parse_order_book_unified(fields: list[str]) -> OrderBook:
-    """H0UNASP0 한 레코드(65필드) -> :class:`OrderBook`."""
+def parse_order_book_unified(fields: list[str]) -> StockOrderBook:
+    """H0UNASP0 한 레코드(65필드) -> :class:`StockOrderBook`."""
     return _order_book(dict(zip(_ORDER_BOOK_UNIFIED_FIELDS, fields, strict=False)))
 
 
-def parse_order_book_after_hours(fields: list[str]) -> OrderBook:
-    """H0STOAA0 한 레코드(54필드, 시간외 9단계) -> :class:`OrderBook`."""
+def parse_order_book_after_hours(fields: list[str]) -> StockOrderBook:
+    """H0STOAA0 한 레코드(54필드, 시간외 9단계) -> :class:`StockOrderBook`."""
     return _order_book(dict(zip(_ORDER_BOOK_AFTER_HOURS_FIELDS, fields, strict=False)))
 
 
@@ -212,12 +212,12 @@ register(TRSpec("H0STOAA0", field_count=len(_ORDER_BOOK_AFTER_HOURS_FIELDS), par
 
 
 # ---------------------------------------------------------------------------
-# 예상체결 (ExpectedConclusion) -- KRX / NXT / 통합
+# 예상체결 (StockExpectedConclusion) -- KRX / NXT / 통합
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
-class ExpectedConclusion:
+class StockExpectedConclusion:
     """국내주식 실시간 예상체결. 장 시작/종료 동시호가 등의 예상 체결가/량.
 
     KRX(H0STANC0, 45필드)와 NXT/통합(H0NXANC0/H0UNANC0, 46필드 -- 끝에 VI 기준가 추가)
@@ -242,9 +242,9 @@ class ExpectedConclusion:
     )
 
 
-def _expected_conclusion(raw: Mapping[str, str]) -> ExpectedConclusion:
-    """예상체결 원장 매핑 -> :class:`ExpectedConclusion` (레이아웃별 공통 헤드라인)."""
-    return ExpectedConclusion(
+def _expected_conclusion(raw: Mapping[str, str]) -> StockExpectedConclusion:
+    """예상체결 원장 매핑 -> :class:`StockExpectedConclusion` (레이아웃별 공통 헤드라인)."""
+    return StockExpectedConclusion(
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["STCK_CNTG_HOUR"],
         expected_price=_decimal(raw["STCK_PRPR"]),
@@ -284,13 +284,13 @@ _EXPECTED_CONCLUSION_KRX_FIELDS = _EXPECTED_CONCLUSION_PREFIX + (
 _EXPECTED_CONCLUSION_EXT_FIELDS = _EXPECTED_CONCLUSION_KRX_FIELDS + ("VI_STND_PRC",)
 
 
-def parse_expected_conclusion_krx(fields: list[str]) -> ExpectedConclusion:
-    """H0STANC0 한 레코드(45필드) -> :class:`ExpectedConclusion`."""
+def parse_expected_conclusion_krx(fields: list[str]) -> StockExpectedConclusion:
+    """H0STANC0 한 레코드(45필드) -> :class:`StockExpectedConclusion`."""
     return _expected_conclusion(dict(zip(_EXPECTED_CONCLUSION_KRX_FIELDS, fields, strict=False)))
 
 
-def parse_expected_conclusion_ext(fields: list[str]) -> ExpectedConclusion:
-    """H0NXANC0/H0UNANC0 한 레코드(46필드) -> :class:`ExpectedConclusion`."""
+def parse_expected_conclusion_ext(fields: list[str]) -> StockExpectedConclusion:
+    """H0NXANC0/H0UNANC0 한 레코드(46필드) -> :class:`StockExpectedConclusion`."""
     return _expected_conclusion(dict(zip(_EXPECTED_CONCLUSION_EXT_FIELDS, fields, strict=False)))
 
 
@@ -376,12 +376,12 @@ for _tr_id in ("H0STOAC0", "H0STOUP0"):
 
 
 # ---------------------------------------------------------------------------
-# 프로그램매매 (ProgramTrade) -- KRX / NXT / 통합
+# 프로그램매매 (StockProgramTrade) -- KRX / NXT / 통합
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
-class ProgramTrade:
+class StockProgramTrade:
     """국내주식 실시간 프로그램매매. 프로그램 매도/매수 체결량과 거래대금, 순매수.
 
     KRX(H0STPGM0)/NXT(H0NXPGM0)/통합(H0UNPGM0)이 동일 11필드 레이아웃을 공유한다.
@@ -407,10 +407,10 @@ _PROGRAM_TRADE_FIELDS = (
 )
 
 
-def parse_program_trade(fields: list[str]) -> ProgramTrade:
-    """H0STPGM0/H0NXPGM0/H0UNPGM0 한 레코드(11필드) -> :class:`ProgramTrade`."""
+def parse_program_trade(fields: list[str]) -> StockProgramTrade:
+    """H0STPGM0/H0NXPGM0/H0UNPGM0 한 레코드(11필드) -> :class:`StockProgramTrade`."""
     raw = MappingProxyType(dict(zip(_PROGRAM_TRADE_FIELDS, fields, strict=False)))
-    return ProgramTrade(
+    return StockProgramTrade(
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["STCK_CNTG_HOUR"],
         sell_volume=_decimal(raw["SELN_CNQN"]),
@@ -492,12 +492,12 @@ for _tr_id in ("H0STMBC0", "H0NXMBC0", "H0UNMBC0"):
 
 
 # ---------------------------------------------------------------------------
-# 체결통보 (ExecutionNotice) -- 암호화 (통보 프레임은 연결 계층이 복호화 후 전달)
+# 체결통보 (StockExecutionNotice) -- 암호화 (통보 프레임은 연결 계층이 복호화 후 전달)
 # ---------------------------------------------------------------------------
 
 
 @dataclass(frozen=True, slots=True)
-class ExecutionNotice:
+class StockExecutionNotice:
     """국내주식 실시간 체결/주문 통보. 내 주문의 접수/체결/거부 상태와 체결 수량/단가.
 
     통보 프레임(H0STCNI0)은 암호화되어 오지만 연결 계층이 파서 호출 전에 복호화하므로, 파서는
@@ -533,10 +533,10 @@ _EXECUTION_NOTICE_FIELDS = (
 )
 
 
-def parse_execution_notice(fields: list[str]) -> ExecutionNotice:
-    """H0STCNI0 한 레코드(26필드, 복호화된 평문) -> :class:`ExecutionNotice`."""
+def parse_execution_notice(fields: list[str]) -> StockExecutionNotice:
+    """H0STCNI0 한 레코드(26필드, 복호화된 평문) -> :class:`StockExecutionNotice`."""
     raw = MappingProxyType(dict(zip(_EXECUTION_NOTICE_FIELDS, fields, strict=False)))
-    return ExecutionNotice(
+    return StockExecutionNotice(
         customer_id=raw["CUST_ID"],
         account_no=raw["ACNT_NO"],
         order_no=raw["ODER_NO"],

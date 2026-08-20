@@ -32,7 +32,7 @@ def test_parse_futures_order_book():
         TOTAL_ASKP_RSQN="500", TOTAL_BIDP_RSQN="450",
     )
     ob = der.parse_futures_order_book(fields)
-    assert isinstance(ob, der.OrderBook)
+    assert isinstance(ob, der.DerivativeOrderBook)
     assert ob.symbol == "101W09"
     assert ob.time == "093000"
     assert ob.best_ask == Decimal("330.50")
@@ -238,7 +238,7 @@ def test_parse_stock_futures_expected():
         ANTC_MKOP_CLS_CODE="1", ANTC_CNQN="1200",
     )
     exp = der.parse_stock_futures_expected(fields)
-    assert isinstance(exp, der.ExpectedConclusion)
+    assert isinstance(exp, der.DerivativeExpectedConclusion)
     assert exp.symbol == "111V06"
     assert exp.time == "153000"
     assert exp.expected_price == Decimal(72500)
@@ -291,7 +291,7 @@ def test_parse_execution_notice():
         ORDER_PRC="330.45",
     )
     note = der.parse_execution_notice(fields)
-    assert isinstance(note, der.ExecutionNotice)
+    assert isinstance(note, der.DerivativeExecutionNotice)
     assert note.customer_id == "CUST01"
     assert note.account_number == "12345678"
     assert note.order_number == "0001"

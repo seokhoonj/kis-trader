@@ -42,7 +42,7 @@ def _decimal(value: str) -> Decimal:
 
 
 @dataclass(frozen=True, slots=True)
-class OrderBook:
+class DerivativeOrderBook:
     """파생상품 실시간 호가. 선물/옵션 매도·매수 최우선 호가와 총잔량.
 
     선물 5호가/옵션 5호가/주식옵션 10호가/주식선물 10호가가 모두 이 엔티티로 매핑된다. 전체 호가
@@ -60,10 +60,10 @@ class OrderBook:
     _raw: Mapping[str, Any] = _raw_field()
 
 
-def _order_book(fields: list[str], layout: tuple[str, ...], *, symbol: str, ask: str, bid: str) -> OrderBook:
-    """호가 레코드 -> :class:`OrderBook`. ``symbol``/``ask``/``bid`` 로 레이아웃별 키를 지정."""
+def _order_book(fields: list[str], layout: tuple[str, ...], *, symbol: str, ask: str, bid: str) -> DerivativeOrderBook:
+    """호가 레코드 -> :class:`DerivativeOrderBook`. ``symbol``/``ask``/``bid`` 로 레이아웃별 키를 지정."""
     raw = MappingProxyType(dict(zip(layout, fields, strict=False)))
-    return OrderBook(
+    return DerivativeOrderBook(
         symbol=raw[symbol],
         time=raw["BSOP_HOUR"],
         best_ask=_decimal(raw[ask]),
@@ -126,29 +126,29 @@ _STOCK_FUTURES_ORDER_BOOK_FIELDS = (
 )
 
 
-def parse_futures_order_book(fields: list[str]) -> OrderBook:
-    """선물 5호가(H0IFASP0/H0CFASP0/H0MFASP0, 38필드) -> :class:`OrderBook`."""
+def parse_futures_order_book(fields: list[str]) -> DerivativeOrderBook:
+    """선물 5호가(H0IFASP0/H0CFASP0/H0MFASP0, 38필드) -> :class:`DerivativeOrderBook`."""
     return _order_book(
         fields, _FUTURES_ORDER_BOOK_FIELDS, symbol="FUTS_SHRN_ISCD", ask="FUTS_ASKP1", bid="FUTS_BIDP1"
     )
 
 
-def parse_option_order_book(fields: list[str]) -> OrderBook:
-    """옵션 5호가(H0IOASP0/H0EUASP0, 38필드) -> :class:`OrderBook`."""
+def parse_option_order_book(fields: list[str]) -> DerivativeOrderBook:
+    """옵션 5호가(H0IOASP0/H0EUASP0, 38필드) -> :class:`DerivativeOrderBook`."""
     return _order_book(
         fields, _OPTION_ORDER_BOOK_FIELDS, symbol="OPTN_SHRN_ISCD", ask="OPTN_ASKP1", bid="OPTN_BIDP1"
     )
 
 
-def parse_stock_option_order_book(fields: list[str]) -> OrderBook:
-    """주식옵션 10호가(H0ZOASP0, 68필드) -> :class:`OrderBook`."""
+def parse_stock_option_order_book(fields: list[str]) -> DerivativeOrderBook:
+    """주식옵션 10호가(H0ZOASP0, 68필드) -> :class:`DerivativeOrderBook`."""
     return _order_book(
         fields, _STOCK_OPTION_ORDER_BOOK_FIELDS, symbol="OPTN_SHRN_ISCD", ask="OPTN_ASKP1", bid="OPTN_BIDP1"
     )
 
 
-def parse_stock_futures_order_book(fields: list[str]) -> OrderBook:
-    """주식선물 10호가(H0ZFASP0, 68필드) -> :class:`OrderBook`."""
+def parse_stock_futures_order_book(fields: list[str]) -> DerivativeOrderBook:
+    """주식선물 10호가(H0ZFASP0, 68필드) -> :class:`DerivativeOrderBook`."""
     return _order_book(
         fields, _STOCK_FUTURES_ORDER_BOOK_FIELDS, symbol="FUTS_SHRN_ISCD", ask="ASKP1", bid="BIDP1"
     )
@@ -420,7 +420,7 @@ def parse_stock_option_tick(fields: list[str]) -> OptionTick:
 
 
 @dataclass(frozen=True, slots=True)
-class ExpectedConclusion:
+class DerivativeExpectedConclusion:
     """실시간 예상체결. 장 마감/동시호가 구간의 예상 체결가/대비/예상 수량.
 
     선물/옵션 예상체결이 이 엔티티로 매핑된다. 주식옵션 예상체결(H0ZOANC0)은 예상수량이 없어
@@ -438,10 +438,10 @@ class ExpectedConclusion:
     _raw: Mapping[str, Any] = _raw_field()
 
 
-def _expected_conclusion(fields: list[str], layout: tuple[str, ...], *, symbol: str) -> ExpectedConclusion:
-    """예상체결 레코드 -> :class:`ExpectedConclusion`. 종목코드 키(선물/옵션)를 인자로 지정."""
+def _expected_conclusion(fields: list[str], layout: tuple[str, ...], *, symbol: str) -> DerivativeExpectedConclusion:
+    """예상체결 레코드 -> :class:`DerivativeExpectedConclusion`. 종목코드 키(선물/옵션)를 인자로 지정."""
     raw = MappingProxyType(dict(zip(layout, fields, strict=False)))
-    return ExpectedConclusion(
+    return DerivativeExpectedConclusion(
         symbol=raw[symbol],
         time=raw["BSOP_HOUR"],
         expected_price=_decimal(raw["ANTC_CNPR"]),
@@ -470,18 +470,18 @@ _STOCK_OPTION_EXPECTED_FIELDS = (
 )
 
 
-def parse_night_option_expected(fields: list[str]) -> ExpectedConclusion:
-    """KRX야간옵션 예상체결(H0EUANC0, 8필드) -> :class:`ExpectedConclusion`."""
+def parse_night_option_expected(fields: list[str]) -> DerivativeExpectedConclusion:
+    """KRX야간옵션 예상체결(H0EUANC0, 8필드) -> :class:`DerivativeExpectedConclusion`."""
     return _expected_conclusion(fields, _NIGHT_OPTION_EXPECTED_FIELDS, symbol="OPTN_SHRN_ISCD")
 
 
-def parse_stock_futures_expected(fields: list[str]) -> ExpectedConclusion:
-    """주식선물 예상체결(H0ZFANC0, 8필드) -> :class:`ExpectedConclusion`."""
+def parse_stock_futures_expected(fields: list[str]) -> DerivativeExpectedConclusion:
+    """주식선물 예상체결(H0ZFANC0, 8필드) -> :class:`DerivativeExpectedConclusion`."""
     return _expected_conclusion(fields, _STOCK_FUTURES_EXPECTED_FIELDS, symbol="FUTS_SHRN_ISCD")
 
 
-def parse_stock_option_expected(fields: list[str]) -> ExpectedConclusion:
-    """주식옵션 예상체결(H0ZOANC0, 7필드) -> :class:`ExpectedConclusion`. 예상수량 없음."""
+def parse_stock_option_expected(fields: list[str]) -> DerivativeExpectedConclusion:
+    """주식옵션 예상체결(H0ZOANC0, 7필드) -> :class:`DerivativeExpectedConclusion`. 예상수량 없음."""
     return _expected_conclusion(fields, _STOCK_OPTION_EXPECTED_FIELDS, symbol="OPTN_SHRN_ISCD")
 
 
@@ -489,7 +489,7 @@ def parse_stock_option_expected(fields: list[str]) -> ExpectedConclusion:
 
 
 @dataclass(frozen=True, slots=True)
-class ExecutionNotice:
+class DerivativeExecutionNotice:
     """선물옵션 실시간 체결통보. 내 주문의 체결/접수/거부 통보(암호화 프레임을 복호화한 결과).
 
     선물옵션(H0IFCNI0)과 KRX야간 선물/옵션(H0MFCNI0/H0EUCNI0) 체결통보가 이 엔티티로 매핑된다. 야간 통보에는
@@ -515,10 +515,10 @@ class ExecutionNotice:
     _raw: Mapping[str, Any] = _raw_field()
 
 
-def _execution_notice(fields: list[str], layout: tuple[str, ...]) -> ExecutionNotice:
-    """체결통보 레코드(평문) -> :class:`ExecutionNotice`."""
+def _execution_notice(fields: list[str], layout: tuple[str, ...]) -> DerivativeExecutionNotice:
+    """체결통보 레코드(평문) -> :class:`DerivativeExecutionNotice`."""
     raw = MappingProxyType(dict(zip(layout, fields, strict=False)))
-    return ExecutionNotice(
+    return DerivativeExecutionNotice(
         customer_id=raw["CUST_ID"],
         account_number=raw["ACNT_NO"],
         order_number=raw["ODER_NO"],
@@ -553,13 +553,13 @@ _NIGHT_EXECUTION_NOTICE_FIELDS = (
 )
 
 
-def parse_execution_notice(fields: list[str]) -> ExecutionNotice:
-    """선물옵션 체결통보(H0IFCNI0, 22필드, 평문) -> :class:`ExecutionNotice`."""
+def parse_execution_notice(fields: list[str]) -> DerivativeExecutionNotice:
+    """선물옵션 체결통보(H0IFCNI0, 22필드, 평문) -> :class:`DerivativeExecutionNotice`."""
     return _execution_notice(fields, _EXECUTION_NOTICE_FIELDS)
 
 
-def parse_night_execution_notice(fields: list[str]) -> ExecutionNotice:
-    """KRX야간 선물/옵션 체결통보(H0MFCNI0/H0EUCNI0, 19필드, 평문) -> :class:`ExecutionNotice`."""
+def parse_night_execution_notice(fields: list[str]) -> DerivativeExecutionNotice:
+    """KRX야간 선물/옵션 체결통보(H0MFCNI0/H0EUCNI0, 19필드, 평문) -> :class:`DerivativeExecutionNotice`."""
     return _execution_notice(fields, _NIGHT_EXECUTION_NOTICE_FIELDS)
 
 

@@ -3,9 +3,9 @@
 원장 Response Body 필드순을 그대로 ``^`` 인덱스에 매핑한다(필드순이 정본). 세 TR 은 레이아웃이
 서로 달라 각자 필드 튜플과 파서를 갖는다:
 
-* ``H0EWASP0`` (실시간호가, 73필드) -> :class:`OrderBook` -- 10호가 사다리 + LP 잔량 + 예상체결.
+* ``H0EWASP0`` (실시간호가, 73필드) -> :class:`ElwOrderBook` -- 10호가 사다리 + LP 잔량 + 예상체결.
 * ``H0EWCNT0`` (실시간체결가, 63필드) -> :class:`ExecutionTick` -- 체결 + ELW 지표(그릭/내재변동성 등).
-* ``H0EWANC0`` (실시간예상체결, 59필드) -> :class:`ExpectedConclusion` -- 예상체결 + ELW 지표.
+* ``H0EWANC0`` (실시간예상체결, 59필드) -> :class:`ElwExpectedConclusion` -- 예상체결 + ELW 지표.
 
 가격/수량/그릭 등 의미상 숫자인 헤드라인 필드는 :func:`_decimal` 로 ``Decimal`` 화하고, 코드/시각/
 부호/Y·N 플래그는 원문 문자열로 둔다. 전체 필드 원문은 각 엔티티의 ``_raw`` 에 Element 이름으로
@@ -98,7 +98,7 @@ def _ladder(raw: Mapping[str, str], prefix: str, levels: int = 10) -> tuple[Deci
 
 
 @dataclass(frozen=True, slots=True)
-class OrderBook:
+class ElwOrderBook:
     """ELW 실시간호가(H0EWASP0). 매도/매수 10호가 사다리와 잔량, LP 총잔량, 예상체결.
 
     ``ask_prices``/``bid_prices`` 와 ``ask_quantities``/``bid_quantities`` 는 1~10호가를 순서대로 담은
@@ -176,7 +176,7 @@ class ExecutionTick:
 
 
 @dataclass(frozen=True, slots=True)
-class ExpectedConclusion:
+class ElwExpectedConclusion:
     """ELW 실시간예상체결(H0EWANC0). 예상 체결가/등락/거래량과 ELW 고유 지표(그릭 등).
 
     체결가(:class:`ExecutionTick`)와 유사하나 전일동시간누적/접근도/LP순매도량 필드가 없다. 전체
@@ -229,10 +229,10 @@ class ExpectedConclusion:
 # --------------------------------------------------------------------------------------
 
 
-def parse_order_book(fields: list[str]) -> OrderBook:
-    """H0EWASP0 한 레코드(73필드) -> :class:`OrderBook`."""
+def parse_order_book(fields: list[str]) -> ElwOrderBook:
+    """H0EWASP0 한 레코드(73필드) -> :class:`ElwOrderBook`."""
     raw = MappingProxyType(dict(zip(_ORDER_BOOK_FIELDS, fields, strict=False)))
-    return OrderBook(
+    return ElwOrderBook(
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["BSOP_HOUR"],
         hour_class=raw["HOUR_CLS_CODE"],
@@ -297,10 +297,10 @@ def parse_execution_tick(fields: list[str]) -> ExecutionTick:
     )
 
 
-def parse_expected_conclusion(fields: list[str]) -> ExpectedConclusion:
-    """H0EWANC0 한 레코드(59필드) -> :class:`ExpectedConclusion`."""
+def parse_expected_conclusion(fields: list[str]) -> ElwExpectedConclusion:
+    """H0EWANC0 한 레코드(59필드) -> :class:`ElwExpectedConclusion`."""
     raw = MappingProxyType(dict(zip(_EXPECTED_CONCLUSION_FIELDS, fields, strict=False)))
-    return ExpectedConclusion(
+    return ElwExpectedConclusion(
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["STCK_CNTG_HOUR"],
         expected_price=_decimal(raw["STCK_PRPR"]),

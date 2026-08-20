@@ -20,12 +20,12 @@ from kis_trader.realtime.parsers.overseas import (
     _ORDERBOOK_FIELDS,
     AsiaDelayedOrderBook,
     DelayedTradeTick,
-    ExecutionNotice,
+    OverseasExecutionNotice,
     FuturesExecutionNotice,
     FuturesOrderBook,
     FuturesOrderNotice,
     FuturesTradeTick,
-    OrderBook,
+    OverseasOrderBook,
     parse_asia_orderbook,
     parse_delayed_trade_tick,
     parse_execution_notice,
@@ -42,7 +42,7 @@ def _blank(fields: tuple[str, ...]) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# HDFSASP0 -- OrderBook
+# HDFSASP0 -- OverseasOrderBook
 # ---------------------------------------------------------------------------
 
 
@@ -66,7 +66,7 @@ def _orderbook_fields() -> list[str]:
 
 def test_parse_orderbook_headline():
     ob = parse_orderbook(_orderbook_fields())
-    assert isinstance(ob, OrderBook)
+    assert isinstance(ob, OverseasOrderBook)
     assert ob.symbol == "AAPL"
     assert ob.realtime_symbol == "DNASAAPL"
     assert ob.decimal_places == "4"
@@ -216,7 +216,7 @@ def test_delayed_trade_raw_and_registry():
 
 
 # ---------------------------------------------------------------------------
-# H0GSCNI0 -- ExecutionNotice (encrypted)
+# H0GSCNI0 -- OverseasExecutionNotice (encrypted)
 # ---------------------------------------------------------------------------
 
 
@@ -242,7 +242,7 @@ def _execution_notice_fields() -> list[str]:
 
 def test_parse_execution_notice_headline():
     notice = parse_execution_notice(_execution_notice_fields())
-    assert isinstance(notice, ExecutionNotice)
+    assert isinstance(notice, OverseasExecutionNotice)
     assert notice.customer_id == "CUST01"
     assert notice.account_no == "50012345"
     assert notice.order_no == "0000123"
