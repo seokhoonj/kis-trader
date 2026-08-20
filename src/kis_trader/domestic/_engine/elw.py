@@ -409,7 +409,7 @@ def fetch_underlyings(
         underlyings.append(
             ELWUnderlying(
                 symbol=code,
-                name=str(row.get("unas_isnm", "")).strip(),
+                underlying_name=str(row.get("unas_isnm", "")).strip(),
                 price=required_decimal(row.get("unas_prpr"), "unas_prpr"),
                 change=_apply_change_sign(
                     required_decimal(row.get("unas_prdy_vrss"), "unas_prdy_vrss"), sign

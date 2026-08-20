@@ -90,7 +90,7 @@ _VOLUME_PATH = "/uapi/domestic-stock/v1/quotations/volume-rank"
 _VOLUME_TR = "FHPST01710000"
 _VOLUME_SCR = "20171"
 #: 거래량 계열 순위 기준(KIS FID_BLNG_CLS_CODE). 거래량 0 / 거래증가율 1 / 회전율 2 / 거래대금 3.
-_VOLUME_BLNG = {"trading_volume": "0", "volume_growth": "1", "turnover": "2", "trading_value": "3"}
+_VOLUME_BLNG = {"trading_volume": "0", "volume_growth": "1", "turnover": "2", "cumulative_trading_amount": "3"}
 
 _MARKET_CAP_PATH = "/uapi/domestic-stock/v1/ranking/market-cap"
 _MARKET_CAP_TR = "FHPST01740000"
@@ -220,8 +220,8 @@ def fetch_fluctuation(transport: Transport, *, direction: str, market: str) -> l
     return _fetch_ranking(transport, path=_FLUCTUATION_PATH, tr=_FLUCTUATION_TR, params=params)
 
 
-def fetch_volume(transport: Transport, *, metric: str = "trading_value", market: str) -> list[RankedStock]:
-    """거래량 계열 순위. ``metric``: trading_volume 거래량 / trading_value 거래대금 /
+def fetch_volume(transport: Transport, *, metric: str = "cumulative_trading_amount", market: str) -> list[RankedStock]:
+    """거래량 계열 순위. ``metric``: trading_volume 거래량 / cumulative_trading_amount 거래대금 /
     volume_growth 거래증가율 / turnover 회전율. 최대 30건(다음조회 없음)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
@@ -718,7 +718,7 @@ def _parse_ranked(rows: Sequence[Mapping[str, Any]]) -> list[RankedStock]:
                     required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
                 ),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
-                trading_value=optional_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+                cumulative_trading_amount=optional_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
                 _raw=row,
             )
         )

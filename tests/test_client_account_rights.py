@@ -65,11 +65,11 @@ def test_account_rights_parses_ledger_row():
     assert isinstance(r, AccountRight)
     assert r.account_number == "1234567801"
     assert r.right_type_code == "01"
-    assert r.record_date == date(2024, 9, 19)
+    assert r.base_date == date(2024, 9, 19)
     assert r.symbol == "00000A357880"
     assert r.short_symbol == "357880"
     assert r.name == "비트나인"
-    assert r.balance_quantity == Decimal(1000)
+    assert r.quantity == Decimal(1000)
     assert r.allocated_quantity == Decimal(1050)
     assert r.total_allocated_quantity == Decimal(1050)
     assert r.subscription_price == Decimal("1865.0000")

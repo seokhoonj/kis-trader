@@ -114,9 +114,9 @@ def build_parser() -> argparse.ArgumentParser:
     rc.add_argument("--direction", choices=list(get_args(Direction)), required=True)
     rc.set_defaults(func=market.cmd_ranking_change)
     rv = leaf(ranking_sub, "volume")
-    rv.add_argument("--metric", choices=list(get_args(VolumeMetric)), default="trading_value",
-                    help="거래량 기준(기본 trading_value 거래대금): trading_volume(거래량)/"
-                         "trading_value(거래대금)/volume_growth(거래증가율)/turnover(회전율)")
+    rv.add_argument("--metric", choices=list(get_args(VolumeMetric)), default="cumulative_trading_amount",
+                    help="거래량 기준(기본 cumulative_trading_amount 거래대금): trading_volume(거래량)/"
+                         "cumulative_trading_amount(거래대금)/volume_growth(거래증가율)/turnover(회전율)")
     rv.set_defaults(func=market.cmd_ranking_volume)
     leaf(ranking_sub, "market-cap").set_defaults(func=market.cmd_ranking_market_cap)
 

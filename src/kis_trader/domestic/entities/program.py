@@ -27,15 +27,15 @@ class ProgramTradePoint:
     """
 
     symbol: str
-    timestamp: datetime               # 시각(조회일 날짜; KST)
+    timestamp: datetime  # 시각(조회일 날짜; KST)
     price: Decimal
-    change: Decimal                   # 전일대비(부호 포함)
-    change_percent: Decimal           # 전일대비율(부호 포함)
-    quantity: int                     # 종목 누적 거래량
-    buy_volume: int                   # 프로그램 매수 수량
-    sell_volume: int                  # 프로그램 매도 수량
-    net_volume: int                   # 프로그램 순매수 수량(매수-매도)
-    net_amount: Decimal               # 프로그램 순매수 금액
+    change: Decimal          # 전일대비(부호 포함)
+    change_percent: Decimal  # 전일대비율(부호 포함)
+    volume: int              # 종목 누적 거래량
+    buy_volume: int          # 프로그램 매수 수량
+    sell_volume: int         # 프로그램 매도 수량
+    net_volume: int          # 프로그램 순매수 수량(매수-매도)
+    net_amount: Decimal      # 프로그램 순매수 금액
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

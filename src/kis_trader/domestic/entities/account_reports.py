@@ -39,7 +39,7 @@ class RealizedProfitPosition:
     current_price: Decimal             # 현재가(prpr)
     market_value: Decimal              # 평가금액(evlu_amt)
     unrealized_pnl: Decimal            # 평가손익금액(evlu_pfls_amt)
-    unrealized_pnl_rate: Decimal       # 평가손익율(evlu_pfls_rt)
+    unrealized_pnl_percent: Decimal       # 평가손익율(evlu_pfls_rt)
     loan_date: date | None             # 대출일자(loan_dt)
     loan_amount: Decimal               # 대출금액(loan_amt)
     expiry_date: date | None           # 만기일자(expd_dt)
