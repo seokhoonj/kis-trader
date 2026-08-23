@@ -15,7 +15,7 @@ from typing import Any
 
 
 @dataclass(frozen=True, slots=True)
-class TradeTick:
+class StockTradeTick:
     """국내주식 실시간 체결(틱). 한 체결 이벤트의 현재가/등락/거래량/체결강도 등.
 
     KRX/NXT/통합 체결가(H0STCNT0/H0NXCNT0/H0UNCNT0)가 같은 레이아웃을 공유한다. 전체 46개

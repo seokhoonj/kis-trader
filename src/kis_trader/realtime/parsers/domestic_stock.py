@@ -16,7 +16,7 @@ from types import MappingProxyType
 from typing import Any
 
 from .._registry import TRSpec, register
-from ..messages import TradeTick
+from ..messages import StockTradeTick
 
 # H0STCNT0 응답 필드 순서(원장 Response Body). 인덱스 = ^ 위치.
 _TRADE_TICK_FIELDS = (
@@ -49,14 +49,14 @@ def _decimal(value: str) -> Decimal:
 
 def parse_trade_tick(
     fields: list[str], field_names: tuple[str, ...] = _TRADE_TICK_FIELDS
-) -> TradeTick:
-    """체결가 한 레코드(46필드) -> :class:`TradeTick`.
+) -> StockTradeTick:
+    """체결가 한 레코드(46필드) -> :class:`StockTradeTick`.
 
     ``field_names`` 로 KRX(H0STCNT0)와 NXT/통합(H0NXCNT0/H0UNCNT0)의 index 21 이름 차이를
     흡수한다(기본 = KRX 레이아웃).
     """
     raw = MappingProxyType(dict(zip(field_names, fields, strict=False)))
-    return TradeTick(
+    return StockTradeTick(
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["STCK_CNTG_HOUR"],
         current_price=_decimal(raw["STCK_PRPR"]),
