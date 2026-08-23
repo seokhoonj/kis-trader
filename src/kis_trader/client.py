@@ -271,21 +271,23 @@ class KISClient:
 
     @property
     def account(self) -> StockAccount | DomesticDerivativesAccount | OverseasDerivativesAccount:
-        """세션이 연 계좌의 조회 뷰 -- 상품코드로 계좌 종류를 정한다(위탁 01 = 주식,
-        국내선물옵션 03 = 선물옵션, 해외선물옵션 08 = 해외선물옵션).
+        """세션이 연 계좌의 조회 뷰 -- 상품코드로 계좌 종류를 정한다. 위탁(01)/연금저축(22)/
+        IRP(29)/ISA 는 같은 국내주식 계좌 엔드포인트를 쓰므로 :class:`~kis_trader.account.StockAccount`
+        로 다룬다(ISA 는 상품코드가 01). IRP(29)는 조회전용이라 주문은 별도 게이트가 막는다.
+        국내선물옵션(03)=파생, 해외선물옵션(08)=해외파생 뷰.
 
         계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError`. 그 밖의 상품은 아직
         미지원(추후 확장) -- 명확한 오류로 fail-closed 한다."""
         _, product_code = self._require_account()
-        if product_code == "01":
+        if product_code in _STOCK_ACCOUNT_PRODUCT_CODES:
             return StockAccount(self)
         if product_code == "03":
             return DomesticDerivativesAccount(self)
         if product_code == "08":
             return OverseasDerivativesAccount(self)
         raise KISUsageError(
-            f"kis.account 는 현재 위탁(01)/국내선물옵션(03)/해외선물옵션(08) 계좌만 지원한다 -- "
-            f"상품코드 {product_code} 는 미지원."
+            f"kis.account 는 위탁·연금저축·IRP(01/22/29)/국내선물옵션(03)/해외선물옵션(08) "
+            f"계좌만 지원한다 -- 상품코드 {product_code} 는 미지원."
         )
 
     @property
@@ -675,6 +677,10 @@ _API_UNAVAILABLE_PRODUCT_CODES = frozenset({"55"})
 #: 조회만 가능(주문 불가)한 상품계좌종류. IRP(29) -- KIS 가 주문 엔드포인트를 거부(APBK1744).
 #: 연금저축(22)은 주문 가능이므로 여기 없다(IRP 와 혼동 주의).
 _READ_ONLY_PRODUCT_CODES = frozenset({"29"})
+#: kis.account 가 국내주식 계좌 조회 뷰(StockAccount)로 다루는 상품계좌종류. 위탁(01)/연금저축(22)/
+#: IRP(29)/ISA 는 같은 국내주식 계좌 잔고/보유 엔드포인트를 공유한다(ISA 는 상품코드 자체가 01).
+#: IRP(29)는 조회전용 -- 주문은 orderable 게이트(_READ_ONLY_PRODUCT_CODES)가 별도로 막는다.
+_STOCK_ACCOUNT_PRODUCT_CODES = frozenset({"01", "22", "29"})
 
 
 def _reject_unsupported_derivative_risk(risk: RiskLimits) -> None:
