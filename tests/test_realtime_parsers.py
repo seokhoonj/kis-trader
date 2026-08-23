@@ -1,4 +1,4 @@
-"""실시간 파서/엔티티 테스트 -- 국내주식 체결가(H0STCNT0) StockTradeTick.
+"""실시간 파서/엔티티 테스트 -- 국내주식 체결가(H0STCNT0) StockTick.
 
 원장 46필드 레이아웃대로 파싱되는지, 레지스트리 등록으로 연결 계층이 타입 엔티티를 내는지 검증.
 """
@@ -9,7 +9,7 @@ import asyncio
 from decimal import Decimal
 
 from kis_trader.realtime import _registry
-from kis_trader.realtime.messages import StockTradeTick
+from kis_trader.realtime.messages import StockTick
 from kis_trader.realtime.parsers.domestic_stock import parse_trade_tick
 
 
@@ -39,7 +39,7 @@ def _sample_fields() -> list[str]:
 
 def test_parse_trade_tick_maps_headline_fields():
     tick = parse_trade_tick(_sample_fields())
-    assert isinstance(tick, StockTradeTick)
+    assert isinstance(tick, StockTick)
     assert tick.symbol == "005930"
     assert tick.time == "093000"
     assert tick.current_price == Decimal(71500)
@@ -89,7 +89,7 @@ def test_nxt_and_unified_raw_use_ledger_key_cntg_cls_code():
 
 
 def test_connection_dispatches_typed_trade_tick():
-    # 연결 계층이 등록된 파서로 프레임을 StockTradeTick 으로 변환하는지(엔드투엔드).
+    # 연결 계층이 등록된 파서로 프레임을 StockTick 으로 변환하는지(엔드투엔드).
     from kis_trader.realtime._connection import RealtimeConnection
 
     payload = "^".join(_sample_fields())
@@ -128,6 +128,6 @@ def test_connection_dispatches_typed_trade_tick():
 
     msgs = asyncio.run(scenario())
     assert len(msgs) == 1
-    assert isinstance(msgs[0].data, StockTradeTick)
+    assert isinstance(msgs[0].data, StockTick)
     assert msgs[0].data.symbol == "005930"
     assert msgs[0].data.current_price == Decimal(71500)
