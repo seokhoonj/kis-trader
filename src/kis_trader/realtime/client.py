@@ -18,15 +18,13 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable, Coroutine, Iterator
 from concurrent.futures import CancelledError as FutureCancelledError
-from typing import TYPE_CHECKING, Any, Self
+from typing import Any, Self
 
 from ..errors import RealtimeError
 from ._connection import Connector, RealtimeConnection, RealtimeMessage
 from ._protocol import CustomerType
+from .namespace import RealtimeDomesticNamespace
 from .subscription import RealtimeSubscription
-
-if TYPE_CHECKING:
-    from .namespace import RealtimeDomesticNamespace
 
 MessageCallback = Callable[[RealtimeMessage], None]
 
@@ -74,6 +72,8 @@ class RealtimeClient:
         self._queue_overflow_warned = False
         self._running = False
         self._startup_error: BaseException | None = None  # start() 로 전달할 연결/구독 실패
+        # 국내 실시간 지역 네임스페이스(공개 표면). 시세축이라 계좌 무관.
+        self.domestic = RealtimeDomesticNamespace(self)
 
     # -- 구독 (start 전/후 모두 가능) --
     def subscribe(self, tr_id: str, tr_key: str, *, on: MessageCallback | None = None) -> None:
@@ -248,13 +248,6 @@ class RealtimeClient:
             if item is _STREAM_SENTINEL:
                 return
             yield item
-
-    @property
-    def domestic(self) -> RealtimeDomesticNamespace:
-        """국내 실시간 지역 네임스페이스(``kis.domestic`` 미러). 시세축이라 계좌 무관."""
-        from .namespace import RealtimeDomesticNamespace
-
-        return RealtimeDomesticNamespace(self)
 
     # -- 내부: 백그라운드 스레드 --
     def _run(self) -> None:

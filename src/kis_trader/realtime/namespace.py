@@ -21,7 +21,7 @@ from .parsers.domestic_stock import StockExecutionNotice, StockOrderBook
 
 if TYPE_CHECKING:
     from .client import RealtimeClient
-    from .messages import StockTradeTick
+    from .messages import StockTick
     from .subscription import RealtimeSubscription
 
 StockVenue = Literal["KRX", "NXT", "unified"]
@@ -63,16 +63,18 @@ class StockHandle:
         self._code = code
 
     def trades(
-        self, venue: StockVenue = "KRX", *, on: Callable[[StockTradeTick], None] | None = None
-    ) -> RealtimeSubscription[StockTradeTick]:
+        self, venue: StockVenue = "KRX", *, on: Callable[[StockTick], None] | None = None
+    ) -> RealtimeSubscription[StockTick]:
+        """국내주식 실시간 체결을 구독하고 RealtimeSubscription[StockTick] 을 반환한다. venue: KRX/NXT/통합."""
         tr = _pick(_STOCK_TRADES_TR, venue, label="venue")
         return cast(
-            "RealtimeSubscription[StockTradeTick]", self._c._open_typed(tr, self._code, on=on)
+            "RealtimeSubscription[StockTick]", self._c._open_typed(tr, self._code, on=on)
         )
 
     def order_book(
         self, venue: StockVenue = "KRX", *, on: Callable[[StockOrderBook], None] | None = None
     ) -> RealtimeSubscription[StockOrderBook]:
+        """국내주식 실시간 호가를 구독하고 RealtimeSubscription[StockOrderBook] 을 반환한다. venue: KRX/NXT/통합."""
         tr = _pick(_STOCK_ORDER_BOOK_TR, venue, label="venue")
         return cast(
             "RealtimeSubscription[StockOrderBook]", self._c._open_typed(tr, self._code, on=on)
@@ -91,6 +93,7 @@ class FuturesHandle:
     def trades(
         self, *, on: Callable[[FuturesTick], None] | None = None
     ) -> RealtimeSubscription[FuturesTick]:
+        """국내 선물 실시간 체결을 구독하고 RealtimeSubscription[FuturesTick] 을 반환한다. kind 로 고른 선물군."""
         return cast(
             "RealtimeSubscription[FuturesTick]", self._c._open_typed(self._trades_tr, self._code, on=on)
         )
@@ -98,6 +101,7 @@ class FuturesHandle:
     def order_book(
         self, *, on: Callable[[DerivativeOrderBook], None] | None = None
     ) -> RealtimeSubscription[DerivativeOrderBook]:
+        """국내 선물 실시간 호가를 구독하고 RealtimeSubscription[DerivativeOrderBook] 을 반환한다. kind 로 고른 선물군."""
         return cast(
             "RealtimeSubscription[DerivativeOrderBook]",
             self._c._open_typed(self._order_book_tr, self._code, on=on),
@@ -116,6 +120,7 @@ class OptionHandle:
     def trades(
         self, *, on: Callable[[OptionTick], None] | None = None
     ) -> RealtimeSubscription[OptionTick]:
+        """국내 옵션 실시간 체결을 구독하고 RealtimeSubscription[OptionTick] 을 반환한다. kind 로 고른 옵션군."""
         return cast(
             "RealtimeSubscription[OptionTick]", self._c._open_typed(self._trades_tr, self._code, on=on)
         )
@@ -123,6 +128,7 @@ class OptionHandle:
     def order_book(
         self, *, on: Callable[[DerivativeOrderBook], None] | None = None
     ) -> RealtimeSubscription[DerivativeOrderBook]:
+        """국내 옵션 실시간 호가를 구독하고 RealtimeSubscription[DerivativeOrderBook] 을 반환한다. kind 로 고른 옵션군."""
         return cast(
             "RealtimeSubscription[DerivativeOrderBook]",
             self._c._open_typed(self._order_book_tr, self._code, on=on),
@@ -138,6 +144,7 @@ class ExecutionNotices:
     def stock(
         self, hts_id: str, *, on: Callable[[StockExecutionNotice], None] | None = None
     ) -> RealtimeSubscription[StockExecutionNotice]:
+        """국내주식 실시간 체결통보를 구독하고 RealtimeSubscription[StockExecutionNotice] 을 반환한다. hts_id 단위."""
         return cast(
             "RealtimeSubscription[StockExecutionNotice]",
             self._c._open_typed(_STOCK_EXECUTION_NOTICE_TR, hts_id, on=on),
@@ -150,6 +157,7 @@ class ExecutionNotices:
         *,
         on: Callable[[DerivativeExecutionNotice], None] | None = None,
     ) -> RealtimeSubscription[DerivativeExecutionNotice]:
+        """국내 파생 실시간 체결통보를 구독하고 RealtimeSubscription[DerivativeExecutionNotice] 을 반환한다. session: regular/night_futures/night_option."""
         tr = _pick(_DERIV_NOTICE_TR, session, label="session")
         return cast(
             "RealtimeSubscription[DerivativeExecutionNotice]", self._c._open_typed(tr, hts_id, on=on)
@@ -164,10 +172,13 @@ class RealtimeDomesticNamespace:
         self.execution_notices = ExecutionNotices(client)
 
     def stock(self, code: str) -> StockHandle:
+        """국내주식 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). venue 는 잎에서 고른다."""
         return StockHandle(self._c, code)
 
     def futures(self, code: str, kind: FuturesKind = "index") -> FuturesHandle:
+        """국내 선물 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). kind: index|commodity|stock|night."""
         return FuturesHandle(self._c, code, kind)
 
     def option(self, code: str, kind: OptionKind = "index") -> OptionHandle:
+        """국내 옵션 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). kind: index|stock|night."""
         return OptionHandle(self._c, code, kind)
