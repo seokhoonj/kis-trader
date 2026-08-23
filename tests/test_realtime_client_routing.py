@@ -43,3 +43,14 @@ def test_close_deregisters_routing() -> None:
     c._dispatch(RealtimeMessage("H0STASP0", "005930", "late"))
     # 닫힌 뒤 도착한 메시지는 sub 큐에 안 들어감 (sentinel 뒤로 반복 즉시 종료)
     assert list(sub) == []
+
+
+def test_domestic_property_returns_namespace() -> None:
+    from kis_trader.realtime.namespace import RealtimeDomesticNamespace
+
+    c = _client()
+    assert isinstance(c.domestic, RealtimeDomesticNamespace)
+    # end-to-end: 잎이 구독을 등록
+    sub = c.domestic.futures("101W09").trades()
+    assert (sub.tr_id, sub.tr_key) == ("H0IFCNT0", "101W09")
+    assert ("H0IFCNT0", "101W09") in c._subscriptions
