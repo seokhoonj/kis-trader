@@ -18,23 +18,18 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable, Coroutine, Iterator
 from concurrent.futures import CancelledError as FutureCancelledError
-from typing import Any, Literal, Self
+from typing import Any, Self
 
 from ..errors import RealtimeError
 from ._connection import Connector, RealtimeConnection, RealtimeMessage
 from ._protocol import CustomerType
+from .subscription import RealtimeSubscription
 
 MessageCallback = Callable[[RealtimeMessage], None]
 
 _logger = logging.getLogger("kis_trader.realtime")
 _STREAM_SENTINEL = object()  # stream() 종료 신호
 _QUEUE_MAXSIZE = 10_000  # stream() 큐 상한(틱) -- 초과 시 오래된 것부터 드롭
-
-#: 국내주식 실시간 피드의 거래소(venue) -- KRX 정규 / NXT 넥스트레이드(대체거래소) / unified 통합(NXT+KRX).
-StockVenue = Literal["KRX", "NXT", "unified"]
-_STOCK_TRADES_TR: dict[str, str] = {"KRX": "H0STCNT0", "NXT": "H0NXCNT0", "unified": "H0UNCNT0"}
-_STOCK_ORDER_BOOK_TR: dict[str, str] = {"KRX": "H0STASP0", "NXT": "H0NXASP0", "unified": "H0UNASP0"}
-_STOCK_EXECUTION_NOTICE_TR = "H0STCNI0"
 
 
 class RealtimeClient:
@@ -65,6 +60,10 @@ class RealtimeClient:
         self._stop_requested = threading.Event()  # start() 포기/stop() 시 수신루프 진입 차단
         self._lock = threading.Lock()
         self._callbacks: dict[str, list[MessageCallback]] = defaultdict(list)
+        # (tr_id, tr_key) -> 그 계약을 구독한 타입드 sub 들. _dispatch 가 정확 일치로 fan 한다.
+        self._subscriptions: dict[tuple[str, str], list[RealtimeSubscription[Any]]] = defaultdict(
+            list
+        )
         self._desired: set[tuple[str, str]] = set()  # start 전 등록 요청 보관
         # stream() 소비자가 없거나 느려도 무한정 자라지 않게 상한을 둔다(콜백 전용 사용자 메모리 누수 방지).
         # 가득 차면 가장 오래된 틱을 버린다(시장데이터는 최신이 중요) -- 정책은 _dispatch 참고.
@@ -85,24 +84,34 @@ class RealtimeClient:
         if self._running and self._conn is not None and self._loop is not None:
             self._call_async(self._conn.subscribe(tr_id, tr_key))
 
-    # -- 타입드 구독(자주 쓰는 국내주식 피드) -- raw TR-id 를 몰라도 되는 :meth:`subscribe` 래퍼 --
-    def trades(
-        self, symbol: str, *, venue: StockVenue = "KRX", on: MessageCallback | None = None
-    ) -> None:
-        """국내주식 실시간 체결가 구독. ``venue`` 는 거래소(``"KRX"`` 정규 / ``"NXT"`` 넥스트레이드 /
-        ``"unified"`` 통합). 수신은 콜백 ``on`` 또는 :meth:`stream`. raw TR-id 는 :meth:`subscribe`."""
-        self.subscribe(_STOCK_TRADES_TR[venue], symbol, on=on)
+    def _open_typed(
+        self, tr_id: str, tr_key: str, *, on: Callable[[Any], None] | None = None
+    ) -> RealtimeSubscription[Any]:
+        """타입드 구독 생성 + (tr_id, tr_key) 라우팅 등록 + 와이어 subscribe.
 
-    def order_book(
-        self, symbol: str, *, venue: StockVenue = "KRX", on: MessageCallback | None = None
-    ) -> None:
-        """국내주식 실시간 호가 구독. ``venue`` = ``"KRX"``/``"NXT"``/``"unified"``."""
-        self.subscribe(_STOCK_ORDER_BOOK_TR[venue], symbol, on=on)
+        같은 계약에 여러 구독이 붙을 수 있어 refcount 로 관리한다(첫 구독만 wire subscribe,
+        마지막 close 만 wire unsubscribe)."""
+        sub: RealtimeSubscription[Any] = RealtimeSubscription(
+            tr_id, tr_key, on=on, unsubscribe=self._close_typed, maxsize=_QUEUE_MAXSIZE
+        )
+        with self._lock:
+            first = not self._subscriptions[(tr_id, tr_key)]
+            self._subscriptions[(tr_id, tr_key)].append(sub)
+        if first:
+            self.subscribe(tr_id, tr_key)  # 콜백 없이 -- 배달은 라우팅이 담당
+        return sub
 
-    def execution_notices(self, hts_id: str, *, on: MessageCallback | None = None) -> None:
-        """국내주식 실시간 체결통보 구독. ``hts_id`` 는 HTS 로그인 아이디(통보 tr_key). 암호화
-        프레임은 연결 계층이 복호화해 파서에 넘긴다."""
-        self.subscribe(_STOCK_EXECUTION_NOTICE_TR, hts_id, on=on)
+    def _close_typed(self, sub: RealtimeSubscription[Any]) -> None:
+        key = (sub.tr_id, sub.tr_key)
+        with self._lock:
+            subs = self._subscriptions.get(key)
+            if subs is not None and sub in subs:
+                subs.remove(sub)
+            last = bool(subs is not None and not subs)
+            if last:
+                del self._subscriptions[key]
+        if last:
+            self.unsubscribe(sub.tr_id, sub.tr_key)
 
     def unsubscribe(self, tr_id: str, tr_key: str) -> None:
         """실시간 해제."""
@@ -282,11 +291,14 @@ class RealtimeClient:
     def _dispatch(self, message: RealtimeMessage) -> None:
         with self._lock:
             callbacks = list(self._callbacks.get(message.tr_id, ()))
+            subs = list(self._subscriptions.get((message.tr_id, message.tr_key), ()))
         for callback in callbacks:
             try:
                 callback(message)
             except Exception:
                 _logger.warning("realtime callback for %s raised", message.tr_id, exc_info=True)
+        for sub in subs:
+            sub._feed(message)
         self._enqueue(message)
 
     def _enqueue(self, message: RealtimeMessage) -> None:
