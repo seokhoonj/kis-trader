@@ -9,6 +9,7 @@ import asyncio
 import json
 import queue
 import threading
+import time
 
 import pytest
 
@@ -149,6 +150,43 @@ class OpenWebSocket:
 
 def _open_client(ws):
     return RealtimeClient("KEY", "ws://x", connect=_connector(ws), reconnect=False)
+
+
+def _wait_until(pred, timeout=2.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if pred():
+            return True
+        time.sleep(0.01)
+    return pred()
+
+
+def _frames_of(ws, tr_type, tr_id):
+    out = []
+    for raw in ws.sent:
+        frame = json.loads(raw)
+        if frame["header"]["tr_type"] == tr_type and frame["body"]["input"]["tr_id"] == tr_id:
+            out.append(frame)
+    return out
+
+
+def test_typed_subscription_refcount_wire_first_subscribe_last_unsubscribe():
+    # 같은 (tr_id, tr_key) 에 타입드 구독 둘 -> wire subscribe 는 한 번만; 첫 close 는 wire 미해제,
+    # 마지막 close 에만 한 번 해제. wire 예약은 비블로킹이라 프레임을 폴링으로 관찰한다.
+    ws = OpenWebSocket()
+    client = _open_client(ws)
+    client.start()
+    s1 = client._open_typed("H0IFCNT0", "101W09")
+    s2 = client._open_typed("H0IFCNT0", "101W09")
+    assert _wait_until(lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
+    assert len(_frames_of(ws, "1", "H0IFCNT0")) == 1  # 첫 구독만 등록(중복 없음)
+
+    s1.close()  # 마지막 아님 -> wire 해제 예약 안 함(코드상 last 에서만)
+    s2.close()  # 마지막 -> 한 번 해제
+    assert _wait_until(lambda: len(_frames_of(ws, "2", "H0IFCNT0")) == 1)
+    client.stop()
+    assert len(_frames_of(ws, "1", "H0IFCNT0")) == 1  # 등록 정확히 1
+    assert len(_frames_of(ws, "2", "H0IFCNT0")) == 1  # 해제 정확히 1
 
 
 def test_subscribe_after_start_sends_frame():

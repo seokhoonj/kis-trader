@@ -11,7 +11,7 @@ from __future__ import annotations
 import logging
 import queue
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Generic, Self, TypeVar
+from typing import TYPE_CHECKING, Any, Generic, Self, TypeVar, cast
 
 if TYPE_CHECKING:
     from ._connection import RealtimeMessage
@@ -46,16 +46,18 @@ class RealtimeSubscription(Generic[T]):
         # 종료 sentinel 은 제어 신호라 상한과 무관하게 항상 들어가야 하므로(꽉 찬 큐에 blocking
         # put 하면 소비자 없는 close 가 영원히 막힌다) 큐를 unbounded 로 둔다.
         self._maxsize = maxsize
-        self._queue: queue.Queue[Any] = queue.Queue()
+        self._queue: queue.Queue[object] = queue.Queue()
         self._closed = False
         self._overflow_warned = False
 
     def _feed(self, message: RealtimeMessage) -> None:
         """dispatch 가 매칭 메시지를 전달. 콜백 실행 후 엔티티를 drop-oldest 로 적재.
 
-        ``close()`` 뒤에 도착하는 late 메시지는 무시한다. dispatch 는 라우팅 스냅샷을 락 밖에서
-        ``_feed`` 하므로 close 와 경합할 수 있는데, 닫힌 뒤 적재하면 (1) 해제된 구독의 콜백이 불리고
-        (2) 큐가 상한이면 drop-oldest 가 종료 sentinel 을 밀어내 ``__next__`` 가 영구 블록될 수 있다.
+        ``close()`` 뒤에 도착하는 late 메시지는 (대부분) 무시한다. dispatch 는 라우팅 스냅샷을 락
+        밖에서 ``_feed`` 하므로 close 와 경합할 수 있는데, 닫힌 뒤 적재하면 큐가 상한일 때 drop-oldest
+        가 종료 sentinel 을 밀어내 ``__next__`` 가 영구 블록될 수 있다 -- ``_closed`` 가드가 이를 막는다.
+        단 ``_closed`` 확인과 콜백 호출 사이에 close 가 끼어들면 **이미 디스패치 중이던 콜백이 최대 1회**
+        발화할 수 있다(단일 생산자라 그 이상은 없다).
         """
         if self._closed:
             return
@@ -91,14 +93,24 @@ class RealtimeSubscription(Generic[T]):
         item = self._queue.get()
         if item is _SENTINEL:
             raise StopIteration
-        return item  # type: ignore[no-any-return]  # 큐엔 엔티티(T)만 들어옴
+        return cast("T", item)  # 큐엔 엔티티(T) 또는 종료 sentinel 만 들어오고, sentinel 은 위에서 걸러짐
 
     def close(self) -> None:
-        """구독 해제 + 반복 종료. 멱등."""
+        """구독 해제(wire unsubscribe) + 반복 종료. 멱등."""
         if self._closed:
             return
         self._closed = True
         self._unsubscribe(self)
+        self._queue.put(_SENTINEL)
+
+    def _shutdown(self) -> None:
+        """클라이언트 종료 시 호출 -- 반복만 종료하고 wire unsubscribe 는 하지 않는다.
+
+        ``stop()`` 이 소켓을 이미 닫으므로 개별 해제는 불필요·불가하다. 미종료 구독의 반복
+        (``for tick in sub``)이 영구 블록되지 않게 종료 sentinel 만 넣는다. 멱등."""
+        if self._closed:
+            return
+        self._closed = True
         self._queue.put(_SENTINEL)
 
     def __enter__(self) -> Self:

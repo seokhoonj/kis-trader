@@ -93,15 +93,22 @@ class RealtimeClient:
         """타입드 구독 생성 + (tr_id, tr_key) 라우팅 등록 + 와이어 subscribe.
 
         같은 계약에 여러 구독이 붙을 수 있어 refcount 로 관리한다(첫 구독만 wire subscribe,
-        마지막 close 만 wire unsubscribe)."""
+        마지막 close 만 wire unsubscribe). refcount 판단과 wire 예약을 **한 락 안에서** 원자적으로
+        하여, 같은 키의 open/close 가 동시에 일어나도 wire 연산이 락 획득 순서(FIFO)로 루프에
+        예약된다 -- 락 밖에서 예약하면 순서가 뒤집혀 살아있는 구독인데 wire 가 해제되는 경합이 있다.
+        wire 예약은 비블로킹이라(``_schedule_wire``) 락을 든 채 안전하다. 41 등록 상한 등 wire 오류는
+        이 경로에선 비동기라 예외로 오르지 않고 연결 계층 로그로 남는다."""
         sub: RealtimeSubscription[Any] = RealtimeSubscription(
             tr_id, tr_key, on=on, unsubscribe=self._close_typed, maxsize=_QUEUE_MAXSIZE
         )
+        key = (tr_id, tr_key)
         with self._lock:
-            first = not self._subscriptions[(tr_id, tr_key)]
-            self._subscriptions[(tr_id, tr_key)].append(sub)
-        if first:
-            self.subscribe(tr_id, tr_key)  # 콜백 없이 -- 배달은 라우팅이 담당
+            first = not self._subscriptions[key]
+            self._subscriptions[key].append(sub)
+            if first:
+                self._desired.add(key)
+                if self._running and self._conn is not None:
+                    self._schedule_wire(self._conn.subscribe(tr_id, tr_key))
         return sub
 
     def _close_typed(self, sub: RealtimeSubscription[Any]) -> None:
@@ -113,8 +120,9 @@ class RealtimeClient:
             last = bool(subs is not None and not subs)
             if last:
                 del self._subscriptions[key]
-        if last:
-            self.unsubscribe(sub.tr_id, sub.tr_key)
+                self._desired.discard(key)
+                if self._running and self._conn is not None:
+                    self._schedule_wire(self._conn.unsubscribe(sub.tr_id, sub.tr_key))
 
     def unsubscribe(self, tr_id: str, tr_key: str) -> None:
         """실시간 해제."""
@@ -187,6 +195,7 @@ class RealtimeClient:
                 stop_error = exc
                 _logger.warning("realtime 연결 stop() 이 예외를 던졌습니다", exc_info=True)
         self._queue.put(_STREAM_SENTINEL)
+        self._shutdown_subscriptions()
         if self._thread is not None:
             self._thread.join(timeout=timeout)
             if self._thread.is_alive():
@@ -209,6 +218,7 @@ class RealtimeClient:
             except Exception:  # 원래의 timeout 오류를 가리지 않도록 정리 실패는 로깅만
                 _logger.warning("timeout 난 start() 정리 중 코어 stop() 실패", exc_info=True)
         self._queue.put(_STREAM_SENTINEL)
+        self._shutdown_subscriptions()
         if self._thread is not None:
             self._thread.join(timeout=timeout)
 
@@ -297,6 +307,7 @@ class RealtimeClient:
         finally:
             await self._conn.close()
             self._queue.put(_STREAM_SENTINEL)
+            self._shutdown_subscriptions()
 
     def _dispatch(self, message: RealtimeMessage) -> None:
         with self._lock:
@@ -349,3 +360,25 @@ class RealtimeClient:
             return
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         future.result(timeout=timeout)
+
+    def _schedule_wire(self, coro: Coroutine[Any, Any, Any]) -> None:
+        """wire 코루틴(subscribe/unsubscribe)을 루프에 **비블로킹**으로 예약한다.
+
+        :meth:`_call_async` 와 달리 완료를 기다리지 않아 ``self._lock`` 을 든 채 호출해도 안전하다
+        (타입드 구독의 refcount 전이와 wire 예약을 원자적으로 묶기 위함 -- 순서 경합 방지). 루프가
+        없거나 멎었으면 코루틴을 닫고 무시한다(구독은 ``_desired`` 에 남아 재연결 시 재전송된다)."""
+        if self._loop is None or not self._loop.is_running():
+            coro.close()
+            return
+        self._loop.call_soon_threadsafe(asyncio.ensure_future, coro)
+
+    def _shutdown_subscriptions(self) -> None:
+        """종료 시 열린 타입드 구독을 전부 반복 종료하고 라우팅 맵을 비운다.
+
+        wire unsubscribe 는 하지 않는다(소켓이 이미 닫히는 중). 미종료 구독의 반복
+        (``for tick in sub``)이 sentinel 을 못 받아 영구 블록되는 것을 막고, 라우팅/등록 누수를 없앤다."""
+        with self._lock:
+            subs = [sub for group in self._subscriptions.values() for sub in group]
+            self._subscriptions.clear()
+        for sub in subs:
+            sub._shutdown()
