@@ -13,9 +13,9 @@ from kis_trader.realtime.parsers.elw import (
     _EXECUTION_TICK_FIELDS,
     _EXPECTED_CONCLUSION_FIELDS,
     _ORDER_BOOK_FIELDS,
+    ElwExpectedConclusion,
+    ElwOrderBook,
     ExecutionTick,
-    ExpectedConclusion,
-    OrderBook,
     parse_execution_tick,
     parse_expected_conclusion,
     parse_order_book,
@@ -27,7 +27,7 @@ def _index(fields: tuple[str, ...], name: str) -> int:
 
 
 # --------------------------------------------------------------------------------------
-# OrderBook (H0EWASP0)
+# ElwOrderBook (H0EWASP0)
 # --------------------------------------------------------------------------------------
 
 
@@ -59,25 +59,25 @@ def _order_book_fields() -> list[str]:
 
 def test_parse_order_book_maps_headline_fields():
     ob = parse_order_book(_order_book_fields())
-    assert isinstance(ob, OrderBook)
+    assert isinstance(ob, ElwOrderBook)
     assert ob.symbol == "58J300"
     assert ob.time == "093015"
     assert ob.hour_class == "0"
     assert ob.ask_prices == tuple(Decimal(100 + i) for i in range(1, 11))
     assert ob.bid_prices == tuple(Decimal(90 - i) for i in range(1, 11))
-    assert ob.ask_volumes == tuple(Decimal(1000 + i) for i in range(1, 11))
-    assert ob.bid_volumes == tuple(Decimal(2000 + i) for i in range(1, 11))
+    assert ob.ask_quantities == tuple(Decimal(1000 + i) for i in range(1, 11))
+    assert ob.bid_quantities == tuple(Decimal(2000 + i) for i in range(1, 11))
     assert ob.ask_prices[0] == Decimal(101)
     assert ob.bid_prices[0] == Decimal(89)
-    assert ob.total_ask_volume == Decimal(50000)
-    assert ob.total_bid_volume == Decimal(60000)
+    assert ob.total_ask_quantity == Decimal(50000)
+    assert ob.total_bid_quantity == Decimal(60000)
     assert ob.expected_price == Decimal(105)
     assert ob.expected_volume == Decimal(42)
     assert ob.expected_change_sign == "2"
     assert ob.expected_change == Decimal(5)
     assert ob.expected_change_percent == Decimal("5.0")
-    assert ob.lp_total_ask_volume == Decimal(7000)
-    assert ob.lp_total_bid_volume == Decimal(8000)
+    assert ob.lp_total_ask_quantity == Decimal(7000)
+    assert ob.lp_total_bid_quantity == Decimal(8000)
 
 
 def test_order_book_raw_has_all_ledger_keys():
@@ -188,7 +188,7 @@ def test_execution_tick_raw_has_all_ledger_keys():
 
 
 # --------------------------------------------------------------------------------------
-# ExpectedConclusion (H0EWANC0)
+# ElwExpectedConclusion (H0EWANC0)
 # --------------------------------------------------------------------------------------
 
 
@@ -238,7 +238,7 @@ def _expected_conclusion_fields() -> list[str]:
 
 def test_parse_expected_conclusion_maps_headline_fields():
     ec = parse_expected_conclusion(_expected_conclusion_fields())
-    assert isinstance(ec, ExpectedConclusion)
+    assert isinstance(ec, ElwExpectedConclusion)
     assert ec.symbol == "58J300"
     assert ec.time == "085959"
     assert ec.expected_price == Decimal(123)

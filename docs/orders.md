@@ -6,22 +6,22 @@
 ## 한눈에 — 매수부터 취소까지
 
 ```python
-s = kis.domestic.stock("005930")
+stock = kis.domestic.stock("005930")
 
-r = s.buy(quantity=10, limit_price=70000)                # 1) 지정가 매수
-print(r.client_order_id, r.status)                       #    -> 주문 키, 상태
+report = stock.buy(quantity=10, limit_price=70000)            # 1) 지정가 매수
+print(report.client_order_id, report.status)                  #    -> 주문 키, 상태
 
-kis.orders.reconcile(r.client_order_id)                  # 2) 실제 접수됐는지 확인
-kis.orders.modify(r.client_order_id, limit_price=70500)  # 3) 가격 정정
-kis.orders.cancel(r.client_order_id)                     # 4) 취소
+kis.orders.reconcile(report.client_order_id)                  # 2) 실제 접수됐는지 확인
+kis.orders.modify(report.client_order_id, limit_price=70500)  # 3) 가격 정정
+kis.orders.cancel(report.client_order_id)                     # 4) 취소
 ```
 
 ## 매수·매도
 
 ```python
-s.buy(quantity=10, limit_price=70000)   # 지정가 매수
-s.buy(quantity=10)                      # 시장가 매수 (가격 생략)
-s.sell(quantity=10, limit_price=71000)  # 지정가 매도
+stock.buy(quantity=10, limit_price=70000)   # 지정가 매수
+stock.buy(quantity=10)                      # 시장가 매수 (가격 생략)
+stock.sell(quantity=10, limit_price=71000)  # 지정가 매도
 ```
 
 반환값 `ExecutionReport` 의 필드:
@@ -43,13 +43,13 @@ s.sell(quantity=10, limit_price=71000)  # 지정가 매도
 ## 주문 종류
 
 ```python
-s.buy(quantity=10, limit_price=70000)                                # 지정가
-s.buy(quantity=10)                                                   # 시장가 (가격 생략)
-s.buy(quantity=10, division="immediate_limit")                       # 최유리 지정가 (상대편 최우선호가로)
-s.buy(quantity=10, division="priority_limit")                        # 최우선 지정가 (내 방향 최우선호가로)
-s.buy(quantity=10, limit_price=70000, division="conditional_limit")  # 조건부 지정가 (limit_price 필요)
-s.buy(quantity=10, limit_price=70000, time_in_force="ioc")           # IOC (즉시체결·잔량취소)
-s.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (전량아니면 취소)
+stock.buy(quantity=10, limit_price=70000)                                # 지정가
+stock.buy(quantity=10)                                                   # 시장가 (가격 생략)
+stock.buy(quantity=10, division="immediate_limit")                       # 최유리 지정가 (상대편 최우선호가로)
+stock.buy(quantity=10, division="priority_limit")                        # 최우선 지정가 (내 방향 최우선호가로)
+stock.buy(quantity=10, limit_price=70000, division="conditional_limit")  # 조건부 지정가 (limit_price 필요)
+stock.buy(quantity=10, limit_price=70000, time_in_force="ioc")           # IOC (즉시체결·잔량취소)
+stock.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (전량아니면 취소)
 ```
 
 ### 주문 구분·조건 한눈에
@@ -87,15 +87,15 @@ s.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (전�
 취소/정정은 `client_order_id` 로 지목합니다.
 
 ```python
-kis.orders.modify(r.client_order_id, limit_price=70500)  # 가격 정정
-kis.orders.modify(r.client_order_id, quantity=5)         # 수량 정정
-kis.orders.cancel(r.client_order_id)                     # 취소
+kis.orders.modify(report.client_order_id, limit_price=70500)  # 가격 정정
+kis.orders.modify(report.client_order_id, quantity=5)         # 수량 정정
+kis.orders.cancel(report.client_order_id)                     # 취소
 ```
 
 **주문이 진짜 들어갔는지 확인** — `reconcile`:
 
 ```python
-kis.orders.reconcile(r.client_order_id)
+kis.orders.reconcile(report.client_order_id)
 ```
 
 주문을 보냈는데 응답이 불확실할 때(타임아웃 등), 라이브러리는 **재전송하지 않고** 그 주문을
@@ -105,7 +105,7 @@ kis.orders.reconcile(r.client_order_id)
 ## 예약·주간거래
 
 ```python
-s.reserve_buy(quantity=10, limit_price=70000)                          # 국내 예약(다음 영업일)
+stock.reserve_buy(quantity=10, limit_price=70000)                      # 국내 예약(다음 영업일)
 kis.overseas.stock("AAPL").overnight_buy(quantity=1, limit_price=150)  # 미국 오버나이트(한국 낮)
 kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)    # 미국 예약
 kis.overseas.stock("00700").reserve_buy(quantity=100, limit_price=350) # 홍콩 예약(거래소 자동판별)
@@ -118,24 +118,24 @@ kis.overseas.stock("00700").reserve_buy(quantity=100, limit_price=350) # 홍콩 
 국내 예약주문 조회·정정·취소(순번 `sequence` 로 지목):
 
 ```python
-a = kis.domestic.account
+account = kis.account.domestic
 
-a.reserved_orders(start="20240101", end="20240131")  # 예약주문 목록
-a.modify_reserved_order("0001", symbol="005930", side="buy", quantity=5, limit_price=71000)
-a.cancel_reserved_order("0001")                      # 취소
+account.reserved_orders(start="20240101", end="20240131")  # 예약주문 목록
+account.modify_reserved_order("0001", symbol="005930", side="buy", quantity=5, limit_price=71000)
+account.cancel_reserved_order("0001")                      # 취소
 ```
 
 해외 예약주문 조회·취소:
 
 ```python
-oa = kis.overseas.account
-oa.reserved_orders(start="20240101", end="20240131")  # 미국+아시아 예약 목록(실전 전용)
+account = kis.account.overseas
+account.reserved_orders(start="20240101", end="20240131")  # 미국+아시아 예약 목록(실전 전용)
 
-hk = kis.overseas.stock("00700").reserve_buy(quantity=100, limit_price=350)
-kis.orders.cancel(hk.client_order_id)                 # 아시아 취소 = client_order_id 로
+report = kis.overseas.stock("00700").reserve_buy(quantity=100, limit_price=350)
+kis.orders.cancel(report.client_order_id)                 # 아시아 취소 = client_order_id 로
 
-us = kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)
-oa.cancel_reserved_order(us.order_id, receipt_date="20240102")  # 미국 취소 = 예약번호+접수일자
+report = kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)
+account.cancel_reserved_order(report.order_id, receipt_date="20240102")  # 미국 취소 = 예약번호+접수일자
 ```
 
 ## 선물·옵션 주문
@@ -145,28 +145,28 @@ oa.cancel_reserved_order(us.order_id, receipt_date="20240102")  # 미국 취소 
 계약코드는 전광판(`kis.domestic.option_board_futures()`)이나 만기(`kis.domestic.option_expiries()`)로 얻습니다.
 
 ```python
-f = kis.domestic.futures("101W09")            # 지수선물 계약
-f.buy(quantity=1, limit_price=350.0)          # 지정가 매수
-f.sell(quantity=1)                            # 시장가 매도 (limit_price 생략)
+futures = kis.domestic.futures("101W09")            # 지수선물 계약
+futures.buy(quantity=1, limit_price=350.0)          # 지정가 매수
+futures.sell(quantity=1)                            # 시장가 매도 (limit_price 생략)
 
-o = kis.domestic.option("201W09350", right="call")   # 콜옵션 (발주엔 right 필수)
-o.buy(quantity=1, limit_price=2.5)
+option = kis.domestic.option("201W09350", right="call")   # 콜옵션 (발주엔 right 필수)
+option.buy(quantity=1, limit_price=2.5)
 ```
 
 주문 구분(`division`)·유효기간(`time_in_force`)·야간장(`night`):
 
 ```python
-f.buy(quantity=1, limit_price=350.0, division="immediate_limit")  # 최유리지정가(파생엔 최우선 없음)
-f.buy(quantity=1, limit_price=350.0, time_in_force="ioc")         # day/ioc/fok
-f.buy(quantity=1, limit_price=350.0, night=True)                  # KRX 파생 야간장(STTN, 실전 전용)
+futures.buy(quantity=1, limit_price=350.0, division="immediate_limit")  # 최유리지정가(파생엔 최우선 없음)
+futures.buy(quantity=1, limit_price=350.0, time_in_force="ioc")         # day/ioc/fok
+futures.buy(quantity=1, limit_price=350.0, night=True)                  # KRX 파생 야간장(STTN, 실전 전용)
 ```
 
 정정·취소·재조회는 현물과 같은 `kis.orders.*` 로 `client_order_id` 를 지목합니다:
 
 ```python
-rep = f.buy(quantity=1, limit_price=350.0)
-kis.orders.modify(rep.client_order_id, limit_price=351.0)   # 가격 정정
-kis.orders.cancel(rep.client_order_id)                     # 취소
+report = futures.buy(quantity=1, limit_price=350.0)
+kis.orders.modify(report.client_order_id, limit_price=351.0)   # 가격 정정
+kis.orders.cancel(report.client_order_id)                     # 취소
 ```
 
 ::: {.callout-note}
@@ -176,15 +176,15 @@ kis.orders.cancel(rep.client_order_id)                     # 취소
 
 ## 신용주문
 
-기본으로 **막혀 있습니다**. 쓰려면 세션에서 명시적으로 켭니다.
+디폴트는 **사용 불가**입니다. 사용하려면 세션에서 명시적으로 켭니다.
 
 ```python
 kis = KISClient(…, allow_credit=True)
 
-s = kis.domestic.stock("005930")
-s.credit_buyable(credit_type="21")                               # 신용 매수가능 여력
-s.credit_buy(quantity=10, credit_type="21", limit_price=70000)   # 신용 매수(융자신규)
-s.credit_sell(quantity=10, credit_type="25", limit_price=71000)  # 신용 매도(융자상환)
+stock = kis.domestic.stock("005930")
+stock.credit_buyable(credit_type="21")                               # 신용 매수가능 여력
+stock.credit_buy(quantity=10, credit_type="21", limit_price=70000)   # 신용 매수(융자신규)
+stock.credit_sell(quantity=10, credit_type="25", limit_price=71000)  # 신용 매도(융자상환)
 ```
 
 ---
@@ -224,4 +224,4 @@ kis = KISClient(…, risk=RiskLimits(
 ))
 ```
 
-현재가 대비 말도 안 되는 가격(손가락 실수)을 미리 막는 용도입니다.
+말도 안 되는 가격 주문을 미리 막는 용도입니다.

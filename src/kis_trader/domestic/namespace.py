@@ -1,5 +1,5 @@
 """국내 자산군 네임스페이스 -- ``kis.domestic`` (:class:`DomesticNamespace`) 와 그 계좌 하위
-(:class:`DomesticAccount`, ``kis.domestic.account``).
+(:class:`DomesticAccount`, ``kis.account.domestic``).
 
 세션 :class:`~kis_trader.client.KISClient` 아래 국내 주식·지수·채권·ELW·파생의 시세/계좌/순위/
 시장/일정 행위를 모은다. 각 메서드는 세션이 쥔 전송/계좌/환경으로 국내 엔진을 직접 호출한다.
@@ -17,6 +17,7 @@ from ._engine import product as product_api
 from ._engine import reserved_orders as reserved_orders_api
 from ._engine import saved_screen as saved_screen_api
 from .bond import Bond
+from .bond_account import DomesticBondAccount
 from .calendar import CalendarQueries
 from .derivative import FuturesContract, OptionContract
 from .elw import ELW
@@ -41,14 +42,19 @@ if TYPE_CHECKING:
     from .entities.account_reports import IntegratedMargin, RealizedProfitBalance
     from .entities.account_right import AccountRight
     from .entities.balance import AccountAssets, Balance, Portfolio, Position
-    from .entities.derivative import FuturesBoardQuote, OptionBoard, OptionExpiry
+    from .entities.derivative import (
+        DerivativeMarginRate,
+        FuturesBoardQuote,
+        OptionBoard,
+        OptionExpiry,
+    )
     from .entities.product import ProductInfo
     from .entities.saved_screen import SavedScreen, SavedScreenStock, Watchlist, WatchlistGroup
     from .entities.trade_profit import DailyProfitHistory, TradeProfitHistory
 
 
 class DomesticAccount:
-    """``kis.domestic.account`` -- 국내 계좌 조회·계좌 단위 주문(잔고/손익/예약주문).
+    """``kis.account.domestic`` -- 국내 계좌 조회·계좌 단위 주문(잔고/손익/예약주문).
 
     모든 메서드는 계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError` 를 던진다(세션을
     ``KISClient(..., account=...)`` 로 열어야 한다). ``**모의투자 미지원**`` 이라 표시된 메서드는
@@ -148,6 +154,13 @@ class DomesticAccount:
             self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment
         )
 
+    @property
+    def bonds(self) -> DomesticBondAccount:
+        """장내채권 계좌 조회 뷰 -- ``kis.account.domestic.bonds.balance()`` /
+        ``buyable(...)`` / ``open_orders(...)`` / ``fills(...)``. 위탁(01) 계좌를 주식과 함께
+        쓰되 ``domestic-bond`` 전용 엔드포인트로 조회한다. 모두 **모의투자 미지원**(실전 전용)."""
+        return DomesticBondAccount(self._c)
+
     def reserved_orders(
         self, *, start: str, end: str, process: str = "all"
     ) -> list[ReservedOrder]:
@@ -185,11 +198,12 @@ class DomesticAccount:
 
 
 class DomesticNamespace:
-    """``kis.domestic`` -- 국내 자산(주식·지수·채권·ELW·파생) 시세/계좌/순위/시장/일정."""
+    """``kis.domestic`` -- 국내 자산(주식·지수·채권·ELW·파생) 시세/순위/시장/일정.
+
+    계좌 조회·계좌 단위 주문은 여기가 아니라 ``kis.account.domestic`` (:class:`DomesticAccount`)."""
 
     def __init__(self, client: KISClient) -> None:
         self._c = client
-        self.account = DomesticAccount(client)
 
     # -- 종목/상품 핸들 --
     def stock(self, code: str, *, market: DomesticBoard | None = None) -> DomesticStock:
@@ -245,6 +259,19 @@ class DomesticNamespace:
         """옵션 전광판 하단의 선물 계약별 현재가·호가·미결제약정·예상체결가."""
         return derivatives_api.fetch_futures_board_quotes(
             self._c.transport, market_class=market_class
+        )
+
+    def derivative_margin_rates(
+        self, base_date: str, *, underlying_id: str = ""
+    ) -> list[DerivativeMarginRate]:
+        """기준일별 기초자산 선물 증거금율 표(위탁/거래 증거금율·거래승수·계약당 증거금). ``base_date``
+        는 조회 기준일 ``"YYYYMMDD"``(8자리), ``underlying_id``(기초자산 ID) 공백(기본)이면 전체
+        기초자산이다. 계약 핸들이 아니라 시장 표라 여기 둔다. **모의투자 미지원**(실전 전용).
+
+        KIS URL/TR-ID: GET /uapi/domestic-futureoption/v1/quotations/margin-rate (TTTO6032R)."""
+        return derivatives_api.fetch_derivative_margin_rates(
+            self._c.transport, environment=self._c.environment,
+            base_date=base_date, underlying_id=underlying_id,
         )
 
     # -- 다종목/상품 조회 --

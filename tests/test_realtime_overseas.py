@@ -20,12 +20,12 @@ from kis_trader.realtime.parsers.overseas import (
     _ORDERBOOK_FIELDS,
     AsiaDelayedOrderBook,
     DelayedTradeTick,
-    ExecutionNotice,
     FuturesExecutionNotice,
     FuturesOrderBook,
     FuturesOrderNotice,
     FuturesTradeTick,
-    OrderBook,
+    OverseasExecutionNotice,
+    OverseasOrderBook,
     parse_asia_orderbook,
     parse_delayed_trade_tick,
     parse_execution_notice,
@@ -42,7 +42,7 @@ def _blank(fields: tuple[str, ...]) -> list[str]:
 
 
 # ---------------------------------------------------------------------------
-# HDFSASP0 -- OrderBook
+# HDFSASP0 -- OverseasOrderBook
 # ---------------------------------------------------------------------------
 
 
@@ -66,7 +66,7 @@ def _orderbook_fields() -> list[str]:
 
 def test_parse_orderbook_headline():
     ob = parse_orderbook(_orderbook_fields())
-    assert isinstance(ob, OrderBook)
+    assert isinstance(ob, OverseasOrderBook)
     assert ob.symbol == "AAPL"
     assert ob.realtime_symbol == "DNASAAPL"
     assert ob.decimal_places == "4"
@@ -74,12 +74,12 @@ def test_parse_orderbook_headline():
     assert ob.local_time == "093000"
     assert ob.korea_date == "20260814"
     assert ob.korea_time == "223000"
-    assert ob.total_bid_volume == Decimal(1500)
-    assert ob.total_ask_volume == Decimal(2200)
+    assert ob.total_bid_quantity == Decimal(1500)
+    assert ob.total_ask_quantity == Decimal(2200)
     assert ob.best_bid == Decimal("231.50")
     assert ob.best_ask == Decimal("231.55")
-    assert ob.best_bid_volume == Decimal(300)
-    assert ob.best_ask_volume == Decimal(450)
+    assert ob.best_bid_quantity == Decimal(300)
+    assert ob.best_ask_quantity == Decimal(450)
 
 
 def test_orderbook_raw_has_unique_ledger_keys():
@@ -131,12 +131,12 @@ def test_parse_asia_orderbook_headline():
     assert ob.local_time == "093000"
     assert ob.korea_date == "20260814"
     assert ob.korea_time == "093000"
-    assert ob.total_bid_volume == Decimal(1500)
-    assert ob.total_ask_volume == Decimal(2200)
+    assert ob.total_bid_quantity == Decimal(1500)
+    assert ob.total_ask_quantity == Decimal(2200)
     assert ob.best_bid == Decimal("2850.0")
     assert ob.best_ask == Decimal("2851.0")
-    assert ob.best_bid_volume == Decimal(300)
-    assert ob.best_ask_volume == Decimal(450)
+    assert ob.best_bid_quantity == Decimal(300)
+    assert ob.best_ask_quantity == Decimal(450)
 
 
 def test_asia_orderbook_raw_and_registry():
@@ -216,7 +216,7 @@ def test_delayed_trade_raw_and_registry():
 
 
 # ---------------------------------------------------------------------------
-# H0GSCNI0 -- ExecutionNotice (encrypted)
+# H0GSCNI0 -- OverseasExecutionNotice (encrypted)
 # ---------------------------------------------------------------------------
 
 
@@ -242,7 +242,7 @@ def _execution_notice_fields() -> list[str]:
 
 def test_parse_execution_notice_headline():
     notice = parse_execution_notice(_execution_notice_fields())
-    assert isinstance(notice, ExecutionNotice)
+    assert isinstance(notice, OverseasExecutionNotice)
     assert notice.customer_id == "CUST01"
     assert notice.account_no == "50012345"
     assert notice.order_no == "0000123"
@@ -369,9 +369,9 @@ def test_parse_futures_orderbook_headline():
     assert ob.recv_time == "223000"
     assert ob.prev_close == Decimal("5500.25")
     assert ob.best_bid == Decimal("5510.00")
-    assert ob.best_bid_volume == Decimal(12)
+    assert ob.best_bid_quantity == Decimal(12)
     assert ob.best_ask == Decimal("5510.50")
-    assert ob.best_ask_volume == Decimal(8)
+    assert ob.best_ask_quantity == Decimal(8)
     assert ob.settlement_price == Decimal("5501.00")
 
 

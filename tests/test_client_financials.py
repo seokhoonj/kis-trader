@@ -145,7 +145,11 @@ def test_balance_sheet_maps_and_annual_default():
     s = sheets[0]
     assert s.symbol == "000660"
     assert s.period == "202312"
+    assert s.current_assets == Decimal(1000)          # cras
+    assert s.noncurrent_assets == Decimal(2000)       # fxas
     assert s.total_assets == Decimal(3000)
+    assert s.current_liabilities == Decimal(500)      # flow_lblt
+    assert s.noncurrent_liabilities == Decimal(300)   # fix_lblt
     assert s.total_liabilities == Decimal(800)
     assert s.total_equity == Decimal(2200)
     assert sheets[1].period == "202212"
@@ -221,7 +225,7 @@ def test_balance_sheet_optional_line_items_none_for_financial_issuer():
     fake = FakeTransport(response=_resp(rows))
     s = _client(fake).domestic.stock("000660").balance_sheet()[0]
     assert s.current_assets is None
-    assert s.fixed_liabilities is None
+    assert s.noncurrent_liabilities is None
     assert s.total_assets == Decimal(3000)               # 합계는 여전히 required
     assert s.total_equity == Decimal(2200)
 

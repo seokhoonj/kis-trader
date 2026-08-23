@@ -1,7 +1,7 @@
 # Claude Code Skill
 
 이 저장소에는 Claude Code(에이전트)가 kis_trader 를 **정해진 규율대로** 다루도록 안내하는
-스킬이 함께 들어 있습니다: `skills/kis-trader/SKILL.md`. 도구가 아니라 "언제·어떻게"를 판단하는
+스킬이 함께 들어 있습니다: `plugins/kis-trader/skills/kis-trader/SKILL.md`. 도구가 아니라 "언제·어떻게"를 판단하는
 플레이북입니다 — 실제 조회·주문은 에이전트가 파이썬 API(`import kis_trader`)로 합니다.
 
 ::: {.callout-warning}
@@ -42,7 +42,7 @@
 
 ```bash
 mkdir -p ~/.claude/skills
-cp -r skills/kis-trader ~/.claude/skills/
+cp -r plugins/kis-trader/skills/kis-trader ~/.claude/skills/
 ```
 
 ::: {.callout-note}

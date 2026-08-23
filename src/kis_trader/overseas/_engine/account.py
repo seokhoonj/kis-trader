@@ -16,7 +16,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from ..._internal._datetime import parse_optional_kst_date
-from ..._internal._response import _fetch_paginated_rows, _raise_if_error
+from ..._internal._response import _fetch_paginated_rows, _raise_if_error, _require_mapping_rows
 from ..._internal._wire import (
     format_wire_decimal,
     optional_decimal,
@@ -234,12 +234,7 @@ def fetch_foreign_margin(
         params=params, idempotent=True,
     )
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):  # 빈 계좌도 배열 -> 부재/비배열은 손상
-        raise KISError(
-            "해외증거금 응답의 output 이 배열이 아니다.",
-            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-        )
+    rows = _require_mapping_rows("output", resp)
     margins: list[OverseasForeignMargin] = []
     for row in rows:
         currency = str(row.get("crcy_cd", "")).strip()
@@ -300,8 +295,8 @@ def fetch_present_balance(
         currencies=tuple(_currency_balance(row) for row in _as_rows(resp.body.get("output2"))),
         total_purchase_amount=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
         total_evaluation_amount=_decimal_or_zero(summary, "evlu_amt_smtl_amt"),
-        total_eval_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
-        total_asset=_decimal_or_zero(summary, "tot_asst_amt"),
+        total_unrealized_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
+        total_asset_amount=_decimal_or_zero(summary, "tot_asst_amt"),
         eval_return_rate=_decimal_or_zero(summary, "evlu_erng_rt1"),
         _raw=summary,
     )
@@ -332,12 +327,12 @@ def fetch_settlement_balance(
         positions=tuple(_report_position(row) for row in _as_rows(resp.body.get("output1"))),
         currencies=tuple(_currency_balance(row) for row in _as_rows(resp.body.get("output2"))),
         total_purchase_amount=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
-        total_eval_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
+        total_unrealized_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
         eval_return_rate=_decimal_or_zero(summary, "evlu_erng_rt1"),
         total_deposit=_decimal_or_zero(summary, "tot_dncl_amt"),
         total_won_evaluation=_decimal_or_zero(summary, "wcrc_evlu_amt_smtl"),
-        total_asset=_decimal_or_zero(summary, "tot_asst_amt2"),
-        total_loan=_decimal_or_zero(summary, "tot_loan_amt"),
+        total_asset_amount=_decimal_or_zero(summary, "tot_asst_amt2"),
+        total_loan_amount=_decimal_or_zero(summary, "tot_loan_amt"),
         _raw=summary,
     )
 
@@ -375,13 +370,7 @@ def fetch_period_profit(
             params=params, idempotent=True, tr_cont=tr_cont,
         )
         _raise_if_error(resp)
-        page = resp.body.get("output1")
-        if not isinstance(page, list):
-            raise KISError(
-                "해외 기간손익 응답의 output1 이 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
+        rows.extend(_require_mapping_rows("output1", resp))
         summary = _first_object(resp.body.get("output2")) or summary
         if resp.tr_cont not in ("F", "M"):
             break
@@ -449,12 +438,12 @@ def _report_position(row: Mapping[str, Any]) -> OverseasBalancePosition:
         name=str(row.get("prdt_name", "")).strip(),
         balance_quantity=_decimal_or_zero(row, "cblc_qty13"),
         orderable_quantity=_decimal_or_zero(row, "ord_psbl_qty1"),
-        average_price=_money_or_zero(row, "avg_unpr3", currency),
+        average_purchase_price=_money_or_zero(row, "avg_unpr3", currency),
         current_price=_money_or_zero(row, "ovrs_now_pric1", currency),
         purchase_amount=_money_or_zero(row, "frcr_pchs_amt", currency),
         market_value=_money_or_zero(row, "frcr_evlu_amt2", currency),
         unrealized_pnl=_money_or_zero(row, "evlu_pfls_amt2", currency),
-        unrealized_pnl_rate=_decimal_or_zero(row, "evlu_pfls_rt1"),
+        unrealized_pnl_percent=_decimal_or_zero(row, "evlu_pfls_rt1"),
         loan_balance=_money_or_zero(row, "loan_rmnd", currency),
         collateral_quantity=_decimal_or_zero(row, "mgge_qty"),
         exchange=str(row.get("ovrs_excg_cd", "")).strip(),
@@ -546,12 +535,12 @@ def _parse_positions(
                 exchange=exchange,
                 quantity=required_int(row.get("ovrs_cblc_qty"), "ovrs_cblc_qty"),
                 sellable_quantity=required_int(row.get("ord_psbl_qty"), "ord_psbl_qty"),
-                average_price=_money(row, "pchs_avg_pric", currency),
+                average_purchase_price=_money(row, "pchs_avg_pric", currency),
                 current_price=_money(row, "now_pric2", currency),
                 purchase_amount=_money(row, "frcr_pchs_amt1", currency),
                 market_value=_money(row, "ovrs_stck_evlu_amt", currency),
                 unrealized_pnl=_money(row, "frcr_evlu_pfls_amt", currency),
-                pnl_percent=required_decimal(row.get("evlu_pfls_rt"), "evlu_pfls_rt"),
+                unrealized_pnl_percent=required_decimal(row.get("evlu_pfls_rt"), "evlu_pfls_rt"),
                 _raw=row,
             )
         )

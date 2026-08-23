@@ -1,7 +1,7 @@
 """세션 루트 -- :class:`KISClient`.
 
 인증(앱키/시크릿)과 기본 계좌를 쥔 세션이다. 모든 행위가 여기서 시작한다:
-``kis.domestic.stock("005930")`` 로 종목 핸들을, ``kis.domestic.account.balance()`` 등으로 계좌를
+``kis.domestic.stock("005930")`` 로 종목 핸들을, ``kis.account.domestic.balance()`` 등으로 계좌를
 조회한다. KIS 토큰은 앱키 단위(24h, 재발급 제한)라 세션이 캐시해 재사용한다.
 
 세션은 전송·기본계좌·주문 안전코어(store/risk/place)만 쥐고, 공개 행위 표면은 자산군 네임스페이스
@@ -24,10 +24,13 @@ from ._internal._masters import (
     load_overseas_index,
     urlopen_fetch,
 )
+from .account import StockAccount
 from .config import _ENVIRONMENTS, _fill_credentials, _split_account, token_cache_path
+from .domestic._engine import bond_orders as bond_orders_engine
 from .domestic._engine import derivative_orders as derivative_orders_engine
 from .domestic._engine import orders as orders_engine
 from .domestic._engine import reserved_orders as reserved_orders_api
+from .domestic.derivative_account import DomesticDerivativesAccount
 from .domestic.namespace import DomesticNamespace
 from .errors import KISUsageError
 from .order import (
@@ -40,8 +43,10 @@ from .order import (
     coerce_decimal,
     mint_client_order_id,
 )
+from .overseas._engine import derivative_orders as overseas_deriv_orders_engine
 from .overseas._engine import orders as overseas_orders_engine
 from .overseas._engine import reserved_orders as overseas_reserved_orders_api
+from .overseas.derivative_account import OverseasDerivativesAccount
 from .overseas.namespace import OverseasNamespace
 from .pension.namespace import PensionNamespace
 from .store import OrderStore
@@ -51,6 +56,7 @@ if TYPE_CHECKING:
 
     from ._internal._masters import InstrumentRecord
     from ._literals import Numeric
+    from .realtime._protocol import CustomerType
     from .realtime.client import RealtimeClient
     from .report import ExecutionReport
     from .risk import RiskLimits
@@ -114,6 +120,7 @@ class KISClient:
         account: str | None = None,
         environment: Environment | None = None,
         hts_id: str | None = None,
+        account_password: str | None = None,
         config_dir: str | Path | None = None,
         transport: Transport | None = None,
         token_cache_dir: str | Path | None = None,
@@ -171,10 +178,11 @@ class KISClient:
             resolved = _fill_credentials(
                 profile, app_key=app_key, app_secret=app_secret, account=account,
                 environment=environment, config_dir=config_dir, hts_id=hts_id,
+                account_password=account_password,
             )
-            app_key, app_secret, account, environment, hts_id = (
+            app_key, app_secret, account, environment, hts_id, account_password = (
                 resolved.app_key, resolved.app_secret, resolved.account, resolved.environment,
-                resolved.hts_id)
+                resolved.hts_id, resolved.account_password)
         else:
             # 앱키·시크릿을 직접 준 경우: 파일을 읽지 않는다. 환경 미지정이면 실전 기본, 주면 검증.
             if environment is None:
@@ -189,6 +197,9 @@ class KISClient:
         self._app_secret = app_secret
         self._environment = environment
         self._hts_id = hts_id
+        #: 계좌비밀번호(야간 파생 잔고 등 일부 조회의 ACNT_PWD). **비밀값** -- 공개 프로퍼티로 노출하지
+        #: 않고, 어디에도 출력/로그하지 않는다. 내부 조회 함수만 이 접근자로 읽는다.
+        self._account_password = account_password
         if transport is None:
             from ._internal._auth import TokenManager
             from ._internal._http import RequestsTransport
@@ -259,6 +270,27 @@ class KISClient:
         return self._environment
 
     @property
+    def account(self) -> StockAccount | DomesticDerivativesAccount | OverseasDerivativesAccount:
+        """세션이 연 계좌의 조회 뷰 -- 상품코드로 계좌 종류를 정한다. 위탁(01)/연금저축(22)/
+        IRP(29)/ISA 는 같은 국내주식 계좌 엔드포인트를 쓰므로 :class:`~kis_trader.account.StockAccount`
+        로 다룬다(ISA 는 상품코드가 01). IRP(29)는 조회전용이라 주문은 별도 게이트가 막는다.
+        국내선물옵션(03)=파생, 해외선물옵션(08)=해외파생 뷰.
+
+        계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError`. 그 밖의 상품은 아직
+        미지원(추후 확장) -- 명확한 오류로 fail-closed 한다."""
+        _, product_code = self._require_account()
+        if product_code in _STOCK_ACCOUNT_PRODUCT_CODES:
+            return StockAccount(self)
+        if product_code == "03":
+            return DomesticDerivativesAccount(self)
+        if product_code == "08":
+            return OverseasDerivativesAccount(self)
+        raise KISUsageError(
+            f"kis.account 는 위탁·연금저축·IRP(01/22/29)/국내선물옵션(03)/해외선물옵션(08) "
+            f"계좌만 지원한다 -- 상품코드 {product_code} 는 미지원."
+        )
+
+    @property
     def hts_id(self) -> str | None:
         """세션의 HTS 로그인 아이디(없으면 ``None``). 조건검색·관심종목 조회의 기본 ``user_id``.
         인증엔 안 쓰인다. 프로필로 연 세션은 ``credentials.json`` 최상위 ``hts_id``(사용자당 하나)
@@ -267,9 +299,10 @@ class KISClient:
         return self._hts_id
 
     @property
-    def account(self) -> str | None:
-        """세션 기본 계좌번호 ``CANO-ACNT_PRDT_CD`` (계좌 없이 열었으면 ``None``). 생성 시 한 번
-        해석된 값이라, 컨슈머(CLI 등)가 자격증명을 다시 읽지 않고 이 값을 재사용한다."""
+    def _account(self) -> str | None:
+        """세션 기본 계좌번호 ``CANO-ACNT_PRDT_CD`` (계좌 없이 열었으면 ``None``). 내부 컨슈머
+        (CLI 등)가 자격증명을 다시 읽지 않고 이 값을 재사용한다. 공개 표면 ``kis.account`` 는
+        계좌 조회 파사드다(이 문자열이 아니다) -- 문자열이 필요하면 이 내부 접근자를 쓴다."""
         if self._cano is None:
             return None
         return f"{self._cano}-{self._product_code}"
@@ -336,6 +369,24 @@ class KISClient:
                 self._transport, self._store, client_order_id,
                 cano=cano, product_code=product_code, environment=self._environment,
             )
+        if isinstance(fingerprint, ImmediateOrderFingerprint) and \
+                bond_orders_engine.is_bond_exchange(fingerprint.exchange):
+            # 국내 장내채권(BOND) 미확인 주문은 국내주식 일별체결조회로 확인할 수 없다(엉뚱한 테이블을
+            # 조회해 체결 여부와 무관하게 None 을 돌려주는 잘못된 복구). 재조회 슬라이스는 미지원이라
+            # fail-closed 한다 -- 이중체결 방지 장벽은 그대로다.
+            raise KISUsageError(
+                "장내채권 주문 재조회(reconcile)는 아직 미지원 -- 체결은 "
+                "계좌 조회(kis.account.domestic.bonds.fills / open_orders)로 수동 확인하라."
+            )
+        if isinstance(fingerprint, ImmediateOrderFingerprint) and \
+                overseas_deriv_orders_engine.is_overseas_fo_exchange(fingerprint.exchange):
+            # 해외선물옵션(OSFO) 미확인 주문은 국내주식 일별체결조회로 확인할 수 없다(엉뚱한 테이블을
+            # 조회해 체결 여부와 무관하게 None 을 돌려주는 잘못된 복구). 재조회 슬라이스는 미지원이라
+            # fail-closed 한다(채권 분기와 대칭) -- 이중체결 방지 장벽은 그대로다.
+            raise KISUsageError(
+                "해외선물옵션 주문 재조회(reconcile)는 아직 미지원 -- 체결은 kis.account(해외파생 "
+                "조회)로 수동 확인하라."
+            )
         return orders_engine.reconcile(
             self._transport, self._store, client_order_id,
             cano=cano, product_code=product_code, environment=self._environment,
@@ -345,7 +396,11 @@ class KISClient:
         self, client_order_id: str, *, action: ChangeAction, quantity: Numeric | None,
         limit_price: Numeric | None, request_id: str | None,
     ) -> ExecutionReport:
-        """접수된 국내·해외 주식 주문의 미체결 수량을 취소/정정한다(``kis.orders.cancel`` / ``.modify``)."""
+        """접수된 주문의 미체결 수량을 취소/정정한다(``kis.orders.cancel`` / ``.modify``).
+
+        국내·해외 주식, 국내 파생(XKFE), 국내 장내채권(BOND), 해외선물옵션(OSFO) 즉시주문과 아시아
+        해외예약(취소 전용)을 모두 처리한다 -- ``fingerprint`` 의 거래소/세션으로 자산별 정정·취소 와이어
+        빌더를 골라 공유 안전 코어(:func:`~kis_trader.domestic._engine.orders.submit_change`)에 넘긴다."""
         cano, product_code = self._require_account()
         fingerprint = self._store.fingerprint_for(client_order_id)
         report = self._store.report_for(client_order_id)
@@ -416,6 +471,24 @@ class KISClient:
                 builder = derivative_orders_engine.make_night_change_request
             else:
                 builder = derivative_orders_engine.make_change_request
+        elif bond_orders_engine.is_bond_exchange(fingerprint.exchange):
+            # 국내 장내채권(BOND) 정정·취소는 실전 전용 -- paper 지문 도달은 손상 신호라 와이어 전에
+            # fail-closed. 채권은 부분 정정·취소를 지원(ORD_QTY2)하므로 전량 강제는 하지 않는다.
+            if self._environment == "paper":
+                raise KISUsageError("장내채권 정정·취소는 모의투자 미지원 -- 실전에서만.")
+            builder = bond_orders_engine.make_change_request
+        elif overseas_deriv_orders_engine.is_overseas_fo_exchange(fingerprint.exchange):
+            # 해외선물옵션(OSFO) 정정·취소는 실전 전용 -- paper 지문 도달은 손상 신호라 와이어 전에
+            # fail-closed. 이 와이어는 전량 정정·취소만 지원(부분 수량 개념 없음)하므로, 호출자가 명시
+            # quantity 를 줬는데 로컬 잔량과 다르면(부분 의도) 조용히 전량을 건드리지 않고 거부한다
+            # -- 파생 야간 슬라이스와 같은 태도(와이어에 닿기 전에 막는다).
+            if self._environment == "paper":
+                raise KISUsageError("해외선물옵션 정정·취소는 모의투자 미지원 -- 실전에서만.")
+            if quantity is not None and change_quantity != remaining_quantity:
+                raise KISUsageError(
+                    "해외선물옵션은 부분 정정·취소를 지원하지 않는다(전량만 가능) -- quantity 를 생략하라."
+                )
+            builder = overseas_deriv_orders_engine.make_change_request
         return orders_engine.submit_change(
             self._transport, self._store,
             original_client_order_id=client_order_id,
@@ -462,6 +535,37 @@ class KISClient:
                 _reject_unsupported_derivative_risk(risk)
             build_request = derivative_orders_engine.make_order_request
             extract_output = derivative_orders_engine._extract_fo_output
+        elif bond_orders_engine.is_bond_exchange(order.exchange):
+            # 국내 장내채권(BOND)은 모의투자 미지원 -- claim/빌드 전에 조기 거부(paper 발주 도달 차단).
+            # 빌더도 같은 거부를 하지만, 라우팅 자리에서 먼저 막아 client_order_id 를 소비하지 않는다.
+            if self._environment == "paper":
+                raise KISUsageError("장내채권 주문은 모의투자 미지원 -- 실전에서만.")
+            # 채권 리스크는 참조가(국내 주식 시세) 기반 검사(notional/collar/tick)가 의미 없어(해외·
+            # 파생과 같은 이유), 리스크가 켜진 세션에선 명확히 거부한다.
+            if risk is not None:
+                raise KISUsageError(
+                    "장내채권 주문엔 사전 리스크 게이트가 미지원이다(참조가 기반 검사가 채권엔 의미 "
+                    "없음) -- risk 없는 세션에서 내거나 국내 주식 주문에만 risk 를 쓰라."
+                )
+            # 접수 응답은 국내주식과 같은 표준 형상이라 기본 output 파서를 쓴다(extract_output=None).
+            build_request = bond_orders_engine.make_order_request
+        elif overseas_deriv_orders_engine.is_overseas_fo_exchange(order.exchange):
+            # 해외선물옵션(OTFM3001U)은 모의투자 미지원 -- claim/빌드 전에 조기 거부(paper 발주 도달
+            # 차단). 빌더도 같은 거부를 하지만, 라우팅 자리에서 먼저 막아 client_order_id 를
+            # 소비하지 않는다.
+            if self._environment == "paper":
+                raise KISUsageError("해외선물옵션 주문은 모의투자 미지원 -- 실전에서만.")
+            # 해외선물옵션 리스크는 참조가(국내 주식 시세) 기반 검사(notional/collar/tick)가 의미
+            # 없어(해외·채권과 같은 이유), 리스크가 켜진 세션에선 명확히 거부한다.
+            if risk is not None:
+                raise KISUsageError(
+                    "해외선물옵션 주문엔 사전 리스크 게이트가 미지원이다(참조가 기반 검사가 의미 "
+                    "없음) -- risk 없는 세션에서 내거나 국내 주식 주문에만 risk 를 쓰라."
+                )
+            # 안전 코어(place)는 공유, 와이어 조립기와 엄격 output 파서(ORD_DT->receipt_date /
+            # ODNO->order_id)만 해외선물옵션용으로.
+            build_request = overseas_deriv_orders_engine.make_order_request
+            extract_output = overseas_deriv_orders_engine.extract_output
         elif order.credit_type is not None:
             # 국내 신용주문 -- 안전 코어(place)는 공유, 와이어 조립기만 신용용으로. risk 는 국내라
             # 그대로 적용된다(참조가=국내 시세).
@@ -518,14 +622,17 @@ class KISClient:
             )
         revoke()
 
-    def realtime(self, *, reconnect: bool = True) -> RealtimeClient:
+    def realtime(
+        self, *, customer_type: CustomerType = "P", reconnect: bool = True
+    ) -> RealtimeClient:
         """실시간(웹소켓) 클라이언트를 만든다.
 
         ``/oauth2/Approval`` 로 접속키를 발급받아 :class:`~kis_trader.realtime.client.RealtimeClient`
         (동기 래퍼)를 돌려준다. ``ws.subscribe(tr_id, tr_key, on=콜백)`` 로 등록하고
         ``ws.start()`` 후 콜백 또는 ``for msg in ws.stream()`` 로 실시간 시세·통보를 받는다.
         async 앱은 코어(:class:`~kis_trader.realtime._connection.RealtimeConnection`)를 직접 쓴다.
-        REST 는 그대로 동기다.
+        REST 는 그대로 동기다. ``customer_type`` 은 구독 헤더의 고객타입 -- 개인 ``"P"``(기본),
+        법인 ``"B"``.
         """
         from ._internal._endpoints import websocket_url
         from .realtime._approval import fetch_approval_key
@@ -533,7 +640,8 @@ class KISClient:
 
         approval_key = fetch_approval_key(self._app_key, self._app_secret, self._environment)
         return RealtimeClient(
-            approval_key, websocket_url(self._environment), reconnect=reconnect
+            approval_key, websocket_url(self._environment),
+            customer_type=customer_type, reconnect=reconnect,
         )
 
     def _require_credit_enabled(self) -> None:
@@ -553,16 +661,28 @@ class KISClient:
             )
         return self._cano, self._product_code
 
+    def _require_account_password(self) -> str:
+        """계좌비밀번호가 필요한 조회(야간 파생 잔고 등)의 ``ACNT_PWD``. 없으면 :class:`KISUsageError`
+        (변수/경로만 안내하고 **비밀값은 절대 노출하지 않는다**)."""
+        if not self._account_password:
+            raise KISUsageError(
+                "이 조회에는 계좌비밀번호가 필요하다 -- credentials.json 최상위 'account_password' "
+                "또는 KIS_ACCOUNT_PASSWORD 환경변수에 설정하라(값은 코드가 출력하지 않는다)."
+            )
+        return self._account_password
+
 
 #: Open API 이용 자체가 불가한 상품계좌종류(ACNT_PRDT_CD). 공식 FAQ(2026-03-26): DC가입자(55).
 _API_UNAVAILABLE_PRODUCT_CODES = frozenset({"55"})
 #: 조회만 가능(주문 불가)한 상품계좌종류. IRP(29) -- KIS 가 주문 엔드포인트를 거부(APBK1744).
 #: 연금저축(22)은 주문 가능이므로 여기 없다(IRP 와 혼동 주의).
 _READ_ONLY_PRODUCT_CODES = frozenset({"29"})
+#: kis.account 가 국내주식 계좌 조회 뷰(StockAccount)로 다루는 상품계좌종류. 위탁(01)/연금저축(22)/
+#: IRP(29)/ISA 는 같은 국내주식 계좌 잔고/보유 엔드포인트를 공유한다(ISA 는 상품코드 자체가 01).
+#: IRP(29)는 조회전용 -- 주문은 orderable 게이트(_READ_ONLY_PRODUCT_CODES)가 별도로 막는다.
+_STOCK_ACCOUNT_PRODUCT_CODES = frozenset({"01", "22", "29"})
 
 
-# 반환은 (계좌, 상품코드) 또는 (None, None) 이지만, 튜플-언팩 대입(self._cano, self._product_code)
-# 에서 mypy 가 상관 유니온을 좁히지 못해 var-annotated 를 요구한다 -- 두 자리 유니온으로 편다.
 def _reject_unsupported_derivative_risk(risk: RiskLimits) -> None:
     """파생(XKFE) 발주에 켜진 리스크 한도 중 지원하지 않는 것을 fail-closed 로 거부한다.
 
@@ -584,6 +704,8 @@ def _reject_unsupported_derivative_risk(risk: RiskLimits) -> None:
         )
 
 
+# 반환은 (계좌, 상품코드) 또는 (None, None) 이지만, 튜플-언팩 대입(self._cano, self._product_code)
+# 에서 mypy 가 상관 유니온을 좁히지 못해 var-annotated 를 요구한다 -- 두 자리 유니온으로 편다.
 def _split_optional_account(account: str | None) -> tuple[str | None, str | None]:
     """``"12345678-01"`` -> (계좌번호 ``"12345678"``, 상품코드 ``"01"``). ``None`` 은 (None, None).
     계좌를 준 경우의 형식 검증은 저장 경로와 같은 :func:`~kis_trader.config._split_account` 를 쓴다

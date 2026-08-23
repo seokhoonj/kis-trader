@@ -60,7 +60,7 @@ _ORDERBOOK_FIELDS = (
 
 
 @dataclass(frozen=True, slots=True)
-class OrderBook:
+class OverseasOrderBook:
     """해외주식 실시간호가(HDFSASP0). 10단계 매수/매도 호가·잔량 스냅샷.
 
     전체 필드는 ``_raw`` (KIS Element 이름 기준)에 있고, 아래는 자주 쓰는 헤드라인만 타입화한 것.
@@ -73,19 +73,19 @@ class OrderBook:
     local_time: str
     korea_date: str
     korea_time: str
-    total_bid_volume: Decimal
-    total_ask_volume: Decimal
+    total_bid_quantity: Decimal
+    total_ask_quantity: Decimal
     best_bid: Decimal
     best_ask: Decimal
-    best_bid_volume: Decimal
-    best_ask_volume: Decimal
+    best_bid_quantity: Decimal
+    best_ask_quantity: Decimal
     _raw: Mapping[str, Any] = _raw_field()
 
 
-def parse_orderbook(fields: list[str]) -> OrderBook:
-    """HDFSASP0 한 레코드 -> :class:`OrderBook`."""
+def parse_orderbook(fields: list[str]) -> OverseasOrderBook:
+    """HDFSASP0 한 레코드 -> :class:`OverseasOrderBook`."""
     raw = MappingProxyType(dict(zip(_ORDERBOOK_FIELDS, fields, strict=False)))
-    return OrderBook(
+    return OverseasOrderBook(
         symbol=raw["SYMB"],
         realtime_symbol=raw["RSYM"],
         decimal_places=raw["ZDIV"],
@@ -93,12 +93,12 @@ def parse_orderbook(fields: list[str]) -> OrderBook:
         local_time=raw["XHMS"],
         korea_date=raw["KYMD"],
         korea_time=raw["KHMS"],
-        total_bid_volume=_decimal(raw["BVOL"]),
-        total_ask_volume=_decimal(raw["AVOL"]),
+        total_bid_quantity=_decimal(raw["BVOL"]),
+        total_ask_quantity=_decimal(raw["AVOL"]),
         best_bid=_decimal(raw["PBID1"]),
         best_ask=_decimal(raw["PASK1"]),
-        best_bid_volume=_decimal(raw["VBID1"]),
-        best_ask_volume=_decimal(raw["VASK1"]),
+        best_bid_quantity=_decimal(raw["VBID1"]),
+        best_ask_quantity=_decimal(raw["VASK1"]),
         _raw=raw,
     )
 
@@ -181,7 +181,7 @@ _EXECUTION_NOTICE_FIELDS = (
 
 
 @dataclass(frozen=True, slots=True)
-class ExecutionNotice:
+class OverseasExecutionNotice:
     """해외주식 실시간체결통보(H0GSCNI0). 주문 접수/체결/거부 통보 한 건.
 
     프레임은 암호화되지만 연결 계층이 복호화한 뒤 파서를 호출한다.
@@ -205,10 +205,10 @@ class ExecutionNotice:
     _raw: Mapping[str, Any] = _raw_field()
 
 
-def parse_execution_notice(fields: list[str]) -> ExecutionNotice:
-    """H0GSCNI0 한 레코드(복호화된 평문) -> :class:`ExecutionNotice`."""
+def parse_execution_notice(fields: list[str]) -> OverseasExecutionNotice:
+    """H0GSCNI0 한 레코드(복호화된 평문) -> :class:`OverseasExecutionNotice`."""
     raw = MappingProxyType(dict(zip(_EXECUTION_NOTICE_FIELDS, fields, strict=False)))
-    return ExecutionNotice(
+    return OverseasExecutionNotice(
         customer_id=raw["CUST_ID"],
         account_no=raw["ACNT_NO"],
         order_no=raw["ODER_NO"],
@@ -312,9 +312,9 @@ class FuturesOrderBook:
     recv_time: str
     prev_close: Decimal
     best_bid: Decimal
-    best_bid_volume: Decimal
+    best_bid_quantity: Decimal
     best_ask: Decimal
-    best_ask_volume: Decimal
+    best_ask_quantity: Decimal
     settlement_price: Decimal
     _raw: Mapping[str, Any] = _raw_field()
 
@@ -328,9 +328,9 @@ def parse_futures_orderbook(fields: list[str]) -> FuturesOrderBook:
         recv_time=raw["RECV_TIME"],
         prev_close=_decimal(raw["PREV_PRICE"]),
         best_bid=_decimal(raw["BID_PRICE_1"]),
-        best_bid_volume=_decimal(raw["BID_QNTT_1"]),
+        best_bid_quantity=_decimal(raw["BID_QNTT_1"]),
         best_ask=_decimal(raw["ASK_PRICE_1"]),
-        best_ask_volume=_decimal(raw["ASK_QNTT_1"]),
+        best_ask_quantity=_decimal(raw["ASK_QNTT_1"]),
         settlement_price=_decimal(raw["STTL_PRICE"]),
         _raw=raw,
     )
@@ -478,7 +478,7 @@ _ASIA_ORDERBOOK_FIELDS = (
 class AsiaDelayedOrderBook:
     """해외주식 실시간지연호가 아시아(HDFSASP1). 아시아 거래소 1단계 매수/매도 호가·잔량 스냅샷.
 
-    아시아권 지연호가는 최우선 1단계만 제공한다(미주/유럽의 10단계 :class:`OrderBook` 과 구분).
+    아시아권 지연호가는 최우선 1단계만 제공한다(미주/유럽의 10단계 :class:`OverseasOrderBook` 과 구분).
     전체 필드는 ``_raw`` (KIS Element 이름 기준)에 있고, 아래는 헤드라인만 타입화한 것.
     """
 
@@ -489,12 +489,12 @@ class AsiaDelayedOrderBook:
     local_time: str
     korea_date: str
     korea_time: str
-    total_bid_volume: Decimal
-    total_ask_volume: Decimal
+    total_bid_quantity: Decimal
+    total_ask_quantity: Decimal
     best_bid: Decimal
     best_ask: Decimal
-    best_bid_volume: Decimal
-    best_ask_volume: Decimal
+    best_bid_quantity: Decimal
+    best_ask_quantity: Decimal
     _raw: Mapping[str, Any] = _raw_field()
 
 
@@ -509,12 +509,12 @@ def parse_asia_orderbook(fields: list[str]) -> AsiaDelayedOrderBook:
         local_time=raw["XHMS"],
         korea_date=raw["KYMD"],
         korea_time=raw["KHMS"],
-        total_bid_volume=_decimal(raw["BVOL"]),
-        total_ask_volume=_decimal(raw["AVOL"]),
+        total_bid_quantity=_decimal(raw["BVOL"]),
+        total_ask_quantity=_decimal(raw["AVOL"]),
         best_bid=_decimal(raw["PBID1"]),
         best_ask=_decimal(raw["PASK1"]),
-        best_bid_volume=_decimal(raw["VBID1"]),
-        best_ask_volume=_decimal(raw["VASK1"]),
+        best_bid_quantity=_decimal(raw["VBID1"]),
+        best_ask_quantity=_decimal(raw["VASK1"]),
         _raw=raw,
     )
 

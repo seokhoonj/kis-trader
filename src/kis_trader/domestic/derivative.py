@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, ClassVar, Literal
 
 from ..errors import KISUsageError
 from ..order import _DERIVATIVE_EXCHANGE, Order, coerce_decimal, mint_client_order_id
+from ._engine import derivative_account as derivative_account_api
 from ._engine import derivatives as derivatives_api
 from .entities.derivative import DerivativeQuote, ExpectedExecutionTrend, UnderlyingQuote
 
@@ -29,6 +30,7 @@ if TYPE_CHECKING:
     from ..order import DerivativeDivision, OrderType, Right, Side, TimeInForce
     from ..order_book import OrderBook
     from ..report import ExecutionReport
+    from .entities.derivative_account import DerivativeOrderable
 
 
 class _ContractBase:
@@ -37,7 +39,7 @@ class _ContractBase:
     핸들(:class:`FuturesContract` / :class:`OptionContract`)로만 만든다."""
 
     #: 서브클래스가 고정하는 파생 시장(보드) 구분 코드. FID_COND_MRKT_DIV_CODE 로 나간다.
-    _MARKET: DerivativeMarket
+    _MARKET: ClassVar[DerivativeMarket]
 
     #: 서브클래스가 고정하는 계약코드 길이(선물 6 / 옵션 9). 발주 전 형상검증에 쓴다 -- 조회용
     #: 종목코드나 오타를 발주 경로에서 조용히 통과시키지 않도록 :meth:`_make_order` 가 확인한다.
@@ -118,6 +120,32 @@ class _ContractBase:
             client_order_id=client_order_id,
         ))
 
+    def orderable(self, side: Side, *, limit_price: Numeric | None = None) -> DerivativeOrderable:
+        """이 계약의 주문가능수량(주간). ``side`` 는 매수/매도, ``limit_price`` 를 주면 지정가 기준,
+        없으면 시장가 기준이다. 총가능·청산가능 수량과 기준지수를 함께 담는다.
+
+        KIS URL/TR-ID: ``GET .../trading/inquire-psbl-order`` (실전 ``TTTO5105R`` / 모의 ``VTTO5105R``).
+        계좌 미설정은 :class:`~kis_trader.errors.KISUsageError`."""
+        cano, product_code = self._client._require_account()
+        return derivative_account_api.fetch_derivative_orderable(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, code=self.code, side=side, limit_price=limit_price,
+        )
+
+    def night_orderable(
+        self, side: Side, *, limit_price: Numeric | None = None
+    ) -> DerivativeOrderable:
+        """이 계약의 야간장(EUREX 연계) 주문가능수량. 파라미터는 :meth:`orderable` 과 같되 야간
+        세션 기준이며 **실전 전용**(``environment="paper"`` 는 :class:`~kis_trader.errors.KISUsageError`).
+
+        KIS URL/TR-ID: ``GET .../trading/inquire-psbl-ngt-order`` (``STTN5105R``, 모의투자 미지원).
+        계좌 미설정도 :class:`~kis_trader.errors.KISUsageError`."""
+        cano, product_code = self._client._require_account()
+        return derivative_account_api.fetch_derivative_night_orderable(
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, code=self.code, side=side, limit_price=limit_price,
+        )
+
     def _make_order(
         self, side: Side, *, quantity: Numeric, limit_price: Numeric | None = None,
         order_type: OrderType | None = None, time_in_force: TimeInForce = "day",
@@ -154,7 +182,7 @@ class FuturesContract(_ContractBase):
     선물 전용 :meth:`underlying_quote`(선물과 기초자산을 나란히 보는 베이시스 스냅샷)를 가진다.
     발주(:meth:`buy`/:meth:`sell`)는 상품구분 "01"(선물)로 나간다."""
 
-    _MARKET: DerivativeMarket = "F"
+    _MARKET: ClassVar[DerivativeMarket] = "F"
     _SYMBOL_LENGTH: ClassVar[int] = 6
 
     def underlying_quote(self) -> UnderlyingQuote:
@@ -178,7 +206,7 @@ class OptionContract(_ContractBase):
     ``right`` 없이도 만들 수 있고(``kis.domestic.option(code)``), 그 상태로 발주하면 fail-closed 다 --
     발주엔 ``option(code, right=...)`` 로 방향을 지정해야 한다."""
 
-    _MARKET: DerivativeMarket = "O"
+    _MARKET: ClassVar[DerivativeMarket] = "O"
     _SYMBOL_LENGTH: ClassVar[int] = 9
 
     right: Right | None

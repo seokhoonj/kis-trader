@@ -16,8 +16,8 @@ from collections.abc import Mapping, Sequence
 from typing import Any
 
 from ..._internal._response import (
-    _missing_block_error,
     _raise_if_error,
+    _require_mapping_rows,
 )
 from ..._internal._wire import optional_decimal, required_decimal
 from ...transport import Transport
@@ -51,10 +51,7 @@ def _fetch_finance(
     }
     resp = transport.request(method="GET", path=path, tr_id=tr, params=params, idempotent=True)
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, list):
-        raise _missing_block_error("output", resp)
-    return rows
+    return _require_mapping_rows("output", resp)
 
 
 def fetch_balance_sheet(
@@ -73,10 +70,10 @@ def fetch_balance_sheet(
                 symbol=symbol,
                 period=period,
                 current_assets=optional_decimal(row.get("cras"), "cras"),
-                fixed_assets=optional_decimal(row.get("fxas"), "fxas"),
+                noncurrent_assets=optional_decimal(row.get("fxas"), "fxas"),
                 total_assets=required_decimal(row.get("total_aset"), "total_aset"),
                 current_liabilities=optional_decimal(row.get("flow_lblt"), "flow_lblt"),
-                fixed_liabilities=optional_decimal(row.get("fix_lblt"), "fix_lblt"),
+                noncurrent_liabilities=optional_decimal(row.get("fix_lblt"), "fix_lblt"),
                 total_liabilities=required_decimal(row.get("total_lblt"), "total_lblt"),
                 capital=required_decimal(row.get("cpfn"), "cpfn"),
                 total_equity=required_decimal(row.get("total_cptl"), "total_cptl"),

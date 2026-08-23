@@ -18,7 +18,7 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable, Coroutine, Iterator
 from concurrent.futures import CancelledError as FutureCancelledError
-from typing import Any, Self
+from typing import Any, Literal, Self
 
 from ..errors import RealtimeError
 from ._connection import Connector, RealtimeConnection, RealtimeMessage
@@ -29,6 +29,12 @@ MessageCallback = Callable[[RealtimeMessage], None]
 _logger = logging.getLogger("kis_trader.realtime")
 _STREAM_SENTINEL = object()  # stream() 종료 신호
 _QUEUE_MAXSIZE = 10_000  # stream() 큐 상한(틱) -- 초과 시 오래된 것부터 드롭
+
+#: 국내주식 실시간 피드의 거래소(venue) -- KRX 정규 / NXT 넥스트레이드(대체거래소) / unified 통합(NXT+KRX).
+StockVenue = Literal["KRX", "NXT", "unified"]
+_STOCK_TRADES_TR: dict[str, str] = {"KRX": "H0STCNT0", "NXT": "H0NXCNT0", "unified": "H0UNCNT0"}
+_STOCK_ORDER_BOOK_TR: dict[str, str] = {"KRX": "H0STASP0", "NXT": "H0NXASP0", "unified": "H0UNASP0"}
+_STOCK_EXECUTION_NOTICE_TR = "H0STCNI0"
 
 
 class RealtimeClient:
@@ -56,6 +62,7 @@ class RealtimeClient:
         self._thread: threading.Thread | None = None
         self._conn: RealtimeConnection | None = None
         self._ready = threading.Event()  # 루프+연결 준비 완료
+        self._stop_requested = threading.Event()  # start() 포기/stop() 시 수신루프 진입 차단
         self._lock = threading.Lock()
         self._callbacks: dict[str, list[MessageCallback]] = defaultdict(list)
         self._desired: set[tuple[str, str]] = set()  # start 전 등록 요청 보관
@@ -78,6 +85,25 @@ class RealtimeClient:
         if self._running and self._conn is not None and self._loop is not None:
             self._call_async(self._conn.subscribe(tr_id, tr_key))
 
+    # -- 타입드 구독(자주 쓰는 국내주식 피드) -- raw TR-id 를 몰라도 되는 :meth:`subscribe` 래퍼 --
+    def trades(
+        self, symbol: str, *, venue: StockVenue = "KRX", on: MessageCallback | None = None
+    ) -> None:
+        """국내주식 실시간 체결가 구독. ``venue`` 는 거래소(``"KRX"`` 정규 / ``"NXT"`` 넥스트레이드 /
+        ``"unified"`` 통합). 수신은 콜백 ``on`` 또는 :meth:`stream`. raw TR-id 는 :meth:`subscribe`."""
+        self.subscribe(_STOCK_TRADES_TR[venue], symbol, on=on)
+
+    def order_book(
+        self, symbol: str, *, venue: StockVenue = "KRX", on: MessageCallback | None = None
+    ) -> None:
+        """국내주식 실시간 호가 구독. ``venue`` = ``"KRX"``/``"NXT"``/``"unified"``."""
+        self.subscribe(_STOCK_ORDER_BOOK_TR[venue], symbol, on=on)
+
+    def execution_notices(self, hts_id: str, *, on: MessageCallback | None = None) -> None:
+        """국내주식 실시간 체결통보 구독. ``hts_id`` 는 HTS 로그인 아이디(통보 tr_key). 암호화
+        프레임은 연결 계층이 복호화해 파서에 넘긴다."""
+        self.subscribe(_STOCK_EXECUTION_NOTICE_TR, hts_id, on=on)
+
     def unsubscribe(self, tr_id: str, tr_key: str) -> None:
         """실시간 해제."""
         with self._lock:
@@ -95,11 +121,25 @@ class RealtimeClient:
         """
         if self._running:
             return
+        # 이전 run 의 스레드가 아직 살아 있으면(예: timeout 정리의 join 마저 늦은 멎은 연결) 새 run 을
+        # 띄우지 않는다 -- 띄우면 self._conn/_loop/_queue 를 갈아치워, 뒤늦게 깨어난 옛 스레드가 새 run 의
+        # 소켓을 닫고 큐에 stale 센티넬을 넣는다(재시작 revive/clobber). 이전 정리가 끝날 때까지 fail-closed.
+        if self._thread is not None and self._thread.is_alive():
+            raise RealtimeError(
+                "이전 실시간 실행이 아직 종료되지 않았습니다 -- stop() 으로 정리가 끝난 뒤 다시 start() 하세요."
+            )
         self._startup_error = None
         self._ready.clear()  # 재시작 시 이전 set 이 남아 조기 ready 로 오판되지 않게
+        self._stop_requested.clear()
+        # 재시작: 이전 run 의 잔여 틱/센티넬이 새 stream() 에 낡은 데이터·즉시종료로 새지 않게 큐를 비운다.
+        self._drain_queue()
+        self._queue_overflow_warned = False
         self._thread = threading.Thread(target=self._run, name="kis-realtime", daemon=True)
         self._thread.start()
         if not self._ready.wait(timeout=timeout):
+            # 연결이 timeout 뒤 늦게 열리면 소켓이 새므로(_running 이 False 라 stop() 이 무시됨)
+            # best-effort 로 백그라운드를 정리하고 나서 알린다.
+            self._abort_startup(timeout=5.0)
             raise RealtimeError(f"실시간 연결이 {timeout}s 내에 준비되지 않았습니다(연결 지연/실패).")
         if self._startup_error is not None:
             self._thread.join(timeout=5.0)
@@ -110,7 +150,14 @@ class RealtimeClient:
         """수신 중단 및 스레드 종료. 백그라운드 루프가 이미 끝났으면 join 만 한다."""
         if not self._running:
             return
+        # 수신 콜백은 백그라운드 스레드에서 돈다 -- 거기서 stop() 을 부르면 자기 루프를 기다려
+        # self-deadlock 이고 self._thread.join() 은 현재 스레드를 join 하려다 RuntimeError 다. fail-closed.
+        if threading.current_thread() is self._thread:
+            raise RealtimeError(
+                "stop() 은 실시간 콜백(수신 스레드) 안에서 호출할 수 없습니다 -- 다른 스레드에서 부르세요."
+            )
         self._running = False
+        self._stop_requested.set()
         stop_error: BaseException | None = None
         if self._conn is not None and self._loop is not None and self._loop.is_running():
             try:
@@ -136,6 +183,30 @@ class RealtimeClient:
                 )
         if stop_error is not None:
             raise stop_error
+
+    def _abort_startup(self, *, timeout: float) -> None:
+        """timeout 난 :meth:`start` 정리 -- 늦게 연결이 열려도 소켓이 새지 않게 한다.
+
+        수신루프 진입을 :attr:`_stop_requested` 로 막고(연결이 이 직후 열리면 :meth:`_main` 이
+        그 플래그를 보고 곧장 close 한다), 루프가 이미 돌면 코어 stop 을 스케줄한다. 그마저도
+        올라오지 않았으면(그래서 timeout) 데몬 스레드라 프로세스 종료를 막지는 않는다."""
+        self._stop_requested.set()
+        if self._loop is not None and self._loop.is_running() and self._conn is not None:
+            try:
+                asyncio.run_coroutine_threadsafe(self._conn.stop(), self._loop).result(timeout=timeout)
+            except Exception:  # 원래의 timeout 오류를 가리지 않도록 정리 실패는 로깅만
+                _logger.warning("timeout 난 start() 정리 중 코어 stop() 실패", exc_info=True)
+        self._queue.put(_STREAM_SENTINEL)
+        if self._thread is not None:
+            self._thread.join(timeout=timeout)
+
+    def _drain_queue(self) -> None:
+        """stream() 큐를 비운다(재시작 시 이전 run 의 잔여 틱/센티넬 제거)."""
+        while True:
+            try:
+                self._queue.get_nowait()
+            except queue.Empty:
+                return
 
     def __enter__(self) -> Self:
         self.start()
@@ -199,8 +270,11 @@ class RealtimeClient:
             return
         self._ready.set()  # 준비 완료 신호
         try:
-            async for message in self._conn:
-                self._dispatch(message)
+            # start() 가 timeout 으로 이미 포기했으면(_abort_startup) 수신루프에 들어가지 않고
+            # 곧장 finally 로 소켓을 닫는다 -- 늦게 열린 연결이 방치돼 새지 않게.
+            if not self._stop_requested.is_set():
+                async for message in self._conn:
+                    self._dispatch(message)
         finally:
             await self._conn.close()
             self._queue.put(_STREAM_SENTINEL)

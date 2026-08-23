@@ -10,9 +10,9 @@ from decimal import Decimal
 
 from kis_trader.realtime import _registry
 from kis_trader.realtime.parsers.index import (
-    ExpectedConclusion,
+    IndexExpectedConclusion,
+    IndexProgramTrade,
     IndexTick,
-    ProgramTrade,
     parse_expected_conclusion,
     parse_index_tick,
     parse_program_trade,
@@ -76,7 +76,7 @@ def _program_trade_fields() -> list[str]:
 
 def test_parse_expected_conclusion_maps_headline_fields():
     ec = parse_expected_conclusion(_expected_conclusion_fields())
-    assert isinstance(ec, ExpectedConclusion)
+    assert isinstance(ec, IndexExpectedConclusion)
     assert ec.sector_code == "0001"
     assert ec.time == "153000"
     assert ec.expected_index == Decimal("2650.55")
@@ -102,7 +102,7 @@ def test_expected_conclusion_raw_has_all_ledger_keys():
 
 def test_parse_program_trade_maps_headline_fields():
     pt = parse_program_trade(_program_trade_fields())
-    assert isinstance(pt, ProgramTrade)
+    assert isinstance(pt, IndexProgramTrade)
     assert pt.sector_code == "0001"
     assert pt.time == "153000"
     assert pt.total_sell_quantity == Decimal(1000)

@@ -79,8 +79,12 @@ _DEFAULT_MARKER_KEY = "default_profile"
 #: 최상위에 한 번 둔다(모든 프로필이 공유). 인증엔 안 쓰이고 조건검색·관심종목의 user_id 로 쓴다.
 _HTS_ID_KEY = "hts_id"
 _HTS_ID_ENV_VAR = "KIS_HTS_ID"
+#: 계좌비밀번호를 담는 예약 최상위 키. 사용자당 하나라 최상위에 한 번 둔다(모든 프로필 공유).
+#: 일부 조회(야간 파생 잔고 등)의 ``ACNT_PWD`` 로만 쓰인다. **비밀값** -- repr/로그에 절대 노출하지 않는다.
+_ACCOUNT_PASSWORD_KEY = "account_password"
+_ACCOUNT_PASSWORD_ENV_VAR = "KIS_ACCOUNT_PASSWORD"
 #: 예약 최상위 키를 파일에서 배치하는 순서(맨 위, 이 순서대로). 멤버십 검사는 아래 frozenset.
-_RESERVED_TOP_LEVEL_ORDER = (_HTS_ID_KEY, _DEFAULT_MARKER_KEY)
+_RESERVED_TOP_LEVEL_ORDER = (_HTS_ID_KEY, _ACCOUNT_PASSWORD_KEY, _DEFAULT_MARKER_KEY)
 #: 프로필 이름으로 쓸 수 없는 예약 최상위 키.
 _RESERVED_TOP_LEVEL_KEYS = frozenset(_RESERVED_TOP_LEVEL_ORDER)
 
@@ -264,6 +268,24 @@ def _resolve_hts_id(loaded: dict[str, object]) -> str | None:
     return None
 
 
+def _resolve_account_password(loaded: dict[str, object]) -> str | None:
+    """계좌비밀번호. ``KIS_ACCOUNT_PASSWORD`` 환경변수 > ``credentials.json`` 최상위 ``"account_password"``.
+    야간 파생 잔고 등 일부 조회의 ``ACNT_PWD`` 로만 쓴다(사용자당 하나, 최상위 공유). **비밀값이라 값을
+    어디에도 출력/로그하지 않는다** -- 비어있지 않은지만 확인하고 원문 그대로 돌려준다(패스워드는 공백도
+    유효할 수 있어 strip 하지 않는다)."""
+    env = os.environ.get(_ACCOUNT_PASSWORD_ENV_VAR)
+    if env is not None and env.strip():
+        return env
+    value = loaded.get(_ACCOUNT_PASSWORD_KEY)
+    if isinstance(value, bool):          # bool 은 int 하위형 -- 비밀번호가 아니다
+        return None
+    if isinstance(value, int):           # 따옴표 없이 쓴 숫자 비번 -> 문자열로(JSON 정수라 앞자리 0 손실 없음)
+        return str(value)
+    if isinstance(value, str) and value.strip():
+        return value
+    return None
+
+
 def _resolve_profile_field(field_name: str, *, profile: str, section: dict[str, object]) -> str | None:
     """프로필의 한 필드를 환경변수 -> 파일 섹션 순으로 찾는다. 빈/공백 문자열은 유효한 자격증명이
     아니므로 '없음'으로 취급한다(fail-closed). ``section`` 은 파일을 한 번만 파싱해 넘긴 값."""
@@ -296,6 +318,8 @@ class ResolvedCredentials:
     environment: Environment
     #: HTS 로그인 아이디 -- 인증엔 안 쓰이나 조건검색·관심종목(user_id 필요) 조회에 계정 식별로 쓴다.
     hts_id: str | None = None
+    #: 계좌비밀번호 -- 야간 파생 잔고 등 일부 조회의 ACNT_PWD. **비밀값이라 repr 에서 뺀다**(시크릿 규율).
+    account_password: str | None = field(default=None, repr=False)
 
 
 def resolve_credentials(profile: str | None = None, *, config_dir: str | Path | None = None) -> ResolvedCredentials:
@@ -309,6 +333,7 @@ def resolve_credentials(profile: str | None = None, *, config_dir: str | Path | 
 def _fill_credentials(
     profile: str | None, *, app_key: str | None, app_secret: str | None, account: str | None,
     environment: Environment | None, config_dir: str | Path | None, hts_id: str | None = None,
+    account_password: str | None = None,
 ) -> ResolvedCredentials:
     """명시된 값은 그대로 쓰고 ``None`` 인 것만 저장분에서 채운다(부분 해석). 세션이 일부 자격증명만
     직접 넘겼을 때, 실제로 빠진 항목만 파일/env 에서 읽어 -- 사용자가 준 항목을 '없다'고 오도하지
@@ -331,6 +356,9 @@ def _fill_credentials(
         if resolved_account is not None:
             _validate_account(resolved_account)   # 형식 검증(fail-closed) -- 세션이 쪼갤 수 있게
     resolved_hts_id = hts_id if hts_id is not None else _resolve_hts_id(loaded)
+    resolved_account_password = (
+        account_password if account_password is not None else _resolve_account_password(loaded)
+    )
     return ResolvedCredentials(
         app_key=app_key if app_key is not None
         else _require_profile_field("app_key", profile=profile, section=section),
@@ -339,6 +367,7 @@ def _fill_credentials(
         account=resolved_account,
         environment=cast("Environment", resolved_environment),
         hts_id=resolved_hts_id,
+        account_password=resolved_account_password,
     )
 
 

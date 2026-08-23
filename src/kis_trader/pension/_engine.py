@@ -12,7 +12,8 @@ from datetime import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from .._internal._wire import format_wire_decimal, optional_decimal
+from .._internal._response import _require_mapping_rows
+from .._internal._wire import field_decimal_or_zero, format_wire_decimal
 from ..domestic.entities.balance import Position
 from ..errors import KISError, KISUsageError
 from ..order import Side
@@ -138,8 +139,8 @@ def fetch_present_balance(
                         for row in rows if str(row.get("pdno", "")).strip()),
         total_purchase_amount=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
         total_evaluation_amount=_decimal_or_zero(summary, "evlu_amt_smtl_amt"),
-        total_evaluation_pnl=_decimal_or_zero(summary, "evlu_pfls_smtl_amt"),
-        total_trade_pnl=_decimal_or_zero(summary, "trad_pfls_smtl"),
+        total_unrealized_pnl=_decimal_or_zero(summary, "evlu_pfls_smtl_amt"),
+        total_realized_pnl=_decimal_or_zero(summary, "trad_pfls_smtl"),
         today_total_pnl=_decimal_or_zero(summary, "thdt_tot_pfls_amt"),
         return_percent=_decimal_or_zero(summary, "pftrt"),
         _raw=summary,
@@ -184,13 +185,7 @@ def _walk_holdings(
             )
         if summary is None:
             summary = _extract_summary(resp.body, is_list=summary_is_list)
-        page = resp.body.get(output_key)
-        if not isinstance(page, list):
-            raise KISError(
-                f"퇴직연금 {label} 응답의 {output_key} 이 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
+        rows.extend(_require_mapping_rows(output_key, resp))
         if resp.tr_cont not in ("F", "M"):
             break
         next_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
@@ -289,8 +284,7 @@ def _reject_demo(environment: Environment, *, what: str) -> None:
 
 
 def _decimal_or_zero(output: Mapping[str, Any], key: str) -> Decimal:
-    amount = optional_decimal(output.get(key), key)
-    return Decimal(0) if amount is None else amount
+    return field_decimal_or_zero(output.get(key), key)
 
 
 def _format_order_unit_price(limit_price: object | None) -> str:

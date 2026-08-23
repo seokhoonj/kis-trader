@@ -1,4 +1,4 @@
-"""해외 잔고 -- kis.overseas.account.positions(market=...).
+"""해외 잔고 -- kis.account.overseas.positions(market=...).
 
 inquire-balance 엔드포인트, 시장->OVRS_EXCG_CD/TR_CRCY_CD 매핑, 외화 금액을 Money(통화 포함)로,
 CTX_AREA_FK200/NK200 연속조회, 실전/모의 TR, fail-closed 를 검증한다.
@@ -60,7 +60,7 @@ def _client(transport, *, environment="real"):
 
 def test_overseas_positions_maps_money_and_params():
     fake = FakeTransport(response=_resp([_holding()]))
-    positions = _client(fake).overseas.account.positions(market="US")
+    positions = _client(fake).account.overseas.positions(market="US")
     assert len(positions) == 1
     pos = positions[0]
     assert isinstance(pos, OverseasPosition)
@@ -68,11 +68,11 @@ def test_overseas_positions_maps_money_and_params():
     assert pos.exchange == "NASD"
     assert pos.quantity == 10
     assert pos.sellable_quantity == 10
-    assert pos.average_price == Money(Decimal("140.00"), "USD")
+    assert pos.average_purchase_price == Money(Decimal("140.00"), "USD")
     assert pos.current_price == Money(Decimal("150.25"), "USD")
     assert pos.market_value == Money(Decimal("1502.50"), "USD")
     assert pos.unrealized_pnl == Money(Decimal("102.50"), "USD")
-    assert pos.pnl_percent == Decimal("7.32")
+    assert pos.unrealized_pnl_percent == Decimal("7.32")
     call = fake.calls[0]
     assert call["path"] == _BALANCE
     assert call["tr_id"] == "TTTS3012R"                # real
@@ -84,14 +84,14 @@ def test_overseas_positions_market_maps_exchange_and_currency():
     for market, excg, crcy in [("HK", "SEHK", "HKD"), ("JP", "TKSE", "JPY"),
                                ("CN_SH", "SHAA", "CNY"), ("VN_HCM", "VNSE", "VND")]:
         fake = FakeTransport(response=_resp([]))
-        _client(fake).overseas.account.positions(market=market)
+        _client(fake).account.overseas.positions(market=market)
         assert fake.calls[0]["params"]["OVRS_EXCG_CD"] == excg
         assert fake.calls[0]["params"]["TR_CRCY_CD"] == crcy
 
 
 def test_overseas_positions_demo_tr():
     fake = FakeTransport(response=_resp([]))
-    _client(fake, environment="paper").overseas.account.positions(market="US")
+    _client(fake, environment="paper").account.overseas.positions(market="US")
     assert fake.calls[0]["tr_id"] == "VTTS3012R"
 
 
@@ -100,7 +100,7 @@ def test_overseas_positions_paginates_ctx_area():
         _resp([_holding(symbol="AAPL")], nk="NEXT", tr_cont="M"),
         _resp([_holding(symbol="MSFT")], nk=""),
     ])
-    positions = _client(fake).overseas.account.positions(market="US")
+    positions = _client(fake).account.overseas.positions(market="US")
     assert [p.symbol for p in positions] == ["AAPL", "MSFT"]
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
 
@@ -108,21 +108,21 @@ def test_overseas_positions_paginates_ctx_area():
 def test_overseas_positions_rejects_bad_market():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).overseas.account.positions(market="XX")
+        _client(fake).account.overseas.positions(market="XX")
 
 
 def test_overseas_positions_non_list_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                                               body={"output1": "oops"}))
     with pytest.raises(KISError):
-        _client(fake).overseas.account.positions(market="US")
+        _client(fake).account.overseas.positions(market="US")
 
 
 def test_overseas_positions_requires_account():
     fake = FakeTransport(response=_resp([]))
     client = KISClient(app_key="k", app_secret="s", transport=fake)  # 계좌 없음
     with pytest.raises(KISUsageError):
-        client.overseas.account.positions(market="US")
+        client.account.overseas.positions(market="US")
 
 
 def _summary():
@@ -137,7 +137,7 @@ def _balance_resp(summary):
 
 def test_overseas_balance_maps_money_summary():
     fake = FakeTransport(response=_balance_resp(_summary()))
-    bal = _client(fake).overseas.account.balance(market="US")
+    bal = _client(fake).account.overseas.balance(market="US")
     assert isinstance(bal, OverseasBalance)
     assert bal.exchange == "NASD"
     assert bal.purchase_amount == Money(Decimal("10000.00"), "USD")
@@ -152,7 +152,7 @@ def test_overseas_balance_maps_money_summary():
 
 def test_overseas_balance_currency_follows_market():
     fake = FakeTransport(response=_balance_resp(_summary()))
-    bal = _client(fake).overseas.account.balance(market="JP")
+    bal = _client(fake).account.overseas.balance(market="JP")
     assert bal.purchase_amount.currency == "JPY"
     assert fake.calls[0]["params"]["OVRS_EXCG_CD"] == "TKSE"
 
@@ -161,7 +161,7 @@ def test_overseas_balance_missing_output2_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
                                               body={"output1": []}))
     with pytest.raises(KISError):
-        _client(fake).overseas.account.balance(market="US")
+        _client(fake).account.overseas.balance(market="US")
 
 
 def _open_order(odno="0000123456", pdno="AAPL", side="02", qty="10", ccld="3", nccs="7",
@@ -178,7 +178,7 @@ def _open_resp(rows, *, nk="", tr_cont=""):
 
 def test_overseas_open_orders_maps_fields():
     fake = FakeTransport(response=_open_resp([_open_order()]))
-    orders = _client(fake).overseas.account.open_orders(market="US")
+    orders = _client(fake).account.overseas.open_orders(market="US")
     assert len(orders) == 1
     o = orders[0]
     assert isinstance(o, OverseasOpenOrder)
@@ -198,11 +198,11 @@ def test_overseas_open_orders_maps_fields():
 def test_overseas_open_orders_demo_unsupported():
     fake = FakeTransport(response=_open_resp([]))
     with pytest.raises(KISUsageError, match="모의투자 미지원"):
-        _client(fake, environment="paper").overseas.account.open_orders(market="US")
+        _client(fake, environment="paper").account.overseas.open_orders(market="US")
 
 
 def test_overseas_open_orders_paginates():
     fake = FakeTransport(pages=[_open_resp([_open_order(odno="1")], nk="NEXT", tr_cont="M"),
                                 _open_resp([_open_order(odno="2")], nk="")])
-    orders = _client(fake).overseas.account.open_orders(market="US")
+    orders = _client(fake).account.overseas.open_orders(market="US")
     assert [o.order_id for o in orders] == ["1", "2"]

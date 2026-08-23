@@ -313,6 +313,16 @@ _DOMESTIC_EXCHANGES = frozenset(("XKRX", "XKOS", "NXTE"))
 #: 이 exchange 로 라우팅을 가른다(현금 국내주문과 별개의 와이어 빌더로). ``division`` 은 이 거래소에서도
 #: 유효하되 최우선지정가(priority_limit)는 파생에 없다.
 _DERIVATIVE_EXCHANGE = "XKFE"
+#: 국내 장내채권 주문의 라우팅 마커. 채권은 표준코드(ISIN)로 거래하고 KRX MIC 가 따로 없어, 현금·
+#: 파생과 같은 Order/지문/스토어를 재사용하되 이 exchange 값으로 채권 와이어 빌더로 라우팅을 가른다.
+#: 온-디스크 지문에선 기존 exchange 슬롯의 한 값(새 슬롯·스키마 증가 없음)이라 기존 주문 지문과
+#: 바이트 호환을 유지한다.
+_BOND_EXCHANGE = "BOND"
+#: 해외선물옵션(08) 주문의 라우팅 마커. 해외 파생은 통화별로 유일한 종목코드(OVRS_FUTR_FX_PDNO,
+#: 예: "6BZ22")로 거래하고 국내 거래소 MIC 가 없어, 현금·파생·채권과 같은 Order/지문/스토어를
+#: 재사용하되 이 exchange 값으로 해외선물옵션 와이어 빌더로 라우팅을 가른다. 온-디스크 지문에선
+#: 기존 exchange 슬롯의 한 값(새 슬롯·스키마 증가 없음)이라 기존 주문 지문과 바이트 호환을 유지한다.
+_OVERSEAS_FO_EXCHANGE = "OSFO"
 #: 국내 보드(NXT/UN)별 **미지원** 주문구분 base(= division 있으면 그것, 없으면 order_type). KIS 명세 대조:
 #: NXT 는 시장가(market)·조건부(conditional_limit) 미지원, SOR(UN)은 조건부 미지원(KRX 는 전부 지원).
 #: blocklist 라 여기 없는 base(stop 등 Tier 2/미매핑)는 이 검증이 아니라 와이어 빌더에서 판정한다.
@@ -399,6 +409,14 @@ class Order:
     #: 파생(XKFE) 상품 구분 -- "01" 선물 / "02" 콜옵션 / "03" 풋옵션. 현금·해외 주문은 ``""``.
     #: 콜 vs 풋은 같은 심볼·수량·가격이라도 서로 다른 주문이라 지문에 함께 실어 dedup 을 가른다.
     derivative_item: DerivativeItem = ""
+    #: 국내 장내채권(BOND) 매도가 지목하는 매수 lot -- 매수일자(BUY_DT, YYYYMMDD)와 매수순번(BUY_SEQ).
+    #: 채권 잔고는 종목이 아니라 매수 단위(buy_date+buy_sequence)로 쪼개져 있어, 같은 종목·수량·가격이라도
+    #: 서로 다른 lot 의 매도는 서로 다른 주문이다. 이 둘을 지문에 실어야 dedup 장벽이 둘째 매도를
+    #: 오차단하지 않는다. 새 지문 슬롯을 만들지 않으려고 기존 loan_date 슬롯(BUY_DT)·derivative_item
+    #: 슬롯(BUY_SEQ)을 재사용한다(:meth:`fingerprint` 참고) -- 채권 매수·기타 주문은 둘 다 "" 라
+    #: 온-디스크 인코딩이 바이트 동일하다. 채권 매수·기타 주문은 항상 "".
+    bond_buy_date: str = ""
+    bond_buy_seq: str = ""
     client_order_id: str = field(default_factory=mint_client_order_id)
 
     def __post_init__(self) -> None:
@@ -529,6 +547,31 @@ class Order:
             elif self.division == "conditional_limit" and self.order_type != "limit":
                 raise KISUsageError("conditional_limit(조건부지정가)은 지정가(limit) 기반이어야 한다.")
 
+        # 장내채권 매도 lot 지목(BUY_DT/BUY_SEQ)은 채권(BOND) **매도** 전용이다 -- 다른 거래소나
+        # 채권 매수에 실리면 재사용 지문 슬롯(loan_date/derivative_item)을 오염시켜 무관한 주문의 dedup
+        # 정체성을 바꾸므로 생성 시점에 fail-closed. 채권 매도는 둘 다 있어야(부분 lot 은 무의미) 하고,
+        # BUY_DT 는 실재하는 YYYYMMDD 여야 한다.
+        is_bond = self.exchange == _BOND_EXCHANGE
+        if self.bond_buy_date or self.bond_buy_seq:
+            if not (is_bond and self.side == "sell"):
+                raise KISUsageError(
+                    "bond_buy_date/bond_buy_seq 는 장내채권(BOND) 매도 주문에만 줄 수 있다."
+                )
+            if not (self.bond_buy_date and self.bond_buy_seq):
+                raise KISUsageError(
+                    "장내채권 매도는 매수 lot 의 bond_buy_date 와 bond_buy_seq 가 모두 필요하다."
+                )
+        if self.bond_buy_date:
+            validate_yyyymmdd(self.bond_buy_date, "bond_buy_date")
+        # 채권 지문은 매수 lot 을 loan_date 슬롯(BUY_DT)·derivative_item 슬롯(BUY_SEQ)에 재사용한다 --
+        # BOND 주문이 그 필드를 독립적으로 실으면(신용/파생 의미) 지문 정체성이 겹쳐, 서로 다른 lot 의
+        # 매도가 한 지문으로 붕괴해 둘째 매도를 오차단하는 collision 이 난다. BOND 는 credit_type/loan_date/
+        # derivative_item 를 가질 수 없다(생성 시점 fail-closed로 그 슬롯을 순수하게 lot 전용으로 남긴다).
+        if is_bond and (self.derivative_item or self.loan_date or self.credit_type):
+            raise KISUsageError(
+                "장내채권(BOND) 주문은 credit_type/loan_date/derivative_item 를 가질 수 없다."
+            )
+
         if self.board not in _DOMESTIC_BOARDS:
             raise KISUsageError(f"지원하지 않는 board: {self.board!r} (KRX/NXT/UN).")
         # 보드(NXT/UN)별 미지원 주문구분 -- 국내 주문에만. NXT 는 시장가·조건부, SOR(UN)은 조건부를
@@ -553,9 +596,13 @@ class Order:
             limit_price="" if self.limit_price is None else format_wire_decimal(self.limit_price),
             stop_price="" if self.stop_price is None else format_wire_decimal(self.stop_price),
             time_in_force=self.time_in_force, exchange=self.exchange,
-            credit_type=self.credit_type or "", loan_date=self.loan_date or "",
+            credit_type=self.credit_type or "",
+            # 채권 매도의 매수 lot 을 기존 슬롯에 재사용해 싣는다(새 슬롯 없이 lot 별 dedup): BUY_DT 는
+            # loan_date 슬롯, BUY_SEQ 는 derivative_item 슬롯. 신용주문(loan_date)·파생(derivative_item)과
+            # 채권 매도는 상호 배타적이라(exchange 로 갈림) 값이 섞이지 않는다.
+            loan_date=self.loan_date or self.bond_buy_date,
             session=self.session, division=self.division or "", board=self.board,
-            derivative_item=self.derivative_item,
+            derivative_item=self.derivative_item or self.bond_buy_seq,
         )
 
     # --- 타입별 생성자(권장 진입점) ------------------------------------

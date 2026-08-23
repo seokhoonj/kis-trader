@@ -1,6 +1,6 @@
 """시장 전체 분석 DATA -- :class:`MarketInvestorFlow`.
 
-종목이 아니라 **시장(코스피/코스닥) 전체**를 대상으로 한 분석 결과다. :class:`~kis_trader.market.
+종목이 아니라 **시장(코스피/코스닥) 전체**를 대상으로 한 분석 결과다. :class:`~kis_trader.domestic.market.
 MarketQueries`(``kis.domestic.market``)가 돌려준다. 종목 단위 투자자매매동향은 종목 핸들
 (:meth:`~kis_trader.domestic.stock.DomesticStock.investor_flows`)에 있다.
 """
@@ -141,7 +141,7 @@ class VIEvent:
 
     VI 는 단기 급변동 시 2분간 단일가로 전환해 과열을 식히는 장치다. ``triggered_at`` 은 발동 시각,
     ``released_at`` 은 해제 시각(아직 해제 전이면 ``None``). ``trigger_price`` 는 발동가, ``base_price``
-    는 기준가, ``disparity_percent`` 는 기준가 대비 괴리율(%), ``daily_trigger_count`` 는 그날 그
+    는 기준가, ``disparity_rate`` 는 기준가 대비 괴리율(%), ``daily_trigger_count`` 는 그날 그
     종목의 누적 발동 횟수. ``vi_class`` 는 정적/동적 구분코드(vi_cls_code), ``vi_kind`` 는 발동 종류코드(vi_kind_code).
     시각들은 KST-aware. 시장 전체를 대상으로 하므로 ``kis.domestic.market.vi_events`` 가 돌려준다.
     """
@@ -154,7 +154,7 @@ class VIEvent:
     vi_kind: str                      # 발동 종류(vi_kind_code)
     trigger_price: Decimal            # 발동가(vi_prc)
     base_price: Decimal | None        # 기준가(vi_stnd_prc)
-    disparity_percent: Decimal | None  # 기준가 대비 괴리율 %(vi_dprt)
+    disparity_rate: Decimal | None  # 기준가 대비 괴리율 %(vi_dprt)
     daily_trigger_count: int          # 당일 누적 발동 횟수(vi_count)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -224,7 +224,7 @@ class TradingDay:
     """거래 캘린더의 하루(불변).
 
     ``date`` 기준으로 그날이 영업일/거래일/개장일/결제일인지 알려준다. ``is_open`` 이 거래소 개장
-    여부(휴장일이면 False), ``is_settlement_day`` 는 결제일 여부다. :meth:`~kis_trader.market.
+    여부(휴장일이면 False), ``is_settlement_day`` 는 결제일 여부다. :meth:`~kis_trader.domestic.market.
     MarketQueries.trading_calendar` 가 기준일에서 앞으로 한 페이지를 돌려준다. ``date`` 는 KST-aware.
     """
 
@@ -369,7 +369,7 @@ class BrokerOpinion:
     change_percent: Decimal
     target_price: Decimal | None
     previous_close: Decimal
-    disparity_percent: Decimal | None
+    disparity_rate: Decimal | None
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

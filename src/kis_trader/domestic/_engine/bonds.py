@@ -15,9 +15,9 @@ KIS URL/TR-ID (KIS 명세 대조):
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import date, datetime
+from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Any, NamedTuple
+from typing import TYPE_CHECKING, Any, NamedTuple
 
 from ..._bars import _parse_bar_timestamp
 from ..._depth import _price_levels
@@ -29,12 +29,15 @@ from ..._internal._datetime import (
     parse_optional_kst_date,
 )
 from ..._internal._response import (
+    _fetch_paginated_rows,
     _missing_block_error,
     _raise_if_error,
     _require_mapping_rows,
 )
 from ..._internal._wire import (
     _apply_change_sign,
+    field_decimal_or_zero,
+    format_wire_decimal,
     optional_decimal,
     optional_int,
     required_decimal,
@@ -44,7 +47,7 @@ from ...bar import Bar, Interval
 from ...errors import KISError, KISUsageError
 from ...order_book import OrderBook
 from ...trade import Trade
-from ...transport import Transport
+from ...transport import Environment, RawResponse, Transport
 from ..entities.bond import (
     BondDailyPrice,
     BondIssuance,
@@ -52,6 +55,17 @@ from ..entities.bond import (
     BondQuote,
     BondValuation,
 )
+from ..entities.bond_account import (
+    BondBuyable,
+    BondFill,
+    BondFillHistory,
+    BondOpenOrder,
+    BondPosition,
+)
+from ._parse import _side_from_code
+
+if TYPE_CHECKING:
+    from ..._literals import Numeric
 
 _QUOTE_PATH = "/uapi/domestic-bond/v1/quotations/inquire-price"
 _QUOTE_TR = "FHKBJ773400C0"
@@ -452,3 +466,346 @@ def _parse_valuation(
         has_valuation_changed=str(row.get("chng_yn", "")).strip() == "Y",
         _raw=row,
     )
+
+
+# --- 장내채권 계좌 조회 (위탁 01, domestic-bond 전용, 실전전용) -------------
+# 채권은 주식과 같은 위탁 계좌를 쓰되 조회는 domestic-bond 엔드포인트로 한다. 아래 조회는 모두
+# **모의투자 미지원**이라 demo 면 와이어 이전에 :class:`KISUsageError` 로 fail-closed 한다.
+_BOND_BALANCE_PATH = "/uapi/domestic-bond/v1/trading/inquire-balance"
+_BOND_BALANCE_TR = "CTSC8407R"  # 장내채권 잔고조회, 모의투자 미지원
+_BOND_BUYABLE_PATH = "/uapi/domestic-bond/v1/trading/inquire-psbl-order"
+_BOND_BUYABLE_TR = "TTTC8910R"  # 장내채권 매수가능조회, 모의투자 미지원
+_BOND_OPEN_ORDERS_PATH = "/uapi/domestic-bond/v1/trading/inquire-psbl-rvsecncl"
+_BOND_OPEN_ORDERS_TR = "CTSC8035R"  # 장내채권 정정취소가능주문조회, 모의투자 미지원
+_BOND_FILLS_PATH = "/uapi/domestic-bond/v1/trading/inquire-daily-ccld"
+_BOND_FILLS_TR = "CTSC8013R"  # 장내채권 일별 주문체결조회, 모의투자 미지원
+#: 매도매수구분(SLL_BUY_DVSN_CD): 전체 00 / 매도 01 / 매수 02.
+_BOND_SIDE_TO_CODE = {"all": "00", "sell": "01", "buy": "02"}
+#: 채권 계좌 연속조회 페이지 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
+_MAX_BOND_ACCOUNT_PAGES = 100
+
+
+def fetch_bond_balance(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment
+) -> list[BondPosition]:
+    """장내채권 보유 잔고(매수 lot 별). 응답 ``output`` 배열을 연속조회로 소진까지 모은다.
+    **모의투자 미지원**(demo 면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "장내채권 잔고조회(inquire-balance)는 모의투자 미지원 -- 실전에서만."
+        )
+    rows = _fetch_paginated_rows(
+        transport,
+        path=_BOND_BALANCE_PATH, tr_id=_BOND_BALANCE_TR,
+        base_params={
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "INQR_CNDT": "00", "PDNO": "", "BUY_DT": "",
+            "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
+        },
+        output_key="output",
+        max_pages=_MAX_BOND_ACCOUNT_PAGES,
+        ctx_width=200,
+        cap_message=(
+            f"장내채권 잔고조회가 {_MAX_BOND_ACCOUNT_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다."
+        ),
+    )
+    return _parse_bond_positions(rows)
+
+
+def _parse_bond_positions(rows: list[Mapping[str, Any]]) -> list[BondPosition]:
+    positions: list[BondPosition] = []
+    for row in rows:
+        if not isinstance(row, Mapping):  # output=[None] 등 손상 -> fail-closed
+            raise KISError("장내채권 잔고조회 응답 행이 매핑이 아니다.")
+        symbol = str(row.get("pdno", "")).strip()
+        if not symbol:  # 상품번호 없는 패딩 행 -- 건너뜀
+            continue
+        positions.append(
+            # 수치는 빈 값을 0으로 읽는다 -- 정산 대기 lot 에서 일부 필드가 빌 수 있는데 그 한 lot
+            # 때문에 잔고 전체 조회가 깨지면 안 된다(값이 있는데 파싱 실패면 여전히 예외).
+            BondPosition(
+                symbol=symbol,
+                name=str(row.get("prdt_name", "")).strip(),
+                buy_date=_parse_bond_date(row.get("buy_dt")),
+                buy_sequence=str(row.get("buy_sqno", "")).strip(),
+                quantity=field_decimal_or_zero(row.get("cblc_qty"), "cblc_qty"),
+                comprehensive_tax_quantity=field_decimal_or_zero(row.get("agrx_qty"), "agrx_qty"),
+                separate_tax_quantity=field_decimal_or_zero(row.get("sprx_qty"), "sprx_qty"),
+                maturity_date=_parse_bond_date(row.get("exdt")),
+                buy_yield=field_decimal_or_zero(row.get("buy_erng_rt"), "buy_erng_rt"),
+                buy_price=field_decimal_or_zero(row.get("buy_unpr"), "buy_unpr"),
+                buy_amount=field_decimal_or_zero(row.get("buy_amt"), "buy_amt"),
+                orderable_quantity=field_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
+                _raw=row,
+            )
+        )
+    return positions
+
+
+def fetch_bond_buyable(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    code: str, price: Numeric | None = None,
+) -> BondBuyable:
+    """장내채권 매수가능조회. ``code`` 표준코드, ``price`` 주문 단가(없으면 시장가 기준).
+    응답 ``output`` 단일 객체(길이 1 배열로 올 수도 있어 둘 다 처리). **모의투자 미지원**
+    (demo 면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "장내채권 매수가능조회(inquire-psbl-order)는 모의투자 미지원 -- 실전에서만."
+        )
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "PDNO": code,
+        "BOND_ORD_UNPR": _format_bond_order_price(price),
+        "SAMT_MKET_PTCI_YN": "N",
+    }
+    resp = transport.request(
+        method="GET", path=_BOND_BUYABLE_PATH, tr_id=_BOND_BUYABLE_TR,
+        params=params, idempotent=True,
+    )
+    _raise_if_error(resp)
+    output = _bond_summary(resp.body.get("output"))
+    if output is None:
+        raise KISError(
+            "장내채권 매수가능조회 응답에 output 이 없다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
+    return BondBuyable(
+        symbol=code,
+        orderable_cash=required_decimal(output.get("ord_psbl_cash"), "ord_psbl_cash"),
+        orderable_substitute=required_decimal(output.get("ord_psbl_sbst"), "ord_psbl_sbst"),
+        reusable_cash=required_decimal(output.get("ruse_psbl_amt"), "ruse_psbl_amt"),
+        buyable_amount=required_decimal(output.get("buy_psbl_amt"), "buy_psbl_amt"),
+        buyable_quantity=required_decimal(output.get("buy_psbl_qty"), "buy_psbl_qty"),
+        cma_value=required_decimal(output.get("cma_evlu_amt"), "cma_evlu_amt"),
+        _raw=output,
+    )
+
+
+def fetch_bond_open_orders(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    order_date: str,
+) -> list[BondOpenOrder]:
+    """장내채권 정정·취소 가능한 미체결 주문. ``order_date`` (YYYYMMDD) 기준 주문일자.
+    응답 ``output`` 배열을 연속조회로 소진까지 모은다. **모의투자 미지원**(demo 면 사전
+    :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "장내채권 정정취소가능주문조회(inquire-psbl-rvsecncl)는 모의투자 미지원 -- 실전에서만."
+        )
+    _require_bond_wire_date(order_date, "order_date")
+    rows = _fetch_paginated_rows(
+        transport,
+        path=_BOND_OPEN_ORDERS_PATH, tr_id=_BOND_OPEN_ORDERS_TR,
+        base_params={
+            "CANO": cano, "ACNT_PRDT_CD": product_code,
+            "ORD_DT": order_date, "ODNO": "",
+            "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
+        },
+        output_key="output",
+        max_pages=_MAX_BOND_ACCOUNT_PAGES,
+        ctx_width=200,
+        cap_message=(
+            f"장내채권 정정취소가능주문조회가 {_MAX_BOND_ACCOUNT_PAGES}페이지 상한에 도달했으나 "
+            f"연속조회가 남아있다 -- 부분 결과로 자르지 않는다."
+        ),
+    )
+    return _parse_bond_open_orders(rows)
+
+
+def _parse_bond_open_orders(rows: list[Mapping[str, Any]]) -> list[BondOpenOrder]:
+    orders: list[BondOpenOrder] = []
+    for row in rows:
+        if not isinstance(row, Mapping):  # output=[None] 등 손상 -> fail-closed
+            raise KISError("장내채권 정정취소가능주문조회 응답 행이 매핑이 아니다.")
+        order_id = str(row.get("odno", "")).strip()
+        if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
+            continue
+        orders.append(
+            BondOpenOrder(
+                order_id=order_id,
+                symbol=str(row.get("pdno", "")).strip(),
+                name=str(row.get("prdt_abrv_name", "")).strip(),
+                revise_cancel_type=str(row.get("rvse_cncl_dvsn_name", "")).strip(),
+                order_quantity=field_decimal_or_zero(row.get("ord_qty"), "ord_qty"),
+                order_price=field_decimal_or_zero(row.get("bond_ord_unpr"), "bond_ord_unpr"),
+                order_time=_parse_bond_time(row.get("ord_tmd")),
+                filled_quantity=field_decimal_or_zero(row.get("tot_ccld_qty"), "tot_ccld_qty"),
+                filled_amount=field_decimal_or_zero(row.get("tot_ccld_amt"), "tot_ccld_amt"),
+                cancelable_quantity=field_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
+                original_order_id=str(row.get("orgn_odno", "")).strip(),
+                side=_side_from_code(row.get("sll_buy_dvsn_cd")),
+                order_division=str(row.get("ord_dvsn_cd", "")).strip(),
+                _raw=row,
+            )
+        )
+    return orders
+
+
+def fetch_bond_fills(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str, side: str = "all", symbol: str | None = None,
+    unfilled_only: bool = False,
+) -> BondFillHistory:
+    """장내채권 일별 주문·체결 내역(개별 행 + 기간 합계 요약). ``start``~``end`` (YYYYMMDD) 기간,
+    ``side`` = ``"all"``/``"sell"``/``"buy"``, ``symbol`` 없으면 전체, ``unfilled_only`` 면 미체결만.
+
+    **KIS 레이아웃과 달리 실서버는 output1 에 체결 행 배열을, output2 에 합계 요약을 싣는다**
+    (레이아웃의 output1/output2 가 뒤바뀜). 그래서 행은 output1 을 연속조회로 소진까지 모으고
+    합계는 output2 를 첫 페이지에서 완결한다(기간 단위라 페이지 불변). **모의투자 미지원**
+    (demo 면 사전 :class:`KISUsageError`)."""
+    if environment == "paper":
+        raise KISUsageError(
+            "장내채권 일별 주문체결조회(inquire-daily-ccld)는 모의투자 미지원 -- 실전에서만."
+        )
+    _require_bond_wire_date(start, "start")
+    _require_bond_wire_date(end, "end")
+    try:
+        side_code = _BOND_SIDE_TO_CODE[side]
+    except KeyError:
+        raise KISUsageError(
+            f"지원하지 않는 side: {side!r} ({'/'.join(_BOND_SIDE_TO_CODE)})."
+        ) from None
+    rows: list[Mapping[str, Any]] = []
+    summary: Mapping[str, Any] | None = None
+    ctx_fk, ctx_nk, tr_cont = "", "", ""
+    for _page in range(_MAX_BOND_ACCOUNT_PAGES):
+        resp = _fetch_bond_fills_page(
+            transport, cano=cano, product_code=product_code,
+            start=start, end=end, side_code=side_code, symbol=symbol,
+            unfilled_only=unfilled_only, ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        if summary is None:  # 합계는 output2, 기간 단위라 첫 페이지로 완결
+            summary = _bond_summary(resp.body.get("output2"))
+        page = resp.body.get("output1")  # 실서버는 체결 행을 output1 로 준다(레이아웃과 스왑)
+        if not isinstance(page, list):  # 빈 내역도 배열 -> 부재/비배열은 손상
+            raise KISError(
+                "장내채권 일별 주문체결조회 응답의 output1 이 체결 행 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"장내채권 일별 주문체결조회가 {_MAX_BOND_ACCOUNT_PAGES}페이지 상한에 도달했으나 "
+            f"연속조회가 남아있다 -- 부분 결과로 자르지 않는다."
+        )
+    if summary is None:
+        raise KISError("장내채권 일별 주문체결조회 응답에 합계 요약(output2)이 없다.")
+    return BondFillHistory(
+        total_order_quantity=required_decimal(summary.get("tot_ord_qty"), "tot_ord_qty"),
+        total_filled_quantity=required_decimal(summary.get("tot_ccld_qty_smtl"), "tot_ccld_qty_smtl"),
+        average_price=required_decimal(summary.get("tot_bond_ccld_avg_unpr"), "tot_bond_ccld_avg_unpr"),
+        total_filled_amount=required_decimal(summary.get("tot_ccld_amt_smtl"), "tot_ccld_amt_smtl"),
+        fills=tuple(_parse_bond_fills(rows)),
+        _raw=summary,
+    )
+
+
+def _fetch_bond_fills_page(
+    transport: Transport, *, cano: str, product_code: str, start: str, end: str,
+    side_code: str, symbol: str | None, unfilled_only: bool,
+    ctx_fk: str, ctx_nk: str, tr_cont: str = "",
+) -> RawResponse:
+    params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "INQR_STRT_DT": start, "INQR_END_DT": end,
+        "SLL_BUY_DVSN_CD": side_code, "SORT_SQN_DVSN": "00",
+        "PDNO": symbol or "", "NCCS_YN": "Y" if unfilled_only else "N",
+        "CTX_AREA_FK200": ctx_fk, "CTX_AREA_NK200": ctx_nk,
+    }
+    return transport.request(
+        method="GET", path=_BOND_FILLS_PATH, tr_id=_BOND_FILLS_TR,
+        params=params, idempotent=True, tr_cont=tr_cont,
+    )
+
+
+def _parse_bond_fills(rows: list[Mapping[str, Any]]) -> list[BondFill]:
+    fills: list[BondFill] = []
+    for row in rows:
+        if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
+            raise KISError("장내채권 일별 주문체결조회 응답 행이 매핑이 아니다.")
+        order_id = str(row.get("odno", "")).strip()
+        if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
+            continue
+        fills.append(
+            BondFill(
+                order_date=_parse_bond_date(row.get("ord_dt")),
+                order_id=order_id,
+                original_order_id=str(row.get("orgn_odno", "")).strip(),
+                order_type=str(row.get("ord_dvsn_name", "")).strip(),
+                side=_side_from_code(row.get("sll_buy_dvsn_cd")),
+                symbol=str(row.get("shtn_pdno", "")).strip(),
+                name=str(row.get("prdt_abrv_name", "")).strip(),
+                order_quantity=field_decimal_or_zero(row.get("ord_qty"), "ord_qty"),
+                order_price=field_decimal_or_zero(row.get("bond_ord_unpr"), "bond_ord_unpr"),
+                order_time=_parse_bond_time(row.get("ord_tmd")),
+                filled_quantity=field_decimal_or_zero(row.get("tot_ccld_qty"), "tot_ccld_qty"),
+                average_price=field_decimal_or_zero(row.get("bond_avg_unpr"), "bond_avg_unpr"),
+                filled_amount=field_decimal_or_zero(row.get("tot_ccld_amt"), "tot_ccld_amt"),
+                unfilled_quantity=field_decimal_or_zero(row.get("nccs_qty"), "nccs_qty"),
+                branch_number=str(row.get("ord_gno_brno", "")).strip(),
+                _raw=row,
+            )
+        )
+    return fills
+
+
+# --- 채권 계좌 공용 파서 ---------------------------------------------------
+def _bond_summary(block: object) -> Mapping[str, Any] | None:
+    """단일 요약 블록 -- KIS 가 단일 객체로도, '길이 1 배열'로도 준다. 비매핑이면 None."""
+    if isinstance(block, Mapping):
+        return block
+    if isinstance(block, list) and block and isinstance(block[0], Mapping):
+        return block[0]
+    return None
+
+
+def _format_bond_order_price(price: Numeric | None) -> str:
+    """채권 주문 단가를 KIS 와이어 정본으로 -- ``None`` 이면 빈 문자열(시장가). 유한 양수 아니면 거부."""
+    if price is None:
+        return ""
+    try:
+        value = Decimal(str(price))
+    except (ArithmeticError, ValueError) as err:
+        raise KISUsageError(f"price 는 숫자여야 한다: {price!r}") from err
+    if not value.is_finite() or value <= 0:
+        raise KISUsageError(f"price 는 0보다 큰 유한값이어야 한다: {price!r}")
+    return format_wire_decimal(value)
+
+
+def _parse_bond_date(value: object) -> date | None:
+    """``"20240216"`` -> ``date(2024, 2, 16)``. 공백/형식오류면 None(fail-soft)."""
+    text = str(value or "").strip()
+    if len(text) != 8 or not text.isdigit():
+        return None
+    try:
+        return date(int(text[0:4]), int(text[4:6]), int(text[6:8]))
+    except ValueError:
+        return None
+
+
+def _parse_bond_time(value: object) -> time | None:
+    """``"131438"`` -> ``time(13, 14, 38)``. 공백/형식오류면 None(fail-soft)."""
+    text = str(value or "").strip()
+    if len(text) != 6 or not text.isdigit():
+        return None
+    hour, minute, second = int(text[0:2]), int(text[2:4]), int(text[4:6])
+    if hour > 23 or minute > 59 or second > 59:
+        return None
+    return time(hour, minute, second)
+
+
+def _require_bond_wire_date(value: str, field_name: str) -> None:
+    """조회 요청의 일자 파라미터를 와이어 이전에 검증한다 -- 8자리 숫자(YYYYMMDD)가 아니면
+    :class:`KISUsageError`. 잘못된 일자로 조회를 날리는 대신 호출 즉시 실패시킨다."""
+    if len(value) != 8 or not value.isdigit():
+        raise KISUsageError(
+            f"일자 파라미터 {field_name!r} 는 8자리 숫자(YYYYMMDD)여야 한다: {value!r}"
+        )

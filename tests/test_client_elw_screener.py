@@ -51,7 +51,7 @@ def test_underlyings_maps_and_params():
     unders = _client(fake).domestic.elw_screener.underlyings(sort="gainers")
     assert all(isinstance(u, ELWUnderlying) for u in unders)
     assert unders[0].symbol == "2001"
-    assert unders[0].name == "KOSPI200"
+    assert unders[0].underlying_name == "KOSPI200"
     assert unders[0].price == Decimal("371.33")
     assert unders[0].change == Decimal("0.17")            # sign 2 -> 상승
     assert unders[1].change == Decimal(-300)              # sign 5 -> 하락

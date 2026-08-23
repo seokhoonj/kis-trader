@@ -1,6 +1,6 @@
 """해외 계좌 잔고 DATA -- 보유 종목·통화별 잔고·현재/결제 기준 잔고.
 
-해외 잔고 조회(``kis.overseas.account.positions`` / ``.balance`` / ``.present_balance`` /
+해외 잔고 조회(``kis.account.overseas.positions`` / ``.balance`` / ``.present_balance`` /
 ``.settlement_balance``)가 돌려준다. 금액은 종목/조회 통화라 :class:`~kis_trader.money.Money`
 로 통화를 함께 담는다(다통화)."""
 
@@ -21,20 +21,20 @@ class OverseasPosition:
     """해외 보유 종목 한 건(불변). 금액은 종목 통화의 :class:`Money`.
 
     ``quantity`` 는 보유 수량, ``sellable_quantity`` 는 매도가능 수량. ``unrealized_pnl`` 은 외화
-    평가손익, ``pnl_percent`` 는 평가손익률(%).
+    평가손익, ``unrealized_pnl_percent`` 는 평가손익률(%).
     """
 
     symbol: str
     name: str
-    exchange: str                     # 조회한 해외거래소코드(OVRS_EXCG_CD)
-    quantity: int                     # 보유 수량
-    sellable_quantity: int            # 매도가능 수량
-    average_price: Money              # 매입 평균가
-    current_price: Money              # 현재가
-    purchase_amount: Money            # 외화 매입금액
-    market_value: Money               # 평가금액
-    unrealized_pnl: Money             # 외화 평가손익
-    pnl_percent: Decimal              # 평가손익률(%)
+    exchange: str                    # 조회한 해외거래소코드(OVRS_EXCG_CD)
+    quantity: int                    # 보유 수량
+    sellable_quantity: int           # 매도가능 수량
+    average_purchase_price: Money    # 매입 평균가
+    current_price: Money             # 현재가
+    purchase_amount: Money           # 외화 매입금액
+    market_value: Money              # 평가금액
+    unrealized_pnl: Money            # 외화 평가손익
+    unrealized_pnl_percent: Decimal  # 평가손익률(%)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -51,12 +51,12 @@ class OverseasBalance:
     ``total_pnl`` 총손익(실현+평가), ``return_percent`` 총수익률(%). 예수금(현금)은 별도 조회다.
     """
 
-    exchange: str                     # 조회한 해외거래소코드(OVRS_EXCG_CD)
-    purchase_amount: Money            # 외화 매입금액
-    unrealized_pnl: Money             # 평가손익
-    realized_pnl: Money               # 실현손익
-    total_pnl: Money                  # 총손익(실현+평가)
-    return_percent: Decimal           # 총수익률(%)
+    exchange: str            # 조회한 해외거래소코드(OVRS_EXCG_CD)
+    purchase_amount: Money   # 외화 매입금액
+    unrealized_pnl: Money    # 평가손익
+    realized_pnl: Money      # 실현손익
+    total_pnl: Money         # 총손익(실현+평가)
+    return_percent: Decimal  # 총수익률(%)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -74,23 +74,23 @@ class OverseasBalancePosition:
        (:class:`OverseasPresentBalance`)은 예시가 output1 까지만 있어 output2/3 요약이 레이아웃 기준이다.
     """
 
-    symbol: str                        # 상품번호(pdno)
-    name: str                          # 상품명(prdt_name)
-    balance_quantity: Decimal          # 잔고수량(cblc_qty13)
-    orderable_quantity: Decimal        # 주문가능수량(ord_psbl_qty1)
-    average_price: Money               # 평균단가(avg_unpr3)
-    current_price: Money               # 해외현재가격(ovrs_now_pric1)
-    purchase_amount: Money             # 외화매입금액(frcr_pchs_amt)
-    market_value: Money                # 외화평가금액(frcr_evlu_amt2)
-    unrealized_pnl: Money              # 평가손익금액(evlu_pfls_amt2)
-    unrealized_pnl_rate: Decimal       # 평가손익율(evlu_pfls_rt1)
-    loan_balance: Money                # 대출잔액(loan_rmnd)
-    collateral_quantity: Decimal       # 담보수량(mgge_qty; 결제기준만)
-    exchange: str                      # 해외거래소코드(ovrs_excg_cd)
-    market_name: str                   # 거래시장명(tr_mket_name)
-    country_name: str                  # 국가한글명(natn_kor_name)
-    currency: str                      # 매수통화코드(buy_crcy_cd)
-    exchange_rate: Decimal             # 기준환율(bass_exrt)
+    symbol: str                      # 상품번호(pdno)
+    name: str                        # 상품명(prdt_name)
+    balance_quantity: Decimal        # 잔고수량(cblc_qty13)
+    orderable_quantity: Decimal      # 주문가능수량(ord_psbl_qty1)
+    average_purchase_price: Money    # 평균단가(avg_unpr3)
+    current_price: Money             # 해외현재가격(ovrs_now_pric1)
+    purchase_amount: Money           # 외화매입금액(frcr_pchs_amt)
+    market_value: Money              # 외화평가금액(frcr_evlu_amt2)
+    unrealized_pnl: Money            # 평가손익금액(evlu_pfls_amt2)
+    unrealized_pnl_percent: Decimal  # 평가손익율(evlu_pfls_rt1)
+    loan_balance: Money              # 대출잔액(loan_rmnd)
+    collateral_quantity: Decimal     # 담보수량(mgge_qty; 결제기준만)
+    exchange: str                    # 해외거래소코드(ovrs_excg_cd)
+    market_name: str                 # 거래시장명(tr_mket_name)
+    country_name: str                # 국가한글명(natn_kor_name)
+    currency: str                    # 매수통화코드(buy_crcy_cd)
+    exchange_rate: Decimal           # 기준환율(bass_exrt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -103,10 +103,10 @@ class OverseasBalancePosition:
 class OverseasCurrencyBalance:
     """해외 잔고 리포트의 통화별 예수금 한 줄(불변). ``deposit`` 은 외화예수금(``currency`` Money)."""
 
-    currency: str                      # 통화코드(crcy_cd)
-    currency_name: str                 # 통화코드명(crcy_cd_name)
-    deposit: Money                     # 외화예수금(frcr_dncl_amt_2)
-    first_exchange_rate: Decimal       # 최초고시환율(frst_bltn_exrt)
+    currency: str                 # 통화코드(crcy_cd)
+    currency_name: str            # 통화코드명(crcy_cd_name)
+    deposit: Money                # 외화예수금(frcr_dncl_amt_2)
+    first_exchange_rate: Decimal  # 최초고시환율(frst_bltn_exrt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -125,11 +125,11 @@ class OverseasPresentBalance:
 
     positions: tuple[OverseasBalancePosition, ...]
     currencies: tuple[OverseasCurrencyBalance, ...]
-    total_purchase_amount: Decimal     # 매입금액합계금액(pchs_amt_smtl_amt), 원화
-    total_evaluation_amount: Decimal   # 평가금액합계금액(evlu_amt_smtl_amt), 원화
-    total_eval_pnl: Decimal            # 총평가손익금액(tot_evlu_pfls_amt), 원화
-    total_asset: Decimal               # 총자산금액(tot_asst_amt), 원화
-    eval_return_rate: Decimal          # 평가수익율(evlu_erng_rt1)
+    total_purchase_amount: Decimal    # 매입금액합계금액(pchs_amt_smtl_amt), 원화
+    total_evaluation_amount: Decimal  # 평가금액합계금액(evlu_amt_smtl_amt), 원화
+    total_unrealized_pnl: Decimal     # 총평가손익금액(tot_evlu_pfls_amt), 원화
+    total_asset_amount: Decimal       # 총자산금액(tot_asst_amt), 원화
+    eval_return_rate: Decimal         # 평가수익율(evlu_erng_rt1)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -147,13 +147,13 @@ class OverseasSettlementBalance:
 
     positions: tuple[OverseasBalancePosition, ...]
     currencies: tuple[OverseasCurrencyBalance, ...]
-    total_purchase_amount: Decimal     # 매입금액합계금액(pchs_amt_smtl_amt), 원화
-    total_eval_pnl: Decimal            # 총평가손익금액(tot_evlu_pfls_amt), 원화
-    eval_return_rate: Decimal          # 평가수익율(evlu_erng_rt1)
-    total_deposit: Decimal             # 총예수금액(tot_dncl_amt), 원화
-    total_won_evaluation: Decimal      # 원화평가금액합계(wcrc_evlu_amt_smtl)
-    total_asset: Decimal               # 총자산금액(tot_asst_amt2), 원화
-    total_loan: Decimal                # 총대출금액(tot_loan_amt), 원화
+    total_purchase_amount: Decimal  # 매입금액합계금액(pchs_amt_smtl_amt), 원화
+    total_unrealized_pnl: Decimal   # 총평가손익금액(tot_evlu_pfls_amt), 원화
+    eval_return_rate: Decimal       # 평가수익율(evlu_erng_rt1)
+    total_deposit: Decimal          # 총예수금액(tot_dncl_amt), 원화
+    total_won_evaluation: Decimal   # 원화평가금액합계(wcrc_evlu_amt_smtl)
+    total_asset_amount: Decimal     # 총자산금액(tot_asst_amt2), 원화
+    total_loan_amount: Decimal      # 총대출금액(tot_loan_amt), 원화
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

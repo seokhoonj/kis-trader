@@ -83,7 +83,7 @@ class _Orders:
 class StubKis:
     def __init__(self, account=None, environment="paper"):
         self.log: list = []
-        self.account = account        # 세션이 해석한 계좌(주문 게이트가 kis.account 로 읽음)
+        self._account = account    # 세션이 해석한 계좌(주문 게이트가 kis._account 로 읽음)
         self.environment = environment
         self.domestic = _Domestic(self.log)
         self.orders = _Orders(self.log)
@@ -148,6 +148,19 @@ def test_to_jsonable_serializes_nested_list_of_dataclasses():
     rows = [_Row("005930", Decimal(1), {}), _Row("000660", Decimal(2), {})]
     jsonable_rows = to_jsonable(rows)
     assert jsonable_rows == [{"symbol": "005930", "price": "1"}, {"symbol": "000660", "price": "2"}]
+
+
+def test_render_json_include_raw_with_frozen_vendor_payload():
+    # 실제 엔티티의 _raw 는 freeze_vendor_payload 가 만든 (중첩) MappingProxyType 이다.
+    # 이를 json.dumps 에 그대로 넘기면 TypeError 라, to_jsonable 이 Mapping 을 재귀해 풀어야 한다.
+    from kis_trader._internal._freeze import freeze_vendor_payload
+
+    frozen = freeze_vendor_payload({"a": "1", "nested": {"b": "2"}})
+    row = _Row(symbol="005930", price=Decimal(71500), _raw=frozen)
+    out = render(row, fmt="json", include_raw=True)
+    assert '"_raw"' in out
+    assert '"b": "2"' in out          # 중첩 proxy 까지 값으로 풀렸다
+    assert "mappingproxy" not in out  # repr 문자열로 새지 않았다
 
 
 # --- 주문 안전 게이트 -------------------------------------------------------
@@ -342,7 +355,7 @@ def test_main_order_timeout_exits_seven_with_reconcile(monkeypatch, capsys):
             return _TimeoutHandle()
 
     class _Kis:
-        account = None
+        _account = None
         environment = "paper"
         domestic = _Domestic()
 
@@ -518,7 +531,7 @@ def test_build_client_resolves_account_and_environment_from_profile(monkeypatch)
     monkeypatch.setenv("KIS_PAPER_ACCOUNT", "12345678-01")
     monkeypatch.setenv("KIS_PAPER_ENVIRONMENT", "paper")   # 환경은 프로필에 저장된 값이 정한다
     kis = build_client(_args(["--profile", "paper", "stock", "quote", "005930"]))
-    assert kis.account == "12345678-01"
+    assert kis._account == "12345678-01"
     assert kis.environment == "paper"
 
 

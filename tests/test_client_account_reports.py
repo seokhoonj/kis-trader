@@ -77,7 +77,7 @@ def _resp(*, output1=None, output2=None, output=None):
 # --- 실현손익 잔고 (TTTC8494R) --------------------------------------------
 def test_realized_balance_parses():
     resp = _resp(output1=[_POS], output2=[_SUM])
-    bal = _client(FakeTransport(response=resp)).domestic.account.realized_profit_balance()
+    bal = _client(FakeTransport(response=resp)).account.domestic.realized_profit_balance()
     assert isinstance(bal, RealizedProfitBalance)
     assert len(bal.positions) == 1
     p = bal.positions[0]
@@ -95,7 +95,7 @@ def test_realized_balance_parses():
 
 def test_realized_balance_tr_and_params():
     fake = FakeTransport(response=_resp(output1=[_POS], output2=[_SUM]))
-    _client(fake).domestic.account.realized_profit_balance()
+    _client(fake).account.domestic.realized_profit_balance()
     call = fake.calls[0]
     assert call["tr_id"] == "TTTC8494R"
     assert call["path"] == _RLZ
@@ -106,19 +106,19 @@ def test_realized_balance_tr_and_params():
 def test_realized_balance_object_output2_ok():
     # output2 가 객체(배열 아님)로 와도 요약을 잡는다.
     resp = _resp(output1=[_POS], output2=_SUM)
-    bal = _client(FakeTransport(response=resp)).domestic.account.realized_profit_balance()
+    bal = _client(FakeTransport(response=resp)).account.domestic.realized_profit_balance()
     assert bal.total_deposit == Decimal(1000000)
 
 
 def test_realized_balance_empty_positions_ok():
-    bal = _client(FakeTransport(response=_resp(output1=[], output2=[_SUM]))).domestic.account.realized_profit_balance()
+    bal = _client(FakeTransport(response=_resp(output1=[], output2=[_SUM]))).account.domestic.realized_profit_balance()
     assert bal.positions == ()
     assert bal.realized_pnl == Decimal(33000)
 
 
 def test_realized_balance_bad_blank_loan_date_is_none():
     row = dict(_POS, loan_dt="", expd_dt="")
-    bal = _client(FakeTransport(response=_resp(output1=[row], output2=[_SUM]))).domestic.account.realized_profit_balance()
+    bal = _client(FakeTransport(response=_resp(output1=[row], output2=[_SUM]))).account.domestic.realized_profit_balance()
     assert bal.positions[0].loan_date is None
     assert bal.positions[0].expiry_date is None
 
@@ -126,19 +126,19 @@ def test_realized_balance_bad_blank_loan_date_is_none():
 def test_realized_balance_non_list_output1_fails_closed():
     resp = _resp(output1={"pdno": "x"}, output2=[_SUM])
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).domestic.account.realized_profit_balance()
+        _client(FakeTransport(response=resp)).account.domestic.realized_profit_balance()
 
 
 def test_realized_balance_demo_rejected():
     fake = FakeTransport(response=_resp(output1=[_POS], output2=[_SUM]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").domestic.account.realized_profit_balance()
+        _client(fake, environment="paper").account.domestic.realized_profit_balance()
     assert fake.calls == []
 
 
 # --- 통합증거금 (TTTC0869R) ------------------------------------------------
 def test_integrated_margin_parses():
-    m = _client(FakeTransport(response=_resp(output=_MARGIN))).domestic.account.integrated_margin()
+    m = _client(FakeTransport(response=_resp(output=_MARGIN))).account.domestic.integrated_margin()
     assert isinstance(m, IntegratedMargin)
     assert m.account_margin_rate == Decimal(40)
     assert m.cash_orderable == Decimal(1000000)
@@ -151,7 +151,7 @@ def test_integrated_margin_parses():
 
 def test_integrated_margin_tr_and_params():
     fake = FakeTransport(response=_resp(output=_MARGIN))
-    _client(fake).domestic.account.integrated_margin(include_cma=True, won_basis=False)
+    _client(fake).account.domestic.integrated_margin(include_cma=True, won_basis=False)
     call = fake.calls[0]
     assert call["tr_id"] == "TTTC0869R"
     assert call["path"] == _MGN
@@ -162,23 +162,23 @@ def test_integrated_margin_tr_and_params():
 
 def test_integrated_margin_won_basis_default():
     fake = FakeTransport(response=_resp(output=_MARGIN))
-    _client(fake).domestic.account.integrated_margin()
+    _client(fake).account.domestic.integrated_margin()
     assert fake.calls[0]["params"]["WCRC_FRCR_DVSN_CD"] == "02"   # 원화기준
     assert fake.calls[0]["params"]["CMA_EVLU_AMT_ICLD_YN"] == "N"
 
 
 def test_integrated_margin_non_object_output_fails_closed():
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_resp(output=[_MARGIN]))).domestic.account.integrated_margin()
+        _client(FakeTransport(response=_resp(output=[_MARGIN]))).account.domestic.integrated_margin()
 
 
 def test_integrated_margin_demo_rejected():
     fake = FakeTransport(response=_resp(output=_MARGIN))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").domestic.account.integrated_margin()
+        _client(fake, environment="paper").account.domestic.integrated_margin()
     assert fake.calls == []
 
 
 def test_reports_require_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp(output=_MARGIN)), account=None).domestic.account.integrated_margin()
+        _client(FakeTransport(response=_resp(output=_MARGIN)), account=None).account.domestic.integrated_margin()

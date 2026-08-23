@@ -50,7 +50,7 @@ def _common_flags() -> argparse.ArgumentParser:
     앞·뒤 어디에 놓아도 동작한다."""
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--profile", default=argparse.SUPPRESS,
-                        help="자격증명 프로필(자유 이름). 미지정 시 KIS_DEFAULT_PROFILE > credentials.json 첫 항목 > main. 환경은 프로필에 저장된 값")
+                        help="자격증명 프로필(자유 이름). 미지정 시 KIS_DEFAULT_PROFILE > default_profile 마커 > credentials.json 첫 항목 > main. 환경은 프로필에 저장된 값")
     common.add_argument("--account", default=argparse.SUPPRESS, help="계좌번호(생략 시 프로필 계좌)")
     common.add_argument("--format", dest="fmt", choices=["table", "json", "jsonl"],
                         default=argparse.SUPPRESS, help="출력 형식(기본 table)")
@@ -69,7 +69,7 @@ def build_parser() -> argparse.ArgumentParser:
     # 최상위는 실제 기본값을 직접 가진다. 하위 명령은 common(SUPPRESS)이라, 미지정 시 이 값을
     # 덮어쓰지 않고 그대로 유지한다 -- 그래서 전역 플래그를 하위 명령 앞뒤 어디에 놓아도 된다.
     parser.add_argument("--profile", default=None,
-                        help="자격증명 프로필(자유 이름). 미지정 시 KIS_DEFAULT_PROFILE > credentials.json 첫 항목 > main. 환경은 프로필에 저장된 값")
+                        help="자격증명 프로필(자유 이름). 미지정 시 KIS_DEFAULT_PROFILE > default_profile 마커 > credentials.json 첫 항목 > main. 환경은 프로필에 저장된 값")
     parser.add_argument("--account", default=None, help="계좌번호(생략 시 프로필 계좌)")
     parser.add_argument("--format", dest="fmt", choices=["table", "json", "jsonl"], default="table",
                         help="출력 형식(기본 table)")
@@ -114,9 +114,9 @@ def build_parser() -> argparse.ArgumentParser:
     rc.add_argument("--direction", choices=list(get_args(Direction)), required=True)
     rc.set_defaults(func=market.cmd_ranking_change)
     rv = leaf(ranking_sub, "volume")
-    rv.add_argument("--metric", choices=list(get_args(VolumeMetric)), default="trading_value",
-                    help="거래량 기준(기본 trading_value 거래대금): trading_volume(거래량)/"
-                         "trading_value(거래대금)/volume_growth(거래증가율)/turnover(회전율)")
+    rv.add_argument("--metric", choices=list(get_args(VolumeMetric)), default="cumulative_trading_amount",
+                    help="거래량 기준(기본 cumulative_trading_amount 거래대금): trading_volume(거래량)/"
+                         "cumulative_trading_amount(거래대금)/volume_growth(거래증가율)/turnover(회전율)")
     rv.set_defaults(func=market.cmd_ranking_volume)
     leaf(ranking_sub, "market-cap").set_defaults(func=market.cmd_ranking_market_cap)
 
@@ -166,7 +166,7 @@ def build_parser() -> argparse.ArgumentParser:
 def _emit(result: Any, args: argparse.Namespace, kis: KISClient) -> None:
     # 환경·계좌는 세션(kis)이 생성 시 이미 해석한 값을 재사용한다(자격증명 재조회 없음).
     meta = {"environment": kis.environment,
-            "account_suffix": account_suffix(kis.account)}
+            "account_suffix": account_suffix(kis._account)}
     print(render(result, fmt=args.fmt, include_raw=args.include_raw,
                  no_header=args.no_header, meta=meta))
 

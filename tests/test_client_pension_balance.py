@@ -178,7 +178,7 @@ def test_pension_present_balance_parses():
     pre = _client(FakeTransport(response=_resp2([_PRE_ROW], _PRE_SUMMARY, summary_list=True))).pension.present_balance()
     assert isinstance(pre, PensionPresentBalance)
     assert pre.total_purchase_amount == Decimal(464760)
-    assert pre.total_evaluation_pnl == Decimal(-67730)
+    assert pre.total_unrealized_pnl == Decimal(-67730)
     assert pre.return_percent == Decimal("-14.57311300")
     p = pre.positions[0]
     assert p.symbol == "069500"

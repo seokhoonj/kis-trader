@@ -231,3 +231,49 @@ def test_enqueue_drops_oldest_when_queue_full():
         drained.append(client._queue.get_nowait())
     assert drained == [second, third]                # 가장 오래된 first 는 드롭
     assert client._queue_overflow_warned is True
+
+
+def test_restart_drains_stale_queue():
+    # 재시작 시 이전 run 의 잔여 틱/센티넬이 새 stream() 에 낡은 데이터·즉시종료로 새면 안 된다.
+    from kis_trader.realtime.client import _STREAM_SENTINEL
+
+    ws = FakeWebSocket(incoming=["0|DUMMYTR0|001|005930^093100^71800"])
+    client = _client(ws)
+    client._queue.put(RealtimeMessage(tr_id="DUMMYTR0", tr_key="STALE", data=["old"]))
+    client._queue.put(_STREAM_SENTINEL)               # 이전 run 이 남긴 종료 신호를 흉내
+    client.subscribe("DUMMYTR0", "005930")
+    client.start()                                    # start() 가 큐를 비워야 한다
+    streamed = list(client.stream(timeout=2.0))
+    client.stop()
+    assert all(m.tr_key != "STALE" for m in streamed)  # 낡은 틱이 새지 않았다
+    assert [m.tr_key for m in streamed] == ["005930"]  # 새 run 의 틱만, 조기종료 없이
+
+
+def test_typed_subscriptions_map_to_tr_ids():
+    # 타입드 래퍼가 raw TR-id 로 정확히 매핑되는지(거래소별 체결/호가, 체결통보).
+    client = _client(FakeWebSocket(incoming=[]))
+    client.trades("005930")                       # KRX 기본
+    client.trades("005930", venue="NXT")
+    client.order_book("005930", venue="unified")
+    client.execution_notices("myhtsid")
+    assert ("H0STCNT0", "005930") in client._desired   # KRX 체결
+    assert ("H0NXCNT0", "005930") in client._desired   # NXT 체결
+    assert ("H0UNASP0", "005930") in client._desired   # 통합 호가
+    assert ("H0STCNI0", "myhtsid") in client._desired  # 체결통보(tr_key=HTS id)
+
+
+def test_start_refused_while_previous_thread_alive():
+    # 이전 run 스레드가 아직 살아있으면(멎은 연결 등) start() 는 새 run 을 띄우지 않고 fail-closed 해야
+    # 한다 -- 안 그러면 self._conn/_queue 를 갈아치워 뒤늦게 깨어난 옛 스레드가 새 소켓을 닫고 큐를 오염시킨다.
+    client = _client(FakeWebSocket(incoming=[]))
+    blocker = threading.Event()
+    stuck = threading.Thread(target=blocker.wait, daemon=True)
+    stuck.start()
+    client._thread = stuck                       # 이전 run 이 아직 종료 안 된 상황을 흉내
+    try:
+        with pytest.raises(RealtimeError):
+            client.start(timeout=1.0)
+        assert client._running is False          # 새 run 을 띄우지 않았다
+    finally:
+        blocker.set()
+        stuck.join(timeout=1.0)

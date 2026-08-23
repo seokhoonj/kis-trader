@@ -1,6 +1,6 @@
 """해외 계좌 DATA -- 외화 증거금·거래내역·매수가능·기간손익.
 
-해외 계좌 조회(``kis.overseas.account.foreign_margin`` / ``.transactions`` / ``.buyable`` /
+해외 계좌 조회(``kis.account.overseas.foreign_margin`` / ``.transactions`` / ``.buyable`` /
 ``.period_profit``)가 돌려준다. 금액은 거래/조회 통화라 :class:`~kis_trader.money.Money`."""
 
 from __future__ import annotations

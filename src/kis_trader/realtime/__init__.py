@@ -10,6 +10,14 @@ from __future__ import annotations
 from .._internal._endpoints import websocket_url
 from . import parsers  # noqa: F401  (import 부작용: TR 파서 레지스트리 등록)
 from ._approval import fetch_approval_key
-from ._connection import RealtimeConnection
+from ._connection import RealtimeConnection, RealtimeMessage
+from .client import MessageCallback, RealtimeClient
 
-__all__ = ["RealtimeConnection", "fetch_approval_key", "websocket_url"]
+__all__ = [
+    "MessageCallback",
+    "RealtimeClient",
+    "RealtimeConnection",
+    "RealtimeMessage",
+    "fetch_approval_key",
+    "websocket_url",
+]

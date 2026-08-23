@@ -223,7 +223,9 @@ def test_v7_report_dict_omits_submitted_at_key(tmp_path):
         status=OrderStatus.NEW, filled_quantity=Decimal(0), average_price=None,
         recorded_at=datetime.fromisoformat("2026-08-12T09:00:00+09:00"),
     )
-    with OrderStore(path=path) as store:
+    # retention_days=0 으로 보존 정리를 끈다 -- 고정 날짜가 기본 보존창(7일)을 넘기면 방금 기록한
+    # ID-new 가 write 시점에 정리되어 사라진다(이 테스트는 온-디스크 키만 본다).
+    with OrderStore(path=path, retention_days=0) as store:
         store.record(report, fp)
     data = json.loads(path.read_text(encoding="utf-8"))
     assert data["schema_version"] == _SCHEMA_VERSION

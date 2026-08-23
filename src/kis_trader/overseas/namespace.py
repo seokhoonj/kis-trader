@@ -1,5 +1,5 @@
 """해외 자산군 네임스페이스 -- ``kis.overseas`` (:class:`OverseasNamespace`) 와 그 계좌 하위
-(:class:`OverseasAccount`, ``kis.overseas.account``).
+(:class:`OverseasAccount`, ``kis.account.overseas``).
 
 세션 :class:`~kis_trader.client.KISClient` 아래 해외 주식·지수·파생의 시세/계좌/순위/뉴스 행위를
 모은다. 각 메서드는 세션이 쥔 전송/계좌/환경으로 해외 엔진을 직접 호출한다.
@@ -65,7 +65,7 @@ _OVERSEAS_INDEX_KIND = {"index": "N", "fx": "X", "bond": "I", "gold": "S"}
 
 
 class OverseasAccount:
-    """``kis.overseas.account`` -- 해외 계좌 조회·계좌 단위 주문(잔고/손익/알고/예약주문).
+    """``kis.account.overseas`` -- 해외 계좌 조회·계좌 단위 주문(잔고/손익/알고/예약주문).
 
     모든 메서드는 계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError` 를 던진다. ``**모의투자
     미지원**`` 이라 표시된 메서드는 ``environment="paper"`` 에서도 :class:`~kis_trader.errors.
@@ -223,11 +223,12 @@ class OverseasAccount:
 
 
 class OverseasNamespace:
-    """``kis.overseas`` -- 해외 자산(주식·지수·파생) 시세/계좌/순위/뉴스/기업행위."""
+    """``kis.overseas`` -- 해외 자산(주식·지수·파생) 시세/순위/뉴스/기업행위.
+
+    계좌 조회·계좌 단위 주문은 여기가 아니라 ``kis.account.overseas`` (:class:`OverseasAccount`)."""
 
     def __init__(self, client: KISClient) -> None:
         self._c = client
-        self.account = OverseasAccount(client)
 
     # -- 종목/상품 핸들 --
     def stock(self, symbol: str, *, exchange: str | None = None) -> OverseasStock:

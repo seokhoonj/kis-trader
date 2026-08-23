@@ -36,6 +36,8 @@ _BOND_ORDER_BOOK_FIELDS = (
     "BIDP_ERT3", "ASKP3", "BIDP3", "ASKP_RSQN3", "BIDP_RSQN3",
     "ASKP_ERT4", "BIDP_ERT4", "ASKP4", "BIDP4", "ASKP_RSQN4",
     "BIDP_RSQN4", "ASKP_ERT5", "BIDP_ERT5", "ASKP5", "BIDP5",
+    # ASKP_RSQN52/BIDP_RSQN53 은 레벨5 잔량인데 원장(H0BJASP0)이 RSQN5 가 아니라 RSQN52/53 으로
+    # 표기해 그대로 따른다(원장 필드명을 _raw 에 보존). RSQN5 로 "고치지" 말 것 -- 원장과 어긋난다.
     "ASKP_RSQN52", "BIDP_RSQN53", "TOTAL_ASKP_RSQN", "TOTAL_BIDP_RSQN",
 )
 
@@ -98,10 +100,10 @@ class BondOrderBook:
     best_bid_price: Decimal  # 매수호가1
     best_ask_yield: Decimal  # 매도호가 수익률1
     best_bid_yield: Decimal  # 매수호가 수익률1
-    best_ask_volume: Decimal  # 매도호가 잔량1
-    best_bid_volume: Decimal  # 매수호가 잔량1
-    total_ask_volume: Decimal  # 총 매도호가 잔량
-    total_bid_volume: Decimal  # 총 매수호가 잔량
+    best_ask_quantity: Decimal  # 매도호가 잔량1
+    best_bid_quantity: Decimal  # 매수호가 잔량1
+    total_ask_quantity: Decimal  # 총 매도호가 잔량
+    total_bid_quantity: Decimal  # 총 매수호가 잔량
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -170,10 +172,10 @@ def parse_bond_order_book(fields: list[str]) -> BondOrderBook:
         best_bid_price=_decimal(raw["BIDP1"]),
         best_ask_yield=_decimal(raw["ASKP_ERT1"]),
         best_bid_yield=_decimal(raw["BIDP_ERT1"]),
-        best_ask_volume=_decimal(raw["ASKP_RSQN1"]),
-        best_bid_volume=_decimal(raw["BIDP_RSQN1"]),
-        total_ask_volume=_decimal(raw["TOTAL_ASKP_RSQN"]),
-        total_bid_volume=_decimal(raw["TOTAL_BIDP_RSQN"]),
+        best_ask_quantity=_decimal(raw["ASKP_RSQN1"]),
+        best_bid_quantity=_decimal(raw["BIDP_RSQN1"]),
+        total_ask_quantity=_decimal(raw["TOTAL_ASKP_RSQN"]),
+        total_bid_quantity=_decimal(raw["TOTAL_BIDP_RSQN"]),
         _raw=raw,
     )
 

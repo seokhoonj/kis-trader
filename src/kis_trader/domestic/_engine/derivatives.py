@@ -51,8 +51,9 @@ from ..._literals import DerivativeMarket
 from ...bar import Bar, Interval
 from ...errors import KISError, KISUsageError
 from ...order_book import OrderBook
-from ...transport import Transport
+from ...transport import Environment, Transport
 from ..entities.derivative import (
+    DerivativeMarginRate,
     DerivativeQuote,
     ExpectedExecutionPoint,
     ExpectedExecutionTrend,
@@ -92,6 +93,11 @@ _OPTION_UNDERLYING = {"KOSPI200": "", "MINI_KOSPI200": "MKI", "KOSDAQ150": "KQI"
 
 _UNDERLYING_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-top"
 _UNDERLYING_TR = "FHPIF05030000"
+
+_MARGIN_RATE_PATH = "/uapi/domestic-futureoption/v1/quotations/margin-rate"
+_MARGIN_RATE_TR = "TTTO6032R"  # 기초자산 증거금율, 모의투자 미지원
+#: 증거금율 연속조회 페이지 상한. 여기 닿으면 부분 결과로 자르지 않고 fail-closed.
+_MAX_MARGIN_RATE_PAGES = 100
 
 
 def fetch_quote(transport: Transport, *, code: str, market: DerivativeMarket) -> DerivativeQuote:
@@ -378,6 +384,75 @@ def fetch_futures_board_quotes(
     return quotes
 
 
+def fetch_derivative_margin_rates(
+    transport: Transport, *, environment: Environment, base_date: str, underlying_id: str = ""
+) -> list[DerivativeMarginRate]:
+    """기준일(``base_date``, YYYYMMDD)별 기초자산 선물 증거금율 표. ``underlying_id`` 는 기초자산
+    ID(bast_id)로 좁히고, 공백(기본)이면 전체 기초자산을 돌려준다. **모의투자 미지원**(실전 전용 TR).
+
+    응답은 output 배열이고 연속조회는 CTX_AREA_NK200 만 되먹인다(이 엔드포인트엔 FK200 이 없다).
+    페이지 상한에 닿으면 부분 결과로 자르지 않고 예외. 기초자산 ID 가 빈 행은 건너뛴다."""
+    if environment == "paper":
+        raise KISUsageError(
+            "기초자산 증거금율(margin-rate)은 모의투자 미지원 -- 실전에서만."
+        )
+    if len(base_date) != 8 or not base_date.isdigit():
+        raise KISUsageError(
+            f"base_date 는 8자리 숫자(YYYYMMDD)여야 한다: {base_date!r}"
+        )
+    rows: list[Mapping[str, Any]] = []
+    ctx_nk, tr_cont = "", ""
+    for _page in range(_MAX_MARGIN_RATE_PAGES):
+        params = {
+            "BASS_DT": base_date,
+            "BAST_ID": underlying_id,
+            "CTX_AREA_NK200": ctx_nk,
+        }
+        resp = transport.request(
+            method="GET", path=_MARGIN_RATE_PATH, tr_id=_MARGIN_RATE_TR,
+            params=params, idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        page = resp.body.get("output")
+        if not isinstance(page, list):  # 빈 결과도 output 을 빈 배열로 준다 -> 부재/비배열은 손상
+            raise KISError(
+                "파생상품 증거금율 응답의 output 이 배열이 아니다.",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        rows.extend(page)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
+        tr_cont = "N"
+    else:
+        raise KISError(
+            f"파생상품 증거금율 조회가 {_MAX_MARGIN_RATE_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        )
+    result: list[DerivativeMarginRate] = []
+    for row in rows:
+        if not isinstance(row, Mapping):  # output=[None] 등 손상 -> fail-closed
+            raise KISError("파생상품 증거금율 응답 행이 매핑이 아니다.")
+        if str(row.get("bast_id", "")).strip():
+            result.append(_parse_margin_rate(row))
+    return result
+
+
+def _parse_margin_rate(row: Mapping[str, Any]) -> DerivativeMarginRate:
+    return DerivativeMarginRate(
+        underlying_id=str(row.get("bast_id", "")).strip(),
+        underlying_name=str(row.get("bast_name", "")).strip(),
+        underlying_price=required_decimal(row.get("bast_pric"), "bast_pric"),
+        brokerage_margin_rate=required_decimal(row.get("brkg_mgna_rt"), "brkg_mgna_rt"),
+        trading_margin_rate=required_decimal(row.get("tr_mgna_rt"), "tr_mgna_rt"),
+        trading_multiplier=required_decimal(row.get("tr_mtpl_idx"), "tr_mtpl_idx"),
+        futures_margin_per_contract=required_decimal(
+            row.get("ctrt_per_futr_mgna"), "ctrt_per_futr_mgna"
+        ),
+        _raw=row,
+    )
+
+
 def fetch_bars(
     transport: Transport,
     *,
@@ -438,7 +513,7 @@ def _parse_quote(output: Mapping[str, Any], *, code: str, as_of: datetime) -> De
         open_interest=required_int(output.get("hts_otst_stpl_qty"), "hts_otst_stpl_qty"),
         theoretical_price=optional_decimal(output.get("hts_thpr"), "hts_thpr"),
         basis=optional_decimal(output.get("basis"), "basis"),
-        premium=optional_decimal(output.get("dprt"), "dprt"),
+        disparity_rate=optional_decimal(output.get("dprt"), "dprt"),
         as_of=as_of,
         _raw=output,
     )

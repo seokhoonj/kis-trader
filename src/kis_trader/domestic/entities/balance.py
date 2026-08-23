@@ -95,7 +95,7 @@ class AccountAssets:
     total_net_asset_amount: Decimal     # 순자산총금액(nass_tot_amt)
     total_purchase_amount: Decimal      # 매입금액합계(pchs_amt_smtl)
     total_evaluation_amount: Decimal    # 평가금액합계(evlu_amt_smtl)
-    total_evaluation_pnl: Decimal       # 평가손익합계(evlu_pfls_amt_smtl)
+    total_unrealized_pnl: Decimal       # 평가손익합계(evlu_pfls_amt_smtl)
     total_loan_amount: Decimal          # 대출금액합계(loan_amt_smtl)
     total_deposit: Decimal              # 총예수금액(tot_dncl_amt)
     deposit: Decimal                    # 예수금액(dncl_amt)

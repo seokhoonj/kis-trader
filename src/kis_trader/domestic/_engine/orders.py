@@ -63,6 +63,11 @@ _MAX_RECONCILE_PAGES = 100
 #: 국내(KRX/KOSDAQ/Nextrade) 시장 식별코드 -- 이 셋은 국내 현금주문으로 라우팅.
 _DOMESTIC_MICS = frozenset(("XKRX", "XKOS", "NXTE"))
 
+#: 시장 중립 접수-일자 키. 시장별 extract_output 파서가 접수 응답의 자기 일자 필드(예: 해외선물옵션의
+#: ORD_DT)를 이 키로 정규화해 넣으면, :func:`place` 가 필드명을 모른 채 ``receipt_date`` 로 영속한다.
+#: 이 키를 안 채우는 자산(국내주식/파생/채권 등)은 ``receipt_date`` 가 None 으로 남아 동작 불변이다.
+_RECEIPT_DATE_KEY = "_receipt_date"
+
 class PlaceRequestBuilder(Protocol):
     """발주 와이어 빌더의 정확한 호출 계약 -- 안전 코어(:func:`place`)는 시장 중립이라 이 형태의
     빌더를 주입받아 ``(order, cano, product_code, environment)`` 로 호출한다. 국내 현금
@@ -202,6 +207,11 @@ def place(
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
 
+    # 시장 중립 접수-일자: 시장별 파서가 정규화 키(_RECEIPT_DATE_KEY)로 채운 값만 영속한다 -- place 는
+    # 자산별 응답 필드명(예: 해외선물옵션 ORD_DT)을 모른다. 해외선물옵션은 이후 정정·취소가 원주문일자
+    # (ORGN_ORD_DT)로 대상을 특정하므로 접수 시점에 잡아 둔다. 이 키를 안 채우는 자산(국내주식/파생/
+    # 채권)은 None 이 되어(receipt_date 기본값과 동일) 기존 동작은 불변이다.
+    receipt = output.get(_RECEIPT_DATE_KEY)
     report = ExecutionReport(
         client_order_id=client_order_id,
         order_id=str(order_id),
@@ -212,6 +222,7 @@ def place(
         average_price=None,
         recorded_at=datetime.now(_KST),
         organization_number=_extract_organization_number(output),
+        receipt_date=str(receipt) if receipt else None,
         _raw=resp.body,
     )
     store.record(report, fingerprint)
@@ -430,6 +441,12 @@ def submit_change(
         rebound_report = replace(
             report, client_order_id=original_client_order_id,
             filled_quantity=Decimal(0), average_price=None,   # filled==0 => 평균가 없음(규약)
+            # 원주문일자(접수 응답의 자기 일자)는 같은 날 정정 전후로 불변이다 -- 정정 응답엔
+            # 이 값이 없어 새로 만든 리포트에선 None 이 되므로 원리포트 값을 이어붙인다. 안 그러면
+            # 해외선물옵션(OSFO) 재바인딩 주문이 receipt_date=None 이 되어 이후 취소가 원주문일자
+            # (ORGN_ORD_DT) 부재로 fail-closed 되어 영영 취소 불가가 된다. 이 키를 안 쓰는 자산은
+            # original_report.receipt_date 가 None 이라 재바인딩 리포트가 종전과 동일하다.
+            receipt_date=original_report.receipt_date,
         )
         rebind = Binding(rebound_report, resting_fingerprint)
     store.record_change(report, action_fingerprint, rebind=rebind)
@@ -482,7 +499,7 @@ def _run_pre_trade_risk(transport: Transport, order: Order, risk: RiskLimits) ->
     """리스크 한도를 점검한다. 참조가(현재가)가 필요하면 시세를 조회해 넘긴다 -- 조회 실패는
     잡지 않고 그대로 올린다(fail-closed: 한도를 확인 못 하면 주문을 보내지 않는다)."""
     reference_price = None
-    if risk._needs_reference_price(order):
+    if risk.needs_reference_price(order):
         quote = market_data.fetch_quote(
             transport, symbol=order.symbol, market=resolve_market(order.symbol)
         )

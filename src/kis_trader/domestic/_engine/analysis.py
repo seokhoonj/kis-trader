@@ -462,7 +462,7 @@ def fetch_analyst_opinions(
                 previous_opinion=str(row.get("rgbf_invt_opnn", "")).strip(),
                 target_price=optional_decimal(row.get("hts_goal_prc"), "hts_goal_prc"),
                 previous_close=optional_decimal(row.get("stck_prdy_clpr"), "stck_prdy_clpr"),
-                disparity_percent=optional_decimal(row.get("dprt"), "dprt"),
+                disparity_rate=optional_decimal(row.get("dprt"), "dprt"),
                 _raw=row,
             )
         )

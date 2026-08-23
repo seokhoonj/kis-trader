@@ -69,15 +69,15 @@ class PensionPresentBalance:
     """퇴직연금 체결기준잔고(불변) -- 체결기준 보유종목과 손익 요약.
 
     ``positions`` 보유종목, ``total_purchase_amount`` 매입금액합계, ``total_evaluation_amount``
-    평가금액합계, ``total_evaluation_pnl`` 평가손익합계, ``total_trade_pnl`` 매매손익합계,
+    평가금액합계, ``total_unrealized_pnl`` 평가손익합계, ``total_realized_pnl`` 매매손익합계,
     ``today_total_pnl`` 당일총손익, ``return_percent`` 수익률(%).
     """
 
     positions: tuple[Position, ...]
     total_purchase_amount: Decimal    # 매입금액합계(pchs_amt_smtl_amt)
     total_evaluation_amount: Decimal  # 평가금액합계(evlu_amt_smtl_amt)
-    total_evaluation_pnl: Decimal     # 평가손익합계(evlu_pfls_smtl_amt)
-    total_trade_pnl: Decimal          # 매매손익합계(trad_pfls_smtl)
+    total_unrealized_pnl: Decimal     # 평가손익합계(evlu_pfls_smtl_amt)
+    total_realized_pnl: Decimal       # 매매손익합계(trad_pfls_smtl)
     today_total_pnl: Decimal          # 당일총손익(thdt_tot_pfls_amt)
     return_percent: Decimal           # 수익률(pftrt)
     _raw: Mapping[str, Any] = field(

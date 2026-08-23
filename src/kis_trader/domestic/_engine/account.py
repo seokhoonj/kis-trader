@@ -17,8 +17,8 @@ from datetime import date, time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from ..._internal._response import _fetch_paginated_rows, _raise_if_error
-from ..._internal._wire import format_wire_decimal, optional_decimal, required_decimal
+from ..._internal._response import _fetch_paginated_rows, _raise_if_error, _require_mapping_rows
+from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
 from ...open_order import OpenOrder
 from ...orderable import BuyableAmount, SellableQuantity
@@ -129,13 +129,7 @@ def _walk_holdings(
         _raise_if_error(resp)
         if summary is None:  # 계좌 요약은 첫 페이지에서(계좌 단위라 페이지 불변)
             summary = _extract_summary(resp.body)
-        page = resp.body.get("output1")
-        if not isinstance(page, list):  # 빈 계좌도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
-            raise KISError(
-                "잔고 응답의 output1 이 종목 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
+        rows.extend(_require_mapping_rows("output1", resp))
         if resp.tr_cont not in ("F", "M"):
             break
         ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
@@ -179,14 +173,14 @@ def _parse_positions(rows: list[Mapping[str, Any]]) -> list[Position]:
                 symbol=symbol,
                 security_name=str(row.get("prdt_name", "")).strip(),
                 currency="KRW",
-                quantity=_decimal_or_zero(row.get("hldg_qty"), "hldg_qty"),
-                sellable_quantity=_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
-                average_purchase_price=_decimal_or_zero(row.get("pchs_avg_pric"), "pchs_avg_pric"),
-                purchase_amount=_decimal_or_zero(row.get("pchs_amt"), "pchs_amt"),
-                current_price=_decimal_or_zero(row.get("prpr"), "prpr"),
-                market_value=_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
-                unrealized_pnl=_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
-                unrealized_pnl_percent=_decimal_or_zero(row.get("evlu_pfls_rt"), "evlu_pfls_rt"),
+                quantity=field_decimal_or_zero(row.get("hldg_qty"), "hldg_qty"),
+                sellable_quantity=field_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
+                average_purchase_price=field_decimal_or_zero(row.get("pchs_avg_pric"), "pchs_avg_pric"),
+                purchase_amount=field_decimal_or_zero(row.get("pchs_amt"), "pchs_amt"),
+                current_price=field_decimal_or_zero(row.get("prpr"), "prpr"),
+                market_value=field_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
+                unrealized_pnl=field_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
+                unrealized_pnl_percent=field_decimal_or_zero(row.get("evlu_pfls_rt"), "evlu_pfls_rt"),
                 _raw=row,
             )
         )
@@ -319,10 +313,10 @@ def _parse_buyable(output: Mapping[str, Any], *, symbol: str) -> BuyableAmount:
         currency="KRW",
         orderable_cash=required_decimal(output.get("ord_psbl_cash"), "ord_psbl_cash"),
         reusable_cash=required_decimal(output.get("ruse_psbl_amt"), "ruse_psbl_amt"),
-        cash_buyable_amount=_decimal_or_zero(output.get("nrcvb_buy_amt"), "nrcvb_buy_amt"),
-        cash_buyable_quantity=_decimal_or_zero(output.get("nrcvb_buy_qty"), "nrcvb_buy_qty"),
-        max_buyable_amount=_decimal_or_zero(output.get("max_buy_amt"), "max_buy_amt"),
-        max_buyable_quantity=_decimal_or_zero(output.get("max_buy_qty"), "max_buy_qty"),
+        cash_buyable_amount=field_decimal_or_zero(output.get("nrcvb_buy_amt"), "nrcvb_buy_amt"),
+        cash_buyable_quantity=field_decimal_or_zero(output.get("nrcvb_buy_qty"), "nrcvb_buy_qty"),
+        max_buyable_amount=field_decimal_or_zero(output.get("max_buy_amt"), "max_buy_amt"),
+        max_buyable_quantity=field_decimal_or_zero(output.get("max_buy_qty"), "max_buy_qty"),
         _raw=output,
     )
 
@@ -331,8 +325,8 @@ def _parse_sellable(output1: Mapping[str, Any], *, symbol: str) -> SellableQuant
     return SellableQuantity(
         symbol=symbol,
         security_name=str(output1.get("prdt_name", "")).strip(),
-        quantity=_decimal_or_zero(output1.get("cblc_qty"), "cblc_qty"),
-        sellable_quantity=_decimal_or_zero(output1.get("ord_psbl_qty"), "ord_psbl_qty"),
+        quantity=field_decimal_or_zero(output1.get("cblc_qty"), "cblc_qty"),
+        sellable_quantity=field_decimal_or_zero(output1.get("ord_psbl_qty"), "ord_psbl_qty"),
         _raw=output1,
     )
 
@@ -413,18 +407,18 @@ def _parse_trade_profit(row: Mapping[str, Any]) -> TradeProfit:
         symbol=str(row.get("pdno", "")).strip(),
         name=str(row.get("prdt_name", "")).strip(),
         trade_type=str(row.get("trad_dvsn_name", "")).strip(),
-        holding_quantity=_decimal_or_zero(row.get("hldg_qty"), "hldg_qty"),
-        purchase_price=_decimal_or_zero(row.get("pchs_unpr"), "pchs_unpr"),
-        buy_quantity=_decimal_or_zero(row.get("buy_qty"), "buy_qty"),
-        buy_amount=_decimal_or_zero(row.get("buy_amt"), "buy_amt"),
-        sell_price=_decimal_or_zero(row.get("sll_pric"), "sll_pric"),
-        sell_quantity=_decimal_or_zero(row.get("sll_qty"), "sll_qty"),
-        sell_amount=_decimal_or_zero(row.get("sll_amt"), "sll_amt"),
-        realized_pnl=_decimal_or_zero(row.get("rlzt_pfls"), "rlzt_pfls"),
-        return_percent=_decimal_or_zero(row.get("pfls_rt"), "pfls_rt"),
-        fee=_decimal_or_zero(row.get("fee"), "fee"),
-        tax=_decimal_or_zero(row.get("tl_tax"), "tl_tax"),
-        loan_interest=_decimal_or_zero(row.get("loan_int"), "loan_int"),
+        holding_quantity=field_decimal_or_zero(row.get("hldg_qty"), "hldg_qty"),
+        purchase_price=field_decimal_or_zero(row.get("pchs_unpr"), "pchs_unpr"),
+        buy_quantity=field_decimal_or_zero(row.get("buy_qty"), "buy_qty"),
+        buy_amount=field_decimal_or_zero(row.get("buy_amt"), "buy_amt"),
+        sell_price=field_decimal_or_zero(row.get("sll_pric"), "sll_pric"),
+        sell_quantity=field_decimal_or_zero(row.get("sll_qty"), "sll_qty"),
+        sell_amount=field_decimal_or_zero(row.get("sll_amt"), "sll_amt"),
+        realized_pnl=field_decimal_or_zero(row.get("rlzt_pfls"), "rlzt_pfls"),
+        return_percent=field_decimal_or_zero(row.get("pfls_rt"), "pfls_rt"),
+        fee=field_decimal_or_zero(row.get("fee"), "fee"),
+        tax=field_decimal_or_zero(row.get("tl_tax"), "tl_tax"),
+        loan_interest=field_decimal_or_zero(row.get("loan_int"), "loan_int"),
         _raw=row,
     )
 
@@ -497,15 +491,15 @@ def fetch_daily_profits(
 def _parse_daily_profit(row: Mapping[str, Any]) -> DailyProfit:
     return DailyProfit(
         trade_date=_parse_date(row.get("trad_dt")),
-        buy_amount=_decimal_or_zero(row.get("buy_amt"), "buy_amt"),
-        sell_amount=_decimal_or_zero(row.get("sll_amt"), "sll_amt"),
-        realized_pnl=_decimal_or_zero(row.get("rlzt_pfls"), "rlzt_pfls"),
-        return_percent=_decimal_or_zero(row.get("pfls_rt"), "pfls_rt"),
-        fee=_decimal_or_zero(row.get("fee"), "fee"),
-        tax=_decimal_or_zero(row.get("tl_tax"), "tl_tax"),
-        loan_interest=_decimal_or_zero(row.get("loan_int"), "loan_int"),
-        buy_quantity=_decimal_or_zero(row.get("buy_qty1"), "buy_qty1"),
-        sell_quantity=_decimal_or_zero(row.get("sll_qty1"), "sll_qty1"),
+        buy_amount=field_decimal_or_zero(row.get("buy_amt"), "buy_amt"),
+        sell_amount=field_decimal_or_zero(row.get("sll_amt"), "sll_amt"),
+        realized_pnl=field_decimal_or_zero(row.get("rlzt_pfls"), "rlzt_pfls"),
+        return_percent=field_decimal_or_zero(row.get("pfls_rt"), "pfls_rt"),
+        fee=field_decimal_or_zero(row.get("fee"), "fee"),
+        tax=field_decimal_or_zero(row.get("tl_tax"), "tl_tax"),
+        loan_interest=field_decimal_or_zero(row.get("loan_int"), "loan_int"),
+        buy_quantity=field_decimal_or_zero(row.get("buy_qty1"), "buy_qty1"),
+        sell_quantity=field_decimal_or_zero(row.get("sll_qty1"), "sll_qty1"),
         _raw=row,
     )
 
@@ -544,25 +538,25 @@ def _parse_account_right(row: Mapping[str, Any]) -> AccountRight:
     return AccountRight(
         account_number=str(row.get("acno10", "")).strip(),
         right_type_code=str(row.get("rght_type_cd", "")).strip(),
-        record_date=_parse_date(row.get("bass_dt")),
+        base_date=_parse_date(row.get("bass_dt")),
         symbol=str(row.get("pdno", "")).strip(),
         short_symbol=str(row.get("shtn_pdno", "")).strip(),
         name=str(row.get("prdt_name", "")).strip(),
-        balance_quantity=_decimal_or_zero(row.get("cblc_qty"), "cblc_qty"),
-        allocated_quantity=_decimal_or_zero(row.get("last_alct_qty"), "last_alct_qty"),
-        excess_allocated_quantity=_decimal_or_zero(row.get("excs_alct_qty"), "excs_alct_qty"),
-        total_allocated_quantity=_decimal_or_zero(row.get("tot_alct_qty"), "tot_alct_qty"),
-        allocated_amount=_decimal_or_zero(row.get("last_alct_amt"), "last_alct_amt"),
-        subscription_price=_decimal_or_zero(row.get("sbsc_unpr"), "sbsc_unpr"),
-        requested_quantity=_decimal_or_zero(row.get("rqst_qty"), "rqst_qty"),
-        requested_amount=_decimal_or_zero(row.get("rqst_amt"), "rqst_amt"),
+        quantity=field_decimal_or_zero(row.get("cblc_qty"), "cblc_qty"),
+        allocated_quantity=field_decimal_or_zero(row.get("last_alct_qty"), "last_alct_qty"),
+        excess_allocated_quantity=field_decimal_or_zero(row.get("excs_alct_qty"), "excs_alct_qty"),
+        total_allocated_quantity=field_decimal_or_zero(row.get("tot_alct_qty"), "tot_alct_qty"),
+        allocated_amount=field_decimal_or_zero(row.get("last_alct_amt"), "last_alct_amt"),
+        subscription_price=field_decimal_or_zero(row.get("sbsc_unpr"), "sbsc_unpr"),
+        requested_quantity=field_decimal_or_zero(row.get("rqst_qty"), "rqst_qty"),
+        requested_amount=field_decimal_or_zero(row.get("rqst_amt"), "rqst_amt"),
         request_date=_parse_date(row.get("rqst_dt")),
         subscription_end_date=_parse_date(row.get("sbsc_end_dt")),
         listing_date=_parse_date(row.get("lstg_dt")),
         cash_payment_date=_parse_date(row.get("cash_dfrm_dt")),
         refund_date=_parse_date(row.get("rfnd_dt")),
-        refund_amount=_decimal_or_zero(row.get("rfnd_amt"), "rfnd_amt"),
-        tax_amount=_decimal_or_zero(row.get("tax_amt"), "tax_amt"),
+        refund_amount=field_decimal_or_zero(row.get("rfnd_amt"), "rfnd_amt"),
+        tax_amount=field_decimal_or_zero(row.get("tax_amt"), "tax_amt"),
         _raw=row,
     )
 
@@ -616,16 +610,16 @@ def fetch_realized_profit_balance(
             symbol=str(row.get("pdno", "")).strip(),
             name=str(row.get("prdt_name", "")).strip(),
             trade_type=str(row.get("trad_dvsn_name", "")).strip(),
-            holding_quantity=_decimal_or_zero(row.get("hldg_qty"), "hldg_qty"),
-            orderable_quantity=_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
-            average_purchase_price=_decimal_or_zero(row.get("pchs_avg_pric"), "pchs_avg_pric"),
-            purchase_amount=_decimal_or_zero(row.get("pchs_amt"), "pchs_amt"),
-            current_price=_decimal_or_zero(row.get("prpr"), "prpr"),
-            market_value=_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
-            unrealized_pnl=_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
-            unrealized_pnl_rate=_decimal_or_zero(row.get("evlu_pfls_rt"), "evlu_pfls_rt"),
+            holding_quantity=field_decimal_or_zero(row.get("hldg_qty"), "hldg_qty"),
+            orderable_quantity=field_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
+            average_purchase_price=field_decimal_or_zero(row.get("pchs_avg_pric"), "pchs_avg_pric"),
+            purchase_amount=field_decimal_or_zero(row.get("pchs_amt"), "pchs_amt"),
+            current_price=field_decimal_or_zero(row.get("prpr"), "prpr"),
+            market_value=field_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
+            unrealized_pnl=field_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
+            unrealized_pnl_percent=field_decimal_or_zero(row.get("evlu_pfls_rt"), "evlu_pfls_rt"),
             loan_date=_parse_date(row.get("loan_dt")),
-            loan_amount=_decimal_or_zero(row.get("loan_amt"), "loan_amt"),
+            loan_amount=field_decimal_or_zero(row.get("loan_amt"), "loan_amt"),
             expiry_date=_parse_date(row.get("expd_dt")),
             _raw=row,
         )
@@ -633,18 +627,18 @@ def fetch_realized_profit_balance(
     )
     return RealizedProfitBalance(
         positions=positions,
-        total_deposit=_decimal_or_zero(summary.get("dnca_tot_amt"), "dnca_tot_amt"),
-        net_asset=_decimal_or_zero(summary.get("nass_amt"), "nass_amt"),
-        total_value=_decimal_or_zero(summary.get("tot_evlu_amt"), "tot_evlu_amt"),
-        total_purchase_amount=_decimal_or_zero(summary.get("pchs_amt_smtl_amt"), "pchs_amt_smtl_amt"),
-        total_evaluation_amount=_decimal_or_zero(summary.get("evlu_amt_smtl_amt"), "evlu_amt_smtl_amt"),
-        total_evaluation_pnl=_decimal_or_zero(summary.get("evlu_pfls_smtl_amt"), "evlu_pfls_smtl_amt"),
-        asset_change=_decimal_or_zero(summary.get("asst_icdc_amt"), "asst_icdc_amt"),
-        asset_change_rate=_decimal_or_zero(summary.get("asst_icdc_erng_rt"), "asst_icdc_erng_rt"),
-        realized_pnl=_decimal_or_zero(summary.get("rlzt_pfls"), "rlzt_pfls"),
-        realized_return_rate=_decimal_or_zero(summary.get("rlzt_erng_rt"), "rlzt_erng_rt"),
-        real_eval_pnl=_decimal_or_zero(summary.get("real_evlu_pfls"), "real_evlu_pfls"),
-        real_eval_return_rate=_decimal_or_zero(
+        total_deposit=field_decimal_or_zero(summary.get("dnca_tot_amt"), "dnca_tot_amt"),
+        net_asset=field_decimal_or_zero(summary.get("nass_amt"), "nass_amt"),
+        total_value=field_decimal_or_zero(summary.get("tot_evlu_amt"), "tot_evlu_amt"),
+        total_purchase_amount=field_decimal_or_zero(summary.get("pchs_amt_smtl_amt"), "pchs_amt_smtl_amt"),
+        total_evaluation_amount=field_decimal_or_zero(summary.get("evlu_amt_smtl_amt"), "evlu_amt_smtl_amt"),
+        total_unrealized_pnl=field_decimal_or_zero(summary.get("evlu_pfls_smtl_amt"), "evlu_pfls_smtl_amt"),
+        asset_change=field_decimal_or_zero(summary.get("asst_icdc_amt"), "asst_icdc_amt"),
+        asset_change_rate=field_decimal_or_zero(summary.get("asst_icdc_erng_rt"), "asst_icdc_erng_rt"),
+        realized_pnl=field_decimal_or_zero(summary.get("rlzt_pfls"), "rlzt_pfls"),
+        realized_return_rate=field_decimal_or_zero(summary.get("rlzt_erng_rt"), "rlzt_erng_rt"),
+        real_eval_pnl=field_decimal_or_zero(summary.get("real_evlu_pfls"), "real_evlu_pfls"),
+        real_eval_return_rate=field_decimal_or_zero(
             summary.get("real_evlu_pfls_erng_rt"), "real_evlu_pfls_erng_rt"
         ),
         _raw=summary,
@@ -686,20 +680,20 @@ def fetch_integrated_margin(
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
     return IntegratedMargin(
-        account_margin_rate=_decimal_or_zero(output.get("acmga_rt"), "acmga_rt"),
-        cash_orderable=_decimal_or_zero(output.get("stck_cash_ord_psbl_amt"), "stck_cash_ord_psbl_amt"),
-        substitute_orderable=_decimal_or_zero(output.get("stck_sbst_ord_psbl_amt"), "stck_sbst_ord_psbl_amt"),
-        receivable=_decimal_or_zero(output.get("rcvb_amt"), "rcvb_amt"),
-        limit_amount=_decimal_or_zero(output.get("lmt_amt"), "lmt_amt"),
+        account_margin_rate=field_decimal_or_zero(output.get("acmga_rt"), "acmga_rt"),
+        cash_orderable=field_decimal_or_zero(output.get("stck_cash_ord_psbl_amt"), "stck_cash_ord_psbl_amt"),
+        substitute_orderable=field_decimal_or_zero(output.get("stck_sbst_ord_psbl_amt"), "stck_sbst_ord_psbl_amt"),
+        receivable=field_decimal_or_zero(output.get("rcvb_amt"), "rcvb_amt"),
+        limit_amount=field_decimal_or_zero(output.get("lmt_amt"), "lmt_amt"),
         integrated_margin_type=str(output.get("ovrs_stck_itgr_mgna_dvsn_name", "")).strip(),
-        usd_orderable=_decimal_or_zero(output.get("usd_itgr_ord_psbl_amt"), "usd_itgr_ord_psbl_amt"),
-        hkd_orderable=_decimal_or_zero(output.get("hkd_itgr_ord_psbl_amt"), "hkd_itgr_ord_psbl_amt"),
-        jpy_orderable=_decimal_or_zero(output.get("jpy_itgr_ord_psbl_amt"), "jpy_itgr_ord_psbl_amt"),
-        cny_orderable=_decimal_or_zero(output.get("cny_itgr_ord_psbl_amt"), "cny_itgr_ord_psbl_amt"),
-        usd_exchange_rate=_decimal_or_zero(output.get("usd_frst_bltn_exrt"), "usd_frst_bltn_exrt"),
-        hkd_exchange_rate=_decimal_or_zero(output.get("hkd_frst_bltn_exrt"), "hkd_frst_bltn_exrt"),
-        jpy_exchange_rate=_decimal_or_zero(output.get("jpy_frst_bltn_exrt"), "jpy_frst_bltn_exrt"),
-        cny_exchange_rate=_decimal_or_zero(output.get("cny_frst_bltn_exrt"), "cny_frst_bltn_exrt"),
+        usd_orderable=field_decimal_or_zero(output.get("usd_itgr_ord_psbl_amt"), "usd_itgr_ord_psbl_amt"),
+        hkd_orderable=field_decimal_or_zero(output.get("hkd_itgr_ord_psbl_amt"), "hkd_itgr_ord_psbl_amt"),
+        jpy_orderable=field_decimal_or_zero(output.get("jpy_itgr_ord_psbl_amt"), "jpy_itgr_ord_psbl_amt"),
+        cny_orderable=field_decimal_or_zero(output.get("cny_itgr_ord_psbl_amt"), "cny_itgr_ord_psbl_amt"),
+        usd_exchange_rate=field_decimal_or_zero(output.get("usd_frst_bltn_exrt"), "usd_frst_bltn_exrt"),
+        hkd_exchange_rate=field_decimal_or_zero(output.get("hkd_frst_bltn_exrt"), "hkd_frst_bltn_exrt"),
+        jpy_exchange_rate=field_decimal_or_zero(output.get("jpy_frst_bltn_exrt"), "jpy_frst_bltn_exrt"),
+        cny_exchange_rate=field_decimal_or_zero(output.get("cny_frst_bltn_exrt"), "cny_frst_bltn_exrt"),
         _raw=output,
     )
 
@@ -753,7 +747,7 @@ def fetch_account_assets(
         total_net_asset_amount=required_decimal(summary.get("nass_tot_amt"), "nass_tot_amt"),
         total_purchase_amount=required_decimal(summary.get("pchs_amt_smtl"), "pchs_amt_smtl"),
         total_evaluation_amount=required_decimal(summary.get("evlu_amt_smtl"), "evlu_amt_smtl"),
-        total_evaluation_pnl=required_decimal(summary.get("evlu_pfls_amt_smtl"), "evlu_pfls_amt_smtl"),
+        total_unrealized_pnl=required_decimal(summary.get("evlu_pfls_amt_smtl"), "evlu_pfls_amt_smtl"),
         total_loan_amount=required_decimal(summary.get("loan_amt_smtl"), "loan_amt_smtl"),
         total_deposit=required_decimal(summary.get("tot_dncl_amt"), "tot_dncl_amt"),
         deposit=required_decimal(summary.get("dncl_amt"), "dncl_amt"),
@@ -803,8 +797,8 @@ def _parse_open_orders(rows: list[Mapping[str, Any]]) -> list[OpenOrder]:
         order_id = str(row.get("odno", "")).strip()
         if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
             continue
-        quantity = _decimal_or_zero(row.get("ord_qty"), "ord_qty")
-        filled = _decimal_or_zero(row.get("tot_ccld_qty"), "tot_ccld_qty")
+        quantity = field_decimal_or_zero(row.get("ord_qty"), "ord_qty")
+        filled = field_decimal_or_zero(row.get("tot_ccld_qty"), "tot_ccld_qty")
         orders.append(
             OpenOrder(
                 symbol=str(row.get("pdno", "")).strip(),
@@ -817,8 +811,8 @@ def _parse_open_orders(rows: list[Mapping[str, Any]]) -> list[OpenOrder]:
                 quantity=quantity,
                 filled_quantity=filled,
                 unfilled_quantity=quantity - filled,
-                cancelable_quantity=_decimal_or_zero(row.get("psbl_qty"), "psbl_qty"),
-                order_price=_decimal_or_zero(row.get("ord_unpr"), "ord_unpr"),
+                cancelable_quantity=field_decimal_or_zero(row.get("psbl_qty"), "psbl_qty"),
+                order_price=field_decimal_or_zero(row.get("ord_unpr"), "ord_unpr"),
                 order_time=_parse_hhmmss(row.get("ord_tmd")),
                 _raw=row,
             )
@@ -838,16 +832,6 @@ def _parse_hhmmss(value: object) -> time | None:
 
 
 # --- 공용 ------------------------------------------------------------------
-def _decimal_or_zero(value: object, field_name: str) -> Decimal:
-    """없으면 0, 있으면 Decimal(파싱 실패면 예외). '없음=0'인 수량·금액 필드용.
-
-    부재(None)만 0으로 본다 -- 값 "0"도 Decimal(0)이라 결과는 같지만, 판정을 truthiness 가
-    아니라 명시적 None 검사로 해 의도를 분명히 한다.
-    """
-    amount = optional_decimal(value, field_name)
-    return Decimal(0) if amount is None else amount
-
-
 def _format_order_unit_price(limit_price: Numeric | None) -> str:
     """주문 단가를 KIS 와이어 정본으로 -- ``None`` 이면 빈 문자열. 유한 양수 아니면 거부."""
     if limit_price is None:

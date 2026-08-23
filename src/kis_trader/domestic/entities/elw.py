@@ -26,7 +26,7 @@ class ELWQuote:
 
     종목 :class:`~kis_trader.quote.Quote` 와 달리, ELW 가 옵션인 만큼 **기초자산 가격**(``underlying_
     price``)과 **내재변동성**(``implied_volatility``)·**이론가**(``theoretical_price``)·**괴리율**
-    (``premium`` = 이론가 대비 시장가 괴리)·**행사가**(``strike``)·**머니니스**(``moneyness`` =
+    (``disparity_rate`` = 이론가 대비 시장가 괴리)·**행사가**(``strike``)·**머니니스**(``moneyness`` =
     ATM/ITM/OTM)를 함께 담는다. ``change`` / ``change_percent`` 는 전일대비(이 응답엔 ELW 부호
     필드가 따로 없어 값 자체의 부호를 쓴다). 피벗/자본지지점 등 부가 지표는 ``_raw`` 에 있다.
     """
@@ -37,19 +37,19 @@ class ELWQuote:
     high: Decimal
     low: Decimal
     previous_close: Decimal
-    change: Decimal                   # 전일대비(값 자체 부호)
-    change_percent: Decimal           # 전일대비율
+    change: Decimal          # 전일대비(값 자체 부호)
+    change_percent: Decimal  # 전일대비율
     volume: int
-    bid: Decimal | None               # 매수호가
-    ask: Decimal | None               # 매도호가
-    theoretical_price: Decimal | None  # HTS 이론가(모형가)
-    premium: Decimal | None           # 괴리율(dprt)
+    bid: Decimal | None                 # 매수호가
+    ask: Decimal | None                 # 매도호가
+    theoretical_price: Decimal | None   # HTS 이론가(모형가)
+    disparity_rate: Decimal | None      # 괴리율(dprt)
     implied_volatility: Decimal | None  # HTS 내재변동성(%)
-    strike: Decimal | None            # 행사가(acpr)
-    moneyness: str                    # ATM/ITM/OTM(atm_cls_name)
-    underlying_name: str              # 기초자산명(unas_isnm)
-    underlying_price: Decimal         # 기초자산 현재가(unas_prpr)
-    as_of: datetime                   # KST-aware
+    strike: Decimal | None              # 행사가(acpr)
+    moneyness: str                      # ATM/ITM/OTM(atm_cls_name)
+    underlying_name: str                # 기초자산명(unas_isnm)
+    underlying_price: Decimal           # 기초자산 현재가(unas_prpr)
+    as_of: datetime                     # KST-aware
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -69,10 +69,10 @@ class ELWSensitivityPoint:
     """
 
     code: str
-    timestamp: datetime               # 일별=영업일자 / 체결별=체결시각(조회일 날짜); KST-aware
-    price: Decimal                    # ELW 현재가
-    change: Decimal                   # 전일대비(부호 포함)
-    change_percent: Decimal           # 전일대비율(부호 포함)
+    timestamp: datetime                # 일별=영업일자 / 체결별=체결시각(조회일 날짜); KST-aware
+    price: Decimal                     # ELW 현재가
+    change: Decimal                    # 전일대비(부호 포함)
+    change_percent: Decimal            # 전일대비율(부호 포함)
     theoretical_price: Decimal | None  # HTS 이론가(모형가)
     delta: Decimal | None
     gamma: Decimal | None
@@ -99,11 +99,11 @@ class ELWVolatilityPoint:
     """
 
     code: str
-    timestamp: datetime               # KST-aware
-    price: Decimal                    # ELW 현재가
+    timestamp: datetime                 # KST-aware
+    price: Decimal                      # ELW 현재가
     implied_volatility: Decimal | None  # HTS 내재변동성(%)
-    change: Decimal | None            # 전일대비(부호 포함; 분별/틱은 None)
-    change_percent: Decimal | None    # 전일대비율(부호 포함; 분별/틱은 None)
+    change: Decimal | None              # 전일대비(부호 포함; 분별/틱은 None)
+    change_percent: Decimal | None      # 전일대비율(부호 포함; 분별/틱은 None)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -124,14 +124,14 @@ class ELWIndicatorPoint:
     """
 
     code: str
-    timestamp: datetime               # KST-aware
-    price: Decimal                    # ELW 현재가
-    leverage: Decimal | None          # 실효 레버리지(lvrg_val)
-    gearing: Decimal | None           # 명목 레버리지/기어링(gear)
-    intrinsic_value: Decimal | None   # 내재가치(invl_val)
-    parity: Decimal | None            # 패리티(prit)
-    change: Decimal | None            # 전일대비(부호 포함; 분별은 None)
-    change_percent: Decimal | None    # 전일대비율(부호 포함; 분별은 None)
+    timestamp: datetime              # KST-aware
+    price: Decimal                   # ELW 현재가
+    leverage: Decimal | None         # 실효 레버리지(lvrg_val)
+    gearing: Decimal | None          # 명목 레버리지/기어링(gear)
+    intrinsic_value: Decimal | None  # 내재가치(invl_val)
+    parity: Decimal | None           # 패리티(prit)
+    change: Decimal | None           # 전일대비(부호 포함; 분별은 None)
+    change_percent: Decimal | None   # 전일대비율(부호 포함; 분별은 None)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -152,16 +152,16 @@ class ELWLPFlow:
     """
 
     code: str
-    timestamp: datetime               # 영업일자(KST-aware)
-    price: Decimal                    # ELW 현재가
-    change: Decimal                   # 전일대비(부호 포함)
-    change_percent: Decimal           # 전일대비율(부호 포함)
-    lp_buy_quantity: int              # LP 매수수량(lp_shnu_qty)
-    lp_buy_avg_price: Decimal | None  # LP 매수평균단가(lp_shnu_avrg_unpr)
-    lp_sell_quantity: int             # LP 매도수량(lp_seln_qty)
+    timestamp: datetime                # 영업일자(KST-aware)
+    price: Decimal                     # ELW 현재가
+    change: Decimal                    # 전일대비(부호 포함)
+    change_percent: Decimal            # 전일대비율(부호 포함)
+    lp_buy_quantity: int               # LP 매수수량(lp_shnu_qty)
+    lp_buy_avg_price: Decimal | None   # LP 매수평균단가(lp_shnu_avrg_unpr)
+    lp_sell_quantity: int              # LP 매도수량(lp_seln_qty)
     lp_sell_avg_price: Decimal | None  # LP 매도평균단가(lp_seln_avrg_unpr)
-    lp_holding_quantity: int          # LP 보유수량(lp_hvol)
-    lp_holding_rate: Decimal | None   # LP 보유비율 %(lp_hldn_rate)
+    lp_holding_quantity: int           # LP 보유수량(lp_hvol)
+    lp_holding_rate: Decimal | None    # LP 보유비율 %(lp_hldn_rate)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -184,11 +184,11 @@ class ELWUnderlying:
     주식이면 6자리), ``price`` 는 기초자산 현재가.
     """
 
-    symbol: str                       # 기초자산 코드(unas_shrn_iscd)
-    name: str                         # 기초자산명(unas_isnm)
-    price: Decimal                    # 기초자산 현재가
-    change: Decimal                   # 전일대비(부호 포함)
-    change_percent: Decimal           # 전일대비율(부호 포함)
+    symbol: str              # 기초자산 코드(unas_shrn_iscd)
+    underlying_name: str     # 기초자산명(unas_isnm)
+    price: Decimal           # 기초자산 현재가
+    change: Decimal          # 전일대비(부호 포함)
+    change_percent: Decimal  # 전일대비율(부호 포함)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -236,12 +236,12 @@ class RankedELW:
     """
 
     rank: int
-    symbol: str                       # ELW 표준코드(6자리)
+    symbol: str  # ELW 표준코드(6자리)
     name: str
     price: Decimal
-    change: Decimal                   # 전일대비(부호 포함)
-    change_percent: Decimal           # 전일대비율(부호 포함)
-    volume: int                       # 누적 거래량
+    change: Decimal          # 전일대비(부호 포함)
+    change_percent: Decimal  # 전일대비율(부호 포함)
+    volume: int              # 누적 거래량
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

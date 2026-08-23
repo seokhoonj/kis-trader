@@ -3,9 +3,9 @@
 원장 Response Body 필드순을 그대로 ``^`` 인덱스에 매핑한다(필드순이 정본). 세 TR 은 레이아웃이
 서로 달라 각자 필드 튜플과 파서를 갖는다:
 
-* ``H0EWASP0`` (실시간호가, 73필드) -> :class:`OrderBook` -- 10호가 사다리 + LP 잔량 + 예상체결.
+* ``H0EWASP0`` (실시간호가, 73필드) -> :class:`ElwOrderBook` -- 10호가 사다리 + LP 잔량 + 예상체결.
 * ``H0EWCNT0`` (실시간체결가, 63필드) -> :class:`ExecutionTick` -- 체결 + ELW 지표(그릭/내재변동성 등).
-* ``H0EWANC0`` (실시간예상체결, 59필드) -> :class:`ExpectedConclusion` -- 예상체결 + ELW 지표.
+* ``H0EWANC0`` (실시간예상체결, 59필드) -> :class:`ElwExpectedConclusion` -- 예상체결 + ELW 지표.
 
 가격/수량/그릭 등 의미상 숫자인 헤드라인 필드는 :func:`_decimal` 로 ``Decimal`` 화하고, 코드/시각/
 부호/Y·N 플래그는 원문 문자열로 둔다. 전체 필드 원문은 각 엔티티의 ``_raw`` 에 Element 이름으로
@@ -98,10 +98,10 @@ def _ladder(raw: Mapping[str, str], prefix: str, levels: int = 10) -> tuple[Deci
 
 
 @dataclass(frozen=True, slots=True)
-class OrderBook:
+class ElwOrderBook:
     """ELW 실시간호가(H0EWASP0). 매도/매수 10호가 사다리와 잔량, LP 총잔량, 예상체결.
 
-    ``ask_prices``/``bid_prices`` 와 ``ask_volumes``/``bid_volumes`` 는 1~10호가를 순서대로 담은
+    ``ask_prices``/``bid_prices`` 와 ``ask_quantities``/``bid_quantities`` 는 1~10호가를 순서대로 담은
     길이 10 튜플이다. 전체 73개 필드(개별 LP 잔량 포함)는 ``_raw`` 에 Element 이름으로 있다.
     """
 
@@ -110,17 +110,17 @@ class OrderBook:
     hour_class: str  # 시간구분코드
     ask_prices: tuple[Decimal, ...]  # ASKP1..10
     bid_prices: tuple[Decimal, ...]  # BIDP1..10
-    ask_volumes: tuple[Decimal, ...]  # ASKP_RSQN1..10
-    bid_volumes: tuple[Decimal, ...]  # BIDP_RSQN1..10
-    total_ask_volume: Decimal
-    total_bid_volume: Decimal
+    ask_quantities: tuple[Decimal, ...]  # ASKP_RSQN1..10
+    bid_quantities: tuple[Decimal, ...]  # BIDP_RSQN1..10
+    total_ask_quantity: Decimal
+    total_bid_quantity: Decimal
     expected_price: Decimal  # 예상체결가
     expected_volume: Decimal  # 예상체결량
     expected_change_sign: str  # 1상한 2상승 3보합 4하한 5하락
     expected_change: Decimal
     expected_change_percent: Decimal
-    lp_total_ask_volume: Decimal  # LP 총매도호가잔량
-    lp_total_bid_volume: Decimal  # LP 총매수호가잔량
+    lp_total_ask_quantity: Decimal  # LP 총매도호가잔량
+    lp_total_bid_quantity: Decimal  # LP 총매수호가잔량
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -176,7 +176,7 @@ class ExecutionTick:
 
 
 @dataclass(frozen=True, slots=True)
-class ExpectedConclusion:
+class ElwExpectedConclusion:
     """ELW 실시간예상체결(H0EWANC0). 예상 체결가/등락/거래량과 ELW 고유 지표(그릭 등).
 
     체결가(:class:`ExecutionTick`)와 유사하나 전일동시간누적/접근도/LP순매도량 필드가 없다. 전체
@@ -229,26 +229,26 @@ class ExpectedConclusion:
 # --------------------------------------------------------------------------------------
 
 
-def parse_order_book(fields: list[str]) -> OrderBook:
-    """H0EWASP0 한 레코드(73필드) -> :class:`OrderBook`."""
+def parse_order_book(fields: list[str]) -> ElwOrderBook:
+    """H0EWASP0 한 레코드(73필드) -> :class:`ElwOrderBook`."""
     raw = MappingProxyType(dict(zip(_ORDER_BOOK_FIELDS, fields, strict=False)))
-    return OrderBook(
+    return ElwOrderBook(
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["BSOP_HOUR"],
         hour_class=raw["HOUR_CLS_CODE"],
         ask_prices=_ladder(raw, "ASKP"),
         bid_prices=_ladder(raw, "BIDP"),
-        ask_volumes=_ladder(raw, "ASKP_RSQN"),
-        bid_volumes=_ladder(raw, "BIDP_RSQN"),
-        total_ask_volume=_decimal(raw["TOTAL_ASKP_RSQN"]),
-        total_bid_volume=_decimal(raw["TOTAL_BIDP_RSQN"]),
+        ask_quantities=_ladder(raw, "ASKP_RSQN"),
+        bid_quantities=_ladder(raw, "BIDP_RSQN"),
+        total_ask_quantity=_decimal(raw["TOTAL_ASKP_RSQN"]),
+        total_bid_quantity=_decimal(raw["TOTAL_BIDP_RSQN"]),
         expected_price=_decimal(raw["ANTC_CNPR"]),
         expected_volume=_decimal(raw["ANTC_CNQN"]),
         expected_change_sign=raw["ANTC_CNTG_VRSS_SIGN"],
         expected_change=_decimal(raw["ANTC_CNTG_VRSS"]),
         expected_change_percent=_decimal(raw["ANTC_CNTG_PRDY_CTRT"]),
-        lp_total_ask_volume=_decimal(raw["LP_TOTAL_ASKP_RSQN"]),
-        lp_total_bid_volume=_decimal(raw["LP_TOTAL_BIDP_RSQN"]),
+        lp_total_ask_quantity=_decimal(raw["LP_TOTAL_ASKP_RSQN"]),
+        lp_total_bid_quantity=_decimal(raw["LP_TOTAL_BIDP_RSQN"]),
         _raw=raw,
     )
 
@@ -297,10 +297,10 @@ def parse_execution_tick(fields: list[str]) -> ExecutionTick:
     )
 
 
-def parse_expected_conclusion(fields: list[str]) -> ExpectedConclusion:
-    """H0EWANC0 한 레코드(59필드) -> :class:`ExpectedConclusion`."""
+def parse_expected_conclusion(fields: list[str]) -> ElwExpectedConclusion:
+    """H0EWANC0 한 레코드(59필드) -> :class:`ElwExpectedConclusion`."""
     raw = MappingProxyType(dict(zip(_EXPECTED_CONCLUSION_FIELDS, fields, strict=False)))
-    return ExpectedConclusion(
+    return ElwExpectedConclusion(
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["STCK_CNTG_HOUR"],
         expected_price=_decimal(raw["STCK_PRPR"]),

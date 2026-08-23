@@ -69,7 +69,7 @@ def test_futures_quote_maps_fields_and_market():
     assert quote.open_interest == 380000               # 미결제약정
     assert quote.theoretical_price == Decimal("335.05")
     assert quote.basis == Decimal("0.15")
-    assert quote.premium == Decimal("-0.04")
+    assert quote.disparity_rate == Decimal("-0.04")
     call = fake.calls[0]
     assert call["path"] == _PRICE
     assert call["tr_id"] == "FHMIF10000000"
@@ -95,7 +95,7 @@ def test_derivatives_quote_optional_fields_none():
     quote = _client(fake).domestic.futures("101W09").quote()
     assert quote.theoretical_price is None
     assert quote.basis is None
-    assert quote.premium is None
+    assert quote.disparity_rate is None
     assert quote.open_interest == 380000               # 핵심 필드는 여전히 파싱
 
 

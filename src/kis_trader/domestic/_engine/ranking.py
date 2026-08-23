@@ -90,7 +90,7 @@ _VOLUME_PATH = "/uapi/domestic-stock/v1/quotations/volume-rank"
 _VOLUME_TR = "FHPST01710000"
 _VOLUME_SCR = "20171"
 #: 거래량 계열 순위 기준(KIS FID_BLNG_CLS_CODE). 거래량 0 / 거래증가율 1 / 회전율 2 / 거래대금 3.
-_VOLUME_BLNG = {"trading_volume": "0", "volume_growth": "1", "turnover": "2", "trading_value": "3"}
+_VOLUME_BLNG = {"trading_volume": "0", "volume_growth": "1", "turnover": "2", "cumulative_trading_amount": "3"}
 
 _MARKET_CAP_PATH = "/uapi/domestic-stock/v1/ranking/market-cap"
 _MARKET_CAP_TR = "FHPST01740000"
@@ -220,8 +220,8 @@ def fetch_fluctuation(transport: Transport, *, direction: str, market: str) -> l
     return _fetch_ranking(transport, path=_FLUCTUATION_PATH, tr=_FLUCTUATION_TR, params=params)
 
 
-def fetch_volume(transport: Transport, *, metric: str = "trading_value", market: str) -> list[RankedStock]:
-    """거래량 계열 순위. ``metric``: trading_volume 거래량 / trading_value 거래대금 /
+def fetch_volume(transport: Transport, *, metric: str = "cumulative_trading_amount", market: str) -> list[RankedStock]:
+    """거래량 계열 순위. ``metric``: trading_volume 거래량 / cumulative_trading_amount 거래대금 /
     volume_growth 거래증가율 / turnover 회전율. 최대 30건(다음조회 없음)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
@@ -718,7 +718,7 @@ def _parse_ranked(rows: Sequence[Mapping[str, Any]]) -> list[RankedStock]:
                     required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
                 ),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
-                trading_value=optional_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+                cumulative_trading_amount=optional_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
                 _raw=row,
             )
         )
@@ -738,7 +738,7 @@ def _lookup(table: Mapping[str, str], *, key: str, argname: str) -> str:
 _EXP_UPDOWN_PATH = "/uapi/domestic-stock/v1/ranking/exp-trans-updown"
 _EXP_UPDOWN_TR = "FHPST01820000"
 #: 예상체결 상승/하락 정렬(FID_RANK_SORT_CLS_CODE).
-_EXP_UPDOWN_TOP = {"up": "0", "down": "1"}
+_EXP_UPDOWN_TOP = {"gainers": "0", "losers": "1"}
 _EXPECTED_CLOSE_PATH = "/uapi/domestic-stock/v1/quotations/exp-closing-price"
 _EXPECTED_CLOSE_TR = "FHKST117300C0"
 _EXPECTED_CLOSE_FILTER = {
@@ -760,7 +760,7 @@ _EXPECTED_CLOSE_MARKET = {
 def fetch_expected_execution_change(
     transport: Transport, *, direction: str, market: str
 ) -> list[RankedStock]:
-    """장 시작 전 예상체결 기준 상승/하락 상위. ``direction="up"`` 상승 / ``"down"`` 하락. 예상체결가를
+    """장 시작 전 예상체결 기준 상승/하락 상위. ``direction="gainers"`` 상승 / ``"losers"`` 하락. 예상체결가를
     현재가로, 예상체결량(cntg_vol)을 거래량으로 담는다(:class:`RankedStock`, 순위는 응답 순서)."""
     params = {
         "FID_RANK_SORT_CLS_CODE": _lookup(_EXP_UPDOWN_TOP, key=direction, argname="direction"),
@@ -850,7 +850,7 @@ def fetch_expected_close(
 #   거래량: SCR 20235, output2, 같은 필드, 코드 stck_shrn_iscd, 정렬 FID_RANK_SORT_CLS_CODE
 #   예상체결: SCR 11186, output(flat), ovtm_untp_antc_cnpr/cntg_vrss/cnqn, 코드 stck_shrn_iscd
 _OVERTIME_CHANGE = {  # 시간외등락률순위 정렬(FID_DIV_CLS_CODE)
-    "up": "2", "down": "3",
+    "gainers": "2", "losers": "3",
 }
 
 
@@ -886,7 +886,7 @@ def _parse_overtime(
 def fetch_overtime_change(
     transport: Transport, *, direction: str, market: str
 ) -> list[OvertimeRanking]:
-    """시간외 단일가 등락률 순위. ``direction="up"`` 상승 / ``"down"`` 하락(:class:`OvertimeRanking`)."""
+    """시간외 단일가 등락률 순위. ``direction="gainers"`` 상승 / ``"losers"`` 하락(:class:`OvertimeRanking`)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_MRKT_CLS_CODE": "",
@@ -939,7 +939,7 @@ def fetch_overtime_volume(transport: Transport, *, market: str) -> list[Overtime
 def fetch_overtime_expected_change(
     transport: Transport, *, direction: str, market: str
 ) -> list[OvertimeRanking]:
-    """시간외 예상체결 등락률 순위. ``direction="up"`` 상승 / ``"down"`` 하락. 시간외 예상체결가·예상체결량
+    """시간외 예상체결 등락률 순위. ``direction="gainers"`` 상승 / ``"losers"`` 하락. 시간외 예상체결가·예상체결량
     을 담는다(:class:`OvertimeRanking`)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),

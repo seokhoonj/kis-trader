@@ -49,7 +49,7 @@ def test_expected_conclusion_maps_and_sort():
              "prdy_vrss": "17500", "prdy_vrss_sign": "1", "prdy_ctrt": "29.86",
              "cntg_vol": "51683", "antc_tr_pbmn": "3933076300"}]
     fake = FakeTransport(response=_resp({"output": rows}))
-    ranked = _client(fake).domestic.ranking.by_expected_execution_change(direction="up")
+    ranked = _client(fake).domestic.ranking.by_expected_execution_change(direction="gainers")
     assert isinstance(ranked[0], RankedStock)
     assert ranked[0].rank == 1
     assert ranked[0].symbol == "199800"
@@ -75,7 +75,7 @@ def _ovtm_row(**over):
 
 def test_overtime_change_maps_overtime_fields():
     fake = FakeTransport(response=_resp({"output1": {}, "output2": [_ovtm_row()]}))
-    ranked = _client(fake).domestic.ranking.by_overtime_change(direction="down")
+    ranked = _client(fake).domestic.ranking.by_overtime_change(direction="losers")
     assert isinstance(ranked[0], OvertimeRanking)
     assert ranked[0].symbol == "025950"
     assert ranked[0].overtime_price == Decimal(21000)     # 시간외 가격
@@ -105,7 +105,7 @@ def test_overtime_expected_change_uses_output_and_antc_fields():
            "ovtm_untp_antc_cntg_vrss_sign": "1", "ovtm_untp_antc_cntg_ctrt": "10.00",
            "ovtm_untp_antc_cnqn": "253267", "stck_prpr": "5700"}
     fake = FakeTransport(response=_resp({"output": [row]}))
-    ranked = _client(fake).domestic.ranking.by_overtime_expected_change(direction="up")
+    ranked = _client(fake).domestic.ranking.by_overtime_expected_change(direction="gainers")
     assert ranked[0].overtime_price == Decimal(6270)      # 예상체결가
     assert ranked[0].overtime_change == Decimal(570)
     assert ranked[0].overtime_volume == 253267            # 예상체결량

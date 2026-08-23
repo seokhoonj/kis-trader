@@ -191,7 +191,7 @@ def fetch_quote(transport: Transport, *, code: str) -> ELWQuote:
         bid=optional_decimal(output.get("bidp"), "bidp"),
         ask=optional_decimal(output.get("askp"), "askp"),
         theoretical_price=optional_decimal(output.get("hts_thpr"), "hts_thpr"),
-        premium=optional_decimal(output.get("dprt"), "dprt"),
+        disparity_rate=optional_decimal(output.get("dprt"), "dprt"),
         implied_volatility=optional_decimal(output.get("hts_ints_vltl"), "hts_ints_vltl"),
         strike=optional_decimal(output.get("acpr"), "acpr"),
         moneyness=str(output.get("atm_cls_name", "")).strip(),
@@ -409,7 +409,7 @@ def fetch_underlyings(
         underlyings.append(
             ELWUnderlying(
                 symbol=code,
-                name=str(row.get("unas_isnm", "")).strip(),
+                underlying_name=str(row.get("unas_isnm", "")).strip(),
                 price=required_decimal(row.get("unas_prpr"), "unas_prpr"),
                 change=_apply_change_sign(
                     required_decimal(row.get("unas_prdy_vrss"), "unas_prdy_vrss"), sign

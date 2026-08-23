@@ -80,7 +80,7 @@ _DRY_RUN_NOTE = (
 
 
 def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_tty: bool | None, prompt: Callable[[str], str]) -> Any:
-    account = kis.account  # 세션 생성 시 한 번 해석된 계좌(자격증명 재조회 없음)
+    account = kis._account  # 세션 생성 시 한 번 해석된 계좌(자격증명 재조회 없음)
     division = getattr(args, "division", None)
     # division(KRX 주문구분)은 국내 현금 전용 -- 해외 핸들엔 그 파라미터가 없다. fail-closed 로 막는다.
     if division is not None and args.venue == "overseas":
@@ -119,7 +119,7 @@ def cmd_modify(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, p
         }
     if is_tty is None:
         is_tty = sys.stdin.isatty()
-    _authorize(args, account=kis.account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
+    _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
     return kis.orders.modify(args.client_order_id, limit_price=args.limit_price, quantity=args.quantity)
 
 
@@ -128,5 +128,5 @@ def cmd_cancel(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, p
         return {"client_order_id": args.client_order_id, "quantity": args.quantity, "note": _DRY_RUN_NOTE}
     if is_tty is None:
         is_tty = sys.stdin.isatty()
-    _authorize(args, account=kis.account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
+    _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
     return kis.orders.cancel(args.client_order_id, quantity=args.quantity)

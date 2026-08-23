@@ -21,7 +21,8 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
 
-from ..._internal._wire import decimal_or_zero, format_wire_decimal, optional_decimal
+from ..._internal._response import _require_mapping_rows
+from ..._internal._wire import decimal_or_zero, field_decimal_or_zero, format_wire_decimal
 from ...errors import (
     AccountNotOrderableError,
     KISError,
@@ -35,7 +36,7 @@ from ...report import ExecutionReport, OrderStatus
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ...transport import Environment, Transport, TransportTimeout
 from ..entities.orders import OverseasReservedOrder
-from ._parse import _side_from_code
+from ._parse import _parse_date, _side_from_code
 from .orders import _ORDER_EXCHANGE
 
 if TYPE_CHECKING:
@@ -143,13 +144,7 @@ def _walk(
                 f"해외 예약주문조회 실패: {resp.msg1}",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
-        page = resp.body.get("output")
-        if not isinstance(page, list):  # 빈 내역도 배열 -> 부재/비배열은 손상
-            raise KISError(
-                "해외 예약주문조회 응답의 output 이 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
+        rows.extend(_require_mapping_rows("output", resp))
         ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
         # 재조회는 조기 종료 금지(예약 누락->오확정->이중발주 위험): tr_cont 정본 종료이면서 연속조회
@@ -683,15 +678,4 @@ def _parse(row: Mapping[str, Any]) -> OverseasReservedOrder:
 
 
 def _decimal_or_zero(row: Mapping[str, Any], key: str) -> Decimal:
-    amount = optional_decimal(row.get(key), key)
-    return Decimal(0) if amount is None else amount
-
-
-def _parse_date(value: object) -> date | None:
-    text = str(value or "").strip()
-    if len(text) != 8 or not text.isdigit():
-        return None
-    try:
-        return datetime.strptime(text, "%Y%m%d").date()  # noqa: DTZ007
-    except ValueError:
-        return None
+    return field_decimal_or_zero(row.get(key), key)

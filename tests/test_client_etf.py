@@ -25,11 +25,11 @@ _ETF_NAV = "/uapi/etfetn/v1/quotations/inquire-price"
 
 
 def _output(*, nav="36110.50", nav_change="95.20", nav_sign="2", nav_pct="0.26",
-            prev_nav="36015.30", premium="-0.06", trc_err="0.03", net_assets="4200000000000"):
+            prev_nav="36015.30", disparity="-0.06", trc_err="0.03", net_assets="4200000000000"):
     return {"stck_prpr": "36090", "prdy_vrss_sign": "2", "prdy_vrss": "110", "prdy_ctrt": "0.31",
             "acml_vol": "1200000", "nav": nav, "nav_prdy_vrss": nav_change,
             "nav_prdy_vrss_sign": nav_sign, "nav_prdy_ctrt": nav_pct, "prdy_last_nav": prev_nav,
-            "dprt": premium, "trc_errt": trc_err, "etf_ntas_ttam": net_assets}
+            "dprt": disparity, "trc_errt": trc_err, "etf_ntas_ttam": net_assets}
 
 
 class FakeTransport:
@@ -61,7 +61,7 @@ def test_nav_maps_fields_and_params():
     assert nav.nav_change == Decimal("95.20")
     assert nav.nav_change_percent == Decimal("0.26")
     assert nav.previous_nav == Decimal("36015.30")
-    assert nav.premium == Decimal("-0.06")
+    assert nav.disparity_rate == Decimal("-0.06")
     assert nav.tracking_error == Decimal("0.03")
     assert nav.net_assets == Decimal(4200000000000)
     call = fake.calls[0]
@@ -189,10 +189,10 @@ def test_components_malformed_output1_fails_closed():
 _ETF_NAV_HISTORY = "/uapi/etfetn/v1/quotations/nav-comparison-daily-trend"
 
 
-def _nav_hist_row(date_text, close, nav, nav_change, sign, nav_pct, premium):
+def _nav_hist_row(date_text, close, nav, nav_change, sign, nav_pct, disparity):
     return {"stck_bsop_date": date_text, "stck_clpr": close, "nav": nav,
             "nav_prdy_vrss": nav_change, "nav_prdy_vrss_sign": sign, "nav_prdy_ctrt": nav_pct,
-            "dprt": premium}
+            "dprt": disparity}
 
 
 def _nav_hist_resp(rows):
@@ -212,7 +212,7 @@ def test_nav_history_maps_fields_sorted_and_params():
     assert all(isinstance(p, ETFNAVHistoryPoint) for p in points)
     assert points[-1].close == Decimal(36090)
     assert points[-1].nav == Decimal(36110)
-    assert points[-1].premium == Decimal("-0.06")
+    assert points[-1].disparity_rate == Decimal("-0.06")
     call = fake.calls[0]
     assert call["path"] == _ETF_NAV_HISTORY
     assert call["tr_id"] == "FHPST02440200"

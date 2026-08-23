@@ -18,7 +18,8 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
-from ..._internal._wire import decimal_or_zero, format_wire_decimal, optional_decimal
+from ..._internal._response import _require_mapping_rows
+from ..._internal._wire import decimal_or_zero, field_decimal_or_zero, format_wire_decimal
 from ...errors import (
     AccountNotOrderableError,
     KISError,
@@ -162,13 +163,7 @@ def _walk_reserved(
                 f"예약주문조회 실패: {resp.msg1}",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
-        page = resp.body.get("output")
-        if not isinstance(page, list):  # 빈 내역도 배열 -> 부재/비배열은 손상
-            raise KISError(
-                "예약주문조회 응답의 output 이 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
+        rows.extend(_require_mapping_rows("output", resp))
         ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
         # 재조회는 조기 종료 금지(예약 누락->오확정->이중발주 위험): tr_cont 정본 종료(D/E/공백)
@@ -518,8 +513,7 @@ def _parse_reserved(row: Mapping[str, Any]) -> ReservedOrder:
 
 
 def _decimal_or_zero(row: Mapping[str, Any], key: str) -> Decimal:
-    amount = optional_decimal(row.get(key), key)
-    return Decimal(0) if amount is None else amount
+    return field_decimal_or_zero(row.get(key), key)
 
 
 def _parse_date(value: object) -> date | None:

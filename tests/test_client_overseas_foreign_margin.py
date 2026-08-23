@@ -1,4 +1,4 @@
-"""통화별 해외증거금 -- kis.overseas.account.foreign_margin() (TTTC2101R).
+"""통화별 해외증거금 -- kis.account.overseas.foreign_margin() (TTTC2101R).
 
 통화별 외화 예수금·증거금·주문가능금액을 Money(통화 포함)로 검증한다. 픽스처는 원장
 응답예시(foreign-margin) 실값을 쓴다.
@@ -59,7 +59,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 
 
 def test_foreign_margin_parses_per_currency():
-    margins = _client(FakeTransport(response=_resp())).overseas.account.foreign_margin()
+    margins = _client(FakeTransport(response=_resp())).account.overseas.foreign_margin()
     assert len(margins) == 2
     usd = margins[0]
     assert isinstance(usd, OverseasForeignMargin)
@@ -75,7 +75,7 @@ def test_foreign_margin_parses_per_currency():
 
 def test_foreign_margin_tr_method_params():
     fake = FakeTransport(response=_resp())
-    _client(fake).overseas.account.foreign_margin()
+    _client(fake).account.overseas.foreign_margin()
     call = fake.calls[0]
     assert call["tr_id"] == "TTTC2101R"
     assert call["method"] == "GET"
@@ -87,37 +87,37 @@ def test_foreign_margin_tr_method_params():
 def test_foreign_margin_demo_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").overseas.account.foreign_margin()
+        _client(fake, environment="paper").account.overseas.foreign_margin()
     assert fake.calls == []
 
 
 def test_foreign_margin_empty_is_ok():
-    assert _client(FakeTransport(response=_resp([]))).overseas.account.foreign_margin() == []
+    assert _client(FakeTransport(response=_resp([]))).account.overseas.foreign_margin() == []
 
 
 def test_foreign_margin_skips_padding_row():
-    margins = _client(FakeTransport(response=_resp([dict(_USD, crcy_cd=""), _USD]))).overseas.account.foreign_margin()
+    margins = _client(FakeTransport(response=_resp([dict(_USD, crcy_cd=""), _USD]))).account.overseas.foreign_margin()
     assert len(margins) == 1
 
 
 def test_foreign_margin_non_list_output_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body={"output": {"crcy_cd": "USD"}}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).overseas.account.foreign_margin()
+        _client(FakeTransport(response=resp)).account.overseas.foreign_margin()
 
 
 def test_foreign_margin_garbage_amount_fails_closed():
     bad = dict(_USD, frcr_dncl_amt1="oops")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_resp([bad]))).overseas.account.foreign_margin()
+        _client(FakeTransport(response=_resp([bad]))).account.overseas.foreign_margin()
 
 
 def test_foreign_margin_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="E", msg1="실패", body={"output": []}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).overseas.account.foreign_margin()
+        _client(FakeTransport(response=resp)).account.overseas.foreign_margin()
 
 
 def test_foreign_margin_requires_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp()), account=None).overseas.account.foreign_margin()
+        _client(FakeTransport(response=_resp()), account=None).account.overseas.foreign_margin()

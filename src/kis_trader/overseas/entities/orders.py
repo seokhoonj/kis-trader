@@ -1,6 +1,6 @@
 """해외 주문 DATA -- 미체결·알고·예약 주문.
 
-해외 주문 조회(``kis.overseas.account.open_orders`` / ``.algo_orders`` /
+해외 주문 조회(``kis.account.overseas.open_orders`` / ``.algo_orders`` /
 ``.algo_executions`` / ``kis.overseas_reserved_orders``)가 돌려준다."""
 
 from __future__ import annotations

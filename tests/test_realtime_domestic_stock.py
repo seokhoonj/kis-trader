@@ -25,12 +25,12 @@ from kis_trader.realtime.parsers.domestic_stock import (
     _PROGRAM_TRADE_FIELDS,
     AfterHoursTick,
     ETFNav,
-    ExecutionNotice,
-    ExpectedConclusion,
     MarketOperation,
     MemberActivity,
-    OrderBook,
-    ProgramTrade,
+    StockExecutionNotice,
+    StockExpectedConclusion,
+    StockOrderBook,
+    StockProgramTrade,
     parse_after_hours_tick,
     parse_etf_nav,
     parse_execution_notice,
@@ -56,7 +56,7 @@ def _at(fields_spec: tuple[str, ...], values: dict[str, str]) -> list[str]:
     return record
 
 
-# --------------------------------------------------------------------------- OrderBook
+# --------------------------------------------------------------------------- StockOrderBook
 
 
 def test_parse_order_book_krx_headline_and_raw():
@@ -67,16 +67,16 @@ def test_parse_order_book_krx_headline_and_raw():
         "ANTC_CNPR": "71450", "ANTC_CNQN": "42", "MID_PRC": "71450",
     })
     ob = parse_order_book_krx(record)
-    assert isinstance(ob, OrderBook)
+    assert isinstance(ob, StockOrderBook)
     assert ob.symbol == "005930"
     assert ob.time == "093000"
     assert ob.hour_class == "0"
     assert ob.best_ask == Decimal(71500)
     assert ob.best_bid == Decimal(71400)
-    assert ob.best_ask_qty == Decimal(120)
-    assert ob.best_bid_qty == Decimal(300)
-    assert ob.total_ask_qty == Decimal(5000)
-    assert ob.total_bid_qty == Decimal(6000)
+    assert ob.best_ask_quantity == Decimal(120)
+    assert ob.best_bid_quantity == Decimal(300)
+    assert ob.total_ask_quantity == Decimal(5000)
+    assert ob.total_bid_quantity == Decimal(6000)
     assert ob.expected_price == Decimal(71450)
     assert ob.expected_qty == Decimal(42)
     assert ob._raw["MID_PRC"] == "71450"
@@ -135,7 +135,7 @@ def test_registry_order_book_variants():
         assert spec.parser is parser
 
 
-# --------------------------------------------------------------------------- ExpectedConclusion
+# --------------------------------------------------------------------------- StockExpectedConclusion
 
 
 def test_parse_expected_conclusion_krx():
@@ -147,7 +147,7 @@ def test_parse_expected_conclusion_krx():
         "TRHT_YN": "N",
     })
     ec = parse_expected_conclusion_krx(record)
-    assert isinstance(ec, ExpectedConclusion)
+    assert isinstance(ec, StockExpectedConclusion)
     assert ec.symbol == "005930"
     assert ec.time == "090000"
     assert ec.expected_price == Decimal(71500)
@@ -227,7 +227,7 @@ def test_registry_after_hours_tick_variants():
         assert spec.parser is parse_after_hours_tick
 
 
-# --------------------------------------------------------------------------- ProgramTrade
+# --------------------------------------------------------------------------- StockProgramTrade
 
 
 def test_parse_program_trade():
@@ -238,7 +238,7 @@ def test_parse_program_trade():
         "NTBY_CNQN": "500", "NTBY_TR_PBMN": "35750000",
     })
     pt = parse_program_trade(record)
-    assert isinstance(pt, ProgramTrade)
+    assert isinstance(pt, StockProgramTrade)
     assert pt.symbol == "005930"
     assert pt.time == "100000"
     assert pt.sell_volume == Decimal(1000)
@@ -291,7 +291,7 @@ def test_registry_member_activity_variants():
         assert spec.parser is parse_member_activity
 
 
-# --------------------------------------------------------------------------- ExecutionNotice
+# --------------------------------------------------------------------------- StockExecutionNotice
 
 
 def test_parse_execution_notice():
@@ -303,7 +303,7 @@ def test_parse_execution_notice():
         "ODER_PRC": "71500",
     })
     en = parse_execution_notice(record)
-    assert isinstance(en, ExecutionNotice)
+    assert isinstance(en, StockExecutionNotice)
     assert en.customer_id == "CUST01"
     assert en.account_no == "5000000000"
     assert en.order_no == "0001"

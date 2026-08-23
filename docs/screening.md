@@ -21,18 +21,18 @@ kis.domestic.stock(hits[0].symbol).quote()
 `kis.domestic.ranking.*` — 급등주·거래량·시총 같은 시장 전체 순위.
 
 ```python
-r = kis.domestic.ranking
+ranking = kis.domestic.ranking
 
-r.by_change(direction="gainers")  # 상승률 상위
-r.by_change(direction="losers")   # 하락률 상위
-r.by_volume()                     # 거래량 상위
-r.by_market_cap()                 # 시가총액 상위
+ranking.by_change(direction="gainers")  # 상승률 상위
+ranking.by_change(direction="losers")   # 하락률 상위
+ranking.by_volume()                     # 거래량 상위
+ranking.by_market_cap()                 # 시가총액 상위
 ```
 
 각 행(`RankedStock`)은 `rank / symbol / name / price / change / change_percent / volume`:
 
 ```python
-for row in r.by_change(direction="gainers")[:10]:
+for row in ranking.by_change(direction="gainers")[:10]:
     print(f"{row.rank:2d}. {row.name:10s} {row.price:>8,}  {row.change_percent:>6}%")
 ```
 
@@ -41,13 +41,13 @@ for row in r.by_change(direction="gainers")[:10]:
 더 있는 순위:
 
 ```python
-r.by_short_sale(window="1d")                     # 공매도 상위
-r.by_credit_balance()                            # 신용잔고 상위
-r.by_near_high_low()                             # 신고가/신저가 근접
-r.by_dividend(start="20240101", end="20240630")  # 배당률 상위
-r.by_disparity()                                 # 이격도
-r.by_volume_power()                              # 체결강도
-r.by_views()                                     # HTS 조회 상위
+ranking.by_short_sale(window="1d")                     # 공매도 상위
+ranking.by_credit_balance()                            # 신용잔고 상위
+ranking.by_near_high_low()                             # 신고가/신저가 근접
+ranking.by_dividend(start="20240101", end="20240630")  # 배당률 상위
+ranking.by_disparity()                                 # 이격도
+ranking.by_volume_power()                              # 체결강도
+ranking.by_views()                                     # HTS 조회 상위
 ```
 
 ## 조건검색 (HTS 저장조건)
@@ -77,26 +77,26 @@ kis.domestic.watchlist(group_code="…")      # 그룹 안 종목
 재무비율·밸류에이션으로 정렬된 순위도 있습니다.
 
 ```python
-r.by_finance_ratio(year=2024)  # 재무비율
-r.by_valuation(year=2024)      # 밸류에이션(PER/PBR 등)
-r.by_profit_asset(year=2024)   # 수익성·자산
+ranking.by_finance_ratio(year=2024)  # 재무비율
+ranking.by_valuation(year=2024)      # 밸류에이션(PER/PBR 등)
+ranking.by_profit_asset(year=2024)   # 수익성·자산
 ```
 
 ## 시간외·예상·기타 순위
 
 ```python
-r.by_bulk_trades(side="buy")                     # 대량체결건수
-r.by_quote_balance(metric="net_buy")             # 호가잔량
-r.by_interest()                                  # 관심종목 등록상위
-r.by_preferred_disparity()                       # 우선주 괴리율
-r.by_expected_close()                            # 장마감 예상체결
-r.by_expected_execution_change(direction="up")   # 장전 예상체결 등락
-r.by_company_trades(side="buy", start="20240101", end="20240131")  # 당사매매 종목
+ranking.by_bulk_trades(side="buy")                     # 대량체결건수
+ranking.by_quote_balance(metric="net_buy")             # 호가잔량
+ranking.by_interest()                                  # 관심종목 등록상위
+ranking.by_preferred_disparity()                       # 우선주 괴리율
+ranking.by_expected_close()                            # 장마감 예상체결
+ranking.by_expected_execution_change(direction="gainers")   # 장전 예상체결 등락
+ranking.by_company_trades(side="buy", start="20240101", end="20240131")  # 당사매매 종목
 
-r.by_after_hour_balance(side="ask")              # 시간외 잔량
-r.by_overtime_change(direction="up")             # 시간외 등락률
-r.by_overtime_expected_change(direction="up")    # 시간외 예상체결 등락
-r.by_overtime_volume()                           # 시간외 거래량
+ranking.by_after_hour_balance(side="ask")              # 시간외 잔량
+ranking.by_overtime_change(direction="gainers")             # 시간외 등락률
+ranking.by_overtime_expected_change(direction="gainers")    # 시간외 예상체결 등락
+ranking.by_overtime_volume()                           # 시간외 거래량
 ```
 
 (ELW 스크리너·순위는 [ELW](elw.md) 챕터에 있습니다.)

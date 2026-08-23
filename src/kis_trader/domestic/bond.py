@@ -12,6 +12,7 @@ from datetime import date
 from typing import TYPE_CHECKING
 
 from ..bar import Bar, Interval
+from ..order import _BOND_EXCHANGE, Order, coerce_decimal, mint_client_order_id
 from ._engine import bonds as bonds_api
 from .entities.bond import (
     BondDailyPrice,
@@ -22,8 +23,10 @@ from .entities.bond import (
 )
 
 if TYPE_CHECKING:
+    from .._literals import Numeric
     from ..client import KISClient
     from ..order_book import OrderBook
+    from ..report import ExecutionReport
     from ..trade import Trade
 
 
@@ -72,3 +75,72 @@ class Bond:
     def trades(self) -> list[Trade]:
         """채권의 최근 체결 목록(최신순)."""
         return bonds_api.fetch_trades(self._client.transport, code=self.code)
+
+    # --- 발주(장내채권 매수; 계좌 + 안전 엔진 -- 종목 핸들 buy 와 대칭) ---
+    def buy(
+        self, *, quantity: Numeric, limit_price: Numeric,
+        client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 채권을 매수한다 -- 장내채권은 지정가(채권단가) 전용이라 ``limit_price`` 는 필수다.
+        ``quantity`` 는 액면(face) 단위, ``limit_price`` 는 채권단가, ``client_order_id`` 는 멱등키
+        (생략 시 자동 발행)다. 채권 주문은 당일(day) 전용이라 ``time_in_force`` 는 받지 않는다 --
+        엔드포인트에 TIF 필드가 없어서 ioc/fok 를 받으면 지문에는 남고 와이어에는 안 실려 조용한
+        불일치가 된다.
+
+        **실전투자 전용**(모의투자 미지원)이라 ``environment="paper"`` 세션에선
+        :class:`~kis_trader.errors.KISUsageError` 로 fail-closed 한다. 실주문이라 이 경로는 라이브로
+        검증하기 전까지 프로덕션 사용에 앞서 실계좌 확인이 필요하다. 이중체결 방지·타임아웃 재시도
+        금지는 국내주식·파생과 같은 안전 엔진에서 자동 적용된다. 계좌 미설정은
+        :class:`~kis_trader.errors.KISUsageError`, 접수 거부는 ``OrderRejectedError``, 타임아웃(체결
+        불명)은 ``OrderTimeoutError`` 다. 채권 타임아웃은 ``kis.orders.reconcile`` 로 확인되지 않으니
+        (미지원, fail-closed) ``kis.account.domestic.bonds`` 의 체결/미체결(fills/open_orders) 조회로
+        직접 확인한다.
+
+        일반시장(``SAMT_MKET_PTCI_YN="N"``)에서는 주문 수량이 액면 10단위의 배수여야 할 수 있다
+        (KIS 명세는 10단위 규칙을 적으면서도 자체 예시가 이를 어겨서, 라이브 검증 전까지 문서로만
+        남기고 강제하지 않는다).
+
+        KIS URL/TR-ID: ``POST /uapi/domestic-bond/v1/trading/buy`` (실전 ``TTTC0952U``, 모의 미지원)."""
+        order = Order(
+            symbol=self.code, side="buy", order_type="limit",
+            quantity=coerce_decimal(quantity, "quantity"),
+            limit_price=coerce_decimal(limit_price, "limit_price"),
+            time_in_force="day", exchange=_BOND_EXCHANGE,
+            client_order_id=client_order_id or mint_client_order_id(),
+        )
+        return self._client._place_order(order)
+
+    def sell(
+        self, *, quantity: Numeric, limit_price: Numeric,
+        buy_date: str, buy_seq: str, client_order_id: str | None = None,
+    ) -> ExecutionReport:
+        """이 채권의 특정 **매수 lot** 을 매도한다 -- 장내채권은 지정가(채권단가) 전용이라 ``limit_price``
+        는 필수다. 채권 잔고는 종목이 아니라 매수 단위로 쪼개져 있으므로, 어떤 lot 을 파는지
+        ``buy_date``(매수일자 YYYYMMDD)·``buy_seq``(매수순번)로 지목해야 한다. 이 값은
+        ``kis.account.domestic.bonds.balance()`` 가 돌려주는
+        :class:`~kis_trader.domestic.entities.bond_account.BondPosition` 의 ``buy_date``/``buy_sequence``
+        에서 얻는다. ``quantity`` 는 액면(face) 단위, ``limit_price`` 는 채권단가, ``client_order_id`` 는
+        멱등키(생략 시 자동 발행)다. 채권 주문은 당일(day) 전용이라 ``time_in_force`` 는 받지 않는다.
+
+        같은 종목·수량·가격이라도 서로 다른 lot 의 매도는 서로 다른 주문이므로, lot(buy_date/buy_seq)이
+        멱등 지문에 함께 실려 dedup 장벽이 다른 lot 의 매도를 오차단하지 않는다.
+
+        **실전투자 전용**(모의투자 미지원)이라 ``environment="paper"`` 세션에선
+        :class:`~kis_trader.errors.KISUsageError` 로 fail-closed 한다. 실주문이라 이 경로는 라이브로
+        검증하기 전까지 프로덕션 사용에 앞서 실계좌 확인이 필요하다. 이중체결 방지·타임아웃 재시도
+        금지는 국내주식·파생과 같은 안전 엔진에서 자동 적용된다. 채권 타임아웃은 ``kis.orders.reconcile``
+        로 확인되지 않으니(미지원, fail-closed) ``kis.account.domestic.bonds`` 의 체결/미체결
+        (fills/open_orders) 조회로 직접 확인한다.
+
+        분리과세(``SPRX_YN``)는 v1 에서 지원하지 않고 항상 미신청("N")으로 나간다.
+
+        KIS URL/TR-ID: ``POST /uapi/domestic-bond/v1/trading/sell`` (실전 ``TTTC0958U``, 모의 미지원)."""
+        order = Order(
+            symbol=self.code, side="sell", order_type="limit",
+            quantity=coerce_decimal(quantity, "quantity"),
+            limit_price=coerce_decimal(limit_price, "limit_price"),
+            time_in_force="day", exchange=_BOND_EXCHANGE,
+            bond_buy_date=buy_date, bond_buy_seq=str(buy_seq),
+            client_order_id=client_order_id or mint_client_order_id(),
+        )
+        return self._client._place_order(order)

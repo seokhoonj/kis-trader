@@ -9,6 +9,7 @@ from __future__ import annotations
 import dataclasses
 import json
 import unicodedata
+from collections.abc import Mapping
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from enum import Enum
@@ -52,8 +53,14 @@ def to_jsonable(value: Any, *, include_raw: bool = False) -> Any:
         return value.value
     if isinstance(value, (list, tuple)):
         return [to_jsonable(item, include_raw=include_raw) for item in value]
-    if isinstance(value, dict):
-        return {key: to_jsonable(val, include_raw=include_raw) for key, val in value.items()}
+    if isinstance(value, Mapping):
+        # dict 와 frozen MappingProxyType(``_raw`` 는 freeze_vendor_payload 로 깊게 얼려짐)을 모두
+        # 재귀 -- proxy 를 json.dumps 에 그대로 넘기면 TypeError 라 여기서 평범한 값으로 푼다. 키는
+        # 문자열로 강제한다(json.dumps 는 str 키만 받는다 -- KIS _raw 는 str 키지만 방어적으로).
+        return {
+            (key if isinstance(key, str) else str(key)): to_jsonable(val, include_raw=include_raw)
+            for key, val in value.items()
+        }
     if dataclasses.is_dataclass(value):
         out: dict[str, Any] = {}
         for field in dataclasses.fields(value):
@@ -61,7 +68,7 @@ def to_jsonable(value: Any, *, include_raw: bool = False) -> Any:
                 continue
             out[field.name] = to_jsonable(getattr(value, field.name), include_raw=include_raw)
         if include_raw and hasattr(value, "_raw"):
-            out["_raw"] = value._raw
+            out["_raw"] = to_jsonable(value._raw, include_raw=include_raw)
         return out
     return str(value)
 
@@ -152,7 +159,7 @@ def _render_table(value: Any, *, no_header: bool) -> str:
         else:
             return "\n".join(_cell(item) for item in rows)
         table = [[_cell(cell) for cell in record] for record in raw]
-        # 전부 빈 값인 열은 숨긴다 -- 순위마다 없는 필드(예: 거래대금이 없는 순위의 trading_value)가
+        # 전부 빈 값인 열은 숨긴다 -- 순위마다 없는 필드(예: 거래대금이 없는 순위의 cumulative_trading_amount)가
         # 빈 열로 남지 않게. 모든 열이 비면(엣지) 그대로 둔다.
         keep = [i for i, _ in enumerate(columns) if any(record[i] != "" for record in table)]
         if 0 < len(keep) < len(columns):

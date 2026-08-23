@@ -249,7 +249,7 @@ def test_client_reads_saved_profile(tmp_path):
     KISConfig(profile="main", app_key="AK", app_secret="SK",
               account="12345678-01", config_dir=tmp_path).save()
     kis = KISClient(profile="main", config_dir=tmp_path, transport=_FakeTransport())
-    assert kis.environment == "real" and kis.account == "12345678-01"
+    assert kis.environment == "real" and kis._account == "12345678-01"
 
 
 def test_client_reads_paper_environment_from_profile(tmp_path):
@@ -301,14 +301,14 @@ def test_client_account_override(tmp_path):
               account="12345678-01", config_dir=tmp_path).save()
     kis = KISClient(profile="main", account="87654321-02", config_dir=tmp_path,
                     transport=_FakeTransport())
-    assert kis.account == "87654321-02"
+    assert kis._account == "87654321-02"
 
 
 def test_save_then_client_round_trip(tmp_path):
     KISConfig(profile="pension_b", app_key="AK", app_secret="SK",
               account="11112222-22", config_dir=tmp_path).save()
     kis = KISClient(profile="pension_b", config_dir=tmp_path, transport=_FakeTransport())
-    assert kis.account == "11112222-22" and kis.environment == "real"
+    assert kis._account == "11112222-22" and kis.environment == "real"
 
 
 # --- 기본 프로필 해석 (profile 미지정) ---------------------------------------
@@ -350,7 +350,7 @@ def test_client_opens_default_profile_first_entry(tmp_path):
               environment="paper", config_dir=tmp_path).save()
     kis = KISClient(config_dir=tmp_path, transport=_FakeTransport())  # profile 미지정
     assert kis.environment == "paper"        # 첫 항목 isa(paper) 를 열었다(main real 폴백 아님)
-    assert kis.account == "12345678-01"      # 게이트가 판정하는 계좌도 첫 항목 것
+    assert kis._account == "12345678-01"  # 게이트가 판정하는 계좌도 첫 항목 것
 
 
 def test_default_profile_env_nonexistent_fails_closed(tmp_path, monkeypatch):
@@ -457,6 +457,60 @@ def test_set_hts_id_env_var_overrides_file(tmp_path, monkeypatch):
     KISConfig.set_hts_id("FILE_HTS", config_dir=tmp_path)
     monkeypatch.setenv("KIS_HTS_ID", "ENV_HTS")                         # env 가 파일보다 우선
     assert resolve_credentials("main", config_dir=tmp_path).hts_id == "ENV_HTS"
+
+
+# --- 공유 계좌비밀번호 (account_password, 예약 최상위 키; 야간 파생 잔고 등의 ACNT_PWD) --------
+_AP_MAIN = {"app_key": "K", "app_secret": "S", "account": "12345678-01", "environment": "real"}
+
+
+def _write_creds_raw(tmp_path, data):
+    (tmp_path / "credentials.json").write_text(json.dumps(data), encoding="utf-8")
+
+
+def test_account_password_from_top_level_string(tmp_path):
+    _write_creds_raw(tmp_path, {"account_password": "0000", "main": _AP_MAIN})
+    assert resolve_credentials("main", config_dir=tmp_path).account_password == "0000"
+
+
+def test_account_password_coerces_unquoted_numeric(tmp_path):
+    # 숫자 비번을 따옴표 없이 쓰면 JSON int 가 되는데, 문자열로 강제해 준다(앞자리 0 없는 정수라 안전).
+    _write_creds_raw(tmp_path, {"account_password": 1234, "main": _AP_MAIN})
+    assert resolve_credentials("main", config_dir=tmp_path).account_password == "1234"
+
+
+def test_account_password_env_overrides_file(tmp_path, monkeypatch):
+    _write_creds_raw(tmp_path, {"account_password": "fromfile", "main": _AP_MAIN})
+    monkeypatch.setenv("KIS_ACCOUNT_PASSWORD", "fromenv")
+    assert resolve_credentials("main", config_dir=tmp_path).account_password == "fromenv"
+
+
+def test_account_password_absent_is_none(tmp_path):
+    _write_creds_raw(tmp_path, {"main": _AP_MAIN})
+    assert resolve_credentials("main", config_dir=tmp_path).account_password is None
+
+
+def test_account_password_is_reserved_not_a_profile(tmp_path):
+    # 최상위 account_password 는 예약 키라 기본(첫) 프로필로 뽑히지 않는다 -> main 이 해석된다.
+    _write_creds_raw(tmp_path, {"account_password": "0000", "main": _AP_MAIN})
+    assert resolve_credentials(config_dir=tmp_path).app_key == "K"
+
+
+def test_account_password_excluded_from_repr(tmp_path):
+    _write_creds_raw(tmp_path, {"account_password": "SECRETPW", "main": _AP_MAIN})
+    assert "SECRETPW" not in repr(resolve_credentials("main", config_dir=tmp_path))
+
+
+def test_require_account_password_raises_when_absent(tmp_path):
+    _write_creds_raw(tmp_path, {"main": _AP_MAIN})
+    kis = KISClient(profile="main", config_dir=tmp_path, transport=_FakeTransport())
+    with pytest.raises(KISUsageError, match="계좌비밀번호"):
+        kis._require_account_password()
+
+
+def test_require_account_password_returns_resolved_value(tmp_path):
+    _write_creds_raw(tmp_path, {"account_password": "0000", "main": _AP_MAIN})
+    kis = KISClient(profile="main", config_dir=tmp_path, transport=_FakeTransport())
+    assert kis._require_account_password() == "0000"
 
 
 def test_set_hts_id_preserves_profiles_and_orders_reserved_first(tmp_path):

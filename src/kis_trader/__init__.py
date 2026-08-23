@@ -16,12 +16,15 @@ from ._internal._masters import (
     MasterIndex,
     SearchMarket,
 )
+from .account import StockAccount
 from .bar import Bar, Interval
 from .client import KISClient
 from .config import KISConfig
 from .domestic.bond import Bond
+from .domestic.bond_account import DomesticBondAccount
 from .domestic.calendar import CalendarQueries
 from .domestic.derivative import FuturesContract, OptionContract
+from .domestic.derivative_account import DomesticDerivativesAccount
 from .domestic.elw import ELW
 from .domestic.elw_ranking import ELWRankingQueries
 from .domestic.elw_screener import ELWScreenerQueries
@@ -61,6 +64,13 @@ from .domestic.entities.bond import (
     BondQuote,
     BondValuation,
 )
+from .domestic.entities.bond_account import (
+    BondBuyable,
+    BondFill,
+    BondFillHistory,
+    BondOpenOrder,
+    BondPosition,
+)
 from .domestic.entities.broker import (
     BrokerActivity,
     BrokerActivitySummary,
@@ -83,6 +93,7 @@ from .domestic.entities.calendar import (
     ShareholderMeeting,
 )
 from .domestic.entities.derivative import (
+    DerivativeMarginRate,
     DerivativeQuote,
     ExpectedExecutionPoint,
     ExpectedExecutionTrend,
@@ -91,6 +102,23 @@ from .domestic.entities.derivative import (
     OptionBoardRow,
     OptionExpiry,
     UnderlyingQuote,
+)
+from .domestic.entities.derivative_account import (
+    DerivativeBalance,
+    DerivativeCommission,
+    DerivativeCommissionHistory,
+    DerivativeDeposit,
+    DerivativeFill,
+    DerivativeFillHistory,
+    DerivativeNightBalance,
+    DerivativeNightMargin,
+    DerivativeOpenOrder,
+    DerivativeOrderable,
+    DerivativePosition,
+    DerivativeSettlementBalance,
+    DerivativeSettlementPosition,
+    DerivativeValuationBalance,
+    DerivativeValuationPosition,
 )
 from .domestic.entities.elw import (
     ELWIndicatorPoint,
@@ -190,8 +218,10 @@ from .domestic.entities.trade_profit import (
 )
 from .domestic.index import Index
 from .domestic.market import MarketQueries
+from .domestic.namespace import DomesticAccount
 from .domestic.ranking import Direction, RankingQueries, VolumeMetric
 from .domestic.stock import DomesticStock
+from .integrated import CurrencyDeposit, IntegratedBalance
 from .money import Money
 from .news import NewsHeadline
 from .open_order import OpenOrder
@@ -199,6 +229,7 @@ from .order import DomesticDivision, Order
 from .order_book import OrderBook, PriceLevel
 from .orderable import BuyableAmount, SellableQuantity
 from .overseas.derivative import OverseasDerivative
+from .overseas.derivative_account import OverseasDerivativesAccount
 from .overseas.entities.account import (
     OverseasBuyableAmount,
     OverseasForeignMargin,
@@ -226,6 +257,19 @@ from .overseas.entities.derivative import (
     OverseasDerivativeQuote,
     OverseasFuturesOpenInterest,
 )
+from .overseas.entities.derivative_account import (
+    OverseasDerivativeDailyOrder,
+    OverseasDerivativeDeposit,
+    OverseasDerivativeFill,
+    OverseasDerivativeFillHistory,
+    OverseasDerivativeMargin,
+    OverseasDerivativeOrder,
+    OverseasDerivativeOrderable,
+    OverseasDerivativePNL,
+    OverseasDerivativePNLHistory,
+    OverseasDerivativePosition,
+    OverseasDerivativeTransaction,
+)
 from .overseas.entities.industry import OverseasIndustry, OverseasIndustryStock
 from .overseas.entities.news import OverseasNewsHeadline
 from .overseas.entities.orders import (
@@ -240,6 +284,7 @@ from .overseas.entities.ranking import RankedOverseasStock
 from .overseas.entities.search import OverseasStockSearch, OverseasStockSearchMatch
 from .overseas.entities.settlement import OverseasSettlementDate
 from .overseas.index import OverseasIndex
+from .overseas.namespace import OverseasAccount
 from .overseas.ranking import OverseasRankingQueries
 from .overseas.stock import OverseasStock
 from .pension.entities import (
@@ -256,7 +301,12 @@ from .risk import RiskLimits
 from .store import OrderStore
 from .trade import Trade
 
-__version__ = "0.0.0"
+try:
+    from importlib.metadata import PackageNotFoundError, version
+
+    __version__ = version("kis-trader")
+except PackageNotFoundError:  # 개발 트리에서 미설치
+    __version__ = "0.0.0"
 
 __all__ = [
     "ELW",
@@ -273,8 +323,13 @@ __all__ = [
     "BalanceSheet",
     "Bar",
     "Bond",
+    "BondBuyable",
     "BondDailyPrice",
+    "BondFill",
+    "BondFillHistory",
     "BondIssuance",
+    "BondOpenOrder",
+    "BondPosition",
     "BondProfile",
     "BondQuote",
     "BondValuation",
@@ -292,16 +347,36 @@ __all__ = [
     "CreditBalancePoint",
     "CreditBalanceRanking",
     "CreditEligibleStock",
+    "CurrencyDeposit",
     "DailyProfit",
     "DailyProfitHistory",
     "DailyProgramTradePoint",
     "DailyTradeVolumePoint",
+    "DerivativeBalance",
+    "DerivativeCommission",
+    "DerivativeCommissionHistory",
+    "DerivativeDeposit",
+    "DerivativeFill",
+    "DerivativeFillHistory",
+    "DerivativeMarginRate",
+    "DerivativeNightBalance",
+    "DerivativeNightMargin",
+    "DerivativeOpenOrder",
+    "DerivativeOrderable",
+    "DerivativePosition",
     "DerivativeQuote",
+    "DerivativeSettlementBalance",
+    "DerivativeSettlementPosition",
+    "DerivativeValuationBalance",
+    "DerivativeValuationPosition",
     "DetailedInvestorFlow",
     "DetailedInvestorHistory",
     "Direction",
     "DividendEvent",
     "DividendRanking",
+    "DomesticAccount",
+    "DomesticBondAccount",
+    "DomesticDerivativesAccount",
     "DomesticDivision",
     "DomesticListing",
     "DomesticStock",
@@ -346,6 +421,7 @@ __all__ = [
     "IndexIntradayPoint",
     "IndexQuote",
     "InstrumentRecord",
+    "IntegratedBalance",
     "IntegratedMargin",
     "InterestRateQuote",
     "Interval",
@@ -383,6 +459,7 @@ __all__ = [
     "OrderStatus",
     "OrderStore",
     "OtherRatio",
+    "OverseasAccount",
     "OverseasAlgoExecution",
     "OverseasAlgoOrder",
     "OverseasBalance",
@@ -395,9 +472,21 @@ __all__ = [
     "OverseasCurrencyBalance",
     "OverseasCurrentPrice",
     "OverseasDerivative",
+    "OverseasDerivativeDailyOrder",
+    "OverseasDerivativeDeposit",
     "OverseasDerivativeDetail",
+    "OverseasDerivativeFill",
+    "OverseasDerivativeFillHistory",
+    "OverseasDerivativeMargin",
     "OverseasDerivativeMarketHours",
+    "OverseasDerivativeOrder",
+    "OverseasDerivativeOrderable",
+    "OverseasDerivativePNL",
+    "OverseasDerivativePNLHistory",
+    "OverseasDerivativePosition",
     "OverseasDerivativeQuote",
+    "OverseasDerivativeTransaction",
+    "OverseasDerivativesAccount",
     "OverseasForeignMargin",
     "OverseasFuturesOpenInterest",
     "OverseasIndex",
@@ -455,6 +544,7 @@ __all__ = [
     "ShortSalePoint",
     "ShortSaleRanking",
     "StabilityRatio",
+    "StockAccount",
     "StockProfile",
     "StockStatus",
     "TopViewedStock",

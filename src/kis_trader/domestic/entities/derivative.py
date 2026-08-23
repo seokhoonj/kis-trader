@@ -24,7 +24,7 @@ class DerivativeQuote:
     """선물/옵션 계약의 현재가 스냅샷(불변).
 
     ``change`` / ``change_percent`` 는 전일대비로 하락이면 음수. ``open_interest`` 는 미결제약정,
-    ``basis`` 는 선물-기초자산 베이시스, ``theoretical_price`` 는 이론가, ``premium`` 은 괴리율(%).
+    ``basis`` 는 선물-기초자산 베이시스, ``theoretical_price`` 는 이론가, ``disparity_rate`` 는 괴리율(%).
     베이시스/이론가/괴리율은 계약에 따라 없을 수 있어 ``None`` 이다.
     """
 
@@ -41,7 +41,7 @@ class DerivativeQuote:
     open_interest: int
     theoretical_price: Decimal | None
     basis: Decimal | None             # 베이시스(선물-기초자산)
-    premium: Decimal | None           # 괴리율(%)
+    disparity_rate: Decimal | None           # 괴리율(%)
     as_of: datetime                   # KST-aware
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -179,6 +179,33 @@ class OptionBoard:
     def __post_init__(self) -> None:
         object.__setattr__(self, "calls", tuple(self.calls))
         object.__setattr__(self, "puts", tuple(self.puts))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class DerivativeMarginRate:
+    """한 기초자산의 선물 증거금율 한 행(불변).
+
+    기준일별 증거금율 표(``kis.domestic.derivative_margin_rates``)의 한 행이다. ``underlying_id``
+    기초자산 ID(bast_id), ``underlying_name`` 기초자산명(bast_name), ``underlying_price``
+    기초자산 가격(bast_pric), ``brokerage_margin_rate`` 위탁증거금율(brkg_mgna_rt),
+    ``trading_margin_rate`` 거래증거금율(tr_mgna_rt), ``trading_multiplier`` 거래승수(tr_mtpl_idx),
+    ``futures_margin_per_contract`` 계약당 선물증거금(ctrt_per_futr_mgna). 타입화하지 않은 필드는
+    ``_raw`` 로 접근한다.
+    """
+
+    underlying_id: str                # 기초자산 ID(bast_id)
+    underlying_name: str              # 기초자산명(bast_name)
+    underlying_price: Decimal         # 기초자산 가격(bast_pric)
+    brokerage_margin_rate: Decimal    # 위탁증거금율(brkg_mgna_rt)
+    trading_margin_rate: Decimal      # 거래증거금율(tr_mgna_rt)
+    trading_multiplier: Decimal       # 거래승수(tr_mtpl_idx)
+    futures_margin_per_contract: Decimal  # 계약당 선물증거금(ctrt_per_futr_mgna)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 

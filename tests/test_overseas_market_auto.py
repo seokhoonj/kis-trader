@@ -47,7 +47,7 @@ def _client(transport):
 def test_positions_market_omitted_visits_all_groups():
     fake = FakeTransport()
     k = _client(fake)
-    positions = k.overseas.account.positions()          # market 생략
+    positions = k.account.overseas.positions()          # market 생략
     # 7개 그룹 각각 조회했나 (각 그룹당 최소 1콜)
     seen = {c["params"].get("OVRS_EXCG_CD") for c in fake.calls}
     assert {_MARKETS[m][0] for m in _ALL} <= seen
@@ -58,7 +58,7 @@ def test_positions_market_omitted_visits_all_groups():
 def test_positions_market_given_hits_only_that_group():
     fake = FakeTransport()
     k = _client(fake)
-    k.overseas.account.positions(market="US")
+    k.account.overseas.positions(market="US")
     excgs = {c["params"].get("OVRS_EXCG_CD") for c in fake.calls}
     assert excgs == {"NASD"}                              # US 그룹만
 
@@ -66,7 +66,7 @@ def test_positions_market_given_hits_only_that_group():
 def test_open_orders_market_omitted_visits_all_groups():
     fake = FakeTransport()
     k = _client(fake)
-    orders = k.overseas.account.open_orders()
+    orders = k.account.overseas.open_orders()
     seen = {c["params"].get("OVRS_EXCG_CD") for c in fake.calls}
     assert {_MARKETS[m][0] for m in _ALL} <= seen
     assert len(orders) == len(_ALL)
@@ -76,4 +76,4 @@ def test_flat_verb_also_aggregates():
     # 네임스페이스뿐 아니라 flat verb 도 같은 동작(둘 다 같은 엔진).
     fake = FakeTransport()
     k = _client(fake)
-    assert len(k.overseas.account.positions()) == len(_ALL)
+    assert len(k.account.overseas.positions()) == len(_ALL)

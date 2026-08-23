@@ -55,6 +55,16 @@ def optional_int(value: object, field_name: str) -> int | None:
     return int(number)
 
 
+def field_decimal_or_zero(value: object, field_name: str) -> Decimal:
+    """없으면 0, 있으면 Decimal(파싱 실패면 예외). '없음=0'인 수량·금액 필드용.
+
+    부재(None)/공백만 0으로 본다 -- 값이 있는데 파싱 실패면 조용히 0으로 만들지 않고 예외.
+    :func:`optional_decimal` 을 감싸 부재만 0 으로 치환하고, 값이 있으면 그 파싱 결과를 그대로 쓴다.
+    """
+    amount = optional_decimal(value, field_name)
+    return Decimal(0) if amount is None else amount
+
+
 def format_wire_decimal(value: Decimal) -> str:
     """Decimal 을 KIS 와이어 정본 문자열로: 지수표기·컨텍스트 반올림 없이 고정소수점.
 
@@ -118,7 +128,7 @@ def decimal_or_zero(value: object) -> Decimal:
 
     ``"nan"``/``"inf"`` 는 파싱은 되지만 비유한값이라 이후 비교(수량·단가 일치)가 항상 거짓/참으로
     무너져 오확정·오귀속을 부른다 -- :meth:`Decimal.is_finite` 로 fail-closed 한다."""
-    if value is None or value == "":
+    if value is None or (isinstance(value, str) and not value.strip()):
         return Decimal(0)
     try:
         number = Decimal(str(value))

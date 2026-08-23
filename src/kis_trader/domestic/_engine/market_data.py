@@ -1140,7 +1140,7 @@ def fetch_program_trades(
                 change_percent=_apply_change_sign(
                     required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
                 ),
-                quantity=required_int(row.get("acml_vol"), "acml_vol"),
+                volume=required_int(row.get("acml_vol"), "acml_vol"),
                 buy_volume=required_int(row.get("whol_smtn_shnu_vol"), "whol_smtn_shnu_vol"),
                 sell_volume=required_int(row.get("whol_smtn_seln_vol"), "whol_smtn_seln_vol"),
                 net_volume=required_int(row.get("whol_smtn_ntby_qty"), "whol_smtn_ntby_qty"),

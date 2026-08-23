@@ -59,7 +59,7 @@ def _decimal(value: str) -> Decimal:
 
 
 @dataclass(frozen=True, slots=True)
-class ExpectedConclusion:
+class IndexExpectedConclusion:
     """국내지수 실시간 예상체결(H0UPANC0). 장 전/후 동시호가의 예상 지수/등락/거래량 등.
 
     전체 30개 필드는 ``_raw`` (KIS Element 이름 기준)에 있고, 아래는 자주 쓰는 헤드라인만
@@ -89,7 +89,7 @@ class ExpectedConclusion:
 class IndexTick:
     """국내지수 실시간체결(H0UPCNT0). 실시간 지수 레벨·등락·거래량·등락종목수(breadth).
 
-    예상체결(:class:`ExpectedConclusion`, H0UPANC0)과 동일한 30필드 레이아웃을 공유하되
+    예상체결(:class:`IndexExpectedConclusion`, H0UPANC0)과 동일한 30필드 레이아웃을 공유하되
     값이 예상이 아닌 실제 체결 지수다. 전체 필드는 ``_raw`` 에 있다.
     """
 
@@ -115,7 +115,7 @@ class IndexTick:
 
 
 @dataclass(frozen=True, slots=True)
-class ProgramTrade:
+class IndexProgramTrade:
     """국내지수 실시간 프로그램매매(H0UPPGM0). 차익/비차익, 위탁/자기, 순매수 수량/대금 등.
 
     전체 88개 필드는 ``_raw`` (KIS Element 이름 기준)에 있고, 아래는 자주 쓰는 헤드라인만
@@ -137,10 +137,10 @@ class ProgramTrade:
     )
 
 
-def parse_expected_conclusion(fields: list[str]) -> ExpectedConclusion:
-    """H0UPANC0 한 레코드(30필드) -> :class:`ExpectedConclusion`."""
+def parse_expected_conclusion(fields: list[str]) -> IndexExpectedConclusion:
+    """H0UPANC0 한 레코드(30필드) -> :class:`IndexExpectedConclusion`."""
     raw = MappingProxyType(dict(zip(_EXPECTED_CONCLUSION_FIELDS, fields, strict=False)))
-    return ExpectedConclusion(
+    return IndexExpectedConclusion(
         sector_code=raw["BSTP_CLS_CODE"],
         time=raw["BSOP_HOUR"],
         expected_index=_decimal(raw["PRPR_NMIX"]),
@@ -186,10 +186,10 @@ def parse_index_tick(fields: list[str]) -> IndexTick:
     )
 
 
-def parse_program_trade(fields: list[str]) -> ProgramTrade:
-    """H0UPPGM0 한 레코드(88필드) -> :class:`ProgramTrade`."""
+def parse_program_trade(fields: list[str]) -> IndexProgramTrade:
+    """H0UPPGM0 한 레코드(88필드) -> :class:`IndexProgramTrade`."""
     raw = MappingProxyType(dict(zip(_PROGRAM_TRADE_FIELDS, fields, strict=False)))
-    return ProgramTrade(
+    return IndexProgramTrade(
         sector_code=raw["BSTP_CLS_CODE"],
         time=raw["BSOP_HOUR"],
         total_sell_quantity=_decimal(raw["TOTAL_SELN_QTY"]),

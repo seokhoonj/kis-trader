@@ -47,6 +47,7 @@ def test_vi_events_maps_ledger_values():
     assert e.daily_trigger_count == 2
     assert e.vi_class == "N"
     assert e.vi_kind == "2"
+    assert e.disparity_rate == Decimal("0.00")          # vi_dprt (정적 괴리율)
     assert f"{e.triggered_at:%Y%m%d %H%M%S}" == "20240126 174012"
     assert f"{e.released_at:%Y%m%d %H%M%S}" == "20240126 174212"
     assert e._raw["vi_dmc_dprt"] == "-8.59"              # 동적 괴리율은 _raw
@@ -66,7 +67,7 @@ def test_vi_events_unreleased_is_none():
     e = _client(fake).domestic.market.vi_events(as_of="20240126")[0]
     assert e.released_at is None                          # 0-채움 해제시각 -> 미해제
     assert e.base_price is None
-    assert e.disparity_percent is None
+    assert e.disparity_rate is None
 
 
 def test_vi_events_skips_empty_and_missing_output():
