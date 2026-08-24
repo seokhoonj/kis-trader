@@ -228,8 +228,8 @@ class DomesticNamespace:
         return Bond(self._c, code)
 
     def elw(self, code: str) -> ELW:
-        """ELW 고유 지표 핸들. 기본 시세와 매매는 :meth:`stock` 에 ``market="KRX"`` 를 줘서 하고
-        (ELW 코드는 6자리 영숫자라 자동 시장판별이 안 된다), 이 핸들은 그릭스·변동성·투자지표만 얹는다."""
+        """ELW 고유 지표 핸들. 기본 시세와 매매는 :meth:`stock` 으로 하고(ELW 는 종목처럼
+        KRX 에 상장돼 있다), 이 핸들은 그릭스·변동성·투자지표만 얹는다."""
         return ELW(self._c, code)
 
     def futures(self, code: str) -> FuturesContract:

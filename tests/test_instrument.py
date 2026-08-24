@@ -35,3 +35,16 @@ def test_is_domestic_symbol_distinguishes_six_digit_codes():
     assert is_domestic_symbol("005930")
     assert not is_domestic_symbol("AAPL")
     assert not is_domestic_symbol("00593")   # 5자리 -- 국내 코드 아님
+
+
+def test_is_domestic_symbol_accepts_alphanumeric_krx_codes():
+    # ELW/신주인수권 등 단축코드는 6자리 대문자 영숫자다(예: 삼성전자 콜/풋 ELW "57LABS").
+    assert is_domestic_symbol("57LABS")
+    assert is_domestic_symbol("58J306")
+    assert not is_domestic_symbol("57labs")   # 소문자 -- KRX 코드 아님
+    assert not is_domestic_symbol("삼성전자")   # 이름 -- 코드 아님
+    assert not is_domestic_symbol("57LAB")     # 5자리
+
+
+def test_resolve_market_routes_elw_code_to_krx():
+    assert resolve_market("57LABS") == "KRX"

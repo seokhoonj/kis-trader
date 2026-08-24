@@ -138,6 +138,12 @@ def test_overseas_algo_orders_delegates():
     assert fake.calls[-1]["tr_id"] == "TTTS6058R"
 
 
+def test_domestic_stock_accepts_elw_alphanumeric_code():
+    # ELW 단축코드(6자리 영숫자)도 market 인자 없이 국내 종목 핸들로 만들어진다.
+    k = _client()
+    assert k.domestic.stock("57LABS").market == "KRX"
+
+
 def test_pension_balance_delegates():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="M", msg1="", body={}, tr_cont=""))
     k = _client(fake, account="12345678-29")

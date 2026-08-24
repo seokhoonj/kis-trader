@@ -30,9 +30,8 @@ class ELW:
     """한 ELW 에 대한 고유 지표 조회 핸들. 세션(:class:`KISClient`)과 ELW 표준코드를 안다.
 
     보통 직접 만들지 않고 ``kis.domestic.elw`` 로 얻는다. ``code`` 는 ELW 표준코드(6자리
-    영숫자, 예 ``"57LABS"``). 기본 시세와 매매는 ``kis.domestic.stock(code, market="KRX")``
-    로 한다(ELW 는 종목처럼 KRX 에 상장돼 있으나, 코드에 문자가 섞여 자동 시장판별이 안 되므로
-    ``market="KRX"`` 를 명시해야 한다). 이 핸들은 그릭스·변동성·투자지표 등 ELW 전용 지표만 얹는다.
+    영숫자, 예 ``"57LABS"``). 기본 시세와 매매는 ``kis.domestic.stock(code)`` 로 한다(ELW 는
+    종목처럼 KRX 에 상장돼 있다). 이 핸들은 그릭스·변동성·투자지표 등 ELW 전용 지표만 얹는다.
     """
 
     code: str
