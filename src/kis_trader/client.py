@@ -48,7 +48,7 @@ from .overseas._engine import orders as overseas_orders_engine
 from .overseas._engine import reserved_orders as overseas_reserved_orders_api
 from .overseas.derivative_account import OverseasDerivativesAccount
 from .overseas.namespace import OverseasNamespace
-from .pension.namespace import PensionNamespace
+from .pension.account import PensionAccount
 from .store import OrderStore
 
 if TYPE_CHECKING:
@@ -256,7 +256,7 @@ class KISClient:
         # 자산군 최상위 네임스페이스(공개 행위 표면). 세션이 쥔 전송/계좌/안전코어로 엔드포인트 엔진을 호출한다.
         self.domestic = DomesticNamespace(self)
         self.overseas = OverseasNamespace(self)
-        self.pension = PensionNamespace(self)
+        self.pension = PensionAccount(self)
         self.orders = OrdersNamespace(self)
 
     @property

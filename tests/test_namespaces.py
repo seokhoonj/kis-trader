@@ -21,7 +21,7 @@ from kis_trader.domestic.ranking import RankingQueries
 from kis_trader.domestic.stock import DomesticStock
 from kis_trader.overseas.namespace import OverseasAccount, OverseasNamespace
 from kis_trader.overseas.stock import OverseasStock
-from kis_trader.pension.namespace import PensionNamespace
+from kis_trader.pension.account import PensionAccount
 from kis_trader.transport import RawResponse
 
 
@@ -48,7 +48,7 @@ def test_namespaces_present_and_typed():
     k = _client()
     assert isinstance(k.domestic, DomesticNamespace)
     assert isinstance(k.overseas, OverseasNamespace)
-    assert isinstance(k.pension, PensionNamespace)
+    assert isinstance(k.pension, PensionAccount)
     assert isinstance(k.orders, OrdersNamespace)
     assert isinstance(k.account.domestic, DomesticAccount)
     assert isinstance(k.account.overseas, OverseasAccount)

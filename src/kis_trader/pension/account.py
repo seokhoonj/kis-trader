@@ -1,7 +1,7 @@
-"""퇴직연금 네임스페이스 -- ``kis.pension`` (:class:`PensionNamespace`).
+"""퇴직연금 계좌 조회 뷰 -- ``kis.account.pension`` (:class:`PensionAccount`).
 
-세션 :class:`~kis_trader.client.KISClient` 아래 퇴직연금 계좌 행위(예수금/매수가능/잔고/체결)를
-모은다. 전부 실전전용이며, 각 메서드는 세션이 쥔 전송/계좌/환경으로 퇴직연금 엔진을 직접 호출한다.
+IRP(29) 계좌의 퇴직연금 전용 조회(예수금/매수가능/잔고/체결기준잔고/주문내역)를 모은다.
+전부 실전전용이며, 각 메서드는 세션이 쥔 전송/계좌/환경으로 퇴직연금 엔진을 직접 호출한다.
 """
 
 from __future__ import annotations
@@ -22,12 +22,13 @@ if TYPE_CHECKING:
     )
 
 
-class PensionNamespace:
-    """``kis.pension`` -- 퇴직연금 계좌(예수금/매수가능/잔고/체결). 전부 실전전용.
+class PensionAccount:
+    """IRP(29) 퇴직연금 조회 렌즈(예수금/매수가능/잔고/체결기준잔고/주문내역). 전부 실전전용.
 
-    모든 메서드는 계좌 미설정 시, 그리고 ``environment="paper"`` 에서(전부 모의 미지원)
-    :class:`~kis_trader.errors.KISUsageError` 를 던진다. 조회 실패·응답 부재·파싱 실패는
-    :class:`~kis_trader.errors.KISError`. 계좌 상품코드가 퇴직연금이어야 정상 응답한다.
+    개인형 퇴직연금(IRP, 상품코드 29) 전용이다 -- 조회전용(KIS APBK1744 가 주문을 거부)이라
+    발주 메서드는 없다. 모든 메서드는 계좌 미설정 시, 그리고 ``environment="paper"`` 에서(전부
+    모의 미지원) :class:`~kis_trader.errors.KISUsageError` 를 던진다. 조회 실패·응답 부재·
+    파싱 실패는 :class:`~kis_trader.errors.KISError`.
     """
 
     def __init__(self, client: KISClient) -> None:
