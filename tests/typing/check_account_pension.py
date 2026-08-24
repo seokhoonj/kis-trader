@@ -1,4 +1,4 @@
-"""정적 타입 픽스처 -- `.venv/bin/mypy --strict tests/typing/check_account_pension.py` 로 검사.
+"""정적 타입 픽스처 -- `.venv/bin/mypy --strict tests/typing` 로 검사(CI 스텝과 동일).
 
 `kis.account` 유니온을 StockAccount 로 좁힌 뒤 `.pension` 이 PensionAccount 로 정합하는지 확인한다.
 런타임 실행 대상이 아니다(assert_type 는 정적 전용).

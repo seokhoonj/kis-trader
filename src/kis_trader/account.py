@@ -20,6 +20,12 @@ from .pension.account import PensionAccount
 if TYPE_CHECKING:
     from .client import KISClient
 
+#: IRP(개인형 퇴직연금) 상품코드 -- ``.pension`` 렌즈가 붙는 유일한 계좌 종류.
+#: client.py 의 상품코드 frozenset 을 재사용하지 않는다(런타임 import 순환 회피, 또
+#: "조회전용"(_READ_ONLY_PRODUCT_CODES)과 "퇴직연금 대상"은 지금 우연히 {"29"} 로 겹칠 뿐
+#: 다른 개념이라 결합하면 안 된다).
+_IRP_PRODUCT_CODE = "29"
+
 
 class StockAccount:
     """``kis.account`` (위탁 01/연금저축 22/IRP 29) -- 국내/해외 주식 계좌의 시장별 뷰. IRP 는 조회전용 + ``.pension`` 렌즈."""
@@ -53,7 +59,7 @@ class StockAccount:
         세션 자체가 불가하다. 그래서 상품코드가 29 가 아니면 와이어 전에
         :class:`~kis_trader.errors.KISUsageError` 로 fail-closed 한다."""
         _, product_code = self._client._require_account()
-        if product_code != "29":
+        if product_code != _IRP_PRODUCT_CODE:
             raise KISUsageError(
                 f"kis.account.pension 은 IRP(29) 전용이다 -- 현재 상품코드 {product_code}. "
                 "연금저축(22)은 별개 사적연금이라 일반 주식계좌(.domestic/.overseas)로 "

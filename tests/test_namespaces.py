@@ -1,4 +1,4 @@
-"""자산군 최상위 네임스페이스 -- kis.domestic / kis.overseas / kis.pension / kis.orders.
+"""자산군 최상위 네임스페이스 -- kis.domestic / kis.overseas / kis.account.pension / kis.orders.
 
 각 네임스페이스 메서드가 올바른 원장 엔진(같은 TR/파라미터/경로)을 때리는지 검증한다. 네트워크
 없이 FakeTransport 로 wire 콜만 본다.

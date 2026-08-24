@@ -273,7 +273,7 @@ class KISClient:
         IRP(29)/ISA 는 같은 국내주식 계좌 엔드포인트를 쓰므로 :class:`~kis_trader.account.StockAccount`
         로 다룬다(ISA 는 상품코드가 01). IRP(29)는 조회전용이라 주문은 별도 게이트가 막는다.
         국내선물옵션(03)=파생, 해외선물옵션(08)=해외파생 뷰. IRP(29)는 ``.pension`` 으로
-        퇴직연금 전용 조회(예수금/체결기준잔고/매수가능)를 준다.
+        퇴직연금 전용 조회(예수금/매수가능/잔고/체결기준잔고/주문내역)를 준다.
 
         계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError`. 그 밖의 상품은 아직
         미지원(추후 확장) -- 명확한 오류로 fail-closed 한다."""
