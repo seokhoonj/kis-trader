@@ -21,7 +21,6 @@ from kis_trader.domestic.ranking import RankingQueries
 from kis_trader.domestic.stock import DomesticStock
 from kis_trader.overseas.namespace import OverseasAccount, OverseasNamespace
 from kis_trader.overseas.stock import OverseasStock
-from kis_trader.pension.account import PensionAccount
 from kis_trader.transport import RawResponse
 
 
@@ -48,7 +47,6 @@ def test_namespaces_present_and_typed():
     k = _client()
     assert isinstance(k.domestic, DomesticNamespace)
     assert isinstance(k.overseas, OverseasNamespace)
-    assert isinstance(k.pension, PensionAccount)
     assert isinstance(k.orders, OrdersNamespace)
     assert isinstance(k.account.domestic, DomesticAccount)
     assert isinstance(k.account.overseas, OverseasAccount)
@@ -142,5 +140,5 @@ def test_overseas_algo_orders_delegates():
 
 def test_pension_balance_delegates():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="M", msg1="", body={}, tr_cont=""))
-    k = _client(fake)
-    assert _last_call(k.pension.balance, fake)["tr_id"] == "TTTC2208R"
+    k = _client(fake, account="12345678-29")
+    assert _last_call(k.account.pension.balance, fake)["tr_id"] == "TTTC2208R"

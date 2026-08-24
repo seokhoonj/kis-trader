@@ -5,6 +5,7 @@ from kis_trader.client import KISClient
 from kis_trader.domestic.namespace import DomesticAccount
 from kis_trader.errors import KISUsageError
 from kis_trader.overseas.namespace import OverseasAccount
+from kis_trader.pension.account import PensionAccount
 
 
 def _c(account: str | None) -> KISClient:
@@ -42,6 +43,30 @@ def test_account_returns_stock_view_for_irp_29():
     kis = _c("12345678-29")
     assert kis._orderable is False
     assert isinstance(kis.account, StockAccount)
+
+
+def test_account_pension_returns_view_for_irp_29():
+    view = _c("12345678-29").account
+    assert isinstance(view, StockAccount)
+    assert isinstance(view.pension, PensionAccount)
+
+
+def test_account_pension_gated_for_product_01():
+    view = _c("12345678-01").account
+    with pytest.raises(KISUsageError):
+        _ = view.pension
+
+
+def test_account_pension_gated_for_pension_savings_22():
+    view = _c("12345678-22").account
+    with pytest.raises(KISUsageError):
+        _ = view.pension
+
+
+def test_top_level_pension_removed():
+    kis = _c("12345678-29")
+    with pytest.raises(AttributeError):
+        _ = kis.pension
 
 
 def test_account_unsupported_product_fails_closed():

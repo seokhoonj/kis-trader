@@ -1,4 +1,4 @@
-"""퇴직연금 잔고/체결기준잔고/주문내역 -- kis.pension.balance/present_balance/orders.
+"""퇴직연금 잔고/체결기준잔고/주문내역 -- kis.account.pension.balance/present_balance/orders.
 
 TTTC2208R / TTTC2202R / TTTC2210R. 보유종목(Position 재사용)+요약, 미체결 주문을 네트워크
 없이 검증한다. 픽스처는 원장 응답예시 실값을 쓴다.
@@ -95,7 +95,7 @@ def _client(transport, *, environment="real", account="12345678-29"):
 
 # --- 잔고 ------------------------------------------------------------------
 def test_pension_balance_parses_positions_and_summary():
-    bal = _client(FakeTransport(response=_resp2([_BAL_ROW], _BAL_SUMMARY))).pension.balance()
+    bal = _client(FakeTransport(response=_resp2([_BAL_ROW], _BAL_SUMMARY))).account.pension.balance()
     assert isinstance(bal, PensionBalance)
     assert bal.total_deposit == Decimal(100000)
     assert bal.total_evaluation == Decimal(100000)
@@ -112,7 +112,7 @@ def test_pension_balance_parses_positions_and_summary():
 
 def test_pension_balance_tr_and_params():
     fake = FakeTransport(response=_resp2([_BAL_ROW], _BAL_SUMMARY))
-    _client(fake).pension.balance()
+    _client(fake).account.pension.balance()
     call = fake.calls[0]
     assert call["tr_id"] == "TTTC2208R"
     assert call["path"] == _BALANCE_PATH
@@ -124,7 +124,7 @@ def test_pension_balance_non_list_output_fails_closed():
     malformed = RawResponse(rt_cd="0", msg_cd="KIOK0510", msg1="조회",
                             body={"output1": {"bad": "object"}, "output2": _BAL_SUMMARY})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=malformed)).pension.balance()
+        _client(FakeTransport(response=malformed)).account.pension.balance()
 
 
 def test_pension_balance_page_cap_fails_closed(monkeypatch):
@@ -135,7 +135,7 @@ def test_pension_balance_page_cap_fails_closed(monkeypatch):
     pages = [_resp2([_BAL_ROW], _BAL_SUMMARY, nk=f"MORE{i}", tr_cont="M") for i in range(1, 4)]
     fake = FakeTransport(pages=pages)
     with pytest.raises(KISError, match="페이지 상한"):
-        _client(fake).pension.balance()
+        _client(fake).account.pension.balance()
 
 
 def test_pension_balance_stops_when_continuation_key_repeats():
@@ -144,7 +144,7 @@ def test_pension_balance_stops_when_continuation_key_repeats():
     pages = [_resp2([_BAL_ROW], _BAL_SUMMARY, nk="SAME", tr_cont="M"),
              _resp2([_BAL_ROW], _BAL_SUMMARY, nk="SAME", tr_cont="M")]
     fake = FakeTransport(pages=pages)
-    bal = _client(fake).pension.balance()
+    bal = _client(fake).account.pension.balance()
     assert len(fake.calls) == 2                       # 반복 키에서 종료(재요청 안 함)
     assert len(bal.positions) == 2                    # 두 페이지 모두 반영
 
@@ -154,7 +154,7 @@ def test_pension_balance_stops_on_continuation_end_sentinel():
     pages = [_resp2([_BAL_ROW], _BAL_SUMMARY, nk="^^", tr_cont="M"),
              _resp2([_BAL_ROW], _BAL_SUMMARY, nk="^^", tr_cont="M")]   # 두 번째는 쓰이면 안 됨
     fake = FakeTransport(pages=pages)
-    bal = _client(fake).pension.balance()
+    bal = _client(fake).account.pension.balance()
     assert len(fake.calls) == 1                       # 첫 페이지에서 즉시 종료
     assert len(bal.positions) == 1                    # 이중집계 없음
 
@@ -162,7 +162,7 @@ def test_pension_balance_stops_on_continuation_end_sentinel():
 def test_pension_balance_demo_rejected_before_io():
     fake = FakeTransport(response=_resp2([_BAL_ROW], _BAL_SUMMARY))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").pension.balance()
+        _client(fake, environment="paper").account.pension.balance()
     assert fake.calls == []
 
 
@@ -170,12 +170,12 @@ def test_pension_balance_missing_summary_fails_closed():
     body = {"output1": [_BAL_ROW], "output2": None}
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).pension.balance()
+        _client(FakeTransport(response=resp)).account.pension.balance()
 
 
 # --- 체결기준잔고 ----------------------------------------------------------
 def test_pension_present_balance_parses():
-    pre = _client(FakeTransport(response=_resp2([_PRE_ROW], _PRE_SUMMARY, summary_list=True))).pension.present_balance()
+    pre = _client(FakeTransport(response=_resp2([_PRE_ROW], _PRE_SUMMARY, summary_list=True))).account.pension.present_balance()
     assert isinstance(pre, PensionPresentBalance)
     assert pre.total_purchase_amount == Decimal(464760)
     assert pre.total_unrealized_pnl == Decimal(-67730)
@@ -189,14 +189,21 @@ def test_pension_present_balance_parses():
 
 def test_pension_present_balance_tr():
     fake = FakeTransport(response=_resp2([_PRE_ROW], _PRE_SUMMARY, summary_list=True))
-    _client(fake).pension.present_balance()
+    _client(fake).account.pension.present_balance()
     assert fake.calls[0]["tr_id"] == "TTTC2202R"
     assert fake.calls[0]["path"] == _PRESENT_PATH
 
 
+def test_pension_present_balance_paper_rejected_before_io():
+    fake = FakeTransport(response=None)
+    with pytest.raises(KISUsageError):
+        _client(fake, environment="paper").account.pension.present_balance()
+    assert fake.calls == []
+
+
 # --- 주문내역 --------------------------------------------------------------
 def test_pension_orders_parses():
-    orders = _client(FakeTransport(response=_resp_orders([_ORDER_ROW]))).pension.orders()
+    orders = _client(FakeTransport(response=_resp_orders([_ORDER_ROW]))).account.pension.orders()
     assert len(orders) == 1
     o = orders[0]
     assert isinstance(o, PensionOrder)
@@ -211,7 +218,7 @@ def test_pension_orders_parses():
 
 def test_pension_orders_only_unfilled_param():
     fake = FakeTransport(response=_resp_orders([]))
-    _client(fake).pension.orders(only_unfilled=True)
+    _client(fake).account.pension.orders(only_unfilled=True)
     call = fake.calls[0]
     assert call["tr_id"] == "TTTC2210R"
     assert call["path"] == _ORDERS_PATH
@@ -220,19 +227,19 @@ def test_pension_orders_only_unfilled_param():
 
 def test_pension_orders_default_all():
     fake = FakeTransport(response=_resp_orders([]))
-    _client(fake).pension.orders()
+    _client(fake).account.pension.orders()
     assert fake.calls[0]["params"]["CCLD_NCCS_DVSN"] == "%%"
 
 
 def test_pension_orders_empty_ok():
-    assert _client(FakeTransport(response=_resp_orders([]))).pension.orders() == []
+    assert _client(FakeTransport(response=_resp_orders([]))).account.pension.orders() == []
 
 
 def test_pension_orders_paginates():
     page1 = _resp_orders([_ORDER_ROW], nk="NEXT", tr_cont="M")
     page2 = _resp_orders([dict(_ORDER_ROW, odno="0001569140")], tr_cont="D")
     fake = FakeTransport(pages=[page1, page2])
-    orders = _client(fake).pension.orders()
+    orders = _client(fake).account.pension.orders()
     assert [o.order_id for o in orders] == ["0001569139", "0001569140"]
     assert fake.calls[1]["tr_cont"] == "N"
 
@@ -240,10 +247,10 @@ def test_pension_orders_paginates():
 def test_pension_orders_demo_rejected_before_io():
     fake = FakeTransport(response=_resp_orders([]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").pension.orders()
+        _client(fake, environment="paper").account.pension.orders()
     assert fake.calls == []
 
 
 def test_pension_orders_requires_account():
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp_orders([])), account=None).pension.orders()
+        _client(FakeTransport(response=_resp_orders([])), account=None).account.pension.orders()
