@@ -10,13 +10,13 @@ from decimal import Decimal
 
 from kis_trader.realtime import _registry
 from kis_trader.realtime.parsers.elw import (
-    _EXECUTION_TICK_FIELDS,
+    _ELW_TICK_FIELDS,
     _EXPECTED_CONCLUSION_FIELDS,
     _ORDER_BOOK_FIELDS,
-    ElwExpectedConclusion,
-    ElwOrderBook,
-    ExecutionTick,
-    parse_execution_tick,
+    ELWExpectedConclusion,
+    ELWOrderBook,
+    ELWTick,
+    parse_elw_tick,
     parse_expected_conclusion,
     parse_order_book,
 )
@@ -27,7 +27,7 @@ def _index(fields: tuple[str, ...], name: str) -> int:
 
 
 # --------------------------------------------------------------------------------------
-# ElwOrderBook (H0EWASP0)
+# ELWOrderBook (H0EWASP0)
 # --------------------------------------------------------------------------------------
 
 
@@ -59,7 +59,7 @@ def _order_book_fields() -> list[str]:
 
 def test_parse_order_book_maps_headline_fields():
     ob = parse_order_book(_order_book_fields())
-    assert isinstance(ob, ElwOrderBook)
+    assert isinstance(ob, ELWOrderBook)
     assert ob.symbol == "58J300"
     assert ob.time == "093015"
     assert ob.hour_class == "0"
@@ -89,15 +89,15 @@ def test_order_book_raw_has_all_ledger_keys():
 
 
 # --------------------------------------------------------------------------------------
-# ExecutionTick (H0EWCNT0)
+# ELWTick (H0EWCNT0)
 # --------------------------------------------------------------------------------------
 
 
 def _execution_tick_fields() -> list[str]:
-    fields = ["0"] * len(_EXECUTION_TICK_FIELDS)
+    fields = ["0"] * len(_ELW_TICK_FIELDS)
 
     def put(name: str, value: str) -> None:
-        fields[_index(_EXECUTION_TICK_FIELDS, name)] = value
+        fields[_index(_ELW_TICK_FIELDS, name)] = value
 
     put("MKSC_SHRN_ISCD", "58J300")
     put("STCK_CNTG_HOUR", "093030")
@@ -138,9 +138,9 @@ def _execution_tick_fields() -> list[str]:
     return fields
 
 
-def test_parse_execution_tick_maps_headline_fields():
-    tick = parse_execution_tick(_execution_tick_fields())
-    assert isinstance(tick, ExecutionTick)
+def test_parse_elw_tick_maps_headline_fields():
+    tick = parse_elw_tick(_execution_tick_fields())
+    assert isinstance(tick, ELWTick)
     assert tick.symbol == "58J300"
     assert tick.time == "093030"
     assert tick.current_price == Decimal(125)
@@ -180,15 +180,15 @@ def test_parse_execution_tick_maps_headline_fields():
 
 
 def test_execution_tick_raw_has_all_ledger_keys():
-    tick = parse_execution_tick(_execution_tick_fields())
-    assert len(tick._raw) == len(_EXECUTION_TICK_FIELDS) == 63
+    tick = parse_elw_tick(_execution_tick_fields())
+    assert len(tick._raw) == len(_ELW_TICK_FIELDS) == 63
     assert tick._raw["MKSC_SHRN_ISCD"] == "58J300"
     assert tick._raw["APPRCH_RATE"] == "0"
     assert tick._raw["LP_NTBY_QTY"] == "-1500"
 
 
 # --------------------------------------------------------------------------------------
-# ElwExpectedConclusion (H0EWANC0)
+# ELWExpectedConclusion (H0EWANC0)
 # --------------------------------------------------------------------------------------
 
 
@@ -238,7 +238,7 @@ def _expected_conclusion_fields() -> list[str]:
 
 def test_parse_expected_conclusion_maps_headline_fields():
     ec = parse_expected_conclusion(_expected_conclusion_fields())
-    assert isinstance(ec, ElwExpectedConclusion)
+    assert isinstance(ec, ELWExpectedConclusion)
     assert ec.symbol == "58J300"
     assert ec.time == "085959"
     assert ec.expected_price == Decimal(123)
@@ -293,7 +293,7 @@ def test_registry_has_elw_specs():
 
     expected = {
         "H0EWASP0": (73, parse_order_book),
-        "H0EWCNT0": (63, parse_execution_tick),
+        "H0EWCNT0": (63, parse_elw_tick),
         "H0EWANC0": (59, parse_expected_conclusion),
     }
     for tr_id, (count, parser) in expected.items():
@@ -306,6 +306,6 @@ def test_registry_has_elw_specs():
 
 def test_empty_numeric_field_defaults_to_zero():
     fields = _execution_tick_fields()
-    fields[_index(_EXECUTION_TICK_FIELDS, "STCK_PRPR")] = ""
-    tick = parse_execution_tick(fields)
+    fields[_index(_ELW_TICK_FIELDS, "STCK_PRPR")] = ""
+    tick = parse_elw_tick(fields)
     assert tick.current_price == Decimal(0)

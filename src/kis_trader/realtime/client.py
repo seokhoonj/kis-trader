@@ -18,23 +18,33 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable, Coroutine, Iterator
 from concurrent.futures import CancelledError as FutureCancelledError
-from typing import Any, Literal, Self
+from typing import TYPE_CHECKING, Any, Protocol, Self
 
-from ..errors import RealtimeError
+from ..errors import KISUsageError, RealtimeError
 from ._connection import Connector, RealtimeConnection, RealtimeMessage
 from ._protocol import CustomerType
+from .domestic_namespace import RealtimeDomesticNamespace
+from .overseas_namespace import RealtimeOverseasNamespace
+from .subscription import RealtimeSubscription
+
+if TYPE_CHECKING:
+    from .._internal._masters import InstrumentRecord
 
 MessageCallback = Callable[[RealtimeMessage], None]
+
+
+class InstrumentResolver(Protocol):
+    """심볼(과 선택적 거래소) -> 해외 종목 마스터 레코드. ``KISClient.instrument`` 이 이를 만족한다.
+
+    해외주식 실시간 tr_key 는 RSYM 이라 심볼만으로는 부족하다 -- 마스터 조회로 ``realtime_symbol``
+    (RSYM)·``exchange`` 를 얻는다. ``kis.realtime()`` 이 이 seam 에 ``KISClient.instrument`` 을 주입한다.
+    """
+
+    def __call__(self, symbol: str, *, exchange: str | None = None) -> InstrumentRecord: ...
 
 _logger = logging.getLogger("kis_trader.realtime")
 _STREAM_SENTINEL = object()  # stream() 종료 신호
 _QUEUE_MAXSIZE = 10_000  # stream() 큐 상한(틱) -- 초과 시 오래된 것부터 드롭
-
-#: 국내주식 실시간 피드의 거래소(venue) -- KRX 정규 / NXT 넥스트레이드(대체거래소) / unified 통합(NXT+KRX).
-StockVenue = Literal["KRX", "NXT", "unified"]
-_STOCK_TRADES_TR: dict[str, str] = {"KRX": "H0STCNT0", "NXT": "H0NXCNT0", "unified": "H0UNCNT0"}
-_STOCK_ORDER_BOOK_TR: dict[str, str] = {"KRX": "H0STASP0", "NXT": "H0NXASP0", "unified": "H0UNASP0"}
-_STOCK_EXECUTION_NOTICE_TR = "H0STCNI0"
 
 
 class RealtimeClient:
@@ -52,12 +62,16 @@ class RealtimeClient:
         customer_type: CustomerType = "P",
         connect: Connector | None = None,
         reconnect: bool = True,
+        instrument_resolver: InstrumentResolver | None = None,
     ) -> None:
         self._approval_key = approval_key
         self._url = url
         self._customer_type: CustomerType = customer_type
         self._connect = connect
         self._reconnect = reconnect
+        # 해외주식 RSYM 해석용 seam. ``kis.realtime()`` 이 KISClient.instrument 을 주입한다. 없으면
+        # rt.overseas.stock(...) 이 fail-closed(직접 만든 클라이언트는 종목 마스터에 접근 못 함).
+        self._instrument_resolver = instrument_resolver
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._conn: RealtimeConnection | None = None
@@ -65,6 +79,10 @@ class RealtimeClient:
         self._stop_requested = threading.Event()  # start() 포기/stop() 시 수신루프 진입 차단
         self._lock = threading.Lock()
         self._callbacks: dict[str, list[MessageCallback]] = defaultdict(list)
+        # (tr_id, tr_key) -> 그 계약을 구독한 타입드 sub 들. _dispatch 가 정확 일치로 fan 한다.
+        self._subscriptions: dict[tuple[str, str], list[RealtimeSubscription[Any]]] = defaultdict(
+            list
+        )
         self._desired: set[tuple[str, str]] = set()  # start 전 등록 요청 보관
         # stream() 소비자가 없거나 느려도 무한정 자라지 않게 상한을 둔다(콜백 전용 사용자 메모리 누수 방지).
         # 가득 차면 가장 오래된 틱을 버린다(시장데이터는 최신이 중요) -- 정책은 _dispatch 참고.
@@ -72,6 +90,10 @@ class RealtimeClient:
         self._queue_overflow_warned = False
         self._running = False
         self._startup_error: BaseException | None = None  # start() 로 전달할 연결/구독 실패
+        # 국내 실시간 지역 네임스페이스(공개 표면). 시세축이라 계좌 무관.
+        self.domestic = RealtimeDomesticNamespace(self)
+        # 해외 실시간 지역 네임스페이스(공개 표면). 해외주식 RSYM 은 위 resolver 로 해석한다.
+        self.overseas = RealtimeOverseasNamespace(self)
 
     # -- 구독 (start 전/후 모두 가능) --
     def subscribe(self, tr_id: str, tr_key: str, *, on: MessageCallback | None = None) -> None:
@@ -85,24 +107,57 @@ class RealtimeClient:
         if self._running and self._conn is not None and self._loop is not None:
             self._call_async(self._conn.subscribe(tr_id, tr_key))
 
-    # -- 타입드 구독(자주 쓰는 국내주식 피드) -- raw TR-id 를 몰라도 되는 :meth:`subscribe` 래퍼 --
-    def trades(
-        self, symbol: str, *, venue: StockVenue = "KRX", on: MessageCallback | None = None
-    ) -> None:
-        """국내주식 실시간 체결가 구독. ``venue`` 는 거래소(``"KRX"`` 정규 / ``"NXT"`` 넥스트레이드 /
-        ``"unified"`` 통합). 수신은 콜백 ``on`` 또는 :meth:`stream`. raw TR-id 는 :meth:`subscribe`."""
-        self.subscribe(_STOCK_TRADES_TR[venue], symbol, on=on)
+    def _open_typed(
+        self, tr_id: str, tr_key: str, *, on: Callable[[Any], None] | None = None
+    ) -> RealtimeSubscription[Any]:
+        """타입드 구독 생성 + (tr_id, tr_key) 라우팅 등록 + 와이어 subscribe.
 
-    def order_book(
-        self, symbol: str, *, venue: StockVenue = "KRX", on: MessageCallback | None = None
-    ) -> None:
-        """국내주식 실시간 호가 구독. ``venue`` = ``"KRX"``/``"NXT"``/``"unified"``."""
-        self.subscribe(_STOCK_ORDER_BOOK_TR[venue], symbol, on=on)
+        같은 계약에 여러 구독이 붙을 수 있어 refcount 로 관리한다(첫 구독만 wire subscribe,
+        마지막 close 만 wire unsubscribe). refcount 판단과 wire 예약을 **한 락 안에서** 원자적으로
+        하여, 같은 키의 open/close 가 동시에 일어나도 wire 연산이 락 획득 순서(FIFO)로 루프에
+        예약된다 -- 락 밖에서 예약하면 순서가 뒤집혀 살아있는 구독인데 wire 가 해제되는 경합이 있다.
+        wire 예약은 비블로킹이라(``_schedule_wire``) 락을 든 채 안전하다. 41 등록 상한 등 wire 오류는
+        이 경로에선 비동기라 예외로 오르지 않고 연결 계층 로그로 남는다."""
+        sub: RealtimeSubscription[Any] = RealtimeSubscription(
+            tr_id, tr_key, on=on, unsubscribe=self._close_typed, maxsize=_QUEUE_MAXSIZE
+        )
+        key = (tr_id, tr_key)
+        with self._lock:
+            first = not self._subscriptions[key]
+            self._subscriptions[key].append(sub)
+            if first:
+                self._desired.add(key)
+                if self._running and self._conn is not None:
+                    self._schedule_wire(self._conn.subscribe(tr_id, tr_key))
+        return sub
 
-    def execution_notices(self, hts_id: str, *, on: MessageCallback | None = None) -> None:
-        """국내주식 실시간 체결통보 구독. ``hts_id`` 는 HTS 로그인 아이디(통보 tr_key). 암호화
-        프레임은 연결 계층이 복호화해 파서에 넘긴다."""
-        self.subscribe(_STOCK_EXECUTION_NOTICE_TR, hts_id, on=on)
+    def _resolve_instrument(self, symbol: str, exchange: str | None) -> InstrumentRecord:
+        """해외 심볼을 종목 마스터로 해석한다(RSYM tr_key·거래소의 원천). ``rt.overseas.stock`` 이 쓴다.
+
+        주입된 resolver 가 없으면(KISClient 없이 만든 클라이언트) fail-closed. ``kis.realtime()`` 은
+        ``KISClient.instrument`` 을 resolver 로 주입하므로 이 경로가 정상 동작한다. ``exchange`` 를
+        생략하면 마스터가 자동 해석하고, 같은 심볼이 여러 거래소면 resolver 가
+        :class:`~kis_trader.errors.KISUsageError` 를 던진다."""
+        if self._instrument_resolver is None:
+            raise KISUsageError(
+                "해외 실시간 심볼 해석에는 종목 마스터가 필요하다 -- kis.realtime() 로 만든 "
+                "클라이언트에서만 rt.overseas.stock(...) 을 쓸 수 있다(직접 만든 RealtimeClient 는 "
+                "마스터에 접근하지 못한다)."
+            )
+        return self._instrument_resolver(symbol, exchange=exchange)
+
+    def _close_typed(self, sub: RealtimeSubscription[Any]) -> None:
+        key = (sub.tr_id, sub.tr_key)
+        with self._lock:
+            subs = self._subscriptions.get(key)
+            if subs is not None and sub in subs:
+                subs.remove(sub)
+            last = bool(subs is not None and not subs)
+            if last:
+                del self._subscriptions[key]
+                self._desired.discard(key)
+                if self._running and self._conn is not None:
+                    self._schedule_wire(self._conn.unsubscribe(sub.tr_id, sub.tr_key))
 
     def unsubscribe(self, tr_id: str, tr_key: str) -> None:
         """실시간 해제."""
@@ -175,6 +230,7 @@ class RealtimeClient:
                 stop_error = exc
                 _logger.warning("realtime 연결 stop() 이 예외를 던졌습니다", exc_info=True)
         self._queue.put(_STREAM_SENTINEL)
+        self._shutdown_subscriptions()
         if self._thread is not None:
             self._thread.join(timeout=timeout)
             if self._thread.is_alive():
@@ -197,6 +253,7 @@ class RealtimeClient:
             except Exception:  # 원래의 timeout 오류를 가리지 않도록 정리 실패는 로깅만
                 _logger.warning("timeout 난 start() 정리 중 코어 stop() 실패", exc_info=True)
         self._queue.put(_STREAM_SENTINEL)
+        self._shutdown_subscriptions()
         if self._thread is not None:
             self._thread.join(timeout=timeout)
 
@@ -278,15 +335,19 @@ class RealtimeClient:
         finally:
             await self._conn.close()
             self._queue.put(_STREAM_SENTINEL)
+            self._shutdown_subscriptions()
 
     def _dispatch(self, message: RealtimeMessage) -> None:
         with self._lock:
             callbacks = list(self._callbacks.get(message.tr_id, ()))
+            subs = list(self._subscriptions.get((message.tr_id, message.tr_key), ()))
         for callback in callbacks:
             try:
                 callback(message)
             except Exception:
                 _logger.warning("realtime callback for %s raised", message.tr_id, exc_info=True)
+        for sub in subs:
+            sub._feed(message)
         self._enqueue(message)
 
     def _enqueue(self, message: RealtimeMessage) -> None:
@@ -327,3 +388,25 @@ class RealtimeClient:
             return
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         future.result(timeout=timeout)
+
+    def _schedule_wire(self, coro: Coroutine[Any, Any, Any]) -> None:
+        """wire 코루틴(subscribe/unsubscribe)을 루프에 **비블로킹**으로 예약한다.
+
+        :meth:`_call_async` 와 달리 완료를 기다리지 않아 ``self._lock`` 을 든 채 호출해도 안전하다
+        (타입드 구독의 refcount 전이와 wire 예약을 원자적으로 묶기 위함 -- 순서 경합 방지). 루프가
+        없거나 멎었으면 코루틴을 닫고 무시한다(구독은 ``_desired`` 에 남아 재연결 시 재전송된다)."""
+        if self._loop is None or not self._loop.is_running():
+            coro.close()
+            return
+        self._loop.call_soon_threadsafe(asyncio.ensure_future, coro)
+
+    def _shutdown_subscriptions(self) -> None:
+        """종료 시 열린 타입드 구독을 전부 반복 종료하고 라우팅 맵을 비운다.
+
+        wire unsubscribe 는 하지 않는다(소켓이 이미 닫히는 중). 미종료 구독의 반복
+        (``for tick in sub``)이 sentinel 을 못 받아 영구 블록되는 것을 막고, 라우팅/등록 누수를 없앤다."""
+        with self._lock:
+            subs = [sub for group in self._subscriptions.values() for sub in group]
+            self._subscriptions.clear()
+        for sub in subs:
+            sub._shutdown()

@@ -21,7 +21,7 @@ from typing import Any
 from .._registry import TRSpec, register
 
 # H0BJCNT0(일반채권 실시간체결가) 응답 필드 순서(원장 Response Body). 인덱스 = ^ 위치.
-_BOND_TRADE_TICK_FIELDS = (
+_BOND_TICK_FIELDS = (
     "STND_ISCD", "BOND_ISNM", "STCK_CNTG_HOUR", "PRDY_VRSS_SIGN", "PRDY_VRSS",
     "PRDY_CTRT", "STCK_PRPR", "CNTG_VOL", "STCK_OPRC", "STCK_HGPR",
     "STCK_LWPR", "STCK_PRDY_CLPR", "BOND_CNTG_ERT", "OPRC_ERT", "HGPR_ERT",
@@ -59,7 +59,7 @@ def _decimal(value: str) -> Decimal:
 
 
 @dataclass(frozen=True, slots=True)
-class BondTradeTick:
+class BondTick:
     """일반채권 실시간 체결(H0BJCNT0). 한 체결 이벤트의 현재가/등락/수익률/거래량 등.
 
     전체 19개 필드는 ``_raw`` (KIS Element 이름 기준)에 있고, 아래는 자주 쓰는 헤드라인만
@@ -139,10 +139,10 @@ class BondIndexTick:
     )
 
 
-def parse_bond_trade_tick(fields: list[str]) -> BondTradeTick:
-    """H0BJCNT0 한 레코드(19필드) -> :class:`BondTradeTick`."""
-    raw = MappingProxyType(dict(zip(_BOND_TRADE_TICK_FIELDS, fields, strict=False)))
-    return BondTradeTick(
+def parse_bond_tick(fields: list[str]) -> BondTick:
+    """H0BJCNT0 한 레코드(19필드) -> :class:`BondTick`."""
+    raw = MappingProxyType(dict(zip(_BOND_TICK_FIELDS, fields, strict=False)))
+    return BondTick(
         symbol=raw["STND_ISCD"],
         name=raw["BOND_ISNM"],
         time=raw["STCK_CNTG_HOUR"],
@@ -205,6 +205,6 @@ def parse_bond_index_tick(fields: list[str]) -> BondIndexTick:
     )
 
 
-register(TRSpec("H0BJCNT0", field_count=len(_BOND_TRADE_TICK_FIELDS), parser=parse_bond_trade_tick))
+register(TRSpec("H0BJCNT0", field_count=len(_BOND_TICK_FIELDS), parser=parse_bond_tick))
 register(TRSpec("H0BJASP0", field_count=len(_BOND_ORDER_BOOK_FIELDS), parser=parse_bond_order_book))
 register(TRSpec("H0BICNT0", field_count=len(_BOND_INDEX_TICK_FIELDS), parser=parse_bond_index_tick))

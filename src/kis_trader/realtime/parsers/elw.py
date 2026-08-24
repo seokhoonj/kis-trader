@@ -3,9 +3,9 @@
 원장 Response Body 필드순을 그대로 ``^`` 인덱스에 매핑한다(필드순이 정본). 세 TR 은 레이아웃이
 서로 달라 각자 필드 튜플과 파서를 갖는다:
 
-* ``H0EWASP0`` (실시간호가, 73필드) -> :class:`ElwOrderBook` -- 10호가 사다리 + LP 잔량 + 예상체결.
-* ``H0EWCNT0`` (실시간체결가, 63필드) -> :class:`ExecutionTick` -- 체결 + ELW 지표(그릭/내재변동성 등).
-* ``H0EWANC0`` (실시간예상체결, 59필드) -> :class:`ElwExpectedConclusion` -- 예상체결 + ELW 지표.
+* ``H0EWASP0`` (실시간호가, 73필드) -> :class:`ELWOrderBook` -- 10호가 사다리 + LP 잔량 + 예상체결.
+* ``H0EWCNT0`` (실시간체결가, 63필드) -> :class:`ELWTick` -- 체결 + ELW 지표(그릭/내재변동성 등).
+* ``H0EWANC0`` (실시간예상체결, 59필드) -> :class:`ELWExpectedConclusion` -- 예상체결 + ELW 지표.
 
 가격/수량/그릭 등 의미상 숫자인 헤드라인 필드는 :func:`_decimal` 로 ``Decimal`` 화하고, 코드/시각/
 부호/Y·N 플래그는 원문 문자열로 둔다. 전체 필드 원문은 각 엔티티의 ``_raw`` 에 Element 이름으로
@@ -46,7 +46,7 @@ _ORDER_BOOK_FIELDS = (
 )
 
 # H0EWCNT0 -- ELW 실시간체결가(63필드).
-_EXECUTION_TICK_FIELDS = (
+_ELW_TICK_FIELDS = (
     "MKSC_SHRN_ISCD", "STCK_CNTG_HOUR", "STCK_PRPR", "PRDY_VRSS_SIGN", "PRDY_VRSS",
     "PRDY_CTRT", "WGHN_AVRG_STCK_PRC", "STCK_OPRC", "STCK_HGPR", "STCK_LWPR",
     "ASKP1", "BIDP1", "CNTG_VOL", "ACML_VOL", "ACML_TR_PBMN",
@@ -98,7 +98,7 @@ def _ladder(raw: Mapping[str, str], prefix: str, levels: int = 10) -> tuple[Deci
 
 
 @dataclass(frozen=True, slots=True)
-class ElwOrderBook:
+class ELWOrderBook:
     """ELW 실시간호가(H0EWASP0). 매도/매수 10호가 사다리와 잔량, LP 총잔량, 예상체결.
 
     ``ask_prices``/``bid_prices`` 와 ``ask_quantities``/``bid_quantities`` 는 1~10호가를 순서대로 담은
@@ -127,7 +127,7 @@ class ElwOrderBook:
 
 
 @dataclass(frozen=True, slots=True)
-class ExecutionTick:
+class ELWTick:
     """ELW 실시간체결가(H0EWCNT0). 체결 현재가/등락/거래량과 ELW 고유 지표(그릭/내재변동성 등).
 
     자주 쓰는 헤드라인만 타입화하고, 전체 63개 필드는 ``_raw`` 에 Element 이름으로 있다.
@@ -176,10 +176,10 @@ class ExecutionTick:
 
 
 @dataclass(frozen=True, slots=True)
-class ElwExpectedConclusion:
+class ELWExpectedConclusion:
     """ELW 실시간예상체결(H0EWANC0). 예상 체결가/등락/거래량과 ELW 고유 지표(그릭 등).
 
-    체결가(:class:`ExecutionTick`)와 유사하나 전일동시간누적/접근도/LP순매도량 필드가 없다. 전체
+    체결가(:class:`ELWTick`)와 유사하나 전일동시간누적/접근도/LP순매도량 필드가 없다. 전체
     59개 필드는 ``_raw`` 에 Element 이름으로 있다.
     """
 
@@ -229,10 +229,10 @@ class ElwExpectedConclusion:
 # --------------------------------------------------------------------------------------
 
 
-def parse_order_book(fields: list[str]) -> ElwOrderBook:
-    """H0EWASP0 한 레코드(73필드) -> :class:`ElwOrderBook`."""
+def parse_order_book(fields: list[str]) -> ELWOrderBook:
+    """H0EWASP0 한 레코드(73필드) -> :class:`ELWOrderBook`."""
     raw = MappingProxyType(dict(zip(_ORDER_BOOK_FIELDS, fields, strict=False)))
-    return ElwOrderBook(
+    return ELWOrderBook(
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["BSOP_HOUR"],
         hour_class=raw["HOUR_CLS_CODE"],
@@ -253,10 +253,10 @@ def parse_order_book(fields: list[str]) -> ElwOrderBook:
     )
 
 
-def parse_execution_tick(fields: list[str]) -> ExecutionTick:
-    """H0EWCNT0 한 레코드(63필드) -> :class:`ExecutionTick`."""
-    raw = MappingProxyType(dict(zip(_EXECUTION_TICK_FIELDS, fields, strict=False)))
-    return ExecutionTick(
+def parse_elw_tick(fields: list[str]) -> ELWTick:
+    """H0EWCNT0 한 레코드(63필드) -> :class:`ELWTick`."""
+    raw = MappingProxyType(dict(zip(_ELW_TICK_FIELDS, fields, strict=False)))
+    return ELWTick(
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["STCK_CNTG_HOUR"],
         current_price=_decimal(raw["STCK_PRPR"]),
@@ -297,10 +297,10 @@ def parse_execution_tick(fields: list[str]) -> ExecutionTick:
     )
 
 
-def parse_expected_conclusion(fields: list[str]) -> ElwExpectedConclusion:
-    """H0EWANC0 한 레코드(59필드) -> :class:`ElwExpectedConclusion`."""
+def parse_expected_conclusion(fields: list[str]) -> ELWExpectedConclusion:
+    """H0EWANC0 한 레코드(59필드) -> :class:`ELWExpectedConclusion`."""
     raw = MappingProxyType(dict(zip(_EXPECTED_CONCLUSION_FIELDS, fields, strict=False)))
-    return ElwExpectedConclusion(
+    return ELWExpectedConclusion(
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["STCK_CNTG_HOUR"],
         expected_price=_decimal(raw["STCK_PRPR"]),
@@ -341,7 +341,7 @@ def parse_expected_conclusion(fields: list[str]) -> ElwExpectedConclusion:
 
 
 register(TRSpec("H0EWASP0", field_count=len(_ORDER_BOOK_FIELDS), parser=parse_order_book))
-register(TRSpec("H0EWCNT0", field_count=len(_EXECUTION_TICK_FIELDS), parser=parse_execution_tick))
+register(TRSpec("H0EWCNT0", field_count=len(_ELW_TICK_FIELDS), parser=parse_elw_tick))
 register(
     TRSpec(
         "H0EWANC0",

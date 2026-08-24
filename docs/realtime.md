@@ -26,15 +26,80 @@ realtime.stop()                                     # 종료 (with 문도 가능
 또는 원시 필드 리스트입니다. 값을 꺼낼 땐 엔티티 종류로 좁혀 씁니다:
 
 ```python
-from kis_trader.realtime.messages import TradeTick
+from kis_trader.realtime.messages import StockTick
 
 def on_tick(msg):
     tick = msg.data
-    if isinstance(tick, TradeTick):
+    if isinstance(tick, StockTick):
         print(tick.symbol, tick.current_price, tick.change_percent)
 
 realtime.subscribe("H0STCNT0", "005930", on=on_tick)
 ```
+
+## 타입드 구독 (권장)
+
+`tr_id`를 외우는 대신 자산군·거래소·세션을 메서드로 고르는 타입드 표면을 권장합니다.
+`realtime.domestic`에서 시작해 종목/세션을 좁히면, 그 계약 하나만 소비하고 결과 타입이
+정해진 `RealtimeSubscription[T]`를 돌려줍니다. 콜백에 넘길 타입이나 반환 구독의 원소 타입은
+`from kis_trader.realtime import StockTick, StockOrderBook, FuturesTick, OptionTick,
+DerivativeOrderBook, StockExecutionNotice, DerivativeExecutionNotice`로 가져옵니다.
+
+```python
+realtime = kis.realtime()
+realtime.start()
+
+sub = realtime.domestic.stock("005930").trades()   # RealtimeSubscription[StockTick]
+for tick in sub:                                    # 이 계약만 흘러옵니다
+    print(tick.symbol, tick.current_price, tick.trade_volume)
+```
+
+구독 표면은 다음과 같습니다.
+
+- **국내주식** — `realtime.domestic.stock("005930")`에서
+  `.trades(venue="KRX")` / `.order_book(venue="KRX")`. `venue`는 `KRX`·`NXT`·`unified`(통합).
+  각각 `RealtimeSubscription[StockTick]` / `RealtimeSubscription[StockOrderBook]`.
+- **선물** — `realtime.domestic.futures("101W09", kind="index")`에서 `.trades()` / `.order_book()`.
+  `kind`는 `index`·`commodity`·`stock`·`night`. 체결은 `RealtimeSubscription[FuturesTick]`,
+  호가는 `RealtimeSubscription[DerivativeOrderBook]`.
+- **옵션** — `realtime.domestic.option("201W09", kind="index")`에서 `.trades()` / `.order_book()`.
+  `kind`는 `index`·`stock`·`night`. 체결은 `RealtimeSubscription[OptionTick]`,
+  호가는 `RealtimeSubscription[DerivativeOrderBook]`.
+- **체결통보** — `realtime.domestic.execution_notices.stock(hts_id)`는
+  `RealtimeSubscription[StockExecutionNotice]`,
+  `.derivative(hts_id, session="regular")`는 `RealtimeSubscription[DerivativeExecutionNotice]`.
+  `session`은 `regular`·`night_futures`·`night_option`. 계약이 아니라 HTS ID 단위입니다.
+
+소비는 세 가지 중 하나로 합니다. 이터레이터, 컨텍스트 매니저, 콜백 모두 같은 구독을 다룹니다.
+
+```python
+# 1) 이터레이터
+sub = realtime.domestic.futures("101W09", kind="index").trades()
+for tick in sub:
+    print(tick.current_price)
+
+# 2) 컨텍스트 매니저 -- 블록을 벗어나면 자동 해제
+with realtime.domestic.stock("005930").order_book(venue="NXT") as sub:
+    for book in sub:
+        print(book.best_ask, book.best_bid)
+
+# 3) 콜백 -- on= 으로 넘기면 수신 스레드에서 호출됩니다
+def on_notice(notice):
+    print(notice.order_no, notice.executed_qty)
+
+realtime.domestic.execution_notices.stock("myhtsid", on=on_notice)
+```
+
+필요하면 `sub.close()`로 개별 구독만 해제합니다(다른 구독·연결은 유지). 같은 계약에 여러
+구독이 붙어 있으면 마지막 하나가 닫힐 때 실제 해제가 나갑니다.
+
+```python
+sub = realtime.domestic.stock("005930").trades()
+...
+sub.close()
+```
+
+아래 원시 `subscribe`/`stream` 표면은 그대로 쓸 수 있는 탈출구입니다. 타입드 표면이 덮지 않는
+TR을 직접 등록하거나, 여러 TR을 한 스트림으로 합쳐 받을 때 씁니다.
 
 ## 구독 대상 (TR ID)
 
