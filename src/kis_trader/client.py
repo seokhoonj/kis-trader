@@ -5,7 +5,7 @@
 조회한다. KIS 토큰은 앱키 단위(24h, 재발급 제한)라 세션이 캐시해 재사용한다.
 
 세션은 전송·기본계좌·주문 안전코어(store/risk/place)만 쥐고, 공개 행위 표면은 자산군 네임스페이스
-(``kis.domestic`` / ``kis.overseas`` / ``kis.pension``)와 주문 lifecycle(``kis.orders``,
+(``kis.domestic`` / ``kis.overseas``)와 주문 lifecycle(``kis.orders``,
 :class:`OrdersNamespace`)가 담당한다. 시세만 볼 거면 ``account`` 없이도 되지만, 주문/잔고엔 계좌
 식별정보가 필요하다.
 """
@@ -48,7 +48,6 @@ from .overseas._engine import orders as overseas_orders_engine
 from .overseas._engine import reserved_orders as overseas_reserved_orders_api
 from .overseas.derivative_account import OverseasDerivativesAccount
 from .overseas.namespace import OverseasNamespace
-from .pension.namespace import PensionNamespace
 from .store import OrderStore
 
 if TYPE_CHECKING:
@@ -256,7 +255,6 @@ class KISClient:
         # 자산군 최상위 네임스페이스(공개 행위 표면). 세션이 쥔 전송/계좌/안전코어로 엔드포인트 엔진을 호출한다.
         self.domestic = DomesticNamespace(self)
         self.overseas = OverseasNamespace(self)
-        self.pension = PensionNamespace(self)
         self.orders = OrdersNamespace(self)
 
     @property
@@ -274,7 +272,8 @@ class KISClient:
         """세션이 연 계좌의 조회 뷰 -- 상품코드로 계좌 종류를 정한다. 위탁(01)/연금저축(22)/
         IRP(29)/ISA 는 같은 국내주식 계좌 엔드포인트를 쓰므로 :class:`~kis_trader.account.StockAccount`
         로 다룬다(ISA 는 상품코드가 01). IRP(29)는 조회전용이라 주문은 별도 게이트가 막는다.
-        국내선물옵션(03)=파생, 해외선물옵션(08)=해외파생 뷰.
+        국내선물옵션(03)=파생, 해외선물옵션(08)=해외파생 뷰. IRP(29)는 ``.pension`` 으로
+        퇴직연금 전용 조회(예수금/매수가능/잔고/체결기준잔고/주문내역)를 준다.
 
         계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError`. 그 밖의 상품은 아직
         미지원(추후 확장) -- 명확한 오류로 fail-closed 한다."""

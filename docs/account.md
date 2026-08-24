@@ -5,6 +5,8 @@
 | 상품 | `kis.account` 뷰 |
 |---|---|
 | 주식(01, 위탁) | 국내 `kis.account.domestic.*` · 해외 `kis.account.overseas.*` |
+| 연금저축(22) | 위탁과 같은 국내주식 계좌 뷰(주문 가능) |
+| IRP(29) | 위탁과 같은 국내주식 계좌 뷰 + 퇴직연금 조회 `kis.account.pension.*`(조회전용) |
 | 국내파생(03) | 파생 계좌 뷰 → [선물·옵션](derivatives.md) |
 | 해외파생(08) | 해외파생 계좌 뷰 → [해외주식](overseas.md) |
 
@@ -114,6 +116,17 @@ account.foreign_margin()                                 # 통화별 외화 증�
 ```python
 kis.account.domestic.bonds.balance()  # 채권 보유 lot
 ```
+
+## 퇴직연금 (IRP) 계좌
+
+개인형 퇴직연금(IRP, 상품코드 29)은 일반 국내주식 잔고엔 없는 퇴직연금 전용 조회(예수금 요약·체결기준잔고·매수가능여력)를 `kis.account.pension` 렌즈로 줍니다. IRP는 조회전용이라 발주 메서드는 없습니다. 상세 → [퇴직연금](pension.md).
+
+```python
+kis.account.pension.deposit()          # 예수금 요약 (IRP 29 전용)
+kis.account.pension.present_balance()  # 체결기준 잔고 + 손익
+```
+
+연금저축(22)은 별개 사적연금이라 주문 가능한 일반 주식계좌로 다루며 이 렌즈 대상이 아닙니다. 상품코드가 29가 아니면 `.pension` 접근은 오류입니다.
 
 ## 통합잔고
 

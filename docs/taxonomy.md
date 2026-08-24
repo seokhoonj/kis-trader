@@ -15,7 +15,7 @@
 | 기능 | 필요한 것 | 무엇이 자산군을 정하나 |
 |------|-----------|------------------------|
 | 시세 · 실시간 | 앱키(토큰)만 — 계좌 무관 | 심볼/코드 |
-| 주문 · 계좌 | 계좌(CANO + 상품코드) | 상품코드(01 주식 · 03 국내파생 · 08 해외파생) |
+| 주문 · 계좌 | 계좌(CANO + 상품코드) | 상품코드(01 주식 · 22 연금저축 · 29 IRP · 03 국내파생 · 08 해외파생) |
 
 조직 원리도 기능마다 다릅니다. **심볼을 다루는 것(시세·발주·종목 핸들)은 지역으로 나뉘고**
 (`kis.domestic` / `kis.overseas`), **계좌·주문 상태는 기능으로 통합**됩니다
@@ -27,9 +27,8 @@
 KISClient(profile="main")            # 세션
 ├─ .domestic     국내 시세 · 발주 · 시장·검색      (심볼 축)
 ├─ .overseas     해외 시세 · 발주 · 시장·검색      (심볼 축)
-├─ .account      계좌 조회 (상품코드로 종류 자동 분기)
+├─ .account      계좌 조회 (상품코드로 종류 자동 분기; IRP는 .account.pension 퇴직연금 조회)
 ├─ .orders       주문 라이프사이클 (reconcile / cancel / modify)
-├─ .pension      퇴직연금 계좌
 └─ .realtime()   실시간 웹소켓 → .domestic / .overseas
 ```
 
@@ -42,7 +41,7 @@ KISClient(profile="main")            # 세션
 | **시세** | `domestic.stock` | `domestic.index` | `domestic.futures`·`option` | `domestic.bond` | `domestic.elw` | `overseas.stock` | `overseas.futures`·`option` | — |
 | **시장·검색** | `domestic.ranking`·`market` | `domestic.index` | `domestic.option_board` | — | `domestic.elw_ranking`·`elw_screener` | `overseas.ranking`·`news` | `overseas.derivatives_market_hours` | — |
 | **주문** | `domestic.stock(…).buy/sell` | — | `domestic.futures(…).buy/sell` | `domestic.bond(…).buy/sell` | `domestic.stock(…).buy/sell` | `overseas.stock(…).buy/sell` | `overseas.futures(…).buy/sell` | — |
-| **계좌** | `account.domestic` | — | `account` (상품 03) | `account.domestic.bonds` | `account.domestic` | `account.overseas` | `account` (상품 08) | `pension` |
+| **계좌** | `account.domestic` | — | `account` (상품 03) | `account.domestic.bonds` | `account.domestic` | `account.overseas` | `account` (상품 08) | `account.pension` (IRP 29) |
 | **실시간** | `realtime().domestic.stock` | `.index` | `.futures`·`option` | `.bond`·`bond_index` | `.elw` | `realtime().overseas.stock` | `.overseas.futures`·`option` | — |
 
 체결통보는 종목이 아니라 HTS 아이디 단위라 `realtime().domestic.execution_notices` /
@@ -69,7 +68,7 @@ KISClient(*, profile=None, app_key=None, app_secret=None, account=None,
 | `kis.overseas` | `OverseasNamespace` | 해외 자산 시세·발주·시장·검색 |
 | `kis.account` | `StockAccount \| DomesticDerivativesAccount \| OverseasDerivativesAccount` | 상품코드로 종류 자동 분기 |
 | `kis.orders` | `OrdersNamespace` | 주문 라이프사이클(자산 무관) |
-| `kis.pension` | `PensionNamespace` | 퇴직연금 계좌 |
+| `kis.account.pension` | `PensionAccount` | IRP(29) 퇴직연금 조회(조회전용) |
 | `kis.instrument(symbol, *, exchange=None)` | `InstrumentRecord` | 해외 심볼 마스터 조회(거래소·통화·이름·실시간심볼) |
 | `kis.realtime(*, customer_type="P", reconnect=True)` | `RealtimeClient` | 실시간 웹소켓 클라이언트 |
 | `kis.transport` | `Transport` | 저수준 전송(내부용) |
@@ -385,7 +384,7 @@ IRP(29)는 조회 전용, 연금저축(22)은 주문 가능, DC가입자(55)는 
 
 국내주식 + 국내채권 + 해외주식 잔고를 새 와이어 없이 하나로 합성합니다(채권은 매입금액 기준).
 
-### 퇴직연금 — `kis.pension` → `PensionNamespace` (실전 전용)
+### 퇴직연금 — `kis.account.pension` → `PensionAccount` (IRP 29, 조회전용, 실전 전용)
 
 - `deposit()` → `PensionDeposit` · `buyable(symbol, limit_price=None)` → `PensionBuyableAmount`
 - `balance()` → `PensionBalance` · `present_balance()` → `PensionPresentBalance` · `orders(only_unfilled=False)` → `list[PensionOrder]`
