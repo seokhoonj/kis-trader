@@ -18,15 +18,29 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable, Coroutine, Iterator
 from concurrent.futures import CancelledError as FutureCancelledError
-from typing import Any, Self
+from typing import TYPE_CHECKING, Any, Protocol, Self
 
-from ..errors import RealtimeError
+from ..errors import KISUsageError, RealtimeError
 from ._connection import Connector, RealtimeConnection, RealtimeMessage
 from ._protocol import CustomerType
-from .namespace import RealtimeDomesticNamespace
+from .domestic_namespace import RealtimeDomesticNamespace
+from .overseas_namespace import RealtimeOverseasNamespace
 from .subscription import RealtimeSubscription
 
+if TYPE_CHECKING:
+    from .._internal._masters import InstrumentRecord
+
 MessageCallback = Callable[[RealtimeMessage], None]
+
+
+class InstrumentResolver(Protocol):
+    """심볼(과 선택적 거래소) -> 해외 종목 마스터 레코드. ``KISClient.instrument`` 이 이를 만족한다.
+
+    해외주식 실시간 tr_key 는 RSYM 이라 심볼만으로는 부족하다 -- 마스터 조회로 ``realtime_symbol``
+    (RSYM)·``exchange`` 를 얻는다. ``kis.realtime()`` 이 이 seam 에 ``KISClient.instrument`` 을 주입한다.
+    """
+
+    def __call__(self, symbol: str, *, exchange: str | None = None) -> InstrumentRecord: ...
 
 _logger = logging.getLogger("kis_trader.realtime")
 _STREAM_SENTINEL = object()  # stream() 종료 신호
@@ -48,12 +62,16 @@ class RealtimeClient:
         customer_type: CustomerType = "P",
         connect: Connector | None = None,
         reconnect: bool = True,
+        instrument_resolver: InstrumentResolver | None = None,
     ) -> None:
         self._approval_key = approval_key
         self._url = url
         self._customer_type: CustomerType = customer_type
         self._connect = connect
         self._reconnect = reconnect
+        # 해외주식 RSYM 해석용 seam. ``kis.realtime()`` 이 KISClient.instrument 을 주입한다. 없으면
+        # rt.overseas.stock(...) 이 fail-closed(직접 만든 클라이언트는 종목 마스터에 접근 못 함).
+        self._instrument_resolver = instrument_resolver
         self._loop: asyncio.AbstractEventLoop | None = None
         self._thread: threading.Thread | None = None
         self._conn: RealtimeConnection | None = None
@@ -74,6 +92,8 @@ class RealtimeClient:
         self._startup_error: BaseException | None = None  # start() 로 전달할 연결/구독 실패
         # 국내 실시간 지역 네임스페이스(공개 표면). 시세축이라 계좌 무관.
         self.domestic = RealtimeDomesticNamespace(self)
+        # 해외 실시간 지역 네임스페이스(공개 표면). 해외주식 RSYM 은 위 resolver 로 해석한다.
+        self.overseas = RealtimeOverseasNamespace(self)
 
     # -- 구독 (start 전/후 모두 가능) --
     def subscribe(self, tr_id: str, tr_key: str, *, on: MessageCallback | None = None) -> None:
@@ -110,6 +130,21 @@ class RealtimeClient:
                 if self._running and self._conn is not None:
                     self._schedule_wire(self._conn.subscribe(tr_id, tr_key))
         return sub
+
+    def _resolve_instrument(self, symbol: str, exchange: str | None) -> InstrumentRecord:
+        """해외 심볼을 종목 마스터로 해석한다(RSYM tr_key·거래소의 원천). ``rt.overseas.stock`` 이 쓴다.
+
+        주입된 resolver 가 없으면(KISClient 없이 만든 클라이언트) fail-closed. ``kis.realtime()`` 은
+        ``KISClient.instrument`` 을 resolver 로 주입하므로 이 경로가 정상 동작한다. ``exchange`` 를
+        생략하면 마스터가 자동 해석하고, 같은 심볼이 여러 거래소면 resolver 가
+        :class:`~kis_trader.errors.KISUsageError` 를 던진다."""
+        if self._instrument_resolver is None:
+            raise KISUsageError(
+                "해외 실시간 심볼 해석에는 종목 마스터가 필요하다 -- kis.realtime() 로 만든 "
+                "클라이언트에서만 rt.overseas.stock(...) 을 쓸 수 있다(직접 만든 RealtimeClient 는 "
+                "마스터에 접근하지 못한다)."
+            )
+        return self._instrument_resolver(symbol, exchange=exchange)
 
     def _close_typed(self, sub: RealtimeSubscription[Any]) -> None:
         key = (sub.tr_id, sub.tr_key)

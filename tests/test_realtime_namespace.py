@@ -6,7 +6,7 @@ import pytest
 
 from kis_trader.errors import KISUsageError
 from kis_trader.realtime.client import RealtimeClient
-from kis_trader.realtime.namespace import RealtimeDomesticNamespace
+from kis_trader.realtime.domestic_namespace import RealtimeDomesticNamespace
 from kis_trader.realtime.subscription import RealtimeSubscription
 
 

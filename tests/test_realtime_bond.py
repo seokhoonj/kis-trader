@@ -11,10 +11,10 @@ from kis_trader.realtime import _registry
 from kis_trader.realtime.parsers.bond import (
     BondIndexTick,
     BondOrderBook,
-    BondTradeTick,
+    BondTick,
     parse_bond_index_tick,
     parse_bond_order_book,
-    parse_bond_trade_tick,
+    parse_bond_tick,
 )
 
 # --- 일반채권 실시간체결가 (H0BJCNT0) -------------------------------------------------
@@ -39,9 +39,9 @@ def _trade_tick_fields() -> list[str]:
     return fields
 
 
-def test_parse_bond_trade_tick_maps_headline_fields():
-    tick = parse_bond_trade_tick(_trade_tick_fields())
-    assert isinstance(tick, BondTradeTick)
+def test_parse_bond_tick_maps_headline_fields():
+    tick = parse_bond_tick(_trade_tick_fields())
+    assert isinstance(tick, BondTick)
     assert tick.symbol == "KR103501GA34"
     assert tick.name == "국고01500-3006"
     assert tick.time == "093000"
@@ -60,7 +60,7 @@ def test_parse_bond_trade_tick_maps_headline_fields():
 
 
 def test_bond_trade_tick_raw_has_all_ledger_keys():
-    tick = parse_bond_trade_tick(_trade_tick_fields())
+    tick = parse_bond_tick(_trade_tick_fields())
     assert len(tick._raw) == 19
     assert tick._raw["STND_ISCD"] == "KR103501GA34"
     assert tick._raw["CNTG_TYPE_CLS_CODE"] == "1"
@@ -166,7 +166,7 @@ def test_registry_has_bond_specs():
     trade = _registry.lookup("H0BJCNT0")
     assert trade is not None
     assert trade.field_count == 19
-    assert trade.parser is parse_bond_trade_tick
+    assert trade.parser is parse_bond_tick
 
     book = _registry.lookup("H0BJASP0")
     assert book is not None

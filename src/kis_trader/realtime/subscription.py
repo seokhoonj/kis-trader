@@ -25,7 +25,7 @@ _SENTINEL = object()  # 반복 종료 신호
 class RealtimeSubscription(Generic[T]):
     """단일 ``(tr_id, tr_key)`` 계약의 타입드 실시간 구독.
 
-    잎 팩토리(:mod:`kis_trader.realtime.namespace`)가 만들어 반환한다. 반복하면 이 계약의
+    잎 팩토리(:mod:`kis_trader.realtime.domestic_namespace`)가 만들어 반환한다. 반복하면 이 계약의
     엔티티(``T``)만 나오고, ``close()`` 또는 컨텍스트 매니저 이탈 시 해제된다.
     """
 

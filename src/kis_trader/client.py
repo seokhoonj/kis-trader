@@ -642,6 +642,7 @@ class KISClient:
         return RealtimeClient(
             approval_key, websocket_url(self._environment),
             customer_type=customer_type, reconnect=reconnect,
+            instrument_resolver=self.instrument,
         )
 
     def _require_credit_enabled(self) -> None:

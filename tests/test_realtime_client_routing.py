@@ -81,7 +81,7 @@ def test_concurrent_open_close_same_key_keeps_routing_consistent() -> None:
 
 
 def test_domestic_property_returns_namespace() -> None:
-    from kis_trader.realtime.namespace import RealtimeDomesticNamespace
+    from kis_trader.realtime.domestic_namespace import RealtimeDomesticNamespace
 
     c = _client()
     assert isinstance(c.domestic, RealtimeDomesticNamespace)
