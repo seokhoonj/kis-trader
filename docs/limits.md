@@ -8,7 +8,7 @@ kis-trader는 KIS Open API의 조회 대부분과 국내·해외 **현물** 주�
 | **서버측 사전검사** (상하한가·주문가능·매도가능 KIS 검사) | 의도적 제외 | 경합·오확신 위험이 커 재구현하지 않음. 클라이언트 `RiskLimits`(±%·틱·최대수량)로 대체 |
 
 ::: {.callout-note}
-**퇴직연금**은 KIS 정책상 API 주문이 막혀 있어(IRP는 조회만, DC 가입자는 API 이용 불가) `kis.pension.*`
+**퇴직연금**은 KIS 정책상 API 주문이 막혀 있어(IRP는 조회만, DC 가입자는 API 이용 불가) `kis.account.pension.*`
 은 조회 전용입니다 — 패키지 한계가 아니라 KIS 제약입니다. **연금저축**(상품계좌 22)은 일반 국내 주문
 경로(`kis.domestic.stock(...).buy()`)로 매매됩니다.
 :::

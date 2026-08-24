@@ -47,7 +47,7 @@ Under `KISClient`, asset classes and orders split into namespaces.
 ```python
 kis.domestic   # domestic: stocks, indices, ETFs, ELWs, futures/options, bonds, account, rankings, market, calendar
 kis.overseas   # overseas: stocks, indices, futures/options, account, rankings
-kis.pension    # retirement pension
+kis.account    # account queries (dispatched by product code; IRP adds .pension)
 kis.orders     # check, modify, and cancel submitted orders
 ```
 
