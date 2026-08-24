@@ -307,7 +307,7 @@ class OrderStore:
         in-flight 는 절대 정리하지 않는다(반드시 재조회로 확정돼야 하므로)."""
         if self._retention is None:
             return
-        cutoff = datetime.now(_KST) - self._retention
+        cutoff = self._now() - self._retention
         stale = [
             cid for cid, report in self._reports.items()
             if cid not in self._in_flight and report.recorded_at < cutoff
