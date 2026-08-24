@@ -18,7 +18,10 @@ _DOMESTIC_BOARDS = frozenset(("KRX", "NXT", "UN"))
 
 
 def is_domestic_symbol(symbol: str) -> bool:
-    """6자리 숫자 심볼이면 국내(KRX)로 본다."""
+    """6자리 숫자 심볼이면 국내(KRX)로 본다(자동 시장판별 휴리스틱).
+
+    ELW 처럼 문자가 섞인 6자리 국내 코드(예 ``"57LABS"``)는 여기서 ``False`` 다 -- 그런 코드는
+    ``stock(code, market="KRX")`` 로 시장을 명시해 만든다."""
     return symbol.isdigit() and len(symbol) == 6
 
 
@@ -37,6 +40,8 @@ def resolve_market(symbol: str, *, market: DomesticBoard | None = None) -> Domes
     if is_domestic_symbol(symbol):
         return "KRX"
     raise KISUsageError(
-        f"국내 시장을 판별할 수 없는 심볼: {symbol!r} -- 국내는 6자리 숫자 코드다. "
+        f"국내 시장을 판별할 수 없는 심볼: {symbol!r} -- 자동판별은 6자리 숫자 코드만 국내(KRX)로 본다. "
+        f"ELW 등 문자가 섞인 6자리 국내 코드는 market='KRX' 를 명시하라"
+        f"(예: kis.domestic.stock('57LABS', market='KRX')). "
         f"해외는 kis.overseas.stock(symbol, exchange=...) 로 만들거나 심볼만 주면 마스터로 자동 해석한다."
     )
