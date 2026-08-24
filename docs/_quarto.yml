@@ -18,6 +18,7 @@ book:
     collapse-level: 2
   chapters:
     - index.md
+    - taxonomy.md
     - part: "시작하기"
       chapters:
         - quickstart.md
