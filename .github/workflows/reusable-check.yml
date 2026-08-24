@@ -52,6 +52,9 @@ jobs:
       - name: Type check
         run: .venv/bin/mypy
 
+      - name: Type check narrowing fixtures
+        run: .venv/bin/mypy --strict tests/typing
+
       - name: Confirm the runtime dependencies are exactly the declared three
         # The three-dependency claim is documented in the pyproject comment; a claim
         # nothing checks quietly stops being true. Installed into a bare environment,
