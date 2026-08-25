@@ -148,12 +148,18 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--division", choices=list(get_args(DomesticDivision)), default=None,
                         help="KRX 주문구분(국내 현금 전용): conditional_limit(조건부지정가)/"
                              "immediate_limit(최유리지정가)/priority_limit(최우선지정가)")
-        sp.add_argument("--asset", choices=["stock", "bond"], default="stock",
-                        help="자산군: stock(기본)/bond(장내채권)")
+        sp.add_argument("--asset", choices=["stock", "bond", "futures", "option"],
+                        default="stock", help="자산군: stock(기본)/bond(장내채권)/futures/option(파생)")
         sp.add_argument("--buy-date", dest="buy_date", default=None,
                         help="채권 매도 lot 매수일자 YYYYMMDD(bond sell 전용)")
         sp.add_argument("--buy-seq", dest="buy_seq", default=None,
                         help="채권 매도 lot 매수순번(bond sell 전용)")
+        sp.add_argument("--right", choices=["call", "put"], default=None,
+                        help="옵션 콜/풋(국내 --asset option 전용)")
+        sp.add_argument("--night", action="store_true",
+                        help="국내 파생 야간장(--asset futures/option 전용, 실전전용)")
+        sp.add_argument("--stop-price", dest="stop_price", default=None,
+                        help="STOP 가격(해외 파생 --venue overseas 전용)")
         _add_venue(sp)
         _add_order_gate(sp)
         sp.set_defaults(func=func)

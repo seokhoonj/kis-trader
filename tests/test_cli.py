@@ -724,7 +724,7 @@ def test_order_bond_sell_requires_lot():
 def test_order_bond_buy_rejects_lot():
     args = _args(["order", "buy", "KR6449111CB8", "100", "--asset", "bond",
                   "--limit-price", "10125", "--buy-date", "20260814", "--buy-seq", "1"])
-    with pytest.raises(CliConfigError, match="lot"):
+    with pytest.raises(CliConfigError, match="buy-date"):
         order.cmd_buy(StubKis(), args, is_tty=False)
 
 
@@ -773,3 +773,112 @@ def test_order_bond_real_rejects_mismatched_confirm_account():
     with pytest.raises(CliConfigError, match="--confirm-account"):
         order.cmd_buy(kis, args, is_tty=False)
     assert kis.log == []  # 게이트 실패 -> 채권 핸들에 닿지 않음
+
+
+# --- 파생 주문 CLI: dry-run 티켓 + fail-closed 검증 -----------------------
+
+def test_order_futures_domestic_dry_run_ticket():
+    kis = StubKis()
+    dry = order.cmd_buy(kis, _args(
+        ["order", "buy", "101W09", "1", "--asset", "futures", "--limit-price", "350.5"]),
+        is_tty=False)
+    assert dry["asset"] == "futures"
+    assert dry["limit_price"] == "350.5"
+    assert dry["night"] is False
+    assert kis.log == []
+
+
+def test_order_option_domestic_dry_run_shows_right():
+    kis = StubKis()
+    dry = order.cmd_buy(kis, _args(
+        ["order", "buy", "201S07", "1", "--asset", "option", "--right", "call",
+         "--limit-price", "5.2"]), is_tty=False)
+    assert dry["asset"] == "option"
+    assert dry["right"] == "call"
+    assert kis.log == []
+
+
+def test_order_futures_overseas_dry_run_shows_stop_price():
+    kis = StubKis()
+    dry = order.cmd_buy(kis, _args(
+        ["order", "buy", "ESZ25", "1", "--asset", "futures", "--venue", "overseas",
+         "--stop-price", "99"]), is_tty=False)
+    assert dry["asset"] == "futures"
+    assert dry["stop_price"] == "99"
+    assert kis.log == []
+
+
+def test_order_right_rejected_for_futures():
+    with pytest.raises(CliConfigError, match="--right"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "101W09", "1", "--asset", "futures", "--right", "call"]),
+            is_tty=False)
+
+
+def test_order_right_rejected_for_overseas_option():
+    with pytest.raises(CliConfigError, match="--right"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "X", "1", "--asset", "option", "--venue", "overseas",
+             "--right", "call"]), is_tty=False)
+
+
+def test_order_night_rejected_for_stock():
+    with pytest.raises(CliConfigError, match="--night"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "005930", "1", "--night", "--limit-price", "70000"]),
+            is_tty=False)
+
+
+def test_order_night_rejected_for_overseas_futures():
+    with pytest.raises(CliConfigError, match="--night"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "X", "1", "--asset", "futures", "--venue", "overseas", "--night"]),
+            is_tty=False)
+
+
+def test_order_stop_price_rejected_for_domestic_futures():
+    with pytest.raises(CliConfigError, match="--stop-price"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "101W09", "1", "--asset", "futures", "--stop-price", "99"]),
+            is_tty=False)
+
+
+def test_order_stop_price_rejected_for_stock():
+    with pytest.raises(CliConfigError, match="--stop-price"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "005930", "1", "--stop-price", "99"]), is_tty=False)
+
+
+def test_order_division_priority_limit_rejected_for_futures():
+    with pytest.raises(CliConfigError, match="priority_limit"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "101W09", "1", "--asset", "futures",
+             "--division", "priority_limit"]), is_tty=False)
+
+
+def test_order_division_immediate_limit_ok_for_futures():
+    kis = StubKis()
+    dry = order.cmd_buy(kis, _args(
+        ["order", "buy", "101W09", "1", "--asset", "futures",
+         "--division", "immediate_limit"]), is_tty=False)
+    assert dry["division"] == "immediate_limit"
+
+
+def test_order_overseas_derivative_rejects_execute_paper():
+    kis = StubKis(environment="paper")
+    with pytest.raises(CliConfigError, match="실전전용"):
+        order.cmd_buy(kis, _args(
+            ["--profile", "paper", "order", "buy", "X", "1", "--asset", "futures",
+             "--venue", "overseas", "--limit-price", "100", "--execute", "paper", "--yes"]),
+            is_tty=False)
+    assert kis.log == []
+
+
+def test_order_night_rejects_execute_paper():
+    kis = StubKis(environment="paper")
+    with pytest.raises(CliConfigError, match="실전전용"):
+        order.cmd_buy(kis, _args(
+            ["--profile", "paper", "order", "buy", "101W09", "1", "--asset", "futures",
+             "--night", "--limit-price", "350", "--execute", "paper", "--yes"]),
+            is_tty=False)
+    assert kis.log == []
