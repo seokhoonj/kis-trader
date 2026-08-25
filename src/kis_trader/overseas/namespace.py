@@ -249,13 +249,13 @@ class OverseasNamespace:
             )
         return OverseasIndex(self._c, symbol, market_division=division)
 
-    def futures(self, srs_cd: str) -> OverseasDerivative:
-        """해외 선물 계약 핸들. ``srs_cd`` 는 시리즈코드(예: ESZ25 = E-mini S&P 2025.12)."""
-        return OverseasDerivative(self._c, srs_cd, market="future")
+    def futures(self, series_code: str) -> OverseasDerivative:
+        """해외 선물 계약 핸들. ``series_code`` 는 시리즈코드(예: ESZ25 = E-mini S&P 2025.12)."""
+        return OverseasDerivative(self._c, series_code, market="future")
 
-    def option(self, srs_cd: str) -> OverseasDerivative:
-        """해외 옵션 계약 핸들. ``srs_cd`` 는 시리즈코드."""
-        return OverseasDerivative(self._c, srs_cd, market="option")
+    def option(self, series_code: str) -> OverseasDerivative:
+        """해외 옵션 계약 핸들. ``series_code`` 는 시리즈코드."""
+        return OverseasDerivative(self._c, series_code, market="option")
 
     # -- 파생 배치/조회 --
     def futures_details(self, symbols: Sequence[str]) -> list[OverseasDerivativeDetail]:

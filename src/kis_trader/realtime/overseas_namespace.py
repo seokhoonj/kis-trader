@@ -84,9 +84,9 @@ class OverseasStockHandle:
 class OverseasFuturesHandle:
     """해외선물옵션 실시간 핸들. 선물/옵션이 같은 TR(HDFFF020/010)을 공유한다. tr_key 는 시리즈코드."""
 
-    def __init__(self, client: RealtimeClient, srs_cd: str) -> None:
+    def __init__(self, client: RealtimeClient, series_code: str) -> None:
         self._c = client
-        self._srs_cd = srs_cd
+        self._series_code = series_code
 
     def trades(
         self, *, on: Callable[[FuturesTradeTick], None] | None = None
@@ -94,7 +94,7 @@ class OverseasFuturesHandle:
         """해외선물옵션 실시간체결가를 구독하고 RealtimeSubscription[FuturesTradeTick] 을 반환한다(HDFFF020)."""
         return cast(
             "RealtimeSubscription[FuturesTradeTick]",
-            self._c._open_typed(_FUTURES_TRADES_TR, self._srs_cd, on=on),
+            self._c._open_typed(_FUTURES_TRADES_TR, self._series_code, on=on),
         )
 
     def order_book(
@@ -103,7 +103,7 @@ class OverseasFuturesHandle:
         """해외선물옵션 실시간호가를 구독하고 RealtimeSubscription[FuturesOrderBook] 을 반환한다(HDFFF010)."""
         return cast(
             "RealtimeSubscription[FuturesOrderBook]",
-            self._c._open_typed(_FUTURES_ORDER_BOOK_TR, self._srs_cd, on=on),
+            self._c._open_typed(_FUTURES_ORDER_BOOK_TR, self._series_code, on=on),
         )
 
 
@@ -156,10 +156,10 @@ class RealtimeOverseasNamespace:
         record = self._c._resolve_instrument(symbol, exchange)
         return OverseasStockHandle(self._c, record.realtime_symbol)
 
-    def futures(self, srs_cd: str) -> OverseasFuturesHandle:
-        """해외선물 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). ``srs_cd`` 는 시리즈코드(예: ESZ25)."""
-        return OverseasFuturesHandle(self._c, srs_cd)
+    def futures(self, series_code: str) -> OverseasFuturesHandle:
+        """해외선물 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). ``series_code`` 는 시리즈코드(예: ESZ25)."""
+        return OverseasFuturesHandle(self._c, series_code)
 
-    def option(self, srs_cd: str) -> OverseasFuturesHandle:
-        """해외옵션 실시간 핸들을 반환한다(선물과 같은 TR·핸들을 공유). ``srs_cd`` 는 시리즈코드."""
-        return OverseasFuturesHandle(self._c, srs_cd)
+    def option(self, series_code: str) -> OverseasFuturesHandle:
+        """해외옵션 실시간 핸들을 반환한다(선물과 같은 TR·핸들을 공유). ``series_code`` 는 시리즈코드."""
+        return OverseasFuturesHandle(self._c, series_code)
