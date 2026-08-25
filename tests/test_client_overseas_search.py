@@ -55,6 +55,18 @@ def test_overseas_search_maps_filters():
     assert len(fake.calls) == 1                # 단일 조회 -- 페이지 루프 없음
 
 
+def test_overseas_search_us_fans_out_and_merges():
+    # "US" 는 KIS 조건검색을 나스닥·뉴욕·아멕스에 각각 걸어 합친다(TR 이 거래소당 한 번이라).
+    fake = FakeTransport([_response("AAPL"), _response("MSFT"), _response("GME")])
+    client = KISClient(app_key="k", app_secret="s", transport=fake)
+    result = client.overseas.search_stocks("US", price=(10, 500))
+    assert isinstance(result, OverseasStockSearch)
+    assert result.exchange == "US"
+    assert [c["params"]["EXCD"] for c in fake.calls] == ["NAS", "NYS", "AMS"]
+    assert [m.symbol for m in result.matches] == ["AAPL", "MSFT", "GME"]
+    assert result.total_count == 6                   # trec(2) x 3 거래소
+
+
 def test_overseas_search_rejects_blank_exchange():
     with pytest.raises(KISUsageError):
         KISClient(app_key="k", app_secret="s", transport=FakeTransport([])).overseas.search_stocks("")

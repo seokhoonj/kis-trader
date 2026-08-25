@@ -17,9 +17,14 @@ from ._engine import orders as overseas_orders_api
 from ._engine import reference as overseas_reference_api
 from ._engine import reserved_orders as overseas_reserved_orders_api
 from .derivative import OverseasDerivative
+from .entities.search import OverseasStockSearch
 from .index import OverseasIndex
 from .ranking import OverseasRankingQueries
 from .stock import OverseasStock
+
+#: "US" 통합 검색이 훑는 미국 거래소코드(나스닥/뉴욕/아멕스) -- KIS 조건검색 TR 은 거래소당 한 번이라
+#: search_stocks("US") 가 이 셋을 각각 조회해 합친다.
+_US_EXCHANGES = ("NAS", "NYS", "AMS")
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -57,7 +62,6 @@ if TYPE_CHECKING:
         OverseasReservedOrder,
     )
     from .entities.product import OverseasProductInfo
-    from .entities.search import OverseasStockSearch
     from .entities.settlement import OverseasSettlementDate
 
 # 해외 지수류 kind -> FID_COND_MRKT_DIV_CODE. ``kis.overseas.index`` 가 쓴다.
@@ -318,10 +322,29 @@ class OverseasNamespace:
         eps: tuple[Numeric, Numeric] | None = None,
         per: tuple[Numeric, Numeric] | None = None,
     ) -> OverseasStockSearch:
-        """해외 종목을 가격·등락률·규모·거래·밸류에이션 범위로 검색한다. 각 필터는 (시작, 끝) 범위."""
+        """해외 종목을 가격·등락률·규모·거래·밸류에이션 범위로 검색한다. 각 필터는 (시작, 끝) 범위.
+
+        ``exchange`` 는 단일 거래소코드(``"NAS"``/``"NYS"``/``"AMS"``/``"HKS"``/...) 또는
+        ``"US"`` 다. KIS 조건검색 TR 은 거래소당 한 번이라, ``"US"`` 는 나스닥·뉴욕·아멕스를 각각
+        조회해 결과(``matches``)를 합쳐 준다(각 종목은 자기 ``exchange`` 를 안다). 이때 반환
+        ``exchange`` 는 ``"US"``, ``total_count`` 은 세 거래소 합, 순위(``rank``)는 거래소별 순위가
+        그대로 유지된다."""
+        filters = {
+            "price": price, "change_percent": change_percent, "market_cap": market_cap,
+            "shares": shares, "volume": volume, "amount": amount, "eps": eps, "per": per,
+        }
+        if exchange.upper() == "US":
+            parts = [
+                overseas_market_data_api.search_stocks(self._c.transport, exchange=x, **filters)
+                for x in _US_EXCHANGES
+            ]
+            return OverseasStockSearch(
+                exchange="US", decimal_places=0, status="",
+                total_count=sum(p.total_count for p in parts),
+                matches=tuple(m for p in parts for m in p.matches),
+            )
         return overseas_market_data_api.search_stocks(
-            self._c.transport, exchange=exchange, price=price, change_percent=change_percent,
-            market_cap=market_cap, shares=shares, volume=volume, amount=amount, eps=eps, per=per,
+            self._c.transport, exchange=exchange, **filters
         )
 
     def product_info(self, exchange: str, symbol: str) -> OverseasProductInfo:
