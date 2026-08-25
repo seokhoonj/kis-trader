@@ -33,6 +33,7 @@ from .domestic._engine import reserved_orders as reserved_orders_api
 from .domestic.derivative_account import DomesticDerivativesAccount
 from .domestic.namespace import DomesticNamespace
 from .errors import KISUsageError
+from .open_orders import OpenOrders
 from .order import (
     ChangeAction,
     ChangeActionFingerprint,
@@ -101,6 +102,29 @@ class OrdersNamespace:
         return self._c._change_order(
             client_order_id, action="modify", quantity=quantity, limit_price=limit_price,
             request_id=request_id,
+        )
+
+    def open(self) -> OpenOrders:
+        """세션 계좌의 미체결(접수 후 정정·취소 가능) 주문을 계좌 종류에 맞게 모아
+        :class:`~kis_trader.open_orders.OpenOrders` 로 준다.
+
+        주식계좌(위탁 01/연금저축 22/IRP 29)는 국내+해외 미체결을 함께 준다(채권 미체결은 조회에
+        날짜가 필요해 빠진다 -- ``kis.account.domestic.bonds.open_orders(order_date)``). 국내선물옵션
+        (03)은 ``derivatives`` 에 담는다. 해외선물옵션(08)은 KIS 에 미체결 전용 조회가 없어 지원하지
+        않는다(당일주문 -- ``kis.account.today_orders()``). 하위 조회가 대부분 **실전전용**이라 모의는
+        fail-closed 된다. 계좌 미설정·미지원 상품은 :class:`~kis_trader.errors.KISUsageError`."""
+        _, product_code = self._c._require_account()
+        account = self._c.account
+        if isinstance(account, StockAccount):
+            return OpenOrders(
+                domestic=tuple(account.domestic.open_orders()),
+                overseas=tuple(account.overseas.open_orders()),
+            )
+        if isinstance(account, DomesticDerivativesAccount):
+            return OpenOrders(derivatives=tuple(account.open_orders()))
+        raise KISUsageError(
+            f"kis.orders.open() 은 주식(01/22/29)·국내선물옵션(03) 계좌만 지원한다 -- 상품코드 "
+            f"{product_code}. 해외선물옵션(08)은 미체결 전용 조회가 없다(kis.account.today_orders())."
         )
 
 
