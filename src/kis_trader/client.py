@@ -33,6 +33,7 @@ from .domestic._engine import reserved_orders as reserved_orders_api
 from .domestic.derivative_account import DomesticDerivativesAccount
 from .domestic.namespace import DomesticNamespace
 from .errors import KISUsageError
+from .open_orders import OpenOrders
 from .order import (
     ChangeAction,
     ChangeActionFingerprint,
@@ -101,6 +102,30 @@ class OrdersNamespace:
         return self._c._change_order(
             client_order_id, action="modify", quantity=quantity, limit_price=limit_price,
             request_id=request_id,
+        )
+
+    def open(self) -> OpenOrders:
+        """세션 계좌의 미체결(접수 후 정정·취소 가능) 주문을 계좌 종류에 맞게 모아
+        :class:`~kis_trader.open_orders.OpenOrders` 로 준다.
+
+        주식계좌(위탁 01/연금저축 22/IRP 29)는 국내+해외 미체결을 함께 준다(채권 미체결은 조회에
+        날짜가 필요해 빠진다 -- ``kis.account.domestic.bonds.open_orders(order_date)``). 국내선물옵션
+        (03)은 ``derivatives`` 에 담는다. 해외선물옵션(08)은 KIS 에 미체결 전용 조회가 없어 지원하지
+        않는다(당일주문 -- ``kis.account.today_orders()``). 주식계좌 하위 조회(국내·해외 미체결)는
+        **실전전용**이라 모의는 fail-closed; 국내선물옵션(03)은 모의를 지원한다. 계좌 미설정·미지원
+        상품은 :class:`~kis_trader.errors.KISUsageError`."""
+        account = self._c.account
+        if isinstance(account, StockAccount):
+            return OpenOrders(
+                domestic=tuple(account.domestic.open_orders()),
+                overseas=tuple(account.overseas.open_orders()),
+            )
+        if isinstance(account, DomesticDerivativesAccount):
+            return OpenOrders(derivatives=tuple(account.open_orders()))
+        _, product_code = self._c._require_account()
+        raise KISUsageError(
+            f"kis.orders.open() 은 주식(01/22/29)·국내선물옵션(03) 계좌만 지원한다 -- 상품코드 "
+            f"{product_code}. 해외선물옵션(08)은 미체결 전용 조회가 없다(kis.account.today_orders())."
         )
 
 
@@ -595,7 +620,7 @@ class KISClient:
 
     def _place_overseas_reserved_order(
         self, *, symbol: str, side: Side, quantity: Numeric, limit_price: Numeric, exchange: str,
-        currency: str = "HKD", client_order_id: str | None,
+        currency: str | None = None, client_order_id: str | None,
     ) -> ExecutionReport:
         """해외예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 해외 종목일 때 호출).
         ``exchange`` 의 시장이 미국/아시아 와이어를 가르고, ``currency`` 는 홍콩(HKS) 예약의 상품유형

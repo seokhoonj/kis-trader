@@ -48,7 +48,7 @@ Under `KISClient`, asset classes and orders split into namespaces.
 kis.domestic   # domestic: stocks, indices, ETFs, ELWs, futures/options, bonds, account, rankings, market, calendar
 kis.overseas   # overseas: stocks, indices, futures/options, account, rankings
 kis.account    # account queries (dispatched by product code; IRP adds .pension)
-kis.orders     # check, modify, and cancel submitted orders
+kis.orders     # list (open), check, modify, and cancel submitted orders
 ```
 
 Reach a symbol or contract through a handle, then read quotes and place orders from it.

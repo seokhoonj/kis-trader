@@ -122,13 +122,14 @@ class OverseasStock(_StockBase):
     # --- 예약주문(미국/아시아 자동 라우팅) ---
     def reserve_buy(
         self, *, quantity: Numeric, limit_price: Numeric | None = None, end_date: str | None = None,
-        client_order_id: str | None = None, currency: Literal["HKD", "CNY", "USD"] = "HKD",
+        client_order_id: str | None = None, currency: Literal["HKD", "CNY", "USD"] | None = None,
     ) -> ExecutionReport:
         """이 해외 종목의 **예약매수** -- 정규장 시작 전에 걸어두는 예약. **지정가만**(``limit_price``
         필수), ``end_date`` 미지원. 거래소의 시장이 와이어를 자동 라우팅한다: 미국(NAS/NYS/AMS)은
         매수/매도 분리 TR, 아시아(홍콩/상해/심천/일본/베트남)는 공용 TR(TTTS3013U). ``currency`` 는
-        홍콩(HKS) 예약의 상품유형(HKD/CNY/USD) 선택 전용 -- 그 외 거래소에 비-HKD 를 주면
-        :class:`~kis_trader.errors.KISUsageError` 로 fail-closed.
+        홍콩(HKS) 예약의 상품유형(HKD/CNY/USD) 선택 전용이고 **미지정(``None``)이면 홍콩은 HKD**다 --
+        미국·기타 아시아 등 그 외 거래소에 ``currency`` 를 주면 :class:`~kis_trader.errors.KISUsageError`
+        로 fail-closed(홍콩만 통화 선택이 있다).
 
         즉시 :meth:`buy` 와 같은 안전 규칙(이중발주 방지·재시도 금지·주문가능 계좌 가드)을 공유한다.
         반환 :class:`~kis_trader.report.ExecutionReport` 의 ``order_id`` 는 해외예약주문번호,
@@ -143,7 +144,7 @@ class OverseasStock(_StockBase):
 
     def reserve_sell(
         self, *, quantity: Numeric, limit_price: Numeric | None = None, end_date: str | None = None,
-        client_order_id: str | None = None, currency: Literal["HKD", "CNY", "USD"] = "HKD",
+        client_order_id: str | None = None, currency: Literal["HKD", "CNY", "USD"] | None = None,
     ) -> ExecutionReport:
         """이 해외 종목의 **예약매도**. 계약·안전 규칙은 :meth:`reserve_buy` 와 같다(방향만 매도)."""
         return self._reserve("sell", quantity=quantity, limit_price=limit_price,
@@ -151,7 +152,7 @@ class OverseasStock(_StockBase):
 
     def _reserve(
         self, side: Side, *, quantity: Numeric, limit_price: Numeric | None, end_date: str | None,
-        client_order_id: str | None, currency: Literal["HKD", "CNY", "USD"] = "HKD",
+        client_order_id: str | None, currency: Literal["HKD", "CNY", "USD"] | None = None,
     ) -> ExecutionReport:
         if end_date is not None:      # 해외 예약: 지정가만, end_date 미지원(미국·아시아 공통)
             raise KISUsageError("해외 예약주문은 end_date 를 지원하지 않는다.")

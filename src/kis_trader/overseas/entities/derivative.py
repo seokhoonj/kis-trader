@@ -2,7 +2,7 @@
 (계약 명세) / :class:`OverseasDerivativeMarketHours`(장운영시간) / :class:`OverseasFuturesOpenInterest`
 (미결제약정 추이).
 
-해외 파생(선물/옵션)은 시리즈코드(``srs_cd``, 예: ESZ25 = E-mini S&P 2025.12) 하나로 계약을
+해외 파생(선물/옵션)은 시리즈코드(``series_code``, 예: ESZ25 = E-mini S&P 2025.12) 하나로 계약을
 식별한다. 국내 파생 :class:`~kis_trader.domestic.entities.derivative.DerivativeQuote` 와 달리 계약 통화
 (``currency``)·거래소(``exchange``)·만기/최종거래일·정산가·틱사이즈·증거금을 함께 담는다(해외 계약은
 거래소·통화가 제각각이라 시세에 명시된다).
@@ -31,7 +31,7 @@ class OverseasDerivativeQuote:
     만기 관련, ``tick_size`` 는 호가 단위, ``margin`` 은 증거금.
     """
 
-    symbol: str                       # 시리즈코드(srs_cd)
+    symbol: str                       # 시리즈코드(series_code)
     current_price: Decimal
     open: Decimal
     high: Decimal

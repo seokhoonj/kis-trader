@@ -113,7 +113,8 @@ kis.overseas.stock("00700").reserve_buy(quantity=100, limit_price=350) # 홍콩 
 
 해외 예약은 **거래소로 자동 라우팅**됩니다 — `stock(symbol)` 이 종목 마스터로 거래소를 찾아
 미국(NAS/NYS/AMS)과 아시아(홍콩·중국·일본·베트남)를 알아서 가릅니다. 같은 코드가 여러 거래소에 있으면
-`exchange=` 를 명시합니다. 홍콩은 결제통화를 `currency="CNY"`/`"USD"` 로 바꿀 수 있습니다(기본 HKD).
+`exchange=` 를 명시합니다. 홍콩은 결제통화(상품유형)를 `currency="CNY"`/`"USD"` 로 바꿀 수
+있습니다(생략 시 HKD). 통화 선택은 홍콩 전용이라 다른 거래소에 `currency` 를 주면 오류입니다.
 
 국내 예약주문 조회·정정·취소(순번 `sequence` 로 지목):
 

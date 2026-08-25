@@ -47,7 +47,7 @@ kis.domestic.ranking.by_change(direction="gainers")  # 오늘 상승률 순위
 kis.domestic   # 국내: 주식·지수·ETF·ELW·선물옵션·채권·계좌·순위·시장·일정
 kis.overseas   # 해외: 주식·지수·선물옵션·계좌·순위
 kis.account    # 계좌 조회 (상품코드 자동 분기; IRP는 .pension 퇴직연금 조회)
-kis.orders     # 접수한 주문의 확인·정정·취소
+kis.orders     # 접수한 주문의 조회(미체결)·확인·정정·취소
 ```
 
 종목과 계약은 핸들로 잡아 시세 조회부터 주문까지 이어갑니다.

@@ -17,9 +17,14 @@ from ._engine import orders as overseas_orders_api
 from ._engine import reference as overseas_reference_api
 from ._engine import reserved_orders as overseas_reserved_orders_api
 from .derivative import OverseasDerivative
+from .entities.search import OverseasStockSearch
 from .index import OverseasIndex
 from .ranking import OverseasRankingQueries
 from .stock import OverseasStock
+
+#: "US" 통합 검색이 훑는 미국 거래소코드(나스닥/뉴욕/아멕스) -- KIS 조건검색 TR 은 거래소당 한 번이라
+#: search_stocks("US") 가 이 셋을 각각 조회해 합친다.
+_US_EXCHANGES = ("NAS", "NYS", "AMS")
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -57,7 +62,6 @@ if TYPE_CHECKING:
         OverseasReservedOrder,
     )
     from .entities.product import OverseasProductInfo
-    from .entities.search import OverseasStockSearch
     from .entities.settlement import OverseasSettlementDate
 
 # 해외 지수류 kind -> FID_COND_MRKT_DIV_CODE. ``kis.overseas.index`` 가 쓴다.
@@ -249,13 +253,13 @@ class OverseasNamespace:
             )
         return OverseasIndex(self._c, symbol, market_division=division)
 
-    def futures(self, srs_cd: str) -> OverseasDerivative:
-        """해외 선물 계약 핸들. ``srs_cd`` 는 시리즈코드(예: ESZ25 = E-mini S&P 2025.12)."""
-        return OverseasDerivative(self._c, srs_cd, market="future")
+    def futures(self, series_code: str) -> OverseasDerivative:
+        """해외 선물 계약 핸들. ``series_code`` 는 시리즈코드(예: ESZ25 = E-mini S&P 2025.12)."""
+        return OverseasDerivative(self._c, series_code, market="future")
 
-    def option(self, srs_cd: str) -> OverseasDerivative:
-        """해외 옵션 계약 핸들. ``srs_cd`` 는 시리즈코드."""
-        return OverseasDerivative(self._c, srs_cd, market="option")
+    def option(self, series_code: str) -> OverseasDerivative:
+        """해외 옵션 계약 핸들. ``series_code`` 는 시리즈코드."""
+        return OverseasDerivative(self._c, series_code, market="option")
 
     # -- 파생 배치/조회 --
     def futures_details(self, symbols: Sequence[str]) -> list[OverseasDerivativeDetail]:
@@ -318,10 +322,33 @@ class OverseasNamespace:
         eps: tuple[Numeric, Numeric] | None = None,
         per: tuple[Numeric, Numeric] | None = None,
     ) -> OverseasStockSearch:
-        """해외 종목을 가격·등락률·규모·거래·밸류에이션 범위로 검색한다. 각 필터는 (시작, 끝) 범위."""
+        """해외 종목을 가격·등락률·규모·거래·밸류에이션 범위로 검색한다. 각 필터는 (시작, 끝) 범위.
+
+        ``exchange`` 는 단일 거래소코드(``"NAS"``/``"NYS"``/``"AMS"``/``"HKS"``/...) 또는
+        ``"US"`` 다. KIS 조건검색 TR 은 거래소당 한 번이라, ``"US"`` 는 나스닥·뉴욕·아멕스를 각각
+        조회해 결과(``matches``)를 합쳐 준다(각 종목은 자기 ``exchange`` 를 안다). 이때 반환
+        ``exchange`` 는 ``"US"``, ``total_count`` 은 세 거래소 합, 순위(``rank``)는 거래소별 순위가
+        그대로 유지된다. 집계라 ``decimal_places`` 는 첫 거래소 대표값이고 ``status`` 는 비운다
+        (가격은 각 ``match`` 에 이미 파싱된 ``Decimal`` 로 들어 있다)."""
+        filters = {
+            "price": price, "change_percent": change_percent, "market_cap": market_cap,
+            "shares": shares, "volume": volume, "amount": amount, "eps": eps, "per": per,
+        }
+        if exchange.upper() == "US":
+            parts = [
+                overseas_market_data_api.search_stocks(self._c.transport, exchange=x, **filters)
+                for x in _US_EXCHANGES
+            ]
+            # 집계는 거래소별 메타(decimal_places=price zdiv, status)를 하나로 못 합친다 -- 각
+            # match 는 자기 exchange 와 이미 파싱된 Decimal 가격을 들고 있으니, 대표값으로 첫
+            # 거래소의 decimal_places 를 싣고 status 는 집계라 비운다.
+            return OverseasStockSearch(
+                exchange="US", decimal_places=parts[0].decimal_places, status="",
+                total_count=sum(p.total_count for p in parts),
+                matches=tuple(m for p in parts for m in p.matches),
+            )
         return overseas_market_data_api.search_stocks(
-            self._c.transport, exchange=exchange, price=price, change_percent=change_percent,
-            market_cap=market_cap, shares=shares, volume=volume, amount=amount, eps=eps, per=per,
+            self._c.transport, exchange=exchange, **filters
         )
 
     def product_info(self, exchange: str, symbol: str) -> OverseasProductInfo:

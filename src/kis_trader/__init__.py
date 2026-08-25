@@ -225,6 +225,7 @@ from .integrated import CurrencyDeposit, IntegratedBalance
 from .money import Money
 from .news import NewsHeadline
 from .open_order import OpenOrder
+from .open_orders import OpenOrders
 from .order import DomesticDivision, Order
 from .order_book import OrderBook, PriceLevel
 from .orderable import BuyableAmount, SellableQuantity
@@ -450,6 +451,7 @@ __all__ = [
     "NearHighLowRanking",
     "NewsHeadline",
     "OpenOrder",
+    "OpenOrders",
     "OptionBoard",
     "OptionBoardRow",
     "OptionContract",
