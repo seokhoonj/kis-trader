@@ -84,6 +84,8 @@ kis ranking change --direction gainers
 kis account balance
 kis order buy 005930 10 --limit-price 70000                       # dry run, not sent
 kis order buy 005930 10 --limit-price 70000 --execute paper --yes  # sent to paper trading
+kis account balance --asset bond                                  # list bond lots (buy-date/buy-seq)
+kis order buy KR6449111CB8 100 --asset bond --limit-price 10125    # bond buy (dry run)
 ```
 
 ## 6. Use it from an AI coding agent

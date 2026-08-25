@@ -82,6 +82,8 @@ kis ranking change --direction gainers
 kis account balance
 kis order buy 005930 10 --limit-price 70000                       # 실행 안 함(dry-run)
 kis order buy 005930 10 --limit-price 70000 --execute paper --yes  # 모의투자로 실제 전송
+kis account balance --asset bond                                  # 장내채권 lot(buy-date/buy-seq) 목록
+kis order buy KR6449111CB8 100 --asset bond --limit-price 10125    # 채권 매수(dry-run)
 ```
 
 ## 6. AI 코딩 에이전트에서 사용
