@@ -89,6 +89,9 @@ kis order buy KR6449111CB8 100 --asset bond --limit-price 10125    # bond buy (d
 # bond sell targets a lot: pass the buy_sequence column as --buy-seq, buy_date as --buy-date:
 kis order sell KR6449111CB8 100 --asset bond --limit-price 10130 --buy-date 20260814 --buy-seq 1
 kis account orders --asset bond --date 20260814                   # bond open orders (after an order timeout)
+kis order buy 101W09 1 --asset futures --limit-price 350.5        # domestic futures (limit)
+kis order buy 201S07 1 --asset option --right call --limit-price 5.2  # domestic option
+kis order buy <sym> 1 --asset futures --venue overseas --limit-price 100  # overseas futures
 ```
 
 ## 6. Use it from an AI coding agent
