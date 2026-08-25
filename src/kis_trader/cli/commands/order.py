@@ -17,7 +17,7 @@ from argparse import Namespace
 from collections.abc import Callable
 from typing import TYPE_CHECKING, Any, Literal
 
-from ..context import account_suffix, resolve_stock
+from ..context import account_suffix, resolve_bond, resolve_stock
 from ..errors import CliAborted, CliConfigError
 
 if TYPE_CHECKING:
@@ -124,6 +124,12 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
     if is_tty is None:
         is_tty = sys.stdin.isatty()
     _authorize(args, account=account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
+    if args.asset == "bond":
+        bond = resolve_bond(kis, args)
+        if side == "buy":
+            return bond.buy(quantity=args.quantity, limit_price=args.limit_price)
+        return bond.sell(quantity=args.quantity, limit_price=args.limit_price,
+                         buy_date=args.buy_date, buy_seq=args.buy_seq)
     handle = resolve_stock(kis, args)
     place = handle.buy if side == "buy" else handle.sell
     extra: dict[str, Any] = {} if args.venue == "overseas" else {"division": division}

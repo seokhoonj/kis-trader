@@ -55,12 +55,28 @@ class _Handle:
         self._log.append(("sell", self._code, quantity, limit_price, division)); return "REPORT"
 
 
+class _BondHandle:
+    def __init__(self, log, code):
+        self._log = log
+        self._code = code
+
+    def buy(self, *, quantity, limit_price, client_order_id=None):
+        self._log.append(("bond_buy", self._code, quantity, limit_price)); return "REPORT"
+
+    def sell(self, *, quantity, limit_price, buy_date, buy_seq, client_order_id=None):
+        self._log.append(("bond_sell", self._code, quantity, limit_price, buy_date, buy_seq))
+        return "REPORT"
+
+
 class _Domestic:
     def __init__(self, log):
         self._log = log
 
     def stock(self, code):
         return _Handle(self._log, code)
+
+    def bond(self, code):
+        return _BondHandle(self._log, code)
 
     def search(self, query, *, market):
         self._log.append(("search", query, market)); return ["HIT"]
@@ -666,3 +682,24 @@ def test_order_stock_dry_run_unchanged_has_no_bond_fields():
     assert dry["asset"] == "stock"
     assert "buy_date" not in dry
     assert dry["limit_price"] == "70000"
+
+
+# --- 채권 주문 CLI: 전송 경로 라우팅 --------------------------------------
+
+def test_order_bond_buy_execute_routes_to_bond_handle():
+    kis = StubKis(account="12345678-29", environment="real")
+    args = _args(["--profile", "irp", "order", "buy", "KR6449111CB8", "100",
+                  "--asset", "bond", "--limit-price", "10125",
+                  "--execute", "real", "--yes", "--confirm-account", "1729"])
+    assert order.cmd_buy(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [("bond_buy", "KR6449111CB8", 100, "10125")]
+
+
+def test_order_bond_sell_execute_forwards_lot():
+    kis = StubKis(account="12345678-29", environment="real")
+    args = _args(["--profile", "irp", "order", "sell", "KR6449111CB8", "100",
+                  "--asset", "bond", "--limit-price", "10130",
+                  "--buy-date", "20260814", "--buy-seq", "1",
+                  "--execute", "real", "--yes", "--confirm-account", "1729"])
+    assert order.cmd_sell(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [("bond_sell", "KR6449111CB8", 100, "10130", "20260814", "1")]

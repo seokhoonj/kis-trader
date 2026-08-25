@@ -16,6 +16,7 @@ from ..store import OrderStore
 from .errors import CliConfigError
 
 if TYPE_CHECKING:
+    from ..domestic.bond import Bond
     from ..domestic.stock import DomesticStock
     from ..overseas.stock import OverseasStock
 
@@ -34,6 +35,11 @@ def resolve_stock(kis: KISClient, args: Namespace) -> DomesticStock | OverseasSt
     if args.venue == "overseas":
         return kis.overseas.stock(args.identifier, exchange=args.exchange)
     return kis.domestic.stock(args.identifier)
+
+
+def resolve_bond(kis: KISClient, args: Namespace) -> Bond:
+    """장내채권 종목 핸들을 만든다(국내 전용). 채권은 지역/거래소 축이 없다."""
+    return kis.domestic.bond(args.identifier)
 
 
 def build_client(args: Namespace) -> KISClient:
