@@ -15,7 +15,7 @@ from .errors import KISUsageError
 
 #: 국내 KRX 단축코드 형태 -- 6자리 대문자 영숫자. 주식·ETF·ETN 은 숫자(``005930``),
 #: ELW·신주인수권 등은 문자가 섞인다(``57LABS``). 이름(``삼성전자``)·해외 심볼(``AAPL``)은 안 맞는다.
-_DOMESTIC_CODE = re.compile(r"[0-9A-Z]{6}")
+_DOMESTIC_CODE_PATTERN = re.compile(r"[0-9A-Z]{6}")
 
 #: 국내 시장 보드. KIS 조건시장분류코드로는 KRX / NXT(넥스트레이드) / UN(통합).
 DomesticBoard = Literal["KRX", "NXT", "UN"]
@@ -28,8 +28,10 @@ def is_domestic_symbol(symbol: str) -> bool:
 
     KRX 단축코드는 주식·ETF·ETN(숫자 ``"005930"``)뿐 아니라 ELW·신주인수권 등 문자가 섞인
     코드(``"57LABS"``)도 있으며 전부 6자리 국내 상장이다. 이름(``"삼성전자"``, 비ASCII)이나
-    해외 심볼(``"AAPL"``, 길이 불일치)은 여기서 ``False`` -- 국내 다른 보드는 ``market=`` 로 준다."""
-    return _DOMESTIC_CODE.fullmatch(symbol) is not None
+    해외 심볼(``"AAPL"``, 길이 불일치)은 여기서 ``False`` -- 국내 다른 보드는 ``market=`` 로 준다.
+    (형태가 같은 6자 대문자 해외 티커를 ``kis.domestic`` 에 잘못 주면 국내로 오인될 수 있으나 --
+    ``kis.domestic`` 은 국내를 선언한 자리다 -- 서버가 조회에서 거부한다.)"""
+    return _DOMESTIC_CODE_PATTERN.fullmatch(symbol) is not None
 
 
 def resolve_market(symbol: str, *, market: DomesticBoard | None = None) -> DomesticBoard:

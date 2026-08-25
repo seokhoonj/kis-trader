@@ -42,8 +42,10 @@ def test_is_domestic_symbol_accepts_alphanumeric_krx_codes():
     assert is_domestic_symbol("57LABS")
     assert is_domestic_symbol("58J306")
     assert not is_domestic_symbol("57labs")   # 소문자 -- KRX 코드 아님
+    assert not is_domestic_symbol("58j306")   # 숫자+소문자 혼합 -- 아님
     assert not is_domestic_symbol("삼성전자")   # 이름 -- 코드 아님
     assert not is_domestic_symbol("57LAB")     # 5자리
+    assert not is_domestic_symbol("57LABS0")   # 7자리 -- 아님
 
 
 def test_resolve_market_routes_elw_code_to_krx():
