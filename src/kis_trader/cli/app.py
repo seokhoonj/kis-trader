@@ -128,6 +128,12 @@ def build_parser() -> argparse.ArgumentParser:
         sp = leaf(account_sub, name)
         sp.add_argument("--venue", choices=["domestic", "overseas"], default="domestic")
         sp.add_argument("--market", default=None, help="해외 시장(US/HK/CN_SH/...)")
+        if name in ("balance", "orders"):
+            sp.add_argument("--asset", choices=["stock", "bond"], default="stock",
+                            help="자산군: stock(기본)/bond(장내채권)")
+        if name == "orders":
+            sp.add_argument("--date", dest="date", default=None,
+                            help="채권 미체결 조회 주문일자 YYYYMMDD(--asset bond 전용)")
         sp.set_defaults(func=func)
 
     # kis order buy|sell|reconcile|modify|cancel
@@ -142,6 +148,12 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--division", choices=list(get_args(DomesticDivision)), default=None,
                         help="KRX 주문구분(국내 현금 전용): conditional_limit(조건부지정가)/"
                              "immediate_limit(최유리지정가)/priority_limit(최우선지정가)")
+        sp.add_argument("--asset", choices=["stock", "bond"], default="stock",
+                        help="자산군: stock(기본)/bond(장내채권)")
+        sp.add_argument("--buy-date", dest="buy_date", default=None,
+                        help="채권 매도 lot 매수일자 YYYYMMDD(bond sell 전용)")
+        sp.add_argument("--buy-seq", dest="buy_seq", default=None,
+                        help="채권 매도 lot 매수순번(bond sell 전용)")
         _add_venue(sp)
         _add_order_gate(sp)
         sp.set_defaults(func=func)

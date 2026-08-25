@@ -9,7 +9,7 @@ import pytest
 
 import kis_trader.cli.app as cli_main
 from kis_trader.cli.app import build_parser
-from kis_trader.cli.commands import order
+from kis_trader.cli.commands import account, order
 from kis_trader.cli.context import account_suffix
 from kis_trader.cli.errors import CliAborted, CliConfigError, translate
 from kis_trader.cli.output import _display_width, _pad, render, to_jsonable
@@ -55,12 +55,28 @@ class _Handle:
         self._log.append(("sell", self._code, quantity, limit_price, division)); return "REPORT"
 
 
+class _BondHandle:
+    def __init__(self, log, code):
+        self._log = log
+        self._code = code
+
+    def buy(self, *, quantity, limit_price, client_order_id=None):
+        self._log.append(("bond_buy", self._code, quantity, limit_price)); return "REPORT"
+
+    def sell(self, *, quantity, limit_price, buy_date, buy_seq, client_order_id=None):
+        self._log.append(("bond_sell", self._code, quantity, limit_price, buy_date, buy_seq))
+        return "REPORT"
+
+
 class _Domestic:
     def __init__(self, log):
         self._log = log
 
     def stock(self, code):
         return _Handle(self._log, code)
+
+    def bond(self, code):
+        return _BondHandle(self._log, code)
 
     def search(self, query, *, market):
         self._log.append(("search", query, market)); return ["HIT"]
@@ -550,3 +566,210 @@ def test_build_client_missing_credentials_raises_config_error():
     from kis_trader.cli.context import build_client
     with pytest.raises(CliConfigError):  # KIS_* 없음(격리 픽스처) -> exit 3
         build_client(_args(["--profile", "paper", "stock", "quote", "005930"]))
+
+
+# --- 채권 lot 목록: kis account balance --asset bond -----------------------
+
+class _StubBonds:
+    def __init__(self, log):
+        self._log = log
+
+    def balance(self):
+        self._log.append(("bonds_balance",)); return ["LOT"]
+
+    def open_orders(self, order_date):
+        self._log.append(("bonds_open_orders", order_date)); return ["OPEN"]
+
+
+class _StubDomesticAccount:
+    def __init__(self, log):
+        self._log = log
+        self.bonds = _StubBonds(log)
+
+    def balance(self):
+        self._log.append(("dom_balance",)); return "STOCK_BAL"
+
+    def open_orders(self):
+        self._log.append(("dom_open_orders",)); return "STOCK_OPEN"
+
+
+class _StubStockView:
+    def __init__(self, log):
+        self.domestic = _StubDomesticAccount(log)
+
+
+def test_account_balance_bond_lists_lots(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    result = account.cmd_balance(object(), _args(["account", "balance", "--asset", "bond"]))
+    assert result == ["LOT"]
+    assert log == [("bonds_balance",)]
+
+
+def test_account_balance_bond_rejects_overseas(monkeypatch):
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView([]))
+    with pytest.raises(CliConfigError):
+        account.cmd_balance(object(), _args(
+            ["account", "balance", "--asset", "bond", "--venue", "overseas"]))
+
+
+def test_account_balance_stock_default_unchanged(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    assert account.cmd_balance(object(), _args(["account", "balance"])) == "STOCK_BAL"
+    assert log == [("dom_balance",)]
+
+
+# --- 채권 미체결: kis account orders --asset bond (주문 타임아웃 복구 경로) ---
+
+def test_account_orders_bond_lists_open_orders(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    result = account.cmd_orders(object(), _args(
+        ["account", "orders", "--asset", "bond", "--date", "20260814"]))
+    assert result == ["OPEN"]
+    assert log == [("bonds_open_orders", "20260814")]
+
+
+def test_account_orders_bond_requires_date(monkeypatch):
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView([]))
+    with pytest.raises(CliConfigError, match="주문일자"):
+        account.cmd_orders(object(), _args(["account", "orders", "--asset", "bond"]))
+
+
+def test_account_orders_bond_rejects_overseas(monkeypatch):
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView([]))
+    with pytest.raises(CliConfigError, match="overseas"):
+        account.cmd_orders(object(), _args(
+            ["account", "orders", "--asset", "bond", "--date", "20260814", "--venue", "overseas"]))
+
+
+def test_account_orders_stock_default_unchanged(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    assert account.cmd_orders(object(), _args(["account", "orders"])) == "STOCK_OPEN"
+    assert log == [("dom_open_orders",)]
+
+
+# --- 채권 주문 CLI: dry-run 티켓 + fail-closed 검증 ------------------------
+
+def test_order_bond_buy_dry_run_shows_ticket_and_sends_nothing():
+    kis = StubKis()
+    dry = order.cmd_buy(kis, _args(
+        ["order", "buy", "KR6449111CB8", "100", "--asset", "bond",
+         "--limit-price", "10125"]), is_tty=False)
+    assert dry["asset"] == "bond"
+    assert dry["limit_price"] == "10125"
+    assert dry["division"] is None
+    assert "note" in dry
+    assert kis.log == []  # dry-run 은 채권 핸들에 닿지 않는다
+
+
+def test_order_bond_sell_dry_run_shows_lot_and_sends_nothing():
+    kis = StubKis()
+    dry = order.cmd_sell(kis, _args(
+        ["order", "sell", "KR6449111CB8", "100", "--asset", "bond",
+         "--limit-price", "10130", "--buy-date", "20260814", "--buy-seq", "1"]),
+        is_tty=False)
+    assert dry["asset"] == "bond"
+    assert dry["buy_date"] == "20260814"
+    assert dry["buy_seq"] == "1"
+    assert kis.log == []
+
+
+def test_order_bond_buy_requires_limit_price():
+    args = _args(["order", "buy", "KR6449111CB8", "100", "--asset", "bond"])
+    with pytest.raises(CliConfigError, match="--limit-price"):
+        order.cmd_buy(StubKis(), args, is_tty=False)
+
+
+def test_order_bond_buy_rejects_empty_limit_price():
+    args = _args(["order", "buy", "KR6449111CB8", "100", "--asset", "bond",
+                  "--limit-price", "  "])
+    with pytest.raises(CliConfigError, match="--limit-price"):
+        order.cmd_buy(StubKis(), args, is_tty=False)
+
+
+def test_order_bond_rejects_division():
+    args = _args(["order", "buy", "KR6449111CB8", "100", "--asset", "bond",
+                  "--limit-price", "10125", "--division", "immediate_limit"])
+    with pytest.raises(CliConfigError, match="--division"):
+        order.cmd_buy(StubKis(), args, is_tty=False)
+
+
+def test_order_bond_rejects_overseas():
+    args = _args(["order", "buy", "KR6449111CB8", "100", "--asset", "bond",
+                  "--limit-price", "10125", "--venue", "overseas"])
+    with pytest.raises(CliConfigError, match="overseas"):
+        order.cmd_buy(StubKis(), args, is_tty=False)
+
+
+def test_order_bond_rejects_execute_paper():
+    kis = StubKis(environment="paper")
+    args = _args(["--profile", "paper", "order", "buy", "KR6449111CB8", "100",
+                  "--asset", "bond", "--limit-price", "10125",
+                  "--execute", "paper", "--yes"])
+    with pytest.raises(CliConfigError, match="실전전용"):
+        order.cmd_buy(kis, args, is_tty=False)
+    assert kis.log == []
+
+
+def test_order_bond_sell_requires_lot():
+    args = _args(["order", "sell", "KR6449111CB8", "100", "--asset", "bond",
+                  "--limit-price", "10130"])
+    with pytest.raises(CliConfigError, match="buy-date"):
+        order.cmd_sell(StubKis(), args, is_tty=False)
+
+
+def test_order_bond_buy_rejects_lot():
+    args = _args(["order", "buy", "KR6449111CB8", "100", "--asset", "bond",
+                  "--limit-price", "10125", "--buy-date", "20260814", "--buy-seq", "1"])
+    with pytest.raises(CliConfigError, match="lot"):
+        order.cmd_buy(StubKis(), args, is_tty=False)
+
+
+def test_order_stock_rejects_bond_lot():
+    args = _args(["order", "sell", "005930", "10",
+                  "--buy-date", "20260814", "--buy-seq", "1"])
+    with pytest.raises(CliConfigError, match="buy-date"):
+        order.cmd_sell(StubKis(), args, is_tty=False)
+
+
+def test_order_stock_dry_run_unchanged_has_no_bond_fields():
+    dry = order.cmd_buy(StubKis(), _args(
+        ["order", "buy", "005930", "10", "--limit-price", "70000"]), is_tty=False)
+    assert dry["asset"] == "stock"
+    assert "buy_date" not in dry
+    assert dry["limit_price"] == "70000"
+
+
+# --- 채권 주문 CLI: 전송 경로 라우팅 --------------------------------------
+
+def test_order_bond_buy_execute_routes_to_bond_handle():
+    kis = StubKis(account="12345678-29", environment="real")
+    args = _args(["--profile", "irp", "order", "buy", "KR6449111CB8", "100",
+                  "--asset", "bond", "--limit-price", "10125",
+                  "--execute", "real", "--yes", "--confirm-account", "1729"])
+    assert order.cmd_buy(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [("bond_buy", "KR6449111CB8", 100, "10125")]
+
+
+def test_order_bond_sell_execute_forwards_lot():
+    kis = StubKis(account="12345678-29", environment="real")
+    args = _args(["--profile", "irp", "order", "sell", "KR6449111CB8", "100",
+                  "--asset", "bond", "--limit-price", "10130",
+                  "--buy-date", "20260814", "--buy-seq", "1",
+                  "--execute", "real", "--yes", "--confirm-account", "1729"])
+    assert order.cmd_sell(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [("bond_sell", "KR6449111CB8", 100, "10130", "20260814", "1")]
+
+
+def test_order_bond_real_rejects_mismatched_confirm_account():
+    # 실주문 계좌확인 게이트가 채권 분기에서도 유지되는지 -- 회귀 방지(auth 는 라우팅보다 먼저).
+    kis = StubKis(account="12345678-29", environment="real")
+    args = _args(["--profile", "irp", "order", "buy", "KR6449111CB8", "100",
+                  "--asset", "bond", "--limit-price", "10125",
+                  "--execute", "real", "--yes", "--confirm-account", "0000"])
+    with pytest.raises(CliConfigError, match="--confirm-account"):
+        order.cmd_buy(kis, args, is_tty=False)
+    assert kis.log == []  # 게이트 실패 -> 채권 핸들에 닿지 않음

@@ -22,6 +22,12 @@ def _stock_account(kis: KISClient) -> StockAccount:
 
 def cmd_balance(kis: KISClient, args: Namespace) -> Any:
     account = _stock_account(kis)
+    if getattr(args, "asset", "stock") == "bond":
+        # 장내채권 lot 목록(buy_date/buy_sequence/잔량/매수단가) -- 채권 매도의 lot 지목에 필요하다.
+        # 목록의 buy_sequence 컬럼을 매도 시 --buy-seq 로, buy_date 를 --buy-date 로 넘긴다.
+        if args.venue == "overseas":
+            raise CliConfigError("장내채권은 국내 전용입니다(--venue overseas 불가).")
+        return account.domestic.bonds.balance()
     if args.venue == "overseas":
         if not args.market:
             raise CliConfigError("해외 잔고는 시장을 지정해야 합니다(--market US/HK/CN_SH/...).")
@@ -38,6 +44,13 @@ def cmd_positions(kis: KISClient, args: Namespace) -> Any:
 
 def cmd_orders(kis: KISClient, args: Namespace) -> Any:
     account = _stock_account(kis)
+    if getattr(args, "asset", "stock") == "bond":
+        # 채권 미체결(정정취소가능) 조회 -- 실주문 타임아웃 시 상태 확인 경로. 주문일자 필수.
+        if args.venue == "overseas":
+            raise CliConfigError("장내채권은 국내 전용입니다(--venue overseas 불가).")
+        if not args.date:
+            raise CliConfigError("채권 미체결 조회는 주문일자가 필요합니다(--date YYYYMMDD).")
+        return account.domestic.bonds.open_orders(args.date)
     if args.venue == "overseas":
         return account.overseas.open_orders(market=args.market)
     return account.domestic.open_orders()
