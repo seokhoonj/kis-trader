@@ -29,7 +29,8 @@ Side = Literal["buy", "sell"]
 def _ticket(args: Namespace, *, side: Side, account: str | None, environment: str) -> dict[str, Any]:
     # 입력을 그대로 되읽는 티켓. 시장가/지정가 같은 주문유형 분류는 CLI 가 만들지 않는다
     # (limit_price 유무는 사용자가 이미 준 값이라 그대로 노출). 환경은 세션(kis)이 이미 해석한 값.
-    return {
+    asset = getattr(args, "asset", "stock")
+    ticket: dict[str, Any] = {
         "environment": environment,
         "account_suffix": account_suffix(account),
         "venue": args.venue,
@@ -37,8 +38,40 @@ def _ticket(args: Namespace, *, side: Side, account: str | None, environment: st
         "side": side,
         "quantity": args.quantity,
         "limit_price": args.limit_price,
-        "division": getattr(args, "division", None),
+        "asset": asset,
+        # 채권은 KRX 주문구분(division)을 쓰지 않는다 -- 항상 None 으로 노출한다.
+        "division": None if asset == "bond" else getattr(args, "division", None),
     }
+    if asset == "bond" and side == "sell":
+        ticket["buy_date"] = getattr(args, "buy_date", None)
+        ticket["buy_seq"] = getattr(args, "buy_seq", None)
+    return ticket
+
+
+def _validate_bond_args(args: Namespace, side: Side) -> None:
+    """채권 발주의 CLI 선제 검증 -- 와이어 전에 명확한 메시지로 fail-closed 한다. 라이브러리도
+    막지만, CLI 가 먼저 거부해 어떤 플래그가 문제인지 지목한다."""
+    asset = getattr(args, "asset", "stock")
+    buy_date = getattr(args, "buy_date", None)
+    buy_seq = getattr(args, "buy_seq", None)
+    if asset != "bond":
+        if buy_date or buy_seq:
+            raise CliConfigError("--buy-date/--buy-seq 는 채권 매도(--asset bond, sell) 전용입니다.")
+        return
+    if args.limit_price is None:
+        raise CliConfigError("장내채권은 지정가 전용입니다 -- --limit-price 가 필요합니다.")
+    if getattr(args, "division", None) is not None:
+        raise CliConfigError("--division 은 국내 현금주문 전용입니다(채권 아님).")
+    if args.venue == "overseas" or args.exchange is not None:
+        raise CliConfigError("장내채권은 국내 전용입니다(--venue overseas/--exchange 불가).")
+    if side == "sell":
+        if not (buy_date and buy_seq):
+            raise CliConfigError(
+                "채권 매도는 매수 lot(--buy-date/--buy-seq)이 모두 필요합니다 -- "
+                "`kis account balance --asset bond` 로 lot 을 확인하세요."
+            )
+    elif buy_date or buy_seq:
+        raise CliConfigError("채권 매수는 lot 인자(--buy-date/--buy-seq)를 받지 않습니다.")
 
 
 def _authorize(args: Namespace, *, account: str | None, environment: str, is_tty: bool, prompt: Callable[[str], str]) -> None:
@@ -85,6 +118,7 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
     # division(KRX 주문구분)은 국내 현금 전용 -- 해외 핸들엔 그 파라미터가 없다. fail-closed 로 막는다.
     if division is not None and args.venue == "overseas":
         raise CliConfigError("--division 은 국내(domestic) 현금주문 전용입니다.")
+    _validate_bond_args(args, side)
     if args.execute is None:
         return {**_ticket(args, side=side, account=account, environment=kis.environment), "note": _DRY_RUN_NOTE}
     if is_tty is None:

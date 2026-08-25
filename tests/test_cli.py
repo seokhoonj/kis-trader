@@ -596,3 +596,73 @@ def test_account_balance_stock_default_unchanged(monkeypatch):
     monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
     assert account.cmd_balance(object(), _args(["account", "balance"])) == "STOCK_BAL"
     assert log == [("dom_balance",)]
+
+
+# --- 채권 주문 CLI: dry-run 티켓 + fail-closed 검증 ------------------------
+
+def test_order_bond_buy_dry_run_shows_ticket():
+    dry = order.cmd_buy(StubKis(), _args(
+        ["order", "buy", "KR6449111CB8", "100", "--asset", "bond",
+         "--limit-price", "10125"]), is_tty=False)
+    assert dry["asset"] == "bond"
+    assert dry["limit_price"] == "10125"
+    assert dry["division"] is None
+
+
+def test_order_bond_sell_dry_run_shows_lot():
+    dry = order.cmd_sell(StubKis(), _args(
+        ["order", "sell", "KR6449111CB8", "100", "--asset", "bond",
+         "--limit-price", "10130", "--buy-date", "20260814", "--buy-seq", "1"]),
+        is_tty=False)
+    assert dry["asset"] == "bond"
+    assert dry["buy_date"] == "20260814"
+    assert dry["buy_seq"] == "1"
+
+
+def test_order_bond_buy_requires_limit_price():
+    args = _args(["order", "buy", "KR6449111CB8", "100", "--asset", "bond"])
+    with pytest.raises(CliConfigError):
+        order.cmd_buy(StubKis(), args, is_tty=False)
+
+
+def test_order_bond_rejects_division():
+    args = _args(["order", "buy", "KR6449111CB8", "100", "--asset", "bond",
+                  "--limit-price", "10125", "--division", "immediate_limit"])
+    with pytest.raises(CliConfigError):
+        order.cmd_buy(StubKis(), args, is_tty=False)
+
+
+def test_order_bond_rejects_overseas():
+    args = _args(["order", "buy", "KR6449111CB8", "100", "--asset", "bond",
+                  "--limit-price", "10125", "--venue", "overseas"])
+    with pytest.raises(CliConfigError):
+        order.cmd_buy(StubKis(), args, is_tty=False)
+
+
+def test_order_bond_sell_requires_lot():
+    args = _args(["order", "sell", "KR6449111CB8", "100", "--asset", "bond",
+                  "--limit-price", "10130"])
+    with pytest.raises(CliConfigError):
+        order.cmd_sell(StubKis(), args, is_tty=False)
+
+
+def test_order_bond_buy_rejects_lot():
+    args = _args(["order", "buy", "KR6449111CB8", "100", "--asset", "bond",
+                  "--limit-price", "10125", "--buy-date", "20260814", "--buy-seq", "1"])
+    with pytest.raises(CliConfigError):
+        order.cmd_buy(StubKis(), args, is_tty=False)
+
+
+def test_order_stock_rejects_bond_lot():
+    args = _args(["order", "sell", "005930", "10",
+                  "--buy-date", "20260814", "--buy-seq", "1"])
+    with pytest.raises(CliConfigError):
+        order.cmd_sell(StubKis(), args, is_tty=False)
+
+
+def test_order_stock_dry_run_unchanged_has_no_bond_fields():
+    dry = order.cmd_buy(StubKis(), _args(
+        ["order", "buy", "005930", "10", "--limit-price", "70000"]), is_tty=False)
+    assert dry["asset"] == "stock"
+    assert "buy_date" not in dry
+    assert dry["limit_price"] == "70000"
