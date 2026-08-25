@@ -75,8 +75,12 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
     if args.stop_price is not None and not (is_deriv and not domestic):
         raise CliConfigError(
             "--stop-price 는 해외 파생(--asset futures/option, --venue overseas) 전용입니다.")
+    if is_deriv and args.exchange is not None:
+        raise CliConfigError("--exchange 는 파생 주문에 쓰지 않습니다(계약코드가 거래소를 결정).")
     if args.division is not None:
-        if not (asset == "stock" or (is_deriv and domestic)):
+        # 국내(현금 또는 파생)만 division 을 받는다. 해외는 주식/파생 모두 불가 -- stock 이라도
+        # domestic 이 아니면 여기서 거부한다(이 함수가 division 검증의 유일한 소유자).
+        if not (domestic and (asset == "stock" or is_deriv)):
             raise CliConfigError("--division 은 국내 현금/파생 주문 전용입니다.")
         if is_deriv and args.division == "priority_limit":
             raise CliConfigError(
@@ -87,6 +91,8 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
         _validate_bond_required(args, side)
     elif is_deriv and not domestic and args.execute == "paper":
         raise CliConfigError("해외 파생은 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
+    if asset == "option" and domestic and args.right is None:
+        raise CliConfigError("국내 옵션 발주에는 --right call/put 이 필요합니다.")
     if args.night and args.execute == "paper":
         raise CliConfigError("야간 파생(--night)은 실전전용입니다 -- --execute paper 불가.")
 
@@ -148,10 +154,7 @@ _DRY_RUN_NOTE = (
 
 def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_tty: bool | None, prompt: Callable[[str], str]) -> Any:
     account = kis._account  # 세션 생성 시 한 번 해석된 계좌(자격증명 재조회 없음)
-    division = getattr(args, "division", None)
-    # division(KRX 주문구분)은 국내 현금 전용 -- 해외 핸들엔 그 파라미터가 없다. fail-closed 로 막는다.
-    if division is not None and args.venue == "overseas":
-        raise CliConfigError("--division 은 국내(domestic) 현금주문 전용입니다.")
+    division = getattr(args, "division", None)  # 국내 현금/파생 전용 -- 적법성 검증은 _validate_asset_args 소유
     _validate_asset_args(args, side)
     if args.execute is None:
         return {**_ticket(args, side=side, account=account, environment=kis.environment), "note": _DRY_RUN_NOTE}

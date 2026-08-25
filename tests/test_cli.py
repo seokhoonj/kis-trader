@@ -930,6 +930,20 @@ def test_order_night_rejects_execute_paper():
     assert kis.log == []
 
 
+def test_order_option_domestic_requires_right():
+    with pytest.raises(CliConfigError, match="--right"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "201S07", "1", "--asset", "option", "--limit-price", "5.2"]),
+            is_tty=False)
+
+
+def test_order_exchange_rejected_for_derivative():
+    with pytest.raises(CliConfigError, match="--exchange"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "ESZ25", "1", "--asset", "futures", "--venue", "overseas",
+             "--exchange", "CME", "--limit-price", "100"]), is_tty=False)
+
+
 # --- 파생 주문 CLI: 전송 경로 라우팅 --------------------------------------
 
 def test_order_futures_domestic_execute_routes_with_division_night():
@@ -959,6 +973,24 @@ def test_order_futures_overseas_execute_forwards_stop_price():
                   "--execute", "real", "--yes", "--confirm-account", "7808"])
     assert order.cmd_sell(kis, args, is_tty=False) == "REPORT"
     assert kis.log == [("ovs_deriv_sell", "futures", "ESZ25", 2, None, "99")]
+
+
+def test_order_futures_domestic_sell_execute_routes_to_sell_handle():
+    kis = StubKis(account="12345678-03", environment="real")
+    args = _args(["--profile", "derivatives", "order", "sell", "101W09", "1",
+                  "--asset", "futures", "--limit-price", "350.5",
+                  "--execute", "real", "--yes", "--confirm-account", "7803"])
+    assert order.cmd_sell(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [("dom_deriv_sell", "futures", "101W09", None, 1, "350.5", None, False)]
+
+
+def test_order_option_overseas_execute_routes_to_option_handle():
+    kis = StubKis(account="12345678-08", environment="real")
+    args = _args(["--profile", "overseas_derivatives", "order", "buy", "OESX25", "1",
+                  "--asset", "option", "--venue", "overseas", "--limit-price", "12",
+                  "--execute", "real", "--yes", "--confirm-account", "7808"])
+    assert order.cmd_buy(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [("ovs_deriv_buy", "option", "OESX25", 1, "12", None)]
 
 
 def test_order_futures_domestic_real_rejects_mismatched_confirm():
