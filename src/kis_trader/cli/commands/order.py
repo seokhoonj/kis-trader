@@ -164,6 +164,20 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
             return bond.buy(quantity=args.quantity, limit_price=args.limit_price)
         return bond.sell(quantity=args.quantity, limit_price=args.limit_price,
                          buy_date=args.buy_date, buy_seq=args.buy_seq)
+    if args.asset in _DERIVATIVE_ASSETS:
+        # venue 별로 전송 kwargs 가 달라(국내 division/night, 해외 stop_price) 각각 인라인 해석한다
+        # -- 공용 변수로 묶으면 두 핸들의 buy 시그니처가 달라 정적 타입이 좁혀지지 않는다.
+        if args.venue == "overseas":
+            ovs = (kis.overseas.option(args.identifier) if args.asset == "option"
+                   else kis.overseas.futures(args.identifier))
+            place_ovs = ovs.buy if side == "buy" else ovs.sell
+            return place_ovs(quantity=args.quantity, limit_price=args.limit_price,
+                             stop_price=args.stop_price)
+        dom = (kis.domestic.option(args.identifier, right=args.right) if args.asset == "option"
+               else kis.domestic.futures(args.identifier))
+        place_dom = dom.buy if side == "buy" else dom.sell
+        return place_dom(quantity=args.quantity, limit_price=args.limit_price,
+                         division=args.division, night=args.night)
     handle = resolve_stock(kis, args)
     place = handle.buy if side == "buy" else handle.sell
     extra: dict[str, Any] = {} if args.venue == "overseas" else {"division": division}
