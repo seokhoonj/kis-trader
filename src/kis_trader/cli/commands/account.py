@@ -22,6 +22,11 @@ def _stock_account(kis: KISClient) -> StockAccount:
 
 def cmd_balance(kis: KISClient, args: Namespace) -> Any:
     account = _stock_account(kis)
+    if getattr(args, "asset", "stock") == "bond":
+        # 장내채권 lot 목록(buy_date/buy_seq/잔량/매수단가) -- 채권 매도의 lot 지목에 필요하다.
+        if args.venue == "overseas":
+            raise CliConfigError("장내채권은 국내 전용입니다(--venue overseas 불가).")
+        return account.domestic.bonds.balance()
     if args.venue == "overseas":
         if not args.market:
             raise CliConfigError("해외 잔고는 시장을 지정해야 합니다(--market US/HK/CN_SH/...).")

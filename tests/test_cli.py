@@ -9,7 +9,7 @@ import pytest
 
 import kis_trader.cli.app as cli_main
 from kis_trader.cli.app import build_parser
-from kis_trader.cli.commands import order
+from kis_trader.cli.commands import account, order
 from kis_trader.cli.context import account_suffix
 from kis_trader.cli.errors import CliAborted, CliConfigError, translate
 from kis_trader.cli.output import _display_width, _pad, render, to_jsonable
@@ -550,3 +550,49 @@ def test_build_client_missing_credentials_raises_config_error():
     from kis_trader.cli.context import build_client
     with pytest.raises(CliConfigError):  # KIS_* 없음(격리 픽스처) -> exit 3
         build_client(_args(["--profile", "paper", "stock", "quote", "005930"]))
+
+
+# --- 채권 lot 목록: kis account balance --asset bond -----------------------
+
+class _StubBonds:
+    def __init__(self, log):
+        self._log = log
+
+    def balance(self):
+        self._log.append(("bonds_balance",)); return ["LOT"]
+
+
+class _StubDomesticAccount:
+    def __init__(self, log):
+        self._log = log
+        self.bonds = _StubBonds(log)
+
+    def balance(self):
+        self._log.append(("dom_balance",)); return "STOCK_BAL"
+
+
+class _StubStockView:
+    def __init__(self, log):
+        self.domestic = _StubDomesticAccount(log)
+
+
+def test_account_balance_bond_lists_lots(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    result = account.cmd_balance(object(), _args(["account", "balance", "--asset", "bond"]))
+    assert result == ["LOT"]
+    assert log == [("bonds_balance",)]
+
+
+def test_account_balance_bond_rejects_overseas(monkeypatch):
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView([]))
+    with pytest.raises(CliConfigError):
+        account.cmd_balance(object(), _args(
+            ["account", "balance", "--asset", "bond", "--venue", "overseas"]))
+
+
+def test_account_balance_stock_default_unchanged(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    assert account.cmd_balance(object(), _args(["account", "balance"])) == "STOCK_BAL"
+    assert log == [("dom_balance",)]

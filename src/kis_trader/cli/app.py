@@ -128,6 +128,9 @@ def build_parser() -> argparse.ArgumentParser:
         sp = leaf(account_sub, name)
         sp.add_argument("--venue", choices=["domestic", "overseas"], default="domestic")
         sp.add_argument("--market", default=None, help="해외 시장(US/HK/CN_SH/...)")
+        if name == "balance":
+            sp.add_argument("--asset", choices=["stock", "bond"], default="stock",
+                            help="자산군: stock(기본)/bond(장내채권 lot 목록)")
         sp.set_defaults(func=func)
 
     # kis order buy|sell|reconcile|modify|cancel
