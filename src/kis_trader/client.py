@@ -619,7 +619,7 @@ class KISClient:
 
     def _place_overseas_reserved_order(
         self, *, symbol: str, side: Side, quantity: Numeric, limit_price: Numeric, exchange: str,
-        currency: str = "HKD", client_order_id: str | None,
+        currency: str | None = None, client_order_id: str | None,
     ) -> ExecutionReport:
         """해외예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 해외 종목일 때 호출).
         ``exchange`` 의 시장이 미국/아시아 와이어를 가르고, ``currency`` 는 홍콩(HKS) 예약의 상품유형

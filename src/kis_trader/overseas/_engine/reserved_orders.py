@@ -79,21 +79,17 @@ _RECONCILE_LOOKBACK_DAYS = 7
 _RECONCILE_FORWARD_DAYS = 31
 
 
-def _asia_prdt_type_cd(exchange: str, currency: str) -> str:
+def _asia_prdt_type_cd(exchange: str, currency: str | None) -> str:
     """아시아 예약주문의 PRDT_TYPE_CD(상품유형코드)를 거래소코드에서 파생한다(순수). ``currency`` 는
-    홍콩(HKS)에만 의미가 있다(501 HKD / 543 CNY / 558 USD) -- 그 외 거래소에 비-HKD 를 주면
-    fail-closed(조용히 무시하면 의도한 통화와 다른 상품유형으로 발주된다)."""
+    홍콩(HKS)에만 의미가 있다(501 HKD / 543 CNY / 558 USD) -- 미지정(``None``)이면 HKD 로 본다.
+    그 외 거래소는 통화 선택이 없어 호출 전에 ``currency`` 가 ``None`` 로 걸러져 온다."""
     if exchange == "HKS":
         try:
-            return _HK_PRDT_TYPE_CD[currency]
+            return _HK_PRDT_TYPE_CD[currency or "HKD"]
         except KeyError:
             raise KISUsageError(
                 f"홍콩 예약주문의 통화는 HKD/CNY/USD 여야 한다: {currency!r}"
             ) from None
-    if currency != "HKD":
-        raise KISUsageError(
-            f"통화 지정은 홍콩(HKS) 예약주문에만 유효하다: {exchange!r}, {currency!r}"
-        )
     try:
         return _ASIA_PRDT_TYPE_CD[exchange]
     except KeyError:
@@ -164,7 +160,7 @@ def _walk(
 def place_overseas_reserved_order(
     transport: Transport, store: OrderStore, *,
     symbol: str, side: Side, quantity: Numeric, limit_price: Numeric, exchange: str,
-    currency: str = "HKD",
+    currency: str | None = None,
     client_order_id: str, orderable: bool = True,
     cano: str, product_code: str, environment: Environment,
 ) -> ExecutionReport:
@@ -173,8 +169,8 @@ def place_overseas_reserved_order(
     (``limit_price`` 필수). ``exchange`` 의 시장이 와이어를 가른다: 미국(NAS/NYS/AMS)은 매수/매도
     TR 분리 body(ORD_DVSN), 아시아(홍콩/상해/심천/일본/베트남)는 공용 TR(TTTS3013U) body
     (SLL_BUY_DVSN_CD + RVSE_CNCL_DVSN_CD=00 + 거래소에서 파생한 PRDT_TYPE_CD). ``currency`` 는
-    홍콩(HKS) 예약의 상품유형 선택(HKD/CNY/USD)에만 쓰이며 그 외 거래소에 비-HKD 를 주면
-    fail-closed. 발주는 모의(V* TR)를 지원한다.
+    홍콩(HKS) 예약의 상품유형 선택(HKD/CNY/USD)에만 쓰이며(미지정이면 HKD) 그 외 거래소에
+    ``currency`` 를 주면 fail-closed. 발주는 모의(V* TR)를 지원한다.
 
     반환 :class:`ExecutionReport` 의 ``order_id`` 는 해외예약주문번호(미국 발주 Output ODNO = 취소 시
     OVRS_RSVN_ODNO / 아시아 OVRS_RSVN_ODNO), ``receipt_date`` 는 아시아 접수일자(RSVN_ORD_RCIT_DT;
@@ -196,6 +192,11 @@ def place_overseas_reserved_order(
         raise KISUsageError(
             f"해외 예약주문을 지원하지 않는 거래소코드: {exchange!r}."
         ) from None
+    if currency is not None and exchange != "HKS":
+        raise KISUsageError(
+            f"currency 는 홍콩(HKS) 예약주문 전용이다 -- {exchange!r} 에는 주지 마라"
+            f"(미국·기타 아시아는 통화 선택이 없다): {currency!r}"
+        )
     qty = coerce_decimal(quantity, "quantity")
     if qty <= 0 or qty != qty.to_integral_value():
         raise KISUsageError(f"예약주문 수량은 0보다 큰 정수(주)여야 한다: {qty}")
@@ -206,7 +207,7 @@ def place_overseas_reserved_order(
     if region == _US_MARKET:
         return _place_us_reserved(
             transport, store, symbol=symbol, side=side, qty=qty, limit=limit,
-            order_exchange=order_exchange, exchange=exchange, currency=currency,
+            order_exchange=order_exchange, exchange=exchange,
             client_order_id=client_order_id, cano=cano, product_code=product_code,
             environment=environment,
         )
@@ -224,16 +225,13 @@ def place_overseas_reserved_order(
 def _place_us_reserved(
     transport: Transport, store: OrderStore, *,
     symbol: str, side: Side, qty: Decimal, limit: Decimal, order_exchange: str,
-    exchange: str, currency: str, client_order_id: str,
+    exchange: str, client_order_id: str,
     cano: str, product_code: str, environment: Environment,
 ) -> ExecutionReport:
     """미국(NAS/NYS/AMS) 예약 발주 와이어를 만들어 공용 안전 셸에 넘긴다 -- 매수/매도 분리 TR +
-    ORD_DVSN 지정가 body. 통화는 홍콩 전용이라 미국에 비-HKD 를 주면 fail-closed(조용히 무시하면
-    의도 오해). 응답은 예약번호 ODNO 만 돌려주고 접수일자는 없다."""
-    if currency != "HKD":
-        raise KISUsageError(
-            f"통화 지정은 홍콩(HKS) 예약주문에만 유효하다: {exchange!r}, {currency!r}"
-        )
+    ORD_DVSN 지정가 body. 미국은 통화 선택이 없다(``currency`` 는 홍콩 전용이며, 미국에 주면
+    상위 :func:`place_overseas_reserved_order` 가 이미 fail-closed 한다). 응답은 예약번호 ODNO 만
+    돌려주고 접수일자는 없다."""
     fingerprint = ReservedOrderFingerprint(
         symbol=symbol, side=side, order_type="limit",
         quantity=format_wire_decimal(qty), limit_price=format_wire_decimal(limit),
@@ -255,7 +253,7 @@ def _place_us_reserved(
 def _place_asia_reserved(
     transport: Transport, store: OrderStore, *,
     symbol: str, side: Side, qty: Decimal, limit: Decimal, order_exchange: str,
-    exchange: str, currency: str, client_order_id: str,
+    exchange: str, currency: str | None, client_order_id: str,
     cano: str, product_code: str, environment: Environment,
 ) -> ExecutionReport:
     """아시아(홍콩/상해/심천/일본/베트남) 예약 발주 와이어를 만들어 공용 안전 셸에 넘긴다 -- 공용 TR
@@ -266,7 +264,9 @@ def _place_asia_reserved(
         symbol=symbol, side=side, order_type="limit",
         quantity=format_wire_decimal(qty), limit_price=format_wire_decimal(limit),
         end_date="", exchange=_ASIA_RESERVED_EXCHANGE, overseas_exchange=exchange,
-        currency=currency,
+        # 지문/dedup 정체성은 byte-identity 기본 "HKD" 로 정규화(취소는 홍콩만 통화를
+        # 되읽고, 그 외 아시아는 _asia_prdt_type_cd 가 통화를 무시한다). 홍콩 미지정도 HKD.
+        currency=currency or "HKD",
     )
     body = {
         "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": symbol,

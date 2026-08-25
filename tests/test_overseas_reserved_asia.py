@@ -29,11 +29,12 @@ _LIST = "/uapi/overseas-stock/v1/trading/order-resv-list"
 
 # --- PRDT_TYPE_CD 파생 ------------------------------------------------------
 def test_asia_prdt_type_cd_by_exchange():
-    assert ro._asia_prdt_type_cd("TSE", "HKD") == "515"   # 일본
-    assert ro._asia_prdt_type_cd("SHS", "HKD") == "551"   # 중국 상해A
-    assert ro._asia_prdt_type_cd("SZS", "HKD") == "552"   # 중국 심천A
-    assert ro._asia_prdt_type_cd("HNX", "HKD") == "507"   # 베트남 하노이
-    assert ro._asia_prdt_type_cd("HSX", "HKD") == "508"   # 베트남 호치민
+    # 홍콩 외 아시아는 통화 선택이 없어 currency=None -- 거래소코드만으로 상품유형이 정해진다.
+    assert ro._asia_prdt_type_cd("TSE", None) == "515"   # 일본
+    assert ro._asia_prdt_type_cd("SHS", None) == "551"   # 중국 상해A
+    assert ro._asia_prdt_type_cd("SZS", None) == "552"   # 중국 심천A
+    assert ro._asia_prdt_type_cd("HNX", None) == "507"   # 베트남 하노이
+    assert ro._asia_prdt_type_cd("HSX", None) == "508"   # 베트남 호치민
 
 
 def test_asia_prdt_type_cd_hong_kong_currency():
@@ -47,14 +48,14 @@ def test_asia_prdt_type_cd_hong_kong_rejects_unknown_currency():
         ro._asia_prdt_type_cd("HKS", "JPY")
 
 
-def test_asia_prdt_type_cd_non_hk_rejects_non_hkd_currency():
-    with pytest.raises(KISUsageError, match="통화"):
-        ro._asia_prdt_type_cd("TSE", "CNY")   # 통화 지정은 홍콩 전용
+def test_asia_prdt_type_cd_hong_kong_none_defaults_hkd():
+    # 홍콩은 currency 미지정(None)이면 HKD(501) 로 본다.
+    assert ro._asia_prdt_type_cd("HKS", None) == "501"
 
 
 def test_asia_prdt_type_cd_unknown_exchange_rejected():
     with pytest.raises(KISUsageError, match="거래소"):
-        ro._asia_prdt_type_cd("NAS", "HKD")   # 미국은 아시아 파생 대상이 아니다
+        ro._asia_prdt_type_cd("NAS", None)   # 미국은 아시아 파생 대상이 아니다
 
 
 # --- 픽스처 ----------------------------------------------------------------
@@ -92,7 +93,7 @@ def _place_resp():
 
 def _place(fake, store, **overrides):
     kwargs = {"symbol": "00700", "side": "buy", "quantity": 100, "limit_price": 350.0,
-              "exchange": "HKS", "currency": "HKD", "client_order_id": "c1",
+              "exchange": "HKS", "currency": None, "client_order_id": "c1",
               "cano": "12345678", "product_code": "01", "environment": "real"}
     kwargs.update(overrides)
     return ro.place_overseas_reserved_order(fake, store, **kwargs)
@@ -452,11 +453,11 @@ def test_handle_reserve_forwards_hong_kong_currency():
     ("HKS", "HKD", "SEHK", "501"),
     ("HKS", "CNY", "SEHK", "543"),
     ("HKS", "USD", "SEHK", "558"),
-    ("SHS", "HKD", "SHAA", "551"),
-    ("SZS", "HKD", "SZAA", "552"),
-    ("TSE", "HKD", "TKSE", "515"),
-    ("HNX", "HKD", "HASE", "507"),
-    ("HSX", "HKD", "VNSE", "508"),
+    ("SHS", None, "SHAA", "551"),   # 홍콩 외 아시아는 통화 선택이 없다 -> currency=None
+    ("SZS", None, "SZAA", "552"),
+    ("TSE", None, "TKSE", "515"),
+    ("HNX", None, "HASE", "507"),
+    ("HSX", None, "VNSE", "508"),
 ])
 def test_public_asia_place_wire_matrix(exchange, currency, wire_exchange, prdt_type_cd):
     # 공개 표면(reserve_buy)의 거래소x통화 -> 와이어(OVRS_EXCG_CD/PRDT_TYPE_CD) 매트릭스 고정 --
@@ -476,6 +477,16 @@ def test_public_asia_place_non_hk_currency_rejected_before_wire():
     with pytest.raises(KISUsageError, match="홍콩"):
         kis.overseas.stock("600000", exchange="SHS").reserve_buy(
             quantity=100, limit_price=10.0, currency="CNY")
+    assert fake.calls == []
+
+
+def test_us_reserve_rejects_currency_before_wire():
+    # 미국은 통화 선택이 없다 -- currency 를 주면(HKD/USD 무엇이든) 와이어 전에 fail-closed.
+    fake = _Fake(_place_resp())
+    kis = _client(fake, OrderStore())
+    with pytest.raises(KISUsageError, match="홍콩"):
+        kis.overseas.stock("AAPL", exchange="NAS").reserve_buy(
+            quantity=1, limit_price=148.0, currency="USD")
     assert fake.calls == []
 
 
