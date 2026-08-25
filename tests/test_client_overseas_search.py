@@ -20,10 +20,10 @@ class FakeTransport:
         return next(self.responses)
 
 
-def _response(symbol, *, tr_cont=""):
+def _response(symbol, *, excd="NAS", tr_cont=""):
     return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", tr_cont=tr_cont, body={
         "output1": {"zdiv": "2", "stat": "Y", "crec": "1", "trec": "2", "nrec": "1"},
-        "output2": [{"rsym": f"DNAS{symbol}", "excd": "NAS", "name": symbol,
+        "output2": [{"rsym": f"D{excd}{symbol}", "excd": excd, "name": symbol,
                      "ename": symbol, "symb": symbol, "last": "160.5", "shar": "1000",
                      "valx": "160500", "plow": "159", "phigh": "162", "popen": "160",
                      "tvol": "10000", "rate": "1.25", "diff": "2", "sign": "2",
@@ -57,14 +57,35 @@ def test_overseas_search_maps_filters():
 
 def test_overseas_search_us_fans_out_and_merges():
     # "US" 는 KIS 조건검색을 나스닥·뉴욕·아멕스에 각각 걸어 합친다(TR 이 거래소당 한 번이라).
-    fake = FakeTransport([_response("AAPL"), _response("MSFT"), _response("GME")])
+    fake = FakeTransport([_response("AAPL", excd="NAS"), _response("KO", excd="NYS"),
+                          _response("GME", excd="AMS")])
     client = KISClient(app_key="k", app_secret="s", transport=fake)
     result = client.overseas.search_stocks("US", price=(10, 500))
     assert isinstance(result, OverseasStockSearch)
     assert result.exchange == "US"
     assert [c["params"]["EXCD"] for c in fake.calls] == ["NAS", "NYS", "AMS"]
-    assert [m.symbol for m in result.matches] == ["AAPL", "MSFT", "GME"]
+    assert [m.symbol for m in result.matches] == ["AAPL", "KO", "GME"]
+    # 합쳐진 match 는 자기 원래 거래소를 유지한다(집계가 뭉개지 않는다).
+    assert [m.exchange for m in result.matches] == ["NAS", "NYS", "AMS"]
     assert result.total_count == 6                   # trec(2) x 3 거래소
+
+
+def test_overseas_search_us_lowercase_also_fans_out():
+    fake = FakeTransport([_response("AAPL", excd="NAS"), _response("KO", excd="NYS"),
+                          _response("GME", excd="AMS")])
+    client = KISClient(app_key="k", app_secret="s", transport=fake)
+    result = client.overseas.search_stocks("us", price=(10, 500))   # 소문자도 동일
+    assert [c["params"]["EXCD"] for c in fake.calls] == ["NAS", "NYS", "AMS"]
+    assert len(result.matches) == 3
+
+
+def test_overseas_search_us_partial_failure_propagates():
+    # 뒤 거래소 조회가 실패하면 부분 결과를 내지 않고 전체가 실패한다(fail-closed).
+    err = RawResponse(rt_cd="1", msg_cd="E", msg1="fail", tr_cont="", body={})
+    fake = FakeTransport([_response("AAPL", excd="NAS"), err])
+    client = KISClient(app_key="k", app_secret="s", transport=fake)
+    with pytest.raises(KISError):
+        client.overseas.search_stocks("US", price=(10, 500))
 
 
 def test_overseas_search_rejects_blank_exchange():

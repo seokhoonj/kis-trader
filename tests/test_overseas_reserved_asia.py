@@ -231,6 +231,38 @@ def test_asia_cancel_resends_full_order_with_rvse_cncl_02():
     assert rep.receipt_date == "20260818"
 
 
+def test_asia_cancel_non_hk_rederives_exchange_prdt():
+    # 비-홍콩 예약(상해 SHS)을 발주->취소 end-to-end. 지문에 "HKD"(byte-identity 기본)가 저장돼도
+    # 취소 재도출은 거래소코드로 상품유형(551)을 되찾는다(통화 무시).
+    store = OrderStore()
+    _place(_Fake(_place_resp()), store, exchange="SHS", symbol="600000", client_order_id="cn1")
+    cancel = _Fake(_place_resp())
+    ro.cancel_asia_reserved_order(cancel, store, "cn1",
+                                  cano="12345678", product_code="01", environment="real")
+    body = cancel.calls[0]["body"]
+    assert body["OVRS_EXCG_CD"] == "SHAA"
+    assert body["PRDT_TYPE_CD"] == "551"       # 통화 아닌 거래소에서 재도출
+
+
+def test_asia_prdt_type_cd_non_hk_ignores_persisted_hkd():
+    # 지문이 실제로 싣고 오는 값 -- non-HK 거래소 + "HKD"(정규화 기본) -> 거래소 상품유형(통화 무시).
+    assert ro._asia_prdt_type_cd("SHS", "HKD") == "551"
+
+
+def test_hk_reserve_none_and_hkd_dedupe_identically():
+    # 홍콩 미지정(None)과 명시 "HKD" 는 같은 상품유형(501) -> 지문 byte-identical -> 같은
+    # client_order_id 재발주가 지문불일치 없이 dedup(두 번째는 와이어 안 나감).
+    store = OrderStore()
+    fake = _Fake(_place_resp())
+    kis = _client(fake, store)
+    r1 = kis.overseas.stock("00700", exchange="HKS").reserve_buy(
+        quantity=100, limit_price=350.0, client_order_id="hk-dup")
+    r2 = kis.overseas.stock("00700", exchange="HKS").reserve_buy(
+        quantity=100, limit_price=350.0, currency="HKD", client_order_id="hk-dup")
+    assert len(fake.calls) == 1                # 두 번째는 dedup
+    assert r1.order_id == r2.order_id
+
+
 def test_asia_cancel_paper_uses_v_tr():
     store = OrderStore()
     _place(_Fake(_place_resp()), store, environment="paper")

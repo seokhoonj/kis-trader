@@ -204,55 +204,55 @@ kis.domestic
 
 ```text
 kis.overseas
-├── stock(symbol, exchange=None)           # 해외 종목 핸들
-│   ├── quote()                            # 현재가 스냅샷
-│   ├── current_price()                    # 현재체결가·누적 거래량
-│   ├── bars(interval='1d', ...)           # OHLCV 봉
-│   ├── order_book()                       # 호가창
-│   ├── trades()                           # 최근 체결 목록
-│   ├── buy(quantity, ...)                 # 매수
-│   ├── sell(quantity, ...)                # 매도
-│   ├── overnight_buy(...)                 # 미국 오버나이트 매수
-│   ├── overnight_sell(...)                # 미국 오버나이트 매도
-│   ├── reserve_buy(..., currency='HKD')   # 예약매수
-│   └── reserve_sell(..., currency='HKD')  # 예약매도
-├── index(symbol, kind='index')            # 지수/환율/국채/금선물 핸들
-│   └── bars(interval='1d', ...)           # 지수류 기간봉
-├── futures(srs_cd)                        # 해외 선물 계약 핸들
-│   ├── quote()                            # 계약 현재가
-│   ├── order_book()                       # 계약 호가창(5단계)
-│   ├── bars(exchange, ...)                # 분·일·주·월 OHLCV
-│   ├── trades(exchange, ...)              # 최근 틱 체결
-│   ├── detail()                           # 계약 명세
-│   ├── buy(quantity, ...)                 # 계약 매수
-│   └── sell(quantity, ...)                # 계약 매도
-├── option(srs_cd)                         # 해외 옵션 핸들(선물과 동일 메서드)
-├── futures_details(symbols)               # 선물 명세 배치(최대 32)
-├── option_details(symbols)                # 옵션 명세 배치(최대 30)
-├── derivatives_market_hours(...)          # 상품군별 장운영시간
-├── futures_open_interest(product)         # CFTC 미결제약정
-├── settlement_dates()                     # 각 시장 결제일자 참조표
-├── quotes(symbols)                        # 여러 종목 현재가(최대 10)
-├── search_stocks(exchange, ...)           # 조건검색
-├── product_info(exchange, symbol)         # 상품기본정보
-├── industries(exchange)                   # 업종(섹터) 코드 목록
-├── industry_stocks(exchange, code)        # 업종 소속 종목 시세
-├── collateral_stocks(...)                 # 담보대출 가능종목
-├── news(...)                              # 해외뉴스 제목 피드
-├── breaking_news(...)                     # 해외속보 제목 피드
-├── rights(start, end, ...)                # 기간별 권리(배당·증자)
-├── corporate_actions(country, symbol)     # 기업행사 종합 일정
-└── ranking                                # 시장 순위 질의
-    ├── by_volume(exchange)                # 거래량 순위
-    ├── by_amount(exchange)                # 거래대금 순위
-    ├── by_trade_growth(exchange)          # 거래증가율 순위
-    ├── by_market_cap(exchange)            # 시가총액 순위
-    ├── by_change(exchange, ...)           # 등락률 순위
-    ├── by_volume_surge(exchange)          # 거래량 급증 순위
-    ├── by_buy_strength(exchange)          # 매수 체결강도 순위
-    ├── by_turnover(exchange)              # 거래 회전율 순위
-    ├── by_price_fluctuation(exchange)     # 가격 급등/급락 순위
-    └── by_new_highlow(exchange, ...)      # 신고가/신저가 순위
+├── stock(symbol, exchange=None)        # 해외 종목 핸들
+│   ├── quote()                         # 현재가 스냅샷
+│   ├── current_price()                 # 현재체결가·누적 거래량
+│   ├── bars(interval='1d', ...)        # OHLCV 봉
+│   ├── order_book()                    # 호가창
+│   ├── trades()                        # 최근 체결 목록
+│   ├── buy(quantity, ...)              # 매수
+│   ├── sell(quantity, ...)             # 매도
+│   ├── overnight_buy(...)              # 미국 오버나이트 매수
+│   ├── overnight_sell(...)             # 미국 오버나이트 매도
+│   ├── reserve_buy(...)                # 예약매수
+│   └── reserve_sell(...)               # 예약매도
+├── index(symbol, kind='index')         # 지수/환율/국채/금선물 핸들
+│   └── bars(interval='1d', ...)        # 지수류 기간봉
+├── futures(series_code)                # 해외 선물 계약 핸들
+│   ├── quote()                         # 계약 현재가
+│   ├── order_book()                    # 계약 호가창(5단계)
+│   ├── bars(exchange, ...)             # 분·일·주·월 OHLCV
+│   ├── trades(exchange, ...)           # 최근 틱 체결
+│   ├── detail()                        # 계약 명세
+│   ├── buy(quantity, ...)              # 계약 매수
+│   └── sell(quantity, ...)             # 계약 매도
+├── option(series_code)                 # 해외 옵션 핸들(선물과 동일 메서드)
+├── futures_details(symbols)            # 선물 명세 배치(최대 32)
+├── option_details(symbols)             # 옵션 명세 배치(최대 30)
+├── derivatives_market_hours(...)       # 상품군별 장운영시간
+├── futures_open_interest(product)      # CFTC 미결제약정
+├── settlement_dates()                  # 각 시장 결제일자 참조표
+├── quotes(symbols)                     # 여러 종목 현재가(최대 10)
+├── search_stocks(exchange, ...)        # 조건검색(exchange='US'는 NAS/NYS/AMS 통합)
+├── product_info(exchange, symbol)      # 상품기본정보
+├── industries(exchange)                # 업종(섹터) 코드 목록
+├── industry_stocks(exchange, code)     # 업종 소속 종목 시세
+├── collateral_stocks(...)              # 담보대출 가능종목
+├── news(...)                           # 해외뉴스 제목 피드
+├── breaking_news(...)                  # 해외속보 제목 피드
+├── rights(start, end, ...)             # 기간별 권리(배당·증자)
+├── corporate_actions(country, symbol)  # 기업행사 종합 일정
+└── ranking                             # 시장 순위 질의
+    ├── by_volume(exchange)             # 거래량 순위
+    ├── by_amount(exchange)             # 거래대금 순위
+    ├── by_trade_growth(exchange)       # 거래증가율 순위
+    ├── by_market_cap(exchange)         # 시가총액 순위
+    ├── by_change(exchange, ...)        # 등락률 순위
+    ├── by_volume_surge(exchange)       # 거래량 급증 순위
+    ├── by_buy_strength(exchange)       # 매수 체결강도 순위
+    ├── by_turnover(exchange)           # 거래 회전율 순위
+    ├── by_price_fluctuation(exchange)  # 가격 급등/급락 순위
+    └── by_new_highlow(exchange, ...)   # 신고가/신저가 순위
 ```
 
 ## `kis.account` — 계좌 조회 (상품코드로 분기)
@@ -368,10 +368,10 @@ kis.realtime()
     ├── stock(symbol, exchange=None)         # RSYM 은 종목마스터로 해석
     │   ├── trades()                         # 지연체결 → DelayedTradeTick
     │   └── order_book(venue='global')       # 호가(global 10 / asia 1)
-    ├── futures(srs_cd)                      # → OverseasFuturesHandle
+    ├── futures(series_code)                 # → OverseasFuturesHandle
     │   ├── trades()                         # 체결 → FuturesTradeTick
     │   └── order_book()                     # 호가 → FuturesOrderBook
-    ├── option(srs_cd)                       # 선물과 동일 TR·핸들 공유
+    ├── option(series_code)                  # 선물과 동일 TR·핸들 공유
     └── execution_notices                    # 체결/주문 통보(hts_id 단위)
         ├── stock(hts_id)                    # → OverseasExecutionNotice
         ├── derivative_orders(hts_id)        # → FuturesOrderNotice

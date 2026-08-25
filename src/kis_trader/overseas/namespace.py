@@ -328,7 +328,8 @@ class OverseasNamespace:
         ``"US"`` 다. KIS 조건검색 TR 은 거래소당 한 번이라, ``"US"`` 는 나스닥·뉴욕·아멕스를 각각
         조회해 결과(``matches``)를 합쳐 준다(각 종목은 자기 ``exchange`` 를 안다). 이때 반환
         ``exchange`` 는 ``"US"``, ``total_count`` 은 세 거래소 합, 순위(``rank``)는 거래소별 순위가
-        그대로 유지된다."""
+        그대로 유지된다. 집계라 ``decimal_places`` 는 첫 거래소 대표값이고 ``status`` 는 비운다
+        (가격은 각 ``match`` 에 이미 파싱된 ``Decimal`` 로 들어 있다)."""
         filters = {
             "price": price, "change_percent": change_percent, "market_cap": market_cap,
             "shares": shares, "volume": volume, "amount": amount, "eps": eps, "per": per,
@@ -338,8 +339,11 @@ class OverseasNamespace:
                 overseas_market_data_api.search_stocks(self._c.transport, exchange=x, **filters)
                 for x in _US_EXCHANGES
             ]
+            # 집계는 거래소별 메타(decimal_places=price zdiv, status)를 하나로 못 합친다 -- 각
+            # match 는 자기 exchange 와 이미 파싱된 Decimal 가격을 들고 있으니, 대표값으로 첫
+            # 거래소의 decimal_places 를 싣고 status 는 집계라 비운다.
             return OverseasStockSearch(
-                exchange="US", decimal_places=0, status="",
+                exchange="US", decimal_places=parts[0].decimal_places, status="",
                 total_count=sum(p.total_count for p in parts),
                 matches=tuple(m for p in parts for m in p.matches),
             )
