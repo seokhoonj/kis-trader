@@ -25,6 +25,9 @@ if TYPE_CHECKING:
 
 Side = Literal["buy", "sell"]
 
+#: 파생 자산군(선물/옵션) -- CLI 라우팅·검증에서 stock/bond 와 구분한다.
+_DERIVATIVE_ASSETS = ("futures", "option")
+
 
 def _ticket(args: Namespace, *, side: Side, account: str | None, environment: str) -> dict[str, Any]:
     # 입력을 그대로 되읽는 티켓. 시장가/지정가 같은 주문유형 분류는 CLI 가 만들지 않는다
@@ -45,35 +48,70 @@ def _ticket(args: Namespace, *, side: Side, account: str | None, environment: st
     if asset == "bond" and side == "sell":
         ticket["buy_date"] = getattr(args, "buy_date", None)
         ticket["buy_seq"] = getattr(args, "buy_seq", None)
+    if asset in _DERIVATIVE_ASSETS:
+        if args.venue == "overseas":
+            ticket["stop_price"] = args.stop_price
+        else:
+            ticket["night"] = args.night
+            if asset == "option":
+                ticket["right"] = args.right
     return ticket
 
 
-def _validate_bond_args(args: Namespace, side: Side) -> None:
-    """채권 발주의 CLI 선제 검증 -- 와이어 전에 명확한 메시지로 fail-closed 한다. 라이브러리도
-    막지만, CLI 가 먼저 거부해 어떤 플래그가 문제인지 지목한다."""
+def _validate_asset_args(args: Namespace, side: Side) -> None:
+    """자산별 발주 인자의 CLI 선제 검증 -- 와이어 전에 문제 플래그를 지목해 fail-closed 한다.
+    라이브러리도 막지만, CLI 가 먼저 거부해 어떤 플래그가 왜 안 되는지 명확히 알려준다."""
     asset = args.asset
-    buy_date = args.buy_date
-    buy_seq = args.buy_seq
-    if asset != "bond":
-        if buy_date or buy_seq:
-            raise CliConfigError("--buy-date/--buy-seq 는 채권 매도(--asset bond, sell) 전용입니다.")
-        return
+    domestic = args.venue != "overseas"
+    is_deriv = asset in _DERIVATIVE_ASSETS
+
+    # 자산에 무의미한 특수 플래그 거부(어느 플래그가 문제인지 지목).
+    if (args.buy_date or args.buy_seq) and not (asset == "bond" and side == "sell"):
+        raise CliConfigError("--buy-date/--buy-seq 는 채권 매도(--asset bond, sell) 전용입니다.")
+    if args.right is not None and not (asset == "option" and domestic):
+        raise CliConfigError("--right 는 국내 옵션(--asset option) 전용입니다.")
+    if args.night and not (is_deriv and domestic):
+        raise CliConfigError("--night 는 국내 파생(--asset futures/option) 전용입니다.")
+    if args.stop_price is not None and not (is_deriv and not domestic):
+        raise CliConfigError(
+            "--stop-price 는 해외 파생(--asset futures/option, --venue overseas) 전용입니다.")
+    if is_deriv and args.exchange is not None:
+        raise CliConfigError("--exchange 는 파생 주문에 쓰지 않습니다(계약코드가 거래소를 결정).")
+    if args.division is not None:
+        # 국내(현금 또는 파생)만 division 을 받는다. 해외는 주식/파생 모두 불가 -- stock 이라도
+        # domestic 이 아니면 여기서 거부한다(이 함수가 division 검증의 유일한 소유자).
+        if not (domestic and (asset == "stock" or is_deriv)):
+            raise CliConfigError("--division 은 국내 현금/파생 주문 전용입니다.")
+        if is_deriv and args.division == "priority_limit":
+            raise CliConfigError(
+                "최우선지정가(priority_limit)는 파생 주문에 없습니다(조건부/최유리지정가만 가능).")
+
+    # 자산별 필수 조건 + 실전전용 게이트.
+    if asset == "bond":
+        _validate_bond_required(args, side)
+    elif is_deriv and not domestic and args.execute == "paper":
+        raise CliConfigError("해외 파생은 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
+    if asset == "option" and domestic and args.right is None:
+        raise CliConfigError("국내 옵션 발주에는 --right call/put 이 필요합니다.")
+    if args.night and args.execute == "paper":
+        raise CliConfigError("야간 파생(--night)은 실전전용입니다 -- --execute paper 불가.")
+
+
+def _validate_bond_required(args: Namespace, side: Side) -> None:
+    """장내채권 전용 필수 조건 -- 지정가 필수, 국내 전용, 실전전용, 매도는 lot 필수."""
     if args.limit_price is None or not str(args.limit_price).strip():
         raise CliConfigError("장내채권은 지정가 전용입니다 -- --limit-price 가 필요합니다.")
-    if args.division is not None:
-        raise CliConfigError("--division 은 국내 현금주문 전용입니다(채권 아님).")
     if args.venue == "overseas" or args.exchange is not None:
         raise CliConfigError("장내채권은 국내 전용입니다(--venue overseas/--exchange 불가).")
     if args.execute == "paper":
         raise CliConfigError("장내채권은 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
-    if side == "sell":
-        if not (buy_date and buy_seq):
-            raise CliConfigError(
-                "채권 매도는 매수 lot(--buy-date/--buy-seq)이 모두 필요합니다 -- "
-                "`kis account balance --asset bond` 로 lot 을 확인하세요."
-            )
-    elif buy_date or buy_seq:
-        raise CliConfigError("채권 매수는 lot 인자(--buy-date/--buy-seq)를 받지 않습니다.")
+    # 매수에 실린 lot 인자는 상위 _validate_asset_args 의 공용 가드가 먼저 거부하므로
+    # 여기서는 매도의 lot 필수만 확인한다.
+    if side == "sell" and not (args.buy_date and args.buy_seq):
+        raise CliConfigError(
+            "채권 매도는 매수 lot(--buy-date/--buy-seq)이 모두 필요합니다 -- "
+            "`kis account balance --asset bond` 로 lot 을 확인하세요."
+        )
 
 
 def _authorize(args: Namespace, *, account: str | None, environment: str, is_tty: bool, prompt: Callable[[str], str]) -> None:
@@ -116,11 +154,8 @@ _DRY_RUN_NOTE = (
 
 def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_tty: bool | None, prompt: Callable[[str], str]) -> Any:
     account = kis._account  # 세션 생성 시 한 번 해석된 계좌(자격증명 재조회 없음)
-    division = getattr(args, "division", None)
-    # division(KRX 주문구분)은 국내 현금 전용 -- 해외 핸들엔 그 파라미터가 없다. fail-closed 로 막는다.
-    if division is not None and args.venue == "overseas":
-        raise CliConfigError("--division 은 국내(domestic) 현금주문 전용입니다.")
-    _validate_bond_args(args, side)
+    division = getattr(args, "division", None)  # 국내 현금/파생 전용 -- 적법성 검증은 _validate_asset_args 소유
+    _validate_asset_args(args, side)
     if args.execute is None:
         return {**_ticket(args, side=side, account=account, environment=kis.environment), "note": _DRY_RUN_NOTE}
     if is_tty is None:
@@ -132,6 +167,20 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
             return bond.buy(quantity=args.quantity, limit_price=args.limit_price)
         return bond.sell(quantity=args.quantity, limit_price=args.limit_price,
                          buy_date=args.buy_date, buy_seq=args.buy_seq)
+    if args.asset in _DERIVATIVE_ASSETS:
+        # venue 별로 전송 kwargs 가 달라(국내 division/night, 해외 stop_price) 각각 인라인 해석한다
+        # -- 공용 변수로 묶으면 두 핸들의 buy 시그니처가 달라 정적 타입이 좁혀지지 않는다.
+        if args.venue == "overseas":
+            ovs = (kis.overseas.option(args.identifier) if args.asset == "option"
+                   else kis.overseas.futures(args.identifier))
+            place_ovs = ovs.buy if side == "buy" else ovs.sell
+            return place_ovs(quantity=args.quantity, limit_price=args.limit_price,
+                             stop_price=args.stop_price)
+        dom = (kis.domestic.option(args.identifier, right=args.right) if args.asset == "option"
+               else kis.domestic.futures(args.identifier))
+        place_dom = dom.buy if side == "buy" else dom.sell
+        return place_dom(quantity=args.quantity, limit_price=args.limit_price,
+                         division=args.division, night=args.night)
     handle = resolve_stock(kis, args)
     place = handle.buy if side == "buy" else handle.sell
     extra: dict[str, Any] = {} if args.venue == "overseas" else {"division": division}

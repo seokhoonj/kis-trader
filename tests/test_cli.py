@@ -68,6 +68,34 @@ class _BondHandle:
         return "REPORT"
 
 
+class _DomesticDerivHandle:
+    def __init__(self, log, kind, code, right=None):
+        self._log = log; self._kind = kind; self._code = code; self._right = right
+
+    def buy(self, *, quantity, limit_price=None, division=None, night=False,
+            client_order_id=None):
+        self._log.append(("dom_deriv_buy", self._kind, self._code, self._right,
+                          quantity, limit_price, division, night)); return "REPORT"
+
+    def sell(self, *, quantity, limit_price=None, division=None, night=False,
+             client_order_id=None):
+        self._log.append(("dom_deriv_sell", self._kind, self._code, self._right,
+                          quantity, limit_price, division, night)); return "REPORT"
+
+
+class _OverseasDerivHandle:
+    def __init__(self, log, kind, code):
+        self._log = log; self._kind = kind; self._code = code
+
+    def buy(self, *, quantity, limit_price=None, stop_price=None, client_order_id=None):
+        self._log.append(("ovs_deriv_buy", self._kind, self._code, quantity,
+                          limit_price, stop_price)); return "REPORT"
+
+    def sell(self, *, quantity, limit_price=None, stop_price=None, client_order_id=None):
+        self._log.append(("ovs_deriv_sell", self._kind, self._code, quantity,
+                          limit_price, stop_price)); return "REPORT"
+
+
 class _Domestic:
     def __init__(self, log):
         self._log = log
@@ -78,8 +106,25 @@ class _Domestic:
     def bond(self, code):
         return _BondHandle(self._log, code)
 
+    def futures(self, code):
+        return _DomesticDerivHandle(self._log, "futures", code)
+
+    def option(self, code, *, right=None):
+        return _DomesticDerivHandle(self._log, "option", code, right=right)
+
     def search(self, query, *, market):
         self._log.append(("search", query, market)); return ["HIT"]
+
+
+class _Overseas:
+    def __init__(self, log):
+        self._log = log
+
+    def futures(self, code):
+        return _OverseasDerivHandle(self._log, "futures", code)
+
+    def option(self, code):
+        return _OverseasDerivHandle(self._log, "option", code)
 
 
 class _Orders:
@@ -102,6 +147,7 @@ class StubKis:
         self._account = account    # 세션이 해석한 계좌(주문 게이트가 kis._account 로 읽음)
         self.environment = environment
         self.domestic = _Domestic(self.log)
+        self.overseas = _Overseas(self.log)
         self.orders = _Orders(self.log)
 
 
@@ -724,7 +770,7 @@ def test_order_bond_sell_requires_lot():
 def test_order_bond_buy_rejects_lot():
     args = _args(["order", "buy", "KR6449111CB8", "100", "--asset", "bond",
                   "--limit-price", "10125", "--buy-date", "20260814", "--buy-seq", "1"])
-    with pytest.raises(CliConfigError, match="lot"):
+    with pytest.raises(CliConfigError, match="buy-date"):
         order.cmd_buy(StubKis(), args, is_tty=False)
 
 
@@ -773,3 +819,185 @@ def test_order_bond_real_rejects_mismatched_confirm_account():
     with pytest.raises(CliConfigError, match="--confirm-account"):
         order.cmd_buy(kis, args, is_tty=False)
     assert kis.log == []  # 게이트 실패 -> 채권 핸들에 닿지 않음
+
+
+# --- 파생 주문 CLI: dry-run 티켓 + fail-closed 검증 -----------------------
+
+def test_order_futures_domestic_dry_run_ticket():
+    kis = StubKis()
+    dry = order.cmd_buy(kis, _args(
+        ["order", "buy", "101W09", "1", "--asset", "futures", "--limit-price", "350.5"]),
+        is_tty=False)
+    assert dry["asset"] == "futures"
+    assert dry["limit_price"] == "350.5"
+    assert dry["night"] is False
+    assert kis.log == []
+
+
+def test_order_option_domestic_dry_run_shows_right():
+    kis = StubKis()
+    dry = order.cmd_buy(kis, _args(
+        ["order", "buy", "201S07", "1", "--asset", "option", "--right", "call",
+         "--limit-price", "5.2"]), is_tty=False)
+    assert dry["asset"] == "option"
+    assert dry["right"] == "call"
+    assert kis.log == []
+
+
+def test_order_futures_overseas_dry_run_shows_stop_price():
+    kis = StubKis()
+    dry = order.cmd_buy(kis, _args(
+        ["order", "buy", "ESZ25", "1", "--asset", "futures", "--venue", "overseas",
+         "--stop-price", "99"]), is_tty=False)
+    assert dry["asset"] == "futures"
+    assert dry["stop_price"] == "99"
+    assert kis.log == []
+
+
+def test_order_right_rejected_for_futures():
+    with pytest.raises(CliConfigError, match="--right"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "101W09", "1", "--asset", "futures", "--right", "call"]),
+            is_tty=False)
+
+
+def test_order_right_rejected_for_overseas_option():
+    with pytest.raises(CliConfigError, match="--right"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "X", "1", "--asset", "option", "--venue", "overseas",
+             "--right", "call"]), is_tty=False)
+
+
+def test_order_night_rejected_for_stock():
+    with pytest.raises(CliConfigError, match="--night"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "005930", "1", "--night", "--limit-price", "70000"]),
+            is_tty=False)
+
+
+def test_order_night_rejected_for_overseas_futures():
+    with pytest.raises(CliConfigError, match="--night"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "X", "1", "--asset", "futures", "--venue", "overseas", "--night"]),
+            is_tty=False)
+
+
+def test_order_stop_price_rejected_for_domestic_futures():
+    with pytest.raises(CliConfigError, match="--stop-price"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "101W09", "1", "--asset", "futures", "--stop-price", "99"]),
+            is_tty=False)
+
+
+def test_order_stop_price_rejected_for_stock():
+    with pytest.raises(CliConfigError, match="--stop-price"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "005930", "1", "--stop-price", "99"]), is_tty=False)
+
+
+def test_order_division_priority_limit_rejected_for_futures():
+    with pytest.raises(CliConfigError, match="priority_limit"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "101W09", "1", "--asset", "futures",
+             "--division", "priority_limit"]), is_tty=False)
+
+
+def test_order_division_immediate_limit_ok_for_futures():
+    kis = StubKis()
+    dry = order.cmd_buy(kis, _args(
+        ["order", "buy", "101W09", "1", "--asset", "futures",
+         "--division", "immediate_limit"]), is_tty=False)
+    assert dry["division"] == "immediate_limit"
+
+
+def test_order_overseas_derivative_rejects_execute_paper():
+    kis = StubKis(environment="paper")
+    with pytest.raises(CliConfigError, match="실전전용"):
+        order.cmd_buy(kis, _args(
+            ["--profile", "paper", "order", "buy", "X", "1", "--asset", "futures",
+             "--venue", "overseas", "--limit-price", "100", "--execute", "paper", "--yes"]),
+            is_tty=False)
+    assert kis.log == []
+
+
+def test_order_night_rejects_execute_paper():
+    kis = StubKis(environment="paper")
+    with pytest.raises(CliConfigError, match="실전전용"):
+        order.cmd_buy(kis, _args(
+            ["--profile", "paper", "order", "buy", "101W09", "1", "--asset", "futures",
+             "--night", "--limit-price", "350", "--execute", "paper", "--yes"]),
+            is_tty=False)
+    assert kis.log == []
+
+
+def test_order_option_domestic_requires_right():
+    with pytest.raises(CliConfigError, match="--right"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "201S07", "1", "--asset", "option", "--limit-price", "5.2"]),
+            is_tty=False)
+
+
+def test_order_exchange_rejected_for_derivative():
+    with pytest.raises(CliConfigError, match="--exchange"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "ESZ25", "1", "--asset", "futures", "--venue", "overseas",
+             "--exchange", "CME", "--limit-price", "100"]), is_tty=False)
+
+
+# --- 파생 주문 CLI: 전송 경로 라우팅 --------------------------------------
+
+def test_order_futures_domestic_execute_routes_with_division_night():
+    kis = StubKis(account="12345678-03", environment="real")
+    args = _args(["--profile", "derivatives", "order", "buy", "101W09", "1",
+                  "--asset", "futures", "--limit-price", "350.5",
+                  "--division", "immediate_limit",
+                  "--execute", "real", "--yes", "--confirm-account", "7803"])
+    assert order.cmd_buy(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [("dom_deriv_buy", "futures", "101W09", None, 1, "350.5",
+                        "immediate_limit", False)]
+
+
+def test_order_option_domestic_execute_forwards_right():
+    kis = StubKis(account="12345678-03", environment="real")
+    args = _args(["--profile", "derivatives", "order", "buy", "201S07", "1",
+                  "--asset", "option", "--right", "put", "--limit-price", "5.2",
+                  "--execute", "real", "--yes", "--confirm-account", "7803"])
+    assert order.cmd_buy(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [("dom_deriv_buy", "option", "201S07", "put", 1, "5.2", None, False)]
+
+
+def test_order_futures_overseas_execute_forwards_stop_price():
+    kis = StubKis(account="12345678-08", environment="real")
+    args = _args(["--profile", "overseas_derivatives", "order", "sell", "ESZ25", "2",
+                  "--asset", "futures", "--venue", "overseas", "--stop-price", "99",
+                  "--execute", "real", "--yes", "--confirm-account", "7808"])
+    assert order.cmd_sell(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [("ovs_deriv_sell", "futures", "ESZ25", 2, None, "99")]
+
+
+def test_order_futures_domestic_sell_execute_routes_to_sell_handle():
+    kis = StubKis(account="12345678-03", environment="real")
+    args = _args(["--profile", "derivatives", "order", "sell", "101W09", "1",
+                  "--asset", "futures", "--limit-price", "350.5",
+                  "--execute", "real", "--yes", "--confirm-account", "7803"])
+    assert order.cmd_sell(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [("dom_deriv_sell", "futures", "101W09", None, 1, "350.5", None, False)]
+
+
+def test_order_option_overseas_execute_routes_to_option_handle():
+    kis = StubKis(account="12345678-08", environment="real")
+    args = _args(["--profile", "overseas_derivatives", "order", "buy", "OESX25", "1",
+                  "--asset", "option", "--venue", "overseas", "--limit-price", "12",
+                  "--execute", "real", "--yes", "--confirm-account", "7808"])
+    assert order.cmd_buy(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [("ovs_deriv_buy", "option", "OESX25", 1, "12", None)]
+
+
+def test_order_futures_domestic_real_rejects_mismatched_confirm():
+    kis = StubKis(account="12345678-03", environment="real")
+    args = _args(["--profile", "derivatives", "order", "buy", "101W09", "1",
+                  "--asset", "futures", "--limit-price", "350.5",
+                  "--execute", "real", "--yes", "--confirm-account", "0000"])
+    with pytest.raises(CliConfigError, match="--confirm-account"):
+        order.cmd_buy(kis, args, is_tty=False)
+    assert kis.log == []
