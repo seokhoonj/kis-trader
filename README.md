@@ -82,8 +82,11 @@ kis ranking change --direction gainers
 kis account balance
 kis order buy 005930 10 --limit-price 70000                       # 실행 안 함(dry-run)
 kis order buy 005930 10 --limit-price 70000 --execute paper --yes  # 모의투자로 실제 전송
-kis account balance --asset bond                                  # 장내채권 lot(buy-date/buy-seq) 목록
+kis account balance --asset bond                                  # 채권 lot 목록(buy_date/buy_sequence 컬럼)
 kis order buy KR6449111CB8 100 --asset bond --limit-price 10125    # 채권 매수(dry-run)
+# 채권 매도는 목록의 buy_sequence 컬럼을 --buy-seq 로, buy_date 를 --buy-date 로 지목한다:
+kis order sell KR6449111CB8 100 --asset bond --limit-price 10130 --buy-date 20260814 --buy-seq 1
+kis account orders --asset bond --date 20260814                   # 채권 미체결 확인(주문 타임아웃 후)
 ```
 
 ## 6. AI 코딩 에이전트에서 사용

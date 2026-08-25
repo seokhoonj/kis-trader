@@ -84,8 +84,11 @@ kis ranking change --direction gainers
 kis account balance
 kis order buy 005930 10 --limit-price 70000                       # dry run, not sent
 kis order buy 005930 10 --limit-price 70000 --execute paper --yes  # sent to paper trading
-kis account balance --asset bond                                  # list bond lots (buy-date/buy-seq)
+kis account balance --asset bond                                  # list bond lots (buy_date/buy_sequence columns)
 kis order buy KR6449111CB8 100 --asset bond --limit-price 10125    # bond buy (dry run)
+# bond sell targets a lot: pass the buy_sequence column as --buy-seq, buy_date as --buy-date:
+kis order sell KR6449111CB8 100 --asset bond --limit-price 10130 --buy-date 20260814 --buy-seq 1
+kis account orders --asset bond --date 20260814                   # bond open orders (after an order timeout)
 ```
 
 ## 6. Use it from an AI coding agent

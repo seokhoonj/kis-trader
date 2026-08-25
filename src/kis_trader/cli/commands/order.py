@@ -29,7 +29,7 @@ Side = Literal["buy", "sell"]
 def _ticket(args: Namespace, *, side: Side, account: str | None, environment: str) -> dict[str, Any]:
     # 입력을 그대로 되읽는 티켓. 시장가/지정가 같은 주문유형 분류는 CLI 가 만들지 않는다
     # (limit_price 유무는 사용자가 이미 준 값이라 그대로 노출). 환경은 세션(kis)이 이미 해석한 값.
-    asset = getattr(args, "asset", "stock")
+    asset = args.asset
     ticket: dict[str, Any] = {
         "environment": environment,
         "account_suffix": account_suffix(account),
@@ -51,19 +51,21 @@ def _ticket(args: Namespace, *, side: Side, account: str | None, environment: st
 def _validate_bond_args(args: Namespace, side: Side) -> None:
     """채권 발주의 CLI 선제 검증 -- 와이어 전에 명확한 메시지로 fail-closed 한다. 라이브러리도
     막지만, CLI 가 먼저 거부해 어떤 플래그가 문제인지 지목한다."""
-    asset = getattr(args, "asset", "stock")
-    buy_date = getattr(args, "buy_date", None)
-    buy_seq = getattr(args, "buy_seq", None)
+    asset = args.asset
+    buy_date = args.buy_date
+    buy_seq = args.buy_seq
     if asset != "bond":
         if buy_date or buy_seq:
             raise CliConfigError("--buy-date/--buy-seq 는 채권 매도(--asset bond, sell) 전용입니다.")
         return
-    if args.limit_price is None:
+    if args.limit_price is None or not str(args.limit_price).strip():
         raise CliConfigError("장내채권은 지정가 전용입니다 -- --limit-price 가 필요합니다.")
-    if getattr(args, "division", None) is not None:
+    if args.division is not None:
         raise CliConfigError("--division 은 국내 현금주문 전용입니다(채권 아님).")
     if args.venue == "overseas" or args.exchange is not None:
         raise CliConfigError("장내채권은 국내 전용입니다(--venue overseas/--exchange 불가).")
+    if args.execute == "paper":
+        raise CliConfigError("장내채권은 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
     if side == "sell":
         if not (buy_date and buy_seq):
             raise CliConfigError(
