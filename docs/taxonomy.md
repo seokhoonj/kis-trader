@@ -20,60 +20,73 @@ kis  (KISClient 세션)
 ```text
 kis.domestic
 ├── stock(code)                         # 국내 종목/ETF 핸들
+│   │  ── 현재가·종목정보 ───────────────────────────
 │   ├── quote()                         # 현재가 스냅샷
 │   ├── profile()                       # 종목 기본정보
 │   ├── status()                        # 현재가·거래·규제 상태
-│   ├── intraday_executions()           # 당일 체결·최우선호가
+│   │  ── 봉·시세 이력 ────────────────────────────
 │   ├── bars(interval='1d', ...)        # OHLCV 봉
 │   ├── recent_prices()                 # 최근 30개 주가·수급
 │   ├── minute_bars_on(day)             # 특정 과거일 1분봉
+│   ├── expected_price_trend()          # 동시호가 예상체결가 추이
+│   │  ── 호가·체결 ──────────────────────────────
 │   ├── order_book()                    # 호가창(10단계)
 │   ├── trades()                        # 최근 체결(time & sales)
+│   ├── intraday_executions()           # 당일 체결·최우선호가
+│   ├── daily_trade_volume()            # 일별 매수/매도 체결량
+│   ├── trade_amount_bands()            # 체결금액대별 매매비중
+│   ├── volume_profile()                # 가격대별 거래량(매물대)
+│   │  ── 투자자 매매동향 ───────────────────────────
 │   ├── investor_flows()                # 일자별 투자자 매매동향
 │   ├── detailed_investor_history()     # 세부 투자자 일별 내역
+│   ├── investor_estimate()             # 장중 투자자 순매수 추정
+│   ├── foreign_net_buy_trend()         # 장중 외국계 순매수 추이
+│   │  ── 회원사(증권사 창구) ────────────────────────
 │   ├── broker_activity()               # 상위 회원사 매매 비중
 │   ├── broker_daily_activity(...)      # 회원사 일별 매매
 │   ├── broker_trade_ticks(...)         # 회원사 실시간 체결 틱
+│   │  ── 시간외 거래 ─────────────────────────────
 │   ├── after_hours_quote()             # 시간외 단일가 스냅샷
 │   ├── after_hours_conclusions()       # 시간외 시간별 체결
 │   ├── after_hours_daily()             # 시간외 일자별 종가
 │   ├── after_hours_order_book()        # 시간외 10단계 호가
+│   │  ── 프로그램매매 ─────────────────────────────
 │   ├── program_trades()                # 장중 프로그램매매 흐름
 │   ├── daily_program_trades()          # 프로그램매매 일별 추이
-│   ├── investor_estimate()             # 장중 투자자 순매수 추정
+│   │  ── 신용·공매도·대차 ──────────────────────────
+│   ├── credit_balance_trend()          # 일별 신용잔고 추이
+│   ├── short_sale_trend()              # 일별 공매도 추이
+│   ├── loan_trend()                    # 일별 대차거래 추이
+│   │  ── 재무제표 ───────────────────────────────
 │   ├── balance_sheet()                 # 결산기별 대차대조표
 │   ├── income_statement()              # 결산기별 손익계산서
+│   │  ── 재무비율 ───────────────────────────────
 │   ├── financial_ratios()              # 주요 재무비율
 │   ├── profitability_ratios()          # 수익성비율
 │   ├── stability_ratios()              # 안정성비율
 │   ├── growth_ratios()                 # 성장성비율
 │   ├── other_ratios()                  # 기타주요비율
-│   ├── credit_balance_trend()          # 일별 신용잔고 추이
-│   ├── short_sale_trend()              # 일별 공매도 추이
-│   ├── volume_profile()                # 가격대별 거래량(매물대)
-│   ├── foreign_net_buy_trend()         # 장중 외국계 순매수 추이
-│   ├── loan_trend()                    # 일별 대차거래 추이
+│   │  ── 애널리스트·추정 ───────────────────────────
 │   ├── analyst_opinions()              # 애널리스트 의견·목표주가
 │   ├── earnings_estimate()             # 월간 추정 손익·투자지표
-│   ├── daily_trade_volume()            # 일별 매수/매도 체결량
-│   ├── expected_price_trend()          # 동시호가 예상체결가 추이
-│   ├── trade_amount_bands()            # 체결금액대별 매매비중
+│   │  ── ETF/ETN 전용 ─────────────────────────
 │   ├── nav()                           # ETF/ETN 순자산가치
 │   ├── nav_comparison()                # ETF 시장가-NAV 비교
 │   ├── nav_intraday()                  # ETF 시장가-NAV 분별
+│   ├── nav_history(start, end)         # 일별 NAV-가격 추이
 │   ├── etf_order_book()                # ETF 10단계 호가·LP
 │   ├── etf_components()                # ETF 구성종목(PDF)
-│   ├── nav_history(start, end)         # 일별 NAV-가격 추이
+│   │  ── 주문가능 조회(여력) ────────────────────────
 │   ├── buyable()                       # 현금 매수가능 여력
 │   ├── credit_buyable()                # 신용 매수가능 여력
 │   ├── sellable()                      # 매도가능 수량
+│   │  ── 주문 실행 ──────────────────────────────
 │   ├── buy(quantity, ...)              # 매수 주문(KRX 주문구분)
 │   ├── sell(quantity, ...)             # 매도 주문(KRX 주문구분)
 │   ├── credit_buy(...)                 # 신용 매수 주문
 │   ├── credit_sell(...)                # 신용 매도 주문
 │   ├── reserve_buy(...)                # 예약매수
 │   └── reserve_sell(...)               # 예약매도
-├── search(query)                       # 상장 종목 이름/코드 검색
 ├── index(code)                         # 지수/업종 핸들
 │   ├── quote()                         # 지수 현재가
 │   ├── bars(interval='1d', ...)        # 지수 봉
@@ -119,10 +132,13 @@ kis.domestic
 │   ├── night_orderable(side)           # 야간장 주문가능수량
 │   ├── buy(quantity, ...)              # 계약 매수 주문
 │   └── sell(quantity, ...)             # 계약 매도 주문
+│  ── 파생 전광판 ─────────────────────────────────
 ├── option_expiries()                   # 지수옵션 만기 월물 목록
 ├── option_board(expiry)                # 옵션 콜/풋 전광판
 ├── option_board_futures()              # 전광판 하단 선물 현재가
 ├── derivative_margin_rates(base_date)  # 선물 증거금율 표
+│  ── 종목검색·관심·공통 조회 ──────────────────────────
+├── search(query)                       # 상장 종목 이름/코드 검색
 ├── quotes(symbols)                     # 여러 종목 현재가(최대 30)
 ├── product_info(symbol)                # 상품 공통 기본정보
 ├── saved_screens()                     # HTS 저장 종목검색 조건
@@ -130,48 +146,57 @@ kis.domestic
 ├── watchlist_groups()                  # 관심종목 그룹 목록
 ├── watchlist(group_code)               # 관심종목 그룹 요약·종목
 ├── ranking                             # 시장 전체 순위 질의
+│   │  ── 가격·등락 ──────────────────────────────
 │   ├── by_change()                     # 등락률 순위
-│   ├── by_volume()                     # 거래량 계열 순위
-│   ├── by_market_cap()                 # 시가총액 순위
+│   ├── by_near_high_low()              # 신고/신저 근접 순위
 │   ├── by_disparity()                  # 이격도 순위
-│   ├── by_quote_balance()              # 호가잔량 순위
+│   ├── by_preferred_disparity()        # 우선주 괴리율 순위
+│   │  ── 거래·체결 ──────────────────────────────
+│   ├── by_volume()                     # 거래량 계열 순위
 │   ├── by_volume_power()               # 체결강도 순위
 │   ├── by_bulk_trades()                # 대량체결건수 순위
-│   ├── by_interest()                   # 관심종목 등록상위
-│   ├── by_preferred_disparity()        # 우선주 괴리율 순위
-│   ├── by_finance_ratio(...)           # 재무비율 순위
+│   ├── by_quote_balance()              # 호가잔량 순위
+│   │  ── 규모·밸류·재무 ───────────────────────────
+│   ├── by_market_cap()                 # 시가총액 순위
 │   ├── by_valuation(...)               # 밸류에이션 순위
+│   ├── by_finance_ratio(...)           # 재무비율 순위
 │   ├── by_profit_asset(...)            # 수익자산지표 순위
-│   ├── by_company_trades(...)          # 당사매매종목 순위
 │   ├── by_dividend(...)                # 배당률 순위
+│   │  ── 수급(공매도·신용·관심) ──────────────────────
 │   ├── by_short_sale()                 # 공매도 순위
 │   ├── by_credit_balance()             # 신용잔고 순위
-│   ├── by_near_high_low()              # 신고/신저 근접 순위
+│   ├── by_company_trades(...)          # 당사매매종목 순위
+│   ├── by_interest()                   # 관심종목 등록상위
+│   ├── by_views()                      # HTS 조회 상위 종목
+│   │  ── 예상체결·시간외 ───────────────────────────
 │   ├── by_expected_execution_change()  # 장전 예상체결 등락
 │   ├── by_expected_close()             # 장마감 예상체결 종목
 │   ├── by_overtime_change()            # 시간외 등락률 순위
 │   ├── by_overtime_volume()            # 시간외 거래량 순위
 │   ├── by_overtime_expected_change()   # 시간외 예상체결 등락
-│   ├── by_after_hour_balance()         # 시간외 잔량 순위
-│   └── by_views()                      # HTS 조회 상위 종목
+│   └── by_after_hour_balance()         # 시간외 잔량 순위
 ├── market                              # 시장 전체 분석 질의
+│   │  ── 투자자·프로그램 수급 ────────────────────────
 │   ├── investor_flows()                # 투자자 순매수 히스토리
 │   ├── investor_snapshot(...)          # 시장·업종 투자자 총량
 │   ├── investor_net_buy_stocks()       # 투자자 순매수 상위 종목
 │   ├── program_investor_trades()       # 프로그램매매 투자자 집계
+│   ├── program_trades()                # 일별 프로그램매매 종합
+│   ├── program_flow()                  # 시간대별 프로그램 순매수
+│   ├── foreign_broker_trades()         # 외국계 창구 매매종목
+│   │  ── 자금·금리 ──────────────────────────────
 │   ├── funds()                         # 증시자금 종합 추이
 │   ├── interest_rates()                # 주요 금리·채권지수
+│   │  ── 종목 자격·이벤트 ──────────────────────────
 │   ├── lendable_stocks()               # 대주 가능 종목·한도
 │   ├── credit_eligible_stocks()        # 신용주문 가능 종목
-│   ├── broker_opinions(broker)         # 증권사 종목 투자의견
-│   ├── program_trades()                # 일별 프로그램매매 종합
 │   ├── vi_events()                     # 전 시장 VI 발동
 │   ├── limit_stocks()                  # 상/하한가 도달 종목
-│   ├── program_flow()                  # 시간대별 프로그램 순매수
-│   ├── trading_calendar()              # 거래 캘린더(영업/개장)
-│   ├── futures_market_schedule()       # 국내선물 영업일·장 시각
+│   │  ── 의견·뉴스·일정 ───────────────────────────
+│   ├── broker_opinions(broker)         # 증권사 종목 투자의견
 │   ├── news()                          # 시황/공시 뉴스 피드
-│   └── foreign_broker_trades()         # 외국계 창구 매매종목
+│   ├── trading_calendar()              # 거래 캘린더(영업/개장)
+│   └── futures_market_schedule()       # 국내선물 영업일·장 시각
 ├── calendar                            # 기업행위 캘린더 질의
 │   ├── dividends(start, end)           # 배당 일정
 │   ├── ipo_subscriptions(...)          # 공모주 청약 일정
