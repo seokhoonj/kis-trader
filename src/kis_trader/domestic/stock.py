@@ -18,7 +18,15 @@ from .._stock_base import _StockBase
 from ..bar import Bar, Interval
 from ..errors import KISUsageError
 from ..instrument import DomesticBoard, resolve_market
-from ..order import CreditType, DomesticDivision, Order, Side, TimeInForce
+from ..order import (
+    _LIMIT_BASED_DIVISIONS,
+    _PRICELESS_DIVISIONS,
+    CreditType,
+    DomesticDivision,
+    Order,
+    Side,
+    TimeInForce,
+)
 from ..order_book import OrderBook
 from ..orderable import BuyableAmount, SellableQuantity
 from ..quote import Quote
@@ -496,11 +504,12 @@ class DomesticStock(_StockBase):
         self, side: Side, *, quantity: Numeric, limit_price: Numeric | None,
         time_in_force: TimeInForce, division: DomesticDivision | None, client_order_id: str | None,
     ) -> Order:
-        # 최유리/최우선은 시장이 가격을 정하므로 limit_price 없음(order_type="market" 기반), 조건부는 가격 필요
-        # (order_type="limit" 기반). division 없으면 기존 동작(limit_price 유무로 시장가/지정가). 결합 불변식은
-        # Order.__post_init__ 에도 있으나, 여기서 미리 막아 division 을 지목하는 명확한 메시지를 준다.
-        if division in ("immediate_limit", "priority_limit", "midpoint",
-                        "pre_market_close", "post_market_close"):
+        # 가격없는 구분(최유리/최우선/중간가/장전·장후 시간외)은 시장이 가격을 정하므로 limit_price 없음
+        # (order_type="market" 기반), 지정가 기반 구분(조건부/시간외 단일가)은 가격 필요(order_type="limit" 기반).
+        # division 없으면 기존 동작(limit_price 유무로 시장가/지정가). 결합 불변식은 Order.__post_init__ 에도
+        # 있으나, 여기서 미리 막아 division 을 지목하는 명확한 메시지를 준다. 두 집합은 order.py 가 원장이라
+        # (DomesticDivision 을 남김없이 분할), 새 division 이 어느 한쪽에 없으면 plain 으로 조용히 새지 않는다.
+        if division in _PRICELESS_DIVISIONS:
             if limit_price is not None:
                 raise KISUsageError(
                     f"{division} 은 시장이 가격을 정하므로 limit_price 를 줄 수 없다(시장 결정 가격)."
@@ -508,12 +517,13 @@ class DomesticStock(_StockBase):
             return Order.market(self.symbol, side=side, quantity=quantity,
                                 time_in_force=time_in_force, division=division,
                                 board=self.market, client_order_id=client_order_id)
-        if division in ("conditional_limit", "after_hours_single"):
+        if division in _LIMIT_BASED_DIVISIONS:
             if limit_price is None:
                 raise KISUsageError(f"{division} 은 limit_price 가 필요하다(지정가 기반).")
             return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=limit_price,
                                time_in_force=time_in_force, division=division,
                                board=self.market, client_order_id=client_order_id)
+        # 여기 도달 = division is None (위 두 집합이 DomesticDivision 을 남김없이 덮으므로).
         if limit_price is None:
             return Order.market(self.symbol, side=side, quantity=quantity,
                                 time_in_force=time_in_force, board=self.market,

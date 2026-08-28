@@ -60,6 +60,13 @@ DerivativeDivision = Literal["conditional_limit", "immediate_limit"]
 #: 파생(XKFE) 주문이 허용하는 division 집합 -- 현금 전용 주문구분(priority_limit·Tier2)은 여기
 #: 없어 구성 시점에 거부된다(:class:`Order` __post_init__).
 _DERIVATIVE_DIVISIONS = frozenset(get_args(DerivativeDivision))
+#: 국내 주문구분의 가격 결합 -- 가격없음(시장 결정, order_type="market", ORD_UNPR "0") vs 지정가 기반
+#: (order_type="limit", limit_price 필수). DomesticDivision 를 이 둘로 남김없이 분할한다
+#: (exhaustiveness 는 test_ 로 강제 -- 새 division 추가 시 한쪽에 넣지 않으면 테스트가 실패).
+_PRICELESS_DIVISIONS = frozenset((
+    "immediate_limit", "priority_limit", "midpoint", "pre_market_close", "post_market_close",
+))
+_LIMIT_BASED_DIVISIONS = frozenset(("conditional_limit", "after_hours_single"))
 #: 거래 세션. ``regular`` 정규장, ``overnight`` 미국 오버나이트 거래(한국 낮 시간대 미국 종목 거래),
 #: ``night`` KRX 파생(선물/옵션) 야간장. 세션이 다르면 서로 다른 주문이고 정정·취소 엔드포인트도
 #: 다르므로 지문·라우팅으로 구분한다(미국 ``overnight`` 과 KRX ``night`` 은 별개의 세션이다).
@@ -556,16 +563,21 @@ class Order:
             # division<->order_type<->price 결합을 DATA 경계에서 강제한다 -- 최유리/최우선은 시장이 가격을
             # 정하는 가격없는 시장가 기반, 조건부는 지정가 기반. 이 결합이 없으면 Order.market/limit 생성자로
             # 잘못된 조합이 만들어져 와이어에 조용히 틀린 가격(또는 price 0)이 나간다(fail-open).
-            if self.division in ("immediate_limit", "priority_limit", "midpoint",
-                                 "pre_market_close", "post_market_close"):
+            if self.division in _PRICELESS_DIVISIONS:
                 if self.order_type != "market" or self.limit_price is not None:
                     raise KISUsageError(
                         f"{self.division} 은 시장이 가격을 정하므로 가격 없는 시장가 기반이어야 한다."
                     )
-            elif (self.division in ("conditional_limit", "after_hours_single")
-                    and self.order_type != "limit"):
+            elif self.division in _LIMIT_BASED_DIVISIONS:
+                if self.order_type != "limit":
+                    raise KISUsageError(
+                        f"{self.division} 은 지정가(limit) 기반이어야 한다(limit_price 필요)."
+                    )
+            else:
+                # DomesticDivision Literal 에 멤버를 추가하면서 위 두 집합 중 한쪽에 분류하지
+                # 않으면 가격 결합 규칙 없이 조용히 통과한다 -- fail-closed 로 막는다(방어적).
                 raise KISUsageError(
-                    f"{self.division} 은 지정가(limit) 기반이어야 한다(limit_price 필요)."
+                    f"division {self.division!r} 의 가격 결합 규칙이 정의되지 않았다"
                 )
 
         # 장내채권 매도 lot 지목(BUY_DT/BUY_SEQ)은 채권(BOND) **매도** 전용이다 -- 다른 거래소나

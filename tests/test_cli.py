@@ -910,24 +910,30 @@ def test_order_division_immediate_limit_ok_for_futures():
     assert dry["division"] == "immediate_limit"
 
 
-def test_order_tier2_division_dry_run_and_execute_forwards_it():
+@pytest.mark.parametrize("division", ["midpoint", "pre_market_close",
+                                      "post_market_close", "after_hours_single"])
+def test_order_tier2_division_dry_run_and_execute_forwards_it(division):
+    # after_hours_single 은 지정가 필수라 --limit-price 를 주고, 나머지 가격없는 구분은 주지 않는다.
+    price_args = ["--limit-price", "70000"] if division == "after_hours_single" else []
     dry = order.cmd_buy(StubKis(), _args(
-        ["order", "buy", "005930", "10", "--division", "midpoint"]), is_tty=False)
-    assert dry["division"] == "midpoint"
+        ["order", "buy", "005930", "10", "--division", division, *price_args]), is_tty=False)
+    assert dry["division"] == division
     kis = StubKis()
-    order.cmd_buy(kis, _args(["order", "buy", "005930", "10",
-                              "--division", "midpoint", "--execute", "paper", "--yes"]),
+    order.cmd_buy(kis, _args(["order", "buy", "005930", "10", "--division", division,
+                              *price_args, "--execute", "paper", "--yes"]),
                   is_tty=False)
-    assert kis.log[-1][-1] == "midpoint"  # StubStock.buy records division last
+    assert kis.log[-1][-1] == division  # StubStock.buy records division last
 
 
 @pytest.mark.parametrize("division", ["midpoint", "pre_market_close",
                                       "post_market_close", "after_hours_single"])
 def test_order_tier2_division_rejected_for_futures(division):
+    kis = StubKis()
     with pytest.raises(CliConfigError, match=division):
-        order.cmd_buy(StubKis(), _args(
+        order.cmd_buy(kis, _args(
             ["order", "buy", "101W09", "1", "--asset", "futures",
              "--division", division]), is_tty=False)
+    assert kis.log == []  # 거부는 파생 핸들에 닿기 전 -- 전송 없음
 
 
 def test_order_overseas_derivative_rejects_execute_paper():

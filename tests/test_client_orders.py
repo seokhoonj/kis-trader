@@ -574,6 +574,21 @@ def test_division_requires_domestic_exchange():
 
 
 # --- Tier2 division DATA invariants (midpoint / after-hours) ----------------
+def test_division_partition_is_exhaustive():
+    """가격없음/지정가 두 집합이 DomesticDivision 을 남김없이·겹침없이 분할한다 -- F2 단일원장 가드.
+    새 division 을 Literal 에 추가하면서 한 집합에 넣지 않으면 이 테스트가 깨져 강제한다."""
+    from typing import get_args
+
+    from kis_trader.order import (
+        _LIMIT_BASED_DIVISIONS,
+        _PRICELESS_DIVISIONS,
+        DomesticDivision,
+    )
+    all_divisions = frozenset(get_args(DomesticDivision))
+    assert _PRICELESS_DIVISIONS | _LIMIT_BASED_DIVISIONS == all_divisions
+    assert _PRICELESS_DIVISIONS.isdisjoint(_LIMIT_BASED_DIVISIONS)
+
+
 @pytest.mark.parametrize("division", ["midpoint", "pre_market_close", "post_market_close"])
 def test_priceless_tier2_division_constructs_as_market(division):
     """중간가·장전/장후 시간외는 가격 없는 시장가 기반으로 구성된다."""
@@ -636,12 +651,16 @@ def test_tier2_divisions_rejected_on_derivatives(division):
         ctor("101W09", side="buy", quantity=1, division=division, exchange="XKFE", **kwargs)
 
 
-def test_tier2_division_name_round_trips_through_fingerprint():
+@pytest.mark.parametrize("division", ["midpoint", "pre_market_close",
+                                      "post_market_close", "after_hours_single"])
+def test_tier2_division_name_round_trips_through_fingerprint(division):
     """신규 division 이름은 지문에 실려 encode/decode 왕복한다(스키마 무변경)."""
     from kis_trader.order import Order, decode_fingerprint, encode_fingerprint
-    order = Order.market("005930", side="buy", quantity=10, division="midpoint")
+    ctor = Order.limit if division == "after_hours_single" else Order.market
+    kwargs = {"limit_price": 70000} if division == "after_hours_single" else {}
+    order = ctor("005930", side="buy", quantity=10, division=division, **kwargs)
     restored = decode_fingerprint(encode_fingerprint(order.fingerprint))
-    assert restored.division == "midpoint"
+    assert restored.division == division
     assert restored == order.fingerprint
 
 
@@ -696,6 +715,48 @@ def test_tier2_unmapped_tif_rejected_before_wire(side, kwargs):
     assert fake.calls == []
 
 
+# --- Tier2 price-coupling + board via the PUBLIC path (stock.buy) -----------
+@pytest.mark.parametrize("division", ["midpoint", "pre_market_close", "post_market_close"])
+def test_priceless_tier2_rejects_price_via_public_path(division):
+    """가격없는 Tier2 구분에 limit_price 를 주면 공개 경로(stock.buy)에서 와이어 전 거부."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(KISUsageError, match="price 를 줄 수 없다"):
+        _client(fake).domestic.stock("005930").buy(
+            quantity=10, limit_price=70000, division=division)
+    assert fake.calls == []
+
+
+def test_after_hours_single_requires_price_via_public_path():
+    """시간외 단일가는 지정가 필수 -- limit_price 없이 공개 경로로 부르면 와이어 전 거부."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(KISUsageError, match="limit_price 가 필요하다"):
+        _client(fake).domestic.stock("005930").buy(
+            quantity=10, division="after_hours_single")
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("board", ["NXT", "UN"])
+@pytest.mark.parametrize("division", ["pre_market_close", "post_market_close", "after_hours_single"])
+def test_after_hours_divisions_rejected_off_krx_via_public_path(board, division):
+    """시간외 3종은 KRX 전용 -- NXT/UN 종목 핸들의 공개 경로에서도 와이어 전 거부."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    kwargs = {"limit_price": 70000} if division == "after_hours_single" else {}
+    with pytest.raises(KISUsageError):
+        _client(fake).domestic.stock("005930", market=board).buy(
+            quantity=10, division=division, **kwargs)
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("board,expected_excg", [("KRX", "KRX"), ("NXT", "NXT"), ("UN", "SOR")])
+def test_midpoint_wire_routes_exchange_id_on_every_board(board, expected_excg):
+    """중간가는 전 보드 가능 -- 공개 경로가 보드별 EXCG_ID_DVSN_CD(KRX/NXT/SOR)를 실어 보낸다."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(fake).domestic.stock("005930", market=board).buy(quantity=10, division="midpoint")
+    body = fake.calls[0]["body"]
+    assert body["EXCG_ID_DVSN_CD"] == expected_excg
+    assert body["EXCG_ID_DVSN_CD"] in {"KRX", "NXT", "SOR"}
+
+
 @pytest.mark.parametrize(
     ("kwargs", "expected_dvsn", "expected_unpr"),
     [
@@ -736,6 +797,23 @@ def test_reconcile_matches_division_order_own_row_not_sibling_market():
     report = _client(recon_t, store=store).orders.reconcile(cid)
     assert report is not None
     assert report.order_id == "IMM03"        # 자기 03 행, 시장가 01 행 아님
+
+
+def test_reconcile_matches_tier2_division_row_not_sibling_market():
+    """타임아웃된 중간가(21) 주문은 자기 21 행에 매칭돼야 한다 -- order_type=market 이라고 01 로 찾아
+    무관한 시장가(01) 형제 행을 오확정하면 안 된다(Tier1 최유리와 같은 보수적 reconcile)."""
+    store = OrderStore()
+    cid = "20240101-mid-rc01"
+    place_t = FakeTransport(by_path={_ORDER_CASH: [TransportTimeout("t")]})
+    with pytest.raises(OrderTimeoutError):
+        _client(place_t, store=store).domestic.stock("005930").buy(
+            quantity=10, division="midpoint", client_order_id=cid)
+    rows = [_daily_order_row(odno="MKT01", order_division="01", order_unit_price="0"),
+            _daily_order_row(odno="MID21", order_division="21", order_unit_price="0")]
+    recon_t = FakeTransport(by_path={_DAILY_CCLD: [_daily_orders_response(rows)]})
+    report = _client(recon_t, store=store).orders.reconcile(cid)
+    assert report is not None
+    assert report.order_id == "MID21"        # 자기 21 행, 시장가 01 행 아님
 
 
 def test_modify_division_order_sends_its_order_division():
