@@ -1315,3 +1315,38 @@ def test_stop_limit_rejected_off_krx(board):
     with pytest.raises(KISUsageError, match="보드는 이 주문구분"):
         Order.stop_limit("005930", side="buy", quantity=10, limit_price=70000,
                          stop_price=69000, board=board)
+
+
+# --- Stop-limit wire (ORD_DVSN 22 + CNDT_PRIC) ----------------------------
+@pytest.mark.parametrize("side", ["buy", "sell"])
+def test_stop_limit_wire(side):
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    getattr(_client(fake).domestic.stock("005930"), side)(
+        quantity=10, limit_price=70000, stop_price=69000)
+    body = fake.calls[0]["body"]
+    assert body["ORD_DVSN"] == "22"
+    assert body["CNDT_PRIC"] == "69000"      # 트리거(조건가격)
+    assert body["ORD_UNPR"] == "70000"       # 지정가
+
+
+def test_non_stop_order_wires_zero_condition_price():
+    """비스톱 주문은 CNDT_PRIC='0' 로 나간다(회귀)."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(fake).domestic.stock("005930").buy(quantity=10, limit_price=70000)
+    assert fake.calls[0]["body"]["CNDT_PRIC"] == "0"
+
+
+def test_stop_price_without_limit_rejected():
+    """국내엔 스톱시장가가 없다 -- stop_price 만 주면 거부(limit_price 필수)."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(KISUsageError, match="스톱지정가는 limit_price"):
+        _client(fake).domestic.stock("005930").buy(quantity=10, stop_price=69000)
+    assert fake.calls == []
+
+
+def test_stop_price_with_division_rejected():
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(KISUsageError, match="stop_price 와 division"):
+        _client(fake).domestic.stock("005930").buy(
+            quantity=10, limit_price=70000, stop_price=69000, division="immediate_limit")
+    assert fake.calls == []
