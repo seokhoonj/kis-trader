@@ -15,8 +15,9 @@ from __future__ import annotations
 import sys
 from argparse import Namespace
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Literal
+from typing import TYPE_CHECKING, Any, Literal, get_args
 
+from ...order import DerivativeDivision
 from ..context import account_suffix, resolve_bond, resolve_stock
 from ..errors import CliAborted, CliConfigError
 
@@ -27,6 +28,10 @@ Side = Literal["buy", "sell"]
 
 #: 파생 자산군(선물/옵션) -- CLI 라우팅·검증에서 stock/bond 와 구분한다.
 _DERIVATIVE_ASSETS = ("futures", "option")
+
+#: 파생(선물/옵션) 주문이 허용하는 division 집합 -- 현금 전용 주문구분(priority_limit·Tier2)은 CLI
+#: 선제검증에서 거부한다(패키지 계약 :data:`kis_trader.order.DerivativeDivision` 미러).
+_DERIVATIVE_DIVISIONS = frozenset(get_args(DerivativeDivision))
 
 
 def _ticket(args: Namespace, *, side: Side, account: str | None, environment: str) -> dict[str, Any]:
@@ -82,9 +87,9 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
         # domestic 이 아니면 여기서 거부한다(이 함수가 division 검증의 유일한 소유자).
         if not (domestic and (asset == "stock" or is_deriv)):
             raise CliConfigError("--division 은 국내 현금/파생 주문 전용입니다.")
-        if is_deriv and args.division == "priority_limit":
+        if is_deriv and args.division not in _DERIVATIVE_DIVISIONS:
             raise CliConfigError(
-                "최우선지정가(priority_limit)는 파생 주문에 없습니다(조건부/최유리지정가만 가능).")
+                f"{args.division} 은 파생 주문에 없습니다(조건부/최유리지정가만 가능).")
 
     # 자산별 필수 조건 + 실전전용 게이트.
     if asset == "bond":

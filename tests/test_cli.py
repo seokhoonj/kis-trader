@@ -910,6 +910,26 @@ def test_order_division_immediate_limit_ok_for_futures():
     assert dry["division"] == "immediate_limit"
 
 
+def test_order_tier2_division_dry_run_and_execute_forwards_it():
+    dry = order.cmd_buy(StubKis(), _args(
+        ["order", "buy", "005930", "10", "--division", "midpoint"]), is_tty=False)
+    assert dry["division"] == "midpoint"
+    kis = StubKis()
+    order.cmd_buy(kis, _args(["order", "buy", "005930", "10",
+                              "--division", "midpoint", "--execute", "paper", "--yes"]),
+                  is_tty=False)
+    assert kis.log[-1][-1] == "midpoint"  # StubStock.buy records division last
+
+
+@pytest.mark.parametrize("division", ["midpoint", "pre_market_close",
+                                      "post_market_close", "after_hours_single"])
+def test_order_tier2_division_rejected_for_futures(division):
+    with pytest.raises(CliConfigError, match=division):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "101W09", "1", "--asset", "futures",
+             "--division", division]), is_tty=False)
+
+
 def test_order_overseas_derivative_rejects_execute_paper():
     kis = StubKis(environment="paper")
     with pytest.raises(CliConfigError, match="실전전용"):
