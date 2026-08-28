@@ -1296,3 +1296,22 @@ def test_fsync_dir_ignores_unsupported_platform(tmp_path, monkeypatch):
 
     monkeypatch.setattr(store_mod.os, "fsync", unsupported)
     store_mod._fsync_dir(tmp_path)                    # 예외 없이 반환
+
+
+# --- Stop-limit (ORD_DVSN 22) DATA invariants -----------------------------
+def test_stop_limit_constructs_on_krx():
+    from kis_trader.order import Order
+    order = Order.stop_limit("005930", side="buy", quantity=10, limit_price=70000,
+                             stop_price=69000, board="KRX")
+    assert order.order_type == "stop_limit"
+    assert order.stop_price == Decimal(69000)
+    assert order.limit_price == Decimal(70000)
+
+
+@pytest.mark.parametrize("board", ["NXT", "UN"])
+def test_stop_limit_rejected_off_krx(board):
+    """스톱지정가는 KRX 전용 -- NXT/UN 보드에서는 구성 시점에 거부."""
+    from kis_trader.order import Order
+    with pytest.raises(KISUsageError, match="보드는 이 주문구분"):
+        Order.stop_limit("005930", side="buy", quantity=10, limit_price=70000,
+                         stop_price=69000, board=board)
