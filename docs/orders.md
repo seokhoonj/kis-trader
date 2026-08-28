@@ -52,6 +52,7 @@ stock.buy(quantity=10, division="midpoint")                              # 중�
 stock.buy(quantity=10, division="pre_market_close")                      # 장전 시간외 종가 (KRX 전용)
 stock.buy(quantity=10, division="post_market_close")                     # 장후 시간외 종가 (KRX 전용)
 stock.buy(quantity=10, limit_price=70000, division="after_hours_single") # 시간외 단일가 (limit_price 필요, KRX 전용)
+stock.buy(quantity=10, limit_price=70000, stop_price=69000)              # 스톱지정가 (트리거 도달 시 limit_price 로 접수, KRX 전용)
 stock.buy(quantity=10, limit_price=70000, time_in_force="ioc")           # IOC (즉시체결·잔량취소)
 stock.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (전량아니면 취소)
 ```
@@ -89,6 +90,11 @@ stock.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (
 최유리/최우선 지정가는 시장이 가격을 정하므로 `limit_price` 를 주면 오류입니다. 최유리 지정가는
 시장가의 슬리피지 없이 즉시 체결하려는 안전한 대안입니다(얕은 호가에서 시장가는 나쁜 가격까지
 쓸어담을 수 있습니다).
+
+**스톱지정가** — `stop_price` 는 트리거(조건가격)입니다. 시장이 `stop_price` 에 닿으면 그때
+`limit_price` 가격으로 지정가 주문이 접수됩니다. 국내 현금 스톱은 `limit_price` 가 반드시
+필요합니다(스톱시장가는 없습니다). `division` 과는 함께 쓸 수 없고, KRX 전용이라 정규장
+(09:00~15:30)에만 나갑니다 — 장 시간 밖의 접수는 서버가 거부합니다.
 
 ## 정정·취소·확인
 

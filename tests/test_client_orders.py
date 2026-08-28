@@ -1296,3 +1296,149 @@ def test_fsync_dir_ignores_unsupported_platform(tmp_path, monkeypatch):
 
     monkeypatch.setattr(store_mod.os, "fsync", unsupported)
     store_mod._fsync_dir(tmp_path)                    # 예외 없이 반환
+
+
+# --- Stop-limit (ORD_DVSN 22) DATA invariants -----------------------------
+def test_stop_limit_constructs_on_krx():
+    from kis_trader.order import Order
+    order = Order.stop_limit("005930", side="buy", quantity=10, limit_price=70000,
+                             stop_price=69000, board="KRX")
+    assert order.order_type == "stop_limit"
+    assert order.stop_price == Decimal(69000)
+    assert order.limit_price == Decimal(70000)
+
+
+@pytest.mark.parametrize("board", ["NXT", "UN"])
+def test_stop_limit_rejected_off_krx(board):
+    """스톱지정가는 KRX 전용 -- NXT/UN 보드에서는 구성 시점에 거부."""
+    from kis_trader.order import Order
+    with pytest.raises(KISUsageError, match="보드는 이 주문구분"):
+        Order.stop_limit("005930", side="buy", quantity=10, limit_price=70000,
+                         stop_price=69000, board=board)
+
+
+# --- Stop-limit wire (ORD_DVSN 22 + CNDT_PRIC) ----------------------------
+@pytest.mark.parametrize("side", ["buy", "sell"])
+def test_stop_limit_wire(side):
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    getattr(_client(fake).domestic.stock("005930"), side)(
+        quantity=10, limit_price=70000, stop_price=69000)
+    body = fake.calls[0]["body"]
+    assert body["ORD_DVSN"] == "22"
+    assert body["CNDT_PRIC"] == "69000"      # 트리거(조건가격)
+    assert body["ORD_UNPR"] == "70000"       # 지정가
+
+
+def test_non_stop_order_wires_zero_condition_price():
+    """비스톱 주문은 CNDT_PRIC='0' 로 나간다(회귀)."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(fake).domestic.stock("005930").buy(quantity=10, limit_price=70000)
+    assert fake.calls[0]["body"]["CNDT_PRIC"] == "0"
+
+
+def test_stop_price_without_limit_rejected():
+    """국내엔 스톱시장가가 없다 -- stop_price 만 주면 거부(limit_price 필수)."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(KISUsageError, match="스톱지정가는 limit_price"):
+        _client(fake).domestic.stock("005930").buy(quantity=10, stop_price=69000)
+    assert fake.calls == []
+
+
+def test_stop_price_with_division_rejected():
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(KISUsageError, match="stop_price 와 division"):
+        _client(fake).domestic.stock("005930").buy(
+            quantity=10, limit_price=70000, stop_price=69000, division="immediate_limit")
+    assert fake.calls == []
+
+
+def test_stop_limit_reconcile_matches_own_22_row():
+    """타임아웃된 스톱지정가(22) 주문은 자기 22 행에 매칭돼야 한다(시장가 01 행 아님)."""
+    store = OrderStore()
+    cid = "20240101-stop-rc01"
+    place_t = FakeTransport(by_path={_ORDER_CASH: [TransportTimeout("t")]})
+    with pytest.raises(OrderTimeoutError):
+        _client(place_t, store=store).domestic.stock("005930").buy(
+            quantity=10, limit_price=70000, stop_price=69000, client_order_id=cid)
+    rows = [_daily_order_row(odno="MKT01", order_division="01", order_unit_price="0"),
+            _daily_order_row(odno="STP22", order_division="22", order_unit_price="70000")]
+    recon_t = FakeTransport(by_path={_DAILY_CCLD: [_daily_orders_response(rows)]})
+    report = _client(recon_t, store=store).orders.reconcile(cid)
+    assert report is not None
+    assert report.order_id == "STP22"
+
+
+def test_stop_limit_modify_sends_condition_price():
+    """스톱지정가 주문의 정정 와이어는 CNDT_PRIC(원 트리거)을 실어야 한다."""
+    store = OrderStore()
+    cid = "20240101-stop-mod01"
+    place_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(place_t, store=store).domestic.stock("005930").buy(
+        quantity=10, limit_price=70000, stop_price=69000, client_order_id=cid)
+    change_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(change_t, store=store).orders.modify(cid, limit_price=71000, request_id="m1")
+    body = change_t.calls[0]["body"]
+    assert body["ORD_DVSN"] == "22"
+    assert body["CNDT_PRIC"] == "69000"
+
+
+def test_non_stop_modify_wires_zero_condition_price():
+    """비(非)스톱 지정가 주문의 정정 와이어는 CNDT_PRIC을 "0"으로 실어야 한다."""
+    store = OrderStore()
+    cid = "20240101-plain-mod01"
+    place_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(place_t, store=store).domestic.stock("005930").buy(
+        quantity=10, limit_price=70000, client_order_id=cid)
+    change_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(change_t, store=store).orders.modify(cid, limit_price=71000, request_id="m1")
+    body = change_t.calls[0]["body"]
+    assert body["CNDT_PRIC"] == "0"
+
+
+def test_stop_limit_cancel_sends_condition_price():
+    """스톱지정가 주문의 취소 와이어도 CNDT_PRIC(원 트리거)을 실어야 한다(정정과 같은 22 경로)."""
+    store = OrderStore()
+    cid = "20240101-stop-cxl01"
+    place_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(place_t, store=store).domestic.stock("005930").buy(
+        quantity=10, limit_price=70000, stop_price=69000, client_order_id=cid)
+    change_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(change_t, store=store).orders.cancel(cid, request_id="c1")
+    body = change_t.calls[0]["body"]
+    assert body["ORD_DVSN"] == "22"
+    assert body["CNDT_PRIC"] == "69000"
+
+
+def test_non_stop_cancel_wires_zero_condition_price():
+    """비(非)스톱 지정가 주문의 취소 와이어는 CNDT_PRIC을 "0"으로 실어야 한다."""
+    store = OrderStore()
+    cid = "20240101-plain-cxl01"
+    place_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(place_t, store=store).domestic.stock("005930").buy(
+        quantity=10, limit_price=70000, client_order_id=cid)
+    change_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(change_t, store=store).orders.cancel(cid, request_id="c1")
+    body = change_t.calls[0]["body"]
+    assert body["CNDT_PRIC"] == "0"
+
+
+def test_stop_market_rejected_at_cash_wire():
+    """국내엔 스톱시장가(order_type="stop")가 없다 -- 리졸버 미매핑 -> 와이어 전 fail-closed."""
+    from kis_trader.order import Order
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    order = Order.stop("005930", side="buy", quantity=10, stop_price=69000)
+    with pytest.raises(KISUsageError, match="지원하지 않는 주문구분"):
+        _client(fake)._place_order(order)
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("tif", ["ioc", "fok"])
+def test_stop_limit_ioc_fok_rejected_before_wire(tif):
+    """스톱지정가는 day 만 매핑 -- IOC/FOK 는 미매핑 -> 조용히 day 로 안 바꾸고 와이어 전 거부."""
+    from kis_trader.order import Order
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    order = Order.stop_limit("005930", side="buy", quantity=10, limit_price=70000,
+                             stop_price=69000, time_in_force=tif)
+    with pytest.raises(KISUsageError, match="지원하지 않는 주문구분"):
+        _client(fake)._place_order(order)
+    assert fake.calls == []

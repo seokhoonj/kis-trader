@@ -455,7 +455,7 @@ class DomesticStock(_StockBase):
     def buy(
         self, *, quantity: Numeric, limit_price: Numeric | None = None,
         time_in_force: TimeInForce = "day", division: DomesticDivision | None = None,
-        client_order_id: str | None = None,
+        stop_price: Numeric | None = None, client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 종목을 매수한다 -- ``limit_price`` 를 주면 지정가, 없으면 시장가.
 
@@ -471,24 +471,28 @@ class DomesticStock(_StockBase):
         로 조합한다(지정가/시장가/최유리/중간가에서). ``immediate_limit`` 은 시장가의 슬리피지 없이 즉시 체결하려는
         안전 대안이다(얕은 호가에서 시장가는 나쁜 가격까지 쓸어담을 수 있다).
 
+        ``stop_price`` 를 ``limit_price`` 와 함께 주면 스톱지정가(트리거 도달 시 지정가 접수, KRX 전용).
+        ``stop_price`` 는 ``limit_price`` 가 반드시 있어야 하고(국내엔 스톱시장가 없음), ``division`` 과는
+        함께 줄 수 없다(스톱은 주문구분이 아님) -- 둘 다 :class:`~kis_trader.errors.KISUsageError`.
+
         이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 계좌 미설정은
         :class:`~kis_trader.errors.KISUsageError`, 조회전용 계좌면 :class:`~kis_trader.errors.
         AccountNotOrderableError`, 접수 거부는 ``OrderRejectedError``, 타임아웃(체결 불명)은
         ``OrderTimeoutError`` -- 후자는 ``kis.orders.reconcile`` 로 확인한다."""
         return self._client._place_order(self._make_domestic_order(
             "buy", quantity=quantity, limit_price=limit_price, time_in_force=time_in_force,
-            division=division, client_order_id=client_order_id,
+            division=division, stop_price=stop_price, client_order_id=client_order_id,
         ))
 
     def sell(
         self, *, quantity: Numeric, limit_price: Numeric | None = None,
         time_in_force: TimeInForce = "day", division: DomesticDivision | None = None,
-        client_order_id: str | None = None,
+        stop_price: Numeric | None = None, client_order_id: str | None = None,
     ) -> ExecutionReport:
-        """이 종목을 매도한다 -- 계약·``division`` 은 :meth:`buy` 와 동일(방향만 매도)."""
+        """이 종목을 매도한다 -- 계약·``division``·``stop_price`` 는 :meth:`buy` 와 동일(방향만 매도)."""
         return self._client._place_order(self._make_domestic_order(
             "sell", quantity=quantity, limit_price=limit_price, time_in_force=time_in_force,
-            division=division, client_order_id=client_order_id,
+            division=division, stop_price=stop_price, client_order_id=client_order_id,
         ))
 
     def _make_order(
@@ -497,13 +501,25 @@ class DomesticStock(_StockBase):
     ) -> Order:
         return self._make_domestic_order(
             side, quantity=quantity, limit_price=limit_price, time_in_force=time_in_force,
-            division=None, client_order_id=client_order_id,
+            division=None, stop_price=None, client_order_id=client_order_id,
         )
 
     def _make_domestic_order(
         self, side: Side, *, quantity: Numeric, limit_price: Numeric | None,
-        time_in_force: TimeInForce, division: DomesticDivision | None, client_order_id: str | None,
+        time_in_force: TimeInForce, division: DomesticDivision | None,
+        stop_price: Numeric | None, client_order_id: str | None,
     ) -> Order:
+        # 스톱지정가: 트리거(stop_price)+지정가(limit_price) 둘 다 필요. 스톱은 주문구분(division)이
+        # 아니라 order_type 이라 division 과 배타. 국내엔 스톱시장가가 없어 limit_price 필수.
+        if stop_price is not None:
+            if division is not None:
+                raise KISUsageError("stop_price 와 division 은 함께 줄 수 없다(스톱은 주문구분이 아니다).")
+            if limit_price is None:
+                raise KISUsageError("스톱지정가는 limit_price 가 필요하다(국내엔 스톱시장가 없음).")
+            return Order.stop_limit(self.symbol, side=side, quantity=quantity,
+                                    limit_price=limit_price, stop_price=stop_price,
+                                    time_in_force=time_in_force, board=self.market,
+                                    client_order_id=client_order_id)
         # 가격없는 구분(최유리/최우선/중간가/장전·장후 시간외)은 시장이 가격을 정하므로 limit_price 없음
         # (order_type="market" 기반), 지정가 기반 구분(조건부/시간외 단일가)은 가격 필요(order_type="limit" 기반).
         # division 없으면 기존 동작(limit_price 유무로 시장가/지정가). 결합 불변식은 Order.__post_init__ 에도

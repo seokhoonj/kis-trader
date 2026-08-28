@@ -58,6 +58,15 @@ kis --profile paper order buy 005930 10 --limit-price 70000 --execute paper   # 
 kis --profile main order buy 005930 10 --division immediate_limit --execute real --yes --confirm-account 7801
 ```
 
+국내 주식 스톱지정가는 `--stop-price` 로 트리거(조건가격)를 줍니다. 시장이 그 값에 닿으면 그때
+`--limit-price` 가격으로 지정가가 접수됩니다. `--stop-price` 는 `--limit-price` 가 반드시 필요하고
+(스톱시장가는 없습니다), `--division` 과 함께 쓸 수 없습니다. KRX 전용이라 정규장(09:00~15:30)에만
+나갑니다 -- 장 시간 밖의 접수는 서버가 거부합니다.
+
+```bash
+kis order buy 005930 10 --limit-price 70000 --stop-price 69000        # dry-run (전송 안 됨)
+```
+
 실제 전송하려면 `--execute` 값이 세션 환경(프로필에 저장된 실전/모의)과 같아야 합니다. 대화형에서는 확인을
 받습니다(모의는 y/N, 실전은 계좌 끝 4자리 입력). 스크립트(비대화형)에서는 `--yes` 가
 필요하고, 실전은 `--confirm-account` 로 계좌 끝 4자리를 한 번 더 맞춰야 합니다.

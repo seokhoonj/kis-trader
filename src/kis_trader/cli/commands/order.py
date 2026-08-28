@@ -50,6 +50,8 @@ def _ticket(args: Namespace, *, side: Side, account: str | None, environment: st
         # 채권은 KRX 주문구분(division)을 쓰지 않는다 -- 항상 None 으로 노출한다.
         "division": None if asset == "bond" else getattr(args, "division", None),
     }
+    if asset == "stock" and args.venue != "overseas":
+        ticket["stop_price"] = getattr(args, "stop_price", None)
     if asset == "bond" and side == "sell":
         ticket["buy_date"] = getattr(args, "buy_date", None)
         ticket["buy_seq"] = getattr(args, "buy_seq", None)
@@ -77,9 +79,17 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
         raise CliConfigError("--right 는 국내 옵션(--asset option) 전용입니다.")
     if args.night and not (is_deriv and domestic):
         raise CliConfigError("--night 는 국내 파생(--asset futures/option) 전용입니다.")
-    if args.stop_price is not None and not (is_deriv and not domestic):
-        raise CliConfigError(
-            "--stop-price 는 해외 파생(--asset futures/option, --venue overseas) 전용입니다.")
+    if args.stop_price is not None:
+        overseas_deriv = is_deriv and not domestic
+        domestic_stock = domestic and asset == "stock"
+        if not (overseas_deriv or domestic_stock):
+            raise CliConfigError(
+                "--stop-price 는 해외 파생 또는 국내 주식(스톱지정가) 전용입니다.")
+        if domestic_stock:
+            if args.limit_price is None:
+                raise CliConfigError("국내 스톱지정가는 --limit-price 가 필요합니다(스톱시장가 없음).")
+            if args.division is not None:
+                raise CliConfigError("--stop-price 와 --division 은 함께 쓸 수 없습니다.")
     if is_deriv and args.exchange is not None:
         raise CliConfigError("--exchange 는 파생 주문에 쓰지 않습니다(계약코드가 거래소를 결정).")
     if args.division is not None:
@@ -188,7 +198,8 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
                          division=args.division, night=args.night)
     handle = resolve_stock(kis, args)
     place = handle.buy if side == "buy" else handle.sell
-    extra: dict[str, Any] = {} if args.venue == "overseas" else {"division": division}
+    extra: dict[str, Any] = {} if args.venue == "overseas" else {
+        "division": division, "stop_price": args.stop_price}
     return place(quantity=args.quantity, limit_price=args.limit_price, **extra)
 
 
