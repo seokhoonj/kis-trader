@@ -12,7 +12,7 @@ import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal, InvalidOperation
-from typing import TYPE_CHECKING, Literal, NamedTuple, cast
+from typing import TYPE_CHECKING, Literal, NamedTuple, cast, get_args
 
 from ._internal._wire import format_wire_decimal
 from .errors import KISUsageError
@@ -44,11 +44,22 @@ TimeInForce = Literal["day", "gtc", "ioc", "fok"]
 #:     "Immediately Executable Limit Order"; 시장가 슬리피지를 피하는 즉시체결 대안.)
 #:   ``priority_limit`` 최우선지정가(04) -- 접수 시점 같은 방향 최우선호가에 지정가로 접수(체결
 #:     우선순위 확보, 즉시 체결은 아님). 매도면 최우선 매도호가, 매수면 최우선 매수호가. 가격 없음.
-#: IOC/FOK 는 별도 주문구분이 아니라 ``time_in_force``(ioc/fok)로 조합한다.
-DomesticDivision = Literal["conditional_limit", "immediate_limit", "priority_limit"]
+#:   ``midpoint`` 중간가(21; IOC 23 / FOK 24) -- 수량만 지정, 가격은 최우선 매수/매도호가의 중간값으로
+#:     시장이 정한다(가격 없음). KRX 정규장 + NXT 메인마켓 시간대에 가능(전 보드).
+#:   ``pre_market_close`` 장전 시간외 종가(05) -- 전일 종가로 체결(가격 없음). KRX 전용, 08:30~08:40.
+#:   ``post_market_close`` 장후 시간외 종가(06) -- 당일 종가로 체결(가격 없음). KRX 전용, 15:40~16:00.
+#:   ``after_hours_single`` 시간외 단일가(07) -- 지정가 필수. KRX 전용, 16:00~18:00 10분 단위 단일가.
+#: IOC/FOK 는 별도 주문구분이 아니라 ``time_in_force``(ioc/fok)로 조합한다(midpoint 만 Tier2 중 지원).
+DomesticDivision = Literal[
+    "conditional_limit", "immediate_limit", "priority_limit",
+    "midpoint", "pre_market_close", "post_market_close", "after_hours_single",
+]
 #: 파생(선물/옵션, XKFE) 주문의 주문구분. 현금주문의 국내 주문구분과 같은 두 코드를 쓰되(조건부지정가·
 #: 최유리지정가), 최우선지정가(priority_limit)는 파생에 없어 뺀 좁힌 별칭이다.
 DerivativeDivision = Literal["conditional_limit", "immediate_limit"]
+#: 파생(XKFE) 주문이 허용하는 division 집합 -- 현금 전용 주문구분(priority_limit·Tier2)은 여기
+#: 없어 구성 시점에 거부된다(:class:`Order` __post_init__).
+_DERIVATIVE_DIVISIONS = frozenset(get_args(DerivativeDivision))
 #: 거래 세션. ``regular`` 정규장, ``overnight`` 미국 오버나이트 거래(한국 낮 시간대 미국 종목 거래),
 #: ``night`` KRX 파생(선물/옵션) 야간장. 세션이 다르면 서로 다른 주문이고 정정·취소 엔드포인트도
 #: 다르므로 지문·라우팅으로 구분한다(미국 ``overnight`` 과 KRX ``night`` 은 별개의 세션이다).
@@ -327,8 +338,10 @@ _OVERSEAS_FO_EXCHANGE = "OSFO"
 #: NXT 는 시장가(market)·조건부(conditional_limit) 미지원, SOR(UN)은 조건부 미지원(KRX 는 전부 지원).
 #: blocklist 라 여기 없는 base(stop 등 Tier 2/미매핑)는 이 검증이 아니라 와이어 빌더에서 판정한다.
 _BOARD_UNSUPPORTED_BASES = {
-    "NXT": frozenset(("market", "conditional_limit")),
-    "UN": frozenset(("conditional_limit",)),
+    "NXT": frozenset(("market", "conditional_limit",
+                      "pre_market_close", "post_market_close", "after_hours_single")),
+    "UN": frozenset(("conditional_limit",
+                     "pre_market_close", "post_market_close", "after_hours_single")),
 }
 #: 유효한 국내 보드 값. 알 수 없는 board 는 와이어 빌더의 _BOARD_EXCG KeyError 전에 생성 시점 거부.
 _DOMESTIC_BOARDS = frozenset(("KRX", "NXT", "UN"))
@@ -530,8 +543,11 @@ class Order:
                     f"division(주문구분)은 국내 현금주문·파생(XKFE) 전용이다 -- exchange={self.exchange!r} "
                     f"와 조합할 수 없다."
                 )
-            if self.exchange == _DERIVATIVE_EXCHANGE and self.division == "priority_limit":
-                raise KISUsageError("파생(XKFE) 주문에는 최우선지정가(priority_limit)가 없다.")
+            if self.exchange == _DERIVATIVE_EXCHANGE and self.division not in _DERIVATIVE_DIVISIONS:
+                raise KISUsageError(
+                    f"파생(XKFE) 주문은 이 주문구분을 지원하지 않는다(division={self.division!r}); "
+                    f"조건부지정가·최유리지정가만 가능하다."
+                )
             if self.credit_type is not None:
                 raise KISUsageError("division 은 신용주문과 조합할 수 없다.")
             if self.session == "overnight":
@@ -539,13 +555,17 @@ class Order:
             # division<->order_type<->price 결합을 DATA 경계에서 강제한다 -- 최유리/최우선은 시장이 가격을
             # 정하는 가격없는 시장가 기반, 조건부는 지정가 기반. 이 결합이 없으면 Order.market/limit 생성자로
             # 잘못된 조합이 만들어져 와이어에 조용히 틀린 가격(또는 price 0)이 나간다(fail-open).
-            if self.division in ("immediate_limit", "priority_limit"):
+            if self.division in ("immediate_limit", "priority_limit", "midpoint",
+                                 "pre_market_close", "post_market_close"):
                 if self.order_type != "market" or self.limit_price is not None:
                     raise KISUsageError(
                         f"{self.division} 은 시장이 가격을 정하므로 가격 없는 시장가 기반이어야 한다."
                     )
-            elif self.division == "conditional_limit" and self.order_type != "limit":
-                raise KISUsageError("conditional_limit(조건부지정가)은 지정가(limit) 기반이어야 한다.")
+            elif (self.division in ("conditional_limit", "after_hours_single")
+                    and self.order_type != "limit"):
+                raise KISUsageError(
+                    f"{self.division} 은 지정가(limit) 기반이어야 한다(limit_price 필요)."
+                )
 
         # 장내채권 매도 lot 지목(BUY_DT/BUY_SEQ)은 채권(BOND) **매도** 전용이다 -- 다른 거래소나
         # 채권 매수에 실리면 재사용 지문 슬롯(loan_date/derivative_item)을 오염시켜 무관한 주문의 dedup
