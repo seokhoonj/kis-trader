@@ -661,6 +661,40 @@ def test_order_wire_quantity_and_division(side, price, expected_tr, expected_dvs
     assert fake.calls[0]["tr_id"] == expected_tr
 
 
+# --- Tier2 division wire (ORD_DVSN / ORD_UNPR) -----------------------------
+@pytest.mark.parametrize(
+    ("kwargs", "expected_dvsn", "expected_unpr"),
+    [
+        ({"quantity": 10, "division": "midpoint"}, "21", "0"),
+        ({"quantity": 10, "division": "midpoint", "time_in_force": "ioc"}, "23", "0"),
+        ({"quantity": 10, "division": "midpoint", "time_in_force": "fok"}, "24", "0"),
+        ({"quantity": 10, "division": "pre_market_close"}, "05", "0"),
+        ({"quantity": 10, "division": "post_market_close"}, "06", "0"),
+        ({"quantity": 10, "limit_price": 70000, "division": "after_hours_single"}, "07", "70000"),
+    ],
+)
+@pytest.mark.parametrize("side", ["buy", "sell"])
+def test_tier2_division_wire(side, kwargs, expected_dvsn, expected_unpr):
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    getattr(_client(fake).domestic.stock("005930"), side)(**kwargs)
+    body = fake.calls[0]["body"]
+    assert body["ORD_DVSN"] == expected_dvsn
+    assert body["ORD_UNPR"] == expected_unpr
+
+
+@pytest.mark.parametrize("kwargs", [
+    {"quantity": 10, "division": "after_hours_single", "limit_price": 70000, "time_in_force": "ioc"},
+    {"quantity": 10, "division": "pre_market_close", "time_in_force": "fok"},
+    {"quantity": 10, "division": "midpoint", "time_in_force": "gtc"},
+])
+def test_tier2_unmapped_tif_rejected_before_wire(kwargs):
+    """day 전용 시간외에 IOC/FOK, midpoint 에 gtc 는 미매핑 -> 조용히 day 로 안 바꾸고 거부."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(KISUsageError, match="지원하지 않는 주문구분"):
+        _client(fake).domestic.stock("005930").buy(**kwargs)
+    assert fake.calls == []
+
+
 @pytest.mark.parametrize(
     ("kwargs", "expected_dvsn", "expected_unpr"),
     [

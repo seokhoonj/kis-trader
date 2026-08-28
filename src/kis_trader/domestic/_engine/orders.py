@@ -106,14 +106,18 @@ _CHANGE_TR = {"real": "TTTC0013U", "paper": "VTTC0013U"}
 # order_type -> KIS ORD_DVSN(주문구분): 00 지정가, 01 시장가. 신용주문·정정(order_type 만) 이 쓴다.
 _ORD_DVSN = {"limit": "00", "market": "01"}
 # (base, time_in_force) -> KIS ORD_DVSN. base = order.division 이 있으면 그것, 없으면 order_type.
-# 현금주문 전용(KRX 코드표 KIS 명세 대조). IOC/FOK 는 time_in_force 로 조합하며 지정가/시장가/최유리에서만
-# 유효하다(조건부/최우선엔 없어 매핑 부재 -> 거부). 시간외·중간가·스톱(05/06/07/21~24)은 차기 슬라이스.
+# 현금주문 전용(KRX 코드표 KIS 명세 대조). IOC/FOK 는 time_in_force 로 조합하며 지정가/시장가/최유리/
+# 중간가에서만 유효하다(조건부/최우선/시간외엔 없어 매핑 부재 -> 거부). 스톱(22)은 차기 슬라이스.
 _ORD_DVSN_MAP = {
     ("limit", "day"): "00", ("limit", "ioc"): "11", ("limit", "fok"): "12",
     ("market", "day"): "01", ("market", "ioc"): "13", ("market", "fok"): "14",
     ("immediate_limit", "day"): "03", ("immediate_limit", "ioc"): "15", ("immediate_limit", "fok"): "16",
     ("conditional_limit", "day"): "02",
     ("priority_limit", "day"): "04",
+    ("midpoint", "day"): "21", ("midpoint", "ioc"): "23", ("midpoint", "fok"): "24",
+    ("pre_market_close", "day"): "05",
+    ("post_market_close", "day"): "06",
+    ("after_hours_single", "day"): "07",
 }
 
 
