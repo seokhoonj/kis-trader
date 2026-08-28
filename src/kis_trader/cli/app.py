@@ -139,7 +139,7 @@ def build_parser() -> argparse.ArgumentParser:
                             help="채권 체결내역 조회 시작일 YYYYMMDD(--asset bond 전용)")
             sp.add_argument("--end", dest="end", default=None,
                             help="채권 체결내역 조회 종료일 YYYYMMDD(--asset bond 전용)")
-            sp.add_argument("--side", dest="side", choices=["all", "buy", "sell"], default="all",
+            sp.add_argument("--side", dest="side", choices=["all", "buy", "sell"], default=None,
                             help="매매구분: all(기본)/buy/sell")
             sp.add_argument("--symbol", dest="symbol", default=None,
                             help="표준코드(ISIN); 생략 시 전체 종목")

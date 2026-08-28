@@ -660,8 +660,8 @@ class _StubBonds:
     def open_orders(self, order_date):
         self._log.append(("bonds_open_orders", order_date)); return ["OPEN"]
 
-    def fills(self, *, start, end, side="all", symbol=None, unfilled_only=False):
-        self._log.append(("bonds_fills", start, end, side, symbol, unfilled_only))
+    def fills(self, *, start, end, **kwargs):
+        self._log.append(("bonds_fills", start, end, kwargs))
         return ["FILLS"]
 
 
@@ -744,22 +744,26 @@ def test_account_fills_bond_forwards_all_arguments(monkeypatch):
         ["account", "fills", "--asset", "bond", "--start", "20240101", "--end", "20240131",
          "--side", "buy", "--symbol", "KR6449111CB8", "--unfilled-only"]))
     assert result == ["FILLS"]
-    assert log == [("bonds_fills", "20240101", "20240131", "buy", "KR6449111CB8", True)]
+    assert log == [("bonds_fills", "20240101", "20240131",
+                    {"side": "buy", "symbol": "KR6449111CB8", "unfilled_only": True})]
 
 
-def test_account_fills_bond_defaults(monkeypatch):
+def test_account_fills_bond_forwards_no_filters_by_default(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
     account.cmd_fills(object(), _args(
         ["account", "fills", "--asset", "bond", "--start", "20240101", "--end", "20240131"]))
-    assert log == [("bonds_fills", "20240101", "20240131", "all", None, False)]
+    assert log == [("bonds_fills", "20240101", "20240131", {})]
 
 
-def test_account_fills_requires_start_and_end(monkeypatch):
+@pytest.mark.parametrize("cli_args", [
+    ["account", "fills", "--asset", "bond", "--start", "20240101"],
+    ["account", "fills", "--asset", "bond", "--end", "20240131"],
+])
+def test_account_fills_requires_start_and_end(monkeypatch, cli_args):
     monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView([]))
     with pytest.raises(CliConfigError, match="기간"):
-        account.cmd_fills(object(), _args(
-            ["account", "fills", "--asset", "bond", "--start", "20240101"]))
+        account.cmd_fills(object(), _args(cli_args))
 
 
 def test_account_fills_rejects_non_bond(monkeypatch):

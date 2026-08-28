@@ -66,7 +66,13 @@ def cmd_fills(kis: KISClient, args: Namespace) -> Any:
         raise CliConfigError("장내채권은 국내 전용입니다(--venue overseas 불가).")
     if not args.start or not args.end:
         raise CliConfigError("채권 체결내역 조회는 기간이 필요합니다(--start/--end YYYYMMDD).")
-    return account.domestic.bonds.fills(
-        start=args.start, end=args.end, side=args.side,
-        symbol=args.symbol, unfilled_only=args.unfilled_only,
-    )
+    # 사용자가 준 필터만 전달한다 -- side/symbol/unfilled_only 의 기본값은 라이브러리가 정한다
+    # (경계: 소비자가 패키지 기본값을 재기술하지 않는다).
+    filters: dict[str, Any] = {}
+    if args.side is not None:
+        filters["side"] = args.side
+    if args.symbol is not None:
+        filters["symbol"] = args.symbol
+    if args.unfilled_only:
+        filters["unfilled_only"] = True
+    return account.domestic.bonds.fills(start=args.start, end=args.end, **filters)
