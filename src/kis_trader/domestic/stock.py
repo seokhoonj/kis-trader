@@ -455,8 +455,12 @@ class DomesticStock(_StockBase):
         ``conditional_limit`` 조건부지정가(장중 지정가->마감 시장가, ``limit_price`` 필요),
         ``immediate_limit`` 최유리지정가(접수 시점 상대편 최우선호가에 지정가로 즉시 체결 -- 매도면 최우선
         매수호가, 매수면 최우선 매도호가; ``limit_price`` 없음), ``priority_limit`` 최우선지정가(같은 방향 최우선
-        호가에 지정가로 대기, 체결 우선순위 확보; ``limit_price`` 없음). IOC/FOK 는 ``time_in_force="ioc"/"fok"``
-        로 조합한다(지정가/시장가/최유리에서). ``immediate_limit`` 은 시장가의 슬리피지 없이 즉시 체결하려는
+        호가에 지정가로 대기, 체결 우선순위 확보; ``limit_price`` 없음),
+        ``midpoint`` 중간가(수량만; 호가 중간값으로 시장이 가격 결정, 전 보드, IOC/FOK 가능),
+        ``pre_market_close`` 장전 시간외(전일 종가, KRX 전용), ``post_market_close`` 장후 시간외(당일
+        종가, KRX 전용), ``after_hours_single`` 시간외 단일가(``limit_price`` 필수, KRX 전용).
+        IOC/FOK 는 ``time_in_force="ioc"/"fok"``
+        로 조합한다(지정가/시장가/최유리/중간가에서). ``immediate_limit`` 은 시장가의 슬리피지 없이 즉시 체결하려는
         안전 대안이다(얕은 호가에서 시장가는 나쁜 가격까지 쓸어담을 수 있다).
 
         이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 계좌 미설정은
@@ -495,17 +499,18 @@ class DomesticStock(_StockBase):
         # 최유리/최우선은 시장이 가격을 정하므로 limit_price 없음(order_type="market" 기반), 조건부는 가격 필요
         # (order_type="limit" 기반). division 없으면 기존 동작(limit_price 유무로 시장가/지정가). 결합 불변식은
         # Order.__post_init__ 에도 있으나, 여기서 미리 막아 division 을 지목하는 명확한 메시지를 준다.
-        if division in ("immediate_limit", "priority_limit"):
+        if division in ("immediate_limit", "priority_limit", "midpoint",
+                        "pre_market_close", "post_market_close"):
             if limit_price is not None:
                 raise KISUsageError(
-                    f"{division} 은 시장이 가격을 정하므로 limit_price 를 줄 수 없다(최유리/최우선호가 기준)."
+                    f"{division} 은 시장이 가격을 정하므로 limit_price 를 줄 수 없다(시장 결정 가격)."
                 )
             return Order.market(self.symbol, side=side, quantity=quantity,
                                 time_in_force=time_in_force, division=division,
                                 board=self.market, client_order_id=client_order_id)
-        if division == "conditional_limit":
+        if division in ("conditional_limit", "after_hours_single"):
             if limit_price is None:
-                raise KISUsageError("conditional_limit(조건부지정가)은 limit_price 가 필요하다.")
+                raise KISUsageError(f"{division} 은 limit_price 가 필요하다(지정가 기반).")
             return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=limit_price,
                                time_in_force=time_in_force, division=division,
                                board=self.market, client_order_id=client_order_id)

@@ -146,8 +146,10 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--limit-price", dest="limit_price", default=None,
                         help="지정가(생략 시 시장가)")
         sp.add_argument("--division", choices=list(get_args(DomesticDivision)), default=None,
-                        help="KRX 주문구분(국내 현금/파생 전용): conditional_limit(조건부지정가)/"
-                             "immediate_limit(최유리지정가)/priority_limit(최우선지정가; 현금 전용)")
+                        help="KRX 주문구분(국내 현금/파생): conditional_limit(조건부지정가)/"
+                             "immediate_limit(최유리지정가)/priority_limit(최우선지정가; 현금 전용)/"
+                             "midpoint(중간가; 현금 전용)/pre_market_close(장전 시간외; 현금 전용)/"
+                             "post_market_close(장후 시간외; 현금 전용)/after_hours_single(시간외 단일가; 현금 전용)")
         sp.add_argument("--asset", choices=["stock", "bond", "futures", "option"],
                         default="stock", help="자산군: stock(기본)/bond(장내채권)/futures/option(파생)")
         sp.add_argument("--buy-date", dest="buy_date", default=None,
