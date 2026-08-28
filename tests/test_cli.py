@@ -320,6 +320,14 @@ def test_order_stop_price_conflicts_with_division():
              "--division", "immediate_limit"]), is_tty=False)
 
 
+def test_order_overseas_stock_stop_price_rejected():
+    # --stop-price 는 해외 파생 또는 국내 주식 전용 -- 해외 주식은 어느 쪽도 아니라 거부.
+    with pytest.raises(CliConfigError, match="stop-price"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "AAPL", "10", "--venue", "overseas", "--stop-price", "99"]),
+            is_tty=False)
+
+
 def test_order_real_noninteractive_needs_matching_confirm_account():
     base = ["--profile", "main", "order", "buy",
             "005930", "10", "--limit-price", "70000", "--execute", "real", "--yes"]

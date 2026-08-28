@@ -1393,3 +1393,52 @@ def test_non_stop_modify_wires_zero_condition_price():
     _client(change_t, store=store).orders.modify(cid, limit_price=71000, request_id="m1")
     body = change_t.calls[0]["body"]
     assert body["CNDT_PRIC"] == "0"
+
+
+def test_stop_limit_cancel_sends_condition_price():
+    """스톱지정가 주문의 취소 와이어도 CNDT_PRIC(원 트리거)을 실어야 한다(정정과 같은 22 경로)."""
+    store = OrderStore()
+    cid = "20240101-stop-cxl01"
+    place_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(place_t, store=store).domestic.stock("005930").buy(
+        quantity=10, limit_price=70000, stop_price=69000, client_order_id=cid)
+    change_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(change_t, store=store).orders.cancel(cid, request_id="c1")
+    body = change_t.calls[0]["body"]
+    assert body["ORD_DVSN"] == "22"
+    assert body["CNDT_PRIC"] == "69000"
+
+
+def test_non_stop_cancel_wires_zero_condition_price():
+    """비(非)스톱 지정가 주문의 취소 와이어는 CNDT_PRIC을 "0"으로 실어야 한다."""
+    store = OrderStore()
+    cid = "20240101-plain-cxl01"
+    place_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(place_t, store=store).domestic.stock("005930").buy(
+        quantity=10, limit_price=70000, client_order_id=cid)
+    change_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(change_t, store=store).orders.cancel(cid, request_id="c1")
+    body = change_t.calls[0]["body"]
+    assert body["CNDT_PRIC"] == "0"
+
+
+def test_stop_market_rejected_at_cash_wire():
+    """국내엔 스톱시장가(order_type="stop")가 없다 -- 리졸버 미매핑 -> 와이어 전 fail-closed."""
+    from kis_trader.order import Order
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    order = Order.stop("005930", side="buy", quantity=10, stop_price=69000)
+    with pytest.raises(KISUsageError, match="지원하지 않는 주문구분"):
+        _client(fake)._place_order(order)
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("tif", ["ioc", "fok"])
+def test_stop_limit_ioc_fok_rejected_before_wire(tif):
+    """스톱지정가는 day 만 매핑 -- IOC/FOK 는 미매핑 -> 조용히 day 로 안 바꾸고 와이어 전 거부."""
+    from kis_trader.order import Order
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    order = Order.stop_limit("005930", side="buy", quantity=10, limit_price=70000,
+                             stop_price=69000, time_in_force=tif)
+    with pytest.raises(KISUsageError, match="지원하지 않는 주문구분"):
+        _client(fake)._place_order(order)
+    assert fake.calls == []
