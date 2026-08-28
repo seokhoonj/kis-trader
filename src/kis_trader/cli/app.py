@@ -161,7 +161,8 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--night", action="store_true",
                         help="국내 파생 야간장(--asset futures/option 전용, 실전전용)")
         sp.add_argument("--stop-price", dest="stop_price", default=None,
-                        help="STOP 가격(해외 파생 --venue overseas 전용)")
+                        help="스톱 트리거가 -- 국내 주식 스톱지정가(--limit-price 와 함께) 또는 "
+                             "해외 파생 스톱")
         _add_venue(sp)
         _add_order_gate(sp)
         sp.set_defaults(func=func)

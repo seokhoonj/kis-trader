@@ -48,11 +48,11 @@ class _Handle:
     def quote(self):
         self._log.append(("quote", self._code)); return "QUOTE"
 
-    def buy(self, *, quantity, limit_price, division=None):
-        self._log.append(("buy", self._code, quantity, limit_price, division)); return "REPORT"
+    def buy(self, *, quantity, limit_price, division=None, stop_price=None):
+        self._log.append(("buy", self._code, quantity, limit_price, division, stop_price)); return "REPORT"
 
-    def sell(self, *, quantity, limit_price, division=None):
-        self._log.append(("sell", self._code, quantity, limit_price, division)); return "REPORT"
+    def sell(self, *, quantity, limit_price, division=None, stop_price=None):
+        self._log.append(("sell", self._code, quantity, limit_price, division, stop_price)); return "REPORT"
 
 
 class _BondHandle:
@@ -271,7 +271,7 @@ def test_order_paper_noninteractive_with_yes_sends_once():
                   "--limit-price", "70000", "--execute", "paper", "--yes"])
     kis = StubKis()
     assert order.cmd_buy(kis, args, is_tty=False) == "REPORT"
-    assert kis.log == [("buy", "005930", 10, "70000", None)]
+    assert kis.log == [("buy", "005930", 10, "70000", None, None)]
 
 
 def test_order_division_dry_run_shows_it_and_execute_forwards_it():
@@ -284,7 +284,7 @@ def test_order_division_dry_run_shows_it_and_execute_forwards_it():
     order.cmd_buy(kis, _args(["--profile", "paper", "order", "buy", "005930", "10",
                               "--division", "immediate_limit", "--execute", "paper", "--yes"]),
                   is_tty=False)
-    assert kis.log == [("buy", "005930", 10, None, "immediate_limit")]
+    assert kis.log == [("buy", "005930", 10, None, "immediate_limit", None)]
 
 
 def test_order_division_rejected_for_overseas():
@@ -292,6 +292,32 @@ def test_order_division_rejected_for_overseas():
                   "--division", "immediate_limit"])
     with pytest.raises(CliConfigError):  # KRX 주문구분은 국내 전용
         order.cmd_buy(StubKis(), args, is_tty=False)
+
+
+def test_order_domestic_stop_price_dry_run_and_execute_forwards_it():
+    # 국내 주식 스톱지정가(ORD_DVSN 22): dry-run 은 티켓에 노출, 전송 시 stop_price 를 그대로 전달.
+    dry = order.cmd_buy(StubKis(), _args(
+        ["order", "buy", "005930", "10", "--limit-price", "70000", "--stop-price", "69000"]),
+        is_tty=False)
+    assert dry["stop_price"] == "69000"
+    kis = StubKis()
+    order.cmd_buy(kis, _args(["--profile", "paper", "order", "buy", "005930", "10",
+                              "--limit-price", "70000", "--stop-price", "69000",
+                              "--execute", "paper", "--yes"]), is_tty=False)
+    assert kis.log == [("buy", "005930", 10, "70000", None, "69000")]
+
+
+def test_order_domestic_stop_price_requires_limit():
+    with pytest.raises(CliConfigError, match="limit-price"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "005930", "10", "--stop-price", "69000"]), is_tty=False)
+
+
+def test_order_stop_price_conflicts_with_division():
+    with pytest.raises(CliConfigError, match="division"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "005930", "10", "--limit-price", "70000", "--stop-price", "69000",
+             "--division", "immediate_limit"]), is_tty=False)
 
 
 def test_order_real_noninteractive_needs_matching_confirm_account():
@@ -331,7 +357,7 @@ def test_order_paper_interactive_rejects_non_affirmative():
     with pytest.raises(CliAborted):
         order.cmd_buy(kis, args, is_tty=True, prompt=lambda _p: "")
     assert order.cmd_buy(kis, args, is_tty=True, prompt=lambda _p: "y") == "REPORT"
-    assert kis.log == [("buy", "005930", 10, "70000", None)]
+    assert kis.log == [("buy", "005930", 10, "70000", None, None)]
 
 
 def test_order_modify_dry_run_then_executes_once():
@@ -409,7 +435,7 @@ def test_main_config_error_exits_three(monkeypatch, capsys):
 
 def test_main_order_timeout_exits_seven_with_reconcile(monkeypatch, capsys):
     class _TimeoutHandle:
-        def buy(self, *, quantity, limit_price, division=None):
+        def buy(self, *, quantity, limit_price, division=None, stop_price=None):
             raise OrderTimeoutError("전송 시간초과", client_order_id="cid-1")
 
     class _Domestic:
@@ -889,12 +915,6 @@ def test_order_stop_price_rejected_for_domestic_futures():
             is_tty=False)
 
 
-def test_order_stop_price_rejected_for_stock():
-    with pytest.raises(CliConfigError, match="--stop-price"):
-        order.cmd_buy(StubKis(), _args(
-            ["order", "buy", "005930", "1", "--stop-price", "99"]), is_tty=False)
-
-
 def test_order_division_priority_limit_rejected_for_futures():
     with pytest.raises(CliConfigError, match="priority_limit"):
         order.cmd_buy(StubKis(), _args(
@@ -922,7 +942,7 @@ def test_order_tier2_division_dry_run_and_execute_forwards_it(division):
     order.cmd_buy(kis, _args(["order", "buy", "005930", "10", "--division", division,
                               *price_args, "--execute", "paper", "--yes"]),
                   is_tty=False)
-    assert kis.log[-1][-1] == division  # StubStock.buy records division last
+    assert kis.log[-1][-2] == division  # StubStock.buy records division then stop_price
 
 
 @pytest.mark.parametrize("division", ["midpoint", "pre_market_close",
