@@ -725,7 +725,8 @@ class Order:
                    board: DomesticBoard = "KRX", client_order_id: str | None = None) -> Order:
         """스탑지정가(역지정) 주문 -- ``stop_price``(조건가격) 도달 시 ``limit_price`` 지정가로 접수.
         국내(KRX) 현금주문에서 ORD_DVSN 22 로 나간다. ``stop_price`` 는 KIS ``CNDT_PRIC``(조건가격),
-        ``limit_price`` 는 ``ORD_UNPR``. ``board`` 는 체결 보드(스톱지정가는 KRX 전용)."""
+        ``limit_price`` 는 ``ORD_UNPR``. ``board`` 는 체결 보드(스톱지정가는 KRX 전용이라 NXT/UN 은
+        생성 시점에 :class:`~kis_trader.errors.KISUsageError` 로 거부)."""
         return cls._make(symbol, side, "stop_limit", quantity, limit_price=limit_price,
                           stop_price=stop_price, time_in_force=time_in_force, exchange=exchange,
                           board=board, client_order_id=client_order_id)

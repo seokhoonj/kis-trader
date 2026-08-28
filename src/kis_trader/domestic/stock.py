@@ -472,6 +472,8 @@ class DomesticStock(_StockBase):
         안전 대안이다(얕은 호가에서 시장가는 나쁜 가격까지 쓸어담을 수 있다).
 
         ``stop_price`` 를 ``limit_price`` 와 함께 주면 스톱지정가(트리거 도달 시 지정가 접수, KRX 전용).
+        ``stop_price`` 는 ``limit_price`` 가 반드시 있어야 하고(국내엔 스톱시장가 없음), ``division`` 과는
+        함께 줄 수 없다(스톱은 주문구분이 아님) -- 둘 다 :class:`~kis_trader.errors.KISUsageError`.
 
         이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 계좌 미설정은
         :class:`~kis_trader.errors.KISUsageError`, 조회전용 계좌면 :class:`~kis_trader.errors.
@@ -487,7 +489,7 @@ class DomesticStock(_StockBase):
         time_in_force: TimeInForce = "day", division: DomesticDivision | None = None,
         stop_price: Numeric | None = None, client_order_id: str | None = None,
     ) -> ExecutionReport:
-        """이 종목을 매도한다 -- 계약·``division`` 은 :meth:`buy` 와 동일(방향만 매도)."""
+        """이 종목을 매도한다 -- 계약·``division``·``stop_price`` 는 :meth:`buy` 와 동일(방향만 매도)."""
         return self._client._place_order(self._make_domestic_order(
             "sell", quantity=quantity, limit_price=limit_price, time_in_force=time_in_force,
             division=division, stop_price=stop_price, client_order_id=client_order_id,
