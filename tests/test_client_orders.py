@@ -1380,3 +1380,16 @@ def test_stop_limit_modify_sends_condition_price():
     body = change_t.calls[0]["body"]
     assert body["ORD_DVSN"] == "22"
     assert body["CNDT_PRIC"] == "69000"
+
+
+def test_non_stop_modify_wires_zero_condition_price():
+    """비(非)스톱 지정가 주문의 정정 와이어는 CNDT_PRIC을 "0"으로 실어야 한다."""
+    store = OrderStore()
+    cid = "20240101-plain-mod01"
+    place_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(place_t, store=store).domestic.stock("005930").buy(
+        quantity=10, limit_price=70000, client_order_id=cid)
+    change_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(change_t, store=store).orders.modify(cid, limit_price=71000, request_id="m1")
+    body = change_t.calls[0]["body"]
+    assert body["CNDT_PRIC"] == "0"
