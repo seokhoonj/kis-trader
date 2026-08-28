@@ -687,11 +687,12 @@ def test_tier2_division_wire(side, kwargs, expected_dvsn, expected_unpr):
     {"quantity": 10, "division": "pre_market_close", "time_in_force": "fok"},
     {"quantity": 10, "division": "midpoint", "time_in_force": "gtc"},
 ])
-def test_tier2_unmapped_tif_rejected_before_wire(kwargs):
+@pytest.mark.parametrize("side", ["buy", "sell"])
+def test_tier2_unmapped_tif_rejected_before_wire(side, kwargs):
     """day 전용 시간외에 IOC/FOK, midpoint 에 gtc 는 미매핑 -> 조용히 day 로 안 바꾸고 거부."""
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     with pytest.raises(KISUsageError, match="지원하지 않는 주문구분"):
-        _client(fake).domestic.stock("005930").buy(**kwargs)
+        getattr(_client(fake).domestic.stock("005930"), side)(**kwargs)
     assert fake.calls == []
 
 

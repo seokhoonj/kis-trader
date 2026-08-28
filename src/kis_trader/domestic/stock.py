@@ -460,7 +460,7 @@ class DomesticStock(_StockBase):
         ``pre_market_close`` 장전 시간외(전일 종가, KRX 전용), ``post_market_close`` 장후 시간외(당일
         종가, KRX 전용), ``after_hours_single`` 시간외 단일가(``limit_price`` 필수, KRX 전용).
         IOC/FOK 는 ``time_in_force="ioc"/"fok"``
-        로 조합한다(지정가/시장가/최유리에서). ``immediate_limit`` 은 시장가의 슬리피지 없이 즉시 체결하려는
+        로 조합한다(지정가/시장가/최유리/중간가에서). ``immediate_limit`` 은 시장가의 슬리피지 없이 즉시 체결하려는
         안전 대안이다(얕은 호가에서 시장가는 나쁜 가격까지 쓸어담을 수 있다).
 
         이중체결 방지·타임아웃 재시도 금지가 안전 엔진에서 자동 적용된다. 계좌 미설정은
