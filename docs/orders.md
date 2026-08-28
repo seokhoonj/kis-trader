@@ -48,6 +48,10 @@ stock.buy(quantity=10)                                                   # 시�
 stock.buy(quantity=10, division="immediate_limit")                       # 최유리 지정가 (상대편 최우선호가로)
 stock.buy(quantity=10, division="priority_limit")                        # 최우선 지정가 (내 방향 최우선호가로)
 stock.buy(quantity=10, limit_price=70000, division="conditional_limit")  # 조건부 지정가 (limit_price 필요)
+stock.buy(quantity=10, division="midpoint")                              # 중간가 (호가 중간값, 수량만)
+stock.buy(quantity=10, division="pre_market_close")                      # 장전 시간외 종가 (KRX 전용)
+stock.buy(quantity=10, division="post_market_close")                     # 장후 시간외 종가 (KRX 전용)
+stock.buy(quantity=10, limit_price=70000, division="after_hours_single") # 시간외 단일가 (limit_price 필요, KRX 전용)
 stock.buy(quantity=10, limit_price=70000, time_in_force="ioc")           # IOC (즉시체결·잔량취소)
 stock.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (전량아니면 취소)
 ```
@@ -68,8 +72,12 @@ stock.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (
 | `"conditional_limit"` | 조건부지정가 | Conditional limit (falls to market at close) | 필요 |
 | `"immediate_limit"` | 최유리지정가 | Best-opposite-quote limit | 주지 않음 (상대편 최우선호가) |
 | `"priority_limit"` | 최우선지정가 | Best-same-quote limit | 주지 않음 (내 방향 최우선호가) |
+| `"midpoint"` | 중간가 | Midpoint (best bid/ask midpoint) | 주지 않음 (전 보드, IOC/FOK 가능) |
+| `"pre_market_close"` | 장전 시간외 종가 | Pre-market close price | 주지 않음 (KRX 전용) |
+| `"post_market_close"` | 장후 시간외 종가 | Post-market close price | 주지 않음 (KRX 전용) |
+| `"after_hours_single"` | 시간외 단일가 | After-hours single price | 필요 (KRX 전용) |
 
-**`time_in_force=` (체결·유효조건)** — 지정가/시장가/최유리와 조합.
+**`time_in_force=` (체결·유효조건)** — 지정가/시장가/최유리/중간가와 조합.
 
 | 값 (`time_in_force=`) | 한글 | English | 설명 |
 |---|---|---|---|

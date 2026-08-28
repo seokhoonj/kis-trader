@@ -48,7 +48,10 @@ kis --profile paper order buy 005930 10 --limit-price 70000 --execute paper   # 
 ```
 
 국내 현금주문은 `--division` 으로 KRX 주문구분을 고릅니다 -- `conditional_limit`(조건부지정가,
-`--limit-price` 필요), `immediate_limit`(최유리지정가), `priority_limit`(최우선지정가). 최유리/최우선은
+`--limit-price` 필요), `immediate_limit`(최유리지정가), `priority_limit`(최우선지정가),
+`midpoint`(중간가; 수량만, 호가 중간값으로 시장이 가격 결정, 전 보드, IOC/FOK 가능),
+`pre_market_close`(장전 시간외 종가; KRX 전용), `post_market_close`(장후 시간외 종가; KRX 전용),
+`after_hours_single`(시간외 단일가; `--limit-price` 필요, KRX 전용). 최유리/최우선·중간가·시간외 종가는
 시장이 가격을 정하므로 `--limit-price` 를 주지 않습니다(해외 `--venue overseas` 엔 미지원).
 
 ```bash
