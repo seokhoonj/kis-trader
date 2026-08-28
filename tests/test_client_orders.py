@@ -1350,3 +1350,33 @@ def test_stop_price_with_division_rejected():
         _client(fake).domestic.stock("005930").buy(
             quantity=10, limit_price=70000, stop_price=69000, division="immediate_limit")
     assert fake.calls == []
+
+
+def test_stop_limit_reconcile_matches_own_22_row():
+    """타임아웃된 스톱지정가(22) 주문은 자기 22 행에 매칭돼야 한다(시장가 01 행 아님)."""
+    store = OrderStore()
+    cid = "20240101-stop-rc01"
+    place_t = FakeTransport(by_path={_ORDER_CASH: [TransportTimeout("t")]})
+    with pytest.raises(OrderTimeoutError):
+        _client(place_t, store=store).domestic.stock("005930").buy(
+            quantity=10, limit_price=70000, stop_price=69000, client_order_id=cid)
+    rows = [_daily_order_row(odno="MKT01", order_division="01", order_unit_price="0"),
+            _daily_order_row(odno="STP22", order_division="22", order_unit_price="70000")]
+    recon_t = FakeTransport(by_path={_DAILY_CCLD: [_daily_orders_response(rows)]})
+    report = _client(recon_t, store=store).orders.reconcile(cid)
+    assert report is not None
+    assert report.order_id == "STP22"
+
+
+def test_stop_limit_modify_sends_condition_price():
+    """스톱지정가 주문의 정정 와이어는 CNDT_PRIC(원 트리거)을 실어야 한다."""
+    store = OrderStore()
+    cid = "20240101-stop-mod01"
+    place_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(place_t, store=store).domestic.stock("005930").buy(
+        quantity=10, limit_price=70000, stop_price=69000, client_order_id=cid)
+    change_t = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    _client(change_t, store=store).orders.modify(cid, limit_price=71000, request_id="m1")
+    body = change_t.calls[0]["body"]
+    assert body["ORD_DVSN"] == "22"
+    assert body["CNDT_PRIC"] == "69000"

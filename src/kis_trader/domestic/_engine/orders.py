@@ -493,6 +493,7 @@ def _make_domestic_change_request(
             if limit_price is None and original_fingerprint.limit_price
             else "0" if limit_price is None else format_wire_decimal(limit_price)
         ),
+        "CNDT_PRIC": original_fingerprint.stop_price or "0",
         "QTY_ALL_ORD_YN": "Y" if action == "cancel" else "N",
         "EXCG_ID_DVSN_CD": _BOARD_EXCG[original_fingerprint.board],
     }
