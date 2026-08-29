@@ -90,6 +90,9 @@ kis order buy KR6449111CB8 100 --asset bond --limit-price 10125    # bond buy (d
 kis order sell KR6449111CB8 100 --asset bond --limit-price 10130 --buy-date 20260814 --buy-seq 1
 kis account orders --asset bond --date 20260814                   # bond open orders (after an order timeout)
 kis account fills --asset bond --start 20240101 --end 20240131    # bond fills history (range)
+kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20260901   # reserved buy (real only)
+kis account reserved --start 20260101 --end 20260901              # reserved orders list
+kis order cancel-reserved <seq> --order-date 20260901             # cancel a reservation
 kis order buy 101W09 1 --asset futures --limit-price 350.5        # domestic futures (limit)
 kis order buy 201S07 1 --asset option --right call --limit-price 5.2  # domestic option
 kis order buy <sym> 1 --asset futures --venue overseas --limit-price 100  # overseas futures
