@@ -15,17 +15,15 @@ from __future__ import annotations
 import sys
 from argparse import Namespace
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Literal, get_args
+from typing import TYPE_CHECKING, Any, get_args
 
-from ...order import DerivativeDivision
+from ...order import DerivativeDivision, Side
 from ..context import account_suffix, resolve_bond, resolve_stock
 from ..errors import CliAborted, CliConfigError
 from .account import _stock_account
 
 if TYPE_CHECKING:
     from ...client import KISClient
-
-Side = Literal["buy", "sell"]
 
 #: 파생 자산군(선물/옵션) -- CLI 라우팅·검증에서 stock/bond 와 구분한다.
 _DERIVATIVE_ASSETS = ("futures", "option")

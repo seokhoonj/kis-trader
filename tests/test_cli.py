@@ -539,6 +539,37 @@ def test_order_modify_reserved_rejects_invalid_side():
                "--side", "hold", "--quantity", "10"])
 
 
+@pytest.mark.parametrize(
+    ("optional_argv", "expected_kwargs"),
+    [
+        (["--limit-price", "70000"], {"limit_price": "70000"}),
+        (["--end-date", "20240131"], {"end_date": "20240131"}),
+        (["--order-date", "20240130"], {"order_date": "20240130"}),
+    ],
+)
+def test_order_modify_reserved_forwards_each_optional_independently(
+    monkeypatch, optional_argv, expected_kwargs
+):
+    kis = StubKis(account="12345678-01", environment="real")
+    monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
+    order.cmd_modify_reserved(kis, _args(
+        ["--profile", "real", "order", "modify-reserved", "SEQ7", "--symbol", "005930",
+         "--side", "buy", "--quantity", "10", *optional_argv,
+         "--execute", "real", "--yes", "--confirm-account", "7801"]), is_tty=False)
+    assert kis.log[-1] == ("modify_reserved_order", "SEQ7", "005930", "buy", 10, expected_kwargs)
+
+
+def test_order_modify_reserved_rejects_non_stock_account():
+    # 실제 _stock_account 가 돌아 kis.account 가 StockAccount 가 아니면 거부한다(monkeypatch 없음).
+    kis = StubKis(account="12345678-03", environment="real", account_view=object())
+    with pytest.raises(CliConfigError):
+        order.cmd_modify_reserved(kis, _args(
+            ["--profile", "real", "order", "modify-reserved", "SEQ7", "--symbol", "005930",
+             "--side", "buy", "--quantity", "10",
+             "--execute", "real", "--yes", "--confirm-account", "7803"]), is_tty=False)
+    assert kis.log == []
+
+
 def test_order_cancel_reserved_rejects_non_stock_account():
     # 실제 _stock_account 가 돌아 kis.account 가 StockAccount 가 아니면 거부한다(monkeypatch 없음).
     kis = StubKis(account="12345678-03", environment="real", account_view=object())

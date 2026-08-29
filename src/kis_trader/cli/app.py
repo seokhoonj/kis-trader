@@ -14,6 +14,7 @@ from typing import TYPE_CHECKING, Any, get_args
 
 from .. import Direction, DomesticDivision, ReservedProcess, SearchMarket, VolumeMetric
 from ..errors import KISError
+from ..order import Side
 from .commands import account, market, order, stock
 from .context import account_suffix, build_client
 from .errors import CliAborted, CliConfigError, Translated, translate
@@ -213,7 +214,7 @@ def build_parser() -> argparse.ArgumentParser:
     rmod = leaf(order_sub, "modify-reserved")
     rmod.add_argument("sequence")
     rmod.add_argument("--symbol", required=True, help="정정할 종목코드(전체 재지정)")
-    rmod.add_argument("--side", choices=["buy", "sell"], required=True, help="매수/매도")
+    rmod.add_argument("--side", choices=list(get_args(Side)), required=True, help="매수/매도")
     rmod.add_argument("--quantity", type=int, required=True, help="정정 수량")
     rmod.add_argument("--limit-price", dest="limit_price", default=None,
                       help="지정가(생략 시 시장가로 재지정 -- 기존 단가 유지 아님)")
