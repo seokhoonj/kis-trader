@@ -49,10 +49,10 @@ kis account fills --asset bond --start 20240101 --end 20240131 --side buy       
 kis account fills --asset bond --start 20240101 --end 20240131 --unfilled-only  # 미체결만
 ```
 
-예약주문(다음 영업일 동시호가 예약) 목록은 `kis account reserved --start/--end` 로 조회합니다
-(YYYYMMDD). 국내 조회는 `--process` 로 all/processed/unprocessed 를 골라 좁히며 실전 계좌 전용입니다
-(모의투자 미지원). 해외 예약주문은 `--venue overseas` 로 조회하고(미국+아시아 합산) `--process` 는
-지원하지 않습니다.
+예약주문(정규장이 열리기 전에 미리 걸어두는 예약) 목록은 `kis account reserved --start/--end` 로
+조회합니다(YYYYMMDD). 국내 조회는 `--process` 로 all/processed/unprocessed 를 골라 좁히며 실전 계좌
+전용입니다(모의투자 미지원). 해외 예약주문은 `--venue overseas` 로 조회하고(미국+아시아 합산)
+`--process` 는 지원하지 않습니다.
 
 ```bash
 kis account reserved --start 20240101 --end 20240131                         # 국내 예약주문 목록
@@ -89,8 +89,9 @@ kis --profile main order buy 005930 10 --division immediate_limit --execute real
 kis order buy 005930 10 --limit-price 70000 --stop-price 69000        # dry-run (전송 안 됨)
 ```
 
-예약주문(다음 영업일 동시호가 예약)은 `kis order buy`/`kis order sell` 에 `--reserve` 를 주어
-냅니다 -- 국내 주식은 실전 전용이며 `--end-date YYYYMMDD` 로 예약 유효 종료일을 지정합니다. 취소는
+예약주문(정규장이 열리기 전에 미리 걸어두는 예약)은 `kis order buy`/`kis order sell` 에 `--reserve`
+를 주어 냅니다 -- 국내 주식은 다음 영업일 동시호가에 집행되며 실전 전용이고 `--end-date YYYYMMDD`
+로 예약 유효 종료일을 지정합니다. 취소는
 `kis order cancel-reserved <순번>` 이며, 순번은 예약 발주 결과나 `kis account reserved` 목록의
 sequence 입니다. 정정은 `kis order modify-reserved <순번>` 이며,
 브로커 규격상 `--symbol`/`--side`/`--quantity` 로 종목·방향·수량을 **전체 재지정**합니다 --

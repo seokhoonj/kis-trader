@@ -26,7 +26,7 @@ from ._engine import market_data as overseas_market_data
 from .entities.quote import OverseasCurrentPrice
 
 if TYPE_CHECKING:
-    from .._literals import Numeric, ReserveCurrency
+    from .._literals import Numeric, ReservedCurrency
     from ..client import KISClient
 
 
@@ -122,7 +122,7 @@ class OverseasStock(_StockBase):
     # --- 예약주문(미국/아시아 자동 라우팅) ---
     def reserve_buy(
         self, *, quantity: Numeric, limit_price: Numeric | None = None, end_date: str | None = None,
-        client_order_id: str | None = None, currency: ReserveCurrency | None = None,
+        client_order_id: str | None = None, currency: ReservedCurrency | None = None,
     ) -> ExecutionReport:
         """이 해외 종목의 **예약매수** -- 정규장 시작 전에 걸어두는 예약. **지정가만**(``limit_price``
         필수), ``end_date`` 미지원. 거래소의 시장이 와이어를 자동 라우팅한다: 미국(NAS/NYS/AMS)은
@@ -144,7 +144,7 @@ class OverseasStock(_StockBase):
 
     def reserve_sell(
         self, *, quantity: Numeric, limit_price: Numeric | None = None, end_date: str | None = None,
-        client_order_id: str | None = None, currency: ReserveCurrency | None = None,
+        client_order_id: str | None = None, currency: ReservedCurrency | None = None,
     ) -> ExecutionReport:
         """이 해외 종목의 **예약매도**. 계약·안전 규칙은 :meth:`reserve_buy` 와 같다(방향만 매도)."""
         return self._reserve("sell", quantity=quantity, limit_price=limit_price,
@@ -152,7 +152,7 @@ class OverseasStock(_StockBase):
 
     def _reserve(
         self, side: Side, *, quantity: Numeric, limit_price: Numeric | None, end_date: str | None,
-        client_order_id: str | None, currency: ReserveCurrency | None = None,
+        client_order_id: str | None, currency: ReservedCurrency | None = None,
     ) -> ExecutionReport:
         if end_date is not None:      # 해외 예약: 지정가만, end_date 미지원(미국·아시아 공통)
             raise KISUsageError("해외 예약주문은 end_date 를 지원하지 않는다.")

@@ -16,7 +16,7 @@ from ._internal._masters import (
     MasterIndex,
     SearchMarket,
 )
-from ._literals import ReserveCurrency
+from ._literals import ReservedCurrency
 from .account import StockAccount
 from .bar import Bar, Interval
 from .client import KISClient
@@ -536,7 +536,7 @@ __all__ = [
     "RealizedProfitBalance",
     "RealizedProfitPosition",
     "RecentPricePoint",
-    "ReserveCurrency",
+    "ReservedCurrency",
     "ReservedOrder",
     "ReservedProcess",
     "RightsOffering",

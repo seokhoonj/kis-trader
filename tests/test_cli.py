@@ -426,11 +426,11 @@ def test_order_currency_requires_reserve():
              "--limit-price", "350", "--currency", "HKD"]), is_tty=False)
 
 
-def test_reserve_currency_taxonomy_exported():
+def test_reserved_currency_taxonomy_exported():
     from typing import get_args
 
-    from kis_trader import ReserveCurrency
-    assert get_args(ReserveCurrency) == ("HKD", "CNY", "USD")
+    from kis_trader import ReservedCurrency
+    assert get_args(ReservedCurrency) == ("HKD", "CNY", "USD")
 
 
 @pytest.mark.parametrize("extra,match", [
@@ -538,8 +538,8 @@ def test_order_cancel_reserved_overseas_dry_run_shows_receipt_date(monkeypatch):
     dry = order.cmd_cancel_reserved(kis, _args(
         ["order", "cancel-reserved", "US123", "--venue", "overseas",
          "--receipt-date", "20240131"]), is_tty=False)
-    assert dry["venue"] == "overseas" and dry["receipt_date"] == "20240131"
-    assert "note" in dry and kis.log == []
+    assert dry["reserved_order_id"] == "US123" and dry["venue"] == "overseas"
+    assert dry["receipt_date"] == "20240131" and "note" in dry and kis.log == []
 
 
 def test_order_cancel_reserved_overseas_execute_allows_paper_and_routes(monkeypatch):
@@ -551,6 +551,7 @@ def test_order_cancel_reserved_overseas_execute_allows_paper_and_routes(monkeypa
          "--receipt-date", "20240131", "--execute", "paper", "--yes"]), is_tty=False)
     assert kis.log[-1] == ("ovs_cancel_reserved_order", "US123", "20240131")
     assert result["cancelled"] is True and result["venue"] == "overseas"
+    assert result["reserved_order_id"] == "US123" and result["receipt_date"] == "20240131"
 
 
 def test_order_cancel_reserved_overseas_requires_receipt_date(monkeypatch):

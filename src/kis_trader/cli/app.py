@@ -15,7 +15,7 @@ from typing import TYPE_CHECKING, Any, get_args
 from .. import (
     Direction,
     DomesticDivision,
-    ReserveCurrency,
+    ReservedCurrency,
     ReservedProcess,
     SearchMarket,
     VolumeMetric,
@@ -192,11 +192,11 @@ def build_parser() -> argparse.ArgumentParser:
                         help="스톱 트리거가 -- 국내 주식 스톱지정가(--limit-price 와 함께) 또는 "
                              "해외 파생 스톱")
         sp.add_argument("--reserve", action="store_true",
-                        help="예약주문(다음 영업일 동시호가에 예약): 국내 주식(실전전용) 또는 "
-                             "해외 주식(--venue overseas, 지정가 필수, 모의 허용)")
+                        help="예약주문: 국내 주식(다음 영업일 동시호가, 실전전용) 또는 "
+                             "해외 주식(--venue overseas, 정규장 시작 전 예약, 지정가 필수, 모의 허용)")
         sp.add_argument("--end-date", dest="end_date", default=None,
                         help="예약 유효 종료일 YYYYMMDD(국내 --reserve 전용; 해외 예약은 미지원)")
-        sp.add_argument("--currency", choices=list(get_args(ReserveCurrency)), default=None,
+        sp.add_argument("--currency", choices=list(get_args(ReservedCurrency)), default=None,
                         help="해외 예약 통화 -- 홍콩 예약 전용(그 외 거래소에 주면 거부)")
         _add_venue(sp)
         _add_order_gate(sp)

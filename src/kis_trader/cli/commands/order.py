@@ -56,7 +56,7 @@ def _ticket(args: Namespace, *, side: Side, account: str | None, environment: st
     elif asset == "stock" and getattr(args, "reserve", False):  # 해외 주식 예약(지정가·홍콩 통화)
         ticket["reserve"] = True
         ticket["currency"] = getattr(args, "currency", None)
-        ticket["exchange"] = args.exchange
+        ticket["exchange"] = getattr(args, "exchange", None)
     if asset == "bond" and side == "sell":
         ticket["buy_date"] = getattr(args, "buy_date", None)
         ticket["buy_seq"] = getattr(args, "buy_seq", None)
@@ -315,13 +315,13 @@ def cmd_cancel_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None 
         if args.receipt_date is None:
             raise CliConfigError("해외 예약 취소에는 --receipt-date(접수일자 YYYYMMDD)가 필요합니다.")
         if args.execute is None:
-            return {"sequence": args.sequence, "venue": "overseas",
+            return {"reserved_order_id": args.sequence, "venue": "overseas",
                     "receipt_date": args.receipt_date, "note": _DRY_RUN_NOTE}
         if is_tty is None:
             is_tty = sys.stdin.isatty()
         _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
         account.overseas.cancel_reserved_order(args.sequence, receipt_date=args.receipt_date)
-        return {"sequence": args.sequence, "venue": "overseas",
+        return {"reserved_order_id": args.sequence, "venue": "overseas",
                 "receipt_date": args.receipt_date, "cancelled": True}
     # 국내 예약 취소(실전전용).
     if args.receipt_date is not None:
