@@ -16,7 +16,7 @@ from ._internal._masters import (
     MasterIndex,
     SearchMarket,
 )
-from ._literals import ReservedCurrency
+from ._literals import ProfitSort, ReservedCurrency, SideFilter
 from .account import StockAccount
 from .bar import Bar, Interval
 from .client import KISClient
@@ -523,6 +523,7 @@ __all__ = [
     "Position",
     "PriceLevel",
     "ProductInfo",
+    "ProfitSort",
     "ProfitabilityRatio",
     "ProgramFlowPoint",
     "ProgramInvestorTrade",
@@ -549,6 +550,7 @@ __all__ = [
     "ShareholderMeeting",
     "ShortSalePoint",
     "ShortSaleRanking",
+    "SideFilter",
     "StabilityRatio",
     "StockAccount",
     "StockFill",

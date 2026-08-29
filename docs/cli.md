@@ -62,10 +62,10 @@ kis account reserved --start 20240101 --end 20240131 --process unprocessed   # �
 kis account reserved --venue overseas --start 20240101 --end 20240131        # 해외 예약주문 목록
 ```
 
-기간별 실현손익은 `kis account profits --start/--end` 로 봅니다. 국내는 `--by symbol`(종목별
-실현손익, 기본)/`--by day`(일별 매매손익), `--symbol`·`--sort recent|oldest` 로 좁힙니다. 해외주식은
-`--venue overseas` 로 기간손익을 보며 `--currency`·`--won-basis`(원화 기준) 를 씁니다. 실전 계좌
-전용입니다(모의투자 미지원).
+기간별 실현손익은 `kis account profits --start/--end` 로 봅니다. `--symbol` 로 종목을 좁히는 건
+국내·해외 공통이고, 국내는 `--by symbol`(종목별 실현손익, 기본)/`--by day`(일별 매매손익)·
+`--sort recent|oldest`, 해외주식은 `--venue overseas` 로 기간손익을 보며 `--currency`·
+`--won-basis`(원화 기준) 를 씁니다. 실전 계좌 전용입니다(모의투자 미지원).
 
 ```bash
 kis account profits --start 20240101 --end 20240131                          # 국내 종목별 실현손익
@@ -74,7 +74,7 @@ kis account profits --venue overseas --start 20240101 --end 20240131         # �
 ```
 
 거래·입출금내역(매매·결제·수수료)은 해외주식만 `kis account transactions --venue overseas
---start/--end` 로 조회합니다. `--symbol`·`--side buy|sell` 로 좁힙니다. 실전 계좌 전용입니다.
+--start/--end` 로 조회합니다. `--symbol`·`--side all|buy|sell` 로 좁힙니다. 실전 계좌 전용입니다.
 
 ```bash
 kis account transactions --venue overseas --start 20240101 --end 20240131    # 해외 거래·입출금내역

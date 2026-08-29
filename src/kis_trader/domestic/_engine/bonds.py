@@ -65,7 +65,7 @@ from ..entities.bond_account import (
 from ._parse import _side_from_code
 
 if TYPE_CHECKING:
-    from ..._literals import Numeric
+    from ..._literals import Numeric, SideFilter
 
 _QUOTE_PATH = "/uapi/domestic-bond/v1/quotations/inquire-price"
 _QUOTE_TR = "FHKBJ773400C0"
@@ -645,7 +645,7 @@ def _parse_bond_open_orders(rows: list[Mapping[str, Any]]) -> list[BondOpenOrder
 
 def fetch_bond_fills(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    start: str, end: str, side: str = "all", symbol: str | None = None,
+    start: str, end: str, side: SideFilter = "all", symbol: str | None = None,
     unfilled_only: bool = False,
 ) -> BondFillHistory:
     """장내채권 일별 주문·체결 내역(개별 행 + 기간 합계 요약). ``start``~``end`` (YYYYMMDD) 기간,

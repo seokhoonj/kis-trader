@@ -45,7 +45,7 @@ from ..entities.trade_profit import (
 from ._parse import _side_from_code
 
 if TYPE_CHECKING:
-    from ..._literals import Numeric
+    from ..._literals import Numeric, ProfitSort, SideFilter
 
 _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
 _BALANCE_TR = {"real": "TTTC8434R", "paper": "VTTC8434R"}
@@ -345,7 +345,7 @@ def _parse_sellable(output1: Mapping[str, Any], *, symbol: str) -> SellableQuant
 # --- 기간별 매매손익 -------------------------------------------------------
 def fetch_trade_profits(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    start: str, end: str, symbol: str | None = None, sort: str = "recent",
+    start: str, end: str, symbol: str | None = None, sort: ProfitSort = "recent",
 ) -> TradeProfitHistory:
     """기간별 매매손익(실현손익). ``start``/``end`` 는 기간(YYYYMMDD), ``symbol`` 없으면 전체,
     ``sort`` = recent/oldest. output1 종목행을 연속조회로 모으고 output2 총계를 함께 담는다.
@@ -436,7 +436,7 @@ def _parse_trade_profit(row: Mapping[str, Any]) -> TradeProfit:
 
 def fetch_daily_profits(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    start: str, end: str, symbol: str | None = None, sort: str = "recent",
+    start: str, end: str, symbol: str | None = None, sort: ProfitSort = "recent",
 ) -> DailyProfitHistory:
     """기간별 일별 매매손익 합산. 파라미터는 :func:`fetch_trade_profits` 와 같되 output1 이 하루
     단위(종목 구분 없음)다. **모의투자 미지원**."""
@@ -517,7 +517,7 @@ def _parse_daily_profit(row: Mapping[str, Any]) -> DailyProfit:
 
 def fetch_stock_fills(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    start: str, end: str, side: str = "all", symbol: str | None = None,
+    start: str, end: str, side: SideFilter = "all", symbol: str | None = None,
     unfilled_only: bool = False,
 ) -> StockFillHistory:
     """국내주식 일별 주문·체결 내역(개별 행 + 기간 합계 요약). ``start``~``end`` (YYYYMMDD) 기간,
@@ -566,10 +566,9 @@ def fetch_stock_fills(
 
 
 def _parse_stock_fills(rows: list[Mapping[str, Any]]) -> list[StockFill]:
+    # 행 배열의 매핑 여부는 상류 _require_mapping_rows 가 이미 fail-closed 로 보장한다.
     fills: list[StockFill] = []
     for row in rows:
-        if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
-            raise KISError("주식일별주문체결조회 응답 행이 매핑이 아니다.")
         order_id = str(row.get("odno", "")).strip()
         if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
             continue

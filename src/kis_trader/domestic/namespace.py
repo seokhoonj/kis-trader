@@ -32,7 +32,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
 
     from .._internal._masters import DomesticListing, SearchMarket
-    from .._literals import Numeric
+    from .._literals import Numeric, ProfitSort, SideFilter
     from ..client import KISClient
     from ..instrument import DomesticBoard
     from ..open_order import OpenOrder
@@ -117,12 +117,13 @@ class DomesticAccount:
         )
 
     def fills(
-        self, *, start: str, end: str, side: str = "all", symbol: str | None = None,
+        self, *, start: str, end: str, side: SideFilter = "all", symbol: str | None = None,
         unfilled_only: bool = False,
     ) -> StockFillHistory:
         """국내주식 일별 주문·체결 내역(개별 행 + 기간 합계 요약). ``start``/``end`` 는 조회 기간
         (YYYYMMDD, 3개월 이내), ``side`` = ``"all"``/``"sell"``/``"buy"``, ``symbol`` 없으면 전체,
-        ``unfilled_only`` 면 미체결만. 금액·수량은 KRW Decimal. 실전·모의 모두 지원한다."""
+        ``unfilled_only`` 면 미체결만. **``unfilled_only`` 없이는 미체결·거부 주문까지 포함한 주문
+        전체**(체결만 걸러주지 않는다). 금액·수량은 KRW Decimal. 실전·모의 모두 지원한다."""
         cano, product_code = self._c._require_account()
         return account_api.fetch_stock_fills(
             self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
@@ -130,7 +131,7 @@ class DomesticAccount:
         )
 
     def trade_profits(
-        self, *, start: str, end: str, symbol: str | None = None, sort: str = "recent"
+        self, *, start: str, end: str, symbol: str | None = None, sort: ProfitSort = "recent"
     ) -> TradeProfitHistory:
         """종목별 실현손익 + 기간 총계(총실현손익·총수익률·수수료·세금). ``symbol`` 없으면 전체,
         ``sort`` = ``"recent"``/``"oldest"``. 금액은 KRW Decimal. **모의투자 미지원**."""
@@ -141,7 +142,7 @@ class DomesticAccount:
         )
 
     def daily_profits(
-        self, *, start: str, end: str, symbol: str | None = None, sort: str = "recent"
+        self, *, start: str, end: str, symbol: str | None = None, sort: ProfitSort = "recent"
     ) -> DailyProfitHistory:
         """일별 매매손익 합산(하루 단위 매수/매도금액·실현손익·수익률과 기간 총계). :meth:`trade_profits`
         의 일별 그래뉼래러티(종목 구분 없음). **모의투자 미지원**."""

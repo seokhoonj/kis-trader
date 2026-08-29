@@ -45,7 +45,7 @@ from ._parse import _MARKETS, _MAX_PAGES, _decimal_or_zero, _money, _side_from_c
 from .orders import _ORDER_EXCHANGE
 
 if TYPE_CHECKING:
-    from ..._literals import Numeric
+    from ..._literals import Numeric, SideFilter
 
 _POSITIONS_PATH = "/uapi/overseas-stock/v1/trading/inquire-balance"
 _POSITIONS_TR = {"real": "TTTS3012R", "paper": "VTTS3012R"}
@@ -170,7 +170,7 @@ def fetch_buyable_amount(
 
 def fetch_transactions(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    start: str, end: str, symbol: str | None = None, side: str = "all",
+    start: str, end: str, symbol: str | None = None, side: SideFilter = "all",
 ) -> list[OverseasTransaction]:
     """해외주식 일별 거래내역(연속조회 소진까지). ``start``/``end`` 는 등록일자 기간(YYYYMMDD),
     ``symbol`` 없으면 전체 종목, ``side`` = all/sell/buy. **모의투자 미지원**."""

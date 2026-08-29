@@ -15,9 +15,11 @@ from typing import TYPE_CHECKING, Any, get_args
 from .. import (
     Direction,
     DomesticDivision,
+    ProfitSort,
     ReservedCurrency,
     ReservedProcess,
     SearchMarket,
+    SideFilter,
     VolumeMetric,
 )
 from ..errors import KISError
@@ -137,7 +139,8 @@ def build_parser() -> argparse.ArgumentParser:
                        ("transactions", account.cmd_transactions)]:
         sp = leaf(account_sub, name)
         sp.add_argument("--venue", choices=["domestic", "overseas"], default="domestic")
-        sp.add_argument("--market", default=None, help="해외 시장(US/HK/CN_SH/...)")
+        if name in ("balance", "positions", "orders"):  # --market 를 실제로 읽는 명령에만
+            sp.add_argument("--market", default=None, help="해외 시장(US/HK/CN_SH/...)")
         if name in ("balance", "orders", "fills"):
             sp.add_argument("--asset", choices=["stock", "bond"], default="stock",
                             help="자산군: stock(기본)/bond(장내채권)")
@@ -149,7 +152,7 @@ def build_parser() -> argparse.ArgumentParser:
                             help="체결내역 조회 시작일 YYYYMMDD(국내 주식/채권)")
             sp.add_argument("--end", dest="end", default=None,
                             help="체결내역 조회 종료일 YYYYMMDD(국내 주식/채권)")
-            sp.add_argument("--side", dest="side", choices=["all", "buy", "sell"], default=None,
+            sp.add_argument("--side", dest="side", choices=list(get_args(SideFilter)), default=None,
                             help="매매구분: all(기본)/buy/sell")
             sp.add_argument("--symbol", dest="symbol", default=None,
                             help="종목코드(주식 6자리 / 채권 ISIN); 생략 시 전체 종목")
@@ -170,7 +173,7 @@ def build_parser() -> argparse.ArgumentParser:
                             help="종목코드; 생략 시 전체 종목")
             sp.add_argument("--by", dest="by", choices=["symbol", "day"], default="symbol",
                             help="국내: symbol(종목별 실현손익, 기본)/day(일별 매매손익)")
-            sp.add_argument("--sort", dest="sort", choices=["recent", "oldest"], default=None,
+            sp.add_argument("--sort", dest="sort", choices=list(get_args(ProfitSort)), default=None,
                             help="국내 정렬: recent(기본)/oldest")
             sp.add_argument("--currency", dest="currency", default=None,
                             help="해외 통화(생략 시 전체)")
@@ -181,7 +184,7 @@ def build_parser() -> argparse.ArgumentParser:
             sp.add_argument("--end", dest="end", default=None, help="거래내역 조회 종료일 YYYYMMDD")
             sp.add_argument("--symbol", dest="symbol", default=None,
                             help="종목코드; 생략 시 전체 종목")
-            sp.add_argument("--side", dest="side", choices=["all", "buy", "sell"], default=None,
+            sp.add_argument("--side", dest="side", choices=list(get_args(SideFilter)), default=None,
                             help="매매구분: all(기본)/buy/sell")
         sp.set_defaults(func=func)
 
