@@ -728,6 +728,9 @@ class _StubDomesticAccount:
     def open_orders(self):
         self._log.append(("dom_open_orders",)); return "STOCK_OPEN"
 
+    def reserved_orders(self, *, start, end, **kwargs):
+        self._log.append(("reserved_orders", start, end, kwargs)); return ["RESERVED"]
+
 
 class _StubStockView:
     def __init__(self, log):
@@ -831,6 +834,39 @@ def test_account_fills_rejects_overseas(monkeypatch):
         account.cmd_fills(object(), _args(
             ["account", "fills", "--asset", "bond", "--start", "20240101", "--end", "20240131",
              "--venue", "overseas"]))
+
+
+# --- 국내 예약주문 조회: kis account reserved (기간별, 처리상태 필터) ---
+
+def test_account_reserved_forwards_process_when_given(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    result = account.cmd_reserved(object(), _args(
+        ["account", "reserved", "--start", "20240101", "--end", "20240131",
+         "--process", "unprocessed"]))
+    assert result == ["RESERVED"]
+    assert log == [("reserved_orders", "20240101", "20240131", {"process": "unprocessed"})]
+
+
+def test_account_reserved_defers_process_default(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    account.cmd_reserved(object(), _args(
+        ["account", "reserved", "--start", "20240101", "--end", "20240131"]))
+    assert log == [("reserved_orders", "20240101", "20240131", {})]
+
+
+def test_account_reserved_requires_start_and_end(monkeypatch):
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView([]))
+    with pytest.raises(CliConfigError, match="기간"):
+        account.cmd_reserved(object(), _args(["account", "reserved", "--start", "20240101"]))
+
+
+def test_account_reserved_rejects_overseas(monkeypatch):
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView([]))
+    with pytest.raises(CliConfigError, match="overseas"):
+        account.cmd_reserved(object(), _args(
+            ["account", "reserved", "--start", "20240101", "--end", "20240131", "--venue", "overseas"]))
 
 
 # --- 채권 주문 CLI: dry-run 티켓 + fail-closed 검증 ------------------------

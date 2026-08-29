@@ -120,11 +120,12 @@ def build_parser() -> argparse.ArgumentParser:
     rv.set_defaults(func=market.cmd_ranking_volume)
     leaf(ranking_sub, "market-cap").set_defaults(func=market.cmd_ranking_market_cap)
 
-    # kis account balance|positions|orders|fills
-    account_p = groups.add_parser("account", help="계좌 잔고·보유·미체결·체결내역")
+    # kis account balance|positions|orders|fills|reserved
+    account_p = groups.add_parser("account", help="계좌 잔고·보유·미체결·체결내역·예약주문")
     account_sub = account_p.add_subparsers(dest="action", required=True)
     for name, func in [("balance", account.cmd_balance), ("positions", account.cmd_positions),
-                       ("orders", account.cmd_orders), ("fills", account.cmd_fills)]:
+                       ("orders", account.cmd_orders), ("fills", account.cmd_fills),
+                       ("reserved", account.cmd_reserved)]:
         sp = leaf(account_sub, name)
         sp.add_argument("--venue", choices=["domestic", "overseas"], default="domestic")
         sp.add_argument("--market", default=None, help="해외 시장(US/HK/CN_SH/...)")
@@ -145,6 +146,14 @@ def build_parser() -> argparse.ArgumentParser:
                             help="표준코드(ISIN); 생략 시 전체 종목")
             sp.add_argument("--unfilled-only", dest="unfilled_only", action="store_true",
                             help="미체결만")
+        if name == "reserved":
+            sp.add_argument("--start", dest="start", default=None,
+                            help="예약주문 조회 시작일 YYYYMMDD")
+            sp.add_argument("--end", dest="end", default=None,
+                            help="예약주문 조회 종료일 YYYYMMDD")
+            sp.add_argument("--process", dest="process",
+                            choices=["all", "processed", "unprocessed"], default=None,
+                            help="처리상태: all(기본)/processed/unprocessed")
         sp.set_defaults(func=func)
 
     # kis order buy|sell|reconcile|modify|cancel
