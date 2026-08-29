@@ -128,12 +128,13 @@ def build_parser() -> argparse.ArgumentParser:
     rv.set_defaults(func=market.cmd_ranking_volume)
     leaf(ranking_sub, "market-cap").set_defaults(func=market.cmd_ranking_market_cap)
 
-    # kis account balance|positions|orders|fills|reserved
-    account_p = groups.add_parser("account", help="계좌 잔고·보유·미체결·체결내역·예약주문")
+    # kis account balance|positions|orders|fills|reserved|profits|transactions
+    account_p = groups.add_parser("account", help="계좌 잔고·보유·미체결·체결내역·예약주문·손익·거래내역")
     account_sub = account_p.add_subparsers(dest="action", required=True)
     for name, func in [("balance", account.cmd_balance), ("positions", account.cmd_positions),
                        ("orders", account.cmd_orders), ("fills", account.cmd_fills),
-                       ("reserved", account.cmd_reserved)]:
+                       ("reserved", account.cmd_reserved), ("profits", account.cmd_profits),
+                       ("transactions", account.cmd_transactions)]:
         sp = leaf(account_sub, name)
         sp.add_argument("--venue", choices=["domestic", "overseas"], default="domestic")
         sp.add_argument("--market", default=None, help="해외 시장(US/HK/CN_SH/...)")
@@ -162,6 +163,26 @@ def build_parser() -> argparse.ArgumentParser:
             sp.add_argument("--process", dest="process",
                             choices=list(get_args(ReservedProcess)), default=None,
                             help="처리상태: all(기본)/processed/unprocessed")
+        if name == "profits":
+            sp.add_argument("--start", dest="start", default=None, help="손익 조회 시작일 YYYYMMDD")
+            sp.add_argument("--end", dest="end", default=None, help="손익 조회 종료일 YYYYMMDD")
+            sp.add_argument("--symbol", dest="symbol", default=None,
+                            help="종목코드; 생략 시 전체 종목")
+            sp.add_argument("--by", dest="by", choices=["symbol", "day"], default="symbol",
+                            help="국내: symbol(종목별 실현손익, 기본)/day(일별 매매손익)")
+            sp.add_argument("--sort", dest="sort", choices=["recent", "oldest"], default=None,
+                            help="국내 정렬: recent(기본)/oldest")
+            sp.add_argument("--currency", dest="currency", default=None,
+                            help="해외 통화(생략 시 전체)")
+            sp.add_argument("--won-basis", dest="won_basis", action="store_true",
+                            help="해외 손익을 원화 기준으로(생략 시 외화)")
+        if name == "transactions":
+            sp.add_argument("--start", dest="start", default=None, help="거래내역 조회 시작일 YYYYMMDD")
+            sp.add_argument("--end", dest="end", default=None, help="거래내역 조회 종료일 YYYYMMDD")
+            sp.add_argument("--symbol", dest="symbol", default=None,
+                            help="종목코드; 생략 시 전체 종목")
+            sp.add_argument("--side", dest="side", choices=["all", "buy", "sell"], default=None,
+                            help="매매구분: all(기본)/buy/sell")
         sp.set_defaults(func=func)
 
     # kis order buy|sell|reconcile|modify|cancel|cancel-reserved|modify-reserved

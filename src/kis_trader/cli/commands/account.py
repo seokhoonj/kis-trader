@@ -94,3 +94,52 @@ def cmd_reserved(kis: KISClient, args: Namespace) -> Any:
     if args.process is not None:
         filters["process"] = args.process
     return account.domestic.reserved_orders(start=args.start, end=args.end, **filters)
+
+
+def cmd_profits(kis: KISClient, args: Namespace) -> Any:
+    account = _stock_account(kis)
+    if not args.start or not args.end:
+        raise CliConfigError("손익 조회는 기간이 필요합니다(--start/--end YYYYMMDD).")
+    # 사용자가 준 필터만 전달한다 -- 기본값은 라이브러리가 정한다(경계: 소비자가 패키지 기본값을 재기술하지 않는다).
+    if args.venue == "overseas":
+        # 해외주식 기간손익. --by/--sort 는 국내 손익 전용.
+        if args.by != "symbol":
+            raise CliConfigError("--by day 는 국내 손익 전용입니다(해외는 기간손익 단일).")
+        if args.sort is not None:
+            raise CliConfigError("--sort 는 국내 손익 전용입니다.")
+        extra: dict[str, Any] = {}
+        if args.symbol is not None:
+            extra["symbol"] = args.symbol
+        if args.currency is not None:
+            extra["currency"] = args.currency
+        if args.won_basis:
+            extra["won_basis"] = True
+        return account.overseas.period_profit(start=args.start, end=args.end, **extra)
+    # 국내주식: --by symbol(종목별 실현손익) / day(일별 매매손익).
+    if args.currency is not None:
+        raise CliConfigError("--currency 는 해외 손익 전용입니다.")
+    if args.won_basis:
+        raise CliConfigError("--won-basis 는 해외 손익 전용입니다.")
+    extra = {}
+    if args.symbol is not None:
+        extra["symbol"] = args.symbol
+    if args.sort is not None:
+        extra["sort"] = args.sort
+    if args.by == "day":
+        return account.domestic.daily_profits(start=args.start, end=args.end, **extra)
+    return account.domestic.trade_profits(start=args.start, end=args.end, **extra)
+
+
+def cmd_transactions(kis: KISClient, args: Namespace) -> Any:
+    account = _stock_account(kis)
+    if args.venue != "overseas":
+        raise CliConfigError("거래·입출금내역 조회는 현재 해외만 지원합니다(--venue overseas).")
+    if not args.start or not args.end:
+        raise CliConfigError("거래내역 조회는 기간이 필요합니다(--start/--end YYYYMMDD).")
+    # 사용자가 준 필터만 전달한다 -- side/symbol 기본값은 라이브러리가 정한다(경계).
+    extra: dict[str, Any] = {}
+    if args.symbol is not None:
+        extra["symbol"] = args.symbol
+    if args.side is not None:
+        extra["side"] = args.side
+    return account.overseas.transactions(start=args.start, end=args.end, **extra)
