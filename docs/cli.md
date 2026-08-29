@@ -88,19 +88,29 @@ kis order buy 005930 10 --limit-price 70000 --stop-price 69000        # dry-run 
 ```
 
 예약주문(다음 영업일 동시호가 예약)은 `kis order buy`/`kis order sell` 에 `--reserve` 를 주어
-냅니다 -- 이 명령의 `--reserve` 는 국내 주식만 지원하며 실전 전용입니다(`--end-date YYYYMMDD` 로
-예약 유효 종료일 지정). 취소는 `kis order cancel-reserved <순번>` 이며, 순번은 예약 발주 결과나
-`kis account reserved` 목록의 sequence 입니다. 정정은 `kis order modify-reserved <순번>` 이며,
+냅니다 -- 국내 주식은 실전 전용이며 `--end-date YYYYMMDD` 로 예약 유효 종료일을 지정합니다. 취소는
+`kis order cancel-reserved <순번>` 이며, 순번은 예약 발주 결과나 `kis account reserved` 목록의
+sequence 입니다. 정정은 `kis order modify-reserved <순번>` 이며,
 브로커 규격상 `--symbol`/`--side`/`--quantity` 로 종목·방향·수량을 **전체 재지정**합니다 --
 `--limit-price` 를 생략하면 기존 단가 유지가 아니라 시장가로 바뀌니 주의하세요(`--end-date`/
 `--order-date` 도 지정 가능). 정정 후 예약 순번이 재배정될 수 있어(응답은 새 순번을 주지 않음)
 이어서 정정·취소하려면 `kis account reserved` 로 순번을 재확인하세요 -- 영수증에도 같은 안내가
 실립니다. 다른 주문과 같은 dry-run/`--execute` 안전장치를 씁니다.
 
+해외 예약주문은 `--venue overseas` 로 냅니다 -- 국내와 달리 **지정가 전용**(`--limit-price` 필수),
+`--end-date` 미지원, **모의(paper) 허용**입니다. `--currency`(HKD/CNY/USD)는 **홍콩 예약 전용**이고
+미지정 시 홍콩은 HKD 입니다. 목록은 `kis account reserved --venue overseas`(미국+아시아 합산),
+취소는 `kis order cancel-reserved --venue overseas --receipt-date YYYYMMDD` 로 **미국 예약만** 됩니다
+-- 아시아(일/중/홍/베) 예약 취소는 전용 엔드포인트가 없어 이 경로가 아니라 발주 리포트의
+client_order_id 로 `kis order cancel` 이 취소합니다. 정정(modify)은 해외 예약에 없습니다.
+
 ```bash
-kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20240131    # 예약매수(dry-run)
-kis order cancel-reserved SEQ7 --order-date 20240131                         # 예약 취소(dry-run)
-kis order modify-reserved SEQ7 --symbol 005930 --side buy --quantity 10 --limit-price 71000  # 예약 정정(dry-run)
+kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20240131    # 국내 예약매수(dry-run)
+kis order cancel-reserved SEQ7 --order-date 20240131                         # 국내 예약 취소(dry-run)
+kis order modify-reserved SEQ7 --symbol 005930 --side buy --quantity 10 --limit-price 71000  # 국내 예약 정정(dry-run)
+kis order buy 00700 100 --venue overseas --reserve --limit-price 350 --exchange HKS --currency HKD  # 해외(홍콩) 예약매수(dry-run)
+kis account reserved --venue overseas --start 20240101 --end 20240131       # 해외 예약주문 목록
+kis order cancel-reserved US123 --venue overseas --receipt-date 20240131    # 해외(미국) 예약 취소(dry-run)
 ```
 
 실제 전송하려면 `--execute` 값이 세션 환경(프로필에 저장된 실전/모의)과 같아야 합니다. 대화형에서는 확인을

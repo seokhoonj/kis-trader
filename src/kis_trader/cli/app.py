@@ -12,7 +12,14 @@ from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any, get_args
 
-from .. import Direction, DomesticDivision, ReservedProcess, SearchMarket, VolumeMetric
+from .. import (
+    Direction,
+    DomesticDivision,
+    ReserveCurrency,
+    ReservedProcess,
+    SearchMarket,
+    VolumeMetric,
+)
 from ..errors import KISError
 from ..order import Side
 from .commands import account, market, order, stock
@@ -185,9 +192,12 @@ def build_parser() -> argparse.ArgumentParser:
                         help="스톱 트리거가 -- 국내 주식 스톱지정가(--limit-price 와 함께) 또는 "
                              "해외 파생 스톱")
         sp.add_argument("--reserve", action="store_true",
-                        help="예약주문(다음 영업일 동시호가에 예약; 국내 주식·실전 전용)")
+                        help="예약주문(다음 영업일 동시호가에 예약): 국내 주식(실전전용) 또는 "
+                             "해외 주식(--venue overseas, 지정가 필수, 모의 허용)")
         sp.add_argument("--end-date", dest="end_date", default=None,
-                        help="예약 유효 종료일 YYYYMMDD(--reserve 전용)")
+                        help="예약 유효 종료일 YYYYMMDD(국내 --reserve 전용; 해외 예약은 미지원)")
+        sp.add_argument("--currency", choices=list(get_args(ReserveCurrency)), default=None,
+                        help="해외 예약 통화(홍콩 전용 HKD/CNY/USD; 미지정 시 홍콩은 HKD)")
         _add_venue(sp)
         _add_order_gate(sp)
         sp.set_defaults(func=func)
@@ -207,8 +217,12 @@ def build_parser() -> argparse.ArgumentParser:
     can.set_defaults(func=order.cmd_cancel)
     rcan = leaf(order_sub, "cancel-reserved")
     rcan.add_argument("sequence")
+    rcan.add_argument("--venue", choices=["domestic", "overseas"], default="domestic",
+                      help="국내(기본)/해외. 해외는 미국 예약만 -- 아시아는 kis order cancel 로 취소")
     rcan.add_argument("--order-date", dest="order_date", default=None,
-                      help="예약집행 예정일 YYYYMMDD(같은 순번 구분이 필요할 때)")
+                      help="예약집행 예정일 YYYYMMDD(국내 전용, 같은 순번 구분이 필요할 때)")
+    rcan.add_argument("--receipt-date", dest="receipt_date", default=None,
+                      help="접수일자 YYYYMMDD(해외 미국 예약 취소 전용, 필수)")
     _add_order_gate(rcan)
     rcan.set_defaults(func=order.cmd_cancel_reserved)
     rmod = leaf(order_sub, "modify-reserved")

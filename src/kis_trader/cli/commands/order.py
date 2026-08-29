@@ -53,6 +53,10 @@ def _ticket(args: Namespace, *, side: Side, account: str | None, environment: st
         ticket["stop_price"] = getattr(args, "stop_price", None)
         ticket["reserve"] = getattr(args, "reserve", False)
         ticket["end_date"] = getattr(args, "end_date", None)
+    elif asset == "stock" and getattr(args, "reserve", False):  # 해외 주식 예약(지정가·홍콩 통화)
+        ticket["reserve"] = True
+        ticket["currency"] = getattr(args, "currency", None)
+        ticket["exchange"] = args.exchange
     if asset == "bond" and side == "sell":
         ticket["buy_date"] = getattr(args, "buy_date", None)
         ticket["buy_seq"] = getattr(args, "buy_seq", None)
@@ -73,21 +77,34 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
     domestic = args.venue != "overseas"
     is_deriv = asset in _DERIVATIVE_ASSETS
 
-    # 예약주문(--reserve)은 국내 주식·실전 전용 -- 호환 불가 플래그를 먼저 지목해 fail-closed 한다.
-    # (이 블록을 앞에 두어 --asset bond/--venue overseas 도 예약 메시지로 먼저 거부한다.)
+    # 예약주문(--reserve)은 국내 주식(실전전용) 또는 해외 주식(--venue overseas) -- 호환 불가 플래그를
+    # 먼저 지목해 fail-closed 한다. (이 블록을 앞에 두어 --asset bond/파생도 예약 메시지로 먼저 거부한다.)
     if args.reserve:
-        if not (domestic and asset == "stock"):
-            raise CliConfigError("이 명령의 --reserve 는 국내 주식만 지원합니다(--asset stock, 국내).")
+        if asset != "stock":
+            raise CliConfigError("--reserve 는 주식 예약주문 전용입니다(--asset stock).")
         if args.division is not None:
             raise CliConfigError("--reserve 와 --division 은 함께 쓸 수 없습니다.")
         if args.stop_price is not None:
             raise CliConfigError("--reserve 와 --stop-price 는 함께 쓸 수 없습니다.")
         if args.night:
             raise CliConfigError("--reserve 와 --night 은 함께 쓸 수 없습니다.")
-        if args.execute == "paper":
-            raise CliConfigError("예약주문은 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
-    elif args.end_date is not None:
-        raise CliConfigError("--end-date 는 예약주문(--reserve) 전용입니다.")
+        if domestic:
+            # 국내 예약: end_date 허용, 통화 없음, 실전전용.
+            if args.currency is not None:
+                raise CliConfigError("--currency 는 해외 예약주문 전용입니다(--venue overseas).")
+            if args.execute == "paper":
+                raise CliConfigError("국내 예약주문은 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
+        else:
+            # 해외 예약: 지정가 필수, end_date 미지원, 통화는 홍콩 전용(라이브러리가 非홍콩을 거부), 모의 허용.
+            if args.limit_price is None:
+                raise CliConfigError("해외 예약주문은 지정가 전용입니다 -- --limit-price 가 필요합니다.")
+            if args.end_date is not None:
+                raise CliConfigError("해외 예약주문은 --end-date 를 지원하지 않습니다.")
+    else:
+        if args.end_date is not None:
+            raise CliConfigError("--end-date 는 예약주문(--reserve) 전용입니다.")
+        if args.currency is not None:
+            raise CliConfigError("--currency 는 예약주문(--reserve) 전용입니다.")
 
     # 자산에 무의미한 특수 플래그 거부(어느 플래그가 문제인지 지목).
     if (args.buy_date or args.buy_seq) and not (asset == "bond" and side == "sell"):
@@ -236,7 +253,13 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
     handle = resolve_stock(kis, args)
     if getattr(args, "reserve", False):
         reserve = handle.reserve_buy if side == "buy" else handle.reserve_sell
-        extra: dict[str, Any] = {} if args.end_date is None else {"end_date": args.end_date}
+        # 사용자가 준 것만 전달한다 -- 해외는 통화(홍콩 전용), 국내는 종료일. 기본값은 라이브러리 소유.
+        extra: dict[str, Any] = {}
+        if args.venue == "overseas":
+            if args.currency is not None:
+                extra["currency"] = args.currency
+        elif args.end_date is not None:
+            extra["end_date"] = args.end_date
         return reserve(quantity=args.quantity, limit_price=args.limit_price, **extra)
     place = handle.buy if side == "buy" else handle.sell
     extra = {} if args.venue == "overseas" else {
@@ -281,13 +304,32 @@ def cmd_cancel(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, p
 
 
 def cmd_cancel_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
-    """예약주문 취소 -- ``sequence`` 는 예약 발주 리포트의 order_id(예약주문순번) 또는
-    `kis account reserved` 목록의 순번. 기본 dry-run, --execute 로 실제 취소."""
+    """예약주문 취소 -- 국내는 ``sequence``(예약 발주 리포트의 order_id/예약주문순번, +선택 order_date),
+    해외(미국)는 예약번호 + ``--receipt-date``(접수일자). 아시아 해외 예약은 전용 취소 엔드포인트가
+    없어 이 경로가 아니라 `kis order cancel --client-order-id` 로 취소한다. 기본 dry-run, --execute 로
+    실제 취소. 국내는 실전전용, 해외 미국은 모의 허용."""
     account = _stock_account(kis)
+    if args.venue == "overseas":
+        if args.order_date is not None:
+            raise CliConfigError("--order-date 는 국내 예약 취소 전용입니다(해외는 --receipt-date).")
+        if args.receipt_date is None:
+            raise CliConfigError("해외 예약 취소에는 --receipt-date(접수일자 YYYYMMDD)가 필요합니다.")
+        if args.execute is None:
+            return {"sequence": args.sequence, "venue": "overseas",
+                    "receipt_date": args.receipt_date, "note": _DRY_RUN_NOTE}
+        if is_tty is None:
+            is_tty = sys.stdin.isatty()
+        _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
+        account.overseas.cancel_reserved_order(args.sequence, receipt_date=args.receipt_date)
+        return {"sequence": args.sequence, "venue": "overseas",
+                "receipt_date": args.receipt_date, "cancelled": True}
+    # 국내 예약 취소(실전전용).
+    if args.receipt_date is not None:
+        raise CliConfigError("--receipt-date 는 해외 예약 취소 전용입니다(국내는 --order-date).")
     if args.execute is None:
         return {"sequence": args.sequence, "order_date": args.order_date, "note": _DRY_RUN_NOTE}
     if args.execute == "paper":
-        raise CliConfigError("예약주문 취소는 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
+        raise CliConfigError("국내 예약주문 취소는 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
     if is_tty is None:
         is_tty = sys.stdin.isatty()
     _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)

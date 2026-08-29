@@ -80,10 +80,14 @@ def cmd_fills(kis: KISClient, args: Namespace) -> Any:
 
 def cmd_reserved(kis: KISClient, args: Namespace) -> Any:
     account = _stock_account(kis)
-    if args.venue == "overseas":
-        raise CliConfigError("이 명령은 국내 예약주문만 지원합니다(--venue overseas 불가).")
     if not args.start or not args.end:
         raise CliConfigError("예약주문 조회는 기간이 필요합니다(--start/--end YYYYMMDD).")
+    if args.venue == "overseas":
+        # 해외 예약주문 조회(미국+아시아 합산). process 는 국내 전용 개념이라 거부. 실전전용은
+        # 라이브러리가 소유(조회 TR 이 모의 미지원 -- CLI 중복검증 없음).
+        if args.process is not None:
+            raise CliConfigError("--process 는 국내 예약주문 조회 전용입니다.")
+        return account.overseas.reserved_orders(start=args.start, end=args.end)
     # 사용자가 준 필터만 전달한다 -- process 기본값은 라이브러리가 정한다(경계: 소비자가 패키지 기본값을 재기술하지 않는다).
     filters: dict[str, Any] = {}
     if args.process is not None:
