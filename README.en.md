@@ -89,6 +89,7 @@ kis order buy KR6449111CB8 100 --asset bond --limit-price 10125    # bond buy (d
 # bond sell targets a lot: pass the buy_sequence column as --buy-seq, buy_date as --buy-date:
 kis order sell KR6449111CB8 100 --asset bond --limit-price 10130 --buy-date 20260814 --buy-seq 1
 kis account orders --asset bond --date 20260814                   # bond open orders (after an order timeout)
+kis account fills --start 20240101 --end 20240131                 # domestic stock fills history (range)
 kis account fills --asset bond --start 20240101 --end 20240131    # bond fills history (range)
 kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20260901   # reserved buy (real only)
 kis account reserved --start 20260101 --end 20260901              # reserved orders list

@@ -210,6 +210,7 @@ from .domestic.entities.saved_screen import (
     WatchlistGroup,
     WatchlistStock,
 )
+from .domestic.entities.stock_fills import StockFill, StockFillHistory
 from .domestic.entities.stock_info import StockProfile, StockStatus
 from .domestic.entities.trade_profit import (
     DailyProfit,
@@ -550,6 +551,8 @@ __all__ = [
     "ShortSaleRanking",
     "StabilityRatio",
     "StockAccount",
+    "StockFill",
+    "StockFillHistory",
     "StockProfile",
     "StockStatus",
     "TopViewedStock",

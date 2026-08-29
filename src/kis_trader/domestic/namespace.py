@@ -50,6 +50,7 @@ if TYPE_CHECKING:
     )
     from .entities.product import ProductInfo
     from .entities.saved_screen import SavedScreen, SavedScreenStock, Watchlist, WatchlistGroup
+    from .entities.stock_fills import StockFillHistory
     from .entities.trade_profit import DailyProfitHistory, TradeProfitHistory
 
 
@@ -113,6 +114,19 @@ class DomesticAccount:
         return account_api.fetch_integrated_margin(
             self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
             include_cma=include_cma, won_basis=won_basis,
+        )
+
+    def fills(
+        self, *, start: str, end: str, side: str = "all", symbol: str | None = None,
+        unfilled_only: bool = False,
+    ) -> StockFillHistory:
+        """국내주식 일별 주문·체결 내역(개별 행 + 기간 합계 요약). ``start``/``end`` 는 조회 기간
+        (YYYYMMDD, 3개월 이내), ``side`` = ``"all"``/``"sell"``/``"buy"``, ``symbol`` 없으면 전체,
+        ``unfilled_only`` 면 미체결만. 금액·수량은 KRW Decimal. 실전·모의 모두 지원한다."""
+        cano, product_code = self._c._require_account()
+        return account_api.fetch_stock_fills(
+            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
+            start=start, end=end, side=side, symbol=symbol, unfilled_only=unfilled_only,
         )
 
     def trade_profits(

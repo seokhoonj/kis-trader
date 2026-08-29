@@ -145,13 +145,13 @@ def build_parser() -> argparse.ArgumentParser:
                             help="채권 미체결 조회 주문일자 YYYYMMDD(--asset bond 전용)")
         if name == "fills":
             sp.add_argument("--start", dest="start", default=None,
-                            help="채권 체결내역 조회 시작일 YYYYMMDD(--asset bond 전용)")
+                            help="체결내역 조회 시작일 YYYYMMDD(국내 주식/채권)")
             sp.add_argument("--end", dest="end", default=None,
-                            help="채권 체결내역 조회 종료일 YYYYMMDD(--asset bond 전용)")
+                            help="체결내역 조회 종료일 YYYYMMDD(국내 주식/채권)")
             sp.add_argument("--side", dest="side", choices=["all", "buy", "sell"], default=None,
                             help="매매구분: all(기본)/buy/sell")
             sp.add_argument("--symbol", dest="symbol", default=None,
-                            help="표준코드(ISIN); 생략 시 전체 종목")
+                            help="종목코드(주식 6자리 / 채권 ISIN); 생략 시 전체 종목")
             sp.add_argument("--unfilled-only", dest="unfilled_only", action="store_true",
                             help="미체결만")
         if name == "reserved":

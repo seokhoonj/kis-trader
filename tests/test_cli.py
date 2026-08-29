@@ -997,6 +997,9 @@ class _StubDomesticAccount:
     def open_orders(self):
         self._log.append(("dom_open_orders",)); return "STOCK_OPEN"
 
+    def fills(self, *, start, end, **kwargs):
+        self._log.append(("stock_fills", start, end, kwargs)); return ["STOCK_FILLS"]
+
     def reserved_orders(self, *, start, end, **kwargs):
         self._log.append(("reserved_orders", start, end, kwargs)); return ["RESERVED"]
 
@@ -1108,11 +1111,23 @@ def test_account_fills_requires_start_and_end(monkeypatch, cli_args):
         account.cmd_fills(object(), _args(cli_args))
 
 
-def test_account_fills_rejects_non_bond(monkeypatch):
-    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView([]))
-    with pytest.raises(CliConfigError, match="채권"):
-        account.cmd_fills(object(), _args(
-            ["account", "fills", "--start", "20240101", "--end", "20240131"]))
+def test_account_fills_stock_default_forwards_all_arguments(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    result = account.cmd_fills(object(), _args(
+        ["account", "fills", "--start", "20240101", "--end", "20240131",
+         "--side", "sell", "--symbol", "005930", "--unfilled-only"]))
+    assert result == ["STOCK_FILLS"]
+    assert log == [("stock_fills", "20240101", "20240131",
+                    {"side": "sell", "symbol": "005930", "unfilled_only": True})]
+
+
+def test_account_fills_stock_forwards_no_filters_by_default(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    account.cmd_fills(object(), _args(
+        ["account", "fills", "--start", "20240101", "--end", "20240131"]))
+    assert log == [("stock_fills", "20240101", "20240131", {})]
 
 
 def test_account_fills_rejects_overseas(monkeypatch):
