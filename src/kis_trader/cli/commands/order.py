@@ -306,7 +306,7 @@ def cmd_cancel(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, p
 def cmd_cancel_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
     """예약주문 취소 -- 국내는 ``sequence``(예약 발주 리포트의 order_id/예약주문순번, +선택 order_date),
     해외(미국)는 예약번호 + ``--receipt-date``(접수일자). 아시아 해외 예약은 전용 취소 엔드포인트가
-    없어 이 경로가 아니라 `kis order cancel --client-order-id` 로 취소한다. 기본 dry-run, --execute 로
+    없어 이 경로가 아니라 `kis order cancel <client_order_id>` 로 취소한다. 기본 dry-run, --execute 로
     실제 취소. 국내는 실전전용, 해외 미국은 모의 허용."""
     account = _stock_account(kis)
     if args.venue == "overseas":

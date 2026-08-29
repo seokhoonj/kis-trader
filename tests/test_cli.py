@@ -127,7 +127,7 @@ class _Overseas:
         self._log = log
 
     def stock(self, symbol, *, exchange=None):
-        return _Handle(self._log, symbol)
+        self._log.append(("ovs_stock", symbol, exchange)); return _Handle(self._log, symbol)
 
     def futures(self, code):
         return _OverseasDerivHandle(self._log, "futures", code)
@@ -382,7 +382,9 @@ def test_order_overseas_reserve_execute_allows_paper_and_forwards_currency():
         ["--profile", "paper", "order", "buy", "00700", "100", "--venue", "overseas",
          "--reserve", "--limit-price", "350", "--exchange", "HKS", "--currency", "HKD",
          "--execute", "paper", "--yes"]), is_tty=False)
-    assert kis.log[-1] == ("reserve_buy", "00700", 100, "350", {"currency": "HKD"})
+    # 거래소가 핸들 조회로 전달되고, 통화가 발주로 전달되는 전 과정을 검증한다.
+    assert kis.log == [("ovs_stock", "00700", "HKS"),
+                       ("reserve_buy", "00700", 100, "350", {"currency": "HKD"})]
 
 
 def test_order_overseas_reserve_defers_currency_to_library():
@@ -392,7 +394,8 @@ def test_order_overseas_reserve_defers_currency_to_library():
         ["--profile", "paper", "order", "sell", "AAPL", "10", "--venue", "overseas",
          "--reserve", "--limit-price", "190", "--exchange", "NAS",
          "--execute", "paper", "--yes"]), is_tty=False)
-    assert kis.log[-1] == ("reserve_sell", "AAPL", 10, "190", {})
+    assert kis.log == [("ovs_stock", "AAPL", "NAS"),
+                       ("reserve_sell", "AAPL", 10, "190", {})]
 
 
 def test_order_overseas_reserve_requires_limit_price():
@@ -566,6 +569,7 @@ def test_order_cancel_reserved_overseas_rejects_order_date(monkeypatch):
         order.cmd_cancel_reserved(kis, _args(
             ["order", "cancel-reserved", "US123", "--venue", "overseas",
              "--receipt-date", "20240131", "--order-date", "20240131"]), is_tty=False)
+    assert kis.log == []
 
 
 def test_order_cancel_reserved_domestic_rejects_receipt_date(monkeypatch):
@@ -574,6 +578,7 @@ def test_order_cancel_reserved_domestic_rejects_receipt_date(monkeypatch):
     with pytest.raises(CliConfigError, match="--receipt-date"):
         order.cmd_cancel_reserved(kis, _args(
             ["order", "cancel-reserved", "SEQ7", "--receipt-date", "20240131"]), is_tty=False)
+    assert kis.log == []
 
 
 def test_order_reserve_rejects_paper():

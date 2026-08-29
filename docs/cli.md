@@ -50,12 +50,14 @@ kis account fills --asset bond --start 20240101 --end 20240131 --unfilled-only  
 ```
 
 예약주문(다음 영업일 동시호가 예약) 목록은 `kis account reserved --start/--end` 로 조회합니다
-(YYYYMMDD). `--process` 로 all/processed/unprocessed 를 골라 좁힙니다. 이 명령은 국내 예약주문만
-조회하며 실전 계좌 전용입니다(모의투자 미지원).
+(YYYYMMDD). 국내 조회는 `--process` 로 all/processed/unprocessed 를 골라 좁히며 실전 계좌 전용입니다
+(모의투자 미지원). 해외 예약주문은 `--venue overseas` 로 조회하고(미국+아시아 합산) `--process` 는
+지원하지 않습니다.
 
 ```bash
-kis account reserved --start 20240101 --end 20240131                         # 예약주문 목록
+kis account reserved --start 20240101 --end 20240131                         # 국내 예약주문 목록
 kis account reserved --start 20240101 --end 20240131 --process unprocessed   # 미처리분만
+kis account reserved --venue overseas --start 20240101 --end 20240131        # 해외 예약주문 목록
 ```
 
 ## 주문 — 기본은 dry-run
