@@ -94,6 +94,9 @@ kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20260901   # re
 kis account reserved --start 20260101 --end 20260901              # reserved orders list
 kis order cancel-reserved <seq> --order-date 20260901             # cancel a reservation
 kis order modify-reserved <seq> --symbol 005930 --side buy --quantity 10 --limit-price 71000  # modify a reservation (full re-specify; omit price -> market)
+kis order buy 00700 100 --venue overseas --reserve --limit-price 350 --exchange HKS --currency HKD  # overseas reserved buy (limit only; currency is HK-only; paper allowed)
+kis account reserved --venue overseas --start 20260101 --end 20260901  # overseas reserved orders (US + Asia)
+kis order cancel-reserved US123 --venue overseas --receipt-date 20260901  # cancel overseas reservation (US only; Asia via kis order cancel)
 kis order buy 101W09 1 --asset futures --limit-price 350.5        # domestic futures (limit)
 kis order buy 201S07 1 --asset option --right call --limit-price 5.2  # domestic option
 kis order buy <sym> 1 --asset futures --venue overseas --limit-price 100  # overseas futures
