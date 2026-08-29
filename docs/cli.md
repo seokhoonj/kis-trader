@@ -49,6 +49,15 @@ kis account fills --asset bond --start 20240101 --end 20240131 --side buy       
 kis account fills --asset bond --start 20240101 --end 20240131 --unfilled-only  # 미체결만
 ```
 
+예약주문(다음 영업일 동시호가 예약) 목록은 `kis account reserved --start/--end` 로 조회합니다
+(YYYYMMDD). `--process` 로 all/processed/unprocessed 를 골라 좁힙니다. 이 명령은 국내 예약주문만
+조회하며 실전 계좌 전용입니다(모의투자 미지원).
+
+```bash
+kis account reserved --start 20240101 --end 20240131                         # 예약주문 목록
+kis account reserved --start 20240101 --end 20240131 --process unprocessed   # 미처리분만
+```
+
 ## 주문 — 기본은 dry-run
 
 주문 명령은 **`--execute` 가 없으면 전송하지 않고** 주문 티켓만 되읽어 보여줍니다.
@@ -76,6 +85,16 @@ kis --profile main order buy 005930 10 --division immediate_limit --execute real
 
 ```bash
 kis order buy 005930 10 --limit-price 70000 --stop-price 69000        # dry-run (전송 안 됨)
+```
+
+예약주문(다음 영업일 동시호가 예약)은 `kis order buy`/`kis order sell` 에 `--reserve` 를 주어
+냅니다 -- 이 명령의 `--reserve` 는 국내 주식만 지원하며 실전 전용입니다(`--end-date YYYYMMDD` 로
+예약 유효 종료일 지정). 취소는 `kis order cancel-reserved <순번>` 이며, 순번은 예약 발주 결과나
+`kis account reserved` 목록의 sequence 입니다. 다른 주문과 같은 dry-run/`--execute` 안전장치를 씁니다.
+
+```bash
+kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20240131    # 예약매수(dry-run)
+kis order cancel-reserved SEQ7 --order-date 20240131                         # 예약 취소(dry-run)
 ```
 
 실제 전송하려면 `--execute` 값이 세션 환경(프로필에 저장된 실전/모의)과 같아야 합니다. 대화형에서는 확인을

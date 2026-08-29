@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING, Any, Literal, get_args
 from ...order import DerivativeDivision
 from ..context import account_suffix, resolve_bond, resolve_stock
 from ..errors import CliAborted, CliConfigError
+from .account import _stock_account
 
 if TYPE_CHECKING:
     from ...client import KISClient
@@ -52,6 +53,8 @@ def _ticket(args: Namespace, *, side: Side, account: str | None, environment: st
     }
     if asset == "stock" and args.venue != "overseas":
         ticket["stop_price"] = getattr(args, "stop_price", None)
+        ticket["reserve"] = getattr(args, "reserve", False)
+        ticket["end_date"] = getattr(args, "end_date", None)
     if asset == "bond" and side == "sell":
         ticket["buy_date"] = getattr(args, "buy_date", None)
         ticket["buy_seq"] = getattr(args, "buy_seq", None)
@@ -71,6 +74,22 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
     asset = args.asset
     domestic = args.venue != "overseas"
     is_deriv = asset in _DERIVATIVE_ASSETS
+
+    # 예약주문(--reserve)은 국내 주식·실전 전용 -- 호환 불가 플래그를 먼저 지목해 fail-closed 한다.
+    # (이 블록을 앞에 두어 --asset bond/--venue overseas 도 예약 메시지로 먼저 거부한다.)
+    if args.reserve:
+        if not (domestic and asset == "stock"):
+            raise CliConfigError("이 명령의 --reserve 는 국내 주식만 지원합니다(--asset stock, 국내).")
+        if args.division is not None:
+            raise CliConfigError("--reserve 와 --division 은 함께 쓸 수 없습니다.")
+        if args.stop_price is not None:
+            raise CliConfigError("--reserve 와 --stop-price 는 함께 쓸 수 없습니다.")
+        if args.night:
+            raise CliConfigError("--reserve 와 --night 은 함께 쓸 수 없습니다.")
+        if args.execute == "paper":
+            raise CliConfigError("예약주문은 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
+    elif args.end_date is not None:
+        raise CliConfigError("--end-date 는 예약주문(--reserve) 전용입니다.")
 
     # 자산에 무의미한 특수 플래그 거부(어느 플래그가 문제인지 지목).
     if (args.buy_date or args.buy_seq) and not (asset == "bond" and side == "sell"):
@@ -197,8 +216,12 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
         return place_dom(quantity=args.quantity, limit_price=args.limit_price,
                          division=args.division, night=args.night)
     handle = resolve_stock(kis, args)
+    if getattr(args, "reserve", False):
+        reserve = handle.reserve_buy if side == "buy" else handle.reserve_sell
+        extra: dict[str, Any] = {} if args.end_date is None else {"end_date": args.end_date}
+        return reserve(quantity=args.quantity, limit_price=args.limit_price, **extra)
     place = handle.buy if side == "buy" else handle.sell
-    extra: dict[str, Any] = {} if args.venue == "overseas" else {
+    extra = {} if args.venue == "overseas" else {
         "division": division, "stop_price": args.stop_price}
     return place(quantity=args.quantity, limit_price=args.limit_price, **extra)
 
@@ -237,3 +260,19 @@ def cmd_cancel(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, p
         is_tty = sys.stdin.isatty()
     _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
     return kis.orders.cancel(args.client_order_id, quantity=args.quantity)
+
+
+def cmd_cancel_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
+    """예약주문 취소 -- ``sequence`` 는 예약 발주 리포트의 order_id(예약주문순번) 또는
+    `kis account reserved` 목록의 순번. 기본 dry-run, --execute 로 실제 취소."""
+    account = _stock_account(kis)
+    if args.execute is None:
+        return {"sequence": args.sequence, "order_date": args.order_date, "note": _DRY_RUN_NOTE}
+    if args.execute == "paper":
+        raise CliConfigError("예약주문 취소는 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
+    if is_tty is None:
+        is_tty = sys.stdin.isatty()
+    _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
+    extra = {} if args.order_date is None else {"order_date": args.order_date}
+    account.domestic.cancel_reserved_order(args.sequence, **extra)
+    return {"sequence": args.sequence, "order_date": args.order_date, "cancelled": True}

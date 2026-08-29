@@ -43,6 +43,7 @@ from ._parse import _side_from_code
 
 if TYPE_CHECKING:
     from ..._literals import Numeric
+    from ...reserved_order import ReservedProcess
 
 _KST = timezone(timedelta(hours=9))
 
@@ -121,7 +122,7 @@ def _make_reserved_order_fields(
 
 def fetch_reserved_orders(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    start: str, end: str, process: str = "all",
+    start: str, end: str, process: ReservedProcess = "all",
 ) -> list[ReservedOrder]:
     """예약주문 조회(연속조회 소진까지). ``start``/``end`` 는 예약주문일자 기간(YYYYMMDD),
     ``process`` = all/processed/unprocessed. 유효(취소 안 된) 예약만 준다. **모의투자 미지원**."""

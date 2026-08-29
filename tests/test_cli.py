@@ -54,6 +54,12 @@ class _Handle:
     def sell(self, *, quantity, limit_price, division=None, stop_price=None):
         self._log.append(("sell", self._code, quantity, limit_price, division, stop_price)); return "REPORT"
 
+    def reserve_buy(self, *, quantity, limit_price=None, client_order_id=None, **kwargs):
+        self._log.append(("reserve_buy", self._code, quantity, limit_price, kwargs)); return "REPORT"
+
+    def reserve_sell(self, *, quantity, limit_price=None, client_order_id=None, **kwargs):
+        self._log.append(("reserve_sell", self._code, quantity, limit_price, kwargs)); return "REPORT"
+
 
 class _BondHandle:
     def __init__(self, log, code):
@@ -142,9 +148,10 @@ class _Orders:
 
 
 class StubKis:
-    def __init__(self, account=None, environment="paper"):
+    def __init__(self, account=None, environment="paper", account_view=None):
         self.log: list = []
         self._account = account    # 세션이 해석한 계좌(주문 게이트가 kis._account 로 읽음)
+        self.account = account_view  # 상품계좌 뷰(_stock_account 가 isinstance 로 검사)
         self.environment = environment
         self.domestic = _Domestic(self.log)
         self.overseas = _Overseas(self.log)
@@ -328,6 +335,54 @@ def test_order_overseas_stock_stop_price_rejected():
             is_tty=False)
 
 
+def test_order_reserve_dry_run_shows_reserve_and_end_date():
+    dry = order.cmd_buy(StubKis(), _args(
+        ["order", "buy", "005930", "10", "--limit-price", "70000",
+         "--reserve", "--end-date", "20240131"]), is_tty=False)
+    assert dry["reserve"] is True
+    assert dry["end_date"] == "20240131"
+
+
+def test_order_reserve_execute_routes_to_reserve_buy():
+    kis = StubKis(account="12345678-01", environment="real")
+    order.cmd_buy(kis, _args(["--profile", "real", "order", "buy", "005930", "10",
+                              "--limit-price", "70000", "--reserve", "--end-date", "20240131",
+                              "--execute", "real", "--yes", "--confirm-account", "7801"]),
+                  is_tty=False)
+    assert kis.log[-1] == ("reserve_buy", "005930", 10, "70000", {"end_date": "20240131"})
+
+
+def test_order_reserve_sell_execute_routes_to_reserve_sell():
+    # --end-date 미지정: 라이브러리 기본을 재기술하지 않고 end_date 를 전혀 넘기지 않는다.
+    kis = StubKis(account="12345678-01", environment="real")
+    order.cmd_sell(kis, _args(["--profile", "real", "order", "sell", "005930", "10",
+                               "--limit-price", "70000", "--reserve",
+                               "--execute", "real", "--yes", "--confirm-account", "7801"]),
+                   is_tty=False)
+    assert kis.log[-1] == ("reserve_sell", "005930", 10, "70000", {})
+
+
+@pytest.mark.parametrize("extra,match", [
+    (["--division", "immediate_limit"], "division"),
+    (["--stop-price", "69000"], "stop-price"),
+    (["--night"], "night"),
+    (["--asset", "bond"], "국내 주식"),
+    (["--venue", "overseas"], "국내 주식"),
+])
+def test_order_reserve_rejects_incompatible_flags(extra, match):
+    with pytest.raises(CliConfigError, match=match):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "005930", "10", "--limit-price", "70000", "--reserve", *extra]),
+            is_tty=False)
+
+
+def test_order_end_date_requires_reserve():
+    with pytest.raises(CliConfigError, match="--reserve"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "005930", "10", "--limit-price", "70000", "--end-date", "20240131"]),
+            is_tty=False)
+
+
 def test_order_real_noninteractive_needs_matching_confirm_account():
     base = ["--profile", "main", "order", "buy",
             "005930", "10", "--limit-price", "70000", "--execute", "real", "--yes"]
@@ -386,6 +441,52 @@ def test_order_cancel_dry_run_then_executes_once():
     args = _args(cancel_base_argv + ["--execute", "paper", "--yes"])
     assert order.cmd_cancel(kis, args, is_tty=False) == "REPORT"
     assert kis.log == [("cancel", "abc-123", None)]
+
+
+def test_order_cancel_reserved_dry_run_shows_sequence_without_calling(monkeypatch):
+    kis = StubKis()
+    monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
+    dry = order.cmd_cancel_reserved(kis, _args(
+        ["order", "cancel-reserved", "SEQ7", "--order-date", "20240131"]), is_tty=False)
+    assert dry["sequence"] == "SEQ7"
+    assert dry["order_date"] == "20240131"
+    assert kis.log == []
+
+
+def test_order_cancel_reserved_execute_routes_to_cancel(monkeypatch):
+    kis = StubKis(account="12345678-01", environment="real")
+    monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
+    order.cmd_cancel_reserved(kis, _args(
+        ["--profile", "real", "order", "cancel-reserved", "SEQ7", "--order-date", "20240131",
+         "--execute", "real", "--yes", "--confirm-account", "7801"]), is_tty=False)
+    assert kis.log[-1] == ("cancel_reserved_order", "SEQ7", {"order_date": "20240131"})
+
+
+def test_order_reserve_rejects_paper():
+    with pytest.raises(CliConfigError, match="실전전용"):
+        order.cmd_buy(StubKis(), _args(
+            ["--profile", "paper", "order", "buy", "005930", "10", "--limit-price", "70000",
+             "--reserve", "--execute", "paper", "--yes"]), is_tty=False)
+
+
+def test_order_cancel_reserved_rejects_paper(monkeypatch):
+    kis = StubKis(environment="paper")
+    monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
+    with pytest.raises(CliConfigError, match="실전전용"):
+        order.cmd_cancel_reserved(kis, _args(
+            ["--profile", "paper", "order", "cancel-reserved", "SEQ7",
+             "--execute", "paper", "--yes"]), is_tty=False)
+    assert kis.log == []
+
+
+def test_order_cancel_reserved_rejects_non_stock_account():
+    # 실제 _stock_account 가 돌아 kis.account 가 StockAccount 가 아니면 거부한다(monkeypatch 없음).
+    kis = StubKis(account="12345678-03", environment="real", account_view=object())
+    with pytest.raises(CliConfigError):
+        order.cmd_cancel_reserved(kis, _args(
+            ["--profile", "real", "order", "cancel-reserved", "SEQ7",
+             "--execute", "real", "--yes", "--confirm-account", "7803"]), is_tty=False)
+    assert kis.log == []
 
 
 def test_order_reconcile_never_resends():
@@ -676,6 +777,12 @@ class _StubDomesticAccount:
     def open_orders(self):
         self._log.append(("dom_open_orders",)); return "STOCK_OPEN"
 
+    def reserved_orders(self, *, start, end, **kwargs):
+        self._log.append(("reserved_orders", start, end, kwargs)); return ["RESERVED"]
+
+    def cancel_reserved_order(self, sequence, **kwargs):
+        self._log.append(("cancel_reserved_order", sequence, kwargs))
+
 
 class _StubStockView:
     def __init__(self, log):
@@ -779,6 +886,43 @@ def test_account_fills_rejects_overseas(monkeypatch):
         account.cmd_fills(object(), _args(
             ["account", "fills", "--asset", "bond", "--start", "20240101", "--end", "20240131",
              "--venue", "overseas"]))
+
+
+# --- 국내 예약주문 조회: kis account reserved (기간별, 처리상태 필터) ---
+
+def test_account_reserved_forwards_process_when_given(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    result = account.cmd_reserved(object(), _args(
+        ["account", "reserved", "--start", "20240101", "--end", "20240131",
+         "--process", "unprocessed"]))
+    assert result == ["RESERVED"]
+    assert log == [("reserved_orders", "20240101", "20240131", {"process": "unprocessed"})]
+
+
+def test_account_reserved_defers_process_default(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    account.cmd_reserved(object(), _args(
+        ["account", "reserved", "--start", "20240101", "--end", "20240131"]))
+    assert log == [("reserved_orders", "20240101", "20240131", {})]
+
+
+@pytest.mark.parametrize("partial", [
+    ["--start", "20240101"],
+    ["--end", "20240131"],
+])
+def test_account_reserved_requires_start_and_end(monkeypatch, partial):
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView([]))
+    with pytest.raises(CliConfigError, match="기간"):
+        account.cmd_reserved(object(), _args(["account", "reserved", *partial]))
+
+
+def test_account_reserved_rejects_overseas(monkeypatch):
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView([]))
+    with pytest.raises(CliConfigError, match="overseas"):
+        account.cmd_reserved(object(), _args(
+            ["account", "reserved", "--start", "20240101", "--end", "20240131", "--venue", "overseas"]))
 
 
 # --- 채권 주문 CLI: dry-run 티켓 + fail-closed 검증 ------------------------

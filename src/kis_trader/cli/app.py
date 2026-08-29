@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any, get_args
 
-from .. import Direction, DomesticDivision, SearchMarket, VolumeMetric
+from .. import Direction, DomesticDivision, ReservedProcess, SearchMarket, VolumeMetric
 from ..errors import KISError
 from .commands import account, market, order, stock
 from .context import account_suffix, build_client
@@ -120,11 +120,12 @@ def build_parser() -> argparse.ArgumentParser:
     rv.set_defaults(func=market.cmd_ranking_volume)
     leaf(ranking_sub, "market-cap").set_defaults(func=market.cmd_ranking_market_cap)
 
-    # kis account balance|positions|orders|fills
-    account_p = groups.add_parser("account", help="계좌 잔고·보유·미체결·체결내역")
+    # kis account balance|positions|orders|fills|reserved
+    account_p = groups.add_parser("account", help="계좌 잔고·보유·미체결·체결내역·예약주문")
     account_sub = account_p.add_subparsers(dest="action", required=True)
     for name, func in [("balance", account.cmd_balance), ("positions", account.cmd_positions),
-                       ("orders", account.cmd_orders), ("fills", account.cmd_fills)]:
+                       ("orders", account.cmd_orders), ("fills", account.cmd_fills),
+                       ("reserved", account.cmd_reserved)]:
         sp = leaf(account_sub, name)
         sp.add_argument("--venue", choices=["domestic", "overseas"], default="domestic")
         sp.add_argument("--market", default=None, help="해외 시장(US/HK/CN_SH/...)")
@@ -145,9 +146,17 @@ def build_parser() -> argparse.ArgumentParser:
                             help="표준코드(ISIN); 생략 시 전체 종목")
             sp.add_argument("--unfilled-only", dest="unfilled_only", action="store_true",
                             help="미체결만")
+        if name == "reserved":
+            sp.add_argument("--start", dest="start", default=None,
+                            help="예약주문 조회 시작일 YYYYMMDD")
+            sp.add_argument("--end", dest="end", default=None,
+                            help="예약주문 조회 종료일 YYYYMMDD")
+            sp.add_argument("--process", dest="process",
+                            choices=list(get_args(ReservedProcess)), default=None,
+                            help="처리상태: all(기본)/processed/unprocessed")
         sp.set_defaults(func=func)
 
-    # kis order buy|sell|reconcile|modify|cancel
+    # kis order buy|sell|reconcile|modify|cancel|cancel-reserved
     order_p = groups.add_parser("order", help="주문(기본 dry-run; --execute 로 전송)")
     order_sub = order_p.add_subparsers(dest="action", required=True)
     for name, func in [("buy", order.cmd_buy), ("sell", order.cmd_sell)]:
@@ -174,6 +183,10 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--stop-price", dest="stop_price", default=None,
                         help="스톱 트리거가 -- 국내 주식 스톱지정가(--limit-price 와 함께) 또는 "
                              "해외 파생 스톱")
+        sp.add_argument("--reserve", action="store_true",
+                        help="예약주문(다음 영업일 동시호가에 예약; 국내 주식·실전 전용)")
+        sp.add_argument("--end-date", dest="end_date", default=None,
+                        help="예약 유효 종료일 YYYYMMDD(--reserve 전용)")
         _add_venue(sp)
         _add_order_gate(sp)
         sp.set_defaults(func=func)
@@ -191,6 +204,12 @@ def build_parser() -> argparse.ArgumentParser:
     can.add_argument("--quantity", type=int, default=None)
     _add_order_gate(can)
     can.set_defaults(func=order.cmd_cancel)
+    rcan = leaf(order_sub, "cancel-reserved")
+    rcan.add_argument("sequence")
+    rcan.add_argument("--order-date", dest="order_date", default=None,
+                      help="예약집행 예정일 YYYYMMDD(같은 순번 구분이 필요할 때)")
+    _add_order_gate(rcan)
+    rcan.set_defaults(func=order.cmd_cancel_reserved)
 
     return parser
 

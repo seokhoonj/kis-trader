@@ -88,6 +88,9 @@ kis order buy KR6449111CB8 100 --asset bond --limit-price 10125    # 채권 매�
 kis order sell KR6449111CB8 100 --asset bond --limit-price 10130 --buy-date 20260814 --buy-seq 1
 kis account orders --asset bond --date 20260814                   # 채권 미체결 확인(주문 타임아웃 후)
 kis account fills --asset bond --start 20240101 --end 20240131    # 채권 체결내역(기간)
+kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20260901   # 예약매수(실전전용)
+kis account reserved --start 20260101 --end 20260901              # 예약주문 목록
+kis order cancel-reserved <순번> --order-date 20260901              # 예약 취소
 kis order buy 101W09 1 --asset futures --limit-price 350.5        # 국내 선물 지정가
 kis order buy 201S07 1 --asset option --right call --limit-price 5.2  # 국내 옵션
 kis order buy <sym> 1 --asset futures --venue overseas --limit-price 100  # 해외 선물
