@@ -156,7 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
                             help="처리상태: all(기본)/processed/unprocessed")
         sp.set_defaults(func=func)
 
-    # kis order buy|sell|reconcile|modify|cancel|cancel-reserved
+    # kis order buy|sell|reconcile|modify|cancel|cancel-reserved|modify-reserved
     order_p = groups.add_parser("order", help="주문(기본 dry-run; --execute 로 전송)")
     order_sub = order_p.add_subparsers(dest="action", required=True)
     for name, func in [("buy", order.cmd_buy), ("sell", order.cmd_sell)]:
@@ -210,6 +210,19 @@ def build_parser() -> argparse.ArgumentParser:
                       help="예약집행 예정일 YYYYMMDD(같은 순번 구분이 필요할 때)")
     _add_order_gate(rcan)
     rcan.set_defaults(func=order.cmd_cancel_reserved)
+    rmod = leaf(order_sub, "modify-reserved")
+    rmod.add_argument("sequence")
+    rmod.add_argument("--symbol", required=True, help="정정할 종목코드(전체 재지정)")
+    rmod.add_argument("--side", choices=["buy", "sell"], required=True, help="매수/매도")
+    rmod.add_argument("--quantity", type=int, required=True, help="정정 수량")
+    rmod.add_argument("--limit-price", dest="limit_price", default=None,
+                      help="지정가(생략 시 시장가로 재지정 -- 기존 단가 유지 아님)")
+    rmod.add_argument("--end-date", dest="end_date", default=None,
+                      help="예약 유효 종료일 YYYYMMDD")
+    rmod.add_argument("--order-date", dest="order_date", default=None,
+                      help="예약집행 예정일 YYYYMMDD(같은 순번 구분이 필요할 때)")
+    _add_order_gate(rmod)
+    rmod.set_defaults(func=order.cmd_modify_reserved)
 
     return parser
 

@@ -185,6 +185,11 @@ _DRY_RUN_NOTE = (
     "실제 전송하려면 --execute <paper|real> 를 주세요."
 )
 
+_RESERVE_MODIFY_CAUTION = (
+    "정정은 종목/방향/수량/단가/종료일을 전체 재지정합니다 -- "
+    "--limit-price 를 생략하면 기존 단가 유지가 아니라 시장가로 바뀝니다."
+)
+
 
 def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_tty: bool | None, prompt: Callable[[str], str]) -> Any:
     account = kis._account  # 세션 생성 시 한 번 해석된 계좌(자격증명 재조회 없음)
@@ -276,3 +281,35 @@ def cmd_cancel_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None 
     extra = {} if args.order_date is None else {"order_date": args.order_date}
     account.domestic.cancel_reserved_order(args.sequence, **extra)
     return {"sequence": args.sequence, "order_date": args.order_date, "cancelled": True}
+
+
+def cmd_modify_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
+    """예약주문 정정 -- 브로커 규격상 종목/방향/수량/단가/종료일을 **전체 재지정**한다. --limit-price 를
+    생략하면 기존 단가 유지가 아니라 시장가로 바뀐다. 기본 dry-run, --execute 로 실제 정정. 실전전용."""
+    account = _stock_account(kis)
+    if args.execute is None:
+        return {
+            "sequence": args.sequence, "symbol": args.symbol, "side": args.side,
+            "quantity": args.quantity, "limit_price": args.limit_price,
+            "end_date": args.end_date, "order_date": args.order_date,
+            "note": _DRY_RUN_NOTE, "caution": _RESERVE_MODIFY_CAUTION,
+        }
+    if args.execute == "paper":
+        raise CliConfigError("예약주문 정정은 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
+    if is_tty is None:
+        is_tty = sys.stdin.isatty()
+    _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
+    extra: dict[str, Any] = {}
+    if args.limit_price is not None:
+        extra["limit_price"] = args.limit_price
+    if args.end_date is not None:
+        extra["end_date"] = args.end_date
+    if args.order_date is not None:
+        extra["order_date"] = args.order_date
+    account.domestic.modify_reserved_order(
+        args.sequence, symbol=args.symbol, side=args.side, quantity=args.quantity, **extra)
+    return {
+        "sequence": args.sequence, "symbol": args.symbol, "side": args.side,
+        "quantity": args.quantity, "limit_price": args.limit_price,
+        "end_date": args.end_date, "order_date": args.order_date, "modified": True,
+    }

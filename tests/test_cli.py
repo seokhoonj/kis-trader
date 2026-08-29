@@ -479,6 +479,66 @@ def test_order_cancel_reserved_rejects_paper(monkeypatch):
     assert kis.log == []
 
 
+def test_order_modify_reserved_dry_run_shows_fields_without_calling(monkeypatch):
+    kis = StubKis()
+    monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
+    dry = order.cmd_modify_reserved(kis, _args(
+        ["order", "modify-reserved", "SEQ7", "--symbol", "005930", "--side", "buy",
+         "--quantity", "10", "--limit-price", "70000"]), is_tty=False)
+    assert dry["sequence"] == "SEQ7" and dry["symbol"] == "005930"
+    assert dry["side"] == "buy" and dry["quantity"] == 10 and dry["limit_price"] == "70000"
+    assert "note" in dry and "caution" in dry
+    assert kis.log == []
+
+
+def test_order_modify_reserved_execute_routes_and_forwards(monkeypatch):
+    kis = StubKis(account="12345678-01", environment="real")
+    monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
+    result = order.cmd_modify_reserved(kis, _args(
+        ["--profile", "real", "order", "modify-reserved", "SEQ7", "--symbol", "005930",
+         "--side", "buy", "--quantity", "10", "--limit-price", "70000", "--end-date", "20240131",
+         "--execute", "real", "--yes", "--confirm-account", "7801"]), is_tty=False)
+    assert kis.log[-1] == ("modify_reserved_order", "SEQ7", "005930", "buy", 10,
+                           {"limit_price": "70000", "end_date": "20240131"})
+    assert result["modified"] is True
+
+
+def test_order_modify_reserved_defers_optional_price_to_library(monkeypatch):
+    kis = StubKis(account="12345678-01", environment="real")
+    monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
+    order.cmd_modify_reserved(kis, _args(
+        ["--profile", "real", "order", "modify-reserved", "SEQ7", "--symbol", "005930",
+         "--side", "sell", "--quantity", "5",
+         "--execute", "real", "--yes", "--confirm-account", "7801"]), is_tty=False)
+    assert kis.log[-1] == ("modify_reserved_order", "SEQ7", "005930", "sell", 5, {})
+
+
+def test_order_modify_reserved_rejects_paper(monkeypatch):
+    kis = StubKis(environment="paper")
+    monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
+    with pytest.raises(CliConfigError, match="실전전용"):
+        order.cmd_modify_reserved(kis, _args(
+            ["--profile", "paper", "order", "modify-reserved", "SEQ7", "--symbol", "005930",
+             "--side", "buy", "--quantity", "10", "--execute", "paper", "--yes"]), is_tty=False)
+    assert kis.log == []
+
+
+def test_order_modify_reserved_requires_respecify_fields():
+    for missing in (
+        ["order", "modify-reserved", "SEQ7", "--side", "buy", "--quantity", "10"],
+        ["order", "modify-reserved", "SEQ7", "--symbol", "005930", "--quantity", "10"],
+        ["order", "modify-reserved", "SEQ7", "--symbol", "005930", "--side", "buy"],
+    ):
+        with pytest.raises(SystemExit):
+            _args(missing)
+
+
+def test_order_modify_reserved_rejects_invalid_side():
+    with pytest.raises(SystemExit):
+        _args(["order", "modify-reserved", "SEQ7", "--symbol", "005930",
+               "--side", "hold", "--quantity", "10"])
+
+
 def test_order_cancel_reserved_rejects_non_stock_account():
     # 실제 _stock_account 가 돌아 kis.account 가 StockAccount 가 아니면 거부한다(monkeypatch 없음).
     kis = StubKis(account="12345678-03", environment="real", account_view=object())
@@ -782,6 +842,9 @@ class _StubDomesticAccount:
 
     def cancel_reserved_order(self, sequence, **kwargs):
         self._log.append(("cancel_reserved_order", sequence, kwargs))
+
+    def modify_reserved_order(self, sequence, *, symbol, side, quantity, **kwargs):
+        self._log.append(("modify_reserved_order", sequence, symbol, side, quantity, kwargs))
 
 
 class _StubStockView:
