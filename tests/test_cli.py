@@ -155,7 +155,6 @@ class StubKis:
         self.domestic = _Domestic(self.log)
         self.overseas = _Overseas(self.log)
         self.orders = _Orders(self.log)
-        self.account = _StubStockView(self.log)
 
 
 def _args(argv):
@@ -441,8 +440,9 @@ def test_order_cancel_dry_run_then_executes_once():
     assert kis.log == [("cancel", "abc-123", None)]
 
 
-def test_order_reserve_cancel_dry_run_shows_sequence_without_calling():
+def test_order_reserve_cancel_dry_run_shows_sequence_without_calling(monkeypatch):
     kis = StubKis()
+    monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
     dry = order.cmd_reserve_cancel(kis, _args(
         ["order", "reserve-cancel", "SEQ7", "--order-date", "20240131"]), is_tty=False)
     assert dry["sequence"] == "SEQ7"
@@ -450,8 +450,9 @@ def test_order_reserve_cancel_dry_run_shows_sequence_without_calling():
     assert kis.log == []
 
 
-def test_order_reserve_cancel_execute_routes_to_cancel():
+def test_order_reserve_cancel_execute_routes_to_cancel(monkeypatch):
     kis = StubKis(account="12345678-01", environment="real")
+    monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
     order.cmd_reserve_cancel(kis, _args(
         ["--profile", "real", "order", "reserve-cancel", "SEQ7", "--order-date", "20240131",
          "--execute", "real", "--yes", "--confirm-account", "7801"]), is_tty=False)

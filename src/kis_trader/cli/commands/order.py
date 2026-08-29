@@ -15,14 +15,14 @@ from __future__ import annotations
 import sys
 from argparse import Namespace
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Literal, cast, get_args
+from typing import TYPE_CHECKING, Any, Literal, get_args
 
 from ...order import DerivativeDivision
 from ..context import account_suffix, resolve_bond, resolve_stock
 from ..errors import CliAborted, CliConfigError
+from .account import _stock_account
 
 if TYPE_CHECKING:
-    from ...account import StockAccount
     from ...client import KISClient
 
 Side = Literal["buy", "sell"]
@@ -262,10 +262,11 @@ def cmd_cancel(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, p
 def cmd_reserve_cancel(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
     """예약주문 취소 -- ``sequence`` 는 예약 발주 리포트의 order_id(예약주문순번) 또는
     `kis account reserved` 목록의 순번. 기본 dry-run, --execute 로 실제 취소."""
+    account = _stock_account(kis)
     if args.execute is None:
         return {"sequence": args.sequence, "order_date": args.order_date, "note": _DRY_RUN_NOTE}
     if is_tty is None:
         is_tty = sys.stdin.isatty()
     _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
-    cast("StockAccount", kis.account).domestic.cancel_reserved_order(args.sequence, order_date=args.order_date)
+    account.domestic.cancel_reserved_order(args.sequence, order_date=args.order_date)
     return {"sequence": args.sequence, "cancelled": True}
