@@ -38,6 +38,17 @@ kis account positions --venue overseas --market US
 kis stock quote 005930 --format json
 ```
 
+장내채권 체결내역(기간)은 `kis account fills --asset bond` 로 조회합니다. `--start`/`--end`
+(YYYYMMDD) 로 기간을 주고, `--side`(all/buy/sell)·`--symbol`(표준코드)·`--unfilled-only` 로
+좁힙니다. 미체결(정정·취소 대상)만 보려면 `kis account orders --asset bond --date` 를 씁니다.
+실전 계좌 전용입니다(모의투자 미지원).
+
+```bash
+kis account fills --asset bond --start 20240101 --end 20240131                  # 기간 전체 체결내역
+kis account fills --asset bond --start 20240101 --end 20240131 --side buy       # 매수만
+kis account fills --asset bond --start 20240101 --end 20240131 --unfilled-only  # 미체결만
+```
+
 ## 주문 — 기본은 dry-run
 
 주문 명령은 **`--execute` 가 없으면 전송하지 않고** 주문 티켓만 되읽어 보여줍니다.

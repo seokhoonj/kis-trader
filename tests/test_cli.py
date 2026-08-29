@@ -660,6 +660,10 @@ class _StubBonds:
     def open_orders(self, order_date):
         self._log.append(("bonds_open_orders", order_date)); return ["OPEN"]
 
+    def fills(self, *, start, end, **kwargs):
+        self._log.append(("bonds_fills", start, end, kwargs))
+        return ["FILLS"]
+
 
 class _StubDomesticAccount:
     def __init__(self, log):
@@ -729,6 +733,52 @@ def test_account_orders_stock_default_unchanged(monkeypatch):
     monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
     assert account.cmd_orders(object(), _args(["account", "orders"])) == "STOCK_OPEN"
     assert log == [("dom_open_orders",)]
+
+
+# --- 채권 체결내역: kis account fills --asset bond (기간별 주문·체결) ---
+
+def test_account_fills_bond_forwards_all_arguments(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    result = account.cmd_fills(object(), _args(
+        ["account", "fills", "--asset", "bond", "--start", "20240101", "--end", "20240131",
+         "--side", "buy", "--symbol", "KR6449111CB8", "--unfilled-only"]))
+    assert result == ["FILLS"]
+    assert log == [("bonds_fills", "20240101", "20240131",
+                    {"side": "buy", "symbol": "KR6449111CB8", "unfilled_only": True})]
+
+
+def test_account_fills_bond_forwards_no_filters_by_default(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    account.cmd_fills(object(), _args(
+        ["account", "fills", "--asset", "bond", "--start", "20240101", "--end", "20240131"]))
+    assert log == [("bonds_fills", "20240101", "20240131", {})]
+
+
+@pytest.mark.parametrize("cli_args", [
+    ["account", "fills", "--asset", "bond", "--start", "20240101"],
+    ["account", "fills", "--asset", "bond", "--end", "20240131"],
+])
+def test_account_fills_requires_start_and_end(monkeypatch, cli_args):
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView([]))
+    with pytest.raises(CliConfigError, match="기간"):
+        account.cmd_fills(object(), _args(cli_args))
+
+
+def test_account_fills_rejects_non_bond(monkeypatch):
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView([]))
+    with pytest.raises(CliConfigError, match="채권"):
+        account.cmd_fills(object(), _args(
+            ["account", "fills", "--start", "20240101", "--end", "20240131"]))
+
+
+def test_account_fills_rejects_overseas(monkeypatch):
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView([]))
+    with pytest.raises(CliConfigError, match="overseas"):
+        account.cmd_fills(object(), _args(
+            ["account", "fills", "--asset", "bond", "--start", "20240101", "--end", "20240131",
+             "--venue", "overseas"]))
 
 
 # --- 채권 주문 CLI: dry-run 티켓 + fail-closed 검증 ------------------------

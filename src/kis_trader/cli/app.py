@@ -120,20 +120,31 @@ def build_parser() -> argparse.ArgumentParser:
     rv.set_defaults(func=market.cmd_ranking_volume)
     leaf(ranking_sub, "market-cap").set_defaults(func=market.cmd_ranking_market_cap)
 
-    # kis account balance|positions|orders
-    account_p = groups.add_parser("account", help="계좌 잔고·보유·미체결")
+    # kis account balance|positions|orders|fills
+    account_p = groups.add_parser("account", help="계좌 잔고·보유·미체결·체결내역")
     account_sub = account_p.add_subparsers(dest="action", required=True)
     for name, func in [("balance", account.cmd_balance), ("positions", account.cmd_positions),
-                       ("orders", account.cmd_orders)]:
+                       ("orders", account.cmd_orders), ("fills", account.cmd_fills)]:
         sp = leaf(account_sub, name)
         sp.add_argument("--venue", choices=["domestic", "overseas"], default="domestic")
         sp.add_argument("--market", default=None, help="해외 시장(US/HK/CN_SH/...)")
-        if name in ("balance", "orders"):
+        if name in ("balance", "orders", "fills"):
             sp.add_argument("--asset", choices=["stock", "bond"], default="stock",
                             help="자산군: stock(기본)/bond(장내채권)")
         if name == "orders":
             sp.add_argument("--date", dest="date", default=None,
                             help="채권 미체결 조회 주문일자 YYYYMMDD(--asset bond 전용)")
+        if name == "fills":
+            sp.add_argument("--start", dest="start", default=None,
+                            help="채권 체결내역 조회 시작일 YYYYMMDD(--asset bond 전용)")
+            sp.add_argument("--end", dest="end", default=None,
+                            help="채권 체결내역 조회 종료일 YYYYMMDD(--asset bond 전용)")
+            sp.add_argument("--side", dest="side", choices=["all", "buy", "sell"], default=None,
+                            help="매매구분: all(기본)/buy/sell")
+            sp.add_argument("--symbol", dest="symbol", default=None,
+                            help="표준코드(ISIN); 생략 시 전체 종목")
+            sp.add_argument("--unfilled-only", dest="unfilled_only", action="store_true",
+                            help="미체결만")
         sp.set_defaults(func=func)
 
     # kis order buy|sell|reconcile|modify|cancel
