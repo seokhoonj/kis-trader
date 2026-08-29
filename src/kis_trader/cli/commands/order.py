@@ -15,17 +15,15 @@ from __future__ import annotations
 import sys
 from argparse import Namespace
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Any, Literal, get_args
+from typing import TYPE_CHECKING, Any, get_args
 
-from ...order import DerivativeDivision
+from ...order import DerivativeDivision, Side
 from ..context import account_suffix, resolve_bond, resolve_stock
 from ..errors import CliAborted, CliConfigError
 from .account import _stock_account
 
 if TYPE_CHECKING:
     from ...client import KISClient
-
-Side = Literal["buy", "sell"]
 
 #: 파생 자산군(선물/옵션) -- CLI 라우팅·검증에서 stock/bond 와 구분한다.
 _DERIVATIVE_ASSETS = ("futures", "option")
@@ -185,6 +183,26 @@ _DRY_RUN_NOTE = (
     "실제 전송하려면 --execute <paper|real> 를 주세요."
 )
 
+_MODIFY_RESERVED_CAUTION = (
+    "정정은 종목/방향/수량/단가/종료일을 전체 재지정합니다 -- "
+    "--limit-price 를 생략하면 기존 단가 유지가 아니라 시장가로 바뀝니다."
+)
+
+#: 정정 성공 후 브로커가 예약 순번을 재배정할 수 있고 응답은 새 순번을 주지 않는다(패키지
+#: ``modify_reserved_order`` 계약) -- 영수증에 재확인 안내를 실어 옛 순번 재사용을 막는다.
+_MODIFY_RESERVED_SEQUENCE_NOTE = (
+    "정정 후 예약 순번이 재배정될 수 있습니다 -- 이후 정정/취소는 "
+    "`kis account reserved` 로 현재 순번을 재확인하세요."
+)
+
+
+def _modify_reserved_cautions(*, limit_price: str | None) -> str:
+    """정정 프리뷰·영수증에 실을 주의 문구. 단가를 생략하면 시장가 전환 경고를 앞세우고,
+    성공/미성공과 무관하게 순번 재배정 안내를 항상 덧붙인다(dry-run·실송신 양쪽 동일)."""
+    notes = [] if limit_price is not None else [_MODIFY_RESERVED_CAUTION]
+    notes.append(_MODIFY_RESERVED_SEQUENCE_NOTE)
+    return " ".join(notes)
+
 
 def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_tty: bool | None, prompt: Callable[[str], str]) -> Any:
     account = kis._account  # 세션 생성 시 한 번 해석된 계좌(자격증명 재조회 없음)
@@ -276,3 +294,38 @@ def cmd_cancel_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None 
     extra = {} if args.order_date is None else {"order_date": args.order_date}
     account.domestic.cancel_reserved_order(args.sequence, **extra)
     return {"sequence": args.sequence, "order_date": args.order_date, "cancelled": True}
+
+
+def cmd_modify_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
+    """예약주문 정정 -- 브로커 규격상 종목/방향/수량/단가/종료일을 **전체 재지정**한다. --limit-price 를
+    생략하면 기존 단가 유지가 아니라 시장가로 바뀐다. 정정 후 예약 순번이 재배정될 수 있어(응답은 새
+    순번을 주지 않음) 영수증에 재확인 안내를 함께 싣는다. 기본 dry-run, --execute 로 실제 정정. 실전전용
+    (--execute paper 는 :class:`CliConfigError`)."""
+    account = _stock_account(kis)
+    if args.execute is None:
+        return {
+            "sequence": args.sequence, "symbol": args.symbol, "side": args.side,
+            "quantity": args.quantity, "limit_price": args.limit_price,
+            "end_date": args.end_date, "order_date": args.order_date,
+            "note": _DRY_RUN_NOTE, "caution": _modify_reserved_cautions(limit_price=args.limit_price),
+        }
+    if args.execute == "paper":
+        raise CliConfigError("예약주문 정정은 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
+    if is_tty is None:
+        is_tty = sys.stdin.isatty()
+    _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
+    extra: dict[str, Any] = {}
+    if args.limit_price is not None:
+        extra["limit_price"] = args.limit_price
+    if args.end_date is not None:
+        extra["end_date"] = args.end_date
+    if args.order_date is not None:
+        extra["order_date"] = args.order_date
+    account.domestic.modify_reserved_order(
+        args.sequence, symbol=args.symbol, side=args.side, quantity=args.quantity, **extra)
+    return {
+        "sequence": args.sequence, "symbol": args.symbol, "side": args.side,
+        "quantity": args.quantity, "limit_price": args.limit_price,
+        "end_date": args.end_date, "order_date": args.order_date, "modified": True,
+        "caution": _modify_reserved_cautions(limit_price=args.limit_price),
+    }
