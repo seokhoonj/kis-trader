@@ -155,6 +155,7 @@ class StubKis:
         self.domestic = _Domestic(self.log)
         self.overseas = _Overseas(self.log)
         self.orders = _Orders(self.log)
+        self.account = _StubStockView(self.log)
 
 
 def _args(argv):
@@ -438,6 +439,23 @@ def test_order_cancel_dry_run_then_executes_once():
     args = _args(cancel_base_argv + ["--execute", "paper", "--yes"])
     assert order.cmd_cancel(kis, args, is_tty=False) == "REPORT"
     assert kis.log == [("cancel", "abc-123", None)]
+
+
+def test_order_reserve_cancel_dry_run_shows_sequence_without_calling():
+    kis = StubKis()
+    dry = order.cmd_reserve_cancel(kis, _args(
+        ["order", "reserve-cancel", "SEQ7", "--order-date", "20240131"]), is_tty=False)
+    assert dry["sequence"] == "SEQ7"
+    assert dry["order_date"] == "20240131"
+    assert kis.log == []
+
+
+def test_order_reserve_cancel_execute_routes_to_cancel():
+    kis = StubKis(account="12345678-01", environment="real")
+    order.cmd_reserve_cancel(kis, _args(
+        ["--profile", "real", "order", "reserve-cancel", "SEQ7", "--order-date", "20240131",
+         "--execute", "real", "--yes", "--confirm-account", "7801"]), is_tty=False)
+    assert kis.log[-1] == ("cancel_reserved_order", "SEQ7", "20240131")
 
 
 def test_order_reconcile_never_resends():
@@ -730,6 +748,9 @@ class _StubDomesticAccount:
 
     def reserved_orders(self, *, start, end, **kwargs):
         self._log.append(("reserved_orders", start, end, kwargs)); return ["RESERVED"]
+
+    def cancel_reserved_order(self, sequence, *, order_date=None):
+        self._log.append(("cancel_reserved_order", sequence, order_date))
 
 
 class _StubStockView:

@@ -156,7 +156,7 @@ def build_parser() -> argparse.ArgumentParser:
                             help="처리상태: all(기본)/processed/unprocessed")
         sp.set_defaults(func=func)
 
-    # kis order buy|sell|reconcile|modify|cancel
+    # kis order buy|sell|reconcile|modify|cancel|reserve-cancel
     order_p = groups.add_parser("order", help="주문(기본 dry-run; --execute 로 전송)")
     order_sub = order_p.add_subparsers(dest="action", required=True)
     for name, func in [("buy", order.cmd_buy), ("sell", order.cmd_sell)]:
@@ -204,6 +204,12 @@ def build_parser() -> argparse.ArgumentParser:
     can.add_argument("--quantity", type=int, default=None)
     _add_order_gate(can)
     can.set_defaults(func=order.cmd_cancel)
+    rcan = leaf(order_sub, "reserve-cancel")
+    rcan.add_argument("sequence")
+    rcan.add_argument("--order-date", dest="order_date", default=None,
+                      help="예약집행 예정일 YYYYMMDD(같은 순번 구분이 필요할 때)")
+    _add_order_gate(rcan)
+    rcan.set_defaults(func=order.cmd_reserve_cancel)
 
     return parser
 
