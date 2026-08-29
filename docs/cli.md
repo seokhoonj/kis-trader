@@ -90,11 +90,15 @@ kis order buy 005930 10 --limit-price 70000 --stop-price 69000        # dry-run 
 예약주문(다음 영업일 동시호가 예약)은 `kis order buy`/`kis order sell` 에 `--reserve` 를 주어
 냅니다 -- 이 명령의 `--reserve` 는 국내 주식만 지원하며 실전 전용입니다(`--end-date YYYYMMDD` 로
 예약 유효 종료일 지정). 취소는 `kis order cancel-reserved <순번>` 이며, 순번은 예약 발주 결과나
-`kis account reserved` 목록의 sequence 입니다. 다른 주문과 같은 dry-run/`--execute` 안전장치를 씁니다.
+`kis account reserved` 목록의 sequence 입니다. 정정은 `kis order modify-reserved <순번>` 이며,
+브로커 규격상 `--symbol`/`--side`/`--quantity` 로 종목·방향·수량을 **전체 재지정**합니다 --
+`--limit-price` 를 생략하면 기존 단가 유지가 아니라 시장가로 바뀌니 주의하세요(`--end-date`/
+`--order-date` 도 지정 가능). 다른 주문과 같은 dry-run/`--execute` 안전장치를 씁니다.
 
 ```bash
 kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20240131    # 예약매수(dry-run)
 kis order cancel-reserved SEQ7 --order-date 20240131                         # 예약 취소(dry-run)
+kis order modify-reserved SEQ7 --symbol 005930 --side buy --quantity 10 --limit-price 71000  # 예약 정정(dry-run)
 ```
 
 실제 전송하려면 `--execute` 값이 세션 환경(프로필에 저장된 실전/모의)과 같아야 합니다. 대화형에서는 확인을
