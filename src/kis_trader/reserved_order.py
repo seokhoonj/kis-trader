@@ -12,9 +12,12 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal
 
 from .order import Side
+
+#: 예약주문 조회의 처리상태 필터 -- all(전체)/processed(처리내역)/unprocessed(미처리내역).
+ReservedProcess = Literal["all", "processed", "unprocessed"]
 
 
 @dataclass(frozen=True, slots=True)

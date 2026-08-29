@@ -12,8 +12,8 @@ if TYPE_CHECKING:
 
 
 def _stock_account(kis: KISClient) -> StockAccount:
-    """주식(위탁 01) 계좌 뷰만 받는다 -- 잔고/보유/미체결 명령은 시장별(domestic/overseas)
-    뷰가 필요하므로 다른 상품계좌(선물옵션 03 등)면 명확히 거부한다."""
+    """주식(위탁 01) 계좌 뷰가 필요한 조회·명령에서만 호출된다 -- 다른 상품계좌(선물옵션 03 등)면
+    명확히 거부한다."""
     view = kis.account
     if not isinstance(view, StockAccount):
         raise CliConfigError("이 명령은 주식(위탁 01) 계좌에서만 사용할 수 있습니다.")
@@ -81,7 +81,7 @@ def cmd_fills(kis: KISClient, args: Namespace) -> Any:
 def cmd_reserved(kis: KISClient, args: Namespace) -> Any:
     account = _stock_account(kis)
     if args.venue == "overseas":
-        raise CliConfigError("예약주문은 국내 전용입니다(--venue overseas 불가).")
+        raise CliConfigError("이 명령은 국내 예약주문만 지원합니다(--venue overseas 불가).")
     if not args.start or not args.end:
         raise CliConfigError("예약주문 조회는 기간이 필요합니다(--start/--end YYYYMMDD).")
     # 사용자가 준 필터만 전달한다 -- process 기본값은 라이브러리가 정한다(경계: 소비자가 패키지 기본값을 재기술하지 않는다).

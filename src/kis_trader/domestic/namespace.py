@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from ..open_order import OpenOrder
     from ..order import Right, Side
     from ..quote import Quote
-    from ..reserved_order import ReservedOrder
+    from ..reserved_order import ReservedOrder, ReservedProcess
     from .entities.account_reports import IntegratedMargin, RealizedProfitBalance
     from .entities.account_right import AccountRight
     from .entities.balance import AccountAssets, Balance, Portfolio, Position
@@ -162,7 +162,7 @@ class DomesticAccount:
         return DomesticBondAccount(self._c)
 
     def reserved_orders(
-        self, *, start: str, end: str, process: str = "all"
+        self, *, start: str, end: str, process: ReservedProcess = "all"
     ) -> list[ReservedOrder]:
         """예약주문 목록(다음 영업일 동시호가 등에 걸어둔 예약). ``process`` =
         ``"all"``/``"processed"``/``"unprocessed"``. 각 건의 ``sequence`` 로 정정·취소한다. **모의투자 미지원**."""

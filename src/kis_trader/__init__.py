@@ -297,7 +297,7 @@ from .pension.entities import (
 )
 from .quote import Quote
 from .report import ExecutionReport, OrderStatus
-from .reserved_order import ReservedOrder
+from .reserved_order import ReservedOrder, ReservedProcess
 from .risk import RiskLimits
 from .store import OrderStore
 from .trade import Trade
@@ -536,6 +536,7 @@ __all__ = [
     "RealizedProfitPosition",
     "RecentPricePoint",
     "ReservedOrder",
+    "ReservedProcess",
     "RightsOffering",
     "RiskLimits",
     "SavedScreen",

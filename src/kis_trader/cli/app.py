@@ -12,7 +12,7 @@ from collections.abc import Sequence
 from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any, get_args
 
-from .. import Direction, DomesticDivision, SearchMarket, VolumeMetric
+from .. import Direction, DomesticDivision, ReservedProcess, SearchMarket, VolumeMetric
 from ..errors import KISError
 from .commands import account, market, order, stock
 from .context import account_suffix, build_client
@@ -152,11 +152,11 @@ def build_parser() -> argparse.ArgumentParser:
             sp.add_argument("--end", dest="end", default=None,
                             help="예약주문 조회 종료일 YYYYMMDD")
             sp.add_argument("--process", dest="process",
-                            choices=["all", "processed", "unprocessed"], default=None,
+                            choices=list(get_args(ReservedProcess)), default=None,
                             help="처리상태: all(기본)/processed/unprocessed")
         sp.set_defaults(func=func)
 
-    # kis order buy|sell|reconcile|modify|cancel|reserve-cancel
+    # kis order buy|sell|reconcile|modify|cancel|cancel-reserved
     order_p = groups.add_parser("order", help="주문(기본 dry-run; --execute 로 전송)")
     order_sub = order_p.add_subparsers(dest="action", required=True)
     for name, func in [("buy", order.cmd_buy), ("sell", order.cmd_sell)]:
@@ -204,12 +204,12 @@ def build_parser() -> argparse.ArgumentParser:
     can.add_argument("--quantity", type=int, default=None)
     _add_order_gate(can)
     can.set_defaults(func=order.cmd_cancel)
-    rcan = leaf(order_sub, "reserve-cancel")
+    rcan = leaf(order_sub, "cancel-reserved")
     rcan.add_argument("sequence")
     rcan.add_argument("--order-date", dest="order_date", default=None,
                       help="예약집행 예정일 YYYYMMDD(같은 순번 구분이 필요할 때)")
     _add_order_gate(rcan)
-    rcan.set_defaults(func=order.cmd_reserve_cancel)
+    rcan.set_defaults(func=order.cmd_cancel_reserved)
 
     return parser
 
