@@ -54,6 +54,12 @@ class _Handle:
     def sell(self, *, quantity, limit_price, division=None, stop_price=None):
         self._log.append(("sell", self._code, quantity, limit_price, division, stop_price)); return "REPORT"
 
+    def reserve_buy(self, *, quantity, limit_price=None, end_date=None, client_order_id=None):
+        self._log.append(("reserve_buy", self._code, quantity, limit_price, end_date)); return "REPORT"
+
+    def reserve_sell(self, *, quantity, limit_price=None, end_date=None, client_order_id=None):
+        self._log.append(("reserve_sell", self._code, quantity, limit_price, end_date)); return "REPORT"
+
 
 class _BondHandle:
     def __init__(self, log, code):
@@ -325,6 +331,52 @@ def test_order_overseas_stock_stop_price_rejected():
     with pytest.raises(CliConfigError, match="stop-price"):
         order.cmd_buy(StubKis(), _args(
             ["order", "buy", "AAPL", "10", "--venue", "overseas", "--stop-price", "99"]),
+            is_tty=False)
+
+
+def test_order_reserve_dry_run_shows_reserve_and_end_date():
+    dry = order.cmd_buy(StubKis(), _args(
+        ["order", "buy", "005930", "10", "--limit-price", "70000",
+         "--reserve", "--end-date", "20240131"]), is_tty=False)
+    assert dry["reserve"] is True
+    assert dry["end_date"] == "20240131"
+
+
+def test_order_reserve_execute_routes_to_reserve_buy():
+    kis = StubKis(account="12345678-01", environment="real")
+    order.cmd_buy(kis, _args(["--profile", "real", "order", "buy", "005930", "10",
+                              "--limit-price", "70000", "--reserve", "--end-date", "20240131",
+                              "--execute", "real", "--yes", "--confirm-account", "7801"]),
+                  is_tty=False)
+    assert kis.log[-1] == ("reserve_buy", "005930", 10, "70000", "20240131")
+
+
+def test_order_reserve_sell_execute_routes_to_reserve_sell():
+    kis = StubKis(account="12345678-01", environment="real")
+    order.cmd_sell(kis, _args(["--profile", "real", "order", "sell", "005930", "10",
+                               "--limit-price", "70000", "--reserve",
+                               "--execute", "real", "--yes", "--confirm-account", "7801"]),
+                   is_tty=False)
+    assert kis.log[-1] == ("reserve_sell", "005930", 10, "70000", None)
+
+
+@pytest.mark.parametrize("extra,match", [
+    (["--division", "immediate_limit"], "division"),
+    (["--stop-price", "69000"], "stop-price"),
+    (["--asset", "bond"], "예약주문"),
+    (["--venue", "overseas"], "예약주문"),
+])
+def test_order_reserve_rejects_incompatible_flags(extra, match):
+    with pytest.raises(CliConfigError, match=match):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "005930", "10", "--limit-price", "70000", "--reserve", *extra]),
+            is_tty=False)
+
+
+def test_order_end_date_requires_reserve():
+    with pytest.raises(CliConfigError, match="--reserve"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "005930", "10", "--limit-price", "70000", "--end-date", "20240131"]),
             is_tty=False)
 
 

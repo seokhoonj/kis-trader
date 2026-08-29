@@ -52,6 +52,8 @@ def _ticket(args: Namespace, *, side: Side, account: str | None, environment: st
     }
     if asset == "stock" and args.venue != "overseas":
         ticket["stop_price"] = getattr(args, "stop_price", None)
+        ticket["reserve"] = getattr(args, "reserve", False)
+        ticket["end_date"] = getattr(args, "end_date", None)
     if asset == "bond" and side == "sell":
         ticket["buy_date"] = getattr(args, "buy_date", None)
         ticket["buy_seq"] = getattr(args, "buy_seq", None)
@@ -71,6 +73,20 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
     asset = args.asset
     domestic = args.venue != "overseas"
     is_deriv = asset in _DERIVATIVE_ASSETS
+
+    # 예약주문(--reserve)은 국내 주식·실전 전용 -- 호환 불가 플래그를 먼저 지목해 fail-closed 한다.
+    # (이 블록을 앞에 두어 --asset bond/--venue overseas 도 예약 메시지로 먼저 거부한다.)
+    if args.reserve:
+        if not (domestic and asset == "stock"):
+            raise CliConfigError("예약주문(--reserve)은 국내 주식 전용입니다(--asset stock, 국내).")
+        if args.division is not None:
+            raise CliConfigError("--reserve 와 --division 은 함께 쓸 수 없습니다.")
+        if args.stop_price is not None:
+            raise CliConfigError("--reserve 와 --stop-price 는 함께 쓸 수 없습니다.")
+        if args.night:
+            raise CliConfigError("--reserve 와 --night 은 함께 쓸 수 없습니다.")
+    elif args.end_date is not None:
+        raise CliConfigError("--end-date 는 예약주문(--reserve) 전용입니다.")
 
     # 자산에 무의미한 특수 플래그 거부(어느 플래그가 문제인지 지목).
     if (args.buy_date or args.buy_seq) and not (asset == "bond" and side == "sell"):
@@ -197,6 +213,9 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
         return place_dom(quantity=args.quantity, limit_price=args.limit_price,
                          division=args.division, night=args.night)
     handle = resolve_stock(kis, args)
+    if getattr(args, "reserve", False):
+        reserve = handle.reserve_buy if side == "buy" else handle.reserve_sell
+        return reserve(quantity=args.quantity, limit_price=args.limit_price, end_date=args.end_date)
     place = handle.buy if side == "buy" else handle.sell
     extra: dict[str, Any] = {} if args.venue == "overseas" else {
         "division": division, "stop_price": args.stop_price}

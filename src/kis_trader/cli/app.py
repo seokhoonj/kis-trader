@@ -174,6 +174,10 @@ def build_parser() -> argparse.ArgumentParser:
         sp.add_argument("--stop-price", dest="stop_price", default=None,
                         help="스톱 트리거가 -- 국내 주식 스톱지정가(--limit-price 와 함께) 또는 "
                              "해외 파생 스톱")
+        sp.add_argument("--reserve", action="store_true",
+                        help="예약주문(다음 영업일 동시호가에 예약; 국내 주식·실전 전용)")
+        sp.add_argument("--end-date", dest="end_date", default=None,
+                        help="예약 유효 종료일 YYYYMMDD(--reserve 전용)")
         _add_venue(sp)
         _add_order_gate(sp)
         sp.set_defaults(func=func)
