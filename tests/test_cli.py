@@ -487,7 +487,10 @@ def test_order_modify_reserved_dry_run_shows_fields_without_calling(monkeypatch)
          "--quantity", "10", "--limit-price", "70000"]), is_tty=False)
     assert dry["sequence"] == "SEQ7" and dry["symbol"] == "005930"
     assert dry["side"] == "buy" and dry["quantity"] == 10 and dry["limit_price"] == "70000"
-    assert "note" in dry and "caution" in dry
+    assert "note" in dry
+    # 단가를 줬으므로 시장가 경고는 빠지고, 순번 재배정 안내는 항상 실린다.
+    assert "시장가" not in dry["caution"]
+    assert "예약 순번이 재배정될 수 있습니다" in dry["caution"]
     assert kis.log == []
 
 
@@ -501,16 +504,22 @@ def test_order_modify_reserved_execute_routes_and_forwards(monkeypatch):
     assert kis.log[-1] == ("modify_reserved_order", "SEQ7", "005930", "buy", 10,
                            {"limit_price": "70000", "end_date": "20240131"})
     assert result["modified"] is True
+    # 실송신 영수증도 순번 재배정 안내를 싣는다(단가 줬으니 시장가 경고는 없음).
+    assert "예약 순번이 재배정될 수 있습니다" in result["caution"]
+    assert "시장가" not in result["caution"]
 
 
 def test_order_modify_reserved_defers_optional_price_to_library(monkeypatch):
     kis = StubKis(account="12345678-01", environment="real")
     monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
-    order.cmd_modify_reserved(kis, _args(
+    result = order.cmd_modify_reserved(kis, _args(
         ["--profile", "real", "order", "modify-reserved", "SEQ7", "--symbol", "005930",
          "--side", "sell", "--quantity", "5",
          "--execute", "real", "--yes", "--confirm-account", "7801"]), is_tty=False)
     assert kis.log[-1] == ("modify_reserved_order", "SEQ7", "005930", "sell", 5, {})
+    # 단가를 생략한 실송신이므로 영수증이 시장가 전환 경고와 순번 재배정 안내를 모두 싣는다.
+    assert "시장가로 바뀝니다" in result["caution"]
+    assert "예약 순번이 재배정될 수 있습니다" in result["caution"]
 
 
 def test_order_modify_reserved_rejects_paper(monkeypatch):

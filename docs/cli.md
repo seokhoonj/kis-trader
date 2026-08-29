@@ -93,7 +93,9 @@ kis order buy 005930 10 --limit-price 70000 --stop-price 69000        # dry-run 
 `kis account reserved` 목록의 sequence 입니다. 정정은 `kis order modify-reserved <순번>` 이며,
 브로커 규격상 `--symbol`/`--side`/`--quantity` 로 종목·방향·수량을 **전체 재지정**합니다 --
 `--limit-price` 를 생략하면 기존 단가 유지가 아니라 시장가로 바뀌니 주의하세요(`--end-date`/
-`--order-date` 도 지정 가능). 다른 주문과 같은 dry-run/`--execute` 안전장치를 씁니다.
+`--order-date` 도 지정 가능). 정정 후 예약 순번이 재배정될 수 있어(응답은 새 순번을 주지 않음)
+이어서 정정·취소하려면 `kis account reserved` 로 순번을 재확인하세요 -- 영수증에도 같은 안내가
+실립니다. 다른 주문과 같은 dry-run/`--execute` 안전장치를 씁니다.
 
 ```bash
 kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20240131    # 예약매수(dry-run)
