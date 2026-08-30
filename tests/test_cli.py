@@ -1060,11 +1060,11 @@ class _StubDeriv03(DomesticDerivativesAccount):
     def balance(self):
         self._log.append(("d03_balance",)); return "D03_BAL"
 
-    def open_orders(self, *, order_date=None, **kwargs):
-        self._log.append(("d03_open_orders", order_date, kwargs)); return ["D03_OPEN"]
+    def open_orders(self, *, order_date=None, side="all", symbol=None):
+        self._log.append(("d03_open_orders", order_date, side, symbol)); return ["D03_OPEN"]
 
-    def base_date_fills(self, *, order_date, **kwargs):
-        self._log.append(("d03_base_date_fills", order_date, kwargs)); return "D03_FILLS"
+    def base_date_fills(self, *, order_date, start_time="000000", end_time="240000"):
+        self._log.append(("d03_base_date_fills", order_date)); return "D03_FILLS"
 
     def valuation_pl(self):
         self._log.append(("d03_valuation_pl",)); return "D03_VAL"
@@ -1078,8 +1078,8 @@ class _StubDeriv03(DomesticDerivativesAccount):
     def deposit(self):
         self._log.append(("d03_deposit",)); return "D03_DEPOSIT"
 
-    def night_margin(self, *args, **kwargs):
-        self._log.append(("d03_night_margin",)); return "D03_MARGIN"
+    def night_margin(self, margin_division="01"):
+        self._log.append(("d03_night_margin", margin_division)); return "D03_MARGIN"
 
 
 class _StubDeriv08(OverseasDerivativesAccount):
@@ -1088,14 +1088,14 @@ class _StubDeriv08(OverseasDerivativesAccount):
     def __init__(self, log):
         self._log = log
 
-    def deposit(self, **kwargs):
+    def deposit(self, **kwargs):  # **kwargs 로 잡아 CLI 의 defer(준 것만 전달)를 검증
         self._log.append(("o08_deposit", kwargs)); return "O08_DEPOSIT"
 
     def margin_detail(self, **kwargs):
         self._log.append(("o08_margin_detail", kwargs)); return "O08_MARGIN"
 
-    def positions(self, *args, **kwargs):
-        self._log.append(("o08_positions",)); return ["O08_POS"]
+    def positions(self, fuop="00"):
+        self._log.append(("o08_positions", fuop)); return ["O08_POS"]
 
     def today_orders(self):
         self._log.append(("o08_today_orders",)); return ["O08_TODAY"]
@@ -1420,7 +1420,7 @@ def test_account_balance_overseas_deriv_maps_to_deposit(monkeypatch):
 def test_account_positions_overseas_deriv(monkeypatch):
     log = _deriv(monkeypatch, _StubDeriv08)
     assert account.cmd_positions(object(), _args(["account", "positions"])) == ["O08_POS"]
-    assert log == [("o08_positions",)]
+    assert log == [("o08_positions", "00")]
 
 
 def test_account_positions_domestic_deriv_rejects(monkeypatch):
@@ -1433,7 +1433,7 @@ def test_account_positions_domestic_deriv_rejects(monkeypatch):
 def test_account_orders_domestic_deriv_open_orders(monkeypatch):
     log = _deriv(monkeypatch, _StubDeriv03)
     account.cmd_orders(object(), _args(["account", "orders", "--date", "20240102"]))
-    assert log == [("d03_open_orders", "20240102", {})]
+    assert log == [("d03_open_orders", "20240102", "all", None)]
 
 
 def test_account_orders_overseas_deriv_today_vs_daily(monkeypatch):
@@ -1454,7 +1454,7 @@ def test_account_orders_overseas_deriv_partial_range_rejected(monkeypatch):
 def test_account_fills_domestic_deriv_base_date(monkeypatch):
     log = _deriv(monkeypatch, _StubDeriv03)
     account.cmd_fills(object(), _args(["account", "fills", "--date", "20240102"]))
-    assert log == [("d03_base_date_fills", "20240102", {})]
+    assert log == [("d03_base_date_fills", "20240102")]
 
 
 def test_account_fills_domestic_deriv_requires_date(monkeypatch):
@@ -1522,7 +1522,7 @@ def test_account_margin_domestic_and_overseas(monkeypatch):
     assert account.cmd_margin(object(), _args(["account", "margin"])) == "D03_MARGIN"
     log08 = _deriv(monkeypatch, _StubDeriv08)
     account.cmd_margin(object(), _args(["account", "margin", "--currency", "USD"]))
-    assert log03 == [("d03_night_margin",)]
+    assert log03 == [("d03_night_margin", "01")]
     assert log08 == [("o08_margin_detail", {"currency": "USD"})]
 
 
@@ -1576,27 +1576,114 @@ def test_account_commissions_stock_rejects(monkeypatch):
 def test_account_present_overseas_stock(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
-    account.cmd_present(object(), _args(["account", "present", "--venue", "overseas"]))
+    account.cmd_present(object(), _args(["account", "present"]))  # venue 축 없음 -- 해외주식 전용
     assert log == [("ovs_present_balance",)]
 
 
-def test_account_present_domestic_rejects(monkeypatch):
-    monkeypatch.setattr(account, "_view", lambda kis: _StubStockView([]))
-    with pytest.raises(CliConfigError, match="해외주식"):
+def test_account_present_deriv_rejects(monkeypatch):
+    monkeypatch.setattr(account, "_view", lambda kis: _StubDeriv03([]))
+    with pytest.raises(CliConfigError, match="주식"):
         account.cmd_present(object(), _args(["account", "present"]))
 
 
 def test_account_foreign_margin_overseas_stock(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
-    account.cmd_foreign_margin(object(), _args(["account", "foreign-margin", "--venue", "overseas"]))
+    account.cmd_foreign_margin(object(), _args(["account", "foreign-margin"]))
     assert log == [("ovs_foreign_margin",)]
 
 
-def test_account_foreign_margin_domestic_rejects(monkeypatch):
-    monkeypatch.setattr(account, "_view", lambda kis: _StubStockView([]))
-    with pytest.raises(CliConfigError, match="해외주식"):
+def test_account_foreign_margin_deriv_rejects(monkeypatch):
+    monkeypatch.setattr(account, "_view", lambda kis: _StubDeriv08([]))
+    with pytest.raises(CliConfigError, match="주식"):
         account.cmd_foreign_margin(object(), _args(["account", "foreign-margin"]))
+
+
+# --- 파생 분기: 안 쓰는 계좌 플래그를 명시하면 거부(조용한 무시 방지) ----
+
+@pytest.mark.parametrize("cmd,stub,argv", [
+    (account.cmd_balance, _StubDeriv03, ["account", "balance", "--asset", "bond"]),
+    (account.cmd_balance, _StubDeriv08, ["account", "balance", "--market", "US"]),
+    (account.cmd_fills, _StubDeriv08,
+     ["account", "fills", "--start", "20240101", "--end", "20240131", "--side", "buy"]),
+    (account.cmd_profits, _StubDeriv08,
+     ["account", "profits", "--start", "20240101", "--end", "20240131", "--symbol", "X"]),
+    (account.cmd_orders, _StubDeriv08, ["account", "orders", "--date", "20240102"]),
+    (account.cmd_orders, _StubDeriv03, ["account", "orders", "--start", "20240101", "--end", "20240131"]),
+    (account.cmd_deposit, _StubDeriv03, ["account", "deposit", "--currency", "USD"]),
+    (account.cmd_settlement, _StubDeriv03,
+     ["account", "settlement", "--date", "20240102", "--venue", "overseas"]),
+])
+def test_account_deriv_rejects_foreign_flag(monkeypatch, cmd, stub, argv):
+    log: list = []
+    monkeypatch.setattr(account, "_view", lambda kis: stub(log))
+    with pytest.raises(CliConfigError, match="지원되지 않습니다"):
+        cmd(object(), _args(argv))
+    assert log == []
+
+
+# --- 파생 미지원 (계좌타입 × 명령) 거부 -----------------------------------
+
+@pytest.mark.parametrize("cmd,stub,argv", [
+    (account.cmd_transactions, _StubDeriv03,
+     ["account", "transactions", "--start", "20240101", "--end", "20240131"]),
+    (account.cmd_valuation, _StubDeriv08, ["account", "valuation"]),
+    (account.cmd_settlement, _StubDeriv08, ["account", "settlement", "--date", "20240102"]),
+    (account.cmd_commissions, _StubDeriv08,
+     ["account", "commissions", "--start", "20240101", "--end", "20240131"]),
+])
+def test_account_command_rejects_wrong_account_type(monkeypatch, cmd, stub, argv):
+    log: list = []
+    monkeypatch.setattr(account, "_view", lambda kis: stub(log))
+    with pytest.raises(CliConfigError):
+        cmd(object(), _args(argv))
+    assert log == []
+
+
+# --- 파생 range/date 경계 요구 -------------------------------------------
+
+@pytest.mark.parametrize("cmd,stub,argv", [
+    (account.cmd_fills, _StubDeriv08, ["account", "fills", "--start", "20240101"]),
+    (account.cmd_profits, _StubDeriv08, ["account", "profits", "--start", "20240101"]),
+    (account.cmd_transactions, _StubDeriv08, ["account", "transactions", "--end", "20240131"]),
+    (account.cmd_commissions, _StubDeriv03, ["account", "commissions", "--start", "20240101"]),
+])
+def test_account_deriv_requires_full_range(monkeypatch, cmd, stub, argv):
+    log: list = []
+    monkeypatch.setattr(account, "_view", lambda kis: stub(log))
+    with pytest.raises(CliConfigError):
+        cmd(object(), _args(argv))
+    assert log == []
+
+
+def test_account_settlement_overseas_stock_requires_date(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
+    with pytest.raises(CliConfigError, match="기준일자"):
+        account.cmd_settlement(object(), _args(["account", "settlement", "--venue", "overseas"]))
+    assert log == []
+
+
+def test_account_margin_overseas_deriv_defers_and_forwards(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_view", lambda kis: _StubDeriv08(log))
+    account.cmd_margin(object(), _args(["account", "margin"]))
+    account.cmd_margin(object(), _args(
+        ["account", "margin", "--currency", "USD", "--date", "20240102"]))
+    assert log == [("o08_margin_detail", {}),
+                   ("o08_margin_detail", {"currency": "USD", "date": "20240102"})]
+
+
+@pytest.mark.parametrize("cmd,argv", [
+    (account.cmd_valuation, ["account", "valuation"]),
+    (account.cmd_commissions, ["account", "commissions", "--start", "20240101", "--end", "20240131"]),
+])
+def test_account_deriv_only_command_rejects_stock_noop(monkeypatch, cmd, argv):
+    log: list = []
+    monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
+    with pytest.raises(CliConfigError):
+        cmd(object(), _args(argv))
+    assert log == []
 
 
 # --- 채권 주문 CLI: dry-run 티켓 + fail-closed 검증 ------------------------

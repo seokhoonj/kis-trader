@@ -138,7 +138,7 @@ def build_parser() -> argparse.ArgumentParser:
         "account", help="계좌 잔고·보유·미체결·체결·예약·손익·거래·예수금·증거금(선물옵션 포함)")
     account_sub = account_p.add_subparsers(dest="action", required=True)
     _VENUE_CMDS = {"balance", "positions", "orders", "fills", "reserved", "profits",
-                   "transactions", "settlement", "present", "foreign-margin"}
+                   "transactions", "settlement"}
     for name, func in [("balance", account.cmd_balance), ("positions", account.cmd_positions),
                        ("orders", account.cmd_orders), ("fills", account.cmd_fills),
                        ("reserved", account.cmd_reserved), ("profits", account.cmd_profits),
@@ -157,7 +157,7 @@ def build_parser() -> argparse.ArgumentParser:
                             help="자산군: stock(기본)/bond(장내채권)")
         if name in ("orders", "fills", "settlement"):
             sp.add_argument("--date", dest="date", default=None,
-                            help="주문일자/기준일자 YYYYMMDD(채권 미체결·국내파생 체결/정산)")
+                            help="주문일자/기준일자 YYYYMMDD(채권 미체결·국내파생 미체결/체결/정산)")
         if name in ("orders", "fills", "reserved", "profits", "transactions", "commissions"):
             sp.add_argument("--start", dest="start", default=None, help="조회 시작일 YYYYMMDD")
             sp.add_argument("--end", dest="end", default=None, help="조회 종료일 YYYYMMDD")
@@ -186,7 +186,7 @@ def build_parser() -> argparse.ArgumentParser:
                             help="통화(해외 손익/해외파생 예수금·증거금; 생략 시 라이브러리 기본)")
         if name in ("deposit", "margin"):
             sp.add_argument("--date", dest="date", default=None,
-                            help="조회일자 YYYYMMDD(해외파생 예수금·증거금; 생략 시 오늘)")
+                            help="조회일자 YYYYMMDD(해외파생 예수금·증거금)")
         sp.set_defaults(func=func)
 
     # kis order buy|sell|reconcile|modify|cancel|cancel-reserved|modify-reserved
