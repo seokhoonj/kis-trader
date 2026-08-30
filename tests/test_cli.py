@@ -1072,8 +1072,8 @@ class _StubDeriv03(DomesticDerivativesAccount):
     def balance(self):
         self._log.append(("d03_balance",)); return "D03_BAL"
 
-    def open_orders(self, *, order_date=None, side="all", symbol=None):
-        self._log.append(("d03_open_orders", order_date, side, symbol)); return ["D03_OPEN"]
+    def open_orders(self, *args, **kwargs):  # 실제 전달 인자를 그대로 캡처 -- CLI 의 defer 증명용
+        self._log.append(("d03_open_orders", args, kwargs)); return ["D03_OPEN"]
 
     def base_date_fills(self, *, order_date, start_time="000000", end_time="240000"):
         self._log.append(("d03_base_date_fills", order_date)); return "D03_FILLS"
@@ -1090,8 +1090,8 @@ class _StubDeriv03(DomesticDerivativesAccount):
     def deposit(self):
         self._log.append(("d03_deposit",)); return "D03_DEPOSIT"
 
-    def night_margin(self, margin_division="01"):
-        self._log.append(("d03_night_margin", margin_division)); return "D03_MARGIN"
+    def night_margin(self, *args, **kwargs):  # defer 증명용 캡처
+        self._log.append(("d03_night_margin", args, kwargs)); return "D03_MARGIN"
 
 
 class _StubDeriv08(OverseasDerivativesAccount):
@@ -1106,8 +1106,8 @@ class _StubDeriv08(OverseasDerivativesAccount):
     def margin_detail(self, **kwargs):
         self._log.append(("o08_margin_detail", kwargs)); return "O08_MARGIN"
 
-    def positions(self, fuop="00"):
-        self._log.append(("o08_positions", fuop)); return ["O08_POS"]
+    def positions(self, *args, **kwargs):  # defer 증명용 캡처
+        self._log.append(("o08_positions", args, kwargs)); return ["O08_POS"]
 
     def today_orders(self):
         self._log.append(("o08_today_orders",)); return ["O08_TODAY"]
@@ -1432,7 +1432,7 @@ def test_account_balance_overseas_deriv_maps_to_deposit(monkeypatch):
 def test_account_positions_overseas_deriv(monkeypatch):
     log = _deriv(monkeypatch, _StubDeriv08)
     assert account.cmd_positions(object(), _args(["account", "positions"])) == ["O08_POS"]
-    assert log == [("o08_positions", "00")]
+    assert log == [("o08_positions", (), {})]
 
 
 def test_account_positions_domestic_deriv_rejects(monkeypatch):
@@ -1445,7 +1445,7 @@ def test_account_positions_domestic_deriv_rejects(monkeypatch):
 def test_account_orders_domestic_deriv_open_orders(monkeypatch):
     log = _deriv(monkeypatch, _StubDeriv03)
     account.cmd_orders(object(), _args(["account", "orders", "--date", "20240102"]))
-    assert log == [("d03_open_orders", "20240102", "all", None)]
+    assert log == [("d03_open_orders", (), {"order_date": "20240102"})]
 
 
 def test_account_orders_overseas_deriv_today_vs_daily(monkeypatch):
@@ -1534,7 +1534,7 @@ def test_account_margin_domestic_and_overseas(monkeypatch):
     assert account.cmd_margin(object(), _args(["account", "margin"])) == "D03_MARGIN"
     log08 = _deriv(monkeypatch, _StubDeriv08)
     account.cmd_margin(object(), _args(["account", "margin", "--currency", "USD"]))
-    assert log03 == [("d03_night_margin", "01")]
+    assert log03 == [("d03_night_margin", (), {})]
     assert log08 == [("o08_margin_detail", {"currency": "USD"})]
 
 
@@ -1753,7 +1753,7 @@ def test_account_orders_domestic_deriv_defers_date(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubDeriv03(log))
     account.cmd_orders(object(), _args(["account", "orders"]))  # --date 없음 -> 무인자 호출(라이브러리 기본)
-    assert log == [("d03_open_orders", None, "all", None)]
+    assert log == [("d03_open_orders", (), {})]
 
 
 # --- 파생/계좌타입 reject 갭(B2) -----------------------------------------
