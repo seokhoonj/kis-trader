@@ -67,6 +67,10 @@ def cmd_balance(kis: KISClient, args: Namespace) -> Any:
         _reject_foreign_flags(args, allow=set())
         return view.deposit()  # 해외파생은 예수금현황이 자산·증거금 요약이다
     account = _stock_account(kis)
+    allow = {"venue", "asset"}
+    if args.venue == "overseas":  # --market 은 해외 잔고에서만 읽는다
+        allow.add("market")
+    _reject_foreign_flags(args, allow=allow)
     if getattr(args, "asset", "stock") == "bond":
         # 장내채권 lot 목록(buy_date/buy_sequence/잔량/매수단가) -- 채권 매도의 lot 지목에 필요하다.
         if args.venue == "overseas":
@@ -87,6 +91,8 @@ def cmd_positions(kis: KISClient, args: Namespace) -> Any:
     if isinstance(view, DomesticDerivativesAccount):
         raise CliConfigError("국내선물옵션 보유내역은 balance 에 포함됩니다(kis account balance).")
     account = _stock_account(kis)
+    allow = {"venue", "market"} if args.venue == "overseas" else {"venue"}
+    _reject_foreign_flags(args, allow=allow)
     if args.venue == "overseas":
         return account.overseas.positions(market=args.market)
     return account.domestic.positions()
@@ -107,6 +113,12 @@ def cmd_orders(kis: KISClient, args: Namespace) -> Any:
             raise CliConfigError("해외선물옵션 기간 주문내역은 --start/--end 를 함께 줘야 합니다.")
         return view.today_orders()
     account = _stock_account(kis)
+    allow = {"venue", "asset"}
+    if args.venue == "overseas":
+        allow.add("market")
+    if getattr(args, "asset", "stock") == "bond":
+        allow.add("date")  # 채권 미체결만 주문일자를 쓴다(주식 미체결은 인자 없음)
+    _reject_foreign_flags(args, allow=allow)  # 주식 미체결은 기간(--start/--end)을 쓰지 않는다
     if getattr(args, "asset", "stock") == "bond":
         # 채권 미체결(정정취소가능) 조회 -- 실주문 타임아웃 시 상태 확인 경로. 주문일자 필수.
         if args.venue == "overseas":
@@ -133,6 +145,9 @@ def cmd_fills(kis: KISClient, args: Namespace) -> Any:
         return view.daily_fills(start=args.start, end=args.end)
     account = _stock_account(kis)
     asset = getattr(args, "asset", "stock")
+    # 주식/채권 체결내역은 기간(--start/--end)+필터를 쓴다 -- 파생 전용 --date 는 거부.
+    _reject_foreign_flags(
+        args, allow={"venue", "asset", "start", "end", "side", "symbol", "unfilled_only"})
     if args.venue == "overseas":
         raise CliConfigError("체결내역 조회는 국내 전용입니다(--venue overseas 불가).")
     _require_range(args, "체결내역")
