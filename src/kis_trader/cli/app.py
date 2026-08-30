@@ -130,62 +130,62 @@ def build_parser() -> argparse.ArgumentParser:
     rv.set_defaults(func=market.cmd_ranking_volume)
     leaf(ranking_sub, "market-cap").set_defaults(func=market.cmd_ranking_market_cap)
 
-    # kis account balance|positions|orders|fills|reserved|profits|transactions
-    account_p = groups.add_parser("account", help="계좌 잔고·보유·미체결·체결내역·예약주문·손익·거래내역")
+    # kis account balance|positions|orders|fills|reserved|profits|transactions|
+    #             deposit|margin|valuation|settlement|commissions|present
+    # kis.account 는 프로필 상품코드로 계좌 뷰(주식 01 / 국내선물옵션 03 / 해외선물옵션 08)를 정한다.
+    # 아래 명령은 그 뷰 타입에 맞게 디스패치한다(--venue 등은 그것을 읽는 명령에만 단다).
+    account_p = groups.add_parser(
+        "account", help="계좌 잔고·보유·미체결·체결·예약·손익·거래·예수금·증거금(선물옵션 포함)")
     account_sub = account_p.add_subparsers(dest="action", required=True)
+    _VENUE_CMDS = {"balance", "positions", "orders", "fills", "reserved", "profits",
+                   "transactions", "settlement", "present"}
     for name, func in [("balance", account.cmd_balance), ("positions", account.cmd_positions),
                        ("orders", account.cmd_orders), ("fills", account.cmd_fills),
                        ("reserved", account.cmd_reserved), ("profits", account.cmd_profits),
-                       ("transactions", account.cmd_transactions)]:
+                       ("transactions", account.cmd_transactions), ("deposit", account.cmd_deposit),
+                       ("margin", account.cmd_margin), ("valuation", account.cmd_valuation),
+                       ("settlement", account.cmd_settlement), ("commissions", account.cmd_commissions),
+                       ("present", account.cmd_present)]:
         sp = leaf(account_sub, name)
-        sp.add_argument("--venue", choices=["domestic", "overseas"], default="domestic")
+        if name in _VENUE_CMDS:
+            sp.add_argument("--venue", choices=["domestic", "overseas"], default="domestic")
         if name in ("balance", "positions", "orders"):  # --market 를 실제로 읽는 명령에만
             sp.add_argument("--market", default=None, help="해외 시장(US/HK/CN_SH/...)")
         if name in ("balance", "orders", "fills"):
             sp.add_argument("--asset", choices=["stock", "bond"], default="stock",
                             help="자산군: stock(기본)/bond(장내채권)")
-        if name == "orders":
+        if name in ("orders", "fills", "settlement"):
             sp.add_argument("--date", dest="date", default=None,
-                            help="채권 미체결 조회 주문일자 YYYYMMDD(--asset bond 전용)")
-        if name == "fills":
-            sp.add_argument("--start", dest="start", default=None,
-                            help="체결내역 조회 시작일 YYYYMMDD(국내 주식/채권)")
-            sp.add_argument("--end", dest="end", default=None,
-                            help="체결내역 조회 종료일 YYYYMMDD(국내 주식/채권)")
+                            help="주문일자/기준일자 YYYYMMDD(채권 미체결·국내파생 체결/정산)")
+        if name in ("orders", "fills", "reserved", "profits", "transactions", "commissions"):
+            sp.add_argument("--start", dest="start", default=None, help="조회 시작일 YYYYMMDD")
+            sp.add_argument("--end", dest="end", default=None, help="조회 종료일 YYYYMMDD")
+        if name in ("fills", "transactions"):
             sp.add_argument("--side", dest="side", choices=list(get_args(SideFilter)), default=None,
                             help="매매구분: all(기본)/buy/sell")
+        if name in ("fills", "profits", "transactions"):
             sp.add_argument("--symbol", dest="symbol", default=None,
                             help="종목코드(주식 6자리 / 채권 ISIN); 생략 시 전체 종목")
+        if name == "fills":
             sp.add_argument("--unfilled-only", dest="unfilled_only", action="store_true",
                             help="미체결만")
         if name == "reserved":
-            sp.add_argument("--start", dest="start", default=None,
-                            help="예약주문 조회 시작일 YYYYMMDD")
-            sp.add_argument("--end", dest="end", default=None,
-                            help="예약주문 조회 종료일 YYYYMMDD")
             sp.add_argument("--process", dest="process",
                             choices=list(get_args(ReservedProcess)), default=None,
                             help="처리상태: all(기본)/processed/unprocessed")
         if name == "profits":
-            sp.add_argument("--start", dest="start", default=None, help="손익 조회 시작일 YYYYMMDD")
-            sp.add_argument("--end", dest="end", default=None, help="손익 조회 종료일 YYYYMMDD")
-            sp.add_argument("--symbol", dest="symbol", default=None,
-                            help="종목코드; 생략 시 전체 종목")
             sp.add_argument("--by", dest="by", choices=["symbol", "day"], default="symbol",
                             help="국내: symbol(종목별 실현손익, 기본)/day(일별 매매손익)")
             sp.add_argument("--sort", dest="sort", choices=list(get_args(ProfitSort)), default=None,
                             help="국내 정렬: recent(기본)/oldest")
-            sp.add_argument("--currency", dest="currency", default=None,
-                            help="해외 통화(생략 시 전체)")
             sp.add_argument("--won-basis", dest="won_basis", action="store_true",
                             help="해외 손익을 원화 기준으로(생략 시 외화)")
-        if name == "transactions":
-            sp.add_argument("--start", dest="start", default=None, help="거래내역 조회 시작일 YYYYMMDD")
-            sp.add_argument("--end", dest="end", default=None, help="거래내역 조회 종료일 YYYYMMDD")
-            sp.add_argument("--symbol", dest="symbol", default=None,
-                            help="종목코드; 생략 시 전체 종목")
-            sp.add_argument("--side", dest="side", choices=list(get_args(SideFilter)), default=None,
-                            help="매매구분: all(기본)/buy/sell")
+        if name in ("profits", "deposit", "margin"):
+            sp.add_argument("--currency", dest="currency", default=None,
+                            help="통화(해외 손익/해외파생 예수금·증거금; 생략 시 라이브러리 기본)")
+        if name in ("deposit", "margin"):
+            sp.add_argument("--date", dest="date", default=None,
+                            help="조회일자 YYYYMMDD(해외파생 예수금·증거금; 생략 시 오늘)")
         sp.set_defaults(func=func)
 
     # kis order buy|sell|reconcile|modify|cancel|cancel-reserved|modify-reserved

@@ -80,6 +80,36 @@ kis account profits --venue overseas --start 20240101 --end 20240131         # �
 kis account transactions --venue overseas --start 20240101 --end 20240131    # 해외 거래·입출금내역
 ```
 
+### 선물옵션 계좌 조회
+
+`kis account` 명령은 **프로필이 연 계좌 종류**(주식 01 / 국내선물옵션 03 / 해외선물옵션 08)에 맞게
+동작합니다 -- 선물옵션 프로필로 실행하면 같은 명령이 선물옵션 계좌를 조회합니다.
+
+- `balance` -- 국내파생은 잔고(보유+예수금·증거금·손익 요약), 해외파생은 예수금현황.
+- `positions` -- 해외파생 미결제내역(국내파생은 balance 에 포함).
+- `orders` -- 국내파생 미체결(`--date` 로 주문일자), 해외파생은 당일 주문(기간 `--start/--end` 주면 일별).
+- `fills` -- 국내파생 기준일체결내역(`--date` 필수), 해외파생 일별체결(`--start/--end`).
+- `profits` -- 해외파생 기간손익(`--start/--end`).
+- `transactions` -- 해외파생 기간 입출금내역(`--start/--end`).
+
+선물옵션 전용 조회:
+
+- `deposit` -- 예수금현황(03/08; 해외파생은 `--currency`/`--date`).
+- `margin` -- 증거금상세(국내파생 야간증거금 / 해외파생 `--currency`/`--date`).
+- `valuation` -- 국내파생 평가손익내역.
+- `settlement` -- 국내파생 정산손익(`--date`) / 해외주식 정산잔고(`--venue overseas --date`).
+- `commissions` -- 국내파생 기간약정수수료(`--start/--end`).
+- `present` -- 해외주식 체결기준현재잔고(`--venue overseas`).
+
+모두 조회 전용입니다(대부분 실전 계좌 전용 -- 모의 지원 여부는 라이브러리가 소유).
+
+```bash
+kis --profile futures account balance                       # 국내선물옵션 잔고(03 프로필)
+kis --profile futures account fills --date 20240102         # 국내파생 기준일 체결내역
+kis --profile ovs-futures account profits --start 20240101 --end 20240131  # 해외파생 기간손익(08)
+kis --profile ovs-futures account margin --currency USD     # 해외파생 증거금상세
+```
+
 ## 주문 — 기본은 dry-run
 
 주문 명령은 **`--execute` 가 없으면 전송하지 않고** 주문 티켓만 되읽어 보여줍니다.

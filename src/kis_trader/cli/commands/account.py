@@ -1,30 +1,47 @@
-"""계좌 조회 명령 -- 잔고/보유/미체결. 통화가 다른 해외 시장을 CLI 가 임의 합산하지 않는다."""
+"""계좌 조회 명령 -- 잔고/보유/미체결/체결/손익/증거금. ``kis.account`` 는 프로필 상품코드로
+계좌 뷰(주식 01 / 국내선물옵션 03 / 해외선물옵션 08)를 정하므로, 각 명령은 그 뷰 타입에 맞게
+디스패치한다. 통화가 다른 해외 시장을 CLI 가 임의 합산하지 않는다."""
 from __future__ import annotations
 
 from argparse import Namespace
 from typing import TYPE_CHECKING, Any
 
 from ...account import StockAccount
+from ...domestic.derivative_account import DomesticDerivativesAccount
+from ...overseas.derivative_account import OverseasDerivativesAccount
 from ..errors import CliConfigError
 
 if TYPE_CHECKING:
     from ...client import KISClient
 
 
+def _view(kis: KISClient) -> StockAccount | DomesticDerivativesAccount | OverseasDerivativesAccount:
+    """세션 프로필의 계좌 뷰(상품코드로 결정). 명령이 뷰 타입으로 디스패치하는 단일 접근점."""
+    return kis.account
+
+
 def _stock_account(kis: KISClient) -> StockAccount:
-    """주식(위탁 01) 계좌 뷰가 필요한 조회·명령에서만 호출된다 -- 다른 상품계좌(선물옵션 03 등)면
-    명확히 거부한다."""
-    view = kis.account
+    """주식(위탁 01) 계좌 뷰가 필요한 조회에서만 호출된다 -- 선물옵션(03/08) 계좌면 명확히 거부한다."""
+    view = _view(kis)
     if not isinstance(view, StockAccount):
         raise CliConfigError("이 명령은 주식(위탁 01) 계좌에서만 사용할 수 있습니다.")
     return view
 
 
+def _require_range(args: Namespace, label: str) -> None:
+    if not args.start or not args.end:
+        raise CliConfigError(f"{label} 조회는 기간이 필요합니다(--start/--end YYYYMMDD).")
+
+
 def cmd_balance(kis: KISClient, args: Namespace) -> Any:
+    view = _view(kis)
+    if isinstance(view, DomesticDerivativesAccount):
+        return view.balance()
+    if isinstance(view, OverseasDerivativesAccount):
+        return view.deposit()  # 해외파생은 예수금현황이 자산·증거금 요약이다
     account = _stock_account(kis)
     if getattr(args, "asset", "stock") == "bond":
         # 장내채권 lot 목록(buy_date/buy_sequence/잔량/매수단가) -- 채권 매도의 lot 지목에 필요하다.
-        # 목록의 buy_sequence 컬럼을 매도 시 --buy-seq 로, buy_date 를 --buy-date 로 넘긴다.
         if args.venue == "overseas":
             raise CliConfigError("장내채권은 국내 전용입니다(--venue overseas 불가).")
         return account.domestic.bonds.balance()
@@ -36,6 +53,11 @@ def cmd_balance(kis: KISClient, args: Namespace) -> Any:
 
 
 def cmd_positions(kis: KISClient, args: Namespace) -> Any:
+    view = _view(kis)
+    if isinstance(view, OverseasDerivativesAccount):
+        return view.positions()
+    if isinstance(view, DomesticDerivativesAccount):
+        raise CliConfigError("국내선물옵션 보유내역은 balance 에 포함됩니다(kis account balance).")
     account = _stock_account(kis)
     if args.venue == "overseas":
         return account.overseas.positions(market=args.market)
@@ -43,6 +65,17 @@ def cmd_positions(kis: KISClient, args: Namespace) -> Any:
 
 
 def cmd_orders(kis: KISClient, args: Namespace) -> Any:
+    view = _view(kis)
+    if isinstance(view, DomesticDerivativesAccount):
+        # 미체결(정정취소가능). --date 생략 시 라이브러리가 오늘(KST)로 본다.
+        return view.open_orders(order_date=args.date)
+    if isinstance(view, OverseasDerivativesAccount):
+        # 기간을 주면 일별 주문내역, 없으면 당일 주문내역.
+        if args.start and args.end:
+            return view.daily_orders(start=args.start, end=args.end)
+        if args.start or args.end:
+            raise CliConfigError("해외선물옵션 기간 주문내역은 --start/--end 를 함께 줘야 합니다.")
+        return view.today_orders()
     account = _stock_account(kis)
     if getattr(args, "asset", "stock") == "bond":
         # 채권 미체결(정정취소가능) 조회 -- 실주문 타임아웃 시 상태 확인 경로. 주문일자 필수.
@@ -57,16 +90,21 @@ def cmd_orders(kis: KISClient, args: Namespace) -> Any:
 
 
 def cmd_fills(kis: KISClient, args: Namespace) -> Any:
+    view = _view(kis)
+    if isinstance(view, DomesticDerivativesAccount):
+        # 선물옵션 기준일체결내역 -- 주문일자(단일일) 기준.
+        if not args.date:
+            raise CliConfigError("국내선물옵션 체결내역은 주문일자가 필요합니다(--date YYYYMMDD).")
+        return view.base_date_fills(order_date=args.date)
+    if isinstance(view, OverseasDerivativesAccount):
+        _require_range(args, "해외선물옵션 체결내역")
+        return view.daily_fills(start=args.start, end=args.end)
     account = _stock_account(kis)
     asset = getattr(args, "asset", "stock")
-    # 국내주식/장내채권 일별 주문·체결 내역(기간). 날짜 8자리 형식 검증은 라이브러리가 수행하므로
-    # CLI 는 기간 존재만 확인한다(미체결 조회의 --date 검증과 같은 방식).
     if args.venue == "overseas":
         raise CliConfigError("체결내역 조회는 국내 전용입니다(--venue overseas 불가).")
-    if not args.start or not args.end:
-        raise CliConfigError("체결내역 조회는 기간이 필요합니다(--start/--end YYYYMMDD).")
-    # 사용자가 준 필터만 전달한다 -- side/symbol/unfilled_only 의 기본값은 라이브러리가 정한다
-    # (경계: 소비자가 패키지 기본값을 재기술하지 않는다).
+    _require_range(args, "체결내역")
+    # 사용자가 준 필터만 전달한다 -- 기본값은 라이브러리가 정한다(경계: 소비자가 패키지 기본값을 재기술하지 않는다).
     filters: dict[str, Any] = {}
     if args.side is not None:
         filters["side"] = args.side
@@ -81,15 +119,14 @@ def cmd_fills(kis: KISClient, args: Namespace) -> Any:
 
 def cmd_reserved(kis: KISClient, args: Namespace) -> Any:
     account = _stock_account(kis)
-    if not args.start or not args.end:
-        raise CliConfigError("예약주문 조회는 기간이 필요합니다(--start/--end YYYYMMDD).")
+    _require_range(args, "예약주문")
     if args.venue == "overseas":
         # 해외 예약주문 조회(미국+아시아 합산). process 는 국내 전용 개념이라 거부. 실전전용은
         # 라이브러리가 소유(조회 TR 이 모의 미지원 -- CLI 중복검증 없음).
         if args.process is not None:
             raise CliConfigError("--process 는 국내 예약주문 조회 전용입니다.")
         return account.overseas.reserved_orders(start=args.start, end=args.end)
-    # 사용자가 준 필터만 전달한다 -- process 기본값은 라이브러리가 정한다(경계: 소비자가 패키지 기본값을 재기술하지 않는다).
+    # 사용자가 준 필터만 전달한다 -- process 기본값은 라이브러리가 정한다(경계).
     filters: dict[str, Any] = {}
     if args.process is not None:
         filters["process"] = args.process
@@ -97,10 +134,17 @@ def cmd_reserved(kis: KISClient, args: Namespace) -> Any:
 
 
 def cmd_profits(kis: KISClient, args: Namespace) -> Any:
+    view = _view(kis)
+    if isinstance(view, OverseasDerivativesAccount):
+        _require_range(args, "해외선물옵션 손익")
+        return view.period_pnl(start=args.start, end=args.end)
+    if isinstance(view, DomesticDerivativesAccount):
+        raise CliConfigError(
+            "국내선물옵션 손익은 valuation(평가손익)/settlement(정산손익)/commissions 를 쓰세요."
+        )
     account = _stock_account(kis)
-    if not args.start or not args.end:
-        raise CliConfigError("손익 조회는 기간이 필요합니다(--start/--end YYYYMMDD).")
-    # 사용자가 준 필터만 전달한다 -- 기본값은 라이브러리가 정한다(경계: 소비자가 패키지 기본값을 재기술하지 않는다).
+    _require_range(args, "손익")
+    # 사용자가 준 필터만 전달한다 -- 기본값은 라이브러리가 정한다(경계).
     if args.venue == "overseas":
         # 해외주식 기간손익. --by/--sort 는 국내 손익 전용.
         if args.by != "symbol":
@@ -131,11 +175,16 @@ def cmd_profits(kis: KISClient, args: Namespace) -> Any:
 
 
 def cmd_transactions(kis: KISClient, args: Namespace) -> Any:
+    view = _view(kis)
+    if isinstance(view, OverseasDerivativesAccount):
+        _require_range(args, "해외선물옵션 거래내역")
+        return view.transactions(start=args.start, end=args.end)
+    if isinstance(view, DomesticDerivativesAccount):
+        raise CliConfigError("국내선물옵션은 거래·입출금내역 조회를 제공하지 않습니다.")
     account = _stock_account(kis)
     if args.venue != "overseas":
-        raise CliConfigError("거래·입출금내역 조회는 현재 해외만 지원합니다(--venue overseas).")
-    if not args.start or not args.end:
-        raise CliConfigError("거래내역 조회는 기간이 필요합니다(--start/--end YYYYMMDD).")
+        raise CliConfigError("거래·입출금내역 조회는 해외주식/해외선물옵션만 지원합니다(--venue overseas).")
+    _require_range(args, "거래내역")
     # 사용자가 준 필터만 전달한다 -- side/symbol 기본값은 라이브러리가 정한다(경계).
     extra: dict[str, Any] = {}
     if args.symbol is not None:
@@ -143,3 +192,68 @@ def cmd_transactions(kis: KISClient, args: Namespace) -> Any:
     if args.side is not None:
         extra["side"] = args.side
     return account.overseas.transactions(start=args.start, end=args.end, **extra)
+
+
+def cmd_deposit(kis: KISClient, args: Namespace) -> Any:
+    view = _view(kis)
+    if isinstance(view, DomesticDerivativesAccount):
+        return view.deposit()
+    if isinstance(view, OverseasDerivativesAccount):
+        # 사용자가 준 것만 전달 -- currency/date 기본값은 라이브러리 소유(경계).
+        extra: dict[str, Any] = {}
+        if args.currency is not None:
+            extra["currency"] = args.currency
+        if args.date is not None:
+            extra["date"] = args.date
+        return view.deposit(**extra)
+    raise CliConfigError("예수금현황 조회는 선물옵션(03/08) 계좌 전용입니다.")
+
+
+def cmd_margin(kis: KISClient, args: Namespace) -> Any:
+    view = _view(kis)
+    if isinstance(view, DomesticDerivativesAccount):
+        return view.night_margin()  # 국내선물옵션은 (야간)증거금상세
+    if isinstance(view, OverseasDerivativesAccount):
+        extra: dict[str, Any] = {}
+        if args.currency is not None:
+            extra["currency"] = args.currency
+        if args.date is not None:
+            extra["date"] = args.date
+        return view.margin_detail(**extra)
+    raise CliConfigError("증거금상세 조회는 선물옵션(03/08) 계좌 전용입니다.")
+
+
+def cmd_valuation(kis: KISClient, args: Namespace) -> Any:
+    view = _view(kis)
+    if isinstance(view, DomesticDerivativesAccount):
+        return view.valuation_pl()
+    raise CliConfigError("평가손익내역 조회는 국내선물옵션(03) 계좌 전용입니다.")
+
+
+def cmd_settlement(kis: KISClient, args: Namespace) -> Any:
+    view = _view(kis)
+    if isinstance(view, DomesticDerivativesAccount):
+        if not args.date:
+            raise CliConfigError("국내선물옵션 정산손익은 기준일자가 필요합니다(--date YYYYMMDD).")
+        return view.settlement_pl(base_date=args.date)
+    account = _stock_account(kis)
+    if args.venue != "overseas":
+        raise CliConfigError("정산잔고 조회는 해외주식/국내선물옵션 계좌만 지원합니다.")
+    if not args.date:
+        raise CliConfigError("해외주식 정산잔고는 기준일자가 필요합니다(--date YYYYMMDD).")
+    return account.overseas.settlement_balance(basis_date=args.date)
+
+
+def cmd_commissions(kis: KISClient, args: Namespace) -> Any:
+    view = _view(kis)
+    if isinstance(view, DomesticDerivativesAccount):
+        _require_range(args, "약정수수료")
+        return view.commissions(start=args.start, end=args.end)
+    raise CliConfigError("약정수수료 조회는 국내선물옵션(03) 계좌 전용입니다.")
+
+
+def cmd_present(kis: KISClient, args: Namespace) -> Any:
+    account = _stock_account(kis)
+    if args.venue != "overseas":
+        raise CliConfigError("체결기준현재잔고 조회는 해외주식만 지원합니다(--venue overseas).")
+    return account.overseas.present_balance()

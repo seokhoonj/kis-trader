@@ -90,6 +90,8 @@ kis account orders --asset bond --date 20260814                   # 채권 미�
 kis account fills --start 20240101 --end 20240131                 # 국내주식 체결내역(기간)
 kis account profits --start 20240101 --end 20240131               # 국내 종목별 실현손익
 kis account transactions --venue overseas --start 20240101 --end 20240131  # 해외 거래·입출금내역
+kis --profile futures account balance                             # 선물옵션 계좌(프로필 03/08)
+kis --profile futures account deposit                             # 선물옵션 예수금현황
 kis account fills --asset bond --start 20240101 --end 20240131    # 채권 체결내역(기간)
 kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20260901   # 예약매수(실전전용)
 kis account reserved --start 20260101 --end 20260901              # 예약주문 목록
