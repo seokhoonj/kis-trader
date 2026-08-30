@@ -138,14 +138,15 @@ def build_parser() -> argparse.ArgumentParser:
         "account", help="계좌 잔고·보유·미체결·체결·예약·손익·거래·예수금·증거금(선물옵션 포함)")
     account_sub = account_p.add_subparsers(dest="action", required=True)
     _VENUE_CMDS = {"balance", "positions", "orders", "fills", "reserved", "profits",
-                   "transactions", "settlement", "present"}
+                   "transactions", "settlement", "present", "foreign-margin"}
     for name, func in [("balance", account.cmd_balance), ("positions", account.cmd_positions),
                        ("orders", account.cmd_orders), ("fills", account.cmd_fills),
                        ("reserved", account.cmd_reserved), ("profits", account.cmd_profits),
                        ("transactions", account.cmd_transactions), ("deposit", account.cmd_deposit),
                        ("margin", account.cmd_margin), ("valuation", account.cmd_valuation),
                        ("settlement", account.cmd_settlement), ("commissions", account.cmd_commissions),
-                       ("present", account.cmd_present)]:
+                       ("present", account.cmd_present),
+                       ("foreign-margin", account.cmd_foreign_margin)]:
         sp = leaf(account_sub, name)
         if name in _VENUE_CMDS:
             sp.add_argument("--venue", choices=["domestic", "overseas"], default="domestic")

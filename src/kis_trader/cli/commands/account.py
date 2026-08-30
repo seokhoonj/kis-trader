@@ -257,3 +257,10 @@ def cmd_present(kis: KISClient, args: Namespace) -> Any:
     if args.venue != "overseas":
         raise CliConfigError("체결기준현재잔고 조회는 해외주식만 지원합니다(--venue overseas).")
     return account.overseas.present_balance()
+
+
+def cmd_foreign_margin(kis: KISClient, args: Namespace) -> Any:
+    account = _stock_account(kis)
+    if args.venue != "overseas":
+        raise CliConfigError("외화증거금 조회는 해외주식만 지원합니다(--venue overseas).")
+    return account.overseas.foreign_margin()

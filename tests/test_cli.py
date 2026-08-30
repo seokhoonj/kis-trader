@@ -1041,6 +1041,9 @@ class _StubOverseasAccount:
     def settlement_balance(self, *, basis_date):
         self._log.append(("ovs_settlement_balance", basis_date)); return "OVS_SETTLE"
 
+    def foreign_margin(self):
+        self._log.append(("ovs_foreign_margin",)); return ["OVS_FMARGIN"]
+
 
 class _StubStockView(StockAccount):
     def __init__(self, log):  # StockAccount.__init__ 우회 -- isinstance 만 통과시키고 뷰는 스텁
@@ -1581,6 +1584,19 @@ def test_account_present_domestic_rejects(monkeypatch):
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView([]))
     with pytest.raises(CliConfigError, match="해외주식"):
         account.cmd_present(object(), _args(["account", "present"]))
+
+
+def test_account_foreign_margin_overseas_stock(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
+    account.cmd_foreign_margin(object(), _args(["account", "foreign-margin", "--venue", "overseas"]))
+    assert log == [("ovs_foreign_margin",)]
+
+
+def test_account_foreign_margin_domestic_rejects(monkeypatch):
+    monkeypatch.setattr(account, "_view", lambda kis: _StubStockView([]))
+    with pytest.raises(CliConfigError, match="해외주식"):
+        account.cmd_foreign_margin(object(), _args(["account", "foreign-margin"]))
 
 
 # --- 채권 주문 CLI: dry-run 티켓 + fail-closed 검증 ------------------------
