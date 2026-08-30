@@ -54,6 +54,14 @@ DerivativeProduct: TypeAlias = Literal["future", "option"]
 #: ``PRDT_TYPE_CD`` 파생의 입력 어휘다.
 ReservedCurrency: TypeAlias = Literal["HKD", "CNY", "USD"]
 
+#: 계좌 조회의 매도매수 필터 -- ``"all"``(전체)/``"buy"``(매수)/``"sell"``(매도). 체결내역·거래내역
+#: 조회가 행을 방향으로 좁힐 때 쓰는 입력 어휘로, 와이어 ``SLL_BUY_DVSN_CD``(00/02/01)로 매핑된다.
+SideFilter: TypeAlias = Literal["all", "buy", "sell"]
+
+#: 기간 손익 조회의 정렬 순서 -- ``"recent"``(최근순)/``"oldest"``(과거순). 와이어 ``SORT_DVSN``
+#: (00/01)로 매핑된다.
+ProfitSort: TypeAlias = Literal["recent", "oldest"]
+
 __all__ = [
     "CreditType",
     "DerivativeMarket",
@@ -62,6 +70,8 @@ __all__ = [
     "JSONObject",
     "JSONValue",
     "Numeric",
+    "ProfitSort",
     "ReservedCurrency",
     "Side",
+    "SideFilter",
 ]

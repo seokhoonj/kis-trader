@@ -997,6 +997,15 @@ class _StubDomesticAccount:
     def open_orders(self):
         self._log.append(("dom_open_orders",)); return "STOCK_OPEN"
 
+    def fills(self, *, start, end, **kwargs):
+        self._log.append(("stock_fills", start, end, kwargs)); return ["STOCK_FILLS"]
+
+    def trade_profits(self, *, start, end, **kwargs):
+        self._log.append(("trade_profits", start, end, kwargs)); return ["TRADE_PROFITS"]
+
+    def daily_profits(self, *, start, end, **kwargs):
+        self._log.append(("daily_profits", start, end, kwargs)); return ["DAILY_PROFITS"]
+
     def reserved_orders(self, *, start, end, **kwargs):
         self._log.append(("reserved_orders", start, end, kwargs)); return ["RESERVED"]
 
@@ -1016,6 +1025,12 @@ class _StubOverseasAccount:
 
     def cancel_reserved_order(self, reserved_order_id, *, receipt_date):
         self._log.append(("ovs_cancel_reserved_order", reserved_order_id, receipt_date))
+
+    def period_profit(self, *, start, end, **kwargs):
+        self._log.append(("ovs_period_profit", start, end, kwargs)); return "OVS_PROFIT"
+
+    def transactions(self, *, start, end, **kwargs):
+        self._log.append(("ovs_transactions", start, end, kwargs)); return ["OVS_TXN"]
 
 
 class _StubStockView:
@@ -1108,11 +1123,23 @@ def test_account_fills_requires_start_and_end(monkeypatch, cli_args):
         account.cmd_fills(object(), _args(cli_args))
 
 
-def test_account_fills_rejects_non_bond(monkeypatch):
-    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView([]))
-    with pytest.raises(CliConfigError, match="채권"):
-        account.cmd_fills(object(), _args(
-            ["account", "fills", "--start", "20240101", "--end", "20240131"]))
+def test_account_fills_stock_default_forwards_all_arguments(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    result = account.cmd_fills(object(), _args(
+        ["account", "fills", "--start", "20240101", "--end", "20240131",
+         "--side", "sell", "--symbol", "005930", "--unfilled-only"]))
+    assert result == ["STOCK_FILLS"]
+    assert log == [("stock_fills", "20240101", "20240131",
+                    {"side": "sell", "symbol": "005930", "unfilled_only": True})]
+
+
+def test_account_fills_stock_forwards_no_filters_by_default(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    account.cmd_fills(object(), _args(
+        ["account", "fills", "--start", "20240101", "--end", "20240131"]))
+    assert log == [("stock_fills", "20240101", "20240131", {})]
 
 
 def test_account_fills_rejects_overseas(monkeypatch):
@@ -1175,6 +1202,125 @@ def test_account_reserved_overseas_requires_range(monkeypatch):
     with pytest.raises(CliConfigError, match="기간"):
         account.cmd_reserved(object(), _args(
             ["account", "reserved", "--venue", "overseas", "--start", "20240101"]))
+
+
+# --- 손익: kis account profits (국내 종목별/일별, 해외 기간손익) ---------
+
+def test_account_profits_domestic_default_by_symbol(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    result = account.cmd_profits(object(), _args(
+        ["account", "profits", "--start", "20240101", "--end", "20240131"]))
+    assert result == ["TRADE_PROFITS"]
+    assert log == [("trade_profits", "20240101", "20240131", {})]
+
+
+def test_account_profits_domestic_by_day_forwards_filters(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    account.cmd_profits(object(), _args(
+        ["account", "profits", "--start", "20240101", "--end", "20240131",
+         "--by", "day", "--symbol", "005930", "--sort", "oldest"]))
+    assert log == [("daily_profits", "20240101", "20240131",
+                    {"symbol": "005930", "sort": "oldest"})]
+
+
+def test_account_profits_domestic_default_forwards_filters(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    account.cmd_profits(object(), _args(
+        ["account", "profits", "--start", "20240101", "--end", "20240131",
+         "--symbol", "005930", "--sort", "oldest"]))
+    assert log == [("trade_profits", "20240101", "20240131",
+                    {"symbol": "005930", "sort": "oldest"})]
+
+
+@pytest.mark.parametrize("bad", [["--currency", "USD"], ["--won-basis"]])
+def test_account_profits_domestic_rejects_overseas_flags(monkeypatch, bad):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    with pytest.raises(CliConfigError):
+        account.cmd_profits(object(), _args(
+            ["account", "profits", "--start", "20240101", "--end", "20240131", *bad]))
+    assert log == []
+
+
+def test_account_profits_overseas_routes_and_defers(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    result = account.cmd_profits(object(), _args(
+        ["account", "profits", "--venue", "overseas", "--start", "20240101", "--end", "20240131"]))
+    assert result == "OVS_PROFIT"
+    assert log == [("ovs_period_profit", "20240101", "20240131", {})]
+
+
+def test_account_profits_overseas_forwards_currency_and_won_basis(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    account.cmd_profits(object(), _args(
+        ["account", "profits", "--venue", "overseas", "--start", "20240101", "--end", "20240131",
+         "--symbol", "AAPL", "--currency", "USD", "--won-basis"]))
+    assert log == [("ovs_period_profit", "20240101", "20240131",
+                    {"symbol": "AAPL", "currency": "USD", "won_basis": True})]
+
+
+@pytest.mark.parametrize("bad", [["--by", "day"], ["--sort", "recent"]])
+def test_account_profits_overseas_rejects_domestic_flags(monkeypatch, bad):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    with pytest.raises(CliConfigError):
+        account.cmd_profits(object(), _args(
+            ["account", "profits", "--venue", "overseas", "--start", "20240101",
+             "--end", "20240131", *bad]))
+    assert log == []
+
+
+@pytest.mark.parametrize("partial", [["--start", "20240101"], ["--end", "20240131"]])
+def test_account_profits_requires_range(monkeypatch, partial):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    with pytest.raises(CliConfigError, match="기간"):
+        account.cmd_profits(object(), _args(["account", "profits", *partial]))
+    assert log == []
+
+
+# --- 거래·입출금내역: kis account transactions (해외 전용) ----------------
+
+def test_account_transactions_overseas_routes_and_defers(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    result = account.cmd_transactions(object(), _args(
+        ["account", "transactions", "--venue", "overseas", "--start", "20240101", "--end", "20240131"]))
+    assert result == ["OVS_TXN"]
+    assert log == [("ovs_transactions", "20240101", "20240131", {})]
+
+
+def test_account_transactions_overseas_forwards_filters(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    account.cmd_transactions(object(), _args(
+        ["account", "transactions", "--venue", "overseas", "--start", "20240101", "--end", "20240131",
+         "--symbol", "AAPL", "--side", "buy"]))
+    assert log == [("ovs_transactions", "20240101", "20240131", {"symbol": "AAPL", "side": "buy"})]
+
+
+def test_account_transactions_rejects_domestic(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    with pytest.raises(CliConfigError, match="해외"):
+        account.cmd_transactions(object(), _args(
+            ["account", "transactions", "--start", "20240101", "--end", "20240131"]))
+    assert log == []
+
+
+@pytest.mark.parametrize("partial", [["--start", "20240101"], ["--end", "20240131"]])
+def test_account_transactions_requires_range(monkeypatch, partial):
+    log: list = []
+    monkeypatch.setattr(account, "_stock_account", lambda kis: _StubStockView(log))
+    with pytest.raises(CliConfigError, match="기간"):
+        account.cmd_transactions(object(), _args(
+            ["account", "transactions", "--venue", "overseas", *partial]))
+    assert log == []
 
 
 # --- 채권 주문 CLI: dry-run 티켓 + fail-closed 검증 ------------------------

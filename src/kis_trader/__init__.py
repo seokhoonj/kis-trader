@@ -16,7 +16,7 @@ from ._internal._masters import (
     MasterIndex,
     SearchMarket,
 )
-from ._literals import ReservedCurrency
+from ._literals import ProfitSort, ReservedCurrency, SideFilter
 from .account import StockAccount
 from .bar import Bar, Interval
 from .client import KISClient
@@ -210,6 +210,7 @@ from .domestic.entities.saved_screen import (
     WatchlistGroup,
     WatchlistStock,
 )
+from .domestic.entities.stock_fills import StockFill, StockFillHistory
 from .domestic.entities.stock_info import StockProfile, StockStatus
 from .domestic.entities.trade_profit import (
     DailyProfit,
@@ -522,6 +523,7 @@ __all__ = [
     "Position",
     "PriceLevel",
     "ProductInfo",
+    "ProfitSort",
     "ProfitabilityRatio",
     "ProgramFlowPoint",
     "ProgramInvestorTrade",
@@ -548,8 +550,11 @@ __all__ = [
     "ShareholderMeeting",
     "ShortSalePoint",
     "ShortSaleRanking",
+    "SideFilter",
     "StabilityRatio",
     "StockAccount",
+    "StockFill",
+    "StockFillHistory",
     "StockProfile",
     "StockStatus",
     "TopViewedStock",

@@ -17,7 +17,12 @@ from datetime import date, time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from ..._internal._response import _fetch_paginated_rows, _raise_if_error, _require_mapping_rows
+from ..._internal._response import (
+    _fetch_paginated_rows,
+    _fetch_paginated_rows_with_summary,
+    _raise_if_error,
+    _require_mapping_rows,
+)
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
 from ...open_order import OpenOrder
@@ -30,6 +35,7 @@ from ..entities.account_reports import (
 )
 from ..entities.account_right import AccountRight
 from ..entities.balance import AccountAssets, Balance, Portfolio, Position
+from ..entities.stock_fills import StockFill, StockFillHistory
 from ..entities.trade_profit import (
     DailyProfit,
     DailyProfitHistory,
@@ -39,7 +45,7 @@ from ..entities.trade_profit import (
 from ._parse import _side_from_code
 
 if TYPE_CHECKING:
-    from ..._literals import Numeric
+    from ..._literals import Numeric, ProfitSort, SideFilter
 
 _BALANCE_PATH = "/uapi/domestic-stock/v1/trading/inquire-balance"
 _BALANCE_TR = {"real": "TTTC8434R", "paper": "VTTC8434R"}
@@ -83,6 +89,11 @@ _MAX_REALIZED_PAGES = 100
 
 _INTEGRATED_MARGIN_PATH = "/uapi/domestic-stock/v1/trading/intgr-margin"
 _INTEGRATED_MARGIN_TR = "TTTC0869R"  # 주식통합증거금 현황, 모의투자 미지원
+
+_STOCK_FILLS_PATH = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
+_STOCK_FILLS_TR = {"real": "TTTC0081R", "paper": "VTTC0081R"}  # 주식일별주문체결조회(3개월 이내)
+_MAX_STOCK_FILLS_PAGES = 200
+_STOCK_FILLS_SIDE = {"all": "00", "sell": "01", "buy": "02"}
 #: 미체결 주문 연속조회 페이지 상한(한 콜 최대 50건). 닿으면 fail-closed.
 _MAX_OPEN_ORDER_PAGES = 100
 
@@ -334,7 +345,7 @@ def _parse_sellable(output1: Mapping[str, Any], *, symbol: str) -> SellableQuant
 # --- 기간별 매매손익 -------------------------------------------------------
 def fetch_trade_profits(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    start: str, end: str, symbol: str | None = None, sort: str = "recent",
+    start: str, end: str, symbol: str | None = None, sort: ProfitSort = "recent",
 ) -> TradeProfitHistory:
     """기간별 매매손익(실현손익). ``start``/``end`` 는 기간(YYYYMMDD), ``symbol`` 없으면 전체,
     ``sort`` = recent/oldest. output1 종목행을 연속조회로 모으고 output2 총계를 함께 담는다.
@@ -425,7 +436,7 @@ def _parse_trade_profit(row: Mapping[str, Any]) -> TradeProfit:
 
 def fetch_daily_profits(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    start: str, end: str, symbol: str | None = None, sort: str = "recent",
+    start: str, end: str, symbol: str | None = None, sort: ProfitSort = "recent",
 ) -> DailyProfitHistory:
     """기간별 일별 매매손익 합산. 파라미터는 :func:`fetch_trade_profits` 와 같되 output1 이 하루
     단위(종목 구분 없음)다. **모의투자 미지원**."""
@@ -502,6 +513,88 @@ def _parse_daily_profit(row: Mapping[str, Any]) -> DailyProfit:
         sell_quantity=field_decimal_or_zero(row.get("sll_qty1"), "sll_qty1"),
         _raw=row,
     )
+
+
+def fetch_stock_fills(
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    start: str, end: str, side: SideFilter = "all", symbol: str | None = None,
+    unfilled_only: bool = False,
+) -> StockFillHistory:
+    """국내주식 일별 주문·체결 내역(개별 행 + 기간 합계 요약). ``start``~``end`` (YYYYMMDD) 기간,
+    ``side`` = ``"all"``/``"sell"``/``"buy"``, ``symbol`` 없으면 전체, ``unfilled_only`` 면 미체결만.
+
+    output1 체결 행을 연속조회로 소진까지 모으고, 기간 합계(output2)는 첫 페이지에서 완결한다
+    (기간 단위라 페이지 불변). ``GET .../domestic-stock/v1/trading/inquire-daily-ccld``
+    (실전 ``TTTC0081R`` / 모의 ``VTTC0081R``, 3개월 이내). 실전·모의 모두 지원한다."""
+    try:
+        side_code = _STOCK_FILLS_SIDE[side]
+    except KeyError:
+        raise KISUsageError(
+            f"지원하지 않는 side: {side!r} ({'/'.join(_STOCK_FILLS_SIDE)})."
+        ) from None
+    base_params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "INQR_STRT_DT": start, "INQR_END_DT": end,
+        "SLL_BUY_DVSN_CD": side_code, "PDNO": symbol or "",
+        "ORD_GNO_BRNO": "", "ODNO": "",
+        "CCLD_DVSN": "02" if unfilled_only else "00",
+        "INQR_DVSN": "00", "INQR_DVSN_1": "", "INQR_DVSN_3": "00",
+        "EXCG_ID_DVSN_CD": "", "CTX_AREA_FK100": "", "CTX_AREA_NK100": "",
+    }
+    rows, summary = _fetch_paginated_rows_with_summary(
+        transport, path=_STOCK_FILLS_PATH, tr_id=_STOCK_FILLS_TR[environment],
+        base_params=base_params, output_key="output1", max_pages=_MAX_STOCK_FILLS_PAGES,
+        cap_message=(
+            f"주식일별주문체결조회가 {_MAX_STOCK_FILLS_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다."
+        ),
+        summary_from=lambda body: (
+            body.get("output2") if isinstance(body.get("output2"), Mapping) else None
+        ),
+    )
+    if summary is None:
+        raise KISError("주식일별주문체결조회 응답에 합계 요약(output2)이 없다.")
+    return StockFillHistory(
+        fills=tuple(_parse_stock_fills(rows)),
+        total_order_quantity=required_decimal(summary.get("tot_ord_qty"), "tot_ord_qty"),
+        total_filled_quantity=required_decimal(summary.get("tot_ccld_qty"), "tot_ccld_qty"),
+        total_filled_amount=required_decimal(summary.get("tot_ccld_amt"), "tot_ccld_amt"),
+        average_purchase_price=required_decimal(summary.get("pchs_avg_pric"), "pchs_avg_pric"),
+        estimated_expenses=required_decimal(summary.get("prsm_tlex_smtl"), "prsm_tlex_smtl"),
+        _raw=summary,
+    )
+
+
+def _parse_stock_fills(rows: list[Mapping[str, Any]]) -> list[StockFill]:
+    # 행 배열의 매핑 여부는 상류 _require_mapping_rows 가 이미 fail-closed 로 보장한다.
+    fills: list[StockFill] = []
+    for row in rows:
+        order_id = str(row.get("odno", "")).strip()
+        if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
+            continue
+        fills.append(
+            StockFill(
+                order_date=_parse_date(row.get("ord_dt")),
+                order_id=order_id,
+                original_order_id=str(row.get("orgn_odno", "")).strip(),
+                order_type=str(row.get("ord_dvsn_name", "")).strip(),
+                side=_side_from_code(row.get("sll_buy_dvsn_cd")),
+                symbol=str(row.get("pdno", "")).strip(),
+                name=str(row.get("prdt_name", "")).strip(),
+                order_quantity=field_decimal_or_zero(row.get("ord_qty"), "ord_qty"),
+                order_price=field_decimal_or_zero(row.get("ord_unpr"), "ord_unpr"),
+                order_time=_parse_hhmmss(row.get("ord_tmd")),
+                filled_quantity=field_decimal_or_zero(row.get("tot_ccld_qty"), "tot_ccld_qty"),
+                average_price=field_decimal_or_zero(row.get("avg_prvs"), "avg_prvs"),
+                filled_amount=field_decimal_or_zero(row.get("tot_ccld_amt"), "tot_ccld_amt"),
+                unfilled_quantity=field_decimal_or_zero(row.get("rmn_qty"), "rmn_qty"),
+                rejected_quantity=field_decimal_or_zero(row.get("rjct_qty"), "rjct_qty"),
+                cancelled=str(row.get("cncl_yn", "")).strip().upper() == "Y",
+                branch_number=str(row.get("ord_gno_brno", "")).strip(),
+                _raw=row,
+            )
+        )
+    return fills
 
 
 def fetch_account_rights(

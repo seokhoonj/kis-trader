@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from datetime import date
 
-    from .._literals import Numeric
+    from .._literals import Numeric, SideFilter
     from ..client import KISClient
     from ..news import NewsHeadline
     from ..quote import Quote
@@ -159,7 +159,7 @@ class OverseasAccount:
         )
 
     def transactions(
-        self, *, start: str, end: str, symbol: str | None = None, side: str = "all"
+        self, *, start: str, end: str, symbol: str | None = None, side: SideFilter = "all"
     ) -> list[OverseasTransaction]:
         """일별 거래내역(매매·결제·수수료). ``start``/``end`` 는 등록일자 기간(YYYYMMDD), ``symbol`` 없으면
         전체, ``side`` = ``"all"``/``"sell"``/``"buy"``. 외화 금액은 거래 통화의 :class:`~kis_trader.money.Money`.

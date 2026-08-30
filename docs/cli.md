@@ -38,15 +38,17 @@ kis account positions --venue overseas --market US
 kis stock quote 005930 --format json
 ```
 
-장내채권 체결내역(기간)은 `kis account fills --asset bond` 로 조회합니다. `--start`/`--end`
-(YYYYMMDD) 로 기간을 주고, `--side`(all/buy/sell)·`--symbol`(표준코드)·`--unfilled-only` 로
-좁힙니다. 미체결(정정·취소 대상)만 보려면 `kis account orders --asset bond --date` 를 씁니다.
-실전 계좌 전용입니다(모의투자 미지원).
+일별 주문·체결 내역(기간)은 `kis account fills` 로 조회합니다. 기본은 국내주식(`--asset stock`),
+장내채권은 `--asset bond`. `--start`/`--end`(YYYYMMDD, 주식은 3개월 이내) 로 기간을 주고,
+`--side`(all/buy/sell)·`--symbol`(주식 6자리 / 채권 ISIN)·`--unfilled-only` 로 좁힙니다.
+미체결(정정·취소 대상)만 보려면 `kis account orders` 를 씁니다. 국내주식은 실전·모의 모두,
+장내채권은 실전 계좌 전용입니다(모의투자 미지원).
 
 ```bash
-kis account fills --asset bond --start 20240101 --end 20240131                  # 기간 전체 체결내역
-kis account fills --asset bond --start 20240101 --end 20240131 --side buy       # 매수만
-kis account fills --asset bond --start 20240101 --end 20240131 --unfilled-only  # 미체결만
+kis account fills --start 20240101 --end 20240131                              # 국내주식 체결내역(기간)
+kis account fills --start 20240101 --end 20240131 --symbol 005930 --side buy   # 종목·매수만
+kis account fills --asset bond --start 20240101 --end 20240131                 # 장내채권 체결내역
+kis account fills --asset bond --start 20240101 --end 20240131 --unfilled-only # 미체결만
 ```
 
 예약주문(정규장이 열리기 전에 미리 걸어두는 예약) 목록은 `kis account reserved --start/--end` 로
@@ -58,6 +60,24 @@ kis account fills --asset bond --start 20240101 --end 20240131 --unfilled-only  
 kis account reserved --start 20240101 --end 20240131                         # 국내 예약주문 목록
 kis account reserved --start 20240101 --end 20240131 --process unprocessed   # 미처리분만
 kis account reserved --venue overseas --start 20240101 --end 20240131        # 해외 예약주문 목록
+```
+
+기간별 실현손익은 `kis account profits --start/--end` 로 봅니다. `--symbol` 로 종목을 좁히는 건
+국내·해외 공통이고, 국내는 `--by symbol`(종목별 실현손익, 기본)/`--by day`(일별 매매손익)·
+`--sort recent|oldest`, 해외주식은 `--venue overseas` 로 기간손익을 보며 `--currency`·
+`--won-basis`(원화 기준) 를 씁니다. 실전 계좌 전용입니다(모의투자 미지원).
+
+```bash
+kis account profits --start 20240101 --end 20240131                          # 국내 종목별 실현손익
+kis account profits --start 20240101 --end 20240131 --by day                 # 국내 일별 매매손익
+kis account profits --venue overseas --start 20240101 --end 20240131         # 해외주식 기간손익
+```
+
+거래·입출금내역(매매·결제·수수료)은 해외주식만 `kis account transactions --venue overseas
+--start/--end` 로 조회합니다. `--symbol`·`--side all|buy|sell` 로 좁힙니다. 실전 계좌 전용입니다.
+
+```bash
+kis account transactions --venue overseas --start 20240101 --end 20240131    # 해외 거래·입출금내역
 ```
 
 ## 주문 — 기본은 dry-run
