@@ -31,13 +31,13 @@ from ...errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from ...order import ReservedOrderFingerprint, Side, coerce_decimal, validate_yyyymmdd
+from ...order import AlgoStrategy, ReservedOrderFingerprint, Side, coerce_decimal, validate_yyyymmdd
 from ...report import ExecutionReport, OrderStatus
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ...transport import Environment, Transport, TransportTimeout
 from ..entities.orders import OverseasReservedOrder
 from ._parse import _parse_date, _side_from_code
-from .orders import _ORDER_EXCHANGE
+from .orders import _ALGO_TMD_CLOSE, _ORD_DVSN_ALGO, _ORDER_EXCHANGE
 
 if TYPE_CHECKING:
     from ..._literals import Numeric
@@ -160,7 +160,7 @@ def _walk(
 def place_overseas_reserved_order(
     transport: Transport, store: OrderStore, *,
     symbol: str, side: Side, quantity: Numeric, limit_price: Numeric, exchange: str,
-    currency: str | None = None,
+    currency: str | None = None, algo_strategy: AlgoStrategy | None = None,
     client_order_id: str, orderable: bool = True,
     cano: str, product_code: str, environment: Environment,
 ) -> ExecutionReport:
@@ -203,11 +203,22 @@ def place_overseas_reserved_order(
     limit = coerce_decimal(limit_price, "limit_price")
     if not limit.is_finite() or limit <= 0:
         raise KISUsageError(f"limit_price 는 0보다 큰 유한값이어야 한다: {limit_price!r}")
+    if algo_strategy is not None:
+        # 예약 algo(TWAP/VWAP)는 미국 실전 전용이다(공지 2025-05-23: 예약은 정규장 종료 집행 고정).
+        # 아시아엔 algo 가 없고 모의는 미지원이라 라우팅 전에 fail-closed 한다.
+        if algo_strategy not in _ORD_DVSN_ALGO:
+            raise KISUsageError(f"지원하지 않는 algo 전략: {algo_strategy!r} (twap/vwap).")
+        if region != _US_MARKET:
+            raise KISUsageError(
+                f"예약 algo(TWAP/VWAP)는 미국 거래소만 지원한다(아시아 algo 없음): {exchange!r}."
+            )
+        if environment == "paper":
+            raise KISUsageError("예약 algo(TWAP/VWAP) 주문은 모의투자 미지원 -- 실전에서만.")
 
     if region == _US_MARKET:
         return _place_us_reserved(
             transport, store, symbol=symbol, side=side, qty=qty, limit=limit,
-            order_exchange=order_exchange, exchange=exchange,
+            order_exchange=order_exchange, exchange=exchange, algo_strategy=algo_strategy,
             client_order_id=client_order_id, cano=cano, product_code=product_code,
             environment=environment,
         )
@@ -225,17 +236,19 @@ def place_overseas_reserved_order(
 def _place_us_reserved(
     transport: Transport, store: OrderStore, *,
     symbol: str, side: Side, qty: Decimal, limit: Decimal, order_exchange: str,
-    exchange: str, client_order_id: str,
+    exchange: str, client_order_id: str, algo_strategy: AlgoStrategy | None = None,
     cano: str, product_code: str, environment: Environment,
 ) -> ExecutionReport:
     """미국(NAS/NYS/AMS) 예약 발주 와이어를 만들어 공용 안전 셸에 넘긴다 -- 매수/매도 분리 TR +
-    ORD_DVSN 지정가 body. 미국은 통화 선택이 없다(``currency`` 는 홍콩 전용이며, 미국에 주면
-    상위 :func:`place_overseas_reserved_order` 가 이미 fail-closed 한다). 응답은 예약번호 ODNO 만
-    돌려주고 접수일자는 없다."""
+    ORD_DVSN body. 미국은 통화 선택이 없다(``currency`` 는 홍콩 전용이며, 미국에 주면 상위
+    :func:`place_overseas_reserved_order` 가 이미 fail-closed 한다). 응답은 예약번호 ODNO 만 돌려주고
+    접수일자는 없다. ``algo_strategy`` 가 있으면(TWAP/VWAP) ORD_DVSN 을 35/36 으로 바꾸고
+    ALGO_ORD_TMD_DVSN_CD="02"(정규장 종료 집행)를 싣는다 -- 예약 algo 는 시간창이 없다(공지
+    2025-05-23). 비-algo 는 ORD_DVSN="00"·algo 필드 없음이라 와이어·지문이 종전과 바이트 동일하다."""
     fingerprint = ReservedOrderFingerprint(
         symbol=symbol, side=side, order_type="limit",
         quantity=format_wire_decimal(qty), limit_price=format_wire_decimal(limit),
-        end_date="", exchange=_RESERVED_EXCHANGE,
+        end_date="", exchange=_RESERVED_EXCHANGE, algo_strategy=algo_strategy or "",
     )
     body = {
         "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": symbol,
@@ -244,6 +257,9 @@ def _place_us_reserved(
         "FT_ORD_UNPR3": format_wire_decimal(limit),
         "ORD_SVR_DVSN_CD": "0", "ORD_DVSN": _ORD_DVSN_LIMIT,
     }
+    if algo_strategy is not None:
+        body["ORD_DVSN"] = _ORD_DVSN_ALGO[algo_strategy]
+        body["ALGO_ORD_TMD_DVSN_CD"] = _ALGO_TMD_CLOSE  # 예약 algo 는 정규장 종료 집행 고정(시간창 없음)
     return _submit_reserved(
         transport, store, client_order_id, fingerprint, body,
         _PLACE_TR["US"][side][environment], _extract_us_reserved,

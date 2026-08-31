@@ -40,7 +40,7 @@ def test_receipt_date_round_trips(tmp_path):
     with OrderStore(path=path, retention_days=0) as store:
         store.record(_asia_report(), _asia_fingerprint())
     data = json.loads(path.read_text(encoding="utf-8"))
-    assert data["schema_version"] == 9
+    assert data["schema_version"] == 10
     assert data["reports"]["c1"]["receipt_date"] == "20260818"
     with OrderStore(path=path, retention_days=0) as reloaded:
         report = reloaded.report_for("c1")

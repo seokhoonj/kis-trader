@@ -53,10 +53,14 @@ def _ticket(args: Namespace, *, side: Side, account: str | None, environment: st
         ticket["stop_price"] = getattr(args, "stop_price", None)
         ticket["reserve"] = getattr(args, "reserve", False)
         ticket["end_date"] = getattr(args, "end_date", None)
-    elif asset == "stock" and getattr(args, "reserve", False):  # 해외 주식 예약(지정가·홍콩 통화)
-        ticket["reserve"] = True
-        ticket["currency"] = getattr(args, "currency", None)
+    elif asset == "stock":  # 해외 주식(즉시 algo / 예약)
+        ticket["reserve"] = getattr(args, "reserve", False)
         ticket["exchange"] = getattr(args, "exchange", None)
+        ticket["algo"] = getattr(args, "algo", None)
+        ticket["algo_start"] = getattr(args, "algo_start", None)
+        ticket["algo_end"] = getattr(args, "algo_end", None)
+        if getattr(args, "reserve", False):  # 예약은 홍콩 통화 선택도 노출
+            ticket["currency"] = getattr(args, "currency", None)
     if asset == "bond" and side == "sell":
         ticket["buy_date"] = getattr(args, "buy_date", None)
         ticket["buy_seq"] = getattr(args, "buy_seq", None)
@@ -105,6 +109,24 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
             raise CliConfigError("--end-date 는 예약주문(--reserve) 전용입니다.")
         if args.currency is not None:
             raise CliConfigError("--currency 는 예약주문(--reserve) 전용입니다.")
+
+    # 미국주식 algo(TWAP/VWAP) 분할주문 -- 해외 주식(--venue overseas) 전용, 실전전용. 즉시는 시간창
+    # (--algo-start/--algo-end)을 주거나 생략(정규장 종료)하고, 예약(--reserve)은 정규장 종료 고정이라
+    # 시간창을 줄 수 없다. algo 를 안 읽는 분기(국내·채권·파생·해외 예약의 시간창)는 여기서 fail-closed.
+    has_window = args.algo_start is not None or args.algo_end is not None
+    if args.algo is not None:
+        if not (asset == "stock" and not domestic):
+            raise CliConfigError("--algo 는 해외 주식(--venue overseas) 전용입니다.")
+        if args.execute == "paper":
+            raise CliConfigError(
+                "미국주식 algo(TWAP/VWAP)는 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
+        if args.reserve and has_window:
+            raise CliConfigError(
+                "--reserve 예약 algo 는 정규장 종료 집행 고정이라 --algo-start/--algo-end 를 줄 수 없습니다.")
+        if has_window and (args.algo_start is None or args.algo_end is None):
+            raise CliConfigError("algo 시간창은 --algo-start 와 --algo-end 를 함께 주어야 합니다.")
+    elif has_window:
+        raise CliConfigError("--algo-start/--algo-end 는 --algo(twap/vwap) 전용입니다.")
 
     # 자산에 무의미한 특수 플래그 거부(어느 플래그가 문제인지 지목).
     if (args.buy_date or args.buy_seq) and not (asset == "bond" and side == "sell"):
@@ -253,17 +275,27 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
     handle = resolve_stock(kis, args)
     if getattr(args, "reserve", False):
         reserve = handle.reserve_buy if side == "buy" else handle.reserve_sell
-        # 사용자가 준 것만 전달한다 -- 해외는 통화(홍콩 전용), 국내는 종료일. 기본값은 라이브러리 소유.
+        # 사용자가 준 것만 전달한다 -- 해외는 통화(홍콩 전용)·algo(미국 전용), 국내는 종료일. 기본값은
+        # 라이브러리 소유(예약 algo 는 시간창이 없어 --algo 만 전달).
         extra: dict[str, Any] = {}
         if args.venue == "overseas":
             if args.currency is not None:
                 extra["currency"] = args.currency
+            if args.algo is not None:
+                extra["algo"] = args.algo
         elif args.end_date is not None:
             extra["end_date"] = args.end_date
         return reserve(quantity=args.quantity, limit_price=args.limit_price, **extra)
     place = handle.buy if side == "buy" else handle.sell
-    extra = {} if args.venue == "overseas" else {
-        "division": division, "stop_price": args.stop_price}
+    if args.venue == "overseas":
+        # 해외 즉시주문: 사용자가 준 algo 만 전달한다(시간창은 검증에서 start/end 가 함께 온다).
+        extra = {}
+        if args.algo is not None:
+            extra["algo"] = args.algo
+            if args.algo_start is not None:
+                extra["algo_window"] = (args.algo_start, args.algo_end)
+    else:
+        extra = {"division": division, "stop_price": args.stop_price}
     return place(quantity=args.quantity, limit_price=args.limit_price, **extra)
 
 

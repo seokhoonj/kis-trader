@@ -35,8 +35,9 @@ from kis_trader.store import (
 )
 
 # --- A-17: 지문 코덱 왕복 + 온-디스크 바이트 동결 ---------------------------------
-#: 각 변형의 인코딩이 내는 **정확한** 16-슬롯 바이트다(idx 13=derivative_item 비-파생은 "",
-#: idx 14=overseas_exchange 해외 예약 외엔 "", idx 15=currency 홍콩 예약 외엔 "HKD").
+#: 각 변형의 인코딩이 내는 **정확한** 19-슬롯 바이트다(idx 13=derivative_item 비-파생은 "",
+#: idx 14=overseas_exchange 해외 예약 외엔 "", idx 15=currency 홍콩 예약 외엔 "HKD", idx 16..18=
+#: algo 전략/시작/종료 비-algo 는 전부 "").
 #: 이 값이 바뀌면 dedup 정체성/재조회 매칭/이중전송 장벽이 기존 저장소와 어긋난다(회귀 감지).
 _FROZEN_BYTES = {
     "immediate": (
@@ -44,56 +45,56 @@ _FROZEN_BYTES = {
             symbol="005930", side="buy", order_type="limit", quantity="10",
             limit_price="70000", stop_price="", time_in_force="day", exchange="XKRX",
         ),
-        ["005930", "buy", "limit", "10", "70000", "", "day", "XKRX", "", "", "regular", "", "KRX", "", "", "HKD"],
+        ["005930", "buy", "limit", "10", "70000", "", "day", "XKRX", "", "", "regular", "", "KRX", "", "", "HKD", "", "", ""],
     ),
     "immediate_credit": (
         ImmediateOrderFingerprint(
             symbol="009150", side="buy", order_type="limit", quantity="1", limit_price="130000",
             stop_price="", time_in_force="day", exchange="XKRX", credit_type="26", loan_date="20211103",
         ),
-        ["009150", "buy", "limit", "1", "130000", "", "day", "XKRX", "26", "20211103", "regular", "", "KRX", "", "", "HKD"],
+        ["009150", "buy", "limit", "1", "130000", "", "day", "XKRX", "26", "20211103", "regular", "", "KRX", "", "", "HKD", "", "", ""],
     ),
     "immediate_daytime": (  # session 슬롯(idx 10) 을 non-default 로 고정 -- 미국 오버나이트 거래
         ImmediateOrderFingerprint(
             symbol="AAPL", side="buy", order_type="limit", quantity="5", limit_price="150",
             stop_price="", time_in_force="day", exchange="NAS", session="overnight",
         ),
-        ["AAPL", "buy", "limit", "5", "150", "", "day", "NAS", "", "", "overnight", "", "KRX", "", "", "HKD"],
+        ["AAPL", "buy", "limit", "5", "150", "", "day", "NAS", "", "", "overnight", "", "KRX", "", "", "HKD", "", "", ""],
     ),
     "immediate_division_board": (
         ImmediateOrderFingerprint(
             symbol="005930", side="buy", order_type="market", quantity="10", limit_price="",
             stop_price="", time_in_force="day", exchange="NXTE", division="immediate_limit", board="NXT",
         ),
-        ["005930", "buy", "market", "10", "", "", "day", "NXTE", "", "", "regular", "immediate_limit", "NXT", "", "", "HKD"],
+        ["005930", "buy", "market", "10", "", "", "day", "NXTE", "", "", "regular", "immediate_limit", "NXT", "", "", "HKD", "", "", ""],
     ),
     "reserved_domestic": (
         ReservedOrderFingerprint(
             symbol="005930", side="buy", order_type="limit", quantity="10",
             limit_price="70000", end_date="20240610", exchange="reserved",
         ),
-        ["005930", "buy", "limit", "10", "70000", "20240610", "day", "reserved", "", "", "regular", "", "KRX", "", "", "HKD"],
+        ["005930", "buy", "limit", "10", "70000", "20240610", "day", "reserved", "", "", "regular", "", "KRX", "", "", "HKD", "", "", ""],
     ),
     "reserved_overseas": (
         ReservedOrderFingerprint(
             symbol="AAPL", side="buy", order_type="limit", quantity="1",
             limit_price="150", end_date="", exchange="overseas-reserved",
         ),
-        ["AAPL", "buy", "limit", "1", "150", "", "day", "overseas-reserved", "", "", "regular", "", "KRX", "", "", "HKD"],
+        ["AAPL", "buy", "limit", "1", "150", "", "day", "overseas-reserved", "", "", "regular", "", "KRX", "", "", "HKD", "", "", ""],
     ),
     "change_cancel": (
         ChangeActionFingerprint(
             original_client_order_id="orig-1", side="buy", order_type="limit", quantity="10",
             limit_price="", action="cancel", time_in_force="day", exchange="XKRX",
         ),
-        ["orig-1", "buy", "limit", "10", "", "cancel", "day", "action:XKRX", "", "", "regular", "", "KRX", "", "", "HKD"],
+        ["orig-1", "buy", "limit", "10", "", "cancel", "day", "action:XKRX", "", "", "regular", "", "KRX", "", "", "HKD", "", "", ""],
     ),
     "change_modify_overseas": (
         ChangeActionFingerprint(
             original_client_order_id="ov-1", side="sell", order_type="limit", quantity="3",
             limit_price="412.5", action="modify", time_in_force="day", exchange="NAS",
         ),
-        ["ov-1", "sell", "limit", "3", "412.5", "modify", "day", "action:NAS", "", "", "regular", "", "KRX", "", "", "HKD"],
+        ["ov-1", "sell", "limit", "3", "412.5", "modify", "day", "action:NAS", "", "", "regular", "", "KRX", "", "", "HKD", "", "", ""],
     ),
 }
 
@@ -141,10 +142,10 @@ def test_decode_too_short_record_is_rejected():
 
 
 def test_decode_too_long_record_is_rejected():
-    """16슬롯 초과는 손상/변조로 거부한다(예전 Fingerprint(*fp) 가 인자 과다로 실패하던 fail-closed)."""
+    """19슬롯 초과는 손상/변조로 거부한다(예전 Fingerprint(*fp) 가 인자 과다로 실패하던 fail-closed)."""
     with pytest.raises(ValueError):
         decode_fingerprint(
-            ["005930", "buy", "limit", "10", "70000", "", "day", "XKRX", "", "", "regular", "", "KRX", "", "", "HKD", "EXTRA"]
+            ["005930", "buy", "limit", "10", "70000", "", "day", "XKRX", "", "", "regular", "", "KRX", "", "", "HKD", "", "", "", "EXTRA"]
         )
 
 

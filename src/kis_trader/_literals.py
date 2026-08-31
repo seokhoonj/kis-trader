@@ -22,7 +22,7 @@ from collections.abc import Mapping
 from decimal import Decimal
 from typing import Literal, TypeAlias
 
-from .order import CreditType, Side
+from .order import AlgoStrategy, CreditType, Side
 from .transport import Environment
 
 #: 수치 와이어 파라미터의 입력 허용형. KIS 로 나가는 수량/가격 등은 정수·실수·Decimal·
@@ -62,7 +62,11 @@ SideFilter: TypeAlias = Literal["all", "buy", "sell"]
 #: (00/01)로 매핑된다.
 ProfitSort: TypeAlias = Literal["recent", "oldest"]
 
+# :data:`AlgoStrategy`(미국주식 TWAP/VWAP 분할주문 전략)은 :mod:`.order` 가 정본이라 재정의하지 않고
+# 위에서 import 해 재수출한다(:data:`Side`/:data:`CreditType` 과 같은 방식).
+
 __all__ = [
+    "AlgoStrategy",
     "CreditType",
     "DerivativeMarket",
     "DerivativeProduct",

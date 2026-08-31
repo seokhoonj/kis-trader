@@ -35,6 +35,7 @@ from .domestic.namespace import DomesticNamespace
 from .errors import KISUsageError
 from .open_orders import OpenOrders
 from .order import (
+    AlgoStrategy,
     ChangeAction,
     ChangeActionFingerprint,
     ImmediateOrderFingerprint,
@@ -542,6 +543,11 @@ class KISClient:
                     "해외 주문엔 사전 리스크 게이트가 아직 미지원이다 -- risk 없는 세션에서 내거나 "
                     "국내 주문에만 risk 를 쓰라."
                 )
+            # 미국주식 algo(TWAP/VWAP)는 모의투자 미지원 -- claim/빌드 전에 조기 거부(paper 발주 도달
+            # 차단). 와이어 빌더도 같은 거부를 하지만, 라우팅 자리에서 먼저 막아 client_order_id 를
+            # 소비하지 않는다(비-algo 해외 주문은 모의 지원이라 이 가드에 걸리지 않는다).
+            if order.algo_strategy is not None and self._environment == "paper":
+                raise KISUsageError("미국주식 algo(TWAP/VWAP) 주문은 모의투자 미지원 -- 실전에서만.")
             build_request = (
                 overseas_orders_engine.make_overnight_order_request
                 if order.session == "overnight"
@@ -620,16 +626,17 @@ class KISClient:
 
     def _place_overseas_reserved_order(
         self, *, symbol: str, side: Side, quantity: Numeric, limit_price: Numeric, exchange: str,
-        currency: str | None = None, client_order_id: str | None,
+        currency: str | None = None, algo_strategy: AlgoStrategy | None = None,
+        client_order_id: str | None,
     ) -> ExecutionReport:
         """해외예약주문을 예약 안전 엔진에 넘긴다(종목 핸들 reserve_buy/sell 이 해외 종목일 때 호출).
         ``exchange`` 의 시장이 미국/아시아 와이어를 가르고, ``currency`` 는 홍콩(HKS) 예약의 상품유형
-        선택 전용이다."""
+        선택 전용이다. ``algo_strategy``(twap/vwap)는 미국 예약주문의 알고리즘 분할(미국 실전 전용)이다."""
         cano, product_code = self._require_account()
         return overseas_reserved_orders_api.place_overseas_reserved_order(
             self._transport, self._store,
             symbol=symbol, side=side, quantity=quantity, limit_price=limit_price, exchange=exchange,
-            currency=currency,
+            currency=currency, algo_strategy=algo_strategy,
             client_order_id=client_order_id or mint_client_order_id(), orderable=self._orderable,
             cano=cano, product_code=product_code, environment=self._environment,
         )

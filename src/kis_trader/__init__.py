@@ -16,7 +16,7 @@ from ._internal._masters import (
     MasterIndex,
     SearchMarket,
 )
-from ._literals import ProfitSort, ReservedCurrency, SideFilter
+from ._literals import AlgoStrategy, ProfitSort, ReservedCurrency, SideFilter
 from .account import StockAccount
 from .bar import Bar, Interval
 from .client import KISClient
@@ -320,6 +320,7 @@ __all__ = [
     "AfterHoursConclusion",
     "AfterHoursDailyPrice",
     "AfterHoursQuote",
+    "AlgoStrategy",
     "AnalystOpinion",
     "AppraisalRights",
     "Balance",

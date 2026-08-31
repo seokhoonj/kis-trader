@@ -35,6 +35,11 @@ Right = Literal["call", "put"]
 DerivativeItem = Literal["", "01", "02", "03"]
 OrderType = Literal["market", "limit", "stop", "stop_limit"]
 TimeInForce = Literal["day", "gtc", "ioc", "fok"]
+#: 미국주식 알고리즘 분할주문 전략 -- TWAP(시간 기준 분할)/VWAP(체결량 기준 분할). KIS 가 서버에서
+#: 지정 조건에 맞춰 주문을 쪼개 집행하는 "서버자동주문"이며, 미국(NAS/NYS/AMS)만 지원한다(국내·아시아엔
+#: 없다). 와이어 주문구분 ``ORD_DVSN`` 35 TWAP / 36 VWAP 로 나간다. 즉시주문은 시간창(START_TIME/
+#: END_TIME)으로 집행 구간을 정하거나 정규장 종료까지 집행하고, 예약주문은 정규장 종료 고정이다.
+AlgoStrategy = Literal["twap", "vwap"]
 #: 국내(KRX) 현금주문 전용 주문구분(가격 결정 방식). 지정가(order_type="limit")/시장가("market")를
 #: 넘어서는 KRX 고유 주문구분을 고른다. 해외 주문에는 없다(국내 전용).
 #:   ``conditional_limit`` 조건부지정가(02) -- 장중 지정가, 마감 동시호가에 시장가 전환(가격 필요).
@@ -89,7 +94,7 @@ class OrderFingerprint:
     예전처럼 action 을 ``stop_price`` 슬롯에, cid 를 ``symbol`` 슬롯에 밀어넣는 스머글링을 없앴다.
 
     **온-디스크 형식은 뒤쪽으로만 자란다.** :func:`encode_fingerprint`/:func:`decode_fingerprint` 가
-    기존 위치 튜플(현행 16-슬롯 문자열; 새 슬롯은 항상 뒤에 기본값과 함께 추가되고 decode 가 구
+    기존 위치 튜플(현행 19-슬롯 문자열; 새 슬롯은 항상 뒤에 기본값과 함께 추가되고 decode 가 구
     레코드의 누락 슬롯을 채운다)과 왕복 코덱을 이룬다. dedup 정체성(무엇이 무엇과 같은가)은 그
     위치 인코딩의 동등성으로 정의되므로 변형이 달라도 **예전 튜플 동등성과 바이트 단위로 동일**하다 --
     재조회 매칭과 이중전송 장벽이 여기에 의존한다. 수치 필드는 와이어와 같은 정본
@@ -107,7 +112,7 @@ class OrderFingerprint:
     __slots__ = ()
 
     def _positional(self) -> tuple[str, ...]:
-        """이 지문의 온-디스크 위치 인코딩(16-슬롯). 각 변형이 구현한다."""
+        """이 지문의 온-디스크 위치 인코딩(19-슬롯). 각 변형이 구현한다."""
         raise NotImplementedError
 
     def __eq__(self, other: object) -> bool:
@@ -136,7 +141,10 @@ class ImmediateOrderFingerprint(OrderFingerprint):
     ``board`` 는 국내 체결 보드(KRX/NXT/UN; 구버전 레코드는 기본 "KRX")로, 둘 다 같은 종목·수량이라도
     서로 다른 주문이라 지문으로 구분한다. ``derivative_item`` 은 파생(XKFE) 상품 구분("01" 선물 /
     "02" 콜옵션 / "03" 풋옵션; 현금·해외 주문은 ``""``)으로, 같은 심볼·수량·가격이라도 콜 vs 풋은
-    서로 다른 주문이라 지문으로 구분한다."""
+    서로 다른 주문이라 지문으로 구분한다. ``algo_strategy``/``algo_start``/``algo_end`` 는 미국주식
+    알고리즘 분할주문(TWAP "twap" / VWAP "vwap"; 비-algo 는 ``""``)과 그 집행 시간창(HHMMSS, 정규장
+    종료 집행이면 ``""``)으로, 같은 종목·수량·가격이라도 일반주문 vs TWAP vs VWAP, 또 서로 다른
+    시간창은 서로 다른 주문이라 지문으로 구분한다."""
 
     symbol: str
     side: Side
@@ -152,14 +160,18 @@ class ImmediateOrderFingerprint(OrderFingerprint):
     division: str = ""
     board: str = "KRX"
     derivative_item: str = ""
+    algo_strategy: str = ""
+    algo_start: str = ""
+    algo_end: str = ""
 
     def _positional(self) -> tuple[str, ...]:
-        # 뒤쪽 ""/"HKD" = overseas_exchange/currency 슬롯(예약 변형 전용; 즉시 주문은 항상 기본값).
+        # 중간 ""/"HKD" = overseas_exchange/currency 슬롯(예약 변형 전용; 즉시 주문은 항상 기본값).
+        # 뒤쪽 3 슬롯 = 미국주식 algo(전략/시작/종료; 비-algo 는 전부 "").
         return (
             self.symbol, self.side, self.order_type, self.quantity, self.limit_price,
             self.stop_price, self.time_in_force, self.exchange, self.credit_type,
             self.loan_date, self.session, self.division, self.board, self.derivative_item,
-            "", "HKD",
+            "", "HKD", self.algo_strategy, self.algo_start, self.algo_end,
         )
 
 
@@ -174,7 +186,9 @@ class ReservedOrderFingerprint(OrderFingerprint):
     다르면 다른 주문이라 지문 정체성에 포함한다. ``currency`` 는 예약의 결제통화(홍콩(HKS) 예약의
     상품유형 선택 전용; 그 외는 기본 "HKD") -- CNY/USD 로 발주한 홍콩 예약의 취소가 같은
     ``PRDT_TYPE_CD`` 를 재현하려면 통화가 지문에 영속돼야 하고, 통화가 다르면 다른 주문이라 지문
-    정체성에 포함한다."""
+    정체성에 포함한다. ``algo_strategy`` 는 미국 예약주문의 알고리즘 분할(TWAP "twap" / VWAP "vwap";
+    비-algo 는 ``""``) -- 예약 algo 는 정규장 종료 집행 고정이라 시간창이 없고 전략만 지문 정체성에
+    포함한다(같은 종목·수량·가격이라도 일반 예약 vs TWAP vs VWAP 는 서로 다른 주문)."""
 
     symbol: str
     side: Side
@@ -185,14 +199,16 @@ class ReservedOrderFingerprint(OrderFingerprint):
     exchange: str
     overseas_exchange: str = ""
     currency: str = "HKD"
+    algo_strategy: str = ""
 
     def _positional(self) -> tuple[str, ...]:
-        # 온-디스크: end_date 는 예전 stop_price 슬롯, tif="day" 고정, 뒤쪽은 기본값(마지막 두 슬롯이
-        # overseas_exchange/currency -- 해외 예약의 해석된 거래소와 결제통화, v9 에서 추가).
+        # 온-디스크: end_date 는 예전 stop_price 슬롯, tif="day" 고정, 중간은 기본값(overseas_exchange/
+        # currency -- 해외 예약의 해석된 거래소·결제통화, v9). 뒤쪽 3 슬롯 = algo(전략; 예약은 시간창이
+        # 없어 시작/종료는 항상 "").
         return (
             self.symbol, self.side, self.order_type, self.quantity, self.limit_price,
             self.end_date, "day", self.exchange, "", "", "regular", "", "KRX", "",
-            self.overseas_exchange, self.currency,
+            self.overseas_exchange, self.currency, self.algo_strategy, "", "",
         )
 
 
@@ -215,31 +231,32 @@ class ChangeActionFingerprint(OrderFingerprint):
 
     def _positional(self) -> tuple[str, ...]:
         # 온-디스크: symbol 슬롯=원 cid, stop_price 슬롯=action, exchange 슬롯="action:"+원 거래소.
-        # 뒤쪽 ""/"HKD" = overseas_exchange/currency 슬롯(예약 변형 전용; 변경 동작은 항상 기본값).
+        # 중간 ""/"HKD" = overseas_exchange/currency 슬롯(예약 변형 전용; 변경 동작은 항상 기본값),
+        # 뒤쪽 3 슬롯 = algo(변경 동작은 algo 를 싣지 않아 항상 "").
         return (
             self.original_client_order_id, self.side, self.order_type, self.quantity,
             self.limit_price, self.action, self.time_in_force, f"{_ACTION_EXCHANGE_PREFIX}{self.exchange}",
-            "", "", "regular", "", "KRX", "", "", "HKD",
+            "", "", "regular", "", "KRX", "", "", "HKD", "", "", "",
         )
 
 
 #: 인메모리 지문 변형들의 공통 상위형 -- 저장소/재조회가 "어떤 지문이든" 을 annotate 할 때 쓴다.
 Fingerprint = OrderFingerprint
 
-#: 온-디스크 위치 인코딩의 슬롯 수(스키마 v9: 예약 overseas_exchange·currency 슬롯 추가; v8 은 파생
-#: derivative_item 슬롯). 인코딩은 항상 이 길이로 나간다. 구버전(14-슬롯 이하) 레코드는 decode 가
-#: 뒤쪽 누락 슬롯을 기본값으로 채워 그대로 읽는다.
-_FINGERPRINT_SLOTS = 16
+#: 온-디스크 위치 인코딩의 슬롯 수(스키마 v10: 미국주식 algo 전략·시작·종료 슬롯 추가; v9 은 예약
+#: overseas_exchange·currency, v8 은 파생 derivative_item). 인코딩은 항상 이 길이로 나간다. 구버전
+#: (16-슬롯 이하) 레코드는 decode 가 뒤쪽 누락 슬롯을 기본값으로 채워 그대로 읽는다.
+_FINGERPRINT_SLOTS = 19
 #: 위치 인코딩의 정직한 예약 네임스페이스(exchange 슬롯). decode 가 이 값으로 예약 변형을 판별한다.
 _RESERVED_EXCHANGES = frozenset(("reserved", "overseas-reserved", "overseas-reserved-asia"))
 #: 변경 동작 지문의 exchange 슬롯 접두 -- decode 가 이 접두로 변경 변형을 판별한다.
 _ACTION_EXCHANGE_PREFIX = "action:"
-#: 위치 인코딩 뒤쪽 선택 슬롯(idx 8..15)의 기본값 -- 구버전 레코드가 이보다 짧을 때 채운다.
-_TRAILING_DEFAULTS = ("", "", "regular", "", "KRX", "", "", "HKD")  # credit_type, loan_date, session, division, board, derivative_item, overseas_exchange, currency
+#: 위치 인코딩 뒤쪽 선택 슬롯(idx 8..18)의 기본값 -- 구버전 레코드가 이보다 짧을 때 채운다.
+_TRAILING_DEFAULTS = ("", "", "regular", "", "KRX", "", "", "HKD", "", "", "")  # credit_type, loan_date, session, division, board, derivative_item, overseas_exchange, currency, algo_strategy, algo_start, algo_end
 
 
 def encode_fingerprint(fingerprint: OrderFingerprint) -> list[str]:
-    """지문을 온-디스크 위치 튜플(16-슬롯 문자열 리스트)로 인코딩한다 -- 기존 형식에서 뒤쪽 슬롯만
+    """지문을 온-디스크 위치 튜플(19-슬롯 문자열 리스트)로 인코딩한다 -- 기존 형식에서 뒤쪽 슬롯만
     자란 형태로, 앞 슬롯들은 변경 전 코드가 쓰던 ``list(fp)`` 와 **바이트 동일**해야 한다(dedup
     정체성·재조회 매칭·이중전송 장벽이 여기 의존)."""
     return list(fingerprint._positional())
@@ -256,10 +273,10 @@ def _checked_slot(value: str, allowed: frozenset[str], label: str) -> str:
 
 def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
     """온-디스크 위치 튜플을 인메모리 지문으로 디코딩한다(구버전 짧은 레코드는 뒤쪽 기본값으로 채움 --
-    v1=8슬롯 .. v5-v7=13슬롯, v8=14슬롯, v9=16슬롯). exchange 슬롯(idx 7)으로 변형을 판별한다: "action:"
-    접두=변경 동작, "reserved"/"overseas-reserved"/"overseas-reserved-asia"=예약, 그 밖=즉시 주문. 슬롯이
-    8 미만이거나 ``_FINGERPRINT_SLOTS``(16) 초과면 손상/변조로 거부한다(예전 ``Fingerprint(*fp)`` 가 필수
-    필드 부족/인자 과다로 실패하던 것과 같은 fail-closed)."""
+    v1=8슬롯 .. v5-v7=13슬롯, v8=14슬롯, v9=16슬롯, v10=19슬롯). exchange 슬롯(idx 7)으로 변형을 판별한다:
+    "action:" 접두=변경 동작, "reserved"/"overseas-reserved"/"overseas-reserved-asia"=예약, 그 밖=즉시
+    주문. 슬롯이 8 미만이거나 ``_FINGERPRINT_SLOTS``(19) 초과면 손상/변조로 거부한다(예전 ``Fingerprint
+    (*fp)`` 가 필수 필드 부족/인자 과다로 실패하던 것과 같은 fail-closed)."""
     slots = [str(value) for value in row]
     if len(slots) < 8:
         raise ValueError(f"지문 레코드 슬롯이 부족하다(8 미만): {row!r}")
@@ -269,7 +286,7 @@ def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
         raise ValueError(f"지문 레코드 슬롯이 과다하다({_FINGERPRINT_SLOTS} 초과): {row!r}")
     symbol, side, order_type, quantity, limit_price, stop_slot, tif, exchange = slots[:8]
     credit_type, loan_date, session, division, board, derivative_item, overseas_exchange, \
-        currency = slots[8:_FINGERPRINT_SLOTS]
+        currency, algo_strategy, algo_start, algo_end = slots[8:_FINGERPRINT_SLOTS]
     # 저장분은 전부 str 로 복원된다 -- persistence 경계에서 도메인 허용값인지 검증한 뒤 Literal 로 좁힌다
     # (검증 없이 cast 만 하면 손상/변조된 값을 유효 Literal 이라 거짓 단언하게 된다).
     side = cast(Side, _checked_slot(side, _SIDES, "side"))
@@ -283,10 +300,11 @@ def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
             time_in_force=tif, exchange=exchange[len(_ACTION_EXCHANGE_PREFIX):],
         )
     if exchange in _RESERVED_EXCHANGES:
+        # 예약 algo 는 시간창이 없어(정규장 종료 고정) algo_start/algo_end 슬롯은 항상 "" 다 -- 전략만 읽는다.
         return ReservedOrderFingerprint(
             symbol=symbol, side=side, order_type=order_type, quantity=quantity,
             limit_price=limit_price, end_date=stop_slot, exchange=exchange,
-            overseas_exchange=overseas_exchange, currency=currency,
+            overseas_exchange=overseas_exchange, currency=currency, algo_strategy=algo_strategy,
         )
     return ImmediateOrderFingerprint(
         symbol=symbol, side=side, order_type=order_type, quantity=quantity,
@@ -294,6 +312,7 @@ def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
         credit_type=credit_type, loan_date=loan_date,
         session=cast(Session, _checked_slot(session, _SESSIONS, "session")),
         division=division, board=board, derivative_item=derivative_item,
+        algo_strategy=algo_strategy, algo_start=algo_start, algo_end=algo_end,
     )
 
 
@@ -324,6 +343,12 @@ _CHANGE_ACTIONS = frozenset(("cancel", "modify"))
 #: 구성 시점 검증에 쓴다(Order 는 _overseas 를 import 못 해 목록을 직접 든다) -- _overseas/orders.py
 #: `_ORDER_EXCHANGE` 의 US 그룹(market=="US")과 동일해야 하며, 와이어 빌더가 거기서 한 번 더 확인한다.
 _OVERNIGHT_EXCHANGES = frozenset(("NAS", "NYS", "AMS"))
+#: 미국주식 알고리즘(TWAP/VWAP) 분할주문 가능 거래소(시세 EXCD). algo 는 미국(NASD/NYSE/AMEX)만이라
+#: 여기서 구성 시점에 검증한다 -- _overseas/orders.py `_ORDER_EXCHANGE` 의 US 그룹과 동일해야 하며,
+#: 와이어 빌더가 거기서 한 번 더 확인한다(오버나이트와 같은 세 거래소지만 의미가 달라 별도 상수).
+_ALGO_EXCHANGES = frozenset(("NAS", "NYS", "AMS"))
+#: 유효한 algo 전략 값(빈 문자열=비-algo). Order/CLI 가 구성 시점에 이 집합으로 좁힌다.
+_ALGO_STRATEGIES = frozenset(("twap", "vwap"))
 #: 국내 거래소(MIC). ``division``(국내 주문구분)은 이 거래소에서만 유효하다. _domestic/orders.py
 #: `_DOMESTIC_MICS`/`_EXCHANGE_ID` 와 일치해야 한다.
 _DOMESTIC_EXCHANGES = frozenset(("XKRX", "XKOS", "NXTE"))
@@ -399,6 +424,19 @@ def validate_yyyymmdd(value: str, field_name: str) -> None:
         raise KISUsageError(f"{field_name} 는 실재하는 YYYYMMDD 날짜여야 한다: {value!r}") from err
 
 
+def validate_hhmmss(value: str, field_name: str) -> None:
+    """``field_name`` 이 실재하는 HHMMSS 시각인지 확인 -- **정확히 6자리 ASCII 숫자**여야 하고
+    (5/7자리·공백·비-ASCII 숫자는 거부), 형식만 맞고 불가능한 시각(256000 등)도 거부한다. 미국주식
+    algo 분할주문의 집행 시간창(START_TIME/END_TIME)에 쓴다.
+
+    ``str.isdigit`` 은 위첨자·전각 숫자도 참이라 ``str.isascii`` 와 함께 봐 ASCII 0-9 만 허용한다."""
+    if not (isinstance(value, str) and len(value) == 6 and value.isascii() and value.isdigit()):
+        raise KISUsageError(f"{field_name} 는 HHMMSS 6자리 숫자여야 한다: {value!r}")
+    hour, minute, second = int(value[0:2]), int(value[2:4]), int(value[4:6])
+    if hour > 23 or minute > 59 or second > 59:
+        raise KISUsageError(f"{field_name} 는 실재하는 HHMMSS 시각여야 한다: {value!r}")
+
+
 def reject_bad_change_price_shape(action: ChangeAction, limit_price: Decimal | None) -> None:
     """지정가 원주문 정정취소의 가격형상 검증 -- 지정가 전용 자산(주식/해외)이 공유한다.
     정정=>0보다 큰 limit_price, 취소=>limit_price 없음. 파생은 자체 규칙이라 이걸 쓰지 않는다."""
@@ -440,6 +478,14 @@ class Order:
     #: 온-디스크 인코딩이 바이트 동일하다. 채권 매수·기타 주문은 항상 "".
     bond_buy_date: str = ""
     bond_buy_seq: str = ""
+    #: 미국주식 알고리즘 분할주문 전략(TWAP/VWAP; 비-algo 는 ``None``). 미국(NAS/NYS/AMS) 지정가
+    #: 전용이며 ``ORD_DVSN`` 35/36 으로 나간다. 같은 종목·수량·가격이라도 일반주문 vs TWAP vs VWAP 는
+    #: 서로 다른 주문이라 지문에 함께 실어 dedup 을 가른다.
+    algo_strategy: AlgoStrategy | None = None
+    #: algo 집행 시간창(HHMMSS). 둘 다 있으면 ``ALGO_ORD_TMD_DVSN_CD`` "00"(직접입력)로 START_TIME/
+    #: END_TIME 을 싣고, 둘 다 비면 "02"(정규장 종료까지 집행). algo 가 아니면 항상 "".
+    algo_start: str = ""
+    algo_end: str = ""
     client_order_id: str = field(default_factory=mint_client_order_id)
 
     def __post_init__(self) -> None:
@@ -618,6 +664,50 @@ class Order:
                     f"{self.board} 보드는 이 주문구분을 지원하지 않는다(base={base!r})."
                 )
 
+        # 미국주식 algo(TWAP/VWAP) 분할주문 -- 미국(NAS/NYS/AMS) 지정가·정규세션 전용이라 그 밖은
+        # 생성 시점에 fail-closed(신용/파생/채권/국내 division 은 위 블록들이 이미 거부하지만, 명시적
+        # 메시지를 준다). 시간창(algo_start/algo_end)은 둘 다 있거나 둘 다 없어야 하고(있으면 START/
+        # END 로 나가는 직접입력, 없으면 정규장 종료 집행), 있으면 실재 HHMMSS 이고 start < end 여야 한다.
+        if self.algo_strategy is not None:
+            if self.algo_strategy not in _ALGO_STRATEGIES:
+                raise KISUsageError(
+                    f"지원하지 않는 algo_strategy: {self.algo_strategy!r} (twap/vwap)."
+                )
+            if self.exchange not in _ALGO_EXCHANGES:
+                raise KISUsageError(
+                    f"미국주식 algo(TWAP/VWAP)는 미국 거래소만 지원한다 "
+                    f"({'/'.join(sorted(_ALGO_EXCHANGES))}): exchange={self.exchange!r}"
+                )
+            if self.order_type != "limit":
+                raise KISUsageError("미국주식 algo(TWAP/VWAP)는 지정가만 지원한다(limit_price 를 지정하라).")
+            if self.time_in_force != "day":
+                raise KISUsageError(
+                    f"미국주식 algo(TWAP/VWAP)는 time_in_force='day' 만 지원한다: {self.time_in_force!r}"
+                )
+            if self.session != "regular":
+                raise KISUsageError(
+                    f"미국주식 algo(TWAP/VWAP)는 정규 세션 전용이다 -- session={self.session!r} 와 "
+                    f"조합할 수 없다."
+                )
+            if self.credit_type is not None or self.division is not None:
+                raise KISUsageError("미국주식 algo(TWAP/VWAP)는 신용주문·주문구분(division)과 조합할 수 없다.")
+            # 시간창: 둘 다 있거나 둘 다 없음(반쪽은 표현 불가능한 상태).
+            if bool(self.algo_start) != bool(self.algo_end):
+                raise KISUsageError(
+                    "algo 시간창은 시작(algo_start)과 종료(algo_end)를 둘 다 주거나 둘 다 비워야 한다"
+                    "(정규장 종료 집행)."
+                )
+            if self.algo_start:
+                validate_hhmmss(self.algo_start, "algo_start")
+                validate_hhmmss(self.algo_end, "algo_end")
+                if self.algo_start >= self.algo_end:
+                    raise KISUsageError(
+                        f"algo 시간창은 시작이 종료보다 앞서야 한다: {self.algo_start} >= {self.algo_end}"
+                    )
+        elif self.algo_start or self.algo_end:
+            # 전략 없이 시간창만 주는 것은 표현 불가능한 상태(무엇을 분할할지 없음).
+            raise KISUsageError("algo 시간창(algo_start/algo_end)은 algo_strategy 없이는 줄 수 없다.")
+
     @property
     def fingerprint(self) -> ImmediateOrderFingerprint:
         """이 주문의 요청 지문 -- 같은 ``client_order_id`` 를 *다른* 주문에 재사용했는지
@@ -637,6 +727,8 @@ class Order:
             loan_date=self.loan_date or self.bond_buy_date,
             session=self.session, division=self.division or "", board=self.board,
             derivative_item=self.derivative_item or self.bond_buy_seq,
+            algo_strategy=self.algo_strategy or "",
+            algo_start=self.algo_start, algo_end=self.algo_end,
         )
 
     # --- 타입별 생성자(권장 진입점) ------------------------------------
@@ -647,7 +739,9 @@ class Order:
         time_in_force: TimeInForce = "day", exchange: str = "XKRX",
         credit_type: CreditType | None = None, loan_date: str | None = None,
         session: Session = "regular", division: DomesticDivision | None = None,
-        board: DomesticBoard = "KRX", client_order_id: str | None = None,
+        board: DomesticBoard = "KRX",
+        algo_strategy: AlgoStrategy | None = None, algo_start: str = "", algo_end: str = "",
+        client_order_id: str | None = None,
     ) -> Order:
         quantity_dec = coerce_decimal(quantity, "quantity")
         limit_dec = None if limit_price is None else coerce_decimal(limit_price, "limit_price")
@@ -661,13 +755,16 @@ class Order:
                 time_in_force=time_in_force, exchange=exchange,
                 credit_type=credit_type, loan_date=loan_date, session=session,
                 division=division, board=board,
+                algo_strategy=algo_strategy, algo_start=algo_start, algo_end=algo_end,
             )
         return cls(
             symbol=symbol, side=side, order_type=order_type, quantity=quantity_dec,
             limit_price=limit_dec, stop_price=stop_dec,
             time_in_force=time_in_force, exchange=exchange,
             credit_type=credit_type, loan_date=loan_date, session=session,
-            division=division, board=board, client_order_id=client_order_id,
+            division=division, board=board,
+            algo_strategy=algo_strategy, algo_start=algo_start, algo_end=algo_end,
+            client_order_id=client_order_id,
         )
 
     @classmethod
@@ -704,12 +801,17 @@ class Order:
     def limit(cls, symbol: str, *, side: Side, quantity: Numeric, limit_price: Numeric,
               time_in_force: TimeInForce = "day", exchange: str = "XKRX",
               session: Session = "regular", division: DomesticDivision | None = None,
-              board: DomesticBoard = "KRX", client_order_id: str | None = None) -> Order:
+              board: DomesticBoard = "KRX",
+              algo_strategy: AlgoStrategy | None = None, algo_start: str = "", algo_end: str = "",
+              client_order_id: str | None = None) -> Order:
         """지정가 주문. ``session='overnight'`` 은 미국 오버나이트 거래(미국 종목만). ``division`` 은 국내
-        현금주문 전용 주문구분(조건부지정가 등, 가격 필요). ``board`` 는 체결 보드(KRX/NXT/UN=SOR)."""
+        현금주문 전용 주문구분(조건부지정가 등, 가격 필요). ``board`` 는 체결 보드(KRX/NXT/UN=SOR).
+        ``algo_strategy``(twap/vwap)는 미국주식 알고리즘 분할주문으로, ``algo_start``/``algo_end``(HHMMSS)를
+        주면 그 시간창에 집행하고 비우면 정규장 종료까지 집행한다(미국 NAS/NYS/AMS 전용)."""
         return cls._make(symbol, side, "limit", quantity, limit_price=limit_price,
                           time_in_force=time_in_force, exchange=exchange, session=session,
-                          division=division, board=board, client_order_id=client_order_id)
+                          division=division, board=board, algo_strategy=algo_strategy,
+                          algo_start=algo_start, algo_end=algo_end, client_order_id=client_order_id)
 
     @classmethod
     def stop(cls, symbol: str, *, side: Side, quantity: Numeric, stop_price: Numeric,

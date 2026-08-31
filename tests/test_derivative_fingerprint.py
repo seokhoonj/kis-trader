@@ -21,14 +21,14 @@ def _fo_order(**kw):
     return Order(**base)
 
 
-def test_slot_count_is_16():
-    assert _FINGERPRINT_SLOTS == 16
+def test_slot_count_is_19():
+    assert _FINGERPRINT_SLOTS == 19
 
 
 def test_fo_fingerprint_roundtrip_encodes_session_and_item():
     fp = _fo_order().fingerprint
     row = encode_fingerprint(fp)
-    assert len(row) == 16
+    assert len(row) == 19
     back = decode_fingerprint(row)
     assert back == fp
     assert back.session == "night"

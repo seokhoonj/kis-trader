@@ -17,7 +17,7 @@ from typing import TYPE_CHECKING
 from .._stock_base import _StockBase
 from ..bar import Bar, Interval
 from ..errors import KISUsageError
-from ..order import Order, Side, TimeInForce
+from ..order import AlgoStrategy, Order, Side, TimeInForce
 from ..order_book import OrderBook
 from ..quote import Quote
 from ..report import ExecutionReport
@@ -109,27 +109,63 @@ class OverseasStock(_StockBase):
         return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=limit_price,
                            exchange=self.exchange, session="overnight", client_order_id=client_order_id)
 
+    # --- 즉시 주문(정규; 미국주식은 TWAP/VWAP 알고리즘 분할 지원) ---
+    def buy(  # 해외는 algo 파라미터를 더 받는다(도메스틱 베이스보다 넓힌 오버라이드)
+        self, *, quantity: Numeric, limit_price: Numeric | None = None,
+        time_in_force: TimeInForce = "day", client_order_id: str | None = None,
+        algo: AlgoStrategy | None = None, algo_window: tuple[str, str] | None = None,
+    ) -> ExecutionReport:
+        """이 해외 종목을 매수한다 -- 지정가만(``limit_price`` 필수; 시장가 미지원). ``algo``(twap/vwap)를
+        주면 미국주식 알고리즘 분할주문(TWAP/VWAP)으로, ``algo_window=(시작, 종료)``(HHMMSS)를 함께 주면
+        그 시간창에 집행하고 생략하면 정규장 종료까지 집행한다. algo 는 **미국(NAS/NYS/AMS) 실전 전용**
+        이라 그 밖의 거래소·모의투자면 :class:`~kis_trader.errors.KISUsageError` 로 fail-closed 한다.
+
+        이중체결 방지·타임아웃 재시도 금지는 :meth:`~kis_trader._stock_base._StockBase.buy` 와 같은 안전
+        엔진에서 자동 적용된다(접수 거부 ``OrderRejectedError``·타임아웃 ``OrderTimeoutError``)."""
+        return self._client._place_order(self._make_order(
+            "buy", quantity=quantity, limit_price=limit_price, time_in_force=time_in_force,
+            client_order_id=client_order_id, algo=algo, algo_window=algo_window))
+
+    def sell(  # 해외는 algo 파라미터를 더 받는다(도메스틱 베이스보다 넓힌 오버라이드)
+        self, *, quantity: Numeric, limit_price: Numeric | None = None,
+        time_in_force: TimeInForce = "day", client_order_id: str | None = None,
+        algo: AlgoStrategy | None = None, algo_window: tuple[str, str] | None = None,
+    ) -> ExecutionReport:
+        """이 해외 종목을 매도한다 -- 계약은 :meth:`buy` 와 동일(방향만 매도)."""
+        return self._client._place_order(self._make_order(
+            "sell", quantity=quantity, limit_price=limit_price, time_in_force=time_in_force,
+            client_order_id=client_order_id, algo=algo, algo_window=algo_window))
+
     def _make_order(
         self, side: Side, *, quantity: Numeric, limit_price: Numeric | None,
         time_in_force: TimeInForce, client_order_id: str | None,
+        algo: AlgoStrategy | None = None, algo_window: tuple[str, str] | None = None,
     ) -> Order:
         if limit_price is None:
             raise KISUsageError("해외 주문은 지정가만 지원한다 -- limit_price 를 지정하라(시장가 미지원).")
+        # 시간창은 (시작, 종료) 쌍으로만 받는다 -- 형식·범위(HHMMSS, 시작<종료)와 미국·정규세션 강제는
+        # Order 가 생성 시점에 fail-closed 한다(algo 없이 window 만 주는 것도 거기서 거부).
+        if algo_window is not None and algo is None:
+            raise KISUsageError("algo_window 는 algo(twap/vwap) 없이는 줄 수 없다.")
+        algo_start, algo_end = algo_window if algo_window is not None else ("", "")
         return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=limit_price,
                            time_in_force=time_in_force, client_order_id=client_order_id,
-                           exchange=self.exchange)
+                           exchange=self.exchange, algo_strategy=algo,
+                           algo_start=algo_start, algo_end=algo_end)
 
     # --- 예약주문(미국/아시아 자동 라우팅) ---
     def reserve_buy(
         self, *, quantity: Numeric, limit_price: Numeric | None = None, end_date: str | None = None,
         client_order_id: str | None = None, currency: ReservedCurrency | None = None,
+        algo: AlgoStrategy | None = None,
     ) -> ExecutionReport:
         """이 해외 종목의 **예약매수** -- 정규장 시작 전에 걸어두는 예약. **지정가만**(``limit_price``
         필수), ``end_date`` 미지원. 거래소의 시장이 와이어를 자동 라우팅한다: 미국(NAS/NYS/AMS)은
         매수/매도 분리 TR, 아시아(홍콩/상해/심천/일본/베트남)는 공용 TR(TTTS3013U). ``currency`` 는
         홍콩(HKS) 예약의 상품유형(HKD/CNY/USD) 선택 전용이고 **미지정(``None``)이면 홍콩은 HKD**다 --
         미국·기타 아시아 등 그 외 거래소에 ``currency`` 를 주면 :class:`~kis_trader.errors.KISUsageError`
-        로 fail-closed(홍콩만 통화 선택이 있다).
+        로 fail-closed(홍콩만 통화 선택이 있다). ``algo``(twap/vwap)는 미국 예약주문의 알고리즘 분할
+        (정규장 종료 집행 고정, 시간창 없음)로, **미국 실전 전용**이라 아시아·모의투자면 fail-closed 한다.
 
         즉시 :meth:`buy` 와 같은 안전 규칙(이중발주 방지·재시도 금지·주문가능 계좌 가드)을 공유한다.
         반환 :class:`~kis_trader.report.ExecutionReport` 의 ``order_id`` 는 해외예약주문번호,
@@ -140,19 +176,23 @@ class OverseasStock(_StockBase):
         ``OrderRejectedError``, 타임아웃(접수 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile``
         로 확인 -- 재조회는 실전전용)."""
         return self._reserve("buy", quantity=quantity, limit_price=limit_price,
-                             end_date=end_date, client_order_id=client_order_id, currency=currency)
+                             end_date=end_date, client_order_id=client_order_id,
+                             currency=currency, algo=algo)
 
     def reserve_sell(
         self, *, quantity: Numeric, limit_price: Numeric | None = None, end_date: str | None = None,
         client_order_id: str | None = None, currency: ReservedCurrency | None = None,
+        algo: AlgoStrategy | None = None,
     ) -> ExecutionReport:
         """이 해외 종목의 **예약매도**. 계약·안전 규칙은 :meth:`reserve_buy` 와 같다(방향만 매도)."""
         return self._reserve("sell", quantity=quantity, limit_price=limit_price,
-                             end_date=end_date, client_order_id=client_order_id, currency=currency)
+                             end_date=end_date, client_order_id=client_order_id,
+                             currency=currency, algo=algo)
 
-    def _reserve(
+    def _reserve(  # 해외는 currency/algo 파라미터를 더 받는다(베이스보다 넓힌 오버라이드)
         self, side: Side, *, quantity: Numeric, limit_price: Numeric | None, end_date: str | None,
         client_order_id: str | None, currency: ReservedCurrency | None = None,
+        algo: AlgoStrategy | None = None,
     ) -> ExecutionReport:
         if end_date is not None:      # 해외 예약: 지정가만, end_date 미지원(미국·아시아 공통)
             raise KISUsageError("해외 예약주문은 end_date 를 지원하지 않는다.")
@@ -160,5 +200,6 @@ class OverseasStock(_StockBase):
             raise KISUsageError("해외 예약주문은 지정가만 지원한다 -- limit_price 를 지정하라.")
         return self._client._place_overseas_reserved_order(
             symbol=self.symbol, side=side, quantity=quantity, limit_price=limit_price,
-            exchange=self.exchange, currency=currency, client_order_id=client_order_id,
+            exchange=self.exchange, currency=currency, algo_strategy=algo,
+            client_order_id=client_order_id,
         )
