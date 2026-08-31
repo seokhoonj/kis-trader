@@ -15,16 +15,16 @@ from __future__ import annotations
 import sys
 from argparse import Namespace
 from collections.abc import Callable
-from datetime import datetime, timedelta, timezone
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, get_args
 
-from ...execution import build_twap_schedule, run_twap
+from ..._internal._datetime import _KST, _parse_kst_time
+from ...errors import KISError
+from ...execution import execute_twap, make_twap_schedule
 from ...order import DerivativeDivision, Side
 from ..context import account_suffix, resolve_bond, resolve_stock
 from ..errors import CliAborted, CliConfigError
 from .account import _stock_account
-
-_KST_TWAP = timezone(timedelta(hours=9))
 
 if TYPE_CHECKING:
     from ...client import KISClient
@@ -312,25 +312,25 @@ def cmd_sell(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, pro
 
 
 def _twap_start(args: Namespace) -> datetime | None:
-    """--start HHMMSS -> 오늘 KST 그 시각(생략=None=now). 형식 오류는 CliConfigError."""
+    """--start HHMMSS -> 오늘 KST 그 시각(생략=None=지금부터). HHMMSS 파싱은 패키지 ``_parse_kst_time``
+    에 위임하고, 그 형식 오류를 :class:`CliConfigError` 로 옮긴다. 과거 시각 여부는 플래너가 판정한다."""
     raw = getattr(args, "start", None)
     if raw is None:
         return None
-    text = str(raw).strip()
-    if len(text) != 6 or not text.isascii() or not text.isdigit():
-        raise CliConfigError("--start 는 HHMMSS 6자리 숫자여야 합니다.")
-    hour, minute, second = int(text[0:2]), int(text[2:4]), int(text[4:6])
-    if hour > 23 or minute > 59 or second > 59:
-        raise CliConfigError("--start 는 실재하는 HHMMSS 시각이어야 합니다.")
-    today = datetime.now(_KST_TWAP)
-    return today.replace(hour=hour, minute=minute, second=second, microsecond=0)
+    try:
+        clock = _parse_kst_time(str(raw).strip())
+    except KISError as err:
+        raise CliConfigError("--start 는 HHMMSS 6자리 시각이어야 합니다(예: 100000).") from err
+    return datetime.now(_KST).replace(
+        hour=clock.hour, minute=clock.minute, second=clock.second, microsecond=0
+    )
 
 
 def cmd_twap(kis: KISClient, args: Namespace, *, is_tty: bool | None = None,
              prompt: Callable[[str], str] = input) -> Any:
     """국내주식 TWAP 분할주문 -- 기본 dry-run(스케줄 표시), --execute 로 블로킹 실행. 슬라이스마다 시장가."""
     start = _twap_start(args)
-    schedule = build_twap_schedule(
+    schedule = make_twap_schedule(
         symbol=args.identifier, side=args.side, quantity=args.quantity,
         duration=args.over, slices=args.slices, start=start,
     )
@@ -344,7 +344,7 @@ def cmd_twap(kis: KISClient, args: Namespace, *, is_tty: bool | None = None,
     if is_tty is None:
         is_tty = sys.stdin.isatty()
     _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
-    result = run_twap(kis, schedule)
+    result = execute_twap(kis, schedule)
     return {
         **preview,
         "submitted_quantity": result.submitted_quantity,

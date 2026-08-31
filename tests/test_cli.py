@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
@@ -291,7 +292,21 @@ def test_order_paper_noninteractive_with_yes_sends_once():
     assert kis.log == [("buy", "005930", 10, "70000", None, None, None, None)]
 
 
-def test_order_twap_dry_run_shows_schedule():
+_KST_TEST = timezone(timedelta(hours=9))
+
+
+def _freeze_clock(monkeypatch, wall):
+    """schedule 플래너와 order._twap_start 의 ``datetime.now`` 를 고정해 --start 해석·과거판정을 결정적으로."""
+    class _Frozen(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return wall if tz is None else wall.astimezone(tz)
+    monkeypatch.setattr("kis_trader.execution.schedule.datetime", _Frozen)
+    monkeypatch.setattr("kis_trader.cli.commands.order.datetime", _Frozen)
+
+
+def test_order_twap_dry_run_shows_schedule(monkeypatch):
+    _freeze_clock(monkeypatch, datetime(2026, 8, 31, 9, 0, tzinfo=_KST_TEST))  # now 09:00 -> start 10:00 future
     dry = order.cmd_twap(StubKis(), _args(
         ["order", "twap", "005930", "--side", "buy", "--quantity", "100",
          "--over", "20m", "--slices", "4", "--start", "100000"]), is_tty=False)
@@ -300,13 +315,31 @@ def test_order_twap_dry_run_shows_schedule():
     assert len(dry["slices"]) == 4 and "note" in dry
 
 
-def test_order_twap_rejects_session_spill():
+def test_order_twap_rejects_session_spill(monkeypatch):
     # --start 152000 = 15:20, +30m/3 slices spills past 15:30 close -> planner raises.
-    from kis_trader.errors import KISUsageError
+    _freeze_clock(monkeypatch, datetime(2026, 8, 31, 9, 0, tzinfo=_KST_TEST))
     with pytest.raises(KISUsageError, match="정규장"):
         order.cmd_twap(StubKis(), _args(
             ["order", "twap", "005930", "--side", "buy", "--quantity", "9",
              "--over", "30m", "--slices", "3", "--start", "152000"]), is_tty=False)
+
+
+def test_order_twap_rejects_past_start(monkeypatch):
+    # now 12:00, --start 100000 (10:00) is in the past -> planner refuses the burst.
+    _freeze_clock(monkeypatch, datetime(2026, 8, 31, 12, 0, tzinfo=_KST_TEST))
+    with pytest.raises(KISUsageError, match="과거"):
+        order.cmd_twap(StubKis(), _args(
+            ["order", "twap", "005930", "--side", "buy", "--quantity", "9",
+             "--over", "30m", "--slices", "3", "--start", "100000"]), is_tty=False)
+
+
+@pytest.mark.parametrize("bad", ["240000", "96000", "10AA00", "236000"])
+def test_order_twap_rejects_bad_start_hhmmss(monkeypatch, bad):
+    _freeze_clock(monkeypatch, datetime(2026, 8, 31, 9, 0, tzinfo=_KST_TEST))
+    with pytest.raises(CliConfigError):
+        order.cmd_twap(StubKis(), _args(
+            ["order", "twap", "005930", "--side", "buy", "--quantity", "9",
+             "--over", "30m", "--slices", "3", "--start", bad]), is_tty=False)
 
 
 def test_order_division_dry_run_shows_it_and_execute_forwards_it():

@@ -2,22 +2,22 @@
 
 from __future__ import annotations
 
-from .runner import SliceOutcome, TwapExecutionResult, run_twap
+from .runner import TWAPExecutionResult, TWAPSliceOutcome, execute_twap
 from .schedule import (
-    TwapSchedule,
-    TwapSlice,
-    build_twap_schedule,
+    TWAPSchedule,
+    TWAPSlice,
+    make_twap_schedule,
     parse_duration,
     split_quantity,
 )
 
 __all__ = [
-    "SliceOutcome",
-    "TwapExecutionResult",
-    "TwapSchedule",
-    "TwapSlice",
-    "build_twap_schedule",
+    "TWAPExecutionResult",
+    "TWAPSchedule",
+    "TWAPSlice",
+    "TWAPSliceOutcome",
+    "execute_twap",
+    "make_twap_schedule",
     "parse_duration",
-    "run_twap",
     "split_quantity",
 ]

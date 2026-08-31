@@ -1,55 +1,38 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from decimal import Decimal
 
-from kis_trader.execution import TwapExecutionResult
-from kis_trader.report import ExecutionReport, OrderStatus
+from kis_trader.execution import TWAPExecutionResult
 
 _KST = timezone(timedelta(hours=9))
 
 
-class _Stock:
-    def __init__(self, log):
-        self._log = log
-        self._n = 0
-
-    def buy(self, *, quantity):
-        self._n += 1
-        self._log.append(quantity)
-        return ExecutionReport(client_order_id=f"c{self._n}", order_id="o", symbol="005930",
-                               side="buy", status=OrderStatus.FILLED,
-                               filled_quantity=Decimal(quantity), average_price=Decimal(70000),
-                               recorded_at=datetime(2026, 8, 31, 10, tzinfo=_KST))
-
-
-class _Dom:
-    def __init__(self, stock):
-        self._stock = stock
-
-    def stock(self, symbol):
-        return self._stock
-
-
-class _Orders:
-    def reconcile(self, cid):
-        return None
-
-
 class _Kis:
-    def __init__(self, stock):
-        self.domestic = _Dom(stock)
-        self.orders = _Orders()
+    """execute_twap 는 목(mock)으로 가로채므로 클라이언트는 자리표시자면 충분하다."""
 
 
-def test_stock_handle_twap_builds_and_runs():
+def test_stock_handle_twap_builds_schedule_and_delegates(monkeypatch):
+    from kis_trader.domestic import stock as stock_module
     from kis_trader.domestic.stock import DomesticStock
 
-    log = []
-    kis = _Kis(_Stock(log))
+    captured = {}
+
+    def _fake_execute(client, schedule):
+        captured["client"] = client
+        captured["schedule"] = schedule
+        return TWAPExecutionResult(schedule=schedule, outcomes=())
+
+    monkeypatch.setattr(stock_module, "execute_twap", _fake_execute)
+
+    kis = _Kis()
     handle = DomesticStock(kis, "005930", market="KRX")
+    # start well in the future so the planner's past-guard/session-window accept it deterministically.
     result = handle.twap(side="buy", quantity=100, over="20m", slices=4,
-                         start=datetime(2026, 8, 31, 10, tzinfo=_KST))
-    assert isinstance(result, TwapExecutionResult)
-    assert log == [25, 25, 25, 25]
-    assert result.filled_quantity == Decimal(100)
+                         start=datetime(2099, 1, 5, 10, tzinfo=_KST))
+
+    assert isinstance(result, TWAPExecutionResult)
+    assert captured["client"] is kis                                  # delegated to the session client
+    schedule = captured["schedule"]
+    assert schedule.symbol == "005930" and schedule.side == "buy"
+    assert schedule.total_quantity == 100
+    assert [s.quantity for s in schedule.slices] == [25, 25, 25, 25]  # 100 over 4 slices, evenly

@@ -193,20 +193,23 @@ kis order buy AAPL 100 --venue overseas --limit-price 150 --reserve --algo vwap 
 ```python
 stock = kis.domestic.stock("005930")
 result = stock.twap(side="buy", quantity=100, over="30m", slices=3)  # 지금부터 30분에 걸쳐 3회
-# start 지정: 특정 시각부터 (오늘 KST)
+# start 지정: 앞으로의 특정 시각부터 (오늘 KST). 과거 시각은 거부됩니다(아래 참조).
 from datetime import datetime, timezone, timedelta
 kst = timezone(timedelta(hours=9))
 stock.twap(side="buy", quantity=100, over="1h", slices=4,
-           start=datetime.now(kst).replace(hour=13, minute=0, second=0, microsecond=0))
+           start=datetime(2026, 9, 1, 13, 0, tzinfo=kst))  # 미래의 13:00 부터
 ```
 
 `over` 는 총 소요시간(`30m`/`1h`/`1h30m`/`90s`), `slices` 는 분할 횟수입니다. 슬라이스 간격은
 `over/slices` 로 파생되고 수량은 균등 분할하되 나머지는 앞쪽 슬라이스에 1주씩 더합니다(100주·3회 =
-34·33·33). **모든 슬라이스가 KRX 정규장(09:00~15:30 KST) 안이어야** 하며 벗어나면 발주 없이
-오류입니다(시간외·NXT 는 미지원). 반환 `TwapExecutionResult` 는 슬라이스별 결과와 접수·체결 수량,
-미달분(`shortfall`), 체결가중 평균단가를 담습니다. 한 슬라이스가 거부·타임아웃이면 그 슬라이스만
-기록하고 다음 슬라이스를 계속하며, `Ctrl-C` 는 남은 슬라이스를 멈추고 여기까지의 부분 결과를
-반환합니다(이미 낸 시장가 주문은 되돌리지 않습니다).
+34·33·33). **모든 슬라이스가 base 당일의 KRX 정규장(09:00~15:30 KST) 안이어야** 하며 벗어나면(익일
+이월 포함) 발주 없이 오류입니다(시간외·NXT 는 미지원). **`start` 는 tz-aware(KST) 여야 하고 과거일 수
+없습니다** — 과거 시작은 모든 슬라이스를 즉시 연속 발주(버스트)해 TWAP 를 무의미하게 만들므로 거부합니다
+(생략하면 지금부터). 반환 `TWAPExecutionResult` 는 슬라이스별 결과와 접수·체결 수량, 미달분(`shortfall`),
+체결가중 평균단가를 담습니다(집계는 발주 직후 재조회한 스냅샷 기준). 한 슬라이스가 거부·타임아웃이면 그
+슬라이스만 기록하고 다음 슬라이스를 계속하며, `Ctrl-C` 는 남은 슬라이스를 멈추고 여기까지의 부분 결과를
+반환합니다(이미 낸 시장가 주문은 되돌리지 않습니다). 조회전용 계좌·인증 오류 등은 전파되며, 그 전에
+발주된 슬라이스는 저장소에 기록돼 `kis.orders.reconcile` 로 사후 확인할 수 있습니다.
 
 CLI 는 기본이 **dry-run**(스케줄만 표시, 발주 없음)이고 `--execute` 로 블로킹 실행합니다:
 
