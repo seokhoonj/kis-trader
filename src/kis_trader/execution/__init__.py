@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from .runner import SliceOutcome, TwapExecutionResult, run_twap
 from .schedule import (
     TwapSchedule,
     TwapSlice,
@@ -11,9 +12,12 @@ from .schedule import (
 )
 
 __all__ = [
+    "SliceOutcome",
+    "TwapExecutionResult",
     "TwapSchedule",
     "TwapSlice",
     "build_twap_schedule",
     "parse_duration",
+    "run_twap",
     "split_quantity",
 ]
