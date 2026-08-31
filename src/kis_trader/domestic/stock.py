@@ -11,12 +11,13 @@
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from .._stock_base import _StockBase
 from ..bar import Bar, Interval
 from ..errors import KISUsageError
+from ..execution import TWAPExecutionResult, execute_twap, make_twap_schedule
 from ..instrument import DomesticBoard, resolve_market
 from ..order import (
     _LIMIT_BASED_DIVISIONS,
@@ -494,6 +495,21 @@ class DomesticStock(_StockBase):
             "sell", quantity=quantity, limit_price=limit_price, time_in_force=time_in_force,
             division=division, stop_price=stop_price, client_order_id=client_order_id,
         ))
+
+    def twap(
+        self, *, side: Side, quantity: int, over: str | timedelta, slices: int,
+        start: datetime | None = None,
+    ) -> TWAPExecutionResult:
+        """이 종목을 **TWAP 분할**로 매매한다(블로킹) -- ``quantity`` 주를 ``over`` 시간에 걸쳐 ``slices``
+        번 시장가로 나눠 발주한다. ``start`` 미지정이면 지금부터(과거 시각은 거부). 모든 슬라이스는 KRX
+        정규장(09:00~15:30) 안이어야 하며(아니면 :class:`~kis_trader.errors.KISUsageError`), 스케줄 기간
+        내내 호출 스레드를 점유한다. 반환 :class:`~kis_trader.execution.TWAPExecutionResult` 는 슬라이스별
+        결과·체결 집계."""
+        schedule = make_twap_schedule(
+            symbol=self.symbol, side=side, quantity=quantity, duration=over, slices=slices,
+            start=start,
+        )
+        return execute_twap(self._client, schedule)
 
     def _make_order(
         self, side: Side, *, quantity: Numeric, limit_price: Numeric | None,

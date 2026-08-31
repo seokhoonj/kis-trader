@@ -15,8 +15,12 @@ from __future__ import annotations
 import sys
 from argparse import Namespace
 from collections.abc import Callable
+from datetime import datetime
 from typing import TYPE_CHECKING, Any, get_args
 
+from ..._internal._datetime import _KST, _parse_kst_time
+from ...errors import KISError
+from ...execution import execute_twap, make_twap_schedule
 from ...order import DerivativeDivision, Side
 from ..context import account_suffix, resolve_bond, resolve_stock
 from ..errors import CliAborted, CliConfigError
@@ -305,6 +309,55 @@ def cmd_buy(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prom
 
 def cmd_sell(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
     return _preview_or_submit_order(kis, args, side="sell", is_tty=is_tty, prompt=prompt)
+
+
+def _twap_start(args: Namespace) -> datetime | None:
+    """--start HHMMSS -> 오늘 KST 그 시각(생략=None=지금부터). HHMMSS 파싱은 패키지 ``_parse_kst_time``
+    에 위임하고, 그 형식 오류를 :class:`CliConfigError` 로 옮긴다. 과거 시각 여부는 플래너가 판정한다."""
+    raw = getattr(args, "start", None)
+    if raw is None:
+        return None
+    try:
+        clock = _parse_kst_time(str(raw).strip())
+    except KISError as err:
+        raise CliConfigError("--start 는 HHMMSS 6자리 시각이어야 합니다(예: 100000).") from err
+    return datetime.now(_KST).replace(
+        hour=clock.hour, minute=clock.minute, second=clock.second, microsecond=0
+    )
+
+
+def cmd_twap(kis: KISClient, args: Namespace, *, is_tty: bool | None = None,
+             prompt: Callable[[str], str] = input) -> Any:
+    """국내주식 TWAP 분할주문 -- 기본 dry-run(스케줄 표시), --execute 로 블로킹 실행. 슬라이스마다 시장가."""
+    start = _twap_start(args)
+    schedule = make_twap_schedule(
+        symbol=args.identifier, side=args.side, quantity=args.quantity,
+        duration=args.over, slices=args.slices, start=start,
+    )
+    preview = {
+        "symbol": schedule.symbol, "side": schedule.side,
+        "slices": [{"at": s.at.isoformat(), "quantity": s.quantity} for s in schedule.slices],
+        "total_quantity": schedule.total_quantity,
+    }
+    if args.execute is None:
+        return {**preview, "note": _DRY_RUN_NOTE}
+    if is_tty is None:
+        is_tty = sys.stdin.isatty()
+    _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
+    result = execute_twap(kis, schedule)
+    return {
+        **preview,
+        "submitted_quantity": result.submitted_quantity,
+        "filled_quantity": str(result.filled_quantity),
+        "shortfall": str(result.shortfall),
+        "average_price": None if result.average_price is None else str(result.average_price),
+        "outcomes": [
+            {"at": o.at.isoformat(), "quantity": o.quantity,
+             "order_id": None if o.report is None else o.report.order_id,
+             "error": o.error}
+            for o in result.outcomes
+        ],
+    }
 
 
 def cmd_reconcile(kis: KISClient, args: Namespace) -> Any:

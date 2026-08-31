@@ -273,6 +273,16 @@ def build_parser() -> argparse.ArgumentParser:
     _add_order_gate(rmod)
     rmod.set_defaults(func=order.cmd_modify_reserved)
 
+    twap = leaf(order_sub, "twap")
+    twap.add_argument("identifier")
+    twap.add_argument("--side", choices=list(get_args(Side)), required=True, help="매수/매도")
+    twap.add_argument("--quantity", type=int, required=True, help="총 수량(주)")
+    twap.add_argument("--over", required=True, help="총 소요시간(예: 30m/1h/1h30m)")
+    twap.add_argument("--slices", type=int, required=True, help="분할 횟수")
+    twap.add_argument("--start", default=None, help="시작 시각 HHMMSS(오늘 KST, 생략=지금)")
+    _add_order_gate(twap)
+    twap.set_defaults(func=order.cmd_twap)
+
     return parser
 
 
