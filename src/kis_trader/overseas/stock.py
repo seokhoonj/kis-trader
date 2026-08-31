@@ -116,9 +116,12 @@ class OverseasStock(_StockBase):
         algo: AlgoStrategy | None = None, algo_window: tuple[str, str] | None = None,
     ) -> ExecutionReport:
         """이 해외 종목을 매수한다 -- 지정가만(``limit_price`` 필수; 시장가 미지원). ``algo``(twap/vwap)를
-        주면 미국주식 알고리즘 분할주문(TWAP/VWAP)으로, ``algo_window=(시작, 종료)``(HHMMSS)를 함께 주면
-        그 시간창에 집행하고 생략하면 정규장 종료까지 집행한다. algo 는 **미국(NAS/NYS/AMS) 실전 전용**
-        이라 그 밖의 거래소·모의투자면 :class:`~kis_trader.errors.KISUsageError` 로 fail-closed 한다.
+        주면 미국주식 알고리즘 분할주문(TWAP/VWAP)으로, ``algo_window=(시작, 종료)``(**KST HHMMSS**)를 함께
+        주면 그 시간창에 집행하고 생략하면 정규장 종료까지 집행한다. 시각은 **KST 기준**이라 미국 정규장을
+        KST 로 적어야 한다(썸머타임 EDT 22:30~05:00 / 겨울 EST 23:30~06:00; 이 밖이면 서버가 "장시간
+        벗어남"으로 거부). algo 는 **미국(NAS/NYS/AMS) 실전 전용**이고 **최소 10주**라, 그 밖의 거래소·모의
+        투자·10주 미만이면 거래소가 접수 거부(``OrderRejectedError``)하거나 :class:`~kis_trader.errors.
+        KISUsageError` 로 fail-closed 한다.
 
         이중체결 방지·타임아웃 재시도 금지는 :meth:`~kis_trader._stock_base._StockBase.buy` 와 같은 안전
         엔진에서 자동 적용된다(접수 거부 ``OrderRejectedError``·타임아웃 ``OrderTimeoutError``)."""

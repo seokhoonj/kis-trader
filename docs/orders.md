@@ -156,19 +156,22 @@ account.cancel_reserved_order(report.order_id, receipt_date="20240102")  # 미�
 ## 미국주식 TWAP/VWAP 분할주문
 
 미국(NAS/NYS/AMS) 주식은 KIS 서버가 조건에 맞춰 주문을 쪼개 집행하는 알고리즘 분할주문을
-지원합니다 — `algo="twap"`(시간 기준)/`"vwap"`(체결량 기준). **미국·실전 전용**이라 그 밖의
-거래소·모의투자면 오류입니다.
+지원합니다 — `algo="twap"`(시간 기준)/`"vwap"`(체결량 기준). **미국·실전 전용**이고 **최소 10주**라,
+그 밖의 거래소·모의투자·10주 미만이면 오류입니다.
 
 ```python
 aapl = kis.overseas.stock("AAPL")
-aapl.buy(quantity=100, limit_price=150, algo="twap",
-         algo_window=("093000", "160000"))   # 09:30~16:00 시간창에 분할 집행(HHMMSS)
-aapl.buy(quantity=100, limit_price=150, algo="vwap")  # 시간창 생략 = 정규장 종료까지 집행
-aapl.reserve_buy(quantity=100, limit_price=150, algo="twap")  # 예약 algo = 정규장 종료 고정
+# 시간창은 KST HHMMSS -- 미국 정규장을 KST 로 적습니다(EDT 22:30~05:00 / EST 23:30~06:00).
+aapl.buy(quantity=10, limit_price=150, algo="twap",
+         algo_window=("223000", "050000"))   # 미국 정규장 전체를 KST 로(썸머타임 예)
+aapl.buy(quantity=10, limit_price=150, algo="vwap")  # 시간창 생략 = 정규장 종료까지 집행
+aapl.reserve_buy(quantity=10, limit_price=150, algo="twap")  # 예약 algo = 정규장 종료 고정
 ```
 
 즉시주문은 `algo_window=(시작, 종료)` 로 집행 구간을 정하거나 생략하면 정규장 종료까지 집행합니다.
-예약(`reserve_buy`/`reserve_sell`)의 algo 는 정규장 종료 집행 고정이라 시간창이 없습니다. 체결·미체결
+**시각은 KST 기준**이라 미국 정규장을 KST 로 적어야 하며(EDT 22:30~05:00 / EST 23:30~06:00), 이 밖이면
+서버가 "시작시간이 장시간을 벗어났습니다"로 거부합니다. 예약(`reserve_buy`/`reserve_sell`)의 algo 는
+정규장 종료 집행 고정이라 시간창이 없습니다(예약 접수 자체는 10:00~22:20 KST 에만 가능). 체결·미체결
 진행은 `kis.account.overseas.algo_orders()`/`.algo_executions()` 로 조회합니다. 접수된 algo 원주문의
 정정·취소는 일반 해외주문과 같은 `kis.orders.modify`/`cancel` 로 원주문번호를 지목합니다(정정·취소
 와이어에는 분할 구분이 실리지 않습니다).
@@ -176,9 +179,10 @@ aapl.reserve_buy(quantity=100, limit_price=150, algo="twap")  # 예약 algo = �
 CLI:
 
 ```bash
-kis order buy AAPL 100 --venue overseas --limit-price 150 \
-  --algo twap --algo-start 093000 --algo-end 160000 --execute real --yes
-kis order buy AAPL 100 --venue overseas --limit-price 150 --reserve --algo vwap \
+# --algo-start/--algo-end 는 KST HHMMSS(미국 정규장을 KST 로: EDT 22:30~05:00). 최소 10주.
+kis order buy AAPL 10 --venue overseas --limit-price 150 \
+  --algo twap --algo-start 223000 --algo-end 050000 --execute real --yes
+kis order buy AAPL 10 --venue overseas --limit-price 150 --reserve --algo vwap \
   --execute real --yes           # 예약 algo(정규장 종료 고정)
 ```
 
