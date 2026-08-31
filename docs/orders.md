@@ -182,6 +182,40 @@ kis order buy AAPL 100 --venue overseas --limit-price 150 --reserve --algo vwap 
   --execute real --yes           # 예약 algo(정규장 종료 고정)
 ```
 
+## 국내주식 TWAP 분할 실행
+
+국내(KRX)에는 서버측 알고리즘 분할주문이 없어, `stock.twap(...)` 이 클라이언트에서 총 수량을
+시간에 걸쳐 균등 분할해 **여러 번 시장가로** 발주합니다. 미국 algo 가 서버에 위임하는 것과 달리
+이쪽은 호출 스레드가 스케줄 기간 내내 대기하며 각 슬라이스를 직접 냅니다(**포그라운드 블로킹**).
+각 슬라이스는 고유 주문번호를 가진 일반 국내주문이라 이중체결 방지·타임아웃 재시도 금지·재조회는
+기존 안전 코어가 그대로 적용됩니다.
+
+```python
+stock = kis.domestic.stock("005930")
+result = stock.twap(side="buy", quantity=100, over="30m", slices=3)  # 지금부터 30분에 걸쳐 3회
+# start 지정: 특정 시각부터 (오늘 KST)
+from datetime import datetime, timezone, timedelta
+kst = timezone(timedelta(hours=9))
+stock.twap(side="buy", quantity=100, over="1h", slices=4,
+           start=datetime.now(kst).replace(hour=13, minute=0, second=0, microsecond=0))
+```
+
+`over` 는 총 소요시간(`30m`/`1h`/`1h30m`/`90s`), `slices` 는 분할 횟수입니다. 슬라이스 간격은
+`over/slices` 로 파생되고 수량은 균등 분할하되 나머지는 앞쪽 슬라이스에 1주씩 더합니다(100주·3회 =
+34·33·33). **모든 슬라이스가 KRX 정규장(09:00~15:30 KST) 안이어야** 하며 벗어나면 발주 없이
+오류입니다(시간외·NXT 는 미지원). 반환 `TwapExecutionResult` 는 슬라이스별 결과와 접수·체결 수량,
+미달분(`shortfall`), 체결가중 평균단가를 담습니다. 한 슬라이스가 거부·타임아웃이면 그 슬라이스만
+기록하고 다음 슬라이스를 계속하며, `Ctrl-C` 는 남은 슬라이스를 멈추고 여기까지의 부분 결과를
+반환합니다(이미 낸 시장가 주문은 되돌리지 않습니다).
+
+CLI 는 기본이 **dry-run**(스케줄만 표시, 발주 없음)이고 `--execute` 로 블로킹 실행합니다:
+
+```bash
+kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3   # dry-run: 스케줄 미리보기
+kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3 \
+  --start 130000 --execute paper --yes                                  # 13:00 시작, 실제 실행
+```
+
 ## 선물·옵션 주문
 
 국내 선물·옵션은 계약 핸들에서 바로 매매합니다 — 선물은 `kis.domestic.futures(code)`, 옵션은
