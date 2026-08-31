@@ -291,6 +291,24 @@ def test_order_paper_noninteractive_with_yes_sends_once():
     assert kis.log == [("buy", "005930", 10, "70000", None, None, None, None)]
 
 
+def test_order_twap_dry_run_shows_schedule():
+    dry = order.cmd_twap(StubKis(), _args(
+        ["order", "twap", "005930", "--side", "buy", "--quantity", "100",
+         "--over", "20m", "--slices", "4", "--start", "100000"]), is_tty=False)
+    assert dry["symbol"] == "005930" and dry["side"] == "buy"
+    assert [s["quantity"] for s in dry["slices"]] == [25, 25, 25, 25]
+    assert len(dry["slices"]) == 4 and "note" in dry
+
+
+def test_order_twap_rejects_session_spill():
+    # --start 152000 = 15:20, +30m/3 slices spills past 15:30 close -> planner raises.
+    from kis_trader.errors import KISUsageError
+    with pytest.raises(KISUsageError, match="정규장"):
+        order.cmd_twap(StubKis(), _args(
+            ["order", "twap", "005930", "--side", "buy", "--quantity", "9",
+             "--over", "30m", "--slices", "3", "--start", "152000"]), is_tty=False)
+
+
 def test_order_division_dry_run_shows_it_and_execute_forwards_it():
     # 최유리지정가(immediate_limit): 시장이 가격을 정하므로 limit_price 없이. dry-run 은 티켓에 노출.
     dry = order.cmd_buy(StubKis(), _args(
