@@ -65,9 +65,12 @@ _KST = timezone(timedelta(hours=9))
 #: 취소가 접수일자를 읽게(전엔 미영속 _raw 에만 있어 재시작하면 취소 불가). 지문 위치 형식도 v9 에서
 #: 16-슬롯(예약 overseas_exchange·currency)으로 늘었으나 구 14-슬롯 이하 레코드는 decode 가 뒤쪽
 #: 기본값으로 채워 그대로 읽고, 구버전 리포트의 누락 receipt_date 키는 None 으로 로드된다(하위호환).
-_SCHEMA_VERSION = 9
+#: v10: 지문 위치 형식이 19-슬롯(미국주식 algo 전략·시작·종료)으로 늘었으나 구 16-슬롯 이하 레코드는
+#: decode 가 뒤쪽 기본값("")으로 채워 그대로 읽는다(비-algo 주문은 dedup 정체성 불변). 리포트 형상은
+#: v9 과 동일하다.
+_SCHEMA_VERSION = 10
 #: 읽을 수 있는 스키마 버전 집합(이 밖은 UnsupportedSchemaVersionError 로 거부).
-_READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 9})
+_READABLE_SCHEMA_VERSIONS = frozenset({1, 2, 3, 4, 5, 6, 7, 8, 9, 10})
 #: 완료(비-in-flight) 리포트 보존 기본 일수 -- 이 이후엔 정리(무한 성장 방지). client_order_id
 #: 가 날짜를 포함하므로 같은 id 재전송 위험 창은 당일이라, 넉넉한 기본값이 dedup 을 약화하지 않는다.
 _DEFAULT_RETENTION_DAYS = 7

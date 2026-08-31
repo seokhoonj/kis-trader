@@ -153,6 +153,35 @@ report = kis.overseas.stock("AAPL").reserve_buy(quantity=1, limit_price=150)
 account.cancel_reserved_order(report.order_id, receipt_date="20240102")  # 미국 취소 = 예약번호+접수일자
 ```
 
+## 미국주식 TWAP/VWAP 분할주문
+
+미국(NAS/NYS/AMS) 주식은 KIS 서버가 조건에 맞춰 주문을 쪼개 집행하는 알고리즘 분할주문을
+지원합니다 — `algo="twap"`(시간 기준)/`"vwap"`(체결량 기준). **미국·실전 전용**이라 그 밖의
+거래소·모의투자면 오류입니다.
+
+```python
+aapl = kis.overseas.stock("AAPL")
+aapl.buy(quantity=100, limit_price=150, algo="twap",
+         algo_window=("093000", "160000"))   # 09:30~16:00 시간창에 분할 집행(HHMMSS)
+aapl.buy(quantity=100, limit_price=150, algo="vwap")  # 시간창 생략 = 정규장 종료까지 집행
+aapl.reserve_buy(quantity=100, limit_price=150, algo="twap")  # 예약 algo = 정규장 종료 고정
+```
+
+즉시주문은 `algo_window=(시작, 종료)` 로 집행 구간을 정하거나 생략하면 정규장 종료까지 집행합니다.
+예약(`reserve_buy`/`reserve_sell`)의 algo 는 정규장 종료 집행 고정이라 시간창이 없습니다. 체결·미체결
+진행은 `kis.account.overseas.algo_orders()`/`.algo_executions()` 로 조회합니다. 접수된 algo 원주문의
+정정·취소는 일반 해외주문과 같은 `kis.orders.modify`/`cancel` 로 원주문번호를 지목합니다(정정·취소
+와이어에는 분할 구분이 실리지 않습니다).
+
+CLI:
+
+```bash
+kis order buy AAPL 100 --venue overseas --limit-price 150 \
+  --algo twap --algo-start 093000 --algo-end 160000 --execute real --yes
+kis order buy AAPL 100 --venue overseas --limit-price 150 --reserve --algo vwap \
+  --execute real --yes           # 예약 algo(정규장 종료 고정)
+```
+
 ## 선물·옵션 주문
 
 국내 선물·옵션은 계약 핸들에서 바로 매매합니다 — 선물은 `kis.domestic.futures(code)`, 옵션은

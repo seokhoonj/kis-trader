@@ -306,20 +306,20 @@ def test_bond_forbids_stray_derivative_item():
 
 
 def test_fingerprint_byte_compat_unchanged_for_existing_orders():
-    # 채권 매수·주식·파생 주문은 lot 슬롯을 "" 로 두므로 온-디스크 16-슬롯 인코딩이 종전과 바이트
-    # 동일해야 한다(loan_date 슬롯 idx9, derivative_item 슬롯 idx13 이 "").
+    # 채권 매수·주식·파생 주문은 lot 슬롯을 "" 로 두므로 온-디스크 19-슬롯 인코딩이 종전과 바이트
+    # 동일해야 한다(loan_date 슬롯 idx9, derivative_item 슬롯 idx13, algo 슬롯 idx16..18 이 "").
     from kis_trader.order import encode_fingerprint
     bond_buy = _bond_order()                    # side="buy", lot 슬롯 미설정
     enc = encode_fingerprint(bond_buy.fingerprint)
-    assert len(enc) == 16
+    assert len(enc) == 19
     assert enc == ["KR2033022D33", "buy", "limit", "10", "10000", "", "day", "BOND",
-                   "", "", "regular", "", "KRX", "", "", "HKD"]
+                   "", "", "regular", "", "KRX", "", "", "HKD", "", "", ""]
     # 매도는 lot 슬롯에 BUY_DT/BUY_SEQ 를 실어 매수와 구분된다(idx9=BUY_DT, idx13=BUY_SEQ).
     sell = _bond_order(side="sell", bond_buy_date="20240215", bond_buy_seq="1")
     enc_sell = encode_fingerprint(sell.fingerprint)
     assert enc_sell[9] == "20240215"
     assert enc_sell[13] == "1"
-    assert len(enc_sell) == 16
+    assert len(enc_sell) == 19
 
 
 # --- 정정·취소 와이어 빌더(TTTC0953U, 실전 전용) ------------------------------

@@ -22,6 +22,7 @@ from ..._internal._response import _fetch_paginated_rows
 from ..._internal._wire import format_wire_decimal, required_int
 from ...errors import KISError, KISUsageError, OrderTimeoutError
 from ...order import (
+    AlgoStrategy,
     ChangeAction,
     ImmediateOrderFingerprint,
     Order,
@@ -67,6 +68,14 @@ _ORDER_TR: dict[tuple[str, Side, Environment], str] = {
     ("VN", "buy", "paper"): "VTTS0311U", ("VN", "sell", "paper"): "VTTS0310U",
 }
 _ORD_DVSN_LIMIT = "00"  # 지정가
+#: 미국주식 알고리즘 분할주문 전략 -> 주문구분(ORD_DVSN). 지정가(00) 대신 실린다. KIS 코드표(공지 2025-05-23).
+_ORD_DVSN_ALGO = {"twap": "35", "vwap": "36"}
+#: 알고리즘주문시간구분코드(ALGO_ORD_TMD_DVSN_CD) -- 시간창을 주면 "00"(직접입력, START/END 필수),
+#: 안 주면 "02"(정규장 종료까지 집행). 미국주식 algo(TWAP/VWAP) 전용 필드.
+_ALGO_TMD_DIRECT = "00"
+_ALGO_TMD_CLOSE = "02"
+#: 미국주식 algo 가능 시장 그룹(`_ORDER_EXCHANGE` 의 market 값). algo 는 미국만.
+_ALGO_MARKET = "US"
 
 
 def make_order_request_from_fields(
@@ -81,6 +90,9 @@ def make_order_request_from_fields(
     environment: Environment,
     order_type: OrderType = "limit",
     time_in_force: TimeInForce = "day",
+    algo_strategy: AlgoStrategy | None = None,
+    algo_start: str = "",
+    algo_end: str = "",
 ) -> WireRequest:
     """해외 주문의 :class:`~kis_trader.order.WireRequest` 를 조립한다.
 
@@ -124,6 +136,24 @@ def make_order_request_from_fields(
         "ORD_SVR_DVSN_CD": "0",
         "ORD_DVSN": _ORD_DVSN_LIMIT,
     }
+    if algo_strategy is not None:
+        # 미국주식 algo(TWAP/VWAP): ORD_DVSN 을 35/36 으로 바꾸고 시간구분/시간창을 싣는다. 비-algo 는
+        # 이 블록을 건너뛰어 와이어가 종전과 바이트 동일하다(회귀 0). algo 는 미국 실전 전용 -- Order 가
+        # 이미 미국·지정가·정규세션을 강제하지만, 와이어 빌더에서 시장·환경을 한 번 더 fail-closed 한다.
+        if environment == "paper":
+            raise KISUsageError("미국주식 algo(TWAP/VWAP) 주문은 모의투자 미지원 -- 실전에서만.")
+        if market != _ALGO_MARKET:
+            raise KISUsageError(f"미국주식 algo(TWAP/VWAP)는 미국 거래소만 지원한다: {exchange!r}.")
+        try:
+            body["ORD_DVSN"] = _ORD_DVSN_ALGO[algo_strategy]
+        except KeyError:
+            raise KISUsageError(f"지원하지 않는 algo 전략: {algo_strategy!r} (twap/vwap).") from None
+        if algo_start or algo_end:
+            body["ALGO_ORD_TMD_DVSN_CD"] = _ALGO_TMD_DIRECT
+            body["START_TIME"] = algo_start
+            body["END_TIME"] = algo_end
+        else:
+            body["ALGO_ORD_TMD_DVSN_CD"] = _ALGO_TMD_CLOSE
     if side == "sell":
         body["SLL_TYPE"] = "00"        # 매도 표시(매수는 필드 없음)
     return WireRequest("POST", _ORDER_PATH, tr_id, body)
@@ -147,6 +177,8 @@ def make_order_request(
         limit_price=order.limit_price, exchange=order.exchange,
         cano=cano, product_code=product_code, environment=environment,
         order_type=order.order_type, time_in_force=order.time_in_force,
+        algo_strategy=order.algo_strategy,
+        algo_start=order.algo_start, algo_end=order.algo_end,
     )
 
 

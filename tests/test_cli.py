@@ -51,11 +51,15 @@ class _Handle:
     def quote(self):
         self._log.append(("quote", self._code)); return "QUOTE"
 
-    def buy(self, *, quantity, limit_price, division=None, stop_price=None):
-        self._log.append(("buy", self._code, quantity, limit_price, division, stop_price)); return "REPORT"
+    def buy(self, *, quantity, limit_price, division=None, stop_price=None,
+            algo=None, algo_window=None):
+        self._log.append(("buy", self._code, quantity, limit_price, division, stop_price,
+                          algo, algo_window)); return "REPORT"
 
-    def sell(self, *, quantity, limit_price, division=None, stop_price=None):
-        self._log.append(("sell", self._code, quantity, limit_price, division, stop_price)); return "REPORT"
+    def sell(self, *, quantity, limit_price, division=None, stop_price=None,
+             algo=None, algo_window=None):
+        self._log.append(("sell", self._code, quantity, limit_price, division, stop_price,
+                          algo, algo_window)); return "REPORT"
 
     def reserve_buy(self, *, quantity, limit_price=None, client_order_id=None, **kwargs):
         self._log.append(("reserve_buy", self._code, quantity, limit_price, kwargs)); return "REPORT"
@@ -284,7 +288,7 @@ def test_order_paper_noninteractive_with_yes_sends_once():
                   "--limit-price", "70000", "--execute", "paper", "--yes"])
     kis = StubKis()
     assert order.cmd_buy(kis, args, is_tty=False) == "REPORT"
-    assert kis.log == [("buy", "005930", 10, "70000", None, None)]
+    assert kis.log == [("buy", "005930", 10, "70000", None, None, None, None)]
 
 
 def test_order_division_dry_run_shows_it_and_execute_forwards_it():
@@ -297,7 +301,7 @@ def test_order_division_dry_run_shows_it_and_execute_forwards_it():
     order.cmd_buy(kis, _args(["--profile", "paper", "order", "buy", "005930", "10",
                               "--division", "immediate_limit", "--execute", "paper", "--yes"]),
                   is_tty=False)
-    assert kis.log == [("buy", "005930", 10, None, "immediate_limit", None)]
+    assert kis.log == [("buy", "005930", 10, None, "immediate_limit", None, None, None)]
 
 
 def test_order_division_rejected_for_overseas():
@@ -317,7 +321,7 @@ def test_order_domestic_stop_price_dry_run_and_execute_forwards_it():
     order.cmd_buy(kis, _args(["--profile", "paper", "order", "buy", "005930", "10",
                               "--limit-price", "70000", "--stop-price", "69000",
                               "--execute", "paper", "--yes"]), is_tty=False)
-    assert kis.log == [("buy", "005930", 10, "70000", None, "69000")]
+    assert kis.log == [("buy", "005930", 10, "70000", None, "69000", None, None)]
 
 
 def test_order_domestic_stop_price_requires_limit():
@@ -436,6 +440,90 @@ def test_reserved_currency_taxonomy_exported():
     assert get_args(ReservedCurrency) == ("HKD", "CNY", "USD")
 
 
+# --- 미국주식 algo(TWAP/VWAP) 분할주문 CLI ----------------------------------
+
+def test_algo_strategy_taxonomy_exported():
+    from typing import get_args
+
+    from kis_trader import AlgoStrategy
+    assert get_args(AlgoStrategy) == ("twap", "vwap")
+
+
+def test_order_overseas_algo_dry_run_shows_algo_fields():
+    dry = order.cmd_buy(StubKis(), _args(
+        ["order", "buy", "AAPL", "10", "--venue", "overseas", "--limit-price", "150",
+         "--algo", "twap", "--algo-start", "093000", "--algo-end", "160000"]), is_tty=False)
+    assert dry["algo"] == "twap"
+    assert dry["algo_start"] == "093000" and dry["algo_end"] == "160000"
+
+
+def test_order_overseas_algo_execute_forwards_algo_and_window():
+    kis = StubKis(account="12345678-01", environment="real")
+    order.cmd_buy(kis, _args(
+        ["--profile", "real", "order", "buy", "AAPL", "10", "--venue", "overseas",
+         "--exchange", "NAS", "--limit-price", "150", "--algo", "twap", "--algo-start", "093000",
+         "--algo-end", "160000", "--execute", "real", "--yes", "--confirm-account", "7801"]),
+        is_tty=False)
+    assert kis.log == [("ovs_stock", "AAPL", "NAS"),
+                       ("buy", "AAPL", 10, "150", None, None, "twap", ("093000", "160000"))]
+
+
+def test_order_overseas_algo_no_window_forwards_algo_only():
+    # 시간창 미지정: algo 만 넘기고 algo_window 는 라이브러리 기본(정규장 종료)에 맡긴다.
+    kis = StubKis(account="12345678-01", environment="real")
+    order.cmd_sell(kis, _args(
+        ["--profile", "real", "order", "sell", "AAPL", "10", "--venue", "overseas",
+         "--limit-price", "150", "--algo", "vwap",
+         "--execute", "real", "--yes", "--confirm-account", "7801"]), is_tty=False)
+    assert kis.log[-1] == ("sell", "AAPL", 10, "150", None, None, "vwap", None)
+
+
+def test_order_overseas_reserve_algo_forwards_algo():
+    kis = StubKis(account="12345678-01", environment="real")
+    order.cmd_buy(kis, _args(
+        ["--profile", "real", "order", "buy", "AAPL", "10", "--venue", "overseas", "--reserve",
+         "--limit-price", "150", "--exchange", "NAS", "--algo", "twap",
+         "--execute", "real", "--yes", "--confirm-account", "7801"]), is_tty=False)
+    assert kis.log[-1] == ("reserve_buy", "AAPL", 10, "150", {"algo": "twap"})
+
+
+def test_order_algo_rejected_for_domestic():
+    with pytest.raises(CliConfigError, match="해외 주식"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "005930", "10", "--limit-price", "70000", "--algo", "twap"]),
+            is_tty=False)
+
+
+def test_order_algo_rejects_paper_execute():
+    with pytest.raises(CliConfigError, match="실전전용"):
+        order.cmd_buy(StubKis(account="12345678-01", environment="paper"), _args(
+            ["--profile", "paper", "order", "buy", "AAPL", "10", "--venue", "overseas",
+             "--limit-price", "150", "--algo", "twap", "--execute", "paper", "--yes"]),
+            is_tty=False)
+
+
+def test_order_algo_window_requires_algo():
+    with pytest.raises(CliConfigError, match="--algo"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "AAPL", "10", "--venue", "overseas", "--limit-price", "150",
+             "--algo-start", "093000", "--algo-end", "160000"]), is_tty=False)
+
+
+def test_order_algo_half_window_rejected():
+    with pytest.raises(CliConfigError, match="함께"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "AAPL", "10", "--venue", "overseas", "--limit-price", "150",
+             "--algo", "twap", "--algo-start", "093000"]), is_tty=False)
+
+
+def test_order_reserve_algo_rejects_window():
+    with pytest.raises(CliConfigError, match="정규장 종료"):
+        order.cmd_buy(StubKis(), _args(
+            ["order", "buy", "AAPL", "10", "--venue", "overseas", "--reserve",
+             "--limit-price", "150", "--algo", "twap", "--algo-start", "093000",
+             "--algo-end", "160000"]), is_tty=False)
+
+
 @pytest.mark.parametrize("extra,match", [
     (["--division", "immediate_limit"], "division"),
     (["--stop-price", "69000"], "stop-price"),
@@ -493,7 +581,7 @@ def test_order_paper_interactive_rejects_non_affirmative():
     with pytest.raises(CliAborted):
         order.cmd_buy(kis, args, is_tty=True, prompt=lambda _p: "")
     assert order.cmd_buy(kis, args, is_tty=True, prompt=lambda _p: "y") == "REPORT"
-    assert kis.log == [("buy", "005930", 10, "70000", None, None)]
+    assert kis.log == [("buy", "005930", 10, "70000", None, None, None, None)]
 
 
 def test_order_modify_dry_run_then_executes_once():
@@ -2055,7 +2143,8 @@ def test_order_tier2_division_dry_run_and_execute_forwards_it(division):
     order.cmd_buy(kis, _args(["order", "buy", "005930", "10", "--division", division,
                               *price_args, "--execute", "paper", "--yes"]),
                   is_tty=False)
-    assert kis.log[-1][-2] == division  # StubStock.buy records division then stop_price
+    # _Handle.buy 로그: (op, code, qty, limit, division, stop_price, algo, algo_window)
+    assert kis.log[-1][4] == division
 
 
 @pytest.mark.parametrize("division", ["midpoint", "pre_market_close",

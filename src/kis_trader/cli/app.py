@@ -13,6 +13,7 @@ from importlib.metadata import PackageNotFoundError, version
 from typing import TYPE_CHECKING, Any, get_args
 
 from .. import (
+    AlgoStrategy,
     Direction,
     DomesticDivision,
     ProfitSort,
@@ -223,6 +224,14 @@ def build_parser() -> argparse.ArgumentParser:
                         help="예약 유효 종료일 YYYYMMDD(국내 --reserve 전용; 해외 예약은 미지원)")
         sp.add_argument("--currency", choices=list(get_args(ReservedCurrency)), default=None,
                         help="해외 예약 통화 -- 홍콩 예약 전용(그 외 거래소에 주면 거부)")
+        sp.add_argument("--algo", choices=list(get_args(AlgoStrategy)), default=None,
+                        help="미국주식 알고리즘 분할주문(--venue overseas, 실전전용): twap(시간 기준)/"
+                             "vwap(체결량 기준). 즉시주문은 --algo-start/--algo-end 로 시간창을 주거나 "
+                             "생략하면 정규장 종료까지 집행, --reserve 예약은 정규장 종료 고정")
+        sp.add_argument("--algo-start", dest="algo_start", default=None,
+                        help="algo 집행 시작시각 HHMMSS(즉시 algo 전용, --algo-end 와 함께)")
+        sp.add_argument("--algo-end", dest="algo_end", default=None,
+                        help="algo 집행 종료시각 HHMMSS(즉시 algo 전용, --algo-start 와 함께)")
         _add_venue(sp)
         _add_order_gate(sp)
         sp.set_defaults(func=func)
