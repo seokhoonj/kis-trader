@@ -16,7 +16,17 @@ from ._internal._masters import (
     MasterIndex,
     SearchMarket,
 )
-from ._literals import AlgoStrategy, ProfitSort, ReservedCurrency, SideFilter
+from ._literals import (
+    AccountKind,
+    AlgoStrategy,
+    CreditType,
+    Environment,
+    Numeric,
+    ProfitSort,
+    ReservedCurrency,
+    Side,
+    SideFilter,
+)
 from .account import StockAccount
 from .bar import Bar, Interval
 from .client import KISClient
@@ -228,7 +238,7 @@ from .money import Money
 from .news import NewsHeadline
 from .open_order import OpenOrder
 from .open_orders import OpenOrders
-from .order import DomesticDivision, Order
+from .order import DomesticDivision, Order, OrderType, TimeInForce
 from .order_book import OrderBook, PriceLevel
 from .orderable import BuyableAmount, SellableQuantity
 from .overseas.derivative import OverseasDerivative
@@ -303,6 +313,7 @@ from .reserved_order import ReservedOrder, ReservedProcess
 from .risk import RiskLimits
 from .store import OrderStore
 from .trade import Trade
+from .transport import RawResponse, Transport
 
 try:
     from importlib.metadata import PackageNotFoundError, version
@@ -315,6 +326,7 @@ __all__ = [
     "ELW",
     "ETFNAV",
     "AccountAssets",
+    "AccountKind",
     "AccountRight",
     "AfterHoursBalanceRanking",
     "AfterHoursConclusion",
@@ -351,6 +363,7 @@ __all__ = [
     "CreditBalancePoint",
     "CreditBalanceRanking",
     "CreditEligibleStock",
+    "CreditType",
     "CurrencyDeposit",
     "DailyProfit",
     "DailyProfitHistory",
@@ -401,6 +414,7 @@ __all__ = [
     "ETFNAVMinutePoint",
     "ETFOrderBook",
     "EarningsEstimate",
+    "Environment",
     "ExecutionReport",
     "ExpectedExecutionPoint",
     "ExpectedExecutionTrend",
@@ -453,6 +467,7 @@ __all__ = [
     "Money",
     "NearHighLowRanking",
     "NewsHeadline",
+    "Numeric",
     "OpenOrder",
     "OpenOrders",
     "OptionBoard",
@@ -463,6 +478,7 @@ __all__ = [
     "OrderBook",
     "OrderStatus",
     "OrderStore",
+    "OrderType",
     "OtherRatio",
     "OverseasAccount",
     "OverseasAlgoExecution",
@@ -536,6 +552,7 @@ __all__ = [
     "RankedOverseasStock",
     "RankedStock",
     "RankingQueries",
+    "RawResponse",
     "RealizedProfitBalance",
     "RealizedProfitPosition",
     "RecentPricePoint",
@@ -551,6 +568,7 @@ __all__ = [
     "ShareholderMeeting",
     "ShortSalePoint",
     "ShortSaleRanking",
+    "Side",
     "SideFilter",
     "StabilityRatio",
     "StockAccount",
@@ -558,12 +576,14 @@ __all__ = [
     "StockFillHistory",
     "StockProfile",
     "StockStatus",
+    "TimeInForce",
     "TopViewedStock",
     "Trade",
     "TradeAmountBand",
     "TradeProfit",
     "TradeProfitHistory",
     "TradingDay",
+    "Transport",
     "UnderlyingQuote",
     "VIEvent",
     "VolumeAtPrice",

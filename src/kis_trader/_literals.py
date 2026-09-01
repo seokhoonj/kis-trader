@@ -62,10 +62,15 @@ SideFilter: TypeAlias = Literal["all", "buy", "sell"]
 #: (00/01)로 매핑된다.
 ProfitSort: TypeAlias = Literal["recent", "oldest"]
 
+#: ``kis.account`` 가 상품코드에 따라 돌려주는 계좌 뷰의 종류 판별자. 세 뷰(주식/국내파생/해외파생)는
+#: 공통 표면이 없어 호출자가 ``isinstance`` 대신 ``account.kind`` 로 ``match`` 해 분기할 수 있다.
+AccountKind: TypeAlias = Literal["stock", "domestic_derivatives", "overseas_derivatives"]
+
 # :data:`AlgoStrategy`(미국주식 TWAP/VWAP 분할주문 전략)은 :mod:`.order` 가 정본이라 재정의하지 않고
 # 위에서 import 해 재수출한다(:data:`Side`/:data:`CreditType` 과 같은 방식).
 
 __all__ = [
+    "AccountKind",
     "AlgoStrategy",
     "CreditType",
     "DerivativeMarket",

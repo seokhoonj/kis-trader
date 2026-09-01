@@ -86,6 +86,32 @@ def _client(transport, *, environment="real", account="12345678-01", store=None,
                      transport=transport, store=store, orderable=orderable, allow_credit=allow_credit)
 
 
+class _EnvTransport(FakeTransport):
+    """environment 를 밝히는 가짜 전송(Transport 계약의 environment 필드)."""
+
+    def __init__(self, environment, **kw):
+        super().__init__(**kw)
+        self.environment = environment
+
+
+def test_injected_transport_matching_environment_is_accepted():
+    # 전송의 환경이 세션 환경과 같으면 통과한다.
+    kis = _client(_EnvTransport("real", response=_ACCEPTED_ORDER_RESPONSE), environment="real")
+    assert kis.environment == "real"
+
+
+def test_injected_transport_environment_mismatch_is_rejected():
+    # 안전 게이트(paper)와 소켓 목적지(real)가 갈라지면 fail-closed 로 거부한다(머니패스 split-brain).
+    with pytest.raises(KISUsageError, match="갈라진다"):
+        _client(_EnvTransport("real", response=_ACCEPTED_ORDER_RESPONSE), environment="paper")
+
+
+def test_injected_transport_without_environment_is_allowed():
+    # 환경을 밝히지 않는 최소 전송(실 소켓 없음)은 그대로 통과한다(하위호환).
+    kis = _client(FakeTransport(response=_ACCEPTED_ORDER_RESPONSE), environment="paper")
+    assert kis.environment == "paper"
+
+
 # --- 정상 전송 -------------------------------------------------------------
 def test_buy_limit_places_order():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)

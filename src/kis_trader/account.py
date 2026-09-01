@@ -8,12 +8,11 @@
 
 from __future__ import annotations
 
-from decimal import Decimal
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from .domestic.namespace import DomesticAccount
-from .errors import KISError, KISUsageError
-from .integrated import CurrencyDeposit, IntegratedBalance
+from .errors import KISUsageError
+from .integrated import IntegratedBalance, make_integrated_balance
 from .overseas.namespace import OverseasAccount
 from .pension.account import PensionAccount
 
@@ -29,6 +28,10 @@ _IRP_PRODUCT_CODE = "29"
 
 class StockAccount:
     """``kis.account`` (위탁 01/연금저축 22/IRP 29) -- 국내/해외 주식 계좌의 시장별 뷰. IRP 는 조회전용 + ``.pension`` 렌즈."""
+
+    #: ``kis.account`` 세 뷰의 판별자. 세 뷰는 공통 표면이 없어(주식은 .domestic/.overseas/.balance,
+    #: 파생은 deposit/margin 등) 호출자가 isinstance 대신 ``account.kind`` 로 ``match`` 해 분기한다.
+    kind: Literal["stock"] = "stock"
 
     def __init__(self, client: KISClient) -> None:
         self._client = client
@@ -81,31 +84,8 @@ class StockAccount:
                 "통합잔고(kis.account.balance)는 모의투자 미지원 -- 실전에서만"
                 "(채권/해외 현재잔고가 실전 전용)."
             )
+        # I/O 는 여기(세 조회), 합성은 순수 함수 make_integrated_balance 가 맡는다(경계 분리).
         dom = self.domestic.balance()
         bonds = tuple(self.domestic.bonds.balance())
         ovs = self.overseas.present_balance()
-
-        deposits = (
-            CurrencyDeposit(currency="KRW", cash=dom.deposit, exchange_rate=Decimal(1)),
-            *(
-                CurrencyDeposit(
-                    currency=c.currency,
-                    cash=c.deposit.amount,
-                    exchange_rate=c.first_exchange_rate,
-                    _raw=c._raw,
-                )
-                for c in ovs.currencies
-                if c.currency != "KRW"  # 원화 예수금은 국내(dom.deposit)가 진실의 원천 -- 중복 행 방지
-            ),
-        )
-        if len({d.currency for d in deposits}) != len(deposits):
-            raise KISError("통합잔고 통화별 예수금에 중복 통화가 있다.")
-        return IntegratedBalance(
-            base_currency="KRW",
-            deposits=deposits,
-            domestic=dom,
-            bonds=bonds,
-            overseas=ovs,
-            total_evaluation=dom.market_value + ovs.total_evaluation_amount,
-            total_unrealized_pnl=dom.unrealized_pnl + ovs.total_unrealized_pnl,
-        )
+        return make_integrated_balance(dom, bonds, ovs)

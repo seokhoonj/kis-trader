@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from .._internal._datetime import _today_kst
 from ..errors import KISUsageError
@@ -42,6 +42,9 @@ if TYPE_CHECKING:
 
 class OverseasDerivativesAccount:
     """``kis.account`` (해외선물옵션 08) -- 해외선물옵션 계좌 조회 뷰."""
+
+    #: ``kis.account`` 판별자(isinstance 대신 ``account.kind`` 로 분기).
+    kind: Literal["overseas_derivatives"] = "overseas_derivatives"
 
     def __init__(self, client: KISClient) -> None:
         self._client = client

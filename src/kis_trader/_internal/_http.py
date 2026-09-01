@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any, Protocol, cast
@@ -41,6 +42,8 @@ class _HTTPSender(Protocol):
 
 
 _SESSION: Any = None
+#: ``_SESSION`` 지연 생성 경쟁 방지. 잠금 없이 첫 호출이 겹치면 Session 이 둘 생겨 하나가 샌다.
+_SESSION_LOCK = threading.Lock()
 
 
 def _requests_send(
@@ -63,7 +66,9 @@ def _requests_send(
 
     global _SESSION
     if _SESSION is None:
-        _SESSION = requests.Session()
+        with _SESSION_LOCK:  # double-checked: 두 스레드가 동시에 None 을 봐도 Session 은 하나만 만든다
+            if _SESSION is None:
+                _SESSION = requests.Session()
     try:
         response = _SESSION.request(
             method,
@@ -103,7 +108,9 @@ class RequestsTransport:
     ) -> None:
         self._app_key = app_key
         self._app_secret = app_secret
-        self._environment = environment
+        #: 이 전송이 향하는 KIS 환경. :class:`~kis_trader.transport.Transport` 계약(공개)으로,
+        #: 세션이 안전 게이트와 소켓 목적지의 환경 일치를 확인하는 데 읽는다.
+        self.environment = environment
         self._token_manager = token_manager
         self._custtype = custtype
         self._send = send
@@ -147,7 +154,7 @@ class RequestsTransport:
             "tr_cont": tr_cont,
             "custtype": self._custtype,
         }
-        url = base_url(self._environment) + path
+        url = base_url(self.environment) + path
         is_retryable = method.upper() == "GET" and idempotent
         attempts = self._max_attempts if is_retryable else 1
 

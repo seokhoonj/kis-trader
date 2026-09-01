@@ -7,7 +7,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from ._engine.derivative_account import (
     fetch_balance,
@@ -40,6 +40,9 @@ _KST = timezone(timedelta(hours=9))
 
 class DomesticDerivativesAccount:
     """``kis.account`` (국내선물옵션 03) -- 선물옵션 계좌 조회 뷰."""
+
+    #: ``kis.account`` 판별자(isinstance 대신 ``account.kind`` 로 분기).
+    kind: Literal["domestic_derivatives"] = "domestic_derivatives"
 
     def __init__(self, client: KISClient) -> None:
         self._client = client
