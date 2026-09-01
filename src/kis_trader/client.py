@@ -12,6 +12,7 @@
 
 from __future__ import annotations
 
+import threading
 from dataclasses import fields
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -289,6 +290,9 @@ class KISClient:
         self._master_fetch = master_fetch if master_fetch is not None else urlopen_fetch
         # 국내 이름->코드 검색 인덱스. 주입 없으면 첫 domestic.search() 때 지연 로드(같은 배포 서버).
         self._domestic_index = domestic_index
+        # 위 두 마스터 인덱스의 지연 로드 경쟁 방지 -- 공유 KISClient 에서 동시 첫 호출이 각자 전체
+        # 마스터를 받아 할당을 겹치는 것을 막는다(store/token/ratelimit 이 잠그는 규율과 동일).
+        self._index_lock = threading.Lock()
         # 자산군 최상위 네임스페이스(공개 행위 표면). 세션이 쥔 전송/계좌/안전코어로 엔드포인트 엔진을 호출한다.
         self.domestic = DomesticNamespace(self)
         self.overseas = OverseasNamespace(self)
@@ -349,13 +353,17 @@ class KISClient:
         같은 심볼이 여러 거래소에 있으면 ``exchange`` 를 명시해야 한다(:class:`~kis_trader.errors.
         KISUsageError`). 첫 호출은 마스터를 받아 캐시하므로 느릴 수 있다(이후는 캐시)."""
         if self._master_index is None:
-            self._master_index = load_overseas_index(fetch=self._master_fetch)
+            with self._index_lock:  # double-checked: 동시 첫 호출이 마스터를 한 번만 받게
+                if self._master_index is None:
+                    self._master_index = load_overseas_index(fetch=self._master_fetch)
         return self._master_index.resolve(symbol, exchange=exchange)
 
     def _ensure_domestic_index(self) -> DomesticListingIndex:
         """국내 이름검색 인덱스(지연 로드). 첫 호출 때 KOSPI/KOSDAQ 마스터를 받아 캐시한다."""
         if self._domestic_index is None:
-            self._domestic_index = load_domestic_index(fetch=self._master_fetch)
+            with self._index_lock:  # double-checked: 동시 첫 호출이 마스터를 한 번만 받게
+                if self._domestic_index is None:
+                    self._domestic_index = load_domestic_index(fetch=self._master_fetch)
         return self._domestic_index
 
     def _reconcile(self, client_order_id: str) -> ExecutionReport | None:

@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import threading
 import time
 from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any, Protocol, cast
@@ -41,6 +42,8 @@ class _HTTPSender(Protocol):
 
 
 _SESSION: Any = None
+#: ``_SESSION`` 지연 생성 경쟁 방지. 잠금 없이 첫 호출이 겹치면 Session 이 둘 생겨 하나가 샌다.
+_SESSION_LOCK = threading.Lock()
 
 
 def _requests_send(
@@ -63,7 +66,9 @@ def _requests_send(
 
     global _SESSION
     if _SESSION is None:
-        _SESSION = requests.Session()
+        with _SESSION_LOCK:  # double-checked: 두 스레드가 동시에 None 을 봐도 Session 은 하나만 만든다
+            if _SESSION is None:
+                _SESSION = requests.Session()
     try:
         response = _SESSION.request(
             method,
