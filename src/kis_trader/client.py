@@ -316,6 +316,10 @@ class KISClient:
         국내선물옵션(03)=파생, 해외선물옵션(08)=해외파생 뷰. IRP(29)는 ``.pension`` 으로
         퇴직연금 전용 조회(예수금/매수가능/잔고/체결기준잔고/주문내역)를 준다.
 
+        세 뷰는 공통 표면이 없어(주식은 ``.domestic``/``.overseas``/``.balance()``, 파생은 ``deposit``/
+        ``margin`` 등) 반환형이 셋의 유니온이다 -- 호출자는 ``isinstance`` 대신 판별자 ``account.kind``
+        (``"stock"``/``"domestic_derivatives"``/``"overseas_derivatives"``)로 ``match`` 해 분기할 수 있다.
+
         계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError`. 그 밖의 상품은 아직
         미지원(추후 확장) -- 명확한 오류로 fail-closed 한다."""
         _, product_code = self._require_account()

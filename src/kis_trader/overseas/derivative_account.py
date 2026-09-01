@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from .._internal._datetime import _today_kst
+from .._literals import AccountKind
 from ..errors import KISUsageError
 from ._engine.derivative_account import (
     fetch_daily_fills,
@@ -42,6 +43,9 @@ if TYPE_CHECKING:
 
 class OverseasDerivativesAccount:
     """``kis.account`` (해외선물옵션 08) -- 해외선물옵션 계좌 조회 뷰."""
+
+    #: ``kis.account`` 판별자(isinstance 대신 ``account.kind`` 로 분기).
+    kind: AccountKind = "overseas_derivatives"
 
     def __init__(self, client: KISClient) -> None:
         self._client = client

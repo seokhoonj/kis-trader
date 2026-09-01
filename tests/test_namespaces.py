@@ -6,7 +6,6 @@
 
 from __future__ import annotations
 
-import contextlib
 import threading
 
 import pytest
@@ -104,10 +103,22 @@ def test_domestic_query_namespaces_expose_query_objects():
 
 # --- 계좌 네임스페이스가 올바른 TR/경로를 때리나 --------------------------
 def _last_call(fn, fake):
-    """fn() 을 호출하고 마지막 wire 콜을 돌려준다. 응답 파싱 실패는 무시(위임=와이어 콜만 검증)."""
-    with contextlib.suppress(Exception):
+    """fn() 을 호출하고 마지막 wire 콜을 돌려준다(라우팅=올바른 TR/경로만 검증; 파싱은 다른 테스트가
+    커버). 스텁 응답 바디의 파싱 실패는 무시하되, **와이어에 닿기도 전에** 실패하면(라우팅 버그) 그
+    예외를 감추지 않고 드러낸다."""
+    try:
         fn()
+    except Exception:
+        if not fake.calls:  # 전송 호출이 하나도 없었다 = 위임 전 실패 = 라우팅 결함
+            raise
     return fake.calls[-1]
+
+
+def test_account_kind_discriminant_matches_product_code():
+    # kis.account 세 뷰는 공통 표면이 없어 kind 판별자로 분기한다(isinstance 대신).
+    assert _client(account="12345678-01").account.kind == "stock"           # 위탁 01
+    assert _client(account="12345678-03").account.kind == "domestic_derivatives"  # 국내파생 03
+    assert _client(account="12345678-08").account.kind == "overseas_derivatives"  # 해외파생 08
 
 
 def test_domestic_account_balance_hits_balance_tr():

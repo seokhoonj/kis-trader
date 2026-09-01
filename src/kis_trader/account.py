@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from ._literals import AccountKind
 from .domestic.namespace import DomesticAccount
 from .errors import KISUsageError
 from .integrated import IntegratedBalance, compose_integrated_balance
@@ -28,6 +29,10 @@ _IRP_PRODUCT_CODE = "29"
 
 class StockAccount:
     """``kis.account`` (위탁 01/연금저축 22/IRP 29) -- 국내/해외 주식 계좌의 시장별 뷰. IRP 는 조회전용 + ``.pension`` 렌즈."""
+
+    #: ``kis.account`` 세 뷰의 판별자. 세 뷰는 공통 표면이 없어(주식은 .domestic/.overseas/.balance,
+    #: 파생은 deposit/margin 등) 호출자가 isinstance 대신 ``account.kind`` 로 ``match`` 해 분기한다.
+    kind: AccountKind = "stock"
 
     def __init__(self, client: KISClient) -> None:
         self._client = client
