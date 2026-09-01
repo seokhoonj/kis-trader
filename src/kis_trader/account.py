@@ -8,12 +8,11 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
-from ._literals import AccountKind
 from .domestic.namespace import DomesticAccount
 from .errors import KISUsageError
-from .integrated import IntegratedBalance, compose_integrated_balance
+from .integrated import IntegratedBalance, make_integrated_balance
 from .overseas.namespace import OverseasAccount
 from .pension.account import PensionAccount
 
@@ -32,7 +31,7 @@ class StockAccount:
 
     #: ``kis.account`` 세 뷰의 판별자. 세 뷰는 공통 표면이 없어(주식은 .domestic/.overseas/.balance,
     #: 파생은 deposit/margin 등) 호출자가 isinstance 대신 ``account.kind`` 로 ``match`` 해 분기한다.
-    kind: AccountKind = "stock"
+    kind: Literal["stock"] = "stock"
 
     def __init__(self, client: KISClient) -> None:
         self._client = client
@@ -85,8 +84,8 @@ class StockAccount:
                 "통합잔고(kis.account.balance)는 모의투자 미지원 -- 실전에서만"
                 "(채권/해외 현재잔고가 실전 전용)."
             )
-        # I/O 는 여기(세 조회), 합성은 순수 함수 compose_integrated_balance 가 맡는다(경계 분리).
+        # I/O 는 여기(세 조회), 합성은 순수 함수 make_integrated_balance 가 맡는다(경계 분리).
         dom = self.domestic.balance()
         bonds = tuple(self.domestic.bonds.balance())
         ovs = self.overseas.present_balance()
-        return compose_integrated_balance(dom, bonds, ovs)
+        return make_integrated_balance(dom, bonds, ovs)

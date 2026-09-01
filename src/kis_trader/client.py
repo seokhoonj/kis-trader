@@ -283,6 +283,9 @@ class KISClient:
         # 주문 실행 엔진 -- 발주/정정/취소/재조회의 자산별 라우팅과 정책을 세션에서 분리해 쥔다.
         # 세션(이 객체)은 구성 루트로서 전송/저장소/환경/주문가능/리스크/계좌해석을 주입하고,
         # _place_order 등은 이 엔진에 위임한다. 계좌해석(require_account)은 계좌 조회 표면과 한 소스다.
+        # store 는 참조 공유, orderable/risk 는 값 복사라 세션과 엔진 양쪽에 산다 -- 이 값들은 세션
+        # 생성 후 재할당되지 않으므로(orderable 은 IRP 자동차단 파생값이라 tests 도 kis._orderable 로
+        # 관찰) 스냅샷이 어긋날 일은 없다. 향후 런타임 토글을 추가한다면 반드시 이 엔진을 통해 반영하라.
         self._order_engine = OrderEngine(
             transport=self._transport, store=self._store, environment=self._environment,
             orderable=self._orderable, risk=self._risk, require_account=self._require_account,

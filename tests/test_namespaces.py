@@ -114,6 +114,17 @@ def _last_call(fn, fake):
     return fake.calls[-1]
 
 
+def test_last_call_helper_reraises_pre_wire_failure():
+    # 위임 전(와이어 콜 전) 예외는 감추지 않고 드러난다 -- 라우팅 결함이 초록으로 숨지 않게.
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="M", msg1="", body={}, tr_cont=""))
+
+    def raises_before_wire():
+        raise ValueError("routing defect before any transport call")
+
+    with pytest.raises(ValueError, match="routing defect"):
+        _last_call(raises_before_wire, fake)
+
+
 def test_account_kind_discriminant_matches_product_code():
     # kis.account 세 뷰는 공통 표면이 없어 kind 판별자로 분기한다(isinstance 대신).
     assert _client(account="12345678-01").account.kind == "stock"           # 위탁 01

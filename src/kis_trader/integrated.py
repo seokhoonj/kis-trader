@@ -67,7 +67,7 @@ class IntegratedBalance:
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
-def compose_integrated_balance(
+def make_integrated_balance(
     domestic: Balance,
     bonds: tuple[BondPosition, ...],
     overseas: OverseasPresentBalance,
