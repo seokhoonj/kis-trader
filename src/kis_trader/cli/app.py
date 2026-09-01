@@ -229,9 +229,9 @@ def build_parser() -> argparse.ArgumentParser:
                              "vwap(체결량 기준). 즉시주문은 --algo-start/--algo-end 로 시간창을 주거나 "
                              "생략하면 정규장 종료까지 집행, --reserve 예약은 정규장 종료 고정")
         sp.add_argument("--algo-start", dest="algo_start", default=None,
-                        help="algo 집행 시작시각 HHMMSS(즉시 algo 전용, --algo-end 와 함께)")
+                        help="algo 집행 시작시각 HHMMSS(KST; 즉시 algo 전용, --algo-end 와 함께, 같은 날 시작<종료)")
         sp.add_argument("--algo-end", dest="algo_end", default=None,
-                        help="algo 집행 종료시각 HHMMSS(즉시 algo 전용, --algo-start 와 함께)")
+                        help="algo 집행 종료시각 HHMMSS(KST; 즉시 algo 전용, --algo-start 와 함께, 자정 넘김 불가)")
         _add_venue(sp)
         _add_order_gate(sp)
         sp.set_defaults(func=func)

@@ -482,8 +482,8 @@ class Order:
     #: 전용이며 ``ORD_DVSN`` 35/36 으로 나간다. 같은 종목·수량·가격이라도 일반주문 vs TWAP vs VWAP 는
     #: 서로 다른 주문이라 지문에 함께 실어 dedup 을 가른다.
     algo_strategy: AlgoStrategy | None = None
-    #: algo 집행 시간창(HHMMSS). 둘 다 있으면 ``ALGO_ORD_TMD_DVSN_CD`` "00"(직접입력)로 START_TIME/
-    #: END_TIME 을 싣고, 둘 다 비면 "02"(정규장 종료까지 집행). algo 가 아니면 항상 "".
+    #: algo 집행 시간창(KST HHMMSS, 같은 날 시작<종료). 둘 다 있으면 ``ALGO_ORD_TMD_DVSN_CD`` "00"
+    #: (직접입력)로 START_TIME/END_TIME 을 싣고, 둘 다 비면 "02"(정규장 종료까지 집행). algo 가 아니면 항상 "".
     algo_start: str = ""
     algo_end: str = ""
     client_order_id: str = field(default_factory=mint_client_order_id)
@@ -806,8 +806,9 @@ class Order:
               client_order_id: str | None = None) -> Order:
         """지정가 주문. ``session='overnight'`` 은 미국 오버나이트 거래(미국 종목만). ``division`` 은 국내
         현금주문 전용 주문구분(조건부지정가 등, 가격 필요). ``board`` 는 체결 보드(KRX/NXT/UN=SOR).
-        ``algo_strategy``(twap/vwap)는 미국주식 알고리즘 분할주문으로, ``algo_start``/``algo_end``(HHMMSS)를
-        주면 그 시간창에 집행하고 비우면 정규장 종료까지 집행한다(미국 NAS/NYS/AMS 전용)."""
+        ``algo_strategy``(twap/vwap)는 미국주식 알고리즘 분할주문으로, ``algo_start``/``algo_end``(**KST**
+        HHMMSS, 같은 날 시작<종료·자정 넘김 불가)를 주면 그 시간창에, 비우면 정규장 종료까지 집행한다
+        (미국 NAS/NYS/AMS 전용; 미국 정규장은 KST 로 자정을 넘어 전체 세션은 시간창 생략으로 낸다)."""
         return cls._make(symbol, side, "limit", quantity, limit_price=limit_price,
                           time_in_force=time_in_force, exchange=exchange, session=session,
                           division=division, board=board, algo_strategy=algo_strategy,
