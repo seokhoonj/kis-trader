@@ -117,11 +117,15 @@ class OverseasStock(_StockBase):
     ) -> ExecutionReport:
         """이 해외 종목을 매수한다 -- 지정가만(``limit_price`` 필수; 시장가 미지원). ``algo``(twap/vwap)를
         주면 미국주식 알고리즘 분할주문(TWAP/VWAP)으로, ``algo_window=(시작, 종료)``(**KST HHMMSS**)를 함께
-        주면 그 시간창에 집행하고 생략하면 정규장 종료까지 집행한다. 시각은 **KST 기준**이라 미국 정규장을
-        KST 로 적어야 한다(썸머타임 EDT 22:30~05:00 / 겨울 EST 23:30~06:00; 이 밖이면 서버가 "장시간
-        벗어남"으로 거부). algo 는 **미국(NAS/NYS/AMS) 실전 전용**이고 **최소 10주**라, 그 밖의 거래소·모의
-        투자·10주 미만이면 거래소가 접수 거부(``OrderRejectedError``)하거나 :class:`~kis_trader.errors.
-        KISUsageError` 로 fail-closed 한다.
+        주면 그 시간창에, 생략하면 정규장 종료까지 집행한다. 시간창은 **KST** 이고 **같은 날 안에서 시작 <
+        종료**여야 한다 -- 미국 정규장은 KST 로 자정을 넘어(EDT 22:30~05:00 / EST 23:30~06:00) **한 창으로
+        세션 전체를 덮을 수 없으니**, 전체 집행은 시간창을 생략하고, 창을 주려면 자정 이전(예 ``("223000",
+        "235959")``)이나 이후(예 ``("000000","050000")``) 한쪽만 준다. 거부는 두 갈래다: 시작 >= 종료(자정
+        넘김 포함)면 와이어 전에 :class:`~kis_trader.errors.KISUsageError` 로 **로컬 거부**, 형식은 맞지만
+        KST 환산 세션 밖(미국 현지시각을 그대로 쓰면 KST 낮이라 세션 밖)이면 **서버**가 "장시간 벗어남"으로
+        거부한다. algo 는 **미국(NAS/NYS/AMS) 실전 전용**이고 **최소 10주**라, 그 밖의 거래소·모의투자·10주
+        미만이면 거래소가 접수 거부(``OrderRejectedError``)하거나 :class:`~kis_trader.errors.KISUsageError`
+        로 fail-closed 한다.
 
         이중체결 방지·타임아웃 재시도 금지는 :meth:`~kis_trader._stock_base._StockBase.buy` 와 같은 안전
         엔진에서 자동 적용된다(접수 거부 ``OrderRejectedError``·타임아웃 ``OrderTimeoutError``)."""
@@ -168,7 +172,8 @@ class OverseasStock(_StockBase):
         홍콩(HKS) 예약의 상품유형(HKD/CNY/USD) 선택 전용이고 **미지정(``None``)이면 홍콩은 HKD**다 --
         미국·기타 아시아 등 그 외 거래소에 ``currency`` 를 주면 :class:`~kis_trader.errors.KISUsageError`
         로 fail-closed(홍콩만 통화 선택이 있다). ``algo``(twap/vwap)는 미국 예약주문의 알고리즘 분할
-        (정규장 종료 집행 고정, 시간창 없음)로, **미국 실전 전용**이라 아시아·모의투자면 fail-closed 한다.
+        (정규장 종료 집행 고정, 시간창 없음)로, **미국 실전 전용·최소 10주**이며 예약 접수 자체가 **10:00~22:20
+        KST** 에만 가능하다 -- 아시아·모의투자·10주 미만·접수시간 밖이면 접수 거부되거나 fail-closed 한다.
 
         즉시 :meth:`buy` 와 같은 안전 규칙(이중발주 방지·재시도 금지·주문가능 계좌 가드)을 공유한다.
         반환 :class:`~kis_trader.report.ExecutionReport` 의 ``order_id`` 는 해외예약주문번호,

@@ -161,27 +161,32 @@ account.cancel_reserved_order(report.order_id, receipt_date="20240102")  # 미�
 
 ```python
 aapl = kis.overseas.stock("AAPL")
-# 시간창은 KST HHMMSS -- 미국 정규장을 KST 로 적습니다(EDT 22:30~05:00 / EST 23:30~06:00).
+aapl.buy(quantity=10, limit_price=150, algo="twap")   # 시간창 생략 = 정규장 전체(종료까지) 집행
+aapl.buy(quantity=10, limit_price=150, algo="vwap")   # vwap 도 동일
+# 명시 시간창을 줄 때는 KST HHMMSS, 같은 날 안(시작 < 종료). 미국 정규장은 KST 로 자정을 넘으므로
+# (EDT 22:30~05:00 / EST 23:30~06:00) 한 창이 세션 전체를 덮을 수 없습니다 -- 한쪽 구간만 지정합니다.
 aapl.buy(quantity=10, limit_price=150, algo="twap",
-         algo_window=("223000", "050000"))   # 미국 정규장 전체를 KST 로(썸머타임 예)
-aapl.buy(quantity=10, limit_price=150, algo="vwap")  # 시간창 생략 = 정규장 종료까지 집행
-aapl.reserve_buy(quantity=10, limit_price=150, algo="twap")  # 예약 algo = 정규장 종료 고정
+         algo_window=("223000", "235959"))   # 자정 이전 구간(EDT 저녁). 이후 구간은 ("000000","050000")
 ```
 
-즉시주문은 `algo_window=(시작, 종료)` 로 집행 구간을 정하거나 생략하면 정규장 종료까지 집행합니다.
-**시각은 KST 기준**이라 미국 정규장을 KST 로 적어야 하며(EDT 22:30~05:00 / EST 23:30~06:00), 이 밖이면
-서버가 "시작시간이 장시간을 벗어났습니다"로 거부합니다. 예약(`reserve_buy`/`reserve_sell`)의 algo 는
-정규장 종료 집행 고정이라 시간창이 없습니다(예약 접수 자체는 10:00~22:20 KST 에만 가능). 체결·미체결
-진행은 `kis.account.overseas.algo_orders()`/`.algo_executions()` 로 조회합니다. 접수된 algo 원주문의
-정정·취소는 일반 해외주문과 같은 `kis.orders.modify`/`cancel` 로 원주문번호를 지목합니다(정정·취소
-와이어에는 분할 구분이 실리지 않습니다).
+**시간창은 생략이 전체 세션 집행입니다.** 명시하려면 `algo_window=(시작, 종료)` 를 **KST HHMMSS** 로,
+**같은 날 안에서 시작 < 종료** 로 줍니다. 미국 정규장은 KST 로 자정을 넘어가서(EDT 22:30~05:00 /
+EST 23:30~06:00) **한 시간창으로 세션 전체를 덮을 수 없고**, 자정 이전(예 `("223000","235959")`)이나
+이후(예 `("000000","050000")`) 한쪽만 지정합니다. 두 가지 거부가 있습니다 -- (1) 시작 >= 종료(자정 넘김
+포함)면 와이어 전에 `KISUsageError` 로 **로컬 거부**, (2) 형식은 맞지만 KST 환산 세션 밖(예 미국 현지시각
+`093000`~`160000` 을 그대로 쓰면 KST 낮이라 세션 밖)이면 **서버가** "시작시간이 장시간을 벗어났습니다"로
+거부. 예약(`reserve_buy`/`reserve_sell`)의 algo 는 정규장 종료 집행 고정이라 시간창이 없습니다(예약 접수
+자체는 10:00~22:20 KST 에만 가능). 체결·미체결 진행은 `kis.account.overseas.algo_orders()`/
+`.algo_executions()` 로 조회합니다. 접수된 algo 원주문의 정정·취소는 일반 해외주문과 같은
+`kis.orders.modify`/`cancel` 로 원주문번호를 지목합니다(정정·취소 와이어에는 분할 구분이 실리지 않습니다).
 
 CLI:
 
 ```bash
-# --algo-start/--algo-end 는 KST HHMMSS(미국 정규장을 KST 로: EDT 22:30~05:00). 최소 10주.
+# 시간창 생략 = 정규장 전체 집행. 명시하려면 --algo-start/--algo-end 는 KST HHMMSS·같은 날·시작<종료
+# (자정 넘김 불가). 최소 10주.
 kis order buy AAPL 10 --venue overseas --limit-price 150 \
-  --algo twap --algo-start 223000 --algo-end 050000 --execute real --yes
+  --algo twap --algo-start 223000 --algo-end 235959 --execute real --yes
 kis order buy AAPL 10 --venue overseas --limit-price 150 --reserve --algo vwap \
   --execute real --yes           # 예약 algo(정규장 종료 고정)
 ```
