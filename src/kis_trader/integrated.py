@@ -17,6 +17,7 @@ from typing import Any
 from ._internal._freeze import freeze_vendor_payload
 from .domestic.entities.balance import Balance
 from .domestic.entities.bond_account import BondPosition
+from .errors import KISError
 from .overseas.entities.balance import OverseasPresentBalance
 
 
@@ -64,3 +65,40 @@ class IntegratedBalance:
         object.__setattr__(self, "deposits", tuple(self.deposits))
         object.__setattr__(self, "bonds", tuple(self.bonds))
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+def compose_integrated_balance(
+    domestic: Balance,
+    bonds: tuple[BondPosition, ...],
+    overseas: OverseasPresentBalance,
+) -> IntegratedBalance:
+    """세 도메인 잔고(국내주식·채권·해외현재잔고)를 한 :class:`IntegratedBalance` 로 합성한다 -- 순수
+    (I/O 0, 주입한 값만으로 결정적). 통화별 예수금은 KRW=국내(``domestic.deposit``)를 진실의 원천으로
+    두고 해외 통화행을 더하되 KRW 행 중복을 제거하며, ``total_evaluation``/``total_unrealized_pnl`` 은
+    겹치지 않는 국내·해외 보유 평가의 순수 원화 합이다. 중복 통화가 생기면
+    :class:`~kis_trader.errors.KISError`. I/O(세 조회 + 모의 게이트)는 :meth:`~kis_trader.account.
+    StockAccount.balance` 가 맡고 이 함수는 합성만 한다."""
+    deposits = (
+        CurrencyDeposit(currency="KRW", cash=domestic.deposit, exchange_rate=Decimal(1)),
+        *(
+            CurrencyDeposit(
+                currency=c.currency,
+                cash=c.deposit.amount,
+                exchange_rate=c.first_exchange_rate,
+                _raw=c._raw,
+            )
+            for c in overseas.currencies
+            if c.currency != "KRW"  # 원화 예수금은 국내(domestic.deposit)가 진실의 원천 -- 중복 행 방지
+        ),
+    )
+    if len({d.currency for d in deposits}) != len(deposits):
+        raise KISError("통합잔고 통화별 예수금에 중복 통화가 있다.")
+    return IntegratedBalance(
+        base_currency="KRW",
+        deposits=deposits,
+        domestic=domestic,
+        bonds=bonds,
+        overseas=overseas,
+        total_evaluation=domestic.market_value + overseas.total_evaluation_amount,
+        total_unrealized_pnl=domestic.unrealized_pnl + overseas.total_unrealized_pnl,
+    )
