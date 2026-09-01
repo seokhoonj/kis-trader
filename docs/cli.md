@@ -169,6 +169,29 @@ kis account reserved --venue overseas --start 20240101 --end 20240131       # �
 kis order cancel-reserved US123 --venue overseas --receipt-date 20240131    # 해외(미국) 예약 취소(dry-run)
 ```
 
+국내 주식 **TWAP 분할**은 `kis order twap` 으로 냅니다 -- 총 수량을 `--over`(총 소요시간, 예 `30m`/
+`1h`/`1h30m`) 동안 `--slices`(분할 횟수)로 나눠 **시장가로 여러 번** 발주합니다. `--start HHMMSS`(KST,
+생략 시 지금부터, 과거는 거부)로 시작 시각을 정하며, 모든 슬라이스가 KRX 정규장(09:00~15:30 KST) 안이어야
+합니다. 다른 주문과 달리 실행 동안 **호출을 블로킹**하고, 기본은 스케줄만 보여주는 dry-run, `--execute`
+로 실제 집행합니다(슬라이스 거부/타임아웃은 기록하고 계속, 부분 실행+미달 보고).
+
+```bash
+kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3                 # dry-run: 스케줄 미리보기
+kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3 \
+  --start 130000 --execute paper --yes                                               # 13:00 시작, 실제 집행
+```
+
+미국주식 **algo 분할주문**(서버가 쪼개 집행)은 해외 매수/매도에 `--algo twap`/`vwap` 를 줍니다 --
+**미국·실전 전용·최소 10주**입니다. `--algo-start`/`--algo-end`(KST HHMMSS, 같은 날·시작<종료, 자정 넘김
+불가)로 시간창을 주거나 생략하면 정규장 종료까지 집행합니다(미국 정규장은 KST 로 자정을 넘어 한 창이 세션
+전체를 덮지 못하니 전체 집행은 시간창 생략). 자세한 규칙은 [주문](orders.md) 참조.
+
+```bash
+kis order buy AAPL 10 --venue overseas --limit-price 150 --algo twap --execute real --yes       # 전체 세션(시간창 생략)
+kis order buy AAPL 10 --venue overseas --limit-price 150 \
+  --algo twap --algo-start 223000 --algo-end 235959 --execute real --yes                         # KST 같은 날 구간
+```
+
 실제 전송하려면 `--execute` 값이 세션 환경(프로필에 저장된 실전/모의)과 같아야 합니다. 대화형에서는 확인을
 받습니다(모의는 y/N, 실전은 계좌 끝 4자리 입력). 스크립트(비대화형)에서는 `--yes` 가
 필요하고, 실전은 `--confirm-account` 로 계좌 끝 4자리를 한 번 더 맞춰야 합니다.

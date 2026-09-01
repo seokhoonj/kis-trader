@@ -86,7 +86,8 @@ kis.domestic
 │   ├── credit_buy(...)                 # 신용 매수 주문
 │   ├── credit_sell(...)                # 신용 매도 주문
 │   ├── reserve_buy(...)                # 예약매수
-│   └── reserve_sell(...)               # 예약매도
+│   ├── reserve_sell(...)               # 예약매도
+│   └── twap(side, quantity, over, slices, ...)  # 클라이언트 TWAP 분할(정규장 내 시장가 여러 번)
 ├── index(code)                         # 지수/업종 핸들
 │   ├── quote()                         # 지수 현재가
 │   ├── bars(interval='1d', ...)        # 지수 봉

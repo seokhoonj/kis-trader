@@ -107,6 +107,8 @@ account.present_balance()                                # 체결기준 현재�
 account.period_profit(start="20240101", end="20240630")  # 기간 실현손익
 account.transactions(start="20240101", end="20240630")   # 거래내역
 account.foreign_margin()                                 # 통화별 외화 증거금
+account.algo_orders()                                    # 미국 알고(twap/vwap) 주문 목록
+account.algo_executions(order_id, order_date="20240102") # 한 알고주문의 체결내역
 ```
 
 ## 채권 계좌
