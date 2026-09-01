@@ -97,9 +97,11 @@ kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20260901   # �
 kis account reserved --start 20260101 --end 20260901              # 예약주문 목록
 kis order cancel-reserved <순번> --order-date 20260901              # 예약 취소
 kis order modify-reserved <순번> --symbol 005930 --side buy --quantity 10 --limit-price 71000  # 예약 정정(전체 재지정; 단가 생략 시 시장가)
+kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3   # 국내 TWAP 분할(30분간 3회 시장가; dry-run)
 kis order buy 00700 100 --venue overseas --reserve --limit-price 350 --exchange HKS --currency HKD  # 해외 예약매수(지정가 필수; 통화는 홍콩 전용; 모의 허용)
 kis account reserved --venue overseas --start 20260101 --end 20260901  # 해외 예약주문 목록(미국+아시아)
 kis order cancel-reserved US123 --venue overseas --receipt-date 20260901  # 해외 예약 취소(미국 전용; 아시아는 kis order cancel)
+kis order buy AAPL 10 --venue overseas --limit-price 150 --algo twap --execute real --yes  # 미국 algo 분할(twap/vwap; 실전·최소 10주)
 kis order buy 101W09 1 --asset futures --limit-price 350.5        # 국내 선물 지정가
 kis order buy 201S07 1 --asset option --right call --limit-price 5.2  # 국내 옵션
 kis order buy <sym> 1 --asset futures --venue overseas --limit-price 100  # 해외 선물
