@@ -103,7 +103,9 @@ class RequestsTransport:
     ) -> None:
         self._app_key = app_key
         self._app_secret = app_secret
-        self._environment = environment
+        #: 이 전송이 향하는 KIS 환경. :class:`~kis_trader.transport.Transport` 계약(공개)으로,
+        #: 세션이 안전 게이트와 소켓 목적지의 환경 일치를 확인하는 데 읽는다.
+        self.environment = environment
         self._token_manager = token_manager
         self._custtype = custtype
         self._send = send
@@ -147,7 +149,7 @@ class RequestsTransport:
             "tr_cont": tr_cont,
             "custtype": self._custtype,
         }
-        url = base_url(self._environment) + path
+        url = base_url(self.environment) + path
         is_retryable = method.upper() == "GET" and idempotent
         attempts = self._max_attempts if is_retryable else 1
 

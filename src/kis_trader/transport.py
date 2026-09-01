@@ -55,6 +55,10 @@ class RawResponse:
 class Transport(Protocol):
     """저수준 전송 계약. 실제 HTTP 세션과 테스트용 가짜 전송이 모두 구현한다."""
 
+    #: 이 전송이 향하는 KIS 환경("real"/"paper"). 세션의 안전 게이트가 실제 소켓 목적지와
+    #: 갈라지지 않았는지(split-brain) 확인하는 데 쓴다. 실제 전송은 반드시 밝힌다.
+    environment: Environment
+
     def request(
         self,
         *,

@@ -255,6 +255,17 @@ class KISClient:
                 ),
                 rate_limiter=rate_limiter,
             )
+        else:
+            # 주입한 transport: 안전 게이트(environment)와 실제 소켓 목적지(transport)가 갈라지면
+            # 머니패스 split-brain 이다(paper 게이트를 통과한 주문이 real 소켓에 닿을 수 있다). 전송이
+            # 환경을 밝히면(Transport 계약) 세션 환경과 일치하는지 fail-closed 로 검증한다. 환경을
+            # 밝히지 않는 전송(구식/최소 가짜)은 실제 소켓이 없다고 보고 통과시킨다.
+            transport_environment = getattr(transport, "environment", None)
+            if transport_environment is not None and transport_environment != environment:
+                raise KISUsageError(
+                    f"주입한 transport 의 환경({transport_environment!r})이 세션 환경"
+                    f"({environment!r})과 다르다 -- 안전 게이트와 소켓 목적지가 갈라진다(같게 맞춰라)."
+                )
         self._transport = transport
         self._cano, self._product_code = _split_optional_account(account)
         # 상품계좌종류(ACNT_PRDT_CD)로 이용 가능 범위를 자동 반영한다(공식 FAQ 2026-03-26):
