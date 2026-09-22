@@ -1,8 +1,9 @@
 """국내 선물·옵션 야간(NIGHT) 전 경로 -- 야간 발주(FUOP 필수·paper 거부)·야간 정정취소(신선
 잔량)·이관/T+1 을 넘는 union 재조회.
 
-야간 발주는 실전 ``STTN1101U``(모의 미지원), 야간 정정취소는 ``STTN1103U``(잔량 재지정 -- 주간과
-달리 ORD_QTY 는 실잔량이라 0/공백 금지), 야간 재조회는 두 테이블의 union 이다:
+야간 발주는 실전 ``STTN1101U``(모의 미지원), 야간 정정취소는 ``TTTN1103U``(발주는 STTN 접두지만
+정정취소는 TTTN 접두 -- KIS 명세가 다르다; 잔량 재지정이라 주간과 달리 ORD_QTY 는 실잔량이라
+0/공백 금지), 야간 재조회는 두 테이블의 union 이다:
 - 다리 A: (야간)선물옵션 주문체결내역조회 ``inquire-ngt-ccnl``(``STTN5201R``).
 - 다리 B: 주간 일별체결내역 ``inquire-ccnl``(``TTTO5201R``) -- 야간 체결이 06:10 경 주간으로
   이관되고 주문일자가 T+1 이라, claim 시각 앵커 T-0~T+3 영업일 창으로 훑는다.
@@ -188,7 +189,7 @@ def test_night_cancel_uses_fresh_remaining():
     _real_client(change_t, store=store).orders.cancel(rep.client_order_id)
 
     change_call = next(c for c in change_t.calls if c["path"] == _CHANGE)
-    assert change_call["tr_id"] == "STTN1103U"
+    assert change_call["tr_id"] == "TTTN1103U"
     assert change_call["body"]["ORD_QTY"] == "1"        # 신선 잔량(stale 2 아님)
     assert change_call["body"]["RMN_QTY_YN"] == "Y"
     assert change_call["body"]["FUOP_ITEM_DVSN_CD"] == "01"
@@ -223,10 +224,10 @@ def test_night_cancel_zero_remaining_rows_fails_closed():
 
 
 # =====================================================================
-# T3: 야간 지정가 정정 골든바디 -- STTN1103U + FUOP + 원지문 코드 산출
+# T3: 야간 지정가 정정 골든바디 -- TTTN1103U + FUOP + 원지문 코드 산출
 # =====================================================================
 def test_night_modify_golden_body():
-    # 야간 지정가 정정(잔량 재지정)의 well-formed 바디: TR STTN1103U, RVSE_CNCL_DVSN_CD="01",
+    # 야간 지정가 정정(잔량 재지정)의 well-formed 바디: TR TTTN1103U, RVSE_CNCL_DVSN_CD="01",
     # FUOP_ITEM_DVSN_CD 는 원지문 상품구분(01), 세 주문구분 코드는 원지문(limit,day) -> (01,01,0).
     from kis_trader.report import ExecutionReport, OrderStatus
     report = ExecutionReport(client_order_id="n1", order_id="0000005605", symbol="101S03",
@@ -238,7 +239,7 @@ def test_night_modify_golden_body():
         cano="8", product_code="03", environment="real",
     )
     assert req.path == _CHANGE
-    assert req.tr_id == "STTN1103U"
+    assert req.tr_id == "TTTN1103U"
     assert req.body["RVSE_CNCL_DVSN_CD"] == "01"
     assert req.body["FUOP_ITEM_DVSN_CD"] == "01"       # 야간 필수(원지문 derivative_item)
     assert req.body["UNIT_PRICE"] == "401.00"
@@ -452,14 +453,14 @@ _TPLUS1 = "20220117"                                    # 야간 주문일자 T+
 
 def test_night_cancel_public_route_anchors_on_recorded_date():
     # 확정 야간주문을 공개경로로 취소한다. 신선조회 창은 접수일(T) 기준 전방창이라 T+1 일자
-    # 행을 포함해 신선잔량이 잡히고 STTN1103U 취소가 와이어에 닿는다(예전엔 claim 앵커가 None
+    # 행을 포함해 신선잔량이 잡히고 TTTN1103U 취소가 와이어에 닿는다(예전엔 claim 앵커가 None
     # 이라 뒷방향 창 -> T+1 미포함 -> 0행 -> KISError 로 취소가 와이어에 닿지 못했다).
     store = _recorded_night_store(recorded=_REC)                       # 로컬 잔량 2
     transport = _DateWindowNightTransport(
         [_night_row(odno="0000005605", ord_dt=_TPLUS1, ord_qty="2", tot_ccld_qty="1")])
     _real_client(transport, store=store).orders.cancel("n1")
     change_call = next(c for c in transport.calls if c["path"] == _CHANGE)
-    assert change_call["tr_id"] == "STTN1103U"
+    assert change_call["tr_id"] == "TTTN1103U"
     assert change_call["body"]["ORD_QTY"] == "1"                       # 신선 잔량(2-1)
     assert change_call["body"]["RVSE_CNCL_DVSN_CD"] == "02"
     ngt = next(c["params"] for c in transport.calls if c["path"] == _NIGHT_INQUIRY)
@@ -468,13 +469,13 @@ def test_night_cancel_public_route_anchors_on_recorded_date():
 
 
 def test_night_modify_public_route_uses_fresh_remaining_before_wire():
-    # P1-3: 야간 정정 공개경로 -- 신선조회가 STTN1103U 정정보다 먼저 돌고 신선잔량을 싣는다.
+    # P1-3: 야간 정정 공개경로 -- 신선조회가 TTTN1103U 정정보다 먼저 돌고 신선잔량을 싣는다.
     store = _recorded_night_store(recorded=_REC)
     transport = _DateWindowNightTransport(
         [_night_row(odno="0000005605", ord_dt=_TPLUS1, ord_qty="2", tot_ccld_qty="1")])
     _real_client(transport, store=store).orders.modify("n1", limit_price=Decimal("401.00"))
     change_call = next(c for c in transport.calls if c["path"] == _CHANGE)
-    assert change_call["tr_id"] == "STTN1103U"
+    assert change_call["tr_id"] == "TTTN1103U"
     assert change_call["body"]["RVSE_CNCL_DVSN_CD"] == "01"
     assert change_call["body"]["UNIT_PRICE"] == "401.00"
     assert change_call["body"]["ORD_QTY"] == "1"                       # 신선 잔량

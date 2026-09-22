@@ -489,7 +489,10 @@ def _extract_sequence(body: Mapping[str, Any]) -> str:
             return ""
         out = out[0]
     if isinstance(out, Mapping):
-        return str(out.get("rsvn_ord_seq") or "").strip()
+        # 발주(order) 응답이라 output 키는 대문자다(ODNO 와 같은 규칙) -- 조회 응답의 소문자
+        # rsvn_ord_seq 가 아니라 RSVN_ORD_SEQ 를 읽는다. 소문자로 읽으면 항상 순번 없음으로
+        # 흘러 정정·취소가 원주문을 못 찾는다.
+        return str(out.get("RSVN_ORD_SEQ") or "").strip()
     return ""
 
 

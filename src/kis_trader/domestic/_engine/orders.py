@@ -480,6 +480,13 @@ def _make_domestic_change_request(
     )
     if order_division is None:
         raise KISUsageError("원주문의 주문구분을 정정·취소 와이어로 변환할 수 없다.")
+    # 부분 취소가 조용히 전량 취소가 되지 않게 한다. QTY_ALL_ORD_YN="Y" 는 ORD_QTY 를 무시하고
+    # 잔량 전부를 취소하므로, 사용자가 부분 수량을 준 취소(change_order 가 quantity 를 그대로 전달)에는
+    # "N"+ORD_QTY 로 그 수량만 취소한다. 전량 취소(quantity 미지정 -> change_order 가 잔량 전체로 해소)는
+    # "Y" 로 KIS 가 실제 잔량을 취소하게 둔다(스냅샷과 실잔량이 어긋나도 강건). 정정(modify)은 잔량
+    # 재지정이라 항상 "N"+ORD_QTY.
+    remaining_quantity = Decimal(original_fingerprint.quantity) - original_report.filled_quantity
+    cancel_all = action == "cancel" and quantity >= remaining_quantity
     body = {
         "CANO": cano,
         "ACNT_PRDT_CD": product_code,
@@ -494,7 +501,7 @@ def _make_domestic_change_request(
             else "0" if limit_price is None else format_wire_decimal(limit_price)
         ),
         "CNDT_PRIC": original_fingerprint.stop_price or "0",
-        "QTY_ALL_ORD_YN": "Y" if action == "cancel" else "N",
+        "QTY_ALL_ORD_YN": "Y" if cancel_all else "N",
         "EXCG_ID_DVSN_CD": _BOARD_EXCG[original_fingerprint.board],
     }
     return WireRequest("POST", _CHANGE_PATH, _CHANGE_TR[environment], body)

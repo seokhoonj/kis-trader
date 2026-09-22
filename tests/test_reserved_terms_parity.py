@@ -22,9 +22,9 @@ from kis_trader.transport import RawResponse
 _PLACE = "/uapi/domestic-stock/v1/trading/order-resv"
 _CHANGE = "/uapi/domestic-stock/v1/trading/order-resv-rvsecncl"
 
-# 발주는 output.rsvn_ord_seq, 정정은 output.nrml_prcs_yn 로 성공을 확인한다.
+# 발주(order) 응답은 output.RSVN_ORD_SEQ(대문자, 원장 order_resv/chk), 정정은 output.nrml_prcs_yn.
 _PLACE_OK = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="접수",
-                        body={"output": [{"rsvn_ord_seq": "42401"}]})
+                        body={"output": [{"RSVN_ORD_SEQ": "42401"}]})
 _MODIFY_OK = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="정상",
                          body={"output": {"nrml_prcs_yn": "Y"}})
 

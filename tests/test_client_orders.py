@@ -182,7 +182,20 @@ def test_cancel_domestic_order_uses_original_identifiers_and_deduplicates():
     assert call["body"]["RVSE_CNCL_DVSN_CD"] == "02"
     assert call["body"]["ORD_QTY"] == "10"
     assert call["body"]["ORD_UNPR"] == "70000"
-    assert call["body"]["QTY_ALL_ORD_YN"] == "Y"
+    assert call["body"]["QTY_ALL_ORD_YN"] == "Y"       # 수량 미지정 = 전량 취소
+
+
+def test_partial_cancel_sends_quantity_not_full_order():
+    # 부분 취소(quantity 지정)는 QTY_ALL_ORD_YN="N"+ORD_QTY 로 그 수량만 취소해야 한다.
+    # "Y" 는 ORD_QTY 를 무시하고 잔량 전부를 취소하므로, 부분 취소가 조용히 전량 취소가 되는 버그였다.
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    kis = _client(fake)
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="p-1")
+    kis.orders.cancel("p-1", quantity=4, request_id="cancel-p-1")
+    body = fake.calls[1]["body"]
+    assert body["RVSE_CNCL_DVSN_CD"] == "02"           # 취소
+    assert body["ORD_QTY"] == "4"                      # 부분 수량
+    assert body["QTY_ALL_ORD_YN"] == "N"               # 잔량 전부(Y) 아님
 
 
 def test_replace_domestic_order_maps_new_quantity_and_price():

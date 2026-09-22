@@ -51,12 +51,12 @@ _ACCOUNT_ORD_PROCESS = "02"                  # ORD_PRCS_DVSN_CD 고정(주문전
 _SIDE_CODE = {"sell": "01", "buy": "02"}     # SLL_BUY_DVSN_CD (매수/매도 동일 TR)
 
 _CHANGE_PATH = "/uapi/domestic-futureoption/v1/trading/order-rvsecncl"
-#: (session, environment) -> tr_id. 주간 정정취소(TTTO/VTTO1103U)와 야간 정정취소(STTN1103U,
+#: (session, environment) -> tr_id. 주간 정정취소(TTTO/VTTO1103U)와 야간 정정취소(TTTN1103U,
 #: 모의 미지원). 주간 빌더(:func:`make_change_request`)는 야간 지문을 fail-closed 로 거부하고,
 #: 야간은 전용 빌더(:func:`make_night_change_request`)가 잔량 재지정 계약으로 조립한다.
 _CHANGE_TR: dict[str, dict[str, str]] = {
     "regular": {"real": "TTTO1103U", "paper": "VTTO1103U"},
-    "night": {"real": "STTN1103U"},
+    "night": {"real": "TTTN1103U"},
 }
 
 #: (base, time_in_force) -> (ORD_DVSN_CD, NMPR_TYPE_CD, KRX_NMPR_CNDT_CD).

@@ -34,9 +34,9 @@ class _FrozenDatetime(_dt.datetime):
 _PLACE = "/uapi/domestic-stock/v1/trading/order-resv"
 _INQUIRE = "/uapi/domestic-stock/v1/trading/order-resv-ccnl"
 
-# 원장상 발주 응답은 output.rsvn_ord_seq 만.
+# 발주(order) 응답이라 output 키는 대문자다(원장 order_resv/chk = RSVN_ORD_SEQ; ODNO 와 같은 규칙).
 _ACCEPTED = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="예약주문 접수",
-                        body={"output": [{"rsvn_ord_seq": "42401"}]})
+                        body={"output": [{"RSVN_ORD_SEQ": "42401"}]})
 _REJECTED = RawResponse(rt_cd="1", msg_cd="APBK9999", msg1="예약주문 불가", body={})
 
 
@@ -162,7 +162,7 @@ def test_reserve_missing_sequence_fails_closed_holds_in_flight():
 def test_reserve_multi_row_sequence_treated_as_missing():
     # 발주 응답 output 이 다건이면 특정 불가 -> 순번 없음으로 취급, in-flight 유지·raise
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="",
-                       body={"output": [{"rsvn_ord_seq": "1"}, {"rsvn_ord_seq": "2"}]}, tr_cont="")
+                       body={"output": [{"RSVN_ORD_SEQ": "1"}, {"RSVN_ORD_SEQ": "2"}]}, tr_cont="")
     with pytest.raises(OrderError):
         _client(FakeTransport(response=resp)).domestic.stock("005930").reserve_buy(quantity=1, limit_price=1)
 
