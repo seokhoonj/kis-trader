@@ -415,7 +415,7 @@ def test_appraisal_rights_maps_and_params():
     rows = [{"record_date": "20240313", "sht_cd": "065350", "isin_name": "신성델타테크",
              "stk_kind": "보통", "opp_opi_rcpt_term": "020240326",
              "buy_req_rcpt_term": "", "buy_req_price": "000000000000",
-             "buy_amt_pay_dt": "", "get_meet_dt": ""}]
+             "buy_amt_pay_dt": "", "meet_dt": ""}]
     fake = FakeTransport(response=_resp(rows))
     from kis_trader import AppraisalRights
     events = _client(fake).domestic.calendar.appraisal_rights(start="20240301", end="20240331")
@@ -430,6 +430,16 @@ def test_appraisal_rights_maps_and_params():
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/ksdinfo/purreq"
     assert call["tr_id"] == "HHKDB669103C0"
+
+
+def test_appraisal_rights_reads_meet_dt_key():
+    # 주총일은 원장 ksdinfo_purreq/chk 의 meet_dt 로 읽는다("get_meet_dt" 는 오타였다).
+    rows = [{"record_date": "20240313", "sht_cd": "065350", "isin_name": "신성델타테크",
+             "stk_kind": "보통", "opp_opi_rcpt_term": "", "buy_req_rcpt_term": "",
+             "buy_req_price": "0", "buy_amt_pay_dt": "", "meet_dt": "2024/05/20"}]
+    events = _client(FakeTransport(response=_resp(rows))).domestic.calendar.appraisal_rights(
+        start="20240301", end="20240531")
+    assert events[0].meeting_date == date(2024, 5, 20)
 
 
 def test_appraisal_rights_missing_output1_fails_closed():

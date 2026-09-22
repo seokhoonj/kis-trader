@@ -51,13 +51,16 @@ class ELWScreenerQueries:
 
     def newly_listed(
         self, *, date: str, right: str = "all",
-        underlying: str = "000000", issuer: str = "00000",
+        underlying: str = "000000", issuer: str | None = None,
     ) -> list[ELWListing]:
-        """신규상장 ELW 목록. ``date`` 는 기준일(YYYYMMDD). ``issuer`` 는 발행사 코드로
-        ``"00000"`` 이면 전 발행사(기본), 특정 발행사는 그 코드(예: ``"00003"`` 한국투자증권)."""
+        """신규상장 ELW 목록. ``date`` 는 기준일(YYYYMMDD). ``issuer`` 는 발행사 코드로 KIS 가 이
+        조회에서만 **필수**로 요구하며 '전 발행사'(``"00000"``)는 거부된다 -- 생략하면 라이브러리 기본
+        발행사(한국투자증권)를 쓰고, 다른 발행사는 그 코드(예: ``"00017"`` KB증권)를 준다."""
+        # issuer 기본은 엔진(fetch_newly_listed)이 쥔다 -- 여기서 "00000" 을 재기술하면 거부값을
+        # 덮어씌운다. 준 값만 전달하고, 안 주면 엔진 기본이 적용되게 한다.
+        extra = {} if issuer is None else {"issuer": issuer}
         return elw_api.fetch_newly_listed(
-            self._client.transport, date=date, right=right,
-            underlying=underlying, issuer=issuer,
+            self._client.transport, date=date, right=right, underlying=underlying, **extra,
         )
 
     def expiring(

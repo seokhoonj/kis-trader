@@ -10,7 +10,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from ..bar import Bar, Interval
+from ..bar import Bar, Interval, PeriodInterval
 from ._engine import index as index_api
 from .entities.index import (
     ExpectedIndexPoint,
@@ -95,7 +95,7 @@ class Index:
     def daily_history(
         self,
         *,
-        interval: Interval = "1d",
+        interval: PeriodInterval = "1d",
         as_of: str | date | None = None,
     ) -> IndexDailyHistory:
         """조회 시점 스냅샷과 최근 최대 100건의 일·주·월 지수 통계."""

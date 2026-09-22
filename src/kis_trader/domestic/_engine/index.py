@@ -48,7 +48,7 @@ from ..._internal._wire import (
     required_decimal,
     required_int,
 )
-from ...bar import Bar, Interval
+from ...bar import Bar, Interval, PeriodInterval
 from ...errors import KISUsageError
 from ...transport import RawResponse, Transport
 from ..entities.index import (
@@ -309,7 +309,7 @@ def fetch_index_daily_history(
     transport: Transport,
     *,
     code: str,
-    interval: Interval,
+    interval: PeriodInterval,
     as_of: str | date | None,
 ) -> IndexDailyHistory:
     """지수 일·주·월 통계와 조회 시점 스냅샷을 조회한다."""

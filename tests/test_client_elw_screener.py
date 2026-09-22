@@ -117,7 +117,15 @@ def test_newly_listed_right_code_and_dates():
     assert call["tr_id"] == "FHKEW154800C0"
     assert call["params"]["FID_DIV_CLS_CODE"] == "00"            # 신규상장 call=00
     assert call["params"]["FID_INPUT_DATE_1"] == "20240410"
-    assert call["params"]["FID_INPUT_ISCD_2"] == "00000"         # 기본 발행사=전체(형제 조회와 동일 코드표)
+    # 이 조회는 발행사 필수("00000" 전체는 거부) -- issuer 를 안 주면 엔진 기본 발행사(00003 한투)를 쓴다.
+    assert call["params"]["FID_INPUT_ISCD_2"] == "00003"
+
+
+def test_newly_listed_forwards_explicit_issuer():
+    # 사용자가 준 발행사는 그대로 전달(파사드가 기본을 재기술하지 않고 준 값만 넘긴다).
+    fake = FakeTransport(response=_resp([]))
+    _client(fake).domestic.elw_screener.newly_listed(date="20240410", issuer="00017")
+    assert fake.calls[0]["params"]["FID_INPUT_ISCD_2"] == "00017"
 
 
 # --- expiring (콜풋 코드 2/0/1) ---------------------------------------------

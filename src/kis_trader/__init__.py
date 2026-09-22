@@ -28,7 +28,7 @@ from ._literals import (
     SideFilter,
 )
 from .account import StockAccount
-from .bar import Bar, Interval
+from .bar import Bar, Interval, PeriodInterval
 from .client import KISClient
 from .config import KISConfig
 from .domestic.bond import Bond
@@ -536,6 +536,7 @@ __all__ = [
     "PensionDeposit",
     "PensionOrder",
     "PensionPresentBalance",
+    "PeriodInterval",
     "Portfolio",
     "Position",
     "PriceLevel",

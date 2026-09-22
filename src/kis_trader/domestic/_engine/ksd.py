@@ -77,6 +77,10 @@ def _parse_ksd_date(value: object, *, required: bool, name: str) -> date | None:
     빈 값/"00000000"(미정 sentinel)은 ``None``(required 면 예외). 형식이 깨지면 fail-closed.
     KSD는 일부 필드(단주대금지급일 등)를 "시작 ~ 종료" 범위로 주기도 하는데, 이때는 시작일을 취한다
     (대개 시작=종료)."""
+    if value is None:                                           # 필드 부재 = 빈 값과 동일 취급
+        if required:
+            raise KISError(f"필수 날짜 필드 {name!r} 가 없다.")
+        return None
     text = str(value).split("~", 1)[0]                          # "시작 ~ 종료" 범위면 시작일만
     text = text.strip().replace("/", "").replace(".", "").replace("-", "")
     if not text or text == "00000000":
@@ -513,8 +517,8 @@ def fetch_appraisal_rights(
                 buyback_price=optional_decimal(row.get("buy_req_price"), "buy_req_price"),
                 payment_date=_parse_ksd_date(row.get("buy_amt_pay_dt"), required=False,
                                              name="buy_amt_pay_dt"),
-                meeting_date=_parse_ksd_date(row.get("get_meet_dt"), required=False,
-                                             name="get_meet_dt"),
+                meeting_date=_parse_ksd_date(row.get("meet_dt"), required=False,
+                                             name="meet_dt"),
                 _raw=row,
             )
         )

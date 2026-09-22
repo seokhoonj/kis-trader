@@ -40,7 +40,7 @@ from ..._internal._wire import (
     required_decimal,
     required_int,
 )
-from ...bar import Bar, Interval
+from ...bar import Bar, Interval, PeriodInterval
 from ...errors import KISError, KISUsageError
 from ...order_book import OrderBook
 from ...quote import Quote
@@ -231,7 +231,7 @@ def fetch_recent_prices(
     *,
     symbol: str,
     market: str,
-    interval: Interval,
+    interval: PeriodInterval,
     adjusted: bool,
 ) -> list[RecentPricePoint]:
     """최근 30개 일·주·월 주가와 수급 보조지표."""

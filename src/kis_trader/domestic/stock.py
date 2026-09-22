@@ -15,7 +15,7 @@ from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
 from .._stock_base import _StockBase
-from ..bar import Bar, Interval
+from ..bar import Bar, Interval, PeriodInterval
 from ..errors import KISUsageError
 from ..execution import TWAPExecutionResult, execute_twap, make_twap_schedule
 from ..instrument import DomesticBoard, resolve_market
@@ -128,7 +128,7 @@ class DomesticStock(_StockBase):
         )
 
     def recent_prices(
-        self, *, interval: Interval = "1d", adjusted: bool = True
+        self, *, interval: PeriodInterval = "1d", adjusted: bool = True
     ) -> list[RecentPricePoint]:
         """최근 30개 일·주·월 주가와 외국인 수급·거래량·권리락 보조지표."""
         return market_data.fetch_recent_prices(

@@ -19,6 +19,10 @@ from ._internal._freeze import freeze_vendor_payload
 #: 바 간격 -- 당일 1분봉(1m)과 일/주/월봉.
 Interval = Literal["1m", "1d", "1wk", "1mo"]
 
+#: 기간봉 전용 간격 -- 일/주/월만. 분봉을 제공하지 않는 조회(지수 일별통계, 최근 30일 시세 등)의
+#: 공개 파라미터 타입. 이 조회에 ``"1m"`` 을 주면 엔진이 항상 거부하므로 타입에서 배제한다(정직한 계약).
+PeriodInterval = Literal["1d", "1wk", "1mo"]
+
 
 @dataclass(frozen=True, slots=True)
 class Bar:
