@@ -24,18 +24,24 @@ kis stock quote 005930                                # 현재가
 kis stock quote AAPL --venue overseas                 # 해외(거래소 자동)
 kis stock bars 005930 --interval 1d --start 20240101
 kis stock book 005930                                 # 호가
+kis stock trades 005930                               # 최근 체결
+kis stock status 005930                               # 거래정지·관리종목 등 상태
 kis search 삼성전자 --market KOSPI
 kis ranking change --direction gainers                # 상승률 상위
+kis ranking volume                                    # 거래대금(기본)·거래량 등 상위
+kis ranking market-cap                                # 시가총액 상위
 kis account balance                                   # 국내 잔고
 kis account positions --venue overseas --market US
 ```
 
 아무 옵션 없이 쓰면 결과가 **눈으로 보기 좋은 표**로 나옵니다. 이 출력을 다른 프로그램이나
 스크립트에서 자동으로 읽어(파싱해) 쓰려면 `--format json` 을 붙여 JSON 으로 받습니다(결과가
-여러 행이면 한 줄에 한 건씩 주는 `--format jsonl` 도 있습니다).
+여러 행이면 한 줄에 한 건씩 주는 `--format jsonl` 도 있습니다). 벤더 원본 필드까지 함께 받으려면
+`--include-raw` 를 더합니다(각 항목에 `_raw` 로 KIS 응답 원본이 붙습니다).
 
 ```bash
 kis stock quote 005930 --format json
+kis stock quote 005930 --format json --include-raw    # KIS 원본 필드 포함
 ```
 
 일별 주문·체결 내역(기간)은 `kis account fills` 로 조회합니다. 기본은 국내주식(`--asset stock`),

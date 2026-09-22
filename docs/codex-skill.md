@@ -32,7 +32,8 @@ KIS 계좌 작업은 kis_trader 공개 API 로만 하고, plugins/kis-trader/ski
 ```
 
 ::: {.callout-note}
-Claude Code 용 매니페스트는 `.claude-plugin/`, Codex 용은 `.codex-plugin/` 와
-`.agents/plugins/` 에 함께 들어 있어 어느 쪽에서든 설치됩니다. 스킬 본체는 `skills/` 하나를
-공유합니다.
+Claude Code 마켓플레이스 매니페스트는 리포지토리 최상위 `.claude-plugin/marketplace.json`, Codex
+마켓플레이스는 최상위 `.agents/plugins/marketplace.json` 입니다. `.codex-plugin/` 는 플러그인 안
+(`plugins/kis-trader/.codex-plugin/plugin.json`)의 플러그인-레벨 매니페스트로, 최상위엔 없습니다.
+스킬 본체는 `plugins/kis-trader/skills/kis-trader/` 하나를 공유합니다.
 :::

@@ -112,7 +112,7 @@ kis order buy <sym> 1 --asset futures --venue overseas --limit-price 100  # over
 ## 6. Use it from an AI coding agent
 
 To manage an account through an AI tool such as Claude Code or Codex, use the
-`skills/kis-trader/` skill. See the
+`plugins/kis-trader/skills/kis-trader/` skill. See the
 [Claude skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) and
 [Codex skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) chapters.
 
@@ -134,4 +134,4 @@ The arguments and return value of each method are available through `help(the_me
 
 ## 8. License
 
-[MIT](LICENSE) © seokhoonj
+[MIT](LICENSE)

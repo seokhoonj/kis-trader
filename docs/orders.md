@@ -101,10 +101,13 @@ stock.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (
 취소/정정은 `client_order_id` 로 지목합니다.
 
 ```python
-kis.orders.modify(report.client_order_id, limit_price=70500)  # 가격 정정
-kis.orders.modify(report.client_order_id, quantity=5)         # 수량 정정
-kis.orders.cancel(report.client_order_id)                     # 취소
+kis.orders.modify(report.client_order_id, limit_price=70500)              # 가격 정정
+kis.orders.modify(report.client_order_id, limit_price=70000, quantity=5)  # 수량 정정(단가도 함께 전송)
+kis.orders.cancel(report.client_order_id)                                 # 취소
 ```
+
+`modify` 는 `limit_price` 가 필수입니다 — 정정은 새 단가로 재전송하는 것이라, 수량만 바꿀 때도 유지할
+단가를 함께 줍니다(단가를 빼면 시장가로 재전송되지 "기존 단가 유지"가 아닙니다).
 
 **주문이 진짜 들어갔는지 확인** — `reconcile`:
 
@@ -260,8 +263,9 @@ kis.orders.cancel(report.client_order_id)                     # 취소
 ```
 
 ::: {.callout-note}
-파생 야간장(`night=True`, KRX STTN)은 **모의투자 미지원**이라 실전 세션에서만 나갑니다. 해외 선물·옵션은
-아직 **시세·차트·호가 조회만** 지원합니다([한계·미구현](limits.md) 참고).
+파생 야간장(`night=True`, KRX STTN)은 **모의투자 미지원**이라 실전 세션에서만 나갑니다. 해외 선물·옵션
+주문(`kis.overseas.futures(코드).buy()`/`sell()`)도 **실전 전용**입니다(KIS가 모의를 제공하지 않음 —
+[한계·미구현](limits.md) 참고).
 :::
 
 ## 신용주문
