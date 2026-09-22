@@ -62,8 +62,11 @@ def translate(exc: BaseException) -> Translated:
         return Translated(exit_code=3, outcome="not_sent", retryable=False,
                           reconcile_required=False, message=str(exc) or "사용자가 취소했습니다.")
     if isinstance(exc, OrderTimeoutError):
+        # 타임아웃 예외는 client_order_id 를 실어 온다 -- 그걸 그대로 노출해 사용자가 바로 재조회할 수
+        # 있게 한다(예전엔 id 를 버리고 자리표시만 찍어, 재조회 대상을 알 수 없었다).
         return Translated(exit_code=7, outcome="unknown", retryable=False, reconcile_required=True,
-                          message=f"주문 결과 불명(타임아웃). {_RECONCILE_HINT}")
+                          message=f"주문 결과 불명(타임아웃) -- kis order reconcile {exc.client_order_id} "
+                                  f"로 확인하세요. {_RECONCILE_HINT}")
     if isinstance(exc, OrderRejectedError):
         return Translated(exit_code=6, outcome="rejected", retryable=False,
                           reconcile_required=False, message=f"브로커가 주문을 거부했습니다: {exc}")

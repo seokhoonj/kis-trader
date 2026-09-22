@@ -152,6 +152,12 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
                 raise CliConfigError("--stop-price 와 --division 은 함께 쓸 수 없습니다.")
     if is_deriv and args.exchange is not None:
         raise CliConfigError("--exchange 는 파생 주문에 쓰지 않습니다(계약코드가 거래소를 결정).")
+    if asset == "stock" and domestic and args.exchange is not None:
+        # --exchange 는 해외 거래소코드(NAS/NYS/...) 전용이라 국내 주식 주문엔 무의미하다. 예전엔 조용히
+        # 무시했다 -- 등록됐지만 안 읽는 플래그는 거부해 사용자가 오해하지 않게 한다(silent-ignore 금지).
+        raise CliConfigError(
+            "--exchange 는 해외 주식 주문 전용입니다(--venue overseas) -- 국내 주식 주문엔 쓰지 않습니다."
+        )
     if args.division is not None:
         # 국내(현금 또는 파생)만 division 을 받는다. 해외는 주식/파생 모두 불가 -- stock 이라도
         # domestic 이 아니면 여기서 거부한다(이 함수가 division 검증의 유일한 소유자).
@@ -351,9 +357,13 @@ def cmd_twap(kis: KISClient, args: Namespace, *, is_tty: bool | None = None,
         "filled_quantity": str(result.filled_quantity),
         "shortfall": str(result.shortfall),
         "average_price": None if result.average_price is None else str(result.average_price),
+        # 타임아웃(체결 불명) 슬라이스의 client_order_id -- 비어있지 않으면 kis order reconcile <id> 로
+        # 사후 확인해야 한다(그 주문은 살아 있을 수 있어 유실로 단정하지 않는다).
+        "pending_reconcile_ids": list(result.pending_reconcile_ids),
         "outcomes": [
             {"at": o.at.isoformat(), "quantity": o.quantity,
              "order_id": None if o.report is None else o.report.order_id,
+             "client_order_id": o.client_order_id,   # 타임아웃 슬라이스만 채워진다(reconcile 대상)
              "error": o.error}
             for o in result.outcomes
         ],

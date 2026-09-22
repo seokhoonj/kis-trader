@@ -32,12 +32,17 @@ def _now_kst() -> datetime:
 class TWAPSliceOutcome:
     """한 슬라이스의 실행 결과. ``report``/``error`` 중 **정확히 하나**만 설정된다 -- 접수 성공이면
     ``report`` 가 차고 ``error`` 는 ``None``, 접수 거부/타임아웃이면 ``report`` 가 ``None`` 이고
-    ``error`` 에 사유가 담긴다(그래서 ``report is None`` 이 곧 그 슬라이스의 실패를 뜻한다)."""
+    ``error`` 에 사유가 담긴다(그래서 ``report is None`` 이 곧 그 슬라이스의 실패를 뜻한다).
+
+    ``client_order_id`` 는 **타임아웃(체결 불명)** 슬라이스에만 실린다 -- 그 주문은 살아 있을 수 있어
+    ``kis.orders.reconcile(client_order_id)`` 로 사후 확인해야 하므로, 그 id 를 유실하지 않고 실어 둔다.
+    거부/성공 슬라이스는 ``None``(거부는 재조회 불필요, 성공은 ``report`` 에 id 가 있다)."""
 
     at: datetime
     quantity: int
     report: ExecutionReport | None
     error: str | None
+    client_order_id: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -64,6 +69,12 @@ class TWAPExecutionResult:
     def shortfall(self) -> Decimal:
         """목표 대비 미체결 수량(총 수량 - 체결 수량, 재조회 스냅샷 기준)."""
         return Decimal(self.schedule.total_quantity) - self.filled_quantity
+
+    @property
+    def pending_reconcile_ids(self) -> tuple[str, ...]:
+        """사후 재조회가 필요한 슬라이스의 ``client_order_id`` 들 -- 타임아웃(체결 불명) 슬라이스.
+        이 목록이 비지 않으면 그 주문들이 살아 있을 수 있으니 ``kis order reconcile <id>`` 로 확인해야 한다."""
+        return tuple(o.client_order_id for o in self.outcomes if o.client_order_id is not None)
 
     @property
     def average_price(self) -> Decimal | None:
@@ -116,7 +127,12 @@ def execute_twap(
                     )
             try:
                 report = place(quantity=entry.quantity)
-            except (OrderRejectedError, OrderTimeoutError) as error:
+            except OrderTimeoutError as error:
+                # 타임아웃 슬라이스는 살아 있을 수 있다 -- client_order_id 를 실어 사후 reconcile 가능하게.
+                outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, None, str(error),
+                                                 client_order_id=error.client_order_id))
+                continue
+            except OrderRejectedError as error:
                 outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, None, str(error)))
                 continue
             if reconcile:

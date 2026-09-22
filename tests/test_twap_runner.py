@@ -126,6 +126,13 @@ def test_run_partial_timeout_continues_and_reports_shortfall():
     assert result.submitted_quantity == 66               # 33 + 33 (timed-out 34 excluded)
     assert result.shortfall == Decimal(34)
     assert result.outcomes[0].report is None and "타임아웃" in result.outcomes[0].error
+    # 타임아웃 슬라이스는 client_order_id 를 유실하지 않고 실어 재조회 가능해야 한다(예전엔 str 로 뭉갰다).
+    assert result.outcomes[0].client_order_id == "c1"
+    assert result.pending_reconcile_ids == ("c1",)       # 사후 reconcile 대상
+    # 거부 슬라이스는 재조회 불필요 -- client_order_id 없음(타임아웃과 구별).
+    rejected = execute_twap(_Kis(_Stock([], fail_slices=(1,))), _sched(),
+                            now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
+    assert rejected.outcomes[0].client_order_id is None and rejected.pending_reconcile_ids == ()
 
 
 def test_run_reconcile_replaces_place_report():

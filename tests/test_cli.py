@@ -389,6 +389,13 @@ def test_order_division_rejected_for_overseas():
         order.cmd_buy(StubKis(), args, is_tty=False)
 
 
+def test_order_exchange_rejected_for_domestic_stock():
+    # --exchange 는 해외 거래소코드 전용이라 국내 주식 주문엔 무의미 -- 조용히 무시하지 않고 거부한다.
+    args = _args(["order", "buy", "005930", "10", "--limit-price", "70000", "--exchange", "NAS"])
+    with pytest.raises(CliConfigError, match="exchange"):
+        order.cmd_buy(StubKis(), args, is_tty=False)
+
+
 def test_order_domestic_stop_price_dry_run_and_execute_forwards_it():
     # 국내 주식 스톱지정가(ORD_DVSN 22): dry-run 은 티켓에 노출, 전송 시 stop_price 를 그대로 전달.
     dry = order.cmd_buy(StubKis(), _args(
@@ -906,6 +913,13 @@ def test_translate_maps_known_exceptions_to_translated_fields(
     translated = translate(exc)
     assert (translated.exit_code, translated.outcome, translated.reconcile_required,
             translated.retryable) == (exit_code, outcome, reconcile_required, retryable)
+
+
+def test_translate_timeout_message_carries_client_order_id():
+    # 타임아웃 번역 메시지에 client_order_id 를 실어 사용자가 바로 재조회할 수 있어야 한다
+    # (예전엔 id 를 버려 어느 주문을 reconcile 해야 하는지 알 수 없었다).
+    translated = translate(OrderTimeoutError("timeout", client_order_id="abc-123"))
+    assert "abc-123" in translated.message
 
 
 def test_translate_reraises_unknown_exception():
