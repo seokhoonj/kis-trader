@@ -169,8 +169,7 @@ def _walk_holdings(
     """연속조회 + 요약(output2)을 공유 상태기계(:func:`_fetch_paginated_rows_with_summary`)에 위임한다.
 
     비진전 커서 방어(빈 키/같은 키 반복/종료 센티널 "^^" -> 같은 페이지 재요청 방지)와 페이지 상한
-    fail-closed 는 공유 헬퍼가 담당한다 -- 예전엔 여기 별도 루프에 그 방어가 있었고 공유 헬퍼엔
-    없어, 같은 상태기계가 두 곳에 갈라져 드리프트했다(공유 헬퍼를 쓰는 다른 조회는 방어가 없었다)."""
+    fail-closed 는 공유 헬퍼가 담당한다."""
     return _fetch_paginated_rows_with_summary(
         transport,
         path=path, tr_id=tr_id,

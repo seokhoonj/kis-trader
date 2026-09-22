@@ -122,7 +122,13 @@ def test_startup_failure_terminates_typed_subscription():
     sub = client._open_typed("H0STASP0", "005930")    # start 전 타입드 구독
     with pytest.raises(ConnectionError):
         client.start()
-    assert list(sub) == []                            # sentinel -> 종료(무한 hang 아님)
+    # 상한 있는 스레드로 소비 -- 퇴행(센티넬 누락)으로 이터레이터가 멎으면 hang 대신 실패로 드러난다.
+    result: list[list[object]] = []
+    worker = threading.Thread(target=lambda: result.append(list(sub)))
+    worker.start()
+    worker.join(timeout=5.0)
+    assert not worker.is_alive(), "구독 이터레이터가 종료되지 않았다(센티넬 누락 퇴행)"
+    assert result == [[]]                             # sentinel -> 즉시 종료
 
 
 def test_subscribe_before_start_is_deferred_then_sent():
@@ -293,7 +299,11 @@ def test_put_sentinel_does_not_block_when_queue_full():
     client._queue = queue.Queue(maxsize=3)
     for i in range(3):                                # 큐를 상한까지 채운다
         client._queue.put_nowait(RealtimeMessage(tr_id="T", tr_key="K", data=[str(i)]))
-    client._put_sentinel()                            # 블록하면 이 테스트가 hang -> 실패로 드러남
+    # 상한 있는 스레드로 호출 -- 블로킹 put 으로 퇴행하면 hang 대신 실패로 드러난다.
+    worker = threading.Thread(target=client._put_sentinel)
+    worker.start()
+    worker.join(timeout=5.0)
+    assert not worker.is_alive(), "_put_sentinel 이 블록했다(non-blocking 퇴행)"
     drained = []
     while not client._queue.empty():
         drained.append(client._queue.get_nowait())

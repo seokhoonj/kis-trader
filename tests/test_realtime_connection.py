@@ -243,7 +243,8 @@ def test_subscribe_unsubscribe_same_key_do_not_reorder():
         await asyncio.gather(sub_task, unsub_task)
         return ws.sent, set(conn._subscriptions)
 
-    sent, subs = asyncio.run(scenario())
+    # wait_for 로 상한 -- 락 퇴행으로 교착하면 hang 대신 TimeoutError 로 빠르게 실패한다.
+    sent, subs = asyncio.run(asyncio.wait_for(scenario(), timeout=5.0))
     tr_types = [json.loads(s)["header"]["tr_type"] for s in sent]
     assert tr_types == ["1", "2"]          # 등록(1) 뒤 해제(2) 둘 다 순서대로 나갔다
     assert subs == set()                   # 최종 미구독 -- 슬롯 누수 없음
@@ -256,7 +257,9 @@ def test_sleep_or_stop_returns_immediately_after_stop():
         conn = RealtimeConnection("KEY", "ws://x", connect=_connector(FakeWebSocket([])),
                                   reconnect=False)
         await conn.stop()                 # _stop_event 세팅
-        await conn._sleep_or_stop(30.0)   # 즉시 반환해야 한다(30초 안 기다림)
+        # wait_for 로 상한을 둔다 -- 중단이 안 되면(sleep 으로 퇴행) 1초 안에 못 끝나 TimeoutError 로
+        # 실패한다(예전엔 상한이 없어 30초 느리게 통과할 수 있었다).
+        await asyncio.wait_for(conn._sleep_or_stop(30.0), timeout=1.0)
         return True
 
     assert asyncio.run(scenario()) is True

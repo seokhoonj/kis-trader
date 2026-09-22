@@ -487,7 +487,7 @@ def _make_domestic_change_request(
     # "Y" 로 KIS 가 실제 잔량을 취소하게 둔다(스냅샷과 실잔량이 어긋나도 강건). 정정(modify)은 잔량
     # 재지정이라 항상 "N"+ORD_QTY.
     remaining_quantity = Decimal(original_fingerprint.quantity) - original_report.filled_quantity
-    cancel_all = action == "cancel" and quantity >= remaining_quantity
+    is_full_cancel = action == "cancel" and quantity >= remaining_quantity
     body = {
         "CANO": cano,
         "ACNT_PRDT_CD": product_code,
@@ -502,7 +502,7 @@ def _make_domestic_change_request(
             else "0" if limit_price is None else format_wire_decimal(limit_price)
         ),
         "CNDT_PRIC": original_fingerprint.stop_price or "0",
-        "QTY_ALL_ORD_YN": "Y" if cancel_all else "N",
+        "QTY_ALL_ORD_YN": "Y" if is_full_cancel else "N",
         "EXCG_ID_DVSN_CD": _BOARD_EXCG[original_fingerprint.board],
     }
     return WireRequest("POST", _CHANGE_PATH, _CHANGE_TR[environment], body)

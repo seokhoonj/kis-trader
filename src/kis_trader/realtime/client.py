@@ -69,8 +69,9 @@ class RealtimeClient:
         self._approval_key = approval_key
         self._url = url
         self._customer_type: CustomerType = customer_type
-        #: 접속 환경(real/paper) -- 체결통보 등 일부 TR-id 는 모의(paper)에서 다르다(H0STCNI0 vs H0STCNI9).
-        self.environment: Environment = environment
+        # 접속 환경(real/paper) -- 체결통보 등 일부 TR-id 는 모의(paper)에서 다르다(H0STCNI0 vs H0STCNI9).
+        # 형제 필드(_approval_key/_customer_type 등)와 같이 private -- 네임스페이스가 _c._environment 로 읽는다.
+        self._environment: Environment = environment
         self._connect = connect
         self._reconnect = reconnect
         # 해외주식 RSYM 해석용 seam. ``kis.realtime()`` 이 KISClient.instrument 을 주입한다. 없으면
@@ -327,8 +328,8 @@ class RealtimeClient:
             self._startup_error = exc
             await self._conn.close()  # 소켓 누수 방지
             self._put_sentinel()
-            # start() 전에 만든 타입드 구독의 per-sub 큐에도 센티넬을 넣어야 `for tick in sub:` 가
-            # 영원히 멎지 않는다 -- 정상 종료(finally, 338줄)만 하던 것을 기동 실패에도 한다.
+            # 기동 실패 경로에서도 타입드 구독의 per-sub 큐에 종료 센티넬을 넣는다 -- 안 그러면
+            # start() 전에 만든 구독의 `for tick in sub:` 가 영원히 멎는다.
             self._shutdown_subscriptions()
             self._ready.set()
             return

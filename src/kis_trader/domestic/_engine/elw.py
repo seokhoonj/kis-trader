@@ -181,6 +181,12 @@ def fetch_quote(transport: Transport, *, code: str) -> ELWQuote:
     # 전일대비/등락률 크기에 방향 부호를 입힌다(원장 inquire_elw_price 에 prdy_vrss_sign 이 있다) --
     # 안 입히면 하락일에도 change 가 양수로 나온다(다른 ELW 파서·형제 자산과 동일 규약).
     price_sign = str(output.get("prdy_vrss_sign", "")).strip()
+    vrss = required_decimal(output.get("prdy_vrss"), "prdy_vrss")
+    ctrt = required_decimal(output.get("prdy_ctrt"), "prdy_ctrt")
+    # 부호 필드가 있으면 그것으로 방향을 정하고, 없으면 값 자체의 부호를 쓴다(형제 파서와 동일 -- 빈
+    # 부호에 _apply_change_sign 을 태우면 abs() 로 하락 부호가 지워진다).
+    change = _apply_change_sign(vrss, price_sign) if price_sign else vrss
+    change_percent = _apply_change_sign(ctrt, price_sign) if price_sign else ctrt
     return ELWQuote(
         code=code,
         price=required_decimal(output.get("elw_prpr"), "elw_prpr"),
@@ -188,10 +194,8 @@ def fetch_quote(transport: Transport, *, code: str) -> ELWQuote:
         high=required_decimal(output.get("elw_hgpr"), "elw_hgpr"),
         low=required_decimal(output.get("elw_lwpr"), "elw_lwpr"),
         previous_close=required_decimal(output.get("stck_prdy_clpr"), "stck_prdy_clpr"),
-        change=_apply_change_sign(required_decimal(output.get("prdy_vrss"), "prdy_vrss"), price_sign),
-        change_percent=_apply_change_sign(
-            required_decimal(output.get("prdy_ctrt"), "prdy_ctrt"), price_sign
-        ),
+        change=change,
+        change_percent=change_percent,
         volume=required_int(output.get("acml_vol"), "acml_vol"),
         bid=optional_decimal(output.get("bidp"), "bidp"),
         ask=optional_decimal(output.get("askp"), "askp"),

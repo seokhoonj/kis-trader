@@ -120,3 +120,14 @@ def test_bad_session_fails_closed() -> None:
     _, ns = _ns()
     with pytest.raises(KISUsageError):
         ns.execution_notices.derivative("id", session="bogus")  # type: ignore[arg-type]
+
+
+def test_overseas_stock_execution_notice_uses_demo_tr_on_paper() -> None:
+    # 해외 체결통보도 모의(paper)에서 H0GSCNI9 다 -- 실전 TR 로 구독하면 모의에서 통보를 못 받는다.
+    from kis_trader.realtime.overseas_namespace import RealtimeOverseasNamespace
+    real = RealtimeOverseasNamespace(RealtimeClient("k", "wss://x", connect=None))
+    paper = RealtimeOverseasNamespace(
+        RealtimeClient("k", "wss://x", connect=None, environment="paper")
+    )
+    assert real.execution_notices.stock("id").tr_id == "H0GSCNI0"
+    assert paper.execution_notices.stock("id").tr_id == "H0GSCNI9"

@@ -110,9 +110,18 @@ class _OverseasDerivHandle:
                           limit_price, stop_price)); return "REPORT"
 
 
+class _Ranking:
+    def __init__(self, log):
+        self._log = log
+
+    def by_volume(self, *, metric="cumulative_trading_amount"):  # 라이브러리 기본값(CLI 는 재기술 안 함)
+        self._log.append(("by_volume", metric)); return ["RV"]
+
+
 class _Domestic:
     def __init__(self, log):
         self._log = log
+        self.ranking = _Ranking(log)
 
     def stock(self, code):
         return _Handle(self._log, code)
@@ -193,6 +202,15 @@ def test_search_passes_market_and_returns_all_candidates():
     kis = StubKis()
     assert args.func(kis, args) == ["HIT"]
     assert kis.log == [("search", "삼성", "KOSDAQ")]
+
+
+def test_ranking_volume_omitting_metric_uses_library_default():
+    # --metric 생략 시 CLI 가 기본값을 재기술하지 않고 라이브러리 기본(스텁 by_volume 의 기본)이 적용된다.
+    args = _args(["ranking", "volume"])
+    assert args.metric is None                 # 파서 기본은 None
+    kis = StubKis()
+    args.func(kis, args)
+    assert kis.log == [("by_volume", "cumulative_trading_amount")]
 
 
 def test_search_omitting_market_uses_library_default():

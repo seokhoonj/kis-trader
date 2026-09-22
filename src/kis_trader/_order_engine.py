@@ -269,14 +269,14 @@ class OrderEngine:
                       if fingerprint.limit_price else None)
             )
             # risk.check 는 symbol/quantity/limit_price/stop_price 만 읽는다 -- 나머지 필드는 기본값.
-            probe = Order(
+            risk_probe = Order(
                 symbol=fingerprint.symbol, side=fingerprint.side,
                 order_type=fingerprint.order_type, quantity=change_quantity,
                 limit_price=effective_price,
                 stop_price=(coerce_decimal(fingerprint.stop_price, "stop_price")
                             if fingerprint.stop_price and fingerprint.stop_price != "0" else None),
             )
-            orders_engine.run_pre_trade_risk(self._transport, probe, self._risk)
+            orders_engine.run_pre_trade_risk(self._transport, risk_probe, self._risk)
         return orders_engine.submit_change(
             self._transport, self._store,
             original_client_order_id=client_order_id,

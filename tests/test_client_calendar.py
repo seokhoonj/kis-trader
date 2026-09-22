@@ -442,6 +442,16 @@ def test_appraisal_rights_reads_meet_dt_key():
     assert events[0].meeting_date == date(2024, 5, 20)
 
 
+def test_appraisal_rights_missing_meet_dt_key_is_none():
+    # meet_dt 키가 아예 없어도(부재) 크래시 없이 meeting_date=None -- KSD 날짜 파서의 None-안전 경로.
+    rows = [{"record_date": "20240313", "sht_cd": "065350", "isin_name": "신성델타테크",
+             "stk_kind": "보통", "opp_opi_rcpt_term": "", "buy_req_rcpt_term": "",
+             "buy_req_price": "0", "buy_amt_pay_dt": ""}]   # meet_dt 키 없음
+    events = _client(FakeTransport(response=_resp(rows))).domestic.calendar.appraisal_rights(
+        start="20240301", end="20240531")
+    assert events[0].meeting_date is None
+
+
 def test_appraisal_rights_missing_output1_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
