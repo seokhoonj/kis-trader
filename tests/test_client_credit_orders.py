@@ -90,6 +90,17 @@ def test_credit_order_blocked_by_default():
     assert fake.calls == []
 
 
+def test_credit_unsupported_tif_raises_kis_usage_error():
+    # 신용주문은 day 만 지원 -- 다른 TIF 는 KISError 트리(KISUsageError)로 거부해야 한다.
+    # 예전엔 NotImplementedError 라 KISError 밖으로 새, except KISError 가 놓쳤다.
+    fake = FakeTransport(response=_ACCEPTED)
+    with pytest.raises(KISUsageError):
+        _client(fake).domestic.stock("009150").credit_buy(
+            quantity=1, limit_price=130000, credit_type="26", loan_date="20211103",
+            time_in_force="ioc")
+    assert fake.calls == []                          # 와이어 전 거부
+
+
 # --- 정상 전송 -------------------------------------------------------------
 def test_credit_buy_limit_wire():
     fake = FakeTransport(response=_ACCEPTED)

@@ -164,6 +164,16 @@ def test_cancel_is_not_gated_by_risk():
     assert isinstance(report, ExecutionReport)
 
 
+@pytest.mark.parametrize("bad", [Decimal("NaN"), Decimal("Infinity")])
+def test_non_finite_reference_price_fails_closed(bad):
+    # 비유한 현재가는 collar 비교(abs(x-NaN)/NaN)를 fail-open 시킨다 -- Order 는 수량/가격을 이미
+    # 거르지만 공개 check() 에 직접 넘기는 reference_price 는 안 걸러지므로 여기서 fail-closed 해야 한다.
+    order = Order(symbol="005930", side="buy", order_type="limit", quantity=Decimal(1),
+                  limit_price=Decimal(70000))
+    with pytest.raises(PreTradeRiskError):
+        RiskLimits(price_collar_percent=10).check(order, reference_price=bad)
+
+
 # --- 금액(notional) 한도 ---------------------------------------------------
 def test_notional_cap_on_limit_uses_own_price_no_quote():
     fake = FakeTransport(response=_ACCEPTED)

@@ -99,6 +99,15 @@ class RiskLimits:
         (:meth:`needs_reference_price` 가 True 면 호출자가 채워 준다). 검사에 참조가 필요한데
         없으면 확인 불가로 보고 거부한다(fail-closed -- 못 지킨 한도를 지킨 척하지 않는다).
         """
+        # 비유한(NaN/Infinity) 입력은 모든 비교를 fail-open 시킨다(NaN > x 는 False, abs(x-NaN)/NaN
+        # 도 NaN) -- 한도를 확인할 수 없으므로 먼저 fail-closed 한다. order 의 수량/가격은 Order 생성 시
+        # coerce_decimal 이 이미 거르지만, 공개 메서드로 직접 넘길 수 있는 reference_price 는 안 걸러진다.
+        for label, value in (("수량", order.quantity), ("지정가", order.limit_price),
+                             ("스탑가", order.stop_price), ("현재가", reference_price)):
+            if value is not None and not value.is_finite():
+                raise PreTradeRiskError(
+                    f"{label} 가 유한한 수가 아니다({value}) -- 리스크 한도를 확인할 수 없어 주문 중단."
+                )
         if self.max_order_quantity is not None and order.quantity > self.max_order_quantity:
             raise PreTradeRiskError(
                 f"수량 {order.quantity} 가 1주문 한도 {self.max_order_quantity} 를 초과한다."

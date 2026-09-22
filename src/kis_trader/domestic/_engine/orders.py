@@ -572,12 +572,12 @@ def make_credit_order_request(
     if order.credit_type is None or order.loan_date is None:  # Order 가 보장 -- 라우팅 방어
         raise OrderError("신용주문 빌더에 credit_type/loan_date 없는 주문이 들어왔다(라우팅 오류).")
     if order.order_type not in _ORD_DVSN:
-        raise NotImplementedError(
-            f"{order.order_type} 신용주문은 아직 와이어 매핑이 없다(현재 시장가/지정가만)."
+        raise KISUsageError(
+            f"{order.order_type} 신용주문은 지원하지 않는다(현재 시장가/지정가만)."
         )
     if order.time_in_force != "day":
-        raise NotImplementedError(
-            f"time_in_force={order.time_in_force!r} 신용주문은 미구현이다(현재 day 만)."
+        raise KISUsageError(
+            f"time_in_force={order.time_in_force!r} 신용주문은 지원하지 않는다(현재 day 만)."
         )
     body = {
         "CANO": cano,
