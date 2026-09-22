@@ -19,10 +19,11 @@ from kis_trader.transport import RawResponse
 _ORDNO = "/uapi/overseas-stock/v1/trading/algo-ordno"
 _CCNL = "/uapi/overseas-stock/v1/trading/inquire-algo-ccnl"
 
+# algo 패밀리(TTTS6058R/6059R)는 응답 키가 대문자다(형제 _CCNL_ROW 와 같은 규약).
 _ORD_ROW = {
-    "odno": "0030000123", "trad_dvsn_name": "TWAP지정가매수", "pdno": "AAPL", "item_name": "애플",
-    "ft_ord_qty": "10", "ft_ord_unpr3": "150.25", "ft_ccld_qty": "3",
-    "splt_buy_attr_name": "정규장 종료", "ord_gno_brno": "06010",
+    "ODNO": "0030000123", "TRAD_DVSN_NAME": "TWAP지정가매수", "PDNO": "AAPL", "ITEM_NAME": "애플",
+    "FT_ORD_QTY": "10", "FT_ORD_UNPR3": "150.25", "FT_CCLD_QTY": "3",
+    "SPLT_BUY_ATTR_NAME": "정규장 종료", "ORD_GNO_BRNO": "06010",
 }
 _CCNL_ROW = {
     "CCLD_SEQ": "1", "CCLD_BTWN": "153012", "PDNO": "AAPL", "ITEM_NAME": "애플",
@@ -78,6 +79,14 @@ def test_algo_orders_tr_and_params():
     assert call["method"] == "GET"
     assert call["path"] == _ORDNO
     assert call["idempotent"] is True
+    # 필수 거래일자(TRAD_DT) -- 생략 시 오늘(YYYYMMDD). 안 보내면 조회가 비거나 거부된다.
+    assert call["params"]["TRAD_DT"] and len(call["params"]["TRAD_DT"]) == 8
+
+
+def test_algo_orders_trade_date_forwarded():
+    fake = FakeTransport(response=_resp([_ORD_ROW]))
+    _client(fake).account.overseas.algo_orders(trade_date="20240605")
+    assert fake.calls[0]["params"]["TRAD_DT"] == "20240605"
 
 
 def test_algo_orders_demo_rejected():
@@ -92,7 +101,7 @@ def test_algo_orders_empty_ok():
 
 
 def test_algo_orders_non_list_fails_closed():
-    resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body={"output": {"odno": "x"}}, tr_cont="")
+    resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body={"output": {"ODNO": "x"}}, tr_cont="")
     with pytest.raises(KISError):
         _client(FakeTransport(response=resp)).account.overseas.algo_orders()
 

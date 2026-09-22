@@ -548,34 +548,38 @@ def _parse_open_orders(
     return orders
 
 def fetch_algo_orders(
-    transport: Transport, *, cano: str, product_code: str, environment: Environment
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    trade_date: str = "",
 ) -> list[OverseasAlgoOrder]:
     """해외 지정가(TWAP/VWAP 등 알고) 주문 목록. 각 건의 ``order_id``/``branch_number`` 로 체결내역을
-    조회한다(:func:`fetch_algo_executions`). **모의투자 미지원**."""
+    조회한다(:func:`fetch_algo_executions`). ``trade_date``(YYYYMMDD)는 거래일자로, 알고주문은
+    당일 집행이라 생략하면 오늘(KST)을 쓴다. 응답 키가 대문자다(algo 패밀리 TTTS6058R/6059R 규약).
+    **모의투자 미지원**."""
     if environment == "paper":
         raise KISUsageError("해외 지정가주문번호조회(algo-ordno)는 모의투자 미지원 -- 실전에서만.")
+    trad_dt = trade_date or datetime.now(_KST).strftime("%Y%m%d")
     rows = _fetch_paginated_rows(
         transport,
         path=_ALGO_ORDNO_PATH, tr_id=_ALGO_ORDNO_TR,
-        base_params={"CANO": cano, "ACNT_PRDT_CD": product_code,
+        base_params={"CANO": cano, "ACNT_PRDT_CD": product_code, "TRAD_DT": trad_dt,
                      "CTX_AREA_FK200": "", "CTX_AREA_NK200": ""},
         output_key="output", max_pages=_MAX_PAGES, ctx_width=200,
         cap_message="해외 지정가주문번호조회가 페이지 상한에 도달했으나 연속조회가 남아있다.",
     )
     return [
         OverseasAlgoOrder(
-            order_id=str(row.get("odno", "")).strip(),
-            trade_type=str(row.get("trad_dvsn_name", "")).strip(),
-            symbol=str(row.get("pdno", "")).strip(),
-            name=str(row.get("item_name", "")).strip(),
-            quantity=_decimal_or_zero(row, "ft_ord_qty"),
-            order_price=_decimal_or_zero(row, "ft_ord_unpr3"),
-            filled_quantity=_decimal_or_zero(row, "ft_ccld_qty"),
-            split_attribute=str(row.get("splt_buy_attr_name", "")).strip(),
-            branch_number=str(row.get("ord_gno_brno", "")).strip(),
+            order_id=str(row.get("ODNO", "")).strip(),
+            trade_type=str(row.get("TRAD_DVSN_NAME", "")).strip(),
+            symbol=str(row.get("PDNO", "")).strip(),
+            name=str(row.get("ITEM_NAME", "")).strip(),
+            quantity=_decimal_or_zero(row, "FT_ORD_QTY"),
+            order_price=_decimal_or_zero(row, "FT_ORD_UNPR3"),
+            filled_quantity=_decimal_or_zero(row, "FT_CCLD_QTY"),
+            split_attribute=str(row.get("SPLT_BUY_ATTR_NAME", "")).strip(),
+            branch_number=str(row.get("ORD_GNO_BRNO", "")).strip(),
             _raw=row,
         )
-        for row in rows if str(row.get("odno", "")).strip()
+        for row in rows if str(row.get("ODNO", "")).strip()
     ]
 
 def fetch_algo_executions(

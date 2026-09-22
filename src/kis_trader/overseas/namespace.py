@@ -179,12 +179,13 @@ class OverseasAccount:
             environment=self._c.environment, market=market,
         )
 
-    def algo_orders(self) -> list[OverseasAlgoOrder]:
+    def algo_orders(self, *, trade_date: str = "") -> list[OverseasAlgoOrder]:
         """알고(TWAP/VWAP 등 분할집행) 주문 목록. 각 건의 ``order_id``/``branch_number`` 로 :meth:`algo_executions`
-        를 조회한다. **모의투자 미지원**."""
+        를 조회한다. ``trade_date``(YYYYMMDD)는 거래일자로, 생략하면 오늘(KST)이다. **모의투자 미지원**."""
         cano, product_code = self._c._require_account()
         return overseas_orders_api.fetch_algo_orders(
-            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment
+            self._c.transport, cano=cano, product_code=product_code,
+            environment=self._c.environment, trade_date=trade_date,
         )
 
     def algo_executions(
