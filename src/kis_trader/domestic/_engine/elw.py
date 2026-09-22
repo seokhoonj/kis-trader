@@ -178,6 +178,9 @@ def fetch_quote(transport: Transport, *, code: str) -> ELWQuote:
     output = resp.body.get("output")
     if not isinstance(output, Mapping):        # 성공 응답인데 객체 아님 -> fail-closed
         raise _missing_block_error("output", resp)
+    # 전일대비/등락률 크기에 방향 부호를 입힌다(원장 inquire_elw_price 에 prdy_vrss_sign 이 있다) --
+    # 안 입히면 하락일에도 change 가 양수로 나온다(다른 ELW 파서·형제 자산과 동일 규약).
+    price_sign = str(output.get("prdy_vrss_sign", "")).strip()
     return ELWQuote(
         code=code,
         price=required_decimal(output.get("elw_prpr"), "elw_prpr"),
@@ -185,8 +188,10 @@ def fetch_quote(transport: Transport, *, code: str) -> ELWQuote:
         high=required_decimal(output.get("elw_hgpr"), "elw_hgpr"),
         low=required_decimal(output.get("elw_lwpr"), "elw_lwpr"),
         previous_close=required_decimal(output.get("stck_prdy_clpr"), "stck_prdy_clpr"),
-        change=required_decimal(output.get("prdy_vrss"), "prdy_vrss"),   # 부호 필드 없음
-        change_percent=required_decimal(output.get("prdy_ctrt"), "prdy_ctrt"),
+        change=_apply_change_sign(required_decimal(output.get("prdy_vrss"), "prdy_vrss"), price_sign),
+        change_percent=_apply_change_sign(
+            required_decimal(output.get("prdy_ctrt"), "prdy_ctrt"), price_sign
+        ),
         volume=required_int(output.get("acml_vol"), "acml_vol"),
         bid=optional_decimal(output.get("bidp"), "bidp"),
         ask=optional_decimal(output.get("askp"), "askp"),

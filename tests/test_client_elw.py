@@ -77,7 +77,9 @@ def test_elw_accessor_returns_handle():
 # --- quote (ELW-aware 현재가) -----------------------------------------------
 def _quote_output(**over):
     out = {
-        "elw_prpr": "135", "prdy_vrss": "-100", "prdy_ctrt": "-42.55", "acml_vol": "44020",
+        # 실서버는 크기(양수) + 부호코드(prdy_vrss_sign)로 준다 -- 5=하락.
+        "elw_prpr": "135", "prdy_vrss": "100", "prdy_vrss_sign": "5", "prdy_ctrt": "42.55",
+        "acml_vol": "44020",
         "unas_isnm": "KOSPI200", "unas_prpr": "371.33", "bidp": "130", "askp": "135",
         "elw_oprc": "200", "elw_hgpr": "210", "elw_lwpr": "130", "stck_prdy_clpr": "235",
         "hts_thpr": "140.50", "dprt": "-3.90", "atm_cls_name": "ITM", "hts_ints_vltl": "33.05",
@@ -93,8 +95,8 @@ def test_elw_quote_maps_option_aware_fields():
     assert isinstance(quote, ELWQuote)
     assert quote.code == "58J297"
     assert quote.price == Decimal(135)
-    assert quote.change == Decimal(-100)                  # 부호 필드 없음 -> 값 자체 부호
-    assert quote.change_percent == Decimal("-42.55")
+    assert quote.change == Decimal(-100)                  # prdy_vrss_sign 5=하락 -> 음수
+    assert quote.change_percent == Decimal("-42.55")      # 등락률도 같은 부호
     assert quote.previous_close == Decimal(235)
     assert quote.bid == Decimal(130)
     assert quote.ask == Decimal(135)
@@ -110,6 +112,16 @@ def test_elw_quote_maps_option_aware_fields():
     assert call["tr_id"] == "FHKEW15010000"
     assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "W"
     assert call["params"]["FID_INPUT_ISCD"] == "58J297"
+
+
+def test_elw_quote_applies_change_sign_both_directions():
+    # 상승(sign 2)은 양수, 하락(sign 5)은 음수 -- 크기는 항상 양수로 오므로 부호코드가 방향을 정한다.
+    up = _client(FakeTransport(response=_quote_output(prdy_vrss="100", prdy_vrss_sign="2",
+                                                      prdy_ctrt="42.55"))).domestic.elw("58J297").quote()
+    assert up.change == Decimal(100) and up.change_percent == Decimal("42.55")
+    down = _client(FakeTransport(response=_quote_output(prdy_vrss="100", prdy_vrss_sign="5",
+                                                        prdy_ctrt="42.55"))).domestic.elw("58J297").quote()
+    assert down.change == Decimal(-100) and down.change_percent == Decimal("-42.55")
 
 
 def test_elw_quote_optional_greeks_none():
