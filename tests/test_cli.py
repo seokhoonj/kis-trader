@@ -126,7 +126,7 @@ class _Domestic:
     def option(self, code, *, right=None):
         return _DomesticDerivHandle(self._log, "option", code, right=right)
 
-    def search(self, query, *, market):
+    def search(self, query, *, market="all"):   # 라이브러리처럼 기본값을 쥔다(CLI 는 재기술 안 함)
         self._log.append(("search", query, market)); return ["HIT"]
 
 
@@ -193,6 +193,15 @@ def test_search_passes_market_and_returns_all_candidates():
     kis = StubKis()
     assert args.func(kis, args) == ["HIT"]
     assert kis.log == [("search", "삼성", "KOSDAQ")]
+
+
+def test_search_omitting_market_uses_library_default():
+    # --market 를 생략하면 CLI 가 기본값을 재기술하지 않고 라이브러리 기본(스텁의 "all")이 적용된다.
+    args = _args(["search", "삼성"])
+    assert args.market is None                 # 파서 기본은 None(라이브러리 기본 재기술 안 함)
+    kis = StubKis()
+    args.func(kis, args)
+    assert kis.log == [("search", "삼성", "all")]   # 스텁 기본값이 적용됨(CLI 가 안 덮음)
 
 
 # --- 계좌 마스킹 ------------------------------------------------------------

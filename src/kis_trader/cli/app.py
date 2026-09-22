@@ -24,7 +24,7 @@ from .. import (
     VolumeMetric,
 )
 from ..errors import KISError
-from ..order import Side
+from ..order import Right, Side
 from .commands import account, market, order, stock
 from .context import account_suffix, build_client
 from .errors import CliAborted, CliConfigError, Translated, translate
@@ -115,7 +115,8 @@ def build_parser() -> argparse.ArgumentParser:
     # kis search
     search_p = leaf(groups, "search", help="이름/코드로 국내 종목 검색")
     search_p.add_argument("query")
-    search_p.add_argument("--market", choices=list(get_args(SearchMarket)), default="all")
+    # default 은 라이브러리(search)가 쥔다 -- 여기서 재기술하지 않고 준 값만 전달(생략 시 라이브러리 기본).
+    search_p.add_argument("--market", choices=list(get_args(SearchMarket)), default=None)
     search_p.set_defaults(func=market.cmd_search)
 
     # kis ranking change|volume|market-cap
@@ -125,8 +126,8 @@ def build_parser() -> argparse.ArgumentParser:
     rc.add_argument("--direction", choices=list(get_args(Direction)), required=True)
     rc.set_defaults(func=market.cmd_ranking_change)
     rv = leaf(ranking_sub, "volume")
-    rv.add_argument("--metric", choices=list(get_args(VolumeMetric)), default="cumulative_trading_amount",
-                    help="거래량 기준(기본 cumulative_trading_amount 거래대금): trading_volume(거래량)/"
+    rv.add_argument("--metric", choices=list(get_args(VolumeMetric)), default=None,
+                    help="거래량 기준(생략 시 라이브러리 기본): trading_volume(거래량)/"
                          "cumulative_trading_amount(거래대금)/volume_growth(거래증가율)/turnover(회전율)")
     rv.set_defaults(func=market.cmd_ranking_volume)
     leaf(ranking_sub, "market-cap").set_defaults(func=market.cmd_ranking_market_cap)
@@ -210,7 +211,7 @@ def build_parser() -> argparse.ArgumentParser:
                         help="채권 매도 lot 매수일자 YYYYMMDD(bond sell 전용)")
         sp.add_argument("--buy-seq", dest="buy_seq", default=None,
                         help="채권 매도 lot 매수순번(bond sell 전용)")
-        sp.add_argument("--right", choices=["call", "put"], default=None,
+        sp.add_argument("--right", choices=list(get_args(Right)), default=None,
                         help="옵션 콜/풋(국내 --asset option 전용)")
         sp.add_argument("--night", action="store_true",
                         help="국내 파생 야간장(--asset futures/option 전용, 실전전용)")
