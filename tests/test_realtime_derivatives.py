@@ -273,7 +273,7 @@ def test_parse_stock_option_expected_has_no_volume():
     assert exp.symbol == "A05930C"
     assert exp.expected_price == Decimal("1.10")
     assert exp.expected_change_sign == "5"
-    assert exp.expected_volume == Decimal(0)  # 예상수량 필드 없음 -> 0
+    assert exp.expected_volume is None  # 예상수량 컬럼 부재 -> None(0 을 지어내지 않음)
     assert "ANTC_CNQN" not in exp._raw
     assert len(exp._raw) == 7
 
@@ -339,7 +339,7 @@ def test_parse_night_execution_notice_has_no_order_price():
     assert note.filled_price == Decimal("331.00")
     assert note.rejected is False
     assert note.accepted is True
-    assert note.order_price == Decimal(0)  # 야간 통보엔 주문가격 없음 -> 0
+    assert note.order_price is None  # 주문가격 컬럼 부재 -> None(0 을 지어내지 않음)
     assert "ORDER_PRC" not in note._raw
     assert len(note._raw) == 19
 
@@ -390,7 +390,7 @@ def test_parse_night_option_notice_via_shared_parser():
     assert note.symbol == "201S1305"
     assert note.filled_price == Decimal("2.50")
     assert note.accepted is True
-    assert note.order_price == Decimal(0)  # 야간 통보엔 주문가격 없음
+    assert note.order_price is None  # 주문가격 컬럼 부재 -> None
     assert len(note._raw) == 19
 
 

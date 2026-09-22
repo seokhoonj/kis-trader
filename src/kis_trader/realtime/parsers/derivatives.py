@@ -423,8 +423,8 @@ def parse_stock_option_tick(fields: list[str]) -> OptionTick:
 class DerivativeExpectedConclusion:
     """실시간 예상체결. 장 마감/동시호가 구간의 예상 체결가/대비/예상 수량.
 
-    선물/옵션 예상체결이 이 엔티티로 매핑된다. 주식옵션 예상체결(H0ZOANC0)은 예상수량이 없어
-    ``expected_volume`` 이 0 이 된다.
+    선물/옵션 예상체결이 이 엔티티로 매핑된다. 주식옵션 예상체결(H0ZOANC0)은 레이아웃에 예상수량
+    컬럼(ANTC_CNQN)이 아예 없어 ``expected_volume`` 이 ``None`` 이다(0 을 지어내지 않는다).
     """
 
     symbol: str
@@ -434,7 +434,7 @@ class DerivativeExpectedConclusion:
     expected_change_sign: str  # 1상한 2상승 3보합 4하한 5하락
     expected_change_percent: Decimal
     market_operation_code: str  # 예상장운영구분코드
-    expected_volume: Decimal
+    expected_volume: Decimal | None  # 레이아웃에 ANTC_CNQN 이 없으면 None(구조적 부재 vs 값 0 구별)
     _raw: Mapping[str, Any] = _raw_field()
 
 
@@ -449,7 +449,8 @@ def _expected_conclusion(fields: list[str], layout: tuple[str, ...], *, symbol: 
         expected_change_sign=raw["ANTC_CNTG_VRSS_SIGN"],
         expected_change_percent=_decimal(raw["ANTC_CNTG_PRDY_CTRT"]),
         market_operation_code=raw["ANTC_MKOP_CLS_CODE"],
-        expected_volume=_decimal(raw.get("ANTC_CNQN", "")),
+        # 레이아웃에 컬럼이 아예 없으면(주식옵션 7필드) None -- 있으면(빈 값 포함) _decimal.
+        expected_volume=_decimal(raw["ANTC_CNQN"]) if "ANTC_CNQN" in raw else None,
         _raw=raw,
     )
 
@@ -492,8 +493,9 @@ def parse_stock_option_expected(fields: list[str]) -> DerivativeExpectedConclusi
 class DerivativeExecutionNotice:
     """선물옵션 실시간 체결통보. 내 주문의 체결/접수/거부 통보(암호화 프레임을 복호화한 결과).
 
-    선물옵션(H0IFCNI0)과 KRX야간 선물/옵션(H0MFCNI0/H0EUCNI0) 체결통보가 이 엔티티로 매핑된다. 야간 통보에는
-    주문가격(``order_price``)이 없어 0 이 된다. 전체 필드는 ``_raw`` 에 있다.
+    선물옵션(H0IFCNI0)과 KRX야간 선물/옵션(H0MFCNI0/H0EUCNI0) 체결통보가 이 엔티티로 매핑된다. 야간 통보
+    레이아웃에는 주문가격 컬럼(ORDER_PRC)이 아예 없어 ``order_price`` 가 ``None`` 이다(0 을 지어내지 않는다).
+    전체 필드는 ``_raw`` 에 있다.
     """
 
     customer_id: str
@@ -511,7 +513,7 @@ class DerivativeExecutionNotice:
     order_quantity: Decimal
     symbol_name: str  # 체결종목명
     account_name: str
-    order_price: Decimal
+    order_price: Decimal | None  # 레이아웃에 ORDER_PRC 가 없으면(야간 통보) None(구조적 부재 vs 값 0 구별)
     _raw: Mapping[str, Any] = _raw_field()
 
 
@@ -534,7 +536,8 @@ def _execution_notice(fields: list[str], layout: tuple[str, ...]) -> DerivativeE
         order_quantity=_decimal(raw["ODER_QTY"]),
         symbol_name=raw["CNTG_ISNM"],
         account_name=raw["ACNT_NAME"],
-        order_price=_decimal(raw.get("ORDER_PRC", "")),
+        # 레이아웃에 컬럼이 아예 없으면(야간 통보) None -- 있으면(빈 값 포함) _decimal.
+        order_price=_decimal(raw["ORDER_PRC"]) if "ORDER_PRC" in raw else None,
         _raw=raw,
     )
 

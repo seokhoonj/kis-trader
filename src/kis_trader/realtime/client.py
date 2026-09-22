@@ -83,7 +83,9 @@ class RealtimeClient:
         self._ready = threading.Event()  # 루프+연결 준비 완료
         self._stop_requested = threading.Event()  # start() 포기/stop() 시 수신루프 진입 차단
         self._lock = threading.Lock()
-        self._callbacks: dict[str, list[MessageCallback]] = defaultdict(list)
+        # 콜백은 (tr_id, tr_key) 로 키 -- tr_id 만으로 키하면 같은 tr_id 의 다른 tr_key 틱이 남의
+        # 콜백을 호출한다(예: 두 종목 체결이 같은 tr_id H0STCNT0). unsubscribe 시 제거한다.
+        self._callbacks: dict[tuple[str, str], list[MessageCallback]] = defaultdict(list)
         # (tr_id, tr_key) -> 그 계약을 구독한 타입드 sub 들. _dispatch 가 정확 일치로 fan 한다.
         self._subscriptions: dict[tuple[str, str], list[RealtimeSubscription[Any]]] = defaultdict(
             list
@@ -106,7 +108,7 @@ class RealtimeClient:
         연결 후 자동 전송한다."""
         if on is not None:
             with self._lock:
-                self._callbacks[tr_id].append(on)
+                self._callbacks[(tr_id, tr_key)].append(on)
         with self._lock:
             self._desired.add((tr_id, tr_key))
         if self._running and self._conn is not None and self._loop is not None:
@@ -165,9 +167,10 @@ class RealtimeClient:
                     self._schedule_wire(self._conn.unsubscribe(sub.tr_id, sub.tr_key))
 
     def unsubscribe(self, tr_id: str, tr_key: str) -> None:
-        """실시간 해제."""
+        """실시간 해제. 이 계약의 콜백도 함께 제거한다(재구독 전까지 stale 콜백이 남지 않게)."""
         with self._lock:
             self._desired.discard((tr_id, tr_key))
+            self._callbacks.pop((tr_id, tr_key), None)
         if self._running and self._conn is not None and self._loop is not None:
             self._call_async(self._conn.unsubscribe(tr_id, tr_key))
 
@@ -347,7 +350,7 @@ class RealtimeClient:
 
     def _dispatch(self, message: RealtimeMessage) -> None:
         with self._lock:
-            callbacks = list(self._callbacks.get(message.tr_id, ()))
+            callbacks = list(self._callbacks.get((message.tr_id, message.tr_key), ()))
             subs = list(self._subscriptions.get((message.tr_id, message.tr_key), ()))
         for callback in callbacks:
             try:
@@ -422,7 +425,25 @@ class RealtimeClient:
         if self._loop is None or not self._loop.is_running():
             coro.close()
             return
-        self._loop.call_soon_threadsafe(asyncio.ensure_future, coro)
+
+        def _schedule() -> None:
+            # fire-and-forget 이지만 예외를 삼키지 않는다 -- done-callback 이 실패(등록상한 41 등)를
+            # 로그로 드러낸다(안 그러면 실패한 구독이 조용히 빈 채로 남고 GC 경고만 뜬다).
+            task = asyncio.ensure_future(coro)
+            task.add_done_callback(self._on_wire_done)
+
+        self._loop.call_soon_threadsafe(_schedule)
+
+    @staticmethod
+    def _on_wire_done(task: asyncio.Future[Any]) -> None:
+        if task.cancelled():
+            return
+        exc = task.exception()
+        if exc is not None:
+            _logger.warning(
+                "realtime 구독/해제 wire 연산이 실패했습니다 -- 그 구독이 활성화되지 않았을 수 있습니다",
+                exc_info=exc,
+            )
 
     def _shutdown_subscriptions(self) -> None:
         """종료 시 열린 타입드 구독을 전부 반복 종료하고 라우팅 맵을 비운다.
@@ -432,5 +453,6 @@ class RealtimeClient:
         with self._lock:
             subs = [sub for group in self._subscriptions.values() for sub in group]
             self._subscriptions.clear()
+            self._callbacks.clear()   # raw 콜백도 비운다(라우팅 맵과 함께 -- 재시작 시 stale 호출 방지)
         for sub in subs:
             sub._shutdown()

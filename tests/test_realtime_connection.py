@@ -263,3 +263,15 @@ def test_sleep_or_stop_returns_immediately_after_stop():
         return True
 
     assert asyncio.run(scenario()) is True
+
+
+def test_subscription_error_ack_is_logged(caplog):
+    # rt_cd 가 "0" 이 아닌 구독 ACK(잘못된 tr_key/등록상한 등)는 조용히 무시되면 그 구독이 영영 빈
+    # 채로 남는다 -- 경고로 드러내야 한다.
+    import json
+    import logging
+    ack = json.dumps({"header": {"tr_id": "H0STCNT0", "tr_key": "BADKEY"},
+                      "body": {"rt_cd": "1", "msg_cd": "OPSP0002", "msg1": "잘못된 종목코드"}})
+    with caplog.at_level(logging.WARNING):
+        _drive(FakeWebSocket(incoming=[ack]))
+    assert any("구독 응답 오류" in r.message and "H0STCNT0" in r.message for r in caplog.records)

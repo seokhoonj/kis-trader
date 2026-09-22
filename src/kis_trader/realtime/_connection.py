@@ -215,6 +215,15 @@ class RealtimeConnection:
                 await ws.pong(raw)
             elif frame.encryption_key is not None:
                 self._crypto[frame.tr_id] = frame.encryption_key
+            else:
+                # 구독/해제 ACK -- rt_cd 가 "0" 이 아니면 실패다(잘못된 tr_key/등록상한 등). 조용히
+                # 무시하면 그 구독이 영영 빈 채로 남아 원인을 알 수 없으므로 경고로 드러낸다.
+                code = frame.return_code
+                if code is not None and code != "0":
+                    _logger.warning(
+                        "realtime 구독 응답 오류(tr_id=%s, rt_cd=%s) -- 그 구독은 데이터를 받지 "
+                        "못할 수 있다: %r", frame.tr_id, code, raw[:120],
+                    )
             return
         # DataFrame -- 필요 시 복호화 후 파싱. 실패 프레임은 드롭(fail-safe, 스트림 미중단).
         try:
