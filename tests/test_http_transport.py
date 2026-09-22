@@ -100,6 +100,18 @@ def test_post_timeout_acquires_one_permit_and_is_not_retried(tmp_path: Any) -> N
     assert limiter.acquired == 1              # 1회 시도 = 1 permit(재시도 없음)
 
 
+def test_read_path_timeout_is_catchable_as_kis_error(tmp_path: Any) -> None:
+    # 조회(GET) 타임아웃은 승격 없이 그대로 오른다 -- TransportTimeout 이 KISError 를 뿌리로 둬야
+    # "모든 예외의 뿌리는 KISError" 계약을 지켜 except KISError 가 놓치지 않는다.
+    assert issubclass(TransportTimeout, KISError)
+
+    def send(method: str, url: str, **kwargs: Any):
+        raise TransportTimeout()
+
+    with pytest.raises(KISError):             # TransportTimeout 이 아니라 KISError 로도 잡힌다
+        _transport(tmp_path, send).request(method="GET", path="/uapi/x", tr_id="T", idempotent=True)
+
+
 def test_no_limiter_by_default_does_not_throttle(tmp_path: Any) -> None:
     # rate_limiter 미지정(기본) 시 그대로 전송(스로틀 없음).
     def send(method: str, url: str, **kwargs: Any):

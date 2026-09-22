@@ -15,16 +15,23 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Literal, Protocol, runtime_checkable
 
+from .errors import KISError
+
 #: 접속 환경 -- 실전(real) / 모의(paper). 세션/계좌/주문 TR 선택에 쓰인다(어느 KIS 서버냐).
 Environment = Literal["real", "paper"]
 
 
-class TransportTimeout(Exception):
+class TransportTimeout(KISError):
     """네트워크 타임아웃 -- 요청이 서버에 도달했는지 **불명**한 저수준 오류.
 
     파사드가 이를 잡아 주문 경로에서는 ``client_order_id`` 를 실은
-    :class:`~kis_trader.errors.OrderTimeoutError` 로 승격한다(재전송 금지 신호).
+    :class:`~kis_trader.errors.OrderTimeoutError` 로 승격한다(재전송 금지 신호). 조회(GET) 경로는
+    승격 없이 그대로 오르므로 :class:`~kis_trader.errors.KISError` 를 뿌리로 둬야 ``except KISError``
+    가 놓치지 않는다(모든 예외의 뿌리는 KISError 라는 계약).
     """
+
+    def __init__(self, message: str = "네트워크 타임아웃 -- 요청이 서버에 도달했는지 불명.") -> None:
+        super().__init__(message)
 
 
 @dataclass(frozen=True, slots=True)

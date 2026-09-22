@@ -99,6 +99,18 @@ def test_memory_and_disk_cache_reuse_and_permissions(tmp_path: Path) -> None:
     assert set(json.loads(content)) == {"access_token", "expires_at"}
 
 
+def test_corrupt_cache_with_invalid_utf8_self_heals(tmp_path: Path) -> None:
+    # 비-UTF8 바이트로 손상된 캐시가 UnicodeDecodeError 로 새면 토큰 획득이 매 호출 영구 고착된다 --
+    # _read_cache 가 (OSError, ValueError) 로 포괄해 재발급으로 자가치유해야 한다.
+    clock = [1_000.0]
+    poster = FakePoster()
+    manager(tmp_path, poster, clock).access_token()          # 캐시 파일 생성
+    next(tmp_path.glob("*.json")).write_bytes(b"\xff\xfe not valid utf-8")  # 손상(비-UTF8)
+    restarted = manager(tmp_path, poster, clock)
+    assert restarted.access_token() == "canned-access-token"  # raise 없이 재발급으로 자가치유
+    assert len(poster.calls) == 2                            # 첫 발급 + 손상 후 재발급
+
+
 def test_refreshes_within_margin(tmp_path: Path) -> None:
     clock = [1_000.0]
     poster = FakePoster()

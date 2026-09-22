@@ -87,7 +87,10 @@ class TokenManager:
         try:
             with open(self._cache_path, encoding="utf-8") as cached:
                 payload = json.load(cached)
-        except (FileNotFoundError, OSError, json.JSONDecodeError):
+        except (OSError, ValueError):
+            # OSError 는 FileNotFoundError 를, ValueError 는 JSONDecodeError 와 (비-UTF8 바이트의)
+            # UnicodeDecodeError 를 포괄한다 -- 손상 캐시는 재발급으로 자가치유한다. 좁게 잡으면
+            # UnicodeDecodeError 가 새어 토큰 획득이 매 호출 영구 고착된다.
             return None
         if not isinstance(payload, dict):
             return None
