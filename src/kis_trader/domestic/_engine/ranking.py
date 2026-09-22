@@ -737,8 +737,9 @@ def _lookup(table: Mapping[str, str], *, key: str, argname: str) -> str:
 # --- 예상체결/시간외 순위 (마무리 6종) --------------------------------------
 _EXP_UPDOWN_PATH = "/uapi/domestic-stock/v1/ranking/exp-trans-updown"
 _EXP_UPDOWN_TR = "FHPST01820000"
-#: 예상체결 상승/하락 정렬(FID_RANK_SORT_CLS_CODE).
-_EXP_UPDOWN_TOP = {"gainers": "0", "losers": "1"}
+#: 예상체결 상승/하락 정렬(FID_RANK_SORT_CLS_CODE). 원장 exp_trans_updown:
+#: 0상승률 1상승폭 2보합 3하락율 4하락폭 5체결량 6거래대금 -- losers 는 하락율(3)이다("1"은 상승폭=이득).
+_EXP_UPDOWN_TOP = {"gainers": "0", "losers": "3"}
 _EXPECTED_CLOSE_PATH = "/uapi/domestic-stock/v1/quotations/exp-closing-price"
 _EXPECTED_CLOSE_TR = "FHKST117300C0"
 _EXPECTED_CLOSE_FILTER = {
@@ -849,8 +850,9 @@ def fetch_expected_close(
 #   등락률: SCR 20234, output2, ovtm_untp_prpr/prdy_vrss/vol, 코드 mksc_shrn_iscd, 정렬 FID_DIV_CLS_CODE
 #   거래량: SCR 20235, output2, 같은 필드, 코드 stck_shrn_iscd, 정렬 FID_RANK_SORT_CLS_CODE
 #   예상체결: SCR 11186, output(flat), ovtm_untp_antc_cnpr/cntg_vrss/cnqn, 코드 stck_shrn_iscd
-_OVERTIME_CHANGE = {  # 시간외등락률순위 정렬(FID_DIV_CLS_CODE)
-    "gainers": "2", "losers": "3",
+_OVERTIME_CHANGE = {  # 시간외등락률순위 정렬(FID_DIV_CLS_CODE). 원장 overtime_fluctuation:
+    # 1상한가 2상승률 3보합 4하한가 5하락률 -- losers 는 하락률(5)이다("3"은 보합).
+    "gainers": "2", "losers": "5",
 }
 
 
@@ -917,7 +919,8 @@ def fetch_overtime_volume(transport: Transport, *, market: str) -> list[Overtime
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": "20235",
         "FID_INPUT_ISCD": "0000",
-        "FID_RANK_SORT_CLS_CODE": "0",
+        # 원장 overtime_volume: 0매수잔량 1매도잔량 2거래량 -- 거래량 순위는 2다("0"은 매수잔량).
+        "FID_RANK_SORT_CLS_CODE": "2",
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
         "FID_VOL_CNT": "", "FID_TRGT_CLS_CODE": "", "FID_TRGT_EXLS_CLS_CODE": "",
     }
@@ -964,7 +967,9 @@ def fetch_overtime_expected_change(
     )
 
 
-_AFTER_HOUR_TOP = {"ask": "1", "bid": "2"}   # FID_RANK_SORT_CLS_CODE (매도잔량/매수잔량 상위)
+# FID_RANK_SORT_CLS_CODE. 원장 after_hour_balance: 1장전시간외 2장후시간외 3매도잔량 4매수잔량 --
+# 잔량 상위는 매도=3/매수=4다("1"/"2"는 장전/장후 세션 구분이라 잔량축이 아니다).
+_AFTER_HOUR_TOP = {"ask": "3", "bid": "4"}
 
 
 def fetch_after_hour_balance(

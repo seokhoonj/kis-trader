@@ -59,8 +59,16 @@ def test_expected_conclusion_maps_and_sort():
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/ranking/exp-trans-updown"
     assert call["tr_id"] == "FHPST01820000"
-    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "0"       # up
+    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "0"       # gainers = 상승률(0)
     assert call["params"]["FID_COND_MRKT_DIV_CODE"] == "J"
+
+
+def test_expected_conclusion_losers_sort_is_decline():
+    # 원장 exp_trans_updown: 0상승률 1상승폭 2보합 3하락율 4하락폭 -- losers 는 하락율(3),
+    # "1"(상승폭)이 아니다(회귀 방지: 이전엔 losers 가 상승폭을 조회하는 버그였다).
+    fake = FakeTransport(response=_resp({"output": []}))
+    _client(fake).domestic.ranking.by_expected_execution_change(direction="losers")
+    assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "3"
 
 
 # --- overtime change / volume -> OvertimeRanking (output2) -------------------
@@ -86,7 +94,9 @@ def test_overtime_change_maps_overtime_fields():
     assert call["path"] == "/uapi/domestic-stock/v1/ranking/overtime-fluctuation"
     assert call["tr_id"] == "FHPST02340000"
     assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20234"
-    assert call["params"]["FID_DIV_CLS_CODE"] == "3"             # down
+    # 원장 overtime_fluctuation: 1상한가 2상승률 3보합 4하한가 5하락률 -- losers 는 하락률(5),
+    # "3"(보합)이 아니다(회귀 방지: 이전엔 losers 가 보합을 조회하는 버그였다).
+    assert call["params"]["FID_DIV_CLS_CODE"] == "5"             # losers = 하락률(5)
 
 
 def test_overtime_volume_uses_stck_shrn_iscd_fallback():
@@ -97,6 +107,9 @@ def test_overtime_volume_uses_stck_shrn_iscd_fallback():
     assert ranked[0].symbol == "024840"                   # stck_shrn_iscd 폴백
     assert fake.calls[0]["tr_id"] == "FHPST02350000"
     assert fake.calls[0]["params"]["FID_COND_SCR_DIV_CODE"] == "20235"
+    # 원장 overtime_volume: 0매수잔량 1매도잔량 2거래량 -- 거래량 순위는 2,
+    # "0"(매수잔량)이 아니다(회귀 방지: 이전엔 거래량 대신 매수잔량으로 정렬하는 버그였다).
+    assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "2"
 
 
 def test_overtime_expected_change_uses_output_and_antc_fields():
@@ -130,7 +143,9 @@ def test_after_hour_balance_maps_residual_and_volumes():
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/ranking/after-hour-balance"
     assert call["tr_id"] == "FHPST01760000"
-    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "2"       # bid
+    # 원장 after_hour_balance: 1장전시간외 2장후시간외 3매도잔량 4매수잔량 -- bid(매수잔량)는 4,
+    # "2"(장후 세션)가 아니다(회귀 방지: 이전엔 잔량축이 아니라 세션구분을 보내는 버그였다).
+    assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "4"       # bid = 매수잔량(4)
 
 
 # --- hts-top-view -> 전용 (코드+시장만, 파라미터 없음) ---------------------
