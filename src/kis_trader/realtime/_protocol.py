@@ -102,14 +102,16 @@ class SystemMessage:
     @property
     def encryption_key(self) -> tuple[str, str] | None:
         """구독 ACK 에 담긴 (key, iv). 암호 TR 일 때만 존재, 아니면 ``None``."""
-        output = self.raw.get("body", {}).get("output", {})
+        # body 가 명시적 null 이면 .get("body", {}) 가 None 을 돌려 .get 이 AttributeError 를 내고
+        # 수신 루프가 죽는다(재연결도 못 탐) -- `or {}` 로 None 을 빈 매핑으로 흡수한다.
+        output = (self.raw.get("body") or {}).get("output") or {}
         key, iv = output.get("key"), output.get("iv")
         return (key, iv) if key and iv else None
 
     @property
     def return_code(self) -> str | None:
         """구독 ACK 의 처리 결과 코드(``body.rt_cd``). ``"0"`` 성공."""
-        return cast("str | None", self.raw.get("body", {}).get("rt_cd"))
+        return cast("str | None", (self.raw.get("body") or {}).get("rt_cd"))
 
 
 def parse_frame(raw: str) -> DataFrame | SystemMessage:

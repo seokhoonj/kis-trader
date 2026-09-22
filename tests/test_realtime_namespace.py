@@ -97,6 +97,13 @@ def test_execution_notices_stock_and_derivative() -> None:
     assert d.tr_id == "H0EUCNI0"
 
 
+def test_stock_execution_notice_uses_demo_tr_on_paper() -> None:
+    # 체결통보 TR-id 는 모의(paper)에서 H0STCNI9 다 -- 실전 TR 로 구독하면 모의에서 통보를 못 받는다.
+    c = RealtimeClient("approval", "wss://example/ws", connect=None, environment="paper")
+    ns = RealtimeDomesticNamespace(c)
+    assert ns.execution_notices.stock("myhtsid").tr_id == "H0STCNI9"
+
+
 def test_bad_kind_fails_closed() -> None:
     _, ns = _ns()
     with pytest.raises(KISUsageError):

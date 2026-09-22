@@ -34,7 +34,8 @@ NoticeSession = Literal["regular", "night_futures", "night_option"]
 
 _STOCK_TRADES_TR: dict[str, str] = {"KRX": "H0STCNT0", "NXT": "H0NXCNT0", "unified": "H0UNCNT0"}
 _STOCK_ORDER_BOOK_TR: dict[str, str] = {"KRX": "H0STASP0", "NXT": "H0NXASP0", "unified": "H0UNASP0"}
-_STOCK_EXECUTION_NOTICE_TR = "H0STCNI0"
+# 체결통보 TR-id 는 모의(paper)에서 다르다 -- 실전 H0STCNI0 / 모의 H0STCNI9(원장 명시).
+_STOCK_EXECUTION_NOTICE_TR = {"real": "H0STCNI0", "paper": "H0STCNI9"}
 _FUTURES_TRADES_TR: dict[str, str] = {
     "index": "H0IFCNT0", "commodity": "H0CFCNT0", "stock": "H0ZFCNT0", "night": "H0MFCNT0"
 }
@@ -272,7 +273,7 @@ class ExecutionNotices:
         """국내주식 실시간 체결통보를 구독하고 RealtimeSubscription[StockExecutionNotice] 을 반환한다. hts_id 단위."""
         return cast(
             "RealtimeSubscription[StockExecutionNotice]",
-            self._c._open_typed(_STOCK_EXECUTION_NOTICE_TR, hts_id, on=on),
+            self._c._open_typed(_STOCK_EXECUTION_NOTICE_TR[self._c.environment], hts_id, on=on),
         )
 
     def derivative(

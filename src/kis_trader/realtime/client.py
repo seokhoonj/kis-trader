@@ -21,6 +21,7 @@ from concurrent.futures import CancelledError as FutureCancelledError
 from typing import TYPE_CHECKING, Any, Protocol, Self
 
 from ..errors import KISUsageError, RealtimeError
+from ..transport import Environment
 from ._connection import Connector, RealtimeConnection, RealtimeMessage
 from ._protocol import CustomerType
 from .domestic_namespace import RealtimeDomesticNamespace
@@ -60,6 +61,7 @@ class RealtimeClient:
         url: str,
         *,
         customer_type: CustomerType = "P",
+        environment: Environment = "real",
         connect: Connector | None = None,
         reconnect: bool = True,
         instrument_resolver: InstrumentResolver | None = None,
@@ -67,6 +69,8 @@ class RealtimeClient:
         self._approval_key = approval_key
         self._url = url
         self._customer_type: CustomerType = customer_type
+        #: 접속 환경(real/paper) -- 체결통보 등 일부 TR-id 는 모의(paper)에서 다르다(H0STCNI0 vs H0STCNI9).
+        self.environment: Environment = environment
         self._connect = connect
         self._reconnect = reconnect
         # 해외주식 RSYM 해석용 seam. ``kis.realtime()`` 이 KISClient.instrument 을 주입한다. 없으면

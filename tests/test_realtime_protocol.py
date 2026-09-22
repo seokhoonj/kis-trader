@@ -130,3 +130,11 @@ def test_aes_cbc_decrypt_roundtrip():
     cipher_b64 = base64.b64encode(cipher_bytes).decode()
 
     assert aes_cbc_decrypt(key, iv, cipher_b64) == plaintext
+
+
+def test_system_message_with_null_body_does_not_crash():
+    # body 가 명시적 null 인 시스템 프레임에서 encryption_key/return_code 가 AttributeError 를 내면
+    # 수신 루프가 죽고 재연결도 못 탄다 -- None-safe 로 흡수해 조용히 None 을 돌려줘야 한다.
+    msg = SystemMessage(tr_id="H0STCNI0", raw={"body": None})
+    assert msg.encryption_key is None
+    assert msg.return_code is None

@@ -438,7 +438,7 @@ class KISClient:
         approval_key = fetch_approval_key(self._app_key, self._app_secret, self._environment)
         return RealtimeClient(
             approval_key, websocket_url(self._environment),
-            customer_type=customer_type, reconnect=reconnect,
+            customer_type=customer_type, environment=self._environment, reconnect=reconnect,
             instrument_resolver=self.instrument,
         )
 

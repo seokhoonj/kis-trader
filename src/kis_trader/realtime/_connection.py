@@ -104,6 +104,9 @@ class RealtimeConnection:
         # 가 `await send` 에서 양보한 사이 unsubscribe 가 (아직 add 전이라) 미등록으로 보고 조기
         # 반환해 해제를 안 보내, 소켓은 구독된 채 슬롯만 새는 순서 경합이 난다(check-then-act).
         self._subscription_lock = asyncio.Lock()
+        # stop() 이 세팅한다 -- backoff 대기를 즉시 깨워 stop 의 join(5s) 안에 스레드가 끝나게 한다
+        # (blocking sleep 이면 최대 backoff(30s)까지 잔류해 join 이 실패하고 재시작이 fail-closed 로 막힘).
+        self._stop_event = asyncio.Event()
         # 암호 TR 의 (key, iv) -- 구독 ACK 에서 수신.
         self._crypto: dict[str, tuple[str, str]] = {}
 
@@ -122,7 +125,15 @@ class RealtimeConnection:
     async def stop(self) -> None:
         """재연결을 끄고 소켓을 닫아 수신 루프(``async for``)를 종료시킨다."""
         self._reconnect = False
+        self._stop_event.set()          # backoff 대기를 즉시 깨운다(중단 가능)
         await self.close()
+
+    async def _sleep_or_stop(self, seconds: float) -> None:
+        """backoff 대기 -- stop() 이 오면 즉시 반환한다(그냥 asyncio.sleep 이면 못 깨운다)."""
+        try:
+            await asyncio.wait_for(self._stop_event.wait(), timeout=seconds)
+        except TimeoutError:
+            pass                        # 정상 backoff 경과 -- 계속
 
     async def subscribe(self, tr_id: str, tr_key: str) -> None:
         """실시간 등록. 상한(41) 초과면 :class:`KISUsageError`. 재연결 후 자동 재등록된다."""
@@ -186,7 +197,7 @@ class RealtimeConnection:
                 idle_backoff = 1.0  # 정상 세션 뒤엔 즉시 재연결
             else:
                 # accept-후-즉시-close(스로틀/장애) 재연결 폭주 방지: 프레임 없이 끝난 세션은 backoff.
-                await asyncio.sleep(idle_backoff)
+                await self._sleep_or_stop(idle_backoff)
                 idle_backoff = min(idle_backoff * 2, self._max_backoff)
             if not await self._reopen_with_backoff():
                 return  # stop() 이 재연결을 껐다
@@ -243,7 +254,7 @@ class RealtimeConnection:
             try:
                 self._ws = await self._connect(self._url)
             except Exception:  # noqa: BLE001 - 연결 실패는 backoff 재시도
-                await asyncio.sleep(backoff)
+                await self._sleep_or_stop(backoff)
                 backoff = min(backoff * 2, self._max_backoff)
                 continue
             if not self._reconnect:

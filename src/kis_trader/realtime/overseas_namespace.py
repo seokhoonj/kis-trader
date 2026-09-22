@@ -34,7 +34,8 @@ OverseasVenue = Literal["global", "asia"]
 
 _STOCK_TRADES_TR = "HDFSCNT0"
 _STOCK_ORDER_BOOK_TR: dict[str, str] = {"global": "HDFSASP0", "asia": "HDFSASP1"}
-_STOCK_EXECUTION_NOTICE_TR = "H0GSCNI0"
+# 체결통보 TR-id 는 모의(paper)에서 다르다 -- 실전 H0GSCNI0 / 모의 H0GSCNI9(원장 명시).
+_STOCK_EXECUTION_NOTICE_TR = {"real": "H0GSCNI0", "paper": "H0GSCNI9"}
 _FUTURES_TRADES_TR = "HDFFF020"
 _FUTURES_ORDER_BOOK_TR = "HDFFF010"
 _FUTURES_ORDER_NOTICE_TR = "HDFFF1C0"
@@ -119,7 +120,7 @@ class OverseasExecutionNotices:
         """해외주식 실시간체결통보를 구독하고 RealtimeSubscription[OverseasExecutionNotice] 을 반환한다(H0GSCNI0). hts_id 단위."""
         return cast(
             "RealtimeSubscription[OverseasExecutionNotice]",
-            self._c._open_typed(_STOCK_EXECUTION_NOTICE_TR, hts_id, on=on),
+            self._c._open_typed(_STOCK_EXECUTION_NOTICE_TR[self._c.environment], hts_id, on=on),
         )
 
     def derivative_orders(

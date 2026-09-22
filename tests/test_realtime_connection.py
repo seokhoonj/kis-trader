@@ -247,3 +247,16 @@ def test_subscribe_unsubscribe_same_key_do_not_reorder():
     tr_types = [json.loads(s)["header"]["tr_type"] for s in sent]
     assert tr_types == ["1", "2"]          # 등록(1) 뒤 해제(2) 둘 다 순서대로 나갔다
     assert subs == set()                   # 최종 미구독 -- 슬롯 누수 없음
+
+
+def test_sleep_or_stop_returns_immediately_after_stop():
+    # backoff 대기가 stop() 을 못 깨우면 스레드가 최대 backoff(30s)까지 잔류해 stop 의 join(5s)이
+    # 실패한다 -- stop() 이 세팅한 이벤트로 대기를 즉시 깬다(중단 가능).
+    async def scenario():
+        conn = RealtimeConnection("KEY", "ws://x", connect=_connector(FakeWebSocket([])),
+                                  reconnect=False)
+        await conn.stop()                 # _stop_event 세팅
+        await conn._sleep_or_stop(30.0)   # 즉시 반환해야 한다(30초 안 기다림)
+        return True
+
+    assert asyncio.run(scenario()) is True
