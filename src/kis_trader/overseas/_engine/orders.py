@@ -562,6 +562,8 @@ def fetch_algo_orders(
     **모의투자 미지원**."""
     if environment == "paper":
         raise KISUsageError("해외 지정가주문번호조회(algo-ordno)는 모의투자 미지원 -- 실전에서만.")
+    if trade_date and not (len(trade_date) == 8 and trade_date.isdigit()):
+        raise KISUsageError(f"trade_date 는 YYYYMMDD 형식이어야 한다: {trade_date!r}")
     trad_dt = trade_date or datetime.now(_KST).strftime("%Y%m%d")
     rows = _fetch_paginated_rows(
         transport,

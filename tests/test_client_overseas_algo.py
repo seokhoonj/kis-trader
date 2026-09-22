@@ -89,6 +89,14 @@ def test_algo_orders_trade_date_forwarded():
     assert fake.calls[0]["params"]["TRAD_DT"] == "20240605"
 
 
+def test_algo_orders_bad_trade_date_rejected():
+    # trade_date 는 YYYYMMDD 형식만 -- 형식 오류는 와이어 전에 fail-closed(형제 date 파라미터와 일관).
+    fake = FakeTransport(response=_resp([_ORD_ROW]))
+    with pytest.raises(KISUsageError):
+        _client(fake).account.overseas.algo_orders(trade_date="2024-06-05")
+    assert fake.calls == []
+
+
 def test_algo_orders_demo_rejected():
     fake = FakeTransport(response=_resp([_ORD_ROW]))
     with pytest.raises(KISUsageError):
