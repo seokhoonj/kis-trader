@@ -182,9 +182,11 @@ def test_positions_non_list_output1_fails_closed():
 
 def test_positions_pagination_cap_fails_closed(monkeypatch):
     monkeypatch.setattr(account_module, "_MAX_BALANCE_PAGES", 3)
-    endless = _balance_resp(rows=[_holding("005930")], ctx_nk="NEXT", ctx_fk="FK", tr_cont="M")
+    # 매 페이지 연속키가 진전하며 끝나지 않는 상황 -- 상한에서 fail-closed(같은 키 반복은 이제 종료).
+    pages = [_balance_resp(rows=[_holding("005930")], ctx_nk=f"N{i}", ctx_fk="FK", tr_cont="M")
+             for i in range(4)]
     with pytest.raises(KISError):
-        _client(FakeTransport(response=endless)).account.domestic.positions()
+        _client(FakeTransport(by_path={_BALANCE_PATH: pages})).account.domestic.positions()
 
 
 def test_portfolio_returns_balance_and_positions_in_one_walk():

@@ -16,7 +16,11 @@ from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from ..._internal._response import _fetch_paginated_rows_with_summary, _raise_if_error
+from ..._internal._response import (
+    _fetch_paginated_rows_with_summary,
+    _raise_if_error,
+    advance_cursor,
+)
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
 from ...transport import Environment, RawResponse, Transport
@@ -192,8 +196,10 @@ def fetch_night_balance(
         rows.extend(page)
         if resp.tr_cont not in ("F", "M"):
             break
-        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        nxt = advance_cursor(resp.body, ctx_width=200, prev_nk=ctx_nk)
+        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
+            break
+        ctx_fk, ctx_nk = nxt
         tr_cont = "N"
     else:
         raise KISError(
@@ -434,8 +440,10 @@ def fetch_commissions(
         rows.extend(page)
         if resp.tr_cont not in ("F", "M"):
             break
-        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        nxt = advance_cursor(resp.body, ctx_width=200, prev_nk=ctx_nk)
+        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
+            break
+        ctx_fk, ctx_nk = nxt
         tr_cont = "N"
     else:
         raise KISError(
@@ -845,8 +853,10 @@ def fetch_open_orders(
                 rows.append(order_row)
         if resp.tr_cont not in ("F", "M"):
             break
-        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        nxt = advance_cursor(resp.body, ctx_width=200, prev_nk=ctx_nk)
+        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
+            break
+        ctx_fk, ctx_nk = nxt
         tr_cont = "N"
     else:
         raise KISError(

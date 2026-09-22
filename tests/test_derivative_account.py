@@ -660,9 +660,10 @@ def test_base_date_fills_page_cap_fails_closed():
 
 
 def test_commissions_page_cap_fails_closed():
-    never_ends = _commissions_resp(rows=[_commission()], ctx_nk="NEXT", ctx_fk="FK", tr_cont="M")
+    pages = [_commissions_resp(rows=[_commission()], ctx_nk=f"N{i}", ctx_fk="FK", tr_cont="M")
+             for i in range(101)]
     with pytest.raises(KISError):
-        _client(FakeTransport(response=never_ends), environment="real").account.commissions(start="20240201", end="20240229")
+        _client(FakeTransport(pages=pages), environment="real").account.commissions(start="20240201", end="20240229")
 
 
 # --- (야간)선물옵션 잔고현황 (CTFN6118R, 계좌비밀번호 필요) ----------------------

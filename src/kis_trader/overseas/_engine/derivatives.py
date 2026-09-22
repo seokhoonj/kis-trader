@@ -24,6 +24,7 @@ from ..._internal._datetime import (
     _today_kst,
 )
 from ..._internal._response import (
+    _CONTINUATION_END,
     _missing_block_error,
     _raise_if_error,
     _require_mapping_rows,
@@ -586,9 +587,11 @@ def fetch_market_hours(
         if not all(isinstance(row, Mapping) for row in page):
             raise KISError("장운영시간 응답의 output 항목이 객체가 아니다.", raw=resp.body)
         rows.extend(page)
+        prev_nk = ctx_nk
         ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
-        if not ctx_nk:
+        # 비진전 커서(빈 키/직전과 같은 키 반복/종료 센티널) -> 재요청 중단(이중집계/무한 재요청 방지)
+        if not ctx_nk or ctx_nk == prev_nk or ctx_nk == _CONTINUATION_END:
             break
     else:
         raise KISError(

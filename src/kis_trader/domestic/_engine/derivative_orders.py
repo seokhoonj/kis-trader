@@ -23,6 +23,7 @@ from decimal import Decimal, InvalidOperation
 from typing import TYPE_CHECKING, Any, Literal
 
 from ..._internal._datetime import _KST
+from ..._internal._response import _CONTINUATION_END
 from ..._internal._wire import format_wire_decimal
 from ...errors import KISError, KISUsageError, OrderError, OrderTimeoutError
 from ...order import (
@@ -410,8 +411,13 @@ def _fetch_day_ccnl(
                     rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
                 )
         rows.extend(page)
+        prev_nk = ctx_nk
         ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        # 비진전 커서(반복/종료 센티널)면 tr_cont 정본종료 여부와 무관하게 멈춘다 -- 반복=서버가
+        # 커서를 안 진전시킴=더 없음이라 fill 누락 없이 안전하고, 같은 페이지 무한 재요청/이중집계를 막는다.
+        if ctx_nk == _CONTINUATION_END or (ctx_nk and ctx_nk == prev_nk):
+            break
         # 재조회는 조기 종료 금지(체결 누락->오재주문 위험): tr_cont 정본 종료(D/E/공백)이면서
         # 연속조회 커서도 소진됐을 때만 마지막 페이지로 확정(둘 중 하나라도 남으면 계속 스캔).
         if resp.tr_cont not in ("F", "M") and not ctx_nk:
@@ -611,8 +617,13 @@ def _fetch_night_ccnl(
                     rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
                 )
         rows.extend(page)
+        prev_nk = ctx_nk
         ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        # 비진전 커서(반복/종료 센티널)면 tr_cont 정본종료 여부와 무관하게 멈춘다 -- 반복=서버가
+        # 커서를 안 진전시킴=더 없음이라 fill 누락 없이 안전하고, 같은 페이지 무한 재요청/이중집계를 막는다.
+        if ctx_nk == _CONTINUATION_END or (ctx_nk and ctx_nk == prev_nk):
+            break
         # 조기 종료 금지(체결 누락->오재주문 위험): tr_cont 정본 종료(D/E/공백)이면서 연속조회 커서도
         # 소진됐을 때만 마지막 페이지로 확정(둘 중 하나라도 남으면 계속 스캔).
         if resp.tr_cont not in ("F", "M") and not ctx_nk:

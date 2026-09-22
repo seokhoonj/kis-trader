@@ -161,9 +161,11 @@ def test_day_reconcile_error_response_fails_closed():
 def test_day_reconcile_page_cap_fails_closed():
     # 연속조회 커서가 끝없이 남으면(ctx_area_nk200 항상 존재) 페이지 상한에서 부분 스캔으로
     # 확정하지 않고 KISError.
-    never_ends = RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
-                             body={"output1": [], "ctx_area_nk200": "NEXT"})
-    fake = FakeTransport(on_post=TransportTimeout("t"), on_get=never_ends)
+    # 커서를 매 페이지 진전시켜(N0, N1, ...) 진짜 다음 페이지가 계속 있는 상황을 흉내낸다 -- 같은 키
+    # 반복은 이제 비진전 커서로 보아 종료하므로, cap 을 치려면 커서가 실제로 진전해야 한다.
+    pages = [RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
+                         body={"output1": [], "ctx_area_nk200": f"N{i}"}) for i in range(200)]
+    fake = FakeTransport(on_post=TransportTimeout("t"), on_get=pages)
     client = _client(fake)
     _place_timeout(client, "cap")
     with pytest.raises(KISError, match="페이지 상한"):

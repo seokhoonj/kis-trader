@@ -117,19 +117,20 @@ def test_margin_rates_paper_fails_closed_no_wire():
 
 
 class _StickyTransport:
-    """연속조회가 끝나지 않는(항상 tr_cont="M") 응답을 무한히 돌려주는 전송."""
+    """연속조회가 끝나지 않는(항상 tr_cont="M", 커서는 매 페이지 진전) 응답을 무한히 돌려주는 전송.
 
-    def __init__(self, response):
-        self.response = response
+    커서를 매번 다른 값으로 진전시켜 '진짜 다음 페이지가 계속 있는' 상황을 흉내낸다 -- 같은 키
+    반복은 이제 비진전 커서로 보아 종료하므로 cap 을 못 친다."""
+
+    def __init__(self):
         self.calls: list[dict] = []
 
     def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
         self.calls.append({"params": params, "tr_cont": tr_cont})
-        return self.response
+        return _resp([_row()], tr_cont="M", ctx_nk=f"CURSOR{len(self.calls)}")
 
 
 def test_margin_rates_page_cap_fails_closed():
-    never_ends = _resp([_row()], tr_cont="M", ctx_nk="CURSOR")
-    fake = _StickyTransport(never_ends)
+    fake = _StickyTransport()
     with pytest.raises(KISError):
         _client(fake).domestic.derivative_margin_rates("20260819")

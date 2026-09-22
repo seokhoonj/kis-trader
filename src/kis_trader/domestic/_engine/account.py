@@ -22,6 +22,7 @@ from ..._internal._response import (
     _fetch_paginated_rows_with_summary,
     _raise_if_error,
     _require_mapping_rows,
+    advance_cursor,
 )
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
@@ -143,8 +144,10 @@ def _walk_holdings(
         rows.extend(_require_mapping_rows("output1", resp))
         if resp.tr_cont not in ("F", "M"):
             break
-        ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
+        nxt = advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
+        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
+            break
+        ctx_fk, ctx_nk = nxt
         tr_cont = "N"
     else:
         raise KISError(
@@ -387,8 +390,10 @@ def fetch_trade_profits(
         rows.extend(page)
         if resp.tr_cont not in ("F", "M"):
             break
-        ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
+        nxt = advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
+        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
+            break
+        ctx_fk, ctx_nk = nxt
         tr_cont = "N"
     else:
         raise KISError(
@@ -477,8 +482,10 @@ def fetch_daily_profits(
         rows.extend(page)
         if resp.tr_cont not in ("F", "M"):
             break
-        ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
+        nxt = advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
+        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
+            break
+        ctx_fk, ctx_nk = nxt
         tr_cont = "N"
     else:
         raise KISError(
@@ -693,8 +700,10 @@ def fetch_realized_profit_balance(
         summary = _first_summary(resp.body.get("output2")) or summary
         if resp.tr_cont not in ("F", "M"):
             break
-        ctx_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
+        nxt = advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
+        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
+            break
+        ctx_fk, ctx_nk = nxt
         tr_cont = "N"
     else:
         raise KISError("실현손익 잔고가 페이지 상한에 도달했으나 연속조회가 남아있다.")

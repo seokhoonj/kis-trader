@@ -19,6 +19,20 @@ from ..transport import RawResponse, Transport
 _CONTINUATION_END = "^^"
 
 
+def advance_cursor(
+    body: Mapping[str, Any], *, ctx_width: int, prev_nk: str
+) -> tuple[str, str] | None:
+    """연속조회 다음 페이지 커서 ``(fk, nk)`` 를 돌려준다. ``tr_cont`` 가 F/M(더 있음)인데 연속키가
+    진전하지 않으면(빈 키 / 직전과 같은 키 반복 / 종료 센티널 ``"^^"``) ``None`` 을 돌려 재요청을
+    멈춘다 -- 같은 페이지를 다시 받아 행이 이중집계되는 것을 막는다. 공유 페이지네이터와 각 엔진의
+    hand-rolled 연속조회 루프가 공용으로 쓴다(가드 로직 단일 출처)."""
+    next_nk = str(body.get(f"ctx_area_nk{ctx_width}") or "").strip()
+    if not next_nk or next_nk == prev_nk or next_nk == _CONTINUATION_END:
+        return None
+    next_fk = str(body.get(f"ctx_area_fk{ctx_width}") or "").strip()
+    return next_fk, next_nk
+
+
 def _missing_block_error(block: str, resp: RawResponse) -> KISError:
     return KISError(
         f"응답에 {block} 블록이 없다.",
@@ -76,37 +90,14 @@ def _fetch_paginated_rows(
     ``output_key`` 블록(예: ``output``/``output1``)을 :func:`_require_mapping_rows` 로 검증해
     페이지마다 이어붙이고, 봉투 오류는 :func:`_raise_if_error` 로 조기 종료한다. ``max_pages``
     페이지 상한에 닿았는데 연속조회가 남아있으면 부분 결과로 자르지 않고 ``cap_message`` 로
-    fail-closed 한다. 요약(output2/output3 등)을 페이지에 걸쳐 함께 모아야 하는 조회는 이
-    순수-행 helper 로는 담을 수 없어 각 엔드포인트에 남겨둔다.
+    fail-closed 한다. 요약(output2/output3 등)을 페이지에 걸쳐 함께 모아야 하는 조회는
+    :func:`_fetch_paginated_rows_with_summary` 를 쓴다 -- 이 함수는 그 위임 래퍼다(상태기계 단일 출처).
     """
-    fk_key = f"CTX_AREA_FK{ctx_width}"
-    nk_key = f"CTX_AREA_NK{ctx_width}"
-    body_fk = f"ctx_area_fk{ctx_width}"
-    body_nk = f"ctx_area_nk{ctx_width}"
-    rows: list[Mapping[str, Any]] = []
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(max_pages):
-        params = dict(base_params)
-        params[fk_key] = ctx_fk
-        params[nk_key] = ctx_nk
-        resp = transport.request(
-            method="GET", path=path, tr_id=tr_id,
-            params=params, idempotent=idempotent, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        rows.extend(_require_mapping_rows(output_key, resp))
-        if resp.tr_cont not in ("F", "M"):
-            break
-        next_nk = str(resp.body.get(body_nk) or "").strip()
-        # 비진전 커서 방어: KIS 가 tr_cont 를 F/M 로 유지하면서 연속키를 진전시키지 않으면(빈 키/
-        # 같은 키 반복/종료 센티널) 같은 페이지를 재요청해 행이 이중집계된다 -- 여기서 종료한다.
-        if not next_nk or next_nk == ctx_nk or next_nk == _CONTINUATION_END:
-            break
-        ctx_nk = next_nk
-        ctx_fk = str(resp.body.get(body_fk) or "").strip()
-        tr_cont = "N"
-    else:
-        raise KISError(cap_message)
+    rows, _summary = _fetch_paginated_rows_with_summary(
+        transport, path=path, tr_id=tr_id, base_params=base_params, output_key=output_key,
+        max_pages=max_pages, cap_message=cap_message, summary_from=lambda _body: None,
+        ctx_width=ctx_width, idempotent=idempotent,
+    )
     return rows
 
 
@@ -132,8 +123,6 @@ def _fetch_paginated_rows_with_summary(
     -- ``summary`` 는 첫 페이지에서 못 뽑았으면 ``None`` (호출자가 필요하면 fail-closed 판단)."""
     fk_key = f"CTX_AREA_FK{ctx_width}"
     nk_key = f"CTX_AREA_NK{ctx_width}"
-    body_fk = f"ctx_area_fk{ctx_width}"
-    body_nk = f"ctx_area_nk{ctx_width}"
     rows: list[Mapping[str, Any]] = []
     summary: Mapping[str, Any] | None = None
     ctx_fk, ctx_nk, tr_cont = "", "", ""
@@ -151,12 +140,10 @@ def _fetch_paginated_rows_with_summary(
         rows.extend(_require_mapping_rows(output_key, resp))
         if resp.tr_cont not in ("F", "M"):
             break
-        next_nk = str(resp.body.get(body_nk) or "").strip()
-        # 비진전 커서 방어(순수-행 helper 와 동일) -- 같은 페이지 재요청으로 요약/행이 이중집계되지 않게.
-        if not next_nk or next_nk == ctx_nk or next_nk == _CONTINUATION_END:
+        nxt = advance_cursor(resp.body, ctx_width=ctx_width, prev_nk=ctx_nk)
+        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
             break
-        ctx_nk = next_nk
-        ctx_fk = str(resp.body.get(body_fk) or "").strip()
+        ctx_fk, ctx_nk = nxt
         tr_cont = "N"
     else:
         raise KISError(cap_message)

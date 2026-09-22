@@ -11,8 +11,10 @@ from ..._internal._datetime import (
     _to_yyyymmdd,
 )
 from ..._internal._response import (
+    _CONTINUATION_END,
     _missing_block_error,
     _raise_if_error,
+    advance_cursor,
 )
 from ..._internal._wire import optional_decimal, required_int
 from ...errors import KISError, KISUsageError
@@ -80,10 +82,12 @@ def fetch_period_rights(
         if not isinstance(page, list) or not all(isinstance(row, Mapping) for row in page):
             raise _missing_block_error("output", resp)
         rows.extend(page)
-        ctx_nk = str(resp.body.get("ctx_area_nk50", "")).strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk50", "")).strip()
         if resp.tr_cont not in {"F", "M"}:
             break
+        nxt = advance_cursor(resp.body, ctx_width=50, prev_nk=ctx_nk)
+        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
+            break
+        ctx_fk, ctx_nk = nxt
         tr_cont = "N"
     else:
         raise KISError("해외 기간별 권리조회가 100페이지 상한을 초과했다.")
@@ -248,10 +252,12 @@ def fetch_collateral_stocks(
             raise _missing_block_error("output2", resp)
         rows.extend(page)
         summary_row, last_body = summary, resp.body
-        ctx_fk = str(resp.body.get("ctx_area_fk100", "")).strip()
-        ctx_nk = str(resp.body.get("ctx_area_nk100", "")).strip()
         if resp.tr_cont not in {"F", "M"}:
             break
+        nxt = advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
+        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
+            break
+        ctx_fk, ctx_nk = nxt
         tr_cont = "N"
     else:
         raise KISError("해외주식 담보대출 가능종목 조회가 100페이지 상한을 초과했다.")
@@ -311,9 +317,11 @@ def fetch_settlement_dates(
         if not all(isinstance(row, Mapping) for row in page):
             raise KISError("결제일자 응답의 output 항목이 객체가 아니다.", raw=resp.body)
         rows.extend(page)
+        prev_nk = ctx_nk
         ctx_nk = str(resp.body.get("ctx_area_nk") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk") or "").strip()
-        if not ctx_nk:
+        # 비진전 커서(빈 키/직전과 같은 키 반복/종료 센티널) -> 재요청 중단(이중집계/무한 재요청 방지)
+        if not ctx_nk or ctx_nk == prev_nk or ctx_nk == _CONTINUATION_END:
             break
     else:
         raise KISError(

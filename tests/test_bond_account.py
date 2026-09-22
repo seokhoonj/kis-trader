@@ -313,6 +313,17 @@ def _fills_resp(*, rows=None, totals=None, ctx_nk="", ctx_fk="", tr_cont=""):
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
 
 
+def test_fills_stops_on_repeated_cursor_no_double_count():
+    # hand-rolled 연속조회 루프도 비진전 커서(같은 키 반복)에서 종료해야 한다 -- 안 그러면 같은 페이지를
+    # 재요청해 체결이 이중집계되거나 상한까지 무한 재요청한다(공유 헬퍼와 같은 방어).
+    pages = [_fills_resp(rows=[_fill(odno="1")], ctx_nk="SAME", tr_cont="F"),
+             _fills_resp(rows=[_fill(odno="2")], ctx_nk="SAME", tr_cont="F")]  # 두 번째는 같은 커서
+    fake = FakeTransport(pages=pages)
+    history = _bonds(fake).fills(start="20240201", end="20240229")
+    assert len(fake.calls) == 2                       # 반복 커서에서 종료(재요청 안 함)
+    assert len(history.fills) == 2                     # 두 페이지 반영, 이중집계 없음(3페이지째 없음)
+
+
 def test_fills_parses_rows_and_totals():
     fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
     history = _bonds(fake).fills(start="20240201", end="20240229")
@@ -449,6 +460,7 @@ def test_open_orders_page_cap_fails_closed():
 
 
 def test_fills_page_cap_fails_closed():
-    never_ends = _fills_resp(rows=[_fill()], ctx_nk="NK", ctx_fk="FK", tr_cont="F")
+    # 매 페이지 연속키가 진전하며 끝나지 않는 상황 -- 상한에서 fail-closed(같은 키 반복은 이제 종료).
+    pages = [_fills_resp(rows=[_fill()], ctx_nk=f"N{i}", ctx_fk="FK", tr_cont="F") for i in range(101)]
     with pytest.raises(KISError):
-        _bonds(FakeTransport(response=never_ends)).fills(start="20240201", end="20240229")
+        _bonds(FakeTransport(pages=pages)).fills(start="20240201", end="20240229")

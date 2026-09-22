@@ -33,6 +33,7 @@ from ..._internal._response import (
     _missing_block_error,
     _raise_if_error,
     _require_mapping_rows,
+    advance_cursor,
 )
 from ..._internal._wire import (
     _apply_change_sign,
@@ -688,8 +689,10 @@ def fetch_bond_fills(
         rows.extend(page)
         if resp.tr_cont not in ("F", "M"):
             break
-        ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
-        ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        nxt = advance_cursor(resp.body, ctx_width=200, prev_nk=ctx_nk)
+        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
+            break
+        ctx_fk, ctx_nk = nxt
         tr_cont = "N"
     else:
         raise KISError(

@@ -18,7 +18,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
-from ..._internal._response import _require_mapping_rows
+from ..._internal._response import _CONTINUATION_END, _require_mapping_rows
 from ..._internal._wire import decimal_or_zero, field_decimal_or_zero, format_wire_decimal
 from ...errors import (
     AccountNotOrderableError,
@@ -165,8 +165,13 @@ def _walk_reserved(
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         rows.extend(_require_mapping_rows("output", resp))
+        prev_nk = ctx_nk
         ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
+        # 비진전 커서(반복/종료 센티널)면 tr_cont 정본종료 여부와 무관하게 멈춘다 -- 반복=서버가
+        # 커서를 안 진전시킴=더 없음이라 fill 누락 없이 안전하고, 같은 페이지 무한 재요청/이중집계를 막는다.
+        if ctx_nk == _CONTINUATION_END or (ctx_nk and ctx_nk == prev_nk):
+            break
         # 재조회는 조기 종료 금지(예약 누락->오확정->이중발주 위험): tr_cont 정본 종료(D/E/공백)
         # 이면서 연속조회 커서도 소진됐을 때만 마지막 페이지로 확정한다(둘 중 하나라도 남으면 계속
         # 스캔). 즉시/해외 재조회(_fetch_daily_orders/_fetch_ccnl)와 같은 보수적 종료.
