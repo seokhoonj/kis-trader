@@ -229,7 +229,7 @@ class RealtimeClient:
             except Exception as exc:
                 stop_error = exc
                 _logger.warning("realtime 연결 stop() 이 예외를 던졌습니다", exc_info=True)
-        self._queue.put(_STREAM_SENTINEL)
+        self._put_sentinel()
         self._shutdown_subscriptions()
         if self._thread is not None:
             self._thread.join(timeout=timeout)
@@ -252,7 +252,7 @@ class RealtimeClient:
                 asyncio.run_coroutine_threadsafe(self._conn.stop(), self._loop).result(timeout=timeout)
             except Exception:  # 원래의 timeout 오류를 가리지 않도록 정리 실패는 로깅만
                 _logger.warning("timeout 난 start() 정리 중 코어 stop() 실패", exc_info=True)
-        self._queue.put(_STREAM_SENTINEL)
+        self._put_sentinel()
         self._shutdown_subscriptions()
         if self._thread is not None:
             self._thread.join(timeout=timeout)
@@ -322,7 +322,10 @@ class RealtimeClient:
         except BaseException as exc:  # noqa: BLE001 - 실패를 start() 로 전달(hang 방지)
             self._startup_error = exc
             await self._conn.close()  # 소켓 누수 방지
-            self._queue.put(_STREAM_SENTINEL)
+            self._put_sentinel()
+            # start() 전에 만든 타입드 구독의 per-sub 큐에도 센티넬을 넣어야 `for tick in sub:` 가
+            # 영원히 멎지 않는다 -- 정상 종료(finally, 338줄)만 하던 것을 기동 실패에도 한다.
+            self._shutdown_subscriptions()
             self._ready.set()
             return
         self._ready.set()  # 준비 완료 신호
@@ -334,7 +337,7 @@ class RealtimeClient:
                     self._dispatch(message)
         finally:
             await self._conn.close()
-            self._queue.put(_STREAM_SENTINEL)
+            self._put_sentinel()
             self._shutdown_subscriptions()
 
     def _dispatch(self, message: RealtimeMessage) -> None:
@@ -372,6 +375,22 @@ class RealtimeClient:
                 "realtime stream 큐가 상한(%d)에 도달 -- 소비가 느리거나 없어 오래된 틱을 드롭합니다",
                 _QUEUE_MAXSIZE,
             )
+
+    def _put_sentinel(self) -> None:
+        """종료 센티넬을 큐에 넣어 stream() 소비자를 깨운다 -- 절대 블록하지 않는다.
+
+        블로킹 ``put`` 은 콜백 전용 소비자(stream() 을 안 비움)에게 큐가 상한에 차 있으면 영원히
+        멎어 stop()/teardown 이 교착한다. 상한이면 가장 오래된 틱을 버리며 넣고(_enqueue 와 동형),
+        극단적 경합으로 못 넣어도 조용히 넘어간다(stream() 은 timeout 으로도 끝난다)."""
+        for _ in range(_QUEUE_MAXSIZE + 1):
+            try:
+                self._queue.put_nowait(_STREAM_SENTINEL)
+                return
+            except queue.Full:
+                try:
+                    self._queue.get_nowait()  # 가장 오래된 것 드롭 후 재시도
+                except queue.Empty:
+                    pass
 
     def _call_async(self, coro: Coroutine[Any, Any, Any], *, timeout: float = 5.0) -> None:
         """백그라운드 루프에 코루틴을 제출하고 완료를 기다린다(예외 전파).

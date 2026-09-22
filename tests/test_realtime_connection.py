@@ -202,3 +202,48 @@ def test_reconnect_resubscribes_active_registrations():
     assert len(out) == 1
     # 재연결된 두 번째 소켓에도 재등록 메시지가 나갔는지
     assert any("DUMMYTR0" in s for s in second.sent)
+
+
+def test_subscribe_unsubscribe_same_key_do_not_reorder():
+    # 같은 키의 subscribe 가 `await send` 에서 양보한 사이 unsubscribe 가 끼어들 때, 락이 없으면
+    # unsubscribe 가 (아직 add 전이라) 미등록으로 보고 조기 반환해 해제를 안 보낸다 -- 소켓은
+    # 구독된 채 _subscriptions 슬롯만 샌다. 락으로 직렬화되면 subscribe 완료를 기다렸다 제대로 해제한다.
+    async def scenario():
+        gate = asyncio.Event()
+
+        class GatedWS:
+            def __init__(self):
+                self.sent: list[str] = []
+
+            def __aiter__(self):
+                return self
+
+            async def __anext__(self):
+                await gate.wait()          # 수신 루프는 안 쓴다(구독 경합만 본다)
+                raise StopAsyncIteration
+
+            async def send(self, message):
+                self.sent.append(message)
+                if len(self.sent) == 1:    # 첫 전송(subscribe)에서 양보시켜 경합을 만든다
+                    await gate.wait()
+
+            async def close(self):
+                gate.set()
+
+        ws = GatedWS()
+        conn = RealtimeConnection("KEY", "ws://x", connect=_connector(ws), reconnect=False)
+        await conn.__aenter__()
+        sub_task = asyncio.ensure_future(conn.subscribe("H0STASP0", "005930"))
+        while not ws.sent:                 # subscribe 가 send(=gate 대기)에 도달할 때까지
+            await asyncio.sleep(0)
+        unsub_task = asyncio.ensure_future(conn.unsubscribe("H0STASP0", "005930"))
+        for _ in range(3):                 # unsubscribe 가 락 대기(버그 땐 조기 반환)하도록 양보
+            await asyncio.sleep(0)
+        gate.set()
+        await asyncio.gather(sub_task, unsub_task)
+        return ws.sent, set(conn._subscriptions)
+
+    sent, subs = asyncio.run(scenario())
+    tr_types = [json.loads(s)["header"]["tr_type"] for s in sent]
+    assert tr_types == ["1", "2"]          # 등록(1) 뒤 해제(2) 둘 다 순서대로 나갔다
+    assert subs == set()                   # 최종 미구독 -- 슬롯 누수 없음

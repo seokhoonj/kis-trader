@@ -100,6 +100,10 @@ class RealtimeConnection:
         self._ws: WebSocketLike | None = None
         # 재연결 시 재등록할 활성 구독. 값은 순서 보존 불필요(집합).
         self._subscriptions: set[tuple[str, str]] = set()
+        # subscribe/unsubscribe 본문과 재접속 재등록을 직렬화한다. 이게 없으면 같은 키의 subscribe
+        # 가 `await send` 에서 양보한 사이 unsubscribe 가 (아직 add 전이라) 미등록으로 보고 조기
+        # 반환해 해제를 안 보내, 소켓은 구독된 채 슬롯만 새는 순서 경합이 난다(check-then-act).
+        self._subscription_lock = asyncio.Lock()
         # 암호 TR 의 (key, iv) -- 구독 ACK 에서 수신.
         self._crypto: dict[str, tuple[str, str]] = {}
 
@@ -122,21 +126,25 @@ class RealtimeConnection:
 
     async def subscribe(self, tr_id: str, tr_key: str) -> None:
         """실시간 등록. 상한(41) 초과면 :class:`KISUsageError`. 재연결 후 자동 재등록된다."""
-        if (tr_id, tr_key) in self._subscriptions:
-            return
-        if len(self._subscriptions) >= _MAX_REGISTRATIONS:
-            raise KISUsageError(
-                f"실시간 등록 상한({_MAX_REGISTRATIONS}) 초과 -- 일부 해제 후 등록하세요."
-            )
-        await self._send_subscription(tr_id, tr_key, subscribe=True)
-        self._subscriptions.add((tr_id, tr_key))
+        # check-then-act(guard -> await send -> add)를 락으로 원자화한다 -- 같은 키 unsubscribe/
+        # 재등록과 인터리브되면 순서가 뒤집혀 소켓 상태와 _subscriptions 가 어긋난다.
+        async with self._subscription_lock:
+            if (tr_id, tr_key) in self._subscriptions:
+                return
+            if len(self._subscriptions) >= _MAX_REGISTRATIONS:
+                raise KISUsageError(
+                    f"실시간 등록 상한({_MAX_REGISTRATIONS}) 초과 -- 일부 해제 후 등록하세요."
+                )
+            await self._send_subscription(tr_id, tr_key, subscribe=True)
+            self._subscriptions.add((tr_id, tr_key))
 
     async def unsubscribe(self, tr_id: str, tr_key: str) -> None:
         """실시간 해제. 미등록이면 무시."""
-        if (tr_id, tr_key) not in self._subscriptions:
-            return
-        await self._send_subscription(tr_id, tr_key, subscribe=False)
-        self._subscriptions.discard((tr_id, tr_key))
+        async with self._subscription_lock:
+            if (tr_id, tr_key) not in self._subscriptions:
+                return
+            await self._send_subscription(tr_id, tr_key, subscribe=False)
+            self._subscriptions.discard((tr_id, tr_key))
 
     async def _send_subscription(self, tr_id: str, tr_key: str, *, subscribe: bool) -> None:
         if self._ws is None:
@@ -243,8 +251,11 @@ class RealtimeConnection:
                 await self._ws.close()
                 self._ws = None
                 return False
-            for tr_id, tr_key in list(self._subscriptions):
-                await self._send_subscription(tr_id, tr_key, subscribe=True)
+            # 스냅샷과 재등록을 락 안에서 -- 재등록 도중 unsubscribe 가 끼어들어 방금 해제한 키를
+            # 되살리지(resurrect) 못하게 한다. connect await 는 락 밖이라 재접속이 구독을 안 막는다.
+            async with self._subscription_lock:
+                for tr_id, tr_key in list(self._subscriptions):
+                    await self._send_subscription(tr_id, tr_key, subscribe=True)
             return True
         return False
 

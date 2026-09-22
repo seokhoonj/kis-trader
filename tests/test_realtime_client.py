@@ -112,6 +112,19 @@ def test_start_propagates_connector_failure_without_hanging():
     assert client._running is False
 
 
+def test_startup_failure_terminates_typed_subscription():
+    # 기동 실패(connect 예외) 시에도 start() 전에 만든 타입드 구독의 이터레이터가 hang 하면 안 된다
+    # (P0: startup-error 경로가 _shutdown_subscriptions 를 호출해 per-sub 큐에 sentinel 을 넣는다).
+    async def failing_connect(url):
+        raise ConnectionError("connect refused")
+
+    client = RealtimeClient("KEY", "ws://x", connect=failing_connect, reconnect=False)
+    sub = client._open_typed("H0STASP0", "005930")    # start 전 타입드 구독
+    with pytest.raises(ConnectionError):
+        client.start()
+    assert list(sub) == []                            # sentinel -> 종료(무한 hang 아님)
+
+
 def test_subscribe_before_start_is_deferred_then_sent():
     ws = FakeWebSocket(incoming=[])
     client = _client(ws)
@@ -269,6 +282,22 @@ def test_enqueue_drops_oldest_when_queue_full():
         drained.append(client._queue.get_nowait())
     assert drained == [second, third]                # 가장 오래된 first 는 드롭
     assert client._queue_overflow_warned is True
+
+
+def test_put_sentinel_does_not_block_when_queue_full():
+    # 콜백 전용 소비자(stream() 미소비)로 중앙 큐가 상한에 차 있으면 블로킹 put 은 teardown 을
+    # 영원히 멎게 한다(P0 교착). _put_sentinel 은 오래된 것을 버리며 non-blocking 으로 넣는다.
+    from kis_trader.realtime.client import _STREAM_SENTINEL
+
+    client = RealtimeClient("KEY", "ws://x")
+    client._queue = queue.Queue(maxsize=3)
+    for i in range(3):                                # 큐를 상한까지 채운다
+        client._queue.put_nowait(RealtimeMessage(tr_id="T", tr_key="K", data=[str(i)]))
+    client._put_sentinel()                            # 블록하면 이 테스트가 hang -> 실패로 드러남
+    drained = []
+    while not client._queue.empty():
+        drained.append(client._queue.get_nowait())
+    assert drained[-1] is _STREAM_SENTINEL             # 가득 차 있어도 sentinel 이 들어갔다
 
 
 def test_restart_drains_stale_queue():
