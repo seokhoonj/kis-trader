@@ -161,8 +161,8 @@ def test_open_orders_error_response_raises():
 
 def test_open_orders_pagination_cap_fails_closed(monkeypatch):
     monkeypatch.setattr(account_module, "_MAX_OPEN_ORDER_PAGES", 2)
-    forever = _resp(rows=[_ROW_PLAIN], ctx_nk="NEXT", tr_cont="M")
-    fake = FakeTransport(pages=[forever, forever, forever])
+    # 진짜로 다음 페이지가 계속 있는 상황 = 매 페이지 연속키가 진전한다(같은 키 반복은 이제 종료로 본다).
+    fake = FakeTransport(pages=[_resp(rows=[_ROW_PLAIN], ctx_nk=f"N{i}", tr_cont="M") for i in range(3)])
     with pytest.raises(KISError):
         _client(fake).account.domestic.open_orders()
 

@@ -24,10 +24,11 @@ _FILLS_PATH = "/uapi/domestic-bond/v1/trading/inquire-daily-ccld"
 
 
 class FakeTransport:
-    def __init__(self, *, response=None, by_path=None, raises=None):
+    def __init__(self, *, response=None, by_path=None, raises=None, pages=None):
         self.response = response
         self.by_path = by_path or {}
         self.raises = raises
+        self.pages = pages          # 경로무관 순차 응답(연속조회 흉내)
         self.calls: list[dict] = []
         self._lock = threading.Lock()
 
@@ -35,7 +36,9 @@ class FakeTransport:
         with self._lock:
             self.calls.append({"method": method, "path": path, "tr_id": tr_id,
                                "params": params, "idempotent": idempotent, "tr_cont": tr_cont})
-        if path in self.by_path:
+        if self.pages:
+            outcome = self.pages.pop(0)
+        elif path in self.by_path:
             outcome = self.by_path[path]
             if isinstance(outcome, list):
                 outcome = outcome.pop(0)
@@ -431,15 +434,18 @@ def test_fills_non_mapping_row_raises():
 
 # --- 페이지 상한 fail-closed (연속조회가 끝나지 않는 tr_cont="F"/"M") --------
 def test_balance_page_cap_fails_closed():
-    never_ends = _balance_resp(rows=[_position()], ctx_nk="NK", ctx_fk="FK", tr_cont="F")
+    # 매 페이지 연속키가 진전하며 끝나지 않는 상황 -- 상한에서 fail-closed(같은 키 반복은 종료로 본다).
+    pages = [_balance_resp(rows=[_position()], ctx_nk=f"N{i}", ctx_fk="FK", tr_cont="F")
+             for i in range(101)]
     with pytest.raises(KISError):
-        _bonds(FakeTransport(response=never_ends)).balance()
+        _bonds(FakeTransport(pages=pages)).balance()
 
 
 def test_open_orders_page_cap_fails_closed():
-    never_ends = _open_orders_resp(rows=[_open_order()], ctx_nk="NK", ctx_fk="FK", tr_cont="M")
+    pages = [_open_orders_resp(rows=[_open_order()], ctx_nk=f"N{i}", ctx_fk="FK", tr_cont="M")
+             for i in range(101)]
     with pytest.raises(KISError):
-        _bonds(FakeTransport(response=never_ends)).open_orders("20240215")
+        _bonds(FakeTransport(pages=pages)).open_orders("20240215")
 
 
 def test_fills_page_cap_fails_closed():

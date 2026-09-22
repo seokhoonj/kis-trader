@@ -14,6 +14,10 @@ from typing import Any
 from ..errors import KISError
 from ..transport import RawResponse, Transport
 
+#: KIS 연속조회 종료 센티널. 일부 조회는 tr_cont 를 F/M 로 유지한 채 연속키를 이 값으로 돌려
+#: "더 없음"을 알린다 -- 이 키로는 재요청하지 않는다(같은 페이지 재조회/이중집계 방지).
+_CONTINUATION_END = "^^"
+
 
 def _missing_block_error(block: str, resp: RawResponse) -> KISError:
     return KISError(
@@ -93,7 +97,12 @@ def _fetch_paginated_rows(
         rows.extend(_require_mapping_rows(output_key, resp))
         if resp.tr_cont not in ("F", "M"):
             break
-        ctx_nk = str(resp.body.get(body_nk) or "").strip()
+        next_nk = str(resp.body.get(body_nk) or "").strip()
+        # 비진전 커서 방어: KIS 가 tr_cont 를 F/M 로 유지하면서 연속키를 진전시키지 않으면(빈 키/
+        # 같은 키 반복/종료 센티널) 같은 페이지를 재요청해 행이 이중집계된다 -- 여기서 종료한다.
+        if not next_nk or next_nk == ctx_nk or next_nk == _CONTINUATION_END:
+            break
+        ctx_nk = next_nk
         ctx_fk = str(resp.body.get(body_fk) or "").strip()
         tr_cont = "N"
     else:
@@ -142,7 +151,11 @@ def _fetch_paginated_rows_with_summary(
         rows.extend(_require_mapping_rows(output_key, resp))
         if resp.tr_cont not in ("F", "M"):
             break
-        ctx_nk = str(resp.body.get(body_nk) or "").strip()
+        next_nk = str(resp.body.get(body_nk) or "").strip()
+        # 비진전 커서 방어(순수-행 helper 와 동일) -- 같은 페이지 재요청으로 요약/행이 이중집계되지 않게.
+        if not next_nk or next_nk == ctx_nk or next_nk == _CONTINUATION_END:
+            break
+        ctx_nk = next_nk
         ctx_fk = str(resp.body.get(body_fk) or "").strip()
         tr_cont = "N"
     else:

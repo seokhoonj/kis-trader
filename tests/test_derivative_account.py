@@ -21,10 +21,11 @@ _DEPOSIT_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-deposit"
 
 
 class FakeTransport:
-    def __init__(self, *, response=None, by_path=None, raises=None):
+    def __init__(self, *, response=None, by_path=None, raises=None, pages=None):
         self.response = response
         self.by_path = by_path or {}
         self.raises = raises
+        self.pages = pages          # 경로무관 순차 응답(연속조회 흉내)
         self.calls: list[dict] = []
         self._lock = threading.Lock()
 
@@ -32,7 +33,9 @@ class FakeTransport:
         with self._lock:
             self.calls.append({"method": method, "path": path, "tr_id": tr_id,
                                "params": params, "idempotent": idempotent, "tr_cont": tr_cont})
-        if path in self.by_path:
+        if self.pages:
+            outcome = self.pages.pop(0)
+        elif path in self.by_path:
             outcome = self.by_path[path]
             if isinstance(outcome, list):
                 outcome = outcome.pop(0)
@@ -131,11 +134,12 @@ def test_derivative_balance_skips_blank_symbol_row():
 
 
 def test_derivative_balance_page_cap_fails_closed():
-    # 연속조회가 끝나지 않는(항상 tr_cont="F") 응답 -- 페이지 상한에서 부분 결과로 자르지 않고 예외.
-    never_ends = _balance_resp(rows=[_position("101W09")], ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
-    fake = FakeTransport(response=never_ends)
+    # 연속조회가 끝나지 않는(매 페이지 연속키가 진전하며 항상 tr_cont="F") 응답 -- 페이지 상한에서
+    # 부분 결과로 자르지 않고 예외. (같은 키 반복은 이제 비진전 커서로 보아 종료한다.)
+    pages = [_balance_resp(rows=[_position("101W09")], ctx_nk=f"N{i}", ctx_fk="FK", tr_cont="F")
+             for i in range(101)]
     with pytest.raises(KISError):
-        _client(fake).account.balance()
+        _client(FakeTransport(pages=pages)).account.balance()
 
 
 def test_derivative_balance_output1_non_list_raises():
@@ -636,21 +640,23 @@ def test_commissions_non_mapping_row_raises():
 
 # --- 페이지 상한 fail-closed (연속조회가 끝나지 않는 tr_cont="F"/"M") --------
 def test_valuation_pl_page_cap_fails_closed():
-    never_ends = _valuation_resp(rows=[_valuation_position()], ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    pages = [_valuation_resp(rows=[_valuation_position()], ctx_nk=f"N{i}", ctx_fk="FK", tr_cont="F")
+             for i in range(101)]
     with pytest.raises(KISError):
-        _client(FakeTransport(response=never_ends), environment="real").account.valuation_pl()
+        _client(FakeTransport(pages=pages), environment="real").account.valuation_pl()
 
 
 def test_settlement_pl_page_cap_fails_closed():
-    never_ends = _settlement_resp(rows=[_settlement_position()], ctx_nk="NEXT", ctx_fk="FK", tr_cont="M")
+    pages = [_settlement_resp(rows=[_settlement_position()], ctx_nk=f"N{i}", ctx_fk="FK", tr_cont="M")
+             for i in range(101)]
     with pytest.raises(KISError):
-        _client(FakeTransport(response=never_ends), environment="real").account.settlement_pl(base_date="20240216")
+        _client(FakeTransport(pages=pages), environment="real").account.settlement_pl(base_date="20240216")
 
 
 def test_base_date_fills_page_cap_fails_closed():
-    never_ends = _fills_resp(rows=[_fill()], ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
+    pages = [_fills_resp(rows=[_fill()], ctx_nk=f"N{i}", ctx_fk="FK", tr_cont="F") for i in range(101)]
     with pytest.raises(KISError):
-        _client(FakeTransport(response=never_ends), environment="real").account.base_date_fills(order_date="20240220")
+        _client(FakeTransport(pages=pages), environment="real").account.base_date_fills(order_date="20240220")
 
 
 def test_commissions_page_cap_fails_closed():

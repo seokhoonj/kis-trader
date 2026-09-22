@@ -12,7 +12,7 @@ from datetime import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from .._internal._response import _require_mapping_rows
+from .._internal._response import _fetch_paginated_rows_with_summary
 from .._internal._wire import field_decimal_or_zero, format_wire_decimal
 from ..domestic.entities.balance import Position
 from ..errors import KISError, KISUsageError
@@ -41,9 +41,6 @@ _ORDERS_PATH = "/uapi/domestic-stock/v1/trading/pension/inquire-daily-ccld"
 _ORDERS_TR = "TTTC2210R"  # KRX+NXT/SOR (구 KRX전용 TTTC2201R)
 #: 연속조회 페이지 상한. 닿으면 fail-closed.
 _MAX_PAGES = 100
-#: KIS 연속조회 종료 센티널. 일부 조회(주문내역 등)는 tr_cont 를 F/M 로 유지한 채 연속키를 이 값으로
-#: 돌려 "더 없음"을 알린다 -- 이 키로는 재요청하지 않는다(같은 페이지 재조회/이중집계 방지).
-_CONTINUATION_END = "^^"
 _SIDE: dict[str, Side] = {"01": "sell", "02": "buy"}
 
 
@@ -169,40 +166,22 @@ def _walk_holdings(
     extra: Mapping[str, str], label: str,
     output_key: str = "output1", summary_is_list: bool = False,
 ) -> tuple[list[Mapping[str, Any]], Mapping[str, Any] | None]:
-    rows: list[Mapping[str, Any]] = []
-    summary: Mapping[str, Any] | None = None
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_PAGES):
-        params = {"CANO": cano, "ACNT_PRDT_CD": product_code, **extra,
-                  "CTX_AREA_FK100": ctx_fk, "CTX_AREA_NK100": ctx_nk}
-        resp = transport.request(
-            method="GET", path=path, tr_id=tr_id, params=params, idempotent=True, tr_cont=tr_cont
-        )
-        if not resp.ok:
-            raise KISError(
-                f"퇴직연금 {label} 조회 실패: {resp.msg1}",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        if summary is None:
-            summary = _extract_summary(resp.body, is_list=summary_is_list)
-        rows.extend(_require_mapping_rows(output_key, resp))
-        if resp.tr_cont not in ("F", "M"):
-            break
-        next_nk = str(resp.body.get("ctx_area_nk100") or "").strip()
-        # KIS 가 tr_cont 를 계속 F/M 로 주면서 연속키를 진전시키지 않는 경우가 있다: 명시적 종료
-        # 센티널("^^")을 주거나, 같은 키를 반복(0행)하거나, 빈 키를 준다. 어느 쪽이든 그 키로 재요청하면
-        # 같은 페이지를 다시 받아(이중집계) 또는 무한 루프가 되므로 여기서 종료한다.
-        if not next_nk or next_nk == ctx_nk or next_nk == _CONTINUATION_END:
-            break
-        ctx_nk = next_nk
-        ctx_fk = str(resp.body.get("ctx_area_fk100") or "").strip()
-        tr_cont = "N"
-    else:
-        raise KISError(
-            f"퇴직연금 {label} 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
-            f"-- 부분 결과로 자르지 않는다."
-        )
-    return rows, summary
+    """연속조회 + 요약(output2)을 공유 상태기계(:func:`_fetch_paginated_rows_with_summary`)에 위임한다.
+
+    비진전 커서 방어(빈 키/같은 키 반복/종료 센티널 "^^" -> 같은 페이지 재요청 방지)와 페이지 상한
+    fail-closed 는 공유 헬퍼가 담당한다 -- 예전엔 여기 별도 루프에 그 방어가 있었고 공유 헬퍼엔
+    없어, 같은 상태기계가 두 곳에 갈라져 드리프트했다(공유 헬퍼를 쓰는 다른 조회는 방어가 없었다)."""
+    return _fetch_paginated_rows_with_summary(
+        transport,
+        path=path, tr_id=tr_id,
+        base_params={"CANO": cano, "ACNT_PRDT_CD": product_code, **extra,
+                     "CTX_AREA_FK100": "", "CTX_AREA_NK100": ""},
+        output_key=output_key, max_pages=_MAX_PAGES,
+        cap_message=(f"퇴직연금 {label} 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 "
+                     f"남아있다 -- 부분 결과로 자르지 않는다."),
+        summary_from=lambda body: _extract_summary(body, is_list=summary_is_list),
+        ctx_width=100,
+    )
 
 
 def _extract_summary(body: Mapping[str, Any], *, is_list: bool) -> Mapping[str, Any] | None:
