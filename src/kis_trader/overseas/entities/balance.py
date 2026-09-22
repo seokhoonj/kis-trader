@@ -27,8 +27,8 @@ class OverseasPosition:
     symbol: str
     name: str
     exchange: str                    # 조회한 해외거래소코드(OVRS_EXCG_CD)
-    quantity: int                    # 보유 수량
-    sellable_quantity: int           # 매도가능 수량
+    quantity: Decimal                # 보유 수량(미국 미니스탁 등 소수점 가능)
+    sellable_quantity: Decimal       # 매도가능 수량(소수점 가능)
     average_purchase_price: Money    # 매입 평균가
     current_price: Money             # 현재가
     purchase_amount: Money           # 외화 매입금액

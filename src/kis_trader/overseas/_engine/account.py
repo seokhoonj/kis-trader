@@ -21,7 +21,6 @@ from ..._internal._wire import (
     format_wire_decimal,
     optional_decimal,
     required_decimal,
-    required_int,
 )
 from ...errors import KISError, KISUsageError
 from ...money import Money
@@ -533,8 +532,10 @@ def _parse_positions(
                 symbol=symbol,
                 name=str(row.get("ovrs_item_name", "")).strip(),
                 exchange=exchange,
-                quantity=required_int(row.get("ovrs_cblc_qty"), "ovrs_cblc_qty"),
-                sellable_quantity=required_int(row.get("ord_psbl_qty"), "ord_psbl_qty"),
+                # 미국 소수점(미니스탁) 보유가 있어 정수 강제는 0.x 주에서 throw 한다 -- Decimal 로.
+                # 형제 OverseasBalancePosition.balance_quantity 도 Decimal 이라 일관.
+                quantity=required_decimal(row.get("ovrs_cblc_qty"), "ovrs_cblc_qty"),
+                sellable_quantity=required_decimal(row.get("ord_psbl_qty"), "ord_psbl_qty"),
                 average_purchase_price=_money(row, "pchs_avg_pric", currency),
                 current_price=_money(row, "now_pric2", currency),
                 purchase_amount=_money(row, "frcr_pchs_amt1", currency),

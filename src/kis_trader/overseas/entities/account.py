@@ -109,8 +109,10 @@ class OverseasBuyableAmount:
 
 @dataclass(frozen=True, slots=True)
 class OverseasPeriodProfitRow:
-    """해외주식 기간손익의 매도청산 한 줄(불변). 금액은 조회통화(``CRCY_CD``) 외화 Decimal -- 조회를
-    통화 지정 없이(전체) 하면 통화가 섞일 수 있다."""
+    """해외주식 기간손익의 매도청산 한 줄(불변). 금액 기준통화는 조회 방식에 달렸다 -- 통화를 지정하면
+    그 통화, ``won_basis=True`` 로 조회하면 원화(WCRC_FRCR_DVSN_CD 02), 아니면 외화(01)다("외화"로
+    단정하지 않는다). 통화 지정 없이(전체) 조회하면 행마다 통화가 섞일 수 있으니 ``exchange``
+    (ovrs_excg_cd)로 통화를 판별하라(라이브러리의 시장 매핑이 거래소->통화를 안다)."""
 
     trade_day: date | None             # 매매일(trad_day)
     symbol: str                        # 해외상품번호(ovrs_pdno)

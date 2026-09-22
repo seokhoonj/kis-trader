@@ -179,6 +179,8 @@ def fetch_by_new_highlow(
     except KeyError:
         raise KISUsageError(f"extreme 은 {sorted(_HIGHLOW_GUBN)} 중 하나: {extreme!r}") from None
     path, tr = _NEW_HIGHLOW
+    # 원장 new_highlow 필수 파라미터: EXCD/MINX(N분전콤보, 0=1분전)/VOL_RANG/GUBN/GUBN2/KEYB/AUTH.
+    # NDAY·PRC1·PRC2 는 이 엔드포인트에 없다(NDAY 는 updown_rate 파라미터라 혼입이었다) -- MINX 를 보낸다.
     params = {"EXCD": exchange, "GUBN": gubn, "GUBN2": "1" if sustained else "0",
-              "NDAY": "0", "VOL_RANG": "0", "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
+              "MINX": "0", "VOL_RANG": "0", "KEYB": "", "AUTH": ""}
     return _fetch_ranking(transport, path=path, tr=tr, params=params)

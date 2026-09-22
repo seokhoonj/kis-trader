@@ -80,6 +80,15 @@ def test_overseas_positions_maps_money_and_params():
     assert call["params"]["TR_CRCY_CD"] == "USD"
 
 
+def test_overseas_positions_allow_fractional_shares():
+    # 미국 미니스탁 등 소수점 보유수량 -- 정수 강제(required_int)면 0.x 주에서 throw 해 보유가 통째로
+    # 사라졌다. Decimal 로 읽어 소수점을 보존한다(형제 OverseasBalancePosition 과 일관).
+    fake = FakeTransport(response=_resp([_holding(qty="0.5", sellable="0.25")]))
+    pos = _client(fake).account.overseas.positions(market="US")[0]
+    assert pos.quantity == Decimal("0.5")
+    assert pos.sellable_quantity == Decimal("0.25")
+
+
 def test_overseas_positions_market_maps_exchange_and_currency():
     for market, excg, crcy in [("HK", "SEHK", "HKD"), ("JP", "TKSE", "JPY"),
                                ("CN_SH", "SHAA", "CNY"), ("VN_HCM", "VNSE", "VND")]:
