@@ -128,6 +128,42 @@ def test_quantity_within_cap_passes():
     assert _paths(fake) == [_ORDER_CASH]                # 참조 조회 없이 바로 전송
 
 
+# --- 정정(modify)도 게이트, 취소(cancel)는 게이트 안 함 --------------------
+def test_modify_is_gated_like_place():
+    # 정정으로 수량을 한도 위로 올리면 발주와 똑같이 사전 리스크에서 거부돼야 한다(정정은 익스포저를
+    # 키울 수 있다). 이전엔 정정 경로가 게이트를 통째로 우회했다.
+    fake = FakeTransport(response=_ACCEPTED)
+    kis = _client(fake, risk=RiskLimits(max_order_quantity=100))
+    kis.domestic.stock("005930").buy(quantity=100, limit_price=70000, client_order_id="m1")
+    with pytest.raises(PreTradeRiskError):
+        kis.orders.modify("m1", limit_price=70000, quantity=150)   # 150 > 100 한도
+    assert _paths(fake) == [_ORDER_CASH]                # 정정 와이어는 안 나갔다(발주 1건뿐)
+
+
+#: 발주 응답에 정정·취소 대상 지목용 조직번호(KRX_FWDG_ORD_ORGNO)를 포함(정정 와이어가 읽는다).
+_ACCEPTED_WITH_ORG = RawResponse(
+    rt_cd="0", msg_cd="APBK0013", msg1="주문 전송 완료",
+    body={"output": {"ODNO": "0000117057", "ORD_TMD": "121052", "KRX_FWDG_ORD_ORGNO": "01790"}},
+)
+
+
+def test_modify_within_cap_passes():
+    fake = FakeTransport(response=_ACCEPTED_WITH_ORG)
+    kis = _client(fake, risk=RiskLimits(max_order_quantity=100))
+    kis.domestic.stock("005930").buy(quantity=100, limit_price=70000, client_order_id="m2")
+    report = kis.orders.modify("m2", limit_price=70000, quantity=50)   # 50 <= 100
+    assert isinstance(report, ExecutionReport)
+
+
+def test_cancel_is_not_gated_by_risk():
+    # 취소는 익스포저를 줄이므로 게이트하지 않는다 -- 위험한 주문을 못 지우면 오히려 위험.
+    fake = FakeTransport(response=_ACCEPTED_WITH_ORG)
+    kis = _client(fake, risk=RiskLimits(max_order_quantity=100))
+    kis.domestic.stock("005930").buy(quantity=100, limit_price=70000, client_order_id="c1")
+    report = kis.orders.cancel("c1")                    # 전량 취소 -- raise 없이 성공
+    assert isinstance(report, ExecutionReport)
+
+
 # --- 금액(notional) 한도 ---------------------------------------------------
 def test_notional_cap_on_limit_uses_own_price_no_quote():
     fake = FakeTransport(response=_ACCEPTED)

@@ -257,6 +257,26 @@ class OrderEngine:
                     "해외선물옵션은 부분 정정·취소를 지원하지 않는다(전량만 가능) -- quantity 를 생략하라."
                 )
             builder = overseas_deriv_orders_engine.make_change_request
+        # 정정(modify)도 발주(place)와 같은 사전 리스크 게이트를 통과한다 -- 정정은 수량을 늘리거나
+        # 가격을 밴드 밖으로 옮겨 익스포저를 키울 수 있어서다. 취소(cancel)는 익스포저를 줄이므로
+        # 게이트하지 않는다(위험한 주문을 못 지우면 오히려 위험). risk 는 국내 주식만 지원하고
+        # (해외·파생·채권 정정은 발주 때 이미 risk 세션이 거부됨), 그 경로는 builder 가 None 이다.
+        if self._risk is not None and action == "modify" and builder is None \
+                and isinstance(fingerprint, ImmediateOrderFingerprint):
+            effective_price = (
+                change_limit_price if change_limit_price is not None
+                else (coerce_decimal(fingerprint.limit_price, "limit_price")
+                      if fingerprint.limit_price else None)
+            )
+            # risk.check 는 symbol/quantity/limit_price/stop_price 만 읽는다 -- 나머지 필드는 기본값.
+            probe = Order(
+                symbol=fingerprint.symbol, side=fingerprint.side,
+                order_type=fingerprint.order_type, quantity=change_quantity,
+                limit_price=effective_price,
+                stop_price=(coerce_decimal(fingerprint.stop_price, "stop_price")
+                            if fingerprint.stop_price and fingerprint.stop_price != "0" else None),
+            )
+            orders_engine.run_pre_trade_risk(self._transport, probe, self._risk)
         return orders_engine.submit_change(
             self._transport, self._store,
             original_client_order_id=client_order_id,

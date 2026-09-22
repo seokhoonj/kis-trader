@@ -164,7 +164,7 @@ def place(
     # 사전 리스크 한도(opt-in). 참조가가 필요하면 현재가를 조회한다 -- 조회 실패는 fail-closed
     # (한도 확인 불가 -> 주문 중단; 예외가 그대로 올라가 claim 전에 멈춘다).
     if risk is not None:
-        _run_pre_trade_risk(transport, order, risk)
+        run_pre_trade_risk(transport, order, risk)
     # 와이어 변환을 먼저 -- 미구현/부적합이면 claim 전에 중단(stuck in-flight 방지).
     method, path, tr_id, body = build(order, cano=cano, product_code=product_code, environment=environment)
 
@@ -508,9 +508,11 @@ def _make_domestic_change_request(
 
 
 # --- 사전 리스크 한도 ------------------------------------------------------
-def _run_pre_trade_risk(transport: Transport, order: Order, risk: RiskLimits) -> None:
+def run_pre_trade_risk(transport: Transport, order: Order, risk: RiskLimits) -> None:
     """리스크 한도를 점검한다. 참조가(현재가)가 필요하면 시세를 조회해 넘긴다 -- 조회 실패는
-    잡지 않고 그대로 올린다(fail-closed: 한도를 확인 못 하면 주문을 보내지 않는다)."""
+    잡지 않고 그대로 올린다(fail-closed: 한도를 확인 못 하면 주문을 보내지 않는다).
+
+    place(발주)와 정정(modify) 양쪽이 쓴다 -- 정정은 새 수량/가격으로 재구성한 주문을 넘긴다."""
     reference_price = None
     if risk.needs_reference_price(order):
         quote = market_data.fetch_quote(
