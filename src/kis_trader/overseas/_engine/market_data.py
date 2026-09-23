@@ -55,6 +55,9 @@ _QUOTE_TR = "HHDFS76200200"
 _CURRENT_PRICE_PATH = "/uapi/overseas-price/v1/quotations/price"
 _CURRENT_PRICE_TR = "HHDFS00000300"
 _PERCENT = Decimal("0.01")
+#: 매매가능 여부 필드(e_ordyn)의 "가능" 값. KIS 는 영문 O/Y 가 아니라 원 글리프 "○"(불가는 "×")를
+#: 쓴다 -- 실서버 라이브-프로브로 확정(search·industry 둘 다 "○"). "O"/"Y" 로 비교하면 항상 False 다.
+_TRADABLE_SENTINEL = "○"
 
 _PRODUCT_INFO_PATH = "/uapi/overseas-price/v1/quotations/search-info"
 _PRODUCT_INFO_TR = "CTPF1702R"
@@ -137,7 +140,7 @@ def search_stocks(
             market_cap=required_decimal(row.get("valx"), "valx"),
             eps=optional_decimal(row.get("eps"), "eps"), per=optional_decimal(row.get("per"), "per"),
             rank=required_int(row.get("rank"), "rank"),
-            is_tradable=str(row.get("e_ordyn", "")).strip() == "O", _raw=row,
+            is_tradable=str(row.get("e_ordyn", "")).strip() == _TRADABLE_SENTINEL, _raw=row,
         ))
     return OverseasStockSearch(
         exchange=exchange.strip(), decimal_places=required_int(output1.get("zdiv"), "zdiv"),
@@ -665,7 +668,7 @@ def fetch_industry_stocks(
                 bid_price=required_decimal(row.get("pbid"), "pbid"),
                 bid_quantity=required_int(row.get("vbid"), "vbid"),
                 rank=required_int(row.get("seqn"), "seqn"),
-                is_tradable=str(row.get("e_ordyn", "")).strip() == "Y",
+                is_tradable=str(row.get("e_ordyn", "")).strip() == _TRADABLE_SENTINEL,
                 _raw=row,
             )
         )

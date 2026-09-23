@@ -115,7 +115,7 @@ def test_overseas_industry_stocks_maps_quote_and_volume_filter():
         "pbid": "112.45",
         "vbid": "250",
         "seqn": "1",
-        "e_ordyn": "Y",
+        "e_ordyn": "○",
     }
     fake = FakeTransport(responses=[_industry_stock_response([row])])
     stocks = _client(fake).overseas.industry_stocks(

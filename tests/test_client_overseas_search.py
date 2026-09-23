@@ -28,7 +28,7 @@ def _response(symbol, *, excd="NAS", tr_cont=""):
                      "valx": "160500", "plow": "159", "phigh": "162", "popen": "160",
                      "tvol": "10000", "rate": "1.25", "diff": "2", "sign": "2",
                      "avol": "1600", "eps": "6.5", "per": "24.7", "rank": "1",
-                     "e_ordyn": "O"}],
+                     "e_ordyn": "○"}],
     })
 
 
@@ -42,7 +42,7 @@ def test_overseas_search_maps_filters():
     assert isinstance(result, OverseasStockSearch)
     assert len(result.matches) == 1
     assert result.matches[0].price == Decimal("160.5")
-    assert result.matches[0].is_tradable
+    assert result.matches[0].is_tradable   # e_ordyn "○" = 매매가능(라이브-프로브 확정; "O"/"Y" 아님)
     assert result.total_count == 2
     params = fake.calls[0]["params"]
     assert fake.calls[0]["tr_id"] == "HHDFS76410000"
