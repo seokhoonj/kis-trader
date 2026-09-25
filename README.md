@@ -131,4 +131,4 @@ Claude Code·Codex 같은 AI 도구로 계좌를 다루려면 `plugins/kis-trade
 
 ## 8. 라이선스
 
-[MIT](LICENSE) © seokhoonj
+[MIT](LICENSE)

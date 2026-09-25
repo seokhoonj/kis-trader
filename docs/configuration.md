@@ -95,6 +95,11 @@ KISConfig(profile="pension", app_key="...", app_secret="...", account="87654321-
 KISConfig(profile="paper",   app_key="...", app_secret="...", account="50123456-01", environment="paper").save()
 ```
 
+::: {.callout-note}
+`save()` 는 **한 번만** 실행하면 됩니다 -- 값을 `credentials.json` 에 영구히 기록하므로,
+그다음부터는 저 저장 코드 없이 `KISClient(profile="main")` 한 줄로 엽니다.
+:::
+
 **② 환경변수** (터미널/셸 프롬프트에서 실행) -- `export` 해두면 `KISClient()` 가 자동으로 읽습니다.
 
 ```bash
