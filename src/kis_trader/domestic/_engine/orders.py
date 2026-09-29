@@ -104,8 +104,6 @@ _ORDER_CASH_TR = {
 _DAILY_CCLD_TR = {"real": "TTTC0081R", "paper": "VTTC0081R"}
 _CHANGE_PATH = "/uapi/domestic-stock/v1/trading/order-rvsecncl"
 _CHANGE_TR = {"real": "TTTC0013U", "paper": "VTTC0013U"}
-# order_type -> KIS ORD_DVSN(주문구분): 00 지정가, 01 시장가. 신용주문·정정(order_type 만) 이 쓴다.
-_ORD_DVSN = {"limit": "00", "market": "01"}
 # (base, time_in_force) -> KIS ORD_DVSN. base = order.division 이 있으면 그것, 없으면 order_type.
 # 현금주문 전용(KRX 코드표 KIS 명세 대조). IOC/FOK 는 time_in_force 로 조합하며 지정가/시장가/최유리/
 # 중간가에서만 유효하다(조건부/최우선/시간외엔 없어 매핑 부재 -> 거부). 스톱지정가(22)는 day 만.
@@ -118,7 +116,15 @@ _ORD_DVSN_MAP = {
     ("midpoint", "day"): "21", ("midpoint", "ioc"): "23", ("midpoint", "fok"): "24",
     ("pre_market_close", "day"): "05",
     ("post_market_close", "day"): "06",
-    ("after_hours_single", "day"): "07",
+    # KRX 애프터마켓(16:00~20:00): 지정가/최유리는 IOC/FOK 조합, 최우선은 day 만.
+    ("after_market_limit", "day"): "41", ("after_market_limit", "ioc"): "42", ("after_market_limit", "fok"): "43",
+    ("after_market_immediate_limit", "day"): "44", ("after_market_immediate_limit", "ioc"): "45",
+    ("after_market_immediate_limit", "fok"): "46",
+    ("after_market_priority_limit", "day"): "47",
+    # NXT 프리마켓 GTP: 전부 day 만(IOC/FOK 미매핑 -> 거부).
+    ("gtp_limit", "day"): "27",
+    ("gtp_immediate_limit", "day"): "28",
+    ("gtp_priority_limit", "day"): "29",
     ("stop_limit", "day"): "22",
 }
 
@@ -564,7 +570,9 @@ def make_credit_order_request(
     """국내 신용(융자/대주) 주문 와이어. 안전 코어(place)가 ``build_request`` 로 주입해 쓴다 --
     현금주문과 같은 즉시체결·ODNO 응답이라 dedup/재시도금지/reconcile 은 그대로 공유된다.
 
-    **모의투자 미지원**, **국내 KRX 만**, 지정가/시장가·day 만. credit_type/loan_date 는 :class:`Order`
+    **모의투자 미지원**, **국내 주식만**. ORD_DVSN 은 현금주문과 같은 ``_resolve_ord_dvsn`` 을 공유해
+    애프터마켓(``after_market_*``)/GTP(``gtp_*``) 주문구분을 지원한다(공지가 신용 ORD_DVSN 에 41~47·27~29
+    추가). 일반 신용(division 없음)은 지정가/시장가·day 만. credit_type/loan_date 는 :class:`Order`
     생성 시점에 검증·확정되므로(신규=오늘, 상환=대상 대출일자), 이 빌더는 주문의 순수 함수다."""
     if environment == "paper":
         raise KISUsageError("신용주문(order-credit)은 모의투자 미지원 -- 실전에서만.")
@@ -572,13 +580,20 @@ def make_credit_order_request(
         raise KISUsageError(f"신용주문은 국내 주식만 지원한다(exchange={order.exchange!r}).")
     if order.credit_type is None or order.loan_date is None:  # Order 가 보장 -- 라우팅 방어
         raise OrderError("신용주문 빌더에 credit_type/loan_date 없는 주문이 들어왔다(라우팅 오류).")
-    if order.order_type not in _ORD_DVSN:
+    # ORD_DVSN 은 현금·정정과 같은 리졸버로(애프터마켓/GTP division + tif 조합 지원). 미매핑 조합은 거부.
+    order_division = _resolve_ord_dvsn(
+        order_type=order.order_type, division=order.division, time_in_force=order.time_in_force
+    )
+    if order_division is None:
         raise KISUsageError(
-            f"{order.order_type} 신용주문은 지원하지 않는다(현재 시장가/지정가만)."
+            f"지원하지 않는 신용 주문구분/TIF 조합이다(division/order_type="
+            f"{order.division or order.order_type!r}, tif={order.time_in_force!r})."
         )
-    if order.time_in_force != "day":
+    # 일반 신용(division 없음)은 day·지정가/시장가 만 -- IOC/FOK 는 애프터마켓 지정가/최유리 division 에서만.
+    if order.division is None and order.time_in_force != "day":
         raise KISUsageError(
-            f"time_in_force={order.time_in_force!r} 신용주문은 지원하지 않는다(현재 day 만)."
+            f"일반 신용주문은 day 만 지원한다(IOC/FOK 는 애프터마켓 지정가/최유리에서만). "
+            f"tif={order.time_in_force!r}"
         )
     body = {
         "CANO": cano,
@@ -587,7 +602,7 @@ def make_credit_order_request(
         "SLL_TYPE": "",                       # 공란(KIS 명세 지시)
         "CRDT_TYPE": order.credit_type,
         "LOAN_DT": order.loan_date,
-        "ORD_DVSN": _ORD_DVSN[order.order_type],
+        "ORD_DVSN": order_division,
         "ORD_QTY": _format_optional_wire_decimal(order.quantity),
         "ORD_UNPR": "0" if order.order_type == "market" else _format_optional_wire_decimal(order.limit_price),
         "RSVN_ORD_YN": "N",

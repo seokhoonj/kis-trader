@@ -1,6 +1,7 @@
 """실시간 파서/엔티티 테스트 -- 국내주식 체결가(H0STCNT0) StockTick.
 
-원장 46필드 레이아웃대로 파싱되는지, 레지스트리 등록으로 연결 계층이 타입 엔티티를 내는지 검증.
+원장 47필드 레이아웃대로 파싱되는지, 레지스트리 등록으로 연결 계층이 타입 엔티티를 내는지 검증.
+2026-09-14 KRX 애프터마켓 도입으로 체결 레이아웃 끝에 MARKET_CLS_CODE 가 append 됐다(46->47).
 """
 
 from __future__ import annotations
@@ -14,7 +15,7 @@ from kis_trader.realtime.parsers.domestic_stock import parse_trade_tick
 
 
 def _sample_fields() -> list[str]:
-    fields = ["0"] * 46
+    fields = ["0"] * 47
     fields[0] = "005930"       # symbol
     fields[1] = "093000"       # time
     fields[2] = "71500"        # current_price
@@ -34,6 +35,7 @@ def _sample_fields() -> list[str]:
     fields[33] = "20260814"    # business_date
     fields[35] = "N"           # trading_halted -> False
     fields[45] = "64350"       # static_vi_reference_price
+    fields[46] = "2"           # MARKET_CLS_CODE (장 구분; 1프리 2정규 3애프터 5종가)
     return fields
 
 
@@ -65,14 +67,32 @@ def test_trade_tick_raw_has_all_ledger_keys():
     tick = parse_trade_tick(_sample_fields())
     assert tick._raw["MKSC_SHRN_ISCD"] == "005930"
     assert tick._raw["VI_STND_PRC"] == "64350"
-    assert len(tick._raw) == 46
+    assert tick._raw["MARKET_CLS_CODE"] == "2"
+    assert len(tick._raw) == 47
 
 
 def test_registry_has_trade_tick_variants():
     for tr_id in ("H0STCNT0", "H0NXCNT0", "H0UNCNT0"):
         spec = _registry.lookup(tr_id)
         assert spec is not None
-        assert spec.field_count == 46
+        assert spec.field_count == 47
+
+
+def test_protocol_accepts_47_field_trade_tick_after_aftermarket():
+    # 2026-09-14 KRX 애프터마켓 도입으로 체결(H0STCNT0/NXT/통합)에 MARKET_CLS_CODE 가 append 되어
+    # 레코드당 47필드가 온다(실서버 프로브로 확정). records() 가 이를 받아들여야 프레임이 드롭되지
+    # 않는다 -- field_count 가 옛 46 이면 초과로 fail-closed 되어 구독 성공·틱0(silent) 회귀가 난다.
+    from kis_trader.realtime._protocol import DataFrame
+
+    for tr_id in ("H0STCNT0", "H0NXCNT0", "H0UNCNT0"):
+        spec = _registry.lookup(tr_id)
+        fields = _sample_fields()  # 47
+        frame = DataFrame(False, tr_id, 2, "^".join(fields * 2))  # 멀티레코드도 정확히 분해되는지
+        records = frame.records(spec.field_count)
+        assert len(records) == 2
+        tick = spec.parser(records[0])
+        assert tick.symbol == "005930"
+        assert tick._raw["MARKET_CLS_CODE"] == "2"
 
 
 def test_nxt_and_unified_raw_use_ledger_key_cntg_cls_code():

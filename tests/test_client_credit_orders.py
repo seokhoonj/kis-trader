@@ -314,3 +314,70 @@ def test_credit_reconcile_ignores_cash_lookalike_row():
         rt_cd="0", msg_cd="APBK0013", msg1="조회", body={"output1": [cash_row]})})
     report = _client(recon_t, store=store).orders.reconcile(cid)
     assert report is None                            # 현금 행으로 신용주문을 확정하지 않는다
+
+
+# --- 애프터마켓/GTP 신용주문 (2026-09-14 제도변경: 신용 ORD_DVSN 에 41~47·27~29 추가) --------
+
+
+def test_credit_buy_aftermarket_limit_wire():
+    """애프터마켓 지정가 신용(KRX) -> ORD_DVSN 41, EXCG KRX, 지정가."""
+    fake = FakeTransport(response=_ACCEPTED)
+    _client(fake).domestic.stock("009150").credit_buy(
+        quantity=1, limit_price=130000, credit_type="21", loan_date="20211103",
+        division="after_market_limit")
+    body = fake.calls[0]["body"]
+    assert body["ORD_DVSN"] == "41"
+    assert body["ORD_UNPR"] == "130000"
+    assert body["EXCG_ID_DVSN_CD"] == "KRX"
+    assert body["CRDT_TYPE"] == "21"
+
+
+def test_credit_buy_aftermarket_immediate_ioc_wire():
+    """애프터마켓 최유리 신용 + IOC -> ORD_DVSN 45, 가격없음."""
+    fake = FakeTransport(response=_ACCEPTED)
+    _client(fake).domestic.stock("009150").credit_buy(
+        quantity=1, credit_type="21", loan_date="20211103",
+        division="after_market_immediate_limit", time_in_force="ioc")
+    body = fake.calls[0]["body"]
+    assert body["ORD_DVSN"] == "45"
+    assert body["ORD_UNPR"] == "0"
+
+
+def test_credit_buy_gtp_on_nxt_wire():
+    """GTP 지정가 신용(NXT) -> ORD_DVSN 27, EXCG NXT."""
+    fake = FakeTransport(response=_ACCEPTED)
+    _client(fake).domestic.stock("009150", market="NXT").credit_buy(
+        quantity=1, limit_price=130000, credit_type="21", loan_date="20211103",
+        division="gtp_limit")
+    body = fake.calls[0]["body"]
+    assert body["ORD_DVSN"] == "27"
+    assert body["EXCG_ID_DVSN_CD"] == "NXT"
+
+
+def test_credit_rejects_regular_division():
+    """일반 현금 주문구분(최유리 등)은 신용과 조합 불가 -- 애프터마켓/GTP 만 예외."""
+    fake = FakeTransport(response=_ACCEPTED)
+    with pytest.raises(KISUsageError, match="애프터마켓/GTP"):
+        _client(fake).domestic.stock("009150").credit_buy(
+            quantity=1, credit_type="21", loan_date="20211103", division="immediate_limit")
+    assert fake.calls == []
+
+
+def test_credit_gtp_on_krx_board_rejected():
+    """GTP 신용은 NXT 전용 -- KRX 종목 핸들에서 부르면 board 게이트로 거부."""
+    fake = FakeTransport(response=_ACCEPTED)
+    with pytest.raises(KISUsageError, match="보드는 이 주문구분"):
+        _client(fake).domestic.stock("009150", market="KRX").credit_buy(
+            quantity=1, limit_price=130000, credit_type="21", loan_date="20211103", division="gtp_limit")
+    assert fake.calls == []
+
+
+def test_credit_sell_aftermarket_priority_wire():
+    """애프터마켓 최우선 신용 매도 -> ORD_DVSN 47, 매도 TR."""
+    fake = FakeTransport(response=_ACCEPTED)
+    _client(fake).domestic.stock("009150").credit_sell(
+        quantity=1, credit_type="22", loan_date="20211103", division="after_market_priority_limit")
+    body = fake.calls[0]["body"]
+    assert body["ORD_DVSN"] == "47"
+    assert body["ORD_UNPR"] == "0"
+    assert fake.calls[0]["tr_id"] == "TTTC0051U"      # 매도

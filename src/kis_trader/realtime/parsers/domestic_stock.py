@@ -30,6 +30,8 @@ _TRADE_TICK_FIELDS = (
     "TRHT_YN", "ASKP_RSQN1", "BIDP_RSQN1", "TOTAL_ASKP_RSQN", "TOTAL_BIDP_RSQN",
     "VOL_TNRT", "PRDY_SMNS_HOUR_ACML_VOL", "PRDY_SMNS_HOUR_ACML_VOL_RATE", "HOUR_CLS_CODE",
     "MRKT_TRTM_CLS_CODE", "VI_STND_PRC",
+    # 2026-09-14 KRX 애프터마켓 도입으로 끝에 append(1프리 2정규 3애프터 5종가). 실서버 프로브로 확정.
+    "MARKET_CLS_CODE",
 )
 
 # NXT/통합 체결가는 index 21 의 Element 이름만 다르다(KRX=CCLD_DVSN, NXT/통합=CNTG_CLS_CODE).
@@ -50,7 +52,7 @@ def _decimal(value: str) -> Decimal:
 def parse_trade_tick(
     fields: list[str], field_names: tuple[str, ...] = _TRADE_TICK_FIELDS
 ) -> StockTick:
-    """체결가 한 레코드(46필드) -> :class:`StockTick`.
+    """체결가 한 레코드(47필드) -> :class:`StockTick`.
 
     ``field_names`` 로 KRX(H0STCNT0)와 NXT/통합(H0NXCNT0/H0UNCNT0)의 index 21 이름 차이를
     흡수한다(기본 = KRX 레이아웃).
@@ -80,7 +82,7 @@ def parse_trade_tick(
     )
 
 
-# KRX 는 CCLD_DVSN, NXT/통합은 CNTG_CLS_CODE 레이아웃(index 21만 다름, 둘 다 46필드).
+# KRX 는 CCLD_DVSN, NXT/통합은 CNTG_CLS_CODE 레이아웃(index 21만 다름, 둘 다 47필드).
 register(TRSpec("H0STCNT0", field_count=len(_TRADE_TICK_FIELDS), parser=parse_trade_tick))
 for _tr_id in ("H0NXCNT0", "H0UNCNT0"):
     register(
@@ -157,16 +159,20 @@ _ORDER_BOOK_10_PREFIX = (
     "OVTM_TOTAL_ASKP_ICDC", "OVTM_TOTAL_BIDP_ICDC", "STCK_DEAL_CLS_CODE",
 )
 
-# KRX 호가(H0STASP0): 공통 10단계 + 단일 중간가.
-_ORDER_BOOK_KRX_FIELDS = _ORDER_BOOK_10_PREFIX + ("MID_PRC", "MIDP_TOTAL_RSQN", "MIDP_CLS_CODE")
+# KRX 호가(H0STASP0): 공통 10단계 + 단일 중간가 + 장구분(2026-09-14 애프터마켓 도입, 실서버 프로브 확정).
+_ORDER_BOOK_KRX_FIELDS = _ORDER_BOOK_10_PREFIX + (
+    "MID_PRC", "MIDP_TOTAL_RSQN", "MIDP_CLS_CODE", "MARKET_CLS_CODE",
+)
 
 # NXT 호가(H0NXASP0): 공통 10단계 + NXT 중간가.
 _ORDER_BOOK_NXT_FIELDS = _ORDER_BOOK_10_PREFIX + ("NMID_PRC", "NMID_TOTAL_RSQN", "NMID_CLS_CODE")
 
-# 통합 호가(H0UNASP0): 공통 10단계 + KRX 중간가 + NXT 중간가.
+# 통합 호가(H0UNASP0): 공통 10단계 + KRX 중간가 + NXT 중간가 + 예상체결 거래소구분(2026-09-14 도입,
+# 실서버 프로브 확정; 1 KRX 2 NXT).
 _ORDER_BOOK_UNIFIED_FIELDS = _ORDER_BOOK_10_PREFIX + (
     "KMID_PRC", "KMID_TOTAL_RSQN", "KMID_CLS_CODE",
     "NMID_PRC", "NMID_TOTAL_RSQN", "NMID_CLS_CODE",
+    "ANTC_EXCH_CLS_CODE",
 )
 
 # 시간외 호가(H0STOAA0): 매도/매수 9단계(중간가 없음).
@@ -186,7 +192,7 @@ _ORDER_BOOK_AFTER_HOURS_FIELDS = (
 
 
 def parse_order_book_krx(fields: list[str]) -> StockOrderBook:
-    """H0STASP0 한 레코드(62필드) -> :class:`StockOrderBook`."""
+    """H0STASP0 한 레코드(63필드) -> :class:`StockOrderBook`."""
     return _order_book(dict(zip(_ORDER_BOOK_KRX_FIELDS, fields, strict=False)))
 
 
@@ -196,7 +202,7 @@ def parse_order_book_nxt(fields: list[str]) -> StockOrderBook:
 
 
 def parse_order_book_unified(fields: list[str]) -> StockOrderBook:
-    """H0UNASP0 한 레코드(65필드) -> :class:`StockOrderBook`."""
+    """H0UNASP0 한 레코드(66필드) -> :class:`StockOrderBook`."""
     return _order_book(dict(zip(_ORDER_BOOK_UNIFIED_FIELDS, fields, strict=False)))
 
 

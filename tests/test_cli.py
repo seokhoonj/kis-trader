@@ -2224,10 +2224,11 @@ def test_order_division_immediate_limit_ok_for_futures():
 
 
 @pytest.mark.parametrize("division", ["midpoint", "pre_market_close",
-                                      "post_market_close", "after_hours_single"])
+                                      "post_market_close", "after_market_limit",
+                                      "after_market_immediate_limit", "after_market_priority_limit"])
 def test_order_tier2_division_dry_run_and_execute_forwards_it(division):
-    # after_hours_single 은 지정가 필수라 --limit-price 를 주고, 나머지 가격없는 구분은 주지 않는다.
-    price_args = ["--limit-price", "70000"] if division == "after_hours_single" else []
+    # 지정가 기반(after_market_limit)은 --limit-price 필수, 나머지 가격없는 구분은 주지 않는다.
+    price_args = ["--limit-price", "70000"] if division == "after_market_limit" else []
     dry = order.cmd_buy(StubKis(), _args(
         ["order", "buy", "005930", "10", "--division", division, *price_args]), is_tty=False)
     assert dry["division"] == division
@@ -2240,7 +2241,8 @@ def test_order_tier2_division_dry_run_and_execute_forwards_it(division):
 
 
 @pytest.mark.parametrize("division", ["midpoint", "pre_market_close",
-                                      "post_market_close", "after_hours_single"])
+                                      "post_market_close", "after_market_limit",
+                                      "gtp_limit"])
 def test_order_tier2_division_rejected_for_futures(division):
     kis = StubKis()
     with pytest.raises(CliConfigError, match=division):

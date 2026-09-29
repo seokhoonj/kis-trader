@@ -127,7 +127,7 @@ def test_encrypted_frame_without_key_is_dropped():
 
 
 def test_malformed_registered_frame_is_dropped():
-    # 등록된 TR(H0STCNT0=46필드)인데 필드가 모자라면 예외 없이 드롭(fail-safe, 스트림 유지).
+    # 등록된 TR(H0STCNT0=47필드)인데 필드가 모자라면 예외 없이 드롭(fail-safe, 스트림 유지).
     ws = FakeWebSocket(incoming=["0|H0STCNT0|001|too^few^fields"])
     assert _drive(ws) == []
 
