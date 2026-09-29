@@ -64,7 +64,7 @@ def test_parse_order_book_krx_headline_and_raw():
         "MKSC_SHRN_ISCD": "005930", "BSOP_HOUR": "093000", "HOUR_CLS_CODE": "0",
         "ASKP1": "71500", "BIDP1": "71400", "ASKP_RSQN1": "120", "BIDP_RSQN1": "300",
         "TOTAL_ASKP_RSQN": "5000", "TOTAL_BIDP_RSQN": "6000",
-        "ANTC_CNPR": "71450", "ANTC_CNQN": "42", "MID_PRC": "71450",
+        "ANTC_CNPR": "71450", "ANTC_CNQN": "42", "MID_PRC": "71450", "MARKET_CLS_CODE": "2",
     })
     ob = parse_order_book_krx(record)
     assert isinstance(ob, StockOrderBook)
@@ -80,8 +80,9 @@ def test_parse_order_book_krx_headline_and_raw():
     assert ob.expected_price == Decimal(71450)
     assert ob.expected_qty == Decimal(42)
     assert ob._raw["MID_PRC"] == "71450"
+    assert ob._raw["MARKET_CLS_CODE"] == "2"  # 2026-09-14 애프터마켓 도입으로 append
     assert ob._raw["ASKP10"] == "0"
-    assert len(ob._raw) == len(_ORDER_BOOK_KRX_FIELDS) == 62
+    assert len(ob._raw) == len(_ORDER_BOOK_KRX_FIELDS) == 63
 
 
 def test_parse_order_book_nxt_uses_nxt_mid_price():
@@ -99,12 +100,13 @@ def test_parse_order_book_nxt_uses_nxt_mid_price():
 def test_parse_order_book_unified_has_both_mid_prices():
     record = _at(_ORDER_BOOK_UNIFIED_FIELDS, {
         "MKSC_SHRN_ISCD": "005930", "BSOP_HOUR": "101500",
-        "KMID_PRC": "71450", "NMID_PRC": "71460",
+        "KMID_PRC": "71450", "NMID_PRC": "71460", "ANTC_EXCH_CLS_CODE": "1",
     })
     ob = parse_order_book_unified(record)
     assert ob._raw["KMID_PRC"] == "71450"
     assert ob._raw["NMID_PRC"] == "71460"
-    assert len(ob._raw) == len(_ORDER_BOOK_UNIFIED_FIELDS) == 65
+    assert ob._raw["ANTC_EXCH_CLS_CODE"] == "1"  # 2026-09-14 통합호가에 append(1 KRX 2 NXT)
+    assert len(ob._raw) == len(_ORDER_BOOK_UNIFIED_FIELDS) == 66
 
 
 def test_parse_order_book_after_hours_nine_levels():
@@ -123,16 +125,37 @@ def test_parse_order_book_after_hours_nine_levels():
 
 
 def test_registry_order_book_variants():
+    # KRX(H0STASP0) 63, 통합(H0UNASP0) 66 은 2026-09-14 애프터마켓 도입 반영(각 +1). NXT(H0NXASP0)
+    # 62, 시간외(H0STOAA0) 54 는 이번 변경에 포함되지 않음(실서버 프로브로 KRX/통합만 확인, NXT 미확인).
     for tr_id, parser, count in (
-        ("H0STASP0", parse_order_book_krx, 62),
+        ("H0STASP0", parse_order_book_krx, 63),
         ("H0NXASP0", parse_order_book_nxt, 62),
-        ("H0UNASP0", parse_order_book_unified, 65),
+        ("H0UNASP0", parse_order_book_unified, 66),
         ("H0STOAA0", parse_order_book_after_hours, 54),
     ):
         spec = _registry.lookup(tr_id)
         assert spec is not None
         assert spec.field_count == count
         assert spec.parser is parser
+
+
+def test_protocol_accepts_new_order_book_field_counts_after_aftermarket():
+    # KRX 호가(H0STASP0)=63, 통합 호가(H0UNASP0)=66 이 실서버에서 온다(프로브 확정). records() 가
+    # 이를 받아들여야 프레임 드롭이 안 난다 -- 옛 62/65 면 초과로 fail-closed 되어 호가 틱0(silent).
+    from kis_trader.realtime._protocol import DataFrame
+
+    for tr_id, spec_fields, appended in (
+        ("H0STASP0", _ORDER_BOOK_KRX_FIELDS, "MARKET_CLS_CODE"),
+        ("H0UNASP0", _ORDER_BOOK_UNIFIED_FIELDS, "ANTC_EXCH_CLS_CODE"),
+    ):
+        spec = _registry.lookup(tr_id)
+        record = _at(spec_fields, {"MKSC_SHRN_ISCD": "005930", appended: "1"})
+        frame = DataFrame(False, tr_id, 1, "^".join(record))
+        records = frame.records(spec.field_count)
+        assert len(records) == 1
+        ob = spec.parser(records[0])
+        assert ob.symbol == "005930"
+        assert ob._raw[appended] == "1"
 
 
 # --------------------------------------------------------------------------- StockExpectedConclusion
