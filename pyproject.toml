@@ -17,13 +17,19 @@ dependencies = ["requests>=2.31", "websockets>=12", "cryptography>=42"]
 
 [project.scripts]
 kis = "kis_trader.cli:main"
+kis-mcp = "kis_trader.mcp.server:main"
 
 [project.optional-dependencies]
+# MCP 서버(kis_trader 를 안전커널 거쳐 MCP 도구로 노출). 런타임 코어와 분리된 선택 의존성이라
+# `import kis_trader` 는 mcp 없이 동작한다(CI 의 3-dep 단언 유지).
+mcp = ["mcp>=2"]
 # CI(reusable-check.yml)가 `uv pip install -e ".[dev]"` 로 설치해 test/lint/types 를 돌린다.
+# mcp 를 포함해 `mypy src/`(mcp/server.py)와 서버 테스트가 로컬·CI 에서 동일하게 돈다.
 dev = [
     "mypy>=1.11",
     "pytest>=8.0",
     "ruff>=0.6",
+    "mcp>=2",
 ]
 
 [dependency-groups]
