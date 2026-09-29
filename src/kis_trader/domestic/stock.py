@@ -415,41 +415,48 @@ class DomesticStock(_StockBase):
     def credit_buy(
         self, *, quantity: Numeric, credit_type: CreditType, limit_price: Numeric | None = None,
         loan_date: str | None = None, time_in_force: TimeInForce = "day",
-        client_order_id: str | None = None,
+        division: DomesticDivision | None = None, client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 종목을 신용(융자/대주)으로 매수한다.
 
         ``quantity`` 주문수량(주 단위 정수), ``credit_type`` 매수 신용유형(21 자기융자신규/23 유통융자
         신규/26 유통대주상환/28 자기대주상환), ``limit_price`` 지정가(생략 시 시장가), ``loan_date``(YYYYMMDD)
         상환유형(26/28)일 때 대상 대출일자(필수)·신규유형(21/23)이면 생략(전송 시 오늘로 채움),
-        ``time_in_force`` 현재 ``"day"`` 만, ``client_order_id`` 멱등키(생략 시 자동 발행).
+        ``time_in_force`` 일반 신용은 ``"day"`` 만(애프터마켓 지정가/최유리 division 은 IOC/FOK 가능),
+        ``division`` 애프터마켓(``after_market_*``, board="KRX")/GTP(``gtp_*``, board="NXT") 주문구분(생략 시
+        일반 신용), ``client_order_id`` 멱등키(생략 시 자동 발행).
 
         현금 :meth:`buy` 와 같은 안전 엔진(이중체결 방지·타임아웃 재시도 금지)을 공유한다. **모의투자
         미지원**. **신용주문은 기본 비활성**이라 ``KISClient(..., allow_credit=True)`` 로 명시적으로 켜야
         한다(고위험 보호). 잘못된 조합/계좌 미설정/비활성은 ``KISUsageError``, 접수 거부는
         ``OrderRejectedError``, 타임아웃(체결 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile`` 로 확인)."""
         self._client._require_credit_enabled()
-        self._require_krx_board("신용주문")
+        if division is None:  # 일반 신용은 KRX 전용; 애프터마켓/GTP 는 board 게이트를 Order 가 판정
+            self._require_krx_board("신용주문")
         return self._client._place_order(Order.credit(
             self.symbol, side="buy", quantity=quantity, credit_type=credit_type, limit_price=limit_price,
-            loan_date=loan_date, time_in_force=time_in_force, client_order_id=client_order_id,
+            loan_date=loan_date, time_in_force=time_in_force, division=division, board=self.market,
+            client_order_id=client_order_id,
         ))
 
     def credit_sell(
         self, *, quantity: Numeric, credit_type: CreditType, limit_price: Numeric | None = None,
         loan_date: str | None = None, time_in_force: TimeInForce = "day",
-        client_order_id: str | None = None,
+        division: DomesticDivision | None = None, client_order_id: str | None = None,
     ) -> ExecutionReport:
         """이 종목을 신용(대주/상환)으로 매도한다.
 
         ``credit_type`` 매도 신용유형(22 유통대주신규/24 자기대주신규/25 자기융자상환/27 유통융자상환),
         ``loan_date``(YYYYMMDD) 상환유형(25/27)일 때 대상 대출일자(필수)·신규유형(22/24)이면 생략(오늘로
-        채움). 나머지 인자·안전 규칙·예외는 :meth:`credit_buy` 와 같다. **모의투자 미지원**."""
+        채움). ``division`` 은 :meth:`credit_buy` 와 같이 애프터마켓/GTP 주문구분. 나머지 인자·안전 규칙·
+        예외는 :meth:`credit_buy` 와 같다. **모의투자 미지원**."""
         self._client._require_credit_enabled()
-        self._require_krx_board("신용주문")
+        if division is None:  # 일반 신용은 KRX 전용; 애프터마켓/GTP 는 board 게이트를 Order 가 판정
+            self._require_krx_board("신용주문")
         return self._client._place_order(Order.credit(
             self.symbol, side="sell", quantity=quantity, credit_type=credit_type, limit_price=limit_price,
-            loan_date=loan_date, time_in_force=time_in_force, client_order_id=client_order_id,
+            loan_date=loan_date, time_in_force=time_in_force, division=division, board=self.market,
+            client_order_id=client_order_id,
         ))
 
     # --- 주문 실행(국내 현금; KRX 주문구분 division 지원) -- _StockBase.buy/sell 을 오버라이드 ---
@@ -467,10 +474,13 @@ class DomesticStock(_StockBase):
         호가에 지정가로 대기, 체결 우선순위 확보; ``limit_price`` 없음),
         ``midpoint`` 중간가(수량만; 호가 중간값으로 시장이 가격 결정, 전 보드, IOC/FOK 가능),
         ``pre_market_close`` 장전 시간외(전일 종가, KRX 전용), ``post_market_close`` 장후 시간외(당일
-        종가, KRX 전용), ``after_hours_single`` 시간외 단일가(``limit_price`` 필수, KRX 전용).
-        IOC/FOK 는 ``time_in_force="ioc"/"fok"``
-        로 조합한다(지정가/시장가/최유리/중간가에서). ``immediate_limit`` 은 시장가의 슬리피지 없이 즉시 체결하려는
-        안전 대안이다(얕은 호가에서 시장가는 나쁜 가격까지 쓸어담을 수 있다).
+        종가, KRX 전용). **애프터마켓(KRX 16:00~20:00, board="KRX")**: ``after_market_limit`` 지정가
+        (``limit_price`` 필요), ``after_market_immediate_limit`` 최유리지정가, ``after_market_priority_limit``
+        최우선지정가. **NXT 프리마켓 GTP(board="NXT")**: ``gtp_limit`` 지정가(``limit_price`` 필요),
+        ``gtp_immediate_limit`` 최유리, ``gtp_priority_limit`` 최우선. IOC/FOK 는 ``time_in_force="ioc"/"fok"``
+        로 조합한다(지정가/시장가/최유리/중간가 + 애프터마켓 지정가/최유리에서; 최우선·GTP 는 day 만).
+        ``immediate_limit`` 은 시장가의 슬리피지 없이 즉시 체결하려는 안전 대안이다(얕은 호가에서 시장가는
+        나쁜 가격까지 쓸어담을 수 있다).
 
         ``stop_price`` 를 ``limit_price`` 와 함께 주면 스톱지정가(트리거 도달 시 지정가 접수, KRX 전용).
         ``stop_price`` 는 ``limit_price`` 가 반드시 있어야 하고(국내엔 스톱시장가 없음), ``division`` 과는
@@ -536,8 +546,9 @@ class DomesticStock(_StockBase):
                                     limit_price=limit_price, stop_price=stop_price,
                                     time_in_force=time_in_force, board=self.market,
                                     client_order_id=client_order_id)
-        # 가격없는 구분(최유리/최우선/중간가/장전·장후 시간외)은 시장이 가격을 정하므로 limit_price 없음
-        # (order_type="market" 기반), 지정가 기반 구분(조건부/시간외 단일가)은 가격 필요(order_type="limit" 기반).
+        # 가격없는 구분(최유리/최우선/중간가/장전·장후 시간외/애프터마켓 최유리·최우선/GTP 최유리·최우선)은
+        # 시장이 가격을 정하므로 limit_price 없음(order_type="market" 기반), 지정가 기반 구분(조건부/애프터마켓
+        # 지정가/GTP 지정가)은 가격 필요(order_type="limit" 기반).
         # division 없으면 기존 동작(limit_price 유무로 시장가/지정가). 결합 불변식은 Order.__post_init__ 에도
         # 있으나, 여기서 미리 막아 division 을 지목하는 명확한 메시지를 준다. 두 집합은 order.py 가 원장이라
         # (DomesticDivision 을 남김없이 분할), 새 division 이 어느 한쪽에 없으면 plain 으로 조용히 새지 않는다.

@@ -645,30 +645,43 @@ def test_priceless_tier2_division_rejects_price(division):
         Order.limit("005930", side="buy", quantity=10, limit_price=70000, division=division)
 
 
-def test_after_hours_single_requires_price():
-    """시간외 단일가(07)는 지정가 필수 -- limit 없이 구성하면 거부."""
+@pytest.mark.parametrize("division", ["after_market_limit", "gtp_limit"])
+def test_limit_based_aftermarket_gtp_require_price(division):
+    """애프터마켓/GTP 지정가는 limit 필수 -- limit 없이(시장가 기반) 구성하면 거부."""
     from kis_trader.order import Order
+    board = "KRX" if division == "after_market_limit" else "NXT"
     with pytest.raises(KISUsageError, match="지정가"):
-        Order.market("005930", side="buy", quantity=10, division="after_hours_single")
+        Order.market("005930", side="buy", quantity=10, division=division, board=board)
 
 
-def test_after_hours_single_constructs_as_limit():
+@pytest.mark.parametrize("division,board", [("after_market_limit", "KRX"), ("gtp_limit", "NXT")])
+def test_aftermarket_gtp_limit_constructs_as_limit(division, board):
     from kis_trader.order import Order
     order = Order.limit("005930", side="buy", quantity=10, limit_price=70000,
-                        division="after_hours_single")
+                        division=division, board=board)
     assert order.order_type == "limit"
     assert order.limit_price == Decimal(70000)
 
 
 @pytest.mark.parametrize("board", ["NXT", "UN"])
-@pytest.mark.parametrize("division", ["pre_market_close", "post_market_close", "after_hours_single"])
+@pytest.mark.parametrize("division", ["pre_market_close", "post_market_close"])
 def test_after_hours_divisions_rejected_off_krx(board, division):
-    """시간외 3종은 KRX 전용 -- NXT/UN 보드에서는 구성 시점에 거부."""
+    """장전/장후 시간외 종가는 KRX 전용 -- NXT/UN 보드에서는 구성 시점에 거부."""
     from kis_trader.order import Order
-    ctor = Order.limit if division == "after_hours_single" else Order.market
-    kwargs = {"limit_price": 70000} if division == "after_hours_single" else {}
     with pytest.raises(KISUsageError, match="보드는 이 주문구분"):
-        ctor("005930", side="buy", quantity=10, division=division, board=board, **kwargs)
+        Order.market("005930", side="buy", quantity=10, division=division, board=board)
+
+
+@pytest.mark.parametrize("division,board", [
+    ("after_market_immediate_limit", "NXT"), ("after_market_immediate_limit", "UN"),
+    ("after_market_priority_limit", "NXT"),
+    ("gtp_immediate_limit", "KRX"), ("gtp_immediate_limit", "UN"), ("gtp_priority_limit", "KRX"),
+])
+def test_aftermarket_gtp_rejected_on_wrong_board(division, board):
+    """애프터마켓(41~47)은 KRX 전용, GTP(27~29)는 NXT 전용 -- 다른 보드는 구성 시점 거부."""
+    from kis_trader.order import Order
+    with pytest.raises(KISUsageError, match="보드는 이 주문구분"):
+        Order.market("005930", side="buy", quantity=10, division=division, board=board)
 
 
 @pytest.mark.parametrize("board", ["KRX", "NXT", "UN"])
@@ -679,25 +692,29 @@ def test_midpoint_allowed_on_every_board(board):
 
 
 @pytest.mark.parametrize(
-    "division", ["priority_limit", "midpoint", "pre_market_close",
-                 "post_market_close", "after_hours_single"])
+    "division", ["priority_limit", "midpoint", "pre_market_close", "post_market_close",
+                 "after_market_limit", "after_market_immediate_limit", "after_market_priority_limit",
+                 "gtp_limit", "gtp_immediate_limit", "gtp_priority_limit"])
 def test_tier2_divisions_rejected_on_derivatives(division):
-    """파생(XKFE)은 조건부/최유리지정가만 -- Tier2 4종과 최우선지정가는 거부."""
+    """파생(XKFE)은 조건부/최유리지정가만 -- 나머지 현금 전용 주문구분(애프터마켓/GTP 포함)은 거부.
+    파생 검증이 가격 결합 검증보다 앞서므로 지정가 기반도 Order.market 으로 구성해도 파생에서 먼저 걸린다."""
     from kis_trader.order import Order
-    ctor = Order.limit if division in ("conditional_limit", "after_hours_single") else Order.market
-    kwargs = {"limit_price": 70000} if division == "after_hours_single" else {}
     with pytest.raises(KISUsageError, match="파생"):
-        ctor("101W09", side="buy", quantity=1, division=division, exchange="XKFE", **kwargs)
+        Order.market("101W09", side="buy", quantity=1, division=division, exchange="XKFE")
 
 
-@pytest.mark.parametrize("division", ["midpoint", "pre_market_close",
-                                      "post_market_close", "after_hours_single"])
-def test_tier2_division_name_round_trips_through_fingerprint(division):
+@pytest.mark.parametrize("division,board,price", [
+    ("midpoint", "KRX", None), ("pre_market_close", "KRX", None), ("post_market_close", "KRX", None),
+    ("after_market_limit", "KRX", 70000), ("after_market_immediate_limit", "KRX", None),
+    ("after_market_priority_limit", "KRX", None),
+    ("gtp_limit", "NXT", 70000), ("gtp_immediate_limit", "NXT", None), ("gtp_priority_limit", "NXT", None),
+])
+def test_tier2_division_name_round_trips_through_fingerprint(division, board, price):
     """신규 division 이름은 지문에 실려 encode/decode 왕복한다(스키마 무변경)."""
     from kis_trader.order import Order, decode_fingerprint, encode_fingerprint
-    ctor = Order.limit if division == "after_hours_single" else Order.market
-    kwargs = {"limit_price": 70000} if division == "after_hours_single" else {}
-    order = ctor("005930", side="buy", quantity=10, division=division, **kwargs)
+    ctor = Order.limit if price is not None else Order.market
+    kwargs = {"limit_price": price} if price is not None else {}
+    order = ctor("005930", side="buy", quantity=10, division=division, board=board, **kwargs)
     restored = decode_fingerprint(encode_fingerprint(order.fingerprint))
     assert restored.division == division
     assert restored == order.fingerprint
@@ -728,7 +745,14 @@ def test_order_wire_quantity_and_division(side, price, expected_tr, expected_dvs
         ({"quantity": 10, "division": "midpoint", "time_in_force": "fok"}, "24", "0"),
         ({"quantity": 10, "division": "pre_market_close"}, "05", "0"),
         ({"quantity": 10, "division": "post_market_close"}, "06", "0"),
-        ({"quantity": 10, "limit_price": 70000, "division": "after_hours_single"}, "07", "70000"),
+        # 애프터마켓(KRX): 지정가 41/42/43, 최유리 44/45/46, 최우선 47.
+        ({"quantity": 10, "limit_price": 70000, "division": "after_market_limit"}, "41", "70000"),
+        ({"quantity": 10, "limit_price": 70000, "division": "after_market_limit", "time_in_force": "ioc"}, "42", "70000"),
+        ({"quantity": 10, "limit_price": 70000, "division": "after_market_limit", "time_in_force": "fok"}, "43", "70000"),
+        ({"quantity": 10, "division": "after_market_immediate_limit"}, "44", "0"),
+        ({"quantity": 10, "division": "after_market_immediate_limit", "time_in_force": "ioc"}, "45", "0"),
+        ({"quantity": 10, "division": "after_market_immediate_limit", "time_in_force": "fok"}, "46", "0"),
+        ({"quantity": 10, "division": "after_market_priority_limit"}, "47", "0"),
     ],
 )
 @pytest.mark.parametrize("side", ["buy", "sell"])
@@ -740,17 +764,49 @@ def test_tier2_division_wire(side, kwargs, expected_dvsn, expected_unpr):
     assert body["ORD_UNPR"] == expected_unpr
 
 
+@pytest.mark.parametrize(
+    ("kwargs", "expected_dvsn", "expected_unpr"),
+    [
+        ({"quantity": 10, "limit_price": 70000, "division": "gtp_limit"}, "27", "70000"),
+        ({"quantity": 10, "division": "gtp_immediate_limit"}, "28", "0"),
+        ({"quantity": 10, "division": "gtp_priority_limit"}, "29", "0"),
+    ],
+)
+@pytest.mark.parametrize("side", ["buy", "sell"])
+def test_gtp_division_wire_on_nxt(side, kwargs, expected_dvsn, expected_unpr):
+    """NXT GTP 주문구분(27~29)은 board="NXT" 에서 EXCG_ID_DVSN_CD=NXT 로 나간다."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    getattr(_client(fake).domestic.stock("005930", market="NXT"), side)(**kwargs)
+    body = fake.calls[0]["body"]
+    assert body["ORD_DVSN"] == expected_dvsn
+    assert body["ORD_UNPR"] == expected_unpr
+    assert body["EXCG_ID_DVSN_CD"] == "NXT"
+
+
 @pytest.mark.parametrize("kwargs", [
-    {"quantity": 10, "division": "after_hours_single", "limit_price": 70000, "time_in_force": "ioc"},
+    {"quantity": 10, "division": "after_market_priority_limit", "time_in_force": "ioc"},
     {"quantity": 10, "division": "pre_market_close", "time_in_force": "fok"},
     {"quantity": 10, "division": "midpoint", "time_in_force": "gtc"},
 ])
 @pytest.mark.parametrize("side", ["buy", "sell"])
 def test_tier2_unmapped_tif_rejected_before_wire(side, kwargs):
-    """day 전용 시간외에 IOC/FOK, midpoint 에 gtc 는 미매핑 -> 조용히 day 로 안 바꾸고 거부."""
+    """day 전용 구분(애프터마켓 최우선/장전시간외 등)에 IOC/FOK, midpoint 에 gtc 는 미매핑 -> 조용히
+    day 로 안 바꾸고 거부."""
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     with pytest.raises(KISUsageError, match="지원하지 않는 주문구분"):
         getattr(_client(fake).domestic.stock("005930"), side)(**kwargs)
+    assert fake.calls == []
+
+
+@pytest.mark.parametrize("division", ["gtp_limit", "gtp_immediate_limit", "gtp_priority_limit"])
+@pytest.mark.parametrize("tif", ["ioc", "fok"])
+def test_gtp_ioc_fok_rejected_before_wire(division, tif):
+    """GTP(27~29)는 day 전용 -- IOC/FOK 는 미매핑되어 board=NXT 에서도 와이어 전 거부."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    kwargs = {"limit_price": 70000} if division == "gtp_limit" else {}
+    with pytest.raises(KISUsageError, match="지원하지 않는 주문구분"):
+        _client(fake).domestic.stock("005930", market="NXT").buy(
+            quantity=10, division=division, time_in_force=tif, **kwargs)
     assert fake.calls == []
 
 
@@ -765,25 +821,39 @@ def test_priceless_tier2_rejects_price_via_public_path(division):
     assert fake.calls == []
 
 
-def test_after_hours_single_requires_price_via_public_path():
-    """시간외 단일가는 지정가 필수 -- limit_price 없이 공개 경로로 부르면 와이어 전 거부."""
+@pytest.mark.parametrize("division", ["after_market_limit", "gtp_limit"])
+def test_aftermarket_gtp_limit_requires_price_via_public_path(division):
+    """애프터마켓/GTP 지정가는 limit_price 필수 -- 없이 공개 경로로 부르면 와이어 전 거부."""
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    board = "KRX" if division == "after_market_limit" else "NXT"
     with pytest.raises(KISUsageError, match="limit_price 가 필요하다"):
-        _client(fake).domestic.stock("005930").buy(
-            quantity=10, division="after_hours_single")
+        _client(fake).domestic.stock("005930", market=board).buy(
+            quantity=10, division=division)
     assert fake.calls == []
 
 
 @pytest.mark.parametrize("board", ["NXT", "UN"])
-@pytest.mark.parametrize("division", ["pre_market_close", "post_market_close", "after_hours_single"])
+@pytest.mark.parametrize("division", ["pre_market_close", "post_market_close"])
 def test_after_hours_divisions_rejected_off_krx_via_public_path(board, division):
-    """시간외 3종은 KRX 전용 -- NXT/UN 종목 핸들의 공개 경로에서도 와이어 전 거부."""
+    """장전/장후 시간외 종가는 KRX 전용 -- NXT/UN 종목 핸들의 공개 경로에서도 와이어 전 거부."""
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
-    kwargs = {"limit_price": 70000} if division == "after_hours_single" else {}
     with pytest.raises(KISUsageError):
         _client(fake).domestic.stock("005930", market=board).buy(
-            quantity=10, division=division, **kwargs)
+            quantity=10, division=division)
     assert fake.calls == []
+
+
+@pytest.mark.parametrize("division,good_board,bad_board", [
+    ("after_market_immediate_limit", "KRX", "NXT"), ("gtp_immediate_limit", "NXT", "KRX"),
+])
+def test_aftermarket_gtp_board_gate_via_public_path(division, good_board, bad_board):
+    """애프터마켓=KRX, GTP=NXT 만 -- 공개 경로에서 잘못된 보드는 거부, 맞는 보드는 통과."""
+    fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    with pytest.raises(KISUsageError, match="보드는 이 주문구분"):
+        _client(fake).domestic.stock("005930", market=bad_board).buy(quantity=10, division=division)
+    assert fake.calls == []
+    _client(fake).domestic.stock("005930", market=good_board).buy(quantity=10, division=division)
+    assert fake.calls[0]["body"]["EXCG_ID_DVSN_CD"] == ("KRX" if good_board == "KRX" else "NXT")
 
 
 @pytest.mark.parametrize("board,expected_excg", [("KRX", "KRX"), ("NXT", "NXT"), ("UN", "SOR")])

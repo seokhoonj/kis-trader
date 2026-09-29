@@ -53,11 +53,24 @@ AlgoStrategy = Literal["twap", "vwap"]
 #:     시장이 정한다(가격 없음). KRX 정규장 + NXT 메인마켓 시간대에 가능(전 보드).
 #:   ``pre_market_close`` 장전 시간외 종가(05) -- 전일 종가로 체결(가격 없음). KRX 전용, 08:30~08:40.
 #:   ``post_market_close`` 장후 시간외 종가(06) -- 당일 종가로 체결(가격 없음). KRX 전용, 15:40~16:00.
-#:   ``after_hours_single`` 시간외 단일가(07) -- 지정가 필수. KRX 전용, 16:00~18:00 10분 단위 단일가.
-#: IOC/FOK 는 별도 주문구분이 아니라 ``time_in_force``(ioc/fok)로 조합한다(midpoint 만 Tier2 중 지원).
+#:   ``after_market_limit`` 애프터마켓 지정가(41; IOC 42 / FOK 43) -- KRX 애프터마켓(16:00~20:00) 지정가.
+#:     ``limit_price`` 필요. KRX 정규장과 분리된 시장이라 별도 주문구분이다.
+#:   ``after_market_immediate_limit`` 애프터마켓 최유리지정가(44; IOC 45 / FOK 46) -- 상대편 최우선호가로
+#:     즉시 체결. 가격 없음. KRX 애프터마켓.
+#:   ``after_market_priority_limit`` 애프터마켓 최우선지정가(47) -- 같은 방향 최우선호가로 접수. 가격 없음,
+#:     day 만(IOC/FOK 없음). KRX 애프터마켓.
+#:   ``gtp_limit`` NXT GTP 지정가(27) -- NXT 프리마켓 전용호가(Good Till Pre-Market). ``limit_price`` 필요,
+#:     day 만. 미체결은 프리마켓 종료(08:50)에 일괄 취소.
+#:   ``gtp_immediate_limit`` NXT GTP 최유리지정가(28) -- 가격 없음, day 만. NXT 프리마켓.
+#:   ``gtp_priority_limit`` NXT GTP 최우선지정가(29) -- 가격 없음, day 만. NXT 프리마켓.
+#: IOC/FOK 는 별도 주문구분이 아니라 ``time_in_force``(ioc/fok)로 조합한다(midpoint 와 애프터마켓 지정가/
+#: 최유리만 지원; 최우선·GTP·시간외종가는 day 전용이라 IOC/FOK 조합이 미매핑되어 거부된다).
+#: ``after_market_*`` 는 board="KRX", ``gtp_*`` 는 board="NXT" 에서만 가능하다(다른 보드는 생성 시점 거부).
 DomesticDivision = Literal[
     "conditional_limit", "immediate_limit", "priority_limit",
-    "midpoint", "pre_market_close", "post_market_close", "after_hours_single",
+    "midpoint", "pre_market_close", "post_market_close",
+    "after_market_limit", "after_market_immediate_limit", "after_market_priority_limit",
+    "gtp_limit", "gtp_immediate_limit", "gtp_priority_limit",
 ]
 #: 파생(선물/옵션, XKFE) 주문의 주문구분. 현금주문의 국내 주문구분과 같은 두 코드를 쓰되(조건부지정가·
 #: 최유리지정가), 최우선지정가(priority_limit)는 파생에 없어 뺀 좁힌 별칭이다.
@@ -70,8 +83,21 @@ _DERIVATIVE_DIVISIONS = frozenset(get_args(DerivativeDivision))
 #: (exhaustiveness 는 test_ 로 강제 -- 새 division 추가 시 한쪽에 넣지 않으면 테스트가 실패).
 _PRICELESS_DIVISIONS = frozenset((
     "immediate_limit", "priority_limit", "midpoint", "pre_market_close", "post_market_close",
+    "after_market_immediate_limit", "after_market_priority_limit",
+    "gtp_immediate_limit", "gtp_priority_limit",
 ))
-_LIMIT_BASED_DIVISIONS = frozenset(("conditional_limit", "after_hours_single"))
+_LIMIT_BASED_DIVISIONS = frozenset((
+    "conditional_limit", "after_market_limit", "gtp_limit",
+))
+#: KRX 애프터마켓(16:00~20:00) 주문구분 -- board="KRX" 전용.
+_AFTERMARKET_DIVISIONS = frozenset((
+    "after_market_limit", "after_market_immediate_limit", "after_market_priority_limit",
+))
+#: NXT 프리마켓 GTP(Good Till Pre-Market) 주문구분 -- board="NXT" 전용.
+_GTP_DIVISIONS = frozenset(("gtp_limit", "gtp_immediate_limit", "gtp_priority_limit"))
+#: 신용주문과 조합 가능한 division -- 애프터마켓/GTP 만(공지가 신용 ORD_DVSN 에 41~47·27~29 추가). 기존
+#: 현금 전용 주문구분(조건부/최유리/최우선/중간가)은 신용과 조합 불가(종전대로).
+_CREDIT_ALLOWED_DIVISIONS = _AFTERMARKET_DIVISIONS | _GTP_DIVISIONS
 #: 거래 세션. ``regular`` 정규장, ``overnight`` 미국 오버나이트 거래(한국 낮 시간대 미국 종목 거래),
 #: ``night`` KRX 파생(선물/옵션) 야간장. 세션이 다르면 서로 다른 주문이고 정정·취소 엔드포인트도
 #: 다르므로 지문·라우팅으로 구분한다(미국 ``overnight`` 과 KRX ``night`` 은 별개의 세션이다).
@@ -367,16 +393,18 @@ _BOND_EXCHANGE = "BOND"
 #: 기존 exchange 슬롯의 한 값(새 슬롯·스키마 증가 없음)이라 기존 주문 지문과 바이트 호환을 유지한다.
 _OVERSEAS_FO_EXCHANGE = "OSFO"
 #: 국내 보드별 **미지원** 주문구분 base(= division 있으면 그것, 없으면 order_type)의 blocklist.
-#: 보드마다 제외하는 주문구분 집합이 다르다(KRX 는 전부 지원해 여기 없음; NXT/UN 은 각자 특정 주문구분을
-#: 제외하고, 시간외 3종은 KRX 전용이라 두 보드 모두에서 제외). 여기 없는 base(stop 등 Tier 2/미매핑)는
-#: 이 검증이 아니라 와이어 빌더에서 판정한다. 구체 집합은 아래 리터럴이 원장이다.
+#: 보드마다 제외하는 주문구분 집합이 다르다: 장전/장후 시간외 종가는 KRX 전용, 애프터마켓(41~47)은 KRX
+#: 전용(NXT/UN 제외), GTP(27~29)는 NXT 전용(KRX/UN 제외). 여기 없는 base(stop 등 Tier 2/미매핑)는 이
+#: 검증이 아니라 와이어 빌더에서 판정한다. 구체 집합은 아래 리터럴이 원장이다.
 _BOARD_UNSUPPORTED_BASES = {
+    "KRX": frozenset(("gtp_limit", "gtp_immediate_limit", "gtp_priority_limit")),
     "NXT": frozenset(("market", "conditional_limit",
-                      "pre_market_close", "post_market_close", "after_hours_single",
-                      "stop_limit")),
+                      "pre_market_close", "post_market_close", "stop_limit",
+                      "after_market_limit", "after_market_immediate_limit", "after_market_priority_limit")),
     "UN": frozenset(("conditional_limit",
-                     "pre_market_close", "post_market_close", "after_hours_single",
-                     "stop_limit")),
+                     "pre_market_close", "post_market_close", "stop_limit",
+                     "after_market_limit", "after_market_immediate_limit", "after_market_priority_limit",
+                     "gtp_limit", "gtp_immediate_limit", "gtp_priority_limit")),
 }
 #: 유효한 국내 보드 값. 알 수 없는 board 는 와이어 빌더의 _BOARD_EXCG KeyError 전에 생성 시점 거부.
 _DOMESTIC_BOARDS = frozenset(("KRX", "NXT", "UN"))
@@ -604,8 +632,10 @@ class Order:
                     f"파생(XKFE) 주문은 이 주문구분을 지원하지 않는다(division={self.division!r}); "
                     f"조건부지정가·최유리지정가만 가능하다."
                 )
-            if self.credit_type is not None:
-                raise KISUsageError("division 은 신용주문과 조합할 수 없다.")
+            if self.credit_type is not None and self.division not in _CREDIT_ALLOWED_DIVISIONS:
+                raise KISUsageError(
+                    "division 은 신용주문과 조합할 수 없다(애프터마켓/GTP 주문구분만 예외)."
+                )
             if self.session == "overnight":
                 raise KISUsageError("division 은 미국 오버나이트 거래와 조합할 수 없다.")
             # division<->order_type<->price 결합을 DATA 경계에서 강제한다 -- 최유리/최우선은 시장이 가격을
@@ -771,18 +801,21 @@ class Order:
     def credit(
         cls, symbol: str, *, side: Side, quantity: Numeric, credit_type: CreditType,
         limit_price: Numeric | None = None, loan_date: str | None = None,
-        time_in_force: TimeInForce = "day", client_order_id: str | None = None,
+        time_in_force: TimeInForce = "day", division: DomesticDivision | None = None,
+        board: DomesticBoard = "KRX", client_order_id: str | None = None,
     ) -> Order:
         """국내 신용(융자/대주) 주문 -- ``limit_price`` 를 주면 지정가, 없으면 시장가. ``credit_type`` 은
         매수/매도별 신용유형(매수 21/23/26/28, 매도 22/24/25/27).
 
         ``loan_date``(YYYYMMDD)는 대출일자다: **상환**유형(25/26/27/28)은 상환 대상 대출을 지정해야
         하므로 필수, **신규**유형(21/22/23/24)은 개시일이라 생략하면 생성 시점의 오늘(KST)로 채운다.
-        신용주문은 국내(XKRX)만 가능하다."""
+        ``division`` 은 애프터마켓(``after_market_*``, board="KRX")/GTP(``gtp_*``, board="NXT") 주문구분만
+        신용과 조합할 수 있다(기타 현금 전용 주문구분은 __post_init__ 이 거부). 애프터마켓 지정가/최유리는
+        ``time_in_force`` 로 IOC/FOK 조합 가능, 그 외 division 은 day 만. 일반 신용은 국내(XKRX)만."""
         order_type: OrderType = "limit" if limit_price is not None else "market"
         return cls._make(
             symbol, side, order_type, quantity, limit_price=limit_price,
-            credit_type=credit_type, loan_date=loan_date,
+            credit_type=credit_type, loan_date=loan_date, division=division, board=board,
             time_in_force=time_in_force, client_order_id=client_order_id,
         )
 
