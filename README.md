@@ -113,6 +113,10 @@ Claude Code·Codex 같은 AI 도구로 계좌를 다루려면 `plugins/kis-trade
 [Claude 스킬](https://seokhoonj.github.io/kis-trader/claude-skill.html) ·
 [Codex 스킬](https://seokhoonj.github.io/kis-trader/codex-skill.html) 문서를 참고하세요.
 
+MCP 호환 에이전트(Claude Desktop 등)에는 `kis_trader.mcp` 서버(`pip install 'kis-trader[mcp]'` 후
+`kis-mcp`)로 계좌 조회·주문 미리보기 도구를 열 수 있습니다(실주문 전송은 노출하지 않음).
+[MCP 서버](https://seokhoonj.github.io/kis-trader/mcp.html) 문서를 참고하세요.
+
 ## 7. 문서
 
 전체 문서는 **<https://seokhoonj.github.io/kis-trader/>** 에 있습니다(소스: `docs/`).
@@ -124,7 +128,7 @@ Claude Code·Codex 같은 AI 도구로 계좌를 다루려면 `plugins/kis-trade
 | **시장·검색** | [순위·조건검색](https://seokhoonj.github.io/kis-trader/screening.html) · [시장·지수](https://seokhoonj.github.io/kis-trader/market.html) · [기업행위·일정](https://seokhoonj.github.io/kis-trader/corporate-actions.html) |
 | **해외·연금** | [해외주식](https://seokhoonj.github.io/kis-trader/overseas.html) · [퇴직연금](https://seokhoonj.github.io/kis-trader/pension.html) |
 | **다른 상품** | [ETF·ETN](https://seokhoonj.github.io/kis-trader/etf.html) · [ELW](https://seokhoonj.github.io/kis-trader/elw.html) · [선물·옵션](https://seokhoonj.github.io/kis-trader/derivatives.html) · [채권](https://seokhoonj.github.io/kis-trader/bonds.html) |
-| **명령줄·에이전트** | [Command Line](https://seokhoonj.github.io/kis-trader/cli.html) · [Claude Skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex Skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) |
+| **명령줄·에이전트** | [Command Line](https://seokhoonj.github.io/kis-trader/cli.html) · [Claude Skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex Skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) · [MCP Server](https://seokhoonj.github.io/kis-trader/mcp.html) |
 | **참고** | [실시간(WebSocket)](https://seokhoonj.github.io/kis-trader/realtime.html) · [한계·미구현](https://seokhoonj.github.io/kis-trader/limits.html) |
 
 각 메서드의 인자와 반환값은 `help(그_메서드)` 로 바로 볼 수 있습니다.

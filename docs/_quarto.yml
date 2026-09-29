@@ -51,6 +51,7 @@ book:
         - cli.md
         - claude-skill.md
         - codex-skill.md
+        - mcp.md
     - part: "참고"
       chapters:
         - realtime.md
