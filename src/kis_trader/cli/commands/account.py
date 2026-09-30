@@ -77,8 +77,7 @@ def cmd_balance(kis: KISClient, args: Namespace) -> Any:
             raise CliConfigError("장내채권은 국내 전용입니다(--venue overseas 불가).")
         return account.domestic.bonds.balance()
     if args.venue == "overseas":
-        if not args.market:
-            raise CliConfigError("해외 잔고는 시장을 지정해야 합니다(--market US/HK/CN_SH/...).")
+        # --market 생략 시 라이브러리가 전 시장을 순회해 시장별 요약 리스트를 준다(positions 와 동일 arity).
         return account.overseas.balance(market=args.market)
     return account.domestic.balance()
 

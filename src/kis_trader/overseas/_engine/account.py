@@ -99,9 +99,23 @@ def fetch_positions(
 
 
 def fetch_balance(
-    transport: Transport, *, cano: str, product_code: str, environment: Environment, market: str
+    transport: Transport, *, cano: str, product_code: str, environment: Environment,
+    market: str | None = None,
+) -> OverseasBalance | list[OverseasBalance]:
+    """해외 계좌 손익 요약(1콜, output2). ``market`` 은 US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM;
+    ``None`` 이면 전체 시장을 순회해 시장별 요약 리스트를 준다(통화가 시장마다 달라 하나로 합칠 수
+    없으므로 합산하지 않고 시장별로 나열한다 -- 전체 종합은 present_balance)."""
+    if market is None:
+        return [
+            _fetch_market_balance(transport, cano, product_code, environment, group)
+            for group in _MARKETS
+        ]
+    return _fetch_market_balance(transport, cano, product_code, environment, market)
+
+
+def _fetch_market_balance(
+    transport: Transport, cano: str, product_code: str, environment: Environment, market: str
 ) -> OverseasBalance:
-    """해외 계좌 손익 요약(1콜, output2). ``market`` 은 US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM."""
     try:
         exchange, currency = _MARKETS[market]
     except KeyError:

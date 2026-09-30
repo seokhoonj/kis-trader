@@ -1206,7 +1206,7 @@ class _StubOverseasAccount:
     def __init__(self, log):
         self._log = log
 
-    def balance(self, *, market):
+    def balance(self, *, market=None):
         self._log.append(("ovs_balance", market)); return "OVS_BAL"
 
     def positions(self, *, market=None):
@@ -1906,12 +1906,13 @@ def test_account_balance_overseas_stock_routes_with_market(monkeypatch):
     assert log == [("ovs_balance", "US")]
 
 
-def test_account_balance_overseas_requires_market(monkeypatch):
+def test_account_balance_overseas_omitting_market_routes_all_markets(monkeypatch):
+    # --market 생략 시 CLI 는 라이브러리 기본(None=전 시장)을 재기술하지 않고 그대로 넘긴다
+    # (positions/open_orders 와 동일 arity). 라이브러리가 시장별 요약 리스트를 준다.
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
-    with pytest.raises(CliConfigError, match="시장"):
-        account.cmd_balance(object(), _args(["account", "balance", "--venue", "overseas"]))
-    assert log == []
+    account.cmd_balance(object(), _args(["account", "balance", "--venue", "overseas"]))
+    assert log == [("ovs_balance", None)]
 
 
 def test_account_positions_stock_routes(monkeypatch):
