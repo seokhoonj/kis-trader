@@ -41,7 +41,7 @@ if TYPE_CHECKING:
     from ..reserved_order import ReservedOrder, ReservedProcess
     from .entities.account_reports import IntegratedMargin, RealizedProfitBalance
     from .entities.account_right import AccountRight
-    from .entities.balance import AccountAssets, Balance, Portfolio, Position
+    from .entities.balance import AccountAssets, DomesticBalance, Portfolio, Position
     from .entities.derivative import (
         DerivativeMarginRate,
         FuturesBoardQuote,
@@ -66,7 +66,7 @@ class DomesticAccount:
     def __init__(self, client: KISClient) -> None:
         self._c = client
 
-    def balance(self) -> Balance:
+    def balance(self) -> DomesticBalance:
         """계좌 현금·자산 요약."""
         cano, product_code = self._c._require_account()
         return account_api.fetch_balance(

@@ -23,7 +23,7 @@ balance = account.balance()
 print(balance.deposit, balance.total_evaluation, balance.unrealized_pnl)
 ```
 
-`balance()` 가 돌려주는 `Balance` 의 주요 필드:
+`balance()` 가 돌려주는 `DomesticBalance` 의 주요 필드:
 
 | 필드 | 뜻 |
 |---|---|
@@ -132,7 +132,7 @@ kis.account.pension.present_balance()  # 체결기준 잔고 + 손익
 
 ## 통합잔고
 
-`kis.account.balance()` 는 국내주식·채권·해외주식 잔고를 한 뷰로 합쳐 `IntegratedBalance` 로 돌려줍니다. **실전투자 전용**입니다.
+`kis.account.balance()` 는 국내주식·채권·해외주식 잔고를 한 뷰로 합쳐 `Balance` 로 돌려줍니다. **실전투자 전용**입니다.
 
 ```python
 balance = kis.account.balance()
@@ -141,13 +141,13 @@ for deposit in balance.deposits:
 print("원화 총평가", balance.total_evaluation, "  평가손익", balance.total_unrealized_pnl)
 ```
 
-`IntegratedBalance` 의 주요 필드:
+`Balance` 의 주요 필드:
 
 | 필드 | 뜻 |
 |---|---|
 | `base_currency` | 기준통화("KRW") |
 | `deposits` | 통화별 예수금(`CurrencyDeposit` 목록) |
-| `domestic` | 국내주식 잔고 서브(`Balance`) |
+| `domestic` | 국내주식 잔고 서브(`DomesticBalance`) |
 | `bonds` | 채권 보유(`BondPosition` 목록, 매입금액 기준) |
 | `overseas` | 해외 체결기준 현재잔고 |
 | `total_evaluation` | 원화 총평가(국내·해외 보유 평가의 합) |

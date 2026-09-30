@@ -35,7 +35,7 @@ from ..entities.account_reports import (
     RealizedProfitPosition,
 )
 from ..entities.account_right import AccountRight
-from ..entities.balance import AccountAssets, Balance, Portfolio, Position
+from ..entities.balance import AccountAssets, DomesticBalance, Portfolio, Position
 from ..entities.stock_fills import StockFill, StockFillHistory
 from ..entities.trade_profit import (
     DailyProfit,
@@ -100,7 +100,7 @@ _MAX_OPEN_ORDER_PAGES = 100
 
 
 # --- 잔고 / 보유종목 / 포트폴리오 -----------------------------------------
-def fetch_balance(transport: Transport, *, cano: str, product_code: str, environment: Environment) -> Balance:
+def fetch_balance(transport: Transport, *, cano: str, product_code: str, environment: Environment) -> DomesticBalance:
     """계좌 현금·자산 요약(1콜, output2). 요약은 계좌 단위라 첫 페이지로 완결."""
     resp = _fetch_balance_page(transport, cano=cano, product_code=product_code, environment=environment, ctx_fk="", ctx_nk="")
     _raise_if_error(resp)
@@ -201,8 +201,8 @@ def _parse_positions(rows: list[Mapping[str, Any]]) -> list[Position]:
     return positions
 
 
-def _parse_balance(summary: Mapping[str, Any]) -> Balance:
-    return Balance(
+def _parse_balance(summary: Mapping[str, Any]) -> DomesticBalance:
+    return DomesticBalance(
         currency="KRW",
         deposit=required_decimal(summary.get("dnca_tot_amt"), "dnca_tot_amt"),
         settlement_cash_d1=required_decimal(summary.get("nxdy_excc_amt"), "nxdy_excc_amt"),

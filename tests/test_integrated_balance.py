@@ -1,6 +1,6 @@
 """통합잔고 -- kis.account.balance() (실전전용).
 
-국내주식 잔고 + 장내채권 잔고 + 해외 체결기준현재잔고를 한 IntegratedBalance 로 합친다.
+국내주식 잔고 + 장내채권 잔고 + 해외 체결기준현재잔고를 한 Balance 로 합친다.
 새 와이어는 없다(세 기존 엔진 콜의 합성). 채권/해외 현재잔고가 실전 전용이라 모의는 와이어를
 타기 전에 KISUsageError 로 fail-closed 한다. 네트워크 없이 FakeTransport 로 검증한다.
 """
@@ -13,9 +13,9 @@ from decimal import Decimal
 import pytest
 
 from kis_trader import KISClient
-from kis_trader.domestic.entities.balance import Balance
+from kis_trader.domestic.entities.balance import DomesticBalance
 from kis_trader.errors import KISError, KISUsageError
-from kis_trader.integrated import CurrencyDeposit, IntegratedBalance
+from kis_trader.integrated import Balance, CurrencyDeposit
 from kis_trader.overseas.entities.balance import OverseasPresentBalance
 from kis_trader.transport import RawResponse
 
@@ -124,7 +124,7 @@ def test_integrated_balance_merges():
     fake = _all_paths_fake()
     result = _client(fake).account.balance()
 
-    assert isinstance(result, IntegratedBalance)
+    assert isinstance(result, Balance)
     assert result.base_currency == "KRW"
 
     # 정확히 세 번의 와이어 -- 도메인별 경로·TR·계좌식별정보를 경로 색인으로 확인
@@ -164,7 +164,7 @@ def test_integrated_balance_merges():
     assert not hasattr(result, "net_liquidation")
 
     # 도메인별 서브잔고(원본 스키마 유지)
-    assert isinstance(result.domestic, Balance)
+    assert isinstance(result.domestic, DomesticBalance)
     assert isinstance(result.overseas, OverseasPresentBalance)
     assert len(result.bonds) == 1
     assert result.bonds[0].symbol == "KR2033022D33"
@@ -189,4 +189,4 @@ def test_integrated_balance_paper_fails_closed():
 
 
 def test_integrated_balance_import_guard():
-    from kis_trader import CurrencyDeposit, IntegratedBalance  # noqa: F401
+    from kis_trader import Balance, CurrencyDeposit  # noqa: F401

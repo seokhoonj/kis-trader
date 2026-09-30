@@ -11,8 +11,8 @@ from decimal import Decimal
 import pytest
 
 from kis_trader import (
-    Balance,
     BuyableAmount,
+    DomesticBalance,
     KISClient,
     Portfolio,
     Position,
@@ -101,7 +101,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 # --- balance ---------------------------------------------------------------
 def test_balance_parses_summary():
     balance = _client(FakeTransport(response=_balance_resp())).account.domestic.balance()
-    assert isinstance(balance, Balance)
+    assert isinstance(balance, DomesticBalance)
     assert balance.currency == "KRW"
     assert balance.deposit == Decimal(1000000)
     assert balance.settlement_cash_d2 == Decimal(1020000)
