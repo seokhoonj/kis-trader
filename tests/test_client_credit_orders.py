@@ -13,6 +13,7 @@ import pytest
 
 from kis_trader import ExecutionReport, KISClient, Order, OrderStatus, OrderStore
 from kis_trader.errors import KISUsageError, OrderRejectedError, OrderTimeoutError
+from kis_trader.order import resolve_new_credit_loan_date
 from kis_trader.transport import RawResponse, TransportTimeout
 
 _ORDER_CREDIT = "/uapi/domestic-stock/v1/trading/order-credit"
@@ -169,6 +170,19 @@ def test_order_credit_new_type_requires_loan_date():
     # 않는다). 오늘 기본값 채우기는 엣지 facade(credit_buy/credit_sell)의 책임.
     with pytest.raises(KISUsageError):
         Order.credit("005930", side="buy", quantity=1, limit_price=1, credit_type="21")
+
+
+@pytest.mark.parametrize(("credit_type", "loan_date", "expected"), [
+    ("21", None, "20240603"),        # 신규(매수) 미지정 -> 개시일 today
+    ("22", None, "20240603"),        # 신규(매도) 미지정 -> 개시일 today
+    ("25", None, None),              # 상환 미지정 -> 그대로 None(Order 가 거부)
+    ("26", None, None),              # 상환 미지정 -> 그대로 None
+    ("21", "20211103", "20211103"),  # 명시된 건 그대로 통과
+    (None, None, None),             # 현금(credit_type 없음) -> None
+])
+def test_resolve_new_credit_loan_date(credit_type, loan_date, expected):
+    # 순수 헬퍼의 분기 직접 고정 -- facade 를 거치지 않고 today 주입만으로 결정적.
+    assert resolve_new_credit_loan_date(credit_type, loan_date, today="20240603") == expected
 
 
 def test_credit_bad_calendar_loan_date_rejected():

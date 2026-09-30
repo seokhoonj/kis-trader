@@ -469,8 +469,9 @@ def resolve_new_credit_loan_date(
     credit_type: CreditType | None, loan_date: str | None, *, today: str
 ) -> str | None:
     """신규(상환 아님) 신용주문의 대출일자 미지정 시 개시일 ``today`` 로 채운다 -- 상환/이미 지정/현금은
-    그대로 둔다. 시계 의존을 엣지(facade)에 가두려 ``today`` 를 주입받는 순수 함수다(:class:`Order` 는
-    순수 DATA 라 시계를 읽지 않는다). 상환유형은 loan_date 필수라 None 이어도 여기서 채우지 않고
+    그대로 둔다. ``today`` 는 YYYYMMDD 문자열(엣지의 :func:`~kis_trader._internal._datetime._today_kst`
+    결과). 시계 의존을 엣지(facade)에 가두려 주입받는 순수 함수다(:class:`Order` 생성자는 loan_date 같은
+    지문 필드를 시계로 짓지 않는다). 상환유형은 loan_date 필수라 None 이어도 여기서 채우지 않고
     :class:`Order` 가 거부한다."""
     if credit_type is not None and credit_type not in _CREDIT_REPAY_TYPES and loan_date is None:
         return today
@@ -583,10 +584,10 @@ class Order:
                     f"{self.side} 신용주문의 credit_type 은 {sorted(valid)} 중 하나여야 한다: "
                     f"{self.credit_type!r}"
                 )
-            # 신규/상환 모두 loan_date 필수 -- Order 는 순수 DATA 라 시계를 읽지 않는다(생성 시각에 따라
-            # 지문이 바뀌면 KST 자정 경계 replay 가 dedup 을 못 한다). 상환은 대상 대출을, 신규는 개시일을
-            # 지정해야 하며, 신규 개시일 기본값(오늘 KST)은 엣지 facade(credit_buy/credit_sell)가
-            # resolve_new_credit_loan_date 로 채운 뒤 넘긴다.
+            # 신규/상환 모두 loan_date 필수 -- Order 생성자는 loan_date(지문 필드)를 시계로 짓지 않는다
+            # (생성 시각에 따라 지문이 바뀌면 KST 자정 경계 replay 가 dedup 을 못 한다). 상환은 대상 대출을,
+            # 신규는 개시일을 지정해야 하며, 신규 개시일 기본값(오늘 KST)은 엣지 facade(credit_buy/
+            # credit_sell)가 resolve_new_credit_loan_date 로 채운 뒤 넘긴다.
             if self.credit_type in _CREDIT_REPAY_TYPES:
                 if self.loan_date is None:
                     raise KISUsageError(
@@ -825,8 +826,8 @@ class Order:
         매수/매도별 신용유형(매수 21/23/26/28, 매도 22/24/25/27).
 
         ``loan_date``(YYYYMMDD)는 대출일자다: **상환**유형(25/26/27/28)은 상환 대상 대출을, **신규**유형
-        (21/22/23/24)은 개시일을 지정해야 하며 **둘 다 필수**다(:class:`Order` 는 순수 DATA 라 시계를
-        읽지 않는다). 상위 주문 경로(:meth:`~kis_trader.domestic.stock.DomesticStock.credit_buy`/
+        (21/22/23/24)은 개시일을 지정해야 하며 **둘 다 필수**다(:class:`Order` 생성자는 loan_date 를 시계로
+        채우지 않는다). 상위 주문 경로(:meth:`~kis_trader.domestic.stock.DomesticStock.credit_buy`/
         ``credit_sell``)가 신규 생략 시 오늘(KST)로 채워 주므로, 직접 :meth:`credit` 을 쓸 때만 명시한다.
         ``division`` 은 애프터마켓(``after_market_*``, board="KRX")/GTP(``gtp_*``, board="NXT") 주문구분만
         신용과 조합할 수 있다(기타 현금 전용 주문구분은 __post_init__ 이 거부). 애프터마켓 지정가/최유리는
