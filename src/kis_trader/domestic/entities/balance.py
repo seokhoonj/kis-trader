@@ -1,6 +1,6 @@
-"""계좌 잔고(DATA) -- :class:`Position`, :class:`Balance`, :class:`Portfolio`.
+"""계좌 잔고(DATA) -- :class:`Position`, :class:`DomesticBalance`, :class:`Portfolio`.
 
-:class:`Position` 은 한 종목의 보유 현황, :class:`Balance` 는 계좌 현금·자산 요약,
+:class:`Position` 은 한 종목의 보유 현황, :class:`DomesticBalance` 는 계좌 현금·자산 요약,
 :class:`Portfolio` 는 그 둘을 한 스냅샷으로 묶은 것이다. 금액은 종목/계좌 통화의 Decimal
 (국내는 KRW). 다중통화가 필요해지면 ``Money`` 로 승격한다.
 """
@@ -45,7 +45,7 @@ class Position:
 
 
 @dataclass(frozen=True, slots=True)
-class Balance:
+class DomesticBalance:
     """계좌의 현금·자산 요약(불변).
 
     ``deposit`` 예수금총액, ``settlement_cash_d1`` / ``settlement_cash_d2`` D+1 / D+2 정산예정 현금
@@ -74,7 +74,7 @@ class Balance:
 class Portfolio:
     """계좌 스냅샷 -- 현금·자산 요약과 보유 종목 한 벌(무거운 조회를 한 번만)."""
 
-    balance: Balance
+    balance: DomesticBalance
     positions: tuple[Position, ...]
 
     def __post_init__(self) -> None:
@@ -85,7 +85,7 @@ class Portfolio:
 class AccountAssets:
     """투자계좌 자산현황 요약(불변). 자산군 전반의 총자산·순자산·예수금·대출·외화까지 아우른다.
 
-    :class:`Balance`(주식 잔고 요약)보다 넓은 계좌 전체 관점이다 -- ``total_foreign_evaluation``
+    :class:`DomesticBalance`(주식 잔고 요약)보다 넓은 계좌 전체 관점이다 -- ``total_foreign_evaluation``
     외화평가총액, ``overseas_stock_evaluation`` 해외주식평가금액, ``total_substitute_amount``
     총대용금액, ``total_loan_amount`` 대출금액합계 등을 포함한다. 자산군별 내역(output1)은 계좌
     유형에 따라 항목 순서가 달라 라벨을 단정하지 않고 ``_raw`` 로 남긴다. 금액은 KRW Decimal.

@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, Literal
 
 from .domestic.namespace import DomesticAccount
 from .errors import KISUsageError
-from .integrated import IntegratedBalance, make_integrated_balance
+from .integrated import Balance, make_balance
 from .overseas.namespace import OverseasAccount
 from .pension.account import PensionAccount
 
@@ -70,8 +70,8 @@ class StockAccount:
             )
         return PensionAccount(self._client)
 
-    def balance(self) -> IntegratedBalance:
-        """국내주식+채권+해외주식 잔고를 한 :class:`~kis_trader.integrated.IntegratedBalance`
+    def balance(self) -> Balance:
+        """국내주식+채권+해외주식 잔고를 한 :class:`~kis_trader.integrated.Balance`
         로 합친다(새 와이어 없이 세 기존 조회의 합성). 통화별 예수금이 진실의 원천이고,
         ``total_evaluation``/``total_unrealized_pnl`` 은 국내·해외 보유 평가의 순수 원화 합이다(서로 다른
         보유라 겹치지 않는다). 현금까지 더한 단일 총자산은 노출하지 않는다 -- 국내 순자산과 해외
@@ -84,8 +84,8 @@ class StockAccount:
                 "통합잔고(kis.account.balance)는 모의투자 미지원 -- 실전에서만"
                 "(채권/해외 현재잔고가 실전 전용)."
             )
-        # I/O 는 여기(세 조회), 합성은 순수 함수 make_integrated_balance 가 맡는다(경계 분리).
+        # I/O 는 여기(세 조회), 합성은 순수 함수 make_balance 가 맡는다(경계 분리).
         dom = self.domestic.balance()
         bonds = tuple(self.domestic.bonds.balance())
         ovs = self.overseas.present_balance()
-        return make_integrated_balance(dom, bonds, ovs)
+        return make_balance(dom, bonds, ovs)

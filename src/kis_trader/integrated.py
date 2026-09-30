@@ -1,4 +1,4 @@
-"""통합잔고(DATA) -- :class:`CurrencyDeposit`, :class:`IntegratedBalance`.
+"""통합잔고(DATA) -- :class:`CurrencyDeposit`, :class:`Balance`.
 
 세션 계좌(위탁 01)의 국내주식+채권+해외주식 잔고를 한 뷰로 합친 결과다
 (``kis.account.balance()`` 가 돌려준다). 새 와이어는 없다 -- 기존 세 조회의 합성이다.
@@ -15,7 +15,7 @@ from types import MappingProxyType
 from typing import Any
 
 from ._internal._freeze import freeze_vendor_payload
-from .domestic.entities.balance import Balance
+from .domestic.entities.balance import DomesticBalance
 from .domestic.entities.bond_account import BondPosition
 from .errors import KISError
 from .overseas.entities.balance import OverseasPresentBalance
@@ -39,7 +39,7 @@ class CurrencyDeposit:
 
 
 @dataclass(frozen=True, slots=True)
-class IntegratedBalance:
+class Balance:
     """세션 계좌(위탁 01)의 국내주식+채권+해외주식 통합 잔고(불변). **실전전용**.
 
     ``deposits`` 통화별 예수금(진실의 원천, 환율 동반), ``domestic``/``bonds``/``overseas`` 도메인별
@@ -52,7 +52,7 @@ class IntegratedBalance:
 
     base_currency: str                             # "KRW"
     deposits: tuple[CurrencyDeposit, ...]          # KRW(국내) + 외화(overseas.currencies, KRW 행 제외)
-    domestic: Balance                              # 국내주식 잔고 서브
+    domestic: DomesticBalance                      # 국내주식 잔고 서브
     bonds: tuple[BondPosition, ...]                # 채권 보유(매입금액 기준)
     overseas: OverseasPresentBalance               # 해외 체결기준현재잔고(통화별+원화집계)
     total_evaluation: Decimal     # 원화 총평가 = domestic.market_value + overseas.total_evaluation_amount
@@ -67,12 +67,12 @@ class IntegratedBalance:
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 
-def make_integrated_balance(
-    domestic: Balance,
+def make_balance(
+    domestic: DomesticBalance,
     bonds: tuple[BondPosition, ...],
     overseas: OverseasPresentBalance,
-) -> IntegratedBalance:
-    """세 도메인 잔고(국내주식·채권·해외현재잔고)를 한 :class:`IntegratedBalance` 로 합성한다 -- 순수
+) -> Balance:
+    """세 도메인 잔고(국내주식·채권·해외현재잔고)를 한 :class:`Balance` 로 합성한다 -- 순수
     (I/O 0, 주입한 값만으로 결정적). 통화별 예수금은 KRW=국내(``domestic.deposit``)를 진실의 원천으로
     두고 해외 통화행을 더하되 KRW 행 중복을 제거하며, ``total_evaluation``/``total_unrealized_pnl`` 은
     겹치지 않는 국내·해외 보유 평가의 순수 원화 합이다. 중복 통화가 생기면
@@ -93,7 +93,7 @@ def make_integrated_balance(
     )
     if len({d.currency for d in deposits}) != len(deposits):
         raise KISError("통합잔고 통화별 예수금에 중복 통화가 있다.")
-    return IntegratedBalance(
+    return Balance(
         base_currency="KRW",
         deposits=deposits,
         domestic=domestic,

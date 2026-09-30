@@ -67,7 +67,7 @@ from .domestic.entities.analysis import (
     VolumeAtPrice,
     VolumeProfile,
 )
-from .domestic.entities.balance import AccountAssets, Balance, Portfolio, Position
+from .domestic.entities.balance import AccountAssets, DomesticBalance, Portfolio, Position
 from .domestic.entities.bond import (
     BondDailyPrice,
     BondIssuance,
@@ -233,7 +233,7 @@ from .domestic.market import MarketQueries
 from .domestic.namespace import DomesticAccount
 from .domestic.ranking import Direction, RankingQueries, VolumeMetric
 from .domestic.stock import DomesticStock
-from .integrated import CurrencyDeposit, IntegratedBalance
+from .integrated import Balance, CurrencyDeposit
 from .money import Money
 from .news import NewsHeadline
 from .open_order import OpenOrder
@@ -392,6 +392,7 @@ __all__ = [
     "DividendEvent",
     "DividendRanking",
     "DomesticAccount",
+    "DomesticBalance",
     "DomesticBondAccount",
     "DomesticDerivativesAccount",
     "DomesticDivision",
@@ -439,7 +440,6 @@ __all__ = [
     "IndexIntradayPoint",
     "IndexQuote",
     "InstrumentRecord",
-    "IntegratedBalance",
     "IntegratedMargin",
     "InterestRateQuote",
     "Interval",
