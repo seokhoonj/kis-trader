@@ -465,6 +465,19 @@ def validate_hhmmss(value: str, field_name: str) -> None:
         raise KISUsageError(f"{field_name} 는 실재하는 HHMMSS 시각여야 한다: {value!r}")
 
 
+def resolve_new_credit_loan_date(
+    credit_type: CreditType | None, loan_date: str | None, *, today: str
+) -> str | None:
+    """신규(상환 아님) 신용주문의 대출일자 미지정 시 개시일 ``today`` 로 채운다 -- 상환/이미 지정/현금은
+    그대로 둔다. ``today`` 는 YYYYMMDD 문자열(엣지의 :func:`~kis_trader._internal._datetime._today_kst`
+    결과). 시계 의존을 엣지(facade)에 가두려 주입받는 순수 함수다(:class:`Order` 생성자는 loan_date 같은
+    지문 필드를 시계로 짓지 않는다). 상환유형은 loan_date 필수라 None 이어도 여기서 채우지 않고
+    :class:`Order` 가 거부한다."""
+    if credit_type is not None and credit_type not in _CREDIT_REPAY_TYPES and loan_date is None:
+        return today
+    return loan_date
+
+
 def reject_bad_change_price_shape(action: ChangeAction, limit_price: Decimal | None) -> None:
     """지정가 원주문 정정취소의 가격형상 검증 -- 지정가 전용 자산(주식/해외)이 공유한다.
     정정=>0보다 큰 limit_price, 취소=>limit_price 없음. 파생은 자체 규칙이라 이걸 쓰지 않는다."""
@@ -571,16 +584,21 @@ class Order:
                     f"{self.side} 신용주문의 credit_type 은 {sorted(valid)} 중 하나여야 한다: "
                     f"{self.credit_type!r}"
                 )
-            # 대출일자 규칙은 신규/상환으로 갈린다: 상환은 대상 대출을 지정해야 하므로 loan_date 필수,
-            # 신규는 개시일(오늘)로 채운다 -- 생성 시점에 확정해 지문·와이어가 순수해지도록 한다.
+            # 신규/상환 모두 loan_date 필수 -- Order 생성자는 loan_date(지문 필드)를 시계로 짓지 않는다
+            # (생성 시각에 따라 지문이 바뀌면 KST 자정 경계 replay 가 dedup 을 못 한다). 상환은 대상 대출을,
+            # 신규는 개시일을 지정해야 하며, 신규 개시일 기본값(오늘 KST)은 엣지 facade(credit_buy/
+            # credit_sell)가 resolve_new_credit_loan_date 로 채운 뒤 넘긴다.
             if self.credit_type in _CREDIT_REPAY_TYPES:
                 if self.loan_date is None:
                     raise KISUsageError(
                         "상환 신용주문(credit_type 25/26/27/28)은 대상 대출의 loan_date(YYYYMMDD)가 "
                         "필요하다."
                     )
-            elif self.loan_date is None:  # 신규 신용 -- 개시일 = 오늘(KST)
-                object.__setattr__(self, "loan_date", f"{datetime.now(_KST):%Y%m%d}")
+            elif self.loan_date is None:  # 신규 신용 -- 개시일 필수(facade 가 오늘로 채운다)
+                raise KISUsageError(
+                    "신규 신용주문(credit_type 21/22/23/24)은 개시일 loan_date(YYYYMMDD)가 필요하다 -- "
+                    "credit_buy/credit_sell 가 전송 시 오늘(KST)로 채운다."
+                )
 
         if self.session not in _SESSIONS:
             raise KISUsageError(f"지원하지 않는 session: {self.session!r}")
@@ -807,8 +825,10 @@ class Order:
         """국내 신용(융자/대주) 주문 -- ``limit_price`` 를 주면 지정가, 없으면 시장가. ``credit_type`` 은
         매수/매도별 신용유형(매수 21/23/26/28, 매도 22/24/25/27).
 
-        ``loan_date``(YYYYMMDD)는 대출일자다: **상환**유형(25/26/27/28)은 상환 대상 대출을 지정해야
-        하므로 필수, **신규**유형(21/22/23/24)은 개시일이라 생략하면 생성 시점의 오늘(KST)로 채운다.
+        ``loan_date``(YYYYMMDD)는 대출일자다: **상환**유형(25/26/27/28)은 상환 대상 대출을, **신규**유형
+        (21/22/23/24)은 개시일을 지정해야 하며 **둘 다 필수**다(:class:`Order` 생성자는 loan_date 를 시계로
+        채우지 않는다). 상위 주문 경로(:meth:`~kis_trader.domestic.stock.DomesticStock.credit_buy`/
+        ``credit_sell``)가 신규 생략 시 오늘(KST)로 채워 주므로, 직접 :meth:`credit` 을 쓸 때만 명시한다.
         ``division`` 은 애프터마켓(``after_market_*``, board="KRX")/GTP(``gtp_*``, board="NXT") 주문구분만
         신용과 조합할 수 있다(기타 현금 전용 주문구분은 __post_init__ 이 거부). 애프터마켓 지정가/최유리는
         ``time_in_force`` 로 IOC/FOK 조합 가능, 그 외 division 은 day 만. 일반 신용은 국내(XKRX)만."""
