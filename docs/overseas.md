@@ -56,7 +56,8 @@ kis.orders.cancel(report.client_order_id)                           # 아시아 
 account = kis.account.overseas
 
 account.positions(market=None)                             # None = 전체 시장 합산
-account.balance(market="US")                               # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
+account.balance(market="US")                               # 시장 하나의 통화별 요약 (US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
+account.balance()                                          # None = 전체 시장을 순회한 시장별 요약 리스트
 account.present_balance()                                  # 체결기준 잔고 (오늘 체결분 포함)
 account.settlement_balance(basis_date="20240630")          # 결제기준 잔고 (결제일 기준)
 account.buyable(symbol="AAPL", exchange="NAS", price=150)  # 매수가능 수량·금액 (해당 단가 기준)

@@ -7,7 +7,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Literal
+from typing import TYPE_CHECKING, Literal, overload
 
 from ..errors import KISUsageError
 from ._engine import account as overseas_account
@@ -89,9 +89,16 @@ class OverseasAccount:
             environment=self._c.environment, market=market,
         )
 
-    def balance(self, *, market: str) -> OverseasBalance:
+    @overload
+    def balance(self, *, market: str) -> OverseasBalance: ...
+    @overload
+    def balance(self, *, market: None = ...) -> list[OverseasBalance]: ...
+    def balance(self, *, market: str | None = None) -> OverseasBalance | list[OverseasBalance]:
         """계좌 손익 요약(시장/통화별) -- 매입금액·평가/실현/총손익·총수익률을 :class:`~kis_trader.money.Money`
-        로. 전체 시장 종합은 :meth:`present_balance`. 예수금(현금)은 별도다."""
+        로. ``market`` 을 주면 그 시장 하나(:class:`~kis_trader.overseas.entities.balance.OverseasBalance`),
+        생략(``None``)하면 **전체 시장을 순회해 시장별 요약 리스트**를 준다(통화가 시장마다 달라 하나로
+        합칠 수 없으므로 나열; :meth:`positions`/:meth:`open_orders` 와 동일 arity). 전체 종합은
+        :meth:`present_balance`, 예수금(현금)은 별도다."""
         cano, product_code = self._c._require_account()
         return overseas_account.fetch_balance(
             self._c.transport, cano=cano, product_code=product_code,
