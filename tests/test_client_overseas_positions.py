@@ -193,6 +193,16 @@ def test_overseas_balance_all_markets_requires_account():
         client.account.overseas.balance()
 
 
+def test_overseas_balance_all_markets_fails_closed_on_partial_failure():
+    # 전 시장 순회 중 한 시장 응답이 output2 결측이면 부분 결과를 삼키지 않고 전체가 KISError 로
+    # 실패한다(단일시장 fail-closed 계약을 순회에서도 유지 -- abort-on-first-failure).
+    bad = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": []})
+    fake = FakeTransport(pages=[_balance_resp(_summary()), _balance_resp(_summary()), bad])
+    with pytest.raises(KISError):
+        _client(fake).account.overseas.balance()
+    assert len(fake.calls) == 3                           # 3번째에서 중단(나머지 4시장 미조회)
+
+
 def _open_order(odno="0000123456", pdno="AAPL", side="02", qty="10", ccld="3", nccs="7",
                 unpr="150.25", excg="NASD", crcy="USD"):
     return {"odno": odno, "pdno": pdno, "prdt_name": "APPLE", "sll_buy_dvsn_cd": side,
