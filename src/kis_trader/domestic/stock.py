@@ -14,6 +14,7 @@ from __future__ import annotations
 from datetime import date, datetime, timedelta
 from typing import TYPE_CHECKING
 
+from .._internal._datetime import _today_kst
 from .._stock_base import _StockBase
 from ..bar import Bar, Interval, PeriodInterval
 from ..errors import KISUsageError
@@ -27,6 +28,7 @@ from ..order import (
     Order,
     Side,
     TimeInForce,
+    resolve_new_credit_loan_date,
 )
 from ..order_book import OrderBook
 from ..orderable import BuyableAmount, SellableQuantity
@@ -433,6 +435,9 @@ class DomesticStock(_StockBase):
         self._client._require_credit_enabled()
         if division is None:  # 일반 신용은 KRX 전용; 애프터마켓/GTP 는 board 게이트를 Order 가 판정
             self._require_krx_board("신용주문")
+        # 시계는 엣지(여기)서 읽어 Order(순수 DATA)엔 확정된 개시일만 넘긴다 -- 신규 신용의 loan_date
+        # 기본값=오늘(KST); 상환/명시된 건 그대로.
+        loan_date = resolve_new_credit_loan_date(credit_type, loan_date, today=_today_kst())
         return self._client._place_order(Order.credit(
             self.symbol, side="buy", quantity=quantity, credit_type=credit_type, limit_price=limit_price,
             loan_date=loan_date, time_in_force=time_in_force, division=division, board=self.market,
@@ -453,6 +458,8 @@ class DomesticStock(_StockBase):
         self._client._require_credit_enabled()
         if division is None:  # 일반 신용은 KRX 전용; 애프터마켓/GTP 는 board 게이트를 Order 가 판정
             self._require_krx_board("신용주문")
+        # 시계는 엣지(여기)서 읽어 Order(순수 DATA)엔 확정된 개시일만 넘긴다(credit_buy 와 대칭).
+        loan_date = resolve_new_credit_loan_date(credit_type, loan_date, today=_today_kst())
         return self._client._place_order(Order.credit(
             self.symbol, side="sell", quantity=quantity, credit_type=credit_type, limit_price=limit_price,
             loan_date=loan_date, time_in_force=time_in_force, division=division, board=self.market,

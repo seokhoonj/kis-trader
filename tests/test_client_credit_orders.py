@@ -7,7 +7,6 @@
 
 from __future__ import annotations
 
-import datetime as _dt
 import threading
 
 import pytest
@@ -24,14 +23,6 @@ _ACCEPTED = RawResponse(
     body={"output": {"KRX_FWDG_ORD_ORGNO": "06010", "ODNO": "0001569138", "ORD_TMD": "131421"}},
 )
 _REJECTED = RawResponse(rt_cd="1", msg_cd="APBK1234", msg1="신용주문 불가", body={})
-
-
-class _FrozenDatetime(_dt.datetime):
-    """now() 만 고정, strptime 등은 실제 datetime 을 상속 -- 대출일자 기본값(오늘) 결정성 확보."""
-
-    @classmethod
-    def now(cls, tz=None):
-        return _dt.datetime(2024, 6, 3, 10, 0, tzinfo=tz)
 
 
 class FakeTransport:
@@ -124,15 +115,16 @@ def test_credit_buy_limit_wire():
 
 
 def test_credit_buy_new_type_defaults_loan_date_to_today(monkeypatch):
-    monkeypatch.setattr("kis_trader.order.datetime", _FrozenDatetime)
+    # 신규 신용의 개시일 기본값(오늘 KST)은 엣지 facade 가 채운다 -- 시계는 여기서만 읽는다.
+    monkeypatch.setattr("kis_trader.domestic.stock._today_kst", lambda: "20240603")
     fake = FakeTransport(response=_ACCEPTED)
     _client(fake).domestic.stock("009150").credit_buy(quantity=1, limit_price=130000, credit_type="21")  # 신규
     assert fake.calls[0]["body"]["LOAN_DT"] == "20240603"   # 고정된 오늘(KST)
 
 
 def test_credit_sell_new_type_defaults_loan_date(monkeypatch):
-    # 대주신규(22)는 sell 이지만 신규라 loan_date 생략 가능 -> 오늘로 채움(side 아니라 operation 기준)
-    monkeypatch.setattr("kis_trader.order.datetime", _FrozenDatetime)
+    # 대주신규(22)는 sell 이지만 신규라 loan_date 생략 가능 -> facade 가 오늘로 채움(side 아니라 operation 기준)
+    monkeypatch.setattr("kis_trader.domestic.stock._today_kst", lambda: "20240603")
     fake = FakeTransport(response=_ACCEPTED)
     _client(fake).domestic.stock("009150").credit_sell(quantity=1, limit_price=130000, credit_type="22")
     assert fake.calls[0]["tr_id"] == "TTTC0051U"
@@ -170,6 +162,13 @@ def test_credit_repay_requires_loan_date():
     with pytest.raises(KISUsageError):     # 25 는 상환(매도측) -- loan_date 필수
         _client(fake).domestic.stock("009150").credit_sell(quantity=1, limit_price=1, credit_type="25")
     assert fake.calls == []
+
+
+def test_order_credit_new_type_requires_loan_date():
+    # Order 는 순수 DATA -- 신규 신용(21)도 loan_date 없이 직접 만들면 거부한다(시계로 오늘을 지어내지
+    # 않는다). 오늘 기본값 채우기는 엣지 facade(credit_buy/credit_sell)의 책임.
+    with pytest.raises(KISUsageError):
+        Order.credit("005930", side="buy", quantity=1, limit_price=1, credit_type="21")
 
 
 def test_credit_bad_calendar_loan_date_rejected():
