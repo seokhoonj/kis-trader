@@ -52,7 +52,7 @@ def _add_order_gate(sub: argparse.ArgumentParser) -> None:
                      help="전송 권한 겸 환경 선언(프로필 환경과 일치해야 함). 없으면 dry-run")
     sub.add_argument("--yes", action="store_true", help="비대화형 전송 확인(대화형이면 프롬프트)")
     sub.add_argument("--confirm-account", dest="confirm_account", default=None,
-                     help="비대화형 real 주문: 계좌 끝 4자리")
+                     help="비대화형 real 주문: 계좌 마지막 4자리")
 
 
 def _common_flags() -> argparse.ArgumentParser:

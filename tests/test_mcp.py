@@ -105,7 +105,7 @@ def test_order_preview_not_sent_and_masks_account():
     out = handlers.order_preview(kis, symbol="005930", side="buy", quantity=10, limit_price="70000")
     assert out["sent"] is False
     assert out["environment"] == "real"
-    assert out["account"] == "****7801"          # 끝 4자리만
+    assert out["account"] == "****7801"          # 마지막 4자리만
     assert "1234567801" not in str(out)          # 전체 계좌번호 비노출
     assert out["order_type"] == "limit"
     assert out["symbol"] == "005930" and out["side"] == "buy" and out["quantity"] == 10

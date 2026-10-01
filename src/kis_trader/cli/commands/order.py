@@ -6,8 +6,8 @@
   되비출 뿐이며 "비권위적"임을 명시한다.
 - ``--execute {paper,real}`` 는 실행 권한이자 환경 선언이다. 세션 환경(프로필에 저장된 실전/모의)과
   다르면 거부한다(남은 셸 히스토리의 플래그가 다른 환경에서 오작동하지 못하게).
-- 확인: 대화형이면 paper 는 y/N, real 은 계좌 끝 4자리 입력. 비대화형이면 ``--yes`` 필수이고
-  real 은 ``--confirm-account`` 가 계좌 끝 4자리와 일치해야 한다.
+- 확인: 대화형이면 paper 는 y/N, real 은 계좌 마지막 4자리 입력. 비대화형이면 ``--yes`` 필수이고
+  real 은 ``--confirm-account`` 가 계좌 마지막 4자리와 일치해야 한다.
 - 타임아웃/결과불명은 재전송하지 않는다 -- ``kis order reconcile`` 만이 사후 진실이다(errors 참조).
 """
 from __future__ import annotations
@@ -213,7 +213,7 @@ def _authorize(args: Namespace, *, account: str | None, environment: str, is_tty
         )
     if is_tty:
         if environment == "real":
-            typed = prompt("실전 주문입니다. 확인하려면 계좌 끝 4자리를 입력하세요: ")
+            typed = prompt("실전 주문입니다. 확인하려면 계좌 마지막 4자리를 입력하세요: ")
             if typed.strip() != suffix:
                 raise CliAborted("계좌 확인 실패 -- 전송하지 않았습니다.")
         else:
@@ -224,7 +224,7 @@ def _authorize(args: Namespace, *, account: str | None, environment: str, is_tty
         if not args.yes:
             raise CliConfigError("비대화형 환경에서 주문 전송에는 --yes 가 필요합니다.")
         if environment == "real" and (args.confirm_account or "").strip() != suffix:
-            raise CliConfigError("real 주문: --confirm-account 가 계좌 끝 4자리와 일치해야 합니다.")
+            raise CliConfigError("real 주문: --confirm-account 가 계좌 마지막 4자리와 일치해야 합니다.")
 
 
 _DRY_RUN_NOTE = (

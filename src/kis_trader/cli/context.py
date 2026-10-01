@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 
 def account_suffix(account: str | None) -> str:
-    """계좌 끝 4자리(하이픈 제거 후) -- real 주문 확인용. 마스킹된 식별자라 노출해도 안전하다."""
+    """계좌 마지막 4자리(하이픈 제거 후) -- real 주문 확인용. 마스킹된 식별자라 노출해도 안전하다."""
     if not account:
         return ""
     digits = account.replace("-", "")

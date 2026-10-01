@@ -46,7 +46,7 @@ def _serialize(obj: Any) -> Any:
 
 
 def _account_masked(kis: KISClient) -> str:
-    """계좌번호를 끝 4자리만 남기고 마스킹(전체 계좌번호 비노출)."""
+    """계좌번호를 마지막 4자리만 남기고 마스킹(전체 계좌번호 비노출)."""
     acct = str(getattr(kis, "_account", "") or "")
     digits = "".join(ch for ch in acct if ch.isdigit())
     return f"****{digits[-4:]}" if len(digits) >= 4 else "****"

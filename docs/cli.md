@@ -202,8 +202,8 @@ kis order buy AAPL 10 --venue overseas --limit-price 150 \
 ```
 
 실제 전송하려면 `--execute` 값이 세션 환경(프로필에 저장된 실전/모의)과 같아야 합니다. 대화형에서는 확인을
-받습니다(모의는 y/N, 실전은 계좌 끝 4자리 입력). 스크립트(비대화형)에서는 `--yes` 가
-필요하고, 실전은 `--confirm-account` 로 계좌 끝 4자리를 한 번 더 맞춰야 합니다.
+받습니다(모의는 y/N, 실전은 계좌 마지막 4자리 입력). 스크립트(비대화형)에서는 `--yes` 가
+필요하고, 실전은 `--confirm-account` 로 계좌 마지막 4자리를 한 번 더 맞춰야 합니다.
 
 ```bash
 kis --profile main order buy 005930 10 --limit-price 70000 \

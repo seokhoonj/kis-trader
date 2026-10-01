@@ -126,7 +126,7 @@ kis-mcp
 - **실주문은 안전장치를 거친 뒤에만** -- `place_order`·`cancel_order`·`modify_order` 는 아래 안전장치를
   모두 통과해야 나갑니다. `order_preview` 는 지금도 아무것도 보내지 않고 티켓만 보여 줍니다.
 - **정보 유출 차단** -- 응답은 frozen dataclass 에서 공개 필드만 골라 직렬화하고, `_raw`(벤더 원본 응답)와
-  밑줄 필드는 떼어 냅니다. 계좌번호는 끝 4자리만 남기고 가립니다(`****7801`). 자격증명은 환경변수에서만
+  밑줄 필드는 떼어 냅니다. 계좌번호는 마지막 4자리만 남기고 가립니다(`****7801`). 자격증명은 환경변수에서만
   읽고 절대 출력하지 않습니다.
 - **기본은 모의** -- 환경은 기본이 모의투자이고, 실전은 `KIS_MCP_ENVIRONMENT=real` 과 이중 잠금을
   명시했을 때만 씁니다.
@@ -148,16 +148,30 @@ kis-mcp
 | taint 경계 | 주문 내용은 사람이 직접 적음 -- 조회 결과(뉴스·시세)가 주문으로 흘러들지 않음 | (설계상) |
 | 멱등 | `client_order_id` 로 같은 날 중복 전송을 막음 | (자동) |
 
-실전 주문을 켜려면 환경변수를 예컨대 이렇게 둡니다:
+실전 주문을 켜려면 이 값들을 [쓰는 법](#쓰는-법-설치하고-연결하기)에서 만든 **설정 파일의 같은 `env`
+블록**에 넣습니다 -- Claude Desktop 이 서버를 그 설정으로 띄우기 때문에, 터미널에서 친 `export` 는 그
+프로세스까지 닿지 않습니다. JSON 이라 값은 전부 문자열로 적습니다.
 
-```bash
-export KIS_MCP_ENVIRONMENT=real
-export KIS_MCP_ALLOW_REAL=1
-export KIS_MCP_REAL_CONFIRM=i-understand-real-money
-export KIS_MCP_MAX_ORDER_QTY=100
-export KIS_MCP_MAX_ORDER_NOTIONAL=10000000       # 1주문 최대 1천만원
-export KIS_MCP_SYMBOL_ALLOWLIST=005930,000660
+```json
+{
+  "mcpServers": {
+    "kis-trader": {
+      "command": "kis-mcp",
+      "env": {
+        "KIS_MCP_PROFILE": "main",
+        "KIS_MCP_ENVIRONMENT": "real",
+        "KIS_MCP_ALLOW_REAL": "1",
+        "KIS_MCP_REAL_CONFIRM": "i-understand-real-money",
+        "KIS_MCP_MAX_ORDER_QTY": "100",
+        "KIS_MCP_MAX_ORDER_NOTIONAL": "10000000",
+        "KIS_MCP_SYMBOL_ALLOWLIST": "005930,000660"
+      }
+    }
+  }
+}
 ```
+
+터미널에서 `kis-mcp` 를 직접 띄울 때만 같은 값을 `export KIS_MCP_ALLOW_REAL=1` 식으로 줍니다.
 
 하나라도 빠지면 그 종목의 실주문은 거부됩니다(fail-closed). 손실은 전액 계좌 보유자 책임입니다.
 
