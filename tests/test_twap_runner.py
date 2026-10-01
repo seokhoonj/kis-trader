@@ -105,6 +105,16 @@ def test_run_places_each_slice_at_its_time_and_asserts_sleeps():
     assert result.shortfall == Decimal(0)
 
 
+def test_run_routes_sell_schedule_to_stock_sell():
+    # 회귀: sell 스케줄은 모든 슬라이스를 stock.sell() 로 보낸다(buy 아님) -- runner 의 side 분기.
+    log = []
+    schedule = make_twap_schedule(symbol="005930", side="sell", quantity=100,
+                                  duration="20m", slices=3, now=_scheduled_at(10, 0))
+    execute_twap(_Kis(_Stock(log)), schedule,
+                 now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
+    assert [action for action, _ in log] == ["sell", "sell", "sell"]
+
+
 def test_run_partial_rejection_continues_and_reports_shortfall():
     log = []
     stock = _Stock(log, fail_slices=(2,))                # second slice rejected
