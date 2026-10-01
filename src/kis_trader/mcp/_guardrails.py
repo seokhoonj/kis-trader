@@ -15,7 +15,6 @@ from ..errors import KISUsageError
 
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
 _REAL_CONFIRM_PHRASE = "i-understand-real-money"
-_VENUES = frozenset({"domestic", "overseas"})
 _SIDES = frozenset({"buy", "sell"})
 
 
@@ -99,9 +98,10 @@ class CircuitBreaker:
 
 @dataclass(frozen=True, slots=True)
 class StockOrderPlan:
-    """검증된 주식 주문 티켓(elicitation echo + 집행용). 스칼라 입력만으로 만들어진다(taint 경계)."""
+    """검증된 주식 주문 티켓(elicitation echo + 집행용). 스칼라 입력만으로 만들어진다(taint 경계).
+    MVP 는 국내만이라 ``venue`` 는 ``"domestic"`` 고정."""
 
-    venue: Literal["domestic", "overseas"]
+    venue: Literal["domestic"]
     symbol: str
     side: Literal["buy", "sell"]
     order_type: Literal["market", "limit"]
@@ -109,14 +109,23 @@ class StockOrderPlan:
     limit_price: str | None
 
 
-def build_stock_order(
+def make_stock_order_plan(
     *, venue: str, symbol: str, side: str, quantity: int, limit_price: str | None = None
 ) -> StockOrderPlan:
     """스칼라 입력만으로 주문 티켓을 만든다(taint 경계 -- 읽기 도구의 dict/객체를 인자로 받지 않는다).
-    깊은 검증(가격/수량 규칙)은 라이브러리 :class:`~kis_trader.order.Order` 가 집행 시 한다. 여기선
-    표면 형상만: venue/side 유효, 수량 양의 정수, 해외는 지정가만(limit_price 필수)."""
-    if venue not in _VENUES:
-        raise KISUsageError(f"venue 는 domestic/overseas 중 하나여야 한다: {venue!r}")
+    깊은 검증(가격/수량 규칙)은 라이브러리 :class:`~kis_trader.order.Order` 가 집행 시 하고, 여기선 taint
+    경계(스칼라만)와 표면 형상만 본다.
+
+    **MVP 는 국내(domestic) 주식만.** 해외(overseas)는 거부한다 -- 안전코어(OrderEngine)가 해외 주문에
+    사전 리스크 게이트(RiskLimits)를 지원하지 않아, "실전은 fail-closed 캡 필수"라는 이 서버의 불변식을
+    해외에서 보장할 수 없기 때문이다(후속 슬라이스에서 엔진이 해외 리스크를 지원하면 연다)."""
+    if venue == "overseas":
+        raise KISUsageError(
+            "해외 실주문은 아직 미지원이다 -- 엔진이 해외 사전 리스크 게이트를 지원하지 않아 fail-closed "
+            "캡을 보장할 수 없다(후속). 지금은 국내(domestic) 주식만."
+        )
+    if venue != "domestic":
+        raise KISUsageError(f"venue 는 domestic 이어야 한다(해외는 미지원): {venue!r}")
     if side not in _SIDES:
         raise KISUsageError(f"side 는 buy/sell 중 하나여야 한다: {side!r}")
     if not isinstance(symbol, str) or not symbol:
@@ -127,13 +136,11 @@ def build_stock_order(
     if limit_price is not None and not isinstance(limit_price, (str, int)):
         raise KISUsageError(f"limit_price 는 문자열/정수 스칼라여야 한다: {limit_price!r}")
     order_type: Literal["market", "limit"] = "limit" if limit_price is not None else "market"
-    if venue == "overseas" and order_type == "market":
-        raise KISUsageError("해외 주식은 지정가만 지원한다 -- limit_price 를 줘야 한다.")
     normalized_price = str(limit_price) if limit_price is not None else None
     return StockOrderPlan(
-        venue=venue,  # type: ignore[arg-type]  # 위에서 _VENUES 로 좁힘
+        venue="domestic",
         symbol=symbol,
-        side=side,  # type: ignore[arg-type]
+        side=side,  # type: ignore[arg-type]  # 위에서 _SIDES 로 좁힘
         order_type=order_type,
         quantity=quantity,
         limit_price=normalized_price,

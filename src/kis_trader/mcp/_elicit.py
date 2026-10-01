@@ -8,11 +8,18 @@ server 가 실주문 전에 :func:`confirm_order` 로 사람 확인을 받는다
 
 from __future__ import annotations
 
-from typing import Any
+from typing import Any, Protocol
 
 from mcp.server.elicitation import AcceptedElicitation
 from mcp.shared.exceptions import NoBackChannelError
 from pydantic import BaseModel
+
+
+class SupportsElicit(Protocol):
+    """``ctx.elicit(message, schema)`` 를 가진 것(실제 MCP ``Context`` 와 테스트 fake 둘 다 만족). run_*/
+    confirm_order 가 ``Any`` 대신 이 구조적 타입으로 ctx 를 받아 ``.elicit`` 오타를 타입체커가 잡게 한다."""
+
+    async def elicit(self, message: str, schema: type) -> Any: ...
 
 
 class _OrderConfirmation(BaseModel):
@@ -25,7 +32,7 @@ def _format_ticket(ticket: dict[str, Any]) -> str:
     return "\n".join(f"  {key}: {value}" for key, value in ticket.items())
 
 
-async def confirm_order(ctx: Any, ticket: dict[str, Any]) -> bool:
+async def confirm_order(ctx: SupportsElicit, ticket: dict[str, Any]) -> bool:
     """전체 주문 티켓을 사람에게 보여주고 승인(``confirm=true``)을 받는다. ``accept`` + ``confirm`` 만
     True. 클라 미지원(백채널 없음)·decline·cancel·오류는 전부 False(fail-closed)."""
     message = (

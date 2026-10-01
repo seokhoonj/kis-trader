@@ -16,10 +16,10 @@ from kis_trader.mcp._guardrails import (
     CircuitBreaker,
     RealOrderGate,
     StockOrderPlan,
-    build_stock_order,
     check_allowlist,
+    make_stock_order_plan,
 )
-from kis_trader.mcp.handlers import plan_cancel, plan_modify, plan_place_order
+from kis_trader.mcp.handlers import plan_cancel_order, plan_modify_order, plan_place_order
 from kis_trader.risk import RiskLimits
 from kis_trader.transport import RawResponse
 
@@ -121,41 +121,39 @@ def test_circuit_breaker_bad_limit_rejected():
 
 # --- build_stock_order (taint 경계) --------------------------------------
 def test_build_domestic_limit_order():
-    plan = build_stock_order(venue="domestic", symbol="005930", side="buy", quantity=10,
+    plan = make_stock_order_plan(venue="domestic", symbol="005930", side="buy", quantity=10,
                              limit_price="70000")
     assert plan == StockOrderPlan(venue="domestic", symbol="005930", side="buy",
                                   order_type="limit", quantity=10, limit_price="70000")
 
 
 def test_build_domestic_market_order():
-    plan = build_stock_order(venue="domestic", symbol="005930", side="sell", quantity=1)
+    plan = make_stock_order_plan(venue="domestic", symbol="005930", side="sell", quantity=1)
     assert plan.order_type == "market" and plan.limit_price is None
 
 
-def test_build_overseas_requires_limit():
-    # 해외는 지정가만 -- 시장가(limit 없음) 거부
-    with pytest.raises(KISUsageError, match="지정가"):
-        build_stock_order(venue="overseas", symbol="AAPL", side="buy", quantity=10)
-    plan = build_stock_order(venue="overseas", symbol="AAPL", side="buy", quantity=10,
-                             limit_price="150")
-    assert plan.order_type == "limit"
+def test_build_rejects_overseas():
+    # MVP 는 국내만 -- 해외는 엔진이 사전 리스크 게이트를 지원 안 해 fail-closed 캡 보장 불가라 거부.
+    with pytest.raises(KISUsageError, match="해외"):
+        make_stock_order_plan(venue="overseas", symbol="AAPL", side="buy", quantity=10,
+                              limit_price="150")
 
 
 def test_build_rejects_bad_inputs():
     with pytest.raises(KISUsageError):
-        build_stock_order(venue="crypto", symbol="X", side="buy", quantity=1)
+        make_stock_order_plan(venue="crypto", symbol="X", side="buy", quantity=1)
     with pytest.raises(KISUsageError):
-        build_stock_order(venue="domestic", symbol="005930", side="hold", quantity=1)
+        make_stock_order_plan(venue="domestic", symbol="005930", side="hold", quantity=1)
     with pytest.raises(KISUsageError):
-        build_stock_order(venue="domestic", symbol="005930", side="buy", quantity=0)
+        make_stock_order_plan(venue="domestic", symbol="005930", side="buy", quantity=0)
     with pytest.raises(KISUsageError):
-        build_stock_order(venue="domestic", symbol="005930", side="buy", quantity=True)  # bool
+        make_stock_order_plan(venue="domestic", symbol="005930", side="buy", quantity=True)  # bool
 
 
 def test_build_rejects_nonscalar_symbol():
     # taint 경계: 읽기 도구 dict/객체를 symbol 로 넘기면 거부(스칼라만)
     with pytest.raises(KISUsageError):
-        build_stock_order(venue="domestic", symbol={"code": "005930"},  # type: ignore[arg-type]
+        make_stock_order_plan(venue="domestic", symbol={"code": "005930"},  # type: ignore[arg-type]
                           side="buy", quantity=1, limit_price="100")
 
 
@@ -199,18 +197,18 @@ def test_plan_place_real_all_pass():
 
 
 def test_plan_cancel_gate_and_id():
-    assert plan_cancel(_PAPER, client_order_id="20260101-abc") == "20260101-abc"
+    assert plan_cancel_order(_PAPER, client_order_id="20260101-abc") == "20260101-abc"
     with pytest.raises(KISUsageError):
-        plan_cancel(_PAPER, client_order_id="")
+        plan_cancel_order(_PAPER, client_order_id="")
     gate = RealOrderGate.from_env({}, "real")
     with pytest.raises(KISUsageError):
-        plan_cancel(gate, client_order_id="x")          # 실전 게이트 닫힘
+        plan_cancel_order(gate, client_order_id="x")          # 실전 게이트 닫힘
 
 
 def test_plan_modify_real_requires_risk():
     with pytest.raises(KISUsageError, match="RiskLimits"):
-        plan_modify(_REAL, has_risk=False, client_order_id="x", limit_price="100")
-    out = plan_modify(_REAL, has_risk=True, client_order_id="x", limit_price="100", quantity=5)
+        plan_modify_order(_REAL, has_risk=False, client_order_id="x", limit_price="100")
+    out = plan_modify_order(_REAL, has_risk=True, client_order_id="x", limit_price="100", quantity=5)
     assert out == {"client_order_id": "x", "limit_price": "100", "quantity": 5}
 
 
@@ -318,3 +316,81 @@ def test_run_place_order_breaker_halted_refuses():
         kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), breaker,
         _AcceptCtx(), venue="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
     assert out["sent"] is False and "HALT" in out["reason"] and t.calls == []
+
+
+# --- confirm_order (elicitation 게이트) 직접 테스트 -- 보안 핵심, 전 분기 고정 ---
+def test_confirm_order_accept_confirm_true():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp._elicit import confirm_order
+    assert asyncio.run(confirm_order(_AcceptCtx(), {"symbol": "005930"})) is True
+
+
+def test_confirm_order_accept_but_confirm_false():
+    pytest.importorskip("mcp")
+    from mcp.server.elicitation import AcceptedElicitation
+
+    from kis_trader.mcp._elicit import confirm_order
+
+    class _Ctx:
+        async def elicit(self, message, schema):
+            return AcceptedElicitation(data=schema(confirm=False))   # 폼은 수락하되 confirm=False
+    assert asyncio.run(confirm_order(_Ctx(), {})) is False
+
+
+def test_confirm_order_decline_and_cancel_fail_closed():
+    pytest.importorskip("mcp")
+    from mcp.server.elicitation import CancelledElicitation, DeclinedElicitation
+
+    from kis_trader.mcp._elicit import confirm_order
+
+    class _Dec:
+        async def elicit(self, message, schema):
+            return DeclinedElicitation()
+
+    class _Can:
+        async def elicit(self, message, schema):
+            return CancelledElicitation()
+    assert asyncio.run(confirm_order(_Dec(), {})) is False
+    assert asyncio.run(confirm_order(_Can(), {})) is False
+
+
+def test_confirm_order_no_backchannel_fail_closed():
+    pytest.importorskip("mcp")
+    from mcp.shared.exceptions import NoBackChannelError
+
+    from kis_trader.mcp._elicit import confirm_order
+
+    class _NoBC:
+        async def elicit(self, message, schema):
+            raise NoBackChannelError("elicitation/create")           # 클라 elicitation 미지원
+    assert asyncio.run(confirm_order(_NoBC(), {})) is False           # fail-closed
+
+
+# --- taint 경계: limit_price 도 스칼라만 ----------------------------------
+def test_build_rejects_nonscalar_limit_price():
+    with pytest.raises(KISUsageError):
+        make_stock_order_plan(venue="domestic", symbol="005930", side="buy", quantity=1,
+                              limit_price={"p": 100})  # type: ignore[arg-type]
+
+
+# --- 통합: 실전 allowlist 미스 -> 와이어 전 거부(no wire) ------------------
+def test_run_place_order_real_allowlist_miss_no_wire():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
+    with pytest.raises(KISUsageError, match="allowlist"):
+        asyncio.run(run_place_order(
+            kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), CircuitBreaker(),
+            _AcceptCtx(), venue="domestic", symbol="000660", side="buy", quantity=1, limit_price="100000"))
+    assert t.calls == []
+
+
+# --- 통합: 실전 취소 사람 거부 -> 미전송(cancel 도 사람확인 게이트) --------
+def test_run_cancel_order_real_decline_no_wire():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_cancel_order
+    kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
+    out = asyncio.run(run_cancel_order(
+        kis, RealOrderGate.from_env(_REAL_ENV, "real"), CircuitBreaker(), _DeclineCtx(),
+        client_order_id="20260101-abc"))
+    assert out["sent"] is False and t.calls == []

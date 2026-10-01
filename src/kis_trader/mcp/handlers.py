@@ -16,7 +16,7 @@ from typing import Any, Literal, cast
 from ..account import StockAccount
 from ..client import KISClient
 from ..errors import KISUsageError
-from ._guardrails import RealOrderGate, StockOrderPlan, build_stock_order, check_allowlist
+from ._guardrails import RealOrderGate, StockOrderPlan, check_allowlist, make_stock_order_plan
 
 _Direction = Literal["gainers", "losers"]
 
@@ -103,10 +103,9 @@ def order_preview(
     kis: KISClient, *, symbol: str, side: str, quantity: int,
     limit_price: str | None = None, division: str | None = None,
 ) -> dict[str, Any]:
-    """주문 **미리보기**(dry-run) -- 전송하지 않고 나갈 티켓만 되읽어 보여준다.
-
-    실제 매수/매도는 이 서버가 노출하지 않는다(사람 승인 필요). 이 도구는 무엇이 나갈지 확인하는 용도다.
-    """
+    """주문 **미리보기**(dry-run) -- 전송하지 않고 나갈 티켓만 되읽어 보여준다. 실제 전송은 ``place_order``
+    가 가드레일(이중게이트+RiskLimits+allowlist+사람확인)을 거쳐 한다. 이 도구는 무엇이 나갈지 미리
+    확인하는 용도다(``sent: false``)."""
     if side not in ("buy", "sell"):
         raise ValueError(f"side 는 'buy'/'sell' 만 (받은 값: {side!r}).")
     if quantity <= 0:
@@ -151,12 +150,12 @@ def plan_place_order(
             "(fail-closed). KISClient(risk=RiskLimits(...)) 또는 MCP 캡 환경변수로 설정."
         )
     check_allowlist(symbol, allowlist, is_real=gate.is_real())
-    return build_stock_order(
+    return make_stock_order_plan(
         venue=venue, symbol=symbol, side=side, quantity=quantity, limit_price=limit_price
     )
 
 
-def plan_cancel(gate: RealOrderGate, *, client_order_id: str) -> str:
+def plan_cancel_order(gate: RealOrderGate, *, client_order_id: str) -> str:
     """취소 계획 -- 이중게이트만(취소는 리스크를 늘리지 않음). 기존 ``client_order_id`` 를 지목한다."""
     gate.require_executable()
     if not isinstance(client_order_id, str) or not client_order_id:
@@ -164,7 +163,7 @@ def plan_cancel(gate: RealOrderGate, *, client_order_id: str) -> str:
     return client_order_id
 
 
-def plan_modify(
+def plan_modify_order(
     gate: RealOrderGate, has_risk: bool, *, client_order_id: str, limit_price: str, quantity: int | None = None
 ) -> dict[str, Any]:
     """정정 계획 -- 새 가격을 거는 변경이라 신규 주문처럼 (실전) RiskLimits 를 요구한다(fail-closed)."""

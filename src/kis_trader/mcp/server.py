@@ -14,6 +14,7 @@ RiskLimits(fail-closed 캡) + 종목 allowlist + **사람 확인(elicitation)** 
 from __future__ import annotations
 
 import os
+from dataclasses import dataclass
 from typing import Any
 
 import anyio
@@ -21,10 +22,19 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
 
 from ..client import KISClient
+from ..errors import KISUsageError
 from ..risk import RiskLimits
 from . import handlers
-from ._elicit import confirm_order
+from ._elicit import SupportsElicit, confirm_order
 from ._guardrails import CircuitBreaker, RealOrderGate, StockOrderPlan
+
+
+@dataclass(frozen=True, slots=True)
+class _OrderDecision:
+    """실주문 사전 승인 결과 -- ``approved`` 면 집행, 아니면 ``refusal`` dict 를 그대로 반환(미전송)."""
+
+    approved: bool
+    refusal: dict[str, Any] | None
 
 
 def _build_risk_from_env(environ: dict[str, str]) -> RiskLimits | None:
@@ -69,12 +79,9 @@ def build_client() -> KISClient:
     )
 
 
-def _execute_stock_order(kis: KISClient, plan: StockOrderPlan, exchange: str | None) -> Any:
-    """검증된 plan 을 라이브러리 buy/sell 로 집행한다(동기). 해외는 거래소 자동해석(또는 명시)."""
-    if plan.venue == "overseas":
-        handle: Any = kis.overseas.stock(plan.symbol, exchange=exchange)
-    else:
-        handle = kis.domestic.stock(plan.symbol)
+def _execute_stock_order(kis: KISClient, plan: StockOrderPlan) -> Any:
+    """검증된 plan 을 라이브러리 buy/sell 로 집행한다(동기). MVP 는 국내 주식만(plan.venue=domestic)."""
+    handle = kis.domestic.stock(plan.symbol)
     method = handle.buy if plan.side == "buy" else handle.sell
     if plan.limit_price is not None:
         return method(quantity=plan.quantity, limit_price=plan.limit_price)
@@ -86,63 +93,69 @@ def _order_ticket(kis: KISClient, **fields: Any) -> dict[str, Any]:
     return {"environment": kis.environment, "account": handlers._account_masked(kis), **fields}
 
 
-async def _confirm_and_count(ctx: Any, ticket: dict[str, Any], gate: RealOrderGate,
-                             breaker: CircuitBreaker) -> dict[str, Any] | None:
-    """실전이면 사람 확인(elicitation) + 서킷브레이커. 반환 dict 면 호출자는 그걸 그대로 돌려주고
-    중단(미전송), None 이면 집행 진행. 모의는 즉시 None(집행)."""
+async def _authorize_order(ctx: SupportsElicit, ticket: dict[str, Any], gate: RealOrderGate,
+                           breaker: CircuitBreaker) -> _OrderDecision:
+    """실전 주문 사전 승인 -- 사람 확인(elicitation) + 서킷브레이커. 모의는 즉시 승인(돈 안 나감).
+    서킷브레이커 HALT 는 (이미 HALT 든, 이 주문이 한도를 넘겨 trip 하든) **일관되게 refusal** 로 돌려
+    준다(예외로 새지 않음)."""
     if not gate.is_real():
-        return None
+        return _OrderDecision(approved=True, refusal=None)
+    halted = {"sent": False, "reason": "서킷브레이커 HALT -- 수동 재개 전까지 실주문 차단", "ticket": ticket}
     if breaker.halted:
-        return {"sent": False, "reason": "서킷브레이커 HALT -- 수동 재개 전까지 실주문 차단", "ticket": ticket}
+        return _OrderDecision(False, halted)
     if not await confirm_order(ctx, ticket):
-        return {"sent": False, "reason": "사람 확인 거부/미지원(elicitation) -- 전송하지 않음", "ticket": ticket}
-    breaker.record_and_check()
-    return None
+        return _OrderDecision(
+            False, {"sent": False, "reason": "사람 확인 거부/미지원(elicitation) -- 전송하지 않음",
+                    "ticket": ticket})
+    try:
+        breaker.record_and_check()
+    except KISUsageError:
+        return _OrderDecision(False, halted)       # 이 주문이 한도를 넘겨 trip -> 미전송(일관)
+    return _OrderDecision(True, None)
 
 
 async def run_place_order(
     kis: KISClient, gate: RealOrderGate, allowlist: frozenset[str] | None, breaker: CircuitBreaker,
-    ctx: Any, *, venue: str, symbol: str, side: str, quantity: int,
-    limit_price: str | None = None, exchange: str | None = None,
+    ctx: SupportsElicit, *, venue: str, symbol: str, side: str, quantity: int,
+    limit_price: str | None = None,
 ) -> dict[str, Any]:
-    """place_order 본체(테스트 가능). 가드레일 선검증 -> (실전) 확인 -> 집행."""
-    has_risk = getattr(kis, "_risk", None) is not None
+    """place_order 본체(테스트 가능). 가드레일 선검증 -> (실전) 사람 확인 -> 집행. MVP 는 국내 주식만."""
     plan = handlers.plan_place_order(
-        gate, allowlist, has_risk, venue=venue, symbol=symbol, side=side,
+        gate, allowlist, kis.has_risk_limits, venue=venue, symbol=symbol, side=side,
         quantity=quantity, limit_price=limit_price,
     )
     ticket = _order_ticket(kis, action="place", venue=plan.venue, symbol=plan.symbol, side=plan.side,
                            order_type=plan.order_type, quantity=plan.quantity, limit_price=plan.limit_price)
-    stop = await _confirm_and_count(ctx, ticket, gate, breaker)
-    if stop is not None:
-        return stop
-    report = await anyio.to_thread.run_sync(lambda: _execute_stock_order(kis, plan, exchange))
+    decision = await _authorize_order(ctx, ticket, gate, breaker)
+    if not decision.approved:
+        return decision.refusal                        # type: ignore[return-value]  # approved=False -> refusal 존재
+    report = await anyio.to_thread.run_sync(lambda: _execute_stock_order(kis, plan))
     return {"sent": True, "ticket": ticket, "report": handlers._serialize(report)}
 
 
 async def run_cancel_order(
-    kis: KISClient, gate: RealOrderGate, breaker: CircuitBreaker, ctx: Any, *, client_order_id: str
+    kis: KISClient, gate: RealOrderGate, breaker: CircuitBreaker, ctx: SupportsElicit, *,
+    client_order_id: str,
 ) -> dict[str, Any]:
-    cid = handlers.plan_cancel(gate, client_order_id=client_order_id)
+    cid = handlers.plan_cancel_order(gate, client_order_id=client_order_id)
     ticket = _order_ticket(kis, action="cancel", client_order_id=cid)
-    stop = await _confirm_and_count(ctx, ticket, gate, breaker)
-    if stop is not None:
-        return stop
+    decision = await _authorize_order(ctx, ticket, gate, breaker)
+    if not decision.approved:
+        return decision.refusal                        # type: ignore[return-value]
     report = await anyio.to_thread.run_sync(lambda: kis.orders.cancel(cid))
     return {"sent": True, "ticket": ticket, "report": handlers._serialize(report)}
 
 
 async def run_modify_order(
-    kis: KISClient, gate: RealOrderGate, breaker: CircuitBreaker, ctx: Any, *,
+    kis: KISClient, gate: RealOrderGate, breaker: CircuitBreaker, ctx: SupportsElicit, *,
     client_order_id: str, limit_price: str, quantity: int | None = None,
 ) -> dict[str, Any]:
-    has_risk = getattr(kis, "_risk", None) is not None
-    plan = handlers.plan_modify(gate, has_risk, client_order_id=client_order_id,
-                                limit_price=limit_price, quantity=quantity)
+    plan = handlers.plan_modify_order(gate, kis.has_risk_limits, client_order_id=client_order_id,
+                                      limit_price=limit_price, quantity=quantity)
     ticket = _order_ticket(kis, action="modify", **plan)
-    stop = await _confirm_and_count(ctx, ticket, gate, breaker)
-    if stop is not None:
-        return stop
+    decision = await _authorize_order(ctx, ticket, gate, breaker)
+    if not decision.approved:
+        return decision.refusal                        # type: ignore[return-value]
     report = await anyio.to_thread.run_sync(
         lambda: kis.orders.modify(plan["client_order_id"], limit_price=plan["limit_price"],
                                   quantity=plan["quantity"])
@@ -213,12 +226,12 @@ def build_server(
     @server.tool()
     async def place_order(
         ctx: Context, venue: str, symbol: str, side: str, quantity: int,
-        limit_price: str | None = None, exchange: str | None = None,
+        limit_price: str | None = None,
     ) -> dict[str, Any]:
-        """국내/해외 주식 실주문(매수/매도). 모의 기본. 실전은 이중게이트+RiskLimits+allowlist+사람확인을
-        전부 통과해야 전송. venue='domestic'/'overseas', 해외는 지정가만. 파라미터는 사람이 직접 준다."""
+        """국내 주식 실주문(매수/매도). 모의 기본. 실전은 이중게이트+RiskLimits+allowlist+사람확인을 전부
+        통과해야 전송. venue='domestic'(해외는 아직 미지원). 파라미터는 사람이 직접 준다(읽기결과 금지)."""
         return await run_place_order(kis, gate, allowlist, breaker, ctx, venue=venue, symbol=symbol,
-                                     side=side, quantity=quantity, limit_price=limit_price, exchange=exchange)
+                                     side=side, quantity=quantity, limit_price=limit_price)
 
     @server.tool()
     async def cancel_order(ctx: Context, client_order_id: str) -> dict[str, Any]:
