@@ -86,6 +86,15 @@ def test_quote_handler_no_raw():
     assert "_raw" not in out and "secret" not in str(out)
 
 
+def test_serialize_strips_underscore_keys_from_nested_mappings():
+    """_serialize 는 dataclass 뿐 아니라 중첩 dict 에서도 밑줄 키(_raw/내부키)를 떼어 낸다(누출 방지)."""
+    out = handlers._serialize(
+        {"ok": 1, "_raw": {"app_secret": "LEAK"}, "nested": {"_internal": 2, "keep": 3}}
+    )
+    assert out == {"ok": 1, "nested": {"keep": 3}}
+    assert "LEAK" not in str(out)
+
+
 def test_search_handler_caps_and_serializes():
     hits = [_FakeHit(f"{i:06d}", f"n{i}") for i in range(30)]
     out = handlers.search(kis := _fake_kis(hits=hits), "삼성", limit=5)
@@ -354,6 +363,21 @@ def test_bearer_middleware_reject_payload_shape():
     assert sent[0]["status"] == 401
     assert (b"www-authenticate", b"Bearer") in sent[0]["headers"]
     assert sent[1]["body"] == b'{"error":"unauthorized"}'
+
+
+def test_main_missing_credentials_exits_cleanly_without_traceback(monkeypatch, capsys):
+    """진입점 main() 은 자격증명이 없을 때 raw 트레이스백이 아니라 한 줄 안내 + SystemExit(1)."""
+    pytest.importorskip("mcp")
+    from kis_trader.mcp import server
+    for k in ("KIS_MCP_PROFILE", "KIS_APP_KEY", "KIS_APP_SECRET", "KIS_ACCOUNT"):
+        monkeypatch.delenv(k, raising=False)
+    monkeypatch.setenv("KIS_MCP_ENVIRONMENT", "paper")
+    with pytest.raises(SystemExit) as exc:
+        server.main()
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert err.startswith("kis-mcp:") and "자격증명" in err
+    assert "Traceback" not in err and "KeyError" not in err
 
 
 def test_resolve_transport_rejects_non_numeric_port():
