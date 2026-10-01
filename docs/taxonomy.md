@@ -75,7 +75,7 @@ kis.domestic
 │   ├── nav_intraday()                  # ETF 시장가-NAV 분별
 │   ├── nav_history(start, end)         # 일별 NAV-가격 추이
 │   ├── etf_order_book()                # ETF 10단계 호가·LP
-│   ├── etf_components()                # ETF 구성종목(PDF)
+│   ├── etf_components()                # ETF 구성종목(PDF, Portfolio Deposit File)
 │   │  ── 주문가능 조회(여력) ────────────────────────
 │   ├── buyable()                       # 현금 매수가능 여력
 │   ├── credit_buyable()                # 신용 매수가능 여력
@@ -366,7 +366,7 @@ kis.realtime()
 ├── subscribe / unsubscribe / stream         # 원시 등록·해제·통합 이터레이터(탈출구)
 ├── domestic                                 # 국내 실시간
 │   ├── stock(code)                          # → StockHandle
-│   │   ├── trades(venue='KRX')              # 체결 → Subscription[StockTick]
+│   │   ├── trades(venue='KRX')              # 체결 → StockTick
 │   │   └── order_book(venue='KRX')          # 호가 → StockOrderBook
 │   ├── futures(code, kind='index')          # kind: index|commodity|stock|night
 │   │   ├── trades()                         # 체결 → FuturesTick

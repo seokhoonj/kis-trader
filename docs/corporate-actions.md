@@ -19,7 +19,7 @@ calendar.listings(start="20240101", end="20241231")              # 상장
 
 ```python
 calendar.capital_reductions(start="20240101", end="20240630")  # 자본감소(감자)
-calendar.par_value_changes(start="20240101", end="20240630")   # 액면교체
+calendar.par_value_changes(start="20240101", end="20240630")   # 액면변경
 calendar.appraisal_rights(start="20240101", end="20240630")    # 주식매수청구
 calendar.forfeited_shares(start="20240101", end="20240630")    # 실권주
 calendar.mandatory_deposits(start="20240101", end="20240630")  # 의무예치

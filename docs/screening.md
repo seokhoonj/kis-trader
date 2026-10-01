@@ -14,7 +14,7 @@ kis.domestic.stock(hits[0].symbol).quote()
 ```
 
 각 후보(`DomesticListing`)는 `symbol`(6자리 코드) / `name` / `market`. 첫 호출은 KOSPI·KOSDAQ
-종목 마스터를 받아 캐시합니다(이후는 캐시).
+종목 마스터를 받아 저장해 둡니다(이후로는 저장된 걸 재사용).
 
 ## 오늘의 순위
 

@@ -1,6 +1,6 @@
 # 선물·옵션
 
-국내 지수선물·옵션과 해외 파생. 계약 핸들은 코드로 만듭니다.
+국내 지수선물·옵션과 해외 파생. 계약 핸들(그 종목을 조회·주문하는 객체)은 코드로 만듭니다.
 
 ## 국내
 
@@ -55,7 +55,7 @@ for order in account.open_orders():  # 미체결(정정·취소 가능) 주문 -
 ```
 
 `open_orders()` 는 브로커 측 미체결 목록이라 세션의 `client_order_id` 대신 거래소 주문번호
-(`order_id`)로 옵니다(재시작 등으로 dedup store 를 잃었을 때 서버측 미체결 확인용). `order_date`
+(`order_id`)로 옵니다(앱 재시작 등으로 로컬 주문 기록(중복 방지용 dedup store)이 사라졌을 때 서버측 미체결 확인용). `order_date`
 생략 시 오늘(KST), `side`(`"all"`/`"buy"`/`"sell"`)·`symbol` 로 좁힐 수 있습니다.
 
 `balance()` 의 `DerivativeBalance` 주요 필드:

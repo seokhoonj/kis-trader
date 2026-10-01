@@ -194,12 +194,12 @@ aapl.buy(quantity=10, limit_price=150, algo="twap",
 **같은 날 안에서 시작 < 종료** 로 줍니다. 미국 정규장은 KST 로 자정을 넘어가서(EDT 22:30~05:00 /
 EST 23:30~06:00) **한 시간창으로 세션 전체를 덮을 수 없고**, 자정 이전(예 `("223000","235959")`)이나
 이후(예 `("000000","050000")`) 한쪽만 지정합니다. 두 가지 거부가 있습니다 -- (1) 시작 >= 종료(자정 넘김
-포함)면 와이어 전에 `KISUsageError` 로 **로컬 거부**, (2) 형식은 맞지만 KST 환산 세션 밖(예 미국 현지시각
+포함)면 서버로 보내기 전에 `KISUsageError` 로 **로컬 거부**, (2) 형식은 맞지만 KST 환산 세션 밖(예 미국 현지시각
 `093000`~`160000` 을 그대로 쓰면 KST 낮이라 세션 밖)이면 **서버가** "시작시간이 장시간을 벗어났습니다"로
 거부. 예약(`reserve_buy`/`reserve_sell`)의 algo 는 정규장 종료 집행 고정이라 시간창이 없습니다(예약 접수
 자체는 10:00~22:20 KST 에만 가능). 체결·미체결 진행은 `kis.account.overseas.algo_orders()`/
 `.algo_executions()` 로 조회합니다. 접수된 algo 원주문의 정정·취소는 일반 해외주문과 같은
-`kis.orders.modify`/`cancel` 로 원주문번호를 지목합니다(정정·취소 와이어에는 분할 구분이 실리지 않습니다).
+`kis.orders.modify`/`cancel` 로 원주문번호를 지목합니다(정정·취소 요청에는 분할 구분이 실리지 않습니다).
 
 CLI:
 
@@ -216,7 +216,7 @@ kis order buy AAPL 10 --venue overseas --limit-price 150 --reserve --algo vwap \
 
 국내(KRX)에는 서버측 알고리즘 분할주문이 없어, `stock.twap(...)` 이 클라이언트에서 총 수량을
 시간에 걸쳐 균등 분할해 **여러 번 시장가로** 발주합니다. 미국 algo 가 서버에 위임하는 것과 달리
-이쪽은 호출 스레드가 스케줄 기간 내내 대기하며 각 슬라이스를 직접 냅니다(**포그라운드 블로킹**).
+이쪽은 호출한 코드가 스케줄 기간 내내 멈춰 대기하며 각 슬라이스를 직접 냅니다(**포그라운드 블로킹** -- 그 시간 동안 다음 코드로 넘어가지 못하고 기다립니다).
 각 슬라이스는 고유 주문번호를 가진 일반 국내주문이라 이중체결 방지·타임아웃 재시도 금지·재조회는
 기존 안전 코어가 그대로 적용됩니다.
 
@@ -317,7 +317,7 @@ stock.credit_sell(quantity=10, credit_type="25", limit_price=71000)  # 신용 �
 ```python
 from kis_trader import OrderStore
 
-kis = KISClient(…, store=OrderStore(path="orders.db"))  # 지문 dedup 을 재시작에도 유지
+kis = KISClient(…, store=OrderStore(path="orders.db"))  # 지문 기반 중복 방지를 재시작에도 유지
 ```
 
 ## 사전 리스크 한도
