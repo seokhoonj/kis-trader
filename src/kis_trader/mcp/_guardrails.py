@@ -109,6 +109,15 @@ class StockOrderPlan:
     limit_price: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class ModifyOrderPlan:
+    """검증된 정정 티켓(elicitation echo + 집행용). :class:`StockOrderPlan` 과 대칭(dict 대신 dataclass)."""
+
+    client_order_id: str
+    limit_price: str
+    quantity: int | None
+
+
 def make_stock_order_plan(
     *, venue: str, symbol: str, side: str, quantity: int, limit_price: str | None = None
 ) -> StockOrderPlan:

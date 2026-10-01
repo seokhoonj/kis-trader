@@ -16,7 +16,13 @@ from typing import Any, Literal, cast
 from ..account import StockAccount
 from ..client import KISClient
 from ..errors import KISUsageError
-from ._guardrails import RealOrderGate, StockOrderPlan, check_allowlist, make_stock_order_plan
+from ._guardrails import (
+    ModifyOrderPlan,
+    RealOrderGate,
+    StockOrderPlan,
+    check_allowlist,
+    make_stock_order_plan,
+)
 
 _Direction = Literal["gainers", "losers"]
 
@@ -165,7 +171,7 @@ def plan_cancel_order(gate: RealOrderGate, *, client_order_id: str) -> str:
 
 def plan_modify_order(
     gate: RealOrderGate, has_risk: bool, *, client_order_id: str, limit_price: str, quantity: int | None = None
-) -> dict[str, Any]:
+) -> ModifyOrderPlan:
     """정정 계획 -- 새 가격을 거는 변경이라 신규 주문처럼 (실전) RiskLimits 를 요구한다(fail-closed)."""
     gate.require_executable()
     if gate.is_real() and not has_risk:
@@ -178,4 +184,4 @@ def plan_modify_order(
         raise KISUsageError(f"limit_price 는 문자열/정수 스칼라여야 한다: {limit_price!r}")
     if quantity is not None and (isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0):
         raise KISUsageError(f"quantity 는 양의 정수여야 한다: {quantity!r}")
-    return {"client_order_id": client_order_id, "limit_price": str(limit_price), "quantity": quantity}
+    return ModifyOrderPlan(client_order_id=client_order_id, limit_price=str(limit_price), quantity=quantity)

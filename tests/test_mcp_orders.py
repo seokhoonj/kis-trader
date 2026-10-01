@@ -14,6 +14,7 @@ from kis_trader import KISClient
 from kis_trader.errors import KISUsageError
 from kis_trader.mcp._guardrails import (
     CircuitBreaker,
+    ModifyOrderPlan,
     RealOrderGate,
     StockOrderPlan,
     check_allowlist,
@@ -209,7 +210,7 @@ def test_plan_modify_real_requires_risk():
     with pytest.raises(KISUsageError, match="RiskLimits"):
         plan_modify_order(_REAL, has_risk=False, client_order_id="x", limit_price="100")
     out = plan_modify_order(_REAL, has_risk=True, client_order_id="x", limit_price="100", quantity=5)
-    assert out == {"client_order_id": "x", "limit_price": "100", "quantity": 5}
+    assert out == ModifyOrderPlan(client_order_id="x", limit_price="100", quantity=5)
 
 
 # --- integration: run_place_order (가드레일 + elicitation 확인 + 집행) -------
@@ -417,3 +418,28 @@ def test_build_server_rejects_env_mismatch():
     with pytest.raises(KISUsageError, match="split-brain"):
         build_server(kis, gate=RealOrderGate.from_env(_REAL_ENV, "real"),
                      allowlist=frozenset({"005930"}), breaker=CircuitBreaker())
+
+
+# --- 통합: cancel/modify execute(paper, 주문 시드 후) -- 공유 _authorize_order 경로 집행 확인 ---
+def test_run_cancel_order_paper_executes():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_cancel_order
+    kis, t = _order_client("paper")
+    seed = kis.domestic.stock("005930").buy(quantity=1)        # 주문 1건 시드(store 기록)
+    out = asyncio.run(run_cancel_order(
+        kis, RealOrderGate.from_env({}, "paper"), CircuitBreaker(), _AcceptCtx(),
+        client_order_id=seed.client_order_id))
+    assert out["sent"] is True
+    assert len(t.calls) >= 2                                   # place(시드) + cancel 와이어
+
+
+def test_run_modify_order_paper_executes():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_modify_order
+    kis, t = _order_client("paper")
+    seed = kis.domestic.stock("005930").buy(quantity=1, limit_price="70000")
+    out = asyncio.run(run_modify_order(
+        kis, RealOrderGate.from_env({}, "paper"), CircuitBreaker(), _AcceptCtx(),
+        client_order_id=seed.client_order_id, limit_price="71000"))
+    assert out["sent"] is True
+    assert len(t.calls) >= 2                                   # place(시드) + modify 와이어

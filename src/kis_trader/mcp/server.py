@@ -152,13 +152,14 @@ async def run_modify_order(
 ) -> dict[str, Any]:
     plan = handlers.plan_modify_order(gate, kis.has_risk_limits, client_order_id=client_order_id,
                                       limit_price=limit_price, quantity=quantity)
-    ticket = _order_ticket(kis, action="modify", **plan)
+    ticket = _order_ticket(kis, action="modify", client_order_id=plan.client_order_id,
+                           limit_price=plan.limit_price, quantity=plan.quantity)
     decision = await _authorize_order(ctx, ticket, gate, breaker)
     if not decision.approved:
         return decision.refusal                        # type: ignore[return-value]
     report = await anyio.to_thread.run_sync(
-        lambda: kis.orders.modify(plan["client_order_id"], limit_price=plan["limit_price"],
-                                  quantity=plan["quantity"])
+        lambda: kis.orders.modify(plan.client_order_id, limit_price=plan.limit_price,
+                                  quantity=plan.quantity)
     )
     return {"sent": True, "ticket": ticket, "report": handlers._serialize(report)}
 
