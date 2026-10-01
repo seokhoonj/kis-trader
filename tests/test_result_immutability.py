@@ -76,6 +76,41 @@ def test_frozen_result_with_mapping_field_is_hashable() -> None:
     assert snap in {snap}
 
 
+def test_execution_report_raw_is_deep_frozen() -> None:
+    # 회귀락: ExecutionReport 는 _raw 를 (얕게가 아니라) 깊게 얼린다 -- 다른 결과객체와 동일.
+    from datetime import datetime
+    from decimal import Decimal
+
+    from kis_trader.report import ExecutionReport, OrderStatus
+    rpt = ExecutionReport(
+        client_order_id="cid-1", order_id="ODNO1", symbol="005930", side="buy",
+        status=OrderStatus.NEW, filled_quantity=Decimal(0), average_price=None,
+        recorded_at=datetime(2026, 1, 1), _raw={"output": {"nested": [1, 2]}},
+    )
+    assert isinstance(rpt._raw["output"], MappingProxyType)
+    assert isinstance(rpt._raw["output"]["nested"], tuple)
+    with pytest.raises(TypeError):
+        rpt._raw["output"]["nested"] = ()  # type: ignore[index]
+
+
+def test_reserved_order_raw_is_deep_frozen() -> None:
+    # 회귀락: ReservedOrder 도 _raw 를 깊게 얼린다.
+    from decimal import Decimal
+
+    from kis_trader.reserved_order import ReservedOrder
+    ro = ReservedOrder(
+        sequence="1", order_date=None, received_date=None, symbol="005930", name="삼성전자",
+        side="buy", order_type_name="현금매수", reserved_quantity=Decimal(10),
+        filled_quantity=Decimal(0), order_price=Decimal(70000), status="미처리",
+        reject_reason="", executed_order_id="", reservation_end_date=None,
+        _raw={"output": {"nested": [3, 4]}},
+    )
+    assert isinstance(ro._raw["output"], MappingProxyType)
+    assert isinstance(ro._raw["output"]["nested"], tuple)
+    with pytest.raises(TypeError):
+        ro._raw["output"]["nested"] = ()  # type: ignore[index]
+
+
 def test_tuple_field_normalizes_list_input() -> None:
     # tuple 로 선언된 필드에 리스트를 넣어도 tuple 로 저장된다(진짜 불변).
     summary = BrokerActivitySummary(
