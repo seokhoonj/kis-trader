@@ -173,3 +173,16 @@ def test_server_registers_read_and_guarded_order_tools():
             "place_order", "cancel_order", "modify_order"} <= names
     # 원시 매매 메서드(buy/sell/credit)는 직접 노출하지 않는다 -- 가드레일 통과하는 place_order 만.
     assert not (names & {"buy", "sell", "credit_buy", "credit_sell"})
+
+
+def test_build_client_missing_credentials_gives_clear_error(monkeypatch):
+    """자격증명이 없으면 raw KeyError 가 아니라 안내 메시지를 담은 KISUsageError 를 올린다."""
+    pytest.importorskip("mcp")
+    from kis_trader.errors import KISUsageError
+    from kis_trader.mcp.server import build_client
+    for k in ("KIS_MCP_PROFILE", "KIS_APP_KEY", "KIS_APP_SECRET", "KIS_ACCOUNT"):
+        monkeypatch.delenv(k, raising=False)
+    with pytest.raises(KISUsageError) as exc:
+        build_client()
+    msg = str(exc.value)
+    assert "자격증명" in msg and "KIS_APP_KEY" in msg
