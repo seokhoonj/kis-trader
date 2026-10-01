@@ -28,6 +28,7 @@ from ..risk import RiskLimits
 from . import handlers
 from ._elicit import SupportsElicit, confirm_order
 from ._guardrails import CircuitBreaker, RealOrderGate, StockOrderPlan
+from ._http_auth import BearerTokenMiddleware
 
 
 @dataclass(frozen=True, slots=True)
@@ -79,10 +80,10 @@ def _resolve_transport(environ: dict[str, str]) -> tuple[str, dict[str, Any]]:
             f"KIS_MCP_TRANSPORT 는 stdio/sse/streamable-http 중 하나여야 합니다(받은 값: {transport!r})."
         )
     host = environ.get("KIS_MCP_HOST", "127.0.0.1")
-    if host not in _LOCAL_HOSTS:
+    if host not in _LOCAL_HOSTS and not environ.get("KIS_MCP_ACCESS_TOKEN"):
         raise KISUsageError(
-            f"원격 전송({transport})은 아직 로컬 바인드(127.0.0.1)만 지원합니다(받은 host: {host!r}). "
-            "공개 노출은 127.0.0.1 로 띄운 뒤 TLS·인증을 맡는 역프록시/터널 뒤에 두세요."
+            f"비-로컬 bind({host!r})는 KIS_MCP_ACCESS_TOKEN 을 설정해야 허용됩니다(인증 없는 공개 노출 "
+            "방지). 공개 노출은 127.0.0.1 로 띄워 TLS·인증을 맡는 역프록시/터널 뒤에 두는 것을 권장합니다."
         )
     return transport, {"host": host, "port": int(environ.get("KIS_MCP_PORT", "8000"))}
 
@@ -301,7 +302,26 @@ def main() -> None:
         # 설정 오류는 트레이스백 대신 한 줄로. stderr 는 Claude Desktop 의 mcp 로그에 남는다.
         print(f"kis-mcp: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
-    build_server(kis, gate=gate, allowlist=allowlist, breaker=breaker).run(transport, **run_kwargs)
+    server = build_server(kis, gate=gate, allowlist=allowlist, breaker=breaker)
+    if transport == "stdio":
+        server.run("stdio")
+        return
+    _serve_http(server, transport, os.environ.get("KIS_MCP_ACCESS_TOKEN"), **run_kwargs)
+
+
+def _serve_http(server: MCPServer, transport: str, token: str | None, *, host: str, port: int) -> None:
+    """HTTP 전송 실행. KIS_MCP_ACCESS_TOKEN 이 있으면 ASGI 앱에 bearer 게이트를 씌워 uvicorn 으로 띄우고
+    (비-로컬 bind 허용), 없으면 localhost 전용으로 SDK 의 run 을 그대로 쓴다."""
+    if not token:
+        if transport == "sse":
+            server.run("sse", host=host, port=port)
+        else:
+            server.run("streamable-http", host=host, port=port)
+        return
+    import uvicorn
+    app = server.streamable_http_app() if transport == "streamable-http" else server.sse_app()
+    app.add_middleware(BearerTokenMiddleware, token=token)
+    uvicorn.run(app, host=host, port=port, log_level="info")
 
 
 if __name__ == "__main__":

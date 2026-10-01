@@ -217,3 +217,77 @@ def test_resolve_transport_rejects_unknown_transport():
     from kis_trader.mcp.server import _resolve_transport
     with pytest.raises(KISUsageError):
         _resolve_transport({"KIS_MCP_TRANSPORT": "carrier-pigeon"})
+
+
+def test_resolve_transport_allows_nonlocal_only_with_token():
+    """비-로컬 bind 는 액세스 토큰이 있을 때만 허용(인증 없는 공개 노출 방지)."""
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import _resolve_transport
+    transport, kw = _resolve_transport({
+        "KIS_MCP_TRANSPORT": "streamable-http", "KIS_MCP_HOST": "0.0.0.0",
+        "KIS_MCP_ACCESS_TOKEN": "s3cret",
+    })
+    assert transport == "streamable-http"
+    assert kw == {"host": "0.0.0.0", "port": 8000}
+
+
+# --- bearer 토큰 미들웨어(HTTP 전송 방어심층) ---------------------------------
+
+
+def _drive_bearer(headers, token="s3cret"):
+    """BearerTokenMiddleware 를 http scope 로 한 번 구동하고 (status, inner_호출여부)."""
+    import asyncio
+
+    from kis_trader.mcp._http_auth import BearerTokenMiddleware
+    inner_called = {"v": False}
+
+    async def inner(scope, receive, send):
+        inner_called["v"] = True
+        await send({"type": "http.response.start", "status": 200, "headers": []})
+        await send({"type": "http.response.body", "body": b"ok"})
+
+    sent: list = []
+
+    async def send(msg):
+        sent.append(msg)
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    mw = BearerTokenMiddleware(inner, token)
+    asyncio.run(mw({"type": "http", "headers": headers}, receive, send))
+    status = next(m["status"] for m in sent if m["type"] == "http.response.start")
+    return status, inner_called["v"]
+
+
+def test_bearer_middleware_rejects_missing_or_wrong_token():
+    pytest.importorskip("mcp")
+    assert _drive_bearer([]) == (401, False)
+    assert _drive_bearer([(b"authorization", b"Bearer nope")]) == (401, False)
+    assert _drive_bearer([(b"authorization", b"Basic s3cret")]) == (401, False)
+
+
+def test_bearer_middleware_passes_correct_token():
+    pytest.importorskip("mcp")
+    assert _drive_bearer([(b"authorization", b"Bearer s3cret")]) == (200, True)
+
+
+def test_bearer_middleware_passes_through_non_http_scope():
+    """lifespan 등 비-HTTP scope 는 토큰 검사 없이 통과."""
+    pytest.importorskip("mcp")
+    import asyncio
+
+    from kis_trader.mcp._http_auth import BearerTokenMiddleware
+    seen = {"v": False}
+
+    async def inner(scope, receive, send):
+        seen["v"] = True
+
+    async def send(msg):
+        ...
+
+    async def receive():
+        return {}
+
+    asyncio.run(BearerTokenMiddleware(inner, "s3cret")({"type": "lifespan"}, receive, send))
+    assert seen["v"] is True
