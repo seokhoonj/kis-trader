@@ -154,9 +154,17 @@ export KIS_MCP_PORT=8000                    # 기본 8000
 kis-mcp
 ```
 
-**로컬(127.0.0.1) 바인드만 허용합니다.** 돈이 오가는 서버라 비-로컬 host 로 열려 하면 거부합니다
-(fail-closed). 바깥에서 접근해야 하면 127.0.0.1 로 띄운 뒤 **TLS·인증을 맡는 역프록시/터널** 뒤에 두세요 --
-ChatGPT 처럼 공개 HTTPS 커넥터만 받는 클라이언트가 이 경우입니다.
+**기본은 로컬(127.0.0.1) 전용입니다.** 돈이 오가는 서버라, 토큰 없이 비-로컬 host 로 열려 하면 거부합니다
+(fail-closed). ChatGPT 처럼 공개 HTTPS 커넥터만 받는 클라이언트는 아래 둘을 갖춰 노출합니다.
+
+1. **`KIS_MCP_ACCESS_TOKEN`** 을 설정하면 비-로컬 bind 가 열리고, 모든 HTTP 요청에
+   `Authorization: Bearer <토큰>` 을 요구합니다(불일치/누락 → 401). 방어심층입니다.
+2. 그 앞에 **TLS·인증(OAuth 등)을 맡는 역프록시/터널**(Cloudflare Tunnel+Access, oauth2-proxy 등)을 두어
+   127.0.0.1 로 띄운 서버로 전달하는 것이 **권장 방식**입니다. 공개 host 로 직접 bind 한다면
+   `KIS_MCP_ALLOWED_HOSTS`(쉼표 구분, 예 `my.host:*`)로 허용 Host 를 지정하세요.
+
+실주문은 전송 방식과 무관하게 사람 확인(elicitation) 게이트를 그대로 거칩니다 -- 원격이라고 느슨해지지
+않습니다.
 :::
 
 ## 이 서버가 하는 일
