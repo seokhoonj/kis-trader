@@ -80,7 +80,9 @@ def _requests_send(
         )
     except (requests.Timeout, requests.ConnectionError) as err:
         raise TransportTimeout("KIS HTTP 요청의 결과를 확인할 수 없다.") from err
-    return response.status_code, dict(response.headers), response.json()
+    # 헤더 키를 소문자로 정규화 -- requests 의 대소문자 무시 맵을 평범한 dict 로 바꾸면서도 tr_cont 등
+    # 하위 연속조회가 서버/프록시의 Title-Case 표기에도 매칭되게 한다(페이지네이션 조용한 절단 방지).
+    return response.status_code, {k.lower(): v for k, v in response.headers.items()}, response.json()
 
 
 class RequestsTransport:

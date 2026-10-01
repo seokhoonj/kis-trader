@@ -112,6 +112,13 @@ def test_format_wire_decimal_is_fixed_point(value, expected):
     assert format_wire_decimal(value) == expected
 
 
+@pytest.mark.parametrize("bad", [Decimal("NaN"), Decimal("Infinity"), Decimal("-Infinity")])
+def test_format_wire_decimal_rejects_non_finite(bad):
+    # 비유한값은 와이어/지문에 "NaN"/"Infinity" 로 실리지 않고 fail-closed(다른 파서와 대칭).
+    with pytest.raises(KISError, match="유한"):
+        format_wire_decimal(bad)
+
+
 # --- decimal_or_zero (재조회 경로) ----------------------------------
 @pytest.mark.parametrize("value", [None, ""])
 def test_decimal_or_zero_blank_is_zero(value):

@@ -191,6 +191,11 @@ class TokenManager:
             if token is None:
                 return
             body = {"appkey": self._app_key, "appsecret": self._app_secret, "token": token}
-            status, _payload = self._post(base_url(self._environment) + "/oauth2/revokeP", body)
+            try:
+                status, _payload = self._post(base_url(self._environment) + "/oauth2/revokeP", body)
+            except KISAuthError:
+                raise
+            except Exception as err:
+                raise KISAuthError("KIS OAuth 접근 토큰 폐기 요청에 실패했다(전송/JSON 파싱 오류).") from err
             if status != 200:
                 raise KISAuthError("KIS OAuth 접근 토큰 폐기에 실패했다.")

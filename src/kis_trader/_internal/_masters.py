@@ -64,19 +64,22 @@ class InstrumentRecord:
     realtime_symbol: str              # 실시간 시세용 심볼(rsym)
 
 
-def parse_overseas_master(data: bytes) -> list[InstrumentRecord]:
+def parse_overseas_master(master_bytes: bytes) -> list[InstrumentRecord]:
     """마스터 파일 원본(압축 해제된 cp949 텍스트 바이트) -> :class:`InstrumentRecord` 리스트.
 
-    탭 구분·cp949 인코딩. 빈 줄은 건너뛰고, 데이터 줄의 컬럼 수가 기대(24 레이아웃의 최소치)에
-    못 미치면 포맷 변경으로 보고 :class:`ValueError`(조용히 자르지 않는다)."""
-    text = data.decode("cp949")
+    탭 구분·cp949 인코딩. 빈 줄은 건너뛰고, 디코드 실패나 데이터 줄의 컬럼 수가 기대(24 레이아웃의
+    최소치)에 못 미치면 포맷 변경으로 보고 :class:`KISError`(조용히 자르지 않는다 -- 국내 파서와 대칭)."""
+    try:
+        text = master_bytes.decode("cp949")
+    except UnicodeDecodeError as err:
+        raise KISError("해외 마스터 cp949 디코드 실패 -- 포맷 변경 의심.") from err
     records: list[InstrumentRecord] = []
     for line in text.splitlines():
-        if not line.strip():           # 빈 줄(말미 개행 등) skip
+        if not line.strip():
             continue
         cols = line.split("\t")
         if len(cols) < _MIN_COLUMNS:   # 포맷 변경 -> fail-closed
-            raise ValueError(
+            raise KISError(
                 f"해외 마스터 컬럼 수가 예상보다 적다({len(cols)} < {_MIN_COLUMNS}) -- 포맷 변경 의심."
             )
         type_code = cols[_COL_SECURITY_TYPE].strip()
@@ -194,7 +197,11 @@ def load_overseas_master(
     cache_dir = cache_dir if cache_dir is not None else default_cache_dir()
     path = os.path.join(cache_dir, f"{code}mst.cod")
     stamp = time.time() if now is None else now
-    if os.path.exists(path) and (stamp - os.path.getmtime(path)) < max_age:
+    try:
+        fresh = (stamp - os.path.getmtime(path)) < max_age   # 그 사이 캐시가 지워졌으면 재다운로드로 폴백
+    except OSError:
+        fresh = False
+    if fresh:
         with open(path, "rb") as cached:
             return parse_overseas_master(cached.read())
     raw = fetch_overseas_master_raw(code, fetch=fetch)
@@ -365,7 +372,11 @@ def load_domestic_master(
     cache_dir = cache_dir if cache_dir is not None else default_cache_dir()
     path = os.path.join(cache_dir, f"{master_file}.mst")
     stamp = time.time() if now is None else now
-    if os.path.exists(path) and (stamp - os.path.getmtime(path)) < max_age:
+    try:
+        fresh = (stamp - os.path.getmtime(path)) < max_age   # 그 사이 캐시가 지워졌으면 재다운로드로 폴백
+    except OSError:
+        fresh = False
+    if fresh:
         with open(path, "rb") as cached:
             return parse_domestic_master(cached.read(), market=market)
     raw = fetch_domestic_master_raw(market, fetch=fetch)

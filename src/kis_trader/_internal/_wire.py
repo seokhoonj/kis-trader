@@ -71,8 +71,10 @@ def format_wire_decimal(value: Decimal) -> str:
     ``format(x, "f")`` 는 ``normalize()`` 와 달리 정밀도로 반올림하지 않고 지수표기만 펼친다.
     KIS 와이어에 실리는 모든 수치(주문 단가/수량, 사전점검 단가, 요청 지문)가 **같은** 정본을
     쓰도록 여기 한 곳에 둔다 -- 정본이 갈리면 와이어가 동일한 값이 서로 다른 문자열이 되어
-    주문 멱등 판정(지문 비교)이 깨진다.
+    주문 멱등 판정(지문 비교)이 깨진다. 비유한(NaN/Infinity)은 이 모듈의 다른 파서와 같이 fail-closed.
     """
+    if not value.is_finite():
+        raise KISError(f"와이어 수치는 유한해야 한다(NaN/Infinity 금지): {value!r}")
     return format(value, "f")
 
 

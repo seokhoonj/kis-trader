@@ -89,8 +89,14 @@ def test_parse_unknown_security_type_keeps_raw_code():
 
 def test_parse_short_row_fails_closed():
     bad = "US\t23\tNAS\t나스닥"                       # 컬럼 4개뿐 -> 포맷 변경
-    with pytest.raises(ValueError, match="컬럼 수"):
+    with pytest.raises(KISError, match="컬럼 수"):   # 국내 파서와 대칭(둘 다 KISError)
         parse_overseas_master((bad + "\n").encode("cp949"))
+
+
+def test_parse_overseas_master_bad_encoding_fails_closed():
+    # cp949 로 디코드 안 되는 바이트 -> 포맷 변경으로 보고 KISError(조용히 자르지 않는다).
+    with pytest.raises(KISError, match="디코드"):
+        parse_overseas_master(b"\xff\xfe\xff\xfe invalid cp949 \x80\x81")
 
 
 def _fake_fetch_for(rows):
