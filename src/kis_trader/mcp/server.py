@@ -63,6 +63,30 @@ def _breaker_from_env(environ: dict[str, str]) -> CircuitBreaker:
     return CircuitBreaker(max_real_orders=int(raw)) if raw else CircuitBreaker()
 
 
+_LOCAL_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
+
+
+def _resolve_transport(environ: dict[str, str]) -> tuple[str, dict[str, Any]]:
+    """``KIS_MCP_TRANSPORT`` 로 전송 방식을 고른다 -- 기본 ``stdio``(Claude Desktop/Cursor). ``sse``/
+    ``streamable-http`` 는 네트워크 전송이라 **로컬(127.0.0.1) 바인드만** 허용한다(fail-closed) -- 공개
+    노출은 TLS·인증을 맡는 역프록시/터널이 127.0.0.1 로 뜬 서버 앞에 서는 방식으로 한다. 돈이 오가는
+    서버라 비-로컬 bind 를 조용히 열어 주지 않는다."""
+    transport = environ.get("KIS_MCP_TRANSPORT", "stdio")
+    if transport == "stdio":
+        return "stdio", {}
+    if transport not in ("sse", "streamable-http"):
+        raise KISUsageError(
+            f"KIS_MCP_TRANSPORT 는 stdio/sse/streamable-http 중 하나여야 합니다(받은 값: {transport!r})."
+        )
+    host = environ.get("KIS_MCP_HOST", "127.0.0.1")
+    if host not in _LOCAL_HOSTS:
+        raise KISUsageError(
+            f"원격 전송({transport})은 아직 로컬 바인드(127.0.0.1)만 지원합니다(받은 host: {host!r}). "
+            "공개 노출은 127.0.0.1 로 띄운 뒤 TLS·인증을 맡는 역프록시/터널 뒤에 두세요."
+        )
+    return transport, {"host": host, "port": int(environ.get("KIS_MCP_PORT", "8000"))}
+
+
 def build_client() -> KISClient:
     """환경변수/프로필로 KISClient 를 만든다. 기본 paper; real 은 명시 opt-in. 캡(RiskLimits)은
     ``KIS_MCP_MAX_ORDER_*``/``KIS_MCP_PRICE_COLLAR_PCT`` 로."""
@@ -264,18 +288,20 @@ def build_server(
 
 
 def main() -> None:
-    """stdio MCP 서버 실행 진입점(콘솔 스크립트 ``kis-mcp``)."""
+    """MCP 서버 실행 진입점(콘솔 스크립트 ``kis-mcp``). 기본 stdio; ``KIS_MCP_TRANSPORT`` 로 sse/
+    streamable-http(로컬 바인드) 선택."""
     environment = os.environ.get("KIS_MCP_ENVIRONMENT", "paper")
     try:
         kis = build_client()
         gate = RealOrderGate.from_env(dict(os.environ), environment)
         allowlist = _build_allowlist_from_env(dict(os.environ))
         breaker = _breaker_from_env(dict(os.environ))
+        transport, run_kwargs = _resolve_transport(dict(os.environ))
     except KISError as exc:
         # 설정 오류는 트레이스백 대신 한 줄로. stderr 는 Claude Desktop 의 mcp 로그에 남는다.
         print(f"kis-mcp: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
-    build_server(kis, gate=gate, allowlist=allowlist, breaker=breaker).run()
+    build_server(kis, gate=gate, allowlist=allowlist, breaker=breaker).run(transport, **run_kwargs)
 
 
 if __name__ == "__main__":
