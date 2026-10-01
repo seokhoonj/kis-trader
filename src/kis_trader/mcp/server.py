@@ -167,6 +167,11 @@ def build_server(
     kis: KISClient, *, gate: RealOrderGate, allowlist: frozenset[str] | None, breaker: CircuitBreaker
 ) -> Any:
     """주어진 KISClient·가드레일을 소비하는 MCP 서버(MCPServer)를 만들어 도구를 등록한다."""
+    if gate.environment != kis.environment:
+        raise KISUsageError(
+            f"게이트 환경({gate.environment!r})과 클라이언트 환경({kis.environment!r})이 어긋난다 -- "
+            "split-brain(모의 게이트 + 실전 소켓) 차단."
+        )
     server = MCPServer(
         "kis-trader",
         instructions=(

@@ -394,3 +394,26 @@ def test_run_cancel_order_real_decline_no_wire():
         kis, RealOrderGate.from_env(_REAL_ENV, "real"), CircuitBreaker(), _DeclineCtx(),
         client_order_id="20260101-abc"))
     assert out["sent"] is False and t.calls == []
+
+
+def test_run_place_order_breaker_trips_this_order_no_wire():
+    # 이 주문이 한도를 넘겨 trip 하는 경로(_authorize_order 가 breaker 예외를 잡아 일관 refusal) -- 미전송.
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    breaker = CircuitBreaker(max_real_orders=1)
+    breaker.record_and_check()                         # count=1 (아직 halted 아님)
+    kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
+    out = asyncio.run(run_place_order(
+        kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), breaker,
+        _AcceptCtx(), venue="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
+    assert out["sent"] is False and "HALT" in out["reason"] and t.calls == []
+
+
+def test_build_server_rejects_env_mismatch():
+    # split-brain 차단: 게이트 환경 != 클라이언트 환경이면 서버 생성 거부(직접 조립 경로 방어).
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import build_server
+    kis, _ = _order_client("paper")
+    with pytest.raises(KISUsageError, match="split-brain"):
+        build_server(kis, gate=RealOrderGate.from_env(_REAL_ENV, "real"),
+                     allowlist=frozenset({"005930"}), breaker=CircuitBreaker())

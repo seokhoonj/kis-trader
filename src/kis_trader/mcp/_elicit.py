@@ -29,7 +29,9 @@ class _OrderConfirmation(BaseModel):
 
 
 def _format_ticket(ticket: dict[str, Any]) -> str:
-    return "\n".join(f"  {key}: {value}" for key, value in ticket.items())
+    # 값을 repr 로 -- 문자열 값(client_order_id/limit_price 등)에 개행을 끼워 확인 메시지에 가짜 줄을
+    # 주입하는 표시 스푸핑을 막는다(개행이 \n 으로 이스케이프돼 한 줄에 남는다).
+    return "\n".join(f"  {key}: {value!r}" for key, value in ticket.items())
 
 
 async def confirm_order(ctx: SupportsElicit, ticket: dict[str, Any]) -> bool:
