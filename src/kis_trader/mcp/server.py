@@ -14,6 +14,7 @@ RiskLimits(fail-closed 캡) + 종목 allowlist + **사람 확인(elicitation)** 
 from __future__ import annotations
 
 import os
+import sys
 from dataclasses import dataclass
 from typing import Any
 
@@ -22,7 +23,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
 
 from ..client import KISClient
-from ..errors import KISUsageError
+from ..errors import KISError, KISUsageError
 from ..risk import RiskLimits
 from . import handlers
 from ._elicit import SupportsElicit, confirm_order
@@ -70,6 +71,13 @@ def build_client() -> KISClient:
     profile = os.environ.get("KIS_MCP_PROFILE")
     if profile:
         return KISClient(profile=profile, environment=environment, risk=risk)  # type: ignore[arg-type]
+    missing = [k for k in ("KIS_APP_KEY", "KIS_APP_SECRET", "KIS_ACCOUNT") if not os.environ.get(k)]
+    if missing:
+        raise KISUsageError(
+            "MCP 서버에 KIS 자격증명이 없습니다. 설정 파일의 env 블록에 KIS_MCP_PROFILE(저장된 프로필 "
+            f"이름)을 넣거나 KIS_APP_KEY/KIS_APP_SECRET/KIS_ACCOUNT 를 모두 설정하세요. 없는 값: "
+            f"{', '.join(missing)}."
+        )
     return KISClient(
         app_key=os.environ["KIS_APP_KEY"],
         app_secret=os.environ["KIS_APP_SECRET"],
@@ -258,10 +266,15 @@ def build_server(
 def main() -> None:
     """stdio MCP 서버 실행 진입점(콘솔 스크립트 ``kis-mcp``)."""
     environment = os.environ.get("KIS_MCP_ENVIRONMENT", "paper")
-    kis = build_client()
-    gate = RealOrderGate.from_env(dict(os.environ), environment)
-    allowlist = _build_allowlist_from_env(dict(os.environ))
-    breaker = _breaker_from_env(dict(os.environ))
+    try:
+        kis = build_client()
+        gate = RealOrderGate.from_env(dict(os.environ), environment)
+        allowlist = _build_allowlist_from_env(dict(os.environ))
+        breaker = _breaker_from_env(dict(os.environ))
+    except KISError as exc:
+        # 설정 오류는 트레이스백 대신 한 줄로. stderr 는 Claude Desktop 의 mcp 로그에 남는다.
+        print(f"kis-mcp: {exc}", file=sys.stderr)
+        raise SystemExit(1) from None
     build_server(kis, gate=gate, allowlist=allowlist, breaker=breaker).run()
 
 
