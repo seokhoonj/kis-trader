@@ -14,6 +14,7 @@ from decimal import Decimal
 from types import MappingProxyType
 from typing import Any, Literal
 
+from ._internal._freeze import freeze_vendor_payload
 from .order import Side
 
 #: 예약주문 조회의 처리상태 필터 -- all(전체)/processed(처리내역)/unprocessed(미처리내역).
@@ -48,4 +49,4 @@ class ReservedOrder:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

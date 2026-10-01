@@ -14,6 +14,7 @@ from enum import StrEnum
 from types import MappingProxyType
 from typing import Any
 
+from ._internal._freeze import freeze_vendor_payload
 from .errors import KISError
 from .order import _SIDES, Side
 
@@ -83,8 +84,8 @@ class ExecutionReport:
         # side 는 신뢰 못 할 경계(영속 JSON, 지문 튜플)에서도 도메인 값이어야 한다.
         if self.side not in _SIDES:
             raise KISError(f"ExecutionReport.side 는 buy/sell 중 하나여야 한다: {self.side!r}")
-        # frozen 이 재바인딩만 막으므로, _raw 를 읽기전용 스냅샷으로 얼려 진짜 불변으로.
-        object.__setattr__(self, "_raw", MappingProxyType(dict(self._raw)))
+        # frozen 이 재바인딩만 막으므로, _raw 를 깊게 얼려(중첩까지) 진짜 불변으로 -- 다른 결과객체와 동일.
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
     @property
     def is_terminal(self) -> bool:
