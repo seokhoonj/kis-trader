@@ -936,7 +936,9 @@ def _parse_interest_rates(
             quote_value = Decimal(quote_text) if quote_text else None
         except InvalidOperation:
             quote_value = None
-        if quote_value is None:
+        # 범례/코드 행(비숫자)은 skip. NaN/Infinity 도 저장하지 않고 skip -- 비유한값을 담으면 이후
+        # 비교가 무너진다(모듈의 fail-closed 규율; 이 파서는 비데이터 행을 drop 하는 게 정상).
+        if quote_value is None or not quote_value.is_finite():
             continue
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         quotes.append(
