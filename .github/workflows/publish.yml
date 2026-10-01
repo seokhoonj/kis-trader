@@ -36,6 +36,16 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      - name: Assert the release tag matches the package version
+        # A release tagged v0.2.0 while pyproject still says 0.1.0 would publish the wrong
+        # version -- and a PyPI version number can never be reused. Fail before the build.
+        # The tag is passed through env, never interpolated into the script, so a crafted
+        # tag name cannot inject shell.
+        env:
+          TAG: ${{ github.event.release.tag_name }}
+        run: |
+          version=$(python3 -c "import tomllib; print(tomllib.load(open('pyproject.toml','rb'))['project']['version'])")
+          test "${TAG#v}" = "$version" || { echo "release tag '$TAG' does not match package version '$version'"; exit 1; }
       - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
       - name: Build sdist and wheel, then check the metadata
         run: |
