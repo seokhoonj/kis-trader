@@ -291,3 +291,74 @@ def test_bearer_middleware_passes_through_non_http_scope():
 
     asyncio.run(BearerTokenMiddleware(inner, "s3cret")({"type": "lifespan"}, receive, send))
     assert seen["v"] is True
+
+
+def test_bearer_middleware_denies_websocket_scope():
+    """deny-by-default -- websocket scope 는 인증 없이 통과시키지 않고 닫는다(미인증 경로 차단)."""
+    pytest.importorskip("mcp")
+    import asyncio
+
+    from kis_trader.mcp._http_auth import BearerTokenMiddleware
+    inner_called = {"v": False}
+
+    async def inner(scope, receive, send):
+        inner_called["v"] = True
+
+    sent: list = []
+
+    async def send(msg):
+        sent.append(msg)
+
+    async def receive():
+        return {}
+
+    asyncio.run(BearerTokenMiddleware(inner, "s3cret")(
+        {"type": "websocket", "headers": []}, receive, send))
+    assert inner_called["v"] is False
+    assert sent == [{"type": "websocket.close", "code": 1008}]
+
+
+def test_bearer_middleware_rejects_duplicate_auth_headers():
+    """같은 Authorization 헤더가 둘이면 거부(헤더 스머글링 방지)."""
+    pytest.importorskip("mcp")
+    dup = [(b"authorization", b"Bearer s3cret"), (b"authorization", b"Bearer s3cret")]
+    assert _drive_bearer(dup) == (401, False)
+
+
+def test_bearer_middleware_non_ascii_token_no_500():
+    """비-ASCII 토큰/헤더도 예외(500) 없이 bytes 상수시간 비교 -- 일치 통과, 불일치 401."""
+    pytest.importorskip("mcp")
+    assert _drive_bearer([(b"authorization", "Bearer 비밀".encode())], token="비밀") == (200, True)
+    assert _drive_bearer([(b"authorization", b"Bearer \x80\x81")], token="s3cret") == (401, False)
+
+
+def test_bearer_middleware_reject_payload_shape():
+    """401 응답은 www-authenticate 헤더와 JSON 본문을 갖는다."""
+    pytest.importorskip("mcp")
+    import asyncio
+
+    from kis_trader.mcp._http_auth import BearerTokenMiddleware
+    sent: list = []
+
+    async def inner(scope, receive, send):
+        ...
+
+    async def send(msg):
+        sent.append(msg)
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    asyncio.run(BearerTokenMiddleware(inner, "s3cret")({"type": "http", "headers": []}, receive, send))
+    assert sent[0]["status"] == 401
+    assert (b"www-authenticate", b"Bearer") in sent[0]["headers"]
+    assert sent[1]["body"] == b'{"error":"unauthorized"}'
+
+
+def test_resolve_transport_rejects_non_numeric_port():
+    """숫자가 아닌 KIS_MCP_PORT 는 raw ValueError 가 아니라 KISUsageError(깔끔한 종료)."""
+    pytest.importorskip("mcp")
+    from kis_trader.errors import KISUsageError
+    from kis_trader.mcp.server import _resolve_transport
+    with pytest.raises(KISUsageError):
+        _resolve_transport({"KIS_MCP_TRANSPORT": "sse", "KIS_MCP_PORT": "abc"})
