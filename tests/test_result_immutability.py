@@ -78,14 +78,14 @@ def test_frozen_result_with_mapping_field_is_hashable() -> None:
 
 def test_execution_report_raw_is_deep_frozen() -> None:
     # 회귀락: ExecutionReport 는 _raw 를 (얕게가 아니라) 깊게 얼린다 -- 다른 결과객체와 동일.
-    from datetime import datetime
+    from datetime import datetime, timezone
     from decimal import Decimal
 
     from kis_trader.report import ExecutionReport, OrderStatus
     rpt = ExecutionReport(
         client_order_id="cid-1", order_id="ODNO1", symbol="005930", side="buy",
         status=OrderStatus.NEW, filled_quantity=Decimal(0), average_price=None,
-        recorded_at=datetime(2026, 1, 1), _raw={"output": {"nested": [1, 2]}},
+        recorded_at=datetime(2026, 1, 1, tzinfo=timezone.utc), _raw={"output": {"nested": [1, 2]}},
     )
     assert isinstance(rpt._raw["output"], MappingProxyType)
     assert isinstance(rpt._raw["output"]["nested"], tuple)
