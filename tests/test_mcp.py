@@ -157,16 +157,19 @@ def test_ranking_rejects_bad_direction():
 # --- 서버(도구 등록) -- mcp 있을 때만 -----------------------------------------
 
 
-def test_server_registers_safe_tools_only():
+def test_server_registers_read_and_guarded_order_tools():
     pytest.importorskip("mcp")
-    from kis_trader.mcp.server import build_server
-
-    server = build_server(_fake_kis())
     import asyncio
 
+    from kis_trader.mcp._guardrails import CircuitBreaker, RealOrderGate
+    from kis_trader.mcp.server import build_server
+
+    server = build_server(_fake_kis(), gate=RealOrderGate.from_env({}, "paper"),
+                          allowlist=None, breaker=CircuitBreaker())
     tools = asyncio.run(server.list_tools())
     names = {t.name for t in tools}
-    assert {"quote", "search", "ranking_change", "balance", "positions",
-            "open_orders", "order_preview", "reconcile"} <= names
-    # 실주문 전송 도구는 노출하지 않는다(사람 승인 필요).
-    assert not (names & {"buy", "sell", "place", "modify", "cancel", "credit_buy", "credit_sell"})
+    assert {"quote", "search", "ranking_change", "balance", "positions", "open_orders",
+            "order_preview", "reconcile",
+            "place_order", "cancel_order", "modify_order"} <= names
+    # 원시 매매 메서드(buy/sell/credit)는 직접 노출하지 않는다 -- 가드레일 통과하는 place_order 만.
+    assert not (names & {"buy", "sell", "credit_buy", "credit_sell"})

@@ -5,8 +5,12 @@
 
 from __future__ import annotations
 
+import asyncio
+import threading
+
 import pytest
 
+from kis_trader import KISClient
 from kis_trader.errors import KISUsageError
 from kis_trader.mcp._guardrails import (
     CircuitBreaker,
@@ -16,6 +20,8 @@ from kis_trader.mcp._guardrails import (
     check_allowlist,
 )
 from kis_trader.mcp.handlers import plan_cancel, plan_modify, plan_place_order
+from kis_trader.risk import RiskLimits
+from kis_trader.transport import RawResponse
 
 
 # --- RealOrderGate (이중게이트) -------------------------------------------
@@ -206,3 +212,109 @@ def test_plan_modify_real_requires_risk():
         plan_modify(_REAL, has_risk=False, client_order_id="x", limit_price="100")
     out = plan_modify(_REAL, has_risk=True, client_order_id="x", limit_price="100", quantity=5)
     assert out == {"client_order_id": "x", "limit_price": "100", "quantity": 5}
+
+
+# --- integration: run_place_order (가드레일 + elicitation 확인 + 집행) -------
+_ACCEPT = RawResponse(
+    rt_cd="0", msg_cd="APBK0013", msg1="주문 전송 완료",
+    body={"output": {"KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117057", "ORD_TMD": "121052"}},
+)
+_REAL_ENV = {"KIS_MCP_ALLOW_REAL": "1", "KIS_MCP_REAL_CONFIRM": "i-understand-real-money"}
+
+
+class _FakeTransport:
+    def __init__(self, environment):
+        self.environment = environment
+        self.calls: list[dict] = []
+        self._lock = threading.Lock()
+
+    def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
+        with self._lock:
+            self.calls.append({"path": path, "tr_id": tr_id})
+        return _ACCEPT
+
+
+def _order_client(environment="paper", risk=None):
+    transport = _FakeTransport(environment)
+    kis = KISClient(app_key="k", app_secret="s", account="12345678-01",
+                    environment=environment, transport=transport, risk=risk)
+    return kis, transport
+
+
+class _AcceptCtx:
+    async def elicit(self, message, schema):
+        from mcp.server.elicitation import AcceptedElicitation
+        return AcceptedElicitation(data=schema(confirm=True))
+
+
+class _DeclineCtx:
+    async def elicit(self, message, schema):
+        from mcp.server.elicitation import DeclinedElicitation
+        return DeclinedElicitation()
+
+
+def test_run_place_order_paper_executes():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("paper")
+    out = asyncio.run(run_place_order(
+        kis, RealOrderGate.from_env({}, "paper"), None, CircuitBreaker(), _AcceptCtx(),
+        venue="domestic", symbol="005930", side="buy", quantity=1))
+    assert out["sent"] is True and out["report"] is not None
+    assert len(t.calls) == 1                           # 모의는 즉시 집행(확인 생략 가능)
+
+
+def test_run_place_order_real_accept_executes():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
+    out = asyncio.run(run_place_order(
+        kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), CircuitBreaker(),
+        _AcceptCtx(), venue="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
+    assert out["sent"] is True and len(t.calls) == 1
+
+
+def test_run_place_order_real_decline_no_wire():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
+    out = asyncio.run(run_place_order(
+        kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), CircuitBreaker(),
+        _DeclineCtx(), venue="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
+    assert out["sent"] is False and t.calls == []      # 확인 거부 -> 전송 안 함
+
+
+def test_run_place_order_real_gate_closed_raises():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
+    with pytest.raises(KISUsageError, match="KIS_MCP_ALLOW_REAL"):
+        asyncio.run(run_place_order(
+            kis, RealOrderGate.from_env({}, "real"), frozenset({"005930"}), CircuitBreaker(),
+            _AcceptCtx(), venue="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
+    assert t.calls == []                               # 게이트 닫힘 -> 와이어 전 거부
+
+
+def test_run_place_order_real_no_risk_raises():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("real", risk=None)          # 캡 미설정
+    with pytest.raises(KISUsageError, match="RiskLimits"):
+        asyncio.run(run_place_order(
+            kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), CircuitBreaker(),
+            _AcceptCtx(), venue="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
+    assert t.calls == []                               # fail-closed
+
+
+def test_run_place_order_breaker_halted_refuses():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    breaker = CircuitBreaker(max_real_orders=1)
+    breaker.record_and_check()
+    with pytest.raises(KISUsageError):
+        breaker.record_and_check()                     # HALT
+    kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
+    out = asyncio.run(run_place_order(
+        kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), breaker,
+        _AcceptCtx(), venue="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
+    assert out["sent"] is False and "HALT" in out["reason"] and t.calls == []
