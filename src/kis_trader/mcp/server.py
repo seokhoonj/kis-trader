@@ -21,6 +21,7 @@ from typing import Any
 import anyio
 from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
+from mcp.server.transport_security import TransportSecuritySettings
 
 from ..client import KISClient
 from ..errors import KISError, KISUsageError
@@ -28,6 +29,7 @@ from ..risk import RiskLimits
 from . import handlers
 from ._elicit import SupportsElicit, confirm_order
 from ._guardrails import CircuitBreaker, RealOrderGate, StockOrderPlan
+from ._http_auth import BearerTokenMiddleware
 
 
 @dataclass(frozen=True, slots=True)
@@ -38,12 +40,30 @@ class _OrderDecision:
     refusal: dict[str, Any] | None
 
 
+def _int_env(environ: dict[str, str], name: str, default: int) -> int:
+    """정수 환경변수를 읽는다. 값이 없으면 default, 숫자가 아니면 KISUsageError(트레이스백 대신 깔끔히)."""
+    raw = environ.get(name)
+    if not raw:
+        return default
+    try:
+        return int(raw)
+    except ValueError:
+        raise KISUsageError(f"{name} 는 정수여야 합니다(받은 값: {raw!r}).") from None
+
+
+def _access_token(environ: dict[str, str]) -> str | None:
+    """``KIS_MCP_ACCESS_TOKEN`` 을 읽어 공백을 떼고 돌려준다(빈 값/공백만이면 None = 토큰 없음).
+    ``$(cat tokenfile)`` 로 끌어온 값의 trailing newline 이 비밀의 일부가 되는 사고를 막는다."""
+    token = (environ.get("KIS_MCP_ACCESS_TOKEN") or "").strip()
+    return token or None
+
+
 def _build_risk_from_env(environ: dict[str, str]) -> RiskLimits | None:
     """MCP 캡 환경변수로 RiskLimits 를 만든다(하나도 없으면 None). 실전에서 None 이면 실주문은
     fail-closed 로 거부된다(관례: 캡은 사용자 설정, 미설정=거부)."""
     kwargs: dict[str, Any] = {}
-    if value := environ.get("KIS_MCP_MAX_ORDER_QTY"):
-        kwargs["max_order_quantity"] = int(value)
+    if environ.get("KIS_MCP_MAX_ORDER_QTY"):
+        kwargs["max_order_quantity"] = _int_env(environ, "KIS_MCP_MAX_ORDER_QTY", 0)
     if value := environ.get("KIS_MCP_MAX_ORDER_NOTIONAL"):
         kwargs["max_order_notional"] = value
     if value := environ.get("KIS_MCP_PRICE_COLLAR_PCT"):
@@ -59,8 +79,8 @@ def _build_allowlist_from_env(environ: dict[str, str]) -> frozenset[str] | None:
 
 
 def _breaker_from_env(environ: dict[str, str]) -> CircuitBreaker:
-    raw = environ.get("KIS_MCP_MAX_REAL_ORDERS")
-    return CircuitBreaker(max_real_orders=int(raw)) if raw else CircuitBreaker()
+    n = _int_env(environ, "KIS_MCP_MAX_REAL_ORDERS", 0)
+    return CircuitBreaker(max_real_orders=n) if n else CircuitBreaker()
 
 
 _LOCAL_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})
@@ -79,12 +99,12 @@ def _resolve_transport(environ: dict[str, str]) -> tuple[str, dict[str, Any]]:
             f"KIS_MCP_TRANSPORT 는 stdio/sse/streamable-http 중 하나여야 합니다(받은 값: {transport!r})."
         )
     host = environ.get("KIS_MCP_HOST", "127.0.0.1")
-    if host not in _LOCAL_HOSTS:
+    if host not in _LOCAL_HOSTS and not _access_token(environ):
         raise KISUsageError(
-            f"원격 전송({transport})은 아직 로컬 바인드(127.0.0.1)만 지원합니다(받은 host: {host!r}). "
-            "공개 노출은 127.0.0.1 로 띄운 뒤 TLS·인증을 맡는 역프록시/터널 뒤에 두세요."
+            f"비-로컬 bind({host!r})는 KIS_MCP_ACCESS_TOKEN 을 설정해야 허용됩니다(인증 없는 공개 노출 "
+            "방지). 공개 노출은 127.0.0.1 로 띄워 TLS·인증을 맡는 역프록시/터널 뒤에 두는 것을 권장합니다."
         )
-    return transport, {"host": host, "port": int(environ.get("KIS_MCP_PORT", "8000"))}
+    return transport, {"host": host, "port": _int_env(environ, "KIS_MCP_PORT", 8000)}
 
 
 def build_client() -> KISClient:
@@ -297,11 +317,55 @@ def main() -> None:
         allowlist = _build_allowlist_from_env(dict(os.environ))
         breaker = _breaker_from_env(dict(os.environ))
         transport, run_kwargs = _resolve_transport(dict(os.environ))
+        server = build_server(kis, gate=gate, allowlist=allowlist, breaker=breaker)
+        if transport == "stdio":
+            server.run("stdio")
+        else:
+            _serve_http(server, transport, _access_token(dict(os.environ)), **run_kwargs)
     except KISError as exc:
         # 설정 오류는 트레이스백 대신 한 줄로. stderr 는 Claude Desktop 의 mcp 로그에 남는다.
         print(f"kis-mcp: {exc}", file=sys.stderr)
         raise SystemExit(1) from None
-    build_server(kis, gate=gate, allowlist=allowlist, breaker=breaker).run(transport, **run_kwargs)
+
+
+def _serve_http(server: MCPServer, transport: str, token: str | None, *, host: str, port: int) -> None:
+    """HTTP 전송 실행. 토큰이 없으면 localhost 전용으로 SDK 의 run 을 그대로, 있으면 ASGI 앱에 bearer
+    게이트를 씌워 uvicorn 으로 띄운다(비-로컬 bind 허용)."""
+    if not token:
+        if transport == "sse":
+            server.run("sse", host=host, port=port)
+        else:
+            server.run("streamable-http", host=host, port=port)
+        return
+    try:
+        import uvicorn
+    except ImportError:
+        raise KISUsageError("HTTP 전송에는 uvicorn 이 필요합니다: pip install 'kis-trader[mcp]'.") from None
+    # host 를 앱 빌더에 넘겨야 SDK 의 Host 검증이 실제 bind 와 맞는다(안 넘기면 기본 127.0.0.1 로 고정돼
+    # 원격 클라이언트가 421). stateless_http 는 기본 False 유지 -- 실주문 사람확인(elicitation) 백채널이 그
+    # 세션 스트림에 실리기 때문(부수적 load-bearing).
+    ts = _transport_security_for(host, dict(os.environ))
+    if transport == "streamable-http":
+        app = server.streamable_http_app(host=host, transport_security=ts)
+    else:
+        app = server.sse_app(host=host, transport_security=ts)
+    app.add_middleware(BearerTokenMiddleware, token=token)
+    uvicorn.run(app, host=host, port=port, log_level="info")
+
+
+def _transport_security_for(host: str, environ: dict[str, str]) -> TransportSecuritySettings | None:
+    """로컬 bind 는 None(SDK 가 localhost 전용 DNS-리바인딩 보호를 자동 적용). 비-로컬 bind 는
+    ``KIS_MCP_ALLOWED_HOSTS`` 가 있으면 그 호스트로 보호를 켜고(원하면 ``KIS_MCP_ALLOWED_ORIGINS`` 도),
+    없으면 보호를 끈다 -- 프록시/터널이 Host 를 전달하는 공개 배치를 전제하며, 그때 실질 게이트는 bearer
+    토큰이다."""
+    if host in _LOCAL_HOSTS:
+        return None
+    hosts = [h.strip() for h in environ.get("KIS_MCP_ALLOWED_HOSTS", "").split(",") if h.strip()]
+    origins = [o.strip() for o in environ.get("KIS_MCP_ALLOWED_ORIGINS", "").split(",") if o.strip()]
+    if hosts:
+        return TransportSecuritySettings(
+            enable_dns_rebinding_protection=True, allowed_hosts=hosts, allowed_origins=origins)
+    return TransportSecuritySettings(enable_dns_rebinding_protection=False)
 
 
 if __name__ == "__main__":
