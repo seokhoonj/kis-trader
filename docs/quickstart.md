@@ -17,7 +17,8 @@ kis --version
 
 ## 세션 만들기
 
-KIS 개발자센터에서 발급한 **앱키·앱시크릿**과 **계좌번호**로 세션을 엽니다:
+KIS 개발자센터에서 발급한 **앱키·앱시크릿**과 **계좌번호**로 세션을 엽니다(발급 과정은
+[앱키 발급받기](appkey.md)):
 
 ```python
 from kis_trader import KISClient
