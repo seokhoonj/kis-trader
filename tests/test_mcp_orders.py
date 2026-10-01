@@ -15,6 +15,7 @@ from kis_trader.mcp._guardrails import (
     build_stock_order,
     check_allowlist,
 )
+from kis_trader.mcp.handlers import plan_cancel, plan_modify, plan_place_order
 
 
 # --- RealOrderGate (이중게이트) -------------------------------------------
@@ -150,3 +151,58 @@ def test_build_rejects_nonscalar_symbol():
     with pytest.raises(KISUsageError):
         build_stock_order(venue="domestic", symbol={"code": "005930"},  # type: ignore[arg-type]
                           side="buy", quantity=1, limit_price="100")
+
+
+# --- plan handlers (가드레일 합성, 와이어 전) ------------------------------
+_PAPER = RealOrderGate.from_env({}, "paper")
+_REAL = RealOrderGate.from_env(
+    {"KIS_MCP_ALLOW_REAL": "1", "KIS_MCP_REAL_CONFIRM": "i-understand-real-money"}, "real"
+)
+
+
+def test_plan_place_paper_no_caps_needed():
+    plan = plan_place_order(_PAPER, None, has_risk=False, venue="domestic",
+                            symbol="005930", side="buy", quantity=1)
+    assert plan.symbol == "005930" and plan.order_type == "market"
+
+
+def test_plan_place_real_requires_risk():
+    with pytest.raises(KISUsageError, match="RiskLimits"):
+        plan_place_order(_REAL, frozenset({"005930"}), has_risk=False, venue="domestic",
+                         symbol="005930", side="buy", quantity=1, limit_price="70000")
+
+
+def test_plan_place_real_requires_allowlist():
+    with pytest.raises(KISUsageError, match="allowlist"):
+        plan_place_order(_REAL, None, has_risk=True, venue="domestic",
+                         symbol="005930", side="buy", quantity=1, limit_price="70000")
+
+
+def test_plan_place_real_gate_closed():
+    gate = RealOrderGate.from_env({}, "real")          # 이중게이트 미설정
+    with pytest.raises(KISUsageError, match="KIS_MCP_ALLOW_REAL"):
+        plan_place_order(gate, frozenset({"005930"}), has_risk=True, venue="domestic",
+                         symbol="005930", side="buy", quantity=1, limit_price="70000")
+
+
+def test_plan_place_real_all_pass():
+    plan = plan_place_order(_REAL, frozenset({"005930"}), has_risk=True, venue="domestic",
+                            symbol="005930", side="buy", quantity=10, limit_price="70000")
+    assert plan == StockOrderPlan(venue="domestic", symbol="005930", side="buy",
+                                  order_type="limit", quantity=10, limit_price="70000")
+
+
+def test_plan_cancel_gate_and_id():
+    assert plan_cancel(_PAPER, client_order_id="20260101-abc") == "20260101-abc"
+    with pytest.raises(KISUsageError):
+        plan_cancel(_PAPER, client_order_id="")
+    gate = RealOrderGate.from_env({}, "real")
+    with pytest.raises(KISUsageError):
+        plan_cancel(gate, client_order_id="x")          # 실전 게이트 닫힘
+
+
+def test_plan_modify_real_requires_risk():
+    with pytest.raises(KISUsageError, match="RiskLimits"):
+        plan_modify(_REAL, has_risk=False, client_order_id="x", limit_price="100")
+    out = plan_modify(_REAL, has_risk=True, client_order_id="x", limit_price="100", quantity=5)
+    assert out == {"client_order_id": "x", "limit_price": "100", "quantity": 5}
