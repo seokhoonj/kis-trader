@@ -186,3 +186,34 @@ def test_build_client_missing_credentials_gives_clear_error(monkeypatch):
         build_client()
     msg = str(exc.value)
     assert "자격증명" in msg and "KIS_APP_KEY" in msg
+
+
+def test_resolve_transport_defaults_to_stdio():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import _resolve_transport
+    assert _resolve_transport({}) == ("stdio", {})
+
+
+def test_resolve_transport_sse_local_passes_host_port():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import _resolve_transport
+    transport, kw = _resolve_transport({"KIS_MCP_TRANSPORT": "sse", "KIS_MCP_PORT": "9001"})
+    assert transport == "sse"
+    assert kw == {"host": "127.0.0.1", "port": 9001}
+
+
+def test_resolve_transport_rejects_nonlocal_bind():
+    """돈이 오가는 서버 -- 비-로컬 bind 는 fail-closed(조용히 열어 주지 않음)."""
+    pytest.importorskip("mcp")
+    from kis_trader.errors import KISUsageError
+    from kis_trader.mcp.server import _resolve_transport
+    with pytest.raises(KISUsageError):
+        _resolve_transport({"KIS_MCP_TRANSPORT": "streamable-http", "KIS_MCP_HOST": "0.0.0.0"})
+
+
+def test_resolve_transport_rejects_unknown_transport():
+    pytest.importorskip("mcp")
+    from kis_trader.errors import KISUsageError
+    from kis_trader.mcp.server import _resolve_transport
+    with pytest.raises(KISUsageError):
+        _resolve_transport({"KIS_MCP_TRANSPORT": "carrier-pigeon"})
