@@ -306,6 +306,13 @@ class KISClient:
         return self._environment
 
     @property
+    def has_risk_limits(self) -> bool:
+        """사전 리스크 한도(:class:`~kis_trader.risk.RiskLimits`)가 주입됐는지 -- 주입 시 모든 buy/sell 이
+        전송 전에 그 한도(fat-finger 캡)를 통과해야 한다. MCP 등 상위가 ``_risk`` 내부 필드를 직접 읽지
+        않고 이 공개 표면으로 판별하도록 노출한다."""
+        return self._risk is not None
+
+    @property
     def account(self) -> StockAccount | DomesticDerivativesAccount | OverseasDerivativesAccount:
         """세션이 연 계좌의 조회 뷰 -- 상품코드로 계좌 종류를 정한다. 위탁(01)/연금저축(22)/
         IRP(29)/ISA 는 같은 국내주식 계좌 엔드포인트를 쓰므로 :class:`~kis_trader.account.StockAccount`

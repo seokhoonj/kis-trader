@@ -16,6 +16,13 @@ from typing import Any, Literal, cast
 from ..account import StockAccount
 from ..client import KISClient
 from ..errors import KISUsageError
+from ._guardrails import (
+    ModifyOrderPlan,
+    RealOrderGate,
+    StockOrderPlan,
+    check_allowlist,
+    make_stock_order_plan,
+)
 
 _Direction = Literal["gainers", "losers"]
 
@@ -102,10 +109,9 @@ def order_preview(
     kis: KISClient, *, symbol: str, side: str, quantity: int,
     limit_price: str | None = None, division: str | None = None,
 ) -> dict[str, Any]:
-    """주문 **미리보기**(dry-run) -- 전송하지 않고 나갈 티켓만 되읽어 보여준다.
-
-    실제 매수/매도는 이 서버가 노출하지 않는다(사람 승인 필요). 이 도구는 무엇이 나갈지 확인하는 용도다.
-    """
+    """주문 **미리보기**(dry-run) -- 전송하지 않고 나갈 티켓만 되읽어 보여준다. 실제 전송은 ``place_order``
+    가 가드레일(이중게이트+RiskLimits+allowlist+사람확인)을 거쳐 한다. 이 도구는 무엇이 나갈지 미리
+    확인하는 용도다(``sent: false``)."""
     if side not in ("buy", "sell"):
         raise ValueError(f"side 는 'buy'/'sell' 만 (받은 값: {side!r}).")
     if quantity <= 0:
@@ -132,3 +138,50 @@ def reconcile(kis: KISClient, *, client_order_id: str) -> dict[str, Any]:
         "resolved": report is not None,
         "report": _serialize(report) if report is not None else None,
     }
+
+
+# --- 실주문 plan 핸들러(순수: 가드레일 선검증, 와이어 전) --------------------
+# server 가 이 plan 으로 elicitation 확인 뒤 라이브러리(buy/sell/cancel/modify)를 호출한다. 어떤 검사든
+# 어기면 여기서 KISUsageError 로 거부되어 주문은 전송되지 않는다(fail-closed, 사람/AI 에 의존 안 함).
+def plan_place_order(
+    gate: RealOrderGate, allowlist: frozenset[str] | None, has_risk: bool, *,
+    venue: str, symbol: str, side: str, quantity: int, limit_price: str | None = None,
+) -> StockOrderPlan:
+    """매수/매도 주문 계획 -- 이중게이트 -> (실전) RiskLimits 필수 -> allowlist -> 티켓 빌드 순으로
+    검증한다. 실전에서 RiskLimits(fail-closed 캡)가 없으면 거부한다(관례: 캡은 사용자 설정, 미설정=거부)."""
+    gate.require_executable()
+    if gate.is_real() and not has_risk:
+        raise KISUsageError(
+            "실전 주문은 RiskLimits(fat-finger 캡) 설정이 필요하다 -- 미설정이면 전송하지 않는다"
+            "(fail-closed). KISClient(risk=RiskLimits(...)) 또는 MCP 캡 환경변수로 설정."
+        )
+    check_allowlist(symbol, allowlist, is_real=gate.is_real())
+    return make_stock_order_plan(
+        venue=venue, symbol=symbol, side=side, quantity=quantity, limit_price=limit_price
+    )
+
+
+def plan_cancel_order(gate: RealOrderGate, *, client_order_id: str) -> str:
+    """취소 계획 -- 이중게이트만(취소는 리스크를 늘리지 않음). 기존 ``client_order_id`` 를 지목한다."""
+    gate.require_executable()
+    if not isinstance(client_order_id, str) or not client_order_id:
+        raise KISUsageError(f"client_order_id 는 비어 있지 않은 문자열이어야 한다: {client_order_id!r}")
+    return client_order_id
+
+
+def plan_modify_order(
+    gate: RealOrderGate, has_risk: bool, *, client_order_id: str, limit_price: str, quantity: int | None = None
+) -> ModifyOrderPlan:
+    """정정 계획 -- 새 가격을 거는 변경이라 신규 주문처럼 (실전) RiskLimits 를 요구한다(fail-closed)."""
+    gate.require_executable()
+    if gate.is_real() and not has_risk:
+        raise KISUsageError(
+            "실전 정정은 RiskLimits 설정이 필요하다(fail-closed) -- 새 가격이 캡을 통과해야 한다."
+        )
+    if not isinstance(client_order_id, str) or not client_order_id:
+        raise KISUsageError(f"client_order_id 는 비어 있지 않은 문자열이어야 한다: {client_order_id!r}")
+    if not isinstance(limit_price, (str, int)):
+        raise KISUsageError(f"limit_price 는 문자열/정수 스칼라여야 한다: {limit_price!r}")
+    if quantity is not None and (isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0):
+        raise KISUsageError(f"quantity 는 양의 정수여야 한다: {quantity!r}")
+    return ModifyOrderPlan(client_order_id=client_order_id, limit_price=str(limit_price), quantity=quantity)
