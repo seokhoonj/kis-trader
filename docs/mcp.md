@@ -130,6 +130,35 @@ kis-mcp   # 서버 시작. 오류 없이 뜨면 정상 -- 연결을 기다리며
 띄워 줍니다.
 :::
 
+## Cursor 에서 쓰기
+
+Cursor 도 같은 방식입니다. `Settings → MCP Servers` 에서 Claude Desktop 과 **똑같은** 등록 내용을 넣으면
+됩니다(위 [쓰는 법](#쓰는-법-설치하고-연결하기)의 JSON 을 그대로). Cursor 도 stdio 를 지원하므로 `command`
+에 `kis-mcp` 경로를 그대로 적습니다.
+
+::: {.callout-note collapse="true"}
+## (고급) 전송 방식 바꾸기 -- stdio · sse · streamable-http
+
+기본 전송은 **stdio** 입니다 -- Claude Desktop·Cursor 는 이걸로 서버를 직접 띄워 씁니다. 한 서버에 여러
+클라이언트를 붙이거나 `mcp-remote` 같은 브리지를 쓸 때는 `KIS_MCP_TRANSPORT` 로 HTTP 계열 전송을 고릅니다.
+
+| `KIS_MCP_TRANSPORT` | 전송 | 엔드포인트(기본) |
+|---|---|---|
+| `stdio`(기본) | 표준 입출력 | (클라이언트가 직접 실행) |
+| `sse` | HTTP Server-Sent Events | `http://127.0.0.1:8000/sse` |
+| `streamable-http` | HTTP(스트리밍) | `http://127.0.0.1:8000/mcp` |
+
+```bash
+export KIS_MCP_TRANSPORT=streamable-http   # 또는 sse
+export KIS_MCP_PORT=8000                    # 기본 8000
+kis-mcp
+```
+
+**로컬(127.0.0.1) 바인드만 허용합니다.** 돈이 오가는 서버라 비-로컬 host 로 열려 하면 거부합니다
+(fail-closed). 바깥에서 접근해야 하면 127.0.0.1 로 띄운 뒤 **TLS·인증을 맡는 역프록시/터널** 뒤에 두세요 --
+ChatGPT 처럼 공개 HTTPS 커넥터만 받는 클라이언트가 이 경우입니다.
+:::
+
 ## 이 서버가 하는 일
 
 `kis_trader.mcp` 는 KIS 계좌를 **MCP 도구**로 내주는 서버입니다. `kis_trader` 의 공개 API(안전 코어) 위에
