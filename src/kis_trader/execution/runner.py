@@ -15,7 +15,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING
 
 from .._internal._datetime import _KST
-from ..errors import KISUsageError, OrderRejectedError, OrderTimeoutError
+from ..errors import KISError, KISUsageError, OrderRejectedError, OrderTimeoutError
 from .schedule import TWAPSchedule
 
 if TYPE_CHECKING:
@@ -136,7 +136,12 @@ def execute_twap(
                 outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, None, str(error)))
                 continue
             if reconcile:
-                confirmed = kis.orders.reconcile(report.client_order_id)
+                try:
+                    confirmed = kis.orders.reconcile(report.client_order_id)
+                except KISError:
+                    # 재조회(읽기) 실패는 이미 접수된 이 슬라이스를 결과에서 버리지 않는다 -- 미확정
+                    # report 를 그대로 두고 사후 reconcile 로 확인하게 한다(일시적 네트워크/스로틀 blip).
+                    confirmed = None
                 if confirmed is not None:
                     report = confirmed
             outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, report, None))

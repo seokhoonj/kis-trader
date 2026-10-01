@@ -115,6 +115,20 @@ def test_run_routes_sell_schedule_to_stock_sell():
     assert [action for action, _ in log] == ["sell", "sell", "sell"]
 
 
+def test_reconcile_read_failure_keeps_submitted_slice():
+    # 재조회(읽기)가 일시적 KISError 를 내도 이미 접수된 슬라이스는 결과에 남아야 한다(폐기/크래시 금지).
+    class _RaisingOrders:
+        def reconcile(self, cid):
+            raise KISUsageError("일시적 재조회 실패")
+
+    log: list = []
+    result = execute_twap(_Kis(_Stock(log), orders=_RaisingOrders()), _sched(),
+                          now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
+    assert len(log) == 3                                        # 세 슬라이스 모두 발주됨
+    assert all(o.report is not None for o in result.outcomes)   # 미확정이어도 report 유지(유실 아님)
+    assert result.submitted_quantity == 100
+
+
 def test_run_partial_rejection_continues_and_reports_shortfall():
     log = []
     stock = _Stock(log, fail_slices=(2,))                # second slice rejected
