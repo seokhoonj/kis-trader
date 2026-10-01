@@ -36,26 +36,55 @@ MCP 는 있어도 되고 없어도 되는 **선택 기능**입니다. 파이썬�
 
 ## 쓰는 법 (설치하고 연결하기)
 
-채팅창에서 뭘 내려받는 게 아닙니다. **한 번** 설치하고 AI 앱 설정 파일에 등록해 두면, 그다음부터는 채팅창에서
-말만 하면 됩니다. 순서는 이렇습니다.
+채팅창에서 뭘 내려받는 게 아닙니다. 아래를 **한 번** 해 두면, 그다음부터는 Claude Desktop 채팅창에서 말만
+하면 됩니다. 마우스와 복사·붙여넣기로 끝나니 순서대로만 따라 하면 됩니다.
 
-**1. 설치** -- 터미널에서(채팅창 아님) MCP 추가 묶음을 깝니다.
+::: {.callout-note}
+**준비물 두 가지** -- (1) **Python** 3.11 이상, (2) **Claude Desktop** 앱. 없으면 먼저 깝니다 -- Python 은
+[python.org](https://www.python.org/downloads/)(설치할 때 "Add Python to PATH" 체크), Claude Desktop 은
+[claude.ai/download](https://claude.ai/download). 터미널에 `python --version` 을 쳐서 `3.11` 이상이 나오면
+준비된 겁니다.
+:::
+
+**1. 터미널(명령 입력창)을 엽니다.** -- macOS 는 `⌘ + Space` 를 눌러 "터미널"을 검색해 실행, Windows 는 시작
+메뉴에서 "PowerShell"을 실행합니다. 까만(또는 하얀) 글자 입력창이 뜹니다.
+
+**2. 패키지를 깝니다.** -- 터미널에 아래 한 줄을 붙여넣고 Enter. (`pip` 이 없다고 하면 `pip3` 으로 해 보세요.)
 
 ```bash
 pip install 'kis-trader[mcp]'
 ```
 
-**2. 자격증명 준비** -- 프로필을 미리 저장해 두는 걸 권합니다(→ [앱키·자격증명](appkey.md)). 그러면 다음
-단계 설정 파일에 앱키를 직접 적지 않아도 됩니다.
+**3. `kis-mcp` 가 어디 깔렸는지 알아 둡니다.** -- Claude Desktop 은 앱이라 터미널 설정을 모를 수 있어서,
+`kis-mcp` 의 **전체 경로**를 적어 줘야 안전합니다. 터미널에 아래를 치면 경로가 한 줄 나옵니다 -- 그걸
+복사해 둡니다(5단계에서 붙여넣습니다).
 
-**3. AI 앱에 서버 등록** -- Claude Desktop 이라면 설정 파일 `claude_desktop_config.json` 을 열어 아래를
-넣습니다(서버를 "이 명령으로 띄워라"라고 알려 주는 겁니다).
+```bash
+which kis-mcp     # macOS -- 예: /Library/Frameworks/.../bin/kis-mcp
+where kis-mcp     # Windows -- 예: C:\Users\나\...\kis-mcp.exe
+```
+
+**4. 자격증명(앱키)을 프로필로 저장합니다.** -- 한 번 저장해 두면 다음 단계 설정 파일에 앱키를 적지 않아도
+됩니다. 저장 방법은 [앱키·자격증명](appkey.md)에 있습니다.
+
+**5. Claude Desktop 설정 파일을 엽니다.** -- 전부 마우스로 합니다:
+
+1. 화면 맨 위 **메뉴 막대의 `Claude` 메뉴 → `Settings…`** 를 엽니다. (채팅 창 안의 설정이 아니라, **화면
+   맨 위 메뉴 막대**의 Claude 입니다.)
+2. 왼쪽에서 **`Developer`** 탭을 고르고, **`Edit Config`** 버튼을 누릅니다.
+3. 그러면 설정 파일(`claude_desktop_config.json`)이 열립니다. 없으면 자동으로 만들어 줍니다. (위치는 macOS
+   `~/Library/Application Support/Claude/`, Windows `%APPDATA%\Claude\` 안입니다 -- 버튼이 알아서 열어 주니
+   직접 찾아갈 필요는 없습니다.)
+
+**6. 아래 내용을 붙여넣고 저장합니다.** -- 파일 내용을 아래로 바꿉니다. `command` 에는 **3단계에서 복사한
+경로**를 그대로 넣고, `KIS_MCP_PROFILE` 에는 4단계에서 정한 프로필 이름을 넣습니다. 저장은 `⌘ + S`(Windows
+는 `Ctrl + S`).
 
 ```json
 {
   "mcpServers": {
     "kis-trader": {
-      "command": "kis-mcp",
+      "command": "여기에-3단계에서-복사한-kis-mcp-경로",
       "env": {
         "KIS_MCP_PROFILE": "main",
         "KIS_MCP_ENVIRONMENT": "paper"
@@ -65,13 +94,14 @@ pip install 'kis-trader[mcp]'
 }
 ```
 
-`command` 는 `kis-trader[mcp]` 를 깐 환경의 `kis-mcp` 를 가리켜야 합니다. 가상환경이면 그 환경의 절대경로를
-적습니다(예: `/path/to/.venv/bin/kis-mcp`). `which kis-mcp` 로 경로를 확인할 수 있습니다.
+**7. Claude Desktop 을 완전히 껐다 켭니다.** -- 창만 닫지 말고 **완전히 종료**(macOS `⌘ + Q`, Windows 는 트레이
+아이콘에서 종료)한 뒤 다시 실행합니다. 설정은 켤 때 한 번만 읽습니다.
 
-**4. AI 앱 재시작** -- Claude Desktop 을 껐다 켜면 kis-trader 도구들이 목록에 나타납니다.
+**8. 연결됐는지 봅니다.** -- 채팅 입력창 **왼쪽 아래의 `+`(파일·커넥터 추가) 아이콘**을 누르고 `Connectors`
+→ `Manage connectors` 로 가면 `kis-trader` 와 그 도구들이 보입니다. 보이면 성공입니다.
 
-**5. 그다음부터는 대화** -- 채팅창에서 "삼성전자 현재가 알려줘", "내 잔고 보여줘"처럼 말하면 에이전트가
-해당 도구를 호출해 답합니다.
+**9. 이제 채팅창에서 말만 하면 됩니다.** -- "삼성전자 현재가 알려줘", "내 KIS 잔고 보여줘"처럼 말하면 Claude
+가 알아서 해당 도구를 불러 답합니다.
 
 ::: {.callout-tip}
 **프로필(`KIS_MCP_PROFILE`)로 붙이는 걸 권합니다.** 설정 파일에 `KIS_APP_KEY`·`KIS_APP_SECRET` 을 직접
@@ -80,8 +110,11 @@ pip install 'kis-trader[mcp]'
 갖춰 `KIS_MCP_ENVIRONMENT=real` 로 명시했을 때만 씁니다.
 :::
 
-서버가 오류 없이 뜨는지 터미널에서 한 번 점검해 볼 수도 있습니다. 자격증명을 환경변수로 주고 `kis-mcp`
-를 실행하면 됩니다 -- `kis-mcp` 는 `kis-trader[mcp]` 가 설치하는 명령으로, 이 줄이 MCP 서버를 띄웁니다.
+::: {.callout-note collapse="true"}
+## (선택) 서버가 잘 뜨는지 터미널에서 점검하기
+
+연결이 안 되면 서버가 혼자 잘 뜨는지 확인해 볼 수 있습니다. 자격증명을 환경변수로 주고 `kis-mcp` 를
+실행합니다 -- `kis-mcp` 는 2단계에서 깐 명령으로, 이 줄이 서버를 띄웁니다.
 
 ```bash
 export KIS_APP_KEY=...
@@ -92,9 +125,10 @@ export KIS_MCP_ENVIRONMENT=paper   # 실전은 real (명시할 때만)
 kis-mcp   # 서버 시작. 오류 없이 뜨면 정상 -- 연결을 기다리며 멈춰 있고, Ctrl-C 로 끕니다.
 ```
 
-이건 "제대로 뜨는지"만 보는 점검용입니다. 서버는 혼자 띄우면 클라이언트 연결을 기다리며 멈춰 있어 사람이
-직접 대화할 수는 없습니다. 실제로 쓸 때는 이 줄을 직접 칠 일이 없고, 위 [쓰는 법](#쓰는-법-설치하고-연결하기)
-대로 Claude Desktop 이 `kis-mcp` 를 대신 띄워 줍니다.
+오류 없이 멈춰 있으면 정상입니다. 이건 "제대로 뜨는지"만 보는 점검용이라, 이 상태로 사람이 직접 대화할
+수는 없습니다. 실제 사용에선 이 줄을 직접 칠 일이 없고, 위 순서대로 Claude Desktop 이 `kis-mcp` 를 대신
+띄워 줍니다.
+:::
 
 ## 이 서버가 하는 일
 
