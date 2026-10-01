@@ -60,7 +60,7 @@ pip install 'kis-trader[mcp]'
 복사해 둡니다(5단계에서 붙여넣습니다).
 
 ```bash
-which kis-mcp     # macOS -- 예: /Library/Frameworks/.../bin/kis-mcp
+which kis-mcp     # macOS·Linux -- 예: /usr/local/bin/kis-mcp 또는 .../.venv/bin/kis-mcp
 where kis-mcp     # Windows -- 예: C:\Users\나\...\kis-mcp.exe
 ```
 
