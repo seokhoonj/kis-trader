@@ -80,7 +80,8 @@ pip install 'kis-trader[mcp]'
 갖춰 `KIS_MCP_ENVIRONMENT=real` 로 명시했을 때만 씁니다.
 :::
 
-프로필 없이 환경변수로 직접 줘서 터미널에서 직접 띄워 볼 수도 있습니다:
+서버가 오류 없이 뜨는지 터미널에서 한 번 점검해 볼 수도 있습니다. 자격증명을 환경변수로 주고 `kis-mcp`
+를 실행하면 됩니다 -- `kis-mcp` 는 `kis-trader[mcp]` 가 설치하는 명령으로, 이 줄이 MCP 서버를 띄웁니다.
 
 ```bash
 export KIS_APP_KEY=...
@@ -88,8 +89,12 @@ export KIS_APP_SECRET=...
 export KIS_ACCOUNT=...
 export KIS_MCP_ENVIRONMENT=paper   # 실전은 real (명시할 때만)
 
-kis-mcp
+kis-mcp   # 서버 시작. 오류 없이 뜨면 정상 -- 연결을 기다리며 멈춰 있고, Ctrl-C 로 끕니다.
 ```
+
+이건 "제대로 뜨는지"만 보는 점검용입니다. 서버는 혼자 띄우면 클라이언트 연결을 기다리며 멈춰 있어 사람이
+직접 대화할 수는 없습니다. 실제로 쓸 때는 이 줄을 직접 칠 일이 없고, 위 [쓰는 법](#쓰는-법-설치하고-연결하기)
+대로 Claude Desktop 이 `kis-mcp` 를 대신 띄워 줍니다.
 
 ## 이 서버가 하는 일
 
