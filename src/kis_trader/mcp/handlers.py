@@ -27,22 +27,25 @@ from ._guardrails import (
 _Direction = Literal["gainers", "losers"]
 
 
-def _serialize(obj: Any) -> Any:
-    """frozen dataclass/Decimal/list/dict 를 JSON 안전 값으로. ``_raw`` 와 밑줄 필드는 제외한다."""
-    if is_dataclass(obj) and not isinstance(obj, type):
+def _serialize(value: Any) -> Any:
+    """frozen dataclass/Decimal/list/dict 를 JSON 안전 값으로. ``_raw`` 와 밑줄 필드/키는 제외한다
+    (원본 응답·자격증명 누출 방지)."""
+    if is_dataclass(value) and not isinstance(value, type):
         out: dict[str, Any] = {}
-        for f in fields(obj):
-            if f.name.startswith("_"):  # _raw 및 내부 필드 제외 -- 원본/자격증명 누출 방지
+        for dc_field in fields(value):
+            if dc_field.name.startswith("_"):  # _raw 및 내부 필드 제외
                 continue
-            out[f.name] = _serialize(getattr(obj, f.name))
+            out[dc_field.name] = _serialize(getattr(value, dc_field.name))
         return out
-    if isinstance(obj, Decimal):
-        return str(obj)
-    if isinstance(obj, (list, tuple)):
-        return [_serialize(x) for x in obj]
-    if isinstance(obj, dict):
-        return {k: _serialize(v) for k, v in obj.items()}
-    return obj
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, (list, tuple)):
+        return [_serialize(item) for item in value]
+    if isinstance(value, dict):
+        # dict 분기도 밑줄 키를 제외 -- dataclass 분기와 같은 규율(중첩 매핑의 _raw/내부키 누출 방지).
+        return {key: _serialize(item) for key, item in value.items()
+                if not (isinstance(key, str) and key.startswith("_"))}
+    return value
 
 
 def _account_masked(kis: KISClient) -> str:
@@ -63,7 +66,9 @@ def _stock_account(kis: KISClient) -> StockAccount:
 
 
 def quote(kis: KISClient, symbol: str, *, market: str = "domestic") -> dict[str, Any]:
-    """종목 현재가 스냅샷. ``market="overseas"`` 면 해외(거래소 자동 해석)."""
+    """종목 현재가 스냅샷. ``market="overseas"`` 면 해외(거래소 자동 판별)."""
+    if market not in ("domestic", "overseas"):
+        raise KISUsageError(f"market 은 'domestic'/'overseas' 만 (받은 값: {market!r}).")
     handle = kis.overseas.stock(symbol) if market == "overseas" else kis.domestic.stock(symbol)
     out: dict[str, Any] = _serialize(handle.quote())
     return out
@@ -113,12 +118,12 @@ def order_preview(
     가 가드레일(이중게이트+RiskLimits+allowlist+사람확인)을 거쳐 한다. 이 도구는 무엇이 나갈지 미리
     확인하는 용도다(``sent: false``)."""
     if side not in ("buy", "sell"):
-        raise ValueError(f"side 는 'buy'/'sell' 만 (받은 값: {side!r}).")
+        raise KISUsageError(f"side 는 'buy'/'sell' 만 (받은 값: {side!r}).")
     if quantity <= 0:
-        raise ValueError("quantity 는 1 이상이어야 한다.")
+        raise KISUsageError("quantity 는 1 이상이어야 한다.")
     return {
         "sent": False,
-        "note": "미리보기 -- 전송되지 않았다. 실주문은 사람 승인 하에 kis_trader 파이썬 API 로 낸다.",
+        "note": "미리보기 -- 전송되지 않았다. 실주문은 place_order 가 가드레일·사람확인을 거쳐 전송한다.",
         "environment": kis.environment,
         "account": _account_masked(kis),
         "symbol": symbol,

@@ -16,7 +16,7 @@ from __future__ import annotations
 import os
 import sys
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Literal
 
 import anyio
 from mcp.server.mcpserver import MCPServer
@@ -218,7 +218,7 @@ async def run_modify_order(
 
 def build_server(
     kis: KISClient, *, gate: RealOrderGate, allowlist: frozenset[str] | None, breaker: CircuitBreaker
-) -> Any:
+) -> MCPServer:
     """주어진 KISClient·가드레일을 소비하는 MCP 서버(MCPServer)를 만들어 도구를 등록한다."""
     if gate.environment != kis.environment:
         raise KISUsageError(
@@ -236,7 +236,7 @@ def build_server(
     )
 
     @server.tool()
-    def quote(symbol: str, market: str = "domestic") -> dict[str, Any]:
+    def quote(symbol: str, market: Literal["domestic", "overseas"] = "domestic") -> dict[str, Any]:
         """종목 현재가 스냅샷. market='overseas' 면 해외."""
         return handlers.quote(kis, symbol, market=market)
 

@@ -122,7 +122,8 @@ def test_order_preview_market_when_no_price():
     {"side": "buy", "quantity": -5},
 ])
 def test_order_preview_rejects_bad_input(bad):
-    with pytest.raises(ValueError):
+    from kis_trader.errors import KISUsageError
+    with pytest.raises(KISUsageError):
         handlers.order_preview(_fake_kis(), symbol="005930", **bad)
 
 
