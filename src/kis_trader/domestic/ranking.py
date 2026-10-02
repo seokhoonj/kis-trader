@@ -15,10 +15,10 @@ from typing import TYPE_CHECKING, Literal
 from ._engine import ranking as ranking_api
 from .entities.ranking import (
     AfterHoursBalanceRanking,
+    AfterHoursRanking,
     CreditBalanceRanking,
     DividendRanking,
     NearHighLowRanking,
-    OvertimeRanking,
     RankedStock,
     ShortSaleRanking,
     TopViewedStock,
@@ -65,8 +65,8 @@ ProfitAssetMetric = Literal[
 #: 배당 종류 -- 현금/주식 배당.
 DividendKind = Literal["cash", "stock"]
 
-#: 배당 순위 시장 필터(소문자 어휘 -- 예상체결 시장 필터와 다르다).
-DividendMarket = Literal["all", "kospi", "kospi200", "kosdaq"]
+#: 배당 순위 시장 필터.
+DividendMarket = Literal["all", "KOSPI", "KOSPI200", "KOSDAQ"]
 
 #: 배당 결산 구분 -- 전체/결산/중간.
 DividendSettlement = Literal["all", "final", "interim"]
@@ -90,7 +90,7 @@ NearHighLowSide = Literal["high", "low"]
 #: 장마감 예상체결 필터 -- 전체/상한/하한/상승/하락.
 ExpectedCloseFilter = Literal["all", "upper_limit", "lower_limit", "up", "down"]
 
-#: 장마감 예상체결 시장 필터(대문자 어휘 -- 배당 순위 시장 필터와 다르다).
+#: 장마감 예상체결 시장 필터(KRX100 포함 -- 배당 순위 시장 필터와 값 집합이 다르다).
 ExpectedCloseMarket = Literal["all", "KOSPI", "KOSDAQ", "KOSPI200", "KRX100"]
 
 #: 시간외 잔량 순위 방향 -- 매도잔량(ask)/매수잔량(bid) 상위.
@@ -196,8 +196,8 @@ class RankingQueries:
         market: DividendMarket = "all", settlement: DividendSettlement = "all",
     ) -> list[DividendRanking]:
         """배당률 순위. ``kind="cash"`` 현금배당 / ``"stock"`` 주식배당. ``start``/``end`` 는 배당
-        기준일 범위(YYYYMMDD 문자열 또는 ``date``). ``market`` = ``"all"``/``"kospi"``/``"kospi200"``/
-        ``"kosdaq"``, ``settlement`` = ``"all"``/``"final"``(결산)/``"interim"``(중간). 시세가 없어
+        기준일 범위(YYYYMMDD 문자열 또는 ``date``). ``market`` = ``"all"``/``"KOSPI"``/``"KOSPI200"``/
+        ``"KOSDAQ"``, ``settlement`` = ``"all"``/``"final"``(결산)/``"interim"``(중간). 시세가 없어
         :class:`~kis_trader.domestic.entities.ranking.DividendRanking` 항목을 돌려준다(최대 30건).
 
         ``dividend_rate`` 는 액면가 기준 배당률(%)이지 시장가 기준 배당수익률이 아니다."""
@@ -254,21 +254,21 @@ class RankingQueries:
             extended_range=extended_range,
         )
 
-    def by_overtime_change(self, *, direction: Direction = "gainers") -> list[OvertimeRanking]:
+    def by_after_hours_change(self, *, direction: Direction = "gainers") -> list[AfterHoursRanking]:
         """시간외 단일가 등락률 순위. ``direction="gainers"`` 상승 / ``"losers"`` 하락
-        (:class:`~kis_trader.domestic.entities.ranking.OvertimeRanking`, 최대 30건)."""
-        return ranking_api.fetch_overtime_change(
+        (:class:`~kis_trader.domestic.entities.ranking.AfterHoursRanking`, 최대 30건)."""
+        return ranking_api.fetch_after_hours_change(
             self._client.transport, direction=direction, market="KRX"
         )
 
-    def by_overtime_volume(self) -> list[OvertimeRanking]:
-        """시간외 단일가 거래량 순위(:class:`~kis_trader.domestic.entities.ranking.OvertimeRanking`, 최대 30건)."""
-        return ranking_api.fetch_overtime_volume(self._client.transport, market="KRX")
+    def by_after_hours_volume(self) -> list[AfterHoursRanking]:
+        """시간외 단일가 거래량 순위(:class:`~kis_trader.domestic.entities.ranking.AfterHoursRanking`, 최대 30건)."""
+        return ranking_api.fetch_after_hours_volume(self._client.transport, market="KRX")
 
-    def by_overtime_expected_change(self, *, direction: Direction = "gainers") -> list[OvertimeRanking]:
+    def by_after_hours_expected_change(self, *, direction: Direction = "gainers") -> list[AfterHoursRanking]:
         """시간외 예상체결 등락률 순위. ``direction="gainers"`` 상승 / ``"losers"`` 하락. 시간외 예상체결가·예상
-        체결량을 담아 돌려준다(:class:`~kis_trader.domestic.entities.ranking.OvertimeRanking`, 최대 30건)."""
-        return ranking_api.fetch_overtime_expected_change(
+        체결량을 담아 돌려준다(:class:`~kis_trader.domestic.entities.ranking.AfterHoursRanking`, 최대 30건)."""
+        return ranking_api.fetch_after_hours_expected_change(
             self._client.transport, direction=direction, market="KRX"
         )
 

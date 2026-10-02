@@ -387,11 +387,11 @@ def test_by_dividend_maps_fields_and_params():
 def test_by_dividend_stock_kind_and_market_settlement():
     fake = FakeTransport(response=_resp([_dividend_row()]))
     _client(fake).domestic.ranking.by_dividend(
-        kind="stock", start="20230101", end="20231231", market="kosdaq", settlement="interim"
+        kind="stock", start="20230101", end="20231231", market="KOSDAQ", settlement="interim"
     )
     call = fake.calls[0]
     assert call["params"]["GB3"] == "1"                         # stock
-    assert call["params"]["GB1"] == "3"                         # kosdaq
+    assert call["params"]["GB1"] == "3"                         # KOSDAQ
     assert call["params"]["GB4"] == "2"                         # interim
 
 

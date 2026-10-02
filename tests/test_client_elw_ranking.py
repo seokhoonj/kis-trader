@@ -104,7 +104,7 @@ def test_by_indicator_sort_map():
 
 def test_quick_change_window_and_no_right():
     fake = FakeTransport(response=_resp([_row()]))
-    _client(fake).domestic.elw_ranking.quick_change(sort="volume_surge", window="minute")
+    _client(fake).domestic.elw_ranking.by_quick_change(sort="volume_surge", window="minute")
     call = fake.calls[0]
     assert call["path"] == "/uapi/elw/v1/ranking/quick-change"
     assert call["tr_id"] == "FHPEW02870000"

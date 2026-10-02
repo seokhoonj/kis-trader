@@ -205,10 +205,10 @@ from .domestic.entities.program import (
 )
 from .domestic.entities.ranking import (
     AfterHoursBalanceRanking,
+    AfterHoursRanking,
     CreditBalanceRanking,
     DividendRanking,
     NearHighLowRanking,
-    OvertimeRanking,
     RankedStock,
     ShortSaleRanking,
     TopViewedStock,
@@ -332,6 +332,7 @@ __all__ = [
     "AfterHoursConclusion",
     "AfterHoursDailyPrice",
     "AfterHoursQuote",
+    "AfterHoursRanking",
     "AlgoStrategy",
     "AnalystOpinion",
     "AppraisalRights",
@@ -529,7 +530,6 @@ __all__ = [
     "OverseasStockSearch",
     "OverseasStockSearchMatch",
     "OverseasTransaction",
-    "OvertimeRanking",
     "ParValueChange",
     "PensionBalance",
     "PensionBuyableAmount",

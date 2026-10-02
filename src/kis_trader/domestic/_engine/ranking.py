@@ -70,10 +70,10 @@ from ...errors import KISUsageError
 from ...transport import Transport
 from ..entities.ranking import (
     AfterHoursBalanceRanking,
+    AfterHoursRanking,
     CreditBalanceRanking,
     DividendRanking,
     NearHighLowRanking,
-    OvertimeRanking,
     RankedStock,
     ShortSaleRanking,
     TopViewedStock,
@@ -168,7 +168,7 @@ _DIVIDEND_TR = "HHKDB13470100"
 #: 배당 종류(KIS 명세 GB3). cash=현금배당(2), stock=주식배당(1).
 _DIVIDEND_KIND = {"cash": "2", "stock": "1"}
 #: 시장(KIS 명세 GB1).
-_DIVIDEND_MARKET = {"all": "0", "kospi": "1", "kospi200": "2", "kosdaq": "3"}
+_DIVIDEND_MARKET = {"all": "0", "KOSPI": "1", "KOSPI200": "2", "KOSDAQ": "3"}
 #: 결산/중간(KIS 명세 GB4).
 _DIVIDEND_SETTLEMENT = {"all": "0", "final": "1", "interim": "2"}
 
@@ -424,7 +424,7 @@ def fetch_dividend(
     market: str, settlement: str,
 ) -> list[DividendRanking]:
     """배당률 순위. ``kind="cash"`` 현금배당 / ``"stock"`` 주식배당. ``start``/``end`` 는 배당 기준일
-    범위(YYYYMMDD 또는 date). ``market`` all/kospi/kospi200/kosdaq, ``settlement`` all/final/interim.
+    범위(YYYYMMDD 또는 date). ``market`` all/KOSPI/KOSPI200/KOSDAQ, ``settlement`` all/final/interim.
     시세가 없어 :class:`DividendRanking` 로 돌려준다. 최대 30건(다음조회 없음)."""
     start_date = _to_yyyymmdd(start, "start")
     end_date = _to_yyyymmdd(end, "end")
@@ -856,39 +856,39 @@ _OVERTIME_CHANGE = {  # 시간외등락률순위 정렬(FID_DIV_CLS_CODE). 원�
 }
 
 
-def _parse_overtime(
+def _parse_after_hours(
     rows: Sequence[Mapping[str, Any]], *,
     price_key: str, change_key: str, sign_key: str, ctrt_key: str, vol_key: str,
-) -> list[OvertimeRanking]:
-    ranked: list[OvertimeRanking] = []
+) -> list[AfterHoursRanking]:
+    ranked: list[AfterHoursRanking] = []
     for row in rows:
         symbol = str(row.get("mksc_shrn_iscd") or row.get("stck_shrn_iscd") or "").strip()
         if not symbol:
             continue
         sign = str(row.get(sign_key, "")).strip()
         ranked.append(
-            OvertimeRanking(
+            AfterHoursRanking(
                 rank=len(ranked) + 1,
                 symbol=symbol,
                 name=str(row.get("hts_kor_isnm", "")).strip(),
-                overtime_price=required_decimal(row.get(price_key), price_key),
-                overtime_change=_apply_change_sign(
+                after_hours_price=required_decimal(row.get(price_key), price_key),
+                after_hours_change=_apply_change_sign(
                     required_decimal(row.get(change_key), change_key), sign
                 ),
-                overtime_change_percent=_apply_change_sign(
+                after_hours_change_percent=_apply_change_sign(
                     required_decimal(row.get(ctrt_key), ctrt_key), sign
                 ),
-                overtime_volume=required_int(row.get(vol_key), vol_key),
+                after_hours_volume=required_int(row.get(vol_key), vol_key),
                 _raw=row,
             )
         )
     return ranked
 
 
-def fetch_overtime_change(
+def fetch_after_hours_change(
     transport: Transport, *, direction: str, market: str
-) -> list[OvertimeRanking]:
-    """시간외 단일가 등락률 순위. ``direction="gainers"`` 상승 / ``"losers"`` 하락(:class:`OvertimeRanking`)."""
+) -> list[AfterHoursRanking]:
+    """시간외 단일가 등락률 순위. ``direction="gainers"`` 상승 / ``"losers"`` 하락(:class:`AfterHoursRanking`)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_MRKT_CLS_CODE": "",
@@ -906,15 +906,15 @@ def fetch_overtime_change(
     rows = resp.body.get("output2")
     if not isinstance(rows, list):
         raise _missing_block_error("output2", resp)
-    return _parse_overtime(
+    return _parse_after_hours(
         rows, price_key="ovtm_untp_prpr", change_key="ovtm_untp_prdy_vrss",
         sign_key="ovtm_untp_prdy_vrss_sign", ctrt_key="ovtm_untp_prdy_ctrt",
         vol_key="ovtm_untp_vol",
     )
 
 
-def fetch_overtime_volume(transport: Transport, *, market: str) -> list[OvertimeRanking]:
-    """시간외 단일가 거래량 순위(:class:`OvertimeRanking`)."""
+def fetch_after_hours_volume(transport: Transport, *, market: str) -> list[AfterHoursRanking]:
+    """시간외 단일가 거래량 순위(:class:`AfterHoursRanking`)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": "20235",
@@ -932,18 +932,18 @@ def fetch_overtime_volume(transport: Transport, *, market: str) -> list[Overtime
     rows = resp.body.get("output2")
     if not isinstance(rows, list):
         raise _missing_block_error("output2", resp)
-    return _parse_overtime(
+    return _parse_after_hours(
         rows, price_key="ovtm_untp_prpr", change_key="ovtm_untp_prdy_vrss",
         sign_key="ovtm_untp_prdy_vrss_sign", ctrt_key="ovtm_untp_prdy_ctrt",
         vol_key="ovtm_untp_vol",
     )
 
 
-def fetch_overtime_expected_change(
+def fetch_after_hours_expected_change(
     transport: Transport, *, direction: str, market: str
-) -> list[OvertimeRanking]:
+) -> list[AfterHoursRanking]:
     """시간외 예상체결 등락률 순위. ``direction="gainers"`` 상승 / ``"losers"`` 하락. 시간외 예상체결가·예상체결량
-    을 담는다(:class:`OvertimeRanking`)."""
+    을 담는다(:class:`AfterHoursRanking`)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": "11186",
@@ -960,7 +960,7 @@ def fetch_overtime_expected_change(
     rows = resp.body.get("output")
     if not isinstance(rows, list):
         raise _missing_block_error("output", resp)
-    return _parse_overtime(
+    return _parse_after_hours(
         rows, price_key="ovtm_untp_antc_cnpr", change_key="ovtm_untp_antc_cntg_vrss",
         sign_key="ovtm_untp_antc_cntg_vrss_sign", ctrt_key="ovtm_untp_antc_cntg_ctrt",
         vol_key="ovtm_untp_antc_cnqn",
@@ -1007,10 +1007,10 @@ def fetch_after_hours_balance(
                 change_percent=_apply_change_sign(
                     required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
                 ),
-                overtime_ask_residual=required_int(
+                after_hours_ask_residual=required_int(
                     row.get("ovtm_total_askp_rsqn"), "ovtm_total_askp_rsqn"
                 ),
-                overtime_bid_residual=required_int(
+                after_hours_bid_residual=required_int(
                     row.get("ovtm_total_bidp_rsqn"), "ovtm_total_bidp_rsqn"
                 ),
                 pre_market_volume=required_int(row.get("mkob_otcp_vol"), "mkob_otcp_vol"),

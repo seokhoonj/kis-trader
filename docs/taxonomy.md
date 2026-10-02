@@ -172,9 +172,9 @@ kis.domestic
 │   │  ── 예상체결·시간외 ───────────────────────────
 │   ├── by_expected_execution_change()  # 장전 예상체결 등락
 │   ├── by_expected_close()             # 장마감 예상체결 종목
-│   ├── by_overtime_change()            # 시간외 등락률 순위
-│   ├── by_overtime_volume()            # 시간외 거래량 순위
-│   ├── by_overtime_expected_change()   # 시간외 예상체결 등락
+│   ├── by_after_hours_change()         # 시간외 등락률 순위
+│   ├── by_after_hours_volume()         # 시간외 거래량 순위
+│   ├── by_after_hours_expected_change()# 시간외 예상체결 등락
 │   └── by_after_hours_balance()        # 시간외 잔량 순위
 ├── market                              # 시장 전체 분석 질의
 │   │  ── 투자자·프로그램 수급 ────────────────────────
@@ -216,7 +216,7 @@ kis.domestic
 │   ├── by_change()                     # 등락률 순위
 │   ├── by_sensitivity()                # 민감도(그릭스) 순위
 │   ├── by_indicator()                  # 투자지표 순위
-│   └── quick_change()                  # 당일 급변 종목
+│   └── by_quick_change()               # 당일 급변 종목
 └── elw_screener                        # ELW 스크리닝 질의
     ├── underlyings()                   # 상장 기초자산 목록
     ├── by_underlying(underlying)       # 한 기초자산 ELW 목록

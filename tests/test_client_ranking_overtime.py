@@ -1,6 +1,6 @@
 """마무리 순위 6종 -- 예상체결/시간외/조회상위.
 
-by_expected_execution_change(RankedStock) / by_overtime_change·volume·expected_change(OvertimeRanking,
+by_expected_execution_change(RankedStock) / by_after_hours_change·volume·expected_change(AfterHoursRanking,
 output2 vs output) / by_after_hours_balance(전용) / by_views(전용). 각 TR·URL·시장구분·정렬,
 전용 필드 매핑(시간외 가격/거래량, 잔량, 조회상위 코드+시장), fail-closed 를 검증한다.
 """
@@ -14,8 +14,8 @@ import pytest
 
 from kis_trader import (
     AfterHoursBalanceRanking,
+    AfterHoursRanking,
     KISClient,
-    OvertimeRanking,
     RankedStock,
     TopViewedStock,
 )
@@ -71,7 +71,7 @@ def test_expected_conclusion_losers_sort_is_decline():
     assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "3"
 
 
-# --- overtime change / volume -> OvertimeRanking (output2) -------------------
+# --- after-hours change / volume -> AfterHoursRanking (output2) --------------
 def _ovtm_row(**over):
     row = {"mksc_shrn_iscd": "025950", "hts_kor_isnm": "동신건설", "ovtm_untp_prpr": "21000",
            "ovtm_untp_prdy_vrss": "1890", "ovtm_untp_prdy_vrss_sign": "1",
@@ -81,14 +81,14 @@ def _ovtm_row(**over):
     return row
 
 
-def test_overtime_change_maps_overtime_fields():
+def test_after_hours_change_maps_fields():
     fake = FakeTransport(response=_resp({"output1": {}, "output2": [_ovtm_row()]}))
-    ranked = _client(fake).domestic.ranking.by_overtime_change(direction="losers")
-    assert isinstance(ranked[0], OvertimeRanking)
+    ranked = _client(fake).domestic.ranking.by_after_hours_change(direction="losers")
+    assert isinstance(ranked[0], AfterHoursRanking)
     assert ranked[0].symbol == "025950"
-    assert ranked[0].overtime_price == Decimal(21000)     # 시간외 가격
-    assert ranked[0].overtime_change == Decimal(1890)     # sign 1 -> 상승
-    assert ranked[0].overtime_volume == 46834             # 시간외 거래량
+    assert ranked[0].after_hours_price == Decimal(21000)     # 시간외 가격
+    assert ranked[0].after_hours_change == Decimal(1890)     # sign 1 -> 상승
+    assert ranked[0].after_hours_volume == 46834             # 시간외 거래량
     assert ranked[0]._raw["stck_prpr"] == "19110"         # 정규장 가격은 _raw
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/ranking/overtime-fluctuation"
@@ -99,11 +99,11 @@ def test_overtime_change_maps_overtime_fields():
     assert call["params"]["FID_DIV_CLS_CODE"] == "5"             # losers = 하락률(5)
 
 
-def test_overtime_volume_uses_stck_shrn_iscd_fallback():
+def test_after_hours_volume_uses_stck_shrn_iscd_fallback():
     row = _ovtm_row(mksc_shrn_iscd=None, stck_shrn_iscd="024840")
     del row["mksc_shrn_iscd"]
     fake = FakeTransport(response=_resp({"output1": {}, "output2": [row]}))
-    ranked = _client(fake).domestic.ranking.by_overtime_volume()
+    ranked = _client(fake).domestic.ranking.by_after_hours_volume()
     assert ranked[0].symbol == "024840"                   # stck_shrn_iscd 폴백
     assert fake.calls[0]["tr_id"] == "FHPST02350000"
     assert fake.calls[0]["params"]["FID_COND_SCR_DIV_CODE"] == "20235"
@@ -112,16 +112,16 @@ def test_overtime_volume_uses_stck_shrn_iscd_fallback():
     assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "2"
 
 
-def test_overtime_expected_change_uses_output_and_antc_fields():
+def test_after_hours_expected_change_uses_output_and_antc_fields():
     row = {"stck_shrn_iscd": "025820", "hts_kor_isnm": "이구산업",
            "ovtm_untp_antc_cnpr": "6270", "ovtm_untp_antc_cntg_vrss": "570",
            "ovtm_untp_antc_cntg_vrss_sign": "1", "ovtm_untp_antc_cntg_ctrt": "10.00",
            "ovtm_untp_antc_cnqn": "253267", "stck_prpr": "5700"}
     fake = FakeTransport(response=_resp({"output": [row]}))
-    ranked = _client(fake).domestic.ranking.by_overtime_expected_change(direction="gainers")
-    assert ranked[0].overtime_price == Decimal(6270)      # 예상체결가
-    assert ranked[0].overtime_change == Decimal(570)
-    assert ranked[0].overtime_volume == 253267            # 예상체결량
+    ranked = _client(fake).domestic.ranking.by_after_hours_expected_change(direction="gainers")
+    assert ranked[0].after_hours_price == Decimal(6270)      # 예상체결가
+    assert ranked[0].after_hours_change == Decimal(570)
+    assert ranked[0].after_hours_volume == 253267            # 예상체결량
     assert fake.calls[0]["path"] == "/uapi/domestic-stock/v1/ranking/overtime-exp-trans-fluct"
     assert fake.calls[0]["tr_id"] == "FHKST11860000"
 
@@ -135,8 +135,8 @@ def test_after_hours_balance_maps_residual_and_volumes():
     fake = FakeTransport(response=_resp({"output": rows}))
     ranked = _client(fake).domestic.ranking.by_after_hours_balance(side="bid")
     assert isinstance(ranked[0], AfterHoursBalanceRanking)
-    assert ranked[0].overtime_ask_residual == 500
-    assert ranked[0].overtime_bid_residual == 700
+    assert ranked[0].after_hours_ask_residual == 500
+    assert ranked[0].after_hours_bid_residual == 700
     assert ranked[0].pre_market_volume == 451685
     assert ranked[0].post_market_volume == 0
     assert ranked[0].change == Decimal(10)                # sign 2 -> 상승
@@ -224,10 +224,10 @@ def test_expected_close_missing_output_fails_closed():
         _client(FakeTransport(response=response)).domestic.ranking.by_expected_close()
 
 
-def test_overtime_change_missing_output2_fails_closed():
+def test_after_hours_change_missing_output2_fails_closed():
     fake = FakeTransport(response=_resp({"output1": {}}))
     with pytest.raises(KISError):
-        _client(fake).domestic.ranking.by_overtime_change()
+        _client(fake).domestic.ranking.by_after_hours_change()
 
 
 def test_after_hours_balance_bad_value_fails_closed():

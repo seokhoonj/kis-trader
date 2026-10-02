@@ -133,8 +133,8 @@ _LP_TREND_TR = "FHPEW03760000"
 _RIGHT_CODE = {"all": "0", "call": "1", "put": "2"}
 
 _VOLUME_SORT = {
-    "volume": "0", "turnover_growth": "1", "turnover_rate": "2",
-    "amount": "3", "net_buy_balance": "4", "net_sell_balance": "5",
+    "trading_volume": "0", "volume_growth": "1", "turnover": "2",
+    "cumulative_trading_amount": "3", "net_buy_balance": "4", "net_sell_balance": "5",
 }
 _CHANGE_SORT = {
     "gainers": "0", "losers": "1", "from_open_up": "2", "from_open_down": "3",
@@ -296,10 +296,10 @@ def fetch_lp_flows(transport: Transport, *, code: str) -> list[ELWLPFlow]:
 
 
 def fetch_ranking_by_volume(
-    transport: Transport, *, sort: str = "volume",
+    transport: Transport, *, sort: str = "trading_volume",
     underlying: str = "000000", issuer: str = "00000", right: str = "all",
 ) -> list[RankedELW]:
-    """ELW 거래량 순위. ``sort`` 는 volume/turnover_growth/turnover_rate/amount/
+    """ELW 거래량 순위. ``sort`` 는 trading_volume/volume_growth/turnover/cumulative_trading_amount/
     net_buy_balance/net_sell_balance."""
     params = _base_ranking_params("20278", underlying, issuer)
     params.update({

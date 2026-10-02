@@ -25,7 +25,7 @@ ELWRight = Literal["all", "call", "put"]
 
 #: 거래량 순위 기준.
 VolumeSort = Literal[
-    "volume", "turnover_growth", "turnover_rate", "amount",
+    "trading_volume", "volume_growth", "turnover", "cumulative_trading_amount",
     "net_buy_balance", "net_sell_balance",
 ]
 
@@ -60,10 +60,10 @@ class ELWRankingQueries:
         self._client = client
 
     def by_volume(
-        self, *, sort: VolumeSort = "volume",
+        self, *, sort: VolumeSort = "trading_volume",
         underlying: str = "000000", issuer: str = "00000", right: ELWRight = "all",
     ) -> list[RankedELW]:
-        """거래량 순위. ``sort``: volume/turnover_growth/turnover_rate/amount/
+        """거래량 순위. ``sort``: trading_volume/volume_growth/turnover/cumulative_trading_amount/
         net_buy_balance/net_sell_balance."""
         return elw_api.fetch_ranking_by_volume(
             self._client.transport, sort=sort,
@@ -102,7 +102,7 @@ class ELWRankingQueries:
             underlying=underlying, issuer=issuer, right=right,
         )
 
-    def quick_change(
+    def by_quick_change(
         self, *, sort: QuickChangeSort = "price_surge", window: QuickChangeWindow = "day",
         underlying: str = "000000", issuer: str = "00000",
     ) -> list[RankedELW]:

@@ -136,7 +136,7 @@ def fetch_stock_status(
         is_short_sale_overheated=str(row.get("ssts_hot_yn", "")).strip() == "Y",
         is_low_liquidity=str(row.get("low_current_yn", "")).strip() == "Y",
         vi_code=str(row.get("vi_cls_code", "")).strip(),
-        is_in_liquidation=str(row.get("sltr_yn", "")).strip() == "Y",
+        is_liquidation_trading=str(row.get("sltr_yn", "")).strip() == "Y",
         is_halted=str(row.get("trht_yn", "")).strip() == "Y",
         new_listing_name=str(row.get("new_lstn_cls_name", "")).strip(),
         ex_rights_name=str(row.get("flng_cls_name", "")).strip(),

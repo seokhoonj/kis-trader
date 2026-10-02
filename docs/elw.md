@@ -34,5 +34,5 @@ ranking = kis.domestic.elw_ranking
 ranking.by_volume()                 # 거래량
 ranking.by_indicator()              # 투자지표(레버리지 등)
 ranking.by_sensitivity()            # 민감도(델타 등)
-ranking.quick_change()              # 당일 급변
+ranking.by_quick_change()           # 당일 급변
 ```
