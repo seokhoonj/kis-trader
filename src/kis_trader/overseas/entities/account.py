@@ -151,7 +151,7 @@ class OverseasPeriodProfit:
     settlement_amount: Decimal         # 정산지급금액(excc_dfrm_amt)
     total_realized_pnl: Decimal        # 해외실현손익총금액(ovrs_rlzt_pfls_tot_amt)
     total_return_rate: Decimal         # 총수익률(tot_pftrt)
-    basis_date: date | None            # 기준일자(bass_dt)
+    base_date: date | None             # 기준일자(bass_dt)
     exchange_rate: Decimal             # 환율(exrt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

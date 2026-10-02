@@ -427,7 +427,7 @@ def fetch_period_profit(
         settlement_amount=_decimal_or_zero(summary, "excc_dfrm_amt"),
         total_realized_pnl=_decimal_or_zero(summary, "ovrs_rlzt_pfls_tot_amt"),
         total_return_rate=_decimal_or_zero(summary, "tot_pftrt"),
-        basis_date=parse_optional_kst_date(summary.get("bass_dt")),
+        base_date=parse_optional_kst_date(summary.get("bass_dt")),
         exchange_rate=_decimal_or_zero(summary, "exrt"),
         _raw=summary,
     )

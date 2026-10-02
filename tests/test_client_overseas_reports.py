@@ -170,7 +170,7 @@ def test_period_profit_parses():
     assert row.sold_quantity == Decimal(5)
     assert row.realized_pnl == Decimal("49.00")
     assert pnl.total_realized_pnl == Decimal("49.00")
-    assert pnl.basis_date == date(2025, 5, 23)
+    assert pnl.base_date == date(2025, 5, 23)
 
 
 def test_period_profit_tr_and_params():

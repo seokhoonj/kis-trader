@@ -321,7 +321,7 @@ class OverseasDerivativePNLHistory:
 class OverseasDerivativeTransaction:
     """해외선물옵션 기간 입출금(원장) 한 건(불변).
 
-    금액은 ``currency`` 통화의 Decimal(원화 아님). ``date`` 기준일자(bass_dt) -- 형식오류/
+    금액은 ``currency`` 통화의 Decimal(원화 아님). ``base_date`` 기준일자(bass_dt) -- 형식오류/
     공백이면 None. ``ledger_sequence`` 원장입출금순번(fm_ldgr_inog_seq), ``transaction_type``
     계좌거래유형명(acnt_tr_type_name 원본 문자열), ``currency`` 통화코드(crcy_cd), ``item_name``
     거래항목명(tr_itm_name 원본 문자열), ``amount`` 입출금액(fm_iofw_amt), ``fee`` 수수료(fm_fee),
@@ -332,7 +332,7 @@ class OverseasDerivativeTransaction:
     타입화하지 않은 필드는 ``_raw``.
     """
 
-    date: datetime.date | None        # 기준일자(bass_dt)
+    base_date: datetime.date | None   # 기준일자(bass_dt)
     ledger_sequence: str              # 원장입출금순번(fm_ldgr_inog_seq)
     transaction_type: str             # 계좌거래유형명(acnt_tr_type_name)
     currency: str                     # 통화코드(crcy_cd)

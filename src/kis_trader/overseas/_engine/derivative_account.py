@@ -596,7 +596,7 @@ def _parse_transactions(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativ
             # 금액은 빈 값을 0으로 읽되(외화 필드는 비어 올 수 있음), 값이 있는데 파싱 실패면
             # 여전히 예외로 fail-closed 한다.
             OverseasDerivativeTransaction(
-                date=_parse_date(base_date_text),
+                base_date=_parse_date(base_date_text),
                 ledger_sequence=ledger_sequence,
                 transaction_type=str(row.get("acnt_tr_type_name", "")).strip(),
                 currency=str(row.get("crcy_cd", "")).strip(),

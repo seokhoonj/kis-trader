@@ -350,7 +350,7 @@ def test_market_lendable_stocks_maps_and_routes():
     assert stock.available_quantity == 80000
     assert stock.limit_quantity - stock.used_quantity == stock.available_quantity
     assert stock.is_lendable is True
-    assert stock.date == date(2024, 5, 28)
+    assert stock.base_date == date(2024, 5, 28)
     assert fake.calls[0] == {
         "path": "/uapi/domestic-stock/v1/quotations/lendable-by-company",
         "tr_id": "CTSC2702R",

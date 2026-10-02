@@ -173,6 +173,6 @@ account.transactions(start="20240101", end="20240630")  # 기간 입출금(원�
 - `daily_fills()` → `OverseasDerivativeFillHistory`: `fills`(`OverseasDerivativeFill`)와 합계(`total_filled_quantity`·`total_fee`).
 - `daily_orders()` → `OverseasDerivativeDailyOrder` 목록.
 - `period_pnl()` → `OverseasDerivativePNLHistory`: `by_currency`(통화별) · `by_symbol`(종목별) 두 벌, 각 행은 `realized_pnl`·`net_pnl`·`fee`·`unrealized_pnl`.
-- `transactions()` → `OverseasDerivativeTransaction` 목록: `date`·`transaction_type`·`amount`·`deposit`.
+- `transactions()` → `OverseasDerivativeTransaction` 목록: `base_date`·`transaction_type`·`amount`·`deposit`.
 
 타입화하지 않은 벤더 필드는 각 결과의 `_raw` 로 접근합니다.
