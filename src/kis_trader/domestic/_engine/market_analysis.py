@@ -179,7 +179,7 @@ def fetch_lendable_stocks(
                 available_quantity=required_int(row.get("trad_psbl_qty2"), "trad_psbl_qty2"),
                 rights_type=str(row.get("rght_type_cd", "")).strip(),
                 # 일부 대주가능 종목은 기준일(bass_dt)이 비어 오므로 optional 로 둔다.
-                base_date=parse_optional_kst_date(row.get("bass_dt")),
+                date=parse_optional_kst_date(row.get("bass_dt")),
                 is_lendable=str(row.get("psbl_yn", "")).strip() == "Y",
                 _raw=row,
             )

@@ -1001,7 +1001,7 @@ def test_period_trans_parses_and_routes():
     trans = _client(fake).account.transactions(start="20240201", end="20240216")
     assert isinstance(trans, list)
     assert isinstance(trans[0], OverseasDerivativeTransaction)
-    assert trans[0].base_date == date(2024, 2, 16)           # bass_dt
+    assert trans[0].date == date(2024, 2, 16)                # bass_dt
     assert trans[0].ledger_sequence == "0001"                # fm_ldgr_inog_seq
     assert trans[0].transaction_type == "입금"               # acnt_tr_type_name
     assert trans[0].currency == "USD"                        # crcy_cd
