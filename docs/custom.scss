@@ -165,3 +165,7 @@ pre:not(.sourceCode) > code {
   transform: translateX(4px);
   color: #407bff;
 }
+
+// 사이드바 상단 GitHub 아이콘 숨김 -- 우측 "소스 보기"(repo-action, .toc-action) 가 이미
+// 같은 저장소를 가리켜 중복이다. repo-url 은 그 source 링크에 필요해 그대로 둔다.
+.quarto-navigation-tool:has(.bi-github) { display: none; }
