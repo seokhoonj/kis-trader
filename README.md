@@ -15,13 +15,11 @@
 
 ## 1. 설치
 
-아직 PyPI 게시 전입니다. 받은 폴더에서 바로 설치하세요.
-
 ```bash
-uv pip install -e .
+pip install kis-trader
 ```
 
-파이썬 3.11 이상이 필요합니다. 게시 후에는 `pip install kis-trader` 로 설치합니다.
+파이썬 3.11 이상이 필요합니다. 소스에서 개발 설치하려면 `uv pip install -e .` 를 쓰세요.
 
 ## 2. 빠른 시작
 

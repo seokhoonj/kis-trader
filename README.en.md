@@ -16,13 +16,11 @@ quotes and execution notices (WebSocket) and a terminal command `kis` come with 
 
 ## 1. Install
 
-Not on PyPI yet. Install from the folder you received.
-
 ```bash
-uv pip install -e .
+pip install kis-trader
 ```
 
-Requires Python 3.11+. Once published, install with `pip install kis-trader`.
+Requires Python 3.11+. For a development install from source, use `uv pip install -e .`.
 
 ## 2. Quickstart
 
