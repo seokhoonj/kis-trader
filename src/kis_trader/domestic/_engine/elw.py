@@ -367,7 +367,7 @@ def fetch_ranking_by_indicator(
     )
 
 
-def fetch_ranking_quick_change(
+def fetch_ranking_by_quick_change(
     transport: Transport, *, sort: str = "price_surge", window: str = "day",
     underlying: str = "000000", issuer: str = "00000",
 ) -> list[RankedELW]:

@@ -108,7 +108,7 @@ class ELWRankingQueries:
     ) -> list[RankedELW]:
         """당일 급변 종목. ``sort``: price_surge/price_plunge/volume_surge/bid_surge/
         ask_surge, ``window``: ``"minute"``/``"day"``. 콜풋 필터는 없다."""
-        return elw_api.fetch_ranking_quick_change(
+        return elw_api.fetch_ranking_by_quick_change(
             self._client.transport, sort=sort, window=window,
             underlying=underlying, issuer=issuer,
         )

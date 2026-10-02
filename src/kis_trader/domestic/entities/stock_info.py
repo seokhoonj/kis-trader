@@ -83,7 +83,7 @@ class StockStatus:
     is_short_sale_overheated: bool
     is_low_liquidity: bool
     vi_code: str
-    is_liquidation_trading: bool
+    is_under_liquidation_trading: bool
     is_halted: bool
     new_listing_name: str
     ex_rights_name: str

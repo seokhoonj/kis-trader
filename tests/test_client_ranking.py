@@ -395,6 +395,15 @@ def test_by_dividend_stock_kind_and_market_settlement():
     assert call["params"]["GB4"] == "2"                         # interim
 
 
+@pytest.mark.parametrize("market,expected", [("KOSPI", "1"), ("KOSPI200", "2"), ("KOSDAQ", "3")])
+def test_by_dividend_market_codes(market, expected):
+    fake = FakeTransport(response=_resp([_dividend_row()]))
+    _client(fake).domestic.ranking.by_dividend(
+        kind="cash", start="20240101", end="20240630", market=market
+    )
+    assert fake.calls[0]["params"]["GB1"] == expected
+
+
 def test_by_dividend_rejects_bad_kind():
     with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_resp([]))).domestic.ranking.by_dividend(

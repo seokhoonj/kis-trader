@@ -850,7 +850,7 @@ def fetch_expected_close(
 #   등락률: SCR 20234, output2, ovtm_untp_prpr/prdy_vrss/vol, 코드 mksc_shrn_iscd, 정렬 FID_DIV_CLS_CODE
 #   거래량: SCR 20235, output2, 같은 필드, 코드 stck_shrn_iscd, 정렬 FID_RANK_SORT_CLS_CODE
 #   예상체결: SCR 11186, output(flat), ovtm_untp_antc_cnpr/cntg_vrss/cnqn, 코드 stck_shrn_iscd
-_OVERTIME_CHANGE = {  # 시간외등락률순위 정렬(FID_DIV_CLS_CODE). 원장 overtime_fluctuation:
+_AFTER_HOURS_CHANGE = {  # 시간외등락률순위 정렬(FID_DIV_CLS_CODE). 원장 overtime_fluctuation:
     # 1상한가 2상승률 3보합 4하한가 5하락률 -- losers 는 하락률(5)이다("3"은 보합).
     "gainers": "2", "losers": "5",
 }
@@ -894,7 +894,7 @@ def fetch_after_hours_change(
         "FID_MRKT_CLS_CODE": "",
         "FID_COND_SCR_DIV_CODE": "20234",
         "FID_INPUT_ISCD": "0000",
-        "FID_DIV_CLS_CODE": _lookup(_OVERTIME_CHANGE, key=direction, argname="direction"),
+        "FID_DIV_CLS_CODE": _lookup(_AFTER_HOURS_CHANGE, key=direction, argname="direction"),
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
         "FID_VOL_CNT": "", "FID_TRGT_CLS_CODE": "", "FID_TRGT_EXLS_CLS_CODE": "",
     }

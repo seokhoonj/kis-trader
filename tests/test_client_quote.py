@@ -444,6 +444,7 @@ def test_stock_status_maps_prices_and_regulatory_flags():
     assert status.is_investment_caution is True
     assert status.is_short_sale_overheated is True
     assert status.is_halted is True
+    assert status.is_under_liquidation_trading is False   # sltr_yn "N"
     assert status.ex_rights_name == "배당락"
     assert fake.calls[0]["path"] == "/uapi/domestic-stock/v1/quotations/inquire-price-2"
     assert fake.calls[0]["tr_id"] == "FHPST01010000"
