@@ -79,7 +79,7 @@ def test_open_orders_parses_ledger_rows():
     assert first.branch_number == "06010"
     assert first.side == "buy"                        # 02 -> buy
     assert first.order_type == "지정가"
-    assert first.quantity == Decimal(1)
+    assert first.order_quantity == Decimal(1)
     assert first.filled_quantity == Decimal(0)
     assert first.unfilled_quantity == Decimal(1)
     assert first.cancelable_quantity == Decimal(1)

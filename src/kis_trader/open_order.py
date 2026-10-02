@@ -26,7 +26,7 @@ class OpenOrder:
     """국내주식 미체결 주문 한 건(불변).
 
     ``order_id`` KIS 주문번호(odno), ``original_order_id`` 는 이 건이 정정/취소 주문이면 그
-    원주문번호(아니면 빈 문자열), ``branch_number`` 주문 채번 지점번호. ``quantity`` 주문수량,
+    원주문번호(아니면 빈 문자열), ``branch_number`` 주문 채번 지점번호. ``order_quantity`` 주문수량,
     ``filled_quantity`` 체결수량, ``unfilled_quantity`` 미체결 잔량(주문-체결), ``cancelable_quantity``
     정정/취소 가능수량. ``order_price`` 주문단가(KRW), ``order_time`` 주문시각(HH:MM:SS, 없으면 None).
     """
@@ -38,7 +38,7 @@ class OpenOrder:
     branch_number: str                # 주문채번지점번호(ord_gno_brno)
     side: Side                        # buy / sell
     order_type: str                   # 주문구분명(ord_dvsn_name), 예: "지정가"
-    quantity: Decimal                 # 주문수량
+    order_quantity: Decimal           # 주문수량(ord_qty)
     filled_quantity: Decimal          # 총체결수량
     unfilled_quantity: Decimal        # 미체결 잔량(주문-체결)
     cancelable_quantity: Decimal      # 정정/취소 가능수량(psbl_qty)

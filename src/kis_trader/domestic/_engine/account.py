@@ -910,7 +910,7 @@ def _parse_open_orders(rows: list[Mapping[str, Any]]) -> list[OpenOrder]:
                 branch_number=str(row.get("ord_gno_brno", "")).strip(),
                 side=_side_from_code(row.get("sll_buy_dvsn_cd")),
                 order_type=str(row.get("ord_dvsn_name", "")).strip(),
-                quantity=quantity,
+                order_quantity=quantity,
                 filled_quantity=filled,
                 unfilled_quantity=quantity - filled,
                 cancelable_quantity=field_decimal_or_zero(row.get("psbl_qty"), "psbl_qty"),

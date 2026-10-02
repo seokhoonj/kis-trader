@@ -922,7 +922,7 @@ def test_open_orders_wire_and_mapping():
     assert o.order_quantity == Decimal(1)
     assert o.filled_quantity == Decimal(0)
     assert o.unfilled_quantity == Decimal(1)                  # ord - ccld
-    assert o.price == Decimal("1000.00")
+    assert o.order_price == Decimal("1000.00")
     assert o.order_time == "084419"
     assert o.order_type == "지정가"
 

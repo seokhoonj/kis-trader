@@ -41,6 +41,7 @@ from ..entities.derivative_account import (
     DerivativeValuationBalance,
     DerivativeValuationPosition,
 )
+from ._parse import _side_from_code
 
 if TYPE_CHECKING:
     from ..._literals import Numeric
@@ -81,7 +82,6 @@ _OPEN_ORDERS_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-ccnl"
 _OPEN_ORDERS_TR = {"real": "TTTO5201R", "paper": "VTTO5201R"}  # 주간(정규), 실전·모의 모두 지원
 #: 매도매수구분코드(SLL_BUY_DVSN_CD): 매수 02 / 매도 01.
 _SIDE_TO_SLL_BUY = {"buy": "02", "sell": "01"}
-_SLL_BUY_TO_SIDE = {"02": "buy", "01": "sell"}
 
 
 def fetch_balance(
@@ -794,17 +794,16 @@ def _open_order(row: Mapping[str, Any]) -> DerivativeOpenOrder:
     """미체결 주문 한 행(output1) -> :class:`DerivativeOpenOrder`. 수량은 fail-closed Decimal."""
     order_quantity = required_decimal(row.get("ord_qty"), "ord_qty")
     filled_quantity = required_decimal(row.get("tot_ccld_qty"), "tot_ccld_qty")
-    side_code = str(row.get("sll_buy_dvsn_cd", "")).strip()
     return DerivativeOpenOrder(
         order_id=str(row.get("odno", "")).strip(),
         original_order_id=str(row.get("orgn_odno", "")).strip(),
         symbol=str(row.get("pdno", "")).strip(),
         name=str(row.get("prdt_name", "")).strip(),
-        side=_SLL_BUY_TO_SIDE.get(side_code, side_code),
+        side=_side_from_code(row.get("sll_buy_dvsn_cd")),
         order_quantity=order_quantity,
         filled_quantity=filled_quantity,
         unfilled_quantity=order_quantity - filled_quantity,
-        price=field_decimal_or_zero(row.get("ord_idx"), "ord_idx"),
+        order_price=field_decimal_or_zero(row.get("ord_idx"), "ord_idx"),
         order_time=str(row.get("ord_tmd", "")).strip(),
         order_type=str(row.get("nmpr_type_name", "")).strip(),
         _raw=row,
