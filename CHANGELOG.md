@@ -3,7 +3,31 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.1.0 — 2026-10-02
+## 0.2.0 — 2026-10-02
+
+Public naming consistency pass. 0.1.0 is yanked; use 0.2.0.
+
+### Changed (breaking)
+
+- After-hours single-price rankings now use the `after_hours` name, matching the
+  stock handle (`stock.after_hours_*`): `ranking.by_overtime_change` /
+  `by_overtime_volume` / `by_overtime_expected_change` →
+  `by_after_hours_change` / `by_after_hours_volume` / `by_after_hours_expected_change`,
+  and the result type `OvertimeRanking` → `AfterHoursRanking` (its `overtime_*`
+  fields → `after_hours_*`).
+- `DividendMarket` values are uppercase (`"KOSPI"` / `"KOSPI200"` / `"KOSDAQ"`),
+  matching every other market filter.
+- `StockStatus.is_in_liquidation` → `is_under_liquidation_trading` (정리매매 is the
+  delisting liquidation-trading session, parallel to `is_under_administration`).
+- ELW `ranking.quick_change` → `by_quick_change`; ELW volume-sort values use the
+  domestic ranking terms (`trading_volume` / `cumulative_trading_amount` /
+  `volume_growth` / `turnover`).
+- A record's reference date (KIS `bass_dt`, 기준일자) is named `base_date` on every
+  entity that carries it as an attribute (`LendableStock`,
+  `OverseasDerivativeTransaction`, `OverseasPeriodProfit`, `AccountRight`,
+  `OverseasRight`); only `TradingDay`, whose subject is the calendar day, keeps `date`.
+
+## 0.1.0 — 2026-10-02 [YANKED]
 
 First public release.
 
