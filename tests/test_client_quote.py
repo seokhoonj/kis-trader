@@ -438,12 +438,12 @@ def test_stock_status_maps_prices_and_regulatory_flags():
     assert status.market == "UN"
     assert status.price == Decimal(73000)
     assert status.change == Decimal(-1200)
-    assert status.credit_allowed is True
-    assert status.short_term_overheated is True
+    assert status.is_credit_allowed is True
+    assert status.is_short_term_overheated is True
     assert status.market_warning_code == "02"
-    assert status.investment_caution is True
-    assert status.short_sale_overheated is True
-    assert status.halted is True
+    assert status.is_investment_caution is True
+    assert status.is_short_sale_overheated is True
+    assert status.is_halted is True
     assert status.ex_rights_name == "배당락"
     assert fake.calls[0]["path"] == "/uapi/domestic-stock/v1/quotations/inquire-price-2"
     assert fake.calls[0]["tr_id"] == "FHPST01010000"

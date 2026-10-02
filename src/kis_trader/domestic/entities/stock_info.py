@@ -71,20 +71,20 @@ class StockStatus:
     previous_volume: int
     volume_ratio: Decimal
     cumulative_trading_amount: Decimal
-    credit_allowed: bool
+    is_credit_allowed: bool
     credit_ratio: Decimal
     margin_ratio: Decimal
-    managed: bool
-    short_term_overheated: bool
+    is_under_administration: bool
+    is_short_term_overheated: bool
     market_warning_code: str
     market_warning_name: str
-    investment_caution: bool
-    abnormal_runup: bool
-    short_sale_overheated: bool
-    low_liquidity: bool
+    is_investment_caution: bool
+    is_abnormal_runup: bool
+    is_short_sale_overheated: bool
+    is_low_liquidity: bool
     vi_code: str
-    liquidation_trading: bool
-    halted: bool
+    is_in_liquidation: bool
+    is_halted: bool
     new_listing_name: str
     ex_rights_name: str
     _raw: Mapping[str, Any] = field(
