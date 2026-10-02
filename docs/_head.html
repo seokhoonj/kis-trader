@@ -35,6 +35,9 @@
     document.querySelectorAll(".sidebar-title a, h1.title").forEach(function (el) {
       if (el.textContent.trim() !== "KIS Trader") return;
       el.classList.add("kis-brand"); // shading 은 브랜드 제목에만 (챕터 제목 제외)
+      if (!el.querySelector(".kis-trader-logo")) { // 제목 왼쪽에 favicon 로고
+        el.insertAdjacentHTML("afterbegin", '<img class="kis-trader-logo" src="favicon.svg" alt="" />');
+      }
       if (!el.querySelector(".kis-accent")) {
         el.innerHTML = el.innerHTML.replace(
           /KIS(\s+Trader)/,
