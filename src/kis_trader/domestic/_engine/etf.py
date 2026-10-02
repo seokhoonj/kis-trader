@@ -345,7 +345,7 @@ def _parse_etf_components(rows: Sequence[Mapping[str, Any]]) -> list[ETFComponen
                     required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), change_sign_code
                 ),
                 weight=required_decimal(row.get("etf_cnfg_issu_rlim"), "etf_cnfg_issu_rlim"),
-                valuation=required_decimal(row.get("etf_vltn_amt"), "etf_vltn_amt"),
+                market_value=required_decimal(row.get("etf_vltn_amt"), "etf_vltn_amt"),
                 _raw=row,
             )
         )

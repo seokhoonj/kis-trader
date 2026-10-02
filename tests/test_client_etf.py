@@ -140,7 +140,7 @@ def test_components_maps_fields_summary_and_params():
     assert first.name == "삼성전자"
     assert first.price == Decimal(72700)
     assert first.weight == Decimal("28.9")
-    assert first.valuation == Decimal(1210000000)
+    assert first.market_value == Decimal(1210000000)
     # DELTA: the previously-discarded output1 summary is now reachable and typed.
     assert isinstance(result.summary, ETFComponentsSummary)
     assert result.summary.price == Decimal(37195)

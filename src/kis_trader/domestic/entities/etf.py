@@ -52,7 +52,7 @@ class ETFComponent:
     """ETF 구성종목(PDF) 한 항목(불변).
 
     ETF 가 담고 있는 개별 종목 하나다. ``weight`` 는 ETF 안에서 차지하는 구성 비중(%),
-    ``valuation`` 은 ETF 내 평가금액. ``change`` / ``change_percent`` 는 그 구성종목의 전일대비로
+    ``market_value`` 는 ETF 내 평가금액. ``change`` / ``change_percent`` 는 그 구성종목의 전일대비로
     하락이면 음수.
     """
 
@@ -62,7 +62,7 @@ class ETFComponent:
     change: Decimal                   # 전일대비(부호 포함)
     change_percent: Decimal           # 전일대비율(부호 포함)
     weight: Decimal                   # ETF 구성 비중(%)
-    valuation: Decimal                # ETF 내 평가금액
+    market_value: Decimal             # ETF 내 평가금액(etf_vltn_amt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
