@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from ._engine import market_analysis as market_api
 
@@ -39,6 +39,31 @@ if TYPE_CHECKING:
     )
 
 
+#: 시장 필터(전체/코스피/코스닥) -- 대주가능·투자자순매수 조회 공통.
+MarketFilter = Literal["all", "KOSPI", "KOSDAQ"]
+
+#: 시장 필터(전체/코스피/코스닥/코스피200) -- 신용주문 가능종목 조회 전용(KOSPI200 추가).
+CreditMarketFilter = Literal["all", "KOSPI", "KOSDAQ", "KOSPI200"]
+
+#: 투자자 순매수 집계 기준 -- 수량(volume)/금액(amount).
+NetBuyBasis = Literal["volume", "amount"]
+
+#: 투자자 순매수 방향 -- 순매수(buy)/순매도(sell) 상위.
+TradeDirection = Literal["buy", "sell"]
+
+#: 투자자 구분 필터 -- 전체/외국인/기관/기타.
+InvestorType = Literal["all", "foreign", "institutional", "other"]
+
+#: 신용주문 가능종목 정렬 -- 종목코드순/종목명순.
+CreditSort = Literal["symbol", "name"]
+
+#: 투자의견 필터 -- 전체/매수/중립/매도.
+BrokerOpinionFilter = Literal["all", "buy", "neutral", "sell"]
+
+#: 외국계 창구 매매종목 정렬 -- 금액순/수량순.
+ForeignBrokerSort = Literal["amount", "volume"]
+
+
 class MarketQueries:
     """세션에 달린 시장 전체 분석 네임스페이스. ``kis.domestic.market`` 이 만들어 준다."""
 
@@ -63,8 +88,8 @@ class MarketQueries:
         )
 
     def investor_net_buy_stocks(
-        self, *, market: str = "all", basis: str = "volume",
-        direction: str = "buy", investor: str = "all",
+        self, *, market: MarketFilter = "all", basis: NetBuyBasis = "volume",
+        direction: TradeDirection = "buy", investor: InvestorType = "all",
     ) -> list[InvestorNetBuyStock]:
         """투자자 순매수·순매도 상위 종목 집계."""
         return market_api.fetch_investor_net_buy_stocks(
@@ -90,7 +115,7 @@ class MarketQueries:
         return market_api.fetch_interest_rates(self._client.transport)
 
     def lendable_stocks(
-        self, *, market: str = "all", symbol: str = ""
+        self, *, market: MarketFilter = "all", symbol: str = ""
     ) -> list[LendableStock]:
         """회사 대주 가능 종목과 한도·사용·매매가능 수량 목록."""
         return market_api.fetch_lendable_stocks(
@@ -98,7 +123,7 @@ class MarketQueries:
         )
 
     def credit_eligible_stocks(
-        self, *, market: str = "all", eligible: bool = True, sort: str = "name"
+        self, *, market: CreditMarketFilter = "all", eligible: bool = True, sort: CreditSort = "name"
     ) -> list[CreditEligibleStock]:
         """회사 신용주문 가능·불가 종목과 신용비율 목록(최대 100건)."""
         return market_api.fetch_credit_eligible_stocks(
@@ -109,7 +134,7 @@ class MarketQueries:
         self,
         *,
         broker: str,
-        opinion: str = "all",
+        opinion: BrokerOpinionFilter = "all",
         start: str | date | None = None,
         end: str | date | None = None,
     ) -> list[BrokerOpinion]:
@@ -155,7 +180,7 @@ class MarketQueries:
         날짜(없으면 최근 전체). 각 뉴스의 연관 종목은 ``NewsHeadline.symbols``."""
         return market_api.fetch_news(self._client.transport, symbol=symbol, date_=date)
 
-    def foreign_broker_trades(self, *, sort: str = "amount") -> list[ForeignBrokerFlow]:
+    def foreign_broker_trades(self, *, sort: ForeignBrokerSort = "amount") -> list[ForeignBrokerFlow]:
         """외국계 창구 매매종목 가집계(전 시장). ``sort``: ``"amount"``(금액순)/``"volume"``(수량순).
         각 행의 ``estimated_net`` 이 외국계 추정 순매수."""
         return market_api.fetch_foreign_broker_flows(self._client.transport, sort=sort)

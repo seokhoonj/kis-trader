@@ -10,13 +10,20 @@ ELW 가 상장된 기초자산 목록, 한 기초자산의 ELW 들, 신규상장
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from ._engine import elw as elw_api
 
 if TYPE_CHECKING:
     from ..client import KISClient
     from .entities.elw import ELWListing, ELWUnderlying
+
+
+#: 콜풋 구분 -- 전체(all)/콜(call)/풋(put). 콜풋 코드는 조회마다 다르지만 어휘는 동일하다.
+ELWRight = Literal["all", "call", "put"]
+
+#: 기초자산 목록 정렬 기준.
+UnderlyingSort = Literal["name", "call_count", "put_count", "gainers", "losers", "price"]
 
 
 class ELWScreenerQueries:
@@ -31,7 +38,7 @@ class ELWScreenerQueries:
         self._client = client
 
     def underlyings(
-        self, *, sort: str = "name", issuer: str = "00000"
+        self, *, sort: UnderlyingSort = "name", issuer: str = "00000"
     ) -> list[ELWUnderlying]:
         """ELW 가 상장된 기초자산 목록. ``sort``: name/call_count/put_count/gainers/losers/price."""
         return elw_api.fetch_underlyings(self._client.transport, sort=sort, issuer=issuer)
@@ -50,7 +57,7 @@ class ELWScreenerQueries:
         return elw_api.fetch_comparables(self._client.transport, underlying=underlying)
 
     def newly_listed(
-        self, *, date: str, right: str = "all",
+        self, *, date: str, right: ELWRight = "all",
         underlying: str = "000000", issuer: str | None = None,
     ) -> list[ELWListing]:
         """신규상장 ELW 목록. ``date`` 는 기준일(YYYYMMDD). ``issuer`` 는 발행사 코드로 KIS 가 이
@@ -64,7 +71,7 @@ class ELWScreenerQueries:
         )
 
     def expiring(
-        self, *, start: str, end: str, right: str = "all",
+        self, *, start: str, end: str, right: ELWRight = "all",
         underlying: str = "000000", issuer: str = "00000",
     ) -> list[ELWListing]:
         """만기예정 ELW 목록. ``[start, end]`` 는 만기일 구간(YYYYMMDD)."""

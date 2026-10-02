@@ -11,13 +11,41 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from ._engine import elw as elw_api
 
 if TYPE_CHECKING:
     from ..client import KISClient
     from .entities.elw import RankedELW
+
+
+#: 콜풋 구분 -- 전체(all)/콜(call)/풋(put).
+ELWRight = Literal["all", "call", "put"]
+
+#: 거래량 순위 기준.
+VolumeSort = Literal[
+    "volume", "turnover_growth", "turnover_rate", "amount",
+    "net_buy_balance", "net_sell_balance",
+]
+
+#: 등락률 순위 기준.
+ChangeSort = Literal["gainers", "losers", "from_open_up", "from_open_down", "fluctuation"]
+
+#: 민감도(그릭스) 순위 기준.
+SensitivitySort = Literal[
+    "theoretical", "delta", "gamma", "rho", "vega",
+    "implied_volatility", "hist_volatility",
+]
+
+#: 투자지표 순위 기준.
+IndicatorSort = Literal["conversion_ratio", "leverage", "strike", "intrinsic_value", "time_value"]
+
+#: 당일 급변 순위 기준.
+QuickChangeSort = Literal["price_surge", "price_plunge", "volume_surge", "bid_surge", "ask_surge"]
+
+#: 당일 급변 기준 윈도 -- 분(minute)/일(day).
+QuickChangeWindow = Literal["minute", "day"]
 
 
 class ELWRankingQueries:
@@ -32,8 +60,8 @@ class ELWRankingQueries:
         self._client = client
 
     def by_volume(
-        self, *, sort: str = "volume",
-        underlying: str = "000000", issuer: str = "00000", right: str = "all",
+        self, *, sort: VolumeSort = "volume",
+        underlying: str = "000000", issuer: str = "00000", right: ELWRight = "all",
     ) -> list[RankedELW]:
         """거래량 순위. ``sort``: volume/turnover_growth/turnover_rate/amount/
         net_buy_balance/net_sell_balance."""
@@ -43,8 +71,8 @@ class ELWRankingQueries:
         )
 
     def by_change(
-        self, *, sort: str = "gainers",
-        underlying: str = "000000", issuer: str = "00000", right: str = "all",
+        self, *, sort: ChangeSort = "gainers",
+        underlying: str = "000000", issuer: str = "00000", right: ELWRight = "all",
     ) -> list[RankedELW]:
         """등락률 순위. ``sort``: gainers/losers/from_open_up/from_open_down/fluctuation."""
         return elw_api.fetch_ranking_by_change(
@@ -53,8 +81,8 @@ class ELWRankingQueries:
         )
 
     def by_sensitivity(
-        self, *, sort: str = "delta",
-        underlying: str = "000000", issuer: str = "00000", right: str = "all",
+        self, *, sort: SensitivitySort = "delta",
+        underlying: str = "000000", issuer: str = "00000", right: ELWRight = "all",
     ) -> list[RankedELW]:
         """민감도 순위. ``sort``: theoretical/delta/gamma/rho/vega/implied_volatility/
         hist_volatility. 그릭스 값은 각 행의 ``_raw`` 에 있다."""
@@ -64,8 +92,8 @@ class ELWRankingQueries:
         )
 
     def by_indicator(
-        self, *, sort: str = "leverage",
-        underlying: str = "000000", issuer: str = "00000", right: str = "all",
+        self, *, sort: IndicatorSort = "leverage",
+        underlying: str = "000000", issuer: str = "00000", right: ELWRight = "all",
     ) -> list[RankedELW]:
         """투자지표 순위. ``sort``: conversion_ratio/leverage/strike/intrinsic_value/
         time_value. 지표 값은 각 행의 ``_raw`` 에 있다."""
@@ -75,7 +103,7 @@ class ELWRankingQueries:
         )
 
     def quick_change(
-        self, *, sort: str = "price_surge", window: str = "day",
+        self, *, sort: QuickChangeSort = "price_surge", window: QuickChangeWindow = "day",
         underlying: str = "000000", issuer: str = "00000",
     ) -> list[RankedELW]:
         """당일 급변 종목. ``sort``: price_surge/price_plunge/volume_surge/bid_surge/

@@ -36,6 +36,66 @@ Direction = Literal["gainers", "losers"]
 #: 거래증가율(``"volume_growth"``) / 회전율(``"turnover"``).
 VolumeMetric = Literal["trading_volume", "cumulative_trading_amount", "volume_growth", "turnover"]
 
+#: 이격도 순위 극단 -- 이격도 상위(highest) / 하위(lowest).
+DisparityExtreme = Literal["highest", "lowest"]
+
+#: 호가잔량 순위 기준 -- 순매수/순매도 잔량, 매수/매도 비율.
+QuoteBalanceMetric = Literal["net_buy", "net_sell", "buy_ratio", "sell_ratio"]
+
+#: 매매 방향 -- 매수(buy) 상위 / 매도(sell) 상위. 대량체결·당사매매 순위 공통.
+TradeSide = Literal["buy", "sell"]
+
+#: 재무비율 분석 축 -- 수익성/안정성/성장성/활동성.
+FinanceAnalysis = Literal["profitability", "stability", "growth", "activity"]
+
+#: 회계 분기 -- 1분기/반기/3분기/결산(연간). 재무·가치·수익자산 순위 공통.
+FiscalQuarter = Literal["q1", "h1", "q3", "annual"]
+
+#: 시장가치(밸류에이션) 지표.
+ValuationMetric = Literal[
+    "per", "pbr", "pcr", "psr", "eps", "eva", "ebitda", "ev_ebitda", "ebitda_ratio"
+]
+
+#: 수익자산지표 축.
+ProfitAssetMetric = Literal[
+    "sales_profit", "operating_profit", "ordinary_profit", "net_income",
+    "total_assets", "total_liabilities", "total_equity",
+]
+
+#: 배당 종류 -- 현금/주식 배당.
+DividendKind = Literal["cash", "stock"]
+
+#: 배당 순위 시장 필터(소문자 어휘 -- 예상체결 시장 필터와 다르다).
+DividendMarket = Literal["all", "kospi", "kospi200", "kosdaq"]
+
+#: 배당 결산 구분 -- 전체/결산/중간.
+DividendSettlement = Literal["all", "final", "interim"]
+
+#: 공매도 순위 조회기간 -- 일(1d~4d)·주(1w~3w)·월(1mo~3mo) 단위.
+ShortSaleWindow = Literal[
+    "1d", "2d", "3d", "4d", "1w", "2w", "3w", "1mo", "2mo", "3mo"
+]
+
+#: 신용잔고 순위 기준 -- 융자(margin_*)/대주(loan_*) x 비율/수량/금액/비율증가/비율감소.
+CreditBalanceMetric = Literal[
+    "margin_ratio", "margin_shares", "margin_amount",
+    "margin_ratio_increase", "margin_ratio_decrease",
+    "loan_ratio", "loan_shares", "loan_amount",
+    "loan_ratio_increase", "loan_ratio_decrease",
+]
+
+#: 신고/신저 근접 방향 -- 신고가(high)/신저가(low) 근접.
+NearHighLowSide = Literal["high", "low"]
+
+#: 장마감 예상체결 필터 -- 전체/상한/하한/상승/하락.
+ExpectedCloseFilter = Literal["all", "upper_limit", "lower_limit", "up", "down"]
+
+#: 장마감 예상체결 시장 필터(대문자 어휘 -- 배당 순위 시장 필터와 다르다).
+ExpectedCloseMarket = Literal["all", "KOSPI", "KOSDAQ", "KOSPI200", "KRX100"]
+
+#: 시간외 잔량 순위 방향 -- 매도잔량(ask)/매수잔량(bid) 상위.
+AfterHourBalanceSide = Literal["ask", "bid"]
+
 
 class RankingQueries:
     """세션에 달린 순위 질의 네임스페이스. ``kis.domestic.ranking`` 이 만들어 준다."""
@@ -60,14 +120,14 @@ class RankingQueries:
         """시가총액 순위(최대 30건). 시가총액 값은 각 항목의 ``_raw['stck_avls']``."""
         return ranking_api.fetch_market_cap(self._client.transport, market="KRX")
 
-    def by_disparity(self, *, extreme: str = "highest", period: int = 20) -> list[RankedStock]:
+    def by_disparity(self, *, extreme: DisparityExtreme = "highest", period: int = 20) -> list[RankedStock]:
         """이격도 순위. ``extreme="highest"`` 이격도 상위 / ``"lowest"`` 하위. ``period`` 는 이동평균
         일수(5/10/20/60/120). 이격도 값은 각 항목의 ``_raw['d{period}_dsrt']``(%)(최대 30건)."""
         return ranking_api.fetch_disparity(
             self._client.transport, extreme=extreme, period=period, market="KRX"
         )
 
-    def by_quote_balance(self, *, metric: str = "net_buy") -> list[RankedStock]:
+    def by_quote_balance(self, *, metric: QuoteBalanceMetric = "net_buy") -> list[RankedStock]:
         """호가잔량 순위. ``metric`` = ``"net_buy"`` 순매수잔량 / ``"net_sell"`` 순매도잔량 /
         ``"buy_ratio"`` 매수비율 / ``"sell_ratio"`` 매도비율. 잔량 지표는 ``_raw``(최대 30건)."""
         return ranking_api.fetch_quote_balance(self._client.transport, metric=metric, market="KRX")
@@ -76,7 +136,7 @@ class RankingQueries:
         """체결강도 순위(최대 30건). 당일 체결강도는 각 항목의 ``_raw['tday_rltv']``."""
         return ranking_api.fetch_volume_power(self._client.transport, market="KRX")
 
-    def by_bulk_trades(self, *, side: str = "buy") -> list[RankedStock]:
+    def by_bulk_trades(self, *, side: TradeSide = "buy") -> list[RankedStock]:
         """대량체결건수 순위. ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. 체결건수는 각 항목의
         ``_raw``(shnu_cntg_csnu/seln_cntg_csnu 등)(최대 30건)."""
         return ranking_api.fetch_bulk_trades(self._client.transport, side=side, market="KRX")
@@ -91,7 +151,7 @@ class RankingQueries:
         return ranking_api.fetch_preferred_disparity(self._client.transport, market="KRX")
 
     def by_finance_ratio(
-        self, *, analysis: str = "profitability", year: int, quarter: str = "annual"
+        self, *, analysis: FinanceAnalysis = "profitability", year: int, quarter: FiscalQuarter = "annual"
     ) -> list[RankedStock]:
         """재무비율 순위. ``analysis`` = ``"profitability"`` 수익성 / ``"stability"`` 안정성 /
         ``"growth"`` 성장성 / ``"activity"`` 활동성. ``year`` 회계연도(예: 2023), ``quarter`` =
@@ -101,7 +161,7 @@ class RankingQueries:
         )
 
     def by_valuation(
-        self, *, metric: str = "per", year: int, quarter: str = "annual"
+        self, *, metric: ValuationMetric = "per", year: int, quarter: FiscalQuarter = "annual"
     ) -> list[RankedStock]:
         """시장가치(밸류에이션) 순위. ``metric`` = per/pbr/pcr/psr/eps/eva/ebitda/ev_ebitda/
         ebitda_ratio. ``year`` 회계연도, ``quarter`` = q1/h1/q3/annual. 지표값은 각 항목의
@@ -111,7 +171,7 @@ class RankingQueries:
         )
 
     def by_profit_asset(
-        self, *, metric: str = "net_income", year: int, quarter: str = "annual"
+        self, *, metric: ProfitAssetMetric = "net_income", year: int, quarter: FiscalQuarter = "annual"
     ) -> list[RankedStock]:
         """수익자산지표 순위. ``metric`` = ``"sales_profit"`` 매출이익 / ``"operating_profit"`` 영업이익 /
         ``"ordinary_profit"`` 경상이익 / ``"net_income"`` 당기순이익 / ``"total_assets"`` 자산총계 /
@@ -122,7 +182,7 @@ class RankingQueries:
         )
 
     def by_company_trades(
-        self, *, side: str = "buy", start: str | date, end: str | date
+        self, *, side: TradeSide = "buy", start: str | date, end: str | date
     ) -> list[RankedStock]:
         """당사매매종목 순위(기간). ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. ``start``/``end`` 는
         조회 기간(YYYYMMDD 문자열 또는 ``date``). 당사 매수/매도/순매수 수량은 각 항목의
@@ -132,8 +192,8 @@ class RankingQueries:
         )
 
     def by_dividend(
-        self, *, kind: str = "cash", start: str | date, end: str | date,
-        market: str = "all", settlement: str = "all",
+        self, *, kind: DividendKind = "cash", start: str | date, end: str | date,
+        market: DividendMarket = "all", settlement: DividendSettlement = "all",
     ) -> list[DividendRanking]:
         """배당률 순위. ``kind="cash"`` 현금배당 / ``"stock"`` 주식배당. ``start``/``end`` 는 배당
         기준일 범위(YYYYMMDD 문자열 또는 ``date``). ``market`` = ``"all"``/``"kospi"``/``"kospi200"``/
@@ -146,7 +206,7 @@ class RankingQueries:
             market=market, settlement=settlement,
         )
 
-    def by_short_sale(self, *, window: str = "1d") -> list[ShortSaleRanking]:
+    def by_short_sale(self, *, window: ShortSaleWindow = "1d") -> list[ShortSaleRanking]:
         """공매도 순위. ``window`` 조회기간 = ``"1d"``/``"2d"``/``"3d"``/``"4d"``/``"1w"``/``"2w"``/
         ``"3w"`` (일 단위) 또는 ``"1mo"``/``"2mo"``/``"3mo"`` (월 단위). 공매도 체결수량·거래량 비중·
         거래대금·평균가를 담은 :class:`~kis_trader.domestic.entities.ranking.ShortSaleRanking` 를
@@ -154,7 +214,7 @@ class RankingQueries:
         return ranking_api.fetch_short_sale(self._client.transport, window=window, market="KRX")
 
     def by_credit_balance(
-        self, *, metric: str = "margin_ratio", days: int = 2
+        self, *, metric: CreditBalanceMetric = "margin_ratio", days: int = 2
     ) -> list[CreditBalanceRanking]:
         """신용잔고 순위. ``metric`` = 융자 ``"margin_ratio"``/``"margin_shares"``/``"margin_amount"``/
         ``"margin_ratio_increase"``/``"margin_ratio_decrease"`` 또는 대주 ``"loan_ratio"``/
@@ -167,7 +227,7 @@ class RankingQueries:
             self._client.transport, metric=metric, days=days, market="KRX"
         )
 
-    def by_near_high_low(self, *, side: str = "high") -> list[NearHighLowRanking]:
+    def by_near_high_low(self, *, side: NearHighLowSide = "high") -> list[NearHighLowRanking]:
         """신고/신저 근접 순위. ``side="high"`` 신고가 근접 / ``"low"`` 신저가 근접. 신 최고/최저가와
         근접 비율을 담은 :class:`~kis_trader.domestic.entities.ranking.NearHighLowRanking` 를 돌려준다(최대 30건)."""
         return ranking_api.fetch_near_high_low(self._client.transport, side=side, market="KRX")
@@ -182,8 +242,8 @@ class RankingQueries:
     def by_expected_close(
         self,
         *,
-        filter: str = "all",
-        market: str = "all",
+        filter: ExpectedCloseFilter = "all",
+        market: ExpectedCloseMarket = "all",
         extended_range: bool = False,
     ) -> list[RankedStock]:
         """장마감 예상체결 종목. ``filter`` 는 전체·상한·하한·상승·하락 필터의 영문 코드."""
@@ -212,7 +272,7 @@ class RankingQueries:
             self._client.transport, direction=direction, market="KRX"
         )
 
-    def by_after_hour_balance(self, *, side: str = "ask") -> list[AfterHoursBalanceRanking]:
+    def by_after_hour_balance(self, *, side: AfterHourBalanceSide = "ask") -> list[AfterHoursBalanceRanking]:
         """시간외 잔량 순위. ``side="ask"`` 매도잔량 상위 / ``"bid"`` 매수잔량 상위. 시간외 총 매도/
         매수 잔량과 장전/장후 체결량을 담아 돌려준다
         (:class:`~kis_trader.domestic.entities.ranking.AfterHoursBalanceRanking`, 최대 30건)."""

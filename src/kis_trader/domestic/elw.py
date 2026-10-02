@@ -16,7 +16,7 @@ from ._engine import elw as elw_api
 
 if TYPE_CHECKING:
     from ..client import KISClient
-    from ._engine.elw import TrendInterval
+    from ._engine.elw import IndicatorInterval, SensitivityInterval, TrendInterval
     from .entities.elw import (
         ELWIndicatorPoint,
         ELWLPFlow,
@@ -48,7 +48,7 @@ class ELW:
         return elw_api.fetch_quote(self._client.transport, code=self.code)
 
     def sensitivity_trend(
-        self, interval: TrendInterval = "day"
+        self, interval: SensitivityInterval = "day"
     ) -> list[ELWSensitivityPoint]:
         """민감도(그릭스) 추이. ``interval`` 은 ``"trade"``(체결별)/``"day"``(일별)."""
         return elw_api.fetch_sensitivity_trend(
@@ -68,7 +68,7 @@ class ELW:
         )
 
     def indicator_trend(
-        self, interval: TrendInterval = "day", *, minutes: int = 1, include_past: bool = False
+        self, interval: IndicatorInterval = "day", *, minutes: int = 1, include_past: bool = False
     ) -> list[ELWIndicatorPoint]:
         """투자지표(레버리지·기어링·내재가치·패리티) 추이. ``interval`` 은 체결/일별/분별.
 

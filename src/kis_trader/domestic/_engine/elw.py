@@ -61,6 +61,10 @@ _QUOTE_TR = "FHKEW15010000"
 #: 시계열 시간축 -- "trade"(체결별), "day"(일별), "minute"(분별), "tick"(틱).
 #: 지표군마다 지원 축이 다르다(미지원 축은 KISUsageError).
 TrendInterval = Literal["trade", "day", "minute", "tick"]
+#: 민감도 추이 지원 축 -- 체결/일별만(_SENSITIVITY_TR; 분별/틱 미지원).
+SensitivityInterval = Literal["trade", "day"]
+#: 투자지표 추이 지원 축 -- 체결/일별/분별(_INDICATOR_SPEC; 틱 미지원).
+IndicatorInterval = Literal["trade", "day", "minute"]
 
 #: 분별 조회의 시간 간격(분) -> KIS 초 코드(FID_HOUR_CLS_CODE).
 _MINUTE_SPAN_SECONDS = {1: "60", 3: "180", 5: "300", 10: "600", 30: "1800", 60: "3600"}
@@ -212,7 +216,7 @@ def fetch_quote(transport: Transport, *, code: str) -> ELWQuote:
 
 
 def fetch_sensitivity_trend(
-    transport: Transport, *, code: str, interval: TrendInterval = "day"
+    transport: Transport, *, code: str, interval: SensitivityInterval = "day"
 ) -> list[ELWSensitivityPoint]:
     """ELW 민감도(그릭스) 추이. ``interval`` 은 ``"trade"``(체결별)/``"day"``(일별).
 
@@ -255,7 +259,7 @@ def fetch_volatility_trend(
 
 
 def fetch_indicator_trend(
-    transport: Transport, *, code: str, interval: TrendInterval = "day",
+    transport: Transport, *, code: str, interval: IndicatorInterval = "day",
     minutes: int = 1, include_past: bool = False,
 ) -> list[ELWIndicatorPoint]:
     """ELW 투자지표 추이. ``interval`` 은 체결/일별/분별(틱 미지원).
