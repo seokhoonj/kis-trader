@@ -46,7 +46,7 @@ QuoteBalanceMetric = Literal["net_buy", "net_sell", "buy_ratio", "sell_ratio"]
 TradeSide = Literal["buy", "sell"]
 
 #: 재무비율 분석 축 -- 수익성/안정성/성장성/활동성.
-FinanceAnalysis = Literal["profitability", "stability", "growth", "activity"]
+FinancialAnalysis = Literal["profitability", "stability", "growth", "activity"]
 
 #: 회계 분기 -- 1분기/반기/3분기/결산(연간). 재무·가치·수익자산 순위 공통.
 FiscalQuarter = Literal["q1", "h1", "q3", "annual"]
@@ -94,7 +94,7 @@ ExpectedCloseFilter = Literal["all", "upper_limit", "lower_limit", "up", "down"]
 ExpectedCloseMarket = Literal["all", "KOSPI", "KOSDAQ", "KOSPI200", "KRX100"]
 
 #: 시간외 잔량 순위 방향 -- 매도잔량(ask)/매수잔량(bid) 상위.
-AfterHourBalanceSide = Literal["ask", "bid"]
+AfterHoursBalanceSide = Literal["ask", "bid"]
 
 
 class RankingQueries:
@@ -151,7 +151,7 @@ class RankingQueries:
         return ranking_api.fetch_preferred_disparity(self._client.transport, market="KRX")
 
     def by_finance_ratio(
-        self, *, analysis: FinanceAnalysis = "profitability", year: int, quarter: FiscalQuarter = "annual"
+        self, *, analysis: FinancialAnalysis = "profitability", year: int, quarter: FiscalQuarter = "annual"
     ) -> list[RankedStock]:
         """재무비율 순위. ``analysis`` = ``"profitability"`` 수익성 / ``"stability"`` 안정성 /
         ``"growth"`` 성장성 / ``"activity"`` 활동성. ``year`` 회계연도(예: 2023), ``quarter`` =
@@ -272,11 +272,11 @@ class RankingQueries:
             self._client.transport, direction=direction, market="KRX"
         )
 
-    def by_after_hour_balance(self, *, side: AfterHourBalanceSide = "ask") -> list[AfterHoursBalanceRanking]:
+    def by_after_hours_balance(self, *, side: AfterHoursBalanceSide = "ask") -> list[AfterHoursBalanceRanking]:
         """시간외 잔량 순위. ``side="ask"`` 매도잔량 상위 / ``"bid"`` 매수잔량 상위. 시간외 총 매도/
         매수 잔량과 장전/장후 체결량을 담아 돌려준다
         (:class:`~kis_trader.domestic.entities.ranking.AfterHoursBalanceRanking`, 최대 30건)."""
-        return ranking_api.fetch_after_hour_balance(self._client.transport, side=side, market="KRX")
+        return ranking_api.fetch_after_hours_balance(self._client.transport, side=side, market="KRX")
 
     def by_views(self) -> list[TopViewedStock]:
         """HTS 조회 상위 종목(관심 상위). 코드와 시장구분만 담은

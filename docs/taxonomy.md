@@ -175,7 +175,7 @@ kis.domestic
 │   ├── by_overtime_change()            # 시간외 등락률 순위
 │   ├── by_overtime_volume()            # 시간외 거래량 순위
 │   ├── by_overtime_expected_change()   # 시간외 예상체결 등락
-│   └── by_after_hour_balance()         # 시간외 잔량 순위
+│   └── by_after_hours_balance()        # 시간외 잔량 순위
 ├── market                              # 시장 전체 분석 질의
 │   │  ── 투자자·프로그램 수급 ────────────────────────
 │   ├── investor_flows()                # 투자자 순매수 히스토리

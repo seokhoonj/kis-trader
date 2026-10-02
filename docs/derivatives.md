@@ -51,7 +51,7 @@ for position in balance.positions:
     print(f"{position.name:12s} {position.side} {position.quantity}  평가손익 {position.unrealized_pnl:>12,}")
 
 for order in account.open_orders():  # 미체결(정정·취소 가능) 주문 -- 모의 지원
-    print(order.order_id, order.symbol, order.side, order.unfilled_quantity, order.price)
+    print(order.order_id, order.symbol, order.side, order.unfilled_quantity, order.order_price)
 ```
 
 `open_orders()` 는 브로커 측 미체결 목록이라 세션의 `client_order_id` 대신 거래소 주문번호

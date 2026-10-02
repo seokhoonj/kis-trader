@@ -31,7 +31,7 @@ if TYPE_CHECKING:
 IntradayInterval = Literal["1m", "5m", "10m"]
 
 #: 동시호가 세션 -- 장 시작 전(open)/장 마감(close).
-Session = Literal["open", "close"]
+ExpectedSession = Literal["open", "close"]
 
 #: 예상체결 지수 추이 샘플 간격 -- 10초/30초/1분/10분.
 ExpectedInterval = Literal["10s", "30s", "1m", "10m"]
@@ -120,7 +120,7 @@ class Index:
         )
 
     def expected_trend(
-        self, *, session: Session = "open", interval: ExpectedInterval = "10s"
+        self, *, session: ExpectedSession = "open", interval: ExpectedInterval = "10s"
     ) -> list[ExpectedIndexPoint]:
         """장 시작 전·마감 동시호가의 예상체결 지수 추이."""
         return index_api.fetch_expected_index_trend(
@@ -131,7 +131,7 @@ class Index:
         )
 
     def expected_snapshot(
-        self, *, market: ExpectedMarket = "all", session: Session = "open"
+        self, *, market: ExpectedMarket = "all", session: ExpectedSession = "open"
     ) -> ExpectedIndexSnapshot:
         """동시호가의 대표 예상체결 지수와 시장별 지수 목록."""
         return index_api.fetch_expected_index_snapshot(

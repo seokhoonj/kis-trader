@@ -1,7 +1,7 @@
 """마무리 순위 6종 -- 예상체결/시간외/조회상위.
 
 by_expected_execution_change(RankedStock) / by_overtime_change·volume·expected_change(OvertimeRanking,
-output2 vs output) / by_after_hour_balance(전용) / by_views(전용). 각 TR·URL·시장구분·정렬,
+output2 vs output) / by_after_hours_balance(전용) / by_views(전용). 각 TR·URL·시장구분·정렬,
 전용 필드 매핑(시간외 가격/거래량, 잔량, 조회상위 코드+시장), fail-closed 를 검증한다.
 """
 
@@ -127,13 +127,13 @@ def test_overtime_expected_change_uses_output_and_antc_fields():
 
 
 # --- after-hour-balance -> 전용 -------------------------------------------
-def test_after_hour_balance_maps_residual_and_volumes():
+def test_after_hours_balance_maps_residual_and_volumes():
     rows = [{"stck_shrn_iscd": "252670", "data_rank": "1", "hts_kor_isnm": "KODEX ...",
              "stck_prpr": "2170", "prdy_vrss": "10", "prdy_vrss_sign": "2", "prdy_ctrt": "0.46",
              "ovtm_total_askp_rsqn": "500", "ovtm_total_bidp_rsqn": "700",
              "mkob_otcp_vol": "451685", "mkfa_otcp_vol": "0"}]
     fake = FakeTransport(response=_resp({"output": rows}))
-    ranked = _client(fake).domestic.ranking.by_after_hour_balance(side="bid")
+    ranked = _client(fake).domestic.ranking.by_after_hours_balance(side="bid")
     assert isinstance(ranked[0], AfterHoursBalanceRanking)
     assert ranked[0].overtime_ask_residual == 500
     assert ranked[0].overtime_bid_residual == 700
@@ -230,10 +230,10 @@ def test_overtime_change_missing_output2_fails_closed():
         _client(fake).domestic.ranking.by_overtime_change()
 
 
-def test_after_hour_balance_bad_value_fails_closed():
+def test_after_hours_balance_bad_value_fails_closed():
     rows = [{"stck_shrn_iscd": "x", "hts_kor_isnm": "y", "stck_prpr": "1", "prdy_vrss": "0",
              "prdy_vrss_sign": "3", "prdy_ctrt": "0", "ovtm_total_askp_rsqn": "n/a",
              "ovtm_total_bidp_rsqn": "0", "mkob_otcp_vol": "0", "mkfa_otcp_vol": "0"}]
     fake = FakeTransport(response=_resp({"output": rows}))
     with pytest.raises(KISError):
-        _client(fake).domestic.ranking.by_after_hour_balance()
+        _client(fake).domestic.ranking.by_after_hours_balance()

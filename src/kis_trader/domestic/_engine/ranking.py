@@ -972,7 +972,7 @@ def fetch_overtime_expected_change(
 _AFTER_HOUR_TOP = {"ask": "3", "bid": "4"}
 
 
-def fetch_after_hour_balance(
+def fetch_after_hours_balance(
     transport: Transport, *, side: str, market: str
 ) -> list[AfterHoursBalanceRanking]:
     """시간외 잔량 순위. ``side="ask"`` 매도잔량 상위 / ``"bid"`` 매수잔량 상위. 시간외 총 매도/매수

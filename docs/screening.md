@@ -93,7 +93,7 @@ ranking.by_expected_close()                            # 장마감 예상체결
 ranking.by_expected_execution_change(direction="gainers")   # 장전 예상체결 등락
 ranking.by_company_trades(side="buy", start="20240101", end="20240131")  # 당사매매 종목
 
-ranking.by_after_hour_balance(side="ask")              # 시간외 잔량
+ranking.by_after_hours_balance(side="ask")              # 시간외 잔량
 ranking.by_overtime_change(direction="gainers")             # 시간외 등락률
 ranking.by_overtime_expected_change(direction="gainers")    # 시간외 예상체결 등락
 ranking.by_overtime_volume()                           # 시간외 거래량
