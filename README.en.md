@@ -36,8 +36,9 @@ kis.domestic.ranking.by_change(direction="gainers")  # today's top gainers
 ```
 
 Save the app key and account once as environment variables or with `KISConfig(...).save()`, and
-later calls open without arguments. For issuing and storing credentials, see the
-[Credentials and profiles](https://seokhoonj.github.io/kis-trader/configuration.html) chapter.
+later calls open without arguments. Both live and paper-trading accounts are supported, so you can
+rehearse the order flow on paper before switching to live. For issuing and storing credentials, see
+the [Credentials and profiles](https://seokhoonj.github.io/kis-trader/configuration.html) chapter.
 
 ## 3. Structure
 

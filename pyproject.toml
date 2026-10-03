@@ -7,7 +7,11 @@ requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Seokhoon Joo", email = "seokhoonj@gmail.com" }]
-keywords = ["kis", "korea-investment", "trading", "brokerage", "stocks", "finance", "api-client"]
+keywords = [
+    "kis", "koreainvestment", "korea-investment", "korea-investment-securities",
+    "한국투자증권", "한투", "trading", "algorithmic-trading", "quant", "brokerage",
+    "stocks", "kospi", "kosdaq", "finance", "websocket", "mcp", "api-client",
+]
 classifiers = [
     "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",

@@ -7,7 +7,7 @@
 
 **한국어** | [English](README.en.md)
 
-한국투자증권 **KIS Open API**의 비공식 파이썬 클라이언트 — 타입이 붙은 깔끔한 API로 감쌌습니다.
+한국투자증권(한투) **KIS Open API**의 비공식 파이썬 클라이언트 — 타입이 붙은 깔끔한 API로 감쌌습니다.
 
 - **넓은 범위** — 국내·해외 주식·지수·ETF·ETN·ELW·선물옵션·채권의 시세·재무·수급, 계좌 잔고·손익, 순위·조건검색, 시장·일정, 퇴직연금.
 - **주문** — 매수·매도·정정·취소에 신용·예약·TWAP 분할까지.
@@ -36,7 +36,8 @@ kis.domestic.ranking.by_change(direction="gainers")  # 오늘 상승률 순위
 ```
 
 앱키와 계좌는 환경변수나 `KISConfig(...).save()` 로 한 번 저장해 두면 이후 인자 없이 열 수
-있습니다. 발급과 저장은 [자격증명과 프로필](https://seokhoonj.github.io/kis-trader/configuration.html)
+있습니다. 실전 계좌와 모의투자 계좌를 모두 지원하므로, 먼저 모의투자로 주문 흐름을 확인한 뒤
+실전으로 옮겨도 됩니다. 발급과 저장은 [자격증명과 프로필](https://seokhoonj.github.io/kis-trader/configuration.html)
 문서를 참고하세요.
 
 ## 3. 구조
