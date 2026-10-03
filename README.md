@@ -71,39 +71,19 @@ kis.orders.cancel(r.client_order_id)      # 취소
 ## 5. 명령줄 (`kis`)
 
 설치하면 터미널 명령 `kis` 가 함께 깔립니다. 파이썬을 짜지 않고도 조회와 주문을 할 수 있습니다.
-주문은 `--execute` 를 붙이기 전까지 실제로 전송되지 않는 실행 안 함(dry-run) 상태입니다.
+주문은 `--execute` 를 붙이기 전까지 실제로 전송되지 않습니다(dry-run).
 
 ```bash
 kis stock quote 005930
 kis search 삼성전자
 kis ranking change --direction gainers
 kis account balance
-kis order buy 005930 10 --limit-price 70000                       # 실행 안 함(dry-run)
-kis order buy 005930 10 --limit-price 70000 --execute paper --yes  # 모의투자로 실제 전송
-kis account balance --asset bond                                  # 채권 lot 목록(buy_date/buy_sequence 컬럼)
-kis order buy KR6449111CB8 100 --asset bond --limit-price 10125    # 채권 매수(dry-run)
-# 채권 매도는 목록의 buy_sequence 컬럼을 --buy-seq 로, buy_date 를 --buy-date 로 지목한다:
-kis order sell KR6449111CB8 100 --asset bond --limit-price 10130 --buy-date 20260814 --buy-seq 1
-kis account orders --asset bond --date 20260814                   # 채권 미체결 확인(주문 타임아웃 후)
-kis account fills --start 20240101 --end 20240131                 # 국내주식 체결내역(기간)
-kis account profits --start 20240101 --end 20240131               # 국내 종목별 실현손익
-kis account transactions --venue overseas --start 20240101 --end 20240131  # 해외 거래·입출금내역
-kis --profile futures account balance                             # 선물옵션 계좌(프로필 03/08)
-kis --profile futures account deposit                             # 선물옵션 예수금현황
-kis account fills --asset bond --start 20240101 --end 20240131    # 채권 체결내역(기간)
-kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20260901   # 예약매수(실전전용)
-kis account reserved --start 20260101 --end 20260901              # 예약주문 목록
-kis order cancel-reserved <순번> --order-date 20260901              # 예약 취소
-kis order modify-reserved <순번> --symbol 005930 --side buy --quantity 10 --limit-price 71000  # 예약 정정(전체 재지정; 단가 생략 시 시장가)
-kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3   # 국내 TWAP 분할(30분간 3회 시장가; dry-run)
-kis order buy 00700 100 --venue overseas --reserve --limit-price 350 --exchange HKS --currency HKD  # 해외 예약매수(지정가 필수; 통화는 홍콩 전용; 모의 허용)
-kis account reserved --venue overseas --start 20260101 --end 20260901  # 해외 예약주문 목록(미국+아시아)
-kis order cancel-reserved US123 --venue overseas --receipt-date 20260901  # 해외 예약 취소(미국 전용; 아시아는 kis order cancel)
-kis order buy AAPL 10 --venue overseas --limit-price 150 --algo twap --execute real --yes  # 미국 algo 분할(twap/vwap; 실전·최소 10주)
-kis order buy 101W09 1 --asset futures --limit-price 350.5        # 국내 선물 지정가
-kis order buy 201S07 1 --asset option --right call --limit-price 5.2  # 국내 옵션
-kis order buy <sym> 1 --asset futures --venue overseas --limit-price 100  # 해외 선물
+kis order buy 005930 10 --limit-price 70000
+kis order buy 005930 10 --limit-price 70000 --execute paper --yes
 ```
+
+채권·선물·옵션·해외·예약주문·TWAP 등 전체 명령과 옵션은
+[명령줄 문서](https://seokhoonj.github.io/kis-trader/cli.html)를 보세요.
 
 ## 6. AI 코딩 에이전트에서 사용
 

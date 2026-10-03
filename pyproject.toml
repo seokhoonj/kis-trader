@@ -1,13 +1,21 @@
 [project]
 name = "kis-trader"
 version = "0.2.0"
-description = "A clean Python client for the Korea Investment & Securities (KIS) Open API (English identifiers, Korean docstrings for KIS users)"
+description = "Typed Python client for the Korea Investment & Securities (KIS) Open API."
 readme = "README.md"
 requires-python = ">=3.11"
 license = "MIT"
 license-files = ["LICENSE"]
 authors = [{ name = "Seokhoon Joo", email = "seokhoonj@gmail.com" }]
+keywords = ["kis", "korea-investment", "trading", "brokerage", "stocks", "finance", "api-client"]
 classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Financial and Insurance Industry",
+    "Topic :: Office/Business :: Financial :: Investment",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Typing :: Typed",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
@@ -15,6 +23,12 @@ classifiers = [
 ]
 # REST(requests) + 실시간 WebSocket(websockets) + 체결통보 AES-CBC 복호화(cryptography).
 dependencies = ["requests>=2.31", "websockets>=12", "cryptography>=42"]
+
+[project.urls]
+Homepage = "https://seokhoonj.github.io/kis-trader/"
+Documentation = "https://seokhoonj.github.io/kis-trader/"
+Repository = "https://github.com/seokhoonj/kis-trader"
+Changelog = "https://github.com/seokhoonj/kis-trader/blob/main/CHANGELOG.md"
 
 [project.scripts]
 kis = "kis_trader.cli:main"
@@ -45,6 +59,17 @@ build-backend = "hatchling.build"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/kis_trader"]
+
+[tool.hatch.build.targets.sdist]
+# Ship only the package source and its tests. Everything else in the working
+# tree -- dotfiles (.gitignore), CI config, editor/agent tooling, plugin
+# manifests, the docs site -- is not part of the distribution and must not
+# leak into the published artifact. (pyproject.toml / README / LICENSE are
+# always included by the backend.)
+# ignore-vcs so the backend builds purely from the allowlist below and does not
+# force-include VCS files (notably .gitignore); only package source + tests ship.
+ignore-vcs = true
+include = ["/src", "/tests", "/README.en.md", "/CHANGELOG.md"]
 
 [tool.pytest.ini_options]
 pythonpath = ["src"]

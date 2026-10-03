@@ -73,39 +73,19 @@ chapter.
 ## 5. Command line (`kis`)
 
 Installing also adds the terminal command `kis`, so you can query and order without writing
-Python. An order is not actually sent until you add `--execute` — until then it is a dry run.
+Python. An order is not sent until you add `--execute` — until then it is a dry run.
 
 ```bash
 kis stock quote 005930
 kis search 삼성전자
 kis ranking change --direction gainers
 kis account balance
-kis order buy 005930 10 --limit-price 70000                       # dry run, not sent
-kis order buy 005930 10 --limit-price 70000 --execute paper --yes  # sent to paper trading
-kis account balance --asset bond                                  # list bond lots (buy_date/buy_sequence columns)
-kis order buy KR6449111CB8 100 --asset bond --limit-price 10125    # bond buy (dry run)
-# bond sell targets a lot: pass the buy_sequence column as --buy-seq, buy_date as --buy-date:
-kis order sell KR6449111CB8 100 --asset bond --limit-price 10130 --buy-date 20260814 --buy-seq 1
-kis account orders --asset bond --date 20260814                   # bond open orders (after an order timeout)
-kis account fills --start 20240101 --end 20240131                 # domestic stock fills history (range)
-kis account profits --start 20240101 --end 20240131               # domestic realized P&L by symbol
-kis account transactions --venue overseas --start 20240101 --end 20240131  # overseas transactions/cash ledger
-kis --profile futures account balance                             # futures/options account (03/08 profile)
-kis --profile futures account deposit                             # futures/options deposit snapshot
-kis account fills --asset bond --start 20240101 --end 20240131    # bond fills history (range)
-kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20260901   # reserved buy (real only)
-kis account reserved --start 20260101 --end 20260901              # reserved orders list
-kis order cancel-reserved <seq> --order-date 20260901             # cancel a reservation
-kis order modify-reserved <seq> --symbol 005930 --side buy --quantity 10 --limit-price 71000  # modify a reservation (full re-specify; omit price -> market)
-kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3   # domestic TWAP split (3 market slices over 30m; dry run)
-kis order buy 00700 100 --venue overseas --reserve --limit-price 350 --exchange HKS --currency HKD  # overseas reserved buy (limit only; currency is HK-only; paper allowed)
-kis account reserved --venue overseas --start 20260101 --end 20260901  # overseas reserved orders (US + Asia)
-kis order cancel-reserved US123 --venue overseas --receipt-date 20260901  # cancel overseas reservation (US only; Asia via kis order cancel)
-kis order buy AAPL 10 --venue overseas --limit-price 150 --algo twap --execute real --yes  # US server-side algo split (twap/vwap; real, min 10 shares)
-kis order buy 101W09 1 --asset futures --limit-price 350.5        # domestic futures (limit)
-kis order buy 201S07 1 --asset option --right call --limit-price 5.2  # domestic option
-kis order buy <sym> 1 --asset futures --venue overseas --limit-price 100  # overseas futures
+kis order buy 005930 10 --limit-price 70000
+kis order buy 005930 10 --limit-price 70000 --execute paper --yes
 ```
+
+Bonds, futures/options, overseas, reserved orders, TWAP and the full option set are in the
+[Command line](https://seokhoonj.github.io/kis-trader/cli.html) chapter.
 
 ## 6. Use it from an AI coding agent
 
@@ -113,6 +93,11 @@ To manage an account through an AI tool such as Claude Code or Codex, use the
 `plugins/kis-trader/skills/kis-trader/` skill. See the
 [Claude skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) and
 [Codex skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) chapters.
+
+For MCP-compatible agents (Claude Desktop, etc.), the `kis_trader.mcp` server
+(`pip install 'kis-trader[mcp]'`, then `kis-mcp`) exposes account-query and order-preview
+tools (real-order submission is not exposed). See the
+[MCP Server](https://seokhoonj.github.io/kis-trader/mcp.html) chapter.
 
 ## 7. Documentation
 
@@ -125,7 +110,7 @@ The full documentation lives at **<https://seokhoonj.github.io/kis-trader/>** (s
 | **Market & search** | [Rankings & screens](https://seokhoonj.github.io/kis-trader/screening.html) · [Market & indices](https://seokhoonj.github.io/kis-trader/market.html) · [Corporate actions & calendar](https://seokhoonj.github.io/kis-trader/corporate-actions.html) |
 | **Overseas & pension** | [Overseas stocks](https://seokhoonj.github.io/kis-trader/overseas.html) · [Retirement pension](https://seokhoonj.github.io/kis-trader/pension.html) |
 | **Other products** | [ETF & ETN](https://seokhoonj.github.io/kis-trader/etf.html) · [ELW](https://seokhoonj.github.io/kis-trader/elw.html) · [Futures & options](https://seokhoonj.github.io/kis-trader/derivatives.html) · [Bonds](https://seokhoonj.github.io/kis-trader/bonds.html) |
-| **CLI & agents** | [Command Line](https://seokhoonj.github.io/kis-trader/cli.html) · [Claude Skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex Skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) |
+| **CLI & agents** | [Command Line](https://seokhoonj.github.io/kis-trader/cli.html) · [Claude Skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex Skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) · [MCP Server](https://seokhoonj.github.io/kis-trader/mcp.html) |
 | **Reference** | [Realtime (WebSocket)](https://seokhoonj.github.io/kis-trader/realtime.html) · [Limits & gaps](https://seokhoonj.github.io/kis-trader/limits.html) |
 
 The arguments and return value of each method are available through `help(the_method)`.

@@ -10,11 +10,6 @@ GEMINI.md
 dev/
 refs/
 
-
-
-
-
-
 # Python
 __pycache__/
 *.py[cod]
