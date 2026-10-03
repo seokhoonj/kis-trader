@@ -1,0 +1,1452 @@
+[
+  {
+    "objectID": "index.html",
+    "href": "index.html",
+    "title": "KIS Trader",
+    "section": "",
+    "text": "소개\n한국투자증권(KIS) Open API를 파이썬에서 쉽게 쓰기 위한 클라이언트입니다. 시세 조회부터 주문·계좌·순위까지 자산군별로 정리된 메서드 하나로 부릅니다.",
+    "crumbs": [
+      "소개"
+    ]
+  },
+  {
+    "objectID": "index.html#설치",
+    "href": "index.html#설치",
+    "title": "KIS Trader",
+    "section": "설치",
+    "text": "설치\npip install kis-trader   # 파이썬 3.11+",
+    "crumbs": [
+      "소개"
+    ]
+  },
+  {
+    "objectID": "index.html#예시",
+    "href": "index.html#예시",
+    "title": "KIS Trader",
+    "section": "예시",
+    "text": "예시\nfrom kis_trader import KISClient\n\nkis = KISClient(app_key=\"…\", app_secret=\"…\", account=\"12345678-01\")   # 세션 열기\n\nkis.domestic.stock(\"005930\").quote()                 # 삼성전자 현재가\nkis.overseas.stock(\"AAPL\").quote()                   # AAPL (거래소 자동)\nkis.domestic.ranking.by_change(direction=\"gainers\")  # 오늘 상승률 순위",
+    "crumbs": [
+      "소개"
+    ]
+  },
+  {
+    "objectID": "index.html#이-문서는",
+    "href": "index.html#이-문서는",
+    "title": "KIS Trader",
+    "section": "이 문서는",
+    "text": "이 문서는\n투자자가 실제로 하는 일 위주로 코드와 함께 설명합니다. 왼쪽 차례는 파트로 묶여 있습니다.\n\n\n\n파트\n장\n\n\n\n\n시작하기\n빠른 시작 · 앱키 발급 · 자격증명과 프로필\n\n\n국내 주식\n시세 보기 · 재무·실적 · 종목 수급 · 계좌·잔고·손익 · 주문\n\n\n시장·검색\n순위·조건검색 · 시장·지수 · 기업행위·일정\n\n\n해외·연금\n해외주식 · 퇴직연금\n\n\n다른 상품\nETF·ETN · ELW · 선물·옵션 · 채권\n\n\n명령줄·에이전트\nCommand Line · Claude Code Skill · Codex Skill · MCP 서버\n\n\n참고\n실시간(WebSocket) · 한계·미구현",
+    "crumbs": [
+      "소개"
+    ]
+  },
+  {
+    "objectID": "index.html#알아둘-것",
+    "href": "index.html#알아둘-것",
+    "title": "KIS Trader",
+    "section": "알아둘 것",
+    "text": "알아둘 것\n\n대상: 국내 KIS 사용자. 메서드 이름은 영어, 각 메서드 설명(파라미터·필드)은 한국어 docstring에 있습니다 — 궁금하면 help(kis.domestic.stock) 처럼 바로 확인.\n결과는 읽기전용 객체입니다. .current_price(현재가)처럼 영어 이름의 필드로 꺼내 쓰고, 원본 응답 전체는 ._raw에 있습니다.\n주문은 안전 우선입니다. 오확정 금지·재시도 금지 등 안전장치는 주문 참고.",
+    "crumbs": [
+      "소개"
+    ]
+  },
+  {
+    "objectID": "index.html#면책조항",
+    "href": "index.html#면책조항",
+    "title": "KIS Trader",
+    "section": "면책조항",
+    "text": "면책조항\n\n이 프로젝트는 한국투자증권의 공식 API 포털과 공식 저장소를 참조해 만든 “비공식” 오픈소스 클라이언트입니다.\n모든 사용은 사용자 본인의 책임입니다. 이 소프트웨어의 사용(주문 실행·조회 포함)으로 발생한 금전적 손실, 주문 오류, 데이터 오류, API 변경으로 인한 오작동 등 어떠한 손해에 대해서도 제작자는 책임지지 않습니다.\n실거래 전에 반드시 모의투자로 충분히 검증하고, 주문 로직은 소액으로 확인하세요.",
+    "crumbs": [
+      "소개"
+    ]
+  },
+  {
+    "objectID": "taxonomy.html",
+    "href": "taxonomy.html",
+    "title": "1  API 함수 트리",
+    "section": "",
+    "text": "1.1 세션 — KISClient",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>API 함수 트리</span>"
+    ]
+  },
+  {
+    "objectID": "taxonomy.html#세션-kisclient",
+    "href": "taxonomy.html#세션-kisclient",
+    "title": "1  API 함수 트리",
+    "section": "",
+    "text": "kis  (KISClient 세션)\n├── account                            # 계좌 조회 (상품코드로 분기) → 아래 계좌 트리\n├── instrument(symbol, exchange=None)  # 해외 심볼 마스터 조회\n├── realtime(...)                      # 실시간 웹소켓 → 아래 실시간 트리\n├── revoke_token()                     # 접근 토큰 폐기\n├── transport                          # 저수준 전송 계층\n├── environment                        # 실전/모의 환경\n└── hts_id                             # HTS 로그인 아이디",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>API 함수 트리</span>"
+    ]
+  },
+  {
+    "objectID": "taxonomy.html#kis.domestic-국내-시세발주시장검색",
+    "href": "taxonomy.html#kis.domestic-국내-시세발주시장검색",
+    "title": "1  API 함수 트리",
+    "section": "1.2 kis.domestic — 국내 시세·발주·시장·검색",
+    "text": "1.2 kis.domestic — 국내 시세·발주·시장·검색\nkis.domestic\n├── stock(code)                         # 국내 종목/ETF 핸들\n│   │  ── 현재가·종목정보 ───────────────────────────\n│   ├── quote()                         # 현재가 스냅샷\n│   ├── profile()                       # 종목 기본정보\n│   ├── status()                        # 현재가·거래·규제 상태\n│   │  ── 봉·시세 이력 ────────────────────────────\n│   ├── bars(interval='1d', ...)        # OHLCV 봉\n│   ├── recent_prices()                 # 최근 30개 주가·수급\n│   ├── minute_bars_on(day)             # 특정 과거일 1분봉\n│   ├── expected_price_trend()          # 동시호가 예상체결가 추이\n│   │  ── 호가·체결 ──────────────────────────────\n│   ├── order_book()                    # 호가창(10단계)\n│   ├── trades()                        # 최근 체결(time & sales)\n│   ├── intraday_executions()           # 당일 체결·최우선호가\n│   ├── daily_trade_volume()            # 일별 매수/매도 체결량\n│   ├── trade_amount_bands()            # 체결금액대별 매매비중\n│   ├── volume_profile()                # 가격대별 거래량(매물대)\n│   │  ── 투자자 매매동향 ───────────────────────────\n│   ├── investor_flows()                # 일자별 투자자 매매동향\n│   ├── detailed_investor_history()     # 세부 투자자 일별 내역\n│   ├── investor_estimate()             # 장중 투자자 순매수 추정\n│   ├── foreign_net_buy_trend()         # 장중 외국계 순매수 추이\n│   │  ── 회원사(증권사 창구) ────────────────────────\n│   ├── broker_activity()               # 상위 회원사 매매 비중\n│   ├── broker_daily_activity(...)      # 회원사 일별 매매\n│   ├── broker_trade_ticks(...)         # 회원사 실시간 체결 틱\n│   │  ── 시간외 거래 ─────────────────────────────\n│   ├── after_hours_quote()             # 시간외 단일가 스냅샷\n│   ├── after_hours_conclusions()       # 시간외 시간별 체결\n│   ├── after_hours_daily()             # 시간외 일자별 종가\n│   ├── after_hours_order_book()        # 시간외 10단계 호가\n│   │  ── 프로그램매매 ─────────────────────────────\n│   ├── program_trades()                # 장중 프로그램매매 흐름\n│   ├── daily_program_trades()          # 프로그램매매 일별 추이\n│   │  ── 신용·공매도·대차 ──────────────────────────\n│   ├── credit_balance_trend()          # 일별 신용잔고 추이\n│   ├── short_sale_trend()              # 일별 공매도 추이\n│   ├── loan_trend()                    # 일별 대차거래 추이\n│   │  ── 재무제표 ───────────────────────────────\n│   ├── balance_sheet()                 # 결산기별 대차대조표\n│   ├── income_statement()              # 결산기별 손익계산서\n│   │  ── 재무비율 ───────────────────────────────\n│   ├── financial_ratios()              # 주요 재무비율\n│   ├── profitability_ratios()          # 수익성비율\n│   ├── stability_ratios()              # 안정성비율\n│   ├── growth_ratios()                 # 성장성비율\n│   ├── other_ratios()                  # 기타주요비율\n│   │  ── 애널리스트·추정 ───────────────────────────\n│   ├── analyst_opinions()              # 애널리스트 의견·목표주가\n│   ├── earnings_estimate()             # 월간 추정 손익·투자지표\n│   │  ── ETF/ETN 전용 ─────────────────────────\n│   ├── nav()                           # ETF/ETN 순자산가치\n│   ├── nav_comparison()                # ETF 시장가-NAV 비교\n│   ├── nav_intraday()                  # ETF 시장가-NAV 분별\n│   ├── nav_history(start, end)         # 일별 NAV-가격 추이\n│   ├── etf_order_book()                # ETF 10단계 호가·LP\n│   ├── etf_components()                # ETF 구성종목(PDF, Portfolio Deposit File)\n│   │  ── 주문가능 조회(여력) ────────────────────────\n│   ├── buyable()                       # 현금 매수가능 여력\n│   ├── credit_buyable()                # 신용 매수가능 여력\n│   ├── sellable()                      # 매도가능 수량\n│   │  ── 주문 실행 ──────────────────────────────\n│   ├── buy(quantity, ...)              # 매수 주문(KRX 주문구분)\n│   ├── sell(quantity, ...)             # 매도 주문(KRX 주문구분)\n│   ├── credit_buy(...)                 # 신용 매수 주문\n│   ├── credit_sell(...)                # 신용 매도 주문\n│   ├── reserve_buy(...)                # 예약매수\n│   ├── reserve_sell(...)               # 예약매도\n│   └── twap(side, quantity, over, slices, ...)  # 클라이언트 TWAP 분할(정규장 내 시장가 여러 번)\n├── index(code)                         # 지수/업종 핸들\n│   ├── quote()                         # 지수 현재가\n│   ├── bars(interval='1d', ...)        # 지수 봉\n│   ├── intraday(interval='1m')         # 당일 시간대별 시계열\n│   ├── ticks()                         # 당일 10초 시계열\n│   ├── daily_history()                 # 일·주·월 지수 통계\n│   ├── expected_trend()                # 동시호가 예상 지수 추이\n│   ├── expected_snapshot()             # 동시호가 예상 지수 스냅샷\n│   └── categories()                    # 하위 업종 지수 목록\n├── bond(code)                          # 장내채권 핸들\n│   ├── profile()                       # 채권 기본/발행 정보\n│   ├── issuance()                      # 발행 조건·신용등급\n│   ├── quote()                         # 채권 현재가\n│   ├── bars(interval='1d')             # 채권 일별 OHLCV\n│   ├── daily_prices()                  # 날짜별 현재가·OHLCV\n│   ├── valuations(start, end)          # 평가기관별 단가·수익률\n│   ├── order_book()                    # 채권 호가창(5단계)\n│   ├── trades()                        # 채권 최근 체결\n│   ├── buy(quantity, limit_price)      # 채권 매수 주문\n│   └── sell(quantity, ...)             # 채권 lot 매도 주문\n├── elw(code)                           # ELW 고유 지표 핸들\n│   ├── quote()                         # ELW 현재가·그릭스\n│   ├── sensitivity_trend()             # 민감도(그릭스) 추이\n│   ├── volatility_trend()              # 내재변동성 추이\n│   ├── indicator_trend()               # 투자지표(레버리지) 추이\n│   └── lp_flows()                      # 일별 LP 매매 흐름\n├── futures(code)                       # 지수선물 계약 핸들\n│   ├── quote()                         # 계약 현재가\n│   ├── order_book()                    # 계약 호가창(5단계)\n│   ├── expected_execution_trend()      # 예상체결 요약·추이\n│   ├── bars(interval='1d', ...)        # OHLCV 봉\n│   ├── underlying_quote()              # 선물+기초자산(베이시스)\n│   ├── orderable(side)                 # 주간 주문가능수량\n│   ├── night_orderable(side)           # 야간장 주문가능수량\n│   ├── buy(quantity, ...)              # 계약 매수 주문\n│   └── sell(quantity, ...)             # 계약 매도 주문\n├── option(code, right=None)            # 지수옵션 계약 핸들\n│   ├── quote()                         # 계약 현재가\n│   ├── order_book()                    # 계약 호가창(5단계)\n│   ├── expected_execution_trend()      # 예상체결 요약·추이\n│   ├── bars(interval='1d', ...)        # OHLCV 봉\n│   ├── orderable(side)                 # 주간 주문가능수량\n│   ├── night_orderable(side)           # 야간장 주문가능수량\n│   ├── buy(quantity, ...)              # 계약 매수 주문\n│   └── sell(quantity, ...)             # 계약 매도 주문\n│  ── 파생 전광판 ─────────────────────────────────\n├── option_expiries()                   # 지수옵션 만기 월물 목록\n├── option_board(expiry)                # 옵션 콜/풋 전광판\n├── option_board_futures()              # 전광판 하단 선물 현재가\n├── derivative_margin_rates(base_date)  # 선물 증거금율 표\n│  ── 종목검색·관심·공통 조회 ──────────────────────────\n├── search(query)                       # 상장 종목 이름/코드 검색\n├── quotes(symbols)                     # 여러 종목 현재가(최대 30)\n├── product_info(symbol)                # 상품 공통 기본정보\n├── saved_screens()                     # HTS 저장 종목검색 조건\n├── saved_screen_stocks(sequence)       # 저장 조건 일치 종목 시세\n├── watchlist_groups()                  # 관심종목 그룹 목록\n├── watchlist(group_code)               # 관심종목 그룹 요약·종목\n├── ranking                             # 시장 전체 순위 질의\n│   │  ── 가격·등락 ──────────────────────────────\n│   ├── by_change()                     # 등락률 순위\n│   ├── by_near_high_low()              # 신고/신저 근접 순위\n│   ├── by_disparity()                  # 이격도 순위\n│   ├── by_preferred_disparity()        # 우선주 괴리율 순위\n│   │  ── 거래·체결 ──────────────────────────────\n│   ├── by_volume()                     # 거래량 계열 순위\n│   ├── by_volume_power()               # 체결강도 순위\n│   ├── by_bulk_trades()                # 대량체결건수 순위\n│   ├── by_quote_balance()              # 호가잔량 순위\n│   │  ── 규모·밸류·재무 ───────────────────────────\n│   ├── by_market_cap()                 # 시가총액 순위\n│   ├── by_valuation(...)               # 밸류에이션 순위\n│   ├── by_finance_ratio(...)           # 재무비율 순위\n│   ├── by_profit_asset(...)            # 수익자산지표 순위\n│   ├── by_dividend(...)                # 배당률 순위\n│   │  ── 수급(공매도·신용·관심) ──────────────────────\n│   ├── by_short_sale()                 # 공매도 순위\n│   ├── by_credit_balance()             # 신용잔고 순위\n│   ├── by_company_trades(...)          # 당사매매종목 순위\n│   ├── by_interest()                   # 관심종목 등록상위\n│   ├── by_views()                      # HTS 조회 상위 종목\n│   │  ── 예상체결·시간외 ───────────────────────────\n│   ├── by_expected_execution_change()  # 장전 예상체결 등락\n│   ├── by_expected_close()             # 장마감 예상체결 종목\n│   ├── by_after_hours_change()         # 시간외 등락률 순위\n│   ├── by_after_hours_volume()         # 시간외 거래량 순위\n│   ├── by_after_hours_expected_change()# 시간외 예상체결 등락\n│   └── by_after_hours_balance()        # 시간외 잔량 순위\n├── market                              # 시장 전체 분석 질의\n│   │  ── 투자자·프로그램 수급 ────────────────────────\n│   ├── investor_flows()                # 투자자 순매수 히스토리\n│   ├── investor_snapshot(...)          # 시장·업종 투자자 총량\n│   ├── investor_net_buy_stocks()       # 투자자 순매수 상위 종목\n│   ├── program_investor_trades()       # 프로그램매매 투자자 집계\n│   ├── program_trades()                # 일별 프로그램매매 종합\n│   ├── program_flow()                  # 시간대별 프로그램 순매수\n│   ├── foreign_broker_trades()         # 외국계 창구 매매종목\n│   │  ── 자금·금리 ──────────────────────────────\n│   ├── funds()                         # 증시자금 종합 추이\n│   ├── interest_rates()                # 주요 금리·채권지수\n│   │  ── 종목 자격·이벤트 ──────────────────────────\n│   ├── lendable_stocks()               # 대주 가능 종목·한도\n│   ├── credit_eligible_stocks()        # 신용주문 가능 종목\n│   ├── vi_events()                     # 전 시장 VI 발동\n│   ├── limit_stocks()                  # 상/하한가 도달 종목\n│   │  ── 의견·뉴스·일정 ───────────────────────────\n│   ├── broker_opinions(broker)         # 증권사 종목 투자의견\n│   ├── news()                          # 시황/공시 뉴스 피드\n│   ├── trading_calendar()              # 거래 캘린더(영업/개장)\n│   └── futures_market_schedule()       # 국내선물 영업일·장 시각\n├── calendar                            # 기업행위 캘린더 질의\n│   ├── dividends(start, end)           # 배당 일정\n│   ├── ipo_subscriptions(...)          # 공모주 청약 일정\n│   ├── rights_offerings(...)           # 유상증자 일정\n│   ├── bonus_issues(...)               # 무상증자 일정\n│   ├── capital_reductions(...)         # 자본감소 일정\n│   ├── merger_splits(...)              # 합병분할 일정\n│   ├── shareholder_meetings(...)       # 주주총회 일정\n│   ├── mandatory_deposits(...)         # 의무예치 내역\n│   ├── listings(...)                   # 상장정보\n│   ├── par_value_changes(...)          # 액면교체 일정\n│   ├── forfeited_shares(...)           # 실권주 일정\n│   └── appraisal_rights(...)           # 주식매수청구 일정\n├── elw_ranking                         # ELW 순위 질의\n│   ├── by_volume()                     # 거래량 순위\n│   ├── by_change()                     # 등락률 순위\n│   ├── by_sensitivity()                # 민감도(그릭스) 순위\n│   ├── by_indicator()                  # 투자지표 순위\n│   └── by_quick_change()               # 당일 급변 종목\n└── elw_screener                        # ELW 스크리닝 질의\n    ├── underlyings()                   # 상장 기초자산 목록\n    ├── by_underlying(underlying)       # 한 기초자산 ELW 목록\n    ├── comparables(underlying)         # 비교대상 ELW 목록\n    ├── newly_listed(date)              # 신규상장 ELW 목록\n    ├── expiring(start, end)            # 만기예정 ELW 목록\n    └── search()                        # 조건검색 ELW 목록",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>API 함수 트리</span>"
+    ]
+  },
+  {
+    "objectID": "taxonomy.html#kis.overseas-해외-시세발주순위",
+    "href": "taxonomy.html#kis.overseas-해외-시세발주순위",
+    "title": "1  API 함수 트리",
+    "section": "1.3 kis.overseas — 해외 시세·발주·순위",
+    "text": "1.3 kis.overseas — 해외 시세·발주·순위\nkis.overseas\n├── stock(symbol, exchange=None)        # 해외 종목 핸들\n│   ├── quote()                         # 현재가 스냅샷\n│   ├── current_price()                 # 현재체결가·누적 거래량\n│   ├── bars(interval='1d', ...)        # OHLCV 봉\n│   ├── order_book()                    # 호가창\n│   ├── trades()                        # 최근 체결 목록\n│   ├── buy(quantity, ...)              # 매수\n│   ├── sell(quantity, ...)             # 매도\n│   ├── overnight_buy(...)              # 미국 오버나이트 매수\n│   ├── overnight_sell(...)             # 미국 오버나이트 매도\n│   ├── reserve_buy(...)                # 예약매수\n│   └── reserve_sell(...)               # 예약매도\n├── index(symbol, kind='index')         # 지수/환율/국채/금선물 핸들\n│   └── bars(interval='1d', ...)        # 지수류 기간봉\n├── futures(series_code)                # 해외 선물 계약 핸들\n│   ├── quote()                         # 계약 현재가\n│   ├── order_book()                    # 계약 호가창(5단계)\n│   ├── bars(exchange, ...)             # 분·일·주·월 OHLCV\n│   ├── trades(exchange, ...)           # 최근 틱 체결\n│   ├── detail()                        # 계약 명세\n│   ├── buy(quantity, ...)              # 계약 매수\n│   └── sell(quantity, ...)             # 계약 매도\n├── option(series_code)                 # 해외 옵션 핸들(선물과 동일 메서드)\n├── futures_details(symbols)            # 선물 명세 배치(최대 32)\n├── option_details(symbols)             # 옵션 명세 배치(최대 30)\n├── derivatives_market_hours(...)       # 상품군별 장운영시간\n├── futures_open_interest(product)      # CFTC 미결제약정\n├── settlement_dates()                  # 각 시장 결제일자 참조표\n├── quotes(symbols)                     # 여러 종목 현재가(최대 10)\n├── search_stocks(exchange, ...)        # 조건검색(exchange='US'는 NAS/NYS/AMS 통합)\n├── product_info(exchange, symbol)      # 상품기본정보\n├── industries(exchange)                # 업종(섹터) 코드 목록\n├── industry_stocks(exchange, code)     # 업종 소속 종목 시세\n├── collateral_stocks(...)              # 담보대출 가능종목\n├── news(...)                           # 해외뉴스 제목 피드\n├── breaking_news(...)                  # 해외속보 제목 피드\n├── rights(start, end, ...)             # 기간별 권리(배당·증자)\n├── corporate_actions(country, symbol)  # 기업행사 종합 일정\n└── ranking                             # 시장 순위 질의\n    ├── by_volume(exchange)             # 거래량 순위\n    ├── by_amount(exchange)             # 거래대금 순위\n    ├── by_trade_growth(exchange)       # 거래증가율 순위\n    ├── by_market_cap(exchange)         # 시가총액 순위\n    ├── by_change(exchange, ...)        # 등락률 순위\n    ├── by_volume_surge(exchange)       # 거래량 급증 순위\n    ├── by_buy_strength(exchange)       # 매수 체결강도 순위\n    ├── by_turnover(exchange)           # 거래 회전율 순위\n    ├── by_price_fluctuation(exchange)  # 가격 급등/급락 순위\n    └── by_new_highlow(exchange, ...)   # 신고가/신저가 순위",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>API 함수 트리</span>"
+    ]
+  },
+  {
+    "objectID": "taxonomy.html#kis.account-계좌-조회-상품코드로-분기",
+    "href": "taxonomy.html#kis.account-계좌-조회-상품코드로-분기",
+    "title": "1  API 함수 트리",
+    "section": "1.4 kis.account — 계좌 조회 (상품코드로 분기)",
+    "text": "1.4 kis.account — 계좌 조회 (상품코드로 분기)\nkis.account\n├── [StockAccount]  위탁 01 · 연금저축 22 · IRP 29\n│   ├── domestic                              # 국내주식 계좌 조회\n│   │   ├── balance()                         # 계좌 현금·자산 요약\n│   │   ├── positions()                       # 보유 종목(0수량 포함)\n│   │   ├── portfolio()                       # 보유+요약 스냅샷\n│   │   ├── assets()                          # 투자계좌 자산현황\n│   │   ├── realized_profit_balance()         # 실현손익 체결기준잔고\n│   │   ├── integrated_margin()               # 통합증거금\n│   │   ├── trade_profits(start, end)         # 종목별 실현손익\n│   │   ├── daily_profits(start, end)         # 일별 매매손익\n│   │   ├── rights(start, end)                # 계좌 권리 내역\n│   │   ├── open_orders()                     # 미체결 주문\n│   │   ├── reserved_orders(start, end)       # 예약주문 목록\n│   │   ├── cancel_reserved_order(seq)        # 예약주문 취소\n│   │   ├── modify_reserved_order(...)        # 예약주문 정정\n│   │   └── bonds                             # 장내채권 계좌 조회\n│   │       ├── balance()                     # 채권 보유 잔고\n│   │       ├── buyable(code)                 # 채권 매수가능\n│   │       ├── open_orders(order_date)       # 채권 미체결 주문\n│   │       └── fills(start, end)             # 채권 주문·체결 내역\n│   ├── overseas                              # 해외주식 계좌 조회\n│   │   ├── positions()                       # 보유 종목(시장·통화별)\n│   │   ├── balance(market)                   # 계좌 손익 요약(시장별)\n│   │   ├── buyable(symbol, exchange, price)  # 매수가능금액\n│   │   ├── foreign_margin()                  # 통화별 외화 예수금·증거금\n│   │   ├── present_balance()                 # 체결기준현재잔고\n│   │   ├── settlement_balance(basis_date)    # 결제기준잔고\n│   │   ├── period_profit(start, end)         # 기간손익\n│   │   ├── transactions(start, end)          # 일별 거래내역\n│   │   ├── open_orders()                     # 미체결 주문\n│   │   ├── algo_orders()                     # 알고주문 목록\n│   │   ├── algo_executions(...)              # 알고주문 체결내역\n│   │   ├── reserved_orders(start, end)       # 예약주문 목록\n│   │   └── cancel_reserved_order(...)        # 미국 예약주문 취소\n│   ├── pension                               # IRP(29) 퇴직연금 조회 렌즈(조회전용)\n│   │   ├── deposit()                         # 예수금 요약\n│   │   ├── buyable(symbol)                   # 매수가능 여력\n│   │   ├── balance()                         # 잔고\n│   │   ├── present_balance()                 # 체결기준잔고\n│   │   └── orders()                          # 당일 주문 내역\n│   └── balance()                             # 국내+채권+해외 통합잔고\n├── [DomesticDerivativesAccount]  국내선물옵션 03\n│   ├── balance()                             # 선물옵션 잔고(모의 지원)\n│   ├── open_orders()                         # 미체결 주문(모의 지원)\n│   ├── deposit()                             # 총자산현황\n│   ├── valuation_pl()                        # 잔고평가손익\n│   ├── settlement_pl(base_date)              # 잔고정산손익\n│   ├── base_date_fills(order_date)           # 기준일체결내역\n│   ├── commissions(start, end)               # 기간약정수수료\n│   ├── night_balance()                       # 야간 잔고현황\n│   └── night_margin()                        # 야간 증거금상세\n└── [OverseasDerivativesAccount]  해외선물옵션 08\n    ├── deposit()                             # 예수금현황\n    ├── margin_detail()                       # 증거금상세\n    ├── positions()                           # 미결제내역\n    ├── orderable(symbol, side)               # 주문가능수량\n    ├── today_orders()                        # 당일 주문내역\n    ├── daily_fills(start, end)               # 일별 체결내역\n    ├── daily_orders(start, end)              # 일별 주문내역\n    ├── period_pnl(start, end)                # 기간 손익\n    └── transactions(start, end)              # 기간 입출금내역",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>API 함수 트리</span>"
+    ]
+  },
+  {
+    "objectID": "taxonomy.html#kis.orders-주문-라이프사이클",
+    "href": "taxonomy.html#kis.orders-주문-라이프사이클",
+    "title": "1  API 함수 트리",
+    "section": "1.5 kis.orders — 주문 라이프사이클",
+    "text": "1.5 kis.orders — 주문 라이프사이클\nkis.orders\n├── open()                        # 미체결 주문 통합 조회(계좌별 -&gt; OpenOrders)\n├── reconcile(client_order_id)    # 미확정 주문 상태 재조회\n├── cancel(client_order_id, ...)  # 접수주문 취소(부분가능)\n└── modify(client_order_id, ...)  # 가격/수량 정정",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>API 함수 트리</span>"
+    ]
+  },
+  {
+    "objectID": "taxonomy.html#kis.realtime-실시간-웹소켓타입드-구독",
+    "href": "taxonomy.html#kis.realtime-실시간-웹소켓타입드-구독",
+    "title": "1  API 함수 트리",
+    "section": "1.6 kis.realtime() — 실시간 웹소켓(타입드 구독)",
+    "text": "1.6 kis.realtime() — 실시간 웹소켓(타입드 구독)\nkis.realtime()\n├── start() / stop()                         # 백그라운드 수신 시작/중단\n├── subscribe / unsubscribe / stream         # 원시 등록·해제·통합 이터레이터(탈출구)\n├── domestic                                 # 국내 실시간\n│   ├── stock(code)                          # → StockHandle\n│   │   ├── trades(venue='KRX')              # 체결 → StockTick\n│   │   └── order_book(venue='KRX')          # 호가 → StockOrderBook\n│   ├── futures(code, kind='index')          # kind: index|commodity|stock|night\n│   │   ├── trades()                         # 체결 → FuturesTick\n│   │   └── order_book()                     # 호가 → DerivativeOrderBook\n│   ├── option(code, kind='index')           # kind: index|stock|night\n│   │   ├── trades()                         # 체결 → OptionTick\n│   │   └── order_book()                     # 호가 → DerivativeOrderBook\n│   ├── index(code)                          # → IndexHandle\n│   │   ├── trades()                         # 체결 → IndexTick\n│   │   ├── expected_conclusion()            # 예상체결 → IndexExpectedConclusion\n│   │   └── program_trade()                  # 프로그램매매 → IndexProgramTrade\n│   ├── elw(code)                            # → ELWHandle\n│   │   ├── trades()                         # 체결 → ELWTick\n│   │   ├── order_book()                     # 호가 → ELWOrderBook\n│   │   └── expected_conclusion()            # 예상체결 → ELWExpectedConclusion\n│   ├── bond(code)                           # → BondHandle\n│   │   ├── trades()                         # 체결 → BondTick\n│   │   └── order_book()                     # 호가 → BondOrderBook\n│   ├── bond_index(code)                     # → BondIndexHandle\n│   │   └── trades()                         # 체결 → BondIndexTick\n│   └── execution_notices                    # 체결통보(hts_id 단위)\n│       ├── stock(hts_id)                    # → StockExecutionNotice\n│       └── derivative(hts_id, session=...)  # → DerivativeExecutionNotice\n└── overseas                                 # 해외 실시간\n    ├── stock(symbol, exchange=None)         # RSYM 은 종목마스터로 해석\n    │   ├── trades()                         # 지연체결 → DelayedTradeTick\n    │   └── order_book(venue='global')       # 호가(global 10 / asia 1)\n    ├── futures(series_code)                 # → OverseasFuturesHandle\n    │   ├── trades()                         # 체결 → FuturesTradeTick\n    │   └── order_book()                     # 호가 → FuturesOrderBook\n    ├── option(series_code)                  # 선물과 동일 TR·핸들 공유\n    └── execution_notices                    # 체결/주문 통보(hts_id 단위)\n        ├── stock(hts_id)                    # → OverseasExecutionNotice\n        ├── derivative_orders(hts_id)        # → FuturesOrderNotice\n        └── derivative_fills(hts_id)         # → FuturesExecutionNotice",
+    "crumbs": [
+      "<span class='chapter-number'>1</span>  <span class='chapter-title'>API 함수 트리</span>"
+    ]
+  },
+  {
+    "objectID": "quickstart.html",
+    "href": "quickstart.html",
+    "title": "2  빠른 시작",
+    "section": "",
+    "text": "2.1 설치\n파이썬에서 import 하려면:\n명령줄 kis 도구로 쓰려면:",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>빠른 시작</span>"
+    ]
+  },
+  {
+    "objectID": "quickstart.html#설치",
+    "href": "quickstart.html#설치",
+    "title": "2  빠른 시작",
+    "section": "",
+    "text": "uv pip install kis-trader     # 또는: pip install kis-trader\n\nuv tool install kis-trader    # kis 명령 설치 (또는: pipx install kis-trader)\nkis --version",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>빠른 시작</span>"
+    ]
+  },
+  {
+    "objectID": "quickstart.html#세션-만들기",
+    "href": "quickstart.html#세션-만들기",
+    "title": "2  빠른 시작",
+    "section": "2.2 세션 만들기",
+    "text": "2.2 세션 만들기\nKIS 개발자센터에서 발급한 앱키·앱시크릿과 계좌번호로 세션을 엽니다(발급 과정은 앱키 발급받기):\nfrom kis_trader import KISClient\n\nkis = KISClient(app_key=\"YOUR_APP_KEY\", app_secret=\"YOUR_APP_SECRET\", account=\"12345678-01\")\n매번 키를 넣기 번거로우면 한 번 저장해 두고 KISClient(profile=\"main\") 한 줄로 열 수 있습니다. 자격증명 저장·환경변수·프로필(실전/모의)·CLI 사용법은 자격증명과 프로필을 보세요.",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>빠른 시작</span>"
+    ]
+  },
+  {
+    "objectID": "quickstart.html#첫-조회",
+    "href": "quickstart.html#첫-조회",
+    "title": "2  빠른 시작",
+    "section": "2.3 첫 조회",
+    "text": "2.3 첫 조회\nstock = kis.domestic.stock(\"005930\")  # 삼성전자\nquote = stock.quote()\n\nquote.current_price   # 현재가\nquote.change          # 전일대비\nquote.change_percent  # 등락률(%)\nquote.volume          # 거래량\n모든 결과는 읽기전용입니다. 필드 설명이 궁금하면 help(type(quote))(한국어 설명 + KIS URL·TR-ID), 원본 응답 전체는 quote._raw.",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>빠른 시작</span>"
+    ]
+  },
+  {
+    "objectID": "quickstart.html#첫-주문",
+    "href": "quickstart.html#첫-주문",
+    "title": "2  빠른 시작",
+    "section": "2.4 첫 주문",
+    "text": "2.4 첫 주문\nbuy() 한 번이면 주문이 그 자리에서 접수되고 결과 리포트를 돌려줍니다. 접수에 실패하면(거부) 예외가 나므로, 매번 확인 절차를 덧붙일 필요가 없습니다:\nreport = kis.domestic.stock(\"005930\").buy(quantity=10, limit_price=70000)  # 10주 지정가 매수 -- 바로 접수됨\n\nreport.order_id          # 거래소 주문번호(ODNO) -- 접수 성공\nreport.status            # 주문 상태 (NEW = 접수됨. 체결 여부는 별개)\nreport.client_order_id   # 이 주문의 고유 키 -- 정정·취소할 때 지목\n\nkis.orders.cancel(report.client_order_id)   # 정정·취소는 이 키로 지목\nreconcile 은 매 주문에 붙이는 단계가 아닙니다. 전송이 타임아웃돼 접수 여부가 불명일 때만 씁니다 – 재전송(=이중주문) 대신 KIS 에 실제로 들어갔는지 물어 확정합니다. 자세한 안전장치는 주문 참고.\n\n\n\n\n\n\n경고\n\n\n\n조회와 달리 주문은 실제로 돈이 오가는 실거래입니다. buy()/sell() 은 즉시 전송되고 되돌릴 수 없으니, 처음엔 모의투자(paper) 프로필로 연습하세요. 중복주문 방지·정정/취소·예약주문 같은 안전장치는 주문 에서 자세히 다룹니다(신용거래는 기본으로 막혀 있습니다).",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>빠른 시작</span>"
+    ]
+  },
+  {
+    "objectID": "quickstart.html#다음",
+    "href": "quickstart.html#다음",
+    "title": "2  빠른 시작",
+    "section": "2.5 다음",
+    "text": "2.5 다음\n\n자격증명·프로필 상세(저장·환경변수·실전/모의) → 자격증명과 프로필\n시세·차트·호가 → 시세\n주문과 안전장치 → 주문",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>2</span>  <span class='chapter-title'>빠른 시작</span>"
+    ]
+  },
+  {
+    "objectID": "appkey.html",
+    "href": "appkey.html",
+    "title": "3  앱키 발급받기",
+    "section": "",
+    "text": "3.1 준비",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>앱키 발급받기</span>"
+    ]
+  },
+  {
+    "objectID": "appkey.html#준비",
+    "href": "appkey.html#준비",
+    "title": "3  앱키 발급받기",
+    "section": "",
+    "text": "한국투자증권 실계좌가 있어야 합니다(없으면 먼저 개설). 그리고 HTS/MTS 등에서 API 서비스 신청(사용 동의)을 해야 합니다.\n신청 화면으로 가는 방법은 두 가지입니다:\n\nKIS 개발자센터 https://apiportal.koreainvestment.com/intro 에서 오른쪽 맨 위의 검정색 API 신청 버튼(또는 본문의 파란색 API 신청 버튼)을 누릅니다.\n또는 홈페이지 로그인 후 트레이딩 &gt; Open API &gt; KIS Developers &gt; KIS Developers 서비스 신청/조회 로 이동합니다.\n\n\n\n\n\nKIS 개발자센터 – 오른쪽 위 검정색 또는 본문 파란색 API신청 버튼(빨강 표시)로 들어갑니다",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>앱키 발급받기</span>"
+    ]
+  },
+  {
+    "objectID": "appkey.html#휴대폰-인증",
+    "href": "appkey.html#휴대폰-인증",
+    "title": "3  앱키 발급받기",
+    "section": "3.2 휴대폰 인증",
+    "text": "3.2 휴대폰 인증\n본인 휴대폰으로 인증번호를 받아 인증합니다.\n\n\n\n휴대폰 인증",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>앱키 발급받기</span>"
+    ]
+  },
+  {
+    "objectID": "appkey.html#신청정보-확인",
+    "href": "appkey.html#신청정보-확인",
+    "title": "3  앱키 발급받기",
+    "section": "3.3 신청정보 확인",
+    "text": "3.3 신청정보 확인\n기본정보(고객명·고객 ID·이메일)를 확인합니다.\n\n\n\n기본정보\n\n\n같은 페이지 아래쪽의 추가신청하기(최초라면 신청하기) 버튼으로 계좌에 API 이용을 신청합니다 (유의사항도 함께 안내됩니다).\n\n\n\n추가신청하기 버튼과 유의사항",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>앱키 발급받기</span>"
+    ]
+  },
+  {
+    "objectID": "appkey.html#api-서비스-신청하기",
+    "href": "appkey.html#api-서비스-신청하기",
+    "title": "3  앱키 발급받기",
+    "section": "3.4 API 서비스 신청하기",
+    "text": "3.4 API 서비스 신청하기\n앱키·앱시크릿을 발급받으려면 계좌에 API 이용을 신청해야 합니다. 위 버튼을 누르면 뜨는 창에서, 실전투자계좌는 종합계좌를 고르고 계좌 비밀번호로 인증하며, 모의투자계좌는 발급받은 모의계좌번호를 입력합니다. KIS Developers 사용자 ID도 함께 정합니다.\n\n\n\n신청하기 – 계좌 선택과 사용자 ID\n\n\n사용할 API 그룹을 선택하고 신청을 누릅니다.\n\n\n\n신청하기 – API 그룹 선택",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>앱키 발급받기</span>"
+    ]
+  },
+  {
+    "objectID": "appkey.html#신청현황에서-app-key-app-secret-복사",
+    "href": "appkey.html#신청현황에서-app-key-app-secret-복사",
+    "title": "3  앱키 발급받기",
+    "section": "3.5 신청현황에서 APP Key · APP Secret 복사",
+    "text": "3.5 신청현황에서 APP Key · APP Secret 복사\n신청이 완료되면 신청현황 목록에 계좌가 나타납니다. 각 계좌 행에서 APP Key와 APP Secret을 각각 복사 버튼으로 복사합니다. 이 두 값이 세션을 여는 자격증명입니다.\n\n\n\n신청현황 – 계좌별 APP Key / APP Secret\n\n\n\n\n\n\n\n\n경고\n\n\n\nAPP Key·APP Secret은 남에게 보이거나 공개 저장소(GitHub)에 올라가지 않도록 조심해 주세요.",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>앱키 발급받기</span>"
+    ]
+  },
+  {
+    "objectID": "appkey.html#다음-자격증명-저장",
+    "href": "appkey.html#다음-자격증명-저장",
+    "title": "3  앱키 발급받기",
+    "section": "3.6 다음 — 자격증명 저장",
+    "text": "3.6 다음 — 자격증명 저장\n복사한 APP Key·APP Secret(과 계좌번호)을 자격증명과 프로필의 KISConfig(...).save() 로 저장하면, 이후 KISClient(profile=...) 한 줄로 세션이 열립니다.",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>3</span>  <span class='chapter-title'>앱키 발급받기</span>"
+    ]
+  },
+  {
+    "objectID": "configuration.html",
+    "href": "configuration.html",
+    "title": "4  자격증명과 프로필",
+    "section": "",
+    "text": "4.1 프로필 = 계좌 하나\n프로필은 계좌 하나를 여는 데 필요한 값을 한데 묶어 이름을 붙인 것입니다 – 그 계좌의 앱키· 앱시크릿·계좌번호, 그리고 실전이냐 모의냐(환경)까지. 이 이름으로 엽니다:\n계좌마다 프로필을 따로 두는 이유 – 앱키·앱시크릿이 종합계좌번호(CANO) 단위라 계좌마다 다르고, 같은 유형 계좌도 여럿(연금저축 2개 등)일 수 있기 때문입니다. 이름은 소문자·숫자·밑줄로 짓습니다. 흔한 예:",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>자격증명과 프로필</span>"
+    ]
+  },
+  {
+    "objectID": "configuration.html#프로필-계좌-하나",
+    "href": "configuration.html#프로필-계좌-하나",
+    "title": "4  자격증명과 프로필",
+    "section": "",
+    "text": "KISClient(profile=\"main\")   # \"main\" 이라 저장해 둔 계좌로 세션을 엽니다\n\n\n\n\n프로필 이름 (자유롭게)\n담는 계좌\n\n\n\n\nmain\n메인계좌\n\n\nisa\nISA(개인종합자산관리)\n\n\npension\n연금저축\n\n\nirp\nIRP(개인형퇴직연금, 조회 전용)\n\n\npaper\n모의투자\n\n\n\n\n이름을 지정하지 않으면 (기본 프로필)\nKISClient() 처럼 이름 없이 열면 기본 프로필이 열립니다. 무엇이 기본인지는 이 순서로 정합니다:\n\nKIS_DEFAULT_PROFILE 환경변수가 있으면 그 이름\n없으면 – credentials.json 에 기본으로 지정해 둔 프로필(아래 KISConfig.set_default)\n그것도 없으면 – credentials.json 에 맨 처음 저장한 프로필\n\n대부분은 주로 쓰는 계좌를 맨 먼저 저장해 두면 그게 기본이라 아무 설정도 필요 없습니다. 특정 프로필을 기본으로 못박고 싶을 때만 아래 둘 중 하나를 씁니다.\n파일에 영구 기록 (재시작해도 유지, 셸 설정 불필요) – 저장된 프로필 하나를 기본으로 지정합니다:\nfrom kis_trader import KISConfig\n\nKISConfig.set_default(\"main\")   # credentials.json 최상위에 \"default_profile\": \"main\" 기록\n환경변수 (그 셸 세션에서만, 파일보다 우선) – KIS_DEFAULT_PROFILE 은 OS 환경변수라 셸에서 정합니다:\nexport KIS_DEFAULT_PROFILE=main          # Linux·macOS (영구히 하려면 ~/.bashrc·~/.zshrc 에 추가)\n# $env:KIS_DEFAULT_PROFILE=\"main\"        # Windows PowerShell\n\n\n이름은 라벨일 뿐\n프로필 이름은 그저 라벨입니다. 그 계좌가 실전인지 모의인지, 주문이 되는지는 이름이 아니라 저장된 값이 정합니다 – 환경은 프로필에 저장된 필드(기본 real, 모의는 environment=\"paper\"), 주문 가능 여부는 계좌의 상품코드(상품코드 표). 그래서 main 이라는 이름에 모의 계좌를 담아도 되고, 연금저축을 담아도 됩니다.",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>자격증명과 프로필</span>"
+    ]
+  },
+  {
+    "objectID": "configuration.html#자격증명-넣기-세-가지",
+    "href": "configuration.html#자격증명-넣기-세-가지",
+    "title": "4  자격증명과 프로필",
+    "section": "4.2 자격증명 넣기 (세 가지)",
+    "text": "4.2 자격증명 넣기 (세 가지)\n세션은 환경변수 → credentials.json 순으로 찾습니다. 아래 셋 중 하나만 쓰면 됩니다.\n\n\n\n\n\n\n\n\n방법\n언제\n요약\n\n\n\n\n① 파일에 저장\n권장\nKISConfig(...).save() – 정해진 위치에 안전 저장(사용자만 읽게 잠금·병합)\n\n\n② 환경변수\nCI·컨테이너\nexport KIS_APP_KEY=…(명명 프로필은 KIS_&lt;이름대문자&gt;_*)\n\n\n③ 직접 전달\n일회성\nKISClient(app_key=…, …)(둘 다 직접 주면 파일 안 읽음)\n\n\n\n① 파일에 저장 (파이썬 코드로 실행) – 한 번 저장해 두면 이후 KISClient(profile=\"...\") 로 엽니다.\nfrom kis_trader import KISConfig\n\nKISConfig(profile=\"main\",    app_key=\"...\", app_secret=\"...\", account=\"12345678-01\").save()\nKISConfig(profile=\"pension\", app_key=\"...\", app_secret=\"...\", account=\"87654321-22\").save()\nKISConfig(profile=\"paper\",   app_key=\"...\", app_secret=\"...\", account=\"50123456-01\", environment=\"paper\").save()\n\n\n\n\n\n\n노트\n\n\n\nsave() 는 한 번만 실행하면 됩니다 – 값을 credentials.json 에 영구히 기록하므로, 그다음부터는 저 저장 코드 없이 KISClient(profile=\"main\") 한 줄로 엽니다.\n\n\n② 환경변수 (터미널/셸 프롬프트에서 실행) – export 해두면 KISClient() 가 자동으로 읽습니다.\nexport KIS_APP_KEY=YOUR_APP_KEY\nexport KIS_APP_SECRET=YOUR_APP_SECRET\nexport KIS_ACCOUNT=12345678-01        # 종합계좌번호-상품코드 (시세만 볼 거면 생략 가능)\n# export KIS_ENVIRONMENT=paper        # 모의 계좌면\n어느 방법이든 키 이름 규칙은 하나 – 환경변수에서 KIS_ 를 떼고 소문자로 바꾸면 파일 안 키입니다.\n\n\n\n\n\n\n\n\n환경변수(셸)\ncredentials.json 안\n뜻\n\n\n\n\nKIS_APP_KEY\napp_key\n앱키\n\n\nKIS_APP_SECRET\napp_secret\n앱시크릿\n\n\nKIS_ACCOUNT\naccount\n계좌번호\n\n\nKIS_ENVIRONMENT\nenvironment\n실전/모의\n\n\nKIS_HTS_ID\nhts_id(최상위)\nHTS 로그인 아이디 (선택·사용자당 하나; 조건검색·관심종목용, 인증엔 안 씀)\n\n\nKIS_DEFAULT_PROFILE\ndefault_profile(최상위)\n기본 프로필\n\n\n\n접두어 없는 KIS_APP_KEY 는 main 프로필용이고, 다른 프로필은 이름을 끼웁니다 – KIS_ISA_APP_KEY ↔︎ credentials.json 의 isa.app_key.\n③ 직접 전달 (파이썬 코드로 실행) – 저장 없이 그때만 씁니다. (앱키·앱시크릿을 둘 다 주면 파일을 읽지 않음)\nfrom kis_trader import KISClient\n\nkis = KISClient(app_key=\"...\", app_secret=\"...\", account=\"12345678-01\")\n\n\n\n\n\n\n노트\n\n\n\nCLI 에서도 --profile 로 계좌·환경을 고릅니다: kis --profile isa account balance",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>자격증명과 프로필</span>"
+    ]
+  },
+  {
+    "objectID": "configuration.html#계좌번호와-상품코드",
+    "href": "configuration.html#계좌번호와-상품코드",
+    "title": "4  자격증명과 프로필",
+    "section": "4.3 계좌번호와 상품코드",
+    "text": "4.3 계좌번호와 상품코드\n계좌번호 = 종합계좌번호(8자리)-상품코드(2자리) (예: 12345678-01). 같은 종합계좌라도 거래 상품마다 상품코드가 다릅니다(해외 주식은 위탁 01, 해외 선물옵션은 08).\n\n\n\n상품코드\n상품\n조회\n주문\n\n\n\n\n01\n위탁 · ISA · RIA · 국내/해외 주식\nO\nO\n\n\n03\n국내선물옵션\nO\nO\n\n\n08\n해외선물옵션\nO\nO\n\n\n22\n연금저축\nO\nO\n\n\n29\nIRP(개인형퇴직연금)\nO\nX\n\n\n55\nDC가입자\nX\nX\n\n\n\nIRP(29)는 세션이 주문을 자동으로 막고, DC가입자(55)는 세션 생성 자체가 거부됩니다. (출처: 한국투자 Open API 공식 FAQ.)",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>자격증명과 프로필</span>"
+    ]
+  },
+  {
+    "objectID": "configuration.html#파일은-어디에-있나",
+    "href": "configuration.html#파일은-어디에-있나",
+    "title": "4  자격증명과 프로필",
+    "section": "4.4 파일은 어디에 있나",
+    "text": "4.4 파일은 어디에 있나\n패키지는 홈 폴더 아래 두 곳을 씁니다 — 사용자가 만든 설정(.config)과 패키지가 자동으로 만드는 캐시(.cache):\n~/\n├── .config/kis-trader/\n│   └── credentials.json               # [설정] 사용자가 저장한 앱키·앱시크릿·계좌 (프로필별)\n└── .cache/kis-trader/\n    ├── tokens/                        # [캐시] 발급받은 접속 토큰 -- 유효한 동안 재사용\n    │   ├── real-&lt;app-key-hash&gt;.json   #   실전 계좌 토큰\n    │   └── paper-&lt;app-key-hash&gt;.json  #   모의 계좌 토큰\n    └── masters/                       # [캐시] 종목마스터(이름↔코드) -- 처음 받아 저장\n        ├── kospi_code.mst             #   국내 .mst -- 코스피(KOSPI)\n        ├── kosdaq_code.mst            #   국내 .mst -- 코스닥(KOSDAQ)\n        ├── nasmst.cod                 #   해외 .cod -- 나스닥(NASDAQ, 미국)\n        ├── nysmst.cod                 #   해외 .cod -- 뉴욕(NYSE, 미국)\n        ├── amsmst.cod                 #   해외 .cod -- 아멕스(AMEX, 미국)\n        ├── shsmst.cod                 #   해외 .cod -- 상하이 증권거래소\n        ├── shimst.cod                 #   해외 .cod -- 상하이 지수\n        ├── szsmst.cod                 #   해외 .cod -- 선전 증권거래소\n        ├── szimst.cod                 #   해외 .cod -- 선전 지수\n        ├── tsemst.cod                 #   해외 .cod -- 도쿄\n        ├── hksmst.cod                 #   해외 .cod -- 홍콩\n        ├── hnxmst.cod                 #   해외 .cod -- 하노이\n        └── hsxmst.cod                 #   해외 .cod -- 호치민\n\n.config/ — 설정: 사용자가 만든 값. 지우면 다시 만들어야 합니다.\n.cache/ — 캐시: 패키지가 알아서 만들고 재사용합니다. 지워도 안전 – 다음 실행에 다시 만듭니다.\nWindows 는 C:\\Users\\&lt;사용자&gt;\\ 아래 같은 .config / .cache 구조입니다.\n\n왜 캐시가 필요한가 — 두 가지를 처음 한 번만 받아 재사용합니다:\n\n\n\n\n\n\n\n\n캐시\n무엇\n왜 저장하나\n\n\n\n\ntokens/\n접속 토큰 — 앱키·앱시크릿으로 발급, 하루 단위 유효\n조회·주문마다 새로 받지 않고 재사용 (재발급 과속으로 인한 status 500 예방)\n\n\nmasters/\n종목마스터 — 이름↔︎코드 대응표\n큰 파일이라 처음 한 번만 받아 재사용\n\n\n\n둘 다 설치(pip)에는 들어있지 않고, 처음 필요할 때 KIS 배포 서버에서 자동으로 내려받습니다 — 그래서 설치 직후 첫 조회만 잠깐 느릴 수 있고, 그 뒤로는 캐시를 재사용합니다.",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>자격증명과 프로필</span>"
+    ]
+  },
+  {
+    "objectID": "configuration.html#credentials.json",
+    "href": "configuration.html#credentials.json",
+    "title": "4  자격증명과 프로필",
+    "section": "4.5 credentials.json",
+    "text": "4.5 credentials.json\n설정 파일 하나에 공유 최상위 필드와 프로필별 객체를 함께 담습니다. KISConfig(...).save() 가 아래 형식으로 기록하고(손 편집도 가능), 저장할 때 파일 소유자만 읽을 수 있게 잠급니다:\n{\n  \"hts_id\":    \"your_hts_id\",\n  \"main\":      {\"app_key\": \"...\", \"app_secret\": \"...\", \"account\": \"12345678-01\", \"environment\": \"real\"},\n  \"pension\":   {\"app_key\": \"...\", \"app_secret\": \"...\", \"account\": \"87654321-22\", \"environment\": \"real\"},\n  \"paper\":     {\"app_key\": \"...\", \"app_secret\": \"...\", \"account\": \"50123456-01\", \"environment\": \"paper\"}\n}\n최상위 hts_id 는 조건검색·관심종목 조회의 user_id(HTS 로그인 아이디)로, 사용자당 하나라 모든 프로필이 공유합니다(인증엔 안 씀). KISConfig.set_hts_id(\"your_hts_id\") 로 기록하거나 손 편집합니다.\n\n\n\n\n\n\n\n\nOS\ncredentials.json 위치\n잠금\n\n\n\n\nLinux\n~/.config/kis-trader/\n600 — 소유자만 (자동)\n\n\nmacOS\n~/.config/kis-trader/\n600 — 소유자만 (자동)\n\n\nWindows\nC:\\Users\\&lt;사용자&gt;\\.config\\kis-trader\\\n사용자 폴더 보호에 의존\n\n\n\n이 파일에는 앱키·앱시크릿이 들어 있어, 패키지가 사용자만 접근하게 잠급니다(Linux·macOS는 자동, Windows는 폴더 보호에 의존 – 아래).\n\n파일 잠금 — Linux·macOS 는 600 권한(소유자만 읽기·쓰기)으로 잠급니다(600 = 파이썬 0o600, 터미널 chmod 600 과 같은 값). Windows 는 이 권한 비트가 없어 파일 자체엔 안 걸리는 대신, C:\\Users\\&lt;사용자&gt; 폴더가 계정별로 분리돼 있어 다른 사용자가 못 봅니다.\n로그에 안 새기 — 키를 화면·로그·예외 메시지에 찍지 않습니다(repr 이 값을 가림).\n명령줄로 안 받기 — 앱키·앱시크릿은 플래그(--app-key ...)로 받지 않습니다. 셸 기록과 ps 에 남기 때문입니다. 저장 파일이나 환경변수로만 주세요.\n\n\n\n\n\n\n\n노트\n\n\n\n(고급) 파일 위치를 바꾸려면 XDG_CONFIG_HOME / XDG_CACHE_HOME 환경변수를, 테스트·격리는 config_dir= 인자를 씁니다.",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>자격증명과 프로필</span>"
+    ]
+  },
+  {
+    "objectID": "configuration.html#안-될-때-자주-겪는-문제",
+    "href": "configuration.html#안-될-때-자주-겪는-문제",
+    "title": "4  자격증명과 프로필",
+    "section": "4.6 안 될 때 (자주 겪는 문제)",
+    "text": "4.6 안 될 때 (자주 겪는 문제)\n증상 열은 실제 메시지에 포함된 문구입니다(CLI 는 앞에 요청 실패: 같은 접두어가 붙기도 함) – 그대로 검색해 맞는 행을 찾으세요.\n\n\n\n\n\n\n\n\n증상(실제 메시지 / 상황)\n원인\n해결\n\n\n\n\ncommand not found: kis\n설치 안 됐거나 도구 경로가 PATH 밖\nuv tool install kis-trader(또는 pipx install kis-trader)로 설치. 이미 설치했는데 안 잡히면 셸을 새로 열기(pipx 는 pipx ensurepath 후)\n\n\nKIS_APP_KEY 를 찾을 수 없다 …\n자격증명 미설정·키 이름 오타\n프로필 이름·필드명 확인, 또는 KISConfig(...).save() 로 저장\n\n\n… credentials.json 가 있으나 읽을 수 없다\nJSON 문법 오류(쉼표·따옴표)\n마지막 쉼표 제거, 모든 값 \"...\" 확인\n\n\nKIS HTTP 요청에 실패했다 (status 500)\n호출 과속(rate 제한)\n몰아 붙여넣지 말고 한 줄씩. 모의는 초당 1회\n\n\n잔고가 비거나 이상함\n모의 계좌를 보고 있음\n실전 프로필(--profile main 등)로 열기\n\n\n이 계좌는 API 주문이 불가하다 …(주문 시)\nIRP(상품코드 29) — 조회만 가능\n주문은 위탁·ISA·연금저축 계좌에서\n\n\n상품계좌종류 55(DC가입자)는 … 이용이 불가하다(세션 생성 시)\nDC가입자(상품코드 55)\nAPI 이용 자체 불가",
+    "crumbs": [
+      "시작하기",
+      "<span class='chapter-number'>4</span>  <span class='chapter-title'>자격증명과 프로필</span>"
+    ]
+  },
+  {
+    "objectID": "quotes.html",
+    "href": "quotes.html",
+    "title": "5  시세 보기",
+    "section": "",
+    "text": "5.1 현재가\nquote() 가 돌려주는 Quote 의 필드:",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>시세 보기</span>"
+    ]
+  },
+  {
+    "objectID": "quotes.html#현재가",
+    "href": "quotes.html#현재가",
+    "title": "5  시세 보기",
+    "section": "",
+    "text": "quote = stock.quote()\nprint(quote.current_price, quote.change_percent)  # 예: 71500  0.70\n\n\n\n\n필드\n뜻\n단위\n\n\n\n\ncurrent_price\n현재가\n원\n\n\nopen · high · low\n시가·고가·저가\n원\n\n\nprevious_close\n전일 종가\n원\n\n\nchange\n전일대비 (부호 포함)\n원\n\n\nchange_percent\n등락률\n%\n\n\nvolume\n누적 거래량\n주\n\n\nweek_52_high · week_52_low\n52주 최고·최저 (없으면 None)\n원\n\n\nas_of\n조회 시각\ndatetime",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>시세 보기</span>"
+    ]
+  },
+  {
+    "objectID": "quotes.html#차트-봉",
+    "href": "quotes.html#차트-봉",
+    "title": "5  시세 보기",
+    "section": "5.2 차트 (봉)",
+    "text": "5.2 차트 (봉)\nbars(interval, start=, end=) 하나로 분봉·일봉·주봉·월봉을 다 봅니다.\nstock.bars(\"1d\", start=\"20240101\", end=\"20240630\")  # 일봉\nstock.bars(\"1wk\", start=\"20230101\")                 # 주봉\nstock.bars(\"1m\", max_bars=120)                      # 당일 1분봉 최근 120개\n과거→현재 순으로 옵니다. 각 봉(Bar)은 timestamp / open / high / low / close / volume.\nbars = stock.bars(\"1d\", start=\"20240101\")\nfor bar in bars[-5:]:  # 최근 5봉\n    print(f\"{bar.timestamp:%Y-%m-%d}  종가 {bar.close}  거래량 {bar.volume}\")\n특정 날짜의 분봉은 stock.minute_bars_on(\"20240102\").",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>시세 보기</span>"
+    ]
+  },
+  {
+    "objectID": "quotes.html#호가",
+    "href": "quotes.html#호가",
+    "title": "5  시세 보기",
+    "section": "5.3 호가",
+    "text": "5.3 호가\norder_book = stock.order_book()\nbest_bid = order_book.bids[0]                                        # 최우선 매수호가\nbest_ask = order_book.asks[0]                                        # 최우선 매도호가\nprint(best_bid.price, best_bid.quantity)\nprint(order_book.total_bid_quantity, order_book.total_ask_quantity)  # 총 매수/매도 잔량\nbids · asks 는 각각 (가격 price, 잔량 quantity) 호가 단계 튜플입니다.",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>시세 보기</span>"
+    ]
+  },
+  {
+    "objectID": "quotes.html#체결최근가",
+    "href": "quotes.html#체결최근가",
+    "title": "5  시세 보기",
+    "section": "5.4 체결·최근가",
+    "text": "5.4 체결·최근가\nstock.trades()         # 최근 체결 내역\nstock.recent_prices()  # 최근 가격 추이",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>시세 보기</span>"
+    ]
+  },
+  {
+    "objectID": "quotes.html#여러-종목을-한-번에",
+    "href": "quotes.html#여러-종목을-한-번에",
+    "title": "5  시세 보기",
+    "section": "5.5 여러 종목을 한 번에",
+    "text": "5.5 여러 종목을 한 번에\nfor quote in kis.domestic.quotes([\"005930\", \"000660\", \"035720\"]):\n    print(quote.symbol, quote.current_price, quote.change_percent)\n\n# 보드가 다르면(KRX/NXT) 튜플로 지정\nkis.domestic.quotes([(\"KRX\", \"005930\"), (\"NXT\", \"000660\")])\n\n\n\n\n\n\n노트\n\n\n\nKRX vs NXT — KRX는 한국거래소 정규시장, NXT(넥스트레이드)는 2025년 출범한 대체거래소(ATS, 정규거래소 밖의 또 다른 매매 장)입니다. 같은 종목이 두 곳에서 거래되며, 보드를 안 주면 KRX 기준입니다.",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>시세 보기</span>"
+    ]
+  },
+  {
+    "objectID": "quotes.html#시간외",
+    "href": "quotes.html#시간외",
+    "title": "5  시세 보기",
+    "section": "5.6 시간외",
+    "text": "5.6 시간외\nstock.after_hours_quote()         # 시간외 현재가\nstock.after_hours_daily()         # 시간외 단일가 일자별 종가\nstock.after_hours_conclusions()   # 시간외 시간별 체결\nstock.after_hours_order_book()    # 시간외 호가창",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>시세 보기</span>"
+    ]
+  },
+  {
+    "objectID": "quotes.html#상태과거-분봉",
+    "href": "quotes.html#상태과거-분봉",
+    "title": "5  시세 보기",
+    "section": "5.7 상태·과거 분봉",
+    "text": "5.7 상태·과거 분봉\nstock.status()                    # 현재가 + 거래·규제·경고 상태\nstock.minute_bars_on(\"20240102\")  # 특정 과거일의 1분봉\n지수는 시장·지수, 해외는 해외주식, ETF·ELW·선물옵션·채권은 각 상품 챕터를 보세요.\n\n\n\n\n\n\n힌트\n\n\n\n필드가 더 궁금하면 help(type(quote)) — 각 필드의 한국어 설명과 KIS 원본 키(TR-ID 포함)가 나옵니다. 원본 응답 전체는 quote._raw 로 접근.",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>5</span>  <span class='chapter-title'>시세 보기</span>"
+    ]
+  },
+  {
+    "objectID": "financials.html",
+    "href": "financials.html",
+    "title": "6  재무·실적",
+    "section": "",
+    "text": "6.1 추정·의견",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>6</span>  <span class='chapter-title'>재무·실적</span>"
+    ]
+  },
+  {
+    "objectID": "financials.html#추정의견",
+    "href": "financials.html#추정의견",
+    "title": "6  재무·실적",
+    "section": "",
+    "text": "stock.earnings_estimate()                                 # 월간 추정 손익·투자지표 (리서치 추정 대상 종목만)\nstock.investor_estimate()                                 # 장중 외국인/기관 순매수 추정 (확정 아닌 가추정)\n\nstock.analyst_opinions(start=\"20240101\", end=\"20240630\")  # 애널리스트 의견·목표주가 시계열",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>6</span>  <span class='chapter-title'>재무·실적</span>"
+    ]
+  },
+  {
+    "objectID": "flows.html",
+    "href": "flows.html",
+    "title": "7  종목 수급",
+    "section": "",
+    "text": "7.1 공매도·신용·대차",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>종목 수급</span>"
+    ]
+  },
+  {
+    "objectID": "flows.html#공매도신용대차",
+    "href": "flows.html#공매도신용대차",
+    "title": "7  종목 수급",
+    "section": "",
+    "text": "stock.short_sale_trend(start=\"20240101\", end=\"20240630\")  # 공매도 추이\nstock.credit_balance_trend()                              # 신용잔고(융자/대주) 추이\nstock.loan_trend(start=\"20240101\", end=\"20240630\")        # 대차거래(대여) 추이",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>종목 수급</span>"
+    ]
+  },
+  {
+    "objectID": "flows.html#회원사체결분포",
+    "href": "flows.html#회원사체결분포",
+    "title": "7  종목 수급",
+    "section": "7.2 회원사·체결분포",
+    "text": "7.2 회원사·체결분포\nstock.broker_activity()     # 매도/매수 상위 회원사(증권사) 비중\nstock.broker_trade_ticks()  # 회원사 실시간 매매 체결 틱\nstock.broker_daily_activity(\"99999\", start=\"20240101\", end=\"20240131\")  # 한 회원사 일별\n\nstock.expected_price_trend()    # 동시호가 예상체결가 추이\nstock.intraday_executions()     # 당일 체결·최우선호가·체결강도\nstock.volume_profile()          # 가격대별 거래량 분포(매물대)\nstock.trade_amount_bands()      # 체결금액대별 매매비중\nstock.daily_trade_volume(start=\"20240101\", end=\"20240630\")  # 일별 매수/매도 체결량",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>7</span>  <span class='chapter-title'>종목 수급</span>"
+    ]
+  },
+  {
+    "objectID": "account.html",
+    "href": "account.html",
+    "title": "8  계좌·잔고·손익",
+    "section": "",
+    "text": "8.1 예수금·자산 요약\nbalance() 가 돌려주는 DomesticBalance 의 주요 필드:\naccount.assets() 는 대출·외화까지 포함한 계좌 자산현황.",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>계좌·잔고·손익</span>"
+    ]
+  },
+  {
+    "objectID": "account.html#예수금자산-요약",
+    "href": "account.html#예수금자산-요약",
+    "title": "8  계좌·잔고·손익",
+    "section": "",
+    "text": "balance = account.balance()\nprint(balance.deposit, balance.total_evaluation, balance.unrealized_pnl)\n\n\n\n\n\n\n\n\n필드\n뜻\n\n\n\n\ndeposit\n예수금\n\n\nsettlement_cash_d1 · settlement_cash_d2\nD+1 · D+2 정산 예정 현금\n\n\ntotal_evaluation\n총 평가금액\n\n\nnet_asset\n순자산\n\n\npurchase_amount\n매입금액\n\n\nmarket_value\n평가금액\n\n\nunrealized_pnl\n평가손익",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>계좌·잔고·손익</span>"
+    ]
+  },
+  {
+    "objectID": "account.html#보유-종목",
+    "href": "account.html#보유-종목",
+    "title": "8  계좌·잔고·손익",
+    "section": "8.2 보유 종목",
+    "text": "8.2 보유 종목\nfor position in account.positions():\n    print(f\"{position.security_name:10s} {position.quantity}주  \"\n          f\"평가손익 {position.unrealized_pnl:&gt;12,}  ({position.unrealized_pnl_percent}%)\")\nPosition 필드:\n\n\n\n필드\n뜻\n\n\n\n\nsymbol · security_name\n종목코드 · 종목명\n\n\nquantity · sellable_quantity\n보유 · 매도가능 수량\n\n\naverage_purchase_price\n평균 매입가\n\n\npurchase_amount\n매입금액\n\n\ncurrent_price\n현재가\n\n\nmarket_value\n평가금액\n\n\nunrealized_pnl\n평가손익\n\n\nunrealized_pnl_percent\n수익률(%)\n\n\n\nsellable_quantity(매도가능)는 담보·대주 등으로 quantity(보유)보다 적을 수 있습니다.\n보유종목 + 요약을 한 번에: account.portfolio() → .balance, .positions.",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>계좌·잔고·손익</span>"
+    ]
+  },
+  {
+    "objectID": "account.html#실현손익",
+    "href": "account.html#실현손익",
+    "title": "8  계좌·잔고·손익",
+    "section": "8.3 실현손익",
+    "text": "8.3 실현손익\naccount.trade_profits(start=\"20240101\", end=\"20240630\")  # 종목별 실현손익\naccount.daily_profits(start=\"20240101\", end=\"20240630\")  # 일별 실현손익\naccount.realized_profit_balance()                        # 실현손익 포함 잔고\n\n\n\n\n\n\n평가손익 vs 실현손익\n\n\n\n\n평가손익 (미실현, unrealized_pnl) — 아직 안 판 보유종목의 장부상 손익. 현재가로 계산돼 계속 바뀌고, 팔기 전엔 확정이 아닙니다.\n실현손익 (trade_profits / daily_profits) — 실제로 팔아서 확정된 손익.\n\n“평가손익 +100만”이라도 팔기 전엔 내 돈이 아닙니다. 판 순간 실현손익으로 고정됩니다.",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>계좌·잔고·손익</span>"
+    ]
+  },
+  {
+    "objectID": "account.html#미체결주문가능",
+    "href": "account.html#미체결주문가능",
+    "title": "8  계좌·잔고·손익",
+    "section": "8.4 미체결·주문가능",
+    "text": "8.4 미체결·주문가능\naccount.open_orders()                 # 미체결 / 정정취소 가능 주문\nstock = kis.domestic.stock(\"005930\")\nstock.buyable()                       # 매수 가능 수량·금액\nstock.sellable()                      # 매도 가능 수량",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>계좌·잔고·손익</span>"
+    ]
+  },
+  {
+    "objectID": "account.html#권리증거금",
+    "href": "account.html#권리증거금",
+    "title": "8  계좌·잔고·손익",
+    "section": "8.5 권리·증거금",
+    "text": "8.5 권리·증거금\naccount.rights(start=\"20240101\", end=\"20240630\")  # 배정/신청/환불된 권리\naccount.integrated_margin()                       # 통합증거금",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>계좌·잔고·손익</span>"
+    ]
+  },
+  {
+    "objectID": "account.html#해외-계좌",
+    "href": "account.html#해외-계좌",
+    "title": "8  계좌·잔고·손익",
+    "section": "8.6 해외 계좌",
+    "text": "8.6 해외 계좌\n해외는 통화·시장이 얽혀 있어 살짝 다릅니다.\naccount = kis.account.overseas\naccount.positions(market=None)                           # None = 전체 시장 합산\naccount.balance(market=\"US\")                             # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)\naccount.present_balance()                                # 체결기준 현재잔고\naccount.period_profit(start=\"20240101\", end=\"20240630\")  # 기간 실현손익\naccount.transactions(start=\"20240101\", end=\"20240630\")   # 거래내역\naccount.foreign_margin()                                 # 통화별 외화 증거금\naccount.algo_orders()                                    # 미국 알고(twap/vwap) 주문 목록\naccount.algo_executions(order_id, order_date=\"20240102\") # 한 알고주문의 체결내역",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>계좌·잔고·손익</span>"
+    ]
+  },
+  {
+    "objectID": "account.html#채권-계좌",
+    "href": "account.html#채권-계좌",
+    "title": "8  계좌·잔고·손익",
+    "section": "8.7 채권 계좌",
+    "text": "8.7 채권 계좌\n장내채권은 주식과 같은 위탁(01) 계좌를 쓰며 kis.account.domestic.bonds 로 조회합니다. 보유·매수가능·미체결·체결 → 채권.\nkis.account.domestic.bonds.balance()  # 채권 보유 lot",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>계좌·잔고·손익</span>"
+    ]
+  },
+  {
+    "objectID": "account.html#퇴직연금-irp-계좌",
+    "href": "account.html#퇴직연금-irp-계좌",
+    "title": "8  계좌·잔고·손익",
+    "section": "8.8 퇴직연금 (IRP) 계좌",
+    "text": "8.8 퇴직연금 (IRP) 계좌\n개인형 퇴직연금(IRP, 상품코드 29)은 일반 국내주식 잔고엔 없는 퇴직연금 전용 조회(예수금 요약·체결기준잔고·매수가능여력)를 kis.account.pension 렌즈로 줍니다. IRP는 조회전용이라 발주 메서드는 없습니다. 상세 → 퇴직연금.\nkis.account.pension.deposit()          # 예수금 요약 (IRP 29 전용)\nkis.account.pension.present_balance()  # 체결기준 잔고 + 손익\n연금저축(22)은 별개 사적연금이라 주문 가능한 일반 주식계좌로 다루며 이 렌즈 대상이 아닙니다. 상품코드가 29가 아니면 .pension 접근은 오류입니다.",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>계좌·잔고·손익</span>"
+    ]
+  },
+  {
+    "objectID": "account.html#통합잔고",
+    "href": "account.html#통합잔고",
+    "title": "8  계좌·잔고·손익",
+    "section": "8.9 통합잔고",
+    "text": "8.9 통합잔고\nkis.account.balance() 는 국내주식·채권·해외주식 잔고를 한 뷰로 합쳐 Balance 로 돌려줍니다. 실전투자 전용입니다.\nbalance = kis.account.balance()\nfor deposit in balance.deposits:\n    print(f\"{deposit.currency}  예수금 {deposit.cash:&gt;15,}  (환율 {deposit.exchange_rate})\")\nprint(\"원화 총평가\", balance.total_evaluation, \"  평가손익\", balance.total_unrealized_pnl)\nBalance 의 주요 필드:\n\n\n\n필드\n뜻\n\n\n\n\nbase_currency\n기준통화(“KRW”)\n\n\ndeposits\n통화별 예수금(CurrencyDeposit 목록)\n\n\ndomestic\n국내주식 잔고 서브(DomesticBalance)\n\n\nbonds\n채권 보유(BondPosition 목록, 매입금액 기준)\n\n\noverseas\n해외 체결기준 현재잔고\n\n\ntotal_evaluation\n원화 총평가(국내·해외 보유 평가의 합)\n\n\ntotal_unrealized_pnl\n원화 총평가손익\n\n\n\nCurrencyDeposit 은 currency(통화), cash(예수금), exchange_rate(참고용 원화 환율) 세 값입니다.\n\n\n\n\n\n\n왜 단일 총자산 하나로 안 합치나\n\n\n\n통화별 예수금(deposits)이 기준이 되는 값이고, total_evaluation 은 서로 겹치지 않는 국내·해외 보유 평가만 더한 값입니다. 현금까지 더한 단일 총자산은 두지 않습니다 — 국내 순자산과 해외 총자산이 같은 위탁계좌의 원화 예수금을 공유(이중계상)하고 net/gross 기준이 달라 신뢰 있게 합칠 수 없기 때문입니다. 채권은 시장가가 없어 매입금액 기준이라 평가 합계에 넣지 않습니다(bonds 로 따로 봅니다).",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>8</span>  <span class='chapter-title'>계좌·잔고·손익</span>"
+    ]
+  },
+  {
+    "objectID": "orders.html",
+    "href": "orders.html",
+    "title": "9  주문",
+    "section": "",
+    "text": "9.1 한눈에 — 매수부터 취소까지",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>주문</span>"
+    ]
+  },
+  {
+    "objectID": "orders.html#한눈에-매수부터-취소까지",
+    "href": "orders.html#한눈에-매수부터-취소까지",
+    "title": "9  주문",
+    "section": "",
+    "text": "stock = kis.domestic.stock(\"005930\")\n\nreport = stock.buy(quantity=10, limit_price=70000)            # 1) 지정가 매수\nprint(report.client_order_id, report.status)                  #    -&gt; 주문 키, 상태\n\nkis.orders.reconcile(report.client_order_id)                  # 2) 실제 접수됐는지 확인\nkis.orders.modify(report.client_order_id, limit_price=70500)  # 3) 가격 정정\nkis.orders.cancel(report.client_order_id)                     # 4) 취소",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>주문</span>"
+    ]
+  },
+  {
+    "objectID": "orders.html#매수매도",
+    "href": "orders.html#매수매도",
+    "title": "9  주문",
+    "section": "9.2 매수·매도",
+    "text": "9.2 매수·매도\nstock.buy(quantity=10, limit_price=70000)   # 지정가 매수\nstock.buy(quantity=10)                      # 시장가 매수 (가격 생략)\nstock.sell(quantity=10, limit_price=71000)  # 지정가 매도\n반환값 ExecutionReport 의 필드:\n\n\n\n필드\n뜻\n\n\n\n\nclient_order_id\n이 주문의 고유 키 (취소/정정할 때 지목)\n\n\norder_id\n증권사 주문번호(ODNO), 접수돼야 채워짐\n\n\nside\n매수/매도\n\n\nstatus\n주문 상태 (PENDING_NEW, FILLED, CANCELED …)\n\n\nfilled_quantity\n체결 수량\n\n\naverage_price\n평균 체결가 (체결 전이면 None)\n\n\n\n\n\n\n\n\n\n중요\n\n\n\nbuy/sell 은 반드시 이름 붙여서(quantity=, limit_price=) 호출합니다. 순서 실수로 수량과 가격이 뒤바뀌는 사고를 막기 위해서입니다.",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>주문</span>"
+    ]
+  },
+  {
+    "objectID": "orders.html#주문-종류",
+    "href": "orders.html#주문-종류",
+    "title": "9  주문",
+    "section": "9.3 주문 종류",
+    "text": "9.3 주문 종류\nstock.buy(quantity=10, limit_price=70000)                                # 지정가\nstock.buy(quantity=10)                                                   # 시장가 (가격 생략)\nstock.buy(quantity=10, division=\"immediate_limit\")                       # 최유리 지정가 (상대편 최우선호가로)\nstock.buy(quantity=10, division=\"priority_limit\")                        # 최우선 지정가 (내 방향 최우선호가로)\nstock.buy(quantity=10, limit_price=70000, division=\"conditional_limit\")  # 조건부 지정가 (limit_price 필요)\nstock.buy(quantity=10, division=\"midpoint\")                              # 중간가 (호가 중간값, 수량만)\nstock.buy(quantity=10, division=\"pre_market_close\")                      # 장전 시간외 종가 (KRX 전용)\nstock.buy(quantity=10, division=\"post_market_close\")                     # 장후 시간외 종가 (KRX 전용)\n\n# 애프터마켓 (KRX 16:00~20:00, board=\"KRX\")\nam = kis.domestic.stock(\"005930\", board=\"KRX\")\nam.buy(quantity=10, limit_price=70000, division=\"after_market_limit\")    # 애프터마켓 지정가 (limit_price 필요)\nam.buy(quantity=10, division=\"after_market_immediate_limit\")             # 애프터마켓 최유리지정가\nam.buy(quantity=10, division=\"after_market_priority_limit\")              # 애프터마켓 최우선지정가 (day 전용)\n\n# NXT 프리마켓 GTP (Good Till Pre-Market, board=\"NXT\")\ngtp = kis.domestic.stock(\"005930\", board=\"NXT\")\ngtp.buy(quantity=10, limit_price=70000, division=\"gtp_limit\")            # GTP 지정가 (limit_price 필요, day 전용)\ngtp.buy(quantity=10, division=\"gtp_immediate_limit\")                     # GTP 최유리지정가 (day 전용)\n\nstock.buy(quantity=10, limit_price=70000, stop_price=69000)              # 스톱지정가 (트리거 도달 시 limit_price 로 접수, KRX 전용)\nstock.buy(quantity=10, limit_price=70000, time_in_force=\"ioc\")           # IOC (즉시체결·잔량취소)\nstock.buy(quantity=10, limit_price=70000, time_in_force=\"fok\")           # FOK (전량아니면 취소)\n\n주문 구분·조건 한눈에\n기본 종류 — limit_price 유무로 정해집니다.\n\n\n\n\n\n\n\n\n\n함수 사용\n한글\nEnglish\n설명\n\n\n\n\nlimit_price=70000\n지정가\nLimit\n지정한 가격으로\n\n\nlimit_price 생략\n시장가\nMarket\n지금 시세로 즉시 (얕은 호가면 슬리피지 주의)\n\n\n\ndivision= (KRX 주문구분, 국내 현금 전용) — CLI 는 --division.\n\n\n\n\n\n\n\n\n\n\n\n값 (division=)\n한글\nEnglish\nlimit_price\nboard\nIOC/FOK\n\n\n\n\n\"conditional_limit\"\n조건부지정가\nConditional limit (falls to market at close)\n필요\nKRX\n—\n\n\n\"immediate_limit\"\n최유리지정가\nBest-opposite-quote limit\n주지 않음 (상대편 최우선호가)\n전 보드\n가능\n\n\n\"priority_limit\"\n최우선지정가\nBest-same-quote limit\n주지 않음 (내 방향 최우선호가)\nKRX\n—\n\n\n\"midpoint\"\n중간가\nMidpoint (best bid/ask midpoint)\n주지 않음\n전 보드\n가능\n\n\n\"pre_market_close\"\n장전 시간외 종가\nPre-market close price\n주지 않음\nKRX\n—\n\n\n\"post_market_close\"\n장후 시간외 종가\nPost-market close price\n주지 않음\nKRX\n—\n\n\n\"after_market_limit\"\n애프터마켓 지정가\nAfter-market limit\n필요\nKRX\n가능\n\n\n\"after_market_immediate_limit\"\n애프터마켓 최유리지정가\nAfter-market best-opposite-quote limit\n주지 않음\nKRX\n가능\n\n\n\"after_market_priority_limit\"\n애프터마켓 최우선지정가\nAfter-market best-same-quote limit\n주지 않음\nKRX\n—\n\n\n\"gtp_limit\"\nGTP 지정가\nNXT pre-market GTP limit\n필요\nNXT\n—\n\n\n\"gtp_immediate_limit\"\nGTP 최유리지정가\nNXT pre-market GTP best-opposite-quote\n주지 않음\nNXT\n—\n\n\n\"gtp_priority_limit\"\nGTP 최우선지정가\nNXT pre-market GTP best-same-quote\n주지 않음\nNXT\n—\n\n\n\n애프터마켓은 KRX 정규장과 분리된 시장(16:00~20:00)이라 board=\"KRX\" 에서 위 after_market_* 주문구분으로 접수합니다. GTP(Good Till Pre-Market)는 NXT 프리마켓 전용호가로 board=\"NXT\" 에서 gtp_* 로 접수하며, 미체결분은 프리마켓 종료(08:50)에 일괄 취소됩니다. 신용주문(credit_buy/credit_sell)도 division= 으로 애프터마켓/GTP 주문구분을 지정할 수 있습니다.\ntime_in_force= (체결·유효조건) — 지정가/시장가/최유리/중간가와 조합.\n\n\n\n\n\n\n\n\n\n값 (time_in_force=)\n한글\nEnglish\n설명\n\n\n\n\n\"day\"\n당일\nDay (default)\n당일 유효 (기본값)\n\n\n\"gtc\"\n취소전유효\nGood-til-canceled\n취소 전까지 유효\n\n\n\"ioc\"\n즉시체결·잔량취소\nImmediate-or-cancel\n지금 체결되는 만큼만, 잔량 취소\n\n\n\"fok\"\n전량체결·아니면취소\nFill-or-kill\n전량 즉시 아니면 전량 취소\n\n\n\n최유리/최우선 지정가는 시장이 가격을 정하므로 limit_price 를 주면 오류입니다. 최유리 지정가는 시장가의 슬리피지 없이 즉시 체결하려는 안전한 대안입니다(얕은 호가에서 시장가는 나쁜 가격까지 쓸어담을 수 있습니다).\n스톱지정가 — stop_price 는 트리거(조건가격)입니다. 시장이 stop_price 에 닿으면 그때 limit_price 가격으로 지정가 주문이 접수됩니다. 국내 현금 스톱은 limit_price 가 반드시 필요합니다(스톱시장가는 없습니다). division 과는 함께 쓸 수 없고, KRX 전용이라 정규장 (09:00~15:30)에만 나갑니다 — 장 시간 밖의 접수는 서버가 거부합니다.",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>주문</span>"
+    ]
+  },
+  {
+    "objectID": "orders.html#정정취소확인",
+    "href": "orders.html#정정취소확인",
+    "title": "9  주문",
+    "section": "9.4 정정·취소·확인",
+    "text": "9.4 정정·취소·확인\n취소/정정은 client_order_id 로 지목합니다.\nkis.orders.modify(report.client_order_id, limit_price=70500)              # 가격 정정\nkis.orders.modify(report.client_order_id, limit_price=70000, quantity=5)  # 수량 정정(단가도 함께 전송)\nkis.orders.cancel(report.client_order_id)                                 # 취소\nmodify 는 limit_price 가 필수입니다 — 정정은 새 단가로 재전송하는 것이라, 수량만 바꿀 때도 유지할 단가를 함께 줍니다(단가를 빼면 시장가로 재전송되지 “기존 단가 유지”가 아닙니다).\n주문이 진짜 들어갔는지 확인 — reconcile:\nkis.orders.reconcile(report.client_order_id)\n주문을 보냈는데 응답이 불확실할 때(타임아웃 등), 라이브러리는 재전송하지 않고 그 주문을 “상태 불명”으로 남깁니다(재전송 = 이중주문이니까). reconcile 은 그럴 때 KIS 서버에 실제로 조회해서 접수/체결됐는지 상태를 확정합니다.",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>주문</span>"
+    ]
+  },
+  {
+    "objectID": "orders.html#예약주간거래",
+    "href": "orders.html#예약주간거래",
+    "title": "9  주문",
+    "section": "9.5 예약·주간거래",
+    "text": "9.5 예약·주간거래\nstock.reserve_buy(quantity=10, limit_price=70000)                      # 국내 예약(다음 영업일)\nkis.overseas.stock(\"AAPL\").overnight_buy(quantity=1, limit_price=150)  # 미국 오버나이트(한국 낮)\nkis.overseas.stock(\"AAPL\").reserve_buy(quantity=1, limit_price=150)    # 미국 예약\nkis.overseas.stock(\"00700\").reserve_buy(quantity=100, limit_price=350) # 홍콩 예약(거래소 자동판별)\n해외 예약은 거래소로 자동 라우팅됩니다 — stock(symbol) 이 종목 마스터로 거래소를 찾아 미국(NAS/NYS/AMS)과 아시아(홍콩·중국·일본·베트남)를 알아서 가릅니다. 같은 코드가 여러 거래소에 있으면 exchange= 를 명시합니다. 홍콩은 결제통화(상품유형)를 currency=\"CNY\"/\"USD\" 로 바꿀 수 있습니다(생략 시 HKD). 통화 선택은 홍콩 전용이라 다른 거래소에 currency 를 주면 오류입니다.\n국내 예약주문 조회·정정·취소(순번 sequence 로 지목):\naccount = kis.account.domestic\n\naccount.reserved_orders(start=\"20240101\", end=\"20240131\")  # 예약주문 목록\naccount.modify_reserved_order(\"0001\", symbol=\"005930\", side=\"buy\", quantity=5, limit_price=71000)\naccount.cancel_reserved_order(\"0001\")                      # 취소\n해외 예약주문 조회·취소:\naccount = kis.account.overseas\naccount.reserved_orders(start=\"20240101\", end=\"20240131\")  # 미국+아시아 예약 목록(실전 전용)\n\nreport = kis.overseas.stock(\"00700\").reserve_buy(quantity=100, limit_price=350)\nkis.orders.cancel(report.client_order_id)                 # 아시아 취소 = client_order_id 로\n\nreport = kis.overseas.stock(\"AAPL\").reserve_buy(quantity=1, limit_price=150)\naccount.cancel_reserved_order(report.order_id, receipt_date=\"20240102\")  # 미국 취소 = 예약번호+접수일자",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>주문</span>"
+    ]
+  },
+  {
+    "objectID": "orders.html#미국주식-twapvwap-분할주문",
+    "href": "orders.html#미국주식-twapvwap-분할주문",
+    "title": "9  주문",
+    "section": "9.6 미국주식 TWAP/VWAP 분할주문",
+    "text": "9.6 미국주식 TWAP/VWAP 분할주문\n미국(NAS/NYS/AMS) 주식은 KIS 서버가 조건에 맞춰 주문을 쪼개 집행하는 알고리즘 분할주문을 지원합니다 — algo=\"twap\"(시간 기준)/\"vwap\"(체결량 기준). 미국·실전 전용이고 최소 10주라, 그 밖의 거래소·모의투자·10주 미만이면 오류입니다.\naapl = kis.overseas.stock(\"AAPL\")\naapl.buy(quantity=10, limit_price=150, algo=\"twap\")   # 시간창 생략 = 정규장 전체(종료까지) 집행\naapl.buy(quantity=10, limit_price=150, algo=\"vwap\")   # vwap 도 동일\n# 명시 시간창을 줄 때는 KST HHMMSS, 같은 날 안(시작 &lt; 종료). 미국 정규장은 KST 로 자정을 넘으므로\n# (EDT 22:30~05:00 / EST 23:30~06:00) 한 창이 세션 전체를 덮을 수 없습니다 -- 한쪽 구간만 지정합니다.\naapl.buy(quantity=10, limit_price=150, algo=\"twap\",\n         algo_window=(\"223000\", \"235959\"))   # 자정 이전 구간(EDT 저녁). 이후 구간은 (\"000000\",\"050000\")\n시간창은 생략이 전체 세션 집행입니다. 명시하려면 algo_window=(시작, 종료) 를 KST HHMMSS 로, 같은 날 안에서 시작 &lt; 종료 로 줍니다. 미국 정규장은 KST 로 자정을 넘어가서(EDT 22:30~05:00 / EST 23:30~06:00) 한 시간창으로 세션 전체를 덮을 수 없고, 자정 이전(예 (\"223000\",\"235959\"))이나 이후(예 (\"000000\",\"050000\")) 한쪽만 지정합니다. 두 가지 거부가 있습니다 – (1) 시작 &gt;= 종료(자정 넘김 포함)면 서버로 보내기 전에 KISUsageError 로 로컬 거부, (2) 형식은 맞지만 KST 환산 세션 밖(예 미국 현지시각 093000~160000 을 그대로 쓰면 KST 낮이라 세션 밖)이면 서버가 “시작시간이 장시간을 벗어났습니다”로 거부. 예약(reserve_buy/reserve_sell)의 algo 는 정규장 종료 집행 고정이라 시간창이 없습니다(예약 접수 자체는 10:00~22:20 KST 에만 가능). 체결·미체결 진행은 kis.account.overseas.algo_orders()/ .algo_executions() 로 조회합니다. 접수된 algo 원주문의 정정·취소는 일반 해외주문과 같은 kis.orders.modify/cancel 로 원주문번호를 지목합니다(정정·취소 요청에는 분할 구분이 실리지 않습니다).\nCLI:\n# 시간창 생략 = 정규장 전체 집행. 명시하려면 --algo-start/--algo-end 는 KST HHMMSS·같은 날·시작&lt;종료\n# (자정 넘김 불가). 최소 10주.\nkis order buy AAPL 10 --venue overseas --limit-price 150 \\\n  --algo twap --algo-start 223000 --algo-end 235959 --execute real --yes\nkis order buy AAPL 10 --venue overseas --limit-price 150 --reserve --algo vwap \\\n  --execute real --yes           # 예약 algo(정규장 종료 고정)",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>주문</span>"
+    ]
+  },
+  {
+    "objectID": "orders.html#국내주식-twap-분할-실행",
+    "href": "orders.html#국내주식-twap-분할-실행",
+    "title": "9  주문",
+    "section": "9.7 국내주식 TWAP 분할 실행",
+    "text": "9.7 국내주식 TWAP 분할 실행\n국내(KRX)에는 서버측 알고리즘 분할주문이 없어, stock.twap(...) 이 클라이언트에서 총 수량을 시간에 걸쳐 균등 분할해 여러 번 시장가로 발주합니다. 미국 algo 가 서버에 위임하는 것과 달리 이쪽은 호출한 코드가 스케줄 기간 내내 멈춰 대기하며 각 슬라이스를 직접 냅니다(포그라운드 블로킹 – 그 시간 동안 다음 코드로 넘어가지 못하고 기다립니다). 각 슬라이스는 고유 주문번호를 가진 일반 국내주문이라 이중체결 방지·타임아웃 재시도 금지·재조회는 기존 안전 코어가 그대로 적용됩니다.\nstock = kis.domestic.stock(\"005930\")\nresult = stock.twap(side=\"buy\", quantity=100, over=\"30m\", slices=3)  # 지금부터 30분에 걸쳐 3회\n# start 지정: 앞으로의 특정 시각부터 (오늘 KST). 과거 시각은 거부됩니다(아래 참조).\nfrom datetime import datetime, timezone, timedelta\nkst = timezone(timedelta(hours=9))\nstock.twap(side=\"buy\", quantity=100, over=\"1h\", slices=4,\n           start=datetime(2026, 9, 1, 13, 0, tzinfo=kst))  # 미래의 13:00 부터\nover 는 총 소요시간(30m/1h/1h30m/90s), slices 는 분할 횟수입니다. 슬라이스 간격은 over/slices 로 파생되고 수량은 균등 분할하되 나머지는 앞쪽 슬라이스에 1주씩 더합니다(100주·3회 = 34·33·33). 모든 슬라이스가 base 당일의 KRX 정규장(09:00~15:30 KST) 안이어야 하며 벗어나면(익일 이월 포함) 발주 없이 오류입니다(시간외·NXT 는 미지원). start 는 tz-aware(KST) 여야 하고 과거일 수 없습니다 — 과거 시작은 모든 슬라이스를 즉시 연속 발주(버스트)해 TWAP 를 무의미하게 만들므로 거부합니다 (생략하면 지금부터). 반환 TWAPExecutionResult 는 슬라이스별 결과와 접수·체결 수량, 미달분(shortfall), 체결가중 평균단가를 담습니다(집계는 발주 직후 재조회한 스냅샷 기준). 한 슬라이스가 거부·타임아웃이면 그 슬라이스만 기록하고 다음 슬라이스를 계속하며, Ctrl-C 는 남은 슬라이스를 멈추고 여기까지의 부분 결과를 반환합니다(이미 낸 시장가 주문은 되돌리지 않습니다). 조회전용 계좌·인증 오류 등은 전파되며, 그 전에 발주된 슬라이스는 저장소에 기록돼 kis.orders.reconcile 로 사후 확인할 수 있습니다.\nCLI 는 기본이 dry-run(스케줄만 표시, 발주 없음)이고 --execute 로 블로킹 실행합니다:\nkis order twap 005930 --side buy --quantity 100 --over 30m --slices 3   # dry-run: 스케줄 미리보기\nkis order twap 005930 --side buy --quantity 100 --over 30m --slices 3 \\\n  --start 130000 --execute paper --yes                                  # 13:00 시작, 실제 실행",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>주문</span>"
+    ]
+  },
+  {
+    "objectID": "orders.html#선물옵션-주문",
+    "href": "orders.html#선물옵션-주문",
+    "title": "9  주문",
+    "section": "9.8 선물·옵션 주문",
+    "text": "9.8 선물·옵션 주문\n국내 선물·옵션은 계약 핸들에서 바로 매매합니다 — 선물은 kis.domestic.futures(code), 옵션은 kis.domestic.option(code, right=\"call\"). 옵션 발주에는 콜/풋(right)을 지정해야 합니다(조회는 생략 가능). 계약코드는 전광판(kis.domestic.option_board_futures())이나 만기(kis.domestic.option_expiries())로 얻습니다.\nfutures = kis.domestic.futures(\"101W09\")            # 지수선물 계약\nfutures.buy(quantity=1, limit_price=350.0)          # 지정가 매수\nfutures.sell(quantity=1)                            # 시장가 매도 (limit_price 생략)\n\noption = kis.domestic.option(\"201W09350\", right=\"call\")   # 콜옵션 (발주엔 right 필수)\noption.buy(quantity=1, limit_price=2.5)\n주문 구분(division)·유효기간(time_in_force)·야간장(night):\nfutures.buy(quantity=1, limit_price=350.0, division=\"immediate_limit\")  # 최유리지정가(파생엔 최우선 없음)\nfutures.buy(quantity=1, limit_price=350.0, time_in_force=\"ioc\")         # day/ioc/fok\nfutures.buy(quantity=1, limit_price=350.0, night=True)                  # KRX 파생 야간장(STTN, 실전 전용)\n정정·취소·재조회는 현물과 같은 kis.orders.* 로 client_order_id 를 지목합니다:\nreport = futures.buy(quantity=1, limit_price=350.0)\nkis.orders.modify(report.client_order_id, limit_price=351.0)   # 가격 정정\nkis.orders.cancel(report.client_order_id)                     # 취소\n\n\n\n\n\n\n노트\n\n\n\n파생 야간장(night=True, KRX STTN)은 모의투자 미지원이라 실전 세션에서만 나갑니다. 해외 선물·옵션 주문(kis.overseas.futures(코드).buy()/sell())도 실전 전용입니다(KIS가 모의를 제공하지 않음 — 한계·미구현 참고).",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>주문</span>"
+    ]
+  },
+  {
+    "objectID": "orders.html#신용주문",
+    "href": "orders.html#신용주문",
+    "title": "9  주문",
+    "section": "9.9 신용주문",
+    "text": "9.9 신용주문\n디폴트는 사용 불가입니다. 사용하려면 세션에서 명시적으로 켭니다.\nkis = KISClient(…, allow_credit=True)\n\nstock = kis.domestic.stock(\"005930\")\nstock.credit_buyable(credit_type=\"21\")                               # 신용 매수가능 여력\nstock.credit_buy(quantity=10, credit_type=\"21\", limit_price=70000)   # 신용 매수(융자신규)\nstock.credit_sell(quantity=10, credit_type=\"25\", limit_price=71000)  # 신용 매도(융자상환)",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>주문</span>"
+    ]
+  },
+  {
+    "objectID": "orders.html#안전장치-왜-이렇게-만들었나",
+    "href": "orders.html#안전장치-왜-이렇게-만들었나",
+    "title": "9  주문",
+    "section": "9.10 안전장치 (왜 이렇게 만들었나)",
+    "text": "9.10 안전장치 (왜 이렇게 만들었나)\n주문은 되돌릴 수 없고, “다시 보냈더니 두 번 주문됐다”가 실제로 일어납니다. 그래서 커널이 지키는 세 가지:\n\n오확정 금지 — 접수됐는지 확실치 않으면 확정 안 하고 “불명”으로 남깁니다\n재시도 금지 — 타임아웃 난 주문은 재전송하지 않습니다 (재시도 = 이중주문)\n보수적 확인 — 조회 결과가 애매하면(같은 조건 주문이 여러 건 등) 확정하지 않습니다\n\n같은 주문을 실수로 두 번 내도 지문으로 중복 감지해 막습니다. 다만 이 중복 방지 기록은 기본적으로 프로세스 메모리 안에만 있어, 프로그램을 재시작하면 사라집니다. 재시작 뒤에도 중복 방지를 유지하려면 영속 저장소를 주입하세요:\nfrom kis_trader import OrderStore\n\nkis = KISClient(…, store=OrderStore(path=\"orders.db\"))  # 지문 기반 중복 방지를 재시작에도 유지",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>주문</span>"
+    ]
+  },
+  {
+    "objectID": "orders.html#사전-리스크-한도",
+    "href": "orders.html#사전-리스크-한도",
+    "title": "9  주문",
+    "section": "9.11 사전 리스크 한도",
+    "text": "9.11 사전 리스크 한도\n주문 나가기 전에 미리 걸러주는 안전망. 옵션입니다.\nfrom kis_trader import RiskLimits\nfrom decimal import Decimal\n\nkis = KISClient(…, risk=RiskLimits(\n    max_order_quantity=1000,                 # 한 주문 최대 수량\n    max_order_notional=Decimal(\"50000000\"),  # 한 주문 최대 금액(원)\n    price_collar_percent=Decimal(\"5\"),       # 현재가 대비 ±5% 벗어나면 거부\n    enforce_tick_size=True,                  # 호가단위 안 맞으면 거부\n))\n말도 안 되는 가격 주문을 미리 막는 용도입니다.",
+    "crumbs": [
+      "국내 주식",
+      "<span class='chapter-number'>9</span>  <span class='chapter-title'>주문</span>"
+    ]
+  },
+  {
+    "objectID": "screening.html",
+    "href": "screening.html",
+    "title": "10  순위·조건검색",
+    "section": "",
+    "text": "10.1 이름으로 종목 찾기\n코드를 모르면 이름으로 찾습니다. 이름은 모호할 수 있어(\"삼성전자\"는 \"삼성전자우\"도 매치) 후보를 모두 돌려줍니다 — 코드를 골라 stock()에 넘기세요. (stock()은 이름을 받지 않습니다.)\n각 후보(DomesticListing)는 symbol(6자리 코드) / name / market. 첫 호출은 KOSPI·KOSDAQ 종목 마스터를 받아 저장해 둡니다(이후로는 저장된 걸 재사용).",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>10</span>  <span class='chapter-title'>순위·조건검색</span>"
+    ]
+  },
+  {
+    "objectID": "screening.html#이름으로-종목-찾기",
+    "href": "screening.html#이름으로-종목-찾기",
+    "title": "10  순위·조건검색",
+    "section": "",
+    "text": "kis.domestic.search(\"삼성전자\")\nkis.domestic.search(\"에코프로\", market=\"KOSDAQ\")  # 부분매치, 시장 한정(all/KOSPI/KOSDAQ)\n\nhits = kis.domestic.search(\"카카오\")\nkis.domestic.stock(hits[0].symbol).quote()",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>10</span>  <span class='chapter-title'>순위·조건검색</span>"
+    ]
+  },
+  {
+    "objectID": "screening.html#오늘의-순위",
+    "href": "screening.html#오늘의-순위",
+    "title": "10  순위·조건검색",
+    "section": "10.2 오늘의 순위",
+    "text": "10.2 오늘의 순위\nkis.domestic.ranking.* — 급등주·거래량·시총 같은 시장 전체 순위.\nranking = kis.domestic.ranking\n\nranking.by_change(direction=\"gainers\")  # 상승률 상위\nranking.by_change(direction=\"losers\")   # 하락률 상위\nranking.by_volume()                     # 거래량 상위\nranking.by_market_cap()                 # 시가총액 상위\n각 행(RankedStock)은 rank / symbol / name / price / change / change_percent / volume:\nfor row in ranking.by_change(direction=\"gainers\")[:10]:\n    print(f\"{row.rank:2d}. {row.name:10s} {row.price:&gt;8,}  {row.change_percent:&gt;6}%\")\n순위별 고유 지표(공매도량·신용잔고 등)는 각 결과의 _raw 에 있습니다.\n더 있는 순위:\nranking.by_short_sale(window=\"1d\")                     # 공매도 상위\nranking.by_credit_balance()                            # 신용잔고 상위\nranking.by_near_high_low()                             # 신고가/신저가 근접\nranking.by_dividend(start=\"20240101\", end=\"20240630\")  # 배당률 상위\nranking.by_disparity()                                 # 이격도\nranking.by_volume_power()                              # 체결강도\nranking.by_views()                                     # HTS 조회 상위",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>10</span>  <span class='chapter-title'>순위·조건검색</span>"
+    ]
+  },
+  {
+    "objectID": "screening.html#조건검색-hts-저장조건",
+    "href": "screening.html#조건검색-hts-저장조건",
+    "title": "10  순위·조건검색",
+    "section": "10.3 조건검색 (HTS 저장조건)",
+    "text": "10.3 조건검색 (HTS 저장조건)\nHTS(홈트레이딩) 앱에 저장해둔 조건검색을 불러 실행합니다. 조건검색·관심종목은 HTS 로그인 아이디(user_id)가 필요합니다. HTS 아이디는 사용자당 하나라 credentials.json 최상위에 한 번 넣어 두면(KISConfig.set_hts_id(\"...\"); 또는 KIS_HTS_ID 환경변수) 모든 프로필이 공유하고 user_id 를 생략할 수 있습니다. 아니면 호출마다 직접 넘깁니다.\n# 최상위 hts_id 저장: KISConfig.set_hts_id(\"your_hts_id\")  (또는 KIS_HTS_ID 환경변수)\n\nkis.domestic.saved_screens()                       # 저장된 조건 목록 (user_id 는 최상위 공유 hts_id)\nkis.domestic.saved_screen_stocks(sequence=\"0\")     # 특정 조건의 종목들\nkis.domestic.saved_screens(user_id=\"your_hts_id\")  # 또는 직접 지정",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>10</span>  <span class='chapter-title'>순위·조건검색</span>"
+    ]
+  },
+  {
+    "objectID": "screening.html#관심종목",
+    "href": "screening.html#관심종목",
+    "title": "10  순위·조건검색",
+    "section": "10.4 관심종목",
+    "text": "10.4 관심종목\nkis.domestic.watchlist_groups()             # 관심종목 그룹 (user_id 는 최상위 공유 hts_id)\nkis.domestic.watchlist(group_code=\"…\")      # 그룹 안 종목",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>10</span>  <span class='chapter-title'>순위·조건검색</span>"
+    ]
+  },
+  {
+    "objectID": "screening.html#재무가치-순위",
+    "href": "screening.html#재무가치-순위",
+    "title": "10  순위·조건검색",
+    "section": "10.5 재무·가치 순위",
+    "text": "10.5 재무·가치 순위\n재무비율·밸류에이션으로 정렬된 순위도 있습니다.\nranking.by_finance_ratio(year=2024)  # 재무비율\nranking.by_valuation(year=2024)      # 밸류에이션(PER/PBR 등)\nranking.by_profit_asset(year=2024)   # 수익성·자산",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>10</span>  <span class='chapter-title'>순위·조건검색</span>"
+    ]
+  },
+  {
+    "objectID": "screening.html#시간외예상기타-순위",
+    "href": "screening.html#시간외예상기타-순위",
+    "title": "10  순위·조건검색",
+    "section": "10.6 시간외·예상·기타 순위",
+    "text": "10.6 시간외·예상·기타 순위\nranking.by_bulk_trades(side=\"buy\")                     # 대량체결건수\nranking.by_quote_balance(metric=\"net_buy\")             # 호가잔량\nranking.by_interest()                                  # 관심종목 등록상위\nranking.by_preferred_disparity()                       # 우선주 괴리율\nranking.by_expected_close()                            # 장마감 예상체결\nranking.by_expected_execution_change(direction=\"gainers\")   # 장전 예상체결 등락\nranking.by_company_trades(side=\"buy\", start=\"20240101\", end=\"20240131\")  # 당사매매 종목\n\nranking.by_after_hours_balance(side=\"ask\")              # 시간외 잔량\nranking.by_after_hours_change(direction=\"gainers\")          # 시간외 등락률\nranking.by_after_hours_expected_change(direction=\"gainers\") # 시간외 예상체결 등락\nranking.by_after_hours_volume()                             # 시간외 거래량\n(ELW 스크리너·순위는 ELW 챕터에 있습니다.)",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>10</span>  <span class='chapter-title'>순위·조건검색</span>"
+    ]
+  },
+  {
+    "objectID": "market.html",
+    "href": "market.html",
+    "title": "11  시장·지수",
+    "section": "",
+    "text": "11.1 투자자 수급",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>11</span>  <span class='chapter-title'>시장·지수</span>"
+    ]
+  },
+  {
+    "objectID": "market.html#투자자-수급",
+    "href": "market.html#투자자-수급",
+    "title": "11  시장·지수",
+    "section": "",
+    "text": "market = kis.domestic.market\n\nmarket.investor_flows()           # 시장 전체 투자자 동향\nmarket.investor_net_buy_stocks()  # 투자자별 순매수 상위 종목\nmarket.investor_snapshot(market_code=\"0001\", industry_code=\"0001\")  # 시장·업종별 세부 매수/매도/순매수",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>11</span>  <span class='chapter-title'>시장·지수</span>"
+    ]
+  },
+  {
+    "objectID": "market.html#프로그램-매매",
+    "href": "market.html#프로그램-매매",
+    "title": "11  시장·지수",
+    "section": "11.2 프로그램 매매",
+    "text": "11.2 프로그램 매매\nmarket.program_trades()             # 일별 프로그램매매 종합(차익/비차익; KOSPI/KOSDAQ)\nmarket.program_flow()               # 당일 시간대별 프로그램 순매수 대금\nmarket.program_investor_trades()    # 당일 프로그램매매 투자자 집계\nmarket.foreign_broker_trades()      # 외국계 창구 매매",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>11</span>  <span class='chapter-title'>시장·지수</span>"
+    ]
+  },
+  {
+    "objectID": "market.html#자금금리",
+    "href": "market.html#자금금리",
+    "title": "11  시장·지수",
+    "section": "11.3 자금·금리",
+    "text": "11.3 자금·금리\nmarket.funds()           # 증시자금 종합(예탁금·신용융자잔고·펀드유형별·시가총액) 추이\nmarket.interest_rates()  # 국내·해외 주요 금리·채권지수 스냅샷",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>11</span>  <span class='chapter-title'>시장·지수</span>"
+    ]
+  },
+  {
+    "objectID": "market.html#제도상태",
+    "href": "market.html#제도상태",
+    "title": "11  시장·지수",
+    "section": "11.4 제도·상태",
+    "text": "11.4 제도·상태\nmarket.limit_stocks()             # 상한가/하한가 도달 종목\nmarket.vi_events()                # VI(변동성완화장치) 발동 현황\nmarket.lendable_stocks()          # 대주 가능 종목·한도\nmarket.credit_eligible_stocks()   # 신용주문 가능·불가 종목\nmarket.futures_market_schedule()  # 국내선물 인접 영업일·장 시작/종료",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>11</span>  <span class='chapter-title'>시장·지수</span>"
+    ]
+  },
+  {
+    "objectID": "market.html#의견뉴스",
+    "href": "market.html#의견뉴스",
+    "title": "11  시장·지수",
+    "section": "11.5 의견·뉴스",
+    "text": "11.5 의견·뉴스\nmarket.broker_opinions(broker=\"003\")  # 한 증권사(회원사 코드)가 낸 종목 투자의견·목표가\nmarket.news()                         # 시황·공시 뉴스 제목 피드",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>11</span>  <span class='chapter-title'>시장·지수</span>"
+    ]
+  },
+  {
+    "objectID": "market.html#지수",
+    "href": "market.html#지수",
+    "title": "11  시장·지수",
+    "section": "11.6 지수",
+    "text": "11.6 지수\n지수 핸들은 kis.domestic.index(이름_또는_코드) — 이름(\"KOSPI\")이나 업종코드(\"0001\") 둘 다 됩니다.\nindex = kis.domestic.index(\"KOSPI\")\n\nindex.quote()                       # 지수 현재가\nindex.bars(\"1d\", start=\"20240101\")  # 지수 차트 (일/주/월)\nindex.categories()                  # 시장 요약 + 하위 업종 지수 목록\nindex.daily_history()               # 스냅샷 + 최근 100건 일/주/월 통계\nindex.intraday()                    # 당일 시간대별 (1m/5m/10m)\nindex.ticks()                       # 당일 10초 시계열\n예상체결 지수:\nindex.expected_snapshot()  # 동시호가 대표 예상체결 지수 + 시장별 목록\nindex.expected_trend()     # 장 시작 전·마감 예상체결 지수 추이\n\n\n\n\n\n\n알아두면 좋은 용어\n\n\n\n\nVI (변동성완화장치) — 가격이 급변하면 2~10분 단일가로 전환하는 안전장치. vi_events 로 발동 현황.\n프로그램매매 — 여러 종목을 바스켓으로 한 번에 사고파는 기관 매매. 차익(선물-현물 차익거래)과 비차익으로 나뉩니다. 일별 종합은 program_trades, 당일 시간대별 흐름은 program_flow.\n대주(貸株) — 없는 주식을 빌려서 파는 공매도의 재원. lendable_stocks 로 빌릴 수 있는 종목·한도를 봅니다.",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>11</span>  <span class='chapter-title'>시장·지수</span>"
+    ]
+  },
+  {
+    "objectID": "corporate-actions.html",
+    "href": "corporate-actions.html",
+    "title": "12  기업행위·일정",
+    "section": "",
+    "text": "12.1 자본·권리 변동",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>12</span>  <span class='chapter-title'>기업행위·일정</span>"
+    ]
+  },
+  {
+    "objectID": "corporate-actions.html#자본권리-변동",
+    "href": "corporate-actions.html#자본권리-변동",
+    "title": "12  기업행위·일정",
+    "section": "",
+    "text": "calendar.capital_reductions(start=\"20240101\", end=\"20240630\")  # 자본감소(감자)\ncalendar.par_value_changes(start=\"20240101\", end=\"20240630\")   # 액면변경\ncalendar.appraisal_rights(start=\"20240101\", end=\"20240630\")    # 주식매수청구\ncalendar.forfeited_shares(start=\"20240101\", end=\"20240630\")    # 실권주\ncalendar.mandatory_deposits(start=\"20240101\", end=\"20240630\")  # 의무예치",
+    "crumbs": [
+      "시장·검색",
+      "<span class='chapter-number'>12</span>  <span class='chapter-title'>기업행위·일정</span>"
+    ]
+  },
+  {
+    "objectID": "overseas.html",
+    "href": "overseas.html",
+    "title": "13  해외주식",
+    "section": "",
+    "text": "13.1 시세",
+    "crumbs": [
+      "해외·연금",
+      "<span class='chapter-number'>13</span>  <span class='chapter-title'>해외주식</span>"
+    ]
+  },
+  {
+    "objectID": "overseas.html#시세",
+    "href": "overseas.html#시세",
+    "title": "13  해외주식",
+    "section": "",
+    "text": "stock = kis.overseas.stock(\"AAPL\")  # 거래소 자동 (NAS)\n\nstock.quote()                       # 현재가\nstock.current_price()               # 현재가(간단)\nstock.bars(\"1d\", start=\"20240101\")  # 일봉 (기간봉은 start 필요)\nstock.order_book()                  # 호가\nstock.trades()                      # 체결",
+    "crumbs": [
+      "해외·연금",
+      "<span class='chapter-number'>13</span>  <span class='chapter-title'>해외주식</span>"
+    ]
+  },
+  {
+    "objectID": "overseas.html#주문",
+    "href": "overseas.html#주문",
+    "title": "13  해외주식",
+    "section": "13.2 주문",
+    "text": "13.2 주문\nstock.buy(quantity=1, limit_price=150)\nstock.sell(quantity=1, limit_price=160)\n\nstock.buy(quantity=1, limit_price=150)            # 미국 정규장 (한국 시간 밤~새벽)\nstock.overnight_buy(quantity=1, limit_price=150)  # 미국 오버나이트 세션 (한국 낮)\nstock.reserve_buy(quantity=1, limit_price=150)    # 미국 예약 (장 열리기 전 미리)\n\nstock.buy(quantity=10, limit_price=150, algo=\"twap\")  # 미국 서버 알고 분할(twap/vwap; 실전·최소 10주). 자세히는 [주문](orders.md)\n아시아(홍콩·중국·일본·베트남) 예약도 같은 reserve_buy/reserve_sell 이며, 거래소는 자동 판별됩니다. 취소는 kis.orders.cancel(...) 로 합니다(미국 예약은 예약번호로 취소).\nhk_stock = kis.overseas.stock(\"00700\")                              # 홍콩 (자동 판별)\nreport = hk_stock.reserve_buy(quantity=100, limit_price=350)        # 홍콩 예약\nhk_stock.reserve_buy(quantity=100, limit_price=350, currency=\"CNY\") # 홍콩 CNY 결제 (기본 HKD)\nkis.orders.cancel(report.client_order_id)                           # 아시아 예약 취소\n\n\n\n\n\n\n오버나이트(overnight) 세션이란\n\n\n\n미국 정규장(9:30–16:00 ET)은 한국 시간으로 밤 11:30~새벽 6시입니다. 그래서:\n\nbuy / sell — 미국 정규장에서 체결 (한국 기준 밤~새벽).\novernight_buy / overnight_sell — 미국 오버나이트 세션(정규장 밖 장외)에서 거래. 이 시간대가 한국 낮이라, 밤새 안 깨어 있어도 낮에 미국주식을 매매할 수 있습니다.\n\n미국 현지 기준으로 “오버나이트”이고(그래서 이름도 overnight), 한국 사용자에겐 낮 시간대인 셈입니다.\n\n\n주문 안전장치는 국내와 동일 → 주문.",
+    "crumbs": [
+      "해외·연금",
+      "<span class='chapter-number'>13</span>  <span class='chapter-title'>해외주식</span>"
+    ]
+  },
+  {
+    "objectID": "overseas.html#계좌",
+    "href": "overseas.html#계좌",
+    "title": "13  해외주식",
+    "section": "13.3 계좌",
+    "text": "13.3 계좌\naccount = kis.account.overseas\n\naccount.positions(market=None)                             # None = 전체 시장 합산\naccount.balance(market=\"US\")                               # 시장 하나의 통화별 요약 (US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)\naccount.balance()                                          # None = 전체 시장을 순회한 시장별 요약 리스트\naccount.present_balance()                                  # 체결기준 잔고 (오늘 체결분 포함)\naccount.settlement_balance(basis_date=\"20240630\")          # 결제기준 잔고 (결제일 기준)\naccount.buyable(symbol=\"AAPL\", exchange=\"NAS\", price=150)  # 매수가능 수량·금액 (해당 단가 기준)\naccount.period_profit(start=\"20240101\", end=\"20240630\")    # 기간 실현손익 (매도청산 종목별)\naccount.transactions(start=\"20240101\", end=\"20240630\")     # 거래내역\naccount.foreign_margin()                                   # 통화별 외화 증거금\naccount.algo_orders()                                                # 미국 알고(twap/vwap) 주문 목록\naccount.algo_executions(order_id, order_date=\"20240102\")             # 한 알고주문의 체결내역\n\n\n\n\n\n\n체결기준 vs 결제기준\n\n\n\n주식은 T+2 결제라(체결 후 2영업일 뒤 실제 결제), “지금 잔고”가 두 가지입니다.\n\npresent_balance (체결기준) — 오늘 매매까지 반영. “내가 지금 들고 있는 것”에 가깝습니다.\nsettlement_balance (결제기준) — 결제 완료된 것만. 정산·인출가능 금액 확인용.\n\n오늘 산 종목은 present_balance 엔 바로 잡히고, settlement_balance 엔 결제일(D+2) 전까진 안 잡힙니다.",
+    "crumbs": [
+      "해외·연금",
+      "<span class='chapter-number'>13</span>  <span class='chapter-title'>해외주식</span>"
+    ]
+  },
+  {
+    "objectID": "overseas.html#순위검색",
+    "href": "overseas.html#순위검색",
+    "title": "13  해외주식",
+    "section": "13.4 순위·검색",
+    "text": "13.4 순위·검색\nranking = kis.overseas.ranking\nranking.by_change(exchange=\"NAS\")  # 모든 순위가 거래소(exchange)를 받습니다\nranking.by_volume(exchange=\"NAS\")\nranking.by_amount(exchange=\"NAS\")\nranking.by_market_cap(exchange=\"NAS\")\nranking.by_turnover(exchange=\"NAS\")           # 거래회전율\nranking.by_buy_strength(exchange=\"NAS\")       # 매수 체결강도\nranking.by_trade_growth(exchange=\"NAS\")       # 거래증가율\nranking.by_volume_surge(exchange=\"NAS\")       # 거래량 급증\nranking.by_new_highlow(exchange=\"NAS\")        # 신고가/신저가\nranking.by_price_fluctuation(exchange=\"NAS\")  # 급등/급락\n\nkis.overseas.search_stocks(\"NAS\", price=(10, 500), change_percent=(5, 30))  # 거래소 + 범위 조건\nkis.overseas.search_stocks(\"US\", price=(10, 500))   # NAS/NYS/AMS 를 각각 조회해 합침\nkis.overseas.news(…)  # 뉴스 헤드라인\nkis.overseas.industries(\"NAS\")  # 업종",
+    "crumbs": [
+      "해외·연금",
+      "<span class='chapter-number'>13</span>  <span class='chapter-title'>해외주식</span>"
+    ]
+  },
+  {
+    "objectID": "overseas.html#종목정보기업행위심화",
+    "href": "overseas.html#종목정보기업행위심화",
+    "title": "13  해외주식",
+    "section": "13.5 종목정보·기업행위·심화",
+    "text": "13.5 종목정보·기업행위·심화\nkis.overseas.product_info(\"NAS\", \"AAPL\")               # 상품기본정보(통화·상장주식수·SEDOL…)\nkis.overseas.industry_stocks(\"NAS\", \"010\")             # 업종별 종목 시세\nkis.overseas.breaking_news()                           # 해외속보\nkis.overseas.corporate_actions(\"US\", \"AAPL\")           # 권리·기업행사 일정\nkis.overseas.rights(start=\"20240101\", end=\"20240630\")  # 배당·증자·합병 권리\nkis.overseas.collateral_stocks(\"AAPL\", \"US\")           # 담보대출 가능종목\nkis.overseas.settlement_dates()                        # 시장별 결제일자\n미국 종목 오버나이트 매도: kis.overseas.stock(\"AAPL\").overnight_sell(quantity=1, limit_price=150).",
+    "crumbs": [
+      "해외·연금",
+      "<span class='chapter-number'>13</span>  <span class='chapter-title'>해외주식</span>"
+    ]
+  },
+  {
+    "objectID": "overseas.html#해외파생선물옵션-계좌",
+    "href": "overseas.html#해외파생선물옵션-계좌",
+    "title": "13  해외주식",
+    "section": "13.6 해외파생(선물옵션) 계좌",
+    "text": "13.6 해외파생(선물옵션) 계좌\n해외파생(08) 세션에서 kis.account 는 해외선물옵션 계좌 뷰를 돌려줍니다. 해외파생 계좌는 통화별로 조회하며, 금액·수량은 조회 통화(currency) 기준(원화 아님)입니다. 모두 실전투자 전용입니다.\naccount = kis.account                      # 08 세션\n\ndeposit = account.deposit(currency=\"USD\")  # 예수금현황\nprint(deposit.cash_balance, deposit.orderable_amount, deposit.unrealized_pnl)\n\nfor position in account.positions():       # 미결제(보유) 현황 (fuop=\"00\" 전체)\n    print(f\"{position.symbol:10s} {position.side} {position.quantity}  평가손익 {position.unrealized_pnl}\")\ndeposit() 의 OverseasDerivativeDeposit 주요 필드:\n\n\n\n\n\n\n\n필드\n뜻\n\n\n\n\ncurrency\n통화코드\n\n\ncash_balance\n예수금잔액\n\n\ntotal_asset\n총자산평가금액\n\n\nunrealized_pnl · realized_pnl\n선물옵션평가손익 · 청산손익\n\n\nbrokerage_margin · maintenance_margin\n위탁증거금 · 유지증거금\n\n\norderable_amount · withdrawable_amount\n주문가능금액 · 출금가능금액\n\n\nrisk_rate\n위험율\n\n\n\npositions() 의 OverseasDerivativePosition:\n\n\n\n필드\n뜻\n\n\n\n\nsymbol · product_type\n해외선물FX상품번호 · 상품유형코드\n\n\nside · quantity\n매수/매도 · 미결제수량\n\n\naverage_price · current_price\n체결평균가격 · 현재가격\n\n\nunrealized_pnl\n평가손익금액\n\n\nliquidatable_quantity\n청산가능수량\n\n\n\n주문가능·증거금상세·당일주문:\naccount.orderable(\"ESU24\", \"buy\", price=5300)  # 계약 주문가능수량 (price 없으면 시장가 기준)\naccount.margin_detail(currency=\"USD\")           # 증거금상세 (주문가능·위탁/유지 증거금)\naccount.today_orders()                          # 당일 주문 (체결/미체결)\n\norderable() → OverseasDerivativeOrderable: new_orderable_quantity(신규주문가능), total_orderable_quantity(총주문가능), market_orderable_quantity(시장가총주문가능), liquidatable_quantity(청산가능).\nmargin_detail() → OverseasDerivativeMargin: orderable_amount, brokerage_margin, maintenance_margin, order_margin, additional_margin.\ntoday_orders() → OverseasDerivativeOrder 목록: order_id·status·order_quantity·filled_quantity·remaining_quantity.\n\n기간 조회(체결·주문·손익·입출금):\naccount.daily_fills(start=\"20240101\", end=\"20240630\")   # 일별 체결내역 + 기간 합계\naccount.daily_orders(start=\"20240101\", end=\"20240630\")  # 일별 주문내역\naccount.period_pnl(start=\"20240101\", end=\"20240630\")    # 기간 손익 (통화별 + 종목별)\naccount.transactions(start=\"20240101\", end=\"20240630\")  # 기간 입출금(원장)\n\ndaily_fills() → OverseasDerivativeFillHistory: fills(OverseasDerivativeFill)와 합계(total_filled_quantity·total_fee).\ndaily_orders() → OverseasDerivativeDailyOrder 목록.\nperiod_pnl() → OverseasDerivativePNLHistory: by_currency(통화별) · by_symbol(종목별) 두 벌, 각 행은 realized_pnl·net_pnl·fee·unrealized_pnl.\ntransactions() → OverseasDerivativeTransaction 목록: base_date·transaction_type·amount·deposit.\n\n타입화하지 않은 벤더 필드는 각 결과의 _raw 로 접근합니다.",
+    "crumbs": [
+      "해외·연금",
+      "<span class='chapter-number'>13</span>  <span class='chapter-title'>해외주식</span>"
+    ]
+  },
+  {
+    "objectID": "pension.html",
+    "href": "pension.html",
+    "title": "14  퇴직연금 (IRP)",
+    "section": "",
+    "text": "개인형 퇴직연금(IRP, 상품코드 29) 계좌의 퇴직연금 전용 조회. kis.account 파사드의 .pension 렌즈로 접근합니다. 모두 모의투자 미지원(실전만).\npension = kis.account.pension              # IRP(29) 전용 조회 렌즈\n\npension.deposit()                                    # 예수금총액·정산예정\npension.balance()                                    # 보유종목 + 예수금 요약\npension.present_balance()                            # 체결기준 잔고 + 손익\npension.orders(only_unfilled=True)                   # 당일 체결/미체결\npension.buyable(symbol=\"005930\", limit_price=70000)  # 주문가능·최대매수\nIRP(29)는 조회전용입니다 — KIS(APBK1744)가 주문을 거부하므로 이 렌즈에도 발주 메서드는 없습니다. 일반 국내주식 잔고(계좌의 .domestic)엔 없는 퇴직연금 전용 필드 (예수금 요약·체결기준잔고·매수가능여력)를 줍니다.\n연금저축(22)은 법적으로 퇴직연금이 아닌 별개 사적연금이라 주문 가능한 일반 주식계좌로 다룹니다 → 계좌. 상품코드가 29가 아니면 .pension 접근은 오류입니다. DC가입자(55)는 API 세션 자체가 불가합니다.",
+    "crumbs": [
+      "해외·연금",
+      "<span class='chapter-number'>14</span>  <span class='chapter-title'>퇴직연금 (IRP)</span>"
+    ]
+  },
+  {
+    "objectID": "etf.html",
+    "href": "etf.html",
+    "title": "15  ETF·ETN",
+    "section": "",
+    "text": "15.1 NAV 추이",
+    "crumbs": [
+      "다른 상품",
+      "<span class='chapter-number'>15</span>  <span class='chapter-title'>ETF·ETN</span>"
+    ]
+  },
+  {
+    "objectID": "etf.html#nav-추이",
+    "href": "etf.html#nav-추이",
+    "title": "15  ETF·ETN",
+    "section": "",
+    "text": "stock.nav_history(start=\"20240101\", end=\"20240630\")  # 일별 NAV-가격 추이 (괴리율)\nstock.nav_intraday(interval_minutes=1)               # 분별 시장가-NAV 비교 (최근 30개)",
+    "crumbs": [
+      "다른 상품",
+      "<span class='chapter-number'>15</span>  <span class='chapter-title'>ETF·ETN</span>"
+    ]
+  },
+  {
+    "objectID": "elw.html",
+    "href": "elw.html",
+    "title": "16  ELW",
+    "section": "",
+    "text": "16.1 한 종목",
+    "crumbs": [
+      "다른 상품",
+      "<span class='chapter-number'>16</span>  <span class='chapter-title'>ELW</span>"
+    ]
+  },
+  {
+    "objectID": "elw.html#한-종목",
+    "href": "elw.html#한-종목",
+    "title": "16  ELW",
+    "section": "",
+    "text": "elw = kis.domestic.elw(\"58J297\")  # ELW 종목코드\n\nelw.quote()                       # 현재가\nelw.indicator_trend()             # 투자지표(레버리지·기어링·내재가치·패리티) 추이\nelw.sensitivity_trend()           # 민감도(그릭스) 추이\nelw.volatility_trend()            # 내재변동성 추이\nelw.lp_flows()                    # 일별 LP(유동성공급자) 매매 흐름",
+    "crumbs": [
+      "다른 상품",
+      "<span class='chapter-number'>16</span>  <span class='chapter-title'>ELW</span>"
+    ]
+  },
+  {
+    "objectID": "elw.html#스크리너",
+    "href": "elw.html#스크리너",
+    "title": "16  ELW",
+    "section": "16.2 스크리너",
+    "text": "16.2 스크리너\nscreener = kis.domestic.elw_screener\n\nscreener.underlyings()                               # ELW 가 상장된 기초자산 목록\nscreener.by_underlying(\"005930\")                     # 한 기초자산(삼성전자)에 상장된 ELW\nscreener.comparables(\"005930\")                       # 비교대상 ELW (코드/이름)\nscreener.newly_listed(date=\"20260814\")               # 신규상장 ELW (기준일은 최근 영업일 -- 과거분은 미보관)\nscreener.expiring(start=\"20240101\", end=\"20240630\")  # 만기예정 ELW",
+    "crumbs": [
+      "다른 상품",
+      "<span class='chapter-number'>16</span>  <span class='chapter-title'>ELW</span>"
+    ]
+  },
+  {
+    "objectID": "elw.html#순위",
+    "href": "elw.html#순위",
+    "title": "16  ELW",
+    "section": "16.3 순위",
+    "text": "16.3 순위\nranking = kis.domestic.elw_ranking\n\nranking.by_volume()                 # 거래량\nranking.by_indicator()              # 투자지표(레버리지 등)\nranking.by_sensitivity()            # 민감도(델타 등)\nranking.by_quick_change()           # 당일 급변",
+    "crumbs": [
+      "다른 상품",
+      "<span class='chapter-number'>16</span>  <span class='chapter-title'>ELW</span>"
+    ]
+  },
+  {
+    "objectID": "derivatives.html",
+    "href": "derivatives.html",
+    "title": "17  선물·옵션",
+    "section": "",
+    "text": "17.1 국내\n전광판·만기:",
+    "crumbs": [
+      "다른 상품",
+      "<span class='chapter-number'>17</span>  <span class='chapter-title'>선물·옵션</span>"
+    ]
+  },
+  {
+    "objectID": "derivatives.html#국내",
+    "href": "derivatives.html#국내",
+    "title": "17  선물·옵션",
+    "section": "",
+    "text": "futures = kis.domestic.futures(\"101W09\")  # 지수선물 계약 핸들\n\nfutures.quote()                           # 현재가\nfutures.underlying_quote()                # 선물 + 기초지수 나란히 (베이시스 판단)\nfutures.expected_execution_trend()        # 예상체결 요약·추이\nfutures.order_book()                      # 호가\n\noption = kis.domestic.option(\"201W09\")    # 지수옵션 계약 핸들\noption.quote()\n\nkis.domestic.option_expiries()       # 상장된 옵션 만기월 목록\nkis.domestic.option_board(\"202409\")  # 한 만기의 콜/풋 전광판 (행사가별 시세·그릭스)\nkis.domestic.option_board_futures()  # 전광판 하단 선물 계약별 시세",
+    "crumbs": [
+      "다른 상품",
+      "<span class='chapter-number'>17</span>  <span class='chapter-title'>선물·옵션</span>"
+    ]
+  },
+  {
+    "objectID": "derivatives.html#해외",
+    "href": "derivatives.html#해외",
+    "title": "17  선물·옵션",
+    "section": "17.2 해외",
+    "text": "17.2 해외\nfutures = kis.overseas.futures(\"ESZ25\")                          # 해외 선물 (E-mini S&P 2025.12 = 시리즈코드)\n\nfutures.quote()                                                  # 현재가\nfutures.detail()                                                 # 계약 명세\n\nkis.overseas.futures_details([\"ESZ25\", \"NQZ25\"])            # 여러 계약 명세 (최대 32)\nkis.overseas.futures_open_interest(\"ES\", as_of=\"20240628\")  # CFTC 미결제약정\nkis.overseas.derivatives_market_hours()                     # 상품군별 장운영시간",
+    "crumbs": [
+      "다른 상품",
+      "<span class='chapter-number'>17</span>  <span class='chapter-title'>선물·옵션</span>"
+    ]
+  },
+  {
+    "objectID": "derivatives.html#계좌잔고-파생",
+    "href": "derivatives.html#계좌잔고-파생",
+    "title": "17  선물·옵션",
+    "section": "17.3 계좌·잔고 (파생)",
+    "text": "17.3 계좌·잔고 (파생)\n국내파생(03) 세션에서 kis.account 는 파생 계좌 뷰를 돌려줍니다. 금액·수량은 원화입니다.\naccount = kis.account        # 03 세션\n\nbalance = account.balance()  # 잔고 (보유내역 + 예수금·증거금·손익 요약, 모의 지원)\nprint(balance.total_deposit, balance.orderable_cash, balance.total_unrealized_pnl)\n\nfor position in balance.positions:\n    print(f\"{position.name:12s} {position.side} {position.quantity}  평가손익 {position.unrealized_pnl:&gt;12,}\")\n\nfor order in account.open_orders():  # 미체결(정정·취소 가능) 주문 -- 모의 지원\n    print(order.order_id, order.symbol, order.side, order.unfilled_quantity, order.order_price)\nopen_orders() 는 브로커 측 미체결 목록이라 세션의 client_order_id 대신 거래소 주문번호 (order_id)로 옵니다(앱 재시작 등으로 로컬 주문 기록(중복 방지용 dedup store)이 사라졌을 때 서버측 미체결 확인용). order_date 생략 시 오늘(KST), side(\"all\"/\"buy\"/\"sell\")·symbol 로 좁힐 수 있습니다.\nbalance() 의 DerivativeBalance 주요 필드:\n\n\n\n\n\n\n\n필드\n뜻\n\n\n\n\ntotal_deposit\n총예수금액\n\n\ndeposit_cash\n예수금현금\n\n\ntotal_margin\n증거금총액\n\n\norderable_cash · orderable_total\n주문가능현금 · 주문가능총액\n\n\ntotal_unrealized_pnl · total_realized_pnl\n평가손익합계 · 매매손익합계\n\n\nfutures_unrealized_pnl · options_unrealized_pnl\n선물 · 옵션 평가손익\n\n\naccount_value\n추정예탁자산금액\n\n\npositions\n보유내역(DerivativePosition 목록)\n\n\n\nDerivativePosition 은 종목 식별과 종목별 손익을 담습니다:\n\n\n\n필드\n뜻\n\n\n\n\nsymbol · isin\n단축상품번호 · 표준상품번호\n\n\nname · side\n상품명 · 매도매수구분\n\n\nquantity · liquidatable_quantity\n잔고수량 · 청산가능수량\n\n\naverage_price · settlement_price\n체결평균단가 · 정산단가\n\n\nmarket_value · unrealized_pnl\n평가금액 · 평가손익\n\n\n\n나머지 조회는 실전투자 전용입니다.\naccount.deposit()                      # 총자산현황 (DerivativeDeposit)\naccount.valuation_pl()                 # 잔고평가손익 (종목별 평가/매매 손익)\naccount.settlement_pl(base_date=\"20240628\")   # 잔고정산손익\naccount.base_date_fills(order_date=\"20240628\")  # 기준일 체결내역 (start_time/end_time 로 시각 구간)\naccount.commissions(start=\"20240101\", end=\"20240630\")  # 기간약정수수료 일별\n주문가능수량은 계약 핸들에서 봅니다. side 는 \"buy\"/\"sell\", limit_price 를 주면 지정가 기준·없으면 시장가 기준입니다.\nfutures = kis.domestic.futures(\"101W09\")\n\nfutures.orderable(\"buy\", limit_price=340.0)   # 주간 (모의 지원)\nfutures.night_orderable(\"buy\")                # 야간장(EUREX 연계, 실전투자 전용)\norderable() 의 DerivativeOrderable: orderable_quantity(주문가능수량), total_quantity(총가능수량), liquidatable_quantity(청산가능수량), base_index(기준지수).\n증거금율 표는 계약이 아니라 시장 값이라 네임스페이스에 있습니다(실전투자 전용).\nkis.domestic.derivative_margin_rates(\"20240628\")                  # 전체 기초자산\nkis.domestic.derivative_margin_rates(\"20240628\", underlying_id=\"101\")  # 한 기초자산\nDerivativeMarginRate: underlying_id·underlying_name·underlying_price(기초자산), brokerage_margin_rate·trading_margin_rate(위탁·거래 증거금율), trading_multiplier(거래승수), futures_margin_per_contract(계약당 선물증거금).\n타입화하지 않은 벤더 필드는 각 결과의 _raw 로 접근합니다.",
+    "crumbs": [
+      "다른 상품",
+      "<span class='chapter-number'>17</span>  <span class='chapter-title'>선물·옵션</span>"
+    ]
+  },
+  {
+    "objectID": "bonds.html",
+    "href": "bonds.html",
+    "title": "18  채권",
+    "section": "",
+    "text": "18.1 채권 계좌·잔고\n장내채권은 주식과 같은 위탁(01) 계좌를 쓰며, 계좌 관점 조회는 kis.account.domestic.bonds 에 있습니다. 모두 실전투자 전용입니다.\n채권 잔고는 종목이 아니라 매수 단위(buy_date + buy_sequence)로 쪼개져 오므로 같은 종목이 여러 lot 으로 나뉠 수 있습니다. BondPosition 주요 필드:\n지정 단가로 살 때의 매수가능 여력·미체결·체결:\n타입화하지 않은 벤더 필드는 각 결과의 _raw 로 접근합니다.",
+    "crumbs": [
+      "다른 상품",
+      "<span class='chapter-number'>18</span>  <span class='chapter-title'>채권</span>"
+    ]
+  },
+  {
+    "objectID": "bonds.html#채권-계좌잔고",
+    "href": "bonds.html#채권-계좌잔고",
+    "title": "18  채권",
+    "section": "",
+    "text": "bonds = kis.account.domestic.bonds\n\nfor position in bonds.balance():\n    print(f\"{position.name:16s} {position.quantity}  매수단가 {position.buy_price}  수익률 {position.buy_yield}%\")\n\n\n\n\n필드\n뜻\n\n\n\n\nsymbol · name\n상품번호 · 상품명\n\n\nbuy_date · buy_sequence\n매수일자 · 매수순번(lot 식별)\n\n\nquantity · orderable_quantity\n잔고수량 · 주문가능수량\n\n\nbuy_price · buy_amount\n매수단가 · 매수금액\n\n\nbuy_yield\n매수수익률\n\n\nmaturity_date\n만기일자\n\n\n\n\nbonds.buyable(\"KR6095572D97\", price=10500)   # 매수가능 금액·수량\nbonds.open_orders(order_date=\"20240628\")      # 정정·취소 가능한 미체결 주문\nbonds.fills(start=\"20240101\", end=\"20240630\") # 일별 주문·체결 (side/symbol/unfilled_only 필터)\n\nbuyable() → BondBuyable: orderable_cash(주문가능현금), buyable_amount·buyable_quantity(매수가능 금액·수량).\nopen_orders() → BondOpenOrder 목록: order_id(주문번호, 정정·취소로 지목), cancelable_quantity(정정·취소 가능 수량), side.\nfills(start, end, *, side=\"all\", symbol=None, unfilled_only=False) → BondFillHistory: 개별 행 fills(BondFill)와 기간 합계(total_filled_quantity·total_filled_amount·average_price).",
+    "crumbs": [
+      "다른 상품",
+      "<span class='chapter-number'>18</span>  <span class='chapter-title'>채권</span>"
+    ]
+  },
+  {
+    "objectID": "cli.html",
+    "href": "cli.html",
+    "title": "19  Command Line (kis)",
+    "section": "",
+    "text": "19.1 조회\n아무 옵션 없이 쓰면 결과가 눈으로 보기 좋은 표로 나옵니다. 이 출력을 다른 프로그램이나 스크립트에서 자동으로 읽어(파싱해) 쓰려면 --format json 을 붙여 JSON 으로 받습니다(결과가 여러 행이면 한 줄에 한 건씩 주는 --format jsonl 도 있습니다). 벤더 원본 필드까지 함께 받으려면 --include-raw 를 더합니다(각 항목에 _raw 로 KIS 응답 원본이 붙습니다).\n일별 주문·체결 내역(기간)은 kis account fills 로 조회합니다. 기본은 국내주식(--asset stock), 장내채권은 --asset bond. --start/--end(YYYYMMDD, 주식은 3개월 이내) 로 기간을 주고, --side(all/buy/sell)·--symbol(주식 6자리 / 채권 ISIN)·--unfilled-only 로 좁힙니다. 미체결(정정·취소 대상)만 보려면 kis account orders 를 씁니다. 국내주식은 실전·모의 모두, 장내채권은 실전 계좌 전용입니다(모의투자 미지원).\n예약주문(정규장이 열리기 전에 미리 걸어두는 예약) 목록은 kis account reserved --start/--end 로 조회합니다(YYYYMMDD). 국내 조회는 --process 로 all/processed/unprocessed 를 골라 좁히며 실전 계좌 전용입니다(모의투자 미지원). 해외 예약주문은 --venue overseas 로 조회하고(미국+아시아 합산) --process 는 지원하지 않습니다.\n기간별 실현손익은 kis account profits --start/--end 로 봅니다. --symbol 로 종목을 좁히는 건 국내·해외 공통이고, 국내는 --by symbol(종목별 실현손익, 기본)/--by day(일별 매매손익)· --sort recent|oldest, 해외주식은 --venue overseas 로 기간손익을 보며 --currency· --won-basis(원화 기준) 를 씁니다. 실전 계좌 전용입니다(모의투자 미지원).\n거래·입출금내역(매매·결제·수수료)은 kis account transactions --start/--end 로 조회합니다. 해외주식은 --venue overseas(--symbol·--side all|buy|sell 로 좁힘), 해외선물옵션은 08 프로필로 실행하면 같은 명령이 해외파생 입출금내역을 조회합니다. 실전 계좌 전용입니다.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>19</span>  <span class='chapter-title'>Command Line (kis)</span>"
+    ]
+  },
+  {
+    "objectID": "cli.html#조회",
+    "href": "cli.html#조회",
+    "title": "19  Command Line (kis)",
+    "section": "",
+    "text": "kis stock quote 005930                                # 현재가\nkis stock quote AAPL --venue overseas                 # 해외(거래소 자동)\nkis stock bars 005930 --interval 1d --start 20240101\nkis stock book 005930                                 # 호가\nkis stock trades 005930                               # 최근 체결\nkis stock status 005930                               # 거래정지·관리종목 등 상태\nkis search 삼성전자 --market KOSPI\nkis ranking change --direction gainers                # 상승률 상위\nkis ranking volume                                    # 거래대금(기본)·거래량 등 상위\nkis ranking market-cap                                # 시가총액 상위\nkis account balance                                   # 국내 잔고\nkis account positions --venue overseas --market US\n\nkis stock quote 005930 --format json\nkis stock quote 005930 --format json --include-raw    # KIS 원본 필드 포함\n\nkis account fills --start 20240101 --end 20240131                              # 국내주식 체결내역(기간)\nkis account fills --start 20240101 --end 20240131 --symbol 005930 --side buy   # 종목·매수만\nkis account fills --asset bond --start 20240101 --end 20240131                 # 장내채권 체결내역\nkis account fills --asset bond --start 20240101 --end 20240131 --unfilled-only # 미체결만\n\nkis account reserved --start 20240101 --end 20240131                         # 국내 예약주문 목록\nkis account reserved --start 20240101 --end 20240131 --process unprocessed   # 미처리분만\nkis account reserved --venue overseas --start 20240101 --end 20240131        # 해외 예약주문 목록\n\nkis account profits --start 20240101 --end 20240131                          # 국내 종목별 실현손익\nkis account profits --start 20240101 --end 20240131 --by day                 # 국내 일별 매매손익\nkis account profits --venue overseas --start 20240101 --end 20240131         # 해외주식 기간손익\n\nkis account transactions --venue overseas --start 20240101 --end 20240131    # 해외 거래·입출금내역\n\n선물옵션 계좌 조회\nkis account 명령은 프로필이 연 계좌 종류(주식 / 국내선물옵션 / 해외선물옵션)에 맞게 동작합니다 – 선물옵션 프로필로 실행하면 같은 명령이 선물옵션 계좌를 조회합니다(계좌 종류는 프로필의 상품코드로 정해지며, 각 분기가 안 쓰는 플래그를 주면 거부합니다).\n\nbalance – 국내파생은 잔고(보유+예수금·증거금·손익 요약), 해외파생은 예수금현황.\npositions – 해외파생 미결제내역(국내파생은 balance 에 포함).\norders – 국내파생 미체결(--date 로 주문일자), 해외파생은 당일 주문(기간 --start/--end 주면 일별).\nfills – 국내파생 기준일체결내역(--date 필수), 해외파생 일별체결(--start/--end).\nprofits – 해외파생 기간손익(--start/--end).\ntransactions – 해외파생 기간 입출금내역(--start/--end).\n\n계좌 종류별 추가 조회:\n\ndeposit – 예수금현황(국내·해외 선물옵션; 해외파생은 --currency/--date).\nmargin – 증거금상세(국내파생 야간증거금 / 해외파생 --currency/--date).\nvaluation – 국내파생 평가손익내역.\nsettlement – 국내파생 정산손익(--date) / 해외주식 정산잔고(--venue overseas --date).\ncommissions – 국내파생 기간약정수수료(--start/--end).\npresent – 해외주식 체결기준현재잔고.\nforeign-margin – 해외주식 외화증거금.\n\n모두 조회 전용입니다(대부분 실전 계좌 전용 – 모의 지원 여부는 라이브러리가 정합니다).\nkis --profile futures account balance                       # 국내선물옵션 잔고(03 프로필)\nkis --profile futures account fills --date 20240102         # 국내파생 기준일 체결내역\nkis --profile ovs-futures account profits --start 20240101 --end 20240131  # 해외파생 기간손익(08)\nkis --profile ovs-futures account margin --currency USD     # 해외파생 증거금상세",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>19</span>  <span class='chapter-title'>Command Line (kis)</span>"
+    ]
+  },
+  {
+    "objectID": "cli.html#주문-기본은-dry-run",
+    "href": "cli.html#주문-기본은-dry-run",
+    "title": "19  Command Line (kis)",
+    "section": "19.2 주문 — 기본은 dry-run",
+    "text": "19.2 주문 — 기본은 dry-run\n주문 명령은 --execute 가 없으면 전송하지 않고 주문 티켓만 되읽어 보여줍니다.\nkis order buy 005930 10 --limit-price 70000                          # dry-run (전송 안 됨)\nkis --profile paper order buy 005930 10 --limit-price 70000 --execute paper   # 모의 전송(확인 후)\n국내 현금주문은 --division 으로 KRX 주문구분을 고릅니다 – conditional_limit(조건부지정가, --limit-price 필요), immediate_limit(최유리지정가), priority_limit(최우선지정가), midpoint(중간가; 수량만, 호가 중간값으로 시장이 가격 결정, 전 보드, IOC/FOK 가능), pre_market_close(장전 시간외 종가; KRX 전용), post_market_close(장후 시간외 종가; KRX 전용). 애프터마켓(KRX 16:00~20:00, --board KRX)은 after_market_limit(지정가, --limit-price 필요), after_market_immediate_limit(최유리), after_market_priority_limit(최우선; day 전용); NXT 프리마켓 GTP(--board NXT)는 gtp_limit(지정가, --limit-price 필요), gtp_immediate_limit(최유리), gtp_priority_limit(최우선) – GTP 는 모두 day 전용입니다. 최유리/최우선·중간가·시간외 종가는 시장이 가격을 정하므로 --limit-price 를 주지 않습니다(해외 --venue overseas 엔 미지원).\nkis --profile main order buy 005930 10 --division immediate_limit --execute real --yes --confirm-account 7801\n국내 주식 스톱지정가는 --stop-price 로 트리거(조건가격)를 줍니다. 시장이 그 값에 닿으면 그때 --limit-price 가격으로 지정가가 접수됩니다. --stop-price 는 --limit-price 가 반드시 필요하고 (스톱시장가는 없습니다), --division 과 함께 쓸 수 없습니다. KRX 전용이라 정규장(09:00~15:30)에만 나갑니다 – 장 시간 밖의 접수는 서버가 거부합니다.\nkis order buy 005930 10 --limit-price 70000 --stop-price 69000        # dry-run (전송 안 됨)\n예약주문(정규장이 열리기 전에 미리 걸어두는 예약)은 kis order buy/kis order sell 에 --reserve 를 주어 냅니다 – 국내 주식은 다음 영업일 동시호가에 집행되며 실전 전용이고 --end-date YYYYMMDD 로 예약 유효 종료일을 지정합니다. 취소는 kis order cancel-reserved &lt;순번&gt; 이며, 순번은 예약 발주 결과나 kis account reserved 목록의 sequence 입니다. 정정은 kis order modify-reserved &lt;순번&gt; 이며, 브로커 규격상 --symbol/--side/--quantity 로 종목·방향·수량을 전체 재지정합니다 – --limit-price 를 생략하면 기존 단가 유지가 아니라 시장가로 바뀌니 주의하세요(--end-date/ --order-date 도 지정 가능). 정정 후 예약 순번이 재배정될 수 있어(응답은 새 순번을 주지 않음) 이어서 정정·취소하려면 kis account reserved 로 순번을 재확인하세요 – 영수증에도 같은 안내가 실립니다. 다른 주문과 같은 dry-run/--execute 안전장치를 씁니다.\n해외 예약주문은 --venue overseas 로 냅니다 – 국내와 달리 지정가 전용(--limit-price 필수), --end-date 미지원, 모의(paper) 허용입니다. --currency(HKD/CNY/USD)는 홍콩 예약 전용이고 미지정 시 홍콩은 HKD 입니다. 목록은 kis account reserved --venue overseas(미국+아시아 합산), 취소는 kis order cancel-reserved --venue overseas --receipt-date YYYYMMDD 로 미국 예약만 됩니다 – 아시아(일/중/홍/베) 예약 취소는 전용 엔드포인트가 없어 이 경로가 아니라 발주 리포트의 client_order_id 로 kis order cancel 이 취소합니다. 정정(modify)은 해외 예약에 없습니다.\nkis order buy 005930 10 --limit-price 70000 --reserve --end-date 20240131    # 국내 예약매수(dry-run)\nkis order cancel-reserved SEQ7 --order-date 20240131                         # 국내 예약 취소(dry-run)\nkis order modify-reserved SEQ7 --symbol 005930 --side buy --quantity 10 --limit-price 71000  # 국내 예약 정정(dry-run)\nkis order buy 00700 100 --venue overseas --reserve --limit-price 350 --exchange HKS --currency HKD  # 해외(홍콩) 예약매수(dry-run)\nkis account reserved --venue overseas --start 20240101 --end 20240131       # 해외 예약주문 목록\nkis order cancel-reserved US123 --venue overseas --receipt-date 20240131    # 해외(미국) 예약 취소(dry-run)\n국내 주식 TWAP 분할은 kis order twap 으로 냅니다 – 총 수량을 --over(총 소요시간, 예 30m/ 1h/1h30m) 동안 --slices(분할 횟수)로 나눠 시장가로 여러 번 발주합니다. --start HHMMSS(KST, 생략 시 지금부터, 과거는 거부)로 시작 시각을 정하며, 모든 슬라이스가 KRX 정규장(09:00~15:30 KST) 안이어야 합니다. 다른 주문과 달리 실행 동안 호출을 블로킹하고, 기본은 스케줄만 보여주는 dry-run, --execute 로 실제 집행합니다(슬라이스 거부/타임아웃은 기록하고 계속, 부분 실행+미달 보고).\nkis order twap 005930 --side buy --quantity 100 --over 30m --slices 3                 # dry-run: 스케줄 미리보기\nkis order twap 005930 --side buy --quantity 100 --over 30m --slices 3 \\\n  --start 130000 --execute paper --yes                                               # 13:00 시작, 실제 집행\n미국주식 algo 분할주문(서버가 쪼개 집행)은 해외 매수/매도에 --algo twap/vwap 를 줍니다 – 미국·실전 전용·최소 10주입니다. --algo-start/--algo-end(KST HHMMSS, 같은 날·시작&lt;종료, 자정 넘김 불가)로 시간창을 주거나 생략하면 정규장 종료까지 집행합니다(미국 정규장은 KST 로 자정을 넘어 한 창이 세션 전체를 덮지 못하니 전체 집행은 시간창 생략). 자세한 규칙은 주문 참조.\nkis order buy AAPL 10 --venue overseas --limit-price 150 --algo twap --execute real --yes       # 전체 세션(시간창 생략)\nkis order buy AAPL 10 --venue overseas --limit-price 150 \\\n  --algo twap --algo-start 223000 --algo-end 235959 --execute real --yes                         # KST 같은 날 구간\n실제 전송하려면 --execute 값이 세션 환경(프로필에 저장된 실전/모의)과 같아야 합니다. 대화형에서는 확인을 받습니다(모의는 y/N, 실전은 계좌 마지막 4자리 입력). 스크립트(비대화형)에서는 --yes 가 필요하고, 실전은 --confirm-account 로 계좌 마지막 4자리를 한 번 더 맞춰야 합니다.\nkis --profile main order buy 005930 10 --limit-price 70000 \\\n    --execute real --yes --confirm-account 7801\n정정·취소·확인은 client_order_id 로 지목합니다. 결과가 불명(타임아웃)이면 재전송하지 말고 reconcile 로 실제 상태를 확정하세요.\nkis order modify &lt;client_order_id&gt; --limit-price 70500 --execute real --yes --confirm-account 7801\nkis order cancel &lt;client_order_id&gt; --execute real --yes --confirm-account 7801\nkis order reconcile &lt;client_order_id&gt;\n\n\n\n\n\n\n중요\n\n\n\nCLI 의 --yes 는 오타 방어용입니다. 에이전트(Claude 등)가 계좌를 몰 때는 CLI 가 아니라 파이썬 API 를 안전커널 규율대로 쓰는 것이 맞습니다 – 주문의 안전장치 참고.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>19</span>  <span class='chapter-title'>Command Line (kis)</span>"
+    ]
+  },
+  {
+    "objectID": "cli.html#종료-코드",
+    "href": "cli.html#종료-코드",
+    "title": "19  Command Line (kis)",
+    "section": "19.3 종료 코드",
+    "text": "19.3 종료 코드\n스크립트에서 결과를 분기할 수 있게 종료 코드를 구분합니다.\n\n\n\n코드\n뜻\n\n\n\n\n0\n성공\n\n\n2\n인자 형식 오류\n\n\n3\n로컬 구성·자격증명 문제\n\n\n4\n도메인 검증·리스크 거부(전송 안 됨)\n\n\n5\n전송 실패\n\n\n6\n브로커 거부\n\n\n7\n주문 결과 불확실(reconcile 필요)\n\n\n130\n사용자 중단(Ctrl-C)\n\n\n\n이 종료 코드는 KIS 가 정한 게 아니라 이 CLI 가 스크립트용으로 매긴 규약입니다. 2 는 argparse 표준(인자 오류), 130 은 유닉스 관례(Ctrl-C 중단 = 128 + 시그널 2)를 따른 것이고, 3~7 은 주문 결과를 스크립트가 구분할 수 있게 이 도구가 정했습니다.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>19</span>  <span class='chapter-title'>Command Line (kis)</span>"
+    ]
+  },
+  {
+    "objectID": "claude-skill.html",
+    "href": "claude-skill.html",
+    "title": "20  Claude Code Skill",
+    "section": "",
+    "text": "20.1 무엇을 안내하나\n요컨대 주문의 안전커널 규율을 에이전트 행동 지침으로 옮긴 것입니다. (Codex 에서 쓰려면 → Codex Skill.)",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>20</span>  <span class='chapter-title'>Claude Code Skill</span>"
+    ]
+  },
+  {
+    "objectID": "claude-skill.html#무엇을-안내하나",
+    "href": "claude-skill.html#무엇을-안내하나",
+    "title": "20  Claude Code Skill",
+    "section": "",
+    "text": "요청을 조회 / 주문준비 / 주문전송 / 결과확정 으로 먼저 분류하고, 조회만 확인 없이 진행합니다.\n이름은 search 로 실제 코드를 해석한 뒤에만 주문합니다(코드 추측 금지).\n주문 전 티켓을 다시 한번 보여주고, 실전이면 그 자리에서 명시 승인을 받습니다.\n매수/매도/정정/취소를 정확히 1회 호출하고, 타임아웃은 재전송하지 않고 reconcile 로만 확정합니다.\n자격증명·._raw·전체 계좌번호를 출력에 흘리지 않습니다.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>20</span>  <span class='chapter-title'>Claude Code Skill</span>"
+    ]
+  },
+  {
+    "objectID": "claude-skill.html#설치-마켓플레이스",
+    "href": "claude-skill.html#설치-마켓플레이스",
+    "title": "20  Claude Code Skill",
+    "section": "20.2 설치 (마켓플레이스)",
+    "text": "20.2 설치 (마켓플레이스)\n이 저장소는 Claude Code 플러그인 마켓플레이스로 등록돼 있습니다. Claude Code 채팅창(프롬프트)에서 아래 /plugin 명령을 입력해 마켓플레이스를 추가하고 설치합니다(터미널이 아니라 Claude Code 안에서 칩니다).\n/plugin marketplace add seokhoonj/kis-trader\n/plugin install kis-trader@kis-trader\n설치하면 스킬이 자동 로드됩니다 – KIS 계좌 관련 작업(“삼성전자 시세 봐줘”, “종목 검색해서 주문”)을 말하면 설명이 요청과 맞아 활성화됩니다. /plugin marketplace update kis-trader 로 최신본을 당겨오고, /plugin 으로 관리합니다.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>20</span>  <span class='chapter-title'>Claude Code Skill</span>"
+    ]
+  },
+  {
+    "objectID": "claude-skill.html#설치-직접-복사",
+    "href": "claude-skill.html#설치-직접-복사",
+    "title": "20  Claude Code Skill",
+    "section": "20.3 설치 (직접 복사)",
+    "text": "20.3 설치 (직접 복사)\n마켓플레이스 없이 개인 스킬 폴더에 바로 둘 수도 있습니다.\nmkdir -p ~/.claude/skills\ncp -r plugins/kis-trader/skills/kis-trader ~/.claude/skills/\n\n\n\n\n\n\n노트\n\n\n\n스킬은 저장소에 실려 있지만 pip install kis-trader 로는 배포되지 않습니다(파이썬 아티팩트가 아니라 리포 자산입니다). .claude/ 는 로컬 전용이라 커밋되지 않으므로, 스킬 본체는 skills/, 마켓플레이스 매니페스트는 .claude-plugin/ 아래에 둡니다.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>20</span>  <span class='chapter-title'>Claude Code Skill</span>"
+    ]
+  },
+  {
+    "objectID": "codex-skill.html",
+    "href": "codex-skill.html",
+    "title": "21  Codex Skill",
+    "section": "",
+    "text": "21.1 설치 (마켓플레이스, 터미널)\nCodex 도 플러그인 마켓플레이스가 있어 터미널에서 바로 설치합니다. (Codex CLI v0.122+)\n설치 후 Codex 세션을 새로 시작하면 스킬이 잡히고, 채팅에서 @kis-trader 로 부릅니다. (옛 버전은 codex marketplace add ....)",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>21</span>  <span class='chapter-title'>Codex Skill</span>"
+    ]
+  },
+  {
+    "objectID": "codex-skill.html#설치-마켓플레이스-터미널",
+    "href": "codex-skill.html#설치-마켓플레이스-터미널",
+    "title": "21  Codex Skill",
+    "section": "",
+    "text": "codex plugin marketplace add seokhoonj/kis-trader\ncodex plugin add kis-trader@kis-trader",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>21</span>  <span class='chapter-title'>Codex Skill</span>"
+    ]
+  },
+  {
+    "objectID": "codex-skill.html#대안-agents.md",
+    "href": "codex-skill.html#대안-agents.md",
+    "title": "21  Codex Skill",
+    "section": "21.2 대안 (AGENTS.md)",
+    "text": "21.2 대안 (AGENTS.md)\n마켓플레이스를 안 쓰면 AGENTS.md(저장소 루트 또는 ~/.codex/AGENTS.md)에 항상 로드되는 지침을 둡니다. 이 저장소의 AGENTS.md 는 로컬 전용이라 공유되지 않으니 각자 추가합니다.\n# AGENTS.md (사용자 각자)\nKIS 계좌 작업은 kis_trader 공개 API 로만 하고, plugins/kis-trader/skills/kis-trader/SKILL.md 의 규율을 따른다:\n심볼은 search 로 해석 후 주문, 실전 주문 전 티켓 확인, 타임아웃은 재전송 대신 reconcile.\n\n\n\n\n\n\n노트\n\n\n\nClaude Code 마켓플레이스 매니페스트는 리포지토리 최상위 .claude-plugin/marketplace.json, Codex 마켓플레이스는 최상위 .agents/plugins/marketplace.json 입니다. .codex-plugin/ 는 플러그인 안 (plugins/kis-trader/.codex-plugin/plugin.json)의 플러그인-레벨 매니페스트로, 최상위엔 없습니다. 스킬 본체는 plugins/kis-trader/skills/kis-trader/ 하나를 공유합니다.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>21</span>  <span class='chapter-title'>Codex Skill</span>"
+    ]
+  },
+  {
+    "objectID": "mcp.html",
+    "href": "mcp.html",
+    "title": "22  MCP 서버",
+    "section": "",
+    "text": "22.1 MCP 가 처음이라면\nMCP(Model Context Protocol) 는 AI 채팅 앱이 바깥의 도구나 데이터를 가져다 쓸 수 있게 해주는 표준 규격입니다. Anthropic 공식 문서는 이걸 AI 앱용 USB-C 단자에 빗댑니다 – USB-C 가 어느 기기든 꽂아 쓰는 공통 단자이듯, MCP 는 “계좌 조회 도구” 같은 걸 AI 앱에 꽂아 쓰게 해주는 공통 규격입니다.\n어디에 쓰는지 보겠습니다. KIS 잔고를 확인하려면 보통 파이썬으로 이렇게 씁니다:\nMCP 를 켜 두면 Claude Desktop 채팅창에 이렇게 말하기만 하면 됩니다:\n그러면 에이전트가 알아서 balance 도구를 호출해 답해 줍니다. 코드를 치지 않고 대화만으로 계좌를 다룰 수 있다는 것, 그게 MCP 의 쓸모입니다.\n구성은 두 조각입니다:\n둘은 MCP 규격으로 주고받습니다. 설정 파일에 서버를 한 줄 등록해 두면(아래 쓰는 법), 에이전트가 켜질 때 도구 목록을 받아 와 바로 씁니다.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>22</span>  <span class='chapter-title'>MCP 서버</span>"
+    ]
+  },
+  {
+    "objectID": "mcp.html#mcp-가-처음이라면",
+    "href": "mcp.html#mcp-가-처음이라면",
+    "title": "22  MCP 서버",
+    "section": "",
+    "text": "kis.account.balance()\n\n\n내 KIS 계좌 잔고 보여줘\n\n\n\n\n\n\n\n\n\n\n\n조각\n무엇인가\n여기서는\n\n\n\n\n서버(server)\n도구를 내주는 쪽. 내 PC 에서 돌며 KIS 와 통신합니다\nkis-mcp(이 프로젝트가 제공)\n\n\n클라이언트(client)\n그 도구를 쓰는 AI 앱\nClaude Desktop · Cursor\n\n\n\n\n\n\n\n\n\n\n노트\n\n\n\nMCP 는 있어도 되고 없어도 되는 선택 기능입니다. 파이썬으로만 다룰 거면 필요 없습니다(import kis_trader 는 mcp 없이도 동작합니다). Claude Desktop 같은 AI 앱에서 대화로 계좌를 조회·확인하고 싶을 때만 켜면 됩니다.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>22</span>  <span class='chapter-title'>MCP 서버</span>"
+    ]
+  },
+  {
+    "objectID": "mcp.html#쓰는-법-설치하고-연결하기",
+    "href": "mcp.html#쓰는-법-설치하고-연결하기",
+    "title": "22  MCP 서버",
+    "section": "22.2 쓰는 법 (설치하고 연결하기)",
+    "text": "22.2 쓰는 법 (설치하고 연결하기)\n채팅창에서 뭘 내려받는 게 아닙니다. 아래를 한 번 해 두면, 그다음부터는 Claude Desktop 채팅창에서 말만 하면 됩니다. 마우스와 복사·붙여넣기로 끝나니 순서대로만 따라 하면 됩니다.\n\n\n\n\n\n\n노트\n\n\n\n준비물 두 가지 – (1) Python 3.11 이상, (2) Claude Desktop 앱. 없으면 먼저 깝니다 – Python 은 python.org(설치할 때 “Add Python to PATH” 체크), Claude Desktop 은 claude.ai/download. 터미널에 python --version 을 쳐서 3.11 이상이 나오면 준비된 겁니다.\n\n\n1. 터미널(명령 입력창)을 엽니다. – macOS 는 ⌘ + Space 를 눌러 “터미널”을 검색해 실행, Windows 는 시작 메뉴에서 “PowerShell”을 실행합니다. 까만(또는 하얀) 글자 입력창이 뜹니다.\n2. 패키지를 깝니다. – 터미널에 아래 한 줄을 붙여넣고 Enter. (pip 이 없다고 하면 pip3 으로 해 보세요.)\npip install 'kis-trader[mcp]'\n3. kis-mcp 가 어디 깔렸는지 알아 둡니다. – Claude Desktop 은 앱이라 터미널 설정을 모를 수 있어서, kis-mcp 의 전체 경로를 적어 줘야 안전합니다. 터미널에 아래를 치면 경로가 한 줄 나옵니다 – 그걸 복사해 둡니다(5단계에서 붙여넣습니다).\nwhich kis-mcp     # macOS·Linux -- 예: /usr/local/bin/kis-mcp 또는 .../.venv/bin/kis-mcp\nwhere kis-mcp     # Windows -- 예: C:\\Users\\나\\...\\kis-mcp.exe\n4. 자격증명(앱키)을 프로필로 저장합니다. – 한 번 저장해 두면 다음 단계 설정 파일에 앱키를 적지 않아도 됩니다. 저장 방법은 앱키·자격증명에 있습니다.\n5. Claude Desktop 설정 파일을 엽니다. – 전부 마우스로 합니다:\n\n화면 맨 위 메뉴 막대의 Claude 메뉴 → Settings… 를 엽니다. (채팅 창 안의 설정이 아니라, 화면 맨 위 메뉴 막대의 Claude 입니다.)\n왼쪽에서 Developer 탭을 고르고, Edit Config 버튼을 누릅니다.\n그러면 설정 파일(claude_desktop_config.json)이 열립니다. 없으면 자동으로 만들어 줍니다. (위치는 macOS ~/Library/Application Support/Claude/, Windows %APPDATA%\\Claude\\ 안입니다 – 버튼이 알아서 열어 주니 직접 찾아갈 필요는 없습니다.)\n\n6. 아래 내용을 붙여넣고 저장합니다. – 파일 내용을 아래로 바꿉니다. command 에는 3단계에서 복사한 경로를 그대로 넣고, KIS_MCP_PROFILE 에는 4단계에서 정한 프로필 이름을 넣습니다. 저장은 ⌘ + S(Windows 는 Ctrl + S).\n{\n  \"mcpServers\": {\n    \"kis-trader\": {\n      \"command\": \"여기에-3단계에서-복사한-kis-mcp-경로\",\n      \"env\": {\n        \"KIS_MCP_PROFILE\": \"main\",\n        \"KIS_MCP_ENVIRONMENT\": \"paper\"\n      }\n    }\n  }\n}\n7. Claude Desktop 을 완전히 껐다 켭니다. – 창만 닫지 말고 완전히 종료(macOS ⌘ + Q, Windows 는 트레이 아이콘에서 종료)한 뒤 다시 실행합니다. 설정은 켤 때 한 번만 읽습니다.\n8. 연결됐는지 봅니다. – 채팅 입력창 왼쪽 아래의 +(파일·커넥터 추가) 아이콘을 누르고 Connectors → Manage connectors 로 가면 kis-trader 와 그 도구들이 보입니다. 보이면 성공입니다.\n9. 이제 채팅창에서 말만 하면 됩니다. – “삼성전자 현재가 알려줘”, “내 KIS 잔고 보여줘”처럼 말하면 Claude 가 알아서 해당 도구를 불러 답합니다.\n\n\n\n\n\n\n힌트\n\n\n\n프로필(KIS_MCP_PROFILE)로 붙이는 걸 권합니다. 설정 파일에 KIS_APP_KEY·KIS_APP_SECRET 을 직접 적는 대신, 저장소(~/.config/kis-trader/credentials.json)에 둔 프로필 이름만 적으면 앱키가 설정 파일에 드러나지 않습니다. 환경은 기본이 모의(paper)이고, 실전은 아래 실주문 가드레일을 모두 갖춰 KIS_MCP_ENVIRONMENT=real 로 명시했을 때만 씁니다.\n\n\n\n\n\n\n\n\n(선택) 서버가 잘 뜨는지 터미널에서 점검하기\n\n\n\n\n\n연결이 안 되면 서버가 혼자 잘 뜨는지 확인해 볼 수 있습니다. 자격증명을 환경변수로 주고 kis-mcp 를 실행합니다 – kis-mcp 는 2단계에서 깐 명령으로, 이 줄이 서버를 띄웁니다.\nexport KIS_APP_KEY=...\nexport KIS_APP_SECRET=...\nexport KIS_ACCOUNT=...\nexport KIS_MCP_ENVIRONMENT=paper   # 실전은 real (명시할 때만)\n\nkis-mcp   # 서버 시작. 오류 없이 뜨면 정상 -- 연결을 기다리며 멈춰 있고, Ctrl-C 로 끕니다.\n오류 없이 멈춰 있으면 정상입니다. 이건 “제대로 뜨는지”만 보는 점검용이라, 이 상태로 사람이 직접 대화할 수는 없습니다. 실제 사용에선 이 줄을 직접 칠 일이 없고, 위 순서대로 Claude Desktop 이 kis-mcp 를 대신 띄워 줍니다.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>22</span>  <span class='chapter-title'>MCP 서버</span>"
+    ]
+  },
+  {
+    "objectID": "mcp.html#cursor-에서-쓰기",
+    "href": "mcp.html#cursor-에서-쓰기",
+    "title": "22  MCP 서버",
+    "section": "22.3 Cursor 에서 쓰기",
+    "text": "22.3 Cursor 에서 쓰기\nCursor 도 같은 방식입니다. Settings → MCP Servers 에서 Claude Desktop 과 똑같은 등록 내용을 넣으면 됩니다(위 쓰는 법의 JSON 을 그대로). Cursor 도 stdio 를 지원하므로 command 에 kis-mcp 경로를 그대로 적습니다.\n\n\n\n\n\n\n(고급) 전송 방식 바꾸기 – stdio · sse · streamable-http\n\n\n\n\n\n기본 전송은 stdio 입니다 – Claude Desktop·Cursor 는 이걸로 서버를 직접 띄워 씁니다. 한 서버에 여러 클라이언트를 붙이거나 mcp-remote 같은 브리지를 쓸 때는 KIS_MCP_TRANSPORT 로 HTTP 계열 전송을 고릅니다.\n\n\n\nKIS_MCP_TRANSPORT\n전송\n엔드포인트(기본)\n\n\n\n\nstdio(기본)\n표준 입출력\n(클라이언트가 직접 실행)\n\n\nsse\nHTTP Server-Sent Events\nhttp://127.0.0.1:8000/sse\n\n\nstreamable-http\nHTTP(스트리밍)\nhttp://127.0.0.1:8000/mcp\n\n\n\nexport KIS_MCP_TRANSPORT=streamable-http   # 또는 sse\nexport KIS_MCP_PORT=8000                    # 기본 8000\nkis-mcp\n기본은 로컬(127.0.0.1) 전용입니다. 돈이 오가는 서버라, 토큰 없이 비-로컬 host 로 열려 하면 거부합니다 (fail-closed). ChatGPT 처럼 공개 HTTPS 커넥터만 받는 클라이언트는 아래 둘을 갖춰 노출합니다.\n\nKIS_MCP_ACCESS_TOKEN 을 설정하면 비-로컬 bind 가 열리고, 모든 HTTP 요청에 Authorization: Bearer &lt;토큰&gt; 을 요구합니다(불일치/누락 → 401). 방어심층입니다.\n그 앞에 TLS·인증(OAuth 등)을 맡는 역프록시/터널(Cloudflare Tunnel+Access, oauth2-proxy 등)을 두어 127.0.0.1 로 띄운 서버로 전달하는 것이 권장 방식입니다. 공개 host 로 직접 bind 한다면 KIS_MCP_ALLOWED_HOSTS(쉼표 구분, 예 my.host:*)로 허용 Host 를 지정하세요.\n\n실주문은 전송 방식과 무관하게 사람 확인(elicitation) 게이트를 그대로 거칩니다 – 원격이라고 느슨해지지 않습니다.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>22</span>  <span class='chapter-title'>MCP 서버</span>"
+    ]
+  },
+  {
+    "objectID": "mcp.html#이-서버가-하는-일",
+    "href": "mcp.html#이-서버가-하는-일",
+    "title": "22  MCP 서버",
+    "section": "22.4 이 서버가 하는 일",
+    "text": "22.4 이 서버가 하는 일\nkis_trader.mcp 는 KIS 계좌를 MCP 도구로 내주는 서버입니다. kis_trader 의 공개 API(안전 코어) 위에 얹힌 얇은 계층이라 스스로 계산하지 않습니다 – 숫자는 전부 패키지가 만들고, 이 서버는 그걸 도구로 전달만 합니다.\n\n\n\n\n\n\n중요\n\n\n\n실주문(매수·매도·정정·취소)은 기본이 모의(paper)이고, 실전 주문은 여러 겹의 안전장치를 모두 통과해야만 나갑니다 – 이중 잠금 + fat-finger 한도(RiskLimits) + 종목 허용목록(allowlist) + 사람 확인(elicitation) + 세션 서킷브레이커(아래 실주문 가드레일). 하나라도 빠지면 주문을 보내기 전에 막습니다 (fail-closed). 주문 내용(종목·매수매도·수량·가격)은 사람이 직접 적고 확인합니다 – 조회 결과를 그대로 주문에 흘려 넣지 않습니다(taint 경계).",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>22</span>  <span class='chapter-title'>MCP 서버</span>"
+    ]
+  },
+  {
+    "objectID": "mcp.html#제공하는-도구",
+    "href": "mcp.html#제공하는-도구",
+    "title": "22  MCP 서버",
+    "section": "22.5 제공하는 도구",
+    "text": "22.5 제공하는 도구\n\n\n\n\n\n\n\n도구\n하는 일\n\n\n\n\nquote\n종목 현재가 스냅샷(market=\"overseas\" 면 해외)\n\n\nsearch\n이름·질의로 국내 종목 코드 후보 찾기\n\n\nranking_change\n국내 등락률 순위(gainers/losers)\n\n\nbalance\n계좌 잔고 요약(주식 계좌)\n\n\npositions\n보유 종목\n\n\nopen_orders\n미체결 주문\n\n\norder_preview\n주문 미리보기 – 보내지 않고 나갈 티켓만 보여 줌(sent: false)\n\n\nreconcile\n결과가 불분명한 주문을 사후 확정\n\n\nplace_order\n국내 주식 실주문(매수·매도) – 안전장치·사람 확인을 거친 뒤 전송(해외는 추후)\n\n\ncancel_order\n접수된 주문 취소(client_order_id 로 지정)\n\n\nmodify_order\n접수된 주문의 가격·수량 정정",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>22</span>  <span class='chapter-title'>MCP 서버</span>"
+    ]
+  },
+  {
+    "objectID": "mcp.html#안전-설계",
+    "href": "mcp.html#안전-설계",
+    "title": "22  MCP 서버",
+    "section": "22.6 안전 설계",
+    "text": "22.6 안전 설계\n\n실주문은 안전장치를 거친 뒤에만 – place_order·cancel_order·modify_order 는 아래 안전장치를 모두 통과해야 나갑니다. order_preview 는 지금도 아무것도 보내지 않고 티켓만 보여 줍니다.\n정보 유출 차단 – 응답은 frozen dataclass 에서 공개 필드만 골라 직렬화하고, _raw(벤더 원본 응답)와 밑줄 필드는 떼어 냅니다. 계좌번호는 마지막 4자리만 남기고 가립니다(****7801). 자격증명은 환경변수에서만 읽고 절대 출력하지 않습니다.\n기본은 모의 – 환경은 기본이 모의투자이고, 실전은 KIS_MCP_ENVIRONMENT=real 과 이중 잠금을 명시했을 때만 씁니다.\n주식 계좌 전용 도구 – balance·positions·open_orders 는 주식 계좌에서만 동작하고, 다른 계좌 유형이면 분명히 거부합니다.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>22</span>  <span class='chapter-title'>MCP 서버</span>"
+    ]
+  },
+  {
+    "objectID": "mcp.html#실주문-가드레일",
+    "href": "mcp.html#실주문-가드레일",
+    "title": "22  MCP 서버",
+    "section": "22.7 실주문 가드레일",
+    "text": "22.7 실주문 가드레일\n실전(real) 주문은 아래 모든 겹을 통과해야 나갑니다(모의는 돈이 오가지 않아 대부분 건너뜁니다). 하나라도 어긋나면 주문을 보내기 전에 막습니다(fail-closed).\n\n\n\n\n\n\n\n\n겹\n내용\n환경변수\n\n\n\n\n이중 잠금\n실전 잠금 해제 두 가지가 모두 있어야 함\nKIS_MCP_ALLOW_REAL=1 그리고 KIS_MCP_REAL_CONFIRM=i-understand-real-money\n\n\nfat-finger 한도\n실전은 RiskLimits 필수(안 두면 거부) – 1주문 최대 수량·금액, 가격 collar\nKIS_MCP_MAX_ORDER_QTY · KIS_MCP_MAX_ORDER_NOTIONAL · KIS_MCP_PRICE_COLLAR_PCT\n\n\n종목 허용목록\n실전은 허용목록을 명시해야 함(비어 있으면 실거래 안 함)\nKIS_MCP_SYMBOL_ALLOWLIST=005930,000660\n\n\n사람 확인\nelicitation 으로 주문 내용을 사람에게 그대로 보여 주고 승인받음 – 모델이 사람 대신 승인할 수 없음. 앱이 이 기능을 지원 안 하면 실주문 거부\n(AI 앱이 elicitation 지원해야)\n\n\n서킷브레이커\n한 세션에서 실주문이 정한 횟수를 넘으면 멈추고, 사람이 다시 켜기 전까지 막음\nKIS_MCP_MAX_REAL_ORDERS(기본 10)\n\n\ntaint 경계\n주문 내용은 사람이 직접 적음 – 조회 결과(뉴스·시세)가 주문으로 흘러들지 않음\n(설계상)\n\n\n멱등\nclient_order_id 로 같은 날 중복 전송을 막음\n(자동)\n\n\n\n실전 주문을 켜려면 이 값들을 쓰는 법에서 만든 설정 파일의 같은 env 블록에 넣습니다 – Claude Desktop 이 서버를 그 설정으로 띄우기 때문에, 터미널에서 친 export 는 그 프로세스까지 닿지 않습니다. JSON 이라 값은 전부 문자열로 적습니다.\n{\n  \"mcpServers\": {\n    \"kis-trader\": {\n      \"command\": \"kis-mcp\",\n      \"env\": {\n        \"KIS_MCP_PROFILE\": \"main\",\n        \"KIS_MCP_ENVIRONMENT\": \"real\",\n        \"KIS_MCP_ALLOW_REAL\": \"1\",\n        \"KIS_MCP_REAL_CONFIRM\": \"i-understand-real-money\",\n        \"KIS_MCP_MAX_ORDER_QTY\": \"100\",\n        \"KIS_MCP_MAX_ORDER_NOTIONAL\": \"10000000\",\n        \"KIS_MCP_SYMBOL_ALLOWLIST\": \"005930,000660\"\n      }\n    }\n  }\n}\n터미널에서 kis-mcp 를 직접 띄울 때만 같은 값을 export KIS_MCP_ALLOW_REAL=1 식으로 줍니다.\n하나라도 빠지면 그 종목의 실주문은 거부됩니다(fail-closed). 손실은 전액 계좌 보유자 책임입니다.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>22</span>  <span class='chapter-title'>MCP 서버</span>"
+    ]
+  },
+  {
+    "objectID": "mcp.html#설치는-선택-묶음",
+    "href": "mcp.html#설치는-선택-묶음",
+    "title": "22  MCP 서버",
+    "section": "22.8 설치는 선택 묶음",
+    "text": "22.8 설치는 선택 묶음\nmcp 는 선택 의존성입니다 – import kis_trader 자체는 mcp 없이도 동작하고, MCP 서버를 쓸 때만 pip install 'kis-trader[mcp]' 로 깔면 됩니다(위 쓰는 법 참고).\n실주문은 위 실주문 가드레일을 거쳐 place_order 로 나갑니다. 그 밖의 주문(파생·채권· 해외·조건부 등)은 아직 MCP 에 없으니 주문의 파이썬 API 로 사람이 직접 냅니다.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>22</span>  <span class='chapter-title'>MCP 서버</span>"
+    ]
+  },
+  {
+    "objectID": "mcp.html#면책-책임-꼭-읽어주세요",
+    "href": "mcp.html#면책-책임-꼭-읽어주세요",
+    "title": "22  MCP 서버",
+    "section": "22.9 면책 · 책임 (꼭 읽어주세요)",
+    "text": "22.9 면책 · 책임 (꼭 읽어주세요)\n이 MCP 서버는 실제 돈이 오가는 증권 계좌를 AI 에이전트가 다루게 합니다. 안전장치를 겹겹이 뒀지만, AI 에이전트로 주문한다는 것 자체에 다음과 같은 본질적 위험이 있습니다 – 모두 이해하고 쓰세요.\n\n에이전트는 말을 오해할 수 있습니다. 자연어를 해석해 도구를 부르므로 의도와 다른 종목·수량·가격으로 주문할 수 있습니다. 실전에서는 전송 전 사람 확인(elicitation) 창의 내용을 반드시 직접 검토하고 맞을 때만 승인하세요 – 자동 승인하지 마세요.\n프롬프트 인젝션 위험. 에이전트가 읽는 내용(뉴스·시세·웹·문서)에 악의적 지시가 숨어 에이전트를 조종해 원치 않는 주문을 유도할 수 있습니다(이른바 lethal trifecta). 이 서버는 주문 파라미터를 조회 결과에서 받지 않고 사람이 직접 주게(taint 경계) 하고 allowlist·사람 확인·금액 상한으로 이를 줄이지만, 완전히 없애지는 못합니다.\n가드레일은 위험을 “줄이는” 장치이지 “보장”이 아닙니다. 이중 잠금·RiskLimits·allowlist·사람 확인· 서킷브레이커는 실수와 오용을 어렵게 만들 뿐, 버그·오설정·예기치 못한 경로로 잘못된 주문이 나갈 가능성을 0으로 만들지는 못합니다.\n실주문은 되돌릴 수 없습니다. 접수·체결된 주문은 취소 전까지 유효하고 손익은 즉시 실현됩니다.\n원격 노출은 운영자 책임. 서버를 네트워크에 열면(ChatGPT 등) 돈이 오가는 엔드포인트가 노출됩니다 – TLS·인증·접근 통제는 서버를 띄운 사람의 책임입니다.\n\n책임 소재. 이 소프트웨어는 비공식 오픈소스이며 “있는 그대로(AS-IS)” 무보증으로 제공됩니다(MIT 라이선스). 이 서버의 사용(에이전트가 대신 낸 주문을 포함한 실주문·조회)으로 발생한 모든 금전적 손실· 주문 오류·데이터 오류·오작동에 대한 책임은 전적으로 계좌 보유자 본인에게 있으며, 제작자는 어떠한 책임도 지지 않습니다. 에이전트가 사용자를 대신해 낸 주문도 사용자가 낸 주문으로 간주됩니다.\n실거래 전 반드시 모의투자(paper)로 충분히 연습하고, 실전은 소액·좁은 allowlist·낮은 한도로 시작하세요.",
+    "crumbs": [
+      "명령줄·에이전트",
+      "<span class='chapter-number'>22</span>  <span class='chapter-title'>MCP 서버</span>"
+    ]
+  },
+  {
+    "objectID": "realtime.html",
+    "href": "realtime.html",
+    "title": "23  실시간 (WebSocket)",
+    "section": "",
+    "text": "23.1 기본 사용 (동기)\nsubscribe는 start 전에 불러도 되고(연결 후 자동 전송), 후에 불러도 됩니다. 수신 메시지는 등록한 콜백과 stream() 이터레이터 양쪽으로 전달됩니다. with kis.realtime() as realtime:로 쓰면 블록을 벗어날 때 자동으로 stop()됩니다.\n각 메시지는 RealtimeMessage(tr_id, tr_key, data)이고, data는 그 TR의 결과 엔티티(파서가 있으면) 또는 원시 필드 리스트입니다. 값을 꺼낼 땐 엔티티 종류로 좁혀 씁니다:",
+    "crumbs": [
+      "참고",
+      "<span class='chapter-number'>23</span>  <span class='chapter-title'>실시간 (WebSocket)</span>"
+    ]
+  },
+  {
+    "objectID": "realtime.html#기본-사용-동기",
+    "href": "realtime.html#기본-사용-동기",
+    "title": "23  실시간 (WebSocket)",
+    "section": "",
+    "text": "realtime = kis.realtime()                           # /oauth2/Approval 로 접속키 발급\n\nrealtime.subscribe(\"H0STCNT0\", \"005930\", on=print)  # 삼성전자 실시간 체결(콜백)\nrealtime.start()                                    # 백그라운드 스레드에서 수신 시작\n\nfor tick in realtime.stream():                      # 또는 이터레이터로\n    print(tick.tr_id, tick.data.current_price, tick.data.trade_volume)\n\nrealtime.stop()                                     # 종료 (with 문도 가능)\n\n\nfrom kis_trader.realtime.messages import StockTick\n\ndef on_tick(msg):\n    tick = msg.data\n    if isinstance(tick, StockTick):\n        print(tick.symbol, tick.current_price, tick.change_percent)\n\nrealtime.subscribe(\"H0STCNT0\", \"005930\", on=on_tick)",
+    "crumbs": [
+      "참고",
+      "<span class='chapter-number'>23</span>  <span class='chapter-title'>실시간 (WebSocket)</span>"
+    ]
+  },
+  {
+    "objectID": "realtime.html#타입드-구독-권장",
+    "href": "realtime.html#타입드-구독-권장",
+    "title": "23  실시간 (WebSocket)",
+    "section": "23.2 타입드 구독 (권장)",
+    "text": "23.2 타입드 구독 (권장)\ntr_id를 외우는 대신 자산군·거래소·세션을 메서드로 고르는 타입드 표면을 권장합니다. realtime.domestic에서 시작해 종목/세션을 좁히면, 그 계약 하나만 소비하고 결과 타입이 정해진 RealtimeSubscription[T]를 돌려줍니다. 콜백에 넘길 타입이나 반환 구독의 원소 타입은 from kis_trader.realtime import StockTick, StockOrderBook, FuturesTick, OptionTick, DerivativeOrderBook, StockExecutionNotice, DerivativeExecutionNotice로 가져옵니다.\nrealtime = kis.realtime()\nrealtime.start()\n\nsub = realtime.domestic.stock(\"005930\").trades()   # RealtimeSubscription[StockTick]\nfor tick in sub:                                    # 이 계약만 흘러옵니다\n    print(tick.symbol, tick.current_price, tick.trade_volume)\n구독 표면은 다음과 같습니다.\n\n국내주식 — realtime.domestic.stock(\"005930\")에서 .trades(venue=\"KRX\") / .order_book(venue=\"KRX\"). venue는 KRX·NXT·unified(통합). 각각 RealtimeSubscription[StockTick] / RealtimeSubscription[StockOrderBook].\n선물 — realtime.domestic.futures(\"101W09\", kind=\"index\")에서 .trades() / .order_book(). kind는 index·commodity·stock·night. 체결은 RealtimeSubscription[FuturesTick], 호가는 RealtimeSubscription[DerivativeOrderBook].\n옵션 — realtime.domestic.option(\"201W09\", kind=\"index\")에서 .trades() / .order_book(). kind는 index·stock·night. 체결은 RealtimeSubscription[OptionTick], 호가는 RealtimeSubscription[DerivativeOrderBook].\n체결통보 — realtime.domestic.execution_notices.stock(hts_id)는 RealtimeSubscription[StockExecutionNotice], .derivative(hts_id, session=\"regular\")는 RealtimeSubscription[DerivativeExecutionNotice]. session은 regular·night_futures·night_option. 계약이 아니라 HTS ID 단위입니다.\n\n소비는 세 가지 중 하나로 합니다. 이터레이터, 컨텍스트 매니저, 콜백 모두 같은 구독을 다룹니다.\n# 1) 이터레이터\nsub = realtime.domestic.futures(\"101W09\", kind=\"index\").trades()\nfor tick in sub:\n    print(tick.current_price)\n\n# 2) 컨텍스트 매니저 -- 블록을 벗어나면 자동 해제\nwith realtime.domestic.stock(\"005930\").order_book(venue=\"NXT\") as sub:\n    for book in sub:\n        print(book.best_ask, book.best_bid)\n\n# 3) 콜백 -- on= 으로 넘기면 수신 스레드에서 호출됩니다\ndef on_notice(notice):\n    print(notice.order_no, notice.executed_qty)\n\nrealtime.domestic.execution_notices.stock(\"myhtsid\", on=on_notice)\n필요하면 sub.close()로 개별 구독만 해제합니다(다른 구독·연결은 유지). 같은 계약에 여러 구독이 붙어 있으면 마지막 하나가 닫힐 때 실제 해제가 나갑니다.\nsub = realtime.domestic.stock(\"005930\").trades()\n...\nsub.close()\n아래 원시 subscribe/stream 표면은 그대로 쓸 수 있는 탈출구입니다. 타입드 표면이 덮지 않는 TR을 직접 등록하거나, 여러 TR을 한 스트림으로 합쳐 받을 때 씁니다.",
+    "crumbs": [
+      "참고",
+      "<span class='chapter-number'>23</span>  <span class='chapter-title'>실시간 (WebSocket)</span>"
+    ]
+  },
+  {
+    "objectID": "realtime.html#구독-대상-tr-id",
+    "href": "realtime.html#구독-대상-tr-id",
+    "title": "23  실시간 (WebSocket)",
+    "section": "23.3 구독 대상 (TR ID)",
+    "text": "23.3 구독 대상 (TR ID)\ntr_id는 KIS 실시간 거래 코드, tr_key는 종목번호(6자리)·심볼·HTS ID입니다. 자주 쓰는 것:\n\n\n\nTR ID\n뜻\ntr_key\n\n\n\n\nH0STCNT0\n국내주식 체결가 (KRX)\n종목번호\n\n\nH0STASP0\n국내주식 호가 (KRX)\n종목번호\n\n\nH0STANC0\n국내주식 예상체결 (KRX)\n종목번호\n\n\nH0UPCNT0·H0UPPGM0\n국내지수 체결·프로그램매매\n업종코드\n\n\nHDFSCNT0·HDFSASP0\n해외주식 지연체결가·호가\n심볼\n\n\nH0STCNI0\n국내주식 체결통보 (암호화)\nHTS ID\n\n\n\n전 자산군(국내주식·지수·ELW·파생·해외·채권) 실시간 TR이 등록돼 있습니다. NXT/통합 시장은 H0NX…/H0UN… 접두어입니다.\n\n\n\n\n\n\n노트\n\n\n\n체결통보(암호화) — H0STCNI0 같은 …CNI0/통보 계열은 AES-CBC로 암호화되어 옵니다. 접속키 발급 응답의 키/IV로 자동 복호화되므로 사용법은 동일합니다(그래서 cryptography가 필요).",
+    "crumbs": [
+      "참고",
+      "<span class='chapter-number'>23</span>  <span class='chapter-title'>실시간 (WebSocket)</span>"
+    ]
+  },
+  {
+    "objectID": "realtime.html#async-앱에-붙이기-fastapi-등",
+    "href": "realtime.html#async-앱에-붙이기-fastapi-등",
+    "title": "23  실시간 (WebSocket)",
+    "section": "23.4 async 앱에 붙이기 (FastAPI 등)",
+    "text": "23.4 async 앱에 붙이기 (FastAPI 등)\nasync 서버는 동기 래퍼 대신 코어를 직접 씁니다:\nfrom kis_trader.realtime import RealtimeConnection, fetch_approval_key, websocket_url\n\napproval = fetch_approval_key(app_key, app_secret, \"real\")\nasync with RealtimeConnection(approval, websocket_url(\"real\")) as conn:\n    await conn.subscribe(\"H0STCNT0\", \"005930\")\n    async for msg in conn:            # 브라우저로 relay 등\n        ...",
+    "crumbs": [
+      "참고",
+      "<span class='chapter-number'>23</span>  <span class='chapter-title'>실시간 (WebSocket)</span>"
+    ]
+  },
+  {
+    "objectID": "realtime.html#알아둘-것",
+    "href": "realtime.html#알아둘-것",
+    "title": "23  실시간 (WebSocket)",
+    "section": "23.5 알아둘 것",
+    "text": "23.5 알아둘 것\n\n등록 상한: 접속키 하나당 실시간 등록 41건. 초과 시 KISUsageError.\n끊김 복원: 연결이 끊기면 자동 재연결 + 기존 구독 재등록(백오프 – 재시도 간격을 점점 늘려 다시 붙음). 깨진 프레임은 스트림을 죽이지 않고 드롭됩니다(로그로 남김).\n모의투자: 실시간 일부는 모의투자 환경에서 지원되지 않을 수 있습니다.",
+    "crumbs": [
+      "참고",
+      "<span class='chapter-number'>23</span>  <span class='chapter-title'>실시간 (WebSocket)</span>"
+    ]
+  },
+  {
+    "objectID": "limits.html",
+    "href": "limits.html",
+    "title": "24  한계·미구현",
+    "section": "",
+    "text": "24.1 요청 속도 제한 (throttle)\nKIS는 앱키 단위로 초당 요청 수를 제한합니다(공식: 실전 18/초, 모의 1/초). kis-trader는 기본으로 스스로 속도를 제한해 이 한도 아래로 요청을 흘립니다 — 여유를 둬 실전 15/초, 모의 1/초입니다.",
+    "crumbs": [
+      "참고",
+      "<span class='chapter-number'>24</span>  <span class='chapter-title'>한계·미구현</span>"
+    ]
+  },
+  {
+    "objectID": "limits.html#요청-속도-제한-throttle",
+    "href": "limits.html#요청-속도-제한-throttle",
+    "title": "24  한계·미구현",
+    "section": "",
+    "text": "필요하면 세션 생성 시 KISClient(..., requests_per_second=…) 로 조정하거나 throttle=False 로 끌 수 있습니다 (끄면 한도 관리는 호출자 책임).\n한도는 앱키 단위로 합산됩니다. 같은 앱키를 다른 프로세스·도구가 동시에 쓰면 이 클라이언트가 아무리 느리게 보내도 합산치가 한도를 넘어 HTTP 500 으로 떨어질 수 있습니다. 500이 뜨면 같은 앱키를 쓰는 다른 실행이 없는지 먼저 확인하세요.",
+    "crumbs": [
+      "참고",
+      "<span class='chapter-number'>24</span>  <span class='chapter-title'>한계·미구현</span>"
+    ]
+  }
+]
