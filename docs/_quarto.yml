@@ -11,6 +11,7 @@ book:
   subtitle: '한국투자증권 KIS Open API "비공식" 파이썬 클라이언트'
   favicon: favicon.svg
   repo-url: "https://github.com/seokhoonj/kis-trader"
+  repo-subdir: docs   # the Quarto project lives in docs/, so source links need the docs/ prefix
   repo-actions: [source]
   search: true
   sidebar:
