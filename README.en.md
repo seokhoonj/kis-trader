@@ -7,12 +7,13 @@
 
 [한국어](README.md) | **English**
 
-An unofficial Python client for the Korea Investment & Securities (KIS) **Open API**.
+An unofficial Python client for the Korea Investment & Securities (KIS) **Open API** — wrapped in a clean, typed API.
 
-Domestic and overseas stocks and indices, ETFs and ETNs, ELWs, futures and options, and bonds —
-their quotes, financials and flows, account balances and profit, rankings and conditional
-screens, market data and calendars, retirement pensions, and buy/sell/modify/cancel orders. Live
-quotes and execution notices (WebSocket) and a terminal command `kis` come with it.
+- **Broad coverage** — domestic and overseas stocks, indices, ETFs/ETNs, ELWs, futures/options, and bonds: quotes, financials and flows, account balances and P&L, rankings and conditional screens, market data and calendars, retirement pensions.
+- **Orders** — buy/sell/modify/cancel, plus credit, reserved, and TWAP-split orders.
+- **Safety core** — an idempotent order store (dedup, no double orders), pre-trade risk limits (fat-finger guard), and reconcile (re-check instead of resend) are on by default; credit trading blocked by default.
+- **Real-time** — WebSocket subscriptions for quotes, order books, and execution notices.
+- **Three interfaces** — a Python API, the `kis` CLI, and an MCP server / skills for AI agents.
 
 ## 1. Install
 
