@@ -2115,7 +2115,7 @@ def test_order_bond_buy_execute_routes_to_bond_handle():
     kis = StubKis(account="12345678-29", environment="real")
     args = _args(["--profile", "irp", "order", "buy", "KR6449111CB8", "100",
                   "--asset", "bond", "--limit-price", "10125",
-                  "--execute", "real", "--yes", "--confirm-account", "1729"])
+                  "--execute", "real", "--yes", "--confirm-account", "7829"])
     assert order.cmd_buy(kis, args, is_tty=False) == "REPORT"
     assert kis.log == [("bond_buy", "KR6449111CB8", 100, "10125")]
 
@@ -2125,7 +2125,7 @@ def test_order_bond_sell_execute_forwards_lot():
     args = _args(["--profile", "irp", "order", "sell", "KR6449111CB8", "100",
                   "--asset", "bond", "--limit-price", "10130",
                   "--buy-date", "20260814", "--buy-seq", "1",
-                  "--execute", "real", "--yes", "--confirm-account", "1729"])
+                  "--execute", "real", "--yes", "--confirm-account", "7829"])
     assert order.cmd_sell(kis, args, is_tty=False) == "REPORT"
     assert kis.log == [("bond_sell", "KR6449111CB8", 100, "10130", "20260814", "1")]
 
