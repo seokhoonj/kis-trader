@@ -4,7 +4,7 @@
   "plugins": [
     {
       "name": "kis-trader",
-      "version": "0.0.0",
+      "version": "0.2.0",
       "description": "Playbook skill for driving the kis_trader KIS Open API client under its safety-kernel discipline.",
       "source": { "source": "local", "path": "./plugins/kis-trader" },
       "policy": { "installation": "AVAILABLE", "authentication": "ON_INSTALL" },
