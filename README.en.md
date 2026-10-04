@@ -21,9 +21,9 @@ An unofficial Python client for the Korea Investment & Securities (KIS) **Open A
 pip install kis-trader
 ```
 
-Requires Python 3.11+. For a development install from source, use `uv pip install -e .`.
+Requires Python 3.11+.
 
-To also run the MCP server that connects to AI agents (Claude Desktop, etc.), add the optional extra:
+To use it as an MCP server from an AI agent such as Claude Desktop, install the optional `mcp` extra:
 
 ```bash
 pip install 'kis-trader[mcp]'
