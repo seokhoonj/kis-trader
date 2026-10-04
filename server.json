@@ -1,0 +1,71 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.seokhoonj/kis-trader",
+  "title": "KIS Trader",
+  "description": "Read-first MCP server for the Korea Investment & Securities (KIS) Open API; paper by default.",
+  "version": "0.2.0",
+  "websiteUrl": "https://seokhoonj.github.io/kis-trader/",
+  "repository": {
+    "url": "https://github.com/seokhoonj/kis-trader",
+    "source": "github",
+    "id": "1332787823"
+  },
+  "packages": [
+    {
+      "registryType": "pypi",
+      "registryBaseUrl": "https://pypi.org",
+      "identifier": "kis-trader",
+      "version": "0.2.0",
+      "runtimeHint": "uvx",
+      "runtimeArguments": [
+        {
+          "type": "named",
+          "name": "--from",
+          "value": "kis-trader[mcp]",
+          "description": "Install kis-trader with the optional MCP extra so the kis-mcp console script is available (full launch: uvx --from \"kis-trader[mcp]\" kis-mcp)."
+        }
+      ],
+      "transport": {
+        "type": "stdio"
+      },
+      "environmentVariables": [
+        {
+          "name": "KIS_APP_KEY",
+          "description": "KIS Open API app key. Alternatively set KIS_MCP_PROFILE to a saved profile that already holds the credentials.",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "KIS_APP_SECRET",
+          "description": "KIS Open API app secret.",
+          "isRequired": true,
+          "isSecret": true
+        },
+        {
+          "name": "KIS_ACCOUNT",
+          "description": "Account number in CANO-ACNT form, e.g. 12345678-01.",
+          "isRequired": true,
+          "placeholder": "12345678-01"
+        },
+        {
+          "name": "KIS_MCP_PROFILE",
+          "description": "Name of a saved kis-trader profile to load credentials from, instead of KIS_APP_KEY/KIS_APP_SECRET/KIS_ACCOUNT."
+        },
+        {
+          "name": "KIS_MCP_ENVIRONMENT",
+          "description": "Trading environment. 'paper' uses the KIS simulation server; 'real' routes to the live server and additionally requires the real-order gates below.",
+          "default": "paper",
+          "choices": ["paper", "real"]
+        },
+        {
+          "name": "KIS_MCP_ALLOW_REAL",
+          "description": "First gate for live orders: set to '1' to permit real-order placement when KIS_MCP_ENVIRONMENT=real. Unset keeps live orders blocked."
+        },
+        {
+          "name": "KIS_MCP_REAL_CONFIRM",
+          "description": "Second gate for live orders: an explicit confirmation phrase required alongside KIS_MCP_ALLOW_REAL before a real order is transmitted."
+        }
+      ]
+    }
+  ]
+}

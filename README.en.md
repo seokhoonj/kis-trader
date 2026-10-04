@@ -23,6 +23,12 @@ pip install kis-trader
 
 Requires Python 3.11+. For a development install from source, use `uv pip install -e .`.
 
+To also run the MCP server that connects to AI agents (Claude Desktop, etc.), add the optional extra:
+
+```bash
+pip install 'kis-trader[mcp]'
+```
+
 ## 2. Quickstart
 
 ```python

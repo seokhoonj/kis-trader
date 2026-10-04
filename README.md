@@ -23,6 +23,12 @@ pip install kis-trader
 
 파이썬 3.11 이상이 필요합니다. 소스에서 개발 설치하려면 `uv pip install -e .` 를 쓰세요.
 
+AI 에이전트(Claude Desktop 등)에 연결하는 MCP 서버까지 쓰려면 선택 설치를 더합니다:
+
+```bash
+pip install 'kis-trader[mcp]'
+```
+
 ## 2. 빠른 시작
 
 ```python
@@ -117,3 +123,6 @@ MCP 호환 에이전트(Claude Desktop 등)에는 `kis_trader.mcp` 서버(`pip i
 ## 8. 라이선스
 
 [MIT](LICENSE)
+
+<!-- mcp-name: io.github.seokhoonj/kis-trader -->
+
