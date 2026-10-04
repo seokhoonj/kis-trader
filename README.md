@@ -7,12 +7,12 @@
 
 **한국어** | [English](README.en.md)
 
-한국투자증권(한투) **KIS Open API**의 비공식 파이썬 클라이언트 — 타입이 붙은 깔끔한 API로 감쌌습니다.
+한국투자증권(한투) **KIS Open API**를 타입을 갖춘 깔끔한 파이썬 API로 감싼 비공식 클라이언트입니다.
 
 - **넓은 범위** — 국내·해외 주식·지수·ETF·ETN·ELW·선물옵션·채권의 시세·재무·수급, 계좌 잔고·손익, 순위·조건검색, 시장·일정, 퇴직연금.
-- **주문** — 매수·매도·정정·취소에 신용·예약·TWAP 분할까지.
-- **안전 코어** — 멱등 주문 저장(중복 차단)·전송 전 리스크 한도(fat-finger 방지)·reconcile(재전송 대신 재확인)이 기본 동작, 신용거래는 기본 차단.
-- **실시간** — 시세·호가·체결통보 WebSocket 구독.
+- **주문** — 매수·매도·정정·취소, 신용·예약·TWAP 분할.
+- **안전 코어** — 같은 주문의 중복 전송 차단, 전송 전 리스크 한도로 주문 실수 방지, 타임아웃이 나면 재전송이 아니라 reconcile로 재확인 — 모두 기본으로 켜져 있고, 신용거래는 기본 차단.
+- **실시간** — 시세·호가·체결통보를 WebSocket으로 수신.
 - **세 가지 인터페이스** — 파이썬 API · 터미널 명령 `kis` · AI 에이전트용 MCP 서버/스킬.
 
 ## 1. 설치
@@ -41,8 +41,8 @@ kis.overseas.stock("AAPL").quote()                   # 애플 (거래소 자동 
 kis.domestic.ranking.by_change(direction="gainers")  # 오늘 상승률 순위
 ```
 
-앱키와 계좌는 환경변수나 `KISConfig(...).save()` 로 한 번 저장해 두면 이후 인자 없이 열 수
-있습니다. 실전 계좌와 모의투자 계좌를 모두 지원하므로, 먼저 모의투자로 주문 흐름을 확인한 뒤
+앱키와 계좌는 환경변수나 `KISConfig(...).save()` 로 한 번 저장해 두면, 이후 `KISClient()` 를 인자
+없이 열 수 있습니다. 실전 계좌와 모의투자 계좌를 모두 지원하므로, 먼저 모의투자로 주문 흐름을 확인한 뒤
 실전으로 옮겨도 됩니다. 발급과 저장은 [자격증명과 프로필](https://seokhoonj.github.io/kis-trader/configuration.html)
 문서를 참고하세요.
 
@@ -57,7 +57,7 @@ kis.account    # 계좌 조회 (상품코드 자동 분기; IRP는 .pension 퇴�
 kis.orders     # 접수한 주문의 조회(미체결)·확인·정정·취소
 ```
 
-종목과 계약은 핸들로 잡아 시세 조회부터 주문까지 이어갑니다.
+종목과 계약은 핸들로 잡으면 시세 조회부터 주문까지 그대로 이어집니다.
 
 ```python
 kis.domestic.stock("005930")     # 국내 주식 -- 현재가·차트·호가·매수·매도
@@ -74,13 +74,13 @@ kis.orders.reconcile(r.client_order_id)   # 실제 접수 여부를 증권사에
 kis.orders.cancel(r.client_order_id)      # 취소
 ```
 
-주문은 되돌릴 수 없습니다. 중복 주문을 막는 안전장치가 기본으로 동작하고(신용거래는 기본
-차단), 자세한 규칙은 [주문 문서](https://seokhoonj.github.io/kis-trader/orders.html)에 있습니다.
+주문은 되돌릴 수 없습니다. 중복 주문을 막는 안전장치가 기본으로 동작합니다(신용거래는 기본
+차단). 자세한 규칙은 [주문 문서](https://seokhoonj.github.io/kis-trader/orders.html)에 있습니다.
 
 ## 5. 명령줄 (`kis`)
 
-설치하면 터미널 명령 `kis` 가 함께 깔립니다. 파이썬을 짜지 않고도 조회와 주문을 할 수 있습니다.
-주문은 `--execute` 를 붙이기 전까지 실제로 전송되지 않습니다(dry-run).
+설치하면 `kis` 터미널 명령이 함께 설치됩니다. 파이썬 코드를 쓰지 않고도 터미널에서 바로 조회하고
+주문할 수 있습니다. 주문은 `--execute` 를 붙이기 전까지는 실제로 전송되지 않습니다(기본이 dry-run).
 
 ```bash
 kis stock quote 005930
@@ -100,8 +100,8 @@ Claude Code·Codex 같은 AI 도구로 계좌를 다루려면 `plugins/kis-trade
 [Claude 스킬](https://seokhoonj.github.io/kis-trader/claude-skill.html) ·
 [Codex 스킬](https://seokhoonj.github.io/kis-trader/codex-skill.html) 문서를 참고하세요.
 
-MCP 호환 에이전트(Claude Desktop 등)에는 `kis_trader.mcp` 서버(`pip install 'kis-trader[mcp]'` 후
-`kis-mcp`)로 계좌 조회·주문 미리보기 도구를 열 수 있습니다(실주문 전송은 노출하지 않음).
+MCP 호환 에이전트(Claude Desktop 등)에서는 `kis_trader.mcp` 서버(`pip install 'kis-trader[mcp]'` 후
+`kis-mcp`)로 계좌 조회·주문 미리보기 도구를 쓸 수 있습니다(실주문 전송은 노출하지 않습니다).
 [MCP 서버](https://seokhoonj.github.io/kis-trader/mcp.html) 문서를 참고하세요.
 
 ## 7. 문서
@@ -118,7 +118,7 @@ MCP 호환 에이전트(Claude Desktop 등)에는 `kis_trader.mcp` 서버(`pip i
 | **명령줄·에이전트** | [Command Line](https://seokhoonj.github.io/kis-trader/cli.html) · [Claude Skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex Skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) · [MCP Server](https://seokhoonj.github.io/kis-trader/mcp.html) |
 | **참고** | [실시간(WebSocket)](https://seokhoonj.github.io/kis-trader/realtime.html) · [한계·미구현](https://seokhoonj.github.io/kis-trader/limits.html) |
 
-각 메서드의 인자와 반환값은 `help(그_메서드)` 로 바로 볼 수 있습니다.
+각 메서드의 인자와 반환값은 파이썬 `help()` 로 바로 확인할 수 있습니다 (예: `help(kis.domestic.stock)`).
 
 ## 8. 라이선스
 
