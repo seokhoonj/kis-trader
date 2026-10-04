@@ -358,7 +358,7 @@ kis.orders
 └── modify(client_order_id, ...)  # 가격/수량 정정
 ```
 
-## `kis.realtime()` — 실시간 웹소켓(타입드 구독)
+## `kis.realtime()` — 실시간 웹소켓(타입 지정 구독)
 
 ```text
 kis.realtime()

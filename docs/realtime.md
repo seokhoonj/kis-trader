@@ -36,9 +36,9 @@ def on_tick(msg):
 realtime.subscribe("H0STCNT0", "005930", on=on_tick)
 ```
 
-## 타입드 구독 (권장)
+## 타입 지정 구독 (권장)
 
-`tr_id`를 외우는 대신 자산군·거래소·세션을 메서드로 고르는 타입드 표면을 권장합니다.
+`tr_id`를 외우는 대신 자산군·거래소·세션을 메서드로 고르는 타입 지정 표면을 권장합니다.
 `realtime.domestic`에서 시작해 종목/세션을 좁히면, 그 계약 하나만 소비하고 결과 타입이
 정해진 `RealtimeSubscription[T]`를 돌려줍니다. 콜백에 넘길 타입이나 반환 구독의 원소 타입은
 `from kis_trader.realtime import StockTick, StockOrderBook, FuturesTick, OptionTick,
@@ -98,7 +98,7 @@ sub = realtime.domestic.stock("005930").trades()
 sub.close()
 ```
 
-아래 원시 `subscribe`/`stream` 표면은 그대로 쓸 수 있는 탈출구입니다. 타입드 표면이 덮지 않는
+아래 원시 `subscribe`/`stream` 표면은 그대로 쓸 수 있는 탈출구입니다. 타입 지정 표면이 덮지 않는
 TR을 직접 등록하거나, 여러 TR을 한 스트림으로 합쳐 받을 때 씁니다.
 
 ## 구독 대상 (TR ID)
