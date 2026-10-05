@@ -41,8 +41,9 @@ kis.overseas.stock("AAPL").quote()                   # Apple (exchange resolved 
 kis.domestic.ranking.by_change(direction="gainers")  # today's top gainers
 ```
 
-Save the app key and account once as environment variables or with `KISConfig(...).save()`, and
-later calls open without arguments. Both live and paper-trading accounts are supported, so you can
+Run `kis config` in the terminal to enter the app key and account interactively and store them, or
+save them as environment variables or with `KISConfig(...).save()`. Once saved, later calls open
+without arguments. Both live and paper-trading accounts are supported, so you can
 rehearse the order flow on paper before switching to live. For issuing and storing credentials, see
 the [Credentials and profiles](https://seokhoonj.github.io/kis-trader/configuration.html) chapter.
 
@@ -84,6 +85,7 @@ Installing also adds the terminal command `kis`, so you can query and order with
 Python. An order is not sent until you add `--execute` — until then it is a dry run.
 
 ```bash
+kis config                      # store credentials in a profile (interactive)
 kis stock quote 005930
 kis search 삼성전자
 kis ranking change --direction gainers

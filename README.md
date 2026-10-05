@@ -41,8 +41,9 @@ kis.overseas.stock("AAPL").quote()                   # 애플 (거래소 자동 
 kis.domestic.ranking.by_change(direction="gainers")  # 오늘 상승률 순위
 ```
 
-앱키와 계좌는 환경변수나 `KISConfig(...).save()` 로 한 번 저장해 두면, 이후 `KISClient()` 를 인자
-없이 열 수 있습니다. 실전 계좌와 모의투자 계좌를 모두 지원하므로, 먼저 모의투자로 주문 흐름을 확인한 뒤
+터미널에서 `kis config` 를 실행하면 앱키와 계좌를 대화형으로 입력받아 저장합니다. 환경변수나
+`KISConfig(...).save()` 로 저장할 수도 있으며, 한 번 저장해 두면 이후 `KISClient()` 를 인자 없이
+열 수 있습니다. 실전 계좌와 모의투자 계좌를 모두 지원하므로, 먼저 모의투자로 주문 흐름을 확인한 뒤
 실전으로 옮겨도 됩니다. 발급과 저장은 [자격증명과 프로필](https://seokhoonj.github.io/kis-trader/configuration.html)
 문서를 참고하세요.
 
@@ -83,6 +84,7 @@ kis.orders.cancel(r.client_order_id)      # 취소
 주문할 수 있습니다. 주문은 `--execute` 를 붙이기 전까지는 실제로 전송되지 않습니다(기본이 dry-run).
 
 ```bash
+kis config                      # 자격증명을 대화형으로 입력받아 프로필에 저장
 kis stock quote 005930
 kis search 삼성전자
 kis ranking change --direction gainers
