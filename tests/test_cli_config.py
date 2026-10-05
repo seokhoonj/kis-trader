@@ -99,28 +99,56 @@ def _seed(tmp_path, monkeypatch, profile="paper", app_key="old_k", app_secret="o
                           "--account", "50123456-01"]) == 0
 
 
-def test_config_aborts_when_overwrite_declined(tmp_path, monkeypatch):
-    _seed(tmp_path, monkeypatch, app_key="old_k")
+@pytest.mark.parametrize("answer,code,expected", [
+    # 거부 -> 기존 프로필 통째로 보존.
+    ("n", 3, {"app_key": "old_k", "app_secret": "old_s",
+              "environment": "paper", "account": "50123456-01"}),
+    # 승인 -> 기존 프로필 통째로 교체(save 는 섹션 전체를 갈아끼운다).
+    ("y", 0, {"app_key": "new_k", "app_secret": "new_s",
+              "environment": "paper", "account": "87654321-02"}),
+])
+def test_config_overwrite_confirmation_controls_the_whole_profile(
+        tmp_path, monkeypatch, answer, code, expected):
+    _seed(tmp_path, monkeypatch, app_key="old_k", app_secret="old_s")
     _feed_secrets(monkeypatch, "new_k", "new_s")
-    _answer(monkeypatch, {"덮어": "n"})
+    _answer(monkeypatch, {"덮어": answer})
 
-    code = cli_main.main(["config", "--profile", "paper", "--environment", "paper",
-                          "--account", "50123456-01"])
+    result = cli_main.main(["config", "--profile", "paper", "--environment", "paper",
+                            "--account", "87654321-02"])
+
+    assert result == code
+    assert _creds(tmp_path)["paper"] == expected
+
+
+def test_config_rejects_invalid_prompted_environment_before_reading_secrets(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    _answer(monkeypatch, {"프로필": "main", "환경": "production"})
+    monkeypatch.setattr("kis_trader.cli.commands.credentials.getpass",
+                        lambda prompt="": pytest.fail("invalid environment 는 시크릿 전에 거부돼야 한다"))
+
+    code = cli_main.main(["config"])
 
     assert code == 3  # CliAborted
-    assert _creds(tmp_path)["paper"]["app_key"] == "old_k"  # 변경 없음
+    assert not (tmp_path / "config" / "kis-trader" / "credentials.json").exists()
 
 
-def test_config_overwrites_when_confirmed(tmp_path, monkeypatch):
-    _seed(tmp_path, monkeypatch, app_key="old_k")
-    _feed_secrets(monkeypatch, "new_k", "new_s")
-    _answer(monkeypatch, {"덮어": "y"})
+def test_config_never_echoes_secret_even_when_save_fails(tmp_path, monkeypatch, capsys):
+    from kis_trader.errors import KISError
+
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    _feed_secrets(monkeypatch, "SECRETKEY", "SECRETVAL")
+
+    def _fail_save(self):
+        raise KISError("자격증명 쓰기 실패")
+    monkeypatch.setattr("kis_trader.cli.commands.credentials.KISConfig.save", _fail_save)
 
     code = cli_main.main(["config", "--profile", "paper", "--environment", "paper",
                           "--account", "50123456-01"])
 
-    assert code == 0
-    assert _creds(tmp_path)["paper"]["app_key"] == "new_k"
+    out, err = capsys.readouterr()
+    assert code != 0
+    assert "SECRETKEY" not in out and "SECRETKEY" not in err
+    assert "SECRETVAL" not in out and "SECRETVAL" not in err
 
 
 def test_config_real_environment_requires_affirmation(tmp_path, monkeypatch):

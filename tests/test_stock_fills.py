@@ -106,21 +106,25 @@ def test_fills_paper_uses_demo_tr():
     assert fake.calls[0]["tr_id"] == "VTTC0081R"
 
 
-def test_fills_older_uses_before_tr_same_endpoint_and_params():
-    fake = FakeTransport(response=_resp(rows=[_row()]))
-    history = _fills(fake)(start="20230101", end="20230331", older=True)
-    assert isinstance(history, StockFillHistory)
-    call = fake.calls[0]
-    assert call["tr_id"] == "CTSC9215R"       # >3개월 이전
-    assert call["path"] == _FILLS_PATH         # 같은 엔드포인트
-    assert call["params"]["INQR_STRT_DT"] == "20230101"
-    assert call["params"]["INQR_END_DT"] == "20230331"
-    assert call["params"]["CCLD_DVSN"] == "00"
+def test_fills_older_changes_only_the_tr_id():
+    # 3개월 이전/이내는 같은 엔드포인트에서 tr_id 만 다르다 -- 경로·파라미터 전부 동일함을 못박는다.
+    recent = FakeTransport(response=_resp(rows=[_row()]))
+    older = FakeTransport(response=_resp(rows=[_row()]))
+    kwargs = {"start": "20230101", "end": "20230331", "side": "sell",
+              "symbol": "005930", "unfilled_only": True}
+    _fills(recent)(**kwargs)
+    _fills(older)(**kwargs, older_than_three_months=True)
+    recent_call, older_call = recent.calls[0], older.calls[0]
+    assert recent_call["tr_id"] == "TTTC0081R"
+    assert older_call["tr_id"] == "CTSC9215R"
+    assert older_call["path"] == recent_call["path"]
+    assert older_call["params"] == recent_call["params"]
 
 
 def test_fills_older_paper_uses_demo_before_tr():
     fake = FakeTransport(response=_resp(rows=[_row()]))
-    _fills(fake, environment="paper")(start="20230101", end="20230331", older=True)
+    _fills(fake, environment="paper")(start="20230101", end="20230331",
+                                      older_than_three_months=True)
     assert fake.calls[0]["tr_id"] == "VTSC9215R"
 
 

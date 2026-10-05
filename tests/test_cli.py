@@ -1412,16 +1412,17 @@ def test_account_fills_stock_older_forwards(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
     account.cmd_fills(object(), _args(
-        ["account", "fills", "--start", "20230101", "--end", "20230331", "--older"]))
-    assert log == [("stock_fills", "20230101", "20230331", {"older": True})]
+        ["account", "fills", "--start", "20230101", "--end", "20230331",
+         "--older-than-three-months"]))
+    assert log == [("stock_fills", "20230101", "20230331", {"older_than_three_months": True})]
 
 
 def test_account_fills_bond_rejects_older(monkeypatch):
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView([]))
-    with pytest.raises(CliConfigError, match="older"):
+    with pytest.raises(CliConfigError, match="older-than-three-months"):
         account.cmd_fills(object(), _args(
             ["account", "fills", "--asset", "bond", "--start", "20230101",
-             "--end", "20230331", "--older"]))
+             "--end", "20230331", "--older-than-three-months"]))
 
 
 def test_account_fills_rejects_overseas(monkeypatch):

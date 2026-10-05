@@ -92,30 +92,27 @@ def test_market_investor_flows_maps_signed_and_anchor_params():
 
 def test_market_investor_flows_types_all_participants_qty_and_amount():
     fake = FakeTransport(response=_resp([_flow_row()]))
-    f = _client(fake).domestic.market.investor_flows(market="KOSPI", as_of="20240510")[0]
+    flow = _client(fake).domestic.market.investor_flows(market="KOSPI", as_of="20240510")[0]
     # 기존 bare 수량 필드는 그대로(하위호환).
-    assert f.foreign_net == 1200000
-    assert f.individual_net == -500000
-    assert f.institutional_net == -700000
-    p = f.participants
-    # 수량 + 대금을 주체별로 타입화. 불규칙 suffix 포함.
-    assert p["foreign"].net_buy_volume == 1200000
-    assert p["foreign"].net_buy_amount == Decimal(123456)
-    assert p["foreign_registered"].net_buy_volume == 800000
-    assert p["foreign_registered"].net_buy_amount == Decimal(80000)       # frgn_reg_ntby_pbmn
-    assert p["foreign_unregistered"].net_buy_amount == Decimal(40000)     # frgn_nreg_ntby_pbmn
-    assert p["securities"].net_buy_volume == 100
-    assert p["securities"].net_buy_amount == Decimal(1100)
-    assert p["investment_trust"].net_buy_amount == Decimal(2200)
-    assert p["private_equity"].net_buy_volume == 300                        # pe_fund_ntby_vol
-    assert p["private_equity"].net_buy_amount == Decimal(3300)
-    assert p["fund"].net_buy_amount == Decimal(7700)
-    assert p["other"].net_buy_amount == Decimal(8800)
-    assert p["other_organization"].net_buy_volume == 900                    # etc_orgt_ntby_vol
-    assert p["other_corporation"].net_buy_volume == 1000                    # etc_corp_ntby_vol
-    assert p["other_corporation"].net_buy_amount == Decimal(11000)
-    # participants 와 bare 필드 일치.
-    assert p["foreign"].net_buy_volume == f.foreign_net
+    assert flow.foreign_net == 1200000
+    assert flow.individual_net == -500000
+    assert flow.institutional_net == -700000
+    # 15개 주체 전체를 (순매수 수량, 순매수 대금)으로 검증 -- 키 스왑/누락을 잡는다(불규칙 suffix 포함).
+    expected = {
+        "foreign": (1200000, "123456"), "foreign_registered": (800000, "80000"),
+        "foreign_unregistered": (400000, "40000"), "individual": (-500000, "-50000"),
+        "institutional": (-700000, "-70000"), "securities": (100, "1100"),
+        "investment_trust": (200, "2200"), "private_equity": (300, "3300"),
+        "bank": (400, "4400"), "insurance": (500, "5500"), "merchant_bank": (600, "6600"),
+        "fund": (700, "7700"), "other": (800, "8800"), "other_organization": (900, "9900"),
+        "other_corporation": (1000, "11000"),
+    }
+    participants = flow.participants
+    assert set(participants) == set(expected)
+    for subject, (volume, amount) in expected.items():
+        assert participants[subject].net_buy_volume == volume
+        assert participants[subject].net_buy_amount == Decimal(amount)
+    assert participants["foreign"].net_buy_volume == flow.foreign_net  # bare 필드와 같은 raw key
 
 
 def test_market_investor_flows_index_down_sign():

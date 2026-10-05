@@ -25,6 +25,7 @@ from .. import (
 )
 from ..errors import KISError
 from ..order import Right, Side
+from ..transport import Environment
 from .commands import account, credentials, market, order, stock
 from .context import account_suffix, build_client
 from .errors import CliAborted, CliConfigError, Translated, translate
@@ -48,7 +49,7 @@ def _add_venue(sub: argparse.ArgumentParser) -> None:
 
 
 def _add_order_gate(sub: argparse.ArgumentParser) -> None:
-    sub.add_argument("--execute", choices=["paper", "real"], default=None,
+    sub.add_argument("--execute", choices=get_args(Environment), default=None,
                      help="전송 권한 겸 환경 선언(프로필 환경과 일치해야 함). 없으면 dry-run")
     sub.add_argument("--yes", action="store_true", help="비대화형 전송 확인(대화형이면 프롬프트)")
     sub.add_argument("--confirm-account", dest="confirm_account", default=None,
@@ -119,7 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
     # --profile/--account 는 SUPPRESS -- 최상위 전역 플래그 값을 덮어쓰지 않아 명령 앞뒤 어디든 둘 수 있다.
     config_p.add_argument("--profile", default=argparse.SUPPRESS,
                           help="저장할 프로필의 자유 이름(소문자/숫자/밑줄; 생략 시 프롬프트, 기본 main)")
-    config_p.add_argument("--environment", choices=["paper", "real"], default=None,
+    config_p.add_argument("--environment", choices=get_args(Environment), default=None,
                           help="접속 환경(생략 시 프롬프트, 기본 paper). real 은 명시 확인 필요")
     config_p.add_argument("--account", default=argparse.SUPPRESS,
                           help="계좌번호 CANO-상품코드(생략 시 프롬프트; 빈 입력은 시세전용 프로필)")
@@ -187,7 +188,8 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "fills":
             sp.add_argument("--unfilled-only", dest="unfilled_only", action="store_true",
                             help="미체결만")
-            sp.add_argument("--older", dest="older", action="store_true",
+            sp.add_argument("--older-than-three-months", dest="older_than_three_months",
+                            action="store_true",
                             help="3개월 이전 체결내역(기본은 3개월 이내; 주식 전용)")
         if name == "reserved":
             sp.add_argument("--process", dest="process",
@@ -340,6 +342,9 @@ def main(argv: Sequence[str] | None = None) -> int:
             args.func(args)
     except KeyboardInterrupt:
         print("중단됨.", file=sys.stderr)
+        return 130
+    except EOFError:  # 비대화형/빈 stdin 에서 프롬프트(kis config) -- traceback 대신 깔끔히 종료
+        print("입력이 없어 취소되었습니다.", file=sys.stderr)
         return 130
     except (CliConfigError, CliAborted, KISError) as exc:
         translated = translate(exc)

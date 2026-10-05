@@ -527,12 +527,12 @@ def _parse_daily_profit(row: Mapping[str, Any]) -> DailyProfit:
 def fetch_stock_fills(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     start: str, end: str, side: SideFilter = "all", symbol: str | None = None,
-    unfilled_only: bool = False, older: bool = False,
+    unfilled_only: bool = False, older_than_three_months: bool = False,
 ) -> StockFillHistory:
     """국내주식 일별 주문·체결 내역(개별 행 + 기간 합계 요약). ``start``~``end`` (YYYYMMDD) 기간,
     ``side`` = ``"all"``/``"sell"``/``"buy"``, ``symbol`` 없으면 전체, ``unfilled_only`` 면 미체결만.
-    ``older`` 면 3개월 **이전** 내역(그 외에는 3개월 **이내**). 두 구간은 상호 배타라 한 콜로는
-    한쪽만 받는다(KIS 설계).
+    ``older_than_three_months`` 면 3개월 **이전** 내역(그 외에는 3개월 **이내**). 두 구간은 상호
+    배타라 한 콜로는 한쪽만 받는다(KIS 설계).
 
     output1 체결 행을 연속조회로 소진까지 모으고, 기간 합계(output2)는 첫 페이지에서 완결한다
     (기간 단위라 페이지 불변). ``GET .../domestic-stock/v1/trading/inquire-daily-ccld`` -- 3개월
@@ -553,7 +553,7 @@ def fetch_stock_fills(
         "INQR_DVSN": "00", "INQR_DVSN_1": "", "INQR_DVSN_3": "00",
         "EXCG_ID_DVSN_CD": "", "CTX_AREA_FK100": "", "CTX_AREA_NK100": "",
     }
-    tr_table = _STOCK_FILLS_OLDER_TR if older else _STOCK_FILLS_TR
+    tr_table = _STOCK_FILLS_OLDER_TR if older_than_three_months else _STOCK_FILLS_TR
     rows, summary = _fetch_paginated_rows_with_summary(
         transport, path=_STOCK_FILLS_PATH, tr_id=tr_table[environment],
         base_params=base_params, output_key="output1", max_pages=_MAX_STOCK_FILLS_PAGES,

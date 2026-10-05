@@ -11,13 +11,20 @@ from __future__ import annotations
 import argparse
 import os
 from getpass import getpass
-from typing import TYPE_CHECKING, cast
+from typing import cast, get_args
 
-from ...config import KISConfig, _config_dir_path, _read_existing
+from ...config import (
+    KISConfig,
+    _config_dir_path,
+    _read_existing,
+    _validate_account,
+    _validate_profile_name,
+)
+from ...transport import Environment
 from ..errors import CliAborted
 
-if TYPE_CHECKING:
-    from ...transport import Environment
+#: 유효 환경값 -- 패키지의 ``Environment`` Literal 에서 유도한다(소비자가 분류를 재기술하지 않는다).
+_ENVIRONMENTS = get_args(Environment)
 
 
 def _prompt(label: str, default: str) -> str:
@@ -33,6 +40,7 @@ def _confirm(question: str) -> bool:
 
 def cmd_config(args: argparse.Namespace) -> None:
     profile = getattr(args, "profile", None) or _prompt("프로필 이름", "main")
+    _validate_profile_name(profile)  # 시크릿을 받기 전에 형식을 거부(헛되이 입력시키지 않는다)
 
     # 덮어쓰기 가드: 같은 프로필이 이미 있으면(save 는 조용히 교체하므로) 시크릿을 받기 전에 확인한다.
     creds_path = _config_dir_path(None) / "credentials.json"
@@ -40,9 +48,9 @@ def cmd_config(args: argparse.Namespace) -> None:
             f"프로필 {profile!r} 가 이미 있습니다 ({creds_path}). 덮어쓸까요?"):
         raise CliAborted("취소 -- 저장하지 않았습니다.")
 
-    environment = args.environment or _prompt("환경 paper/real", "paper")
-    if environment not in ("paper", "real"):
-        raise CliAborted(f"환경은 paper 또는 real 이어야 합니다: {environment!r}")
+    environment = args.environment or _prompt(f"환경 {'/'.join(_ENVIRONMENTS)}", "paper")
+    if environment not in _ENVIRONMENTS:
+        raise CliAborted(f"환경은 {'/'.join(_ENVIRONMENTS)} 중 하나여야 합니다: {environment!r}")
     if environment == "real" and not _confirm("실전(real) 자격증명을 저장합니다. 계속할까요?"):
         raise CliAborted("취소 -- 저장하지 않았습니다.")
 
@@ -50,11 +58,13 @@ def cmd_config(args: argparse.Namespace) -> None:
     account = (account_flag if account_flag is not None
                else _prompt("계좌번호 CANO-상품코드 (없으면 Enter)", ""))
     account = account or None
+    if account is not None:
+        _validate_account(account)  # 시크릿을 받기 전에 형식을 거부
 
     app_key = getpass("APP KEY: ")
     app_secret = getpass("APP SECRET: ")
     path = KISConfig(profile=profile, app_key=app_key, app_secret=app_secret,
-                     account=account, environment=cast("Environment", environment)).save()
+                     account=account, environment=cast(Environment, environment)).save()
     if getattr(args, "set_default", False):
         KISConfig.set_default(profile)
 
