@@ -93,6 +93,8 @@ _INTEGRATED_MARGIN_TR = "TTTC0869R"  # 주식통합증거금 현황, 모의투�
 
 _STOCK_FILLS_PATH = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
 _STOCK_FILLS_TR = {"real": "TTTC0081R", "paper": "VTTC0081R"}  # 주식일별주문체결조회(3개월 이내)
+# 같은 엔드포인트의 3개월 이전 내역 -- tr_id 만 다르고 경로·파라미터·응답 스키마는 동일하다.
+_STOCK_FILLS_OLDER_TR = {"real": "CTSC9215R", "paper": "VTSC9215R"}  # 주식일별주문체결조회(3개월 이전)
 _MAX_STOCK_FILLS_PAGES = 200
 _STOCK_FILLS_SIDE = {"all": "00", "sell": "01", "buy": "02"}
 #: 미체결 주문 연속조회 페이지 상한(한 콜 최대 50건). 닿으면 fail-closed.
@@ -525,14 +527,17 @@ def _parse_daily_profit(row: Mapping[str, Any]) -> DailyProfit:
 def fetch_stock_fills(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     start: str, end: str, side: SideFilter = "all", symbol: str | None = None,
-    unfilled_only: bool = False,
+    unfilled_only: bool = False, older: bool = False,
 ) -> StockFillHistory:
     """국내주식 일별 주문·체결 내역(개별 행 + 기간 합계 요약). ``start``~``end`` (YYYYMMDD) 기간,
     ``side`` = ``"all"``/``"sell"``/``"buy"``, ``symbol`` 없으면 전체, ``unfilled_only`` 면 미체결만.
+    ``older`` 면 3개월 **이전** 내역(그 외에는 3개월 **이내**). 두 구간은 상호 배타라 한 콜로는
+    한쪽만 받는다(KIS 설계).
 
     output1 체결 행을 연속조회로 소진까지 모으고, 기간 합계(output2)는 첫 페이지에서 완결한다
-    (기간 단위라 페이지 불변). ``GET .../domestic-stock/v1/trading/inquire-daily-ccld``
-    (실전 ``TTTC0081R`` / 모의 ``VTTC0081R``, 3개월 이내). 실전·모의 모두 지원한다."""
+    (기간 단위라 페이지 불변). ``GET .../domestic-stock/v1/trading/inquire-daily-ccld`` -- 3개월
+    이내는 실전 ``TTTC0081R`` / 모의 ``VTTC0081R``, 3개월 이전은 실전 ``CTSC9215R`` / 모의
+    ``VTSC9215R`` (tr_id 만 다르고 경로·파라미터·응답은 동일). 실전·모의 모두 지원한다."""
     try:
         side_code = _STOCK_FILLS_SIDE[side]
     except KeyError:
@@ -548,8 +553,9 @@ def fetch_stock_fills(
         "INQR_DVSN": "00", "INQR_DVSN_1": "", "INQR_DVSN_3": "00",
         "EXCG_ID_DVSN_CD": "", "CTX_AREA_FK100": "", "CTX_AREA_NK100": "",
     }
+    tr_table = _STOCK_FILLS_OLDER_TR if older else _STOCK_FILLS_TR
     rows, summary = _fetch_paginated_rows_with_summary(
-        transport, path=_STOCK_FILLS_PATH, tr_id=_STOCK_FILLS_TR[environment],
+        transport, path=_STOCK_FILLS_PATH, tr_id=tr_table[environment],
         base_params=base_params, output_key="output1", max_pages=_MAX_STOCK_FILLS_PAGES,
         cap_message=(
             f"주식일별주문체결조회가 {_MAX_STOCK_FILLS_PAGES}페이지 상한에 도달했으나 연속조회가 "

@@ -42,7 +42,8 @@ _ACCOUNT_FLAGS: tuple[tuple[str, object, str], ...] = (
     ("asset", "stock", "--asset"), ("date", None, "--date"),
     ("start", None, "--start"), ("end", None, "--end"),
     ("side", None, "--side"), ("symbol", None, "--symbol"),
-    ("unfilled_only", False, "--unfilled-only"), ("process", None, "--process"),
+    ("unfilled_only", False, "--unfilled-only"), ("older", False, "--older"),
+    ("process", None, "--process"),
     ("by", "symbol", "--by"), ("sort", None, "--sort"),
     ("currency", None, "--currency"), ("won_basis", False, "--won-basis"),
 )
@@ -146,7 +147,7 @@ def cmd_fills(kis: KISClient, args: Namespace) -> Any:
     asset = getattr(args, "asset", "stock")
     # 주식/채권 체결내역은 기간(--start/--end)+필터를 쓴다 -- 파생 전용 --date 는 거부.
     _reject_foreign_flags(
-        args, allow={"venue", "asset", "start", "end", "side", "symbol", "unfilled_only"})
+        args, allow={"venue", "asset", "start", "end", "side", "symbol", "unfilled_only", "older"})
     if args.venue == "overseas":
         raise CliConfigError("체결내역 조회는 국내 전용입니다(--venue overseas 불가).")
     _require_range(args, "체결내역")
@@ -159,7 +160,11 @@ def cmd_fills(kis: KISClient, args: Namespace) -> Any:
     if args.unfilled_only:
         filters["unfilled_only"] = True
     if asset == "bond":
+        if args.older:  # --older 는 주식 일별주문체결(CTSC9215R) 전용; 채권 체결내역엔 없다.
+            raise CliConfigError("--older 는 주식 체결내역 전용입니다(채권 미지원).")
         return account.domestic.bonds.fills(start=args.start, end=args.end, **filters)
+    if args.older:
+        filters["older"] = True
     return account.domestic.fills(start=args.start, end=args.end, **filters)
 
 

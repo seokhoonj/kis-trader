@@ -187,6 +187,8 @@ def build_parser() -> argparse.ArgumentParser:
         if name == "fills":
             sp.add_argument("--unfilled-only", dest="unfilled_only", action="store_true",
                             help="미체결만")
+            sp.add_argument("--older", dest="older", action="store_true",
+                            help="3개월 이전 체결내역(기본은 3개월 이내; 주식 전용)")
         if name == "reserved":
             sp.add_argument("--process", dest="process",
                             choices=list(get_args(ReservedProcess)), default=None,

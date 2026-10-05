@@ -118,16 +118,18 @@ class DomesticAccount:
 
     def fills(
         self, *, start: str, end: str, side: SideFilter = "all", symbol: str | None = None,
-        unfilled_only: bool = False,
+        unfilled_only: bool = False, older: bool = False,
     ) -> StockFillHistory:
         """국내주식 일별 주문·체결 내역(개별 행 + 기간 합계 요약). ``start``/``end`` 는 조회 기간
-        (YYYYMMDD, 3개월 이내), ``side`` = ``"all"``/``"sell"``/``"buy"``, ``symbol`` 없으면 전체,
+        (YYYYMMDD), ``side`` = ``"all"``/``"sell"``/``"buy"``, ``symbol`` 없으면 전체,
         ``unfilled_only`` 면 미체결만. **``unfilled_only`` 없이는 미체결·거부 주문까지 포함한 주문
-        전체**(체결만 걸러주지 않는다). 금액·수량은 KRW Decimal. 실전·모의 모두 지원한다."""
+        전체**(체결만 걸러주지 않는다). 기본은 3개월 **이내**이고, ``older=True`` 면 3개월 **이전**
+        내역을 받는다(두 구간은 상호 배타라 한 콜로는 한쪽만). 금액·수량은 KRW Decimal. 실전·모의
+        모두 지원한다."""
         cano, product_code = self._client._require_account()
         return account_api.fetch_stock_fills(
             self._client.transport, cano=cano, product_code=product_code, environment=self._client.environment,
-            start=start, end=end, side=side, symbol=symbol, unfilled_only=unfilled_only,
+            start=start, end=end, side=side, symbol=symbol, unfilled_only=unfilled_only, older=older,
         )
 
     def trade_profits(

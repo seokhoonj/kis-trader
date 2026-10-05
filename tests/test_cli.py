@@ -1408,6 +1408,22 @@ def test_account_fills_stock_forwards_no_filters_by_default(monkeypatch):
     assert log == [("stock_fills", "20240101", "20240131", {})]
 
 
+def test_account_fills_stock_older_forwards(monkeypatch):
+    log: list = []
+    monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
+    account.cmd_fills(object(), _args(
+        ["account", "fills", "--start", "20230101", "--end", "20230331", "--older"]))
+    assert log == [("stock_fills", "20230101", "20230331", {"older": True})]
+
+
+def test_account_fills_bond_rejects_older(monkeypatch):
+    monkeypatch.setattr(account, "_view", lambda kis: _StubStockView([]))
+    with pytest.raises(CliConfigError, match="older"):
+        account.cmd_fills(object(), _args(
+            ["account", "fills", "--asset", "bond", "--start", "20230101",
+             "--end", "20230331", "--older"]))
+
+
 def test_account_fills_rejects_overseas(monkeypatch):
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView([]))
     with pytest.raises(CliConfigError, match="overseas"):

@@ -106,6 +106,24 @@ def test_fills_paper_uses_demo_tr():
     assert fake.calls[0]["tr_id"] == "VTTC0081R"
 
 
+def test_fills_older_uses_before_tr_same_endpoint_and_params():
+    fake = FakeTransport(response=_resp(rows=[_row()]))
+    history = _fills(fake)(start="20230101", end="20230331", older=True)
+    assert isinstance(history, StockFillHistory)
+    call = fake.calls[0]
+    assert call["tr_id"] == "CTSC9215R"       # >3개월 이전
+    assert call["path"] == _FILLS_PATH         # 같은 엔드포인트
+    assert call["params"]["INQR_STRT_DT"] == "20230101"
+    assert call["params"]["INQR_END_DT"] == "20230331"
+    assert call["params"]["CCLD_DVSN"] == "00"
+
+
+def test_fills_older_paper_uses_demo_before_tr():
+    fake = FakeTransport(response=_resp(rows=[_row()]))
+    _fills(fake, environment="paper")(start="20230101", end="20230331", older=True)
+    assert fake.calls[0]["tr_id"] == "VTSC9215R"
+
+
 @pytest.mark.parametrize("side,code", [("all", "00"), ("sell", "01"), ("buy", "02")])
 def test_fills_side_maps_to_wire(side, code):
     fake = FakeTransport(response=_resp(rows=[]))
