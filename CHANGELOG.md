@@ -3,6 +3,26 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.3.0 — 2026-10-05
+
+All additive; no breaking changes.
+
+### Added
+
+- `kis config`: an interactive command that stores a profile's credentials via
+  hidden prompts (the first-time-setup counterpart to `KISConfig(...).save()`).
+  App key and secret are read only through `getpass` — never as flags — and are
+  never echoed; it confirms before overwriting a profile and requires an explicit
+  affirmation to write a `real` profile.
+- `account.domestic.fills(older_than_three_months=...)` and
+  `kis account fills --older-than-three-months`: fetch the daily order/fill
+  history older than three months (the before-period TR on the same endpoint).
+  The two windows are mutually exclusive, so a call returns one side.
+- `MarketInvestorFlow.participants`: net quantity and amount for all fifteen
+  investor subjects (securities, investment trust, pension fund, other
+  corporation, and the rest). The existing `foreign_net` / `individual_net` /
+  `institutional_net` fields are unchanged.
+
 ## 0.2.0 — 2026-10-02
 
 Public naming consistency pass. 0.1.0 is yanked; use 0.2.0.

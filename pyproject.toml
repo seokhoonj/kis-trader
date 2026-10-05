@@ -1,6 +1,6 @@
 [project]
 name = "kis-trader"
-version = "0.2.0"
+version = "0.3.0"
 description = "Typed Python client for the Korea Investment & Securities (KIS) Open API."
 readme = "README.md"
 requires-python = ">=3.11"
