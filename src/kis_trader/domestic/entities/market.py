@@ -28,7 +28,9 @@ class MarketInvestorFlow:
 
     한 시장(코스피/코스닥)의 그날 지수와 주체별 순매수를 담는다. ``foreign_net`` /
     ``individual_net`` / ``institutional_net`` 은 외국인/개인/기관계 순매수 수량(pre-signed;
-    음수면 순매도)이다. 증권/투신/사모/은행/보험/종금/기금/기타 세부 주체는 ``_raw`` 에 있다.
+    음수면 순매도)이다. ``participants`` 는 15개 주체(외국인·등록/비등록 외국인·개인·기관계·증권·
+    투신·사모펀드·은행·보험·종금·기금·기타·기타단체·기타법인)별 순매수 수량과 대금을
+    :class:`~kis_trader.domestic.entities.investor.InvestorNetActivity` 로 매핑한다(대금은 백만원).
     ``index_value`` 는 그날 업종(시장)지수, ``timestamp`` 는 영업일(KST-aware).
     """
 
@@ -40,11 +42,13 @@ class MarketInvestorFlow:
     foreign_net: int                  # 외국인 순매수 수량(frgn_ntby_qty)
     individual_net: int               # 개인 순매수 수량(prsn_ntby_qty)
     institutional_net: int            # 기관계 순매수 수량(orgn_ntby_qty)
+    participants: Mapping[str, InvestorNetActivity] = field(hash=False)  # 주체별 순매수 수량+대금
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
 
     def __post_init__(self) -> None:
+        object.__setattr__(self, "participants", MappingProxyType(dict(self.participants)))
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
 
 

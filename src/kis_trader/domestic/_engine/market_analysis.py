@@ -88,6 +88,28 @@ _INVESTOR_SNAPSHOT_PREFIX = {
 }
 
 
+#: inquire-investor-daily-by-market 의 주체별 (영문명, 순매수 수량 키, 순매수 대금 키).
+#: suffix 가 주체마다 불규칙해(사모펀드/기타단체/기타법인 수량은 _ntby_vol, 외국인 등록/비등록
+#: 대금은 _ntby_pbmn) 규칙이 아니라 명시 표로 둔다 -- 라이브 응답으로 30개 키를 전수 확인했다.
+_MARKET_INVESTOR_FLOW_FIELDS: tuple[tuple[str, str, str], ...] = (
+    ("foreign", "frgn_ntby_qty", "frgn_ntby_tr_pbmn"),
+    ("foreign_registered", "frgn_reg_ntby_qty", "frgn_reg_ntby_pbmn"),
+    ("foreign_unregistered", "frgn_nreg_ntby_qty", "frgn_nreg_ntby_pbmn"),
+    ("individual", "prsn_ntby_qty", "prsn_ntby_tr_pbmn"),
+    ("institutional", "orgn_ntby_qty", "orgn_ntby_tr_pbmn"),
+    ("securities", "scrt_ntby_qty", "scrt_ntby_tr_pbmn"),
+    ("investment_trust", "ivtr_ntby_qty", "ivtr_ntby_tr_pbmn"),
+    ("private_equity", "pe_fund_ntby_vol", "pe_fund_ntby_tr_pbmn"),
+    ("bank", "bank_ntby_qty", "bank_ntby_tr_pbmn"),
+    ("insurance", "insu_ntby_qty", "insu_ntby_tr_pbmn"),
+    ("merchant_bank", "mrbn_ntby_qty", "mrbn_ntby_tr_pbmn"),
+    ("fund", "fund_ntby_qty", "fund_ntby_tr_pbmn"),
+    ("other", "etc_ntby_qty", "etc_ntby_tr_pbmn"),
+    ("other_organization", "etc_orgt_ntby_vol", "etc_orgt_ntby_tr_pbmn"),
+    ("other_corporation", "etc_corp_ntby_vol", "etc_corp_ntby_tr_pbmn"),
+)
+
+
 _NET_BUY_MARKET = {"all": "0000", "KOSPI": "0001", "KOSDAQ": "1001"}
 _NET_BUY_PARTICIPANT = {
     "foreign": "frgn", "institutional": "orgn", "investment_trust": "ivtr",
@@ -336,6 +358,10 @@ def fetch_market_investor_flows(
                 foreign_net=required_int(row.get("frgn_ntby_qty"), "frgn_ntby_qty"),
                 individual_net=required_int(row.get("prsn_ntby_qty"), "prsn_ntby_qty"),
                 institutional_net=required_int(row.get("orgn_ntby_qty"), "orgn_ntby_qty"),
+                participants={name: InvestorNetActivity(
+                    net_buy_volume=required_int(row.get(qty_key), qty_key),
+                    net_buy_amount=required_decimal(row.get(amt_key), amt_key),
+                ) for name, qty_key, amt_key in _MARKET_INVESTOR_FLOW_FIELDS},
                 _raw=row,
             )
         )

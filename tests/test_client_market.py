@@ -44,10 +44,25 @@ def _resp(rows):
 
 
 def _flow_row(**over):
+    # 라이브 응답(inquire-investor-daily-by-market)으로 전수 확인한 순매수 수량/대금 키 전체.
+    # suffix 가 주체마다 불규칙하다: 사모펀드/기타단체/기타법인 수량은 _ntby_vol, 외국인 등록/비등록
+    # 대금은 _ntby_pbmn(그 외 대금은 _ntby_tr_pbmn).
     row = {"stck_bsop_date": "20240510", "bstp_nmix_prpr": "2700.50",
            "bstp_nmix_prdy_vrss": "15.0", "prdy_vrss_sign": "2", "bstp_nmix_prdy_ctrt": "0.56",
-           "frgn_ntby_qty": "1200000", "prsn_ntby_qty": "-500000", "orgn_ntby_qty": "-700000",
-           "scrt_ntby_qty": "100"}
+           # 순매수 수량(pre-signed)
+           "frgn_ntby_qty": "1200000", "frgn_reg_ntby_qty": "800000", "frgn_nreg_ntby_qty": "400000",
+           "prsn_ntby_qty": "-500000", "orgn_ntby_qty": "-700000",
+           "scrt_ntby_qty": "100", "ivtr_ntby_qty": "200", "pe_fund_ntby_vol": "300",
+           "bank_ntby_qty": "400", "insu_ntby_qty": "500", "mrbn_ntby_qty": "600",
+           "fund_ntby_qty": "700", "etc_ntby_qty": "800",
+           "etc_orgt_ntby_vol": "900", "etc_corp_ntby_vol": "1000",
+           # 순매수 대금(pre-signed)
+           "frgn_ntby_tr_pbmn": "123456", "frgn_reg_ntby_pbmn": "80000",
+           "frgn_nreg_ntby_pbmn": "40000", "prsn_ntby_tr_pbmn": "-50000",
+           "orgn_ntby_tr_pbmn": "-70000", "scrt_ntby_tr_pbmn": "1100", "ivtr_ntby_tr_pbmn": "2200",
+           "pe_fund_ntby_tr_pbmn": "3300", "bank_ntby_tr_pbmn": "4400", "insu_ntby_tr_pbmn": "5500",
+           "mrbn_ntby_tr_pbmn": "6600", "fund_ntby_tr_pbmn": "7700", "etc_ntby_tr_pbmn": "8800",
+           "etc_orgt_ntby_tr_pbmn": "9900", "etc_corp_ntby_tr_pbmn": "11000"}
     row.update(over)
     return row
 
@@ -73,6 +88,34 @@ def test_market_investor_flows_maps_signed_and_anchor_params():
     # 앵커 엔드포인트: DATE_1 == DATE_2 == as_of (원장: DATE_2 는 DATE_1 과 동일날짜).
     assert call["params"]["FID_INPUT_DATE_1"] == "20240510"
     assert call["params"]["FID_INPUT_DATE_2"] == "20240510"
+
+
+def test_market_investor_flows_types_all_participants_qty_and_amount():
+    fake = FakeTransport(response=_resp([_flow_row()]))
+    f = _client(fake).domestic.market.investor_flows(market="KOSPI", as_of="20240510")[0]
+    # 기존 bare 수량 필드는 그대로(하위호환).
+    assert f.foreign_net == 1200000
+    assert f.individual_net == -500000
+    assert f.institutional_net == -700000
+    p = f.participants
+    # 수량 + 대금을 주체별로 타입화. 불규칙 suffix 포함.
+    assert p["foreign"].net_buy_volume == 1200000
+    assert p["foreign"].net_buy_amount == Decimal(123456)
+    assert p["foreign_registered"].net_buy_volume == 800000
+    assert p["foreign_registered"].net_buy_amount == Decimal(80000)       # frgn_reg_ntby_pbmn
+    assert p["foreign_unregistered"].net_buy_amount == Decimal(40000)     # frgn_nreg_ntby_pbmn
+    assert p["securities"].net_buy_volume == 100
+    assert p["securities"].net_buy_amount == Decimal(1100)
+    assert p["investment_trust"].net_buy_amount == Decimal(2200)
+    assert p["private_equity"].net_buy_volume == 300                        # pe_fund_ntby_vol
+    assert p["private_equity"].net_buy_amount == Decimal(3300)
+    assert p["fund"].net_buy_amount == Decimal(7700)
+    assert p["other"].net_buy_amount == Decimal(8800)
+    assert p["other_organization"].net_buy_volume == 900                    # etc_orgt_ntby_vol
+    assert p["other_corporation"].net_buy_volume == 1000                    # etc_corp_ntby_vol
+    assert p["other_corporation"].net_buy_amount == Decimal(11000)
+    # participants 와 bare 필드 일치.
+    assert p["foreign"].net_buy_volume == f.foreign_net
 
 
 def test_market_investor_flows_index_down_sign():
