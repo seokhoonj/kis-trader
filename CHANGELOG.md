@@ -24,6 +24,13 @@ changed.
   the rest). The existing `foreign_net` / `individual_net` /
   `institutional_net` fields are unchanged.
 
+### Fixed
+
+- `InvestorActivity` amount fields (`buy_amount` / `sell_amount` /
+  `net_buy_amount`) are documented as 백만원 (million won) — the unit the API
+  actually returns — instead of 원. Values are unchanged; only the documentation
+  is corrected.
+
 ## 0.2.0 — 2026-10-02
 
 Public naming consistency pass. 0.1.0 is yanked; use 0.2.0.

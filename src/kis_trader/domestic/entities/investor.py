@@ -18,14 +18,14 @@ from ..._internal._freeze import freeze_vendor_payload
 
 @dataclass(frozen=True, slots=True)
 class InvestorActivity:
-    """한 투자자 주체의 하루치 매매(불변). ``net_buy_*`` 는 순매도면 음수. 대금은 원(KRW)."""
+    """한 투자자 주체의 하루치 매매(불변). ``net_buy_*`` 는 순매도면 음수. 대금은 KIS 명세대로 백만원."""
 
     buy_volume: int                   # 매수 수량(주)
     sell_volume: int                  # 매도 수량(주)
     net_buy_volume: int               # 순매수 수량(주; 음수면 순매도)
-    buy_amount: Decimal               # 매수 대금(원)
-    sell_amount: Decimal              # 매도 대금(원)
-    net_buy_amount: Decimal           # 순매수 대금(원; 음수면 순매도)
+    buy_amount: Decimal               # 매수 대금(백만원)
+    sell_amount: Decimal              # 매도 대금(백만원)
+    net_buy_amount: Decimal           # 순매수 대금(백만원; 음수면 순매도)
 
 
 @dataclass(frozen=True, slots=True)
