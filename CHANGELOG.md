@@ -5,8 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.3.0 — 2026-10-05
 
-All changes are additive to the client's public surface — a new command, a new
-flag, and new fields on a result object.
+All changes are additive; no existing name, signature, or behavior was removed or
+changed.
 
 ### Added
 

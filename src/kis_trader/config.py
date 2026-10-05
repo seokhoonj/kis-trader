@@ -139,8 +139,8 @@ def _config_dir_path(override: str | Path | None = None) -> Path:
 
 
 def _credentials_path(override: str | Path | None = None) -> Path:
-    """``credentials.json`` 파일의 전체 경로. 파일명 리터럴을 이 한 곳에만 둔다(소비자가 경로를
-    재구성하지 않도록)."""
+    """``credentials.json`` 파일의 전체 경로를 돌려준다. 호출자가 디렉터리와 파일명을 직접 합치지
+    않도록 모은 진입점이다(특히 모듈 밖 소비자 -- CLI 의 ``kis config`` 등)."""
     return _config_dir_path(override) / "credentials.json"
 
 

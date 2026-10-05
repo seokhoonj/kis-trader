@@ -121,6 +121,21 @@ def test_config_overwrite_confirmation_controls_the_whole_profile(
     assert _creds(tmp_path)["paper"] == expected
 
 
+def test_config_eoferror_aborts_cleanly_without_writing(tmp_path, monkeypatch):
+    # 비대화형/빈 stdin -- 첫 프롬프트에서 EOFError -> traceback 없이 깔끔히 종료(130), 저장 없음.
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+
+    def _eof(prompt=""):
+        raise EOFError
+    monkeypatch.setattr("builtins.input", _eof)
+    monkeypatch.setattr("kis_trader.cli.commands.credentials.getpass", _eof)
+
+    code = cli_main.main(["config"])
+
+    assert code == 130
+    assert not (tmp_path / "config" / "kis-trader" / "credentials.json").exists()
+
+
 def test_config_rejects_invalid_prompted_environment_before_reading_secrets(tmp_path, monkeypatch):
     monkeypatch.setattr(cli_main, "build_client", _no_client)
     _answer(monkeypatch, {"profile": "main", "environment": "production"})
