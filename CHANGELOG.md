@@ -5,7 +5,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## 0.3.0 — 2026-10-05
 
-All additive; no breaking changes.
+All changes are additive to the client's public surface — a new command, a new
+flag, and new fields on a result object.
 
 ### Added
 
@@ -19,8 +20,8 @@ All additive; no breaking changes.
   history older than three months (the before-period TR on the same endpoint).
   The two windows are mutually exclusive, so a call returns one side.
 - `MarketInvestorFlow.participants`: net quantity and amount for all fifteen
-  investor subjects (securities, investment trust, pension fund, other
-  corporation, and the rest). The existing `foreign_net` / `individual_net` /
+  investor subjects (securities, investment trust, fund, other corporation, and
+  the rest). The existing `foreign_net` / `individual_net` /
   `institutional_net` fields are unchanged.
 
 ## 0.2.0 — 2026-10-02

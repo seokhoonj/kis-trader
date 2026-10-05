@@ -69,7 +69,7 @@ format:
     toc-depth: 3
     toc-title: "이 페이지"
     code-copy: true
-    code-overflow: scroll
+    code-overflow: scroll   # 줄바꿈 금지 선언; 실제 가로 스크롤 동작은 custom.scss 의 code 규칙이 담당
     grid:
       sidebar-width: 300px
       body-width: 820px

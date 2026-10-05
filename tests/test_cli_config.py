@@ -68,13 +68,14 @@ def test_config_writes_profile_without_building_a_client(tmp_path, monkeypatch):
 def test_config_prompts_when_flags_omitted(tmp_path, monkeypatch):
     monkeypatch.setattr(cli_main, "build_client", _no_client)
     _feed_secrets(monkeypatch, "pk", "ps")
-    _answer(monkeypatch, {"profile": "irp", "environment": "paper", "account": "12345678-22"})
+    # environment 는 비기본값(real)을 줘서 단언이 매처 배선을 실제로 검증하게 한다(real 은 확인 y 필요).
+    _answer(monkeypatch, {"profile": "irp", "environment": "real", "account": "12345678-22", "실전": "y"})
 
     code = cli_main.main(["config"])
 
     assert code == 0
     entry = _creds(tmp_path)["irp"]
-    assert entry["environment"] == "paper"
+    assert entry["environment"] == "real"
     assert entry["account"] == "12345678-22"
 
 

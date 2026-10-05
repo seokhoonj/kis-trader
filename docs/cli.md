@@ -24,7 +24,7 @@ kis --profile main  account balance # 실전 주계좌
 
 ```bash
 kis config                                     # 대화형으로 자격증명 저장
-kis config --profile paper --environment paper # 비시크릿은 플래그로(시크릿만 프롬프트)
+kis config --profile paper --environment paper # 일부를 플래그로 주면 나머지만 프롬프트
 kis config --set-default                       # 저장 후 기본 프로필로 지정
 ```
 
@@ -163,7 +163,7 @@ kis --profile paper order buy 005930 10 --limit-price 70000 --execute paper # �
 | `gtp_priority_limit` | NXT GTP 최우선 | — | `--board NXT`, day 전용 |
 :::
 
-`--limit-price` 가 `—` 인 구분은 시장이 가격을 정하므로 지정가를 주지 않습니다. 해외
+`--limit-price` 칸이 `—` 인 구분은 시장이 가격을 정하므로 지정가를 주지 않습니다. 해외
 (`--venue overseas`)엔 미지원입니다.
 
 ```bash

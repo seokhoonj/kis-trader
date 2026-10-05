@@ -138,6 +138,12 @@ def _config_dir_path(override: str | Path | None = None) -> Path:
     return xdg_config_subdir(_APP_DIR_NAME)
 
 
+def _credentials_path(override: str | Path | None = None) -> Path:
+    """``credentials.json`` 파일의 전체 경로. 파일명 리터럴을 이 한 곳에만 둔다(소비자가 경로를
+    재구성하지 않도록)."""
+    return _config_dir_path(override) / "credentials.json"
+
+
 def token_cache_path(override: str | Path | None = None) -> Path:
     """OAuth 토큰 캐시 디렉터리(재생성 가능). ``override`` 가 있으면 그 아래 ``tokens``, 없으면
     ``$XDG_CACHE_HOME/kis-trader/tokens``. 편집 설정(config)과 XDG 규약대로 분리한다. 세션이
@@ -478,6 +484,12 @@ def _read_existing(path: Path) -> dict[str, object]:
         if not isinstance(section, dict):
             raise KISUsageError(f"{path} 의 프로필 {name!r} 항목이 객체가 아니라 병합할 수 없다.")
     return parsed
+
+
+def _profile_exists(profile: str, *, config_dir: str | Path | None = None) -> bool:
+    """``profile`` 이 이미 저장돼 있는지(해당 프로필 섹션이 객체로 존재하는지). 덮어쓰기 확인처럼
+    저장 전에 존재 여부만 알고 싶을 때 쓴다 -- 저장소 레이아웃을 호출자에 노출하지 않는다."""
+    return isinstance(_read_existing(_credentials_path(config_dir)).get(profile), dict)
 
 
 __all__ = ["KISConfig", "ResolvedCredentials", "order_store_path", "resolve_credentials"]

@@ -93,10 +93,11 @@ export KIS_DEFAULT_PROFILE=main          # Linux·macOS (영구히 하려면 ~/.
 
 ```bash
 kis config
-# profile (예: main, paper, pension) [main]: main
-# environment (real/paper) [paper]: real
-# account (예: 50123456-01, 시세만 보면 Enter): 12345678-01
-# APP KEY:        ← 입력해도 화면에 보이지 않습니다
+# profile (예: main, paper, pension) [main]: paper
+# environment (real/paper) [paper]: paper
+# account (예: 50123456-01, 시세만 보면 Enter): 50123456-01
+# 앱키·시크릿은 KIS 개발자포털에서 발급받은 값입니다(입력해도 화면에 보이지 않습니다).
+# APP KEY:
 # APP SECRET:
 ```
 

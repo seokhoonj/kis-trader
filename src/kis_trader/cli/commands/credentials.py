@@ -15,8 +15,8 @@ from typing import cast, get_args
 
 from ...config import (
     KISConfig,
-    _config_dir_path,
-    _read_existing,
+    _credentials_path,
+    _profile_exists,
     _validate_account,
     _validate_profile_name,
 )
@@ -43,9 +43,8 @@ def cmd_config(args: argparse.Namespace) -> None:
     _validate_profile_name(profile)  # 시크릿을 받기 전에 형식을 거부(헛되이 입력시키지 않는다)
 
     # 덮어쓰기 가드: 같은 프로필이 이미 있으면(save 는 조용히 교체하므로) 시크릿을 받기 전에 확인한다.
-    creds_path = _config_dir_path(None) / "credentials.json"
-    if isinstance(_read_existing(creds_path).get(profile), dict) and not _confirm(
-            f"프로필 {profile!r} 가 이미 있습니다 ({creds_path}). 덮어쓸까요?"):
+    if _profile_exists(profile) and not _confirm(
+            f"프로필 {profile!r} 가 이미 있습니다 ({_credentials_path()}). 덮어쓸까요?"):
         raise CliAborted("취소 -- 저장하지 않았습니다.")
 
     environment = args.environment or _prompt(f"environment ({'/'.join(_ENVIRONMENTS)})", "paper")
