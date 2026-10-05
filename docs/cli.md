@@ -10,8 +10,8 @@
 않아 안전합니다.
 
 ```bash
-kis --profile paper account balance     # 모의 프로필(저장 시 environment=paper)
-kis --profile main  account balance     # 실전 주계좌
+kis --profile paper account balance # 모의 프로필(저장 시 environment=paper)
+kis --profile main  account balance # 실전 주계좌
 ```
 
 프로필별 변수 접두어·설정 파일 위치(Linux·macOS·Windows 공통)는 [자격증명과 프로필](configuration.md)
@@ -23,9 +23,9 @@ kis --profile main  account balance     # 실전 주계좌
 앱키·앱시크릿은 화면에 보이지 않게 입력받아 프로필로 저장합니다(파이썬 코드 없이).
 
 ```bash
-kis config                                             # 대화형으로 자격증명 저장
-kis config --profile paper --environment paper         # 비시크릿은 플래그로(시크릿만 프롬프트)
-kis config --set-default                               # 저장 후 기본 프로필로 지정
+kis config                                     # 대화형으로 자격증명 저장
+kis config --profile paper --environment paper # 비시크릿은 플래그로(시크릿만 프롬프트)
+kis config --set-default                       # 저장 후 기본 프로필로 지정
 ```
 
 실전(real) 프로필은 저장 전 한 번 더 확인하고, 같은 이름이 이미 있으면 덮어쓸지 묻습니다. 다른 저장
@@ -34,17 +34,17 @@ kis config --set-default                               # 저장 후 기본 프�
 ## 조회
 
 ```bash
-kis stock quote 005930                                # 현재가
-kis stock quote AAPL --venue overseas                 # 해외(거래소 자동)
+kis stock quote 005930                 # 현재가
+kis stock quote AAPL --venue overseas  # 해외(거래소 자동)
 kis stock bars 005930 --interval 1d --start 20240101
-kis stock book 005930                                 # 호가
-kis stock trades 005930                               # 최근 체결
-kis stock status 005930                               # 거래정지·관리종목 등 상태
+kis stock book 005930                  # 호가
+kis stock trades 005930                # 최근 체결
+kis stock status 005930                # 거래정지·관리종목 등 상태
 kis search 삼성전자 --market KOSPI
-kis ranking change --direction gainers                # 상승률 상위
-kis ranking volume                                    # 거래대금(기본)·거래량 등 상위
-kis ranking market-cap                                # 시가총액 상위
-kis account balance                                   # 국내 잔고
+kis ranking change --direction gainers # 상승률 상위
+kis ranking volume                     # 거래대금(기본)·거래량 등 상위
+kis ranking market-cap                 # 시가총액 상위
+kis account balance                    # 국내 잔고
 kis account positions --venue overseas --market US
 ```
 
@@ -55,7 +55,7 @@ kis account positions --venue overseas --market US
 
 ```bash
 kis stock quote 005930 --format json
-kis stock quote 005930 --format json --include-raw    # KIS 원본 필드 포함
+kis stock quote 005930 --format json --include-raw # KIS 원본 필드 포함
 ```
 
 일별 주문·체결 내역(기간)은 `kis account fills` 로 조회합니다. 기본은 국내주식(`--asset stock`),
@@ -79,9 +79,9 @@ kis account fills --asset bond --start 20240101 --end 20240131 --unfilled-only #
 `--process` 는 지원하지 않습니다.
 
 ```bash
-kis account reserved --start 20240101 --end 20240131                         # 국내 예약주문 목록
-kis account reserved --start 20240101 --end 20240131 --process unprocessed   # 미처리분만
-kis account reserved --venue overseas --start 20240101 --end 20240131        # 해외 예약주문 목록
+kis account reserved --start 20240101 --end 20240131                       # 국내 예약주문 목록
+kis account reserved --start 20240101 --end 20240131 --process unprocessed # 미처리분만
+kis account reserved --venue overseas --start 20240101 --end 20240131      # 해외 예약주문 목록
 ```
 
 기간별 실현손익은 `kis account profits --start/--end` 로 봅니다. `--symbol` 로 종목을 좁히는 건
@@ -90,9 +90,9 @@ kis account reserved --venue overseas --start 20240101 --end 20240131        # �
 `--won-basis`(원화 기준) 를 씁니다. 실전 계좌 전용입니다(모의투자 미지원).
 
 ```bash
-kis account profits --start 20240101 --end 20240131                          # 국내 종목별 실현손익
-kis account profits --start 20240101 --end 20240131 --by day                 # 국내 일별 매매손익
-kis account profits --venue overseas --start 20240101 --end 20240131         # 해외주식 기간손익
+kis account profits --start 20240101 --end 20240131                  # 국내 종목별 실현손익
+kis account profits --start 20240101 --end 20240131 --by day         # 국내 일별 매매손익
+kis account profits --venue overseas --start 20240101 --end 20240131 # 해외주식 기간손익
 ```
 
 거래·입출금내역(매매·결제·수수료)은 `kis account transactions --start/--end` 로 조회합니다.
@@ -100,7 +100,7 @@ kis account profits --venue overseas --start 20240101 --end 20240131         # �
 실행하면 같은 명령이 해외파생 입출금내역을 조회합니다. 실전 계좌 전용입니다.
 
 ```bash
-kis account transactions --venue overseas --start 20240101 --end 20240131    # 해외 거래·입출금내역
+kis account transactions --venue overseas --start 20240101 --end 20240131 # 해외 거래·입출금내역
 ```
 
 ### 선물옵션 계좌 조회
@@ -129,10 +129,10 @@ kis account transactions --venue overseas --start 20240101 --end 20240131    # �
 모두 조회 전용입니다(대부분 실전 계좌 전용 -- 모의 지원 여부는 라이브러리가 정합니다).
 
 ```bash
-kis --profile futures account balance                       # 국내선물옵션 잔고(03 프로필)
-kis --profile futures account fills --date 20240102         # 국내파생 기준일 체결내역
-kis --profile ovs-futures account profits --start 20240101 --end 20240131  # 해외파생 기간손익(08)
-kis --profile ovs-futures account margin --currency USD     # 해외파생 증거금상세
+kis --profile futures account balance                                     # 국내선물옵션 잔고(03 프로필)
+kis --profile futures account fills --date 20240102                       # 국내파생 기준일 체결내역
+kis --profile ovs-futures account profits --start 20240101 --end 20240131 # 해외파생 기간손익(08)
+kis --profile ovs-futures account margin --currency USD                   # 해외파생 증거금상세
 ```
 
 ## 주문 — 기본은 dry-run
@@ -140,19 +140,31 @@ kis --profile ovs-futures account margin --currency USD     # 해외파생 증�
 주문 명령은 **`--execute` 가 없으면 전송하지 않고** 주문 티켓만 되읽어 보여줍니다.
 
 ```bash
-kis order buy 005930 10 --limit-price 70000                          # dry-run (전송 안 됨)
-kis --profile paper order buy 005930 10 --limit-price 70000 --execute paper   # 모의 전송(확인 후)
+kis order buy 005930 10 --limit-price 70000                                 # dry-run (전송 안 됨)
+kis --profile paper order buy 005930 10 --limit-price 70000 --execute paper # 모의 전송(확인 후)
 ```
 
-국내 현금주문은 `--division` 으로 KRX 주문구분을 고릅니다 -- `conditional_limit`(조건부지정가,
-`--limit-price` 필요), `immediate_limit`(최유리지정가), `priority_limit`(최우선지정가),
-`midpoint`(중간가; 수량만, 호가 중간값으로 시장이 가격 결정, 전 보드, IOC/FOK 가능),
-`pre_market_close`(장전 시간외 종가; KRX 전용), `post_market_close`(장후 시간외 종가; KRX 전용).
-애프터마켓(KRX 16:00~20:00, `--board KRX`)은 `after_market_limit`(지정가, `--limit-price` 필요),
-`after_market_immediate_limit`(최유리), `after_market_priority_limit`(최우선; day 전용); NXT 프리마켓
-GTP(`--board NXT`)는 `gtp_limit`(지정가, `--limit-price` 필요), `gtp_immediate_limit`(최유리),
-`gtp_priority_limit`(최우선) -- GTP 는 모두 day 전용입니다. 최유리/최우선·중간가·시간외 종가는 시장이
-가격을 정하므로 `--limit-price` 를 주지 않습니다(해외 `--venue overseas` 엔 미지원).
+국내 현금주문은 `--division` 으로 KRX 주문구분을 고릅니다.
+
+::: {.nowrap-scroll}
+| `--division` | 주문구분 | `--limit-price` | 비고 |
+|---|---|:--:|---|
+| `conditional_limit` | 조건부지정가 | 필수 | |
+| `immediate_limit` | 최유리지정가 | — | |
+| `priority_limit` | 최우선지정가 | — | |
+| `midpoint` | 중간가 | — | 호가 중간값, 전 보드, IOC/FOK |
+| `pre_market_close` | 장전 시간외 종가 | — | KRX 전용 |
+| `post_market_close` | 장후 시간외 종가 | — | KRX 전용 |
+| `after_market_limit` | 애프터마켓 지정가 | 필수 | `--board KRX`, 16:00~20:00 |
+| `after_market_immediate_limit` | 애프터마켓 최유리 | — | `--board KRX` |
+| `after_market_priority_limit` | 애프터마켓 최우선 | — | `--board KRX`, day 전용 |
+| `gtp_limit` | NXT GTP 지정가 | 필수 | `--board NXT`, day 전용 |
+| `gtp_immediate_limit` | NXT GTP 최유리 | — | `--board NXT`, day 전용 |
+| `gtp_priority_limit` | NXT GTP 최우선 | — | `--board NXT`, day 전용 |
+:::
+
+`--limit-price` 가 `—` 인 구분은 시장이 가격을 정하므로 지정가를 주지 않습니다. 해외
+(`--venue overseas`)엔 미지원입니다.
 
 ```bash
 kis --profile main order buy 005930 10 --division immediate_limit --execute real --yes --confirm-account 7801
@@ -164,7 +176,7 @@ kis --profile main order buy 005930 10 --division immediate_limit --execute real
 나갑니다 -- 장 시간 밖의 접수는 서버가 거부합니다.
 
 ```bash
-kis order buy 005930 10 --limit-price 70000 --stop-price 69000        # dry-run (전송 안 됨)
+kis order buy 005930 10 --limit-price 70000 --stop-price 69000 # dry-run (전송 안 됨)
 ```
 
 예약주문(정규장이 열리기 전에 미리 걸어두는 예약)은 `kis order buy`/`kis order sell` 에 `--reserve`
@@ -186,12 +198,12 @@ sequence 입니다. 정정은 `kis order modify-reserved <순번>` 이며,
 client_order_id 로 `kis order cancel` 이 취소합니다. 정정(modify)은 해외 예약에 없습니다.
 
 ```bash
-kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20240131    # 국내 예약매수(dry-run)
-kis order cancel-reserved SEQ7 --order-date 20240131                         # 국내 예약 취소(dry-run)
-kis order modify-reserved SEQ7 --symbol 005930 --side buy --quantity 10 --limit-price 71000  # 국내 예약 정정(dry-run)
-kis order buy 00700 100 --venue overseas --reserve --limit-price 350 --exchange HKS --currency HKD  # 해외(홍콩) 예약매수(dry-run)
-kis account reserved --venue overseas --start 20240101 --end 20240131       # 해외 예약주문 목록
-kis order cancel-reserved US123 --venue overseas --receipt-date 20240131    # 해외(미국) 예약 취소(dry-run)
+kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20240131                          # 국내 예약매수(dry-run)
+kis order cancel-reserved SEQ7 --order-date 20240131                                               # 국내 예약 취소(dry-run)
+kis order modify-reserved SEQ7 --symbol 005930 --side buy --quantity 10 --limit-price 71000        # 국내 예약 정정(dry-run)
+kis order buy 00700 100 --venue overseas --reserve --limit-price 350 --exchange HKS --currency HKD # 해외(홍콩) 예약매수(dry-run)
+kis account reserved --venue overseas --start 20240101 --end 20240131                              # 해외 예약주문 목록
+kis order cancel-reserved US123 --venue overseas --receipt-date 20240131                           # 해외(미국) 예약 취소(dry-run)
 ```
 
 국내 주식 **TWAP 분할**은 `kis order twap` 으로 냅니다 -- 총 수량을 `--over`(총 소요시간, 예 `30m`/
@@ -201,9 +213,9 @@ kis order cancel-reserved US123 --venue overseas --receipt-date 20240131    # �
 로 실제 집행합니다(슬라이스 거부/타임아웃은 기록하고 계속, 부분 실행+미달 보고).
 
 ```bash
-kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3                 # dry-run: 스케줄 미리보기
+kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3 # dry-run: 스케줄 미리보기
 kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3 \
-  --start 130000 --execute paper --yes                                               # 13:00 시작, 실제 집행
+  --start 130000 --execute paper --yes                                # 13:00 시작, 실제 집행
 ```
 
 미국주식 **algo 분할주문**(서버가 쪼개 집행)은 해외 매수/매도에 `--algo twap`/`vwap` 를 줍니다 --
@@ -212,9 +224,9 @@ kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3 \
 전체를 덮지 못하니 전체 집행은 시간창 생략). 자세한 규칙은 [주문](orders.md) 참조.
 
 ```bash
-kis order buy AAPL 10 --venue overseas --limit-price 150 --algo twap --execute real --yes       # 전체 세션(시간창 생략)
+kis order buy AAPL 10 --venue overseas --limit-price 150 --algo twap --execute real --yes # 전체 세션(시간창 생략)
 kis order buy AAPL 10 --venue overseas --limit-price 150 \
-  --algo twap --algo-start 223000 --algo-end 235959 --execute real --yes                         # KST 같은 날 구간
+  --algo twap --algo-start 223000 --algo-end 235959 --execute real --yes                  # KST 같은 날 구간
 ```
 
 실제 전송하려면 `--execute` 값이 세션 환경(프로필에 저장된 실전/모의)과 같아야 합니다. 대화형에서는 확인을

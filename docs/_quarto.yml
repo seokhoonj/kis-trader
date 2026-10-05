@@ -69,7 +69,7 @@ format:
     toc-depth: 3
     toc-title: "이 페이지"
     code-copy: true
-    code-overflow: wrap
+    code-overflow: scroll
     grid:
       sidebar-width: 300px
       body-width: 820px

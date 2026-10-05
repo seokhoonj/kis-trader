@@ -66,7 +66,7 @@ div.sourceCode {
   border-radius: 12px;
   background: #ffffff;
   margin: 1.3rem 0;
-  overflow: hidden;
+  overflow: hidden;   // 둥근 모서리 클리핑(가로 스크롤은 안쪽 code 가 담당)
   // 바깥으로 살짝 볼록하게 떠 보이는 그림자 (내부 그라디언트 대신)
   box-shadow: 0 4px 12px rgba(15, 23, 42, 0.10), 0 1px 3px rgba(15, 23, 42, 0.07);
 }
@@ -81,7 +81,16 @@ pre.sourceCode code {
   line-height: 1.65;
   font-variant-ligatures: none;
   -webkit-font-smoothing: antialiased;
+  // 긴 줄은 줄바꿈 대신 code 안에서 가로 스크롤. 스크롤 주체를 code 로 두면, pre 의 자식인
+  // 복사 버튼(absolute right:0)은 pre 와 함께 제자리에 고정된다(스크롤해도 안 움직인다).
+  display: block;
+  overflow-x: auto;
+  white-space: pre;
 }
+// 옵션 표(::: {.nowrap-scroll}): 셀을 줄바꿈하지 않아 각 행이 한 줄에 들어가고,
+// 폭을 넘치면 표가 통째로 가로 스크롤된다.
+.nowrap-scroll { overflow-x: auto; }
+.nowrap-scroll table { white-space: nowrap; }
 // 주석은 기울임만 해제 (색은 highlight-style 테마에 맡긴다)
 pre.sourceCode code .co { font-style: normal; }
 // Claude 명령 블록(```claude): 슬래시 명령을 Claude Code 채팅창과 같은 파랑으로 덮는다.
