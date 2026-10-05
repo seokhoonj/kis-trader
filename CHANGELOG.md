@@ -26,10 +26,13 @@ changed.
 
 ### Fixed
 
-- `InvestorActivity` amount fields (`buy_amount` / `sell_amount` /
-  `net_buy_amount`) are documented as 백만원 (million won) — the unit the API
-  actually returns — instead of 원. Values are unchanged; only the documentation
-  is corrected.
+- Corrected the documented units on the investor-flow entities (documentation
+  only — no values change). Amounts are 백만원 (million won) across all of them
+  (`InvestorActivity` previously said 원). Trade quantities are 주 for per-stock
+  views (`InvestorFlow`, `DetailedInvestorFlow`, `InvestorNetBuyStock`) and 천주
+  for market-wide views (`MarketInvestorFlow`, `MarketInvestorSnapshot`); the
+  shared value types defer the quantity unit to their container. Verified against
+  live responses.
 
 ## 0.2.0 — 2026-10-02
 

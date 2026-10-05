@@ -18,11 +18,12 @@ from ..._internal._freeze import freeze_vendor_payload
 
 @dataclass(frozen=True, slots=True)
 class InvestorActivity:
-    """한 투자자 주체의 하루치 매매(불변). ``net_buy_*`` 는 순매도면 음수. 대금은 KIS 명세대로 백만원."""
+    """한 투자자 주체의 하루치 매매(불변). ``net_buy_*`` 는 순매도면 음수. 대금은 KIS 명세대로 백만원.
+    수량 단위는 컨테이너가 정한다 -- 종목 단위 조회는 주, 시장 전체 집계는 천주."""
 
-    buy_volume: int                   # 매수 수량(주)
-    sell_volume: int                  # 매도 수량(주)
-    net_buy_volume: int               # 순매수 수량(주; 음수면 순매도)
+    buy_volume: int                   # 매수 수량(종목별 주 / 시장 천주)
+    sell_volume: int                  # 매도 수량(종목별 주 / 시장 천주)
+    net_buy_volume: int               # 순매수 수량(음수면 순매도)
     buy_amount: Decimal               # 매수 대금(백만원)
     sell_amount: Decimal              # 매도 대금(백만원)
     net_buy_amount: Decimal           # 순매수 대금(백만원; 음수면 순매도)
@@ -30,7 +31,8 @@ class InvestorActivity:
 
 @dataclass(frozen=True, slots=True)
 class InvestorNetActivity:
-    """한 투자자 주체의 순매수 수량과 대금."""
+    """한 투자자 주체의 순매수 수량과 대금. 대금은 백만원; 수량 단위는 컨테이너가 정한다
+    (종목 단위는 주, 시장 전체 집계는 천주)."""
 
     net_buy_volume: int
     net_buy_amount: Decimal
@@ -38,7 +40,8 @@ class InvestorNetActivity:
 
 @dataclass(frozen=True, slots=True)
 class InvestorFlow:
-    """하루치 투자자별 매매(불변). 주체별 활동은 :class:`InvestorActivity`."""
+    """하루치 투자자별 매매(불변). 주체별 활동은 :class:`InvestorActivity` -- 종목 단위라 수량은 주,
+    대금은 백만원."""
 
     symbol: str
     trading_date: date
@@ -59,7 +62,7 @@ class DetailedInvestorFlow:
     """한 종목의 하루치 세부 투자자 매매와 OHLCV(불변).
 
     ``participants`` 는 ``foreign`` / ``individual`` / ``institutional`` 및 기관 세부
-    주체를 :class:`InvestorActivity` 로 매핑한다. 대금 필드는 KIS 명세 단위인 백만원이다.
+    주체를 :class:`InvestorActivity` 로 매핑한다. 종목 단위라 수량은 주, 대금은 KIS 명세 단위인 백만원이다.
     """
 
     symbol: str

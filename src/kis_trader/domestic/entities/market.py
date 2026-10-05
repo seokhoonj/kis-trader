@@ -30,8 +30,9 @@ class MarketInvestorFlow:
     ``individual_net`` / ``institutional_net`` 은 외국인/개인/기관계 순매수 수량(pre-signed;
     음수면 순매도)이다. ``participants`` 는 15개 주체(외국인·등록/비등록 외국인·개인·기관계·증권·
     투신·사모펀드·은행·보험·종금·기금·기타·기타단체·기타법인)별 순매수 수량과 대금을
-    :class:`~kis_trader.domestic.entities.investor.InvestorNetActivity` 로 매핑한다(대금은 백만원).
-    ``index_value`` 는 그날 업종(시장)지수, ``timestamp`` 는 영업일(KST-aware).
+    :class:`~kis_trader.domestic.entities.investor.InvestorNetActivity` 로 매핑한다. 시장 전체 집계라
+    수량 단위는 천주, 대금은 백만원이다. ``index_value`` 는 그날 업종(시장)지수, ``timestamp`` 는
+    영업일(KST-aware).
     """
 
     market: Market                    # 코스피/코스닥
@@ -39,10 +40,10 @@ class MarketInvestorFlow:
     index_value: Decimal              # 시장(업종)지수(bstp_nmix_prpr)
     index_change: Decimal             # 지수 전일대비(부호 포함)
     index_change_percent: Decimal     # 지수 전일대비율(부호 포함)
-    foreign_net: int                  # 외국인 순매수 수량(frgn_ntby_qty)
-    individual_net: int               # 개인 순매수 수량(prsn_ntby_qty)
-    institutional_net: int            # 기관계 순매수 수량(orgn_ntby_qty)
-    participants: Mapping[str, InvestorNetActivity] = field(hash=False)  # 주체별 순매수 수량+대금
+    foreign_net: int                  # 외국인 순매수 수량(frgn_ntby_qty; 천주)
+    individual_net: int               # 개인 순매수 수량(prsn_ntby_qty; 천주)
+    institutional_net: int            # 기관계 순매수 수량(orgn_ntby_qty; 천주)
+    participants: Mapping[str, InvestorNetActivity] = field(hash=False)  # 주체별 순매수(수량 천주·대금 백만원)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -57,7 +58,7 @@ class MarketInvestorSnapshot:
     """한 시장·업종의 조회 시점 세부 투자자 매매 총량(불변).
 
     ``participants`` 는 외국인·개인·기관계 및 기관 세부 주체를 매수·매도·순매수
-    수량과 대금으로 매핑한다. 대금 필드는 KIS 명세 단위인 백만원이다.
+    수량과 대금으로 매핑한다. 시장 집계라 수량 단위는 천주, 대금은 KIS 명세 단위인 백만원이다.
     """
 
     market_code: str
@@ -74,7 +75,8 @@ class MarketInvestorSnapshot:
 
 @dataclass(frozen=True, slots=True)
 class InvestorNetBuyStock:
-    """기관·외국인 등 투자자 순매수 기준으로 집계된 종목."""
+    """기관·외국인 등 투자자 순매수 기준으로 집계된 종목. 종목 단위라 수량은 주, 대금은 백만원
+    (``participants`` 의 :class:`~kis_trader.domestic.entities.investor.InvestorNetActivity`)."""
 
     symbol: str
     name: str
