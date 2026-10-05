@@ -81,11 +81,30 @@ export KIS_DEFAULT_PROFILE=main          # Linux·macOS (영구히 하려면 ~/.
 
 | 방법 | 언제 | 요약 |
 |---|---|---|
-| ① 파일에 저장 | **권장** | `KISConfig(...).save()` -- 정해진 위치에 안전 저장(사용자만 읽게 잠금·병합) |
+| ① 파일에 저장 | **권장** | 터미널에서 `kis config`(대화형) 또는 코드로 `KISConfig(...).save()` -- 정해진 위치에 안전 저장(사용자만 읽게 잠금·병합) |
 | ② 환경변수 | CI·컨테이너 | `export KIS_APP_KEY=…`(명명 프로필은 `KIS_<이름대문자>_*`) |
 | ③ 직접 전달 | 일회성 | `KISClient(app_key=…, …)`(둘 다 직접 주면 파일 안 읽음) |
 
-**① 파일에 저장** (파이썬 코드로 실행) -- 한 번 저장해 두면 이후 `KISClient(profile="...")` 로 엽니다.
+**① 파일에 저장** (권장) -- 한 번 저장해 두면 이후 `KISClient(profile="...")` 로 엽니다. 터미널에서
+대화형으로 넣는 방법과 파이썬 코드로 넣는 방법이 있습니다.
+
+터미널에서 `kis config` 를 실행하면 프로필 이름·환경·계좌를 차례로 묻고, 앱키·앱시크릿은 화면에 보이지
+않게 입력받아 저장합니다(파이썬을 쓰지 않아도 됩니다).
+
+```bash
+kis config
+# profile (예: main, paper, pension) [main]: main
+# environment (real/paper) [paper]: real
+# account (예: 50123456-01, 시세만 보면 Enter): 12345678-01
+# APP KEY:        ← 입력해도 화면에 보이지 않습니다
+# APP SECRET:
+```
+
+실전(real) 프로필은 저장 전에 한 번 더 확인하고, 같은 이름이 이미 있으면 덮어쓸지 묻습니다.
+`--profile`·`--environment`·`--account` 를 플래그로 주면 그 항목은 묻지 않으며, `--set-default` 를
+붙이면 저장 후 기본 프로필로 지정합니다.
+
+여러 프로필을 한꺼번에 저장하거나 스크립트에 넣을 때는 파이썬 코드가 편합니다.
 
 ```python
 from kis_trader import KISConfig

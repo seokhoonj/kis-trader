@@ -17,6 +17,20 @@ kis --profile main  account balance     # 실전 주계좌
 프로필별 변수 접두어·설정 파일 위치(Linux·macOS·Windows 공통)는 [자격증명과 프로필](configuration.md)
 을 참고하세요.
 
+## 설정 (자격증명 저장)
+
+앱키·계좌를 처음 저장할 때는 `kis config` 를 실행합니다. 프로필 이름·환경·계좌를 차례로 묻고,
+앱키·앱시크릿은 화면에 보이지 않게 입력받아 프로필로 저장합니다(파이썬 코드 없이).
+
+```bash
+kis config                                             # 대화형으로 자격증명 저장
+kis config --profile paper --environment paper         # 비시크릿은 플래그로(시크릿만 프롬프트)
+kis config --set-default                               # 저장 후 기본 프로필로 지정
+```
+
+실전(real) 프로필은 저장 전 한 번 더 확인하고, 같은 이름이 이미 있으면 덮어쓸지 묻습니다. 다른 저장
+방법(환경변수·파이썬 코드)과 자세한 내용은 [자격증명과 프로필](configuration.md)을 참고하세요.
+
 ## 조회
 
 ```bash
@@ -45,14 +59,16 @@ kis stock quote 005930 --format json --include-raw    # KIS 원본 필드 포함
 ```
 
 일별 주문·체결 내역(기간)은 `kis account fills` 로 조회합니다. 기본은 국내주식(`--asset stock`),
-장내채권은 `--asset bond`. `--start`/`--end`(YYYYMMDD, 주식은 3개월 이내) 로 기간을 주고,
-`--side`(all/buy/sell)·`--symbol`(주식 6자리 / 채권 ISIN)·`--unfilled-only` 로 좁힙니다.
+장내채권은 `--asset bond`. `--start`/`--end`(YYYYMMDD) 로 기간을 주고,
+`--side`(all/buy/sell)·`--symbol`(주식 6자리 / 채권 ISIN)·`--unfilled-only` 로 좁힙니다. 주식 체결내역은
+기본이 **최근 3개월 이내**이며, 그 이전은 `--older-than-three-months` 로 조회합니다(두 구간은 따로 조회).
 미체결(정정·취소 대상)만 보려면 `kis account orders` 를 씁니다. 국내주식은 실전·모의 모두,
 장내채권은 실전 계좌 전용입니다(모의투자 미지원).
 
 ```bash
 kis account fills --start 20240101 --end 20240131                              # 국내주식 체결내역(기간)
 kis account fills --start 20240101 --end 20240131 --symbol 005930 --side buy   # 종목·매수만
+kis account fills --start 20230101 --end 20230331 --older-than-three-months    # 3개월 이전 체결내역
 kis account fills --asset bond --start 20240101 --end 20240131                 # 장내채권 체결내역
 kis account fills --asset bond --start 20240101 --end 20240131 --unfilled-only # 미체결만
 ```
