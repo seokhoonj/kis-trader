@@ -3,6 +3,30 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.4.0 — 2026-10-05
+
+### Added
+
+- `AnalystOpinion.broker`: the member-company (brokerage) name that issued the
+  opinion (raw `mbcr_name`). Lets a consumer tell apart several brokerages' opinions
+  on the same day. Verified against a live `invest-opinion` response.
+- `kis.account.product_code`: the raw account product code (`ACNT_PRDT_CD`) on the
+  three account views (stock, domestic derivatives, overseas derivatives), beside
+  `kind`. Distinguishes IRP (29) from a general account (01) without probing the
+  `.pension` lens. Raises `KISUsageError` when no account is set.
+
+### Changed
+
+- `analyst_opinions()` now collects a wide date range in full. The `invest-opinion`
+  endpoint has no continuation key and caps one response at the newest 100 rows, so
+  a multi-year request previously lost the older rows silently; the fetch now walks
+  the window backward until it reaches the requested start. Incremental queries
+  under the cap still make a single call.
+- `AnalystOpinion` gained `broker` in its field order (after `timestamp`), so
+  positional construction of this result object shifts by one. It is built by
+  keyword internally and consumed by attribute access, so this affects only code
+  that constructed the object positionally.
+
 ## 0.3.0 — 2026-10-05
 
 All changes are additive; no existing name, signature, or behavior was removed or
