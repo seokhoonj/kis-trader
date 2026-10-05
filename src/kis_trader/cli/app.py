@@ -25,7 +25,7 @@ from .. import (
 )
 from ..errors import KISError
 from ..order import Right, Side
-from .commands import account, market, order, stock
+from .commands import account, credentials, market, order, stock
 from .context import account_suffix, build_client
 from .errors import CliAborted, CliConfigError, Translated, translate
 from .output import render
@@ -111,6 +111,21 @@ def build_parser() -> argparse.ArgumentParser:
     bars_p.add_argument("--end", default=None, help="YYYYMMDD")
     _add_venue(bars_p)
     bars_p.set_defaults(func=stock.cmd_bars)
+
+    # kis config -- 대화형 자격증명 저장(클라이언트 불필요). common 을 상속하지 않는다 -- --format
+    # 등 이 명령이 읽지 않는 플래그를 달지 않기 위해(폴리모픽 dispatch: 안 읽는 플래그 거부).
+    config_p = groups.add_parser(
+        "config", help="자격증명을 프로필로 저장(대화형; aws configure 와 같은 자리)")
+    # --profile/--account 는 SUPPRESS -- 최상위 전역 플래그 값을 덮어쓰지 않아 명령 앞뒤 어디든 둘 수 있다.
+    config_p.add_argument("--profile", default=argparse.SUPPRESS,
+                          help="저장할 프로필의 자유 이름(소문자/숫자/밑줄; 생략 시 프롬프트, 기본 main)")
+    config_p.add_argument("--environment", choices=["paper", "real"], default=None,
+                          help="접속 환경(생략 시 프롬프트, 기본 paper). real 은 명시 확인 필요")
+    config_p.add_argument("--account", default=argparse.SUPPRESS,
+                          help="계좌번호 CANO-상품코드(생략 시 프롬프트; 빈 입력은 시세전용 프로필)")
+    config_p.add_argument("--set-default", dest="set_default", action="store_true",
+                          help="저장 후 이 프로필을 기본 프로필로 지정(이름 없이 열 때 여는 프로필)")
+    config_p.set_defaults(func=credentials.cmd_config, needs_client=False)
 
     # kis search
     search_p = leaf(groups, "search", help="이름/코드로 국내 종목 검색")
@@ -312,9 +327,15 @@ def main(argv: Sequence[str] | None = None) -> int:
     """진입점. 종료 코드를 돌려준다(``__main__`` 과 콘솔 스크립트가 ``SystemExit`` 로 감싼다)."""
     parser = build_parser()
     args = parser.parse_args(argv)
+    # 자격증명을 만드는 명령(kis config)은 아직 자격증명이 없는 상태에서 돌아야 하므로 클라이언트를
+    # 만들지 않는다. needs_client=False 이면 build_client 와 결과 렌더(_emit, 둘 다 kis 소비)를 건너뛴다.
+    needs_client = getattr(args, "needs_client", True)
     try:
-        kis = build_client(args)
-        result = args.func(kis, args)
+        if needs_client:
+            kis = build_client(args)
+            result = args.func(kis, args)
+        else:
+            args.func(args)
     except KeyboardInterrupt:
         print("중단됨.", file=sys.stderr)
         return 130
@@ -322,5 +343,6 @@ def main(argv: Sequence[str] | None = None) -> int:
         translated = translate(exc)
         _emit_error(translated, args)
         return translated.exit_code
-    _emit(result, args, kis)
+    if needs_client:
+        _emit(result, args, kis)
     return 0
