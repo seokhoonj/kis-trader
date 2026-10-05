@@ -130,6 +130,13 @@ kis.account.pension.present_balance()  # 체결기준 잔고 + 손익
 
 연금저축(22)은 별개 사적연금이라 주문 가능한 일반 주식계좌로 다루며 이 렌즈 대상이 아닙니다. 상품코드가 29가 아니면 `.pension` 접근은 오류입니다.
 
+계좌 종류로 분기해야 하면 `kis.account.product_code` 로 상품코드(`"29"`/`"01"` 등)를 직접 읽습니다 -- `.pension` 을 예외로 떠보지 않고 IRP(29)와 일반(01)을 가를 수 있습니다. 파생 계좌 뷰(`03`/`08`)에도 같은 접근자가 있습니다.
+
+```python
+if kis.account.product_code == "29":
+    deposit = kis.account.pension.deposit()
+```
+
 ## 통합잔고
 
 `kis.account.balance()` 는 국내주식·채권·해외주식 잔고를 한 뷰로 합쳐 `Balance` 로 돌려줍니다. **실전투자 전용**입니다.

@@ -49,6 +49,13 @@ class OverseasDerivativesAccount:
     def __init__(self, client: KISClient) -> None:
         self._client = client
 
+    @property
+    def product_code(self) -> str:
+        """이 계좌의 상품코드(raw ``ACNT_PRDT_CD``) -- 해외선물옵션은 08. ``kind`` 의 raw 벤더값.
+        계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError`."""
+        _, product_code = self._client._require_account()
+        return product_code
+
     def deposit(self, *, currency: str = "USD", date: str | None = None) -> OverseasDerivativeDeposit:
         """해외선물옵션 예수금현황(예수금·자산·증거금·손익 요약).
 

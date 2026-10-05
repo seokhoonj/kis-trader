@@ -286,6 +286,8 @@ kis.overseas
 ```text
 kis.account
 ├── [StockAccount]  위탁 01 · 연금저축 22 · IRP 29
+│   ├── kind                                  # 판별자 "stock" (isinstance 대신 match)
+│   ├── product_code                          # raw 상품코드(01/22/29) -- IRP/일반 분기
 │   ├── domestic                              # 국내주식 계좌 조회
 │   │   ├── balance()                         # 계좌 현금·자산 요약
 │   │   ├── positions()                       # 보유 종목(0수량 포함)
@@ -327,6 +329,8 @@ kis.account
 │   │   └── orders()                          # 당일 주문 내역
 │   └── balance()                             # 국내+채권+해외 통합잔고
 ├── [DomesticDerivativesAccount]  국내선물옵션 03
+│   ├── kind                                  # 판별자 "domestic_derivatives" (isinstance 대신 match)
+│   ├── product_code                          # raw 상품코드(03)
 │   ├── balance()                             # 선물옵션 잔고(모의 지원)
 │   ├── open_orders()                         # 미체결 주문(모의 지원)
 │   ├── deposit()                             # 총자산현황
@@ -337,6 +341,8 @@ kis.account
 │   ├── night_balance()                       # 야간 잔고현황
 │   └── night_margin()                        # 야간 증거금상세
 └── [OverseasDerivativesAccount]  해외선물옵션 08
+    ├── kind                                  # 판별자 "overseas_derivatives" (isinstance 대신 match)
+    ├── product_code                          # raw 상품코드(08)
     ├── deposit()                             # 예수금현황
     ├── margin_detail()                       # 증거금상세
     ├── positions()                           # 미결제내역

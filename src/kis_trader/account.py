@@ -39,6 +39,16 @@ class StockAccount:
         self._overseas = OverseasAccount(client)
 
     @property
+    def product_code(self) -> str:
+        """이 계좌의 상품코드(raw ``ACNT_PRDT_CD``) -- 위탁 01/연금저축 22/IRP 29. ``kind`` 가
+        뷰 종류 판별자라면 이건 그 raw 벤더값으로, 소비자가 연금(29)/일반(01)을 예외 분기 없이
+        구별할 때 쓴다(예: ``kis.account.product_code == "29"``).
+
+        계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError`."""
+        _, product_code = self._client._require_account()
+        return product_code
+
+    @property
     def domestic(self) -> DomesticAccount:
         """국내주식 계좌 조회(잔고/손익/예약주문)."""
         return self._domestic

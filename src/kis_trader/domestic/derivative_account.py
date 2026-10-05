@@ -47,6 +47,13 @@ class DomesticDerivativesAccount:
     def __init__(self, client: KISClient) -> None:
         self._client = client
 
+    @property
+    def product_code(self) -> str:
+        """이 계좌의 상품코드(raw ``ACNT_PRDT_CD``) -- 국내선물옵션은 03. ``kind`` 의 raw 벤더값.
+        계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError`."""
+        _, product_code = self._client._require_account()
+        return product_code
+
     def balance(self) -> DerivativeBalance:
         """선물옵션 잔고(보유내역 + 예수금·증거금·손익 요약).
 
