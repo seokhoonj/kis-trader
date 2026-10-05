@@ -433,6 +433,15 @@ def fetch_expected_price_trend(
 
 _OPINION_PATH = "/uapi/domestic-stock/v1/quotations/invest-opinion"
 _OPINION_TR = "FHKST663300C0"
+#: invest-opinion 한 응답의 행 상한. 이 엔드포인트는 연속조회 키가 없어, 넓은 구간을 요청해도
+#: 최신 이 개수만 돌려주고 더 오래된 행은 조용히 잘린다 -- 상한에 닿으면 창을 과거로 당겨 재조회한다.
+_OPINION_ROW_CAP = 100
+
+
+def _day_before(yyyymmdd: str) -> str:
+    """``YYYYMMDD`` 하루 전(날짜 산술만)."""
+    day = datetime.strptime(yyyymmdd, "%Y%m%d")  # noqa: DTZ007 -- 날짜 산술만
+    return f"{day - timedelta(days=1):%Y%m%d}"
 
 
 def fetch_analyst_opinions(
@@ -440,32 +449,58 @@ def fetch_analyst_opinions(
     start: str | date | None = None, end: str | date | None = None,
 ) -> list[AnalystOpinion]:
     """기간 [start, end] 의 애널리스트 투자의견·목표주가 시계열(최근->과거). ``start`` 미지정이면
-    ``end`` 로부터 30일 전."""
+    ``end`` 로부터 30일 전.
+
+    invest-opinion 은 연속조회 키 없이 한 응답을 최신 ``_OPINION_ROW_CAP`` 행으로 끊으므로, 넓은
+    구간(예: 수년 백필)이면 더 오래된 행이 조용히 잘린다. 상한에 닿으면 반환된 가장 오래된 날짜의 하루 전으로
+    끝을 당겨 ``start`` 까지 반복 조회해 전량 수집한다. 창은 과거로만 이동하므로 안 겹치고, 끝이
+    매번 더 과거여야만(``next_window_end < window_end``) 진행하므로 서버가 날짜창을 무시해도 무한루프에
+    빠지지 않는다. 상한 미만이면 그 구간을 전량 받은 것이라 한 번에 끝난다(증분 조회엔 추가 호출 없음)."""
     start_date, end_date = _resolve_date_range(start, end)
-    params = {
-        "FID_COND_MRKT_DIV_CODE": "J",
-        "FID_COND_SCR_DIV_CODE": "16633",
-        "FID_INPUT_ISCD": symbol,
-        "FID_INPUT_DATE_1": start_date,
-        "FID_INPUT_DATE_2": end_date,
-    }
     opinions: list[AnalystOpinion] = []
-    for row in _rows(transport, path=_OPINION_PATH, tr=_OPINION_TR, params=params):
-        day = str(row.get("stck_bsop_date", "")).strip()
-        if not day:
-            continue
-        opinions.append(
-            AnalystOpinion(
-                symbol=symbol,
-                timestamp=_parse_bar_timestamp(day),
-                opinion=str(row.get("invt_opnn", "")).strip(),
-                previous_opinion=str(row.get("rgbf_invt_opnn", "")).strip(),
-                target_price=optional_decimal(row.get("hts_goal_prc"), "hts_goal_prc"),
-                previous_close=optional_decimal(row.get("stck_prdy_clpr"), "stck_prdy_clpr"),
-                disparity_rate=optional_decimal(row.get("dprt"), "dprt"),
-                _raw=row,
-            )
+    window_end = end_date
+    while True:
+        rows = _rows(
+            transport, path=_OPINION_PATH, tr=_OPINION_TR,
+            params={
+                "FID_COND_MRKT_DIV_CODE": "J",
+                "FID_COND_SCR_DIV_CODE": "16633",
+                "FID_INPUT_ISCD": symbol,
+                "FID_INPUT_DATE_1": start_date,
+                "FID_INPUT_DATE_2": window_end,
+            },
         )
+        opinion_dates: list[str] = []
+        for row in rows:
+            day = str(row.get("stck_bsop_date", "")).strip()
+            if not day:
+                continue
+            opinion_dates.append(day)
+            opinions.append(
+                AnalystOpinion(
+                    symbol=symbol,
+                    timestamp=_parse_bar_timestamp(day),
+                    broker=str(row.get("mbcr_name", "")).strip(),
+                    opinion=str(row.get("invt_opnn", "")).strip(),
+                    previous_opinion=str(row.get("rgbf_invt_opnn", "")).strip(),
+                    target_price=optional_decimal(row.get("hts_goal_prc"), "hts_goal_prc"),
+                    previous_close=optional_decimal(row.get("stck_prdy_clpr"), "stck_prdy_clpr"),
+                    disparity_rate=optional_decimal(row.get("dprt"), "dprt"),
+                    _raw=row,
+                )
+            )
+        if len(rows) < _OPINION_ROW_CAP or not opinion_dates:
+            break                                   # 구간 전량 확보(또는 빈 응답)
+        oldest_date = min(opinion_dates)
+        if oldest_date <= start_date:
+            break                                   # 요청 start 까지 도달
+        # 창을 과거로만 당겨 더 오래된 행을 잇는다(끝 = oldest 하루 전이라 창끼리 안 겹침). oldest
+        # 당일이 상한을 넘겨 쪼개졌다면 잔여를 놓치지만, 하루 의견 수는 회원사 수(수십)로 묶여
+        # 상한(100)을 넘지 않으므로 그런 분할은 없다.
+        next_window_end = _day_before(oldest_date)
+        if next_window_end >= window_end:
+            break                                   # 서버가 날짜창을 안 지켜 전진 못 함 -> spin 방지
+        window_end = next_window_end
     return opinions
 
 

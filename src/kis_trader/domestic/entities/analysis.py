@@ -105,14 +105,16 @@ class ShortSalePoint:
 class AnalystOpinion:
     """한 시점의 애널리스트 투자의견(불변).
 
-    ``opinion`` 은 투자의견(매수/중립/매도 등 텍스트), ``previous_opinion`` 은 직전 의견,
-    ``target_price`` 는 HTS 목표주가, ``disparity_rate`` 는 목표가 대비 괴리율(%)이다.
+    ``broker`` 는 의견을 낸 회원사(증권사)명, ``opinion`` 은 투자의견(매수/중립/매도 등 텍스트),
+    ``previous_opinion`` 은 직전 의견, ``target_price`` 는 HTS 목표주가, ``disparity_rate`` 는
+    목표가 대비 괴리율(%)이다. 소비자는 같은 날 여러 증권사의 의견을 ``broker`` 로 구분한다.
     :meth:`~kis_trader.domestic.stock.DomesticStock.analyst_opinions` 가 기간 시계열로 돌려준다.
     ``timestamp`` 는 영업일(KST-aware).
     """
 
     symbol: str
     timestamp: datetime               # 영업일(KST-aware)
+    broker: str                       # 회원사(증권사)명(mbcr_name)
     opinion: str                      # 투자의견(invt_opnn)
     previous_opinion: str             # 직전 투자의견(rgbf_invt_opnn)
     target_price: Decimal | None      # HTS 목표주가(hts_goal_prc)

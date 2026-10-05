@@ -22,5 +22,5 @@ stock.other_ratios()                    # 기타 (EVA·EBITDA·EV/EBITDA)
 stock.earnings_estimate()                                 # 월간 추정 손익·투자지표 (리서치 추정 대상 종목만)
 stock.investor_estimate()                                 # 장중 외국인/기관 순매수 추정 (확정 아닌 가추정)
 
-stock.analyst_opinions(start="20240101", end="20240630")  # 애널리스트 의견·목표주가 시계열
+stock.analyst_opinions(start="20240101", end="20240630")  # 애널리스트 의견·목표주가·증권사명 시계열(넓은 구간도 전량)
 ```
