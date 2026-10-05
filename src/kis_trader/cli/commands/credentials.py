@@ -39,7 +39,7 @@ def _confirm(question: str) -> bool:
 
 
 def cmd_config(args: argparse.Namespace) -> None:
-    profile = getattr(args, "profile", None) or _prompt("프로필 이름", "main")
+    profile = getattr(args, "profile", None) or _prompt("profile (예: main, paper, pension)", "main")
     _validate_profile_name(profile)  # 시크릿을 받기 전에 형식을 거부(헛되이 입력시키지 않는다)
 
     # 덮어쓰기 가드: 같은 프로필이 이미 있으면(save 는 조용히 교체하므로) 시크릿을 받기 전에 확인한다.
@@ -48,7 +48,7 @@ def cmd_config(args: argparse.Namespace) -> None:
             f"프로필 {profile!r} 가 이미 있습니다 ({creds_path}). 덮어쓸까요?"):
         raise CliAborted("취소 -- 저장하지 않았습니다.")
 
-    environment = args.environment or _prompt(f"환경 {'/'.join(_ENVIRONMENTS)}", "paper")
+    environment = args.environment or _prompt(f"environment ({'/'.join(_ENVIRONMENTS)})", "paper")
     if environment not in _ENVIRONMENTS:
         raise CliAborted(f"환경은 {'/'.join(_ENVIRONMENTS)} 중 하나여야 합니다: {environment!r}")
     if environment == "real" and not _confirm("실전(real) 자격증명을 저장합니다. 계속할까요?"):
@@ -56,11 +56,13 @@ def cmd_config(args: argparse.Namespace) -> None:
 
     account_flag = getattr(args, "account", None)
     account = (account_flag if account_flag is not None
-               else _prompt("계좌번호 CANO-상품코드 (없으면 Enter)", ""))
+               else _prompt("account (예: 50123456-01, 시세만 보면 Enter)", ""))
     account = account or None
     if account is not None:
         _validate_account(account)  # 시크릿을 받기 전에 형식을 거부
 
+    # 앱키/시크릿은 KIS 개발자포털 발급값이며, getpass 라 입력해도 화면에 보이지 않는다(정상).
+    print("앱키·시크릿은 KIS 개발자포털에서 발급받은 값입니다(입력해도 화면에 보이지 않습니다).")
     app_key = getpass("APP KEY: ")
     app_secret = getpass("APP SECRET: ")
     path = KISConfig(profile=profile, app_key=app_key, app_secret=app_secret,
@@ -70,10 +72,10 @@ def cmd_config(args: argparse.Namespace) -> None:
 
     # 요약: 시크릿은 절대 출력하지 않는다(경로/프로필/환경/계좌만).
     print(f"저장됨: {path}")
-    print(f"  프로필: {profile}" + ("  (기본)" if getattr(args, "set_default", False) else ""))
-    print(f"  환경: {environment}")
-    print(f"  계좌: {account if account else '(없음 -- 시세전용)'}")
+    print(f"  profile: {profile}" + ("  (기본)" if getattr(args, "set_default", False) else ""))
+    print(f"  environment: {environment}")
+    print(f"  account: {account if account else '(없음 -- 시세전용)'}")
     if os.name == "nt":
-        print("  주의: Windows 는 파일 권한을 ACL 로 관리하므로 0600 이 강제되지 않습니다.")
+        print("  permissions: Windows 는 ACL 로 관리하여 0600 이 강제되지 않습니다.")
     else:
-        print("  권한: 0600(소유자만 읽기)")
+        print("  permissions: 0600 (소유자만 읽기)")

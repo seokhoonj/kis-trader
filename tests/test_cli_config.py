@@ -68,7 +68,7 @@ def test_config_writes_profile_without_building_a_client(tmp_path, monkeypatch):
 def test_config_prompts_when_flags_omitted(tmp_path, monkeypatch):
     monkeypatch.setattr(cli_main, "build_client", _no_client)
     _feed_secrets(monkeypatch, "pk", "ps")
-    _answer(monkeypatch, {"프로필": "irp", "환경": "paper", "계좌": "12345678-22"})
+    _answer(monkeypatch, {"profile": "irp", "environment": "paper", "account": "12345678-22"})
 
     code = cli_main.main(["config"])
 
@@ -122,7 +122,7 @@ def test_config_overwrite_confirmation_controls_the_whole_profile(
 
 def test_config_rejects_invalid_prompted_environment_before_reading_secrets(tmp_path, monkeypatch):
     monkeypatch.setattr(cli_main, "build_client", _no_client)
-    _answer(monkeypatch, {"프로필": "main", "환경": "production"})
+    _answer(monkeypatch, {"profile": "main", "environment": "production"})
     monkeypatch.setattr("kis_trader.cli.commands.credentials.getpass",
                         lambda prompt="": pytest.fail("invalid environment 는 시크릿 전에 거부돼야 한다"))
 
