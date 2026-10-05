@@ -49,7 +49,7 @@ def _add_venue(sub: argparse.ArgumentParser) -> None:
 
 
 def _add_order_gate(sub: argparse.ArgumentParser) -> None:
-    sub.add_argument("--execute", choices=get_args(Environment), default=None,
+    sub.add_argument("--execute", choices=list(get_args(Environment)), default=None,
                      help="전송 권한 겸 환경 선언(프로필 환경과 일치해야 함). 없으면 dry-run")
     sub.add_argument("--yes", action="store_true", help="비대화형 전송 확인(대화형이면 프롬프트)")
     sub.add_argument("--confirm-account", dest="confirm_account", default=None,
@@ -120,7 +120,7 @@ def build_parser() -> argparse.ArgumentParser:
     # --profile/--account 는 SUPPRESS -- 최상위 전역 플래그 값을 덮어쓰지 않아 명령 앞뒤 어디든 둘 수 있다.
     config_p.add_argument("--profile", default=argparse.SUPPRESS,
                           help="저장할 프로필의 자유 이름(소문자/숫자/밑줄; 생략 시 프롬프트, 기본 main)")
-    config_p.add_argument("--environment", choices=get_args(Environment), default=None,
+    config_p.add_argument("--environment", choices=list(get_args(Environment)), default=None,
                           help="접속 환경(생략 시 프롬프트, 기본 paper). real 은 명시 확인 필요")
     config_p.add_argument("--account", default=argparse.SUPPRESS,
                           help="계좌번호 CANO-상품코드(생략 시 프롬프트; 빈 입력은 시세전용 프로필)")
