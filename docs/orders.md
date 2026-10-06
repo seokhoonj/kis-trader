@@ -206,9 +206,9 @@ CLI:
 ```bash
 # 시간창 생략 = 정규장 전체 집행. 명시하려면 --algo-start/--algo-end 는 KST HHMMSS·같은 날·시작<종료
 # (자정 넘김 불가). 최소 10주.
-kis order buy AAPL 10 --venue overseas --limit-price 150 \
+kis order buy AAPL 10 --region overseas --limit-price 150 \
   --algo twap --algo-start 223000 --algo-end 235959 --execute real --yes
-kis order buy AAPL 10 --venue overseas --limit-price 150 --reserve --algo vwap \
+kis order buy AAPL 10 --region overseas --limit-price 150 --reserve --algo vwap \
   --execute real --yes           # 예약 algo(정규장 종료 고정)
 ```
 
