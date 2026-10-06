@@ -99,9 +99,9 @@ class CircuitBreaker:
 @dataclass(frozen=True, slots=True)
 class StockOrderPlan:
     """검증된 주식 주문 티켓(elicitation echo + 집행용). 스칼라 입력만으로 만들어진다(taint 경계).
-    MVP 는 국내만이라 ``venue`` 는 ``"domestic"`` 고정."""
+    MVP 는 국내만이라 ``region`` 은 ``"domestic"`` 고정."""
 
-    venue: Literal["domestic"]
+    region: Literal["domestic"]
     symbol: str
     side: Literal["buy", "sell"]
     order_type: Literal["market", "limit"]
@@ -119,7 +119,7 @@ class ModifyOrderPlan:
 
 
 def make_stock_order_plan(
-    *, venue: str, symbol: str, side: str, quantity: int, limit_price: str | None = None
+    *, region: str, symbol: str, side: str, quantity: int, limit_price: str | None = None
 ) -> StockOrderPlan:
     """스칼라 입력만으로 주문 티켓을 만든다(taint 경계 -- 읽기 도구의 dict/객체를 인자로 받지 않는다).
     깊은 검증(가격/수량 규칙)은 라이브러리 :class:`~kis_trader.order.Order` 가 집행 시 하고, 여기선 taint
@@ -128,13 +128,13 @@ def make_stock_order_plan(
     **MVP 는 국내(domestic) 주식만.** 해외(overseas)는 거부한다 -- 안전코어(OrderEngine)가 해외 주문에
     사전 리스크 게이트(RiskLimits)를 지원하지 않아, "실전은 fail-closed 캡 필수"라는 이 서버의 불변식을
     해외에서 보장할 수 없기 때문이다(후속 슬라이스에서 엔진이 해외 리스크를 지원하면 연다)."""
-    if venue == "overseas":
+    if region == "overseas":
         raise KISUsageError(
             "해외 실주문은 아직 미지원이다 -- 엔진이 해외 사전 리스크 게이트를 지원하지 않아 fail-closed "
             "캡을 보장할 수 없다(후속). 지금은 국내(domestic) 주식만."
         )
-    if venue != "domestic":
-        raise KISUsageError(f"venue 는 domestic 이어야 한다(해외는 미지원): {venue!r}")
+    if region != "domestic":
+        raise KISUsageError(f"region 은 domestic 이어야 한다(해외는 미지원): {region!r}")
     if side not in _SIDES:
         raise KISUsageError(f"side 는 buy/sell 중 하나여야 한다: {side!r}")
     if not isinstance(symbol, str) or not symbol:
@@ -147,7 +147,7 @@ def make_stock_order_plan(
     order_type: Literal["market", "limit"] = "limit" if limit_price is not None else "market"
     normalized_price = str(limit_price) if limit_price is not None else None
     return StockOrderPlan(
-        venue="domestic",
+        region="domestic",
         symbol=symbol,
         side=side,  # type: ignore[arg-type]  # 위에서 _SIDES 로 좁힘
         order_type=order_type,

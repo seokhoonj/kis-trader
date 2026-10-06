@@ -65,11 +65,11 @@ def _stock_account(kis: KISClient) -> StockAccount:
     return account
 
 
-def quote(kis: KISClient, symbol: str, *, market: str = "domestic") -> dict[str, Any]:
-    """종목 현재가 스냅샷. ``market="overseas"`` 면 해외(거래소 자동 판별)."""
-    if market not in ("domestic", "overseas"):
-        raise KISUsageError(f"market 은 'domestic'/'overseas' 만 (받은 값: {market!r}).")
-    handle = kis.overseas.stock(symbol) if market == "overseas" else kis.domestic.stock(symbol)
+def quote(kis: KISClient, symbol: str, *, region: str = "domestic") -> dict[str, Any]:
+    """종목 현재가 스냅샷. ``region="overseas"`` 면 해외(거래소 자동 판별)."""
+    if region not in ("domestic", "overseas"):
+        raise KISUsageError(f"region 은 'domestic'/'overseas' 만 (받은 값: {region!r}).")
+    handle = kis.overseas.stock(symbol) if region == "overseas" else kis.domestic.stock(symbol)
     out: dict[str, Any] = _serialize(handle.quote())
     return out
 
@@ -150,7 +150,7 @@ def reconcile(kis: KISClient, *, client_order_id: str) -> dict[str, Any]:
 # 어기면 여기서 KISUsageError 로 거부되어 주문은 전송되지 않는다(fail-closed, 사람/AI 에 의존 안 함).
 def plan_place_order(
     gate: RealOrderGate, allowlist: frozenset[str] | None, has_risk: bool, *,
-    venue: str, symbol: str, side: str, quantity: int, limit_price: str | None = None,
+    region: str, symbol: str, side: str, quantity: int, limit_price: str | None = None,
 ) -> StockOrderPlan:
     """매수/매도 주문 계획 -- 이중게이트 -> (실전) RiskLimits 필수 -> allowlist -> 티켓 빌드 순으로
     검증한다. 실전에서 RiskLimits(fail-closed 캡)가 없으면 거부한다(관례: 캡은 사용자 설정, 미설정=거부)."""
@@ -162,7 +162,7 @@ def plan_place_order(
         )
     check_allowlist(symbol, allowlist, is_real=gate.is_real())
     return make_stock_order_plan(
-        venue=venue, symbol=symbol, side=side, quantity=quantity, limit_price=limit_price
+        region=region, symbol=symbol, side=side, quantity=quantity, limit_price=limit_price
     )
 
 
