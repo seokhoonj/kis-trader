@@ -155,6 +155,14 @@ def test_decode_too_long_record_is_rejected():
         )
 
 
+def test_decode_rejects_invalid_domestic_stock_exchange_slot():
+    """국내주식 slot 12는 저장 형식의 시세 거래소(KRX/NXT/UN)만 허용한다."""
+    row = list(_FROZEN_BYTES["immediate"][1])
+    row[12] = "SOR"
+    with pytest.raises(ValueError, match="exchange"):
+        decode_fingerprint(row)
+
+
 def test_fingerprint_equality_is_positional_and_cross_variant_safe():
     """동등성 = 위치 인코딩 동등성. 변형이 달라도 인코딩이 겹치지 않아 교차 충돌이 없다."""
     imm = _FROZEN_BYTES["immediate"][0]

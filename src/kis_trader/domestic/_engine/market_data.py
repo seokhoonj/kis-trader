@@ -1036,23 +1036,23 @@ _MAX_MULTI_QUOTE = 30            # KIS 명세: 슬롯 30개(FID_..._1 ~ _30)
 def fetch_multi_quotes(
     transport: Transport, *, requests: Sequence[tuple[str, str]]
 ) -> list[Quote]:
-    """여러 국내 종목의 현재가를 한 번에. ``requests`` 는 (보드, 종목코드) 쌍(보드=KRX/NXT/UN). 슬롯
-    30개 상한. 응답의 종목코드(inter_shrn_iscd)로 보드를 되짚어 :class:`Quote` 에 실어 준다."""
+    """여러 국내 종목의 현재가를 한 번에. ``requests`` 는 (거래소, 종목코드) 쌍(거래소=KRX/NXT/UN).
+    슬롯 30개 상한. 응답의 종목코드(inter_shrn_iscd)로 거래소를 되짚어 :class:`Quote` 에 실어 준다."""
     if not requests:
         return []
     if len(requests) > _MAX_MULTI_QUOTE:
         raise KISUsageError(f"국내 멀티시세는 한 번에 {_MAX_MULTI_QUOTE}종목까지: {len(requests)}개 요청")
     params: dict[str, str] = {}
-    board_by_symbol: dict[str, str] = {}
+    exchange_by_symbol: dict[str, str] = {}
     # 채운 슬롯만 보낸다 -- 남는 슬롯을 공백으로 채우면 KIS 가 빈 FID_COND_MRKT_DIV_CODE_N 을 거부한다
     # (INVALID INPUT). 공식 샘플도 값이 있는 슬롯만 조건부로 싣는다.
-    for i, (board, symbol) in enumerate(requests, start=1):
-        params[f"FID_COND_MRKT_DIV_CODE_{i}"] = _market_div(board)
+    for i, (exchange, symbol) in enumerate(requests, start=1):
+        params[f"FID_COND_MRKT_DIV_CODE_{i}"] = _market_div(exchange)
         params[f"FID_INPUT_ISCD_{i}"] = symbol
-        if board_by_symbol.setdefault(symbol, board) != board:
+        if exchange_by_symbol.setdefault(symbol, exchange) != exchange:
             raise KISUsageError(
-                f"멀티시세는 응답을 종목코드로만 식별해 한 종목을 여러 보드로 조회할 수 없다: "
-                f"{symbol!r} 이(가) 서로 다른 보드로 요청됨"
+                f"멀티시세는 응답을 종목코드로만 식별해 한 종목을 여러 거래소에서 조회할 수 없다: "
+                f"{symbol!r} 이(가) 서로 다른 거래소로 요청됨"
             )
     resp = transport.request(
         method="GET", path=_MULTI_QUOTE_PATH, tr_id=_MULTI_QUOTE_TR, params=params, idempotent=True
@@ -1066,7 +1066,7 @@ def fetch_multi_quotes(
         if not symbol:
             continue
         try:
-            market = board_by_symbol[symbol]
+            exchange = exchange_by_symbol[symbol]
         except KeyError:
             raise KISError(
                 f"멀티시세 응답에 요청하지 않은 종목코드가 있다: {symbol!r}"
@@ -1075,7 +1075,7 @@ def fetch_multi_quotes(
         quotes.append(
             Quote(
                 symbol=symbol,
-                market=market,
+                market=exchange,
                 currency="KRW",
                 current_price=required_decimal(row.get("inter2_prpr"), "inter2_prpr"),
                 open=required_decimal(row.get("inter2_oprc"), "inter2_oprc"),

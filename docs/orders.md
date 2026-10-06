@@ -52,14 +52,14 @@ stock.buy(quantity=10, division="midpoint")                              # 중�
 stock.buy(quantity=10, division="pre_market_close")                      # 장전 시간외 종가 (KRX 전용)
 stock.buy(quantity=10, division="post_market_close")                     # 장후 시간외 종가 (KRX 전용)
 
-# 애프터마켓 (KRX 16:00~20:00, board="KRX")
-am = kis.domestic.stock("005930", board="KRX")
+# 애프터마켓 (KRX 16:00~20:00, exchange="KRX")
+am = kis.domestic.stock("005930", exchange="KRX")
 am.buy(quantity=10, limit_price=70000, division="after_market_limit")    # 애프터마켓 지정가 (limit_price 필요)
 am.buy(quantity=10, division="after_market_immediate_limit")             # 애프터마켓 최유리지정가
 am.buy(quantity=10, division="after_market_priority_limit")              # 애프터마켓 최우선지정가 (day 전용)
 
-# NXT 프리마켓 GTP (Good Till Pre-Market, board="NXT")
-gtp = kis.domestic.stock("005930", board="NXT")
+# NXT 프리마켓 GTP (Good Till Pre-Market, exchange="NXT")
+gtp = kis.domestic.stock("005930", exchange="NXT")
 gtp.buy(quantity=10, limit_price=70000, division="gtp_limit")            # GTP 지정가 (limit_price 필요, day 전용)
 gtp.buy(quantity=10, division="gtp_immediate_limit")                     # GTP 최유리지정가 (day 전용)
 
@@ -79,12 +79,12 @@ stock.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (
 
 **`division=` (KRX 주문구분, 국내 현금 전용)** — CLI 는 `--division`.
 
-| 값 (`division=`) | 한글 | English | `limit_price` | board | IOC/FOK |
+| 값 (`division=`) | 한글 | English | `limit_price` | exchange | IOC/FOK |
 |---|---|---|---|---|---|
 | `"conditional_limit"` | 조건부지정가 | Conditional limit (falls to market at close) | 필요 | KRX | — |
-| `"immediate_limit"` | 최유리지정가 | Best-opposite-quote limit | 주지 않음 (상대편 최우선호가) | 전 보드 | 가능 |
+| `"immediate_limit"` | 최유리지정가 | Best-opposite-quote limit | 주지 않음 (상대편 최우선호가) | 전 거래소 | 가능 |
 | `"priority_limit"` | 최우선지정가 | Best-same-quote limit | 주지 않음 (내 방향 최우선호가) | KRX | — |
-| `"midpoint"` | 중간가 | Midpoint (best bid/ask midpoint) | 주지 않음 | 전 보드 | 가능 |
+| `"midpoint"` | 중간가 | Midpoint (best bid/ask midpoint) | 주지 않음 | 전 거래소 | 가능 |
 | `"pre_market_close"` | 장전 시간외 종가 | Pre-market close price | 주지 않음 | KRX | — |
 | `"post_market_close"` | 장후 시간외 종가 | Post-market close price | 주지 않음 | KRX | — |
 | `"after_market_limit"` | 애프터마켓 지정가 | After-market limit | 필요 | KRX | 가능 |
@@ -94,7 +94,7 @@ stock.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (
 | `"gtp_immediate_limit"` | GTP 최유리지정가 | NXT pre-market GTP best-opposite-quote | 주지 않음 | NXT | — |
 | `"gtp_priority_limit"` | GTP 최우선지정가 | NXT pre-market GTP best-same-quote | 주지 않음 | NXT | — |
 
-애프터마켓은 KRX 정규장과 분리된 시장(16:00~20:00)이라 `board="KRX"` 에서 위 `after_market_*` 주문구분으로 접수합니다. GTP(Good Till Pre-Market)는 NXT 프리마켓 전용호가로 `board="NXT"` 에서 `gtp_*` 로 접수하며, 미체결분은 프리마켓 종료(08:50)에 일괄 취소됩니다. 신용주문(`credit_buy`/`credit_sell`)도 `division=` 으로 애프터마켓/GTP 주문구분을 지정할 수 있습니다.
+애프터마켓은 KRX 정규장과 분리된 시장(16:00~20:00)이라 `exchange="KRX"` 에서 위 `after_market_*` 주문구분으로 접수합니다. GTP(Good Till Pre-Market)는 NXT 프리마켓 전용호가로 `exchange="NXT"` 에서 `gtp_*` 로 접수하며, 미체결분은 프리마켓 종료(08:50)에 일괄 취소됩니다. 신용주문(`credit_buy`/`credit_sell`)도 `division=` 으로 애프터마켓/GTP 주문구분을 지정할 수 있습니다.
 
 **`time_in_force=` (체결·유효조건)** — 지정가/시장가/최유리/중간가와 조합.
 

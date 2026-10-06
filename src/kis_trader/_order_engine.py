@@ -173,6 +173,10 @@ class OrderEngine:
                 self._transport, self._store, client_order_id,
                 cano=cano, product_code=product_code, environment=self._environment,
             )
+        if isinstance(fingerprint, ReservedOrderFingerprint):
+            raise KISUsageError(
+                "예약주문 정정·취소는 kis order cancel-reserved 로 하라."
+            )
         original_quantity = Decimal(fingerprint.quantity)
         remaining_quantity = original_quantity - report.filled_quantity
         # 정정 경로도 발주(place)와 같은 수치 강제변환을 거쳐 NaN/Infinity 등 비유한 입력을 fail-closed

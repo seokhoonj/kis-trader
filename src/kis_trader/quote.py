@@ -26,7 +26,9 @@ class Quote:
     """
 
     symbol: str
-    market: str                       # 조회한 시장(예: KRX)
+    #: 여러 자산군이 함께 쓰는 스냅샷의 일반 시장/구분(주식=거래소, 파생=``DerivativeMarket``, 채권=시장구분).
+    #: 주식 전용 핸들과 주문 계층은 더 정확한 이름인 ``exchange`` 를 쓴다.
+    market: str
     currency: str                     # 국내는 KRW
     current_price: Decimal            # 현재가
     open: Decimal

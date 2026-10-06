@@ -81,15 +81,15 @@ def test_domestic_quotes_rejects_over_30():
         _client(fake).domestic.quotes([f"{i:06d}" for i in range(31)])
 
 
-def test_domestic_quotes_rejects_same_symbol_on_two_boards():
-    # 응답은 종목코드로만 식별되므로 한 종목을 여러 보드로 조회하면 구분 불가 -> 요청단계 fail-closed
+def test_domestic_quotes_rejects_same_symbol_on_two_exchanges():
+    # 응답은 종목코드로만 식별되므로 한 종목을 여러 거래소에서 조회하면 구분 불가 -> 요청단계 fail-closed
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": []}))
     with pytest.raises(KISUsageError):
         _client(fake).domestic.quotes([("KRX", "005930"), ("NXT", "005930")])
 
 
 def test_domestic_quotes_unrequested_response_symbol_fails_closed():
-    # 요청하지 않은 종목코드가 응답에 오면 보드를 추측하지 않고 raise(전엔 requests[0] 보드로 오표기)
+    # 요청하지 않은 종목코드가 응답에 오면 거래소를 추측하지 않고 raise(전엔 첫 거래소로 오표기)
     rows = [_dom_row("999999", "유령", "1", "0", "3", "0.00")]
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                                               body={"output": rows}))

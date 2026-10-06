@@ -17,8 +17,8 @@ bytes that reach disk or the wire.
 
 The fixed account/environment inputs below (``_CANO``/``_PRODUCT``/``_ENV``) make the captured
 wire deterministic; none of them affects the fingerprint (the request fingerprint is independent
-of ``client_order_id`` and account). Run ``python tests/parity/golden_fingerprints.py`` to
-re-capture the literals from the current code.
+of ``client_order_id`` and account). The literals are immutable; never re-capture from HEAD.
+New cases must be captured from the 0.4.0 baseline that predates the rename.
 """
 
 from __future__ import annotations
@@ -37,7 +37,6 @@ from kis_trader.order import (
     Order,
     OrderFingerprint,
     WireRequest,
-    encode_fingerprint,
 )
 from kis_trader.overseas._engine import derivative_orders as _ovs_fo
 from kis_trader.overseas._engine import orders as _ovs
@@ -147,10 +146,18 @@ ORDER_MATRIX: list[tuple[str, dict[str, Any]]] = [
      {"lane": "change_domestic", "action": "modify", "quantity": 5, "limit_price": 71000,
       "original": {"lane": "domestic_stock", "symbol": "005930", "side": "buy",
                    "quantity": 10, "limit_price": 70000, "exchange": "KRX"}}),
+    ("domestic_stock_nxt_change",
+     {"lane": "change_domestic", "action": "modify", "quantity": 5, "limit_price": 71000,
+      "original": {"lane": "domestic_stock", "symbol": "005930", "side": "buy",
+                   "quantity": 10, "limit_price": 70000, "exchange": "NXT"}}),
     ("domestic_stock_cancel",
      {"lane": "change_domestic", "action": "cancel", "quantity": 10, "limit_price": None,
       "original": {"lane": "domestic_stock", "symbol": "005930", "side": "buy",
                    "quantity": 10, "limit_price": 70000, "exchange": "KRX"}}),
+    ("domestic_stock_sor_cancel",
+     {"lane": "change_domestic", "action": "cancel", "quantity": 10, "limit_price": None,
+      "original": {"lane": "domestic_stock", "symbol": "005930", "side": "buy",
+                   "quantity": 10, "limit_price": 70000, "exchange": "SOR"}}),
     ("overseas_stock_change",
      {"lane": "change_overseas", "action": "modify", "quantity": 4, "limit_price": 151,
       "original": {"lane": "overseas_stock", "symbol": "AAPL", "side": "buy",
@@ -420,7 +427,7 @@ def build_wire(label: str) -> dict[str, str]:
     return _wire_to_dict(_build(label)[1])
 
 
-# --- captured golden literals (from `python tests/parity/golden_fingerprints.py`) -------------
+# --- immutable golden literals captured from the 0.4.0 baseline -------------------------------
 GOLDEN_FINGERPRINT: dict[str, tuple[str, ...]] = {
     'domestic_stock_krx_limit': ('005930', 'buy', 'limit', '10', '70000', '', 'day', 'XKRX', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
     'domestic_stock_nxt_limit': ('005930', 'buy', 'limit', '10', '70000', '', 'day', 'XKRX', '', '', 'regular', '', 'NXT', '', '', 'HKD', '', '', ''),
@@ -436,7 +443,9 @@ GOLDEN_FINGERPRINT: dict[str, tuple[str, ...]] = {
     'reserved_overseas_us': ('AAPL', 'buy', 'limit', '3', '150', '', 'day', 'overseas-reserved', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
     'reserved_overseas_asia_hk': ('00700', 'buy', 'limit', '100', '350', '', 'day', 'overseas-reserved-asia', '', '', 'regular', '', 'KRX', '', 'HKS', 'CNY', '', '', ''),
     'domestic_stock_change': ('20261006-000000000000cafe', 'buy', 'limit', '5', '71000', 'modify', 'day', 'action:XKRX', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
+    'domestic_stock_nxt_change': ('20261006-000000000000cafe', 'buy', 'limit', '5', '71000', 'modify', 'day', 'action:XKRX', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
     'domestic_stock_cancel': ('20261006-000000000000cafe', 'buy', 'limit', '10', '', 'cancel', 'day', 'action:XKRX', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
+    'domestic_stock_sor_cancel': ('20261006-000000000000cafe', 'buy', 'limit', '10', '', 'cancel', 'day', 'action:XKRX', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
     'overseas_stock_change': ('20261006-000000000000cafe', 'buy', 'limit', '4', '151', 'modify', 'day', 'action:NAS', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
     'domestic_derivative_change': ('20261006-000000000000cafe', 'buy', 'limit', '1', '321.00', 'modify', 'day', 'action:XKFE', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
     'domestic_bond_change': ('20261006-000000000000cafe', 'buy', 'limit', '5', '10250', 'modify', 'day', 'action:BOND', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
@@ -467,7 +476,9 @@ GOLDEN_WIRE: dict[str, dict[str, str]] = {
     'reserved_overseas_us': {'method': 'POST', 'path': '/uapi/overseas-stock/v1/trading/order-resv', 'tr_id': 'TTTT3014U', 'CANO': '12345678', 'ACNT_PRDT_CD': '01', 'PDNO': 'AAPL', 'OVRS_EXCG_CD': 'NASD', 'FT_ORD_QTY': '3', 'FT_ORD_UNPR3': '150', 'ORD_SVR_DVSN_CD': '0', 'ORD_DVSN': '00'},
     'reserved_overseas_asia_hk': {'method': 'POST', 'path': '/uapi/overseas-stock/v1/trading/order-resv', 'tr_id': 'TTTS3013U', 'CANO': '12345678', 'ACNT_PRDT_CD': '01', 'PDNO': '00700', 'SLL_BUY_DVSN_CD': '02', 'RVSE_CNCL_DVSN_CD': '00', 'PRDT_TYPE_CD': '543', 'OVRS_EXCG_CD': 'SEHK', 'FT_ORD_QTY': '100', 'FT_ORD_UNPR3': '350', 'ORD_SVR_DVSN_CD': '0'},
     'domestic_stock_change': {'method': 'POST', 'path': '/uapi/domestic-stock/v1/trading/order-rvsecncl', 'tr_id': 'TTTC0013U', 'CANO': '12345678', 'ACNT_PRDT_CD': '01', 'KRX_FWDG_ORD_ORGNO': '06010', 'ORGN_ODNO': '0000012345', 'ORD_DVSN': '00', 'RVSE_CNCL_DVSN_CD': '01', 'ORD_QTY': '5', 'ORD_UNPR': '71000', 'CNDT_PRIC': '0', 'QTY_ALL_ORD_YN': 'N', 'EXCG_ID_DVSN_CD': 'KRX'},
+    'domestic_stock_nxt_change': {'method': 'POST', 'path': '/uapi/domestic-stock/v1/trading/order-rvsecncl', 'tr_id': 'TTTC0013U', 'CANO': '12345678', 'ACNT_PRDT_CD': '01', 'KRX_FWDG_ORD_ORGNO': '06010', 'ORGN_ODNO': '0000012345', 'ORD_DVSN': '00', 'RVSE_CNCL_DVSN_CD': '01', 'ORD_QTY': '5', 'ORD_UNPR': '71000', 'CNDT_PRIC': '0', 'QTY_ALL_ORD_YN': 'N', 'EXCG_ID_DVSN_CD': 'NXT'},
     'domestic_stock_cancel': {'method': 'POST', 'path': '/uapi/domestic-stock/v1/trading/order-rvsecncl', 'tr_id': 'TTTC0013U', 'CANO': '12345678', 'ACNT_PRDT_CD': '01', 'KRX_FWDG_ORD_ORGNO': '06010', 'ORGN_ODNO': '0000012345', 'ORD_DVSN': '00', 'RVSE_CNCL_DVSN_CD': '02', 'ORD_QTY': '10', 'ORD_UNPR': '70000', 'CNDT_PRIC': '0', 'QTY_ALL_ORD_YN': 'Y', 'EXCG_ID_DVSN_CD': 'KRX'},
+    'domestic_stock_sor_cancel': {'method': 'POST', 'path': '/uapi/domestic-stock/v1/trading/order-rvsecncl', 'tr_id': 'TTTC0013U', 'CANO': '12345678', 'ACNT_PRDT_CD': '01', 'KRX_FWDG_ORD_ORGNO': '06010', 'ORGN_ODNO': '0000012345', 'ORD_DVSN': '00', 'RVSE_CNCL_DVSN_CD': '02', 'ORD_QTY': '10', 'ORD_UNPR': '70000', 'CNDT_PRIC': '0', 'QTY_ALL_ORD_YN': 'Y', 'EXCG_ID_DVSN_CD': 'SOR'},
     'overseas_stock_change': {'method': 'POST', 'path': '/uapi/overseas-stock/v1/trading/order-rvsecncl', 'tr_id': 'TTTT1004U', 'CANO': '12345678', 'ACNT_PRDT_CD': '01', 'OVRS_EXCG_CD': 'NASD', 'PDNO': 'AAPL', 'ORGN_ODNO': '0000012345', 'RVSE_CNCL_DVSN_CD': '01', 'ORD_QTY': '4', 'OVRS_ORD_UNPR': '151', 'MGCO_APTM_ODNO': '', 'ORD_SVR_DVSN_CD': '0'},
     'domestic_derivative_change': {'method': 'POST', 'path': '/uapi/domestic-futureoption/v1/trading/order-rvsecncl', 'tr_id': 'TTTO1103U', 'ORD_PRCS_DVSN_CD': '02', 'CANO': '12345678', 'ACNT_PRDT_CD': '01', 'RVSE_CNCL_DVSN_CD': '01', 'ORGN_ODNO': '0000012345', 'ORD_QTY': '1', 'UNIT_PRICE': '321.00', 'NMPR_TYPE_CD': '01', 'KRX_NMPR_CNDT_CD': '0', 'RMN_QTY_YN': 'N', 'FUOP_ITEM_DVSN_CD': '', 'ORD_DVSN_CD': '01'},
     'domestic_bond_change': {'method': 'POST', 'path': '/uapi/domestic-bond/v1/trading/order-rvsecncl', 'tr_id': 'TTTC0953U', 'CANO': '12345678', 'ACNT_PRDT_CD': '01', 'PDNO': 'KR6095572D93', 'ORGN_ODNO': '0000012345', 'ORD_QTY2': '5', 'BOND_ORD_UNPR': '10250', 'RVSE_CNCL_DVSN_CD': '01', 'QTY_ALL_ORD_YN': 'N', 'MGCO_APTM_ODNO': '', 'ORD_SVR_DVSN_CD': '0', 'CTAC_TLNO': ''},
@@ -499,19 +510,3 @@ LEGACY_ROWS: dict[str, list[str]] = {
     "v9_nxte_16slot": ["005930", "buy", "limit", "10", "70000", "0", "day", "NXTE",
                        "", "", "regular", "", "NXT", "", "", "HKD"],
 }
-
-
-def _capture() -> None:
-    """Print Python literals for ``GOLDEN_FINGERPRINT`` / ``GOLDEN_WIRE`` captured from the
-    current code. Paste the output above as the module constants."""
-    import pprint
-
-    fingerprints = {label: tuple(encode_fingerprint(build_order(label))) for label, _ in ORDER_MATRIX}
-    wires = {label: build_wire(label) for label, _ in ORDER_MATRIX}
-    print("GOLDEN_FINGERPRINT = " + pprint.pformat(fingerprints, width=100, sort_dicts=False))
-    print()
-    print("GOLDEN_WIRE = " + pprint.pformat(wires, width=100, sort_dicts=False))
-
-
-if __name__ == "__main__":
-    _capture()

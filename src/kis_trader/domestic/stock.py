@@ -22,7 +22,7 @@ from ..execution import TWAPExecutionResult, execute_twap, make_twap_schedule
 from ..instrument import (
     DomesticOrderExchange,
     DomesticQuoteExchange,
-    resolve_domestic_exchange,
+    resolve_domestic_quote_exchange,
 )
 from ..order import (
     _LIMIT_BASED_DIVISIONS,
@@ -103,7 +103,7 @@ class DomesticStock(_StockBase):
         self, client: KISClient, symbol: str, *, exchange: DomesticQuoteExchange | None = None
     ) -> None:
         super().__init__(client, symbol)
-        self.exchange = resolve_domestic_exchange(symbol, exchange=exchange)
+        self.exchange = resolve_domestic_quote_exchange(symbol, exchange=exchange)
 
     # --- 시세 ---
     def quote(self) -> Quote:

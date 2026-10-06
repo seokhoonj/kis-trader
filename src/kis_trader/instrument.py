@@ -39,7 +39,7 @@ def is_domestic_symbol(symbol: str) -> bool:
     return _DOMESTIC_CODE_PATTERN.fullmatch(symbol) is not None
 
 
-def resolve_domestic_exchange(
+def resolve_domestic_quote_exchange(
     symbol: str, *, exchange: DomesticQuoteExchange | None = None,
 ) -> DomesticQuoteExchange:
     """심볼(과 선택적 ``exchange``)로 국내 시세 거래소를 정한다.

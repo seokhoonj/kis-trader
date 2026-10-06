@@ -372,8 +372,8 @@ kis.realtime()
 ├── subscribe / unsubscribe / stream         # 원시 등록·해제·통합 이터레이터(탈출구)
 ├── domestic                                 # 국내 실시간
 │   ├── stock(code)                          # → StockHandle
-│   │   ├── trades(venue='KRX')              # 체결 → StockTick
-│   │   └── order_book(venue='KRX')          # 호가 → StockOrderBook
+│   │   ├── trades(exchange='KRX')           # 체결 → StockTick
+│   │   └── order_book(exchange='KRX')       # 호가 → StockOrderBook
 │   ├── futures(code, kind='index')          # kind: index|commodity|stock|night
 │   │   ├── trades()                         # 체결 → FuturesTick
 │   │   └── order_book()                     # 호가 → DerivativeOrderBook
@@ -399,7 +399,7 @@ kis.realtime()
 └── overseas                                 # 해외 실시간
     ├── stock(symbol, exchange=None)         # RSYM 은 종목마스터로 해석
     │   ├── trades()                         # 지연체결 → DelayedTradeTick
-    │   └── order_book(venue='global')       # 호가(global 10 / asia 1)
+    │   └── order_book(zone='global')        # 호가(global 10 / asia 1)
     ├── futures(series_code)                 # → OverseasFuturesHandle
     │   ├── trades()                         # 체결 → FuturesTradeTick
     │   └── order_book()                     # 호가 → FuturesOrderBook

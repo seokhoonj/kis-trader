@@ -56,7 +56,7 @@ for tick in sub:                                    # 이 계약만 흘러옵니
 구독 표면은 다음과 같습니다.
 
 - **국내주식** — `realtime.domestic.stock("005930")`에서
-  `.trades(venue="KRX")` / `.order_book(venue="KRX")`. `venue`는 `KRX`·`NXT`·`unified`(통합).
+  `.trades(exchange="KRX")` / `.order_book(exchange="KRX")`. `exchange`는 `KRX`·`NXT`·`UN`(통합).
   각각 `RealtimeSubscription[StockTick]` / `RealtimeSubscription[StockOrderBook]`.
 - **선물** — `realtime.domestic.futures("101W09", kind="index")`에서 `.trades()` / `.order_book()`.
   `kind`는 `index`·`commodity`·`stock`·`night`. 체결은 `RealtimeSubscription[FuturesTick]`,
@@ -78,7 +78,7 @@ for tick in sub:
     print(tick.current_price)
 
 # 2) 컨텍스트 매니저 -- 블록을 벗어나면 자동 해제
-with realtime.domestic.stock("005930").order_book(venue="NXT") as sub:
+with realtime.domestic.stock("005930").order_book(exchange="NXT") as sub:
     for book in sub:
         print(book.best_ask, book.best_bid)
 

@@ -41,7 +41,7 @@ from ...errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from ...instrument import resolve_domestic_exchange
+from ...instrument import resolve_domestic_quote_exchange
 from ...order import (
     ChangeAction,
     ChangeActionFingerprint,
@@ -522,7 +522,7 @@ def run_pre_trade_risk(transport: Transport, order: Order, risk: RiskLimits) -> 
     reference_price = None
     if risk.needs_reference_price(order):
         quote = market_data.fetch_quote(
-            transport, symbol=order.symbol, market=resolve_domestic_exchange(order.symbol)
+            transport, symbol=order.symbol, market=resolve_domestic_quote_exchange(order.symbol)
         )
         reference_price = quote.current_price
     risk.check(order, reference_price=reference_price)

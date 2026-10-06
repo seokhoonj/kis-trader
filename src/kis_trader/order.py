@@ -18,7 +18,9 @@ from ._internal._wire import format_wire_decimal
 from .errors import KISUsageError
 from .instrument import (
     _DOMESTIC_ORDER_EXCHANGES,
+    _DOMESTIC_QUOTE_EXCHANGES,
     AssetClass,
+    DomesticOrderExchange,
     Region,
 )
 
@@ -186,7 +188,8 @@ class OrderFingerprint:
     def __eq__(self, other: object) -> bool:
         # dedup 정체성 = 위치 인코딩의 동등성. 변형(type)이 달라도 인코딩이 같으면 같다 -- 실제로는
         # exchange 슬롯(action:/reserved/즉시)이 겹치지 않아 교차변형 충돌은 발생하지 않으며, 이
-        # 정의는 예전 NamedTuple 튜플 동등성과 정확히 일치한다.
+        # 정의는 canonical 레코드의 예전 NamedTuple 튜플 동등성과 일치한다. 다만 구버전의 장식용 MIC
+        # XKOS/NXTE 는 다시 인코딩할 때 XKRX 로 정규화되므로 그 둘의 정체성은 합쳐질 수 있다.
         if not isinstance(other, OrderFingerprint):
             return NotImplemented
         return self._positional() == other._positional()
@@ -288,8 +291,9 @@ class ChangeActionFingerprint(OrderFingerprint):
     """접수된 주문에 대한 정정/취소 동작의 지문(변경 요청의 멱등키). ``original_client_order_id`` 로만
     원주문을 식별하고(그 order_id 로 파생하지 않는다 -- 정정은 원 id 를 새 ODNO 로 재바인딩하므로,
     order_id 를 넣으면 같은 request_id 재시도 시 재계산 값이 달라져 replay 가 CONFLICT 로 깨진다),
-    ``action``(cancel/modify)·수량·가격이 변경 의도를 식별한다. ``exchange`` 는 원주문의 거래소(정직한
-    값)이며, 온-디스크에선 "action:" 접두가 붙어 원주문 지문과 네임스페이스가 갈린다."""
+    ``action``(cancel/modify)·수량·가격이 변경 의도를 식별한다. ``exchange`` 는 원주문의 변경 와이어를
+    조립할 때 쓰는 거래소다. 국내 변경 지문은 거래소별 값 대신 XKRX lane 태그로 정규화되며,
+    온-디스크에선 "action:" 접두가 붙어 원주문 지문과 네임스페이스가 갈린다."""
 
     original_client_order_id: str
     side: Side
@@ -384,8 +388,14 @@ def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
             overseas_exchange=overseas_exchange, currency=currency, algo_strategy=algo_strategy,
         )
     region, asset_class = _decode_lane(slot7)
-    exchange = slot7 if (region, asset_class) == ("overseas", "stock") \
-        else _decode_domestic_exchange(slot12)
+    if (region, asset_class) == ("overseas", "stock"):
+        exchange = slot7
+    elif (region, asset_class) == ("domestic", "stock"):
+        exchange = _decode_domestic_exchange(
+            _checked_slot(slot12, _DOMESTIC_QUOTE_EXCHANGES, "exchange")
+        )
+    else:
+        exchange = _decode_domestic_exchange(slot12)
     return ImmediateOrderFingerprint(
         symbol=symbol, side=side, order_type=order_type, quantity=quantity,
         limit_price=limit_price, stop_price=stop_slot, time_in_force=tif,
@@ -436,7 +446,7 @@ _ASSET_CLASSES = frozenset(get_args(AssetClass))
 #: 거래소마다 제외하는 주문구분 집합이 다르다: 장전/장후 시간외 종가는 KRX 전용, 애프터마켓(41~47)은 KRX
 #: 전용(NXT/SOR 제외), GTP(27~29)는 NXT 전용(KRX/SOR 제외). 여기 없는 base(stop 등 Tier 2/미매핑)는 이
 #: 검증이 아니라 와이어 빌더에서 판정한다. 구체 집합은 아래 리터럴이 원장이다.
-_BOARD_UNSUPPORTED_BASES = {
+_UNSUPPORTED_BASES_BY_EXCHANGE = {
     "KRX": frozenset(("gtp_limit", "gtp_immediate_limit", "gtp_priority_limit")),
     "NXT": frozenset(("market", "conditional_limit",
                       "pre_market_close", "post_market_close", "stop_limit",
@@ -539,8 +549,12 @@ class Order:
     limit_price: Decimal | None = None
     stop_price: Decimal | None = None
     time_in_force: TimeInForce = "day"
+    #: 주문 라우팅 영역(domestic/overseas).
     region: Region = "domestic"
+    #: 주문 자산군(stock/derivative/bond).
     asset_class: AssetClass = "stock"
+    #: 국내주식은 KRX/NXT/SOR(시세 UN <-> 주문 SOR), 해외주식은 실제 거래소코드.
+    #: 파생/채권은 미사용 기본값 "KRX"이며 라우팅은 (region, asset_class) lane 태그가 소유한다.
     exchange: str = "KRX"
     credit_type: CreditType | None = None
     loan_date: str | None = None
@@ -765,7 +779,7 @@ class Order:
         # fail-closed. base = division 있으면 그것, 없으면 order_type.
         if lane == ("domestic", "stock"):
             base = self.division or self.order_type
-            if base in _BOARD_UNSUPPORTED_BASES.get(self.exchange, frozenset()):
+            if base in _UNSUPPORTED_BASES_BY_EXCHANGE.get(self.exchange, frozenset()):
                 raise KISUsageError(
                     f"{self.exchange} 거래소는 이 주문구분을 지원하지 않는다(base={base!r})."
                 )
@@ -881,8 +895,7 @@ class Order:
         cls, symbol: str, *, side: Side, quantity: Numeric, credit_type: CreditType,
         limit_price: Numeric | None = None, loan_date: str | None = None,
         time_in_force: TimeInForce = "day", division: DomesticDivision | None = None,
-        region: Region = "domestic", asset_class: AssetClass = "stock",
-        exchange: str = "KRX", client_order_id: str | None = None,
+        exchange: DomesticOrderExchange = "KRX", client_order_id: str | None = None,
     ) -> Order:
         """국내 신용(융자/대주) 주문 -- ``limit_price`` 를 주면 지정가, 없으면 시장가. ``credit_type`` 은
         매수/매도별 신용유형(매수 21/23/26/28, 매도 22/24/25/27).
@@ -898,7 +911,7 @@ class Order:
         return cls._make(
             symbol, side, order_type, quantity, limit_price=limit_price,
             credit_type=credit_type, loan_date=loan_date, division=division,
-            region=region, asset_class=asset_class, exchange=exchange,
+            region="domestic", asset_class="stock", exchange=exchange,
             time_in_force=time_in_force, client_order_id=client_order_id,
         )
 
@@ -948,13 +961,13 @@ class Order:
     @classmethod
     def stop_limit(cls, symbol: str, *, side: Side, quantity: Numeric, limit_price: Numeric,
                    stop_price: Numeric, time_in_force: TimeInForce = "day",
-                   region: Region = "domestic", asset_class: AssetClass = "stock",
-                   exchange: str = "KRX", client_order_id: str | None = None) -> Order:
+                   exchange: DomesticOrderExchange = "KRX",
+                   client_order_id: str | None = None) -> Order:
         """스탑지정가(역지정) 주문 -- ``stop_price``(조건가격) 도달 시 ``limit_price`` 지정가로 접수.
         국내(KRX) 현금주문에서 ORD_DVSN 22 로 나간다. ``stop_price`` 는 KIS ``CNDT_PRIC``(조건가격),
         ``limit_price`` 는 ``ORD_UNPR``. ``exchange`` 는 주문 거래소(스톱지정가는 KRX 전용이라 NXT/SOR 는
         생성 시점에 :class:`~kis_trader.errors.KISUsageError` 로 거부)."""
         return cls._make(symbol, side, "stop_limit", quantity, limit_price=limit_price,
                           stop_price=stop_price, time_in_force=time_in_force,
-                          region=region, asset_class=asset_class, exchange=exchange,
+                          region="domestic", asset_class="stock", exchange=exchange,
                           client_order_id=client_order_id)

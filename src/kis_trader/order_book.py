@@ -33,6 +33,8 @@ class OrderBook:
     """
 
     symbol: str
+    #: 여러 자산군이 함께 쓰는 스냅샷의 일반 시장/구분(주식=거래소, 파생=``DerivativeMarket``, 채권=시장구분).
+    #: 주식 전용 핸들과 주문 계층은 더 정확한 이름인 ``exchange`` 를 쓴다.
     market: str
     bids: tuple[PriceLevel, ...]
     asks: tuple[PriceLevel, ...]
