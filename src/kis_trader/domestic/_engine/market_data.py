@@ -105,7 +105,7 @@ def fetch_stock_status(
     sign = str(row.get("prdy_vrss_sign", "")).strip()
     return StockStatus(
         symbol=symbol,
-        market=market,
+        exchange=market,
         market_name=str(row.get("rprs_mrkt_kor_name", "")).strip(),
         industry_name=str(row.get("bstp_kor_isnm", "")).strip(),
         price=required_decimal(row.get("stck_prpr"), "stck_prpr"),

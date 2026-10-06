@@ -435,7 +435,8 @@ def test_stock_status_maps_prices_and_regulatory_flags():
     status = _client(fake).domestic.stock("005930", exchange="UN").status()
 
     assert isinstance(status, StockStatus)
-    assert status.market == "UN"
+    assert status.exchange == "UN"
+    assert not hasattr(status, "market")
     assert status.price == Decimal(73000)
     assert status.change == Decimal(-1200)
     assert status.is_credit_allowed is True

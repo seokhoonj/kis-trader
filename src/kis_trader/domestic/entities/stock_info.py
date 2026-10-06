@@ -54,7 +54,7 @@ class StockStatus:
     """현재가와 거래·규제·경고 상태를 함께 담은 종목 스냅샷(불변)."""
 
     symbol: str
-    market: str
+    exchange: str
     market_name: str
     industry_name: str
     price: Decimal
