@@ -11,7 +11,7 @@ import pytest
 import kis_trader.cli.app as cli_main
 from kis_trader.account import StockAccount
 from kis_trader.cli.app import build_parser
-from kis_trader.cli.commands import account, order
+from kis_trader.cli.commands import account, order, stock
 from kis_trader.cli.context import account_suffix
 from kis_trader.cli.errors import CliAborted, CliConfigError, translate
 from kis_trader.cli.output import _display_width, _pad, render, to_jsonable
@@ -45,12 +45,16 @@ def _isolate_credentials(tmp_path, monkeypatch):
 # --- 스텁 클라이언트: 네트워크 없이 어떤 공개 메서드가 불렸는지만 기록 --------------
 
 class _Handle:
-    def __init__(self, log, code):
+    def __init__(self, log, code, exchange=None):
         self._log = log
         self._code = code
+        self._exchange = exchange
 
     def quote(self):
         self._log.append(("quote", self._code)); return "QUOTE"
+
+    def status(self):
+        self._log.append(("status", self._code, self._exchange)); return "STATUS"
 
     def buy(self, *, quantity, limit_price, division=None, stop_price=None,
             algo=None, algo_window=None):
@@ -123,8 +127,10 @@ class _Domestic:
         self._log = log
         self.ranking = _Ranking(log)
 
-    def stock(self, code):
-        return _Handle(self._log, code)
+    def stock(self, code, *, exchange=None):
+        if exchange is not None:
+            self._log.append(("dom_stock", code, exchange))
+        return _Handle(self._log, code, exchange)
 
     def bond(self, code):
         return _BondHandle(self._log, code)
@@ -189,6 +195,48 @@ def test_parser_routes_stock_quote_to_handler():
     kis = StubKis()
     assert args.func(kis, args) == "QUOTE"
     assert kis.log == [("quote", "005930")]
+
+
+def test_parser_uses_region_destination_and_removes_venue_flag():
+    args = _args(["stock", "quote", "AAPL", "--region", "overseas", "--exchange", "NAS"])
+    assert args.region == "overseas"
+    assert not hasattr(args, "venue")
+
+    with pytest.raises(SystemExit):
+        _args(["stock", "quote", "AAPL", "--venue", "overseas"])
+
+
+def test_stock_quote_forwards_domestic_exchange_and_rejects_order_vocabulary():
+    kis = StubKis()
+    args = _args(["stock", "quote", "005930", "--exchange", "NXT"])
+    assert args.func(kis, args) == "QUOTE"
+    assert kis.log == [("dom_stock", "005930", "NXT"), ("quote", "005930")]
+
+    with pytest.raises(CliConfigError, match="KRX/NXT/UN"):
+        stock.cmd_quote(
+            StubKis(), _args(["stock", "quote", "005930", "--exchange", "SOR"])
+        )
+
+
+def test_stock_quote_keeps_overseas_exchange_free_form():
+    kis = StubKis()
+    args = _args([
+        "stock", "quote", "SHOP", "--region", "overseas", "--exchange", "TSE",
+    ])
+    assert args.func(kis, args) == "QUOTE"
+    assert kis.log == [("ovs_stock", "SHOP", "TSE"), ("quote", "SHOP")]
+
+
+def test_stock_status_keeps_domestic_guard_and_forwards_exchange():
+    kis = StubKis()
+    args = _args(["stock", "status", "005930", "--exchange", "NXT"])
+    assert args.func(kis, args) == "STATUS"
+    assert kis.log == [("dom_stock", "005930", "NXT"), ("status", "005930", "NXT")]
+
+    with pytest.raises(CliConfigError, match="--region domestic"):
+        stock.cmd_status(
+            StubKis(), _args(["stock", "status", "AAPL", "--region", "overseas"])
+        )
 
 
 def test_parser_leaves_profile_unset():
@@ -383,17 +431,53 @@ def test_order_division_dry_run_shows_it_and_execute_forwards_it():
 
 
 def test_order_division_rejected_for_overseas():
-    args = _args(["order", "buy", "AAPL", "10", "--venue", "overseas",
+    args = _args(["order", "buy", "AAPL", "10", "--region", "overseas",
                   "--division", "immediate_limit"])
     with pytest.raises(CliConfigError):  # KRX 주문구분은 국내 전용
         order.cmd_buy(StubKis(), args, is_tty=False)
 
 
-def test_order_exchange_rejected_for_domestic_stock():
-    # --exchange 는 해외 거래소코드 전용이라 국내 주식 주문엔 무의미 -- 조용히 무시하지 않고 거부한다.
-    args = _args(["order", "buy", "005930", "10", "--limit-price", "70000", "--exchange", "NAS"])
-    with pytest.raises(CliConfigError, match="exchange"):
+def test_order_exchange_accepts_domestic_order_vocabulary_and_echoes_it():
+    args = _args([
+        "order", "buy", "005930", "10", "--limit-price", "70000", "--exchange", "SOR",
+    ])
+    dry = order.cmd_buy(StubKis(), args, is_tty=False)
+    assert dry["region"] == "domestic"
+    assert dry["exchange"] == "SOR"
+
+
+def test_order_exchange_rejects_domestic_quote_only_vocabulary():
+    args = _args([
+        "order", "buy", "005930", "10", "--limit-price", "70000", "--exchange", "UN",
+    ])
+    with pytest.raises(CliConfigError, match="KRX/NXT/SOR"):
         order.cmd_buy(StubKis(), args, is_tty=False)
+
+
+def test_order_exchange_reaches_domestic_stock_handle():
+    kis = StubKis()
+    args = _args([
+        "--profile", "paper", "order", "buy", "005930", "10",
+        "--limit-price", "70000", "--exchange", "NXT", "--execute", "paper", "--yes",
+    ])
+    assert order.cmd_buy(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [
+        ("dom_stock", "005930", "NXT"),
+        ("buy", "005930", 10, "70000", None, None, None, None),
+    ]
+
+
+def test_order_sor_exchange_uses_unified_quote_handle_then_places_order():
+    kis = StubKis()
+    args = _args([
+        "--profile", "paper", "order", "buy", "005930", "10",
+        "--limit-price", "70000", "--exchange", "SOR", "--execute", "paper", "--yes",
+    ])
+    assert order.cmd_buy(kis, args, is_tty=False) == "REPORT"
+    assert kis.log == [
+        ("dom_stock", "005930", "UN"),
+        ("buy", "005930", 10, "70000", None, None, None, None),
+    ]
 
 
 def test_order_domestic_stop_price_dry_run_and_execute_forwards_it():
@@ -426,7 +510,7 @@ def test_order_overseas_stock_stop_price_rejected():
     # --stop-price 는 해외 파생 또는 국내 주식 전용 -- 해외 주식은 어느 쪽도 아니라 거부.
     with pytest.raises(CliConfigError, match="stop-price"):
         order.cmd_buy(StubKis(), _args(
-            ["order", "buy", "AAPL", "10", "--venue", "overseas", "--stop-price", "99"]),
+            ["order", "buy", "AAPL", "10", "--region", "overseas", "--stop-price", "99"]),
             is_tty=False)
 
 
@@ -461,7 +545,7 @@ def test_order_reserve_sell_execute_routes_to_reserve_sell():
 
 def test_order_overseas_reserve_dry_run_shows_reserve_currency_exchange():
     dry = order.cmd_buy(StubKis(), _args(
-        ["order", "buy", "00700", "100", "--venue", "overseas", "--reserve",
+        ["order", "buy", "00700", "100", "--region", "overseas", "--reserve",
          "--limit-price", "350", "--exchange", "HKS", "--currency", "HKD"]), is_tty=False)
     assert dry["reserve"] is True
     assert dry["currency"] == "HKD" and dry["exchange"] == "HKS"
@@ -471,7 +555,7 @@ def test_order_overseas_reserve_execute_allows_paper_and_forwards_currency():
     # 국내 예약과 달리 해외 예약 발주는 모의(paper) 허용.
     kis = StubKis(account="12345678-01", environment="paper")
     order.cmd_buy(kis, _args(
-        ["--profile", "paper", "order", "buy", "00700", "100", "--venue", "overseas",
+        ["--profile", "paper", "order", "buy", "00700", "100", "--region", "overseas",
          "--reserve", "--limit-price", "350", "--exchange", "HKS", "--currency", "HKD",
          "--execute", "paper", "--yes"]), is_tty=False)
     # 거래소가 핸들 조회로 전달되고, 통화가 발주로 전달되는 전 과정을 검증한다.
@@ -483,7 +567,7 @@ def test_order_overseas_reserve_defers_currency_to_library():
     # --currency 미지정: 라이브러리 기본(홍콩=HKD)을 재기술하지 않고 전혀 넘기지 않는다.
     kis = StubKis(account="12345678-01", environment="paper")
     order.cmd_sell(kis, _args(
-        ["--profile", "paper", "order", "sell", "AAPL", "10", "--venue", "overseas",
+        ["--profile", "paper", "order", "sell", "AAPL", "10", "--region", "overseas",
          "--reserve", "--limit-price", "190", "--exchange", "NAS",
          "--execute", "paper", "--yes"]), is_tty=False)
     assert kis.log == [("ovs_stock", "AAPL", "NAS"),
@@ -493,14 +577,14 @@ def test_order_overseas_reserve_defers_currency_to_library():
 def test_order_overseas_reserve_requires_limit_price():
     with pytest.raises(CliConfigError, match="지정가"):
         order.cmd_buy(StubKis(), _args(
-            ["order", "buy", "AAPL", "10", "--venue", "overseas", "--reserve",
+            ["order", "buy", "AAPL", "10", "--region", "overseas", "--reserve",
              "--exchange", "NAS"]), is_tty=False)
 
 
 def test_order_overseas_reserve_rejects_end_date():
     with pytest.raises(CliConfigError, match="end-date"):
         order.cmd_buy(StubKis(), _args(
-            ["order", "buy", "AAPL", "10", "--venue", "overseas", "--reserve",
+            ["order", "buy", "AAPL", "10", "--region", "overseas", "--reserve",
              "--limit-price", "190", "--end-date", "20240131"]), is_tty=False)
 
 
@@ -514,7 +598,7 @@ def test_order_domestic_reserve_rejects_currency():
 def test_order_currency_requires_reserve():
     with pytest.raises(CliConfigError, match="--currency"):
         order.cmd_buy(StubKis(), _args(
-            ["order", "buy", "00700", "100", "--venue", "overseas",
+            ["order", "buy", "00700", "100", "--region", "overseas",
              "--limit-price", "350", "--currency", "HKD"]), is_tty=False)
 
 
@@ -536,7 +620,7 @@ def test_algo_strategy_taxonomy_exported():
 
 def test_order_overseas_algo_dry_run_shows_algo_fields():
     dry = order.cmd_buy(StubKis(), _args(
-        ["order", "buy", "AAPL", "10", "--venue", "overseas", "--limit-price", "150",
+        ["order", "buy", "AAPL", "10", "--region", "overseas", "--limit-price", "150",
          "--algo", "twap", "--algo-start", "093000", "--algo-end", "160000"]), is_tty=False)
     assert dry["algo"] == "twap"
     assert dry["algo_start"] == "093000" and dry["algo_end"] == "160000"
@@ -545,7 +629,7 @@ def test_order_overseas_algo_dry_run_shows_algo_fields():
 def test_order_overseas_algo_execute_forwards_algo_and_window():
     kis = StubKis(account="12345678-01", environment="real")
     order.cmd_buy(kis, _args(
-        ["--profile", "real", "order", "buy", "AAPL", "10", "--venue", "overseas",
+        ["--profile", "real", "order", "buy", "AAPL", "10", "--region", "overseas",
          "--exchange", "NAS", "--limit-price", "150", "--algo", "twap", "--algo-start", "093000",
          "--algo-end", "160000", "--execute", "real", "--yes", "--confirm-account", "7801"]),
         is_tty=False)
@@ -557,7 +641,7 @@ def test_order_overseas_algo_no_window_forwards_algo_only():
     # 시간창 미지정: algo 만 넘기고 algo_window 는 라이브러리 기본(정규장 종료)에 맡긴다.
     kis = StubKis(account="12345678-01", environment="real")
     order.cmd_sell(kis, _args(
-        ["--profile", "real", "order", "sell", "AAPL", "10", "--venue", "overseas",
+        ["--profile", "real", "order", "sell", "AAPL", "10", "--region", "overseas",
          "--limit-price", "150", "--algo", "vwap",
          "--execute", "real", "--yes", "--confirm-account", "7801"]), is_tty=False)
     assert kis.log[-1] == ("sell", "AAPL", 10, "150", None, None, "vwap", None)
@@ -566,7 +650,7 @@ def test_order_overseas_algo_no_window_forwards_algo_only():
 def test_order_overseas_reserve_algo_forwards_algo():
     kis = StubKis(account="12345678-01", environment="real")
     order.cmd_buy(kis, _args(
-        ["--profile", "real", "order", "buy", "AAPL", "10", "--venue", "overseas", "--reserve",
+        ["--profile", "real", "order", "buy", "AAPL", "10", "--region", "overseas", "--reserve",
          "--limit-price", "150", "--exchange", "NAS", "--algo", "twap",
          "--execute", "real", "--yes", "--confirm-account", "7801"]), is_tty=False)
     assert kis.log[-1] == ("reserve_buy", "AAPL", 10, "150", {"algo": "twap"})
@@ -582,7 +666,7 @@ def test_order_algo_rejected_for_domestic():
 def test_order_algo_rejects_paper_execute():
     with pytest.raises(CliConfigError, match="실전전용"):
         order.cmd_buy(StubKis(account="12345678-01", environment="paper"), _args(
-            ["--profile", "paper", "order", "buy", "AAPL", "10", "--venue", "overseas",
+            ["--profile", "paper", "order", "buy", "AAPL", "10", "--region", "overseas",
              "--limit-price", "150", "--algo", "twap", "--execute", "paper", "--yes"]),
             is_tty=False)
 
@@ -590,21 +674,21 @@ def test_order_algo_rejects_paper_execute():
 def test_order_algo_window_requires_algo():
     with pytest.raises(CliConfigError, match="--algo"):
         order.cmd_buy(StubKis(), _args(
-            ["order", "buy", "AAPL", "10", "--venue", "overseas", "--limit-price", "150",
+            ["order", "buy", "AAPL", "10", "--region", "overseas", "--limit-price", "150",
              "--algo-start", "093000", "--algo-end", "160000"]), is_tty=False)
 
 
 def test_order_algo_half_window_rejected():
     with pytest.raises(CliConfigError, match="함께"):
         order.cmd_buy(StubKis(), _args(
-            ["order", "buy", "AAPL", "10", "--venue", "overseas", "--limit-price", "150",
+            ["order", "buy", "AAPL", "10", "--region", "overseas", "--limit-price", "150",
              "--algo", "twap", "--algo-start", "093000"]), is_tty=False)
 
 
 def test_order_reserve_algo_rejects_window():
     with pytest.raises(CliConfigError, match="정규장 종료"):
         order.cmd_buy(StubKis(), _args(
-            ["order", "buy", "AAPL", "10", "--venue", "overseas", "--reserve",
+            ["order", "buy", "AAPL", "10", "--region", "overseas", "--reserve",
              "--limit-price", "150", "--algo", "twap", "--algo-start", "093000",
              "--algo-end", "160000"]), is_tty=False)
 
@@ -712,9 +796,9 @@ def test_order_cancel_reserved_overseas_dry_run_shows_receipt_date(monkeypatch):
     kis = StubKis()
     monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
     dry = order.cmd_cancel_reserved(kis, _args(
-        ["order", "cancel-reserved", "US123", "--venue", "overseas",
+        ["order", "cancel-reserved", "US123", "--region", "overseas",
          "--receipt-date", "20240131"]), is_tty=False)
-    assert dry["reserved_order_id"] == "US123" and dry["venue"] == "overseas"
+    assert dry["reserved_order_id"] == "US123" and dry["region"] == "overseas"
     assert dry["receipt_date"] == "20240131" and "note" in dry and kis.log == []
 
 
@@ -723,10 +807,10 @@ def test_order_cancel_reserved_overseas_execute_allows_paper_and_routes(monkeypa
     kis = StubKis(account="12345678-01", environment="paper")
     monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
     result = order.cmd_cancel_reserved(kis, _args(
-        ["--profile", "paper", "order", "cancel-reserved", "US123", "--venue", "overseas",
+        ["--profile", "paper", "order", "cancel-reserved", "US123", "--region", "overseas",
          "--receipt-date", "20240131", "--execute", "paper", "--yes"]), is_tty=False)
     assert kis.log[-1] == ("ovs_cancel_reserved_order", "US123", "20240131")
-    assert result["cancelled"] is True and result["venue"] == "overseas"
+    assert result["cancelled"] is True and result["region"] == "overseas"
     assert result["reserved_order_id"] == "US123" and result["receipt_date"] == "20240131"
 
 
@@ -735,7 +819,7 @@ def test_order_cancel_reserved_overseas_requires_receipt_date(monkeypatch):
     monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
     with pytest.raises(CliConfigError, match="--receipt-date"):
         order.cmd_cancel_reserved(kis, _args(
-            ["order", "cancel-reserved", "US123", "--venue", "overseas"]), is_tty=False)
+            ["order", "cancel-reserved", "US123", "--region", "overseas"]), is_tty=False)
     assert kis.log == []
 
 
@@ -744,7 +828,7 @@ def test_order_cancel_reserved_overseas_rejects_order_date(monkeypatch):
     monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
     with pytest.raises(CliConfigError, match="--order-date"):
         order.cmd_cancel_reserved(kis, _args(
-            ["order", "cancel-reserved", "US123", "--venue", "overseas",
+            ["order", "cancel-reserved", "US123", "--region", "overseas",
              "--receipt-date", "20240131", "--order-date", "20240131"]), is_tty=False)
     assert kis.log == []
 
@@ -951,7 +1035,7 @@ def test_main_order_timeout_exits_seven_with_reconcile(monkeypatch, capsys):
             raise OrderTimeoutError("전송 시간초과", client_order_id="cid-1")
 
     class _Domestic:
-        def stock(self, code):
+        def stock(self, code, *, exchange=None):
             return _TimeoutHandle()
 
     class _Kis:
@@ -1077,7 +1161,7 @@ def test_order_book_table_is_ladder_and_json_is_raw():
             return book
 
     class _BookNamespace:
-        def stock(self, code):
+        def stock(self, code, *, exchange=None):
             return _BookHandle()
 
     class _Kis:
@@ -1317,7 +1401,7 @@ def test_account_balance_bond_rejects_overseas(monkeypatch):
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView([]))
     with pytest.raises(CliConfigError):
         account.cmd_balance(object(), _args(
-            ["account", "balance", "--asset", "bond", "--venue", "overseas"]))
+            ["account", "balance", "--asset", "bond", "--region", "overseas"]))
 
 
 def test_account_balance_stock_default_unchanged(monkeypatch):
@@ -1348,7 +1432,7 @@ def test_account_orders_bond_rejects_overseas(monkeypatch):
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView([]))
     with pytest.raises(CliConfigError, match="overseas"):
         account.cmd_orders(object(), _args(
-            ["account", "orders", "--asset", "bond", "--date", "20260814", "--venue", "overseas"]))
+            ["account", "orders", "--asset", "bond", "--date", "20260814", "--region", "overseas"]))
 
 
 def test_account_orders_stock_default_unchanged(monkeypatch):
@@ -1430,7 +1514,7 @@ def test_account_fills_rejects_overseas(monkeypatch):
     with pytest.raises(CliConfigError, match="overseas"):
         account.cmd_fills(object(), _args(
             ["account", "fills", "--asset", "bond", "--start", "20240101", "--end", "20240131",
-             "--venue", "overseas"]))
+             "--region", "overseas"]))
 
 
 # --- 국내 예약주문 조회: kis account reserved (기간별, 처리상태 필터) ---
@@ -1467,7 +1551,7 @@ def test_account_reserved_overseas_routes_to_overseas(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
     result = account.cmd_reserved(object(), _args(
-        ["account", "reserved", "--venue", "overseas", "--start", "20240101", "--end", "20240131"]))
+        ["account", "reserved", "--region", "overseas", "--start", "20240101", "--end", "20240131"]))
     assert result == ["OVS_RESERVED"]
     assert log == [("ovs_reserved_orders", "20240101", "20240131")]
 
@@ -1476,7 +1560,7 @@ def test_account_reserved_overseas_rejects_process(monkeypatch):
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView([]))
     with pytest.raises(CliConfigError, match="--process"):
         account.cmd_reserved(object(), _args(
-            ["account", "reserved", "--venue", "overseas", "--start", "20240101",
+            ["account", "reserved", "--region", "overseas", "--start", "20240101",
              "--end", "20240131", "--process", "unprocessed"]))
 
 
@@ -1484,7 +1568,7 @@ def test_account_reserved_overseas_requires_range(monkeypatch):
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView([]))
     with pytest.raises(CliConfigError, match="기간"):
         account.cmd_reserved(object(), _args(
-            ["account", "reserved", "--venue", "overseas", "--start", "20240101"]))
+            ["account", "reserved", "--region", "overseas", "--start", "20240101"]))
 
 
 # --- 손익: kis account profits (국내 종목별/일별, 해외 기간손익) ---------
@@ -1532,7 +1616,7 @@ def test_account_profits_overseas_routes_and_defers(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
     result = account.cmd_profits(object(), _args(
-        ["account", "profits", "--venue", "overseas", "--start", "20240101", "--end", "20240131"]))
+        ["account", "profits", "--region", "overseas", "--start", "20240101", "--end", "20240131"]))
     assert result == "OVS_PROFIT"
     assert log == [("ovs_period_profit", "20240101", "20240131", {})]
 
@@ -1541,7 +1625,7 @@ def test_account_profits_overseas_forwards_currency_and_won_basis(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
     account.cmd_profits(object(), _args(
-        ["account", "profits", "--venue", "overseas", "--start", "20240101", "--end", "20240131",
+        ["account", "profits", "--region", "overseas", "--start", "20240101", "--end", "20240131",
          "--symbol", "AAPL", "--currency", "USD", "--won-basis"]))
     assert log == [("ovs_period_profit", "20240101", "20240131",
                     {"symbol": "AAPL", "currency": "USD", "won_basis": True})]
@@ -1553,7 +1637,7 @@ def test_account_profits_overseas_rejects_domestic_flags(monkeypatch, bad):
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
     with pytest.raises(CliConfigError):
         account.cmd_profits(object(), _args(
-            ["account", "profits", "--venue", "overseas", "--start", "20240101",
+            ["account", "profits", "--region", "overseas", "--start", "20240101",
              "--end", "20240131", *bad]))
     assert log == []
 
@@ -1573,7 +1657,7 @@ def test_account_transactions_overseas_routes_and_defers(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
     result = account.cmd_transactions(object(), _args(
-        ["account", "transactions", "--venue", "overseas", "--start", "20240101", "--end", "20240131"]))
+        ["account", "transactions", "--region", "overseas", "--start", "20240101", "--end", "20240131"]))
     assert result == ["OVS_TXN"]
     assert log == [("ovs_transactions", "20240101", "20240131", {})]
 
@@ -1582,7 +1666,7 @@ def test_account_transactions_overseas_forwards_filters(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
     account.cmd_transactions(object(), _args(
-        ["account", "transactions", "--venue", "overseas", "--start", "20240101", "--end", "20240131",
+        ["account", "transactions", "--region", "overseas", "--start", "20240101", "--end", "20240131",
          "--symbol", "AAPL", "--side", "buy"]))
     assert log == [("ovs_transactions", "20240101", "20240131", {"symbol": "AAPL", "side": "buy"})]
 
@@ -1602,7 +1686,7 @@ def test_account_transactions_requires_range(monkeypatch, partial):
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
     with pytest.raises(CliConfigError, match="기간"):
         account.cmd_transactions(object(), _args(
-            ["account", "transactions", "--venue", "overseas", *partial]))
+            ["account", "transactions", "--region", "overseas", *partial]))
     assert log == []
 
 
@@ -1764,7 +1848,7 @@ def test_account_settlement_overseas_stock(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
     account.cmd_settlement(object(), _args(
-        ["account", "settlement", "--venue", "overseas", "--date", "20240102"]))
+        ["account", "settlement", "--region", "overseas", "--date", "20240102"]))
     assert log == [("ovs_settlement_balance", "20240102")]
 
 
@@ -1785,7 +1869,7 @@ def test_account_commissions_stock_rejects(monkeypatch):
 def test_account_present_overseas_stock(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
-    account.cmd_present(object(), _args(["account", "present"]))  # venue 축 없음 -- 해외주식 전용
+    account.cmd_present(object(), _args(["account", "present"]))  # region 축 없음 -- 해외주식 전용
     assert log == [("ovs_present_balance",)]
 
 
@@ -1821,7 +1905,7 @@ def test_account_foreign_margin_deriv_rejects(monkeypatch):
     (account.cmd_orders, _StubDeriv03, ["account", "orders", "--start", "20240101", "--end", "20240131"]),
     (account.cmd_deposit, _StubDeriv03, ["account", "deposit", "--currency", "USD"]),
     (account.cmd_settlement, _StubDeriv03,
-     ["account", "settlement", "--date", "20240102", "--venue", "overseas"]),
+     ["account", "settlement", "--date", "20240102", "--region", "overseas"]),
 ])
 def test_account_deriv_rejects_foreign_flag(monkeypatch, cmd, stub, argv):
     log: list = []
@@ -1869,7 +1953,7 @@ def test_account_settlement_overseas_stock_requires_date(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
     with pytest.raises(CliConfigError, match="기준일자"):
-        account.cmd_settlement(object(), _args(["account", "settlement", "--venue", "overseas"]))
+        account.cmd_settlement(object(), _args(["account", "settlement", "--region", "overseas"]))
     assert log == []
 
 
@@ -1900,7 +1984,7 @@ def test_account_deriv_only_command_rejects_stock_noop(monkeypatch, cmd, argv):
 @pytest.mark.parametrize("argv", [
     ["account", "fills", "--start", "20240101", "--end", "20240131", "--date", "20240101"],
     ["account", "orders", "--start", "20240101", "--end", "20240131"],
-    ["account", "balance", "--market", "US"],       # venue=domestic 이면 --market 은 무의미 -> 거부
+    ["account", "balance", "--market", "US"],       # region=domestic 이면 --market 은 무의미 -> 거부
     ["account", "positions", "--market", "US"],
     ["account", "orders", "--market", "US"],
 ])
@@ -1919,7 +2003,7 @@ def test_account_stock_rejects_foreign_flag(monkeypatch, argv):
 def test_account_balance_overseas_stock_routes_with_market(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
-    account.cmd_balance(object(), _args(["account", "balance", "--venue", "overseas", "--market", "US"]))
+    account.cmd_balance(object(), _args(["account", "balance", "--region", "overseas", "--market", "US"]))
     assert log == [("ovs_balance", "US")]
 
 
@@ -1928,7 +2012,7 @@ def test_account_balance_overseas_omitting_market_routes_all_markets(monkeypatch
     # (positions/open_orders 와 동일 arity). 라이브러리가 시장별 요약 리스트를 준다.
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
-    account.cmd_balance(object(), _args(["account", "balance", "--venue", "overseas"]))
+    account.cmd_balance(object(), _args(["account", "balance", "--region", "overseas"]))
     assert log == [("ovs_balance", None)]
 
 
@@ -1936,14 +2020,14 @@ def test_account_positions_stock_routes(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
     account.cmd_positions(object(), _args(["account", "positions"]))
-    account.cmd_positions(object(), _args(["account", "positions", "--venue", "overseas", "--market", "US"]))
+    account.cmd_positions(object(), _args(["account", "positions", "--region", "overseas", "--market", "US"]))
     assert log == [("dom_positions",), ("ovs_positions", "US")]
 
 
 def test_account_orders_stock_overseas_routes(monkeypatch):
     log: list = []
     monkeypatch.setattr(account, "_view", lambda kis: _StubStockView(log))
-    account.cmd_orders(object(), _args(["account", "orders", "--venue", "overseas", "--market", "US"]))
+    account.cmd_orders(object(), _args(["account", "orders", "--region", "overseas", "--market", "US"]))
     assert log == [("ovs_open_orders", "US")]
 
 
@@ -2082,7 +2166,7 @@ def test_order_bond_rejects_division():
 
 def test_order_bond_rejects_overseas():
     args = _args(["order", "buy", "KR6449111CB8", "100", "--asset", "bond",
-                  "--limit-price", "10125", "--venue", "overseas"])
+                  "--limit-price", "10125", "--region", "overseas"])
     with pytest.raises(CliConfigError, match="overseas"):
         order.cmd_buy(StubKis(), args, is_tty=False)
 
@@ -2184,7 +2268,7 @@ def test_order_option_domestic_dry_run_shows_right():
 def test_order_futures_overseas_dry_run_shows_stop_price():
     kis = StubKis()
     dry = order.cmd_buy(kis, _args(
-        ["order", "buy", "ESZ25", "1", "--asset", "futures", "--venue", "overseas",
+        ["order", "buy", "ESZ25", "1", "--asset", "futures", "--region", "overseas",
          "--stop-price", "99"]), is_tty=False)
     assert dry["asset"] == "futures"
     assert dry["stop_price"] == "99"
@@ -2201,7 +2285,7 @@ def test_order_right_rejected_for_futures():
 def test_order_right_rejected_for_overseas_option():
     with pytest.raises(CliConfigError, match="--right"):
         order.cmd_buy(StubKis(), _args(
-            ["order", "buy", "X", "1", "--asset", "option", "--venue", "overseas",
+            ["order", "buy", "X", "1", "--asset", "option", "--region", "overseas",
              "--right", "call"]), is_tty=False)
 
 
@@ -2215,7 +2299,7 @@ def test_order_night_rejected_for_stock():
 def test_order_night_rejected_for_overseas_futures():
     with pytest.raises(CliConfigError, match="--night"):
         order.cmd_buy(StubKis(), _args(
-            ["order", "buy", "X", "1", "--asset", "futures", "--venue", "overseas", "--night"]),
+            ["order", "buy", "X", "1", "--asset", "futures", "--region", "overseas", "--night"]),
             is_tty=False)
 
 
@@ -2275,7 +2359,7 @@ def test_order_overseas_derivative_rejects_execute_paper():
     with pytest.raises(CliConfigError, match="실전전용"):
         order.cmd_buy(kis, _args(
             ["--profile", "paper", "order", "buy", "X", "1", "--asset", "futures",
-             "--venue", "overseas", "--limit-price", "100", "--execute", "paper", "--yes"]),
+             "--region", "overseas", "--limit-price", "100", "--execute", "paper", "--yes"]),
             is_tty=False)
     assert kis.log == []
 
@@ -2300,7 +2384,7 @@ def test_order_option_domestic_requires_right():
 def test_order_exchange_rejected_for_derivative():
     with pytest.raises(CliConfigError, match="--exchange"):
         order.cmd_buy(StubKis(), _args(
-            ["order", "buy", "ESZ25", "1", "--asset", "futures", "--venue", "overseas",
+            ["order", "buy", "ESZ25", "1", "--asset", "futures", "--region", "overseas",
              "--exchange", "CME", "--limit-price", "100"]), is_tty=False)
 
 
@@ -2329,7 +2413,7 @@ def test_order_option_domestic_execute_forwards_right():
 def test_order_futures_overseas_execute_forwards_stop_price():
     kis = StubKis(account="12345678-08", environment="real")
     args = _args(["--profile", "overseas_derivatives", "order", "sell", "ESZ25", "2",
-                  "--asset", "futures", "--venue", "overseas", "--stop-price", "99",
+                  "--asset", "futures", "--region", "overseas", "--stop-price", "99",
                   "--execute", "real", "--yes", "--confirm-account", "7808"])
     assert order.cmd_sell(kis, args, is_tty=False) == "REPORT"
     assert kis.log == [("ovs_deriv_sell", "futures", "ESZ25", 2, None, "99")]
@@ -2347,7 +2431,7 @@ def test_order_futures_domestic_sell_execute_routes_to_sell_handle():
 def test_order_option_overseas_execute_routes_to_option_handle():
     kis = StubKis(account="12345678-08", environment="real")
     args = _args(["--profile", "overseas_derivatives", "order", "buy", "OESX25", "1",
-                  "--asset", "option", "--venue", "overseas", "--limit-price", "12",
+                  "--asset", "option", "--region", "overseas", "--limit-price", "12",
                   "--execute", "real", "--yes", "--confirm-account", "7808"])
     assert order.cmd_buy(kis, args, is_tty=False) == "REPORT"
     assert kis.log == [("ovs_deriv_buy", "option", "OESX25", 1, "12", None)]

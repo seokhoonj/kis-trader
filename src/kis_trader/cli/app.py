@@ -42,10 +42,9 @@ def _distribution_version() -> str:
         return "0.0.0"
 
 
-def _add_venue(sub: argparse.ArgumentParser) -> None:
-    sub.add_argument("--venue", choices=["domestic", "overseas"], default="domestic",
+def _add_region(sub: argparse.ArgumentParser) -> None:
+    sub.add_argument("--region", dest="region", choices=["domestic", "overseas"], default="domestic",
                      help="국내(기본)/해외")
-    sub.add_argument("--exchange", default=None, help="해외 거래소코드(생략 시 자동 판별)")
 
 
 def _add_order_gate(sub: argparse.ArgumentParser) -> None:
@@ -103,14 +102,22 @@ def build_parser() -> argparse.ArgumentParser:
                        ("trades", stock.cmd_trades), ("status", stock.cmd_status)]:
         sp = leaf(stock_sub, name)
         sp.add_argument("identifier", help="종목코드(국내 6자리) 또는 심볼(해외)")
-        _add_venue(sp)
+        _add_region(sp)
+        sp.add_argument(
+            "--exchange", default=None,
+            help="국내 시세 거래소(KRX/NXT/UN) 또는 해외 거래소코드(생략 시 자동 판별)",
+        )
         sp.set_defaults(func=func)
     bars_p = leaf(stock_sub, "bars")
     bars_p.add_argument("identifier")
     bars_p.add_argument("--interval", required=True, help="1m/1d/1wk/1mo 등")
     bars_p.add_argument("--start", default=None, help="YYYYMMDD")
     bars_p.add_argument("--end", default=None, help="YYYYMMDD")
-    _add_venue(bars_p)
+    _add_region(bars_p)
+    bars_p.add_argument(
+        "--exchange", default=None,
+        help="국내 시세 거래소(KRX/NXT/UN) 또는 해외 거래소코드(생략 시 자동 판별)",
+    )
     bars_p.set_defaults(func=stock.cmd_bars)
 
     # kis config -- 대화형 자격증명 저장(클라이언트 불필요). common 을 상속하지 않는다 -- --format
@@ -151,12 +158,12 @@ def build_parser() -> argparse.ArgumentParser:
     # kis account balance|positions|orders|fills|reserved|profits|transactions|
     #             deposit|margin|valuation|settlement|commissions|present|foreign-margin
     # kis.account 는 프로필 상품코드로 계좌 뷰(주식 01 / 국내선물옵션 03 / 해외선물옵션 08)를 정한다.
-    # 아래 명령은 그 뷰 타입에 맞게 디스패치한다(--venue 등은 그것을 읽는 명령에만 단다).
+    # 아래 명령은 그 뷰 타입에 맞게 디스패치한다(--region 등은 그것을 읽는 명령에만 단다).
     account_p = groups.add_parser(
         "account", help="계좌 잔고·보유·미체결·체결·예약·손익·거래·예수금·증거금(선물옵션 포함)")
     account_sub = account_p.add_subparsers(dest="action", required=True)
-    _VENUE_CMDS = {"balance", "positions", "orders", "fills", "reserved", "profits",
-                   "transactions", "settlement"}
+    _REGION_CMDS = {"balance", "positions", "orders", "fills", "reserved", "profits",
+                    "transactions", "settlement"}
     for name, func in [("balance", account.cmd_balance), ("positions", account.cmd_positions),
                        ("orders", account.cmd_orders), ("fills", account.cmd_fills),
                        ("reserved", account.cmd_reserved), ("profits", account.cmd_profits),
@@ -166,8 +173,8 @@ def build_parser() -> argparse.ArgumentParser:
                        ("present", account.cmd_present),
                        ("foreign-margin", account.cmd_foreign_margin)]:
         sp = leaf(account_sub, name)
-        if name in _VENUE_CMDS:
-            sp.add_argument("--venue", choices=["domestic", "overseas"], default="domestic")
+        if name in _REGION_CMDS:
+            _add_region(sp)
         if name in ("balance", "positions", "orders"):  # --market 를 실제로 읽는 명령에만
             sp.add_argument("--market", default=None, help="해외 시장(US/HK/CN_SH/...)")
         if name in ("balance", "orders", "fills"):
@@ -223,9 +230,9 @@ def build_parser() -> argparse.ArgumentParser:
                         help="KRX 주문구분(국내 현금/파생): conditional_limit(조건부지정가)/"
                              "immediate_limit(최유리지정가)/priority_limit(최우선지정가; 현금 전용)/"
                              "midpoint(중간가; 현금 전용)/pre_market_close(장전 시간외; 현금 전용)/"
-                             "post_market_close(장후 시간외; 현금 전용)/애프터마켓(--board KRX) "
+                             "post_market_close(장후 시간외; 현금 전용)/애프터마켓(--exchange KRX) "
                              "after_market_limit·after_market_immediate_limit·after_market_priority_limit/"
-                             "NXT 프리마켓 GTP(--board NXT) gtp_limit·gtp_immediate_limit·gtp_priority_limit")
+                             "NXT 프리마켓 GTP(--exchange NXT) gtp_limit·gtp_immediate_limit·gtp_priority_limit")
         sp.add_argument("--asset", choices=["stock", "bond", "futures", "option"],
                         default="stock", help="자산군: stock(기본)/bond(장내채권)/futures/option(파생)")
         sp.add_argument("--buy-date", dest="buy_date", default=None,
@@ -241,20 +248,24 @@ def build_parser() -> argparse.ArgumentParser:
                              "해외 파생 스톱")
         sp.add_argument("--reserve", action="store_true",
                         help="예약주문: 국내 주식(다음 영업일 동시호가, 실전전용) 또는 "
-                             "해외 주식(--venue overseas, 정규장 시작 전 예약, 지정가 필수, 모의 허용)")
+                             "해외 주식(--region overseas, 정규장 시작 전 예약, 지정가 필수, 모의 허용)")
         sp.add_argument("--end-date", dest="end_date", default=None,
                         help="예약 유효 종료일 YYYYMMDD(국내 --reserve 전용; 해외 예약은 미지원)")
         sp.add_argument("--currency", choices=list(get_args(ReservedCurrency)), default=None,
                         help="해외 예약 통화 -- 홍콩 예약 전용(그 외 거래소에 주면 거부)")
         sp.add_argument("--algo", choices=list(get_args(AlgoStrategy)), default=None,
-                        help="미국주식 알고리즘 분할주문(--venue overseas, 실전전용): twap(시간 기준)/"
+                        help="미국주식 알고리즘 분할주문(--region overseas, 실전전용): twap(시간 기준)/"
                              "vwap(체결량 기준). 즉시주문은 --algo-start/--algo-end 로 시간창을 주거나 "
                              "생략하면 정규장 종료까지 집행, --reserve 예약은 정규장 종료 고정")
         sp.add_argument("--algo-start", dest="algo_start", default=None,
                         help="algo 집행 시작시각 HHMMSS(KST; 즉시 algo 전용, --algo-end 와 함께, 같은 날 시작<종료)")
         sp.add_argument("--algo-end", dest="algo_end", default=None,
                         help="algo 집행 종료시각 HHMMSS(KST; 즉시 algo 전용, --algo-start 와 함께, 자정 넘김 불가)")
-        _add_venue(sp)
+        _add_region(sp)
+        sp.add_argument(
+            "--exchange", default=None,
+            help="국내 주문 거래소(KRX/NXT/SOR) 또는 해외 거래소코드(생략 시 자동 판별)",
+        )
         _add_order_gate(sp)
         sp.set_defaults(func=func)
     rec = leaf(order_sub, "reconcile")
@@ -273,8 +284,7 @@ def build_parser() -> argparse.ArgumentParser:
     can.set_defaults(func=order.cmd_cancel)
     rcan = leaf(order_sub, "cancel-reserved")
     rcan.add_argument("sequence", help="국내 예약순번 또는 해외(미국) 예약번호")
-    rcan.add_argument("--venue", choices=["domestic", "overseas"], default="domestic",
-                      help="국내(기본)/해외. 해외는 미국 예약만 -- 아시아는 kis order cancel 로 취소")
+    _add_region(rcan)
     rcan.add_argument("--order-date", dest="order_date", default=None,
                       help="예약집행 예정일 YYYYMMDD(국내 전용, 같은 순번 구분이 필요할 때)")
     rcan.add_argument("--receipt-date", dest="receipt_date", default=None,
