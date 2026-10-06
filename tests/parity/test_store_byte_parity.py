@@ -57,12 +57,14 @@ def test_decode_roundtrip_stable(label: str) -> None:
 @pytest.mark.parametrize("label", list(LEGACY_ROWS))
 def test_legacy_decode_normalizes(label: str) -> None:
     """Short legacy-width rows (8/13/14/16 slots) decode and re-encode to the canonical 19-slot
-    form -- the trailing missing slots are padded (so the output is NOT byte-identical to the
-    short input), while every provided slot, including the slot-7 exchange namespace (even legacy
-    MIC values ``XKOS``/``NXTE``), is preserved verbatim (byte invariance)."""
+    form. Legacy domestic-stock MICs normalize to ``XKRX``; slot-12 ``UN`` decodes to the in-memory
+    order exchange ``SOR`` and re-encodes as ``UN``."""
     row = LEGACY_ROWS[label]
-    out = encode_fingerprint(decode_fingerprint(row))
+    fingerprint = decode_fingerprint(row)
+    out = encode_fingerprint(fingerprint)
     assert len(out) == 19
     assert len(out) != len(row)                              # padded, not byte-identical
-    assert out[7] == str(row[7])                             # exchange namespace preserved as-is
-    assert out[: len(row)] == [str(value) for value in row]  # provided slots unchanged
+    assert out[7] == ("XKRX" if row[7] in ("XKOS", "NXTE") else str(row[7]))
+    if label == "v9_xkos_16slot":
+        assert fingerprint.exchange == "SOR"
+        assert out[12] == "UN"

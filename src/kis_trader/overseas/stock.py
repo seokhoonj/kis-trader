@@ -107,7 +107,8 @@ class OverseasStock(_StockBase):
         self, side: Side, *, quantity: Numeric, limit_price: Numeric, client_order_id: str | None,
     ) -> Order:
         return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=limit_price,
-                           exchange=self.exchange, session="overnight", client_order_id=client_order_id)
+                           region="overseas", asset_class="stock", exchange=self.exchange,
+                           session="overnight", client_order_id=client_order_id)
 
     # --- 즉시 주문(정규; 미국주식은 TWAP/VWAP 알고리즘 분할 지원) ---
     def buy(  # 해외는 algo 파라미터를 더 받는다(도메스틱 베이스보다 넓힌 오버라이드)
@@ -157,7 +158,8 @@ class OverseasStock(_StockBase):
         algo_start, algo_end = algo_window if algo_window is not None else ("", "")
         return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=limit_price,
                            time_in_force=time_in_force, client_order_id=client_order_id,
-                           exchange=self.exchange, algo_strategy=algo,
+                           region="overseas", asset_class="stock", exchange=self.exchange,
+                           algo_strategy=algo,
                            algo_start=algo_start, algo_end=algo_end)
 
     # --- 예약주문(미국/아시아 자동 라우팅) ---

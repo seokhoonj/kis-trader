@@ -90,69 +90,54 @@ class OrderEngine:
         build_request: orders_engine.PlaceRequestBuilder | None = None
         extract_output = None
         risk = self._risk
-        if overseas_orders_engine.is_overseas_exchange(order.exchange):
-            if risk is not None:
-                raise KISUsageError(
-                    "해외 주문엔 사전 리스크 게이트가 아직 미지원이다 -- risk 없는 세션에서 내거나 "
-                    "국내 주문에만 risk 를 쓰라."
+        match (order.region, order.asset_class):
+            case ("overseas", "stock"):
+                if risk is not None:
+                    raise KISUsageError(
+                        "해외 주문엔 사전 리스크 게이트가 아직 미지원이다 -- risk 없는 세션에서 내거나 "
+                        "국내 주문에만 risk 를 쓰라."
+                    )
+                if order.algo_strategy is not None and self._environment == "paper":
+                    raise KISUsageError("미국주식 algo(TWAP/VWAP) 주문은 모의투자 미지원 -- 실전에서만.")
+                build_request = (
+                    overseas_orders_engine.make_overnight_order_request
+                    if order.session == "overnight"
+                    else overseas_orders_engine.make_order_request
                 )
-            # 미국주식 algo(TWAP/VWAP)는 모의투자 미지원 -- claim/빌드 전에 조기 거부(paper 발주 도달
-            # 차단). 와이어 빌더도 같은 거부를 하지만, 라우팅 자리에서 먼저 막아 client_order_id 를
-            # 소비하지 않는다(비-algo 해외 주문은 모의 지원이라 이 가드에 걸리지 않는다).
-            if order.algo_strategy is not None and self._environment == "paper":
-                raise KISUsageError("미국주식 algo(TWAP/VWAP) 주문은 모의투자 미지원 -- 실전에서만.")
-            build_request = (
-                overseas_orders_engine.make_overnight_order_request
-                if order.session == "overnight"
-                else overseas_orders_engine.make_order_request
-            )
-        elif derivative_orders_engine.is_derivative_exchange(order.exchange):
-            # 파생 야간(STTN)은 모의투자 미지원 -- claim/빌드 전에 조기 거부(paper 야간 발주 도달 차단).
-            # 빌더도 같은 거부를 하지만, 라우팅 자리에서 먼저 막아 client_order_id 를 소비하지 않는다.
-            if order.session == "night" and self._environment == "paper":
-                raise KISUsageError("파생 야간(STTN)은 모의투자 미지원 -- 실전에서만.")
-            # 국내 파생(XKFE) -- 안전 코어(place)는 공유, 와이어 조립기와 엄격 output 파서만 파생용으로.
-            # 파생 리스크는 참조가(국내 주식 시세) 기반 검사(notional/collar/tick)가 의미 없어 수량
-            # 한도(max_order_quantity)만 허용한다 -- 그 밖의 한도가 켜져 있으면 명확히 거부한다.
-            if risk is not None:
-                _reject_unsupported_derivative_risk(risk)
-            build_request = derivative_orders_engine.make_order_request
-            extract_output = derivative_orders_engine._extract_fo_output
-        elif bond_orders_engine.is_bond_exchange(order.exchange):
-            # 국내 장내채권(BOND)은 모의투자 미지원 -- claim/빌드 전에 조기 거부(paper 발주 도달 차단).
-            # 빌더도 같은 거부를 하지만, 라우팅 자리에서 먼저 막아 client_order_id 를 소비하지 않는다.
-            if self._environment == "paper":
-                raise KISUsageError("장내채권 주문은 모의투자 미지원 -- 실전에서만.")
-            # 채권 리스크는 참조가(국내 주식 시세) 기반 검사(notional/collar/tick)가 의미 없어(해외·
-            # 파생과 같은 이유), 리스크가 켜진 세션에선 명확히 거부한다.
-            if risk is not None:
+            case ("domestic", "derivative"):
+                if order.session == "night" and self._environment == "paper":
+                    raise KISUsageError("파생 야간(STTN)은 모의투자 미지원 -- 실전에서만.")
+                if risk is not None:
+                    _reject_unsupported_derivative_risk(risk)
+                build_request = derivative_orders_engine.make_order_request
+                extract_output = derivative_orders_engine._extract_fo_output
+            case ("domestic", "bond"):
+                if self._environment == "paper":
+                    raise KISUsageError("장내채권 주문은 모의투자 미지원 -- 실전에서만.")
+                if risk is not None:
+                    raise KISUsageError(
+                        "장내채권 주문엔 사전 리스크 게이트가 미지원이다(참조가 기반 검사가 채권엔 의미 "
+                        "없음) -- risk 없는 세션에서 내거나 국내 주식 주문에만 risk 를 쓰라."
+                    )
+                build_request = bond_orders_engine.make_order_request
+            case ("overseas", "derivative"):
+                if self._environment == "paper":
+                    raise KISUsageError("해외선물옵션 주문은 모의투자 미지원 -- 실전에서만.")
+                if risk is not None:
+                    raise KISUsageError(
+                        "해외선물옵션 주문엔 사전 리스크 게이트가 미지원이다(참조가 기반 검사가 의미 "
+                        "없음) -- risk 없는 세션에서 내거나 국내 주식 주문에만 risk 를 쓰라."
+                    )
+                build_request = overseas_deriv_orders_engine.make_order_request
+                extract_output = overseas_deriv_orders_engine.extract_output
+            case ("domestic", "stock"):
+                if order.credit_type is not None:
+                    build_request = orders_engine.make_credit_order_request
+            case _:
                 raise KISUsageError(
-                    "장내채권 주문엔 사전 리스크 게이트가 미지원이다(참조가 기반 검사가 채권엔 의미 "
-                    "없음) -- risk 없는 세션에서 내거나 국내 주식 주문에만 risk 를 쓰라."
+                    f"지원하지 않는 주문 lane: region={order.region!r}, "
+                    f"asset_class={order.asset_class!r}"
                 )
-            # 접수 응답은 국내주식과 같은 표준 형상이라 기본 output 파서를 쓴다(extract_output=None).
-            build_request = bond_orders_engine.make_order_request
-        elif overseas_deriv_orders_engine.is_overseas_fo_exchange(order.exchange):
-            # 해외선물옵션(OTFM3001U)은 모의투자 미지원 -- claim/빌드 전에 조기 거부(paper 발주 도달
-            # 차단). 빌더도 같은 거부를 하지만, 라우팅 자리에서 먼저 막아 client_order_id 를
-            # 소비하지 않는다.
-            if self._environment == "paper":
-                raise KISUsageError("해외선물옵션 주문은 모의투자 미지원 -- 실전에서만.")
-            # 해외선물옵션 리스크는 참조가(국내 주식 시세) 기반 검사(notional/collar/tick)가 의미
-            # 없어(해외·채권과 같은 이유), 리스크가 켜진 세션에선 명확히 거부한다.
-            if risk is not None:
-                raise KISUsageError(
-                    "해외선물옵션 주문엔 사전 리스크 게이트가 미지원이다(참조가 기반 검사가 의미 "
-                    "없음) -- risk 없는 세션에서 내거나 국내 주식 주문에만 risk 를 쓰라."
-                )
-            # 안전 코어(place)는 공유, 와이어 조립기와 엄격 output 파서(ORD_DT->receipt_date /
-            # ODNO->order_id)만 해외선물옵션용으로.
-            build_request = overseas_deriv_orders_engine.make_order_request
-            extract_output = overseas_deriv_orders_engine.extract_output
-        elif order.credit_type is not None:
-            # 국내 신용주문 -- 안전 코어(place)는 공유, 와이어 조립기만 신용용으로. risk 는 국내라
-            # 그대로 적용된다(참조가=국내 시세).
-            build_request = orders_engine.make_credit_order_request
         return orders_engine.place(
             self._transport, self._store, order,
             cano=cano, product_code=product_code, environment=self._environment,
@@ -210,7 +195,8 @@ class OrderEngine:
                 if isinstance(fingerprint, ImmediateOrderFingerprint) and fingerprint.session == "overnight"
                 else overseas_orders_engine.make_change_request
             )
-        elif derivative_orders_engine.is_derivative_exchange(fingerprint.exchange):
+        elif isinstance(fingerprint, ImmediateOrderFingerprint) and \
+                (fingerprint.region, fingerprint.asset_class) == ("domestic", "derivative"):
             # 국내 파생(XKFE) 정정·취소는 파생 전용 와이어(order-rvsecncl, ORGN_ODNO only)로 조립한다.
             if isinstance(fingerprint, ImmediateOrderFingerprint) and fingerprint.session == "night":
                 # 야간(STTN)은 실전 전용 -- paper 야간 지문 도달은 손상 신호라 와이어 전에 fail-closed.
@@ -239,13 +225,15 @@ class OrderEngine:
                 builder = derivative_orders_engine.make_night_change_request
             else:
                 builder = derivative_orders_engine.make_change_request
-        elif bond_orders_engine.is_bond_exchange(fingerprint.exchange):
+        elif isinstance(fingerprint, ImmediateOrderFingerprint) and \
+                (fingerprint.region, fingerprint.asset_class) == ("domestic", "bond"):
             # 국내 장내채권(BOND) 정정·취소는 실전 전용 -- paper 지문 도달은 손상 신호라 와이어 전에
             # fail-closed. 채권은 부분 정정·취소를 지원(ORD_QTY2)하므로 전량 강제는 하지 않는다.
             if self._environment == "paper":
                 raise KISUsageError("장내채권 정정·취소는 모의투자 미지원 -- 실전에서만.")
             builder = bond_orders_engine.make_change_request
-        elif overseas_deriv_orders_engine.is_overseas_fo_exchange(fingerprint.exchange):
+        elif isinstance(fingerprint, ImmediateOrderFingerprint) and \
+                (fingerprint.region, fingerprint.asset_class) == ("overseas", "derivative"):
             # 해외선물옵션(OSFO) 정정·취소는 실전 전용 -- paper 지문 도달은 손상 신호라 와이어 전에
             # fail-closed. 이 와이어는 전량 정정·취소만 지원(부분 수량 개념 없음)하므로, 호출자가 명시
             # quantity 를 줬는데 로컬 잔량과 다르면(부분 의도) 조용히 전량을 건드리지 않고 거부한다
@@ -331,14 +319,14 @@ class OrderEngine:
                 cano=cano, product_code=product_code, environment=self._environment,
             )
         if isinstance(fingerprint, ImmediateOrderFingerprint) and \
-                derivative_orders_engine.is_derivative_exchange(fingerprint.exchange):
+                (fingerprint.region, fingerprint.asset_class) == ("domestic", "derivative"):
             # 국내 파생(XKFE) 미확인 주문은 국내주식 일별체결조회가 아니라 파생 일별체결내역으로 확인한다.
             return derivative_orders_engine.reconcile(
                 self._transport, self._store, client_order_id,
                 cano=cano, product_code=product_code, environment=self._environment,
             )
         if isinstance(fingerprint, ImmediateOrderFingerprint) and \
-                bond_orders_engine.is_bond_exchange(fingerprint.exchange):
+                (fingerprint.region, fingerprint.asset_class) == ("domestic", "bond"):
             # 국내 장내채권(BOND) 미확인 주문은 국내주식 일별체결조회로 확인할 수 없다(엉뚱한 테이블을
             # 조회해 체결 여부와 무관하게 None 을 돌려주는 잘못된 복구). 재조회 슬라이스는 미지원이라
             # fail-closed 한다 -- 이중체결 방지 장벽은 그대로다.
@@ -347,7 +335,7 @@ class OrderEngine:
                 "계좌 조회(kis.account.domestic.bonds.fills / open_orders)로 수동 확인하라."
             )
         if isinstance(fingerprint, ImmediateOrderFingerprint) and \
-                overseas_deriv_orders_engine.is_overseas_fo_exchange(fingerprint.exchange):
+                (fingerprint.region, fingerprint.asset_class) == ("overseas", "derivative"):
             # 해외선물옵션(OSFO) 미확인 주문은 국내주식 일별체결조회로 확인할 수 없다(엉뚱한 테이블을
             # 조회해 체결 여부와 무관하게 None 을 돌려주는 잘못된 복구). 재조회 슬라이스는 미지원이라
             # fail-closed 한다(채권 분기와 대칭) -- 이중체결 방지 장벽은 그대로다.

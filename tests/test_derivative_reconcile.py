@@ -66,7 +66,7 @@ def _row(*, odno="0000007045", orgn_odno="0000000000", side="02", nmpr="01", pdn
 
 def _order(**kw):
     base = {"symbol": "101S03", "side": "buy", "order_type": "limit", "quantity": Decimal(1),
-            "limit_price": Decimal("400.00"), "exchange": "XKFE", "session": "regular",
+            "limit_price": Decimal("400.00"), "asset_class": "derivative", "session": "regular",
             "derivative_item": "01"}
     base.update(kw)
     return Order(**base)

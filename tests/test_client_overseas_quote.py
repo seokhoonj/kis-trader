@@ -153,7 +153,7 @@ def test_bare_domestic_symbol_stays_domestic_without_master():
                        master_fetch=exploding_fetch)
     handle = client.domestic.stock("005930")
     assert handle.is_overseas is False
-    assert handle.market == "KRX"
+    assert handle.exchange == "KRX"
 
 
 def test_overseas_stock_excludes_domestic_only_methods():

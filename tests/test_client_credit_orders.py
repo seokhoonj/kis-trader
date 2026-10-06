@@ -214,10 +214,11 @@ def test_credit_orders_absent_on_overseas_stock():
 
 def test_order_credit_with_overseas_exchange_rejected_at_construction():
     # 안전: raw Order(credit_type=..., exchange=해외)는 생성 시점에 fail-closed(해외 빌더로 새지 않음).
-    # (Order.credit 은 exchange 인자가 없어 항상 XKRX 이므로, 이 우회는 raw Order 직접 생성으로만 가능.)
+    # 이 우회는 raw Order 직접 생성으로만 가능하다.
     with pytest.raises(KISUsageError):
         Order(symbol="AAPL", side="buy", order_type="limit", quantity=1, limit_price=1,
-              exchange="NAS", credit_type="21", loan_date="20211103")
+              region="overseas", asset_class="stock", exchange="NAS",
+              credit_type="21", loan_date="20211103")
 
 
 def test_loan_date_without_credit_type_rejected():
@@ -359,7 +360,7 @@ def test_credit_buy_aftermarket_immediate_ioc_wire():
 def test_credit_buy_gtp_on_nxt_wire():
     """GTP 지정가 신용(NXT) -> ORD_DVSN 27, EXCG NXT."""
     fake = FakeTransport(response=_ACCEPTED)
-    _client(fake).domestic.stock("009150", market="NXT").credit_buy(
+    _client(fake).domestic.stock("009150", exchange="NXT").credit_buy(
         quantity=1, limit_price=130000, credit_type="21", loan_date="20211103",
         division="gtp_limit")
     body = fake.calls[0]["body"]
@@ -376,11 +377,11 @@ def test_credit_rejects_regular_division():
     assert fake.calls == []
 
 
-def test_credit_gtp_on_krx_board_rejected():
-    """GTP 신용은 NXT 전용 -- KRX 종목 핸들에서 부르면 board 게이트로 거부."""
+def test_credit_gtp_on_krx_exchange_rejected():
+    """GTP 신용은 NXT 전용 -- KRX 종목 핸들에서 부르면 exchange 게이트로 거부."""
     fake = FakeTransport(response=_ACCEPTED)
-    with pytest.raises(KISUsageError, match="보드는 이 주문구분"):
-        _client(fake).domestic.stock("009150", market="KRX").credit_buy(
+    with pytest.raises(KISUsageError, match="거래소는 이 주문구분"):
+        _client(fake).domestic.stock("009150", exchange="KRX").credit_buy(
             quantity=1, limit_price=130000, credit_type="21", loan_date="20211103", division="gtp_limit")
     assert fake.calls == []
 

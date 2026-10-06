@@ -21,7 +21,7 @@ from typing import TYPE_CHECKING
 
 from ..._internal._wire import format_wire_decimal
 from ...errors import KISUsageError, OrderError
-from ...order import _BOND_EXCHANGE, Order, WireRequest, reject_bad_change_price_shape
+from ...order import Order, WireRequest, reject_bad_change_price_shape
 
 if TYPE_CHECKING:
     from decimal import Decimal
@@ -40,11 +40,6 @@ _CHANGE_PATH = "/uapi/domestic-bond/v1/trading/order-rvsecncl"
 _CHANGE_TR = "TTTC0953U"                            # 실전 전용(모의 미지원)
 
 
-def is_bond_exchange(exchange: str) -> bool:
-    """``exchange`` 가 국내 장내채권(BOND)이면 True. 안전 코어의 주문 라우팅에 쓴다."""
-    return exchange == _BOND_EXCHANGE
-
-
 def make_order_request(
     order: Order, *, cano: str, product_code: str, environment: Environment
 ) -> WireRequest:
@@ -55,8 +50,11 @@ def make_order_request(
     가드(지정가·정규장·day)는 매수/매도 공통이며, 그 뒤 ``side`` 로 갈라 매수는
     :func:`_buy_body`(``buy``/``TTTC0952U``), 매도는 :func:`_sell_body`(``sell``/``TTTC0958U``, 매수 lot
     지목)로 조립한다."""
-    if order.exchange != _BOND_EXCHANGE:
-        raise OrderError(f"채권 빌더에 비-BOND 주문이 들어왔다: {order.exchange!r} (라우팅 오류).")
+    if (order.region, order.asset_class) != ("domestic", "bond"):
+        raise OrderError(
+            "채권 빌더에 다른 주문 lane이 들어왔다: "
+            f"{order.region!r}/{order.asset_class!r} (라우팅 오류)."
+        )
     if environment == "paper":
         raise KISUsageError("장내채권 주문은 모의투자 미지원 -- 실전에서만.")
     if order.limit_price is None:

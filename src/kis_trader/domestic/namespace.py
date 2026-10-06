@@ -34,7 +34,7 @@ if TYPE_CHECKING:
     from .._internal._masters import DomesticListing, SearchMarket
     from .._literals import Numeric, ProfitSort, SideFilter
     from ..client import KISClient
-    from ..instrument import DomesticBoard
+    from ..instrument import DomesticQuoteExchange
     from ..open_order import OpenOrder
     from ..order import Right, Side
     from ..quote import Quote
@@ -224,9 +224,11 @@ class DomesticNamespace:
         self._client = client
 
     # -- 종목/상품 핸들 --
-    def stock(self, code: str, *, market: DomesticBoard | None = None) -> DomesticStock:
-        """국내 종목/ETF 핸들. 시장은 심볼로 자동 판별한다(6자리 숫자 -> KRX; ``market`` 로 보드 지정 가능)."""
-        return DomesticStock(self._client, code, market=market)
+    def stock(
+        self, code: str, *, exchange: DomesticQuoteExchange | None = None,
+    ) -> DomesticStock:
+        """국내 종목/ETF 핸들. 거래소는 심볼로 자동 판별한다(6자리 코드 -> KRX; ``exchange`` 지정 가능)."""
+        return DomesticStock(self._client, code, exchange=exchange)
 
     def search(self, query: str, *, market: SearchMarket = "all") -> list[DomesticListing]:
         """국내 상장 종목을 **이름(부분/정확)** 또는 6자리 코드로 찾아 후보를 돌려준다.
@@ -295,13 +297,14 @@ class DomesticNamespace:
 
     # -- 다종목/상품 조회 --
     def quotes(
-        self, symbols: Sequence[str | tuple[DomesticBoard, str]], *, market: DomesticBoard = "KRX"
+        self, symbols: Sequence[str | tuple[DomesticQuoteExchange, str]], *,
+        exchange: DomesticQuoteExchange = "KRX",
     ) -> list[Quote]:
-        """여러 국내 종목의 현재가를 한 번에(최대 30). 원소가 종목코드 문자열이면 보드는 ``market`` 기본
-        (KRX), ``(board, symbol)`` 튜플이면 그 보드를 쓴다 -- KRX/NXT/통합(UN) 혼합 가능. 해외는
+        """여러 국내 종목의 현재가를 한 번에(최대 30). 원소가 종목코드 문자열이면 ``exchange`` 기본
+        (KRX), ``(exchange, symbol)`` 튜플이면 그 거래소를 쓴다 -- KRX/NXT/통합(UN) 혼합 가능. 해외는
         :meth:`~kis_trader.overseas.namespace.OverseasNamespace.quotes`."""
         requests = [
-            item if isinstance(item, tuple) else (market, item) for item in symbols
+            item if isinstance(item, tuple) else (exchange, item) for item in symbols
         ]
         return market_data_api.fetch_multi_quotes(self._client.transport, requests=requests)
 
@@ -368,5 +371,4 @@ class DomesticNamespace:
     def elw_screener(self) -> ELWScreenerQueries:
         """ELW 스크리닝 질의 -- ``underlyings()`` / ``by_underlying(code)`` / ``newly_listed(date=...)`` 등."""
         return ELWScreenerQueries(self._client)
-
 

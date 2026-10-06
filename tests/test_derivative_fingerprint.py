@@ -4,7 +4,6 @@ import pytest
 
 from kis_trader.errors import KISUsageError
 from kis_trader.order import (
-    _DERIVATIVE_EXCHANGE,
     _FINGERPRINT_SLOTS,
     ImmediateOrderFingerprint,
     Order,
@@ -15,7 +14,7 @@ from kis_trader.order import (
 
 def _fo_order(**kw):
     base = {"symbol": "101S03", "side": "buy", "order_type": "limit", "quantity": Decimal(1),
-            "limit_price": Decimal("400.00"), "exchange": _DERIVATIVE_EXCHANGE,
+            "limit_price": Decimal("400.00"), "asset_class": "derivative",
             "session": "night", "derivative_item": "01", "client_order_id": "cid-1"}
     base.update(kw)
     return Order(**base)

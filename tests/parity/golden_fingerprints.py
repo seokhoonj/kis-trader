@@ -104,16 +104,16 @@ class _RecordingStore:
 ORDER_MATRIX: list[tuple[str, dict[str, Any]]] = [
     ("domestic_stock_krx_limit",
      {"lane": "domestic_stock", "symbol": "005930", "side": "buy",
-      "quantity": 10, "limit_price": 70000, "board": "KRX"}),
+      "quantity": 10, "limit_price": 70000, "exchange": "KRX"}),
     ("domestic_stock_nxt_limit",
      {"lane": "domestic_stock", "symbol": "005930", "side": "buy",
-      "quantity": 10, "limit_price": 70000, "board": "NXT"}),
+      "quantity": 10, "limit_price": 70000, "exchange": "NXT"}),
     ("domestic_stock_unified_market",
      {"lane": "domestic_stock_market", "symbol": "005930", "side": "sell",
-      "quantity": 7, "board": "UN"}),
+      "quantity": 7, "exchange": "SOR"}),
     ("domestic_stock_credit_krx",
      {"lane": "domestic_credit", "symbol": "005930", "side": "buy", "quantity": 10,
-      "limit_price": 70000, "credit_type": "21", "loan_date": "20261006", "board": "KRX"}),
+      "limit_price": 70000, "credit_type": "21", "loan_date": "20261006", "exchange": "KRX"}),
     ("domestic_derivative_night",
      {"lane": "domestic_derivative", "symbol": "101V06", "side": "buy", "quantity": 1,
       "limit_price": "320.50", "derivative_item": "01", "session": "night"}),
@@ -128,7 +128,7 @@ ORDER_MATRIX: list[tuple[str, dict[str, Any]]] = [
       "quantity": 5, "limit_price": 140, "exchange": "NYS"}),
     ("overseas_derivative_osfo",
      {"lane": "overseas_fo", "symbol": "6AU24", "side": "buy",
-      "quantity": 2, "limit_price": "0.655", "exchange": "OSFO"}),
+      "quantity": 2, "limit_price": "0.655"}),
     ("us_algo_twap_window",
      {"lane": "overseas_stock", "symbol": "TSLA", "side": "buy", "quantity": 20,
       "limit_price": 250, "exchange": "NAS", "algo_strategy": "twap",
@@ -146,11 +146,11 @@ ORDER_MATRIX: list[tuple[str, dict[str, Any]]] = [
     ("domestic_stock_change",
      {"lane": "change_domestic", "action": "modify", "quantity": 5, "limit_price": 71000,
       "original": {"lane": "domestic_stock", "symbol": "005930", "side": "buy",
-                   "quantity": 10, "limit_price": 70000, "board": "KRX"}}),
+                   "quantity": 10, "limit_price": 70000, "exchange": "KRX"}}),
     ("domestic_stock_cancel",
      {"lane": "change_domestic", "action": "cancel", "quantity": 10, "limit_price": None,
       "original": {"lane": "domestic_stock", "symbol": "005930", "side": "buy",
-                   "quantity": 10, "limit_price": 70000, "board": "KRX"}}),
+                   "quantity": 10, "limit_price": 70000, "exchange": "KRX"}}),
     ("overseas_stock_change",
      {"lane": "change_overseas", "action": "modify", "quantity": 4, "limit_price": 151,
       "original": {"lane": "overseas_stock", "symbol": "AAPL", "side": "buy",
@@ -167,7 +167,7 @@ ORDER_MATRIX: list[tuple[str, dict[str, Any]]] = [
     ("overseas_fo_change",
      {"lane": "change_overseas_fo", "action": "modify", "quantity": 2, "limit_price": "0.660",
       "original": {"lane": "overseas_fo", "symbol": "6AU24", "side": "buy",
-                   "quantity": 2, "limit_price": "0.655", "exchange": "OSFO"}}),
+                   "quantity": 2, "limit_price": "0.655"}}),
     ("overseas_overnight_change",
      {"lane": "change_overseas_overnight", "action": "modify", "quantity": 3,
       "limit_price": 141,
@@ -192,13 +192,13 @@ ORDER_MATRIX: list[tuple[str, dict[str, Any]]] = [
                    "session": "night"}}),
     ("domestic_stock_stop_limit",
      {"lane": "domestic_stock", "symbol": "005930", "side": "buy", "quantity": 10,
-      "limit_price": 70000, "stop_price": 69000, "board": "KRX"}),
+      "limit_price": 70000, "stop_price": 69000, "exchange": "KRX"}),
     ("domestic_stock_limit_ioc",
      {"lane": "domestic_stock", "symbol": "005930", "side": "buy", "quantity": 10,
-      "limit_price": 70000, "time_in_force": "ioc", "board": "KRX"}),
+      "limit_price": 70000, "time_in_force": "ioc", "exchange": "KRX"}),
     ("domestic_stock_best_quote",
      {"lane": "domestic_stock_market", "symbol": "005930", "side": "buy", "quantity": 10,
-      "division": "immediate_limit", "board": "KRX"}),
+      "division": "immediate_limit", "exchange": "KRX"}),
     ("reserved_domestic_dated",
      {"lane": "reserved_domestic", "symbol": "005930", "side": "buy",
       "quantity": 10, "limit_price": 70000, "end_date": "20261031"}),
@@ -219,45 +219,47 @@ def _immediate_order(kwargs: dict[str, Any]) -> Order:
             return Order.stop_limit(
                 kwargs["symbol"], side=kwargs["side"], quantity=kwargs["quantity"],
                 limit_price=kwargs["limit_price"], stop_price=kwargs["stop_price"],
-                board=kwargs["board"], client_order_id=_ORIG_CID,
+                exchange=kwargs["exchange"], client_order_id=_ORIG_CID,
             )
         return Order.limit(kwargs["symbol"], side=kwargs["side"], quantity=kwargs["quantity"],
-                           limit_price=kwargs["limit_price"], board=kwargs["board"],
+                           limit_price=kwargs["limit_price"], exchange=kwargs["exchange"],
                            time_in_force=kwargs.get("time_in_force", "day"),
                            client_order_id=_ORIG_CID)
     if lane == "domestic_stock_market":
         return Order.market(kwargs["symbol"], side=kwargs["side"], quantity=kwargs["quantity"],
-                            division=kwargs.get("division"), board=kwargs["board"],
+                            division=kwargs.get("division"), exchange=kwargs["exchange"],
                             client_order_id=_ORIG_CID)
     if lane == "domestic_credit":
         return Order.credit(kwargs["symbol"], side=kwargs["side"], quantity=kwargs["quantity"],
                             credit_type=kwargs["credit_type"], limit_price=kwargs["limit_price"],
-                            loan_date=kwargs["loan_date"], board=kwargs["board"],
+                            loan_date=kwargs["loan_date"], exchange=kwargs["exchange"],
                             client_order_id=_ORIG_CID)
     if lane == "domestic_derivative":
         return Order(symbol=kwargs["symbol"], side=kwargs["side"], order_type="limit",
                      quantity=Decimal(str(kwargs["quantity"])),
                      limit_price=Decimal(str(kwargs["limit_price"])),
-                     exchange=_dom_deriv._DERIVATIVE_EXCHANGE, session=kwargs["session"],
+                     asset_class="derivative", session=kwargs["session"],
                      derivative_item=kwargs["derivative_item"], client_order_id=_ORIG_CID)
     if lane == "domestic_bond":
         return Order.limit(kwargs["symbol"], side=kwargs["side"], quantity=kwargs["quantity"],
-                           limit_price=kwargs["limit_price"], exchange=_bond._BOND_EXCHANGE,
+                           limit_price=kwargs["limit_price"], asset_class="bond",
                            client_order_id=_ORIG_CID)
     if lane == "overseas_stock":
         return Order.limit(kwargs["symbol"], side=kwargs["side"], quantity=kwargs["quantity"],
-                           limit_price=kwargs["limit_price"], exchange=kwargs["exchange"],
+                           limit_price=kwargs["limit_price"], region="overseas",
+                           asset_class="stock", exchange=kwargs["exchange"],
                            algo_strategy=kwargs.get("algo_strategy"),
                            algo_start=kwargs.get("algo_start", ""),
                            algo_end=kwargs.get("algo_end", ""), client_order_id=_ORIG_CID)
     if lane == "overseas_overnight":
         return Order.limit(kwargs["symbol"], side=kwargs["side"], quantity=kwargs["quantity"],
-                           limit_price=kwargs["limit_price"], exchange=kwargs["exchange"],
+                           limit_price=kwargs["limit_price"], region="overseas",
+                           asset_class="stock", exchange=kwargs["exchange"],
                            session="overnight", client_order_id=_ORIG_CID)
     if lane == "overseas_fo":
         return Order.limit(kwargs["symbol"], side=kwargs["side"], quantity=kwargs["quantity"],
-                           limit_price=kwargs["limit_price"],
-                           exchange=_ovs_fo._OVERSEAS_FO_EXCHANGE, client_order_id=_ORIG_CID)
+                           limit_price=kwargs["limit_price"], region="overseas",
+                           asset_class="derivative", client_order_id=_ORIG_CID)
     raise ValueError(f"unknown immediate lane: {lane!r}")
 
 

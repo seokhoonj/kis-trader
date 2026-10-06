@@ -113,14 +113,17 @@ def test_daytime_order_rejects_market_price():
 def test_daytime_rejects_non_day_tif():
     # 주간 와이어엔 TIF 필드가 없어 조용히 day 로 나가면 지문/전송이 어긋난다 -> 생성 시점 거부
     with pytest.raises(KISUsageError):
-        Order.limit("AAPL", side="buy", quantity=1, limit_price=150, exchange="NAS",
+        Order.limit("AAPL", side="buy", quantity=1, limit_price=150,
+                    region="overseas", asset_class="stock", exchange="NAS",
                     session="overnight", time_in_force="ioc")
 
 
 # --- 정체성/안전 불변식 ----------------------------------------------------
 def test_daytime_fingerprint_distinct_from_regular():
-    regular = Order.limit("AAPL", side="buy", quantity=1, limit_price=150, exchange="NAS")
-    daytime = Order.limit("AAPL", side="buy", quantity=1, limit_price=150, exchange="NAS",
+    regular = Order.limit("AAPL", side="buy", quantity=1, limit_price=150,
+                          region="overseas", asset_class="stock", exchange="NAS")
+    daytime = Order.limit("AAPL", side="buy", quantity=1, limit_price=150,
+                          region="overseas", asset_class="stock", exchange="NAS",
                           session="overnight")
     assert regular.fingerprint != daytime.fingerprint
     assert regular.fingerprint.session == "regular"

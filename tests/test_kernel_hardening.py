@@ -52,7 +52,8 @@ def test_second_change_on_same_order_is_rejected(tmp_path):
     # 첫 취소를 in-flight 로 남긴다(change fingerprint 를 직접 claim):
     store.try_claim("req-1", ChangeActionFingerprint(
         original_client_order_id="orig", side="buy", order_type="limit", quantity="1",
-        limit_price="", action="cancel", time_in_force="day", exchange="XKRX"))
+        limit_price="", action="cancel", time_in_force="day",
+        region="domestic", asset_class="stock", exchange="KRX"))
     with pytest.raises(KISUsageError, match="reconcile"):
         orders_engine.submit_change(
             _FakeTransport(), store, original_client_order_id="orig", request_id="req-2",
@@ -69,7 +70,8 @@ def test_same_request_id_retry_is_not_treated_as_second_change(tmp_path):
     _seed_completed(store, "orig", order)
     store.try_claim("req-1", ChangeActionFingerprint(
         original_client_order_id="orig", side="buy", order_type="limit", quantity="1",
-        limit_price="", action="cancel", time_in_force="day", exchange="XKRX"))
+        limit_price="", action="cancel", time_in_force="day",
+        region="domestic", asset_class="stock", exchange="KRX"))
     with pytest.raises(KISUsageError, match="재전송하지"):
         orders_engine.submit_change(
             _FakeTransport(), store, original_client_order_id="orig", request_id="req-1",

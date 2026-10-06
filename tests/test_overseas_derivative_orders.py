@@ -61,17 +61,11 @@ def _client(transport, *, environment="real", store=None, risk=None):
 def _order(**kw):
     base = {
         "symbol": "6BZ22", "side": "buy", "order_type": "limit", "quantity": Decimal(1),
-        "limit_price": Decimal("1.17"), "exchange": "OSFO", "client_order_id": "c",
+        "limit_price": Decimal("1.17"), "region": "overseas",
+        "asset_class": "derivative", "client_order_id": "c",
     }
     base.update(kw)
     return Order(**base)
-
-
-# --- exchange marker ------------------------------------------------------
-def test_is_overseas_fo_exchange():
-    assert osfo.is_overseas_fo_exchange("OSFO") is True
-    assert osfo.is_overseas_fo_exchange("XKFE") is False
-    assert osfo.is_overseas_fo_exchange("BOND") is False
 
 
 # --- 와이어 골든바디 ------------------------------------------------------
@@ -117,7 +111,7 @@ def test_make_order_request_sell_side():
 
 def test_make_order_request_rejects_non_osfo():
     order = Order(symbol="005930", side="buy", order_type="limit", quantity=Decimal(1),
-                  limit_price=Decimal(70000), exchange="XKRX", client_order_id="c")
+                  limit_price=Decimal(70000), client_order_id="c")
     with pytest.raises(OrderError):
         osfo.make_order_request(order, cano="8", product_code="08", environment="real")
 
@@ -252,7 +246,8 @@ def _change_fp(*, symbol: str = "6BZ22", limit_price: str = "1.17",
                quantity: str = "1") -> ImmediateOrderFingerprint:
     return ImmediateOrderFingerprint(
         symbol=symbol, side="buy", order_type="limit", quantity=quantity,
-        limit_price=limit_price, stop_price="", time_in_force="day", exchange="OSFO",
+        limit_price=limit_price, stop_price="", time_in_force="day",
+        region="overseas", asset_class="derivative", exchange="KRX",
     )
 
 

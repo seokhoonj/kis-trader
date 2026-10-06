@@ -106,7 +106,7 @@ class FakeTransport:
 
 def _order(**kw):
     base = {"symbol": "101S03", "side": "buy", "order_type": "limit", "quantity": Decimal(2),
-            "limit_price": Decimal("400.00"), "exchange": "XKFE", "session": "night",
+            "limit_price": Decimal("400.00"), "asset_class": "derivative", "session": "night",
             "derivative_item": "01", "client_order_id": "n1"}
     base.update(kw)
     return Order(**base)
@@ -115,7 +115,8 @@ def _order(**kw):
 def _fp(**kw):
     from kis_trader.order import ImmediateOrderFingerprint
     base = {"symbol": "101S03", "side": "buy", "order_type": "limit", "quantity": "2",
-            "limit_price": "400.00", "stop_price": "", "time_in_force": "day", "exchange": "XKFE",
+            "limit_price": "400.00", "stop_price": "", "time_in_force": "day",
+            "region": "domestic", "asset_class": "derivative", "exchange": "KRX",
             "session": "night", "division": "", "derivative_item": "01"}
     base.update(kw)
     return ImmediateOrderFingerprint(**base)

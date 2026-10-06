@@ -170,7 +170,7 @@ def test_overseas_derivative_uses_series_code_keyword():
 def test_domestic_stock_accepts_elw_alphanumeric_code():
     # ELW 단축코드(6자리 영숫자)도 market 인자 없이 국내 종목 핸들로 만들어진다.
     k = _client()
-    assert k.domestic.stock("57LABS").market == "KRX"
+    assert k.domestic.stock("57LABS").exchange == "KRX"
 
 
 def test_pension_balance_delegates():

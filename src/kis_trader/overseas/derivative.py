@@ -14,7 +14,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..bar import Bar, Interval
-from ..order import _OVERSEAS_FO_EXCHANGE, Order, coerce_decimal, mint_client_order_id
+from ..order import Order, coerce_decimal, mint_client_order_id
 from ._engine import derivatives as overseas_derivatives_api
 
 if TYPE_CHECKING:
@@ -131,6 +131,6 @@ class OverseasDerivative:
             quantity=coerce_decimal(quantity, "quantity"),
             limit_price=None if limit_price is None else coerce_decimal(limit_price, "limit_price"),
             stop_price=None if stop_price is None else coerce_decimal(stop_price, "stop_price"),
-            exchange=_OVERSEAS_FO_EXCHANGE,
+            region="overseas", asset_class="derivative",
             client_order_id=client_order_id or mint_client_order_id(),
         )

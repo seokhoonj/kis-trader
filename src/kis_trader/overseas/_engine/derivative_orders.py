@@ -27,7 +27,6 @@ from ..._internal._wire import format_wire_decimal
 from ...domestic._engine.orders import _RECEIPT_DATE_KEY
 from ...errors import KISUsageError, OrderError
 from ...order import (
-    _OVERSEAS_FO_EXCHANGE,
     Order,
     WireRequest,
     reject_bad_change_price_shape,
@@ -53,11 +52,6 @@ _SIDE_CODE = {"sell": "01", "buy": "02"}            # SLL_BUY_DVSN_CD (매수/�
 _PRICE_DIVISION = {"limit": "1", "market": "2", "stop": "3"}
 
 
-def is_overseas_fo_exchange(exchange: str) -> bool:
-    """``exchange`` 가 해외선물옵션(OSFO)이면 True. 안전 코어의 주문 라우팅에 쓴다."""
-    return exchange == _OVERSEAS_FO_EXCHANGE
-
-
 def make_order_request(
     order: Order, *, cano: str, product_code: str, environment: Environment
 ) -> WireRequest:
@@ -70,9 +64,10 @@ def make_order_request(
     STOP 은 ``FM_STOP_ORD_PRIC`` 에만 값을 싣고 나머지 가격은 공란이다. 헤지청산(``FM_LQD_*``)
     필드는 v1 에서 공란 고정이며, 체결조건(``CCLD_CNDT_CD``)은 시장가면 "2"(시장가) 아니면 "6"(EOD
     지정가)로, 복합주문 없음("0")·예약 아님("N")도 고정값이다."""
-    if order.exchange != _OVERSEAS_FO_EXCHANGE:
+    if (order.region, order.asset_class) != ("overseas", "derivative"):
         raise OrderError(
-            f"해외선물옵션 빌더에 비-OSFO 주문이 들어왔다: {order.exchange!r} (라우팅 오류)."
+            "해외선물옵션 빌더에 다른 주문 lane이 들어왔다: "
+            f"{order.region!r}/{order.asset_class!r} (라우팅 오류)."
         )
     if environment == "paper":
         raise KISUsageError("해외선물옵션 주문은 모의투자 미지원 -- 실전에서만.")

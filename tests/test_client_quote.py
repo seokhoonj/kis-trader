@@ -97,7 +97,7 @@ def test_ticker_defaults_to_domestic_krx():
 
 def test_ticker_market_override_to_nextrade():
     fake = FakeTransport(response=_quote_resp())
-    _client(fake).domestic.stock("005930", market="NXT").quote()
+    _client(fake).domestic.stock("005930", exchange="NXT").quote()
     assert fake.calls[0]["params"]["FID_COND_MRKT_DIV_CODE"] == "NX"
 
 
@@ -281,7 +281,7 @@ def test_ticker_order_book_skips_gap_and_keeps_best_first():
 # --- 시장 매핑/시각 -------------------------------------------------------
 def test_ticker_market_override_to_unified_board():
     fake = FakeTransport(response=_quote_resp())
-    quote = _client(fake).domestic.stock("005930", market="UN").quote()
+    quote = _client(fake).domestic.stock("005930", exchange="UN").quote()
     assert quote.market == "UN"
     assert fake.calls[0]["params"]["FID_COND_MRKT_DIV_CODE"] == "UN"
 
@@ -289,7 +289,7 @@ def test_ticker_market_override_to_unified_board():
 def test_ticker_bad_market_override_rejected_before_io():
     fake = FakeTransport(response=_quote_resp())
     with pytest.raises(KISUsageError):        # KROX 같은 오타는 조회 전에 거부
-        _client(fake).domestic.stock("005930", market="KROX")
+        _client(fake).domestic.stock("005930", exchange="KROX")
     assert fake.calls == []
 
 
@@ -368,7 +368,7 @@ def test_recent_prices_maps_extended_history_fields():
         "acml_prtt_rate": "100.00",
     }
     fake = FakeTransport(response=_quote_resp([row]))
-    points = _client(fake).domestic.stock("005930", market="NXT").recent_prices(
+    points = _client(fake).domestic.stock("005930", exchange="NXT").recent_prices(
         interval="1wk", adjusted=False
     )
 
@@ -432,7 +432,7 @@ def test_stock_status_maps_prices_and_regulatory_flags():
         "flng_cls_name": "배당락",
     }
     fake = FakeTransport(response=_quote_resp(output))
-    status = _client(fake).domestic.stock("005930", market="UN").status()
+    status = _client(fake).domestic.stock("005930", exchange="UN").status()
 
     assert isinstance(status, StockStatus)
     assert status.market == "UN"

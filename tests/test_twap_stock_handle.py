@@ -25,7 +25,7 @@ def test_stock_handle_twap_builds_schedule_and_delegates(monkeypatch):
     monkeypatch.setattr(stock_module, "execute_twap", _fake_execute)
 
     kis = _Kis()
-    handle = DomesticStock(kis, "005930", market="KRX")
+    handle = DomesticStock(kis, "005930", exchange="KRX")
     # start well in the future so the planner's past-guard/session-window accept it deterministically.
     result = handle.twap(side="buy", quantity=100, over="20m", slices=4,
                          start=datetime(2099, 1, 5, 10, tzinfo=_KST))

@@ -236,7 +236,8 @@ def test_reserved_algo_vs_non_algo_same_id_conflicts():
 
 # --- Order 레벨 검증(DATA 경계) ---------------------------------------------
 def test_order_algo_fingerprint_carries_strategy_and_window():
-    order = Order.limit("AAPL", side="buy", quantity=1, limit_price=150, exchange="NAS",
+    order = Order.limit("AAPL", side="buy", quantity=1, limit_price=150,
+                        region="overseas", asset_class="stock", exchange="NAS",
                         algo_strategy="twap", algo_start="093000", algo_end="160000")
     fp = order.fingerprint
     assert isinstance(fp, ImmediateOrderFingerprint)
@@ -245,13 +246,15 @@ def test_order_algo_fingerprint_carries_strategy_and_window():
 
 def test_order_algo_rejects_non_us_exchange():
     with pytest.raises(KISUsageError, match="미국"):
-        Order.limit("AAPL", side="buy", quantity=1, limit_price=150, exchange="HKS",
+        Order.limit("AAPL", side="buy", quantity=1, limit_price=150,
+                    region="overseas", asset_class="stock", exchange="HKS",
                     algo_strategy="twap")
 
 
 def test_order_algo_rejects_overnight_session():
     with pytest.raises(KISUsageError, match="정규"):
-        Order.limit("AAPL", side="buy", quantity=1, limit_price=150, exchange="NAS",
+        Order.limit("AAPL", side="buy", quantity=1, limit_price=150,
+                    region="overseas", asset_class="stock", exchange="NAS",
                     session="overnight", algo_strategy="vwap")
 
 
