@@ -51,7 +51,16 @@ class _Handle:
         self._exchange = exchange
 
     def quote(self):
-        self._log.append(("quote", self._code)); return "QUOTE"
+        self._log.append(("quote", self._code, self._exchange)); return "QUOTE"
+
+    def bars(self, interval, *, start=None, end=None):
+        self._log.append(("bars", self._code, self._exchange, interval, start, end)); return "BARS"
+
+    def order_book(self):
+        self._log.append(("book", self._code, self._exchange)); return "BOOK"
+
+    def trades(self):
+        self._log.append(("trades", self._code, self._exchange)); return "TRADES"
 
     def status(self):
         self._log.append(("status", self._code, self._exchange)); return "STATUS"
@@ -194,28 +203,53 @@ def test_parser_routes_stock_quote_to_handler():
     args = _args(["stock", "quote", "005930"])
     kis = StubKis()
     assert args.func(kis, args) == "QUOTE"
-    assert kis.log == [("quote", "005930")]
+    assert kis.log == [("quote", "005930", None)]
 
 
-def test_parser_uses_region_destination_and_removes_venue_flag():
+def test_parser_uses_region_destination():
     args = _args(["stock", "quote", "AAPL", "--region", "overseas", "--exchange", "NAS"])
     assert args.region == "overseas"
     assert not hasattr(args, "venue")
 
-    with pytest.raises(SystemExit):
-        _args(["stock", "quote", "AAPL", "--venue", "overseas"])
+
+@pytest.mark.parametrize("argv", [
+    ["stock", "quote", "AAPL", "--venue", "overseas"],
+    ["order", "buy", "AAPL", "10", "--venue", "overseas"],
+    ["account", "positions", "--venue", "overseas"],
+])
+def test_parser_rejects_removed_venue_flag(argv):
+    with pytest.raises(SystemExit) as exc_info:
+        _args(argv)
+    assert exc_info.value.code == 2
 
 
 def test_stock_quote_forwards_domestic_exchange_and_rejects_order_vocabulary():
     kis = StubKis()
     args = _args(["stock", "quote", "005930", "--exchange", "NXT"])
     assert args.func(kis, args) == "QUOTE"
-    assert kis.log == [("dom_stock", "005930", "NXT"), ("quote", "005930")]
+    assert kis.log == [("dom_stock", "005930", "NXT"), ("quote", "005930", "NXT")]
 
     with pytest.raises(CliConfigError, match="KRX/NXT/UN"):
         stock.cmd_quote(
             StubKis(), _args(["stock", "quote", "005930", "--exchange", "SOR"])
         )
+
+
+@pytest.mark.parametrize(("argv", "result", "action_log"), [
+    (["stock", "quote", "005930", "--exchange", "NXT"],
+     "QUOTE", ("quote", "005930", "NXT")),
+    (["stock", "bars", "005930", "--interval", "1d", "--exchange", "NXT"],
+     "BARS", ("bars", "005930", "NXT", "1d", None, None)),
+    (["--format", "json", "stock", "book", "005930", "--exchange", "NXT"],
+     "BOOK", ("book", "005930", "NXT")),
+    (["stock", "trades", "005930", "--exchange", "NXT"],
+     "TRADES", ("trades", "005930", "NXT")),
+])
+def test_stock_market_data_commands_forward_exchange_to_handle(argv, result, action_log):
+    kis = StubKis()
+    args = _args(argv)
+    assert args.func(kis, args) == result
+    assert kis.log == [("dom_stock", "005930", "NXT"), action_log]
 
 
 def test_stock_quote_keeps_overseas_exchange_free_form():
@@ -224,7 +258,7 @@ def test_stock_quote_keeps_overseas_exchange_free_form():
         "stock", "quote", "SHOP", "--region", "overseas", "--exchange", "TSE",
     ])
     assert args.func(kis, args) == "QUOTE"
-    assert kis.log == [("ovs_stock", "SHOP", "TSE"), ("quote", "SHOP")]
+    assert kis.log == [("ovs_stock", "SHOP", "TSE"), ("quote", "SHOP", None)]
 
 
 def test_stock_status_keeps_domestic_guard_and_forwards_exchange():
@@ -1161,7 +1195,11 @@ def test_order_book_table_is_ladder_and_json_is_raw():
             return book
 
     class _BookNamespace:
+        def __init__(self):
+            self.exchange = None
+
         def stock(self, code, *, exchange=None):
+            self.exchange = exchange
             return _BookHandle()
 
     class _Kis:
@@ -1176,7 +1214,11 @@ def test_order_book_table_is_ladder_and_json_is_raw():
     assert rows[0]["ask_size"] == 60 and rows[0]["bid_size"] is None      # 매도 행
     assert rows[-1]["bid_size"] == 50 and rows[-1]["ask_size"] is None     # 매수 행
     # json: 구조화된 원본 OrderBook 을 그대로(각 변 최우선 먼저)
-    assert stock_cmd.cmd_book(_Kis(), _args(["--format", "json", "stock", "book", "005930"])) is book
+    kis = _Kis()
+    assert stock_cmd.cmd_book(
+        kis, _args(["--format", "json", "stock", "book", "005930", "--exchange", "NXT"])
+    ) is book
+    assert kis.domestic.exchange == "NXT"
 
 
 def test_render_table_builds_grid_from_list_of_dicts():
