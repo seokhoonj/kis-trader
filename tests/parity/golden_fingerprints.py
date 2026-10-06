@@ -486,8 +486,8 @@ GOLDEN_WIRE: dict[str, dict[str, str]] = {
 
 # --- legacy-width decode fixtures (Step 5) ----------------------------------------------------
 #: Short on-disk rows from older schema widths (v1=8, v5-v7=13, v8=14, v9=16 slots). Decoding
-#: pads each to the canonical 19 slots; the slot-7 exchange namespace is preserved verbatim
-#: (byte invariance), including the legacy MIC values ``XKOS`` and ``NXTE``.
+#: pads each to the canonical 19 slots. The on-disk row bytes stay unchanged, but decoding and
+#: re-encoding normalizes legacy slot-7 MIC values ``XKOS`` and ``NXTE`` to ``XKRX``.
 LEGACY_ROWS: dict[str, list[str]] = {
     "v1_xkrx_8slot": ["005930", "buy", "limit", "10", "70000", "0", "day", "XKRX"],
     "v5_xkos_13slot": ["035720", "sell", "limit", "3", "55000", "0", "day", "XKOS",

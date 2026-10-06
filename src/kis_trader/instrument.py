@@ -19,7 +19,9 @@ _DOMESTIC_CODE_PATTERN = re.compile(r"[0-9A-Z]{6}")
 
 AssetClass = Literal["stock", "derivative", "bond"]
 Region = Literal["domestic", "overseas"]
+#: 국내 주문 거래소 -- KRX(정규거래소)/NXT(대체거래소, ATS)/SOR(스마트 라우팅=통합; 시세의 UN 에 대응)
 DomesticOrderExchange = Literal["KRX", "NXT", "SOR"]
+#: 국내 시세 거래소 -- KRX(정규거래소)/NXT(대체거래소, ATS)/UN(통합호가=통합; 주문의 SOR 에 대응)
 DomesticQuoteExchange = Literal["KRX", "NXT", "UN"]
 
 _DOMESTIC_ORDER_EXCHANGES = frozenset(("KRX", "NXT", "SOR"))

@@ -597,7 +597,7 @@ class Order:
         if lane == ("domestic", "stock") and self.exchange not in _DOMESTIC_ORDER_EXCHANGES:
             raise KISUsageError(
                 "국내 주식 주문 exchange 는 KRX/NXT/SOR 만 "
-                f"(시세 UN 은 핸들 어휘; 주문은 SOR). 받은 값: {self.exchange!r}"
+                f"(KRX=정규거래소/NXT=대체거래소(ATS)/SOR=스마트 라우팅(통합); 시세 UN 은 핸들 어휘이며 주문의 SOR 에 대응). 받은 값: {self.exchange!r}"
             )
         if lane != ("domestic", "stock") and lane != ("overseas", "stock") \
                 and self.exchange != "KRX":
@@ -893,7 +893,7 @@ class Order:
         ``credit_sell``)가 신규 생략 시 오늘(KST)로 채워 주므로, 직접 :meth:`credit` 을 쓸 때만 명시한다.
         ``division`` 은 애프터마켓(``after_market_*``, exchange="KRX")/GTP(``gtp_*``, exchange="NXT") 주문구분만
         신용과 조합할 수 있다(기타 현금 전용 주문구분은 __post_init__ 이 거부). 애프터마켓 지정가/최유리는
-        ``time_in_force`` 로 IOC/FOK 조합 가능, 그 외 division 은 day 만. 일반 신용은 국내(XKRX)만."""
+        ``time_in_force`` 로 IOC/FOK 조합 가능, 그 외 division 은 day 만. 일반 신용은 국내(KRX)만."""
         order_type: OrderType = "limit" if limit_price is not None else "market"
         return cls._make(
             symbol, side, order_type, quantity, limit_price=limit_price,
@@ -909,7 +909,8 @@ class Order:
                division: DomesticDivision | None = None,
                client_order_id: str | None = None) -> Order:
         """시장가 주문. ``division`` 은 국내 현금주문 전용 주문구분(최유리/최우선 등, 가격 없음).
-        ``exchange`` 는 주문 거래소(KRX/NXT/SOR)."""
+        ``exchange`` 는 주문 거래소(KRX=정규거래소/NXT=대체거래소(ATS)/SOR=스마트 라우팅(통합) --
+        시세 핸들의 UN 에 대응)."""
         return cls._make(symbol, side, "market", quantity, time_in_force=time_in_force,
                           region=region, asset_class=asset_class,
                           exchange=exchange, division=division,
@@ -923,7 +924,8 @@ class Order:
               algo_strategy: AlgoStrategy | None = None, algo_start: str = "", algo_end: str = "",
               client_order_id: str | None = None) -> Order:
         """지정가 주문. ``session='overnight'`` 은 미국 오버나이트 거래(미국 종목만). ``division`` 은 국내
-        현금주문 전용 주문구분(조건부지정가 등, 가격 필요). ``exchange`` 는 주문 거래소(KRX/NXT/SOR).
+        현금주문 전용 주문구분(조건부지정가 등, 가격 필요). ``exchange`` 는 주문 거래소(KRX=정규거래소/
+        NXT=대체거래소(ATS)/SOR=스마트 라우팅(통합) -- 시세 핸들의 UN 에 대응).
         ``algo_strategy``(twap/vwap)는 미국주식 알고리즘 분할주문으로, ``algo_start``/``algo_end``(**KST**
         HHMMSS, 같은 날 시작<종료·자정 넘김 불가)를 주면 그 시간창에, 비우면 정규장 종료까지 집행한다
         (미국 NAS/NYS/AMS 전용; 미국 정규장은 KST 로 자정을 넘어 전체 세션은 시간창 생략으로 낸다)."""
