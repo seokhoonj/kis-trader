@@ -304,7 +304,7 @@ class RealtimeDomesticNamespace:
         self.execution_notices = ExecutionNotices(client)
 
     def stock(self, code: str) -> StockHandle:
-        """국내주식 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). venue 는 잎에서 고른다."""
+        """국내주식 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). exchange 는 잎에서 고른다."""
         return StockHandle(self._c, code)
 
     def futures(self, code: str, kind: FuturesKind = "index") -> FuturesHandle:
