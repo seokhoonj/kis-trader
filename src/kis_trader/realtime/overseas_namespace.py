@@ -4,7 +4,7 @@ REST ``kis.overseas`` 를 미러한다: ``overseas.stock("AAPL").trades()`` 가
 :class:`~kis_trader.realtime.subscription.RealtimeSubscription` 를 반환해 그 계약·그 타입만
 소비한다. 해외주식 tr_key 는 RSYM(예: ``DNASAAPL`` = ``D`` + 거래소 + 심볼)이라 종목 마스터로
 해석하고(클라이언트에 주입된 resolver -- :meth:`~kis_trader.realtime.client.RealtimeClient._resolve_instrument`),
-해외선물옵션은 시리즈코드를 그대로 tr_key 로 쓴다. 해외주식 호가는 ``venue`` 로 글로벌(10호가)/아시아
+해외선물옵션은 시리즈코드를 그대로 tr_key 로 쓴다. 해외주식 호가는 ``zone`` 으로 글로벌(10호가)/아시아
 (1호가) TR 을 고른다. 선물과 옵션은 같은 TR(HDFFF020/010)을 공유해 한 핸들로 다룬다.
 """
 
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from .subscription import RealtimeSubscription
 
 #: 해외주식 실시간호가의 거래소권 -- global 미주/유럽 10호가 / asia 아시아 1호가.
-OverseasVenue = Literal["global", "asia"]
+OverseasZone = Literal["global", "asia"]
 
 _STOCK_TRADES_TR = "HDFSCNT0"
 _STOCK_ORDER_BOOK_TR: dict[str, str] = {"global": "HDFSASP0", "asia": "HDFSASP1"}
@@ -53,7 +53,7 @@ def _pick(table: dict[str, str], key: str, *, label: str) -> str:
 
 
 class OverseasStockHandle:
-    """해외주식 실시간 핸들. tr_key 는 종목 마스터로 해석한 RSYM. ``venue`` 로 호가 TR 을 고른다."""
+    """해외주식 실시간 핸들. tr_key 는 종목 마스터로 해석한 RSYM. ``zone`` 으로 호가 TR 을 고른다."""
 
     def __init__(self, client: RealtimeClient, realtime_symbol: str) -> None:
         self._c = client
@@ -70,12 +70,12 @@ class OverseasStockHandle:
 
     def order_book(
         self,
-        venue: OverseasVenue = "global",
+        zone: OverseasZone = "global",
         *,
         on: Callable[[OverseasOrderBook | AsiaDelayedOrderBook], None] | None = None,
     ) -> RealtimeSubscription[OverseasOrderBook | AsiaDelayedOrderBook]:
-        """해외주식 실시간호가를 구독하고 RealtimeSubscription[OverseasOrderBook | AsiaDelayedOrderBook] 을 반환한다. venue: global(10호가 HDFSASP0)/asia(아시아 1호가 HDFSASP1)."""
-        tr = _pick(_STOCK_ORDER_BOOK_TR, venue, label="venue")
+        """해외주식 실시간호가를 구독하고 RealtimeSubscription[OverseasOrderBook | AsiaDelayedOrderBook] 을 반환한다. zone: global(10호가 HDFSASP0)/asia(아시아 1호가 HDFSASP1)."""
+        tr = _pick(_STOCK_ORDER_BOOK_TR, zone, label="zone")
         return cast(
             "RealtimeSubscription[OverseasOrderBook | AsiaDelayedOrderBook]",
             self._c._open_typed(tr, self._rsym, on=on),
