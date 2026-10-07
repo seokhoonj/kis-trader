@@ -16,9 +16,9 @@ from .entities.index import (
     ExpectedIndexPoint,
     ExpectedIndexSnapshot,
     IndexCategories,
-    IndexDailyHistory,
     IndexIntradayPoint,
     IndexQuote,
+    RecentIndexPrices,
 )
 
 if TYPE_CHECKING:
@@ -105,14 +105,14 @@ class Index:
         """지수 당일 10초 시계열(과거->현재)."""
         return index_api.fetch_index_ticks(self._client.transport, code=self.code)
 
-    def daily_history(
+    def recent_prices(
         self,
         *,
         interval: PeriodInterval = "1d",
         as_of: str | date | None = None,
-    ) -> IndexDailyHistory:
-        """조회 시점 스냅샷과 최근 최대 100건의 일·주·월 지수 통계."""
-        return index_api.fetch_index_daily_history(
+    ) -> RecentIndexPrices:
+        """조회 시점 스냅샷과 최근 최대 100건의 일·주·월 지수 시세(OHLC·등락·거래량)+보조지표."""
+        return index_api.fetch_recent_index_prices(
             self._client.transport,
             code=self.code,
             interval=interval,

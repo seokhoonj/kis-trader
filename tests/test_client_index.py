@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader import Bar, IndexDailyHistory, IndexDailyPoint, IndexQuote, KISClient
+from kis_trader import Bar, IndexQuote, KISClient, RecentIndexPoint, RecentIndexPrices
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 
@@ -307,7 +307,7 @@ def test_index_ticks_rejects_malformed_output():
         _client(FakeTransport(response=response)).domestic.index("0001").ticks()
 
 
-def _daily_history_row(date_text, value, change, sign):
+def _recent_prices_row(date_text, value, change, sign):
     return {
         "stck_bsop_date": date_text,
         "bstp_nmix_prpr": value,
@@ -325,7 +325,7 @@ def _daily_history_row(date_text, value, change, sign):
     }
 
 
-def test_index_daily_history_maps_snapshot_and_statistics():
+def test_index_recent_prices_maps_snapshot_and_points():
     response = RawResponse(
         rt_cd="0",
         msg_cd="MCA00000",
@@ -333,20 +333,20 @@ def test_index_daily_history_maps_snapshot_and_statistics():
         body={
             "output1": _output(),
             "output2": [
-                _daily_history_row("20240223", "2650.10", "12.30", "2"),
-                _daily_history_row("20240222", "2637.80", "8.20", "5"),
+                _recent_prices_row("20240223", "2650.10", "12.30", "2"),
+                _recent_prices_row("20240222", "2637.80", "8.20", "5"),
             ],
         },
     )
     fake = FakeTransport(response=response)
-    history = _client(fake).domestic.index("0001").daily_history(
+    history = _client(fake).domestic.index("0001").recent_prices(
         interval="1wk", as_of="2024-02-23"
     )
 
-    assert isinstance(history, IndexDailyHistory)
+    assert isinstance(history, RecentIndexPrices)
     assert history.snapshot.code == "0001"
     assert history.snapshot.index_value == Decimal("2650.32")
-    assert all(isinstance(point, IndexDailyPoint) for point in history.points)
+    assert all(isinstance(point, RecentIndexPoint) for point in history.points)
     assert [f"{point.trading_date:%Y%m%d}" for point in history.points] == [
         "20240222",
         "20240223",
@@ -366,18 +366,18 @@ def test_index_daily_history_maps_snapshot_and_statistics():
     }
 
 
-def test_index_daily_history_rejects_bad_interval_before_transport():
+def test_index_recent_prices_rejects_bad_interval_before_transport():
     fake = FakeTransport(response=None)
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.index("0001").daily_history(interval="1m")
+        _client(fake).domestic.index("0001").recent_prices(interval="1m")
     assert fake.calls == []
 
 
 @pytest.mark.parametrize("body", [{}, {"output1": _output()}, {"output1": {}, "output2": {}}])
-def test_index_daily_history_requires_both_response_blocks(body):
+def test_index_recent_prices_requires_both_response_blocks(body):
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     with pytest.raises(KISError):
-        _client(FakeTransport(response=response)).domestic.index("0001").daily_history()
+        _client(FakeTransport(response=response)).domestic.index("0001").recent_prices()
 
 
 def test_expected_index_trend_maps_session_interval_and_sign():

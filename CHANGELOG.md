@@ -96,6 +96,14 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   distinctions the booleans discarded are preserved; a prior `if notice.executed:` becomes
   `if notice.fill_status == "2":`.
 
+- `Index.daily_history()` renamed to `Index.recent_prices()`, with its result types
+  `IndexDailyHistory` → `RecentIndexPrices` and `IndexDailyPoint` → `RecentIndexPoint`. The
+  method takes `interval` 1d/1wk/1mo (not only daily) and returns a snapshot plus the index's
+  recent day/week/month values (level, OHLC, change, volume) with the sentiment and
+  20-day-disparity indicators — the index twin of the stock `recent_prices()`. The old name
+  mislabelled the weekly/monthly capability as "daily" and read ambiguously against the
+  existing OHLC `bars()`.
+
 ### Added
 
 - Stock handles (`DomesticStock`/`OverseasStock`) now have a readable `__repr__`

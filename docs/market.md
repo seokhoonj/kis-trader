@@ -57,7 +57,7 @@ index = kis.domestic.index("KOSPI")
 index.quote()                       # 지수 현재가
 index.bars("1d", start="20240101")  # 지수 차트 (일/주/월)
 index.categories()                  # 시장 요약 + 하위 업종 지수 목록
-index.daily_history()               # 스냅샷 + 최근 100건 일/주/월 통계
+index.recent_prices()               # 스냅샷 + 최근 100건 일/주/월 지수 시세+보조지표
 index.intraday()                    # 당일 시간대별 (1m/5m/10m)
 index.ticks()                       # 당일 10초 시계열
 ```

@@ -96,7 +96,7 @@ kis.domestic
 │   ├── bars(interval='1d', ...)        # 지수 봉
 │   ├── intraday(interval='1m')         # 당일 시간대별 시계열
 │   ├── ticks()                         # 당일 10초 시계열
-│   ├── daily_history()                 # 일·주·월 지수 통계
+│   ├── recent_prices()                 # 최근 일·주·월 지수 시세+보조지표
 │   ├── expected_trend()                # 동시호가 예상 지수 추이
 │   ├── expected_snapshot()             # 동시호가 예상 지수 스냅샷
 │   └── categories()                    # 하위 업종 지수 목록

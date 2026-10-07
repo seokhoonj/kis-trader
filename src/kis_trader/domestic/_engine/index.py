@@ -57,10 +57,10 @@ from ..entities.index import (
     ExpectedIndexQuote,
     ExpectedIndexSnapshot,
     IndexCategories,
-    IndexDailyHistory,
-    IndexDailyPoint,
     IndexIntradayPoint,
     IndexQuote,
+    RecentIndexPoint,
+    RecentIndexPrices,
 )
 
 _INDEX_QUOTE_PATH = "/uapi/domestic-stock/v1/quotations/inquire-index-price"
@@ -305,14 +305,14 @@ def fetch_index_ticks(transport: Transport, *, code: str) -> list[IndexIntradayP
     return points
 
 
-def fetch_index_daily_history(
+def fetch_recent_index_prices(
     transport: Transport,
     *,
     code: str,
     interval: PeriodInterval,
     as_of: str | date | None,
-) -> IndexDailyHistory:
-    """지수 일·주·월 통계와 조회 시점 스냅샷을 조회한다."""
+) -> RecentIndexPrices:
+    """지수 일·주·월 시세(OHLC·등락·거래량)+보조지표와 조회 시점 스냅샷을 조회한다."""
     period = _INDEX_DAILY_INTERVAL.get(interval)
     if period is None:
         raise KISUsageError(
@@ -338,7 +338,7 @@ def fetch_index_daily_history(
         raise _missing_block_error("output1", resp)
     if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output2", resp)
-    points: list[IndexDailyPoint] = []
+    points: list[RecentIndexPoint] = []
     for row in rows:
         if not isinstance(row, Mapping):
             raise _missing_block_error("output2[]", resp)
@@ -348,7 +348,7 @@ def fetch_index_daily_history(
             continue
         change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
-            IndexDailyPoint(
+            RecentIndexPoint(
                 trading_date=_parse_kst_date(date_text),
                 index_value=required_decimal(value_text, "bstp_nmix_prpr"),
                 open=required_decimal(row.get("bstp_nmix_oprc"), "bstp_nmix_oprc"),
@@ -377,7 +377,7 @@ def fetch_index_daily_history(
             )
         )
     points.sort(key=lambda point: point.trading_date)
-    return IndexDailyHistory(
+    return RecentIndexPrices(
         snapshot=_parse_index_quote(
             snapshot_row,
             code=code,

@@ -127,8 +127,8 @@ class ExpectedIndexSnapshot:
 
 
 @dataclass(frozen=True, slots=True)
-class IndexDailyPoint:
-    """지수 일·주·월 통계의 한 시점(불변)."""
+class RecentIndexPoint:
+    """최근 일·주·월 지수 시세 한 시점(불변) -- 레벨·OHLC·등락·거래량에 투자심리·20일 이격도 보조지표."""
 
     trading_date: date
     index_value: Decimal
@@ -151,11 +151,11 @@ class IndexDailyPoint:
 
 
 @dataclass(frozen=True, slots=True)
-class IndexDailyHistory:
-    """조회 시점의 지수 스냅샷과 일·주·월 통계(불변)."""
+class RecentIndexPrices:
+    """조회 시점 지수 스냅샷과 최근 일·주·월 시세(:class:`RecentIndexPoint`) 목록(불변)."""
 
     snapshot: IndexQuote
-    points: tuple[IndexDailyPoint, ...]
+    points: tuple[RecentIndexPoint, ...]
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
