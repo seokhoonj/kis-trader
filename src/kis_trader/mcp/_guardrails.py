@@ -9,9 +9,14 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass
-from typing import Literal
+from typing import Literal, cast, get_args
 
 from ..errors import KISUsageError
+from ..order import DomesticDivision
+
+#: 국내 주문구분(최유리지정가 immediate_limit 등). taint 경계에서 하드코딩 choices 대신 라이브러리
+#: Literal 에서 파생한다(동기화 드리프트 방지). None 은 기본(지정/시장가).
+_DIVISIONS = frozenset(get_args(DomesticDivision))
 
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
 _REAL_CONFIRM_PHRASE = "i-understand-real-money"
@@ -107,6 +112,7 @@ class StockOrderPlan:
     order_type: Literal["market", "limit"]
     quantity: int
     limit_price: str | None
+    division: DomesticDivision | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,7 +125,8 @@ class ModifyOrderPlan:
 
 
 def make_stock_order_plan(
-    *, region: str, symbol: str, side: str, quantity: int, limit_price: str | None = None
+    *, region: str, symbol: str, side: str, quantity: int, limit_price: str | None = None,
+    division: str | None = None,
 ) -> StockOrderPlan:
     """스칼라 입력만으로 주문 티켓을 만든다(taint 경계 -- 읽기 도구의 dict/객체를 인자로 받지 않는다).
     깊은 검증(가격/수량 규칙)은 라이브러리 :class:`~kis_trader.order.Order` 가 집행 시 하고, 여기선 taint
@@ -144,6 +151,8 @@ def make_stock_order_plan(
         raise KISUsageError(f"quantity 는 양의 정수여야 한다: {quantity!r}")
     if limit_price is not None and not isinstance(limit_price, (str, int)):
         raise KISUsageError(f"limit_price 는 문자열/정수 스칼라여야 한다: {limit_price!r}")
+    if division is not None and division not in _DIVISIONS:
+        raise KISUsageError(f"division 은 {sorted(_DIVISIONS)} 중 하나여야 한다: {division!r}")
     order_type: Literal["market", "limit"] = "limit" if limit_price is not None else "market"
     normalized_price = str(limit_price) if limit_price is not None else None
     return StockOrderPlan(
@@ -153,4 +162,5 @@ def make_stock_order_plan(
         order_type=order_type,
         quantity=quantity,
         limit_price=normalized_price,
+        division=cast("DomesticDivision | None", division),  # 위에서 _DIVISIONS 로 좁힘
     )

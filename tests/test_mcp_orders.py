@@ -133,6 +133,20 @@ def test_build_domestic_market_order():
     assert plan.order_type == "market" and plan.limit_price is None
 
 
+def test_build_carries_division():
+    # 주문구분(최유리지정가 등)이 plan 에 실려 집행까지 전달된다 -- preview 가 echo 한 값이 조용히
+    # 버려지지 않도록(council P2 D5).
+    plan = make_stock_order_plan(region="domestic", symbol="005930", side="buy", quantity=10,
+                                 limit_price=None, division="immediate_limit")
+    assert plan.division == "immediate_limit"
+
+
+def test_build_rejects_unknown_division():
+    with pytest.raises(KISUsageError, match="division"):
+        make_stock_order_plan(region="domestic", symbol="005930", side="buy", quantity=1,
+                              division="bogus")
+
+
 def test_build_rejects_overseas():
     # MVP 는 국내만 -- 해외는 엔진이 사전 리스크 게이트를 지원 안 해 fail-closed 캡 보장 불가라 거부.
     with pytest.raises(KISUsageError, match="해외"):

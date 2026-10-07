@@ -189,6 +189,12 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   other realtime entity uses). The `reference.rights(date_basis=...)` /
   `reference.collateral_stocks(sort=...)` closed-choice parameters are now typed `Literal`
   (behavior unchanged).
+- MCP `place_order` now accepts and honors `division` (council P2): `order_preview` advertised
+  and echoed a `division` (e.g. `immediate_limit` 최유리지정가) that the send path silently dropped,
+  so an approved preview was sent as a plain limit/market order. `division` is now threaded through
+  `make_stock_order_plan` → `plan_place_order` → `run_place_order` → `_execute_stock_order` (validated
+  against `DomesticDivision`, echoed in the approval ticket), so preview, ticket, and the actual order
+  agree.
 - `ForeignNetBuyPoint.foreign_net_buy` and the realtime `StockForeignBroker.foreign_net_buy_volume`
   are renamed `foreign_broker_net_buy_volume` (council P2) — the `glob_ntby_qty` 외국계(foreign
   member firm) net-buy quantity had three public names; `foreign_broker_net_buy_volume` (already

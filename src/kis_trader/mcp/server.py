@@ -26,7 +26,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from .._literals import Direction
 from ..client import KISClient
 from ..errors import KISError, KISUsageError
-from ..order import Side
+from ..order import DomesticDivision, Side
 from ..risk import RiskLimits
 from . import handlers
 from ._elicit import SupportsElicit, confirm_order
@@ -138,8 +138,8 @@ def _execute_stock_order(kis: KISClient, plan: StockOrderPlan) -> Any:
     handle = kis.domestic.stock(plan.symbol)
     method = handle.buy if plan.side == "buy" else handle.sell
     if plan.limit_price is not None:
-        return method(quantity=plan.quantity, limit_price=plan.limit_price)
-    return method(quantity=plan.quantity)
+        return method(quantity=plan.quantity, limit_price=plan.limit_price, division=plan.division)
+    return method(quantity=plan.quantity, division=plan.division)
 
 
 def _order_ticket(kis: KISClient, **fields: Any) -> dict[str, Any]:
@@ -171,15 +171,16 @@ async def _authorize_order(ctx: SupportsElicit, ticket: dict[str, Any], gate: Re
 async def run_place_order(
     kis: KISClient, gate: RealOrderGate, allowlist: frozenset[str] | None, breaker: CircuitBreaker,
     ctx: SupportsElicit, *, region: str, symbol: str, side: str, quantity: int,
-    limit_price: str | None = None,
+    limit_price: str | None = None, division: str | None = None,
 ) -> dict[str, Any]:
     """place_order 본체(테스트 가능). 가드레일 선검증 -> (실전) 사람 확인 -> 집행. MVP 는 국내 주식만."""
     plan = handlers.plan_place_order(
         gate, allowlist, kis.has_risk_limits, region=region, symbol=symbol, side=side,
-        quantity=quantity, limit_price=limit_price,
+        quantity=quantity, limit_price=limit_price, division=division,
     )
     ticket = _order_ticket(kis, action="place", region=plan.region, symbol=plan.symbol, side=plan.side,
-                           order_type=plan.order_type, quantity=plan.quantity, limit_price=plan.limit_price)
+                           order_type=plan.order_type, quantity=plan.quantity, limit_price=plan.limit_price,
+                           division=plan.division)
     decision = await _authorize_order(ctx, ticket, gate, breaker)
     if not decision.approved:
         return decision.refusal                        # type: ignore[return-value]  # approved=False -> refusal 존재
@@ -289,12 +290,13 @@ def build_server(
     @server.tool()
     async def place_order(
         ctx: Context, region: Literal["domestic", "overseas"], symbol: str, side: Side, quantity: int,
-        limit_price: str | None = None,
+        limit_price: str | None = None, division: DomesticDivision | None = None,
     ) -> dict[str, Any]:
         """국내 주식 실주문(매수/매도). 모의 기본. 실전은 이중게이트+RiskLimits+allowlist+사람확인을 전부
-        통과해야 전송. region='domestic'(해외는 아직 미지원). 파라미터는 사람이 직접 준다(읽기결과 금지)."""
+        통과해야 전송. region='domestic'(해외는 아직 미지원). ``division`` 은 주문구분(예: 최유리지정가
+        ``immediate_limit``). 파라미터는 사람이 직접 준다(읽기결과 금지)."""
         return await run_place_order(kis, gate, allowlist, breaker, ctx, region=region, symbol=symbol,
-                                     side=side, quantity=quantity, limit_price=limit_price)
+                                     side=side, quantity=quantity, limit_price=limit_price, division=division)
 
     @server.tool()
     async def cancel_order(ctx: Context, client_order_id: str) -> dict[str, Any]:

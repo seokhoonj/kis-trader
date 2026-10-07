@@ -152,6 +152,7 @@ def reconcile(kis: KISClient, *, client_order_id: str) -> dict[str, Any]:
 def plan_place_order(
     gate: RealOrderGate, allowlist: frozenset[str] | None, has_risk: bool, *,
     region: str, symbol: str, side: str, quantity: int, limit_price: str | None = None,
+    division: str | None = None,
 ) -> StockOrderPlan:
     """매수/매도 주문 계획 -- 이중게이트 -> (실전) RiskLimits 필수 -> allowlist -> 티켓 빌드 순으로
     검증한다. 실전에서 RiskLimits(fail-closed 캡)가 없으면 거부한다(관례: 캡은 사용자 설정, 미설정=거부)."""
@@ -163,7 +164,8 @@ def plan_place_order(
         )
     check_allowlist(symbol, allowlist, is_real=gate.is_real())
     return make_stock_order_plan(
-        region=region, symbol=symbol, side=side, quantity=quantity, limit_price=limit_price
+        region=region, symbol=symbol, side=side, quantity=quantity, limit_price=limit_price,
+        division=division,
     )
 
 
