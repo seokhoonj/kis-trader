@@ -500,16 +500,16 @@ class DerivativeExecutionNotice:
 
     customer_id: str
     account_number: str
-    order_number: str
-    original_order_number: str
+    order_id: str
+    original_order_id: str
     sell_buy: str  # 매도매수구분 01매도 02매수
     symbol: str
     filled_quantity: Decimal
     filled_price: Decimal
     time: str  # HHMMSS
     rejected: bool  # 거부여부
-    fill_status: str  # 체결여부(1주문 2체결)
-    accepted: bool  # 접수여부
+    fill_status: str  # CNTG_YN 체결여부 1:주문 2:체결 (원 코드 보존)
+    accepted_status: str  # ACPT_YN 1:주문접수 2:확인 3:취소(FOK/IOC) (원 코드 보존)
     order_quantity: Decimal
     symbol_name: str  # 체결종목명
     account_name: str
@@ -523,8 +523,8 @@ def _execution_notice(fields: list[str], layout: tuple[str, ...]) -> DerivativeE
     return DerivativeExecutionNotice(
         customer_id=raw["CUST_ID"],
         account_number=raw["ACNT_NO"],
-        order_number=raw["ODER_NO"],
-        original_order_number=raw["OODER_NO"],
+        order_id=raw["ODER_NO"],
+        original_order_id=raw["OODER_NO"],
         sell_buy=raw["SELN_BYOV_CLS"],
         symbol=raw["STCK_SHRN_ISCD"],
         filled_quantity=_decimal(raw["CNTG_QTY"]),
@@ -532,7 +532,7 @@ def _execution_notice(fields: list[str], layout: tuple[str, ...]) -> DerivativeE
         time=raw["STCK_CNTG_HOUR"],
         rejected=raw["RFUS_YN"] == "1",  # RFUS_YN 0:승인 1:거부 (Y/N 아님)
         fill_status=raw["CNTG_YN"],
-        accepted=raw["ACPT_YN"] in ("1", "2"),  # ACPT_YN 1:주문접수 2:확인 3:취소(FOK/IOC); 3 은 미접수 취급, 원코드는 _raw
+        accepted_status=raw["ACPT_YN"],  # ACPT_YN 1:주문접수 2:확인 3:취소(FOK/IOC) (원 코드 보존)
         order_quantity=_decimal(raw["ODER_QTY"]),
         symbol_name=raw["CNTG_ISNM"],
         account_name=raw["ACNT_NAME"],

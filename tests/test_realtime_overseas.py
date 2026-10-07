@@ -244,19 +244,19 @@ def test_parse_execution_notice_headline():
     notice = parse_execution_notice(_execution_notice_fields())
     assert isinstance(notice, OverseasExecutionNotice)
     assert notice.customer_id == "CUST01"
-    assert notice.account_no == "50012345"
-    assert notice.order_no == "0000123"
-    assert notice.original_order_no == "0000000"
+    assert notice.account_number == "50012345"
+    assert notice.order_id == "0000123"
+    assert notice.original_order_id == "0000000"
     assert notice.sell_buy == "02"
     assert notice.symbol == "AAPL"
     assert notice.symbol_name == "APPLE INC"
-    assert notice.executed_quantity == Decimal(5)
-    assert notice.executed_price == Decimal("231.50")
+    assert notice.filled_quantity == Decimal(5)
+    assert notice.filled_price == Decimal("231.50")
     assert notice.time == "223015"
     assert notice.order_quantity == Decimal(10)
     assert notice.rejected is False
-    assert notice.executed is True
-    assert notice.accepted is True
+    assert notice.fill_status == "2"
+    assert notice.accepted_status == "2"
     assert notice.branch_no == "01234"
 
 
@@ -269,8 +269,8 @@ def test_execution_notice_flags_use_ledger_codes_not_y_n():
     fields[13] = "3"  # ACPT_YN 취소
     notice = parse_execution_notice(fields)
     assert notice.rejected is True
-    assert notice.executed is False
-    assert notice.accepted is False
+    assert notice.fill_status == "1"
+    assert notice.accepted_status == "3"
 
 
 def test_execution_notice_raw_and_registry():
@@ -416,18 +416,18 @@ def test_parse_futures_order_notice_headline():
     notice = parse_futures_order_notice(_futures_order_notice_fields())
     assert isinstance(notice, FuturesOrderNotice)
     assert notice.user_id == "USER01"
-    assert notice.account_no == "50012345"
+    assert notice.account_number == "50012345"
     assert notice.order_date == "20260814"
-    assert notice.order_no == "0000123"
+    assert notice.order_id == "0000123"
     assert notice.original_order_date == "20260813"
-    assert notice.original_order_no == "0000100"
+    assert notice.original_order_id == "0000100"
     assert notice.symbol == "ESU26"
     assert notice.sell_buy == "02"
     assert notice.order_quantity == Decimal(2)
     assert notice.limit_price == Decimal("5510.00")
     assert notice.stop_price == Decimal("5490.00")
-    assert notice.total_executed_quantity == Decimal(1)
-    assert notice.total_executed_price == Decimal("5509.50")
+    assert notice.total_filled_quantity == Decimal(1)
+    assert notice.total_filled_price == Decimal("5509.50")
     assert notice.remaining_quantity == Decimal(1)
     assert notice.currency == "USD"
     assert notice.liquidation is True
@@ -473,17 +473,17 @@ def test_parse_futures_execution_notice_headline():
     notice = parse_futures_execution_notice(_futures_execution_notice_fields())
     assert isinstance(notice, FuturesExecutionNotice)
     assert notice.user_id == "USER01"
-    assert notice.account_no == "50012345"
+    assert notice.account_number == "50012345"
     assert notice.order_date == "20260814"
-    assert notice.order_no == "0000123"
+    assert notice.order_id == "0000123"
     assert notice.symbol == "ESU26"
     assert notice.sell_buy == "02"
     assert notice.order_quantity == Decimal(2)
-    assert notice.executed_date == "20260814"
+    assert notice.filled_date == "20260814"
     assert notice.execution_no == "0000999"
-    assert notice.executed_quantity == Decimal(1)
-    assert notice.executed_price == Decimal("5509.50")
-    assert notice.executed_amount == Decimal("5509.50")
+    assert notice.filled_quantity == Decimal(1)
+    assert notice.filled_price == Decimal("5509.50")
+    assert notice.filled_amount == Decimal("5509.50")
     assert notice.commission == Decimal("2.50")
     assert notice.currency == "USD"
     assert notice.online is True

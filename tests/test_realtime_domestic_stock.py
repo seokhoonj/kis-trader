@@ -328,24 +328,24 @@ def test_parse_execution_notice():
     en = parse_execution_notice(record)
     assert isinstance(en, StockExecutionNotice)
     assert en.customer_id == "CUST01"
-    assert en.account_no == "5000000000"
-    assert en.order_no == "0001"
-    assert en.original_order_no == "0000"
-    assert en.sell_buy_class == "02"
+    assert en.account_number == "5000000000"
+    assert en.order_id == "0001"
+    assert en.original_order_id == "0000"
+    assert en.sell_buy == "02"
     assert en.symbol == "005930"
-    assert en.executed_qty == Decimal(10)
-    assert en.executed_price == Decimal(71500)
+    assert en.filled_quantity == Decimal(10)
+    assert en.filled_price == Decimal(71500)
     assert en.time == "093015"
-    assert en.refused is False
-    assert en.conclusion_flag == "2"
-    assert en.accepted_flag == "2"
-    assert en.order_qty == Decimal(10)
+    assert en.rejected is False
+    assert en.fill_status == "2"
+    assert en.accepted_status == "2"
+    assert en.order_quantity == Decimal(10)
     assert en.order_price == Decimal(71500)
     assert len(en._raw) == 26
 
 
-def test_parse_execution_notice_refused_uses_ledger_code():
-    # H0STCNI0 RFUS_YN 0:승인 1:거부 (Y/N 아님) -- 거부 통보에서 refused 가 True 여야 한다.
+def test_parse_execution_notice_rejected_uses_ledger_code():
+    # H0STCNI0 RFUS_YN 0:승인 1:거부 (Y/N 아님) -- 거부 통보에서 rejected 가 True 여야 한다.
     record = _at(_EXECUTION_NOTICE_FIELDS, {
         "CUST_ID": "CUST01", "ACNT_NO": "5000000000", "ODER_NO": "0001",
         "OODER_NO": "0000", "SELN_BYOV_CLS": "02", "STCK_SHRN_ISCD": "005930",
@@ -354,9 +354,9 @@ def test_parse_execution_notice_refused_uses_ledger_code():
         "ODER_PRC": "71500",
     })
     en = parse_execution_notice(record)
-    assert en.refused is True
-    assert en.conclusion_flag == "1"
-    assert en.accepted_flag == "3"
+    assert en.rejected is True
+    assert en.fill_status == "1"
+    assert en.accepted_status == "3"
 
 
 def test_registry_execution_notice_is_encrypted():
@@ -373,8 +373,8 @@ def test_execution_notice_empty_numbers_default_to_zero():
         "STCK_SHRN_ISCD": "005930", "CNTG_QTY": "", "CNTG_UNPR": "",
     })
     en = parse_execution_notice(record)
-    assert en.executed_qty == Decimal(0)
-    assert en.executed_price == Decimal(0)
+    assert en.filled_quantity == Decimal(0)
+    assert en.filled_price == Decimal(0)
 
 
 # --------------------------------------------------------------------------- ETFNav

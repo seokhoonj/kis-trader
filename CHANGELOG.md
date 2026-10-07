@@ -76,6 +76,26 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `direction: FluctuationDirection` (`"risers"`/`"fallers"`). The shared `Direction` literal
   now lives in one place and `FluctuationDirection` is exported alongside it.
 
+- Realtime execution-notice entities now use the same `filled_*` / `order_id` field names as
+  the REST order surface, instead of three different spellings. Across `StockExecutionNotice`,
+  `OverseasExecutionNotice`, `FuturesOrderNotice` and `FuturesExecutionNotice`: `account_no` →
+  `account_number`, `order_no` / `order_number` → `order_id`, `original_order_no` /
+  `original_order_number` → `original_order_id`, `executed_qty` / `executed_quantity` →
+  `filled_quantity`, `total_executed_quantity` → `total_filled_quantity`, `executed_price` →
+  `filled_price`, `total_executed_price` → `total_filled_price`, `executed_amount` →
+  `filled_amount`, `executed_date` → `filled_date`, and `refused` → `rejected`. This matches the
+  sibling `DerivativeExecutionNotice`, which already used `filled_quantity` / `filled_price`.
+  The raw vendor keys are unchanged and still available in `_raw`.
+- The same execution-notice entities also unify their remaining per-notice fields, which had
+  been modelled three different ways for the same wire fields: `order_qty` → `order_quantity`
+  and `sell_buy_class` → `sell_buy` (the lone domestic-stock outliers), and the two status
+  flags are now one name and one type across all notices — `CNTG_YN` is `fill_status: str`
+  (was `conclusion_flag` / `fill_status` / a lossy `executed: bool`) and `ACPT_YN` is
+  `accepted_status: str` (was `accepted_flag` / a lossy `accepted: bool`). Both keep the raw
+  ledger code (`"1"`/`"2"`/`"3"`), so the order-vs-fill and received/confirmed/cancelled
+  distinctions the booleans discarded are preserved; a prior `if notice.executed:` becomes
+  `if notice.fill_status == "2":`.
+
 ### Added
 
 - Stock handles (`DomesticStock`/`OverseasStock`) now have a readable `__repr__`

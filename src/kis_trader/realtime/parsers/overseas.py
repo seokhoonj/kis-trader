@@ -188,19 +188,19 @@ class OverseasExecutionNotice:
     """
 
     customer_id: str
-    account_no: str
-    order_no: str
-    original_order_no: str
+    account_number: str
+    order_id: str
+    original_order_id: str
     sell_buy: str  # 매도매수구분
     symbol: str
     symbol_name: str
-    executed_quantity: Decimal
-    executed_price: Decimal
+    filled_quantity: Decimal
+    filled_price: Decimal
     time: str  # 주식 체결 시간
     order_quantity: Decimal
     rejected: bool  # 거부여부
-    executed: bool  # 체결여부
-    accepted: bool  # 접수여부
+    fill_status: str  # CNTG_YN 1:주문/정정/취소/거부 2:체결 (원 코드 보존)
+    accepted_status: str  # ACPT_YN 1:주문접수 2:확인 3:취소(FOK/IOC) (원 코드 보존)
     branch_no: str
     _raw: Mapping[str, Any] = _raw_field()
 
@@ -210,19 +210,19 @@ def parse_execution_notice(fields: list[str]) -> OverseasExecutionNotice:
     raw = MappingProxyType(dict(zip(_EXECUTION_NOTICE_FIELDS, fields, strict=False)))
     return OverseasExecutionNotice(
         customer_id=raw["CUST_ID"],
-        account_no=raw["ACNT_NO"],
-        order_no=raw["ODER_NO"],
-        original_order_no=raw["OODER_NO"],
+        account_number=raw["ACNT_NO"],
+        order_id=raw["ODER_NO"],
+        original_order_id=raw["OODER_NO"],
         sell_buy=raw["SELN_BYOV_CLS"],
         symbol=raw["STCK_SHRN_ISCD"],
         symbol_name=raw["CNTG_ISNM"],
-        executed_quantity=_decimal(raw["CNTG_QTY"]),
-        executed_price=_decimal(raw["CNTG_UNPR"]),
+        filled_quantity=_decimal(raw["CNTG_QTY"]),
+        filled_price=_decimal(raw["CNTG_UNPR"]),
         time=raw["STCK_CNTG_HOUR"],
         order_quantity=_decimal(raw["ODER_QTY"]),
         rejected=raw["RFUS_YN"] == "1",  # RFUS_YN 0:승인 1:거부 (Y/N 아님)
-        executed=raw["CNTG_YN"] == "2",  # CNTG_YN 1:주문/정정/취소/거부 2:체결 (Y/N 아님)
-        accepted=raw["ACPT_YN"] in ("1", "2"),  # ACPT_YN 1:주문접수 2:확인 3:취소(FOK/IOC); 3 은 미접수 취급, 원코드는 _raw
+        fill_status=raw["CNTG_YN"],  # CNTG_YN 1:주문/정정/취소/거부 2:체결 (원 코드 보존)
+        accepted_status=raw["ACPT_YN"],  # ACPT_YN 1:주문접수 2:확인 3:취소(FOK/IOC) (원 코드 보존)
         branch_no=raw["BRNC_NO"],
         _raw=raw,
     )
@@ -359,18 +359,18 @@ class FuturesOrderNotice:
     """
 
     user_id: str
-    account_no: str
+    account_number: str
     order_date: str
-    order_no: str
+    order_id: str
     original_order_date: str
-    original_order_no: str
+    original_order_id: str
     symbol: str  # SERIES
     sell_buy: str
     order_quantity: Decimal
     limit_price: Decimal
     stop_price: Decimal
-    total_executed_quantity: Decimal
-    total_executed_price: Decimal
+    total_filled_quantity: Decimal
+    total_filled_price: Decimal
     remaining_quantity: Decimal
     currency: str
     liquidation: bool  # 청산여부(LQD_YN)
@@ -382,18 +382,18 @@ def parse_futures_order_notice(fields: list[str]) -> FuturesOrderNotice:
     raw = MappingProxyType(dict(zip(_FUTURES_ORDER_NOTICE_FIELDS, fields, strict=False)))
     return FuturesOrderNotice(
         user_id=raw["USER_ID"],
-        account_no=raw["ACCT_NO"],
+        account_number=raw["ACCT_NO"],
         order_date=raw["ORD_DT"],
-        order_no=raw["ODNO"],
+        order_id=raw["ODNO"],
         original_order_date=raw["ORGN_ORD_DT"],
-        original_order_no=raw["ORGN_ODNO"],
+        original_order_id=raw["ORGN_ODNO"],
         symbol=raw["SERIES"],
         sell_buy=raw["SLL_BUY_DVSN_CD"],
         order_quantity=_decimal(raw["ORD_QTY"]),
         limit_price=_decimal(raw["FM_LMT_PRIC"]),
         stop_price=_decimal(raw["FM_STOP_ORD_PRIC"]),
-        total_executed_quantity=_decimal(raw["TOT_CCLD_QTY"]),
-        total_executed_price=_decimal(raw["TOT_CCLD_UV"]),
+        total_filled_quantity=_decimal(raw["TOT_CCLD_QTY"]),
+        total_filled_price=_decimal(raw["TOT_CCLD_UV"]),
         remaining_quantity=_decimal(raw["ORD_REMQ"]),
         currency=raw["CRCY_CD"],
         liquidation=raw["LQD_YN"] == "Y",
@@ -424,17 +424,17 @@ class FuturesExecutionNotice:
     """
 
     user_id: str
-    account_no: str
+    account_number: str
     order_date: str
-    order_no: str
+    order_id: str
     symbol: str  # SERIES
     sell_buy: str
     order_quantity: Decimal
-    executed_date: str
+    filled_date: str
     execution_no: str
-    executed_quantity: Decimal
-    executed_price: Decimal
-    executed_amount: Decimal
+    filled_quantity: Decimal
+    filled_price: Decimal
+    filled_amount: Decimal
     commission: Decimal
     currency: str
     online: bool  # 주문매체온라인여부(ORD_MDIA_ONLINE_YN)
@@ -446,17 +446,17 @@ def parse_futures_execution_notice(fields: list[str]) -> FuturesExecutionNotice:
     raw = MappingProxyType(dict(zip(_FUTURES_EXECUTION_NOTICE_FIELDS, fields, strict=False)))
     return FuturesExecutionNotice(
         user_id=raw["USER_ID"],
-        account_no=raw["ACCT_NO"],
+        account_number=raw["ACCT_NO"],
         order_date=raw["ORD_DT"],
-        order_no=raw["ODNO"],
+        order_id=raw["ODNO"],
         symbol=raw["SERIES"],
         sell_buy=raw["SLL_BUY_DVSN_CD"],
         order_quantity=_decimal(raw["ORD_QTY"]),
-        executed_date=raw["CCLD_DT"],
+        filled_date=raw["CCLD_DT"],
         execution_no=raw["CCNO"],
-        executed_quantity=_decimal(raw["CCLD_QTY"]),
-        executed_price=_decimal(raw["FM_CCLD_PRIC"]),
-        executed_amount=_decimal(raw["FM_CCLD_AMT"]),
+        filled_quantity=_decimal(raw["CCLD_QTY"]),
+        filled_price=_decimal(raw["FM_CCLD_PRIC"]),
+        filled_amount=_decimal(raw["FM_CCLD_AMT"]),
         commission=_decimal(raw["TRST_FEE"]),
         currency=raw["CRCY_CD"],
         online=raw["ORD_MDIA_ONLINE_YN"] == "Y",

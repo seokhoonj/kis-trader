@@ -511,18 +511,18 @@ class StockExecutionNotice:
     """
 
     customer_id: str  # CUST_ID
-    account_no: str  # ACNT_NO
-    order_no: str  # ODER_NO
-    original_order_no: str  # OODER_NO
-    sell_buy_class: str  # SELN_BYOV_CLS 01 매도 02 매수
+    account_number: str  # ACNT_NO
+    order_id: str  # ODER_NO
+    original_order_id: str  # OODER_NO
+    sell_buy: str  # SELN_BYOV_CLS 01 매도 02 매수
     symbol: str  # STCK_SHRN_ISCD
-    executed_qty: Decimal  # CNTG_QTY
-    executed_price: Decimal  # CNTG_UNPR 체결단가
+    filled_quantity: Decimal  # CNTG_QTY
+    filled_price: Decimal  # CNTG_UNPR 체결단가
     time: str  # STCK_CNTG_HOUR
-    refused: bool  # RFUS_YN
-    conclusion_flag: str  # CNTG_YN 1 접수(주문/정정/취소/거부) 2 체결
-    accepted_flag: str  # ACPT_YN
-    order_qty: Decimal  # ODER_QTY
+    rejected: bool  # RFUS_YN
+    fill_status: str  # CNTG_YN 1:주문/정정/취소/거부 2:체결 (원 코드 보존)
+    accepted_status: str  # ACPT_YN 1:주문접수 2:확인 3:취소(FOK/IOC) (원 코드 보존)
+    order_quantity: Decimal  # ODER_QTY
     order_price: Decimal  # ODER_PRC 주문가격
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -544,18 +544,18 @@ def parse_execution_notice(fields: list[str]) -> StockExecutionNotice:
     raw = MappingProxyType(dict(zip(_EXECUTION_NOTICE_FIELDS, fields, strict=False)))
     return StockExecutionNotice(
         customer_id=raw["CUST_ID"],
-        account_no=raw["ACNT_NO"],
-        order_no=raw["ODER_NO"],
-        original_order_no=raw["OODER_NO"],
-        sell_buy_class=raw["SELN_BYOV_CLS"],
+        account_number=raw["ACNT_NO"],
+        order_id=raw["ODER_NO"],
+        original_order_id=raw["OODER_NO"],
+        sell_buy=raw["SELN_BYOV_CLS"],
         symbol=raw["STCK_SHRN_ISCD"],
-        executed_qty=_decimal(raw["CNTG_QTY"]),
-        executed_price=_decimal(raw["CNTG_UNPR"]),
+        filled_quantity=_decimal(raw["CNTG_QTY"]),
+        filled_price=_decimal(raw["CNTG_UNPR"]),
         time=raw["STCK_CNTG_HOUR"],
-        refused=raw["RFUS_YN"] == "1",  # RFUS_YN 0:승인 1:거부 (Y/N 아님)
-        conclusion_flag=raw["CNTG_YN"],
-        accepted_flag=raw["ACPT_YN"],
-        order_qty=_decimal(raw["ODER_QTY"]),
+        rejected=raw["RFUS_YN"] == "1",  # RFUS_YN 0:승인 1:거부 (Y/N 아님)
+        fill_status=raw["CNTG_YN"],
+        accepted_status=raw["ACPT_YN"],
+        order_quantity=_decimal(raw["ODER_QTY"]),
         order_price=_decimal(raw["ODER_PRC"]),
         _raw=raw,
     )

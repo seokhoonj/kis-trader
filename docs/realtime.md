@@ -84,7 +84,7 @@ with realtime.domestic.stock("005930").order_book(exchange="NXT") as sub:
 
 # 3) 콜백 -- on= 으로 넘기면 수신 스레드에서 호출됩니다
 def on_notice(notice):
-    print(notice.order_no, notice.executed_qty)
+    print(notice.order_id, notice.filled_quantity)
 
 realtime.domestic.execution_notices.stock("myhtsid", on=on_notice)
 ```

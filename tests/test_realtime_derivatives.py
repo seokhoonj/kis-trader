@@ -294,7 +294,7 @@ def test_parse_execution_notice():
     assert isinstance(note, der.DerivativeExecutionNotice)
     assert note.customer_id == "CUST01"
     assert note.account_number == "12345678"
-    assert note.order_number == "0001"
+    assert note.order_id == "0001"
     assert note.sell_buy == "02"
     assert note.symbol == "101W09"
     assert note.filled_quantity == Decimal(2)
@@ -302,7 +302,7 @@ def test_parse_execution_notice():
     assert note.time == "093015"
     assert note.rejected is False
     assert note.fill_status == "2"
-    assert note.accepted is True
+    assert note.accepted_status == "2"
     assert note.order_quantity == Decimal(2)
     assert note.symbol_name == "KOSPI200 F 202509"
     assert note.account_name == "홍길동"
@@ -323,7 +323,7 @@ def test_execution_notice_flags_use_ledger_codes_not_y_n():
     note = der.parse_execution_notice(fields)
     assert note.rejected is True
     assert note.fill_status == "1"
-    assert note.accepted is False
+    assert note.accepted_status == "3"
 
 
 def test_parse_night_execution_notice_has_no_order_price():
@@ -338,7 +338,7 @@ def test_parse_night_execution_notice_has_no_order_price():
     assert note.sell_buy == "01"
     assert note.filled_price == Decimal("331.00")
     assert note.rejected is False
-    assert note.accepted is True
+    assert note.accepted_status == "2"
     assert note.order_price is None  # 주문가격 컬럼 부재 -> None(0 을 지어내지 않음)
     assert "ORDER_PRC" not in note._raw
     assert len(note._raw) == 19
@@ -389,7 +389,7 @@ def test_parse_night_option_notice_via_shared_parser():
     note = der.parse_night_execution_notice(fields)
     assert note.symbol == "201S1305"
     assert note.filled_price == Decimal("2.50")
-    assert note.accepted is True
+    assert note.accepted_status == "2"
     assert note.order_price is None  # 주문가격 컬럼 부재 -> None
     assert len(note._raw) == 19
 
