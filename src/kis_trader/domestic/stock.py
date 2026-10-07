@@ -93,7 +93,7 @@ _TO_ORDER_EXCHANGE: dict[DomesticQuoteExchange, DomesticOrderExchange] = {
 
 
 class DomesticStock(_StockBase):
-    """국내 종목/ETF 핸들 -- 시세·시세분석·재무·투자자수급·ETF·주문. ``kis.domestic.stock(code)``."""
+    """국내 종목/ETF 핸들 -- 시세·시세분석·재무·투자자수급·ETF·주문. ``kis.domestic.stock(symbol)``."""
 
     is_overseas = False
     #: 시세 거래소; 주문 생성 시 UN 은 SOR 로 변환한다(:meth:`_to_order_exchange`).

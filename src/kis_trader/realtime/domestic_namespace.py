@@ -71,9 +71,9 @@ def _pick(table: dict[str, str], key: str, *, label: str) -> str:
 class StockHandle:
     """국내주식 실시간 핸들. ``exchange`` 로 거래소(KRX/NXT/통합 UN)를 고른다."""
 
-    def __init__(self, client: RealtimeClient, code: str) -> None:
+    def __init__(self, client: RealtimeClient, symbol: str) -> None:
         self._client = client
-        self._code = code
+        self._symbol = symbol
 
     def trades(
         self,
@@ -84,7 +84,7 @@ class StockHandle:
         """국내주식 실시간 체결을 구독하고 RealtimeSubscription[StockTick] 을 반환한다. exchange: KRX/NXT/통합(UN)."""
         tr = _pick(_STOCK_TRADES_TR, exchange, label="exchange")
         return cast(
-            "RealtimeSubscription[StockTick]", self._client._open_typed(tr, self._code, on=on)
+            "RealtimeSubscription[StockTick]", self._client._open_typed(tr, self._symbol, on=on)
         )
 
     def order_book(
@@ -96,7 +96,7 @@ class StockHandle:
         """국내주식 실시간 호가를 구독하고 RealtimeSubscription[StockOrderBook] 을 반환한다. exchange: KRX/NXT/통합(UN)."""
         tr = _pick(_STOCK_ORDER_BOOK_TR, exchange, label="exchange")
         return cast(
-            "RealtimeSubscription[StockOrderBook]", self._client._open_typed(tr, self._code, on=on)
+            "RealtimeSubscription[StockOrderBook]", self._client._open_typed(tr, self._symbol, on=on)
         )
 
 
@@ -303,9 +303,9 @@ class RealtimeDomesticNamespace:
         self._client = client
         self.execution_notices = ExecutionNotices(client)
 
-    def stock(self, code: str) -> StockHandle:
+    def stock(self, symbol: str) -> StockHandle:
         """국내주식 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). exchange 는 잎에서 고른다."""
-        return StockHandle(self._client, code)
+        return StockHandle(self._client, symbol)
 
     def futures(self, symbol: str, kind: FuturesKind = "index") -> FuturesHandle:
         """국내 선물 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). kind: index|commodity|stock|night."""

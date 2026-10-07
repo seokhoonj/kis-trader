@@ -43,6 +43,19 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   region-neutral type; the prefix matches the `DomesticBalance` / `OverseasBalance`
   convention (the cross-domain aggregate `OpenOrders` stays bare). Fields and behavior are
   unchanged — only the class names.
+- The tradable-instrument identifier is now `symbol` everywhere, not a mix of `symbol` and
+  `code`. Previously only stocks, bonds, and overseas-derivative entities used `symbol`
+  while domestic-derivative and ELW used `code` and the overseas-derivative factory used
+  `series_code`. Now renamed to `symbol`: the domestic-derivative entities
+  (`DerivativeQuote`, `ExpectedExecutionTrend`, `FuturesBoardQuote`, `OptionBoardRow`) and
+  the ELW entities (`ELWQuote`, `ELWSensitivityPoint`, `ELWVolatilityPoint`,
+  `ELWIndicatorPoint`, `ELWLPFlow`) `.code` → `.symbol`; the futures/option/elw contract
+  handles' attribute and constructor; and the `code`/`series_code` parameter of every
+  instrument factory — `kis.domestic.stock/futures/option/elw(...)`,
+  `kis.overseas.futures/option(...)`, and their realtime counterparts — is now `symbol`.
+  Classifiers that are not a tradable instrument keep `code`: `OptionExpiry.code`
+  (expiry-month), `kis.domestic.index(code)` / realtime `index` / `bond_index`
+  (index/sector codes). Wire keys and behavior are unchanged.
 - `TransportTimeout` renamed to `TransportTimeoutError` — matches the package's exception
   naming (every other error ends in `Error`, e.g. the sibling `OrderTimeoutError`) and the
   Python convention (`TimeoutError`).

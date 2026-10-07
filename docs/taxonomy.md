@@ -22,7 +22,7 @@ kis  (KISClient 세션)
 
 ```text
 kis.domestic
-├── stock(code)                         # 국내 종목/ETF 핸들
+├── stock(symbol)                         # 국내 종목/ETF 핸들
 │   │  ── 현재가·종목정보 ───────────────────────────
 │   ├── quote()                         # 현재가 스냅샷
 │   ├── profile()                       # 종목 기본정보
@@ -374,7 +374,7 @@ kis.realtime()
 ├── start() / stop()                         # 백그라운드 수신 시작/중단
 ├── subscribe / unsubscribe / stream         # 원시 등록·해제·통합 이터레이터(탈출구)
 ├── domestic                                 # 국내 실시간
-│   ├── stock(code)                          # → StockHandle
+│   ├── stock(symbol)                          # → StockHandle
 │   │   ├── trades(exchange='KRX')           # 체결 → StockTick
 │   │   └── order_book(exchange='KRX')       # 호가 → StockOrderBook
 │   ├── futures(symbol, kind='index')          # kind: index|commodity|stock|night

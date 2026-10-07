@@ -225,10 +225,10 @@ class DomesticNamespace:
 
     # -- 종목/상품 핸들 --
     def stock(
-        self, code: str, *, exchange: DomesticQuoteExchange | None = None,
+        self, symbol: str, *, exchange: DomesticQuoteExchange | None = None,
     ) -> DomesticStock:
         """국내 종목/ETF 핸들. 거래소는 심볼로 자동 판별한다(6자리 코드 -> KRX; ``exchange`` 지정 가능)."""
-        return DomesticStock(self._client, code, exchange=exchange)
+        return DomesticStock(self._client, symbol, exchange=exchange)
 
     def search_stocks(self, query: str, *, market: SearchMarket = "all") -> list[DomesticListing]:
         """국내 상장 종목을 **이름(부분/정확)** 또는 6자리 코드로 찾아 후보를 돌려준다.
