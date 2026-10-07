@@ -217,7 +217,7 @@ def build_parser() -> argparse.ArgumentParser:
                             help="조회일자 YYYYMMDD(해외파생 예수금·증거금)")
         sp.set_defaults(func=func)
 
-    # kis order buy|sell|reconcile|modify|cancel|cancel-reserved|modify-reserved
+    # kis order buy|sell|reconcile|modify|cancel|cancel-reserved|modify-reserved|twap
     order_p = groups.add_parser("order", help="주문(기본 dry-run; --execute 로 전송)")
     order_sub = order_p.add_subparsers(dest="action", required=True)
     for name, func in [("buy", order.cmd_buy), ("sell", order.cmd_sell)]:

@@ -71,13 +71,13 @@ stock.recent_prices()  # 최근 가격 추이
 for quote in kis.domestic.quotes(["005930", "000660", "035720"]):
     print(quote.symbol, quote.current_price, quote.change_percent)
 
-# 보드가 다르면(KRX/NXT) 튜플로 지정
+# 거래소가 다르면(KRX/NXT) 튜플로 지정
 kis.domestic.quotes([("KRX", "005930"), ("NXT", "000660")])
 ```
 
 ::: {.callout-note}
 **KRX vs NXT** — KRX는 한국거래소 정규시장, NXT(넥스트레이드)는 2025년 출범한 대체거래소(ATS,
-정규거래소 밖의 또 다른 매매 장)입니다. 같은 종목이 두 곳에서 거래되며, 보드를 안 주면 KRX 기준입니다.
+정규거래소 밖의 또 다른 매매 장)입니다. 같은 종목이 두 곳에서 거래되며, 거래소를 안 주면 KRX 기준입니다.
 :::
 
 ## 시간외

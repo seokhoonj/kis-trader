@@ -511,7 +511,7 @@ def validate_hhmmss(value: str, field_name: str) -> None:
         raise KISUsageError(f"{field_name} 는 HHMMSS 6자리 숫자여야 한다: {value!r}")
     hour, minute, second = int(value[0:2]), int(value[2:4]), int(value[4:6])
     if hour > 23 or minute > 59 or second > 59:
-        raise KISUsageError(f"{field_name} 는 실재하는 HHMMSS 시각여야 한다: {value!r}")
+        raise KISUsageError(f"{field_name} 는 실재하는 HHMMSS 시각이어야 한다: {value!r}")
 
 
 def resolve_new_credit_loan_date(

@@ -128,7 +128,7 @@ class DelayedTradeTick:
     high: Decimal
     low: Decimal
     current_price: Decimal
-    change_sign: str
+    change_sign: str  # SIGN
     change: Decimal
     change_percent: Decimal
     best_bid: Decimal
@@ -258,7 +258,7 @@ class FuturesTradeTick:
     high: Decimal
     low: Decimal
     accumulated_volume: Decimal
-    change_sign: str
+    change_sign: str  # PREV_SIGN
     trade_sign: str  # 체결구분(QUOTSIGN)
     prev_settlement_price: Decimal
     _raw: Mapping[str, Any] = _raw_field()

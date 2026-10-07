@@ -155,7 +155,7 @@ kis --profile paper order buy 005930 10 --limit-price 70000 --execute paper # �
 | `conditional_limit` | 조건부지정가 | 필수 | |
 | `immediate_limit` | 최유리지정가 | — | |
 | `priority_limit` | 최우선지정가 | — | |
-| `midpoint` | 중간가 | — | 호가 중간값, 전 보드, IOC/FOK |
+| `midpoint` | 중간가 | — | 호가 중간값, 전 거래소, IOC/FOK |
 | `pre_market_close` | 장전 시간외 종가 | — | KRX 전용 |
 | `post_market_close` | 장후 시간외 종가 | — | KRX 전용 |
 | `after_market_limit` | 애프터마켓 지정가 | 필수 | `--exchange KRX`, 16:00~20:00 |
