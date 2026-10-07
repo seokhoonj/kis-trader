@@ -164,7 +164,7 @@ _INTEREST_RATES_TR = "FHPST07020000"
 
 
 def fetch_lendable_stocks(
-    transport: Transport, *, market: str = "all", symbol: str = ""
+    transport: Transport, *, market: str = "all", symbol: str | None = None
 ) -> list[LendableStock]:
     """회사 대주 가능 종목과 한도·사용·가능수량 목록."""
     market_code = _LENDABLE_MARKET.get(market)
@@ -172,7 +172,7 @@ def fetch_lendable_stocks(
         raise KISUsageError(f"market 은 {sorted(_LENDABLE_MARKET)} 중 하나: {market!r}")
     params = {
         "EXCG_DVSN_CD": market_code,
-        "PDNO": symbol,
+        "PDNO": symbol or "",
         "THCO_STLN_PSBL_YN": "Y",
         "INQR_DVSN_1": "0",
         "CTX_AREA_FK200": "",
@@ -725,7 +725,7 @@ def fetch_futures_market_schedule(transport: Transport) -> FuturesMarketSchedule
 
 
 def fetch_news(
-    transport: Transport, *, symbol: str = "", date_: str | date | None = None
+    transport: Transport, *, symbol: str | None = None, date_: str | date | None = None
 ) -> list[NewsHeadline]:
     """시황/공시 뉴스 제목 피드(최신순). ``symbol`` 을 주면 그 종목 관련만, ``date_`` 를 주면 그 날짜.
     둘 다 없으면 전체 최근."""
@@ -733,7 +733,7 @@ def fetch_news(
     params = {
         "FID_NEWS_OFER_ENTP_CODE": "",
         "FID_COND_MRKT_CLS_CODE": "",
-        "FID_INPUT_ISCD": symbol,
+        "FID_INPUT_ISCD": symbol or "",
         "FID_TITL_CNTT": "",
         "FID_INPUT_DATE_1": input_date,
         "FID_INPUT_HOUR_1": "",

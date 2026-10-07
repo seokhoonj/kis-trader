@@ -14,14 +14,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, Literal
 
 from ._engine import elw as elw_api
+from .elw_screener import ELWRight
 
 if TYPE_CHECKING:
     from ..client import KISClient
     from .entities.elw import RankedELW
 
-
-#: 콜풋 구분 -- 전체(all)/콜(call)/풋(put).
-ELWRight = Literal["all", "call", "put"]
 
 #: 거래량 순위 기준.
 VolumeSort = Literal[

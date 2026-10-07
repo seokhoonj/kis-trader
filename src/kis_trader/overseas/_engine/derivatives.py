@@ -546,7 +546,7 @@ def fetch_market_hours(
     product_group: str = "",
     asset_class: str = "",
     exchange: str = "",
-    kind: str = "%",
+    kind: str = "",
 ) -> list[OverseasDerivativeMarketHours]:
     """해외 선물/옵션 상품군별 장운영시간 전체를 조회한다.
 
@@ -569,7 +569,7 @@ def fetch_market_hours(
             "FM_PDGR_CD": product_group,
             "FM_CLAS_CD": asset_class,
             "FM_EXCG_CD": exchange,
-            "OPT_YN": kind,
+            "OPT_YN": kind or "%",
             "CTX_AREA_NK200": ctx_nk,
             "CTX_AREA_FK200": ctx_fk,
         }

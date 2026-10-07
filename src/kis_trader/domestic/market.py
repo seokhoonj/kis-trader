@@ -112,7 +112,7 @@ class MarketQueries:
         return market_api.fetch_interest_rates(self._client.transport)
 
     def lendable_stocks(
-        self, *, market: MarketFilter = "all", symbol: str = ""
+        self, *, market: MarketFilter = "all", symbol: str | None = None
     ) -> list[LendableStock]:
         """회사 대주 가능 종목과 한도·사용·매매가능 수량 목록."""
         return market_api.fetch_lendable_stocks(
@@ -172,7 +172,7 @@ class MarketQueries:
         """국내선물의 인접 영업일 5개와 오늘 장 시작·종료 시각."""
         return market_api.fetch_futures_market_schedule(self._client.transport)
 
-    def news(self, *, symbol: str = "", date: str | date | None = None) -> list[NewsHeadline]:
+    def news(self, *, symbol: str | None = None, date: str | date | None = None) -> list[NewsHeadline]:
         """시황/공시 뉴스 제목 피드(최신순). ``symbol`` 을 주면 그 종목 관련만, ``date`` 를 주면 그
         날짜(없으면 최근 전체). 각 뉴스의 연관 종목은 ``NewsHeadline.symbols``."""
         return market_api.fetch_news(self._client.transport, symbol=symbol, date_=date)

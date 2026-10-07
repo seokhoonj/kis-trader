@@ -146,6 +146,7 @@ def search_stocks(
         exchange=exchange.strip(), decimal_places=required_int(output1.get("zdiv"), "zdiv"),
         status=str(output1.get("stat", "")).strip(),
         total_count=required_int(output1.get("trec"), "trec"), matches=tuple(matches),
+        _raw=output1,
     )
 
 
@@ -227,7 +228,7 @@ def fetch_product_info(
         english_name=str(output.get("prdt_eng_name", "")).strip(),
         exchange_code=str(output.get("ovrs_excg_cd", "")).strip(),
         exchange_name=str(output.get("ovrs_excg_name", "")).strip(),
-        country=str(output.get("natn_name", "")).strip(),
+        country_name=str(output.get("natn_name", "")).strip(),
         currency=str(output.get("tr_crcy_cd", "")).strip(),
         currency_name=str(output.get("crcy_name", "")).strip(),
         par_value=optional_decimal(output.get("ovrs_papr"), "ovrs_papr"),

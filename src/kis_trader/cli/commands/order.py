@@ -166,7 +166,8 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
             raise CliConfigError("--division 은 국내 현금/파생 주문 전용입니다.")
         if is_deriv and args.division not in _DERIVATIVE_DIVISIONS:
             raise CliConfigError(
-                f"{args.division} 은 파생 주문에 없습니다(조건부/최유리지정가만 가능).")
+                f"{args.division} 은 파생 주문에 없습니다"
+                f"(가능: {', '.join(sorted(_DERIVATIVE_DIVISIONS))}).")
 
     # 자산별 필수 조건 + 실전전용 게이트.
     if asset == "bond":

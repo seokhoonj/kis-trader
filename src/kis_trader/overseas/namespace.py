@@ -154,8 +154,8 @@ class OverseasAccount:
         symbol: str = "", won_basis: bool = False,
     ) -> OverseasPeriodProfit:
         """기간손익 -- ``start``~``end``(YYYYMMDD) 매도청산 종목별 실현손익과 총계. ``exchange`` 거래소
-        (공란=전체), ``currency`` 통화(공란=전체), ``symbol`` 종목(공란=전체), ``won_basis`` 원화(True)/외화
-        (False). **모의투자 미지원**.
+        (공란=전체), ``nation`` 국가코드(NATN_CD, 공란=전체), ``currency`` 통화(공란=전체), ``symbol`` 종목
+        (공란=전체), ``won_basis`` 원화(True)/외화(False). **모의투자 미지원**.
 
         .. note:: KIS 예시가 비어 있어 필드는 레이아웃 기준이다 -- 전체 원본은 각 행/결과의 ``_raw``."""
         cano, product_code = self._client._require_account()
@@ -285,7 +285,7 @@ class OverseasNamespace:
         )
 
     def derivatives_market_hours(
-        self, *, product_group: str = "", asset_class: str = "", exchange: str = "", kind: str = "%"
+        self, *, product_group: str = "", asset_class: str = "", exchange: str = "", kind: str = ""
     ) -> list[OverseasDerivativeMarketHours]:
         """해외 선물/옵션 상품군별 장운영시간(시장 전체, 계약 무관). 필터를 생략하면 전체를 조회한다.
         **모의투자 미지원**."""

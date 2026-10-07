@@ -53,6 +53,10 @@ class OverseasStockSearch:
     status: str
     total_count: int
     matches: tuple[OverseasStockSearchMatch, ...]
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "matches", tuple(self.matches))
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
