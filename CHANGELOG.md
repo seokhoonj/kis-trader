@@ -153,6 +153,11 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   other realtime entity uses). The `reference.rights(date_basis=...)` /
   `reference.collateral_stocks(sort=...)` closed-choice parameters are now typed `Literal`
   (behavior unchanged).
+- `ProgramTradeActivity` and `BrokerDailyActivity` rename their gross-count fields
+  `sell_quantity` / `buy_quantity` → `sell_volume` / `buy_volume`, so all three of
+  `buy_volume` / `sell_volume` / `net_buy_volume` use one `volume` vocabulary (matching the
+  sibling `InvestorActivity` and the program-trade point records) instead of mixing
+  `quantity` for the gross counts with `volume` for the net.
 
 - `market.broker_opinions(broker=...)` renamed to `member_code` — the input is a member-firm
   code (the sibling broker fetchers already call it `member_code`), whereas the result field

@@ -51,8 +51,8 @@ class BrokerDailyActivity:
     symbol: str
     member_code: str
     trading_date: date
-    sell_quantity: int
-    buy_quantity: int
+    sell_volume: int
+    buy_volume: int
     net_buy_volume: int
     price: Decimal
     change: Decimal

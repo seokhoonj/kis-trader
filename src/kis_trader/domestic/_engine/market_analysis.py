@@ -940,8 +940,8 @@ def _parse_market_investor_activity(
 
 def _parse_program_trade_activity(row: Mapping[str, object], prefix: str) -> ProgramTradeActivity:
     return ProgramTradeActivity(
-        sell_quantity=required_int(row.get(f"{prefix}_seln_qty"), f"{prefix}_seln_qty"),
-        buy_quantity=required_int(row.get(f"{prefix}_shnu_qty"), f"{prefix}_shnu_qty"),
+        sell_volume=required_int(row.get(f"{prefix}_seln_qty"), f"{prefix}_seln_qty"),
+        buy_volume=required_int(row.get(f"{prefix}_shnu_qty"), f"{prefix}_shnu_qty"),
         net_buy_volume=required_int(row.get(f"{prefix}_ntby_qty"), f"{prefix}_ntby_qty"),
         sell_amount=required_decimal(row.get(f"{prefix}_seln_amt"), f"{prefix}_seln_amt"),
         buy_amount=required_decimal(row.get(f"{prefix}_shnu_amt"), f"{prefix}_shnu_amt"),

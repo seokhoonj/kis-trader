@@ -262,12 +262,12 @@ def build_server(
 
     @server.tool()
     def positions(limit: int = 100) -> list[dict[str, Any]]:
-        """보유 종목."""
+        """보유 종목(국내 주식 계좌)."""
         return handlers.positions(kis, limit=limit)
 
     @server.tool()
     def open_orders(limit: int = 100) -> list[dict[str, Any]]:
-        """미체결 주문."""
+        """미체결 주문(국내 주식 계좌)."""
         return handlers.open_orders(kis, limit=limit)
 
     @server.tool()

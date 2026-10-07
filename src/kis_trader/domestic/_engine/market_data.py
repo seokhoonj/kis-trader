@@ -791,8 +791,8 @@ def fetch_broker_daily_activity(
         activities.append(BrokerDailyActivity(
             symbol=symbol, member_code=member_code.strip(),
             trading_date=_parse_kst_date(str(row.get("stck_bsop_date", "")).strip()),
-            sell_quantity=required_int(row.get("total_seln_qty"), "total_seln_qty"),
-            buy_quantity=required_int(row.get("total_shnu_qty"), "total_shnu_qty"),
+            sell_volume=required_int(row.get("total_seln_qty"), "total_seln_qty"),
+            buy_volume=required_int(row.get("total_shnu_qty"), "total_shnu_qty"),
             net_buy_volume=required_int(row.get("ntby_qty"), "ntby_qty"),
             price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
             change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),

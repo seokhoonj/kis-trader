@@ -98,14 +98,14 @@ def balance(kis: KISClient) -> dict[str, Any]:
 
 
 def positions(kis: KISClient, *, limit: int = 100) -> list[dict[str, Any]]:
-    """보유 종목(주식 계좌)."""
+    """보유 종목(국내 주식 계좌)."""
     rows = _stock_account(kis).domestic.positions()
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 
 
 def open_orders(kis: KISClient, *, limit: int = 100) -> list[dict[str, Any]]:
-    """미체결(정정/취소 가능) 주문(주식 계좌)."""
+    """미체결(정정/취소 가능) 주문(국내 주식 계좌)."""
     rows = _stock_account(kis).domestic.open_orders()
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out

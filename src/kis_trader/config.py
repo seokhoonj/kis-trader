@@ -12,7 +12,7 @@
 (:meth:`KISConfig.set_default`) > 첫 항목(삽입 순서) > ``"main"``(폴백) 순으로 정한다. 환경은 이름이
 아니라 프로필에 저장된 값이 정한다(기본 ``real``; 모의는 ``environment="paper"``).
 
-``credentials.json`` 은 공유 최상위 필드(``hts_id``/``default_profile``, 예약 키)와 프로필별 중첩
+``credentials.json`` 은 공유 최상위 필드(``hts_id``/``account_password``/``default_profile``, 예약 키)와 프로필별 중첩
 객체를 함께 담는다::
 
     {
@@ -90,7 +90,7 @@ _RESERVED_TOP_LEVEL_KEYS = frozenset(_RESERVED_TOP_LEVEL_ORDER)
 
 
 def _order_top_level(data: dict[str, object]) -> dict[str, object]:
-    """예약 최상위 키(hts_id, default_profile)를 정해진 순서로 맨 위에 모으고, 그 뒤 프로필의
+    """예약 최상위 키(hts_id, account_password, default_profile)를 정해진 순서로 맨 위에 모으고, 그 뒤 프로필의
     삽입 순서를 보존한다 -- 파일 레이아웃을 예측 가능하게(마커가 프로필 사이에 흩어지지 않게)."""
     ordered = {k: data[k] for k in _RESERVED_TOP_LEVEL_ORDER if k in data}
     for name, value in data.items():
