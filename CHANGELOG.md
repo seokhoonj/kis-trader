@@ -159,6 +159,12 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `realtime/parsers/domestic_stock.py` beside its parser (import it from `kis_trader.realtime`
   as before); `realtime/messages.py` is removed.
 
+- The localized order-kind label field (`ord_dvsn_name` / `nmpr_type_name`, e.g. `"지정가"`) is
+  renamed `order_type` → `order_type_name` on `OpenOrder`, `StockFill`, `BondOpenOrder`,
+  `DerivativeOpenOrder` and the pension order entity, matching the sibling `ReservedOrder` and
+  no longer colliding with the typed `order_type: OrderType` on the request path (which is
+  unchanged).
+
 ### Added
 
 - Stock handles (`DomesticStock`/`OverseasStock`) now have a readable `__repr__`

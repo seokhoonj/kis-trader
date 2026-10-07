@@ -37,7 +37,7 @@ class OpenOrder:
     original_order_id: str            # 원주문번호(orgn_odno) -- 정정/취소 주문이 아니면 ""
     branch_number: str                # 주문채번지점번호(ord_gno_brno)
     side: Side                        # buy / sell
-    order_type: str                   # 주문구분명(ord_dvsn_name), 예: "지정가"
+    order_type_name: str              # 주문구분명(ord_dvsn_name), 예: "지정가"
     order_quantity: Decimal           # 주문수량(ord_qty)
     filled_quantity: Decimal          # 총체결수량
     unfilled_quantity: Decimal        # 미체결 잔량(주문-체결)

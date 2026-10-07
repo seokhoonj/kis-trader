@@ -742,7 +742,7 @@ def _parse_bond_fills(rows: list[Mapping[str, Any]]) -> list[BondFill]:
                 order_date=_parse_bond_date(row.get("ord_dt")),
                 order_id=order_id,
                 original_order_id=str(row.get("orgn_odno", "")).strip(),
-                order_type=str(row.get("ord_dvsn_name", "")).strip(),
+                order_type_name=str(row.get("ord_dvsn_name", "")).strip(),
                 side=_side_from_code(row.get("sll_buy_dvsn_cd")),
                 symbol=str(row.get("shtn_pdno", "")).strip(),
                 name=str(row.get("prdt_abrv_name", "")).strip(),

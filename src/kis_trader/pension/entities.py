@@ -94,14 +94,14 @@ class PensionOrder:
     """퇴직연금 주문 한 건(불변) -- 당일 체결/미체결 내역. ``unfilled_quantity`` 미체결 잔량.
 
     ``order_id`` 주문번호, ``original_order_id`` 원주문번호(정정/취소면), ``branch_number`` 채번 지점,
-    ``order_type`` 주문구분명, ``average_purchase_price`` 매입평균가격, ``order_time`` 주문시각.
+    ``order_type_name`` 주문구분명, ``average_purchase_price`` 매입평균가격, ``order_time`` 주문시각.
     """
 
     order_id: str                     # 주문번호(odno)
     original_order_id: str            # 원주문번호(orgn_odno)
     branch_number: str                # 주문채번지점번호(ord_gno_brno)
     side: Side                        # buy / sell
-    order_type: str                   # 주문구분명(ord_dvsn_name)
+    order_type_name: str              # 주문구분명(ord_dvsn_name)
     symbol: str
     name: str
     quantity: Decimal                 # 주문수량(ord_qty)

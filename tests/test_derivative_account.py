@@ -941,7 +941,7 @@ def test_open_orders_wire_and_mapping():
     assert o.unfilled_quantity == Decimal(1)                  # ord - ccld
     assert o.order_price == Decimal("1000.00")
     assert o.order_time == time(8, 44, 19)
-    assert o.order_type == "지정가"
+    assert o.order_type_name == "지정가"
 
 
 def test_open_orders_paper_tr_and_side_filter():

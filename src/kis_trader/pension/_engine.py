@@ -214,7 +214,7 @@ def _parse_order(row: Mapping[str, Any]) -> PensionOrder:
         original_order_id=str(row.get("orgn_odno", "")).strip(),
         branch_number=str(row.get("ord_gno_brno", "")).strip(),
         side=_side_from_code(row.get("sll_buy_dvsn_cd")),
-        order_type=str(row.get("ord_dvsn_name", "")).strip(),
+        order_type_name=str(row.get("ord_dvsn_name", "")).strip(),
         symbol=str(row.get("pdno", "")).strip(),
         name=str(row.get("prdt_name", "")).strip(),
         quantity=_decimal_or_zero(row, "ord_qty"),

@@ -336,7 +336,7 @@ def test_fills_parses_rows_and_totals():
     assert fill.order_date == date(2024, 2, 15)
     assert fill.order_id == "0000000123"
     assert fill.original_order_id == "0000000100"
-    assert fill.order_type == "지정가"
+    assert fill.order_type_name == "지정가"
     assert fill.side == "buy"
     assert fill.symbol == "KR2033022D33"
     assert fill.name == "국민주택1종"

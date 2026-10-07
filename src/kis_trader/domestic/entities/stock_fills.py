@@ -31,7 +31,7 @@ class StockFill:
     order_date: date | None           # 주문일자(ord_dt)
     order_id: str                     # 주문번호(odno)
     original_order_id: str            # 원주문번호(orgn_odno)
-    order_type: str                   # 주문구분명(ord_dvsn_name)
+    order_type_name: str              # 주문구분명(ord_dvsn_name)
     side: Side                        # 매도매수구분(sll_buy_dvsn_cd)
     symbol: str                       # 상품번호/종목코드(pdno)
     name: str                         # 상품명(prdt_name)

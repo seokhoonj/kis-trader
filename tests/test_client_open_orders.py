@@ -78,7 +78,7 @@ def test_open_orders_parses_ledger_rows():
     assert first.original_order_id == "0001569136"   # 정정 주문이라 원주문번호 있음
     assert first.branch_number == "06010"
     assert first.side == "buy"                        # 02 -> buy
-    assert first.order_type == "지정가"
+    assert first.order_type_name == "지정가"
     assert first.order_quantity == Decimal(1)
     assert first.filled_quantity == Decimal(0)
     assert first.unfilled_quantity == Decimal(1)

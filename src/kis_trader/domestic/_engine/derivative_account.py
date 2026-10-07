@@ -807,7 +807,7 @@ def _open_order(row: Mapping[str, Any]) -> DerivativeOpenOrder:
         unfilled_quantity=order_quantity - filled_quantity,
         order_price=field_decimal_or_zero(row.get("ord_idx"), "ord_idx"),
         order_time=_parse_hhmmss(row.get("ord_tmd")),
-        order_type=str(row.get("nmpr_type_name", "")).strip(),
+        order_type_name=str(row.get("nmpr_type_name", "")).strip(),
         _raw=row,
     )
 

@@ -453,7 +453,7 @@ class DerivativeOpenOrder:
     ``client_order_id`` 로 지목하지만, 이 조회는 브로커 측 미체결 목록이라 그 키가 없고 거래소
     주문번호만 있다(재시작 등으로 세션 store 를 잃었을 때 서버측 미체결을 확인하는 용도). ``side``
     는 매수/매도, ``order_quantity`` 주문수량, ``filled_quantity`` 체결수량, ``unfilled_quantity``
-    미체결 잔량(주문-체결), ``order_price`` 주문가격지수, ``order_time`` 주문시각(HHMMSS), ``order_type``
+    미체결 잔량(주문-체결), ``order_price`` 주문가격지수, ``order_time`` 주문시각(HHMMSS), ``order_type_name``
     호가유형명(지정가/시장가 등), ``original_order_id`` 는 정정·취소 행이 참조하는 원주문번호(없으면 "").
     """
 
@@ -467,7 +467,7 @@ class DerivativeOpenOrder:
     unfilled_quantity: Decimal        # 미체결 잔량(ord_qty - tot_ccld_qty)
     order_price: Decimal              # 주문가격지수(ord_idx)
     order_time: time | None           # 주문시각(ord_tmd, HHMMSS)
-    order_type: str                   # 호가유형명(nmpr_type_name)
+    order_type_name: str              # 호가유형명(nmpr_type_name)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
