@@ -129,6 +129,12 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `place_order` (`region`/`side`) and `ranking_change` (`direction`) tools type their closed
   choices (like the `quote` tool). Runtime behavior is unchanged — the same values are accepted;
   the annotations just let the type checker reject an invalid literal.
+- `calendar.dividends(dividend_kind=...)` renamed to `settlement: DividendSettlement` — the
+  filter selects 결산/중간 (final/interim), which is a different axis from the cash/stock
+  "dividend kind", and it now reuses the `DividendSettlement` literal the dividend ranking
+  already uses. The overseas-derivative `OverseasDerivativePosition.exercise_reserved` and
+  `OverseasDerivativeMargin.net_risk_applied` fields are now `bool` (were the raw `"Y"`/`"N"`
+  string).
 
 ### Added
 

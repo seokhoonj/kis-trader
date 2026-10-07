@@ -31,6 +31,7 @@ if TYPE_CHECKING:
         RightsOffering,
         ShareholderMeeting,
     )
+    from .ranking import DividendSettlement
 
 
 class CalendarQueries:
@@ -45,12 +46,12 @@ class CalendarQueries:
 
     def dividends(
         self, *, start: str | date, end: str | date,
-        symbol: str | None = None, dividend_kind: str = "all",
+        symbol: str | None = None, settlement: DividendSettlement = "all",
     ) -> list[DividendEvent]:
-        """기간 [start, end] 의 배당 일정. ``symbol`` 지정 시 그 종목만, ``dividend_kind`` 는
+        """기간 [start, end] 의 배당 일정. ``symbol`` 지정 시 그 종목만, ``settlement`` 은 결산/중간
         ``"all"``(전체) / ``"final"``(결산배당) / ``"interim"``(중간배당)."""
         return ksd_api.fetch_dividends(
-            self._client.transport, start=start, end=end, symbol=symbol, dividend_kind=dividend_kind
+            self._client.transport, start=start, end=end, symbol=symbol, settlement=settlement
         )
 
     def ipo_subscriptions(

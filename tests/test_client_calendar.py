@@ -68,7 +68,7 @@ def test_dividends_maps_and_params():
 def test_dividends_symbol_and_kind_filters():
     fake = FakeTransport(response=_resp([]))
     _client(fake).domestic.calendar.dividends(
-        start=date(2024, 3, 1), end=date(2024, 3, 31), symbol="005930", dividend_kind="interim"
+        start=date(2024, 3, 1), end=date(2024, 3, 31), symbol="005930", settlement="interim"
     )
     call = fake.calls[0]
     assert call["params"]["SHT_CD"] == "005930"
@@ -90,7 +90,7 @@ def test_dividends_bad_kind_raises():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
         _client(fake).domestic.calendar.dividends(
-            start="20240301", end="20240331", dividend_kind="nope"
+            start="20240301", end="20240331", settlement="nope"
         )
 
 

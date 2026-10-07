@@ -20,6 +20,7 @@ if TYPE_CHECKING:
     from ..news import NewsHeadline
     from .entities.market import (
         BrokerOpinion,
+        BrokerOpinionFilter,
         CreditEligibleStock,
         ForeignBrokerFlow,
         FuturesMarketSchedule,
@@ -58,7 +59,6 @@ InvestorType = Literal["all", "foreign", "institutional", "other"]
 CreditSort = Literal["symbol", "name"]
 
 #: 투자의견 필터 -- 전체/매수/중립/매도.
-BrokerOpinionFilter = Literal["all", "buy", "neutral", "sell"]
 
 #: 외국계 창구 매매종목 정렬 -- 금액순/수량순.
 ForeignBrokerSort = Literal["amount", "volume"]

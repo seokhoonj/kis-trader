@@ -153,7 +153,7 @@ def fetch_margin_detail(
         maintenance_margin=field_decimal_or_zero(output.get("fm_mntn_mgn_amt"), "fm_mntn_mgn_amt"),
         order_margin=field_decimal_or_zero(output.get("fm_ord_mgn_amt"), "fm_ord_mgn_amt"),
         additional_margin=field_decimal_or_zero(output.get("fm_add_mgn_amt"), "fm_add_mgn_amt"),
-        net_risk_applied=str(output.get("acnt_net_risk_mgna_aply_yn", "")).strip(),
+        net_risk_applied=str(output.get("acnt_net_risk_mgna_aply_yn", "")).strip() == "Y",
         _raw=output,
     )
 
@@ -209,7 +209,7 @@ def _parse_positions(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativePo
                     row.get("fm_otp_evlu_pfls_amt"), "fm_otp_evlu_pfls_amt"
                 ),
                 liquidatable_quantity=field_decimal_or_zero(row.get("fm_lqd_psbl_qty"), "fm_lqd_psbl_qty"),
-                exercise_reserved=str(row.get("ecis_rsvn_ord_yn", "")).strip(),
+                exercise_reserved=str(row.get("ecis_rsvn_ord_yn", "")).strip() == "Y",
                 _raw=row,
             )
         )

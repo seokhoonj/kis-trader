@@ -42,6 +42,7 @@ from ...transport import RawResponse, Transport
 from ..entities.investor import InvestorActivity, InvestorNetActivity
 from ..entities.market import (
     BrokerOpinion,
+    BrokerOpinionFilter,
     CreditEligibleStock,
     ForeignBrokerFlow,
     FuturesMarketSchedule,
@@ -256,7 +257,7 @@ def fetch_broker_opinions(
     transport: Transport,
     *,
     broker: str,
-    opinion: str = "all",
+    opinion: BrokerOpinionFilter = "all",
     start: str | date | None = None,
     end: str | date | None = None,
 ) -> list[BrokerOpinion]:

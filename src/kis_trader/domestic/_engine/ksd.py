@@ -117,14 +117,14 @@ def _ksd_query_params(
 
 def fetch_dividends(
     transport: Transport, *, start: str | date, end: str | date,
-    symbol: str | None = None, dividend_kind: str = "all",
+    symbol: str | None = None, settlement: str = "all",
 ) -> list[DividendEvent]:
-    """기간 [start, end] 의 배당 일정. ``symbol`` 지정 시 그 종목만, ``dividend_kind`` 는 all/final/interim."""
+    """기간 [start, end] 의 배당 일정. ``symbol`` 지정 시 그 종목만, ``settlement`` 은 all/final/interim."""
     try:
-        gb1 = _DIVIDEND_KIND[dividend_kind]
+        gb1 = _DIVIDEND_KIND[settlement]
     except KeyError:
         raise KISUsageError(
-            f"dividend_kind 는 {sorted(_DIVIDEND_KIND)} 중 하나: {dividend_kind!r}"
+            f"settlement 은 {sorted(_DIVIDEND_KIND)} 중 하나: {settlement!r}"
         ) from None
     params = {
         "CTS": "",

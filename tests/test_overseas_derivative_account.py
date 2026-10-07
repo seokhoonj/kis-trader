@@ -200,7 +200,7 @@ def test_positions_parses_and_routes():
     assert pos[0].current_price == Decimal("1.0865")   # fm_now_pric
     assert pos[0].unrealized_pnl == Decimal("1875.00")  # fm_evlu_pfls_amt
     assert pos[0].liquidatable_quantity == Decimal(3)  # fm_lqd_psbl_qty
-    assert pos[0].exercise_reserved == "N"             # ecis_rsvn_ord_yn
+    assert pos[0].exercise_reserved is False           # ecis_rsvn_ord_yn
     call = fake.calls[0]
     assert call["tr_id"] == "OTFM1412R"
     assert call["path"].endswith("inquire-unpd")
@@ -400,7 +400,7 @@ def test_margin_detail_parses_and_routes():
     assert margin.maintenance_margin == Decimal("18000.00")       # fm_mntn_mgn_amt
     assert margin.order_margin == Decimal("1000.00")             # fm_ord_mgn_amt
     assert margin.additional_margin == Decimal(0)               # fm_add_mgn_amt
-    assert margin.net_risk_applied == "Y"                       # acnt_net_risk_mgna_aply_yn
+    assert margin.net_risk_applied is True                      # acnt_net_risk_mgna_aply_yn
     assert margin._raw["fm_span_mgn_amt"] == "16000.00"          # 상세 필드는 _raw 로
     call = fake.calls[0]
     assert call["tr_id"] == "OTFM3115R"

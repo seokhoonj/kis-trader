@@ -76,7 +76,7 @@ class OverseasDerivativePosition:
     option_value: Decimal             # 옵션평가금액(fm_opt_evlu_amt)
     option_unrealized_pnl: Decimal    # 옵션평가손익금액(fm_otp_evlu_pfls_amt)
     liquidatable_quantity: Decimal    # 청산가능수량(fm_lqd_psbl_qty)
-    exercise_reserved: str            # 행사예약주문여부(ecis_rsvn_ord_yn) -- "Y"/"N"
+    exercise_reserved: bool           # 행사예약주문여부(ecis_rsvn_ord_yn Y/N)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -104,7 +104,7 @@ class OverseasDerivativeMargin:
     maintenance_margin: Decimal         # 유지증거금액(fm_mntn_mgn_amt)
     order_margin: Decimal               # 주문증거금액(fm_ord_mgn_amt)
     additional_margin: Decimal          # 추가증거금액(fm_add_mgn_amt)
-    net_risk_applied: str               # 계좌순위험증거금적용여부(acnt_net_risk_mgna_aply_yn)
+    net_risk_applied: bool              # 계좌순위험증거금적용여부(acnt_net_risk_mgna_aply_yn Y/N)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
