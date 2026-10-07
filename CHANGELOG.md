@@ -189,6 +189,11 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   other realtime entity uses). The `reference.rights(date_basis=...)` /
   `reference.collateral_stocks(sort=...)` closed-choice parameters are now typed `Literal`
   (behavior unchanged).
+- `ForeignNetBuyPoint.foreign_net_buy` and the realtime `StockForeignBroker.foreign_net_buy_volume`
+  are renamed `foreign_broker_net_buy_volume` (council P2) — the `glob_ntby_qty` 외국계(foreign
+  member firm) net-buy quantity had three public names; `foreign_broker_net_buy_volume` (already
+  on `BrokerTradeTick`) wins, disambiguating 외국계 from 외국인 and carrying the shares unit.
+  `foreign_net_buy_change` (`frgn_ntby_qty_icdc`) keeps its name.
 - rate/percent normalization (council P2, verified x100 against the official KIS repo
   definitions and a CTLN4050R response example): eight `_rate` fields that hold a x100
   percentage are renamed `_percent` — `RealizedProfitBalance` /`AccountReport`'s

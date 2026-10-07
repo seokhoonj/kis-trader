@@ -85,11 +85,12 @@ class OverseasAlgoExecution:
 
 @dataclass(frozen=True, slots=True)
 class OverseasReservedOrder:
-    """미국 해외주식 예약주문 한 건(불변). 정규장 시작 전에 걸어둔 예약으로, ``reserved_order_id``
-    (해외예약주문번호)로 식별한다. 집행되면 ``executed_order_id``(주문번호)가 채워진다.
+    """해외주식 예약주문 한 건(불변; 미국·아시아 공통). 정규장 시작 전에 걸어둔 예약으로,
+    ``reserved_order_id``(해외예약주문번호)로 식별한다. 집행되면 ``executed_order_id``(주문번호)가 채워진다.
 
     ``status`` 예약 상태(예: "접수"), ``canceled`` 취소 여부, ``filled_quantity`` 체결수량,
-    ``unprocessed_reason`` 미처리 사유. 가격/수량은 Decimal(미국이라 통화는 USD).
+    ``unprocessed_reason`` 미처리 사유. 가격/수량은 Decimal(통화는 거래소별 -- 미국 USD,
+    아시아는 HKD/CNY/USD·JPY·VND 등; 이 타입은 통화 메타를 싣지 않아 Money 가 아니다).
     """
 
     reserved_order_id: str            # 해외예약주문번호(ovrs_rsvn_odno)

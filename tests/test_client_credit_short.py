@@ -120,7 +120,7 @@ def test_foreign_net_buy_trend_maps_ledger_values_and_preserves_order():
     assert pts[0].price == Decimal(81300)
     assert pts[0].change == Decimal(1200)
     assert pts[0].change_percent == Decimal("1.50")
-    assert pts[0].foreign_net_buy == 3870530
+    assert pts[0].foreign_broker_net_buy_volume == 3870530
     assert pts[0].foreign_net_buy_change == 194396
     assert pts[1].timestamp.strftime("%H%M%S") == "153006"
     assert pts[1].change == Decimal(-200)

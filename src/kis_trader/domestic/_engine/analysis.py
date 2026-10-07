@@ -548,7 +548,7 @@ def fetch_foreign_net_buy_trend(
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
                 foreign_sell_volume=required_int(row.get("frgn_seln_vol"), "frgn_seln_vol"),
                 foreign_buy_volume=required_int(row.get("frgn_shnu_vol"), "frgn_shnu_vol"),
-                foreign_net_buy=required_int(row.get("glob_ntby_qty"), "glob_ntby_qty"),
+                foreign_broker_net_buy_volume=required_int(row.get("glob_ntby_qty"), "glob_ntby_qty"),
                 foreign_net_buy_change=required_int(
                     row.get("frgn_ntby_qty_icdc"), "frgn_ntby_qty_icdc"
                 ),

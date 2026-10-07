@@ -484,7 +484,7 @@ class MemberActivity:
     top_buyer: str  # BYOV_MBCR_NAME1 매수 1위 회원사명
     foreign_sell_volume: Decimal  # GLOB_TOTAL_SELN_QTY 외국계 총 매도 수량
     foreign_buy_volume: Decimal  # GLOB_TOTAL_SHNU_QTY 외국계 총 매수 수량
-    foreign_net_buy_volume: Decimal  # GLOB_NTBY_QTY 외국계 순매수 수량
+    foreign_broker_net_buy_volume: Decimal  # GLOB_NTBY_QTY 외국계 순매수 수량
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -520,7 +520,7 @@ def parse_member_activity(fields: list[str]) -> MemberActivity:
         top_buyer=raw["BYOV_MBCR_NAME1"],
         foreign_sell_volume=_decimal(raw["GLOB_TOTAL_SELN_QTY"]),
         foreign_buy_volume=_decimal(raw["GLOB_TOTAL_SHNU_QTY"]),
-        foreign_net_buy_volume=_decimal(raw["GLOB_NTBY_QTY"]),
+        foreign_broker_net_buy_volume=_decimal(raw["GLOB_NTBY_QTY"]),
         _raw=raw,
     )
 

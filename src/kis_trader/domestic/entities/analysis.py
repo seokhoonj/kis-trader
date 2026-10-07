@@ -316,10 +316,11 @@ class DailyTradeVolumePoint:
 
 @dataclass(frozen=True, slots=True)
 class ForeignNetBuyPoint:
-    """한 시점의 장중 외국계(외국인 회원사) 순매수 스냅샷(불변).
+    """한 시점의 장중 외국계 매매종목 가집계 스냅샷(불변; KIS 외국계 매매종목 가집계, FHKST644400C0).
 
-    ``foreign_net_buy`` 는 누적 외국계 순매수 수량, ``foreign_net_buy_change`` 는 해당 시간대의
-    순매수 증감이다. ``timestamp`` 는 당일 체결시각(KST-aware)이며 응답 순서대로 제공된다.
+    ``foreign_broker_net_buy_volume`` 는 외국계(외국 회원사)의 누적 순매수 수량(glob_ntby_qty),
+    ``foreign_net_buy_change`` 는 그 시간대의 순매수 증감(frgn_ntby_qty_icdc)이다. ``timestamp`` 는
+    당일 체결시각(KST-aware)이며 응답 순서대로 제공된다.
     """
 
     symbol: str
@@ -330,7 +331,7 @@ class ForeignNetBuyPoint:
     volume: int
     foreign_sell_volume: int
     foreign_buy_volume: int
-    foreign_net_buy: int
+    foreign_broker_net_buy_volume: int
     foreign_net_buy_change: int
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

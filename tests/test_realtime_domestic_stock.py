@@ -301,7 +301,7 @@ def test_parse_member_activity():
     assert ma.top_buyer == "키움증권"
     assert ma.foreign_sell_volume == Decimal(12000)
     assert ma.foreign_buy_volume == Decimal(20000)
-    assert ma.foreign_net_buy_volume == Decimal(8000)
+    assert ma.foreign_broker_net_buy_volume == Decimal(8000)
     assert len(ma._raw) == 78
     assert ma._raw["BYOV_MBCR_ENG_NAME5"] == "0"
 
