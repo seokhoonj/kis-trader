@@ -1,6 +1,6 @@
 """장내채권 시세 DATA -- :class:`BondQuote`, :class:`BondValuation`.
 
-:meth:`~kis_trader.bond.Bond.quote` 가 돌려주는 한 채권의 현재가 스냅샷이다. 종목의
+:meth:`~kis_trader.domestic.bond.Bond.quote` 가 돌려주는 한 채권의 현재가 스냅샷이다. 종목의
 :class:`~kis_trader.quote.Quote` 와 달리 채권 고유의 **수익률**(``yield_rate``)을 함께 담는다.
 채권가는 액면 대비 가격(관행상 액면 10,000 기준)이다.
 """
@@ -70,7 +70,7 @@ class BondDailyPrice:
 class BondProfile:
     """한 장내채권의 기본/발행 정보(불변).
 
-    :meth:`~kis_trader.bond.Bond.info` 가 돌려준다. 시세(:class:`BondQuote`)가 "지금 얼마"라면
+    :meth:`~kis_trader.domestic.bond.Bond.profile` 이 돌려준다. 시세(:class:`BondQuote`)가 "지금 얼마"라면
     ``BondProfile`` 는 "어떤 채권인가" -- 발행일·만기일·표면금리·만기수익률·통화 같은 채권의 계약 조건이다.
     ``coupon_rate`` 는 표면금리(%), ``yield_to_maturity`` 는 만기수익률(%), ``interest_period_months``
     는 이자 지급 주기(개월). 날짜/비율은 없으면 ``None``. 세부는 ``_raw``.

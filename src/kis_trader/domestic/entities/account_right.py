@@ -1,7 +1,7 @@
 """기간별 계좌 권리현황(DATA) -- :class:`AccountRight`.
 
 계좌 보유종목에 발생한 권리(유상·무상 증자 배정, 배당, 상환 등)를 기간별로 조회한 한 건이다.
-시장 전체 일정을 보는 :mod:`~kis_trader.calendar_items`(예탁결제원)와 달리, 이 계좌에 실제로
+시장 전체 일정을 보는 :mod:`~kis_trader.domestic.calendar`(예탁결제원)와 달리, 이 계좌에 실제로
 배정/신청/환불된 권리 내역을 담는다. 금액은 KRW Decimal.
 """
 

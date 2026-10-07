@@ -1,6 +1,6 @@
 """퇴직연금(IRP; DC가입자 55는 API 세션 불가, 연금저축 22는 별개 사적연금) 계좌 조회 (내부) -- 예수금·매수가능·잔고·미체결.
 
-일반 위탁계좌 조회(:mod:`kis_trader._domestic.account`)와 별개인 퇴직연금 전용 엔드포인트
+일반 위탁계좌 조회(:mod:`kis_trader.domestic._engine.account`)와 별개인 퇴직연금 전용 엔드포인트
 (`/uapi/domestic-stock/v1/trading/pension/...`)를 감싼다. 전부 **모의투자 미지원**이며, 계좌
 상품코드가 퇴직연금 계좌여야 KIS가 정상 응답한다(아니면 KIS 오류를 그대로 전달).
 """

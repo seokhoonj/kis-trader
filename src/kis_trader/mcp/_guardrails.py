@@ -99,7 +99,7 @@ class CircuitBreaker:
 @dataclass(frozen=True, slots=True)
 class StockOrderPlan:
     """검증된 주식 주문 티켓(elicitation echo + 집행용). 스칼라 입력만으로 만들어진다(taint 경계).
-    MVP 는 국내만이라 ``region`` 은 ``"domestic"`` 고정."""
+    국내 주식만 지원하므로 ``region`` 은 ``"domestic"`` 고정."""
 
     region: Literal["domestic"]
     symbol: str
@@ -125,9 +125,9 @@ def make_stock_order_plan(
     깊은 검증(가격/수량 규칙)은 라이브러리 :class:`~kis_trader.order.Order` 가 집행 시 하고, 여기선 taint
     경계(스칼라만)와 표면 형상만 본다.
 
-    **MVP 는 국내(domestic) 주식만.** 해외(overseas)는 거부한다 -- 안전코어(OrderEngine)가 해외 주문에
+    국내(domestic) 주식만 지원한다. 해외(overseas)는 거부한다 -- 안전코어(OrderEngine)가 해외 주문에
     사전 리스크 게이트(RiskLimits)를 지원하지 않아, "실전은 fail-closed 캡 필수"라는 이 서버의 불변식을
-    해외에서 보장할 수 없기 때문이다(후속 슬라이스에서 엔진이 해외 리스크를 지원하면 연다)."""
+    해외에서 보장할 수 없기 때문이다."""
     if region == "overseas":
         raise KISUsageError(
             "해외 실주문은 아직 미지원이다 -- 엔진이 해외 사전 리스크 게이트를 지원하지 않아 fail-closed "

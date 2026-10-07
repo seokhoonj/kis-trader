@@ -526,14 +526,15 @@ def parse_asia_orderbook(fields: list[str]) -> AsiaDelayedOrderBook:
 register(TRSpec("HDFSASP0", field_count=len(_ORDERBOOK_FIELDS), parser=parse_orderbook))
 register(TRSpec("HDFSASP1", field_count=len(_ASIA_ORDERBOOK_FIELDS), parser=parse_asia_orderbook))
 register(TRSpec("HDFSCNT0", field_count=len(_DELAYED_TRADE_FIELDS), parser=parse_delayed_trade_tick))
-register(
-    TRSpec(
-        "H0GSCNI0",
-        field_count=len(_EXECUTION_NOTICE_FIELDS),
-        parser=parse_execution_notice,
-        encrypted=True,
+for _tr_id in ("H0GSCNI0", "H0GSCNI9"):
+    register(
+        TRSpec(
+            _tr_id,
+            field_count=len(_EXECUTION_NOTICE_FIELDS),
+            parser=parse_execution_notice,
+            encrypted=True,
+        )
     )
-)
 register(TRSpec("HDFFF020", field_count=len(_FUTURES_TRADE_FIELDS), parser=parse_futures_trade_tick))
 register(TRSpec("HDFFF010", field_count=len(_FUTURES_ORDERBOOK_FIELDS), parser=parse_futures_orderbook))
 register(

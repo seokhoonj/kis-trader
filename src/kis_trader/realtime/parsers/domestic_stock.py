@@ -561,9 +561,10 @@ def parse_execution_notice(fields: list[str]) -> StockExecutionNotice:
     )
 
 
-register(TRSpec(
-    "H0STCNI0", field_count=len(_EXECUTION_NOTICE_FIELDS), parser=parse_execution_notice, encrypted=True
-))
+for _tr_id in ("H0STCNI0", "H0STCNI9"):
+    register(TRSpec(
+        _tr_id, field_count=len(_EXECUTION_NOTICE_FIELDS), parser=parse_execution_notice, encrypted=True
+    ))
 
 
 # ---------------------------------------------------------------------------

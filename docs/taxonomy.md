@@ -6,6 +6,9 @@
 
 ```text
 kis  (KISClient 세션)
+├── domestic                           # 국내 시세·발주·시장·검색 → 아래 국내 트리
+├── overseas                           # 해외 시세·발주·순위 → 아래 해외 트리
+├── orders                             # 주문 수명주기 → 아래 주문 트리
 ├── account                            # 계좌 조회 (상품코드로 분기) → 아래 계좌 트리
 ├── instrument(symbol, exchange=None)  # 해외 심볼 마스터 조회
 ├── realtime(...)                      # 실시간 웹소켓 → 아래 실시간 트리

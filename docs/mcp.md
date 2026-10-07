@@ -185,7 +185,7 @@ kis-mcp
 
 | 도구 | 하는 일 |
 |---|---|
-| `quote` | 종목 현재가 스냅샷(`market="overseas"` 면 해외) |
+| `quote` | 종목 현재가 스냅샷(`region="overseas"` 면 해외) |
 | `search` | 이름·질의로 국내 종목 코드 후보 찾기 |
 | `ranking_change` | 국내 등락률 순위(`gainers`/`losers`) |
 | `balance` | 계좌 잔고 요약(주식 계좌) |

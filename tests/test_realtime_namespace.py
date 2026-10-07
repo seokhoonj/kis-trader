@@ -5,8 +5,23 @@ from collections.abc import Callable
 import pytest
 
 from kis_trader.errors import KISUsageError
+from kis_trader.realtime import _registry
+from kis_trader.realtime._connection import RealtimeConnection
+from kis_trader.realtime._protocol import DataFrame
 from kis_trader.realtime.client import RealtimeClient
 from kis_trader.realtime.domestic_namespace import RealtimeDomesticNamespace
+from kis_trader.realtime.parsers.domestic_stock import (
+    _EXECUTION_NOTICE_FIELDS as _DOMESTIC_EXECUTION_NOTICE_FIELDS,
+)
+from kis_trader.realtime.parsers.domestic_stock import (
+    StockExecutionNotice,
+)
+from kis_trader.realtime.parsers.overseas import (
+    _EXECUTION_NOTICE_FIELDS as _OVERSEAS_EXECUTION_NOTICE_FIELDS,
+)
+from kis_trader.realtime.parsers.overseas import (
+    OverseasExecutionNotice,
+)
 from kis_trader.realtime.subscription import RealtimeSubscription
 
 
@@ -137,3 +152,29 @@ def test_overseas_stock_execution_notice_uses_demo_tr_on_paper() -> None:
     )
     assert real.execution_notices.stock("id").tr_id == "H0GSCNI0"
     assert paper.execution_notices.stock("id").tr_id == "H0GSCNI9"
+
+
+def test_paper_stock_execution_notice_subscriptions_decode_to_typed_entities() -> None:
+    client = RealtimeClient("approval", "wss://example/ws", connect=None, environment="paper")
+    connection = RealtimeConnection("approval", "wss://example/ws", connect=None)
+    cases = (
+        (
+            client.domestic.execution_notices.stock("myhtsid"),
+            _DOMESTIC_EXECUTION_NOTICE_FIELDS,
+            StockExecutionNotice,
+        ),
+        (
+            client.overseas.execution_notices.stock("myhtsid"),
+            _OVERSEAS_EXECUTION_NOTICE_FIELDS,
+            OverseasExecutionNotice,
+        ),
+    )
+
+    for subscription, fields, entity_type in cases:
+        spec = _registry.lookup(subscription.tr_id)
+        assert spec is not None
+        assert spec.encrypted is True
+        frame = DataFrame(False, subscription.tr_id, 1, "^".join(["0"] * len(fields)))
+        [message] = connection._decode(frame)
+        assert isinstance(message.data, entity_type)
+        assert not isinstance(message.data, list)

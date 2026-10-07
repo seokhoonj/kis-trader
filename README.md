@@ -11,7 +11,7 @@
 
 - **넓은 범위** — 국내·해외 주식·지수·ETF·ETN·ELW·선물옵션·채권의 시세·재무·수급, 계좌 잔고·손익, 순위·조건검색, 시장·일정, 퇴직연금.
 - **주문** — 매수·매도·정정·취소, 신용·예약·TWAP 분할.
-- **안전 코어** — 같은 주문의 중복 전송 차단, 전송 전 리스크 한도로 주문 실수 방지, 타임아웃이 나면 재전송이 아니라 reconcile로 재확인 — 모두 기본으로 켜져 있고, 신용거래는 기본 차단.
+- **안전 코어** — 같은 주문의 중복 전송 차단과 타임아웃 후 reconcile 재확인은 기본으로 켜져 있고, 신용거래는 기본 차단. 전송 전 리스크 한도는 `KISClient(..., risk=RiskLimits(...))`로 명시해 사용합니다.
 - **실시간** — 시세·호가·체결통보를 WebSocket으로 수신.
 - **세 가지 인터페이스** — 파이썬 API · 터미널 명령 `kis` · AI 에이전트용 MCP 서버/스킬.
 
@@ -103,7 +103,8 @@ Claude Code·Codex 같은 AI 도구로 계좌를 다루려면 `plugins/kis-trade
 [Codex 스킬](https://seokhoonj.github.io/kis-trader/codex-skill.html) 문서를 참고하세요.
 
 MCP 호환 에이전트(Claude Desktop 등)에서는 `kis_trader.mcp` 서버(`pip install 'kis-trader[mcp]'` 후
-`kis-mcp`)로 계좌 조회·주문 미리보기 도구를 쓸 수 있습니다(실주문 전송은 노출하지 않습니다).
+`kis-mcp`)로 계좌 조회·주문 미리보기와 국내 주식 주문·정정·취소 도구를 쓸 수 있습니다. 기본은
+모의투자이며, 실전 주문은 종목 허용목록·세션 서킷브레이커·사람 확인을 모두 통과해야 합니다.
 [MCP 서버](https://seokhoonj.github.io/kis-trader/mcp.html) 문서를 참고하세요.
 
 ## 7. 문서
@@ -127,4 +128,3 @@ MCP 호환 에이전트(Claude Desktop 등)에서는 `kis_trader.mcp` 서버(`pi
 [MIT](LICENSE)
 
 <!-- mcp-name: io.github.seokhoonj/kis-trader -->
-

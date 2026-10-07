@@ -11,7 +11,7 @@ An unofficial Python client for the Korea Investment & Securities (KIS) **Open A
 
 - **Broad coverage** — domestic and overseas stocks, indices, ETFs/ETNs, ELWs, futures/options, and bonds: quotes, financials and flows, account balances and P&L, rankings and conditional screens, market data and calendars, retirement pensions.
 - **Orders** — buy/sell/modify/cancel, plus credit, reserved, and TWAP-split orders.
-- **Safety core** — an idempotent order store (dedup, no double orders), pre-trade risk limits (fat-finger guard), and reconcile (re-check instead of resend) are on by default; credit trading blocked by default.
+- **Safety core** — order deduplication and timeout reconciliation (re-check instead of resend) are on by default, and credit trading is blocked by default. Pre-trade risk limits are an explicit opt-in through `KISClient(..., risk=RiskLimits(...))`.
 - **Real-time** — WebSocket subscriptions for quotes, order books, and execution notices.
 - **Three interfaces** — a Python API, the `kis` CLI, and an MCP server / skills for AI agents.
 
@@ -105,8 +105,9 @@ To manage an account through an AI tool such as Claude Code or Codex, use the
 [Codex skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) chapters.
 
 For MCP-compatible agents (Claude Desktop, etc.), the `kis_trader.mcp` server
-(`pip install 'kis-trader[mcp]'`, then `kis-mcp`) exposes account-query and order-preview
-tools (real-order submission is not exposed). See the
+(`pip install 'kis-trader[mcp]'`, then `kis-mcp`) exposes account-query, order-preview,
+and domestic-stock place/modify/cancel tools. Paper trading is the default; live orders require
+an allowlist, a session circuit breaker, and human confirmation. See the
 [MCP Server](https://seokhoonj.github.io/kis-trader/mcp.html) chapter.
 
 ## 7. Documentation

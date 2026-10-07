@@ -87,7 +87,7 @@ class _StockBase(abc.ABC):
         self, side: Side, *, quantity: Numeric, limit_price: Numeric | None,
         time_in_force: TimeInForce, client_order_id: str | None,
     ) -> Order:
-        """자산군별 즉시주문 와이어 조립(서브클래스 구현)."""
+        """자산군별 Order 요청 구성(와이어 조립은 주문 엔진)."""
 
     @abc.abstractmethod
     def _reserve(
