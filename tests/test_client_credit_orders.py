@@ -14,7 +14,7 @@ import pytest
 from kis_trader import ExecutionReport, KISClient, Order, OrderStatus, OrderStore
 from kis_trader.errors import KISUsageError, OrderRejectedError, OrderTimeoutError
 from kis_trader.order import resolve_new_credit_loan_date
-from kis_trader.transport import RawResponse, TransportTimeout
+from kis_trader.transport import RawResponse, TransportTimeoutError
 
 _ORDER_CREDIT = "/uapi/domestic-stock/v1/trading/order-credit"
 _DAILY_CCLD = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
@@ -245,7 +245,7 @@ def test_credit_rejected_clears_in_flight_and_id_reusable():
 # --- 안전 불변식: 타임아웃 재시도 금지 + 지문 구분 -------------------------
 def test_credit_timeout_no_retry():
     store = OrderStore()
-    fake = FakeTransport(raises=TransportTimeout("t"))
+    fake = FakeTransport(raises=TransportTimeoutError("t"))
     cid = "20240101-creditbuy0001"
     with pytest.raises(OrderTimeoutError):
         _client(fake, store=store).domestic.stock("009150").credit_buy(
@@ -299,7 +299,7 @@ def test_credit_reconcile_confirms_credit_row():
     store = OrderStore()
     cid = "20240101-creditrecon01"
     # 전송은 타임아웃(체결 불명) -> in-flight
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).domestic.stock("009150").credit_buy(
             quantity=1, limit_price=130000, credit_type="26", loan_date="20211103", client_order_id=cid)
@@ -319,7 +319,7 @@ def test_credit_reconcile_ignores_cash_lookalike_row():
     # 같은 종목/수량/가격의 현금 체결(loan_dt 없음) 행은 신용주문을 확정하면 안 된다(phantom 방지)
     store = OrderStore()
     cid = "20240101-creditrecon02"
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).domestic.stock("009150").credit_buy(
             quantity=1, limit_price=130000, credit_type="26", loan_date="20211103", client_order_id=cid)

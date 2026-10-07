@@ -34,7 +34,7 @@ from ...errors import (
 from ...order import AlgoStrategy, ReservedOrderFingerprint, Side, coerce_decimal, validate_yyyymmdd
 from ...report import ExecutionReport, OrderStatus
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
-from ...transport import Environment, Transport, TransportTimeout
+from ...transport import Environment, Transport, TransportTimeoutError
 from ..entities.orders import OverseasReservedOrder
 from ._parse import _parse_date, _side_from_code
 from .orders import _ALGO_TMD_CLOSE, _ORD_DVSN_ALGO, _ORDER_EXCHANGE
@@ -331,7 +331,7 @@ def _submit_reserved(
         resp = transport.request(
             method="POST", path=_PLACE_PATH, tr_id=tr_id, body=body, idempotent=False
         )
-    except TransportTimeout as err:
+    except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"해외 예약주문 전송 시간초과 -- 접수 여부가 불명이다. 재전송하지 말고 "
             f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
@@ -427,7 +427,7 @@ def _reconcile_reserved(
     end = f"{today + timedelta(days=_RECONCILE_FORWARD_DAYS):%Y%m%d}"
     try:
         rows = _walk(transport, cano, product_code, start, end, market=market)
-    except TransportTimeout as err:
+    except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"해외 예약주문 재조회 시간초과 -- 주문 {client_order_id} 상태 여전히 불명. "
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
@@ -481,7 +481,7 @@ def cancel_overseas_reserved_order(
             method="POST", path=_CANCEL_PATH, tr_id=_US_CANCEL_TR[environment], body=body,
             idempotent=False,
         )
-    except TransportTimeout as err:
+    except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"해외 예약주문 취소 요청 시간초과 -- 처리 여부가 불명이다. 재전송하지 말고 "
             f"예약주문조회로 상태를 확인하라(예약번호 {reserved_order_id}).",
@@ -559,7 +559,7 @@ def cancel_asia_reserved_order(
             method="POST", path=_PLACE_PATH, tr_id=_PLACE_TR["ASIA"]["any"][environment],
             body=body, idempotent=False,
         )
-    except TransportTimeout as err:
+    except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"아시아 예약주문 취소 요청 시간초과 -- 처리 여부가 불명이다. 재전송하지 말고 "
             f"예약주문조회로 상태를 확인하라(예약번호 {report.order_id}).",

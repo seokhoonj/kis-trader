@@ -33,7 +33,7 @@ from ...order import (
     WireRequest,
 )
 from ...report import ExecutionReport, OrderStatus
-from ...transport import TransportTimeout
+from ...transport import TransportTimeoutError
 
 if TYPE_CHECKING:
     from ...store import OrderStore
@@ -345,7 +345,7 @@ def reconcile(
             transport, symbol=fingerprint.symbol, cano=cano,
             product_code=product_code, environment=environment, now=now,
         )
-    except TransportTimeout as err:
+    except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"파생 재조회(일별체결내역) 시간초과 -- 주문 {client_order_id} 상태 여전히 불명. "
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
@@ -499,7 +499,7 @@ def _night_union_reconcile(
             transport, symbol=fingerprint.symbol, cano=cano, product_code=product_code,
             environment=environment, strt_ord_dt=start, end_ord_dt=end_inclusive,
         )
-    except TransportTimeout as err:
+    except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"파생 야간 재조회(union 스캔) 시간초과 -- 주문 {client_order_id} 상태 여전히 불명. "
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",

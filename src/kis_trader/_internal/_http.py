@@ -12,7 +12,7 @@ from collections.abc import Callable, Mapping
 from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from ..errors import KISAuthError, KISError, KISRateLimitError, _KISErrorKwargs
-from ..transport import Environment, RawResponse, TransportTimeout
+from ..transport import Environment, RawResponse, TransportTimeoutError
 
 if TYPE_CHECKING:
     from .._literals import JSONObject
@@ -59,7 +59,7 @@ def _requests_send(
     목적: KIS REST 도메인에 한 요청을 보낸다.
     입력: 메서드·URL·표준 헤더·쿼리·JSON 바디를 받는다.
     출력: HTTP 상태, 응답 헤더, JSON 객체를 반환한다.
-    오류: 연결 및 시간 초과는 :class:`TransportTimeout` 으로 변환한다.
+    오류: 연결 및 시간 초과는 :class:`TransportTimeoutError` 으로 변환한다.
     주의: 선택 사항인 hashkey는 사용하지 않는다.
     """
     import requests
@@ -79,7 +79,7 @@ def _requests_send(
             timeout=10,
         )
     except (requests.Timeout, requests.ConnectionError) as err:
-        raise TransportTimeout("KIS HTTP 요청의 결과를 확인할 수 없다.") from err
+        raise TransportTimeoutError("KIS HTTP 요청의 결과를 확인할 수 없다.") from err
     # 헤더 키를 소문자로 정규화 -- requests 의 대소문자 무시 맵을 평범한 dict 로 바꾸면서도 tr_cont 등
     # 하위 연속조회가 서버/프록시의 Title-Case 표기에도 매칭되게 한다(페이지네이션 조용한 절단 방지).
     return response.status_code, {k.lower(): v for k, v in response.headers.items()}, response.json()
@@ -171,7 +171,7 @@ class RequestsTransport:
                     params=params if method.upper() == "GET" else None,
                     json_body=None if method.upper() == "GET" else body,
                 )
-            except TransportTimeout:
+            except TransportTimeoutError:
                 if not is_retryable or attempt + 1 == attempts:
                     raise
                 self._sleep(0.1 * (attempt + 1))
@@ -187,7 +187,7 @@ class RequestsTransport:
                 continue
             break
         else:  # attempts>=1 이 보장돼(위 생성자 검증) 정상 흐름에선 닿지 않는 백스톱 -- payload 미정의 방지
-            raise TransportTimeout("KIS HTTP 요청의 결과를 확인할 수 없다.")
+            raise TransportTimeoutError("KIS HTTP 요청의 결과를 확인할 수 없다.")
 
         # 에러 응답도 KIS 봉투(rt_cd/msg_cd/msg1)를 실어 올려 호출자가 프로그램으로 분기할 수 있게 한다.
         # (401/429 EGW 응답도 대개 이 3필드를 담고 있다.) 봉투를 실는 건 경계(transport)의 책임이다.

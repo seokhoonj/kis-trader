@@ -17,7 +17,7 @@ from kis_trader.errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from kis_trader.transport import RawResponse, TransportTimeout
+from kis_trader.transport import RawResponse, TransportTimeoutError
 
 _CHANGE = "/uapi/domestic-stock/v1/trading/order-resv-rvsecncl"
 
@@ -87,7 +87,7 @@ def test_cancel_reserved_rejected_raises():
 
 
 def test_cancel_reserved_timeout_no_retry():
-    fake = FakeTransport(raises=TransportTimeout("t"))
+    fake = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(fake).account.domestic.cancel_reserved_order("42401")
     assert len(fake.calls) == 1                      # 재전송 없음
@@ -177,7 +177,7 @@ def test_modify_reserved_needs_sequence():
 
 
 def test_modify_reserved_timeout_no_retry():
-    fake = FakeTransport(raises=TransportTimeout("t"))
+    fake = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(fake).account.domestic.modify_reserved_order("42401", symbol="005930", side="buy", quantity=1, limit_price=1)
     assert len(fake.calls) == 1

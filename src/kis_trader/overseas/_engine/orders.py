@@ -34,7 +34,7 @@ from ...order import (
 )
 from ...report import ExecutionReport, OrderStatus
 from ...store import OrderStore
-from ...transport import Environment, Transport, TransportTimeout
+from ...transport import Environment, Transport, TransportTimeoutError
 from ..entities.orders import OverseasAlgoExecution, OverseasAlgoOrder, OverseasOpenOrder
 from ._parse import _MARKETS, _MAX_PAGES, _decimal_or_zero, _money, _side_from_code
 
@@ -336,7 +336,7 @@ def reconcile(
             transport, symbol=fingerprint.symbol, exchange=fingerprint.exchange,
             cano=cano, product_code=product_code, environment=environment, now=now,
         )
-    except TransportTimeout as err:
+    except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"해외 재조회(체결내역) 시간초과 -- 주문 {client_order_id} 상태 여전히 불명. "
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",

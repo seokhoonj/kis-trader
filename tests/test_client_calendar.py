@@ -136,7 +136,7 @@ def test_ipo_subscriptions_maps_slash_dates_and_text_period():
     assert e.offer_price == Decimal(13000)
     assert e.subscription_period == "2024/03/25 ~ 2024/03/26"   # 텍스트 그대로
     assert e.pay_date == date(2024, 3, 28)                      # YYYY/MM/DD -> date
-    assert e.list_date is None                                  # 빈값 -> None
+    assert e.listing_date is None                                  # 빈값 -> None
     assert e.lead_manager == "미래에셋증권"
     assert e.allocated_quantity == 0
     call = fake.calls[0]
@@ -150,7 +150,7 @@ def test_rights_offerings_maps_and_basis():
              "tot_issue_stk_qty": "    31000000", "issue_stk_qty": "      273199",
              "fix_rate": " 20.00", "disc_rate": " 0.00", "fix_price": "     500",
              "right_dt": "20240221", "sub_term_ft": "20240325",
-             "sub_term": "2024/03/25 ~ 2024/03/26", "list_date": "", "stk_kind": "01"}]
+             "sub_term": "2024/03/25 ~ 2024/03/26", "listing_date": "", "stk_kind": "01"}]
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                                               body={"output1": rows}))
     from kis_trader import RightsOffering
@@ -184,7 +184,7 @@ def test_bonus_issues_maps_and_params():
     # 원장 예시값(클로봇). zero/space padding과 미정 날짜 빈값을 그대로 검증한다.
     rows = [{"record_date": "20240326", "sht_cd": "466100", "isin_name": "클로봇",
              "fix_rate": "1000.0", "odd_rec_price": "000000000", "right_dt": "20240325",
-             "odd_pay_dt": "", "list_date": "", "tot_issue_stk_qty": "     1885394",
+             "odd_pay_dt": "", "listing_date": "", "tot_issue_stk_qty": "     1885394",
              "issue_stk_qty": "    18853940", "stk_kind": "01"}]
     fake = FakeTransport(response=_resp(rows))
     from kis_trader import BonusIssue
@@ -195,7 +195,7 @@ def test_bonus_issues_maps_and_params():
     assert e.allocation_rate == Decimal("1000.0")
     assert e.ex_rights_date == date(2024, 3, 25)
     assert e.odd_lot_pay_date is None
-    assert e.list_date is None
+    assert e.listing_date is None
     assert e.new_shares == 18853940
     assert e.stock_kind == "01"
     call = fake.calls[0]
@@ -224,7 +224,7 @@ def test_capital_reductions_maps_and_params():
     assert e.record_date == date(2024, 3, 15)
     assert e.reduction_rate == Decimal("1.00")
     assert e.trading_halt_period == "2024/03/14 ~ 2024/03/31"
-    assert e.list_date == date(2024, 4, 1)
+    assert e.listing_date == date(2024, 4, 1)
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/ksdinfo/cap-dcrs"
     assert call["tr_id"] == "HHKDB669106C0"
@@ -255,7 +255,7 @@ def test_merger_splits_maps_and_params():
     assert e.counterparty_name == "에스케이씨에스"
     assert e.merge_ratio == Decimal("0.66")
     assert e.trading_halt_period == "2024/03/08 ~ 2024/03/28"
-    assert e.list_date == date(2024, 3, 29)
+    assert e.listing_date == date(2024, 3, 29)
     assert e.new_shares == 0
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/ksdinfo/merger-split"
@@ -339,7 +339,7 @@ def test_listings_maps_and_params():
     assert isinstance(events[0], ListingEvent)
     e = events[0]
     assert e.symbol == "034220"
-    assert e.list_date == date(2024, 3, 26)
+    assert e.listing_date == date(2024, 3, 26)
     assert e.issue_type == "유상증자"
     assert e.new_shares == 142184300
     assert e.total_shares == 500000000
@@ -371,7 +371,7 @@ def test_par_value_changes_maps_and_params():
     assert e.record_date == date(2023, 8, 23)
     assert e.face_value_before == Decimal(5000)
     assert e.trading_halt_period == "2023/08/22 ~ 2023/08/27"
-    assert e.list_date == date(2023, 8, 28)
+    assert e.listing_date == date(2023, 8, 28)
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/ksdinfo/rev-split"
     assert call["tr_id"] == "HHKDB669105C0"

@@ -35,6 +35,11 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   serializes `region`.
 - `RankedOverseasStock` renamed to `OverseasRankedStock` — the sole overseas result type
   that did not lead with the `Overseas` qualifier its ~40 siblings share.
+- `TransportTimeout` renamed to `TransportTimeoutError` — matches the package's exception
+  naming (every other error ends in `Error`, e.g. the sibling `OrderTimeoutError`) and the
+  Python convention (`TimeoutError`).
+- Calendar/listing entities' `list_date` field renamed to `listing_date`, matching the
+  `listing_date` every other listing-bearing entity already uses.
 - `DerivativePosition.side` / `DerivativeValuationPosition.side` are now normalized to
   `Side | None` (`"buy"`/`"sell"`), matching every other `side` in the package, instead of
   the raw localized `"매수"`/`"매도"` string (which remains available in `_raw`).

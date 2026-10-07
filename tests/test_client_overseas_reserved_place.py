@@ -20,7 +20,7 @@ from kis_trader.errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from kis_trader.transport import RawResponse, TransportTimeout
+from kis_trader.transport import RawResponse, TransportTimeoutError
 
 _PLACE = "/uapi/overseas-stock/v1/trading/order-resv"
 _LIST = "/uapi/overseas-stock/v1/trading/order-resv-list"
@@ -140,7 +140,7 @@ def test_overseas_reserve_reconcile_paper_fails_closed():
     # (in-flight 유지, 재전송 금지).
     store = OrderStore()
     cid = "20240101-ovsresv-pp01"
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store, environment="paper").overseas.stock("AAPL", exchange="NAS").reserve_buy(
             quantity=1, limit_price="150", client_order_id=cid)
@@ -179,7 +179,7 @@ def test_overseas_reserve_rejected_clears_in_flight_and_reusable():
 
 def test_overseas_reserve_timeout_no_retry():
     store = OrderStore()
-    fake = FakeTransport(raises=TransportTimeout("t"))
+    fake = FakeTransport(raises=TransportTimeoutError("t"))
     cid = "20240101-ovsresv-to01"
     with pytest.raises(OrderTimeoutError):
         _client(fake, store=store).overseas.stock("AAPL", exchange="NAS").reserve_buy(
@@ -246,7 +246,7 @@ def test_overseas_reserve_reconcile_confirms_single_match(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
     cid = "20240101-ovsresv-rc01"
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").reserve_buy(
             quantity=1, limit_price="150", client_order_id=cid)
@@ -265,7 +265,7 @@ def test_overseas_reserve_reconcile_ignores_canceled_mismatch_and_old_receipt(mo
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
     cid = "20240101-ovsresv-rc02"
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").reserve_buy(
             quantity=1, limit_price="150", client_order_id=cid)
@@ -283,7 +283,7 @@ def test_overseas_reserve_reconcile_multi_match_raises(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
     cid = "20240101-ovsresv-rc03"
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").reserve_buy(
             quantity=1, limit_price="150", client_order_id=cid)
@@ -303,7 +303,7 @@ def test_overseas_reserve_reconcile_scans_all_pages_before_confirming(monkeypatc
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
     cid = "20240101-ovsresv-pg01"
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").reserve_buy(
             quantity=1, limit_price="150", client_order_id=cid)

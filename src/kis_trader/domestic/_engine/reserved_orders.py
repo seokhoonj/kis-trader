@@ -38,7 +38,7 @@ from ...order import (
 from ...report import ExecutionReport, OrderStatus
 from ...reserved_order import ReservedOrder
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
-from ...transport import Environment, Transport, TransportTimeout
+from ...transport import Environment, Transport, TransportTimeoutError
 from ._parse import _side_from_code
 
 if TYPE_CHECKING:
@@ -247,7 +247,7 @@ def place_reserved_order(
         resp = transport.request(
             method="POST", path=_PLACE_PATH, tr_id=_PLACE_TR, body=body, idempotent=False
         )
-    except TransportTimeout as err:
+    except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"예약주문 전송 시간초과 -- 접수 여부가 불명이다. 재전송하지 말고 "
             f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
@@ -303,7 +303,7 @@ def reconcile_reserved_order(
             transport, cano=cano, product_code=product_code, start=start, end=end,
             process_code=_PROCESS_FILTER["all"],
         )
-    except TransportTimeout as err:
+    except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"예약주문 재조회 시간초과 -- 주문 {client_order_id} 상태 여전히 불명. "
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
@@ -398,7 +398,7 @@ def _send_change(
         resp = transport.request(
             method="POST", path=_CHANGE_PATH, tr_id=tr_id, body=dict(body), idempotent=False
         )
-    except TransportTimeout as err:
+    except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"예약주문 {action} 요청 시간초과 -- 처리 여부가 불명이다. 재전송하지 말고 예약주문조회로 "
             f"상태를 확인하라(예약순번 {sequence}).",

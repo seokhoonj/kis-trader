@@ -54,7 +54,7 @@ class IPOSubscription:
     """한 종목의 공모주 청약 일정(불변).
 
     ``offer_price`` 는 공모가, ``subscription_period`` 는 청약기간(벤더가 준 텍스트 범위 그대로),
-    ``pay_date`` / ``refund_date`` / ``list_date`` 는 납입/환불/상장일(미정이면 ``None``),
+    ``pay_date`` / ``refund_date`` / ``listing_date`` 는 납입/환불/상장일(미정이면 ``None``),
     ``lead_manager`` 는 주간사, ``allocated_quantity`` 는 당사 배정물량이다.
     """
 
@@ -66,7 +66,7 @@ class IPOSubscription:
     subscription_period: str          # 청약기간 텍스트(subscr_dt; 예 "2024/03/25 ~ 2024/03/26")
     pay_date: date | None             # 납입일(pay_dt)
     refund_date: date | None          # 환불일(refund_dt)
-    list_date: date | None            # 상장/등록일(list_dt)
+    listing_date: date | None            # 상장/등록일(list_dt)
     lead_manager: str                 # 주간사(lead_mgr)
     capital_before: Decimal | None    # 공모전 자본금(pub_bf_cap)
     capital_after: Decimal | None     # 공모후 자본금(pub_af_cap)
@@ -99,7 +99,7 @@ class RightsOffering:
     ex_rights_date: date | None       # 권리락일(right_dt)
     subscription_start: date | None   # 청약 시작일(sub_term_ft)
     subscription_period: str          # 청약기간 텍스트(sub_term)
-    list_date: date | None            # 상장/등록일(list_date)
+    listing_date: date | None            # 상장/등록일(list_dt)
     stock_kind: str                   # 주식종류 코드(stk_kind)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -120,7 +120,7 @@ class BonusIssue:
     odd_lot_base_price: Decimal | None  # 단주기준가(odd_rec_price)
     ex_rights_date: date | None       # 권리락일(right_dt)
     odd_lot_pay_date: date | None     # 단주대금지급일(odd_pay_dt)
-    list_date: date | None            # 상장/등록일(list_date)
+    listing_date: date | None            # 상장/등록일(list_dt)
     total_shares: int | None          # 발행주식수(tot_issue_stk_qty)
     new_shares: int | None            # 발행할 주식수(issue_stk_qty)
     stock_kind: str                   # 주식종류 코드(stk_kind)
@@ -144,7 +144,7 @@ class CapitalReduction:
     reduction_rate: Decimal | None    # 감자비율 %(reduce_cap_rate)
     computation_method: str           # 계산방법(comp_way)
     trading_halt_period: str          # 매매거래정지기간 텍스트(td_stop_dt)
-    list_date: date | None            # 상장/등록일(list_dt)
+    listing_date: date | None            # 상장/등록일(list_dt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -166,7 +166,7 @@ class MergerSplit:
     merge_type: str                   # 합병구분(merge_type)
     merge_ratio: Decimal | None       # 합병비율(merge_rate)
     trading_halt_period: str          # 매매거래정지기간 텍스트(td_stop_dt)
-    list_date: date | None            # 상장/등록일(list_dt)
+    listing_date: date | None            # 상장/등록일(list_dt)
     odd_lot_pay_date: date | None     # 단주대금지급일(odd_amt_pay_dt)
     total_shares: int | None          # 발행주식수(tot_issue_stk_qty)
     new_shares: int | None            # 발행할 주식수(issue_stk_qty)
@@ -222,7 +222,7 @@ class ListingEvent:
 
     symbol: str                       # 종목코드(sht_cd)
     name: str                         # 종목명(isin_name)
-    list_date: date                   # 상장일(list_dt)
+    listing_date: date                   # 상장일(list_dt)
     stock_kind: str                   # 주식종류(stk_kind)
     issue_type: str                   # 발행구분(issue_type)
     new_shares: int | None            # 발행 주식수(issue_stk_qty)
@@ -246,7 +246,7 @@ class ParValueChange:
     face_value_before: Decimal | None  # 교체 전 액면가(inter_bf_face_amt)
     face_value_after: Decimal | None  # 교체 후 액면가(inter_af_face_amt)
     trading_halt_period: str          # 매매거래정지기간 텍스트(td_stop_dt)
-    list_date: date | None            # 상장/등록일(list_dt)
+    listing_date: date | None            # 상장/등록일(list_dt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -266,7 +266,7 @@ class ForfeitedShares:
     subscription_price: Decimal | None  # 청약가(subscr_price)
     subscription_shares: int | None   # 청약 주식수(subscr_stk_qty)
     refund_date: date | None          # 환불일(refund_dt)
-    list_date: date | None            # 상장/등록일(list_dt)
+    listing_date: date | None            # 상장/등록일(list_dt)
     lead_manager: str                 # 주간사(lead_mgr)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

@@ -21,7 +21,7 @@ from .errors import KISError
 Environment = Literal["real", "paper"]
 
 
-class TransportTimeout(KISError):
+class TransportTimeoutError(KISError):
     """네트워크 타임아웃 -- 요청이 서버에 도달했는지 **불명**한 저수준 오류.
 
     파사드가 이를 잡아 주문 경로에서는 ``client_order_id`` 를 실은

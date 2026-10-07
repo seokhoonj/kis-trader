@@ -18,7 +18,7 @@ from kis_trader import KISClient, Order
 from kis_trader.domestic._engine import derivative_orders as fo
 from kis_trader.errors import KISError, OrderTimeoutError
 from kis_trader.store import OrderStore
-from kis_trader.transport import RawResponse, TransportTimeout
+from kis_trader.transport import RawResponse, TransportTimeoutError
 
 _INQUIRY = "/uapi/domestic-futureoption/v1/trading/inquire-ccnl"
 _KST = timezone(timedelta(hours=9))
@@ -86,7 +86,7 @@ def _place_timeout(client, client_order_id, **order_kw):
 def test_day_reconcile_confirms_single_match():
     # timeout 발주 뒤 지정가 매수 1계약 @400.00 지문과 정확히 1건(nmpr_type_cd=01) -> 확정.
     from kis_trader import ExecutionReport, OrderStatus
-    fake = FakeTransport(on_post=TransportTimeout("t"), on_get=_ccnl([_row()]))
+    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=_ccnl([_row()]))
     client = _client(fake)
     _place_timeout(client, "day-1")
     report = client.orders.reconcile("day-1")
@@ -105,7 +105,7 @@ def test_day_reconcile_confirms_single_match():
 
 def test_day_reconcile_matches_on_nmpr_not_ord_dvsn():
     # 시장가(nmpr_type_cd=02) 주문은 nmpr=02 행에만 맞는다 -- ord_dvsn_cd 부재에도 매칭 성립.
-    fake = FakeTransport(on_post=TransportTimeout("t"),
+    fake = FakeTransport(on_post=TransportTimeoutError("t"),
                          on_get=_ccnl([_row(nmpr="02", ord_idx="0")]))
     client = _client(fake)
     _place_timeout(client, "mkt-1", order_type="market", limit_price=None)
@@ -115,7 +115,7 @@ def test_day_reconcile_matches_on_nmpr_not_ord_dvsn():
 
 def test_day_reconcile_wrong_nmpr_is_zero_match():
     # 지정가(nmpr=01) 지문인데 행이 시장가(nmpr=02)면 매칭 없음 -> None(미접수로 단정 안 함).
-    fake = FakeTransport(on_post=TransportTimeout("t"),
+    fake = FakeTransport(on_post=TransportTimeoutError("t"),
                          on_get=_ccnl([_row(nmpr="02")]))
     client = _client(fake)
     _place_timeout(client, "z-nmpr")
@@ -123,7 +123,7 @@ def test_day_reconcile_wrong_nmpr_is_zero_match():
 
 
 def test_day_reconcile_zero_matches_stays_none():
-    fake = FakeTransport(on_post=TransportTimeout("t"),
+    fake = FakeTransport(on_post=TransportTimeoutError("t"),
                          on_get=_ccnl([_row(pdno="201S03")]))
     client = _client(fake)
     _place_timeout(client, "z-pdno")
@@ -132,7 +132,7 @@ def test_day_reconcile_zero_matches_stays_none():
 
 def test_day_reconcile_excludes_modify_cancel_rows():
     # orgn_odno 가 원주문번호(!=0)인 정정/취소 행은 원주문 지문에 매칭하지 않는다 -> None.
-    fake = FakeTransport(on_post=TransportTimeout("t"),
+    fake = FakeTransport(on_post=TransportTimeoutError("t"),
                          on_get=_ccnl([_row(orgn_odno="0000007045")]))
     client = _client(fake)
     _place_timeout(client, "mod-1")
@@ -140,7 +140,7 @@ def test_day_reconcile_excludes_modify_cancel_rows():
 
 
 def test_day_reconcile_two_matches_raises():
-    fake = FakeTransport(on_post=TransportTimeout("t"),
+    fake = FakeTransport(on_post=TransportTimeoutError("t"),
                          on_get=_ccnl([_row(odno="1"), _row(odno="2")]))
     client = _client(fake)
     _place_timeout(client, "m2")
@@ -150,7 +150,7 @@ def test_day_reconcile_two_matches_raises():
 
 def test_day_reconcile_error_response_fails_closed():
     # rt_cd != "0" (조회 실패)는 빈 결과로 오인하지 않고 KISError -- 미접수 단정 -> 이중체결 방지.
-    fake = FakeTransport(on_post=TransportTimeout("t"),
+    fake = FakeTransport(on_post=TransportTimeoutError("t"),
                          on_get=RawResponse(rt_cd="7", msg_cd="E", msg1="조회 실패", body={}))
     client = _client(fake)
     _place_timeout(client, "err")
@@ -165,7 +165,7 @@ def test_day_reconcile_page_cap_fails_closed():
     # 반복은 이제 비진전 커서로 보아 종료하므로, cap 을 치려면 커서가 실제로 진전해야 한다.
     pages = [RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
                          body={"output1": [], "ctx_area_nk200": f"N{i}"}) for i in range(200)]
-    fake = FakeTransport(on_post=TransportTimeout("t"), on_get=pages)
+    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=pages)
     client = _client(fake)
     _place_timeout(client, "cap")
     with pytest.raises(KISError, match="페이지 상한"):
@@ -174,7 +174,7 @@ def test_day_reconcile_page_cap_fails_closed():
 
 def test_day_reconcile_non_finite_numeric_fails_closed():
     # 수량 필드가 "nan" 이면 비유한값이라 비교가 무너져 오확정을 부른다 -> KISError.
-    fake = FakeTransport(on_post=TransportTimeout("t"),
+    fake = FakeTransport(on_post=TransportTimeoutError("t"),
                          on_get=_ccnl([_row(ord_qty="nan")]))
     client = _client(fake)
     _place_timeout(client, "nan")
@@ -183,7 +183,7 @@ def test_day_reconcile_non_finite_numeric_fails_closed():
 
 
 def test_day_reconcile_output1_not_a_list_raises():
-    fake = FakeTransport(on_post=TransportTimeout("t"),
+    fake = FakeTransport(on_post=TransportTimeoutError("t"),
                          on_get=RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
                                             body={"output1": {"odno": "x"}}))
     client = _client(fake)
@@ -194,7 +194,7 @@ def test_day_reconcile_output1_not_a_list_raises():
 
 def test_day_reconcile_mixed_list_non_mapping_raises():
     # 리스트 안에 Mapping 아닌 원소가 섞이면 부분/오응답으로 확정하지 않는다(BC-3).
-    fake = FakeTransport(on_post=TransportTimeout("t"),
+    fake = FakeTransport(on_post=TransportTimeoutError("t"),
                          on_get=_ccnl([_row(), "not-a-mapping"]))
     client = _client(fake)
     _place_timeout(client, "mixed")
@@ -206,7 +206,7 @@ def test_day_reconcile_paginates_across_pages():
     page1 = RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
                         body={"output1": [_row(pdno="201S03")], "ctx_area_nk200": "NEXT"})
     page2 = _ccnl([_row()])
-    fake = FakeTransport(on_post=TransportTimeout("t"), on_get=[page1, page2])
+    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=[page1, page2])
     client = _client(fake)
     _place_timeout(client, "pg")
     report = client.orders.reconcile("pg")
@@ -217,7 +217,7 @@ def test_day_reconcile_paginates_across_pages():
 
 
 def test_day_reconcile_timeout_raises_order_timeout():
-    fake = FakeTransport(on_post=TransportTimeout("t"), on_get=TransportTimeout("scan"))
+    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=TransportTimeoutError("scan"))
     client = _client(fake)
     _place_timeout(client, "to")
     with pytest.raises(OrderTimeoutError):

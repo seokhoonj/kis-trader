@@ -13,7 +13,7 @@ import pytest
 
 from kis_trader import ExecutionReport, KISClient, Order, OrderStatus, OrderStore
 from kis_trader.errors import KISUsageError, OrderTimeoutError
-from kis_trader.transport import RawResponse, TransportTimeout
+from kis_trader.transport import RawResponse, TransportTimeoutError
 
 _DAYTIME_ORDER = "/uapi/overseas-stock/v1/trading/daytime-order"
 _DAYTIME_CHANGE = "/uapi/overseas-stock/v1/trading/daytime-order-rvsecncl"
@@ -132,7 +132,7 @@ def test_daytime_fingerprint_distinct_from_regular():
 
 def test_daytime_timeout_no_retry():
     store = OrderStore()
-    fake = FakeTransport(raises=TransportTimeout("t"))
+    fake = FakeTransport(raises=TransportTimeoutError("t"))
     cid = "20240101-daytime0001"
     with pytest.raises(OrderTimeoutError):
         _client(fake, store=store).overseas.stock("AAPL", exchange="NAS").overnight_buy(
@@ -207,7 +207,7 @@ def test_daytime_reconcile_does_not_confirm_from_regular_ccnl():
     # 확정하면 안 된다 -> None(in-flight 유지), 수동 확인.
     store = OrderStore()
     cid = "20240101-daytime-rc01"
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").overnight_buy(
             quantity=1, limit_price="150", client_order_id=cid)

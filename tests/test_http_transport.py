@@ -11,7 +11,7 @@ from kis_trader._internal._auth import TokenManager
 from kis_trader._internal._http import RequestsTransport
 from kis_trader.client import KISClient
 from kis_trader.errors import KISAuthError, KISError, KISRateLimitError
-from kis_trader.transport import TransportTimeout
+from kis_trader.transport import TransportTimeoutError
 
 
 def _token_manager(tmp_path: Any, environment: str = "real") -> TokenManager:
@@ -76,7 +76,7 @@ def test_rate_limit_acquired_on_each_retry_attempt(tmp_path: Any) -> None:
         events.append("send")
         attempts["n"] += 1
         if attempts["n"] < 2:                       # 첫 시도 타임아웃 -> 재시도
-            raise TransportTimeout()
+            raise TransportTimeoutError()
         return 200, {}, {"rt_cd": "0", "msg_cd": "", "msg1": ""}
 
     _transport(tmp_path, send, rate_limiter=Limiter()).request(
@@ -91,9 +91,9 @@ def test_post_timeout_acquires_one_permit_and_is_not_retried(tmp_path: Any) -> N
     limiter = _RecordingLimiter()
 
     def send(method: str, url: str, **kwargs: Any):
-        raise TransportTimeout()
+        raise TransportTimeoutError()
 
-    with pytest.raises(TransportTimeout):
+    with pytest.raises(TransportTimeoutError):
         _transport(tmp_path, send, rate_limiter=limiter).request(
             method="POST", path="/uapi/x", tr_id="T", idempotent=False
         )
@@ -101,14 +101,14 @@ def test_post_timeout_acquires_one_permit_and_is_not_retried(tmp_path: Any) -> N
 
 
 def test_read_path_timeout_is_catchable_as_kis_error(tmp_path: Any) -> None:
-    # 조회(GET) 타임아웃은 승격 없이 그대로 오른다 -- TransportTimeout 이 KISError 를 뿌리로 둬야
+    # 조회(GET) 타임아웃은 승격 없이 그대로 오른다 -- TransportTimeoutError 이 KISError 를 뿌리로 둬야
     # "모든 예외의 뿌리는 KISError" 계약을 지켜 except KISError 가 놓치지 않는다.
-    assert issubclass(TransportTimeout, KISError)
+    assert issubclass(TransportTimeoutError, KISError)
 
     def send(method: str, url: str, **kwargs: Any):
-        raise TransportTimeout()
+        raise TransportTimeoutError()
 
-    with pytest.raises(KISError):             # TransportTimeout 이 아니라 KISError 로도 잡힌다
+    with pytest.raises(KISError):             # TransportTimeoutError 이 아니라 KISError 로도 잡힌다
         _transport(tmp_path, send).request(method="GET", path="/uapi/x", tr_id="T", idempotent=True)
 
 
@@ -210,9 +210,9 @@ def test_post_timeout_is_never_retried(tmp_path: Any) -> None:
         calls += 1
         assert kwargs["params"] is None
         assert kwargs["json_body"] == {"QTY": "1"}
-        raise TransportTimeout("unknown outcome")
+        raise TransportTimeoutError("unknown outcome")
 
-    with pytest.raises(TransportTimeout):
+    with pytest.raises(TransportTimeoutError):
         _transport(tmp_path, send, max_attempts=5).request(
             method="POST",
             path="/order",
@@ -229,9 +229,9 @@ def test_get_timeout_retries_to_limit(tmp_path: Any) -> None:
     def send(method: str, url: str, **kwargs: Any) -> tuple[int, Mapping[str, str], Mapping[str, Any]]:
         nonlocal calls
         calls += 1
-        raise TransportTimeout("temporary")
+        raise TransportTimeoutError("temporary")
 
-    with pytest.raises(TransportTimeout):
+    with pytest.raises(TransportTimeoutError):
         _transport(tmp_path, send, max_attempts=4).request(
             method="GET", path="/quote", tr_id="QUOTE", idempotent=True
         )
@@ -245,7 +245,7 @@ def test_get_timeout_can_succeed_on_retry(tmp_path: Any) -> None:
         nonlocal calls
         calls += 1
         if calls == 1:
-            raise TransportTimeout("temporary")
+            raise TransportTimeoutError("temporary")
         return 200, {}, {"rt_cd": "0", "msg_cd": "OK", "msg1": "정상"}
 
     response = _transport(tmp_path, send).request(
@@ -274,9 +274,9 @@ def test_only_idempotent_get_is_retried_on_timeout(
     def send(m: str, url: str, **kwargs: Any) -> tuple[int, Mapping[str, str], Mapping[str, Any]]:
         nonlocal calls
         calls += 1
-        raise TransportTimeout("uncertain outcome")
+        raise TransportTimeoutError("uncertain outcome")
 
-    with pytest.raises(TransportTimeout):
+    with pytest.raises(TransportTimeoutError):
         _transport(tmp_path, send, max_attempts=4).request(
             method=method, path="/x", tr_id="TR", idempotent=idempotent,
             body=None if method == "GET" else {"QTY": "1"},

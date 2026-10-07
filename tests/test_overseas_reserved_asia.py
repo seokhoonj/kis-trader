@@ -21,7 +21,7 @@ from kis_trader.errors import (
     OrderTimeoutError,
 )
 from kis_trader.overseas._engine import reserved_orders as ro
-from kis_trader.transport import RawResponse, TransportTimeout
+from kis_trader.transport import RawResponse, TransportTimeoutError
 
 _PLACE = "/uapi/overseas-stock/v1/trading/order-resv"
 _LIST = "/uapi/overseas-stock/v1/trading/order-resv-list"
@@ -184,7 +184,7 @@ def test_asia_place_missing_reservation_id_fails_closed():
 
 def test_asia_place_timeout_no_retry():
     store = OrderStore()
-    fake = _Fake(raises=TransportTimeout("t"))
+    fake = _Fake(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _place(fake, store)
     assert len(fake.calls) == 1                      # 재전송 없음
@@ -348,7 +348,7 @@ def test_asia_cancel_rejected_raises():
 def test_asia_cancel_timeout_no_retry():
     store = OrderStore()
     _place(_Fake(_place_resp()), store)
-    fake = _Fake(raises=TransportTimeout("t"))
+    fake = _Fake(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         ro.cancel_asia_reserved_order(fake, store, "c1",
                                       cano="12345678", product_code="01", environment="real")
@@ -418,7 +418,7 @@ def test_asia_reconcile_paper_fails_closed():
 def test_asia_reconcile_confirms_single_match_with_receipt_date(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
-    place_t = _Fake(raises=TransportTimeout("t"))
+    place_t = _Fake(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _place(place_t, store)
     recon_t = _Fake(_list_resp([_list_row()]))
@@ -434,7 +434,7 @@ def test_asia_reconcile_zero_match_returns_none_keeps_in_flight(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
     with pytest.raises(OrderTimeoutError):
-        _place(_Fake(raises=TransportTimeout("t")), store)
+        _place(_Fake(raises=TransportTimeoutError("t")), store)
     recon_t = _Fake(_list_resp([_list_row(ft_ord_qty="9")]))   # 수량 불일치 -> 매칭 0
     assert _client(recon_t, store).orders.reconcile("c1") is None
     assert store.fingerprint_for("c1") is not None
@@ -444,7 +444,7 @@ def test_asia_reconcile_multi_match_raises(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
     with pytest.raises(OrderTimeoutError):
-        _place(_Fake(raises=TransportTimeout("t")), store)
+        _place(_Fake(raises=TransportTimeoutError("t")), store)
     rows = [_list_row(), _list_row(ovrs_rsvn_odno="0030138299")]
     recon_t = _Fake(_list_resp(rows))
     with pytest.raises(KISError):                    # 2건 이상 -> 모호, 자동 확정 금지

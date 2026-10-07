@@ -21,7 +21,7 @@ from kis_trader.errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from kis_trader.transport import RawResponse, TransportTimeout
+from kis_trader.transport import RawResponse, TransportTimeoutError
 
 
 class _FrozenDatetime(_dt.datetime):
@@ -194,7 +194,7 @@ def test_reserve_rejected_clears_in_flight_and_reusable():
 
 def test_reserve_timeout_no_retry_holds_in_flight():
     store = OrderStore()
-    fake = FakeTransport(raises=TransportTimeout("t"))
+    fake = FakeTransport(raises=TransportTimeoutError("t"))
     cid = "20240101-reserved-to01"
     with pytest.raises(OrderTimeoutError):
         _client(fake, store=store).domestic.stock("005930").reserve_buy(
@@ -229,7 +229,7 @@ def test_reserve_reconcile_confirms_single_match():
     store = OrderStore()
     cid = "20240101-reserved-rc01"
     # 발주 타임아웃 -> in-flight
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, limit_price=70000, client_order_id=cid)
@@ -247,7 +247,7 @@ def test_reserve_reconcile_confirms_single_match():
 def test_reserve_reconcile_no_match_stays_in_flight():
     store = OrderStore()
     cid = "20240101-reserved-rc02"
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, limit_price=70000, client_order_id=cid)
@@ -261,7 +261,7 @@ def test_reserve_reconcile_no_match_stays_in_flight():
 def test_reserve_reconcile_multi_match_raises():
     store = OrderStore()
     cid = "20240101-reserved-rc03"
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, limit_price=70000, client_order_id=cid)
@@ -280,7 +280,7 @@ def test_reserve_reconcile_scans_all_pages_before_confirming():
     # 같은 보수적 종료(tr_cont 소진 '그리고' 커서 소진일 때만 멈춤).
     store = OrderStore()
     cid = "20240101-reserved-pg01"
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, limit_price=70000, client_order_id=cid)
@@ -344,7 +344,7 @@ def test_reserve_reconcile_rejects_partial_match(changed):
     # 지문의 한 필드라도 다른 행은 확정하지 않는다(오귀속 방지) -> None, in-flight 유지
     store = OrderStore()
     cid = "20240101-reserved-pm01"
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, limit_price=70000, client_order_id=cid)
@@ -360,7 +360,7 @@ def test_reserve_reconcile_window_and_process_params(monkeypatch):
     monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()
     cid = "20240101-reserved-win01"
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, limit_price=70000, client_order_id=cid)
@@ -378,7 +378,7 @@ def test_reserve_reconcile_ignores_blank_sequence_row():
     # 순번 없는 매칭 행은 정정·취소가 불가라 확정하지 않는다 -> None, in-flight 유지
     store = OrderStore()
     cid = "20240101-reserved-bs01"
-    place_t = FakeTransport(raises=TransportTimeout("t"))
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(place_t, store=store).domestic.stock("005930").reserve_buy(
             quantity=1, limit_price=70000, client_order_id=cid)

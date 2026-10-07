@@ -53,7 +53,7 @@ from ...order import (
 from ...report import ExecutionReport, OrderStatus
 from ...risk import RiskLimits
 from ...store import Binding, Claimed, Completed, Conflict, InFlight, OrderStore
-from ...transport import Environment, Transport, TransportTimeout
+from ...transport import Environment, Transport, TransportTimeoutError
 from . import market_data
 
 _KST = timezone(timedelta(hours=9))
@@ -191,7 +191,7 @@ def place(
         resp = transport.request(
             method=method, path=path, tr_id=tr_id, body=body, idempotent=False
         )
-    except TransportTimeout as err:
+    except TransportTimeoutError as err:
         # 재시도 금지: 체결 여부 불명. in-flight 유지, 재조회를 요구한다.
         raise OrderTimeoutError(
             f"주문 전송 시간초과 -- 체결 여부가 불명이다. 재전송하지 말고 "
@@ -265,7 +265,7 @@ def reconcile(
     try:
         rows = _fetch_daily_orders(transport, fingerprint.symbol, cano=cano,
                                    product_code=product_code, environment=environment)
-    except TransportTimeout as err:
+    except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"재조회(일별체결조회) 시간초과 -- 주문 {client_order_id} 상태 여전히 불명. "
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
@@ -396,7 +396,7 @@ def submit_change(
             body=request.body,
             idempotent=False,
         )
-    except TransportTimeout as err:
+    except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"주문 {action} 요청 시간초과 -- 처리 여부가 불명이다. 재전송하지 말라.",
             client_order_id=request_id,

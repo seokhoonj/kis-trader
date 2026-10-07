@@ -191,7 +191,7 @@ def fetch_ipo_subscriptions(
                 subscription_period=str(row.get("subscr_dt", "")).strip(),
                 pay_date=_parse_ksd_date(row.get("pay_dt"), required=False, name="pay_dt"),
                 refund_date=_parse_ksd_date(row.get("refund_dt"), required=False, name="refund_dt"),
-                list_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
+                listing_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
                 lead_manager=str(row.get("lead_mgr", "")).strip(),
                 capital_before=optional_decimal(row.get("pub_bf_cap"), "pub_bf_cap"),
                 capital_after=optional_decimal(row.get("pub_af_cap"), "pub_af_cap"),
@@ -242,7 +242,7 @@ def fetch_rights_offerings(
                 subscription_start=_parse_ksd_date(row.get("sub_term_ft"), required=False,
                                                    name="sub_term_ft"),
                 subscription_period=str(row.get("sub_term", "")).strip(),
-                list_date=_parse_ksd_date(row.get("list_date"), required=False, name="list_date"),
+                listing_date=_parse_ksd_date(row.get("listing_date"), required=False, name="listing_date"),
                 stock_kind=str(row.get("stk_kind", "")).strip(),
                 _raw=row,
             )
@@ -272,7 +272,7 @@ def fetch_bonus_issues(
                                                name="right_dt"),
                 odd_lot_pay_date=_parse_ksd_date(row.get("odd_pay_dt"), required=False,
                                                  name="odd_pay_dt"),
-                list_date=_parse_ksd_date(row.get("list_date"), required=False, name="list_date"),
+                listing_date=_parse_ksd_date(row.get("listing_date"), required=False, name="listing_date"),
                 total_shares=optional_int(row.get("tot_issue_stk_qty"), "tot_issue_stk_qty"),
                 new_shares=optional_int(row.get("issue_stk_qty"), "issue_stk_qty"),
                 stock_kind=str(row.get("stk_kind", "")).strip(),
@@ -305,7 +305,7 @@ def fetch_capital_reductions(
                 reduction_rate=optional_decimal(row.get("reduce_cap_rate"), "reduce_cap_rate"),
                 computation_method=str(row.get("comp_way", "")).strip(),
                 trading_halt_period=str(row.get("td_stop_dt", "")).strip(),
-                list_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
+                listing_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
                 _raw=row,
             )
         )
@@ -334,7 +334,7 @@ def fetch_merger_splits(
                 merge_type=str(row.get("merge_type", "")).strip(),
                 merge_ratio=optional_decimal(row.get("merge_rate"), "merge_rate"),
                 trading_halt_period=str(row.get("td_stop_dt", "")).strip(),
-                list_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
+                listing_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
                 odd_lot_pay_date=_parse_ksd_date(row.get("odd_amt_pay_dt"), required=False,
                                                  name="odd_amt_pay_dt"),
                 total_shares=optional_int(row.get("tot_issue_stk_qty"), "tot_issue_stk_qty"),
@@ -417,7 +417,7 @@ def fetch_listings(
             ListingEvent(
                 symbol=code,
                 name=str(row.get("isin_name", "")).strip(),
-                list_date=_parse_ksd_date(row.get("list_dt"), required=True, name="list_dt"),
+                listing_date=_parse_ksd_date(row.get("list_dt"), required=True, name="list_dt"),
                 stock_kind=str(row.get("stk_kind", "")).strip(),
                 issue_type=str(row.get("issue_type", "")).strip(),
                 new_shares=optional_int(row.get("issue_stk_qty"), "issue_stk_qty"),
@@ -455,7 +455,7 @@ def fetch_par_value_changes(
                     row.get("inter_af_face_amt"), "inter_af_face_amt"
                 ),
                 trading_halt_period=str(row.get("td_stop_dt", "")).strip(),
-                list_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
+                listing_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
                 _raw=row,
             )
         )
@@ -485,7 +485,7 @@ def fetch_forfeited_shares(
                 subscription_shares=optional_int(row.get("subscr_stk_qty"), "subscr_stk_qty"),
                 refund_date=_parse_ksd_date(row.get("refund_dt"), required=False,
                                             name="refund_dt"),
-                list_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
+                listing_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),
                 lead_manager=str(row.get("lead_mgr", "")).strip(),
                 _raw=row,
             )

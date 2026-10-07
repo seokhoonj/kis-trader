@@ -17,7 +17,7 @@ from kis_trader.errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from kis_trader.transport import RawResponse, TransportTimeout
+from kis_trader.transport import RawResponse, TransportTimeoutError
 
 _CANCEL = "/uapi/overseas-stock/v1/trading/order-resv-ccnl"
 
@@ -96,7 +96,7 @@ def test_cancel_overseas_reserved_rejected_raises():
 
 
 def test_cancel_overseas_reserved_timeout_no_retry():
-    fake = FakeTransport(raises=TransportTimeout("t"))
+    fake = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _client(fake).account.overseas.cancel_reserved_order("0031111234", receipt_date="20250523")
     assert len(fake.calls) == 1                      # 재전송 없음
