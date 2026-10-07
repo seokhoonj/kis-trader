@@ -25,7 +25,7 @@ class BondQuote:
     ``change_percent`` 는 전일대비로 하락이면 음수.
     """
 
-    code: str
+    symbol: str
     name: str
     price: Decimal
     open: Decimal
@@ -50,7 +50,7 @@ class BondDailyPrice:
     """한 거래일의 채권 가격·등락·누적거래량."""
 
     trading_date: date
-    code: str
+    symbol: str
     price: Decimal
     open: Decimal
     high: Decimal
@@ -76,7 +76,7 @@ class BondProfile:
     는 이자 지급 주기(개월). 날짜/비율은 없으면 ``None``. 세부는 ``_raw``.
     """
 
-    code: str
+    symbol: str
     name: str
     english_name: str
     currency: str                     # ISO 통화(iso_crcy_cd)
@@ -104,7 +104,7 @@ class BondIssuance:
     신용등급은 ``credit_ratings`` 의 기관 코드(KIS, KBP, NICE, FNP)로 제공한다.
     """
 
-    code: str
+    symbol: str
     name: str
     english_name: str
     classification: str
@@ -146,7 +146,7 @@ class BondValuation:
     """
 
     valuation_date: date
-    code: str
+    symbol: str
     name: str
     average_price: Decimal
     average_yield: Decimal

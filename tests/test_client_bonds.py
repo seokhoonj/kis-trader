@@ -1,4 +1,4 @@
-"""채권 핸들 -- kis.domestic.bond(code).quote().
+"""채권 핸들 -- kis.domestic.bond(symbol).quote().
 
 시장구분 B 라우팅, output 파싱(가격·시고저·전일대비·수익률), 전일대비 부호 복원,
 optional 수익률(None), fail-closed 를 검증한다.
@@ -56,7 +56,7 @@ def test_bond_quote_maps_fields_and_market():
     fake = FakeTransport(response=_resp(_output()))
     quote = _client(fake).domestic.bond("KR2033022D33").quote()
     assert isinstance(quote, BondQuote)
-    assert quote.code == "KR2033022D33"
+    assert quote.symbol == "KR2033022D33"
     assert quote.price == Decimal("10250.0")
     assert quote.open == Decimal("10240.0")
     assert quote.high == Decimal("10260.0")
@@ -319,7 +319,7 @@ def test_bond_valuations_maps_rows_and_sorts_oldest_first():
         "2024-04-09", "2024-04-10",
     ]
     first = valuations[0]
-    assert first.code == "KR2033022D33"
+    assert first.symbol == "KR2033022D33"
     assert first.average_price == Decimal("9800.75")
     assert first.average_yield == Decimal("3.680")
     assert first.agency_prices["NICE"] == Decimal("9809.20")

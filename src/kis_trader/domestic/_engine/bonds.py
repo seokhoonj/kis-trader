@@ -1,6 +1,6 @@
 """장내채권 시세 조회 (내부) -- 채권 현재가를 :class:`BondQuote` 로.
 
-사용자면은 채권 핸들(:class:`~kis_trader.domestic.bond.Bond`, ``kis.domestic.bond(code)``)이다. 채권은 시장구분 ``B`` +
+사용자면은 채권 핸들(:class:`~kis_trader.domestic.bond.Bond`, ``kis.domestic.bond(symbol)``)이다. 채권은 시장구분 ``B`` +
 표준코드(ISIN, 예: KR2033022D33)로 조회한다.
 
 KIS URL/TR-ID (KIS 명세 대조):
@@ -113,9 +113,9 @@ _INFO_PATH = "/uapi/domestic-bond/v1/quotations/search-bond-info"
 _INFO_TR = "CTPF1114R"
 
 
-def fetch_quote(transport: Transport, *, code: str) -> BondQuote:
-    """채권 현재가 스냅샷. ``code`` 는 표준코드(ISIN)."""
-    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code}
+def fetch_quote(transport: Transport, *, symbol: str) -> BondQuote:
+    """채권 현재가 스냅샷. ``symbol`` 는 표준코드(ISIN)."""
+    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": symbol}
     resp = transport.request(
         method="GET", path=_QUOTE_PATH, tr_id=_QUOTE_TR, params=params, idempotent=True
     )
@@ -123,17 +123,17 @@ def fetch_quote(transport: Transport, *, code: str) -> BondQuote:
     output = resp.body.get("output")
     if not isinstance(output, Mapping):        # 성공 응답인데 객체 아님 -> fail-closed
         raise _missing_block_error("output", resp)
-    return _parse_quote(output, code=code, as_of=datetime.now(_KST))
+    return _parse_quote(output, symbol=symbol, as_of=datetime.now(_KST))
 
 
-def fetch_order_book(transport: Transport, *, code: str) -> OrderBook:
-    """채권 호가창(5단계 매수/매도 심도). ``code`` 는 표준코드(ISIN).
+def fetch_order_book(transport: Transport, *, symbol: str) -> OrderBook:
+    """채권 호가창(5단계 매수/매도 심도). ``symbol`` 는 표준코드(ISIN).
 
     채권 호가는 종목 :meth:`~kis_trader.domestic.stock.DomesticStock.order_book` 과 같은 :class:`OrderBook`
     로 돌려주되, 채권은 5단계(주식은 10단계)다. 가격 키는 ``bond_askp``/``bond_bidp``, 잔량 키는
     ``askp_rsqn``/``bidp_rsqn`` -- 빈/0 단계는 건너뛴다.
     """
-    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code}
+    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": symbol}
     resp = transport.request(
         method="GET", path=_ORDER_BOOK_PATH, tr_id=_ORDER_BOOK_TR, params=params, idempotent=True
     )
@@ -142,7 +142,7 @@ def fetch_order_book(transport: Transport, *, code: str) -> OrderBook:
     if not isinstance(output, Mapping):        # 성공 응답인데 객체 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return OrderBook(
-        symbol=code,
+        symbol=symbol,
         market=_MARKET_DIV,
         bids=_price_levels(output, price_key="bond_bidp", quantity_key="bidp_rsqn"),
         asks=_price_levels(output, price_key="bond_askp", quantity_key="askp_rsqn"),
@@ -153,14 +153,14 @@ def fetch_order_book(transport: Transport, *, code: str) -> OrderBook:
     )
 
 
-def fetch_trades(transport: Transport, *, code: str) -> list[Trade]:
-    """채권의 최근 체결 목록(최신순). ``code`` 는 표준코드(ISIN).
+def fetch_trades(transport: Transport, *, symbol: str) -> list[Trade]:
+    """채권의 최근 체결 목록(최신순). ``symbol`` 는 표준코드(ISIN).
 
     종목 :meth:`~kis_trader.domestic.stock.DomesticStock.trades` 와 같은 :class:`Trade` 로 돌려준다. 체결가는
     채권가(``bond_prpr``), 시각은 조회일 날짜를 붙인 KST-aware(장 밖 조회면 직전 세션 체결이 조회일
     날짜로 찍힐 수 있다).
     """
-    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code}
+    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": symbol}
     resp = transport.request(
         method="GET", path=_TRADES_PATH, tr_id=_TRADES_TR, params=params, idempotent=True
     )
@@ -168,14 +168,14 @@ def fetch_trades(transport: Transport, *, code: str) -> list[Trade]:
     rows = resp.body.get("output")
     if not isinstance(rows, (list, tuple)):             # 성공 응답인데 체결 배열 아님 -> fail-closed
         raise _missing_block_error("output", resp)
-    return _parse_trades(rows, code=code, as_of=datetime.now(_KST))
+    return _parse_trades(rows, symbol=symbol, as_of=datetime.now(_KST))
 
 
-def fetch_bars(transport: Transport, *, code: str, interval: Interval = "1d") -> list[Bar]:
+def fetch_bars(transport: Transport, *, symbol: str, interval: Interval = "1d") -> list[Bar]:
     """채권 일별 OHLCV(과거->현재). KIS 명세상 기간·연속조회 파라미터가 없어 단일 응답을 반환한다."""
     if interval != "1d":
         raise KISUsageError(f"채권 bars 는 interval='1d' 만 지원한다: {interval!r}")
-    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code}
+    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": symbol}
     resp = transport.request(
         method="GET", path=_BARS_PATH, tr_id=_BARS_TR, params=params, idempotent=True
     )
@@ -191,7 +191,7 @@ def fetch_bars(transport: Transport, *, code: str, interval: Interval = "1d") ->
             continue
         bars.append(
             Bar(
-                symbol=code,
+                symbol=symbol,
                 timestamp=_parse_bar_timestamp(date_text),
                 open=required_decimal(row.get("bond_oprc"), "bond_oprc"),
                 high=required_decimal(row.get("bond_hgpr"), "bond_hgpr"),
@@ -205,7 +205,7 @@ def fetch_bars(transport: Transport, *, code: str, interval: Interval = "1d") ->
     return bars
 
 
-def fetch_daily_prices(transport: Transport, *, code: str) -> list[BondDailyPrice]:
+def fetch_daily_prices(transport: Transport, *, symbol: str) -> list[BondDailyPrice]:
     """채권의 날짜별 현재가·등락·OHLCV를 과거->현재 순으로 조회한다."""
     prices_by_date: dict[date, BondDailyPrice] = {}
     tr_cont = ""
@@ -214,7 +214,7 @@ def fetch_daily_prices(transport: Transport, *, code: str) -> list[BondDailyPric
             method="GET",
             path=_DAILY_PRICES_PATH,
             tr_id=_DAILY_PRICES_TR,
-            params={"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code},
+            params={"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": symbol},
             idempotent=True,
             tr_cont=tr_cont,
         )
@@ -232,7 +232,7 @@ def fetch_daily_prices(transport: Transport, *, code: str) -> list[BondDailyPric
             change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
             price = BondDailyPrice(
                 trading_date=day,
-                code=code,
+                symbol=symbol,
                 price=required_decimal(price_text, "bond_prpr"),
                 open=required_decimal(row.get("bond_oprc"), "bond_oprc"),
                 high=required_decimal(row.get("bond_hgpr"), "bond_hgpr"),
@@ -262,7 +262,7 @@ def fetch_daily_prices(transport: Transport, *, code: str) -> list[BondDailyPric
 
 
 def fetch_valuations(
-    transport: Transport, *, code: str, start: str | date, end: str | date
+    transport: Transport, *, symbol: str, start: str | date, end: str | date
 ) -> list[BondValuation]:
     """평가기관별 채권 단가·수익률의 일별 시계열(과거->현재)."""
     start_date = _to_yyyymmdd(start, "start")
@@ -272,7 +272,7 @@ def fetch_valuations(
     params = {
         "INQR_STRT_DT": start_date,
         "INQR_END_DT": end_date,
-        "PDNO": code,
+        "PDNO": symbol,
         "PRDT_TYPE_CD": _BOND_PRODUCT_TYPE_CODE,
         "VRFC_KIND_CD": "00",
         "CTX_AREA_NK30": "",
@@ -292,14 +292,14 @@ def fetch_valuations(
         average_price_text = str(row.get("avg_evlu_unpr", "")).strip()
         if not date_text or not average_price_text:
             continue
-        valuations.append(_parse_valuation(row, fallback_code=code, date_text=date_text))
+        valuations.append(_parse_valuation(row, fallback_code=symbol, date_text=date_text))
     valuations.sort(key=lambda valuation: valuation.valuation_date)
     return valuations
 
 
-def fetch_profile(transport: Transport, *, code: str) -> BondProfile:
-    """채권 기본/발행 정보(발행일·만기·표면금리·만기수익률·통화). ``code`` 는 표준코드(ISIN)."""
-    params = {"PDNO": code, "PRDT_TYPE_CD": _BOND_PRODUCT_TYPE_CODE}
+def fetch_profile(transport: Transport, *, symbol: str) -> BondProfile:
+    """채권 기본/발행 정보(발행일·만기·표면금리·만기수익률·통화). ``symbol`` 는 표준코드(ISIN)."""
+    params = {"PDNO": symbol, "PRDT_TYPE_CD": _BOND_PRODUCT_TYPE_CODE}
     resp = transport.request(
         method="GET", path=_INFO_PATH, tr_id=_INFO_TR, params=params, idempotent=True
     )
@@ -308,7 +308,7 @@ def fetch_profile(transport: Transport, *, code: str) -> BondProfile:
     if not isinstance(output, Mapping):
         raise _missing_block_error("output", resp)
     return BondProfile(
-        code=code,
+        symbol=symbol,
         name=str(output.get("ksd_bond_item_name", "")).strip(),
         english_name=str(output.get("ksd_bond_item_eng_name", "")).strip(),
         currency=str(output.get("iso_crcy_cd", "")).strip(),
@@ -327,9 +327,9 @@ def fetch_profile(transport: Transport, *, code: str) -> BondProfile:
     )
 
 
-def fetch_issuance(transport: Transport, *, code: str) -> BondIssuance:
-    """채권의 상세 발행 조건·기관·상태. ``code`` 는 표준코드(ISIN)."""
-    params = {"PDNO": code, "PRDT_TYPE_CD": _BOND_PRODUCT_TYPE_CODE}
+def fetch_issuance(transport: Transport, *, symbol: str) -> BondIssuance:
+    """채권의 상세 발행 조건·기관·상태. ``symbol`` 는 표준코드(ISIN)."""
+    params = {"PDNO": symbol, "PRDT_TYPE_CD": _BOND_PRODUCT_TYPE_CODE}
     resp = transport.request(
         method="GET", path=_ISSUANCE_PATH, tr_id=_ISSUANCE_TR,
         params=params, idempotent=True,
@@ -350,7 +350,7 @@ def fetch_issuance(transport: Transport, *, code: str) -> BondIssuance:
         if (rating := str(output.get(field, "")).strip())
     }
     return BondIssuance(
-        code=str(output.get("pdno", "")).strip() or code,
+        symbol=str(output.get("pdno", "")).strip() or symbol,
         name=str(output.get("prdt_name", "")).strip(),
         english_name=str(output.get("prdt_eng_name", "")).strip(),
         classification=str(output.get("bond_clsf_kor_name", "")).strip(),
@@ -379,10 +379,10 @@ def fetch_issuance(transport: Transport, *, code: str) -> BondIssuance:
     )
 
 
-def _parse_quote(output: Mapping[str, Any], *, code: str, as_of: datetime) -> BondQuote:
+def _parse_quote(output: Mapping[str, Any], *, symbol: str, as_of: datetime) -> BondQuote:
     change_sign_code = str(output.get("prdy_vrss_sign", "")).strip()
     return BondQuote(
-        code=code,
+        symbol=symbol,
         name=str(output.get("hts_kor_isnm", "")).strip(),
         price=required_decimal(output.get("bond_prpr"), "bond_prpr"),
         open=required_decimal(output.get("bond_oprc"), "bond_oprc"),
@@ -403,7 +403,7 @@ def _parse_quote(output: Mapping[str, Any], *, code: str, as_of: datetime) -> Bo
 
 
 def _parse_trades(
-    rows: Sequence[Mapping[str, Any]], *, code: str, as_of: datetime
+    rows: Sequence[Mapping[str, Any]], *, symbol: str, as_of: datetime
 ) -> list[Trade]:
     trades: list[Trade] = []
     for row in rows:
@@ -414,7 +414,7 @@ def _parse_trades(
         change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
         trades.append(
             Trade(
-                symbol=code,
+                symbol=symbol,
                 timestamp=_parse_intraday_timestamp(time_text, as_of),
                 price=required_decimal(price_text, "bond_prpr"),
                 quantity=required_int(row.get("cntg_vol"), "cntg_vol"),
@@ -456,7 +456,7 @@ def _parse_valuation(
             risk_free_prices[agency] = risk_free_price
     return BondValuation(
         valuation_date=_parse_kst_date(date_text),
-        code=str(row.get("pdno", "")).strip() or fallback_code,
+        symbol=str(row.get("pdno", "")).strip() or fallback_code,
         name=str(row.get("prdt_name", "")).strip(),
         average_price=required_decimal(row.get("avg_evlu_unpr"), "avg_evlu_unpr"),
         average_yield=required_decimal(row.get("avg_evlu_erng_rt"), "avg_evlu_erng_rt"),
@@ -546,9 +546,9 @@ def _parse_bond_positions(rows: list[Mapping[str, Any]]) -> list[BondPosition]:
 
 def fetch_bond_buyable(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    code: str, price: Numeric | None = None,
+    symbol: str, price: Numeric | None = None,
 ) -> BondBuyable:
-    """장내채권 매수가능조회. ``code`` 표준코드, ``price`` 주문 단가(없으면 시장가 기준).
+    """장내채권 매수가능조회. ``symbol`` 표준코드, ``price`` 주문 단가(없으면 시장가 기준).
     응답 ``output`` 단일 객체(길이 1 배열로 올 수도 있어 둘 다 처리). **모의투자 미지원**
     (demo 면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
@@ -557,7 +557,7 @@ def fetch_bond_buyable(
         )
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
-        "PDNO": code,
+        "PDNO": symbol,
         "BOND_ORD_UNPR": _format_bond_order_price(price),
         "SAMT_MKET_PTCI_YN": "N",
     }
@@ -573,7 +573,7 @@ def fetch_bond_buyable(
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
     return BondBuyable(
-        symbol=code,
+        symbol=symbol,
         orderable_cash=required_decimal(output.get("ord_psbl_cash"), "ord_psbl_cash"),
         orderable_substitute=required_decimal(output.get("ord_psbl_sbst"), "ord_psbl_sbst"),
         reusable_cash=required_decimal(output.get("ruse_psbl_amt"), "ruse_psbl_amt"),

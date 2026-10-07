@@ -1,4 +1,4 @@
-"""국내 장내채권 매수 발주 -- kis.domestic.bond(code).buy(...) (buy TTTC0952U, 실전 전용).
+"""국내 장내채권 매수 발주 -- kis.domestic.bond(symbol).buy(...) (buy TTTC0952U, 실전 전용).
 
 현금주문과 같은 안전 코어(place)를 공유하되 와이어 조립기만 채권용이다. 이중체결 방지·재시도
 금지·dedup 지문(exchange 슬롯의 "BOND" 값으로 구분)을 네트워크 없이 가짜 전송으로 검증한다.

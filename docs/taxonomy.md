@@ -100,7 +100,7 @@ kis.domestic
 │   ├── expected_trend()                # 동시호가 예상 지수 추이
 │   ├── expected_snapshot()             # 동시호가 예상 지수 스냅샷
 │   └── categories()                    # 하위 업종 지수 목록
-├── bond(code)                          # 장내채권 핸들
+├── bond(symbol)                        # 장내채권 핸들
 │   ├── profile()                       # 채권 기본/발행 정보
 │   ├── issuance()                      # 발행 조건·신용등급
 │   ├── quote()                         # 채권 현재가
@@ -391,7 +391,7 @@ kis.realtime()
 │   │   ├── trades()                         # 체결 → ELWTick
 │   │   ├── order_book()                     # 호가 → ELWOrderBook
 │   │   └── expected_conclusion()            # 예상체결 → ELWExpectedConclusion
-│   ├── bond(code)                           # → BondHandle
+│   ├── bond(symbol)                         # → BondHandle
 │   │   ├── trades()                         # 체결 → BondTick
 │   │   └── order_book()                     # 호가 → BondOrderBook
 │   ├── bond_index(code)                     # → BondIndexHandle

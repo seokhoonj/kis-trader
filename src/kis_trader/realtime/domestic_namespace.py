@@ -227,9 +227,9 @@ class ELWHandle:
 class BondHandle:
     """일반채권 실시간 핸들. 채권 코드 단위(체결/호가)."""
 
-    def __init__(self, client: RealtimeClient, code: str) -> None:
+    def __init__(self, client: RealtimeClient, symbol: str) -> None:
         self._client = client
-        self._code = code
+        self._symbol = symbol
 
     def trades(
         self, *, on: Callable[[BondTick], None] | None = None
@@ -237,7 +237,7 @@ class BondHandle:
         """일반채권 실시간 체결을 구독하고 RealtimeSubscription[BondTick] 을 반환한다(H0BJCNT0)."""
         return cast(
             "RealtimeSubscription[BondTick]",
-            self._client._open_typed(_BOND_TRADES_TR, self._code, on=on),
+            self._client._open_typed(_BOND_TRADES_TR, self._symbol, on=on),
         )
 
     def order_book(
@@ -246,7 +246,7 @@ class BondHandle:
         """일반채권 실시간 호가를 구독하고 RealtimeSubscription[BondOrderBook] 을 반환한다(H0BJASP0)."""
         return cast(
             "RealtimeSubscription[BondOrderBook]",
-            self._client._open_typed(_BOND_ORDER_BOOK_TR, self._code, on=on),
+            self._client._open_typed(_BOND_ORDER_BOOK_TR, self._symbol, on=on),
         )
 
 
@@ -323,9 +323,9 @@ class RealtimeDomesticNamespace:
         """ELW 실시간 핸들을 반환한다(.trades()/.order_book()/.expected_conclusion() 로 구독)."""
         return ELWHandle(self._client, code)
 
-    def bond(self, code: str) -> BondHandle:
+    def bond(self, symbol: str) -> BondHandle:
         """일반채권 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독)."""
-        return BondHandle(self._client, code)
+        return BondHandle(self._client, symbol)
 
     def bond_index(self, code: str) -> BondIndexHandle:
         """채권지수 실시간 핸들을 반환한다(.trades() 로 구독). 일반채권과 코드 공간이 다르다."""

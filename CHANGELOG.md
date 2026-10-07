@@ -109,6 +109,15 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   redundant (the whole entity is one execution). The timestamp field keeps its idiomatic
   `executed_at` name.
 
+- The bond instrument identifier is renamed `code` → `symbol` across the bond handle
+  (`kis.domestic.bond(...)`), the result entities (`BondQuote`, `BondProfile`, `BondIssuance`,
+  `BondDailyPrice`, `BondValuation`), `kis.account.domestic.bonds.buyable(...)`, and the
+  realtime `rt.domestic.bond(...)` handle — so a bond is identified by the same `symbol` as
+  every other tradable instrument and as `Order.symbol`, instead of a bond-only `code`. The
+  value is unchanged (the bond's ISIN / 표준코드); the bond-position/order entities already used
+  `symbol`. The realtime `bond_index(...)` handle keeps `code` (a market index, not a tradable
+  bond).
+
 ### Added
 
 - Stock handles (`DomesticStock`/`OverseasStock`) now have a readable `__repr__`

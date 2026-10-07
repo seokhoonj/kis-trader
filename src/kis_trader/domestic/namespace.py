@@ -243,9 +243,9 @@ class DomesticNamespace:
         """지수/업종 핸들. ``code`` 는 업종코드(0001 KOSPI 종합, 1001 KOSDAQ 종합, 2001 KOSPI200 등)."""
         return Index(self._client, code)
 
-    def bond(self, code: str) -> Bond:
-        """장내채권 핸들. ``code`` 는 표준코드(ISIN, 예: KR2033022D33)."""
-        return Bond(self._client, code)
+    def bond(self, symbol: str) -> Bond:
+        """장내채권 핸들. ``symbol`` 은 표준코드(ISIN, 예: KR2033022D33)."""
+        return Bond(self._client, symbol)
 
     def elw(self, code: str) -> ELW:
         """ELW 고유 지표 핸들. 기본 시세와 매매는 :meth:`stock` 으로 하고(ELW 는 종목처럼

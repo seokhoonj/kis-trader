@@ -1,4 +1,4 @@
-"""채권 기본정보 -- kis.domestic.bond(code).profile()."""
+"""채권 기본정보 -- kis.domestic.bond(symbol).profile()."""
 from __future__ import annotations
 
 import threading
@@ -135,7 +135,7 @@ def test_bond_issuance_maps_detailed_terms_and_status():
     )
     issuance = _client(fake).domestic.bond("KR6449111CB8").issuance()
     assert isinstance(issuance, BondIssuance)
-    assert issuance.code == "KR6449111CB8"
+    assert issuance.symbol == "KR6449111CB8"
     assert issuance.classification == "일반사채"
     assert issuance.face_value == Decimal(10000)
     assert issuance.issue_amount == Decimal(77839700000)
