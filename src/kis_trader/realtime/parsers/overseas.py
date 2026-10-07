@@ -201,7 +201,7 @@ class OverseasExecutionNotice:
     rejected: bool  # 거부여부
     fill_status: str  # CNTG_YN 1:주문/정정/취소/거부 2:체결 (원 코드 보존)
     accepted_status: str  # ACPT_YN 1:주문접수 2:확인 3:취소(FOK/IOC) (원 코드 보존)
-    branch_no: str
+    branch_number: str
     _raw: Mapping[str, Any] = _raw_field()
 
 
@@ -223,7 +223,7 @@ def parse_execution_notice(fields: list[str]) -> OverseasExecutionNotice:
         rejected=raw["RFUS_YN"] == "1",  # RFUS_YN 0:승인 1:거부 (Y/N 아님)
         fill_status=raw["CNTG_YN"],  # CNTG_YN 1:주문/정정/취소/거부 2:체결 (원 코드 보존)
         accepted_status=raw["ACPT_YN"],  # ACPT_YN 1:주문접수 2:확인 3:취소(FOK/IOC) (원 코드 보존)
-        branch_no=raw["BRNC_NO"],
+        branch_number=raw["BRNC_NO"],
         _raw=raw,
     )
 
@@ -431,7 +431,7 @@ class FuturesExecutionNotice:
     sell_buy: str
     order_quantity: Decimal
     filled_date: str
-    execution_no: str
+    fill_number: str
     filled_quantity: Decimal
     filled_price: Decimal
     filled_amount: Decimal
@@ -453,7 +453,7 @@ def parse_futures_execution_notice(fields: list[str]) -> FuturesExecutionNotice:
         sell_buy=raw["SLL_BUY_DVSN_CD"],
         order_quantity=_decimal(raw["ORD_QTY"]),
         filled_date=raw["CCLD_DT"],
-        execution_no=raw["CCNO"],
+        fill_number=raw["CCNO"],
         filled_quantity=_decimal(raw["CCLD_QTY"]),
         filled_price=_decimal(raw["FM_CCLD_PRIC"]),
         filled_amount=_decimal(raw["FM_CCLD_AMT"]),

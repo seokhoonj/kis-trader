@@ -307,7 +307,7 @@ kis.account
 │   │   ├── modify_reserved_order(...)        # 예약주문 정정
 │   │   └── bonds                             # 장내채권 계좌 조회
 │   │       ├── balance()                     # 채권 보유 잔고
-│   │       ├── buyable(code)                 # 채권 매수가능
+│   │       ├── buyable(symbol)               # 채권 매수가능
 │   │       ├── open_orders(order_date)       # 채권 미체결 주문
 │   │       └── fills(start, end)             # 채권 주문·체결 내역
 │   ├── overseas                              # 해외주식 계좌 조회

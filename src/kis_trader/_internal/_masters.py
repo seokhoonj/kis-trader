@@ -246,7 +246,7 @@ _DOMESTIC_PART2_WIDTH: dict[str, int] = {"KOSPI": 227, "KOSDAQ": 221}
 
 #: 국내 시장(2값 폐집합). 해외 exchange/currency 와 달리 KIS 국내는 KOSPI/KOSDAQ 뿐이라 Literal 로 닫는다.
 DomesticMarket = Literal["KOSPI", "KOSDAQ"]
-#: search() 의 market 필터 -- 두 시장 + "all"(전체).
+#: search_stocks() 의 market 필터 -- 두 시장 + "all"(전체).
 SearchMarket = Literal["all", "KOSPI", "KOSDAQ"]
 
 

@@ -257,7 +257,7 @@ def test_parse_execution_notice_headline():
     assert notice.rejected is False
     assert notice.fill_status == "2"
     assert notice.accepted_status == "2"
-    assert notice.branch_no == "01234"
+    assert notice.branch_number == "01234"
 
 
 def test_execution_notice_flags_use_ledger_codes_not_y_n():
@@ -480,7 +480,7 @@ def test_parse_futures_execution_notice_headline():
     assert notice.sell_buy == "02"
     assert notice.order_quantity == Decimal(2)
     assert notice.filled_date == "20260814"
-    assert notice.execution_no == "0000999"
+    assert notice.fill_number == "0000999"
     assert notice.filled_quantity == Decimal(1)
     assert notice.filled_price == Decimal("5509.50")
     assert notice.filled_amount == Decimal("5509.50")
