@@ -8,10 +8,10 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from .._internal._datetime import _parse_hhmmss
 from .._internal._response import _fetch_paginated_rows_with_summary
 from .._internal._wire import field_decimal_or_zero, format_wire_decimal
 from ..domestic.entities.balance import DomesticPosition
@@ -227,14 +227,6 @@ def _parse_order(row: Mapping[str, Any]) -> PensionOrder:
     )
 
 
-def _parse_hhmmss(value: object) -> time | None:
-    text = str(value or "").strip()
-    if len(text) != 6 or not text.isdigit():
-        return None
-    hour, minute, second = int(text[0:2]), int(text[2:4]), int(text[4:6])
-    if hour > 23 or minute > 59 or second > 59:
-        return None
-    return time(hour, minute, second)
 
 
 # --- 공용 ------------------------------------------------------------------

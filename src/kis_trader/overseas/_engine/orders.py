@@ -13,11 +13,11 @@ KIS URL/TR-ID (KIS 명세 대조, sheet '해외주식 주문'):
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime, time, timedelta
+from datetime import datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
-from ..._internal._datetime import _KST
+from ..._internal._datetime import _KST, _parse_hhmmss
 from ..._internal._response import _CONTINUATION_END, _fetch_paginated_rows
 from ..._internal._wire import format_wire_decimal
 from ...errors import KISError, KISUsageError, OrderTimeoutError
@@ -637,11 +637,3 @@ def fetch_algo_executions(
 
 # --- 체결기준현재잔고 (CTRP6504R) -----------------------------------------
 
-def _parse_hhmmss(value: object) -> time | None:
-    text = str(value or "").strip()
-    if len(text) != 6 or not text.isdigit():
-        return None
-    hour, minute, second = int(text[0:2]), int(text[2:4]), int(text[4:6])
-    if hour > 23 or minute > 59 or second > 59:
-        return None
-    return time(hour, minute, second)

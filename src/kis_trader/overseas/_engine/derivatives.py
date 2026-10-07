@@ -13,12 +13,13 @@ KIS URL/TR-ID:
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import date, datetime, time
+from datetime import date, datetime
 from typing import Any, Literal
 
 from ..._bars import _parse_bar_timestamp
 from ..._internal._datetime import (
     _KST,
+    _parse_hhmmss,
     _parse_kst_date,
     _to_yyyymmdd,
     _today_kst,
@@ -529,14 +530,6 @@ _MARKET_HOURS_TR = "OTFM2229R"
 _MAX_MARKET_HOURS_PAGES = 100
 
 
-def _parse_hhmmss(value: object) -> time | None:
-    text = str(value or "").strip()
-    if len(text) != 6 or not text.isdigit():
-        return None
-    try:
-        return time(int(text[:2]), int(text[2:4]), int(text[4:]))
-    except ValueError:
-        return None
 
 
 def fetch_market_hours(

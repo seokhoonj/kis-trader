@@ -13,10 +13,11 @@ KIS URL/TR-ID:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date, time
+from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from ..._internal._datetime import _parse_hhmmss
 from ..._internal._response import (
     _advance_cursor,
     _fetch_paginated_rows,
@@ -929,15 +930,6 @@ def _parse_open_orders(rows: list[Mapping[str, Any]]) -> list[DomesticOpenOrder]
     return orders
 
 
-def _parse_hhmmss(value: object) -> time | None:
-    """``"131438"`` -> ``time(13, 14, 38)``. 공백/형식오류면 None(fail-soft)."""
-    text = str(value or "").strip()
-    if len(text) != 6 or not text.isdigit():
-        return None
-    hour, minute, second = int(text[0:2]), int(text[2:4]), int(text[4:6])
-    if hour > 23 or minute > 59 or second > 59:
-        return None
-    return time(hour, minute, second)
 
 
 # --- 공용 ------------------------------------------------------------------

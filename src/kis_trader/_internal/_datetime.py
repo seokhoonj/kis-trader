@@ -72,6 +72,22 @@ def _parse_kst_time(time_text: str) -> time:
         raise KISError(f"시각(HHMMSS) 파싱 실패: {time_text!r}") from err
 
 
+def _parse_hhmmss(value: object) -> time | None:
+    """``"131438"`` -> ``time(13, 14, 38)``. 공백/형식오류면 ``None`` (**fail-soft**).
+
+    표시용 선택 필드(주문시각 등)에 쓴다 -- 값이 없거나 깨져도 레코드 전체를 fail-closed 하지
+    않고 그 필드만 ``None`` 으로 둔다. 필수 시각(값이 반드시 있어야 하는 자리)에는 대신
+    :func:`_parse_kst_time` 를 써라 -- 그쪽은 형식오류면 :class:`~kis_trader.errors.KISError` 로
+    fail-closed 한다. 두 함수의 계약이 반대이므로 용도에 맞게 고른다."""
+    text = str(value or "").strip()
+    if len(text) != 6 or not text.isdigit():
+        return None
+    hour, minute, second = int(text[0:2]), int(text[2:4]), int(text[4:6])
+    if hour > 23 or minute > 59 or second > 59:
+        return None
+    return time(hour, minute, second)
+
+
 def _parse_intraday_timestamp(time_text: str, as_of: datetime) -> datetime:
     """당일 체결 시각("HHMMSS")을 KST-aware datetime 으로(날짜는 조회일 ``as_of``)."""
     try:

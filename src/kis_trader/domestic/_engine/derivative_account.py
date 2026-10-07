@@ -16,6 +16,7 @@ from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from ..._internal._datetime import _parse_hhmmss
 from ..._internal._response import (
     _advance_cursor,
     _fetch_paginated_rows_with_summary,
@@ -43,7 +44,6 @@ from ..entities.derivative_account import (
     DomesticDerivativeValuationPosition,
 )
 from ._parse import _side_from_code, _side_from_name
-from .account import _parse_hhmmss
 
 if TYPE_CHECKING:
     from ..._literals import Numeric
