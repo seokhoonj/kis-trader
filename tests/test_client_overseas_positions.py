@@ -234,6 +234,16 @@ def test_overseas_open_orders_maps_fields():
     assert call["params"]["OVRS_EXCG_CD"] == "NASD"
 
 
+def test_overseas_open_orders_accepts_fractional_quantity():
+    # 미국 소수주 주문 -- 수량이 Decimal 이라 fail-closed 하지 않고 그대로 담는다(형제 예약/알고와 동일).
+    fake = FakeTransport(response=_open_resp([_open_order(qty="0.5", ccld="0.2", nccs="0.3")]))
+    orders = _client(fake).account.overseas.open_orders(market="US")
+    o = orders[0]
+    assert o.quantity == Decimal("0.5")
+    assert o.filled_quantity == Decimal("0.2")
+    assert o.unfilled_quantity == Decimal("0.3")
+
+
 def test_overseas_open_orders_demo_unsupported():
     fake = FakeTransport(response=_open_resp([]))
     with pytest.raises(KISUsageError, match="모의투자 미지원"):

@@ -129,6 +129,11 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   mislabelled the weekly/monthly capability as "daily" and read ambiguously against the
   existing OHLC `bars()`.
 
+- `OverseasOpenOrder.quantity` / `filled_quantity` / `unfilled_quantity` are now `Decimal`
+  (were `int`), matching the sibling `OverseasReservedOrder` / `OverseasAlgoOrder` for the same
+  wire keys. The old `int` parse raised on any fractional quantity, so a single pending
+  fractional US-share order would fail the whole `kis.account.overseas.open_orders()` fetch;
+  fractional quantities now parse correctly.
 - `OverseasAlgoExecution.executed_amount` renamed to `amount`, matching the record's bare
   `quantity` / `price` — it is a single-execution record, so the `executed_` prefix was
   redundant (the whole entity is one execution). The timestamp field keeps its idiomatic

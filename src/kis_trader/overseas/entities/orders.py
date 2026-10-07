@@ -27,9 +27,9 @@ class OverseasOpenOrder:
     exchange: str                     # 해외거래소코드
     order_id: str                     # 거래소 주문번호(odno)
     side: Side                        # buy / sell
-    quantity: int                     # 주문수량
-    filled_quantity: int              # 체결수량
-    unfilled_quantity: int            # 미체결 잔량
+    quantity: Decimal                 # 주문수량
+    filled_quantity: Decimal          # 체결수량
+    unfilled_quantity: Decimal        # 미체결 잔량
     order_price: Money                # 주문단가(종목 통화)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

@@ -19,7 +19,7 @@ from typing import Any
 
 from ..._internal._datetime import _KST
 from ..._internal._response import _CONTINUATION_END, _fetch_paginated_rows
-from ..._internal._wire import format_wire_decimal, required_int
+from ..._internal._wire import format_wire_decimal
 from ...errors import KISError, KISUsageError, OrderTimeoutError
 from ...order import (
     AlgoStrategy,
@@ -543,9 +543,9 @@ def _parse_open_orders(
                 exchange=str(row.get("ovrs_excg_cd", "")).strip(),
                 order_id=order_id,
                 side=_side_from_code(row.get("sll_buy_dvsn_cd")),
-                quantity=required_int(row.get("ft_ord_qty"), "ft_ord_qty"),
-                filled_quantity=required_int(row.get("ft_ccld_qty"), "ft_ccld_qty"),
-                unfilled_quantity=required_int(row.get("nccs_qty"), "nccs_qty"),
+                quantity=_decimal_or_zero(row, "ft_ord_qty"),
+                filled_quantity=_decimal_or_zero(row, "ft_ccld_qty"),
+                unfilled_quantity=_decimal_or_zero(row, "nccs_qty"),
                 order_price=_money(row, "ft_ord_unpr3", currency),
                 _raw=row,
             )
