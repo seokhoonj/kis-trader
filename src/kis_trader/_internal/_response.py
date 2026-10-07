@@ -19,7 +19,7 @@ from ..transport import RawResponse, Transport
 _CONTINUATION_END = "^^"
 
 
-def advance_cursor(
+def _advance_cursor(
     body: Mapping[str, Any], *, ctx_width: int, prev_nk: str
 ) -> tuple[str, str] | None:
     """연속조회 다음 페이지 커서 ``(fk, nk)`` 를 돌려준다. ``tr_cont`` 가 F/M(더 있음)인데 연속키가
@@ -142,7 +142,7 @@ def _fetch_paginated_rows_with_summary(
         rows.extend(_require_mapping_rows(output_key, resp))
         if resp.tr_cont not in ("F", "M"):
             break
-        nxt = advance_cursor(resp.body, ctx_width=ctx_width, prev_nk=ctx_nk)
+        nxt = _advance_cursor(resp.body, ctx_width=ctx_width, prev_nk=ctx_nk)
         if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
             break
         ctx_fk, ctx_nk = nxt

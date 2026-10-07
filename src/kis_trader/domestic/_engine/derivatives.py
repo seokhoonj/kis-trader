@@ -36,10 +36,10 @@ from ..._internal._datetime import (
     _today_kst,
 )
 from ..._internal._response import (
+    _advance_cursor,
     _missing_block_error,
     _raise_if_error,
     _require_mapping_rows,
-    advance_cursor,
 )
 from ..._internal._wire import (
     _apply_change_sign,
@@ -423,7 +423,7 @@ def fetch_derivative_margin_rates(
         rows.extend(page)
         if resp.tr_cont not in ("F", "M"):
             break
-        nxt = advance_cursor(resp.body, ctx_width=200, prev_nk=ctx_nk)
+        nxt = _advance_cursor(resp.body, ctx_width=200, prev_nk=ctx_nk)
         if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
             break
         ctx_nk = nxt[1]

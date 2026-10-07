@@ -15,7 +15,7 @@ from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
-from ..._internal._response import _fetch_paginated_rows, _raise_if_error, advance_cursor
+from ..._internal._response import _advance_cursor, _fetch_paginated_rows, _raise_if_error
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
 from ...transport import Environment, RawResponse, Transport
@@ -385,7 +385,7 @@ def fetch_daily_fills(
         rows.extend(page)
         if resp.tr_cont not in ("F", "M"):
             break
-        nxt = advance_cursor(resp.body, ctx_width=200, prev_nk=ctx_nk)
+        nxt = _advance_cursor(resp.body, ctx_width=200, prev_nk=ctx_nk)
         if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
             break
         ctx_fk, ctx_nk = nxt
@@ -490,7 +490,7 @@ def fetch_period_pnl(
         by_symbol_rows.extend(_require_pnl_block(resp.body.get("output2"), "output2", resp))
         if resp.tr_cont not in ("F", "M"):
             break
-        nxt = advance_cursor(resp.body, ctx_width=200, prev_nk=ctx_nk)
+        nxt = _advance_cursor(resp.body, ctx_width=200, prev_nk=ctx_nk)
         if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
             break
         ctx_fk, ctx_nk = nxt

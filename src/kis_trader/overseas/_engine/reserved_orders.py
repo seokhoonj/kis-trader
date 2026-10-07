@@ -22,7 +22,7 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
 
 from ..._internal._response import _CONTINUATION_END, _require_mapping_rows
-from ..._internal._wire import decimal_or_zero, field_decimal_or_zero, format_wire_decimal
+from ..._internal._wire import decimal_or_zero, format_wire_decimal
 from ...errors import (
     AccountNotOrderableError,
     KISError,
@@ -36,7 +36,7 @@ from ...report import ExecutionReport, OrderStatus
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ...transport import Environment, Transport, TransportTimeoutError
 from ..entities.orders import OverseasReservedOrder
-from ._parse import _parse_date, _side_from_code
+from ._parse import _MAX_PAGES, _decimal_or_zero, _parse_date, _side_from_code
 from .orders import _ALGO_TMD_CLOSE, _ORD_DVSN_ALGO, _ORDER_EXCHANGE
 
 if TYPE_CHECKING:
@@ -58,8 +58,6 @@ _PLACE_TR = {
 _CANCEL_PATH = "/uapi/overseas-stock/v1/trading/order-resv-ccnl"
 #: 환경 -> 미국 예약취소 TR. 아시아는 전용 취소 엔드포인트가 없어(원장: "미제공") 발주 TR 로 취소한다.
 _US_CANCEL_TR = {"real": "TTTT3017U", "paper": "VTTT3017U"}
-#: 연속조회 페이지 상한. 닿으면 fail-closed.
-_MAX_PAGES = 100
 _SIDE_CODE = {"buy": "02", "sell": "01"}
 _US_MARKET = "US"
 #: 아시아 예약주문 대상 시장(`_ORDER_EXCHANGE` 의 시장 그룹 값) -- 홍콩/상해/심천/일본/베트남.
@@ -696,7 +694,3 @@ def _parse(row: Mapping[str, Any]) -> OverseasReservedOrder:
         unprocessed_reason=str(row.get("nprc_rson_text", "")).strip(),
         _raw=row,
     )
-
-
-def _decimal_or_zero(row: Mapping[str, Any], key: str) -> Decimal:
-    return field_decimal_or_zero(row.get(key), key)

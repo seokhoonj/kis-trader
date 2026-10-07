@@ -18,11 +18,11 @@ from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from ..._internal._response import (
+    _advance_cursor,
     _fetch_paginated_rows,
     _fetch_paginated_rows_with_summary,
     _raise_if_error,
     _require_mapping_rows,
-    advance_cursor,
 )
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
@@ -147,7 +147,7 @@ def _walk_holdings(
         rows.extend(_require_mapping_rows("output1", resp))
         if resp.tr_cont not in ("F", "M"):
             break
-        nxt = advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
+        nxt = _advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
         if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
             break
         ctx_fk, ctx_nk = nxt
@@ -393,7 +393,7 @@ def fetch_trade_profits(
         rows.extend(page)
         if resp.tr_cont not in ("F", "M"):
             break
-        nxt = advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
+        nxt = _advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
         if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
             break
         ctx_fk, ctx_nk = nxt
@@ -485,7 +485,7 @@ def fetch_daily_profits(
         rows.extend(page)
         if resp.tr_cont not in ("F", "M"):
             break
-        nxt = advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
+        nxt = _advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
         if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
             break
         ctx_fk, ctx_nk = nxt
@@ -707,7 +707,7 @@ def fetch_realized_profit_balance(
         summary = _first_summary(resp.body.get("output2")) or summary
         if resp.tr_cont not in ("F", "M"):
             break
-        nxt = advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
+        nxt = _advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
         if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
             break
         ctx_fk, ctx_nk = nxt
