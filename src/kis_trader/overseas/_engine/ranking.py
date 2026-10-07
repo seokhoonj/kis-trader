@@ -12,7 +12,7 @@ KIS URL/TR-ID:
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from typing import Any
+from typing import Any, Literal
 
 from ..._internal._response import (
     _missing_block_error,
@@ -173,7 +173,7 @@ def fetch_by_price_fluctuation(
 
 
 def fetch_by_new_highlow(
-    transport: Transport, *, exchange: str, extreme: str = "high", sustained: bool = True
+    transport: Transport, *, exchange: str, extreme: Literal["high", "low"] = "high", sustained: bool = True
 ) -> list[OverseasRankedStock]:
     """한 거래소의 신고가/신저가 순위. ``extreme="high"`` 신고 / ``"low"`` 신저(KIS 명세 GUBN 1/0).
     ``sustained=True`` 돌파유지 / ``False`` 일시돌파(KIS 명세 GUBN2 1/0)."""

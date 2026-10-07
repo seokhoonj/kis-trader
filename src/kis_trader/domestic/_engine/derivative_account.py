@@ -22,6 +22,7 @@ from ..._internal._response import (
     advance_cursor,
 )
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
+from ..._literals import SideFilter
 from ...errors import KISError, KISUsageError
 from ...transport import Environment, RawResponse, Transport
 from ..entities.derivative_account import (
@@ -812,7 +813,7 @@ def _open_order(row: Mapping[str, Any]) -> DerivativeOpenOrder:
 
 def fetch_open_orders(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    order_date: str, side: str = "all", symbol: str | None = None,
+    order_date: str, side: SideFilter = "all", symbol: str | None = None,
 ) -> list[DerivativeOpenOrder]:
     """선물옵션 미체결(정정·취소 가능) 주문 -- 주문체결내역조회(inquire-ccnl)에 CCLD_NCCS_DVSN="02"
     (미체결)로 걸어 연속조회 소진까지 모은다. ``order_date`` (YYYYMMDD) 주문일자, ``side`` 는

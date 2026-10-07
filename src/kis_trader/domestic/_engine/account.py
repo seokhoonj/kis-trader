@@ -27,6 +27,7 @@ from ..._internal._response import (
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
 from ...open_order import OpenOrder
+from ...order import CreditType
 from ...orderable import BuyableAmount, SellableQuantity
 from ...transport import Environment, RawResponse, Transport
 from ..entities.account_reports import (
@@ -284,7 +285,7 @@ def fetch_sellable(
 
 def fetch_credit_buyable(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    symbol: str, credit_type: str, limit_price: Numeric | None = None,
+    symbol: str, credit_type: CreditType, limit_price: Numeric | None = None,
 ) -> BuyableAmount:
     """신용(융자/대주) 매수가능 여력. ``credit_type`` 은 신용유형(21 자기융자신규 등),
     ``limit_price`` 없으면 시장가 기준. **모의투자 미지원**.

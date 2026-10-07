@@ -122,6 +122,14 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `symbol`. The realtime `bond_index(...)` handle keeps `code` (a market index, not a tradable
   bond).
 
+- Several closed-choice parameters that were bare `str` are now typed, matching the sibling
+  that already types them: `account.domestic.derivatives.open_orders(side=...)` is `SideFilter`
+  (like every other `side` filter), the domestic credit-buyable `credit_type` is `CreditType`,
+  `overseas.ranking.by_new_highlow(extreme=...)` is `Literal["high","low"]`, and the MCP
+  `place_order` (`region`/`side`) and `ranking_change` (`direction`) tools type their closed
+  choices (like the `quote` tool). Runtime behavior is unchanged — the same values are accepted;
+  the annotations just let the type checker reject an invalid literal.
+
 ### Added
 
 - Stock handles (`DomesticStock`/`OverseasStock`) now have a readable `__repr__`

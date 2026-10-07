@@ -9,7 +9,7 @@
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Literal
 
 from .._literals import Direction, FluctuationDirection
 from ._engine import ranking as overseas_ranking_api
@@ -74,7 +74,7 @@ class OverseasRankingQueries:
         )
 
     def by_new_highlow(
-        self, *, exchange: str, extreme: str = "high", sustained: bool = True
+        self, *, exchange: str, extreme: Literal["high", "low"] = "high", sustained: bool = True
     ) -> list[OverseasRankedStock]:
         """한 거래소의 신고가/신저가 순위. ``extreme="high"`` 신고 / ``"low"`` 신저,
         ``sustained=True`` 돌파유지 / ``False`` 일시돌파."""

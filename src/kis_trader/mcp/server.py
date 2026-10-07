@@ -23,8 +23,10 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
 from mcp.server.transport_security import TransportSecuritySettings
 
+from .._literals import Direction
 from ..client import KISClient
 from ..errors import KISError, KISUsageError
+from ..order import Side
 from ..risk import RiskLimits
 from . import handlers
 from ._elicit import SupportsElicit, confirm_order
@@ -249,7 +251,7 @@ def build_server(
         return handlers.search(kis, query, limit=limit)
 
     @server.tool()
-    def ranking_change(direction: str = "gainers", limit: int = 10) -> list[dict[str, Any]]:
+    def ranking_change(direction: Direction = "gainers", limit: int = 10) -> list[dict[str, Any]]:
         """국내 등락률 순위(gainers/losers)."""
         return handlers.ranking_change(kis, direction=direction, limit=limit)
 
@@ -286,7 +288,7 @@ def build_server(
 
     @server.tool()
     async def place_order(
-        ctx: Context, region: str, symbol: str, side: str, quantity: int,
+        ctx: Context, region: Literal["domestic", "overseas"], symbol: str, side: Side, quantity: int,
         limit_price: str | None = None,
     ) -> dict[str, Any]:
         """국내 주식 실주문(매수/매도). 모의 기본. 실전은 이중게이트+RiskLimits+allowlist+사람확인을 전부

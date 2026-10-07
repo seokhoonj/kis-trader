@@ -33,6 +33,7 @@ from .entities.derivative_account import (
 )
 
 if TYPE_CHECKING:
+    from .._literals import SideFilter
     from ..client import KISClient
 
 _KST = timezone(timedelta(hours=9))
@@ -67,7 +68,7 @@ class DomesticDerivativesAccount:
         )
 
     def open_orders(
-        self, *, order_date: str | None = None, side: str = "all", symbol: str | None = None,
+        self, *, order_date: str | None = None, side: SideFilter = "all", symbol: str | None = None,
     ) -> list[DerivativeOpenOrder]:
         """선물옵션 미체결(정정·취소 가능) 주문. ``order_date`` (YYYYMMDD, 생략하면 오늘 KST),
         ``side`` = ``"all"``/``"buy"``/``"sell"``, ``symbol`` 생략하면 전체 종목.
