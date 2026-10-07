@@ -23,7 +23,7 @@ from .derivative import FuturesContract, OptionContract
 from .elw import ELW
 from .elw_ranking import ELWRankingQueries
 from .elw_screener import ELWScreenerQueries
-from .index import Index
+from .index import DomesticIndex
 from .market import MarketQueries
 from .ranking import RankingQueries
 from .stock import DomesticStock
@@ -35,10 +35,10 @@ if TYPE_CHECKING:
     from .._literals import Numeric, ProfitSort, SideFilter
     from ..client import KISClient
     from ..instrument import DomesticQuoteExchange
-    from ..open_order import OpenOrder
+    from ..open_order import DomesticOpenOrder
     from ..order import Right, Side
     from ..quote import Quote
-    from ..reserved_order import ReservedOrder, ReservedProcess
+    from ..reserved_order import DomesticReservedOrder, ReservedProcess
     from .entities.account_reports import IntegratedMargin, RealizedProfitBalance
     from .entities.account_right import AccountRight
     from .entities.balance import AccountAssets, DomesticBalance, Portfolio, Position
@@ -164,7 +164,7 @@ class DomesticAccount:
             start=start, end=end,
         )
 
-    def open_orders(self) -> list[OpenOrder]:
+    def open_orders(self) -> list[DomesticOpenOrder]:
         """미체결(정정·취소 가능) 주문. 브로커 측 뷰라 ``client_order_id`` 는 없고 KIS 주문번호로 식별한다.
         정정/취소 전 ``cancelable_quantity`` 를 확인하라. **모의투자 미지원**."""
         cano, product_code = self._client._require_account()
@@ -181,7 +181,7 @@ class DomesticAccount:
 
     def reserved_orders(
         self, *, start: str, end: str, process: ReservedProcess = "all"
-    ) -> list[ReservedOrder]:
+    ) -> list[DomesticReservedOrder]:
         """예약주문 목록(다음 영업일 동시호가 등에 걸어둔 예약). ``process`` =
         ``"all"``/``"processed"``/``"unprocessed"``. 각 건의 ``sequence`` 로 정정·취소한다. **모의투자 미지원**."""
         cano, product_code = self._client._require_account()
@@ -239,9 +239,9 @@ class DomesticNamespace:
         (이후는 캐시). 빈 검색어/잘못된 ``market`` 은 :class:`~kis_trader.errors.KISUsageError`."""
         return self._client._ensure_domestic_index().search_stocks(query, market=market)
 
-    def index(self, code: str) -> Index:
+    def index(self, code: str) -> DomesticIndex:
         """지수/업종 핸들. ``code`` 는 업종코드(0001 KOSPI 종합, 1001 KOSDAQ 종합, 2001 KOSPI200 등)."""
-        return Index(self._client, code)
+        return DomesticIndex(self._client, code)
 
     def bond(self, symbol: str) -> Bond:
         """장내채권 핸들. ``symbol`` 은 표준코드(ISIN, 예: KR2033022D33)."""

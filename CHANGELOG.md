@@ -35,6 +35,14 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   serializes `region`.
 - `RankedOverseasStock` renamed to `OverseasRankedStock` — the sole overseas result type
   that did not lead with the `Overseas` qualifier its ~40 siblings share.
+- The four domestic result/handle types that already had an `Overseas*` sibling but lacked
+  the region qualifier are renamed with a `Domestic` prefix: `OpenOrder` →
+  `DomesticOpenOrder`, `ReservedOrder` → `DomesticReservedOrder`, `BuyableAmount` →
+  `DomesticBuyableAmount`, and the `Index` query handle → `DomesticIndex`. Each is
+  domestic-only (distinct from its `Overseas*` sibling), so the bare name misread as a
+  region-neutral type; the prefix matches the `DomesticBalance` / `OverseasBalance`
+  convention (the cross-domain aggregate `OpenOrders` stays bare). Fields and behavior are
+  unchanged — only the class names.
 - `TransportTimeout` renamed to `TransportTimeoutError` — matches the package's exception
   naming (every other error ends in `Error`, e.g. the sibling `OrderTimeoutError`) and the
   Python convention (`TimeoutError`).

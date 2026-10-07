@@ -1,4 +1,4 @@
-"""국내주식 미체결(정정·취소 가능) 주문 한 건(DATA) -- :class:`OpenOrder`.
+"""국내주식 미체결(정정·취소 가능) 주문 한 건(DATA) -- :class:`DomesticOpenOrder`.
 
 브로커(한국투자증권)에 남아 있는 접수 주문 중 아직 정정·취소할 수 있는 건들이다. 해외의
 :class:`~kis_trader.overseas.entities.orders.OverseasOpenOrder` 와 대칭인 국내판으로, 브로커 측 뷰라
@@ -22,7 +22,7 @@ from .order import Side
 
 
 @dataclass(frozen=True, slots=True)
-class OpenOrder:
+class DomesticOpenOrder:
     """국내주식 미체결 주문 한 건(불변).
 
     ``order_id`` KIS 주문번호(odno), ``original_order_id`` 는 이 건이 정정/취소 주문이면 그

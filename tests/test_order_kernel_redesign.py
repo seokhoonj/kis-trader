@@ -310,17 +310,17 @@ def test_public_write_surface_uses_limit_price():
 
 def test_order_result_types_expose_order_price():
     """주문 결과 타입은 주문단가를 order_price 로 노출한다(체결단가 price 와 구분)."""
-    from kis_trader.open_order import OpenOrder
+    from kis_trader.open_order import DomesticOpenOrder
     from kis_trader.overseas.entities.orders import (
         OverseasAlgoOrder,
         OverseasOpenOrder,
         OverseasReservedOrder,
     )
     from kis_trader.pension.entities import PensionOrder
-    from kis_trader.reserved_order import ReservedOrder
+    from kis_trader.reserved_order import DomesticReservedOrder
 
-    for dto in (OpenOrder, OverseasOpenOrder, OverseasAlgoOrder, OverseasReservedOrder,
-                PensionOrder, ReservedOrder):
+    for dto in (DomesticOpenOrder, OverseasOpenOrder, OverseasAlgoOrder, OverseasReservedOrder,
+                PensionOrder, DomesticReservedOrder):
         fields = dto.__dataclass_fields__
         assert "order_price" in fields, dto.__name__
         assert "price" not in fields and "reserved_price" not in fields, dto.__name__

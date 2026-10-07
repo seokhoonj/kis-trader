@@ -36,7 +36,7 @@ from ...order import (
     validate_yyyymmdd,
 )
 from ...report import ExecutionReport, OrderStatus
-from ...reserved_order import ReservedOrder
+from ...reserved_order import DomesticReservedOrder
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ...transport import Environment, Transport, TransportTimeoutError
 from ._parse import _side_from_code
@@ -123,7 +123,7 @@ def _make_reserved_order_fields(
 def fetch_reserved_orders(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     start: str, end: str, process: ReservedProcess = "all",
-) -> list[ReservedOrder]:
+) -> list[DomesticReservedOrder]:
     """예약주문 조회(연속조회 소진까지). ``start``/``end`` 는 예약주문일자 기간(YYYYMMDD),
     ``process`` = all/processed/unprocessed. 유효(취소 안 된) 예약만 준다. **모의투자 미지원**."""
     if environment == "paper":
@@ -501,8 +501,8 @@ def _extract_sequence(body: Mapping[str, Any]) -> str:
     return ""
 
 
-def _parse_reserved(row: Mapping[str, Any]) -> ReservedOrder:
-    return ReservedOrder(
+def _parse_reserved(row: Mapping[str, Any]) -> DomesticReservedOrder:
+    return DomesticReservedOrder(
         sequence=str(row.get("rsvn_ord_seq", "")).strip(),
         order_date=_parse_date(row.get("rsvn_ord_ord_dt")),
         received_date=_parse_date(row.get("rsvn_ord_rcit_dt")),

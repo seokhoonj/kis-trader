@@ -1,4 +1,4 @@
-"""지수/업종 핸들 -- :class:`Index`.
+"""지수/업종 핸들 -- :class:`DomesticIndex`.
 
 한 지수(업종)에 대해 조회를 시키는 핸들이다: ``kis.domestic.index("0001").quote()`` 처럼(0001=KOSPI 종합).
 종목 핸들 :class:`~kis_trader.domestic.stock.DomesticStock` 와 대칭이며, 지수는 종목이 아니라 업종코드로 조회한다.
@@ -60,7 +60,7 @@ def _resolve_index_code(code: str) -> str:
     return _INDEX_NAME_TO_CODE.get(code.strip().upper(), code)
 
 
-class Index:
+class DomesticIndex:
     """한 지수(업종)에 대한 조회 핸들. 세션(:class:`KISClient`)과 업종코드를 안다.
 
     보통 직접 만들지 않고 ``kis.domestic.index`` 로 얻는다. ``code`` 는 업종코드(예: 0001 KOSPI

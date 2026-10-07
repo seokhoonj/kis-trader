@@ -35,7 +35,7 @@ from ..order import (
     resolve_new_credit_loan_date,
 )
 from ..order_book import OrderBook
-from ..orderable import BuyableAmount, SellableQuantity
+from ..orderable import DomesticBuyableAmount, SellableQuantity
 from ..quote import Quote
 from ..report import ExecutionReport
 from ..trade import Trade
@@ -391,7 +391,7 @@ class DomesticStock(_StockBase):
         )
 
     # --- 계좌 단위(매수/매도 여력; 계좌 정보 필요) ---
-    def buyable(self, *, limit_price: Numeric | None = None) -> BuyableAmount:
+    def buyable(self, *, limit_price: Numeric | None = None) -> DomesticBuyableAmount:
         """이 종목의 매수가능 여력(현금 기준·미수 포함 최대). ``limit_price`` 없으면 시장가 기준.
 
         계좌 정보 없이 생성한 세션이면 :class:`~kis_trader.errors.KISUsageError`.
@@ -404,10 +404,10 @@ class DomesticStock(_StockBase):
 
     def credit_buyable(
         self, *, credit_type: CreditType = "21", limit_price: Numeric | None = None
-    ) -> BuyableAmount:
+    ) -> DomesticBuyableAmount:
         """이 종목의 신용(융자/대주) 매수가능 여력. ``credit_type`` 신용유형(기본 21 자기융자신규,
         22 유통대주신규/23 유통융자신규/24 자기대주신규/25~28 각 상환), ``limit_price`` 없으면 시장가
-        기준. 현금 :meth:`buyable` 과 같은 :class:`~kis_trader.orderable.BuyableAmount` 를 주며, 신용
+        기준. 현금 :meth:`buyable` 과 같은 :class:`~kis_trader.orderable.DomesticBuyableAmount` 를 주며, 신용
         전용 필드는 ``_raw`` 로 본다. **모의투자 미지원**."""
         cano, product_code = self._client._require_account()
         return account_api.fetch_credit_buyable(

@@ -12,7 +12,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader import KISClient, OpenOrder
+from kis_trader import DomesticOpenOrder, KISClient
 from kis_trader.domestic._engine import account as account_module
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
@@ -71,7 +71,7 @@ def test_open_orders_parses_ledger_rows():
     orders = _client(FakeTransport(response=_resp(rows=[_ROW_AMEND, _ROW_PLAIN]))).account.domestic.open_orders()
     assert len(orders) == 2
     first = orders[0]
-    assert isinstance(first, OpenOrder)
+    assert isinstance(first, DomesticOpenOrder)
     assert first.symbol == "009150"
     assert first.name == "SamsungElecMech"
     assert first.order_id == "0001569139"

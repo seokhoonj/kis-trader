@@ -1,6 +1,6 @@
 """신용매수가능조회 -- kis.domestic.stock(symbol).credit_buyable() (TTTC8909R).
 
-현금 매수가능과 output 형상이 같아 BuyableAmount 를 공유한다. 네트워크 없이 FakeTransport 로
+현금 매수가능과 output 형상이 같아 DomesticBuyableAmount 를 공유한다. 네트워크 없이 FakeTransport 로
 검증하며, 픽스처는 원장 응답예시(inquire-credit-psamount) 실값을 쓴다.
 """
 
@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader import BuyableAmount, KISClient
+from kis_trader import DomesticBuyableAmount, KISClient
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 
@@ -52,7 +52,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 
 def test_credit_buyable_parses_shared_fields():
     result = _client(FakeTransport(response=_resp())).domestic.stock("005930").credit_buyable(limit_price="55000")
-    assert isinstance(result, BuyableAmount)
+    assert isinstance(result, DomesticBuyableAmount)
     assert result.symbol == "005930"
     assert result.currency == "KRW"
     assert result.orderable_cash == Decimal(99965177664)

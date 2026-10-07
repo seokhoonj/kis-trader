@@ -12,7 +12,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader import KISClient, ReservedOrder
+from kis_trader import DomesticReservedOrder, KISClient
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 
@@ -61,7 +61,7 @@ def test_reserved_orders_parses_ledger_row():
     orders = _client(FakeTransport(response=_resp())).account.domestic.reserved_orders(start="20220501", end="20220523")
     assert len(orders) == 1
     o = orders[0]
-    assert isinstance(o, ReservedOrder)
+    assert isinstance(o, DomesticReservedOrder)
     assert o.sequence == "42401"
     assert o.order_date == date(2022, 5, 23)
     assert o.received_date == date(2022, 5, 20)

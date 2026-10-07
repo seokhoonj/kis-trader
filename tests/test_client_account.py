@@ -11,8 +11,8 @@ from decimal import Decimal
 import pytest
 
 from kis_trader import (
-    BuyableAmount,
     DomesticBalance,
+    DomesticBuyableAmount,
     KISClient,
     Portfolio,
     Position,
@@ -204,7 +204,7 @@ def test_portfolio_returns_balance_and_positions_in_one_walk():
 def test_ticker_buyable_parses_and_limit_division():
     fake = FakeTransport(response=_buyable_resp())
     result = _client(fake).domestic.stock("005930").buyable(limit_price=75000)
-    assert isinstance(result, BuyableAmount)
+    assert isinstance(result, DomesticBuyableAmount)
     assert result.orderable_cash == Decimal(1000000)
     assert result.cash_buyable_quantity == Decimal(13)
     assert result.max_buyable_quantity == Decimal(27)

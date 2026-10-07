@@ -26,9 +26,9 @@ from ..._internal._response import (
 )
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
-from ...open_order import OpenOrder
+from ...open_order import DomesticOpenOrder
 from ...order import CreditType
-from ...orderable import BuyableAmount, SellableQuantity
+from ...orderable import DomesticBuyableAmount, SellableQuantity
 from ...transport import Environment, RawResponse, Transport
 from ..entities.account_reports import (
     IntegratedMargin,
@@ -234,7 +234,7 @@ def _extract_summary(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
 def fetch_buyable_amount(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     symbol: str | None = None, limit_price: Numeric | None = None,
-) -> BuyableAmount:
+) -> DomesticBuyableAmount:
     """매수가능 여력. ``symbol`` 없으면 금액만(수량 0). ``limit_price`` 있으면 지정가 기준."""
     if symbol is None and limit_price is not None:
         raise KISUsageError("limit_price 는 symbol 과 함께 줘야 한다(금액만 조회엔 단가 무의미).")
@@ -286,11 +286,11 @@ def fetch_sellable(
 def fetch_credit_buyable(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     symbol: str, credit_type: CreditType, limit_price: Numeric | None = None,
-) -> BuyableAmount:
+) -> DomesticBuyableAmount:
     """신용(융자/대주) 매수가능 여력. ``credit_type`` 은 신용유형(21 자기융자신규 등),
     ``limit_price`` 없으면 시장가 기준. **모의투자 미지원**.
 
-    현금 매수가능(:func:`fetch_buyable_amount`)과 output 형상이 같아 :class:`BuyableAmount` 를 공유한다
+    현금 매수가능(:func:`fetch_buyable_amount`)과 output 형상이 같아 :class:`DomesticBuyableAmount` 를 공유한다
     -- 신용 전용 필드(주문가능대용·펀드환매대금·CMA평가금액 등)는 ``_raw`` 로 접근한다.
     """
     if environment == "paper":
@@ -324,8 +324,8 @@ def fetch_credit_buyable(
     return _parse_buyable(output, symbol=symbol)
 
 
-def _parse_buyable(output: Mapping[str, Any], *, symbol: str) -> BuyableAmount:
-    return BuyableAmount(
+def _parse_buyable(output: Mapping[str, Any], *, symbol: str) -> DomesticBuyableAmount:
+    return DomesticBuyableAmount(
         symbol=symbol,
         currency="KRW",
         orderable_cash=required_decimal(output.get("ord_psbl_cash"), "ord_psbl_cash"),
@@ -871,7 +871,7 @@ def fetch_account_assets(
 # --- 미체결(정정·취소 가능) 주문 -------------------------------------------
 def fetch_open_orders(
     transport: Transport, *, cano: str, product_code: str, environment: Environment
-) -> list[OpenOrder]:
+) -> list[DomesticOpenOrder]:
     """미체결(정정·취소 가능) 주문 전체(연속조회 소진까지). **모의투자 미지원**.
 
     브로커 측 뷰라 우리 ``client_order_id`` 는 없다 -- 정정/취소는 KIS ``order_id``/``branch_number``
@@ -900,8 +900,8 @@ def fetch_open_orders(
     return _parse_open_orders(rows)
 
 
-def _parse_open_orders(rows: list[Mapping[str, Any]]) -> list[OpenOrder]:
-    orders: list[OpenOrder] = []
+def _parse_open_orders(rows: list[Mapping[str, Any]]) -> list[DomesticOpenOrder]:
+    orders: list[DomesticOpenOrder] = []
     for row in rows:
         order_id = str(row.get("odno", "")).strip()
         if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
@@ -909,7 +909,7 @@ def _parse_open_orders(rows: list[Mapping[str, Any]]) -> list[OpenOrder]:
         quantity = field_decimal_or_zero(row.get("ord_qty"), "ord_qty")
         filled = field_decimal_or_zero(row.get("tot_ccld_qty"), "tot_ccld_qty")
         orders.append(
-            OpenOrder(
+            DomesticOpenOrder(
                 symbol=str(row.get("pdno", "")).strip(),
                 name=str(row.get("prdt_name", "")).strip(),
                 order_id=order_id,

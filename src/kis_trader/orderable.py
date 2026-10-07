@@ -1,6 +1,6 @@
-"""주문가능 여력(DATA) -- :class:`BuyableAmount`, :class:`SellableQuantity`.
+"""주문가능 여력(DATA) -- :class:`DomesticBuyableAmount`, :class:`SellableQuantity`.
 
-주문 전 사전점검값. :class:`BuyableAmount` 는 얼마나 살 수 있는지(현금 기준·미수 포함 최대),
+주문 전 사전점검값. :class:`DomesticBuyableAmount` 는 얼마나 살 수 있는지(현금 기준·미수 포함 최대),
 :class:`SellableQuantity` 는 얼마나 팔 수 있는지(보유 중 주문가능 수량). 금액은 KRW Decimal.
 """
 
@@ -16,7 +16,7 @@ from ._internal._freeze import freeze_vendor_payload
 
 
 @dataclass(frozen=True, slots=True)
-class BuyableAmount:
+class DomesticBuyableAmount:
     """한 종목의 매수가능 여력(불변).
 
     ``cash_buyable_*`` 는 미수(외상) 없는 현금 기준, ``max_buyable_*`` 는 미수 포함 최대. 종목/

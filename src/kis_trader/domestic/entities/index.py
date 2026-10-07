@@ -1,9 +1,9 @@
 """지수/업종 시세 DATA -- :class:`IndexQuote`, :class:`IndexIntradayPoint`, :class:`CategoryIndex`.
 
-:class:`~kis_trader.domestic.index.Index` 핸들(``kis.domestic.index(code)``)이 돌려주는 지수(업종) 시세 타입들이다.
-:class:`IndexQuote` 는 현재가 스냅샷(:meth:`~kis_trader.domestic.index.Index.quote`), :class:`IndexIntradayPoint`
-는 당일 시간대별 시계열(:meth:`~kis_trader.domestic.index.Index.intraday`)의 한 점, :class:`CategoryIndex` 는
-시장 하위 업종 지수(:meth:`~kis_trader.domestic.index.Index.categories`)의 한 항목이다. 종목의
+:class:`~kis_trader.domestic.index.DomesticIndex` 핸들(``kis.domestic.index(code)``)이 돌려주는 지수(업종) 시세 타입들이다.
+:class:`IndexQuote` 는 현재가 스냅샷(:meth:`~kis_trader.domestic.index.DomesticIndex.quote`), :class:`IndexIntradayPoint`
+는 당일 시간대별 시계열(:meth:`~kis_trader.domestic.index.DomesticIndex.intraday`)의 한 점, :class:`CategoryIndex` 는
+시장 하위 업종 지수(:meth:`~kis_trader.domestic.index.DomesticIndex.categories`)의 한 항목이다. 종목의
 :class:`~kis_trader.quote.Quote` 와 달리 체결가가 아니라 **지수 레벨**(``index_value``)을 담는다.
 """
 

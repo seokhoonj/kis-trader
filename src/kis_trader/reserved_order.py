@@ -1,4 +1,4 @@
-"""예약주문(DATA) -- :class:`ReservedOrder`.
+"""예약주문(DATA) -- :class:`DomesticReservedOrder`.
 
 예약주문은 정규장이 열리지 않는 시간에 미리 걸어두고 다음 영업일(또는 지정 기간) 아침 동시호가에
 집행되는 주문이다. 즉시체결 주문(:class:`~kis_trader.report.ExecutionReport`)과 라이프사이클이
@@ -22,7 +22,7 @@ ReservedProcess = Literal["all", "processed", "unprocessed"]
 
 
 @dataclass(frozen=True, slots=True)
-class ReservedOrder:
+class DomesticReservedOrder:
     """예약주문 한 건(불변).
 
     ``sequence`` 예약주문순번(정정·취소 시 이 값으로 지목), ``order_date`` 예약집행 예정일,

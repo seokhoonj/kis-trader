@@ -94,11 +94,11 @@ def test_execution_report_raw_is_deep_frozen() -> None:
 
 
 def test_reserved_order_raw_is_deep_frozen() -> None:
-    # 회귀락: ReservedOrder 도 _raw 를 깊게 얼린다.
+    # 회귀락: DomesticReservedOrder 도 _raw 를 깊게 얼린다.
     from decimal import Decimal
 
-    from kis_trader.reserved_order import ReservedOrder
-    ro = ReservedOrder(
+    from kis_trader.reserved_order import DomesticReservedOrder
+    ro = DomesticReservedOrder(
         sequence="1", order_date=None, received_date=None, symbol="005930", name="삼성전자",
         side="buy", order_type_name="현금매수", reserved_quantity=Decimal(10),
         filled_quantity=Decimal(0), order_price=Decimal(70000), status="미처리",
