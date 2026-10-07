@@ -11,7 +11,14 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader import Bar, IndexQuote, KISClient, RecentIndexPoint, RecentIndexPrices
+from kis_trader import (
+    Bar,
+    DomesticIndex,
+    IndexQuote,
+    KISClient,
+    RecentIndexPoint,
+    RecentIndexPrices,
+)
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 
@@ -52,6 +59,12 @@ def _resp(output):
 
 def _client(transport):
     return KISClient(app_key="k", app_secret="s", transport=transport)
+
+
+def test_index_factory_returns_domestic_index_handle():
+    handle = _client(FakeTransport()).domestic.index("0001")
+    assert isinstance(handle, DomesticIndex)
+    assert handle.code == "0001"
 
 
 def test_index_quote_maps_fields_and_params():

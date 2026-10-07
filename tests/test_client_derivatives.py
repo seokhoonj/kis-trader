@@ -346,6 +346,7 @@ def test_expected_execution_trend_maps_summary_and_sorted_points():
     assert trend.change == Decimal("-1.30")
     assert trend.change_percent == Decimal("-0.39")
     assert trend.base_price == Decimal("336.50")
+    assert trend.symbol == "101W09"
     assert [f"{point.timestamp:%H%M%S}" for point in trend.points] == ["085901", "085902"]
     assert trend.points[0].change == Decimal("0.30")
     assert trend.points[1].change == Decimal("-1.30")

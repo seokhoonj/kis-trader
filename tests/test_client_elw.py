@@ -227,6 +227,7 @@ def test_volatility_trend_daily_maps_iv_and_change():
     points = _client(fake).domestic.elw("58J297").volatility_trend("day")
     assert all(isinstance(p, ELWVolatilityPoint) for p in points)
     point = points[0]
+    assert point.symbol == "58J297"
     assert point.price == Decimal(5)
     assert point.implied_volatility == Decimal("23.37")
     assert point.change == Decimal(0)
@@ -315,6 +316,7 @@ def test_indicator_trend_daily_maps_indicators_and_change():
     points = _client(fake).domestic.elw("57K281").indicator_trend("day")
     assert all(isinstance(p, ELWIndicatorPoint) for p in points)
     point = points[0]
+    assert point.symbol == "57K281"
     assert point.price == Decimal(40)
     assert point.leverage == Decimal("-11.0377")
     assert point.gearing == Decimal("19.45")

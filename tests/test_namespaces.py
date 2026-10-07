@@ -167,6 +167,15 @@ def test_overseas_derivative_uses_symbol_keyword():
     assert k.overseas.option(symbol="ESZ25").symbol == "ESZ25"
 
 
+def test_domestic_instrument_factories_accept_symbol_keyword():
+    # 국내 종목/선물/옵션/ELW 팩토리의 공개 식별자 인자명은 symbol -- 키워드 호출 회귀 방지.
+    k = _client()
+    assert k.domestic.stock(symbol="005930").symbol == "005930"
+    assert k.domestic.futures(symbol="101W09").symbol == "101W09"
+    assert k.domestic.option(symbol="201W09350").symbol == "201W09350"
+    assert k.domestic.elw(symbol="58J297").symbol == "58J297"
+
+
 def test_domestic_stock_accepts_elw_alphanumeric_code():
     # ELW 단축코드(6자리 영숫자)도 market 인자 없이 국내 종목 핸들로 만들어진다.
     k = _client()

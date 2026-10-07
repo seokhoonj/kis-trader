@@ -137,6 +137,15 @@ def test_stock_trades_rejects_removed_venue_keyword() -> None:
         ns.stock("005930").trades(venue="KRX")  # type: ignore[call-arg]
 
 
+def test_domestic_realtime_factories_accept_symbol_keyword() -> None:
+    # 국내 realtime 팩토리 공개 인자명은 symbol -- 키워드 호출 회귀 방지.
+    _, ns = _ns()
+    assert isinstance(ns.stock(symbol="005930").trades(exchange="KRX"), RealtimeSubscription)
+    assert isinstance(ns.futures(symbol="101W09").trades(), RealtimeSubscription)
+    assert isinstance(ns.option(symbol="201W09350").trades(), RealtimeSubscription)
+    assert isinstance(ns.elw(symbol="58J297").trades(), RealtimeSubscription)
+
+
 def test_bad_session_fails_closed() -> None:
     _, ns = _ns()
     with pytest.raises(KISUsageError):
