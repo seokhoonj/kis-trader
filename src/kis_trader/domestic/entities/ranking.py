@@ -21,6 +21,7 @@ from types import MappingProxyType
 from typing import Any
 
 from ..._internal._freeze import freeze_vendor_payload
+from .market import Market
 
 
 def _empty_raw() -> Mapping[str, Any]:
@@ -222,7 +223,7 @@ class TopViewedStock:
 
     rank: int
     symbol: str
-    market: str                       # 시장구분(J:KOSPI / Q:KOSDAQ)
+    market: Market                    # 시장구분(J->KOSPI / Q->KOSDAQ)
     _raw: Mapping[str, Any] = field(
         default_factory=_empty_raw, compare=False, hash=False, repr=False
     )

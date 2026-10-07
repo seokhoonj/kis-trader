@@ -189,6 +189,14 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   other realtime entity uses). The `reference.rights(date_basis=...)` /
   `reference.collateral_stocks(sort=...)` closed-choice parameters are now typed `Literal`
   (behavior unchanged).
+- Closed-choice typing (council P2): `TopViewedStock.market` is now `Literal["KOSPI","KOSDAQ"]`
+  and the engine decodes the raw `J`/`Q` wire code to `KOSPI`/`KOSDAQ` (fail-closed on an
+  unknown code; the raw value stays in `_raw`) instead of surfacing the magic code;
+  `OverseasDerivativeOrder.fuop` is renamed `futures_option_type` (the raw `fuop_dvsn` stem
+  was not decodable as a field name); and `account.overseas.present_balance(nation=...)` is
+  typed `BalanceNation = Literal["all","US","HK","CN","JP","VN"]` (the set the engine already
+  enforces). `present_balance`'s `inquiry` / `market_code` stay `str` pending a primary-source
+  value set.
 - `ProgramTradeActivity` and `BrokerDailyActivity` rename their gross-count fields
   `sell_quantity` / `buy_quantity` → `sell_volume` / `buy_volume`, so all three of
   `buy_volume` / `sell_volume` / `net_buy_volume` use one `volume` vocabulary (matching the

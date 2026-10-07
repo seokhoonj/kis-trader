@@ -66,8 +66,9 @@ from ..._internal._wire import (
     required_decimal,
     required_int,
 )
-from ...errors import KISUsageError
+from ...errors import KISError, KISUsageError
 from ...transport import Transport
+from ..entities.market import Market
 from ..entities.ranking import (
     AfterHoursBalanceRanking,
     AfterHoursRanking,
@@ -169,6 +170,16 @@ _DIVIDEND_TR = "HHKDB13470100"
 _DIVIDEND_KIND = {"cash": "2", "stock": "1"}
 #: 시장(KIS 명세 GB1).
 _DIVIDEND_MARKET = {"all": "0", "KOSPI": "1", "KOSPI200": "2", "KOSDAQ": "3"}
+#: HTS 조회상위 응답의 시장구분 코드(mrkt_div_cls_code) -> 패키지 어휘. 라이브러리는 KOSPI/KOSDAQ 로 말한다.
+_TOP_VIEWED_MARKET: dict[str, Market] = {"J": "KOSPI", "Q": "KOSDAQ"}
+
+
+def _top_viewed_market(code: str) -> Market:
+    """mrkt_div_cls_code(J/Q) 를 KOSPI/KOSDAQ 로. 모르는 코드는 조용히 넘기지 않고 fail-closed(원본은 _raw)."""
+    market = _TOP_VIEWED_MARKET.get(code)
+    if market is None:
+        raise KISError(f"알 수 없는 조회상위 시장구분 코드: {code!r}")
+    return market
 #: 결산/중간(KIS 명세 GB4).
 _DIVIDEND_SETTLEMENT = {"all": "0", "final": "1", "interim": "2"}
 
@@ -1036,7 +1047,7 @@ def fetch_most_viewed(transport: Transport) -> list[TopViewedStock]:
             TopViewedStock(
                 rank=len(ranked) + 1,
                 symbol=symbol,
-                market=str(row.get("mrkt_div_cls_code", "")).strip(),
+                market=_top_viewed_market(str(row.get("mrkt_div_cls_code", "")).strip()),
                 _raw=row,
             )
         )

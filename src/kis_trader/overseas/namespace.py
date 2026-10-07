@@ -67,6 +67,9 @@ if TYPE_CHECKING:
 # 해외 지수류 kind -> FID_COND_MRKT_DIV_CODE. ``kis.overseas.index`` 가 쓴다.
 _OVERSEAS_INDEX_KIND = {"index": "N", "fx": "X", "bond": "I", "gold": "S"}
 
+#: 체결기준현재잔고(present_balance) 국가 필터. 엔진이 국가코드(840 등)로 변환하며, 그 외 값은 거부한다.
+BalanceNation = Literal["all", "US", "HK", "CN", "JP", "VN"]
+
 
 class OverseasAccount:
     """``kis.account.overseas`` -- 해외 계좌 조회·계좌 단위 주문(잔고/손익/알고/예약주문).
@@ -124,7 +127,7 @@ class OverseasAccount:
         )
 
     def present_balance(
-        self, *, won_basis: bool = True, nation: str = "all", market_code: str = "00",
+        self, *, won_basis: bool = True, nation: BalanceNation = "all", market_code: str = "00",
         inquiry: str = "00",
     ) -> OverseasPresentBalance:
         """체결기준현재잔고 -- 보유 종목·통화별 예수금·계좌 요약. ``won_basis`` 원화(True)/외화(False),

@@ -156,8 +156,8 @@ def test_by_views_maps_symbol_and_market():
     ranked = _client(fake).domestic.ranking.by_views()
     assert all(isinstance(x, TopViewedStock) for x in ranked)
     assert ranked[0].symbol == "005930"
-    assert ranked[0].market == "J"
-    assert ranked[1].market == "Q"
+    assert ranked[0].market == "KOSPI"
+    assert ranked[1].market == "KOSDAQ"
     assert [x.rank for x in ranked] == [1, 2]
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/ranking/hts-top-view"

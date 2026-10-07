@@ -163,7 +163,7 @@ class OverseasDerivativeOrder:
     filled_price: Decimal             # 체결가격(fm_ccld_pric)
     remaining_quantity: Decimal       # 주문잔량(fm_ord_rmn_qty)
     new_liquidation: str              # 신규청산구분코드(new_lqd_dvsn_cd)
-    fuop: str                         # 선물옵션구분(fuop_dvsn)
+    futures_option_type: str          # 선물옵션구분(fuop_dvsn)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
