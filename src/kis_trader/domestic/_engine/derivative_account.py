@@ -469,13 +469,13 @@ def fetch_commissions(
 
 def fetch_derivative_orderable(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    code: str, side: Side, limit_price: Numeric | None = None,
+    symbol: str, side: Side, limit_price: Numeric | None = None,
 ) -> DerivativeOrderable:
-    """선물옵션 계약의 주문가능수량(1콜, output 단일 객체). ``code`` 계약코드, ``side`` 매수/매도,
+    """선물옵션 계약의 주문가능수량(1콜, output 단일 객체). ``symbol`` 계약코드, ``side`` 매수/매도,
     ``limit_price`` 있으면 지정가(ORD_DVSN_CD 01)·없으면 시장가(02) 기준. 모의투자 지원."""
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
-        "PDNO": code,
+        "PDNO": symbol,
         "SLL_BUY_DVSN_CD": _SIDE_TO_SLL_BUY[side],
         "UNIT_PRICE": _format_order_unit_price(limit_price),
         "ORD_DVSN_CD": "01" if limit_price is not None else "02",  # 지정가/시장가
@@ -507,7 +507,7 @@ def fetch_derivative_orderable(
 
 def fetch_derivative_night_orderable(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    code: str, side: Side, limit_price: Numeric | None = None,
+    symbol: str, side: Side, limit_price: Numeric | None = None,
 ) -> DerivativeOrderable:
     """선물옵션 야간(EUREX 연계) 주문가능수량(1콜, output 단일 객체). 주간
     :func:`fetch_derivative_orderable` 과 같은 :class:`DerivativeOrderable` 로 돌려주되 야간 응답은
@@ -519,7 +519,7 @@ def fetch_derivative_night_orderable(
         )
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
-        "PDNO": code,
+        "PDNO": symbol,
         "PRDT_TYPE_CD": "301",  # 상품유형코드 -- 301 선물옵션
         "SLL_BUY_DVSN_CD": _SIDE_TO_SLL_BUY[side],
         "UNIT_PRICE": _format_order_unit_price(limit_price),

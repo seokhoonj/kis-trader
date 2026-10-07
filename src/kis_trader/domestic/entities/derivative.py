@@ -28,7 +28,7 @@ class DerivativeQuote:
     베이시스/이론가/괴리율은 계약에 따라 없을 수 있어 ``None`` 이다.
     """
 
-    code: str
+    symbol: str
     name: str
     current_price: Decimal
     open: Decimal
@@ -98,7 +98,7 @@ class ExpectedExecutionPoint:
 class ExpectedExecutionTrend:
     """현재 예상체결 요약과 일중 예상체결가 추이."""
 
-    code: str
+    symbol: str
     name: str
     price: Decimal
     change: Decimal
@@ -138,7 +138,7 @@ class OptionBoardRow:
     """옵션 전광판의 한 행사가 시세와 그릭스(불변)."""
 
     strike: Decimal
-    code: str
+    symbol: str
     price: Decimal
     change: Decimal
     change_percent: Decimal
@@ -213,7 +213,7 @@ class DerivativeMarginRate:
 class FuturesBoardQuote:
     """옵션 전광판 하단에 표시되는 한 선물 계약의 시세 스냅샷."""
 
-    code: str
+    symbol: str
     name: str
     price: Decimal
     change: Decimal

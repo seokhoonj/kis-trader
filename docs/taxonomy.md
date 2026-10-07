@@ -117,7 +117,7 @@ kis.domestic
 │   ├── volatility_trend()              # 내재변동성 추이
 │   ├── indicator_trend()               # 투자지표(레버리지) 추이
 │   └── lp_flows()                      # 일별 LP 매매 흐름
-├── futures(code)                       # 지수선물 계약 핸들
+├── futures(symbol)                       # 지수선물 계약 핸들
 │   ├── quote()                         # 계약 현재가
 │   ├── order_book()                    # 계약 호가창(5단계)
 │   ├── expected_execution_trend()      # 예상체결 요약·추이
@@ -127,7 +127,7 @@ kis.domestic
 │   ├── night_orderable(side)           # 야간장 주문가능수량
 │   ├── buy(quantity, ...)              # 계약 매수 주문
 │   └── sell(quantity, ...)             # 계약 매도 주문
-├── option(code, right=None)            # 지수옵션 계약 핸들
+├── option(symbol, right=None)            # 지수옵션 계약 핸들
 │   ├── quote()                         # 계약 현재가
 │   ├── order_book()                    # 계약 호가창(5단계)
 │   ├── expected_execution_trend()      # 예상체결 요약·추이
@@ -377,10 +377,10 @@ kis.realtime()
 │   ├── stock(code)                          # → StockHandle
 │   │   ├── trades(exchange='KRX')           # 체결 → StockTick
 │   │   └── order_book(exchange='KRX')       # 호가 → StockOrderBook
-│   ├── futures(code, kind='index')          # kind: index|commodity|stock|night
+│   ├── futures(symbol, kind='index')          # kind: index|commodity|stock|night
 │   │   ├── trades()                         # 체결 → FuturesTick
 │   │   └── order_book()                     # 호가 → DerivativeOrderBook
-│   ├── option(code, kind='index')           # kind: index|stock|night
+│   ├── option(symbol, kind='index')           # kind: index|stock|night
 │   │   ├── trades()                         # 체결 → OptionTick
 │   │   └── order_book()                     # 호가 → DerivativeOrderBook
 │   ├── index(code)                          # → IndexHandle

@@ -7,7 +7,7 @@
 나뉜다 -- 선물에만 있는 조회(기초자산 나란히 보기)를 옵션 핸들에서 부르는 잘못된 조합은 런타임 오류가
 아니라 애초에 그 메서드가 없다(타입체커가 먼저 잡는다).
 
-핸들은 :class:`~kis_trader.client.KISClient` 가 ``kis.domestic.futures(code)`` / ``kis.domestic.option(code)`` 로
+핸들은 :class:`~kis_trader.client.KISClient` 가 ``kis.domestic.futures(symbol)`` / ``kis.domestic.option(symbol)`` 로
 만들어 준다 -- 직접 생성하지 않는다.
 """
 
@@ -45,30 +45,30 @@ class _ContractBase:
     #: 종목코드나 오타를 발주 경로에서 조용히 통과시키지 않도록 :meth:`_make_order` 가 확인한다.
     _SYMBOL_LENGTH: ClassVar[int]
 
-    code: str
+    symbol: str
     market: DerivativeMarket
 
-    def __init__(self, client: KISClient, code: str) -> None:
+    def __init__(self, client: KISClient, symbol: str) -> None:
         self._client = client
-        self.code = code
+        self.symbol = symbol
         self.market = self._MARKET
 
     def quote(self) -> DerivativeQuote:
         """계약 현재가 스냅샷(가격·미결제약정·베이시스·이론가·괴리율; 옵션 그릭스는 ``_raw``)."""
         return derivatives_api.fetch_quote(
-            self._client.transport, code=self.code, market=self.market
+            self._client.transport, symbol=self.symbol, market=self.market
         )
 
     def order_book(self) -> OrderBook:
         """계약 호가창(5단계 매수/매도 심도)."""
         return derivatives_api.fetch_order_book(
-            self._client.transport, code=self.code, market=self.market
+            self._client.transport, symbol=self.symbol, market=self.market
         )
 
     def expected_execution_trend(self) -> ExpectedExecutionTrend:
         """현재 예상체결 요약과 당일 시각별 예상체결가 추이."""
         return derivatives_api.fetch_expected_execution_trend(
-            self._client.transport, code=self.code, market=self.market
+            self._client.transport, symbol=self.symbol, market=self.market
         )
 
     def bars(
@@ -82,7 +82,7 @@ class _ContractBase:
         """OHLCV 봉을 과거->현재 오름차순으로. ``interval="1m"`` 은 당일 1분봉(``start``/``end`` 무시,
         ``max_bars`` 로 최근 N개), ``1d``/``1wk``/``1mo`` 는 ``[start, end]`` 기간봉(``start`` 필요)."""
         return derivatives_api.fetch_bars(
-            self._client.transport, code=self.code, market=self.market,
+            self._client.transport, symbol=self.symbol, market=self.market,
             interval=interval, start=start, end=end, max_bars=max_bars,
         )
 
@@ -129,7 +129,7 @@ class _ContractBase:
         cano, product_code = self._client._require_account()
         return derivative_account_api.fetch_derivative_orderable(
             self._client.transport, cano=cano, product_code=product_code,
-            environment=self._client.environment, code=self.code, side=side, limit_price=limit_price,
+            environment=self._client.environment, symbol=self.symbol, side=side, limit_price=limit_price,
         )
 
     def night_orderable(
@@ -143,7 +143,7 @@ class _ContractBase:
         cano, product_code = self._client._require_account()
         return derivative_account_api.fetch_derivative_night_orderable(
             self._client.transport, cano=cano, product_code=product_code,
-            environment=self._client.environment, code=self.code, side=side, limit_price=limit_price,
+            environment=self._client.environment, symbol=self.symbol, side=side, limit_price=limit_price,
         )
 
     def _make_order(
@@ -155,13 +155,13 @@ class _ContractBase:
         """파생(XKFE) 발주 :class:`Order` 를 조립한다 -- 계약코드 길이 형상검증 후 세션(주간/야간)·
         상품구분(선물 01 / 콜 02 / 풋 03)을 실어 준다. ``order_type`` 미지정 시 ``limit_price`` 유무로
         시장가/지정가를 정한다."""
-        if len(self.code) != self._SYMBOL_LENGTH:
+        if len(self.symbol) != self._SYMBOL_LENGTH:
             raise KISUsageError(
-                f"{type(self).__name__} 계약코드 길이는 {self._SYMBOL_LENGTH} 여야 한다: {self.code!r}"
+                f"{type(self).__name__} 계약코드 길이는 {self._SYMBOL_LENGTH} 여야 한다: {self.symbol!r}"
             )
         resolved_type: OrderType = order_type or ("market" if limit_price is None else "limit")
         return Order(
-            symbol=self.code, side=side, order_type=resolved_type,
+            symbol=self.symbol, side=side, order_type=resolved_type,
             quantity=coerce_decimal(quantity, "quantity"),
             limit_price=None if limit_price is None else coerce_decimal(limit_price, "limit_price"),
             time_in_force=time_in_force, asset_class="derivative",
@@ -176,7 +176,7 @@ class _ContractBase:
 
 
 class FuturesContract(_ContractBase):
-    """지수선물 계약 조회 핸들 -- ``kis.domestic.futures(code)``. 시장구분 F.
+    """지수선물 계약 조회 핸들 -- ``kis.domestic.futures(symbol)``. 시장구분 F.
 
     공통 조회(:meth:`quote`·:meth:`order_book`·:meth:`expected_execution_trend`·:meth:`bars`)에 더해
     선물 전용 :meth:`underlying_quote`(선물과 기초자산을 나란히 보는 베이시스 스냅샷)를 가진다.
@@ -188,7 +188,7 @@ class FuturesContract(_ContractBase):
     def underlying_quote(self) -> UnderlyingQuote:
         """선물과 그 기초자산(지수)을 나란히 담는 스냅샷(베이시스 판단용). 선물 최근월물 계약에서 쓴다."""
         return derivatives_api.fetch_underlying_quote(
-            self._client.transport, code=self.code, market="F"
+            self._client.transport, symbol=self.symbol, market="F"
         )
 
     def _derivative_item(self) -> Literal["01", "02", "03"]:
@@ -196,28 +196,28 @@ class FuturesContract(_ContractBase):
 
 
 class OptionContract(_ContractBase):
-    """지수옵션 계약 조회 핸들 -- ``kis.domestic.option(code, right=...)``. 시장구분 O.
+    """지수옵션 계약 조회 핸들 -- ``kis.domestic.option(symbol, right=...)``. 시장구분 O.
 
     공통 조회(:meth:`quote`·:meth:`order_book`·:meth:`expected_execution_trend`·:meth:`bars`)에 더해
     발주(:meth:`buy`/:meth:`sell`)를 가진다. 기초자산 나란히 보기(``underlying_quote``)는 선물 전용이라
     옵션 핸들엔 아예 없다(호출 시 구조적 ``AttributeError``, 타입체커가 먼저 잡는다).
 
     ``right``(call/put)은 발주의 상품구분("02" 콜 / "03" 풋)을 정한다. 조회는 계약코드만으로 충분해
-    ``right`` 없이도 만들 수 있고(``kis.domestic.option(code)``), 그 상태로 발주하면 fail-closed 다 --
-    발주엔 ``option(code, right=...)`` 로 방향을 지정해야 한다."""
+    ``right`` 없이도 만들 수 있고(``kis.domestic.option(symbol)``), 그 상태로 발주하면 fail-closed 다 --
+    발주엔 ``option(symbol, right=...)`` 로 방향을 지정해야 한다."""
 
     _MARKET: ClassVar[DerivativeMarket] = "O"
     _SYMBOL_LENGTH: ClassVar[int] = 9
 
     right: Right | None
 
-    def __init__(self, client: KISClient, code: str, right: Right | None = None) -> None:
-        super().__init__(client, code)
+    def __init__(self, client: KISClient, symbol: str, right: Right | None = None) -> None:
+        super().__init__(client, symbol)
         self.right = right
 
     def _derivative_item(self) -> Literal["01", "02", "03"]:
         if self.right is None:
             raise KISUsageError(
-                "옵션 발주에는 right(call/put)가 필요하다 -- kis.domestic.option(code, right=...) 로 지정하라."
+                "옵션 발주에는 right(call/put)가 필요하다 -- kis.domestic.option(symbol, right=...) 로 지정하라."
             )
         return "02" if self.right == "call" else "03"      # 콜 02 / 풋 03

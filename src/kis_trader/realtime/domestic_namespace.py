@@ -1,6 +1,6 @@
 """국내 실시간 지역 네임스페이스 -- ``kis.realtime().domestic``.
 
-REST ``kis.domestic`` 을 미러한다: ``domestic.futures(code).trades()`` 가
+REST ``kis.domestic`` 을 미러한다: ``domestic.futures(symbol).trades()`` 가
 :class:`~kis_trader.realtime.subscription.RealtimeSubscription` 를 반환해 그 계약·그 타입만
 소비한다. 파생 세부종류는 ``kind`` 인자로, 국내주식 거래소는 ``exchange`` 인자로 TR 을 고른다.
 """
@@ -103,9 +103,9 @@ class StockHandle:
 class FuturesHandle:
     """국내 선물 실시간 핸들. ``kind``: index|commodity|stock|night."""
 
-    def __init__(self, client: RealtimeClient, code: str, kind: FuturesKind) -> None:
+    def __init__(self, client: RealtimeClient, symbol: str, kind: FuturesKind) -> None:
         self._client = client
-        self._code = code
+        self._symbol = symbol
         self._trades_tr = _pick(_FUTURES_TRADES_TR, kind, label="kind")
         self._order_book_tr = _pick(_FUTURES_ORDER_BOOK_TR, kind, label="kind")
 
@@ -114,7 +114,7 @@ class FuturesHandle:
     ) -> RealtimeSubscription[FuturesTick]:
         """국내 선물 실시간 체결을 구독하고 RealtimeSubscription[FuturesTick] 을 반환한다. kind 로 고른 선물군."""
         return cast(
-            "RealtimeSubscription[FuturesTick]", self._client._open_typed(self._trades_tr, self._code, on=on)
+            "RealtimeSubscription[FuturesTick]", self._client._open_typed(self._trades_tr, self._symbol, on=on)
         )
 
     def order_book(
@@ -123,16 +123,16 @@ class FuturesHandle:
         """국내 선물 실시간 호가를 구독하고 RealtimeSubscription[DerivativeOrderBook] 을 반환한다. kind 로 고른 선물군."""
         return cast(
             "RealtimeSubscription[DerivativeOrderBook]",
-            self._client._open_typed(self._order_book_tr, self._code, on=on),
+            self._client._open_typed(self._order_book_tr, self._symbol, on=on),
         )
 
 
 class OptionHandle:
     """국내 옵션 실시간 핸들. ``kind``: index|stock|night."""
 
-    def __init__(self, client: RealtimeClient, code: str, kind: OptionKind) -> None:
+    def __init__(self, client: RealtimeClient, symbol: str, kind: OptionKind) -> None:
         self._client = client
-        self._code = code
+        self._symbol = symbol
         self._trades_tr = _pick(_OPTION_TRADES_TR, kind, label="kind")
         self._order_book_tr = _pick(_OPTION_ORDER_BOOK_TR, kind, label="kind")
 
@@ -141,7 +141,7 @@ class OptionHandle:
     ) -> RealtimeSubscription[OptionTick]:
         """국내 옵션 실시간 체결을 구독하고 RealtimeSubscription[OptionTick] 을 반환한다. kind 로 고른 옵션군."""
         return cast(
-            "RealtimeSubscription[OptionTick]", self._client._open_typed(self._trades_tr, self._code, on=on)
+            "RealtimeSubscription[OptionTick]", self._client._open_typed(self._trades_tr, self._symbol, on=on)
         )
 
     def order_book(
@@ -150,7 +150,7 @@ class OptionHandle:
         """국내 옵션 실시간 호가를 구독하고 RealtimeSubscription[DerivativeOrderBook] 을 반환한다. kind 로 고른 옵션군."""
         return cast(
             "RealtimeSubscription[DerivativeOrderBook]",
-            self._client._open_typed(self._order_book_tr, self._code, on=on),
+            self._client._open_typed(self._order_book_tr, self._symbol, on=on),
         )
 
 
@@ -307,13 +307,13 @@ class RealtimeDomesticNamespace:
         """국내주식 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). exchange 는 잎에서 고른다."""
         return StockHandle(self._client, code)
 
-    def futures(self, code: str, kind: FuturesKind = "index") -> FuturesHandle:
+    def futures(self, symbol: str, kind: FuturesKind = "index") -> FuturesHandle:
         """국내 선물 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). kind: index|commodity|stock|night."""
-        return FuturesHandle(self._client, code, kind)
+        return FuturesHandle(self._client, symbol, kind)
 
-    def option(self, code: str, kind: OptionKind = "index") -> OptionHandle:
+    def option(self, symbol: str, kind: OptionKind = "index") -> OptionHandle:
         """국내 옵션 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). kind: index|stock|night."""
-        return OptionHandle(self._client, code, kind)
+        return OptionHandle(self._client, symbol, kind)
 
     def index(self, code: str) -> IndexHandle:
         """국내지수 실시간 핸들을 반환한다(.trades()/.expected_conclusion()/.program_trade() 로 구독)."""

@@ -60,7 +60,7 @@ def test_futures_quote_maps_fields_and_market():
     fake = FakeTransport(response=_resp(_output()))
     quote = _client(fake).domestic.futures("101W09").quote()
     assert isinstance(quote, DerivativeQuote)
-    assert quote.code == "101W09"
+    assert quote.symbol == "101W09"
     assert quote.current_price == Decimal("335.20")
     assert quote.previous_close == Decimal("333.00")
     assert quote.change == Decimal("2.20")
@@ -383,7 +383,7 @@ def test_option_board_futures_maps_official_output_array():
 
     assert isinstance(quotes[0], FuturesBoardQuote)
     quote = quotes[0]
-    assert quote.code == "101W09"
+    assert quote.symbol == "101W09"
     assert quote.price == Decimal("335.20")
     assert quote.change == Decimal("-1.30")
     assert quote.theoretical_price == Decimal("335.15")

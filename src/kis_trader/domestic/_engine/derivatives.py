@@ -1,8 +1,8 @@
 """국내 선물/옵션(파생) 시세 조회 (내부) -- 계약 현재가를 :class:`DerivativeQuote` 로.
 
 사용자면은 파생 핸들(:class:`~kis_trader.domestic.derivative.FuturesContract` /
-:class:`~kis_trader.domestic.derivative.OptionContract`, ``kis.domestic.futures(code)`` /
-``kis.domestic.option(code)``)이다. 파생은 종목이 아니라 시장구분(F:지수선물 / O:지수옵션) + 계약코드로
+:class:`~kis_trader.domestic.derivative.OptionContract`, ``kis.domestic.futures(symbol)`` /
+``kis.domestic.option(symbol)``)이다. 파생은 종목이 아니라 시장구분(F:지수선물 / O:지수옵션) + 계약코드로
 조회한다. 스캘핑에 필요한 미결제약정·베이시스·이론가는 output1 에서 매핑한다.
 
 KIS URL/TR-ID (KIS 명세 대조):
@@ -101,9 +101,9 @@ _MARGIN_RATE_TR = "TTTO6032R"  # 기초자산 증거금율, 모의투자 미지�
 _MAX_MARGIN_RATE_PAGES = 100
 
 
-def fetch_quote(transport: Transport, *, code: str, market: DerivativeMarket) -> DerivativeQuote:
-    """선물/옵션 계약 현재가 스냅샷. ``market`` 은 F(지수선물)/O(지수옵션), ``code`` 는 계약코드."""
-    params = {"FID_COND_MRKT_DIV_CODE": market, "FID_INPUT_ISCD": code}
+def fetch_quote(transport: Transport, *, symbol: str, market: DerivativeMarket) -> DerivativeQuote:
+    """선물/옵션 계약 현재가 스냅샷. ``market`` 은 F(지수선물)/O(지수옵션), ``symbol`` 는 계약코드."""
+    params = {"FID_COND_MRKT_DIV_CODE": market, "FID_INPUT_ISCD": symbol}
     resp = transport.request(
         method="GET", path=_QUOTE_PATH, tr_id=_QUOTE_TR, params=params, idempotent=True
     )
@@ -111,17 +111,17 @@ def fetch_quote(transport: Transport, *, code: str, market: DerivativeMarket) ->
     output = resp.body.get("output1")
     if not isinstance(output, Mapping):        # 성공 응답인데 객체 아님 -> fail-closed
         raise _missing_block_error("output1", resp)
-    return _parse_quote(output, code=code, as_of=datetime.now(_KST))
+    return _parse_quote(output, symbol=symbol, as_of=datetime.now(_KST))
 
 
-def fetch_order_book(transport: Transport, *, code: str, market: DerivativeMarket) -> OrderBook:
-    """선물/옵션 계약의 호가창(5단계 매수/매도 심도). ``market`` 은 F/O, ``code`` 는 계약코드.
+def fetch_order_book(transport: Transport, *, symbol: str, market: DerivativeMarket) -> OrderBook:
+    """선물/옵션 계약의 호가창(5단계 매수/매도 심도). ``market`` 은 F/O, ``symbol`` 는 계약코드.
 
     종목 :meth:`~kis_trader.domestic.stock.DomesticStock.order_book` 과 같은 :class:`OrderBook` 로 돌려주되,
     파생 호가는 5단계(주식 10단계)다. 호가 사다리는 응답의 **output2** 에 있고(output1 은 현재가
     요약), 가격 키는 ``futs_askp``/``futs_bidp``, 잔량 키는 ``askp_rsqn``/``bidp_rsqn`` 다.
     """
-    params = {"FID_COND_MRKT_DIV_CODE": market, "FID_INPUT_ISCD": code}
+    params = {"FID_COND_MRKT_DIV_CODE": market, "FID_INPUT_ISCD": symbol}
     resp = transport.request(
         method="GET", path=_ORDER_BOOK_PATH, tr_id=_ORDER_BOOK_TR, params=params, idempotent=True
     )
@@ -130,7 +130,7 @@ def fetch_order_book(transport: Transport, *, code: str, market: DerivativeMarke
     if not isinstance(output2, Mapping):       # 성공 응답인데 호가 객체 아님 -> fail-closed
         raise _missing_block_error("output2", resp)
     return OrderBook(
-        symbol=code,
+        symbol=symbol,
         market=market,
         bids=_price_levels(output2, price_key="futs_bidp", quantity_key="bidp_rsqn"),
         asks=_price_levels(output2, price_key="futs_askp", quantity_key="askp_rsqn"),
@@ -216,15 +216,15 @@ def fetch_option_board(
 
 
 def fetch_underlying_quote(
-    transport: Transport, *, code: str, market: Literal["F"]
+    transport: Transport, *, symbol: str, market: Literal["F"]
 ) -> UnderlyingQuote:
-    """선물 계약과 그 기초자산(지수)을 나란히 담는 스냅샷. ``code`` 는 선물 최근월물, ``market`` 은 F.
+    """선물 계약과 그 기초자산(지수)을 나란히 담는 스냅샷. ``symbol`` 는 선물 최근월물, ``market`` 은 F.
     이 조회는 선물 전용이라 ``market`` 은 F 만 받는다(옵션은 :class:`~kis_trader.domestic.derivative.OptionContract`
     에 이 메서드가 없다).
     기초자산/선물 전일대비는 서로 다른 부호 필드(unas_prdy_vrss_sign / prdy_vrss_sign)로 복원한다."""
     params = {
         "FID_COND_MRKT_DIV_CODE": market,
-        "FID_INPUT_ISCD": code,
+        "FID_INPUT_ISCD": symbol,
         "FID_COND_MRKT_DIV_CODE1": "",
         "FID_COND_SCR_DIV_CODE": "",
         "FID_MTRT_CNT": "",
@@ -240,7 +240,7 @@ def fetch_underlying_quote(
     unas_sign = str(output1.get("unas_prdy_vrss_sign", "")).strip()
     futs_sign = str(output1.get("prdy_vrss_sign", "")).strip()
     return UnderlyingQuote(
-        symbol=code,
+        symbol=symbol,
         name=str(output1.get("hts_kor_isnm", "")).strip(),
         underlying_price=required_decimal(output1.get("unas_prpr"), "unas_prpr"),
         underlying_change=_apply_change_sign(
@@ -263,14 +263,14 @@ def fetch_underlying_quote(
 
 
 def fetch_expected_execution_trend(
-    transport: Transport, *, code: str, market: DerivativeMarket
+    transport: Transport, *, symbol: str, market: DerivativeMarket
 ) -> ExpectedExecutionTrend:
     """선물/옵션 계약의 현재 예상체결 요약과 당일 시각별 추이를 조회한다."""
     resp = transport.request(
         method="GET",
         path=_EXPECTED_TREND_PATH,
         tr_id=_EXPECTED_TREND_TR,
-        params={"FID_INPUT_ISCD": code, "FID_COND_MRKT_DIV_CODE": market},
+        params={"FID_INPUT_ISCD": symbol, "FID_COND_MRKT_DIV_CODE": market},
         idempotent=True,
     )
     _raise_if_error(resp)
@@ -305,7 +305,7 @@ def fetch_expected_execution_trend(
         )
     points.sort(key=lambda point: point.timestamp)
     return ExpectedExecutionTrend(
-        code=code,
+        symbol=symbol,
         name=str(summary.get("hts_kor_isnm", "")).strip(),
         price=required_decimal(summary.get("futs_antc_cnpr"), "futs_antc_cnpr"),
         change=_apply_change_sign(
@@ -351,7 +351,7 @@ def fetch_futures_board_quotes(
         expected_sign = str(row.get("antc_cntg_vrss_sign", "")).strip()
         quotes.append(
             FuturesBoardQuote(
-                code=str(row.get("futs_shrn_iscd", "")).strip(),
+                symbol=str(row.get("futs_shrn_iscd", "")).strip(),
                 name=str(row.get("hts_kor_isnm", "")).strip(),
                 price=required_decimal(row.get("futs_prpr"), "futs_prpr"),
                 change=_apply_change_sign(
@@ -460,7 +460,7 @@ def _parse_margin_rate(row: Mapping[str, Any]) -> DerivativeMarginRate:
 def fetch_bars(
     transport: Transport,
     *,
-    code: str,
+    symbol: str,
     market: DerivativeMarket,
     interval: Interval = "1d",
     start: str | date | None = None,
@@ -477,7 +477,7 @@ def fetch_bars(
     if max_bars is not None and max_bars <= 0:
         raise KISUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")
     if interval == "1m":
-        return _fetch_minute_bars(transport, code=code, market=market, max_bars=max_bars)
+        return _fetch_minute_bars(transport, symbol=symbol, market=market, max_bars=max_bars)
     if start is None:
         raise KISUsageError(f"interval={interval!r}(기간봉)에는 start 가 필요하다.")
     period = _period_code_for(interval)
@@ -487,20 +487,20 @@ def fetch_bars(
         raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
     base_params = {
         "FID_COND_MRKT_DIV_CODE": market,
-        "FID_INPUT_ISCD": code,
+        "FID_INPUT_ISCD": symbol,
         "FID_PERIOD_DIV_CODE": period,
     }
     return collect_period_bars(
         transport, path=_BARS_PATH, tr=_BARS_TR, base_params=base_params,
         start_date=start_date, end_date=end_date, max_bars=max_bars,
-        parse_rows=lambda rows: _parse_bars(rows, code=code),
+        parse_rows=lambda rows: _parse_bars(rows, symbol=symbol),
     )
 
 
-def _parse_quote(output: Mapping[str, Any], *, code: str, as_of: datetime) -> DerivativeQuote:
+def _parse_quote(output: Mapping[str, Any], *, symbol: str, as_of: datetime) -> DerivativeQuote:
     change_sign_code = str(output.get("prdy_vrss_sign", "")).strip()
     return DerivativeQuote(
-        code=code,
+        symbol=symbol,
         name=str(output.get("hts_kor_isnm", "")).strip(),
         current_price=required_decimal(output.get("futs_prpr"), "futs_prpr"),
         open=required_decimal(output.get("futs_oprc"), "futs_oprc"),
@@ -527,7 +527,7 @@ def _parse_board_row(row: Mapping[str, Any]) -> OptionBoardRow:
     change_sign_code = str(row.get("prdy_vrss_sign", "")).strip()
     return OptionBoardRow(
         strike=required_decimal(row.get("acpr"), "acpr"),
-        code=str(row.get("optn_shrn_iscd", "")).strip(),
+        symbol=str(row.get("optn_shrn_iscd", "")).strip(),
         price=required_decimal(row.get("optn_prpr"), "optn_prpr"),
         change=_apply_change_sign(
             required_decimal(row.get("optn_prdy_vrss"), "optn_prdy_vrss"), change_sign_code
@@ -554,7 +554,7 @@ def _parse_board_row(row: Mapping[str, Any]) -> OptionBoardRow:
 
 
 def _fetch_minute_bars(
-    transport: Transport, *, code: str, market: DerivativeMarket, max_bars: int | None
+    transport: Transport, *, symbol: str, market: DerivativeMarket, max_bars: int | None
 ) -> list[Bar]:
     """당일 1분봉을 과거->현재 오름차순으로. 최신부터 102건씩 받고 FID_INPUT_HOUR_1 을 뒤로 밀며
     모은다. 파생은 세션 경계(야간장 등)가 다양해 개장시각 가정 대신 새 봉이 없으면 종료하고, 페이지
@@ -565,7 +565,7 @@ def _fetch_minute_bars(
     for _page in range(_MAX_MINUTE_PAGES):
         params = {
             "FID_COND_MRKT_DIV_CODE": market,
-            "FID_INPUT_ISCD": code,
+            "FID_INPUT_ISCD": symbol,
             "FID_HOUR_CLS_CODE": "60",         # 60 = 1분
             "FID_PW_DATA_INCU_YN": "N",        # 당일치
             "FID_FAKE_TICK_INCU_YN": "N",      # 허봉 제외
@@ -580,7 +580,7 @@ def _fetch_minute_bars(
         rows = resp.body.get("output2")
         if not isinstance(rows, (list, tuple)):  # 성공 응답인데 봉 배열 아님 -> fail-closed
             raise _missing_block_error("output2", resp)
-        page = {f"{bar.timestamp:%H%M%S}": bar for bar in _parse_minute_bars(rows, code=code)}
+        page = {f"{bar.timestamp:%H%M%S}": bar for bar in _parse_minute_bars(rows, symbol=symbol)}
         new_bars = {time: bar for time, bar in page.items() if time not in bar_by_time}
         if not new_bars:  # 빈 페이지거나 진전 없음 -> 종료(무한 루프 방지)
             break
@@ -599,7 +599,7 @@ def _fetch_minute_bars(
     return bars
 
 
-def _parse_minute_bars(rows: Sequence[Mapping[str, Any]], *, code: str) -> list[Bar]:
+def _parse_minute_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:
     """분봉 행 -> Bar. 종가 ``futs_prpr``, 분당 거래량 ``cntg_vol``(일봉의 acml_vol 과 다름),
     timestamp 는 일자+시각(``stck_bsop_date``+``stck_cntg_hour``)."""
     bars: list[Bar] = []
@@ -611,7 +611,7 @@ def _parse_minute_bars(rows: Sequence[Mapping[str, Any]], *, code: str) -> list[
             continue
         bars.append(
             Bar(
-                symbol=code,
+                symbol=symbol,
                 timestamp=_parse_minute_bar_timestamp(date_text=date_text, time_text=time_text),
                 open=required_decimal(row.get("futs_oprc"), "futs_oprc"),
                 high=required_decimal(row.get("futs_hgpr"), "futs_hgpr"),
@@ -624,7 +624,7 @@ def _parse_minute_bars(rows: Sequence[Mapping[str, Any]], *, code: str) -> list[
     return bars
 
 
-def _parse_bars(rows: Sequence[Mapping[str, Any]], *, code: str) -> list[Bar]:
+def _parse_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:
     bars: list[Bar] = []
     for row in rows:
         date_text = str(row.get("stck_bsop_date", "")).strip()
@@ -633,7 +633,7 @@ def _parse_bars(rows: Sequence[Mapping[str, Any]], *, code: str) -> list[Bar]:
             continue
         bars.append(
             Bar(
-                symbol=code,
+                symbol=symbol,
                 timestamp=_parse_bar_timestamp(date_text),
                 open=required_decimal(row.get("futs_oprc"), "futs_oprc"),
                 high=required_decimal(row.get("futs_hgpr"), "futs_hgpr"),

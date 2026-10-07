@@ -63,7 +63,7 @@ def test_option_board_maps_rows_and_default_params():
     assert isinstance(board, OptionBoard)
     assert board.calls[0].strike == Decimal("480.00")
     assert board.calls[0].price == Decimal("0.01")
-    assert board.calls[0].code == "201V05480"
+    assert board.calls[0].symbol == "201V05480"
     assert board.calls[0].gamma == Decimal("0.0000")
     assert board.calls[0].bid == Decimal("0.00")
     assert len(board.puts) >= 1
