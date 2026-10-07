@@ -11,10 +11,13 @@ stock = kis.domestic.stock("005930")
 report = stock.buy(quantity=10, limit_price=70000)            # 1) 지정가 매수
 print(report.client_order_id, report.status)                  #    -> 주문 키, 상태
 
-kis.orders.reconcile(report.client_order_id)                  # 2) 실제 접수됐는지 확인
-kis.orders.modify(report.client_order_id, limit_price=70500)  # 3) 가격 정정
-kis.orders.cancel(report.client_order_id)                     # 4) 취소
+kis.orders.modify(report.client_order_id, limit_price=70500)  # 2) 가격 정정
+kis.orders.cancel(report.client_order_id)                     # 3) 취소
 ```
+
+전송 타임아웃 등으로 접수 여부가 **불명일 때만** `kis.orders.reconcile(report.client_order_id)` 로
+상태를 확정합니다(완료된 주문에 부르면 저장소에 남은 결과를 돌려줄 뿐 증권사에 재조회하지 않습니다 --
+아래 [정정·취소·확인](#정정취소확인) 참고).
 
 ## 매수·매도
 

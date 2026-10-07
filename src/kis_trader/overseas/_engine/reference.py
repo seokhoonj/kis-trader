@@ -61,9 +61,12 @@ def fetch_period_rights(
     symbol: str = "", product_type: str = "",
 ) -> list[OverseasRight]:
     """기간별 해외증권 권리를 연속조회한다."""
-    basis_code = {"local_base": "02", "subscription_start": "03", "subscription_end": "04"}.get(date_basis)
-    if basis_code is None or not right_type.strip():
-        raise KISUsageError("date_basis 또는 right_type 값이 유효하지 않다.")
+    _basis_codes = {"local_base": "02", "subscription_start": "03", "subscription_end": "04"}
+    basis_code = _basis_codes.get(date_basis)
+    if basis_code is None:
+        raise KISUsageError(f"date_basis 는 {sorted(_basis_codes)} 중 하나여야 한다: {date_basis!r}")
+    if not right_type.strip():
+        raise KISUsageError("right_type 이 비어 있다(기본값 '%%' = 전체).")
     start_date, end_date = _to_yyyymmdd(start, "start"), _to_yyyymmdd(end, "end")
     if start_date > end_date:
         raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")

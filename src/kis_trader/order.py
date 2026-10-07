@@ -595,16 +595,16 @@ class Order:
         if self.side not in _SIDES:
             raise KISUsageError(f"side 는 buy/sell 중 하나여야 한다: {self.side!r}")
         if self.order_type not in _ORDER_TYPES:
-            raise KISUsageError(f"지원하지 않는 order_type: {self.order_type!r}")
+            raise KISUsageError(f"order_type 은 {sorted(_ORDER_TYPES)} 중 하나여야 한다: {self.order_type!r}")
         if self.time_in_force not in _TIFS:
-            raise KISUsageError(f"지원하지 않는 time_in_force: {self.time_in_force!r}")
+            raise KISUsageError(f"time_in_force 는 {sorted(_TIFS)} 중 하나여야 한다: {self.time_in_force!r}")
         if self.quantity <= 0:
             raise KISUsageError(f"quantity 는 0보다 커야 한다: {self.quantity}")
 
         if self.region not in _REGIONS:
-            raise KISUsageError(f"지원하지 않는 region: {self.region!r}")
+            raise KISUsageError(f"region 은 {sorted(_REGIONS)} 중 하나여야 한다: {self.region!r}")
         if self.asset_class not in _ASSET_CLASSES:
-            raise KISUsageError(f"지원하지 않는 asset_class: {self.asset_class!r}")
+            raise KISUsageError(f"asset_class 는 {sorted(_ASSET_CLASSES)} 중 하나여야 한다: {self.asset_class!r}")
         lane = (self.region, self.asset_class)
         if lane not in _TAG_BY_LANE and lane != ("overseas", "stock"):
             raise KISUsageError(
@@ -676,7 +676,7 @@ class Order:
                 )
 
         if self.session not in _SESSIONS:
-            raise KISUsageError(f"지원하지 않는 session: {self.session!r}")
+            raise KISUsageError(f"session 은 {sorted(_SESSIONS)} 중 하나여야 한다: {self.session!r}")
         # KRX 파생(XKFE)은 night(야간장)만·미국 overnight 과 별개다 -- overnight 은 미국 전용이라
         # XKFE 와 조합하면 fail-closed(아래 overnight 블록의 미국 거래소 검증도 XKFE 를 거부하지만,
         # 여기서 파생 관점의 명시적 메시지를 준다).

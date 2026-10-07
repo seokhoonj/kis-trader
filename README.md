@@ -71,9 +71,11 @@ kis.domestic.option("201W09")    # 지수옵션
 
 ```python
 r = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)  # 10주 매수
-kis.orders.reconcile(r.client_order_id)   # 실제 접수 여부를 증권사에 재확인
-kis.orders.cancel(r.client_order_id)      # 취소
+kis.orders.modify(r.client_order_id, limit_price=70500)   # 가격 정정
+kis.orders.cancel(r.client_order_id)                      # 취소
 ```
+
+전송 타임아웃 등으로 접수 여부가 불명일 때만 `kis.orders.reconcile(r.client_order_id)` 로 상태를 확정합니다(완료된 주문엔 저장소에 남은 결과를 돌려줄 뿐 증권사 재조회는 하지 않습니다).
 
 주문은 되돌릴 수 없습니다. 중복 주문을 막는 안전장치가 기본으로 동작합니다(신용거래는 기본
 차단). 자세한 규칙은 [주문 문서](https://seokhoonj.github.io/kis-trader/orders.html)에 있습니다.

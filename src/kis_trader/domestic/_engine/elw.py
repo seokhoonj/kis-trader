@@ -1,6 +1,6 @@
 """ELW(주식워런트증권) 고유 지표 조회 (내부).
 
-사용자면은 ELW 핸들(:class:`~kis_trader.elw.ELW`, ``kis.domestic.elw(symbol)``)이다. ELW 는 6자리 코드로
+사용자면은 ELW 핸들(:class:`~kis_trader.domestic.elw.ELW`, ``kis.domestic.elw(symbol)``)이다. ELW 는 6자리 코드로
 상장돼 기본 시세는 종목 엔진(시장구분 J)으로 조회되므로, 여기서는 ELW 고유의 옵션 분석 지표
 (민감도/변동성/투자지표 추이)만 다룬다. ELW 조회의 시장구분코드는 ``W`` 다.
 
@@ -281,7 +281,7 @@ def fetch_lp_flows(transport: Transport, *, symbol: str) -> list[ELWLPFlow]:
     """ELW 의 일별 LP(유동성공급자) 매매 흐름(최신순). ``symbol`` 는 ELW 표준코드.
 
     응답의 ``output2`` 가 일별 LP 매매내역이다(``output1`` 은 현재 요약이라 다루지 않는다 -- 레버리지/
-    패리티 등은 :meth:`~kis_trader.elw.ELW.indicator_trend` 로 얻는다)."""
+    패리티 등은 :meth:`~kis_trader.domestic.elw.ELW.indicator_trend` 로 얻는다)."""
     params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": symbol}
     resp = transport.request(
         method="GET", path=_LP_TREND_PATH, tr_id=_LP_TREND_TR, params=params, idempotent=True
