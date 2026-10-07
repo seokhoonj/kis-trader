@@ -104,6 +104,11 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   mislabelled the weekly/monthly capability as "daily" and read ambiguously against the
   existing OHLC `bars()`.
 
+- `OverseasAlgoExecution.executed_amount` renamed to `amount`, matching the record's bare
+  `quantity` / `price` — it is a single-execution record, so the `executed_` prefix was
+  redundant (the whole entity is one execution). The timestamp field keeps its idiomatic
+  `executed_at` name.
+
 ### Added
 
 - Stock handles (`DomesticStock`/`OverseasStock`) now have a readable `__repr__`
