@@ -82,7 +82,7 @@ class OverseasStockHandle:
         )
 
 
-class OverseasFuturesHandle:
+class OverseasDerivativeHandle:
     """해외선물옵션 실시간 핸들. 선물/옵션이 같은 TR(HDFFF020/010)을 공유한다. tr_key 는 시리즈코드."""
 
     def __init__(self, client: RealtimeClient, series_code: str) -> None:
@@ -157,10 +157,10 @@ class RealtimeOverseasNamespace:
         record = self._client._resolve_instrument(symbol, exchange)
         return OverseasStockHandle(self._client, record.realtime_symbol)
 
-    def futures(self, series_code: str) -> OverseasFuturesHandle:
+    def futures(self, series_code: str) -> OverseasDerivativeHandle:
         """해외선물 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). ``series_code`` 는 시리즈코드(예: ESZ25)."""
-        return OverseasFuturesHandle(self._client, series_code)
+        return OverseasDerivativeHandle(self._client, series_code)
 
-    def option(self, series_code: str) -> OverseasFuturesHandle:
+    def option(self, series_code: str) -> OverseasDerivativeHandle:
         """해외옵션 실시간 핸들을 반환한다(선물과 같은 TR·핸들을 공유). ``series_code`` 는 시리즈코드."""
-        return OverseasFuturesHandle(self._client, series_code)
+        return OverseasDerivativeHandle(self._client, series_code)

@@ -6,10 +6,10 @@
 **후보를 모두** 돌려줍니다 — 코드를 골라 `stock()`에 넘기세요. (`stock()`은 이름을 받지 않습니다.)
 
 ```python
-kis.domestic.search("삼성전자")
-kis.domestic.search("에코프로", market="KOSDAQ")  # 부분매치, 시장 한정(all/KOSPI/KOSDAQ)
+kis.domestic.search_stocks("삼성전자")
+kis.domestic.search_stocks("에코프로", market="KOSDAQ")  # 부분매치, 시장 한정(all/KOSPI/KOSDAQ)
 
-hits = kis.domestic.search("카카오")
+hits = kis.domestic.search_stocks("카카오")
 kis.domestic.stock(hits[0].symbol).quote()
 ```
 

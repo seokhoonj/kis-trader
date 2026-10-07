@@ -142,7 +142,7 @@ kis.domestic
 ├── option_board_futures()              # 전광판 하단 선물 현재가
 ├── derivative_margin_rates(base_date)  # 선물 증거금율 표
 │  ── 종목검색·관심·공통 조회 ──────────────────────────
-├── search(query)                       # 상장 종목 이름/코드 검색
+├── search_stocks(query)                # 상장 종목 이름/코드 검색
 ├── quotes(symbols)                     # 여러 종목 현재가(최대 30)
 ├── product_info(symbol)                # 상품 공통 기본정보
 ├── saved_screens()                     # HTS 저장 종목검색 조건
@@ -361,7 +361,7 @@ kis.account
 
 ```text
 kis.orders
-├── open()                        # 미체결 주문 통합 조회(계좌별 -> OpenOrders)
+├── open_orders()                 # 미체결 주문 통합 조회(계좌별 -> OpenOrders)
 ├── reconcile(client_order_id)    # 미확정 주문 상태 재조회
 ├── cancel(client_order_id, ...)  # 접수주문 취소(부분가능)
 └── modify(client_order_id, ...)  # 가격/수량 정정
@@ -403,7 +403,7 @@ kis.realtime()
     ├── stock(symbol, exchange=None)         # RSYM 은 종목마스터로 해석
     │   ├── trades()                         # 지연체결 → DelayedTradeTick
     │   └── order_book(zone='global')        # 호가(global 10 / asia 1)
-    ├── futures(series_code)                 # → OverseasFuturesHandle
+    ├── futures(series_code)                 # → OverseasDerivativeHandle
     │   ├── trades()                         # 체결 → FuturesTradeTick
     │   └── order_book()                     # 호가 → FuturesOrderBook
     ├── option(series_code)                  # 선물과 동일 TR·핸들 공유

@@ -150,7 +150,7 @@ class _Domestic:
     def option(self, code, *, right=None):
         return _DomesticDerivHandle(self._log, "option", code, right=right)
 
-    def search(self, query, *, market="all"):   # 라이브러리처럼 기본값을 쥔다(CLI 는 재기술 안 함)
+    def search_stocks(self, query, *, market="all"):   # 라이브러리처럼 기본값을 쥔다(CLI 는 재기술 안 함)
         self._log.append(("search", query, market)); return ["HIT"]
 
 

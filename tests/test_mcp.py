@@ -38,7 +38,7 @@ def _fake_kis(*, quote=None, hits=None, ranking=None, balance=None,
     ranking_ns = SimpleNamespace(by_change=lambda direction="gainers": ranking or [])
     domestic = SimpleNamespace(
         stock=lambda sym: SimpleNamespace(quote=lambda: quote),
-        search=lambda query: hits or [],
+        search_stocks=lambda query: hits or [],
         ranking=ranking_ns,
     )
     account_ns = SimpleNamespace(

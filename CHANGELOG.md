@@ -58,6 +58,17 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   mutated a nested block in place, or asserted a block is exactly a `list`/`dict`, must
   adjust (the parse layer already accepts both).
 
+- `kis.orders.open()` renamed to `kis.orders.open_orders()`, matching the `open_orders()`
+  every account view already uses (`account.domestic.open_orders()`, the overseas and bond
+  siblings) and the `open_orders` convention across broker APIs.
+- `kis.domestic.search_stocks()` (was `kis.domestic.search()`), matching the overseas
+  `kis.overseas.search_stocks()`; `symbol` search is one verb across both regions. The MCP
+  tool keeps its `search` name for agent-config stability.
+- Realtime `OverseasFuturesHandle` renamed to `OverseasDerivativeHandle`: a single handle
+  serves both `realtime().overseas.futures(...)` and `.option(...)` (they share the same
+  wire TRs), so it is named for the asset class — matching the REST `OverseasDerivative*`
+  vocabulary — rather than for one of the two instruments it carries.
+
 ### Added
 
 - Stock handles (`DomesticStock`/`OverseasStock`) now have a readable `__repr__`

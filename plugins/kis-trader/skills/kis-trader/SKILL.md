@@ -78,7 +78,7 @@ kis = KISClient(
 이름/질의는 검색으로 실제 코드를 얻은 뒤에만 핸들을 만든다. 코드를 지어내지 않는다.
 
 ```python
-hits = kis.domestic.search("삼성전자")        # 후보 전부 (모호하면 여러 건)
+hits = kis.domestic.search_stocks("삼성전자")  # 후보 전부 (모호하면 여러 건)
 # 결과가 여럿이면 사용자에게 좁혀 묻는다 — 임의로 하나를 고르지 않는다.
 s = kis.domestic.stock(hits[0].symbol)
 ```

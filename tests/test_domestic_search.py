@@ -1,4 +1,4 @@
-"""국내 종목 이름검색 -- kis.domestic.search + 마스터 파서/인덱스.
+"""국내 종목 이름검색 -- kis.domestic.search_stocks + 마스터 파서/인덱스.
 
 이름은 모호("삼성전자"⊃"삼성전자우")하므로 검색은 후보를 하나로 좁히지 않고 모두 돌려준다
 (조용한 오확정 방지). 실 서버 없이 합성 .mst/주입 인덱스로 검증한다.
@@ -38,30 +38,30 @@ def _index():
 
 # --- 인덱스 검색 -----------------------------------------------------------
 def test_search_returns_all_name_matches_with_exact_first():
-    hits = _index().search("삼성전자")
+    hits = _index().search_stocks("삼성전자")
     assert hits[0].symbol == "005930"                    # 정확일치가 먼저
     assert {h.symbol for h in hits} == {"005930", "005935"}  # 우선주도 포함(안 삼킴)
 
 
 def test_search_substring_matches_are_all_returned():
-    hits = _index().search("삼성")
+    hits = _index().search_stocks("삼성")
     assert {h.symbol for h in hits} == {"005930", "005935", "006400"}
 
 
 def test_search_filters_by_market():
-    hits = _index().search("에코", market="KOSDAQ")
+    hits = _index().search_stocks("에코", market="KOSDAQ")
     assert [h.symbol for h in hits] == ["247540"]
-    assert _index().search("에코", market="KOSPI") == []
+    assert _index().search_stocks("에코", market="KOSPI") == []
 
 
 def test_search_by_six_digit_code_reverse_lookup():
-    hits = _index().search("005930")
+    hits = _index().search_stocks("005930")
     assert [h.name for h in hits] == ["삼성전자"]
 
 
 def test_search_short_numeric_query_matches_code_prefix():
     # 6자리 미만 숫자는 코드 접두 검색.
-    assert {h.symbol for h in _index().search("0059")} == {"005930", "005935"}
+    assert {h.symbol for h in _index().search_stocks("0059")} == {"005930", "005935"}
 
 
 def test_search_orders_exact_then_prefix_then_substring():
@@ -70,21 +70,21 @@ def test_search_orders_exact_then_prefix_then_substring():
         DomesticListing("005935", "삼성전자우", "KOSPI"),               # 접두
         DomesticListing("005930", "삼성전자", "KOSPI"),                 # 정확
     ])
-    assert [h.symbol for h in idx.search("삼성전자")] == ["005930", "005935", "100000"]
+    assert [h.symbol for h in idx.search_stocks("삼성전자")] == ["005930", "005935", "100000"]
 
 
 def test_search_no_match_is_empty_not_error():
-    assert _index().search("존재하지않는종목") == []
+    assert _index().search_stocks("존재하지않는종목") == []
 
 
 def test_search_rejects_empty_query():
     with pytest.raises(KISUsageError):
-        _index().search("   ")
+        _index().search_stocks("   ")
 
 
 def test_search_rejects_invalid_market():
     with pytest.raises(KISUsageError):
-        _index().search("삼성", market="NASDAQ")
+        _index().search_stocks("삼성", market="NASDAQ")
 
 
 # --- 마스터 파서(고정폭 cp949) ---------------------------------------------
@@ -207,15 +207,15 @@ def test_load_domestic_index_merges_both_markets_via_injected_fetch(tmp_path):
         return _fake_zip(f"{name}.mst", (bodies[name] + "\n").encode("cp949"))
 
     index = load_domestic_index(cache_dir=str(tmp_path), fetch=fetch)
-    assert [h.symbol for h in index.search("삼성전자")] == ["005930"]
-    assert [h.symbol for h in index.search("에코", market="KOSDAQ")] == ["247540"]
+    assert [h.symbol for h in index.search_stocks("삼성전자")] == ["005930"]
+    assert [h.symbol for h in index.search_stocks("에코", market="KOSDAQ")] == ["247540"]
 
 
 # --- 파사드 + stock() 은 이름을 받지 않음(안전) ----------------------------
 def test_domestic_search_facade_uses_injected_index():
     kis = KISClient(app_key="k", app_secret="s", account="12345678-01",
                     transport=object(), domestic_index=_index())
-    hits = kis.domestic.search("카카오")
+    hits = kis.domestic.search_stocks("카카오")
     assert [h.symbol for h in hits] == ["035720"]
 
 

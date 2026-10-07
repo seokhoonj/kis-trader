@@ -93,7 +93,7 @@ class OrdersNamespace:
             request_id=request_id,
         )
 
-    def open(self) -> OpenOrders:
+    def open_orders(self) -> OpenOrders:
         """세션 계좌의 미체결(접수 후 정정·취소 가능) 주문을 계좌 종류에 맞게 모아
         :class:`~kis_trader.open_orders.OpenOrders` 로 준다.
 
@@ -113,7 +113,7 @@ class OrdersNamespace:
             return OpenOrders(derivatives=tuple(account.open_orders()))
         _, product_code = self._client._require_account()
         raise KISUsageError(
-            f"kis.orders.open() 은 주식(01/22/29)·국내선물옵션(03) 계좌만 지원한다 -- 상품코드 "
+            f"kis.orders.open_orders() 은 주식(01/22/29)·국내선물옵션(03) 계좌만 지원한다 -- 상품코드 "
             f"{product_code}. 해외선물옵션(08)은 미체결 전용 조회가 없다(kis.account.today_orders())."
         )
 
@@ -275,7 +275,7 @@ class KISClient:
         # 해외 심볼->거래소 해석용 마스터 인덱스. 주입 없으면 첫 instrument() 호출 때 지연 로드.
         self._master_index = master_index
         self._master_fetch = master_fetch if master_fetch is not None else urlopen_fetch
-        # 국내 이름->코드 검색 인덱스. 주입 없으면 첫 domestic.search() 때 지연 로드(같은 배포 서버).
+        # 국내 이름->코드 검색 인덱스. 주입 없으면 첫 domestic.search_stocks() 때 지연 로드(같은 배포 서버).
         self._domestic_index = domestic_index
         # 위 두 마스터 인덱스의 지연 로드 경쟁 방지 -- 공유 KISClient 에서 동시 첫 호출이 각자 전체
         # 마스터를 받아 할당을 겹치는 것을 막는다(store/token/ratelimit 이 잠그는 규율과 동일).

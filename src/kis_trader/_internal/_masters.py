@@ -329,7 +329,7 @@ class DomesticListingIndex:
     def __init__(self, listings: Iterable[DomesticListing]) -> None:
         self._listings = tuple(listings)
 
-    def search(self, query: str, *, market: SearchMarket = "all") -> list[DomesticListing]:
+    def search_stocks(self, query: str, *, market: SearchMarket = "all") -> list[DomesticListing]:
         """이름(부분/정확) 또는 6자리 코드로 후보를 찾아 돌려준다.
 
         매치 순서는 정확일치 -> 접두 -> 부분(정확이 먼저 오되 다건은 모두 포함한다). ``market`` 은

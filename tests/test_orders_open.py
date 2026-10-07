@@ -1,4 +1,4 @@
-"""kis.orders.open() -- 세션 계좌의 미체결 주문을 계좌 종류로 디스패치해 구조체로 모은다.
+"""kis.orders.open_orders() -- 세션 계좌의 미체결 주문을 계좌 종류로 디스패치해 구조체로 모은다.
 
 주식계좌는 국내+해외, 국내선물옵션(03)은 파생, 해외선물옵션(08)은 미지원(전용 조회 없음).
 네트워크 없이 FakeTransport 로, 라우팅과 fail-closed 분기를 못 박는다.
@@ -37,7 +37,7 @@ def _client(transport, *, account, environment="real"):
 
 def test_open_stock_account_queries_domestic_and_overseas():
     fake = FakeTransport()
-    result = _client(fake, account="12345678-01").orders.open()
+    result = _client(fake, account="12345678-01").orders.open_orders()
     assert isinstance(result, OpenOrders)
     assert result.domestic == () and result.overseas == () and result.derivatives == ()
     assert len(result) == 0
@@ -49,7 +49,7 @@ def test_open_stock_account_queries_domestic_and_overseas():
 
 def test_open_derivatives_account_queries_derivatives():
     fake = FakeTransport()
-    result = _client(fake, account="12345678-03").orders.open()
+    result = _client(fake, account="12345678-03").orders.open_orders()
     assert isinstance(result, OpenOrders)
     assert result.domestic == () and result.overseas == ()
     assert "TTTO5201R" in {c["tr_id"] for c in fake.calls}   # 파생 미체결(inquire-ccnl)
@@ -64,7 +64,7 @@ def test_open_derivatives_populated_wraps_rows_and_counts():
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="",
                        body={"output1": [row], "ctx_area_nk200": "", "ctx_area_fk200": ""}, tr_cont="D")
     fake = FakeTransport(by_tr={"TTTO5201R": resp})
-    result = _client(fake, account="12345678-03").orders.open()
+    result = _client(fake, account="12345678-03").orders.open_orders()
     assert len(result.derivatives) == 1
     assert isinstance(result.derivatives[0], DerivativeOpenOrder)
     assert len(result) == 1
@@ -75,7 +75,7 @@ def test_open_overseas_derivatives_unsupported():
     client = _client(FakeTransport(), account="12345678-08")
     fake = client.transport
     with pytest.raises(KISUsageError, match="해외선물옵션"):
-        client.orders.open()
+        client.orders.open_orders()
     assert fake.calls == []
 
 
@@ -83,11 +83,11 @@ def test_open_requires_account():
     client = _client(FakeTransport(), account=None)
     fake = client.transport
     with pytest.raises(KISUsageError):
-        client.orders.open()
+        client.orders.open_orders()
     assert fake.calls == []
 
 
 def test_open_stock_account_paper_fails_closed():
     # 주식계좌 미체결 조회(TTTC0084R/TTTS3018R)는 실전전용 -- 모의는 하위 조회에서 fail-closed.
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(), account="12345678-01", environment="paper").orders.open()
+        _client(FakeTransport(), account="12345678-01", environment="paper").orders.open_orders()

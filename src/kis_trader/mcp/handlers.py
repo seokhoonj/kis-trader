@@ -78,7 +78,7 @@ def quote(kis: KISClient, symbol: str, *, region: str = "domestic") -> dict[str,
 
 def search(kis: KISClient, query: str, *, limit: int = 20) -> list[dict[str, Any]]:
     """이름/질의로 국내 종목 후보를 찾는다(코드 추측 금지 -- 실제 코드는 여기서만 온다)."""
-    hits = kis.domestic.search(query)
+    hits = kis.domestic.search_stocks(query)
     out: list[dict[str, Any]] = [_serialize(h) for h in list(hits)[:limit]]
     return out
 

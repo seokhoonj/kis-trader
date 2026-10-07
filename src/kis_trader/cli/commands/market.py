@@ -12,7 +12,7 @@ def cmd_search(kis: KISClient, args: Namespace) -> Any:
     """이름/코드로 후보를 **모두** 돌려준다 -- 모호해도 한 종목으로 임의 확정하지 않는다."""
     # --market 미지정이면 라이브러리 기본을 쓴다(CLI 가 기본값을 재기술하지 않는다).
     extra = {} if args.market is None else {"market": args.market}
-    return kis.domestic.search(args.query, **extra)
+    return kis.domestic.search_stocks(args.query, **extra)
 
 
 def cmd_ranking_change(kis: KISClient, args: Namespace) -> Any:
