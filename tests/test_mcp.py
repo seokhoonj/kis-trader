@@ -95,6 +95,18 @@ def test_serialize_strips_underscore_keys_from_nested_mappings():
     assert "LEAK" not in str(out)
 
 
+def test_serialize_recurses_mapping_proxy_from_frozen_body():
+    """_serialize 는 ``MappingProxyType`` (freeze_vendor_payload 결과) 도 매핑으로 재귀 처리한다 --
+    ``dict`` 만 보던 분기는 proxy 를 그대로 반환해 ``json.dumps`` 가 Decimal/proxy 에서 깨졌다."""
+    from types import MappingProxyType
+
+    frozen = MappingProxyType({"price": Decimal("10.5"), "rows": (MappingProxyType({"_raw": 1, "v": 2}),)})
+    out = handlers._serialize(frozen)
+    assert out == {"price": "10.5", "rows": [{"v": 2}]}  # proxy 재귀 + Decimal 문자열화 + 밑줄 키 제거
+    import json
+    json.dumps(out)  # 직렬화가 깨지지 않아야 한다
+
+
 def test_search_handler_caps_and_serializes():
     hits = [_FakeHit(f"{i:06d}", f"n{i}") for i in range(30)]
     out = handlers.search(kis := _fake_kis(hits=hits), "삼성", limit=5)

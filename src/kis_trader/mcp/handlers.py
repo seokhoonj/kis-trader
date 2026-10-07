@@ -9,6 +9,7 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from decimal import Decimal
 from typing import Any, Literal, cast
@@ -41,8 +42,9 @@ def _serialize(value: Any) -> Any:
         return str(value)
     if isinstance(value, (list, tuple)):
         return [_serialize(item) for item in value]
-    if isinstance(value, dict):
-        # dict 분기도 밑줄 키를 제외 -- dataclass 분기와 같은 규율(중첩 매핑의 _raw/내부키 누출 방지).
+    if isinstance(value, Mapping):
+        # 매핑 분기도 밑줄 키를 제외 -- dataclass 분기와 같은 규율(중첩 매핑의 _raw/내부키 누출 방지).
+        # ``Mapping`` 으로 받아 ``MappingProxyType`` (freeze_vendor_payload 결과)도 재귀 처리한다.
         return {key: _serialize(item) for key, item in value.items()
                 if not (isinstance(key, str) and key.startswith("_"))}
     return value
