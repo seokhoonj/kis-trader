@@ -146,15 +146,15 @@ def fetch_present_balance(
 
 def fetch_orders(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    only_unfilled: bool = False,
+    unfilled_only: bool = False,
 ) -> list[PensionOrder]:
-    """퇴직연금 당일 주문(체결/미체결). ``only_unfilled`` 이면 미체결만. **모의투자 미지원**."""
+    """퇴직연금 당일 주문(체결/미체결). ``unfilled_only`` 이면 미체결만. **모의투자 미지원**."""
     _reject_demo(environment, what="퇴직연금 미체결내역(pension/inquire-daily-ccld)")
     rows, _summary = _walk_holdings(
         transport, cano=cano, product_code=product_code, path=_ORDERS_PATH, tr_id=_ORDERS_TR,
         extra={
             "USER_DVSN_CD": "%%", "SLL_BUY_DVSN_CD": "00",
-            "CCLD_NCCS_DVSN": "02" if only_unfilled else "%%", "INQR_DVSN_3": "00",
+            "CCLD_NCCS_DVSN": "02" if unfilled_only else "%%", "INQR_DVSN_3": "00",
         },
         label="주문내역", output_key="output",
     )

@@ -216,9 +216,9 @@ def test_pension_orders_parses():
     assert o.order_time == time(13, 14, 38)
 
 
-def test_pension_orders_only_unfilled_param():
+def test_pension_orders_unfilled_only_param():
     fake = FakeTransport(response=_resp_orders([]))
-    _client(fake).account.pension.orders(only_unfilled=True)
+    _client(fake).account.pension.orders(unfilled_only=True)
     call = fake.calls[0]
     assert call["tr_id"] == "TTTC2210R"
     assert call["path"] == _ORDERS_PATH

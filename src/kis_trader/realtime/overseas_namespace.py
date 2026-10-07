@@ -56,7 +56,7 @@ class OverseasStockHandle:
     """해외주식 실시간 핸들. tr_key 는 종목 마스터로 해석한 RSYM. ``zone`` 으로 호가 TR 을 고른다."""
 
     def __init__(self, client: RealtimeClient, realtime_symbol: str) -> None:
-        self._c = client
+        self._client = client
         self._rsym = realtime_symbol
 
     def trades(
@@ -65,7 +65,7 @@ class OverseasStockHandle:
         """해외주식 실시간지연체결가를 구독하고 RealtimeSubscription[DelayedTradeTick] 을 반환한다(HDFSCNT0)."""
         return cast(
             "RealtimeSubscription[DelayedTradeTick]",
-            self._c._open_typed(_STOCK_TRADES_TR, self._rsym, on=on),
+            self._client._open_typed(_STOCK_TRADES_TR, self._rsym, on=on),
         )
 
     def order_book(
@@ -78,7 +78,7 @@ class OverseasStockHandle:
         tr = _pick(_STOCK_ORDER_BOOK_TR, zone, label="zone")
         return cast(
             "RealtimeSubscription[OverseasOrderBook | AsiaDelayedOrderBook]",
-            self._c._open_typed(tr, self._rsym, on=on),
+            self._client._open_typed(tr, self._rsym, on=on),
         )
 
 
@@ -86,7 +86,7 @@ class OverseasFuturesHandle:
     """해외선물옵션 실시간 핸들. 선물/옵션이 같은 TR(HDFFF020/010)을 공유한다. tr_key 는 시리즈코드."""
 
     def __init__(self, client: RealtimeClient, series_code: str) -> None:
-        self._c = client
+        self._client = client
         self._series_code = series_code
 
     def trades(
@@ -95,7 +95,7 @@ class OverseasFuturesHandle:
         """해외선물옵션 실시간체결가를 구독하고 RealtimeSubscription[FuturesTradeTick] 을 반환한다(HDFFF020)."""
         return cast(
             "RealtimeSubscription[FuturesTradeTick]",
-            self._c._open_typed(_FUTURES_TRADES_TR, self._series_code, on=on),
+            self._client._open_typed(_FUTURES_TRADES_TR, self._series_code, on=on),
         )
 
     def order_book(
@@ -104,7 +104,7 @@ class OverseasFuturesHandle:
         """해외선물옵션 실시간호가를 구독하고 RealtimeSubscription[FuturesOrderBook] 을 반환한다(HDFFF010)."""
         return cast(
             "RealtimeSubscription[FuturesOrderBook]",
-            self._c._open_typed(_FUTURES_ORDER_BOOK_TR, self._series_code, on=on),
+            self._client._open_typed(_FUTURES_ORDER_BOOK_TR, self._series_code, on=on),
         )
 
 
@@ -112,7 +112,7 @@ class OverseasExecutionNotices:
     """해외 실시간 통보 -- hts_id 단위(계약 아님). 자산군을 잎에서 고른다. 암호화 프레임은 연결 계층이 복호화."""
 
     def __init__(self, client: RealtimeClient) -> None:
-        self._c = client
+        self._client = client
 
     def stock(
         self, hts_id: str, *, on: Callable[[OverseasExecutionNotice], None] | None = None
@@ -120,7 +120,7 @@ class OverseasExecutionNotices:
         """해외주식 실시간체결통보를 구독하고 RealtimeSubscription[OverseasExecutionNotice] 을 반환한다(실전 H0GSCNI0 / 모의 H0GSCNI9, 환경 자동 선택). hts_id 단위."""
         return cast(
             "RealtimeSubscription[OverseasExecutionNotice]",
-            self._c._open_typed(_STOCK_EXECUTION_NOTICE_TR[self._c._environment], hts_id, on=on),
+            self._client._open_typed(_STOCK_EXECUTION_NOTICE_TR[self._client._environment], hts_id, on=on),
         )
 
     def derivative_orders(
@@ -129,7 +129,7 @@ class OverseasExecutionNotices:
         """해외선물옵션 실시간주문내역통보를 구독하고 RealtimeSubscription[FuturesOrderNotice] 을 반환한다(HDFFF1C0). hts_id 단위."""
         return cast(
             "RealtimeSubscription[FuturesOrderNotice]",
-            self._c._open_typed(_FUTURES_ORDER_NOTICE_TR, hts_id, on=on),
+            self._client._open_typed(_FUTURES_ORDER_NOTICE_TR, hts_id, on=on),
         )
 
     def derivative_fills(
@@ -138,7 +138,7 @@ class OverseasExecutionNotices:
         """해외선물옵션 실시간체결내역통보를 구독하고 RealtimeSubscription[FuturesExecutionNotice] 을 반환한다(HDFFF2C0). hts_id 단위."""
         return cast(
             "RealtimeSubscription[FuturesExecutionNotice]",
-            self._c._open_typed(_FUTURES_EXECUTION_NOTICE_TR, hts_id, on=on),
+            self._client._open_typed(_FUTURES_EXECUTION_NOTICE_TR, hts_id, on=on),
         )
 
 
@@ -146,7 +146,7 @@ class RealtimeOverseasNamespace:
     """``kis.realtime().overseas`` -- 해외 실시간 시세/통보의 지역 네임스페이스."""
 
     def __init__(self, client: RealtimeClient) -> None:
-        self._c = client
+        self._client = client
         self.execution_notices = OverseasExecutionNotices(client)
 
     def stock(self, symbol: str, *, exchange: str | None = None) -> OverseasStockHandle:
@@ -154,13 +154,13 @@ class RealtimeOverseasNamespace:
         마스터로 자동 해석한다(첫 조회는 마스터를 받아 캐시). 같은 심볼이 여러 거래소면 ``exchange`` 를
         명시해야 한다(:class:`~kis_trader.errors.KISUsageError`). 종목 마스터에 접근할 수 없는 클라이언트
         (KISClient 없이 만든 RealtimeClient)면 fail-closed."""
-        record = self._c._resolve_instrument(symbol, exchange)
-        return OverseasStockHandle(self._c, record.realtime_symbol)
+        record = self._client._resolve_instrument(symbol, exchange)
+        return OverseasStockHandle(self._client, record.realtime_symbol)
 
     def futures(self, series_code: str) -> OverseasFuturesHandle:
         """해외선물 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). ``series_code`` 는 시리즈코드(예: ESZ25)."""
-        return OverseasFuturesHandle(self._c, series_code)
+        return OverseasFuturesHandle(self._client, series_code)
 
     def option(self, series_code: str) -> OverseasFuturesHandle:
         """해외옵션 실시간 핸들을 반환한다(선물과 같은 TR·핸들을 공유). ``series_code`` 는 시리즈코드."""
-        return OverseasFuturesHandle(self._c, series_code)
+        return OverseasFuturesHandle(self._client, series_code)

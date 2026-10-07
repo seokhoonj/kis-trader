@@ -30,6 +30,11 @@ class _StockBase(abc.ABC):
         self._client = client
         self.symbol = symbol
 
+    def __repr__(self) -> str:
+        exchange = getattr(self, "exchange", None)
+        extra = f", exchange={exchange!r}" if exchange is not None else ""
+        return f"{type(self).__name__}(symbol={self.symbol!r}{extra})"
+
     # --- 주문 실행(안전 엔진 위임; 계좌 정보 필요) -- 와이어 조립기만 자산군별로 다르다 ---
     def buy(
         self, *, quantity: Numeric, limit_price: Numeric | None = None,

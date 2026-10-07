@@ -72,7 +72,7 @@ class StockHandle:
     """국내주식 실시간 핸들. ``exchange`` 로 거래소(KRX/NXT/통합 UN)를 고른다."""
 
     def __init__(self, client: RealtimeClient, code: str) -> None:
-        self._c = client
+        self._client = client
         self._code = code
 
     def trades(
@@ -84,7 +84,7 @@ class StockHandle:
         """국내주식 실시간 체결을 구독하고 RealtimeSubscription[StockTick] 을 반환한다. exchange: KRX/NXT/통합(UN)."""
         tr = _pick(_STOCK_TRADES_TR, exchange, label="exchange")
         return cast(
-            "RealtimeSubscription[StockTick]", self._c._open_typed(tr, self._code, on=on)
+            "RealtimeSubscription[StockTick]", self._client._open_typed(tr, self._code, on=on)
         )
 
     def order_book(
@@ -96,7 +96,7 @@ class StockHandle:
         """국내주식 실시간 호가를 구독하고 RealtimeSubscription[StockOrderBook] 을 반환한다. exchange: KRX/NXT/통합(UN)."""
         tr = _pick(_STOCK_ORDER_BOOK_TR, exchange, label="exchange")
         return cast(
-            "RealtimeSubscription[StockOrderBook]", self._c._open_typed(tr, self._code, on=on)
+            "RealtimeSubscription[StockOrderBook]", self._client._open_typed(tr, self._code, on=on)
         )
 
 
@@ -104,7 +104,7 @@ class FuturesHandle:
     """국내 선물 실시간 핸들. ``kind``: index|commodity|stock|night."""
 
     def __init__(self, client: RealtimeClient, code: str, kind: FuturesKind) -> None:
-        self._c = client
+        self._client = client
         self._code = code
         self._trades_tr = _pick(_FUTURES_TRADES_TR, kind, label="kind")
         self._order_book_tr = _pick(_FUTURES_ORDER_BOOK_TR, kind, label="kind")
@@ -114,7 +114,7 @@ class FuturesHandle:
     ) -> RealtimeSubscription[FuturesTick]:
         """국내 선물 실시간 체결을 구독하고 RealtimeSubscription[FuturesTick] 을 반환한다. kind 로 고른 선물군."""
         return cast(
-            "RealtimeSubscription[FuturesTick]", self._c._open_typed(self._trades_tr, self._code, on=on)
+            "RealtimeSubscription[FuturesTick]", self._client._open_typed(self._trades_tr, self._code, on=on)
         )
 
     def order_book(
@@ -123,7 +123,7 @@ class FuturesHandle:
         """국내 선물 실시간 호가를 구독하고 RealtimeSubscription[DerivativeOrderBook] 을 반환한다. kind 로 고른 선물군."""
         return cast(
             "RealtimeSubscription[DerivativeOrderBook]",
-            self._c._open_typed(self._order_book_tr, self._code, on=on),
+            self._client._open_typed(self._order_book_tr, self._code, on=on),
         )
 
 
@@ -131,7 +131,7 @@ class OptionHandle:
     """국내 옵션 실시간 핸들. ``kind``: index|stock|night."""
 
     def __init__(self, client: RealtimeClient, code: str, kind: OptionKind) -> None:
-        self._c = client
+        self._client = client
         self._code = code
         self._trades_tr = _pick(_OPTION_TRADES_TR, kind, label="kind")
         self._order_book_tr = _pick(_OPTION_ORDER_BOOK_TR, kind, label="kind")
@@ -141,7 +141,7 @@ class OptionHandle:
     ) -> RealtimeSubscription[OptionTick]:
         """국내 옵션 실시간 체결을 구독하고 RealtimeSubscription[OptionTick] 을 반환한다. kind 로 고른 옵션군."""
         return cast(
-            "RealtimeSubscription[OptionTick]", self._c._open_typed(self._trades_tr, self._code, on=on)
+            "RealtimeSubscription[OptionTick]", self._client._open_typed(self._trades_tr, self._code, on=on)
         )
 
     def order_book(
@@ -150,7 +150,7 @@ class OptionHandle:
         """국내 옵션 실시간 호가를 구독하고 RealtimeSubscription[DerivativeOrderBook] 을 반환한다. kind 로 고른 옵션군."""
         return cast(
             "RealtimeSubscription[DerivativeOrderBook]",
-            self._c._open_typed(self._order_book_tr, self._code, on=on),
+            self._client._open_typed(self._order_book_tr, self._code, on=on),
         )
 
 
@@ -158,7 +158,7 @@ class IndexHandle:
     """국내지수 실시간 핸들. 지수 코드 단위(체결/예상체결/프로그램매매). 호가는 없다."""
 
     def __init__(self, client: RealtimeClient, code: str) -> None:
-        self._c = client
+        self._client = client
         self._code = code
 
     def trades(
@@ -167,7 +167,7 @@ class IndexHandle:
         """국내지수 실시간체결을 구독하고 RealtimeSubscription[IndexTick] 을 반환한다(H0UPCNT0)."""
         return cast(
             "RealtimeSubscription[IndexTick]",
-            self._c._open_typed(_INDEX_TRADES_TR, self._code, on=on),
+            self._client._open_typed(_INDEX_TRADES_TR, self._code, on=on),
         )
 
     def expected_conclusion(
@@ -176,7 +176,7 @@ class IndexHandle:
         """국내지수 실시간 예상체결을 구독하고 RealtimeSubscription[IndexExpectedConclusion] 을 반환한다(H0UPANC0)."""
         return cast(
             "RealtimeSubscription[IndexExpectedConclusion]",
-            self._c._open_typed(_INDEX_EXPECTED_CONCLUSION_TR, self._code, on=on),
+            self._client._open_typed(_INDEX_EXPECTED_CONCLUSION_TR, self._code, on=on),
         )
 
     def program_trade(
@@ -185,7 +185,7 @@ class IndexHandle:
         """국내지수 실시간 프로그램매매를 구독하고 RealtimeSubscription[IndexProgramTrade] 을 반환한다(H0UPPGM0)."""
         return cast(
             "RealtimeSubscription[IndexProgramTrade]",
-            self._c._open_typed(_INDEX_PROGRAM_TRADE_TR, self._code, on=on),
+            self._client._open_typed(_INDEX_PROGRAM_TRADE_TR, self._code, on=on),
         )
 
 
@@ -193,7 +193,7 @@ class ELWHandle:
     """ELW 실시간 핸들. ELW 코드 단위(체결/호가/예상체결)."""
 
     def __init__(self, client: RealtimeClient, code: str) -> None:
-        self._c = client
+        self._client = client
         self._code = code
 
     def trades(
@@ -202,7 +202,7 @@ class ELWHandle:
         """ELW 실시간체결가를 구독하고 RealtimeSubscription[ELWTick] 을 반환한다(H0EWCNT0)."""
         return cast(
             "RealtimeSubscription[ELWTick]",
-            self._c._open_typed(_ELW_TRADES_TR, self._code, on=on),
+            self._client._open_typed(_ELW_TRADES_TR, self._code, on=on),
         )
 
     def order_book(
@@ -211,7 +211,7 @@ class ELWHandle:
         """ELW 실시간호가를 구독하고 RealtimeSubscription[ELWOrderBook] 을 반환한다(H0EWASP0)."""
         return cast(
             "RealtimeSubscription[ELWOrderBook]",
-            self._c._open_typed(_ELW_ORDER_BOOK_TR, self._code, on=on),
+            self._client._open_typed(_ELW_ORDER_BOOK_TR, self._code, on=on),
         )
 
     def expected_conclusion(
@@ -220,7 +220,7 @@ class ELWHandle:
         """ELW 실시간 예상체결을 구독하고 RealtimeSubscription[ELWExpectedConclusion] 을 반환한다(H0EWANC0)."""
         return cast(
             "RealtimeSubscription[ELWExpectedConclusion]",
-            self._c._open_typed(_ELW_EXPECTED_CONCLUSION_TR, self._code, on=on),
+            self._client._open_typed(_ELW_EXPECTED_CONCLUSION_TR, self._code, on=on),
         )
 
 
@@ -228,7 +228,7 @@ class BondHandle:
     """일반채권 실시간 핸들. 채권 코드 단위(체결/호가)."""
 
     def __init__(self, client: RealtimeClient, code: str) -> None:
-        self._c = client
+        self._client = client
         self._code = code
 
     def trades(
@@ -237,7 +237,7 @@ class BondHandle:
         """일반채권 실시간 체결을 구독하고 RealtimeSubscription[BondTick] 을 반환한다(H0BJCNT0)."""
         return cast(
             "RealtimeSubscription[BondTick]",
-            self._c._open_typed(_BOND_TRADES_TR, self._code, on=on),
+            self._client._open_typed(_BOND_TRADES_TR, self._code, on=on),
         )
 
     def order_book(
@@ -246,7 +246,7 @@ class BondHandle:
         """일반채권 실시간 호가를 구독하고 RealtimeSubscription[BondOrderBook] 을 반환한다(H0BJASP0)."""
         return cast(
             "RealtimeSubscription[BondOrderBook]",
-            self._c._open_typed(_BOND_ORDER_BOOK_TR, self._code, on=on),
+            self._client._open_typed(_BOND_ORDER_BOOK_TR, self._code, on=on),
         )
 
 
@@ -254,7 +254,7 @@ class BondIndexHandle:
     """채권지수 실시간 핸들. 채권지수 코드 단위(체결). 일반채권과 코드 공간이 다르다."""
 
     def __init__(self, client: RealtimeClient, code: str) -> None:
-        self._c = client
+        self._client = client
         self._code = code
 
     def trades(
@@ -263,7 +263,7 @@ class BondIndexHandle:
         """채권지수 실시간 체결을 구독하고 RealtimeSubscription[BondIndexTick] 을 반환한다(H0BICNT0)."""
         return cast(
             "RealtimeSubscription[BondIndexTick]",
-            self._c._open_typed(_BOND_INDEX_TRADES_TR, self._code, on=on),
+            self._client._open_typed(_BOND_INDEX_TRADES_TR, self._code, on=on),
         )
 
 
@@ -271,7 +271,7 @@ class ExecutionNotices:
     """체결통보 -- hts_id 단위(계약 아님). 자산군을 잎에서 고른다."""
 
     def __init__(self, client: RealtimeClient) -> None:
-        self._c = client
+        self._client = client
 
     def stock(
         self, hts_id: str, *, on: Callable[[StockExecutionNotice], None] | None = None
@@ -279,7 +279,7 @@ class ExecutionNotices:
         """국내주식 실시간 체결통보를 구독하고 RealtimeSubscription[StockExecutionNotice] 을 반환한다. hts_id 단위."""
         return cast(
             "RealtimeSubscription[StockExecutionNotice]",
-            self._c._open_typed(_STOCK_EXECUTION_NOTICE_TR[self._c._environment], hts_id, on=on),
+            self._client._open_typed(_STOCK_EXECUTION_NOTICE_TR[self._client._environment], hts_id, on=on),
         )
 
     def derivative(
@@ -292,7 +292,7 @@ class ExecutionNotices:
         """국내 파생 실시간 체결통보를 구독하고 RealtimeSubscription[DerivativeExecutionNotice] 을 반환한다. session: regular/night_futures/night_option."""
         tr = _pick(_DERIV_NOTICE_TR, session, label="session")
         return cast(
-            "RealtimeSubscription[DerivativeExecutionNotice]", self._c._open_typed(tr, hts_id, on=on)
+            "RealtimeSubscription[DerivativeExecutionNotice]", self._client._open_typed(tr, hts_id, on=on)
         )
 
 
@@ -300,33 +300,33 @@ class RealtimeDomesticNamespace:
     """``kis.realtime().domestic`` -- 국내 실시간 시세/통보의 지역 네임스페이스."""
 
     def __init__(self, client: RealtimeClient) -> None:
-        self._c = client
+        self._client = client
         self.execution_notices = ExecutionNotices(client)
 
     def stock(self, code: str) -> StockHandle:
         """국내주식 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). exchange 는 잎에서 고른다."""
-        return StockHandle(self._c, code)
+        return StockHandle(self._client, code)
 
     def futures(self, code: str, kind: FuturesKind = "index") -> FuturesHandle:
         """국내 선물 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). kind: index|commodity|stock|night."""
-        return FuturesHandle(self._c, code, kind)
+        return FuturesHandle(self._client, code, kind)
 
     def option(self, code: str, kind: OptionKind = "index") -> OptionHandle:
         """국내 옵션 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). kind: index|stock|night."""
-        return OptionHandle(self._c, code, kind)
+        return OptionHandle(self._client, code, kind)
 
     def index(self, code: str) -> IndexHandle:
         """국내지수 실시간 핸들을 반환한다(.trades()/.expected_conclusion()/.program_trade() 로 구독)."""
-        return IndexHandle(self._c, code)
+        return IndexHandle(self._client, code)
 
     def elw(self, code: str) -> ELWHandle:
         """ELW 실시간 핸들을 반환한다(.trades()/.order_book()/.expected_conclusion() 로 구독)."""
-        return ELWHandle(self._c, code)
+        return ELWHandle(self._client, code)
 
     def bond(self, code: str) -> BondHandle:
         """일반채권 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독)."""
-        return BondHandle(self._c, code)
+        return BondHandle(self._client, code)
 
     def bond_index(self, code: str) -> BondIndexHandle:
         """채권지수 실시간 핸들을 반환한다(.trades() 로 구독). 일반채권과 코드 공간이 다르다."""
-        return BondIndexHandle(self._c, code)
+        return BondIndexHandle(self._client, code)

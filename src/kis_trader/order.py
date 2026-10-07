@@ -8,6 +8,7 @@
 
 from __future__ import annotations
 
+import abc
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -154,7 +155,7 @@ def _decode_domestic_exchange(slot12: str) -> str:
     return "SOR" if slot12 == "UN" else slot12
 
 
-class OrderFingerprint:
+class OrderFingerprint(abc.ABC):
     """주문 요청 지문(멱등 dedup 키)의 인메모리 태그드 유니온 베이스.
 
     KIS 는 네이티브 멱등키가 없어 이 지문이 "같은 id 를 *다른* 주문에 재사용했는지"를 판별한다.
@@ -181,6 +182,7 @@ class OrderFingerprint:
 
     __slots__ = ()
 
+    @abc.abstractmethod
     def _positional(self) -> tuple[str, ...]:
         """이 지문의 온-디스크 위치 인코딩(19-슬롯). 각 변형이 구현한다."""
         raise NotImplementedError

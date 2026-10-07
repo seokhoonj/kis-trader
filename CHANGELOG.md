@@ -44,6 +44,14 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `Side | None` (`"buy"`/`"sell"`), matching every other `side` in the package, instead of
   the raw localized `"매수"`/`"매도"` string (which remains available in `_raw`).
 
+- `kis.account.pension.orders(only_unfilled=...)` renamed to `unfilled_only=...`, matching
+  the `unfilled_only` every other order/fill query uses.
+
+### Added
+
+- Stock handles (`DomesticStock`/`OverseasStock`) now have a readable `__repr__`
+  (`DomesticStock(symbol='005930', exchange='KRX')`).
+
 ### Removed
 
 - `DomesticBoard`, `StockVenue`, `OverseasVenue`, `resolve_market`, and the public

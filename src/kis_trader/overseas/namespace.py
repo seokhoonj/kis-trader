@@ -77,16 +77,16 @@ class OverseasAccount:
     """
 
     def __init__(self, client: KISClient) -> None:
-        self._c = client
+        self._client = client
 
     def positions(self, *, market: str | None = None) -> list[OverseasPosition]:
         """보유 종목(거래소 그룹+통화별). ``market`` = ``"US"``/``"HK"``/``"CN_SH"``/``"CN_SZ"``/``"JP"``/
         ``"VN_HN"``/``"VN_HCM"``, 생략(``None``)하면 **전체 시장 그룹을 순회해 합친다**. 금액은 종목 통화의
         :class:`~kis_trader.money.Money`."""
-        cano, product_code = self._c._require_account()
+        cano, product_code = self._client._require_account()
         return overseas_account.fetch_positions(
-            self._c.transport, cano=cano, product_code=product_code,
-            environment=self._c.environment, market=market,
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, market=market,
         )
 
     @overload
@@ -99,28 +99,28 @@ class OverseasAccount:
         생략(``None``)하면 **전체 시장을 순회해 시장별 요약 리스트**를 준다(통화가 시장마다 달라 하나로
         합칠 수 없으므로 나열; :meth:`positions`/:meth:`open_orders` 와 동일 arity). 전체 종합은
         :meth:`present_balance`, 예수금(현금)은 별도다."""
-        cano, product_code = self._c._require_account()
+        cano, product_code = self._client._require_account()
         return overseas_account.fetch_balance(
-            self._c.transport, cano=cano, product_code=product_code,
-            environment=self._c.environment, market=market,
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, market=market,
         )
 
     def buyable(self, symbol: str, *, exchange: str, price: Numeric) -> OverseasBuyableAmount:
         """매수가능금액. ``exchange`` 는 시세 거래소코드(NAS/NYS/AMS/HKS/SHS/SZS/TSE/HNX/HSX), ``price`` 는
         의도한 주문단가. 외화·통합 기준 주문가능금액·최대수량을 :class:`~kis_trader.money.Money` 로 준다.
         **매수 시 수량단위 절사가 필요**하다."""
-        cano, product_code = self._c._require_account()
+        cano, product_code = self._client._require_account()
         return overseas_account.fetch_buyable_amount(
-            self._c.transport, cano=cano, product_code=product_code,
-            environment=self._c.environment, symbol=symbol, exchange=exchange, price=price,
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, symbol=symbol, exchange=exchange, price=price,
         )
 
     def foreign_margin(self) -> list[OverseasForeignMargin]:
         """통화별 외화 예수금·증거금·주문가능금액. 금액은 각 통화의 :class:`~kis_trader.money.Money`.
         **모의투자 미지원**."""
-        cano, product_code = self._c._require_account()
+        cano, product_code = self._client._require_account()
         return overseas_account.fetch_foreign_margin(
-            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment
+            self._client.transport, cano=cano, product_code=product_code, environment=self._client.environment
         )
 
     def present_balance(
@@ -132,9 +132,9 @@ class OverseasAccount:
         (``"00"``=전체), ``inquiry`` 조회구분. 모의는 요약만 온다.
 
         .. note:: 요약 필드는 KIS 예시가 잘려 레이아웃 기준이다 -- 전체 원본은 ``_raw``."""
-        cano, product_code = self._c._require_account()
+        cano, product_code = self._client._require_account()
         return overseas_account.fetch_present_balance(
-            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
+            self._client.transport, cano=cano, product_code=product_code, environment=self._client.environment,
             won_basis=won_basis, nation=nation, market_code=market_code, inquiry=inquiry,
         )
 
@@ -143,9 +143,9 @@ class OverseasAccount:
     ) -> OverseasSettlementBalance:
         """결제기준잔고 -- ``basis_date``(YYYYMMDD) 결제 기준의 보유 종목·통화별 예수금·계좌 요약.
         ``won_basis`` 원화(True)/외화(False), ``inquiry`` 조회구분. **모의투자 미지원**."""
-        cano, product_code = self._c._require_account()
+        cano, product_code = self._client._require_account()
         return overseas_account.fetch_settlement_balance(
-            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
+            self._client.transport, cano=cano, product_code=product_code, environment=self._client.environment,
             basis_date=basis_date, won_basis=won_basis, inquiry=inquiry,
         )
 
@@ -158,9 +158,9 @@ class OverseasAccount:
         (False). **모의투자 미지원**.
 
         .. note:: KIS 예시가 비어 있어 필드는 레이아웃 기준이다 -- 전체 원본은 각 행/결과의 ``_raw``."""
-        cano, product_code = self._c._require_account()
+        cano, product_code = self._client._require_account()
         return overseas_account.fetch_period_profit(
-            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
+            self._client.transport, cano=cano, product_code=product_code, environment=self._client.environment,
             start=start, end=end, exchange=exchange, nation=nation, currency=currency,
             symbol=symbol, won_basis=won_basis,
         )
@@ -171,28 +171,28 @@ class OverseasAccount:
         """일별 거래내역(매매·결제·수수료). ``start``/``end`` 는 등록일자 기간(YYYYMMDD), ``symbol`` 없으면
         전체, ``side`` = ``"all"``/``"sell"``/``"buy"``. 외화 금액은 거래 통화의 :class:`~kis_trader.money.Money`.
         **모의투자 미지원**."""
-        cano, product_code = self._c._require_account()
+        cano, product_code = self._client._require_account()
         return overseas_account.fetch_transactions(
-            self._c.transport, cano=cano, product_code=product_code,
-            environment=self._c.environment, start=start, end=end, symbol=symbol, side=side,
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, start=start, end=end, symbol=symbol, side=side,
         )
 
     def open_orders(self, *, market: str | None = None) -> list[OverseasOpenOrder]:
         """미체결(열린) 주문. 거래소 주문번호·미체결 잔량을 준다. ``market`` 생략(``None``)하면 **전체 시장
         그룹을 순회해 합친다**. **모의투자 미지원**."""
-        cano, product_code = self._c._require_account()
+        cano, product_code = self._client._require_account()
         return overseas_orders_api.fetch_open_orders(
-            self._c.transport, cano=cano, product_code=product_code,
-            environment=self._c.environment, market=market,
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, market=market,
         )
 
     def algo_orders(self, *, trade_date: str = "") -> list[OverseasAlgoOrder]:
         """알고(TWAP/VWAP 등 분할집행) 주문 목록. 각 건의 ``order_id``/``branch_number`` 로 :meth:`algo_executions`
         를 조회한다. ``trade_date``(YYYYMMDD)는 거래일자로, 생략하면 오늘(KST)이다. **모의투자 미지원**."""
-        cano, product_code = self._c._require_account()
+        cano, product_code = self._client._require_account()
         return overseas_orders_api.fetch_algo_orders(
-            self._c.transport, cano=cano, product_code=product_code,
-            environment=self._c.environment, trade_date=trade_date,
+            self._client.transport, cano=cano, product_code=product_code,
+            environment=self._client.environment, trade_date=trade_date,
         )
 
     def algo_executions(
@@ -200,9 +200,9 @@ class OverseasAccount:
     ) -> list[OverseasAlgoExecution]:
         """한 알고주문의 체결내역. ``order_id`` 는 :meth:`algo_orders` 의 주문번호, ``order_date``(YYYYMMDD)는
         주문일자, ``branch_number`` 는 그 주문의 채번지점번호. **모의투자 미지원**."""
-        cano, product_code = self._c._require_account()
+        cano, product_code = self._client._require_account()
         return overseas_orders_api.fetch_algo_executions(
-            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
+            self._client.transport, cano=cano, product_code=product_code, environment=self._client.environment,
             order_date=order_date, order_id=order_id, branch_number=branch_number,
         )
 
@@ -211,13 +211,13 @@ class OverseasAccount:
         (한 시장만 원하면 각 건의 ``exchange`` 로 거른다). 취소 경로가 시장별로 다르다: 미국은 각 건의
         ``reserved_order_id`` 로 :meth:`cancel_reserved_order`, 아시아는 발주 리포트의
         ``client_order_id`` 로 ``kis.orders.cancel``. **모의투자 미지원**(두 조회 TR 모두 실전전용)."""
-        cano, product_code = self._c._require_account()
+        cano, product_code = self._client._require_account()
         us = overseas_reserved_orders_api.fetch_reserved_orders(
-            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
+            self._client.transport, cano=cano, product_code=product_code, environment=self._client.environment,
             start=start, end=end, market="US",
         )
         asia = overseas_reserved_orders_api.fetch_reserved_orders(
-            self._c.transport, cano=cano, product_code=product_code, environment=self._c.environment,
+            self._client.transport, cano=cano, product_code=product_code, environment=self._client.environment,
             start=start, end=end, market="ASIA",
         )
         return us + asia
@@ -227,10 +227,10 @@ class OverseasAccount:
         리포트의 ``order_id``, ``receipt_date``(YYYYMMDD)는 그 예약의 접수일자. 아시아(일/중/홍/베)
         예약은 이 경로가 아니라 발주 리포트의 ``client_order_id`` 로 ``kis.orders.cancel`` 이 취소한다
         (전용 취소 엔드포인트가 없어 안전코어가 원주문을 복원 재전송). 모의(VTTT3017U)를 지원한다."""
-        cano, product_code = self._c._require_account()
+        cano, product_code = self._client._require_account()
         overseas_reserved_orders_api.cancel_overseas_reserved_order(
-            self._c.transport, reserved_order_id=reserved_order_id, receipt_date=receipt_date,
-            cano=cano, product_code=product_code, environment=self._c.environment,
+            self._client.transport, reserved_order_id=reserved_order_id, receipt_date=receipt_date,
+            cano=cano, product_code=product_code, environment=self._client.environment,
         )
 
 
@@ -240,7 +240,7 @@ class OverseasNamespace:
     계좌 조회·계좌 단위 주문은 여기가 아니라 ``kis.account.overseas`` (:class:`OverseasAccount`)."""
 
     def __init__(self, client: KISClient) -> None:
-        self._c = client
+        self._client = client
 
     # -- 종목/상품 핸들 --
     def stock(self, symbol: str, *, exchange: str | None = None) -> OverseasStock:
@@ -248,8 +248,8 @@ class OverseasNamespace:
         거래소를 자동 해석한다(첫 조회는 마스터를 받아 캐시 -- 느릴 수 있다). 같은 심볼이 여러 거래소면
         ``exchange`` 를 명시해야 한다(:class:`~kis_trader.errors.KISUsageError`)."""
         if exchange is None:
-            exchange = self._c.instrument(symbol).exchange
-        return OverseasStock(self._c, symbol, exchange=exchange)
+            exchange = self._client.instrument(symbol).exchange
+        return OverseasStock(self._client, symbol, exchange=exchange)
 
     def index(self, symbol: str, *, kind: str = "index") -> OverseasIndex:
         """해외 지수/환율/국채/금선물 핸들. ``kind`` 는 ``index``/``fx``/``bond``/``gold`` 중 하나, ``symbol``
@@ -259,29 +259,29 @@ class OverseasNamespace:
             raise KISUsageError(
                 f"지원하지 않는 kind: {kind!r} ({'/'.join(_OVERSEAS_INDEX_KIND)})."
             )
-        return OverseasIndex(self._c, symbol, market_division=division)
+        return OverseasIndex(self._client, symbol, market_division=division)
 
     def futures(self, series_code: str) -> OverseasDerivative:
         """해외 선물 계약 핸들. ``series_code`` 는 시리즈코드(예: ESZ25 = E-mini S&P 2025.12)."""
-        return OverseasDerivative(self._c, series_code, market="future")
+        return OverseasDerivative(self._client, series_code, market="future")
 
     def option(self, series_code: str) -> OverseasDerivative:
         """해외 옵션 계약 핸들. ``series_code`` 는 시리즈코드."""
-        return OverseasDerivative(self._c, series_code, market="option")
+        return OverseasDerivative(self._client, series_code, market="option")
 
     # -- 파생 배치/조회 --
     def futures_details(self, symbols: Sequence[str]) -> list[OverseasDerivativeDetail]:
         """여러 해외 선물 계약의 명세를 한 번에(최대 32개, 실전만)."""
         return overseas_derivatives_api.fetch_details(
-            self._c.transport, srs_codes=list(symbols), market="future",
-            environment=self._c.environment,
+            self._client.transport, srs_codes=list(symbols), market="future",
+            environment=self._client.environment,
         )
 
     def option_details(self, symbols: Sequence[str]) -> list[OverseasDerivativeDetail]:
         """여러 해외 옵션 계약의 명세를 한 번에(최대 30개, 실전만)."""
         return overseas_derivatives_api.fetch_details(
-            self._c.transport, srs_codes=list(symbols), market="option",
-            environment=self._c.environment,
+            self._client.transport, srs_codes=list(symbols), market="option",
+            environment=self._client.environment,
         )
 
     def derivatives_market_hours(
@@ -290,7 +290,7 @@ class OverseasNamespace:
         """해외 선물/옵션 상품군별 장운영시간(시장 전체, 계약 무관). 필터를 생략하면 전체를 조회한다.
         **모의투자 미지원**."""
         return overseas_derivatives_api.fetch_market_hours(
-            self._c.transport, environment=self._c.environment,
+            self._client.transport, environment=self._client.environment,
             product_group=product_group, asset_class=asset_class, exchange=exchange, kind=kind,
         )
 
@@ -299,15 +299,15 @@ class OverseasNamespace:
     ) -> list[OverseasFuturesOpenInterest]:
         """해외선물 상품의 CFTC 미결제약정 수량 또는 증감 추이(실전만)."""
         return overseas_derivatives_api.fetch_open_interest(
-            self._c.transport, product=product, as_of=as_of, mode=mode,
-            environment=self._c.environment,
+            self._client.transport, product=product, as_of=as_of, mode=mode,
+            environment=self._client.environment,
         )
 
     def settlement_dates(self) -> list[OverseasSettlementDate]:
         """해외 각 시장의 현지·국내 결제일자(시장 전체 참조표). **모의투자 미지원**. 결제일이 비어 있거나
         유효하지 않으면 해당 날짜는 ``None`` 이다."""
         return overseas_reference_api.fetch_settlement_dates(
-            self._c.transport, environment=self._c.environment
+            self._client.transport, environment=self._client.environment
         )
 
     # -- 다종목/검색/정보 --
@@ -316,7 +316,7 @@ class OverseasNamespace:
         NAS/NYS/AMS/HKS/TSE/... 혼합 가능). 국내는
         :meth:`~kis_trader.domestic.namespace.DomesticNamespace.quotes`."""
         return overseas_market_data_api.fetch_multi_quotes(
-            self._c.transport, requests=[(exchange, symbol) for exchange, symbol in symbols]
+            self._client.transport, requests=[(exchange, symbol) for exchange, symbol in symbols]
         )
 
     def search_stocks(
@@ -344,7 +344,7 @@ class OverseasNamespace:
         }
         if exchange.upper() == "US":
             parts = [
-                overseas_market_data_api.search_stocks(self._c.transport, exchange=x, **filters)
+                overseas_market_data_api.search_stocks(self._client.transport, exchange=x, **filters)
                 for x in _US_EXCHANGES
             ]
             # 집계는 거래소별 메타(decimal_places=price zdiv, status)를 하나로 못 합친다 -- 각
@@ -356,19 +356,19 @@ class OverseasNamespace:
                 matches=tuple(m for p in parts for m in p.matches),
             )
         return overseas_market_data_api.search_stocks(
-            self._c.transport, exchange=exchange, **filters
+            self._client.transport, exchange=exchange, **filters
         )
 
     def product_info(self, exchange: str, symbol: str) -> OverseasProductInfo:
         """해외 종목의 상품기본정보(거래소·통화·상장주식수·SEDOL·블룸버그티커 등). exchange=NAS/NYS/AMS/TSE/HKS/..."""
         return overseas_market_data_api.fetch_product_info(
-            self._c.transport, exchange=exchange, symbol=symbol
+            self._client.transport, exchange=exchange, symbol=symbol
         )
 
     def industries(self, exchange: str) -> list[OverseasIndustry]:
         """해외 거래소의 업종(섹터) 코드 목록. **모의투자 미지원**."""
         return overseas_market_data_api.fetch_industries(
-            self._c.transport, exchange=exchange, environment=self._c.environment
+            self._client.transport, exchange=exchange, environment=self._client.environment
         )
 
     def industry_stocks(
@@ -376,8 +376,8 @@ class OverseasNamespace:
     ) -> list[OverseasIndustryStock]:
         """해외 거래소의 한 업종에 속한 종목 시세. 거래량 하한은 0·100·1천·1만·10만·100만·1천만."""
         return overseas_market_data_api.fetch_industry_stocks(
-            self._c.transport, exchange=exchange, industry_code=industry_code,
-            min_volume=min_volume, environment=self._c.environment,
+            self._client.transport, exchange=exchange, industry_code=industry_code,
+            min_volume=min_volume, environment=self._client.environment,
         )
 
     def collateral_stocks(
@@ -387,7 +387,7 @@ class OverseasNamespace:
         """해외주식 담보대출 가능종목 목록(``.stocks``)과 조회 요약(``.summary``) -- 대출 가능 여부와
         적용 비율."""
         return overseas_reference_api.fetch_collateral_stocks(
-            self._c.transport, symbol=symbol, country=country, sort=sort,
+            self._client.transport, symbol=symbol, country=country, sort=sort,
             product_type=product_type, loanable=loanable,
         )
 
@@ -398,7 +398,7 @@ class OverseasNamespace:
     ) -> list[OverseasNewsHeadline]:
         """해외뉴스 종합 제목 피드."""
         return overseas_reference_api.fetch_news(
-            self._c.transport, country=country, exchange=exchange, symbol=symbol,
+            self._client.transport, country=country, exchange=exchange, symbol=symbol,
             date_=date_, time=time, category=category,
         )
 
@@ -407,7 +407,7 @@ class OverseasNamespace:
     ) -> list[NewsHeadline]:
         """해외속보 제목 피드(최대 100건)."""
         return overseas_reference_api.fetch_breaking_news(
-            self._c.transport, symbol=symbol, title=title, date_=date_, time=time
+            self._client.transport, symbol=symbol, title=title, date_=date_, time=time
         )
 
     def rights(
@@ -416,7 +416,7 @@ class OverseasNamespace:
     ) -> list[OverseasRight]:
         """기간별 해외증권 배당·증자·합병 등 권리."""
         return overseas_reference_api.fetch_period_rights(
-            self._c.transport, start=start, end=end, right_type=right_type,
+            self._client.transport, start=start, end=end, right_type=right_type,
             date_basis=date_basis, symbol=symbol, product_type=product_type,
         )
 
@@ -426,7 +426,7 @@ class OverseasNamespace:
     ) -> list[OverseasCorporateAction]:
         """해외종목 권리·기업행사 종합 일정."""
         return overseas_reference_api.fetch_corporate_actions(
-            self._c.transport, country=country, symbol=symbol, start=start, end=end
+            self._client.transport, country=country, symbol=symbol, start=start, end=end
         )
 
     # -- 하위 질의 네임스페이스 --
@@ -434,6 +434,6 @@ class OverseasNamespace:
     def ranking(self) -> OverseasRankingQueries:
         """해외주식 시장 순위 질의 -- ``kis.overseas.ranking.by_volume(exchange="NAS")`` 등. 거래소별로
         조회한다(``exchange`` = NAS/NYS/HKS/...)."""
-        return OverseasRankingQueries(self._c)
+        return OverseasRankingQueries(self._client)
 
 

@@ -59,17 +59,17 @@ class OrdersNamespace:
     같은 모듈에 둔다."""
 
     def __init__(self, client: KISClient) -> None:
-        self._c = client
+        self._client = client
 
     def reconcile(self, client_order_id: str) -> ExecutionReport | None:
         """접수 여부가 불확실한 주문을 KIS 서버에 실제로 조회해 상태를 확정한다(불확실하면 미확정 유지)."""
-        return self._c._reconcile(client_order_id)
+        return self._client._reconcile(client_order_id)
 
     def cancel(
         self, client_order_id: str, *, quantity: Numeric | None = None, request_id: str | None = None
     ) -> ExecutionReport:
         """접수된 주문을 취소한다(부분 취소는 ``quantity``)."""
-        return self._c._change_order(
+        return self._client._change_order(
             client_order_id, action="cancel", quantity=quantity, limit_price=None, request_id=request_id
         )
 
@@ -88,7 +88,7 @@ class OrdersNamespace:
         -- 새 ODNO 는 정정 수량만큼의 신규 대기주문이라서다(이 값이 재바인딩된 지문 수량과 짝을
         이뤄 이후 잔량 계산이 맞는다). 원주문의 누적 체결량을 이 id 로만 읽으면 과소 집계되니,
         정정 이전 체결은 정정이 반환한 리포트/기존 실행에서 확인하라."""
-        return self._c._change_order(
+        return self._client._change_order(
             client_order_id, action="modify", quantity=quantity, limit_price=limit_price,
             request_id=request_id,
         )
@@ -103,7 +103,7 @@ class OrdersNamespace:
         않는다(당일주문 -- ``kis.account.today_orders()``). 주식계좌 하위 조회(국내·해외 미체결)는
         **실전전용**이라 모의는 fail-closed; 국내선물옵션(03)은 모의를 지원한다. 계좌 미설정·미지원
         상품은 :class:`~kis_trader.errors.KISUsageError`."""
-        account = self._c.account
+        account = self._client.account
         if isinstance(account, StockAccount):
             return OpenOrders(
                 domestic=tuple(account.domestic.open_orders()),
@@ -111,7 +111,7 @@ class OrdersNamespace:
             )
         if isinstance(account, DomesticDerivativesAccount):
             return OpenOrders(derivatives=tuple(account.open_orders()))
-        _, product_code = self._c._require_account()
+        _, product_code = self._client._require_account()
         raise KISUsageError(
             f"kis.orders.open() 은 주식(01/22/29)·국내선물옵션(03) 계좌만 지원한다 -- 상품코드 "
             f"{product_code}. 해외선물옵션(08)은 미체결 전용 조회가 없다(kis.account.today_orders())."
