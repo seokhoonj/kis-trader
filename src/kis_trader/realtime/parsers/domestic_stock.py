@@ -16,7 +16,39 @@ from types import MappingProxyType
 from typing import Any
 
 from .._registry import TRSpec, register
-from ..messages import StockTick
+
+
+@dataclass(frozen=True, slots=True)
+class StockTick:
+    """국내주식 실시간 체결(틱). 한 체결 이벤트의 현재가/등락/거래량/체결강도 등.
+
+    KRX/NXT/통합 체결가(H0STCNT0/H0NXCNT0/H0UNCNT0)가 같은 레이아웃을 공유한다. 전체 47개
+    필드는 ``_raw`` (KIS Element 이름 기준)에 있고, 아래는 자주 쓰는 헤드라인만 타입화한 것이다
+    (2026-09-14 KRX 애프터마켓 도입으로 끝에 ``MARKET_CLS_CODE`` 가 붙어 46->47; ``_raw`` 로 접근).
+    """
+
+    symbol: str
+    time: str  # HHMMSS
+    current_price: Decimal
+    change_sign: str  # 1상한 2상승 3보합 4하한 5하락
+    change: Decimal
+    change_percent: Decimal
+    open: Decimal
+    high: Decimal
+    low: Decimal
+    best_ask: Decimal
+    best_bid: Decimal
+    trade_volume: Decimal  # 이번 체결 수량
+    accumulated_volume: Decimal
+    accumulated_value: Decimal  # 누적 거래대금
+    conclusion_strength: Decimal  # 체결강도
+    trade_sign: str  # 체결구분 1매수(+) 3장전 5매도(-)
+    business_date: str  # YYYYMMDD
+    trading_halted: bool
+    static_vi_reference_price: Decimal
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
 
 # H0STCNT0 응답 필드 순서(원장 Response Body). 인덱스 = ^ 위치.
 _TRADE_TICK_FIELDS = (

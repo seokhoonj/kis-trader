@@ -43,6 +43,7 @@ from ..entities.derivative_account import (
     DerivativeValuationPosition,
 )
 from ._parse import _side_from_code, _side_from_name
+from .account import _parse_hhmmss
 
 if TYPE_CHECKING:
     from ..._literals import Numeric
@@ -805,7 +806,7 @@ def _open_order(row: Mapping[str, Any]) -> DerivativeOpenOrder:
         filled_quantity=filled_quantity,
         unfilled_quantity=order_quantity - filled_quantity,
         order_price=field_decimal_or_zero(row.get("ord_idx"), "ord_idx"),
-        order_time=str(row.get("ord_tmd", "")).strip(),
+        order_time=_parse_hhmmss(row.get("ord_tmd")),
         order_type=str(row.get("nmpr_type_name", "")).strip(),
         _raw=row,
     )

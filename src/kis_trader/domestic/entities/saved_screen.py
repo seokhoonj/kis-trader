@@ -32,24 +32,24 @@ class SavedScreen:
 class SavedScreenStock:
     """저장 조건에 일치한 종목의 시세.
 
-    가격 필드(``current_price`` / ``open_price`` / ``high_price`` / ``low_price`` /
+    가격 필드(``price`` / ``open`` / ``high`` / ``low`` /
     ``week_52_high`` / ``week_52_low`` / ``expected_price`` / ``base_price`` / ``upper_limit`` /
-    ``lower_limit``)와 그 전일대비(``price_change`` / ``expected_change``)는 원,
+    ``lower_limit``)와 그 전일대비(``change`` / ``expected_change``)는 원,
     ``cumulative_volume`` / ``expected_volume`` 은 주, ``change_percent`` /
     ``expected_change_percent`` / ``volume_change_percent`` 은 % 다.
     """
 
     symbol: str
     name: str
-    current_price: Decimal
-    price_change: Decimal
+    price: Decimal
+    change: Decimal
     change_percent: Decimal
     cumulative_volume: int
     trading_amount: Decimal
     execution_strength: Decimal
-    open_price: Decimal
-    high_price: Decimal
-    low_price: Decimal
+    open: Decimal
+    high: Decimal
+    low: Decimal
     week_52_high: Decimal
     week_52_low: Decimal
     expected_price: Decimal

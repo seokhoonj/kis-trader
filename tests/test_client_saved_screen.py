@@ -53,10 +53,10 @@ def test_saved_screens_and_results_map_and_route():
     assert isinstance(screens[0], SavedScreen)
     assert screens[0].condition_name == "저PER"
     assert isinstance(stocks[0], SavedScreenStock)
-    assert stocks[0].current_price == Decimal(71000)
-    assert stocks[0].price_change == Decimal(-500)
+    assert stocks[0].price == Decimal(71000)
+    assert stocks[0].change == Decimal(-500)
     assert stocks[0].cumulative_volume == 100
-    assert stocks[0].open_price == Decimal(71500)
+    assert stocks[0].open == Decimal(71500)
     assert stocks[0].expected_change_percent == Decimal("-0.84")
     assert client.transport.calls == [
         {"path": "/uapi/domestic-stock/v1/quotations/psearch-title",

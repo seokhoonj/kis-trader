@@ -9,8 +9,7 @@ from __future__ import annotations
 import asyncio
 from decimal import Decimal
 
-from kis_trader.realtime import _registry
-from kis_trader.realtime.messages import StockTick
+from kis_trader.realtime import StockTick, _registry
 from kis_trader.realtime.parsers.domestic_stock import parse_trade_tick
 
 

@@ -25,7 +25,7 @@ from .parsers.index import IndexExpectedConclusion, IndexProgramTrade, IndexTick
 
 if TYPE_CHECKING:
     from .client import RealtimeClient
-    from .messages import StockTick
+    from .parsers.domestic_stock import StockTick
     from .subscription import RealtimeSubscription
 
 FuturesKind = Literal["index", "commodity", "stock", "night"]

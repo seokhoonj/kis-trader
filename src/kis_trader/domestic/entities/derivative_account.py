@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import date
+from datetime import date, time
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -466,7 +466,7 @@ class DerivativeOpenOrder:
     filled_quantity: Decimal          # 총체결수량(tot_ccld_qty)
     unfilled_quantity: Decimal        # 미체결 잔량(ord_qty - tot_ccld_qty)
     order_price: Decimal              # 주문가격지수(ord_idx)
-    order_time: str                   # 주문시각(ord_tmd, HHMMSS)
+    order_time: time | None           # 주문시각(ord_tmd, HHMMSS)
     order_type: str                   # 호가유형명(nmpr_type_name)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

@@ -26,7 +26,7 @@ realtime.stop()                                     # 종료 (with 문도 가능
 또는 원시 필드 리스트입니다. 값을 꺼낼 땐 엔티티 종류로 좁혀 씁니다:
 
 ```python
-from kis_trader.realtime.messages import StockTick
+from kis_trader.realtime import StockTick
 
 def on_tick(msg):
     tick = msg.data

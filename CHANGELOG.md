@@ -151,6 +151,14 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   renamed to `side: TradeSide` (reusing the dividend/bulk-trade `TradeSide`), dropping a local
   duplicate `TradeDirection` literal.
 
+- `DerivativeOpenOrder.order_time` is now `time | None` (was the raw `"HHMMSS"` string),
+  parsed like every other `ord_tmd` field. `SavedScreenStock`'s price fields drop their
+  redundant `_price`/`price_` affixes to match every other quote record: `current_price` →
+  `price`, `price_change` → `change`, `open_price`/`high_price`/`low_price` → `open`/`high`/`low`.
+  The realtime `StockTick` entity moved from the lone `realtime/messages.py` module into
+  `realtime/parsers/domestic_stock.py` beside its parser (import it from `kis_trader.realtime`
+  as before); `realtime/messages.py` is removed.
+
 ### Added
 
 - Stock handles (`DomesticStock`/`OverseasStock`) now have a readable `__repr__`
