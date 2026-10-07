@@ -67,11 +67,11 @@ class RealizedProfitBalance:
     total_evaluation_amount: Decimal   # 평가금액합계금액(evlu_amt_smtl_amt)
     total_unrealized_pnl: Decimal      # 평가손익합계금액(evlu_pfls_smtl_amt)
     asset_change: Decimal              # 자산증감액(asst_icdc_amt)
-    asset_change_rate: Decimal         # 자산증감수익율(asst_icdc_erng_rt)
+    asset_change_percent: Decimal         # 자산증감수익율(asst_icdc_erng_rt)
     realized_pnl: Decimal              # 실현손익(rlzt_pfls)
-    realized_return_rate: Decimal      # 실현수익율(rlzt_erng_rt)
+    realized_return_percent: Decimal      # 실현수익율(rlzt_erng_rt)
     real_eval_pnl: Decimal             # 실평가손익(real_evlu_pfls)
-    real_eval_return_rate: Decimal     # 실평가손익수익율(real_evlu_pfls_erng_rt)
+    real_eval_return_percent: Decimal     # 실평가손익수익율(real_evlu_pfls_erng_rt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

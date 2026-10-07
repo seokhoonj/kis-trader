@@ -695,7 +695,7 @@ def _parse_lp_row(row: Mapping[str, Any], *, symbol: str) -> ELWLPFlow:
         lp_sell_quantity=required_int(row.get("lp_seln_qty"), "lp_seln_qty"),
         lp_sell_avg_price=optional_decimal(row.get("lp_seln_avrg_unpr"), "lp_seln_avrg_unpr"),
         lp_holding_quantity=required_int(row.get("lp_hvol"), "lp_hvol"),
-        lp_holding_rate=optional_decimal(row.get("lp_hldn_rate"), "lp_hldn_rate"),
+        lp_holding_percent=optional_decimal(row.get("lp_hldn_rate"), "lp_hldn_rate"),
         _raw=row,
     )
 

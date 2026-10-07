@@ -189,6 +189,14 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   other realtime entity uses). The `reference.rights(date_basis=...)` /
   `reference.collateral_stocks(sort=...)` closed-choice parameters are now typed `Literal`
   (behavior unchanged).
+- rate/percent normalization (council P2, verified x100 against the official KIS repo
+  definitions and a CTLN4050R response example): eight `_rate` fields that hold a x100
+  percentage are renamed `_percent` — `RealizedProfitBalance` /`AccountReport`'s
+  `asset_change_rate` / `realized_return_rate` / `real_eval_return_rate`, the overseas
+  balance `eval_return_rate`, the ELW `lp_holding_rate`, and the overseas collateral
+  `loan_rate` / `maintenance_rate` / `collateral_rate` (대출비율/담보유지비율/담보확보비율)
+  → `*_percent`. True rates (`exchange_rate`, `coupon_rate`) are unchanged; wire keys
+  unchanged.
 - Naming unification (council P2): `DomesticReservedOrder.received_date` → `receipt_date`
   (the `rsvn_ord_rcit_dt` concept is `receipt_date` on `ExecutionReport`, the store, the
   overseas reserved order, and the CLI); `Position.security_name` /

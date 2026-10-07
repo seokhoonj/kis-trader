@@ -377,7 +377,7 @@ def test_lp_flows_maps_flow_from_output2():
     assert flow.lp_sell_quantity == 30030
     assert flow.lp_sell_avg_price == Decimal(30)
     assert flow.lp_holding_quantity == 7999900
-    assert flow.lp_holding_rate == Decimal("99.99")
+    assert flow.lp_holding_percent == Decimal("99.99")
     assert flow.net_quantity == 84810 - 30030             # 순매수 = 매수-매도
     assert f"{flow.timestamp:%Y%m%d}" == "20240516"
     call = fake.calls[0]

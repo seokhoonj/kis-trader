@@ -20,9 +20,9 @@ class OverseasCollateralStock:
 
     symbol: str
     name: str
-    loan_rate: Decimal | None
-    maintenance_rate: Decimal | None
-    collateral_rate: Decimal | None
+    loan_percent: Decimal | None
+    maintenance_percent: Decimal | None
+    collateral_percent: Decimal | None
     is_loanable: bool
     registered_date: date | None
     market_name: str

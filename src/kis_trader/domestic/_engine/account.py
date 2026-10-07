@@ -743,11 +743,11 @@ def fetch_realized_profit_balance(
         total_evaluation_amount=field_decimal_or_zero(summary.get("evlu_amt_smtl_amt"), "evlu_amt_smtl_amt"),
         total_unrealized_pnl=field_decimal_or_zero(summary.get("evlu_pfls_smtl_amt"), "evlu_pfls_smtl_amt"),
         asset_change=field_decimal_or_zero(summary.get("asst_icdc_amt"), "asst_icdc_amt"),
-        asset_change_rate=field_decimal_or_zero(summary.get("asst_icdc_erng_rt"), "asst_icdc_erng_rt"),
+        asset_change_percent=field_decimal_or_zero(summary.get("asst_icdc_erng_rt"), "asst_icdc_erng_rt"),
         realized_pnl=field_decimal_or_zero(summary.get("rlzt_pfls"), "rlzt_pfls"),
-        realized_return_rate=field_decimal_or_zero(summary.get("rlzt_erng_rt"), "rlzt_erng_rt"),
+        realized_return_percent=field_decimal_or_zero(summary.get("rlzt_erng_rt"), "rlzt_erng_rt"),
         real_eval_pnl=field_decimal_or_zero(summary.get("real_evlu_pfls"), "real_evlu_pfls"),
-        real_eval_return_rate=field_decimal_or_zero(
+        real_eval_return_percent=field_decimal_or_zero(
             summary.get("real_evlu_pfls_erng_rt"), "real_evlu_pfls_erng_rt"
         ),
         _raw=summary,

@@ -146,7 +146,7 @@ class ELWLPFlow:
 
     ELW 는 거래가 얇아 발행 증권사의 LP 가 양방향 호가를 대므로, LP 의 매수/매도 물량이 시세를
     좌우한다. ``lp_buy_quantity`` / ``lp_sell_quantity`` 는 그날 LP 의 매수/매도 수량, ``*_avg_price``
-    는 각 평균단가, ``lp_holding_quantity`` / ``lp_holding_rate`` 는 LP 의 보유수량/보유비율(%)이다.
+    는 각 평균단가, ``lp_holding_quantity`` / ``lp_holding_percent`` 는 LP 의 보유수량/보유비율(%)이다.
     :attr:`net_quantity`(매수-매도)가 양수면 LP 가 순매수(회수), 음수면 순매도(공급)한 날이다.
     ``timestamp`` 는 영업일자(KST-aware).
     """
@@ -161,7 +161,7 @@ class ELWLPFlow:
     lp_sell_quantity: int              # LP 매도수량(lp_seln_qty)
     lp_sell_avg_price: Decimal | None  # LP 매도평균단가(lp_seln_avrg_unpr)
     lp_holding_quantity: int           # LP 보유수량(lp_hvol)
-    lp_holding_rate: Decimal | None    # LP 보유비율 %(lp_hldn_rate)
+    lp_holding_percent: Decimal | None    # LP 보유비율 %(lp_hldn_rate)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

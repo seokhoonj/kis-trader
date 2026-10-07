@@ -315,7 +315,7 @@ def fetch_present_balance(
         total_evaluation_amount=_decimal_or_zero(summary, "evlu_amt_smtl_amt"),
         total_unrealized_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
         total_asset_amount=_decimal_or_zero(summary, "tot_asst_amt"),
-        eval_return_rate=_decimal_or_zero(summary, "evlu_erng_rt1"),
+        eval_return_percent=_decimal_or_zero(summary, "evlu_erng_rt1"),
         _raw=summary,
     )
 
@@ -346,7 +346,7 @@ def fetch_settlement_balance(
         currencies=tuple(_currency_balance(row) for row in _as_rows(resp.body.get("output2"))),
         total_purchase_amount=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
         total_unrealized_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
-        eval_return_rate=_decimal_or_zero(summary, "evlu_erng_rt1"),
+        eval_return_percent=_decimal_or_zero(summary, "evlu_erng_rt1"),
         total_deposit=_decimal_or_zero(summary, "tot_dncl_amt"),
         total_won_evaluation=_decimal_or_zero(summary, "wcrc_evlu_amt_smtl"),
         total_asset_amount=_decimal_or_zero(summary, "tot_asst_amt2"),
