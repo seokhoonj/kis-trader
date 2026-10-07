@@ -136,6 +136,15 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `OverseasDerivativeMargin.net_risk_applied` fields are now `bool` (were the raw `"Y"`/`"N"`
   string).
 
+- Consistency renames of lone-outlier fields: `RealizedProfitBalance.total_value` →
+  `total_evaluation` (every other class maps `tot_evlu_amt` that way);
+  `OverseasCurrentPrice.traded_amount` → `trading_amount` (the sibling ranked-stock spelling);
+  `OverseasPeriodProfitRow.return_rate` / `OverseasPeriodProfit.total_return_rate` →
+  `return_percent` / `total_return_percent` (matching `OverseasBalance` and the domestic trade
+  profit). The realtime/overseas `OverseasDerivative` handle attribute `market` → `product`
+  (it holds `"future"`/`"option"`, a product kind, not a board/market), and
+  `overseas.index(kind=...)` is typed `Literal["index","fx","bond","gold"]`.
+
 ### Added
 
 - Stock handles (`DomesticStock`/`OverseasStock`) now have a readable `__repr__`

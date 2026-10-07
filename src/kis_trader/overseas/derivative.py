@@ -31,28 +31,28 @@ class OverseasDerivative:
     """한 해외 선물/옵션 계약에 대한 조회·주문 핸들. 세션과 시리즈코드·시장을 안다.
 
     보통 직접 만들지 않고 ``kis.overseas.futures`` / ``kis.overseas.option``
-    으로 얻는다. ``market`` 은 ``"future"``(선물) 또는 ``"option"``(옵션)이고, ``symbol`` 은
+    으로 얻는다. ``product`` 은 ``"future"``(선물) 또는 ``"option"``(옵션)이고, ``symbol`` 은
     시리즈코드(예: ESZ25).
     """
 
     symbol: str
-    market: DerivativeProduct
+    product: DerivativeProduct
 
-    def __init__(self, client: KISClient, symbol: str, *, market: DerivativeProduct) -> None:
+    def __init__(self, client: KISClient, symbol: str, *, product: DerivativeProduct) -> None:
         self._client = client
         self.symbol = symbol
-        self.market = market
+        self.product = product
 
     def quote(self) -> OverseasDerivativeQuote:
         """계약 현재가 스냅샷(가격·정산가·전일대비·호가·통화·거래소·만기·틱사이즈·증거금)."""
         return overseas_derivatives_api.fetch_quote(
-            self._client.transport, srs_cd=self.symbol, market=self.market
+            self._client.transport, srs_cd=self.symbol, market=self.product
         )
 
     def order_book(self) -> OrderBook:
         """계약 호가창(매수/매도 5단계 심도). 도메스틱과 같은 :class:`OrderBook` 로 돌려준다."""
         return overseas_derivatives_api.fetch_order_book(
-            self._client.transport, srs_cd=self.symbol, market=self.market
+            self._client.transport, srs_cd=self.symbol, market=self.product
         )
 
     def bars(
@@ -60,7 +60,7 @@ class OverseasDerivative:
     ) -> list[Bar]:
         """최근 분·일·주·월 OHLCV. 거래소코드는 필수이며 TR별 한도는 40~120건."""
         return overseas_derivatives_api.fetch_bars(
-            self._client.transport, srs_cd=self.symbol, market=self.market,
+            self._client.transport, srs_cd=self.symbol, market=self.product,
             exchange=exchange, interval=interval, max_bars=max_bars,
             environment=self._client.environment,
         )
@@ -68,14 +68,14 @@ class OverseasDerivative:
     def trades(self, *, exchange: str, max_trades: int = 40) -> list[Trade]:
         """최근 틱 체결을 시간 오름차순으로(최대 40건)."""
         return overseas_derivatives_api.fetch_trades(
-            self._client.transport, srs_cd=self.symbol, market=self.market,
+            self._client.transport, srs_cd=self.symbol, market=self.product,
             exchange=exchange, max_trades=max_trades, environment=self._client.environment,
         )
 
     def detail(self) -> OverseasDerivativeDetail:
         """계약 명세(거래소·통화·틱사이즈/틱가치·계약크기·증거금·만기·결제구분)."""
         return overseas_derivatives_api.fetch_detail(
-            self._client.transport, srs_cd=self.symbol, market=self.market
+            self._client.transport, srs_cd=self.symbol, market=self.product
         )
 
     # --- 발주(해외선물옵션 OTFM3001U; 계좌 + 안전 엔진 -- 종목 핸들 buy/sell 과 대칭) ---

@@ -281,7 +281,7 @@ def fetch_current_price(
         change_percent=_apply_change_sign(required_decimal(output.get("rate"), "rate"), sign),
         previous_volume=required_int(output.get("pvol"), "pvol"),
         volume=required_int(output.get("tvol"), "tvol"),
-        traded_amount=required_decimal(output.get("tamt"), "tamt"),
+        trading_amount=required_decimal(output.get("tamt"), "tamt"),
         decimal_places=required_int(output.get("zdiv"), "zdiv"),
         buyable_status=str(output.get("ordy", "")).strip(),
         _raw=output,

@@ -251,7 +251,7 @@ class OverseasNamespace:
             exchange = self._client.instrument(symbol).exchange
         return OverseasStock(self._client, symbol, exchange=exchange)
 
-    def index(self, symbol: str, *, kind: str = "index") -> OverseasIndex:
+    def index(self, symbol: str, *, kind: Literal["index", "fx", "bond", "gold"] = "index") -> OverseasIndex:
         """해외 지수/환율/국채/금선물 핸들. ``kind`` 는 ``index``/``fx``/``bond``/``gold`` 중 하나, ``symbol``
         은 지수코드(예: ``.DJI``). 국내 :meth:`~kis_trader.domestic.namespace.DomesticNamespace.index` 의 해외판이다."""
         division = _OVERSEAS_INDEX_KIND.get(kind)
@@ -263,11 +263,11 @@ class OverseasNamespace:
 
     def futures(self, series_code: str) -> OverseasDerivative:
         """해외 선물 계약 핸들. ``series_code`` 는 시리즈코드(예: ESZ25 = E-mini S&P 2025.12)."""
-        return OverseasDerivative(self._client, series_code, market="future")
+        return OverseasDerivative(self._client, series_code, product="future")
 
     def option(self, series_code: str) -> OverseasDerivative:
         """해외 옵션 계약 핸들. ``series_code`` 는 시리즈코드."""
-        return OverseasDerivative(self._client, series_code, market="option")
+        return OverseasDerivative(self._client, series_code, product="option")
 
     # -- 파생 배치/조회 --
     def futures_details(self, symbols: Sequence[str]) -> list[OverseasDerivativeDetail]:

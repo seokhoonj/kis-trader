@@ -25,7 +25,7 @@ class OverseasCurrentPrice:
     change_percent: Decimal
     previous_volume: int
     volume: int
-    traded_amount: Decimal
+    trading_amount: Decimal
     decimal_places: int
     buyable_status: str
     _raw: Mapping[str, Any] = field(

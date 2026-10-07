@@ -107,7 +107,7 @@ def test_overseas_current_price_maps_compact_endpoint():
     assert price.change_percent == Decimal("1.52")
     assert price.previous_volume == 41000000
     assert price.volume == 52000000
-    assert price.traded_amount == Decimal("7813000000.50")
+    assert price.trading_amount == Decimal("7813000000.50")
     assert price.decimal_places == 4
     assert price.buyable_status == "Y"
     call = fake.calls[0]

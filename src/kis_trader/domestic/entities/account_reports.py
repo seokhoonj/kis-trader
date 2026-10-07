@@ -62,7 +62,7 @@ class RealizedProfitBalance:
     positions: tuple[RealizedProfitPosition, ...]
     total_deposit: Decimal             # 예수금총금액(dnca_tot_amt)
     net_asset: Decimal                 # 순자산금액(nass_amt)
-    total_value: Decimal               # 총평가금액(tot_evlu_amt)
+    total_evaluation: Decimal          # 총평가금액(tot_evlu_amt)
     total_purchase_amount: Decimal     # 매입금액합계금액(pchs_amt_smtl_amt)
     total_evaluation_amount: Decimal   # 평가금액합계금액(evlu_amt_smtl_amt)
     total_unrealized_pnl: Decimal      # 평가손익합계금액(evlu_pfls_smtl_amt)

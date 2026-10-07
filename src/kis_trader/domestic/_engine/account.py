@@ -738,7 +738,7 @@ def fetch_realized_profit_balance(
         positions=positions,
         total_deposit=field_decimal_or_zero(summary.get("dnca_tot_amt"), "dnca_tot_amt"),
         net_asset=field_decimal_or_zero(summary.get("nass_amt"), "nass_amt"),
-        total_value=field_decimal_or_zero(summary.get("tot_evlu_amt"), "tot_evlu_amt"),
+        total_evaluation=field_decimal_or_zero(summary.get("tot_evlu_amt"), "tot_evlu_amt"),
         total_purchase_amount=field_decimal_or_zero(summary.get("pchs_amt_smtl_amt"), "pchs_amt_smtl_amt"),
         total_evaluation_amount=field_decimal_or_zero(summary.get("evlu_amt_smtl_amt"), "evlu_amt_smtl_amt"),
         total_unrealized_pnl=field_decimal_or_zero(summary.get("evlu_pfls_smtl_amt"), "evlu_pfls_smtl_amt"),

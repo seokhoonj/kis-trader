@@ -124,7 +124,7 @@ class OverseasPeriodProfitRow:
     sell_amount: Decimal               # 외화매도금액합계1(frcr_sll_amt_smtl1)
     sell_expense: Decimal              # 주식매도제비용(stck_sll_tlex)
     realized_pnl: Decimal              # 해외실현손익금액(ovrs_rlzt_pfls_amt)
-    return_rate: Decimal               # 수익률(pftrt)
+    return_percent: Decimal               # 수익률(pftrt)
     exchange_rate: Decimal             # 환율(exrt)
     exchange: str                      # 해외거래소코드(ovrs_excg_cd)
     first_exchange_rate: Decimal       # 최초고시환율(frst_bltn_exrt)
@@ -150,7 +150,7 @@ class OverseasPeriodProfit:
     total_fee: Decimal                 # 합계수수료1(smtl_fee1)
     settlement_amount: Decimal         # 정산지급금액(excc_dfrm_amt)
     total_realized_pnl: Decimal        # 해외실현손익총금액(ovrs_rlzt_pfls_tot_amt)
-    total_return_rate: Decimal         # 총수익률(tot_pftrt)
+    total_return_percent: Decimal         # 총수익률(tot_pftrt)
     base_date: date | None             # 기준일자(bass_dt)
     exchange_rate: Decimal             # 환율(exrt)
     _raw: Mapping[str, Any] = field(
