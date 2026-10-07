@@ -247,7 +247,7 @@ kis.overseas
 │   └── reserve_sell(...)               # 예약매도
 ├── index(symbol, kind='index')         # 지수/환율/국채/금선물 핸들
 │   └── bars(interval='1d', ...)        # 지수류 기간봉
-├── futures(series_code)                # 해외 선물 계약 핸들
+├── futures(symbol)                # 해외 선물 계약 핸들
 │   ├── quote()                         # 계약 현재가
 │   ├── order_book()                    # 계약 호가창(5단계)
 │   ├── bars(exchange, ...)             # 분·일·주·월 OHLCV
@@ -255,7 +255,7 @@ kis.overseas
 │   ├── detail()                        # 계약 명세
 │   ├── buy(quantity, ...)              # 계약 매수
 │   └── sell(quantity, ...)             # 계약 매도
-├── option(series_code)                 # 해외 옵션 핸들(선물과 동일 메서드)
+├── option(symbol)                 # 해외 옵션 핸들(선물과 동일 메서드)
 ├── futures_details(symbols)            # 선물 명세 배치(최대 32)
 ├── option_details(symbols)             # 옵션 명세 배치(최대 30)
 ├── derivatives_market_hours(...)       # 상품군별 장운영시간
@@ -403,10 +403,10 @@ kis.realtime()
     ├── stock(symbol, exchange=None)         # RSYM 은 종목마스터로 해석
     │   ├── trades()                         # 지연체결 → DelayedTradeTick
     │   └── order_book(zone='global')        # 호가(global 10 / asia 1)
-    ├── futures(series_code)                 # → OverseasDerivativeHandle
+    ├── futures(symbol)                 # → OverseasDerivativeHandle
     │   ├── trades()                         # 체결 → FuturesTradeTick
     │   └── order_book()                     # 호가 → FuturesOrderBook
-    ├── option(series_code)                  # 선물과 동일 TR·핸들 공유
+    ├── option(symbol)                  # 선물과 동일 TR·핸들 공유
     └── execution_notices                    # 체결/주문 통보(hts_id 단위)
         ├── stock(hts_id)                    # → OverseasExecutionNotice
         ├── derivative_orders(hts_id)        # → FuturesOrderNotice

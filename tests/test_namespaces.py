@@ -160,11 +160,11 @@ def test_overseas_algo_orders_delegates():
     assert fake.calls[-1]["tr_id"] == "TTTS6058R"
 
 
-def test_overseas_derivative_uses_series_code_keyword():
-    # 해외 파생 계약 식별자는 series_code(구 srs_cd) -- 공개 인자명.
+def test_overseas_derivative_uses_symbol_keyword():
+    # 해외 파생 계약 식별자는 symbol(구 srs_cd) -- 공개 인자명.
     k = _client()
-    assert k.overseas.futures(series_code="ESZ25").symbol == "ESZ25"
-    assert k.overseas.option(series_code="ESZ25").symbol == "ESZ25"
+    assert k.overseas.futures(symbol="ESZ25").symbol == "ESZ25"
+    assert k.overseas.option(symbol="ESZ25").symbol == "ESZ25"
 
 
 def test_domestic_stock_accepts_elw_alphanumeric_code():

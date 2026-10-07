@@ -85,9 +85,9 @@ class OverseasStockHandle:
 class OverseasDerivativeHandle:
     """해외선물옵션 실시간 핸들. 선물/옵션이 같은 TR(HDFFF020/010)을 공유한다. tr_key 는 시리즈코드."""
 
-    def __init__(self, client: RealtimeClient, series_code: str) -> None:
+    def __init__(self, client: RealtimeClient, symbol: str) -> None:
         self._client = client
-        self._series_code = series_code
+        self._symbol = symbol
 
     def trades(
         self, *, on: Callable[[FuturesTradeTick], None] | None = None
@@ -95,7 +95,7 @@ class OverseasDerivativeHandle:
         """해외선물옵션 실시간체결가를 구독하고 RealtimeSubscription[FuturesTradeTick] 을 반환한다(HDFFF020)."""
         return cast(
             "RealtimeSubscription[FuturesTradeTick]",
-            self._client._open_typed(_FUTURES_TRADES_TR, self._series_code, on=on),
+            self._client._open_typed(_FUTURES_TRADES_TR, self._symbol, on=on),
         )
 
     def order_book(
@@ -104,7 +104,7 @@ class OverseasDerivativeHandle:
         """해외선물옵션 실시간호가를 구독하고 RealtimeSubscription[FuturesOrderBook] 을 반환한다(HDFFF010)."""
         return cast(
             "RealtimeSubscription[FuturesOrderBook]",
-            self._client._open_typed(_FUTURES_ORDER_BOOK_TR, self._series_code, on=on),
+            self._client._open_typed(_FUTURES_ORDER_BOOK_TR, self._symbol, on=on),
         )
 
 
@@ -157,10 +157,10 @@ class RealtimeOverseasNamespace:
         record = self._client._resolve_instrument(symbol, exchange)
         return OverseasStockHandle(self._client, record.realtime_symbol)
 
-    def futures(self, series_code: str) -> OverseasDerivativeHandle:
-        """해외선물 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). ``series_code`` 는 시리즈코드(예: ESZ25)."""
-        return OverseasDerivativeHandle(self._client, series_code)
+    def futures(self, symbol: str) -> OverseasDerivativeHandle:
+        """해외선물 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). ``symbol`` 는 시리즈코드(예: ESZ25)."""
+        return OverseasDerivativeHandle(self._client, symbol)
 
-    def option(self, series_code: str) -> OverseasDerivativeHandle:
-        """해외옵션 실시간 핸들을 반환한다(선물과 같은 TR·핸들을 공유). ``series_code`` 는 시리즈코드."""
-        return OverseasDerivativeHandle(self._client, series_code)
+    def option(self, symbol: str) -> OverseasDerivativeHandle:
+        """해외옵션 실시간 핸들을 반환한다(선물과 같은 TR·핸들을 공유). ``symbol`` 는 시리즈코드."""
+        return OverseasDerivativeHandle(self._client, symbol)

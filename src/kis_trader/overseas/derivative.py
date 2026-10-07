@@ -5,8 +5,8 @@
 대칭이며, 해외 계약은 시장구분(F/O) 대신 시리즈코드(``series_code``)로 식별하고 계약 통화·거래소가 시세에
 함께 온다.
 
-핸들은 :class:`~kis_trader.client.KISClient` 가 ``kis.overseas.futures(series_code)`` /
-``kis.overseas.option(series_code)`` 로 만들어 준다 -- 직접 생성하지 않는다.
+핸들은 :class:`~kis_trader.client.KISClient` 가 ``kis.overseas.futures(symbol)`` /
+``kis.overseas.option(symbol)`` 로 만들어 준다 -- 직접 생성하지 않는다.
 """
 
 from __future__ import annotations

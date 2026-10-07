@@ -138,11 +138,11 @@ def test_futures_and_option_share_trs() -> None:
     assert f_book.tr_id == o_book.tr_id == "HDFFF010"
 
 
-def test_futures_and_option_accept_series_code_keyword() -> None:
-    # 공개 인자명은 series_code -- 키워드로 불러도 구독이 만들어진다(위치인자 회귀 방지).
+def test_futures_and_option_accept_symbol_keyword() -> None:
+    # 공개 인자명은 symbol -- 키워드로 불러도 구독이 만들어진다(위치인자 회귀 방지).
     _, ns = _ns()
-    assert ns.futures(series_code="ESZ25").trades().tr_id == "HDFFF020"
-    assert ns.option(series_code="ESZ25").order_book().tr_id == "HDFFF010"
+    assert ns.futures(symbol="ESZ25").trades().tr_id == "HDFFF020"
+    assert ns.option(symbol="ESZ25").order_book().tr_id == "HDFFF010"
 
 
 def test_client_exposes_overseas_namespace() -> None:
