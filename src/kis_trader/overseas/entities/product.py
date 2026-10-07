@@ -21,7 +21,7 @@ class OverseasProductInfo:
     english_name: str
     exchange_code: str
     exchange_name: str
-    country: str
+    country_name: str
     currency: str
     currency_name: str
     par_value: Decimal | None

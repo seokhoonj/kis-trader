@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from datetime import date, datetime
-from typing import Any
+from typing import Any, Literal
 
 from ..._internal._datetime import (
     _KST,
@@ -57,7 +57,7 @@ def _YYYYMMDD(value: object) -> date | None:
 
 def fetch_period_rights(
     transport: Transport, *, start: str | date, end: str | date,
-    right_type: str = "%%", date_basis: str = "local_base",
+    right_type: str = "%%", date_basis: Literal["local_base", "subscription_start", "subscription_end"] = "local_base",
     symbol: str = "", product_type: str = "",
 ) -> list[OverseasRight]:
     """기간별 해외증권 권리를 연속조회한다."""
@@ -216,7 +216,7 @@ def fetch_breaking_news(
 
 
 def fetch_collateral_stocks(
-    transport: Transport, *, symbol: str, country: str, sort: str = "name",
+    transport: Transport, *, symbol: str, country: str, sort: Literal["name", "symbol"] = "name",
     product_type: str = "", loanable: bool | None = None,
 ) -> OverseasCollateralStockSearch:
     """해외주식 담보대출 가능 종목·적용 비율과 조회 요약을 조회한다.

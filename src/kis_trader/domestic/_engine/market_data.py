@@ -860,7 +860,7 @@ def _parse_broker_side(output: Mapping[str, Any], side: str) -> tuple[BrokerActi
         brokers.append(
             BrokerActivity(
                 member_name=name,
-                member_number=str(output.get(f"{side}_mbcr_no{i}", "")).strip(),
+                member_code=str(output.get(f"{side}_mbcr_no{i}", "")).strip(),
                 volume_share_percent=required_decimal(
                     output.get(f"{side}_mbcr_rlim{i}"), f"{side}_mbcr_rlim{i}"
                 ),

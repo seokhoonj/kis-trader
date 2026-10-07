@@ -518,7 +518,7 @@ def _parse_detail(
         last_trade_date=_optional_date(output.get("trd_to_date")),
         remaining_days=optional_int(output.get("remn_cnt"), "remn_cnt"),
         settlement_type=str(output.get("stl_tp", "")).strip(),
-        tradable=str(output.get("stat_tp", "")).strip(),
+        trade_status=str(output.get("stat_tp", "")).strip(),
         _raw=output,
     )
 

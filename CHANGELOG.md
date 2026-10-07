@@ -144,6 +144,15 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   profit). The realtime/overseas `OverseasDerivative` handle attribute `market` → `product`
   (it holds `"future"`/`"option"`, a product kind, not a board/market), and
   `overseas.index(kind=...)` is typed `Literal["index","fx","bond","gold"]`.
+- More lone-outlier field renames: `BrokerActivity.member_number` → `member_code` (the
+  sibling `BrokerDailyActivity` already uses `member_code`); `OverseasProductInfo.country` →
+  `country_name` (the `natn_name` → `country_name` convention the other overseas entities
+  follow); `OverseasDerivativeDetail.tradable` → `trade_status` (it holds the `stat_tp` status
+  code, not a bool, and `tradable` collided with the sibling `is_tradable: bool`); and the
+  realtime `StockOrderBook.expected_qty` → `expected_volume` (the `ANTC_CNQN` spelling every
+  other realtime entity uses). The `reference.rights(date_basis=...)` /
+  `reference.collateral_stocks(sort=...)` closed-choice parameters are now typed `Literal`
+  (behavior unchanged).
 
 - `market.broker_opinions(broker=...)` renamed to `member_code` — the input is a member-firm
   code (the sibling broker fetchers already call it `member_code`), whereas the result field

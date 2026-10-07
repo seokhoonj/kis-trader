@@ -150,7 +150,7 @@ class StockOrderBook:
     total_ask_quantity: Decimal  # TOTAL_ASKP_RSQN
     total_bid_quantity: Decimal  # TOTAL_BIDP_RSQN
     expected_price: Decimal  # ANTC_CNPR 예상체결가
-    expected_qty: Decimal  # ANTC_CNQN 예상체결량
+    expected_volume: Decimal  # ANTC_CNQN 예상체결량
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -169,7 +169,7 @@ def _order_book(raw: Mapping[str, str]) -> StockOrderBook:
         total_ask_quantity=_decimal(raw["TOTAL_ASKP_RSQN"]),
         total_bid_quantity=_decimal(raw["TOTAL_BIDP_RSQN"]),
         expected_price=_decimal(raw["ANTC_CNPR"]),
-        expected_qty=_decimal(raw["ANTC_CNQN"]),
+        expected_volume=_decimal(raw["ANTC_CNQN"]),
         _raw=MappingProxyType(dict(raw)),
     )
 

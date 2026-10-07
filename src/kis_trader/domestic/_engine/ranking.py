@@ -678,11 +678,11 @@ def _fundamentals_params(
 
 
 def _fetch_rows(
-    transport: Transport, *, path: str, tr_id: str, params: Mapping[str, str], output_key: str
+    transport: Transport, *, path: str, tr: str, params: Mapping[str, str], output_key: str
 ) -> Sequence[Mapping[str, Any]]:
     """GET 요청 + 봉투 오류 조기종료 + 행 배열 블록 검증(:func:`_require_mapping_rows`)까지 한 번에.
     순위 필드 없이 응답 순서로 순번을 매기는 조회들이 공유한다."""
-    resp = transport.request(method="GET", path=path, tr_id=tr_id, params=params, idempotent=True)
+    resp = transport.request(method="GET", path=path, tr_id=tr, params=params, idempotent=True)
     _raise_if_error(resp)
     return _require_mapping_rows(output_key, resp)
 
@@ -773,7 +773,7 @@ def fetch_expected_execution_change(
         "FID_BLNG_CLS_CODE": "0", "FID_MKOP_CLS_CODE": "0",
     }
     rows = _fetch_rows(
-        transport, path=_EXP_UPDOWN_PATH, tr_id=_EXP_UPDOWN_TR, params=params, output_key="output"
+        transport, path=_EXP_UPDOWN_PATH, tr=_EXP_UPDOWN_TR, params=params, output_key="output"
     )
     ranked: list[RankedStock] = []
     for row in rows:
@@ -811,7 +811,7 @@ def fetch_expected_close(
     rows = _fetch_rows(
         transport,
         path=_EXPECTED_CLOSE_PATH,
-        tr_id=_EXPECTED_CLOSE_TR,
+        tr=_EXPECTED_CLOSE_TR,
         params={
             "FID_RANK_SORT_CLS_CODE": filter_code,
             "FID_COND_MRKT_DIV_CODE": "J",
@@ -989,7 +989,7 @@ def fetch_after_hours_balance(
     }
     rows = _fetch_rows(
         transport, path="/uapi/domestic-stock/v1/ranking/after-hour-balance",
-        tr_id="FHPST01760000", params=params, output_key="output",
+        tr="FHPST01760000", params=params, output_key="output",
     )
     ranked: list[AfterHoursBalanceRanking] = []
     for row in rows:
@@ -1025,7 +1025,7 @@ def fetch_most_viewed(transport: Transport) -> list[TopViewedStock]:
     """HTS 조회 상위 종목(관심 상위). 코드와 시장구분만 준다(:class:`TopViewedStock`). 파라미터 없음."""
     rows = _fetch_rows(
         transport, path="/uapi/domestic-stock/v1/ranking/hts-top-view",
-        tr_id="HHMCM000100C0", params={}, output_key="output1",
+        tr="HHMCM000100C0", params={}, output_key="output1",
     )
     ranked: list[TopViewedStock] = []
     for row in rows:

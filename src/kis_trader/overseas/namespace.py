@@ -381,7 +381,7 @@ class OverseasNamespace:
         )
 
     def collateral_stocks(
-        self, symbol: str, country: str, *, sort: str = "name", product_type: str = "",
+        self, symbol: str, country: str, *, sort: Literal["name", "symbol"] = "name", product_type: str = "",
         loanable: bool | None = None,
     ) -> OverseasCollateralStockSearch:
         """해외주식 담보대출 가능종목 목록(``.stocks``)과 조회 요약(``.summary``) -- 대출 가능 여부와
@@ -412,7 +412,7 @@ class OverseasNamespace:
 
     def rights(
         self, *, start: str | date, end: str | date, right_type: str = "%%",
-        date_basis: str = "local_base", symbol: str = "", product_type: str = "",
+        date_basis: Literal["local_base", "subscription_start", "subscription_end"] = "local_base", symbol: str = "", product_type: str = "",
     ) -> list[OverseasRight]:
         """기간별 해외증권 배당·증자·합병 등 권리."""
         return overseas_reference_api.fetch_period_rights(

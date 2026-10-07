@@ -86,7 +86,7 @@ class OverseasDerivativeDetail:
     last_trade_date: datetime | None  # 최종거래일(trd_to_date; KST-aware)
     remaining_days: int | None        # 잔존일수(remn_cnt)
     settlement_type: str              # 최종결제구분(stl_tp)
-    tradable: str                     # 매매여부(stat_tp)
+    trade_status: str                 # 매매여부(stat_tp)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

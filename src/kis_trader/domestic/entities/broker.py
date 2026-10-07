@@ -21,7 +21,7 @@ class BrokerActivity:
     """한 회원사(증권사)의 이 종목 매매 비중(불변). ``quantity_change`` 는 직전 대비 증감."""
 
     member_name: str                  # 회원사(증권사)명
-    member_number: str                # 회원사 번호(이름은 있는데 번호가 빈 경우 "")
+    member_code: str                  # 회원사 번호(이름은 있는데 번호가 빈 경우 "")
     volume_share_percent: Decimal     # 이 종목 거래량 점유율(%)
     quantity_change: int              # 직전 대비 수량 증감(주; 음수 가능)
     is_foreign: bool                  # 외국계 회원사 여부

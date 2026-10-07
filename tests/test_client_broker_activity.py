@@ -65,7 +65,7 @@ def test_broker_activity_maps_sellers_and_buyers():
     assert len(summary.buyers) == 1
     top_seller = summary.sellers[0]
     assert top_seller.member_name == "미래에셋"
-    assert top_seller.member_number == "0034"
+    assert top_seller.member_code == "0034"
     assert top_seller.volume_share_percent == Decimal("12.5")
     assert top_seller.quantity_change == -1000            # 증감 음수
     assert top_seller.is_foreign is False

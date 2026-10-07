@@ -78,7 +78,7 @@ def test_parse_order_book_krx_headline_and_raw():
     assert ob.total_ask_quantity == Decimal(5000)
     assert ob.total_bid_quantity == Decimal(6000)
     assert ob.expected_price == Decimal(71450)
-    assert ob.expected_qty == Decimal(42)
+    assert ob.expected_volume == Decimal(42)
     assert ob._raw["MID_PRC"] == "71450"
     assert ob._raw["MARKET_CLS_CODE"] == "2"  # 2026-09-14 애프터마켓 도입으로 append
     assert ob._raw["ASKP10"] == "0"
