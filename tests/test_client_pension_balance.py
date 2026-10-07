@@ -1,6 +1,6 @@
 """퇴직연금 잔고/체결기준잔고/주문내역 -- kis.account.pension.balance/present_balance/orders.
 
-TTTC2208R / TTTC2202R / TTTC2210R. 보유종목(Position 재사용)+요약, 미체결 주문을 네트워크
+TTTC2208R / TTTC2202R / TTTC2210R. 보유종목(DomesticPosition 재사용)+요약, 미체결 주문을 네트워크
 없이 검증한다. 픽스처는 원장 응답예시 실값을 쓴다.
 """
 
@@ -13,11 +13,11 @@ from decimal import Decimal
 import pytest
 
 from kis_trader import (
+    DomesticPosition,
     KISClient,
     PensionBalance,
     PensionOrder,
     PensionPresentBalance,
-    Position,
 )
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
@@ -102,7 +102,7 @@ def test_pension_balance_parses_positions_and_summary():
     assert bal.today_buy_amount == Decimal(66175)
     assert len(bal.positions) == 1
     p = bal.positions[0]
-    assert isinstance(p, Position)
+    assert isinstance(p, DomesticPosition)
     assert p.symbol == "360200"
     assert p.quantity == Decimal(5)
     assert p.sellable_quantity == Decimal(5)         # ord_psbl_qty

@@ -19,7 +19,7 @@ from ..errors import KISUsageError
 from ..order import Order, coerce_decimal, mint_client_order_id
 from ._engine import derivative_account as derivative_account_api
 from ._engine import derivatives as derivatives_api
-from .entities.derivative import DerivativeQuote, ExpectedExecutionTrend, UnderlyingQuote
+from .entities.derivative import DomesticDerivativeQuote, ExpectedExecutionTrend, UnderlyingQuote
 
 if TYPE_CHECKING:
     from datetime import date
@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from ..order import DerivativeDivision, OrderType, Right, Side, TimeInForce
     from ..order_book import OrderBook
     from ..report import ExecutionReport
-    from .entities.derivative_account import DerivativeOrderable
+    from .entities.derivative_account import DomesticDerivativeOrderable
 
 
 class _ContractBase:
@@ -53,7 +53,7 @@ class _ContractBase:
         self.symbol = symbol
         self.market = self._MARKET
 
-    def quote(self) -> DerivativeQuote:
+    def quote(self) -> DomesticDerivativeQuote:
         """계약 현재가 스냅샷(가격·미결제약정·베이시스·이론가·괴리율; 옵션 그릭스는 ``_raw``)."""
         return derivatives_api.fetch_quote(
             self._client.transport, symbol=self.symbol, market=self.market
@@ -120,7 +120,7 @@ class _ContractBase:
             client_order_id=client_order_id,
         ))
 
-    def orderable(self, side: Side, *, limit_price: Numeric | None = None) -> DerivativeOrderable:
+    def orderable(self, side: Side, *, limit_price: Numeric | None = None) -> DomesticDerivativeOrderable:
         """이 계약의 주문가능수량(주간). ``side`` 는 매수/매도, ``limit_price`` 를 주면 지정가 기준,
         없으면 시장가 기준이다. 총가능·청산가능 수량과 기준지수를 함께 담는다.
 
@@ -134,7 +134,7 @@ class _ContractBase:
 
     def night_orderable(
         self, side: Side, *, limit_price: Numeric | None = None
-    ) -> DerivativeOrderable:
+    ) -> DomesticDerivativeOrderable:
         """이 계약의 야간장(EUREX 연계) 주문가능수량. 파라미터는 :meth:`orderable` 과 같되 야간
         세션 기준이며 **실전 전용**(``environment="paper"`` 는 :class:`~kis_trader.errors.KISUsageError`).
 

@@ -57,7 +57,7 @@ def test_open_derivatives_account_queries_derivatives():
 
 def test_open_derivatives_populated_wraps_rows_and_counts():
     # 빈 응답만이 아니라 실제 행이 튜플에 담기고 len 이 세는지 -- 03 파생 미체결 한 건.
-    from kis_trader import DerivativeOpenOrder
+    from kis_trader import DomesticDerivativeOpenOrder
     row = {"odno": "33", "orgn_odno": "", "pdno": "A05609", "prdt_name": "미니코스피 F 202609",
            "sll_buy_dvsn_cd": "02", "ord_qty": "1", "tot_ccld_qty": "0", "ord_idx": "1000.00",
            "ord_tmd": "084419", "nmpr_type_name": "지정가"}
@@ -66,7 +66,7 @@ def test_open_derivatives_populated_wraps_rows_and_counts():
     fake = FakeTransport(by_tr={"TTTO5201R": resp})
     result = _client(fake, account="12345678-03").orders.open_orders()
     assert len(result.derivatives) == 1
-    assert isinstance(result.derivatives[0], DerivativeOpenOrder)
+    assert isinstance(result.derivatives[0], DomesticDerivativeOpenOrder)
     assert len(result) == 1
 
 

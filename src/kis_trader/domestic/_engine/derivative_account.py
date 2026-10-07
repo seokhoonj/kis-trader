@@ -26,21 +26,21 @@ from ..._literals import SideFilter
 from ...errors import KISError, KISUsageError
 from ...transport import Environment, RawResponse, Transport
 from ..entities.derivative_account import (
-    DerivativeBalance,
-    DerivativeCommission,
-    DerivativeCommissionHistory,
-    DerivativeDeposit,
-    DerivativeFill,
-    DerivativeFillHistory,
-    DerivativeNightBalance,
-    DerivativeNightMargin,
-    DerivativeOpenOrder,
-    DerivativeOrderable,
-    DerivativePosition,
-    DerivativeSettlementBalance,
-    DerivativeSettlementPosition,
-    DerivativeValuationBalance,
-    DerivativeValuationPosition,
+    DomesticDerivativeBalance,
+    DomesticDerivativeCommission,
+    DomesticDerivativeCommissionHistory,
+    DomesticDerivativeDeposit,
+    DomesticDerivativeFill,
+    DomesticDerivativeFillHistory,
+    DomesticDerivativeNightBalance,
+    DomesticDerivativeNightMargin,
+    DomesticDerivativeOpenOrder,
+    DomesticDerivativeOrderable,
+    DomesticDerivativePosition,
+    DomesticDerivativeSettlementBalance,
+    DomesticDerivativeSettlementPosition,
+    DomesticDerivativeValuationBalance,
+    DomesticDerivativeValuationPosition,
 )
 from ._parse import _side_from_code, _side_from_name
 from .account import _parse_hhmmss
@@ -88,7 +88,7 @@ _SIDE_TO_SLL_BUY = {"buy": "02", "sell": "01"}
 
 def fetch_balance(
     transport: Transport, *, cano: str, product_code: str, environment: Environment
-) -> DerivativeBalance:
+) -> DomesticDerivativeBalance:
     """선물옵션 잔고(보유내역 output1 + 계좌 요약 output2). 연속조회로 보유내역을 소진까지 모으고
     계좌 요약은 첫 페이지에서 완결한다(계좌 단위라 페이지 불변). 모의투자 지원."""
     base_params = {
@@ -108,7 +108,7 @@ def fetch_balance(
     )
     if summary is None:
         raise KISError("선물옵션 잔고 응답에 계좌 요약(output2)이 없다.")
-    return DerivativeBalance(
+    return DomesticDerivativeBalance(
         positions=tuple(_parse_positions(rows)),
         total_deposit=required_decimal(summary.get("tot_dncl_amt"), "tot_dncl_amt"),
         deposit_cash=required_decimal(summary.get("dnca_cash"), "dnca_cash"),
@@ -128,7 +128,7 @@ def fetch_balance(
 
 def fetch_deposit(
     transport: Transport, *, cano: str, product_code: str, environment: Environment
-) -> DerivativeDeposit:
+) -> DomesticDerivativeDeposit:
     """선물옵션 총자산현황(1콜, output 단일 객체). 예수금·주문가능·위탁증거금·손익 요약.
     **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
@@ -146,7 +146,7 @@ def fetch_deposit(
             "선물옵션 총자산현황 응답에 output 이 없다.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
-    return DerivativeDeposit(
+    return DomesticDerivativeDeposit(
         total_deposit=required_decimal(output.get("dnca_tota"), "dnca_tota"),
         orderable_cash=required_decimal(output.get("ord_psbl_cash"), "ord_psbl_cash"),
         orderable_total=required_decimal(output.get("ord_psbl_tota"), "ord_psbl_tota"),
@@ -168,7 +168,7 @@ def fetch_deposit(
 def fetch_night_balance(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     account_password: str,
-) -> DerivativeNightBalance:
+) -> DomesticDerivativeNightBalance:
     """(야간)선물옵션 잔고현황(보유내역 output1 + 계좌 요약 output2). 주간 :func:`fetch_balance`
     과 같은 보유내역/요약 형태에 야간 전용 요약 필드(유지비율·부족금액·유지증거금)를 더한다.
     연속조회로 보유내역을 소진까지 모으고 계좌 요약은 첫 페이지에서 완결한다(계좌 단위라 페이지 불변).
@@ -210,7 +210,7 @@ def fetch_night_balance(
         )
     if summary is None:
         raise KISError("(야간)선물옵션 잔고현황 응답에 계좌 요약(output2)이 없다.")
-    return DerivativeNightBalance(
+    return DomesticDerivativeNightBalance(
         positions=tuple(_parse_positions(rows)),
         total_deposit=required_decimal(summary.get("tot_dncl_amt"), "tot_dncl_amt"),
         deposit_cash=required_decimal(summary.get("dnca_cash"), "dnca_cash"),
@@ -235,7 +235,7 @@ def fetch_night_balance(
 def fetch_night_margin(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     margin_division: str,
-) -> DerivativeNightMargin:
+) -> DomesticDerivativeNightMargin:
     """(야간)선물옵션 증거금상세(1콜, 3블록). ``margin_division`` 은 증거금구분코드(MGNA_DVSN_CD,
     기본 "01" 개시). output1[0]=개시증거금 상세, output2[0]=유지증거금 상세, output3=예수금 요약.
     페이지네이션·계좌비밀번호 없음. **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
@@ -256,7 +256,7 @@ def fetch_night_margin(
             "(야간)선물옵션 증거금상세 응답에 output1/output2/output3 가 없다.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
-    return DerivativeNightMargin(
+    return DomesticDerivativeNightMargin(
         initial_brokerage_margin=required_decimal(initial.get("brkg_mgna"), "brkg_mgna"),
         initial_total_risk_margin=required_decimal(initial.get("tot_risk_mgna"), "tot_risk_mgna"),
         initial_new_margin=required_decimal(initial.get("new_mgn_amt"), "new_mgn_amt"),
@@ -277,7 +277,7 @@ def fetch_night_margin(
 
 def fetch_valuation_pl(
     transport: Transport, *, cano: str, product_code: str, environment: Environment
-) -> DerivativeValuationBalance:
+) -> DomesticDerivativeValuationBalance:
     """선물옵션 잔고평가손익내역(보유내역 output1 + 계좌 요약 output2). 연속조회로 보유내역을
     소진까지 모으고 계좌 요약은 첫 페이지에서 완결한다(계좌 단위라 페이지 불변).
     **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
@@ -302,7 +302,7 @@ def fetch_valuation_pl(
     )
     if summary is None:
         raise KISError("선물옵션 잔고평가손익내역 응답에 계좌 요약(output2)이 없다.")
-    return DerivativeValuationBalance(
+    return DomesticDerivativeValuationBalance(
         positions=tuple(_parse_valuation_positions(rows)),
         total_deposit=required_decimal(summary.get("tot_dncl_amt"), "tot_dncl_amt"),
         deposit_cash=required_decimal(summary.get("dnca_cash"), "dnca_cash"),
@@ -322,7 +322,7 @@ def fetch_valuation_pl(
 
 def fetch_settlement_pl(
     transport: Transport, *, cano: str, product_code: str, environment: Environment, base_date: str
-) -> DerivativeSettlementBalance:
+) -> DomesticDerivativeSettlementBalance:
     """선물옵션 잔고정산손익내역(정산 보유내역 output1 + 계좌 요약 output2). ``base_date`` (YYYYMMDD)
     기준일로 조회하고 연속조회로 보유내역을 소진까지 모은다(계좌 요약은 첫 페이지에서 완결).
     **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
@@ -347,7 +347,7 @@ def fetch_settlement_pl(
     )
     if summary is None:
         raise KISError("선물옵션 잔고정산손익내역 응답에 계좌 요약(output2)이 없다.")
-    return DerivativeSettlementBalance(
+    return DomesticDerivativeSettlementBalance(
         positions=tuple(_parse_settlement_positions(rows)),
         next_day_deposit=required_decimal(summary.get("nxdy_dnca"), "nxdy_dnca"),
         maintenance_margin_cash=required_decimal(summary.get("mmga_cash"), "mmga_cash"),
@@ -369,7 +369,7 @@ def fetch_settlement_pl(
 def fetch_base_date_fills(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     order_date: str, start_time: str, end_time: str,
-) -> DerivativeFillHistory:
+) -> DomesticDerivativeFillHistory:
     """선물옵션 기준일체결내역(체결내역 output1 + 기간 합계 요약 output2). ``order_date`` (YYYYMMDD)
     주문일자와 ``start_time``/``end_time`` (HHMMSS) 시각 구간으로 조회하고 연속조회로 체결을
     소진까지 모은다(합계 요약은 첫 페이지에서 완결).
@@ -399,7 +399,7 @@ def fetch_base_date_fills(
     )
     if summary is None:
         raise KISError("선물옵션 기준일체결내역 응답에 합계 요약(output2)이 없다.")
-    return DerivativeFillHistory(
+    return DomesticDerivativeFillHistory(
         fills=tuple(_parse_fills(rows)),
         total_filled_quantity=required_decimal(summary.get("tot_ccld_qty_smtl"), "tot_ccld_qty_smtl"),
         total_filled_amount=required_decimal(summary.get("tot_ccld_amt_smtl"), "tot_ccld_amt_smtl"),
@@ -412,7 +412,7 @@ def fetch_base_date_fills(
 def fetch_commissions(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     start: str, end: str,
-) -> DerivativeCommissionHistory:
+) -> DomesticDerivativeCommissionHistory:
     """선물옵션 기간약정수수료일별(일별 내역 output1 + 기간 합계 요약 output2). ``start``~``end``
     (YYYYMMDD) 기간으로 조회하고 연속조회로 일별 내역을 소진까지 모은다(합계 요약은 첫 페이지에서
     완결). **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
@@ -454,7 +454,7 @@ def fetch_commissions(
         )
     if summary is None:
         raise KISError("선물옵션 기간약정수수료일별 응답에 합계 요약(output2)이 없다.")
-    return DerivativeCommissionHistory(
+    return DomesticDerivativeCommissionHistory(
         commissions=tuple(_parse_commissions(rows)),
         total_fee=required_decimal(summary.get("fee_smtl"), "fee_smtl"),
         total_agreement_amount=required_decimal(summary.get("agrm_amt_smtl"), "agrm_amt_smtl"),
@@ -470,7 +470,7 @@ def fetch_commissions(
 def fetch_derivative_orderable(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     symbol: str, side: Side, limit_price: Numeric | None = None,
-) -> DerivativeOrderable:
+) -> DomesticDerivativeOrderable:
     """선물옵션 계약의 주문가능수량(1콜, output 단일 객체). ``symbol`` 계약코드, ``side`` 매수/매도,
     ``limit_price`` 있으면 지정가(ORD_DVSN_CD 01)·없으면 시장가(02) 기준. 모의투자 지원."""
     params = {
@@ -496,7 +496,7 @@ def fetch_derivative_orderable(
     if liquidatable is None:  # 주간은 lqd_psbl_qty1, 부재면 lqd_psbl_qty 로 폴백
         liquidatable_key = "lqd_psbl_qty"
         liquidatable = output.get(liquidatable_key)
-    return DerivativeOrderable(
+    return DomesticDerivativeOrderable(
         orderable_quantity=required_decimal(output.get("ord_psbl_qty"), "ord_psbl_qty"),
         total_quantity=field_decimal_or_zero(output.get("tot_psbl_qty"), "tot_psbl_qty"),
         liquidatable_quantity=field_decimal_or_zero(liquidatable, liquidatable_key),
@@ -508,9 +508,9 @@ def fetch_derivative_orderable(
 def fetch_derivative_night_orderable(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     symbol: str, side: Side, limit_price: Numeric | None = None,
-) -> DerivativeOrderable:
+) -> DomesticDerivativeOrderable:
     """선물옵션 야간(EUREX 연계) 주문가능수량(1콜, output 단일 객체). 주간
-    :func:`fetch_derivative_orderable` 과 같은 :class:`DerivativeOrderable` 로 돌려주되 야간 응답은
+    :func:`fetch_derivative_orderable` 과 같은 :class:`DomesticDerivativeOrderable` 로 돌려주되 야간 응답은
     청산가능수량을 lqd_psbl_qty 로, 그리고 max_ord_psbl_qty 를 추가로 준다(후자는 ``raw`` 로).
     **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
@@ -536,7 +536,7 @@ def fetch_derivative_night_orderable(
             "선물옵션 야간 주문가능조회 응답에 output 이 없다.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
-    return DerivativeOrderable(
+    return DomesticDerivativeOrderable(
         orderable_quantity=required_decimal(output.get("ord_psbl_qty"), "ord_psbl_qty"),
         total_quantity=field_decimal_or_zero(output.get("tot_psbl_qty"), "tot_psbl_qty"),
         liquidatable_quantity=field_decimal_or_zero(output.get("lqd_psbl_qty"), "lqd_psbl_qty"),
@@ -567,8 +567,8 @@ def _fetch_night_balance_page(
 
 
 
-def _parse_fills(rows: list[Mapping[str, Any]]) -> list[DerivativeFill]:
-    fills: list[DerivativeFill] = []
+def _parse_fills(rows: list[Mapping[str, Any]]) -> list[DomesticDerivativeFill]:
+    fills: list[DomesticDerivativeFill] = []
     for row in rows:
         if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
             raise KISError("선물옵션 기준일체결내역 응답 행이 매핑이 아니다.")
@@ -577,7 +577,7 @@ def _parse_fills(rows: list[Mapping[str, Any]]) -> list[DerivativeFill]:
             continue
         fills.append(
             # 수치는 빈 값을 0으로 읽는다 -- 이유는 _parse_positions 와 동일.
-            DerivativeFill(
+            DomesticDerivativeFill(
                 symbol=str(row.get("pdno", "")).strip(),
                 name=str(row.get("prdt_name", "")).strip(),
                 order_id=order_id,
@@ -610,8 +610,8 @@ def _fetch_commissions_page(
     )
 
 
-def _parse_commissions(rows: list[Mapping[str, Any]]) -> list[DerivativeCommission]:
-    days: list[DerivativeCommission] = []
+def _parse_commissions(rows: list[Mapping[str, Any]]) -> list[DomesticDerivativeCommission]:
+    days: list[DomesticDerivativeCommission] = []
     for row in rows:
         if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
             raise KISError("선물옵션 기간약정수수료일별 응답 행이 매핑이 아니다.")
@@ -621,7 +621,7 @@ def _parse_commissions(rows: list[Mapping[str, Any]]) -> list[DerivativeCommissi
             continue
         days.append(
             # 수치는 빈 값을 0으로 읽는다 -- 이유는 _parse_positions 와 동일.
-            DerivativeCommission(
+            DomesticDerivativeCommission(
                 order_date=_parse_date(order_date),
                 symbol=symbol,
                 name=str(row.get("item_name", "")).strip(),
@@ -639,8 +639,8 @@ def _parse_commissions(rows: list[Mapping[str, Any]]) -> list[DerivativeCommissi
 
 def _parse_settlement_positions(
     rows: list[Mapping[str, Any]]
-) -> list[DerivativeSettlementPosition]:
-    positions: list[DerivativeSettlementPosition] = []
+) -> list[DomesticDerivativeSettlementPosition]:
+    positions: list[DomesticDerivativeSettlementPosition] = []
     for row in rows:
         if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
             raise KISError("선물옵션 잔고정산손익내역 응답 행이 매핑이 아니다.")
@@ -649,7 +649,7 @@ def _parse_settlement_positions(
             continue
         positions.append(
             # 종목별 수치는 빈 값을 0으로 읽는다 -- 이유는 _parse_positions 와 동일.
-            DerivativeSettlementPosition(
+            DomesticDerivativeSettlementPosition(
                 symbol=symbol,
                 name=str(row.get("prdt_name", "")).strip(),
                 trade_type=str(row.get("trad_dvsn_name", "")).strip(),
@@ -669,8 +669,8 @@ def _parse_settlement_positions(
 
 def _parse_valuation_positions(
     rows: list[Mapping[str, Any]]
-) -> list[DerivativeValuationPosition]:
-    positions: list[DerivativeValuationPosition] = []
+) -> list[DomesticDerivativeValuationPosition]:
+    positions: list[DomesticDerivativeValuationPosition] = []
     for row in rows:
         if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
             raise KISError("선물옵션 잔고평가손익내역 응답 행이 매핑이 아니다.")
@@ -679,7 +679,7 @@ def _parse_valuation_positions(
             continue
         positions.append(
             # 종목별 수치는 빈 값을 0으로 읽는다 -- 이유는 _parse_positions 와 동일.
-            DerivativeValuationPosition(
+            DomesticDerivativeValuationPosition(
                 symbol=symbol,
                 isin=str(row.get("pdno", "")).strip(),
                 name=str(row.get("prdt_name", "")).strip(),
@@ -699,8 +699,8 @@ def _parse_valuation_positions(
     return positions
 
 
-def _parse_positions(rows: list[Mapping[str, Any]]) -> list[DerivativePosition]:
-    positions: list[DerivativePosition] = []
+def _parse_positions(rows: list[Mapping[str, Any]]) -> list[DomesticDerivativePosition]:
+    positions: list[DomesticDerivativePosition] = []
     for row in rows:
         if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
             raise KISError("선물옵션 잔고 응답 행이 매핑이 아니다.")
@@ -711,7 +711,7 @@ def _parse_positions(rows: list[Mapping[str, Any]]) -> list[DerivativePosition]:
             # 종목별 수치는 빈 값을 0으로 읽는다 -- 정산된 0수량 잔여 lot 에서 일부 필드가 빌 수
             # 있는데 그 한 종목 때문에 보유내역 전체 조회가 깨지면 안 된다(값이 있는데 파싱 실패면
             # 여전히 예외). 종목 식별은 위의 빈 shtn_pdno 가드가 이미 처리.
-            DerivativePosition(
+            DomesticDerivativePosition(
                 symbol=symbol,
                 isin=str(row.get("pdno", "")).strip(),
                 name=str(row.get("prdt_name", "")).strip(),
@@ -792,11 +792,11 @@ def _format_order_unit_price(limit_price: Numeric | None) -> str:
     return format_wire_decimal(price)
 
 
-def _open_order(row: Mapping[str, Any]) -> DerivativeOpenOrder:
-    """미체결 주문 한 행(output1) -> :class:`DerivativeOpenOrder`. 수량은 fail-closed Decimal."""
+def _open_order(row: Mapping[str, Any]) -> DomesticDerivativeOpenOrder:
+    """미체결 주문 한 행(output1) -> :class:`DomesticDerivativeOpenOrder`. 수량은 fail-closed Decimal."""
     order_quantity = required_decimal(row.get("ord_qty"), "ord_qty")
     filled_quantity = required_decimal(row.get("tot_ccld_qty"), "tot_ccld_qty")
-    return DerivativeOpenOrder(
+    return DomesticDerivativeOpenOrder(
         order_id=str(row.get("odno", "")).strip(),
         original_order_id=str(row.get("orgn_odno", "")).strip(),
         symbol=str(row.get("pdno", "")).strip(),
@@ -815,7 +815,7 @@ def _open_order(row: Mapping[str, Any]) -> DerivativeOpenOrder:
 def fetch_open_orders(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     order_date: str, side: SideFilter = "all", symbol: str | None = None,
-) -> list[DerivativeOpenOrder]:
+) -> list[DomesticDerivativeOpenOrder]:
     """선물옵션 미체결(정정·취소 가능) 주문 -- 주문체결내역조회(inquire-ccnl)에 CCLD_NCCS_DVSN="02"
     (미체결)로 걸어 연속조회 소진까지 모은다. ``order_date`` (YYYYMMDD) 주문일자, ``side`` 는
     ``"all"``/``"buy"``/``"sell"``, ``symbol`` 생략하면 전체 종목. 실전·모의 모두 지원."""

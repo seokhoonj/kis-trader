@@ -35,6 +35,18 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   serializes `region`.
 - `RankedOverseasStock` renamed to `OverseasRankedStock` — the sole overseas result type
   that did not lead with the `Overseas` qualifier its ~40 siblings share.
+- The Domestic-qualifier sweep is completed (council P2): the remaining domestic entity types
+  that have a distinct `Overseas*` sibling (or ride the `OverseasDerivative*` family mirror) are
+  prefixed `Domestic`. Renamed: `Position` → `DomesticPosition`, `ProductInfo` →
+  `DomesticProductInfo`, `RankedStock` → `DomesticRankedStock`, `DerivativeQuote` →
+  `DomesticDerivativeQuote`, and the fifteen domestic derivative-account entities
+  `DerivativePosition`/`DerivativeBalance`/`DerivativeValuationPosition`/`DerivativeValuationBalance`/
+  `DerivativeSettlementPosition`/`DerivativeSettlementBalance`/`DerivativeFill`/`DerivativeFillHistory`/
+  `DerivativeCommission`/`DerivativeCommissionHistory`/`DerivativeOrderable`/`DerivativeDeposit`/
+  `DerivativeNightBalance`/`DerivativeNightMargin`/`DerivativeOpenOrder` → `DomesticDerivative*`.
+  `DerivativeMarginRate` stays bare (it is in the quote module with no exact overseas twin), as do
+  the realtime `DerivativeOrderBook`/`DerivativeExecutionNotice` and the aggregate `Balance`.
+  Fields and behavior are unchanged — class names only.
 - The four domestic result/handle types that already had an `Overseas*` sibling but lacked
   the region qualifier are renamed with a `Domestic` prefix: `OpenOrder` →
   `DomesticOpenOrder`, `ReservedOrder` → `DomesticReservedOrder`, `BuyableAmount` →

@@ -29,7 +29,7 @@ ranking.by_volume()                     # 거래량 상위
 ranking.by_market_cap()                 # 시가총액 상위
 ```
 
-각 행(`RankedStock`)은 `rank / symbol / name / price / change / change_percent / volume`:
+각 행(`DomesticRankedStock`)은 `rank / symbol / name / price / change / change_percent / volume`:
 
 ```python
 for row in ranking.by_change(direction="gainers")[:10]:

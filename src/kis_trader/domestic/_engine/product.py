@@ -12,7 +12,7 @@ from ..._internal._response import (
 )
 from ...errors import KISUsageError
 from ...transport import Transport
-from ..entities.product import ProductInfo
+from ..entities.product import DomesticProductInfo
 
 _PRODUCT_INFO_PATH = "/uapi/domestic-stock/v1/quotations/search-info"
 _PRODUCT_INFO_TR = "CTPF1604R"
@@ -25,7 +25,7 @@ def _optional_date(value: object) -> date | None:
 
 def fetch_product_info(
     transport: Transport, *, symbol: str, product_type: str
-) -> ProductInfo:
+) -> DomesticProductInfo:
     """상품유형과 상품번호로 공통 등록·판매 기본정보를 조회한다."""
     if not symbol.strip():
         raise KISUsageError("symbol 이 필요하다.")
@@ -39,7 +39,7 @@ def fetch_product_info(
     row = resp.body.get("output")
     if not isinstance(row, Mapping):
         raise _missing_block_error("output", resp)
-    return ProductInfo(
+    return DomesticProductInfo(
         symbol=str(row.get("pdno", "")).strip(),
         product_type=str(row.get("prdt_type_cd", "")).strip(),
         name=str(row.get("prdt_name", "")).strip(),

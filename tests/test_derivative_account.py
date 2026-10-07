@@ -12,7 +12,10 @@ import pytest
 
 from kis_trader import KISClient
 from kis_trader.domestic.derivative_account import DomesticDerivativesAccount
-from kis_trader.domestic.entities.derivative_account import DerivativeBalance, DerivativeDeposit
+from kis_trader.domestic.entities.derivative_account import (
+    DomesticDerivativeBalance,
+    DomesticDerivativeDeposit,
+)
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 
@@ -85,7 +88,7 @@ def test_derivative_balance_parses_and_routes():
     kis = _client(fake)
     assert isinstance(kis.account, DomesticDerivativesAccount)
     bal = kis.account.balance()
-    assert isinstance(bal, DerivativeBalance)
+    assert isinstance(bal, DomesticDerivativeBalance)
     assert bal.positions[0].symbol == "101W09"          # shtn_pdno, NOT pdno
     assert bal.positions[0].isin == "KR4101RC0000"      # pdno
     assert bal.positions[0].unrealized_pnl == Decimal(12345)
@@ -182,11 +185,15 @@ def test_derivative_balance_summary_list_form():
 
 
 def test_derivative_account_entities_importable():
-    from kis_trader import DerivativeBalance, DerivativeDeposit, DerivativePosition
+    from kis_trader import (
+        DomesticDerivativeBalance,
+        DomesticDerivativeDeposit,
+        DomesticDerivativePosition,
+    )
 
-    assert DerivativeBalance is not None
-    assert DerivativeDeposit is not None
-    assert DerivativePosition is not None
+    assert DomesticDerivativeBalance is not None
+    assert DomesticDerivativeDeposit is not None
+    assert DomesticDerivativePosition is not None
 
 
 _DEPOSIT = {
@@ -214,7 +221,7 @@ def test_derivative_deposit_paper_fails_closed():
 def test_derivative_deposit_parses_and_routes():
     fake = FakeTransport(response=_deposit_resp())
     dep = _client(fake, environment="real").account.deposit()
-    assert isinstance(dep, DerivativeDeposit)
+    assert isinstance(dep, DomesticDerivativeDeposit)
     assert dep.total_deposit == Decimal(50000000)              # dnca_tota
     assert dep.orderable_cash == Decimal(30000000)             # ord_psbl_cash
     assert dep.maintenance_ratio == Decimal("418.23000000")    # mtnc_rt
@@ -255,11 +262,11 @@ def _valuation_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont="D
 
 
 def test_valuation_pl_parses_and_routes():
-    from kis_trader.domestic.entities.derivative_account import DerivativeValuationBalance
+    from kis_trader.domestic.entities.derivative_account import DomesticDerivativeValuationBalance
 
     fake = FakeTransport(response=_valuation_resp(rows=[_valuation_position()]))
     val = _client(fake, environment="real").account.valuation_pl()
-    assert isinstance(val, DerivativeValuationBalance)
+    assert isinstance(val, DomesticDerivativeValuationBalance)
     assert val.positions[0].symbol == "101W09"          # shtn_pdno
     assert val.positions[0].quantity == Decimal(3)      # cblc_qty1
     assert val.positions[0].unrealized_pnl == Decimal(12345)  # evlu_pfls_amt
@@ -302,10 +309,10 @@ def test_valuation_pl_missing_output2_raises():
 
 
 def test_derivative_valuation_entities_importable():
-    from kis_trader import DerivativeValuationBalance, DerivativeValuationPosition
+    from kis_trader import DomesticDerivativeValuationBalance, DomesticDerivativeValuationPosition
 
-    assert DerivativeValuationBalance is not None
-    assert DerivativeValuationPosition is not None
+    assert DomesticDerivativeValuationBalance is not None
+    assert DomesticDerivativeValuationPosition is not None
 
 
 _SETTLEMENT_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-balance-settlement-pl"
@@ -336,11 +343,11 @@ def _settlement_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont="
 
 
 def test_settlement_pl_parses_and_routes():
-    from kis_trader.domestic.entities.derivative_account import DerivativeSettlementBalance
+    from kis_trader.domestic.entities.derivative_account import DomesticDerivativeSettlementBalance
 
     fake = FakeTransport(response=_settlement_resp(rows=[_settlement_position()]))
     stl = _client(fake, environment="real").account.settlement_pl(base_date="20240216")
-    assert isinstance(stl, DerivativeSettlementBalance)
+    assert isinstance(stl, DomesticDerivativeSettlementBalance)
     assert stl.positions[0].symbol == "KR4101RC0000"        # pdno
     assert stl.positions[0].quantity == Decimal(3)          # cblc_qty
     assert stl.positions[0].prior_quantity == Decimal(2)    # bfdy_cblc_qty
@@ -399,10 +406,10 @@ def test_settlement_pl_missing_output2_raises():
 
 
 def test_derivative_settlement_entities_importable():
-    from kis_trader import DerivativeSettlementBalance, DerivativeSettlementPosition
+    from kis_trader import DomesticDerivativeSettlementBalance, DomesticDerivativeSettlementPosition
 
-    assert DerivativeSettlementBalance is not None
-    assert DerivativeSettlementPosition is not None
+    assert DomesticDerivativeSettlementBalance is not None
+    assert DomesticDerivativeSettlementPosition is not None
 
 
 _FILLS_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-ccnl-bstime"
@@ -431,11 +438,11 @@ def _fills_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont="D"):
 def test_base_date_fills_parses_and_routes():
     from datetime import date as _date
 
-    from kis_trader.domestic.entities.derivative_account import DerivativeFillHistory
+    from kis_trader.domestic.entities.derivative_account import DomesticDerivativeFillHistory
 
     fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
     hist = _client(fake, environment="real").account.base_date_fills(order_date="20240220")
-    assert isinstance(hist, DerivativeFillHistory)
+    assert isinstance(hist, DomesticDerivativeFillHistory)
     assert hist.fills[0].symbol == "KR4101RC0000"       # pdno
     assert hist.fills[0].order_id == "0000012345"       # odno
     assert hist.fills[0].transaction_type == "매수"      # tr_type_name
@@ -505,10 +512,10 @@ def test_base_date_fills_missing_output2_raises():
 
 
 def test_derivative_fill_entities_importable():
-    from kis_trader import DerivativeFill, DerivativeFillHistory
+    from kis_trader import DomesticDerivativeFill, DomesticDerivativeFillHistory
 
-    assert DerivativeFill is not None
-    assert DerivativeFillHistory is not None
+    assert DomesticDerivativeFill is not None
+    assert DomesticDerivativeFillHistory is not None
 
 
 _COMMISSIONS_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-daily-amount-fee"
@@ -540,11 +547,11 @@ def _commissions_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont=
 def test_commissions_parses_and_routes():
     from datetime import date as _date
 
-    from kis_trader.domestic.entities.derivative_account import DerivativeCommissionHistory
+    from kis_trader.domestic.entities.derivative_account import DomesticDerivativeCommissionHistory
 
     fake = FakeTransport(response=_commissions_resp(rows=[_commission()]))
     hist = _client(fake, environment="real").account.commissions(start="20240201", end="20240229")
-    assert isinstance(hist, DerivativeCommissionHistory)
+    assert isinstance(hist, DomesticDerivativeCommissionHistory)
     assert hist.commissions[0].order_date == _date(2024, 2, 16)  # ord_dt
     assert hist.commissions[0].symbol == "KR4101RC0000"          # pdno
     assert hist.commissions[0].sell_fee == Decimal(20000)        # sll_fee
@@ -613,10 +620,10 @@ def test_commissions_missing_output2_raises():
 
 
 def test_derivative_commission_entities_importable():
-    from kis_trader import DerivativeCommission, DerivativeCommissionHistory
+    from kis_trader import DomesticDerivativeCommission, DomesticDerivativeCommissionHistory
 
-    assert DerivativeCommission is not None
-    assert DerivativeCommissionHistory is not None
+    assert DomesticDerivativeCommission is not None
+    assert DomesticDerivativeCommissionHistory is not None
 
 
 # --- 비매핑 행 fail-closed (output1=[None]) ---------------------------------
@@ -705,12 +712,12 @@ def _night_balance_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_con
 
 
 def test_night_balance_parses_and_routes():
-    from kis_trader.domestic.entities.derivative_account import DerivativeNightBalance
+    from kis_trader.domestic.entities.derivative_account import DomesticDerivativeNightBalance
 
     fake = FakeTransport(response=_night_balance_resp(rows=[_position()]))
     kis = _client(fake, environment="real", account_password="testpw")
     bal = kis.account.night_balance()
-    assert isinstance(bal, DerivativeNightBalance)
+    assert isinstance(bal, DomesticDerivativeNightBalance)
     assert bal.positions[0].symbol == "101W09"           # shtn_pdno
     assert bal.positions[0].isin == "KR4101RC0000"       # pdno
     assert bal.positions[0].quantity == Decimal(3)       # cblc_qty
@@ -795,9 +802,9 @@ def test_night_balance_non_mapping_row_raises():
 
 
 def test_night_balance_entities_importable():
-    from kis_trader import DerivativeNightBalance
+    from kis_trader import DomesticDerivativeNightBalance
 
-    assert DerivativeNightBalance is not None
+    assert DomesticDerivativeNightBalance is not None
 
 
 # --- (야간)선물옵션 증거금상세 (CTFN7107R, 3블록) ------------------------------
@@ -827,11 +834,11 @@ def _night_margin_resp(*, output1=None, output2=None, output3=None):
 
 
 def test_night_margin_parses_and_routes():
-    from kis_trader.domestic.entities.derivative_account import DerivativeNightMargin
+    from kis_trader.domestic.entities.derivative_account import DomesticDerivativeNightMargin
 
     fake = FakeTransport(response=_night_margin_resp())
     mgn = _client(fake, environment="real").account.night_margin()
-    assert isinstance(mgn, DerivativeNightMargin)
+    assert isinstance(mgn, DomesticDerivativeNightMargin)
     assert mgn.initial_brokerage_margin == Decimal(10000000)      # output1.brkg_mgna
     assert mgn.initial_total_risk_margin == Decimal(12000000)     # output1.tot_risk_mgna
     assert mgn.initial_new_margin == Decimal(8000000)             # output1.new_mgn_amt
@@ -884,9 +891,9 @@ def test_night_margin_missing_output1_raises():
 
 
 def test_night_margin_entities_importable():
-    from kis_trader import DerivativeNightMargin
+    from kis_trader import DomesticDerivativeNightMargin
 
-    assert DerivativeNightMargin is not None
+    assert DomesticDerivativeNightMargin is not None
 
 
 def test_account_date_args_are_keyword_only():
@@ -919,7 +926,7 @@ def _open_orders_resp(rows, *, tr_cont="D"):
 def test_open_orders_wire_and_mapping():
     from datetime import time
 
-    from kis_trader import DerivativeOpenOrder
+    from kis_trader import DomesticDerivativeOpenOrder
     fake = FakeTransport(response=_open_orders_resp([_open_order_row()]))
     orders = _client(fake, environment="real").account.open_orders(order_date="20240220")
     call = fake.calls[0]
@@ -931,7 +938,7 @@ def test_open_orders_wire_and_mapping():
     assert call["params"]["END_ORD_DT"] == "20240220"
     assert len(orders) == 1
     o = orders[0]
-    assert isinstance(o, DerivativeOpenOrder)
+    assert isinstance(o, DomesticDerivativeOpenOrder)
     assert o.order_id == "33"                                 # 공백패딩 strip
     assert o.symbol == "A05609"
     assert o.name == "미니코스피 F 202609"

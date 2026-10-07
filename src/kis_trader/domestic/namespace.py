@@ -41,14 +41,14 @@ if TYPE_CHECKING:
     from ..reserved_order import DomesticReservedOrder, ReservedProcess
     from .entities.account_reports import IntegratedMargin, RealizedProfitBalance
     from .entities.account_right import AccountRight
-    from .entities.balance import AccountAssets, DomesticBalance, Portfolio, Position
+    from .entities.balance import AccountAssets, DomesticBalance, DomesticPosition, Portfolio
     from .entities.derivative import (
         DerivativeMarginRate,
         FuturesBoardQuote,
         OptionBoard,
         OptionExpiry,
     )
-    from .entities.product import ProductInfo
+    from .entities.product import DomesticProductInfo
     from .entities.saved_screen import SavedScreen, SavedScreenStock, Watchlist, WatchlistGroup
     from .entities.stock_fills import StockFillHistory
     from .entities.trade_profit import DailyProfitHistory, TradeProfitHistory
@@ -73,7 +73,7 @@ class DomesticAccount:
             self._client.transport, cano=cano, product_code=product_code, environment=self._client.environment
         )
 
-    def positions(self) -> list[Position]:
+    def positions(self) -> list[DomesticPosition]:
         """보유 종목(0수량 잔여 lot 포함)."""
         cano, product_code = self._client._require_account()
         return account_api.fetch_positions(
@@ -308,7 +308,7 @@ class DomesticNamespace:
         ]
         return market_data_api.fetch_multi_quotes(self._client.transport, requests=requests)
 
-    def product_info(self, symbol: str, *, product_type: str = "300") -> ProductInfo:
+    def product_info(self, symbol: str, *, product_type: str = "300") -> DomesticProductInfo:
         """상품 공통 등록·판매 기본정보. 상품유형 기본값 ``"300"`` 은 국내 주식군이다."""
         return product_api.fetch_product_info(
             self._client.transport, symbol=symbol, product_type=product_type

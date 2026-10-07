@@ -1,4 +1,4 @@
-"""상품 공통 기본정보(DATA) -- :class:`ProductInfo`."""
+"""상품 공통 기본정보(DATA) -- :class:`DomesticProductInfo`."""
 
 from __future__ import annotations
 
@@ -12,7 +12,7 @@ from ..._internal._freeze import freeze_vendor_payload
 
 
 @dataclass(frozen=True, slots=True)
-class ProductInfo:
+class DomesticProductInfo:
     """주식·파생·채권·해외주식에 공통인 상품 등록·판매 기본정보(불변)."""
 
     symbol: str

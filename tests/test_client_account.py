@@ -13,9 +13,9 @@ import pytest
 from kis_trader import (
     DomesticBalance,
     DomesticBuyableAmount,
+    DomesticPosition,
     KISClient,
     Portfolio,
-    Position,
     SellableQuantity,
 )
 from kis_trader.domestic._engine import account as account_module
@@ -157,7 +157,7 @@ def test_positions_parses_and_skips_padding():
     positions = _client(FakeTransport(response=_balance_resp(rows=rows))).account.domestic.positions()
     assert [p.symbol for p in positions] == ["005930"]
     holding = positions[0]
-    assert isinstance(holding, Position)
+    assert isinstance(holding, DomesticPosition)
     assert holding.name == "삼성전자"
     assert holding.quantity == Decimal(10)
     assert holding.average_purchase_price == Decimal(70000)

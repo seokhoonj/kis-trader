@@ -14,7 +14,7 @@ from decimal import Decimal
 import pytest
 
 from kis_trader import KISClient
-from kis_trader.domestic.entities.derivative_account import DerivativeOrderable
+from kis_trader.domestic.entities.derivative_account import DomesticDerivativeOrderable
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 
@@ -57,7 +57,7 @@ def test_orderable_parses_and_routes_real():
     fake = FakeTransport(response=_resp(_orderable_output()))
     result = _client(fake, environment="real").domestic.futures("101W09").orderable(
         "buy", limit_price=Decimal("410.50"))
-    assert isinstance(result, DerivativeOrderable)
+    assert isinstance(result, DomesticDerivativeOrderable)
     assert result.orderable_quantity == Decimal(7)
     assert result.total_quantity == Decimal(10)
     assert result.liquidatable_quantity == Decimal(3)
@@ -121,7 +121,7 @@ def test_night_orderable_parses_and_routes():
     fake = FakeTransport(response=_resp(_night_output()))
     result = _client(fake, environment="real").domestic.futures("101W09").night_orderable(
         "buy", limit_price=Decimal("410.50"))
-    assert isinstance(result, DerivativeOrderable)
+    assert isinstance(result, DomesticDerivativeOrderable)
     assert result.orderable_quantity == Decimal(5)
     assert result.total_quantity == Decimal(8)
     assert result.liquidatable_quantity == Decimal(2)

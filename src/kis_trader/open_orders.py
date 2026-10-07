@@ -11,7 +11,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .domestic.entities.derivative_account import DerivativeOpenOrder
+from .domestic.entities.derivative_account import DomesticDerivativeOpenOrder
 from .open_order import DomesticOpenOrder
 from .overseas.entities.orders import OverseasOpenOrder
 
@@ -28,7 +28,7 @@ class OpenOrders:
 
     domestic: tuple[DomesticOpenOrder, ...] = ()
     overseas: tuple[OverseasOpenOrder, ...] = ()
-    derivatives: tuple[DerivativeOpenOrder, ...] = ()
+    derivatives: tuple[DomesticDerivativeOpenOrder, ...] = ()
 
     def __len__(self) -> int:
         """전 도메인 미체결 주문 총 건수."""

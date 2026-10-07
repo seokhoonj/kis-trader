@@ -45,7 +45,7 @@ for position in account.positions():
           f"평가손익 {position.unrealized_pnl:>12,}  ({position.unrealized_pnl_percent}%)")
 ```
 
-`Position` 필드:
+`DomesticPosition` 필드:
 
 | 필드 | 뜻 |
 |---|---|

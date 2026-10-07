@@ -6,7 +6,7 @@ from datetime import date
 
 import pytest
 
-from kis_trader import KISClient, ProductInfo
+from kis_trader import DomesticProductInfo, KISClient
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 
@@ -42,7 +42,7 @@ def test_product_info_maps_common_fields_and_params():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": _row()})
     client = _client(response)
     info = client.domestic.product_info("005930")
-    assert isinstance(info, ProductInfo)
+    assert isinstance(info, DomesticProductInfo)
     assert info.symbol == "005930"
     assert info.standard_symbol == "KR7005930003"
     assert info.sale_start_date == date(1975, 6, 11)

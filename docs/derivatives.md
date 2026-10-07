@@ -58,7 +58,7 @@ for order in account.open_orders():  # 미체결(정정·취소 가능) 주문 -
 (`order_id`)로 옵니다(앱 재시작 등으로 로컬 주문 기록(중복 방지용 dedup store)이 사라졌을 때 서버측 미체결 확인용). `order_date`
 생략 시 오늘(KST), `side`(`"all"`/`"buy"`/`"sell"`)·`symbol` 로 좁힐 수 있습니다.
 
-`balance()` 의 `DerivativeBalance` 주요 필드:
+`balance()` 의 `DomesticDerivativeBalance` 주요 필드:
 
 | 필드 | 뜻 |
 |---|---|
@@ -69,9 +69,9 @@ for order in account.open_orders():  # 미체결(정정·취소 가능) 주문 -
 | `total_unrealized_pnl` · `total_realized_pnl` | 평가손익합계 · 매매손익합계 |
 | `futures_unrealized_pnl` · `options_unrealized_pnl` | 선물 · 옵션 평가손익 |
 | `account_value` | 추정예탁자산금액 |
-| `positions` | 보유내역(`DerivativePosition` 목록) |
+| `positions` | 보유내역(`DomesticDerivativePosition` 목록) |
 
-`DerivativePosition` 은 종목 식별과 종목별 손익을 담습니다:
+`DomesticDerivativePosition` 은 종목 식별과 종목별 손익을 담습니다:
 
 | 필드 | 뜻 |
 |---|---|
@@ -84,7 +84,7 @@ for order in account.open_orders():  # 미체결(정정·취소 가능) 주문 -
 나머지 조회는 **실전투자 전용**입니다.
 
 ```python
-account.deposit()                      # 총자산현황 (DerivativeDeposit)
+account.deposit()                      # 총자산현황 (DomesticDerivativeDeposit)
 account.valuation_pl()                 # 잔고평가손익 (종목별 평가/매매 손익)
 account.settlement_pl(base_date="20240628")   # 잔고정산손익
 account.base_date_fills(order_date="20240628")  # 기준일 체결내역 (start_time/end_time 로 시각 구간)
@@ -100,7 +100,7 @@ futures.orderable("buy", limit_price=340.0)   # 주간 (모의 지원)
 futures.night_orderable("buy")                # 야간장(EUREX 연계, 실전투자 전용)
 ```
 
-`orderable()` 의 `DerivativeOrderable`: `orderable_quantity`(주문가능수량), `total_quantity`(총가능수량), `liquidatable_quantity`(청산가능수량), `base_index`(기준지수).
+`orderable()` 의 `DomesticDerivativeOrderable`: `orderable_quantity`(주문가능수량), `total_quantity`(총가능수량), `liquidatable_quantity`(청산가능수량), `base_index`(기준지수).
 
 증거금율 표는 계약이 아니라 시장 값이라 네임스페이스에 있습니다(**실전투자 전용**).
 

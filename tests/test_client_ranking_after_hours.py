@@ -1,6 +1,6 @@
 """마무리 순위 6종 -- 예상체결/시간외/조회상위.
 
-by_expected_execution_change(RankedStock) / by_after_hours_change·volume·expected_change(AfterHoursRanking,
+by_expected_execution_change(DomesticRankedStock) / by_after_hours_change·volume·expected_change(AfterHoursRanking,
 output2 vs output) / by_after_hours_balance(전용) / by_views(전용). 각 TR·URL·시장구분·정렬,
 전용 필드 매핑(시간외 가격/거래량, 잔량, 조회상위 코드+시장), fail-closed 를 검증한다.
 """
@@ -15,8 +15,8 @@ import pytest
 from kis_trader import (
     AfterHoursBalanceRanking,
     AfterHoursRanking,
+    DomesticRankedStock,
     KISClient,
-    RankedStock,
     TopViewedStock,
 )
 from kis_trader.errors import KISError, KISUsageError
@@ -43,14 +43,14 @@ def _resp(body):
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
 
 
-# --- exp-trans-updown -> RankedStock (예상체결량=volume) ---------------------
+# --- exp-trans-updown -> DomesticRankedStock (예상체결량=volume) ---------------------
 def test_expected_conclusion_maps_and_sort():
     rows = [{"stck_shrn_iscd": "199800", "hts_kor_isnm": "툴젠", "stck_prpr": "76100",
              "prdy_vrss": "17500", "prdy_vrss_sign": "1", "prdy_ctrt": "29.86",
              "cntg_vol": "51683", "antc_tr_pbmn": "3933076300"}]
     fake = FakeTransport(response=_resp({"output": rows}))
     ranked = _client(fake).domestic.ranking.by_expected_execution_change(direction="gainers")
-    assert isinstance(ranked[0], RankedStock)
+    assert isinstance(ranked[0], DomesticRankedStock)
     assert ranked[0].rank == 1
     assert ranked[0].symbol == "199800"
     assert ranked[0].price == Decimal(76100)

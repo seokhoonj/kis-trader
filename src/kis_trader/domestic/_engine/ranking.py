@@ -1,4 +1,4 @@
-"""국내주식 순위 조회 (내부) -- 시장 전체 순위를 :class:`RankedStock` 리스트로.
+"""국내주식 순위 조회 (내부) -- 시장 전체 순위를 :class:`DomesticRankedStock` 리스트로.
 
 사용자면(:class:`~kis_trader.domestic.ranking.RankingQueries`)이 호출한다. 순위는 종목 단위가 아니라
 시장 전체 대상이라 종목 핸들이 아닌 세션 네임스페이스(``kis.domestic.ranking.*``)에 달린다. 여러 순위가
@@ -74,8 +74,8 @@ from ..entities.ranking import (
     AfterHoursRanking,
     CreditBalanceRanking,
     DividendRanking,
+    DomesticRankedStock,
     NearHighLowRanking,
-    RankedStock,
     ShortSaleRanking,
     TopViewedStock,
 )
@@ -211,7 +211,7 @@ _NEAR_HIGH_LOW_SCR = "20187"
 _NEAR_HIGH_LOW_SIDE = {"high": "0", "low": "1"}
 
 
-def fetch_fluctuation(transport: Transport, *, direction: str, market: str) -> list[RankedStock]:
+def fetch_fluctuation(transport: Transport, *, direction: str, market: str) -> list[DomesticRankedStock]:
     """등락률 순위. ``direction="gainers"`` 상승율순 / ``"losers"`` 하락율순. 최대 30건(다음조회 없음)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
@@ -231,7 +231,7 @@ def fetch_fluctuation(transport: Transport, *, direction: str, market: str) -> l
     return _fetch_ranking(transport, path=_FLUCTUATION_PATH, tr=_FLUCTUATION_TR, params=params)
 
 
-def fetch_volume(transport: Transport, *, metric: str = "cumulative_trading_amount", market: str) -> list[RankedStock]:
+def fetch_volume(transport: Transport, *, metric: str = "cumulative_trading_amount", market: str) -> list[DomesticRankedStock]:
     """거래량 계열 순위. ``metric``: trading_volume 거래량 / cumulative_trading_amount 거래대금 /
     volume_growth 거래증가율 / turnover 회전율. 최대 30건(다음조회 없음)."""
     params = {
@@ -249,7 +249,7 @@ def fetch_volume(transport: Transport, *, metric: str = "cumulative_trading_amou
     return _fetch_ranking(transport, path=_VOLUME_PATH, tr=_VOLUME_TR, params=params)
 
 
-def fetch_market_cap(transport: Transport, *, market: str) -> list[RankedStock]:
+def fetch_market_cap(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
     """시가총액 순위. 최대 30건(다음조회 없음). 시가총액 값은 항목의 ``_raw['stck_avls']``."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
@@ -265,7 +265,7 @@ def fetch_market_cap(transport: Transport, *, market: str) -> list[RankedStock]:
 
 def fetch_disparity(
     transport: Transport, *, extreme: str, period: int, market: str
-) -> list[RankedStock]:
+) -> list[DomesticRankedStock]:
     """이격도 순위. ``extreme="highest"`` 이격도상위 / ``"lowest"`` 하위. ``period`` 이동평균 일수
     (5/10/20/60/120). 이격도 값은 각 항목의 ``_raw['d{period}_dsrt']``(%). 최대 30건(다음조회 없음)."""
     if period not in _DISPARITY_PERIODS:
@@ -284,7 +284,7 @@ def fetch_disparity(
     return _fetch_ranking(transport, path=_DISPARITY_PATH, tr=_DISPARITY_TR, params=params)
 
 
-def fetch_quote_balance(transport: Transport, *, metric: str, market: str) -> list[RankedStock]:
+def fetch_quote_balance(transport: Transport, *, metric: str, market: str) -> list[DomesticRankedStock]:
     """호가잔량 순위. ``metric`` = net_buy(순매수잔량)/net_sell(순매도잔량)/buy_ratio(매수비율)/
     sell_ratio(매도비율). 잔량 지표는 ``_raw`` (total_askp_rsqn/total_bidp_rsqn/...). 최대 30건."""
     params = {
@@ -300,7 +300,7 @@ def fetch_quote_balance(transport: Transport, *, metric: str, market: str) -> li
     return _fetch_ranking(transport, path=_QUOTE_BALANCE_PATH, tr=_QUOTE_BALANCE_TR, params=params)
 
 
-def fetch_volume_power(transport: Transport, *, market: str) -> list[RankedStock]:
+def fetch_volume_power(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
     """체결강도 순위(정렬 없음). 당일 체결강도는 각 항목의 ``_raw['tday_rltv']``. 최대 30건."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
@@ -314,7 +314,7 @@ def fetch_volume_power(transport: Transport, *, market: str) -> list[RankedStock
     return _fetch_ranking(transport, path=_VOLUME_POWER_PATH, tr=_VOLUME_POWER_TR, params=params)
 
 
-def fetch_bulk_trades(transport: Transport, *, side: str, market: str) -> list[RankedStock]:
+def fetch_bulk_trades(transport: Transport, *, side: str, market: str) -> list[DomesticRankedStock]:
     """대량체결건수 순위. ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. 체결건수는 각 항목의
     ``_raw`` (shnu_cntg_csnu/seln_cntg_csnu/ntby_cnqn). 최대 30건(다음조회 없음)."""
     params = {
@@ -332,7 +332,7 @@ def fetch_bulk_trades(transport: Transport, *, side: str, market: str) -> list[R
     return _fetch_ranking(transport, path=_BULK_TRADES_PATH, tr=_BULK_TRADES_TR, params=params)
 
 
-def fetch_interest(transport: Transport, *, market: str) -> list[RankedStock]:
+def fetch_interest(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
     """관심종목 등록상위 순위(정렬 없음). 관심등록 건수는 각 항목의 ``_raw['inter_issu_reg_csnu']``.
     최대 30건(다음조회 없음)."""
     params = {
@@ -349,7 +349,7 @@ def fetch_interest(transport: Transport, *, market: str) -> list[RankedStock]:
     return _fetch_ranking(transport, path=_INTEREST_PATH, tr=_INTEREST_TR, params=params)
 
 
-def fetch_preferred_disparity(transport: Transport, *, market: str) -> list[RankedStock]:
+def fetch_preferred_disparity(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
     """우선주 괴리율 순위(정렬 없음). 공통필드는 본주 기준, 짝이 되는 우선주와 괴리율은 각 항목의
     ``_raw`` (prst_* 우선주 시세, diff_prpr 가격차, dprt 괴리율). 최대 30건(다음조회 없음)."""
     params = {
@@ -368,7 +368,7 @@ def fetch_preferred_disparity(transport: Transport, *, market: str) -> list[Rank
 
 def fetch_finance_ratio(
     transport: Transport, *, analysis: str, year: int, quarter: str, market: str
-) -> list[RankedStock]:
+) -> list[DomesticRankedStock]:
     """재무비율 순위. ``analysis`` = profitability(수익성)/stability(안정성)/growth(성장성)/
     activity(활동성). ``year`` 회계연도, ``quarter`` q1/h1/q3/annual. 비율값은 각 항목의 ``_raw``."""
     params = _fundamentals_params(
@@ -380,7 +380,7 @@ def fetch_finance_ratio(
 
 def fetch_valuation(
     transport: Transport, *, metric: str, year: int, quarter: str, market: str
-) -> list[RankedStock]:
+) -> list[DomesticRankedStock]:
     """시장가치(밸류에이션) 순위. ``metric`` = per/pbr/pcr/psr/eps/eva/ebitda/ev_ebitda/ebitda_ratio.
     ``year`` 회계연도, ``quarter`` q1/h1/q3/annual. 지표값은 각 항목의 ``_raw`` (per/pbr/... )."""
     params = _fundamentals_params(
@@ -392,7 +392,7 @@ def fetch_valuation(
 
 def fetch_profit_asset(
     transport: Transport, *, metric: str, year: int, quarter: str, market: str
-) -> list[RankedStock]:
+) -> list[DomesticRankedStock]:
     """수익자산지표 순위. ``metric`` = sales_profit/operating_profit/ordinary_profit/net_income/
     total_assets/total_liabilities/total_equity. ``year`` 회계연도, ``quarter`` q1/h1/q3/annual.
     금액은 각 항목의 ``_raw`` (sale_totl_prfi/op_prfi/total_aset 등)."""
@@ -405,7 +405,7 @@ def fetch_profit_asset(
 
 def fetch_company_trades(
     transport: Transport, *, side: str, start: str | date, end: str | date, market: str
-) -> list[RankedStock]:
+) -> list[DomesticRankedStock]:
     """당사매매종목 순위(기간). ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. ``start``/``end`` 는
     조회 기간(YYYYMMDD 또는 date). 당사 매수/매도/순매수 수량은 각 항목의 ``_raw`` (shnu_cnqn_smtn/
     seln_cnqn_smtn/ntby_cnqn). 최대 30건(다음조회 없음)."""
@@ -700,7 +700,7 @@ def _fetch_rows(
 
 def _fetch_ranking(
     transport: Transport, *, path: str, tr: str, params: dict[str, str]
-) -> list[RankedStock]:
+) -> list[DomesticRankedStock]:
     resp = transport.request(method="GET", path=path, tr_id=tr, params=params, idempotent=True)
     _raise_if_error(resp)
     rows = resp.body.get("output")
@@ -709,9 +709,9 @@ def _fetch_ranking(
     return _parse_ranked(rows)
 
 
-def _parse_ranked(rows: Sequence[Mapping[str, Any]]) -> list[RankedStock]:
-    """순위 행 -> RankedStock. 종목코드 필드는 순위마다 다름(mksc_shrn_iscd/stck_shrn_iscd) -> 흡수."""
-    ranked: list[RankedStock] = []
+def _parse_ranked(rows: Sequence[Mapping[str, Any]]) -> list[DomesticRankedStock]:
+    """순위 행 -> DomesticRankedStock. 종목코드 필드는 순위마다 다름(mksc_shrn_iscd/stck_shrn_iscd) -> 흡수."""
+    ranked: list[DomesticRankedStock] = []
     for row in rows:
         symbol = str(row.get("mksc_shrn_iscd") or row.get("stck_shrn_iscd") or "").strip()
         rank_text = str(row.get("data_rank", "")).strip()
@@ -719,7 +719,7 @@ def _parse_ranked(rows: Sequence[Mapping[str, Any]]) -> list[RankedStock]:
             continue
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         ranked.append(
-            RankedStock(
+            DomesticRankedStock(
                 rank=required_int(rank_text, "data_rank"),
                 symbol=symbol,
                 name=str(row.get("hts_kor_isnm", "")).strip(),
@@ -771,9 +771,9 @@ _EXPECTED_CLOSE_MARKET = {
 
 def fetch_expected_execution_change(
     transport: Transport, *, direction: str, market: str
-) -> list[RankedStock]:
+) -> list[DomesticRankedStock]:
     """장 시작 전 예상체결 기준 상승/하락 상위. ``direction="gainers"`` 상승 / ``"losers"`` 하락. 예상체결가를
-    현재가로, 예상체결량(cntg_vol)을 거래량으로 담는다(:class:`RankedStock`, 순위는 응답 순서)."""
+    현재가로, 예상체결량(cntg_vol)을 거래량으로 담는다(:class:`DomesticRankedStock`, 순위는 응답 순서)."""
     params = {
         "FID_RANK_SORT_CLS_CODE": _lookup(_EXP_UPDOWN_TOP, key=direction, argname="direction"),
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
@@ -786,14 +786,14 @@ def fetch_expected_execution_change(
     rows = _fetch_rows(
         transport, path=_EXP_UPDOWN_PATH, tr=_EXP_UPDOWN_TR, params=params, output_key="output"
     )
-    ranked: list[RankedStock] = []
+    ranked: list[DomesticRankedStock] = []
     for row in rows:
         symbol = str(row.get("stck_shrn_iscd", "")).strip()
         if not symbol:
             continue
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         ranked.append(
-            RankedStock(
+            DomesticRankedStock(
                 rank=len(ranked) + 1,
                 symbol=symbol,
                 name=str(row.get("hts_kor_isnm", "")).strip(),
@@ -815,7 +815,7 @@ def fetch_expected_close(
     filter_: str,
     market: str,
     extended_range: bool,
-) -> list[RankedStock]:
+) -> list[DomesticRankedStock]:
     """장마감 예상체결 종목 목록과 직전·기준가 대비."""
     filter_code = _lookup(_EXPECTED_CLOSE_FILTER, key=filter_, argname="filter")
     market_code = _lookup(_EXPECTED_CLOSE_MARKET, key=market, argname="market")
@@ -832,14 +832,14 @@ def fetch_expected_close(
         },
         output_key="output",
     )
-    ranked: list[RankedStock] = []
+    ranked: list[DomesticRankedStock] = []
     for row in rows:
         symbol = str(row.get("stck_shrn_iscd", "")).strip()
         if not symbol:
             continue
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         ranked.append(
-            RankedStock(
+            DomesticRankedStock(
                 rank=len(ranked) + 1,
                 symbol=symbol,
                 name=str(row.get("hts_kor_isnm", "")).strip(),

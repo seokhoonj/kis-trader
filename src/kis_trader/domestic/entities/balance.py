@@ -1,6 +1,6 @@
-"""계좌 잔고(DATA) -- :class:`Position`, :class:`DomesticBalance`, :class:`Portfolio`.
+"""계좌 잔고(DATA) -- :class:`DomesticPosition`, :class:`DomesticBalance`, :class:`Portfolio`.
 
-:class:`Position` 은 한 종목의 보유 현황, :class:`DomesticBalance` 는 계좌 현금·자산 요약,
+:class:`DomesticPosition` 은 한 종목의 보유 현황, :class:`DomesticBalance` 는 계좌 현금·자산 요약,
 :class:`Portfolio` 는 그 둘을 한 스냅샷으로 묶은 것이다. 금액은 종목/계좌 통화의 Decimal
 (국내는 KRW). 다중통화가 필요해지면 ``Money`` 로 승격한다.
 """
@@ -17,7 +17,7 @@ from ..._internal._freeze import freeze_vendor_payload
 
 
 @dataclass(frozen=True, slots=True)
-class Position:
+class DomesticPosition:
     """한 종목의 보유 현황(불변).
 
     ``average_purchase_price`` 는 매입평균단가(취득원가)로, 체결가 평균인
@@ -75,7 +75,7 @@ class Portfolio:
     """계좌 스냅샷 -- 현금·자산 요약과 보유 종목 한 벌(무거운 조회를 한 번만)."""
 
     balance: DomesticBalance
-    positions: tuple[Position, ...]
+    positions: tuple[DomesticPosition, ...]
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "positions", tuple(self.positions))

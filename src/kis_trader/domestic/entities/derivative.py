@@ -1,4 +1,4 @@
-"""선물/옵션(파생) 시세 DATA -- :class:`DerivativeQuote` / :class:`UnderlyingQuote`.
+"""선물/옵션(파생) 시세 DATA -- :class:`DomesticDerivativeQuote` / :class:`UnderlyingQuote`.
 
 파생 핸들(:class:`~kis_trader.domestic.derivative.FuturesContract` / :class:`~kis_trader.domestic.derivative.OptionContract`,
 ``kis.domestic.futures(symbol)`` / ``kis.domestic.option(symbol)``)이 돌려주는 한 계약의 현재가 스냅샷이다. 종목의 :class:`~kis_trader.quote.Quote` 와 달리 파생 고유의
@@ -20,7 +20,7 @@ from ..._internal._freeze import freeze_vendor_payload
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeQuote:
+class DomesticDerivativeQuote:
     """선물/옵션 계약의 현재가 스냅샷(불변).
 
     ``change`` / ``change_percent`` 는 전일대비로 하락이면 음수. ``open_interest`` 는 미결제약정,

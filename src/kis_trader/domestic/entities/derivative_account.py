@@ -1,6 +1,6 @@
-"""국내선물옵션 계좌 잔고(DATA) -- :class:`DerivativePosition`, :class:`DerivativeBalance`.
+"""국내선물옵션 계좌 잔고(DATA) -- :class:`DomesticDerivativePosition`, :class:`DomesticDerivativeBalance`.
 
-:class:`DerivativePosition` 은 한 종목(선물/옵션)의 보유 현황, :class:`DerivativeBalance` 는
+:class:`DomesticDerivativePosition` 은 한 종목(선물/옵션)의 보유 현황, :class:`DomesticDerivativeBalance` 는
 계좌 예수금·증거금·손익 요약과 보유내역 한 벌이다. 금액·수량은 KRW Decimal(선물옵션은 원화).
 계좌 요약(output2)에는 여기 타입화하지 않은 필드가 많아 원본 요약을 ``_raw`` 로 함께 노출한다.
 """
@@ -19,7 +19,7 @@ from ...order import Side
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativePosition:
+class DomesticDerivativePosition:
     """한 선물옵션 종목의 보유 현황(불변).
 
     ``symbol`` 은 주문 API 와 왕복하는 단축상품번호(shtn_pdno, 예 "101W09"), ``isin`` 은 표준
@@ -48,7 +48,7 @@ class DerivativePosition:
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeBalance:
+class DomesticDerivativeBalance:
     """선물옵션 계좌의 예수금·증거금·손익 요약과 보유내역 한 벌(불변).
 
     ``total_deposit`` 총예수금액, ``deposit_cash`` 예수금현금, ``total_margin`` 증거금총액,
@@ -57,7 +57,7 @@ class DerivativeBalance:
     타입화하지 않은 요약 필드는 ``_raw`` 로 접근한다.
     """
 
-    positions: tuple[DerivativePosition, ...]  # 보유내역(output1)
+    positions: tuple[DomesticDerivativePosition, ...]  # 보유내역(output1)
     total_deposit: Decimal                # 총예수금액(tot_dncl_amt)
     deposit_cash: Decimal                 # 예수금현금(dnca_cash)
     total_margin: Decimal                 # 증거금총액(mgna_tota)
@@ -80,10 +80,10 @@ class DerivativeBalance:
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeValuationPosition:
+class DomesticDerivativeValuationPosition:
     """한 선물옵션 종목의 잔고평가손익 현황(불변).
 
-    :class:`DerivativePosition` 과 같은 종목 식별(``symbol``/``isin``/``name``/``side``)에 더해
+    :class:`DomesticDerivativePosition` 과 같은 종목 식별(``symbol``/``isin``/``name``/``side``)에 더해
     종목별 평가/매매 손익을 담는다. ``symbol`` 은 주문 API 와 왕복하는 단축상품번호(shtn_pdno,
     예 "101W09"), ``isin`` 은 표준 상품번호(pdno, 예 "KR4101RC0000")다. ``quantity`` 는 잔고수량1
     (cblc_qty1) -- 잔고 조회의 cblc_qty 와 필드명이 다르다. 청산 완료된 0수량 잔여 lot 도 그대로
@@ -112,17 +112,17 @@ class DerivativeValuationPosition:
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeValuationBalance:
+class DomesticDerivativeValuationBalance:
     """선물옵션 잔고평가손익 뷰 -- 계좌 예수금·증거금·손익 요약과 보유내역 한 벌(불변).
 
-    :class:`DerivativeBalance` 와 같은 요약 필드 집합을 담되, 보유내역은 종목별 평가/매매 손익을
-    실은 :class:`DerivativeValuationPosition` 이다. ``total_deposit`` 총예수금액, ``deposit_cash``
+    :class:`DomesticDerivativeBalance` 와 같은 요약 필드 집합을 담되, 보유내역은 종목별 평가/매매 손익을
+    실은 :class:`DomesticDerivativeValuationPosition` 이다. ``total_deposit`` 총예수금액, ``deposit_cash``
     예수금현금, ``total_margin`` 증거금총액, ``orderable_cash`` / ``orderable_total`` 주문가능현금/총액,
     ``account_value`` 추정예탁자산금액. 평가·매매손익은 합계(``total_*``)와 선물/옵션 분해
     (``futures_*`` / ``options_*``)를 함께 담는다. 타입화하지 않은 요약 필드는 ``_raw`` 로 접근한다.
     """
 
-    positions: tuple[DerivativeValuationPosition, ...]  # 보유내역(output1)
+    positions: tuple[DomesticDerivativeValuationPosition, ...]  # 보유내역(output1)
     total_deposit: Decimal                # 총예수금액(tot_dncl_amt)
     deposit_cash: Decimal                 # 예수금현금(dnca_cash)
     total_margin: Decimal                 # 증거금총액(mgna_tota)
@@ -145,7 +145,7 @@ class DerivativeValuationBalance:
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeSettlementPosition:
+class DomesticDerivativeSettlementPosition:
     """한 선물옵션 종목의 잔고정산손익 현황(불변).
 
     이 조회의 종목 식별은 상품번호(pdno)뿐이라 ``symbol`` 에 pdno 를 담는다(단축상품번호 없음).
@@ -174,7 +174,7 @@ class DerivativeSettlementPosition:
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeSettlementBalance:
+class DomesticDerivativeSettlementBalance:
     """선물옵션 잔고정산손익 뷰 -- 계좌 예수금·증거금·수수료 요약과 정산 보유내역 한 벌(불변).
 
     ``next_day_deposit`` 익일예수금, ``maintenance_margin_cash`` / ``maintenance_margin_total``
@@ -185,7 +185,7 @@ class DerivativeSettlementBalance:
     타입화하지 않은 요약 필드는 ``_raw`` 로 접근한다.
     """
 
-    positions: tuple[DerivativeSettlementPosition, ...]  # 정산 보유내역(output1)
+    positions: tuple[DomesticDerivativeSettlementPosition, ...]  # 정산 보유내역(output1)
     next_day_deposit: Decimal             # 익일예수금(nxdy_dnca)
     maintenance_margin_cash: Decimal      # 유지증거금현금(mmga_cash)
     maintenance_margin_total: Decimal     # 유지증거금총액(mmga_tota)
@@ -209,7 +209,7 @@ class DerivativeSettlementBalance:
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeFill:
+class DomesticDerivativeFill:
     """선물옵션 기준일 체결 한 건(불변).
 
     ``symbol`` 은 상품번호(pdno), ``order_id`` 주문번호(odno), ``transaction_type`` 거래유형명
@@ -238,14 +238,14 @@ class DerivativeFill:
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeFillHistory:
+class DomesticDerivativeFillHistory:
     """선물옵션 기준일 체결내역 -- 기간 합계 요약과 체결 한 벌(불변).
 
     ``total_filled_quantity`` 총체결수량합계, ``total_filled_amount`` 총체결금액합계,
     ``fee_adjustment`` 수수료조정, ``total_fee`` 수수료합계. 타입화하지 않은 요약 필드는 ``_raw``.
     """
 
-    fills: tuple[DerivativeFill, ...]  # 체결내역(output1)
+    fills: tuple[DomesticDerivativeFill, ...]  # 체결내역(output1)
     total_filled_quantity: Decimal     # 총체결수량합계(tot_ccld_qty_smtl)
     total_filled_amount: Decimal       # 총체결금액합계(tot_ccld_amt_smtl)
     fee_adjustment: Decimal            # 수수료조정(fee_adjt)
@@ -260,7 +260,7 @@ class DerivativeFillHistory:
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeCommission:
+class DomesticDerivativeCommission:
     """선물옵션 기간약정수수료 하루치(불변).
 
     ``order_date`` 주문일자(ord_dt) -- 형식오류/공백이면 None. ``symbol`` 상품번호(pdno),
@@ -287,7 +287,7 @@ class DerivativeCommission:
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeCommissionHistory:
+class DomesticDerivativeCommissionHistory:
     """선물옵션 기간약정수수료 -- 기간 합계 요약과 일별 내역 한 벌(불변).
 
     ``total_fee`` 수수료합계, ``total_agreement_amount`` 약정금액합계, ``total_sell_fee`` /
@@ -295,7 +295,7 @@ class DerivativeCommissionHistory:
     ``total_realized_pnl`` 매매손익합계. 타입화하지 않은 요약 필드는 ``_raw`` 로 접근한다.
     """
 
-    commissions: tuple[DerivativeCommission, ...]  # 일별 내역(output1)
+    commissions: tuple[DomesticDerivativeCommission, ...]  # 일별 내역(output1)
     total_fee: Decimal                 # 수수료합계(fee_smtl)
     total_agreement_amount: Decimal    # 약정금액합계(agrm_amt_smtl)
     total_sell_fee: Decimal            # 매도수수료합계(sll_fee)
@@ -313,7 +313,7 @@ class DerivativeCommissionHistory:
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeOrderable:
+class DomesticDerivativeOrderable:
     """한 선물옵션 계약의 주문가능 수량(불변).
 
     ``orderable_quantity`` 주문가능수량(ord_psbl_qty), ``total_quantity`` 총가능수량(tot_psbl_qty),
@@ -336,7 +336,7 @@ class DerivativeOrderable:
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeDeposit:
+class DomesticDerivativeDeposit:
     """선물옵션 총자산현황 -- 예수금·주문가능·위탁증거금·손익 요약(불변).
 
     ``total_deposit`` 예수금총액, ``orderable_cash`` / ``orderable_total`` 주문가능현금/총액,
@@ -370,20 +370,20 @@ class DerivativeDeposit:
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeNightBalance:
+class DomesticDerivativeNightBalance:
     """(야간)선물옵션 잔고현황 -- 계좌 예수금·증거금·손익 요약과 보유내역 한 벌(불변).
 
-    주간 :class:`DerivativeBalance` 와 같은 요약 필드 집합(``total_deposit`` 총예수금액,
+    주간 :class:`DomesticDerivativeBalance` 와 같은 요약 필드 집합(``total_deposit`` 총예수금액,
     ``deposit_cash`` 예수금현금, ``total_margin`` 증거금총액, ``orderable_cash`` /
     ``orderable_total`` 주문가능현금/총액, 평가·매매손익 합계·선물/옵션 분해, ``account_value``
     추정예탁자산)에 야간 전용 필드를 더한다: ``maintenance_ratio`` 유지비율, ``shortage_amount``
     부족금액, ``maintenance_margin_total`` / ``maintenance_margin_cash`` 유지증거금총금액/현금금액.
-    보유내역은 주간과 같은 :class:`DerivativePosition` 이다. ``account_value`` 는 이 야간
+    보유내역은 주간과 같은 :class:`DomesticDerivativePosition` 이다. ``account_value`` 는 이 야간
     엔드포인트에선 추정예탁자산(prsm_dpast) -- 주간 잔고의 prsm_dpast_amt 와 필드명이 다르다.
     타입화하지 않은 요약 필드는 ``_raw`` 로 접근한다.
     """
 
-    positions: tuple[DerivativePosition, ...]  # 보유내역(output1)
+    positions: tuple[DomesticDerivativePosition, ...]  # 보유내역(output1)
     total_deposit: Decimal                # 총예수금액(tot_dncl_amt)
     deposit_cash: Decimal                 # 예수금현금(dnca_cash)
     total_margin: Decimal                 # 증거금총액(mgna_tota)
@@ -410,7 +410,7 @@ class DerivativeNightBalance:
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeNightMargin:
+class DomesticDerivativeNightMargin:
     """(야간)선물옵션 증거금상세 -- 개시/유지 증거금과 예수금 요약(불변).
 
     개시(initial, output1)와 유지(maintenance, output2)가 같은 필드 집합을 각각 실어
@@ -446,7 +446,7 @@ class DerivativeNightMargin:
 
 
 @dataclass(frozen=True, slots=True)
-class DerivativeOpenOrder:
+class DomesticDerivativeOpenOrder:
     """선물옵션 미체결(정정·취소 가능) 주문 한 건(불변).
 
     ``order_id`` 는 주문번호(odno) -- ``kis.orders.cancel``/``modify`` 는 세션이 발주한

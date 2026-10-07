@@ -13,7 +13,7 @@ import pytest
 
 from kis_trader import (
     Bar,
-    DerivativeQuote,
+    DomesticDerivativeQuote,
     FuturesContract,
     KISClient,
     OptionContract,
@@ -59,7 +59,7 @@ def _client(transport):
 def test_futures_quote_maps_fields_and_market():
     fake = FakeTransport(response=_resp(_output()))
     quote = _client(fake).domestic.futures("101W09").quote()
-    assert isinstance(quote, DerivativeQuote)
+    assert isinstance(quote, DomesticDerivativeQuote)
     assert quote.symbol == "101W09"
     assert quote.current_price == Decimal("335.20")
     assert quote.previous_close == Decimal("333.00")

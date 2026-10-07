@@ -36,7 +36,7 @@ from ..entities.account_reports import (
     RealizedProfitPosition,
 )
 from ..entities.account_right import AccountRight
-from ..entities.balance import AccountAssets, DomesticBalance, Portfolio, Position
+from ..entities.balance import AccountAssets, DomesticBalance, DomesticPosition, Portfolio
 from ..entities.stock_fills import StockFill, StockFillHistory
 from ..entities.trade_profit import (
     DailyProfit,
@@ -116,7 +116,7 @@ def fetch_balance(transport: Transport, *, cano: str, product_code: str, environ
     return _parse_balance(summary)
 
 
-def fetch_positions(transport: Transport, *, cano: str, product_code: str, environment: Environment) -> list[Position]:
+def fetch_positions(transport: Transport, *, cano: str, product_code: str, environment: Environment) -> list[DomesticPosition]:
     """보유 종목 전체(연속조회 소진까지). 0수량 잔여 lot 포함."""
     rows, _summary = _walk_holdings(transport, cano=cano, product_code=product_code, environment=environment)
     return _parse_positions(rows)
@@ -176,8 +176,8 @@ def _fetch_balance_page(
     )
 
 
-def _parse_positions(rows: list[Mapping[str, Any]]) -> list[Position]:
-    positions: list[Position] = []
+def _parse_positions(rows: list[Mapping[str, Any]]) -> list[DomesticPosition]:
+    positions: list[DomesticPosition] = []
     for row in rows:
         symbol = str(row.get("pdno", "")).strip()
         if not symbol:  # 종목코드 없는 패딩 행 -- 건너뜀
@@ -186,7 +186,7 @@ def _parse_positions(rows: list[Mapping[str, Any]]) -> list[Position]:
             # 종목별 수치는 빈 값을 0으로 읽는다 -- 정산 완료된 0수량 잔여 lot 등에서 일부 필드가
             # 빌 수 있는데, 그 한 종목 때문에 보유목록 전체 조회가 깨지면 안 된다(값이 있는데
             # 파싱 실패면 여전히 예외). 종목 식별은 위의 빈 pdno 가드가 이미 처리.
-            Position(
+            DomesticPosition(
                 symbol=symbol,
                 name=str(row.get("prdt_name", "")).strip(),
                 currency="KRW",

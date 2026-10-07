@@ -1,12 +1,12 @@
 """시장 전체 순위 항목(DATA) -- 한 행(row)을 나타내는 불변 데이터 타입 모음.
 
 :class:`~kis_trader.domestic.ranking.RankingQueries` (``kis.domestic.ranking.*``)가 돌려주는 순위 결과의 낱개
-항목들이다. 대부분의 순위는 공통 코어(순위·종목·시세·거래량)를 공유하므로 :class:`RankedStock`
+항목들이다. 대부분의 순위는 공통 코어(순위·종목·시세·거래량)를 공유하므로 :class:`DomesticRankedStock`
 하나로 통일하고, 그 순위 고유의 지표는 ``_raw`` 로 접근한다. 코어가 맞지 않는 순위(시세가 없는
 배당률, 공매도 지표가 본질인 공매도)는 전용 타입을 둔다.
 
 네이밍 규칙(새 순위 항목을 추가할 때 따를 것): 여러 순위가 재사용하는 **범용** 행은 담고 있는
-payload 로 이름 짓는다(:class:`RankedStock` = 순위가 매겨진 종목 시세). 특정 endpoint **전용**
+payload 로 이름 짓는다(:class:`DomesticRankedStock` = 순위가 매겨진 종목 시세). 특정 endpoint **전용**
 행은 그 순위 이름을 따 ``<도메인>Ranking`` 으로 짓는다(:class:`DividendRanking`,
 :class:`ShortSaleRanking`). 범용 재사용성과 전용성을 이름에서 구분하기 위함이다.
 """
@@ -29,7 +29,7 @@ def _empty_raw() -> Mapping[str, Any]:
 
 
 @dataclass(frozen=True, slots=True)
-class RankedStock:
+class DomesticRankedStock:
     """순위 한 항목(불변). ``rank`` 는 1부터의 순위, 나머지는 그 종목의 현재가·전일대비·거래량.
 
     ``change`` / ``change_percent`` 는 하락이면 음수. 순위별 고유 지표(시가총액 등)는 ``_raw``.
@@ -58,7 +58,7 @@ class DividendRanking:
 
     ``dividend_rate`` 는 주당배당금/액면가(%)인 **배당률**이다 -- 시장가 기준 배당수익률(dividend
     yield)이 아니다. ``dividend_kind`` 는 현금/주식 배당 구분, ``record_date`` 는 배당 기준일.
-    배당률 상위 엔드포인트는 시세를 주지 않아 :class:`RankedStock` 의 가격/등락 코어를 쓰지 못한다.
+    배당률 상위 엔드포인트는 시세를 주지 않아 :class:`DomesticRankedStock` 의 가격/등락 코어를 쓰지 못한다.
     """
 
     rank: int
@@ -191,7 +191,7 @@ class AfterHoursBalanceRanking:
 
     시간외 매도/매수 총잔량(``after_hours_ask_residual`` / ``after_hours_bid_residual``)과 장전/장후 시간외
     체결량(``pre_market_volume`` / ``post_market_volume``)을 담는다. 이 순위엔 정규장 누적거래량이
-    없다(그래서 :class:`RankedStock` 이 아니라 전용 타입). ``price`` / ``change`` 는 정규장 종가 기준.
+    없다(그래서 :class:`DomesticRankedStock` 이 아니라 전용 타입). ``price`` / ``change`` 는 정규장 종가 기준.
     """
 
     rank: int

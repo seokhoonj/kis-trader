@@ -14,7 +14,7 @@ from typing import TYPE_CHECKING, Any
 
 from .._internal._response import _fetch_paginated_rows_with_summary
 from .._internal._wire import field_decimal_or_zero, format_wire_decimal
-from ..domestic.entities.balance import Position
+from ..domestic.entities.balance import DomesticPosition
 from ..errors import KISError, KISUsageError
 from ..order import Side
 from ..transport import Environment, Transport
@@ -191,8 +191,8 @@ def _extract_summary(body: Mapping[str, Any], *, is_list: bool) -> Mapping[str, 
     return summary if isinstance(summary, Mapping) else None
 
 
-def _parse_position(row: Mapping[str, Any], *, sellable_key: str, pnl_rate_key: str) -> Position:
-    return Position(
+def _parse_position(row: Mapping[str, Any], *, sellable_key: str, pnl_rate_key: str) -> DomesticPosition:
+    return DomesticPosition(
         symbol=str(row.get("pdno", "")).strip(),
         name=str(row.get("prdt_name", "")).strip(),
         currency="KRW",

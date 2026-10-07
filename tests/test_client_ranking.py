@@ -11,7 +11,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader import KISClient, RankedStock
+from kis_trader import DomesticRankedStock, KISClient
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 
@@ -64,7 +64,7 @@ def test_by_change_gainers_uses_rise_sort_code():
     ranked = _client(fake).domestic.ranking.by_change(direction="gainers")
     assert len(ranked) == 1
     first = ranked[0]
-    assert isinstance(first, RankedStock)
+    assert isinstance(first, DomesticRankedStock)
     assert first.rank == 1
     assert first.symbol == "005930"
     assert first.name == "삼성전자"

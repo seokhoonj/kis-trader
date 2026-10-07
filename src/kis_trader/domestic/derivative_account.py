@@ -21,15 +21,15 @@ from ._engine.derivative_account import (
     fetch_valuation_pl,
 )
 from .entities.derivative_account import (
-    DerivativeBalance,
-    DerivativeCommissionHistory,
-    DerivativeDeposit,
-    DerivativeFillHistory,
-    DerivativeNightBalance,
-    DerivativeNightMargin,
-    DerivativeOpenOrder,
-    DerivativeSettlementBalance,
-    DerivativeValuationBalance,
+    DomesticDerivativeBalance,
+    DomesticDerivativeCommissionHistory,
+    DomesticDerivativeDeposit,
+    DomesticDerivativeFillHistory,
+    DomesticDerivativeNightBalance,
+    DomesticDerivativeNightMargin,
+    DomesticDerivativeOpenOrder,
+    DomesticDerivativeSettlementBalance,
+    DomesticDerivativeValuationBalance,
 )
 
 if TYPE_CHECKING:
@@ -55,7 +55,7 @@ class DomesticDerivativesAccount:
         _, product_code = self._client._require_account()
         return product_code
 
-    def balance(self) -> DerivativeBalance:
+    def balance(self) -> DomesticDerivativeBalance:
         """선물옵션 잔고(보유내역 + 예수금·증거금·손익 요약).
 
         ``GET .../domestic-futureoption/v1/trading/inquire-balance``
@@ -69,7 +69,7 @@ class DomesticDerivativesAccount:
 
     def open_orders(
         self, *, order_date: str | None = None, side: SideFilter = "all", symbol: str | None = None,
-    ) -> list[DerivativeOpenOrder]:
+    ) -> list[DomesticDerivativeOpenOrder]:
         """선물옵션 미체결(정정·취소 가능) 주문. ``order_date`` (YYYYMMDD, 생략하면 오늘 KST),
         ``side`` = ``"all"``/``"buy"``/``"sell"``, ``symbol`` 생략하면 전체 종목.
 
@@ -86,7 +86,7 @@ class DomesticDerivativesAccount:
             side=side, symbol=symbol,
         )
 
-    def valuation_pl(self) -> DerivativeValuationBalance:
+    def valuation_pl(self) -> DomesticDerivativeValuationBalance:
         """선물옵션 잔고평가손익내역(보유내역 + 예수금·증거금·손익 요약).
 
         ``GET .../domestic-futureoption/v1/trading/inquire-balance-valuation-pl``
@@ -98,7 +98,7 @@ class DomesticDerivativesAccount:
             environment=self._client.environment,
         )
 
-    def settlement_pl(self, *, base_date: str) -> DerivativeSettlementBalance:
+    def settlement_pl(self, *, base_date: str) -> DomesticDerivativeSettlementBalance:
         """선물옵션 잔고정산손익내역(정산 보유내역 + 예수금·증거금·수수료 요약).
 
         ``base_date`` 는 조회 기준일자(YYYYMMDD, 8자리 숫자). ``GET .../domestic-futureoption/v1/
@@ -112,7 +112,7 @@ class DomesticDerivativesAccount:
 
     def base_date_fills(
         self, *, order_date: str, start_time: str = "000000", end_time: str = "240000"
-    ) -> DerivativeFillHistory:
+    ) -> DomesticDerivativeFillHistory:
         """선물옵션 기준일체결내역(체결내역 + 기간 합계 요약).
 
         ``order_date`` 는 주문일자(YYYYMMDD, 8자리 숫자), ``start_time``/``end_time`` 은 조회 시각
@@ -126,7 +126,7 @@ class DomesticDerivativesAccount:
             order_date=order_date, start_time=start_time, end_time=end_time,
         )
 
-    def commissions(self, *, start: str, end: str) -> DerivativeCommissionHistory:
+    def commissions(self, *, start: str, end: str) -> DomesticDerivativeCommissionHistory:
         """선물옵션 기간약정수수료일별(일별 내역 + 기간 합계 요약).
 
         ``start``/``end`` 는 조회 기간의 시작·종료일(YYYYMMDD, 8자리 숫자). ``GET .../
@@ -139,7 +139,7 @@ class DomesticDerivativesAccount:
             environment=self._client.environment, start=start, end=end,
         )
 
-    def night_balance(self) -> DerivativeNightBalance:
+    def night_balance(self) -> DomesticDerivativeNightBalance:
         """(야간)선물옵션 잔고현황(보유내역 + 예수금·증거금·손익 요약 + 야간 전용 유지증거금).
 
         ``GET .../domestic-futureoption/v1/trading/inquire-ngt-balance`` (``CTFN6118R``).
@@ -153,7 +153,7 @@ class DomesticDerivativesAccount:
             environment=self._client.environment, account_password=account_password,
         )
 
-    def night_margin(self, margin_division: str = "01") -> DerivativeNightMargin:
+    def night_margin(self, margin_division: str = "01") -> DomesticDerivativeNightMargin:
         """(야간)선물옵션 증거금상세(개시/유지 증거금 + 예수금 요약).
 
         ``margin_division`` 은 증거금구분코드(MGNA_DVSN_CD, 기본 "01" 개시). ``GET .../
@@ -166,7 +166,7 @@ class DomesticDerivativesAccount:
             environment=self._client.environment, margin_division=margin_division,
         )
 
-    def deposit(self) -> DerivativeDeposit:
+    def deposit(self) -> DomesticDerivativeDeposit:
         """선물옵션 총자산현황(예수금·주문가능·위탁증거금·손익 요약).
 
         ``GET .../domestic-futureoption/v1/trading/inquire-deposit`` (``CTRP6550R``).

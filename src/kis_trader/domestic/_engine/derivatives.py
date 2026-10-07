@@ -1,4 +1,4 @@
-"""국내 선물/옵션(파생) 시세 조회 (내부) -- 계약 현재가를 :class:`DerivativeQuote` 로.
+"""국내 선물/옵션(파생) 시세 조회 (내부) -- 계약 현재가를 :class:`DomesticDerivativeQuote` 로.
 
 사용자면은 파생 핸들(:class:`~kis_trader.domestic.derivative.FuturesContract` /
 :class:`~kis_trader.domestic.derivative.OptionContract`, ``kis.domestic.futures(symbol)`` /
@@ -55,7 +55,7 @@ from ...order_book import OrderBook
 from ...transport import Environment, Transport
 from ..entities.derivative import (
     DerivativeMarginRate,
-    DerivativeQuote,
+    DomesticDerivativeQuote,
     ExpectedExecutionPoint,
     ExpectedExecutionTrend,
     FuturesBoardQuote,
@@ -101,7 +101,7 @@ _MARGIN_RATE_TR = "TTTO6032R"  # 기초자산 증거금율, 모의투자 미지�
 _MAX_MARGIN_RATE_PAGES = 100
 
 
-def fetch_quote(transport: Transport, *, symbol: str, market: DerivativeMarket) -> DerivativeQuote:
+def fetch_quote(transport: Transport, *, symbol: str, market: DerivativeMarket) -> DomesticDerivativeQuote:
     """선물/옵션 계약 현재가 스냅샷. ``market`` 은 F(지수선물)/O(지수옵션), ``symbol`` 는 계약코드."""
     params = {"FID_COND_MRKT_DIV_CODE": market, "FID_INPUT_ISCD": symbol}
     resp = transport.request(
@@ -497,9 +497,9 @@ def fetch_bars(
     )
 
 
-def _parse_quote(output: Mapping[str, Any], *, symbol: str, as_of: datetime) -> DerivativeQuote:
+def _parse_quote(output: Mapping[str, Any], *, symbol: str, as_of: datetime) -> DomesticDerivativeQuote:
     change_sign_code = str(output.get("prdy_vrss_sign", "")).strip()
-    return DerivativeQuote(
+    return DomesticDerivativeQuote(
         symbol=symbol,
         name=str(output.get("hts_kor_isnm", "")).strip(),
         current_price=required_decimal(output.get("futs_prpr"), "futs_prpr"),
