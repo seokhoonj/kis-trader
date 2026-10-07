@@ -256,14 +256,14 @@ def fetch_credit_eligible_stocks(
 def fetch_broker_opinions(
     transport: Transport,
     *,
-    broker: str,
+    member_code: str,
     opinion: BrokerOpinionFilter = "all",
     start: str | date | None = None,
     end: str | date | None = None,
 ) -> list[BrokerOpinion]:
     """한 증권사가 낸 여러 종목 투자의견(한 호출 최대 20건)."""
-    if not broker.strip():
-        raise KISUsageError("broker 회원사코드가 필요하다.")
+    if not member_code.strip():
+        raise KISUsageError("member_code 회원사코드가 필요하다.")
     opinion_code = {"all": "0", "buy": "1", "neutral": "2", "sell": "3"}.get(opinion)
     if opinion_code is None:
         raise KISUsageError(f"opinion 은 all/buy/neutral/sell 중 하나: {opinion!r}")
@@ -271,7 +271,7 @@ def fetch_broker_opinions(
     params = {
         "FID_COND_MRKT_DIV_CODE": "J",
         "FID_COND_SCR_DIV_CODE": "16634",
-        "FID_INPUT_ISCD": broker.strip(),
+        "FID_INPUT_ISCD": member_code.strip(),
         "FID_DIV_CLS_CODE": opinion_code,
         "FID_INPUT_DATE_1": start_date,
         "FID_INPUT_DATE_2": end_date,
@@ -398,19 +398,19 @@ def fetch_market_investor_snapshot(
 
 def fetch_investor_net_buy_stocks(
     transport: Transport, *, market: str = "all", basis: str = "volume",
-    direction: str = "buy", investor: str = "all",
+    side: str = "buy", investor: str = "all",
 ) -> list[InvestorNetBuyStock]:
     """투자자 순매수·순매도 상위 종목 집계."""
     market_code = _NET_BUY_MARKET.get(market)
     basis_code = {"volume": "0", "amount": "1"}.get(basis)
-    direction_code = {"buy": "0", "sell": "1"}.get(direction)
+    direction_code = {"buy": "0", "sell": "1"}.get(side)
     investor_code = {"all": "0", "foreign": "1", "institutional": "2", "other": "3"}.get(investor)
     if market_code is None:
         raise KISUsageError(f"market 은 {sorted(_NET_BUY_MARKET)} 중 하나여야 한다: {market!r}")
     if basis_code is None:
         raise KISUsageError(f"basis 는 'volume'/'amount' 중 하나여야 한다: {basis!r}")
     if direction_code is None:
-        raise KISUsageError(f"direction 은 'buy'/'sell' 중 하나여야 한다: {direction!r}")
+        raise KISUsageError(f"side 은 'buy'/'sell' 중 하나여야 한다: {side!r}")
     if investor_code is None:
         raise KISUsageError(
             f"investor 는 'all'/'foreign'/'institutional'/'other' 중 하나여야 한다: {investor!r}"

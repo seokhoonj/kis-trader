@@ -38,6 +38,7 @@ if TYPE_CHECKING:
         TradingDay,
         VIEvent,
     )
+    from .ranking import TradeSide
 
 
 #: 시장 필터(전체/코스피/코스닥) -- 대주가능·투자자순매수 조회 공통.
@@ -49,16 +50,12 @@ CreditMarketFilter = Literal["all", "KOSPI", "KOSDAQ", "KOSPI200"]
 #: 투자자 순매수 집계 기준 -- 수량(volume)/금액(amount).
 NetBuyBasis = Literal["volume", "amount"]
 
-#: 투자자 순매수 방향 -- 순매수(buy)/순매도(sell) 상위.
-TradeDirection = Literal["buy", "sell"]
-
 #: 투자자 구분 필터 -- 전체/외국인/기관/기타.
 InvestorType = Literal["all", "foreign", "institutional", "other"]
 
 #: 신용주문 가능종목 정렬 -- 종목코드순/종목명순.
 CreditSort = Literal["symbol", "name"]
 
-#: 투자의견 필터 -- 전체/매수/중립/매도.
 
 #: 외국계 창구 매매종목 정렬 -- 금액순/수량순.
 ForeignBrokerSort = Literal["amount", "volume"]
@@ -89,12 +86,12 @@ class MarketQueries:
 
     def investor_net_buy_stocks(
         self, *, market: MarketFilter = "all", basis: NetBuyBasis = "volume",
-        direction: TradeDirection = "buy", investor: InvestorType = "all",
+        side: TradeSide = "buy", investor: InvestorType = "all",
     ) -> list[InvestorNetBuyStock]:
         """투자자 순매수·순매도 상위 종목 집계."""
         return market_api.fetch_investor_net_buy_stocks(
             self._client.transport, market=market, basis=basis,
-            direction=direction, investor=investor,
+            side=side, investor=investor,
         )
 
     def program_investor_trades(
@@ -133,14 +130,14 @@ class MarketQueries:
     def broker_opinions(
         self,
         *,
-        broker: str,
+        member_code: str,
         opinion: BrokerOpinionFilter = "all",
         start: str | date | None = None,
         end: str | date | None = None,
     ) -> list[BrokerOpinion]:
         """한 증권사가 낸 여러 종목 투자의견·목표가격(한 호출 최대 20건)."""
         return market_api.fetch_broker_opinions(
-            self._client.transport, broker=broker, opinion=opinion, start=start, end=end
+            self._client.transport, member_code=member_code, opinion=opinion, start=start, end=end
         )
 
     def program_trades(

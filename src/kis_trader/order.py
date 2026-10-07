@@ -418,9 +418,9 @@ class WireRequest(NamedTuple):
     tr_id: str
     body: dict[str, str]
 
-_SIDES = frozenset(("buy", "sell"))
-_ORDER_TYPES = frozenset(("market", "limit", "stop", "stop_limit"))
-_TIFS = frozenset(("day", "gtc", "ioc", "fok"))
+_SIDES = frozenset(get_args(Side))
+_ORDER_TYPES = frozenset(get_args(OrderType))
+_TIFS = frozenset(get_args(TimeInForce))
 _NEEDS_LIMIT = frozenset(("limit", "stop_limit"))
 _NEEDS_STOP = frozenset(("stop", "stop_limit"))
 
@@ -430,8 +430,8 @@ _CREDIT_SELL_TYPES = frozenset(("22", "24", "25", "27"))   # 유통대주신규/
 #: 신규(융자/대주 개시) vs 상환. 대출일자(LOAN_DT)는 신규면 개시일(오늘), 상환이면 대상 대출일자다.
 _CREDIT_NEW_TYPES = frozenset(("21", "22", "23", "24"))    # 자기융자/유통대주/유통융자/자기대주 신규
 _CREDIT_REPAY_TYPES = frozenset(("25", "26", "27", "28"))  # 자기융자/유통대주/유통융자/자기대주 상환
-_SESSIONS = frozenset(("regular", "overnight", "night"))
-_CHANGE_ACTIONS = frozenset(("cancel", "modify"))
+_SESSIONS = frozenset(get_args(Session))
+_CHANGE_ACTIONS = frozenset(get_args(ChangeAction))
 #: 미국 오버나이트 거래 가능 거래소(시세 EXCD). 오버나이트 거래는 미국(NASD/NYSE/AMEX)만·지정가만. 여기서
 #: 구성 시점 검증에 쓴다(Order 는 _overseas 를 import 못 해 목록을 직접 든다) -- _overseas/orders.py
 #: `_ORDER_EXCHANGE` 의 US 그룹(market=="US")과 동일해야 하며, 와이어 빌더가 거기서 한 번 더 확인한다.
@@ -441,7 +441,7 @@ _OVERNIGHT_EXCHANGES = frozenset(("NAS", "NYS", "AMS"))
 #: 와이어 빌더가 거기서 한 번 더 확인한다(오버나이트와 같은 세 거래소지만 의미가 달라 별도 상수).
 _ALGO_EXCHANGES = frozenset(("NAS", "NYS", "AMS"))
 #: 유효한 algo 전략 값(빈 문자열=비-algo). Order/CLI 가 구성 시점에 이 집합으로 좁힌다.
-_ALGO_STRATEGIES = frozenset(("twap", "vwap"))
+_ALGO_STRATEGIES = frozenset(get_args(AlgoStrategy))
 _REGIONS = frozenset(get_args(Region))
 _ASSET_CLASSES = frozenset(get_args(AssetClass))
 #: 국내 거래소별 **미지원** 주문구분 base(= division 있으면 그것, 없으면 order_type)의 blocklist.

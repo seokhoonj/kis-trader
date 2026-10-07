@@ -205,7 +205,7 @@ def _net_buy_row():
 def test_investor_net_buy_stocks_maps_and_routes():
     fake = FakeTransport(response=_resp([_net_buy_row()]))
     stocks = _client(fake).domestic.market.investor_net_buy_stocks(
-        market="KOSPI", basis="amount", direction="sell", investor="foreign"
+        market="KOSPI", basis="amount", side="sell", investor="foreign"
     )
     assert isinstance(stocks[0], InvestorNetBuyStock)
     assert stocks[0].participants["foreign"].net_buy_volume == 10
@@ -466,7 +466,7 @@ def _broker_opinion_row(**over):
 def test_market_broker_opinions_maps_and_routes():
     fake = FakeTransport(response=_resp([_broker_opinion_row()]))
     opinions = _client(fake).domestic.market.broker_opinions(
-        broker="999", opinion="buy", start="20240501", end="20240528"
+        member_code="999", opinion="buy", start="20240501", end="20240528"
     )
     assert len(opinions) == 1 and isinstance(opinions[0], BrokerOpinion)
     item = opinions[0]
@@ -490,7 +490,7 @@ def test_market_broker_opinions_restores_down_sign_and_defaults_window():
     fake = FakeTransport(response=_resp([_broker_opinion_row(
         prdy_vrss_sign="5", prdy_vrss="500", prdy_ctrt="0.68"
     )]))
-    item = _client(fake).domestic.market.broker_opinions(broker="999", end="20240131")[0]
+    item = _client(fake).domestic.market.broker_opinions(member_code="999", end="20240131")[0]
     assert item.change == Decimal(-500)
     assert item.change_percent == Decimal("-0.68")
     assert fake.calls[0]["params"]["FID_INPUT_DATE_1"] == "20240101"
@@ -499,12 +499,12 @@ def test_market_broker_opinions_restores_down_sign_and_defaults_window():
 def test_market_broker_opinions_rejects_invalid_inputs_before_transport():
     fake = FakeTransport(response=None)
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.market.broker_opinions(broker="")
+        _client(fake).domestic.market.broker_opinions(member_code="")
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.market.broker_opinions(broker="999", opinion="strong_buy")
+        _client(fake).domestic.market.broker_opinions(member_code="999", opinion="strong_buy")
     with pytest.raises(KISUsageError):
         _client(fake).domestic.market.broker_opinions(
-            broker="999", start="20240201", end="20240101"
+            member_code="999", start="20240201", end="20240101"
         )
     assert fake.calls == []
 
@@ -512,7 +512,7 @@ def test_market_broker_opinions_rejects_invalid_inputs_before_transport():
 def test_market_broker_opinions_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).domestic.market.broker_opinions(broker="999")
+        _client(fake).domestic.market.broker_opinions(member_code="999")
 
 
 def _prog_row(**over):

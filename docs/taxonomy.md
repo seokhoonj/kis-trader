@@ -197,7 +197,7 @@ kis.domestic
 │   ├── vi_events()                     # 전 시장 VI 발동
 │   ├── limit_stocks()                  # 상/하한가 도달 종목
 │   │  ── 의견·뉴스·일정 ───────────────────────────
-│   ├── broker_opinions(broker)         # 증권사 종목 투자의견
+│   ├── broker_opinions(member_code)         # 증권사 종목 투자의견
 │   ├── news()                          # 시황/공시 뉴스 피드
 │   ├── trading_calendar()              # 거래 캘린더(영업/개장)
 │   └── futures_market_schedule()       # 국내선물 영업일·장 시각

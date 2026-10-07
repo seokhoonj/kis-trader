@@ -145,6 +145,12 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   (it holds `"future"`/`"option"`, a product kind, not a board/market), and
   `overseas.index(kind=...)` is typed `Literal["index","fx","bond","gold"]`.
 
+- `market.broker_opinions(broker=...)` renamed to `member_code` — the input is a member-firm
+  code (the sibling broker fetchers already call it `member_code`), whereas the result field
+  `BrokerOpinion.broker` keeps its name (it holds the firm's name). `market.investor_net_buy_stocks(direction=...)`
+  renamed to `side: TradeSide` (reusing the dividend/bulk-trade `TradeSide`), dropping a local
+  duplicate `TradeDirection` literal.
+
 ### Added
 
 - Stock handles (`DomesticStock`/`OverseasStock`) now have a readable `__repr__`

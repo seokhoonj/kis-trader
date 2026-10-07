@@ -43,7 +43,7 @@ market.futures_market_schedule()  # 국내선물 인접 영업일·장 시작/�
 ## 의견·뉴스
 
 ```python
-market.broker_opinions(broker="003")  # 한 증권사(회원사 코드)가 낸 종목 투자의견·목표가
+market.broker_opinions(member_code="003")  # 한 증권사(회원사 코드)가 낸 종목 투자의견·목표가
 market.news()                         # 시황·공시 뉴스 제목 피드
 ```
 
