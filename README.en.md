@@ -64,7 +64,7 @@ Reach a symbol or contract through a handle, then read quotes and place orders f
 kis.domestic.stock("005930")     # domestic stock -- quote, chart, order book, buy, sell
 kis.overseas.stock("AAPL")       # overseas stock -- exchange resolved automatically
 kis.domestic.futures("101W09")   # index futures
-kis.domestic.option("201W09")    # index options
+kis.domestic.option("201W09350")    # index options
 ```
 
 ## 4. Orders

@@ -61,7 +61,7 @@ for tick in sub:                                    # 이 계약만 흘러옵니
 - **선물** — `realtime.domestic.futures("101W09", kind="index")`에서 `.trades()` / `.order_book()`.
   `kind`는 `index`·`commodity`·`stock`·`night`. 체결은 `RealtimeSubscription[FuturesTick]`,
   호가는 `RealtimeSubscription[DerivativeOrderBook]`.
-- **옵션** — `realtime.domestic.option("201W09", kind="index")`에서 `.trades()` / `.order_book()`.
+- **옵션** — `realtime.domestic.option("201W09350", kind="index")`에서 `.trades()` / `.order_book()`.
   `kind`는 `index`·`stock`·`night`. 체결은 `RealtimeSubscription[OptionTick]`,
   호가는 `RealtimeSubscription[DerivativeOrderBook]`.
 - **체결통보** — `realtime.domestic.execution_notices.stock(hts_id)`는

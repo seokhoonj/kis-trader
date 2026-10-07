@@ -64,7 +64,7 @@ kis.orders     # 접수한 주문의 조회(미체결)·확인·정정·취소
 kis.domestic.stock("005930")     # 국내 주식 -- 현재가·차트·호가·매수·매도
 kis.overseas.stock("AAPL")       # 해외 주식 -- 거래소 자동 판별
 kis.domestic.futures("101W09")   # 지수선물
-kis.domestic.option("201W09")    # 지수옵션
+kis.domestic.option("201W09350")    # 지수옵션
 ```
 
 ## 4. 주문
