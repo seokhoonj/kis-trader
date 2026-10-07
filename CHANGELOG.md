@@ -209,6 +209,21 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
 
 - Stock handles (`DomesticStock`/`OverseasStock`) now have a readable `__repr__`
   (`DomesticStock(symbol='005930', exchange='KRX')`).
+- The closed-choice `Literal` types used in public method signatures are now exported from
+  the package root (`from kis_trader import ...`), so users can name/annotate them under
+  `py.typed` — previously only a handful (`Side`, `OrderType`, `VolumeMetric`, ...) were.
+  Added: `DomesticQuoteExchange`, the ranking filters/metrics (`TradeSide`,
+  `DisparityExtreme`, `DividendSettlement`, `DividendKind`, `DividendMarket`,
+  `ExpectedCloseFilter`, `ExpectedCloseMarket`, `FinancialAnalysis`, `FiscalQuarter`,
+  `NearHighLowSide`, `AfterHoursBalanceSide`, `CreditBalanceMetric`, `QuoteBalanceMetric`,
+  `ProfitAssetMetric`, `ValuationMetric`, `ShortSaleWindow`), the ELW sorts (`ELWRight`,
+  `UnderlyingSort`, `ChangeSort`, `IndicatorSort`, `SensitivitySort`, `VolumeSort`,
+  `QuickChangeSort`, `QuickChangeWindow`), the index query types (`IntradayInterval`,
+  `ExpectedInterval`, `ExpectedMarket`, `ExpectedSession`), the market filters
+  (`MarketFilter`, `Market`, `CreditMarketFilter`, `CreditSort`, `ForeignBrokerSort`,
+  `InvestorType`, `NetBuyBasis`, `BrokerOpinionFilter`), and the derivative division
+  (`DerivativeDivision`). `Right` and `Session` stay off the root (name collisions) and are
+  reachable via `kis_trader.order`.
 
 ### Removed
 
