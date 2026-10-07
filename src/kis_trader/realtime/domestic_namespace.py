@@ -68,7 +68,7 @@ def _pick(table: dict[str, str], key: str, *, label: str) -> str:
         ) from None
 
 
-class StockHandle:
+class DomesticStockHandle:
     """국내주식 실시간 핸들. ``exchange`` 로 거래소(KRX/NXT/통합 UN)를 고른다."""
 
     def __init__(self, client: RealtimeClient, symbol: str) -> None:
@@ -100,7 +100,7 @@ class StockHandle:
         )
 
 
-class FuturesHandle:
+class DomesticFuturesHandle:
     """국내 선물 실시간 핸들. ``kind``: index|commodity|stock|night."""
 
     def __init__(self, client: RealtimeClient, symbol: str, kind: FuturesKind) -> None:
@@ -127,7 +127,7 @@ class FuturesHandle:
         )
 
 
-class OptionHandle:
+class DomesticOptionHandle:
     """국내 옵션 실시간 핸들. ``kind``: index|stock|night."""
 
     def __init__(self, client: RealtimeClient, symbol: str, kind: OptionKind) -> None:
@@ -154,7 +154,7 @@ class OptionHandle:
         )
 
 
-class IndexHandle:
+class DomesticIndexHandle:
     """국내지수 실시간 핸들. 지수 코드 단위(체결/예상체결/프로그램매매). 호가는 없다."""
 
     def __init__(self, client: RealtimeClient, code: str) -> None:
@@ -189,7 +189,7 @@ class IndexHandle:
         )
 
 
-class ELWHandle:
+class DomesticELWHandle:
     """ELW 실시간 핸들. ELW 코드 단위(체결/호가/예상체결)."""
 
     def __init__(self, client: RealtimeClient, symbol: str) -> None:
@@ -224,7 +224,7 @@ class ELWHandle:
         )
 
 
-class BondHandle:
+class DomesticBondHandle:
     """일반채권 실시간 핸들. 채권 코드 단위(체결/호가)."""
 
     def __init__(self, client: RealtimeClient, symbol: str) -> None:
@@ -250,7 +250,7 @@ class BondHandle:
         )
 
 
-class BondIndexHandle:
+class DomesticBondIndexHandle:
     """채권지수 실시간 핸들. 채권지수 코드 단위(체결). 일반채권과 코드 공간이 다르다."""
 
     def __init__(self, client: RealtimeClient, code: str) -> None:
@@ -267,7 +267,7 @@ class BondIndexHandle:
         )
 
 
-class ExecutionNotices:
+class DomesticExecutionNotices:
     """체결통보 -- hts_id 단위(계약 아님). 자산군을 잎에서 고른다."""
 
     def __init__(self, client: RealtimeClient) -> None:
@@ -301,32 +301,32 @@ class RealtimeDomesticNamespace:
 
     def __init__(self, client: RealtimeClient) -> None:
         self._client = client
-        self.execution_notices = ExecutionNotices(client)
+        self.execution_notices = DomesticExecutionNotices(client)
 
-    def stock(self, symbol: str) -> StockHandle:
+    def stock(self, symbol: str) -> DomesticStockHandle:
         """국내주식 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). exchange 는 잎에서 고른다."""
-        return StockHandle(self._client, symbol)
+        return DomesticStockHandle(self._client, symbol)
 
-    def futures(self, symbol: str, kind: FuturesKind = "index") -> FuturesHandle:
+    def futures(self, symbol: str, kind: FuturesKind = "index") -> DomesticFuturesHandle:
         """국내 선물 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). kind: index|commodity|stock|night."""
-        return FuturesHandle(self._client, symbol, kind)
+        return DomesticFuturesHandle(self._client, symbol, kind)
 
-    def option(self, symbol: str, kind: OptionKind = "index") -> OptionHandle:
+    def option(self, symbol: str, kind: OptionKind = "index") -> DomesticOptionHandle:
         """국내 옵션 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). kind: index|stock|night."""
-        return OptionHandle(self._client, symbol, kind)
+        return DomesticOptionHandle(self._client, symbol, kind)
 
-    def index(self, code: str) -> IndexHandle:
+    def index(self, code: str) -> DomesticIndexHandle:
         """국내지수 실시간 핸들을 반환한다(.trades()/.expected_conclusion()/.program_trade() 로 구독)."""
-        return IndexHandle(self._client, code)
+        return DomesticIndexHandle(self._client, code)
 
-    def elw(self, symbol: str) -> ELWHandle:
+    def elw(self, symbol: str) -> DomesticELWHandle:
         """ELW 실시간 핸들을 반환한다(.trades()/.order_book()/.expected_conclusion() 로 구독)."""
-        return ELWHandle(self._client, symbol)
+        return DomesticELWHandle(self._client, symbol)
 
-    def bond(self, symbol: str) -> BondHandle:
+    def bond(self, symbol: str) -> DomesticBondHandle:
         """일반채권 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독)."""
-        return BondHandle(self._client, symbol)
+        return DomesticBondHandle(self._client, symbol)
 
-    def bond_index(self, code: str) -> BondIndexHandle:
+    def bond_index(self, code: str) -> DomesticBondIndexHandle:
         """채권지수 실시간 핸들을 반환한다(.trades() 로 구독). 일반채권과 코드 공간이 다르다."""
-        return BondIndexHandle(self._client, code)
+        return DomesticBondIndexHandle(self._client, code)

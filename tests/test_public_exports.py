@@ -33,3 +33,23 @@ def test_colliding_names_are_not_root_exported(name):
     # AccountRight·RightsOffering 과 충돌하므로 제외한다.
     assert name not in kis_trader.__all__
     assert hasattr(__import__("kis_trader.order", fromlist=[name]), name)
+
+
+import kis_trader.realtime as _rt
+
+
+@pytest.mark.parametrize("name", _rt.__all__)
+def test_every_realtime_exported_name_resolves(name):
+    # realtime.__all__ 의 이름도 실제로 접근 가능해야 한다(핸들 타입 수출 드리프트 차단).
+    assert hasattr(_rt, name), f"{name} 은 realtime.__all__ 에 있으나 접근 불가"
+
+
+@pytest.mark.parametrize("name", [
+    "DomesticStockHandle", "DomesticFuturesHandle", "DomesticOptionHandle",
+    "DomesticIndexHandle", "DomesticELWHandle", "DomesticBondHandle",
+    "DomesticBondIndexHandle", "DomesticExecutionNotices",
+    "OverseasStockHandle", "OverseasDerivativeHandle", "OverseasExecutionNotices",
+])
+def test_realtime_handle_types_are_exported(name):
+    # 네임스페이스가 반환하는 realtime 핸들 타입은 전부 realtime.__all__ 로 명명 가능해야 한다.
+    assert name in _rt.__all__ and hasattr(_rt, name)

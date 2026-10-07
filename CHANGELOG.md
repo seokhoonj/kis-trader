@@ -85,6 +85,16 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
 - `kis.domestic.search_stocks()` (was `kis.domestic.search()`), matching the overseas
   `kis.overseas.search_stocks()`; `symbol` search is one verb across both regions. The MCP
   tool keeps its `search` name for agent-config stability.
+- The realtime domestic handle types are renamed with a `Domestic` prefix to match their
+  `Overseas*` siblings and the REST `Domestic*` handles: `StockHandle` →
+  `DomesticStockHandle`, `FuturesHandle` → `DomesticFuturesHandle`, `OptionHandle` →
+  `DomesticOptionHandle`, `IndexHandle` → `DomesticIndexHandle`, `ELWHandle` →
+  `DomesticELWHandle`, `BondHandle` → `DomesticBondHandle`, `BondIndexHandle` →
+  `DomesticBondIndexHandle`, and the `ExecutionNotices` group → `DomesticExecutionNotices`.
+  All realtime handle types (domestic + overseas) and their closed-choice aliases
+  (`FuturesKind`, `OptionKind`, `NoticeSession`, `OverseasZone`, `CustomerType`) are now
+  exported from `kis_trader.realtime` — the REST handles were already root-exported, so the
+  realtime handles returned by the namespaces are now nameable too.
 - Realtime `OverseasFuturesHandle` renamed to `OverseasDerivativeHandle`: a single handle
   serves both `realtime().overseas.futures(...)` and `.option(...)` (they share the same
   wire TRs), so it is named for the asset class — matching the REST `OverseasDerivative*`
