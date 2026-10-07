@@ -43,11 +43,13 @@ def test_v9_16_slot_immediate_nonalgo_replays_and_algo_conflicts(tmp_path):
     p.write_text(json.dumps(_v9_store(**{"cid-1": _V9_IMMEDIATE})))
     with OrderStore(p, now=_clock) as store:
         # 같은 비-algo 주문 재전송 -> 지문 동일 -> InFlight(replay), 가짜 Conflict 아님.
-        same = Order.limit("AAPL", side="buy", quantity=1, limit_price=150, exchange="NAS",
+        same = Order.limit("AAPL", side="buy", quantity=1, limit_price=150,
+                           region="overseas", asset_class="stock", exchange="NAS",
                            client_order_id="cid-1").fingerprint
         assert isinstance(store.try_claim("cid-1", same), InFlight)
         # 같은 id 로 온 algo 주문 -> 서로 다른 주문(뒤쪽 algo 슬롯이 다름) -> Conflict.
-        algo = Order.limit("AAPL", side="buy", quantity=1, limit_price=150, exchange="NAS",
+        algo = Order.limit("AAPL", side="buy", quantity=1, limit_price=150,
+                           region="overseas", asset_class="stock", exchange="NAS",
                            algo_strategy="twap", client_order_id="cid-1").fingerprint
         assert isinstance(store.try_claim("cid-1", algo), Conflict)
 

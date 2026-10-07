@@ -4,6 +4,7 @@ from __future__ import annotations
 from argparse import Namespace
 from typing import TYPE_CHECKING, Any
 
+from ...instrument import _DOMESTIC_QUOTE_EXCHANGES
 from ..context import resolve_stock
 from ..errors import CliConfigError
 
@@ -47,6 +48,11 @@ def cmd_trades(kis: KISClient, args: Namespace) -> Any:
 
 
 def cmd_status(kis: KISClient, args: Namespace) -> Any:
-    if args.venue != "domestic":
-        raise CliConfigError("status 는 국내 종목만 지원합니다(--venue domestic).")
-    return kis.domestic.stock(args.identifier).status()
+    if args.region != "domestic":
+        raise CliConfigError("status 는 국내 종목만 지원합니다(--region domestic).")
+    exchange = getattr(args, "exchange", None)
+    if exchange is not None and exchange not in _DOMESTIC_QUOTE_EXCHANGES:
+        raise CliConfigError(
+            f"지원하지 않는 국내 시세 거래소: {exchange!r} (KRX/NXT/UN)."
+        )
+    return kis.domestic.stock(args.identifier, exchange=exchange).status()

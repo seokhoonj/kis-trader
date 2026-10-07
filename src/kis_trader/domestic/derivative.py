@@ -16,7 +16,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING, ClassVar, Literal
 
 from ..errors import KISUsageError
-from ..order import _DERIVATIVE_EXCHANGE, Order, coerce_decimal, mint_client_order_id
+from ..order import Order, coerce_decimal, mint_client_order_id
 from ._engine import derivative_account as derivative_account_api
 from ._engine import derivatives as derivatives_api
 from .entities.derivative import DerivativeQuote, ExpectedExecutionTrend, UnderlyingQuote
@@ -164,7 +164,7 @@ class _ContractBase:
             symbol=self.code, side=side, order_type=resolved_type,
             quantity=coerce_decimal(quantity, "quantity"),
             limit_price=None if limit_price is None else coerce_decimal(limit_price, "limit_price"),
-            time_in_force=time_in_force, exchange=_DERIVATIVE_EXCHANGE,
+            time_in_force=time_in_force, asset_class="derivative",
             session="night" if night else "regular", division=division,
             derivative_item=self._derivative_item(),
             client_order_id=client_order_id or mint_client_order_id(),

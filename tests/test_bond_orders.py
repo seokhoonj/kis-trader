@@ -60,17 +60,10 @@ def _client(transport, *, environment="real", store=None, risk=None):
 def _bond_order(**kw):
     base = {
         "symbol": "KR2033022D33", "side": "buy", "order_type": "limit", "quantity": Decimal(10),
-        "limit_price": Decimal(10000), "exchange": "BOND", "client_order_id": "c",
+        "limit_price": Decimal(10000), "asset_class": "bond", "client_order_id": "c",
     }
     base.update(kw)
     return Order(**base)
-
-
-# --- exchange marker ------------------------------------------------------
-def test_is_bond_exchange():
-    assert bond.is_bond_exchange("BOND") is True
-    assert bond.is_bond_exchange("XKRX") is False
-    assert bond.is_bond_exchange("XKFE") is False
 
 
 # --- 와이어 골든바디 ------------------------------------------------------
@@ -90,7 +83,7 @@ def test_make_order_request_buy_body():
 
 def test_make_order_request_rejects_non_bond():
     order = Order(symbol="005930", side="buy", order_type="limit", quantity=Decimal(1),
-                  limit_price=Decimal(70000), exchange="XKRX", client_order_id="c")
+                  limit_price=Decimal(70000), client_order_id="c")
     with pytest.raises(OrderError):
         bond.make_order_request(order, cano="8", product_code="03", environment="real")
 
@@ -274,7 +267,7 @@ def test_bond_sell_lot_slots_are_bond_only():
     # 매수 lot 슬롯(bond_buy_date/seq)은 채권 주문 전용 -- 다른 거래소에 실리면 생성 시점에 거부.
     with pytest.raises(KISUsageError):
         Order(symbol="005930", side="sell", order_type="limit", quantity=Decimal(1),
-              limit_price=Decimal(70000), exchange="XKRX", bond_buy_date="20240215",
+              limit_price=Decimal(70000), bond_buy_date="20240215",
               bond_buy_seq="1", client_order_id="c")
 
 
@@ -335,7 +328,8 @@ def _change_fp(*, symbol: str = "KR2033022D33", limit_price: str = "10000",
                quantity: str = "10") -> ImmediateOrderFingerprint:
     return ImmediateOrderFingerprint(
         symbol=symbol, side="buy", order_type="limit", quantity=quantity,
-        limit_price=limit_price, stop_price="", time_in_force="day", exchange="BOND",
+        limit_price=limit_price, stop_price="", time_in_force="day",
+        region="domestic", asset_class="bond", exchange="KRX",
     )
 
 

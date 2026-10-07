@@ -2,7 +2,7 @@
 
 REST ``kis.domestic`` 을 미러한다: ``domestic.futures(code).trades()`` 가
 :class:`~kis_trader.realtime.subscription.RealtimeSubscription` 를 반환해 그 계약·그 타입만
-소비한다. 파생 세부종류는 ``kind`` 인자로, 국내주식 거래소는 ``venue`` 인자로 TR 을 고른다.
+소비한다. 파생 세부종류는 ``kind`` 인자로, 국내주식 거래소는 ``exchange`` 인자로 TR 을 고른다.
 """
 
 from __future__ import annotations
@@ -11,6 +11,7 @@ from collections.abc import Callable
 from typing import TYPE_CHECKING, Literal, cast
 
 from ..errors import KISUsageError
+from ..instrument import DomesticQuoteExchange
 from .parsers.bond import BondIndexTick, BondOrderBook, BondTick
 from .parsers.derivatives import (
     DerivativeExecutionNotice,
@@ -27,13 +28,12 @@ if TYPE_CHECKING:
     from .messages import StockTick
     from .subscription import RealtimeSubscription
 
-StockVenue = Literal["KRX", "NXT", "unified"]
 FuturesKind = Literal["index", "commodity", "stock", "night"]
 OptionKind = Literal["index", "stock", "night"]
 NoticeSession = Literal["regular", "night_futures", "night_option"]
 
-_STOCK_TRADES_TR: dict[str, str] = {"KRX": "H0STCNT0", "NXT": "H0NXCNT0", "unified": "H0UNCNT0"}
-_STOCK_ORDER_BOOK_TR: dict[str, str] = {"KRX": "H0STASP0", "NXT": "H0NXASP0", "unified": "H0UNASP0"}
+_STOCK_TRADES_TR: dict[str, str] = {"KRX": "H0STCNT0", "NXT": "H0NXCNT0", "UN": "H0UNCNT0"}
+_STOCK_ORDER_BOOK_TR: dict[str, str] = {"KRX": "H0STASP0", "NXT": "H0NXASP0", "UN": "H0UNASP0"}
 # 체결통보 TR-id 는 모의(paper)에서 다르다 -- 실전 H0STCNI0 / 모의 H0STCNI9(원장 명시).
 _STOCK_EXECUTION_NOTICE_TR: dict[str, str] = {"real": "H0STCNI0", "paper": "H0STCNI9"}
 _FUTURES_TRADES_TR: dict[str, str] = {
@@ -69,26 +69,32 @@ def _pick(table: dict[str, str], key: str, *, label: str) -> str:
 
 
 class StockHandle:
-    """국내주식 실시간 핸들. ``venue`` 로 거래소(KRX/NXT/통합)를 고른다."""
+    """국내주식 실시간 핸들. ``exchange`` 로 거래소(KRX/NXT/통합 UN)를 고른다."""
 
     def __init__(self, client: RealtimeClient, code: str) -> None:
         self._c = client
         self._code = code
 
     def trades(
-        self, venue: StockVenue = "KRX", *, on: Callable[[StockTick], None] | None = None
+        self,
+        exchange: DomesticQuoteExchange = "KRX",
+        *,
+        on: Callable[[StockTick], None] | None = None,
     ) -> RealtimeSubscription[StockTick]:
-        """국내주식 실시간 체결을 구독하고 RealtimeSubscription[StockTick] 을 반환한다. venue: KRX/NXT/통합."""
-        tr = _pick(_STOCK_TRADES_TR, venue, label="venue")
+        """국내주식 실시간 체결을 구독하고 RealtimeSubscription[StockTick] 을 반환한다. exchange: KRX/NXT/통합(UN)."""
+        tr = _pick(_STOCK_TRADES_TR, exchange, label="exchange")
         return cast(
             "RealtimeSubscription[StockTick]", self._c._open_typed(tr, self._code, on=on)
         )
 
     def order_book(
-        self, venue: StockVenue = "KRX", *, on: Callable[[StockOrderBook], None] | None = None
+        self,
+        exchange: DomesticQuoteExchange = "KRX",
+        *,
+        on: Callable[[StockOrderBook], None] | None = None,
     ) -> RealtimeSubscription[StockOrderBook]:
-        """국내주식 실시간 호가를 구독하고 RealtimeSubscription[StockOrderBook] 을 반환한다. venue: KRX/NXT/통합."""
-        tr = _pick(_STOCK_ORDER_BOOK_TR, venue, label="venue")
+        """국내주식 실시간 호가를 구독하고 RealtimeSubscription[StockOrderBook] 을 반환한다. exchange: KRX/NXT/통합(UN)."""
+        tr = _pick(_STOCK_ORDER_BOOK_TR, exchange, label="exchange")
         return cast(
             "RealtimeSubscription[StockOrderBook]", self._c._open_typed(tr, self._code, on=on)
         )
@@ -298,7 +304,7 @@ class RealtimeDomesticNamespace:
         self.execution_notices = ExecutionNotices(client)
 
     def stock(self, code: str) -> StockHandle:
-        """국내주식 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). venue 는 잎에서 고른다."""
+        """국내주식 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독). exchange 는 잎에서 고른다."""
         return StockHandle(self._c, code)
 
     def futures(self, code: str, kind: FuturesKind = "index") -> FuturesHandle:

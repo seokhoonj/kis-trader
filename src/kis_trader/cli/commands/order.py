@@ -21,6 +21,7 @@ from typing import TYPE_CHECKING, Any, get_args
 from ..._internal._datetime import _KST, _parse_kst_time
 from ...errors import KISError
 from ...execution import execute_twap, make_twap_schedule
+from ...instrument import _DOMESTIC_ORDER_EXCHANGES
 from ...order import DerivativeDivision, Side
 from ..context import account_suffix, resolve_bond, resolve_stock
 from ..errors import CliAborted, CliConfigError
@@ -44,7 +45,7 @@ def _ticket(args: Namespace, *, side: Side, account: str | None, environment: st
     ticket: dict[str, Any] = {
         "environment": environment,
         "account_suffix": account_suffix(account),
-        "venue": args.venue,
+        "region": args.region,
         "symbol": args.identifier,
         "side": side,
         "quantity": args.quantity,
@@ -53,10 +54,11 @@ def _ticket(args: Namespace, *, side: Side, account: str | None, environment: st
         # 채권은 KRX 주문구분(division)을 쓰지 않는다 -- 항상 None 으로 노출한다.
         "division": None if asset == "bond" else getattr(args, "division", None),
     }
-    if asset == "stock" and args.venue != "overseas":
+    if asset == "stock" and args.region != "overseas":
         ticket["stop_price"] = getattr(args, "stop_price", None)
         ticket["reserve"] = getattr(args, "reserve", False)
         ticket["end_date"] = getattr(args, "end_date", None)
+        ticket["exchange"] = getattr(args, "exchange", None)
     elif asset == "stock":  # 해외 주식(즉시 algo / 예약)
         ticket["reserve"] = getattr(args, "reserve", False)
         ticket["exchange"] = getattr(args, "exchange", None)
@@ -69,7 +71,7 @@ def _ticket(args: Namespace, *, side: Side, account: str | None, environment: st
         ticket["buy_date"] = getattr(args, "buy_date", None)
         ticket["buy_seq"] = getattr(args, "buy_seq", None)
     if asset in _DERIVATIVE_ASSETS:
-        if args.venue == "overseas":
+        if args.region == "overseas":
             ticket["stop_price"] = args.stop_price
         else:
             ticket["night"] = args.night
@@ -82,10 +84,10 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
     """자산별 발주 인자의 CLI 선제 검증 -- 와이어 전에 문제 플래그를 지목해 fail-closed 한다.
     라이브러리도 막지만, CLI 가 먼저 거부해 어떤 플래그가 왜 안 되는지 명확히 알려준다."""
     asset = args.asset
-    domestic = args.venue != "overseas"
+    domestic = args.region != "overseas"
     is_deriv = asset in _DERIVATIVE_ASSETS
 
-    # 예약주문(--reserve)은 국내 주식(실전전용) 또는 해외 주식(--venue overseas) -- 호환 불가 플래그를
+    # 예약주문(--reserve)은 국내 주식(실전전용) 또는 해외 주식(--region overseas) -- 호환 불가 플래그를
     # 먼저 지목해 fail-closed 한다. (이 블록을 앞에 두어 --asset bond/파생도 예약 메시지로 먼저 거부한다.)
     if args.reserve:
         if asset != "stock":
@@ -99,7 +101,7 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
         if domestic:
             # 국내 예약: end_date 허용, 통화 없음, 실전전용.
             if args.currency is not None:
-                raise CliConfigError("--currency 는 해외 예약주문 전용입니다(--venue overseas).")
+                raise CliConfigError("--currency 는 해외 예약주문 전용입니다(--region overseas).")
             if args.execute == "paper":
                 raise CliConfigError("국내 예약주문은 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
         else:
@@ -114,13 +116,13 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
         if args.currency is not None:
             raise CliConfigError("--currency 는 예약주문(--reserve) 전용입니다.")
 
-    # 미국주식 algo(TWAP/VWAP) 분할주문 -- 해외 주식(--venue overseas) 전용, 실전전용. 즉시는 시간창
+    # 미국주식 algo(TWAP/VWAP) 분할주문 -- 해외 주식(--region overseas) 전용, 실전전용. 즉시는 시간창
     # (--algo-start/--algo-end)을 주거나 생략(정규장 종료)하고, 예약(--reserve)은 정규장 종료 고정이라
     # 시간창을 줄 수 없다. algo 를 안 읽는 분기(국내·채권·파생·해외 예약의 시간창)는 여기서 fail-closed.
     has_window = args.algo_start is not None or args.algo_end is not None
     if args.algo is not None:
         if not (asset == "stock" and not domestic):
-            raise CliConfigError("--algo 는 해외 주식(--venue overseas) 전용입니다.")
+            raise CliConfigError("--algo 는 해외 주식(--region overseas) 전용입니다.")
         if args.execute == "paper":
             raise CliConfigError(
                 "미국주식 algo(TWAP/VWAP)는 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
@@ -152,11 +154,10 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
                 raise CliConfigError("--stop-price 와 --division 은 함께 쓸 수 없습니다.")
     if is_deriv and args.exchange is not None:
         raise CliConfigError("--exchange 는 파생 주문에 쓰지 않습니다(계약코드가 거래소를 결정).")
-    if asset == "stock" and domestic and args.exchange is not None:
-        # --exchange 는 해외 거래소코드(NAS/NYS/...) 전용이라 국내 주식 주문엔 무의미하다. 예전엔 조용히
-        # 무시했다 -- 등록됐지만 안 읽는 플래그는 거부해 사용자가 오해하지 않게 한다(silent-ignore 금지).
+    if (asset == "stock" and domestic and args.exchange is not None
+            and args.exchange not in _DOMESTIC_ORDER_EXCHANGES):
         raise CliConfigError(
-            "--exchange 는 해외 주식 주문 전용입니다(--venue overseas) -- 국내 주식 주문엔 쓰지 않습니다."
+            f"지원하지 않는 국내 주문 거래소: {args.exchange!r} (KRX/NXT/SOR)."
         )
     if args.division is not None:
         # 국내(현금 또는 파생)만 division 을 받는다. 해외는 주식/파생 모두 불가 -- stock 이라도
@@ -182,8 +183,8 @@ def _validate_bond_required(args: Namespace, side: Side) -> None:
     """장내채권 전용 필수 조건 -- 지정가 필수, 국내 전용, 실전전용, 매도는 lot 필수."""
     if args.limit_price is None or not str(args.limit_price).strip():
         raise CliConfigError("장내채권은 지정가 전용입니다 -- --limit-price 가 필요합니다.")
-    if args.venue == "overseas" or args.exchange is not None:
-        raise CliConfigError("장내채권은 국내 전용입니다(--venue overseas/--exchange 불가).")
+    if args.region == "overseas" or args.exchange is not None:
+        raise CliConfigError("장내채권은 국내 전용입니다(--region overseas/--exchange 불가).")
     if args.execute == "paper":
         raise CliConfigError("장내채권은 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
     # 매수에 실린 lot 인자는 상위 _validate_asset_args 의 공용 가드가 먼저 거부하므로
@@ -269,9 +270,9 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
         return bond.sell(quantity=args.quantity, limit_price=args.limit_price,
                          buy_date=args.buy_date, buy_seq=args.buy_seq)
     if args.asset in _DERIVATIVE_ASSETS:
-        # venue 별로 전송 kwargs 가 달라(국내 division/night, 해외 stop_price) 각각 인라인 해석한다
+        # region 별로 전송 kwargs 가 달라(국내 division/night, 해외 stop_price) 각각 인라인 해석한다
         # -- 공용 변수로 묶으면 두 핸들의 buy 시그니처가 달라 정적 타입이 좁혀지지 않는다.
-        if args.venue == "overseas":
+        if args.region == "overseas":
             ovs = (kis.overseas.option(args.identifier) if args.asset == "option"
                    else kis.overseas.futures(args.identifier))
             place_ovs = ovs.buy if side == "buy" else ovs.sell
@@ -288,7 +289,7 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
         # 사용자가 준 것만 전달한다 -- 해외는 통화(홍콩 전용)·algo(미국 전용), 국내는 종료일. 기본값은
         # 라이브러리 소유(예약 algo 는 시간창이 없어 --algo 만 전달).
         extra: dict[str, Any] = {}
-        if args.venue == "overseas":
+        if args.region == "overseas":
             if args.currency is not None:
                 extra["currency"] = args.currency
             if args.algo is not None:
@@ -297,7 +298,7 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
             extra["end_date"] = args.end_date
         return reserve(quantity=args.quantity, limit_price=args.limit_price, **extra)
     place = handle.buy if side == "buy" else handle.sell
-    if args.venue == "overseas":
+    if args.region == "overseas":
         # 해외 즉시주문: 사용자가 준 algo 만 전달한다(시간창은 검증에서 start/end 가 함께 온다).
         extra = {}
         if args.algo is not None:
@@ -404,19 +405,19 @@ def cmd_cancel_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None 
     없어 이 경로가 아니라 `kis order cancel <client_order_id>` 로 취소한다. 기본 dry-run, --execute 로
     실제 취소. 국내는 실전전용, 해외 미국은 모의 허용."""
     account = _stock_account(kis)
-    if args.venue == "overseas":
+    if args.region == "overseas":
         if args.order_date is not None:
             raise CliConfigError("--order-date 는 국내 예약 취소 전용입니다(해외는 --receipt-date).")
         if args.receipt_date is None:
             raise CliConfigError("해외 예약 취소에는 --receipt-date(접수일자 YYYYMMDD)가 필요합니다.")
         if args.execute is None:
-            return {"reserved_order_id": args.sequence, "venue": "overseas",
+            return {"reserved_order_id": args.sequence, "region": "overseas",
                     "receipt_date": args.receipt_date, "note": _DRY_RUN_NOTE}
         if is_tty is None:
             is_tty = sys.stdin.isatty()
         _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
         account.overseas.cancel_reserved_order(args.sequence, receipt_date=args.receipt_date)
-        return {"reserved_order_id": args.sequence, "venue": "overseas",
+        return {"reserved_order_id": args.sequence, "region": "overseas",
                 "receipt_date": args.receipt_date, "cancelled": True}
     # 국내 예약 취소(실전전용).
     if args.receipt_date is not None:

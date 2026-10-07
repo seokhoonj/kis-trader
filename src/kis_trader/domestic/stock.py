@@ -19,7 +19,11 @@ from .._stock_base import _StockBase
 from ..bar import Bar, Interval, PeriodInterval
 from ..errors import KISUsageError
 from ..execution import TWAPExecutionResult, execute_twap, make_twap_schedule
-from ..instrument import DomesticBoard, resolve_market
+from ..instrument import (
+    DomesticOrderExchange,
+    DomesticQuoteExchange,
+    resolve_domestic_quote_exchange,
+)
 from ..order import (
     _LIMIT_BASED_DIVISIONS,
     _PRICELESS_DIVISIONS,
@@ -81,23 +85,30 @@ if TYPE_CHECKING:
     from .._literals import Numeric
     from ..client import KISClient
 
+_TO_ORDER_EXCHANGE: dict[DomesticQuoteExchange, DomesticOrderExchange] = {
+    "KRX": "KRX",
+    "NXT": "NXT",
+    "UN": "SOR",
+}
+
 
 class DomesticStock(_StockBase):
     """국내 종목/ETF 핸들 -- 시세·시세분석·재무·투자자수급·ETF·주문. ``kis.domestic.stock(code)``."""
 
     is_overseas = False
-    market: DomesticBoard
+    #: 시세 거래소; 주문 생성 시 UN 은 SOR 로 변환한다(:meth:`_to_order_exchange`).
+    exchange: DomesticQuoteExchange
 
     def __init__(
-        self, client: KISClient, symbol: str, *, market: DomesticBoard | None = None
+        self, client: KISClient, symbol: str, *, exchange: DomesticQuoteExchange | None = None
     ) -> None:
         super().__init__(client, symbol)
-        self.market = resolve_market(symbol, market=market)
+        self.exchange = resolve_domestic_quote_exchange(symbol, exchange=exchange)
 
     # --- 시세 ---
     def quote(self) -> Quote:
         """현재가 스냅샷."""
-        return market_data.fetch_quote(self._client.transport, symbol=self.symbol, market=self.market)
+        return market_data.fetch_quote(self._client.transport, symbol=self.symbol, market=self.exchange)
 
     def profile(self) -> StockProfile:
         """종목 기본정보(이름·상장주식수·자본금·액면가·업종·상장일)."""
@@ -106,13 +117,13 @@ class DomesticStock(_StockBase):
     def status(self) -> StockStatus:
         """현재가와 거래·규제·경고 상태."""
         return market_data.fetch_stock_status(
-            self._client.transport, symbol=self.symbol, market=self.market
+            self._client.transport, symbol=self.symbol, market=self.exchange
         )
 
     def intraday_executions(self, *, at: str = "235959") -> IntradayExecutions:
         """기준시각 이전의 당일 체결·최우선호가·체결강도."""
         return market_data.fetch_intraday_executions(
-            self._client.transport, symbol=self.symbol, market=self.market, at=at
+            self._client.transport, symbol=self.symbol, market=self.exchange, at=at
         )
 
     def bars(
@@ -125,7 +136,7 @@ class DomesticStock(_StockBase):
         ``start`` > ``end``, ``max_bars`` <= 0, 기간봉인데 ``start`` 없음이면 :class:`~kis_trader.
         errors.KISUsageError`. 응답 손상(비배열 output2)·페이지 상한 초과는 :class:`~kis_trader.errors.KISError`."""
         return market_data.fetch_bars(
-            self._client.transport, symbol=self.symbol, market=self.market,
+            self._client.transport, symbol=self.symbol, market=self.exchange,
             interval=interval, start=start, end=end, adjusted=adjusted, max_bars=max_bars,
         )
 
@@ -134,7 +145,7 @@ class DomesticStock(_StockBase):
     ) -> list[RecentPricePoint]:
         """최근 30개 일·주·월 주가와 외국인 수급·거래량·권리락 보조지표."""
         return market_data.fetch_recent_prices(
-            self._client.transport, symbol=self.symbol, market=self.market,
+            self._client.transport, symbol=self.symbol, market=self.exchange,
             interval=interval, adjusted=adjusted,
         )
 
@@ -142,27 +153,27 @@ class DomesticStock(_StockBase):
         """특정 과거일 ``day`` 의 1분봉(과거->현재). 당일만 주는 :meth:`bars`\\ ``(interval="1m")`` 과
         달리 지난 영업일의 분봉을 backfill 한다. ``max_bars`` 로 최근 N개."""
         return market_data.fetch_minute_bars_on(
-            self._client.transport, symbol=self.symbol, market=self.market,
+            self._client.transport, symbol=self.symbol, market=self.exchange,
             day=day, max_bars=max_bars,
         )
 
     def order_book(self) -> OrderBook:
         """호가창 스냅샷(10단계)."""
         return market_data.fetch_order_book(
-            self._client.transport, symbol=self.symbol, market=self.market
+            self._client.transport, symbol=self.symbol, market=self.exchange
         )
 
     def trades(self) -> list[Trade]:
         """최근 체결 목록(time & sales; 최신순)."""
         return market_data.fetch_trades(
-            self._client.transport, symbol=self.symbol, market=self.market
+            self._client.transport, symbol=self.symbol, market=self.exchange
         )
 
     # --- 투자자 수급 ---
     def investor_flows(self) -> list[InvestorFlow]:
         """일자별 투자자(개인/외국인/기관) 매매동향(최신순)."""
         return market_data.fetch_investor_flows(
-            self._client.transport, symbol=self.symbol, market=self.market
+            self._client.transport, symbol=self.symbol, market=self.exchange
         )
 
     def detailed_investor_history(
@@ -170,13 +181,13 @@ class DomesticStock(_StockBase):
     ) -> DetailedInvestorHistory:
         """세부 투자자 주체별 매수·매도·순매수 일별 내역(``as_of`` 기준)."""
         return market_data.fetch_detailed_investor_history(
-            self._client.transport, symbol=self.symbol, market=self.market, as_of=as_of
+            self._client.transport, symbol=self.symbol, market=self.exchange, as_of=as_of
         )
 
     def broker_activity(self) -> BrokerActivitySummary:
         """매도/매수 상위 회원사(증권사) 매매 비중."""
         return market_data.fetch_broker_activity(
-            self._client.transport, symbol=self.symbol, market=self.market
+            self._client.transport, symbol=self.symbol, market=self.exchange
         )
 
     def broker_daily_activity(
@@ -201,32 +212,32 @@ class DomesticStock(_StockBase):
     def after_hours_quote(self) -> AfterHoursQuote:
         """시간외 단일가 스냅샷(예상체결가·최우선호가)."""
         return market_data.fetch_after_hours_quote(
-            self._client.transport, symbol=self.symbol, market=self.market
+            self._client.transport, symbol=self.symbol, market=self.exchange
         )
 
     def after_hours_conclusions(self) -> list[AfterHoursConclusion]:
         """시간외 단일가 세션의 시간별 체결(시각 리스트). 세션 밖이면 빈 리스트일 수 있다."""
         return market_data.fetch_after_hours_conclusions(
-            self._client.transport, symbol=self.symbol, market=self.market
+            self._client.transport, symbol=self.symbol, market=self.exchange
         )
 
     def after_hours_daily(self) -> list[AfterHoursDailyPrice]:
         """시간외 단일가 세션의 일자별 종가(최근->과거). 세션 밖이면 빈 리스트일 수 있다."""
         return market_data.fetch_after_hours_daily(
-            self._client.transport, symbol=self.symbol, market=self.market
+            self._client.transport, symbol=self.symbol, market=self.exchange
         )
 
     def after_hours_order_book(self) -> OrderBook:
         """시간외 단일가 세션의 10단계 호가창 스냅샷. 세션 밖이면 단계가 비어 올 수 있다."""
         return market_data.fetch_after_hours_order_book(
-            self._client.transport, symbol=self.symbol, market=self.market
+            self._client.transport, symbol=self.symbol, market=self.exchange
         )
 
     # --- 프로그램매매 ---
     def program_trades(self) -> list[ProgramTradePoint]:
         """장중 시간대별 프로그램매매 흐름(매수/매도/순매수 수량·금액, 시간 순)."""
         return market_data.fetch_program_trades(
-            self._client.transport, symbol=self.symbol, market=self.market
+            self._client.transport, symbol=self.symbol, market=self.exchange
         )
 
     def daily_program_trades(
@@ -425,7 +436,7 @@ class DomesticStock(_StockBase):
         신규/26 유통대주상환/28 자기대주상환), ``limit_price`` 지정가(생략 시 시장가), ``loan_date``(YYYYMMDD)
         상환유형(26/28)일 때 대상 대출일자(필수)·신규유형(21/23)이면 생략(전송 시 오늘로 채움),
         ``time_in_force`` 일반 신용은 ``"day"`` 만(애프터마켓 지정가/최유리 division 은 IOC/FOK 가능),
-        ``division`` 애프터마켓(``after_market_*``, board="KRX")/GTP(``gtp_*``, board="NXT") 주문구분(생략 시
+        ``division`` 애프터마켓(``after_market_*``, exchange="KRX")/GTP(``gtp_*``, exchange="NXT") 주문구분(생략 시
         일반 신용), ``client_order_id`` 멱등키(생략 시 자동 발행).
 
         현금 :meth:`buy` 와 같은 안전 엔진(이중체결 방지·타임아웃 재시도 금지)을 공유한다. **모의투자
@@ -433,14 +444,15 @@ class DomesticStock(_StockBase):
         한다(고위험 보호). 잘못된 조합/계좌 미설정/비활성은 ``KISUsageError``, 접수 거부는
         ``OrderRejectedError``, 타임아웃(체결 불명)은 ``OrderTimeoutError``(``kis.orders.reconcile`` 로 확인)."""
         self._client._require_credit_enabled()
-        if division is None:  # 일반 신용은 KRX 전용; 애프터마켓/GTP 는 board 게이트를 Order 가 판정
-            self._require_krx_board("신용주문")
+        if division is None:  # 일반 신용은 KRX 전용; 애프터마켓/GTP 는 exchange 게이트를 Order 가 판정
+            self._require_krx_exchange("신용주문")
         # 시계는 엣지(여기)서 읽어 Order(순수 DATA)엔 확정된 개시일만 넘긴다 -- 신규 신용의 loan_date
         # 기본값=오늘(KST); 상환/명시된 건 그대로.
         loan_date = resolve_new_credit_loan_date(credit_type, loan_date, today=_today_kst())
         return self._client._place_order(Order.credit(
             self.symbol, side="buy", quantity=quantity, credit_type=credit_type, limit_price=limit_price,
-            loan_date=loan_date, time_in_force=time_in_force, division=division, board=self.market,
+            loan_date=loan_date, time_in_force=time_in_force, division=division,
+            exchange=self._to_order_exchange(),
             client_order_id=client_order_id,
         ))
 
@@ -456,13 +468,14 @@ class DomesticStock(_StockBase):
         채움). ``division`` 은 :meth:`credit_buy` 와 같이 애프터마켓/GTP 주문구분. 나머지 인자·안전 규칙·
         예외는 :meth:`credit_buy` 와 같다. **모의투자 미지원**."""
         self._client._require_credit_enabled()
-        if division is None:  # 일반 신용은 KRX 전용; 애프터마켓/GTP 는 board 게이트를 Order 가 판정
-            self._require_krx_board("신용주문")
+        if division is None:  # 일반 신용은 KRX 전용; 애프터마켓/GTP 는 exchange 게이트를 Order 가 판정
+            self._require_krx_exchange("신용주문")
         # 시계는 엣지(여기)서 읽어 Order(순수 DATA)엔 확정된 개시일만 넘긴다(credit_buy 와 대칭).
         loan_date = resolve_new_credit_loan_date(credit_type, loan_date, today=_today_kst())
         return self._client._place_order(Order.credit(
             self.symbol, side="sell", quantity=quantity, credit_type=credit_type, limit_price=limit_price,
-            loan_date=loan_date, time_in_force=time_in_force, division=division, board=self.market,
+            loan_date=loan_date, time_in_force=time_in_force, division=division,
+            exchange=self._to_order_exchange(),
             client_order_id=client_order_id,
         ))
 
@@ -481,9 +494,9 @@ class DomesticStock(_StockBase):
         호가에 지정가로 대기, 체결 우선순위 확보; ``limit_price`` 없음),
         ``midpoint`` 중간가(수량만; 호가 중간값으로 시장이 가격 결정, 전 보드, IOC/FOK 가능),
         ``pre_market_close`` 장전 시간외(전일 종가, KRX 전용), ``post_market_close`` 장후 시간외(당일
-        종가, KRX 전용). **애프터마켓(KRX 16:00~20:00, board="KRX")**: ``after_market_limit`` 지정가
+        종가, KRX 전용). **애프터마켓(KRX 16:00~20:00, exchange="KRX")**: ``after_market_limit`` 지정가
         (``limit_price`` 필요), ``after_market_immediate_limit`` 최유리지정가, ``after_market_priority_limit``
-        최우선지정가. **NXT 프리마켓 GTP(board="NXT")**: ``gtp_limit`` 지정가(``limit_price`` 필요),
+        최우선지정가. **NXT 프리마켓 GTP(exchange="NXT")**: ``gtp_limit`` 지정가(``limit_price`` 필요),
         ``gtp_immediate_limit`` 최유리, ``gtp_priority_limit`` 최우선. IOC/FOK 는 ``time_in_force="ioc"/"fok"``
         로 조합한다(지정가/시장가/최유리/중간가 + 애프터마켓 지정가/최유리에서; 최우선·GTP 는 day 만).
         ``immediate_limit`` 은 시장가의 슬리피지 없이 즉시 체결하려는 안전 대안이다(얕은 호가에서 시장가는
@@ -551,7 +564,7 @@ class DomesticStock(_StockBase):
                 raise KISUsageError("스톱지정가는 limit_price 가 필요하다(국내엔 스톱시장가 없음).")
             return Order.stop_limit(self.symbol, side=side, quantity=quantity,
                                     limit_price=limit_price, stop_price=stop_price,
-                                    time_in_force=time_in_force, board=self.market,
+                                    time_in_force=time_in_force, exchange=self._to_order_exchange(),
                                     client_order_id=client_order_id)
         # 가격없는 구분(최유리/최우선/중간가/장전·장후 시간외/애프터마켓 최유리·최우선/GTP 최유리·최우선)은
         # 시장이 가격을 정하므로 limit_price 없음(order_type="market" 기반), 지정가 기반 구분(조건부/애프터마켓
@@ -566,36 +579,40 @@ class DomesticStock(_StockBase):
                 )
             return Order.market(self.symbol, side=side, quantity=quantity,
                                 time_in_force=time_in_force, division=division,
-                                board=self.market, client_order_id=client_order_id)
+                                exchange=self._to_order_exchange(), client_order_id=client_order_id)
         if division in _LIMIT_BASED_DIVISIONS:
             if limit_price is None:
                 raise KISUsageError(f"{division} 은 limit_price 가 필요하다(지정가 기반).")
             return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=limit_price,
                                time_in_force=time_in_force, division=division,
-                               board=self.market, client_order_id=client_order_id)
+                               exchange=self._to_order_exchange(), client_order_id=client_order_id)
         # 여기 도달 = division is None (위 두 집합이 DomesticDivision 을 남김없이 덮으므로).
         if limit_price is None:
             return Order.market(self.symbol, side=side, quantity=quantity,
-                                time_in_force=time_in_force, board=self.market,
+                                time_in_force=time_in_force, exchange=self._to_order_exchange(),
                                 client_order_id=client_order_id)
         return Order.limit(self.symbol, side=side, quantity=quantity, limit_price=limit_price,
-                           time_in_force=time_in_force, board=self.market,
+                           time_in_force=time_in_force, exchange=self._to_order_exchange(),
                            client_order_id=client_order_id)
 
     def _reserve(
         self, side: Side, *, quantity: Numeric, limit_price: Numeric | None, end_date: str | None,
         client_order_id: str | None,
     ) -> ExecutionReport:
-        self._require_krx_board("예약주문")
+        self._require_krx_exchange("예약주문")
         return self._client._place_reserved_order(
             symbol=self.symbol, side=side, quantity=quantity, limit_price=limit_price, end_date=end_date,
             client_order_id=client_order_id,
         )
 
-    def _require_krx_board(self, what: str) -> None:
+    def _to_order_exchange(self) -> DomesticOrderExchange:
+        return _TO_ORDER_EXCHANGE[self.exchange]
+
+    def _require_krx_exchange(self, what: str) -> None:
         # 신용·예약 주문은 아직 보드(EXCG_ID_DVSN_CD) 배선이 없어 KRX 전용이다 -- NXT/UN 종목 핸들에서
         # 부르면 조용히 KRX 로 나가지 않도록 fail-closed(즉시 현금주문은 보드를 반영하지만 이 둘은 차기).
-        if self.market != "KRX":
+        if self.exchange != "KRX":
             raise KISUsageError(
-                f"{what}은 아직 KRX 보드만 지원한다(board={self.market!r}). NXT/통합(SOR)은 차기 지원."
+                f"{what}은 아직 KRX 거래소만 지원한다(exchange={self.exchange!r}). "
+                "NXT/통합(SOR)은 차기 지원."
             )

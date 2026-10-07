@@ -18,13 +18,13 @@ def _ns() -> tuple[RealtimeClient, RealtimeDomesticNamespace]:
 # (id, ns -> subscription, expected tr_id) -- 모든 잎의 정확한 TR 매핑을 한 표로 검증.
 _TR_ROWS: list[tuple[str, Callable[[RealtimeDomesticNamespace], RealtimeSubscription[object]], str]] = [
     # 국내주식 체결 x 3 거래소
-    ("stock_trades_krx", lambda ns: ns.stock("005930").trades(venue="KRX"), "H0STCNT0"),
-    ("stock_trades_nxt", lambda ns: ns.stock("005930").trades(venue="NXT"), "H0NXCNT0"),
-    ("stock_trades_unified", lambda ns: ns.stock("005930").trades(venue="unified"), "H0UNCNT0"),
+    ("stock_trades_krx", lambda ns: ns.stock("005930").trades(exchange="KRX"), "H0STCNT0"),
+    ("stock_trades_nxt", lambda ns: ns.stock("005930").trades(exchange="NXT"), "H0NXCNT0"),
+    ("stock_trades_unified", lambda ns: ns.stock("005930").trades(exchange="UN"), "H0UNCNT0"),
     # 국내주식 호가 x 3 거래소
-    ("stock_book_krx", lambda ns: ns.stock("005930").order_book(venue="KRX"), "H0STASP0"),
-    ("stock_book_nxt", lambda ns: ns.stock("005930").order_book(venue="NXT"), "H0NXASP0"),
-    ("stock_book_unified", lambda ns: ns.stock("005930").order_book(venue="unified"), "H0UNASP0"),
+    ("stock_book_krx", lambda ns: ns.stock("005930").order_book(exchange="KRX"), "H0STASP0"),
+    ("stock_book_nxt", lambda ns: ns.stock("005930").order_book(exchange="NXT"), "H0NXASP0"),
+    ("stock_book_unified", lambda ns: ns.stock("005930").order_book(exchange="UN"), "H0UNASP0"),
     # 국내주식 체결통보
     ("stock_notice", lambda ns: ns.execution_notices.stock("myhtsid"), "H0STCNI0"),
     # 선물 체결 x 4 kind
@@ -66,7 +66,7 @@ def test_every_mapping_subscribes_exact_tr(
 
 def test_stock_trades_subscribes_correct_tr_and_key() -> None:
     c, ns = _ns()
-    sub = ns.stock("005930").trades(venue="NXT")
+    sub = ns.stock("005930").trades(exchange="NXT")
     assert (sub.tr_id, sub.tr_key) == ("H0NXCNT0", "005930")
     assert (sub.tr_id, sub.tr_key) in c._subscriptions
 
@@ -110,10 +110,16 @@ def test_bad_kind_fails_closed() -> None:
         ns.futures("101W09", kind="bogus")  # type: ignore[arg-type]
 
 
-def test_bad_venue_fails_closed() -> None:
+def test_bad_exchange_fails_closed() -> None:
     _, ns = _ns()
     with pytest.raises(KISUsageError):
-        ns.stock("005930").trades(venue="XXX")  # type: ignore[arg-type]
+        ns.stock("005930").trades(exchange="XXX")  # type: ignore[arg-type]
+
+
+def test_stock_trades_rejects_removed_venue_keyword() -> None:
+    _, ns = _ns()
+    with pytest.raises(TypeError, match="unexpected keyword argument 'venue'"):
+        ns.stock("005930").trades(venue="KRX")  # type: ignore[call-arg]
 
 
 def test_bad_session_fails_closed() -> None:

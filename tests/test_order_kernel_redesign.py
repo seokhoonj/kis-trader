@@ -43,30 +43,34 @@ _FROZEN_BYTES = {
     "immediate": (
         ImmediateOrderFingerprint(
             symbol="005930", side="buy", order_type="limit", quantity="10",
-            limit_price="70000", stop_price="", time_in_force="day", exchange="XKRX",
+            limit_price="70000", stop_price="", time_in_force="day",
+            region="domestic", asset_class="stock", exchange="KRX",
         ),
         ["005930", "buy", "limit", "10", "70000", "", "day", "XKRX", "", "", "regular", "", "KRX", "", "", "HKD", "", "", ""],
     ),
     "immediate_credit": (
         ImmediateOrderFingerprint(
             symbol="009150", side="buy", order_type="limit", quantity="1", limit_price="130000",
-            stop_price="", time_in_force="day", exchange="XKRX", credit_type="26", loan_date="20211103",
+            stop_price="", time_in_force="day", region="domestic", asset_class="stock",
+            exchange="KRX", credit_type="26", loan_date="20211103",
         ),
         ["009150", "buy", "limit", "1", "130000", "", "day", "XKRX", "26", "20211103", "regular", "", "KRX", "", "", "HKD", "", "", ""],
     ),
     "immediate_daytime": (  # session 슬롯(idx 10) 을 non-default 로 고정 -- 미국 오버나이트 거래
         ImmediateOrderFingerprint(
             symbol="AAPL", side="buy", order_type="limit", quantity="5", limit_price="150",
-            stop_price="", time_in_force="day", exchange="NAS", session="overnight",
+            stop_price="", time_in_force="day", region="overseas", asset_class="stock",
+            exchange="NAS", session="overnight",
         ),
         ["AAPL", "buy", "limit", "5", "150", "", "day", "NAS", "", "", "overnight", "", "KRX", "", "", "HKD", "", "", ""],
     ),
-    "immediate_division_board": (
+    "immediate_division_exchange": (
         ImmediateOrderFingerprint(
             symbol="005930", side="buy", order_type="market", quantity="10", limit_price="",
-            stop_price="", time_in_force="day", exchange="NXTE", division="immediate_limit", board="NXT",
+            stop_price="", time_in_force="day", region="domestic", asset_class="stock",
+            exchange="NXT", division="immediate_limit",
         ),
-        ["005930", "buy", "market", "10", "", "", "day", "NXTE", "", "", "regular", "immediate_limit", "NXT", "", "", "HKD", "", "", ""],
+        ["005930", "buy", "market", "10", "", "", "day", "XKRX", "", "", "regular", "immediate_limit", "NXT", "", "", "HKD", "", "", ""],
     ),
     "reserved_domestic": (
         ReservedOrderFingerprint(
@@ -85,14 +89,16 @@ _FROZEN_BYTES = {
     "change_cancel": (
         ChangeActionFingerprint(
             original_client_order_id="orig-1", side="buy", order_type="limit", quantity="10",
-            limit_price="", action="cancel", time_in_force="day", exchange="XKRX",
+            limit_price="", action="cancel", time_in_force="day",
+            region="domestic", asset_class="stock", exchange="KRX",
         ),
         ["orig-1", "buy", "limit", "10", "", "cancel", "day", "action:XKRX", "", "", "regular", "", "KRX", "", "", "HKD", "", "", ""],
     ),
     "change_modify_overseas": (
         ChangeActionFingerprint(
             original_client_order_id="ov-1", side="sell", order_type="limit", quantity="3",
-            limit_price="412.5", action="modify", time_in_force="day", exchange="NAS",
+            limit_price="412.5", action="modify", time_in_force="day",
+            region="overseas", asset_class="stock", exchange="NAS",
         ),
         ["ov-1", "sell", "limit", "3", "412.5", "modify", "day", "action:NAS", "", "", "regular", "", "KRX", "", "", "HKD", "", "", ""],
     ),
@@ -132,7 +138,7 @@ def test_decode_pads_short_legacy_record_with_defaults():
     """구버전 짧은 레코드(v3=11슬롯)는 뒤쪽 필드가 기본값으로 채워져 즉시 지문으로 디코딩된다."""
     fp = decode_fingerprint(["005930", "buy", "market", "10", "", "", "day", "XKRX", "", "", "regular"])
     assert isinstance(fp, ImmediateOrderFingerprint)
-    assert (fp.division, fp.session, fp.board) == ("", "regular", "KRX")
+    assert (fp.division, fp.session, fp.exchange) == ("", "regular", "KRX")
 
 
 def test_decode_too_short_record_is_rejected():
@@ -149,6 +155,14 @@ def test_decode_too_long_record_is_rejected():
         )
 
 
+def test_decode_rejects_invalid_domestic_stock_exchange_slot():
+    """국내주식 slot 12는 저장 형식의 시세 거래소(KRX/NXT/UN)만 허용한다."""
+    row = list(_FROZEN_BYTES["immediate"][1])
+    row[12] = "SOR"
+    with pytest.raises(ValueError, match="exchange"):
+        decode_fingerprint(row)
+
+
 def test_fingerprint_equality_is_positional_and_cross_variant_safe():
     """동등성 = 위치 인코딩 동등성. 변형이 달라도 인코딩이 겹치지 않아 교차 충돌이 없다."""
     imm = _FROZEN_BYTES["immediate"][0]
@@ -158,7 +172,8 @@ def test_fingerprint_equality_is_positional_and_cross_variant_safe():
     # 같은 변형·같은 필드면 같다.
     twin = ImmediateOrderFingerprint(
         symbol="005930", side="buy", order_type="limit", quantity="10",
-        limit_price="70000", stop_price="", time_in_force="day", exchange="XKRX",
+        limit_price="70000", stop_price="", time_in_force="day",
+        region="domestic", asset_class="stock", exchange="KRX",
     )
     assert imm == twin and hash(imm) == hash(twin)
     assert isinstance(imm, OrderFingerprint)

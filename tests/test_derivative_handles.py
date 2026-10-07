@@ -156,12 +156,12 @@ def test_night_session_requires_derivative_exchange():
     # KRX 주식 거래소 + night 세션은 표현 불가능한 조합 -- 생성 시점에 fail-closed.
     with pytest.raises(KISUsageError):
         Order(symbol="005930", side="buy", order_type="limit", quantity=Decimal(1),
-              limit_price=Decimal(70000), exchange="XKRX", session="night", client_order_id="c")
+              limit_price=Decimal(70000), session="night", client_order_id="c")
 
 
 def test_night_session_accepts_derivative_exchange():
     order = Order(symbol="101S03", side="buy", order_type="limit", quantity=Decimal(1),
-                  limit_price=Decimal("400.00"), exchange="XKFE", session="night",
+                  limit_price=Decimal("400.00"), asset_class="derivative", session="night",
                   derivative_item="01", client_order_id="c")
     assert order.session == "night"
-    assert order.exchange == "XKFE"
+    assert (order.region, order.asset_class, order.exchange) == ("domestic", "derivative", "KRX")

@@ -12,7 +12,7 @@ from datetime import date
 from typing import TYPE_CHECKING
 
 from ..bar import Bar, Interval
-from ..order import _BOND_EXCHANGE, Order, coerce_decimal, mint_client_order_id
+from ..order import Order, coerce_decimal, mint_client_order_id
 from ._engine import bonds as bonds_api
 from .entities.bond import (
     BondDailyPrice,
@@ -105,7 +105,7 @@ class Bond:
             symbol=self.code, side="buy", order_type="limit",
             quantity=coerce_decimal(quantity, "quantity"),
             limit_price=coerce_decimal(limit_price, "limit_price"),
-            time_in_force="day", exchange=_BOND_EXCHANGE,
+            time_in_force="day", asset_class="bond",
             client_order_id=client_order_id or mint_client_order_id(),
         )
         return self._client._place_order(order)
@@ -139,7 +139,7 @@ class Bond:
             symbol=self.code, side="sell", order_type="limit",
             quantity=coerce_decimal(quantity, "quantity"),
             limit_price=coerce_decimal(limit_price, "limit_price"),
-            time_in_force="day", exchange=_BOND_EXCHANGE,
+            time_in_force="day", asset_class="bond",
             bond_buy_date=buy_date, bond_buy_seq=str(buy_seq),
             client_order_id=client_order_id or mint_client_order_id(),
         )

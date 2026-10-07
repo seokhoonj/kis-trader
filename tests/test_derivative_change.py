@@ -37,7 +37,8 @@ def _fp(*, order_type: str = "limit", division: str = "", symbol: str = "101S03"
         session: str = "regular") -> ImmediateOrderFingerprint:
     return ImmediateOrderFingerprint(
         symbol=symbol, side="buy", order_type=order_type, quantity="1",
-        limit_price="400.00", stop_price="", time_in_force="day", exchange="XKFE",
+        limit_price="400.00", stop_price="", time_in_force="day",
+        region="domestic", asset_class="derivative", exchange="KRX",
         session=session, division=division, derivative_item="01",
     )
 
@@ -167,7 +168,7 @@ class FakeTransport:
 def _order(**kw):
     base = {
         "symbol": "101S03", "side": "buy", "order_type": "limit", "quantity": Decimal(1),
-        "limit_price": Decimal("400.00"), "exchange": "XKFE", "session": "regular",
+        "limit_price": Decimal("400.00"), "asset_class": "derivative", "session": "regular",
         "derivative_item": "01", "client_order_id": "c",
     }
     base.update(kw)

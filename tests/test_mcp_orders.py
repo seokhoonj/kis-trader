@@ -122,39 +122,39 @@ def test_circuit_breaker_bad_limit_rejected():
 
 # --- build_stock_order (taint 경계) --------------------------------------
 def test_build_domestic_limit_order():
-    plan = make_stock_order_plan(venue="domestic", symbol="005930", side="buy", quantity=10,
+    plan = make_stock_order_plan(region="domestic", symbol="005930", side="buy", quantity=10,
                              limit_price="70000")
-    assert plan == StockOrderPlan(venue="domestic", symbol="005930", side="buy",
+    assert plan == StockOrderPlan(region="domestic", symbol="005930", side="buy",
                                   order_type="limit", quantity=10, limit_price="70000")
 
 
 def test_build_domestic_market_order():
-    plan = make_stock_order_plan(venue="domestic", symbol="005930", side="sell", quantity=1)
+    plan = make_stock_order_plan(region="domestic", symbol="005930", side="sell", quantity=1)
     assert plan.order_type == "market" and plan.limit_price is None
 
 
 def test_build_rejects_overseas():
     # MVP 는 국내만 -- 해외는 엔진이 사전 리스크 게이트를 지원 안 해 fail-closed 캡 보장 불가라 거부.
     with pytest.raises(KISUsageError, match="해외"):
-        make_stock_order_plan(venue="overseas", symbol="AAPL", side="buy", quantity=10,
+        make_stock_order_plan(region="overseas", symbol="AAPL", side="buy", quantity=10,
                               limit_price="150")
 
 
 def test_build_rejects_bad_inputs():
     with pytest.raises(KISUsageError):
-        make_stock_order_plan(venue="crypto", symbol="X", side="buy", quantity=1)
+        make_stock_order_plan(region="crypto", symbol="X", side="buy", quantity=1)
     with pytest.raises(KISUsageError):
-        make_stock_order_plan(venue="domestic", symbol="005930", side="hold", quantity=1)
+        make_stock_order_plan(region="domestic", symbol="005930", side="hold", quantity=1)
     with pytest.raises(KISUsageError):
-        make_stock_order_plan(venue="domestic", symbol="005930", side="buy", quantity=0)
+        make_stock_order_plan(region="domestic", symbol="005930", side="buy", quantity=0)
     with pytest.raises(KISUsageError):
-        make_stock_order_plan(venue="domestic", symbol="005930", side="buy", quantity=True)  # bool
+        make_stock_order_plan(region="domestic", symbol="005930", side="buy", quantity=True)  # bool
 
 
 def test_build_rejects_nonscalar_symbol():
     # taint 경계: 읽기 도구 dict/객체를 symbol 로 넘기면 거부(스칼라만)
     with pytest.raises(KISUsageError):
-        make_stock_order_plan(venue="domestic", symbol={"code": "005930"},  # type: ignore[arg-type]
+        make_stock_order_plan(region="domestic", symbol={"code": "005930"},  # type: ignore[arg-type]
                           side="buy", quantity=1, limit_price="100")
 
 
@@ -166,34 +166,34 @@ _REAL = RealOrderGate.from_env(
 
 
 def test_plan_place_paper_no_caps_needed():
-    plan = plan_place_order(_PAPER, None, has_risk=False, venue="domestic",
+    plan = plan_place_order(_PAPER, None, has_risk=False, region="domestic",
                             symbol="005930", side="buy", quantity=1)
     assert plan.symbol == "005930" and plan.order_type == "market"
 
 
 def test_plan_place_real_requires_risk():
     with pytest.raises(KISUsageError, match="RiskLimits"):
-        plan_place_order(_REAL, frozenset({"005930"}), has_risk=False, venue="domestic",
+        plan_place_order(_REAL, frozenset({"005930"}), has_risk=False, region="domestic",
                          symbol="005930", side="buy", quantity=1, limit_price="70000")
 
 
 def test_plan_place_real_requires_allowlist():
     with pytest.raises(KISUsageError, match="allowlist"):
-        plan_place_order(_REAL, None, has_risk=True, venue="domestic",
+        plan_place_order(_REAL, None, has_risk=True, region="domestic",
                          symbol="005930", side="buy", quantity=1, limit_price="70000")
 
 
 def test_plan_place_real_gate_closed():
     gate = RealOrderGate.from_env({}, "real")          # 이중게이트 미설정
     with pytest.raises(KISUsageError, match="KIS_MCP_ALLOW_REAL"):
-        plan_place_order(gate, frozenset({"005930"}), has_risk=True, venue="domestic",
+        plan_place_order(gate, frozenset({"005930"}), has_risk=True, region="domestic",
                          symbol="005930", side="buy", quantity=1, limit_price="70000")
 
 
 def test_plan_place_real_all_pass():
-    plan = plan_place_order(_REAL, frozenset({"005930"}), has_risk=True, venue="domestic",
+    plan = plan_place_order(_REAL, frozenset({"005930"}), has_risk=True, region="domestic",
                             symbol="005930", side="buy", quantity=10, limit_price="70000")
-    assert plan == StockOrderPlan(venue="domestic", symbol="005930", side="buy",
+    assert plan == StockOrderPlan(region="domestic", symbol="005930", side="buy",
                                   order_type="limit", quantity=10, limit_price="70000")
 
 
@@ -258,8 +258,9 @@ def test_run_place_order_paper_executes():
     kis, t = _order_client("paper")
     out = asyncio.run(run_place_order(
         kis, RealOrderGate.from_env({}, "paper"), None, CircuitBreaker(), _AcceptCtx(),
-        venue="domestic", symbol="005930", side="buy", quantity=1))
+        region="domestic", symbol="005930", side="buy", quantity=1))
     assert out["sent"] is True and out["report"] is not None
+    assert out["ticket"]["region"] == "domestic" and "venue" not in out["ticket"]
     assert len(t.calls) == 1                           # 모의는 즉시 집행(확인 생략 가능)
 
 
@@ -269,7 +270,7 @@ def test_run_place_order_real_accept_executes():
     kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
     out = asyncio.run(run_place_order(
         kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), CircuitBreaker(),
-        _AcceptCtx(), venue="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
+        _AcceptCtx(), region="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
     assert out["sent"] is True and len(t.calls) == 1
 
 
@@ -279,7 +280,7 @@ def test_run_place_order_real_decline_no_wire():
     kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
     out = asyncio.run(run_place_order(
         kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), CircuitBreaker(),
-        _DeclineCtx(), venue="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
+        _DeclineCtx(), region="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
     assert out["sent"] is False and t.calls == []      # 확인 거부 -> 전송 안 함
 
 
@@ -290,7 +291,7 @@ def test_run_place_order_real_gate_closed_raises():
     with pytest.raises(KISUsageError, match="KIS_MCP_ALLOW_REAL"):
         asyncio.run(run_place_order(
             kis, RealOrderGate.from_env({}, "real"), frozenset({"005930"}), CircuitBreaker(),
-            _AcceptCtx(), venue="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
+            _AcceptCtx(), region="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
     assert t.calls == []                               # 게이트 닫힘 -> 와이어 전 거부
 
 
@@ -301,7 +302,7 @@ def test_run_place_order_real_no_risk_raises():
     with pytest.raises(KISUsageError, match="RiskLimits"):
         asyncio.run(run_place_order(
             kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), CircuitBreaker(),
-            _AcceptCtx(), venue="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
+            _AcceptCtx(), region="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
     assert t.calls == []                               # fail-closed
 
 
@@ -315,7 +316,7 @@ def test_run_place_order_breaker_halted_refuses():
     kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
     out = asyncio.run(run_place_order(
         kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), breaker,
-        _AcceptCtx(), venue="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
+        _AcceptCtx(), region="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
     assert out["sent"] is False and "HALT" in out["reason"] and t.calls == []
 
 
@@ -370,7 +371,7 @@ def test_confirm_order_no_backchannel_fail_closed():
 # --- taint 경계: limit_price 도 스칼라만 ----------------------------------
 def test_build_rejects_nonscalar_limit_price():
     with pytest.raises(KISUsageError):
-        make_stock_order_plan(venue="domestic", symbol="005930", side="buy", quantity=1,
+        make_stock_order_plan(region="domestic", symbol="005930", side="buy", quantity=1,
                               limit_price={"p": 100})  # type: ignore[arg-type]
 
 
@@ -382,7 +383,7 @@ def test_run_place_order_real_allowlist_miss_no_wire():
     with pytest.raises(KISUsageError, match="allowlist"):
         asyncio.run(run_place_order(
             kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), CircuitBreaker(),
-            _AcceptCtx(), venue="domestic", symbol="000660", side="buy", quantity=1, limit_price="100000"))
+            _AcceptCtx(), region="domestic", symbol="000660", side="buy", quantity=1, limit_price="100000"))
     assert t.calls == []
 
 
@@ -406,7 +407,7 @@ def test_run_place_order_breaker_trips_this_order_no_wire():
     kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
     out = asyncio.run(run_place_order(
         kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), breaker,
-        _AcceptCtx(), venue="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
+        _AcceptCtx(), region="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
     assert out["sent"] is False and "HALT" in out["reason"] and t.calls == []
 
 

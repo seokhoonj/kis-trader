@@ -27,7 +27,6 @@ from ..._internal._response import _CONTINUATION_END
 from ..._internal._wire import format_wire_decimal
 from ...errors import KISError, KISUsageError, OrderError, OrderTimeoutError
 from ...order import (
-    _DERIVATIVE_EXCHANGE,
     ChangeAction,
     ImmediateOrderFingerprint,
     Order,
@@ -78,11 +77,6 @@ _FO_CODES: dict[tuple[str, str], tuple[str, str, str]] = {
 }
 
 
-def is_derivative_exchange(exchange: str) -> bool:
-    """``exchange`` 가 국내 파생(XKFE)이면 True. 안전 코어의 주문 라우팅에 쓴다."""
-    return exchange == _DERIVATIVE_EXCHANGE
-
-
 def _resolve_fo_codes(
     *, order_type: str, division: str | None, time_in_force: str
 ) -> tuple[str, str, str]:
@@ -107,8 +101,11 @@ def make_order_request(
     주간(정규)·야간 공통이다. 야간(STTN)은 모의투자 미지원이라 ``paper`` 면 fail-closed. 수량은
     계약 단위 정수만 받는다. 세 주문구분 코드는 :func:`_resolve_fo_codes` 로, 시장가는 단가 0 으로
     보낸다. ``FUOP_ITEM_DVSN_CD``(상품구분)는 야간에만 채운다(주간은 공란)."""
-    if order.exchange != _DERIVATIVE_EXCHANGE:
-        raise OrderError(f"파생 빌더에 비-XKFE 주문이 들어왔다: {order.exchange!r} (라우팅 오류).")
+    if (order.region, order.asset_class) != ("domestic", "derivative"):
+        raise OrderError(
+            "파생 빌더에 다른 주문 lane이 들어왔다: "
+            f"{order.region!r}/{order.asset_class!r} (라우팅 오류)."
+        )
     session = "night" if order.session == "night" else "regular"
     if session == "night" and environment == "paper":
         raise KISUsageError("파생 야간(STTN)은 모의투자 미지원 -- 실전에서만.")

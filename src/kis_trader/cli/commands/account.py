@@ -38,7 +38,7 @@ def _require_range(args: Namespace, label: str) -> None:
 # 여러 뷰용 플래그를 함께 등록한다 -- 그 중 이 분기가 실제로 안 읽는 플래그를 사용자가 주면, 조용히
 # 무시해 '필터된 줄 알지만 아닌' 결과를 내는 대신 거부한다.
 _ACCOUNT_FLAGS: tuple[tuple[str, object, str], ...] = (
-    ("venue", "domestic", "--venue"), ("market", None, "--market"),
+    ("region", "domestic", "--region"), ("market", None, "--market"),
     ("asset", "stock", "--asset"), ("date", None, "--date"),
     ("start", None, "--start"), ("end", None, "--end"),
     ("side", None, "--side"), ("symbol", None, "--symbol"),
@@ -68,16 +68,16 @@ def cmd_balance(kis: KISClient, args: Namespace) -> Any:
         _reject_foreign_flags(args, allow=set())
         return view.deposit()  # 해외파생은 예수금현황이 자산·증거금 요약이다
     account = _stock_account(kis)
-    allow = {"venue", "asset"}
-    if args.venue == "overseas":  # --market 은 해외 잔고에서만 읽는다
+    allow = {"region", "asset"}
+    if args.region == "overseas":  # --market 은 해외 잔고에서만 읽는다
         allow.add("market")
     _reject_foreign_flags(args, allow=allow)
     if getattr(args, "asset", "stock") == "bond":
         # 장내채권 lot 목록(buy_date/buy_sequence/잔량/매수단가) -- 채권 매도의 lot 지목에 필요하다.
-        if args.venue == "overseas":
-            raise CliConfigError("장내채권은 국내 전용입니다(--venue overseas 불가).")
+        if args.region == "overseas":
+            raise CliConfigError("장내채권은 국내 전용입니다(--region overseas 불가).")
         return account.domestic.bonds.balance()
-    if args.venue == "overseas":
+    if args.region == "overseas":
         # --market 생략 시 라이브러리가 전 시장을 순회해 시장별 요약 리스트를 준다(positions 와 동일 arity).
         return account.overseas.balance(market=args.market)
     return account.domestic.balance()
@@ -91,9 +91,9 @@ def cmd_positions(kis: KISClient, args: Namespace) -> Any:
     if isinstance(view, DomesticDerivativesAccount):
         raise CliConfigError("국내선물옵션 보유내역은 balance 에 포함됩니다(kis account balance).")
     account = _stock_account(kis)
-    allow = {"venue", "market"} if args.venue == "overseas" else {"venue"}
+    allow = {"region", "market"} if args.region == "overseas" else {"region"}
     _reject_foreign_flags(args, allow=allow)
-    if args.venue == "overseas":
+    if args.region == "overseas":
         return account.overseas.positions(market=args.market)
     return account.domestic.positions()
 
@@ -113,20 +113,20 @@ def cmd_orders(kis: KISClient, args: Namespace) -> Any:
             raise CliConfigError("해외선물옵션 기간 주문내역은 --start/--end 를 함께 줘야 합니다.")
         return view.today_orders()
     account = _stock_account(kis)
-    allow = {"venue", "asset"}
-    if args.venue == "overseas":
+    allow = {"region", "asset"}
+    if args.region == "overseas":
         allow.add("market")
     if getattr(args, "asset", "stock") == "bond":
         allow.add("date")  # 채권 미체결만 주문일자를 쓴다(주식 미체결은 인자 없음)
     _reject_foreign_flags(args, allow=allow)  # 주식 미체결은 기간(--start/--end)을 쓰지 않는다
     if getattr(args, "asset", "stock") == "bond":
         # 채권 미체결(정정취소가능) 조회 -- 실주문 타임아웃 시 상태 확인 경로. 주문일자 필수.
-        if args.venue == "overseas":
-            raise CliConfigError("장내채권은 국내 전용입니다(--venue overseas 불가).")
+        if args.region == "overseas":
+            raise CliConfigError("장내채권은 국내 전용입니다(--region overseas 불가).")
         if not args.date:
             raise CliConfigError("채권 미체결 조회는 주문일자가 필요합니다(--date YYYYMMDD).")
         return account.domestic.bonds.open_orders(args.date)
-    if args.venue == "overseas":
+    if args.region == "overseas":
         return account.overseas.open_orders(market=args.market)
     return account.domestic.open_orders()
 
@@ -147,10 +147,10 @@ def cmd_fills(kis: KISClient, args: Namespace) -> Any:
     asset = getattr(args, "asset", "stock")
     # 주식/채권 체결내역은 기간(--start/--end)+필터를 쓴다 -- 파생 전용 --date 는 거부.
     _reject_foreign_flags(
-        args, allow={"venue", "asset", "start", "end", "side", "symbol", "unfilled_only",
+        args, allow={"region", "asset", "start", "end", "side", "symbol", "unfilled_only",
                      "older_than_three_months"})
-    if args.venue == "overseas":
-        raise CliConfigError("체결내역 조회는 국내 전용입니다(--venue overseas 불가).")
+    if args.region == "overseas":
+        raise CliConfigError("체결내역 조회는 국내 전용입니다(--region overseas 불가).")
     _require_range(args, "체결내역")
     # 사용자가 준 필터만 전달한다 -- 기본값은 라이브러리가 정한다(경계: 소비자가 패키지 기본값을 재기술하지 않는다).
     filters: dict[str, Any] = {}
@@ -173,7 +173,7 @@ def cmd_fills(kis: KISClient, args: Namespace) -> Any:
 def cmd_reserved(kis: KISClient, args: Namespace) -> Any:
     account = _stock_account(kis)
     _require_range(args, "예약주문")
-    if args.venue == "overseas":
+    if args.region == "overseas":
         # 해외 예약주문 조회(미국+아시아 합산). process 는 국내 전용 개념이라 거부. 실전전용은
         # 라이브러리가 소유(조회 TR 이 모의 미지원 -- CLI 중복검증 없음).
         if args.process is not None:
@@ -199,7 +199,7 @@ def cmd_profits(kis: KISClient, args: Namespace) -> Any:
     account = _stock_account(kis)
     _require_range(args, "손익")
     # 사용자가 준 필터만 전달한다 -- 기본값은 라이브러리가 정한다(경계).
-    if args.venue == "overseas":
+    if args.region == "overseas":
         # 해외주식 기간손익. --by/--sort 는 국내 손익 전용.
         if args.by != "symbol":
             raise CliConfigError("--by day 는 국내 손익 전용입니다(해외는 기간손익 단일).")
@@ -237,8 +237,8 @@ def cmd_transactions(kis: KISClient, args: Namespace) -> Any:
     if isinstance(view, DomesticDerivativesAccount):
         raise CliConfigError("국내선물옵션은 거래·입출금내역 조회를 제공하지 않습니다.")
     account = _stock_account(kis)
-    if args.venue != "overseas":
-        raise CliConfigError("거래·입출금내역 조회는 해외주식/해외선물옵션만 지원합니다(--venue overseas).")
+    if args.region != "overseas":
+        raise CliConfigError("거래·입출금내역 조회는 해외주식/해외선물옵션만 지원합니다(--region overseas).")
     _require_range(args, "거래내역")
     # 사용자가 준 필터만 전달한다 -- side/symbol 기본값은 라이브러리가 정한다(경계).
     extra: dict[str, Any] = {}
@@ -300,7 +300,7 @@ def cmd_settlement(kis: KISClient, args: Namespace) -> Any:
     if isinstance(view, OverseasDerivativesAccount):
         raise CliConfigError("해외선물옵션은 정산손익 조회를 제공하지 않습니다 -- deposit/margin/profits 를 쓰세요.")
     account = _stock_account(kis)
-    if args.venue != "overseas":
+    if args.region != "overseas":
         raise CliConfigError("정산잔고 조회는 해외주식/국내선물옵션 계좌만 지원합니다.")
     if not args.date:
         raise CliConfigError("해외주식 정산잔고는 기준일자가 필요합니다(--date YYYYMMDD).")
@@ -317,12 +317,12 @@ def cmd_commissions(kis: KISClient, args: Namespace) -> Any:
 
 
 def cmd_present(kis: KISClient, args: Namespace) -> Any:
-    # 해외주식 체결기준현재잔고 전용 -- venue 축이 없다(국내/파생계좌면 아래에서 거부).
+    # 해외주식 체결기준현재잔고 전용 -- region 축이 없다(국내/파생계좌면 아래에서 거부).
     account = _stock_account(kis)
     return account.overseas.present_balance()
 
 
 def cmd_foreign_margin(kis: KISClient, args: Namespace) -> Any:
-    # 해외주식 외화증거금 전용 -- venue 축이 없다(국내/파생계좌면 아래에서 거부).
+    # 해외주식 외화증거금 전용 -- region 축이 없다(국내/파생계좌면 아래에서 거부).
     account = _stock_account(kis)
     return account.overseas.foreign_margin()

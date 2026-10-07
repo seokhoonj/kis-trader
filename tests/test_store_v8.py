@@ -14,7 +14,7 @@ def _clock():
 
 def _fp():
     return Order(symbol="101S03", side="buy", order_type="limit", quantity=Decimal(1),
-                 limit_price=Decimal("400.00"), exchange="XKFE", session="night",
+                 limit_price=Decimal("400.00"), asset_class="derivative", session="night",
                  derivative_item="01", client_order_id="cid-1").fingerprint
 
 
@@ -49,7 +49,8 @@ def test_in_flight_change_for_finds_pending_change(tmp_path):
     with OrderStore(tmp_path / "s.json", now=_clock) as store:
         change_fp = ChangeActionFingerprint(
             original_client_order_id="orig-1", side="buy", order_type="limit",
-            quantity="1", limit_price="400.00", action="cancel", time_in_force="day", exchange="XKFE")
+            quantity="1", limit_price="400.00", action="cancel", time_in_force="day",
+            region="domestic", asset_class="derivative", exchange="KRX")
         store.try_claim("req-1", change_fp)
         assert store.in_flight_change_for("orig-1") == "req-1"
         assert store.in_flight_change_for("orig-2") is None

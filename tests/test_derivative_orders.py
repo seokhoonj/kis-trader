@@ -27,7 +27,7 @@ _ACCEPTED = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="주문 전송 완료
 def _order(**kw):
     base = {
         "symbol": "101S03", "side": "buy", "order_type": "limit", "quantity": Decimal(1),
-        "limit_price": Decimal("400.00"), "exchange": "XKFE", "session": "regular",
+        "limit_price": Decimal("400.00"), "asset_class": "derivative", "session": "regular",
         "derivative_item": "01", "client_order_id": "c",
     }
     base.update(kw)
@@ -54,11 +54,6 @@ def test_resolve_fo_codes(order_type, division, tif, expected):
 def test_resolve_fo_codes_rejects_unmapped():
     with pytest.raises(KISUsageError):
         fo._resolve_fo_codes(order_type="limit", division="conditional_limit", time_in_force="ioc")
-
-
-def test_is_derivative_exchange():
-    assert fo.is_derivative_exchange("XKFE") is True
-    assert fo.is_derivative_exchange("XKRX") is False
 
 
 # --- Step 4: 발주 골든바디(T1 주간) ---------------------------------------
@@ -95,7 +90,7 @@ def test_make_order_request_paper_uses_paper_tr():
 
 def test_make_order_request_rejects_non_xkfe():
     order = Order(symbol="005930", side="buy", order_type="limit", quantity=Decimal(1),
-                  limit_price=Decimal(70000), exchange="XKRX", client_order_id="c")
+                  limit_price=Decimal(70000), client_order_id="c")
     with pytest.raises(OrderError):
         fo.make_order_request(order, cano="8", product_code="03", environment="real")
 

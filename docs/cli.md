@@ -35,7 +35,7 @@ kis config --set-default                       # 저장 후 기본 프로필로 
 
 ```bash
 kis stock quote 005930                 # 현재가
-kis stock quote AAPL --venue overseas  # 해외(거래소 자동)
+kis stock quote AAPL --region overseas # 해외(거래소 자동)
 kis stock bars 005930 --interval 1d --start 20240101
 kis stock book 005930                  # 호가
 kis stock trades 005930                # 최근 체결
@@ -45,8 +45,11 @@ kis ranking change --direction gainers # 상승률 상위
 kis ranking volume                     # 거래대금(기본)·거래량 등 상위
 kis ranking market-cap                 # 시가총액 상위
 kis account balance                    # 국내 잔고
-kis account positions --venue overseas --market US
+kis account positions --region overseas --market US
 ```
+
+`--exchange` 값은 하위 명령에 따라 다릅니다. 주문 명령은 KRX/NXT/SOR, 시세 조회 명령은
+KRX/NXT/UN을 쓰며, 해외 거래소 코드는 정해진 목록 없이 그대로 입력합니다.
 
 아무 옵션 없이 쓰면 결과가 **눈으로 보기 좋은 표**로 나옵니다. 이 출력을 다른 프로그램이나
 스크립트에서 자동으로 읽어(파싱해) 쓰려면 `--format json` 을 붙여 JSON 으로 받습니다(결과가
@@ -75,32 +78,32 @@ kis account fills --asset bond --start 20240101 --end 20240131 --unfilled-only #
 
 예약주문(정규장이 열리기 전에 미리 걸어두는 예약) 목록은 `kis account reserved --start/--end` 로
 조회합니다(YYYYMMDD). 국내 조회는 `--process` 로 all/processed/unprocessed 를 골라 좁히며 실전 계좌
-전용입니다(모의투자 미지원). 해외 예약주문은 `--venue overseas` 로 조회하고(미국+아시아 합산)
+전용입니다(모의투자 미지원). 해외 예약주문은 `--region overseas` 로 조회하고(미국+아시아 합산)
 `--process` 는 지원하지 않습니다.
 
 ```bash
 kis account reserved --start 20240101 --end 20240131                       # 국내 예약주문 목록
 kis account reserved --start 20240101 --end 20240131 --process unprocessed # 미처리분만
-kis account reserved --venue overseas --start 20240101 --end 20240131      # 해외 예약주문 목록
+kis account reserved --region overseas --start 20240101 --end 20240131     # 해외 예약주문 목록
 ```
 
 기간별 실현손익은 `kis account profits --start/--end` 로 봅니다. `--symbol` 로 종목을 좁히는 건
 국내·해외 공통이고, 국내는 `--by symbol`(종목별 실현손익, 기본)/`--by day`(일별 매매손익)·
-`--sort recent|oldest`, 해외주식은 `--venue overseas` 로 기간손익을 보며 `--currency`·
+`--sort recent|oldest`, 해외주식은 `--region overseas` 로 기간손익을 보며 `--currency`·
 `--won-basis`(원화 기준) 를 씁니다. 실전 계좌 전용입니다(모의투자 미지원).
 
 ```bash
 kis account profits --start 20240101 --end 20240131                  # 국내 종목별 실현손익
 kis account profits --start 20240101 --end 20240131 --by day         # 국내 일별 매매손익
-kis account profits --venue overseas --start 20240101 --end 20240131 # 해외주식 기간손익
+kis account profits --region overseas --start 20240101 --end 20240131 # 해외주식 기간손익
 ```
 
 거래·입출금내역(매매·결제·수수료)은 `kis account transactions --start/--end` 로 조회합니다.
-해외주식은 `--venue overseas`(`--symbol`·`--side all|buy|sell` 로 좁힘), 해외선물옵션은 08 프로필로
+해외주식은 `--region overseas`(`--symbol`·`--side all|buy|sell` 로 좁힘), 해외선물옵션은 08 프로필로
 실행하면 같은 명령이 해외파생 입출금내역을 조회합니다. 실전 계좌 전용입니다.
 
 ```bash
-kis account transactions --venue overseas --start 20240101 --end 20240131 # 해외 거래·입출금내역
+kis account transactions --region overseas --start 20240101 --end 20240131 # 해외 거래·입출금내역
 ```
 
 ### 선물옵션 계좌 조회
@@ -121,7 +124,7 @@ kis account transactions --venue overseas --start 20240101 --end 20240131 # 해�
 - `deposit` -- 예수금현황(국내·해외 선물옵션; 해외파생은 `--currency`/`--date`).
 - `margin` -- 증거금상세(국내파생 야간증거금 / 해외파생 `--currency`/`--date`).
 - `valuation` -- 국내파생 평가손익내역.
-- `settlement` -- 국내파생 정산손익(`--date`) / 해외주식 정산잔고(`--venue overseas --date`).
+- `settlement` -- 국내파생 정산손익(`--date`) / 해외주식 정산잔고(`--region overseas --date`).
 - `commissions` -- 국내파생 기간약정수수료(`--start/--end`).
 - `present` -- 해외주식 체결기준현재잔고.
 - `foreign-margin` -- 해외주식 외화증거금.
@@ -155,16 +158,16 @@ kis --profile paper order buy 005930 10 --limit-price 70000 --execute paper # �
 | `midpoint` | 중간가 | — | 호가 중간값, 전 보드, IOC/FOK |
 | `pre_market_close` | 장전 시간외 종가 | — | KRX 전용 |
 | `post_market_close` | 장후 시간외 종가 | — | KRX 전용 |
-| `after_market_limit` | 애프터마켓 지정가 | 필수 | `--board KRX`, 16:00~20:00 |
-| `after_market_immediate_limit` | 애프터마켓 최유리 | — | `--board KRX` |
-| `after_market_priority_limit` | 애프터마켓 최우선 | — | `--board KRX`, day 전용 |
-| `gtp_limit` | NXT GTP 지정가 | 필수 | `--board NXT`, day 전용 |
-| `gtp_immediate_limit` | NXT GTP 최유리 | — | `--board NXT`, day 전용 |
-| `gtp_priority_limit` | NXT GTP 최우선 | — | `--board NXT`, day 전용 |
+| `after_market_limit` | 애프터마켓 지정가 | 필수 | `--exchange KRX`, 16:00~20:00 |
+| `after_market_immediate_limit` | 애프터마켓 최유리 | — | `--exchange KRX` |
+| `after_market_priority_limit` | 애프터마켓 최우선 | — | `--exchange KRX`, day 전용 |
+| `gtp_limit` | NXT GTP 지정가 | 필수 | `--exchange NXT`, day 전용 |
+| `gtp_immediate_limit` | NXT GTP 최유리 | — | `--exchange NXT`, day 전용 |
+| `gtp_priority_limit` | NXT GTP 최우선 | — | `--exchange NXT`, day 전용 |
 :::
 
 `--limit-price` 칸이 `—` 인 구분은 시장이 가격을 정하므로 지정가를 주지 않습니다. 해외
-(`--venue overseas`)엔 미지원입니다.
+(`--region overseas`)엔 미지원입니다.
 
 ```bash
 kis --profile main order buy 005930 10 --division immediate_limit --execute real --yes --confirm-account 7801
@@ -190,10 +193,10 @@ sequence 입니다. 정정은 `kis order modify-reserved <순번>` 이며,
 이어서 정정·취소하려면 `kis account reserved` 로 순번을 재확인하세요 -- 영수증에도 같은 안내가
 실립니다. 다른 주문과 같은 dry-run/`--execute` 안전장치를 씁니다.
 
-해외 예약주문은 `--venue overseas` 로 냅니다 -- 국내와 달리 **지정가 전용**(`--limit-price` 필수),
+해외 예약주문은 `--region overseas` 로 냅니다 -- 국내와 달리 **지정가 전용**(`--limit-price` 필수),
 `--end-date` 미지원, **모의(paper) 허용**입니다. `--currency`(HKD/CNY/USD)는 **홍콩 예약 전용**이고
-미지정 시 홍콩은 HKD 입니다. 목록은 `kis account reserved --venue overseas`(미국+아시아 합산),
-취소는 `kis order cancel-reserved --venue overseas --receipt-date YYYYMMDD` 로 **미국 예약만** 됩니다
+미지정 시 홍콩은 HKD 입니다. 목록은 `kis account reserved --region overseas`(미국+아시아 합산),
+취소는 `kis order cancel-reserved --region overseas --receipt-date YYYYMMDD` 로 **미국 예약만** 됩니다
 -- 아시아(일/중/홍/베) 예약 취소는 전용 엔드포인트가 없어 이 경로가 아니라 발주 리포트의
 client_order_id 로 `kis order cancel` 이 취소합니다. 정정(modify)은 해외 예약에 없습니다.
 
@@ -201,9 +204,9 @@ client_order_id 로 `kis order cancel` 이 취소합니다. 정정(modify)은 �
 kis order buy 005930 10 --limit-price 70000 --reserve --end-date 20240131                          # 국내 예약매수(dry-run)
 kis order cancel-reserved SEQ7 --order-date 20240131                                               # 국내 예약 취소(dry-run)
 kis order modify-reserved SEQ7 --symbol 005930 --side buy --quantity 10 --limit-price 71000        # 국내 예약 정정(dry-run)
-kis order buy 00700 100 --venue overseas --reserve --limit-price 350 --exchange HKS --currency HKD # 해외(홍콩) 예약매수(dry-run)
-kis account reserved --venue overseas --start 20240101 --end 20240131                              # 해외 예약주문 목록
-kis order cancel-reserved US123 --venue overseas --receipt-date 20240131                           # 해외(미국) 예약 취소(dry-run)
+kis order buy 00700 100 --region overseas --reserve --limit-price 350 --exchange HKS --currency HKD # 해외(홍콩) 예약매수(dry-run)
+kis account reserved --region overseas --start 20240101 --end 20240131                             # 해외 예약주문 목록
+kis order cancel-reserved US123 --region overseas --receipt-date 20240131                          # 해외(미국) 예약 취소(dry-run)
 ```
 
 국내 주식 **TWAP 분할**은 `kis order twap` 으로 냅니다 -- 총 수량을 `--over`(총 소요시간, 예 `30m`/
@@ -224,8 +227,8 @@ kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3 \
 전체를 덮지 못하니 전체 집행은 시간창 생략). 자세한 규칙은 [주문](orders.md) 참조.
 
 ```bash
-kis order buy AAPL 10 --venue overseas --limit-price 150 --algo twap --execute real --yes # 전체 세션(시간창 생략)
-kis order buy AAPL 10 --venue overseas --limit-price 150 \
+kis order buy AAPL 10 --region overseas --limit-price 150 --algo twap --execute real --yes # 전체 세션(시간창 생략)
+kis order buy AAPL 10 --region overseas --limit-price 150 \
   --algo twap --algo-start 223000 --algo-end 235959 --execute real --yes                  # KST 같은 날 구간
 ```
 

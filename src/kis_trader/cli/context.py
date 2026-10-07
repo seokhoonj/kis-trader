@@ -7,11 +7,16 @@
 from __future__ import annotations
 
 from argparse import Namespace
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, cast
 
 from ..client import KISClient
 from ..config import order_store_path, resolve_credentials
 from ..errors import KISUsageError
+from ..instrument import (
+    _DOMESTIC_ORDER_EXCHANGES,
+    _DOMESTIC_QUOTE_EXCHANGES,
+    DomesticQuoteExchange,
+)
 from ..store import OrderStore
 from .errors import CliConfigError
 
@@ -30,11 +35,27 @@ def account_suffix(account: str | None) -> str:
 
 
 def resolve_stock(kis: KISClient, args: Namespace) -> DomesticStock | OverseasStock:
-    """``--venue`` 로 국내/해외 종목 핸들을 만든다(해외는 ``--exchange``, 생략 시 자동 판별).
+    """``--region`` 으로 국내/해외 종목 핸들을 만든다(해외는 ``--exchange``, 생략 시 자동 판별).
     반환은 DomesticStock 또는 OverseasStock -- 둘의 공통 시세·주문 메서드를 CLI 가 쓴다."""
-    if args.venue == "overseas":
+    if args.region == "overseas":
         return kis.overseas.stock(args.identifier, exchange=args.exchange)
-    return kis.domestic.stock(args.identifier)
+    exchange = getattr(args, "exchange", None)
+    if getattr(args, "group", None) == "order":
+        if exchange is not None and exchange not in _DOMESTIC_ORDER_EXCHANGES:
+            raise CliConfigError(
+                f"지원하지 않는 국내 주문 거래소: {exchange!r} (KRX/NXT/SOR)."
+            )
+        handle_exchange = "UN" if exchange == "SOR" else exchange
+    else:
+        if exchange is not None and exchange not in _DOMESTIC_QUOTE_EXCHANGES:
+            raise CliConfigError(
+                f"지원하지 않는 국내 시세 거래소: {exchange!r} (KRX/NXT/UN)."
+            )
+        handle_exchange = exchange
+    return kis.domestic.stock(
+        args.identifier,
+        exchange=cast(DomesticQuoteExchange | None, handle_exchange),
+    )
 
 
 def resolve_bond(kis: KISClient, args: Namespace) -> Bond:

@@ -1,5 +1,5 @@
 """해외 실시간 타입드 구독 표면(rt.overseas) 검증 -- 잎이 올바른 (tr_id, tr_key) 로 구독하는지,
-심볼->RSYM 해석·거래소 전달·모호/미주입 fail-closed·venue fail-closed·__all__ 노출.
+심볼->RSYM 해석·거래소 전달·모호/미주입 fail-closed·zone fail-closed·__all__ 노출.
 
 파서/엔티티 자체는 test_realtime_overseas.py 가 검증한다 -- 여기선 표면(surface)만 본다.
 """
@@ -59,8 +59,8 @@ _TR_ROWS: list[
     tuple[str, Callable[[RealtimeOverseasNamespace], RealtimeSubscription[object]], str, str]
 ] = [
     ("stock_trades", lambda ns: ns.stock("AAPL").trades(), "HDFSCNT0", "DNASAAPL"),
-    ("stock_book_global", lambda ns: ns.stock("AAPL").order_book(venue="global"), "HDFSASP0", "DNASAAPL"),
-    ("stock_book_asia", lambda ns: ns.stock("AAPL").order_book(venue="asia"), "HDFSASP1", "DNASAAPL"),
+    ("stock_book_global", lambda ns: ns.stock("AAPL").order_book(zone="global"), "HDFSASP0", "DNASAAPL"),
+    ("stock_book_asia", lambda ns: ns.stock("AAPL").order_book(zone="asia"), "HDFSASP1", "DNASAAPL"),
     ("stock_book_default", lambda ns: ns.stock("AAPL").order_book(), "HDFSASP0", "DNASAAPL"),
     ("futures_trades", lambda ns: ns.futures("ESZ25").trades(), "HDFFF020", "ESZ25"),
     ("futures_book", lambda ns: ns.futures("ESZ25").order_book(), "HDFFF010", "ESZ25"),
@@ -116,10 +116,16 @@ def test_missing_resolver_fails_closed() -> None:
         c.overseas.stock("AAPL")
 
 
-def test_unknown_venue_fails_closed() -> None:
+def test_unknown_zone_fails_closed() -> None:
     _, ns = _ns()
     with pytest.raises(KISUsageError):
-        ns.stock("AAPL").order_book(venue="mars")  # type: ignore[arg-type]
+        ns.stock("AAPL").order_book(zone="mars")  # type: ignore[arg-type]
+
+
+def test_stock_order_book_rejects_removed_venue_keyword() -> None:
+    _, ns = _ns()
+    with pytest.raises(TypeError, match="unexpected keyword argument 'venue'"):
+        ns.stock("AAPL").order_book(venue="global")  # type: ignore[call-arg]
 
 
 def test_futures_and_option_share_trs() -> None:

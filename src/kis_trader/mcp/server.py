@@ -132,7 +132,7 @@ def build_client() -> KISClient:
 
 
 def _execute_stock_order(kis: KISClient, plan: StockOrderPlan) -> Any:
-    """검증된 plan 을 라이브러리 buy/sell 로 집행한다(동기). MVP 는 국내 주식만(plan.venue=domestic)."""
+    """검증된 plan 을 라이브러리 buy/sell 로 집행한다(동기). MVP 는 국내 주식만(plan.region=domestic)."""
     handle = kis.domestic.stock(plan.symbol)
     method = handle.buy if plan.side == "buy" else handle.sell
     if plan.limit_price is not None:
@@ -168,15 +168,15 @@ async def _authorize_order(ctx: SupportsElicit, ticket: dict[str, Any], gate: Re
 
 async def run_place_order(
     kis: KISClient, gate: RealOrderGate, allowlist: frozenset[str] | None, breaker: CircuitBreaker,
-    ctx: SupportsElicit, *, venue: str, symbol: str, side: str, quantity: int,
+    ctx: SupportsElicit, *, region: str, symbol: str, side: str, quantity: int,
     limit_price: str | None = None,
 ) -> dict[str, Any]:
     """place_order 본체(테스트 가능). 가드레일 선검증 -> (실전) 사람 확인 -> 집행. MVP 는 국내 주식만."""
     plan = handlers.plan_place_order(
-        gate, allowlist, kis.has_risk_limits, venue=venue, symbol=symbol, side=side,
+        gate, allowlist, kis.has_risk_limits, region=region, symbol=symbol, side=side,
         quantity=quantity, limit_price=limit_price,
     )
-    ticket = _order_ticket(kis, action="place", venue=plan.venue, symbol=plan.symbol, side=plan.side,
+    ticket = _order_ticket(kis, action="place", region=plan.region, symbol=plan.symbol, side=plan.side,
                            order_type=plan.order_type, quantity=plan.quantity, limit_price=plan.limit_price)
     decision = await _authorize_order(ctx, ticket, gate, breaker)
     if not decision.approved:
@@ -236,9 +236,9 @@ def build_server(
     )
 
     @server.tool()
-    def quote(symbol: str, market: Literal["domestic", "overseas"] = "domestic") -> dict[str, Any]:
-        """종목 현재가 스냅샷. market='overseas' 면 해외."""
-        return handlers.quote(kis, symbol, market=market)
+    def quote(symbol: str, region: Literal["domestic", "overseas"] = "domestic") -> dict[str, Any]:
+        """종목 현재가 스냅샷. region='overseas' 면 해외."""
+        return handlers.quote(kis, symbol, region=region)
 
     @server.tool()
     def search(query: str, limit: int = 20) -> list[dict[str, Any]]:
@@ -283,12 +283,12 @@ def build_server(
 
     @server.tool()
     async def place_order(
-        ctx: Context, venue: str, symbol: str, side: str, quantity: int,
+        ctx: Context, region: str, symbol: str, side: str, quantity: int,
         limit_price: str | None = None,
     ) -> dict[str, Any]:
         """국내 주식 실주문(매수/매도). 모의 기본. 실전은 이중게이트+RiskLimits+allowlist+사람확인을 전부
-        통과해야 전송. venue='domestic'(해외는 아직 미지원). 파라미터는 사람이 직접 준다(읽기결과 금지)."""
-        return await run_place_order(kis, gate, allowlist, breaker, ctx, venue=venue, symbol=symbol,
+        통과해야 전송. region='domestic'(해외는 아직 미지원). 파라미터는 사람이 직접 준다(읽기결과 금지)."""
+        return await run_place_order(kis, gate, allowlist, breaker, ctx, region=region, symbol=symbol,
                                      side=side, quantity=quantity, limit_price=limit_price)
 
     @server.tool()

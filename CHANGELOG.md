@@ -3,6 +3,50 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.5.0 — Unreleased
+
+Breaking release. The order "venue / board / MIC" concept is split into three explicit
+axes and the market-identifier codes (XKRX/XKOS/NXTE/XKFE) are internalized. The on-disk
+order store is byte-compatible: schema stays v10 / 19 slots, there is no file migration,
+and 0.4.0 and 0.5.0 read each other's stores both ways.
+
+### Changed
+
+- The execution venue is now one `exchange` field, with explicit `region`
+  (`"domestic"`/`"overseas"`) and `asset_class` (`"stock"`/`"derivative"`/`"bond"`) beside
+  it. The domestic order vocabulary is `DomesticOrderExchange` = `KRX`/`NXT`/`SOR`; the
+  domestic quote/handle/realtime vocabulary is `DomesticQuoteExchange` = `KRX`/`NXT`/`UN`.
+  `UN` (quote/handle, "통합호가") and `SOR` (order, smart routing) name the same unified
+  destination; a `DomesticStock` handle translates `UN` to `SOR` when it builds an order,
+  and constructing an order with `exchange="UN"` is rejected. `KRX` is the regular
+  exchange, `NXT` the alternative exchange (ATS).
+- `DomesticStock.market` → `DomesticStock.exchange`; `StockStatus.market` →
+  `StockStatus.exchange`.
+- `resolve_market()` → `resolve_domestic_quote_exchange()`.
+- Realtime: domestic `.trades(venue=...)` / `.order_book(venue=...)` → `exchange=...`
+  (`DomesticQuoteExchange`; the unified value `"unified"` is now `"UN"`); overseas
+  `venue=...` → `zone=...` (`"global"`/`"asia"`).
+- CLI: `--venue` → `--region`. `--exchange` is registered per-subcommand — order
+  subcommands accept `KRX`/`NXT`/`SOR`, quote subcommands `KRX`/`NXT`/`UN`, overseas codes
+  stay free-form — and the domestic `--exchange` now reaches every stock subcommand
+  (including `status`) and is echoed in the dry-run order ticket. Division help now cites
+  `--exchange KRX`/`--exchange NXT` instead of the removed `--board`.
+- MCP: the order and quote tools take `region` (was `venue` / `market`); the order ticket
+  serializes `region`.
+
+### Removed
+
+- `DomesticBoard`, `StockVenue`, `OverseasVenue`, `resolve_market`, and the public
+  market-identifier on `Order` (now derived from `region` + `asset_class` inside the
+  engine and fingerprint codec). `OverseasZone` is added for the overseas realtime feed.
+
+### Unchanged (noted to be explicit)
+
+- `Quote.market` and `OrderBook.market` keep the name `market`: they are shared snapshot
+  types whose value spans asset classes (a stock exchange, a derivative market, a bond
+  market division), so the generic `market` fits them, while the precise `exchange` name
+  is reserved for stock-specific handles and the order layer.
+
 ## 0.4.0 — 2026-10-05
 
 ### Added

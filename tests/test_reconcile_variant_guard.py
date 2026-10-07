@@ -35,9 +35,12 @@ class RecordingTransport:
 
 
 def _immediate(exchange: str) -> ImmediateOrderFingerprint:
+    region = "overseas" if exchange == "NAS" else "domestic"
+    order_exchange = exchange if region == "overseas" else "KRX"
     return ImmediateOrderFingerprint(
         symbol="005930", side="buy", order_type="limit", quantity="1",
-        limit_price="70000", stop_price="", time_in_force="day", exchange=exchange,
+        limit_price="70000", stop_price="", time_in_force="day",
+        region=region, asset_class="stock", exchange=order_exchange,
     )
 
 
@@ -63,7 +66,7 @@ def test_domestic_immediate_reconcile_rejects_non_immediate_fingerprint():
 
 
 def test_domestic_reserved_reconcile_rejects_non_reserved_fingerprint():
-    store, transport = _seed(_immediate("XKRX"))
+    store, transport = _seed(_immediate("KRX"))
     with pytest.raises(KISError, match="예약주문이 아니다"):
         domestic_reserved.reconcile_reserved_order(
             transport, store, "cid", cano="1", product_code="01", environment="real")

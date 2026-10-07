@@ -16,7 +16,13 @@ from typing import TYPE_CHECKING, Literal, NamedTuple, cast, get_args
 
 from ._internal._wire import format_wire_decimal
 from .errors import KISUsageError
-from .instrument import DomesticBoard
+from .instrument import (
+    _DOMESTIC_ORDER_EXCHANGES,
+    _DOMESTIC_QUOTE_EXCHANGES,
+    AssetClass,
+    DomesticOrderExchange,
+    Region,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Sequence
@@ -65,7 +71,8 @@ AlgoStrategy = Literal["twap", "vwap"]
 #:   ``gtp_priority_limit`` NXT GTP 최우선지정가(29) -- 가격 없음, day 만. NXT 프리마켓.
 #: IOC/FOK 는 별도 주문구분이 아니라 ``time_in_force``(ioc/fok)로 조합한다(midpoint 와 애프터마켓 지정가/
 #: 최유리만 지원; 최우선·GTP·시간외종가는 day 전용이라 IOC/FOK 조합이 미매핑되어 거부된다).
-#: ``after_market_*`` 는 board="KRX", ``gtp_*`` 는 board="NXT" 에서만 가능하다(다른 보드는 생성 시점 거부).
+#: ``after_market_*`` 는 exchange="KRX", ``gtp_*`` 는 exchange="NXT" 에서만 가능하다
+#: (다른 거래소는 생성 시점 거부).
 DomesticDivision = Literal[
     "conditional_limit", "immediate_limit", "priority_limit",
     "midpoint", "pre_market_close", "post_market_close",
@@ -89,11 +96,11 @@ _PRICELESS_DIVISIONS = frozenset((
 _LIMIT_BASED_DIVISIONS = frozenset((
     "conditional_limit", "after_market_limit", "gtp_limit",
 ))
-#: KRX 애프터마켓(16:00~20:00) 주문구분 -- board="KRX" 전용.
+#: KRX 애프터마켓(16:00~20:00) 주문구분 -- exchange="KRX" 전용.
 _AFTERMARKET_DIVISIONS = frozenset((
     "after_market_limit", "after_market_immediate_limit", "after_market_priority_limit",
 ))
-#: NXT 프리마켓 GTP(Good Till Pre-Market) 주문구분 -- board="NXT" 전용.
+#: NXT 프리마켓 GTP(Good Till Pre-Market) 주문구분 -- exchange="NXT" 전용.
 _GTP_DIVISIONS = frozenset(("gtp_limit", "gtp_immediate_limit", "gtp_priority_limit"))
 #: 신용주문과 조합 가능한 division -- 애프터마켓/GTP 만(공지가 신용 ORD_DVSN 에 41~47·27~29 추가). 기존
 #: 현금 전용 주문구분(조건부/최유리/최우선/중간가)은 신용과 조합 불가(종전대로).
@@ -108,6 +115,43 @@ ChangeAction = Literal["cancel", "modify"]
 #: 국내 신용주문 유형 코드(KIS 코드표). 매수/매도별로 유효 코드가 다르고(아래 상수), 신규/상환
 #: 여부로 대출일자(LOAN_DT) 요구가 갈린다.
 CreditType = Literal["21", "22", "23", "24", "25", "26", "27", "28"]
+
+_TAG_BY_LANE: dict[tuple[Region, AssetClass], str] = {
+    ("domestic", "stock"): "XKRX",
+    ("domestic", "derivative"): "XKFE",
+    ("domestic", "bond"): "BOND",
+    ("overseas", "derivative"): "OSFO",
+}
+_LANE_BY_TAG: dict[str, tuple[Region, AssetClass]] = {
+    "XKRX": ("domestic", "stock"),
+    "XKOS": ("domestic", "stock"),
+    "NXTE": ("domestic", "stock"),
+    "XKFE": ("domestic", "derivative"),
+    "BOND": ("domestic", "bond"),
+    "OSFO": ("overseas", "derivative"),
+}
+
+
+def _encode_slot7(region: Region, asset_class: AssetClass, exchange: str) -> str:
+    if (region, asset_class) == ("overseas", "stock"):
+        return exchange
+    return _TAG_BY_LANE[(region, asset_class)]
+
+
+def _encode_slot12(region: Region, asset_class: AssetClass, exchange: str) -> str:
+    if (region, asset_class) == ("domestic", "stock"):
+        return "UN" if exchange == "SOR" else exchange
+    return "KRX"
+
+
+def _decode_lane(slot7: str) -> tuple[Region, AssetClass]:
+    if slot7 in _LANE_BY_TAG:
+        return _LANE_BY_TAG[slot7]
+    return ("overseas", "stock")
+
+
+def _decode_domestic_exchange(slot12: str) -> str:
+    return "SOR" if slot12 == "UN" else slot12
 
 
 class OrderFingerprint:
@@ -144,7 +188,8 @@ class OrderFingerprint:
     def __eq__(self, other: object) -> bool:
         # dedup 정체성 = 위치 인코딩의 동등성. 변형(type)이 달라도 인코딩이 같으면 같다 -- 실제로는
         # exchange 슬롯(action:/reserved/즉시)이 겹치지 않아 교차변형 충돌은 발생하지 않으며, 이
-        # 정의는 예전 NamedTuple 튜플 동등성과 정확히 일치한다.
+        # 정의는 canonical 레코드의 예전 NamedTuple 튜플 동등성과 일치한다. 다만 구버전의 장식용 MIC
+        # XKOS/NXTE 는 다시 인코딩할 때 XKRX 로 정규화되므로 그 둘의 정체성은 합쳐질 수 있다.
         if not isinstance(other, OrderFingerprint):
             return NotImplemented
         return self._positional() == other._positional()
@@ -164,8 +209,8 @@ class ImmediateOrderFingerprint(OrderFingerprint):
     (현금주문·신규신용은 ``""``, 상환신용은 대상 대출일자) -- 같은 종목·수량·가격이라도 현금 vs
     신용, 또 서로 다른 대출을 상환하는 신용주문은 서로 다른 주문이므로 지문으로 구분해야
     replay/conflict 판정이 정확하다. ``division`` 은 국내 주문구분(최유리/최우선/조건부; 그 밖은 ``""``),
-    ``board`` 는 국내 체결 보드(KRX/NXT/UN; 구버전 레코드는 기본 "KRX")로, 둘 다 같은 종목·수량이라도
-    서로 다른 주문이라 지문으로 구분한다. ``derivative_item`` 은 파생(XKFE) 상품 구분("01" 선물 /
+    ``exchange`` 는 국내 주문 거래소(KRX/NXT/SOR; 구버전 레코드는 기본 "KRX")로, 둘 다 같은 종목·
+    수량이라도 서로 다른 주문이라 지문으로 구분한다. ``derivative_item`` 은 파생(XKFE) 상품 구분("01" 선물 /
     "02" 콜옵션 / "03" 풋옵션; 현금·해외 주문은 ``""``)으로, 같은 심볼·수량·가격이라도 콜 vs 풋은
     서로 다른 주문이라 지문으로 구분한다. ``algo_strategy``/``algo_start``/``algo_end`` 는 미국주식
     알고리즘 분할주문(TWAP "twap" / VWAP "vwap"; 비-algo 는 ``""``)과 그 집행 시간창(HHMMSS, 정규장
@@ -179,12 +224,13 @@ class ImmediateOrderFingerprint(OrderFingerprint):
     limit_price: str
     stop_price: str
     time_in_force: TimeInForce
+    region: Region
+    asset_class: AssetClass
     exchange: str
     credit_type: str = ""
     loan_date: str = ""
     session: Session = "regular"
     division: str = ""
-    board: str = "KRX"
     derivative_item: str = ""
     algo_strategy: str = ""
     algo_start: str = ""
@@ -195,8 +241,10 @@ class ImmediateOrderFingerprint(OrderFingerprint):
         # 뒤쪽 3 슬롯 = 미국주식 algo(전략/시작/종료; 비-algo 는 전부 "").
         return (
             self.symbol, self.side, self.order_type, self.quantity, self.limit_price,
-            self.stop_price, self.time_in_force, self.exchange, self.credit_type,
-            self.loan_date, self.session, self.division, self.board, self.derivative_item,
+            self.stop_price, self.time_in_force,
+            _encode_slot7(self.region, self.asset_class, self.exchange), self.credit_type,
+            self.loan_date, self.session, self.division,
+            _encode_slot12(self.region, self.asset_class, self.exchange), self.derivative_item,
             "", "HKD", self.algo_strategy, self.algo_start, self.algo_end,
         )
 
@@ -243,8 +291,9 @@ class ChangeActionFingerprint(OrderFingerprint):
     """접수된 주문에 대한 정정/취소 동작의 지문(변경 요청의 멱등키). ``original_client_order_id`` 로만
     원주문을 식별하고(그 order_id 로 파생하지 않는다 -- 정정은 원 id 를 새 ODNO 로 재바인딩하므로,
     order_id 를 넣으면 같은 request_id 재시도 시 재계산 값이 달라져 replay 가 CONFLICT 로 깨진다),
-    ``action``(cancel/modify)·수량·가격이 변경 의도를 식별한다. ``exchange`` 는 원주문의 거래소(정직한
-    값)이며, 온-디스크에선 "action:" 접두가 붙어 원주문 지문과 네임스페이스가 갈린다."""
+    ``action``(cancel/modify)·수량·가격이 변경 의도를 식별한다. ``exchange`` 는 원주문의 변경 와이어를
+    조립할 때 쓰는 거래소다. 국내 변경 지문은 거래소별 값 대신 XKRX lane 태그로 정규화되며,
+    온-디스크에선 "action:" 접두가 붙어 원주문 지문과 네임스페이스가 갈린다."""
 
     original_client_order_id: str
     side: Side
@@ -253,6 +302,8 @@ class ChangeActionFingerprint(OrderFingerprint):
     limit_price: str
     action: ChangeAction
     time_in_force: TimeInForce
+    region: Region
+    asset_class: AssetClass
     exchange: str
 
     def _positional(self) -> tuple[str, ...]:
@@ -261,7 +312,8 @@ class ChangeActionFingerprint(OrderFingerprint):
         # 뒤쪽 3 슬롯 = algo(변경 동작은 algo 를 싣지 않아 항상 "").
         return (
             self.original_client_order_id, self.side, self.order_type, self.quantity,
-            self.limit_price, self.action, self.time_in_force, f"{_ACTION_EXCHANGE_PREFIX}{self.exchange}",
+            self.limit_price, self.action, self.time_in_force,
+            f"{_ACTION_EXCHANGE_PREFIX}{_encode_slot7(self.region, self.asset_class, self.exchange)}",
             "", "", "regular", "", "KRX", "", "", "HKD", "", "", "",
         )
 
@@ -278,7 +330,7 @@ _RESERVED_EXCHANGES = frozenset(("reserved", "overseas-reserved", "overseas-rese
 #: 변경 동작 지문의 exchange 슬롯 접두 -- decode 가 이 접두로 변경 변형을 판별한다.
 _ACTION_EXCHANGE_PREFIX = "action:"
 #: 위치 인코딩 뒤쪽 선택 슬롯(idx 8..18)의 기본값 -- 구버전 레코드가 이보다 짧을 때 채운다.
-_TRAILING_DEFAULTS = ("", "", "regular", "", "KRX", "", "", "HKD", "", "", "")  # credit_type, loan_date, session, division, board, derivative_item, overseas_exchange, currency, algo_strategy, algo_start, algo_end
+_TRAILING_DEFAULTS = ("", "", "regular", "", "KRX", "", "", "HKD", "", "", "")  # credit_type, loan_date, session, division, exchange, derivative_item, overseas_exchange, currency, algo_strategy, algo_start, algo_end
 
 
 def encode_fingerprint(fingerprint: OrderFingerprint) -> list[str]:
@@ -310,34 +362,47 @@ def decode_fingerprint(row: Sequence[object]) -> OrderFingerprint:
         slots.append(_TRAILING_DEFAULTS[len(slots) - 8])
     if len(slots) > _FINGERPRINT_SLOTS:                    # 과다 슬롯 = 손상/변조 -> fail-closed
         raise ValueError(f"지문 레코드 슬롯이 과다하다({_FINGERPRINT_SLOTS} 초과): {row!r}")
-    symbol, side, order_type, quantity, limit_price, stop_slot, tif, exchange = slots[:8]
-    credit_type, loan_date, session, division, board, derivative_item, overseas_exchange, \
+    symbol, side, order_type, quantity, limit_price, stop_slot, tif, slot7 = slots[:8]
+    credit_type, loan_date, session, division, slot12, derivative_item, overseas_exchange, \
         currency, algo_strategy, algo_start, algo_end = slots[8:_FINGERPRINT_SLOTS]
     # 저장분은 전부 str 로 복원된다 -- persistence 경계에서 도메인 허용값인지 검증한 뒤 Literal 로 좁힌다
     # (검증 없이 cast 만 하면 손상/변조된 값을 유효 Literal 이라 거짓 단언하게 된다).
     side = cast(Side, _checked_slot(side, _SIDES, "side"))
     order_type = cast(OrderType, _checked_slot(order_type, _ORDER_TYPES, "order_type"))
     tif = cast(TimeInForce, _checked_slot(tif, _TIFS, "time_in_force"))
-    if exchange.startswith(_ACTION_EXCHANGE_PREFIX):
+    if slot7.startswith(_ACTION_EXCHANGE_PREFIX):
+        tail = slot7[len(_ACTION_EXCHANGE_PREFIX):]
+        region, asset_class = _decode_lane(tail)
         return ChangeActionFingerprint(
             original_client_order_id=symbol, side=side, order_type=order_type,
             quantity=quantity, limit_price=limit_price,
             action=cast(ChangeAction, _checked_slot(stop_slot, _CHANGE_ACTIONS, "action")),
-            time_in_force=tif, exchange=exchange[len(_ACTION_EXCHANGE_PREFIX):],
+            time_in_force=tif, region=region, asset_class=asset_class,
+            exchange=tail if (region, asset_class) == ("overseas", "stock") else "KRX",
         )
-    if exchange in _RESERVED_EXCHANGES:
+    if slot7 in _RESERVED_EXCHANGES:
         # 예약 algo 는 시간창이 없어(정규장 종료 고정) algo_start/algo_end 슬롯은 항상 "" 다 -- 전략만 읽는다.
         return ReservedOrderFingerprint(
             symbol=symbol, side=side, order_type=order_type, quantity=quantity,
-            limit_price=limit_price, end_date=stop_slot, exchange=exchange,
+            limit_price=limit_price, end_date=stop_slot, exchange=slot7,
             overseas_exchange=overseas_exchange, currency=currency, algo_strategy=algo_strategy,
         )
+    region, asset_class = _decode_lane(slot7)
+    if (region, asset_class) == ("overseas", "stock"):
+        exchange = slot7
+    elif (region, asset_class) == ("domestic", "stock"):
+        exchange = _decode_domestic_exchange(
+            _checked_slot(slot12, _DOMESTIC_QUOTE_EXCHANGES, "exchange")
+        )
+    else:
+        exchange = _decode_domestic_exchange(slot12)
     return ImmediateOrderFingerprint(
         symbol=symbol, side=side, order_type=order_type, quantity=quantity,
-        limit_price=limit_price, stop_price=stop_slot, time_in_force=tif, exchange=exchange,
+        limit_price=limit_price, stop_price=stop_slot, time_in_force=tif,
+        region=region, asset_class=asset_class, exchange=exchange,
         credit_type=credit_type, loan_date=loan_date,
         session=cast(Session, _checked_slot(session, _SESSIONS, "session")),
-        division=division, board=board, derivative_item=derivative_item,
+        division=division, derivative_item=derivative_item,
         algo_strategy=algo_strategy, algo_start=algo_start, algo_end=algo_end,
     )
 
@@ -375,40 +440,22 @@ _OVERNIGHT_EXCHANGES = frozenset(("NAS", "NYS", "AMS"))
 _ALGO_EXCHANGES = frozenset(("NAS", "NYS", "AMS"))
 #: 유효한 algo 전략 값(빈 문자열=비-algo). Order/CLI 가 구성 시점에 이 집합으로 좁힌다.
 _ALGO_STRATEGIES = frozenset(("twap", "vwap"))
-#: 국내 거래소(MIC). ``division``(국내 주문구분)은 이 거래소에서만 유효하다. _domestic/orders.py
-#: `_DOMESTIC_MICS`/`_EXCHANGE_ID` 와 일치해야 한다.
-_DOMESTIC_EXCHANGES = frozenset(("XKRX", "XKOS", "NXTE"))
-#: KRX 파생상품(선물/옵션) 거래소 MIC. 파생 주문은 현금주문과 같은 Order/지문/스토어를 재사용하되
-#: 이 exchange 로 라우팅을 가른다(현금 국내주문과 별개의 와이어 빌더로). ``division`` 은 이 거래소에서도
-#: 유효하되 최우선지정가(priority_limit)는 파생에 없다.
-_DERIVATIVE_EXCHANGE = "XKFE"
-#: 국내 장내채권 주문의 라우팅 마커. 채권은 표준코드(ISIN)로 거래하고 KRX MIC 가 따로 없어, 현금·
-#: 파생과 같은 Order/지문/스토어를 재사용하되 이 exchange 값으로 채권 와이어 빌더로 라우팅을 가른다.
-#: 온-디스크 지문에선 기존 exchange 슬롯의 한 값(새 슬롯·스키마 증가 없음)이라 기존 주문 지문과
-#: 바이트 호환을 유지한다.
-_BOND_EXCHANGE = "BOND"
-#: 해외선물옵션(08) 주문의 라우팅 마커. 해외 파생은 통화별로 유일한 종목코드(OVRS_FUTR_FX_PDNO,
-#: 예: "6BZ22")로 거래하고 국내 거래소 MIC 가 없어, 현금·파생·채권과 같은 Order/지문/스토어를
-#: 재사용하되 이 exchange 값으로 해외선물옵션 와이어 빌더로 라우팅을 가른다. 온-디스크 지문에선
-#: 기존 exchange 슬롯의 한 값(새 슬롯·스키마 증가 없음)이라 기존 주문 지문과 바이트 호환을 유지한다.
-_OVERSEAS_FO_EXCHANGE = "OSFO"
-#: 국내 보드별 **미지원** 주문구분 base(= division 있으면 그것, 없으면 order_type)의 blocklist.
-#: 보드마다 제외하는 주문구분 집합이 다르다: 장전/장후 시간외 종가는 KRX 전용, 애프터마켓(41~47)은 KRX
-#: 전용(NXT/UN 제외), GTP(27~29)는 NXT 전용(KRX/UN 제외). 여기 없는 base(stop 등 Tier 2/미매핑)는 이
+_REGIONS = frozenset(get_args(Region))
+_ASSET_CLASSES = frozenset(get_args(AssetClass))
+#: 국내 거래소별 **미지원** 주문구분 base(= division 있으면 그것, 없으면 order_type)의 blocklist.
+#: 거래소마다 제외하는 주문구분 집합이 다르다: 장전/장후 시간외 종가는 KRX 전용, 애프터마켓(41~47)은 KRX
+#: 전용(NXT/SOR 제외), GTP(27~29)는 NXT 전용(KRX/SOR 제외). 여기 없는 base(stop 등 Tier 2/미매핑)는 이
 #: 검증이 아니라 와이어 빌더에서 판정한다. 구체 집합은 아래 리터럴이 원장이다.
-_BOARD_UNSUPPORTED_BASES = {
+_UNSUPPORTED_BASES_BY_EXCHANGE = {
     "KRX": frozenset(("gtp_limit", "gtp_immediate_limit", "gtp_priority_limit")),
     "NXT": frozenset(("market", "conditional_limit",
                       "pre_market_close", "post_market_close", "stop_limit",
                       "after_market_limit", "after_market_immediate_limit", "after_market_priority_limit")),
-    "UN": frozenset(("conditional_limit",
+    "SOR": frozenset(("conditional_limit",
                      "pre_market_close", "post_market_close", "stop_limit",
                      "after_market_limit", "after_market_immediate_limit", "after_market_priority_limit",
                      "gtp_limit", "gtp_immediate_limit", "gtp_priority_limit")),
 }
-#: 유효한 국내 보드 값. 알 수 없는 board 는 와이어 빌더의 _BOARD_EXCG KeyError 전에 생성 시점 거부.
-_DOMESTIC_BOARDS = frozenset(("KRX", "NXT", "UN"))
-
 _KST = timezone(timedelta(hours=9))
 
 
@@ -502,12 +549,17 @@ class Order:
     limit_price: Decimal | None = None
     stop_price: Decimal | None = None
     time_in_force: TimeInForce = "day"
-    exchange: str = "XKRX"
+    #: 주문 라우팅 영역(domestic/overseas).
+    region: Region = "domestic"
+    #: 주문 자산군(stock/derivative/bond).
+    asset_class: AssetClass = "stock"
+    #: 국내주식은 KRX/NXT/SOR(시세 UN <-> 주문 SOR), 해외주식은 실제 거래소코드.
+    #: 파생/채권은 미사용 기본값 "KRX"이며 라우팅은 (region, asset_class) lane 태그가 소유한다.
+    exchange: str = "KRX"
     credit_type: CreditType | None = None
     loan_date: str | None = None
     session: Session = "regular"
     division: DomesticDivision | None = None
-    board: DomesticBoard = "KRX"
     #: 파생(XKFE) 상품 구분 -- "01" 선물 / "02" 콜옵션 / "03" 풋옵션. 현금·해외 주문은 ``""``.
     #: 콜 vs 풋은 같은 심볼·수량·가격이라도 서로 다른 주문이라 지문에 함께 실어 dedup 을 가른다.
     derivative_item: DerivativeItem = ""
@@ -547,6 +599,27 @@ class Order:
         if self.quantity <= 0:
             raise KISUsageError(f"quantity 는 0보다 커야 한다: {self.quantity}")
 
+        if self.region not in _REGIONS:
+            raise KISUsageError(f"지원하지 않는 region: {self.region!r}")
+        if self.asset_class not in _ASSET_CLASSES:
+            raise KISUsageError(f"지원하지 않는 asset_class: {self.asset_class!r}")
+        lane = (self.region, self.asset_class)
+        if lane not in _TAG_BY_LANE and lane != ("overseas", "stock"):
+            raise KISUsageError(
+                f"지원하지 않는 주문 lane: region={self.region!r}, asset_class={self.asset_class!r}"
+            )
+        if lane == ("domestic", "stock") and self.exchange not in _DOMESTIC_ORDER_EXCHANGES:
+            raise KISUsageError(
+                "국내 주식 주문 exchange 는 KRX/NXT/SOR 만 "
+                f"(KRX=정규거래소/NXT=대체거래소(ATS)/SOR=스마트 라우팅(통합); 시세 UN 은 핸들 어휘이며 주문의 SOR 에 대응). 받은 값: {self.exchange!r}"
+            )
+        if lane != ("domestic", "stock") and lane != ("overseas", "stock") \
+                and self.exchange != "KRX":
+            raise KISUsageError(
+                f"{self.region}/{self.asset_class} 주문의 exchange 는 KRX 기본값이어야 한다: "
+                f"{self.exchange!r}"
+            )
+
         needs_limit = self.order_type in _NEEDS_LIMIT
         needs_stop = self.order_type in _NEEDS_STOP
         # 타입 -> 가격 의존성(FIX): 필요한 가격은 있어야, 불필요한 가격은 없어야 한다.
@@ -571,10 +644,10 @@ class Order:
         if self.credit_type is not None:
             # 신용주문은 국내(KRX) 마진 전용 -- 해외 거래소와 조합하면 라우팅이 해외 빌더로 새어
             # 신용 의미가 조용히 사라진다. 생성 시점에 fail-closed.
-            if self.exchange != "XKRX":
+            if lane != ("domestic", "stock"):
                 raise KISUsageError(
-                    f"신용주문은 국내(XKRX)만 지원한다 -- credit_type 과 exchange={self.exchange!r} 는 "
-                    f"조합할 수 없다."
+                    "신용주문은 국내 주식만 지원한다 -- "
+                    f"region={self.region!r}, asset_class={self.asset_class!r} 와 조합할 수 없다."
                 )
             # 매수/매도별 유효 코드가 다르다 -- 반대 side 코드를 조용히 통과시키지 않는다(잘못된
             # 신용 종류로 체결되면 상환·이자 구조가 달라진다).
@@ -605,14 +678,15 @@ class Order:
         # KRX 파생(XKFE)은 night(야간장)만·미국 overnight 과 별개다 -- overnight 은 미국 전용이라
         # XKFE 와 조합하면 fail-closed(아래 overnight 블록의 미국 거래소 검증도 XKFE 를 거부하지만,
         # 여기서 파생 관점의 명시적 메시지를 준다).
-        if self.exchange == _DERIVATIVE_EXCHANGE and self.session == "overnight":
-            raise KISUsageError("XKFE(파생) 주문은 night 세션만 유효하다(overnight 은 미국 전용).")
+        if lane == ("domestic", "derivative") and self.session == "overnight":
+            raise KISUsageError("국내 파생 주문은 night 세션만 유효하다(overnight 은 미국 전용).")
         # night(야간장)은 KRX 파생(XKFE) 전용 세션이다 -- 다른 거래소와 조합하면(예: KRX 주식 XKRX +
         # night) 라우팅이 어긋나 의도와 다른 주문이 나갈 수 있어, overnight 의 미국 거래소 검증과
         # 대칭으로 생성 시점에 fail-closed.
-        if self.session == "night" and self.exchange != _DERIVATIVE_EXCHANGE:
+        if self.session == "night" and lane != ("domestic", "derivative"):
             raise KISUsageError(
-                f"night 세션은 파생(XKFE) 전용이다 -- exchange={self.exchange!r} 와 조합할 수 없다."
+                "night 세션은 국내 파생 전용이다 -- "
+                f"region={self.region!r}, asset_class={self.asset_class!r} 와 조합할 수 없다."
             )
         # 야간(STTN) 발주·조회 와이어는 상품구분(FUOP_ITEM_DVSN_CD)이 필수라 derivative_item 이
         # 비면 나갈 수 없다. 공개 핸들은 항상 채우므로 이 검사는 raw 생성의 fail-open 만 닫는다.
@@ -620,7 +694,7 @@ class Order:
             raise KISUsageError("파생 야간 주문에는 종목구분(derivative_item)이 필요하다")
         if self.session == "overnight":
             # 미국 오버나이트 거래는 미국(NASD/NYSE/AMEX)만·지정가만 -- 그 밖은 생성 시점에 fail-closed.
-            if self.exchange not in _OVERNIGHT_EXCHANGES:
+            if lane != ("overseas", "stock") or self.exchange not in _OVERNIGHT_EXCHANGES:
                 raise KISUsageError(
                     f"미국 오버나이트 거래(session='overnight')는 미국 거래소만 지원한다 "
                     f"({'/'.join(sorted(_OVERNIGHT_EXCHANGES))}): exchange={self.exchange!r}"
@@ -640,12 +714,12 @@ class Order:
         # 거래소·신용·미국 오버나이트와 조합하면 라우팅이 어긋나 의도와 다른 주문이 나갈 수 있어,
         # 생성 시점에 fail-closed. 파생에는 최우선지정가(priority_limit)가 없다.
         if self.division is not None:
-            if self.exchange not in _DOMESTIC_EXCHANGES and self.exchange != _DERIVATIVE_EXCHANGE:
+            if self.region != "domestic" or self.asset_class not in ("stock", "derivative"):
                 raise KISUsageError(
-                    f"division(주문구분)은 국내 현금주문·파생(XKFE) 전용이다 -- exchange={self.exchange!r} "
-                    f"와 조합할 수 없다."
+                    "division(주문구분)은 국내 주식·파생 전용이다 -- "
+                    f"region={self.region!r}, asset_class={self.asset_class!r} 와 조합할 수 없다."
                 )
-            if self.exchange == _DERIVATIVE_EXCHANGE and self.division not in _DERIVATIVE_DIVISIONS:
+            if self.asset_class == "derivative" and self.division not in _DERIVATIVE_DIVISIONS:
                 raise KISUsageError(
                     f"파생(XKFE) 주문은 이 주문구분을 지원하지 않는다(division={self.division!r}); "
                     f"조건부지정가·최유리지정가만 가능하다."
@@ -680,7 +754,7 @@ class Order:
         # 채권 매수에 실리면 재사용 지문 슬롯(loan_date/derivative_item)을 오염시켜 무관한 주문의 dedup
         # 정체성을 바꾸므로 생성 시점에 fail-closed. 채권 매도는 둘 다 있어야(부분 lot 은 무의미) 하고,
         # BUY_DT 는 실재하는 YYYYMMDD 여야 한다.
-        is_bond = self.exchange == _BOND_EXCHANGE
+        is_bond = lane == ("domestic", "bond")
         if self.bond_buy_date or self.bond_buy_seq:
             if not (is_bond and self.side == "sell"):
                 raise KISUsageError(
@@ -701,15 +775,13 @@ class Order:
                 "장내채권(BOND) 주문은 credit_type/loan_date/derivative_item 를 가질 수 없다."
             )
 
-        if self.board not in _DOMESTIC_BOARDS:
-            raise KISUsageError(f"지원하지 않는 board: {self.board!r} (KRX/NXT/UN).")
-        # 보드별 미지원 주문구분 -- 국내 주문에만. 보드마다 제외 집합이 다르므로 와이어 전(생성 시점)에
+        # 거래소별 미지원 주문구분 -- 국내 주식 주문에만. 거래소마다 제외 집합이 다르므로 와이어 전(생성 시점)에
         # fail-closed. base = division 있으면 그것, 없으면 order_type.
-        if self.exchange in _DOMESTIC_EXCHANGES:
+        if lane == ("domestic", "stock"):
             base = self.division or self.order_type
-            if base in _BOARD_UNSUPPORTED_BASES.get(self.board, frozenset()):
+            if base in _UNSUPPORTED_BASES_BY_EXCHANGE.get(self.exchange, frozenset()):
                 raise KISUsageError(
-                    f"{self.board} 보드는 이 주문구분을 지원하지 않는다(base={base!r})."
+                    f"{self.exchange} 거래소는 이 주문구분을 지원하지 않는다(base={base!r})."
                 )
 
         # 미국주식 algo(TWAP/VWAP) 분할주문 -- 미국(NAS/NYS/AMS) 지정가·정규세션 전용이라 그 밖은
@@ -721,7 +793,7 @@ class Order:
                 raise KISUsageError(
                     f"지원하지 않는 algo_strategy: {self.algo_strategy!r} (twap/vwap)."
                 )
-            if self.exchange not in _ALGO_EXCHANGES:
+            if lane != ("overseas", "stock") or self.exchange not in _ALGO_EXCHANGES:
                 raise KISUsageError(
                     f"미국주식 algo(TWAP/VWAP)는 미국 거래소만 지원한다 "
                     f"({'/'.join(sorted(_ALGO_EXCHANGES))}): exchange={self.exchange!r}"
@@ -767,13 +839,14 @@ class Order:
             quantity=format_wire_decimal(self.quantity),
             limit_price="" if self.limit_price is None else format_wire_decimal(self.limit_price),
             stop_price="" if self.stop_price is None else format_wire_decimal(self.stop_price),
-            time_in_force=self.time_in_force, exchange=self.exchange,
+            time_in_force=self.time_in_force, region=self.region,
+            asset_class=self.asset_class, exchange=self.exchange,
             credit_type=self.credit_type or "",
             # 채권 매도의 매수 lot 을 기존 슬롯에 재사용해 싣는다(새 슬롯 없이 lot 별 dedup): BUY_DT 는
             # loan_date 슬롯, BUY_SEQ 는 derivative_item 슬롯. 신용주문(loan_date)·파생(derivative_item)과
             # 채권 매도는 상호 배타적이라(exchange 로 갈림) 값이 섞이지 않는다.
             loan_date=self.loan_date or self.bond_buy_date,
-            session=self.session, division=self.division or "", board=self.board,
+            session=self.session, division=self.division or "",
             derivative_item=self.derivative_item or self.bond_buy_seq,
             algo_strategy=self.algo_strategy or "",
             algo_start=self.algo_start, algo_end=self.algo_end,
@@ -784,10 +857,10 @@ class Order:
     def _make(
         cls, symbol: str, side: Side, order_type: OrderType, quantity: Numeric, *,
         limit_price: Numeric | None = None, stop_price: Numeric | None = None,
-        time_in_force: TimeInForce = "day", exchange: str = "XKRX",
+        time_in_force: TimeInForce = "day", region: Region = "domestic",
+        asset_class: AssetClass = "stock", exchange: str = "KRX",
         credit_type: CreditType | None = None, loan_date: str | None = None,
         session: Session = "regular", division: DomesticDivision | None = None,
-        board: DomesticBoard = "KRX",
         algo_strategy: AlgoStrategy | None = None, algo_start: str = "", algo_end: str = "",
         client_order_id: str | None = None,
     ) -> Order:
@@ -800,17 +873,19 @@ class Order:
             return cls(
                 symbol=symbol, side=side, order_type=order_type, quantity=quantity_dec,
                 limit_price=limit_dec, stop_price=stop_dec,
-                time_in_force=time_in_force, exchange=exchange,
+                time_in_force=time_in_force, region=region,
+                asset_class=asset_class, exchange=exchange,
                 credit_type=credit_type, loan_date=loan_date, session=session,
-                division=division, board=board,
+                division=division,
                 algo_strategy=algo_strategy, algo_start=algo_start, algo_end=algo_end,
             )
         return cls(
             symbol=symbol, side=side, order_type=order_type, quantity=quantity_dec,
             limit_price=limit_dec, stop_price=stop_dec,
-            time_in_force=time_in_force, exchange=exchange,
+            time_in_force=time_in_force, region=region,
+            asset_class=asset_class, exchange=exchange,
             credit_type=credit_type, loan_date=loan_date, session=session,
-            division=division, board=board,
+            division=division,
             algo_strategy=algo_strategy, algo_start=algo_start, algo_end=algo_end,
             client_order_id=client_order_id,
         )
@@ -820,7 +895,7 @@ class Order:
         cls, symbol: str, *, side: Side, quantity: Numeric, credit_type: CreditType,
         limit_price: Numeric | None = None, loan_date: str | None = None,
         time_in_force: TimeInForce = "day", division: DomesticDivision | None = None,
-        board: DomesticBoard = "KRX", client_order_id: str | None = None,
+        exchange: DomesticOrderExchange = "KRX", client_order_id: str | None = None,
     ) -> Order:
         """국내 신용(융자/대주) 주문 -- ``limit_price`` 를 주면 지정가, 없으면 시장가. ``credit_type`` 은
         매수/매도별 신용유형(매수 21/23/26/28, 매도 22/24/25/27).
@@ -829,60 +904,70 @@ class Order:
         (21/22/23/24)은 개시일을 지정해야 하며 **둘 다 필수**다(:class:`Order` 생성자는 loan_date 를 시계로
         채우지 않는다). 상위 주문 경로(:meth:`~kis_trader.domestic.stock.DomesticStock.credit_buy`/
         ``credit_sell``)가 신규 생략 시 오늘(KST)로 채워 주므로, 직접 :meth:`credit` 을 쓸 때만 명시한다.
-        ``division`` 은 애프터마켓(``after_market_*``, board="KRX")/GTP(``gtp_*``, board="NXT") 주문구분만
+        ``division`` 은 애프터마켓(``after_market_*``, exchange="KRX")/GTP(``gtp_*``, exchange="NXT") 주문구분만
         신용과 조합할 수 있다(기타 현금 전용 주문구분은 __post_init__ 이 거부). 애프터마켓 지정가/최유리는
-        ``time_in_force`` 로 IOC/FOK 조합 가능, 그 외 division 은 day 만. 일반 신용은 국내(XKRX)만."""
+        ``time_in_force`` 로 IOC/FOK 조합 가능, 그 외 division 은 day 만. 일반 신용은 국내(KRX)만."""
         order_type: OrderType = "limit" if limit_price is not None else "market"
         return cls._make(
             symbol, side, order_type, quantity, limit_price=limit_price,
-            credit_type=credit_type, loan_date=loan_date, division=division, board=board,
+            credit_type=credit_type, loan_date=loan_date, division=division,
+            region="domestic", asset_class="stock", exchange=exchange,
             time_in_force=time_in_force, client_order_id=client_order_id,
         )
 
     @classmethod
     def market(cls, symbol: str, *, side: Side, quantity: Numeric,
-               time_in_force: TimeInForce = "day", exchange: str = "XKRX",
-               division: DomesticDivision | None = None, board: DomesticBoard = "KRX",
+               time_in_force: TimeInForce = "day", region: Region = "domestic",
+               asset_class: AssetClass = "stock", exchange: str = "KRX",
+               division: DomesticDivision | None = None,
                client_order_id: str | None = None) -> Order:
         """시장가 주문. ``division`` 은 국내 현금주문 전용 주문구분(최유리/최우선 등, 가격 없음).
-        ``board`` 는 체결 보드(KRX/NXT/UN=SOR)."""
+        ``exchange`` 는 주문 거래소(KRX=정규거래소/NXT=대체거래소(ATS)/SOR=스마트 라우팅(통합) --
+        시세 핸들의 UN 에 대응)."""
         return cls._make(symbol, side, "market", quantity, time_in_force=time_in_force,
-                          exchange=exchange, division=division, board=board,
+                          region=region, asset_class=asset_class,
+                          exchange=exchange, division=division,
                           client_order_id=client_order_id)
 
     @classmethod
     def limit(cls, symbol: str, *, side: Side, quantity: Numeric, limit_price: Numeric,
-              time_in_force: TimeInForce = "day", exchange: str = "XKRX",
+              time_in_force: TimeInForce = "day", region: Region = "domestic",
+              asset_class: AssetClass = "stock", exchange: str = "KRX",
               session: Session = "regular", division: DomesticDivision | None = None,
-              board: DomesticBoard = "KRX",
               algo_strategy: AlgoStrategy | None = None, algo_start: str = "", algo_end: str = "",
               client_order_id: str | None = None) -> Order:
         """지정가 주문. ``session='overnight'`` 은 미국 오버나이트 거래(미국 종목만). ``division`` 은 국내
-        현금주문 전용 주문구분(조건부지정가 등, 가격 필요). ``board`` 는 체결 보드(KRX/NXT/UN=SOR).
+        현금주문 전용 주문구분(조건부지정가 등, 가격 필요). ``exchange`` 는 주문 거래소(KRX=정규거래소/
+        NXT=대체거래소(ATS)/SOR=스마트 라우팅(통합) -- 시세 핸들의 UN 에 대응).
         ``algo_strategy``(twap/vwap)는 미국주식 알고리즘 분할주문으로, ``algo_start``/``algo_end``(**KST**
         HHMMSS, 같은 날 시작<종료·자정 넘김 불가)를 주면 그 시간창에, 비우면 정규장 종료까지 집행한다
         (미국 NAS/NYS/AMS 전용; 미국 정규장은 KST 로 자정을 넘어 전체 세션은 시간창 생략으로 낸다)."""
         return cls._make(symbol, side, "limit", quantity, limit_price=limit_price,
-                          time_in_force=time_in_force, exchange=exchange, session=session,
-                          division=division, board=board, algo_strategy=algo_strategy,
+                          time_in_force=time_in_force, region=region, asset_class=asset_class,
+                          exchange=exchange, session=session, division=division,
+                          algo_strategy=algo_strategy,
                           algo_start=algo_start, algo_end=algo_end, client_order_id=client_order_id)
 
     @classmethod
     def stop(cls, symbol: str, *, side: Side, quantity: Numeric, stop_price: Numeric,
-             time_in_force: TimeInForce = "day", exchange: str = "XKRX",
+             time_in_force: TimeInForce = "day", region: Region = "domestic",
+             asset_class: AssetClass = "stock", exchange: str = "KRX",
              client_order_id: str | None = None) -> Order:
         """스탑(역지정) 주문 -- ``stop_price`` 도달 시 시장가로 전환."""
         return cls._make(symbol, side, "stop", quantity, stop_price=stop_price,
-                          time_in_force=time_in_force, exchange=exchange, client_order_id=client_order_id)
+                          time_in_force=time_in_force, region=region, asset_class=asset_class,
+                          exchange=exchange, client_order_id=client_order_id)
 
     @classmethod
     def stop_limit(cls, symbol: str, *, side: Side, quantity: Numeric, limit_price: Numeric,
-                   stop_price: Numeric, time_in_force: TimeInForce = "day", exchange: str = "XKRX",
-                   board: DomesticBoard = "KRX", client_order_id: str | None = None) -> Order:
+                   stop_price: Numeric, time_in_force: TimeInForce = "day",
+                   exchange: DomesticOrderExchange = "KRX",
+                   client_order_id: str | None = None) -> Order:
         """스탑지정가(역지정) 주문 -- ``stop_price``(조건가격) 도달 시 ``limit_price`` 지정가로 접수.
         국내(KRX) 현금주문에서 ORD_DVSN 22 로 나간다. ``stop_price`` 는 KIS ``CNDT_PRIC``(조건가격),
-        ``limit_price`` 는 ``ORD_UNPR``. ``board`` 는 체결 보드(스톱지정가는 KRX 전용이라 NXT/UN 은
+        ``limit_price`` 는 ``ORD_UNPR``. ``exchange`` 는 주문 거래소(스톱지정가는 KRX 전용이라 NXT/SOR 는
         생성 시점에 :class:`~kis_trader.errors.KISUsageError` 로 거부)."""
         return cls._make(symbol, side, "stop_limit", quantity, limit_price=limit_price,
-                          stop_price=stop_price, time_in_force=time_in_force, exchange=exchange,
-                          board=board, client_order_id=client_order_id)
+                          stop_price=stop_price, time_in_force=time_in_force,
+                          region="domestic", asset_class="stock", exchange=exchange,
+                          client_order_id=client_order_id)

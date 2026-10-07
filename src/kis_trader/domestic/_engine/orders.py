@@ -41,7 +41,7 @@ from ...errors import (
     OrderRejectedError,
     OrderTimeoutError,
 )
-from ...instrument import resolve_market
+from ...instrument import resolve_domestic_quote_exchange
 from ...order import (
     ChangeAction,
     ChangeActionFingerprint,
@@ -60,9 +60,6 @@ _KST = timezone(timedelta(hours=9))
 
 #: 재조회 시 일별체결조회 연속조회(페이지) 상한 -- 무한 루프 방지의 명시적 안전 상한.
 _MAX_RECONCILE_PAGES = 100
-
-#: 국내(KRX/KOSDAQ/Nextrade) 시장 식별코드 -- 이 셋은 국내 현금주문으로 라우팅.
-_DOMESTIC_MICS = frozenset(("XKRX", "XKOS", "NXTE"))
 
 #: 시장 중립 접수-일자 키. 시장별 extract_output 파서가 접수 응답의 자기 일자 필드(예: 해외선물옵션의
 #: ORD_DT)를 이 키로 정규화해 넣으면, :func:`place` 가 필드명을 모른 채 ``receipt_date`` 로 영속한다.
@@ -136,9 +133,9 @@ def _resolve_ord_dvsn(*, order_type: str, division: str | None, time_in_force: s
     return _ORD_DVSN_MAP.get((division or order_type, time_in_force))
 # our side -> KIS SLL_BUY_DVSN_CD (01 매도, 02 매수)
 _SIDE_CODE = {"buy": "02", "sell": "01"}
-# 국내 보드(KRX/NXT/UN) -> KIS EXCG_ID_DVSN_CD(KRX/NXT/SOR). UN(통합) 주문은 SOR(스마트 주문 라우팅).
+# 국내 주문 거래소 -> KIS EXCG_ID_DVSN_CD.
 # KIS 명세: 미입력=KRX, 모의투자는 KRX 만 가능.
-_BOARD_EXCG = {"KRX": "KRX", "NXT": "NXT", "UN": "SOR"}
+_DOMESTIC_EXCHANGE_CODE = {"KRX": "KRX", "NXT": "NXT", "SOR": "SOR"}
 
 
 def place(
@@ -365,6 +362,8 @@ def submit_change(
         limit_price="" if limit_price is None else format_wire_decimal(limit_price),
         action=action,
         time_in_force=original_fingerprint.time_in_force,
+        region=original_fingerprint.region,
+        asset_class=original_fingerprint.asset_class,
         exchange=original_fingerprint.exchange,
     )
     builder = build_request or _make_domestic_change_request
@@ -509,7 +508,7 @@ def _make_domestic_change_request(
         ),
         "CNDT_PRIC": original_fingerprint.stop_price or "0",
         "QTY_ALL_ORD_YN": "Y" if is_full_cancel else "N",
-        "EXCG_ID_DVSN_CD": _BOARD_EXCG[original_fingerprint.board],
+        "EXCG_ID_DVSN_CD": _DOMESTIC_EXCHANGE_CODE[original_fingerprint.exchange],
     }
     return WireRequest("POST", _CHANGE_PATH, _CHANGE_TR[environment], body)
 
@@ -523,7 +522,7 @@ def run_pre_trade_risk(transport: Transport, order: Order, risk: RiskLimits) -> 
     reference_price = None
     if risk.needs_reference_price(order):
         quote = market_data.fetch_quote(
-            transport, symbol=order.symbol, market=resolve_market(order.symbol)
+            transport, symbol=order.symbol, market=resolve_domestic_quote_exchange(order.symbol)
         )
         reference_price = quote.current_price
     risk.check(order, reference_price=reference_price)
@@ -533,9 +532,10 @@ def run_pre_trade_risk(transport: Transport, order: Order, risk: RiskLimits) -> 
 def _make_order_cash_request(
     order: Order, *, cano: str, product_code: str, environment: Environment
 ) -> WireRequest:
-    if order.exchange not in _DOMESTIC_MICS:
+    if (order.region, order.asset_class) != ("domestic", "stock"):
         raise NotImplementedError(
-            f"해외주문은 아직 지원하지 않는다(exchange={order.exchange!r})."
+            "국내 주식 빌더에 다른 주문 lane이 들어왔다"
+            f"(region={order.region!r}, asset_class={order.asset_class!r})."
         )
     # ORD_DVSN 은 리졸버로 정한다(place·reconcile·정정 공용). 미매핑 조합(예: 조건부+ioc, 스톱, gtc)은
     # 조용히 day/지정가로 바꾸지 않고 fail-closed -- 사용자의 잘못된 인자 조합이라 KISUsageError.
@@ -547,9 +547,9 @@ def _make_order_cash_request(
             f"지원하지 않는 주문구분/TIF 조합이다(division/order_type={order.division or order.order_type!r}, "
             f"time_in_force={order.time_in_force!r})."
         )
-    # 모의투자는 KRX 보드만 제공(KIS 명세) -- NXT/UN(SOR) 주문은 demo 에서 와이어 전 fail-closed.
-    if environment == "paper" and order.board != "KRX":
-        raise KISUsageError(f"모의투자는 KRX 보드만 지원한다(board={order.board!r}).")
+    # 모의투자는 KRX 거래소만 제공(KIS 명세) -- NXT/SOR 주문은 demo 에서 와이어 전 fail-closed.
+    if environment == "paper" and order.exchange != "KRX":
+        raise KISUsageError(f"모의투자는 KRX 거래소만 지원한다(exchange={order.exchange!r}).")
     tr_id = _ORDER_CASH_TR[(environment, order.side)]
     body = {
         "CANO": cano,
@@ -559,7 +559,7 @@ def _make_order_cash_request(
         "ORD_QTY": _format_optional_wire_decimal(order.quantity),
         "ORD_UNPR": "0" if order.limit_price is None else _format_optional_wire_decimal(order.limit_price),
         "CNDT_PRIC": "0" if order.stop_price is None else _format_optional_wire_decimal(order.stop_price),
-        "EXCG_ID_DVSN_CD": _BOARD_EXCG[order.board],
+        "EXCG_ID_DVSN_CD": _DOMESTIC_EXCHANGE_CODE[order.exchange],
     }
     return WireRequest("POST", _ORDER_CASH_PATH, tr_id, body)
 
@@ -576,8 +576,11 @@ def make_credit_order_request(
     생성 시점에 검증·확정되므로(신규=오늘, 상환=대상 대출일자), 이 빌더는 주문의 순수 함수다."""
     if environment == "paper":
         raise KISUsageError("신용주문(order-credit)은 모의투자 미지원 -- 실전에서만.")
-    if order.exchange not in _DOMESTIC_MICS:
-        raise KISUsageError(f"신용주문은 국내 주식만 지원한다(exchange={order.exchange!r}).")
+    if (order.region, order.asset_class) != ("domestic", "stock"):
+        raise KISUsageError(
+            "신용주문은 국내 주식만 지원한다"
+            f"(region={order.region!r}, asset_class={order.asset_class!r})."
+        )
     if order.credit_type is None or order.loan_date is None:  # Order 가 보장 -- 라우팅 방어
         raise OrderError("신용주문 빌더에 credit_type/loan_date 없는 주문이 들어왔다(라우팅 오류).")
     # ORD_DVSN 은 현금·정정과 같은 리졸버로(애프터마켓/GTP division + tif 조합 지원). 미매핑 조합은 거부.
@@ -606,7 +609,7 @@ def make_credit_order_request(
         "ORD_QTY": _format_optional_wire_decimal(order.quantity),
         "ORD_UNPR": "0" if order.order_type == "market" else _format_optional_wire_decimal(order.limit_price),
         "RSVN_ORD_YN": "N",
-        "EXCG_ID_DVSN_CD": _BOARD_EXCG[order.board],   # 신용은 board="KRX"(=KRX) -- cash/change 와 일관
+        "EXCG_ID_DVSN_CD": _DOMESTIC_EXCHANGE_CODE[order.exchange],
     }
     return WireRequest("POST", _ORDER_CREDIT_PATH, _ORDER_CREDIT_TR[order.side], body)
 
@@ -684,7 +687,7 @@ def _filter_matching_daily_rows(
     want_dvsn = _resolve_ord_dvsn(
         order_type=order_type, division=fingerprint.division, time_in_force=fingerprint.time_in_force
     )
-    want_excg = _BOARD_EXCG[fingerprint.board]    # 보드 -> EXCG(KRX/NXT/SOR). 빌더와 같은 strict 조회.
+    want_excg = _DOMESTIC_EXCHANGE_CODE[fingerprint.exchange]
     want_loan_date = fingerprint.loan_date        # 신용이면 대출일자, 현금이면 ""
     matched = []
     for row in rows:
