@@ -494,7 +494,7 @@ def test_today_orders_parses_and_routes():
     assert orders[0].order_price == Decimal("1.2650")     # fm_ord_pric
     assert orders[0].filled_quantity == Decimal(0)        # fm_ccld_qty
     assert orders[0].remaining_quantity == Decimal(2)     # fm_ord_rmn_qty
-    assert orders[0].new_liquidation == "01"              # new_lqd_dvsn_cd
+    assert orders[0].new_liquidation_type == "01"              # new_lqd_dvsn_cd
     assert orders[0].futures_option_type == "01"                         # fuop_dvsn
     call = fake.calls[0]
     assert call["tr_id"] == "OTFM3116R"

@@ -267,7 +267,7 @@ def _parse_today_orders(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativ
                 filled_quantity=field_decimal_or_zero(row.get("fm_ccld_qty"), "fm_ccld_qty"),
                 filled_price=field_decimal_or_zero(row.get("fm_ccld_pric"), "fm_ccld_pric"),
                 remaining_quantity=field_decimal_or_zero(row.get("fm_ord_rmn_qty"), "fm_ord_rmn_qty"),
-                new_liquidation=str(row.get("new_lqd_dvsn_cd", "")).strip(),
+                new_liquidation_type=str(row.get("new_lqd_dvsn_cd", "")).strip(),
                 futures_option_type=str(row.get("fuop_dvsn", "")).strip(),
                 _raw=row,
             )

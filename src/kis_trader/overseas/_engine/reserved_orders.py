@@ -179,7 +179,7 @@ def place_overseas_reserved_order(
     OVRS_RSVN_ODNO / 아시아 OVRS_RSVN_ODNO), ``receipt_date`` 는 아시아 접수일자(RSVN_ORD_RCIT_DT;
     미국은 ``None``), ``status`` 는 :attr:`OrderStatus.PENDING_NEW`. 조회전용 계좌면
     :class:`AccountNotOrderableError`, 접수 거부는 :class:`OrderRejectedError`, 접수 불명(타임아웃)은
-    :class:`OrderTimeoutError`(:func:`reconcile_overseas_reserved_order` /
+    :class:`OrderTimeoutError`(:func:`reconcile_us_reserved_order` /
     :func:`reconcile_asia_reserved_order` 로 확인 -- 단 재조회는 실전전용). 미지원 거래소·잘못된
     side/수량/가격/통화·client_order_id 재사용은 :class:`KISUsageError`, 순번 부재는 :class:`OrderError`.
     """
@@ -365,7 +365,7 @@ def _extract_asia_reserved(body: Mapping[str, Any]) -> tuple[str, str | None]:
     return reserved_id, (receipt or None)
 
 
-def reconcile_overseas_reserved_order(
+def reconcile_us_reserved_order(
     transport: Transport, store: OrderStore, client_order_id: str, *,
     cano: str, product_code: str, environment: Environment, now: datetime | None = None,
 ) -> ExecutionReport | None:
@@ -388,7 +388,7 @@ def reconcile_asia_reserved_order(
     cano: str, product_code: str, environment: Environment, now: datetime | None = None,
 ) -> ExecutionReport | None:
     """미확인 아시아 해외예약주문을 아시아 예약주문조회(TTTS3014R)로 재조회한다 -- 매칭 규칙은
-    :func:`reconcile_overseas_reserved_order` 와 같은 보수적 계약(정확히 1건 확정 / 0건 ``None`` /
+    :func:`reconcile_us_reserved_order` 와 같은 보수적 계약(정확히 1건 확정 / 0건 ``None`` /
     2건 이상 :class:`KISError`). 조회 TR 이 실전전용이라 모의(paper)면 :class:`KISUsageError` 로
     fail-closed(in-flight 유지, 재전송 금지)."""
     if environment == "paper":

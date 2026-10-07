@@ -264,7 +264,7 @@ def make_night_change_request(
     return WireRequest("POST", _CHANGE_PATH, tr_id, body)
 
 
-def _extract_fo_output(body: Mapping[str, Any]) -> Mapping[str, Any]:
+def extract_output(body: Mapping[str, Any]) -> Mapping[str, Any]:
     """파생 주문 응답에서 ``output``(object)만 엄격히 뽑는다 -- 커널의 top-level 폴백을 쓰지 않는다.
 
     ``output`` 키가 없거나 Mapping 이 아니면 :class:`~kis_trader.errors.OrderError` 로 fail-closed

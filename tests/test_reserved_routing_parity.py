@@ -55,7 +55,7 @@ def test_reserved_reconcile_keeps_namespace_routing(monkeypatch, token: str, exp
     )
     monkeypatch.setattr(
         _order_engine.overseas_reserved_orders_api,
-        "reconcile_overseas_reserved_order",
+        "reconcile_us_reserved_order",
         routes["overseas"],
     )
     monkeypatch.setattr(

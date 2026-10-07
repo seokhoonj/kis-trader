@@ -96,18 +96,18 @@ def test_make_order_request_rejects_non_xkfe():
 
 
 # --- Step 6: 엄격 output 파서(BC-3) ---------------------------------------
-def test_extract_fo_output_rejects_missing_output_key():
+def test_extract_output_rejects_missing_output_key():
     with pytest.raises(OrderError):
-        fo._extract_fo_output({"rt_cd": "0", "ODNO": "top-level"})
+        fo.extract_output({"rt_cd": "0", "ODNO": "top-level"})
 
 
-def test_extract_fo_output_rejects_non_mapping():
+def test_extract_output_rejects_non_mapping():
     with pytest.raises(OrderError):
-        fo._extract_fo_output({"output": ["not", "a", "mapping"]})
+        fo.extract_output({"output": ["not", "a", "mapping"]})
 
 
-def test_extract_fo_output_accepts_mapping():
-    assert fo._extract_fo_output({"output": {"ODNO": "0000007045"}}) == {"ODNO": "0000007045"}
+def test_extract_output_accepts_mapping():
+    assert fo.extract_output({"output": {"ODNO": "0000007045"}}) == {"ODNO": "0000007045"}
 
 
 # --- Step 8: client._place_order XKFE 라우팅 + 리스크 게이팅 ---------------

@@ -201,6 +201,9 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   other realtime entity uses). The `reference.rights(date_basis=...)` /
   `reference.collateral_stocks(sort=...)` closed-choice parameters are now typed `Literal`
   (behavior unchanged).
+- `OverseasDerivativeOrder.new_liquidation` → `new_liquidation_type` (council P3): the field
+  holds the 신규/청산 open-vs-close classifier code (`new_lqd_dvsn_cd`), and the bare name read
+  like a boolean; the `_type` suffix matches the sibling `futures_option_type`.
 - MCP `place_order` now accepts and honors `division` (council P2): `order_preview` advertised
   and echoed a `division` (e.g. `immediate_limit` 최유리지정가) that the send path silently dropped,
   so an approved preview was sent as a plain limit/market order. `division` is now threaded through

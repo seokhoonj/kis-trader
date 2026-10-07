@@ -84,6 +84,6 @@ def test_overseas_immediate_reconcile_rejects_non_immediate_fingerprint():
 def test_overseas_reserved_reconcile_rejects_non_reserved_fingerprint():
     store, transport = _seed(_immediate("NAS"))
     with pytest.raises(KISError, match="예약주문이 아니다"):
-        overseas_reserved.reconcile_overseas_reserved_order(
+        overseas_reserved.reconcile_us_reserved_order(
             transport, store, "cid", cano="1", product_code="01", environment="real")
     assert transport.calls == []

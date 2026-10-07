@@ -110,7 +110,7 @@ class OrderEngine:
                 if risk is not None:
                     _reject_unsupported_derivative_risk(risk)
                 build_request = derivative_orders_engine.make_order_request
-                extract_output = derivative_orders_engine._extract_fo_output
+                extract_output = derivative_orders_engine.extract_output
             case ("domestic", "bond"):
                 if self._environment == "paper":
                     raise KISUsageError("장내채권 주문은 모의투자 미지원 -- 실전에서만.")
@@ -307,8 +307,8 @@ class OrderEngine:
                     self._transport, self._store, client_order_id,
                     cano=cano, product_code=product_code, environment=self._environment,
                 )
-            if fingerprint.exchange == "overseas-reserved":
-                return overseas_reserved_orders_api.reconcile_overseas_reserved_order(
+            if fingerprint.exchange == "overseas-reserved":  # bare "overseas-reserved" 태그 = 미국 예약
+                return overseas_reserved_orders_api.reconcile_us_reserved_order(
                     self._transport, self._store, client_order_id,
                     cano=cano, product_code=product_code, environment=self._environment,
                 )
