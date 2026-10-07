@@ -192,9 +192,9 @@ class IndexHandle:
 class ELWHandle:
     """ELW 실시간 핸들. ELW 코드 단위(체결/호가/예상체결)."""
 
-    def __init__(self, client: RealtimeClient, code: str) -> None:
+    def __init__(self, client: RealtimeClient, symbol: str) -> None:
         self._client = client
-        self._code = code
+        self._symbol = symbol
 
     def trades(
         self, *, on: Callable[[ELWTick], None] | None = None
@@ -202,7 +202,7 @@ class ELWHandle:
         """ELW 실시간체결가를 구독하고 RealtimeSubscription[ELWTick] 을 반환한다(H0EWCNT0)."""
         return cast(
             "RealtimeSubscription[ELWTick]",
-            self._client._open_typed(_ELW_TRADES_TR, self._code, on=on),
+            self._client._open_typed(_ELW_TRADES_TR, self._symbol, on=on),
         )
 
     def order_book(
@@ -211,7 +211,7 @@ class ELWHandle:
         """ELW 실시간호가를 구독하고 RealtimeSubscription[ELWOrderBook] 을 반환한다(H0EWASP0)."""
         return cast(
             "RealtimeSubscription[ELWOrderBook]",
-            self._client._open_typed(_ELW_ORDER_BOOK_TR, self._code, on=on),
+            self._client._open_typed(_ELW_ORDER_BOOK_TR, self._symbol, on=on),
         )
 
     def expected_conclusion(
@@ -220,7 +220,7 @@ class ELWHandle:
         """ELW 실시간 예상체결을 구독하고 RealtimeSubscription[ELWExpectedConclusion] 을 반환한다(H0EWANC0)."""
         return cast(
             "RealtimeSubscription[ELWExpectedConclusion]",
-            self._client._open_typed(_ELW_EXPECTED_CONCLUSION_TR, self._code, on=on),
+            self._client._open_typed(_ELW_EXPECTED_CONCLUSION_TR, self._symbol, on=on),
         )
 
 
@@ -319,9 +319,9 @@ class RealtimeDomesticNamespace:
         """국내지수 실시간 핸들을 반환한다(.trades()/.expected_conclusion()/.program_trade() 로 구독)."""
         return IndexHandle(self._client, code)
 
-    def elw(self, code: str) -> ELWHandle:
+    def elw(self, symbol: str) -> ELWHandle:
         """ELW 실시간 핸들을 반환한다(.trades()/.order_book()/.expected_conclusion() 로 구독)."""
-        return ELWHandle(self._client, code)
+        return ELWHandle(self._client, symbol)
 
     def bond(self, symbol: str) -> BondHandle:
         """일반채권 실시간 핸들을 반환한다(.trades()/.order_book() 로 구독)."""

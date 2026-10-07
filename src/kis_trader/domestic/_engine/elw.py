@@ -1,6 +1,6 @@
 """ELW(주식워런트증권) 고유 지표 조회 (내부).
 
-사용자면은 ELW 핸들(:class:`~kis_trader.elw.ELW`, ``kis.domestic.elw(code)``)이다. ELW 는 6자리 코드로
+사용자면은 ELW 핸들(:class:`~kis_trader.elw.ELW`, ``kis.domestic.elw(symbol)``)이다. ELW 는 6자리 코드로
 상장돼 기본 시세는 종목 엔진(시장구분 J)으로 조회되므로, 여기서는 ELW 고유의 옵션 분석 지표
 (민감도/변동성/투자지표 추이)만 다룬다. ELW 조회의 시장구분코드는 ``W`` 다.
 
@@ -172,9 +172,9 @@ _SEARCH_EMPTY_KEYS = (
 )
 
 
-def fetch_quote(transport: Transport, *, code: str) -> ELWQuote:
-    """ELW 현재가 스냅샷(기초자산가·내재변동성·이론가·괴리율·행사가 포함). ``code`` 는 ELW 표준코드."""
-    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code}
+def fetch_quote(transport: Transport, *, symbol: str) -> ELWQuote:
+    """ELW 현재가 스냅샷(기초자산가·내재변동성·이론가·괴리율·행사가 포함). ``symbol`` 는 ELW 표준코드."""
+    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": symbol}
     resp = transport.request(
         method="GET", path=_QUOTE_PATH, tr_id=_QUOTE_TR, params=params, idempotent=True
     )
@@ -192,7 +192,7 @@ def fetch_quote(transport: Transport, *, code: str) -> ELWQuote:
     change = _apply_change_sign(vrss, price_sign) if price_sign else vrss
     change_percent = _apply_change_sign(ctrt, price_sign) if price_sign else ctrt
     return ELWQuote(
-        code=code,
+        symbol=symbol,
         price=required_decimal(output.get("elw_prpr"), "elw_prpr"),
         open=required_decimal(output.get("elw_oprc"), "elw_oprc"),
         high=required_decimal(output.get("elw_hgpr"), "elw_hgpr"),
@@ -216,30 +216,30 @@ def fetch_quote(transport: Transport, *, code: str) -> ELWQuote:
 
 
 def fetch_sensitivity_trend(
-    transport: Transport, *, code: str, interval: SensitivityInterval = "day"
+    transport: Transport, *, symbol: str, interval: SensitivityInterval = "day"
 ) -> list[ELWSensitivityPoint]:
     """ELW 민감도(그릭스) 추이. ``interval`` 은 ``"trade"``(체결별)/``"day"``(일별).
 
     체결별은 조회일의 체결 시각별, 일별은 최근 영업일별 그릭스 시계열이다(둘 다 최신순 벤더 순서
-    유지). ``code`` 는 ELW 표준코드(6자리, 예: 58J297)."""
+    유지). ``symbol`` 는 ELW 표준코드(6자리, 예: 58J297)."""
     try:
         path, tr = _SENSITIVITY_TR[interval]
     except KeyError:
         raise KISUsageError(
             f"민감도 추이는 interval='trade'/'day' 만 지원한다: {interval!r}"
         ) from None
-    rows = _fetch_trend_rows(transport, path=path, tr=tr, code=code)
+    rows = _fetch_trend_rows(transport, path=path, tr=tr, symbol=symbol)
     intraday = interval != "day"
     as_of = datetime.now(_KST)
     return [
-        _parse_sensitivity_row(row, code=code, as_of=as_of, intraday=intraday)
+        _parse_sensitivity_row(row, symbol=symbol, as_of=as_of, intraday=intraday)
         for row in rows
         if _has_time_key(row, intraday)
     ]
 
 
 def fetch_volatility_trend(
-    transport: Transport, *, code: str, interval: TrendInterval = "day",
+    transport: Transport, *, symbol: str, interval: TrendInterval = "day",
     minutes: int = 1, include_past: bool = False,
 ) -> list[ELWVolatilityPoint]:
     """ELW 변동성(내재변동성) 추이. ``interval`` 은 체결/일별/분별/틱 모두 지원.
@@ -249,17 +249,17 @@ def fetch_volatility_trend(
     변동성/전일대비만 매핑하고 나머지(역사변동성 곡선·OHLC·호가)는 ``_raw`` 에 있다."""
     spec = _pick_spec(_VOLATILITY_SPEC, interval, "변동성 추이")
     extra = _minute_extra_params(interval, minutes, include_past)
-    rows = _fetch_trend_rows(transport, path=spec.path, tr=spec.tr, code=code, extra_params=extra)
+    rows = _fetch_trend_rows(transport, path=spec.path, tr=spec.tr, symbol=symbol, extra_params=extra)
     as_of = datetime.now(_KST)
     return [
-        _parse_volatility_row(row, code=code, as_of=as_of, spec=spec)
+        _parse_volatility_row(row, symbol=symbol, as_of=as_of, spec=spec)
         for row in rows
         if _spec_has_time(row, spec)
     ]
 
 
 def fetch_indicator_trend(
-    transport: Transport, *, code: str, interval: IndicatorInterval = "day",
+    transport: Transport, *, symbol: str, interval: IndicatorInterval = "day",
     minutes: int = 1, include_past: bool = False,
 ) -> list[ELWIndicatorPoint]:
     """ELW 투자지표 추이. ``interval`` 은 체결/일별/분별(틱 미지원).
@@ -268,28 +268,28 @@ def fetch_indicator_trend(
     나머지(시간가치·프리미엄·자본지지점 근접률·OHLC)는 ``_raw`` 에 있다(축마다 부가 필드가 다름)."""
     spec = _pick_spec(_INDICATOR_SPEC, interval, "투자지표 추이")
     extra = _minute_extra_params(interval, minutes, include_past)
-    rows = _fetch_trend_rows(transport, path=spec.path, tr=spec.tr, code=code, extra_params=extra)
+    rows = _fetch_trend_rows(transport, path=spec.path, tr=spec.tr, symbol=symbol, extra_params=extra)
     as_of = datetime.now(_KST)
     return [
-        _parse_indicator_row(row, code=code, as_of=as_of, spec=spec)
+        _parse_indicator_row(row, symbol=symbol, as_of=as_of, spec=spec)
         for row in rows
         if _spec_has_time(row, spec)
     ]
 
 
-def fetch_lp_flows(transport: Transport, *, code: str) -> list[ELWLPFlow]:
-    """ELW 의 일별 LP(유동성공급자) 매매 흐름(최신순). ``code`` 는 ELW 표준코드.
+def fetch_lp_flows(transport: Transport, *, symbol: str) -> list[ELWLPFlow]:
+    """ELW 의 일별 LP(유동성공급자) 매매 흐름(최신순). ``symbol`` 는 ELW 표준코드.
 
     응답의 ``output2`` 가 일별 LP 매매내역이다(``output1`` 은 현재 요약이라 다루지 않는다 -- 레버리지/
     패리티 등은 :meth:`~kis_trader.elw.ELW.indicator_trend` 로 얻는다)."""
-    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code}
+    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": symbol}
     resp = transport.request(
         method="GET", path=_LP_TREND_PATH, tr_id=_LP_TREND_TR, params=params, idempotent=True
     )
     _raise_if_error(resp)
     rows = _require_mapping_rows("output2", resp)
     return [
-        _parse_lp_row(row, code=code)
+        _parse_lp_row(row, symbol=symbol)
         for row in rows
         if str(row.get("stck_bsop_date", "")).strip()
     ]
@@ -415,13 +415,13 @@ def fetch_underlyings(
     rows = _require_mapping_rows("output", resp)
     underlyings: list[ELWUnderlying] = []
     for row in rows:
-        code = str(row.get("unas_shrn_iscd", "")).strip()
-        if not code:
+        symbol = str(row.get("unas_shrn_iscd", "")).strip()
+        if not symbol:
             continue
         sign = str(row.get("unas_prdy_vrss_sign", "")).strip()
         underlyings.append(
             ELWUnderlying(
-                symbol=code,
+                symbol=symbol,
                 underlying_name=str(row.get("unas_isnm", "")).strip(),
                 price=required_decimal(row.get("unas_prpr"), "unas_prpr"),
                 change=_apply_change_sign(
@@ -540,11 +540,11 @@ def fetch_search(
 
 
 def _fetch_trend_rows(
-    transport: Transport, *, path: str, tr: str, code: str,
+    transport: Transport, *, path: str, tr: str, symbol: str,
     extra_params: Mapping[str, str] | None = None,
 ) -> Sequence[Mapping[str, Any]]:
     """ELW 추이 조회 공통 -- 시장구분 W + 종목코드로 GET, ``output`` 배열을 돌려준다(fail-closed)."""
-    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": code}
+    params = {"FID_COND_MRKT_DIV_CODE": _MARKET_DIV, "FID_INPUT_ISCD": symbol}
     if extra_params:
         params.update(extra_params)
     resp = transport.request(
@@ -569,11 +569,11 @@ def _trend_timestamp(row: Mapping[str, Any], *, as_of: datetime, intraday: bool)
 
 
 def _parse_sensitivity_row(
-    row: Mapping[str, Any], *, code: str, as_of: datetime, intraday: bool
+    row: Mapping[str, Any], *, symbol: str, as_of: datetime, intraday: bool
 ) -> ELWSensitivityPoint:
     sign = str(row.get("prdy_vrss_sign", "")).strip()
     return ELWSensitivityPoint(
-        code=code,
+        symbol=symbol,
         timestamp=_trend_timestamp(row, as_of=as_of, intraday=intraday),
         price=required_decimal(row.get("elw_prpr"), "elw_prpr"),
         change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
@@ -648,11 +648,11 @@ def _row_change(
 
 
 def _parse_volatility_row(
-    row: Mapping[str, Any], *, code: str, as_of: datetime, spec: _TrendSpec
+    row: Mapping[str, Any], *, symbol: str, as_of: datetime, spec: _TrendSpec
 ) -> ELWVolatilityPoint:
     change, change_percent = _row_change(row, spec)
     return ELWVolatilityPoint(
-        code=code,
+        symbol=symbol,
         timestamp=_spec_timestamp(row, as_of=as_of, spec=spec),
         price=required_decimal(row.get(spec.price_key), spec.price_key),
         implied_volatility=optional_decimal(row.get("hts_ints_vltl"), "hts_ints_vltl"),
@@ -663,11 +663,11 @@ def _parse_volatility_row(
 
 
 def _parse_indicator_row(
-    row: Mapping[str, Any], *, code: str, as_of: datetime, spec: _TrendSpec
+    row: Mapping[str, Any], *, symbol: str, as_of: datetime, spec: _TrendSpec
 ) -> ELWIndicatorPoint:
     change, change_percent = _row_change(row, spec)
     return ELWIndicatorPoint(
-        code=code,
+        symbol=symbol,
         timestamp=_spec_timestamp(row, as_of=as_of, spec=spec),
         price=required_decimal(row.get(spec.price_key), spec.price_key),
         leverage=optional_decimal(row.get("lvrg_val"), "lvrg_val"),
@@ -680,10 +680,10 @@ def _parse_indicator_row(
     )
 
 
-def _parse_lp_row(row: Mapping[str, Any], *, code: str) -> ELWLPFlow:
+def _parse_lp_row(row: Mapping[str, Any], *, symbol: str) -> ELWLPFlow:
     sign = str(row.get("prdy_vrss_sign", "")).strip()
     return ELWLPFlow(
-        code=code,
+        symbol=symbol,
         timestamp=_parse_bar_timestamp(str(row.get("stck_bsop_date", "")).strip()),
         price=required_decimal(row.get("elw_prpr"), "elw_prpr"),
         change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
@@ -717,14 +717,14 @@ def _fetch_ranking(
     rows = _require_mapping_rows("output", resp)
     ranked: list[RankedELW] = []
     for row in rows:
-        code = str(row.get("elw_shrn_iscd", "")).strip()
-        if not code:                           # 빈 행 건너뜀
+        symbol = str(row.get("elw_shrn_iscd", "")).strip()
+        if not symbol:                           # 빈 행 건너뜀
             continue
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         ranked.append(
             RankedELW(
                 rank=len(ranked) + 1,          # 응답 순서 기반 1-베이스 순위
-                symbol=code,
+                symbol=symbol,
                 name=str(row.get("elw_kor_isnm") or row.get("hts_kor_isnm") or "").strip(),
                 price=required_decimal(row.get("elw_prpr"), "elw_prpr"),
                 change=_apply_change_sign(
@@ -760,8 +760,8 @@ def _optional_date(value: object) -> datetime | None:
 def _parse_listing_row(row: Mapping[str, Any]) -> ELWListing | None:
     """목록 조회 한 행을 :class:`ELWListing` 으로. 코드가 없으면 ``None``(빈 행). 조회마다 코드/이름
     키가 달라(elw_shrn_iscd/bond_shrn_iscd, elw_kor_isnm/hts_kor_isnm) 폴백으로 찾는다."""
-    code = str(row.get("elw_shrn_iscd") or row.get("bond_shrn_iscd") or "").strip()
-    if not code:
+    symbol = str(row.get("elw_shrn_iscd") or row.get("bond_shrn_iscd") or "").strip()
+    if not symbol:
         return None
     change = change_percent = None
     if str(row.get("prdy_vrss", "")).strip():
@@ -772,7 +772,7 @@ def _parse_listing_row(row: Mapping[str, Any]) -> ELWListing | None:
         change = _apply_change_sign(vrss, sign) if sign else vrss
         change_percent = _apply_change_sign(ctrt, sign) if sign else ctrt
     return ELWListing(
-        symbol=code,
+        symbol=symbol,
         name=str(row.get("elw_kor_isnm") or row.get("hts_kor_isnm") or "").strip(),
         underlying_name=str(row.get("unas_isnm", "")).strip() or None,
         price=optional_decimal(row.get("elw_prpr"), "elw_prpr"),

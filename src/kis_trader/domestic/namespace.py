@@ -247,10 +247,10 @@ class DomesticNamespace:
         """장내채권 핸들. ``symbol`` 은 표준코드(ISIN, 예: KR2033022D33)."""
         return Bond(self._client, symbol)
 
-    def elw(self, code: str) -> ELW:
+    def elw(self, symbol: str) -> ELW:
         """ELW 고유 지표 핸들. 기본 시세와 매매는 :meth:`stock` 으로 하고(ELW 는 종목처럼
         KRX 에 상장돼 있다), 이 핸들은 그릭스·변동성·투자지표만 얹는다."""
-        return ELW(self._client, code)
+        return ELW(self._client, symbol)
 
     def futures(self, symbol: str) -> FuturesContract:
         """지수선물 계약 핸들. ``code`` 는 계약코드(예: 101W09)."""

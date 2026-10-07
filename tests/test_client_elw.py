@@ -71,7 +71,7 @@ def _daily_row(bsop="20240507", price="25", vrss="20", sign="5", ctrt="44.44",
 def test_elw_accessor_returns_handle():
     handle = _client(FakeTransport(response=_resp([]))).domestic.elw("58J297")
     assert isinstance(handle, ELW)
-    assert handle.code == "58J297"
+    assert handle.symbol == "58J297"
 
 
 # --- quote (ELW-aware 현재가) -----------------------------------------------
@@ -93,7 +93,7 @@ def test_elw_quote_maps_option_aware_fields():
     fake = FakeTransport(response=_quote_output())
     quote = _client(fake).domestic.elw("58J297").quote()
     assert isinstance(quote, ELWQuote)
-    assert quote.code == "58J297"
+    assert quote.symbol == "58J297"
     assert quote.price == Decimal(135)
     assert quote.change == Decimal(-100)                  # prdy_vrss_sign 5=하락 -> 음수
     assert quote.change_percent == Decimal("-42.55")      # 등락률도 같은 부호
@@ -150,7 +150,7 @@ def test_sensitivity_trend_daily_maps_greeks_and_market():
     points = _client(fake).domestic.elw("58J438").sensitivity_trend("day")
     assert all(isinstance(p, ELWSensitivityPoint) for p in points)
     point = points[0]
-    assert point.code == "58J438"
+    assert point.symbol == "58J438"
     assert point.price == Decimal(25)
     assert point.change == Decimal(-20)                  # sign 5(하락) -> 음수
     assert point.change_percent == Decimal("-44.44")
@@ -369,7 +369,7 @@ def test_lp_flows_maps_flow_from_output2():
     flows = _client(fake).domestic.elw("52K577").lp_flows()
     assert all(isinstance(f, ELWLPFlow) for f in flows)
     flow = flows[0]
-    assert flow.code == "52K577"
+    assert flow.symbol == "52K577"
     assert flow.lp_buy_quantity == 84810
     assert flow.lp_buy_avg_price == Decimal(34)
     assert flow.lp_sell_quantity == 30030

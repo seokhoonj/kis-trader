@@ -5,7 +5,7 @@
 (:class:`~kis_trader.domestic.stock.DomesticStock`)이 그대로 조회한다 -- 이 핸들은 그 위에 옵션 분석 지표
 (민감도 그릭스, 변동성, 투자지표 추이)만 얹는다.
 
-핸들은 :class:`~kis_trader.client.KISClient` 가 ``kis.domestic.elw(code)`` 로 만들어 준다 -- 직접 생성하지 않는다.
+핸들은 :class:`~kis_trader.client.KISClient` 가 ``kis.domestic.elw(symbol)`` 로 만들어 준다 -- 직접 생성하지 않는다.
 """
 
 from __future__ import annotations
@@ -29,30 +29,30 @@ if TYPE_CHECKING:
 class ELW:
     """한 ELW 에 대한 고유 지표 조회 핸들. 세션(:class:`KISClient`)과 ELW 단축코드를 안다.
 
-    보통 직접 만들지 않고 ``kis.domestic.elw`` 로 얻는다. ``code`` 는 ELW 단축코드(6자리
-    영숫자, 예 ``"57LABS"``). 기본 시세와 매매는 ``kis.domestic.stock(code)`` 로 한다(ELW 는
+    보통 직접 만들지 않고 ``kis.domestic.elw`` 로 얻는다. ``symbol`` 는 ELW 단축코드(6자리
+    영숫자, 예 ``"57LABS"``). 기본 시세와 매매는 ``kis.domestic.stock(symbol)`` 로 한다(ELW 는
     종목처럼 KRX 에 상장돼 있다). 이 핸들은 그릭스·변동성·투자지표 등 ELW 전용 지표만 얹는다.
     """
 
-    code: str
+    symbol: str
 
-    def __init__(self, client: KISClient, code: str) -> None:
+    def __init__(self, client: KISClient, symbol: str) -> None:
         self._client = client
-        self.code = code
+        self.symbol = symbol
 
     def quote(self) -> ELWQuote:
         """ELW 현재가 스냅샷(기초자산가·내재변동성·이론가·괴리율·행사가·머니니스 포함).
 
-        종목 기본 시세(``kis.domestic.stock(code).quote()``)와 달리 옵션으로서의 맥락(기초자산·그릭스 파생)을
+        종목 기본 시세(``kis.domestic.stock(symbol).quote()``)와 달리 옵션으로서의 맥락(기초자산·그릭스 파생)을
         함께 준다."""
-        return elw_api.fetch_quote(self._client.transport, code=self.code)
+        return elw_api.fetch_quote(self._client.transport, symbol=self.symbol)
 
     def sensitivity_trend(
         self, interval: SensitivityInterval = "day"
     ) -> list[ELWSensitivityPoint]:
         """민감도(그릭스) 추이. ``interval`` 은 ``"trade"``(체결별)/``"day"``(일별)."""
         return elw_api.fetch_sensitivity_trend(
-            self._client.transport, code=self.code, interval=interval
+            self._client.transport, symbol=self.symbol, interval=interval
         )
 
     def volatility_trend(
@@ -63,7 +63,7 @@ class ELW:
         ``minutes`` 는 ``interval="minute"`` 일 때 봉 간격(1/3/5/10/30/60분), ``include_past`` 는
         분별에서 과거 데이터 포함 여부."""
         return elw_api.fetch_volatility_trend(
-            self._client.transport, code=self.code, interval=interval,
+            self._client.transport, symbol=self.symbol, interval=interval,
             minutes=minutes, include_past=include_past,
         )
 
@@ -74,10 +74,10 @@ class ELW:
 
         ``minutes``/``include_past`` 는 분별에서만 쓴다(1/3/5/10/30/60분)."""
         return elw_api.fetch_indicator_trend(
-            self._client.transport, code=self.code, interval=interval,
+            self._client.transport, symbol=self.symbol, interval=interval,
             minutes=minutes, include_past=include_past,
         )
 
     def lp_flows(self) -> list[ELWLPFlow]:
         """일별 LP(유동성공급자) 매매 흐름(최신순) -- 매수/매도 수량·평균단가·LP 보유비율."""
-        return elw_api.fetch_lp_flows(self._client.transport, code=self.code)
+        return elw_api.fetch_lp_flows(self._client.transport, symbol=self.symbol)

@@ -111,7 +111,7 @@ kis.domestic
 │   ├── trades()                        # 채권 최근 체결
 │   ├── buy(quantity, limit_price)      # 채권 매수 주문
 │   └── sell(quantity, ...)             # 채권 lot 매도 주문
-├── elw(code)                           # ELW 고유 지표 핸들
+├── elw(symbol)                           # ELW 고유 지표 핸들
 │   ├── quote()                         # ELW 현재가·그릭스
 │   ├── sensitivity_trend()             # 민감도(그릭스) 추이
 │   ├── volatility_trend()              # 내재변동성 추이
@@ -387,7 +387,7 @@ kis.realtime()
 │   │   ├── trades()                         # 체결 → IndexTick
 │   │   ├── expected_conclusion()            # 예상체결 → IndexExpectedConclusion
 │   │   └── program_trade()                  # 프로그램매매 → IndexProgramTrade
-│   ├── elw(code)                            # → ELWHandle
+│   ├── elw(symbol)                            # → ELWHandle
 │   │   ├── trades()                         # 체결 → ELWTick
 │   │   ├── order_book()                     # 호가 → ELWOrderBook
 │   │   └── expected_conclusion()            # 예상체결 → ELWExpectedConclusion

@@ -31,7 +31,7 @@ class ELWQuote:
     필드가 따로 없어 값 자체의 부호를 쓴다). 피벗/자본지지점 등 부가 지표는 ``_raw`` 에 있다.
     """
 
-    code: str
+    symbol: str
     price: Decimal
     open: Decimal
     high: Decimal
@@ -68,7 +68,7 @@ class ELWSensitivityPoint:
     체결별 조회면 조회일 날짜를 붙인 체결시각(둘 다 KST-aware).
     """
 
-    code: str
+    symbol: str
     timestamp: datetime                # 일별=영업일자 / 체결별=체결시각(조회일 날짜); KST-aware
     price: Decimal                     # ELW 현재가
     change: Decimal                    # 전일대비(부호 포함)
@@ -98,7 +98,7 @@ class ELWVolatilityPoint:
     ``timestamp`` 는 KST-aware(일별=영업일자, 그 외=날짜+체결시각 또는 조회일+체결시각).
     """
 
-    code: str
+    symbol: str
     timestamp: datetime                 # KST-aware
     price: Decimal                      # ELW 현재가
     implied_volatility: Decimal | None  # HTS 내재변동성(%)
@@ -123,7 +123,7 @@ class ELWIndicatorPoint:
     축마다 다른 부가 지표는 ``_raw`` 에 둔다. ``timestamp`` 는 KST-aware.
     """
 
-    code: str
+    symbol: str
     timestamp: datetime              # KST-aware
     price: Decimal                   # ELW 현재가
     leverage: Decimal | None         # 실효 레버리지(lvrg_val)
@@ -151,7 +151,7 @@ class ELWLPFlow:
     ``timestamp`` 는 영업일자(KST-aware).
     """
 
-    code: str
+    symbol: str
     timestamp: datetime                # 영업일자(KST-aware)
     price: Decimal                     # ELW 현재가
     change: Decimal                    # 전일대비(부호 포함)
