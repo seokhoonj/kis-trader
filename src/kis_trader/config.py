@@ -379,7 +379,7 @@ def _fill_credentials(
 
 # --- 쓰기 (KISConfig.save) ----------------------------------------------------
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(frozen=True, kw_only=True, slots=True)
 class KISConfig:
     """한 프로필의 자격증명을 담아 :meth:`save` 로 파일에 기록하는 값 객체.
 

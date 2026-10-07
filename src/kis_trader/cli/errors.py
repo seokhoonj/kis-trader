@@ -33,7 +33,7 @@ class CliAborted(Exception):
     """사용자가 확인 프롬프트에서 취소. 종료 코드 3(전송 안 됨)."""
 
 
-@dataclass(frozen=True, kw_only=True)
+@dataclass(frozen=True, kw_only=True, slots=True)
 class Translated:
     """번역 결과 -- 종료 코드와 사용자에게 보일 안정 필드.
 

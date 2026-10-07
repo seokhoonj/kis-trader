@@ -385,7 +385,19 @@ def _fetch_ccnl(
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         page = resp.body.get("output")
-        rows.extend(page if isinstance(page, (list, tuple)) else [])
+        if isinstance(page, (list, tuple)):
+            for row in page:
+                if not isinstance(row, Mapping):  # 성공 응답인데 행이 매핑 아님 -> fail-closed
+                    raise KISError(
+                        f"해외 재조회(체결내역) output 에 매핑이 아닌 행: {row!r}",
+                        rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+                    )
+            rows.extend(page)
+        elif page not in (None, ""):  # 미체결(없음)은 None/"" 로 정상 -- 그 외 형식은 조용히 0건 처리 금지
+            raise KISError(
+                f"해외 재조회(체결내역) output 형식 오류(list 가 아님): {page!r}",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
         prev_nk = ctx_nk
         ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
