@@ -1,4 +1,4 @@
-"""해외주식 순위 항목(DATA) -- :class:`RankedOverseasStock`.
+"""해외주식 순위 항목(DATA) -- :class:`OverseasRankedStock`.
 
 해외주식 시장 순위(거래량/등락률/시가총액 등)의 한 행이다. 국내 :class:`~kis_trader.domestic.entities.ranking.
 RankedStock` 의 해외 판으로, 거래소(``exchange``)와 통화 없는 원가격을 담는다(해외 시세는 거래소별
@@ -18,7 +18,7 @@ from ..._internal._freeze import freeze_vendor_payload
 
 
 @dataclass(frozen=True, slots=True)
-class RankedOverseasStock:
+class OverseasRankedStock:
     """해외주식 순위의 한 행(불변).
 
     ``rank`` 는 KIS 가 준 순위, ``exchange`` 는 거래소코드(NAS/NYS/HKS/...). ``current_price`` 는 현재가,

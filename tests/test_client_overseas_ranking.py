@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader import KISClient, OverseasRankingQueries, RankedOverseasStock
+from kis_trader import KISClient, OverseasRankedStock, OverseasRankingQueries
 from kis_trader.errors import KISError
 from kis_trader.transport import RawResponse
 
@@ -42,7 +42,7 @@ def test_by_volume_maps_and_params():
              "tamt": "30000000000", "a_tvol": "90000000"}]
     fake = FakeTransport(response=_resp(rows))
     ranked = _client(fake).overseas.ranking.by_volume(exchange="NAS")
-    assert isinstance(ranked[0], RankedOverseasStock)
+    assert isinstance(ranked[0], OverseasRankedStock)
     r = ranked[0]
     assert r.rank == 1
     assert r.exchange == "NAS"

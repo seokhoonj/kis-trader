@@ -25,7 +25,7 @@ from ..._internal._wire import (
 )
 from ...errors import KISUsageError
 from ...transport import Transport
-from ..entities.ranking import RankedOverseasStock
+from ..entities.ranking import OverseasRankedStock
 
 _TRADE_VOL = ("/uapi/overseas-stock/v1/ranking/trade-vol", "HHDFS76310010")
 _TRADE_AMOUNT = ("/uapi/overseas-stock/v1/ranking/trade-pbmn", "HHDFS76320010")
@@ -45,15 +45,15 @@ _FLUCT_GUBN = {"risers": "1", "fallers": "0"}
 _HIGHLOW_GUBN = {"high": "1", "low": "0"}
 
 
-def _parse_ranking(rows: list[Mapping[str, Any]]) -> list[RankedOverseasStock]:
-    ranked: list[RankedOverseasStock] = []
+def _parse_ranking(rows: list[Mapping[str, Any]]) -> list[OverseasRankedStock]:
+    ranked: list[OverseasRankedStock] = []
     for row in rows:
         symbol = str(row.get("symb", "")).strip()
         if not symbol:
             continue
         sign = str(row.get("sign", "")).strip()
         ranked.append(
-            RankedOverseasStock(
+            OverseasRankedStock(
                 rank=required_int(row.get("rank"), "rank"),
                 exchange=str(row.get("excd", "")).strip(),
                 symbol=symbol,
@@ -72,7 +72,7 @@ def _parse_ranking(rows: list[Mapping[str, Any]]) -> list[RankedOverseasStock]:
 
 def _fetch_ranking(
     transport: Transport, *, path: str, tr: str, params: Mapping[str, str]
-) -> list[RankedOverseasStock]:
+) -> list[OverseasRankedStock]:
     resp = transport.request(
         method="GET", path=path, tr_id=tr, params=dict(params), idempotent=True
     )
@@ -83,7 +83,7 @@ def _fetch_ranking(
     return _parse_ranking(rows)
 
 
-def fetch_by_volume(transport: Transport, *, exchange: str) -> list[RankedOverseasStock]:
+def fetch_by_volume(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
     """한 거래소의 거래량 순위. ``exchange`` 는 거래소코드(NAS/NYS/AMS/HKS/SHS/SZS/TSE/HNX/HSX)."""
     path, tr = _TRADE_VOL
     params = {
@@ -93,7 +93,7 @@ def fetch_by_volume(transport: Transport, *, exchange: str) -> list[RankedOverse
     return _fetch_ranking(transport, path=path, tr=tr, params=params)
 
 
-def fetch_by_amount(transport: Transport, *, exchange: str) -> list[RankedOverseasStock]:
+def fetch_by_amount(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
     """한 거래소의 거래대금 순위."""
     path, tr = _TRADE_AMOUNT
     params = {"EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
@@ -101,7 +101,7 @@ def fetch_by_amount(transport: Transport, *, exchange: str) -> list[RankedOverse
     return _fetch_ranking(transport, path=path, tr=tr, params=params)
 
 
-def fetch_by_trade_growth(transport: Transport, *, exchange: str) -> list[RankedOverseasStock]:
+def fetch_by_trade_growth(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
     """한 거래소의 거래증가율 순위."""
     path, tr = _TRADE_GROWTH
     params = {"EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
@@ -109,7 +109,7 @@ def fetch_by_trade_growth(transport: Transport, *, exchange: str) -> list[Ranked
     return _fetch_ranking(transport, path=path, tr=tr, params=params)
 
 
-def fetch_by_market_cap(transport: Transport, *, exchange: str) -> list[RankedOverseasStock]:
+def fetch_by_market_cap(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
     """한 거래소의 시가총액 순위."""
     path, tr = _MARKET_CAP
     params = {"EXCD": exchange, "VOL_RANG": "1",
@@ -119,7 +119,7 @@ def fetch_by_market_cap(transport: Transport, *, exchange: str) -> list[RankedOv
 
 def fetch_by_change(
     transport: Transport, *, exchange: str, top: str = "gainers"
-) -> list[RankedOverseasStock]:
+) -> list[OverseasRankedStock]:
     """한 거래소의 등락률 순위. ``top="gainers"`` 상승률 / ``"losers"`` 하락률(KIS 명세 GUBN 1/0)."""
     try:
         gubn = _UPDOWN_GUBN[top]
@@ -131,7 +131,7 @@ def fetch_by_change(
     return _fetch_ranking(transport, path=path, tr=tr, params=params)
 
 
-def fetch_by_volume_surge(transport: Transport, *, exchange: str) -> list[RankedOverseasStock]:
+def fetch_by_volume_surge(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
     """한 거래소의 거래량 급증 순위."""
     path, tr = _VOLUME_SURGE
     params = {"EXCD": exchange, "MINX": "0", "VOL_RANG": "0",
@@ -139,7 +139,7 @@ def fetch_by_volume_surge(transport: Transport, *, exchange: str) -> list[Ranked
     return _fetch_ranking(transport, path=path, tr=tr, params=params)
 
 
-def fetch_by_buy_strength(transport: Transport, *, exchange: str) -> list[RankedOverseasStock]:
+def fetch_by_buy_strength(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
     """한 거래소의 매수 체결강도 순위."""
     path, tr = _BUY_STRENGTH
     params = {"EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
@@ -147,7 +147,7 @@ def fetch_by_buy_strength(transport: Transport, *, exchange: str) -> list[Ranked
     return _fetch_ranking(transport, path=path, tr=tr, params=params)
 
 
-def fetch_by_turnover(transport: Transport, *, exchange: str) -> list[RankedOverseasStock]:
+def fetch_by_turnover(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
     """한 거래소의 거래 회전율 순위."""
     path, tr = _TURNOVER
     params = {"EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
@@ -157,7 +157,7 @@ def fetch_by_turnover(transport: Transport, *, exchange: str) -> list[RankedOver
 
 def fetch_by_price_fluctuation(
     transport: Transport, *, exchange: str, top: str = "risers"
-) -> list[RankedOverseasStock]:
+) -> list[OverseasRankedStock]:
     """한 거래소의 가격 급등/급락 순위. ``top="risers"`` 급등 / ``"fallers"`` 급락(KIS 명세 GUBN 1/0)."""
     try:
         gubn = _FLUCT_GUBN[top]
@@ -171,7 +171,7 @@ def fetch_by_price_fluctuation(
 
 def fetch_by_new_highlow(
     transport: Transport, *, exchange: str, extreme: str = "high", sustained: bool = True
-) -> list[RankedOverseasStock]:
+) -> list[OverseasRankedStock]:
     """한 거래소의 신고가/신저가 순위. ``extreme="high"`` 신고 / ``"low"`` 신저(KIS 명세 GUBN 1/0).
     ``sustained=True`` 돌파유지 / ``False`` 일시돌파(KIS 명세 GUBN2 1/0)."""
     try:
