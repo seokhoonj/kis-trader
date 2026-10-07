@@ -217,9 +217,9 @@ def test_positions_sell_side():
     assert pos[0].side == "sell"                       # sll_buy_dvsn_cd 01 -> sell
 
 
-def test_positions_custom_fuop():
+def test_positions_custom_product():
     fake = FakeTransport(response=_positions_resp(rows=[_position()]))
-    _client(fake).account.positions(fuop="01")
+    _client(fake).account.positions(product="future")
     assert fake.calls[0]["params"]["FUOP_DVSN"] == "01"
 
 

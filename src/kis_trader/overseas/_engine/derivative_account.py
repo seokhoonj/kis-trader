@@ -17,6 +17,7 @@ from typing import TYPE_CHECKING, Any
 
 from ..._internal._response import _advance_cursor, _fetch_paginated_rows, _raise_if_error
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
+from ..._literals import DerivativeProductFilter
 from ...errors import KISError, KISUsageError
 from ...transport import Environment, RawResponse, Transport
 from ..entities.derivative_account import (
@@ -33,6 +34,9 @@ from ..entities.derivative_account import (
     OverseasDerivativeTransaction,
 )
 from ._parse import _MAX_PAGES, _parse_date, _side_from_code
+
+#: product 필터 -> FUOP_DVSN 와이어코드(공식 inquire_unpd.py OTFM1412R: 00 전체/01 선물/02 옵션).
+_FUOP_FILTER = {"all": "00", "future": "01", "option": "02"}
 
 if TYPE_CHECKING:
     from ..._literals import Numeric
@@ -160,9 +164,9 @@ def fetch_margin_detail(
 
 def fetch_positions(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    fuop: str = "00",
+    product: DerivativeProductFilter = "all",
 ) -> list[OverseasDerivativePosition]:
-    """해외선물옵션 미결제내역(보유 종목 전체, 연속조회 소진까지). ``fuop`` 선물옵션구분
+    """해외선물옵션 미결제내역(보유 종목 전체, 연속조회 소진까지). ``product`` 선물/옵션 필터(all/future/option)
     (FUOP_DVSN, 기본 "00" 전체). 금액·수량은 각 행 통화의 Decimal(원화 아님).
     **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
@@ -174,7 +178,7 @@ def fetch_positions(
         path=_POSITIONS_PATH, tr_id=_POSITIONS_TR,
         base_params={
             "CANO": cano, "ACNT_PRDT_CD": product_code,
-            "FUOP_DVSN": fuop,
+            "FUOP_DVSN": _FUOP_FILTER[product],
             "CTX_AREA_FK100": "", "CTX_AREA_NK100": "",
         },
         output_key="output", max_pages=_MAX_PAGES, ctx_width=100,

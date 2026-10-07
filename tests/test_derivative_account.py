@@ -864,7 +864,7 @@ def test_night_margin_parses_and_routes():
 
 def test_night_margin_maintenance_division():
     fake = FakeTransport(response=_night_margin_resp())
-    _client(fake, environment="real").account.night_margin(margin_division="02")
+    _client(fake, environment="real").account.night_margin(margin_division="maintenance")
     assert fake.calls[0]["params"]["MGNA_DVSN_CD"] == "02"
 
 

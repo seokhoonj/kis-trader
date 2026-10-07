@@ -22,7 +22,7 @@ from ..._internal._response import (
     _raise_if_error,
 )
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
-from ..._literals import SideFilter
+from ..._literals import NightMarginDivision, SideFilter
 from ...errors import KISError, KISUsageError
 from ...transport import Environment, RawResponse, Transport
 from ..entities.derivative_account import (
@@ -48,6 +48,9 @@ from .account import _parse_hhmmss
 if TYPE_CHECKING:
     from ..._literals import Numeric
     from ...order import Side
+
+#: margin_division -> MGNA_DVSN_CD 와이어코드(공식 CTFN7107R: 01 위탁/02 유지).
+_MGNA_DVSN_CD = {"consignment": "01", "maintenance": "02"}
 
 _BALANCE_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-balance"
 _BALANCE_TR = {"real": "CTFO6118R", "paper": "VTFO6118R"}
@@ -234,7 +237,7 @@ def fetch_night_balance(
 
 def fetch_night_margin(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    margin_division: str,
+    margin_division: NightMarginDivision,
 ) -> DomesticDerivativeNightMargin:
     """(야간)선물옵션 증거금상세(1콜, 3블록). ``margin_division`` 은 증거금구분코드(MGNA_DVSN_CD,
     기본 "01" 개시). output1[0]=개시증거금 상세, output2[0]=유지증거금 상세, output3=예수금 요약.
@@ -243,7 +246,7 @@ def fetch_night_margin(
         raise KISUsageError(
             "(야간)선물옵션 증거금상세(ngt-margin-detail)은 모의투자 미지원 -- 실전에서만."
         )
-    params = {"CANO": cano, "ACNT_PRDT_CD": product_code, "MGNA_DVSN_CD": margin_division}
+    params = {"CANO": cano, "ACNT_PRDT_CD": product_code, "MGNA_DVSN_CD": _MGNA_DVSN_CD[margin_division]}
     resp = transport.request(
         method="GET", path=_NIGHT_MARGIN_PATH, tr_id=_NIGHT_MARGIN_TR, params=params, idempotent=True
     )

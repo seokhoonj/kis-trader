@@ -35,7 +35,7 @@ from .entities.derivative_account import (
 )
 
 if TYPE_CHECKING:
-    from .._literals import Numeric
+    from .._literals import DerivativeProductFilter, Numeric
     from ..client import KISClient
     from ..order import Side
 
@@ -87,17 +87,17 @@ class OverseasDerivativesAccount:
             currency=currency, query_date=_resolve_query_date(date),
         )
 
-    def positions(self, fuop: str = "00") -> list[OverseasDerivativePosition]:
+    def positions(self, product: DerivativeProductFilter = "all") -> list[OverseasDerivativePosition]:
         """해외선물옵션 미결제내역(보유 종목 전체).
 
-        ``fuop`` 선물옵션구분(FUOP_DVSN, 기본 "00" 전체). 금액·수량은 각 종목 통화의 Decimal
+        ``product`` 선물/옵션 필터(all/future/option; 엔진이 FUOP_DVSN 00/01/02 로). 금액·수량은 각 종목 통화의 Decimal
         (원화 아님). ``GET .../overseas-futureoption/v1/trading/inquire-unpd`` (``OTFM1412R``).
         **실전전용**(모의투자 미지원).
         """
         cano, product_code = self._client._require_account()
         return fetch_positions(
             self._client.transport, cano=cano, product_code=product_code,
-            environment=self._client.environment, fuop=fuop,
+            environment=self._client.environment, product=product,
         )
 
     def today_orders(self) -> list[OverseasDerivativeOrder]:

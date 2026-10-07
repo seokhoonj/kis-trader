@@ -201,6 +201,12 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   other realtime entity uses). The `reference.rights(date_basis=...)` /
   `reference.collateral_stocks(sort=...)` closed-choice parameters are now typed `Literal`
   (behavior unchanged).
+- Closed-choice params typed (council P3): `account.overseas.positions(fuop=...)` → `product`
+  typed `DerivativeProductFilter = Literal["all","future","option"]` (engine maps to
+  `FUOP_DVSN` 00/01/02 per the official OTFM1412R definition); `account.domestic.night_margin(
+  margin_division=...)` typed `NightMarginDivision = Literal["consignment","maintenance"]`
+  (engine maps to `MGNA_DVSN_CD` 01/02 = 위탁/유지 per CTFN7107R); the MCP `order_preview` tool
+  `side` is now typed `Side` to match `place_order`. Wire codes unchanged.
 - `OverseasDerivativeOrder.new_liquidation` → `new_liquidation_type` (council P3): the field
   holds the 신규/청산 open-vs-close classifier code (`new_lqd_dvsn_cd`), and the bare name read
   like a boolean; the `_type` suffix matches the sibling `futures_option_type`.

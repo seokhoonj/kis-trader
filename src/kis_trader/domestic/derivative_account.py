@@ -33,7 +33,7 @@ from .entities.derivative_account import (
 )
 
 if TYPE_CHECKING:
-    from .._literals import SideFilter
+    from .._literals import NightMarginDivision, SideFilter
     from ..client import KISClient
 
 _KST = timezone(timedelta(hours=9))
@@ -153,10 +153,10 @@ class DomesticDerivativesAccount:
             environment=self._client.environment, account_password=account_password,
         )
 
-    def night_margin(self, margin_division: str = "01") -> DomesticDerivativeNightMargin:
+    def night_margin(self, margin_division: NightMarginDivision = "consignment") -> DomesticDerivativeNightMargin:
         """(야간)선물옵션 증거금상세(개시/유지 증거금 + 예수금 요약).
 
-        ``margin_division`` 은 증거금구분코드(MGNA_DVSN_CD, 기본 "01" 개시). ``GET .../
+        ``margin_division`` 은 위탁(consignment)/유지(maintenance); 엔진이 MGNA_DVSN_CD 01/02 로. ``GET .../
         domestic-futureoption/v1/trading/ngt-margin-detail`` (``CTFN7107R``).
         **실전전용**(모의투자 미지원).
         """

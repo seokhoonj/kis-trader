@@ -18,6 +18,7 @@ from .._literals import Direction
 from ..account import StockAccount
 from ..client import KISClient
 from ..errors import KISUsageError
+from ..order import Side
 from ._guardrails import (
     ModifyOrderPlan,
     RealOrderGate,
@@ -112,7 +113,7 @@ def open_orders(kis: KISClient, *, limit: int = 100) -> list[dict[str, Any]]:
 
 
 def order_preview(
-    kis: KISClient, *, symbol: str, side: str, quantity: int,
+    kis: KISClient, *, symbol: str, side: Side, quantity: int,
     limit_price: str | None = None, division: str | None = None,
 ) -> dict[str, Any]:
     """주문 **미리보기**(dry-run) -- 전송하지 않고 나갈 티켓만 되읽어 보여준다. 실제 전송은 ``place_order``

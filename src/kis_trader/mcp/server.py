@@ -273,7 +273,7 @@ def build_server(
 
     @server.tool()
     def order_preview(
-        symbol: str, side: str, quantity: int,
+        symbol: str, side: Side, quantity: int,
         limit_price: str | None = None, division: str | None = None,
     ) -> dict[str, Any]:
         """주문 미리보기(dry-run) -- 전송하지 않고 나갈 티켓만 보여준다."""

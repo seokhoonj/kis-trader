@@ -49,6 +49,12 @@ DerivativeMarket: TypeAlias = Literal["F", "O"]
 #: 아니라 상품 종류이며, 엔드포인트/TR-ID 선택 키로 쓰인다.
 DerivativeProduct: TypeAlias = Literal["future", "option"]
 
+#: 해외선물옵션 미결제조회의 선물/옵션 필터 -- 엔진이 FUOP_DVSN 00(전체)/01(선물)/02(옵션)로 변환.
+DerivativeProductFilter: TypeAlias = Literal["all", "future", "option"]
+
+#: (야간)선물옵션 증거금상세의 증거금구분 -- 엔진이 MGNA_DVSN_CD 01(위탁)/02(유지)로 변환.
+NightMarginDivision: TypeAlias = Literal["consignment", "maintenance"]
+
 #: 해외 예약주문의 통화 선택 -- 홍콩(HKS) 예약의 상품유형(HKD/CNY/USD)을 고르는 자리에만 의미가
 #: 있고 미지정이면 HKD 로 본다(그 외 거래소에 주면 :class:`~kis_trader.errors.KISUsageError`).
 #: ``PRDT_TYPE_CD`` 파생의 입력 어휘다.
@@ -83,11 +89,13 @@ __all__ = [
     "CreditType",
     "DerivativeMarket",
     "DerivativeProduct",
+    "DerivativeProductFilter",
     "Direction",
     "Environment",
     "FluctuationDirection",
     "JSONObject",
     "JSONValue",
+    "NightMarginDivision",
     "Numeric",
     "ProfitSort",
     "ReservedCurrency",
