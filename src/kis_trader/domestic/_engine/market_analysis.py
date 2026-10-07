@@ -10,7 +10,7 @@ KIS URL/TR-ID:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
 from typing import Literal
@@ -236,7 +236,7 @@ def fetch_credit_eligible_stocks(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output", resp)
     if not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output[]", resp)
@@ -383,7 +383,7 @@ def fetch_market_investor_snapshot(
     )
     _raise_if_error(resp)
     row = resp.body.get("output")
-    if isinstance(row, list):            # KIS 는 이 단일 스냅샷을 1-원소 리스트로 감싸 주기도 한다
+    if isinstance(row, (list, tuple)):            # KIS 는 이 단일 스냅샷을 1-원소 리스트로 감싸 주기도 한다
         row = row[0] if row else None
     if not isinstance(row, Mapping):
         raise _missing_block_error("output", resp)
@@ -423,7 +423,7 @@ def fetch_investor_net_buy_stocks(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+    if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output", resp)
     stocks = []
     for row in rows:
@@ -459,7 +459,7 @@ def fetch_program_investor_trades(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output1")
-    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+    if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output1", resp)
     return [ProgramInvestorTrade(
         investor_code=str(row.get("invr_cls_code", "")).strip(),
@@ -832,9 +832,9 @@ def fetch_interest_rates(transport: Transport) -> list[InterestRateQuote]:
     _raise_if_error(resp)
     overseas_rows = resp.body.get("output1")
     domestic_rows = resp.body.get("output2")
-    if not isinstance(overseas_rows, list):
+    if not isinstance(overseas_rows, (list, tuple)):
         raise _missing_block_error("output1", resp)
-    if not isinstance(domestic_rows, list):
+    if not isinstance(domestic_rows, (list, tuple)):
         raise _missing_block_error("output2", resp)
     quotes = _parse_interest_rates(
         overseas_rows, region="overseas", percent_field="prdy_ctrt", resp=resp
@@ -949,7 +949,10 @@ def _parse_program_trade_activity(row: Mapping[str, object], prefix: str) -> Pro
 
 
 def _parse_interest_rates(
-    rows: list[object], *, region: Literal["domestic", "overseas"], percent_field: str,
+    rows: Sequence[object],
+    *,
+    region: Literal["domestic", "overseas"],
+    percent_field: str,
     resp: RawResponse,
 ) -> list[InterestRateQuote]:
     quotes: list[InterestRateQuote] = []

@@ -46,6 +46,17 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
 
 - `kis.account.pension.orders(only_unfilled=...)` renamed to `unfilled_only=...`, matching
   the `unfilled_only` every other order/fill query uses.
+- `RawResponse.body` is now deeply immutable: nested arrays are exposed as tuples and
+  nested objects as read-only mappings, where before only the top-level mapping was
+  read-only (its nested lists and dicts were still mutable in place). Scalar values and key
+  lookup are unchanged — `resp.body["output"]["x"]` reads the same value — but the nested
+  container types change: an array block is now a `tuple` (not `list`) and an object block a
+  read-only mapping. Two consequences for code that only reads the body: `resp.body` no
+  longer compares equal to the original list/dict-shaped JSON payload, and
+  `json.dumps(resp.body["output"])` on a nested block raises (a mapping proxy is not
+  JSON-serializable) — normalize with `dict()` / a recursive converter first. Code that
+  mutated a nested block in place, or asserted a block is exactly a `list`/`dict`, must
+  adjust (the parse layer already accepts both).
 
 ### Added
 

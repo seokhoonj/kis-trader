@@ -172,7 +172,7 @@ def fetch_intraday_executions(
     rows = resp.body.get("output2")
     if not isinstance(header, Mapping):
         raise _missing_block_error("output1", resp)
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output2", resp)
     header_sign = str(header.get("prdy_vrss_sign", "")).strip()
     summary = IntradayExecutionSummary(
@@ -447,7 +447,7 @@ def _collect_minute_bars(
         )
         _raise_if_error(resp)
         rows = resp.body.get("output2")
-        if not isinstance(rows, list):  # 성공 응답인데 봉 배열 아님 -> fail-closed
+        if not isinstance(rows, (list, tuple)):  # 성공 응답인데 봉 배열 아님 -> fail-closed
             raise _missing_block_error("output2", resp)
         page = {f"{bar.timestamp:%H%M%S}": bar for bar in _parse_minute_bars(rows, symbol=symbol)}
         fresh = {time: bar for time, bar in page.items() if time not in bar_by_time}
@@ -583,7 +583,7 @@ def fetch_trades(transport: Transport, *, symbol: str, market: str) -> list[Trad
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list):  # 성공 응답인데 체결 배열 아님 -> fail-closed
+    if not isinstance(rows, (list, tuple)):  # 성공 응답인데 체결 배열 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return _parse_trades(rows, symbol=symbol, as_of=datetime.now(_KST))
 
@@ -671,7 +671,7 @@ def fetch_detailed_investor_history(
         output1, rows = resp.body.get("output1"), resp.body.get("output2")
         if not isinstance(output1, Mapping):
             raise _missing_block_error("output1", resp)
-        if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+        if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
             raise _missing_block_error("output2", resp)
         if summary is None:
             summary = output1
@@ -753,7 +753,7 @@ def fetch_broker_activity(
     )
     _raise_if_error(resp)
     output = resp.body.get("output")
-    if isinstance(output, list):        # KIS 는 이 단일 요약을 1-원소 리스트로 감싸 준다
+    if isinstance(output, (list, tuple)):        # KIS 는 이 단일 요약을 1-원소 리스트로 감싸 준다
         output = output[0] if output else None
     if not isinstance(output, Mapping):
         raise _missing_block_error("output", resp)
@@ -783,7 +783,7 @@ def fetch_broker_daily_activity(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+    if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output", resp)
     activities = []
     for row in rows:
@@ -818,9 +818,13 @@ def fetch_broker_trade_ticks(
     )
     _raise_if_error(resp)
     summaries, rows = resp.body.get("output1"), resp.body.get("output2")
-    if not isinstance(summaries, list) or not summaries or not isinstance(summaries[0], Mapping):
+    if (
+        not isinstance(summaries, (list, tuple))
+        or not summaries
+        or not isinstance(summaries[0], Mapping)
+    ):
         raise _missing_block_error("output1", resp)
-    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+    if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output2", resp)
     as_of = datetime.now(_KST)
     ticks = []
@@ -1165,7 +1169,7 @@ def fetch_daily_program_trades(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+    if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output", resp)
     points = []
     for row in rows:

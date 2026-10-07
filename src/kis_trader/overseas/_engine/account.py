@@ -435,7 +435,7 @@ def fetch_period_profit(
 
 def _as_rows(block: object) -> list[Mapping[str, Any]]:
     """output 배열을 종목 dict 리스트로. 객체 하나면 1원소 리스트, 비면 빈 리스트(fail-soft)."""
-    if isinstance(block, list):
+    if isinstance(block, (list, tuple)):
         return [r for r in block if isinstance(r, Mapping)]
     if isinstance(block, Mapping):
         return [block]
@@ -446,7 +446,7 @@ def _first_object(block: object) -> Mapping[str, Any]:
     """output(요약)이 객체면 그대로, 1원소 배열이면 첫 원소, 비면 빈 dict(fail-soft)."""
     if isinstance(block, Mapping):
         return block
-    if isinstance(block, list) and block and isinstance(block[0], Mapping):
+    if isinstance(block, (list, tuple)) and block and isinstance(block[0], Mapping):
         return block[0]
     return {}
 

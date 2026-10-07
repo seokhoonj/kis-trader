@@ -15,6 +15,7 @@ from dataclasses import dataclass, field
 from types import MappingProxyType
 from typing import Any, Literal, Protocol, runtime_checkable
 
+from ._internal._freeze import freeze_vendor_payload
 from .errors import KISError
 
 #: 접속 환경 -- 실전(real) / 모의(paper). 세션/계좌/주문 TR 선택에 쓰인다(어느 KIS 서버냐).
@@ -36,10 +37,11 @@ class TransportTimeoutError(KISError):
 
 @dataclass(frozen=True, slots=True)
 class RawResponse:
-    """KIS 표준 응답 골격 + 원본 바디.
+    """KIS 표준 응답 골격 + 깊게 불변인 원본 바디.
 
     ``rt_cd`` == "0" 이 성공이다. ``body`` 는 ``output`` / ``output1`` / ``output2`` 등
-    벤더 원본(정본 와이어 형태)이다.
+    벤더 원본을 깊은 불변 구조로 보존한 값이다 -- 배열 블록은 ``tuple``, 객체 블록은 읽기전용
+    ``Mapping`` 으로 노출된다(어떤 깊이에서도 in-place 변경 불가).
     """
 
     rt_cd: str
@@ -50,7 +52,7 @@ class RawResponse:
     tr_cont: str = ""
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "body", MappingProxyType(dict(self.body)))
+        object.__setattr__(self, "body", freeze_vendor_payload(self.body))
 
     @property
     def ok(self) -> bool:

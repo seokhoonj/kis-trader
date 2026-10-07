@@ -11,7 +11,7 @@ KIS URL/TR-ID:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
@@ -377,7 +377,7 @@ def fetch_daily_fills(
         if summary is None:  # 합계 요약은 첫 페이지에서(기간 단위라 페이지 불변)
             summary = _extract_summary(resp.body)
         page = resp.body.get("output1")
-        if not isinstance(page, list):  # 빈 결과도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
+        if not isinstance(page, (list, tuple)):  # 빈 결과도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
             raise KISError(
                 "해외선물옵션 일별체결내역 응답의 output1 이 체결내역 배열이 아니다.",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
@@ -446,7 +446,7 @@ def _parse_fills(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativeFill]:
 def _extract_summary(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
     """합계 요약(output2) -- KIS가 단일 객체로도, '길이 1 배열'로도 준다. 비매핑이면 None."""
     summary = body.get("output2")
-    if isinstance(summary, list):
+    if isinstance(summary, (list, tuple)):
         first = summary[0] if summary else None
         return first if isinstance(first, Mapping) else None
     if isinstance(summary, Mapping):
@@ -506,10 +506,12 @@ def fetch_period_pnl(
     )
 
 
-def _require_pnl_block(block: object, name: str, resp: RawResponse) -> list[Mapping[str, Any]]:
+def _require_pnl_block(
+    block: object, name: str, resp: RawResponse
+) -> Sequence[Mapping[str, Any]]:
     """기간손익 집계 블록(output1/output2)을 배열로 검증한다. 빈 결과도 배열로 오므로
     부재/비배열은 손상으로 보고 fail-closed(:class:`KISError`)."""
-    if not isinstance(block, list):
+    if not isinstance(block, (list, tuple)):
         raise KISError(
             f"해외선물옵션 기간손익 응답의 {name} 이 손익 배열이 아니다.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,

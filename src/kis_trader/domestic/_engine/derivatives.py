@@ -278,7 +278,7 @@ def fetch_expected_execution_trend(
     if not isinstance(summary, Mapping):
         raise _missing_block_error("output1", resp)
     rows = resp.body.get("output2")
-    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+    if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output2", resp)
 
     as_of = datetime.now(_KST)
@@ -342,7 +342,7 @@ def fetch_futures_board_quotes(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+    if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output", resp)
 
     quotes = []
@@ -415,7 +415,7 @@ def fetch_derivative_margin_rates(
         )
         _raise_if_error(resp)
         page = resp.body.get("output")
-        if not isinstance(page, list):  # 빈 결과도 output 을 빈 배열로 준다 -> 부재/비배열은 손상
+        if not isinstance(page, (list, tuple)):  # 빈 결과도 output 을 빈 배열로 준다 -> 부재/비배열은 손상
             raise KISError(
                 "파생상품 증거금율 응답의 output 이 배열이 아니다.",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
@@ -578,7 +578,7 @@ def _fetch_minute_bars(
         )
         _raise_if_error(resp)
         rows = resp.body.get("output2")
-        if not isinstance(rows, list):  # 성공 응답인데 봉 배열 아님 -> fail-closed
+        if not isinstance(rows, (list, tuple)):  # 성공 응답인데 봉 배열 아님 -> fail-closed
             raise _missing_block_error("output2", resp)
         page = {f"{bar.timestamp:%H%M%S}": bar for bar in _parse_minute_bars(rows, code=code)}
         new_bars = {time: bar for time, bar in page.items() if time not in bar_by_time}

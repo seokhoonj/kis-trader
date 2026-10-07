@@ -396,7 +396,7 @@ def _fetch_day_ccnl(
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         page = resp.body.get("output1")
-        if not isinstance(page, list):
+        if not isinstance(page, (list, tuple)):
             raise KISError(
                 "파생 재조회 응답의 output1 이 리스트가 아니다 -- 부분/오응답으로 확정하지 않는다.",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
@@ -602,7 +602,7 @@ def _fetch_night_ccnl(
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         page = resp.body.get("output1")
-        if not isinstance(page, list):
+        if not isinstance(page, (list, tuple)):
             raise KISError(
                 "파생 야간 재조회 응답의 output1 이 리스트가 아니다 -- 부분/오응답으로 확정하지 않는다.",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,

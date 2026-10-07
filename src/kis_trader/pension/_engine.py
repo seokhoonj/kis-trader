@@ -186,7 +186,7 @@ def _walk_holdings(
 def _extract_summary(body: Mapping[str, Any], *, is_list: bool) -> Mapping[str, Any] | None:
     summary = body.get("output2")
     if is_list:
-        first = summary[0] if isinstance(summary, list) and summary else None
+        first = summary[0] if isinstance(summary, (list, tuple)) and summary else None
         return first if isinstance(first, Mapping) else None
     return summary if isinstance(summary, Mapping) else None
 

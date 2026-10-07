@@ -12,7 +12,7 @@ KIS URL/TR-ID:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime, time
 from typing import Any, Literal
 
@@ -239,7 +239,7 @@ def fetch_bars(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output1" if interval == "1m" else "output2")
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output1" if interval == "1m" else "output2", resp)
     bars = _parse_history_bars(rows, symbol=srs_cd, intraday=interval == "1m", resp=resp)
     return bars[-max_bars:]
@@ -317,7 +317,7 @@ def _history_params(
 
 
 def _parse_history_bars(
-    rows: list[object], *, symbol: str, intraday: bool, resp: RawResponse
+    rows: Sequence[object], *, symbol: str, intraday: bool, resp: RawResponse
 ) -> list[Bar]:
     bars: list[Bar] = []
     for row in rows:
@@ -487,7 +487,7 @@ def fetch_details(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output2")
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output2", resp)
     if len(rows) != len(normalized_codes) or not all(isinstance(row, Mapping) for row in rows):
         raise KISError(
@@ -582,7 +582,7 @@ def fetch_market_hours(
         )
         _raise_if_error(resp)
         page = resp.body.get("output")
-        if not isinstance(page, list):
+        if not isinstance(page, (list, tuple)):
             raise _missing_block_error("output", resp)
         if not all(isinstance(row, Mapping) for row in page):
             raise KISError("장운영시간 응답의 output 항목이 객체가 아니다.", raw=resp.body)

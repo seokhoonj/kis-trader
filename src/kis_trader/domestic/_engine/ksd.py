@@ -10,7 +10,7 @@ KIS URL/TR-ID:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from datetime import date, datetime
 from typing import Any, Literal, overload
 
@@ -94,7 +94,7 @@ def _parse_ksd_date(value: object, *, required: bool, name: str) -> date | None:
 
 
 def _rows(transport: Transport, *, path: str, tr: str, params: Mapping[str, str],
-          block: str = "output1") -> list[Mapping[str, Any]]:
+          block: str = "output1") -> Sequence[Mapping[str, Any]]:
     resp = transport.request(method="GET", path=path, tr_id=tr, params=dict(params),
                              idempotent=True)
     _raise_if_error(resp)

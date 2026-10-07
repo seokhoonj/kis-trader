@@ -643,7 +643,7 @@ def _extract_reserved_id(body: Mapping[str, Any]) -> str:
     """발주 응답에서 예약주문번호를 뽑는다. KIS 명세상 미국 예약발주(TTTT3014U/3016U) 응답의 output 은
     ``ODNO`` 하나뿐이며 이 값이 취소 시 OVRS_RSVN_ODNO 로 쓰인다. 다건이면 특정 불가라 빈 문자열."""
     out = body.get("output")
-    if isinstance(out, list):
+    if isinstance(out, (list, tuple)):
         if len(out) != 1:
             return ""
         out = out[0]
@@ -656,7 +656,7 @@ def _extract_asia_reservation(body: Mapping[str, Any]) -> tuple[str, str]:
     """아시아 발주 응답에서 (예약주문번호, 접수일자)를 뽑는다. KIS 명세상 TTTS3013U 응답 output 은
     ``OVRS_RSVN_ODNO`` + ``RSVN_ORD_RCIT_DT``. 부재/비객체/다건이면 특정 불가라 빈 문자열 쌍."""
     out = body.get("output")
-    if isinstance(out, list):
+    if isinstance(out, (list, tuple)):
         if len(out) != 1:
             return "", ""
         out = out[0]
@@ -671,7 +671,7 @@ def _extract_asia_reservation(body: Mapping[str, Any]) -> tuple[str, str]:
 def _extract_ovrs_rsvn_odno(body: Mapping[str, Any]) -> str:
     """취소 응답의 에코된 해외예약주문번호(output.OVRS_RSVN_ODNO). 부재/비객체면 빈 문자열."""
     out = body.get("output")
-    if isinstance(out, list):
+    if isinstance(out, (list, tuple)):
         out = out[0] if out else {}
     if isinstance(out, Mapping):
         return str(out.get("OVRS_RSVN_ODNO") or "").strip()

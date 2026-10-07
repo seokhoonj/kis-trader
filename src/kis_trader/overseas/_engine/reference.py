@@ -79,7 +79,7 @@ def fetch_period_rights(
         )
         _raise_if_error(resp)
         page = resp.body.get("output")
-        if not isinstance(page, list) or not all(isinstance(row, Mapping) for row in page):
+        if not isinstance(page, (list, tuple)) or not all(isinstance(row, Mapping) for row in page):
             raise _missing_block_error("output", resp)
         rows.extend(page)
         if resp.tr_cont not in {"F", "M"}:
@@ -131,7 +131,7 @@ def fetch_corporate_actions(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output1")
-    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+    if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output1", resp)
     return [OverseasCorporateAction(
         announced_date=_YYYYMMDD(row.get("anno_dt")), title=str(row.get("ca_title", "")).strip(),
@@ -168,7 +168,7 @@ def fetch_news(
         )
         _raise_if_error(resp)
         page = resp.body.get("outblock1")
-        if not isinstance(page, list) or not all(isinstance(row, Mapping) for row in page):
+        if not isinstance(page, (list, tuple)) or not all(isinstance(row, Mapping) for row in page):
             raise _missing_block_error("outblock1", resp)
         rows.extend(page)
         if resp.tr_cont not in {"F", "M"}:
@@ -203,7 +203,7 @@ def fetch_breaking_news(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+    if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output", resp)
     return [NewsHeadline(
         serial=str(row.get("cntt_usiq_srno", "")).strip(),
@@ -246,7 +246,7 @@ def fetch_collateral_stocks(
         )
         _raise_if_error(resp)
         page, summary = resp.body.get("output1"), resp.body.get("output2")
-        if not isinstance(page, list) or not all(isinstance(row, Mapping) for row in page):
+        if not isinstance(page, (list, tuple)) or not all(isinstance(row, Mapping) for row in page):
             raise _missing_block_error("output1", resp)
         if not isinstance(summary, Mapping):
             raise _missing_block_error("output2", resp)
@@ -312,7 +312,7 @@ def fetch_settlement_dates(
         )
         _raise_if_error(resp)
         page = resp.body.get("output")
-        if not isinstance(page, list):
+        if not isinstance(page, (list, tuple)):
             raise _missing_block_error("output", resp)
         if not all(isinstance(row, Mapping) for row in page):
             raise KISError("결제일자 응답의 output 항목이 객체가 아니다.", raw=resp.body)

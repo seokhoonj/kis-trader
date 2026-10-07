@@ -8,7 +8,7 @@ KIS 표준 응답은 ``rt_cd``/``msg_cd``/``msg1`` 봉투에 ``output`` 블록(�
 
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
+from collections.abc import Callable, Mapping, Sequence
 from typing import Any
 
 from ..errors import KISError
@@ -40,12 +40,14 @@ def _missing_block_error(block: str, resp: RawResponse) -> KISError:
     )
 
 
-def _require_mapping_rows(block: str, resp: RawResponse) -> list[Mapping[str, Any]]:
-    """성공 응답에서 행 배열 블록을 꺼내 검증한다. 블록이 없거나 리스트가 아니면
+def _require_mapping_rows(
+    block: str, resp: RawResponse
+) -> Sequence[Mapping[str, Any]]:
+    """성공 응답에서 행 배열 블록을 꺼내 검증한다. 블록이 없거나 배열(list/tuple)이 아니면
     :func:`_missing_block_error`, 원소 중 매핑이 아닌 것이 있으면(예: output=[None]/[1])
     fail-closed(:class:`KISError`). 정상 페이로드는 그대로 통과한다."""
     rows = resp.body.get(block)
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         raise _missing_block_error(block, resp)
     for row in rows:
         if not isinstance(row, Mapping):

@@ -173,7 +173,7 @@ def _fetch_index_minute_bars(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output2")
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output2", resp)
     bars = _parse_index_minute_bars(rows, code=code, resp=resp)
     if start_date is not None:
@@ -257,7 +257,7 @@ def fetch_index_intraday(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list):             # 성공 응답인데 배열 아님 -> fail-closed
+    if not isinstance(rows, (list, tuple)):             # 성공 응답인데 배열 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return _parse_index_intraday(rows, date_text=_today_kst())
 
@@ -336,7 +336,7 @@ def fetch_index_daily_history(
     rows = resp.body.get("output2")
     if not isinstance(snapshot_row, Mapping):
         raise _missing_block_error("output1", resp)
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output2", resp)
     points: list[IndexDailyPoint] = []
     for row in rows:
@@ -478,7 +478,7 @@ def fetch_expected_index_snapshot(
     rows = resp.body.get("output2")
     if not isinstance(summary_row, Mapping):
         raise _missing_block_error("output1", resp)
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output2", resp)
 
     def parse_quote(row: Mapping[str, Any], *, fallback_code: str) -> ExpectedIndexQuote:
@@ -571,7 +571,7 @@ def fetch_index_categories(transport: Transport, *, code: str) -> IndexCategorie
     rows = resp.body.get("output2")             # output2=하위 업종 목록
     if not isinstance(summary_row, Mapping):    # 성공 응답인데 객체 아님 -> fail-closed
         raise _missing_block_error("output1", resp)
-    if not isinstance(rows, list):              # 성공 응답인데 목록 아님 -> fail-closed
+    if not isinstance(rows, (list, tuple)):     # 성공 응답인데 목록 아님 -> fail-closed
         raise _missing_block_error("output2", resp)
     return IndexCategories(
         summary=_parse_index_quote(summary_row, code=code, as_of=datetime.now(_KST)),

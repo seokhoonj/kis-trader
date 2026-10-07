@@ -119,7 +119,7 @@ def search_stocks(
     output1, rows = resp.body.get("output1"), resp.body.get("output2")
     if not isinstance(output1, Mapping):
         raise _missing_block_error("output1", resp)
-    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+    if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output2", resp)
     matches: list[OverseasStockSearchMatch] = []
     for row in rows:
@@ -334,7 +334,7 @@ def fetch_bars(
         )
         _raise_if_error(resp)
         rows = resp.body.get("output2")
-        if not isinstance(rows, list):  # 성공 응답인데 바 배열 아님 -> fail-closed
+        if not isinstance(rows, (list, tuple)):  # 성공 응답인데 바 배열 아님 -> fail-closed
             raise _missing_block_error("output2", resp)
         page = {f"{bar.timestamp:%Y%m%d}": bar for bar in _parse_bars(rows, symbol=symbol)}
         fresh = {day: bar for day, bar in page.items() if day not in bar_by_date}
@@ -379,7 +379,7 @@ def _fetch_minute_bars(
         )
         _raise_if_error(resp)
         rows = resp.body.get("output2")
-        if not isinstance(rows, list):  # 성공 응답인데 봉 배열 아님 -> fail-closed
+        if not isinstance(rows, (list, tuple)):  # 성공 응답인데 봉 배열 아님 -> fail-closed
             raise _missing_block_error("output2", resp)
         page = _parse_minute_bars(rows, symbol=symbol)
         keyed = {f"{day}{moment}": bar for day, moment, bar in page}
@@ -491,7 +491,7 @@ def fetch_trades(transport: Transport, *, symbol: str, exchange: str) -> list[Tr
     )
     _raise_if_error(resp)
     rows = resp.body.get("output2")     # 체결 행은 output2, output1 은 메타(레코드수 등)
-    if not isinstance(rows, list):     # 성공 응답인데 배열 아님 -> fail-closed
+    if not isinstance(rows, (list, tuple)):     # 성공 응답인데 배열 아님 -> fail-closed
         raise _missing_block_error("output2", resp)
     return _parse_trades(rows, symbol=symbol, today=_today_kst())
 
@@ -578,7 +578,7 @@ def fetch_industries(
     )
     _raise_if_error(resp)
     page = resp.body.get("output2")
-    if not isinstance(page, list):
+    if not isinstance(page, (list, tuple)):
         raise _missing_block_error("output2", resp)
     if not all(isinstance(row, Mapping) for row in page):
         raise KISError("해외 업종 코드 응답의 output2 항목이 객체가 아니다.", raw=resp.body)
@@ -639,7 +639,7 @@ def fetch_industry_stocks(
     rows = resp.body.get("output2")
     if not isinstance(header, Mapping):
         raise _missing_block_error("output1", resp)
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output2", resp)
     stocks: list[OverseasIndustryStock] = []
     for row in rows:

@@ -445,7 +445,7 @@ def fetch_dividend(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list):             # 성공 응답인데 배열 아님 -> fail-closed
+    if not isinstance(rows, (list, tuple)):             # 성공 응답인데 배열 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return _parse_dividend(rows)
 
@@ -497,7 +497,7 @@ def fetch_short_sale(transport: Transport, *, window: str, market: str) -> list[
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list):             # 성공 응답인데 배열 아님 -> fail-closed
+    if not isinstance(rows, (list, tuple)):             # 성공 응답인데 배열 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return _parse_short_sale(rows)
 
@@ -555,7 +555,7 @@ def fetch_credit_balance(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output2")            # output1=헤더, output2=종목 목록
-    if not isinstance(rows, list):             # 성공 응답인데 목록 아님 -> fail-closed
+    if not isinstance(rows, (list, tuple)):             # 성공 응답인데 목록 아님 -> fail-closed
         raise _missing_block_error("output2", resp)
     return _parse_credit_balance(rows)
 
@@ -624,7 +624,7 @@ def fetch_near_high_low(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list):             # 성공 응답인데 목록 아님 -> fail-closed
+    if not isinstance(rows, (list, tuple)):             # 성공 응답인데 목록 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return _parse_near_high_low(rows)
 
@@ -679,7 +679,7 @@ def _fundamentals_params(
 
 def _fetch_rows(
     transport: Transport, *, path: str, tr_id: str, params: Mapping[str, str], output_key: str
-) -> list[Mapping[str, Any]]:
+) -> Sequence[Mapping[str, Any]]:
     """GET 요청 + 봉투 오류 조기종료 + 행 배열 블록 검증(:func:`_require_mapping_rows`)까지 한 번에.
     순위 필드 없이 응답 순서로 순번을 매기는 조회들이 공유한다."""
     resp = transport.request(method="GET", path=path, tr_id=tr_id, params=params, idempotent=True)
@@ -693,7 +693,7 @@ def _fetch_ranking(
     resp = transport.request(method="GET", path=path, tr_id=tr, params=params, idempotent=True)
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list):  # 성공 응답인데 순위 배열 아님 -> fail-closed
+    if not isinstance(rows, (list, tuple)):  # 성공 응답인데 순위 배열 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return _parse_ranked(rows)
 
@@ -904,7 +904,7 @@ def fetch_after_hours_change(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output2")
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output2", resp)
     return _parse_after_hours(
         rows, price_key="ovtm_untp_prpr", change_key="ovtm_untp_prdy_vrss",
@@ -930,7 +930,7 @@ def fetch_after_hours_volume(transport: Transport, *, market: str) -> list[After
     )
     _raise_if_error(resp)
     rows = resp.body.get("output2")
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output2", resp)
     return _parse_after_hours(
         rows, price_key="ovtm_untp_prpr", change_key="ovtm_untp_prdy_vrss",
@@ -958,7 +958,7 @@ def fetch_after_hours_expected_change(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output", resp)
     return _parse_after_hours(
         rows, price_key="ovtm_untp_antc_cnpr", change_key="ovtm_untp_antc_cntg_vrss",

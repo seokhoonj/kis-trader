@@ -412,7 +412,7 @@ def _send_change(
     # nrml_prcs_yn 위치가 KIS 응답예시로 확정되지 않아(layout=output 하위) output 과 본문 최상위를
     # 모두 본다 -- 레이아웃과 응답예시가 어긋날 때를 헤지.
     output = resp.body.get("output")
-    if isinstance(output, list):
+    if isinstance(output, (list, tuple)):
         # 정정/취소 응답의 output 은 단일 확인 건이다. 다건이면(예상밖) 어느 행이 이 요청의 결과인지
         # 특정할 수 없어 output[0] 을 확인으로 읽으면 오확정 위험 -- fail-closed 로 수동 확인을 안내한다.
         if len(output) > 1:
@@ -489,7 +489,7 @@ def _extract_sequence(body: Mapping[str, Any]) -> str:
     """발주 응답에서 예약주문순번을 뽑는다. KIS 명세상 output 은 단일 건 -- 다건이면(예상밖) 특정 불가라
     빈 문자열로 취급해 발주 경로의 '순번 없음 -> in-flight 유지·raise' 로 흘린다(임의 귀속 금지)."""
     out = body.get("output")
-    if isinstance(out, list):
+    if isinstance(out, (list, tuple)):
         if len(out) != 1:
             return ""
         out = out[0]

@@ -289,7 +289,7 @@ def fetch_etf_components(transport: Transport, *, symbol: str) -> ETFComponents:
     rows = resp.body.get("output2")            # output2=구성종목 목록
     if not isinstance(summary_row, Mapping):   # 성공 응답인데 객체 아님 -> fail-closed
         raise _missing_block_error("output1", resp)
-    if not isinstance(rows, list):             # 성공 응답인데 목록 아님 -> fail-closed
+    if not isinstance(rows, (list, tuple)):    # 성공 응답인데 목록 아님 -> fail-closed
         raise _missing_block_error("output2", resp)
     return ETFComponents(
         summary=_parse_etf_components_summary(summary_row),
@@ -373,7 +373,7 @@ def fetch_etf_nav_history(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list):             # 성공 응답인데 배열 아님 -> fail-closed
+    if not isinstance(rows, (list, tuple)):             # 성공 응답인데 배열 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return _parse_etf_nav_history(rows)
 

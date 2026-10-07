@@ -176,6 +176,33 @@ def test_get_builds_request_and_exposes_tr_cont(tmp_path: Any) -> None:
     assert response.tr_cont == "M"
 
 
+def test_response_body_is_deeply_immutable(tmp_path: Any) -> None:
+    """``RawResponse.body`` 는 꼭대기뿐 아니라 중첩 구조까지 변경 불가여야 한다(얕은 freeze 회귀 방지).
+
+    벤더 원본을 소비자에게 그대로 넘기므로, 중첩 리스트/매핑이 in-place 로 바뀌면 캐시된 응답이
+    조용히 오염된다. 리스트는 튜플로, 매핑은 읽기전용으로 얼되 값 동치는 보존한다."""
+    payload = {
+        "rt_cd": "0", "msg_cd": "OK", "msg1": "정상",
+        "output2": [{"stck_prpr": "100"}, {"stck_prpr": "200"}],
+    }
+
+    def send(method: str, url: str, **kwargs: Any) -> tuple[int, Mapping[str, str], Mapping[str, Any]]:
+        return 200, {"tr_cont": ""}, payload
+
+    response = _transport(tmp_path, send).request(
+        method="GET", path="/uapi/test", tr_id="TR001", params={}, idempotent=True,
+    )
+
+    rows = response.body["output2"]
+    assert isinstance(rows, tuple)                 # 중첩 리스트 -> 튜플
+    assert isinstance(rows[0], Mapping) and not isinstance(rows[0], dict)  # 중첩 매핑 -> 읽기전용
+    with pytest.raises(TypeError):
+        response.body["output2"] = []              # 꼭대기 변경 불가
+    with pytest.raises(TypeError):
+        rows[0]["stck_prpr"] = "999"               # type: ignore[index]  # 중첩 변경 불가
+    assert [dict(row) for row in rows] == payload["output2"]  # 값 동치 보존
+
+
 def test_tr_cont_is_forwarded_to_request_header(tmp_path: Any) -> None:
     captured: list[str] = []
 

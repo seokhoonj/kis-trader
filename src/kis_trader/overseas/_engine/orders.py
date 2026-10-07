@@ -385,7 +385,7 @@ def _fetch_ccnl(
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         page = resp.body.get("output")
-        rows.extend(page if isinstance(page, list) else [])
+        rows.extend(page if isinstance(page, (list, tuple)) else [])
         prev_nk = ctx_nk
         ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()

@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 
 from ..._internal._datetime import _parse_kst_date, _parse_kst_time
 from ..._internal._response import (
@@ -63,7 +63,7 @@ def fetch_saved_screens(transport: Transport, *, user_id: str) -> list[SavedScre
         return []
     _raise_if_error(resp)
     rows = resp.body.get("output2")
-    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+    if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output2", resp)
     return [SavedScreen(
         user_id=str(row.get("user_id", "")).strip(), sequence=str(row.get("seq", "")).strip(),
@@ -85,7 +85,7 @@ def fetch_saved_screen_stocks(
         return []
     _raise_if_error(resp)
     rows = resp.body.get("output2")
-    if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+    if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output2", resp)
     stocks = []
     for row in rows:
@@ -116,10 +116,12 @@ def fetch_saved_screen_stocks(
     return stocks
 
 
-def _rows(value: object, block: str, resp: RawResponse) -> list[Mapping[str, object]]:
+def _rows(
+    value: object, block: str, resp: RawResponse
+) -> Sequence[Mapping[str, object]]:
     if isinstance(value, Mapping):
         return [value]
-    if isinstance(value, list) and all(isinstance(row, Mapping) for row in value):
+    if isinstance(value, (list, tuple)) and all(isinstance(row, Mapping) for row in value):
         return value
     raise _missing_block_error(block, resp)
 

@@ -59,7 +59,7 @@ def collect_period_bars(
         )
         _raise_if_error(resp)
         rows = resp.body.get("output2")
-        if not isinstance(rows, list):  # 성공 응답인데 바 배열 아님 -> fail-closed
+        if not isinstance(rows, (list, tuple)):  # 성공 응답인데 바 배열 아님 -> fail-closed
             raise _missing_block_error("output2", resp)
         page_by_date = {f"{bar.timestamp:%Y%m%d}": bar for bar in parse_rows(rows)}
         if not page_by_date:

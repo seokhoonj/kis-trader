@@ -221,7 +221,7 @@ def _parse_balance(summary: Mapping[str, Any]) -> DomesticBalance:
 def _extract_summary(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
     """잔고 요약(output2) -- KIS가 '길이 1 배열'로도, 단일 객체로도 준다. 비매핑이면 None."""
     summary = body.get("output2")
-    if isinstance(summary, list):
+    if isinstance(summary, (list, tuple)):
         first = summary[0] if summary else None
         return first if isinstance(first, Mapping) else None
     if isinstance(summary, Mapping):
@@ -384,7 +384,7 @@ def fetch_trade_profits(
             candidate = resp.body.get("output2")
             summary = candidate if isinstance(candidate, Mapping) else None
         page = resp.body.get("output1")
-        if not isinstance(page, list):  # 빈 내역도 배열 -> 부재/비배열은 손상
+        if not isinstance(page, (list, tuple)):  # 빈 내역도 배열 -> 부재/비배열은 손상
             raise KISError(
                 "매매손익 응답의 output1 이 배열이 아니다.",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
@@ -476,7 +476,7 @@ def fetch_daily_profits(
             candidate = resp.body.get("output2")
             summary = candidate if isinstance(candidate, Mapping) else None
         page = resp.body.get("output1")
-        if not isinstance(page, list):
+        if not isinstance(page, (list, tuple)):
             raise KISError(
                 "일별손익 응답의 output1 이 배열이 아니다.",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
@@ -697,7 +697,7 @@ def fetch_realized_profit_balance(
         )
         _raise_if_error(resp)
         page = resp.body.get("output1")
-        if not isinstance(page, list):
+        if not isinstance(page, (list, tuple)):
             raise KISError(
                 "실현손익 잔고 응답의 output1 이 배열이 아니다.",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
@@ -810,7 +810,7 @@ def _first_summary(block: object) -> Mapping[str, Any] | None:
     """output2 가 객체배열이면 첫 원소를, 객체면 그대로. 비면 None."""
     if isinstance(block, Mapping):
         return block
-    if isinstance(block, list) and block and isinstance(block[0], Mapping):
+    if isinstance(block, (list, tuple)) and block and isinstance(block[0], Mapping):
         return block[0]
     return None
 

@@ -188,7 +188,7 @@ def fetch_night_balance(
         if summary is None:  # 계좌 요약은 첫 페이지에서(계좌 단위라 페이지 불변)
             summary = _extract_summary(resp.body)
         page = resp.body.get("output1")
-        if not isinstance(page, list):  # 빈 계좌도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
+        if not isinstance(page, (list, tuple)):  # 빈 계좌도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
             raise KISError(
                 "(야간)선물옵션 잔고현황 응답의 output1 이 보유내역 배열이 아니다.",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
@@ -432,7 +432,7 @@ def fetch_commissions(
         if summary is None:  # 합계 요약은 첫 페이지에서(기간 단위라 페이지 불변)
             summary = _extract_summary(resp.body)
         page = resp.body.get("output1")
-        if not isinstance(page, list):  # 빈 결과도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
+        if not isinstance(page, (list, tuple)):  # 빈 결과도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
             raise KISError(
                 "선물옵션 기간약정수수료일별 응답의 output1 이 일별 내역 배열이 아니다.",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
@@ -731,7 +731,7 @@ def _parse_positions(rows: list[Mapping[str, Any]]) -> list[DerivativePosition]:
 def _extract_summary(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
     """계좌 요약(output2) -- KIS가 '길이 1 배열'로도, 단일 객체로도 준다. 비매핑이면 None."""
     summary = body.get("output2")
-    if isinstance(summary, list):
+    if isinstance(summary, (list, tuple)):
         first = summary[0] if summary else None
         return first if isinstance(first, Mapping) else None
     if isinstance(summary, Mapping):
@@ -743,7 +743,7 @@ def _extract_first_row(body: Mapping[str, Any], key: str) -> Mapping[str, Any] |
     """``key`` 블록의 첫 행 -- KIS가 '길이 1 배열'로 주는 상세 블록에서 [0]을 꺼낸다.
     배열이 아니거나 비었거나 첫 원소가 매핑이 아니면 None(fail-closed 판정은 호출부)."""
     block = body.get(key)
-    if isinstance(block, list) and block and isinstance(block[0], Mapping):
+    if isinstance(block, (list, tuple)) and block and isinstance(block[0], Mapping):
         return block[0]
     return None
 
@@ -837,7 +837,7 @@ def fetch_open_orders(
         )
         _raise_if_error(resp)
         page = resp.body.get("output1")
-        if not isinstance(page, list):  # 빈 결과도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
+        if not isinstance(page, (list, tuple)):  # 빈 결과도 output1 을 빈 배열로 준다 -> 부재/비배열은 손상
             raise KISError(
                 "선물옵션 미체결내역 응답의 output1 이 주문 배열이 아니다.",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,

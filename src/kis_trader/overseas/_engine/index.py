@@ -111,7 +111,7 @@ def _fetch_minute_bars(
     rows = resp.body.get("output2")
     if not isinstance(resp.body.get("output1"), Mapping):
         raise _missing_block_error("output1", resp)
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output2", resp)
     bars = _parse_minute_bars(rows, symbol=symbol, resp=resp)
     if start_date is not None:

@@ -92,13 +92,15 @@ def fetch_earnings_estimate(transport: Transport, *, symbol: str) -> EarningsEst
     period_rows = resp.body.get("output4")
     if not isinstance(header, Mapping):
         raise _missing_block_error("output1", resp)
-    if not isinstance(income_rows, list) or len(income_rows) != len(_ESTIMATE_INCOME_METRICS):
+    if not isinstance(income_rows, (list, tuple)) or len(income_rows) != len(
+        _ESTIMATE_INCOME_METRICS
+    ):
         raise _missing_block_error("output2(6 rows)", resp)
-    if not isinstance(indicator_rows, list) or len(indicator_rows) != len(
+    if not isinstance(indicator_rows, (list, tuple)) or len(indicator_rows) != len(
         _ESTIMATE_INDICATOR_METRICS
     ):
         raise _missing_block_error("output3(8 rows)", resp)
-    if not isinstance(period_rows, list) or not 1 <= len(period_rows) <= 5:
+    if not isinstance(period_rows, (list, tuple)) or not 1 <= len(period_rows) <= 5:
         raise _missing_block_error("output4(1..5 rows)", resp)
     if not all(isinstance(row, Mapping) for row in [*income_rows, *indicator_rows, *period_rows]):
         raise _missing_block_error("estimate row", resp)
@@ -168,7 +170,7 @@ def _rows(transport: Transport, *, path: str, tr: str, params: Mapping[str, str]
                              idempotent=True)
     _raise_if_error(resp)
     rows = resp.body.get(block)
-    if not isinstance(rows, list):
+    if not isinstance(rows, (list, tuple)):
         raise _missing_block_error(block, resp)
     return rows
 

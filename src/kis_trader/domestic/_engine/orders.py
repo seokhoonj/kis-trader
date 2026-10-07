@@ -644,7 +644,7 @@ def _fetch_daily_orders(
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
             )
         page = resp.body.get("output1")
-        if not isinstance(page, list):
+        if not isinstance(page, (list, tuple)):
             # 성공 응답인데 output1 이 리스트가 아니면 빈 결과로 오인하지 않는다 -- '미접수'로 단정하면
             # 이중체결 위험. fail-closed 로 올려 재시도/수동확인을 유도한다.
             raise KISError(

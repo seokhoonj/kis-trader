@@ -552,7 +552,7 @@ def _fetch_trend_rows(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list):             # 성공 응답인데 배열 아님 -> fail-closed
+    if not isinstance(rows, (list, tuple)):             # 성공 응답인데 배열 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return rows
 

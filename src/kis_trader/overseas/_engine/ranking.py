@@ -11,7 +11,7 @@ KIS URL/TR-ID:
 
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
 from typing import Any
 
 from ..._internal._response import (
@@ -45,7 +45,9 @@ _FLUCT_GUBN = {"risers": "1", "fallers": "0"}
 _HIGHLOW_GUBN = {"high": "1", "low": "0"}
 
 
-def _parse_ranking(rows: list[Mapping[str, Any]]) -> list[OverseasRankedStock]:
+def _parse_ranking(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[OverseasRankedStock]:
     ranked: list[OverseasRankedStock] = []
     for row in rows:
         symbol = str(row.get("symb", "")).strip()
@@ -78,7 +80,7 @@ def _fetch_ranking(
     )
     _raise_if_error(resp)
     rows = resp.body.get("output2")
-    if not isinstance(rows, list):             # 성공 응답인데 배열 아님 -> fail-closed
+    if not isinstance(rows, (list, tuple)):             # 성공 응답인데 배열 아님 -> fail-closed
         raise _missing_block_error("output2", resp)
     return _parse_ranking(rows)
 

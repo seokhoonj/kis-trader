@@ -166,7 +166,7 @@ def fetch_trades(transport: Transport, *, code: str) -> list[Trade]:
     )
     _raise_if_error(resp)
     rows = resp.body.get("output")
-    if not isinstance(rows, list):             # 성공 응답인데 체결 배열 아님 -> fail-closed
+    if not isinstance(rows, (list, tuple)):             # 성공 응답인데 체결 배열 아님 -> fail-closed
         raise _missing_block_error("output", resp)
     return _parse_trades(rows, code=code, as_of=datetime.now(_KST))
 
@@ -220,7 +220,7 @@ def fetch_daily_prices(transport: Transport, *, code: str) -> list[BondDailyPric
         )
         _raise_if_error(resp)
         rows = resp.body.get("output")
-        if not isinstance(rows, list) or not all(isinstance(row, Mapping) for row in rows):
+        if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
             raise _missing_block_error("output", resp)
         new_date_count = 0
         for row in rows:
@@ -681,7 +681,7 @@ def fetch_bond_fills(
         if summary is None:  # 합계는 output2, 기간 단위라 첫 페이지로 완결
             summary = _bond_summary(resp.body.get("output2"))
         page = resp.body.get("output1")  # 실서버는 체결 행을 output1 로 준다(레이아웃과 스왑)
-        if not isinstance(page, list):  # 빈 내역도 배열 -> 부재/비배열은 손상
+        if not isinstance(page, (list, tuple)):  # 빈 내역도 배열 -> 부재/비배열은 손상
             raise KISError(
                 "장내채권 일별 주문체결조회 응답의 output1 이 체결 행 배열이 아니다.",
                 rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
@@ -765,7 +765,7 @@ def _bond_summary(block: object) -> Mapping[str, Any] | None:
     """단일 요약 블록 -- KIS 가 단일 객체로도, '길이 1 배열'로도 준다. 비매핑이면 None."""
     if isinstance(block, Mapping):
         return block
-    if isinstance(block, list) and block and isinstance(block[0], Mapping):
+    if isinstance(block, (list, tuple)) and block and isinstance(block[0], Mapping):
         return block[0]
     return None
 
