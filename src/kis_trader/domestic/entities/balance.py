@@ -26,7 +26,7 @@ class Position:
     """
 
     symbol: str
-    security_name: str
+    name: str
     currency: str
     quantity: Decimal
     sellable_quantity: Decimal

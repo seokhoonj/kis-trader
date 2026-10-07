@@ -844,7 +844,7 @@ def test_order_cancel_reserved_overseas_execute_allows_paper_and_routes(monkeypa
         ["--profile", "paper", "order", "cancel-reserved", "US123", "--region", "overseas",
          "--receipt-date", "20240131", "--execute", "paper", "--yes"]), is_tty=False)
     assert kis.log[-1] == ("ovs_cancel_reserved_order", "US123", "20240131")
-    assert result["cancelled"] is True and result["region"] == "overseas"
+    assert result["canceled"] is True and result["region"] == "overseas"
     assert result["reserved_order_id"] == "US123" and result["receipt_date"] == "20240131"
 
 

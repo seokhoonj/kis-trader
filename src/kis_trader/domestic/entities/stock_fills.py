@@ -25,7 +25,7 @@ class StockFill:
 
     ``order_quantity`` / ``order_price`` 는 주문, ``filled_quantity`` / ``average_price`` /
     ``filled_amount`` 는 체결, ``unfilled_quantity`` 는 잔여(미체결)수량, ``rejected_quantity`` 는
-    거부수량이다. ``cancelled`` 는 취소여부. ``side`` 는 매수/매도.
+    거부수량이다. ``canceled`` 는 취소여부. ``side`` 는 매수/매도.
     """
 
     order_date: date | None           # 주문일자(ord_dt)
@@ -43,7 +43,7 @@ class StockFill:
     filled_amount: Decimal            # 총체결금액(tot_ccld_amt)
     unfilled_quantity: Decimal        # 잔여수량(rmn_qty)
     rejected_quantity: Decimal        # 거부수량(rjct_qty)
-    cancelled: bool                   # 취소여부(cncl_yn)
+    canceled: bool                    # 취소여부(cncl_yn)
     branch_number: str                # 주문채번지점번호(ord_gno_brno)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

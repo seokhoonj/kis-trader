@@ -137,7 +137,7 @@ class EarningsEstimate:
     """
 
     symbol: str
-    security_name: str
+    name: str
     analyst_name: str
     estimate_date: date
     recommendation: str

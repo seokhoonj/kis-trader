@@ -72,7 +72,7 @@ class BrokerTradeTick:
 
     timestamp: datetime
     member_name: str
-    symbol_name: str
+    name: str
     price: Decimal
     change: Decimal
     execution_volume: int

@@ -189,6 +189,13 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   other realtime entity uses). The `reference.rights(date_basis=...)` /
   `reference.collateral_stocks(sort=...)` closed-choice parameters are now typed `Literal`
   (behavior unchanged).
+- Naming unification (council P2): `DomesticReservedOrder.received_date` → `receipt_date`
+  (the `rsvn_ord_rcit_dt` concept is `receipt_date` on `ExecutionReport`, the store, the
+  overseas reserved order, and the CLI); `Position.security_name` /
+  `SellableQuantity.security_name` / `EarningsEstimate.security_name` and
+  `BrokerTradeTick.symbol_name` → `name` (the `prdt_name` / `hts_kor_isnm` family is `name`
+  on ~25 other entities); `StockFill.cancelled` → `canceled` (US spelling, matching
+  `OrderStatus.CANCELED` and `OverseasReservedOrder.canceled`).
 - Closed-choice typing (council P2): `TopViewedStock.market` is now `Literal["KOSPI","KOSDAQ"]`
   and the engine decodes the raw `J`/`Q` wire code to `KOSPI`/`KOSDAQ` (fail-closed on an
   unknown code; the raw value stays in `_raw`) instead of surfacing the magic code;

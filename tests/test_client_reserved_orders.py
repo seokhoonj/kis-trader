@@ -64,7 +64,7 @@ def test_reserved_orders_parses_ledger_row():
     assert isinstance(o, DomesticReservedOrder)
     assert o.sequence == "42401"
     assert o.order_date == date(2022, 5, 23)
-    assert o.received_date == date(2022, 5, 20)
+    assert o.receipt_date == date(2022, 5, 20)
     assert o.symbol == "005940"
     assert o.name == "NH투자증권"
     assert o.side == "buy"                          # 02 -> buy

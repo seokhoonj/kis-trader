@@ -419,7 +419,7 @@ def cmd_cancel_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None 
         _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
         account.overseas.cancel_reserved_order(args.sequence, receipt_date=args.receipt_date)
         return {"reserved_order_id": args.sequence, "region": "overseas",
-                "receipt_date": args.receipt_date, "cancelled": True}
+                "receipt_date": args.receipt_date, "canceled": True}
     # 국내 예약 취소(실전전용).
     if args.receipt_date is not None:
         raise CliConfigError("--receipt-date 는 해외 예약 취소 전용입니다(국내는 --order-date).")
@@ -432,7 +432,7 @@ def cmd_cancel_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None 
     _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
     extra = {} if args.order_date is None else {"order_date": args.order_date}
     account.domestic.cancel_reserved_order(args.sequence, **extra)
-    return {"sequence": args.sequence, "order_date": args.order_date, "cancelled": True}
+    return {"sequence": args.sequence, "order_date": args.order_date, "canceled": True}
 
 
 def cmd_modify_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:

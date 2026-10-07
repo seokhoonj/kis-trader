@@ -158,7 +158,7 @@ def test_positions_parses_and_skips_padding():
     assert [p.symbol for p in positions] == ["005930"]
     holding = positions[0]
     assert isinstance(holding, Position)
-    assert holding.security_name == "삼성전자"
+    assert holding.name == "삼성전자"
     assert holding.quantity == Decimal(10)
     assert holding.average_purchase_price == Decimal(70000)
     assert holding.market_value == Decimal(715000)

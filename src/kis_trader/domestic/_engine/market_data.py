@@ -833,7 +833,7 @@ def fetch_broker_trade_ticks(
         ticks.append(BrokerTradeTick(
             timestamp=_parse_intraday_timestamp(str(row.get("bsop_hour", "")).strip(), as_of),
             member_name=str(row.get("mbcr_name", "")).strip(),
-            symbol_name=str(row.get("hts_kor_isnm", "")).strip(),
+            name=str(row.get("hts_kor_isnm", "")).strip(),
             price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
             change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
             execution_volume=required_int(row.get("cntg_vol"), "cntg_vol"),

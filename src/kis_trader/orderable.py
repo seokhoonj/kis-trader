@@ -48,7 +48,7 @@ class SellableQuantity:
     """
 
     symbol: str
-    security_name: str
+    name: str
     quantity: Decimal
     sellable_quantity: Decimal
     _raw: Mapping[str, Any] = field(

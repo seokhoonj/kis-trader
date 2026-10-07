@@ -188,7 +188,7 @@ def _parse_positions(rows: list[Mapping[str, Any]]) -> list[Position]:
             # 파싱 실패면 여전히 예외). 종목 식별은 위의 빈 pdno 가드가 이미 처리.
             Position(
                 symbol=symbol,
-                security_name=str(row.get("prdt_name", "")).strip(),
+                name=str(row.get("prdt_name", "")).strip(),
                 currency="KRW",
                 quantity=field_decimal_or_zero(row.get("hldg_qty"), "hldg_qty"),
                 sellable_quantity=field_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
@@ -341,7 +341,7 @@ def _parse_buyable(output: Mapping[str, Any], *, symbol: str) -> DomesticBuyable
 def _parse_sellable(output1: Mapping[str, Any], *, symbol: str) -> SellableQuantity:
     return SellableQuantity(
         symbol=symbol,
-        security_name=str(output1.get("prdt_name", "")).strip(),
+        name=str(output1.get("prdt_name", "")).strip(),
         quantity=field_decimal_or_zero(output1.get("cblc_qty"), "cblc_qty"),
         sellable_quantity=field_decimal_or_zero(output1.get("ord_psbl_qty"), "ord_psbl_qty"),
         _raw=output1,
@@ -603,7 +603,7 @@ def _parse_stock_fills(rows: list[Mapping[str, Any]]) -> list[StockFill]:
                 filled_amount=field_decimal_or_zero(row.get("tot_ccld_amt"), "tot_ccld_amt"),
                 unfilled_quantity=field_decimal_or_zero(row.get("rmn_qty"), "rmn_qty"),
                 rejected_quantity=field_decimal_or_zero(row.get("rjct_qty"), "rjct_qty"),
-                cancelled=str(row.get("cncl_yn", "")).strip().upper() == "Y",
+                canceled=str(row.get("cncl_yn", "")).strip().upper() == "Y",
                 branch_number=str(row.get("ord_gno_brno", "")).strip(),
                 _raw=row,
             )

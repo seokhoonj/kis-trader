@@ -194,7 +194,7 @@ def _extract_summary(body: Mapping[str, Any], *, is_list: bool) -> Mapping[str, 
 def _parse_position(row: Mapping[str, Any], *, sellable_key: str, pnl_rate_key: str) -> Position:
     return Position(
         symbol=str(row.get("pdno", "")).strip(),
-        security_name=str(row.get("prdt_name", "")).strip(),
+        name=str(row.get("prdt_name", "")).strip(),
         currency="KRW",
         quantity=_decimal_or_zero(row, "hldg_qty"),
         sellable_quantity=_decimal_or_zero(row, sellable_key),

@@ -125,7 +125,7 @@ def fetch_earnings_estimate(transport: Transport, *, symbol: str) -> EarningsEst
     date_text = str(header.get("estdate", "")).strip()
     return EarningsEstimate(
         symbol=symbol,
-        security_name=str(header.get("item_kor_nm", "")).strip(),
+        name=str(header.get("item_kor_nm", "")).strip(),
         analyst_name=str(header.get("name1", "")).strip(),
         estimate_date=_parse_kst_date(date_text),
         recommendation=str(header.get("rcmd_name", "")).strip(),

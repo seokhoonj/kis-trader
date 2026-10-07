@@ -505,7 +505,7 @@ def _parse_reserved(row: Mapping[str, Any]) -> DomesticReservedOrder:
     return DomesticReservedOrder(
         sequence=str(row.get("rsvn_ord_seq", "")).strip(),
         order_date=_parse_date(row.get("rsvn_ord_ord_dt")),
-        received_date=_parse_date(row.get("rsvn_ord_rcit_dt")),
+        receipt_date=_parse_date(row.get("rsvn_ord_rcit_dt")),
         symbol=str(row.get("pdno", "")).strip(),
         name=str(row.get("kor_item_shtn_name", "")).strip(),
         side=_side_from_code(row.get("sll_buy_dvsn_cd")),

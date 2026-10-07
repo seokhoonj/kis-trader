@@ -99,7 +99,7 @@ def test_reserved_order_raw_is_deep_frozen() -> None:
 
     from kis_trader.reserved_order import DomesticReservedOrder
     ro = DomesticReservedOrder(
-        sequence="1", order_date=None, received_date=None, symbol="005930", name="삼성전자",
+        sequence="1", order_date=None, receipt_date=None, symbol="005930", name="삼성전자",
         side="buy", order_type_name="현금매수", reserved_quantity=Decimal(10),
         filled_quantity=Decimal(0), order_price=Decimal(70000), status="미처리",
         reject_reason="", executed_order_id="", reservation_end_date=None,

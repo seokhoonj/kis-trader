@@ -32,7 +32,7 @@ class DomesticReservedOrder:
 
     sequence: str                     # 예약주문순번(rsvn_ord_seq)
     order_date: date | None           # 예약주문주문일자(rsvn_ord_ord_dt) -- 집행 예정일
-    received_date: date | None        # 예약주문접수일자(rsvn_ord_rcit_dt)
+    receipt_date: date | None         # 예약주문접수일자(rsvn_ord_rcit_dt)
     symbol: str
     name: str
     side: Side                        # buy / sell

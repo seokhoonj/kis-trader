@@ -88,7 +88,7 @@ def test_fills_parses_rows_and_summary_and_routes():
     assert fill.order_quantity == Decimal(10)
     assert fill.filled_quantity == Decimal(10)
     assert fill.average_price == Decimal(70050)
-    assert fill.cancelled is False
+    assert fill.canceled is False
     call = fake.calls[0]
     assert call["path"] == _FILLS_PATH
     assert call["tr_id"] == "TTTC0081R"
@@ -190,4 +190,4 @@ def test_fills_paginates_two_pages():
 def test_fills_cancelled_flag():
     fake = FakeTransport(response=_resp(rows=[_row(cncl="Y")]))
     history = _fills(fake)(start="20240201", end="20240229")
-    assert history.fills[0].cancelled is True
+    assert history.fills[0].canceled is True
