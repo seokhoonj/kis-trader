@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from .._literals import Direction, FluctuationDirection
 from ._engine import ranking as overseas_ranking_api
 
 if TYPE_CHECKING:
@@ -44,10 +45,12 @@ class OverseasRankingQueries:
         """한 거래소의 시가총액 순위."""
         return overseas_ranking_api.fetch_by_market_cap(self._client.transport, exchange=exchange)
 
-    def by_change(self, *, exchange: str, top: str = "gainers") -> list[OverseasRankedStock]:
-        """한 거래소의 등락률 순위. ``top="gainers"`` 상승률 상위 / ``"losers"`` 하락률 상위."""
+    def by_change(
+        self, *, exchange: str, direction: Direction = "gainers"
+    ) -> list[OverseasRankedStock]:
+        """한 거래소의 등락률 순위. ``direction="gainers"`` 상승률 상위 / ``"losers"`` 하락률 상위."""
         return overseas_ranking_api.fetch_by_change(
-            self._client.transport, exchange=exchange, top=top
+            self._client.transport, exchange=exchange, direction=direction
         )
 
     def by_volume_surge(self, *, exchange: str) -> list[OverseasRankedStock]:
@@ -63,11 +66,11 @@ class OverseasRankingQueries:
         return overseas_ranking_api.fetch_by_turnover(self._client.transport, exchange=exchange)
 
     def by_price_fluctuation(
-        self, *, exchange: str, top: str = "risers"
+        self, *, exchange: str, direction: FluctuationDirection = "risers"
     ) -> list[OverseasRankedStock]:
-        """한 거래소의 가격 급등/급락 순위. ``top="risers"`` 급등 상위 / ``"fallers"`` 급락 상위."""
+        """한 거래소의 가격 급등/급락 순위. ``direction="risers"`` 급등 상위 / ``"fallers"`` 급락 상위."""
         return overseas_ranking_api.fetch_by_price_fluctuation(
-            self._client.transport, exchange=exchange, top=top
+            self._client.transport, exchange=exchange, direction=direction
         )
 
     def by_new_highlow(

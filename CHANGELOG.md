@@ -69,6 +69,13 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   wire TRs), so it is named for the asset class — matching the REST `OverseasDerivative*`
   vocabulary — rather than for one of the two instruments it carries.
 
+- Overseas ranking directions are now typed, matching the domestic ranking. The bare
+  `top: str` parameter is renamed to `direction` with a `Literal`: `ranking.by_change(...)`
+  takes `direction: Direction` (`"gainers"`/`"losers"`, the same `Direction` the domestic
+  ranking already uses), and `ranking.by_price_fluctuation(...)` takes
+  `direction: FluctuationDirection` (`"risers"`/`"fallers"`). The shared `Direction` literal
+  now lives in one place and `FluctuationDirection` is exported alongside it.
+
 ### Added
 
 - Stock handles (`DomesticStock`/`OverseasStock`) now have a readable `__repr__`

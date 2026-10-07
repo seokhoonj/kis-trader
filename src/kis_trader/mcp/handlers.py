@@ -12,8 +12,9 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from decimal import Decimal
-from typing import Any, Literal, cast
+from typing import Any, cast
 
+from .._literals import Direction
 from ..account import StockAccount
 from ..client import KISClient
 from ..errors import KISUsageError
@@ -24,8 +25,6 @@ from ._guardrails import (
     check_allowlist,
     make_stock_order_plan,
 )
-
-_Direction = Literal["gainers", "losers"]
 
 
 def _serialize(value: Any) -> Any:
@@ -87,7 +86,7 @@ def ranking_change(kis: KISClient, *, direction: str = "gainers", limit: int = 1
     """국내 등락률 순위. ``direction="gainers"`` 상승 / ``"losers"`` 하락."""
     if direction not in ("gainers", "losers"):
         raise KISUsageError(f"direction 은 'gainers'/'losers' 만 (받은 값: {direction!r}).")
-    rows = kis.domestic.ranking.by_change(direction=cast(_Direction, direction))
+    rows = kis.domestic.ranking.by_change(direction=cast(Direction, direction))
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 

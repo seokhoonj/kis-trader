@@ -12,6 +12,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING, Literal
 
+from .._literals import Direction  # 등락률 방향(gainers/losers) -- 국내·해외 공유 어휘
 from ._engine import ranking as ranking_api
 from .entities.ranking import (
     AfterHoursBalanceRanking,
@@ -28,9 +29,6 @@ if TYPE_CHECKING:
     from datetime import date
 
     from ..client import KISClient
-
-#: 등락률 순위 방향 -- 상승률 상위(``"gainers"``) / 하락률 상위(``"losers"``).
-Direction = Literal["gainers", "losers"]
 
 #: 거래량 계열 순위 기준 -- 거래량(``"trading_volume"``) / 거래대금(``"cumulative_trading_amount"``) /
 #: 거래증가율(``"volume_growth"``) / 회전율(``"turnover"``).

@@ -23,6 +23,7 @@ from ..._internal._wire import (
     required_decimal,
     required_int,
 )
+from ..._literals import Direction, FluctuationDirection
 from ...errors import KISUsageError
 from ...transport import Transport
 from ..entities.ranking import OverseasRankedStock
@@ -120,13 +121,13 @@ def fetch_by_market_cap(transport: Transport, *, exchange: str) -> list[Overseas
 
 
 def fetch_by_change(
-    transport: Transport, *, exchange: str, top: str = "gainers"
+    transport: Transport, *, exchange: str, direction: Direction = "gainers"
 ) -> list[OverseasRankedStock]:
-    """한 거래소의 등락률 순위. ``top="gainers"`` 상승률 / ``"losers"`` 하락률(KIS 명세 GUBN 1/0)."""
+    """한 거래소의 등락률 순위. ``direction="gainers"`` 상승률 / ``"losers"`` 하락률(KIS 명세 GUBN 1/0)."""
     try:
-        gubn = _UPDOWN_GUBN[top]
+        gubn = _UPDOWN_GUBN[direction]
     except KeyError:
-        raise KISUsageError(f"top 은 {sorted(_UPDOWN_GUBN)} 중 하나: {top!r}") from None
+        raise KISUsageError(f"direction 은 {sorted(_UPDOWN_GUBN)} 중 하나: {direction!r}") from None
     path, tr = _UPDOWN
     params = {"EXCD": exchange, "GUBN": gubn, "NDAY": "0", "VOL_RANG": "0",
               "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
@@ -158,13 +159,13 @@ def fetch_by_turnover(transport: Transport, *, exchange: str) -> list[OverseasRa
 
 
 def fetch_by_price_fluctuation(
-    transport: Transport, *, exchange: str, top: str = "risers"
+    transport: Transport, *, exchange: str, direction: FluctuationDirection = "risers"
 ) -> list[OverseasRankedStock]:
-    """한 거래소의 가격 급등/급락 순위. ``top="risers"`` 급등 / ``"fallers"`` 급락(KIS 명세 GUBN 1/0)."""
+    """한 거래소의 가격 급등/급락 순위. ``direction="risers"`` 급등 / ``"fallers"`` 급락(KIS 명세 GUBN 1/0)."""
     try:
-        gubn = _FLUCT_GUBN[top]
+        gubn = _FLUCT_GUBN[direction]
     except KeyError:
-        raise KISUsageError(f"top 은 {sorted(_FLUCT_GUBN)} 중 하나: {top!r}") from None
+        raise KISUsageError(f"direction 은 {sorted(_FLUCT_GUBN)} 중 하나: {direction!r}") from None
     path, tr = _PRICE_FLUCT
     params = {"EXCD": exchange, "GUBN": gubn, "MINX": "0", "VOL_RANG": "0",
               "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}

@@ -96,21 +96,21 @@ def test_by_amount_growth_market_cap_route_correctly():
         assert fake.calls[0]["params"]["EXCD"] == "NAS"
 
 
-def test_by_change_gubn_and_bad_top():
+def test_by_change_gubn_and_bad_direction():
     import pytest as _pytest
 
     from kis_trader.errors import KISUsageError as _U
     row = [{"rank": "1", "excd": "NAS", "symb": "T", "name": "n", "ename": "N", "last": "1",
             "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
     fake = FakeTransport(response=_one(row))
-    _client(fake).overseas.ranking.by_change(exchange="NAS", top="gainers")
+    _client(fake).overseas.ranking.by_change(exchange="NAS", direction="gainers")
     assert fake.calls[0]["path"] == "/uapi/overseas-stock/v1/ranking/updown-rate"
     assert fake.calls[0]["params"]["GUBN"] == "1"                # gainers=1(상승율)
     fake2 = FakeTransport(response=_one(row))
-    _client(fake2).overseas.ranking.by_change(exchange="NAS", top="losers")
+    _client(fake2).overseas.ranking.by_change(exchange="NAS", direction="losers")
     assert fake2.calls[0]["params"]["GUBN"] == "0"               # losers=0(하락율)
     with _pytest.raises(_U):
-        _client(fake2).overseas.ranking.by_change(exchange="NAS", top="nope")
+        _client(fake2).overseas.ranking.by_change(exchange="NAS", direction="nope")
 
 
 def test_more_overseas_rankings_route():
@@ -134,12 +134,12 @@ def test_price_fluct_and_new_highlow_gubn_codes():
             "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
     # price-fluct: risers -> GUBN 1, fallers -> GUBN 0
     fake = FakeTransport(response=_one(row))
-    _client(fake).overseas.ranking.by_price_fluctuation(exchange="NAS", top="fallers")
+    _client(fake).overseas.ranking.by_price_fluctuation(exchange="NAS", direction="fallers")
     assert fake.calls[0]["path"] == "/uapi/overseas-stock/v1/ranking/price-fluct"
     assert fake.calls[0]["tr_id"] == "HHDFS76260000"
     assert fake.calls[0]["params"]["GUBN"] == "0"
     fake = FakeTransport(response=_one(row))
-    _client(fake).overseas.ranking.by_price_fluctuation(exchange="NAS", top="risers")
+    _client(fake).overseas.ranking.by_price_fluctuation(exchange="NAS", direction="risers")
     assert fake.calls[0]["params"]["GUBN"] == "1"
     # new-highlow: high/low -> GUBN 1/0, sustained -> GUBN2 1/0
     fake = FakeTransport(response=_one(row))
@@ -158,10 +158,10 @@ def test_price_fluct_and_new_highlow_gubn_codes():
     assert "NDAY" not in params and "PRC1" not in params and "PRC2" not in params
 
 
-def test_overseas_ranking_bad_top_raises():
+def test_overseas_ranking_bad_direction_raises():
     import pytest
 
     from kis_trader.errors import KISUsageError
     fake = FakeTransport(response=_one([]))
     with pytest.raises(KISUsageError):
-        _client(fake).overseas.ranking.by_price_fluctuation(exchange="NAS", top="nope")
+        _client(fake).overseas.ranking.by_price_fluctuation(exchange="NAS", direction="nope")

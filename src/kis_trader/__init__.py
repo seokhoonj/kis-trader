@@ -20,7 +20,9 @@ from ._literals import (
     AccountKind,
     AlgoStrategy,
     CreditType,
+    Direction,
     Environment,
+    FluctuationDirection,
     Numeric,
     ProfitSort,
     ReservedCurrency,
@@ -231,7 +233,7 @@ from .domestic.entities.trade_profit import (
 from .domestic.index import Index
 from .domestic.market import MarketQueries
 from .domestic.namespace import DomesticAccount
-from .domestic.ranking import Direction, RankingQueries, VolumeMetric
+from .domestic.ranking import RankingQueries, VolumeMetric
 from .domestic.stock import DomesticStock
 from .integrated import Balance, CurrencyDeposit
 from .money import Money
@@ -425,6 +427,7 @@ __all__ = [
     "ExpectedIndexSnapshot",
     "ExpectedPricePoint",
     "FinancialRatio",
+    "FluctuationDirection",
     "ForeignBrokerFlow",
     "ForeignNetBuyPoint",
     "ForfeitedShares",
