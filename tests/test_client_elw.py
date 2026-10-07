@@ -1,4 +1,4 @@
-"""ELW 핸들 -- kis.domestic.elw(code) 고유 지표.
+"""ELW 핸들 -- kis.domestic.elw(symbol) 고유 지표.
 
 민감도(그릭스) 추이: 일별/체결별 라우팅(TR·URL·시장구분 W), output 배열 파싱(그릭스·이론가·
 전일대비 부호 복원), 시간축(영업일자 vs 체결시각), optional 그릭스(None), fail-closed 를 검증한다.

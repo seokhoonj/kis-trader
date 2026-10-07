@@ -1,4 +1,4 @@
-"""선물/옵션 핸들 -- kis.domestic.futures(code).quote() / kis.domestic.option(code).quote().
+"""선물/옵션 핸들 -- kis.domestic.futures(symbol).quote() / kis.domestic.option(symbol).quote().
 
 시장구분 F/O 라우팅, output1 파싱(미결제약정·베이시스·이론가·괴리율), 전일대비 부호 복원,
 optional 필드(None), fail-closed 를 검증한다.

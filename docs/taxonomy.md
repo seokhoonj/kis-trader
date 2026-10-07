@@ -22,7 +22,7 @@ kis  (KISClient 세션)
 
 ```text
 kis.domestic
-├── stock(symbol)                         # 국내 종목/ETF 핸들
+├── stock(symbol)                       # 국내 종목/ETF 핸들
 │   │  ── 현재가·종목정보 ───────────────────────────
 │   ├── quote()                         # 현재가 스냅샷
 │   ├── profile()                       # 종목 기본정보
@@ -111,13 +111,13 @@ kis.domestic
 │   ├── trades()                        # 채권 최근 체결
 │   ├── buy(quantity, limit_price)      # 채권 매수 주문
 │   └── sell(quantity, ...)             # 채권 lot 매도 주문
-├── elw(symbol)                           # ELW 고유 지표 핸들
+├── elw(symbol)                         # ELW 고유 지표 핸들
 │   ├── quote()                         # ELW 현재가·그릭스
 │   ├── sensitivity_trend()             # 민감도(그릭스) 추이
 │   ├── volatility_trend()              # 내재변동성 추이
 │   ├── indicator_trend()               # 투자지표(레버리지) 추이
 │   └── lp_flows()                      # 일별 LP 매매 흐름
-├── futures(symbol)                       # 지수선물 계약 핸들
+├── futures(symbol)                     # 지수선물 계약 핸들
 │   ├── quote()                         # 계약 현재가
 │   ├── order_book()                    # 계약 호가창(5단계)
 │   ├── expected_execution_trend()      # 예상체결 요약·추이
@@ -127,7 +127,7 @@ kis.domestic
 │   ├── night_orderable(side)           # 야간장 주문가능수량
 │   ├── buy(quantity, ...)              # 계약 매수 주문
 │   └── sell(quantity, ...)             # 계약 매도 주문
-├── option(symbol, right=None)            # 지수옵션 계약 핸들
+├── option(symbol, right=None)          # 지수옵션 계약 핸들
 │   ├── quote()                         # 계약 현재가
 │   ├── order_book()                    # 계약 호가창(5단계)
 │   ├── expected_execution_trend()      # 예상체결 요약·추이
@@ -247,7 +247,7 @@ kis.overseas
 │   └── reserve_sell(...)               # 예약매도
 ├── index(symbol, kind='index')         # 지수/환율/국채/금선물 핸들
 │   └── bars(interval='1d', ...)        # 지수류 기간봉
-├── futures(symbol)                # 해외 선물 계약 핸들
+├── futures(symbol)                     # 해외 선물 계약 핸들
 │   ├── quote()                         # 계약 현재가
 │   ├── order_book()                    # 계약 호가창(5단계)
 │   ├── bars(exchange, ...)             # 분·일·주·월 OHLCV
@@ -255,7 +255,7 @@ kis.overseas
 │   ├── detail()                        # 계약 명세
 │   ├── buy(quantity, ...)              # 계약 매수
 │   └── sell(quantity, ...)             # 계약 매도
-├── option(symbol)                 # 해외 옵션 핸들(선물과 동일 메서드)
+├── option(symbol)                      # 해외 옵션 핸들(선물과 동일 메서드)
 ├── futures_details(symbols)            # 선물 명세 배치(최대 32)
 ├── option_details(symbols)             # 옵션 명세 배치(최대 30)
 ├── derivatives_market_hours(...)       # 상품군별 장운영시간
@@ -374,20 +374,20 @@ kis.realtime()
 ├── start() / stop()                         # 백그라운드 수신 시작/중단
 ├── subscribe / unsubscribe / stream         # 원시 등록·해제·통합 이터레이터(탈출구)
 ├── domestic                                 # 국내 실시간
-│   ├── stock(symbol)                          # → StockHandle
+│   ├── stock(symbol)                        # → StockHandle
 │   │   ├── trades(exchange='KRX')           # 체결 → StockTick
 │   │   └── order_book(exchange='KRX')       # 호가 → StockOrderBook
-│   ├── futures(symbol, kind='index')          # kind: index|commodity|stock|night
+│   ├── futures(symbol, kind='index')        # kind: index|commodity|stock|night
 │   │   ├── trades()                         # 체결 → FuturesTick
 │   │   └── order_book()                     # 호가 → DerivativeOrderBook
-│   ├── option(symbol, kind='index')           # kind: index|stock|night
+│   ├── option(symbol, kind='index')         # kind: index|stock|night
 │   │   ├── trades()                         # 체결 → OptionTick
 │   │   └── order_book()                     # 호가 → DerivativeOrderBook
 │   ├── index(code)                          # → IndexHandle
 │   │   ├── trades()                         # 체결 → IndexTick
 │   │   ├── expected_conclusion()            # 예상체결 → IndexExpectedConclusion
 │   │   └── program_trade()                  # 프로그램매매 → IndexProgramTrade
-│   ├── elw(symbol)                            # → ELWHandle
+│   ├── elw(symbol)                          # → ELWHandle
 │   │   ├── trades()                         # 체결 → ELWTick
 │   │   ├── order_book()                     # 호가 → ELWOrderBook
 │   │   └── expected_conclusion()            # 예상체결 → ELWExpectedConclusion
@@ -403,10 +403,10 @@ kis.realtime()
     ├── stock(symbol, exchange=None)         # RSYM 은 종목마스터로 해석
     │   ├── trades()                         # 지연체결 → DelayedTradeTick
     │   └── order_book(zone='global')        # 호가(global 10 / asia 1)
-    ├── futures(symbol)                 # → OverseasDerivativeHandle
+    ├── futures(symbol)                      # → OverseasDerivativeHandle
     │   ├── trades()                         # 체결 → FuturesTradeTick
     │   └── order_book()                     # 호가 → FuturesOrderBook
-    ├── option(symbol)                  # 선물과 동일 TR·핸들 공유
+    ├── option(symbol)                       # 선물과 동일 TR·핸들 공유
     └── execution_notices                    # 체결/주문 통보(hts_id 단위)
         ├── stock(hts_id)                    # → OverseasExecutionNotice
         ├── derivative_orders(hts_id)        # → FuturesOrderNotice

@@ -1,4 +1,4 @@
-"""ETF/ETN 고유 정보 -- kis.domestic.stock(code).nav().
+"""ETF/ETN 고유 정보 -- kis.domestic.stock(symbol).nav().
 
 ETF 는 종목처럼 거래되므로 시세/주문은 일반 verb 로 하고, NAV/괴리율/추적오차만 별도. etfetn 세그먼트
 경로, NAV 전일대비 부호 복원, fail-closed 파싱을 가짜 전송으로 검증.

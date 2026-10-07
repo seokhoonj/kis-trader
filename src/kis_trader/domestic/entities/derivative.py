@@ -1,7 +1,7 @@
 """선물/옵션(파생) 시세 DATA -- :class:`DerivativeQuote` / :class:`UnderlyingQuote`.
 
 파생 핸들(:class:`~kis_trader.domestic.derivative.FuturesContract` / :class:`~kis_trader.domestic.derivative.OptionContract`,
-``kis.domestic.futures(code)`` / ``kis.domestic.option(code)``)이 돌려주는 한 계약의 현재가 스냅샷이다. 종목의 :class:`~kis_trader.quote.Quote` 와 달리 파생 고유의
+``kis.domestic.futures(symbol)`` / ``kis.domestic.option(symbol)``)이 돌려주는 한 계약의 현재가 스냅샷이다. 종목의 :class:`~kis_trader.quote.Quote` 와 달리 파생 고유의
 미결제약정(open interest)·베이시스·이론가·괴리율을 담는다. 옵션 그릭스(delta/gamma/theta/vega/rho)와
 변동성·잔존일수는 ``_raw`` 로 접근한다(선물엔 없거나 무의미하므로). :class:`UnderlyingQuote` 는
 선물과 그 기초자산(지수)을 나란히 보여주는 스냅샷이다(베이시스 판단용).

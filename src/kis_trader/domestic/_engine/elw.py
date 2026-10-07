@@ -718,7 +718,7 @@ def _fetch_ranking(
     ranked: list[RankedELW] = []
     for row in rows:
         symbol = str(row.get("elw_shrn_iscd", "")).strip()
-        if not symbol:                           # 빈 행 건너뜀
+        if not symbol:                         # 빈 행 건너뜀
             continue
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         ranked.append(

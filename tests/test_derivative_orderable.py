@@ -1,5 +1,5 @@
-"""파생 계약 주문가능조회 -- kis.domestic.futures(code).orderable(side) /
-option(code).orderable(side).
+"""파생 계약 주문가능조회 -- kis.domestic.futures(symbol).orderable(side) /
+option(symbol).orderable(side).
 
 주간 주문가능(TTTO5105R/VTTO5105R)과 야간 주문가능(STTN5105R, 실전 전용)을 네트워크 없이
 FakeTransport 로 검증한다: 라우팅(TR/경로), 파라미터(PDNO/SLL_BUY_DVSN_CD/UNIT_PRICE/

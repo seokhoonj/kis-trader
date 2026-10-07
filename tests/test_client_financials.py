@@ -1,4 +1,4 @@
-"""재무제표 -- kis.domestic.stock(code).balance_sheet() / .income_statement().
+"""재무제표 -- kis.domestic.stock(symbol).balance_sheet() / .income_statement().
 
 대차대조표(FHKST66430100)·손익계산서(FHKST66430200)의 TR·URL·분류(년/분기)·필드 매핑·결산기
 순서·fail-closed 를 검증한다.

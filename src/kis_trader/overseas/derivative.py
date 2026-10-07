@@ -2,7 +2,7 @@
 
 한 해외 파생 계약을 조회하는 핸들이다: ``kis.overseas.futures("ESZ25").quote()`` 처럼. 국내 파생
 핸들(:class:`~kis_trader.domestic.derivative.FuturesContract` / :class:`~kis_trader.domestic.derivative.OptionContract`)과
-대칭이며, 해외 계약은 시장구분(F/O) 대신 시리즈코드(``series_code``)로 식별하고 계약 통화·거래소가 시세에
+대칭이며, 해외 계약은 시장구분(F/O) 대신 시리즈코드(``symbol``)로 식별하고 계약 통화·거래소가 시세에
 함께 온다.
 
 핸들은 :class:`~kis_trader.client.KISClient` 가 ``kis.overseas.futures(symbol)`` /

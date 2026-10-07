@@ -1,4 +1,4 @@
-"""per-ticker 시세분석 -- kis.domestic.stock(code).program_trades() / .investor_estimate().
+"""per-ticker 시세분석 -- kis.domestic.stock(symbol).program_trades() / .investor_estimate().
 
 프로그램매매 흐름(TR FHPPG04650101, output)·투자자 순매수 추정(TR HHPTJ04160200, output2)의
 TR·URL·시장구분·필드 매핑(순매수 수량/금액·외인/기관 추정), 시각 파싱, fail-closed 를 검증한다.

@@ -251,8 +251,8 @@ kis order twap 005930 --side buy --quantity 100 --over 30m --slices 3 \
 
 ## 선물·옵션 주문
 
-국내 선물·옵션은 계약 핸들에서 바로 매매합니다 — 선물은 `kis.domestic.futures(code)`, 옵션은
-`kis.domestic.option(code, right="call")`. 옵션 발주에는 콜/풋(`right`)을 지정해야 합니다(조회는 생략 가능).
+국내 선물·옵션은 계약 핸들에서 바로 매매합니다 — 선물은 `kis.domestic.futures(symbol)`, 옵션은
+`kis.domestic.option(symbol, right="call")`. 옵션 발주에는 콜/풋(`right`)을 지정해야 합니다(조회는 생략 가능).
 계약코드는 전광판(`kis.domestic.option_board_futures()`)이나 만기(`kis.domestic.option_expiries()`)로 얻습니다.
 
 ```python

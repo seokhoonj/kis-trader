@@ -1,4 +1,4 @@
-"""파생 계약 핸들의 발주 -- kis.domestic.futures(code).buy(...) / option(code, right=...).sell(...).
+"""파생 계약 핸들의 발주 -- kis.domestic.futures(symbol).buy(...) / option(symbol, right=...).sell(...).
 
 계약코드 길이 형상검증(선물 6 / 옵션 9), right(call/put) -> derivative_item(02/03) 매핑,
 그리고 handle.buy -> client._place_order -> 가짜 전송 -> ExecutionReport 의 end-to-end 를

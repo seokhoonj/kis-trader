@@ -1,4 +1,4 @@
-"""종목 기본정보 -- kis.domestic.stock(code).profile()."""
+"""종목 기본정보 -- kis.domestic.stock(symbol).profile()."""
 from __future__ import annotations
 
 import threading

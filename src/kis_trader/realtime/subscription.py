@@ -1,6 +1,6 @@
 """타입드 실시간 구독 -- :class:`RealtimeSubscription`.
 
-``kis.realtime().domestic.futures(code).trades()`` 같은 잎(leaf)이 반환하는 객체. 특정
+``kis.realtime().domestic.futures(symbol).trades()`` 같은 잎(leaf)이 반환하는 객체. 특정
 ``(tr_id, tr_key)`` 계약의 파싱된 엔티티만 전용 큐로 받아, ``for tick in sub`` 로 타입-정확하게
 소비한다(중앙 ``stream()`` 의 tr_id/isinstance demux 불필요). 큐가 상한에 차면 가장 오래된 것을
 버린다(시장데이터는 최신이 중요) -- 중앙 큐 정책과 동일.

@@ -1,4 +1,4 @@
-"""애널리스트 투자의견 -- kis.domestic.stock(code).analyst_opinions()."""
+"""애널리스트 투자의견 -- kis.domestic.stock(symbol).analyst_opinions()."""
 from __future__ import annotations
 
 import threading
