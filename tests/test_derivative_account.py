@@ -103,6 +103,21 @@ def test_derivative_balance_parses_and_routes():
     assert call["params"]["CANO"] == "12345678"
 
 
+def test_derivative_position_side_is_normalized_to_side_literal():
+    # 선물옵션 잔고는 매도매수구분명("매수"/"매도")만 주므로 Side("buy"/"sell") 로 정규화하고
+    # 원문은 _raw 에 남긴다. 다른 포지션/주문의 side 와 같은 값(buy/sell)이라야 == 비교가 통한다.
+    buy = _client(FakeTransport(response=_balance_resp(rows=[_position(side="매수")]))).account.balance()
+    assert buy.positions[0].side == "buy"
+    assert buy.positions[0]._raw["sll_buy_dvsn_name"] == "매수"
+    sell = _client(FakeTransport(response=_balance_resp(rows=[_position(side="매도")]))).account.balance()
+    assert sell.positions[0].side == "sell"
+    unknown = _client(FakeTransport(response=_balance_resp(rows=[_position(side="")]))).account.balance()
+    assert unknown.positions[0].side is None  # 방향 없는 정산 잔여 lot 등
+    val = _client(FakeTransport(response=_valuation_resp(rows=[_valuation_position(side="매도")])),
+                  environment="real").account.valuation_pl()  # 평가손익은 실전전용
+    assert val.positions[0].side == "sell"
+
+
 def test_derivative_balance_real_tr():
     fake = FakeTransport(response=_balance_resp(rows=[_position()]))
     _client(fake, environment="real").account.balance()

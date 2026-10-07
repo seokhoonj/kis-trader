@@ -41,7 +41,7 @@ from ..entities.derivative_account import (
     DerivativeValuationBalance,
     DerivativeValuationPosition,
 )
-from ._parse import _side_from_code
+from ._parse import _side_from_code, _side_from_name
 
 if TYPE_CHECKING:
     from ..._literals import Numeric
@@ -681,7 +681,7 @@ def _parse_valuation_positions(
                 symbol=symbol,
                 isin=str(row.get("pdno", "")).strip(),
                 name=str(row.get("prdt_name", "")).strip(),
-                side=str(row.get("sll_buy_dvsn_name", "")).strip(),
+                side=_side_from_name(row.get("sll_buy_dvsn_name")),
                 quantity=field_decimal_or_zero(row.get("cblc_qty1"), "cblc_qty1"),
                 settlement_price=field_decimal_or_zero(row.get("excc_unpr"), "excc_unpr"),
                 average_price=field_decimal_or_zero(row.get("ccld_avg_unpr1"), "ccld_avg_unpr1"),
@@ -713,7 +713,7 @@ def _parse_positions(rows: list[Mapping[str, Any]]) -> list[DerivativePosition]:
                 symbol=symbol,
                 isin=str(row.get("pdno", "")).strip(),
                 name=str(row.get("prdt_name", "")).strip(),
-                side=str(row.get("sll_buy_dvsn_name", "")).strip(),
+                side=_side_from_name(row.get("sll_buy_dvsn_name")),
                 quantity=field_decimal_or_zero(row.get("cblc_qty"), "cblc_qty"),
                 settlement_price=field_decimal_or_zero(row.get("excc_unpr"), "excc_unpr"),
                 average_price=field_decimal_or_zero(row.get("ccld_avg_unpr1"), "ccld_avg_unpr1"),

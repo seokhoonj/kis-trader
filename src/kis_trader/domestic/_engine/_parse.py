@@ -19,3 +19,13 @@ def _side_from_code(code: object) -> Side:
         return _SIDE[text]
     except KeyError:
         raise KISError(f"알 수 없는 매매구분코드: {text!r} (01 매도 / 02 매수만 유효).") from None
+
+
+#: 선물옵션 잔고는 코드(sll_buy_dvsn_cd) 대신 매도매수구분명("매수"/"매도")만 주는 행이 있어 이름으로 옮긴다.
+_SIDE_BY_NAME: dict[str, Side] = {"매수": "buy", "매도": "sell"}
+
+
+def _side_from_name(name: object) -> Side | None:
+    """벤더 매도매수구분명("매수"/"매도")을 방향으로 옮긴다 -- 코드 경로(:func:`_side_from_code`)와 달리
+    이름만 주는 잔고 행에 쓴다. 비거나 알 수 없으면 None(방향 없는 정산 잔여 lot 등); 원문은 ``_raw`` 로 남는다."""
+    return _SIDE_BY_NAME.get(str(name or "").strip())
