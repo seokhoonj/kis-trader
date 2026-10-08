@@ -81,6 +81,9 @@ _EXPECTED_TREND_PATH = "/uapi/domestic-futureoption/v1/quotations/exp-price-tren
 _EXPECTED_TREND_TR = "FHPIF05110100"
 _FUTURES_BOARD_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-futures"
 _FUTURES_BOARD_TR = "FHPIF05030200"
+#: 전광판 선물 보드 선택(FID_COND_MRKT_CLS_CODE). 공백=KOSPI200 메인보드(라이브 프로브로 확인:
+#: 공백이 A01xxx KOSPI200 월물만 돌려주고 MKI/KQI 보드는 섞이지 않음). MKI=미니/WKM·WKI=위클리/KQI=코스닥.
+_FUTURES_BOARD_CLASSES = frozenset({"", "MKI", "WKM", "WKI", "KQI"})
 
 
 _OPTION_EXPIRIES_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-option-list"
@@ -327,8 +330,11 @@ def fetch_futures_board_quotes(
 ) -> list[FuturesBoardQuote]:
     """옵션 전광판 하단의 선물 계약별 시세를 조회한다."""
     normalized_market_class = market_class.strip()
-    if not normalized_market_class:
-        raise KISUsageError("market_class 는 비어 있을 수 없다.")
+    if normalized_market_class not in _FUTURES_BOARD_CLASSES:
+        raise KISUsageError(
+            f"market_class 는 {sorted(_FUTURES_BOARD_CLASSES)} 중 하나여야 한다"
+            f"(공백=KOSPI200 메인보드): {market_class!r}"
+        )
     resp = transport.request(
         method="GET",
         path=_FUTURES_BOARD_PATH,

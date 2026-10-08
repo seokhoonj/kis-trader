@@ -201,6 +201,11 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   other realtime entity uses). The `reference.rights(date_basis=...)` /
   `reference.collateral_stocks(sort=...)` closed-choice parameters are now typed `Literal`
   (behavior unchanged).
+- `option_board_futures(market_class="")` now reaches the KOSPI200 main board (council
+  D7, live-probe confirmed: a blank `FID_COND_MRKT_CLS_CODE` returns the A01xxx KOSPI200
+  monthly contracts with no MKI/KQI board rows). The engine previously rejected a blank
+  `market_class`; it now accepts the documented set `""`/`MKI`/`WKM`/`WKI`/`KQI` and rejects
+  anything else.
 - Closed-choice params typed (council P3): `account.overseas.positions(fuop=...)` → `product`
   typed `DerivativeProductFilter = Literal["all","future","option"]` (engine maps to
   `FUOP_DVSN` 00/01/02 per the official OTFM1412R definition); `account.domestic.night_margin(

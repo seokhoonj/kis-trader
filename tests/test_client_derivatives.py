@@ -402,12 +402,20 @@ def test_option_board_futures_maps_official_output_array():
     }
 
 
-def test_option_board_futures_rejects_missing_output_and_blank_market_class():
+def test_option_board_futures_rejects_missing_output_and_unknown_market_class():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).domestic.option_board_futures()
-    with pytest.raises(KISUsageError):
-        _client(fake).domestic.option_board_futures(market_class=" ")
+    with pytest.raises(KISUsageError):  # 문서화된 집합 밖의 값은 거부
+        _client(fake).domestic.option_board_futures(market_class="BOGUS")
+
+
+def test_option_board_futures_blank_is_kospi200_main_board():
+    # 공백은 KOSPI200 메인보드 선택(라이브 프로브 확인) -- 거부하지 않고 FID 공백으로 내보낸다.
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": []})
+    fake = FakeTransport(response=response)
+    _client(fake).domestic.option_board_futures(market_class="")
+    assert fake.calls[0]["params"]["FID_COND_MRKT_CLS_CODE"] == ""
 
 
 def test_option_board_futures_sends_normalized_market_class():
