@@ -422,7 +422,7 @@ _FILLS_SUMMARY = {
 
 def _fill(odno="0000012345", *, pdno="KR4101RC0000", name="코스피200 F 202509",
           tr_type="매수", last="20240220", idx="1", qty="3", amt="123150000",
-          fee="6789", ccld_btwn="0919"):
+          fee="6789", ccld_btwn="091900"):
     return {"pdno": pdno, "prdt_name": name, "odno": odno, "tr_type_name": tr_type,
             "last_sttldt": last, "ccld_idx": idx, "ccld_qty": qty, "trad_amt": amt,
             "fee": fee, "ccld_btwn": ccld_btwn}
@@ -437,6 +437,7 @@ def _fills_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont="D"):
 
 def test_base_date_fills_parses_and_routes():
     from datetime import date as _date
+    from datetime import time
 
     from kis_trader.domestic.entities.derivative_account import DomesticDerivativeFillHistory
 
@@ -448,7 +449,7 @@ def test_base_date_fills_parses_and_routes():
     assert hist.fills[0].transaction_type == "매수"      # tr_type_name
     assert hist.fills[0].final_settlement_date == _date(2024, 2, 20)  # last_sttldt
     assert hist.fills[0].filled_quantity == Decimal(3)    # ccld_qty
-    assert hist.fills[0].fill_time == "0919"            # ccld_btwn, raw str
+    assert hist.fills[0].fill_time == time(9, 19, 0)       # ccld_btwn HHMMSS(091900)
     assert hist.total_filled_quantity == Decimal(5)     # tot_ccld_qty_smtl
     assert hist.total_fee == Decimal(12345)             # fee_smtl
     call = fake.calls[0]

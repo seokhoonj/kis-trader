@@ -590,7 +590,7 @@ def _parse_fills(rows: list[Mapping[str, Any]]) -> list[DomesticDerivativeFill]:
                 filled_quantity=field_decimal_or_zero(row.get("ccld_qty"), "ccld_qty"),
                 trade_amount=field_decimal_or_zero(row.get("trad_amt"), "trad_amt"),
                 fee=field_decimal_or_zero(row.get("fee"), "fee"),
-                fill_time=str(row.get("ccld_btwn", "")).strip(),
+                fill_time=_parse_hhmmss(row.get("ccld_btwn")),
                 _raw=row,
             )
         )

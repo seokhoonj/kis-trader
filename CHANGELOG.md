@@ -151,6 +151,10 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   mislabelled the weekly/monthly capability as "daily" and read ambiguously against the
   existing OHLC `bars()`.
 
+- `DomesticDerivativeFill.fill_time` is now `time | None` (was a raw `str`) -- the official
+  KIS field spec declares `ccld_btwn` as `string`/length 6/HHMMSS '체결시간' (a single fill
+  time, not an interval), matching the overseas twin's `executed_at`; it is parsed with the
+  shared fail-soft `_parse_hhmmss`.
 - `OverseasAlgoExecution.price` / `amount` are now `Money` (were `Decimal`), carrying the
   trade currency — the algo-execution response (inquire-algo-ccnl, confirmed via the official
   KIS repo column map) includes `TR_CRCY` 거래통화, so these monetary fields follow the overseas

@@ -215,9 +215,8 @@ class DomesticDerivativeFill:
     ``symbol`` 은 상품번호(pdno), ``order_id`` 주문번호(odno), ``transaction_type`` 거래유형명
     (tr_type_name). ``final_settlement_date`` 는 최종결제일(last_sttldt) -- 형식오류/공백이면 None.
     ``fill_index`` 체결지수, ``filled_quantity`` 체결수량, ``trade_amount`` 거래금액, ``fee`` 수수료.
-    ``fill_time`` 은 체결시각(ccld_btwn)을 원본 문자열 그대로 담는다 -- 공식 컬럼정의가 '체결시간'
-    이고 해외 쌍둥이(executed_at)도 단일 시각이라 구간이 아니다(digit 포맷은 실체결 프로브 전까지
-    보수적으로 raw str 유지).
+    ``fill_time`` 은 체결시각(ccld_btwn)이다 -- 공식 문서 스펙이 string/길이 6/HHMMSS 이고 '체결시간'
+    이라, 구간이 아니라 단일 시각이다(해외 쌍둥이 executed_at 과 동일). time 으로 파싱해 담는다.
     주문번호가 빈 패딩 행은 담기지 않는다.
     """
 
@@ -230,7 +229,7 @@ class DomesticDerivativeFill:
     filled_quantity: Decimal           # 체결수량(ccld_qty)
     trade_amount: Decimal              # 거래금액(trad_amt)
     fee: Decimal                       # 수수료(fee)
-    fill_time: str                     # 체결시각(ccld_btwn) -- 단일 시각(구간 아님), 원본 문자열
+    fill_time: time | None             # 체결시각(ccld_btwn, HHMMSS; 공식 스펙 길이 6)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
