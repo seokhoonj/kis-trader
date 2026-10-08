@@ -12,7 +12,7 @@ REST ``kis.overseas`` 를 미러한다: ``overseas.stock("AAPL").trades()`` 가
 from __future__ import annotations
 
 from collections.abc import Callable
-from typing import TYPE_CHECKING, Literal, cast
+from typing import TYPE_CHECKING, Any, Literal, cast, overload
 
 from ..errors import KISUsageError
 
@@ -75,13 +75,27 @@ class OverseasStockHandle:
             self._client._open_typed(_STOCK_TRADES_TR, self._rsym, on=on),
         )
 
+    @overload
+    def order_book(
+        self, zone: Literal["global"] = ..., *,
+        on: Callable[[OverseasOrderBook], None] | None = ...,
+    ) -> RealtimeSubscription[OverseasOrderBook]: ...
+    @overload
+    def order_book(
+        self, zone: Literal["asia"], *,
+        on: Callable[[OverseasAsiaDelayedOrderBook], None] | None = ...,
+    ) -> RealtimeSubscription[OverseasAsiaDelayedOrderBook]: ...
+
     def order_book(
         self,
         zone: OverseasZone = "global",
         *,
-        on: Callable[[OverseasOrderBook | OverseasAsiaDelayedOrderBook], None] | None = None,
-    ) -> RealtimeSubscription[OverseasOrderBook | OverseasAsiaDelayedOrderBook]:
-        """해외주식 실시간호가를 구독하고 RealtimeSubscription[OverseasOrderBook | OverseasAsiaDelayedOrderBook] 을 반환한다. zone: global(10호가 HDFSASP0)/asia(아시아 1호가 HDFSASP1)."""
+        on: Callable[[Any], None] | None = None,
+    ) -> RealtimeSubscription[Any]:
+        """해외주식 실시간호가를 구독하고 RealtimeSubscription[OverseasOrderBook | OverseasAsiaDelayedOrderBook] 을 반환한다. zone: global(10호가 HDFSASP0)/asia(아시아 1호가 HDFSASP1).
+
+        ``zone`` 리터럴이 결과 타입을 정한다(@overload): ``"global"`` -> ``OverseasOrderBook``,
+        ``"asia"`` -> ``OverseasAsiaDelayedOrderBook`` -- 호출부가 유니온을 좁힐 필요가 없다."""
         tr = _pick(_STOCK_ORDER_BOOK_TR, zone, label="zone")
         return cast(
             "RealtimeSubscription[OverseasOrderBook | OverseasAsiaDelayedOrderBook]",
