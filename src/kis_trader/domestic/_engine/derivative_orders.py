@@ -1,7 +1,7 @@
 """국내 선물·옵션 주문 와이어 빌더/재조회 (내부) -- overseas/_engine/orders.py 의 형제.
 
 주문 실행의 안전 규칙(이중체결 방지·쓰기 재시도 금지·보수적 재조회)은 국내주식·해외와 공유하는
-안전 코어(:func:`~kis_trader.domestic._engine.orders.place`)가 맡는다. 이 모듈은 그 코어에
+안전 코어(:func:`~kis_trader._order_core.place`)가 맡는다. 이 모듈은 그 코어에
 ``build_request`` 로 주입할 **국내 파생(XKFE) 주문의 와이어 요청**만 조립한다 -- 순수 함수라
 오케스트레이션 없이 단독 검증된다.
 
@@ -96,7 +96,7 @@ def _resolve_fo_codes(
 def make_order_request(
     order: Order, *, cano: str, product_code: str, environment: Environment
 ) -> WireRequest:
-    """안전 코어(:func:`~kis_trader.domestic._engine.orders.place`)에 넘길 국내 파생 주문 빌더.
+    """안전 코어(:func:`~kis_trader._order_core.place`)에 넘길 국내 파생 주문 빌더.
 
     주간(정규)·야간 공통이다. 야간(STTN)은 모의투자 미지원이라 ``paper`` 면 fail-closed. 수량은
     계약 단위 정수만 받는다. 세 주문구분 코드는 :func:`_resolve_fo_codes` 로, 시장가는 단가 0 으로
@@ -144,7 +144,7 @@ def make_change_request(
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
     """국내 파생(XKFE) 주간 정정·취소 요청 와이어(order-rvsecncl TTTO1103U/VTTO1103U) -- 안전
-    코어(:func:`~kis_trader.domestic._engine.orders.submit_change`)에 ``build_request`` 로 주입한다.
+    코어(:func:`~kis_trader._order_core.submit_change`)에 ``build_request`` 로 주입한다.
 
     파생은 원주문 지목에 ``ORGN_ODNO`` 만 쓴다 -- 국내주식의 ``KRX_FWDG_ORD_ORGNO``(조직번호) 계약을
     재사용하지 않는다. 가격형상 규칙은 지정가 전용 자산의 공유 헬퍼(``reject_bad_change_price_shape``)가
@@ -209,7 +209,7 @@ def make_night_change_request(
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
     """국내 파생(XKFE) **야간** 정정·취소 요청 와이어(order-rvsecncl ``STTN1103U``) -- 안전
-    코어(:func:`~kis_trader.domestic._engine.orders.submit_change`)에 ``build_request`` 로 주입한다.
+    코어(:func:`~kis_trader._order_core.submit_change`)에 ``build_request`` 로 주입한다.
 
     주간 빌더(:func:`make_change_request`)와 바디 형상은 같되 야간의 두 계약이 다르다:
 

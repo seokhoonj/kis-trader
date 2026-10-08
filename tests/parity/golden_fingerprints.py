@@ -29,6 +29,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
 
+from kis_trader import _order_core as _core
 from kis_trader.domestic._engine import bond_orders as _bond
 from kis_trader.domestic._engine import derivative_orders as _dom_deriv
 from kis_trader.domestic._engine import orders as _dom
@@ -316,7 +317,7 @@ def _capture_change(kwargs: dict[str, Any]) -> tuple[OrderFingerprint, WireReque
     quantity = Decimal(str(kwargs["quantity"]))
     limit_price = None if kwargs["limit_price"] is None else Decimal(str(kwargs["limit_price"]))
     builders = {
-        "change_domestic": None,
+        "change_domestic": _dom._make_domestic_change_request,
         "change_overseas": _ovs.make_change_request,
         "change_overseas_overnight": _ovs.make_overnight_change_request,
         "change_derivative": _dom_deriv.make_change_request,
@@ -335,7 +336,7 @@ def _capture_change(kwargs: dict[str, Any]) -> tuple[OrderFingerprint, WireReque
         transport = _CapturingTransport()
         captured = False
         try:
-            _dom.submit_change(
+            _core.submit_change(
                 transport, store,
                 original_client_order_id=_ORIG_CID,
                 request_id=_CAPTURE_CID,

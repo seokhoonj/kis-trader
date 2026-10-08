@@ -2,11 +2,11 @@
 domestic/_engine/bond_orders.py)와 같은 주입 구조.
 
 주문 실행의 안전 규칙(이중체결 방지·쓰기 재시도 금지·보수적 재조회)은 국내주식·해외·파생·채권과
-공유하는 안전 코어(:func:`~kis_trader.domestic._engine.orders.place`)가 맡는다. 이 모듈은 그
+공유하는 안전 코어(:func:`~kis_trader._order_core.place`)가 맡는다. 이 모듈은 그
 코어에 ``build_request`` 로 주입할 **해외선물옵션(OSFO) 발주·정정·취소의 와이어 요청**을 조립하고(순수 함수라
 오케스트레이션 없이 단독 검증된다), 접수 응답에서 output(``{ORD_DT, ODNO}``)을 엄격히 뽑는 파서를
 제공한다. ODNO 는 안전 코어가 ``order_id`` 로 뽑고, ORD_DT 는 이 파서가 시장 중립 키
-(:data:`~kis_trader.domestic._engine.orders._RECEIPT_DATE_KEY`)로 정규화해 코어가 ``receipt_date`` 로
+(:data:`~kis_trader._order_core._RECEIPT_DATE_KEY`)로 정규화해 코어가 ``receipt_date`` 로
 영속하게 한다 -- 이후 정정·취소가 원주문일자(ORGN_ORD_DT)로 대상을 특정할 수 있게 하려는 것이다.
 
 KIS URL/TR-ID (KIS 명세 대조, sheet '해외선물옵션 주문'):
@@ -24,7 +24,7 @@ from collections.abc import Mapping
 from typing import TYPE_CHECKING, Any
 
 from ..._internal._wire import format_wire_decimal
-from ...domestic._engine.orders import _RECEIPT_DATE_KEY
+from ..._order_core import _RECEIPT_DATE_KEY
 from ...errors import KISUsageError, OrderError
 from ...order import (
     Order,
@@ -55,7 +55,7 @@ _PRICE_DIVISION = {"limit": "1", "market": "2", "stop": "3"}
 def make_order_request(
     order: Order, *, cano: str, product_code: str, environment: Environment
 ) -> WireRequest:
-    """안전 코어(:func:`~kis_trader.domestic._engine.orders.place`)에 넘길 해외선물옵션 발주 빌더.
+    """안전 코어(:func:`~kis_trader._order_core.place`)에 넘길 해외선물옵션 발주 빌더.
 
     해외선물옵션은 **실전 전용**(모의투자 미지원)이라 ``paper`` 면 fail-closed(client 라우팅에서
     먼저 막지만 빌더에서도 방어). 수량은 계약 단위 정수만 받고, 가격구분(``PRIC_DVSN_CD``)은
@@ -120,7 +120,7 @@ def make_change_request(
     action: ChangeAction, quantity: Decimal, limit_price: Decimal | None,
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
-    """안전 코어(:func:`~kis_trader.domestic._engine.orders.submit_change`)에 넘길 해외선물옵션
+    """안전 코어(:func:`~kis_trader._order_core.submit_change`)에 넘길 해외선물옵션
     정정·취소 빌더(order-rvsecncl ``OTFM3002U`` 정정 / ``OTFM3003U`` 취소, 실전 전용).
 
     해외선물옵션은 **실전 전용**(모의투자 미지원)이라 ``paper`` 면 fail-closed(client 라우팅에서 먼저
@@ -160,7 +160,7 @@ def extract_output(body: Mapping[str, Any]) -> Mapping[str, Any]:
     ``output`` 키가 없거나 Mapping 이 아니면 :class:`~kis_trader.errors.OrderError` 로 fail-closed
     한다(top-level 로 폴백해 엉뚱한 ODNO/ORD_DT 를 읽으면 재조회·정정취소 대상이 어긋난다). 안전
     코어(place)가 이 매핑에서 ``ODNO`` 를 ``order_id`` 로 뽑는다. 이 응답의 주문일자(``ORD_DT``)는
-    시장 중립 키(:data:`~kis_trader.domestic._engine.orders._RECEIPT_DATE_KEY`)로 정규화해 넣어, 코어가
+    시장 중립 키(:data:`~kis_trader._order_core._RECEIPT_DATE_KEY`)로 정규화해 넣어, 코어가
     자산별 필드명을 모른 채 ``receipt_date`` 로 영속하게 한다(다른 자산은 이 키를 안 채워 None)."""
     out = body.get("output")
     if not isinstance(out, Mapping):

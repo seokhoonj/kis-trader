@@ -18,6 +18,10 @@ from ..transport import RawResponse, Transport
 #: "더 없음"을 알린다 -- 이 키로는 재요청하지 않는다(같은 페이지 재조회/이중집계 방지).
 _CONTINUATION_END = "^^"
 
+#: 재조회(reconcile) 일별체결조회 연속조회 페이지 상한 -- 무한 루프 방지의 명시적 안전 상한.
+#: 가드 상수의 홈(연속조회 종료 센티널 옆)이라 여기 둔다 -- 주문 재조회 루프가 import 해 쓴다.
+_MAX_RECONCILE_PAGES = 100
+
 
 def _advance_cursor(
     body: Mapping[str, Any], *, ctx_width: int, prev_nk: str

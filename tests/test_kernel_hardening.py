@@ -13,6 +13,7 @@ from decimal import Decimal
 
 import pytest
 
+from kis_trader import _order_core
 from kis_trader.domestic._engine import orders as orders_engine
 from kis_trader.errors import KISUsageError
 from kis_trader.order import ChangeActionFingerprint, Order
@@ -55,10 +56,11 @@ def test_second_change_on_same_order_is_rejected(tmp_path):
         limit_price="", action="cancel", time_in_force="day",
         region="domestic", asset_class="stock", exchange="KRX"))
     with pytest.raises(KISUsageError, match="reconcile"):
-        orders_engine.submit_change(
+        _order_core.submit_change(
             _FakeTransport(), store, original_client_order_id="orig", request_id="req-2",
             action="cancel", quantity=Decimal(1), limit_price=None,
-            cano="12345678", product_code="01", environment="real")
+            cano="12345678", product_code="01", environment="real",
+            build_request=orders_engine._make_domestic_change_request)
 
 
 def test_same_request_id_retry_is_not_treated_as_second_change(tmp_path):
@@ -73,10 +75,11 @@ def test_same_request_id_retry_is_not_treated_as_second_change(tmp_path):
         limit_price="", action="cancel", time_in_force="day",
         region="domestic", asset_class="stock", exchange="KRX"))
     with pytest.raises(KISUsageError, match="재전송하지"):
-        orders_engine.submit_change(
+        _order_core.submit_change(
             _FakeTransport(), store, original_client_order_id="orig", request_id="req-1",
             action="cancel", quantity=Decimal(1), limit_price=None,
-            cano="12345678", product_code="01", environment="real")
+            cano="12345678", product_code="01", environment="real",
+            build_request=orders_engine._make_domestic_change_request)
 
 
 def test_domestic_modify_still_requires_positive_limit(tmp_path):
@@ -86,10 +89,11 @@ def test_domestic_modify_still_requires_positive_limit(tmp_path):
                         client_order_id="orig")
     _seed_completed(store, "orig", order)
     with pytest.raises(KISUsageError):
-        orders_engine.submit_change(
+        _order_core.submit_change(
             _FakeTransport(), store, original_client_order_id="orig", request_id="r",
             action="modify", quantity=Decimal(1), limit_price=None,   # 정정인데 가격 없음
-            cano="12345678", product_code="01", environment="real")
+            cano="12345678", product_code="01", environment="real",
+            build_request=orders_engine._make_domestic_change_request)
 
 
 def test_domestic_cancel_still_rejects_a_price(tmp_path):
@@ -99,7 +103,28 @@ def test_domestic_cancel_still_rejects_a_price(tmp_path):
                         client_order_id="orig")
     _seed_completed(store, "orig", order)
     with pytest.raises(KISUsageError):
-        orders_engine.submit_change(
+        _order_core.submit_change(
             _FakeTransport(), store, original_client_order_id="orig", request_id="r",
             action="cancel", quantity=Decimal(1), limit_price=Decimal(70000),  # 취소인데 가격 있음
-            cano="12345678", product_code="01", environment="real")
+            cano="12345678", product_code="01", environment="real",
+            build_request=orders_engine._make_domestic_change_request)
+
+
+def test_overseas_engine_does_not_import_domestic_order_core():
+    # P2-9 구조 불변식: 지역 중립 주문 코어(place/submit_change/_RECEIPT_DATE_KEY)는 _order_core 로
+    # 분리됐다. overseas 엔진은 domestic._engine.orders(국내 전용 모듈)를 안쪽으로 import 하면 안 된다
+    # -- 공유분은 _order_core 에서 가져온다(형제 패키지 간 안쪽 의존 금지).
+    import pathlib
+    root = pathlib.Path(__file__).resolve().parent.parent / "src" / "kis_trader" / "overseas" / "_engine"
+    offenders = [
+        p.name for p in root.glob("*.py")
+        if "domestic._engine.orders" in p.read_text(encoding="utf-8")
+    ]
+    assert not offenders, f"overseas 엔진이 domestic._engine.orders 를 참조한다: {offenders}"
+
+
+def test_order_core_place_and_submit_change_are_public_to_engine():
+    # 코어가 제자리(_order_core)에 있고 엔진이 그걸 쓰는지 고정.
+    from kis_trader import _order_core
+    assert callable(_order_core.place) and callable(_order_core.submit_change)
+    assert _order_core._RECEIPT_DATE_KEY == "_receipt_date"

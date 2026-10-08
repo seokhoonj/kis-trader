@@ -1,7 +1,7 @@
 """국내 장내채권 주문 와이어 빌더 (내부) -- derivative_orders.py 의 형제.
 
 주문 실행의 안전 규칙(이중체결 방지·쓰기 재시도 금지·보수적 재조회)은 국내주식·해외·파생과
-공유하는 안전 코어(:func:`~kis_trader.domestic._engine.orders.place`)가 맡는다. 이 모듈은 그
+공유하는 안전 코어(:func:`~kis_trader._order_core.place`)가 맡는다. 이 모듈은 그
 코어에 ``build_request`` 로 주입할 **국내 장내채권(BOND) 매수·매도·정정·취소의 와이어 요청**만
 조립한다 -- 순수 함수라 오케스트레이션 없이 단독 검증된다. 접수 응답(krx_fwdg_ord_orgno/odno/ord_tmd)은
 국내주식과 같은 표준 형상이라 안전 코어의 기본 output 파서를 그대로 쓴다(전용 파서 불필요).
@@ -43,7 +43,7 @@ _CHANGE_TR = "TTTC0953U"                            # 실전 전용(모의 미�
 def make_order_request(
     order: Order, *, cano: str, product_code: str, environment: Environment
 ) -> WireRequest:
-    """안전 코어(:func:`~kis_trader.domestic._engine.orders.place`)에 넘길 국내 장내채권 발주 빌더.
+    """안전 코어(:func:`~kis_trader._order_core.place`)에 넘길 국내 장내채권 발주 빌더.
 
     채권은 **실전 전용**(모의투자 미지원)이라 ``paper`` 면 fail-closed(client 라우팅에서 먼저 막지만
     빌더에서도 방어). 채권은 지정가(채권단가) 전용이라 ``limit_price`` 가 없으면 거부한다. 주문 형상
@@ -130,7 +130,7 @@ def make_change_request(
     action: ChangeAction, quantity: Decimal, limit_price: Decimal | None,
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
-    """안전 코어(:func:`~kis_trader.domestic._engine.orders.submit_change`)에 넘길 국내 장내채권
+    """안전 코어(:func:`~kis_trader._order_core.submit_change`)에 넘길 국내 장내채권
     정정·취소 빌더(order-rvsecncl ``TTTC0953U``, 실전 전용).
 
     채권은 **실전 전용**(모의투자 미지원)이라 ``paper`` 면 fail-closed(client 라우팅에서 먼저 막지만

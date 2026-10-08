@@ -13,6 +13,7 @@ from dataclasses import fields
 from decimal import Decimal
 from typing import TYPE_CHECKING
 
+from . import _order_core
 from .domestic._engine import bond_orders as bond_orders_engine
 from .domestic._engine import derivative_orders as derivative_orders_engine
 from .domestic._engine import orders as orders_engine
@@ -87,7 +88,7 @@ class OrderEngine:
         시장별로 바꾼다. 해외 주문엔 아직 사전 리스크 게이트가 없어(참조가가 국내 시세 기반),
         ``risk`` 를 켠 세션에서 해외 주문을 내면 명확히 거부한다."""
         cano, product_code = self._require_account()
-        build_request: orders_engine.PlaceRequestBuilder | None = None
+        build_request: _order_core.PlaceRequestBuilder | None = None
         extract_output = None
         risk = self._risk
         match (order.region, order.asset_class):
@@ -138,11 +139,21 @@ class OrderEngine:
                     f"지원하지 않는 주문 lane: region={order.region!r}, "
                     f"asset_class={order.asset_class!r}"
                 )
-        return orders_engine.place(
+        # 안전 코어(_order_core.place)는 지역 중립이라 와이어 빌더를 필수로 주입받는다 -- 국내주식
+        # 비신용 lane 은 여기서 명시적으로 현금 빌더를 넘긴다(코어에 국내 기본값을 두지 않는다).
+        if build_request is None:
+            build_request = orders_engine._make_order_cash_request
+        # 사전 리스크 점검도 콜러블로 주입한다 -- 참조가 조회가 국내 시세 기반이라 run_pre_trade_risk 는
+        # domestic 엔진에 남는다(risk 는 국내 주식/파생 lane 에서만 non-None; 그 외는 위에서 이미 거부).
+        pre_trade_risk = (
+            (lambda checked_order: orders_engine.run_pre_trade_risk(self._transport, checked_order, risk))
+            if risk is not None else None
+        )
+        return _order_core.place(
             self._transport, self._store, order,
             cano=cano, product_code=product_code, environment=self._environment,
-            orderable=self._orderable, risk=risk, build_request=build_request,
-            extract_output=extract_output,
+            orderable=self._orderable, build_request=build_request,
+            extract_output=extract_output, pre_trade_risk=pre_trade_risk,
         )
 
     def change_order(
@@ -153,7 +164,7 @@ class OrderEngine:
 
         국내·해외 주식, 국내 파생(XKFE), 국내 장내채권(BOND), 해외선물옵션(OSFO) 즉시주문과 아시아
         해외예약(취소 전용)을 모두 처리한다 -- ``fingerprint`` 의 거래소/세션으로 자산별 정정·취소 와이어
-        빌더를 골라 공유 안전 코어(:func:`~kis_trader.domestic._engine.orders.submit_change`)에 넘긴다."""
+        빌더를 골라 공유 안전 코어(:func:`~kis_trader._order_core.submit_change`)에 넘긴다."""
         cano, product_code = self._require_account()
         fingerprint = self._store.fingerprint_for(client_order_id)
         report = self._store.report_for(client_order_id)
@@ -192,7 +203,7 @@ class OrderEngine:
                 "해외는 부분 취소·정정을 지원하지 않는다(전량만 가능) -- quantity 를 생략해 "
                 "잔량 전체를 취소·정정하라."
             )
-        builder: orders_engine.ChangeRequestBuilder | None = None
+        builder: _order_core.ChangeRequestBuilder | None = None
         if overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
             builder = (
                 overseas_orders_engine.make_overnight_change_request
@@ -271,7 +282,11 @@ class OrderEngine:
                             if fingerprint.stop_price and fingerprint.stop_price != "0" else None),
             )
             orders_engine.run_pre_trade_risk(self._transport, risk_probe, self._risk)
-        return orders_engine.submit_change(
+        # 지역 중립 코어는 와이어 빌더 필수 -- 국내주식 정정취소 lane(builder 미설정)은 여기서 명시적으로
+        # 국내 빌더를 넘긴다(코어에 국내 기본값을 두지 않는다).
+        if builder is None:
+            builder = orders_engine._make_domestic_change_request
+        return _order_core.submit_change(
             self._transport, self._store,
             original_client_order_id=client_order_id,
             request_id=request_id or mint_client_order_id(),
