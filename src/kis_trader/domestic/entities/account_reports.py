@@ -54,7 +54,7 @@ class RealizedProfitPosition:
 @dataclass(frozen=True, slots=True)
 class RealizedProfitBalance:
     """실현손익 포함 국내 체결기준잔고(불변). ``positions`` 는 보유 종목, 나머지는 계좌 요약이며
-    ``realized_pnl``/``real_eval_pnl`` 이 이 조회의 핵심 필드다. 금액은 KRW Decimal.
+    ``realized_pnl``/``real_evaluation_pnl`` 이 이 조회의 핵심 필드다. 금액은 KRW Decimal.
 
     .. note:: 요약 필드는 KIS 응답예시로 확증되지 않았다(레이아웃 기준). 전체 원본은 ``_raw``.
     """
@@ -70,8 +70,8 @@ class RealizedProfitBalance:
     asset_change_percent: Decimal         # 자산증감수익율(asst_icdc_erng_rt)
     realized_pnl: Decimal              # 실현손익(rlzt_pfls)
     realized_return_percent: Decimal      # 실현수익율(rlzt_erng_rt)
-    real_eval_pnl: Decimal             # 실평가손익(real_evlu_pfls)
-    real_eval_return_percent: Decimal     # 실평가손익수익율(real_evlu_pfls_erng_rt)
+    real_evaluation_pnl: Decimal             # 실평가손익(real_evlu_pfls)
+    real_evaluation_return_percent: Decimal     # 실평가손익수익율(real_evlu_pfls_erng_rt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

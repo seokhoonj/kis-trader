@@ -304,7 +304,7 @@ def test_parse_execution_notice():
     assert note.fill_status == "2"
     assert note.accepted_status == "2"
     assert note.order_quantity == Decimal(2)
-    assert note.symbol_name == "KOSPI200 F 202509"
+    assert note.name == "KOSPI200 F 202509"
     assert note.account_name == "홍길동"
     assert note.order_price == Decimal("330.45")
     assert len(note._raw) == 22

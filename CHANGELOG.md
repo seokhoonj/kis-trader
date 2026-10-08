@@ -302,6 +302,16 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   and the overseas-derivative quote/detail listing/expiry/last-trade dates. The two local
   datetime-returning `_optional_date` parser copies are removed in favor of the shared fail-closed
   `parse_optional_kst_date` (empty / "00000000" sentinel -> None). Wire keys unchanged.
+- Naming-unify residue cleared (council P2). `OverseasBuyableAmount.max_quantity` /
+  `integrated_max_quantity` → `max_orderable_quantity` / `integrated_max_orderable_quantity`
+  (the wire keys are `max_ord_psbl_qty` = orderable, distinct from the `max_buy_qty` =
+  `max_buyable_quantity` that other entities decode). The truncated `eval_` prefix is spelled out:
+  `OverseasBalanceSummary.eval_return_percent` → `evaluation_return_percent`, and
+  `RealizedProfitBalance.real_eval_pnl` / `real_eval_return_percent` → `real_evaluation_pnl` /
+  `real_evaluation_return_percent`. The realtime execution-notice entities' `symbol_name` →
+  `name`, matching the symbol+`name` convention of the order/fill record family (the overseas
+  news headline keeps `symbol_name`, its `category_name` pairing). `margin_detail(currency=...)`
+  is now keyword-only, matching its `deposit(*, currency=...)` twin.
 
 ### Added
 

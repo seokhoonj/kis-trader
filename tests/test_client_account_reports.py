@@ -89,7 +89,7 @@ def test_realized_balance_parses():
     assert p.loan_amount == Decimal(1000)
     assert p.expiry_date == date(2024, 9, 16)
     assert bal.realized_pnl == Decimal(33000)
-    assert bal.real_eval_pnl == Decimal(199000)
+    assert bal.real_evaluation_pnl == Decimal(199000)
     assert bal.net_asset == Decimal(5000000)
 
 

@@ -703,8 +703,8 @@ def fetch_realized_profit_balance(
         asset_change_percent=field_decimal_or_zero(summary.get("asst_icdc_erng_rt"), "asst_icdc_erng_rt"),
         realized_pnl=field_decimal_or_zero(summary.get("rlzt_pfls"), "rlzt_pfls"),
         realized_return_percent=field_decimal_or_zero(summary.get("rlzt_erng_rt"), "rlzt_erng_rt"),
-        real_eval_pnl=field_decimal_or_zero(summary.get("real_evlu_pfls"), "real_evlu_pfls"),
-        real_eval_return_percent=field_decimal_or_zero(
+        real_evaluation_pnl=field_decimal_or_zero(summary.get("real_evlu_pfls"), "real_evlu_pfls"),
+        real_evaluation_return_percent=field_decimal_or_zero(
             summary.get("real_evlu_pfls_erng_rt"), "real_evlu_pfls_erng_rt"
         ),
         _raw=summary,

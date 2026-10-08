@@ -64,9 +64,9 @@ def test_overseas_buyable_parses_ledger_output():
     assert result.exchange == "SEHK"          # HKS -> SEHK
     assert result.currency == "HKD"
     assert result.orderable_amount == Money(Decimal("99200.35"), "HKD")
-    assert result.max_quantity == Decimal(744)
+    assert result.max_orderable_quantity == Decimal(744)
     assert result.integrated_orderable_amount == Money(Decimal("95500.12"), "HKD")
-    assert result.integrated_max_quantity == Decimal(717)
+    assert result.integrated_max_orderable_quantity == Decimal(717)
     assert result.orderable_foreign_cash == Money(Decimal("99900.52"), "HKD")
     assert result.reusable_sell_amount == Money(Decimal("0.00"), "HKD")
     assert result.exchange_rate == Decimal("165.5400000000")
@@ -118,7 +118,7 @@ def test_overseas_buyable_absent_amount_reads_zero():
         "AAPL", exchange="NAS", price="1"
     )
     assert result.orderable_amount == Money(Decimal("10.00"), "USD")
-    assert result.max_quantity == Decimal(0)           # 부재 -> 0
+    assert result.max_orderable_quantity == Decimal(0)           # 부재 -> 0
     assert result.reusable_sell_amount == Money(Decimal(0), "USD")
 
 

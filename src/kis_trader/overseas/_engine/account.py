@@ -178,9 +178,9 @@ def fetch_buyable_amount(
         orderable_foreign_cash=_money_or_zero(output, "ord_psbl_frcr_amt", currency),
         reusable_sell_amount=_money_or_zero(output, "sll_ruse_psbl_amt", currency),
         orderable_amount=_money_or_zero(output, "ovrs_ord_psbl_amt", currency),
-        max_quantity=_decimal_or_zero(output, "max_ord_psbl_qty"),
+        max_orderable_quantity=_decimal_or_zero(output, "max_ord_psbl_qty"),
         integrated_orderable_amount=_money_or_zero(output, "frcr_ord_psbl_amt1", currency),
-        integrated_max_quantity=_decimal_or_zero(output, "ovrs_max_ord_psbl_qty"),
+        integrated_max_orderable_quantity=_decimal_or_zero(output, "ovrs_max_ord_psbl_qty"),
         exchange_rate=_decimal_or_zero(output, "exrt"),
         _raw=output,
     )
@@ -315,7 +315,7 @@ def fetch_present_balance(
         total_evaluation_amount=_decimal_or_zero(summary, "evlu_amt_smtl_amt"),
         total_unrealized_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
         total_asset_amount=_decimal_or_zero(summary, "tot_asst_amt"),
-        eval_return_percent=_decimal_or_zero(summary, "evlu_erng_rt1"),
+        evaluation_return_percent=_decimal_or_zero(summary, "evlu_erng_rt1"),
         _raw=summary,
     )
 
@@ -346,7 +346,7 @@ def fetch_settlement_balance(
         currencies=tuple(_currency_balance(row) for row in _as_rows(resp.body.get("output2"))),
         total_purchase_amount=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
         total_unrealized_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
-        eval_return_percent=_decimal_or_zero(summary, "evlu_erng_rt1"),
+        evaluation_return_percent=_decimal_or_zero(summary, "evlu_erng_rt1"),
         total_deposit=_decimal_or_zero(summary, "tot_dncl_amt"),
         total_won_evaluation=_decimal_or_zero(summary, "wcrc_evlu_amt_smtl"),
         total_asset_amount=_decimal_or_zero(summary, "tot_asst_amt2"),

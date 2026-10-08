@@ -193,7 +193,7 @@ class OverseasExecutionNotice:
     original_order_id: str
     sell_buy: str  # 매도매수구분
     symbol: str
-    symbol_name: str
+    name: str
     filled_quantity: Decimal
     filled_price: Decimal
     time: str  # 주식 체결 시간
@@ -215,7 +215,7 @@ def parse_execution_notice(fields: list[str]) -> OverseasExecutionNotice:
         original_order_id=raw["OODER_NO"],
         sell_buy=raw["SELN_BYOV_CLS"],
         symbol=raw["STCK_SHRN_ISCD"],
-        symbol_name=raw["CNTG_ISNM"],
+        name=raw["CNTG_ISNM"],  # 체결종목명
         filled_quantity=_decimal(raw["CNTG_QTY"]),
         filled_price=_decimal(raw["CNTG_UNPR"]),
         time=raw["STCK_CNTG_HOUR"],

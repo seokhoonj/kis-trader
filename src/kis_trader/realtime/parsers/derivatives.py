@@ -504,6 +504,7 @@ class DerivativeExecutionNotice:
     original_order_id: str
     sell_buy: str  # 매도매수구분 01매도 02매수
     symbol: str
+    name: str  # 체결종목명(CNTG_ISNM)
     filled_quantity: Decimal
     filled_price: Decimal
     time: str  # HHMMSS
@@ -511,7 +512,6 @@ class DerivativeExecutionNotice:
     fill_status: str  # CNTG_YN 체결여부 1:주문 2:체결 (원 코드 보존)
     accepted_status: str  # ACPT_YN 1:주문접수 2:확인 3:취소(FOK/IOC) (원 코드 보존)
     order_quantity: Decimal
-    symbol_name: str  # 체결종목명
     account_name: str
     order_price: Decimal | None  # 레이아웃에 ORDER_PRC 가 없으면(야간 통보) None(구조적 부재 vs 값 0 구별)
     _raw: Mapping[str, Any] = _raw_field()
@@ -534,7 +534,7 @@ def _execution_notice(fields: list[str], layout: tuple[str, ...]) -> DerivativeE
         fill_status=raw["CNTG_YN"],
         accepted_status=raw["ACPT_YN"],  # ACPT_YN 1:주문접수 2:확인 3:취소(FOK/IOC) (원 코드 보존)
         order_quantity=_decimal(raw["ODER_QTY"]),
-        symbol_name=raw["CNTG_ISNM"],
+        name=raw["CNTG_ISNM"],
         account_name=raw["ACNT_NAME"],
         # 레이아웃에 컬럼이 아예 없으면(야간 통보) None -- 있으면(빈 값 포함) _decimal.
         order_price=_decimal(raw["ORDER_PRC"]) if "ORDER_PRC" in raw else None,

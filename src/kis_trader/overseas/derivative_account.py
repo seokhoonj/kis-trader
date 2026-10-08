@@ -72,7 +72,7 @@ class OverseasDerivativesAccount:
         )
 
     def margin_detail(
-        self, currency: str = "USD", date: str | None = None
+        self, *, currency: str = "USD", date: str | None = None
     ) -> OverseasDerivativeMargin:
         """해외선물옵션 증거금상세(주문가능·위탁/정산/미결제/유지/주문/추가 증거금 요약).
 

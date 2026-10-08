@@ -249,7 +249,7 @@ def test_parse_execution_notice_headline():
     assert notice.original_order_id == "0000000"
     assert notice.sell_buy == "02"
     assert notice.symbol == "AAPL"
-    assert notice.symbol_name == "APPLE INC"
+    assert notice.name == "APPLE INC"
     assert notice.filled_quantity == Decimal(5)
     assert notice.filled_price == Decimal("231.50")
     assert notice.time == "223015"
