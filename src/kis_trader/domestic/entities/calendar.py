@@ -99,7 +99,7 @@ class RightsOffering:
     ex_rights_date: date | None       # 권리락일(right_dt)
     subscription_start: date | None   # 청약 시작일(sub_term_ft)
     subscription_period: str          # 청약기간 텍스트(sub_term)
-    listing_date: date | None         # 상장/등록일(list_dt)
+    listing_date: date | None         # 상장/등록일(list_date)
     stock_kind: str                   # 주식종류 코드(stk_kind)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -120,7 +120,7 @@ class BonusIssue:
     odd_lot_base_price: Decimal | None  # 단주기준가(odd_rec_price)
     ex_rights_date: date | None       # 권리락일(right_dt)
     odd_lot_pay_date: date | None     # 단주대금지급일(odd_pay_dt)
-    listing_date: date | None         # 상장/등록일(list_dt)
+    listing_date: date | None         # 상장/등록일(list_date)
     total_shares: int | None          # 발행주식수(tot_issue_stk_qty)
     new_shares: int | None            # 발행할 주식수(issue_stk_qty)
     stock_kind: str                   # 주식종류 코드(stk_kind)

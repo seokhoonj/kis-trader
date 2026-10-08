@@ -242,7 +242,7 @@ def fetch_rights_offerings(
                 subscription_start=_parse_ksd_date(row.get("sub_term_ft"), required=False,
                                                    name="sub_term_ft"),
                 subscription_period=str(row.get("sub_term", "")).strip(),
-                listing_date=_parse_ksd_date(row.get("listing_date"), required=False, name="listing_date"),
+                listing_date=_parse_ksd_date(row.get("list_date"), required=False, name="list_date"),
                 stock_kind=str(row.get("stk_kind", "")).strip(),
                 _raw=row,
             )
@@ -272,7 +272,7 @@ def fetch_bonus_issues(
                                                name="right_dt"),
                 odd_lot_pay_date=_parse_ksd_date(row.get("odd_pay_dt"), required=False,
                                                  name="odd_pay_dt"),
-                listing_date=_parse_ksd_date(row.get("listing_date"), required=False, name="listing_date"),
+                listing_date=_parse_ksd_date(row.get("list_date"), required=False, name="list_date"),
                 total_shares=optional_int(row.get("tot_issue_stk_qty"), "tot_issue_stk_qty"),
                 new_shares=optional_int(row.get("issue_stk_qty"), "issue_stk_qty"),
                 stock_kind=str(row.get("stk_kind", "")).strip(),

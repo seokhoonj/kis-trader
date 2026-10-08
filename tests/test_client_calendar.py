@@ -150,7 +150,7 @@ def test_rights_offerings_maps_and_basis():
              "tot_issue_stk_qty": "    31000000", "issue_stk_qty": "      273199",
              "fix_rate": " 20.00", "disc_rate": " 0.00", "fix_price": "     500",
              "right_dt": "20240221", "sub_term_ft": "20240325",
-             "sub_term": "2024/03/25 ~ 2024/03/26", "listing_date": "", "stk_kind": "01"}]
+             "sub_term": "2024/03/25 ~ 2024/03/26", "list_date": "20240402", "stk_kind": "01"}]
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                                               body={"output1": rows}))
     from kis_trader import RightsOffering
@@ -164,6 +164,7 @@ def test_rights_offerings_maps_and_basis():
     assert e.issue_price == Decimal(500)
     assert e.ex_rights_date == date(2024, 2, 21)
     assert e.subscription_start == date(2024, 3, 25)
+    assert e.listing_date == date(2024, 4, 2)                  # wire key list_date (not list_dt)
     assert e.stock_kind == "01"
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/ksdinfo/paidin-capin"
@@ -184,7 +185,7 @@ def test_bonus_issues_maps_and_params():
     # 원장 예시값(클로봇). zero/space padding과 미정 날짜 빈값을 그대로 검증한다.
     rows = [{"record_date": "20240326", "sht_cd": "466100", "isin_name": "클로봇",
              "fix_rate": "1000.0", "odd_rec_price": "000000000", "right_dt": "20240325",
-             "odd_pay_dt": "", "listing_date": "", "tot_issue_stk_qty": "     1885394",
+             "odd_pay_dt": "", "list_date": "", "tot_issue_stk_qty": "     1885394",
              "issue_stk_qty": "    18853940", "stk_kind": "01"}]
     fake = FakeTransport(response=_resp(rows))
     from kis_trader import BonusIssue
