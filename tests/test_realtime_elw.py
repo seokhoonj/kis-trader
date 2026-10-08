@@ -243,7 +243,7 @@ def test_parse_expected_conclusion_maps_headline_fields():
     assert ec.time == "085959"
     assert ec.expected_price == Decimal(123)
     assert ec.change_sign == "5"
-    assert ec.change == Decimal(3)
+    assert ec.change == Decimal(-3)                 # 하락 부호(5) 적용 -- change 는 이제 부호 포함
     assert ec.change_percent == Decimal("-2.38")
     assert ec.open == Decimal(125)
     assert ec.high == Decimal(127)

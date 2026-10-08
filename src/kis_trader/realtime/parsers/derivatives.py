@@ -21,6 +21,7 @@ from decimal import Decimal, InvalidOperation
 from types import MappingProxyType
 from typing import Any
 
+from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
 
 
@@ -205,8 +206,8 @@ def _futures_tick(
         time=raw["BSOP_HOUR"],
         current_price=_decimal(raw[price]),
         change_sign=raw["PRDY_VRSS_SIGN"],
-        change=_decimal(raw[change]),
-        change_percent=_decimal(raw["FUTS_PRDY_CTRT"]),
+        change=_apply_change_sign(_decimal(raw[change]), raw["PRDY_VRSS_SIGN"]),
+        change_percent=_apply_change_sign(_decimal(raw["FUTS_PRDY_CTRT"]), raw["PRDY_VRSS_SIGN"]),
         open=_decimal(raw[open_]),
         high=_decimal(raw[high]),
         low=_decimal(raw[low]),
@@ -336,8 +337,8 @@ def _option_tick(fields: list[str], layout: tuple[str, ...]) -> OptionTick:
         time=raw["BSOP_HOUR"],
         current_price=_decimal(raw["OPTN_PRPR"]),
         change_sign=raw["PRDY_VRSS_SIGN"],
-        change=_decimal(raw["OPTN_PRDY_VRSS"]),
-        change_percent=_decimal(raw["PRDY_CTRT"]),
+        change=_apply_change_sign(_decimal(raw["OPTN_PRDY_VRSS"]), raw["PRDY_VRSS_SIGN"]),
+        change_percent=_apply_change_sign(_decimal(raw["PRDY_CTRT"]), raw["PRDY_VRSS_SIGN"]),
         open=_decimal(raw["OPTN_OPRC"]),
         high=_decimal(raw["OPTN_HGPR"]),
         low=_decimal(raw["OPTN_LWPR"]),
@@ -445,9 +446,9 @@ def _expected_conclusion(fields: list[str], layout: tuple[str, ...], *, symbol: 
         symbol=raw[symbol],
         time=raw["BSOP_HOUR"],
         expected_price=_decimal(raw["ANTC_CNPR"]),
-        expected_change=_decimal(raw["ANTC_CNTG_VRSS"]),
+        expected_change=_apply_change_sign(_decimal(raw["ANTC_CNTG_VRSS"]), raw["ANTC_CNTG_VRSS_SIGN"]),
         expected_change_sign=raw["ANTC_CNTG_VRSS_SIGN"],
-        expected_change_percent=_decimal(raw["ANTC_CNTG_PRDY_CTRT"]),
+        expected_change_percent=_apply_change_sign(_decimal(raw["ANTC_CNTG_PRDY_CTRT"]), raw["ANTC_CNTG_VRSS_SIGN"]),
         market_operation_code=raw["ANTC_MKOP_CLS_CODE"],
         # 레이아웃에 컬럼이 아예 없으면(주식옵션 7필드) None -- 있으면(빈 값 포함) _decimal.
         expected_volume=_decimal(raw["ANTC_CNQN"]) if "ANTC_CNQN" in raw else None,

@@ -18,6 +18,7 @@ from decimal import Decimal, InvalidOperation
 from types import MappingProxyType
 from typing import Any
 
+from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
 
 # H0BJCNT0(일반채권 실시간체결가) 응답 필드 순서(원장 Response Body). 인덱스 = ^ 위치.
@@ -147,8 +148,8 @@ def parse_bond_tick(fields: list[str]) -> BondTick:
         name=raw["BOND_ISNM"],
         time=raw["STCK_CNTG_HOUR"],
         change_sign=raw["PRDY_VRSS_SIGN"],
-        change=_decimal(raw["PRDY_VRSS"]),
-        change_percent=_decimal(raw["PRDY_CTRT"]),
+        change=_apply_change_sign(_decimal(raw["PRDY_VRSS"]), raw["PRDY_VRSS_SIGN"]),
+        change_percent=_apply_change_sign(_decimal(raw["PRDY_CTRT"]), raw["PRDY_VRSS_SIGN"]),
         current_price=_decimal(raw["STCK_PRPR"]),
         trade_volume=_decimal(raw["CNTG_VOL"]),
         open=_decimal(raw["STCK_OPRC"]),
@@ -189,9 +190,9 @@ def parse_bond_index_tick(fields: list[str]) -> BondIndexTick:
         time=raw["TRNM_HOUR"],
         total_return_index=_decimal(raw["TOTL_ERNN_NMIX"]),
         previous_total_return_index=_decimal(raw["PRDY_TOTL_ERNN_NMIX"]),
-        change=_decimal(raw["TOTL_ERNN_NMIX_PRDY_VRSS"]),
+        change=_apply_change_sign(_decimal(raw["TOTL_ERNN_NMIX_PRDY_VRSS"]), raw["TOTL_ERNN_NMIX_PRDY_VRSS_SIGN"]),
         change_sign=raw["TOTL_ERNN_NMIX_PRDY_VRSS_SIGN"],
-        change_percent=_decimal(raw["TOTL_ERNN_NMIX_PRDY_CTRT"]),
+        change_percent=_apply_change_sign(_decimal(raw["TOTL_ERNN_NMIX_PRDY_CTRT"]), raw["TOTL_ERNN_NMIX_PRDY_VRSS_SIGN"]),
         open=_decimal(raw["TOTL_ERNN_NMIX_OPRC"]),
         high=_decimal(raw["TOTL_ERNN_NMIX_HGPR"]),
         low=_decimal(raw["TOTL_ERNN_NMIX_LWPR"]),

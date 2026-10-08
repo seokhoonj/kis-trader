@@ -20,6 +20,7 @@ from decimal import Decimal, InvalidOperation
 from types import MappingProxyType
 from typing import Any
 
+from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
 
 # --------------------------------------------------------------------------------------
@@ -245,8 +246,8 @@ def parse_order_book(fields: list[str]) -> ELWOrderBook:
         expected_price=_decimal(raw["ANTC_CNPR"]),
         expected_volume=_decimal(raw["ANTC_CNQN"]),
         expected_change_sign=raw["ANTC_CNTG_VRSS_SIGN"],
-        expected_change=_decimal(raw["ANTC_CNTG_VRSS"]),
-        expected_change_percent=_decimal(raw["ANTC_CNTG_PRDY_CTRT"]),
+        expected_change=_apply_change_sign(_decimal(raw["ANTC_CNTG_VRSS"]), raw["ANTC_CNTG_VRSS_SIGN"]),
+        expected_change_percent=_apply_change_sign(_decimal(raw["ANTC_CNTG_PRDY_CTRT"]), raw["ANTC_CNTG_VRSS_SIGN"]),
         lp_total_ask_quantity=_decimal(raw["LP_TOTAL_ASKP_RSQN"]),
         lp_total_bid_quantity=_decimal(raw["LP_TOTAL_BIDP_RSQN"]),
         _raw=raw,
@@ -261,8 +262,8 @@ def parse_elw_tick(fields: list[str]) -> ELWTick:
         time=raw["STCK_CNTG_HOUR"],
         current_price=_decimal(raw["STCK_PRPR"]),
         change_sign=raw["PRDY_VRSS_SIGN"],
-        change=_decimal(raw["PRDY_VRSS"]),
-        change_percent=_decimal(raw["PRDY_CTRT"]),
+        change=_apply_change_sign(_decimal(raw["PRDY_VRSS"]), raw["PRDY_VRSS_SIGN"]),
+        change_percent=_apply_change_sign(_decimal(raw["PRDY_CTRT"]), raw["PRDY_VRSS_SIGN"]),
         open=_decimal(raw["STCK_OPRC"]),
         high=_decimal(raw["STCK_HGPR"]),
         low=_decimal(raw["STCK_LWPR"]),
@@ -305,8 +306,8 @@ def parse_expected_conclusion(fields: list[str]) -> ELWExpectedConclusion:
         time=raw["STCK_CNTG_HOUR"],
         expected_price=_decimal(raw["STCK_PRPR"]),
         change_sign=raw["PRDY_VRSS_SIGN"],
-        change=_decimal(raw["PRDY_VRSS"]),
-        change_percent=_decimal(raw["PRDY_CTRT"]),
+        change=_apply_change_sign(_decimal(raw["PRDY_VRSS"]), raw["PRDY_VRSS_SIGN"]),
+        change_percent=_apply_change_sign(_decimal(raw["PRDY_CTRT"]), raw["PRDY_VRSS_SIGN"]),
         open=_decimal(raw["STCK_OPRC"]),
         high=_decimal(raw["STCK_HGPR"]),
         low=_decimal(raw["STCK_LWPR"]),

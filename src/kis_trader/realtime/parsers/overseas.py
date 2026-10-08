@@ -19,6 +19,7 @@ from decimal import Decimal, InvalidOperation
 from types import MappingProxyType
 from typing import Any
 
+from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
 
 _EMPTY_RAW: Mapping[str, Any] = MappingProxyType({})
@@ -155,8 +156,8 @@ def parse_delayed_trade_tick(fields: list[str]) -> DelayedTradeTick:
         low=_decimal(raw["LOW"]),
         current_price=_decimal(raw["LAST"]),
         change_sign=raw["SIGN"],
-        change=_decimal(raw["DIFF"]),
-        change_percent=_decimal(raw["RATE"]),
+        change=_apply_change_sign(_decimal(raw["DIFF"]), raw["SIGN"]),
+        change_percent=_apply_change_sign(_decimal(raw["RATE"]), raw["SIGN"]),
         best_bid=_decimal(raw["PBID"]),
         best_ask=_decimal(raw["PASK"]),
         trade_volume=_decimal(raw["EVOL"]),
@@ -275,8 +276,8 @@ def parse_futures_trade_tick(fields: list[str]) -> FuturesTradeTick:
         prev_close=_decimal(raw["PREV_PRICE"]),
         current_price=_decimal(raw["LAST_PRICE"]),
         trade_volume=_decimal(raw["LAST_QNTT"]),
-        change=_decimal(raw["PREV_DIFF_PRICE"]),
-        change_percent=_decimal(raw["PREV_DIFF_RATE"]),
+        change=_apply_change_sign(_decimal(raw["PREV_DIFF_PRICE"]), raw["PREV_SIGN"]),
+        change_percent=_apply_change_sign(_decimal(raw["PREV_DIFF_RATE"]), raw["PREV_SIGN"]),
         open=_decimal(raw["OPEN_PRICE"]),
         high=_decimal(raw["HIGH_PRICE"]),
         low=_decimal(raw["LOW_PRICE"]),

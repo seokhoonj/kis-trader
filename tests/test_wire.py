@@ -45,6 +45,15 @@ def test_apply_change_sign_unknown_code_fails_closed(sign):
         _apply_change_sign(Decimal(400), sign)
 
 
+@pytest.mark.parametrize("sign", ["1", "2", "3", "4", "5", "0", ""])
+@pytest.mark.parametrize("value", [Decimal(400), Decimal(-400), Decimal(0)])
+def test_apply_change_sign_is_idempotent(value, sign):
+    # 멱등성 계약: 이미 부호가 실린 값에 다시 적용해도 결과가 같다(abs 정규화 후 방향만). 실시간
+    # 파서가 와이어의 부호-유무와 무관하게 안전하게 _apply_change_sign 을 거치게 하는 핵심 전제다.
+    once = _apply_change_sign(value, sign)
+    assert _apply_change_sign(once, sign) == once
+
+
 # --- required/optional decimal ---------------------------------------------
 def test_required_decimal_parses_and_strips():
     assert required_decimal("70000", "px") == Decimal(70000)

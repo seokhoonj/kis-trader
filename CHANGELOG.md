@@ -312,6 +312,15 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `name`, matching the symbol+`name` convention of the order/fill record family (the overseas
   news headline keeps `symbol_name`, its `category_name` pairing). `margin_detail(currency=...)`
   is now keyword-only, matching its `deposit(*, currency=...)` twin.
+- Realtime `change` / `change_percent` now carry the direction sign, matching the REST `Quote`.
+  Every realtime tick/notice parser (domestic stock + NAV, index, bond, ELW, derivatives,
+  overseas) previously returned the raw magnitude unsigned, with the direction living only in the
+  separate `change_sign` field (`ETFNav.nav_change` and the expected-conclusion `change` fields
+  included); a downtick's `change` / `change_percent` is now negative (magnitude times the sign).
+  This is a value-semantics change, not a rename: code that read these as an unsigned magnitude
+  must drop its own sign handling, and `change_sign` is retained for the raw vendor code. The
+  values route through the same abs-normalizing, idempotent `_apply_change_sign` the REST path
+  uses, so an unknown sign code fails closed instead of silently flipping direction.
 
 ### Added
 

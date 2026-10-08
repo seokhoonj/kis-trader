@@ -15,6 +15,7 @@ from decimal import Decimal, InvalidOperation
 from types import MappingProxyType
 from typing import Any
 
+from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
 
 
@@ -95,8 +96,8 @@ def parse_trade_tick(
         time=raw["STCK_CNTG_HOUR"],
         current_price=_decimal(raw["STCK_PRPR"]),
         change_sign=raw["PRDY_VRSS_SIGN"],
-        change=_decimal(raw["PRDY_VRSS"]),
-        change_percent=_decimal(raw["PRDY_CTRT"]),
+        change=_apply_change_sign(_decimal(raw["PRDY_VRSS"]), raw["PRDY_VRSS_SIGN"]),
+        change_percent=_apply_change_sign(_decimal(raw["PRDY_CTRT"]), raw["PRDY_VRSS_SIGN"]),
         open=_decimal(raw["STCK_OPRC"]),
         high=_decimal(raw["STCK_HGPR"]),
         low=_decimal(raw["STCK_LWPR"]),
@@ -287,8 +288,8 @@ def _expected_conclusion(raw: Mapping[str, str]) -> StockExpectedConclusion:
         time=raw["STCK_CNTG_HOUR"],
         expected_price=_decimal(raw["STCK_PRPR"]),
         change_sign=raw["PRDY_VRSS_SIGN"],
-        change=_decimal(raw["PRDY_VRSS"]),
-        change_percent=_decimal(raw["PRDY_CTRT"]),
+        change=_apply_change_sign(_decimal(raw["PRDY_VRSS"]), raw["PRDY_VRSS_SIGN"]),
+        change_percent=_apply_change_sign(_decimal(raw["PRDY_CTRT"]), raw["PRDY_VRSS_SIGN"]),
         open=_decimal(raw["STCK_OPRC"]),
         high=_decimal(raw["STCK_HGPR"]),
         low=_decimal(raw["STCK_LWPR"]),
@@ -395,8 +396,8 @@ def parse_after_hours_tick(fields: list[str]) -> AfterHoursTick:
         time=raw["STCK_CNTG_HOUR"],
         current_price=_decimal(raw["STCK_PRPR"]),
         change_sign=raw["PRDY_VRSS_SIGN"],
-        change=_decimal(raw["PRDY_VRSS"]),
-        change_percent=_decimal(raw["PRDY_CTRT"]),
+        change=_apply_change_sign(_decimal(raw["PRDY_VRSS"]), raw["PRDY_VRSS_SIGN"]),
+        change_percent=_apply_change_sign(_decimal(raw["PRDY_CTRT"]), raw["PRDY_VRSS_SIGN"]),
         open=_decimal(raw["STCK_OPRC"]),
         high=_decimal(raw["STCK_HGPR"]),
         low=_decimal(raw["STCK_LWPR"]),
@@ -638,8 +639,8 @@ def parse_etf_nav(fields: list[str]) -> ETFNav:
         symbol=raw["MKSC_SHRN_ISCD"],
         nav=_decimal(raw["NAV"]),
         nav_change_sign=raw["NAV_PRDY_VRSS_SIGN"],
-        nav_change=_decimal(raw["NAV_PRDY_VRSS"]),
-        nav_change_percent=_decimal(raw["NAV_PRDY_CTRT"]),
+        nav_change=_apply_change_sign(_decimal(raw["NAV_PRDY_VRSS"]), raw["NAV_PRDY_VRSS_SIGN"]),
+        nav_change_percent=_apply_change_sign(_decimal(raw["NAV_PRDY_CTRT"]), raw["NAV_PRDY_VRSS_SIGN"]),
         nav_open=_decimal(raw["OPRC_NAV"]),
         nav_high=_decimal(raw["HPRC_NAV"]),
         nav_low=_decimal(raw["LPRC_NAV"]),

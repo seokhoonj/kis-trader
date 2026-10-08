@@ -15,6 +15,7 @@ from decimal import Decimal, InvalidOperation
 from types import MappingProxyType
 from typing import Any
 
+from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
 
 # H0UPANC0 응답 필드 순서(원장 Response Body). 인덱스 = ^ 위치.
@@ -145,8 +146,8 @@ def parse_expected_conclusion(fields: list[str]) -> IndexExpectedConclusion:
         time=raw["BSOP_HOUR"],
         expected_index=_decimal(raw["PRPR_NMIX"]),
         change_sign=raw["PRDY_VRSS_SIGN"],
-        change=_decimal(raw["BSTP_NMIX_PRDY_VRSS"]),
-        change_percent=_decimal(raw["PRDY_CTRT"]),
+        change=_apply_change_sign(_decimal(raw["BSTP_NMIX_PRDY_VRSS"]), raw["PRDY_VRSS_SIGN"]),
+        change_percent=_apply_change_sign(_decimal(raw["PRDY_CTRT"]), raw["PRDY_VRSS_SIGN"]),
         accumulated_volume=_decimal(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         open=_decimal(raw["OPRC_NMIX"]),
@@ -170,8 +171,8 @@ def parse_index_tick(fields: list[str]) -> IndexTick:
         time=raw["BSOP_HOUR"],
         current_index=_decimal(raw["PRPR_NMIX"]),
         change_sign=raw["PRDY_VRSS_SIGN"],
-        change=_decimal(raw["BSTP_NMIX_PRDY_VRSS"]),
-        change_percent=_decimal(raw["PRDY_CTRT"]),
+        change=_apply_change_sign(_decimal(raw["BSTP_NMIX_PRDY_VRSS"]), raw["PRDY_VRSS_SIGN"]),
+        change_percent=_apply_change_sign(_decimal(raw["PRDY_CTRT"]), raw["PRDY_VRSS_SIGN"]),
         accumulated_volume=_decimal(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         open=_decimal(raw["OPRC_NMIX"]),
