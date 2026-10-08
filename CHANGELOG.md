@@ -31,9 +31,10 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   and the duplicate 2-value `Market` is now `DomesticMarket` (paralleling `DomesticOrderExchange`/
   `DomesticQuoteExchange`). Distinct-valued neighbours stay separate: `CreditMarketFilter`
   (+`KOSPI200`), `DividendMarket`, `ExpectedCloseMarket` (+`KRX100`) each back a different endpoint
-  whose accepted set differs, so a shared name would wrongly imply interchangeability. Imports of
-  `kis_trader.SearchMarket` / `MarketFilter` / `ExpectedMarket` / `Market` become
-  `DomesticMarketFilter` / `DomesticMarket`; values and wire behavior are unchanged.
+  whose accepted set differs, so a shared name would wrongly imply interchangeability. The one of
+  these that was root-importable, `kis_trader.SearchMarket`, is now `kis_trader.DomesticMarketFilter`;
+  the module-level `MarketFilter` / `ExpectedMarket` / `Market` become `DomesticMarketFilter` /
+  `DomesticMarket`. Values and wire behavior are unchanged.
 - The execution venue is now one `exchange` field, with explicit `region`
   (`"domestic"`/`"overseas"`) and `asset_class` (`"stock"`/`"derivative"`/`"bond"`) beside
   it. The domestic order vocabulary is `DomesticOrderExchange` = `KRX`/`NXT`/`SOR`; the
@@ -57,7 +58,7 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   serializes `region`.
 - `RankedOverseasStock` renamed to `OverseasRankedStock` — the sole overseas result type
   that did not lead with the `Overseas` qualifier its ~40 siblings share.
-- The Domestic-qualifier sweep is completed (council P2): the remaining domestic entity types
+- The Domestic-qualifier sweep is completed: the remaining domestic entity types
   that have a distinct `Overseas*` sibling (or ride the `OverseasDerivative*` family mirror) are
   prefixed `Domestic`. Renamed: `Position` → `DomesticPosition`, `ProductInfo` →
   `DomesticProductInfo`, `RankedStock` → `DomesticRankedStock`, `DerivativeQuote` →
@@ -95,7 +96,7 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   Python convention (`TimeoutError`).
 - Calendar/listing entities' `list_date` field renamed to `listing_date`, matching the
   `listing_date` every other listing-bearing entity already uses.
-- `DerivativePosition.side` / `DerivativeValuationPosition.side` are now normalized to
+- `DomesticDerivativePosition.side` / `DomesticDerivativeValuationPosition.side` are now normalized to
   `Side | None` (`"buy"`/`"sell"`), matching every other `side` in the package, instead of
   the raw localized `"매수"`/`"매도"` string (which remains available in `_raw`).
 
@@ -232,28 +233,28 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   other realtime entity uses). The `reference.rights(date_basis=...)` /
   `reference.collateral_stocks(sort=...)` closed-choice parameters are now typed `Literal`
   (behavior unchanged).
-- `option_board_futures(market_class="")` now reaches the KOSPI200 main board (council
-  D7, live-probe confirmed: a blank `FID_COND_MRKT_CLS_CODE` returns the A01xxx KOSPI200
-  monthly contracts with no MKI/KQI board rows). The engine previously rejected a blank
+- `option_board_futures(market_class="")` now reaches the KOSPI200 main board (a blank
+  `FID_COND_MRKT_CLS_CODE` returns the A01xxx KOSPI200 monthly contracts with no MKI/KQI
+  board rows). The engine previously rejected a blank
   `market_class`; it now accepts the documented set `""`/`MKI`/`WKM`/`WKI`/`KQI` and rejects
   anything else.
-- Closed-choice params typed (council P3): `account.overseas.positions(fuop=...)` → `product`
+- Closed-choice params typed: `account.overseas.positions(fuop=...)` → `product`
   typed `DerivativeProductFilter = Literal["all","future","option"]` (engine maps to
   `FUOP_DVSN` 00/01/02 per the official OTFM1412R definition); `account.domestic.night_margin(
   margin_division=...)` typed `NightMarginDivision = Literal["consignment","maintenance"]`
   (engine maps to `MGNA_DVSN_CD` 01/02 = 위탁/유지 per CTFN7107R); the MCP `order_preview` tool
   `side` is now typed `Side` to match `place_order`. Wire codes unchanged.
-- `OverseasDerivativeOrder.new_liquidation` → `new_liquidation_type` (council P3): the field
+- `OverseasDerivativeOrder.new_liquidation` → `new_liquidation_type`: the field
   holds the 신규/청산 open-vs-close classifier code (`new_lqd_dvsn_cd`), and the bare name read
   like a boolean; the `_type` suffix matches the sibling `futures_option_type`.
-- MCP `place_order` now accepts and honors `division` (council P2): `order_preview` advertised
+- MCP `place_order` now accepts and honors `division`: `order_preview` advertised
   and echoed a `division` (e.g. `immediate_limit` 최유리지정가) that the send path silently dropped,
   so an approved preview was sent as a plain limit/market order. `division` is now threaded through
   `make_stock_order_plan` → `plan_place_order` → `run_place_order` → `_execute_stock_order` (validated
   against `DomesticDivision`, echoed in the approval ticket), so preview, ticket, and the actual order
   agree.
 - `ForeignNetBuyPoint.foreign_net_buy` and the realtime `StockForeignBroker.foreign_net_buy_volume`
-  are renamed `foreign_broker_net_buy_volume` (council P2) — the `glob_ntby_qty` 외국계(foreign
+  are renamed `foreign_broker_net_buy_volume` — the `glob_ntby_qty` 외국계(foreign
   member firm) net-buy quantity had three public names; `foreign_broker_net_buy_volume` (already
   on `BrokerTradeTick`) wins, disambiguating 외국계 from 외국인 and carrying the shares unit.
   `foreign_net_buy_change` (`frgn_ntby_qty_icdc`) keeps its name.
@@ -264,8 +265,11 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   ratio or proportion (debt/current/quick/reserve ratio, a share-of-own-activity, a loan/balance
   or collateral/credit requirement proportion). Five return/holding fields that held a percentage
   move `_rate` → `_percent`: `RealizedProfitBalance`/`AccountReport`'s `asset_change_rate` /
-  `realized_return_rate` / `real_eval_return_rate`, the overseas balance `eval_return_rate`, and
-  the ELW `lp_holding_rate`. The three overseas-collateral requirement proportions move `_rate` →
+  `realized_return_rate` / `real_eval_return_rate`, the overseas `OverseasPresentBalance` /
+  `OverseasSettlementBalance` `eval_return_rate`, and the ELW `lp_holding_rate` (the two `eval`
+  fields are additionally spelled out below, so their final shipped names are
+  `real_evaluation_return_percent` and `evaluation_return_percent`). The three overseas-collateral
+  requirement proportions move `_rate` →
   `_ratio`: `OverseasCollateralStock.loan_rate` / `maintenance_rate` / `collateral_rate`
   (대출비율/담보유지비율/담보확보비율) → `loan_ratio` / `maintenance_ratio` / `collateral_ratio`
   (a per-stock requirement is a ratio, and `maintenance_ratio` now matches the derivative-account
@@ -281,21 +285,21 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `VolumeAtPrice.volume_share_percent` already carries; a share-of-market is a percentage).
   `CapitalReduction.reduction_rate` → `reduction_ratio` (감자비율, matching the sibling
   corporate-action `MergerSplit.merge_ratio`). Wire keys unchanged.
-- Naming unification (council P2): `DomesticReservedOrder.received_date` → `receipt_date`
+- Naming unification: `DomesticReservedOrder.received_date` → `receipt_date`
   (the `rsvn_ord_rcit_dt` concept is `receipt_date` on `ExecutionReport`, the store, the
-  overseas reserved order, and the CLI); `Position.security_name` /
+  overseas reserved order, and the CLI); `DomesticPosition.security_name` /
   `SellableQuantity.security_name` / `EarningsEstimate.security_name` and
   `BrokerTradeTick.symbol_name` → `name` (the `prdt_name` / `hts_kor_isnm` family is `name`
   on ~25 other entities); `StockFill.cancelled` → `canceled` (US spelling, matching
   `OrderStatus.CANCELED` and `OverseasReservedOrder.canceled`).
-- Closed-choice typing (council P2): `TopViewedStock.market` is now `Literal["KOSPI","KOSDAQ"]`
+- Closed-choice typing: `TopViewedStock.market` is now `Literal["KOSPI","KOSDAQ"]`
   and the engine decodes the raw `J`/`Q` wire code to `KOSPI`/`KOSDAQ` (fail-closed on an
   unknown code; the raw value stays in `_raw`) instead of surfacing the magic code;
   `OverseasDerivativeOrder.fuop` is renamed `futures_option_type` (the raw `fuop_dvsn` stem
   was not decodable as a field name); and `account.overseas.present_balance(nation=...)` is
   typed `BalanceNation = Literal["all","US","HK","CN","JP","VN"]` (the set the engine already
-  enforces). `present_balance`'s `inquiry` / `market_code` stay `str` pending a primary-source
-  value set.
+  enforces). `present_balance`'s `market_code` stays `str` pending a primary-source value set
+  (its `inquiry` is now the typed `BalanceInquiry`, per the top of this entry).
 - `ProgramTradeActivity` and `BrokerDailyActivity` rename their gross-count fields
   `sell_quantity` / `buy_quantity` → `sell_volume` / `buy_volume`, so all three of
   `buy_volume` / `sell_volume` / `net_buy_volume` use one `volume` vocabulary (matching the
@@ -308,7 +312,7 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   renamed to `side: TradeSide` (reusing the dividend/bulk-trade `TradeSide`), dropping a local
   duplicate `TradeDirection` literal.
 
-- `DerivativeOpenOrder.order_time` is now `time | None` (was the raw `"HHMMSS"` string),
+- `DomesticDerivativeOpenOrder.order_time` is now `time | None` (was the raw `"HHMMSS"` string),
   parsed like every other `ord_tmd` field. `SavedScreenStock`'s price fields drop their
   redundant `_price`/`price_` affixes to match every other quote record: `current_price` →
   `price`, `price_change` → `change`, `open_price`/`high_price`/`low_price` → `open`/`high`/`low`.
@@ -317,8 +321,8 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   as before); `realtime/messages.py` is removed.
 
 - The localized order-kind label field (`ord_dvsn_name` / `nmpr_type_name`, e.g. `"지정가"`) is
-  renamed `order_type` → `order_type_name` on `OpenOrder`, `StockFill`, `BondOpenOrder`,
-  `DerivativeOpenOrder` and the pension order entity, matching the sibling `ReservedOrder` and
+  renamed `order_type` → `order_type_name` on `DomesticOpenOrder`, `StockFill`, `BondOpenOrder`,
+  `DomesticDerivativeOpenOrder` and the pension order entity, matching the sibling `DomesticReservedOrder` and
   no longer colliding with the typed `order_type: OrderType` on the request path (which is
   unchanged).
 - The overseas order entities' `quantity` field is renamed `order_quantity` to match the
@@ -343,11 +347,16 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   and the overseas-derivative quote/detail listing/expiry/last-trade dates. The two local
   datetime-returning `_optional_date` parser copies are removed in favor of the shared fail-closed
   `parse_optional_kst_date` (empty / "00000000" sentinel -> None). Wire keys unchanged.
-- Naming-unify residue cleared (council P2). `OverseasBuyableAmount.max_quantity` /
+- `TradingDay.date` is now `date` (was `datetime`, a fabricated KST-aware midnight) -- the same
+  calendar-day value-type fix as above, which the trading-calendar entity had been missed from; it
+  now matches the sibling `FuturesMarketSchedule.today` and avoids the `datetime == date -> False`
+  mismatch in set/dedup/join keys. Wire key (`bass_dt`) unchanged.
+- Naming-unify residue cleared. `OverseasBuyableAmount.max_quantity` /
   `integrated_max_quantity` → `max_orderable_quantity` / `integrated_max_orderable_quantity`
   (the wire keys are `max_ord_psbl_qty` = orderable, distinct from the `max_buy_qty` =
   `max_buyable_quantity` that other entities decode). The truncated `eval_` prefix is spelled out:
-  `OverseasBalanceSummary.eval_return_percent` → `evaluation_return_percent`, and
+  `OverseasPresentBalance` / `OverseasSettlementBalance`'s `eval_return_percent` →
+  `evaluation_return_percent`, and
   `RealizedProfitBalance.real_eval_pnl` / `real_eval_return_percent` → `real_evaluation_pnl` /
   `real_evaluation_return_percent`. The realtime execution-notice entities' `symbol_name` →
   `name`, matching the symbol+`name` convention of the order/fill record family (the overseas
@@ -377,9 +386,11 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `ProfitAssetMetric`, `ValuationMetric`, `ShortSaleWindow`), the ELW sorts (`ELWRight`,
   `UnderlyingSort`, `ChangeSort`, `IndicatorSort`, `SensitivitySort`, `VolumeSort`,
   `QuickChangeSort`, `QuickChangeWindow`), the index query types (`IntradayInterval`,
-  `ExpectedInterval`, `ExpectedMarket`, `ExpectedSession`), the market filters
-  (`MarketFilter`, `Market`, `CreditMarketFilter`, `CreditSort`, `ForeignBrokerSort`,
-  `InvestorType`, `NetBuyBasis`, `BrokerOpinionFilter`), and the derivative division
+  `ExpectedInterval`, `ExpectedSession`), the domestic-market filters
+  (`DomesticMarketFilter`, `DomesticMarket`, `CreditMarketFilter`, `CreditSort`, `ForeignBrokerSort`,
+  `InvestorType`, `NetBuyBasis`, `BrokerOpinionFilter`), the overseas-balance filters
+  (`BalanceInquiry`, `BalanceNation`), the derivative Literals (`DerivativeMarket`,
+  `DerivativeProduct`, `DerivativeProductFilter`, `NightMarginDivision`), and the derivative division
   (`DerivativeDivision`). `Right` and `Session` stay off the root (name collisions) and are
   reachable via `kis_trader.order`.
 

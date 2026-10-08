@@ -675,7 +675,7 @@ def fetch_trading_calendar(
             continue
         days.append(
             TradingDay(
-                date=_parse_bar_timestamp(day),
+                date=_parse_kst_date(day),
                 weekday=str(row.get("wday_dvsn_cd", "")).strip(),
                 is_business_day=str(row.get("bzdy_yn", "")).strip() == "Y",
                 is_trading_day=str(row.get("tr_day_yn", "")).strip() == "Y",

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+from datetime import date, datetime
 
 import pytest
 
@@ -38,7 +39,8 @@ def test_trading_calendar_maps_flags():
     fake = FakeTransport(response=_resp(rows))
     days = _client(fake).domestic.market.trading_calendar(base_date="20221227")
     assert all(isinstance(d, TradingDay) for d in days)
-    assert f"{days[0].date:%Y%m%d}" == "20221227"
+    assert days[0].date == date(2022, 12, 27)
+    assert type(days[0].date) is date and not isinstance(days[0].date, datetime)  # 순수 달력 날짜
     assert days[0].is_open is True
     assert days[0].is_settlement_day is True
     assert days[1].is_open is False                      # 휴장일
