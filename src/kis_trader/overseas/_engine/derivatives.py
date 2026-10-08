@@ -94,7 +94,7 @@ _OPEN_INTEREST_TR = "HHDDB95030000"
 def fetch_quote(
     transport: Transport, *, srs_cd: str, product: DerivativeProduct
 ) -> OverseasDerivativeQuote:
-    """해외 선물/옵션 계약 현재가. ``product`` 은 ``"future"``/``"option"``, ``srs_cd`` 는 시리즈코드."""
+    """해외 선물/옵션 계약 현재가. ``product`` 는 ``"future"``/``"option"``, ``srs_cd`` 는 시리즈코드."""
     path, tr = _QUOTE[product]
     resp = transport.request(
         method="GET", path=path, tr_id=tr, params={"SRS_CD": srs_cd}, idempotent=True
@@ -448,7 +448,7 @@ _BATCH_DETAIL = {
 def fetch_detail(
     transport: Transport, *, srs_cd: str, product: DerivativeProduct
 ) -> OverseasDerivativeDetail:
-    """해외 선물/옵션 계약 명세. ``product`` 은 ``"future"``/``"option"``, ``srs_cd`` 는 시리즈코드."""
+    """해외 선물/옵션 계약 명세. ``product`` 는 ``"future"``/``"option"``, ``srs_cd`` 는 시리즈코드."""
     path, tr = _DETAIL[product]
     resp = transport.request(
         method="GET", path=path, tr_id=tr, params={"SRS_CD": srs_cd}, idempotent=True

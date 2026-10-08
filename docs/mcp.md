@@ -193,7 +193,7 @@ kis-mcp
 | `open_orders` | 미체결 주문 |
 | `order_preview` | 주문 **미리보기** -- 보내지 않고 나갈 티켓만 보여 줌(`sent: false`) |
 | `reconcile` | 결과가 불분명한 주문을 사후 확정 |
-| `place_order` | 국내 주식 **실주문**(매수·매도) -- `division`(KRX 주문구분, [주문](orders.md)의 division 표와 동일; 조건부지정가 등)을 받아 승인 티켓에 그대로 싣고, 안전장치·사람 확인을 거친 뒤 전송(해외는 추후) |
+| `place_order` | 국내 주식 **실주문**(매수·매도) -- `division`([주문](orders.md)의 division 표의 KRX 주문구분; 조건부지정가·애프터마켓 등. NXT 전용 `gtp_*` 는 KRX 기본 경로라 제외)을 받아 승인 티켓에 그대로 싣고, 안전장치·사람 확인을 거친 뒤 전송(해외는 추후) |
 | `cancel_order` | 접수된 주문 취소(`client_order_id` 로 지정) |
 | `modify_order` | 접수된 주문의 가격·수량 정정 |
 

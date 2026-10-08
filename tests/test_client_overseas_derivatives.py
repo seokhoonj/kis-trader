@@ -155,7 +155,7 @@ def test_overseas_futures_daily_bars_maps_and_routes():
 
 
 @pytest.mark.parametrize(
-    ("market", "interval", "endpoint", "tr_id"),
+    ("product", "interval", "endpoint", "tr_id"),
     [
         ("future", "1m", "inquire-time-futurechartprice", "HHDFC55020400"),
         ("future", "1wk", "weekly-ccnl", "HHDFC55020000"),
@@ -167,7 +167,7 @@ def test_overseas_futures_daily_bars_maps_and_routes():
     ],
 )
 def test_overseas_derivative_bars_routes_all_period_endpoints(
-    market, interval, endpoint, tr_id
+    product, interval, endpoint, tr_id
 ):
     row = _history_row(time_text="164434" if interval == "1m" else "")
     body = {"output1": [row], "output2": {}} if interval == "1m" else {
@@ -178,7 +178,7 @@ def test_overseas_derivative_bars_routes_all_period_endpoints(
     )
     handle = (
         _client(fake).overseas.futures("BONU25")
-        if market == "future"
+        if product == "future"
         else _client(fake).overseas.option("BONU25 C75")
     )
     bars = handle.bars(exchange="ICE", interval=interval, max_bars=1)
@@ -189,13 +189,13 @@ def test_overseas_derivative_bars_routes_all_period_endpoints(
 
 
 @pytest.mark.parametrize(
-    ("market", "endpoint", "tr_id"),
+    ("product", "endpoint", "tr_id"),
     [
         ("future", "tick-ccnl", "HHDFC55020200"),
         ("option", "opt-tick-ccnl", "HHDFO55020200"),
     ],
 )
-def test_overseas_derivative_trades_maps_and_routes(market, endpoint, tr_id):
+def test_overseas_derivative_trades_maps_and_routes(product, endpoint, tr_id):
     response = RawResponse(
         rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}, "output2": [
             _history_row(time_text="164500", last_qntt="2"),
@@ -205,7 +205,7 @@ def test_overseas_derivative_trades_maps_and_routes(market, endpoint, tr_id):
     fake = FakeTransport(response=response)
     handle = (
         _client(fake).overseas.futures("BONU25")
-        if market == "future"
+        if product == "future"
         else _client(fake).overseas.option("BONU25 C75")
     )
     trades = handle.trades(exchange="ICE", max_trades=2)

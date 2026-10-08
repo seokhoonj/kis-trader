@@ -63,14 +63,14 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   해외선물옵션 feed types `FuturesTradeTick` / `FuturesOrderBook` / `FuturesOrderNotice` /
   `FuturesExecutionNotice` → `OverseasDerivativeTradeTick` / `OverseasDerivativeOrderBook` /
   `OverseasDerivativeOrderNotice` / `OverseasDerivativeExecutionNotice` (they name 해외선물옵션,
-  not just futures, and `FuturesTradeTick` collided with the domestic `FuturesTick` in
+  not just futures, and `FuturesTradeTick` was easily confused with the domestic `FuturesTick` in
   `kis_trader.realtime`), and the 해외주식 feed types `DelayedTradeTick` / `AsiaDelayedOrderBook`
   → `OverseasDelayedTradeTick` / `OverseasAsiaDelayedOrderBook` (their file-siblings
   `OverseasOrderBook` / `OverseasExecutionNotice` already carry the qualifier). Fields and wire
   behavior are unchanged — class names only.
 - `StockStatus.exchange` is now typed `DomesticQuoteExchange` (`"KRX"`/`"NXT"`/`"UN"`) instead of
   bare `str`, matching the `DomesticStock.exchange` the engine feeds it (the value was always the
-  typed quote-exchange; only the annotation widened). Wire behavior unchanged.
+  typed quote-exchange; only the annotation narrowed). Wire behavior unchanged.
 - The Domestic-qualifier sweep is completed: the remaining domestic entity types
   that have a distinct `Overseas*` sibling (or ride the `OverseasDerivative*` family mirror) are
   prefixed `Domestic`. Renamed: `Position` → `DomesticPosition`, `ProductInfo` →
@@ -267,7 +267,7 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `make_stock_order_plan` → `plan_place_order` → `run_place_order` → `_execute_stock_order` (validated
   against `DomesticDivision`, echoed in the approval ticket), so preview, ticket, and the actual order
   agree.
-- `ForeignNetBuyPoint.foreign_net_buy` and the realtime `StockForeignBroker.foreign_net_buy_volume`
+- `ForeignNetBuyPoint.foreign_net_buy` and the realtime `MemberActivity.foreign_net_buy_volume`
   are renamed `foreign_broker_net_buy_volume` — the `glob_ntby_qty` 외국계(foreign
   member firm) net-buy quantity had three public names; `foreign_broker_net_buy_volume` (already
   on `BrokerTradeTick`) wins, disambiguating 외국계 from 외국인 and carrying the shares unit.
@@ -278,7 +278,7 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   or an interest/yield/discount/dividend/margin/divergence rate); `_ratio` = a named financial
   ratio or proportion (debt/current/quick/reserve ratio, a share-of-own-activity, a loan/balance
   or collateral/credit requirement proportion). Five return/holding fields that held a percentage
-  move `_rate` → `_percent`: `RealizedProfitBalance`/`AccountReport`'s `asset_change_rate` /
+  move `_rate` → `_percent`: `RealizedProfitBalance`'s `asset_change_rate` /
   `realized_return_rate` / `real_eval_return_rate`, the overseas `OverseasPresentBalance` /
   `OverseasSettlementBalance` `eval_return_rate`, and the ELW `lp_holding_rate` (the two `eval`
   fields are additionally spelled out below, so their final shipped names are
