@@ -15,6 +15,7 @@ kis  (KISClient 세션)
 ├── revoke_token()                     # 접근 토큰 폐기
 ├── transport                          # 저수준 전송 계층
 ├── environment                        # 실전/모의 환경
+├── has_risk_limits                    # 사전 리스크 한도 주입 여부
 └── hts_id                             # HTS 로그인 아이디
 ```
 
@@ -265,7 +266,7 @@ kis.overseas
 ├── search_stocks(exchange, ...)        # 조건검색(exchange='US'는 NAS/NYS/AMS 통합)
 ├── product_info(exchange, symbol)      # 상품기본정보
 ├── industries(exchange)                # 업종(섹터) 코드 목록
-├── industry_stocks(exchange, code)     # 업종 소속 종목 시세
+├── industry_stocks(exchange, industry_code, *, min_volume=0)  # 업종 소속 종목 시세
 ├── collateral_stocks(...)              # 담보대출 가능종목
 ├── news(...)                           # 해외뉴스 제목 피드
 ├── breaking_news(...)                  # 해외속보 제목 피드
@@ -374,7 +375,7 @@ kis.realtime()
 ├── start() / stop()                         # 백그라운드 수신 시작/중단
 ├── subscribe / unsubscribe / stream         # 원시 등록·해제·통합 이터레이터(탈출구)
 ├── domestic                                 # 국내 실시간
-│   ├── stock(symbol)                        # → StockHandle
+│   ├── stock(symbol)                        # → DomesticStockHandle
 │   │   ├── trades(exchange='KRX')           # 체결 → StockTick
 │   │   └── order_book(exchange='KRX')       # 호가 → StockOrderBook
 │   ├── futures(symbol, kind='index')        # kind: index|commodity|stock|night
@@ -383,18 +384,18 @@ kis.realtime()
 │   ├── option(symbol, kind='index')         # kind: index|stock|night
 │   │   ├── trades()                         # 체결 → OptionTick
 │   │   └── order_book()                     # 호가 → DerivativeOrderBook
-│   ├── index(code)                          # → IndexHandle
+│   ├── index(code)                          # → DomesticIndexHandle
 │   │   ├── trades()                         # 체결 → IndexTick
 │   │   ├── expected_conclusion()            # 예상체결 → IndexExpectedConclusion
 │   │   └── program_trade()                  # 프로그램매매 → IndexProgramTrade
-│   ├── elw(symbol)                          # → ELWHandle
+│   ├── elw(symbol)                          # → DomesticELWHandle
 │   │   ├── trades()                         # 체결 → ELWTick
 │   │   ├── order_book()                     # 호가 → ELWOrderBook
 │   │   └── expected_conclusion()            # 예상체결 → ELWExpectedConclusion
-│   ├── bond(symbol)                         # → BondHandle
+│   ├── bond(symbol)                         # → DomesticBondHandle
 │   │   ├── trades()                         # 체결 → BondTick
 │   │   └── order_book()                     # 호가 → BondOrderBook
-│   ├── bond_index(code)                     # → BondIndexHandle
+│   ├── bond_index(code)                     # → DomesticBondIndexHandle
 │   │   └── trades()                         # 체결 → BondIndexTick
 │   └── execution_notices                    # 체결통보(hts_id 단위)
 │       ├── stock(hts_id)                    # → StockExecutionNotice

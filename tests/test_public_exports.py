@@ -67,3 +67,15 @@ def test_master_data_types_live_in_public_instrument_module():
         assert obj is getattr(instrument, name), name
     # SearchMarket 은 Literal 이라 __module__ 대신 동일 객체(정의 출처 단일)만 확인한다.
     assert kis_trader.SearchMarket is instrument.SearchMarket
+
+
+def test_taxonomy_handle_markers_resolve():
+    # 재발 방지: docs/taxonomy.md 의 '# → *Handle' 마커(실시간 트리)가 실제 공개 realtime 클래스로
+    # 해석돼야 한다. 핸들 개명(예: *Handle -> Domestic*Handle) 시 문서가 조용히 스테일해지는 것을 막는다.
+    import pathlib
+    import re
+    taxonomy = pathlib.Path(__file__).resolve().parent.parent / "docs" / "taxonomy.md"
+    markers = re.findall(r"#\s*→\s*(\w+Handle)\b", taxonomy.read_text(encoding="utf-8"))
+    assert markers, "taxonomy 에서 '# → *Handle' 마커를 찾지 못했다(패턴 변경?)"
+    for name in markers:
+        assert hasattr(_rt, name), f"taxonomy 의 {name} 이 kis_trader.realtime 에 없다(스테일 핸들명)"
