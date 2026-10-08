@@ -246,7 +246,7 @@ kis.overseas
 │   ├── overnight_sell(...)             # 미국 오버나이트 매도
 │   ├── reserve_buy(...)                # 예약매수
 │   └── reserve_sell(...)               # 예약매도
-├── index(symbol, kind='index')         # 지수/환율/국채/금선물 핸들
+├── index(code, kind='index')           # 지수/환율/국채/금선물 핸들
 │   └── bars(interval='1d', ...)        # 지수류 기간봉
 ├── futures(symbol)                     # 해외 선물 계약 핸들
 │   ├── quote()                         # 계약 현재가
