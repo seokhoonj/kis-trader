@@ -171,7 +171,7 @@ def _order_book(raw: Mapping[str, str]) -> StockOrderBook:
         total_bid_quantity=_decimal(raw["TOTAL_BIDP_RSQN"]),
         expected_price=_decimal(raw["ANTC_CNPR"]),
         expected_volume=_decimal(raw["ANTC_CNQN"]),
-        _raw=MappingProxyType(dict(raw)),
+        _raw=raw,  # 호출부가 이미 MappingProxyType 로 동결해 넘긴다(중복 copy 제거)
     )
 
 
@@ -226,22 +226,22 @@ _ORDER_BOOK_AFTER_HOURS_FIELDS = (
 
 def parse_order_book_krx(fields: list[str]) -> StockOrderBook:
     """H0STASP0 한 레코드(63필드) -> :class:`StockOrderBook`."""
-    return _order_book(dict(zip(_ORDER_BOOK_KRX_FIELDS, fields, strict=False)))
+    return _order_book(MappingProxyType(dict(zip(_ORDER_BOOK_KRX_FIELDS, fields, strict=False))))
 
 
 def parse_order_book_nxt(fields: list[str]) -> StockOrderBook:
     """H0NXASP0 한 레코드(62필드) -> :class:`StockOrderBook`."""
-    return _order_book(dict(zip(_ORDER_BOOK_NXT_FIELDS, fields, strict=False)))
+    return _order_book(MappingProxyType(dict(zip(_ORDER_BOOK_NXT_FIELDS, fields, strict=False))))
 
 
 def parse_order_book_unified(fields: list[str]) -> StockOrderBook:
     """H0UNASP0 한 레코드(66필드) -> :class:`StockOrderBook`."""
-    return _order_book(dict(zip(_ORDER_BOOK_UNIFIED_FIELDS, fields, strict=False)))
+    return _order_book(MappingProxyType(dict(zip(_ORDER_BOOK_UNIFIED_FIELDS, fields, strict=False))))
 
 
 def parse_order_book_after_hours(fields: list[str]) -> StockOrderBook:
     """H0STOAA0 한 레코드(54필드, 시간외 9단계) -> :class:`StockOrderBook`."""
-    return _order_book(dict(zip(_ORDER_BOOK_AFTER_HOURS_FIELDS, fields, strict=False)))
+    return _order_book(MappingProxyType(dict(zip(_ORDER_BOOK_AFTER_HOURS_FIELDS, fields, strict=False))))
 
 
 register(TRSpec("H0STASP0", field_count=len(_ORDER_BOOK_KRX_FIELDS), parser=parse_order_book_krx))
@@ -297,7 +297,7 @@ def _expected_conclusion(raw: Mapping[str, str]) -> StockExpectedConclusion:
         accumulated_volume=_decimal(raw["ACML_VOL"]),
         business_date=raw["BSOP_DATE"],
         trading_halted=raw["TRHT_YN"] == "Y",
-        _raw=MappingProxyType(dict(raw)),
+        _raw=raw,  # 호출부가 이미 MappingProxyType 로 동결해 넘긴다(중복 copy 제거)
     )
 
 
@@ -325,12 +325,12 @@ _EXPECTED_CONCLUSION_EXT_FIELDS = _EXPECTED_CONCLUSION_KRX_FIELDS + ("VI_STND_PR
 
 def parse_expected_conclusion_krx(fields: list[str]) -> StockExpectedConclusion:
     """H0STANC0 한 레코드(45필드) -> :class:`StockExpectedConclusion`."""
-    return _expected_conclusion(dict(zip(_EXPECTED_CONCLUSION_KRX_FIELDS, fields, strict=False)))
+    return _expected_conclusion(MappingProxyType(dict(zip(_EXPECTED_CONCLUSION_KRX_FIELDS, fields, strict=False))))
 
 
 def parse_expected_conclusion_ext(fields: list[str]) -> StockExpectedConclusion:
     """H0NXANC0/H0UNANC0 한 레코드(46필드) -> :class:`StockExpectedConclusion`."""
-    return _expected_conclusion(dict(zip(_EXPECTED_CONCLUSION_EXT_FIELDS, fields, strict=False)))
+    return _expected_conclusion(MappingProxyType(dict(zip(_EXPECTED_CONCLUSION_EXT_FIELDS, fields, strict=False))))
 
 
 register(TRSpec(
@@ -687,7 +687,7 @@ def _market_operation(raw: Mapping[str, str]) -> MarketOperation:
         expected_operation_code=raw["ANTC_MKOP_CLS_CODE"],
         vi_code=raw["VI_CLS_CODE"],
         exchange_code=raw["EXCH_CLS_CODE"],
-        _raw=MappingProxyType(dict(raw)),
+        _raw=raw,  # 호출부가 이미 MappingProxyType 로 동결해 넘긴다(중복 copy 제거)
     )
 
 
@@ -704,12 +704,12 @@ _MARKET_OPERATION_UNIFIED_FIELDS = _MARKET_OPERATION_FIELDS[1:]
 
 def parse_market_operation(fields: list[str]) -> MarketOperation:
     """H0STMKO0/H0NXMKO0 한 레코드(11필드) -> :class:`MarketOperation`."""
-    return _market_operation(dict(zip(_MARKET_OPERATION_FIELDS, fields, strict=False)))
+    return _market_operation(MappingProxyType(dict(zip(_MARKET_OPERATION_FIELDS, fields, strict=False))))
 
 
 def parse_market_operation_unified(fields: list[str]) -> MarketOperation:
     """H0UNMKO0 한 레코드(10필드, 종목코드 없음) -> :class:`MarketOperation`. ``symbol`` 은 ""."""
-    return _market_operation(dict(zip(_MARKET_OPERATION_UNIFIED_FIELDS, fields, strict=False)))
+    return _market_operation(MappingProxyType(dict(zip(_MARKET_OPERATION_UNIFIED_FIELDS, fields, strict=False))))
 
 
 for _tr_id in ("H0STMKO0", "H0NXMKO0"):
