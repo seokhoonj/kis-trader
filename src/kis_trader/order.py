@@ -9,6 +9,7 @@
 from __future__ import annotations
 
 import abc
+import re
 import uuid
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta, timezone
@@ -148,7 +149,12 @@ def _encode_slot12(region: Region, asset_class: AssetClass, exchange: str) -> st
 def _decode_lane(slot7: str) -> tuple[Region, AssetClass]:
     if slot7 in _LANE_BY_TAG:
         return _LANE_BY_TAG[slot7]
-    return ("overseas", "stock")
+    # 미지의 slot7: 해외 거래소 코드(대문자 3글자, 예: NAS/NYS/HKS)만 (overseas, stock) 으로 수용한다 --
+    # version-skew 관용(신버전이 새 거래소 EXCD 를 쓴 스토어를 구버전이 읽어도 실주문 reconcile 이 하드
+    # 거부되지 않게). lane 태그(4글자)·예약 센티널(소문자 8+)·'action:' 접두는 형태가 달라 걸리지 않는다.
+    if re.fullmatch(r"[A-Z]{3}", slot7):
+        return ("overseas", "stock")
+    raise ValueError(f"알 수 없는 slot7 lane 태그/거래소코드: {slot7!r}")
 
 
 def _decode_domestic_exchange(slot12: str) -> str:

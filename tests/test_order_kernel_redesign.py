@@ -324,3 +324,34 @@ def test_order_result_types_expose_order_price():
         fields = dto.__dataclass_fields__
         assert "order_price" in fields, dto.__name__
         assert "price" not in fields and "reserved_price" not in fields, dto.__name__
+
+
+def test_decode_lane_fail_closed_vocabulary():
+    """_decode_lane 은 미지 slot7 을 전부 overseas-stock 으로 삼키지 않는다 -- 해외 거래소 코드(대문자
+    3글자)만 version-skew 관용으로 수용하고, 형태가 다른 값은 ValueError 로 fail-closed."""
+    import re
+
+    from kis_trader.order import (
+        _ACTION_EXCHANGE_PREFIX,
+        _LANE_BY_TAG,
+        _RESERVED_EXCHANGES,
+        _decode_lane,
+    )
+    from kis_trader.overseas._engine.orders import _ORDER_EXCHANGE
+
+    shape = re.compile(r"[A-Z]{3}")
+    # 모든 _ORDER_EXCHANGE 키(저장되는 overseas slot7)는 형태 부합 + overseas-stock 으로 디코드된다.
+    for excd in _ORDER_EXCHANGE:
+        assert shape.fullmatch(excd), excd
+        assert _decode_lane(excd) == ("overseas", "stock")
+    # lane 태그·예약 센티널·action: 접두는 형태가 달라 regex 에 걸리지 않는다(_LANE_BY_TAG 가 먼저 처리).
+    for tag in _LANE_BY_TAG:
+        assert not shape.fullmatch(tag), tag
+    for sentinel in _RESERVED_EXCHANGES:
+        assert not shape.fullmatch(sentinel), sentinel
+    assert not shape.fullmatch(_ACTION_EXCHANGE_PREFIX)
+    # 미지의 3대문자(신 거래소 EXCD)는 수용, 그 밖(소문자/길이 불일치/기호)은 fail-closed.
+    assert _decode_lane("ZZZ") == ("overseas", "stock")
+    for bad in ("bad", "ABCDE", "12!", "NX", ""):
+        with pytest.raises(ValueError):
+            _decode_lane(bad)
