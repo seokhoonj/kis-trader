@@ -151,6 +151,11 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   mislabelled the weekly/monthly capability as "daily" and read ambiguously against the
   existing OHLC `bars()`.
 
+- `OverseasAlgoExecution.price` / `amount` are now `Money` (were `Decimal`), carrying the
+  trade currency — the algo-execution response (inquire-algo-ccnl, confirmed via the official
+  KIS repo column map) includes `TR_CRCY` 거래통화, so these monetary fields follow the overseas
+  `Money` convention. `OverseasAlgoOrder.order_price` and `OverseasReservedOrder.order_price`
+  stay `Decimal` (their responses carry no currency column).
 - `OverseasOpenOrder.quantity` / `filled_quantity` / `unfilled_quantity` are now `Decimal`
   (were `int`), matching the sibling `OverseasReservedOrder` / `OverseasAlgoOrder` for the same
   wire keys. The old `int` parse raised on any fractional quantity, so a single pending

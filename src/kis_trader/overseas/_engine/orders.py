@@ -601,6 +601,11 @@ def fetch_algo_orders(
         for row in rows if str(row.get("ODNO", "")).strip()
     ]
 
+def _algo_currency(row: Mapping[str, Any]) -> str:
+    """알고 체결행의 거래통화(TR_CRCY). algo(TWAP/VWAP)는 미국 전용이라 비면 USD 로 본다."""
+    return str(row.get("TR_CRCY", "")).strip() or "USD"
+
+
 def fetch_algo_executions(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     order_date: str, order_id: str, branch_number: str = "",
@@ -627,8 +632,8 @@ def fetch_algo_executions(
             symbol=str(row.get("PDNO", "")).strip(),
             name=str(row.get("ITEM_NAME", "")).strip(),
             quantity=_decimal_or_zero(row, "FT_CCLD_QTY"),
-            price=_decimal_or_zero(row, "FT_CCLD_UNPR3"),
-            amount=_decimal_or_zero(row, "FT_CCLD_AMT3"),
+            price=_money(row, "FT_CCLD_UNPR3", _algo_currency(row)),
+            amount=_money(row, "FT_CCLD_AMT3", _algo_currency(row)),
             _raw=row,
         )
         for row in rows if str(row.get("CCLD_SEQ", "")).strip()

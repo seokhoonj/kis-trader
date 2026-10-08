@@ -12,7 +12,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader import KISClient, OverseasAlgoExecution, OverseasAlgoOrder
+from kis_trader import KISClient, Money, OverseasAlgoExecution, OverseasAlgoOrder
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 
@@ -27,7 +27,7 @@ _ORD_ROW = {
 }
 _CCNL_ROW = {
     "CCLD_SEQ": "1", "CCLD_BTWN": "153012", "PDNO": "AAPL", "ITEM_NAME": "애플",
-    "FT_CCLD_QTY": "3", "FT_CCLD_UNPR3": "150.30", "FT_CCLD_AMT3": "450.90",
+    "FT_CCLD_QTY": "3", "FT_CCLD_UNPR3": "150.30", "FT_CCLD_AMT3": "450.90", "TR_CRCY": "USD",
 }
 
 
@@ -125,8 +125,8 @@ def test_algo_executions_parses():
     assert e.executed_at == time(15, 30, 12)
     assert e.symbol == "AAPL"
     assert e.quantity == Decimal(3)
-    assert e.price == Decimal("150.30")
-    assert e.amount == Decimal("450.90")
+    assert e.price == Money(Decimal("150.30"), "USD")
+    assert e.amount == Money(Decimal("450.90"), "USD")
 
 
 def test_algo_executions_tr_and_params():
