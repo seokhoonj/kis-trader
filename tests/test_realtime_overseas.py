@@ -451,7 +451,7 @@ def test_parse_futures_order_notice_headline():
     assert notice.limit_price == Decimal("5510.00")
     assert notice.stop_price == Decimal("5490.00")
     assert notice.total_filled_quantity == Decimal(1)
-    assert notice.total_filled_price == Decimal("5509.50")
+    assert notice.average_filled_price == Decimal("5509.50")
     assert notice.remaining_quantity == Decimal(1)
     assert notice.currency == "USD"
     assert notice.liquidation is True

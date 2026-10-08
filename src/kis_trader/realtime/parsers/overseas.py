@@ -375,7 +375,7 @@ class OverseasDerivativeOrderNotice:
     limit_price: Decimal
     stop_price: Decimal
     total_filled_quantity: Decimal
-    total_filled_price: Decimal
+    average_filled_price: Decimal  # TOT_CCLD_UV 총체결단가(체결 가중평균 단가, per-unit)
     remaining_quantity: Decimal
     currency: str
     liquidation: bool  # 청산여부(LQD_YN)
@@ -398,7 +398,7 @@ def parse_futures_order_notice(fields: list[str]) -> OverseasDerivativeOrderNoti
         limit_price=_decimal(raw["FM_LMT_PRIC"]),
         stop_price=_decimal(raw["FM_STOP_ORD_PRIC"]),
         total_filled_quantity=_decimal(raw["TOT_CCLD_QTY"]),
-        total_filled_price=_decimal(raw["TOT_CCLD_UV"]),
+        average_filled_price=_decimal(raw["TOT_CCLD_UV"]),
         remaining_quantity=_decimal(raw["ORD_REMQ"]),
         currency=raw["CRCY_CD"],
         liquidation=raw["LQD_YN"] == "Y",

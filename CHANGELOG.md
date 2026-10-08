@@ -174,7 +174,8 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `account_number`, `order_no` / `order_number` → `order_id`, `original_order_no` /
   `original_order_number` → `original_order_id`, `executed_qty` / `executed_quantity` →
   `filled_quantity`, `total_executed_quantity` → `total_filled_quantity`, `executed_price` →
-  `filled_price`, `total_executed_price` → `total_filled_price`, `executed_amount` →
+  `filled_price`, `total_executed_price` → `average_filled_price` (TOT_CCLD_UV 총체결단가, a
+  per-unit weighted-average price, not a summed amount), `executed_amount` →
   `filled_amount`, `executed_date` → `filled_date`, `refused` → `rejected`, `branch_no` →
   `branch_number` (matching the REST `branch_number`; `branch_number` is lifted out only on
   `OverseasExecutionNotice` — the stock/derivative notices keep `BRNC_NO` in `_raw`), and
@@ -284,7 +285,11 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   are renamed `foreign_broker_net_buy_volume` — the `glob_ntby_qty` 외국계(foreign
   member firm) net-buy quantity had three public names; `foreign_broker_net_buy_volume` (already
   on `BrokerTradeTick`) wins, disambiguating 외국계 from 외국인 and carrying the shares unit.
-  `foreign_net_buy_change` (`frgn_ntby_qty_icdc`) keeps its name.
+  `foreign_net_buy_change` (`frgn_ntby_qty_icdc`) keeps its name. For the same reason the two
+  sibling 외국계 fields on `MemberActivity` are renamed `foreign_sell_volume` →
+  `foreign_broker_sell_volume` and `foreign_buy_volume` → `foreign_broker_buy_volume`
+  (`glob_total_seln_qty` / `glob_total_shnu_qty`), so all three 외국계 fields share the
+  `foreign_broker_` prefix and never read as 외국인(frgn_) investor figures.
 - Value-kind suffix normalization. Field suffixes now follow one rule by financial concept
   (not by whether the value is scaled x100): `_percent` = a change / return / holding-share
   expressed as a headline percentage; `_rate` = a named financial rate (an exchange/price rate,
