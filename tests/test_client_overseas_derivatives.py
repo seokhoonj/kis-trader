@@ -7,6 +7,7 @@
 from __future__ import annotations
 
 import threading
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -76,6 +77,7 @@ def test_overseas_futures_quote_maps_and_routes():
     assert quote.currency == "USD"
     assert quote.exchange == "ICE"
     assert f"{quote.expiry_date:%Y%m%d}" == "20251219"
+    assert type(quote.expiry_date) is date  # datetime 아님
     assert quote.remaining_days == 41
     assert quote.tick_size == Decimal("0.01")
     assert quote.margin == Decimal(3670)

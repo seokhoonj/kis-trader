@@ -8,6 +8,7 @@
 from __future__ import annotations
 
 import threading
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -111,6 +112,7 @@ def test_newly_listed_right_code_and_dates():
     assert row.listing_date is not None
     assert f"{row.listing_date:%Y%m%d}" == "20240320"
     assert f"{row.last_trade_date:%Y%m%d}" == "20240613"
+    assert type(row.listing_date) is date and type(row.last_trade_date) is date  # datetime 아님
     assert row.price is None                              # 신규상장은 시세 없음
     call = fake.calls[0]
     assert call["path"] == "/uapi/elw/v1/quotations/newly-listed"

@@ -31,6 +31,7 @@ from ..._internal._datetime import (
     _parse_kst_date,
     _to_yyyymmdd,
     _today_kst,
+    parse_optional_kst_date,
 )
 from ..._internal._response import _missing_block_error, _raise_if_error, _require_mapping_rows
 from ..._internal._wire import (
@@ -1270,6 +1271,6 @@ def fetch_stock_profile(transport: Transport, *, symbol: str) -> StockProfile:
         sector_small=str(output.get("idx_bztp_scls_cd_name", "")).strip(),
         is_kospi200=str(output.get("kospi200_item_yn", "")).strip() == "Y",
         kind=str(output.get("stck_kind_cd", "")).strip(),
-        listing_date=_parse_bar_timestamp(listing) if listing else None,
+        listing_date=parse_optional_kst_date(listing),
         _raw=output,
     )

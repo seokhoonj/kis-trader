@@ -12,7 +12,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -215,8 +215,8 @@ class ELWListing:
     change_percent: Decimal | None    # 전일대비율(부호 포함)
     volume: int | None                # 누적 거래량(acml_vol)
     strike: Decimal | None            # 행사가(acpr)
-    listing_date: datetime | None     # 상장일(KST-aware)
-    last_trade_date: datetime | None  # 최종거래일(KST-aware)
+    listing_date: date | None         # 상장일(없으면 None)
+    last_trade_date: date | None      # 최종거래일(없으면 None)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

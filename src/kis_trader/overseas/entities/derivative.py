@@ -49,8 +49,8 @@ class OverseasDerivativeQuote:
     total_ask_quantity: int | None
     currency: str                     # 계약 통화(crc_cd)
     exchange: str                     # 거래소코드(exch_cd)
-    expiry_date: datetime | None      # 만기일(KST-aware)
-    last_trade_date: datetime | None  # 최종거래일(KST-aware)
+    expiry_date: date | None          # 만기일(없으면 None)
+    last_trade_date: date | None      # 최종거래일(없으면 None)
     remaining_days: int | None        # 잔존일수
     tick_size: Decimal | None         # 틱사이즈
     margin: Decimal | None            # 증거금(trst_mgn)
@@ -81,9 +81,9 @@ class OverseasDerivativeDetail:
     contract_size: Decimal | None     # 계약크기(ctrt_size)
     margin: Decimal | None            # 증거금(trst_mgn)
     price_digits: int | None          # 가격표시진법(disp_digit)
-    listing_date: datetime | None     # 상장일(trd_fr_date; KST-aware)
-    expiry_date: datetime | None      # 만기일(expr_date; KST-aware)
-    last_trade_date: datetime | None  # 최종거래일(trd_to_date; KST-aware)
+    listing_date: date | None         # 상장일(trd_fr_date)
+    expiry_date: date | None          # 만기일(expr_date)
+    last_trade_date: date | None      # 최종거래일(trd_to_date)
     remaining_days: int | None        # 잔존일수(remn_cnt)
     settlement_type: str              # 최종결제구분(stl_tp)
     trade_status: str                 # 매매여부(stat_tp)

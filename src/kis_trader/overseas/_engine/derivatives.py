@@ -23,6 +23,7 @@ from ..._internal._datetime import (
     _parse_kst_date,
     _to_yyyymmdd,
     _today_kst,
+    parse_optional_kst_date,
 )
 from ..._internal._response import (
     _CONTINUATION_END,
@@ -105,11 +106,6 @@ def fetch_quote(
     return _parse_quote(output, srs_cd=srs_cd, as_of=datetime.now(_KST))
 
 
-def _optional_date(value: object) -> datetime | None:
-    text = str(value or "").strip()
-    return _parse_bar_timestamp(text) if text else None
-
-
 def _parse_quote(
     output: Mapping[str, Any], *, srs_cd: str, as_of: datetime
 ) -> OverseasDerivativeQuote:
@@ -137,8 +133,8 @@ def _parse_quote(
         total_ask_quantity=optional_int(output.get("tot_ask_qntt"), "tot_ask_qntt"),
         currency=str(output.get("crc_cd", "")).strip(),
         exchange=str(output.get("exch_cd", "")).strip(),
-        expiry_date=_optional_date(output.get("expr_date")),
-        last_trade_date=_optional_date(output.get("trd_to_date")),
+        expiry_date=parse_optional_kst_date(output.get("expr_date")),
+        last_trade_date=parse_optional_kst_date(output.get("trd_to_date")),
         remaining_days=optional_int(output.get("remn_cnt"), "remn_cnt"),
         tick_size=optional_decimal(output.get("tick_size"), "tick_size"),
         margin=optional_decimal(output.get("trst_mgn"), "trst_mgn"),
@@ -514,9 +510,9 @@ def _parse_detail(
         contract_size=optional_decimal(output.get("ctrt_size"), "ctrt_size"),
         margin=optional_decimal(output.get("trst_mgn"), "trst_mgn"),
         price_digits=optional_int(output.get("disp_digit"), "disp_digit"),
-        listing_date=_optional_date(output.get("trd_fr_date")),
-        expiry_date=_optional_date(output.get("expr_date")),
-        last_trade_date=_optional_date(output.get("trd_to_date")),
+        listing_date=parse_optional_kst_date(output.get("trd_fr_date")),
+        expiry_date=parse_optional_kst_date(output.get("expr_date")),
+        last_trade_date=parse_optional_kst_date(output.get("trd_to_date")),
         remaining_days=optional_int(output.get("remn_cnt"), "remn_cnt"),
         settlement_type=str(output.get("stl_tp", "")).strip(),
         trade_status=str(output.get("stat_tp", "")).strip(),

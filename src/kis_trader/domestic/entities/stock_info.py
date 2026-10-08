@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import datetime
+from datetime import date
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
@@ -23,7 +23,7 @@ class StockProfile:
 
     ``listed_shares`` 는 상장주식수, ``capital`` 은 자본금, ``par_value`` 는 액면가, ``issue_price``
     는 발행가. ``sector_large`` / ``sector_medium`` / ``sector_small`` 은 지수업종 대/중/소분류명,
-    ``is_kospi200`` 는 KOSPI200 편입 여부. ``listing_date`` 는 상장일(KST-aware, 없으면 ``None``).
+    ``is_kospi200`` 는 KOSPI200 편입 여부. ``listing_date`` 는 상장일(``date``, 없으면 ``None``).
     ``kind`` 는 주식종류코드(보통주/우선주 등). 세부는 ``_raw``.
     """
 
@@ -40,7 +40,7 @@ class StockProfile:
     sector_small: str                 # 지수업종 소분류명(idx_bztp_scls_cd_name)
     is_kospi200: bool                  # KOSPI200 편입 여부(kospi200_item_yn)
     kind: str                         # 주식종류코드(stck_kind_cd)
-    listing_date: datetime | None     # 상장일(KST-aware)
+    listing_date: date | None         # 상장일(없으면 None)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

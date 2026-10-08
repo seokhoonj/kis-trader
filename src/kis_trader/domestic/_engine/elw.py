@@ -25,6 +25,7 @@ from ..._internal._datetime import (
     _KST,
     _combine_date_time,
     _parse_intraday_timestamp,
+    parse_optional_kst_date,
 )
 from ..._internal._response import (
     _missing_block_error,
@@ -752,11 +753,6 @@ def _base_ranking_params(scr: str, underlying: str, issuer: str) -> dict[str, st
     }
 
 
-def _optional_date(value: object) -> datetime | None:
-    text = str(value or "").strip()
-    return _parse_bar_timestamp(text) if text else None
-
-
 def _parse_listing_row(row: Mapping[str, Any]) -> ELWListing | None:
     """목록 조회 한 행을 :class:`ELWListing` 으로. 코드가 없으면 ``None``(빈 행). 조회마다 코드/이름
     키가 달라(elw_shrn_iscd/bond_shrn_iscd, elw_kor_isnm/hts_kor_isnm) 폴백으로 찾는다."""
@@ -780,8 +776,8 @@ def _parse_listing_row(row: Mapping[str, Any]) -> ELWListing | None:
         change_percent=change_percent,
         volume=optional_int(row.get("acml_vol"), "acml_vol"),
         strike=optional_decimal(row.get("acpr"), "acpr"),
-        listing_date=_optional_date(row.get("stck_lstn_date")),
-        last_trade_date=_optional_date(row.get("stck_last_tr_date")),
+        listing_date=parse_optional_kst_date(row.get("stck_lstn_date")),
+        last_trade_date=parse_optional_kst_date(row.get("stck_last_tr_date")),
         _raw=row,
     )
 

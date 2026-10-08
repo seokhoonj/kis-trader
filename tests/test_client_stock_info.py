@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -43,6 +44,7 @@ def test_stock_info_maps():
     assert info.sector_large == "전기전자"
     assert info.is_kospi200 is True
     assert f"{info.listing_date:%Y%m%d}" == "19750611"
+    assert type(info.listing_date) is date  # datetime 아님(날짜만)
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/quotations/search-stock-info"
     assert call["tr_id"] == "CTPF1002R"

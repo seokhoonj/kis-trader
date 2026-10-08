@@ -296,6 +296,12 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
 - `RankingQueries` → `DomesticRankingQueries`. It has a distinct `OverseasRankingQueries` sibling,
   so the bare name misread as region-neutral; the prefix matches the `Domestic*`/`Overseas*`
   qualifier convention. `kis.domestic.ranking` and behavior are unchanged.
+- Eight pure calendar-day fields that were typed `datetime` (a KST-aware midnight) are now
+  `date`, matching the ~90 other `*_date` fields and fixing a silent `datetime == date -> False`
+  mismatch in set/dedup/join keys: `StockProfile.listing_date`, the ELW listing/last-trade dates,
+  and the overseas-derivative quote/detail listing/expiry/last-trade dates. The two local
+  datetime-returning `_optional_date` parser copies are removed in favor of the shared fail-closed
+  `parse_optional_kst_date` (empty / "00000000" sentinel -> None). Wire keys unchanged.
 
 ### Added
 

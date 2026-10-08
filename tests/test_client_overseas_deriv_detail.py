@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import threading
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -49,6 +50,7 @@ def test_overseas_derivative_detail_futures():
     assert d.price_digits == 2
     assert d.remaining_days == 41
     assert f"{d.expiry_date:%Y%m%d}" == "20251219"
+    assert type(d.expiry_date) is date  # datetime 아님
     call = fake.calls[0]
     assert call["path"] == "/uapi/overseas-futureoption/v1/quotations/stock-detail"
     assert call["tr_id"] == "HHDFC55010100"
