@@ -303,6 +303,7 @@ kis.account
 │   │   ├── daily_profits(start, end)         # 일별 매매손익
 │   │   ├── rights(start, end)                # 계좌 권리 내역
 │   │   ├── open_orders()                     # 미체결 주문
+│   │   ├── fills(start, end)                  # 일별 주문·체결 내역
 │   │   ├── reserved_orders(start, end)       # 예약주문 목록
 │   │   ├── cancel_reserved_order(seq)        # 예약주문 취소
 │   │   ├── modify_reserved_order(...)        # 예약주문 정정

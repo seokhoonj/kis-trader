@@ -138,6 +138,7 @@ export KIS_ACCOUNT=12345678-01        # 종합계좌번호-상품코드 (시세�
 | `KIS_ACCOUNT` | `account` | 계좌번호 |
 | `KIS_ENVIRONMENT` | `environment` | 실전/모의 |
 | `KIS_HTS_ID` | `hts_id`(최상위) | HTS 로그인 아이디 (선택·사용자당 하나; 조건검색·관심종목용, 인증엔 안 씀) |
+| `KIS_ACCOUNT_PASSWORD` | `account_password`(최상위) | 계좌비밀번호 (선택; 야간 파생 잔고 등 일부 조회의 `ACNT_PWD` 로만 쓰임, 로그·`_raw` 에 안 담김) |
 | `KIS_DEFAULT_PROFILE` | `default_profile`(최상위) | 기본 프로필 |
 
 접두어 없는 `KIS_APP_KEY` 는 `main` 프로필용이고, 다른 프로필은 이름을 끼웁니다 --
@@ -223,6 +224,7 @@ IRP(`29`)는 세션이 주문을 자동으로 막고, DC가입자(`55`)는 세�
 ```json
 {
   "hts_id":    "your_hts_id",
+  "account_password": "****",
   "main":      {"app_key": "...", "app_secret": "...", "account": "12345678-01", "environment": "real"},
   "pension":   {"app_key": "...", "app_secret": "...", "account": "87654321-22", "environment": "real"},
   "paper":     {"app_key": "...", "app_secret": "...", "account": "50123456-01", "environment": "paper"}

@@ -28,7 +28,7 @@ codex plugin add kis-trader@kis-trader
 ```text
 # AGENTS.md (사용자 각자)
 KIS 계좌 작업은 kis_trader 공개 API 로만 하고, plugins/kis-trader/skills/kis-trader/SKILL.md 의 규율을 따른다:
-심볼은 search 로 해석 후 주문, 실전 주문 전 티켓 확인, 타임아웃은 재전송 대신 reconcile.
+심볼은 search_stocks 로 해석 후 주문, 실전 주문 전 티켓 확인, 타임아웃은 재전송 대신 reconcile.
 ```
 
 ::: {.callout-note}

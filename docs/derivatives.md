@@ -89,7 +89,13 @@ account.valuation_pl()                 # 잔고평가손익 (종목별 평가/�
 account.settlement_pl(base_date="20240628")   # 잔고정산손익
 account.base_date_fills(order_date="20240628")  # 기준일 체결내역 (start_time/end_time 로 시각 구간)
 account.commissions(start="20240101", end="20240630")  # 기간약정수수료 일별
+account.night_margin(margin_division="consignment")  # 야간 증거금상세 (consignment/maintenance)
+account.night_balance()                # 야간 잔고현황 -- 계좌비밀번호 필요(account_password, 아래 참조)
 ```
+
+`night_balance()` 는 계좌비밀번호가 있어야 조회됩니다(와이어 `ACNT_PWD` 로만 쓰이고 로그·`_raw`
+어디에도 담기지 않습니다). 최상위 자격증명 키 `account_password`(환경변수 `KIS_ACCOUNT_PASSWORD`)에
+저장하며, [자격증명과 프로필](configuration.md)에 설정법이 있습니다.
 
 주문가능수량은 계약 핸들에서 봅니다. `side` 는 `"buy"`/`"sell"`, `limit_price` 를 주면 지정가 기준·없으면 시장가 기준입니다.
 
