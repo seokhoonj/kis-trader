@@ -82,10 +82,12 @@ def test_parse_orderbook_headline():
     assert ob.best_ask_quantity == Decimal(450)
 
 
-def test_orderbook_raw_has_unique_ledger_keys():
+def test_orderbook_71_unique_fields():
     ob = parse_orderbook(_orderbook_fields())
-    # 원장에 레벨3 블록이 중복 추출되어 있어 dict 로 접히면 유니크 키 수가 된다.
-    assert len(ob._raw) == len(set(_ORDERBOOK_FIELDS))
+    # 와이어 레이아웃은 71 유니크 필드(헤더 11 + 10단계 x 6), 2026-10-08 미국장 라이브 검증.
+    # 리터럴로 고정 -- production 상수에 의존하면 중복 블록 재유입(77)도 통과해 회귀를 못 잡는다.
+    assert len(_ORDERBOOK_FIELDS) == len(set(_ORDERBOOK_FIELDS)) == 71
+    assert len(ob._raw) == 71
     assert ob._raw["PBID10"] == "0"
     assert ob._raw["SYMB"] == "AAPL"
 
@@ -93,7 +95,7 @@ def test_orderbook_raw_has_unique_ledger_keys():
 def test_registry_orderbook():
     spec = _registry.lookup("HDFSASP0")
     assert spec is not None
-    assert spec.field_count == len(_ORDERBOOK_FIELDS)
+    assert spec.field_count == 71
     assert spec.parser is parse_orderbook
     assert spec.encrypted is False
 
@@ -206,11 +208,11 @@ def test_parse_delayed_trade_tick_headline():
 
 def test_delayed_trade_raw_and_registry():
     tick = parse_delayed_trade_tick(_delayed_trade_fields())
-    assert len(tick._raw) == len(_DELAYED_TRADE_FIELDS)
+    assert len(tick._raw) == 26                             # 라이브 검증(2026-10-08): HDFSCNT0 = 26 필드
     assert tick._raw["LAST"] == "231.50"
     spec = _registry.lookup("HDFSCNT0")
     assert spec is not None
-    assert spec.field_count == len(_DELAYED_TRADE_FIELDS)
+    assert spec.field_count == 26
     assert spec.parser is parse_delayed_trade_tick
     assert spec.encrypted is False
 

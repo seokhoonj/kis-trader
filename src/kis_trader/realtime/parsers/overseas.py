@@ -43,7 +43,7 @@ def _raw_field() -> Any:
 # ---------------------------------------------------------------------------
 
 # 와이어 Response Body 필드 순서(인덱스 = ^ 위치). 헤더 11 + 10단계 x 6(PBID/PASK/VBID/VASK/DBID/DASK)
-# = 71. 라이브 프레임으로 검증(2026-10-08 미국장). DBIDn/DASKn 은 단계별 잔량 증감.
+# = 71. 라이브 프레임으로 검증(2026-10-08 미국장). DBIDn/DASKn 은 단계별 매수/매도 잔량대비(직전 대비 증감).
 _ORDERBOOK_FIELDS = (
     "RSYM", "SYMB", "ZDIV", "XYMD", "XHMS", "KYMD", "KHMS", "BVOL", "AVOL", "BDVL", "ADVL",
     "PBID1", "PASK1", "VBID1", "VASK1", "DBID1", "DASK1",
@@ -232,6 +232,7 @@ def parse_execution_notice(fields: list[str]) -> OverseasExecutionNotice:
 # 해외선물옵션 실시간체결가 (HDFFF020)
 # ---------------------------------------------------------------------------
 
+# KIS 공식 실시간 명세(HDFFF020) 기준. 라이브 미검증(모의 미지원; 유료시세 게이트).
 _FUTURES_TRADE_FIELDS = (
     "SERIES_CD", "BSNS_DATE", "MRKT_OPEN_DATE", "MRKT_OPEN_TIME", "MRKT_CLOSE_DATE",
     "MRKT_CLOSE_TIME", "PREV_PRICE", "RECV_DATE", "RECV_TIME", "ACTIVE_FLAG",
@@ -292,6 +293,7 @@ def parse_futures_trade_tick(fields: list[str]) -> OverseasDerivativeTradeTick:
 # 해외선물옵션 실시간호가 (HDFFF010)
 # ---------------------------------------------------------------------------
 
+# KIS 공식 실시간 명세(HDFFF010) 기준. 라이브 미검증.
 _FUTURES_ORDERBOOK_FIELDS = (
     "SERIES_CD", "RECV_DATE", "RECV_TIME", "PREV_PRICE",
     "BID_QNTT_1", "BID_NUM_1", "BID_PRICE_1", "ASK_QNTT_1", "ASK_NUM_1", "ASK_PRICE_1",
@@ -340,6 +342,9 @@ def parse_futures_orderbook(fields: list[str]) -> OverseasDerivativeOrderBook:
 # 해외선물옵션 실시간주문내역통보 (HDFFF1C0, 암호화)
 # ---------------------------------------------------------------------------
 
+# KIS 공식 실시간 명세(실시간-019 HDFFF1C0) Response Body = USER_ID 선두 33필드. 공식 GitHub
+# 예제의 32컬럼(acct_no 시작)은 선두 식별필드를 누락한 표시용 목록이니 32로 '정정'하지 말 것
+# (HDFSASP0 16 vs 라이브 71, HDFSCNT0 25 vs 26 와 같은 누락 패턴). 라이브 미검증(모의 미지원).
 _FUTURES_ORDER_NOTICE_FIELDS = (
     "USER_ID", "ACCT_NO", "ORD_DT", "ODNO", "ORGN_ORD_DT", "ORGN_ODNO", "SERIES",
     "RVSE_CNCL_DVSN_CD", "SLL_BUY_DVSN_CD", "CPLX_ORD_DVSN_CD", "PRCE_TP",
@@ -405,6 +410,8 @@ def parse_futures_order_notice(fields: list[str]) -> OverseasDerivativeOrderNoti
 # 해외선물옵션 실시간체결내역통보 (HDFFF2C0, 암호화)
 # ---------------------------------------------------------------------------
 
+# KIS 공식 실시간 명세(실시간-020 HDFFF2C0) Response Body = USER_ID 선두 33필드. 위와 동일 --
+# 공식 예제 32컬럼은 표시용이므로 32로 '정정' 금지. 라이브 미검증(모의 미지원).
 _FUTURES_EXECUTION_NOTICE_FIELDS = (
     "USER_ID", "ACCT_NO", "ORD_DT", "ODNO", "ORGN_ORD_DT", "ORGN_ODNO", "SERIES",
     "RVSE_CNCL_DVSN_CD", "SLL_BUY_DVSN_CD", "CPLX_ORD_DVSN_CD", "PRCE_TP",
@@ -468,6 +475,8 @@ def parse_futures_execution_notice(fields: list[str]) -> OverseasDerivativeExecu
 # 해외주식 실시간지연호가 아시아 (HDFSASP1)
 # ---------------------------------------------------------------------------
 
+# 공식 16컬럼 + 선두 RSYM = 17 로 도출(라이브 미검증). 형제 HDFSASP0 는 공식 문서 16 vs 라이브
+# 71 이었으니, 아시아 실프레임으로 확인 전까지 17 은 확정 아님(실프레임 71 이면 10단계로 확장).
 _ASIA_ORDERBOOK_FIELDS = (
     "RSYM", "SYMB", "ZDIV", "XYMD", "XHMS", "KYMD", "KHMS", "BVOL", "AVOL", "BDVL", "ADVL",
     "PBID1", "PASK1", "VBID1", "VASK1", "DBID1", "DASK1",

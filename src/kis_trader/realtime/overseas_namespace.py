@@ -2,8 +2,9 @@
 
 REST ``kis.overseas`` 를 미러한다: ``overseas.stock("AAPL").trades()`` 가
 :class:`~kis_trader.realtime.subscription.RealtimeSubscription` 를 반환해 그 계약·그 타입만
-소비한다. 해외주식 tr_key 는 RSYM(예: ``DNASAAPL`` = ``D`` + 거래소 + 심볼)이라 종목 마스터로
-해석하고(클라이언트에 주입된 resolver -- :meth:`~kis_trader.realtime.client.RealtimeClient._resolve_instrument`),
+소비한다. 종목 마스터는 심볼을 **무접두 RSYM**(예: ``NASAAPL`` = 거래소 + 심볼)으로 해석하고
+(클라이언트에 주입된 resolver -- :meth:`~kis_trader.realtime.client.RealtimeClient._resolve_instrument`),
+해외주식 핸들이 지연피드 tr_key(``DNASAAPL`` = ``D`` + RSYM)를 만든다.
 해외선물옵션은 시리즈코드를 그대로 tr_key 로 쓴다. 해외주식 호가는 ``zone`` 으로 글로벌(10호가)/아시아
 (1호가) TR 을 고른다. 선물과 옵션은 같은 TR(HDFFF020/010)을 공유해 한 핸들로 다룬다.
 """
@@ -57,8 +58,12 @@ class OverseasStockHandle:
 
     def __init__(self, client: RealtimeClient, realtime_symbol: str) -> None:
         self._client = client
-        # 해외주식 실시간(지연시세)의 tr_key 는 마스터 RSYM 에 "D"(지연피드) 접두를 붙인 형태다
-        # (예: RSYM "NASAAPL" -> "DNASAAPL"). 접두가 없으면 서버가 프레임을 전혀 보내지 않는다.
+        # 해외주식 실시간(지연시세) tr_key = "D"(지연피드) + 마스터 RSYM("NASAAPL" -> "DNASAAPL").
+        # 접두가 없으면 서버가 프레임을 전혀 보내지 않는다(라이브 실증 2026-10-08). 이 접두 로직은
+        # 해외주식 전용 -- 해외선물옵션은 시리즈코드 무접두가 정답이라 이 핸들을 거치지 않는다.
+        # (미국주간거래 실시간은 "R"+시장구분 별도 체계라 미지원; 추후 지원 시 feed-mode 를 명시
+        # 옵션으로 모델링할 것 -- 이 분기를 재사용하지 말 것.) startswith("D") 가드는 멱등용(실제
+        # 마스터 RSYM 은 모두 무접두).
         self._rsym = realtime_symbol if realtime_symbol.startswith("D") else "D" + realtime_symbol
 
     def trades(

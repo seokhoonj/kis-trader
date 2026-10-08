@@ -89,11 +89,13 @@ def test_every_mapping_subscribes_exact_tr_and_key(
     assert (sub.tr_id, sub.tr_key) in c._subscriptions
 
 
-def test_stock_resolves_symbol_to_rsym() -> None:
+def test_stock_does_not_double_prefix_delayed_key() -> None:
+    # 이미 "D" 접두가 있는 RSYM 은 다시 붙이지 않는다(DDNASAAPL 금지). 실제 마스터 RSYM 은
+    # 무접두(NASAAPL)이고 핸들이 "D"를 붙인다 -- 이 테스트는 방어적 가드만 고정한다.
     resolver = _StubResolver(rsym="DNASAAPL")
     _, ns = _ns(resolver)
     sub = ns.stock("AAPL").trades()
-    assert sub.tr_key == "DNASAAPL"  # 심볼이 아니라 마스터 RSYM 이 tr_key
+    assert sub.tr_key == "DNASAAPL"  # 중복 접두 없음
     assert resolver.calls == [("AAPL", None)]  # exchange 미지정 -> 자동 해석
 
 
