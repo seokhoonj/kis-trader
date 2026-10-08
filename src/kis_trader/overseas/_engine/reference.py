@@ -13,6 +13,7 @@ from ..._internal._datetime import (
 from ..._internal._response import (
     _CONTINUATION_END,
     _advance_cursor,
+    _fetch_paginated_rows,
     _missing_block_error,
     _raise_if_error,
 )
@@ -70,30 +71,16 @@ def fetch_period_rights(
     start_date, end_date = _to_yyyymmdd(start, "start"), _to_yyyymmdd(end, "end")
     if start_date > end_date:
         raise KISUsageError(f"start({start_date}) 가 end({end_date}) 보다 늦다.")
-    rows: list[Mapping[str, Any]] = []
-    ctx_nk, ctx_fk, tr_cont = "", "", ""
-    for _page in range(100):
-        resp = transport.request(
-            method="GET", path=_PERIOD_RIGHTS_PATH, tr_id=_PERIOD_RIGHTS_TR,
-            params={"RGHT_TYPE_CD": right_type.strip(), "INQR_DVSN_CD": basis_code,
-                    "INQR_STRT_DT": start_date, "INQR_END_DT": end_date, "PDNO": symbol.strip(),
-                    "PRDT_TYPE_CD": product_type.strip(), "CTX_AREA_NK50": ctx_nk,
-                    "CTX_AREA_FK50": ctx_fk}, idempotent=True, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        page = resp.body.get("output")
-        if not isinstance(page, (list, tuple)) or not all(isinstance(row, Mapping) for row in page):
-            raise _missing_block_error("output", resp)
-        rows.extend(page)
-        if resp.tr_cont not in {"F", "M"}:
-            break
-        nxt = _advance_cursor(resp.body, ctx_width=50, prev_nk=ctx_nk)
-        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
-            break
-        ctx_fk, ctx_nk = nxt
-        tr_cont = "N"
-    else:
-        raise KISError("해외 기간별 권리조회가 100페이지 상한을 초과했다.")
+    rows = _fetch_paginated_rows(
+        transport, path=_PERIOD_RIGHTS_PATH, tr_id=_PERIOD_RIGHTS_TR,
+        base_params={
+            "RGHT_TYPE_CD": right_type.strip(), "INQR_DVSN_CD": basis_code,
+            "INQR_STRT_DT": start_date, "INQR_END_DT": end_date, "PDNO": symbol.strip(),
+            "PRDT_TYPE_CD": product_type.strip(), "CTX_AREA_NK50": "", "CTX_AREA_FK50": "",
+        },
+        output_key="output", max_pages=100,
+        cap_message="해외 기간별 권리조회가 100페이지 상한을 초과했다.", ctx_width=50,
+    )
     return [_parse_period_right(row) for row in rows]
 
 

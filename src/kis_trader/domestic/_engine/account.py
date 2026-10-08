@@ -23,7 +23,6 @@ from ..._internal._response import (
     _fetch_paginated_rows,
     _fetch_paginated_rows_with_summary,
     _raise_if_error,
-    _require_mapping_rows,
 )
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
@@ -134,37 +133,31 @@ def fetch_portfolio(transport: Transport, *, cano: str, product_code: str, envir
 def _walk_holdings(
     transport: Transport, *, cano: str, product_code: str, environment: Environment
 ) -> tuple[list[Mapping[str, Any]], Mapping[str, Any] | None]:
-    rows: list[Mapping[str, Any]] = []
-    summary: Mapping[str, Any] | None = None
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_BALANCE_PAGES):
-        resp = _fetch_balance_page(
-            transport, cano=cano, product_code=product_code, environment=environment,
-            ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        if summary is None:  # 계좌 요약은 첫 페이지에서(계좌 단위라 페이지 불변)
-            summary = _extract_summary(resp.body)
-        rows.extend(_require_mapping_rows("output1", resp))
-        if resp.tr_cont not in ("F", "M"):
-            break
-        nxt = _advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
-        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
-            break
-        ctx_fk, ctx_nk = nxt
-        tr_cont = "N"
-    else:
-        raise KISError(
+    """잔고 보유내역(output1) + 계좌 요약(output2)을 공유 연속조회 상태기계에 위임한다.
+    비진전 커서 방어와 페이지 상한 fail-closed 는 공유 헬퍼가 담당한다."""
+    base_params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "AFHR_FLPR_YN": "N", "OFL_YN": "", "INQR_DVSN": "02",
+        "UNPR_DVSN": "01", "FUND_STTL_ICLD_YN": "N", "FNCG_AMT_AUTO_RDPT_YN": "N",
+        "PRCS_DVSN": "00", "CTX_AREA_FK100": "", "CTX_AREA_NK100": "",
+    }
+    return _fetch_paginated_rows_with_summary(
+        transport, path=_BALANCE_PATH, tr_id=_BALANCE_TR[environment],
+        base_params=base_params, output_key="output1", max_pages=_MAX_BALANCE_PAGES,
+        cap_message=(
             f"잔고 조회가 {_MAX_BALANCE_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
             f"-- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
-        )
-    return rows, summary
+        ),
+        summary_from=_extract_summary, ctx_width=100,
+    )
 
 
 def _fetch_balance_page(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     ctx_fk: str, ctx_nk: str, tr_cont: str = "",
 ) -> RawResponse:
+    """잔고 1페이지 조회 -- 계좌 요약(output2)만 필요한 단일-페이지 호출자(:func:`fetch_balance`)가 쓴다.
+    보유내역 전체 순회는 :func:`_walk_holdings`(공유 페이지네이터)가 담당한다."""
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
         "AFHR_FLPR_YN": "N", "OFL_YN": "", "INQR_DVSN": "02",
@@ -218,6 +211,13 @@ def _parse_balance(summary: Mapping[str, Any]) -> DomesticBalance:
         unrealized_pnl=required_decimal(summary.get("evlu_pfls_smtl_amt"), "evlu_pfls_smtl_amt"),
         _raw=summary,
     )
+
+
+def _mapping_or_none(body: Mapping[str, Any], key: str) -> Mapping[str, Any] | None:
+    """응답 바디의 요약 블록을 매핑이면 그대로, 아니면(부재/비매핑) None 으로 -- 공유 페이지네이터의
+    ``summary_from`` 에 넘기는 기간 총계(output2) 추출기."""
+    candidate = body.get(key)
+    return candidate if isinstance(candidate, Mapping) else None
 
 
 def _extract_summary(body: Mapping[str, Any]) -> Mapping[str, Any] | None:
@@ -367,43 +367,21 @@ def fetch_trade_profits(
         raise KISUsageError(
             f"지원하지 않는 sort: {sort!r} ({'/'.join(_TRADE_PROFIT_SORT)})."
         ) from None
-    rows: list[Mapping[str, Any]] = []
-    summary: Mapping[str, Any] | None = None
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_TRADE_PROFIT_PAGES):
-        params = {
-            "CANO": cano, "ACNT_PRDT_CD": product_code,
-            "SORT_DVSN": sort_code, "PDNO": symbol or "",
-            "INQR_STRT_DT": start, "INQR_END_DT": end, "CBLC_DVSN": "00",
-            "CTX_AREA_FK100": ctx_fk, "CTX_AREA_NK100": ctx_nk,
-        }
-        resp = transport.request(
-            method="GET", path=_TRADE_PROFIT_PATH, tr_id=_TRADE_PROFIT_TR,
-            params=params, idempotent=True, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        if summary is None:  # 기간 총계(output2)는 기간 단위라 첫 페이지로 완결
-            candidate = resp.body.get("output2")
-            summary = candidate if isinstance(candidate, Mapping) else None
-        page = resp.body.get("output1")
-        if not isinstance(page, (list, tuple)):  # 빈 내역도 배열 -> 부재/비배열은 손상
-            raise KISError(
-                "매매손익 응답의 output1 이 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
-        nxt = _advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
-        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
-            break
-        ctx_fk, ctx_nk = nxt
-        tr_cont = "N"
-    else:
-        raise KISError(
+    base_params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "SORT_DVSN": sort_code, "PDNO": symbol or "",
+        "INQR_STRT_DT": start, "INQR_END_DT": end, "CBLC_DVSN": "00",
+        "CTX_AREA_FK100": "", "CTX_AREA_NK100": "",
+    }
+    rows, summary = _fetch_paginated_rows_with_summary(
+        transport, path=_TRADE_PROFIT_PATH, tr_id=_TRADE_PROFIT_TR,
+        base_params=base_params, output_key="output1", max_pages=_MAX_TRADE_PROFIT_PAGES,
+        cap_message=(
             f"매매손익 조회가 {_MAX_TRADE_PROFIT_PAGES}페이지 상한에 도달했으나 연속조회가 "
             f"남아있다 -- 부분 결과로 자르지 않는다."
-        )
+        ),
+        summary_from=lambda body: _mapping_or_none(body, "output2"), ctx_width=100,
+    )
     if summary is None:
         raise KISError("매매손익 응답에 총계(output2)가 없다.")
     trades = tuple(
@@ -459,43 +437,21 @@ def fetch_daily_profits(
         raise KISUsageError(
             f"지원하지 않는 sort: {sort!r} ({'/'.join(_TRADE_PROFIT_SORT)})."
         ) from None
-    rows: list[Mapping[str, Any]] = []
-    summary: Mapping[str, Any] | None = None
-    ctx_fk, ctx_nk, tr_cont = "", "", ""
-    for _page in range(_MAX_TRADE_PROFIT_PAGES):
-        params = {
-            "CANO": cano, "ACNT_PRDT_CD": product_code,
-            "INQR_STRT_DT": start, "INQR_END_DT": end, "PDNO": symbol or "",
-            "SORT_DVSN": sort_code, "INQR_DVSN": "00", "CBLC_DVSN": "00",
-            "CTX_AREA_FK100": ctx_fk, "CTX_AREA_NK100": ctx_nk,
-        }
-        resp = transport.request(
-            method="GET", path=_DAILY_PROFIT_PATH, tr_id=_DAILY_PROFIT_TR,
-            params=params, idempotent=True, tr_cont=tr_cont,
-        )
-        _raise_if_error(resp)
-        if summary is None:
-            candidate = resp.body.get("output2")
-            summary = candidate if isinstance(candidate, Mapping) else None
-        page = resp.body.get("output1")
-        if not isinstance(page, (list, tuple)):
-            raise KISError(
-                "일별손익 응답의 output1 이 배열이 아니다.",
-                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
-            )
-        rows.extend(page)
-        if resp.tr_cont not in ("F", "M"):
-            break
-        nxt = _advance_cursor(resp.body, ctx_width=100, prev_nk=ctx_nk)
-        if nxt is None:  # 비진전 커서(빈 키/반복/종료 센티널) -> 재요청 중단(이중집계 방지)
-            break
-        ctx_fk, ctx_nk = nxt
-        tr_cont = "N"
-    else:
-        raise KISError(
+    base_params = {
+        "CANO": cano, "ACNT_PRDT_CD": product_code,
+        "INQR_STRT_DT": start, "INQR_END_DT": end, "PDNO": symbol or "",
+        "SORT_DVSN": sort_code, "INQR_DVSN": "00", "CBLC_DVSN": "00",
+        "CTX_AREA_FK100": "", "CTX_AREA_NK100": "",
+    }
+    rows, summary = _fetch_paginated_rows_with_summary(
+        transport, path=_DAILY_PROFIT_PATH, tr_id=_DAILY_PROFIT_TR,
+        base_params=base_params, output_key="output1", max_pages=_MAX_TRADE_PROFIT_PAGES,
+        cap_message=(
             f"일별손익 조회가 {_MAX_TRADE_PROFIT_PAGES}페이지 상한에 도달했으나 연속조회가 "
             f"남아있다 -- 부분 결과로 자르지 않는다."
-        )
+        ),
+        summary_from=lambda body: _mapping_or_none(body, "output2"), ctx_width=100,
+    )
     if summary is None:
         raise KISError("일별손익 응답에 총계(output2)가 없다.")
     days = tuple(_parse_daily_profit(row) for row in rows if str(row.get("trad_dt", "")).strip())
