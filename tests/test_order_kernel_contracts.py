@@ -1,9 +1,10 @@
-"""주문 안전 커널 재설계(A-08/A-16/A-17/A-18)의 계약을 고정하는 테스트.
+"""주문 안전 커널의 계약을 고정하는 테스트.
 
-- A-16: `submitted_at` -> `recorded_at` + 스키마 v6 -> v7, 구 저장소(옛 키) 하위호환 로드.
-- A-17: 인메모리 지문 태그드 유니온 + 온-디스크 위치 코덱(왕복 + 바이트 동결).
-- A-18: `try_claim` 판별 결과(완료엔 리포트가 항상 있어 "리포트 없는 완료"가 표현 불가능).
-- A-08: 공개 주문 write 표면의 `limit_price`, 주문 결과 타입의 `order_price`.
+- 주문 결과 타입의 접수 시각 키는 `recorded_at`(스키마 v7+); 구 저장소(옛 `submitted_at` 키)도
+  하위호환으로 로드된다.
+- 인메모리 지문은 태그드 유니온, 온-디스크는 위치 코덱(왕복 + 바이트 동결).
+- `try_claim` 의 판별 결과는 완료엔 리포트가 항상 있어 "리포트 없는 완료"가 표현 불가능하다.
+- 공개 주문 write 표면은 `limit_price`, 주문 결과 타입은 `order_price` 를 쓴다.
 """
 
 from __future__ import annotations
@@ -34,7 +35,7 @@ from kis_trader.store import (
     OrderStore,
 )
 
-# --- A-17: 지문 코덱 왕복 + 온-디스크 바이트 동결 ---------------------------------
+# --- 지문 코덱 왕복 + 온-디스크 바이트 동결 ---------------------------------
 #: 각 변형의 인코딩이 내는 **정확한** 19-슬롯 바이트다(idx 13=derivative_item 비-파생은 "",
 #: idx 14=overseas_exchange 해외 예약 외엔 "", idx 15=currency 홍콩 예약 외엔 "HKD", idx 16..18=
 #: algo 전략/시작/종료 비-algo 는 전부 "").
@@ -179,7 +180,7 @@ def test_fingerprint_equality_is_positional_and_cross_variant_safe():
     assert isinstance(imm, OrderFingerprint)
 
 
-# --- A-16: 스키마 v7 + 구 저장소(submitted_at 키) 하위호환 로드/마이그레이션 --------
+# --- 스키마 v7 + 구 저장소(submitted_at 키) 하위호환 로드/마이그레이션 --------
 def _v6_store_json() -> dict:
     """옛 키(`submitted_at`)와 13-슬롯 지문을 쓰는 v6 저장소 스냅샷(재작성 전 형식)."""
     return {
@@ -249,7 +250,7 @@ def test_v7_report_dict_omits_submitted_at_key(tmp_path):
     assert "submitted_at" not in data["reports"]["ID-new"]
 
 
-# --- A-18: try_claim 판별 결과(완료엔 리포트가 항상 존재) -------------------------
+# --- try_claim 판별 결과(완료엔 리포트가 항상 존재) -------------------------
 def _report(cid: str) -> ExecutionReport:
     return ExecutionReport(
         client_order_id=cid, order_id="0000117057", symbol="005930", side="buy",
@@ -286,7 +287,7 @@ def test_claim_result_variants_are_exhaustive():
     assert set(ClaimResult.__args__) == {Claimed, Completed, InFlight, Conflict}
 
 
-# --- A-08: 공개 write 표면의 limit_price / 결과 타입의 order_price -------------------
+# --- 공개 write 표면의 limit_price / 결과 타입의 order_price -------------------
 def test_public_write_surface_uses_limit_price():
     """대표 write 진입점들이 limit_price 를 받는다(price 가 아니라)."""
     import inspect

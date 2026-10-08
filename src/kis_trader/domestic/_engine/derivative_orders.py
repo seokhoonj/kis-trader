@@ -5,7 +5,7 @@
 ``build_request`` 로 주입할 **국내 파생(XKFE) 주문의 와이어 요청**만 조립한다 -- 순수 함수라
 오케스트레이션 없이 단독 검증된다.
 
-KIS URL/TR-ID (KIS 명세 대조, sheet '국내선물옵션 주문'):
+KIS URL/TR-ID (대표 예시 -- 전체는 각 함수의 경로/TR-ID 상수 참조):
 - 주문: ``POST /uapi/domestic-futureoption/v1/trading/order``. 주간(정규)은 실전 ``TTTO1101U`` /
   모의 ``VTTO1101U``, 야간은 실전 ``STTN1101U`` (모의 미지원). 매수/매도는 같은 TR 로 보내고
   ``SLL_BUY_DVSN_CD`` 로 가른다.

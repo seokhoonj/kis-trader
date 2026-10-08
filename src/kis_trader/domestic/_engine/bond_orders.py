@@ -6,7 +6,7 @@
 조립한다 -- 순수 함수라 오케스트레이션 없이 단독 검증된다. 접수 응답(krx_fwdg_ord_orgno/odno/ord_tmd)은
 국내주식과 같은 표준 형상이라 안전 코어의 기본 output 파서를 그대로 쓴다(전용 파서 불필요).
 
-KIS URL/TR-ID (KIS 명세 대조, sheet '장내채권 매수주문'/'장내채권 매도주문'):
+KIS URL/TR-ID (대표 예시 -- 전체는 각 함수의 경로/TR-ID 상수 참조):
 - 매수: ``POST /uapi/domestic-bond/v1/trading/buy``, 실전 ``TTTC0952U`` (**모의투자 미지원**).
 - 매도: ``POST /uapi/domestic-bond/v1/trading/sell``, 실전 ``TTTC0958U`` (**모의투자 미지원**).
   채권은 지정가(채권단가 ``BOND_ORD_UNPR``) 전용이라 시장가가 없다. 수량은 액면(face) 단위,

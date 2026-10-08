@@ -1,4 +1,4 @@
-"""A-38: 예약주문 발주/정정의 공유 항목-정규화 -- 두 경로가 ONE 경로를 쓴다는 회귀 방지.
+"""예약주문 발주/정정의 공유 항목-정규화 -- 두 경로가 ONE 경로를 쓴다는 회귀 방지.
 
 발주(kis.domestic.stock(...).reserve_buy)와 정정(kis.account.domestic.modify_reserved_order)은
 방향/수량/주문구분/단가/종료일 정규화와 공통 바디 매핑을 공유한다. 공통 부분의 와이어가 바이트
@@ -28,7 +28,7 @@ _PLACE_OK = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="접수",
 _MODIFY_OK = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="정상",
                          body={"output": {"nrml_prcs_yn": "Y"}})
 
-#: 공통(발주/정정 양쪽 바디에 함께 존재하는) 키 -- A-38 이 단일 헬퍼로 조립하는 부분.
+#: 공통(발주/정정 양쪽 바디에 함께 존재하는) 키 -- 단일 헬퍼가 조립하는 부분.
 _SHARED_KEYS = (
     "CANO", "ACNT_PRDT_CD", "PDNO", "ORD_QTY", "ORD_UNPR", "SLL_BUY_DVSN_CD",
     "ORD_DVSN_CD", "ORD_OBJT_CBLC_DVSN_CD", "LOAN_DT", "RSVN_ORD_END_DT",
@@ -90,7 +90,7 @@ def test_place_and_modify_market_price_share_common_body():
 
 @pytest.mark.parametrize("bad_end_date", ["2024-06-10", "2026139", "20240631", "2024061"])
 def test_end_date_validation_consistent_across_place_and_modify(bad_end_date):
-    """A-38: 종료일 검증이 두 경로에서 일관 -- 같은 malformed end_date 를 둘 다 와이어 전에 거부한다
+    """종료일 검증이 두 경로에서 일관 -- 같은 malformed end_date 를 둘 다 와이어 전에 거부한다
     (예전엔 place 만 별도 폭-사전검사를 가졌다)."""
     place_fake = FakeTransport(_PLACE_OK)
     with pytest.raises(KISUsageError):

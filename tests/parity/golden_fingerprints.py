@@ -1,7 +1,7 @@
-"""Golden on-disk fingerprint rows and wire-param dicts captured from the current order code.
+"""Golden on-disk fingerprint rows and wire-param dicts -- the byte-level safety net.
 
-This module is the byte-level safety net for the exchange-axis redesign. It pins, as literal
-constants, two things produced for a representative order in every codec branch:
+This module pins, as literal constants, two things produced for a representative order in every
+codec branch:
 
 * ``GOLDEN_FINGERPRINT[label]`` -- the 19-slot positional on-disk encoding
   (:func:`~kis_trader.order.encode_fingerprint`) of that order's request fingerprint.
@@ -11,14 +11,13 @@ constants, two things produced for a representative order in every codec branch:
 
 Immediate lanes use the production order factories and wire builders. Change and reserved lanes
 are captured by driving the production submit paths through a recording real ``OrderStore`` and a
-capture-then-stop transport. A later step swaps that construction to the renamed API while these
-golden literals stay fixed -- equal output then proves the rename changed only names, not the
-bytes that reach disk or the wire.
+capture-then-stop transport. Equal output against these fixed literals proves a refactor changed
+only names, not the bytes that reach disk or the wire.
 
 The fixed account/environment inputs below (``_CANO``/``_PRODUCT``/``_ENV``) make the captured
 wire deterministic; none of them affects the fingerprint (the request fingerprint is independent
-of ``client_order_id`` and account). The literals are immutable; never re-capture from HEAD.
-New cases must be captured from the 0.4.0 baseline that predates the rename.
+of ``client_order_id`` and account). The literals are immutable: never regenerate an existing one
+from HEAD; a new case is added with an independently verified expected encoding.
 """
 
 from __future__ import annotations
@@ -218,7 +217,7 @@ ORDER_MATRIX: list[tuple[str, dict[str, Any]]] = [
 _MATRIX: dict[str, dict[str, Any]] = dict(ORDER_MATRIX)
 
 
-# --- construction (the only API-touching code; the redesign edits this) -----------------------
+# --- construction (the only API-touching code) ------------------------------------------------
 def _immediate_order(kwargs: dict[str, Any]) -> Order:
     """Reconstruct an immediate (non-change, non-reserved) :class:`Order` for one lane."""
     lane = kwargs["lane"]
@@ -398,7 +397,7 @@ def _capture_reserved(kwargs: dict[str, Any]) -> tuple[OrderFingerprint, WireReq
 def _build(label: str) -> tuple[OrderFingerprint, WireRequest]:
     """Build or capture ``(fingerprint, wire)`` for one matrix label from production code.
 
-    This is the single capture locus the exchange-axis redesign edits; the public
+    This is the single capture locus for the wire/fingerprint; the public
     :func:`build_order` / :func:`build_wire` wrap it and keep their signatures fixed, so the
     captured ``GOLDEN_*`` literals can prove byte invariance across the rename.
     """
@@ -428,7 +427,7 @@ def build_wire(label: str) -> dict[str, str]:
     return _wire_to_dict(_build(label)[1])
 
 
-# --- immutable golden literals captured from the 0.4.0 baseline -------------------------------
+# --- immutable golden literals (independently verified expected encodings) --------------------
 GOLDEN_FINGERPRINT: dict[str, tuple[str, ...]] = {
     'domestic_stock_krx_limit': ('005930', 'buy', 'limit', '10', '70000', '', 'day', 'XKRX', '', '', 'regular', '', 'KRX', '', '', 'HKD', '', '', ''),
     'domestic_stock_nxt_limit': ('005930', 'buy', 'limit', '10', '70000', '', 'day', 'XKRX', '', '', 'regular', '', 'NXT', '', '', 'HKD', '', '', ''),
@@ -496,7 +495,7 @@ GOLDEN_WIRE: dict[str, dict[str, str]] = {
 }
 
 
-# --- legacy-width decode fixtures (Step 5) ----------------------------------------------------
+# --- legacy-width decode fixtures -------------------------------------------------------------
 #: Short on-disk rows from older schema widths (v1=8, v5-v7=13, v8=14, v9=16 slots). Decoding
 #: pads each to the canonical 19 slots. The on-disk row bytes stay unchanged, but decoding and
 #: re-encoding normalizes legacy slot-7 MIC values ``XKOS`` and ``NXTE`` to ``XKRX``.

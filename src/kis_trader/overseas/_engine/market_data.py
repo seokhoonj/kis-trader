@@ -4,7 +4,7 @@
 ``Quote.currency`` 를 응답의 통화(``curr``)로 채운다. 전일대비는 KIS 가 native 통화로는 따로 주지
 않아 현재가-전일종가로 계산한다.
 
-KIS URL/TR-ID (KIS 명세 대조):
+KIS URL/TR-ID (대표 예시 -- 전체는 각 함수의 경로/TR-ID 상수 참조):
 - 해외 현재가상세: ``GET /uapi/overseas-price/v1/quotations/price-detail`` ``HHDFS76200200``.
 """
 

@@ -1318,21 +1318,21 @@ def test_reconcile_full_report_semantics():
 @pytest.mark.parametrize("bad", [float("nan"), float("inf"), float("-inf"),
                                  "nan", "inf", "-inf", "Infinity"])
 def test_coerce_decimal_rejects_non_finite(bad):
-    """A-11: coerce_decimal 은 NaN/Infinity(및 "nan"/"inf" 문자열)를 지문·와이어 전에 거부한다."""
+    """coerce_decimal 은 NaN/Infinity(및 "nan"/"inf" 문자열)를 지문·와이어 전에 거부한다."""
     from kis_trader.order import coerce_decimal
     with pytest.raises(KISUsageError):
         coerce_decimal(bad, "quantity")
 
 
 def test_order_construction_rejects_non_finite_price():
-    """A-11: 비유한 가격은 Order 생성 시점에 fail-closed -- 와이어에 NaN 이 실릴 수 없다."""
+    """비유한 가격은 Order 생성 시점에 fail-closed -- 와이어에 NaN 이 실릴 수 없다."""
     from kis_trader.order import Order
     with pytest.raises(KISUsageError):
         Order.limit("005930", side="buy", quantity=10, limit_price=float("nan"))
 
 
 def test_modify_rejects_non_finite_price_before_wire():
-    """A-03: 정정 경로도 coerce_decimal 을 거쳐 비유한 가격을 와이어 전에 거부한다(무전송)."""
+    """정정 경로도 coerce_decimal 을 거쳐 비유한 가격을 와이어 전에 거부한다(무전송)."""
     store = OrderStore()
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
     kis = _client(fake, store=store)
@@ -1344,7 +1344,7 @@ def test_modify_rejects_non_finite_price_before_wire():
 
 
 def test_reconcile_non_finite_row_quantity_fails_closed():
-    """A-01: 벤더 행의 비유한 수량은 비교로 흘러가지 않고 재조회가 fail-closed 한다(오확정 방지)."""
+    """벤더 행의 비유한 수량은 비교로 흘러가지 않고 재조회가 fail-closed 한다(오확정 방지)."""
     fake = FakeTransport(by_path={
         _ORDER_CASH: [TransportTimeoutError("t")],
         _DAILY_CCLD: [_daily_orders_response([_daily_order_row(order_quantity="nan")])],
@@ -1357,7 +1357,7 @@ def test_reconcile_non_finite_row_quantity_fails_closed():
 
 
 def test_reconcile_blank_division_row_does_not_match_known_division_order():
-    """A-02: 빈 ord_dvsn_cd 행은 division 명시 주문(최유리 03)을 확정하지 못한다(어떤 구분일지 몰라 오확정 위험)."""
+    """빈 ord_dvsn_cd 행은 division 명시 주문(최유리 03)을 확정하지 못한다(어떤 구분일지 몰라 오확정 위험)."""
     store = OrderStore()
     cid = "20240101-imm-blank01"
     place_t = FakeTransport(by_path={_ORDER_CASH: [TransportTimeoutError("t")]})
@@ -1370,7 +1370,7 @@ def test_reconcile_blank_division_row_does_not_match_known_division_order():
 
 
 def test_reconcile_blank_division_row_still_matches_plain_order():
-    """A-02: division 미지정 일반 주문은 종전대로 빈 ord_dvsn_cd 행을 관용한다(happy path 불변)."""
+    """division 미지정 일반 주문은 종전대로 빈 ord_dvsn_cd 행을 관용한다(happy path 불변)."""
     fake = FakeTransport(by_path={
         _ORDER_CASH: [TransportTimeoutError("t")],
         _DAILY_CCLD: [_daily_orders_response([_daily_order_row(order_division="")])],
@@ -1385,20 +1385,20 @@ def test_reconcile_blank_division_row_still_matches_plain_order():
 @pytest.mark.parametrize("bad", ["1234567", "123456789", "2026010 ", " 2026010",
                                  "2026-01-01", "２０２５０１０１"])
 def test_validate_yyyymmdd_requires_exactly_8_ascii_digits(bad):
-    """A-19: 7/9자리·공백·비-ASCII 숫자는 거부(정확히 8자리 ASCII 숫자만)."""
+    """7/9자리·공백·비-ASCII 숫자는 거부(정확히 8자리 ASCII 숫자만)."""
     from kis_trader.order import validate_yyyymmdd
     with pytest.raises(KISUsageError):
         validate_yyyymmdd(bad, "date")
 
 
 def test_validate_yyyymmdd_accepts_valid_8_digit():
-    """A-19: 정상 8자리 날짜는 통과(happy path 불변)."""
+    """정상 8자리 날짜는 통과(happy path 불변)."""
     from kis_trader.order import validate_yyyymmdd
     validate_yyyymmdd("20260101", "date")           # 예외 없음
 
 
 def test_load_rejects_non_object_root(tmp_path):
-    """A-21: 루트가 JSON object 가 아니면(배열/스칼라) AttributeError 로 새지 않고 손상으로 fail-closed."""
+    """루트가 JSON object 가 아니면(배열/스칼라) AttributeError 로 새지 않고 손상으로 fail-closed."""
     import json
     path = tmp_path / "orders.json"
     path.write_text(json.dumps(["not", "an", "object"]), encoding="utf-8")
@@ -1407,7 +1407,7 @@ def test_load_rejects_non_object_root(tmp_path):
 
 
 def test_fsync_dir_propagates_real_io_error(tmp_path, monkeypatch):
-    """A-20: 디렉터리 fsync 의 진짜 IO 실패(EIO)는 삼키지 않고 올린다(거짓 '저장됨' 방지)."""
+    """디렉터리 fsync 의 진짜 IO 실패(EIO)는 삼키지 않고 올린다(거짓 '저장됨' 방지)."""
     from kis_trader import store as store_mod
 
     def boom(fd):
@@ -1419,7 +1419,7 @@ def test_fsync_dir_propagates_real_io_error(tmp_path, monkeypatch):
 
 
 def test_fsync_dir_ignores_unsupported_platform(tmp_path, monkeypatch):
-    """A-20: 디렉터리 fsync 미지원(EINVAL)은 종전대로 무시한다 -- 플랫폼 한계는 실패로 보지 않는다."""
+    """디렉터리 fsync 미지원(EINVAL)은 종전대로 무시한다 -- 플랫폼 한계는 실패로 보지 않는다."""
     from kis_trader import store as store_mod
 
     def unsupported(fd):

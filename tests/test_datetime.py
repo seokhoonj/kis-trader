@@ -53,12 +53,12 @@ def test_to_yyyymmdd_accepts_date_and_strings():
 
 
 def test_to_yyyymmdd_rejects_impossible_date():
-    # A-32: 8자리 숫자여도 달력에 없는 날짜는 거부.
+    # 8자리 숫자여도 달력에 없는 날짜는 거부.
     with pytest.raises(KISUsageError):
         _to_yyyymmdd("20230230", "d")
 
 
 def test_to_yyyymmdd_rejects_non_str_non_date():
-    # A-32: int 가 str() 을 타고 통과하던 버그 -- 이제 타입 자체를 거부.
+    # int 가 str() 을 타고 통과하던 버그 -- 이제 타입 자체를 거부.
     with pytest.raises(KISUsageError):
         _to_yyyymmdd(20201210, "d")

@@ -9,7 +9,7 @@ domestic/_engine/bond_orders.py)와 같은 주입 구조.
 (:data:`~kis_trader._order_core._RECEIPT_DATE_KEY`)로 정규화해 코어가 ``receipt_date`` 로
 영속하게 한다 -- 이후 정정·취소가 원주문일자(ORGN_ORD_DT)로 대상을 특정할 수 있게 하려는 것이다.
 
-KIS URL/TR-ID (KIS 명세 대조, sheet '해외선물옵션 주문'):
+KIS URL/TR-ID (대표 예시 -- 전체는 각 함수의 경로/TR-ID 상수 참조):
 - 발주: ``POST /uapi/overseas-futureoption/v1/trading/order``, 실전 ``OTFM3001U`` (**모의투자 미지원**).
   매수/매도는 같은 TR 로 보내고 ``SLL_BUY_DVSN_CD`` 로 가른다(매수 "02" / 매도 "01"). 가격구분
   (``PRIC_DVSN_CD``)은 지정가 "1" / 시장가 "2" / STOP "3" 이며, 지정가는 ``FM_LIMIT_ORD_PRIC``,

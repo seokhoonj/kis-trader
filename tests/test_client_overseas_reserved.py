@@ -148,14 +148,14 @@ def test_overseas_reserved_requires_account():
 
 @pytest.mark.parametrize("bad_code", ["99", "", "0", "XX"])
 def test_overseas_reserved_unknown_side_code_fails_closed(bad_code):
-    """A-12: 알 수 없는/빈 매매구분코드는 side="" 로 뭉개지 않고 fail-closed(KISError)."""
+    """알 수 없는/빈 매매구분코드는 side="" 로 뭉개지 않고 fail-closed(KISError)."""
     fake = FakeTransport(response=_resp([dict(_ROW, sll_buy_dvsn_cd=bad_code)]))
     with pytest.raises(KISError):
         _client(fake).account.overseas.reserved_orders(start="20250501", end="20250531")
 
 
 def test_overseas_reserved_known_side_codes_still_map():
-    """A-12: 알려진 01(매도)/02(매수)는 종전과 동일하게 매핑된다(회귀 방지)."""
+    """알려진 01(매도)/02(매수)는 종전과 동일하게 매핑된다(회귀 방지)."""
     sell = _client(FakeTransport(response=_resp([dict(_ROW, sll_buy_dvsn_cd="01")]))).account.overseas.reserved_orders(
         start="20250501", end="20250531")
     buy = _client(FakeTransport(response=_resp([dict(_ROW, sll_buy_dvsn_cd="02")]))).account.overseas.reserved_orders(

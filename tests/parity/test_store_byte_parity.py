@@ -1,11 +1,11 @@
-"""Store/wire byte-parity harness for the exchange-axis redesign.
+"""Store/wire byte-parity harness -- a refactor must change names, not bytes.
 
 Characterization tests: reconstruct a representative order for every codec branch via the
 current order API and assert the on-disk fingerprint bytes and the outgoing wire params match
 the golden literals captured from this same code. Green here is expected (same code produced the
-goldens); the harness becomes load-bearing when a later step swaps the construction in
-:func:`~tests.parity.golden_fingerprints.build_order` / ``build_wire`` to the renamed API while
-these goldens stay fixed -- equal output then proves the rename changed names, not bytes.
+goldens); the harness becomes load-bearing under any refactor that moves or renames the
+construction while these goldens stay fixed -- equal output then proves the refactor changed
+names, not the bytes that reach disk or the wire.
 
 The fixtures module is imported by bare name: with no ``__init__.py`` under ``tests/`` the
 pytest ``prepend`` import mode puts this test's directory (``tests/parity``) on ``sys.path``, so
