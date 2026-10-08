@@ -318,9 +318,12 @@ class DailyTradeVolumePoint:
 class ForeignNetBuyPoint:
     """한 시점의 장중 외국계 매매종목 가집계 스냅샷(불변; KIS 외국계 매매종목 가집계, FHKST644400C0).
 
-    ``foreign_broker_net_buy_volume`` 는 외국계(외국 회원사)의 누적 순매수 수량(glob_ntby_qty),
-    ``foreign_net_buy_change`` 는 그 시간대의 순매수 증감(frgn_ntby_qty_icdc)이다. ``timestamp`` 는
-    당일 체결시각(KST-aware)이며 응답 순서대로 제공된다.
+    이 응답은 **외국인(frgn_)과 외국계(glob_) 두 주체**를 함께 담는다(공식 컬럼 정의 기준).
+    ``foreign_sell_volume``/``foreign_buy_volume``(frgn_seln_vol/frgn_shnu_vol)와
+    ``foreign_net_buy_change``(frgn_ntby_qty_icdc)는 **외국인**(foreign investor) 수치이고,
+    ``foreign_broker_net_buy_volume``(glob_ntby_qty)는 **외국계**(외국 회원사, foreign broker)의 누적
+    순매수 수량이다 -- 그래서 이름을 ``foreign_*`` vs ``foreign_broker_*`` 로 구분한다. ``timestamp``
+    는 당일 체결시각(KST-aware)이며 응답 순서대로 제공된다.
     """
 
     symbol: str
