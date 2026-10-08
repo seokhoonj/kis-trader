@@ -23,8 +23,9 @@ class DomesticDerivativePosition:
     """한 선물옵션 종목의 보유 현황(불변).
 
     ``symbol`` 은 주문 API 와 왕복하는 단축상품번호(shtn_pdno, 예 "101W09"), ``isin`` 은 표준
-    상품번호(pdno, 예 "KR4101RC0000")다. ``side`` 는 매도매수구분명을 그대로(strip) 담는다
-    -- 청산 등으로 빈 값일 수 있다. 청산 완료된 0수량 잔여 lot 도 그대로 담기며, 필터는 호출자 몫.
+    상품번호(pdno, 예 "KR4101RC0000")다. ``side`` 는 매도매수구분명을 매도->sell/매수->buy 로 매핑한
+    :class:`~kis_trader.order.Side` 이며 빈 값/미상이면 None(원문 sll_buy_dvsn_name 은 ``_raw``).
+    청산 완료된 0수량 잔여 lot 도 그대로 담기며, 필터는 호출자 몫.
     """
 
     symbol: str                       # 단축상품번호(shtn_pdno)

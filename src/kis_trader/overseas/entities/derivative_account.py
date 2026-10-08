@@ -1,8 +1,8 @@
 """해외선물옵션(08) 계좌 조회 DATA -- 예수금/보유/주문가능.
 
 ``kis.account`` (해외선물옵션 08)의 :class:`~kis_trader.overseas.derivative_account.
-OverseasDerivativesAccount` 뷰가 돌려준다. **금액·수량은 조회 통화(``currency``)의 Decimal 이다
--- 원화(KRW)가 아니다.** 해외선물옵션 계좌는 통화별로 조회하므로 각 타입에 ``currency`` 를 함께
+OverseasDerivativesAccount` 뷰가 돌려준다. **금액·가격은 조회 통화(``currency``)의 Decimal 이고
+수량은 계약수(Decimal)다 -- 원화(KRW)가 아니다.** 해외선물옵션 계좌는 통화별로 조회하므로 각 타입에 ``currency`` 를 함께
 담고, 그 밖에 타입화하지 않은 벤더 필드는 ``_raw`` 로 노출한다. 모든 조회는 **실전 전용**이다.
 """
 
@@ -58,7 +58,7 @@ class OverseasDerivativeDeposit:
 class OverseasDerivativePosition:
     """한 해외선물옵션 종목의 미결제(보유) 현황(불변).
 
-    금액·수량은 ``currency`` 통화의 Decimal(원화 아님). ``symbol`` 해외선물FX상품번호,
+    금액·가격은 ``currency`` 통화의 Decimal(원화 아님). ``symbol`` 해외선물FX상품번호,
     ``product_type`` 상품유형코드, ``side`` 매수/매도, ``quantity`` 미결제수량, ``average_price``
     체결평균가격, ``current_price`` 현재가격, ``unrealized_pnl`` 평가손익금액, ``option_value``
     옵션평가금액, ``option_unrealized_pnl`` 옵션평가손익금액, ``liquidatable_quantity`` 청산가능수량,
@@ -147,8 +147,8 @@ class OverseasDerivativeOrder:
     원주문번호(orgn_odno), ``symbol`` 해외선물FX상품번호, ``side`` 매수/매도, ``status``
     주문상태코드(ord_stat_cd 원본 문자열), ``order_quantity`` 주문수량, ``order_price``
     주문가격, ``filled_quantity`` 체결수량, ``filled_price`` 체결가격, ``remaining_quantity``
-    주문잔량, ``new_liquidation_type`` 신규청산구분코드(new_lqd_dvsn_cd 원본), ``fuop`` 선물옵션구분
-    (fuop_dvsn 원본). 주문번호가 빈 패딩 행은 담기지 않는다. 타입화하지 않은 필드는 ``_raw``.
+    주문잔량, ``new_liquidation_type`` 신규청산구분코드(new_lqd_dvsn_cd 원본), ``futures_option_type``
+    선물옵션구분(fuop_dvsn 원본). 주문번호가 빈 패딩 행은 담기지 않는다. 타입화하지 않은 필드는 ``_raw``.
     """
 
     order_date: datetime.date | None           # 주문일자(ord_dt)
@@ -176,7 +176,7 @@ class OverseasDerivativeOrder:
 class OverseasDerivativeFill:
     """해외선물옵션 일별 체결 한 건(불변).
 
-    금액·수량은 ``currency`` 통화의 Decimal(원화 아님). ``date`` 체결일자(dt) -- 형식오류/공백
+    금액·가격은 ``currency`` 통화의 Decimal(원화 아님). ``date`` 체결일자(dt) -- 형식오류/공백
     이면 None. ``fill_number`` 체결번호(ccno), ``symbol`` 해외선물FX상품번호, ``side`` 매수/매도,
     ``filled_quantity`` 체결수량, ``filled_amount`` 체결금액, ``fee`` 수수료, ``order_date`` 주문일자
     (ord_dt) -- 형식오류/공백이면 None, ``order_id`` 주문번호(odno), ``order_medium`` 주문매체
@@ -243,7 +243,7 @@ class OverseasDerivativeDailyOrder:
 class OverseasDerivativeFillHistory:
     """해외선물옵션 일별 체결내역 -- 기간 합계 요약과 체결 한 벌(불변).
 
-    금액·수량은 통화별 조회의 Decimal(전체 통화 조회면 통화가 섞일 수 있어 각 체결의
+    금액·가격은 통화별 조회의 Decimal(전체 통화 조회면 통화가 섞일 수 있어 각 체결의
     ``currency`` 를 함께 본다). ``total_filled_quantity`` 총체결수량,
     ``total_futures_agreement_amount`` 총선물약정금액, ``total_options_agreement_amount``
     총옵션약정금액, ``total_fee`` 수수료합계.
@@ -268,7 +268,7 @@ class OverseasDerivativeFillHistory:
 class OverseasDerivativePNL:
     """해외선물옵션 기간 손익 한 행 -- 통화별/종목별 손익 요약(불변).
 
-    금액·수량은 ``currency`` 통화의 Decimal(원화 아님). 통화별 집계 행에서는 ``symbol`` 이
+    금액·가격은 ``currency`` 통화의 Decimal(원화 아님). 통화별 집계 행에서는 ``symbol`` 이
     빈 문자열이고, 종목별 집계 행에서는 종목번호가 채워진다. ``currency`` 통화코드(crcy_cd),
     ``symbol`` 해외선물FX상품번호(ovrs_futr_fx_pdno), ``buy_quantity`` 매수수량(fm_buy_qty),
     ``sell_quantity`` 매도수량(fm_sll_qty), ``realized_pnl`` 청산손익금액(fm_lqd_pfls_amt),
@@ -302,7 +302,7 @@ class OverseasDerivativePNLHistory:
     """해외선물옵션 기간 손익 -- 통화별 집계와 종목별 집계 두 벌(불변).
 
     ``by_currency`` 통화별 손익(output1), ``by_symbol`` 종목별 손익(output2). 두 벌 모두
-    :class:`OverseasDerivativePNL` 행이며 금액·수량은 각 행 통화의 Decimal(원화 아님).
+    :class:`OverseasDerivativePNL` 행이며 금액·가격은 각 행 통화의 Decimal(원화 아님).
     """
 
     by_currency: tuple[OverseasDerivativePNL, ...]  # 통화별 손익(output1)

@@ -2,7 +2,8 @@
 
 위탁(01)이 시장별 뷰(``.domestic`` / ``.overseas``)를 갖는 것과 달리 해외선물옵션은 단일 도메인이라
 조회 메서드를 뷰에 바로 둔다(국내선물옵션 03 뷰와 대칭). 계좌 식별정보·환경은 세션에서 온다.
-**모든 조회는 실전 전용**(모의투자 미지원)이며, 금액·수량은 조회 통화의 Decimal(원화 아님)이다.
+**모든 조회는 실전 전용**(모의투자 미지원)이며, 금액·가격은 조회 통화의 Decimal(원화 아님),
+수량은 계약수(Decimal)이다.
 """
 
 from __future__ import annotations
@@ -90,7 +91,7 @@ class OverseasDerivativesAccount:
     def positions(self, product: DerivativeProductFilter = "all") -> list[OverseasDerivativePosition]:
         """해외선물옵션 미결제내역(보유 종목 전체).
 
-        ``product`` 선물/옵션 필터(all/future/option; 엔진이 FUOP_DVSN 00/01/02 로). 금액·수량은 각 종목 통화의 Decimal
+        ``product`` 선물/옵션 필터(all/future/option; 엔진이 FUOP_DVSN 00/01/02 로). 금액·가격은 각 종목 통화의 Decimal
         (원화 아님). ``GET .../overseas-futureoption/v1/trading/inquire-unpd`` (``OTFM1412R``).
         **실전전용**(모의투자 미지원).
         """
@@ -103,7 +104,7 @@ class OverseasDerivativesAccount:
     def today_orders(self) -> list[OverseasDerivativeOrder]:
         """해외선물옵션 당일 주문내역(체결+미체결 전체).
 
-        체결여부·매매·선물옵션 구분 필터 없이 당일 전체 주문을 돌려준다. 금액·수량은 각 계약
+        체결여부·매매·선물옵션 구분 필터 없이 당일 전체 주문을 돌려준다. 금액·가격은 각 계약
         통화의 Decimal(원화 아님). ``GET .../overseas-futureoption/v1/trading/inquire-ccld``
         (``OTFM3116R``). **실전전용**(모의투자 미지원).
         """
@@ -116,7 +117,7 @@ class OverseasDerivativesAccount:
     def daily_fills(self, *, start: str, end: str) -> OverseasDerivativeFillHistory:
         """해외선물옵션 일별 체결내역(기간 체결 목록 + 합계 요약).
 
-        ``start``~``end`` (YYYYMMDD, 8자리 숫자) 기간을 전체 통화·전체 매매로 조회한다. 금액·수량은
+        ``start``~``end`` (YYYYMMDD, 8자리 숫자) 기간을 전체 통화·전체 매매로 조회한다. 금액·가격은
         각 체결 통화의 Decimal(원화 아님). ``GET .../overseas-futureoption/v1/trading/
         inquire-daily-ccld`` (``OTFM3122R``). **실전전용**(모의투자 미지원).
         """
@@ -130,7 +131,7 @@ class OverseasDerivativesAccount:
         """해외선물옵션 일별 주문내역(기간 주문 목록).
 
         ``start``~``end`` (YYYYMMDD, 8자리 숫자) 기간을 전체 매매·전체 체결미체결로 조회한다.
-        금액·수량은 각 계약 통화의 Decimal(원화 아님). ``GET .../overseas-futureoption/v1/
+        금액·가격은 각 계약 통화의 Decimal(원화 아님). ``GET .../overseas-futureoption/v1/
         trading/inquire-daily-order`` (``OTFM3120R``). **실전전용**(모의투자 미지원).
         """
         cano, product_code = self._client._require_account()
@@ -143,7 +144,7 @@ class OverseasDerivativesAccount:
         """해외선물옵션 기간 손익(통화별 집계 + 종목별 집계).
 
         ``start``~``end`` (YYYYMMDD, 8자리 숫자) 기간을 전체 통화로 조회한다. 통화별 손익은
-        ``by_currency``, 종목별 손익은 ``by_symbol`` 에 담긴다. 금액·수량은 각 행 통화의
+        ``by_currency``, 종목별 손익은 ``by_symbol`` 에 담긴다. 금액·가격은 각 행 통화의
         Decimal(원화 아님). ``GET .../overseas-futureoption/v1/trading/inquire-period-ccld``
         (``OTFM3118R``). **실전전용**(모의투자 미지원).
         """
@@ -173,7 +174,7 @@ class OverseasDerivativesAccount:
         """해외선물옵션 계약의 주문가능수량(신규/총/시장가 등).
 
         ``symbol`` 해외선물FX상품번호, ``side`` 매수/매도, ``price`` 있으면 그 단가 기준·없으면
-        시장가, ``exercise_reserved`` 행사예약주문 여부. 수량은 그 계약 통화 기준. ``GET .../
+        시장가, ``exercise_reserved`` 행사예약주문 여부. 수량은 계약수. ``GET .../
         overseas-futureoption/v1/trading/inquire-psamount`` (``OTFM3304R``). **실전전용**(모의투자 미지원).
         """
         cano, product_code = self._client._require_account()

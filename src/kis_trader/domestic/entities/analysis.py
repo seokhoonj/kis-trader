@@ -79,7 +79,7 @@ class ShortSalePoint:
     """하루의 공매도 스냅샷(불변).
 
     ``short_volume`` 은 그날 공매도 체결량, ``short_volume_ratio`` 는 거래량 대비 공매도 비중(%),
-    ``short_amount`` 는 공매도 대금, ``short_avg_price`` 는 공매도 평균가. ``close`` / ``change`` 는
+    ``short_amount`` 는 공매도 대금, ``short_average_price`` 는 공매도 평균가. ``close`` / ``change`` 는
     그날 종목 종가. ``timestamp`` 는 영업일(KST-aware).
     """
 

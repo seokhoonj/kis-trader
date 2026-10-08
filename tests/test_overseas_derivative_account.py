@@ -1,7 +1,7 @@
 """해외선물옵션(08) 계좌 조회 -- kis.account -> OverseasDerivativesAccount.
 
 예수금현황/미결제(보유)/주문가능을 네트워크 없이 FakeTransport 로 검증한다. 모든 조회는 실전
-전용이라 모의(paper)면 와이어 이전에 fail-closed 한다. 금액·수량은 조회 통화의 Decimal(원화 아님).
+전용이라 모의(paper)면 와이어 이전에 fail-closed 한다. 금액·가격은 조회 통화의 Decimal(원화 아님), 수량은 계약수(Decimal).
 """
 
 from __future__ import annotations

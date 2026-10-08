@@ -3,7 +3,7 @@
 사용자면(``kis.account`` -> :class:`~kis_trader.overseas.derivative_account.
 OverseasDerivativesAccount`)이 이 함수를 호출한다. 계좌 식별정보(``cano``/``product_code``)와
 환경(``environment``)은 세션에서 온다. **모든 조회는 실전 전용**이라 모의(paper)면 와이어 이전에
-:class:`KISUsageError` 로 막는다. 금액·수량은 조회 통화의 Decimal(원화 아님).
+:class:`KISUsageError` 로 막는다. 금액·가격은 조회 통화의 Decimal(원화 아님).
 
 KIS URL/TR-ID:
 - 예수금현황: ``GET .../overseas-futureoption/v1/trading/inquire-deposit`` (``OTFM1411R``, 모의 미지원).
@@ -168,7 +168,7 @@ def fetch_positions(
     product: DerivativeProductFilter = "all",
 ) -> list[OverseasDerivativePosition]:
     """해외선물옵션 미결제내역(보유 종목 전체, 연속조회 소진까지). ``product`` 선물/옵션 필터(all/future/option)
-    (FUOP_DVSN, 기본 "00" 전체). 금액·수량은 각 행 통화의 Decimal(원화 아님).
+    (FUOP_DVSN, 기본 "00" 전체). 금액·가격은 각 행 통화의 Decimal(원화 아님).
     **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
         raise KISUsageError(
@@ -226,7 +226,7 @@ def fetch_today_orders(
 ) -> list[OverseasDerivativeOrder]:
     """해외선물옵션 당일 주문내역(체결+미체결 전체, 연속조회 소진까지). v1 은 전체를 돌려주므로
     체결여부/매매/선물옵션 구분은 모두 "00"(전체)으로 고정한다. 연속조회 커서는 200폭
-    (CTX_AREA_FK200/NK200)이다. 금액·수량은 각 계약 통화의 Decimal(원화 아님).
+    (CTX_AREA_FK200/NK200)이다. 금액·가격은 각 계약 통화의 Decimal(원화 아님).
     **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
         raise KISUsageError(
@@ -286,7 +286,7 @@ def fetch_daily_orders(
 ) -> list[OverseasDerivativeDailyOrder]:
     """해외선물옵션 일별 주문내역(기간 주문 목록, 연속조회 소진까지). ``start``~``end``
     (YYYYMMDD) 기간을 전체 매매("%%")·전체 체결미체결("00")로 조회한다. 연속조회 커서는 200폭
-    (CTX_AREA_FK200/NK200)이다. 금액·수량은 각 계약 통화의 Decimal(원화 아님).
+    (CTX_AREA_FK200/NK200)이다. 금액·가격은 각 계약 통화의 Decimal(원화 아님).
     **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
         raise KISUsageError(
@@ -352,7 +352,7 @@ def fetch_daily_fills(
     """해외선물옵션 일별 체결내역(체결내역 output1 + 기간 합계 요약 output2). ``start``~``end``
     (YYYYMMDD) 기간을 전체 통화("%%%")·전체 매매("%%")로 조회하고 연속조회로 체결을 소진까지
     모은다(합계 요약은 첫 페이지에서 완결 -- 기간 단위라 페이지 불변). 연속조회 커서는 200폭
-    (CTX_AREA_FK200/NK200)이다. 금액·수량은 각 체결 통화의 Decimal(원화 아님).
+    (CTX_AREA_FK200/NK200)이다. 금액·가격은 각 체결 통화의 Decimal(원화 아님).
     **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
         raise KISUsageError(
@@ -466,7 +466,7 @@ def fetch_period_pnl(
     """해외선물옵션 기간 손익(통화별 output1 + 종목별 output2). ``start``~``end`` (YYYYMMDD)
     기간을 전체 통화("%%%")·원화환산 안 함("N")으로 조회하고 연속조회로 두 집계 블록을
     소진까지 함께 모은다(각 페이지의 output1/output2 를 모두 이어붙인다). 연속조회 커서는 200폭
-    (CTX_AREA_FK200/NK200)이다. 금액·수량은 각 행 통화의 Decimal(원화 아님).
+    (CTX_AREA_FK200/NK200)이다. 금액·가격은 각 행 통화의 Decimal(원화 아님).
     **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
         raise KISUsageError(
