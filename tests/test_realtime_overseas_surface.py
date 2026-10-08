@@ -11,8 +11,8 @@ from collections.abc import Callable
 import pytest
 
 import kis_trader.realtime as rt
-from kis_trader._internal._masters import InstrumentRecord
 from kis_trader.errors import KISUsageError
+from kis_trader.instrument import InstrumentRecord
 from kis_trader.realtime.client import RealtimeClient
 from kis_trader.realtime.overseas_namespace import RealtimeOverseasNamespace
 from kis_trader.realtime.subscription import RealtimeSubscription

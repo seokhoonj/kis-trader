@@ -32,10 +32,9 @@ from .stock import DomesticStock
 if TYPE_CHECKING:
     from collections.abc import Sequence
 
-    from .._internal._masters import DomesticListing, SearchMarket
     from .._literals import Numeric, ProfitSort, SideFilter
     from ..client import KISClient
-    from ..instrument import DomesticQuoteExchange
+    from ..instrument import DomesticListing, DomesticQuoteExchange, SearchMarket
     from ..open_order import DomesticOpenOrder
     from ..order import Right, Side
     from ..quote import Quote

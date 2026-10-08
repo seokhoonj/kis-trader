@@ -53,3 +53,17 @@ def test_every_realtime_exported_name_resolves(name):
 def test_realtime_handle_types_are_exported(name):
     # 네임스페이스가 반환하는 realtime 핸들 타입은 전부 realtime.__all__ 로 명명 가능해야 한다.
     assert name in _rt.__all__ and hasattr(_rt, name)
+
+
+def test_master_data_types_live_in_public_instrument_module():
+    # 공개 DATA 타입(마스터)은 비공개 _internal._masters 가 아니라 공개 instrument 모듈에 산다 --
+    # Bar/OrderBook 과 같은 '공개 DATA 는 공개 모듈' 관례. 루트 재export 는 그 정의와 동일 객체다.
+    import kis_trader
+    from kis_trader import instrument
+    # 클래스 3종은 __module__ 이 공개 모듈이어야 한다.
+    for name in ("InstrumentRecord", "MasterIndex", "DomesticListing"):
+        obj = getattr(kis_trader, name)
+        assert obj.__module__ == "kis_trader.instrument", name
+        assert obj is getattr(instrument, name), name
+    # SearchMarket 은 Literal 이라 __module__ 대신 동일 객체(정의 출처 단일)만 확인한다.
+    assert kis_trader.SearchMarket is instrument.SearchMarket

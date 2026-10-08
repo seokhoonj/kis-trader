@@ -16,10 +16,19 @@ import os
 import time
 import zipfile
 from collections.abc import Callable, Iterable
-from dataclasses import dataclass
-from typing import Literal, cast
+from typing import cast
 
 from ..errors import KISError, KISUsageError
+
+# 공개 DATA 타입은 공개 모듈(instrument)에 산다 -- 이 모듈은 파싱/다운로드/캐시만 하고 그 타입을 만든다.
+from ..instrument import (
+    DomesticListing,
+    DomesticListingIndex,
+    DomesticMarket,
+    InstrumentRecord,
+    MasterIndex,
+    SecurityType,
+)
 from ._fsutil import atomic_write_bytes, xdg_cache_subdir
 
 #: 마스터 캐시 기본 수명(초). 하루 -- KIS 가 마스터를 매일 갱신한다.
@@ -35,8 +44,7 @@ OVERSEAS_MARKETS: dict[str, str] = {
     "tse": "도쿄", "hks": "홍콩", "hnx": "하노이", "hsx": "호치민",
 }
 
-#: 종목유형 코드(마스터 stis 컬럼) -> 이름.
-SecurityType = Literal["index", "stock", "etf", "warrant"]
+#: 종목유형 코드(마스터 stis 컬럼) -> 이름. (:data:`SecurityType` 은 instrument 로 이전.)
 _SECURITY_TYPES: dict[str, SecurityType] = {"1": "index", "2": "stock", "3": "etf", "4": "warrant"}
 
 #: 마스터 레코드의 탭 컬럼 인덱스(공식 헤더 순서). 정체성/메타 필드만 읽는다.
@@ -49,19 +57,6 @@ _COL_SECURITY_TYPE = 8  # stis
 _COL_CURRENCY = 9       # curr
 #: 위 인덱스를 읽으려면 최소 이만큼의 컬럼이 있어야 한다(포맷 변경 감지).
 _MIN_COLUMNS = 10
-
-
-@dataclass(frozen=True, slots=True)
-class InstrumentRecord:
-    """해외 마스터 한 종목(불변). 심볼->거래소 해석과 통화/유형/이름 메타를 담는다."""
-
-    symbol: str
-    exchange: str                     # KIS 거래소코드(EXCD): NAS/NYS/AMS/...
-    currency: str                     # 결제 통화(USD/HKD/JPY/...)
-    security_type: SecurityType | str  # stock/etf/index/warrant (미지원 코드면 원값)
-    korean_name: str
-    english_name: str
-    realtime_symbol: str              # 실시간 시세용 심볼(rsym)
 
 
 def parse_overseas_master(master_bytes: bytes) -> list[InstrumentRecord]:
@@ -140,41 +135,6 @@ def urlopen_fetch(url: str) -> bytes:
         return response_bytes
 
 
-class MasterIndex:
-    """심볼 -> 거래소 해석 인덱스. 여러 시장 마스터를 합쳐 심볼로 :class:`InstrumentRecord` 를 찾는다.
-
-    같은 심볼이 여러 거래소에 있으면 ``exchange`` 를 명시해야 한다(오조회 방지). 국내 6자리 코드는
-    이 인덱스를 안 거친다(:mod:`~kis_trader.instrument` 가 KRX 로 판별).
-    """
-
-    __slots__ = ("_by_symbol",)
-
-    def __init__(self, records: Iterable[InstrumentRecord]) -> None:
-        by_symbol: dict[str, list[InstrumentRecord]] = {}
-        for record in records:
-            by_symbol.setdefault(record.symbol, []).append(record)
-        self._by_symbol = by_symbol
-
-    def resolve(self, symbol: str, *, exchange: str | None = None) -> InstrumentRecord:
-        """심볼(과 선택적 ``exchange``)로 마스터 레코드 하나를 찾는다.
-
-        없으면/모호하면(여러 거래소) :class:`~kis_trader.errors.KISUsageError`. ``exchange`` 를 주면
-        그 거래소로 좁힌다."""
-        matches = self._by_symbol.get(symbol, [])
-        if exchange is not None:
-            matches = [record for record in matches if record.exchange == exchange]
-        if not matches:
-            hint = f" (거래소 {exchange!r})" if exchange is not None else ""
-            raise KISUsageError(f"해외 마스터에서 심볼을 찾지 못했다: {symbol!r}{hint}.")
-        exchanges = {record.exchange for record in matches}
-        if len(exchanges) > 1:
-            raise KISUsageError(
-                f"심볼 {symbol!r} 이 여러 거래소에 있다: {sorted(exchanges)} "
-                f"-- exchange= 로 지정하라."
-            )
-        return matches[0]
-
-
 def default_cache_dir() -> str:
     """마스터 캐시 디렉터리(repo 밖, 런타임 캐시). ``XDG_CACHE_HOME`` 을 존중한다."""
     return str(xdg_cache_subdir("kis-trader", "masters"))
@@ -244,22 +204,6 @@ _DOMESTIC_MASTER_FILE: dict[str, str] = {"KOSPI": "kospi_code", "KOSDAQ": "kosda
 #: part1(가변: 단축코드9 + 표준코드12 + 한글명) + part2(고정: 시세/구분 플래그). 이름검색엔 part1 만 쓴다.
 _DOMESTIC_PART2_WIDTH: dict[str, int] = {"KOSPI": 227, "KOSDAQ": 221}
 
-#: 국내 시장(2값 폐집합). 해외 exchange/currency 와 달리 KIS 국내는 KOSPI/KOSDAQ 뿐이라 Literal 로 닫는다.
-DomesticMarket = Literal["KOSPI", "KOSDAQ"]
-#: search_stocks() 의 market 필터 -- 두 시장 + "all"(전체).
-SearchMarket = Literal["all", "KOSPI", "KOSDAQ"]
-
-
-@dataclass(frozen=True, slots=True)
-class DomesticListing:
-    """국내 상장 종목 한 건(불변) -- 이름검색 결과. ``symbol`` 6자리 단축코드, ``name`` 한글종목명,
-    ``market`` ``"KOSPI"``/``"KOSDAQ"``. 우선주(삼성전자우)·ETF 는 ``name`` 으로 구분한다."""
-
-    symbol: str
-    name: str
-    market: DomesticMarket
-
-
 def parse_domestic_master(data: bytes, *, market: DomesticMarket) -> list[DomesticListing]:
     """국내 마스터(.mst) 원본 바이트 -> :class:`DomesticListing` 리스트(cp949 고정폭).
 
@@ -314,47 +258,6 @@ def fetch_domestic_master_raw(market: DomesticMarket, *, fetch: Fetch) -> bytes:
 def download_domestic_master(market: DomesticMarket, *, fetch: Fetch) -> list[DomesticListing]:
     """``market`` 마스터를 받아 :class:`DomesticListing` 리스트로(캐시 없이 매번 다운로드)."""
     return parse_domestic_master(fetch_domestic_master_raw(market, fetch=fetch), market=market)
-
-
-class DomesticListingIndex:
-    """국내 상장 종목 이름검색 인덱스(불변). KOSPI+KOSDAQ 마스터를 합쳐 이름/코드로 후보를 찾는다.
-
-    이름은 모호할 수 있어("삼성전자"⊃"삼성전자우") **후보를 하나로 좁히지 않고 모두** 돌려준다 --
-    호출자가 코드를 골라 :meth:`~kis_trader.domestic.namespace.DomesticNamespace.stock` 로 넘긴다
-    (안전커널의 오확정 방지와 같은 결).
-    """
-
-    __slots__ = ("_listings",)
-
-    def __init__(self, listings: Iterable[DomesticListing]) -> None:
-        self._listings = tuple(listings)
-
-    def search_stocks(self, query: str, *, market: SearchMarket = "all") -> list[DomesticListing]:
-        """이름(부분/정확) 또는 6자리 코드로 후보를 찾아 돌려준다.
-
-        매치 순서는 정확일치 -> 접두 -> 부분(정확이 먼저 오되 다건은 모두 포함한다). ``market`` 은
-        ``"all"``/``"KOSPI"``/``"KOSDAQ"``. 빈 검색어/잘못된 market 은 :class:`~kis_trader.errors.
-        KISUsageError`. 매치 없으면 빈 리스트."""
-        text = query.strip()
-        if not text:
-            raise KISUsageError("검색어(query)가 비어 있다.")
-        if market not in ("all", "KOSPI", "KOSDAQ"):
-            raise KISUsageError(f"market 은 all/KOSPI/KOSDAQ 중 하나: {market!r}")
-        is_code_query = text.isdigit()  # 숫자면 코드 역검색, 아니면 이름 검색
-        exact_matches: list[DomesticListing] = []
-        prefix_matches: list[DomesticListing] = []
-        substring_matches: list[DomesticListing] = []
-        for listing in self._listings:
-            if market != "all" and listing.market != market:
-                continue
-            field = listing.symbol if is_code_query else listing.name
-            if field == text:
-                exact_matches.append(listing)
-            elif field.startswith(text):
-                prefix_matches.append(listing)
-            elif not is_code_query and text in field:
-                substring_matches.append(listing)
-        return exact_matches + prefix_matches + substring_matches
 
 
 def load_domestic_master(

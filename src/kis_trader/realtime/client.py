@@ -29,7 +29,7 @@ from .overseas_namespace import RealtimeOverseasNamespace
 from .subscription import RealtimeSubscription
 
 if TYPE_CHECKING:
-    from .._internal._masters import InstrumentRecord
+    from ..instrument import InstrumentRecord
 
 MessageCallback = Callable[[RealtimeMessage], None]
 

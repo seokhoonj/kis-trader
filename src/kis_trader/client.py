@@ -16,9 +16,7 @@ import threading
 from typing import TYPE_CHECKING, Self
 
 from ._internal._masters import (
-    DomesticListingIndex,
     Fetch,
-    MasterIndex,
     load_domestic_index,
     load_overseas_index,
     urlopen_fetch,
@@ -43,8 +41,8 @@ from .store import OrderStore
 if TYPE_CHECKING:
     from pathlib import Path
 
-    from ._internal._masters import InstrumentRecord
     from ._literals import Numeric
+    from .instrument import DomesticListingIndex, InstrumentRecord, MasterIndex
     from .realtime._protocol import CustomerType
     from .realtime.client import RealtimeClient
     from .report import ExecutionReport

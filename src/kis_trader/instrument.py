@@ -9,6 +9,8 @@
 from __future__ import annotations
 
 import re
+from collections.abc import Iterable
+from dataclasses import dataclass
 from typing import Literal, get_args
 
 from .errors import KISUsageError
@@ -63,3 +65,117 @@ def resolve_domestic_quote_exchange(
         f"(주식·ETF 는 숫자 '005930', ELW 등은 문자 섞인 '57LABS'). 해외는 "
         f"kis.overseas.stock(symbol, exchange=...) 로 만들거나 심볼만 주면 마스터로 자동 해석한다."
     )
+
+
+# ---------------------------------------------------------------------------
+# 종목 마스터 DATA -- 심볼->거래소 해석(해외)과 이름검색(국내). 파싱/다운로드/캐시는
+# `_internal/_masters` 가 담당하고 그 함수들이 아래 타입을 만들어 돌려준다(공개 DATA 는
+# 공개 모듈에 산다 -- Bar/OrderBook 과 같은 관례).
+# ---------------------------------------------------------------------------
+
+#: 종목유형 코드(마스터 stis 컬럼) -> 이름.
+SecurityType = Literal["index", "stock", "etf", "warrant"]
+
+#: 국내 시장(2값 폐집합). 해외 exchange/currency 와 달리 KIS 국내는 KOSPI/KOSDAQ 뿐이라 Literal 로 닫는다.
+DomesticMarket = Literal["KOSPI", "KOSDAQ"]
+#: search_stocks() 의 market 필터 -- 두 시장 + "all"(전체).
+SearchMarket = Literal["all", "KOSPI", "KOSDAQ"]
+
+
+@dataclass(frozen=True, slots=True)
+class InstrumentRecord:
+    """해외 마스터 한 종목(불변). 심볼->거래소 해석과 통화/유형/이름 메타를 담는다."""
+
+    symbol: str
+    exchange: str                     # KIS 거래소코드(EXCD): NAS/NYS/AMS/...
+    currency: str                     # 결제 통화(USD/HKD/JPY/...)
+    security_type: SecurityType | str  # stock/etf/index/warrant (미지원 코드면 원값)
+    korean_name: str
+    english_name: str
+    realtime_symbol: str              # 실시간 시세용 심볼(rsym)
+
+
+class MasterIndex:
+    """심볼 -> 거래소 해석 인덱스. 여러 시장 마스터를 합쳐 심볼로 :class:`InstrumentRecord` 를 찾는다.
+
+    같은 심볼이 여러 거래소에 있으면 ``exchange`` 를 명시해야 한다(오조회 방지). 국내 6자리 코드는
+    이 인덱스를 안 거친다(이 모듈의 :func:`is_domestic_symbol` 가 KRX 로 판별).
+    """
+
+    __slots__ = ("_by_symbol",)
+
+    def __init__(self, records: Iterable[InstrumentRecord]) -> None:
+        by_symbol: dict[str, list[InstrumentRecord]] = {}
+        for record in records:
+            by_symbol.setdefault(record.symbol, []).append(record)
+        self._by_symbol = by_symbol
+
+    def resolve(self, symbol: str, *, exchange: str | None = None) -> InstrumentRecord:
+        """심볼(과 선택적 ``exchange``)로 마스터 레코드 하나를 찾는다.
+
+        없으면/모호하면(여러 거래소) :class:`~kis_trader.errors.KISUsageError`. ``exchange`` 를 주면
+        그 거래소로 좁힌다."""
+        matches = self._by_symbol.get(symbol, [])
+        if exchange is not None:
+            matches = [record for record in matches if record.exchange == exchange]
+        if not matches:
+            hint = f" (거래소 {exchange!r})" if exchange is not None else ""
+            raise KISUsageError(f"해외 마스터에서 심볼을 찾지 못했다: {symbol!r}{hint}.")
+        exchanges = {record.exchange for record in matches}
+        if len(exchanges) > 1:
+            raise KISUsageError(
+                f"심볼 {symbol!r} 이 여러 거래소에 있다: {sorted(exchanges)} "
+                f"-- exchange= 로 지정하라."
+            )
+        return matches[0]
+
+
+@dataclass(frozen=True, slots=True)
+class DomesticListing:
+    """국내 상장 종목 한 건(불변) -- 이름검색 결과. ``symbol`` 6자리 단축코드, ``name`` 한글종목명,
+    ``market`` ``"KOSPI"``/``"KOSDAQ"``. 우선주(삼성전자우)·ETF 는 ``name`` 으로 구분한다."""
+
+    symbol: str
+    name: str
+    market: DomesticMarket
+
+
+class DomesticListingIndex:
+    """국내 상장 종목 이름검색 인덱스(불변). KOSPI+KOSDAQ 마스터를 합쳐 이름/코드로 후보를 찾는다.
+
+    이름은 모호할 수 있어("삼성전자"⊃"삼성전자우") **후보를 하나로 좁히지 않고 모두** 돌려준다 --
+    호출자가 코드를 골라 :meth:`~kis_trader.domestic.namespace.DomesticNamespace.stock` 로 넘긴다
+    (안전커널의 오확정 방지와 같은 결).
+    """
+
+    __slots__ = ("_listings",)
+
+    def __init__(self, listings: Iterable[DomesticListing]) -> None:
+        self._listings = tuple(listings)
+
+    def search_stocks(self, query: str, *, market: SearchMarket = "all") -> list[DomesticListing]:
+        """이름(부분/정확) 또는 6자리 코드로 후보를 찾아 돌려준다.
+
+        매치 순서는 정확일치 -> 접두 -> 부분(정확이 먼저 오되 다건은 모두 포함한다). ``market`` 은
+        ``"all"``/``"KOSPI"``/``"KOSDAQ"``. 빈 검색어/잘못된 market 은 :class:`~kis_trader.errors.
+        KISUsageError`. 매치 없으면 빈 리스트."""
+        text = query.strip()
+        if not text:
+            raise KISUsageError("검색어(query)가 비어 있다.")
+        if market not in ("all", "KOSPI", "KOSDAQ"):
+            raise KISUsageError(f"market 은 all/KOSPI/KOSDAQ 중 하나: {market!r}")
+        is_code_query = text.isdigit()  # 숫자면 코드 역검색, 아니면 이름 검색
+        exact_matches: list[DomesticListing] = []
+        prefix_matches: list[DomesticListing] = []
+        substring_matches: list[DomesticListing] = []
+        for listing in self._listings:
+            if market != "all" and listing.market != market:
+                continue
+            field = listing.symbol if is_code_query else listing.name
+            if field == text:
+                exact_matches.append(listing)
+            elif field.startswith(text):
+                prefix_matches.append(listing)
+            elif not is_code_query and text in field:
+                substring_matches.append(listing)
+        return exact_matches + prefix_matches + substring_matches
