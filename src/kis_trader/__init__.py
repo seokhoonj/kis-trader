@@ -50,8 +50,8 @@ from .domestic.entities.account_reports import (
 )
 from .domestic.entities.account_right import AccountRight
 from .domestic.entities.after_hours import (
-    AfterHoursConclusion,
     AfterHoursDailyPrice,
+    AfterHoursExecutionPoint,
     AfterHoursQuote,
 )
 from .domestic.entities.analysis import (
@@ -389,8 +389,8 @@ __all__ = [
     "AccountRight",
     "AfterHoursBalanceRanking",
     "AfterHoursBalanceSide",
-    "AfterHoursConclusion",
     "AfterHoursDailyPrice",
+    "AfterHoursExecutionPoint",
     "AfterHoursQuote",
     "AfterHoursRanking",
     "AlgoStrategy",

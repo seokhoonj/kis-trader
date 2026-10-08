@@ -47,7 +47,7 @@ from ...order_book import OrderBook
 from ...quote import Quote
 from ...trade import Trade
 from ...transport import Transport
-from ..entities.after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
+from ..entities.after_hours import AfterHoursDailyPrice, AfterHoursExecutionPoint, AfterHoursQuote
 from ..entities.analysis import (
     IntradayExecutionPoint,
     IntradayExecutions,
@@ -920,7 +920,7 @@ _AFTER_HOURS_DAILY_TR = "FHPST02320000"
 
 def fetch_after_hours_conclusions(
     transport: Transport, *, symbol: str, market: str
-) -> list[AfterHoursConclusion]:
+) -> list[AfterHoursExecutionPoint]:
     """시간외 단일가 세션의 시간별 체결(시각 리스트). 세션 밖이면 비어 올 수 있다. 응답 배열은 output2
     (output1 은 시간외 요약 스냅샷)."""
     params = {
@@ -935,14 +935,14 @@ def fetch_after_hours_conclusions(
     _raise_if_error(resp)
     rows = _require_mapping_rows("output2", resp)
     as_of = datetime.now(_KST)
-    points: list[AfterHoursConclusion] = []
+    points: list[AfterHoursExecutionPoint] = []
     for row in rows:
         moment = str(row.get("stck_cntg_hour", "")).strip()
         if not moment:
             continue
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
-            AfterHoursConclusion(
+            AfterHoursExecutionPoint(
                 symbol=symbol,
                 timestamp=_parse_intraday_timestamp(moment, as_of),
                 price=required_decimal(row.get("stck_prpr"), "stck_prpr"),

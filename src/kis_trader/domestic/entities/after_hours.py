@@ -1,9 +1,9 @@
-"""시간외 단일가(DATA) -- :class:`AfterHoursQuote` / :class:`AfterHoursConclusion` /
+"""시간외 단일가(DATA) -- :class:`AfterHoursQuote` / :class:`AfterHoursExecutionPoint` /
 :class:`AfterHoursDailyPrice`.
 
 정규장 마감 후 시간외 단일가 세션의 스냅샷·시간별 체결·일자별 종가다. 스냅샷
 (:class:`AfterHoursQuote`)은 세션이 열려 있지 않으면(장중 조회 등) 값이 비어 올 수 있어 호가·예상체결
-필드를 optional 로 둔다(빈 값은 ``None``). 체결(:class:`AfterHoursConclusion`)은 체결값이 required
+필드를 optional 로 둔다(빈 값은 ``None``). 체결(:class:`AfterHoursExecutionPoint`)은 체결값이 required
 이고 호가(ask/bid)만 optional, 일자별 종가(:class:`AfterHoursDailyPrice`)는 모든 값 필드가 required
 다(있는데 깨지면 예외).
 """
@@ -44,7 +44,7 @@ class AfterHoursQuote:
 
 
 @dataclass(frozen=True, slots=True)
-class AfterHoursConclusion:
+class AfterHoursExecutionPoint:
     """시간외 단일가 세션의 한 시각 체결(불변).
 
     ``price`` 는 그 시각 체결가, ``change`` / ``change_percent`` 는 전일대비(하락이면 음수),

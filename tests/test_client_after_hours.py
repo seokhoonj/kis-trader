@@ -121,9 +121,9 @@ def test_after_hours_conclusions_maps_output2():
              "prdy_vrss_sign": "5", "prdy_ctrt": "-2.41", "askp": "2840", "bidp": "2835",
              "acml_vol": "68086", "cntg_vol": "12865"}]
     fake = FakeTransport(response=_resp2(rows))
-    from kis_trader import AfterHoursConclusion
+    from kis_trader import AfterHoursExecutionPoint
     pts = _client(fake).domestic.stock("005930").after_hours_conclusions()
-    assert isinstance(pts[0], AfterHoursConclusion)
+    assert isinstance(pts[0], AfterHoursExecutionPoint)
     assert pts[0].price == Decimal(2835)
     assert pts[0].change == Decimal(-70)                 # sign 5 -> 음수
     assert pts[0].change_percent == Decimal("-2.41")

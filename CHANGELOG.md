@@ -12,6 +12,13 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
 
 ### Changed
 
+- `AfterHoursConclusion` → `AfterHoursExecutionPoint`. It is field-for-field the same polling,
+  per-timestamp execution time-series element as `IntradayExecutionPoint` /
+  `ExpectedExecutionPoint` (timestamp, price, change, ask/bid, cumulative/tick volume), returned as
+  a list by `DomesticStock.after_hours_conclusions()`; the bare `Conclusion` suffix is reserved for
+  the realtime expected-conclusion family (`*ExpectedConclusion`), so the realized series now takes
+  the `*ExecutionPoint` suffix of its siblings. The `after_hours_conclusions()` method name and the
+  wire behavior are unchanged.
 - Domestic-market Literal types consolidated. The three identical `["all","KOSPI","KOSDAQ"]`
   filters — `SearchMarket`, `MarketFilter`, `ExpectedMarket` — are now one `DomesticMarketFilter`
   (the all-bearing sibling of `DomesticMarket`, paralleling `SideFilter`/`DerivativeProductFilter`),

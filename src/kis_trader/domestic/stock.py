@@ -44,7 +44,7 @@ from ._engine import analysis as analysis_api
 from ._engine import etf as etf_api
 from ._engine import finance as finance_api
 from ._engine import market_data
-from .entities.after_hours import AfterHoursConclusion, AfterHoursDailyPrice, AfterHoursQuote
+from .entities.after_hours import AfterHoursDailyPrice, AfterHoursExecutionPoint, AfterHoursQuote
 from .entities.analysis import (
     AnalystOpinion,
     CreditBalancePoint,
@@ -215,7 +215,7 @@ class DomesticStock(_StockBase):
             self._client.transport, symbol=self.symbol, market=self.exchange
         )
 
-    def after_hours_conclusions(self) -> list[AfterHoursConclusion]:
+    def after_hours_conclusions(self) -> list[AfterHoursExecutionPoint]:
         """시간외 단일가 세션의 시간별 체결(시각 리스트). 세션 밖이면 빈 리스트일 수 있다."""
         return market_data.fetch_after_hours_conclusions(
             self._client.transport, symbol=self.symbol, market=self.exchange
