@@ -24,8 +24,10 @@ def _advance_cursor(
 ) -> tuple[str, str] | None:
     """연속조회 다음 페이지 커서 ``(fk, nk)`` 를 돌려준다. ``tr_cont`` 가 F/M(더 있음)인데 연속키가
     진전하지 않으면(빈 키 / 직전과 같은 키 반복 / 종료 센티널 ``"^^"``) ``None`` 을 돌려 재요청을
-    멈춘다 -- 같은 페이지를 다시 받아 행이 이중집계되는 것을 막는다. 공유 페이지네이터와 각 엔진의
-    hand-rolled 연속조회 루프가 공용으로 쓴다(가드 로직 단일 출처)."""
+    멈춘다 -- 같은 페이지를 다시 받아 행이 이중집계되는 것을 막는다. 쿼리-tier 가드다: 공유
+    페이지네이터(:func:`_fetch_paginated_rows`)와 일부 hand-rolled 조회 루프가 공용으로 쓴다. 주문
+    재조회(reconcile)·예약 reconcile 루프는 부분 결과가 주문 확정에 영향을 주므로 이 함수를 쓰지 않고
+    더 보수적인 자체 종료(F/M + 비진전 커서 = 모순으로 보고 fail-closed raise)를 둔다."""
     next_nk = str(body.get(f"ctx_area_nk{ctx_width}") or "").strip()
     if not next_nk or next_nk == prev_nk or next_nk == _CONTINUATION_END:
         return None
