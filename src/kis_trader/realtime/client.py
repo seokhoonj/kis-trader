@@ -468,5 +468,7 @@ class RealtimeClient:
             subs = [sub for group in self._subscriptions.values() for sub in group]
             self._subscriptions.clear()
             self._callbacks.clear()   # raw 콜백도 비운다(라우팅 맵과 함께 -- 재시작 시 stale 호출 방지)
+            self._desired.clear()     # 원하는-계약 집합도 비운다 -- 핸들이 죽은 뒤 재시작이 ghost 재구독하지 않게
+                                      # (자동 재연결은 conn 내부라 이 경로를 안 타므로 영향 없음)
         for sub in subs:
             sub._shutdown()
