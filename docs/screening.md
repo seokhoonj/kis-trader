@@ -25,7 +25,8 @@ ranking = kis.domestic.ranking
 
 ranking.by_change(direction="gainers")  # 상승률 상위
 ranking.by_change(direction="losers")   # 하락률 상위
-ranking.by_volume()                     # 거래량 상위
+ranking.by_volume()                     # 거래대금 상위(기본)
+ranking.by_volume(metric="trading_volume")  # 거래량 상위
 ranking.by_market_cap()                 # 시가총액 상위
 ```
 

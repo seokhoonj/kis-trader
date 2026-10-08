@@ -6,7 +6,7 @@ async 코어(:class:`~kis_trader.realtime._connection.RealtimeConnection`)를 **
 사용자가 asyncio 를 몰라도 된다. async 앱(FastAPI 등)은 코어(:class:`RealtimeConnection`)를
 직접 쓰면 된다.
 
-수신 메시지는 (1) ``tr_id`` 별 등록 콜백으로, (2) ``stream()`` 용 스레드-세이프 큐로 동시에 전달된다.
+수신 메시지는 (1) ``(tr_id, tr_key)`` 계약별 등록 콜백으로, (2) ``stream()`` 용 스레드-세이프 큐로 동시에 전달된다.
 """
 
 from __future__ import annotations
@@ -108,8 +108,8 @@ class RealtimeClient:
 
     # -- 구독 (start 전/후 모두 가능) --
     def subscribe(self, tr_id: str, tr_key: str, *, on: MessageCallback | None = None) -> None:
-        """실시간 등록. ``on`` 콜백은 해당 ``tr_id`` 수신 시 호출된다. ``start()`` 전이면 보관해
-        연결 후 자동 전송한다."""
+        """실시간 등록. ``on`` 콜백은 해당 ``(tr_id, tr_key)`` 계약 수신 시 호출된다. ``start()`` 전이면
+        보관해 연결 후 자동 전송한다."""
         if on is not None:
             with self._lock:
                 self._callbacks[(tr_id, tr_key)].append(on)

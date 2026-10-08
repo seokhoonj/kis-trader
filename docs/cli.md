@@ -65,8 +65,9 @@ kis stock quote 005930 --format json --include-raw # KIS 원본 필드 포함
 장내채권은 `--asset bond`. `--start`/`--end`(YYYYMMDD) 로 기간을 주고,
 `--side`(all/buy/sell)·`--symbol`(주식 6자리 / 채권 ISIN)·`--unfilled-only` 로 좁힙니다. 주식 체결내역은
 기본이 **최근 3개월 이내**이며, 그 이전은 `--older-than-three-months` 로 조회합니다(두 구간은 따로 조회).
-미체결(정정·취소 대상)만 보려면 `kis account orders` 를 씁니다. 국내주식은 실전·모의 모두,
-장내채권은 실전 계좌 전용입니다(모의투자 미지원).
+체결내역(`fills`)은 국내주식은 실전·모의 모두, 장내채권은 실전 계좌 전용입니다(모의투자 미지원).
+미체결(정정·취소 대상)만 보려면 `kis account orders` 를 씁니다 -- 국내주식·장내채권 모두 실전 계좌
+전용입니다(정정취소가능주문조회는 모의투자 미지원).
 
 ```bash
 kis account fills --start 20240101 --end 20240131                              # 국내주식 체결내역(기간)

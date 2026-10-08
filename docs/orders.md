@@ -272,7 +272,7 @@ option.buy(quantity=1, limit_price=2.5)
 주문 구분(`division`)·유효기간(`time_in_force`)·야간장(`night`):
 
 ```python
-futures.buy(quantity=1, limit_price=350.0, division="immediate_limit")  # 최유리지정가(파생엔 최우선 없음)
+futures.buy(quantity=1, division="immediate_limit")                     # 최유리지정가(가격 없음; 파생엔 최우선 없음)
 futures.buy(quantity=1, limit_price=350.0, time_in_force="ioc")         # day/ioc/fok
 futures.buy(quantity=1, limit_price=350.0, night=True)                  # KRX 파생 야간장(STTN, 실전 전용)
 ```
