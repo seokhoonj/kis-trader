@@ -1429,6 +1429,30 @@ def test_fsync_dir_ignores_unsupported_platform(tmp_path, monkeypatch):
     store_mod._fsync_dir(tmp_path)                    # 예외 없이 반환
 
 
+def test_fsync_dir_open_propagates_real_io_error(tmp_path, monkeypatch):
+    """디렉터리 open 단계의 진짜 실패(EMFILE/EIO)도 삼키지 않고 올린다 -- fsync 분기와 같은 규율.
+    (블랭킷 except OSError: return 이면 미확립 rename 을 durable 로 오보고.)"""
+    from kis_trader import store as store_mod
+
+    def boom(path, flags):
+        raise OSError(errno.EMFILE, "too many open files")
+
+    monkeypatch.setattr(store_mod.os, "open", boom)
+    with pytest.raises(OSError):
+        store_mod._fsync_dir(tmp_path)
+
+
+def test_fsync_dir_open_ignores_unsupported_platform(tmp_path, monkeypatch):
+    """디렉터리를 열 수 없는 드문 플랫폼(미지원 errno)은 종전대로 조용히 무시한다."""
+    from kis_trader import store as store_mod
+
+    def unsupported(path, flags):
+        raise OSError(errno.ENOTSUP, "not supported")
+
+    monkeypatch.setattr(store_mod.os, "open", unsupported)
+    store_mod._fsync_dir(tmp_path)                    # 예외 없이 반환
+
+
 # --- Stop-limit (ORD_DVSN 22) DATA invariants -----------------------------
 def test_stop_limit_constructs_on_krx():
     from kis_trader.order import Order

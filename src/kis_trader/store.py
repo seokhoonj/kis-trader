@@ -408,8 +408,10 @@ def _fsync_dir(directory: Path) -> None:
     만 무시하고, EIO/ENOSPC 등 진짜 내구성 실패는 삼키지 않고 올린다(거짓 '저장됨' 방지)."""
     try:
         dir_fd = os.open(directory, os.O_RDONLY)
-    except OSError:  # pragma: no cover -- 디렉터리를 열 수 없는 드문 플랫폼
-        return
+    except OSError as err:  # pragma: no cover -- 디렉터리 fsync 미지원 errno 만 무시
+        if err.errno in _UNSUPPORTED_FSYNC_ERRNOS:
+            return
+        raise  # EMFILE/EIO 등 진짜 실패는 올린다(거짓 '저장됨' 방지, fsync 분기와 동일 규율)
     try:
         os.fsync(dir_fd)
     except OSError as err:

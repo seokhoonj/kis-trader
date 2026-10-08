@@ -326,6 +326,39 @@ def test_restart_drains_stale_queue():
     assert [m.tr_key for m in streamed] == ["005930"]  # 새 run 의 틱만, 조기종료 없이
 
 
+def test_concurrent_start_connects_once():
+    # 동시 start() 2개가 가드를 함께 통과해 수신 스레드를 2개 띄우고 _conn/_thread 를 clobber(join 불가
+    # 누수)하던 경합 회귀 -- lifecycle 락으로 연결은 정확히 1회, 두 호출 모두 예외 없이 반환한다.
+    connects: list[str] = []
+
+    async def counting_connect(url):
+        connects.append(url)
+        return FakeWebSocket(incoming=[])
+
+    client = RealtimeClient("KEY", "ws://x", connect=counting_connect, reconnect=False)
+    barrier = threading.Barrier(2)
+    errors: list[BaseException] = []
+
+    def go():
+        try:
+            barrier.wait()
+            client.start(timeout=2.0)
+        except BaseException as exc:                 # noqa: BLE001 -- 경합 시 어떤 예외든 포착해 단언
+            errors.append(exc)
+
+    threads = [threading.Thread(target=go) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join(timeout=5.0)
+    try:
+        assert not errors                            # 두 호출 모두 정상 반환(한쪽은 _running 보고 조기반환)
+        assert len(connects) == 1                    # 수신 스레드가 1개만 떠서 연결도 정확히 1회
+        assert client._running is True
+    finally:
+        client.stop()
+
+
 def test_start_refused_while_previous_thread_alive():
     # 이전 run 스레드가 아직 살아있으면(멎은 연결 등) start() 는 새 run 을 띄우지 않고 fail-closed 해야
     # 한다 -- 안 그러면 self._conn/_queue 를 갈아치워 뒤늦게 깨어난 옛 스레드가 새 소켓을 닫고 큐를 오염시킨다.

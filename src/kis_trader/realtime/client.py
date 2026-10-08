@@ -83,6 +83,10 @@ class RealtimeClient:
         self._ready = threading.Event()  # 루프+연결 준비 완료
         self._stop_requested = threading.Event()  # start() 포기/stop() 시 수신루프 진입 차단
         self._lock = threading.Lock()
+        # 수명주기(start/stop) 전용 락 -- 구독맵 _lock 과 분리한다. _lock 은 수신 스레드에서 도는
+        # 콜백이 쥘 수 있어 start() 전체를 감싸면 데드락이다. 동시 start() 가 가드를 함께 통과해
+        # 수신 스레드를 2개 띄우고 _thread/_conn/_loop 를 clobber(join 불가 누수)하는 것을 막는다.
+        self._lifecycle_lock = threading.Lock()
         # 콜백은 (tr_id, tr_key) 로 키 -- tr_id 만으로 키하면 같은 tr_id 의 다른 tr_key 틱이 남의
         # 콜백을 호출한다(예: 두 종목 체결이 같은 tr_id H0STCNT0). unsubscribe 시 제거한다.
         self._callbacks: dict[tuple[str, str], list[MessageCallback]] = defaultdict(list)
@@ -182,32 +186,36 @@ class RealtimeClient:
         ``timeout`` 내에 연결이 준비되지 않으면(느린/멎은 연결) :class:`RealtimeError` 를 던진다
         -- 무한 대기하지 않는다.
         """
-        if self._running:
-            return
-        # 이전 run 의 스레드가 아직 살아 있으면(예: timeout 정리의 join 마저 늦은 멎은 연결) 새 run 을
-        # 띄우지 않는다 -- 띄우면 self._conn/_loop/_queue 를 갈아치워, 뒤늦게 깨어난 옛 스레드가 새 run 의
-        # 소켓을 닫고 큐에 stale 센티넬을 넣는다(재시작 revive/clobber). 이전 정리가 끝날 때까지 fail-closed.
-        if self._thread is not None and self._thread.is_alive():
-            raise RealtimeError(
-                "이전 실시간 실행이 아직 종료되지 않았습니다 -- stop() 으로 정리가 끝난 뒤 다시 start() 하세요."
-            )
-        self._startup_error = None
-        self._ready.clear()  # 재시작 시 이전 set 이 남아 조기 ready 로 오판되지 않게
-        self._stop_requested.clear()
-        # 재시작: 이전 run 의 잔여 틱/센티넬이 새 stream() 에 낡은 데이터·즉시종료로 새지 않게 큐를 비운다.
-        self._drain_queue()
-        self._queue_overflow_warned = False
-        self._thread = threading.Thread(target=self._run, name="kis-realtime", daemon=True)
-        self._thread.start()
-        if not self._ready.wait(timeout=timeout):
-            # 연결이 timeout 뒤 늦게 열리면 소켓이 새므로(_running 이 False 라 stop() 이 무시됨)
-            # best-effort 로 백그라운드를 정리하고 나서 알린다.
-            self._abort_startup(timeout=5.0)
-            raise RealtimeError(f"실시간 연결이 {timeout}s 내에 준비되지 않았습니다(연결 지연/실패).")
-        if self._startup_error is not None:
-            self._thread.join(timeout=5.0)
-            raise self._startup_error
-        self._running = True
+        # 가드~_running=True 전체를 수명주기 락 아래 직렬화 -- 동시 start() 2개가 가드를 함께 통과해
+        # 수신 스레드를 2개 띄우는 경합을 막는다. _ready.wait 는 timeout 유계이고 수신 스레드는 이
+        # 락을 쥐지 않으므로 데드락 없다.
+        with self._lifecycle_lock:
+            if self._running:
+                return
+            # 이전 run 의 스레드가 아직 살아 있으면(예: timeout 정리의 join 마저 늦은 멎은 연결) 새 run 을
+            # 띄우지 않는다 -- 띄우면 self._conn/_loop/_queue 를 갈아치워, 뒤늦게 깨어난 옛 스레드가 새 run 의
+            # 소켓을 닫고 큐에 stale 센티넬을 넣는다(재시작 revive/clobber). 이전 정리가 끝날 때까지 fail-closed.
+            if self._thread is not None and self._thread.is_alive():
+                raise RealtimeError(
+                    "이전 실시간 실행이 아직 종료되지 않았습니다 -- stop() 으로 정리가 끝난 뒤 다시 start() 하세요."
+                )
+            self._startup_error = None
+            self._ready.clear()  # 재시작 시 이전 set 이 남아 조기 ready 로 오판되지 않게
+            self._stop_requested.clear()
+            # 재시작: 이전 run 의 잔여 틱/센티넬이 새 stream() 에 낡은 데이터·즉시종료로 새지 않게 큐를 비운다.
+            self._drain_queue()
+            self._queue_overflow_warned = False
+            self._thread = threading.Thread(target=self._run, name="kis-realtime", daemon=True)
+            self._thread.start()
+            if not self._ready.wait(timeout=timeout):
+                # 연결이 timeout 뒤 늦게 열리면 소켓이 새므로(_running 이 False 라 stop() 이 무시됨)
+                # best-effort 로 백그라운드를 정리하고 나서 알린다.
+                self._abort_startup(timeout=5.0)
+                raise RealtimeError(f"실시간 연결이 {timeout}s 내에 준비되지 않았습니다(연결 지연/실패).")
+            if self._startup_error is not None:
+                self._thread.join(timeout=5.0)
+                raise self._startup_error
+            self._running = True
 
     def stop(self, *, timeout: float = 5.0) -> None:
         """수신 중단 및 스레드 종료. 백그라운드 루프가 이미 끝났으면 join 만 한다."""
@@ -219,34 +227,39 @@ class RealtimeClient:
             raise RealtimeError(
                 "stop() 은 실시간 콜백(수신 스레드) 안에서 호출할 수 없습니다 -- 다른 스레드에서 부르세요."
             )
-        self._running = False
-        self._stop_requested.set()
-        stop_error: BaseException | None = None
-        if self._conn is not None and self._loop is not None and self._loop.is_running():
-            try:
-                future = asyncio.run_coroutine_threadsafe(self._conn.stop(), self._loop)
-                future.result(timeout=timeout)
-            except TimeoutError:
-                # ws.close() 등이 멎음 -- 조용히 성공으로 보고하지 않고 강제 종료로 넘어간다.
-                _logger.warning("realtime stop() 이 %ss 내에 끝나지 않아 강제 종료합니다", timeout)
-            except (RuntimeError, FutureCancelledError):
-                # 정상 종료 경합 -- 루프가 그 사이 종료됐거나(RuntimeError), _run 의 종료 정리가
-                # 방금 제출한 stop() 코루틴을 pending 태스크로서 취소했다(FutureCancelledError).
-                # 어느 쪽이든 연결은 _main 의 finally 가 이미 닫으므로 이 요청은 중복이라 조용히 넘어간다.
-                pass
-            except Exception as exc:
-                stop_error = exc
-                _logger.warning("realtime 연결 stop() 이 예외를 던졌습니다", exc_info=True)
-        self._put_sentinel()
-        self._shutdown_subscriptions()
-        if self._thread is not None:
-            self._thread.join(timeout=timeout)
-            if self._thread.is_alive():
-                raise RealtimeError(
-                    f"실시간 백그라운드 스레드가 {timeout}s 내에 종료되지 않았습니다(연결/루프 미정리)."
-                )
-        if stop_error is not None:
-            raise stop_error
+        # 상태전이~teardown 은 수명주기 락 아래 -- start() 와 직렬화하고 동시 stop() 2개가 겹쳐
+        # 들어와 _conn/_thread 를 중복 정리하지 않게 한다(콜백-스레드 거부는 위에서 락 전에 끝냈다).
+        with self._lifecycle_lock:
+            if not self._running:  # 다른 stop() 이 먼저 전이를 끝냈다
+                return
+            self._running = False
+            self._stop_requested.set()
+            stop_error: BaseException | None = None
+            if self._conn is not None and self._loop is not None and self._loop.is_running():
+                try:
+                    future = asyncio.run_coroutine_threadsafe(self._conn.stop(), self._loop)
+                    future.result(timeout=timeout)
+                except TimeoutError:
+                    # ws.close() 등이 멎음 -- 조용히 성공으로 보고하지 않고 강제 종료로 넘어간다.
+                    _logger.warning("realtime stop() 이 %ss 내에 끝나지 않아 강제 종료합니다", timeout)
+                except (RuntimeError, FutureCancelledError):
+                    # 정상 종료 경합 -- 루프가 그 사이 종료됐거나(RuntimeError), _run 의 종료 정리가
+                    # 방금 제출한 stop() 코루틴을 pending 태스크로서 취소했다(FutureCancelledError).
+                    # 어느 쪽이든 연결은 _main 의 finally 가 이미 닫으므로 이 요청은 중복이라 조용히 넘어간다.
+                    pass
+                except Exception as exc:
+                    stop_error = exc
+                    _logger.warning("realtime 연결 stop() 이 예외를 던졌습니다", exc_info=True)
+            self._put_sentinel()
+            self._shutdown_subscriptions()
+            if self._thread is not None:
+                self._thread.join(timeout=timeout)
+                if self._thread.is_alive():
+                    raise RealtimeError(
+                        f"실시간 백그라운드 스레드가 {timeout}s 내에 종료되지 않았습니다(연결/루프 미정리)."
+                    )
+            if stop_error is not None:
+                raise stop_error
 
     def _abort_startup(self, *, timeout: float) -> None:
         """timeout 난 :meth:`start` 정리 -- 늦게 연결이 열려도 소켓이 새지 않게 한다.
