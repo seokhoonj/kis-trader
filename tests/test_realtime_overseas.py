@@ -18,12 +18,12 @@ from kis_trader.realtime.parsers.overseas import (
     _FUTURES_ORDERBOOK_FIELDS,
     _FUTURES_TRADE_FIELDS,
     _ORDERBOOK_FIELDS,
-    AsiaDelayedOrderBook,
-    DelayedTradeTick,
-    FuturesExecutionNotice,
-    FuturesOrderBook,
-    FuturesOrderNotice,
-    FuturesTradeTick,
+    OverseasAsiaDelayedOrderBook,
+    OverseasDelayedTradeTick,
+    OverseasDerivativeExecutionNotice,
+    OverseasDerivativeOrderBook,
+    OverseasDerivativeOrderNotice,
+    OverseasDerivativeTradeTick,
     OverseasExecutionNotice,
     OverseasOrderBook,
     parse_asia_orderbook,
@@ -99,7 +99,7 @@ def test_registry_orderbook():
 
 
 # ---------------------------------------------------------------------------
-# HDFSASP1 -- AsiaDelayedOrderBook (1단계)
+# HDFSASP1 -- OverseasAsiaDelayedOrderBook (1단계)
 # ---------------------------------------------------------------------------
 
 
@@ -123,7 +123,7 @@ def _asia_orderbook_fields() -> list[str]:
 
 def test_parse_asia_orderbook_headline():
     ob = parse_asia_orderbook(_asia_orderbook_fields())
-    assert isinstance(ob, AsiaDelayedOrderBook)
+    assert isinstance(ob, OverseasAsiaDelayedOrderBook)
     assert ob.symbol == "7203"
     assert ob.realtime_symbol == "TSE7203"
     assert ob.decimal_places == "0"
@@ -152,7 +152,7 @@ def test_asia_orderbook_raw_and_registry():
 
 
 # ---------------------------------------------------------------------------
-# HDFSCNT0 -- DelayedTradeTick
+# HDFSCNT0 -- OverseasDelayedTradeTick
 # ---------------------------------------------------------------------------
 
 
@@ -182,7 +182,7 @@ def _delayed_trade_fields() -> list[str]:
 
 def test_parse_delayed_trade_tick_headline():
     tick = parse_delayed_trade_tick(_delayed_trade_fields())
-    assert isinstance(tick, DelayedTradeTick)
+    assert isinstance(tick, OverseasDelayedTradeTick)
     assert tick.symbol == "AAPL"
     assert tick.local_date == "20260814"
     assert tick.local_time == "093000"
@@ -296,7 +296,7 @@ def test_execution_notice_raw_and_registry():
 
 
 # ---------------------------------------------------------------------------
-# HDFFF020 -- FuturesTradeTick
+# HDFFF020 -- OverseasDerivativeTradeTick
 # ---------------------------------------------------------------------------
 
 
@@ -323,7 +323,7 @@ def _futures_trade_fields() -> list[str]:
 
 def test_parse_futures_trade_tick_headline():
     tick = parse_futures_trade_tick(_futures_trade_fields())
-    assert isinstance(tick, FuturesTradeTick)
+    assert isinstance(tick, OverseasDerivativeTradeTick)
     assert tick.symbol == "ESU26"
     assert tick.business_date == "20260814"
     assert tick.recv_date == "20260814"
@@ -365,7 +365,7 @@ def test_futures_trade_tick_downtick_signs_both_change_fields():
 
 
 # ---------------------------------------------------------------------------
-# HDFFF010 -- FuturesOrderBook
+# HDFFF010 -- OverseasDerivativeOrderBook
 # ---------------------------------------------------------------------------
 
 
@@ -385,7 +385,7 @@ def _futures_orderbook_fields() -> list[str]:
 
 def test_parse_futures_orderbook_headline():
     ob = parse_futures_orderbook(_futures_orderbook_fields())
-    assert isinstance(ob, FuturesOrderBook)
+    assert isinstance(ob, OverseasDerivativeOrderBook)
     assert ob.symbol == "ESU26"
     assert ob.recv_date == "20260814"
     assert ob.recv_time == "223000"
@@ -409,7 +409,7 @@ def test_futures_orderbook_raw_and_registry():
 
 
 # ---------------------------------------------------------------------------
-# HDFFF1C0 -- FuturesOrderNotice (encrypted)
+# HDFFF1C0 -- OverseasDerivativeOrderNotice (encrypted)
 # ---------------------------------------------------------------------------
 
 
@@ -436,7 +436,7 @@ def _futures_order_notice_fields() -> list[str]:
 
 def test_parse_futures_order_notice_headline():
     notice = parse_futures_order_notice(_futures_order_notice_fields())
-    assert isinstance(notice, FuturesOrderNotice)
+    assert isinstance(notice, OverseasDerivativeOrderNotice)
     assert notice.user_id == "USER01"
     assert notice.account_number == "50012345"
     assert notice.order_date == "20260814"
@@ -467,7 +467,7 @@ def test_futures_order_notice_raw_and_registry():
 
 
 # ---------------------------------------------------------------------------
-# HDFFF2C0 -- FuturesExecutionNotice (encrypted)
+# HDFFF2C0 -- OverseasDerivativeExecutionNotice (encrypted)
 # ---------------------------------------------------------------------------
 
 
@@ -493,7 +493,7 @@ def _futures_execution_notice_fields() -> list[str]:
 
 def test_parse_futures_execution_notice_headline():
     notice = parse_futures_execution_notice(_futures_execution_notice_fields())
-    assert isinstance(notice, FuturesExecutionNotice)
+    assert isinstance(notice, OverseasDerivativeExecutionNotice)
     assert notice.user_id == "USER01"
     assert notice.account_number == "50012345"
     assert notice.order_date == "20260814"

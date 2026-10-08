@@ -92,10 +92,10 @@ _OPEN_INTEREST_TR = "HHDDB95030000"
 
 
 def fetch_quote(
-    transport: Transport, *, srs_cd: str, market: DerivativeProduct
+    transport: Transport, *, srs_cd: str, product: DerivativeProduct
 ) -> OverseasDerivativeQuote:
-    """해외 선물/옵션 계약 현재가. ``market`` 은 ``"future"``/``"option"``, ``srs_cd`` 는 시리즈코드."""
-    path, tr = _QUOTE[market]
+    """해외 선물/옵션 계약 현재가. ``product`` 은 ``"future"``/``"option"``, ``srs_cd`` 는 시리즈코드."""
+    path, tr = _QUOTE[product]
     resp = transport.request(
         method="GET", path=path, tr_id=tr, params={"SRS_CD": srs_cd}, idempotent=True
     )
@@ -159,7 +159,7 @@ def _level(
 
 
 def fetch_order_book(
-    transport: Transport, *, srs_cd: str, market: DerivativeProduct
+    transport: Transport, *, srs_cd: str, product: DerivativeProduct
 ) -> OrderBook:
     """해외 선물/옵션 계약의 호가창(5단계 매수/매도 심도).
 
@@ -170,7 +170,7 @@ def fetch_order_book(
 
     KIS가 해외 파생 호가 전체 잔량을 주지 않으므로 총잔량은 반환된 유효 단계 잔량의 합이다.
     """
-    path, tr = _ORDER_BOOK[market]
+    path, tr = _ORDER_BOOK[product]
     resp = transport.request(
         method="GET", path=path, tr_id=tr, params={"SRS_CD": srs_cd}, idempotent=True
     )
@@ -191,7 +191,7 @@ def fetch_order_book(
 
     return OrderBook(
         symbol=srs_cd,
-        market=market,
+        market=product,
         bids=tuple(bids),
         asks=tuple(asks),
         total_bid_quantity=sum(level.quantity for level in bids),
@@ -205,7 +205,7 @@ def fetch_bars(
     transport: Transport,
     *,
     srs_cd: str,
-    market: DerivativeProduct,
+    product: DerivativeProduct,
     exchange: str,
     interval: Interval,
     max_bars: int,
@@ -215,7 +215,7 @@ def fetch_bars(
     if environment == "paper":
         raise KISUsageError("해외 선물/옵션 시계열 조회는 모의투자 미지원이다(실전만).")
     try:
-        endpoint, tr, limit = _BARS[market][interval]
+        endpoint, tr, limit = _BARS[product][interval]
     except KeyError:
         raise KISUsageError(f"지원하지 않는 해외 파생 interval: {interval!r}") from None
     if not exchange.strip():
@@ -223,12 +223,12 @@ def fetch_bars(
     if max_bars <= 0 or max_bars > limit:
         raise KISUsageError(f"interval={interval!r} max_bars 는 1..{limit}: {max_bars}")
     query_count = (
-        max(1, max_bars - 1) if market == "option" and interval == "1d" else max_bars
+        max(1, max_bars - 1) if product == "option" and interval == "1d" else max_bars
     )
     params = _history_params(
         srs_cd=srs_cd, exchange=exchange, count=query_count,
         gap="1" if interval == "1m" else "",
-        close_date=_today_kst() if market == "future" else "",
+        close_date=_today_kst() if product == "future" else "",
     )
     resp = transport.request(
         method="GET", path=f"{_QUOTATIONS_BASE}/{endpoint}", tr_id=tr,
@@ -246,7 +246,7 @@ def fetch_trades(
     transport: Transport,
     *,
     srs_cd: str,
-    market: DerivativeProduct,
+    product: DerivativeProduct,
     exchange: str,
     max_trades: int,
     environment: Environment,
@@ -258,10 +258,10 @@ def fetch_trades(
         raise KISUsageError("해외 선물/옵션 틱 조회에는 exchange 가 필요하다.")
     if max_trades <= 0 or max_trades > 40:
         raise KISUsageError(f"max_trades 는 1..40: {max_trades}")
-    endpoint, tr = _TRADES[market]
+    endpoint, tr = _TRADES[product]
     params = _history_params(
         srs_cd=srs_cd, exchange=exchange, count=max_trades, gap="",
-        close_date=_today_kst() if market == "future" else "",
+        close_date=_today_kst() if product == "future" else "",
     )
     resp = transport.request(
         method="GET", path=f"{_QUOTATIONS_BASE}/{endpoint}", tr_id=tr,
@@ -446,10 +446,10 @@ _BATCH_DETAIL = {
 
 
 def fetch_detail(
-    transport: Transport, *, srs_cd: str, market: DerivativeProduct
+    transport: Transport, *, srs_cd: str, product: DerivativeProduct
 ) -> OverseasDerivativeDetail:
-    """해외 선물/옵션 계약 명세. ``market`` 은 ``"future"``/``"option"``, ``srs_cd`` 는 시리즈코드."""
-    path, tr = _DETAIL[market]
+    """해외 선물/옵션 계약 명세. ``product`` 은 ``"future"``/``"option"``, ``srs_cd`` 는 시리즈코드."""
+    path, tr = _DETAIL[product]
     resp = transport.request(
         method="GET", path=path, tr_id=tr, params={"SRS_CD": srs_cd}, idempotent=True
     )
@@ -461,17 +461,17 @@ def fetch_detail(
 
 
 def fetch_details(
-    transport: Transport, *, srs_codes: list[str], market: DerivativeProduct,
+    transport: Transport, *, srs_codes: list[str], product: DerivativeProduct,
     environment: Environment
 ) -> list[OverseasDerivativeDetail]:
     """해외 선물/옵션 계약 명세를 한 번에 조회한다(선물 32개, 옵션 30개 한도)."""
     if environment == "paper":
         raise KISUsageError("해외 선물/옵션 상품기본정보 조회는 모의투자 미지원이다(실전만).")
-    path, tr, limit = _BATCH_DETAIL[market]
+    path, tr, limit = _BATCH_DETAIL[product]
     if not srs_codes:
         raise KISUsageError("조회할 해외 선물/옵션 시리즈코드가 하나 이상 필요하다.")
     if len(srs_codes) > limit:
-        raise KISUsageError(f"해외 {market} 상품기본정보는 최대 {limit}개: {len(srs_codes)}")
+        raise KISUsageError(f"해외 {product} 상품기본정보는 최대 {limit}개: {len(srs_codes)}")
     if any(not isinstance(code, str) or not code.strip() for code in srs_codes):
         raise KISUsageError("해외 선물/옵션 시리즈코드는 비어 있지 않은 문자열이어야 한다.")
     normalized_codes = [code.strip() for code in srs_codes]

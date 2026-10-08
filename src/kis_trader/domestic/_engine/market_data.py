@@ -13,7 +13,7 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping, Sequence
 from datetime import date, datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..._bars import (
     _MAX_MINUTE_PAGES,
@@ -71,6 +71,9 @@ from ..entities.investor import (
 from ..entities.program import DailyProgramTradePoint, ProgramTradePoint
 from ..entities.stock_info import StockProfile, StockStatus
 
+if TYPE_CHECKING:
+    from ...instrument import DomesticQuoteExchange
+
 #: 시장 보드 -> KIS 조건시장분류코드(FID_COND_MRKT_DIV_CODE).
 _MARKET_DIV = {"KRX": "J", "NXT": "NX", "UN": "UN"}
 
@@ -86,7 +89,7 @@ _MAX_DETAILED_INVESTOR_PAGES = 100
 
 
 def fetch_stock_status(
-    transport: Transport, *, symbol: str, market: str
+    transport: Transport, *, symbol: str, market: DomesticQuoteExchange
 ) -> StockStatus:
     """현재가와 거래·규제·경고 상태를 함께 조회한다."""
     resp = transport.request(

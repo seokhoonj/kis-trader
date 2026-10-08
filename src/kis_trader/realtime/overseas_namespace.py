@@ -18,12 +18,12 @@ from ..errors import KISUsageError
 if TYPE_CHECKING:
     from .client import RealtimeClient
     from .parsers.overseas import (
-        AsiaDelayedOrderBook,
-        DelayedTradeTick,
-        FuturesExecutionNotice,
-        FuturesOrderBook,
-        FuturesOrderNotice,
-        FuturesTradeTick,
+        OverseasAsiaDelayedOrderBook,
+        OverseasDelayedTradeTick,
+        OverseasDerivativeExecutionNotice,
+        OverseasDerivativeOrderBook,
+        OverseasDerivativeOrderNotice,
+        OverseasDerivativeTradeTick,
         OverseasExecutionNotice,
         OverseasOrderBook,
     )
@@ -60,11 +60,11 @@ class OverseasStockHandle:
         self._rsym = realtime_symbol
 
     def trades(
-        self, *, on: Callable[[DelayedTradeTick], None] | None = None
-    ) -> RealtimeSubscription[DelayedTradeTick]:
-        """해외주식 실시간지연체결가를 구독하고 RealtimeSubscription[DelayedTradeTick] 을 반환한다(HDFSCNT0)."""
+        self, *, on: Callable[[OverseasDelayedTradeTick], None] | None = None
+    ) -> RealtimeSubscription[OverseasDelayedTradeTick]:
+        """해외주식 실시간지연체결가를 구독하고 RealtimeSubscription[OverseasDelayedTradeTick] 을 반환한다(HDFSCNT0)."""
         return cast(
-            "RealtimeSubscription[DelayedTradeTick]",
+            "RealtimeSubscription[OverseasDelayedTradeTick]",
             self._client._open_typed(_STOCK_TRADES_TR, self._rsym, on=on),
         )
 
@@ -72,12 +72,12 @@ class OverseasStockHandle:
         self,
         zone: OverseasZone = "global",
         *,
-        on: Callable[[OverseasOrderBook | AsiaDelayedOrderBook], None] | None = None,
-    ) -> RealtimeSubscription[OverseasOrderBook | AsiaDelayedOrderBook]:
-        """해외주식 실시간호가를 구독하고 RealtimeSubscription[OverseasOrderBook | AsiaDelayedOrderBook] 을 반환한다. zone: global(10호가 HDFSASP0)/asia(아시아 1호가 HDFSASP1)."""
+        on: Callable[[OverseasOrderBook | OverseasAsiaDelayedOrderBook], None] | None = None,
+    ) -> RealtimeSubscription[OverseasOrderBook | OverseasAsiaDelayedOrderBook]:
+        """해외주식 실시간호가를 구독하고 RealtimeSubscription[OverseasOrderBook | OverseasAsiaDelayedOrderBook] 을 반환한다. zone: global(10호가 HDFSASP0)/asia(아시아 1호가 HDFSASP1)."""
         tr = _pick(_STOCK_ORDER_BOOK_TR, zone, label="zone")
         return cast(
-            "RealtimeSubscription[OverseasOrderBook | AsiaDelayedOrderBook]",
+            "RealtimeSubscription[OverseasOrderBook | OverseasAsiaDelayedOrderBook]",
             self._client._open_typed(tr, self._rsym, on=on),
         )
 
@@ -90,20 +90,20 @@ class OverseasDerivativeHandle:
         self._symbol = symbol
 
     def trades(
-        self, *, on: Callable[[FuturesTradeTick], None] | None = None
-    ) -> RealtimeSubscription[FuturesTradeTick]:
-        """해외선물옵션 실시간체결가를 구독하고 RealtimeSubscription[FuturesTradeTick] 을 반환한다(HDFFF020)."""
+        self, *, on: Callable[[OverseasDerivativeTradeTick], None] | None = None
+    ) -> RealtimeSubscription[OverseasDerivativeTradeTick]:
+        """해외선물옵션 실시간체결가를 구독하고 RealtimeSubscription[OverseasDerivativeTradeTick] 을 반환한다(HDFFF020)."""
         return cast(
-            "RealtimeSubscription[FuturesTradeTick]",
+            "RealtimeSubscription[OverseasDerivativeTradeTick]",
             self._client._open_typed(_FUTURES_TRADES_TR, self._symbol, on=on),
         )
 
     def order_book(
-        self, *, on: Callable[[FuturesOrderBook], None] | None = None
-    ) -> RealtimeSubscription[FuturesOrderBook]:
-        """해외선물옵션 실시간호가를 구독하고 RealtimeSubscription[FuturesOrderBook] 을 반환한다(HDFFF010)."""
+        self, *, on: Callable[[OverseasDerivativeOrderBook], None] | None = None
+    ) -> RealtimeSubscription[OverseasDerivativeOrderBook]:
+        """해외선물옵션 실시간호가를 구독하고 RealtimeSubscription[OverseasDerivativeOrderBook] 을 반환한다(HDFFF010)."""
         return cast(
-            "RealtimeSubscription[FuturesOrderBook]",
+            "RealtimeSubscription[OverseasDerivativeOrderBook]",
             self._client._open_typed(_FUTURES_ORDER_BOOK_TR, self._symbol, on=on),
         )
 
@@ -124,20 +124,20 @@ class OverseasExecutionNotices:
         )
 
     def derivative_orders(
-        self, hts_id: str, *, on: Callable[[FuturesOrderNotice], None] | None = None
-    ) -> RealtimeSubscription[FuturesOrderNotice]:
-        """해외선물옵션 실시간주문내역통보를 구독하고 RealtimeSubscription[FuturesOrderNotice] 을 반환한다(HDFFF1C0). hts_id 단위."""
+        self, hts_id: str, *, on: Callable[[OverseasDerivativeOrderNotice], None] | None = None
+    ) -> RealtimeSubscription[OverseasDerivativeOrderNotice]:
+        """해외선물옵션 실시간주문내역통보를 구독하고 RealtimeSubscription[OverseasDerivativeOrderNotice] 을 반환한다(HDFFF1C0). hts_id 단위."""
         return cast(
-            "RealtimeSubscription[FuturesOrderNotice]",
+            "RealtimeSubscription[OverseasDerivativeOrderNotice]",
             self._client._open_typed(_FUTURES_ORDER_NOTICE_TR, hts_id, on=on),
         )
 
     def derivative_fills(
-        self, hts_id: str, *, on: Callable[[FuturesExecutionNotice], None] | None = None
-    ) -> RealtimeSubscription[FuturesExecutionNotice]:
-        """해외선물옵션 실시간체결내역통보를 구독하고 RealtimeSubscription[FuturesExecutionNotice] 을 반환한다(HDFFF2C0). hts_id 단위."""
+        self, hts_id: str, *, on: Callable[[OverseasDerivativeExecutionNotice], None] | None = None
+    ) -> RealtimeSubscription[OverseasDerivativeExecutionNotice]:
+        """해외선물옵션 실시간체결내역통보를 구독하고 RealtimeSubscription[OverseasDerivativeExecutionNotice] 을 반환한다(HDFFF2C0). hts_id 단위."""
         return cast(
-            "RealtimeSubscription[FuturesExecutionNotice]",
+            "RealtimeSubscription[OverseasDerivativeExecutionNotice]",
             self._client._open_typed(_FUTURES_EXECUTION_NOTICE_TR, hts_id, on=on),
         )
 

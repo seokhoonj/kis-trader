@@ -62,7 +62,7 @@ class OverseasDerivativePosition:
     ``product_type`` 상품유형코드, ``side`` 매수/매도, ``quantity`` 미결제수량, ``average_price``
     체결평균가격, ``current_price`` 현재가격, ``unrealized_pnl`` 평가손익금액, ``option_value``
     옵션평가금액, ``option_unrealized_pnl`` 옵션평가손익금액, ``liquidatable_quantity`` 청산가능수량,
-    ``exercise_reserved`` 행사예약주문여부("Y"/"N" 원본 문자열). 타입화하지 않은 필드는 ``_raw``.
+    ``exercise_reserved`` 행사예약주문 여부(bool; 원본 Y/N 을 변환). 타입화하지 않은 필드는 ``_raw``.
     """
 
     symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
@@ -93,7 +93,7 @@ class OverseasDerivativeMargin:
     ``brokerage_margin`` 위탁증거금액, ``settlement_brokerage_margin`` 정산위탁증거금액,
     ``open_margin`` 미결제증거금액, ``maintenance_margin`` 유지증거금액, ``order_margin``
     주문증거금액, ``additional_margin`` 추가증거금액, ``net_risk_applied`` 계좌순위험증거금
-    적용여부("Y"/"N" 원본 문자열). SPAN/EUREX 등 상세 증거금 내역은 ``_raw`` 로 접근한다.
+    적용 여부(bool; 원본 Y/N 을 변환). SPAN/EUREX 등 상세 증거금 내역은 ``_raw`` 로 접근한다.
     """
 
     currency: str                       # 통화코드(crcy_cd)

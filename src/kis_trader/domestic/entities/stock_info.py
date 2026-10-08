@@ -12,9 +12,12 @@ from dataclasses import dataclass, field
 from datetime import date
 from decimal import Decimal
 from types import MappingProxyType
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from ..._internal._freeze import freeze_vendor_payload
+
+if TYPE_CHECKING:
+    from ...instrument import DomesticQuoteExchange
 
 
 @dataclass(frozen=True, slots=True)
@@ -54,7 +57,7 @@ class StockStatus:
     """현재가와 거래·규제·경고 상태를 함께 담은 종목 스냅샷(불변)."""
 
     symbol: str
-    exchange: str
+    exchange: DomesticQuoteExchange
     market_name: str
     industry_name: str
     price: Decimal

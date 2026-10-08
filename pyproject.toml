@@ -40,7 +40,7 @@ kis-mcp = "kis_trader.mcp.server:main"
 [project.optional-dependencies]
 # MCP 서버(kis_trader 를 안전커널 거쳐 MCP 도구로 노출). 런타임 코어와 분리된 선택 의존성이라
 # `import kis_trader` 는 mcp 없이 동작한다(CI 의 3-dep 단언 유지).
-mcp = ["mcp>=2", "anyio>=4", "pydantic>=2", "starlette>=0.27"]
+mcp = ["mcp>=2", "anyio>=4", "pydantic>=2", "starlette>=0.27", "uvicorn>=0.23"]
 # CI(reusable-check.yml)가 `uv pip install -e ".[dev]"` 로 설치해 test/lint/types 를 돌린다.
 # mcp 를 포함해 `mypy src/`(mcp/server.py)와 서버 테스트가 로컬·CI 에서 동일하게 돈다.
 dev = [
@@ -67,14 +67,13 @@ build-backend = "hatchling.build"
 packages = ["src/kis_trader"]
 
 [tool.hatch.build.targets.sdist]
-# Ship the package source, its tests, README.en.md, and CHANGELOG.md. Everything
-# else in the working tree -- dotfiles (.gitignore), CI config, editor/agent
-# tooling, plugin manifests, the docs site -- is not part of the distribution and
-# must not leak into the published artifact. (pyproject.toml / README / LICENSE
-# are always included by the backend.)
-# ignore-vcs so the backend builds purely from the allowlist below and does not
-# force-include VCS files (notably .gitignore); the shipped set is the package
-# source, its tests, README.en.md, and CHANGELOG.md (see include below).
+# Ship the package source, its tests, README.en.md, and CHANGELOG.md. The allowlist
+# below (plus pyproject.toml / README / LICENSE, always added by the backend) governs
+# the shipped set; CI config, editor/agent tooling, plugin manifests, and the docs
+# site are left out. ignore-vcs so the build comes from the allowlist, not the VCS
+# file list. Note: hatchling force-includes `.gitignore` in the sdist regardless of
+# ignore-vcs/include, so the artifact carries it -- that is expected, and this repo's
+# .gitignore is generic (no sensitive content).
 ignore-vcs = true
 include = ["/src", "/tests", "/README.en.md", "/CHANGELOG.md"]
 

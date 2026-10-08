@@ -153,14 +153,14 @@ def test_client_exposes_overseas_namespace() -> None:
 def test_all_exports_new_overseas_names() -> None:
     for name in (
         "RealtimeOverseasNamespace",
-        "DelayedTradeTick",
+        "OverseasDelayedTradeTick",
         "OverseasOrderBook",
-        "AsiaDelayedOrderBook",
-        "FuturesTradeTick",
-        "FuturesOrderBook",
+        "OverseasAsiaDelayedOrderBook",
+        "OverseasDerivativeTradeTick",
+        "OverseasDerivativeOrderBook",
         "OverseasExecutionNotice",
-        "FuturesOrderNotice",
-        "FuturesExecutionNotice",
+        "OverseasDerivativeOrderNotice",
+        "OverseasDerivativeExecutionNotice",
     ):
         assert name in rt.__all__, name
         assert hasattr(rt, name), name

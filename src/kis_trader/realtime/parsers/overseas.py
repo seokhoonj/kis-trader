@@ -117,7 +117,7 @@ _DELAYED_TRADE_FIELDS = (
 
 
 @dataclass(frozen=True, slots=True)
-class DelayedTradeTick:
+class OverseasDelayedTradeTick:
     """해외주식 실시간지연체결가(HDFSCNT0). 한 체결 이벤트의 시/고/저/현재가·거래량·체결강도."""
 
     symbol: str
@@ -142,10 +142,10 @@ class DelayedTradeTick:
     _raw: Mapping[str, Any] = _raw_field()
 
 
-def parse_delayed_trade_tick(fields: list[str]) -> DelayedTradeTick:
-    """HDFSCNT0 한 레코드 -> :class:`DelayedTradeTick`."""
+def parse_delayed_trade_tick(fields: list[str]) -> OverseasDelayedTradeTick:
+    """HDFSCNT0 한 레코드 -> :class:`OverseasDelayedTradeTick`."""
     raw = MappingProxyType(dict(zip(_DELAYED_TRADE_FIELDS, fields, strict=False)))
-    return DelayedTradeTick(
+    return OverseasDelayedTradeTick(
         symbol=raw["SYMB"],
         local_date=raw["XYMD"],
         local_time=raw["XHMS"],
@@ -243,7 +243,7 @@ _FUTURES_TRADE_FIELDS = (
 
 
 @dataclass(frozen=True, slots=True)
-class FuturesTradeTick:
+class OverseasDerivativeTradeTick:
     """해외선물옵션 실시간체결가(HDFFF020). 한 체결의 가격/수량/등락/누적거래량."""
 
     symbol: str  # SERIES_CD
@@ -265,10 +265,10 @@ class FuturesTradeTick:
     _raw: Mapping[str, Any] = _raw_field()
 
 
-def parse_futures_trade_tick(fields: list[str]) -> FuturesTradeTick:
-    """HDFFF020 한 레코드 -> :class:`FuturesTradeTick`."""
+def parse_futures_trade_tick(fields: list[str]) -> OverseasDerivativeTradeTick:
+    """HDFFF020 한 레코드 -> :class:`OverseasDerivativeTradeTick`."""
     raw = MappingProxyType(dict(zip(_FUTURES_TRADE_FIELDS, fields, strict=False)))
-    return FuturesTradeTick(
+    return OverseasDerivativeTradeTick(
         symbol=raw["SERIES_CD"],
         business_date=raw["BSNS_DATE"],
         recv_date=raw["RECV_DATE"],
@@ -305,7 +305,7 @@ _FUTURES_ORDERBOOK_FIELDS = (
 
 
 @dataclass(frozen=True, slots=True)
-class FuturesOrderBook:
+class OverseasDerivativeOrderBook:
     """해외선물옵션 실시간호가(HDFFF010). 5단계 매수/매도 호가·잔량 스냅샷."""
 
     symbol: str  # SERIES_CD
@@ -320,10 +320,10 @@ class FuturesOrderBook:
     _raw: Mapping[str, Any] = _raw_field()
 
 
-def parse_futures_orderbook(fields: list[str]) -> FuturesOrderBook:
-    """HDFFF010 한 레코드 -> :class:`FuturesOrderBook`."""
+def parse_futures_orderbook(fields: list[str]) -> OverseasDerivativeOrderBook:
+    """HDFFF010 한 레코드 -> :class:`OverseasDerivativeOrderBook`."""
     raw = MappingProxyType(dict(zip(_FUTURES_ORDERBOOK_FIELDS, fields, strict=False)))
-    return FuturesOrderBook(
+    return OverseasDerivativeOrderBook(
         symbol=raw["SERIES_CD"],
         recv_date=raw["RECV_DATE"],
         recv_time=raw["RECV_TIME"],
@@ -353,7 +353,7 @@ _FUTURES_ORDER_NOTICE_FIELDS = (
 
 
 @dataclass(frozen=True, slots=True)
-class FuturesOrderNotice:
+class OverseasDerivativeOrderNotice:
     """해외선물옵션 실시간주문내역통보(HDFFF1C0). 주문 접수/정정/취소 통보 한 건.
 
     프레임은 암호화되지만 연결 계층이 복호화한 뒤 파서를 호출한다.
@@ -378,10 +378,10 @@ class FuturesOrderNotice:
     _raw: Mapping[str, Any] = _raw_field()
 
 
-def parse_futures_order_notice(fields: list[str]) -> FuturesOrderNotice:
-    """HDFFF1C0 한 레코드(복호화된 평문) -> :class:`FuturesOrderNotice`."""
+def parse_futures_order_notice(fields: list[str]) -> OverseasDerivativeOrderNotice:
+    """HDFFF1C0 한 레코드(복호화된 평문) -> :class:`OverseasDerivativeOrderNotice`."""
     raw = MappingProxyType(dict(zip(_FUTURES_ORDER_NOTICE_FIELDS, fields, strict=False)))
-    return FuturesOrderNotice(
+    return OverseasDerivativeOrderNotice(
         user_id=raw["USER_ID"],
         account_number=raw["ACCT_NO"],
         order_date=raw["ORD_DT"],
@@ -418,7 +418,7 @@ _FUTURES_EXECUTION_NOTICE_FIELDS = (
 
 
 @dataclass(frozen=True, slots=True)
-class FuturesExecutionNotice:
+class OverseasDerivativeExecutionNotice:
     """해외선물옵션 실시간체결내역통보(HDFFF2C0). 체결 통보 한 건(수수료·통화 포함).
 
     프레임은 암호화되지만 연결 계층이 복호화한 뒤 파서를 호출한다.
@@ -442,10 +442,10 @@ class FuturesExecutionNotice:
     _raw: Mapping[str, Any] = _raw_field()
 
 
-def parse_futures_execution_notice(fields: list[str]) -> FuturesExecutionNotice:
-    """HDFFF2C0 한 레코드(복호화된 평문) -> :class:`FuturesExecutionNotice`."""
+def parse_futures_execution_notice(fields: list[str]) -> OverseasDerivativeExecutionNotice:
+    """HDFFF2C0 한 레코드(복호화된 평문) -> :class:`OverseasDerivativeExecutionNotice`."""
     raw = MappingProxyType(dict(zip(_FUTURES_EXECUTION_NOTICE_FIELDS, fields, strict=False)))
-    return FuturesExecutionNotice(
+    return OverseasDerivativeExecutionNotice(
         user_id=raw["USER_ID"],
         account_number=raw["ACCT_NO"],
         order_date=raw["ORD_DT"],
@@ -476,7 +476,7 @@ _ASIA_ORDERBOOK_FIELDS = (
 
 
 @dataclass(frozen=True, slots=True)
-class AsiaDelayedOrderBook:
+class OverseasAsiaDelayedOrderBook:
     """해외주식 실시간지연호가 아시아(HDFSASP1). 아시아 거래소 1단계 매수/매도 호가·잔량 스냅샷.
 
     아시아권 지연호가는 최우선 1단계만 제공한다(미주/유럽의 10단계 :class:`OverseasOrderBook` 과 구분).
@@ -499,10 +499,10 @@ class AsiaDelayedOrderBook:
     _raw: Mapping[str, Any] = _raw_field()
 
 
-def parse_asia_orderbook(fields: list[str]) -> AsiaDelayedOrderBook:
-    """HDFSASP1 한 레코드(17필드) -> :class:`AsiaDelayedOrderBook`."""
+def parse_asia_orderbook(fields: list[str]) -> OverseasAsiaDelayedOrderBook:
+    """HDFSASP1 한 레코드(17필드) -> :class:`OverseasAsiaDelayedOrderBook`."""
     raw = MappingProxyType(dict(zip(_ASIA_ORDERBOOK_FIELDS, fields, strict=False)))
-    return AsiaDelayedOrderBook(
+    return OverseasAsiaDelayedOrderBook(
         symbol=raw["SYMB"],
         realtime_symbol=raw["RSYM"],
         decimal_places=raw["ZDIV"],

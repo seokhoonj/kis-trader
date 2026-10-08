@@ -136,7 +136,7 @@ class OverseasAccount:
     ) -> OverseasPresentBalance:
         """체결기준현재잔고 -- 보유 종목·통화별 예수금·계좌 요약. ``won_basis`` 원화(True)/외화(False),
         ``nation`` 국가(``"all"``/``"US"``/``"HK"``/``"CN"``/``"JP"``/``"VN"``), ``market_code`` 거래시장코드
-        (``"00"``=전체), ``inquiry`` 조회구분(``"all"``/``"general"``/``"ministock"``). 모의는 요약만 온다.
+        (``"00"``=전체), ``inquiry`` 조회구분(``"all"``=전체/``"general"``=일반 해외주식/``"ministock"``=미니스탁). 모의는 요약만 온다.
 
         .. note:: 요약 필드는 KIS 예시가 잘려 레이아웃 기준이다 -- 전체 원본은 ``_raw``."""
         cano, product_code = self._client._require_account()
@@ -149,7 +149,7 @@ class OverseasAccount:
         self, *, basis_date: str, won_basis: bool = True, inquiry: BalanceInquiry = "all"
     ) -> OverseasSettlementBalance:
         """결제기준잔고 -- ``basis_date``(YYYYMMDD) 결제 기준의 보유 종목·통화별 예수금·계좌 요약.
-        ``won_basis`` 원화(True)/외화(False), ``inquiry`` 조회구분(``"all"``/``"general"``/``"ministock"``).
+        ``won_basis`` 원화(True)/외화(False), ``inquiry`` 조회구분(``"all"``=전체/``"general"``=일반 해외주식/``"ministock"``=미니스탁).
         **모의투자 미지원**."""
         cano, product_code = self._client._require_account()
         return overseas_account.fetch_settlement_balance(
@@ -282,14 +282,14 @@ class OverseasNamespace:
     def futures_details(self, symbols: Sequence[str]) -> list[OverseasDerivativeDetail]:
         """여러 해외 선물 계약의 명세를 한 번에(최대 32개, 실전만)."""
         return overseas_derivatives_api.fetch_details(
-            self._client.transport, srs_codes=list(symbols), market="future",
+            self._client.transport, srs_codes=list(symbols), product="future",
             environment=self._client.environment,
         )
 
     def option_details(self, symbols: Sequence[str]) -> list[OverseasDerivativeDetail]:
         """여러 해외 옵션 계약의 명세를 한 번에(최대 30개, 실전만)."""
         return overseas_derivatives_api.fetch_details(
-            self._client.transport, srs_codes=list(symbols), market="option",
+            self._client.transport, srs_codes=list(symbols), product="option",
             environment=self._client.environment,
         )
 

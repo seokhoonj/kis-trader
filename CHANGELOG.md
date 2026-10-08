@@ -58,6 +58,19 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   serializes `region`.
 - `RankedOverseasStock` renamed to `OverseasRankedStock` — the sole overseas result type
   that did not lead with the `Overseas` qualifier its ~40 siblings share.
+- The overseas realtime entities that the `Overseas*` sweep had missed are renamed to match
+  their siblings (and the `OverseasDerivativeHandle` the 0.5.0 handle rename produced): the
+  해외선물옵션 feed types `FuturesTradeTick` / `FuturesOrderBook` / `FuturesOrderNotice` /
+  `FuturesExecutionNotice` → `OverseasDerivativeTradeTick` / `OverseasDerivativeOrderBook` /
+  `OverseasDerivativeOrderNotice` / `OverseasDerivativeExecutionNotice` (they name 해외선물옵션,
+  not just futures, and `FuturesTradeTick` collided with the domestic `FuturesTick` in
+  `kis_trader.realtime`), and the 해외주식 feed types `DelayedTradeTick` / `AsiaDelayedOrderBook`
+  → `OverseasDelayedTradeTick` / `OverseasAsiaDelayedOrderBook` (their file-siblings
+  `OverseasOrderBook` / `OverseasExecutionNotice` already carry the qualifier). Fields and wire
+  behavior are unchanged — class names only.
+- `StockStatus.exchange` is now typed `DomesticQuoteExchange` (`"KRX"`/`"NXT"`/`"UN"`) instead of
+  bare `str`, matching the `DomesticStock.exchange` the engine feeds it (the value was always the
+  typed quote-exchange; only the annotation widened). Wire behavior unchanged.
 - The Domestic-qualifier sweep is completed: the remaining domestic entity types
   that have a distinct `Overseas*` sibling (or ride the `OverseasDerivative*` family mirror) are
   prefixed `Domestic`. Renamed: `Position` → `DomesticPosition`, `ProductInfo` →

@@ -403,14 +403,14 @@ kis.realtime()
 │       └── derivative(hts_id, session=...)  # → DerivativeExecutionNotice
 └── overseas                                 # 해외 실시간
     ├── stock(symbol, exchange=None)         # RSYM 은 종목마스터로 해석
-    │   ├── trades()                         # 지연체결 → DelayedTradeTick
+    │   ├── trades()                         # 지연체결 → OverseasDelayedTradeTick
     │   └── order_book(zone='global')        # 호가(global 10 / asia 1)
     ├── futures(symbol)                      # → OverseasDerivativeHandle
-    │   ├── trades()                         # 체결 → FuturesTradeTick
-    │   └── order_book()                     # 호가 → FuturesOrderBook
+    │   ├── trades()                         # 체결 → OverseasDerivativeTradeTick
+    │   └── order_book()                     # 호가 → OverseasDerivativeOrderBook
     ├── option(symbol)                       # 선물과 동일 TR·핸들 공유
     └── execution_notices                    # 체결/주문 통보(hts_id 단위)
         ├── stock(hts_id)                    # → OverseasExecutionNotice
-        ├── derivative_orders(hts_id)        # → FuturesOrderNotice
-        └── derivative_fills(hts_id)         # → FuturesExecutionNotice
+        ├── derivative_orders(hts_id)        # → OverseasDerivativeOrderNotice
+        └── derivative_fills(hts_id)         # → OverseasDerivativeExecutionNotice
 ```
