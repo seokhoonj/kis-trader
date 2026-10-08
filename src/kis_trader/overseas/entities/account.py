@@ -62,7 +62,7 @@ class OverseasTransaction:
     side: Side                        # buy / sell
     symbol: str
     name: str
-    quantity: Decimal                 # 체결수량(ccld_qty)
+    filled_quantity: Decimal          # 체결수량(ccld_qty)
     price: Money                      # 체결단가(ft_ccld_unpr2)
     trade_amount: Money               # 거래외화금액2(tr_frcr_amt2)
     settlement_amount: Money          # 외화정산금액1(frcr_excc_amt_1)

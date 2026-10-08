@@ -227,7 +227,7 @@ def _parse_transaction(row: Mapping[str, Any]) -> OverseasTransaction:
         side=_side_from_code(row.get("sll_buy_dvsn_cd")),
         symbol=str(row.get("pdno", "")).strip(),
         name=str(row.get("ovrs_item_name", "")).strip(),
-        quantity=_decimal_or_zero(row, "ccld_qty"),
+        filled_quantity=_decimal_or_zero(row, "ccld_qty"),
         price=_money_or_zero(row, "ft_ccld_unpr2", currency),
         trade_amount=_money_or_zero(row, "tr_frcr_amt2", currency),
         settlement_amount=_money_or_zero(row, "frcr_excc_amt_1", currency),

@@ -287,8 +287,11 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `order_quantity` that the domestic, bond, derivative, and realtime order records already use:
   `OverseasOpenOrder`, `OverseasAlgoOrder`, `OverseasReservedOrder`, and the pension order entity.
   `OverseasAlgoExecution.quantity` (a fill record) is renamed `filled_quantity`, since it holds
-  the executed quantity, not an order quantity. `OverseasTransaction.quantity` stays bare (it is
-  the record's only quantity, with no sibling axis). Wire keys and behavior are unchanged.
+  the executed quantity, not an order quantity. For the same reason `OverseasTransaction.quantity`
+  (a daily-trade record decoding the fill-quantity key `ccld_qty`) is also renamed `filled_quantity`
+  — every other field decoding a 체결수량 key (`ccld_qty` / `ft_ccld_qty` / `fm_ccld_qty` /
+  `CCLD_QTY`) across the package already uses `filled_quantity`, so the bare name was the lone
+  outlier for that concept. Wire keys and behavior are unchanged.
 - `OverseasIndex.symbol` → `OverseasIndex.code`, and the `kis.overseas.index(symbol=...)` factory
   parameter → `code`. An index is a non-traded classifier, not a tradable instrument, so it uses
   `code` like `DomesticIndex`/`kis.domestic.index(code)` and the realtime `index`/`bond_index`;

@@ -71,7 +71,7 @@ def test_transactions_parse_ledger_row():
     assert tx.side == "sell"
     assert tx.symbol == "AAPL"
     assert tx.name == "애플"
-    assert tx.quantity == Decimal(1)
+    assert tx.filled_quantity == Decimal(1)
     assert tx.price == Money(Decimal("2.94000000"), "USD")
     assert tx.trade_amount == Money(Decimal("2.940000"), "USD")
     assert tx.foreign_fee == Money(Decimal("0.010000"), "USD")
