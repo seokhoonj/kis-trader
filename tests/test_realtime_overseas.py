@@ -292,7 +292,7 @@ def test_execution_notice_raw_and_registry():
     assert notice._raw["CNTG_UNPR12"] == "0"
     spec = _registry.lookup("H0GSCNI0")
     assert spec is not None
-    assert spec.field_count == len(_EXECUTION_NOTICE_FIELDS)
+    assert spec.field_count == len(_EXECUTION_NOTICE_FIELDS) == 25  # 리터럴 고정(field_count=len 파생이라 tautology 방지; 라이브 미검증 레이아웃의 구조적 드리프트 포착)
     assert spec.parser is parse_execution_notice
     assert spec.encrypted is True
 
@@ -350,7 +350,7 @@ def test_futures_trade_raw_and_registry():
     assert tick._raw["LAST_PRICE"] == "5510.50"
     spec = _registry.lookup("HDFFF020")
     assert spec is not None
-    assert spec.field_count == len(_FUTURES_TRADE_FIELDS)
+    assert spec.field_count == len(_FUTURES_TRADE_FIELDS) == 25  # 리터럴 고정(field_count=len 파생이라 tautology 방지; 라이브 미검증 레이아웃의 구조적 드리프트 포착)
     assert spec.parser is parse_futures_trade_tick
     assert spec.encrypted is False
 
@@ -405,7 +405,7 @@ def test_futures_orderbook_raw_and_registry():
     assert ob._raw["ASK_PRICE_1"] == "5510.50"
     spec = _registry.lookup("HDFFF010")
     assert spec is not None
-    assert spec.field_count == len(_FUTURES_ORDERBOOK_FIELDS)
+    assert spec.field_count == len(_FUTURES_ORDERBOOK_FIELDS) == 35  # 리터럴 고정(field_count=len 파생이라 tautology 방지; 라이브 미검증 레이아웃의 구조적 드리프트 포착)
     assert spec.parser is parse_futures_orderbook
     assert spec.encrypted is False
 
@@ -463,7 +463,7 @@ def test_futures_order_notice_raw_and_registry():
     assert notice._raw["AUTO_ORD_DVSN_CD"] == "0"
     spec = _registry.lookup("HDFFF1C0")
     assert spec is not None
-    assert spec.field_count == len(_FUTURES_ORDER_NOTICE_FIELDS)
+    assert spec.field_count == len(_FUTURES_ORDER_NOTICE_FIELDS) == 33  # 리터럴 고정(field_count=len 파생이라 tautology 방지; 라이브 미검증 레이아웃의 구조적 드리프트 포착)
     assert spec.parser is parse_futures_order_notice
     assert spec.encrypted is True
 
@@ -519,6 +519,6 @@ def test_futures_execution_notice_raw_and_registry():
     assert notice._raw["FM_CCLD_PRIC"] == "5509.50"
     spec = _registry.lookup("HDFFF2C0")
     assert spec is not None
-    assert spec.field_count == len(_FUTURES_EXECUTION_NOTICE_FIELDS)
+    assert spec.field_count == len(_FUTURES_EXECUTION_NOTICE_FIELDS) == 33  # 리터럴 고정(field_count=len 파생이라 tautology 방지; 라이브 미검증 레이아웃의 구조적 드리프트 포착)
     assert spec.parser is parse_futures_execution_notice
     assert spec.encrypted is True

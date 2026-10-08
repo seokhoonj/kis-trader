@@ -49,6 +49,7 @@ def test_overseas_derivative_detail_futures():
     assert d.contract_size == Decimal(50)
     assert d.price_digits == 2
     assert d.remaining_days == 41
+    assert d.trade_status == "1"                 # stat_tp (tradable->trade_status 리네임 고정; 코드 문자열)
     assert f"{d.expiry_date:%Y%m%d}" == "20251219"
     assert type(d.expiry_date) is date  # datetime 아님
     call = fake.calls[0]

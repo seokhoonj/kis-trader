@@ -50,6 +50,7 @@ def test_overseas_index_bars_routes_and_parses_ascending():
     handle = client.overseas.index(".DJI")
     bars = handle.bars("1d", start="20220401", end="20220613")
     assert isinstance(handle, OverseasIndex)
+    assert handle.code == ".DJI"                 # symbol->code 핸들 속성 리네임 고정
     assert all(isinstance(bar, Bar) for bar in bars)
     assert [f"{bar.timestamp:%Y%m%d}" for bar in bars] == ["20220401", "20220613"]
     assert bars[0].symbol == ".DJI"

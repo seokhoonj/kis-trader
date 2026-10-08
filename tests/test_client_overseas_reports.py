@@ -94,6 +94,7 @@ def test_present_balance_parses():
     assert bal.currencies[0].deposit == Money(Decimal("200.00"), "USD")
     assert bal.total_unrealized_pnl == Decimal(100000)
     assert bal.total_asset_amount == Decimal(5000000)
+    assert bal.evaluation_return_percent == Decimal("5.0")   # evlu_erng_rt1
 
 
 def test_present_balance_rejects_unknown_nation_before_wire():
@@ -155,6 +156,7 @@ def test_settlement_balance_parses():
     assert bal.total_deposit == Decimal(300000)
     assert bal.total_asset_amount == Decimal(5000000)      # tot_asst_amt2
     assert bal.total_won_evaluation == Decimal(2100000)
+    assert bal.evaluation_return_percent == Decimal("5.0")   # evlu_erng_rt1
 
 
 def test_settlement_balance_tr_and_params():
@@ -186,6 +188,8 @@ def test_period_profit_parses():
     assert row.sold_quantity == Decimal(5)
     assert row.realized_pnl == Decimal("49.00")
     assert pnl.total_realized_pnl == Decimal("49.00")
+    assert row.return_percent == Decimal("6.53")             # pftrt
+    assert pnl.total_return_percent == Decimal("6.53")       # tot_pftrt
     assert pnl.base_date == date(2025, 5, 23)
 
 

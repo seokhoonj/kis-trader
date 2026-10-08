@@ -59,6 +59,13 @@ def _output(**over):
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output1": out})
 
 
+def test_overseas_derivative_handle_product_attribute():
+    # market->product 핸들 속성 리네임 고정 (라우팅 부수효과만으로는 조용한 되돌림을 못 잡는다).
+    kis = _client(FakeTransport(response=_output()))
+    assert kis.overseas.futures("BONU25").product == "future"
+    assert kis.overseas.option("ESZ25 C5000").product == "option"
+
+
 def test_overseas_futures_quote_maps_and_routes():
     fake = FakeTransport(response=_output())
     quote = _client(fake).overseas.futures("BONU25").quote()

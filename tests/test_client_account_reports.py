@@ -91,6 +91,11 @@ def test_realized_balance_parses():
     assert bal.realized_pnl == Decimal(33000)
     assert bal.real_evaluation_pnl == Decimal(199000)
     assert bal.net_asset == Decimal(5000000)
+    # 리네임된 요약 필드 고정 (tot_evlu_amt / asst_icdc_erng_rt / rlzt_erng_rt / real_evlu_pfls_erng_rt)
+    assert bal.total_evaluation == Decimal(6000000)
+    assert bal.asset_change_percent == Decimal("0.25")
+    assert bal.realized_return_percent == Decimal("1.10")
+    assert bal.real_evaluation_return_percent == Decimal("4.73")
 
 
 def test_realized_balance_tr_and_params():

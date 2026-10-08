@@ -425,6 +425,24 @@ def test_option_board_futures_sends_normalized_market_class():
     assert fake.calls[0]["params"]["FID_COND_MRKT_CLS_CODE"] == "MKI"
 
 
+@pytest.mark.parametrize("market_class", ["", "MKI", "WKM", "WKI", "KQI"])
+def test_option_board_futures_accepts_every_board_market(market_class):
+    # 다섯 보드 전부 FID_COND_MRKT_CLS_CODE 로 그대로 나간다 -- 하나라도 조용히 빠지면 잡는다.
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": []})
+    fake = FakeTransport(response=response)
+    _client(fake).domestic.option_board_futures(market_class=market_class)
+    assert fake.calls[0]["params"]["FID_COND_MRKT_CLS_CODE"] == market_class
+
+
+def test_futures_board_market_literal_is_pinned():
+    # FuturesBoardMarket 리터럴 멤버를 리터럴로 고정 -- 런타임 검증셋이 get_args 파생이라
+    # 멤버를 조용히 빼도 통과하는 것을 막는다.
+    from typing import get_args
+
+    from kis_trader import FuturesBoardMarket
+    assert get_args(FuturesBoardMarket) == ("", "MKI", "WKM", "WKI", "KQI")
+
+
 def test_option_expiries_reads_output_array():
     # 원장 예시: 배열 키가 output(레이아웃엔 output1). 예시값 그대로.
     rows = [{"mtrt_yymm_code": "0V05", "mtrt_yymm": "202405"},

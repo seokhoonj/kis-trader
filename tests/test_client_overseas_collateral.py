@@ -46,6 +46,8 @@ def test_overseas_collateral_stocks_maps_summary_and_paginates():
     assert isinstance(result.stocks[0], OverseasCollateralStock)
     assert [s.symbol for s in result.stocks] == ["AMD", "AMD"]
     assert result.stocks[0].loan_ratio == Decimal(50)
+    assert result.stocks[0].maintenance_ratio == Decimal(140)   # mgge_mntn_rt 담보유지비율
+    assert result.stocks[0].collateral_ratio == Decimal(160)    # mgge_ensu_rt 담보확보비율
     assert result.stocks[0].registered_date == date(2024, 5, 10)
     assert result.stocks[0].is_loanable
     # DELTA: the previously-discarded output2 summary is now reachable and typed.

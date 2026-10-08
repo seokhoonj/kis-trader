@@ -249,6 +249,7 @@ def test_ticker_sellable_parses():
     assert isinstance(result, SellableQuantity)
     assert result.quantity == Decimal(10)
     assert result.sellable_quantity == Decimal(8)
+    assert result.name == "삼성전자"                           # prdt_name (security_name->name 리네임 고정)
 
 
 def test_ticker_sellable_not_held_reads_zero():

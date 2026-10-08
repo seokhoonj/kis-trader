@@ -50,11 +50,21 @@ def test_by_volume_maps_and_params():
     assert r.current_price == Decimal("250.5")
     assert r.change == Decimal("5.5")                    # sign 2 -> 상승
     assert r.volume == 120000000
+    assert r.trading_amount == Decimal(30000000000)   # tamt 거래대금
     assert r._raw["a_tvol"] == "90000000"                # 평균거래량은 _raw
     call = fake.calls[0]
     assert call["path"] == "/uapi/overseas-stock/v1/ranking/trade-vol"
     assert call["tr_id"] == "HHDFS76310010"
     assert call["params"]["EXCD"] == "NAS"
+
+
+def test_by_volume_blank_tamt_reads_none():
+    # 라이브에서 빈 tamt 가 와도 크래시하지 않고 trading_amount 는 None (optional 완화 회귀 고정).
+    rows = [{"rank": "1", "excd": "NAS", "symb": "TSLA", "name": "테슬라", "ename": "TESLA",
+             "last": "250.5", "sign": "2", "diff": "5.5", "rate": "2.24", "tvol": "120000000",
+             "tamt": "", "a_tvol": "90000000"}]
+    fake = FakeTransport(response=_resp(rows))
+    assert _client(fake).overseas.ranking.by_volume(exchange="NAS")[0].trading_amount is None
 
 
 def test_by_volume_down_sign_and_missing_output():

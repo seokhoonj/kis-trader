@@ -213,6 +213,7 @@ def test_pension_orders_parses():
     assert o.filled_quantity == Decimal(2)
     assert o.unfilled_quantity == Decimal(3)
     assert o.order_price == Decimal(13235)
+    assert o.order_type_name == "지정가"                        # ord_dvsn_name (order_type->order_type_name 리네임 고정)
     assert o.order_time == time(13, 14, 38)
 
 
