@@ -613,7 +613,7 @@ def test_daily_fills_parses_and_routes():
     assert len(hist.fills) == 1
     fill = hist.fills[0]
     assert isinstance(fill, OverseasDerivativeFill)
-    assert fill.date == date(2024, 2, 16)                       # dt
+    assert fill.fill_date == date(2024, 2, 16)                       # dt
     assert fill.fill_number == "C0001"                          # ccno
     assert fill.symbol == "6BZ22"                               # ovrs_futr_fx_pdno
     assert fill.side == "buy"                                    # sll_buy_dvsn_cd 02 -> buy
@@ -752,7 +752,7 @@ def test_daily_orders_parses_and_routes():
     orders = _client(fake).account.daily_orders(start="20240201", end="20240216")
     assert isinstance(orders, list)
     assert isinstance(orders[0], OverseasDerivativeDailyOrder)
-    assert orders[0].date == date(2024, 2, 16)                # dt
+    assert orders[0].receipt_date == date(2024, 2, 16)                # dt
     assert orders[0].order_date == date(2024, 2, 16)          # ord_dt
     assert orders[0].order_id == "0001"                       # odno
     assert orders[0].original_order_id == "0000"              # orgn_odno
@@ -1011,7 +1011,7 @@ def test_period_trans_parses_and_routes():
     assert isinstance(trans[0], OverseasDerivativeTransaction)
     assert trans[0].base_date == date(2024, 2, 16)           # bass_dt
     assert trans[0].ledger_sequence == "0001"                # fm_ldgr_inog_seq
-    assert trans[0].transaction_type == "입금"               # acnt_tr_type_name
+    assert trans[0].transaction_type_name == "입금"               # acnt_tr_type_name
     assert trans[0].currency == "USD"                        # crcy_cd
     assert trans[0].item_name == "원화입금"                  # tr_itm_name
     assert trans[0].amount == Decimal("10000.00")           # fm_iofw_amt

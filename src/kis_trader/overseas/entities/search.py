@@ -29,7 +29,7 @@ class OverseasStockSearchMatch:
     high: Decimal
     low: Decimal
     volume: int
-    amount: Decimal
+    trading_amount: Decimal  # 거래대금(avol)
     shares: Decimal
     market_cap: Decimal
     eps: Decimal | None

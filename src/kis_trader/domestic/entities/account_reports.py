@@ -31,7 +31,7 @@ class RealizedProfitPosition:
 
     symbol: str                        # 상품번호(pdno)
     name: str                          # 상품명(prdt_name)
-    trade_type: str                    # 매매구분명(trad_dvsn_name)
+    trade_type_name: str                    # 매매구분명(trad_dvsn_name)
     holding_quantity: Decimal          # 보유수량(hldg_qty)
     orderable_quantity: Decimal        # 주문가능수량(ord_psbl_qty)
     average_purchase_price: Decimal    # 매입평균가격(pchs_avg_pric)
@@ -96,7 +96,7 @@ class IntegratedMargin:
     substitute_orderable: Decimal      # 주식대용주문가능금액(stck_sbst_ord_psbl_amt)
     receivable: Decimal                # 미수금액(rcvb_amt)
     limit_amount: Decimal              # 한도금액(lmt_amt)
-    integrated_margin_type: str        # 해외주식통합증거금구분명(ovrs_stck_itgr_mgna_dvsn_name)
+    integrated_margin_type_name: str        # 해외주식통합증거금구분명(ovrs_stck_itgr_mgna_dvsn_name)
     usd_orderable: Decimal             # 미화통합주문가능금액(usd_itgr_ord_psbl_amt)
     hkd_orderable: Decimal             # 홍콩달러통합주문가능금액(hkd_itgr_ord_psbl_amt)
     jpy_orderable: Decimal             # 엔화통합주문가능금액(jpy_itgr_ord_psbl_amt)

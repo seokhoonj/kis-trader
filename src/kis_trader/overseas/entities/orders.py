@@ -48,7 +48,7 @@ class OverseasAlgoOrder:
     """
 
     order_id: str                     # 주문번호(odno)
-    trade_type: str                   # 매매구분명(trad_dvsn_name)
+    trade_type_name: str                   # 매매구분명(trad_dvsn_name)
     symbol: str
     name: str
     order_quantity: Decimal           # 주문수량(ft_ord_qty)

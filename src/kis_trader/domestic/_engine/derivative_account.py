@@ -239,8 +239,9 @@ def fetch_night_margin(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     margin_division: NightMarginDivision,
 ) -> DomesticDerivativeNightMargin:
-    """(야간)선물옵션 증거금상세(1콜, 3블록). ``margin_division`` 은 증거금구분코드(MGNA_DVSN_CD,
-    기본 "01" 개시). output1[0]=개시증거금 상세, output2[0]=유지증거금 상세, output3=예수금 요약.
+    """(야간)선물옵션 증거금상세(1콜, 3블록). ``margin_division`` 은 위탁(consignment)/유지(maintenance)
+    증거금 구분으로, 엔진이 MGNA_DVSN_CD 01/02 로 매핑한다(:data:`_MGNA_DVSN_CD`; 기본은 facade 의 위탁).
+    output1[0]=개시증거금 상세, output2[0]=유지증거금 상세, output3=예수금 요약.
     페이지네이션·계좌비밀번호 없음. **모의투자 미지원**(demo면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
         raise KISUsageError(
@@ -584,7 +585,7 @@ def _parse_fills(rows: list[Mapping[str, Any]]) -> list[DomesticDerivativeFill]:
                 symbol=str(row.get("pdno", "")).strip(),
                 name=str(row.get("prdt_name", "")).strip(),
                 order_id=order_id,
-                transaction_type=str(row.get("tr_type_name", "")).strip(),
+                transaction_type_name=str(row.get("tr_type_name", "")).strip(),
                 final_settlement_date=_parse_date(row.get("last_sttldt")),
                 fill_index=field_decimal_or_zero(row.get("ccld_idx"), "ccld_idx"),
                 filled_quantity=field_decimal_or_zero(row.get("ccld_qty"), "ccld_qty"),
@@ -655,7 +656,7 @@ def _parse_settlement_positions(
             DomesticDerivativeSettlementPosition(
                 symbol=symbol,
                 name=str(row.get("prdt_name", "")).strip(),
-                trade_type=str(row.get("trad_dvsn_name", "")).strip(),
+                trade_type_name=str(row.get("trad_dvsn_name", "")).strip(),
                 prior_quantity=field_decimal_or_zero(row.get("bfdy_cblc_qty"), "bfdy_cblc_qty"),
                 new_quantity=field_decimal_or_zero(row.get("new_qty"), "new_qty"),
                 offset_quantity=field_decimal_or_zero(row.get("mnpl_rpch_qty"), "mnpl_rpch_qty"),

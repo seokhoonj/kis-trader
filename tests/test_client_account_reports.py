@@ -142,7 +142,7 @@ def test_integrated_margin_parses():
     assert isinstance(m, IntegratedMargin)
     assert m.account_margin_rate == Decimal(40)
     assert m.cash_orderable == Decimal(1000000)
-    assert m.integrated_margin_type == "통합"
+    assert m.integrated_margin_type_name == "통합"
     assert m.usd_orderable == Decimal("800.00")
     assert m.cny_exchange_rate == Decimal("188.4")
     # headline 외 필드는 _raw 로 접근 가능

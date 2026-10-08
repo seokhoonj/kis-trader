@@ -446,7 +446,7 @@ def test_base_date_fills_parses_and_routes():
     assert isinstance(hist, DomesticDerivativeFillHistory)
     assert hist.fills[0].symbol == "KR4101RC0000"       # pdno
     assert hist.fills[0].order_id == "0000012345"       # odno
-    assert hist.fills[0].transaction_type == "매수"      # tr_type_name
+    assert hist.fills[0].transaction_type_name == "매수"      # tr_type_name
     assert hist.fills[0].final_settlement_date == _date(2024, 2, 20)  # last_sttldt
     assert hist.fills[0].filled_quantity == Decimal(3)    # ccld_qty
     assert hist.fills[0].fill_time == time(9, 19, 0)       # ccld_btwn HHMMSS(091900)

@@ -135,7 +135,7 @@ def search_stocks(
             high=required_decimal(row.get("phigh"), "phigh"),
             low=required_decimal(row.get("plow"), "plow"),
             volume=required_int(row.get("tvol"), "tvol"),
-            amount=required_decimal(row.get("avol"), "avol"),
+            trading_amount=required_decimal(row.get("avol"), "avol"),
             shares=required_decimal(row.get("shar"), "shar"),
             market_cap=required_decimal(row.get("valx"), "valx"),
             eps=optional_decimal(row.get("eps"), "eps"), per=optional_decimal(row.get("per"), "per"),

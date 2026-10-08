@@ -331,7 +331,7 @@ def _parse_daily_orders(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativ
             # 수량·가격은 빈 값을 0으로 읽되(외화 필드는 비어 올 수 있음), 값이 있는데 파싱 실패면
             # 여전히 예외. 방향(side)은 주문번호가 있는 행에서만 코드->buy/sell 로 fail-closed 변환.
             OverseasDerivativeDailyOrder(
-                date=_parse_date(row.get("dt")),
+                receipt_date=_parse_date(row.get("dt")),
                 order_date=_parse_date(row.get("ord_dt")),
                 order_id=order_id,
                 original_order_id=str(row.get("orgn_odno", "")).strip(),
@@ -437,7 +437,7 @@ def _parse_fills(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativeFill]:
             # 수량·금액은 빈 값을 0으로 읽되(외화 필드는 비어 올 수 있음), 값이 있는데 파싱 실패면
             # 여전히 예외. 방향(side)은 식별자가 있는 행에서만 코드->buy/sell 로 fail-closed 변환.
             OverseasDerivativeFill(
-                date=_parse_date(row.get("dt")),
+                fill_date=_parse_date(row.get("dt")),
                 fill_number=fill_number,
                 symbol=str(row.get("ovrs_futr_fx_pdno", "")).strip(),
                 side=_side_from_code(row.get("sll_buy_dvsn_cd")),
@@ -611,7 +611,7 @@ def _parse_transactions(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativ
             OverseasDerivativeTransaction(
                 base_date=_parse_date(base_date_text),
                 ledger_sequence=ledger_sequence,
-                transaction_type=str(row.get("acnt_tr_type_name", "")).strip(),
+                transaction_type_name=str(row.get("acnt_tr_type_name", "")).strip(),
                 currency=str(row.get("crcy_cd", "")).strip(),
                 item_name=str(row.get("tr_itm_name", "")).strip(),
                 amount=field_decimal_or_zero(row.get("fm_iofw_amt"), "fm_iofw_amt"),

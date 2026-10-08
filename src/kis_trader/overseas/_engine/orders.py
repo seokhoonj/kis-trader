@@ -597,7 +597,7 @@ def fetch_algo_orders(
     return [
         OverseasAlgoOrder(
             order_id=str(row.get("ODNO", "")).strip(),
-            trade_type=str(row.get("TRAD_DVSN_NAME", "")).strip(),
+            trade_type_name=str(row.get("TRAD_DVSN_NAME", "")).strip(),
             symbol=str(row.get("PDNO", "")).strip(),
             name=str(row.get("ITEM_NAME", "")).strip(),
             order_quantity=_decimal_or_zero(row, "FT_ORD_QTY"),

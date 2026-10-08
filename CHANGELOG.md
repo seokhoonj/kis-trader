@@ -248,7 +248,9 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
 
 - Consistency renames of lone-outlier fields: `RealizedProfitBalance.total_value` →
   `total_evaluation` (every other class maps `tot_evlu_amt` that way);
-  `OverseasCurrentPrice.traded_amount` → `trading_amount` (the sibling ranked-stock spelling);
+  `OverseasCurrentPrice.traded_amount` → `trading_amount` (the sibling ranked-stock spelling),
+  and `OverseasStockSearchMatch.amount` → `trading_amount` (the same `avol` 거래대금, now decodable
+  and consistent with the ranked-stock/current-price siblings);
   `OverseasPeriodProfitRow.return_rate` / `OverseasPeriodProfit.total_return_rate` →
   `return_percent` / `total_return_percent` (matching `OverseasBalance` and the domestic trade
   profit). The realtime/overseas `OverseasDerivative` handle attribute `market` → `product`
@@ -263,6 +265,16 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   other realtime entity uses). The `reference.rights(date_basis=...)` /
   `reference.collateral_stocks(sort=...)` closed-choice parameters are now typed `Literal`
   (behavior unchanged).
+- Display-name fields that carry a raw `*_name` key now take the `_name` suffix the sibling
+  fields already use (so the name reads as a display string, not a code): `trade_type` →
+  `trade_type_name` on `RealizedProfitPosition`, `DomesticDerivativeSettlementPosition`,
+  `TradeProfit`, and `OverseasAlgoOrder`; `IntegratedMargin.integrated_margin_type` →
+  `integrated_margin_type_name`; and `transaction_type` → `transaction_type_name` on
+  `DomesticDerivativeFill` and `OverseasDerivativeTransaction`.
+- The two bare `date` fields on the overseas derivative account are renamed to the concept
+  each carries (both from the `dt` key): `OverseasDerivativeFill.date` → `fill_date` (체결일자)
+  and `OverseasDerivativeDailyOrder.date` → `receipt_date` (주문접수일자), so they no longer
+  collide with the `order_date` (`ord_dt`) that sits beside them.
 - `option_board_futures(market_class="")` now reaches the KOSPI200 main board (a blank
   `FID_COND_MRKT_CLS_CODE` returns the A01xxx KOSPI200 monthly contracts with no MKI/KQI
   board rows). The engine previously rejected a blank

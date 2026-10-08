@@ -150,14 +150,14 @@ class DomesticDerivativeSettlementPosition:
     """한 선물옵션 종목의 잔고정산손익 현황(불변).
 
     이 조회의 종목 식별은 상품번호(pdno)뿐이라 ``symbol`` 에 pdno 를 담는다(단축상품번호 없음).
-    ``trade_type`` 은 매매구분명(trad_dvsn_name)을 그대로(strip). ``prior_quantity`` 전일잔고수량,
+    ``trade_type_name`` 은 매매구분명(trad_dvsn_name)을 그대로(strip). ``prior_quantity`` 전일잔고수량,
     ``new_quantity`` 신규수량, ``offset_quantity`` 상계환매수량, ``quantity`` 잔고수량,
     ``balance_amount`` 잔고금액. 상품번호가 빈 패딩 행은 담기지 않는다.
     """
 
     symbol: str                       # 상품번호(pdno)
     name: str                         # 상품명(prdt_name)
-    trade_type: str                   # 매매구분명(trad_dvsn_name)
+    trade_type_name: str                   # 매매구분명(trad_dvsn_name)
     prior_quantity: Decimal           # 전일잔고수량(bfdy_cblc_qty)
     new_quantity: Decimal             # 신규수량(new_qty)
     offset_quantity: Decimal          # 상계환매수량(mnpl_rpch_qty)
@@ -213,7 +213,7 @@ class DomesticDerivativeSettlementBalance:
 class DomesticDerivativeFill:
     """선물옵션 기준일 체결 한 건(불변).
 
-    ``symbol`` 은 상품번호(pdno), ``order_id`` 주문번호(odno), ``transaction_type`` 거래유형명
+    ``symbol`` 은 상품번호(pdno), ``order_id`` 주문번호(odno), ``transaction_type_name`` 거래유형명
     (tr_type_name). ``final_settlement_date`` 는 최종결제일(last_sttldt) -- 형식오류/공백이면 None.
     ``fill_index`` 체결지수, ``filled_quantity`` 체결수량, ``trade_amount`` 거래금액, ``fee`` 수수료.
     ``fill_time`` 은 체결시각(ccld_btwn)이다 -- 공식 문서 스펙이 string/길이 6/HHMMSS 이고 '체결시간'
@@ -224,7 +224,7 @@ class DomesticDerivativeFill:
     symbol: str                        # 상품번호(pdno)
     name: str                          # 상품명(prdt_name)
     order_id: str                      # 주문번호(odno)
-    transaction_type: str              # 거래유형명(tr_type_name)
+    transaction_type_name: str              # 거래유형명(tr_type_name)
     final_settlement_date: date | None  # 최종결제일(last_sttldt)
     fill_index: Decimal                # 체결지수(ccld_idx)
     filled_quantity: Decimal           # 체결수량(ccld_qty)

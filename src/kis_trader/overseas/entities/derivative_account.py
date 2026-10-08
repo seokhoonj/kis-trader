@@ -176,7 +176,7 @@ class OverseasDerivativeOrder:
 class OverseasDerivativeFill:
     """해외선물옵션 일별 체결 한 건(불변).
 
-    금액·가격은 ``currency`` 통화의 Decimal(원화 아님). ``date`` 체결일자(dt) -- 형식오류/공백
+    금액·가격은 ``currency`` 통화의 Decimal(원화 아님). ``fill_date`` 체결일자(dt) -- 형식오류/공백
     이면 None. ``fill_number`` 체결번호(ccno), ``symbol`` 해외선물FX상품번호, ``side`` 매수/매도,
     ``filled_quantity`` 체결수량, ``filled_amount`` 체결금액, ``fee`` 수수료, ``order_date`` 주문일자
     (ord_dt) -- 형식오류/공백이면 None, ``order_id`` 주문번호(odno), ``order_medium`` 주문매체
@@ -184,7 +184,7 @@ class OverseasDerivativeFill:
     필드는 ``_raw``.
     """
 
-    date: datetime.date | None                 # 체결일자(dt)
+    fill_date: datetime.date | None            # 체결일자(dt)
     fill_number: str                  # 체결번호(ccno)
     symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
     side: Side                        # buy / sell (sll_buy_dvsn_cd: 01 매도 / 02 매수)
@@ -207,7 +207,7 @@ class OverseasDerivativeFill:
 class OverseasDerivativeDailyOrder:
     """해외선물옵션 일별 주문 한 건(기간 주문내역, 불변).
 
-    가격·금액은 각 계약 통화 기준, 수량은 계약수. ``date`` 주문접수일자(dt) --
+    가격·금액은 각 계약 통화 기준, 수량은 계약수. ``receipt_date`` 주문접수일자(dt) --
     형식오류/공백이면 None. ``order_date`` 주문일자(ord_dt) -- 형식오류/공백이면 None,
     ``order_id`` 주문번호(odno), ``original_order_id`` 원주문번호(orgn_odno), ``symbol``
     해외선물FX상품번호, ``revise_cancel_type`` 정정취소구분코드(rvse_cncl_dvsn_cd 원본 문자열),
@@ -217,7 +217,7 @@ class OverseasDerivativeDailyOrder:
     형식오류/공백이면 None. 주문번호가 빈 패딩 행은 담기지 않는다. 타입화하지 않은 필드는 ``_raw``.
     """
 
-    date: datetime.date | None        # 주문접수일자(dt)
+    receipt_date: datetime.date | None  # 주문접수일자(dt)
     order_date: datetime.date | None  # 주문일자(ord_dt)
     order_id: str                     # 주문번호(odno)
     original_order_id: str            # 원주문번호(orgn_odno)
@@ -322,7 +322,7 @@ class OverseasDerivativeTransaction:
     """해외선물옵션 기간 입출금(원장) 한 건(불변).
 
     금액은 ``currency`` 통화의 Decimal(원화 아님). ``base_date`` 기준일자(bass_dt) -- 형식오류/
-    공백이면 None. ``ledger_sequence`` 원장입출금순번(fm_ldgr_inog_seq), ``transaction_type``
+    공백이면 None. ``ledger_sequence`` 원장입출금순번(fm_ldgr_inog_seq), ``transaction_type_name``
     계좌거래유형명(acnt_tr_type_name 원본 문자열), ``currency`` 통화코드(crcy_cd), ``item_name``
     거래항목명(tr_itm_name 원본 문자열), ``amount`` 입출금액(fm_iofw_amt), ``fee`` 수수료(fm_fee),
     ``tax`` 세금금액(fm_tax_amt), ``settlement_amount`` 결제금액(fm_sttl_amt), ``prior_deposit``
@@ -334,7 +334,7 @@ class OverseasDerivativeTransaction:
 
     base_date: datetime.date | None   # 기준일자(bass_dt)
     ledger_sequence: str              # 원장입출금순번(fm_ldgr_inog_seq)
-    transaction_type: str             # 계좌거래유형명(acnt_tr_type_name)
+    transaction_type_name: str             # 계좌거래유형명(acnt_tr_type_name)
     currency: str                     # 통화코드(crcy_cd)
     item_name: str                    # 거래항목명(tr_itm_name)
     amount: Decimal                   # 입출금액(fm_iofw_amt)

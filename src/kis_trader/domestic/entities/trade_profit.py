@@ -31,7 +31,7 @@ class TradeProfit:
     trade_date: date | None           # 매매일자(trad_dt)
     symbol: str
     name: str
-    trade_type: str                   # 매매구분명(trad_dvsn_name), 예: "현금"
+    trade_type_name: str              # 매매구분명(trad_dvsn_name), 예: "현금"
     holding_quantity: Decimal         # 보유수량(hldg_qty)
     purchase_price: Decimal           # 매입단가(pchs_unpr)
     buy_quantity: Decimal             # 매수수량(buy_qty)
