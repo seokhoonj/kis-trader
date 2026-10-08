@@ -117,7 +117,7 @@ class OverseasDerivativeMargin:
 class OverseasDerivativeOrderable:
     """한 해외선물옵션 계약의 주문가능 수량(불변).
 
-    수량은 ``currency`` 통화 기준(가격은 그 통화, 수량은 계약수). ``symbol`` 해외선물FX상품번호,
+    수량은 계약수(가격·금액은 ``currency`` 통화 기준). ``symbol`` 해외선물FX상품번호,
     ``open_quantity`` 미결제수량, ``liquidatable_quantity`` 청산가능수량, ``new_orderable_quantity``
     신규주문가능수량, ``total_orderable_quantity`` 총주문가능수량, ``market_orderable_quantity``
     시장가총주문가능수량. 타입화하지 않은 필드는 ``_raw`` 로 접근한다.
@@ -142,7 +142,7 @@ class OverseasDerivativeOrderable:
 class OverseasDerivativeOrder:
     """해외선물옵션 당일 주문 한 건(체결/미체결, 불변).
 
-    수량·가격은 각 계약 통화 기준(가격은 그 통화, 수량은 계약수). ``order_date`` 주문일자
+    가격·금액은 각 계약 통화 기준, 수량은 계약수. ``order_date`` 주문일자
     (ord_dt) -- 형식오류/공백이면 None. ``order_id`` 주문번호(odno), ``original_order_id``
     원주문번호(orgn_odno), ``symbol`` 해외선물FX상품번호, ``side`` 매수/매도, ``status``
     주문상태코드(ord_stat_cd 원본 문자열), ``order_quantity`` 주문수량, ``order_price``
@@ -207,7 +207,7 @@ class OverseasDerivativeFill:
 class OverseasDerivativeDailyOrder:
     """해외선물옵션 일별 주문 한 건(기간 주문내역, 불변).
 
-    수량·가격은 각 계약 통화 기준(가격은 그 통화, 수량은 계약수). ``date`` 주문접수일자(dt) --
+    가격·금액은 각 계약 통화 기준, 수량은 계약수. ``date`` 주문접수일자(dt) --
     형식오류/공백이면 None. ``order_date`` 주문일자(ord_dt) -- 형식오류/공백이면 None,
     ``order_id`` 주문번호(odno), ``original_order_id`` 원주문번호(orgn_odno), ``symbol``
     해외선물FX상품번호, ``revise_cancel_type`` 정정취소구분코드(rvse_cncl_dvsn_cd 원본 문자열),

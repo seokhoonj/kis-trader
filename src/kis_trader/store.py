@@ -246,12 +246,15 @@ class OrderStore:
             self._save_locked()
 
     def clear_in_flight(self, client_order_id: str) -> None:
-        """주문이 확실히 접수 안 됐을 때(거부 등) in-flight 와 지문을 해제(영속)."""
+        """주문이 확실히 접수 안 됐을 때(거부 등) in-flight 와 지문을 해제(영속). 완료된 id 엔 no-op --
+        완료 주문의 지문을 지우면 리포트만 남고 지문이 사라져 크로스맵 불변식을 깨므로 in-flight 멤버십을
+        확인하고 해제한다(멤버십 검사이지 pop() 참값 검사가 아님 -- 레거시 claim 시각은 ""으로 falsy)."""
         with self._lock:
             self._require_open()
-            self._in_flight.pop(client_order_id, None)
-            self._fingerprints.pop(client_order_id, None)
-            self._save_locked()
+            if client_order_id in self._in_flight:
+                self._in_flight.pop(client_order_id)
+                self._fingerprints.pop(client_order_id, None)
+                self._save_locked()
 
     def _require_open(self) -> None:
         if self._closed:
@@ -402,8 +405,11 @@ class OrderStore:
         invariant_ok = (
             all(cid == report.client_order_id for cid, report in reports.items())
             and reports.keys().isdisjoint(in_flight)
-            # v10 전용: 모든 claim 은 지문을 남긴다(v1..v9 레거시는 지문 결여가 적법).
-            and (version != 10 or set(fingerprints) == reports.keys() | in_flight.keys())
+            # 유령 지문 금지: 모든 지문엔 대응 claim(in_flight 또는 report)이 있어야 한다. 역은 강요하지
+            # 않는다 -- 레거시 v1..v9 claim 은 지문이 없을 수 있고(위 _parse 주석 참조), 그 스토어를 한 번
+            # 변경하면 v10 으로 재기록되므로 완전 일치를 요구하면 정상 마이그레이션이 재오픈 시 벽돌이 된다.
+            # 지문 없는 claim 은 try_claim 에서 저장 지문 None != 제출 지문 -> Conflict 로 fail-safe 한다.
+            and set(fingerprints) <= reports.keys() | in_flight.keys()
         )
         if not invariant_ok:
             raise KISError(

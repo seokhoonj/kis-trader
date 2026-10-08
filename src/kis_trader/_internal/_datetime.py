@@ -1,9 +1,11 @@
 """KIS 날짜/시각 와이어 형식 <-> 파이썬 날짜/시간.
 
 KIS 응답은 날짜를 ``"YYYYMMDD"`` 문자열로, 장중 시각을 ``"HHMMSS"`` 문자열로 준다(모두
-한국 표준시 KST 기준). 이 모듈은 자산군과 무관하게 그 변환만 담당한다. 파싱 실패는
-fail-closed(:class:`KISError`)로 올리고, 사용자 입력 날짜의 정규화 실패는
-:class:`KISUsageError` 로 올린다. 시장별 엔진이 공통으로 import 한다.
+한국 표준시 KST 기준). 이 모듈은 자산군과 무관하게 그 변환만 담당하며, 두 계약 tier 가 있다:
+**엄격 파서**(:func:`_parse_kst_date`/:func:`_parse_kst_time`/:func:`parse_optional_kst_date`)는
+파싱 실패를 fail-closed(:class:`KISError`)로 올리고 사용자 입력 정규화 실패는 :class:`KISUsageError`
+로 올린다; **표시용 fail-soft 파서**(:func:`_parse_optional_date`/:func:`_parse_hhmmss`)는 잘못된
+표시 필드가 조회 전체를 중단시키지 않도록 ``None`` 을 돌려준다. 시장별 엔진이 공통으로 import 한다.
 
 의존은 표준 라이브러리와 :mod:`.errors` 뿐이다(순환 import 금지).
 """
@@ -70,7 +72,9 @@ def _parse_optional_date(value: object) -> date | None:
     조회 전체를 막지 않아야 하는 곳. 날짜가 반드시 실재해야 하고 malformed 를 fail-closed 로 올려야
     하는 곳은 :func:`parse_optional_kst_date` 를 쓴다(대비되는 계약)."""
     text = str(value or "").strip()
-    if len(text) != 8 or not text.isdigit():
+    # isascii 로 유니코드 숫자(예 전각 "２０２４")를 배제 -- 엄격 파서 형제(parse_optional_kst_date)와
+    # 같은 하우스 계약. KIS 와이어는 ASCII 숫자뿐이라 실무 트리거는 없지만 tier 간 대칭을 지킨다.
+    if len(text) != 8 or not text.isascii() or not text.isdigit():
         return None
     try:
         return date(int(text[0:4]), int(text[4:6]), int(text[6:8]))

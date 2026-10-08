@@ -68,11 +68,7 @@ def _report_also_in_flight(data):               # (a2) reports 와 in_flight 가
     data["fingerprints"][cid] = next(iter(data["fingerprints"].values()))
 
 
-def _fingerprint_missing(data):                 # (b) v10: 지문이 reports|in_flight 를 덮지 못함
-    data["fingerprints"] = {}
-
-
-def _fingerprint_extra(data):                   # (b) v10: 유령 지문(대응 claim 없음)
+def _fingerprint_extra(data):                   # 유령 지문(대응 claim 없음) -> 거부
     data["fingerprints"]["GHOST"] = next(iter(data["fingerprints"].values()))
 
 
@@ -89,7 +85,6 @@ def _report_symbol_null(data):                  # symbol null
 @pytest.mark.parametrize("mutate", [
     _rekey_report_mismatch,
     _report_also_in_flight,
-    _fingerprint_missing,
     _fingerprint_extra,
     _report_cid_null,
     _report_symbol_null,
@@ -98,6 +93,44 @@ def test_corrupt_v10_cross_map_rejected(tmp_path, mutate):
     path = _valid_v10_file(tmp_path)
     with pytest.raises(KISError):
         _reload_mutated(path, mutate)
+
+
+def test_fingerprintless_claim_is_legal_and_conflicts_on_resubmit(tmp_path):
+    # 지문 없는 claim 은 적법하다(레거시 마이그레이션) -- 불변식은 '유령 지문 금지'(부분집합)일 뿐
+    # '모든 claim 에 지문'을 강요하지 않는다. 재제출 시 저장 지문 None != 제출 지문 -> Conflict 로 fail-safe.
+    from kis_trader.store import Conflict
+    path = tmp_path / "s.json"
+    path.write_text(json.dumps({
+        "schema_version": 10,
+        "in_flight": {"cid-legacy": _clock().isoformat()},
+        "fingerprints": {},                      # claim 은 있는데 지문 없음 -> 적법
+        "reports": {},
+    }), encoding="utf-8")
+    with OrderStore(path, now=_clock) as store:
+        order = Order.limit("005930", side="buy", quantity=1, limit_price=70000,
+                            region="domestic", asset_class="stock", exchange="KRX",
+                            client_order_id="cid-legacy")
+        assert isinstance(store.try_claim("cid-legacy", order.fingerprint), Conflict)
+
+
+def test_legacy_v9_survives_mutate_and_reopen(tmp_path):
+    # 회귀: v9(지문 없는 in_flight) 로드 -> 변경(try_claim) -> v10 으로 재기록 -> 재오픈. 완전일치
+    # 불변식이면 재기록된 v10 의 지문이 in_flight 를 덮지 못해 재오픈이 KISError 로 벽돌이 됐다.
+    path = tmp_path / "s.json"
+    path.write_text(json.dumps({
+        "schema_version": 9,
+        "in_flight": {"cid-legacy": _clock().isoformat()},
+        "fingerprints": {},
+        "reports": {},
+    }), encoding="utf-8")
+    with OrderStore(path, now=_clock) as store:
+        order = Order.limit("005930", side="buy", quantity=1, limit_price=70000,
+                            region="domestic", asset_class="stock", exchange="KRX",
+                            client_order_id="cid-new")
+        store.try_claim("cid-new", order.fingerprint)
+    assert json.loads(path.read_text(encoding="utf-8"))["schema_version"] == 10
+    with OrderStore(path, now=_clock):           # 재오픈이 벽돌이 되면 안 된다
+        pass
 
 
 def test_legacy_v9_without_fingerprints_still_loads(tmp_path):

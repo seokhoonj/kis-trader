@@ -218,7 +218,8 @@ class RealtimeClient:
             self._running = True
 
     def stop(self, *, timeout: float = 5.0) -> None:
-        """수신 중단 및 스레드 종료. 백그라운드 루프가 이미 끝났으면 join 만 한다."""
+        """수신 중단 및 스레드 종료. 백그라운드 루프가 이미 끝났으면 join 만 한다. start() 가 아직
+        진행 중이면(_running 전이 전) 이 호출은 no-op 이다 -- 시작 완료 후 다시 부르라."""
         if not self._running:
             return
         # 수신 콜백은 백그라운드 스레드에서 돈다 -- 거기서 stop() 을 부르면 자기 루프를 기다려

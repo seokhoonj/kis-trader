@@ -642,7 +642,7 @@ def fetch_orderable(
 ) -> OverseasDerivativeOrderable:
     """해외선물옵션 계약의 주문가능수량(1콜, output 단일 객체). ``symbol`` 해외선물FX상품번호,
     ``side`` 매수/매도, ``price`` 있으면 그 단가 기준·없으면 시장가("0"), ``exercise_reserved``
-    행사예약주문 여부. 수량은 그 통화 기준. **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
+    행사예약주문 여부. 가격은 그 계약 통화 기준, 수량은 계약수. **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
         raise KISUsageError(
             "해외선물옵션 주문가능수량(inquire-psamount)은 모의투자 미지원 -- 실전에서만."

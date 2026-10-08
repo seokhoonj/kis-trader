@@ -67,11 +67,11 @@ build-backend = "hatchling.build"
 packages = ["src/kis_trader"]
 
 [tool.hatch.build.targets.sdist]
-# Ship only the package source and its tests. Everything else in the working
-# tree -- dotfiles (.gitignore), CI config, editor/agent tooling, plugin
-# manifests, the docs site -- is not part of the distribution and must not
-# leak into the published artifact. (pyproject.toml / README / LICENSE are
-# always included by the backend.)
+# Ship the package source, its tests, README.en.md, and CHANGELOG.md. Everything
+# else in the working tree -- dotfiles (.gitignore), CI config, editor/agent
+# tooling, plugin manifests, the docs site -- is not part of the distribution and
+# must not leak into the published artifact. (pyproject.toml / README / LICENSE
+# are always included by the backend.)
 # ignore-vcs so the backend builds purely from the allowlist below and does not
 # force-include VCS files (notably .gitignore); the shipped set is the package
 # source, its tests, README.en.md, and CHANGELOG.md (see include below).
