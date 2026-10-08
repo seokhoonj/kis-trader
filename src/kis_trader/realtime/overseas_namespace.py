@@ -57,7 +57,9 @@ class OverseasStockHandle:
 
     def __init__(self, client: RealtimeClient, realtime_symbol: str) -> None:
         self._client = client
-        self._rsym = realtime_symbol
+        # 해외주식 실시간(지연시세)의 tr_key 는 마스터 RSYM 에 "D"(지연피드) 접두를 붙인 형태다
+        # (예: RSYM "NASAAPL" -> "DNASAAPL"). 접두가 없으면 서버가 프레임을 전혀 보내지 않는다.
+        self._rsym = realtime_symbol if realtime_symbol.startswith("D") else "D" + realtime_symbol
 
     def trades(
         self, *, on: Callable[[OverseasDelayedTradeTick], None] | None = None

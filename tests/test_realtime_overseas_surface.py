@@ -21,7 +21,7 @@ from kis_trader.realtime.subscription import RealtimeSubscription
 class _StubResolver:
     """KISClient.instrument 를 흉내내는 stub -- 호출 인자를 기록하고 RSYM 을 돌려준다."""
 
-    def __init__(self, rsym: str = "DNASAAPL", ambiguous: tuple[str, ...] = ()) -> None:
+    def __init__(self, rsym: str = "NASAAPL", ambiguous: tuple[str, ...] = ()) -> None:
         self.calls: list[tuple[str, str | None]] = []
         self._rsym = rsym
         self._ambiguous = set(ambiguous)
@@ -54,7 +54,8 @@ def _ns(resolver: _StubResolver | None = None) -> tuple[RealtimeClient, Realtime
 
 
 # (id, ns -> subscription, expected tr_id, expected tr_key) -- 모든 잎의 정확한 (TR, tr_key) 매핑.
-# 해외주식 tr_key 는 resolver 가 돌려주는 RSYM(DNASAAPL), 선물/옵션은 시리즈코드, 통보는 hts_id.
+# 해외주식 tr_key 는 resolver RSYM("NASAAPL")에 핸들이 "D"(지연피드) 접두를 붙인 "DNASAAPL",
+# 선물/옵션은 시리즈코드, 통보는 hts_id.
 _TR_ROWS: list[
     tuple[str, Callable[[RealtimeOverseasNamespace], RealtimeSubscription[object]], str, str]
 ] = [

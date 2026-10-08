@@ -58,9 +58,6 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   serializes `region`.
 - `RankedOverseasStock` renamed to `OverseasRankedStock` — the sole overseas result type
   that did not lead with the `Overseas` qualifier its ~40 siblings share.
-- `OverseasRankedStock.trading_amount` is now `Decimal | None` (was `Decimal`). The overseas
-  ranking endpoint can return a blank `tamt` for a ranked row, which previously raised and broke
-  the whole query; it is now read tolerantly (empty → `None`).
 - The overseas realtime entities that the `Overseas*` sweep had missed are renamed to match
   their siblings (and the `OverseasDerivativeHandle` the 0.5.0 handle rename produced): the
   해외선물옵션 feed types `FuturesTradeTick` / `FuturesOrderBook` / `FuturesOrderNotice` /
@@ -423,6 +420,20 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   types whose value spans asset classes (a stock exchange, a derivative market, a bond
   market division), so the generic `market` fits them, while the precise `exchange` name
   is reserved for stock-specific handles and the order layer.
+
+### Fixed
+
+- Overseas realtime stock feeds now deliver. The subscription `tr_key` was the bare master RSYM
+  (e.g. `NASAAPL`), but the delayed feed requires a `"D"` prefix (`DNASAAPL`); without it the server
+  sent nothing, so `realtime.overseas.stock(...).trades()` / `.order_book()` silently received zero
+  frames. The overseas stock handle now prefixes `"D"`. And the `HDFSASP0` order-book layout had a
+  duplicated level-3 block (77 fields); the real frame is 71 (an 11-field header + 10 levels x 6), so
+  every order-book frame failed to decode — the duplicate is removed. Both verified live against the
+  US session (trades and the 10-level order book now parse). `HDFSCNT0` (trades, 26 fields) was
+  already correct.
+- Overseas ranking tolerates a blank `tamt`: `OverseasRankedStock.trading_amount` is `Decimal | None`
+  (was a `required` read that raised and broke the whole `ranking.by_change`/`by_volume` query when a
+  ranked row returned an empty trading amount, observed live against NASDAQ).
 
 ## 0.4.0 — 2026-10-05
 

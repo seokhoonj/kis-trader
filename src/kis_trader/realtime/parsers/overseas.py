@@ -42,13 +42,12 @@ def _raw_field() -> Any:
 # 해외주식 실시간호가 (HDFSASP0)
 # ---------------------------------------------------------------------------
 
-# 원장 Response Body 필드 순서. 인덱스 = ^ 위치. (원장에 레벨3 블록이 중복 추출되어 있어
-# 그대로 보존한다 -- 필드순이 정본. 중복 키는 ``_raw`` dict 에서 마지막 값으로 접힌다.)
+# 와이어 Response Body 필드 순서(인덱스 = ^ 위치). 헤더 11 + 10단계 x 6(PBID/PASK/VBID/VASK/DBID/DASK)
+# = 71. 라이브 프레임으로 검증(2026-10-08 미국장). DBIDn/DASKn 은 단계별 잔량 증감.
 _ORDERBOOK_FIELDS = (
     "RSYM", "SYMB", "ZDIV", "XYMD", "XHMS", "KYMD", "KHMS", "BVOL", "AVOL", "BDVL", "ADVL",
     "PBID1", "PASK1", "VBID1", "VASK1", "DBID1", "DASK1",
     "PBID2", "PASK2", "VBID2", "VASK2", "DBID2", "DASK2",
-    "PBID3", "PASK3", "VBID3", "VASK3", "DBID3", "DASK3",
     "PBID3", "PASK3", "VBID3", "VASK3", "DBID3", "DASK3",
     "PBID4", "PASK4", "VBID4", "VASK4", "DBID4", "DASK4",
     "PBID5", "PASK5", "VBID5", "VASK5", "DBID5", "DASK5",
