@@ -383,19 +383,36 @@ class OrderStore:
         try:
             raw_in_flight = data.get("in_flight", {})
             if isinstance(raw_in_flight, list):        # v1..v7: id 리스트 -> 시각 미상("")
-                self._in_flight = {str(cid): "" for cid in raw_in_flight}
+                in_flight = {str(cid): "" for cid in raw_in_flight}
             else:                                       # v8: {id: claim 시각}
-                self._in_flight = {str(k): str(v) for k, v in raw_in_flight.items()}
-            self._fingerprints = {
+                in_flight = {str(k): str(v) for k, v in raw_in_flight.items()}
+            fingerprints = {
                 cid: decode_fingerprint(fp) for cid, fp in data.get("fingerprints", {}).items()
             }
-            self._reports = {cid: _report_from_dict(d) for cid, d in data.get("reports", {}).items()}
+            reports = {cid: _report_from_dict(d) for cid, d in data.get("reports", {}).items()}
         except (ValueError, InvalidOperation, TypeError, KeyError, AttributeError) as err:
             # 스키마는 맞지만 레코드 값이 손상(잘못된 status/수량/날짜 등) -> 도메인 에러로 fail-closed.
             raise KISError(
                 f"주문 dedup 저장소 레코드가 손상됐다: {self._path}. 자동 복구하지 않는다"
                 f"(빈 상태 시작은 중복 체결 위험). 파일을 점검한 뒤 재시작하라."
             ) from err
+        # 크로스-맵 불변식(수용 전 검증) -- 세 맵을 독립 디코드하면 reports 키 != 내장 client_order_id 인
+        # 손상 파일(손상 에러 문구가 사용자에게 수편집을 지시하므로 현실적 트리거)이 try_claim 에서 다른
+        # 주문의 Completed 리포트를 재생(오확정)할 수 있다. 위반은 레코드-손상과 같은 fail-closed.
+        invariant_ok = (
+            all(cid == report.client_order_id for cid, report in reports.items())
+            and reports.keys().isdisjoint(in_flight)
+            # v10 전용: 모든 claim 은 지문을 남긴다(v1..v9 레거시는 지문 결여가 적법).
+            and (version != 10 or set(fingerprints) == reports.keys() | in_flight.keys())
+        )
+        if not invariant_ok:
+            raise KISError(
+                f"주문 dedup 저장소의 맵 불변식이 깨졌다: {self._path}. 자동 복구하지 않는다"
+                f"(빈 상태 시작은 중복 체결 위험). 파일을 점검한 뒤 재시작하라."
+            )
+        self._in_flight = in_flight
+        self._fingerprints = fingerprints
+        self._reports = reports
 
 
 #: 디렉터리 fsync 를 지원하지 않는 플랫폼/파일시스템이 내는 errno -- 이때만 무시한다. EIO/ENOSPC
@@ -437,15 +454,27 @@ def _report_to_dict(report: ExecutionReport) -> dict[str, object]:
     }
 
 
+def _required_report_str(report_data: dict[str, object], key: str, *, allow_empty: bool) -> str:
+    """리포트 식별 필드를 문자열로 -- JSON null 을 str(None)=='None' 으로 흡수하지 않는다. 누락/None,
+    (allow_empty=False 면) 빈 문자열은 ValueError 로 올려 _load 가 손상-스토어로 fail-closed 하게 한다."""
+    value = report_data.get(key)
+    if value is None:
+        raise ValueError(f"리포트 {key} 가 없거나 null 이다")
+    text = str(value)
+    if not allow_empty and not text:
+        raise ValueError(f"리포트 {key} 가 비어 있다")
+    return text
+
+
 def _report_from_dict(report_data: dict[str, object]) -> ExecutionReport:
     average_price = report_data["average_price"]
     # v7 은 "recorded_at" 키, v6 이하는 "submitted_at" 키를 쓴다 -- 구 저장소를 재작성 없이 열도록
     # 옛 키를 recorded_at 으로 매핑한다(온-디스크 스키마가 바뀌면 하위호환 로드 경로를 함께 둔다).
     recorded_raw = report_data.get("recorded_at", report_data.get("submitted_at"))
     return ExecutionReport(
-        client_order_id=str(report_data["client_order_id"]),
+        client_order_id=_required_report_str(report_data, "client_order_id", allow_empty=False),
         order_id=None if report_data["order_id"] is None else str(report_data["order_id"]),
-        symbol=str(report_data["symbol"]),
+        symbol=_required_report_str(report_data, "symbol", allow_empty=True),
         side=cast(Side, str(report_data["side"])),
         status=OrderStatus(str(report_data["status"])),
         filled_quantity=Decimal(str(report_data["filled_quantity"])),
