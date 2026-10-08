@@ -174,12 +174,18 @@ def fetch_positions(
         raise KISUsageError(
             "해외선물옵션 미결제내역(inquire-unpd)은 모의투자 미지원 -- 실전에서만."
         )
+    try:
+        fuop = _FUOP_FILTER[product]
+    except KeyError:
+        raise KISUsageError(
+            f"product 는 all/future/option 중 하나여야 한다: {product!r}"
+        ) from None
     rows = _fetch_paginated_rows(
         transport,
         path=_POSITIONS_PATH, tr_id=_POSITIONS_TR,
         base_params={
             "CANO": cano, "ACNT_PRDT_CD": product_code,
-            "FUOP_DVSN": _FUOP_FILTER[product],
+            "FUOP_DVSN": fuop,
             "CTX_AREA_FK100": "", "CTX_AREA_NK100": "",
         },
         output_key="output", max_pages=_MAX_PAGES, ctx_width=100,

@@ -228,7 +228,9 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   every other tradable instrument and as `Order.symbol`, instead of a bond-only `code`. The
   value is unchanged (the bond's ISIN / 표준코드); the bond-position/order entities already used
   `symbol`. The realtime `bond_index(...)` handle keeps `code` (a market index, not a tradable
-  bond).
+  bond). On the same `kis.account.domestic.bonds.buyable(...)` the limit-price-basis parameter
+  is also renamed `price` → `limit_price`, matching the domestic stock and pension `buyable`
+  siblings (overseas `buyable(price=...)` is a separate required argument and is unchanged).
 
 - Several closed-choice parameters that were bare `str` are now typed, matching the sibling
   that already types them: `account.domestic.derivatives.open_orders(side=...)` is `SideFilter`

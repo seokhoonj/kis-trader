@@ -67,6 +67,14 @@ def test_index_factory_returns_domestic_index_handle():
     assert handle.code == "0001"
 
 
+def test_resolve_index_code_strips_whitespace_on_numeric_fallback():
+    # 이름은 대소문자 무관 매핑, 매핑에 없는 숫자코드는 공백을 제거해 그대로 쓴다
+    # (예전엔 strip 한 키로 조회만 하고 원본을 반환해 " 0001 " 이 그대로 나갔다).
+    from kis_trader.domestic.index import _resolve_index_code
+    assert _resolve_index_code("  0001  ") == "0001"
+    assert _resolve_index_code(" kospi ") == _resolve_index_code("KOSPI")
+
+
 def test_index_quote_maps_fields_and_params():
     fake = FakeTransport(response=_resp(_output()))
     quote = _client(fake).domestic.index("0001").quote()

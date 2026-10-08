@@ -55,7 +55,8 @@ def _resolve_index_code(code: str) -> str:
     ``kis.domestic.index("KOSPI")`` 처럼 이름으로도 부를 수 있게 한다(영문 대소문자 무관).
     이미 업종코드(예: ``"0001"``)이거나 매핑에 없는 값이면 그대로 돌려준다.
     """
-    return _INDEX_NAME_TO_CODE.get(code.strip().upper(), code)
+    normalized = code.strip()
+    return _INDEX_NAME_TO_CODE.get(normalized.upper(), normalized)
 
 
 class DomesticIndex:

@@ -546,9 +546,9 @@ def _parse_bond_positions(rows: list[Mapping[str, Any]]) -> list[BondPosition]:
 
 def fetch_bond_buyable(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    symbol: str, price: Numeric | None = None,
+    symbol: str, limit_price: Numeric | None = None,
 ) -> BondBuyable:
-    """장내채권 매수가능조회. ``symbol`` 표준코드, ``price`` 주문 단가(없으면 시장가 기준).
+    """장내채권 매수가능조회. ``symbol`` 표준코드, ``limit_price`` 주문 단가(없으면 시장가 기준).
     응답 ``output`` 단일 객체(길이 1 배열로 올 수도 있어 둘 다 처리). **모의투자 미지원**
     (demo 면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
@@ -558,7 +558,7 @@ def fetch_bond_buyable(
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
         "PDNO": symbol,
-        "BOND_ORD_UNPR": _format_bond_order_price(price),
+        "BOND_ORD_UNPR": _format_bond_order_price(limit_price),
         "SAMT_MKET_PTCI_YN": "N",
     }
     resp = transport.request(

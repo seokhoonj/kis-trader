@@ -186,6 +186,14 @@ def test_positions_paper_fails_closed():
     assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
 
 
+def test_positions_rejects_unknown_product():
+    # 잘못된 product 는 와이어 전에 명확한 KISUsageError 로 막아야 한다(raw KeyError 금지).
+    fake = FakeTransport(response=_positions_resp(rows=[_position()]))
+    with pytest.raises(KISUsageError, match="all/future/option"):
+        _client(fake, environment="real").account.positions("bogus")  # type: ignore[arg-type]
+    assert fake.calls == []
+
+
 def test_positions_parses_and_routes():
     fake = FakeTransport(response=_positions_resp(rows=[_position()]))
     pos = _client(fake).account.positions()

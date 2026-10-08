@@ -44,16 +44,16 @@ class DomesticBondAccount:
             environment=self._client.environment,
         )
 
-    def buyable(self, symbol: str, *, price: Numeric | None = None) -> BondBuyable:
+    def buyable(self, symbol: str, *, limit_price: Numeric | None = None) -> BondBuyable:
         """장내채권 매수가능조회(주문가능현금·대용, 재사용가능금액, 매수가능금액·수량, CMA평가금액).
 
-        ``symbol`` 은 표준코드(ISIN), ``price`` 는 주문 단가(생략하면 시장가 기준). ``GET .../
+        ``symbol`` 은 표준코드(ISIN), ``limit_price`` 는 주문 단가(생략하면 시장가 기준). ``GET .../
         domestic-bond/v1/trading/inquire-psbl-order`` (``TTTC8910R``). **실전전용**(모의투자 미지원).
         """
         cano, product_code = self._client._require_account()
         return fetch_bond_buyable(
             self._client.transport, cano=cano, product_code=product_code,
-            environment=self._client.environment, symbol=symbol, price=price,
+            environment=self._client.environment, symbol=symbol, limit_price=limit_price,
         )
 
     def open_orders(self, order_date: str) -> list[BondOpenOrder]:

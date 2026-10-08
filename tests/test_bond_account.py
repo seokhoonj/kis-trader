@@ -161,7 +161,7 @@ def _buyable_resp(output=None):
 
 def test_buyable_parses_and_routes():
     fake = FakeTransport(response=_buyable_resp())
-    result = _bonds(fake).buyable("KR2033022D33", price=9850)
+    result = _bonds(fake).buyable("KR2033022D33", limit_price=9850)
     assert result.symbol == "KR2033022D33"
     assert result.orderable_cash == Decimal(50000000)
     assert result.orderable_substitute == Decimal(0)
@@ -192,7 +192,7 @@ def test_buyable_summary_as_length_one_list():
 def test_buyable_paper_fails_closed():
     fake = FakeTransport(response=_buyable_resp())
     with pytest.raises(KISUsageError):
-        _bonds(fake, environment="paper").buyable("KR2033022D33", price=9850)
+        _bonds(fake, environment="paper").buyable("KR2033022D33", limit_price=9850)
     assert fake.calls == []
 
 
@@ -205,7 +205,7 @@ def test_buyable_missing_output_raises():
 def test_buyable_rejects_non_positive_price():
     fake = FakeTransport(response=_buyable_resp())
     with pytest.raises(KISUsageError):
-        _bonds(fake).buyable("KR2033022D33", price=0)
+        _bonds(fake).buyable("KR2033022D33", limit_price=0)
     assert fake.calls == []
 
 

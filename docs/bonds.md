@@ -37,7 +37,7 @@ for position in bonds.balance():
 지정 단가로 살 때의 매수가능 여력·미체결·체결:
 
 ```python
-bonds.buyable("KR6095572D97", price=10500)   # 매수가능 금액·수량
+bonds.buyable("KR6095572D97", limit_price=10500)   # 매수가능 금액·수량
 bonds.open_orders(order_date="20240628")      # 정정·취소 가능한 미체결 주문
 bonds.fills(start="20240101", end="20240630") # 일별 주문·체결 (side/symbol/unfilled_only 필터)
 ```
