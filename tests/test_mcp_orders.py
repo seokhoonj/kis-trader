@@ -147,6 +147,15 @@ def test_build_rejects_unknown_division():
                               division="bogus")
 
 
+@pytest.mark.parametrize("division", ["gtp_limit", "gtp_immediate_limit", "gtp_priority_limit"])
+def test_build_rejects_nxt_gtp_divisions_at_boundary(division):
+    # NXT 프리마켓(GTP) 전용 구분은 MCP 가 KRX 기본 경로로만 보내 와이어에서 항상 거부되므로,
+    # 깊은 라이브러리 에러 대신 taint 경계에서 명확한 사유로 막아야 한다(docs/mcp.md 와 일치).
+    with pytest.raises(KISUsageError, match="GTP"):
+        make_stock_order_plan(region="domestic", symbol="005930", side="buy", quantity=1,
+                              division=division)
+
+
 def test_build_rejects_overseas():
     # MVP 는 국내만 -- 해외는 엔진이 사전 리스크 게이트를 지원 안 해 fail-closed 캡 보장 불가라 거부.
     with pytest.raises(KISUsageError, match="해외"):

@@ -14,9 +14,14 @@ from typing import Literal, cast, get_args
 from ..errors import KISUsageError
 from ..order import DomesticDivision
 
+#: NXT 프리마켓 전용(GTP) 주문구분. MCP 실주문은 symbol 기본 거래소(KRX)로만 라우팅하고 거래소를
+#: 고를 수단이 없어 NXT 전용 ``gtp_*`` 는 와이어에서 항상 거부된다 -- taint 경계에서 선제 제외해
+#: 깊은 라이브러리 에러 대신 명확한 사유로 막는다(docs/mcp.md 의 "gtp_* 제외"와 일치).
+_MCP_EXCLUDED_DIVISIONS = frozenset(("gtp_limit", "gtp_immediate_limit", "gtp_priority_limit"))
+
 #: 국내 주문구분(최유리지정가 immediate_limit 등). taint 경계에서 하드코딩 choices 대신 라이브러리
-#: Literal 에서 파생한다(동기화 드리프트 방지). None 은 기본(지정/시장가).
-_DIVISIONS = frozenset(get_args(DomesticDivision))
+#: Literal 에서 파생한다(동기화 드리프트 방지). None 은 기본(지정/시장가). NXT 전용 gtp_* 는 제외.
+_DIVISIONS = frozenset(get_args(DomesticDivision)) - _MCP_EXCLUDED_DIVISIONS
 
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
 _REAL_CONFIRM_PHRASE = "i-understand-real-money"
@@ -152,6 +157,11 @@ def make_stock_order_plan(
     if limit_price is not None and not isinstance(limit_price, (str, int)):
         raise KISUsageError(f"limit_price 는 문자열/정수 스칼라여야 한다: {limit_price!r}")
     if division is not None and division not in _DIVISIONS:
+        if division in _MCP_EXCLUDED_DIVISIONS:
+            raise KISUsageError(
+                f"division={division!r} 은 NXT 프리마켓(GTP) 전용이라 MCP 실주문에서 지원하지 않는다"
+                " -- MCP 는 종목 기본 거래소(KRX)로만 보낸다. 라이브러리 API 를 직접 쓰라."
+            )
         raise KISUsageError(f"division 은 {sorted(_DIVISIONS)} 중 하나여야 한다: {division!r}")
     order_type: Literal["market", "limit"] = "limit" if limit_price is not None else "market"
     normalized_price = str(limit_price) if limit_price is not None else None
