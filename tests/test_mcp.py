@@ -121,6 +121,23 @@ def test_ranking_handler():
     assert [r["symbol"] for r in out] == ["005930", "000660"]
 
 
+@pytest.mark.parametrize("bad", [-1, 0, True, "2"])
+@pytest.mark.parametrize("fn", ["search", "ranking_change", "positions", "open_orders"])
+def test_list_handlers_reject_bad_limit(fn, bad):
+    # limit 검증은 API 호출 전에 돈다 -- bool(int 서브클래스)·비int·1 미만은 조용히 오답(음수는
+    # [:limit] 가 마지막 행만 빼고 반환)하지 않고 KISUsageError 로 거부한다.
+    from kis_trader.errors import KISUsageError
+    kis = _fake_kis(hits=[], ranking=[])
+    call = {
+        "search": lambda: handlers.search(kis, "x", limit=bad),
+        "ranking_change": lambda: handlers.ranking_change(kis, direction="gainers", limit=bad),
+        "positions": lambda: handlers.positions(kis, limit=bad),
+        "open_orders": lambda: handlers.open_orders(kis, limit=bad),
+    }[fn]
+    with pytest.raises(KISUsageError):
+        call()
+
+
 def test_order_preview_not_sent_and_masks_account():
     kis = _fake_kis(environment="real", account="12345678-01")
     out = handlers.order_preview(kis, symbol="005930", side="buy", quantity=10, limit_price="70000")

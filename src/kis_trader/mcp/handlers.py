@@ -81,8 +81,16 @@ def quote(kis: KISClient, symbol: str, *, region: str = "domestic") -> dict[str,
     return out
 
 
+def _require_positive_limit(limit: int) -> None:
+    """리스트 핸들러의 행 상한 검증 -- bool(int 서브클래스)·비int·1 미만을 거부한다. 음수 limit 은
+    ``[:limit]`` 에서 마지막 행만 빼고 돌려주는(에러 아닌 오답) 함정이라 fail-closed 로 막는다."""
+    if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
+        raise KISUsageError(f"limit 은 1 이상의 정수여야 한다: {limit!r}")
+
+
 def search(kis: KISClient, query: str, *, limit: int = 20) -> list[dict[str, Any]]:
     """이름/질의로 국내 종목 후보를 찾는다(코드 추측 금지 -- 실제 코드는 여기서만 온다)."""
+    _require_positive_limit(limit)
     hits = kis.domestic.search_stocks(query)
     out: list[dict[str, Any]] = [_serialize(h) for h in list(hits)[:limit]]
     return out
@@ -92,6 +100,7 @@ def ranking_change(kis: KISClient, *, direction: str = "gainers", limit: int = 1
     """국내 등락률 순위. ``direction="gainers"`` 상승 / ``"losers"`` 하락."""
     if direction not in ("gainers", "losers"):
         raise KISUsageError(f"direction 은 'gainers'/'losers' 만 (받은 값: {direction!r}).")
+    _require_positive_limit(limit)
     rows = kis.domestic.ranking.by_change(direction=cast(Direction, direction))
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
@@ -105,6 +114,7 @@ def balance(kis: KISClient) -> dict[str, Any]:
 
 def positions(kis: KISClient, *, limit: int = 100) -> list[dict[str, Any]]:
     """보유 종목(국내 주식 계좌)."""
+    _require_positive_limit(limit)
     rows = _stock_account(kis).domestic.positions()
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
@@ -112,6 +122,7 @@ def positions(kis: KISClient, *, limit: int = 100) -> list[dict[str, Any]]:
 
 def open_orders(kis: KISClient, *, limit: int = 100) -> list[dict[str, Any]]:
     """미체결(정정/취소 가능) 주문(국내 주식 계좌)."""
+    _require_positive_limit(limit)
     rows = _stock_account(kis).domestic.open_orders()
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out

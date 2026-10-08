@@ -289,12 +289,13 @@ def build_server(
 
     @server.tool()
     async def place_order(
-        ctx: Context, region: Literal["domestic", "overseas"], symbol: str, side: Side, quantity: int,
+        ctx: Context, region: Literal["domestic"] = "domestic", *, symbol: str, side: Side, quantity: int,
         limit_price: str | None = None, division: DomesticDivision | None = None,
     ) -> dict[str, Any]:
         """국내 주식 실주문(매수/매도). 모의 기본. 실전은 이중게이트+RiskLimits+allowlist+사람확인을 전부
-        통과해야 전송. region='domestic'(해외는 아직 미지원). ``division`` 은 주문구분(예: 최유리지정가
-        ``immediate_limit``). 파라미터는 사람이 직접 준다(읽기결과 금지)."""
+        통과해야 전송. 국내만 지원하므로 ``region`` 은 ``'domestic'`` 고정이다(스키마=에이전트 계약이라
+        해외 값을 광고하지 않는다; make_stock_order_plan 이 런타임에서도 해외를 거부한다 -- 이중 방어).
+        ``division`` 은 주문구분(예: 최유리지정가 ``immediate_limit``). 파라미터는 사람이 직접 준다(읽기결과 금지)."""
         return await run_place_order(kis, gate, allowlist, breaker, ctx, region=region, symbol=symbol,
                                      side=side, quantity=quantity, limit_price=limit_price, division=division)
 
