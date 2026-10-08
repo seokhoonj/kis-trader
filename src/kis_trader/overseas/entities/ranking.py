@@ -35,7 +35,7 @@ class OverseasRankedStock:
     change: Decimal                   # 전일대비(부호 포함)
     change_percent: Decimal           # 전일대비율(부호 포함)
     volume: int                       # 거래량(tvol)
-    trading_amount: Decimal           # 거래대금(tamt)
+    trading_amount: Decimal | None    # 거래대금(tamt); 일부 행은 비어 올 수 있어 None
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

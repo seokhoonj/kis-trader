@@ -20,6 +20,7 @@ from ..._internal._response import (
 )
 from ..._internal._wire import (
     _apply_change_sign,
+    optional_decimal,
     required_decimal,
     required_int,
 )
@@ -66,7 +67,7 @@ def _parse_ranking(
                 change=_apply_change_sign(required_decimal(row.get("diff"), "diff"), sign),
                 change_percent=_apply_change_sign(required_decimal(row.get("rate"), "rate"), sign),
                 volume=required_int(row.get("tvol"), "tvol"),
-                trading_amount=required_decimal(row.get("tamt"), "tamt"),
+                trading_amount=optional_decimal(row.get("tamt"), "tamt"),
                 _raw=row,
             )
         )

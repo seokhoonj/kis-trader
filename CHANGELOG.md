@@ -58,6 +58,9 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   serializes `region`.
 - `RankedOverseasStock` renamed to `OverseasRankedStock` — the sole overseas result type
   that did not lead with the `Overseas` qualifier its ~40 siblings share.
+- `OverseasRankedStock.trading_amount` is now `Decimal | None` (was `Decimal`). The overseas
+  ranking endpoint can return a blank `tamt` for a ranked row, which previously raised and broke
+  the whole query; it is now read tolerantly (empty → `None`).
 - The overseas realtime entities that the `Overseas*` sweep had missed are renamed to match
   their siblings (and the `OverseasDerivativeHandle` the 0.5.0 handle rename produced): the
   해외선물옵션 feed types `FuturesTradeTick` / `FuturesOrderBook` / `FuturesOrderNotice` /
