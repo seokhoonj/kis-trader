@@ -36,7 +36,7 @@ from .domestic.bond_account import DomesticBondAccount
 from .domestic.calendar import CalendarQueries
 from .domestic.derivative import FuturesContract, OptionContract
 from .domestic.derivative_account import DomesticDerivativesAccount
-from .domestic.elw import ELW
+from .domestic.elw import ELW, IndicatorInterval, SensitivityInterval, TrendInterval
 from .domestic.elw_ranking import (
     ChangeSort,
     ELWRankingQueries,
@@ -281,10 +281,13 @@ from .execution import (
 )
 from .instrument import (
     DomesticListing,
+    DomesticListingIndex,
     DomesticMarket,
     DomesticMarketFilter,
+    FuturesBoardMarket,
     InstrumentRecord,
     MasterIndex,
+    SecurityType,
 )
 from .integrated import Balance, CurrencyDeposit
 from .money import Money
@@ -480,6 +483,7 @@ __all__ = [
     "DomesticDivision",
     "DomesticIndex",
     "DomesticListing",
+    "DomesticListingIndex",
     "DomesticMarket",
     "DomesticMarketFilter",
     "DomesticOpenOrder",
@@ -529,6 +533,7 @@ __all__ = [
     "ForeignBrokerSort",
     "ForeignNetBuyPoint",
     "ForfeitedShares",
+    "FuturesBoardMarket",
     "FuturesBoardQuote",
     "FuturesContract",
     "FuturesMarketSchedule",
@@ -538,6 +543,7 @@ __all__ = [
     "IndexCategories",
     "IndexIntradayPoint",
     "IndexQuote",
+    "IndicatorInterval",
     "IndicatorSort",
     "InstrumentRecord",
     "IntegratedMargin",
@@ -670,7 +676,9 @@ __all__ = [
     "RiskLimits",
     "SavedScreen",
     "SavedScreenStock",
+    "SecurityType",
     "SellableQuantity",
+    "SensitivityInterval",
     "SensitivitySort",
     "ShareholderMeeting",
     "ShortSalePoint",
@@ -697,6 +705,7 @@ __all__ = [
     "TradeSide",
     "TradingDay",
     "Transport",
+    "TrendInterval",
     "UnderlyingQuote",
     "UnderlyingSort",
     "VIEvent",

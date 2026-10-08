@@ -43,6 +43,18 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   destination; a `DomesticStock` handle translates `UN` to `SOR` when it builds an order,
   and constructing an order with `exchange="UN"` is rejected. `KRX` is the regular
   exchange, `NXT` the alternative exchange (ATS).
+
+  Migrating a direct `Order(...)` (or `Order.limit/market/stop/stop_limit`): 0.4.0 took a MIC
+  `exchange=` (default `"XKRX"`) plus a `board=` field/kwarg, both removed in 0.5.0. Map them to
+  the three new fields `region` / `asset_class` / `exchange`:
+  - `exchange="XKRX"`/`"XKOS"`/`"NXTE"` + `board="KRX"`/`"NXT"`/`"UN"` → `region="domestic"`,
+    `asset_class="stock"`, `exchange="KRX"`/`"NXT"`/`"SOR"` (`board="UN"` → `exchange="SOR"`);
+  - `exchange="XKFE"` → `region="domestic"`, `asset_class="derivative"`;
+  - `exchange="BOND"` → `region="domestic"`, `asset_class="bond"`;
+  - `exchange="OSFO"` → `region="overseas"`, `asset_class="derivative"` (these three keep
+    `exchange` at its `"KRX"` default); overseas-stock codes keep `exchange` with
+    `region="overseas"`, `asset_class="stock"`.
+  The `Order.board` field and the `board=` constructor parameter are removed.
 - `DomesticStock.market` → `DomesticStock.exchange`; `StockStatus.market` →
   `StockStatus.exchange`.
 - `resolve_market()` → `resolve_domestic_quote_exchange()`.
@@ -95,7 +107,7 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `code`. Previously only stocks, bonds, and overseas-derivative entities used `symbol`
   while domestic-derivative and ELW used `code` and the overseas-derivative factory used
   `series_code`. Now renamed to `symbol`: the domestic-derivative entities
-  (`DerivativeQuote`, `ExpectedExecutionTrend`, `FuturesBoardQuote`, `OptionBoardRow`) and
+  (`DomesticDerivativeQuote`, `ExpectedExecutionTrend`, `FuturesBoardQuote`, `OptionBoardRow`) and
   the ELW entities (`ELWQuote`, `ELWSensitivityPoint`, `ELWVolatilityPoint`,
   `ELWIndicatorPoint`, `ELWLPFlow`) `.code` → `.symbol`; the futures/option/elw contract
   handles' attribute and constructor; and the `code`/`series_code` parameter of every
@@ -180,7 +192,8 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   distinctions the booleans discarded are preserved; a prior `if notice.executed:` becomes
   `if notice.fill_status == "2":`.
 
-- `Index.daily_history()` renamed to `Index.recent_prices()`, with its result types
+- `Index.daily_history()` renamed to `DomesticIndex.recent_prices()` (the handle itself is renamed
+  `Index` → `DomesticIndex`, see above), with its result types
   `IndexDailyHistory` → `RecentIndexPrices` and `IndexDailyPoint` → `RecentIndexPoint`. The
   method takes `interval` 1d/1wk/1mo (not only daily) and returns a snapshot plus the index's
   recent day/week/month values (level, OHLC, change, volume) with the sentiment and
@@ -357,8 +370,9 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   qualifier convention. `kis.domestic.ranking` and behavior are unchanged.
 - Eight pure calendar-day fields that were typed `datetime` (a KST-aware midnight) are now
   `date`, matching the ~90 other `*_date` fields and fixing a silent `datetime == date -> False`
-  mismatch in set/dedup/join keys: `StockProfile.listing_date`, the ELW listing/last-trade dates,
-  and the overseas-derivative quote/detail listing/expiry/last-trade dates. The two local
+  mismatch in set/dedup/join keys: `StockProfile.listing_date`; `ELWListing.listing_date` /
+  `.last_trade_date`; `OverseasDerivativeQuote.expiry_date` / `.last_trade_date`; and
+  `OverseasDerivativeDetail.listing_date` / `.expiry_date` / `.last_trade_date`. The two local
   datetime-returning `_optional_date` parser copies are removed in favor of the shared fail-closed
   `parse_optional_kst_date` (empty / "00000000" sentinel -> None). Wire keys unchanged.
 - `TradingDay.date` is now `date` (was `datetime`, a fabricated KST-aware midnight) -- the same
@@ -404,9 +418,11 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   (`DomesticMarketFilter`, `DomesticMarket`, `CreditMarketFilter`, `CreditSort`, `ForeignBrokerSort`,
   `InvestorType`, `NetBuyBasis`, `BrokerOpinionFilter`), the overseas-balance filters
   (`BalanceInquiry`, `BalanceNation`), the derivative Literals (`DerivativeMarket`,
-  `DerivativeProduct`, `DerivativeProductFilter`, `NightMarginDivision`), and the derivative division
-  (`DerivativeDivision`). `Right` and `Session` stay off the root (name collisions) and are
-  reachable via `kis_trader.order`.
+  `DerivativeProduct`, `DerivativeProductFilter`, `NightMarginDivision`), the derivative division
+  (`DerivativeDivision`), the futures-board filter (`FuturesBoardMarket`), the ELW trend intervals
+  (`TrendInterval`, `SensitivityInterval`, `IndicatorInterval`), and the instrument types
+  (`SecurityType`, `DomesticListingIndex`). `Right` and `Session` stay off the root (name
+  collisions) and are reachable via `kis_trader.order`.
 
 ### Removed
 

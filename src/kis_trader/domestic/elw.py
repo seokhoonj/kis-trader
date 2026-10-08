@@ -13,10 +13,16 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ._engine import elw as elw_api
+from ._engine.elw import (  # 공개 시그니처 어휘 재수출
+    IndicatorInterval,
+    SensitivityInterval,
+    TrendInterval,
+)
+
+__all__ = ["ELW", "IndicatorInterval", "SensitivityInterval", "TrendInterval"]
 
 if TYPE_CHECKING:
     from ..client import KISClient
-    from ._engine.elw import IndicatorInterval, SensitivityInterval, TrendInterval
     from .entities.elw import (
         ELWIndicatorPoint,
         ELWLPFlow,
