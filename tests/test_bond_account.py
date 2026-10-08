@@ -233,7 +233,7 @@ def test_open_orders_parses_and_routes():
     assert order.order_id == "0000000123"
     assert order.symbol == "KR2033022D33"
     assert order.name == "국민주택1종"
-    assert order.revise_cancel_type == "정정"
+    assert order.revise_cancel_type_name == "정정"
     assert order.order_quantity == Decimal(1000)
     assert order.order_price == Decimal(9850)
     assert order.order_time == time(13, 14, 38)
@@ -242,7 +242,7 @@ def test_open_orders_parses_and_routes():
     assert order.cancelable_quantity == Decimal(1000)
     assert order.original_order_id == "0000000100"
     assert order.side == "buy"
-    assert order.order_division == "00"
+    assert order.order_type_code == "00"
     call = fake.calls[0]
     assert call["path"] == _OPEN_ORDERS_PATH
     assert call["tr_id"] == "CTSC8035R"

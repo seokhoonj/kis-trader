@@ -628,7 +628,7 @@ def _parse_bond_open_orders(rows: list[Mapping[str, Any]]) -> list[BondOpenOrder
                 order_id=order_id,
                 symbol=str(row.get("pdno", "")).strip(),
                 name=str(row.get("prdt_abrv_name", "")).strip(),
-                revise_cancel_type=str(row.get("rvse_cncl_dvsn_name", "")).strip(),
+                revise_cancel_type_name=str(row.get("rvse_cncl_dvsn_name", "")).strip(),
                 order_quantity=field_decimal_or_zero(row.get("ord_qty"), "ord_qty"),
                 order_price=field_decimal_or_zero(row.get("bond_ord_unpr"), "bond_ord_unpr"),
                 order_time=_parse_bond_time(row.get("ord_tmd")),
@@ -637,7 +637,7 @@ def _parse_bond_open_orders(rows: list[Mapping[str, Any]]) -> list[BondOpenOrder
                 cancelable_quantity=field_decimal_or_zero(row.get("ord_psbl_qty"), "ord_psbl_qty"),
                 original_order_id=str(row.get("orgn_odno", "")).strip(),
                 side=_side_from_code(row.get("sll_buy_dvsn_cd")),
-                order_division=str(row.get("ord_dvsn_cd", "")).strip(),
+                order_type_code=str(row.get("ord_dvsn_cd", "")).strip(),
                 _raw=row,
             )
         )

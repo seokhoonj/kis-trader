@@ -98,7 +98,9 @@ def _parse_hhmmss(value: object) -> time | None:
     :func:`_parse_kst_time` 를 써라 -- 그쪽은 형식오류면 :class:`~kis_trader.errors.KISError` 로
     fail-closed 한다. 두 함수의 계약이 반대이므로 용도에 맞게 고른다."""
     text = str(value or "").strip()
-    if len(text) != 6 or not text.isdigit():
+    # isascii 로 유니코드 숫자(예 전각 "１３１４３８")를 배제 -- 날짜 파서 형제(_parse_optional_date)와
+    # 같은 집안 계약. isdigit()/int() 는 전각 숫자도 통과시켜 엉뚱한 시각이 조용히 들어올 수 있다.
+    if len(text) != 6 or not text.isascii() or not text.isdigit():
         return None
     hour, minute, second = int(text[0:2]), int(text[2:4]), int(text[4:6])
     if hour > 23 or minute > 59 or second > 59:

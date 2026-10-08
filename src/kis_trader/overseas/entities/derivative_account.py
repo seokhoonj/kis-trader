@@ -210,7 +210,7 @@ class OverseasDerivativeDailyOrder:
     가격·금액은 각 계약 통화 기준, 수량은 계약수. ``receipt_date`` 주문접수일자(dt) --
     형식오류/공백이면 None. ``order_date`` 주문일자(ord_dt) -- 형식오류/공백이면 None,
     ``order_id`` 주문번호(odno), ``original_order_id`` 원주문번호(orgn_odno), ``symbol``
-    해외선물FX상품번호, ``revise_cancel_type`` 정정취소구분코드(rvse_cncl_dvsn_cd 원본 문자열),
+    해외선물FX상품번호, ``revise_cancel_type_code`` 정정취소구분코드(rvse_cncl_dvsn_cd 원본 문자열),
     ``side`` 매수/매도, ``order_quantity`` 주문수량, ``order_price`` 주문가격, ``filled_quantity``
     체결수량, ``filled_price`` 체결가격, ``remaining_quantity`` 주문잔량, ``reject_reason``
     거부사유명(rjct_rson_name 원본 문자열), ``trade_end_date`` 거래종료일자(trad_end_dt) --
@@ -222,7 +222,7 @@ class OverseasDerivativeDailyOrder:
     order_id: str                     # 주문번호(odno)
     original_order_id: str            # 원주문번호(orgn_odno)
     symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
-    revise_cancel_type: str           # 정정취소구분코드(rvse_cncl_dvsn_cd)
+    revise_cancel_type_code: str      # 정정취소구분코드(rvse_cncl_dvsn_cd)
     side: Side                        # buy / sell (sll_buy_dvsn_cd: 01 매도 / 02 매수)
     order_quantity: Decimal           # 주문수량(fm_ord_qty)
     order_price: Decimal              # 주문가격(fm_ord_pric)

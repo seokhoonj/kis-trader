@@ -55,7 +55,7 @@ def test_pension_deposit_parses():
     dep = _client(FakeTransport(response=_resp(_DEPOSIT_OUT))).account.pension.deposit()
     assert isinstance(dep, PensionDeposit)
     assert dep.total_deposit == Decimal(57622382)
-    assert dep.next_day_estimated_settlement_amount == Decimal(11054042)
+    assert dep.settlement_cash_d1 == Decimal(11054042)
     assert dep.next_day_settlement_amount == Decimal(0)
     assert dep.second_day_settlement_amount == Decimal(0)
 

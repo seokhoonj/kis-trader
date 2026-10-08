@@ -99,7 +99,7 @@ def search_stocks(
     market_cap: tuple[object, object] | None = None,
     shares: tuple[object, object] | None = None,
     volume: tuple[object, object] | None = None,
-    amount: tuple[object, object] | None = None,
+    trading_amount: tuple[object, object] | None = None,
     eps: tuple[object, object] | None = None,
     per: tuple[object, object] | None = None,
 ) -> OverseasStockSearch:
@@ -108,7 +108,7 @@ def search_stocks(
         raise KISUsageError("exchange 가 필요하다.")
     params = {"AUTH": "", "EXCD": exchange.strip(), "KEYB": ""}
     for name, value in (("PRICECUR", price), ("RATE", change_percent), ("VALX", market_cap),
-                        ("SHAR", shares), ("VOLUME", volume), ("AMT", amount),
+                        ("SHAR", shares), ("VOLUME", volume), ("AMT", trading_amount),
                         ("EPS", eps), ("PER", per)):
         params.update(_range_params(name, value))
     # KIS 조건검색(HHDFS76410000)은 다음조회를 지원하지 않는다(KEYB 공백 고정, 최대 100건 단일 응답).

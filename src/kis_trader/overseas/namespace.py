@@ -335,7 +335,7 @@ class OverseasNamespace:
         market_cap: tuple[Numeric, Numeric] | None = None,
         shares: tuple[Numeric, Numeric] | None = None,
         volume: tuple[Numeric, Numeric] | None = None,
-        amount: tuple[Numeric, Numeric] | None = None,
+        trading_amount: tuple[Numeric, Numeric] | None = None,
         eps: tuple[Numeric, Numeric] | None = None,
         per: tuple[Numeric, Numeric] | None = None,
     ) -> OverseasStockSearch:
@@ -349,12 +349,12 @@ class OverseasNamespace:
         (가격은 각 ``match`` 에 이미 파싱된 ``Decimal`` 로 들어 있다)."""
         filters = {
             "price": price, "change_percent": change_percent, "market_cap": market_cap,
-            "shares": shares, "volume": volume, "amount": amount, "eps": eps, "per": per,
+            "shares": shares, "volume": volume, "trading_amount": trading_amount, "eps": eps, "per": per,
         }
         if exchange.upper() == "US":
             parts = [
-                overseas_market_data_api.search_stocks(self._client.transport, exchange=x, **filters)
-                for x in _US_EXCHANGES
+                overseas_market_data_api.search_stocks(self._client.transport, exchange=exchange_code, **filters)
+                for exchange_code in _US_EXCHANGES
             ]
             # 집계는 거래소별 메타(decimal_places=price zdiv, status)를 하나로 못 합친다 -- 각
             # match 는 자기 exchange 와 이미 파싱된 Decimal 가격을 들고 있으니, 대표값으로 첫

@@ -52,7 +52,7 @@ def fetch_deposit(
     output = _request_output(transport, path=_DEPOSIT_PATH, tr_id=_DEPOSIT_TR, params=params, label="예수금")
     return PensionDeposit(
         total_deposit=_decimal_or_zero(output, "dnca_tota"),
-        next_day_estimated_settlement_amount=_decimal_or_zero(output, "nxdy_excc_amt"),
+        settlement_cash_d1=_decimal_or_zero(output, "nxdy_excc_amt"),
         next_day_settlement_amount=_decimal_or_zero(output, "nxdy_sttl_amt"),
         second_day_settlement_amount=_decimal_or_zero(output, "nx2_day_sttl_amt"),
         _raw=output,
@@ -99,8 +99,8 @@ def fetch_balance(
         positions=tuple(_parse_position(row, sellable_key="ord_psbl_qty", pnl_rate_key="evlu_erng_rt")
                         for row in rows if str(row.get("pdno", "")).strip()),
         total_deposit=_decimal_or_zero(summary, "dnca_tot_amt"),
-        next_day_estimated_settlement_amount=_decimal_or_zero(summary, "nxdy_excc_amt"),
-        prior_settlement=_decimal_or_zero(summary, "prvs_rcdl_excc_amt"),
+        settlement_cash_d1=_decimal_or_zero(summary, "nxdy_excc_amt"),
+        settlement_cash_d2=_decimal_or_zero(summary, "prvs_rcdl_excc_amt"),
         securities_evaluation=_decimal_or_zero(summary, "scts_evlu_amt"),
         total_evaluation=_decimal_or_zero(summary, "tot_evlu_amt"),
         today_buy_amount=_decimal_or_zero(summary, "thdt_buy_amt"),

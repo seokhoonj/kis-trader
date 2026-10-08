@@ -272,11 +272,25 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `trade_type_name` on `RealizedProfitPosition`, `DomesticDerivativeSettlementPosition`,
   `TradeProfit`, and `OverseasAlgoOrder`; `IntegratedMargin.integrated_margin_type` →
   `integrated_margin_type_name`; and `transaction_type` → `transaction_type_name` on
-  `DomesticDerivativeFill` and `OverseasDerivativeTransaction`.
+  `DomesticDerivativeFill` and `OverseasDerivativeTransaction`. The bond-account
+  `BondAccountOrder.revise_cancel_type` → `revise_cancel_type_name` (`rvse_cncl_dvsn_name`, a
+  display string) while the overseas twin that holds the raw CODE is renamed
+  `OverseasDerivativeDailyOrder.revise_cancel_type` → `revise_cancel_type_code` (so one identifier
+  no longer means a name on one side and a code on the other); and `BondAccountOrder.order_division`
+  → `order_type_code` (`ord_dvsn_cd`), pairing with the same file's `BondFill.order_type_name`.
 - The two bare `date` fields on the overseas derivative account are renamed to the concept
   each carries (both from the `dt` key): `OverseasDerivativeFill.date` → `fill_date` (체결일자)
   and `OverseasDerivativeDailyOrder.date` → `receipt_date` (주문접수일자), so they no longer
   collide with the `order_date` (`ord_dt`) that sits beside them.
+- Two pension settlement fields are renamed to match their `DomesticBalance` twins (identical
+  wire keys): `next_day_estimated_settlement_amount` → `settlement_cash_d1` (`nxdy_excc_amt`) and
+  `prior_settlement` → `settlement_cash_d2` (`prvs_rcdl_excc_amt`), so 정산(excc) cash no longer
+  reads differently across modules or collides with the pension 결제(sttl) `*_settlement_amount`
+  fields. The overseas search filter parameter `search_stocks(amount=...)` → `trading_amount=...`,
+  matching its own result field `OverseasStockSearchMatch.trading_amount`.
+- `OverseasDerivative.bars(...)` takes `interval` as the first positional argument (default
+  `"1d"`) with `exchange` kept required keyword-only, matching every sibling `bars()` — previously
+  `interval` was keyword-only, so `bars("1d", exchange=...)` raised `TypeError`.
 - `option_board_futures(market_class="")` now reaches the KOSPI200 main board (a blank
   `FID_COND_MRKT_CLS_CODE` returns the A01xxx KOSPI200 monthly contracts with no MKI/KQI
   board rows). The engine previously rejected a blank

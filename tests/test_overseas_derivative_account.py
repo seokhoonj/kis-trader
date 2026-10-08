@@ -757,7 +757,7 @@ def test_daily_orders_parses_and_routes():
     assert orders[0].order_id == "0001"                       # odno
     assert orders[0].original_order_id == "0000"              # orgn_odno
     assert orders[0].symbol == "6BZ22"                        # ovrs_futr_fx_pdno
-    assert orders[0].revise_cancel_type == "00"              # rvse_cncl_dvsn_cd
+    assert orders[0].revise_cancel_type_code == "00"              # rvse_cncl_dvsn_cd
     assert orders[0].side == "buy"                             # sll_buy_dvsn_cd 02 -> buy
     assert orders[0].order_quantity == Decimal(2)             # fm_ord_qty
     assert orders[0].order_price == Decimal("1.2650")         # fm_ord_pric

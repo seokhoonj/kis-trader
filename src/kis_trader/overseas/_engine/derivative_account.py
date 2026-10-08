@@ -336,7 +336,7 @@ def _parse_daily_orders(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativ
                 order_id=order_id,
                 original_order_id=str(row.get("orgn_odno", "")).strip(),
                 symbol=str(row.get("ovrs_futr_fx_pdno", "")).strip(),
-                revise_cancel_type=str(row.get("rvse_cncl_dvsn_cd", "")).strip(),
+                revise_cancel_type_code=str(row.get("rvse_cncl_dvsn_cd", "")).strip(),
                 side=_side_from_code(row.get("sll_buy_dvsn_cd")),
                 order_quantity=field_decimal_or_zero(row.get("fm_ord_qty"), "fm_ord_qty"),
                 order_price=field_decimal_or_zero(row.get("fm_ord_pric"), "fm_ord_pric"),

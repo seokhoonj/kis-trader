@@ -78,14 +78,14 @@ class BondOpenOrder:
     """정정·취소 가능한 장내채권 미체결 주문 한 건(불변).
 
     브로커 측 뷰라 우리 ``client_order_id`` 는 없다 -- 정정/취소는 ``order_id`` 로 지목한다.
-    ``revise_cancel_type`` 정정취소구분명, ``cancelable_quantity`` 정정·취소 가능 수량,
+    ``revise_cancel_type_name`` 정정취소구분명, ``cancelable_quantity`` 정정·취소 가능 수량,
     ``original_order_id`` 원주문번호(정정·취소 주문이면 원주문). ``side`` 는 매수/매도.
     """
 
     order_id: str                     # 주문번호(odno)
     symbol: str                       # 상품번호(pdno)
     name: str                         # 상품약어명(prdt_abrv_name)
-    revise_cancel_type: str           # 정정취소구분명(rvse_cncl_dvsn_name)
+    revise_cancel_type_name: str      # 정정취소구분명(rvse_cncl_dvsn_name)
     order_quantity: Decimal           # 주문수량(ord_qty)
     order_price: Decimal              # 채권주문단가(bond_ord_unpr)
     order_time: time | None           # 주문시각(ord_tmd)
@@ -94,7 +94,7 @@ class BondOpenOrder:
     cancelable_quantity: Decimal      # 주문가능수량(ord_psbl_qty)
     original_order_id: str            # 원주문번호(orgn_odno)
     side: Side                        # 매도매수구분(sll_buy_dvsn_cd)
-    order_division: str               # 주문구분코드(ord_dvsn_cd)
+    order_type_code: str              # 주문구분코드(ord_dvsn_cd)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

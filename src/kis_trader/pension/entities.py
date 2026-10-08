@@ -22,12 +22,12 @@ from ..order import Side
 class PensionDeposit:
     """퇴직연금 예수금 요약(불변).
 
-    ``total_deposit`` 예수금총액, ``next_day_estimated_settlement_amount`` 익일정산액, ``next_day_settlement_amount``
+    ``total_deposit`` 예수금총액, ``settlement_cash_d1`` 익일정산액, ``next_day_settlement_amount``
     익일결제금액, ``second_day_settlement_amount`` 2익일결제금액.
     """
 
     total_deposit: Decimal                         # 예수금총액(dnca_tota)
-    next_day_estimated_settlement_amount: Decimal  # 익일정산액(nxdy_excc_amt)
+    settlement_cash_d1: Decimal  # D+1 정산예정 현금(nxdy_excc_amt)
     next_day_settlement_amount: Decimal            # 익일결제금액(nxdy_sttl_amt)
     second_day_settlement_amount: Decimal          # 2익일결제금액(nx2_day_sttl_amt)
     _raw: Mapping[str, Any] = field(
@@ -43,14 +43,14 @@ class PensionBalance:
     """퇴직연금 잔고(불변) -- 보유종목과 예수금 기준 계좌 요약을 한 스냅샷으로.
 
     ``positions`` 보유종목(:class:`~kis_trader.domestic.entities.balance.DomesticPosition` 재사용), ``total_deposit`` 예수금총액,
-    ``next_day_estimated_settlement_amount`` 익일정산액, ``prior_settlement`` 가수도정산금액, ``securities_evaluation``
+    ``settlement_cash_d1`` 익일정산액, ``settlement_cash_d2`` 가수도정산금액, ``securities_evaluation``
     유가평가금액, ``total_evaluation`` 총평가금액, ``today_buy_amount``/``today_sell_amount`` 당일 매수/매도금액.
     """
 
     positions: tuple[DomesticPosition, ...]
     total_deposit: Decimal                         # 예수금총액(dnca_tot_amt)
-    next_day_estimated_settlement_amount: Decimal  # 익일정산액(nxdy_excc_amt)
-    prior_settlement: Decimal                      # 가수도정산금액(prvs_rcdl_excc_amt)
+    settlement_cash_d1: Decimal  # D+1 정산예정 현금(nxdy_excc_amt)
+    settlement_cash_d2: Decimal                    # D+2 정산예정 현금(prvs_rcdl_excc_amt)
     securities_evaluation: Decimal                 # 유가평가금액(scts_evlu_amt)
     total_evaluation: Decimal                      # 총평가금액(tot_evlu_amt)
     today_buy_amount: Decimal                      # 당일매수금액(thdt_buy_amt)
