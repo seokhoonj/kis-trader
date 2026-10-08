@@ -262,26 +262,39 @@ class OrderEngine:
             builder = overseas_deriv_orders_engine.make_change_request
         # 정정(modify)도 발주(place)와 같은 사전 리스크 게이트를 통과한다 -- 정정은 수량을 늘리거나
         # 가격을 밴드 밖으로 옮겨 익스포저를 키울 수 있어서다. 취소(cancel)는 익스포저를 줄이므로
-        # 게이트하지 않는다(위험한 주문을 못 지우면 오히려 위험). risk 는 국내 주식만 지원하고
-        # (해외·파생·채권 정정은 발주 때 이미 risk 세션이 거부됨), 그 경로는 builder 가 None 이다.
-        if self._risk is not None and action == "modify" and builder is None \
+        # 게이트하지 않는다(위험한 주문을 못 지우면 오히려 위험). risk 세션은 국내주식(전 한도)과
+        # 국내파생(max_order_quantity 만, allowlist)을 지원한다 -- 두 lane 다 정정에서 수량을 키울 수
+        # 있으므로 게이트한다. 해외·채권은 place 때 risk 세션 자체가 거부돼 이 경로에 도달하지 않는다.
+        if self._risk is not None and action == "modify" \
                 and isinstance(fingerprint, ImmediateOrderFingerprint):
+            lane = (fingerprint.region, fingerprint.asset_class)
             effective_price = (
                 change_limit_price if change_limit_price is not None
                 else (coerce_decimal(fingerprint.limit_price, "limit_price")
                       if fingerprint.limit_price else None)
             )
-            # risk.check 는 symbol/quantity/limit_price/stop_price 와 region/asset_class(tick 게이트)를
-            # 읽는다 -- 이 경로는 국내주식 정정만 도달하므로 Order 기본 lane(domestic/stock)이 의도값이다.
-            # 나머지 필드는 기본값.
-            risk_probe = Order(
-                symbol=fingerprint.symbol, side=fingerprint.side,
-                order_type=fingerprint.order_type, quantity=change_quantity,
-                limit_price=effective_price,
-                stop_price=(coerce_decimal(fingerprint.stop_price, "stop_price")
-                            if fingerprint.stop_price and fingerprint.stop_price != "0" else None),
-            )
-            orders_engine.run_pre_trade_risk(self._transport, risk_probe, self._risk)
+            if lane == ("domestic", "stock"):
+                # risk.check 는 symbol/quantity/limit_price/stop_price 와 region/asset_class(tick 게이트)를
+                # 읽는다. 국내주식 lane 이 의도값(Order 기본값).
+                risk_probe = Order(
+                    symbol=fingerprint.symbol, side=fingerprint.side,
+                    order_type=fingerprint.order_type, quantity=change_quantity,
+                    limit_price=effective_price,
+                    stop_price=(coerce_decimal(fingerprint.stop_price, "stop_price")
+                                if fingerprint.stop_price and fingerprint.stop_price != "0" else None),
+                )
+                orders_engine.run_pre_trade_risk(self._transport, risk_probe, self._risk)
+            elif lane == ("domestic", "derivative"):
+                # 파생은 max_order_quantity 만 지원(place 와 동일 allowlist) -- 나머지 한도가 켜져 있으면
+                # fail-closed 로 거부한다. reject 뒤엔 참조가가 필요한 한도가 없어(needs_reference_price
+                # False) 국내주식 시세를 조회하지 않고 수량 캡만 본다. modify 가 캡을 우회하지 못하게.
+                _reject_unsupported_derivative_risk(self._risk)
+                risk_probe = Order(
+                    symbol=fingerprint.symbol, side=fingerprint.side,
+                    order_type=fingerprint.order_type, quantity=change_quantity,
+                    limit_price=effective_price, region="domestic", asset_class="derivative",
+                )
+                orders_engine.run_pre_trade_risk(self._transport, risk_probe, self._risk)
         # 지역 중립 코어는 와이어 빌더 필수 -- 국내주식 정정취소 lane(builder 미설정)은 여기서 명시적으로
         # 국내 빌더를 넘긴다(코어에 국내 기본값을 두지 않는다).
         if builder is None:

@@ -56,7 +56,7 @@ class OverseasDerivative:
         )
 
     def bars(
-        self, *, exchange: str, interval: Interval = "1d", max_bars: int = 40
+        self, interval: Interval = "1d", *, exchange: str, max_bars: int = 40
     ) -> list[Bar]:
         """최근 분·일·주·월 OHLCV. 거래소코드는 필수이며 TR별 한도는 40~120건."""
         return overseas_derivatives_api.fetch_bars(

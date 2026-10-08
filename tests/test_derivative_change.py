@@ -208,3 +208,36 @@ def test_modify_routes_xkfe_through_derivative_builder():
     assert call["tr_id"] == "TTTO1103U"
     assert call["body"]["RVSE_CNCL_DVSN_CD"] == "01"
     assert call["body"]["UNIT_PRICE"] == "401.00"
+
+
+def test_derivative_modify_enforces_max_order_quantity():
+    # 국내파생 정정이 max_order_quantity 캡을 우회하지 못한다 -- 발주 때만 캡을 보던 구멍 회귀 방지.
+    # 참조가(국내주식 시세) 조회 없이 수량만 보며, 거부는 와이어 이전에 난다.
+    from kis_trader import RiskLimits
+    from kis_trader.errors import PreTradeRiskError
+    store = OrderStore()
+    KISClient(app_key="k", app_secret="s", account="81012345-03", environment="real",
+              transport=FakeTransport(), store=store,
+              risk=RiskLimits(max_order_quantity=5))._place_order(_order(quantity=Decimal(2)))
+    change_t = FakeTransport(response=RawResponse(
+        rt_cd="0", msg_cd="A", msg1="", body={"output": {"ODNO": "0000005699"}}))
+    kis = KISClient(app_key="k", app_secret="s", account="81012345-03", environment="real",
+                    transport=change_t, store=store, risk=RiskLimits(max_order_quantity=5))
+    with pytest.raises(PreTradeRiskError):
+        kis.orders.modify("c", limit_price="401.00", quantity=10)
+    assert change_t.calls == []   # 게이트는 와이어 이전
+
+
+def test_derivative_modify_within_cap_passes():
+    # 캡 이내 수량 정정은 통과하고 와이어로 나간다(게이트가 정당 정정을 막지 않는다).
+    from kis_trader import RiskLimits
+    store = OrderStore()
+    KISClient(app_key="k", app_secret="s", account="81012345-03", environment="real",
+              transport=FakeTransport(), store=store,
+              risk=RiskLimits(max_order_quantity=5))._place_order(_order(quantity=Decimal(2)))
+    change_t = FakeTransport(response=RawResponse(
+        rt_cd="0", msg_cd="A", msg1="", body={"output": {"ODNO": "0000005699"}}))
+    kis = KISClient(app_key="k", app_secret="s", account="81012345-03", environment="real",
+                    transport=change_t, store=store, risk=RiskLimits(max_order_quantity=5))
+    kis.orders.modify("c", limit_price="401.00", quantity=4)
+    assert len(change_t.calls) == 1   # 정정이 와이어로 나갔다
