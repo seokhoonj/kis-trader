@@ -49,7 +49,7 @@ kis.domestic.ranking.by_change(direction="gainers")  # 오늘 상승률 순위
 
 ## 3. 구조
 
-`KISClient` 아래로 자산군과 주문이 네임스페이스로 나뉩니다.
+`KISClient` 아래에 자산군과 주문이 네임스페이스로 분리되어 있습니다.
 
 ```python
 kis.domestic   # 국내: 주식·지수·ETF·ELW·선물옵션·채권·계좌·순위·시장·일정
