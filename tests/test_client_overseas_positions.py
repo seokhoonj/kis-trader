@@ -153,7 +153,7 @@ def test_overseas_balance_maps_money_summary():
     assert bal.unrealized_pnl == Money(Decimal("502.50"), "USD")
     assert bal.realized_pnl == Money(Decimal("120.00"), "USD")
     assert bal.total_pnl == Money(Decimal("622.50"), "USD")
-    assert bal.return_percent == Decimal("6.22")
+    assert bal.total_return_percent == Decimal("6.22")
     call = fake.calls[0]
     assert call["params"]["OVRS_EXCG_CD"] == "NASD"
     assert call["params"]["TR_CRCY_CD"] == "USD"

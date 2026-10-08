@@ -352,7 +352,7 @@ class CreditEligibleStock:
 
     symbol: str
     name: str
-    credit_rate: Decimal
+    credit_ratio: Decimal    # 신용비율(crdt_rate) -- StockStatus.credit_ratio 와 동일 개념
     is_eligible: bool
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

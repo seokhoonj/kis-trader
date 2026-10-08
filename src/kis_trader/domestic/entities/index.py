@@ -137,7 +137,7 @@ class RecentIndexPoint:
     low: Decimal
     change: Decimal
     change_percent: Decimal
-    volume_share: Decimal
+    volume_share_percent: Decimal
     volume: int
     cumulative_trading_amount: Decimal
     sentiment: Decimal
@@ -170,19 +170,19 @@ class CategoryIndex:
     """시장 하위 업종 지수 한 항목(불변).
 
     한 시장(KOSPI/KOSDAQ/KOSPI200) 아래 업종별 지수 중 하나다. ``index_value`` 는 그 업종 지수 레벨,
-    ``change`` / ``change_percent`` 는 전일대비로 하락이면 음수. ``volume_share`` / ``amount_share`` 는
-    그 업종이 시장 전체 거래량 / 거래대금에서 차지하는 비중(%).
+    ``change`` / ``change_percent`` 는 전일대비로 하락이면 음수. ``volume_share_percent`` /
+    ``amount_share_percent`` 는 그 업종이 시장 전체 거래량 / 거래대금에서 차지하는 비중(%).
     """
 
     code: str
     name: str
-    index_value: Decimal              # 업종 지수 레벨
-    change: Decimal                   # 전일대비(부호 포함)
-    change_percent: Decimal           # 전일대비율(부호 포함)
-    volume: int                       # 누적 거래량
-    cumulative_trading_amount: Decimal  # 누적 거래대금
-    volume_share: Decimal | None      # 거래량 비중(%); 시장 총계 등 일부 행은 빈 값
-    amount_share: Decimal | None      # 거래대금 비중(%); 위와 동일
+    index_value: Decimal                  # 업종 지수 레벨
+    change: Decimal                       # 전일대비(부호 포함)
+    change_percent: Decimal               # 전일대비율(부호 포함)
+    volume: int                           # 누적 거래량
+    cumulative_trading_amount: Decimal    # 누적 거래대금
+    volume_share_percent: Decimal | None  # 거래량 비중(%); 시장 총계 등 일부 행은 빈 값
+    amount_share_percent: Decimal | None  # 거래대금 비중(%); 위와 동일
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

@@ -365,7 +365,7 @@ def test_index_recent_prices_maps_snapshot_and_points():
         "20240223",
     ]
     assert history.points[0].change == Decimal("-8.20")
-    assert history.points[-1].volume_share == Decimal("127.44")
+    assert history.points[-1].volume_share_percent == Decimal("127.44")
     assert history.points[-1].sentiment == Decimal("45.45")
     assert history.points[-1].disparity_20d == Decimal("102.50")
     call = fake.calls[0]
@@ -562,8 +562,8 @@ def test_index_categories_maps_fields_summary_and_market_class():
     assert first.index_value == Decimal("2700.10")
     assert first.change == Decimal("15.0")
     assert first.change_percent == Decimal("0.56")
-    assert first.volume_share == Decimal("23.4")
-    assert first.amount_share == Decimal("42.9")
+    assert first.volume_share_percent == Decimal("23.4")
+    assert first.amount_share_percent == Decimal("42.9")
     # DELTA: the previously-discarded output1 market-index summary is now reachable, typed IndexQuote.
     assert isinstance(result.summary, IndexQuote)
     assert result.summary.code == "0001"

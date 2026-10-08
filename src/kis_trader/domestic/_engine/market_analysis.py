@@ -245,7 +245,7 @@ def fetch_credit_eligible_stocks(
         CreditEligibleStock(
             symbol=str(row.get("stck_shrn_iscd", "")).strip(),
             name=str(row.get("hts_kor_isnm", "")).strip(),
-            credit_rate=required_decimal(row.get("crdt_rate"), "crdt_rate"),
+            credit_ratio=required_decimal(row.get("crdt_rate"), "crdt_rate"),
             is_eligible=eligible,
             _raw=row,
         )

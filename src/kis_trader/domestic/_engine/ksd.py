@@ -302,7 +302,7 @@ def fetch_capital_reductions(
                                             name="record_date"),
                 stock_kind=str(row.get("stk_kind", "")).strip(),
                 reduction_type=str(row.get("reduce_cap_type", "")).strip(),
-                reduction_rate=optional_decimal(row.get("reduce_cap_rate"), "reduce_cap_rate"),
+                reduction_ratio=optional_decimal(row.get("reduce_cap_rate"), "reduce_cap_rate"),
                 computation_method=str(row.get("comp_way", "")).strip(),
                 trading_halt_period=str(row.get("td_stop_dt", "")).strip(),
                 listing_date=_parse_ksd_date(row.get("list_dt"), required=False, name="list_dt"),

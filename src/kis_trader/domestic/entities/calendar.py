@@ -141,7 +141,7 @@ class CapitalReduction:
     record_date: date                 # 기준일(record_date)
     stock_kind: str                   # 주식종류(stk_kind)
     reduction_type: str               # 감자구분(reduce_cap_type)
-    reduction_rate: Decimal | None    # 감자비율 %(reduce_cap_rate)
+    reduction_ratio: Decimal | None   # 감자비율(reduce_cap_rate) -- MergerSplit.merge_ratio 와 동일 코퍼릿액션 비율군
     computation_method: str           # 계산방법(comp_way)
     trading_halt_period: str          # 매매거래정지기간 텍스트(td_stop_dt)
     listing_date: date | None         # 상장/등록일(list_dt)

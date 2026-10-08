@@ -253,9 +253,9 @@ def fetch_collateral_stocks(
         raise KISError("해외주식 담보대출 가능종목 조회가 100페이지 상한을 초과했다.")
     stocks = tuple(OverseasCollateralStock(
         symbol=str(row.get("pdno", "")).strip(), name=str(row.get("ovrs_item_name", "")).strip(),
-        loan_percent=optional_decimal(row.get("loan_rt"), "loan_rt"),
-        maintenance_percent=optional_decimal(row.get("mgge_mntn_rt"), "mgge_mntn_rt"),
-        collateral_percent=optional_decimal(row.get("mgge_ensu_rt"), "mgge_ensu_rt"),
+        loan_ratio=optional_decimal(row.get("loan_rt"), "loan_rt"),
+        maintenance_ratio=optional_decimal(row.get("mgge_mntn_rt"), "mgge_mntn_rt"),
+        collateral_ratio=optional_decimal(row.get("mgge_ensu_rt"), "mgge_ensu_rt"),
         is_loanable=str(row.get("loan_exec_psbl_yn", "")).strip() == "Y",
         registered_date=_YYYYMMDD(row.get("erlm_dt")),
         market_name=str(row.get("tr_mket_name", "")).strip(), currency=str(row.get("crcy_cd", "")).strip(),

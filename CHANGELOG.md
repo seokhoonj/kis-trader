@@ -235,14 +235,30 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   member firm) net-buy quantity had three public names; `foreign_broker_net_buy_volume` (already
   on `BrokerTradeTick`) wins, disambiguating 외국계 from 외국인 and carrying the shares unit.
   `foreign_net_buy_change` (`frgn_ntby_qty_icdc`) keeps its name.
-- rate/percent normalization (council P2, verified x100 against the official KIS repo
-  definitions and a CTLN4050R response example): eight `_rate` fields that hold a x100
-  percentage are renamed `_percent` — `RealizedProfitBalance` /`AccountReport`'s
-  `asset_change_rate` / `realized_return_rate` / `real_eval_return_rate`, the overseas
-  balance `eval_return_rate`, the ELW `lp_holding_rate`, and the overseas collateral
-  `loan_rate` / `maintenance_rate` / `collateral_rate` (대출비율/담보유지비율/담보확보비율)
-  → `*_percent`. True rates (`exchange_rate`, `coupon_rate`) are unchanged; wire keys
+- Value-kind suffix normalization. Field suffixes now follow one rule by financial concept
+  (not by whether the value is scaled x100): `_percent` = a change / return / holding-share
+  expressed as a headline percentage; `_rate` = a named financial rate (an exchange/price rate,
+  or an interest/yield/discount/dividend/margin/divergence rate); `_ratio` = a named financial
+  ratio or proportion (debt/current/quick/reserve ratio, a share-of-own-activity, a loan/balance
+  or collateral/credit requirement proportion). Five return/holding fields that held a percentage
+  move `_rate` → `_percent`: `RealizedProfitBalance`/`AccountReport`'s `asset_change_rate` /
+  `realized_return_rate` / `real_eval_return_rate`, the overseas balance `eval_return_rate`, and
+  the ELW `lp_holding_rate`. The three overseas-collateral requirement proportions move `_rate` →
+  `_ratio`: `OverseasCollateralStock.loan_rate` / `maintenance_rate` / `collateral_rate`
+  (대출비율/담보유지비율/담보확보비율) → `loan_ratio` / `maintenance_ratio` / `collateral_ratio`
+  (a per-stock requirement is a ratio, and `maintenance_ratio` now matches the derivative-account
+  `maintenance_ratio`). True rates (`exchange_rate`, `coupon_rate`) are unchanged; wire keys
   unchanged.
+- Same-concept suffix unification (one wire concept had two public names). `CreditEligibleStock`'s
+  `credit_rate` → `credit_ratio` (the same `crdt_rate` 신용비율 that `StockStatus.credit_ratio`
+  already carries). The overseas `OverseasBalance.return_percent` → `total_return_percent` (it
+  decodes `tot_pftrt` 총수익률, which is `total_return_percent` on every other entity, while
+  `return_percent` is reserved for the non-total `pftrt`). The index 거래량/거래대금 비중 fields
+  `RecentIndexPoint.volume_share` and `CategoryIndex.volume_share` / `amount_share` →
+  `volume_share_percent` / `amount_share_percent` (the same `acml_vol_rlim` that
+  `VolumeAtPrice.volume_share_percent` already carries; a share-of-market is a percentage).
+  `CapitalReduction.reduction_rate` → `reduction_ratio` (감자비율, matching the sibling
+  corporate-action `MergerSplit.merge_ratio`). Wire keys unchanged.
 - Naming unification (council P2): `DomesticReservedOrder.received_date` → `receipt_date`
   (the `rsvn_ord_rcit_dt` concept is `receipt_date` on `ExecutionReport`, the store, the
   overseas reserved order, and the CLI); `Position.security_name` /

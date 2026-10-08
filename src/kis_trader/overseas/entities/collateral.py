@@ -20,9 +20,9 @@ class OverseasCollateralStock:
 
     symbol: str
     name: str
-    loan_percent: Decimal | None
-    maintenance_percent: Decimal | None
-    collateral_percent: Decimal | None
+    loan_ratio: Decimal | None         # 대출비율(loan_rt)
+    maintenance_ratio: Decimal | None  # 담보유지비율(mgge_mntn_rt)
+    collateral_ratio: Decimal | None   # 담보확보비율(mgge_ensu_rt)
     is_loanable: bool
     registered_date: date | None
     market_name: str

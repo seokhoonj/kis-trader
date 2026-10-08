@@ -48,15 +48,15 @@ class OverseasBalance:
     """해외 계좌 손익 요약(불변). 조회한 거래소 그룹+통화 기준. 금액은 :class:`Money`.
 
     ``purchase_amount`` 보유분 매입금액, ``unrealized_pnl`` 평가손익, ``realized_pnl`` 실현손익,
-    ``total_pnl`` 총손익(실현+평가), ``return_percent`` 총수익률(%). 예수금(현금)은 별도 조회다.
+    ``total_pnl`` 총손익(실현+평가), ``total_return_percent`` 총수익률(%). 예수금(현금)은 별도 조회다.
     """
 
-    exchange: str            # 조회한 해외거래소코드(OVRS_EXCG_CD)
-    purchase_amount: Money   # 외화 매입금액
-    unrealized_pnl: Money    # 평가손익
-    realized_pnl: Money      # 실현손익
-    total_pnl: Money         # 총손익(실현+평가)
-    return_percent: Decimal  # 총수익률(%)
+    exchange: str                  # 조회한 해외거래소코드(OVRS_EXCG_CD)
+    purchase_amount: Money         # 외화 매입금액
+    unrealized_pnl: Money          # 평가손익
+    realized_pnl: Money            # 실현손익
+    total_pnl: Money               # 총손익(실현+평가)
+    total_return_percent: Decimal  # 총수익률(tot_pftrt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

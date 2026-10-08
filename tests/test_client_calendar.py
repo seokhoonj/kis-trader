@@ -222,7 +222,7 @@ def test_capital_reductions_maps_and_params():
     e = events[0]
     assert e.symbol == "067390"
     assert e.record_date == date(2024, 3, 15)
-    assert e.reduction_rate == Decimal("1.00")
+    assert e.reduction_ratio == Decimal("1.00")
     assert e.trading_halt_period == "2024/03/14 ~ 2024/03/31"
     assert e.listing_date == date(2024, 4, 1)
     call = fake.calls[0]

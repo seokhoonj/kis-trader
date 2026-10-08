@@ -422,7 +422,7 @@ def test_market_credit_eligible_stocks_maps_query_contract():
         market="KOSDAQ", eligible=False, sort="symbol"
     )
     assert len(stocks) == 1 and isinstance(stocks[0], CreditEligibleStock)
-    assert stocks[0].credit_rate == Decimal("40.00")
+    assert stocks[0].credit_ratio == Decimal("40.00")
     assert stocks[0].is_eligible is False
     assert fake.calls[0] == {
         "path": "/uapi/domestic-stock/v1/quotations/credit-by-company",

@@ -45,7 +45,7 @@ def test_overseas_collateral_stocks_maps_summary_and_paginates():
     # PARITY: two pages of one row each -> two OverseasCollateralStock, values preserved.
     assert isinstance(result.stocks[0], OverseasCollateralStock)
     assert [s.symbol for s in result.stocks] == ["AMD", "AMD"]
-    assert result.stocks[0].loan_percent == Decimal(50)
+    assert result.stocks[0].loan_ratio == Decimal(50)
     assert result.stocks[0].registered_date == date(2024, 5, 10)
     assert result.stocks[0].is_loanable
     # DELTA: the previously-discarded output2 summary is now reachable and typed.

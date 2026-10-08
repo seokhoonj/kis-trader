@@ -366,7 +366,7 @@ def fetch_recent_index_prices(
                     ),
                     change_sign_code,
                 ),
-                volume_share=required_decimal(
+                volume_share_percent=required_decimal(
                     row.get("acml_vol_rlim"), "acml_vol_rlim"
                 ),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
@@ -602,8 +602,8 @@ def _parse_index_categories(rows: Sequence[Mapping[str, Any]]) -> list[CategoryI
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
                 cumulative_trading_amount=required_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
                 # 비중(share)은 일부 행(예: 시장 총계)에서 빈 값으로 와서 optional 로 둔다.
-                volume_share=optional_decimal(row.get("acml_vol_rlim"), "acml_vol_rlim"),
-                amount_share=optional_decimal(row.get("acml_tr_pbmn_rlim"), "acml_tr_pbmn_rlim"),
+                volume_share_percent=optional_decimal(row.get("acml_vol_rlim"), "acml_vol_rlim"),
+                amount_share_percent=optional_decimal(row.get("acml_tr_pbmn_rlim"), "acml_tr_pbmn_rlim"),
                 _raw=row,
             )
         )

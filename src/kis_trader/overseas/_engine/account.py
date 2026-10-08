@@ -136,7 +136,7 @@ def _fetch_market_balance(
         unrealized_pnl=_money(summary, "tot_evlu_pfls_amt", currency),
         realized_pnl=_money(summary, "ovrs_rlzt_pfls_amt", currency),
         total_pnl=_money(summary, "ovrs_tot_pfls", currency),
-        return_percent=required_decimal(summary.get("tot_pftrt"), "tot_pftrt"),
+        total_return_percent=required_decimal(summary.get("tot_pftrt"), "tot_pftrt"),
         _raw=summary,
     )
 
