@@ -70,6 +70,10 @@ _OVERSEAS_INDEX_KIND = {"index": "N", "fx": "X", "bond": "I", "gold": "S"}
 #: 체결기준현재잔고(present_balance) 국가 필터. 엔진이 국가코드(840 등)로 변환하며, 그 외 값은 거부한다.
 BalanceNation = Literal["all", "US", "HK", "CN", "JP", "VN"]
 
+#: 잔고 조회구분(present_balance/settlement_balance 공통). 엔진이 INQR_DVSN_CD(00/01/02)로 변환한다.
+#: ``"all"`` 전체 / ``"general"`` 일반해외주식 / ``"ministock"`` 미니스탁(KIS 소수점 거래 상품).
+BalanceInquiry = Literal["all", "general", "ministock"]
+
 
 class OverseasAccount:
     """``kis.account.overseas`` -- 해외 계좌 조회·계좌 단위 주문(잔고/손익/알고/예약주문).
@@ -128,11 +132,11 @@ class OverseasAccount:
 
     def present_balance(
         self, *, won_basis: bool = True, nation: BalanceNation = "all", market_code: str = "00",
-        inquiry: str = "00",
+        inquiry: BalanceInquiry = "all",
     ) -> OverseasPresentBalance:
         """체결기준현재잔고 -- 보유 종목·통화별 예수금·계좌 요약. ``won_basis`` 원화(True)/외화(False),
         ``nation`` 국가(``"all"``/``"US"``/``"HK"``/``"CN"``/``"JP"``/``"VN"``), ``market_code`` 거래시장코드
-        (``"00"``=전체), ``inquiry`` 조회구분. 모의는 요약만 온다.
+        (``"00"``=전체), ``inquiry`` 조회구분(``"all"``/``"general"``/``"ministock"``). 모의는 요약만 온다.
 
         .. note:: 요약 필드는 KIS 예시가 잘려 레이아웃 기준이다 -- 전체 원본은 ``_raw``."""
         cano, product_code = self._client._require_account()
@@ -142,10 +146,11 @@ class OverseasAccount:
         )
 
     def settlement_balance(
-        self, *, basis_date: str, won_basis: bool = True, inquiry: str = "00"
+        self, *, basis_date: str, won_basis: bool = True, inquiry: BalanceInquiry = "all"
     ) -> OverseasSettlementBalance:
         """결제기준잔고 -- ``basis_date``(YYYYMMDD) 결제 기준의 보유 종목·통화별 예수금·계좌 요약.
-        ``won_basis`` 원화(True)/외화(False), ``inquiry`` 조회구분. **모의투자 미지원**."""
+        ``won_basis`` 원화(True)/외화(False), ``inquiry`` 조회구분(``"all"``/``"general"``/``"ministock"``).
+        **모의투자 미지원**."""
         cano, product_code = self._client._require_account()
         return overseas_account.fetch_settlement_balance(
             self._client.transport, cano=cano, product_code=product_code, environment=self._client.environment,

@@ -12,6 +12,12 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
 
 ### Changed
 
+- `account.overseas.present_balance(inquiry=...)` and `settlement_balance(inquiry=...)` now take a
+  typed `BalanceInquiry = Literal["all","general","ministock"]` instead of a bare string, mapped by
+  the engine to the wire `INQR_DVSN_CD` (`00`/`01`/`02` = 전체/일반해외주식/미니스탁) and fail-closed
+  on an unknown value, matching the `nation` parameter's shape. Both endpoints share the same KIS
+  value set (CTRP6504R / CTRP6010R). Callers passing the raw `"00"`/`"01"`/`"02"` should pass
+  `"all"`/`"general"`/`"ministock"`.
 - `AfterHoursConclusion` → `AfterHoursExecutionPoint`. It is field-for-field the same polling,
   per-timestamp execution time-series element as `IntradayExecutionPoint` /
   `ExpectedExecutionPoint` (timestamp, price, change, ask/bid, cumulative/tick volume), returned as

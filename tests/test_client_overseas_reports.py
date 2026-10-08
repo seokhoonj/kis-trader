@@ -114,6 +114,22 @@ def test_present_balance_tr_env_and_params():
     assert call["params"]["NATN_CD"] == "840"            # 미국
 
 
+@pytest.mark.parametrize("inquiry,code", [("all", "00"), ("general", "01"), ("ministock", "02")])
+def test_present_balance_maps_inquiry_to_inqr_dvsn_cd(inquiry, code):
+    # 조회구분(all/general/ministock) -> INQR_DVSN_CD(00/01/02). KIS 공식: 전체/일반해외주식/미니스탁.
+    fake = FakeTransport(response=_resp({"output1": [], "output2": [], "output3": _SUM3}))
+    _client(fake).account.overseas.present_balance(inquiry=inquiry)
+    assert fake.calls[0]["params"]["INQR_DVSN_CD"] == code
+
+
+def test_present_balance_rejects_unknown_inquiry_before_wire():
+    # 미지원 inquiry 는 와이어 접촉 전에 거부한다(fail-closed) -- nation 과 동일 규율.
+    fake = FakeTransport(response=_resp({"output1": [], "output2": [], "output3": _SUM3}))
+    with pytest.raises(KISUsageError):
+        _client(fake).account.overseas.present_balance(inquiry="00")  # raw 코드는 이제 거부
+    assert fake.calls == []
+
+
 def test_present_balance_demo_uses_demo_tr():
     fake = FakeTransport(response=_resp({"output3": _SUM3}))
     bal = _client(fake, environment="paper").account.overseas.present_balance()

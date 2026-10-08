@@ -353,7 +353,7 @@ from .overseas.entities.ranking import OverseasRankedStock
 from .overseas.entities.search import OverseasStockSearch, OverseasStockSearchMatch
 from .overseas.entities.settlement import OverseasSettlementDate
 from .overseas.index import OverseasIndex
-from .overseas.namespace import BalanceNation, OverseasAccount
+from .overseas.namespace import BalanceInquiry, BalanceNation, OverseasAccount
 from .overseas.ranking import OverseasRankingQueries
 from .overseas.stock import OverseasStock
 from .pension.account import PensionAccount
@@ -398,6 +398,7 @@ __all__ = [
     "AppraisalRights",
     "AssetClass",
     "Balance",
+    "BalanceInquiry",
     "BalanceNation",
     "BalanceSheet",
     "Bar",

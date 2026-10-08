@@ -71,6 +71,9 @@ _PERIOD_PROFIT_TR = "TTTS3039R"         # 모의투자 미지원
 
 #: 잔고 리포트 국가코드(NATN_CD). 000:전체/840:미국/344:홍콩/156:중국/392:일본/704:베트남.
 _NATION_CODE = {"all": "000", "US": "840", "HK": "344", "CN": "156", "JP": "392", "VN": "704"}
+#: 잔고 조회구분 -> INQR_DVSN_CD. all:전체(00)/general:일반해외주식(01)/ministock:미니스탁(02).
+#: 체결기준현재잔고(CTRP6504R)와 결제기준잔고(CTRP6010R)가 같은 값집합을 공유한다.
+_INQUIRY_CODE = {"all": "00", "general": "01", "ministock": "02"}
 #: 거래내역 매도매수 필터 -> SLL_BUY_DVSN_CD. all:전체/sell:매도/buy:매수.
 _TX_SIDE_FILTER = {"all": "00", "sell": "01", "buy": "02"}
 
@@ -279,14 +282,14 @@ def fetch_foreign_margin(
 
 def fetch_present_balance(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    won_basis: bool = True, nation: str = "all", market_code: str = "00", inquiry: str = "00",
+    won_basis: bool = True, nation: str = "all", market_code: str = "00", inquiry: str = "all",
 ) -> OverseasPresentBalance:
     """해외주식 체결기준현재잔고 -- 보유 종목(output1)·통화별 예수금(output2)·계좌 요약(output3).
     실전(CTRP6504R)은 3블록 전부, 모의(VTRP6504R)는 요약만 온다.
 
     ``won_basis`` 원화(True)/외화(False) 기준, ``nation`` 국가(``"all"``/``"US"``/``"HK"``/``"CN"``/``"JP"``/
-    ``"VN"``), ``market_code`` 거래시장코드(KIS 코드표, ``"00"``=전체), ``inquiry`` 조회구분(``"00"`` 전체/
-    ``"01"`` 일반/``"02"`` 미니스탁).
+    ``"VN"``), ``market_code`` 거래시장코드(KIS 코드표, ``"00"``=전체), ``inquiry`` 조회구분
+    (``"all"`` 전체/``"general"`` 일반해외주식/``"ministock"`` 미니스탁).
 
     .. note:: 요약(output3) 필드는 KIS 예시가 output1 에서 잘려 레이아웃 기준이다 -- 전체 원본은 결과 ``_raw``.
     """
@@ -296,11 +299,17 @@ def fetch_present_balance(
         raise KISUsageError(
             f"지원하지 않는 nation: {nation!r} ({'/'.join(_NATION_CODE)})."
         ) from None
+    try:
+        inquiry_code = _INQUIRY_CODE[inquiry]   # 알 수 없는 조회구분은 조용히 넓히지 않고 거부
+    except KeyError:
+        raise KISUsageError(
+            f"지원하지 않는 inquiry: {inquiry!r} ({'/'.join(_INQUIRY_CODE)})."
+        ) from None
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
         "WCRC_FRCR_DVSN_CD": "01" if won_basis else "02",
         "NATN_CD": nation_code,
-        "TR_MKET_CD": market_code, "INQR_DVSN_CD": inquiry,
+        "TR_MKET_CD": market_code, "INQR_DVSN_CD": inquiry_code,
     }
     resp = transport.request(
         method="GET", path=_PRESENT_BALANCE_PATH, tr_id=_PRESENT_BALANCE_TR[environment],
@@ -323,17 +332,24 @@ def fetch_present_balance(
 # --- 결제기준잔고 (CTRP6010R) ---------------------------------------------
 def fetch_settlement_balance(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    basis_date: str, won_basis: bool = True, inquiry: str = "00",
+    basis_date: str, won_basis: bool = True, inquiry: str = "all",
 ) -> OverseasSettlementBalance:
     """해외주식 결제기준잔고 -- ``basis_date``(YYYYMMDD) 결제 기준의 보유 종목·통화별 예수금·계좌 요약.
-    **모의투자 미지원**. ``won_basis`` 원화(True)/외화(False) 기준, ``inquiry`` 조회구분(``"00"`` 전체)."""
+    **모의투자 미지원**. ``won_basis`` 원화(True)/외화(False) 기준, ``inquiry`` 조회구분
+    (``"all"`` 전체/``"general"`` 일반해외주식/``"ministock"`` 미니스탁)."""
     if environment == "paper":
         raise KISUsageError(
             "해외주식 결제기준잔고(inquire-paymt-stdr-balance)는 모의투자 미지원 -- 실전에서만."
         )
+    try:
+        inquiry_code = _INQUIRY_CODE[inquiry]   # 알 수 없는 조회구분은 조용히 넓히지 않고 거부
+    except KeyError:
+        raise KISUsageError(
+            f"지원하지 않는 inquiry: {inquiry!r} ({'/'.join(_INQUIRY_CODE)})."
+        ) from None
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code, "BASS_DT": basis_date,
-        "WCRC_FRCR_DVSN_CD": "01" if won_basis else "02", "INQR_DVSN_CD": inquiry,
+        "WCRC_FRCR_DVSN_CD": "01" if won_basis else "02", "INQR_DVSN_CD": inquiry_code,
     }
     resp = transport.request(
         method="GET", path=_SETTLEMENT_BALANCE_PATH, tr_id=_SETTLEMENT_BALANCE_TR,
