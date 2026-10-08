@@ -1,4 +1,4 @@
-"""시장 전체 순위 네임스페이스 -- :class:`RankingQueries`.
+"""시장 전체 순위 네임스페이스 -- :class:`DomesticRankingQueries`.
 
 ``kis.domestic.ranking.by_change(direction="gainers")`` 처럼, 종목이 아니라 **시장 전체**를 어떤 기준으로 줄
 세운 결과(:class:`~kis_trader.domestic.entities.ranking.DomesticRankedStock` 리스트)를 돌려준다. KIS가 순위마다 URL을
@@ -95,7 +95,7 @@ ExpectedCloseMarket = Literal["all", "KOSPI", "KOSDAQ", "KOSPI200", "KRX100"]
 AfterHoursBalanceSide = Literal["ask", "bid"]
 
 
-class RankingQueries:
+class DomesticRankingQueries:
     """세션에 달린 순위 질의 네임스페이스. ``kis.domestic.ranking`` 이 만들어 준다."""
 
     def __init__(self, client: KISClient) -> None:

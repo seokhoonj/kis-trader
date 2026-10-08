@@ -1,6 +1,6 @@
 """국내주식 순위 조회 (내부) -- 시장 전체 순위를 :class:`DomesticRankedStock` 리스트로.
 
-사용자면(:class:`~kis_trader.domestic.ranking.RankingQueries`)이 호출한다. 순위는 종목 단위가 아니라
+사용자면(:class:`~kis_trader.domestic.ranking.DomesticRankingQueries`)이 호출한다. 순위는 종목 단위가 아니라
 시장 전체 대상이라 종목 핸들이 아닌 세션 네임스페이스(``kis.domestic.ranking.*``)에 달린다. 여러 순위가
 서로 다른 KIS URL(등락률/시총은 ``/ranking/``, 거래량은 ``/quotations/``)에 흩어져 있지만
 사용자에겐 하나의 "ranking" 개념으로 모은다. 각 순위는 한 페이지(대개 상위 30건)만 주고 다음

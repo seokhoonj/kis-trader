@@ -26,7 +26,7 @@ from .elw_ranking import ELWRankingQueries
 from .elw_screener import ELWScreenerQueries
 from .index import DomesticIndex
 from .market import MarketQueries
-from .ranking import RankingQueries
+from .ranking import DomesticRankingQueries
 from .stock import DomesticStock
 
 if TYPE_CHECKING:
@@ -348,9 +348,9 @@ class DomesticNamespace:
 
     # -- 하위 질의 네임스페이스 --
     @property
-    def ranking(self) -> RankingQueries:
+    def ranking(self) -> DomesticRankingQueries:
         """시장 전체 순위 질의 -- ``kis.domestic.ranking.by_change()`` / ``by_volume()`` 등."""
-        return RankingQueries(self._client)
+        return DomesticRankingQueries(self._client)
 
     @property
     def market(self) -> MarketQueries:

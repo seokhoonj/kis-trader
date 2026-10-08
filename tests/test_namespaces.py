@@ -16,7 +16,7 @@ from kis_trader.client import OrdersNamespace
 from kis_trader.domestic.calendar import CalendarQueries
 from kis_trader.domestic.market import MarketQueries
 from kis_trader.domestic.namespace import DomesticAccount, DomesticNamespace
-from kis_trader.domestic.ranking import RankingQueries
+from kis_trader.domestic.ranking import DomesticRankingQueries
 from kis_trader.domestic.stock import DomesticStock
 from kis_trader.overseas.namespace import OverseasAccount, OverseasNamespace
 from kis_trader.overseas.stock import OverseasStock
@@ -96,7 +96,7 @@ def test_overseas_stock_auto_resolves_exchange():
 
 def test_domestic_query_namespaces_expose_query_objects():
     k = _client()
-    assert isinstance(k.domestic.ranking, RankingQueries)
+    assert isinstance(k.domestic.ranking, DomesticRankingQueries)
     assert isinstance(k.domestic.market, MarketQueries)
     assert isinstance(k.domestic.calendar, CalendarQueries)
 

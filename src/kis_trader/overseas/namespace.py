@@ -254,15 +254,16 @@ class OverseasNamespace:
             exchange = self._client.instrument(symbol).exchange
         return OverseasStock(self._client, symbol, exchange=exchange)
 
-    def index(self, symbol: str, *, kind: Literal["index", "fx", "bond", "gold"] = "index") -> OverseasIndex:
-        """해외 지수/환율/국채/금선물 핸들. ``kind`` 는 ``index``/``fx``/``bond``/``gold`` 중 하나, ``symbol``
-        은 지수코드(예: ``.DJI``). 국내 :meth:`~kis_trader.domestic.namespace.DomesticNamespace.index` 의 해외판이다."""
+    def index(self, code: str, *, kind: Literal["index", "fx", "bond", "gold"] = "index") -> OverseasIndex:
+        """해외 지수/환율/국채/금선물 핸들. ``kind`` 는 ``index``/``fx``/``bond``/``gold`` 중 하나, ``code``
+        는 지수코드(예: ``.DJI``; 지수=비거래 분류자라 ``code``). 국내
+        :meth:`~kis_trader.domestic.namespace.DomesticNamespace.index` 의 해외판이다."""
         division = _OVERSEAS_INDEX_KIND.get(kind)
         if division is None:
             raise KISUsageError(
                 f"지원하지 않는 kind: {kind!r} ({'/'.join(_OVERSEAS_INDEX_KIND)})."
             )
-        return OverseasIndex(self._client, symbol, market_division=division)
+        return OverseasIndex(self._client, code, market_division=division)
 
     def futures(self, symbol: str) -> OverseasDerivative:
         """해외 선물 계약 핸들. ``symbol`` 는 시리즈코드(예: ESZ25 = E-mini S&P 2025.12)."""

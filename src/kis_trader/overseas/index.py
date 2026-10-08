@@ -22,15 +22,16 @@ if TYPE_CHECKING:
 class OverseasIndex:
     """한 해외 지수류 심볼의 조회 핸들. 세션·심볼·시장구분을 안다.
 
-    보통 직접 만들지 않고 ``kis.overseas.index`` 로 얻는다. ``symbol`` 은 지수코드(예:
-    ``.DJI``), 종류는 팩토리의 ``kind`` 로 선택한다.
+    보통 직접 만들지 않고 ``kis.overseas.index`` 로 얻는다. ``code`` 는 지수코드(예:
+    ``.DJI``), 종류는 팩토리의 ``kind`` 로 선택한다 -- 지수는 거래 종목이 아니라 분류자라
+    :class:`~kis_trader.domestic.index.DomesticIndex` 와 같이 ``code`` 를 쓴다.
     """
 
-    symbol: str
+    code: str
 
-    def __init__(self, client: KISClient, symbol: str, *, market_division: str) -> None:
+    def __init__(self, client: KISClient, code: str, *, market_division: str) -> None:
         self._client          = client
-        self.symbol           = symbol
+        self.code             = code
         self._market_division = market_division
 
     def bars(
@@ -47,7 +48,7 @@ class OverseasIndex:
         거른다. ``1d``/``1wk``/``1mo`` 는 ``start`` 가 필요하고 ``end`` 는 기본 오늘이다.
         """
         return overseas_index_api.fetch_bars(
-            self._client.transport, symbol=self.symbol,
+            self._client.transport, symbol=self.code,
             market_division=self._market_division, interval=interval,
             start=start, end=end, max_bars=max_bars,
         )

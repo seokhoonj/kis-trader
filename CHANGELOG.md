@@ -289,6 +289,13 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `OverseasAlgoExecution.quantity` (a fill record) is renamed `filled_quantity`, since it holds
   the executed quantity, not an order quantity. `OverseasTransaction.quantity` stays bare (it is
   the record's only quantity, with no sibling axis). Wire keys and behavior are unchanged.
+- `OverseasIndex.symbol` → `OverseasIndex.code`, and the `kis.overseas.index(symbol=...)` factory
+  parameter → `code`. An index is a non-traded classifier, not a tradable instrument, so it uses
+  `code` like `DomesticIndex`/`kis.domestic.index(code)` and the realtime `index`/`bond_index`;
+  the handle previously contradicted its own docstring ("``symbol`` 은 지수코드").
+- `RankingQueries` → `DomesticRankingQueries`. It has a distinct `OverseasRankingQueries` sibling,
+  so the bare name misread as region-neutral; the prefix matches the `Domestic*`/`Overseas*`
+  qualifier convention. `kis.domestic.ranking` and behavior are unchanged.
 
 ### Added
 
