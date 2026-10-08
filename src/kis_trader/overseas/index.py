@@ -1,7 +1,8 @@
 """해외 지수/환율/국채/금선물 핸들 -- :class:`OverseasIndex`.
 
-한 해외 지수류 심볼의 기간봉을 조회하는 핸들이다: ``kis.overseas.index(".DJI").bars(...)`` 처럼.
-국내 :class:`~kis_trader.domestic.index.DomesticIndex` 와 대칭이며 첫 슬라이스에서는 기간봉만 지원한다.
+한 해외 지수류 심볼의 분봉·기간봉을 조회하는 핸들이다: ``kis.overseas.index(".DJI").bars(...)`` 처럼.
+국내 :class:`~kis_trader.domestic.index.DomesticIndex` 와 대칭이다. 해외지수·환율은 분봉(``1m``)과
+기간봉을, 국채·금선물은 기간봉만 지원한다.
 
 핸들은 :class:`~kis_trader.client.KISClient` 가 만들어 준다 -- 직접 생성하지 않는다.
 """
