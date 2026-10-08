@@ -13,7 +13,7 @@
 from __future__ import annotations
 
 import threading
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 from ._internal._masters import (
     DomesticListingIndex,
@@ -425,6 +425,21 @@ class KISClient:
                 "이 transport 는 토큰 폐기를 지원하지 않는다(실 HTTP 세션에서만 가능)."
             )
         revoke()
+
+    def close(self) -> None:
+        """세션이 쥔 주문 저장소를 닫는다 -- 영속 저장소(``OrderStore(path=...)``)의 단일-writer
+        flock 을 풀어 같은 경로를 다시 열 수 있게 한다. 세션이 저장소를 생성했든 주입받았든 닫는다
+        (주입 저장소의 flock 도 이 세션이 쥐므로 닫아야 해제된다 -- P1-3 의 동기). ``with KISClient(...)
+        as kis:`` 로 자동 호출하거나 직접 부른다. 닫은 뒤 주문 경로는 쓰지 말 것. 여러 세션이 한
+        ``OrderStore`` 인스턴스를 공유한다면 세션의 close()/with 를 쓰지 말고 저장소 수명을 호출자가
+        직접 관리하라 -- 한 세션의 close 가 공유 저장소를 닫아 버린다."""
+        self._store.close()
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(self, *exc: object) -> None:
+        self.close()
 
     def realtime(
         self, *, customer_type: CustomerType = "P", reconnect: bool = True

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
+from datetime import date, datetime, time
 from decimal import Decimal
 from typing import Any, cast
 
@@ -18,7 +19,7 @@ from .._literals import Direction
 from ..account import StockAccount
 from ..client import KISClient
 from ..errors import KISUsageError
-from ..order import Side
+from ..order import DomesticDivision, Side
 from ._guardrails import (
     ModifyOrderPlan,
     RealOrderGate,
@@ -40,6 +41,10 @@ def _serialize(value: Any) -> Any:
         return out
     if isinstance(value, Decimal):
         return str(value)
+    if isinstance(value, (datetime, date, time)):
+        # 엔티티의 date/datetime/time 필드(Quote.as_of, ExecutionReport.recorded_at 등)를 ISO 문자열로.
+        # 안 바꾸면 strict json.dumps 소비자가 크래시하고 SDK 폴백은 비-ISO str() 포맷을 내보낸다.
+        return value.isoformat()
     if isinstance(value, (list, tuple)):
         return [_serialize(item) for item in value]
     if isinstance(value, Mapping):
@@ -114,26 +119,29 @@ def open_orders(kis: KISClient, *, limit: int = 100) -> list[dict[str, Any]]:
 
 def order_preview(
     kis: KISClient, *, symbol: str, side: Side, quantity: int,
-    limit_price: str | None = None, division: str | None = None,
+    limit_price: str | None = None, division: DomesticDivision | None = None,
 ) -> dict[str, Any]:
     """주문 **미리보기**(dry-run) -- 전송하지 않고 나갈 티켓만 되읽어 보여준다. 실제 전송은 ``place_order``
     가 가드레일(이중게이트+RiskLimits+allowlist+사람확인)을 거쳐 한다. 이 도구는 무엇이 나갈지 미리
-    확인하는 용도다(``sent: false``)."""
-    if side not in ("buy", "sell"):
-        raise KISUsageError(f"side 는 'buy'/'sell' 만 (받은 값: {side!r}).")
-    if quantity <= 0:
-        raise KISUsageError("quantity 는 1 이상이어야 한다.")
+    확인하는 용도다(``sent: false``). 티켓은 ``place_order`` 와 **같은** 형상 검증(``make_stock_order_plan``:
+    symbol/side/quantity/division 형상 + taint 경계)을 거쳐 만든다 -- preview 가 통과시킨 주문은
+    place_order 도 같은 형상으로 받는다(형상 divergence 방지; 가격·구분 결합 등 깊은 검증은 집행 시
+    :class:`~kis_trader.order.Order` 가 한다)."""
+    plan = make_stock_order_plan(
+        region="domestic", symbol=symbol, side=side, quantity=quantity,
+        limit_price=limit_price, division=division,
+    )
     return {
         "sent": False,
         "note": "미리보기 -- 전송되지 않았다. 실주문은 place_order 가 가드레일·사람확인을 거쳐 전송한다.",
         "environment": kis.environment,
         "account": _account_masked(kis),
-        "symbol": symbol,
-        "side": side,
-        "quantity": quantity,
-        "order_type": "limit" if limit_price is not None else "market",
-        "limit_price": limit_price,
-        "division": division,
+        "symbol": plan.symbol,
+        "side": plan.side,
+        "quantity": plan.quantity,
+        "order_type": plan.order_type,
+        "limit_price": plan.limit_price,
+        "division": plan.division,
     }
 
 

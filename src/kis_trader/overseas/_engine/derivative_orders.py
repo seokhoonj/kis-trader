@@ -3,7 +3,7 @@ domestic/_engine/bond_orders.py)와 같은 주입 구조.
 
 주문 실행의 안전 규칙(이중체결 방지·쓰기 재시도 금지·보수적 재조회)은 국내주식·해외·파생·채권과
 공유하는 안전 코어(:func:`~kis_trader.domestic._engine.orders.place`)가 맡는다. 이 모듈은 그
-코어에 ``build_request`` 로 주입할 **해외선물옵션(OSFO) 발주의 와이어 요청**만 조립하고(순수 함수라
+코어에 ``build_request`` 로 주입할 **해외선물옵션(OSFO) 발주·정정·취소의 와이어 요청**을 조립하고(순수 함수라
 오케스트레이션 없이 단독 검증된다), 접수 응답에서 output(``{ORD_DT, ODNO}``)을 엄격히 뽑는 파서를
 제공한다. ODNO 는 안전 코어가 ``order_id`` 로 뽑고, ORD_DT 는 이 파서가 시장 중립 키
 (:data:`~kis_trader.domestic._engine.orders._RECEIPT_DATE_KEY`)로 정규화해 코어가 ``receipt_date`` 로
@@ -14,8 +14,8 @@ KIS URL/TR-ID (KIS 명세 대조, sheet '해외선물옵션 주문'):
   매수/매도는 같은 TR 로 보내고 ``SLL_BUY_DVSN_CD`` 로 가른다(매수 "02" / 매도 "01"). 가격구분
   (``PRIC_DVSN_CD``)은 지정가 "1" / 시장가 "2" / STOP "3" 이며, 지정가는 ``FM_LIMIT_ORD_PRIC``,
   STOP 은 ``FM_STOP_ORD_PRIC`` 에 값을 싣는다. 청산(헤지청산) 관련 필드는 v1 에서 공란이다. 정정
-  (OTFM3002U)·취소(OTFM3003U)는 원주문일자(ORGN_ORD_DT) 지목과 라이브 검증이 필요한 별도 슬라이스라,
-  이 빌더는 발주만 조립한다.
+  (OTFM3002U)·취소(OTFM3003U)도 원주문일자(ORGN_ORD_DT)로 대상을 지목해 이 모듈이 조립한다
+  (:func:`make_change_request`); 라이브 판별 프로브는 비차단 후속이다.
 """
 
 from __future__ import annotations

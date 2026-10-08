@@ -5,6 +5,7 @@
 
 KIS URL/TR-ID (KIS 명세 대조):
 - 기간봉: ``GET .../quotations/inquire-daily-chartprice`` ``FHKST03030100``.
+- 분봉: ``GET .../quotations/inquire-time-indexchartprice`` ``FHKST03030200``.
 """
 
 from __future__ import annotations
@@ -47,8 +48,9 @@ def fetch_bars(
 ) -> list[Bar]:
     """해외 지수류 기간봉을 과거->현재 오름차순으로 조회한다.
 
-    ``interval`` 은 ``1d``/``1wk``/``1mo`` 이고 ``start`` 가 필요하다. ``end`` 는 기본 오늘이며
-    ``max_bars`` 로 최근 봉 수를 제한한다. 해외 지수 분봉(``1m``)은 아직 지원하지 않는다.
+    ``interval`` 은 ``1m``(분봉)/``1d``/``1wk``/``1mo`` 이고 기간봉(``1d``/``1wk``/``1mo``)은
+    ``start`` 가 필요하다. ``end`` 는 기본 오늘이며 ``max_bars`` 로 최근 봉 수를 제한한다.
+    분봉(``1m``)은 해외지수·환율(market_division N/X)만 FHKST03030200 으로 조회한다(국채·금선물은 기간봉만).
     """
     if max_bars is not None and max_bars <= 0:
         raise KISUsageError(f"max_bars 는 양의 정수여야 한다: {max_bars}")

@@ -537,6 +537,24 @@ def test_reconcile_empty_scan_stays_in_flight():
     assert kis.orders.reconcile("ID-1") is None                 # 0건 -> 미접수로 단정 안 함(재전송 금지 유지)
 
 
+@pytest.mark.parametrize("tr_cont", ["F", "M"])
+def test_reconcile_raises_when_cursor_cannot_advance_but_tr_cont_says_more(tr_cont):
+    # fail-closed: 일별체결 응답이 '더 있음'(tr_cont=F/M)인데 커서가 진전 불가(빈 커서)면 모순이다 --
+    # 빈 커서로 다음 페이지를 요청하면 CTX 리셋->1페이지 재적재(이중집계). 부분/모순으로 확정하지 않고
+    # KISError 로 올려 재시도/수동확인을 유도한다.
+    page = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="조회 완료",
+                       body={"output1": [_daily_order_row()], "ctx_area_nk100": ""}, tr_cont=tr_cont)
+    fake = FakeTransport(by_path={
+        _ORDER_CASH: [TransportTimeoutError("t")],
+        _DAILY_CCLD: [page],
+    })
+    kis = _client(fake)
+    with pytest.raises(OrderTimeoutError):
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
+    with pytest.raises(KISError, match="진전하지 않는"):
+        kis.orders.reconcile("ID-1")
+
+
 def test_reconcile_non_list_output1_fails_closed():
     # 성공 응답인데 output1 이 리스트가 아니면(오/부분응답) 빈 결과로 오인하지 않고 fail-closed.
     malformed = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="조회 완료",

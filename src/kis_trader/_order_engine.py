@@ -260,7 +260,9 @@ class OrderEngine:
                 else (coerce_decimal(fingerprint.limit_price, "limit_price")
                       if fingerprint.limit_price else None)
             )
-            # risk.check 는 symbol/quantity/limit_price/stop_price 만 읽는다 -- 나머지 필드는 기본값.
+            # risk.check 는 symbol/quantity/limit_price/stop_price 와 region/asset_class(tick 게이트)를
+            # 읽는다 -- 이 경로는 국내주식 정정만 도달하므로 Order 기본 lane(domestic/stock)이 의도값이다.
+            # 나머지 필드는 기본값.
             risk_probe = Order(
                 symbol=fingerprint.symbol, side=fingerprint.side,
                 order_type=fingerprint.order_type, quantity=change_quantity,

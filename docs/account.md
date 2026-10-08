@@ -41,7 +41,7 @@ print(balance.deposit, balance.total_evaluation, balance.unrealized_pnl)
 
 ```python
 for position in account.positions():
-    print(f"{position.security_name:10s} {position.quantity}주  "
+    print(f"{position.name:10s} {position.quantity}주  "
           f"평가손익 {position.unrealized_pnl:>12,}  ({position.unrealized_pnl_percent}%)")
 ```
 
@@ -49,7 +49,7 @@ for position in account.positions():
 
 | 필드 | 뜻 |
 |---|---|
-| `symbol` · `security_name` | 종목코드 · 종목명 |
+| `symbol` · `name` | 종목코드 · 종목명 |
 | `quantity` · `sellable_quantity` | 보유 · 매도가능 수량 |
 | `average_purchase_price` | 평균 매입가 |
 | `purchase_amount` | 매입금액 |

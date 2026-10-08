@@ -3,7 +3,8 @@
 예약주문은 다음 영업일(또는 지정 기간) 아침 동시호가에 집행되는 예약이라 즉시체결 주문
 (:mod:`kis_trader.domestic._engine.orders`)과 라이프사이클이 다르다(예약순번 rsvn_ord_seq 로 식별,
 집행 전 체결 없음). 그래서 즉시주문 안전코어(place/reconcile)를 재사용하지 않고 이 모듈이
-예약 전용 흐름을 담는다. 발주/정정취소(뮤테이션)는 별도 슬라이스에서 dedup·무재시도로 추가한다.
+예약 전용 흐름을 담는다. 발주는 dedup·무재시도로, 정정·취소는 (순번 대상의 멱등 연산이라)
+dedup 없이 무재시도로 담는다.
 
 KIS URL/TR-ID (전부 모의투자 미지원):
 - 조회: ``GET .../trading/order-resv-ccnl`` (``CTSC0004R``).
@@ -168,8 +169,17 @@ def _walk_reserved(
         prev_nk = ctx_nk
         ctx_nk = str(resp.body.get("ctx_area_nk200") or "").strip()
         ctx_fk = str(resp.body.get("ctx_area_fk200") or "").strip()
-        # 비진전 커서(반복/종료 센티널)면 tr_cont 정본종료 여부와 무관하게 멈춘다 -- 반복=서버가
-        # 커서를 안 진전시킴=더 없음이라 fill 누락 없이 안전하고, 같은 페이지 무한 재요청/이중집계를 막는다.
+        # 커서가 진전 불가(빈 커서/반복 커서)인데 응답이 '더 있음'(tr_cont=F/M)이면 확정 불가 --
+        # 부분 스캔으로 확정하면 미접수 오독->수동 재주문(이중체결), 또는 빈 커서가 CTX 를 리셋해
+        # 1페이지 재적재->이중집계(지문 2건 오진단). fail-closed 로 올려 재시도/수동확인을 유도한다.
+        if resp.tr_cont in ("F", "M") and (not ctx_nk or ctx_nk == prev_nk):
+            raise KISError(
+                "재조회 커서가 진전하지 않는데 응답이 '더 있음'(tr_cont=F/M) -- "
+                "부분/모순 응답으로 확정하지 않는다(재시도/수동확인 요망).",
+                rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+            )
+        # 여기 도달 = 모순 아님(빈/반복 커서 + F/M 은 위에서 걸렀다). 종료 센티널 ^^ 는 tr_cont=F/M 이어도
+        # KIS 의 정상 '더 없음' 신호(_response.py 계약)라 raise 대상이 아니다 -- 반복/^^ 커서면 더 없음 확정.
         if ctx_nk == _CONTINUATION_END or (ctx_nk and ctx_nk == prev_nk):
             break
         # 재조회는 조기 종료 금지(예약 누락->오확정->이중발주 위험): tr_cont 정본 종료(D/E/공백)

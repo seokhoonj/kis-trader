@@ -71,9 +71,13 @@ kis.domestic.option("201W09350")    # index options
 
 ```python
 r = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)  # buy 10 shares
-kis.orders.reconcile(r.client_order_id)   # re-check with the broker whether it was actually accepted
-kis.orders.cancel(r.client_order_id)      # cancel
+kis.orders.modify(r.client_order_id, limit_price=70500)   # amend the price
+kis.orders.cancel(r.client_order_id)                      # cancel
 ```
+
+Only when acceptance is uncertain — for example after a send timeout — do you settle the
+state with `kis.orders.reconcile(r.client_order_id)` (for a completed order it just returns
+the stored report — it does not re-query the broker).
 
 Orders cannot be undone. A duplicate-order safeguard is on by default (credit trading is blocked
 by default); the full rules are in the [Orders](https://seokhoonj.github.io/kis-trader/orders.html)

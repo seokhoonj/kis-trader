@@ -57,7 +57,9 @@ class RiskLimits:
       +/-10%). KIS 상하한가(+/-30%) 안이라도 오타를 잡는 진짜 fat-finger 가드다. 지정가에만
       적용(시장가는 지정 가격이 없어 대상 아님).
     - ``enforce_tick_size``: 지정가/스탑가가 KRX 호가단위(원)의 배수인지 검사(기본 off --
-      호가단위 표가 규정으로 바뀔 수 있어 명시 opt-in).
+      호가단위 표가 규정으로 바뀔 수 있어 명시 opt-in). KRX 국내주식 주문에만 적용한다 -- 세션
+      발주에서 해외/채권은 risk 세션 자체가 미지원으로 거부되고 국내파생은 max_order_quantity 만
+      허용하므로, 다른 자산군이 이 검사를 건너뛰는 경로는 check() 를 직접 호출할 때뿐이다.
     """
 
     max_order_quantity: int | None = None
@@ -136,8 +138,10 @@ class RiskLimits:
                     f"지정가 {order.limit_price} 가 현재가 {reference_price} 에서 {deviation:.1f}% "
                     f"벗어나 collar {self.price_collar_percent}% 를 초과한다."
                 )
-        if self.enforce_tick_size:
-            for label, price in (("limit_price", order.limit_price), ("stop_price", order.stop_price)):
+        # 호가단위 표는 KRX 국내주식 원화 구간 전용 -- 해외/파생/채권에 적용하면 정당 주문을
+        # 오거부한다($150.37 는 tick 1 위반). region/asset_class 로 국내주식에만 게이트.
+        if self.enforce_tick_size and order.region == "domestic" and order.asset_class == "stock":
+            for label, price in (("지정가", order.limit_price), ("스탑가", order.stop_price)):
                 if price is None:
                     continue
                 tick = _krx_equity_tick(price)

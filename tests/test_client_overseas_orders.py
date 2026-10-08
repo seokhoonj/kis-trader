@@ -306,13 +306,14 @@ def test_overseas_reconcile_paginates_ccnl():
     assert gets[1]["params"]["CTX_AREA_NK200"] == "NEXT"
 
 
-def test_overseas_reconcile_keeps_scanning_when_tr_cont_says_more():
-    # 안전: 응답헤더 tr_cont 가 연속(F/M)이면 커서가 비어 있어도 계속 스캔한다 -- 조기 종료로
-    # 체결을 놓쳐 '미접수'로 오판하면 이중체결 위험. 커서 공백만 보던 옛 로직이라면 여기서 멈췄다.
+def test_overseas_reconcile_keeps_scanning_when_cursor_advances():
+    # 안전: tr_cont 가 연속(F/M)이고 커서가 진전하면(비어 있지도 반복되지도 않음) 계속 스캔한다 --
+    # 조기 종료로 체결을 놓쳐 '미접수'로 오판하면 이중체결 위험. 원하는 체결은 2페이지에 있다.
     page1 = RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
-                        body={"output": [_ccnl_row(pdno="MSFT")], "ctx_area_nk200": ""},
-                        tr_cont="M")                    # 커서는 비었지만 tr_cont 는 더 있다고 함
-    page2 = _ccnl([_ccnl_row()])                        # 원하는 체결은 2페이지에(tr_cont 기본 "")
+                        body={"output": [_ccnl_row(pdno="MSFT")],
+                              "ctx_area_nk200": "NEXT1", "ctx_area_fk200": "FK1"},
+                        tr_cont="M")                    # 진전하는 커서 + 더 있음
+    page2 = _ccnl([_ccnl_row()])                        # 원하는 체결은 2페이지에(tr_cont 기본 "", 커서 없음)
     fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=[page1, page2])
     client = _client(fake)
     with pytest.raises(OrderTimeoutError):
@@ -320,6 +321,29 @@ def test_overseas_reconcile_keeps_scanning_when_tr_cont_says_more():
     report = client.orders.reconcile("tc")
     assert report is not None and report.order_id == "0000123456"
     assert len([c for c in fake.calls if c["method"] == "GET"]) == 2
+
+
+@pytest.mark.parametrize("tr_cont", ["F", "M"])
+@pytest.mark.parametrize("cursor", ["empty", "repeated"])
+def test_overseas_reconcile_raises_when_cursor_cannot_advance_but_tr_cont_says_more(cursor, tr_cont):
+    # fail-closed: tr_cont 가 '더 있음'(F/M)인데 커서가 진전 불가면 모순이다 -- 빈 커서(다음 요청이
+    # CTX 리셋->1페이지 재적재) 또는 반복 커서(서버가 커서를 안 진전; 무한 재요청/이중집계). 부분/모순으로
+    # 확정하지 않고 KISError 로 올린다. 두 arm(빈/반복) x tr_cont(F/M) 모두 검증.
+    row = _ccnl_row(pdno="MSFT")
+    if cursor == "empty":
+        pages = [RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
+                             body={"output": [row], "ctx_area_nk200": ""}, tr_cont=tr_cont)]
+    else:  # repeated: 1페이지가 커서를 세우고 2페이지가 같은 커서를 반복 -> 진전 불가
+        pages = [RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
+                             body={"output": [row], "ctx_area_nk200": "SAME"}, tr_cont=tr_cont),
+                 RawResponse(rt_cd="0", msg_cd="0", msg1="정상",
+                             body={"output": [row], "ctx_area_nk200": "SAME"}, tr_cont=tr_cont)]
+    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=pages)
+    client = _client(fake)
+    with pytest.raises(OrderTimeoutError):
+        client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, limit_price="150.00", client_order_id="tc")
+    with pytest.raises(KISError, match="진전하지 않는"):
+        client.orders.reconcile("tc")
 
 
 def test_overseas_non_day_tif_rejected_before_wire():
