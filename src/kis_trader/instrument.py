@@ -9,7 +9,7 @@
 from __future__ import annotations
 
 import re
-from typing import Literal
+from typing import Literal, get_args
 
 from .errors import KISUsageError
 
@@ -23,9 +23,12 @@ Region = Literal["domestic", "overseas"]
 DomesticOrderExchange = Literal["KRX", "NXT", "SOR"]
 #: 국내 시세 거래소 -- KRX(정규거래소)/NXT(대체거래소, ATS)/UN(통합호가=통합; 주문의 SOR 에 대응)
 DomesticQuoteExchange = Literal["KRX", "NXT", "UN"]
+#: 국내 지수선물 보드 시장구분 -- ""(KOSPI200)/MKI(미니코스피)/WKM(위클리월)/WKI(위클리목)/KQI(코스닥150).
+FuturesBoardMarket = Literal["", "MKI", "WKM", "WKI", "KQI"]
 
-_DOMESTIC_ORDER_EXCHANGES = frozenset(("KRX", "NXT", "SOR"))
-_DOMESTIC_QUOTE_EXCHANGES = frozenset(("KRX", "NXT", "UN"))
+#: 멤버십 검증용 frozenset -- 공개 Literal 에서 파생해 드리프트를 원천 차단한다(단일 출처).
+_DOMESTIC_ORDER_EXCHANGES = frozenset(get_args(DomesticOrderExchange))
+_DOMESTIC_QUOTE_EXCHANGES = frozenset(get_args(DomesticQuoteExchange))
 
 
 def is_domestic_symbol(symbol: str) -> bool:

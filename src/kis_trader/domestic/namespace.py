@@ -10,6 +10,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from ..errors import KISUsageError
+from ..instrument import FuturesBoardMarket
 from ._engine import account as account_api
 from ._engine import derivatives as derivatives_api
 from ._engine import market_data as market_data_api
@@ -276,7 +277,7 @@ class DomesticNamespace:
             self._client.transport, expiry=expiry, underlying=underlying
         )
 
-    def option_board_futures(self, *, market_class: str = "MKI") -> list[FuturesBoardQuote]:
+    def option_board_futures(self, *, market_class: FuturesBoardMarket = "MKI") -> list[FuturesBoardQuote]:
         """옵션 전광판 하단의 선물 계약별 현재가·호가·미결제약정·예상체결가. ``market_class`` =
         ``""``(KOSPI200 메인보드)/``"MKI"``(미니)/``"WKM"``·``"WKI"``(위클리)/``"KQI"``(코스닥)."""
         return derivatives_api.fetch_futures_board_quotes(

@@ -15,6 +15,7 @@ from types import MappingProxyType
 from typing import Any, Literal
 
 from ..._internal._freeze import freeze_vendor_payload
+from ...instrument import Region
 
 #: 투자의견 조회 필터 -- 전체/매수/중립/매도. 엔진 입력과 파사드 파라미터가 공유한다(한 곳 정의).
 BrokerOpinionFilter = Literal["all", "buy", "neutral", "sell"]
@@ -307,7 +308,7 @@ class InterestRateQuote:
 
     code: str
     name: str
-    region: Literal["domestic", "overseas"]
+    region: Region
     quote_value: Decimal
     change: Decimal
     change_percent: Decimal

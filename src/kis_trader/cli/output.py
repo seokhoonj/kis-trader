@@ -13,7 +13,10 @@ from collections.abc import Mapping
 from datetime import date, datetime, time, timedelta
 from decimal import Decimal
 from enum import Enum
-from typing import Any, Literal, Protocol, cast
+from typing import Any, Literal, Protocol, TypeAlias, cast
+
+#: CLI 출력 형식 -- 표/JSON/JSON Lines. 파서 choices 와 render() 가 단일 출처로 공유한다.
+OutputFormat: TypeAlias = Literal["table", "json", "jsonl"]
 
 #: KIS 데이터는 KST(+09:00) 고정 오프셋으로 온다 -- 사람용 표에선 이를 "KST" 라벨로 보인다.
 _KST_OFFSET = timedelta(hours=9)
@@ -213,7 +216,7 @@ def _render_fields(items: list[tuple[Any, Any]], *, no_header: bool) -> str:
 
 
 def render(
-    value: Any, *, fmt: Literal["table", "json", "jsonl"] = "table", include_raw: bool = False,
+    value: Any, *, fmt: OutputFormat = "table", include_raw: bool = False,
     no_header: bool = False, meta: dict[str, Any] | None = None,
 ) -> str:
     """결과 객체를 최종 문자열로. ``fmt`` = ``table``/``json``/``jsonl``."""

@@ -7,18 +7,19 @@
 from __future__ import annotations
 
 from argparse import Namespace
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, cast, get_args
 
 from ..client import KISClient
 from ..config import order_store_path, resolve_credentials
 from ..errors import KISUsageError
-from ..instrument import (
-    _DOMESTIC_ORDER_EXCHANGES,
-    _DOMESTIC_QUOTE_EXCHANGES,
-    DomesticQuoteExchange,
-)
+from ..instrument import DomesticOrderExchange, DomesticQuoteExchange
 from ..store import OrderStore
 from .errors import CliConfigError
+
+# CLI 는 소비자층이라 패키지 비공개(frozenset)에 손대지 않고 공개 Literal 에서 멤버십 집합을 파생한다
+# (명령들이 공유). 패키지 내부 _DOMESTIC_*_EXCHANGES 와 같은 Literal 을 단일 출처로 쓴다.
+_DOMESTIC_ORDER_EXCHANGES = frozenset(get_args(DomesticOrderExchange))
+_DOMESTIC_QUOTE_EXCHANGES = frozenset(get_args(DomesticQuoteExchange))
 
 if TYPE_CHECKING:
     from ..domestic.bond import Bond

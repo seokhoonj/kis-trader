@@ -17,6 +17,7 @@ from .. import (
     Direction,
     DomesticDivision,
     ProfitSort,
+    Region,
     ReservedCurrency,
     ReservedProcess,
     SearchMarket,
@@ -29,7 +30,7 @@ from ..transport import Environment
 from .commands import account, credentials, market, order, stock
 from .context import account_suffix, build_client
 from .errors import CliAborted, CliConfigError, Translated, translate
-from .output import render
+from .output import OutputFormat, render
 
 if TYPE_CHECKING:
     from ..client import KISClient
@@ -43,7 +44,7 @@ def _distribution_version() -> str:
 
 
 def _add_region(sub: argparse.ArgumentParser) -> None:
-    sub.add_argument("--region", dest="region", choices=["domestic", "overseas"], default="domestic",
+    sub.add_argument("--region", dest="region", choices=list(get_args(Region)), default="domestic",
                      help="국내(기본)/해외")
 
 
@@ -63,7 +64,7 @@ def _common_flags() -> argparse.ArgumentParser:
     common.add_argument("--profile", default=argparse.SUPPRESS,
                         help="자격증명 프로필(자유 이름). 미지정 시 KIS_DEFAULT_PROFILE > default_profile 마커 > credentials.json 첫 항목 > main. 환경은 프로필에 저장된 값")
     common.add_argument("--account", default=argparse.SUPPRESS, help="계좌번호(생략 시 프로필 계좌)")
-    common.add_argument("--format", dest="fmt", choices=["table", "json", "jsonl"],
+    common.add_argument("--format", dest="fmt", choices=list(get_args(OutputFormat)),
                         default=argparse.SUPPRESS, help="출력 형식(기본 table)")
     common.add_argument("--no-header", dest="no_header", action="store_true",
                         default=argparse.SUPPRESS, help="표 머리글 생략")
@@ -82,7 +83,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--profile", default=None,
                         help="자격증명 프로필(자유 이름). 미지정 시 KIS_DEFAULT_PROFILE > default_profile 마커 > credentials.json 첫 항목 > main. 환경은 프로필에 저장된 값")
     parser.add_argument("--account", default=None, help="계좌번호(생략 시 프로필 계좌)")
-    parser.add_argument("--format", dest="fmt", choices=["table", "json", "jsonl"], default="table",
+    parser.add_argument("--format", dest="fmt", choices=list(get_args(OutputFormat)), default="table",
                         help="출력 형식(기본 table)")
     parser.add_argument("--no-header", dest="no_header", action="store_true", help="표 머리글 생략")
     parser.add_argument("--include-raw", dest="include_raw", action="store_true",

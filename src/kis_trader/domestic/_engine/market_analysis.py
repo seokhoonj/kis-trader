@@ -13,7 +13,6 @@ from __future__ import annotations
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime, timedelta
 from decimal import Decimal, InvalidOperation
-from typing import Literal
 
 from ..._bars import _parse_bar_timestamp
 from ..._internal._datetime import (
@@ -37,6 +36,7 @@ from ..._internal._wire import (
     required_int,
 )
 from ...errors import KISUsageError
+from ...instrument import Region
 from ...news import NewsHeadline
 from ...transport import RawResponse, Transport
 from ..entities.investor import InvestorActivity, InvestorNetActivity
@@ -952,7 +952,7 @@ def _parse_program_trade_activity(row: Mapping[str, object], prefix: str) -> Pro
 def _parse_interest_rates(
     rows: Sequence[object],
     *,
-    region: Literal["domestic", "overseas"],
+    region: Region,
     percent_field: str,
     resp: RawResponse,
 ) -> list[InterestRateQuote]:

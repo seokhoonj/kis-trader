@@ -26,6 +26,7 @@ from mcp.server.transport_security import TransportSecuritySettings
 from .._literals import Direction
 from ..client import KISClient
 from ..errors import KISError, KISUsageError
+from ..instrument import Region
 from ..order import DomesticDivision, Side
 from ..risk import RiskLimits
 from . import handlers
@@ -239,7 +240,7 @@ def build_server(
     )
 
     @server.tool()
-    def quote(symbol: str, region: Literal["domestic", "overseas"] = "domestic") -> dict[str, Any]:
+    def quote(symbol: str, region: Region = "domestic") -> dict[str, Any]:
         """종목 현재가 스냅샷. region='overseas' 면 해외."""
         return handlers.quote(kis, symbol, region=region)
 

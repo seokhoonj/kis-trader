@@ -4,8 +4,7 @@ from __future__ import annotations
 from argparse import Namespace
 from typing import TYPE_CHECKING, Any
 
-from ...instrument import _DOMESTIC_QUOTE_EXCHANGES
-from ..context import resolve_stock
+from ..context import _DOMESTIC_QUOTE_EXCHANGES, resolve_stock
 from ..errors import CliConfigError
 
 if TYPE_CHECKING:

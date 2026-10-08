@@ -18,7 +18,7 @@ from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
 from datetime import date, datetime
-from typing import Any, Literal
+from typing import Any, Literal, get_args
 
 from ..._bars import (
     _MAX_MINUTE_PAGES,
@@ -51,6 +51,7 @@ from ..._internal._wire import (
 from ..._literals import DerivativeMarket
 from ...bar import Bar, Interval
 from ...errors import KISError, KISUsageError
+from ...instrument import FuturesBoardMarket
 from ...order_book import OrderBook
 from ...transport import Environment, Transport
 from ..entities.derivative import (
@@ -83,7 +84,7 @@ _FUTURES_BOARD_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-f
 _FUTURES_BOARD_TR = "FHPIF05030200"
 #: 전광판 선물 보드 선택(FID_COND_MRKT_CLS_CODE). 공백=KOSPI200 메인보드(라이브 프로브로 확인:
 #: 공백이 A01xxx KOSPI200 월물만 돌려주고 MKI/KQI 보드는 섞이지 않음). MKI=미니/WKM·WKI=위클리/KQI=코스닥.
-_FUTURES_BOARD_CLASSES = frozenset({"", "MKI", "WKM", "WKI", "KQI"})
+_FUTURES_BOARD_CLASSES = frozenset(get_args(FuturesBoardMarket))
 
 
 _OPTION_EXPIRIES_PATH = "/uapi/domestic-futureoption/v1/quotations/display-board-option-list"
@@ -326,7 +327,7 @@ def fetch_expected_execution_trend(
 
 
 def fetch_futures_board_quotes(
-    transport: Transport, *, market_class: str
+    transport: Transport, *, market_class: FuturesBoardMarket
 ) -> list[FuturesBoardQuote]:
     """옵션 전광판 하단의 선물 계약별 시세를 조회한다."""
     normalized_market_class = market_class.strip()

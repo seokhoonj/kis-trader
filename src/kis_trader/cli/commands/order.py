@@ -21,9 +21,8 @@ from typing import TYPE_CHECKING, Any, get_args
 from ..._internal._datetime import _KST, _parse_kst_time
 from ...errors import KISError
 from ...execution import execute_twap, make_twap_schedule
-from ...instrument import _DOMESTIC_ORDER_EXCHANGES
 from ...order import DerivativeDivision, Side
-from ..context import account_suffix, resolve_bond, resolve_stock
+from ..context import _DOMESTIC_ORDER_EXCHANGES, account_suffix, resolve_bond, resolve_stock
 from ..errors import CliAborted, CliConfigError
 from .account import _stock_account
 
