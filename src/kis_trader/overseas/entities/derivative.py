@@ -107,7 +107,7 @@ class OverseasDerivativeMarketHours:
     product_group_name: str
     exchange_code: str
     exchange_name: str
-    kind: str
+    futures_option_type_name: str  # 선물옵션구분명(fuop_dvsn_name)
     class_code: str
     class_name: str
     am_open: time | None
@@ -130,7 +130,7 @@ class OverseasDerivativeMarketHours:
 class OverseasFuturesOpenInterest:
     """한 날짜의 해외선물 상품 CFTC 미결제약정 구성(불변)."""
 
-    product: str
+    symbol: str
     cftc_code: str
     date: date
     speculative_long: int

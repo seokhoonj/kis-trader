@@ -260,7 +260,7 @@ kis.overseas
 ├── futures_details(symbols)            # 선물 명세 배치(최대 32)
 ├── option_details(symbols)             # 옵션 명세 배치(최대 30)
 ├── derivatives_market_hours(...)       # 상품군별 장운영시간
-├── futures_open_interest(product)      # CFTC 미결제약정
+├── futures_open_interest(symbol)       # CFTC 미결제약정
 ├── settlement_dates()                  # 각 시장 결제일자 참조표
 ├── quotes(symbols)                     # 여러 종목 현재가(최대 10)
 ├── search_stocks(exchange, ...)        # 조건검색(exchange='US'는 NAS/NYS/AMS 통합)

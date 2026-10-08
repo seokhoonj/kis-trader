@@ -291,6 +291,13 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
 - `OverseasDerivative.bars(...)` takes `interval` as the first positional argument (default
   `"1d"`) with `exchange` kept required keyword-only, matching every sibling `bars()` — previously
   `interval` was keyword-only, so `bars("1d", exchange=...)` raised `TypeError`.
+- The `product` axis on the overseas-derivatives surface now means one thing everywhere. The
+  `derivatives_market_hours(kind=...)` free-form string becomes a validated
+  `product: DerivativeProductFilter` (`"all"`/`"future"`/`"option"` → wire `OPT_YN` `%`/`N`/`Y`,
+  unknown values rejected), its result field `OverseasDerivativeMarketHours.kind` →
+  `futures_option_type_name` (`fuop_dvsn_name`); and `futures_open_interest(product=...)` — whose
+  argument is the CFTC product identifier, not the future/option filter — is renamed
+  `symbol`, with `OverseasFuturesOpenInterest.product` → `symbol`.
 - `option_board_futures(market_class="")` now reaches the KOSPI200 main board (a blank
   `FID_COND_MRKT_CLS_CODE` returns the A01xxx KOSPI200 monthly contracts with no MKI/KQI
   board rows). The engine previously rejected a blank

@@ -265,7 +265,7 @@ def test_overseas_futures_open_interest_maps_and_routes():
     )
     assert len(points) == 1 and isinstance(points[0], OverseasFuturesOpenInterest)
     point = points[0]
-    assert point.product == "ES"
+    assert point.symbol == "ES"
     assert point.speculative_long == 270380
     assert point.hedging_short == 1617849
     assert point.total_open_interest == 2266096

@@ -38,7 +38,7 @@ from ..._internal._wire import (
     required_decimal,
     required_int,
 )
-from ..._literals import DerivativeProduct
+from ..._literals import DerivativeProduct, DerivativeProductFilter
 from ...bar import Bar, Interval
 from ...errors import KISError, KISUsageError
 from ...order_book import OrderBook, PriceLevel
@@ -361,7 +361,7 @@ def _parse_history_timestamp(date_text: str, time_text: str) -> datetime:
 def fetch_open_interest(
     transport: Transport,
     *,
-    product: str,
+    symbol: str,
     as_of: str | date,
     mode: Literal["quantity", "change"],
     environment: Environment,
@@ -369,13 +369,13 @@ def fetch_open_interest(
     """해외선물 상품의 CFTC 미결제약정 수량 또는 증감 추이."""
     if environment == "paper":
         raise KISUsageError("해외선물 미결제추이는 모의투자 미지원이다(실전만).")
-    if not product.strip():
-        raise KISUsageError("해외선물 미결제추이에는 product 가 필요하다.")
+    if not symbol.strip():
+        raise KISUsageError("해외선물 미결제추이에는 symbol 이 필요하다.")
     mode_code = {"quantity": "0", "change": "1"}.get(mode)
     if mode_code is None:
         raise KISUsageError(f"mode 는 'quantity' 또는 'change': {mode!r}")
     params = {
-        "PROD_ISCD": product.strip(),
+        "PROD_ISCD": symbol.strip(),
         "BSOP_DATE": _to_yyyymmdd(as_of, "as_of"),
         "UPMU_GUBUN": mode_code,
         "CTS_KEY": "",
@@ -392,7 +392,7 @@ def fetch_open_interest(
             raise _missing_block_error("output2[]", resp)
         points.append(
             OverseasFuturesOpenInterest(
-                product=str(row.get("prod_iscd", "")).strip() or product.strip(),
+                symbol=str(row.get("prod_iscd", "")).strip() or symbol.strip(),
                 cftc_code=str(row.get("cftc_iscd", "")).strip(),
                 date=_parse_kst_date(str(row.get("bsop_date", "")).strip()),
                 speculative_long=required_int(row.get("bidp_spec"), "bidp_spec"),
@@ -528,6 +528,10 @@ _MAX_MARKET_HOURS_PAGES = 100
 
 
 
+#: product 필터 -> OPT_YN 와이어코드(공식 kis_ovrseafuopt.py OTFM2229R: %(전체)/N(선물)/Y(옵션)).
+_MARKET_HOURS_OPT_YN = {"all": "%", "future": "N", "option": "Y"}
+
+
 def fetch_market_hours(
     transport: Transport,
     *,
@@ -535,7 +539,7 @@ def fetch_market_hours(
     product_group: str = "",
     asset_class: str = "",
     exchange: str = "",
-    kind: str = "",
+    product: DerivativeProductFilter = "all",
 ) -> list[OverseasDerivativeMarketHours]:
     """해외 선물/옵션 상품군별 장운영시간 전체를 조회한다.
 
@@ -550,6 +554,12 @@ def fetch_market_hours(
     """
     if environment == "paper":
         raise KISUsageError("해외 선물/옵션 장운영시간 조회는 모의투자 미지원이다(실전만).")
+    try:
+        opt_yn = _MARKET_HOURS_OPT_YN[product]
+    except KeyError:
+        raise KISUsageError(
+            f"product 는 all/future/option 중 하나여야 한다: {product!r}"
+        ) from None
 
     rows: list[Mapping[str, Any]] = []
     ctx_fk, ctx_nk = "", ""
@@ -558,7 +568,7 @@ def fetch_market_hours(
             "FM_PDGR_CD": product_group,
             "FM_CLAS_CD": asset_class,
             "FM_EXCG_CD": exchange,
-            "OPT_YN": kind or "%",
+            "OPT_YN": opt_yn,
             "CTX_AREA_NK200": ctx_nk,
             "CTX_AREA_FK200": ctx_fk,
         }
@@ -597,7 +607,7 @@ def _parse_market_hours(row: Mapping[str, Any]) -> OverseasDerivativeMarketHours
         product_group_name=str(row.get("fm_pdgr_name", "")).strip(),
         exchange_code=str(row.get("fm_excg_cd", "")).strip(),
         exchange_name=str(row.get("fm_excg_name", "")).strip(),
-        kind=str(row.get("fuop_dvsn_name", "")).strip(),
+        futures_option_type_name=str(row.get("fuop_dvsn_name", "")).strip(),
         class_code=str(row.get("fm_clas_cd", "")).strip(),
         class_name=str(row.get("fm_clas_name", "")).strip(),
         am_open=_parse_hhmmss(row.get("am_mkmn_strt_tmd")),

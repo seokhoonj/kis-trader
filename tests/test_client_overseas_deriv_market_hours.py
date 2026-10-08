@@ -72,7 +72,7 @@ def test_market_hours_single_page_routes_defaults_and_parses():
     assert item.product_group_name == "E-MINI S&P 500"
     assert item.exchange_code == "CME"
     assert item.exchange_name == "CHICAGO MERCANTILE EXCHANGE"
-    assert item.kind == "선물"
+    assert item.futures_option_type_name == "선물"
     assert item.class_code == "003"
     assert item.class_name == "지수"
     assert item.am_open == time(9, 30)
@@ -94,7 +94,7 @@ def test_market_hours_single_page_routes_defaults_and_parses():
 def test_market_hours_forwards_non_default_filters():
     fake = FakeTransport(responses=[_response([])])
     _client(fake).overseas.derivatives_market_hours(
-        product_group="ES", asset_class="003", exchange="CME", kind="N"
+        product_group="ES", asset_class="003", exchange="CME", product="future"
     )
     params = fake.calls[0]["params"]
     assert params["FM_PDGR_CD"] == "ES"

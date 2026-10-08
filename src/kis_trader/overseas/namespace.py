@@ -30,7 +30,7 @@ if TYPE_CHECKING:
     from collections.abc import Sequence
     from datetime import date
 
-    from .._literals import Numeric, SideFilter
+    from .._literals import DerivativeProductFilter, Numeric, SideFilter
     from ..client import KISClient
     from ..news import NewsHeadline
     from ..quote import Quote
@@ -294,21 +294,22 @@ class OverseasNamespace:
         )
 
     def derivatives_market_hours(
-        self, *, product_group: str = "", asset_class: str = "", exchange: str = "", kind: str = ""
+        self, *, product_group: str = "", asset_class: str = "", exchange: str = "",
+        product: DerivativeProductFilter = "all",
     ) -> list[OverseasDerivativeMarketHours]:
         """해외 선물/옵션 상품군별 장운영시간(시장 전체, 계약 무관). 필터를 생략하면 전체를 조회한다.
         **모의투자 미지원**."""
         return overseas_derivatives_api.fetch_market_hours(
             self._client.transport, environment=self._client.environment,
-            product_group=product_group, asset_class=asset_class, exchange=exchange, kind=kind,
+            product_group=product_group, asset_class=asset_class, exchange=exchange, product=product,
         )
 
     def futures_open_interest(
-        self, product: str, *, as_of: str | date, mode: Literal["quantity", "change"] = "quantity"
+        self, symbol: str, *, as_of: str | date, mode: Literal["quantity", "change"] = "quantity"
     ) -> list[OverseasFuturesOpenInterest]:
         """해외선물 상품의 CFTC 미결제약정 수량 또는 증감 추이(실전만)."""
         return overseas_derivatives_api.fetch_open_interest(
-            self._client.transport, product=product, as_of=as_of, mode=mode,
+            self._client.transport, symbol=symbol, as_of=as_of, mode=mode,
             environment=self._client.environment,
         )
 
