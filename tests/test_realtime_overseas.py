@@ -215,6 +215,17 @@ def test_delayed_trade_raw_and_registry():
     assert spec.encrypted is False
 
 
+def test_delayed_trade_tick_downtick_signs_both_change_fields():
+    # 하락 부호(SIGN=5) + 부호 없는 DIFF/RATE -> change/change_percent 둘 다 음수. 부호가 SIGN
+    # 키에서 왔음을 고정한다(이미 음수인 크기면 멱등성으로 통과해 키 배선을 검증하지 못한다).
+    fields = _delayed_trade_fields()
+    fields[12] = "5"  # SIGN 하락
+    tick = parse_delayed_trade_tick(fields)
+    assert tick.change_sign == "5"
+    assert tick.change == Decimal("-1.50")
+    assert tick.change_percent == Decimal("-0.65")
+
+
 # ---------------------------------------------------------------------------
 # H0GSCNI0 -- OverseasExecutionNotice (encrypted)
 # ---------------------------------------------------------------------------
@@ -340,6 +351,17 @@ def test_futures_trade_raw_and_registry():
     assert spec.field_count == len(_FUTURES_TRADE_FIELDS)
     assert spec.parser is parse_futures_trade_tick
     assert spec.encrypted is False
+
+
+def test_futures_trade_tick_downtick_signs_both_change_fields():
+    # 하락 부호(PREV_SIGN=5) + 부호 없는 PREV_DIFF_PRICE/RATE -> change/change_percent 둘 다 음수.
+    # 부호가 PREV_SIGN 키에서 왔음을 고정한다(멱등성 통과로 가려지지 않게 크기는 양수로 둔다).
+    fields = _futures_trade_fields()
+    fields[18] = "5"  # PREV_SIGN 하락
+    tick = parse_futures_trade_tick(fields)
+    assert tick.change_sign == "5"
+    assert tick.change == Decimal("-10.25")
+    assert tick.change_percent == Decimal("-0.19")
 
 
 # ---------------------------------------------------------------------------

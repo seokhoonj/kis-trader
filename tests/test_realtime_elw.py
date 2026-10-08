@@ -203,7 +203,7 @@ def _expected_conclusion_fields() -> list[str]:
     put("STCK_PRPR", "123")
     put("PRDY_VRSS_SIGN", "5")
     put("PRDY_VRSS", "3")
-    put("PRDY_CTRT", "-2.38")
+    put("PRDY_CTRT", "2.38")   # 부호 없는 크기 -- change_percent 의 음수는 PRDY_VRSS_SIGN 키에서만 온다
     put("STCK_OPRC", "125")
     put("STCK_HGPR", "127")
     put("STCK_LWPR", "121")

@@ -400,6 +400,21 @@ def test_parse_etf_nav():
     assert nav._raw["LPRC_NAV"] == "39050.75"
 
 
+def test_parse_etf_nav_downtick_signs_both_nav_change_fields():
+    # 하락 부호(5) + 부호 없는 크기 -> nav_change/nav_change_percent 둘 다 음수. 부호 없는 크기를
+    # 써야 그 부호가 NAV_PRDY_VRSS_SIGN 키에서 왔음이 고정된다(이미 음수인 크기면 멱등성으로 통과해
+    # 키 배선을 검증하지 못한다).
+    record = _at(_ETF_NAV_FIELDS, {
+        "MKSC_SHRN_ISCD": "069500", "NAV": "39010.00", "NAV_PRDY_VRSS_SIGN": "5",
+        "NAV_PRDY_VRSS": "120.30", "NAV_PRDY_CTRT": "0.31", "OPRC_NAV": "39100.00",
+        "HPRC_NAV": "39400.50", "LPRC_NAV": "39050.75",
+    })
+    nav = parse_etf_nav(record)
+    assert nav.nav_change_sign == "5"
+    assert nav.nav_change == Decimal("-120.30")
+    assert nav.nav_change_percent == Decimal("-0.31")
+
+
 def test_registry_etf_nav():
     spec = _registry.lookup("H0STNAV0")
     assert spec is not None
