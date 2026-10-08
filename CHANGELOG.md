@@ -283,6 +283,12 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `DerivativeOpenOrder` and the pension order entity, matching the sibling `ReservedOrder` and
   no longer colliding with the typed `order_type: OrderType` on the request path (which is
   unchanged).
+- The overseas order entities' `quantity` field is renamed `order_quantity` to match the
+  `order_quantity` that the domestic, bond, derivative, and realtime order records already use:
+  `OverseasOpenOrder`, `OverseasAlgoOrder`, `OverseasReservedOrder`, and the pension order entity.
+  `OverseasAlgoExecution.quantity` (a fill record) is renamed `filled_quantity`, since it holds
+  the executed quantity, not an order quantity. `OverseasTransaction.quantity` stays bare (it is
+  the record's only quantity, with no sibling axis). Wire keys and behavior are unchanged.
 
 ### Added
 

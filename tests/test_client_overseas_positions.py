@@ -224,7 +224,7 @@ def test_overseas_open_orders_maps_fields():
     assert o.order_id == "0000123456"
     assert o.symbol == "AAPL"
     assert o.side == "buy"                             # 02 -> buy
-    assert o.quantity == 10
+    assert o.order_quantity == 10
     assert o.filled_quantity == 3
     assert o.unfilled_quantity == 7
     assert o.order_price == Money(Decimal("150.25"), "USD")
@@ -239,7 +239,7 @@ def test_overseas_open_orders_accepts_fractional_quantity():
     fake = FakeTransport(response=_open_resp([_open_order(qty="0.5", ccld="0.2", nccs="0.3")]))
     orders = _client(fake).account.overseas.open_orders(market="US")
     o = orders[0]
-    assert o.quantity == Decimal("0.5")
+    assert o.order_quantity == Decimal("0.5")
     assert o.filled_quantity == Decimal("0.2")
     assert o.unfilled_quantity == Decimal("0.3")
 

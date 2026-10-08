@@ -697,7 +697,7 @@ def _parse(row: Mapping[str, Any]) -> OverseasReservedOrder:
         side=_side_from_code(row.get("sll_buy_dvsn_cd")),
         status=str(row.get("ovrs_rsvn_ord_stat_cd_name", "")).strip(),
         exchange=str(row.get("ovrs_excg_cd", "")).strip(),
-        quantity=_decimal_or_zero(row, "ft_ord_qty"),
+        order_quantity=_decimal_or_zero(row, "ft_ord_qty"),
         order_price=_decimal_or_zero(row, "ft_ord_unpr3"),
         filled_quantity=_decimal_or_zero(row, "ft_ccld_qty"),
         canceled=str(row.get("cncl_yn", "")).strip().upper() == "Y",

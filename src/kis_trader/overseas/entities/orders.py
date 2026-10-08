@@ -27,7 +27,7 @@ class OverseasOpenOrder:
     exchange: str                     # 해외거래소코드
     order_id: str                     # 거래소 주문번호(odno)
     side: Side                        # buy / sell
-    quantity: Decimal                 # 주문수량
+    order_quantity: Decimal           # 주문수량
     filled_quantity: Decimal          # 체결수량
     unfilled_quantity: Decimal        # 미체결 잔량
     order_price: Money                # 주문단가(종목 통화)
@@ -51,7 +51,7 @@ class OverseasAlgoOrder:
     trade_type: str                   # 매매구분명(trad_dvsn_name)
     symbol: str
     name: str
-    quantity: Decimal                 # 주문수량(ft_ord_qty)
+    order_quantity: Decimal           # 주문수량(ft_ord_qty)
     order_price: Decimal              # 주문단가(ft_ord_unpr3)
     filled_quantity: Decimal          # 체결수량(ft_ccld_qty)
     split_attribute: str              # 분할매수속성명(splt_buy_attr_name)
@@ -72,7 +72,7 @@ class OverseasAlgoExecution:
     executed_at: time | None          # 체결시간(CCLD_BTWN, HHMMSS)
     symbol: str
     name: str
-    quantity: Decimal                 # 체결수량(FT_CCLD_QTY)
+    filled_quantity: Decimal          # 체결수량(FT_CCLD_QTY)
     price: Money                      # 체결단가(FT_CCLD_UNPR3, 거래통화 TR_CRCY)
     amount: Money                     # 체결금액(FT_CCLD_AMT3, 거래통화 TR_CRCY)
     _raw: Mapping[str, Any] = field(
@@ -102,7 +102,7 @@ class OverseasReservedOrder:
     side: Side                        # buy / sell
     status: str                       # 해외예약주문상태명(ovrs_rsvn_ord_stat_cd_name)
     exchange: str                     # 해외거래소코드(ovrs_excg_cd)
-    quantity: Decimal                 # 주문수량(ft_ord_qty)
+    order_quantity: Decimal           # 주문수량(ft_ord_qty)
     order_price: Decimal              # 주문단가(ft_ord_unpr3)
     filled_quantity: Decimal          # 체결수량(ft_ccld_qty)
     canceled: bool                    # 취소여부(cncl_yn)

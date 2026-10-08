@@ -209,7 +209,7 @@ def test_pension_orders_parses():
     assert isinstance(o, PensionOrder)
     assert o.order_id == "0001569139"
     assert o.side == "buy"
-    assert o.quantity == Decimal(5)
+    assert o.order_quantity == Decimal(5)
     assert o.filled_quantity == Decimal(2)
     assert o.unfilled_quantity == Decimal(3)
     assert o.order_price == Decimal(13235)

@@ -104,7 +104,7 @@ class PensionOrder:
     order_type_name: str              # 주문구분명(ord_dvsn_name)
     symbol: str
     name: str
-    quantity: Decimal                 # 주문수량(ord_qty)
+    order_quantity: Decimal           # 주문수량(ord_qty)
     filled_quantity: Decimal          # 총체결수량(tot_ccld_qty)
     unfilled_quantity: Decimal        # 미체결수량(nccs_qty)
     order_price: Decimal              # 주문단가(ord_unpr)
