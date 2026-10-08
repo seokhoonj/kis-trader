@@ -157,15 +157,16 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
 
 - Realtime execution-notice entities now use the same `filled_*` / `order_id` field names as
   the REST order surface, instead of three different spellings. Across `StockExecutionNotice`,
-  `OverseasExecutionNotice`, `FuturesOrderNotice`, `FuturesExecutionNotice` and
-  `DerivativeExecutionNotice`: `account_no` →
+  `OverseasExecutionNotice`, `OverseasDerivativeOrderNotice`, `OverseasDerivativeExecutionNotice` and
+  `DerivativeExecutionNotice` (each for the fields it carries): `account_no` →
   `account_number`, `order_no` / `order_number` → `order_id`, `original_order_no` /
   `original_order_number` → `original_order_id`, `executed_qty` / `executed_quantity` →
   `filled_quantity`, `total_executed_quantity` → `total_filled_quantity`, `executed_price` →
   `filled_price`, `total_executed_price` → `total_filled_price`, `executed_amount` →
   `filled_amount`, `executed_date` → `filled_date`, `refused` → `rejected`, `branch_no` →
-  `branch_number` (matching the REST `branch_number`), and `execution_no` → `fill_number`
-  (matching the REST `OverseasDerivativeFill.fill_number`).
+  `branch_number` (matching the REST `branch_number`; `branch_number` is lifted out only on
+  `OverseasExecutionNotice` — the stock/derivative notices keep `BRNC_NO` in `_raw`), and
+  `execution_no` → `fill_number` (matching the REST `OverseasDerivativeFill.fill_number`).
   `DerivativeExecutionNotice` already used `filled_quantity` / `filled_price`; its remaining
   `order_number` / `original_order_number` are renamed to `order_id` / `original_order_id` here
   with the rest. The raw vendor keys are unchanged and still available in `_raw`.

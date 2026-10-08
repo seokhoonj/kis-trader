@@ -99,6 +99,8 @@ stock.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (
 
 애프터마켓은 KRX 정규장과 분리된 시장(16:00~20:00)이라 `exchange="KRX"` 에서 위 `after_market_*` 주문구분으로 접수합니다. GTP(Good Till Pre-Market)는 NXT 프리마켓 전용호가로 `exchange="NXT"` 에서 `gtp_*` 로 접수하며, 미체결분은 프리마켓 종료(08:50)에 일괄 취소됩니다. 신용주문(`credit_buy`/`credit_sell`)도 `division=` 으로 애프터마켓/GTP 주문구분을 지정할 수 있습니다.
 
+주문 쪽 `exchange` 값은 `KRX`/`NXT`/`SOR` 입니다. `SOR`(스마트오더라우팅)은 시세 쪽 통합값 `UN`(통합호가)에 대응하며, 핸들을 `exchange="UN"` 으로 잡아도 주문을 만들 때 `SOR` 로 변환합니다(주문을 `UN` 으로 직접 구성하면 거부). CLI 는 주문 서브커맨드에서 `--exchange {KRX,NXT,SOR}`, 시세 서브커맨드에서 `{KRX,NXT,UN}` 로 나뉩니다.
+
 **`time_in_force=` (체결·유효조건)** — 지정가/시장가/최유리/중간가와 조합.
 
 | 값 (`time_in_force=`) | 한글 | English | 설명 |
@@ -301,6 +303,8 @@ stock.credit_buyable(credit_type="21")                               # 신용 �
 stock.credit_buy(quantity=10, credit_type="21", limit_price=70000)   # 신용 매수(융자신규)
 stock.credit_sell(quantity=10, credit_type="25", limit_price=71000)  # 신용 매도(융자상환)
 ```
+
+신용 주문·조회(`credit_buyable`/`credit_buy`/`credit_sell`)와 `sellable` 은 **실전 전용**(모의투자 미지원)이라, `paper` 세션에서 부르면 `KISUsageError` 입니다.
 
 ---
 

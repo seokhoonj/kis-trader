@@ -11,7 +11,7 @@ An unofficial Python client for the Korea Investment & Securities (KIS) **Open A
 
 - **Broad coverage** — domestic and overseas stocks, indices, ETFs/ETNs, ELWs, futures/options, and bonds: quotes, financials and flows, account balances and P&L, rankings and conditional screens, market data and calendars, retirement pensions.
 - **Orders** — buy/sell/modify/cancel, plus credit, reserved, and TWAP-split orders.
-- **Safety core** — order deduplication and timeout reconciliation (re-check instead of resend) are on by default, and credit trading is blocked by default. Pre-trade risk limits are an explicit opt-in through `KISClient(..., risk=RiskLimits(...))`.
+- **Safety core** — duplicate order sends are blocked by default; on a timeout nothing is resent — you confirm acceptance with `reconcile()`. Credit trading is blocked by default. Pre-trade risk limits are an explicit opt-in through `KISClient(..., risk=RiskLimits(...))`.
 - **Real-time** — WebSocket subscriptions for quotes, order books, and execution notices.
 - **Three interfaces** — a Python API, the `kis` CLI, and an MCP server / skills for AI agents.
 
@@ -42,8 +42,8 @@ kis.domestic.ranking.by_change(direction="gainers")  # today's top gainers
 ```
 
 Run `kis config` in the terminal to enter the app key and account interactively and store them, or
-save them as environment variables or with `KISConfig(...).save()`. Once saved, later calls open
-without arguments. Both live and paper-trading accounts are supported, so you can
+save them as environment variables or with `KISConfig(...).save()`. Once saved, later `KISClient()`
+calls can omit the arguments. Both live and paper-trading accounts are supported, so you can
 rehearse the order flow on paper before switching to live. For issuing and storing credentials, see
 the [Credentials and profiles](https://seokhoonj.github.io/kis-trader/configuration.html) chapter.
 
@@ -128,7 +128,7 @@ The full documentation lives at **<https://seokhoonj.github.io/kis-trader/>** (s
 | **CLI & agents** | [Command Line](https://seokhoonj.github.io/kis-trader/cli.html) · [Claude Skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex Skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) · [MCP Server](https://seokhoonj.github.io/kis-trader/mcp.html) |
 | **Reference** | [Realtime (WebSocket)](https://seokhoonj.github.io/kis-trader/realtime.html) · [Limits & gaps](https://seokhoonj.github.io/kis-trader/limits.html) |
 
-The arguments and return value of each method are available through `help(the_method)`.
+The arguments and return value of each method are available through Python's `help()` (e.g. `help(kis.domestic.stock)`).
 
 ## 8. License
 

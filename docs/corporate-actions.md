@@ -1,7 +1,7 @@
 # 기업행위·일정
 
 예탁결제원 기업행위·일정(시장 전체). 모든 조회는 기간 `[start, end]`(YYYYMMDD)을 받고, `symbol` 을
-주면 그 종목만 봅니다. 계좌에 배정된 **내** 권리 내역은 [계좌](account.md)의 `account.rights(...)`.
+주면 그 종목만 봅니다. 계좌에 배정된 **내** 권리 내역은 [계좌](account.md)의 `kis.account.domestic.rights(...)`.
 
 ```python
 calendar = kis.domestic.calendar

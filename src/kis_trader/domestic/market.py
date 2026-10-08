@@ -142,7 +142,8 @@ class MarketQueries:
         start: str | date | None = None, end: str | date | None = None,
     ) -> list[ProgramTradeSummary]:
         """시장(``"KOSPI"``/``"KOSDAQ"``) 전체의 일별 프로그램매매 종합(차익/비차익 순매수; 최근->과거).
-        ``start`` 미지정이면 최근 30일. 종목 단위는 ``kis.domestic.stock(symbol).program_trades()``."""
+        ``start`` 미지정이면 최근 30일. 종목 단위 일별은 ``kis.domestic.stock(symbol).daily_program_trades()``
+        (장중 흐름은 ``stock(symbol).program_trades()``)."""
         return market_api.fetch_program_trade_summary(
             self._client.transport, market=market, start=start, end=end
         )

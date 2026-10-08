@@ -68,6 +68,9 @@ for tick in sub:                                    # 이 계약만 흘러옵니
   `RealtimeSubscription[StockExecutionNotice]`,
   `.derivative(hts_id, session="regular")`는 `RealtimeSubscription[DerivativeExecutionNotice]`.
   `session`은 `regular`·`night_futures`·`night_option`. 계약이 아니라 HTS ID 단위입니다.
+- **해외** — `realtime.overseas.stock("AAPL")`에서 `.trades()` / `.order_book(zone="global")`(아시아는
+  `zone="asia"`), `realtime.overseas.futures(...)` / `.option(...)`(공용 해외파생 핸들), 체결통보는
+  `realtime.overseas.execution_notices`. 국내와 같은 타입드 구독 경로입니다.
 
 소비는 세 가지 중 하나로 합니다. 이터레이터, 컨텍스트 매니저, 콜백 모두 같은 구독을 다룹니다.
 
@@ -141,4 +144,6 @@ async with RealtimeConnection(approval, websocket_url("real")) as conn:
 - **등록 상한**: 접속키 하나당 실시간 등록 **41건**. 초과 시 `KISUsageError`.
 - **끊김 복원**: 연결이 끊기면 자동 재연결 + 기존 구독 재등록(백오프 -- 재시도 간격을 점점 늘려 다시 붙음). 깨진 프레임은 스트림을
   죽이지 않고 드롭됩니다(로그로 남김).
+- **부호**: 실시간 `change`/`change_percent`(및 `nav_change`)는 REST `Quote` 와 같이 **부호를 포함**합니다
+  (하락이면 음수). 벤더 원본 부호코드는 `change_sign` 에 그대로 유지됩니다.
 - **모의투자**: 실시간 일부는 모의투자 환경에서 지원되지 않을 수 있습니다.

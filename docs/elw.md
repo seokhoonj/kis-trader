@@ -22,7 +22,7 @@ screener = kis.domestic.elw_screener
 screener.underlyings()                               # ELW 가 상장된 기초자산 목록
 screener.by_underlying("005930")                     # 한 기초자산(삼성전자)에 상장된 ELW
 screener.comparables("005930")                       # 비교대상 ELW (코드/이름)
-screener.newly_listed(date="20260814")               # 신규상장 ELW (기준일은 최근 영업일 -- 과거분은 미보관)
+screener.newly_listed(date="20260814")               # 신규상장 ELW (issuer 생략 시 한국투자증권 발행분만 -- KIS 가 이 조회에서만 발행사 필수, 전체 "00000" 거부; 다른 발행사는 issuer="00017" 등. 기준일은 최근 영업일 -- 과거분 미보관)
 screener.expiring(start="20240101", end="20240630")  # 만기예정 ELW
 ```
 

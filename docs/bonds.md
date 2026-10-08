@@ -14,7 +14,7 @@ bond.valuations(start="20240101", end="20240630")  # 평가기관별 단가·수
 
 ## 채권 계좌·잔고
 
-장내채권은 주식과 같은 위탁(01) 계좌를 쓰며, 계좌 관점 조회는 `kis.account.domestic.bonds` 에 있습니다. 모두 **실전투자 전용**입니다.
+장내채권은 주식과 같은 위탁(상품코드 01) 계좌를 쓰며, 계좌 관점 조회는 `kis.account.domestic.bonds` 에 있습니다. 모두 **실전투자 전용**입니다.
 
 ```python
 bonds = kis.account.domestic.bonds
@@ -44,6 +44,6 @@ bonds.fills(start="20240101", end="20240630") # 일별 주문·체결 (side/symb
 
 - `buyable()` → `BondBuyable`: `orderable_cash`(주문가능현금), `buyable_amount`·`buyable_quantity`(매수가능 금액·수량).
 - `open_orders()` → `BondOpenOrder` 목록: `order_id`(주문번호, 정정·취소로 지목), `cancelable_quantity`(정정·취소 가능 수량), `side`.
-- `fills(start, end, *, side="all", symbol=None, unfilled_only=False)` → `BondFillHistory`: 개별 행 `fills`(`BondFill`)와 기간 합계(`total_filled_quantity`·`total_filled_amount`·`average_price`).
+- `fills(*, start, end, side="all", symbol=None, unfilled_only=False)` → `BondFillHistory`: 개별 행 `fills`(`BondFill`)와 기간 합계(`total_filled_quantity`·`total_filled_amount`·`average_price`).
 
 타입화하지 않은 벤더 필드는 각 결과의 `_raw` 로 접근합니다.

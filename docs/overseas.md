@@ -68,6 +68,8 @@ account.algo_orders()                                                # 미국 �
 account.algo_executions(order_id, order_date="20240102")             # 한 알고주문의 체결내역
 ```
 
+이 중 `settlement_balance`·`period_profit`·`transactions`·`foreign_margin`·`algo_orders`·`algo_executions` 는 **실전 전용**(모의투자 미지원)이라 `paper` 세션에서 부르면 `KISUsageError` 입니다. `positions`·`balance`·`present_balance`·`buyable` 은 모의도 지원합니다.
+
 ::: {.callout-note}
 ## 체결기준 vs 결제기준
 주식은 **T+2 결제**라(체결 후 2영업일 뒤 실제 결제), "지금 잔고"가 두 가지입니다.
@@ -115,10 +117,10 @@ kis.overseas.settlement_dates()                        # 시장별 결제일자
 
 ## 해외파생(선물옵션) 계좌
 
-해외파생(08) 세션에서 `kis.account` 는 해외선물옵션 계좌 뷰를 돌려줍니다. 해외파생 계좌는 통화별로 조회하며, **금액·가격은 조회 통화(`currency`)의 Decimal**(원화 아님)이고 **수량은 계약수**(Decimal)입니다. 모두 **실전투자 전용**입니다.
+해외파생(상품코드 08) 세션에서 `kis.account` 는 해외선물옵션 계좌 뷰를 돌려줍니다. 해외파생 계좌는 통화별로 조회하며, **금액·가격은 조회 통화(`currency`)의 Decimal**(원화 아님)이고 **수량은 계약수**(Decimal)입니다. 모두 **실전투자 전용**입니다.
 
 ```python
-account = kis.account                      # 08 세션
+account = kis.account                      # 상품코드 08 세션
 
 deposit = account.deposit(currency="USD")  # 예수금현황
 print(deposit.cash_balance, deposit.orderable_amount, deposit.unrealized_pnl)

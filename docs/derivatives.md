@@ -21,7 +21,7 @@ option.quote()
 ```python
 kis.domestic.option_expiries()       # 상장된 옵션 만기월 목록
 kis.domestic.option_board("202409")  # 한 만기의 콜/풋 전광판 (행사가별 시세·그릭스)
-kis.domestic.option_board_futures()  # 전광판 하단 선물 계약별 시세
+kis.domestic.option_board_futures()  # 전광판 하단 선물 계약별 시세 (기본 미니 MKI; KOSPI200 메인보드는 market_class="")
 ```
 
 ## 해외
@@ -39,7 +39,7 @@ kis.overseas.derivatives_market_hours()                     # 상품군별 장�
 
 ## 계좌·잔고 (파생)
 
-국내파생(03) 세션에서 `kis.account` 는 파생 계좌 뷰를 돌려줍니다. 금액·수량은 원화입니다.
+국내파생(03) 세션에서 `kis.account` 는 파생 계좌 뷰를 돌려줍니다. 금액은 원화, 수량은 계약수입니다.
 
 ```python
 account = kis.account        # 03 세션
@@ -48,7 +48,7 @@ balance = account.balance()  # 잔고 (보유내역 + 예수금·증거금·손�
 print(balance.total_deposit, balance.orderable_cash, balance.total_unrealized_pnl)
 
 for position in balance.positions:
-    print(f"{position.name:12s} {position.side} {position.quantity}  평가손익 {position.unrealized_pnl:>12,}")
+    print(f"{position.name:12s} {position.side} {position.quantity}계약  평가손익 {position.unrealized_pnl:>12,}")
 
 for order in account.open_orders():  # 미체결(정정·취소 가능) 주문 -- 모의 지원
     print(order.order_id, order.symbol, order.side, order.unfilled_quantity, order.order_price)

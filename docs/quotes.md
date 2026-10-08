@@ -21,9 +21,10 @@ print(quote.current_price, quote.change_percent)  # 예: 71500  0.70
 | `open` · `high` · `low` | 시가·고가·저가 | 원 |
 | `previous_close` | 전일 종가 | 원 |
 | `change` | 전일대비 (부호 포함) | 원 |
-| `change_percent` | 등락률 | % |
+| `change_percent` | 등락률 (부호 포함) | % |
 | `volume` | 누적 거래량 | 주 |
 | `week_52_high` · `week_52_low` | 52주 최고·최저 (없으면 `None`) | 원 |
+| `market` | 시세가 속한 거래소/시장 구분 (주식=거래소, 파생/채권=시장구분) | str |
 | `as_of` | 조회 시각 | datetime |
 
 ## 차트 (봉)
