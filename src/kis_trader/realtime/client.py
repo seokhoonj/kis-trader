@@ -166,16 +166,25 @@ class RealtimeClient:
             last = bool(subs is not None and not subs)
             if last:
                 del self._subscriptions[key]
-                self._desired.discard(key)
-                if self._running and self._conn is not None:
-                    self._schedule_wire(self._conn.unsubscribe(sub.tr_id, sub.tr_key))
+                # 같은 (tr_id, tr_key) 계약에 raw 콜백(subscribe)이 남아 있으면 wire 계약을 그들이
+                # 아직 쓰므로 해제하지 않는다(raw/타입드 공유 refcount) -- _desired 도 유지해 재연결 시
+                # 재등록된다. 둘 다 없을 때만 wire unsubscribe 하고 원하는-집합에서 뺀다.
+                if not self._callbacks.get(key):
+                    self._desired.discard(key)
+                    if self._running and self._conn is not None:
+                        self._schedule_wire(self._conn.unsubscribe(sub.tr_id, sub.tr_key))
 
     def unsubscribe(self, tr_id: str, tr_key: str) -> None:
-        """실시간 해제. 이 계약의 콜백도 함께 제거한다(재구독 전까지 stale 콜백이 남지 않게)."""
+        """실시간 해제. 이 계약의 콜백도 함께 제거한다(재구독 전까지 stale 콜백이 남지 않게).
+
+        같은 (tr_id, tr_key) 계약에 타입드 구독이 남아 있으면 wire 계약을 그들이 아직 쓰므로 해제하지
+        않는다(raw/타입드 공유 refcount) -- _desired 도 유지한다. 콜백만 제거한다."""
         with self._lock:
-            self._desired.discard((tr_id, tr_key))
             self._callbacks.pop((tr_id, tr_key), None)
-        if self._running and self._conn is not None and self._loop is not None:
+            typed_remain = bool(self._subscriptions.get((tr_id, tr_key)))
+            if not typed_remain:
+                self._desired.discard((tr_id, tr_key))
+        if not typed_remain and self._running and self._conn is not None and self._loop is not None:
             self._call_async(self._conn.unsubscribe(tr_id, tr_key))
 
     # -- 수명주기 --

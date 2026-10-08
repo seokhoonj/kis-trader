@@ -374,3 +374,36 @@ def test_start_refused_while_previous_thread_alive():
     finally:
         blocker.set()
         stuck.join(timeout=1.0)
+
+
+def test_closing_typed_keeps_wire_while_raw_callback_shares_contract():
+    # raw subscribe 와 타입드 구독이 같은 (tr_id, tr_key) wire 계약을 공유할 때, 타입드를 닫아도
+    # raw 가 남아 있으면 wire 해제를 보내지 않고 _desired 도 유지한다(공유 refcount).
+    ws = OpenWebSocket()
+    client = _open_client(ws)
+    client.start()
+    client.subscribe("H0IFCNT0", "101W09", on=lambda _m: None)   # raw
+    sub = client._open_typed("H0IFCNT0", "101W09")               # typed, 같은 계약
+    assert _wait_until(lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
+    sub.close()                                                  # 타입드만 닫음 -- raw 는 남음
+    assert ("H0IFCNT0", "101W09") in client._desired            # raw 가 여전히 원함
+    assert client._callbacks.get(("H0IFCNT0", "101W09"))        # raw 콜백 유지
+    assert ("H0IFCNT0", "101W09") not in client._subscriptions  # 타입드는 사라짐
+    client.stop()
+    assert len(_frames_of(ws, "2", "H0IFCNT0")) == 0            # wire 해제는 안 나갔다
+
+
+def test_raw_unsubscribe_keeps_wire_while_typed_subscription_shares_contract():
+    # 반대 방향: raw unsubscribe 해도 타입드 구독이 같은 계약에 남아 있으면 wire 해제를 안 보낸다.
+    ws = OpenWebSocket()
+    client = _open_client(ws)
+    client.start()
+    client.subscribe("H0IFCNT0", "101W09", on=lambda _m: None)
+    client._open_typed("H0IFCNT0", "101W09")
+    assert _wait_until(lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
+    client.unsubscribe("H0IFCNT0", "101W09")                    # raw 만 해제 -- 타입드 남음
+    assert ("H0IFCNT0", "101W09") in client._desired
+    assert client._subscriptions.get(("H0IFCNT0", "101W09"))    # 타입드 구독 유지
+    assert not client._callbacks.get(("H0IFCNT0", "101W09"))    # raw 콜백은 제거
+    client.stop()
+    assert len(_frames_of(ws, "2", "H0IFCNT0")) == 0            # wire 해제는 안 나갔다
