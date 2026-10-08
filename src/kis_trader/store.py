@@ -163,19 +163,38 @@ class OrderStore:
         """
         with self._lock:
             self._require_open()
-            prior = self._reports.get(client_order_id)
+            prior = self._classify_locked(client_order_id, fingerprint)
             if prior is not None:
-                if self._fingerprints.get(client_order_id) != fingerprint:
-                    return Conflict(prior)
-                return Completed(prior)
-            if client_order_id in self._in_flight:
-                if self._fingerprints.get(client_order_id) != fingerprint:
-                    return Conflict(None)
-                return InFlight()
+                return prior
             self._in_flight[client_order_id] = self._now().isoformat()
             self._fingerprints[client_order_id] = fingerprint
             self._save_locked()
             return Claimed()
+
+    def _classify_locked(
+        self, client_order_id: str, fingerprint: Fingerprint
+    ) -> ClaimResult | None:
+        """락 보유 중 현재 상태를 판정한다(쓰기 없음). ``None`` = 미확보(claim 가능).
+        :meth:`try_claim` 과 :meth:`classify` 가 공유해 두 경로의 판별이 어긋나지 않게 한다."""
+        prior = self._reports.get(client_order_id)
+        if prior is not None:
+            if self._fingerprints.get(client_order_id) != fingerprint:
+                return Conflict(prior)
+            return Completed(prior)
+        if client_order_id in self._in_flight:
+            if self._fingerprints.get(client_order_id) != fingerprint:
+                return Conflict(None)
+            return InFlight()
+        return None
+
+    def classify(self, client_order_id: str, fingerprint: Fingerprint) -> ClaimResult:
+        """읽기 전용 원자 판별 -- :meth:`try_claim` 과 **같은** 분류(Completed/Conflict/InFlight)를
+        돌려주되 확보(쓰기)는 하지 않는다. 미확보(claim 가능)면 :class:`Claimed`. place() 의 멱등
+        replay 빠른길이 실패 가능 게이트 전에 **한 락**으로 상태를 보도록 -- 여러 조회를 쪼개 찢긴
+        상태를 보는 것을 막는다."""
+        with self._lock:
+            self._require_open()
+            return self._classify_locked(client_order_id, fingerprint) or Claimed()
 
     # --- 조회 ---------------------------------------------------------
     def report_for(self, client_order_id: str) -> ExecutionReport | None:
@@ -427,8 +446,12 @@ _UNSUPPORTED_FSYNC_ERRNOS = frozenset({errno.EINVAL, errno.ENOTSUP, errno.EOPNOT
 
 
 def _fsync_dir(directory: Path) -> None:
-    """디렉터리 엔트리를 fsync -- rename 이 크래시에도 살아남게. 디렉터리 fsync 미지원(EINVAL/ENOTSUP)
-    만 무시하고, EIO/ENOSPC 등 진짜 내구성 실패는 삼키지 않고 올린다(거짓 '저장됨' 방지)."""
+    """디렉터리 엔트리를 fsync -- rename 이 크래시에도 살아남게.
+
+    Windows(``os.name=="nt"``)는 디렉터리를 열 수 없어 열기 실패를 통째로 건너뛴다(데이터 파일은
+    이미 fsync + 원자 교체됨 -- 디렉터리 fsync 는 best-effort). 그 외 플랫폼에선 디렉터리 fsync
+    미지원 errno(EINVAL/ENOTSUP/EOPNOTSUPP)만 무시하고 EIO/ENOSPC/EMFILE 등 진짜 내구성 실패는
+    삼키지 않고 올린다(거짓 '저장됨' 방지)."""
     try:
         dir_fd = os.open(directory, os.O_RDONLY)
     except OSError as err:  # pragma: no cover -- 플랫폼이 디렉터리 fd 열기를 미지원

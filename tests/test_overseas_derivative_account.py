@@ -566,7 +566,7 @@ def test_overseas_derivative_order_entity_importable():
 # --- 일별 체결내역 OTFM3122R ----------------------------------------------
 
 def _fill(ccno="C0001", *, dt="20240216", pdno="6BZ22", side="02", ccld_qty="2",
-          ccld_amt="253000.00", crcy="USD", fee="12.50", ord_dt="20240216",
+          ccld_amt="253000.00", crcy="USD", fee="12.50", ord_dt="20240215",
           odno="0001", mdia="MTS"):
     return {"dt": dt, "ccno": ccno, "ovrs_futr_fx_pdno": pdno, "sll_buy_dvsn_cd": side,
             "fm_ccld_qty": ccld_qty, "fm_ccld_amt": ccld_amt, "crcy_cd": crcy,
@@ -621,7 +621,7 @@ def test_daily_fills_parses_and_routes():
     assert fill.filled_amount == Decimal("253000.00")          # fm_ccld_amt
     assert fill.currency == "USD"                               # crcy_cd
     assert fill.fee == Decimal("12.50")                        # fm_fee
-    assert fill.order_date == date(2024, 2, 16)                # ord_dt
+    assert fill.order_date == date(2024, 2, 15)                # ord_dt (dt 와 구별)
     assert fill.order_id == "0001"                              # odno
     assert fill.order_medium == "MTS"                          # ord_mdia_dvsn_name
     call = fake.calls[0]
@@ -714,7 +714,7 @@ def test_overseas_derivative_fill_history_entity_importable():
 
 # --- 일별 주문내역 OTFM3120R ----------------------------------------------
 
-def _daily_order(odno="0001", *, orgn="0000", dt="20240216", ord_dt="20240216",
+def _daily_order(odno="0001", *, orgn="0000", dt="20240216", ord_dt="20240215",
                  pdno="6BZ22", rvse="00", side="02", ord_qty="2", ord_pric="1.2650",
                  ccld_qty="2", ccld_pric="1.2648", rmn_qty="0", rjct="",
                  trad_end="20240216"):
@@ -753,7 +753,7 @@ def test_daily_orders_parses_and_routes():
     assert isinstance(orders, list)
     assert isinstance(orders[0], OverseasDerivativeDailyOrder)
     assert orders[0].receipt_date == date(2024, 2, 16)                # dt
-    assert orders[0].order_date == date(2024, 2, 16)          # ord_dt
+    assert orders[0].order_date == date(2024, 2, 15)          # ord_dt (dt 와 구별)
     assert orders[0].order_id == "0001"                       # odno
     assert orders[0].original_order_id == "0000"              # orgn_odno
     assert orders[0].symbol == "6BZ22"                        # ovrs_futr_fx_pdno

@@ -185,7 +185,7 @@ def test_bonus_issues_maps_and_params():
     # 원장 예시값(클로봇). zero/space padding과 미정 날짜 빈값을 그대로 검증한다.
     rows = [{"record_date": "20240326", "sht_cd": "466100", "isin_name": "클로봇",
              "fix_rate": "1000.0", "odd_rec_price": "000000000", "right_dt": "20240325",
-             "odd_pay_dt": "", "list_date": "", "tot_issue_stk_qty": "     1885394",
+             "odd_pay_dt": "", "list_date": "20240402", "tot_issue_stk_qty": "     1885394",
              "issue_stk_qty": "    18853940", "stk_kind": "01"}]
     fake = FakeTransport(response=_resp(rows))
     from kis_trader import BonusIssue
@@ -196,7 +196,7 @@ def test_bonus_issues_maps_and_params():
     assert e.allocation_rate == Decimal("1000.0")
     assert e.ex_rights_date == date(2024, 3, 25)
     assert e.odd_lot_pay_date is None
-    assert e.listing_date is None
+    assert e.listing_date == date(2024, 4, 2)                  # wire key list_date (BonusIssue 사이트 :275 고정)
     assert e.new_shares == 18853940
     assert e.stock_kind == "01"
     call = fake.calls[0]

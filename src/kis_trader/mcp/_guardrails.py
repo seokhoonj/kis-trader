@@ -12,12 +12,13 @@ from dataclasses import dataclass
 from typing import Literal, cast, get_args
 
 from ..errors import KISUsageError
-from ..order import DomesticDivision
+from ..order import _GTP_DIVISIONS, DomesticDivision
 
 #: NXT 프리마켓 전용(GTP) 주문구분. MCP 실주문은 symbol 기본 거래소(KRX)로만 라우팅하고 거래소를
 #: 고를 수단이 없어 NXT 전용 ``gtp_*`` 는 와이어에서 항상 거부된다 -- taint 경계에서 선제 제외해
-#: 깊은 라이브러리 에러 대신 명확한 사유로 막는다(docs/mcp.md 의 "gtp_* 제외"와 일치).
-_MCP_EXCLUDED_DIVISIONS = frozenset(("gtp_limit", "gtp_immediate_limit", "gtp_priority_limit"))
+#: 깊은 라이브러리 에러 대신 명확한 사유로 막는다(docs/mcp.md 의 "gtp_* 제외"와 일치). 단일 출처
+#: :data:`kis_trader.order._GTP_DIVISIONS` 를 그대로 쓴다 -- 리터럴 재선언은 멤버 추가 시 드리프트.
+_MCP_EXCLUDED_DIVISIONS = _GTP_DIVISIONS
 
 #: 국내 주문구분(최유리지정가 immediate_limit 등). taint 경계에서 하드코딩 choices 대신 라이브러리
 #: Literal 에서 파생한다(동기화 드리프트 방지). None 은 기본(지정/시장가). NXT 전용 gtp_* 는 제외.

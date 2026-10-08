@@ -32,7 +32,7 @@ def _out(**over):
     o = {"exch_cd": "CME", "crc_cd": "USD", "clas_cd": "IDX", "tick_sz": "0.25",
          "tick_val": "12.50", "ctrt_size": "50", "trst_mgn": "13200", "disp_digit": "2",
          "trd_fr_date": "20240101", "expr_date": "20251219", "trd_to_date": "20251218",
-         "remn_cnt": "41", "stl_tp": "1", "stat_tp": "1"}
+         "remn_cnt": "41", "stl_tp": "2", "stat_tp": "1"}
     o.update(over)
     return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": o})
 
@@ -50,6 +50,7 @@ def test_overseas_derivative_detail_futures():
     assert d.price_digits == 2
     assert d.remaining_days == 41
     assert d.trade_status == "1"                 # stat_tp (tradable->trade_status 리네임 고정; 코드 문자열)
+    assert d.settlement_type == "2"              # stl_tp -- stat_tp 와 다른 값으로 교차배선 포착
     assert f"{d.expiry_date:%Y%m%d}" == "20251219"
     assert type(d.expiry_date) is date  # datetime 아님
     call = fake.calls[0]

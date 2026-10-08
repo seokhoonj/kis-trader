@@ -124,15 +124,14 @@ def place(
     # 멱등 replay 빠른길: 이미 완료/전송된 id 는 사전 리스크(라이브 시세, fail-closed)·와이어 변환
     # 같은 실패 가능 게이트를 타기 전에 저장소에서 바로 판별한다 -- 일시적 조회 실패(스로틀/장마감)가
     # 저장된 완료 리포트의 replay 를 막아 호출자를 새 id 재제출(이중발주)로 밀어내지 않도록 한다.
-    # fresh 주문의 경합 권한은 그대로 try_claim(원자적 check-and-claim)이 가진다.
-    prior = store.report_for(client_order_id)
-    if prior is not None:
-        if store.fingerprint_for(client_order_id) != fingerprint:
-            raise KISUsageError(_conflict_message(client_order_id))
-        return prior                   # 완료 replay -- 같은 주문(리포트는 변형 보장, 재확인 불필요)
-    if store.is_in_flight(client_order_id):
-        if store.fingerprint_for(client_order_id) != fingerprint:
-            raise KISUsageError(_conflict_message(client_order_id))
+    # classify 는 한 락으로 try_claim 과 동일 분류를 주되 쓰기는 안 한다(찢긴 상태 안 봄). fresh
+    # 주문의 경합 권한은 그대로 try_claim(원자적 check-and-claim)이 가진다.
+    peek = store.classify(client_order_id, fingerprint)
+    if isinstance(peek, Completed):
+        return peek.report             # 완료 replay -- 같은 주문(리포트는 변형 보장, 재확인 불필요)
+    if isinstance(peek, Conflict):
+        raise KISUsageError(_conflict_message(client_order_id))
+    if isinstance(peek, InFlight):
         raise KISUsageError(_in_flight_message(client_order_id))
 
     if not orderable:

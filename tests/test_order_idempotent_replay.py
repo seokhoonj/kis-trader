@@ -71,3 +71,21 @@ def test_in_flight_replay_demands_reconcile_before_risk(tmp_path):
                 cano="12345678", product_code="01", environment="paper",
                 build_request=_never_builds, pre_trade_risk=_boom_risk,
             )
+
+
+def test_in_flight_different_order_is_conflict_before_risk(tmp_path):
+    # 같은 id 를 in-flight 중인 **다른** 주문(지문 불일치)으로 place 하면 reconcile 이 아니라 Conflict 다 --
+    # 실패 가능 게이트 전에 '새 id 발행' 으로 막아야 한다(이 분기 커버리지).
+    claimed = _order("CID-DUP")
+    different = Order.limit("005930", side="buy", quantity=99, limit_price=70000,
+                            region="domestic", asset_class="stock", exchange="KRX",
+                            client_order_id="CID-DUP")  # 같은 id, 다른 수량 -> 다른 지문
+    assert claimed.fingerprint != different.fingerprint
+    with OrderStore(tmp_path / "s.json", now=_clock) as store:
+        store.try_claim(claimed.client_order_id, claimed.fingerprint)  # in-flight
+        with pytest.raises(KISUsageError, match="새 id"):
+            place(
+                _ExplodingTransport(), store, different,
+                cano="12345678", product_code="01", environment="paper",
+                build_request=_never_builds, pre_trade_risk=_boom_risk,
+            )
