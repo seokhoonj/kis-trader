@@ -4,6 +4,12 @@
 6자리 대문자 영숫자 단축코드는 국내(KRX 보드)로 본다 -- 주식·ETF·ETN(숫자)뿐 아니라 ELW·
 신주인수권 등 문자가 섞인 코드도 KRX 상장이다. 그 밖(이름·해외 심볼 등)은 아직 지원하지 않아
 명시적으로 거부한다. 국내 다른 거래소(NXT/통합)를 쓰려면 ``exchange=`` 로 지정한다.
+
+이 모듈은 또한 종목 마스터의 공개 DATA 타입을 정의한다: 해외 마스터 레코드/인덱스
+(:class:`InstrumentRecord`/:class:`MasterIndex`)와 국내 상장목록/검색 인덱스
+(:class:`DomesticListing`/:class:`DomesticListingIndex`), 그리고 그 Literal(:data:`SecurityType`/
+:data:`DomesticMarket`/:data:`SearchMarket`). 파싱/다운로드/캐시는 내부 마스터 모듈이 담당하고 그
+함수들이 이 타입을 만들어 돌려준다(공개 DATA 는 공개 모듈에 산다 -- Bar/OrderBook 과 같은 관례).
 """
 
 from __future__ import annotations

@@ -2,7 +2,7 @@
 
 order-rvsecncl TTTO1103U/VTTO1103U. 파생은 원주문 지목에 ``ORGN_ODNO`` 만 쓴다(국내주식과 달리
 ``KRX_FWDG_ORD_ORGNO`` 조직번호 계약을 재사용하지 않는다). 취소는 확정 고정값, 지정가 정정은
-원지문에서 코드 3필드를 산출하고 새 단가를 싣는다. 야간(TTTN1103U)은 Task 7. 네트워크 없이
+원지문에서 코드 3필드를 산출하고 새 단가를 싣는다. 야간(TTTN1103U)은 전용 빌더가 맡는다. 네트워크 없이
 가짜 전송으로 검증한다.
 """
 
@@ -43,7 +43,7 @@ def _fp(*, order_type: str = "limit", division: str = "", symbol: str = "101S03"
     )
 
 
-# --- Step 1: 취소 확정값 + ORGN_ODNO(조직번호 없음) ------------------------
+# --- 취소 확정값 + ORGN_ODNO(조직번호 없음) ------------------------
 def test_cancel_body_uses_confirmed_fixed_values():
     req = fo.make_change_request(
         original_report=_report(order_id="0000005605"),
@@ -62,7 +62,7 @@ def test_cancel_body_uses_confirmed_fixed_values():
     assert req.body["NMPR_TYPE_CD"] == "01"
     assert req.body["ORGN_ODNO"] == "0000005605"
     assert req.body["ORD_QTY"] == "0"                 # 주간 전량취소 = 0
-    assert req.body["FUOP_ITEM_DVSN_CD"] == ""        # 주간은 공란(야간은 Task 7)
+    assert req.body["FUOP_ITEM_DVSN_CD"] == ""        # 주간은 공란(야간은 전용 빌더)
     assert "KRX_FWDG_ORD_ORGNO" not in req.body       # 파생엔 조직번호 없음
 
 
@@ -75,7 +75,7 @@ def test_cancel_paper_uses_paper_tr():
     assert req.tr_id == "VTTO1103U"
 
 
-# --- Step 2: 지정가 정정 -- 원지문에서 코드 산출 + 새 단가 -----------------
+# --- 지정가 정정 -- 원지문에서 코드 산출 + 새 단가 -----------------
 def test_limit_modify_resolves_codes_from_original_and_sets_new_price():
     req = fo.make_change_request(
         original_report=_report(order_id="0000005605"),
@@ -147,7 +147,7 @@ def test_night_change_is_seamed_for_task7():
         )
 
 
-# --- Step 3: client._change_order XKFE 라우팅(e2e) ------------------------
+# --- client._change_order XKFE 라우팅(e2e) ------------------------
 _ACCEPTED = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="주문 전송 완료",
                         body={"output": {"ODNO": "0000005605"}})
 

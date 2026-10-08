@@ -1,11 +1,12 @@
-"""공유 주문 커널 강화 테스트 -- pending-action 게이트(BC-2)와 가격형상 검증의 빌더 이동(BC-1).
+"""공유 주문 커널 강화 테스트 -- pending-action 게이트와 가격형상 검증의 빌더 이동.
 
-BC-1: 정정=>0보다 큰 limit_price, 취소=>limit_price 없음 검증을 공유 코어(submit_change)에서
-와이어 빌더로 옮긴다. 지정가 전용 자산(주식/해외)은 공유 헬퍼 reject_bad_change_price_shape 로
-같은 규칙을 강제하며, 관측 동작은 바뀌지 않는다(기존 change 테스트 무변경 통과가 parity 게이트).
+가격형상 검증(정정=>0보다 큰 limit_price, 취소=>limit_price 없음)은 공유 코어(submit_change)가
+아니라 각 자산의 와이어 빌더가 한다. 지정가 전용 자산(주식/해외)은 공유 헬퍼
+reject_bad_change_price_shape 로 같은 규칙을 강제하며, 관측 동작은 바뀌지 않는다(기존 change 테스트
+무변경 통과가 parity 게이트).
 
-BC-2: 원주문에 결과 미확인(in-flight) 변경이 이미 있으면 새(다른 request_id) 변경을 거부한다 --
-같은 원주문을 겨눈 두 번째 변경이 조용히 나가지 않게 한다.
+pending-action 게이트: 원주문에 결과 미확인(in-flight) 변경이 이미 있으면 새(다른 request_id) 변경을
+거부한다 -- 같은 원주문을 겨눈 두 번째 변경이 조용히 나가지 않게 한다.
 """
 
 from datetime import datetime, timedelta, timezone
@@ -65,7 +66,7 @@ def test_second_change_on_same_order_is_rejected(tmp_path):
 
 def test_same_request_id_retry_is_not_treated_as_second_change(tmp_path):
     """같은 request_id 재시도는 pending 게이트가 아니라 기존 in-flight 경로로 거부돼야 한다
-    (BC-2 는 다른 request_id 의 두 번째 변경만 겨냥) -- parity 보존."""
+    (pending 게이트는 다른 request_id 의 두 번째 변경만 겨냥) -- parity 보존."""
     store = OrderStore(tmp_path / "s.json", now=_now)
     order = Order.limit("005930", side="buy", quantity=Decimal(1), limit_price=Decimal(70000),
                         client_order_id="orig")
@@ -111,7 +112,7 @@ def test_domestic_cancel_still_rejects_a_price(tmp_path):
 
 
 def test_overseas_engine_does_not_import_domestic_order_core():
-    # P2-9 구조 불변식: 지역 중립 주문 코어(place/submit_change/_RECEIPT_DATE_KEY)는 _order_core 로
+    # 구조 불변식: 지역 중립 주문 코어(place/submit_change/_RECEIPT_DATE_KEY)는 _order_core 로
     # 분리됐다. overseas 엔진은 domestic._engine.orders(국내 전용 모듈)를 안쪽으로 import 하면 안 된다
     # -- 공유분은 _order_core 에서 가져온다(형제 패키지 간 안쪽 의존 금지).
     import pathlib

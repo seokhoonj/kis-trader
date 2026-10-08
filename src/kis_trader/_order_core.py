@@ -246,7 +246,8 @@ def submit_change(
     # 원주문에 결과 미확인(in-flight) 변경이 이미 있으면 새(다른 request_id) 변경을 거부한다 -- 같은
     # 원주문을 겨눈 두 번째 변경이 조용히 나가면 원 ODNO 상태를 두 요청이 경합해 확정 불가에 빠진다.
     # 같은 request_id 재시도는 여기서 걸지 않고(아래 try_claim 의 in-flight 경로가 처리) 배제한다 --
-    # 그 경로는 멱등 재전송 거부라 의미가 다르다. 가격형상 검증은 각 자산 빌더로 옮겼다(BC-1).
+    # 그 경로는 멱등 재전송 거부라 의미가 다르다. 가격형상 검증(정정=양의 limit_price, 취소=가격 없음)은
+    # 와이어 규칙이 자산마다 달라 각 자산 빌더가 수행한다.
     pending = store.in_flight_change_for(original_client_order_id)
     if pending is not None and pending != request_id:
         raise KISUsageError(

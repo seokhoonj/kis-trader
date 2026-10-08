@@ -34,7 +34,7 @@ def _order(**kw):
     return Order(**base)
 
 
-# --- Step 1: 조합표 리졸버 -------------------------------------------------
+# --- 조합표 리졸버 -------------------------------------------------
 @pytest.mark.parametrize("order_type,division,tif,expected", [
     ("limit", None, "day", ("01", "01", "0")),
     ("limit", None, "ioc", ("10", "01", "3")),
@@ -56,7 +56,7 @@ def test_resolve_fo_codes_rejects_unmapped():
         fo._resolve_fo_codes(order_type="limit", division="conditional_limit", time_in_force="ioc")
 
 
-# --- Step 4: 발주 골든바디(T1 주간) ---------------------------------------
+# --- 발주 골든바디(T1 주간) ---------------------------------------
 def test_make_order_request_day_limit_buy():
     req = fo.make_order_request(_order(), cano="81012345", product_code="03", environment="real")
     assert req.method == "POST"
@@ -95,7 +95,7 @@ def test_make_order_request_rejects_non_xkfe():
         fo.make_order_request(order, cano="8", product_code="03", environment="real")
 
 
-# --- Step 6: 엄격 output 파서(BC-3) ---------------------------------------
+# --- 엄격 output 파서 ---------------------------------------
 def test_extract_output_rejects_missing_output_key():
     with pytest.raises(OrderError):
         fo.extract_output({"rt_cd": "0", "ODNO": "top-level"})
@@ -110,7 +110,7 @@ def test_extract_output_accepts_mapping():
     assert fo.extract_output({"output": {"ODNO": "0000007045"}}) == {"ODNO": "0000007045"}
 
 
-# --- Step 8: client._place_order XKFE 라우팅 + 리스크 게이팅 ---------------
+# --- client._place_order XKFE 라우팅 + 리스크 게이팅 ---------------
 class FakeTransport:
     """모든 호출을 기록하고 고정 응답을 주는 가짜 전송."""
 

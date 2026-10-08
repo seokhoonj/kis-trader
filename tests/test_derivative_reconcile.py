@@ -193,7 +193,7 @@ def test_day_reconcile_output1_not_a_list_raises():
 
 
 def test_day_reconcile_mixed_list_non_mapping_raises():
-    # 리스트 안에 Mapping 아닌 원소가 섞이면 부분/오응답으로 확정하지 않는다(BC-3).
+    # 리스트 안에 Mapping 아닌 원소가 섞이면 부분/오응답으로 확정하지 않는다.
     fake = FakeTransport(on_post=TransportTimeoutError("t"),
                          on_get=_ccnl([_row(), "not-a-mapping"]))
     client = _client(fake)

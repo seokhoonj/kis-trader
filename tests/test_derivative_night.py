@@ -446,7 +446,7 @@ def _recorded_night_store(*, recorded, cid="n1", quantity="2", filled="0", order
 
 
 # =====================================================================
-# P1-1: 야간 취소 공개경로 -- 신선조회 앵커는 접수(recorded) 일자(claim 이 아님)
+# 야간 취소 공개경로 -- 신선조회 앵커는 접수(recorded) 일자(claim 이 아님)
 # =====================================================================
 _REC = datetime(2022, 1, 14, 23, 30, tzinfo=_KST)      # 금요일 야간 세션(T)
 _TPLUS1 = "20220117"                                    # 야간 주문일자 T+1(다음 거래일=월)
@@ -470,7 +470,7 @@ def test_night_cancel_public_route_anchors_on_recorded_date():
 
 
 def test_night_modify_public_route_uses_fresh_remaining_before_wire():
-    # P1-3: 야간 정정 공개경로 -- 신선조회가 TTTN1103U 정정보다 먼저 돌고 신선잔량을 싣는다.
+    # 야간 정정 공개경로 -- 신선조회가 TTTN1103U 정정보다 먼저 돌고 신선잔량을 싣는다.
     store = _recorded_night_store(recorded=_REC)
     transport = _DateWindowNightTransport(
         [_night_row(odno="0000005605", ord_dt=_TPLUS1, ord_qty="2", tot_ccld_qty="1")])
@@ -486,7 +486,7 @@ def test_night_modify_public_route_uses_fresh_remaining_before_wire():
 
 
 def test_night_modify_public_route_inquiry_failure_no_wire():
-    # P1-3: 신선조회가 창 밖(0행)이면 KISError 로 fail-closed 하고 정정 와이어에 닿지 않는다.
+    # 신선조회가 창 밖(0행)이면 KISError 로 fail-closed 하고 정정 와이어에 닿지 않는다.
     store = _recorded_night_store(recorded=_REC)
     transport = _DateWindowNightTransport(
         [_night_row(odno="0000005605", ord_dt="20991231", ord_qty="2", tot_ccld_qty="1")])
@@ -496,7 +496,7 @@ def test_night_modify_public_route_inquiry_failure_no_wire():
 
 
 # =====================================================================
-# P2-5: 야간 부분 정정·취소 미지원 -- 명시 quantity != 전량이면 와이어 미접촉
+# 야간 부분 정정·취소 미지원 -- 명시 quantity != 전량이면 와이어 미접촉
 # =====================================================================
 def test_night_partial_cancel_rejected_no_wire():
     store = _recorded_night_store(recorded=_REC, quantity="5")         # 로컬 잔량 5
@@ -525,7 +525,7 @@ def test_night_full_cancel_with_explicit_quantity_equal_remaining_ok():
 
 
 # =====================================================================
-# P2-6: 신선 잔량 = 주문수량 - 체결수량(미검증 qty 필드 불신), 필드 누락 fail-closed
+# 신선 잔량 = 주문수량 - 체결수량(미검증 qty 필드 불신), 필드 누락 fail-closed
 # =====================================================================
 def test_fetch_night_remaining_computes_ordered_minus_filled():
     fake = FakeTransport()

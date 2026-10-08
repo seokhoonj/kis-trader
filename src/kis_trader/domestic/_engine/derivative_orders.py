@@ -151,10 +151,10 @@ def make_change_request(
     아니라 파생 전용 규칙을 인라인으로 강제한다: 취소는 단가·수량 확정 고정값(전량취소 ``ORD_QTY="0"``),
     지정가 정정은 새 단가(>0)를 요구하고 원지문에서 세 주문구분 코드를 :func:`_resolve_fo_codes` 로
     산출한다. 주간 코어는 지정가 정정만 지원하므로 원주문이 시장가/최유리면 fail-closed(취소 후 재주문
-    유도). 야간(STTN1103U, 잔량 재지정)은 Task 7 -- 야간 지문은 여기서 막는다."""
+    유도). 야간(STTN1103U, 잔량 재지정)은 전용 야간 정정취소 빌더가 맡는다 -- 야간 지문은 여기서 막는다."""
     session = "night" if original_fingerprint.session == "night" else "regular"
     if session == "night":
-        # 야간 정정취소(STTN1103U)는 잔량 재지정 계약이 달라 별도 경로(Task 7)다. 주간 빌더로
+        # 야간 정정취소(STTN1103U)는 잔량 재지정 계약이 달라 별도 경로다. 주간 빌더로
         # 조용히 흘리면 잘못된 TR/수량으로 나가므로 fail-closed 로 올린다.
         raise KISUsageError("파생 야간(STTN) 정정·취소는 별도 경로다 -- 주간 빌더로 처리할 수 없다.")
     try:
