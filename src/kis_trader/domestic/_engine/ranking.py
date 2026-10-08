@@ -67,8 +67,8 @@ from ..._internal._wire import (
     required_int,
 )
 from ...errors import KISError, KISUsageError
+from ...instrument import DomesticMarket
 from ...transport import Transport
-from ..entities.market import Market
 from ..entities.ranking import (
     AfterHoursBalanceRanking,
     AfterHoursRanking,
@@ -171,10 +171,10 @@ _DIVIDEND_KIND = {"cash": "2", "stock": "1"}
 #: 시장(KIS 명세 GB1).
 _DIVIDEND_MARKET = {"all": "0", "KOSPI": "1", "KOSPI200": "2", "KOSDAQ": "3"}
 #: HTS 조회상위 응답의 시장구분 코드(mrkt_div_cls_code) -> 패키지 어휘. 라이브러리는 KOSPI/KOSDAQ 로 말한다.
-_TOP_VIEWED_MARKET: dict[str, Market] = {"J": "KOSPI", "Q": "KOSDAQ"}
+_TOP_VIEWED_MARKET: dict[str, DomesticMarket] = {"J": "KOSPI", "Q": "KOSDAQ"}
 
 
-def _top_viewed_market(code: str) -> Market:
+def _top_viewed_market(code: str) -> DomesticMarket:
     """mrkt_div_cls_code(J/Q) 를 KOSPI/KOSDAQ 로. 모르는 코드는 조용히 넘기지 않고 fail-closed(원본은 _raw)."""
     market = _TOP_VIEWED_MARKET.get(code)
     if market is None:

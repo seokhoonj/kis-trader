@@ -17,6 +17,7 @@ if TYPE_CHECKING:
     from datetime import date
 
     from ..client import KISClient
+    from ..instrument import DomesticMarket, DomesticMarketFilter
     from ..news import NewsHeadline
     from .entities.market import (
         BrokerOpinion,
@@ -28,7 +29,6 @@ if TYPE_CHECKING:
         InvestorNetBuyStock,
         LendableStock,
         LimitStock,
-        Market,
         MarketFunds,
         MarketInvestorFlow,
         MarketInvestorSnapshot,
@@ -40,9 +40,6 @@ if TYPE_CHECKING:
     )
     from .ranking import TradeSide
 
-
-#: 시장 필터(전체/코스피/코스닥) -- 대주가능·투자자순매수 조회 공통.
-MarketFilter = Literal["all", "KOSPI", "KOSDAQ"]
 
 #: 시장 필터(전체/코스피/코스닥/코스피200) -- 신용주문 가능종목 조회 전용(KOSPI200 추가).
 CreditMarketFilter = Literal["all", "KOSPI", "KOSDAQ", "KOSPI200"]
@@ -68,7 +65,7 @@ class MarketQueries:
         self._client = client
 
     def investor_flows(
-        self, *, market: Market = "KOSPI", as_of: str | date | None = None,
+        self, *, market: DomesticMarket = "KOSPI", as_of: str | date | None = None,
     ) -> list[MarketInvestorFlow]:
         """시장(``"KOSPI"``/``"KOSDAQ"``) 전체의 투자자 순매수 최근 히스토리(``as_of`` 기준일에서 과거로;
         기간이 아니라 앵커 날짜). ``as_of`` 없으면 오늘. 종목 단위는 ``kis.domestic.stock(symbol).investor_flows()``."""
@@ -85,7 +82,7 @@ class MarketQueries:
         )
 
     def investor_net_buy_stocks(
-        self, *, market: MarketFilter = "all", basis: NetBuyBasis = "volume",
+        self, *, market: DomesticMarketFilter = "all", basis: NetBuyBasis = "volume",
         side: TradeSide = "buy", investor: InvestorType = "all",
     ) -> list[InvestorNetBuyStock]:
         """투자자 순매수·순매도 상위 종목 집계."""
@@ -95,7 +92,7 @@ class MarketQueries:
         )
 
     def program_investor_trades(
-        self, *, market: Market = "KOSPI"
+        self, *, market: DomesticMarket = "KOSPI"
     ) -> list[ProgramInvestorTrade]:
         """시장별 당일 프로그램매매 투자자 집계."""
         return market_api.fetch_program_investor_trades(
@@ -112,7 +109,7 @@ class MarketQueries:
         return market_api.fetch_interest_rates(self._client.transport)
 
     def lendable_stocks(
-        self, *, market: MarketFilter = "all", symbol: str | None = None
+        self, *, market: DomesticMarketFilter = "all", symbol: str | None = None
     ) -> list[LendableStock]:
         """회사 대주 가능 종목과 한도·사용·매매가능 수량 목록."""
         return market_api.fetch_lendable_stocks(
@@ -141,7 +138,7 @@ class MarketQueries:
         )
 
     def program_trades(
-        self, *, market: Market = "KOSPI",
+        self, *, market: DomesticMarket = "KOSPI",
         start: str | date | None = None, end: str | date | None = None,
     ) -> list[ProgramTradeSummary]:
         """시장(``"KOSPI"``/``"KOSDAQ"``) 전체의 일별 프로그램매매 종합(차익/비차익 순매수; 최근->과거).
@@ -159,7 +156,7 @@ class MarketQueries:
         """상한가/하한가에 도달한 종목 전체 스냅샷. 각 행의 ``at_upper_limit`` 로 상/하한 구분."""
         return market_api.fetch_limit_stocks(self._client.transport)
 
-    def program_flow(self, *, market: Market = "KOSPI") -> list[ProgramFlowPoint]:
+    def program_flow(self, *, market: DomesticMarket = "KOSPI") -> list[ProgramFlowPoint]:
         """당일 시간대별 프로그램매매 순매수 대금(차익/비차익/전체; 시간 순). 일별 종합은
         :meth:`program_trades`."""
         return market_api.fetch_program_flow(self._client.transport, market=market)

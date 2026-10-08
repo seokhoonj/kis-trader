@@ -8,7 +8,7 @@
 이 모듈은 또한 종목 마스터의 공개 DATA 타입을 정의한다: 해외 마스터 레코드/인덱스
 (:class:`InstrumentRecord`/:class:`MasterIndex`)와 국내 상장목록/검색 인덱스
 (:class:`DomesticListing`/:class:`DomesticListingIndex`), 그리고 그 Literal(:data:`SecurityType`/
-:data:`DomesticMarket`/:data:`SearchMarket`). 파싱/다운로드/캐시는 내부 마스터 모듈이 담당하고 그
+:data:`DomesticMarket`/:data:`DomesticMarketFilter`). 파싱/다운로드/캐시는 내부 마스터 모듈이 담당하고 그
 함수들이 이 타입을 만들어 돌려준다(공개 DATA 는 공개 모듈에 산다 -- Bar/OrderBook 과 같은 관례).
 """
 
@@ -84,8 +84,9 @@ SecurityType = Literal["index", "stock", "etf", "warrant"]
 
 #: 국내 시장(2값 폐집합). 해외 exchange/currency 와 달리 KIS 국내는 KOSPI/KOSDAQ 뿐이라 Literal 로 닫는다.
 DomesticMarket = Literal["KOSPI", "KOSDAQ"]
-#: search_stocks() 의 market 필터 -- 두 시장 + "all"(전체).
-SearchMarket = Literal["all", "KOSPI", "KOSDAQ"]
+#: 국내 시장 필터 -- 두 시장 + ``"all"``(전체). :data:`DomesticMarket` 의 all 포함 버전으로,
+#: 종목검색·투자자순매수·예상체결 등 시장으로 범위를 좁히는 조회가 공유한다(SideFilter 와 같은 bare/Filter 쌍).
+DomesticMarketFilter = Literal["all", "KOSPI", "KOSDAQ"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -159,7 +160,7 @@ class DomesticListingIndex:
     def __init__(self, listings: Iterable[DomesticListing]) -> None:
         self._listings = tuple(listings)
 
-    def search_stocks(self, query: str, *, market: SearchMarket = "all") -> list[DomesticListing]:
+    def search_stocks(self, query: str, *, market: DomesticMarketFilter = "all") -> list[DomesticListing]:
         """이름(부분/정확) 또는 6자리 코드로 후보를 찾아 돌려준다.
 
         매치 순서는 정확일치 -> 접두 -> 부분(정확이 먼저 오되 다건은 모두 포함한다). ``market`` 은

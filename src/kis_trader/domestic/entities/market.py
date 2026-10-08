@@ -15,15 +15,12 @@ from types import MappingProxyType
 from typing import Any, Literal
 
 from ..._internal._freeze import freeze_vendor_payload
-from ...instrument import Region
+from ...instrument import DomesticMarket, Region
 
 #: 투자의견 조회 필터 -- 전체/매수/중립/매도. 엔진 입력과 파사드 파라미터가 공유한다(한 곳 정의).
 BrokerOpinionFilter = Literal["all", "buy", "neutral", "sell"]
 from .investor import InvestorActivity, InvestorNetActivity
 from .program import ProgramTradeActivity
-
-#: 시장 -- 시장 전체 분석이 대상으로 삼는 시장(코스피/코스닥).
-Market = Literal["KOSPI", "KOSDAQ"]
 
 
 @dataclass(frozen=True, slots=True)
@@ -39,7 +36,7 @@ class MarketInvestorFlow:
     영업일(KST-aware).
     """
 
-    market: Market                    # 코스피/코스닥
+    market: DomesticMarket                    # 코스피/코스닥
     timestamp: datetime               # 영업일(KST-aware)
     index_value: Decimal              # 시장(업종)지수(bstp_nmix_prpr)
     index_change: Decimal             # 지수 전일대비(부호 포함)
@@ -126,7 +123,7 @@ class ProgramTradeSummary:
     ``timestamp`` 는 영업일(KST-aware).
     """
 
-    market: Market                    # 코스피/코스닥
+    market: DomesticMarket                    # 코스피/코스닥
     timestamp: datetime               # 영업일(KST-aware)
     arbitrage_net_volume: int         # 차익 합계 순매수 수량(arbt_smtn_ntby_qty)
     arbitrage_net_amount: Decimal     # 차익 합계 순매수 금액(arbt_smtn_ntby_tr_pbmn)
@@ -216,7 +213,7 @@ class ProgramFlowPoint:
     날짜를 붙인 시각(KST-aware).
     """
 
-    market: Market
+    market: DomesticMarket
     timestamp: datetime               # 시각(조회일 날짜; KST)
     arbitrage_net_amount: Decimal     # 차익 순매수 대금(arbt_smtn_ntby_tr_pbmn)
     nonarbitrage_net_amount: Decimal  # 비차익 순매수 대금(nabt_smtn_ntby_tr_pbmn)

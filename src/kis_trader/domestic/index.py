@@ -25,6 +25,7 @@ if TYPE_CHECKING:
     from datetime import date
 
     from ..client import KISClient
+    from ..instrument import DomesticMarketFilter
 
 
 #: 지수 당일 시간대별 시계열 샘플 간격 -- 1분/5분/10분.
@@ -35,9 +36,6 @@ ExpectedSession = Literal["open", "close"]
 
 #: 예상체결 지수 추이 샘플 간격 -- 10초/30초/1분/10분.
 ExpectedInterval = Literal["10s", "30s", "1m", "10m"]
-
-#: 예상체결 지수 스냅샷 시장 필터 -- 전체/코스피/코스닥.
-ExpectedMarket = Literal["all", "KOSPI", "KOSDAQ"]
 
 
 #: 잘 알려진 지수 이름 -> 업종코드 별칭. 그 밖의 값(업종코드)은 그대로 통과한다.
@@ -131,7 +129,7 @@ class DomesticIndex:
         )
 
     def expected_snapshot(
-        self, *, market: ExpectedMarket = "all", session: ExpectedSession = "open"
+        self, *, market: DomesticMarketFilter = "all", session: ExpectedSession = "open"
     ) -> ExpectedIndexSnapshot:
         """동시호가의 대표 예상체결 지수와 시장별 지수 목록."""
         return index_api.fetch_expected_index_snapshot(

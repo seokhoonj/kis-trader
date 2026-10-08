@@ -193,7 +193,6 @@ from .domestic.entities.market import (
     InvestorNetBuyStock,
     LendableStock,
     LimitStock,
-    Market,
     MarketFunds,
     MarketInvestorFlow,
     MarketInvestorSnapshot,
@@ -237,7 +236,6 @@ from .domestic.entities.trade_profit import (
 from .domestic.index import (
     DomesticIndex,
     ExpectedInterval,
-    ExpectedMarket,
     ExpectedSession,
     IntradayInterval,
 )
@@ -246,7 +244,6 @@ from .domestic.market import (
     CreditSort,
     ForeignBrokerSort,
     InvestorType,
-    MarketFilter,
     MarketQueries,
     NetBuyBasis,
 )
@@ -280,9 +277,10 @@ from .execution import (
 )
 from .instrument import (
     DomesticListing,
+    DomesticMarket,
+    DomesticMarketFilter,
     InstrumentRecord,
     MasterIndex,
-    SearchMarket,
 )
 from .integrated import Balance, CurrencyDeposit
 from .money import Money
@@ -474,6 +472,8 @@ __all__ = [
     "DomesticDivision",
     "DomesticIndex",
     "DomesticListing",
+    "DomesticMarket",
+    "DomesticMarketFilter",
     "DomesticOpenOrder",
     "DomesticOrderExchange",
     "DomesticPosition",
@@ -511,7 +511,6 @@ __all__ = [
     "ExpectedIndexQuote",
     "ExpectedIndexSnapshot",
     "ExpectedInterval",
-    "ExpectedMarket",
     "ExpectedPricePoint",
     "ExpectedSession",
     "FinancialAnalysis",
@@ -553,8 +552,6 @@ __all__ = [
     "ListingEvent",
     "LoanPoint",
     "MandatoryDeposit",
-    "Market",
-    "MarketFilter",
     "MarketFunds",
     "MarketInvestorFlow",
     "MarketInvestorSnapshot",
@@ -664,7 +661,6 @@ __all__ = [
     "RiskLimits",
     "SavedScreen",
     "SavedScreenStock",
-    "SearchMarket",
     "SellableQuantity",
     "SensitivitySort",
     "ShareholderMeeting",

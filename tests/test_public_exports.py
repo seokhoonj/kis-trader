@@ -65,8 +65,8 @@ def test_master_data_types_live_in_public_instrument_module():
         obj = getattr(kis_trader, name)
         assert obj.__module__ == "kis_trader.instrument", name
         assert obj is getattr(instrument, name), name
-    # SearchMarket 은 Literal 이라 __module__ 대신 동일 객체(정의 출처 단일)만 확인한다.
-    assert kis_trader.SearchMarket is instrument.SearchMarket
+    # DomesticMarketFilter 는 Literal 이라 __module__ 대신 동일 객체(정의 출처 단일)만 확인한다.
+    assert kis_trader.DomesticMarketFilter is instrument.DomesticMarketFilter
 
 
 def test_taxonomy_handle_markers_resolve():

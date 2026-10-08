@@ -34,7 +34,7 @@ if TYPE_CHECKING:
 
     from .._literals import Numeric, ProfitSort, SideFilter
     from ..client import KISClient
-    from ..instrument import DomesticListing, DomesticQuoteExchange, SearchMarket
+    from ..instrument import DomesticListing, DomesticMarketFilter, DomesticQuoteExchange
     from ..open_order import DomesticOpenOrder
     from ..order import Right, Side
     from ..quote import Quote
@@ -230,7 +230,7 @@ class DomesticNamespace:
         """국내 종목/ETF 핸들. 거래소는 심볼로 자동 판별한다(6자리 코드 -> KRX; ``exchange`` 지정 가능)."""
         return DomesticStock(self._client, symbol, exchange=exchange)
 
-    def search_stocks(self, query: str, *, market: SearchMarket = "all") -> list[DomesticListing]:
+    def search_stocks(self, query: str, *, market: DomesticMarketFilter = "all") -> list[DomesticListing]:
         """국내 상장 종목을 **이름(부분/정확)** 또는 6자리 코드로 찾아 후보를 돌려준다.
 
         이름은 모호할 수 있어("삼성전자" 는 "삼성전자우" 도 매치) **후보를 하나로 좁히지 않고 모두**

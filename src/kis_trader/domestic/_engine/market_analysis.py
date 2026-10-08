@@ -36,7 +36,7 @@ from ..._internal._wire import (
     required_int,
 )
 from ...errors import KISUsageError
-from ...instrument import Region
+from ...instrument import DomesticMarket, Region
 from ...news import NewsHeadline
 from ...transport import RawResponse, Transport
 from ..entities.investor import InvestorActivity, InvestorNetActivity
@@ -50,7 +50,6 @@ from ..entities.market import (
     InvestorNetBuyStock,
     LendableStock,
     LimitStock,
-    Market,
     MarketFunds,
     MarketInvestorFlow,
     MarketInvestorSnapshot,
@@ -314,7 +313,7 @@ def fetch_broker_opinions(
 
 
 def fetch_market_investor_flows(
-    transport: Transport, *, market: Market = "KOSPI", as_of: str | date | None = None,
+    transport: Transport, *, market: DomesticMarket = "KOSPI", as_of: str | date | None = None,
 ) -> list[MarketInvestorFlow]:
     """시장(코스피/코스닥) 전체의 투자자 순매수 최근 히스토리(``as_of`` 기준일에서 과거로).
 
@@ -447,7 +446,7 @@ def fetch_investor_net_buy_stocks(
 
 
 def fetch_program_investor_trades(
-    transport: Transport, *, market: Market = "KOSPI"
+    transport: Transport, *, market: DomesticMarket = "KOSPI"
 ) -> list[ProgramInvestorTrade]:
     """시장별 당일 프로그램매매 투자자 집계."""
     market_code = {"KOSPI": "1", "KOSDAQ": "4"}.get(market)
@@ -472,7 +471,7 @@ def fetch_program_investor_trades(
 
 
 def fetch_program_trade_summary(
-    transport: Transport, *, market: Market = "KOSPI",
+    transport: Transport, *, market: DomesticMarket = "KOSPI",
     start: str | date | None = None, end: str | date | None = None,
 ) -> list[ProgramTradeSummary]:
     """시장(코스피/코스닥) 전체의 일별 프로그램매매 종합(차익/비차익 순매수; 최근->과거). ``start``
@@ -610,7 +609,7 @@ def fetch_limit_stocks(transport: Transport) -> list[LimitStock]:
 
 
 def fetch_program_flow(
-    transport: Transport, *, market: Market = "KOSPI"
+    transport: Transport, *, market: DomesticMarket = "KOSPI"
 ) -> list[ProgramFlowPoint]:
     """당일 시간대별 프로그램매매 순매수 대금(시간 순). 시장(코스피/코스닥)."""
     try:

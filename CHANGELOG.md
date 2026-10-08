@@ -12,6 +12,15 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
 
 ### Changed
 
+- Domestic-market Literal types consolidated. The three identical `["all","KOSPI","KOSDAQ"]`
+  filters — `SearchMarket`, `MarketFilter`, `ExpectedMarket` — are now one `DomesticMarketFilter`
+  (the all-bearing sibling of `DomesticMarket`, paralleling `SideFilter`/`DerivativeProductFilter`),
+  and the duplicate 2-value `Market` is now `DomesticMarket` (paralleling `DomesticOrderExchange`/
+  `DomesticQuoteExchange`). Distinct-valued neighbours stay separate: `CreditMarketFilter`
+  (+`KOSPI200`), `DividendMarket`, `ExpectedCloseMarket` (+`KRX100`) each back a different endpoint
+  whose accepted set differs, so a shared name would wrongly imply interchangeability. Imports of
+  `kis_trader.SearchMarket` / `MarketFilter` / `ExpectedMarket` / `Market` become
+  `DomesticMarketFilter` / `DomesticMarket`; values and wire behavior are unchanged.
 - The execution venue is now one `exchange` field, with explicit `region`
   (`"domestic"`/`"overseas"`) and `asset_class` (`"stock"`/`"derivative"`/`"bond"`) beside
   it. The domestic order vocabulary is `DomesticOrderExchange` = `KRX`/`NXT`/`SOR`; the

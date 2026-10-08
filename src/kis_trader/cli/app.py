@@ -16,11 +16,11 @@ from .. import (
     AlgoStrategy,
     Direction,
     DomesticDivision,
+    DomesticMarketFilter,
     ProfitSort,
     Region,
     ReservedCurrency,
     ReservedProcess,
-    SearchMarket,
     SideFilter,
     VolumeMetric,
 )
@@ -140,7 +140,7 @@ def build_parser() -> argparse.ArgumentParser:
     search_p = leaf(groups, "search", help="이름/코드로 국내 종목 검색")
     search_p.add_argument("query")
     # default 은 라이브러리(search)가 쥔다 -- 여기서 재기술하지 않고 준 값만 전달(생략 시 라이브러리 기본).
-    search_p.add_argument("--market", choices=list(get_args(SearchMarket)), default=None)
+    search_p.add_argument("--market", choices=list(get_args(DomesticMarketFilter)), default=None)
     search_p.set_defaults(func=market.cmd_search)
 
     # kis ranking change|volume|market-cap
