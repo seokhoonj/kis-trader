@@ -431,8 +431,11 @@ def _fsync_dir(directory: Path) -> None:
     만 무시하고, EIO/ENOSPC 등 진짜 내구성 실패는 삼키지 않고 올린다(거짓 '저장됨' 방지)."""
     try:
         dir_fd = os.open(directory, os.O_RDONLY)
-    except OSError as err:  # pragma: no cover -- 디렉터리 fsync 미지원 errno 만 무시
-        if err.errno in _UNSUPPORTED_FSYNC_ERRNOS:
+    except OSError as err:  # pragma: no cover -- 플랫폼이 디렉터리 fd 열기를 미지원
+        # Windows 는 디렉터리를 O_RDONLY 로 열 수 없어 PermissionError(EACCES) 를 낸다 -- 구조적
+        # 플랫폼 특성이지 내구성 실패가 아니다(데이터 파일은 이미 fsync + 원자 교체됨). 건너뛴다.
+        # 그 외 플랫폼에선 디렉터리 fsync 미지원 errno 만 무시하고 EMFILE/EIO 등 진짜 실패는 올린다.
+        if os.name == "nt" or err.errno in _UNSUPPORTED_FSYNC_ERRNOS:
             return
         raise  # EMFILE/EIO 등 진짜 실패는 올린다(거짓 '저장됨' 방지, fsync 분기와 동일 규율)
     try:
