@@ -64,6 +64,20 @@ def parse_optional_kst_date(value: object, *, required: bool = False) -> date | 
         raise KISError(f"날짜(YYYYMMDD) 파싱 실패: {value!r}") from err
 
 
+def _parse_optional_date(value: object) -> date | None:
+    """선택적 날짜 필드(fail-soft): ``"20240216"`` -> ``date(2024, 2, 16)``, 공백/형식오류/불가능한
+    날짜면 ``None``. 조회 응답의 표시용 날짜(미처리 사유 날짜, 체결일 등)에서 쓴다 -- 잘못된 값이
+    조회 전체를 막지 않아야 하는 곳. 날짜가 반드시 실재해야 하고 malformed 를 fail-closed 로 올려야
+    하는 곳은 :func:`parse_optional_kst_date` 를 쓴다(대비되는 계약)."""
+    text = str(value or "").strip()
+    if len(text) != 8 or not text.isdigit():
+        return None
+    try:
+        return date(int(text[0:4]), int(text[4:6]), int(text[6:8]))
+    except ValueError:
+        return None
+
+
 def _parse_kst_time(time_text: str) -> time:
     """"HHMMSS" -> time. 전송 시각 등 날짜 없이 시각만 필요한 곳에서 쓴다."""
     try:

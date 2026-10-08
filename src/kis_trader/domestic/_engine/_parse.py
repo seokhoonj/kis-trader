@@ -5,21 +5,9 @@ KIS 매매구분코드(01 매도 / 02 매수)를 방향으로 옮기는 규칙�
 
 from __future__ import annotations
 
-from ...errors import KISError
+# 매매구분코드 헬퍼는 _internal/_parse 로 단일화 -- 형제 엔진은 종전대로 이 모듈에서 가져온다(re-export).
+from ..._internal._parse import _side_from_code as _side_from_code  # noqa: PLC0414 -- re-export
 from ...order import Side
-
-_SIDE: dict[str, Side] = {"01": "sell", "02": "buy"}
-
-
-def _side_from_code(code: object) -> Side:
-    """벤더 매매구분코드(01 매도 / 02 매수)를 방향으로 -- 알 수 없는 코드는 fail-closed(:class:`KISError`).
-    ``side=""`` 로 뭉개면 buy/sell 어느 쪽도 아닌 주문 레코드가 새어 이후 오귀속/오매칭을 부른다."""
-    text = str(code or "").strip()
-    try:
-        return _SIDE[text]
-    except KeyError:
-        raise KISError(f"알 수 없는 매매구분코드: {text!r} (01 매도 / 02 매수만 유효).") from None
-
 
 #: 선물옵션 잔고는 코드(sll_buy_dvsn_cd) 대신 매도매수구분명("매수"/"매도")만 주는 행이 있어 이름으로 옮긴다.
 _SIDE_BY_NAME: dict[str, Side] = {"매수": "buy", "매도": "sell"}

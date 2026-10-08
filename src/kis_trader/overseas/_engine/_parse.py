@@ -8,38 +8,15 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date
 from decimal import Decimal
 from typing import Any
 
+# 매매구분코드는 _internal/_parse 로 단일화 -- 형제 엔진은 종전대로 이 모듈에서 가져온다(re-export).
+from ..._internal._parse import _side_from_code as _side_from_code  # noqa: PLC0414 -- re-export
 from ..._internal._wire import field_decimal_or_zero, required_decimal
-from ...errors import KISError
 from ...money import Money
-from ...order import Side
 
 _MAX_PAGES = 100
-_SIDE: dict[str, Side] = {"01": "sell", "02": "buy"}
-
-
-def _side_from_code(code: object) -> Side:
-    """벤더 매매구분코드(01 매도 / 02 매수)를 방향으로 -- 알 수 없는 코드는 fail-closed(:class:`KISError`).
-    ``side=""`` 로 뭉개면 buy/sell 어느 쪽도 아닌 주문 레코드가 새어 이후 오귀속/오매칭을 부른다."""
-    text = str(code or "").strip()
-    try:
-        return _SIDE[text]
-    except KeyError:
-        raise KISError(f"알 수 없는 매매구분코드: {text!r} (01 매도 / 02 매수만 유효).") from None
-
-
-def _parse_date(value: object) -> date | None:
-    """``"20240216"`` -> ``date(2024, 2, 16)``. 공백/형식오류면 None(fail-soft)."""
-    text = str(value or "").strip()
-    if len(text) != 8 or not text.isdigit():
-        return None
-    try:
-        return date(int(text[0:4]), int(text[4:6]), int(text[6:8]))
-    except ValueError:
-        return None
 
 #: 해외 잔고 시장 -> (OVRS_EXCG_CD, TR_CRCY_CD). KIS 코드표. 미국은 NASD(실전=미국전체).
 _MARKETS: dict[str, tuple[str, str]] = {

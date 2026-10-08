@@ -15,10 +15,11 @@ KIS URL/TR-ID (전부 모의투자 미지원):
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date, datetime, timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
+from ..._internal._datetime import _parse_optional_date as _parse_date
 from ..._internal._response import _CONTINUATION_END, _require_mapping_rows
 from ..._internal._wire import decimal_or_zero, field_decimal_or_zero, format_wire_decimal
 from ...errors import (
@@ -533,14 +534,3 @@ def _parse_reserved(row: Mapping[str, Any]) -> DomesticReservedOrder:
 
 def _decimal_or_zero(row: Mapping[str, Any], key: str) -> Decimal:
     return field_decimal_or_zero(row.get(key), key)
-
-
-def _parse_date(value: object) -> date | None:
-    """``"20220523"`` -> ``date(2022, 5, 23)``. 공백/형식오류면 None(fail-soft)."""
-    text = str(value or "").strip()
-    if len(text) != 8 or not text.isdigit():
-        return None
-    try:
-        return datetime.strptime(text, "%Y%m%d").date()  # noqa: DTZ007
-    except ValueError:
-        return None

@@ -15,6 +15,7 @@ from collections.abc import Mapping, Sequence
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
+from ..._internal._datetime import _parse_optional_date as _parse_date
 from ..._internal._response import _advance_cursor, _fetch_paginated_rows, _raise_if_error
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ..._literals import DerivativeProductFilter
@@ -33,7 +34,7 @@ from ..entities.derivative_account import (
     OverseasDerivativePosition,
     OverseasDerivativeTransaction,
 )
-from ._parse import _MAX_PAGES, _parse_date, _side_from_code
+from ._parse import _MAX_PAGES, _side_from_code
 
 #: product 필터 -> FUOP_DVSN 와이어코드(공식 inquire_unpd.py OTFM1412R: 00 전체/01 선물/02 옵션).
 _FUOP_FILTER = {"all": "00", "future": "01", "option": "02"}

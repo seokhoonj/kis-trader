@@ -12,11 +12,11 @@ KIS URL/TR-ID:
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any
 
 from ..._internal._datetime import _parse_hhmmss
+from ..._internal._datetime import _parse_optional_date as _parse_date
 from ..._internal._response import (
     _advance_cursor,
     _fetch_paginated_rows_with_summary,
@@ -751,17 +751,6 @@ def _extract_first_row(body: Mapping[str, Any], key: str) -> Mapping[str, Any] |
     if isinstance(block, (list, tuple)) and block and isinstance(block[0], Mapping):
         return block[0]
     return None
-
-
-def _parse_date(value: object) -> date | None:
-    """``"20240216"`` -> ``date(2024, 2, 16)``. 공백/형식오류면 None(fail-soft)."""
-    text = str(value or "").strip()
-    if len(text) != 8 or not text.isdigit():
-        return None
-    try:
-        return date(int(text[0:4]), int(text[4:6]), int(text[6:8]))
-    except ValueError:
-        return None
 
 
 def _require_wire_date(value: str, field_name: str) -> None:

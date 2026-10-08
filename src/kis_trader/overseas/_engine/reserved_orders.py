@@ -21,6 +21,7 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
 
+from ..._internal._datetime import _parse_optional_date as _parse_date
 from ..._internal._response import _CONTINUATION_END, _require_mapping_rows
 from ..._internal._wire import decimal_or_zero, format_wire_decimal
 from ...errors import (
@@ -36,7 +37,7 @@ from ...report import ExecutionReport, OrderStatus
 from ...store import Claimed, Completed, Conflict, InFlight, OrderStore
 from ...transport import Environment, Transport, TransportTimeoutError
 from ..entities.orders import OverseasReservedOrder
-from ._parse import _MAX_PAGES, _decimal_or_zero, _parse_date, _side_from_code
+from ._parse import _MAX_PAGES, _decimal_or_zero, _side_from_code
 from .orders import _ALGO_TMD_CLOSE, _ORD_DVSN_ALGO, _ORDER_EXCHANGE
 
 if TYPE_CHECKING:
