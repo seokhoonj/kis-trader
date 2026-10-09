@@ -93,6 +93,8 @@ def test_broker_daily_activity_maps_and_routes():
     )
     assert isinstance(activities[0], BrokerDailyActivity)
     assert activities[0].net_buy_volume == 30
+    assert activities[0].sell_volume == 100       # total_seln_qty
+    assert activities[0].buy_volume == 130        # total_shnu_qty
     assert activities[0].change == Decimal(-500)
     assert fake.calls[0] == {
         "path": "/uapi/domestic-stock/v1/quotations/inquire-member-daily",
@@ -116,6 +118,8 @@ def test_broker_trade_ticks_maps_summary_and_route():
     assert isinstance(result, BrokerTradeTicks)
     assert result.total_buy_quantity == 130
     assert result.ticks[0].change == Decimal(-500)
+    assert result.ticks[0].name == "삼성전자"        # hts_kor_isnm
+    assert result.ticks[0].foreign_broker_net_buy_volume == 200   # glob_ntby_qty 외국계
     assert result.ticks[0].foreign_net_buy_change == 50
     assert fake.calls[0] == {
         "path": "/uapi/domestic-stock/v1/quotations/frgnmem-trade-trend",

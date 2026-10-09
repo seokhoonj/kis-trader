@@ -185,15 +185,17 @@ def test_derivative_balance_summary_list_form():
 
 
 def test_derivative_account_entities_importable():
+    # is-not-None 은 tautology(클래스 객체는 항상 truthy) -- 실제로 dataclass 인지로 고정한다.
+    import dataclasses
+
     from kis_trader import (
         DomesticDerivativeBalance,
         DomesticDerivativeDeposit,
         DomesticDerivativePosition,
     )
-
-    assert DomesticDerivativeBalance is not None
-    assert DomesticDerivativeDeposit is not None
-    assert DomesticDerivativePosition is not None
+    assert dataclasses.is_dataclass(DomesticDerivativeBalance)
+    assert dataclasses.is_dataclass(DomesticDerivativeDeposit)
+    assert dataclasses.is_dataclass(DomesticDerivativePosition)
 
 
 _DEPOSIT = {

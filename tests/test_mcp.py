@@ -214,6 +214,27 @@ def test_server_registers_read_and_guarded_order_tools():
     assert not (names & {"buy", "sell", "credit_buy", "credit_sell"})
 
 
+def test_order_tool_input_schemas_pin_0_5_0_shape():
+    # 0.5.0 스키마 변화를 고정: place_order 는 단일값 region 을 더 노출하지 않고(제거됨),
+    # division/side 를 유지하며 side enum 은 buy/sell 로 좁혀져 있다. order_preview 와 형상 일치.
+    pytest.importorskip("mcp")
+    import asyncio
+
+    from kis_trader.mcp._guardrails import CircuitBreaker, RealOrderGate
+    from kis_trader.mcp.server import build_server
+
+    server = build_server(_fake_kis(), gate=RealOrderGate.from_env({}, "paper"),
+                          allowlist=None, breaker=CircuitBreaker())
+    tools = {t.name: t for t in asyncio.run(server.list_tools())}
+    place = tools["place_order"].input_schema["properties"]
+    assert "region" not in place                       # 단일값 region 파라미터 제거(회귀 방지)
+    assert {"symbol", "side", "quantity", "division"} <= set(place)
+    assert place["side"]["enum"] == ["buy", "sell"]     # Side 리터럴이 넓어지지 않게
+    preview = tools["order_preview"].input_schema["properties"]
+    assert "region" not in preview                     # dry-run 쌍둥이와 형상 일치
+    assert {"symbol", "side", "quantity", "division"} <= set(preview)
+
+
 def test_build_client_missing_credentials_gives_clear_error(monkeypatch):
     """자격증명이 없으면 raw KeyError 가 아니라 안내 메시지를 담은 KISUsageError 를 올린다."""
     pytest.importorskip("mcp")

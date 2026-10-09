@@ -124,6 +124,18 @@ def test_parse_futures_tick():
     assert len(tick._raw) == 50
 
 
+def test_parse_futures_tick_applies_downtick_sign():
+    # SIGN=5(하락)면 양수 크기를 음수 change/change_percent 로 (_apply_change_sign 회귀 포착).
+    fields = _fields(
+        der._FUTURES_TICK_FIELDS,
+        FUTS_SHRN_ISCD="101W09", BSOP_HOUR="093000", FUTS_PRPR="330.45",
+        PRDY_VRSS_SIGN="5", FUTS_PRDY_VRSS="1.20", FUTS_PRDY_CTRT="0.36",
+    )
+    tick = der.parse_futures_tick(fields)
+    assert tick.change == Decimal("-1.20")
+    assert tick.change_percent == Decimal("-0.36")
+
+
 def test_parse_night_futures_tick_has_no_dscs_field():
     fields = _fields(
         der._NIGHT_FUTURES_TICK_FIELDS,
@@ -142,7 +154,7 @@ def test_parse_stock_futures_tick_uses_stock_price_keys():
     fields = _fields(
         der._STOCK_FUTURES_TICK_FIELDS,
         FUTS_SHRN_ISCD="111V06", BSOP_HOUR="093000", STCK_PRPR="72450",
-        PRDY_VRSS_SIGN="5", PRDY_VRSS="-150", FUTS_PRDY_CTRT="-0.21",
+        PRDY_VRSS_SIGN="5", PRDY_VRSS="150", FUTS_PRDY_CTRT="0.21",   # 양수 크기+하락부호 -> 부호적용 고정
         STCK_OPRC="72600", STCK_HGPR="72900", STCK_LWPR="72300",
         HTS_THPR="72500", ASKP1="72500", BIDP1="72400",
     )

@@ -188,6 +188,18 @@ def test_parse_expected_conclusion_krx():
     assert "VI_STND_PRC" not in ec._raw
 
 
+def test_parse_expected_conclusion_krx_applies_downtick_sign():
+    # SIGN=5(하락)면 양수 크기를 음수 change/change_percent 로 (_apply_change_sign 회귀 포착).
+    record = _at(_EXPECTED_CONCLUSION_KRX_FIELDS, {
+        "MKSC_SHRN_ISCD": "005930", "STCK_CNTG_HOUR": "090000", "STCK_PRPR": "71500",
+        "PRDY_VRSS_SIGN": "5", "PRDY_VRSS": "100", "PRDY_CTRT": "0.14",
+        "CNTG_VOL": "1234", "ACML_VOL": "5000000", "BSOP_DATE": "20260814", "TRHT_YN": "N",
+    })
+    ec = parse_expected_conclusion_krx(record)
+    assert ec.change == Decimal(-100)
+    assert ec.change_percent == Decimal("-0.14")
+
+
 def test_parse_expected_conclusion_ext_has_vi_reference():
     record = _at(_EXPECTED_CONCLUSION_EXT_FIELDS, {
         "MKSC_SHRN_ISCD": "000660", "STCK_CNTG_HOUR": "153000", "STCK_PRPR": "180000",
@@ -218,7 +230,7 @@ def test_registry_expected_conclusion_variants():
 def test_parse_after_hours_tick():
     record = _at(_AFTER_HOURS_TICK_FIELDS, {
         "MKSC_SHRN_ISCD": "005930", "STCK_CNTG_HOUR": "173000", "STCK_PRPR": "71000",
-        "PRDY_VRSS_SIGN": "5", "PRDY_VRSS": "-500", "PRDY_CTRT": "-0.70",
+        "PRDY_VRSS_SIGN": "5", "PRDY_VRSS": "500", "PRDY_CTRT": "0.70",   # 양수 크기+하락부호 -> 부호적용 고정
         "STCK_OPRC": "71500", "STCK_HGPR": "71600", "STCK_LWPR": "70900",
         "CNTG_VOL": "10", "ACML_VOL": "123456", "ACML_TR_PBMN": "8765432100",
         "BSOP_DATE": "20260814", "TRHT_YN": "N",

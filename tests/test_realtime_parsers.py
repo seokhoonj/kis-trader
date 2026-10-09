@@ -62,6 +62,15 @@ def test_parse_trade_tick_maps_headline_fields():
     assert tick.static_vi_reference_price == Decimal(64350)
 
 
+def test_parse_trade_tick_applies_downtick_sign():
+    # SIGN=5(하락)면 양수 크기를 음수 change/change_percent 로 -- _apply_change_sign 회귀 포착.
+    fields = _sample_fields()
+    fields[3] = "5"
+    tick = parse_trade_tick(fields)
+    assert tick.change == Decimal(-100)
+    assert tick.change_percent == Decimal("-0.14")
+
+
 def test_trade_tick_raw_has_all_ledger_keys():
     tick = parse_trade_tick(_sample_fields())
     assert tick._raw["MKSC_SHRN_ISCD"] == "005930"

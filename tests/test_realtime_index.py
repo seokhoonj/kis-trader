@@ -40,6 +40,15 @@ def test_parse_index_tick_shares_layout_and_registers():
     assert spec is not None and spec.field_count == 30
 
 
+def test_parse_index_tick_applies_downtick_sign():
+    # SIGN=5(하락)면 양수 크기를 음수 change/change_percent 로 (_apply_change_sign 회귀 포착).
+    fields = _expected_conclusion_fields()
+    fields[3] = "5"
+    tick = parse_index_tick(fields)
+    assert tick.change == Decimal("-12.30")
+    assert tick.change_percent == Decimal("-0.47")
+
+
 def _expected_conclusion_fields() -> list[str]:
     fields = ["0"] * 30
     fields[0] = "0001"      # sector_code

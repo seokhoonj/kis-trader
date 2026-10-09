@@ -59,6 +59,15 @@ def test_parse_bond_tick_maps_headline_fields():
     assert tick.trade_type_code == "1"
 
 
+def test_parse_bond_tick_applies_downtick_sign():
+    # SIGN=5(하락)면 양수 크기를 음수 change/change_percent 로 -- _apply_change_sign 삭제 시 회귀 포착.
+    fields = _trade_tick_fields()
+    fields[3] = "5"               # change_sign (하락)
+    tick = parse_bond_tick(fields)
+    assert tick.change == Decimal(-5)
+    assert tick.change_percent == Decimal("-0.05")
+
+
 def test_bond_trade_tick_raw_has_all_ledger_keys():
     tick = parse_bond_tick(_trade_tick_fields())
     assert len(tick._raw) == 19
