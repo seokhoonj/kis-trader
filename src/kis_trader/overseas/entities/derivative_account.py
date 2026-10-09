@@ -32,21 +32,21 @@ class OverseasDerivativeDeposit:
     옵션평가금액, ``fee`` 수수료. 타입화하지 않은 요약 필드는 ``_raw`` 로 접근한다.
     """
 
-    currency: str                     # 통화코드(crcy_cd)
-    cash_balance: Decimal             # 예수금잔액(fm_dnca_rmnd)
-    total_asset: Decimal              # 총자산평가금액(fm_tot_asst_evlu_amt)
-    unrealized_pnl: Decimal           # 선물옵션평가손익금액(fm_fuop_evlu_pfls_amt)
-    realized_pnl: Decimal             # 청산손익금액(fm_lqd_pfls_amt)
-    brokerage_margin: Decimal         # 위탁증거금액(fm_brkg_mgn_amt)
-    maintenance_margin: Decimal       # 유지증거금액(fm_mntn_mgn_amt)
-    additional_margin: Decimal        # 추가증거금액(fm_add_mgn_amt)
-    risk_rate: Decimal                # 위험율(fm_risk_rt)
-    orderable_amount: Decimal         # 주문가능금액(fm_ord_psbl_amt)
-    withdrawable_amount: Decimal      # 출금가능금액(fm_drwg_psbl_amt)
-    receivable: Decimal               # 미수금액(fm_rcvb_amt)
-    next_day_deposit: Decimal         # 익일예수금액(fm_nxdy_dncl_amt)
-    option_value: Decimal             # 옵션평가금액(fm_opt_evlu_amt)
-    fee: Decimal                      # 수수료(fm_fee)
+    currency: str                 # 통화코드(crcy_cd)
+    cash_balance: Decimal         # 예수금잔액(fm_dnca_rmnd)
+    total_asset: Decimal          # 총자산평가금액(fm_tot_asst_evlu_amt)
+    unrealized_pnl: Decimal       # 선물옵션평가손익금액(fm_fuop_evlu_pfls_amt)
+    realized_pnl: Decimal         # 청산손익금액(fm_lqd_pfls_amt)
+    brokerage_margin: Decimal     # 위탁증거금액(fm_brkg_mgn_amt)
+    maintenance_margin: Decimal   # 유지증거금액(fm_mntn_mgn_amt)
+    additional_margin: Decimal    # 추가증거금액(fm_add_mgn_amt)
+    risk_rate: Decimal            # 위험율(fm_risk_rt)
+    orderable_amount: Decimal     # 주문가능금액(fm_ord_psbl_amt)
+    withdrawable_amount: Decimal  # 출금가능금액(fm_drwg_psbl_amt)
+    receivable: Decimal           # 미수금액(fm_rcvb_amt)
+    next_day_deposit: Decimal     # 익일예수금액(fm_nxdy_dncl_amt)
+    option_value: Decimal         # 옵션평가금액(fm_opt_evlu_amt)
+    fee: Decimal                  # 수수료(fm_fee)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -66,18 +66,18 @@ class OverseasDerivativePosition:
     ``exercise_reserved`` 행사예약주문 여부(bool; 원본 Y/N 을 변환). 타입화하지 않은 필드는 ``_raw``.
     """
 
-    symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
-    product_type: str                 # 상품유형코드(prdt_type_cd)
-    currency: str                     # 통화코드(crcy_cd)
-    side: Side                        # buy / sell (sll_buy_dvsn_cd: 01 매도 / 02 매수)
-    quantity: Decimal                 # 미결제수량(fm_ustl_qty)
-    average_price: Decimal            # 체결평균가격(fm_ccld_avg_pric)
-    current_price: Decimal            # 현재가격(fm_now_pric)
-    unrealized_pnl: Decimal           # 평가손익금액(fm_evlu_pfls_amt)
-    option_value: Decimal             # 옵션평가금액(fm_opt_evlu_amt)
-    option_unrealized_pnl: Decimal    # 옵션평가손익금액(fm_otp_evlu_pfls_amt)
-    liquidatable_quantity: Decimal    # 청산가능수량(fm_lqd_psbl_qty)
-    exercise_reserved: bool           # 행사예약주문여부(ecis_rsvn_ord_yn Y/N)
+    symbol: str                     # 해외선물FX상품번호(ovrs_futr_fx_pdno)
+    product_type: str               # 상품유형코드(prdt_type_cd)
+    currency: str                   # 통화코드(crcy_cd)
+    side: Side                      # buy / sell (sll_buy_dvsn_cd: 01 매도 / 02 매수)
+    quantity: Decimal               # 미결제수량(fm_ustl_qty)
+    average_price: Decimal          # 체결평균가격(fm_ccld_avg_pric)
+    current_price: Decimal          # 현재가격(fm_now_pric)
+    unrealized_pnl: Decimal         # 평가손익금액(fm_evlu_pfls_amt)
+    option_value: Decimal           # 옵션평가금액(fm_opt_evlu_amt)
+    option_unrealized_pnl: Decimal  # 옵션평가손익금액(fm_otp_evlu_pfls_amt)
+    liquidatable_quantity: Decimal  # 청산가능수량(fm_lqd_psbl_qty)
+    exercise_reserved: bool         # 행사예약주문여부(ecis_rsvn_ord_yn Y/N)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -97,15 +97,15 @@ class OverseasDerivativeMargin:
     적용 여부(bool; 원본 Y/N 을 변환). SPAN/EUREX 등 상세 증거금 내역은 ``_raw`` 로 접근한다.
     """
 
-    currency: str                       # 통화코드(crcy_cd)
-    orderable_amount: Decimal           # 주문가능금액(fm_ord_psbl_amt)
-    brokerage_margin: Decimal           # 위탁증거금액(fm_brkg_mgn_amt)
+    currency: str                         # 통화코드(crcy_cd)
+    orderable_amount: Decimal             # 주문가능금액(fm_ord_psbl_amt)
+    brokerage_margin: Decimal             # 위탁증거금액(fm_brkg_mgn_amt)
     settlement_brokerage_margin: Decimal  # 정산위탁증거금액(fm_excc_brkg_mgn_amt)
-    open_margin: Decimal                # 미결제증거금액(fm_ustl_mgn_amt)
-    maintenance_margin: Decimal         # 유지증거금액(fm_mntn_mgn_amt)
-    order_margin: Decimal               # 주문증거금액(fm_ord_mgn_amt)
-    additional_margin: Decimal          # 추가증거금액(fm_add_mgn_amt)
-    net_risk_applied: bool              # 계좌순위험증거금적용여부(acnt_net_risk_mgna_aply_yn Y/N)
+    open_margin: Decimal                  # 미결제증거금액(fm_ustl_mgn_amt)
+    maintenance_margin: Decimal           # 유지증거금액(fm_mntn_mgn_amt)
+    order_margin: Decimal                 # 주문증거금액(fm_ord_mgn_amt)
+    additional_margin: Decimal            # 추가증거금액(fm_add_mgn_amt)
+    net_risk_applied: bool                # 계좌순위험증거금적용여부(acnt_net_risk_mgna_aply_yn Y/N)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -124,12 +124,12 @@ class OverseasDerivativeOrderable:
     시장가총주문가능수량. 타입화하지 않은 필드는 ``_raw`` 로 접근한다.
     """
 
-    symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
-    currency: str                     # 통화코드(crcy_cd)
-    open_quantity: Decimal            # 미결제수량(fm_ustl_qty)
-    liquidatable_quantity: Decimal    # 청산가능수량(fm_lqd_psbl_qty)
-    new_orderable_quantity: Decimal   # 신규주문가능수량(fm_new_ord_psbl_qty)
-    total_orderable_quantity: Decimal  # 총주문가능수량(fm_tot_ord_psbl_qty)
+    symbol: str                         # 해외선물FX상품번호(ovrs_futr_fx_pdno)
+    currency: str                       # 통화코드(crcy_cd)
+    open_quantity: Decimal              # 미결제수량(fm_ustl_qty)
+    liquidatable_quantity: Decimal      # 청산가능수량(fm_lqd_psbl_qty)
+    new_orderable_quantity: Decimal     # 신규주문가능수량(fm_new_ord_psbl_qty)
+    total_orderable_quantity: Decimal   # 총주문가능수량(fm_tot_ord_psbl_qty)
     market_orderable_quantity: Decimal  # 시장가총주문가능수량(fm_mkpr_tot_ord_psbl_qty)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -152,7 +152,7 @@ class OverseasDerivativeOrder:
     선물옵션구분(fuop_dvsn 원본). 주문번호가 빈 패딩 행은 담기지 않는다. 타입화하지 않은 필드는 ``_raw``.
     """
 
-    order_date: datetime.date | None           # 주문일자(ord_dt)
+    order_date: datetime.date | None  # 주문일자(ord_dt)
     order_id: str                     # 주문번호(odno)
     original_order_id: str            # 원주문번호(orgn_odno)
     symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
@@ -163,7 +163,7 @@ class OverseasDerivativeOrder:
     filled_quantity: Decimal          # 체결수량(fm_ccld_qty)
     filled_price: Decimal             # 체결가격(fm_ccld_pric)
     remaining_quantity: Decimal       # 주문잔량(fm_ord_rmn_qty)
-    new_liquidation_type: str              # 신규청산구분코드(new_lqd_dvsn_cd)
+    new_liquidation_type: str         # 신규청산구분코드(new_lqd_dvsn_cd)
     futures_option_type: str          # 선물옵션구분(fuop_dvsn)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -185,7 +185,7 @@ class OverseasDerivativeFill:
     필드는 ``_raw``.
     """
 
-    fill_date: datetime.date | None            # 체결일자(dt)
+    fill_date: datetime.date | None   # 체결일자(dt)
     fill_number: str                  # 체결번호(ccno)
     symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
     side: Side                        # buy / sell (sll_buy_dvsn_cd: 01 매도 / 02 매수)
@@ -193,7 +193,7 @@ class OverseasDerivativeFill:
     filled_amount: Decimal            # 체결금액(fm_ccld_amt)
     currency: str                     # 통화코드(crcy_cd)
     fee: Decimal                      # 수수료(fm_fee)
-    order_date: datetime.date | None           # 주문일자(ord_dt)
+    order_date: datetime.date | None  # 주문일자(ord_dt)
     order_id: str                     # 주문번호(odno)
     order_medium: str                 # 주문매체구분명(ord_mdia_dvsn_name)
     _raw: Mapping[str, Any] = field(
@@ -218,19 +218,19 @@ class OverseasDerivativeDailyOrder:
     형식오류/공백이면 None. 주문번호가 빈 패딩 행은 담기지 않는다. 타입화하지 않은 필드는 ``_raw``.
     """
 
-    receipt_date: datetime.date | None  # 주문접수일자(dt)
-    order_date: datetime.date | None  # 주문일자(ord_dt)
-    order_id: str                     # 주문번호(odno)
-    original_order_id: str            # 원주문번호(orgn_odno)
-    symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
-    revise_cancel_type_code: str      # 정정취소구분코드(rvse_cncl_dvsn_cd)
-    side: Side                        # buy / sell (sll_buy_dvsn_cd: 01 매도 / 02 매수)
-    order_quantity: Decimal           # 주문수량(fm_ord_qty)
-    order_price: Decimal              # 주문가격(fm_ord_pric)
-    filled_quantity: Decimal          # 체결수량(fm_ccld_qty)
-    filled_price: Decimal             # 체결가격(fm_ccld_pric)
-    remaining_quantity: Decimal       # 주문잔량(fm_ord_rmn_qty)
-    reject_reason: str                # 거부사유명(rjct_rson_name)
+    receipt_date: datetime.date | None    # 주문접수일자(dt)
+    order_date: datetime.date | None      # 주문일자(ord_dt)
+    order_id: str                         # 주문번호(odno)
+    original_order_id: str                # 원주문번호(orgn_odno)
+    symbol: str                           # 해외선물FX상품번호(ovrs_futr_fx_pdno)
+    revise_cancel_type_code: str          # 정정취소구분코드(rvse_cncl_dvsn_cd)
+    side: Side                            # buy / sell (sll_buy_dvsn_cd: 01 매도 / 02 매수)
+    order_quantity: Decimal               # 주문수량(fm_ord_qty)
+    order_price: Decimal                  # 주문가격(fm_ord_pric)
+    filled_quantity: Decimal              # 체결수량(fm_ccld_qty)
+    filled_price: Decimal                 # 체결가격(fm_ccld_pric)
+    remaining_quantity: Decimal           # 주문잔량(fm_ord_rmn_qty)
+    reject_reason: str                    # 거부사유명(rjct_rson_name)
     trade_end_date: datetime.date | None  # 거래종료일자(trad_end_dt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -279,17 +279,17 @@ class OverseasDerivativePNL:
     미결제약정금액(fm_ustl_agrm_amt). 타입화하지 않은 필드는 ``_raw``.
     """
 
-    currency: str                     # 통화코드(crcy_cd)
-    symbol: str                       # 해외선물FX상품번호(ovrs_futr_fx_pdno)
-    buy_quantity: Decimal             # 매수수량(fm_buy_qty)
-    sell_quantity: Decimal            # 매도수량(fm_sll_qty)
-    realized_pnl: Decimal             # 청산손익금액(fm_lqd_pfls_amt)
-    fee: Decimal                      # 수수료(fm_fee)
-    net_pnl: Decimal                  # 순손익금액(fm_net_pfls_amt)
-    open_buy_quantity: Decimal        # 미결제매수수량(fm_ustl_buy_qty)
-    open_sell_quantity: Decimal       # 미결제매도수량(fm_ustl_sll_qty)
-    unrealized_pnl: Decimal           # 미결제평가손익금액(fm_ustl_evlu_pfls_amt)
-    open_agreement_amount: Decimal    # 미결제약정금액(fm_ustl_agrm_amt)
+    currency: str                   # 통화코드(crcy_cd)
+    symbol: str                     # 해외선물FX상품번호(ovrs_futr_fx_pdno)
+    buy_quantity: Decimal           # 매수수량(fm_buy_qty)
+    sell_quantity: Decimal          # 매도수량(fm_sll_qty)
+    realized_pnl: Decimal           # 청산손익금액(fm_lqd_pfls_amt)
+    fee: Decimal                    # 수수료(fm_fee)
+    net_pnl: Decimal                # 순손익금액(fm_net_pfls_amt)
+    open_buy_quantity: Decimal      # 미결제매수수량(fm_ustl_buy_qty)
+    open_sell_quantity: Decimal     # 미결제매도수량(fm_ustl_sll_qty)
+    unrealized_pnl: Decimal         # 미결제평가손익금액(fm_ustl_evlu_pfls_amt)
+    open_agreement_amount: Decimal  # 미결제약정금액(fm_ustl_agrm_amt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -333,20 +333,20 @@ class OverseasDerivativeTransaction:
     타입화하지 않은 필드는 ``_raw``.
     """
 
-    base_date: datetime.date | None   # 기준일자(bass_dt)
-    ledger_sequence: str              # 원장입출금순번(fm_ldgr_inog_seq)
-    transaction_type_name: str             # 계좌거래유형명(acnt_tr_type_name)
-    currency: str                     # 통화코드(crcy_cd)
-    item_name: str                    # 거래항목명(tr_itm_name)
-    amount: Decimal                   # 입출금액(fm_iofw_amt)
-    fee: Decimal                      # 수수료(fm_fee)
-    tax: Decimal                      # 세금금액(fm_tax_amt)
-    settlement_amount: Decimal        # 결제금액(fm_sttl_amt)
-    prior_deposit: Decimal            # 이전예수금액(fm_bf_dncl_amt)
-    deposit: Decimal                  # 예수금액(fm_dncl_amt)
-    receivable_incurred: Decimal      # 미수발생금액(fm_rcvb_occr_amt)
-    receivable_repaid: Decimal        # 미수변제금액(fm_rcvb_pybk_amt)
-    remarks: str                      # 비고내용(rmks_text)
+    base_date: datetime.date | None  # 기준일자(bass_dt)
+    ledger_sequence: str             # 원장입출금순번(fm_ldgr_inog_seq)
+    transaction_type_name: str       # 계좌거래유형명(acnt_tr_type_name)
+    currency: str                    # 통화코드(crcy_cd)
+    item_name: str                   # 거래항목명(tr_itm_name)
+    amount: Decimal                  # 입출금액(fm_iofw_amt)
+    fee: Decimal                     # 수수료(fm_fee)
+    tax: Decimal                     # 세금금액(fm_tax_amt)
+    settlement_amount: Decimal       # 결제금액(fm_sttl_amt)
+    prior_deposit: Decimal           # 이전예수금액(fm_bf_dncl_amt)
+    deposit: Decimal                 # 예수금액(fm_dncl_amt)
+    receivable_incurred: Decimal     # 미수발생금액(fm_rcvb_occr_amt)
+    receivable_repaid: Decimal       # 미수변제금액(fm_rcvb_pybk_amt)
+    remarks: str                     # 비고내용(rmks_text)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

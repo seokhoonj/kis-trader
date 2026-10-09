@@ -31,19 +31,19 @@ class TradeProfit:
     trade_date: date | None           # 매매일자(trad_dt)
     symbol: str
     name: str
-    trade_type_name: str              # 매매구분명(trad_dvsn_name), 예: "현금"
-    holding_quantity: Decimal         # 보유수량(hldg_qty)
-    purchase_price: Decimal           # 매입단가(pchs_unpr)
-    buy_quantity: Decimal             # 매수수량(buy_qty)
-    buy_amount: Decimal               # 매수금액(buy_amt)
-    sell_price: Decimal               # 매도가격(sll_pric)
-    sell_quantity: Decimal            # 매도수량(sll_qty)
-    sell_amount: Decimal              # 매도금액(sll_amt)
-    realized_pnl: Decimal             # 실현손익(rlzt_pfls)
-    return_percent: Decimal           # 손익률(pfls_rt)
-    fee: Decimal                      # 수수료(fee)
-    tax: Decimal                      # 제세금(tl_tax)
-    loan_interest: Decimal            # 대출이자(loan_int)
+    trade_type_name: str       # 매매구분명(trad_dvsn_name), 예: "현금"
+    holding_quantity: Decimal  # 보유수량(hldg_qty)
+    purchase_price: Decimal    # 매입단가(pchs_unpr)
+    buy_quantity: Decimal      # 매수수량(buy_qty)
+    buy_amount: Decimal        # 매수금액(buy_amt)
+    sell_price: Decimal        # 매도가격(sll_pric)
+    sell_quantity: Decimal     # 매도수량(sll_qty)
+    sell_amount: Decimal       # 매도금액(sll_amt)
+    realized_pnl: Decimal      # 실현손익(rlzt_pfls)
+    return_percent: Decimal    # 손익률(pfls_rt)
+    fee: Decimal               # 수수료(fee)
+    tax: Decimal               # 제세금(tl_tax)
+    loan_interest: Decimal     # 대출이자(loan_int)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -57,12 +57,12 @@ class TradeProfitHistory:
     """기간 매매손익 목록과 총계(불변). ``trades`` 종목/매매별 실현손익, ``total_*`` 기간 합계."""
 
     trades: tuple[TradeProfit, ...]
-    total_realized_pnl: Decimal       # 총실현손익(tot_rlzt_pfls)
-    total_return_percent: Decimal     # 총수익률(tot_pftrt)
-    total_buy_amount: Decimal         # 매수거래금액합계(buy_tr_amt_smtl)
-    total_sell_amount: Decimal        # 매도거래금액합계(sll_tr_amt_smtl)
-    total_fee: Decimal                # 총수수료(tot_fee)
-    total_tax: Decimal                # 총제세금(tot_tltx)
+    total_realized_pnl: Decimal    # 총실현손익(tot_rlzt_pfls)
+    total_return_percent: Decimal  # 총수익률(tot_pftrt)
+    total_buy_amount: Decimal      # 매수거래금액합계(buy_tr_amt_smtl)
+    total_sell_amount: Decimal     # 매도거래금액합계(sll_tr_amt_smtl)
+    total_fee: Decimal             # 총수수료(tot_fee)
+    total_tax: Decimal             # 총제세금(tot_tltx)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -79,16 +79,16 @@ class DailyProfit:
     ``return_percent`` 그 날의 손익률(%). 종목별 세부는 :class:`TradeProfit` 을 쓴다.
     """
 
-    trade_date: date | None           # 매매일자(trad_dt)
-    buy_amount: Decimal               # 매수금액(buy_amt)
-    sell_amount: Decimal              # 매도금액(sll_amt)
-    realized_pnl: Decimal             # 실현손익(rlzt_pfls)
-    return_percent: Decimal           # 손익률(pfls_rt)
-    fee: Decimal                      # 수수료(fee)
-    tax: Decimal                      # 제세금(tl_tax)
-    loan_interest: Decimal            # 대출이자(loan_int)
-    buy_quantity: Decimal             # 매수수량(buy_qty1)
-    sell_quantity: Decimal            # 매도수량(sll_qty1)
+    trade_date: date | None  # 매매일자(trad_dt)
+    buy_amount: Decimal      # 매수금액(buy_amt)
+    sell_amount: Decimal     # 매도금액(sll_amt)
+    realized_pnl: Decimal    # 실현손익(rlzt_pfls)
+    return_percent: Decimal  # 손익률(pfls_rt)
+    fee: Decimal             # 수수료(fee)
+    tax: Decimal             # 제세금(tl_tax)
+    loan_interest: Decimal   # 대출이자(loan_int)
+    buy_quantity: Decimal    # 매수수량(buy_qty1)
+    sell_quantity: Decimal   # 매도수량(sll_qty1)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -106,11 +106,11 @@ class DailyProfitHistory:
     """
 
     days: tuple[DailyProfit, ...]
-    total_realized_pnl: Decimal       # 총실현손익(tot_rlzt_pfls)
-    total_buy_amount: Decimal         # 매수거래금액합계(buy_tr_amt_smtl)
-    total_sell_amount: Decimal        # 매도거래금액합계(sll_tr_amt_smtl)
-    total_fee: Decimal                # 총수수료(tot_fee)
-    total_tax: Decimal                # 총제세금(tot_tltx)
+    total_realized_pnl: Decimal  # 총실현손익(tot_rlzt_pfls)
+    total_buy_amount: Decimal    # 매수거래금액합계(buy_tr_amt_smtl)
+    total_sell_amount: Decimal   # 매도거래금액합계(sll_tr_amt_smtl)
+    total_fee: Decimal           # 총수수료(tot_fee)
+    total_tax: Decimal           # 총제세금(tot_tltx)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

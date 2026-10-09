@@ -28,18 +28,18 @@ class DomesticDerivativePosition:
     청산 완료된 0수량 잔여 lot 도 그대로 담기며, 필터는 호출자 몫.
     """
 
-    symbol: str                       # 단축상품번호(shtn_pdno)
-    isin: str                         # 상품번호(pdno)
-    name: str                         # 상품명(prdt_name)
-    side: Side | None                 # 매수->buy / 매도->sell (원문 sll_buy_dvsn_name 은 _raw)
-    quantity: Decimal                 # 잔고수량(cblc_qty)
-    settlement_price: Decimal         # 정산단가(excc_unpr)
-    average_price: Decimal            # 체결평균단가1(ccld_avg_unpr1)
-    purchase_amount: Decimal          # 매입금액(pchs_amt)
-    market_value: Decimal             # 평가금액(evlu_amt)
-    unrealized_pnl: Decimal           # 평가손익금액(evlu_pfls_amt)
-    realized_pnl: Decimal             # 매매손익금액(trad_pfls_amt)
-    liquidatable_quantity: Decimal    # 청산가능수량(lqd_psbl_qty)
+    symbol: str                     # 단축상품번호(shtn_pdno)
+    isin: str                       # 상품번호(pdno)
+    name: str                       # 상품명(prdt_name)
+    side: Side | None               # 매수->buy / 매도->sell (원문 sll_buy_dvsn_name 은 _raw)
+    quantity: Decimal               # 잔고수량(cblc_qty)
+    settlement_price: Decimal       # 정산단가(excc_unpr)
+    average_price: Decimal          # 체결평균단가1(ccld_avg_unpr1)
+    purchase_amount: Decimal        # 매입금액(pchs_amt)
+    market_value: Decimal           # 평가금액(evlu_amt)
+    unrealized_pnl: Decimal         # 평가손익금액(evlu_pfls_amt)
+    realized_pnl: Decimal           # 매매손익금액(trad_pfls_amt)
+    liquidatable_quantity: Decimal  # 청산가능수량(lqd_psbl_qty)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -59,18 +59,18 @@ class DomesticDerivativeBalance:
     """
 
     positions: tuple[DomesticDerivativePosition, ...]  # 보유내역(output1)
-    total_deposit: Decimal                # 총예수금액(tot_dncl_amt)
-    deposit_cash: Decimal                 # 예수금현금(dnca_cash)
-    total_margin: Decimal                 # 증거금총액(mgna_tota)
-    orderable_cash: Decimal               # 주문가능현금(ord_psbl_cash)
-    orderable_total: Decimal              # 주문가능총액(ord_psbl_tota)
-    total_unrealized_pnl: Decimal         # 평가손익금액합계(evlu_pfls_amt_smtl)
-    total_realized_pnl: Decimal           # 매매손익금액합계(trad_pfls_amt_smtl)
-    futures_unrealized_pnl: Decimal       # 선물평가손익금액(futr_evlu_pfls_amt)
-    options_unrealized_pnl: Decimal       # 옵션평가손익금액(opt_evlu_pfls_amt)
-    futures_realized_pnl: Decimal         # 선물매매손익금액(futr_trad_pfls_amt)
-    options_realized_pnl: Decimal         # 옵션매매손익금액(opt_trad_pfls_amt)
-    account_value: Decimal                # 추정예탁자산금액(prsm_dpast_amt)
+    total_deposit: Decimal                             # 총예수금액(tot_dncl_amt)
+    deposit_cash: Decimal                              # 예수금현금(dnca_cash)
+    total_margin: Decimal                              # 증거금총액(mgna_tota)
+    orderable_cash: Decimal                            # 주문가능현금(ord_psbl_cash)
+    orderable_total: Decimal                           # 주문가능총액(ord_psbl_tota)
+    total_unrealized_pnl: Decimal                      # 평가손익금액합계(evlu_pfls_amt_smtl)
+    total_realized_pnl: Decimal                        # 매매손익금액합계(trad_pfls_amt_smtl)
+    futures_unrealized_pnl: Decimal                    # 선물평가손익금액(futr_evlu_pfls_amt)
+    options_unrealized_pnl: Decimal                    # 옵션평가손익금액(opt_evlu_pfls_amt)
+    futures_realized_pnl: Decimal                      # 선물매매손익금액(futr_trad_pfls_amt)
+    options_realized_pnl: Decimal                      # 옵션매매손익금액(opt_trad_pfls_amt)
+    account_value: Decimal                             # 추정예탁자산금액(prsm_dpast_amt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -91,19 +91,19 @@ class DomesticDerivativeValuationPosition:
     담기며, 필터는 호출자 몫.
     """
 
-    symbol: str                       # 단축상품번호(shtn_pdno)
-    isin: str                         # 상품번호(pdno)
-    name: str                         # 상품명(prdt_name)
-    side: Side | None                 # 매수->buy / 매도->sell (원문 sll_buy_dvsn_name 은 _raw)
-    quantity: Decimal                 # 잔고수량1(cblc_qty1)
-    settlement_price: Decimal         # 정산단가(excc_unpr)
-    average_price: Decimal            # 체결평균단가1(ccld_avg_unpr1)
-    index_close: Decimal              # 지수종가(idx_clpr)
-    purchase_amount: Decimal          # 매입금액(pchs_amt)
-    market_value: Decimal             # 평가금액(evlu_amt)
-    unrealized_pnl: Decimal           # 평가손익금액(evlu_pfls_amt)
-    realized_pnl: Decimal             # 매매손익금액(trad_pfls_amt)
-    liquidatable_quantity: Decimal    # 청산가능수량(lqd_psbl_qty)
+    symbol: str                     # 단축상품번호(shtn_pdno)
+    isin: str                       # 상품번호(pdno)
+    name: str                       # 상품명(prdt_name)
+    side: Side | None               # 매수->buy / 매도->sell (원문 sll_buy_dvsn_name 은 _raw)
+    quantity: Decimal               # 잔고수량1(cblc_qty1)
+    settlement_price: Decimal       # 정산단가(excc_unpr)
+    average_price: Decimal          # 체결평균단가1(ccld_avg_unpr1)
+    index_close: Decimal            # 지수종가(idx_clpr)
+    purchase_amount: Decimal        # 매입금액(pchs_amt)
+    market_value: Decimal           # 평가금액(evlu_amt)
+    unrealized_pnl: Decimal         # 평가손익금액(evlu_pfls_amt)
+    realized_pnl: Decimal           # 매매손익금액(trad_pfls_amt)
+    liquidatable_quantity: Decimal  # 청산가능수량(lqd_psbl_qty)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -124,18 +124,18 @@ class DomesticDerivativeValuationBalance:
     """
 
     positions: tuple[DomesticDerivativeValuationPosition, ...]  # 보유내역(output1)
-    total_deposit: Decimal                # 총예수금액(tot_dncl_amt)
-    deposit_cash: Decimal                 # 예수금현금(dnca_cash)
-    total_margin: Decimal                 # 증거금총액(mgna_tota)
-    orderable_cash: Decimal               # 주문가능현금(ord_psbl_cash)
-    orderable_total: Decimal              # 주문가능총액(ord_psbl_tota)
-    total_unrealized_pnl: Decimal         # 평가손익금액합계(evlu_pfls_amt_smtl)
-    total_realized_pnl: Decimal           # 매매손익금액합계(trad_pfls_amt_smtl)
-    futures_unrealized_pnl: Decimal       # 선물평가손익금액(futr_evlu_pfls_amt)
-    options_unrealized_pnl: Decimal       # 옵션평가손익금액(opt_evlu_pfls_amt)
-    futures_realized_pnl: Decimal         # 선물매매손익금액(futr_trad_pfls_amt)
-    options_realized_pnl: Decimal         # 옵션매매손익금액(opt_trad_pfls_amt)
-    account_value: Decimal                # 추정예탁자산금액(prsm_dpast_amt)
+    total_deposit: Decimal                                      # 총예수금액(tot_dncl_amt)
+    deposit_cash: Decimal                                       # 예수금현금(dnca_cash)
+    total_margin: Decimal                                       # 증거금총액(mgna_tota)
+    orderable_cash: Decimal                                     # 주문가능현금(ord_psbl_cash)
+    orderable_total: Decimal                                    # 주문가능총액(ord_psbl_tota)
+    total_unrealized_pnl: Decimal                               # 평가손익금액합계(evlu_pfls_amt_smtl)
+    total_realized_pnl: Decimal                                 # 매매손익금액합계(trad_pfls_amt_smtl)
+    futures_unrealized_pnl: Decimal                             # 선물평가손익금액(futr_evlu_pfls_amt)
+    options_unrealized_pnl: Decimal                             # 옵션평가손익금액(opt_evlu_pfls_amt)
+    futures_realized_pnl: Decimal                               # 선물매매손익금액(futr_trad_pfls_amt)
+    options_realized_pnl: Decimal                               # 옵션매매손익금액(opt_trad_pfls_amt)
+    account_value: Decimal                                      # 추정예탁자산금액(prsm_dpast_amt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -155,17 +155,17 @@ class DomesticDerivativeSettlementPosition:
     ``balance_amount`` 잔고금액. 상품번호가 빈 패딩 행은 담기지 않는다.
     """
 
-    symbol: str                       # 상품번호(pdno)
-    name: str                         # 상품명(prdt_name)
-    trade_type_name: str                   # 매매구분명(trad_dvsn_name)
-    prior_quantity: Decimal           # 전일잔고수량(bfdy_cblc_qty)
-    new_quantity: Decimal             # 신규수량(new_qty)
-    offset_quantity: Decimal          # 상계환매수량(mnpl_rpch_qty)
-    quantity: Decimal                 # 잔고수량(cblc_qty)
-    balance_amount: Decimal           # 잔고금액(cblc_amt)
-    realized_pnl: Decimal             # 매매손익금액(trad_pfls_amt)
-    market_value: Decimal             # 평가금액(evlu_amt)
-    unrealized_pnl: Decimal           # 평가손익금액(evlu_pfls_amt)
+    symbol: str               # 상품번호(pdno)
+    name: str                 # 상품명(prdt_name)
+    trade_type_name: str      # 매매구분명(trad_dvsn_name)
+    prior_quantity: Decimal   # 전일잔고수량(bfdy_cblc_qty)
+    new_quantity: Decimal     # 신규수량(new_qty)
+    offset_quantity: Decimal  # 상계환매수량(mnpl_rpch_qty)
+    quantity: Decimal         # 잔고수량(cblc_qty)
+    balance_amount: Decimal   # 잔고금액(cblc_amt)
+    realized_pnl: Decimal     # 매매손익금액(trad_pfls_amt)
+    market_value: Decimal     # 평가금액(evlu_amt)
+    unrealized_pnl: Decimal   # 평가손익금액(evlu_pfls_amt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -187,19 +187,19 @@ class DomesticDerivativeSettlementBalance:
     """
 
     positions: tuple[DomesticDerivativeSettlementPosition, ...]  # 정산 보유내역(output1)
-    next_day_deposit: Decimal             # 익일예수금(nxdy_dnca)
-    maintenance_margin_cash: Decimal      # 유지증거금현금(mmga_cash)
-    maintenance_margin_total: Decimal     # 유지증거금총액(mmga_tota)
-    brokerage_margin_cash: Decimal        # 위탁증거금현금(brkg_mgna_cash)
-    brokerage_margin_total: Decimal       # 위탁증거금총액(brkg_mgna_tota)
-    deposit_cash: Decimal                 # 예수금현금(dnca_cash)
-    deposit_substitute: Decimal           # 예수금대용(dnca_sbst)
-    option_buy_amount: Decimal            # 옵션매수대금(opt_buy_chgs)
-    option_sell_amount: Decimal           # 옵션매도대금(opt_sll_chgs)
-    option_liquidation_value: Decimal     # 옵션청산평가금액(opt_lqd_evlu_amt)
-    fee: Decimal                          # 수수료(fee)
-    today_settlement_diff: Decimal        # 당일정산차금(thdt_dfpa)
-    renewal_settlement_diff: Decimal      # 갱신정산차금(rnwl_dfpa)
+    next_day_deposit: Decimal                                    # 익일예수금(nxdy_dnca)
+    maintenance_margin_cash: Decimal                             # 유지증거금현금(mmga_cash)
+    maintenance_margin_total: Decimal                            # 유지증거금총액(mmga_tota)
+    brokerage_margin_cash: Decimal                               # 위탁증거금현금(brkg_mgna_cash)
+    brokerage_margin_total: Decimal                              # 위탁증거금총액(brkg_mgna_tota)
+    deposit_cash: Decimal                                        # 예수금현금(dnca_cash)
+    deposit_substitute: Decimal                                  # 예수금대용(dnca_sbst)
+    option_buy_amount: Decimal                                   # 옵션매수대금(opt_buy_chgs)
+    option_sell_amount: Decimal                                  # 옵션매도대금(opt_sll_chgs)
+    option_liquidation_value: Decimal                            # 옵션청산평가금액(opt_lqd_evlu_amt)
+    fee: Decimal                                                 # 수수료(fee)
+    today_settlement_diff: Decimal                               # 당일정산차금(thdt_dfpa)
+    renewal_settlement_diff: Decimal                             # 갱신정산차금(rnwl_dfpa)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -221,16 +221,16 @@ class DomesticDerivativeFill:
     주문번호가 빈 패딩 행은 담기지 않는다.
     """
 
-    symbol: str                        # 상품번호(pdno)
-    name: str                          # 상품명(prdt_name)
-    order_id: str                      # 주문번호(odno)
-    transaction_type_name: str              # 거래유형명(tr_type_name)
+    symbol: str                         # 상품번호(pdno)
+    name: str                           # 상품명(prdt_name)
+    order_id: str                       # 주문번호(odno)
+    transaction_type_name: str          # 거래유형명(tr_type_name)
     final_settlement_date: date | None  # 최종결제일(last_sttldt)
-    fill_index: Decimal                # 체결지수(ccld_idx)
-    filled_quantity: Decimal           # 체결수량(ccld_qty)
-    trade_amount: Decimal              # 거래금액(trad_amt)
-    fee: Decimal                       # 수수료(fee)
-    fill_time: time | None             # 체결시각(ccld_btwn, HHMMSS; 공식 스펙 길이 6)
+    fill_index: Decimal                 # 체결지수(ccld_idx)
+    filled_quantity: Decimal            # 체결수량(ccld_qty)
+    trade_amount: Decimal               # 거래금액(trad_amt)
+    fee: Decimal                        # 수수료(fee)
+    fill_time: time | None              # 체결시각(ccld_btwn, HHMMSS; 공식 스펙 길이 6)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -248,10 +248,10 @@ class DomesticDerivativeFillHistory:
     """
 
     fills: tuple[DomesticDerivativeFill, ...]  # 체결내역(output1)
-    total_filled_quantity: Decimal     # 총체결수량합계(tot_ccld_qty_smtl)
-    total_filled_amount: Decimal       # 총체결금액합계(tot_ccld_amt_smtl)
-    fee_adjustment: Decimal            # 수수료조정(fee_adjt)
-    total_fee: Decimal                 # 수수료합계(fee_smtl)
+    total_filled_quantity: Decimal             # 총체결수량합계(tot_ccld_qty_smtl)
+    total_filled_amount: Decimal               # 총체결금액합계(tot_ccld_amt_smtl)
+    fee_adjustment: Decimal                    # 수수료조정(fee_adjt)
+    total_fee: Decimal                         # 수수료합계(fee_smtl)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -271,15 +271,15 @@ class DomesticDerivativeCommission:
     ``realized_pnl`` 매매손익. 주문일자·상품번호가 모두 빈 패딩 행은 담기지 않는다.
     """
 
-    order_date: date | None            # 주문일자(ord_dt)
-    symbol: str                        # 상품번호(pdno)
-    name: str                          # 종목명(item_name)
-    sell_agreement_amount: Decimal     # 매도약정금액(sll_agrm_amt)
-    sell_fee: Decimal                  # 매도수수료(sll_fee)
-    buy_agreement_amount: Decimal      # 매수약정금액(buy_agrm_amt)
-    buy_fee: Decimal                   # 매수수수료(buy_fee)
-    total_fee: Decimal                 # 수수료합계(tot_fee_smtl)
-    realized_pnl: Decimal              # 매매손익(trad_pfls)
+    order_date: date | None         # 주문일자(ord_dt)
+    symbol: str                     # 상품번호(pdno)
+    name: str                       # 종목명(item_name)
+    sell_agreement_amount: Decimal  # 매도약정금액(sll_agrm_amt)
+    sell_fee: Decimal               # 매도수수료(sll_fee)
+    buy_agreement_amount: Decimal   # 매수약정금액(buy_agrm_amt)
+    buy_fee: Decimal                # 매수수수료(buy_fee)
+    total_fee: Decimal              # 수수료합계(tot_fee_smtl)
+    realized_pnl: Decimal           # 매매손익(trad_pfls)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -298,13 +298,13 @@ class DomesticDerivativeCommissionHistory:
     """
 
     commissions: tuple[DomesticDerivativeCommission, ...]  # 일별 내역(output1)
-    total_fee: Decimal                 # 수수료합계(fee_smtl)
-    total_agreement_amount: Decimal    # 약정금액합계(agrm_amt_smtl)
-    total_sell_fee: Decimal            # 매도수수료합계(sll_fee)
-    total_buy_fee: Decimal             # 매수수수료합계(buy_fee)
-    futures_fee: Decimal               # 선물수수료합계(futr_fee_smtl)
-    options_fee: Decimal               # 옵션수수료합계(opt_fee_smtl)
-    total_realized_pnl: Decimal        # 매매손익합계(trad_pfls_smtl)
+    total_fee: Decimal                                     # 수수료합계(fee_smtl)
+    total_agreement_amount: Decimal                        # 약정금액합계(agrm_amt_smtl)
+    total_sell_fee: Decimal                                # 매도수수료합계(sll_fee)
+    total_buy_fee: Decimal                                 # 매수수수료합계(buy_fee)
+    futures_fee: Decimal                                   # 선물수수료합계(futr_fee_smtl)
+    options_fee: Decimal                                   # 옵션수수료합계(opt_fee_smtl)
+    total_realized_pnl: Decimal                            # 매매손익합계(trad_pfls_smtl)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -325,10 +325,10 @@ class DomesticDerivativeOrderable:
     (야간엔 max_ord_psbl_qty 등) 타입화하지 않은 필드는 ``_raw`` 로 접근한다.
     """
 
-    orderable_quantity: Decimal           # 주문가능수량(ord_psbl_qty)
-    total_quantity: Decimal               # 총가능수량(tot_psbl_qty)
-    liquidatable_quantity: Decimal        # 청산가능수량(lqd_psbl_qty1 / lqd_psbl_qty)
-    base_index: Decimal                   # 기준지수(bass_idx)
+    orderable_quantity: Decimal     # 주문가능수량(ord_psbl_qty)
+    total_quantity: Decimal         # 총가능수량(tot_psbl_qty)
+    liquidatable_quantity: Decimal  # 청산가능수량(lqd_psbl_qty1 / lqd_psbl_qty)
+    base_index: Decimal             # 기준지수(bass_idx)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -386,22 +386,22 @@ class DomesticDerivativeNightBalance:
     """
 
     positions: tuple[DomesticDerivativePosition, ...]  # 보유내역(output1)
-    total_deposit: Decimal                # 총예수금액(tot_dncl_amt)
-    deposit_cash: Decimal                 # 예수금현금(dnca_cash)
-    total_margin: Decimal                 # 증거금총액(mgna_tota)
-    orderable_cash: Decimal               # 주문가능현금(ord_psbl_cash)
-    orderable_total: Decimal              # 주문가능총액(ord_psbl_tota)
-    total_unrealized_pnl: Decimal         # 평가손익금액합계(evlu_pfls_amt_smtl)
-    total_realized_pnl: Decimal           # 매매손익금액합계(trad_pfls_amt_smtl)
-    futures_unrealized_pnl: Decimal       # 선물평가손익금액(futr_evlu_pfls_amt)
-    options_unrealized_pnl: Decimal       # 옵션평가손익금액(opt_evlu_pfls_amt)
-    futures_realized_pnl: Decimal         # 선물매매손익금액(futr_trad_pfls_amt)
-    options_realized_pnl: Decimal         # 옵션매매손익금액(opt_trad_pfls_amt)
-    account_value: Decimal                # 추정예탁자산(prsm_dpast)
-    maintenance_ratio: Decimal            # 유지비율(mtnc_rt)
-    shortage_amount: Decimal              # 부족금액(isfc_amt)
-    maintenance_margin_total: Decimal     # 유지증거금총금액(mmga_tot_amt)
-    maintenance_margin_cash: Decimal      # 유지증거금현금금액(mmga_cash_amt)
+    total_deposit: Decimal                             # 총예수금액(tot_dncl_amt)
+    deposit_cash: Decimal                              # 예수금현금(dnca_cash)
+    total_margin: Decimal                              # 증거금총액(mgna_tota)
+    orderable_cash: Decimal                            # 주문가능현금(ord_psbl_cash)
+    orderable_total: Decimal                           # 주문가능총액(ord_psbl_tota)
+    total_unrealized_pnl: Decimal                      # 평가손익금액합계(evlu_pfls_amt_smtl)
+    total_realized_pnl: Decimal                        # 매매손익금액합계(trad_pfls_amt_smtl)
+    futures_unrealized_pnl: Decimal                    # 선물평가손익금액(futr_evlu_pfls_amt)
+    options_unrealized_pnl: Decimal                    # 옵션평가손익금액(opt_evlu_pfls_amt)
+    futures_realized_pnl: Decimal                      # 선물매매손익금액(futr_trad_pfls_amt)
+    options_realized_pnl: Decimal                      # 옵션매매손익금액(opt_trad_pfls_amt)
+    account_value: Decimal                             # 추정예탁자산(prsm_dpast)
+    maintenance_ratio: Decimal                         # 유지비율(mtnc_rt)
+    shortage_amount: Decimal                           # 부족금액(isfc_amt)
+    maintenance_margin_total: Decimal                  # 유지증거금총금액(mmga_tot_amt)
+    maintenance_margin_cash: Decimal                   # 유지증거금현금금액(mmga_cash_amt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -425,20 +425,20 @@ class DomesticDerivativeNightMargin:
     ``_raw`` 로 함께 노출한다.
     """
 
-    initial_brokerage_margin: Decimal     # 개시 위탁증거금(output1.brkg_mgna)
-    initial_total_risk_margin: Decimal    # 개시 총위험증거금(output1.tot_risk_mgna)
-    initial_new_margin: Decimal           # 개시 신규증거금액(output1.new_mgn_amt)
+    initial_brokerage_margin: Decimal       # 개시 위탁증거금(output1.brkg_mgna)
+    initial_total_risk_margin: Decimal      # 개시 총위험증거금(output1.tot_risk_mgna)
+    initial_new_margin: Decimal             # 개시 신규증거금액(output1.new_mgn_amt)
     maintenance_brokerage_margin: Decimal   # 유지 위탁증거금(output2.brkg_mgna)
     maintenance_total_risk_margin: Decimal  # 유지 총위험증거금(output2.tot_risk_mgna)
     maintenance_new_margin: Decimal         # 유지 신규증거금액(output2.new_mgn_amt)
-    total_deposit: Decimal                # 예수금총액(output3.dnca_tota)
-    deposit_cash: Decimal                 # 예수금현금(output3.dnca_cash)
-    orderable_cash: Decimal               # 주문가능현금금액(output3.ord_psbl_cash_amt)
-    orderable_total: Decimal              # 주문가능총금액(output3.ord_psbl_tot_amt)
-    withdrawable_total: Decimal           # 인출가능총금액(output3.wdrw_psbl_tot_amt)
-    brokerage_margin_total: Decimal       # 위탁증거금총금액(output3.brkg_mgna_tot_amt)
-    additional_margin_total: Decimal      # 추가증거금총금액(output3.add_mgna_tot_amt)
-    account_value: Decimal                # 추정예탁자산금액(output3.prsm_dpast_amt)
+    total_deposit: Decimal                  # 예수금총액(output3.dnca_tota)
+    deposit_cash: Decimal                   # 예수금현금(output3.dnca_cash)
+    orderable_cash: Decimal                 # 주문가능현금금액(output3.ord_psbl_cash_amt)
+    orderable_total: Decimal                # 주문가능총금액(output3.ord_psbl_tot_amt)
+    withdrawable_total: Decimal             # 인출가능총금액(output3.wdrw_psbl_tot_amt)
+    brokerage_margin_total: Decimal         # 위탁증거금총금액(output3.brkg_mgna_tot_amt)
+    additional_margin_total: Decimal        # 추가증거금총금액(output3.add_mgna_tot_amt)
+    account_value: Decimal                  # 추정예탁자산금액(output3.prsm_dpast_amt)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -459,17 +459,17 @@ class DomesticDerivativeOpenOrder:
     호가유형명(지정가/시장가 등), ``original_order_id`` 는 정정·취소 행이 참조하는 원주문번호(없으면 "").
     """
 
-    order_id: str                     # 주문번호(odno)
-    original_order_id: str            # 원주문번호(orgn_odno) -- 신규주문이면 ""
-    symbol: str                       # 상품번호(pdno)
-    name: str                         # 상품명(prdt_name)
-    side: Side                        # buy / sell (sll_buy_dvsn_cd 02/01)
-    order_quantity: Decimal           # 주문수량(ord_qty)
-    filled_quantity: Decimal          # 총체결수량(tot_ccld_qty)
-    unfilled_quantity: Decimal        # 미체결 잔량(ord_qty - tot_ccld_qty)
-    order_price: Decimal              # 주문가격지수(ord_idx)
-    order_time: time | None           # 주문시각(ord_tmd, HHMMSS)
-    order_type_name: str              # 호가유형명(nmpr_type_name)
+    order_id: str               # 주문번호(odno)
+    original_order_id: str      # 원주문번호(orgn_odno) -- 신규주문이면 ""
+    symbol: str                 # 상품번호(pdno)
+    name: str                   # 상품명(prdt_name)
+    side: Side                  # buy / sell (sll_buy_dvsn_cd 02/01)
+    order_quantity: Decimal     # 주문수량(ord_qty)
+    filled_quantity: Decimal    # 총체결수량(tot_ccld_qty)
+    unfilled_quantity: Decimal  # 미체결 잔량(ord_qty - tot_ccld_qty)
+    order_price: Decimal        # 주문가격지수(ord_idx)
+    order_time: time | None     # 주문시각(ord_tmd, HHMMSS)
+    order_type_name: str        # 호가유형명(nmpr_type_name)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
