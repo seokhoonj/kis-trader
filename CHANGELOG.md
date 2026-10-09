@@ -273,10 +273,10 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   `TradeProfit`, and `OverseasAlgoOrder`; `IntegratedMargin.integrated_margin_type` →
   `integrated_margin_type_name`; and `transaction_type` → `transaction_type_name` on
   `DomesticDerivativeFill` and `OverseasDerivativeTransaction`. The bond-account
-  `BondAccountOrder.revise_cancel_type` → `revise_cancel_type_name` (`rvse_cncl_dvsn_name`, a
+  `BondOpenOrder.revise_cancel_type` → `revise_cancel_type_name` (`rvse_cncl_dvsn_name`, a
   display string) while the overseas twin that holds the raw CODE is renamed
   `OverseasDerivativeDailyOrder.revise_cancel_type` → `revise_cancel_type_code` (so one identifier
-  no longer means a name on one side and a code on the other); and `BondAccountOrder.order_division`
+  no longer means a name on one side and a code on the other); and `BondOpenOrder.order_division`
   → `order_type_code` (`ord_dvsn_cd`), pairing with the same file's `BondFill.order_type_name`.
 - The two bare `date` fields on the overseas derivative account are renamed to the concept
   each carries (both from the `dt` key): `OverseasDerivativeFill.date` → `fill_date` (체결일자)

@@ -181,11 +181,15 @@ class RealtimeClient:
         않는다(raw/타입드 공유 refcount) -- _desired 도 유지한다. 콜백만 제거한다."""
         with self._lock:
             self._callbacks.pop((tr_id, tr_key), None)
-            typed_remain = bool(self._subscriptions.get((tr_id, tr_key)))
-            if not typed_remain:
+            has_typed_subscriptions = bool(self._subscriptions.get((tr_id, tr_key)))
+            if not has_typed_subscriptions:
                 self._desired.discard((tr_id, tr_key))
-        if not typed_remain and self._running and self._conn is not None and self._loop is not None:
-            self._call_async(self._conn.unsubscribe(tr_id, tr_key))
+                # refcount 판정과 wire 해제를 한 락 안에서 묶는다(_close_typed 와 동일) -- 락을 놓고
+                # 보내면 그 틈에 같은 계약의 _open_typed 가 SUBSCRIBE 를 먼저 예약해 UNSUBSCRIBE 가
+                # 뒤에 도착, 살아 있는 타입드 구독이 조용히 굶을 수 있다. _schedule_wire 는 비블로킹·
+                # 락-세이프(루프스레드 재진입 처리·실패는 _on_wire_done 로그).
+                if self._running and self._conn is not None:
+                    self._schedule_wire(self._conn.unsubscribe(tr_id, tr_key))
 
     # -- 수명주기 --
     def start(self, *, timeout: float = 15.0) -> None:

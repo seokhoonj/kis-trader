@@ -307,7 +307,10 @@ class OverseasNamespace:
     def futures_open_interest(
         self, symbol: str, *, as_of: str | date, mode: Literal["quantity", "change"] = "quantity"
     ) -> list[OverseasFuturesOpenInterest]:
-        """해외선물 상품의 CFTC 미결제약정 수량 또는 증감 추이(실전만)."""
+        """해외선물 상품의 CFTC 미결제약정 수량 또는 증감 추이(실전만).
+
+        ``symbol`` 은 CFTC 상품 루트 심볼(와이어 PROD_ISCD, 예 ``"ES"``)이다 -- ``futures("ESZ25")``
+        의 시리즈코드가 아니라 상품 단위 식별자다."""
         return overseas_derivatives_api.fetch_open_interest(
             self._client.transport, symbol=symbol, as_of=as_of, mode=mode,
             environment=self._client.environment,

@@ -157,6 +157,25 @@ def test_daytime_and_regular_same_id_conflicts():
     assert daytime.calls == []
 
 
+def test_overseas_modify_in_risk_session_is_rejected_before_wire():
+    # 해외 주문을 risk 없는 세션이 낸 뒤(지속 store 공유) risk 세션이 정정하면, place 와 동일하게
+    # fail-closed 로 거부한다 -- 참조가 기반 리스크가 해외엔 미지원이라 ungated 통과를 막는다.
+    from kis_trader import RiskLimits
+    store = OrderStore()
+    cid = "20240101-ovsrisk01"
+    place_t = FakeTransport(response=RawResponse(
+        rt_cd="0", msg_cd="A", msg1="",
+        body={"output": {"KRX_FWDG_ORD_ORGNO": "01", "ODNO": "0001", "ORD_TMD": "1"}}))
+    _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").buy(
+        quantity=1, limit_price="150", client_order_id=cid)
+    change_t = FakeTransport(response=_ACCEPTED)
+    kis = KISClient(app_key="k", app_secret="s", account="12345678-01", environment="real",
+                    transport=change_t, store=store, risk=RiskLimits(max_order_quantity=5))
+    with pytest.raises(KISUsageError, match="사전 리스크"):
+        kis.orders.modify(cid, limit_price="151")
+    assert change_t.calls == []   # 게이트는 와이어 이전
+
+
 # --- 정정취소 라우팅(daytime 전용 엔드포인트) -------------------------------
 def test_daytime_order_cancel_routes_to_daytime_endpoint():
     store = OrderStore()

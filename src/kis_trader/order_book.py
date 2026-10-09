@@ -1,6 +1,7 @@
 """호가창(DATA) -- :class:`OrderBook` 와 :class:`PriceLevel`.
 
-매수/매도 호가와 잔량(Level 2 / market depth) -- 주식 10단계, 채권/파생 5단계(가격 있는 단계만). ``bids``/``asks`` 는 최우선 호가가
+매수/매도 호가와 잔량(Level 2 / market depth) -- 국내·미국 주식 10단계, 그 외 해외 주식 1단계,
+채권/파생 5단계(가격 있는 단계만). ``bids``/``asks`` 는 최우선 호가가
 index 0(top of book)이고, 가격이 있는 단계만 담는다.
 """
 

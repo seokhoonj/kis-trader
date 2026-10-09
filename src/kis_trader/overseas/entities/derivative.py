@@ -130,7 +130,7 @@ class OverseasDerivativeMarketHours:
 class OverseasFuturesOpenInterest:
     """한 날짜의 해외선물 상품 CFTC 미결제약정 구성(불변)."""
 
-    symbol: str
+    symbol: str                       # CFTC 상품 루트 심볼(PROD_ISCD, 예 "ES") -- 시리즈코드 아님
     cftc_code: str
     date: date
     speculative_long: int

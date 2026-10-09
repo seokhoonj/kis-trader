@@ -264,7 +264,9 @@ class OrderEngine:
         # 가격을 밴드 밖으로 옮겨 익스포저를 키울 수 있어서다. 취소(cancel)는 익스포저를 줄이므로
         # 게이트하지 않는다(위험한 주문을 못 지우면 오히려 위험). risk 세션은 국내주식(전 한도)과
         # 국내파생(max_order_quantity 만, allowlist)을 지원한다 -- 두 lane 다 정정에서 수량을 키울 수
-        # 있으므로 게이트한다. 해외·채권은 place 때 risk 세션 자체가 거부돼 이 경로에 도달하지 않는다.
+        # 있으므로 게이트한다. 해외·채권은 같은 세션 place 가 거부하지만, 지속 store 를 공유하면 risk
+        # 없는 세션이 낸 주문을 risk 세션이 정정할 수 있으므로, 게이트 불가 lane 은 place 와 동일하게
+        # fail-closed 로 거부한다(조용히 ungated 통과 금지).
         if self._risk is not None and action == "modify" \
                 and isinstance(fingerprint, ImmediateOrderFingerprint):
             lane = (fingerprint.region, fingerprint.asset_class)
@@ -295,6 +297,13 @@ class OrderEngine:
                     limit_price=effective_price, region="domestic", asset_class="derivative",
                 )
                 orders_engine.run_pre_trade_risk(self._transport, risk_probe, self._risk)
+            else:
+                # 해외/채권/해외선물옵션 lane -- place 와 동일하게 risk 세션에선 정정도 거부(참조가 기반
+                # 검사가 의미 없거나 국내 시세 기반이라 미지원). 타 세션 store 주문의 ungated 통과를 막는다.
+                raise KISUsageError(
+                    "해외·채권·해외선물옵션 주문엔 사전 리스크 게이트가 미지원이다 -- risk 없는 세션에서 "
+                    "정정하거나 국내 주식/파생 주문에만 risk 를 쓰라."
+                )
         # 지역 중립 코어는 와이어 빌더 필수 -- 국내주식 정정취소 lane(builder 미설정)은 여기서 명시적으로
         # 국내 빌더를 넘긴다(코어에 국내 기본값을 두지 않는다).
         if builder is None:
