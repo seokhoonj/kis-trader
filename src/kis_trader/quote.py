@@ -26,8 +26,8 @@ class Quote:
     """
 
     symbol: str
-    #: 여러 자산군이 함께 쓰는 스냅샷의 일반 시장/구분(주식=거래소, 파생=``DerivativeMarket``, 채권=시장구분).
-    #: 주식 전용 핸들과 주문 계층은 더 정확한 이름인 ``exchange`` 를 쓴다.
+    #: 종목(주식)의 거래소/시장 코드. ``Quote`` 는 국내·해외 주식 현재가에만 쓰인다(파생·채권은
+    #: 자기 전용 quote 타입을 돌려준다). 주식 전용 핸들과 주문 계층은 더 정확한 이름인 ``exchange`` 를 쓴다.
     market: str
     currency: str                     # 국내는 KRW
     current_price: Decimal            # 현재가

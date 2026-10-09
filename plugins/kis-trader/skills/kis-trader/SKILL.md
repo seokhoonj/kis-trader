@@ -101,7 +101,7 @@ kis.domestic.ranking.by_volume(); kis.domestic.ranking.by_market_cap()
 # 계좌
 kis.account.domestic.balance(); kis.account.domestic.positions()
 kis.account.domestic.open_orders()
-kis.account.overseas.balance(market="US")               # 해외는 시장 지정
+kis.account.overseas.balance(market="US")               # US 시장 하나; 생략하면 전체 시장별 리스트
 ```
 
 결과는 frozen dataclass(읽기전용) + `._raw`(원본). **조회는 직렬로 호출한다** — KIS 실서버는

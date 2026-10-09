@@ -1,7 +1,7 @@
 """국내지수 실시간 파서 -- 체결 / 예상체결 / 프로그램매매.
 
 원장 Response Body 필드순을 그대로 ``^`` 인덱스에 매핑한다(필드순이 정본). 자산군 엔티티는
-:mod:`..messages` 의 스타일(frozen dataclass, 산업표준 영어 식별자, 한국어 docstring,
+:mod:`.domestic_stock` (StockTick) 의 스타일(frozen dataclass, 산업표준 영어 식별자, 한국어 docstring,
 ``_raw`` = 전체 Element->원문, 숫자는 :class:`~decimal.Decimal`)을 그대로 따른다.
 
 체결(H0UPCNT0)과 예상체결(H0UPANC0)은 동일한 30필드 레이아웃을 공유한다.

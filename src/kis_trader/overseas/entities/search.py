@@ -46,7 +46,7 @@ class OverseasStockSearchMatch:
 
 @dataclass(frozen=True, slots=True)
 class OverseasStockSearch:
-    """해외 조건검색 건수 요약과 전체 연속조회 결과."""
+    """해외 조건검색 건수 요약과 최대 100건의 단일 응답 결과(연속조회 미지원)."""
 
     exchange: str
     decimal_places: int

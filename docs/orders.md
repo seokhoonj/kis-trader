@@ -80,7 +80,7 @@ stock.buy(quantity=10, limit_price=70000, time_in_force="fok")           # FOK (
 | `limit_price=70000` | 지정가 | Limit | 지정한 가격으로 |
 | `limit_price` 생략 | 시장가 | Market | 지금 시세로 즉시 (얕은 호가면 슬리피지 주의) |
 
-**`division=` (KRX 주문구분, 국내 현금 전용)** — CLI 는 `--division`.
+**`division=` (국내 주식 주문구분)** — CLI 는 `--division`.
 
 | 값 (`division=`) | 한글 | English | `limit_price` | exchange | IOC/FOK |
 |---|---|---|---|---|---|

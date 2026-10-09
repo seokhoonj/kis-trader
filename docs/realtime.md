@@ -147,7 +147,11 @@ async with RealtimeConnection(approval, websocket_url("real")) as conn:
 
 ## 알아둘 것
 
-- **등록 상한**: 접속키 하나당 실시간 등록 **41건**. 초과 시 `KISUsageError`.
+- **등록 상한**: 접속키 하나당 실시간 등록 **41건**. 초과 시, `start()` 전에 등록했거나 실행 중
+  raw `subscribe()` 로 등록한 건은 `KISUsageError` 로 올라옵니다(전자는 `start()` 가 대신 올림).
+  단, `start()` **후** 연 타입 지정 구독은 wire 등록이 비동기(fire-and-forget)라 초과가 예외로
+  오르지 않고 연결 계층 경고 로그로만 남습니다 — 실행 중 타입 구독을 늘릴 땐 로그를 보거나 41건
+  아래로 유지하세요.
 - **끊김 복원**: 연결이 끊기면 자동 재연결 + 기존 구독 재등록(백오프 -- 재시도 간격을 점점 늘려 다시 붙음). 깨진 프레임은 스트림을
   죽이지 않고 드롭됩니다(로그로 남김).
 - **부호**: 실시간 `change`/`change_percent`(및 `nav_change`)는 REST `Quote` 와 같이 **부호를 포함**합니다

@@ -1,4 +1,4 @@
-"""퇴직연금(IRP/DC) 계좌 조회 DATA -- 예수금·매수가능·잔고·미체결.
+"""퇴직연금 IRP(29) 계좌 조회 DATA -- 예수금·매수가능·잔고·당일 주문내역.
 
 일반 위탁계좌(:mod:`~kis_trader.domestic.entities.balance`)와 별개인 퇴직연금 전용 조회 결과다. KIS가 퇴직연금
 계좌를 별도 엔드포인트(`/trading/pension/...`)로 두므로 반환 타입도 나눈다. 금액은 KRW Decimal.

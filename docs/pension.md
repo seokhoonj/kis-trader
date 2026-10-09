@@ -9,7 +9,7 @@ pension = kis.account.pension              # IRP(29) 전용 조회 렌즈
 pension.deposit()                                    # 예수금총액·정산예정
 pension.balance()                                    # 보유종목 + 예수금 요약
 pension.present_balance()                            # 체결기준 잔고 + 손익
-pension.orders(unfilled_only=True)                   # 당일 체결/미체결
+pension.orders()                                     # 당일 주문내역(체결+미체결); unfilled_only=True 면 미체결만
 pension.buyable(symbol="005930", limit_price=70000)  # 주문가능·최대매수
 ```
 
