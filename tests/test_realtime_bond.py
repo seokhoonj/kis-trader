@@ -50,12 +50,14 @@ def test_parse_bond_tick_maps_headline_fields():
     assert tick.change_percent == Decimal("0.05")
     assert tick.current_price == Decimal(10250)
     assert tick.trade_volume == Decimal(100)
+    assert isinstance(tick.trade_volume, int)
     assert tick.open == Decimal(10240)
     assert tick.high == Decimal(10260)
     assert tick.low == Decimal(10230)
     assert tick.previous_close == Decimal(10245)
     assert tick.current_yield == Decimal("3.512")
     assert tick.accumulated_volume == Decimal(50000)
+    assert isinstance(tick.accumulated_volume, int)
     assert tick.trade_type_code == "1"
 
 
@@ -105,6 +107,7 @@ def test_parse_bond_order_book_maps_headline_fields():
     assert book.best_bid_quantity == Decimal(250)
     assert book.total_ask_quantity == Decimal(9000)
     assert book.total_bid_quantity == Decimal(8500)
+    assert isinstance(book.best_ask_quantity, int) and isinstance(book.total_bid_quantity, int)
 
 
 def test_bond_order_book_raw_has_all_ledger_keys():

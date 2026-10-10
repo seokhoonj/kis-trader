@@ -67,17 +67,22 @@ def test_parse_order_book_maps_headline_fields():
     assert ob.bid_prices == tuple(Decimal(90 - i) for i in range(1, 11))
     assert ob.ask_quantities == tuple(Decimal(1000 + i) for i in range(1, 11))
     assert ob.bid_quantities == tuple(Decimal(2000 + i) for i in range(1, 11))
+    assert all(isinstance(q, int) for q in ob.bid_quantities)
     assert ob.ask_prices[0] == Decimal(101)
     assert ob.bid_prices[0] == Decimal(89)
     assert ob.total_ask_quantity == Decimal(50000)
     assert ob.total_bid_quantity == Decimal(60000)
+    assert all(isinstance(q, int) for q in ob.ask_quantities)
+    assert isinstance(ob.total_bid_quantity, int)
     assert ob.expected_price == Decimal(105)
     assert ob.expected_volume == Decimal(42)
+    assert isinstance(ob.expected_volume, int)
     assert ob.expected_change_sign == "2"
     assert ob.expected_change == Decimal(5)
     assert ob.expected_change_percent == Decimal("5.0")
     assert ob.lp_total_ask_quantity == Decimal(7000)
     assert ob.lp_total_bid_quantity == Decimal(8000)
+    assert isinstance(ob.lp_total_ask_quantity, int)
 
 
 def test_order_book_raw_has_all_ledger_keys():
@@ -175,8 +180,10 @@ def test_parse_elw_tick_maps_headline_fields():
     assert tick.implied_volatility == Decimal("35.7")
     assert tick.theoretical_price == Decimal("124.8")
     assert tick.lp_holding == Decimal(300000)
+    assert isinstance(tick.lp_holding, int)
     assert tick.lp_holding_percent == Decimal("12.5")
     assert tick.lp_net_sell_volume == Decimal(-1500)
+    assert isinstance(tick.lp_net_sell_volume, int) and isinstance(tick.trade_volume, int)
 
 
 def test_execution_tick_raw_has_all_ledger_keys():
@@ -251,7 +258,9 @@ def test_parse_expected_conclusion_maps_headline_fields():
     assert ec.best_ask == Decimal(124)
     assert ec.best_bid == Decimal(122)
     assert ec.expected_volume == Decimal(7)
+    assert isinstance(ec.expected_volume, int)
     assert ec.accumulated_volume == Decimal(12000)
+    assert isinstance(ec.accumulated_volume, int)
     assert ec.accumulated_value == Decimal(1476000)
     assert ec.conclusion_strength == Decimal("95.0")
     assert ec.trade_sign == "5"
@@ -273,6 +282,7 @@ def test_parse_expected_conclusion_maps_headline_fields():
     assert ec.implied_volatility == Decimal("33.2")
     assert ec.theoretical_price == Decimal("122.9")
     assert ec.lp_holding == Decimal(250000)
+    assert isinstance(ec.lp_holding, int)
     assert ec.lp_holding_percent == Decimal("10.8")
 
 

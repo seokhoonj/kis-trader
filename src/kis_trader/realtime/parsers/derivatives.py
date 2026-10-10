@@ -23,7 +23,7 @@ from typing import Any
 
 from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
-from ._numeric import _decimal
+from ._numeric import _decimal, _int
 
 
 def _raw_field() -> Any:
@@ -47,10 +47,10 @@ class DerivativeOrderBook:
     time: str  # HHMMSS
     best_ask: Decimal
     best_bid: Decimal
-    best_ask_quantity: Decimal
-    best_bid_quantity: Decimal
-    total_ask_quantity: Decimal
-    total_bid_quantity: Decimal
+    best_ask_quantity: int
+    best_bid_quantity: int
+    total_ask_quantity: int
+    total_bid_quantity: int
     _raw: Mapping[str, Any] = _raw_field()
 
 
@@ -62,10 +62,10 @@ def _order_book(fields: list[str], layout: tuple[str, ...], *, symbol: str, ask:
         time=raw["BSOP_HOUR"],
         best_ask=_decimal(raw[ask]),
         best_bid=_decimal(raw[bid]),
-        best_ask_quantity=_decimal(raw["ASKP_RSQN1"]),
-        best_bid_quantity=_decimal(raw["BIDP_RSQN1"]),
-        total_ask_quantity=_decimal(raw["TOTAL_ASKP_RSQN"]),
-        total_bid_quantity=_decimal(raw["TOTAL_BIDP_RSQN"]),
+        best_ask_quantity=_int(raw["ASKP_RSQN1"]),
+        best_bid_quantity=_int(raw["BIDP_RSQN1"]),
+        total_ask_quantity=_int(raw["TOTAL_ASKP_RSQN"]),
+        total_bid_quantity=_int(raw["TOTAL_BIDP_RSQN"]),
         _raw=raw,
     )
 
@@ -168,13 +168,13 @@ class FuturesTick:
     open: Decimal
     high: Decimal
     low: Decimal
-    trade_volume: Decimal  # 최종(이번) 체결 수량
-    accumulated_volume: Decimal
+    trade_volume: int  # 최종(이번) 체결 수량
+    accumulated_volume: int
     accumulated_value: Decimal
     theoretical_price: Decimal  # HTS 이론가
     market_basis: Decimal
     conclusion_strength: Decimal  # 체결강도
-    open_interest: Decimal  # 미결제약정 수량
+    open_interest: int  # 미결제약정 수량
     best_ask: Decimal
     best_bid: Decimal
     _raw: Mapping[str, Any] = _raw_field()
@@ -204,13 +204,13 @@ def _futures_tick(
         open=_decimal(raw[open_]),
         high=_decimal(raw[high]),
         low=_decimal(raw[low]),
-        trade_volume=_decimal(raw["LAST_CNQN"]),
-        accumulated_volume=_decimal(raw["ACML_VOL"]),
+        trade_volume=_int(raw["LAST_CNQN"]),
+        accumulated_volume=_int(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         theoretical_price=_decimal(raw["HTS_THPR"]),
         market_basis=_decimal(raw["MRKT_BASIS"]),
         conclusion_strength=_decimal(raw["CTTR"]),
-        open_interest=_decimal(raw["HTS_OTST_STPL_QTY"]),
+        open_interest=_int(raw["HTS_OTST_STPL_QTY"]),
         best_ask=_decimal(raw[ask]),
         best_bid=_decimal(raw[bid]),
         _raw=raw,
@@ -305,11 +305,11 @@ class OptionTick:
     open: Decimal
     high: Decimal
     low: Decimal
-    trade_volume: Decimal  # 최종(이번) 체결 수량
-    accumulated_volume: Decimal
+    trade_volume: int  # 최종(이번) 체결 수량
+    accumulated_volume: int
     accumulated_value: Decimal
     theoretical_price: Decimal  # HTS 이론가
-    open_interest: Decimal  # 미결제약정 수량
+    open_interest: int  # 미결제약정 수량
     delta: Decimal
     gamma: Decimal
     vega: Decimal
@@ -335,11 +335,11 @@ def _option_tick(fields: list[str], layout: tuple[str, ...]) -> OptionTick:
         open=_decimal(raw["OPTN_OPRC"]),
         high=_decimal(raw["OPTN_HGPR"]),
         low=_decimal(raw["OPTN_LWPR"]),
-        trade_volume=_decimal(raw["LAST_CNQN"]),
-        accumulated_volume=_decimal(raw["ACML_VOL"]),
+        trade_volume=_int(raw["LAST_CNQN"]),
+        accumulated_volume=_int(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         theoretical_price=_decimal(raw["HTS_THPR"]),
-        open_interest=_decimal(raw["HTS_OTST_STPL_QTY"]),
+        open_interest=_int(raw["HTS_OTST_STPL_QTY"]),
         delta=_decimal(raw["DELTA"]),
         gamma=_decimal(raw["GAMA"]),
         vega=_decimal(raw["VEGA"]),
@@ -428,7 +428,7 @@ class DerivativeExpectedConclusion:
     expected_change_sign: str  # 1상한 2상승 3보합 4하한 5하락
     expected_change_percent: Decimal
     market_operation_code: str  # 예상장운영구분코드
-    expected_volume: Decimal | None  # 레이아웃에 ANTC_CNQN 이 없으면 None(구조적 부재 vs 값 0 구별)
+    expected_volume: int | None  # 레이아웃에 ANTC_CNQN 이 없으면 None(구조적 부재 vs 값 0 구별)
     _raw: Mapping[str, Any] = _raw_field()
 
 
@@ -443,8 +443,8 @@ def _expected_conclusion(fields: list[str], layout: tuple[str, ...], *, symbol: 
         expected_change_sign=raw["ANTC_CNTG_VRSS_SIGN"],
         expected_change_percent=_apply_change_sign(_decimal(raw["ANTC_CNTG_PRDY_CTRT"]), raw["ANTC_CNTG_VRSS_SIGN"]),
         market_operation_code=raw["ANTC_MKOP_CLS_CODE"],
-        # 레이아웃에 컬럼이 아예 없으면(주식옵션 7필드) None -- 있으면(빈 값 포함) _decimal.
-        expected_volume=_decimal(raw["ANTC_CNQN"]) if "ANTC_CNQN" in raw else None,
+        # 레이아웃에 컬럼이 아예 없으면(주식옵션 7필드) None -- 있으면(빈 값 포함) _int.
+        expected_volume=_int(raw["ANTC_CNQN"]) if "ANTC_CNQN" in raw else None,
         _raw=raw,
     )
 

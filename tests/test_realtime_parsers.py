@@ -159,6 +159,7 @@ def test_connection_dispatches_typed_trade_tick():
     assert isinstance(msgs[0].data, StockTick)
     assert msgs[0].data.symbol == "005930"
     assert msgs[0].data.current_price == Decimal(71500)
+    assert isinstance(msgs[0].data.trade_volume, int) and isinstance(msgs[0].data.accumulated_volume, int)
 
 
 def test_realtime_decimal_is_fail_closed_on_non_finite_and_garbage() -> None:
@@ -178,6 +179,27 @@ def test_realtime_decimal_is_fail_closed_on_non_finite_and_garbage() -> None:
         except KISError:
             continue
         raise AssertionError(f"_decimal({bad!r}) 는 KISError 로 닫혀야 한다")
+
+
+def test_realtime_int_is_fail_closed_and_rejects_fractional() -> None:
+    # F46: 시장데이터 수량(호가 잔량·거래량·종목 수 등)은 정수다. 실시간 _int 는 _decimal 과 같은
+    # 빈값->0 스트림 연속성을 유지하되, 소수부가 있으면(진짜 정수가 아니면) 조작해 버리지 않고
+    # KISError 로 닫아 그 프레임을 드롭한다 -- REST required_int 와 같은 fail-closed. 분수주식(소수점)은
+    # 주문/보유 수량에만 생기고 거래소 집계 호가/거래량엔 없으므로, 소수부는 신뢰 못 할 프레임이다.
+    from kis_trader.errors import KISError
+    from kis_trader.realtime.parsers._numeric import _int
+
+    assert _int("") == 0                       # 빈 값은 스트림 연속성 위해 0
+    assert _int("1500") == 1500
+    assert _int("-42") == -42                   # 순매수 수량 등 음수 가능
+    assert _int("1234.0") == 1234               # KIS 가 정수를 "1234.0" 으로 줄 때도 정수화
+    assert isinstance(_int("1500"), int)
+    for bad in ("300.5", "NaN", "Infinity", "-Infinity", "abc", "1,000"):
+        try:
+            _int(bad)
+        except KISError:
+            continue
+        raise AssertionError(f"_int({bad!r}) 는 KISError 로 닫혀야 한다")
 
 
 def test_non_finite_field_drops_only_that_frame_end_to_end() -> None:
@@ -226,3 +248,53 @@ def test_non_finite_field_drops_only_that_frame_end_to_end() -> None:
     assert len(msgs) == 1                                   # 불량 프레임은 드롭, 정상만 남음
     assert isinstance(msgs[0].data, StockTick)
     assert msgs[0].data.current_price == Decimal(71500)
+
+
+def test_fractional_int_field_drops_only_that_frame_end_to_end() -> None:
+    # F46 end-to-end: 정수여야 할 시장데이터 수량(CNTG_VOL)에 소수부가 담긴 프레임은 _int 가
+    # KISError 로 닫고 연결 계층이 그 프레임만 드롭한다(조작된 절삭값을 내보내지 않음). 뒤따르는
+    # 정상 프레임은 정상 전달된다 -- _decimal 비유한 드롭과 같은 경로이되 진입점이 _int 다.
+    from kis_trader.realtime._connection import RealtimeConnection
+
+    bad_fields = _sample_fields()
+    bad_fields[12] = "300.5"                   # CNTG_VOL(체결 수량) 소수부 -> _int 에서 KISError
+    bad_payload = "^".join(bad_fields)
+    good_payload = "^".join(_sample_fields())
+
+    class FakeWS:
+        def __init__(self, frames: list[str]) -> None:
+            self._frames = list(frames)
+            self.sent: list[str] = []
+
+        def __aiter__(self) -> FakeWS:
+            return self
+
+        async def __anext__(self) -> str:
+            if not self._frames:
+                raise StopAsyncIteration
+            return self._frames.pop(0)
+
+        async def send(self, m: str) -> None:
+            self.sent.append(m)
+
+        async def pong(self, data: str) -> None:
+            pass
+
+        async def close(self) -> None:
+            pass
+
+    async def scenario() -> list[object]:
+        ws = FakeWS([f"0|H0STCNT0|001|{bad_payload}", f"0|H0STCNT0|001|{good_payload}"])
+
+        async def connect(url: str) -> FakeWS:
+            return ws
+
+        conn = RealtimeConnection("KEY", "ws://x", connect=connect, reconnect=False)
+        async with conn:
+            return [m async for m in conn]
+
+    msgs = asyncio.run(scenario())
+    assert len(msgs) == 1                                   # 소수부 프레임만 드롭, 정상만 남음
+    assert isinstance(msgs[0].data, StockTick)
+    assert msgs[0].data.trade_volume == 50               # 정상 프레임의 CNTG_VOL(정수)
+    assert isinstance(msgs[0].data.trade_volume, int)

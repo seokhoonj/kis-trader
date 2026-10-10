@@ -77,8 +77,10 @@ def test_parse_order_book_krx_headline_and_raw():
     assert ob.best_bid_quantity == Decimal(300)
     assert ob.total_ask_quantity == Decimal(5000)
     assert ob.total_bid_quantity == Decimal(6000)
+    assert isinstance(ob.best_ask_quantity, int) and isinstance(ob.total_bid_quantity, int)
     assert ob.expected_price == Decimal(71450)
     assert ob.expected_volume == Decimal(42)
+    assert isinstance(ob.expected_volume, int)
     assert ob._raw["MID_PRC"] == "71450"
     assert ob._raw["MARKET_CLS_CODE"] == "2"  # 2026-09-14 애프터마켓 도입으로 append
     assert ob._raw["ASKP10"] == "0"
@@ -181,7 +183,9 @@ def test_parse_expected_conclusion_krx():
     assert ec.high == Decimal(71800)
     assert ec.low == Decimal(70900)
     assert ec.expected_volume == Decimal(1234)
+    assert isinstance(ec.expected_volume, int)
     assert ec.accumulated_volume == Decimal(5000000)
+    assert isinstance(ec.accumulated_volume, int)
     assert ec.business_date == "20260814"
     assert ec.trading_halted is False
     assert len(ec._raw) == 45
@@ -248,6 +252,7 @@ def test_parse_after_hours_tick():
     assert tick.low == Decimal(70900)
     assert tick.trade_volume == Decimal(10)
     assert tick.accumulated_volume == Decimal(123456)
+    assert isinstance(tick.trade_volume, int) and isinstance(tick.accumulated_volume, int)
     assert tick.accumulated_value == Decimal(8765432100)
     assert tick.business_date == "20260814"
     assert tick.trading_halted is False
@@ -277,6 +282,7 @@ def test_parse_program_trade():
     assert pt.symbol == "005930"
     assert pt.time == "100000"
     assert pt.sell_volume == Decimal(1000)
+    assert isinstance(pt.sell_volume, int)
     assert pt.sell_value == Decimal(71500000)
     assert pt.buy_volume == Decimal(1500)
     assert pt.buy_value == Decimal(107250000)
@@ -312,6 +318,7 @@ def test_parse_member_activity():
     assert ma.top_seller == "미래에셋"
     assert ma.top_buyer == "키움증권"
     assert ma.foreign_broker_sell_volume == Decimal(12000)
+    assert isinstance(ma.foreign_broker_sell_volume, int)
     assert ma.foreign_broker_buy_volume == Decimal(20000)
     assert ma.foreign_broker_net_buy_volume == Decimal(8000)
     assert len(ma._raw) == 78
@@ -346,6 +353,7 @@ def test_parse_execution_notice():
     assert en.sell_buy == "02"
     assert en.symbol == "005930"
     assert en.filled_quantity == Decimal(10)
+    assert isinstance(en.filled_quantity, Decimal) and isinstance(en.order_quantity, Decimal)  # 체결통보 수량은 Decimal 유지
     assert en.filled_price == Decimal(71500)
     assert en.time == "093015"
     assert en.rejected is False

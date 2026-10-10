@@ -2,7 +2,8 @@
 
 원장 Response Body 필드순을 그대로 ``^`` 인덱스에 매핑한다(필드순이 정본). 자산군 엔티티는
 :mod:`.domestic_stock` (StockTick) 의 스타일(frozen dataclass, 산업표준 영어 식별자, 한국어 docstring,
-``_raw`` = 전체 Element->원문, 숫자는 :class:`~decimal.Decimal`)을 그대로 따른다.
+``_raw`` = 전체 Element->원문, 지수/금액은 :class:`~decimal.Decimal`, 시장데이터 수량
+(거래량/종목수)은 ``int``)을 그대로 따른다.
 
 체결(H0UPCNT0)과 예상체결(H0UPANC0)은 동일한 30필드 레이아웃을 공유한다.
 """
@@ -17,7 +18,7 @@ from typing import Any
 
 from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
-from ._numeric import _decimal
+from ._numeric import _decimal, _int
 
 # H0UPANC0 응답 필드 순서(원장 Response Body). 인덱스 = ^ 위치.
 _EXPECTED_CONCLUSION_FIELDS = (
@@ -66,14 +67,14 @@ class IndexExpectedConclusion:
     change_sign: str  # 전일 대비 부호 1상한 2상승 3보합 4하한 5하락
     change: Decimal  # 업종 지수 전일 대비
     change_percent: Decimal  # 전일 대비율
-    accumulated_volume: Decimal
+    accumulated_volume: int
     accumulated_value: Decimal  # 누적 거래대금
     open: Decimal  # 시가 지수
     high: Decimal  # 지수 최고가
     low: Decimal  # 지수 최저가
-    rising_count: Decimal  # 상승 종목 수
-    unchanged_count: Decimal  # 보합 종목 수
-    falling_count: Decimal  # 하락 종목 수
+    rising_count: int  # 상승 종목 수
+    unchanged_count: int  # 보합 종목 수
+    falling_count: int  # 하락 종목 수
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -93,16 +94,16 @@ class IndexTick:
     change_sign: str  # 전일 대비 부호 1상한 2상승 3보합 4하한 5하락
     change: Decimal  # 업종 지수 전일 대비
     change_percent: Decimal  # 전일 대비율
-    accumulated_volume: Decimal
+    accumulated_volume: int
     accumulated_value: Decimal  # 누적 거래대금
     open: Decimal  # 시가 지수
     high: Decimal  # 지수 최고가
     low: Decimal  # 지수 최저가
-    rising_count: Decimal  # 상승 종목 수
-    unchanged_count: Decimal  # 보합 종목 수
-    falling_count: Decimal  # 하락 종목 수
-    upper_limit_count: Decimal  # 상한 종목 수
-    lower_limit_count: Decimal  # 하한 종목 수
+    rising_count: int  # 상승 종목 수
+    unchanged_count: int  # 보합 종목 수
+    falling_count: int  # 하락 종목 수
+    upper_limit_count: int  # 상한 종목 수
+    lower_limit_count: int  # 하한 종목 수
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -118,13 +119,13 @@ class IndexProgramTrade:
 
     sector_code: str  # 업종 구분 코드
     time: str  # HHMMSS
-    total_sell_quantity: Decimal  # 총 매도 수량
-    total_buy_quantity: Decimal  # 총 매수 수량(SHNU_CNTG_SMTN)
-    whole_net_buy_volume: Decimal  # 전체 순매수 수량
+    total_sell_quantity: int  # 총 매도 수량
+    total_buy_quantity: int  # 총 매수 수량(SHNU_CNTG_SMTN)
+    whole_net_buy_volume: int  # 전체 순매수 수량
     whole_net_buy_value: Decimal  # 전체 순매수 거래 대금
-    arbitrage_net_buy_volume: Decimal  # 차익 합계 순매수 수량
-    nonarbitrage_net_buy_volume: Decimal  # 비차익 합계 순매수 수량
-    accumulated_volume: Decimal
+    arbitrage_net_buy_volume: int  # 차익 합계 순매수 수량
+    nonarbitrage_net_buy_volume: int  # 비차익 합계 순매수 수량
+    accumulated_volume: int
     accumulated_value: Decimal  # 누적 거래대금
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -141,14 +142,14 @@ def parse_expected_conclusion(fields: list[str]) -> IndexExpectedConclusion:
         change_sign=raw["PRDY_VRSS_SIGN"],
         change=_apply_change_sign(_decimal(raw["BSTP_NMIX_PRDY_VRSS"]), raw["PRDY_VRSS_SIGN"]),
         change_percent=_apply_change_sign(_decimal(raw["PRDY_CTRT"]), raw["PRDY_VRSS_SIGN"]),
-        accumulated_volume=_decimal(raw["ACML_VOL"]),
+        accumulated_volume=_int(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         open=_decimal(raw["OPRC_NMIX"]),
         high=_decimal(raw["NMIX_HGPR"]),
         low=_decimal(raw["NMIX_LWPR"]),
-        rising_count=_decimal(raw["ASCN_ISSU_CNT"]),
-        unchanged_count=_decimal(raw["STNR_ISSU_CNT"]),
-        falling_count=_decimal(raw["DOWN_ISSU_CNT"]),
+        rising_count=_int(raw["ASCN_ISSU_CNT"]),
+        unchanged_count=_int(raw["STNR_ISSU_CNT"]),
+        falling_count=_int(raw["DOWN_ISSU_CNT"]),
         _raw=raw,
     )
 
@@ -166,16 +167,16 @@ def parse_index_tick(fields: list[str]) -> IndexTick:
         change_sign=raw["PRDY_VRSS_SIGN"],
         change=_apply_change_sign(_decimal(raw["BSTP_NMIX_PRDY_VRSS"]), raw["PRDY_VRSS_SIGN"]),
         change_percent=_apply_change_sign(_decimal(raw["PRDY_CTRT"]), raw["PRDY_VRSS_SIGN"]),
-        accumulated_volume=_decimal(raw["ACML_VOL"]),
+        accumulated_volume=_int(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         open=_decimal(raw["OPRC_NMIX"]),
         high=_decimal(raw["NMIX_HGPR"]),
         low=_decimal(raw["NMIX_LWPR"]),
-        rising_count=_decimal(raw["ASCN_ISSU_CNT"]),
-        unchanged_count=_decimal(raw["STNR_ISSU_CNT"]),
-        falling_count=_decimal(raw["DOWN_ISSU_CNT"]),
-        upper_limit_count=_decimal(raw["UPLM_ISSU_CNT"]),
-        lower_limit_count=_decimal(raw["LSLM_ISSU_CNT"]),
+        rising_count=_int(raw["ASCN_ISSU_CNT"]),
+        unchanged_count=_int(raw["STNR_ISSU_CNT"]),
+        falling_count=_int(raw["DOWN_ISSU_CNT"]),
+        upper_limit_count=_int(raw["UPLM_ISSU_CNT"]),
+        lower_limit_count=_int(raw["LSLM_ISSU_CNT"]),
         _raw=raw,
     )
 
@@ -186,13 +187,13 @@ def parse_program_trade(fields: list[str]) -> IndexProgramTrade:
     return IndexProgramTrade(
         sector_code=raw["BSTP_CLS_CODE"],
         time=raw["BSOP_HOUR"],
-        total_sell_quantity=_decimal(raw["TOTAL_SELN_QTY"]),
-        total_buy_quantity=_decimal(raw["SHNU_CNTG_SMTN"]),
-        whole_net_buy_volume=_decimal(raw["WHOL_NTBY_QTY"]),
+        total_sell_quantity=_int(raw["TOTAL_SELN_QTY"]),
+        total_buy_quantity=_int(raw["SHNU_CNTG_SMTN"]),
+        whole_net_buy_volume=_int(raw["WHOL_NTBY_QTY"]),
         whole_net_buy_value=_decimal(raw["WHOL_NTBY_TR_PBMN"]),
-        arbitrage_net_buy_volume=_decimal(raw["ARBT_SMTN_NTBY_QTY"]),
-        nonarbitrage_net_buy_volume=_decimal(raw["NABT_SMTN_NTBY_QTY"]),
-        accumulated_volume=_decimal(raw["ACML_VOL"]),
+        arbitrage_net_buy_volume=_int(raw["ARBT_SMTN_NTBY_QTY"]),
+        nonarbitrage_net_buy_volume=_int(raw["NABT_SMTN_NTBY_QTY"]),
+        accumulated_volume=_int(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         _raw=raw,
     )

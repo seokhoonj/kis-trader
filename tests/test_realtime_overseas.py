@@ -80,6 +80,9 @@ def test_parse_orderbook_headline():
     assert ob.best_ask == Decimal("231.55")
     assert ob.best_bid_quantity == Decimal(300)
     assert ob.best_ask_quantity == Decimal(450)
+    # F46: 호가 잔량은 int(거래소 집계 = 정수), 가격은 Decimal 유지.
+    assert isinstance(ob.total_bid_quantity, int) and isinstance(ob.best_ask_quantity, int)
+    assert isinstance(ob.best_bid, Decimal) and isinstance(ob.best_ask, Decimal)
 
 
 def test_orderbook_71_unique_fields():
@@ -139,6 +142,8 @@ def test_parse_asia_orderbook_headline():
     assert ob.best_ask == Decimal("2851.0")
     assert ob.best_bid_quantity == Decimal(300)
     assert ob.best_ask_quantity == Decimal(450)
+    assert isinstance(ob.total_ask_quantity, int) and isinstance(ob.best_bid_quantity, int)
+    assert isinstance(ob.best_bid, Decimal)
 
 
 def test_asia_orderbook_raw_and_registry():
@@ -201,6 +206,7 @@ def test_parse_delayed_trade_tick_headline():
     assert tick.best_ask == Decimal("231.55")
     assert tick.trade_volume == Decimal(10)
     assert tick.accumulated_volume == Decimal(50000)
+    assert isinstance(tick.trade_volume, int) and isinstance(tick.accumulated_volume, int)
     assert tick.accumulated_value == Decimal(11500000)
     assert tick.conclusion_strength == Decimal("115.2")
     assert tick.market_type == "1"
@@ -264,6 +270,7 @@ def test_parse_execution_notice_headline():
     assert notice.symbol == "AAPL"
     assert notice.name == "APPLE INC"
     assert notice.filled_quantity == Decimal(5)
+    assert isinstance(notice.filled_quantity, Decimal)  # 주문/체결 수량은 Decimal 유지(분수주식)
     assert notice.filled_price == Decimal("231.50")
     assert notice.time == "223015"
     assert notice.order_quantity == Decimal(10)
@@ -333,12 +340,14 @@ def test_parse_futures_trade_tick_headline():
     assert tick.prev_close == Decimal("5500.25")
     assert tick.current_price == Decimal("5510.50")
     assert tick.trade_volume == Decimal(3)
+    assert isinstance(tick.trade_volume, int)
     assert tick.change == Decimal("10.25")
     assert tick.change_percent == Decimal("0.19")
     assert tick.open == Decimal("5502.00")
     assert tick.high == Decimal("5515.00")
     assert tick.low == Decimal("5498.00")
     assert tick.accumulated_volume == Decimal(120000)
+    assert isinstance(tick.accumulated_volume, int)
     assert tick.change_sign == "2"
     assert tick.trade_sign == "1"
     assert tick.prev_settlement_price == Decimal("5501.00")
@@ -394,6 +403,7 @@ def test_parse_futures_orderbook_headline():
     assert ob.prev_close == Decimal("5500.25")
     assert ob.best_bid == Decimal("5510.00")
     assert ob.best_bid_quantity == Decimal(12)
+    assert isinstance(ob.best_bid_quantity, int)
     assert ob.best_ask == Decimal("5510.50")
     assert ob.best_ask_quantity == Decimal(8)
     assert ob.settlement_price == Decimal("5501.00")
@@ -451,6 +461,7 @@ def test_parse_futures_order_notice_headline():
     assert notice.limit_price == Decimal("5510.00")
     assert notice.stop_price == Decimal("5490.00")
     assert notice.total_filled_quantity == Decimal(1)
+    assert isinstance(notice.order_quantity, Decimal) and isinstance(notice.total_filled_quantity, Decimal)
     assert notice.average_filled_price == Decimal("5509.50")
     assert notice.remaining_quantity == Decimal(1)
     assert notice.currency == "USD"
@@ -506,6 +517,7 @@ def test_parse_futures_execution_notice_headline():
     assert notice.filled_date == "20260814"
     assert notice.fill_number == "0000999"
     assert notice.filled_quantity == Decimal(1)
+    assert isinstance(notice.order_quantity, Decimal) and isinstance(notice.filled_quantity, Decimal)
     assert notice.filled_price == Decimal("5509.50")
     assert notice.filled_amount == Decimal("5509.50")
     assert notice.commission == Decimal("2.50")

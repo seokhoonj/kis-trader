@@ -7,8 +7,9 @@
 * ``H0EWCNT0`` (실시간체결가, 63필드) -> :class:`ELWTick` -- 체결 + ELW 지표(그릭/내재변동성 등).
 * ``H0EWANC0`` (실시간예상체결, 59필드) -> :class:`ELWExpectedConclusion` -- 예상체결 + ELW 지표.
 
-가격/수량/그릭 등 의미상 숫자인 헤드라인 필드는 :func:`_decimal` 로 ``Decimal`` 화하고, 코드/시각/
-부호/Y·N 플래그는 원문 문자열로 둔다. 전체 필드 원문은 각 엔티티의 ``_raw`` 에 Element 이름으로
+가격/그릭/비율 등 의미상 소수인 헤드라인 필드는 :func:`_decimal` 로 ``Decimal``, 시장데이터
+수량(호가 잔량/거래량/LP 보유·순매도)은 :func:`_int` 로 ``int`` 화하고, 코드/시각/부호/Y·N
+플래그는 원문 문자열로 둔다. 전체 필드 원문은 각 엔티티의 ``_raw`` 에 Element 이름으로
 보존된다. (원장 ELW 시트는 모든 필드 타입을 문자열로 표기하지만, 여기서는 의미 기반으로 타입화한다.)
 """
 
@@ -22,7 +23,7 @@ from typing import Any
 
 from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
-from ._numeric import _decimal
+from ._numeric import _decimal, _int
 
 # --------------------------------------------------------------------------------------
 # 필드 레이아웃(원장 Response Body 순서). 인덱스 = ^ 위치.
@@ -81,9 +82,15 @@ _EXPECTED_CONCLUSION_FIELDS = (
 )
 
 
-def _ladder(raw: Mapping[str, str], prefix: str, levels: int = 10) -> tuple[Decimal, ...]:
-    """``prefix1..prefixN`` 사다리를 Decimal 튜플로. (호가/잔량 10단계 헤드라인용)."""
+def _price_ladder(raw: Mapping[str, str], prefix: str, levels: int = 10) -> tuple[Decimal, ...]:
+    """``prefix1..prefixN`` 가격 사다리를 Decimal 튜플로. (호가 10단계 헤드라인용)."""
     return tuple(_decimal(raw[f"{prefix}{i}"]) for i in range(1, levels + 1))
+
+
+def _quantity_ladder(raw: Mapping[str, str], prefix: str, levels: int = 10) -> tuple[int, ...]:
+    """``prefix1..prefixN`` 잔량 사다리를 int 튜플로. (호가 잔량 10단계 헤드라인용 -- 거래소
+    집계 잔량은 정수)."""
+    return tuple(_int(raw[f"{prefix}{i}"]) for i in range(1, levels + 1))
 
 
 # --------------------------------------------------------------------------------------
@@ -104,17 +111,17 @@ class ELWOrderBook:
     hour_class: str  # 시간구분코드
     ask_prices: tuple[Decimal, ...]  # ASKP1..10
     bid_prices: tuple[Decimal, ...]  # BIDP1..10
-    ask_quantities: tuple[Decimal, ...]  # ASKP_RSQN1..10
-    bid_quantities: tuple[Decimal, ...]  # BIDP_RSQN1..10
-    total_ask_quantity: Decimal
-    total_bid_quantity: Decimal
+    ask_quantities: tuple[int, ...]  # ASKP_RSQN1..10
+    bid_quantities: tuple[int, ...]  # BIDP_RSQN1..10
+    total_ask_quantity: int
+    total_bid_quantity: int
     expected_price: Decimal  # 예상체결가
-    expected_volume: Decimal  # 예상체결량
+    expected_volume: int  # 예상체결량
     expected_change_sign: str  # 1상한 2상승 3보합 4하한 5하락
     expected_change: Decimal
     expected_change_percent: Decimal
-    lp_total_ask_quantity: Decimal  # LP 총매도호가잔량
-    lp_total_bid_quantity: Decimal  # LP 총매수호가잔량
+    lp_total_ask_quantity: int  # LP 총매도호가잔량
+    lp_total_bid_quantity: int  # LP 총매수호가잔량
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -138,8 +145,8 @@ class ELWTick:
     low: Decimal
     best_ask: Decimal
     best_bid: Decimal
-    trade_volume: Decimal  # 이번 체결 수량
-    accumulated_volume: Decimal
+    trade_volume: int  # 이번 체결 수량
+    accumulated_volume: int
     accumulated_value: Decimal  # 누적 거래대금
     conclusion_strength: Decimal  # 체결강도
     trade_sign: str  # 체결구분코드
@@ -161,9 +168,9 @@ class ELWTick:
     rho: Decimal
     implied_volatility: Decimal  # HTS 내재변동성
     theoretical_price: Decimal  # HTS 이론가
-    lp_holding: Decimal  # LP 보유량
+    lp_holding: int  # LP 보유량
     lp_holding_percent: Decimal  # LP 보유비율
-    lp_net_sell_volume: Decimal  # LP 순매도량
+    lp_net_sell_volume: int  # LP 순매도량
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -188,8 +195,8 @@ class ELWExpectedConclusion:
     low: Decimal
     best_ask: Decimal
     best_bid: Decimal
-    expected_volume: Decimal  # 예상체결량
-    accumulated_volume: Decimal
+    expected_volume: int  # 예상체결량
+    accumulated_volume: int
     accumulated_value: Decimal  # 누적 거래대금
     conclusion_strength: Decimal  # 체결강도
     trade_sign: str  # 체결구분코드
@@ -211,7 +218,7 @@ class ELWExpectedConclusion:
     rho: Decimal
     implied_volatility: Decimal  # HTS 내재변동성
     theoretical_price: Decimal  # HTS 이론가
-    lp_holding: Decimal  # LP 보유량
+    lp_holding: int  # LP 보유량
     lp_holding_percent: Decimal  # LP 보유비율
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -230,19 +237,19 @@ def parse_order_book(fields: list[str]) -> ELWOrderBook:
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["BSOP_HOUR"],
         hour_class=raw["HOUR_CLS_CODE"],
-        ask_prices=_ladder(raw, "ASKP"),
-        bid_prices=_ladder(raw, "BIDP"),
-        ask_quantities=_ladder(raw, "ASKP_RSQN"),
-        bid_quantities=_ladder(raw, "BIDP_RSQN"),
-        total_ask_quantity=_decimal(raw["TOTAL_ASKP_RSQN"]),
-        total_bid_quantity=_decimal(raw["TOTAL_BIDP_RSQN"]),
+        ask_prices=_price_ladder(raw, "ASKP"),
+        bid_prices=_price_ladder(raw, "BIDP"),
+        ask_quantities=_quantity_ladder(raw, "ASKP_RSQN"),
+        bid_quantities=_quantity_ladder(raw, "BIDP_RSQN"),
+        total_ask_quantity=_int(raw["TOTAL_ASKP_RSQN"]),
+        total_bid_quantity=_int(raw["TOTAL_BIDP_RSQN"]),
         expected_price=_decimal(raw["ANTC_CNPR"]),
-        expected_volume=_decimal(raw["ANTC_CNQN"]),
+        expected_volume=_int(raw["ANTC_CNQN"]),
         expected_change_sign=raw["ANTC_CNTG_VRSS_SIGN"],
         expected_change=_apply_change_sign(_decimal(raw["ANTC_CNTG_VRSS"]), raw["ANTC_CNTG_VRSS_SIGN"]),
         expected_change_percent=_apply_change_sign(_decimal(raw["ANTC_CNTG_PRDY_CTRT"]), raw["ANTC_CNTG_VRSS_SIGN"]),
-        lp_total_ask_quantity=_decimal(raw["LP_TOTAL_ASKP_RSQN"]),
-        lp_total_bid_quantity=_decimal(raw["LP_TOTAL_BIDP_RSQN"]),
+        lp_total_ask_quantity=_int(raw["LP_TOTAL_ASKP_RSQN"]),
+        lp_total_bid_quantity=_int(raw["LP_TOTAL_BIDP_RSQN"]),
         _raw=raw,
     )
 
@@ -262,8 +269,8 @@ def parse_elw_tick(fields: list[str]) -> ELWTick:
         low=_decimal(raw["STCK_LWPR"]),
         best_ask=_decimal(raw["ASKP1"]),
         best_bid=_decimal(raw["BIDP1"]),
-        trade_volume=_decimal(raw["CNTG_VOL"]),
-        accumulated_volume=_decimal(raw["ACML_VOL"]),
+        trade_volume=_int(raw["CNTG_VOL"]),
+        accumulated_volume=_int(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         conclusion_strength=_decimal(raw["CTTR"]),
         trade_sign=raw["CNTG_CLS_CODE"],
@@ -284,9 +291,9 @@ def parse_elw_tick(fields: list[str]) -> ELWTick:
         rho=_decimal(raw["RHO"]),
         implied_volatility=_decimal(raw["HTS_INTS_VLTL"]),
         theoretical_price=_decimal(raw["HTS_THPR"]),
-        lp_holding=_decimal(raw["LP_HVOL"]),
+        lp_holding=_int(raw["LP_HVOL"]),
         lp_holding_percent=_decimal(raw["LP_HLDN_RATE"]),
-        lp_net_sell_volume=_decimal(raw["LP_NTBY_QTY"]),
+        lp_net_sell_volume=_int(raw["LP_NTBY_QTY"]),
         _raw=raw,
     )
 
@@ -306,8 +313,8 @@ def parse_expected_conclusion(fields: list[str]) -> ELWExpectedConclusion:
         low=_decimal(raw["STCK_LWPR"]),
         best_ask=_decimal(raw["ASKP1"]),
         best_bid=_decimal(raw["BIDP1"]),
-        expected_volume=_decimal(raw["CNTG_VOL"]),
-        accumulated_volume=_decimal(raw["ACML_VOL"]),
+        expected_volume=_int(raw["CNTG_VOL"]),
+        accumulated_volume=_int(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         conclusion_strength=_decimal(raw["CTTR"]),
         trade_sign=raw["CNTG_CLS_CODE"],
@@ -328,7 +335,7 @@ def parse_expected_conclusion(fields: list[str]) -> ELWExpectedConclusion:
         rho=_decimal(raw["RHO"]),
         implied_volatility=_decimal(raw["HTS_INTS_VLTL"]),
         theoretical_price=_decimal(raw["HTS_THPR"]),
-        lp_holding=_decimal(raw["LP_HVOL"]),
+        lp_holding=_int(raw["LP_HVOL"]),
         lp_holding_percent=_decimal(raw["LP_HLDN_RATE"]),
         _raw=raw,
     )

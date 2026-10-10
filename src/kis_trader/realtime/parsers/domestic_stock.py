@@ -4,7 +4,8 @@
 레이아웃을 쓰는 TR 은 파서를 공유한다(예: 체결가 KRX/NXT/통합 H0STCNT0/H0NXCNT0/H0UNCNT0
 는 동일 47필드). 헤드라인 필드만 타입화하고 전체 원장 필드는 ``_raw`` (Element 이름->원문)
 에 담는다. 결과 엔티티는 REST 결과 타입과 같은 관례(공개 식별자 산업표준 영어, 한국어
-docstring, frozen dataclass, 숫자 Decimal)로 이 모듈 안에 정의한다.
+docstring, frozen dataclass; 가격/금액/비율은 Decimal, 시장데이터 수량(거래량/호가 잔량/
+종목수/투자자·외국계 플로)은 int, 체결통보의 주문/체결 수량은 Decimal)로 이 모듈 안에 정의한다.
 """
 
 from __future__ import annotations
@@ -17,7 +18,7 @@ from typing import Any
 
 from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
-from ._numeric import _decimal
+from ._numeric import _decimal, _int
 
 
 @dataclass(frozen=True, slots=True)
@@ -40,8 +41,8 @@ class StockTick:
     low: Decimal
     best_ask: Decimal
     best_bid: Decimal
-    trade_volume: Decimal  # 이번 체결 수량
-    accumulated_volume: Decimal
+    trade_volume: int  # 이번 체결 수량
+    accumulated_volume: int
     accumulated_value: Decimal  # 누적 거래대금
     conclusion_strength: Decimal  # 체결강도
     trade_sign: str  # 체결구분 1매수(+) 3장전 5매도(-)
@@ -96,8 +97,8 @@ def parse_trade_tick(
         low=_decimal(raw["STCK_LWPR"]),
         best_ask=_decimal(raw["ASKP1"]),
         best_bid=_decimal(raw["BIDP1"]),
-        trade_volume=_decimal(raw["CNTG_VOL"]),
-        accumulated_volume=_decimal(raw["ACML_VOL"]),
+        trade_volume=_int(raw["CNTG_VOL"]),
+        accumulated_volume=_int(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         conclusion_strength=_decimal(raw["CTTR"]),
         trade_sign=raw.get("CCLD_DVSN") or raw.get("CNTG_CLS_CODE", ""),
@@ -139,12 +140,12 @@ class StockOrderBook:
     hour_class: str  # HOUR_CLS_CODE 시간구분(0 장중, 등)
     best_ask: Decimal  # ASKP1
     best_bid: Decimal  # BIDP1
-    best_ask_quantity: Decimal  # ASKP_RSQN1
-    best_bid_quantity: Decimal  # BIDP_RSQN1
-    total_ask_quantity: Decimal  # TOTAL_ASKP_RSQN
-    total_bid_quantity: Decimal  # TOTAL_BIDP_RSQN
+    best_ask_quantity: int  # ASKP_RSQN1
+    best_bid_quantity: int  # BIDP_RSQN1
+    total_ask_quantity: int  # TOTAL_ASKP_RSQN
+    total_bid_quantity: int  # TOTAL_BIDP_RSQN
     expected_price: Decimal  # ANTC_CNPR 예상체결가
-    expected_volume: Decimal  # ANTC_CNQN 예상체결량
+    expected_volume: int  # ANTC_CNQN 예상체결량
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -158,12 +159,12 @@ def _order_book(raw: Mapping[str, str]) -> StockOrderBook:
         hour_class=raw["HOUR_CLS_CODE"],
         best_ask=_decimal(raw["ASKP1"]),
         best_bid=_decimal(raw["BIDP1"]),
-        best_ask_quantity=_decimal(raw["ASKP_RSQN1"]),
-        best_bid_quantity=_decimal(raw["BIDP_RSQN1"]),
-        total_ask_quantity=_decimal(raw["TOTAL_ASKP_RSQN"]),
-        total_bid_quantity=_decimal(raw["TOTAL_BIDP_RSQN"]),
+        best_ask_quantity=_int(raw["ASKP_RSQN1"]),
+        best_bid_quantity=_int(raw["BIDP_RSQN1"]),
+        total_ask_quantity=_int(raw["TOTAL_ASKP_RSQN"]),
+        total_bid_quantity=_int(raw["TOTAL_BIDP_RSQN"]),
         expected_price=_decimal(raw["ANTC_CNPR"]),
-        expected_volume=_decimal(raw["ANTC_CNQN"]),
+        expected_volume=_int(raw["ANTC_CNQN"]),
         _raw=raw,  # 호출부가 이미 MappingProxyType 로 동결해 넘긴다(중복 copy 제거)
     )
 
@@ -265,8 +266,8 @@ class StockExpectedConclusion:
     open: Decimal  # STCK_OPRC
     high: Decimal  # STCK_HGPR
     low: Decimal  # STCK_LWPR
-    expected_volume: Decimal  # CNTG_VOL 예상체결량
-    accumulated_volume: Decimal  # ACML_VOL
+    expected_volume: int  # CNTG_VOL 예상체결량
+    accumulated_volume: int  # ACML_VOL
     business_date: str  # BSOP_DATE
     trading_halted: bool  # TRHT_YN
     _raw: Mapping[str, Any] = field(
@@ -286,8 +287,8 @@ def _expected_conclusion(raw: Mapping[str, str]) -> StockExpectedConclusion:
         open=_decimal(raw["STCK_OPRC"]),
         high=_decimal(raw["STCK_HGPR"]),
         low=_decimal(raw["STCK_LWPR"]),
-        expected_volume=_decimal(raw["CNTG_VOL"]),
-        accumulated_volume=_decimal(raw["ACML_VOL"]),
+        expected_volume=_int(raw["CNTG_VOL"]),
+        accumulated_volume=_int(raw["ACML_VOL"]),
         business_date=raw["BSOP_DATE"],
         trading_halted=raw["TRHT_YN"] == "Y",
         _raw=raw,  # 호출부가 이미 MappingProxyType 로 동결해 넘긴다(중복 copy 제거)
@@ -357,8 +358,8 @@ class AfterHoursTick:
     open: Decimal  # STCK_OPRC
     high: Decimal  # STCK_HGPR
     low: Decimal  # STCK_LWPR
-    trade_volume: Decimal  # CNTG_VOL
-    accumulated_volume: Decimal  # ACML_VOL
+    trade_volume: int  # CNTG_VOL
+    accumulated_volume: int  # ACML_VOL
     accumulated_value: Decimal  # ACML_TR_PBMN
     business_date: str  # BSOP_DATE
     trading_halted: bool  # TRHT_YN
@@ -394,8 +395,8 @@ def parse_after_hours_tick(fields: list[str]) -> AfterHoursTick:
         open=_decimal(raw["STCK_OPRC"]),
         high=_decimal(raw["STCK_HGPR"]),
         low=_decimal(raw["STCK_LWPR"]),
-        trade_volume=_decimal(raw["CNTG_VOL"]),
-        accumulated_volume=_decimal(raw["ACML_VOL"]),
+        trade_volume=_int(raw["CNTG_VOL"]),
+        accumulated_volume=_int(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         business_date=raw["BSOP_DATE"],
         trading_halted=raw["TRHT_YN"] == "Y",
@@ -421,11 +422,11 @@ class StockProgramTrade:
 
     symbol: str
     time: str  # STCK_CNTG_HOUR
-    sell_volume: Decimal  # SELN_CNQN 매도 체결량
+    sell_volume: int  # SELN_CNQN 매도 체결량
     sell_value: Decimal  # SELN_TR_PBMN 매도 거래대금
-    buy_volume: Decimal  # SHNU_CNQN 매수 체결량
+    buy_volume: int  # SHNU_CNQN 매수 체결량
     buy_value: Decimal  # SHNU_TR_PBMN 매수 거래대금
-    net_buy_volume: Decimal  # NTBY_CNQN 순매수 체결량
+    net_buy_volume: int  # NTBY_CNQN 순매수 체결량
     net_buy_value: Decimal  # NTBY_TR_PBMN 순매수 거래대금
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -445,11 +446,11 @@ def parse_program_trade(fields: list[str]) -> StockProgramTrade:
     return StockProgramTrade(
         symbol=raw["MKSC_SHRN_ISCD"],
         time=raw["STCK_CNTG_HOUR"],
-        sell_volume=_decimal(raw["SELN_CNQN"]),
+        sell_volume=_int(raw["SELN_CNQN"]),
         sell_value=_decimal(raw["SELN_TR_PBMN"]),
-        buy_volume=_decimal(raw["SHNU_CNQN"]),
+        buy_volume=_int(raw["SHNU_CNQN"]),
         buy_value=_decimal(raw["SHNU_TR_PBMN"]),
-        net_buy_volume=_decimal(raw["NTBY_CNQN"]),
+        net_buy_volume=_int(raw["NTBY_CNQN"]),
         net_buy_value=_decimal(raw["NTBY_TR_PBMN"]),
         _raw=raw,
     )
@@ -476,9 +477,9 @@ class MemberActivity:
     symbol: str
     top_seller: str  # SELN2_MBCR_NAME1 매도 1위 회원사명
     top_buyer: str  # BYOV_MBCR_NAME1 매수 1위 회원사명
-    foreign_broker_sell_volume: Decimal  # GLOB_TOTAL_SELN_QTY 외국계 총 매도 수량
-    foreign_broker_buy_volume: Decimal  # GLOB_TOTAL_SHNU_QTY 외국계 총 매수 수량
-    foreign_broker_net_buy_volume: Decimal  # GLOB_NTBY_QTY 외국계 순매수 수량
+    foreign_broker_sell_volume: int  # GLOB_TOTAL_SELN_QTY 외국계 총 매도 수량
+    foreign_broker_buy_volume: int  # GLOB_TOTAL_SHNU_QTY 외국계 총 매수 수량
+    foreign_broker_net_buy_volume: int  # GLOB_NTBY_QTY 외국계 순매수 수량
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -512,9 +513,9 @@ def parse_member_activity(fields: list[str]) -> MemberActivity:
         symbol=raw["MKSC_SHRN_ISCD"],
         top_seller=raw["SELN2_MBCR_NAME1"],
         top_buyer=raw["BYOV_MBCR_NAME1"],
-        foreign_broker_sell_volume=_decimal(raw["GLOB_TOTAL_SELN_QTY"]),
-        foreign_broker_buy_volume=_decimal(raw["GLOB_TOTAL_SHNU_QTY"]),
-        foreign_broker_net_buy_volume=_decimal(raw["GLOB_NTBY_QTY"]),
+        foreign_broker_sell_volume=_int(raw["GLOB_TOTAL_SELN_QTY"]),
+        foreign_broker_buy_volume=_int(raw["GLOB_TOTAL_SHNU_QTY"]),
+        foreign_broker_net_buy_volume=_int(raw["GLOB_NTBY_QTY"]),
         _raw=raw,
     )
 

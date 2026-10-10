@@ -2,7 +2,8 @@
 
 원장 Response Body 필드순을 그대로 ``^`` 인덱스에 매핑한다(필드순이 정본). 자산군 엔티티는
 :mod:`.domestic_stock` (StockTick) 의 스타일(frozen dataclass, 산업표준 영어 식별자, 한국어 docstring,
-``_raw`` = 전체 Element->원문, 숫자는 :class:`~decimal.Decimal`)을 그대로 따른다.
+``_raw`` = 전체 Element->원문, 가격/수익률은 :class:`~decimal.Decimal`, 시장데이터 수량
+(거래량/호가 잔량)은 ``int``)을 그대로 따른다.
 
 일반채권 체결(H0BJCNT0)과 호가(H0BJASP0)는 레이아웃이 다르므로 별도 파서/엔티티다. 원장에서
 호가 시트의 TR-id 가 체결과 동일하게(H0BJCNT0) 잘못 기재되어 있으나, 실제 KIS 실시간 호가
@@ -20,7 +21,7 @@ from typing import Any
 
 from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
-from ._numeric import _decimal
+from ._numeric import _decimal, _int
 
 # H0BJCNT0(일반채권 실시간체결가) 응답 필드 순서(원장 Response Body). 인덱스 = ^ 위치.
 _BOND_TICK_FIELDS = (
@@ -67,13 +68,13 @@ class BondTick:
     change: Decimal  # 전일 대비
     change_percent: Decimal  # 전일 대비율
     current_price: Decimal  # 현재가
-    trade_volume: Decimal  # 이번 체결 거래량
+    trade_volume: int  # 이번 체결 거래량
     open: Decimal  # 시가
     high: Decimal  # 고가
     low: Decimal  # 저가
     previous_close: Decimal  # 전일 종가
     current_yield: Decimal  # 현재 수익률
-    accumulated_volume: Decimal  # 누적 거래량
+    accumulated_volume: int  # 누적 거래량
     trade_type_code: str  # 체결 유형 코드
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -94,10 +95,10 @@ class BondOrderBook:
     best_bid_price: Decimal  # 매수호가1
     best_ask_yield: Decimal  # 매도호가 수익률1
     best_bid_yield: Decimal  # 매수호가 수익률1
-    best_ask_quantity: Decimal  # 매도호가 잔량1
-    best_bid_quantity: Decimal  # 매수호가 잔량1
-    total_ask_quantity: Decimal  # 총 매도호가 잔량
-    total_bid_quantity: Decimal  # 총 매수호가 잔량
+    best_ask_quantity: int  # 매도호가 잔량1
+    best_bid_quantity: int  # 매수호가 잔량1
+    total_ask_quantity: int  # 총 매도호가 잔량
+    total_bid_quantity: int  # 총 매수호가 잔량
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -144,13 +145,13 @@ def parse_bond_tick(fields: list[str]) -> BondTick:
         change=_apply_change_sign(_decimal(raw["PRDY_VRSS"]), raw["PRDY_VRSS_SIGN"]),
         change_percent=_apply_change_sign(_decimal(raw["PRDY_CTRT"]), raw["PRDY_VRSS_SIGN"]),
         current_price=_decimal(raw["STCK_PRPR"]),
-        trade_volume=_decimal(raw["CNTG_VOL"]),
+        trade_volume=_int(raw["CNTG_VOL"]),
         open=_decimal(raw["STCK_OPRC"]),
         high=_decimal(raw["STCK_HGPR"]),
         low=_decimal(raw["STCK_LWPR"]),
         previous_close=_decimal(raw["STCK_PRDY_CLPR"]),
         current_yield=_decimal(raw["BOND_CNTG_ERT"]),
-        accumulated_volume=_decimal(raw["ACML_VOL"]),
+        accumulated_volume=_int(raw["ACML_VOL"]),
         trade_type_code=raw["CNTG_TYPE_CLS_CODE"],
         _raw=raw,
     )
@@ -166,10 +167,10 @@ def parse_bond_order_book(fields: list[str]) -> BondOrderBook:
         best_bid_price=_decimal(raw["BIDP1"]),
         best_ask_yield=_decimal(raw["ASKP_ERT1"]),
         best_bid_yield=_decimal(raw["BIDP_ERT1"]),
-        best_ask_quantity=_decimal(raw["ASKP_RSQN1"]),
-        best_bid_quantity=_decimal(raw["BIDP_RSQN1"]),
-        total_ask_quantity=_decimal(raw["TOTAL_ASKP_RSQN"]),
-        total_bid_quantity=_decimal(raw["TOTAL_BIDP_RSQN"]),
+        best_ask_quantity=_int(raw["ASKP_RSQN1"]),
+        best_bid_quantity=_int(raw["BIDP_RSQN1"]),
+        total_ask_quantity=_int(raw["TOTAL_ASKP_RSQN"]),
+        total_bid_quantity=_int(raw["TOTAL_BIDP_RSQN"]),
         _raw=raw,
     )
 

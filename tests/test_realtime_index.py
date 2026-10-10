@@ -32,6 +32,7 @@ def test_parse_index_tick_shares_layout_and_registers():
     assert tick.change == Decimal("12.30")
     assert tick.change_percent == Decimal("0.47")
     assert tick.rising_count == Decimal(480)
+    assert isinstance(tick.rising_count, int) and isinstance(tick.accumulated_volume, int)
     assert tick.falling_count == Decimal(360)
     assert tick.upper_limit_count == Decimal(3)
     assert tick.lower_limit_count == Decimal(1)
@@ -93,11 +94,13 @@ def test_parse_expected_conclusion_maps_headline_fields():
     assert ec.change == Decimal("12.30")
     assert ec.change_percent == Decimal("0.47")
     assert ec.accumulated_volume == Decimal(500000)
+    assert isinstance(ec.accumulated_volume, int)
     assert ec.accumulated_value == Decimal(8000000)
     assert ec.open == Decimal("2640.00")
     assert ec.high == Decimal("2661.10")
     assert ec.low == Decimal("2638.20")
     assert ec.rising_count == Decimal(480)
+    assert isinstance(ec.rising_count, int)
     assert ec.unchanged_count == Decimal(60)
     assert ec.falling_count == Decimal(360)
 
@@ -121,6 +124,7 @@ def test_parse_program_trade_maps_headline_fields():
     assert pt.arbitrage_net_buy_volume == Decimal(80)
     assert pt.nonarbitrage_net_buy_volume == Decimal(120)
     assert pt.accumulated_volume == Decimal(900000)
+    assert isinstance(pt.accumulated_volume, int) and isinstance(pt.total_sell_quantity, int)
     assert pt.accumulated_value == Decimal(45000000)
 
 

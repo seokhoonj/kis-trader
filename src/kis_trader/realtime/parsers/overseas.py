@@ -7,8 +7,9 @@
 
 엔티티는 REST 결과 타입과 같은 관례를 따른다: 공개 식별자는 산업표준 영어, 설명은 한국어
 docstring, 헤드라인 필드만 타입화하고 원장 전체(Element 이름->원문)는 ``_raw`` 에 담는다.
-원장이 숫자 필드도 ``string`` 으로 표기하므로, 가격/수량/거래량/금액/등락률 같은 헤드라인은
-도메인 판단으로 :class:`~decimal.Decimal` 화하고 코드/일자/시각/식별자/플래그는 문자열로 둔다.
+원장이 숫자 필드도 ``string`` 으로 표기하므로, 가격/금액/등락률은 도메인 판단으로
+:class:`~decimal.Decimal`, 시장데이터 수량(거래량/호가 잔량)은 ``int`` 화하고(체결/주문 통보의
+수량은 미국 분수주식 때문에 Decimal), 코드/일자/시각/식별자/플래그는 문자열로 둔다.
 """
 
 from __future__ import annotations
@@ -21,7 +22,7 @@ from typing import Any
 
 from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
-from ._numeric import _decimal
+from ._numeric import _decimal, _int
 
 _EMPTY_RAW: Mapping[str, Any] = MappingProxyType({})
 
@@ -66,12 +67,12 @@ class OverseasOrderBook:
     local_time: str
     korea_date: str
     korea_time: str
-    total_bid_quantity: Decimal
-    total_ask_quantity: Decimal
+    total_bid_quantity: int
+    total_ask_quantity: int
     best_bid: Decimal
     best_ask: Decimal
-    best_bid_quantity: Decimal
-    best_ask_quantity: Decimal
+    best_bid_quantity: int
+    best_ask_quantity: int
     _raw: Mapping[str, Any] = _raw_field()
 
 
@@ -86,12 +87,12 @@ def parse_orderbook(fields: list[str]) -> OverseasOrderBook:
         local_time=raw["XHMS"],
         korea_date=raw["KYMD"],
         korea_time=raw["KHMS"],
-        total_bid_quantity=_decimal(raw["BVOL"]),
-        total_ask_quantity=_decimal(raw["AVOL"]),
+        total_bid_quantity=_int(raw["BVOL"]),
+        total_ask_quantity=_int(raw["AVOL"]),
         best_bid=_decimal(raw["PBID1"]),
         best_ask=_decimal(raw["PASK1"]),
-        best_bid_quantity=_decimal(raw["VBID1"]),
-        best_ask_quantity=_decimal(raw["VASK1"]),
+        best_bid_quantity=_int(raw["VBID1"]),
+        best_ask_quantity=_int(raw["VASK1"]),
         _raw=raw,
     )
 
@@ -126,8 +127,8 @@ class OverseasDelayedTradeTick:
     change_percent: Decimal
     best_bid: Decimal
     best_ask: Decimal
-    trade_volume: Decimal  # 이번 체결량(EVOL)
-    accumulated_volume: Decimal
+    trade_volume: int  # 이번 체결량(EVOL)
+    accumulated_volume: int
     accumulated_value: Decimal
     conclusion_strength: Decimal
     market_type: str  # 1:장중 2:장전 3:장후
@@ -152,8 +153,8 @@ def parse_delayed_trade_tick(fields: list[str]) -> OverseasDelayedTradeTick:
         change_percent=_apply_change_sign(_decimal(raw["RATE"]), raw["SIGN"]),
         best_bid=_decimal(raw["PBID"]),
         best_ask=_decimal(raw["PASK"]),
-        trade_volume=_decimal(raw["EVOL"]),
-        accumulated_volume=_decimal(raw["TVOL"]),
+        trade_volume=_int(raw["EVOL"]),
+        accumulated_volume=_int(raw["TVOL"]),
         accumulated_value=_decimal(raw["TAMT"]),
         conclusion_strength=_decimal(raw["STRN"]),
         market_type=raw["MTYP"],
@@ -245,13 +246,13 @@ class OverseasDerivativeTradeTick:
     recv_time: str
     prev_close: Decimal
     current_price: Decimal  # LAST_PRICE
-    trade_volume: Decimal  # LAST_QNTT
+    trade_volume: int  # LAST_QNTT
     change: Decimal
     change_percent: Decimal
     open: Decimal
     high: Decimal
     low: Decimal
-    accumulated_volume: Decimal
+    accumulated_volume: int
     change_sign: str  # PREV_SIGN
     trade_sign: str  # 체결구분(QUOTSIGN)
     prev_settlement_price: Decimal
@@ -268,13 +269,13 @@ def parse_futures_trade_tick(fields: list[str]) -> OverseasDerivativeTradeTick:
         recv_time=raw["RECV_TIME"],
         prev_close=_decimal(raw["PREV_PRICE"]),
         current_price=_decimal(raw["LAST_PRICE"]),
-        trade_volume=_decimal(raw["LAST_QNTT"]),
+        trade_volume=_int(raw["LAST_QNTT"]),
         change=_apply_change_sign(_decimal(raw["PREV_DIFF_PRICE"]), raw["PREV_SIGN"]),
         change_percent=_apply_change_sign(_decimal(raw["PREV_DIFF_RATE"]), raw["PREV_SIGN"]),
         open=_decimal(raw["OPEN_PRICE"]),
         high=_decimal(raw["HIGH_PRICE"]),
         low=_decimal(raw["LOW_PRICE"]),
-        accumulated_volume=_decimal(raw["VOL"]),
+        accumulated_volume=_int(raw["VOL"]),
         change_sign=raw["PREV_SIGN"],
         trade_sign=raw["QUOTSIGN"],
         prev_settlement_price=_decimal(raw["PSTTL_PRICE"]),
@@ -307,9 +308,9 @@ class OverseasDerivativeOrderBook:
     recv_time: str
     prev_close: Decimal
     best_bid: Decimal
-    best_bid_quantity: Decimal
+    best_bid_quantity: int
     best_ask: Decimal
-    best_ask_quantity: Decimal
+    best_ask_quantity: int
     settlement_price: Decimal
     _raw: Mapping[str, Any] = _raw_field()
 
@@ -323,9 +324,9 @@ def parse_futures_orderbook(fields: list[str]) -> OverseasDerivativeOrderBook:
         recv_time=raw["RECV_TIME"],
         prev_close=_decimal(raw["PREV_PRICE"]),
         best_bid=_decimal(raw["BID_PRICE_1"]),
-        best_bid_quantity=_decimal(raw["BID_QNTT_1"]),
+        best_bid_quantity=_int(raw["BID_QNTT_1"]),
         best_ask=_decimal(raw["ASK_PRICE_1"]),
-        best_ask_quantity=_decimal(raw["ASK_QNTT_1"]),
+        best_ask_quantity=_int(raw["ASK_QNTT_1"]),
         settlement_price=_decimal(raw["STTL_PRICE"]),
         _raw=raw,
     )
@@ -491,12 +492,12 @@ class OverseasAsiaDelayedOrderBook:
     local_time: str
     korea_date: str
     korea_time: str
-    total_bid_quantity: Decimal
-    total_ask_quantity: Decimal
+    total_bid_quantity: int
+    total_ask_quantity: int
     best_bid: Decimal
     best_ask: Decimal
-    best_bid_quantity: Decimal
-    best_ask_quantity: Decimal
+    best_bid_quantity: int
+    best_ask_quantity: int
     _raw: Mapping[str, Any] = _raw_field()
 
 
@@ -511,12 +512,12 @@ def parse_asia_orderbook(fields: list[str]) -> OverseasAsiaDelayedOrderBook:
         local_time=raw["XHMS"],
         korea_date=raw["KYMD"],
         korea_time=raw["KHMS"],
-        total_bid_quantity=_decimal(raw["BVOL"]),
-        total_ask_quantity=_decimal(raw["AVOL"]),
+        total_bid_quantity=_int(raw["BVOL"]),
+        total_ask_quantity=_int(raw["AVOL"]),
         best_bid=_decimal(raw["PBID1"]),
         best_ask=_decimal(raw["PASK1"]),
-        best_bid_quantity=_decimal(raw["VBID1"]),
-        best_ask_quantity=_decimal(raw["VASK1"]),
+        best_bid_quantity=_int(raw["VBID1"]),
+        best_ask_quantity=_int(raw["VASK1"]),
         _raw=raw,
     )
 

@@ -41,6 +41,7 @@ def test_parse_futures_order_book():
     assert ob.best_bid_quantity == Decimal(8)
     assert ob.total_ask_quantity == Decimal(500)
     assert ob.total_bid_quantity == Decimal(450)
+    assert isinstance(ob.best_ask_quantity, int) and isinstance(ob.total_bid_quantity, int)
     assert ob._raw["TOTAL_BIDP_RSQN_ICDC"] == "0"
     assert len(ob._raw) == len(der._FUTURES_ORDER_BOOK_FIELDS)
 
@@ -118,6 +119,7 @@ def test_parse_futures_tick():
     assert tick.market_basis == Decimal("0.85")
     assert tick.conclusion_strength == Decimal("98.5")
     assert tick.open_interest == Decimal(250000)
+    assert isinstance(tick.open_interest, int) and isinstance(tick.trade_volume, int)
     assert tick.best_ask == Decimal("330.50")
     assert tick.best_bid == Decimal("330.40")
     assert tick._raw["DSCS_BLTR_ACML_QTY"] == "0"
@@ -197,8 +199,10 @@ def test_parse_index_option_tick_greeks():
     assert tick.high == Decimal("2.40")
     assert tick.low == Decimal("2.15")
     assert tick.trade_volume == Decimal(5)
+    assert isinstance(tick.trade_volume, int)
     assert tick.theoretical_price == Decimal("2.35")
     assert tick.open_interest == Decimal(18000)
+    assert isinstance(tick.open_interest, int)
     assert tick.delta == Decimal("0.48")
     assert tick.gamma == Decimal("0.03")
     assert tick.vega == Decimal("0.12")
@@ -259,6 +263,7 @@ def test_parse_stock_futures_expected():
     assert exp.expected_change_percent == Decimal("0.14")
     assert exp.market_operation_code == "1"
     assert exp.expected_volume == Decimal(1200)
+    assert isinstance(exp.expected_volume, int)
     assert len(exp._raw) == 8
 
 
@@ -316,6 +321,7 @@ def test_parse_execution_notice():
     assert note.fill_status == "2"
     assert note.accepted_status == "2"
     assert note.order_quantity == Decimal(2)
+    assert isinstance(note.order_quantity, Decimal) and isinstance(note.filled_quantity, Decimal)  # 체결통보 수량은 Decimal 유지
     assert note.name == "KOSPI200 F 202509"
     assert note.account_name == "홍길동"
     assert note.order_price == Decimal("330.45")
