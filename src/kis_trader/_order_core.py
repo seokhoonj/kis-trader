@@ -28,6 +28,7 @@ from ._internal._datetime import _KST
 from ._internal._wire import format_wire_decimal
 from .errors import (
     AccountNotOrderableError,
+    KISError,
     KISUsageError,
     OrderError,
     OrderNotAcceptedYetError,
@@ -166,6 +167,15 @@ def place(
         # 재시도 금지: 체결 여부 불명. in-flight 유지, 재조회를 요구한다.
         raise OrderTimeoutError(
             f"주문 전송 시간초과 -- 체결 여부가 불명이다. 재전송하지 말고 "
+            f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
+            client_order_id=client_order_id,
+        ) from err
+    except KISError as err:
+        # 비-200 전송계층 오류(KIS 는 app-key 합산 스로틀을 HTTP 500 으로 낸다; 401/429/기타 5xx 포함).
+        # claim 뒤에 터졌고 접수 여부가 불명이므로, 타임아웃과 동일하게 in-flight 를 유지하고 재조회를
+        # 요구한다 -- 조용히 재전송하면 (스로틀로 이미 접수됐을 때) 이중 주문이 날 수 있다.
+        raise OrderTimeoutError(
+            f"주문 전송 중 전송계층 오류 -- 접수 여부가 불명이다. 재전송하지 말고 "
             f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
             client_order_id=client_order_id,
         ) from err
@@ -325,6 +335,13 @@ def submit_change(
     except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"주문 {action} 요청 시간초과 -- 처리 여부가 불명이다. 재전송하지 말라.",
+            client_order_id=request_id,
+        ) from err
+    except KISError as err:
+        # 비-200 전송계층 오류(HTTP 500 스로틀·401·429·기타 5xx). claim 뒤에 터졌고 처리 여부가
+        # 불명이므로 타임아웃과 동일하게 in-flight 유지 + 재조회 요구(조용한 재전송 = 이중 변경 위험).
+        raise OrderTimeoutError(
+            f"주문 {action} 요청 중 전송계층 오류 -- 처리 여부가 불명이다. 재전송하지 말라.",
             client_order_id=request_id,
         ) from err
     if not resp.ok:

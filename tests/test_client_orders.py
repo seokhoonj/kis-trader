@@ -409,6 +409,24 @@ def test_domestic_change_timeout_stays_in_flight_and_is_not_resent():
     assert len([call for call in fake.calls if call["path"] == _ORDER_CHANGE]) == 1
 
 
+def test_domestic_change_non_timeout_transport_error_stays_in_flight_and_is_not_resent():
+    # F1 회귀(정정·취소 경로): 비-200 전송계층 오류도 타임아웃처럼 처리 여부 불명 ->
+    # OrderTimeoutError, in-flight 유지, 재전송 거부.
+    fake = FakeTransport(
+        by_path={
+            _ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
+            _ORDER_CHANGE: KISError("KIS HTTP 요청에 실패했다 (status 500)."),
+        }
+    )
+    kis = _client(fake)
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="original-500")
+    with pytest.raises(OrderTimeoutError):
+        kis.orders.cancel("original-500", request_id="cancel-500")
+    with pytest.raises(KISUsageError, match="재전송하지"):
+        kis.orders.cancel("original-500", request_id="cancel-500")
+    assert len([call for call in fake.calls if call["path"] == _ORDER_CHANGE]) == 1
+
+
 # --- 멱등 dedup ------------------------------------------------------------
 def test_same_client_order_id_replays_without_resend():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
@@ -434,6 +452,21 @@ def test_write_timeout_raises_and_does_not_retry():
         _client(fake).domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="ID-1")
     assert excinfo.value.client_order_id == "ID-1"
     assert len(fake.calls) == 1                          # 재시도 없음
+
+
+def test_write_non_timeout_transport_error_stays_in_flight_and_is_not_resent():
+    # F1 회귀: claim 뒤 비-200(KIS 는 app-key 합산 스로틀을 HTTP 500 으로 낸다)은 타임아웃과 동일하게
+    # 접수 여부 불명 -> OrderTimeoutError(id 보존, in-flight 유지). 조용히 재전송하면 이중주문이 난다.
+    fake = FakeTransport(
+        by_path={_ORDER_CASH: [KISError("KIS HTTP 요청에 실패했다 (status 500)."), _ACCEPTED_ORDER_RESPONSE]}
+    )
+    kis = _client(fake)
+    with pytest.raises(OrderTimeoutError) as excinfo:
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="throttled-1")
+    assert excinfo.value.client_order_id == "throttled-1"
+    with pytest.raises(KISUsageError, match="재조회"):   # in-flight 유지 -> 재전송 거부
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="throttled-1")
+    assert len([c for c in fake.calls if c["path"] == _ORDER_CASH]) == 1   # 재전송 안 함
 
 
 def test_in_flight_after_timeout_refuses_resend():
