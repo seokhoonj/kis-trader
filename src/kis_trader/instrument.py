@@ -38,6 +38,28 @@ FuturesBoardMarket = Literal["", "MKI", "WKM", "WKI", "KQI"]
 _DOMESTIC_ORDER_EXCHANGES = frozenset(get_args(DomesticOrderExchange))
 _DOMESTIC_QUOTE_EXCHANGES = frozenset(get_args(DomesticQuoteExchange))
 
+#: 주문 거래소 <-> 시세 거래소 대응의 단일 정본 -- KIS 이원 어휘(주문 와이어 SOR = 시세 와이어 UN).
+#: 두 방향을 여기서 파생해, 소비자(DomesticStock 주문 경로·CLI)가 각자 역방향 분류표를 들지 않게 한다
+#: (들면 거래소 추가 시 양쪽이 독립적으로 드리프트한다).
+_ORDER_TO_QUOTE_EXCHANGE: dict[DomesticOrderExchange, DomesticQuoteExchange] = {
+    "KRX": "KRX",
+    "NXT": "NXT",
+    "SOR": "UN",
+}
+_QUOTE_TO_ORDER_EXCHANGE: dict[DomesticQuoteExchange, DomesticOrderExchange] = {
+    quote: order for order, quote in _ORDER_TO_QUOTE_EXCHANGE.items()
+}
+
+
+def quote_exchange_for_order(exchange: DomesticOrderExchange) -> DomesticQuoteExchange:
+    """국내 주문 거래소 -> 대응 시세 거래소(SOR -> UN). 주문 거래소 인자로 시세 핸들을 만들 때 쓴다."""
+    return _ORDER_TO_QUOTE_EXCHANGE[exchange]
+
+
+def order_exchange_for_quote(exchange: DomesticQuoteExchange) -> DomesticOrderExchange:
+    """국내 시세 거래소 -> 대응 주문 거래소(UN -> SOR). 시세 핸들로 주문을 낼 때 쓴다."""
+    return _QUOTE_TO_ORDER_EXCHANGE[exchange]
+
 
 def is_domestic_symbol(symbol: str) -> bool:
     """6자리 대문자 영숫자 단축코드면 국내(KRX)로 본다.

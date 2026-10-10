@@ -12,7 +12,7 @@ from typing import TYPE_CHECKING, cast, get_args
 from ..client import KISClient
 from ..config import order_store_path, resolve_credentials
 from ..errors import KISUsageError
-from ..instrument import DomesticOrderExchange, DomesticQuoteExchange
+from ..instrument import DomesticOrderExchange, DomesticQuoteExchange, quote_exchange_for_order
 from ..store import OrderStore
 from .errors import CliConfigError
 
@@ -46,7 +46,13 @@ def resolve_stock(kis: KISClient, args: Namespace) -> DomesticStock | OverseasSt
             raise CliConfigError(
                 f"지원하지 않는 국내 주문 거래소: {exchange!r} (KRX/NXT/SOR)."
             )
-        handle_exchange = "UN" if exchange == "SOR" else exchange
+        # 주문 거래소 인자로 시세 핸들을 만든다. SOR->UN 대응은 패키지(instrument)가 소유하고
+        # CLI 는 호출만 한다 -- 역방향 분류표를 CLI 가 들면 거래소 추가 시 양쪽이 드리프트한다.
+        handle_exchange = (
+            quote_exchange_for_order(cast(DomesticOrderExchange, exchange))
+            if exchange is not None
+            else None
+        )
     else:
         if exchange is not None and exchange not in _DOMESTIC_QUOTE_EXCHANGES:
             raise CliConfigError(
@@ -55,7 +61,7 @@ def resolve_stock(kis: KISClient, args: Namespace) -> DomesticStock | OverseasSt
         handle_exchange = exchange
     return kis.domestic.stock(
         args.identifier,
-        exchange=cast(DomesticQuoteExchange | None, handle_exchange),
+        exchange=handle_exchange,
     )
 
 

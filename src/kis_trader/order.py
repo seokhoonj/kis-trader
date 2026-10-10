@@ -141,6 +141,10 @@ def _encode_slot7(region: Region, asset_class: AssetClass, exchange: str) -> str
 
 
 def _encode_slot12(region: Region, asset_class: AssetClass, exchange: str) -> str:
+    # 이 SOR->UN 정규화는 instrument.quote_exchange_for_order 와 값이 같지만 **의도적으로 독립**이다.
+    # slot12 는 온-디스크 지문(store v10)의 바이트라, 저장 포맷의 안정성은 시세-핸들 매핑의 변경과
+    # 분리돼야 한다(시세 어휘를 손봐도 persisted 바이트가 바뀌면 안 된다). 그래서 공유 헬퍼를 부르지
+    # 않고 여기서 고정한다 -- 거래소를 추가하면 양쪽을 함께 갱신한다(_decode_domestic_exchange 도).
     if (region, asset_class) == ("domestic", "stock"):
         return "UN" if exchange == "SOR" else exchange
     return "KRX"
@@ -158,6 +162,8 @@ def _decode_lane(slot7: str) -> tuple[Region, AssetClass]:
 
 
 def _decode_domestic_exchange(slot12: str) -> str:
+    # _encode_slot12 의 역 -- 같은 이유로 instrument 의 order_exchange_for_quote 와 의도적으로 독립
+    # (store v10 바이트 안정성). 거래소 추가 시 _encode_slot12 와 함께 갱신한다.
     return "SOR" if slot12 == "UN" else slot12
 
 

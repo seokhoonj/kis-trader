@@ -22,6 +22,7 @@ from ..execution import TWAPExecutionResult, execute_twap, make_twap_schedule
 from ..instrument import (
     DomesticOrderExchange,
     DomesticQuoteExchange,
+    order_exchange_for_quote,
     resolve_domestic_quote_exchange,
 )
 from ..order import (
@@ -84,13 +85,6 @@ from .entities.stock_info import StockProfile, StockStatus
 if TYPE_CHECKING:
     from .._literals import Numeric
     from ..client import KISClient
-
-_TO_ORDER_EXCHANGE: dict[DomesticQuoteExchange, DomesticOrderExchange] = {
-    "KRX": "KRX",
-    "NXT": "NXT",
-    "UN": "SOR",
-}
-
 
 class DomesticStock(_StockBase):
     """국내 종목/ETF 핸들 -- 시세·시세분석·재무·투자자수급·ETF·주문. ``kis.domestic.stock(symbol)``."""
@@ -606,7 +600,7 @@ class DomesticStock(_StockBase):
         )
 
     def _to_order_exchange(self) -> DomesticOrderExchange:
-        return _TO_ORDER_EXCHANGE[self.exchange]
+        return order_exchange_for_quote(self.exchange)
 
     def _require_krx_exchange(self, what: str) -> None:
         # 신용·예약 주문은 아직 보드(EXCG_ID_DVSN_CD) 배선이 없어 KRX 전용이다 -- NXT/UN 종목 핸들에서
