@@ -439,3 +439,54 @@ def test_callback_free_raw_unsubscribe_releases_wire_when_no_typed_remains():
     assert ("H0IFCNT0", "101W09") not in client._raw_subscriptions
     assert ("H0IFCNT0", "101W09") not in client._desired
     assert _wait_until(lambda: len(_frames_of(ws, "2", "H0IFCNT0")) == 1)  # wire 해제 나감
+
+
+class _DeadLoop:
+    """is_running() 은 True 라고 보고하지만 예약 직전에 멎은 루프 -- call_soon_threadsafe 가
+    RuntimeError 를 던진다. is_running() 확인과 예약 사이의 teardown 레이스를 결정적으로 재현한다."""
+
+    def is_running(self) -> bool:
+        return True
+
+    def call_soon_threadsafe(self, *args: object, **kwargs: object) -> None:
+        raise RuntimeError("Event loop is closed")
+
+
+@pytest.mark.filterwarnings("error::RuntimeWarning")
+def test_wire_schedulers_close_coro_when_loop_dies_mid_schedule():
+    # 백로그 하드닝: is_running() 이 True 인 직후 루프가 멎으면 예약 호출이 RuntimeError 를 내고
+    # coro 가 영영 await 되지 않는다("coroutine was never awaited" GC 경고 + 조용히 사라진 구독).
+    # _submit_wire/_schedule_wire/_call_async 는 그 RuntimeError 를 잡아 coro 를 닫아야 한다.
+    # filterwarnings(error) 로 coro 가 안 닫히면(=미await) 이 테스트가 실패하도록 못박는다.
+    client = _client(FakeWebSocket([]))
+    client._loop = _DeadLoop()  # type: ignore[assignment]
+
+    async def _wire() -> str:
+        return "x"  # pragma: no cover - 실행되면 안 된다(예약 자체가 실패)
+
+    # (1) run_coroutine_threadsafe 분기(다른 스레드): _thread 를 현재와 다르게 둔다.
+    client._thread = threading.Thread(target=lambda: None)
+    coro = _wire()
+    assert client._submit_wire(coro) is None
+    assert coro.cr_frame is None                     # 닫혔다(await 되지 않음)
+
+    # (2) call_soon_threadsafe 분기(수신 루프 스레드): _thread 를 현재 스레드로 둔다.
+    client._thread = threading.current_thread()
+    coro2 = _wire()
+    assert client._submit_wire(coro2) is None
+    assert coro2.cr_frame is None
+
+    # _schedule_wire(완료 비대기)와 _call_async(완료 대기) 도 같은 레이스를 닫는다.
+    coro3 = _wire()
+    client._schedule_wire(coro3)
+    assert coro3.cr_frame is None
+    coro4 = _wire()  # _call_async, 수신 루프 스레드 분기(call_soon_threadsafe)
+    client._call_async(coro4)
+    assert coro4.cr_frame is None
+
+    # _call_async 의 다른-스레드 분기(run_coroutine_threadsafe)도 같은 레이스를 닫아야 한다 --
+    # 이 경로는 call_soon_threadsafe 분기와 별개라 따로 못박는다.
+    client._thread = threading.Thread(target=lambda: None)
+    coro5 = _wire()
+    client._call_async(coro5)
+    assert coro5.cr_frame is None

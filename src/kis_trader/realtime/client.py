@@ -454,10 +454,19 @@ class RealtimeClient:
         if self._loop is None or not self._loop.is_running():
             coro.close()
             return
+        # is_running() 확인과 예약 사이에 루프가 멎으면(RuntimeError) coro 가 await 되지 않으므로
+        # 닫고 종료로 간주한다 -- 루프가 이미 없는 경우와 같은 처리.
         if threading.current_thread() is self._thread:
-            self._loop.call_soon_threadsafe(asyncio.ensure_future, coro)
+            try:
+                self._loop.call_soon_threadsafe(asyncio.ensure_future, coro)
+            except RuntimeError:
+                coro.close()
             return
-        future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        try:
+            future = asyncio.run_coroutine_threadsafe(coro, self._loop)
+        except RuntimeError:
+            coro.close()
+            return
         future.result(timeout=timeout)
 
     def _submit_wire(self, coro: Coroutine[Any, Any, Any]) -> ConcurrentFuture[Any] | None:
@@ -479,9 +488,18 @@ class RealtimeClient:
                 task = asyncio.ensure_future(coro)
                 task.add_done_callback(self._on_wire_done)
 
-            loop.call_soon_threadsafe(_schedule)
+            # is_running() 확인과 예약 사이에 루프가 멎으면 RuntimeError 가 나고 coro 는 영영
+            # await 되지 않는다(GC 경고 + 조용히 사라진 구독) -- 닫아서 _desired 재전송에 맡긴다.
+            try:
+                loop.call_soon_threadsafe(_schedule)
+            except RuntimeError:
+                coro.close()
             return None
-        return asyncio.run_coroutine_threadsafe(coro, self._loop)
+        try:
+            return asyncio.run_coroutine_threadsafe(coro, self._loop)
+        except RuntimeError:
+            coro.close()
+            return None
 
     def _schedule_wire(self, coro: Coroutine[Any, Any, Any]) -> None:
         """wire 코루틴(subscribe/unsubscribe)을 루프에 **비블로킹**으로 예약한다.
@@ -499,7 +517,12 @@ class RealtimeClient:
             task = asyncio.ensure_future(coro)
             task.add_done_callback(self._on_wire_done)
 
-        self._loop.call_soon_threadsafe(_schedule)
+        # is_running() 확인 뒤 예약 전에 루프가 멎으면 coro 가 await 되지 않으므로 닫는다
+        # (구독은 _desired 에 남아 재연결 시 재전송된다).
+        try:
+            self._loop.call_soon_threadsafe(_schedule)
+        except RuntimeError:
+            coro.close()
 
     @staticmethod
     def _on_wire_done(task: asyncio.Future[Any]) -> None:
