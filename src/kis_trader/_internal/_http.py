@@ -59,7 +59,9 @@ def _requests_send(
     목적: KIS REST 도메인에 한 요청을 보낸다.
     입력: 메서드·URL·표준 헤더·쿼리·JSON 바디를 받는다.
     출력: HTTP 상태, 응답 헤더, JSON 객체를 반환한다.
-    오류: 연결 및 시간 초과는 :class:`TransportTimeoutError` 으로 변환한다.
+    오류: 연결·시간 초과 및 그 밖의 전송 계층 오류(TooManyRedirects/RetryError/ChunkedEncoding 등,
+      요청이 전송됐을 수 있음)는 :class:`TransportTimeoutError` 으로, 요청 구성 단계 오류(InvalidURL/
+      MissingSchema 등, 전송 전이라 'not sent' 확실)는 평범한 :class:`KISError` 로 변환한다.
     주의: 선택 사항인 hashkey는 사용하지 않는다.
     """
     import requests
@@ -80,6 +82,22 @@ def _requests_send(
         )
     except (requests.Timeout, requests.ConnectionError) as err:
         raise TransportTimeoutError("KIS HTTP 요청의 결과를 확인할 수 없다.") from err
+    except (
+        requests.exceptions.URLRequired,
+        requests.exceptions.MissingSchema,
+        requests.exceptions.InvalidSchema,
+        requests.exceptions.InvalidURL,
+        requests.exceptions.InvalidHeader,
+    ) as err:
+        # 요청 준비 단계 오류 -- 소켓에 닿기 전이라 'not sent' 가 확실하다. 결과 불명(no-retry)
+        # 신호를 실을 필요 없이 평범한 KISError 로 올린다(사실상 우리 URL/헤더 구성 버그).
+        raise KISError(f"KIS HTTP 요청을 구성하지 못했다: {err}") from err
+    except requests.RequestException as err:
+        # 그 밖의 전송 계층 오류 -- 여기엔 ChunkedEncodingError/ContentDecodingError(둘 다
+        # ConnectionError 가 아니라 RequestException 직계라 위 첫 분기에 안 걸린다)와
+        # TooManyRedirects/RetryError 등이 포함된다. 응답을 받던/전송됐을 수 있어(sent-unknown)
+        # 결과가 불명하므로, 타임아웃과 같이 재전송 금지 신호로 올려 쓰기 중복을 막는다.
+        raise TransportTimeoutError("KIS HTTP 전송 계층 오류 -- 요청의 결과를 확인할 수 없다.") from err
     # 헤더 키를 소문자로 정규화 -- requests 의 대소문자 무시 맵을 평범한 dict 로 바꾸면서도 tr_cont 등
     # 하위 연속조회가 서버/프록시의 Title-Case 표기에도 매칭되게 한다(페이지네이션 조용한 절단 방지).
     return response.status_code, {k.lower(): v for k, v in response.headers.items()}, response.json()

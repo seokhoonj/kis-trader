@@ -401,3 +401,36 @@ def test_write_500_is_not_retried(tmp_path: Any) -> None:
 def test_client_constructs_lazy_real_transport() -> None:
     client = KISClient(app_key="k", app_secret="s")
     assert isinstance(client.transport, RequestsTransport)
+
+
+def test_requests_send_wraps_sent_unknown_exception_as_timeout(monkeypatch: Any) -> None:
+    # 전송 계층 하드닝: Timeout/ConnectionError 밖의 requests 예외(TooManyRedirects 등)는 요청이
+    # 전송됐을 수 있어(sent-unknown) TransportTimeoutError 로 올라야 한다 -- 비-KISError 가 새지 않게.
+    import requests
+
+    from kis_trader._internal import _http
+
+    class _Boom:
+        def request(self, *args: Any, **kwargs: Any) -> Any:
+            raise requests.TooManyRedirects("too many redirects")
+
+    monkeypatch.setattr(_http, "_SESSION", _Boom())
+    with pytest.raises(TransportTimeoutError):
+        _http._requests_send("GET", "https://x", headers={}, params=None, json_body=None)
+
+
+def test_requests_send_wraps_presend_config_error_as_plain_kis_error(monkeypatch: Any) -> None:
+    # 요청 준비 단계 오류(InvalidURL 등)는 소켓에 닿기 전이라 'not sent' 가 확실하다 -- 결과 불명
+    # (no-retry) 신호인 TransportTimeoutError 가 아니라 평범한 KISError 로 올라야 한다.
+    import requests
+
+    from kis_trader._internal import _http
+
+    class _BadURL:
+        def request(self, *args: Any, **kwargs: Any) -> Any:
+            raise requests.exceptions.InvalidURL("bad url")
+
+    monkeypatch.setattr(_http, "_SESSION", _BadURL())
+    with pytest.raises(KISError) as excinfo:
+        _http._requests_send("GET", "https://x", headers={}, params=None, json_body=None)
+    assert not isinstance(excinfo.value, TransportTimeoutError)
