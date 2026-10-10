@@ -17,7 +17,9 @@ import pytest
 from kis_trader import ExecutionReport, KISClient, OrderStatus, OrderStore
 from kis_trader.errors import (
     AccountNotOrderableError,
+    KISAuthError,
     KISError,
+    KISRateLimitError,
     KISUsageError,
     OrderError,
     OrderRejectedError,
@@ -427,6 +429,23 @@ def test_domestic_change_non_timeout_transport_error_stays_in_flight_and_is_not_
     assert len([call for call in fake.calls if call["path"] == _ORDER_CHANGE]) == 1
 
 
+def test_domestic_change_auth_error_clears_in_flight_and_allows_retry():
+    # F1(401 완화, 정정·취소 경로): 401 은 인증 단계 거부라 변경이 처리되지 않았음이 확실 ->
+    # in-flight 해제 + KISAuthError 그대로. 토큰 교정 후 같은 request_id 로 재시도가 가능해야 한다.
+    fake = FakeTransport(
+        by_path={
+            _ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
+            _ORDER_CHANGE: [KISAuthError("KIS HTTP 인증에 실패했다 (status 401)."), _ACCEPTED_ORDER_RESPONSE],
+        }
+    )
+    kis = _client(fake)
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-auth")
+    with pytest.raises(KISAuthError):                    # 승격 안 함
+        kis.orders.cancel("orig-auth", request_id="cancel-auth")
+    kis.orders.cancel("orig-auth", request_id="cancel-auth")   # in-flight 해제됨 -> 재시도 전송
+    assert len([c for c in fake.calls if c["path"] == _ORDER_CHANGE]) == 2
+
+
 # --- 멱등 dedup ------------------------------------------------------------
 def test_same_client_order_id_replays_without_resend():
     fake = FakeTransport(response=_ACCEPTED_ORDER_RESPONSE)
@@ -467,6 +486,35 @@ def test_write_non_timeout_transport_error_stays_in_flight_and_is_not_resent():
     with pytest.raises(KISUsageError, match="재조회"):   # in-flight 유지 -> 재전송 거부
         kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="throttled-1")
     assert len([c for c in fake.calls if c["path"] == _ORDER_CASH]) == 1   # 재전송 안 함
+
+
+def test_write_auth_error_clears_in_flight_and_allows_retry():
+    # F1(401 완화): 401(인증 실패)은 게이트웨이 인증 단계 거부 -> 주문 엔진에 닿지 못했으므로 '접수
+    # 안 됨'이 확실하다. in-flight 를 해제하고 KISAuthError 를 그대로 올려야 한다(OrderTimeoutError 로
+    # 승격 금지). 토큰 교정 후 같은 id 로 바로 재주문이 가능해야 한다(reconcile 불필요, 이중주문 위험 없음).
+    fake = FakeTransport(
+        by_path={_ORDER_CASH: [KISAuthError("KIS HTTP 인증에 실패했다 (status 401)."), _ACCEPTED_ORDER_RESPONSE]}
+    )
+    kis = _client(fake)
+    with pytest.raises(KISAuthError):                    # 승격 안 함 -- 인증 오류 그대로
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="auth-1")
+    # in-flight 해제됨 -> 같은 id 재주문이 거부되지 않고 실제로 전송된다(두 번째 호출 = 접수).
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="auth-1")
+    assert len([c for c in fake.calls if c["path"] == _ORDER_CASH]) == 2
+
+
+def test_write_rate_limit_error_stays_in_flight_and_is_not_resent():
+    # F1(429 유지): 429 는 라이브 미관측 + KIS 실제 스로틀은 HTTP 500 이라 실행전-거부가 불확실하다.
+    # 근거 0 이므로 500 과 같이 안전하게 in-flight 유지(OrderTimeoutError) + 재전송 거부한다.
+    fake = FakeTransport(
+        by_path={_ORDER_CASH: [KISRateLimitError("KIS HTTP 요청 한도를 초과했다 (status 429)."), _ACCEPTED_ORDER_RESPONSE]}
+    )
+    kis = _client(fake)
+    with pytest.raises(OrderTimeoutError):
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="rl-1")
+    with pytest.raises(KISUsageError, match="재조회"):   # in-flight 유지 -> 재전송 거부
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="rl-1")
+    assert len([c for c in fake.calls if c["path"] == _ORDER_CASH]) == 1
 
 
 def test_in_flight_after_timeout_refuses_resend():

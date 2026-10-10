@@ -28,6 +28,7 @@ from ._internal._datetime import _KST
 from ._internal._wire import format_wire_decimal
 from .errors import (
     AccountNotOrderableError,
+    KISAuthError,
     KISError,
     KISUsageError,
     OrderError,
@@ -170,10 +171,18 @@ def place(
             f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
             client_order_id=client_order_id,
         ) from err
+    except KISAuthError:
+        # 401(인증 실패)은 게이트웨이 인증 단계에서 거부된 것 -- 주문 엔진에 닿지 못했으므로
+        # '접수 안 됨'이 확실하다(이중주문 위험 없음). in-flight 를 해제하고 인증 오류를 그대로
+        # 올려, 호출자가 토큰을 고쳐 바로 재주문하게 한다(reconcile 불필요). 429/500(스로틀)은
+        # 접수 여부가 불명이라 아래 in-flight 유지 분기로 둔다.
+        store.clear_in_flight(client_order_id)
+        raise
     except KISError as err:
-        # 비-200 전송계층 오류(KIS 는 app-key 합산 스로틀을 HTTP 500 으로 낸다; 401/429/기타 5xx 포함).
-        # claim 뒤에 터졌고 접수 여부가 불명이므로, 타임아웃과 동일하게 in-flight 를 유지하고 재조회를
-        # 요구한다 -- 조용히 재전송하면 (스로틀로 이미 접수됐을 때) 이중 주문이 날 수 있다.
+        # 401(KISAuthError) 외의 모든 KISError: 비-200 전송계층 오류(KIS 는 app-key 합산 스로틀을
+        # HTTP 500 으로 낸다; 429/기타 5xx), 전송 전 확실한 요청구성 오류, 비-JSON 바디까지 전부
+        # 여기로 흘러든다. 접수 여부가 불명인 경우가 섞여 있으므로 보수적으로 전부 in-flight 를 유지하고
+        # 재조회를 요구한다 -- 조용히 재전송하면 (스로틀로 이미 접수됐을 때) 이중 주문이 날 수 있다.
         raise OrderTimeoutError(
             f"주문 전송 중 전송계층 오류 -- 접수 여부가 불명이다. 재전송하지 말고 "
             f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
@@ -337,9 +346,16 @@ def submit_change(
             f"주문 {action} 요청 시간초과 -- 처리 여부가 불명이다. 재전송하지 말라.",
             client_order_id=request_id,
         ) from err
+    except KISAuthError:
+        # 401(인증 실패)은 인증 단계 거부 -- 변경 요청이 처리되지 않았음이 확실하다. in-flight 를
+        # 해제하고 인증 오류를 그대로 올린다(토큰 교정 후 바로 재시도 가능). 429/500 은 처리 여부가
+        # 불명이라 아래 in-flight 유지 분기로 둔다.
+        store.clear_in_flight(request_id)
+        raise
     except KISError as err:
-        # 비-200 전송계층 오류(HTTP 500 스로틀·401·429·기타 5xx). claim 뒤에 터졌고 처리 여부가
-        # 불명이므로 타임아웃과 동일하게 in-flight 유지 + 재조회 요구(조용한 재전송 = 이중 변경 위험).
+        # 401(KISAuthError) 외의 모든 KISError: 비-200(HTTP 500 스로틀·429·기타 5xx), 전송 전 확실한
+        # 요청구성 오류, 비-JSON 바디까지 전부 여기로 온다. 처리 여부 불명이 섞여 있어 보수적으로
+        # in-flight 유지 + 재조회 요구(조용한 재전송 = 이중 변경 위험).
         raise OrderTimeoutError(
             f"주문 {action} 요청 중 전송계층 오류 -- 처리 여부가 불명이다. 재전송하지 말라.",
             client_order_id=request_id,
