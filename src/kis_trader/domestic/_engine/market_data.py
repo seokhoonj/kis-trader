@@ -666,6 +666,9 @@ def fetch_detailed_investor_history(
     pages: list[Mapping[str, Any]] = []
     summary: Mapping[str, Any] | None = None
     tr_cont = ""
+    # 헤더 연속조회: tr_cont="N" 으로 동일 파라미터를 재전송하면 서버가 페이지를 넘긴다 -- 이 TR
+    # (FHPTJ04160001)은 CTX_AREA_FK/NK 커서를 응답에서 받아 되먹이는 계열이 아니다(공식 KIS 클라이언트도
+    # 동일 파라미터를 재전송한다). 그래서 _fetch_paginated_rows 의 커서-echo 를 쓰지 않는다.
     for _page in range(_MAX_DETAILED_INVESTOR_PAGES):
         resp = transport.request(
             method="GET", path=_DETAILED_INVESTOR_PATH, tr_id=_DETAILED_INVESTOR_TR,

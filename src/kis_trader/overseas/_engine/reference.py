@@ -151,6 +151,9 @@ def fetch_news(
               "DATA_TM": time, "CTS": ""}
     rows: list[Mapping[str, Any]] = []
     tr_cont = ""
+    # 헤더 연속조회: tr_cont="N" 으로 동일 파라미터(CTS 포함)를 재전송하면 서버가 페이지를 넘긴다 --
+    # 이 TR(HHPSTH60100C1)은 응답의 CTS 를 되먹이는 커서-echo 계열이 아니다(공식 KIS 클라이언트도 원래
+    # CTS 를 그대로 재전송한다). 그래서 다른 페이저와 달리 응답 커서를 읽지 않는다.
     for _page in range(100):
         resp = transport.request(
             method="GET", path=_NEWS_PATH, tr_id=_NEWS_TR, params=params,
