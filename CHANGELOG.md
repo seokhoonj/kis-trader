@@ -3,7 +3,7 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## 0.5.0 — Unreleased
+## 0.5.0 — 2026-10-11
 
 Breaking release. The order "venue / board / MIC" concept is split into three explicit
 axes and the market-identifier codes (XKRX/XKOS/NXTE/XKFE) are internalized. The on-disk
@@ -441,6 +441,23 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   must drop its own sign handling, and `change_sign` is retained for the raw vendor code. The
   values route through the same abs-normalizing, idempotent `_apply_change_sign` the REST path
   uses, so an unknown sign code fails closed instead of silently flipping direction.
+- Realtime market-data quantity fields are now `int` (were `Decimal`), matching the REST surface
+  which already parses these as integers. Order-book residual quantities (`best_*_quantity` /
+  `total_*_quantity` and the ELW 10-level `ask_quantities` / `bid_quantities` ladders), trade and
+  accumulated volumes, the index breadth counts (`rising_count` / `unchanged_count` /
+  `falling_count` / `upper_limit_count` / `lower_limit_count`), program-trade and investor-flow
+  volumes, the 외국계 member volumes, expected-conclusion volumes, derivative `open_interest`, and
+  the ELW `lp_holding` / `lp_net_sell_volume` across all six realtime parsers (domestic stock,
+  index, bond, ELW, derivatives, overseas) are integers — an exchange's aggregate depth and volume
+  are whole units, so the previous `Decimal` (a byproduct of routing every realtime numeric through
+  one `_decimal`) was the lone outlier against the REST `OrderBook` / `Quote` int typing. The new
+  shared `_int` is fail-closed like `_decimal` (empty → 0 for stream continuity; a fractional or
+  non-finite value is never truncated but raises and drops that frame, matching REST `required_int`).
+  This is a value-type change: code comparing these to a `Decimal` still works (`1500 == Decimal(1500)`),
+  but code that asserted the field *is* a `Decimal`, or fed it to a `Decimal`-only API, must adjust.
+  The order/fill quantity fields on the execution-notice entities stay `Decimal` (they match the REST
+  `Order.quantity` / `StockFill` surface, which is `Decimal` to carry US fractional-share orders);
+  prices stay `Decimal` throughout.
 
 ### Added
 
@@ -492,6 +509,24 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
 - Overseas ranking tolerates a blank `tamt`: `OverseasRankedStock.trading_amount` is `Decimal | None`
   (was a `required` read that raised and broke the whole `ranking.by_change`/`by_volume` query when a
   ranked row returned an empty trading amount, observed live against NASDAQ).
+- An order that fails authentication (HTTP 401) no longer stays in-flight. A 401 is rejected at the
+  gateway's auth step before the order engine, so it provably never reached the matching engine; the
+  send/change paths now clear the in-flight claim and re-raise `KISAuthError` unchanged instead of
+  promoting it to `OrderTimeoutError`, so after fixing the token the caller can resubmit the same
+  `client_order_id` directly (no `reconcile` needed, no double-order risk). Rate-limit (429) and the
+  HTTP-500 app-key throttle still stay in-flight — their acceptance is genuinely unknown, so they keep
+  requiring a reconcile.
+- The HTTP transport's `request()` no longer lets a non-`KISError` escape. Transport-layer `requests`
+  exceptions outside `Timeout`/`ConnectionError` (e.g. `TooManyRedirects`, `RetryError`, and the
+  `ChunkedEncodingError`/`ContentDecodingError` that are `RequestException`- not `ConnectionError`-derived)
+  now raise `TransportTimeoutError` (result-unknown, so a write is never silently resent), and
+  request-preparation errors that provably never hit the socket
+  (`InvalidURL`/`MissingSchema`/`InvalidSchema`/`InvalidHeader`/`URLRequired`) raise a plain `KISError`; a non-JSON `200`
+  body already mapped to `KISError`. All of these keep `except KISError` catching every transport failure.
+- Realtime subscribe/unsubscribe no longer leaks a coroutine if the background loop stops between the
+  liveness check and scheduling: `_submit_wire`/`_schedule_wire`/`_call_async` now close the coroutine on
+  the resulting `RuntimeError` (the subscription stays in `_desired` for re-send on reconnect) instead of
+  leaving it un-awaited.
 
 ## 0.4.0 — 2026-10-05
 
