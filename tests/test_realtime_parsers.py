@@ -159,3 +159,70 @@ def test_connection_dispatches_typed_trade_tick():
     assert isinstance(msgs[0].data, StockTick)
     assert msgs[0].data.symbol == "005930"
     assert msgs[0].data.current_price == Decimal(71500)
+
+
+def test_realtime_decimal_is_fail_closed_on_non_finite_and_garbage() -> None:
+    # F30 회귀: 실시간 _decimal 은 _wire 와 같은 fail-closed 정책 -- 빈 값만 0, 비어있지 않은데
+    # 파싱 불가하거나 유한하지 않으면(NaN/Infinity) 조작된 0 을 지어내지 않고 KISError 로 닫는다
+    # (그러면 _connection._decode 가 그 프레임을 드롭한다). 안 그러면 NaN 이 frozen 엔티티로 흘러
+    # price > x 비교가 조용히 깨진다.
+    from kis_trader.errors import KISError
+    from kis_trader.realtime.parsers._numeric import _decimal
+
+    assert _decimal("") == Decimal(0)          # 빈 값은 스트림 연속성 위해 0
+    assert _decimal("71500") == Decimal(71500)
+    assert _decimal("-12.5") == Decimal("-12.5")
+    for bad in ("NaN", "Infinity", "-Infinity", "abc", "1,000"):
+        try:
+            _decimal(bad)
+        except KISError:
+            continue
+        raise AssertionError(f"_decimal({bad!r}) 는 KISError 로 닫혀야 한다")
+
+
+def test_non_finite_field_drops_only_that_frame_end_to_end() -> None:
+    # F30 end-to-end: 비유한 수치 필드를 담은 프레임은 연결 계층(_decode/_handle 의 except)이 드롭하고
+    # (조작된 0/NaN 을 내보내지 않음), 뒤따르는 정상 프레임은 정상 전달된다 -- 스트림은 안 끊긴다.
+    from kis_trader.realtime._connection import RealtimeConnection
+
+    bad_fields = _sample_fields()
+    bad_fields[2] = "NaN"                      # current_price(STCK_PRPR) -> _decimal 에서 KISError
+    bad_payload = "^".join(bad_fields)
+    good_payload = "^".join(_sample_fields())
+
+    class FakeWS:
+        def __init__(self, frames: list[str]) -> None:
+            self._frames = list(frames)
+            self.sent: list[str] = []
+
+        def __aiter__(self) -> FakeWS:
+            return self
+
+        async def __anext__(self) -> str:
+            if not self._frames:
+                raise StopAsyncIteration
+            return self._frames.pop(0)
+
+        async def send(self, m: str) -> None:
+            self.sent.append(m)
+
+        async def pong(self, data: str) -> None:
+            pass
+
+        async def close(self) -> None:
+            pass
+
+    async def scenario() -> list[object]:
+        ws = FakeWS([f"0|H0STCNT0|001|{bad_payload}", f"0|H0STCNT0|001|{good_payload}"])
+
+        async def connect(url: str) -> FakeWS:
+            return ws
+
+        conn = RealtimeConnection("KEY", "ws://x", connect=connect, reconnect=False)
+        async with conn:
+            return [m async for m in conn]
+
+    msgs = asyncio.run(scenario())
+    assert len(msgs) == 1                                   # 불량 프레임은 드롭, 정상만 남음
+    assert isinstance(msgs[0].data, StockTick)
+    assert msgs[0].data.current_price == Decimal(71500)

@@ -14,12 +14,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
 from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
+from ._numeric import _decimal
 
 # H0BJCNT0(일반채권 실시간체결가) 응답 필드 순서(원장 Response Body). 인덱스 = ^ 위치.
 _BOND_TICK_FIELDS = (
@@ -49,14 +50,6 @@ _BOND_INDEX_TICK_FIELDS = (
     "TOTL_ERNN_NMIX_PRDY_CTRT", "CLEN_PRC_NMIX", "MRKT_PRC_NMIX", "BOND_CALL_RNVS_NMIX", "BOND_ZERO_RNVS_NMIX",
     "BOND_FUTS_THPR", "BOND_AVRG_DRTN_VAL", "BOND_AVRG_CNVX_VAL", "BOND_AVRG_YTM_VAL", "BOND_AVRG_FRDL_YTM_VAL",
 )
-
-
-def _decimal(value: str) -> Decimal:
-    """실시간 숫자 필드 -> Decimal. 빈 값/파싱 불가는 0 으로(스트림 중단 방지)."""
-    try:
-        return Decimal(value) if value else Decimal(0)
-    except InvalidOperation:
-        return Decimal(0)
 
 
 @dataclass(frozen=True, slots=True)

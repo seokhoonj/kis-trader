@@ -11,12 +11,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
 from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
+from ._numeric import _decimal
 
 
 @dataclass(frozen=True, slots=True)
@@ -72,14 +73,6 @@ _TRADE_TICK_FIELDS = (
 _TRADE_TICK_FIELDS_NXT = (
     _TRADE_TICK_FIELDS[:21] + ("CNTG_CLS_CODE",) + _TRADE_TICK_FIELDS[22:]
 )
-
-
-def _decimal(value: str) -> Decimal:
-    """실시간 숫자 필드 -> Decimal. 빈 값/파싱 불가는 0 으로(스트림 중단 방지)."""
-    try:
-        return Decimal(value) if value else Decimal(0)
-    except InvalidOperation:
-        return Decimal(0)
 
 
 def parse_trade_tick(

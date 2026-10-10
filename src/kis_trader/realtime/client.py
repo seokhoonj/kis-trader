@@ -18,6 +18,7 @@ import threading
 from collections import defaultdict
 from collections.abc import Callable, Coroutine, Iterator
 from concurrent.futures import CancelledError as FutureCancelledError
+from concurrent.futures import Future as ConcurrentFuture
 from typing import TYPE_CHECKING, Any, Protocol, Self
 
 from ..errors import KISUsageError, RealtimeError
@@ -95,6 +96,10 @@ class RealtimeClient:
             list
         )
         self._desired: set[tuple[str, str]] = set()  # start 전 등록 요청 보관
+        # raw 구독(subscribe)이 쓰는 (tr_id, tr_key) 집합 -- 콜백 유무와 무관하게 추적한다.
+        # 콜백 없는 raw 구독(on=None, stream() 전용)도 wire 계약을 쓰므로, 마지막 타입드 close 가
+        # 이 집합을 보고 wire 를 끊지 말지 판정한다(_callbacks 유무로 판정하면 on=None 구독을 못 본다).
+        self._raw_subscriptions: set[tuple[str, str]] = set()
         # stream() 소비자가 없거나 느려도 무한정 자라지 않게 상한을 둔다(콜백 전용 사용자 메모리 누수 방지).
         # 가득 차면 가장 오래된 틱을 버린다(시장데이터는 최신이 중요) -- 정책은 _dispatch 참고.
         self._queue: queue.Queue[Any] = queue.Queue(maxsize=_QUEUE_MAXSIZE)
@@ -108,15 +113,24 @@ class RealtimeClient:
 
     # -- 구독 (start 전/후 모두 가능) --
     def subscribe(self, tr_id: str, tr_key: str, *, on: MessageCallback | None = None) -> None:
-        """실시간 등록. ``on`` 콜백은 해당 ``(tr_id, tr_key)`` 계약 수신 시 호출된다. ``start()`` 전이면
-        보관해 연결 후 자동 전송한다."""
-        if on is not None:
-            with self._lock:
-                self._callbacks[(tr_id, tr_key)].append(on)
+        """실시간 등록. ``on`` 콜백은 해당 ``(tr_id, tr_key)`` 계약 수신 시 호출된다(생략하면
+        ``stream()`` 으로만 받는다). ``start()`` 전이면 보관해 연결 후 자동 전송한다."""
+        key = (tr_id, tr_key)
+        # refcount 전이(_raw_subscriptions/_desired)와 wire 예약을 **한 락 안에서** 묶는다
+        # (_open_typed/unsubscribe 와 동일). 락 밖에서 예약하면 같은 키의 unsubscribe 와 순서가
+        # 뒤집혀(SUBSCRIBE 가 UNSUBSCRIBE 뒤에 도착) 유령 wire 등록이 41-슬롯 상한을 잠식한다.
+        # _submit_wire 는 비블로킹(run_coroutine_threadsafe)이라 락을 든 채 예약해도 안전하고,
+        # 결과 대기는 락을 놓은 뒤에 해 raw 호출자에게 등록 실패를 그대로 올린다.
         with self._lock:
-            self._desired.add((tr_id, tr_key))
-        if self._running and self._conn is not None and self._loop is not None:
-            self._call_async(self._conn.subscribe(tr_id, tr_key))
+            self._raw_subscriptions.add(key)
+            if on is not None:
+                self._callbacks[key].append(on)
+            self._desired.add(key)
+            future = None
+            if self._running and self._conn is not None:
+                future = self._submit_wire(self._conn.subscribe(tr_id, tr_key))
+        if future is not None:
+            future.result(timeout=5.0)
 
     def _open_typed(
         self, tr_id: str, tr_key: str, *, on: Callable[[Any], None] | None = None
@@ -166,10 +180,11 @@ class RealtimeClient:
             last = bool(subs is not None and not subs)
             if last:
                 del self._subscriptions[key]
-                # 같은 (tr_id, tr_key) 계약에 raw 콜백(subscribe)이 남아 있으면 wire 계약을 그들이
-                # 아직 쓰므로 해제하지 않는다(raw/타입드 공유 refcount) -- _desired 도 유지해 재연결 시
-                # 재등록된다. 둘 다 없을 때만 wire unsubscribe 하고 원하는-집합에서 뺀다.
-                if not self._callbacks.get(key):
+                # 같은 (tr_id, tr_key) 계약에 raw 구독(subscribe, 콜백 유무 무관)이 남아 있으면 wire
+                # 계약을 그들이 아직 쓰므로 해제하지 않는다(raw/타입드 공유 refcount) -- _desired 도
+                # 유지해 재연결 시 재등록된다. raw 소유권은 _raw_subscriptions 로 판정한다(콜백 없는
+                # raw 구독도 포함). raw 가 없을 때만 wire unsubscribe 하고 원하는-집합에서 뺀다.
+                if key not in self._raw_subscriptions:
                     self._desired.discard(key)
                     if self._running and self._conn is not None:
                         self._schedule_wire(self._conn.unsubscribe(sub.tr_id, sub.tr_key))
@@ -178,12 +193,14 @@ class RealtimeClient:
         """실시간 해제. 이 계약의 콜백도 함께 제거한다(재구독 전까지 stale 콜백이 남지 않게).
 
         같은 (tr_id, tr_key) 계약에 타입드 구독이 남아 있으면 wire 계약을 그들이 아직 쓰므로 해제하지
-        않는다(raw/타입드 공유 refcount) -- _desired 도 유지한다. 콜백만 제거한다."""
+        않는다(raw/타입드 공유 refcount) -- _desired 도 유지한다. 콜백과 raw 소유권만 제거한다."""
+        key = (tr_id, tr_key)
         with self._lock:
-            self._callbacks.pop((tr_id, tr_key), None)
-            has_typed_subscriptions = bool(self._subscriptions.get((tr_id, tr_key)))
+            self._callbacks.pop(key, None)
+            self._raw_subscriptions.discard(key)
+            has_typed_subscriptions = bool(self._subscriptions.get(key))
             if not has_typed_subscriptions:
-                self._desired.discard((tr_id, tr_key))
+                self._desired.discard(key)
                 # refcount 판정과 wire 해제를 한 락 안에서 묶는다(_close_typed 와 동일) -- 락을 놓고
                 # 보내면 그 틈에 같은 계약의 _open_typed 가 SUBSCRIBE 를 먼저 예약해 UNSUBSCRIBE 가
                 # 뒤에 도착, 살아 있는 타입드 구독이 조용히 굶을 수 있다. _schedule_wire 는 비블로킹·
@@ -443,6 +460,29 @@ class RealtimeClient:
         future = asyncio.run_coroutine_threadsafe(coro, self._loop)
         future.result(timeout=timeout)
 
+    def _submit_wire(self, coro: Coroutine[Any, Any, Any]) -> ConcurrentFuture[Any] | None:
+        """wire 코루틴을 루프에 예약하고 그 결과를 담을 future 를 반환한다(**비블로킹**).
+
+        :meth:`_call_async` 와 달리 결과를 기다리지 않으므로 ``self._lock`` 을 든 채 호출해도
+        안전하다(예약 순서를 락으로 직렬화해 subscribe/unsubscribe 의 wire 순서 뒤집힘을 막는다).
+        호출자는 **락을 놓은 뒤** ``future.result()`` 로 동기 에러(등록상한 41 등)를 받는다.
+        루프가 없거나 멎었으면 ``None``(재연결 시 ``_desired`` 로 재전송). 콜백이 수신 루프
+        스레드에서 subscribe 를 부르면 자기 루프를 기다려 self-deadlock 이 되므로, 그 경우엔
+        fire-and-forget 으로 예약하고 ``None`` 을 돌려 호출자가 기다리지 않게 한다."""
+        if self._loop is None or not self._loop.is_running():
+            coro.close()
+            return None
+        if threading.current_thread() is self._thread:
+            loop = self._loop
+
+            def _schedule() -> None:
+                task = asyncio.ensure_future(coro)
+                task.add_done_callback(self._on_wire_done)
+
+            loop.call_soon_threadsafe(_schedule)
+            return None
+        return asyncio.run_coroutine_threadsafe(coro, self._loop)
+
     def _schedule_wire(self, coro: Coroutine[Any, Any, Any]) -> None:
         """wire 코루틴(subscribe/unsubscribe)을 루프에 **비블로킹**으로 예약한다.
 
@@ -481,6 +521,7 @@ class RealtimeClient:
             subs = [sub for group in self._subscriptions.values() for sub in group]
             self._subscriptions.clear()
             self._callbacks.clear()   # raw 콜백도 비운다(라우팅 맵과 함께 -- 재시작 시 stale 호출 방지)
+            self._raw_subscriptions.clear()  # raw 소유권도 비운다(_desired 와 함께 -- ghost 재구독 방지)
             self._desired.clear()     # 원하는-계약 집합도 비운다 -- 핸들이 죽은 뒤 재시작이 ghost 재구독하지 않게
                                       # (자동 재연결은 conn 내부라 이 경로를 안 타므로 영향 없음)
         for sub in subs:

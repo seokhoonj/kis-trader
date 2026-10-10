@@ -16,12 +16,13 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
 from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
+from ._numeric import _decimal
 
 # --------------------------------------------------------------------------------------
 # 필드 레이아웃(원장 Response Body 순서). 인덱스 = ^ 위치.
@@ -78,14 +79,6 @@ _EXPECTED_CONCLUSION_FIELDS = (
     "GAMA", "VEGA", "THETA", "RHO", "HTS_INTS_VLTL",
     "HTS_THPR", "VOL_TNRT", "LP_HVOL", "LP_HLDN_RATE",
 )
-
-
-def _decimal(value: str) -> Decimal:
-    """실시간 숫자 필드 -> Decimal. 빈 값/파싱 불가는 0 으로(스트림 중단 방지)."""
-    try:
-        return Decimal(value) if value else Decimal(0)
-    except InvalidOperation:
-        return Decimal(0)
 
 
 def _ladder(raw: Mapping[str, str], prefix: str, levels: int = 10) -> tuple[Decimal, ...]:

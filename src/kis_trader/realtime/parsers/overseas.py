@@ -15,22 +15,15 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
 from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
+from ._numeric import _decimal
 
 _EMPTY_RAW: Mapping[str, Any] = MappingProxyType({})
-
-
-def _decimal(value: str) -> Decimal:
-    """실시간 숫자 필드 -> Decimal. 빈 값/파싱 불가는 0 으로(스트림 중단 방지)."""
-    try:
-        return Decimal(value) if value else Decimal(0)
-    except InvalidOperation:
-        return Decimal(0)
 
 
 def _raw_field() -> Any:

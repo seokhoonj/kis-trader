@@ -407,3 +407,35 @@ def test_raw_unsubscribe_keeps_wire_while_typed_subscription_shares_contract():
     assert not client._callbacks.get(("H0IFCNT0", "101W09"))    # raw 콜백은 제거
     client.stop()
     assert len(_frames_of(ws, "2", "H0IFCNT0")) == 0            # wire 해제는 안 나갔다
+
+
+def test_closing_typed_keeps_wire_while_callback_free_raw_shares_contract():
+    # F33 회귀: subscribe(on=None) 로 연 콜백 없는 raw 구독(stream() 전용)도 공유 refcount 에
+    # 포함돼야 한다 -- raw 소유권을 _callbacks 유무로 판정하면 이 구독을 못 봐, 타입드 close 가
+    # 살아 있는 wire 를 끊었다. _raw_subscriptions 로 판정해야 끊기지 않는다.
+    ws = OpenWebSocket()
+    client = _open_client(ws)
+    client.start()
+    client.subscribe("H0IFCNT0", "101W09")                       # raw, 콜백 없음(on=None)
+    sub = client._open_typed("H0IFCNT0", "101W09")               # typed, 같은 계약
+    assert _wait_until(lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
+    sub.close()                                                  # 타입드만 닫음 -- raw 는 남음
+    assert ("H0IFCNT0", "101W09") in client._desired            # raw 가 여전히 원함(끊기면 안 됨)
+    assert ("H0IFCNT0", "101W09") in client._raw_subscriptions  # 콜백 없어도 raw 소유권 추적
+    assert ("H0IFCNT0", "101W09") not in client._subscriptions  # 타입드는 사라짐
+    client.stop()
+    assert len(_frames_of(ws, "2", "H0IFCNT0")) == 0            # wire 해제는 안 나갔다
+
+
+def test_callback_free_raw_unsubscribe_releases_wire_when_no_typed_remains():
+    # F33 의 반대편: 콜백 없는 raw 구독만 있을 때 unsubscribe 하면 raw 소유권이 사라지므로
+    # _desired 에서 빠지고(다음 start/재연결이 ghost 재구독하지 않는다) wire 해제가 나간다.
+    ws = OpenWebSocket()
+    client = _open_client(ws)
+    client.start()
+    client.subscribe("H0IFCNT0", "101W09")                       # raw, 콜백 없음
+    assert _wait_until(lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
+    client.unsubscribe("H0IFCNT0", "101W09")
+    assert ("H0IFCNT0", "101W09") not in client._raw_subscriptions
+    assert ("H0IFCNT0", "101W09") not in client._desired
+    assert _wait_until(lambda: len(_frames_of(ws, "2", "H0IFCNT0")) == 1)  # wire 해제 나감

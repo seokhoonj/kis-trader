@@ -17,26 +17,19 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
 from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
+from ._numeric import _decimal
 
 
 def _raw_field() -> Any:
     """엔티티마다 새로 부여하는 ``_raw`` dataclass 필드 정의(하나의 ``field()`` 객체를 여러
     dataclass 가 공유하면 데코레이터가 그 객체를 클래스마다 변형해 위험하므로 팩토리로 만든다)."""
     return field(default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False)
-
-
-def _decimal(value: str) -> Decimal:
-    """실시간 숫자 필드 -> Decimal. 빈 값/파싱 불가는 0 으로(스트림 중단 방지)."""
-    try:
-        return Decimal(value) if value else Decimal(0)
-    except InvalidOperation:
-        return Decimal(0)
 
 
 # --------------------------------------------------------------------------- 호가(order book)
