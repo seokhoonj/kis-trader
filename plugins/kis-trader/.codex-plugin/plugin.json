@@ -1,4 +1,5 @@
 {
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "kis-trader",
   "version": "0.5.0",
   "description": "Playbook skill for driving the kis_trader KIS Open API client under its safety-kernel discipline (search-before-trade, ticket confirmation, reconcile-not-resend).",
@@ -8,9 +9,13 @@
   "license": "MIT",
   "keywords": ["kis", "korea-investment", "trading", "stocks", "open-api", "korean-stocks"],
   "skills": "./skills/",
-  "interface": {
-    "displayName": "KIS Trader",
-    "shortDescription": "Drive the kis_trader KIS Open API client under its safety kernel.",
-    "category": "Productivity"
+  "extensions": {
+    "com.openai": {
+      "interface": {
+        "displayName": "KIS Trader",
+        "shortDescription": "Drive the kis_trader KIS Open API client under its safety kernel.",
+        "category": "Productivity"
+      }
+    }
   }
 }

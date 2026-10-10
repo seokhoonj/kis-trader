@@ -7,5 +7,29 @@
   "homepage": "https://github.com/seokhoonj/kis-trader",
   "repository": "https://github.com/seokhoonj/kis-trader",
   "license": "MIT",
-  "keywords": ["kis", "korea-investment", "trading", "stocks", "open-api", "korean-stocks"]
+  "keywords": ["kis", "korea-investment", "trading", "stocks", "open-api", "korean-stocks"],
+  "mcpServers": {
+    "kis-trader": {
+      "command": "uvx",
+      "args": ["--from", "kis-trader[mcp]", "kis-mcp"],
+      "env": {
+        "KIS_MCP_PROFILE": "${user_config.kis_profile}",
+        "KIS_MCP_ENVIRONMENT": "${user_config.kis_environment}"
+      }
+    }
+  },
+  "userConfig": {
+    "kis_profile": {
+      "type": "string",
+      "title": "KIS profile",
+      "description": "Name of a saved kis-trader profile that holds the app key/secret/account. Create one with `kis config`. The MCP server reads credentials from it, so no secrets are stored in the plugin config.",
+      "required": true
+    },
+    "kis_environment": {
+      "type": "string",
+      "title": "Trading environment",
+      "description": "'paper' uses the KIS simulation server; 'real' routes to the live server and still requires the MCP server's own real-order gates (KIS_MCP_ALLOW_REAL / KIS_MCP_REAL_CONFIRM) before any live order is sent.",
+      "default": "paper"
+    }
+  }
 }

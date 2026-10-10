@@ -22,7 +22,7 @@
           "type": "named",
           "name": "--from",
           "value": "kis-trader[mcp]",
-          "description": "Install kis-trader with the optional MCP extra so the kis-mcp console script is available (full launch: uvx --from \"kis-trader[mcp]\" kis-mcp)."
+          "description": "Install kis-trader with the optional MCP extra, then run the package's entry point: a uvx launcher resolves the identifier 'kis-trader' to the MCP server console script (full launch: uvx --from \"kis-trader[mcp]\" kis-trader). When invoking by hand the 'kis-mcp' alias is equivalent."
         }
       ],
       "transport": {

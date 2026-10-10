@@ -461,6 +461,18 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
 
 ### Added
 
+- A `kis-trader` console script (alias of `kis-mcp`, both launching the MCP server) so the MCP
+  registry record works: a uvx launcher runs a command named like the `server.json` identifier
+  (`uvx --from "kis-trader[mcp]" kis-trader`), which now resolves. For hand use, `kis-mcp` is the
+  clearer alias. The main CLI stays `kis`.
+- The Claude Code plugin auto-wires the MCP server. `.claude-plugin/plugin.json` now declares an
+  `mcpServers` entry (`uvx --from "kis-trader[mcp]" kis-mcp`) plus a `userConfig` that prompts for a
+  saved profile name and the trading environment, so installing the plugin offers the MCP server
+  without hand-editing a client config; no secrets are stored in the plugin (credentials stay in the
+  `kis config` store). It also ships PreToolUse hooks: a secret guard that denies a Bash/Write/Edit
+  whose input contains a real KIS app key/secret/approval key or a Bearer token, and an order guard
+  that asks for confirmation on a command that looks like a live (`real`) order (best-effort
+  defense-in-depth; the authoritative real-order gate stays in the library and the MCP server).
 - Stock handles (`DomesticStock`/`OverseasStock`) now have a readable `__repr__`
   (`DomesticStock(symbol='005930', exchange='KRX')`).
 - The closed-choice `Literal` types used in public method signatures are now exported from

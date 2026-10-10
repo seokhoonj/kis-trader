@@ -36,6 +36,11 @@ Changelog = "https://github.com/seokhoonj/kis-trader/blob/main/CHANGELOG.md"
 [project.scripts]
 kis = "kis_trader.cli:main"
 kis-mcp = "kis_trader.mcp.server:main"
+# `kis-trader` 는 MCP 서버의 별칭이다(= kis-mcp). MCP 레지스트리의 server.json identifier 는
+# PyPI 패키지명 `kis-trader` 이고, uvx 기반 런처는 그 이름과 같은 명령을 실행하므로
+# (`uvx --from "kis-trader[mcp]" kis-trader`), 레지스트리 레코드가 실제로 서버를 띄우려면
+# 패키지가 그 이름의 콘솔스크립트를 노출해야 한다. 사람이 직접 쓸 때는 `kis-mcp` 를 권한다.
+kis-trader = "kis_trader.mcp.server:main"
 
 [project.optional-dependencies]
 # MCP 서버(kis_trader 를 안전커널 거쳐 MCP 도구로 노출). 런타임 코어와 분리된 선택 의존성이라
