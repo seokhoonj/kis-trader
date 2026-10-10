@@ -106,6 +106,6 @@ def test_overseas_derivatives_exposes_product_code():
 
 
 def test_product_code_distinguishes_irp_from_general():
-    # 소비자(humbletrader)는 .pension try/except 없이 상품코드로 연금/일반을 분기한다.
+    # 소비자는 .pension try/except 없이 상품코드로 연금/일반을 분기한다.
     assert _c("12345678-29").account.product_code == "29"
     assert _c("12345678-01").account.product_code == "01"
