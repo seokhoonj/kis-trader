@@ -174,6 +174,72 @@ def test_transport_failure_narrows_to_auth_error(tmp_path: Path) -> None:
         tm.access_token()
 
 
+def _exception_chain_text(exc: BaseException) -> str:
+    """예외와 그 __cause__/__context__ 체인 전체의 문자열을 모은다(유출 검사용)."""
+    parts: list[str] = []
+    seen: set[int] = set()
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.add(id(current))
+        parts.append(repr(current))
+        parts.append(str(current))
+        current = current.__cause__ or current.__context__
+    return "\n".join(parts)
+
+
+def test_auth_errors_do_not_leak_credentials(tmp_path: Path) -> None:
+    # 발급/폐기 실패 예외(와 그 cause 체인)에 app_key/app_secret 이 새지 않는다 -- 우리가 올리는
+    # KISAuthError 메시지는 정적이고 본문을 담지 않으며, 기본 poster(requests)는 요청 본문을 예외에
+    # echo 하지 않는다. 전송 오류가 본문을 담지 않는 현실적 경로를 모사해 체인 전체를 검사한다.
+    secret = "s3cr3t-app-secret-value"
+    app_key = "my-app-key-value"
+
+    def transport_boom(url: str, body: Mapping[str, str]) -> tuple[int, Mapping[str, Any]]:
+        raise ConnectionError("connection refused by host")  # requests 처럼 본문 미포함
+
+    # (a) 비-200 발급 실패 -- 우리 코드의 정적 메시지
+    tm = TokenManager(
+        app_key=app_key, app_secret=secret, environment="real",
+        post=FakePoster(status=401), clock=lambda: 1_000.0,
+        cache_dir=str(tmp_path / "a"), refresh_margin=600,
+    )
+    with pytest.raises(KISAuthError) as issued:
+        tm.access_token()
+    chain = _exception_chain_text(issued.value)
+    assert secret not in chain
+    assert app_key not in chain
+
+    # (b) 발급 전송 예외(cause 체인 포함)
+    tm2 = TokenManager(
+        app_key=app_key, app_secret=secret, environment="real",
+        post=transport_boom, clock=lambda: 1_000.0,
+        cache_dir=str(tmp_path / "b"), refresh_margin=600,
+    )
+    with pytest.raises(KISAuthError) as issue_fail:
+        tm2.access_token()
+    assert secret not in _exception_chain_text(issue_fail.value)
+    assert app_key not in _exception_chain_text(issue_fail.value)
+
+    # (c) 폐기 전송 예외 -- 발급은 성공시키고 revoke 전송만 실패시켜 폐기 경로의 체인도 검사
+    def issue_ok_then_revoke_boom(
+        url: str, body: Mapping[str, str]
+    ) -> tuple[int, Mapping[str, Any]]:
+        if url.endswith("/oauth2/revokeP"):
+            raise ConnectionError("connection refused by host")
+        return 200, {"access_token": "tok", "token_type": "Bearer", "expires_in": "3600"}
+
+    tm3 = TokenManager(
+        app_key=app_key, app_secret=secret, environment="real",
+        post=issue_ok_then_revoke_boom, clock=lambda: 1_000.0,
+        cache_dir=str(tmp_path / "c"), refresh_margin=600,
+    )
+    tm3.access_token()                                      # 발급 성공 -> 토큰 보유
+    with pytest.raises(KISAuthError) as revoke_fail:
+        tm3.revoke()
+    assert secret not in _exception_chain_text(revoke_fail.value)
+    assert app_key not in _exception_chain_text(revoke_fail.value)
+
+
 @pytest.mark.parametrize("payload", [["not", "a", "mapping"], "string-body", 42])
 def test_non_mapping_body_raises_auth_error(tmp_path: Path, payload: Any) -> None:
     # 매핑이 아닌 본문은 필드 접근 전에 KISAuthError 로 거부(AttributeError 누출 방지).
