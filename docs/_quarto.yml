@@ -1,6 +1,10 @@
 project:
   type: book
   output-dir: _site
+  # llms.txt is plain text, not a chapter -- copy it verbatim to the site root so it
+  # serves at <site>/llms.txt for LLM clients.
+  resources:
+    - llms.txt
 
 lang: ko
 number-sections: true
