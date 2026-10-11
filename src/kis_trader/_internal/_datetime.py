@@ -30,7 +30,7 @@ def _today_kst() -> str:
 def _parse_kst_date(date_text: str) -> date:
     """"YYYYMMDD" -> date. 날짜만 필요한 곳(투자자 일자 등)에서 쓴다."""
     try:
-        return datetime.strptime(date_text, "%Y%m%d").date()  # noqa: DTZ007 -- date 만 취함
+        return datetime.strptime(date_text, "%Y%m%d").date()  # date 만 취함
     except ValueError as err:
         raise KISError(f"날짜(YYYYMMDD) 파싱 실패: {date_text!r}") from err
 
@@ -61,7 +61,7 @@ def parse_optional_kst_date(value: object, *, required: bool = False) -> date | 
     if len(text) != 8 or not text.isascii() or not text.isdigit():
         raise KISError(f"날짜(YYYYMMDD) 파싱 실패: {value!r}")
     try:
-        return datetime.strptime(text, "%Y%m%d").date()  # noqa: DTZ007 -- date 만 취함
+        return datetime.strptime(text, "%Y%m%d").date()  # date 만 취함
     except ValueError as err:
         raise KISError(f"날짜(YYYYMMDD) 파싱 실패: {value!r}") from err
 
@@ -85,7 +85,7 @@ def _parse_optional_date(value: object) -> date | None:
 def _parse_kst_time(time_text: str) -> time:
     """"HHMMSS" -> time. 전송 시각 등 날짜 없이 시각만 필요한 곳에서 쓴다."""
     try:
-        return datetime.strptime(time_text, "%H%M%S").time()  # noqa: DTZ007 -- 시각만 취함
+        return datetime.strptime(time_text, "%H%M%S").time()  # 시각만 취함
     except ValueError as err:
         raise KISError(f"시각(HHMMSS) 파싱 실패: {time_text!r}") from err
 
@@ -111,7 +111,7 @@ def _parse_hhmmss(value: object) -> time | None:
 def _parse_intraday_timestamp(time_text: str, as_of: datetime) -> datetime:
     """당일 체결 시각("HHMMSS")을 KST-aware datetime 으로(날짜는 조회일 ``as_of``)."""
     try:
-        moment = datetime.strptime(time_text, "%H%M%S").time()  # noqa: DTZ007 -- 아래에서 KST 결합
+        moment = datetime.strptime(time_text, "%H%M%S").time()  # 아래에서 KST 결합
     except ValueError as err:
         raise KISError(f"체결 시각(stck_cntg_hour) 파싱 실패: {time_text!r}") from err
     return datetime.combine(as_of.date(), moment, tzinfo=_KST)
@@ -124,7 +124,7 @@ def _combine_date_time(date_text: str, time_text: str) -> datetime:
     방식은 :func:`_parse_intraday_timestamp` 와 동일(파싱한 date + HHMMSS 를 KST 로 묶음)."""
     day = _parse_kst_date(date_text)
     try:
-        moment = datetime.strptime(time_text, "%H%M%S").time()  # noqa: DTZ007 -- 아래에서 KST 결합
+        moment = datetime.strptime(time_text, "%H%M%S").time()  # 아래에서 KST 결합
     except ValueError as err:
         raise KISError(f"체결 시각(HHMMSS) 파싱 실패: {time_text!r}") from err
     return datetime.combine(day, moment, tzinfo=_KST)
@@ -147,7 +147,7 @@ def _to_yyyymmdd(value: str | date, name: str) -> str:
             f"{name} 는 date 또는 YYYYMMDD/YYYY-MM-DD 문자열이어야 한다: {value!r}"
         )
     try:
-        datetime.strptime(digits, "%Y%m%d")  # noqa: DTZ007 -- 유효성만 검사
+        datetime.strptime(digits, "%Y%m%d")  # 유효성만 검사
     except ValueError as err:
         raise KISUsageError(f"{name} 는 실재하는 날짜여야 한다: {value!r}") from err
     return digits

@@ -51,7 +51,7 @@ def _YYYYMMDD(value: object) -> date | None:
     if len(text) != 8 or not text.isdigit():
         return None
     try:
-        return datetime.strptime(text, "%Y%m%d").date()  # noqa: DTZ007
+        return datetime.strptime(text, "%Y%m%d").date()
     except ValueError:
         return None
 

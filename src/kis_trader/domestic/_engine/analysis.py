@@ -148,7 +148,7 @@ _DEFAULT_TREND_DAYS = 30
 
 def _default_start(end_yyyymmdd: str) -> str:
     """start 미지정 시 기본 시작일 = end 로부터 ``_DEFAULT_TREND_DAYS`` 일 전(YYYYMMDD)."""
-    end_day = datetime.strptime(end_yyyymmdd, "%Y%m%d")  # noqa: DTZ007 -- 날짜 산술만
+    end_day = datetime.strptime(end_yyyymmdd, "%Y%m%d")  # 날짜 산술만
     return f"{end_day - timedelta(days=_DEFAULT_TREND_DAYS):%Y%m%d}"
 
 
@@ -442,7 +442,7 @@ _OPINION_ROW_CAP = 100
 
 def _day_before(yyyymmdd: str) -> str:
     """``YYYYMMDD`` 하루 전(날짜 산술만)."""
-    day = datetime.strptime(yyyymmdd, "%Y%m%d")  # noqa: DTZ007 -- 날짜 산술만
+    day = datetime.strptime(yyyymmdd, "%Y%m%d")  # 날짜 산술만
     return f"{day - timedelta(days=1):%Y%m%d}"
 
 

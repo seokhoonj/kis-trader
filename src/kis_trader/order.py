@@ -508,7 +508,7 @@ def validate_yyyymmdd(value: str, field_name: str) -> None:
     if not (isinstance(value, str) and len(value) == 8 and value.isascii() and value.isdigit()):
         raise KISUsageError(f"{field_name} 는 YYYYMMDD 8자리 숫자여야 한다: {value!r}")
     try:
-        datetime.strptime(value, "%Y%m%d")  # noqa: DTZ007 -- 날짜 유효성만 확인
+        datetime.strptime(value, "%Y%m%d")  # 날짜 유효성만 확인
     except ValueError as err:
         raise KISUsageError(f"{field_name} 는 실재하는 YYYYMMDD 날짜여야 한다: {value!r}") from err
 

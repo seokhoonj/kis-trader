@@ -907,7 +907,7 @@ def fetch_market_funds(
 
 
 def _default_start(end_yyyymmdd: str, days: int = 30) -> str:
-    end_day = datetime.strptime(end_yyyymmdd, "%Y%m%d")  # noqa: DTZ007 -- 날짜 산술만
+    end_day = datetime.strptime(end_yyyymmdd, "%Y%m%d")  # 날짜 산술만
     return f"{end_day - timedelta(days=days):%Y%m%d}"
 
 

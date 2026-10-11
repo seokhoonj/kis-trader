@@ -121,4 +121,4 @@ def test_make_schedule_rejects_past_start():
 def test_make_schedule_rejects_naive_datetime():
     with pytest.raises(KISUsageError, match="naive"):
         make_twap_schedule(symbol="005930", side="buy", quantity=9, duration="30m",
-                           slices=3, now=datetime(2026, 8, 31, 10, 0))  # noqa: DTZ001 -- naive on purpose
+                           slices=3, now=datetime(2026, 8, 31, 10, 0))  # naive on purpose

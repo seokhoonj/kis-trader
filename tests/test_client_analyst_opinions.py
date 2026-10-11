@@ -48,12 +48,12 @@ def _resp(rows):
 
 def _day_before(ymd):
     """``YYYYMMDD`` 하루 전 -- 다음 창의 끝(직전 창 최오래된 날짜의 전날)을 계산할 때 쓴다."""
-    return f"{datetime.strptime(ymd, '%Y%m%d') - timedelta(days=1):%Y%m%d}"  # noqa: DTZ007
+    return f"{datetime.strptime(ymd, '%Y%m%d') - timedelta(days=1):%Y%m%d}"
 
 
 def _rows_desc(count, *, newest_date, broker="유안타"):
     """최신->과거 ``count`` 행(``newest_date`` 부터 하루씩 과거로)."""
-    base = datetime.strptime(newest_date, "%Y%m%d")  # noqa: DTZ007
+    base = datetime.strptime(newest_date, "%Y%m%d")
     return [
         {"stck_bsop_date": f"{base - timedelta(days=i):%Y%m%d}", "invt_opnn": "BUY",
          "rgbf_invt_opnn": "BUY", "mbcr_name": broker, "hts_goal_prc": "90000",

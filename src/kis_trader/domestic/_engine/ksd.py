@@ -88,7 +88,7 @@ def _parse_ksd_date(value: object, *, required: bool, name: str) -> date | None:
             raise KISError(f"필수 날짜 필드 {name!r} 가 비어 있다: {value!r}")
         return None
     try:
-        return datetime.strptime(text, "%Y%m%d").date()  # noqa: DTZ007 -- 달력 날짜, 시각/tz 없음
+        return datetime.strptime(text, "%Y%m%d").date()  # 달력 날짜, 시각/tz 없음
     except ValueError as err:
         raise KISError(f"날짜 필드 {name!r} 파싱 실패: {value!r}") from err
 

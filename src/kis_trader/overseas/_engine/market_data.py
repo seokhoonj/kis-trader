@@ -392,7 +392,7 @@ def _fetch_minute_bars(
             break
         oldest_day, oldest_moment, _ = min(page, key=lambda item: item[0] + item[1])
         try:
-            edge = datetime.strptime(oldest_day + oldest_moment, "%Y%m%d%H%M%S")  # noqa: DTZ007
+            edge = datetime.strptime(oldest_day + oldest_moment, "%Y%m%d%H%M%S")
         except ValueError as err:
             raise KISError(f"해외 분봉 KEYB 시각 파싱 실패: {oldest_day!r} {oldest_moment!r}") from err
         keyb = f"{edge - timedelta(minutes=1):%Y%m%d%H%M%S}"

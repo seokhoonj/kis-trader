@@ -96,7 +96,7 @@ def _period_code_for(interval: str) -> str:
 
 def _parse_bar_timestamp(date_text: str) -> datetime:
     try:
-        day = datetime.strptime(date_text, "%Y%m%d")  # noqa: DTZ007 -- 아래 replace 로 KST-aware
+        day = datetime.strptime(date_text, "%Y%m%d")  # 아래 replace 로 KST-aware
     except ValueError as err:
         raise KISError(f"바 날짜(stck_bsop_date) 파싱 실패: {date_text!r}") from err
     return day.replace(tzinfo=_KST)
@@ -116,7 +116,7 @@ def _is_valid_bar_time(time_text: str) -> bool:
 
 def _parse_minute_bar_timestamp(*, date_text: str, time_text: str) -> datetime:
     try:
-        moment = datetime.strptime(date_text + time_text, "%Y%m%d%H%M%S")  # noqa: DTZ007 -- KST 결합
+        moment = datetime.strptime(date_text + time_text, "%Y%m%d%H%M%S")  # KST 결합
     except ValueError as err:
         raise KISError(f"분봉 시각 파싱 실패: {date_text!r} {time_text!r}") from err
     return moment.replace(tzinfo=_KST)
@@ -125,7 +125,7 @@ def _parse_minute_bar_timestamp(*, date_text: str, time_text: str) -> datetime:
 def _subtract_one_minute(hhmmss: str) -> str:
     """"HHMMSS" 에서 1분 뺀 "HHMMSS"(다음 페이지의 기준시각). 분 경계/시 경계 넘김 처리."""
     try:
-        moment = datetime.strptime(hhmmss, "%H%M%S")  # noqa: DTZ007 -- 날짜 없는 시각 산술용
+        moment = datetime.strptime(hhmmss, "%H%M%S")  # 날짜 없는 시각 산술용
     except ValueError as err:
         raise KISError(f"분봉 기준시각 파싱 실패: {hhmmss!r}") from err
     return f"{moment - timedelta(minutes=1):%H%M%S}"

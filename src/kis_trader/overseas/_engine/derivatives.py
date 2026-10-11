@@ -348,7 +348,7 @@ def _parse_history_bars(
 
 def _parse_history_timestamp(date_text: str, time_text: str) -> datetime:
     try:
-        timestamp = datetime.strptime(  # noqa: DTZ007 -- 아래에서 KST-aware 로 변환
+        timestamp = datetime.strptime(  # 아래에서 KST-aware 로 변환
             date_text + time_text, "%Y%m%d%H%M%S"
         )
     except ValueError as err:

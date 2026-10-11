@@ -741,7 +741,7 @@ def _add_business_days(start: date, business_days: int) -> date:
 
 def _plus_one_day(yyyymmdd: str) -> str:
     """포함 끝일(YYYYMMDD)의 다음날 -- 야간 조회 ``END_ORD_DT`` 는 배타(exclusive)라 포함시키려면 +1일."""
-    parsed = datetime.strptime(yyyymmdd, "%Y%m%d").date()  # noqa: DTZ007 -- 날짜 산술만
+    parsed = datetime.strptime(yyyymmdd, "%Y%m%d").date()  # 날짜 산술만
     return f"{parsed + timedelta(days=1):%Y%m%d}"
 
 
