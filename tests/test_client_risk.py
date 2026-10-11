@@ -156,7 +156,7 @@ def test_modify_within_cap_passes():
 
 
 def test_risk_session_modify_of_market_order_does_not_crash():
-    # #2: risk 세션에서 시장가(또는 최유리=market) 원주문을 가격 정정하면, risk probe 가 원 order_type
+    # risk 세션에서 시장가(또는 최유리=market) 원주문을 가격 정정하면, risk probe 가 원 order_type
     # 을 그대로 베껴 Order(order_type="market", limit_price=<새 가격>) 로 __post_init__ 에서 거부되던
     # 버그. 이제 가격이 있으면 probe 는 "limit" 로 만들어 정정이 통과해야 한다(리스크 미세션은 원래 통과).
     fake = FakeTransport(response=_ACCEPTED_WITH_ORG)

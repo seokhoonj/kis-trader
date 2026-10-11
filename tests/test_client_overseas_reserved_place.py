@@ -14,6 +14,7 @@ import pytest
 from kis_trader import ExecutionReport, KISClient, OrderStatus, OrderStore
 from kis_trader.errors import (
     AccountNotOrderableError,
+    KISAuthError,
     KISError,
     KISUsageError,
     OrderError,
@@ -98,7 +99,7 @@ def test_overseas_reserve_buy_wire():
 
 
 def test_overseas_reserve_non_timeout_transport_error_stays_in_flight():
-    # F1(해외 예약경로): claim 뒤 비-200(KIS 스로틀=HTTP 500)은 접수 여부 불명 -> OrderTimeoutError,
+    # 비-200 처리(해외 예약경로): claim 뒤 비-200(KIS 스로틀=HTTP 500)은 접수 여부 불명 -> OrderTimeoutError,
     # in-flight 유지. _submit_reserved 가 이걸 안 잡으면 접수됐을 수 있는 예약을 호출자가 새 id 로
     # 재전송해 이중 예약이 난다(즉시주문 경로엔 있던 가드가 예약경로엔 빠져 있었다).
     fake = FakeTransport(by_path={_PLACE: KISError("KIS HTTP 요청에 실패했다 (status 500).")})
@@ -108,6 +109,21 @@ def test_overseas_reserve_non_timeout_transport_error_stays_in_flight():
         kis.overseas.stock("AAPL", exchange="NAS").reserve_buy(
             quantity=1, limit_price="150", client_order_id="rsv-1")
     assert store.is_in_flight("rsv-1")                   # in-flight 유지 -> 조용한 재전송 차단
+
+
+def test_overseas_reserve_auth_error_clears_in_flight_and_allows_retry():
+    # 401(인증 단계 거부)은 예약이 엔진에 닿지 못했음이 확실 -> in-flight 해제 + KISAuthError 그대로.
+    # 즉시주문 경로엔 있던 이 가드가 해외 예약경로엔 빠져 있어, 토큰 교정 후 같은 id 재시도가 막혔었다.
+    fake = FakeTransport(by_path={_PLACE: [KISAuthError("KIS HTTP 인증에 실패했다 (status 401)."), _ACCEPTED]})
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    with pytest.raises(KISAuthError):                    # 승격 안 함
+        kis.overseas.stock("AAPL", exchange="NAS").reserve_buy(
+            quantity=1, limit_price="150", client_order_id="rsv-auth")
+    assert not store.is_in_flight("rsv-auth")            # in-flight 해제됨 -> 재시도 가능
+    kis.overseas.stock("AAPL", exchange="NAS").reserve_buy(
+        quantity=1, limit_price="150", client_order_id="rsv-auth")   # 같은 id 재전송 성공
+    assert len([c for c in fake.calls if c["path"] == _PLACE]) == 2
 
 
 def test_overseas_reserve_sell_uses_sell_tr():

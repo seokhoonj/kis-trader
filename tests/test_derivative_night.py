@@ -538,7 +538,7 @@ def test_fetch_night_remaining_computes_ordered_minus_filled():
 
 
 def test_fetch_night_remaining_nonpositive_fails_closed():
-    # #9: 전량 체결(잔량 0)이나 데이터 이상(음수)이면 정정·취소할 실잔량이 없다. 0/음수 ORD_QTY 를
+    # 전량 체결(잔량 0)이나 데이터 이상(음수)이면 정정·취소할 실잔량이 없다. 0/음수 ORD_QTY 를
     # 실전 전용 와이어로 내보내면 서버 의미가 불명하므로 fail-closed(와이어 미접촉).
     fake = FakeTransport()
     fake.queue(_NIGHT_INQUIRY, _ngt_ccnl(

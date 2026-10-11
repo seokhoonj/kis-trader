@@ -20,8 +20,8 @@ _ROOT = pathlib.Path(__file__).resolve().parent.parent
 _PLUGIN = _ROOT / "plugins" / "kis-trader"
 
 
-def _load_json(rel: str) -> dict:
-    return json.loads((_ROOT / rel).read_text(encoding="utf-8"))
+def _load_json(relative_path: str) -> dict:
+    return json.loads((_ROOT / relative_path).read_text(encoding="utf-8"))
 
 
 def _pyproject_version() -> str:
@@ -43,21 +43,23 @@ def test_all_manifests_are_valid_json():
 
 def test_version_is_consistent_across_every_manifest():
     """릴리스 때 올려야 하는 모든 버전 필드가 pyproject 와 일치한다(드리프트 차단)."""
-    want = _pyproject_version()
+    expected_version = _pyproject_version()
     server = _load_json("server.json")
     claude = _load_json("plugins/kis-trader/.claude-plugin/plugin.json")
     codex = _load_json("plugins/kis-trader/.codex-plugin/plugin.json")
     agents = _load_json(".agents/plugins/marketplace.json")
 
-    seen = {
+    version_by_manifest_location = {
         "server.json .version": server["version"],
         "server.json .packages[0].version": server["packages"][0]["version"],
         "claude plugin.json .version": claude["version"],
         "codex plugin.json .version": codex["version"],
         ".agents marketplace .plugins[0].version": agents["plugins"][0]["version"],
     }
-    drift = {where: v for where, v in seen.items() if v != want}
-    assert not drift, f"version drift vs pyproject {want!r}: {drift}"
+    drift = {where: manifest_version
+             for where, manifest_version in version_by_manifest_location.items()
+             if manifest_version != expected_version}
+    assert not drift, f"version drift vs pyproject {expected_version!r}: {drift}"
 
 
 def test_twin_plugin_manifests_agree_on_metadata():
@@ -81,14 +83,14 @@ def test_hooks_reference_existing_guard_scripts():
     for command in referenced:
         # command 형태: python3 "${CLAUDE_PLUGIN_ROOT}/hooks/<name>.py"
         assert "${CLAUDE_PLUGIN_ROOT}" in command
-        tail = command.split("${CLAUDE_PLUGIN_ROOT}/", 1)[1].rstrip('"').strip()
-        assert (_PLUGIN / tail).is_file(), f"hook script missing: {tail}"
+        relative_hook_path = command.split("${CLAUDE_PLUGIN_ROOT}/", 1)[1].rstrip('"').strip()
+        assert (_PLUGIN / relative_hook_path).is_file(), f"hook script missing: {relative_hook_path}"
 
 
 def test_claude_marketplace_source_points_at_the_plugin():
     """.claude-plugin/marketplace.json 의 플러그인 source 경로가 실제 플러그인 디렉터리를 가리킨다."""
-    mk = _load_json(".claude-plugin/marketplace.json")
-    entry = mk["plugins"][0]
+    marketplace_manifest = _load_json(".claude-plugin/marketplace.json")
+    entry = marketplace_manifest["plugins"][0]
     target = (_ROOT / entry["source"]).resolve()
     assert target.is_dir(), f"source path does not resolve: {entry['source']}"
     assert (target / ".claude-plugin" / "plugin.json").is_file()

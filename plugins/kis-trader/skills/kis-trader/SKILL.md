@@ -17,6 +17,10 @@ description: >-
 
 ## 0. 운전 면 — Python API 를 직접 쓴다 (CLI 아님)
 
+**전제: 패키지가 설치돼 있어야 한다.** 플러그인은 이 플레이북만 담을 뿐 코드를 담지 않는다 --
+`pip install kis-trader`(MCP 서버까지 쓰면 `pip install 'kis-trader[mcp]'`)로 먼저 설치한다.
+안 돼 있으면 `import kis_trader` 가 실패하니, 조회·주문 전에 설치를 확인한다.
+
 `import kis_trader` 의 공개 API 를 직접 호출한다. 이유: 결과가 frozen dataclass + `._raw` 라
 그대로 들여다볼 수 있고, 전체 표면이 파이썬에서만 열린다. 실행은 맨 `python` 이 아니라
 프로젝트의 `.venv/bin/python` 또는 `uv run python` 으로 한다.

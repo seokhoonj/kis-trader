@@ -40,7 +40,7 @@ def test_fetch_approval_key_bad_status_fails():
 
 def test_fetch_approval_key_error_does_not_leak_returned_key():
     # 서버가 키를 발급했는데 상태/검증이 어긋나는 비정상 경로에서, 응답(approval_key 포함)이 예외
-    # 문자열로 새면 안 된다 -- auth 오류는 자격증명을 실어 나르지 않는다(OAuth 경로 68d9c0a 와 같은 규율).
+    # 문자열로 새면 안 된다 -- auth 오류는 자격증명을 실어 나르지 않는다(OAuth 토큰 발급 경로와 같은 규율).
     secret_key = "LEAKED-APPROVAL-KEY-DO-NOT-EXPOSE-0123456789"
     with pytest.raises(KISAuthError) as excinfo:
         fetch_approval_key("K", "S", "real", post=lambda u, b: (500, {"approval_key": secret_key}))

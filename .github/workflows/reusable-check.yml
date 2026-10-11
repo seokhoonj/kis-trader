@@ -119,9 +119,19 @@ jobs:
           uv build
           listing=$( (tar tzf dist/*.tar.gz; unzip -Z1 dist/*.whl) )
           echo "$listing"
-          forbidden='(^|/)(\.claude|\.codex|\.gemini)/|(^|/)(CLAUDE|GEMINI|AGENTS?)\.md$|(^|/)(dev|refs)/|humbletrader|open-trading-api|python-kis|kis-agent|kis-ai-ext'
-          if echo "$listing" | grep -EnI "$forbidden"; then
+          # Path/name scan: AI-tooling files, local-only working dirs, reference-clone names.
+          forbidden_path='(^|/)(\.claude|\.codex|\.gemini)/|(^|/)(CLAUDE|GEMINI|AGENTS?)\.md$|(^|/)(dev|refs)/|humbletrader|open-trading-api|python-kis|kis-agent|kis-ai-ext'
+          if echo "$listing" | grep -EnI "$forbidden_path"; then
             echo "leak-scan: forbidden path/name in built artifact (see matches above)"
             exit 1
           fi
-          echo "leak-scan: artifacts carry no tooling, local-only paths, or clone names"
+          # Content scan: a reference-clone name or a credential-shaped literal embedded INSIDE a
+          # shipped file's bytes (a docstring, comment, or test fixture). Separate pattern from the
+          # path scan -- the path anchors (dev/|refs/|.md$) are meaningless against free text and a
+          # bare 'dev' would match /dev/null. Here: third-party names + obvious secret markers.
+          forbidden_content='humbletrader|open-trading-api|python-kis|kis-agent|kis-ai-ext|-----BEGIN [A-Z ]*PRIVATE KEY-----'
+          if tar xzOf dist/*.tar.gz | grep -EnI "$forbidden_content"; then
+            echo "leak-scan: forbidden name/secret in shipped file content (see matches above)"
+            exit 1
+          fi
+          echo "leak-scan: artifacts carry no tooling, local-only paths, clone names, or embedded secrets"

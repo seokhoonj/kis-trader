@@ -354,7 +354,7 @@ def _submit_reserved(
     except KISError as err:
         # 비-200 전송계층 오류(KIS 는 스로틀을 HTTP 500 으로 낸다). claim 뒤에 터졌고 접수 여부가
         # 불명이므로 타임아웃과 동일하게 in-flight 유지 + 재조회 요구 -- 그냥 올리면 호출자가 접수됐을
-        # 수도 있는 예약을 새 id 로 재전송해 이중 예약이 난다(F1 가드, _order_core 와 동일).
+        # 수도 있는 예약을 새 id 로 재전송해 이중 예약이 난다(중복 전송 방지 가드, _order_core 와 동일).
         raise OrderTimeoutError(
             f"해외 예약주문 전송 중 전송계층 오류 -- 접수 여부가 불명이다. 재전송하지 말고 "
             f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
