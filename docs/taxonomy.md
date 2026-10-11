@@ -16,7 +16,8 @@ kis  (KISClient 세션)
 ├── transport                          # 저수준 전송 계층
 ├── environment                        # 실전/모의 환경
 ├── has_risk_limits                    # 사전 리스크 한도 주입 여부
-└── hts_id                             # HTS 로그인 아이디
+├── hts_id                             # HTS 로그인 아이디
+└── close()                            # 세션/주문 저장소 닫기 (with KISClient(...) 로 자동)
 ```
 
 ## `kis.domestic` — 국내 시세·발주·시장·검색

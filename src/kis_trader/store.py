@@ -448,8 +448,10 @@ class OrderStore:
                 cid: decode_fingerprint(fp) for cid, fp in data.get("fingerprints", {}).items()
             }
             reports = {cid: _report_from_dict(d) for cid, d in data.get("reports", {}).items()}
-        except (ValueError, InvalidOperation, TypeError, KeyError, AttributeError) as err:
+        except (ValueError, InvalidOperation, TypeError, KeyError, AttributeError, KISError) as err:
             # 스키마는 맞지만 레코드 값이 손상(잘못된 status/수량/날짜 등) -> 도메인 에러로 fail-closed.
+            # KISError 포함: 손상된 side 는 ExecutionReport.__post_init__ 가 KISError 로 올리는데,
+            # 그걸 안 잡으면 경로 안내 없는 맨 메시지가 새어 형제 손상필드와 다른 처리가 된다.
             raise KISError(
                 f"주문 dedup 저장소 레코드가 손상됐다: {self._path}. 자동 복구하지 않는다"
                 f"(빈 상태 시작은 중복 체결 위험). 파일을 점검한 뒤 재시작하라."

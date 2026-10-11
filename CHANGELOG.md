@@ -539,6 +539,43 @@ and 0.4.0 and 0.5.0 read each other's stores both ways.
   liveness check and scheduling: `_submit_wire`/`_schedule_wire`/`_call_async` now close the coroutine on
   the resulting `RuntimeError` (the subscription stays in `_desired` for re-send on reconnect) instead of
   leaving it un-awaited.
+- Overseas non-US order modify/cancel used the US-only TR `TTTT1004U` for every exchange, so a resting
+  Hong Kong / Japan / Shanghai / Shenzhen / Vietnam order could not be cancelled or modified. The
+  `order-rvsecncl` TR is now selected per exchange (`TTTT1004U` US, `TTTS1003U` HK, `TTTS0309U` JP,
+  `TTTS0302U` SH, `TTTS0306U` SZ, `TTTS0312U` VN, with paper twins), matching the per-exchange placement
+  table. SH/SZ/VN support cancel only, so a modify on those markets is now rejected fail-closed.
+- Paper-mode domestic derivative execution notices subscribed the real-mode TR `H0IFCNI0`; they now use
+  `H0IFCNI9` in paper (the night sessions have no paper feed and are rejected). `RealtimeMessage` routing
+  for the unified market-operation feed `H0UNMKO0` (no symbol field) now uses an empty `tr_key` so its
+  callbacks actually fire.
+- `account.domestic.realized_profit_balance()` raised `KISError` only on some corruption; it now
+  fail-closes when the response carries no account summary (`output2`) instead of returning a result with
+  every summary field zero (which read as "no realized P&L").
+- Pension `present_balance()` sent `INQR_DVSN`, which is not a parameter of the inquire-present-balance
+  endpoint; it now sends the spec's required `USER_DVSN_CD`.
+- Bond parsers no longer crash on fields the vendor legitimately blanks: `BondIssuance` coupon/discount/
+  redemption/YTM rate and interest-payment-months are now `Decimal | None` / `int | None`,
+  `BondValuation.average_yield` is `Decimal | None`, and bond buyable quantity/CMA value tolerate a blank
+  (0) — a coupon bond, a market-basis buyable query, or a non-trading valuation day no longer raises.
+- An HTTP 500 carrying `msg_cd=EGW00201` (KIS app-key throttle) is now raised as `KISRateLimitError`
+  after retries instead of a generic `KISError`. Overseas news timestamp parse failures raise `KISError`
+  with context instead of a bare `ValueError`.
+- User realtime `on=` callbacks run on a dedicated worker thread, so a slow/blocking callback can no
+  longer starve the websocket keepalive (which dropped the socket and silently reconnected, losing
+  ticks). Reconnect/resubscribe is now logged.
+- Credential `save()` / `set_default()` / `set_hts_id()` hold a per-file lock across the read-modify-write,
+  so concurrent writers can no longer drop each other's profile.
+- MCP: `modify_order` now applies the real-order symbol allowlist (resolved from the original order), and
+  the modify/cancel confirmation ticket shows the order's symbol and side. The order store's cross-request
+  change guard is now atomic with the claim (two concurrent modify/cancel on one order can no longer both
+  reach the wire).
+
+### Changed (naming)
+
+- `ranking.by_volume(metric=...)`: the `"trading_volume"` metric is renamed `"average_volume"`, because
+  it selects KIS `FID_BLNG_CLS_CODE` 0 which is the *average* volume ranking (the previous name
+  misdescribed the result). `VolumeMetric` now reads `["average_volume", "cumulative_trading_amount",
+  "volume_growth", "turnover"]`.
 
 ## 0.4.0 — 2026-10-05
 

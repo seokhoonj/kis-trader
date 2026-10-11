@@ -1,8 +1,9 @@
 """뉴스 헤드라인 -- :class:`NewsHeadline`.
 
-국내 시장 뉴스(:meth:`~kis_trader.domestic.market.MarketQueries.news`)가 돌려주는 결과
-타입이다. 해외 속보는 자체 :class:`~kis_trader.overseas.entities.news.OverseasNewsHeadline`
-를 쓴다.
+국내 시장 뉴스(:meth:`~kis_trader.domestic.market.MarketQueries.news`)와 해외 속보
+(``kis.overseas.breaking_news``)가 공유하는 결과 타입이다(속보 와이어 형상이 국내 뉴스와
+동일하다). 해외 종합 뉴스(``kis.overseas.news``)는 자체
+:class:`~kis_trader.overseas.entities.news.OverseasNewsHeadline` 를 쓴다.
 """
 
 from __future__ import annotations
