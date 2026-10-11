@@ -709,5 +709,8 @@ def parse_market_operation_unified(fields: list[str]) -> MarketOperation:
 for _tr_id in ("H0STMKO0", "H0NXMKO0"):
     register(TRSpec(_tr_id, field_count=len(_MARKET_OPERATION_FIELDS), parser=parse_market_operation))
 register(TRSpec(
-    "H0UNMKO0", field_count=len(_MARKET_OPERATION_UNIFIED_FIELDS), parser=parse_market_operation_unified
+    "H0UNMKO0", field_count=len(_MARKET_OPERATION_UNIFIED_FIELDS), parser=parse_market_operation_unified,
+    # 통합 장운영정보는 종목코드가 없는 레코드다(0번은 TRHT_YN). key_field=None 으로 tr_key 를 ""
+    # 로 두어, 종목 없는 구독(tr_key="")의 (tr_id, "") 라우팅과 맞춘다(안 그러면 콜백이 영영 안 불림).
+    key_field=None,
 ))

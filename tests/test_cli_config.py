@@ -244,3 +244,28 @@ def test_version_and_config_help_exit_zero():
     with pytest.raises(SystemExit) as help_exit:
         cli_main.main(["config", "--help"])
     assert help_exit.value.code == 0
+
+
+def test_concurrent_saves_preserve_all_profiles(tmp_path):
+    # 동시에 서로 다른 프로필을 저장해도 하나도 유실되면 안 된다 -- save() 의 read-modify-write 가
+    # 프로세스/스레드 간 락으로 직렬화되는지 검증(락이 없으면 last-writer 가 남의 프로필을 날린다).
+    import threading
+
+    from kis_trader import KISConfig
+
+    cfg_dir = tmp_path / "cfg"
+    barrier = threading.Barrier(8)
+
+    def save(i: int) -> None:
+        barrier.wait()   # 최대 경합 유도
+        KISConfig(profile=f"prof{i}", app_key="appkeyvalue", app_secret="appsecretvalue",
+                  environment="paper", config_dir=cfg_dir).save()
+
+    threads = [threading.Thread(target=save, args=(i,)) for i in range(8)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5.0)
+    data = json.loads((cfg_dir / "credentials.json").read_text())
+    for i in range(8):
+        assert f"prof{i}" in data, f"prof{i} 가 유실됨(동시 저장 레이스)"

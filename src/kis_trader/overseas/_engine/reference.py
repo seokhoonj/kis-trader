@@ -135,9 +135,13 @@ def fetch_corporate_actions(
 
 
 def _news_timestamp(day: object, time: object) -> datetime:
-    return datetime.strptime(f"{str(day).strip()}{str(time).strip()}", "%Y%m%d%H%M%S").replace(
-        tzinfo=_KST
-    )
+    stamp = f"{str(day).strip()}{str(time).strip()}"
+    try:
+        return datetime.strptime(stamp, "%Y%m%d%H%M%S").replace(tzinfo=_KST)
+    except ValueError as err:
+        # 빈/깨진 게시시각이 bare ValueError 로 새면 형제 타임스탬프 파서와 달리 KISError 계약을
+        # 벗어난다 -- 맥락을 실어 도메인 오류로 올린다.
+        raise KISError(f"해외 뉴스 게시시각 파싱 실패: {stamp!r}") from err
 
 
 def fetch_news(

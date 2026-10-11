@@ -91,7 +91,8 @@ _VOLUME_PATH = "/uapi/domestic-stock/v1/quotations/volume-rank"
 _VOLUME_TR = "FHPST01710000"
 _VOLUME_SCR = "20171"
 #: 거래량 계열 순위 기준(KIS FID_BLNG_CLS_CODE). 거래량 0 / 거래증가율 1 / 회전율 2 / 거래대금 3.
-_VOLUME_BLNG = {"trading_volume": "0", "volume_growth": "1", "turnover": "2", "cumulative_trading_amount": "3"}
+#: FID_BLNG_CLS_CODE: "0" 은 KIS 공식상 **평균거래량**(거래량 현재값이 아님)이다.
+_VOLUME_BLNG = {"average_volume": "0", "volume_growth": "1", "turnover": "2", "cumulative_trading_amount": "3"}
 
 _MARKET_CAP_PATH = "/uapi/domestic-stock/v1/ranking/market-cap"
 _MARKET_CAP_TR = "FHPST01740000"
@@ -232,7 +233,7 @@ def fetch_fluctuation(transport: Transport, *, direction: str, market: str) -> l
 
 
 def fetch_volume(transport: Transport, *, metric: str = "cumulative_trading_amount", market: str) -> list[DomesticRankedStock]:
-    """거래량 계열 순위. ``metric``: trading_volume 거래량 / cumulative_trading_amount 거래대금 /
+    """거래량 계열 순위. ``metric``: average_volume 평균거래량 / cumulative_trading_amount 거래대금 /
     volume_growth 거래증가율 / turnover 회전율. 최대 30건(다음조회 없음)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),

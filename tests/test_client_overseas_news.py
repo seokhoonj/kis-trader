@@ -1,6 +1,9 @@
 """해외뉴스 종합과 해외속보 제목 조회."""
 
+import pytest
+
 from kis_trader import KISClient, NewsHeadline, OverseasNewsHeadline
+from kis_trader.errors import KISError
 from kis_trader.transport import RawResponse
 
 
@@ -36,6 +39,16 @@ def test_overseas_news_maps_filters_and_paginates():
     assert client.transport.calls[0]["tr_id"] == "HHPSTH60100C1"
     assert client.transport.calls[0]["params"]["NATION_CD"] == "US"
     assert [call["tr_cont"] for call in client.transport.calls] == ["", "N"]
+
+
+def test_overseas_news_blank_timestamp_raises_kis_error_not_value_error():
+    # 게시시각이 공란/깨진 행은 bare ValueError 가 아니라 KISError(맥락 포함)로 올라야 한다.
+    row = {"info_gb": "01", "news_key": "k", "data_dt": "", "data_tm": "",
+           "class_cd": "10", "class_name": "기업", "source": "R", "nation_cd": "US",
+           "exchange_cd": "NAS", "symb": "AAPL", "symb_name": "Apple", "title": "H"}
+    client = _client(RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"outblock1": [row]}))
+    with pytest.raises(KISError, match="게시시각"):
+        client.overseas.news(country="US", symbol="AAPL", date_="20240510")
 
 
 def test_overseas_breaking_news_reuses_news_item_and_routes():

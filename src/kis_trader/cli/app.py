@@ -151,7 +151,7 @@ def build_parser() -> argparse.ArgumentParser:
     rc.set_defaults(func=market.cmd_ranking_change)
     rv = leaf(ranking_sub, "volume")
     rv.add_argument("--metric", choices=list(get_args(VolumeMetric)), default=None,
-                    help="거래량 기준(생략 시 라이브러리 기본): trading_volume(거래량)/"
+                    help="거래량 기준(생략 시 라이브러리 기본): average_volume(평균거래량)/"
                          "cumulative_trading_amount(거래대금)/volume_growth(거래증가율)/turnover(회전율)")
     rv.set_defaults(func=market.cmd_ranking_volume)
     leaf(ranking_sub, "market-cap").set_defaults(func=market.cmd_ranking_market_cap)

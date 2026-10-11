@@ -39,11 +39,13 @@
 
 from __future__ import annotations
 
+import contextlib
 import hashlib
 import json
 import os
 import re
 import shutil
+from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import TYPE_CHECKING, cast
@@ -111,6 +113,26 @@ def _write_credentials(directory: Path, data: dict[str, object]) -> Path:
         mode=0o600,
     )
     return path
+
+
+@contextlib.contextmanager
+def _credentials_write_lock(directory: Path) -> Iterator[None]:
+    """``credentials.json`` 의 read-modify-write 를 프로세스 간 직렬화한다 -- 두 프로세스가 서로 다른
+    프로필을 동시에 저장하면 각자 전체 파일을 원자적으로 교체해 나중 writer 가 남의 프로필을 조용히
+    날린다. fcntl 없는 플랫폼(Windows)에선 잠금 없이 진행한다(best-effort; 대화형 단일 사용자 경로)."""
+    try:
+        import fcntl
+    except ImportError:  # pragma: no cover - 비-Unix
+        yield
+        return
+    directory.mkdir(parents=True, exist_ok=True)
+    fd = os.open(directory / "credentials.json.lock", os.O_CREAT | os.O_RDWR, 0o600)
+    try:
+        fcntl.flock(fd, fcntl.LOCK_EX)
+        yield
+    finally:
+        fcntl.flock(fd, fcntl.LOCK_UN)
+        os.close(fd)
 
 
 def _validate_profile_name(profile: str) -> None:
@@ -423,9 +445,10 @@ class KISConfig:
         if self.account is not None:
             entry["account"] = self.account
         directory = _config_dir_path(self.config_dir)
-        data = _read_existing(directory / "credentials.json")
-        data[self.profile] = entry
-        return _write_credentials(directory, data)
+        with _credentials_write_lock(directory):   # 동시 writer 가 남의 프로필을 날리지 않게 RMW 직렬화
+            data = _read_existing(directory / "credentials.json")
+            data[self.profile] = entry
+            return _write_credentials(directory, data)
 
     @staticmethod
     def set_default(profile: str, *, config_dir: str | Path | None = None) -> Path:
@@ -438,14 +461,15 @@ class KISConfig:
         다른 프로필은 보존하며, 파일은 소유자만 읽게 ``0600`` 으로 원자적으로 쓴다."""
         _validate_profile_name(profile)
         directory = _config_dir_path(config_dir)
-        data = _read_existing(directory / "credentials.json")
-        if not isinstance(data.get(profile), dict):
-            raise KISUsageError(
-                f"기본으로 지정할 프로필 {profile!r} 가 credentials.json 에 없다 -- "
-                "먼저 KISConfig(...).save() 로 저장하라."
-            )
-        data[_DEFAULT_MARKER_KEY] = profile
-        return _write_credentials(directory, data)
+        with _credentials_write_lock(directory):
+            data = _read_existing(directory / "credentials.json")
+            if not isinstance(data.get(profile), dict):
+                raise KISUsageError(
+                    f"기본으로 지정할 프로필 {profile!r} 가 credentials.json 에 없다 -- "
+                    "먼저 KISConfig(...).save() 로 저장하라."
+                )
+            data[_DEFAULT_MARKER_KEY] = profile
+            return _write_credentials(directory, data)
 
     @staticmethod
     def set_hts_id(hts_id: str, *, config_dir: str | Path | None = None) -> Path:
@@ -461,9 +485,10 @@ class KISConfig:
         if not resolved:
             raise KISUsageError("hts_id 는 비어 있을 수 없다.")
         directory = _config_dir_path(config_dir)
-        data = _read_existing(directory / "credentials.json")
-        data[_HTS_ID_KEY] = resolved
-        return _write_credentials(directory, data)
+        with _credentials_write_lock(directory):
+            data = _read_existing(directory / "credentials.json")
+            data[_HTS_ID_KEY] = resolved
+            return _write_credentials(directory, data)
 
 
 def _read_existing(path: Path) -> dict[str, object]:

@@ -488,3 +488,15 @@ def test_registry_market_operation_variants():
     assert unified is not None
     assert unified.field_count == 10
     assert unified.parser is parse_market_operation_unified
+    # 통합 피드엔 종목코드가 없다(0번=TRHT_YN) -- key_field=None 이라 tr_key 가 ""로 라우팅돼
+    # 종목 없는 구독(tr_key="")의 콜백/타입드 전달이 맞는다(0번을 키로 쓰면 영영 안 맞음).
+    assert unified.key_field is None
+
+
+def test_record_key_for_unified_market_operation_is_empty_not_trht_yn():
+    from kis_trader.realtime._connection import _record_key
+    record = _at(_MARKET_OPERATION_UNIFIED_FIELDS, {"TRHT_YN": "N", "MKOP_CLS_CODE": "11"})
+    # key_field=None -> tr_key "" (종목 없는 구독과 맞음). 0번을 키로 쓰면 TRHT_YN="N" 이 키가 돼
+    # (tr_id,"N") 로 라우팅돼 어떤 구독과도 안 맞는다(콜백 미발화).
+    assert _record_key(record, None) == ""
+    assert _record_key(record, 0) == "N"

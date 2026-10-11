@@ -107,7 +107,7 @@ def test_by_volume_uses_volume_endpoint():
 
 
 @pytest.mark.parametrize("metric, blng", [
-    ("trading_volume", "0"), ("volume_growth", "1"), ("turnover", "2"), ("cumulative_trading_amount", "3"),
+    ("average_volume", "0"), ("volume_growth", "1"), ("turnover", "2"), ("cumulative_trading_amount", "3"),
 ])
 def test_by_volume_metric_maps_to_blng_code(metric, blng):
     fake = FakeTransport(response=_resp([_row()]))

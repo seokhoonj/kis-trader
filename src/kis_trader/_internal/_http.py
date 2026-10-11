@@ -223,6 +223,10 @@ class RequestsTransport:
             raise KISAuthError("KIS HTTP 인증에 실패했다 (status 401).", **envelope)
         if status == 429:
             raise KISRateLimitError("KIS HTTP 요청 한도를 초과했다 (status 429).", **envelope)
+        if envelope.get("msg_cd") == "EGW00201":
+            # KIS 는 앱키 유량 초과를 HTTP 500 + msg_cd=EGW00201 로 알린다(공식 429 가 아니라). 재시도가
+            # 소진된 뒤엔 일반 KISError 가 아니라 KISRateLimitError 로 분류해 호출자가 한도초과를 구분하게.
+            raise KISRateLimitError("KIS HTTP 요청 한도를 초과했다 (EGW00201).", **envelope)
         if status != 200:
             raise KISError(f"KIS HTTP 요청에 실패했다 (status {status}).", **envelope)
         if not isinstance(payload, Mapping):

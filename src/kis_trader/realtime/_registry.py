@@ -22,12 +22,18 @@ class TRSpec:
     ``field_count`` 는 멀티레코드 분해에 필요한 레코드당 필드 수. ``encrypted`` 는 통보류
     (체결통보/주문통보)처럼 프레임이 암호화되는지 -- 다만 실제 암/평문은 프레임 flag 로도
     판별되므로 이 값은 참고/검증용이다.
+
+    ``key_field`` 는 레코드에서 구독 키(tr_key)를 뽑을 필드 인덱스다. 대부분의 TR 은 0번이
+    종목코드지만, 종목코드가 없는 피드(통합 장운영 H0UNMKO0 등)는 ``None`` 으로 두어 tr_key 를
+    ""(빈 문자열)로 쓴다 -- 그래야 종목 없는 구독(tr_key="")의 라우팅/콜백이 맞는다. ``None`` 이
+    아닌데 0번이 비종목 필드면 (tr_id, tr_key) 라우팅이 구독과 영영 안 맞아 콜백이 안 불린다.
     """
 
     tr_id: str
     field_count: int
     parser: RecordParser
     encrypted: bool = False
+    key_field: int | None = 0
 
 
 _REGISTRY: dict[str, TRSpec] = {}

@@ -382,6 +382,19 @@ def test_get_500_throttle_exhausts_then_raises(tmp_path: Any) -> None:
     assert calls == 3
 
 
+def test_500_with_egw00201_raises_rate_limit_not_generic(tmp_path: Any) -> None:
+    # 한도초과 500 은 msg_cd=EGW00201 을 실어 온다 -- 소진 후 일반 KISError 가 아니라
+    # KISRateLimitError 로 분류돼야 호출자가 한도초과를 구분한다.
+    def send(method: str, url: str, **kwargs: Any) -> tuple[int, Mapping[str, str], Mapping[str, Any]]:
+        return 500, {}, {"rt_cd": "1", "msg_cd": "EGW00201", "msg1": "초당 거래건수 초과"}
+
+    with pytest.raises(KISRateLimitError) as excinfo:
+        _transport(tmp_path, send, max_attempts=2).request(
+            method="GET", path="/bars", tr_id="TR", idempotent=True
+        )
+    assert excinfo.value.msg_cd == "EGW00201"
+
+
 def test_write_500_is_not_retried(tmp_path: Any) -> None:
     # 쓰기(주문)는 500 이어도 재시도 금지(이중체결 방지) -- 1회만 시도하고 바로 오류.
     calls = 0

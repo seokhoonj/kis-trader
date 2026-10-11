@@ -62,6 +62,14 @@ class RealtimeMessage:
     data: object
 
 
+def _record_key(record: list[str], key_field: int | None) -> str:
+    """레코드에서 구독 키(tr_key)를 뽑는다. ``key_field`` 가 None(종목코드 없는 피드)이거나 레코드가
+    그 인덱스보다 짧으면 ""(빈 문자열) -- 종목 없는 구독(tr_key="")과 라우팅이 맞게."""
+    if key_field is None or len(record) <= key_field:
+        return ""
+    return record[key_field]
+
+
 async def _default_connector(url: str) -> WebSocketLike:
     try:
         import websockets
@@ -248,7 +256,7 @@ class RealtimeConnection:
             fields = working.payload.split("^")
             return [RealtimeMessage(working.tr_id, fields[0] if fields else "", fields)]
         return [
-            RealtimeMessage(working.tr_id, record[0] if record else "", spec.parser(record))
+            RealtimeMessage(working.tr_id, _record_key(record, spec.key_field), spec.parser(record))
             for record in working.records(spec.field_count)
         ]
 
