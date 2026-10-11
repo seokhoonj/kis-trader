@@ -339,6 +339,56 @@ def test_put_sentinel_does_not_block_when_queue_full():
     assert drained[-1] is _STREAM_SENTINEL             # 가득 차 있어도 sentinel 이 들어갔다
 
 
+def test_dispatch_queue_drops_oldest_when_full():
+    # 디스패치 큐도 stream 큐와 같은 drop-oldest -- 느린/블로킹 콜백이 메모리를 무한정 키우지 않게.
+    client = RealtimeClient("KEY", "ws://x")
+    client._dispatch_queue = queue.Queue(maxsize=2)
+    items = [(RealtimeMessage(tr_id="T", tr_key="1", data=[str(i)]), (), ()) for i in range(3)]
+    for item in items:
+        client._submit_to_dispatch(item)
+    drained = []
+    while not client._dispatch_queue.empty():
+        drained.append(client._dispatch_queue.get_nowait())
+    assert drained == items[1:]                        # 가장 오래된 first 는 드롭
+    assert client._dispatch_overflow_warned is True
+
+
+def test_put_dispatch_sentinel_does_not_block_when_queue_full():
+    # 블로킹 콜백이 디스패치 큐를 상한에 채운 채 워커가 갇혀 있으면, 종료 센티넬의 블로킹 put 은
+    # 수신(루프) 스레드를 teardown 중 영원히 멎게 한다(P0 교착). _put_dispatch_sentinel 은 오래된
+    # 것을 버리며 non-blocking 으로 넣는다(stream 큐의 _put_sentinel 과 쌍).
+    from kis_trader.realtime.client import _DISPATCH_SENTINEL
+
+    client = RealtimeClient("KEY", "ws://x")
+    client._dispatch_queue = queue.Queue(maxsize=3)
+    for i in range(3):                                 # 큐를 상한까지 채운다
+        client._dispatch_queue.put_nowait(
+            (RealtimeMessage(tr_id="T", tr_key="K", data=[str(i)]), (), ()))
+    # 상한 있는 스레드로 호출 -- 블로킹 put 으로 퇴행하면 hang 대신 실패로 드러난다.
+    worker = threading.Thread(target=client._put_dispatch_sentinel)
+    worker.start()
+    worker.join(timeout=5.0)
+    assert not worker.is_alive(), "_put_dispatch_sentinel 이 블록했다(non-blocking 퇴행)"
+    drained = []
+    while not client._dispatch_queue.empty():
+        drained.append(client._dispatch_queue.get_nowait())
+    assert drained[-1] is _DISPATCH_SENTINEL            # 가득 차 있어도 센티넬이 들어갔다
+
+
+def test_dispatch_worker_terminates_on_stop():
+    # stop() 후 디스패치 워커 스레드가 센티넬에서 종료돼야 한다(유계 큐에서도 센티넬이 들어가므로
+    # 수신 스레드가 teardown 에서 wedge 되지 않고 워커도 멎는다 -- 프로세스 내 재시작 가드가 안 막힌다).
+    ws = FakeWebSocket(incoming=["0|DUMMYTR0|001|005930^093100^71800"])
+    client = _client(ws)
+    client.subscribe("DUMMYTR0", "005930")
+    client.start()
+    list(client.stream(timeout=2.0))
+    client.stop()
+    assert client._dispatch_thread is not None
+    client._dispatch_thread.join(timeout=5.0)
+    assert not client._dispatch_thread.is_alive()      # 워커가 센티넬에서 종료됐다
+
+
 def test_restart_drains_stale_queue():
     # 재시작 시 이전 run 의 잔여 틱/센티넬이 새 stream() 에 낡은 데이터·즉시종료로 새면 안 된다.
     from kis_trader.realtime.client import _STREAM_SENTINEL

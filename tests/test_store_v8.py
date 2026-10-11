@@ -96,6 +96,34 @@ def test_try_claim_change_allows_change_on_a_different_original(tmp_path):
                                                  original_client_order_id="orig-2"), Claimed)
 
 
+def test_try_claim_change_is_atomic_under_concurrency(tmp_path):
+    # TOCTOU 불변식(머니패스): 여러 스레드가 동시에 서로 다른 request_id 로 같은 원주문의 변경을
+    # claim 하면 정확히 하나만 Claimed, 나머지는 PriorChangeInFlight. 선행-변경 스캔과 claim 이 한
+    # 락 안에 있지 않으면(구 split-lock 회귀) 둘 이상이 스캔을 통과해 둘 다 전송돼 이 테스트가 깨진다.
+    # 순차 호출 테스트로는 이 경합을 못 잡으므로(구 구현도 통과) barrier 로 진짜 동시성을 만든다.
+    with OrderStore(tmp_path / "s.json", now=_clock) as store:
+        barrier = threading.Barrier(16)
+        results: list[object] = []
+        results_lock = threading.Lock()
+
+        def worker(n: int) -> None:
+            barrier.wait()
+            outcome = store.try_claim_change(f"req-{n}", _change_fp(original="orig-1"),
+                                             original_client_order_id="orig-1")
+            with results_lock:
+                results.append(outcome)
+
+        threads = [threading.Thread(target=worker, args=(n,)) for n in range(16)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=5.0)
+        claimed = [r for r in results if isinstance(r, Claimed)]
+        rejected = [r for r in results if isinstance(r, PriorChangeInFlight)]
+        assert len(claimed) == 1               # 정확히 하나의 변경만 전송 권한을 얻는다
+        assert len(rejected) == 15             # 나머지는 거부(같은 ODNO 경합 차단)
+
+
 def test_try_claim_is_atomic_under_concurrency(tmp_path):
     # 핵심 이중체결 방지 불변식: 여러 스레드가 동시에 같은 id 를 claim 하면 정확히 하나만 Claimed,
     # 나머지는 InFlight. 락 밖으로 check/claim 이 새면(회귀) 둘 이상 Claimed 가 되어 이 테스트가 깨진다.

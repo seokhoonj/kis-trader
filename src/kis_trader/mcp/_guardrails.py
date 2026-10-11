@@ -131,7 +131,7 @@ class ModifyOrderPlan:
     limit_price: str
     quantity: int | None
     symbol: str | None = None
-    side: str | None = None
+    side: Literal["buy", "sell"] | None = None
 
 
 def make_stock_order_plan(

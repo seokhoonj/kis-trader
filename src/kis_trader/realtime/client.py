@@ -401,7 +401,7 @@ class RealtimeClient:
             self._startup_error = exc
             await self._conn.close()  # 소켓 누수 방지
             self._put_sentinel()
-            self._dispatch_queue.put(_DISPATCH_SENTINEL)  # 콜백 워커 종료(단일 생산자 = 이 스레드)
+            self._put_dispatch_sentinel()  # 콜백 워커 종료(비블로킹; 단일 생산자 = 이 스레드)
             # 기동 실패 경로에서도 타입드 구독의 per-sub 큐에 종료 센티넬을 넣는다 -- 안 그러면
             # start() 전에 만든 구독의 `for tick in sub:` 가 영원히 멎는다.
             self._shutdown_subscriptions()
@@ -417,7 +417,7 @@ class RealtimeClient:
         finally:
             await self._conn.close()
             self._put_sentinel()
-            self._dispatch_queue.put(_DISPATCH_SENTINEL)  # 콜백 워커 종료(단일 생산자 = 이 스레드)
+            self._put_dispatch_sentinel()  # 콜백 워커 종료(비블로킹; 단일 생산자 = 이 스레드)
             self._shutdown_subscriptions()
 
     def _dispatch(self, message: RealtimeMessage) -> None:
@@ -471,7 +471,27 @@ class RealtimeClient:
                 except Exception:
                     _logger.warning("realtime callback for %s raised", message.tr_id, exc_info=True)
             for sub in subs:
-                sub._feed(message)
+                # 콜백 루프와 대칭으로 격리한다 -- 한 구독의 _feed 가 raise 해도 워커 스레드가
+                # 죽어 모든 콜백/구독 전달이 조용히 영구 중단되지 않게(수신루프/stream 은 계속 산다).
+                try:
+                    sub._feed(message)
+                except Exception:
+                    _logger.warning("realtime subscription feed for %s raised", message.tr_id, exc_info=True)
+
+    def _put_dispatch_sentinel(self) -> None:
+        """디스패치 워커 종료 센티넬을 넣는다 -- :meth:`_put_sentinel` 과 동형으로 절대 블록하지
+        않는다. 블로킹 ``put`` 은 블로킹 콜백이 디스패치 큐를 상한에 채운 채 워커가 갇혀 있을 때
+        수신(루프) 스레드를 teardown 중 영원히 멎게 한다. 상한이면 가장 오래된 것부터 버리며 넣는다
+        (단일 생산자 = 이 스레드라 센티넬 뒤에 적재되는 항목이 없어 front-drop 이 센티넬을 못 민다)."""
+        for _ in range(_QUEUE_MAXSIZE + 1):
+            try:
+                self._dispatch_queue.put_nowait(_DISPATCH_SENTINEL)
+                return
+            except queue.Full:
+                try:
+                    self._dispatch_queue.get_nowait()  # 가장 오래된 것 드롭 후 재시도
+                except queue.Empty:
+                    pass
 
     def _drain_dispatch_queue(self) -> None:
         """디스패치 큐를 비운다(재시작 시 이전 run 의 잔여 틱/센티넬 제거)."""

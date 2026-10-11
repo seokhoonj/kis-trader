@@ -143,7 +143,7 @@ def _order_ticket(kis: KISClient, **fields: Any) -> dict[str, Any]:
     return {"environment": kis.environment, "account": handlers._account_masked(kis), **fields}
 
 
-def _order_identity(kis: KISClient, client_order_id: str) -> tuple[str, str] | None:
+def _order_identity(kis: KISClient, client_order_id: str) -> tuple[str, Side] | None:
     """저장소의 원주문 지문에서 (symbol, side) 를 찾는다(없거나 변경지문이면 None). 정정/취소 사람
     확인 티켓이 '어느 종목·매수/매도'인지 보이게 하고, 정정의 allowlist 확인에 쓴다."""
     fingerprint = kis._store.fingerprint_for(client_order_id)

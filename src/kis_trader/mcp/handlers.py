@@ -212,7 +212,7 @@ def plan_cancel_order(gate: RealOrderGate, *, client_order_id: str) -> str:
 def plan_modify_order(
     gate: RealOrderGate, has_risk: bool, allowlist: frozenset[str] | None = None, *,
     client_order_id: str, limit_price: str, quantity: int | None = None,
-    symbol: str | None = None, side: str | None = None,
+    symbol: str | None = None, side: Side | None = None,
 ) -> ModifyOrderPlan:
     """정정 계획 -- 새 가격을 거는 변경이라 신규 주문처럼 (실전) RiskLimits 를 요구한다(fail-closed).
     원주문 종목(``symbol``)이 저장소에서 해석되면 신규 주문과 같이 실전 allowlist 도 확인한다 -- 정정은
