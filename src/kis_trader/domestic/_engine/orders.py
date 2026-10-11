@@ -100,7 +100,7 @@ _DOMESTIC_EXCHANGE_CODE = {"KRX": "KRX", "NXT": "NXT", "SOR": "SOR"}
 
 def reconcile(
     transport: Transport, store: OrderStore, client_order_id: str, *,
-    cano: str, product_code: str, environment: Environment,
+    cano: str, product_code: str, environment: Environment, force_refresh: bool = False,
 ) -> ExecutionReport | None:
     """미확인 주문의 실제 상태를 브로커에 재조회한다 -- **보수적**(모듈 docstring 참고).
 
@@ -108,9 +108,12 @@ def reconcile(
     정확히 1건이면 확정, 0건이면 미접수로 단정하지 않고 ``None``(재전송 금지 유지), 2건 이상이면
     :class:`KISError`(수동 확인). 스캔 실패(에러/타임아웃)는 in-flight 유지한 채 예외. 모르는 id면
     :class:`KISUsageError`. **자동 해제는 절대 하지 않는다.**
+
+    ``force_refresh`` 면 저장된 완료 리포트가 있어도 단락하지 않고 브로커를 다시 스캔한다 --
+    정정·취소(ChangeAction) 재조회가 원주문의 **현재** 상태(캐시가 아니라)를 확인하려고 쓴다.
     """
     prior = store.report_for(client_order_id)
-    if prior is not None:
+    if prior is not None and not force_refresh:
         return prior
     fingerprint = store.fingerprint_for(client_order_id)
     if fingerprint is None:  # 완료도 in-flight 도 아님 -> 모르는 id

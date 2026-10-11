@@ -377,23 +377,43 @@ def test_cancel_survives_store_restart_via_persisted_org_number(tmp_path):
     assert call["body"]["ORGN_ODNO"] == "0000117057"
 
 
-def test_reconcile_of_change_resolves_via_original_and_clears_the_stuck_change():
-    """변경(정정/취소)이 타임아웃·스로틀로 in-flight 로 박히면, 그 request_id 의 reconcile 은 원주문을
-    재조회해 확정하고 막혀 있던 변경 in-flight 를 해제한다 -- 변경이 박히면 pending 게이트가 새 변경을
-    전부 막고 reconcile 도 거부하던 과거엔 접수된 주문이 라이브러리로 영영 정정·취소 불가(데드락)였다."""
+def test_reconcile_of_change_queries_broker_fresh_then_clears_the_stuck_change():
+    """변경(정정/취소)이 타임아웃·스로틀로 in-flight 로 박히면, 그 request_id 의 reconcile 은 원주문의
+    **현재** 상태를 브로커에서 다시 조회해(저장된 낡은 리포트를 단락 반환하지 않는다) 1건으로 확정되면
+    막혀 있던 변경 in-flight 를 해제한다 -- 변경이 박히면 pending 게이트가 새 변경을 전부 막고 reconcile
+    도 거부하던 과거엔 접수된 주문이 영영 정정·취소 불가(데드락)였다. **일별체결조회 fixture 가 없으면
+    실패해야 한다**(그게 바로 캐시 단락이 아니라 와이어를 탔다는 증거다)."""
     fake = FakeTransport(by_path={_ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
-                                  _ORDER_CHANGE: TransportTimeoutError()})
+                                  _ORDER_CHANGE: TransportTimeoutError(),
+                                  _DAILY_CCLD: [_daily_orders_response([_daily_order_row()])]})
     store = OrderStore()
     kis = _client(fake, store=store)
     placed = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-1")
     with pytest.raises(OrderTimeoutError):
         kis.orders.modify("orig-1", limit_price=71000, request_id="modify-1")
     assert store.is_in_flight("modify-1")
-    # 변경 id 의 reconcile 은 원주문으로 확정하고 막혔던 변경 in-flight 를 해제한다(데드락 해소).
     result = kis.orders.reconcile("modify-1")
+    assert any(c["path"] == _DAILY_CCLD for c in fake.calls)  # 캐시 단락이 아니라 브로커를 실제 조회함
     assert result is not None and result.order_id == placed.order_id
     assert not store.is_in_flight("modify-1")           # 막혔던 변경 해제됨
     assert store.in_flight_change_for("orig-1") is None  # pending 게이트 열림 -> 새 변경 가능
+
+
+def test_reconcile_of_change_keeps_in_flight_when_broker_is_ambiguous():
+    """변경 reconcile 이 원주문을 fresh 조회했는데 0건(모호: 예컨대 정정으로 수량·단가가 바뀌어 원
+    지문과 더 안 맞음)이면, 확인 안 된 것을 확인된 척하지 않는다 -- 변경 in-flight 를 **해제하지 않고**
+    ``None`` 을 돌려준다(캐시를 진실로 위장하면 생기던 오확정을 막는다)."""
+    fake = FakeTransport(by_path={_ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
+                                  _ORDER_CHANGE: TransportTimeoutError(),
+                                  _DAILY_CCLD: [_daily_orders_response([])]})  # 0건
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-1")
+    with pytest.raises(OrderTimeoutError):
+        kis.orders.modify("orig-1", limit_price=71000, request_id="modify-1")
+    assert kis.orders.reconcile("modify-1") is None     # 모호 -> 확정 안 함
+    assert store.is_in_flight("modify-1")               # 해제하지 않음(미확인 보존)
+    assert store.in_flight_change_for("orig-1") == "modify-1"
 
 
 def test_domestic_change_timeout_stays_in_flight_and_is_not_resent():

@@ -306,15 +306,19 @@ _LOOKBACK_DAYS = 1
 def reconcile(
     transport: Transport, store: OrderStore, client_order_id: str, *,
     cano: str, product_code: str, environment: Environment, now: datetime | None = None,
+    force_refresh: bool = False,
 ) -> ExecutionReport | None:
     """미확인 해외 주문의 실제 상태를 체결내역에서 재조회한다 -- **보수적**(도메스틱과 동형).
 
     완료 리포트가 있으면 반환. in-flight 면 체결내역을 지문으로 스캔해 정확히 1건이면 확정, 0건이면
     ``None``(재전송 금지 유지), 2건 이상이면 :class:`KISError`. **자동 해제는 절대 하지 않는다.**
     ODNO 로는 검색이 안 돼(KIS 명세) 지문(종목/매매/수량/단가)으로 맞춘다. ``now`` 는 조회 날짜창의
-    기준시각(주입하면 결정적; 생략 시 현재 KST)."""
+    기준시각(주입하면 결정적; 생략 시 현재 KST).
+
+    ``force_refresh`` 면 저장된 완료 리포트가 있어도 단락하지 않고 다시 스캔한다(ChangeAction
+    재조회가 원주문의 현재 상태를 캐시가 아니라 브로커에서 확인하려고 쓴다)."""
     prior = store.report_for(client_order_id)
-    if prior is not None:
+    if prior is not None and not force_refresh:
         return prior
     fingerprint = store.fingerprint_for(client_order_id)
     if fingerprint is None:

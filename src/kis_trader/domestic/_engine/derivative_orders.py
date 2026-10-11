@@ -298,6 +298,7 @@ _NIGHT_LEGACY_LOOKBACK_DAYS = 7
 def reconcile(
     transport: Transport, store: OrderStore, client_order_id: str, *,
     cano: str, product_code: str, environment: Environment, now: datetime | None = None,
+    force_refresh: bool = False,
 ) -> ExecutionReport | None:
     """미확인 국내 파생(XKFE) 주간 주문의 실제 상태를 일별체결내역에서 재조회한다 -- **보수적**.
 
@@ -314,7 +315,7 @@ def reconcile(
     야간(STTN) 주문은 주간 체결내역에 담기지 않아 여기서 확정하면 오확정이다 -- 야간 전용 조회
     (union 스캔)는 별도 경로라, 야간 지문이면 fail-closed 로 올려 수동 확인을 유도한다."""
     prior = store.report_for(client_order_id)
-    if prior is not None:
+    if prior is not None and not force_refresh:
         return prior
     fingerprint = store.fingerprint_for(client_order_id)
     if fingerprint is None:
@@ -579,15 +580,15 @@ def fetch_night_remaining(
             f"야간 잔량 조회 행에 주문수량/총체결수량이 없어 실잔량(주문-체결)을 확정할 수 없다 -- "
             f"원주문 {order_id} 정정·취소를 중단한다(와이어 미접촉)."
         )
-    remaining = _parse_decimal(ordered) - _parse_decimal(filled)
-    if remaining <= 0:
+    remaining_quantity = _parse_decimal(ordered) - _parse_decimal(filled)
+    if remaining_quantity <= 0:
         # 이미 전량 체결됐거나(잔량 0) 데이터 이상(음수)이면 정정·취소할 실잔량이 없다. 0/음수
         # ORD_QTY 를 실전 전용 와이어로 내보내면 서버 의미가 불명하므로 fail-closed(와이어 미접촉).
         raise KISError(
-            f"야간 실잔량(주문-체결)이 {remaining} 로 양수가 아니다 -- 원주문 {order_id} 는 정정·취소할 "
-            f"미체결 잔량이 없다(와이어 미접촉)."
+            f"야간 실잔량(주문-체결)이 {remaining_quantity} 로 양수가 아니다 -- 원주문 {order_id} 는 "
+            f"정정·취소할 미체결 잔량이 없다(와이어 미접촉)."
         )
-    return remaining
+    return remaining_quantity
 
 
 def _fetch_night_ccnl(
