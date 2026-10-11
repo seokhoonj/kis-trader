@@ -15,6 +15,7 @@ Bash 명령(또는 스크립트 작성)이 **실전 환경 신호**(`KIS_MCP_ENV
 from __future__ import annotations
 
 import json
+import os
 import re
 import sys
 
@@ -62,7 +63,11 @@ def main() -> int:
     if not text:
         return 0
 
-    if _REAL_ENV.search(text) and _ORDER_VERB.search(text):
+    # 실전 신호는 명령 텍스트의 environment="real" 뿐 아니라, 세션 환경변수로도 온다 --
+    # KIS_MCP_ENVIRONMENT=real 를 쉘에서 export 하거나 real 프로필을 쓰면 주문 명령에 "real" 이
+    # 안 적힌다(우리 MCP 서버가 real 을 고르는 바로 그 경로). 그래서 ambient 환경변수도 함께 본다.
+    env_real = os.environ.get("KIS_MCP_ENVIRONMENT") == "real" or os.environ.get("KIS_ENVIRONMENT") == "real"
+    if (env_real or _REAL_ENV.search(text)) and _ORDER_VERB.search(text):
         print(json.dumps({
             "hookSpecificOutput": {
                 "hookEventName": "PreToolUse",

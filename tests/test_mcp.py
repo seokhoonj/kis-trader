@@ -207,9 +207,11 @@ def test_server_registers_read_and_guarded_order_tools():
                           allowlist=None, breaker=CircuitBreaker())
     tools = asyncio.run(server.list_tools())
     names = {t.name for t in tools}
-    assert {"quote", "search", "ranking_change", "balance", "positions", "open_orders",
-            "order_preview", "reconcile",
-            "place_order", "cancel_order", "modify_order"} <= names
+    # 정확집합(==)으로 못박는다: subset(<=) 이면 의도치 않은 툴이 하나 더 등록돼도 통과해버린다.
+    # 노출 표면이 늘면 이 테스트가 깨져 의식적 결정을 강제한다(실주문 안전 표면의 핵심 불변식).
+    assert names == {"quote", "search", "ranking_change", "balance", "positions", "open_orders",
+                     "order_preview", "reconcile",
+                     "place_order", "cancel_order", "modify_order"}
     # 원시 매매 메서드(buy/sell/credit)는 직접 노출하지 않는다 -- 가드레일 통과하는 place_order 만.
     assert not (names & {"buy", "sell", "credit_buy", "credit_sell"})
 

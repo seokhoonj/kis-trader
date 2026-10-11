@@ -30,6 +30,15 @@ _SECRET = re.compile(
     re.IGNORECASE | re.VERBOSE,
 )
 _BEARER = re.compile(r"\bBearer\s+(?P<value>[A-Za-z0-9._\-]{20,})")
+# 계좌번호(CANO)/HTS ID -- 토큰(20자+)보다 짧아 _SECRET 엔 안 걸리므로 라벨 기반으로 따로 잡는다.
+# 계좌는 8자리 종합계좌(선택적으로 -상품코드), HTS ID 는 영숫자 로그인 아이디. 라벨이 있어야
+# 매칭되므로(bare `account=` 는 제외) 테스트의 더미 `account="..."` 는 걸리지 않는다.
+_ACCOUNT_ID = re.compile(
+    r"""(cano|account_?no|account_?number|htsid|hts_?id)
+        ["']?\s*[:=]\s*["']?
+        (?P<value>[A-Za-z0-9][A-Za-z0-9\-]{4,})""",
+    re.IGNORECASE | re.VERBOSE,
+)
 # 실제 값이 아니라 자리표시자면 면제(문서/예시). 밑줄(_)도 구분자로 취급해야
 # YOUR_APP_SECRET_HERE 류를 잡는다(\b 는 _ 를 단어문자로 봐서 경계가 안 생김).
 _PLACEHOLDER = re.compile(
@@ -86,6 +95,11 @@ def main() -> int:
         if _is_real_secret(match.group("value")):
             _deny("Bearer 액세스 토큰으로 보이는 값이 포함되어 있습니다. 토큰을 파일/명령에 "
                   "하드코딩하지 마세요.")
+            return 0
+    for match in _ACCOUNT_ID.finditer(text):
+        if _is_real_secret(match.group("value")):
+            _deny("계좌번호(CANO) 또는 HTS ID 로 보이는 값이 포함되어 있습니다. 계좌/아이디는 "
+                  "파일/명령에 하드코딩하지 말고 `kis config` 저장소나 환경변수로 관리하세요.")
             return 0
     return 0
 

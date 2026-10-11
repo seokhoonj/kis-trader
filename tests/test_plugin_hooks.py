@@ -8,7 +8,11 @@
 from __future__ import annotations
 
 import importlib.util
+import json
+import os
 import pathlib
+import subprocess
+import sys
 
 _HOOKS = pathlib.Path(__file__).resolve().parent.parent / "plugins" / "kis-trader" / "hooks"
 
@@ -68,3 +72,46 @@ def test_secret_guard_candidate_text_reads_multiedit_and_notebook():
     s = _load("kis-secret-guard.py")
     text = s._candidate_text({"edits": [{"new_string": "A"}, {"new_string": "B"}], "new_source": "C"})
     assert "A" in text and "B" in text and "C" in text
+
+
+def test_secret_guard_catches_account_and_htsid():
+    s = _load("kis-secret-guard.py")
+    for text in (
+        'cano = "12345678"',           # 종합계좌 8자리
+        'account_no="12345678-01"',    # 계좌-상품코드
+        '{"htsid": "mykisid01"}',      # HTS 로그인 아이디
+        "hts_id=trader2026",
+    ):
+        m = s._ACCOUNT_ID.search(text)
+        assert m and s._is_real_secret(m.group("value")), f"should flag account/id in: {text!r}"
+    # 라벨 없는 bare account= (라이브러리 인자/테스트 더미) 는 걸리지 않는다.
+    assert s._ACCOUNT_ID.search('account="12345678-01"') is None
+
+
+def _run_hook(filename: str, tool_input: dict, env: dict | None = None) -> dict:
+    """훅을 서브프로세스로 실행하고(stdin=JSON) deny 판정을 파싱한다. env 로 ambient 환경변수 주입."""
+    run_env = dict(os.environ)
+    run_env.pop("KIS_MCP_ENVIRONMENT", None)
+    run_env.pop("KIS_ENVIRONMENT", None)
+    if env:
+        run_env.update(env)
+    proc = subprocess.run(
+        [sys.executable, str(_HOOKS / filename)],
+        input=json.dumps({"tool_input": tool_input}),
+        capture_output=True, text=True, env=run_env, check=False,
+    )
+    out = proc.stdout.strip()
+    return json.loads(out) if out else {}
+
+
+def test_order_guard_blocks_order_under_ambient_real_env():
+    # 명령 텍스트엔 "real" 이 없어도, 세션이 KIS_MCP_ENVIRONMENT=real 이면 주문을 막아야 한다.
+    out = _run_hook("kis-order-guard.py", {"command": "kis.domestic.stock('005930').buy(quantity=10)"},
+                    env={"KIS_MCP_ENVIRONMENT": "real"})
+    assert out.get("hookSpecificOutput", {}).get("permissionDecision") == "ask"
+
+
+def test_order_guard_allows_order_without_real_env():
+    # real 신호가 (텍스트에도 환경변수에도) 없으면 조용히 통과한다.
+    out = _run_hook("kis-order-guard.py", {"command": "kis.domestic.stock('005930').buy(quantity=10)"})
+    assert out == {}
