@@ -97,6 +97,19 @@ def test_overseas_reserve_buy_wire():
     assert call["body"]["ORD_DVSN"] == "00"
 
 
+def test_overseas_reserve_non_timeout_transport_error_stays_in_flight():
+    # F1(해외 예약경로): claim 뒤 비-200(KIS 스로틀=HTTP 500)은 접수 여부 불명 -> OrderTimeoutError,
+    # in-flight 유지. _submit_reserved 가 이걸 안 잡으면 접수됐을 수 있는 예약을 호출자가 새 id 로
+    # 재전송해 이중 예약이 난다(즉시주문 경로엔 있던 가드가 예약경로엔 빠져 있었다).
+    fake = FakeTransport(by_path={_PLACE: KISError("KIS HTTP 요청에 실패했다 (status 500).")})
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    with pytest.raises(OrderTimeoutError):
+        kis.overseas.stock("AAPL", exchange="NAS").reserve_buy(
+            quantity=1, limit_price="150", client_order_id="rsv-1")
+    assert store.is_in_flight("rsv-1")                   # in-flight 유지 -> 조용한 재전송 차단
+
+
 def test_overseas_reserve_sell_uses_sell_tr():
     fake = FakeTransport(response=_ACCEPTED)
     _client(fake).overseas.stock("AAPL", exchange="NYS").reserve_sell(quantity=2, limit_price="150")

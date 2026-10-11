@@ -26,6 +26,7 @@ from ..._internal._response import _CONTINUATION_END, _require_mapping_rows
 from ..._internal._wire import decimal_or_zero, format_wire_decimal
 from ...errors import (
     AccountNotOrderableError,
+    KISAuthError,
     KISError,
     KISUsageError,
     OrderError,
@@ -342,6 +343,20 @@ def _submit_reserved(
     except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"해외 예약주문 전송 시간초과 -- 접수 여부가 불명이다. 재전송하지 말고 "
+            f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
+            client_order_id=client_order_id,
+        ) from err
+    except KISAuthError:
+        # 401 은 인증 단계 거부 -- 예약이 접수되지 않았음이 확실하다. in-flight 해제 후 그대로 올려
+        # 토큰 교정 뒤 재시도하게 한다(_order_core 의 401-clear 와 동일 규율).
+        store.clear_in_flight(client_order_id)
+        raise
+    except KISError as err:
+        # 비-200 전송계층 오류(KIS 는 스로틀을 HTTP 500 으로 낸다). claim 뒤에 터졌고 접수 여부가
+        # 불명이므로 타임아웃과 동일하게 in-flight 유지 + 재조회 요구 -- 그냥 올리면 호출자가 접수됐을
+        # 수도 있는 예약을 새 id 로 재전송해 이중 예약이 난다(F1 가드, _order_core 와 동일).
+        raise OrderTimeoutError(
+            f"해외 예약주문 전송 중 전송계층 오류 -- 접수 여부가 불명이다. 재전송하지 말고 "
             f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
             client_order_id=client_order_id,
         ) from err

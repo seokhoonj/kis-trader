@@ -127,6 +127,9 @@ def test_reconcile_read_failure_keeps_submitted_slice():
     assert len(log) == 3                                        # 세 슬라이스 모두 발주됨
     assert all(o.report is not None for o in result.outcomes)   # 미확정이어도 report 유지(유실 아님)
     assert result.submitted_quantity == 100
+    # #13: 재조회 실패 슬라이스는 '확정 성공'으로 집계되면 안 된다 -- client_order_id 를 실어
+    # pending_reconcile_ids 에 넣어야 사후 재조회로 확인된다(안 그러면 미확정 물량 재주문 시 이중매수).
+    assert len(result.pending_reconcile_ids) == 3
 
 
 def test_run_partial_rejection_continues_and_reports_shortfall():

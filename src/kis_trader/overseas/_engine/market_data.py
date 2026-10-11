@@ -494,24 +494,32 @@ def fetch_trades(transport: Transport, *, symbol: str, exchange: str) -> list[Tr
     rows = resp.body.get("output2")     # 체결 행은 output2, output1 은 메타(레코드수 등)
     if not isinstance(rows, (list, tuple)):     # 성공 응답인데 배열 아님 -> fail-closed
         raise _missing_block_error("output2", resp)
-    return _parse_trades(rows, symbol=symbol, today=_today_kst())
+    return _parse_trades(rows, symbol=symbol, today=_today_kst(), now=datetime.now(_KST))
 
 
 def _parse_trades(
-    rows: Sequence[Mapping[str, Any]], *, symbol: str, today: str
+    rows: Sequence[Mapping[str, Any]], *, symbol: str, today: str, now: datetime
 ) -> list[Trade]:
-    """해외 체결 행 -> Trade. 시각 khms(한국기준시간 HHMMSS)에 조회일을 붙인다. 체결량은 evol."""
+    """해외 체결 행 -> Trade. 시각 khms(한국기준시간 HHMMSS)에 조회일을 붙인다. 체결량은 evol.
+
+    미국 정규장은 KST 자정을 넘기므로(22:30/23:30~05:00/06:00 KST) 자정~개장 사이에 조회하면 '오늘'
+    날짜를 붙인 전날 체결이 미래로 찍힌다 -- 결합 시각이 ``now`` 보다 미래면 전날 날짜로 롤백한다
+    (``now`` 를 주입받아 결정적으로 검증 가능)."""
+    yesterday = (datetime.strptime(today, "%Y%m%d") - timedelta(days=1)).strftime("%Y%m%d")  # noqa: DTZ007
     trades: list[Trade] = []
     for row in rows:
         time_text = str(row.get("khms", "")).strip()
         price_text = str(row.get("last", "")).strip()
         if not time_text or not price_text:  # 빈 체결 skip
             continue
+        timestamp = _parse_minute_bar_timestamp(date_text=today, time_text=time_text)
+        if timestamp > now:  # KST 자정을 넘긴 전날 체결 -> 전날로 롤백
+            timestamp = _parse_minute_bar_timestamp(date_text=yesterday, time_text=time_text)
         sign = str(row.get("sign", "")).strip()
         trades.append(
             Trade(
                 symbol=symbol,
-                timestamp=_parse_minute_bar_timestamp(date_text=today, time_text=time_text),
+                timestamp=timestamp,
                 price=required_decimal(price_text, "last"),
                 quantity=required_int(row.get("evol"), "evol"),
                 change=_apply_change_sign(required_decimal(row.get("diff"), "diff"), sign),

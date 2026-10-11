@@ -75,3 +75,21 @@ def test_overseas_trades_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
         _client(fake).overseas.stock("AAPL", exchange="NAS").trades()
+
+
+def test_parse_trades_rolls_future_timestamp_back_a_day():
+    # #15: 미국 정규장은 KST 자정을 넘기므로(22:30~06:00 KST), 자정~개장 사이에 조회하면 '오늘' 날짜를
+    # 붙인 전날 체결이 미래로 찍힌다. 결합 시각이 now 보다 미래면 전날로 롤백해야 한다.
+    from datetime import datetime
+
+    from kis_trader._internal._datetime import _KST
+    from kis_trader.overseas._engine.market_data import _parse_trades
+
+    now = datetime(2026, 8, 14, 3, 0, tzinfo=_KST)   # 03:00 KST (미국 전날장이 자정 넘겨 진행 중)
+    rows = [
+        {"khms": "233000", "last": "230.0", "evol": "5", "diff": "1.0", "rate": "0.5", "sign": "2"},  # 23:30 -> 미래
+        {"khms": "020000", "last": "231.0", "evol": "3", "diff": "1.0", "rate": "0.5", "sign": "2"},  # 02:00 -> 오늘
+    ]
+    trades = _parse_trades(rows, symbol="AAPL", today="20260814", now=now)
+    assert trades[0].timestamp == datetime(2026, 8, 13, 23, 30, tzinfo=_KST)   # 전날로 롤백
+    assert trades[1].timestamp == datetime(2026, 8, 14, 2, 0, tzinfo=_KST)     # 미래 아님 -> 그대로

@@ -34,9 +34,11 @@ class TWAPSliceOutcome:
     ``report`` 가 차고 ``error`` 는 ``None``, 접수 거부/타임아웃이면 ``report`` 가 ``None`` 이고
     ``error`` 에 사유가 담긴다(그래서 ``report is None`` 이 곧 그 슬라이스의 실패를 뜻한다).
 
-    ``client_order_id`` 는 **타임아웃(체결 불명)** 슬라이스에만 실린다 -- 그 주문은 살아 있을 수 있어
-    ``kis.orders.reconcile(client_order_id)`` 로 사후 확인해야 하므로, 그 id 를 유실하지 않고 실어 둔다.
-    거부/성공 슬라이스는 ``None``(거부는 재조회 불필요, 성공은 ``report`` 에 id 가 있다)."""
+    ``client_order_id`` 는 **결과 미확정** 슬라이스에만 실린다 -- 타임아웃(체결 불명)이거나, 접수는
+    됐지만 발주 직후 재조회(reconcile)가 실패해 체결을 확정 못 한 경우다. 그 주문은 살아 있을 수 있어
+    ``kis.orders.reconcile(client_order_id)`` 로 사후 확인해야 하므로 그 id 를 유실하지 않고 실어 둔다.
+    거부 슬라이스와 재조회로 확정된 성공 슬라이스는 ``None``(거부는 재조회 불필요, 확정 성공은 ``report``
+    에 id 가 있다)."""
 
     at: datetime
     quantity: int
@@ -72,8 +74,9 @@ class TWAPExecutionResult:
 
     @property
     def pending_reconcile_ids(self) -> tuple[str, ...]:
-        """사후 재조회가 필요한 슬라이스의 ``client_order_id`` 들 -- 타임아웃(체결 불명) 슬라이스.
-        이 목록이 비지 않으면 그 주문들이 살아 있을 수 있으니 ``kis order reconcile <id>`` 로 확인해야 한다."""
+        """사후 재조회가 필요한 슬라이스의 ``client_order_id`` 들 -- 타임아웃(체결 불명)이거나 발주 직후
+        재조회가 실패해 미확정인 슬라이스. 이 목록이 비지 않으면 그 주문들이 살아 있을 수 있으니
+        ``kis order reconcile <id>`` 로 확인해야 한다."""
         return tuple(o.client_order_id for o in self.outcomes if o.client_order_id is not None)
 
     @property
@@ -135,16 +138,20 @@ def execute_twap(
             except OrderRejectedError as error:
                 outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, None, str(error)))
                 continue
+            pending_id: str | None = None
             if reconcile:
                 try:
                     confirmed = kis.orders.reconcile(report.client_order_id)
                 except KISError:
                     # 재조회(읽기) 실패는 이미 접수된 이 슬라이스를 결과에서 버리지 않는다 -- 미확정
-                    # report 를 그대로 두고 사후 reconcile 로 확인하게 한다(일시적 네트워크/스로틀 blip).
+                    # report 를 그대로 두되, client_order_id 를 실어 pending_reconcile_ids 에 넣는다.
+                    # 안 그러면 미확정(체결 0 스냅샷) 슬라이스가 '확정 성공'으로 집계돼 사후 재조회
+                    # 목록에서 빠지고, 사용자가 shortfall 을 재주문하면 이중매수가 날 수 있다.
                     confirmed = None
+                    pending_id = report.client_order_id
                 if confirmed is not None:
                     report = confirmed
-            outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, report, None))
+            outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, report, None, client_order_id=pending_id))
     except KeyboardInterrupt:
         pass  # 남은 슬라이스 중단, 부분 결과 반환(이미 낸 시장가 주문은 체결됨)
     except Exception as error:

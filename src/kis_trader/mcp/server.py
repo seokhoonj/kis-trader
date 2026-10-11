@@ -82,8 +82,12 @@ def _build_allowlist_from_env(environ: dict[str, str]) -> frozenset[str] | None:
 
 
 def _breaker_from_env(environ: dict[str, str]) -> CircuitBreaker:
-    n = _int_env(environ, "KIS_MCP_MAX_REAL_ORDERS", 0)
-    return CircuitBreaker(max_real_orders=n) if n else CircuitBreaker()
+    # 환경변수가 '설정됐는가'로 분기한다 -- 값으로 분기하면(falsy) 명시적 0 이 조용히 기본 10 으로
+    # 바뀌어 사용자가 둔 가장 엄격한 cap 이 사라진다. 명시한 값은 그대로 넘겨 CircuitBreaker 가
+    # 판정하게 한다(0/음수는 거기서 "양의 정수여야 한다"로 fail-closed).
+    if "KIS_MCP_MAX_REAL_ORDERS" in environ:
+        return CircuitBreaker(max_real_orders=_int_env(environ, "KIS_MCP_MAX_REAL_ORDERS", 0))
+    return CircuitBreaker()
 
 
 _LOCAL_HOSTS = frozenset({"127.0.0.1", "::1", "localhost"})

@@ -579,7 +579,15 @@ def fetch_night_remaining(
             f"야간 잔량 조회 행에 주문수량/총체결수량이 없어 실잔량(주문-체결)을 확정할 수 없다 -- "
             f"원주문 {order_id} 정정·취소를 중단한다(와이어 미접촉)."
         )
-    return _parse_decimal(ordered) - _parse_decimal(filled)
+    remaining = _parse_decimal(ordered) - _parse_decimal(filled)
+    if remaining <= 0:
+        # 이미 전량 체결됐거나(잔량 0) 데이터 이상(음수)이면 정정·취소할 실잔량이 없다. 0/음수
+        # ORD_QTY 를 실전 전용 와이어로 내보내면 서버 의미가 불명하므로 fail-closed(와이어 미접촉).
+        raise KISError(
+            f"야간 실잔량(주문-체결)이 {remaining} 로 양수가 아니다 -- 원주문 {order_id} 는 정정·취소할 "
+            f"미체결 잔량이 없다(와이어 미접촉)."
+        )
+    return remaining
 
 
 def _fetch_night_ccnl(

@@ -25,6 +25,7 @@ from .order import (
     ChangeActionFingerprint,
     ImmediateOrderFingerprint,
     Order,
+    OrderType,
     ReservedOrderFingerprint,
     Side,
     coerce_decimal,
@@ -275,15 +276,26 @@ class OrderEngine:
                 else (coerce_decimal(fingerprint.limit_price, "limit_price")
                       if fingerprint.limit_price else None)
             )
+            # 정정은 가격을 주면 사실상 그 가격의 지정가가 된다. 원주문의 order_type(최유리=market,
+            # 스톱 등)을 그대로 베끼면 Order(order_type="market", limit_price=<새 가격>) 이 __post_init__
+            # 에서 거부돼(= market 에 limit_price 금지) risk 세션에서 모든 비-지정가 정정이 불가능해진다.
+            # 그래서 가격이 있으면 probe 는 "limit"(+그 가격, stop 없음), 가격이 없으면(수량만 정정)
+            # 원 order_type 과 원 stop_price 를 그대로 둔다. probe 는 run_pre_trade_risk(수량/명목/collar)용.
+            probe_type: OrderType
+            probe_stop: Decimal | None
+            if effective_price is not None:
+                probe_type, probe_stop = "limit", None
+            else:
+                probe_type = fingerprint.order_type
+                probe_stop = (coerce_decimal(fingerprint.stop_price, "stop_price")
+                              if fingerprint.stop_price and fingerprint.stop_price != "0" else None)
             if lane == ("domestic", "stock"):
                 # risk.check 는 symbol/quantity/limit_price/stop_price 와 region/asset_class(tick 게이트)를
                 # 읽는다. 국내주식 lane 이 의도값(Order 기본값).
                 risk_probe = Order(
                     symbol=fingerprint.symbol, side=fingerprint.side,
-                    order_type=fingerprint.order_type, quantity=change_quantity,
-                    limit_price=effective_price,
-                    stop_price=(coerce_decimal(fingerprint.stop_price, "stop_price")
-                                if fingerprint.stop_price and fingerprint.stop_price != "0" else None),
+                    order_type=probe_type, quantity=change_quantity,
+                    limit_price=effective_price, stop_price=probe_stop,
                 )
                 orders_engine.run_pre_trade_risk(self._transport, risk_probe, self._risk)
             elif lane == ("domestic", "derivative"):
@@ -293,8 +305,9 @@ class OrderEngine:
                 _reject_unsupported_derivative_risk(self._risk)
                 risk_probe = Order(
                     symbol=fingerprint.symbol, side=fingerprint.side,
-                    order_type=fingerprint.order_type, quantity=change_quantity,
-                    limit_price=effective_price, region="domestic", asset_class="derivative",
+                    order_type=probe_type, quantity=change_quantity,
+                    limit_price=effective_price, stop_price=probe_stop,
+                    region="domestic", asset_class="derivative",
                 )
                 orders_engine.run_pre_trade_risk(self._transport, risk_probe, self._risk)
             else:
@@ -336,9 +349,16 @@ class OrderEngine:
         # 어느 엔진이든 그대로 반환한다.
         fingerprint = self._store.fingerprint_for(client_order_id)
         if isinstance(fingerprint, ChangeActionFingerprint):
-            raise KISUsageError(
-                "정정·취소 요청은 자동 reconcile을 지원하지 않는다. 원주문 상태를 조회해 확인하라."
-            )
+            # 정정·취소의 결과는 원주문 상태에 반영된다(취소 성공이면 원주문 취소/소멸, 정정 성공이면
+            # 새 ODNO). 그래서 이 변경 request_id 를 조회하는 대신 원주문을 재조회해 확정하고, 성공하면
+            # 막혀 있던 이 변경의 in-flight 를 해제해 데드락을 푼다 -- 안 그러면 스로틀(HTTP 500)로 한 번
+            # 변경이 박히면 pending 게이트가 새 변경을 전부 막고 reconcile 은 변경을 거부해, 접수된 주문이
+            # 라이브러리로 영영 정정·취소 불가가 된다. 원 상태를 확정한 뒤 해제하므로 이후 변경은 그 확정
+            # 상태 위에서 판단된다(이미 취소/정정됐으면 KIS 가 거부). 원 재조회가 실패(타임아웃 등)하면
+            # 해제하지 않고 그대로 올려 재시도에 맡긴다(데드락이 악화되지 않는다).
+            result = self.reconcile(fingerprint.original_client_order_id)
+            self._store.clear_in_flight(client_order_id)
+            return result
         if isinstance(fingerprint, ReservedOrderFingerprint):
             # 예약주문은 일별체결이 아니라 예약주문조회로 확인한다(국내/해외 예약 경로를 exchange 로 가른다).
             if fingerprint.exchange == "overseas-reserved-asia":

@@ -39,7 +39,7 @@ description: >-
 
 ## 2. 세션 설정 — 자격증명·환경·RiskLimits·OrderStore
 
-자격증명은 **오직 환경변수**에서 읽는다. 값은 절대 출력·로그·직렬화하지 않는다(존재 여부만 확인).
+자격증명은 환경변수 또는 저장된 프로필(`kis config` 로 만든 `~/.config/kis-trader/credentials.json`)에서 읽는다. 값은 절대 출력·로그·직렬화하지 않는다(존재 여부만 확인).
 
 ```python
 import os
@@ -49,7 +49,7 @@ kis = KISClient(
     app_key=os.environ["KIS_APP_KEY"],
     app_secret=os.environ["KIS_APP_SECRET"],
     account=os.environ["KIS_ACCOUNT"],
-    environment="paper",            # 기본 paper. real 은 사용자가 명시할 때만.
+    environment="paper",            # 모의로 명시 고정. 생략하면 라이브러리 기본은 real 이니 반드시 적는다.
 )
 ```
 

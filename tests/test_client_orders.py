@@ -377,20 +377,23 @@ def test_cancel_survives_store_restart_via_persisted_org_number(tmp_path):
     assert call["body"]["ORGN_ODNO"] == "0000117057"
 
 
-def test_reconcile_of_change_request_is_explicitly_rejected():
-    """변경요청(정정/취소)이 in-flight 로 남아도(타임아웃 등) 그 request_id 는 자동 reconcile
-    대상이 아니다 -- action 지문의 종목이 실제 종목코드가 아니라 원 주문 식별이라 일별체결 조회로
-    맞출 수 없다. 조용히 무한 in-flight 로 두지 않고 명확히 거부해 수동 확인을 안내한다."""
+def test_reconcile_of_change_resolves_via_original_and_clears_the_stuck_change():
+    """변경(정정/취소)이 타임아웃·스로틀로 in-flight 로 박히면, 그 request_id 의 reconcile 은 원주문을
+    재조회해 확정하고 막혀 있던 변경 in-flight 를 해제한다 -- 변경이 박히면 pending 게이트가 새 변경을
+    전부 막고 reconcile 도 거부하던 과거엔 접수된 주문이 라이브러리로 영영 정정·취소 불가(데드락)였다."""
     fake = FakeTransport(by_path={_ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
                                   _ORDER_CHANGE: TransportTimeoutError()})
     store = OrderStore()
     kis = _client(fake, store=store)
-    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-1")
+    placed = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-1")
     with pytest.raises(OrderTimeoutError):
         kis.orders.modify("orig-1", limit_price=71000, request_id="modify-1")
     assert store.is_in_flight("modify-1")
-    with pytest.raises(KISUsageError, match="자동 reconcile"):
-        kis.orders.reconcile("modify-1")
+    # 변경 id 의 reconcile 은 원주문으로 확정하고 막혔던 변경 in-flight 를 해제한다(데드락 해소).
+    result = kis.orders.reconcile("modify-1")
+    assert result is not None and result.order_id == placed.order_id
+    assert not store.is_in_flight("modify-1")           # 막혔던 변경 해제됨
+    assert store.in_flight_change_for("orig-1") is None  # pending 게이트 열림 -> 새 변경 가능
 
 
 def test_domestic_change_timeout_stays_in_flight_and_is_not_resent():

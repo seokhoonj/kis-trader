@@ -437,3 +437,16 @@ def test_resolve_transport_rejects_non_numeric_port():
     from kis_trader.mcp.server import _resolve_transport
     with pytest.raises(KISUsageError):
         _resolve_transport({"KIS_MCP_TRANSPORT": "sse", "KIS_MCP_PORT": "abc"})
+
+
+def test_breaker_from_env_honors_explicit_zero_and_value():
+    # #20: 명시적 KIS_MCP_MAX_REAL_ORDERS=0 은 조용히 기본 10 이 되면 안 된다 -- 값으로 분기(falsy)하면
+    # 사용자가 둔 가장 엄격한 cap 이 사라져 실주문 10건이 허용된다. 설정 여부로 분기해 명시값을 그대로
+    # CircuitBreaker 에 넘긴다(0/음수는 거기서 "양의 정수여야 한다"로 fail-closed).
+    from kis_trader.errors import KISUsageError
+    from kis_trader.mcp.server import _breaker_from_env
+
+    with pytest.raises(KISUsageError):
+        _breaker_from_env({"KIS_MCP_MAX_REAL_ORDERS": "0"})
+    assert _breaker_from_env({"KIS_MCP_MAX_REAL_ORDERS": "3"})._max == 3
+    assert _breaker_from_env({})._max == 10

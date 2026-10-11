@@ -20,8 +20,11 @@ import sys
 
 _REAL_ENV = re.compile(
     r"""(KIS_MCP_ENVIRONMENT|KIS_ENVIRONMENT|environment)    # 환경 키
-        \s*[:=]\s*                                           # = 또는 :
-        (["']?)real\2\b""",                                  # real (단어경계 -- realtime/realm 제외)
+        ["']?\s*[:=]\s*                                      # (키 닫는 따옴표 옵션) = 또는 : (JSON "env": 형)
+        ["']?real\b""",                                      # 선택적 여는 따옴표 + real + 단어경계
+        # \b 는 real 바로 뒤(닫는 따옴표/공백/구분자 앞)에 와야 한다 -- 이전 `(["']?)real\2\b` 는
+        # \b 를 닫는 따옴표 뒤에 둬서 environment="real" 같은 따옴표형을 전혀 못 잡았다. 백레퍼런스를
+        # 버리고 여는 따옴표만 옵션 매칭한다(가드엔 열고닫음 일치까지 강제할 필요 없음). realtime/realm 제외.
     re.IGNORECASE | re.VERBOSE,
 )
 _ORDER_VERB = re.compile(

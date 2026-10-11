@@ -155,6 +155,17 @@ def test_modify_within_cap_passes():
     assert isinstance(report, ExecutionReport)
 
 
+def test_risk_session_modify_of_market_order_does_not_crash():
+    # #2: risk 세션에서 시장가(또는 최유리=market) 원주문을 가격 정정하면, risk probe 가 원 order_type
+    # 을 그대로 베껴 Order(order_type="market", limit_price=<새 가격>) 로 __post_init__ 에서 거부되던
+    # 버그. 이제 가격이 있으면 probe 는 "limit" 로 만들어 정정이 통과해야 한다(리스크 미세션은 원래 통과).
+    fake = FakeTransport(response=_ACCEPTED_WITH_ORG)
+    kis = _client(fake, risk=RiskLimits(max_order_quantity=100))
+    kis.domestic.stock("005930").buy(quantity=10, client_order_id="mkt-1")   # 시장가(limit_price 없음)
+    report = kis.orders.modify("mkt-1", limit_price=71000)                   # 가격 정정 -- 크래시 없이 통과
+    assert isinstance(report, ExecutionReport)
+
+
 def test_cancel_is_not_gated_by_risk():
     # 취소는 익스포저를 줄이므로 게이트하지 않는다 -- 위험한 주문을 못 지우면 오히려 위험.
     fake = FakeTransport(response=_ACCEPTED_WITH_ORG)

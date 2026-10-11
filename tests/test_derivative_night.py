@@ -537,6 +537,18 @@ def test_fetch_night_remaining_computes_ordered_minus_filled():
     assert remaining == Decimal(2)                                     # 5-3, 미검증 qty=99 무시
 
 
+def test_fetch_night_remaining_nonpositive_fails_closed():
+    # #9: 전량 체결(잔량 0)이나 데이터 이상(음수)이면 정정·취소할 실잔량이 없다. 0/음수 ORD_QTY 를
+    # 실전 전용 와이어로 내보내면 서버 의미가 불명하므로 fail-closed(와이어 미접촉).
+    fake = FakeTransport()
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl(
+        [_night_row(odno="0000005605", ord_qty="5", tot_ccld_qty="5")]))   # 전량 체결 -> 잔량 0
+    with pytest.raises(KISError):
+        fo.fetch_night_remaining(
+            fake, order_id="0000005605", symbol="101S03", cano="8", product_code="03",
+            environment="real", anchor=_REC.isoformat())
+
+
 def test_fetch_night_remaining_missing_field_fails_closed():
     fake = FakeTransport()
     row = _night_row(odno="0000005605", ord_qty="5")

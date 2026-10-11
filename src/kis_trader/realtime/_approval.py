@@ -39,7 +39,8 @@ def fetch_approval_key(
     approval_key = data.get("approval_key")
     # data 는 Mapping[str, Any] 라 truthy 만으론 str 을 보장 못 한다 -- isinstance 로 좁혀야 반환 계약이 정직하다.
     if status != 200 or not isinstance(approval_key, str) or not approval_key:
-        raise KISAuthError(
-            f"실시간 접속키 발급 실패 (status={status}, 응답={data})"
-        )
+        # 응답 본문(data)을 메시지에 넣지 않는다 -- 서버가 키를 발급했는데 검증/상태가 어긋난
+        # 비정상 경로에서 응답에 approval_key(자격증명)가 담길 수 있어 예외 문자열로 유출된다.
+        # OAuth 경로(68d9c0a)와 같은 규율: auth 오류는 자격증명을 실어 나르지 않는다.
+        raise KISAuthError(f"실시간 접속키 발급 실패 (status={status})") from None
     return approval_key
