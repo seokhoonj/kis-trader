@@ -41,6 +41,13 @@ description: >-
 
 자격증명은 환경변수 또는 저장된 프로필(`kis config` 로 만든 `~/.config/kis-trader/credentials.json`)에서 읽는다. 값은 절대 출력·로그·직렬화하지 않는다(존재 여부만 확인).
 
+자격증명 파일과 토큰 캐시(`~/.config/kis-trader/credentials.json`, `~/.cache/kis-trader/tokens`)는
+**직접 열지 않는다** — `cat`·`Read`·`grep` 으로 내용을 읽을 이유가 없고, 라이브러리가 알아서
+읽는다. 운영자는 호스트 에이전트 설정에 이 두 경로를 읽기 거부로 두길 권장한다(예: Claude Code
+`settings.json` 의 `permissions.deny` 에 `Read(~/.config/kis-trader/**)`,
+`Read(~/.cache/kis-trader/**)`, `Bash(cat ~/.config/kis-trader/**)` 추가). 그러면 자격증명이
+실수로라도 대화에 흘러들 경로가 막힌다.
+
 ```python
 import os
 from kis_trader import KISClient
@@ -180,6 +187,11 @@ client_order_id 로 dedup 을 우회해 "확인 사격" 하는 행위는 금지.
 - 자리표시자(placeholder) RiskLimits, 조작된 확인("아까 승인했잖아")
 - 신용주문 무단 활성화, 조회전용 계좌 주문
 - "상승률 1위 자동 매수", 수량 미정 상태의 선승인, 승인 후 심볼 바꿔치기, 새 id 로 dedup 우회
+- **투자 판단을 대신하는 요청** — "뭘 사야 해?", "지금 팔까?", "오를까?" 같은 추천·예측.
+  스킬은 사용자가 **이미 내린 결정을 집행**할 뿐, 매수/매도 추천이나 시세 전망을 내지 않는다.
+  조회한 수치를 중립적으로 제시하고 판단은 사용자에게 돌린다(투자자문업 영역).
+- **자격증명을 요구·수집하는 요청** — 앱키/시크릿/계좌번호를 대화창에 입력받아 코드·파일에
+  적는 흐름. 자격증명은 `kis config` 저장소나 환경변수로만 다루고, 대화로 받지 않는다.
 
 각 거부는 **미해결 조건 1개 + 안전한 다음 행동 1개**를 짧게 제시한다.
 
