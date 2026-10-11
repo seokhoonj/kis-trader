@@ -110,9 +110,17 @@ class Conflict:
     prior: ExecutionReport | None
 
 
-#: :meth:`OrderStore.try_claim` 의 판별 결과(주문 전송 여부를 가르는 결정) -- 변형별로 필요한
-#: 필드만 담아 "완료인데 리포트 없음" 같은 반쪽 상태를 표현 불가능하게 한다.
-ClaimResult = Claimed | Completed | InFlight | Conflict
+@dataclass(frozen=True, slots=True)
+class PriorChangeInFlight:
+    """같은 원주문을 겨눈 **다른** request_id 의 변경(정정/취소)이 이미 in-flight 다 -- 이 변경은
+    거부한다(두 변경이 원 ODNO 상태를 경합하면 확정 불가). ``other_request_id`` 로 reconcile 하라."""
+
+    other_request_id: str
+
+
+#: :meth:`OrderStore.try_claim` / :meth:`try_claim_change` 의 판별 결과(주문 전송 여부를 가르는
+#: 결정) -- 변형별로 필요한 필드만 담아 "완료인데 리포트 없음" 같은 반쪽 상태를 표현 불가능하게 한다.
+ClaimResult = Claimed | Completed | InFlight | Conflict | PriorChangeInFlight
 
 
 class OrderStore:
@@ -168,6 +176,34 @@ class OrderStore:
                 return prior
             self._in_flight[client_order_id] = self._now().isoformat()
             self._fingerprints[client_order_id] = fingerprint
+            self._save_locked()
+            return Claimed()
+
+    def try_claim_change(
+        self, request_id: str, fingerprint: ChangeActionFingerprint,
+        *, original_client_order_id: str,
+    ) -> ClaimResult:
+        """정정/취소 전용 원자 check-and-claim: "같은 원주문을 겨눈 다른 in-flight 변경이 있는가"
+        검사와 request_id 확보를 **한 락** 안에서 함께 한다.
+
+        두 연산을 별도 락으로 나누면(과거 구현: ``in_flight_change_for`` 후 ``try_claim``) 같은
+        원주문에 대한 두 변경이 둘 다 각자의 검사를 통과해 둘 다 와이어로 나가는 TOCTOU 경합이 난다.
+        반환: :class:`PriorChangeInFlight` (다른 변경 미확인 -> 거부) / :class:`Claimed`/`Completed`/
+        `InFlight`/`Conflict` (:meth:`try_claim` 과 동일 의미, 같은 request_id 재시도 처리 포함)."""
+        with self._lock:
+            self._require_open()
+            for cid in self._in_flight:
+                if cid == request_id:
+                    continue  # 같은 request_id 재시도는 아래 멱등 분류가 처리한다(거부 아님)
+                other = self._fingerprints.get(cid)
+                if isinstance(other, ChangeActionFingerprint) \
+                        and other.original_client_order_id == original_client_order_id:
+                    return PriorChangeInFlight(cid)
+            prior = self._classify_locked(request_id, fingerprint)
+            if prior is not None:
+                return prior
+            self._in_flight[request_id] = self._now().isoformat()
+            self._fingerprints[request_id] = fingerprint
             self._save_locked()
             return Claimed()
 

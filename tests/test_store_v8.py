@@ -3,7 +3,7 @@ from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from kis_trader.order import ChangeActionFingerprint, Order
-from kis_trader.store import _SCHEMA_VERSION, Claimed, OrderStore
+from kis_trader.store import _SCHEMA_VERSION, Claimed, InFlight, OrderStore, PriorChangeInFlight
 
 _KST = timezone(timedelta(hours=9))
 
@@ -54,3 +54,39 @@ def test_in_flight_change_for_finds_pending_change(tmp_path):
         store.try_claim("req-1", change_fp)
         assert store.in_flight_change_for("orig-1") == "req-1"
         assert store.in_flight_change_for("orig-2") is None
+
+
+def _change_fp(*, original, action="cancel", request_qty="1"):
+    return ChangeActionFingerprint(
+        original_client_order_id=original, side="buy", order_type="limit",
+        quantity=request_qty, limit_price="400.00", action=action, time_in_force="day",
+        region="domestic", asset_class="derivative", exchange="KRX")
+
+
+def test_try_claim_change_rejects_second_change_on_same_original_atomically(tmp_path):
+    """같은 원주문을 겨눈 다른 request_id 의 변경은 한 번에 하나만 claim 된다(TOCTOU 경합 차단)."""
+    with OrderStore(tmp_path / "s.json", now=_clock) as store:
+        first = store.try_claim_change("req-A", _change_fp(original="orig-1"),
+                                       original_client_order_id="orig-1")
+        second = store.try_claim_change("req-B", _change_fp(original="orig-1"),
+                                        original_client_order_id="orig-1")
+        assert isinstance(first, Claimed)
+        assert isinstance(second, PriorChangeInFlight)
+        assert second.other_request_id == "req-A"
+
+
+def test_try_claim_change_same_request_id_retry_is_idempotent_not_rejected(tmp_path):
+    """같은 request_id 재시도는 PriorChangeInFlight 가 아니라 멱등 InFlight 로 처리된다(재전송 금지)."""
+    with OrderStore(tmp_path / "s.json", now=_clock) as store:
+        fp = _change_fp(original="orig-1")
+        assert isinstance(store.try_claim_change("req-A", fp, original_client_order_id="orig-1"), Claimed)
+        assert isinstance(store.try_claim_change("req-A", fp, original_client_order_id="orig-1"), InFlight)
+
+
+def test_try_claim_change_allows_change_on_a_different_original(tmp_path):
+    """다른 원주문을 겨눈 변경은 서로를 막지 않는다."""
+    with OrderStore(tmp_path / "s.json", now=_clock) as store:
+        assert isinstance(store.try_claim_change("req-A", _change_fp(original="orig-1"),
+                                                 original_client_order_id="orig-1"), Claimed)
+        assert isinstance(store.try_claim_change("req-B", _change_fp(original="orig-2"),
+                                                 original_client_order_id="orig-2"), Claimed)

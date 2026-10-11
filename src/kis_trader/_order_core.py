@@ -44,7 +44,7 @@ from .order import (
     WireRequest,
 )
 from .report import ExecutionReport, OrderStatus
-from .store import Binding, Claimed, Completed, Conflict, InFlight, OrderStore
+from .store import Binding, Claimed, Completed, Conflict, InFlight, OrderStore, PriorChangeInFlight
 from .transport import Environment, Transport, TransportTimeoutError
 
 #: 시장 중립 접수-일자 키. 시장별 extract_output 파서가 접수 응답의 자기 일자 필드(예: 해외선물옵션의
@@ -283,18 +283,10 @@ def submit_change(
         raise KISUsageError(f"지원하지 않는 주문 변경: {action!r}")
     if quantity <= 0 or quantity != quantity.to_integral_value():
         raise KISUsageError(f"정정·취소 수량은 양의 정수여야 한다: {quantity}")
-    # 원주문에 결과 미확인(in-flight) 변경이 이미 있으면 새(다른 request_id) 변경을 거부한다 -- 같은
-    # 원주문을 겨눈 두 번째 변경이 조용히 나가면 원 ODNO 상태를 두 요청이 경합해 확정 불가에 빠진다.
-    # 같은 request_id 재시도는 여기서 걸지 않고(아래 try_claim 의 in-flight 경로가 처리) 배제한다 --
-    # 그 경로는 멱등 재전송 거부라 의미가 다르다. 가격형상 검증(정정=양의 limit_price, 취소=가격 없음)은
-    # 와이어 규칙이 자산마다 달라 각 자산 빌더가 수행한다.
-    pending = store.in_flight_change_for(original_client_order_id)
-    if pending is not None and pending != request_id:
-        raise KISUsageError(
-            f"원주문 {original_client_order_id!r} 에 결과 미확인 변경 {pending!r} 이 있다 -- "
-            f"kis.orders.reconcile({pending!r}) 로 해소한 뒤 재시도하라."
-        )
-
+    # 가격형상 검증(정정=양의 limit_price, 취소=가격 없음)은 와이어 규칙이 자산마다 달라 각 자산
+    # 빌더가 수행한다. "원주문에 다른 미확인 변경이 있는가" 검사와 request_id 확보는 아래
+    # store.try_claim_change 가 **한 락** 안에서 원자적으로 처리한다(과거엔 in_flight_change_for 후
+    # try_claim 으로 쪼개져, 같은 원주문 두 변경이 둘 다 검사를 통과해 둘 다 전송되는 TOCTOU 경합이 났다).
     action_fingerprint = ChangeActionFingerprint(
         # 원 client_order_id 로만 식별한다(그 order_id 로 파생하지 않는다) -- 정정은 원 id 를
         # 새 ODNO 로 재바인딩하므로, order_id 를 지문에 넣으면 같은 request_id 재시도 시 재계산
@@ -322,7 +314,14 @@ def submit_change(
         product_code=product_code,
         environment=environment,
     )
-    claim = store.try_claim(request_id, action_fingerprint)
+    claim = store.try_claim_change(
+        request_id, action_fingerprint, original_client_order_id=original_client_order_id
+    )
+    if isinstance(claim, PriorChangeInFlight):
+        raise KISUsageError(
+            f"원주문 {original_client_order_id!r} 에 결과 미확인 변경 {claim.other_request_id!r} 이 있다 -- "
+            f"kis.orders.reconcile({claim.other_request_id!r}) 로 해소한 뒤 재시도하라."
+        )
     if isinstance(claim, Completed):
         return claim.report
     if isinstance(claim, Conflict):
