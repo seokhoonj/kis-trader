@@ -123,11 +123,15 @@ class StockOrderPlan:
 
 @dataclass(frozen=True, slots=True)
 class ModifyOrderPlan:
-    """검증된 정정 티켓(elicitation echo + 집행용). :class:`StockOrderPlan` 과 대칭(dict 대신 dataclass)."""
+    """검증된 정정 티켓(elicitation echo + 집행용). :class:`StockOrderPlan` 과 대칭(dict 대신 dataclass).
+    ``symbol``/``side`` 는 저장소에서 원주문 지문으로 해석한 값(사람 확인 티켓에 '어느 종목·매수/매도'를
+    보이게 한다). 해석 불가(저장소 미보유)면 None."""
 
     client_order_id: str
     limit_price: str
     quantity: int | None
+    symbol: str | None = None
+    side: str | None = None
 
 
 def make_stock_order_plan(

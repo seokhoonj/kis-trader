@@ -74,6 +74,19 @@ def test_serialize_recurses_lists_and_nested():
     assert out == [{"symbol": "005930", "name": "삼성전자"}]
 
 
+def test_serialize_strips_credential_keys_in_nested_mappings():
+    # 방어적 denylist -- 미래에 raw 매핑을 돌려주는 핸들러가 생겨도 자격증명 키는 새지 않는다.
+    out = handlers._serialize({
+        "symbol": "005930",
+        "app_secret": "LEAK1", "access_token": "LEAK2", "approval_key": "LEAK3",
+        "Authorization": "LEAK4", "app-key": "LEAK5",
+        "nested": {"appsecret": "LEAK6", "ok": "keep"},
+    })
+    assert out == {"symbol": "005930", "nested": {"ok": "keep"}}
+    for leaked in ("LEAK1", "LEAK2", "LEAK3", "LEAK4", "LEAK5", "LEAK6"):
+        assert leaked not in str(out)
+
+
 # --- 핸들러 -----------------------------------------------------------------
 
 

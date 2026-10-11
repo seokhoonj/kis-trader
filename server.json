@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.seokhoonj/kis-trader",
   "title": "KIS Trader",
-  "description": "Read-first MCP server for the Korea Investment & Securities (KIS) Open API; paper by default.",
+  "description": "MCP server for the Korea Investment & Securities (KIS) Open API: account reads, order preview, and guarded order placement/modify/cancel (domestic stock); paper by default, with live orders behind explicit safety gates.",
   "version": "0.5.0",
   "websiteUrl": "https://seokhoonj.github.io/kis-trader/",
   "repository": {
@@ -64,6 +64,26 @@
         {
           "name": "KIS_MCP_REAL_CONFIRM",
           "description": "Second gate for live orders: an explicit confirmation phrase required alongside KIS_MCP_ALLOW_REAL before a real order is transmitted."
+        },
+        {
+          "name": "KIS_MCP_SYMBOL_ALLOWLIST",
+          "description": "Comma-separated symbols permitted for live placement and modify. Required for any real order: unset or empty blocks all live orders (no allow-all). Cancel is exempt (it reduces exposure)."
+        },
+        {
+          "name": "KIS_MCP_MAX_ORDER_QTY",
+          "description": "Fat-finger cap: maximum quantity per live order (RiskLimits). At least one of the RiskLimits caps is required for any real place/modify; without it live orders are refused fail-closed."
+        },
+        {
+          "name": "KIS_MCP_MAX_ORDER_NOTIONAL",
+          "description": "Fat-finger cap: maximum notional (price x quantity) per live order (RiskLimits)."
+        },
+        {
+          "name": "KIS_MCP_PRICE_COLLAR_PCT",
+          "description": "Fat-finger cap: maximum allowed deviation of the limit price from the reference price, in percent (RiskLimits collar)."
+        },
+        {
+          "name": "KIS_MCP_MAX_REAL_ORDERS",
+          "description": "Session circuit breaker: maximum number of live orders per server session before it halts and refuses further live orders until restarted."
         }
       ]
     }

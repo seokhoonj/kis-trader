@@ -236,6 +236,23 @@ def test_plan_modify_real_requires_risk():
     assert out == ModifyOrderPlan(client_order_id="x", limit_price="100", quantity=5)
 
 
+def test_plan_modify_real_runs_allowlist_on_resolved_symbol():
+    # 정정은 노출을 늘릴 수 있어(재가격) 원주문 종목이 실전 allowlist 를 통과해야 한다(place 와 동일).
+    with pytest.raises(KISUsageError, match="allowlist"):
+        plan_modify_order(_REAL, has_risk=True, allowlist=frozenset({"000660"}),
+                          client_order_id="x", limit_price="100", symbol="005930")
+    out = plan_modify_order(_REAL, has_risk=True, allowlist=frozenset({"005930"}),
+                            client_order_id="x", limit_price="100", symbol="005930", side="buy")
+    assert out.symbol == "005930" and out.side == "buy"
+
+
+def test_plan_modify_without_resolved_symbol_skips_allowlist():
+    # 저장소에서 종목을 못 찾으면(symbol=None) allowlist 는 건너뛴다 -- 그 외 게이트/사람확인은 유지.
+    out = plan_modify_order(_REAL, has_risk=True, allowlist=frozenset({"000660"}),
+                            client_order_id="x", limit_price="100")
+    assert out.symbol is None
+
+
 # --- integration: run_place_order (가드레일 + elicitation 확인 + 집행) -------
 _ACCEPT = RawResponse(
     rt_cd="0", msg_cd="APBK0013", msg1="주문 전송 완료",
@@ -463,7 +480,10 @@ def test_run_modify_order_paper_executes():
     kis, t = _order_client("paper")
     seed = kis.domestic.stock("005930").buy(quantity=1, limit_price="70000")
     out = asyncio.run(run_modify_order(
-        kis, RealOrderGate.from_env({}, "paper"), CircuitBreaker(), _AcceptCtx(),
+        kis, RealOrderGate.from_env({}, "paper"), None, CircuitBreaker(), _AcceptCtx(),
         client_order_id=seed.client_order_id, limit_price="71000"))
     assert out["sent"] is True
     assert len(t.calls) >= 2                                   # place(시드) + modify 와이어
+    # 티켓이 원주문 종목/매수매도를 보여준다(사람이 '어느 종목 정정'인지 확인 가능).
+    assert out["ticket"]["symbol"] == "005930"
+    assert out["ticket"]["side"] == "buy"

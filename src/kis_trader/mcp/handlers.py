@@ -28,14 +28,26 @@ from ._guardrails import (
     make_stock_order_plan,
 )
 
+#: 결과에 **절대** 실려선 안 되는 자격증명 키(방어적 denylist). 현재 직렬화 대상은 엔티티뿐이라
+#: 이 키들이 나올 일이 없지만, 미래에 raw 매핑을 돌려주는 핸들러가 생겨도 시크릿이 새지 않게 한다.
+#: (``account``/``cano`` 같은 값은 정당한 마스킹 대상이라 여기 넣지 않는다 -- 계좌는 _account_masked 로 처리.)
+_SECRET_KEYS = frozenset({
+    "app_key", "appkey", "app_secret", "appsecret", "secret", "secret_key",
+    "access_token", "token", "approval_key", "authorization",
+})
+
+
+def _is_secret_key(key: object) -> bool:
+    return isinstance(key, str) and key.lower().replace("-", "_") in _SECRET_KEYS
+
 
 def _serialize(value: Any) -> Any:
-    """frozen dataclass/Decimal/list/dict 를 JSON 안전 값으로. ``_raw`` 와 밑줄 필드/키는 제외한다
-    (원본 응답·자격증명 누출 방지)."""
+    """frozen dataclass/Decimal/list/dict 를 JSON 안전 값으로. ``_raw``·밑줄 필드/키와 자격증명 키
+    (``_SECRET_KEYS``)는 제외한다(원본 응답·자격증명 누출 방지)."""
     if is_dataclass(value) and not isinstance(value, type):
         out: dict[str, Any] = {}
         for dc_field in fields(value):
-            if dc_field.name.startswith("_"):  # _raw 및 내부 필드 제외
+            if dc_field.name.startswith("_") or _is_secret_key(dc_field.name):  # _raw·내부·시크릿 제외
                 continue
             out[dc_field.name] = _serialize(getattr(value, dc_field.name))
         return out
@@ -51,7 +63,7 @@ def _serialize(value: Any) -> Any:
         # 매핑 분기도 밑줄 키를 제외 -- dataclass 분기와 같은 규율(중첩 매핑의 _raw/내부키 누출 방지).
         # ``Mapping`` 으로 받아 ``MappingProxyType`` (freeze_vendor_payload 결과)도 재귀 처리한다.
         return {key: _serialize(item) for key, item in value.items()
-                if not (isinstance(key, str) and key.startswith("_"))}
+                if not (isinstance(key, str) and key.startswith("_")) and not _is_secret_key(key)}
     return value
 
 
@@ -198,9 +210,14 @@ def plan_cancel_order(gate: RealOrderGate, *, client_order_id: str) -> str:
 
 
 def plan_modify_order(
-    gate: RealOrderGate, has_risk: bool, *, client_order_id: str, limit_price: str, quantity: int | None = None
+    gate: RealOrderGate, has_risk: bool, allowlist: frozenset[str] | None = None, *,
+    client_order_id: str, limit_price: str, quantity: int | None = None,
+    symbol: str | None = None, side: str | None = None,
 ) -> ModifyOrderPlan:
-    """정정 계획 -- 새 가격을 거는 변경이라 신규 주문처럼 (실전) RiskLimits 를 요구한다(fail-closed)."""
+    """정정 계획 -- 새 가격을 거는 변경이라 신규 주문처럼 (실전) RiskLimits 를 요구한다(fail-closed).
+    원주문 종목(``symbol``)이 저장소에서 해석되면 신규 주문과 같이 실전 allowlist 도 확인한다 -- 정정은
+    노출을 늘릴 수 있어(재가격·수량) place 와 같은 종목 통제를 받아야 한다. 종목을 모르면(저장소 미보유)
+    allowlist 는 건너뛴다(그 외 게이트/사람확인은 그대로)."""
     gate.require_executable()
     if gate.is_real() and not has_risk:
         raise KISUsageError(
@@ -212,4 +229,7 @@ def plan_modify_order(
         raise KISUsageError(f"limit_price 는 문자열/정수 스칼라여야 한다: {limit_price!r}")
     if quantity is not None and (isinstance(quantity, bool) or not isinstance(quantity, int) or quantity <= 0):
         raise KISUsageError(f"quantity 는 양의 정수여야 한다: {quantity!r}")
-    return ModifyOrderPlan(client_order_id=client_order_id, limit_price=str(limit_price), quantity=quantity)
+    if symbol is not None:
+        check_allowlist(symbol, allowlist, is_real=gate.is_real())
+    return ModifyOrderPlan(client_order_id=client_order_id, limit_price=str(limit_price),
+                           quantity=quantity, symbol=symbol, side=side)

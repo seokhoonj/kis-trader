@@ -27,7 +27,7 @@ from .._literals import Direction
 from ..client import KISClient
 from ..errors import KISError, KISUsageError
 from ..instrument import Region
-from ..order import DomesticDivision, Side
+from ..order import DomesticDivision, ImmediateOrderFingerprint, Side
 from ..risk import RiskLimits
 from . import handlers
 from ._elicit import SupportsElicit, confirm_order
@@ -152,6 +152,15 @@ def _order_ticket(kis: KISClient, **fields: Any) -> dict[str, Any]:
     return {"environment": kis.environment, "account": handlers._account_masked(kis), **fields}
 
 
+def _order_identity(kis: KISClient, client_order_id: str) -> tuple[str, str] | None:
+    """저장소의 원주문 지문에서 (symbol, side) 를 찾는다(없거나 변경지문이면 None). 정정/취소 사람
+    확인 티켓이 '어느 종목·매수/매도'인지 보이게 하고, 정정의 allowlist 확인에 쓴다."""
+    fingerprint = kis._store.fingerprint_for(client_order_id)
+    if isinstance(fingerprint, ImmediateOrderFingerprint):
+        return fingerprint.symbol, fingerprint.side
+    return None
+
+
 async def _authorize_order(ctx: SupportsElicit, ticket: dict[str, Any], gate: RealOrderGate,
                            breaker: CircuitBreaker) -> _OrderDecision:
     """실전 주문 사전 승인 -- 사람 확인(elicitation) + 서킷브레이커. 모의는 즉시 승인(돈 안 나감).
@@ -198,7 +207,9 @@ async def run_cancel_order(
     client_order_id: str,
 ) -> dict[str, Any]:
     cid = handlers.plan_cancel_order(gate, client_order_id=client_order_id)
-    ticket = _order_ticket(kis, action="cancel", client_order_id=cid)
+    identity = _order_identity(kis, cid)
+    ticket = _order_ticket(kis, action="cancel", client_order_id=cid,
+                           **({"symbol": identity[0], "side": identity[1]} if identity else {}))
     decision = await _authorize_order(ctx, ticket, gate, breaker)
     if not decision.approved:
         return decision.refusal                        # type: ignore[return-value]
@@ -207,13 +218,18 @@ async def run_cancel_order(
 
 
 async def run_modify_order(
-    kis: KISClient, gate: RealOrderGate, breaker: CircuitBreaker, ctx: SupportsElicit, *,
-    client_order_id: str, limit_price: str, quantity: int | None = None,
+    kis: KISClient, gate: RealOrderGate, allowlist: frozenset[str] | None, breaker: CircuitBreaker,
+    ctx: SupportsElicit, *, client_order_id: str, limit_price: str, quantity: int | None = None,
 ) -> dict[str, Any]:
-    plan = handlers.plan_modify_order(gate, kis.has_risk_limits, client_order_id=client_order_id,
-                                      limit_price=limit_price, quantity=quantity)
+    identity = _order_identity(kis, client_order_id)
+    plan = handlers.plan_modify_order(
+        gate, kis.has_risk_limits, allowlist, client_order_id=client_order_id,
+        limit_price=limit_price, quantity=quantity,
+        symbol=identity[0] if identity else None, side=identity[1] if identity else None,
+    )
     ticket = _order_ticket(kis, action="modify", client_order_id=plan.client_order_id,
-                           limit_price=plan.limit_price, quantity=plan.quantity)
+                           limit_price=plan.limit_price, quantity=plan.quantity,
+                           **({"symbol": plan.symbol, "side": plan.side} if plan.symbol else {}))
     decision = await _authorize_order(ctx, ticket, gate, breaker)
     if not decision.approved:
         return decision.refusal                        # type: ignore[return-value]
@@ -314,8 +330,8 @@ def build_server(
     async def modify_order(
         ctx: Context, client_order_id: str, limit_price: str, quantity: int | None = None
     ) -> dict[str, Any]:
-        """접수된 주문 가격/수량 정정. 실전은 RiskLimits+사람 확인 필요."""
-        return await run_modify_order(kis, gate, breaker, ctx, client_order_id=client_order_id,
+        """접수된 주문 가격/수량 정정. 실전은 이중게이트+RiskLimits+(원주문 종목의)allowlist+사람 확인+서킷브레이커."""
+        return await run_modify_order(kis, gate, allowlist, breaker, ctx, client_order_id=client_order_id,
                                       limit_price=limit_price, quantity=quantity)
 
     return server

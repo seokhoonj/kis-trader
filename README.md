@@ -106,7 +106,7 @@ Claude Code·Codex 같은 AI 도구로 계좌를 다루려면 `plugins/kis-trade
 
 MCP 호환 에이전트(Claude Desktop 등)에서는 `kis_trader.mcp` 서버(`pip install 'kis-trader[mcp]'` 후
 `kis-mcp`)로 계좌 조회·주문 미리보기와 국내 주식 주문·정정·취소 도구를 쓸 수 있습니다. 기본은
-모의투자이며, 실전 주문은 종목 허용목록·세션 서킷브레이커·사람 확인을 모두 통과해야 합니다.
+모의투자이며, 실전 주문은 이중 잠금·사람 확인·세션 서킷브레이커를 거칩니다(신규·정정은 RiskLimits 와 종목 허용목록까지; 취소는 노출을 줄이므로 제외).
 [MCP 서버](https://seokhoonj.github.io/kis-trader/mcp.html) 문서를 참고하세요.
 
 ## 7. 문서

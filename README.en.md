@@ -110,8 +110,9 @@ To manage an account through an AI tool such as Claude Code or Codex, use the
 
 For MCP-compatible agents (Claude Desktop, etc.), the `kis_trader.mcp` server
 (`pip install 'kis-trader[mcp]'`, then `kis-mcp`) exposes account-query, order-preview,
-and domestic-stock place/modify/cancel tools. Paper trading is the default; live orders require
-an allowlist, a session circuit breaker, and human confirmation. See the
+and domestic-stock place/modify/cancel tools. Paper trading is the default; live orders go through a
+double gate, human confirmation, and a session circuit breaker (place/modify also require RiskLimits
+and a symbol allowlist; cancel is exempt as it reduces exposure). See the
 [MCP Server](https://seokhoonj.github.io/kis-trader/mcp.html) chapter.
 
 ## 7. Documentation
