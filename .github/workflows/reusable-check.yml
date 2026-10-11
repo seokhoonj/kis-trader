@@ -106,3 +106,22 @@ jobs:
           cat /tmp/mypy_out
           grep -Fq 'Argument "profile" to "KISClient" has incompatible type "int"' /tmp/mypy_out
           grep -Fq '[arg-type]' /tmp/mypy_out
+
+      - name: Scan the built artifacts for leaked tooling or local-only paths
+        # The sdist is allowlisted and this repo's .gitignore is generic, so the
+        # artifacts are clean by construction -- but the backend force-includes files
+        # (notably .gitignore) and an allowlist can be loosened later, so gate it: list
+        # what the sdist and wheel actually carry and fail on any AI-tooling file,
+        # local-only working path (dev/ or refs/), or third-party reference-clone name.
+        # One build is enough; run it on the floor version only.
+        if: matrix.python-version == '3.11'
+        run: |
+          uv build
+          listing=$( (tar tzf dist/*.tar.gz; unzip -Z1 dist/*.whl) )
+          echo "$listing"
+          forbidden='(^|/)(\.claude|\.codex|\.gemini)/|(^|/)(CLAUDE|GEMINI|AGENTS?)\.md$|(^|/)(dev|refs)/|humbletrader|open-trading-api|python-kis|kis-agent|kis-ai-ext'
+          if echo "$listing" | grep -EnI "$forbidden"; then
+            echo "leak-scan: forbidden path/name in built artifact (see matches above)"
+            exit 1
+          fi
+          echo "leak-scan: artifacts carry no tooling, local-only paths, or clone names"
