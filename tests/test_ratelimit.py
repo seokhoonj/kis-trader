@@ -2,8 +2,8 @@
 
 from __future__ import annotations
 
+import itertools
 import threading
-import time
 
 import pytest
 
@@ -156,25 +156,30 @@ def test_default_rates_real_and_demo():
     assert DEFAULT_REQUESTS_PER_SECOND_BY_ENVIRONMENT["paper"] == pytest.approx(1.0)
 
 
-def test_thread_safe_serializes_and_enforces_rate():
-    # 실시각 동시 acquire 가 교착·유실 없이 전원 완료되고, 리미터가 속도를 강제한다(지터로 더
-    # 빨라질 수는 없다 -- 최소 경과시간은 하한으로 신뢰 가능). 5건/0.2초 => 20건은 최소 ~0.6초.
-    rl = SlidingWindowRateLimiter(5, window_seconds=0.2, clock=time.monotonic, sleep=time.sleep)
+def test_thread_safe_serializes_without_deadlock_or_loss():
+    # 동시 acquire 가 리미터의 락으로 교착·유실 없이 직렬화되는지 **결정적으로**(실시각·실sleep 없이)
+    # 검증한다. clock 을 호출마다 1초씩 전진시켜 창(0.2s)이 항상 비게 해 스로틀 sleep 을 없애고, 락
+    # 하의 deque 상태 보존만 본다(속도 강제의 창 산술은 위 fake-clock 단일스레드 테스트가 이미 커버).
+    counter = itertools.count()
+    clock_lock = threading.Lock()
+
+    def clock() -> float:
+        with clock_lock:
+            return next(counter) * 1.0
+
+    rl = SlidingWindowRateLimiter(5, window_seconds=0.2, clock=clock, sleep=lambda _s: None)
     done: list[int] = []
-    lock = threading.Lock()
+    done_lock = threading.Lock()
 
     def worker():
         rl.acquire()
-        with lock:
+        with done_lock:
             done.append(1)
 
-    start = time.monotonic()
     threads = [threading.Thread(target=worker) for _ in range(20)]
     for t in threads:
         t.start()
     for t in threads:
-        t.join(timeout=10)                  # 교착 시 무한 대기하지 않고 실패로 드러난다
-    elapsed = time.monotonic() - start
+        t.join(timeout=5)                   # 교착 시 무한 대기하지 않고 실패로 드러난다
     assert not any(t.is_alive() for t in threads)   # 전원 종료(살아있으면 교착 -> 실패)
-    assert len(done) == 20                  # 교착·유실 없이 전원 완료(락이 상태를 지킴)
-    assert elapsed >= 0.5                    # 리미터가 강제하는 하한(더 빨라질 수 없음)
+    assert len(done) == 20                  # 교착·유실 없이 전원 완료(락이 deque 상태를 지킴)

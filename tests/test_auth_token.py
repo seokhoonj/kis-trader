@@ -122,6 +122,54 @@ def test_refreshes_within_margin(tmp_path: Path) -> None:
     assert len(poster.calls) == 2
 
 
+def test_reuses_token_just_before_refresh_margin(tmp_path: Path) -> None:
+    # 발급(t=1000, expires_in=3600 -> 만료 4600, margin 600 -> 갱신문턱 4000). 문턱 직전엔 재발급 없이 재사용.
+    clock = [1_000.0]
+    poster = FakePoster()
+    token_manager = manager(tmp_path, poster, clock)
+    token_manager.access_token()
+    clock[0] = 3_999.0                                   # 갱신 문턱 바로 직전
+    assert token_manager.access_token() == "canned-access-token"
+    assert len(poster.calls) == 1                        # 재발급하지 않고 캐시 재사용
+
+
+def test_backward_clock_jump_does_not_reissue_or_crash(tmp_path: Path) -> None:
+    # 시계가 뒤로 점프해도(만료 이전) 유효 토큰을 재사용하고 크래시하지 않는다.
+    clock = [1_000.0]
+    poster = FakePoster()
+    token_manager = manager(tmp_path, poster, clock)
+    token_manager.access_token()
+    clock[0] = 500.0                                     # 뒤로 점프
+    assert token_manager.access_token() == "canned-access-token"
+    assert len(poster.calls) == 1
+
+
+def test_concurrent_access_issues_token_once(tmp_path: Path) -> None:
+    # 여러 스레드가 동시에 첫 토큰을 요청해도 발급은 한 번, 모두 같은 토큰을 받는다(락 하 단일 발급).
+    import threading
+
+    clock = [1_000.0]
+    poster = FakePoster()
+    token_manager = manager(tmp_path, poster, clock)
+    barrier = threading.Barrier(12)
+    tokens: list[str] = []
+    tokens_lock = threading.Lock()
+
+    def worker() -> None:
+        barrier.wait()
+        token = token_manager.access_token()
+        with tokens_lock:
+            tokens.append(token)
+
+    threads = [threading.Thread(target=worker) for _ in range(12)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join(timeout=5.0)
+    assert tokens == ["canned-access-token"] * 12        # 전원 같은 토큰
+    assert len(poster.calls) == 1                        # 동시 요청이어도 발급은 한 번
+
+
 @pytest.mark.parametrize(
     ("status", "payload"),
     [

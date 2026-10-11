@@ -1,7 +1,11 @@
 import json
+import threading
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
+import pytest
+
+from kis_trader.errors import KISError
 from kis_trader.order import ChangeActionFingerprint, Order
 from kis_trader.store import _SCHEMA_VERSION, Claimed, InFlight, OrderStore, PriorChangeInFlight
 
@@ -90,3 +94,36 @@ def test_try_claim_change_allows_change_on_a_different_original(tmp_path):
                                                  original_client_order_id="orig-1"), Claimed)
         assert isinstance(store.try_claim_change("req-B", _change_fp(original="orig-2"),
                                                  original_client_order_id="orig-2"), Claimed)
+
+
+def test_try_claim_is_atomic_under_concurrency(tmp_path):
+    # 핵심 이중체결 방지 불변식: 여러 스레드가 동시에 같은 id 를 claim 하면 정확히 하나만 Claimed,
+    # 나머지는 InFlight. 락 밖으로 check/claim 이 새면(회귀) 둘 이상 Claimed 가 되어 이 테스트가 깨진다.
+    with OrderStore(tmp_path / "s.json", now=_clock) as store:
+        fp = _fp()
+        barrier = threading.Barrier(16)
+        results: list[object] = []
+        results_lock = threading.Lock()
+
+        def worker() -> None:
+            barrier.wait()
+            outcome = store.try_claim("same-id", fp)
+            with results_lock:
+                results.append(outcome)
+
+        threads = [threading.Thread(target=worker) for _ in range(16)]
+        for thread in threads:
+            thread.start()
+        for thread in threads:
+            thread.join(timeout=5.0)
+        claimed = [r for r in results if isinstance(r, Claimed)]
+        in_flight = [r for r in results if isinstance(r, InFlight)]
+        assert len(claimed) == 1              # 정확히 하나만 전송 권한을 얻는다
+        assert len(in_flight) == 15           # 나머지는 재조회 요구(재전송 금지)
+
+
+def test_second_store_on_same_path_is_rejected(tmp_path):
+    # 프로세스 간 이중체결 방지: 같은 경로의 두 번째 열기는 단일 writer flock 으로 거부된다.
+    path = tmp_path / "s.json"
+    with OrderStore(path, now=_clock), pytest.raises(KISError, match="이미 열려"):
+        OrderStore(path, now=_clock)

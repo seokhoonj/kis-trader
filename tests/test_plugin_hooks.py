@@ -121,3 +121,29 @@ def test_order_guard_allows_order_without_real_env():
     # real 신호가 (텍스트에도 환경변수에도) 없으면 조용히 통과한다.
     hook_output = _run_hook("kis-order-guard.py", {"command": "kis.domestic.stock('005930').buy(quantity=10)"})
     assert hook_output == {}
+
+
+def test_order_guard_does_not_ask_on_read_under_ambient_real_env():
+    # ambient real 세션이어도 주문 동사가 없는 읽기 명령은 물어보지 않는다(usability: over-ask 방지).
+    # AND 분기(real-signal AND order-verb)가 OR 로 퇴화하면 모든 명령에 물어봐 이 테스트가 깨진다.
+    hook_output = _run_hook("kis-order-guard.py", {"command": "kis.domestic.stock('005930').quote()"},
+                            env={"KIS_MCP_ENVIRONMENT": "real"})
+    assert hook_output == {}
+
+
+def test_secret_guard_denies_real_secret_end_to_end():
+    # 차단 경로를 main() 까지 구동(regex 단위테스트만으론 deny JSON 출력/루프 회귀를 못 잡는다).
+    secret = "Ab3xZ9Qw8Lm2Kp7Rt5Yu1Vn4Bc6De0Fg"
+    hook_output = _run_hook("kis-secret-guard.py", {"content": f'app_secret = "{secret}"'})
+    assert hook_output.get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
+
+
+def test_secret_guard_denies_account_identifier_end_to_end():
+    hook_output = _run_hook("kis-secret-guard.py", {"content": 'cano = "12345678"'})
+    assert hook_output.get("hookSpecificOutput", {}).get("permissionDecision") == "deny"
+
+
+def test_secret_guard_allows_placeholder_and_benign_code_end_to_end():
+    assert _run_hook("kis-secret-guard.py",
+                     {"content": 'app_secret = "YOUR_APP_SECRET_HERE_1234567890"'}) == {}
+    assert _run_hook("kis-secret-guard.py", {"command": "cano = resultvar"}) == {}
