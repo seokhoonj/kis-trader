@@ -482,21 +482,27 @@ class OrderStore:
 #: 같은 진짜 내구성 실패는 여기 없으므로 그대로 전파돼 '저장됨' 주장이 거짓이 되지 않는다.
 _UNSUPPORTED_FSYNC_ERRNOS = frozenset({errno.EINVAL, errno.ENOTSUP, errno.EOPNOTSUPP})
 
+#: 프로세스가 Windows 에서 도는가(``os.name`` 은 프로세스 내 불변이라 import 시 한 번 읽는다). 모듈
+#: 상수로 두면 디렉터리-fsync 의 플랫폼 분기를 테스트가 이 bool 하나로 뒤집을 수 있다 -- 런타임에
+#: ``os.name`` 을 'nt' 로 바꿔 흉내내면 Python 3.11 의 pathlib 이 모든 ``Path()`` 를 WindowsPath 로
+#: 만들어(비-Windows 에서 인스턴스화 불가) 테스트 수집·리포팅이 깨진다.
+_WINDOWS = os.name == "nt"
+
 
 def _fsync_dir(directory: Path) -> None:
     """디렉터리 엔트리를 fsync -- rename 이 크래시에도 살아남게.
 
-    Windows(``os.name=="nt"``)는 디렉터리를 열 수 없어 열기 실패를 통째로 건너뛴다(데이터 파일은
-    이미 fsync + 원자 교체됨 -- 디렉터리 fsync 는 best-effort). 그 외 플랫폼에선 디렉터리 fsync
-    미지원 errno(EINVAL/ENOTSUP/EOPNOTSUPP)만 무시하고 EIO/ENOSPC/EMFILE 등 진짜 내구성 실패는
-    삼키지 않고 올린다(거짓 '저장됨' 방지)."""
+    Windows 는 디렉터리를 열 수 없어 열기 실패를 통째로 건너뛴다(데이터 파일은 이미 fsync + 원자
+    교체됨 -- 디렉터리 fsync 는 best-effort). 그 외 플랫폼에선 디렉터리 fsync 미지원 errno
+    (EINVAL/ENOTSUP/EOPNOTSUPP)만 무시하고 EIO/ENOSPC/EMFILE 등 진짜 내구성 실패는 삼키지 않고
+    올린다(거짓 '저장됨' 방지)."""
     try:
         dir_fd = os.open(directory, os.O_RDONLY)
     except OSError as err:  # pragma: no cover -- 플랫폼이 디렉터리 fd 열기를 미지원
         # Windows 는 디렉터리를 O_RDONLY 로 열 수 없어 PermissionError(EACCES) 를 낸다 -- 구조적
         # 플랫폼 특성이지 내구성 실패가 아니다(데이터 파일은 이미 fsync + 원자 교체됨). 건너뛴다.
         # 그 외 플랫폼에선 디렉터리 fsync 미지원 errno 만 무시하고 EMFILE/EIO 등 진짜 실패는 올린다.
-        if os.name == "nt" or err.errno in _UNSUPPORTED_FSYNC_ERRNOS:
+        if _WINDOWS or err.errno in _UNSUPPORTED_FSYNC_ERRNOS:
             return
         raise  # EMFILE/EIO 등 진짜 실패는 올린다(거짓 '저장됨' 방지, fsync 분기와 동일 규율)
     try:

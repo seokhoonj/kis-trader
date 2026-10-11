@@ -15,11 +15,13 @@ import pytest
 from kis_trader import store
 
 
+# Windows 분기는 store._WINDOWS(모듈 bool)로 뒤집는다 -- 글로벌 os.name 을 'nt' 로 패치하면
+# Python 3.11 의 pathlib 이 Path() 를 WindowsPath 로 만들어(비-Windows 인스턴스화 불가) 테스트가 깨진다.
 def test_dir_fsync_skips_when_windows_refuses_directory_open(monkeypatch):
     def _refuse(*_a, **_k):
         raise OSError(errno.EACCES, "Permission denied")
 
-    monkeypatch.setattr(store.os, "name", "nt")
+    monkeypatch.setattr(store, "_WINDOWS", True)
     monkeypatch.setattr(store.os, "open", _refuse)
     # 조용히 반환해야 한다(예외 전파 없음) -- 아니면 Windows 저장이 벽돌이 된다.
     assert store._fsync_dir(Path("/any/dir")) is None
@@ -29,7 +31,7 @@ def test_dir_fsync_propagates_real_open_failure_off_windows(monkeypatch):
     def _raise_eio(*_a, **_k):
         raise OSError(errno.EIO, "I/O error")
 
-    monkeypatch.setattr(store.os, "name", "posix")
+    monkeypatch.setattr(store, "_WINDOWS", False)
     monkeypatch.setattr(store.os, "open", _raise_eio)
     # 진짜 내구성 실패는 삼키지 않고 올린다(거짓 '저장됨' 방지).
     with pytest.raises(OSError):
@@ -40,7 +42,7 @@ def test_dir_fsync_skips_unsupported_errno_off_windows(monkeypatch):
     def _raise_einval(*_a, **_k):
         raise OSError(errno.EINVAL, "not supported")
 
-    monkeypatch.setattr(store.os, "name", "posix")
+    monkeypatch.setattr(store, "_WINDOWS", False)
     monkeypatch.setattr(store.os, "open", _raise_einval)
     # 디렉터리 fsync 미지원 errno 는 비-Windows 에서도 무시한다.
     assert store._fsync_dir(Path("/any/dir")) is None
