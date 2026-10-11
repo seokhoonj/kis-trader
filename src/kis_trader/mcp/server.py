@@ -15,7 +15,6 @@ from __future__ import annotations
 
 import os
 import sys
-from dataclasses import dataclass
 from typing import Any
 
 import anyio
@@ -33,14 +32,6 @@ from . import handlers
 from ._elicit import SupportsElicit, confirm_order
 from ._guardrails import CircuitBreaker, RealOrderGate, StockOrderPlan
 from ._http_auth import BearerTokenMiddleware
-
-
-@dataclass(frozen=True, slots=True)
-class _OrderDecision:
-    """실주문 사전 승인 결과 -- ``approved`` 면 집행, 아니면 ``refusal`` dict 를 그대로 반환(미전송)."""
-
-    approved: bool
-    refusal: dict[str, Any] | None
 
 
 def _int_env(environ: dict[str, str], name: str, default: int) -> int:
@@ -162,24 +153,24 @@ def _order_identity(kis: KISClient, client_order_id: str) -> tuple[str, str] | N
 
 
 async def _authorize_order(ctx: SupportsElicit, ticket: dict[str, Any], gate: RealOrderGate,
-                           breaker: CircuitBreaker) -> _OrderDecision:
+                           breaker: CircuitBreaker) -> dict[str, Any] | None:
     """실전 주문 사전 승인 -- 사람 확인(elicitation) + 서킷브레이커. 모의는 즉시 승인(돈 안 나감).
-    서킷브레이커 HALT 는 (이미 HALT 든, 이 주문이 한도를 넘겨 trip 하든) **일관되게 refusal** 로 돌려
-    준다(예외로 새지 않음)."""
+    승인되면 ``None``, 거부되면 호출자가 그대로 반환할 refusal dict 를 돌려준다(approved/refusal 이
+    모순되게 동시에 존재할 수 없어 호출부의 type:ignore 가 사라진다). 서킷브레이커 HALT 는 (이미
+    HALT 든, 이 주문이 한도를 넘겨 trip 하든) **일관되게 refusal** 로 돌려준다(예외로 새지 않음)."""
     if not gate.is_real():
-        return _OrderDecision(approved=True, refusal=None)
+        return None
     halted = {"sent": False, "reason": "서킷브레이커 HALT -- 수동 재개 전까지 실주문 차단", "ticket": ticket}
     if breaker.halted:
-        return _OrderDecision(False, halted)
+        return halted
     if not await confirm_order(ctx, ticket):
-        return _OrderDecision(
-            False, {"sent": False, "reason": "사람 확인 거부/미지원(elicitation) -- 전송하지 않음",
-                    "ticket": ticket})
+        return {"sent": False, "reason": "사람 확인 거부/미지원(elicitation) -- 전송하지 않음",
+                "ticket": ticket}
     try:
         breaker.record_and_check()
     except KISUsageError:
-        return _OrderDecision(False, halted)       # 이 주문이 한도를 넘겨 trip -> 미전송(일관)
-    return _OrderDecision(True, None)
+        return halted                              # 이 주문이 한도를 넘겨 trip -> 미전송(일관)
+    return None
 
 
 async def run_place_order(
@@ -195,9 +186,9 @@ async def run_place_order(
     ticket = _order_ticket(kis, action="place", region=plan.region, symbol=plan.symbol, side=plan.side,
                            order_type=plan.order_type, quantity=plan.quantity, limit_price=plan.limit_price,
                            division=plan.division)
-    decision = await _authorize_order(ctx, ticket, gate, breaker)
-    if not decision.approved:
-        return decision.refusal                        # type: ignore[return-value]  # approved=False -> refusal 존재
+    refusal = await _authorize_order(ctx, ticket, gate, breaker)
+    if refusal is not None:
+        return refusal
     report = await anyio.to_thread.run_sync(lambda: _execute_stock_order(kis, plan))
     return {"sent": True, "ticket": ticket, "report": handlers._serialize(report)}
 
@@ -210,9 +201,9 @@ async def run_cancel_order(
     identity = _order_identity(kis, cid)
     ticket = _order_ticket(kis, action="cancel", client_order_id=cid,
                            **({"symbol": identity[0], "side": identity[1]} if identity else {}))
-    decision = await _authorize_order(ctx, ticket, gate, breaker)
-    if not decision.approved:
-        return decision.refusal                        # type: ignore[return-value]
+    refusal = await _authorize_order(ctx, ticket, gate, breaker)
+    if refusal is not None:
+        return refusal
     report = await anyio.to_thread.run_sync(lambda: kis.orders.cancel(cid))
     return {"sent": True, "ticket": ticket, "report": handlers._serialize(report)}
 
@@ -230,9 +221,9 @@ async def run_modify_order(
     ticket = _order_ticket(kis, action="modify", client_order_id=plan.client_order_id,
                            limit_price=plan.limit_price, quantity=plan.quantity,
                            **({"symbol": plan.symbol, "side": plan.side} if plan.symbol else {}))
-    decision = await _authorize_order(ctx, ticket, gate, breaker)
-    if not decision.approved:
-        return decision.refusal                        # type: ignore[return-value]
+    refusal = await _authorize_order(ctx, ticket, gate, breaker)
+    if refusal is not None:
+        return refusal
     report = await anyio.to_thread.run_sync(
         lambda: kis.orders.modify(plan.client_order_id, limit_price=plan.limit_price,
                                   quantity=plan.quantity)
