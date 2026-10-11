@@ -358,11 +358,13 @@ def fetch_issuance(transport: Transport, *, symbol: str) -> BondIssuance:
         issue_amount=required_decimal(output.get("issu_amt"), "issu_amt"),
         outstanding_amount=required_decimal(output.get("lstg_rmnd"), "lstg_rmnd"),
         issuer_name=str(output.get("issu_istt_name", "")).strip(),
-        interest_payment_months=required_int(output.get("int_dfrm_mcnt"), "int_dfrm_mcnt"),
-        coupon_rate=required_decimal(output.get("srfc_inrt"), "srfc_inrt"),
-        discount_rate=required_decimal(output.get("dsct_ec_rt"), "dsct_ec_rt"),
-        redemption_rate=required_decimal(output.get("expd_rdpt_rt"), "expd_rdpt_rt"),
-        yield_to_maturity=required_decimal(
+        # 채권 종류별로 공란이 정상(이표채=할인율 無, 할인채=이자주기 無) -- fetch_profile 과 같이
+        # optional 로 두어 정상 입력에 KISError 로 죽지 않게 한다(required_* 는 공란에서 크래시).
+        interest_payment_months=optional_int(output.get("int_dfrm_mcnt"), "int_dfrm_mcnt"),
+        coupon_rate=optional_decimal(output.get("srfc_inrt"), "srfc_inrt"),
+        discount_rate=optional_decimal(output.get("dsct_ec_rt"), "dsct_ec_rt"),
+        redemption_rate=optional_decimal(output.get("expd_rdpt_rt"), "expd_rdpt_rt"),
+        yield_to_maturity=optional_decimal(
             output.get("expd_asrc_erng_rt"), "expd_asrc_erng_rt"
         ),
         issue_date=parse_optional_kst_date(output.get("issu_dt")),
@@ -459,7 +461,9 @@ def _parse_valuation(
         symbol=str(row.get("pdno", "")).strip() or fallback_code,
         name=str(row.get("prdt_name", "")).strip(),
         average_price=required_decimal(row.get("avg_evlu_unpr"), "avg_evlu_unpr"),
-        average_yield=required_decimal(row.get("avg_evlu_erng_rt"), "avg_evlu_erng_rt"),
+        # 가격은 있으나 평균수익률이 공란인 비거래 평가일 행이 있다 -- 행-스킵 가드는 가격만 보므로
+        # 여기서 optional 로 두어(공란->None) 크래시를 막는다.
+        average_yield=optional_decimal(row.get("avg_evlu_erng_rt"), "avg_evlu_erng_rt"),
         agency_prices=agency_prices,
         agency_yields=agency_yields,
         credit_ratings=credit_ratings,
@@ -578,8 +582,10 @@ def fetch_bond_buyable(
         orderable_substitute=required_decimal(output.get("ord_psbl_sbst"), "ord_psbl_sbst"),
         reusable_cash=required_decimal(output.get("ruse_psbl_amt"), "ruse_psbl_amt"),
         buyable_amount=required_decimal(output.get("buy_psbl_amt"), "buy_psbl_amt"),
-        buyable_quantity=required_decimal(output.get("buy_psbl_qty"), "buy_psbl_qty"),
-        cma_value=required_decimal(output.get("cma_evlu_amt"), "cma_evlu_amt"),
+        # 시장가(지정가 미지정) 조회는 buy_psbl_qty 를 공란으로, 비-CMA 계좌는 cma_evlu_amt 를
+        # 공란으로 준다 -- 주식 _parse_buyable 과 같이 부재 시 0(field_decimal_or_zero). required_* 는 크래시.
+        buyable_quantity=field_decimal_or_zero(output.get("buy_psbl_qty"), "buy_psbl_qty"),
+        cma_value=field_decimal_or_zero(output.get("cma_evlu_amt"), "cma_evlu_amt"),
         _raw=output,
     )
 

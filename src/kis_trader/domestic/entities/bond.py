@@ -112,11 +112,13 @@ class BondIssuance:
     issue_amount: Decimal
     outstanding_amount: Decimal
     issuer_name: str
-    interest_payment_months: int
-    coupon_rate: Decimal
-    discount_rate: Decimal
-    redemption_rate: Decimal
-    yield_to_maturity: Decimal
+    # 쿠폰/할인/상환/YTM/이자주기는 채권 종류에 따라 공란이다(이표채는 할인율 없음, 할인채는 이자주기
+    # 없음) -- BondProfile 과 동일하게 구조적 부재를 None 으로 둔다(없는 값을 0 으로 위조하지 않는다).
+    interest_payment_months: int | None
+    coupon_rate: Decimal | None
+    discount_rate: Decimal | None
+    redemption_rate: Decimal | None
+    yield_to_maturity: Decimal | None
     issue_date: date | None
     listing_date: date | None
     maturity_date: date | None
@@ -149,7 +151,7 @@ class BondValuation:
     symbol: str
     name: str
     average_price: Decimal
-    average_yield: Decimal
+    average_yield: Decimal | None   # 평가 평균수익률 %; 비거래 평가일엔 공란일 수 있어 None
     agency_prices: Mapping[str, Decimal] = field(hash=False)
     agency_yields: Mapping[str, Decimal] = field(hash=False)
     credit_ratings: Mapping[str, str] = field(hash=False)

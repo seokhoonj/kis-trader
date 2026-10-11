@@ -183,6 +183,16 @@ def test_buyable_market_price_blank_when_none():
     assert fake.calls[0]["params"]["BOND_ORD_UNPR"] == ""
 
 
+def test_buyable_tolerates_blank_quantity_and_cma():
+    # 시장가(지정가 미지정) 조회는 buy_psbl_qty 공란, 비-CMA 계좌는 cma_evlu_amt 공란 -- required 로
+    # 두면 크래시했다(주식 buyable 과 같이 부재 시 0, P2).
+    out = {**_BUYABLE_OUTPUT, "buy_psbl_qty": "", "cma_evlu_amt": ""}
+    result = _bonds(FakeTransport(response=_buyable_resp(out))).buyable("KR2033022D33")
+    assert result.buyable_quantity == Decimal(0)
+    assert result.cma_value == Decimal(0)
+    assert result.orderable_cash == Decimal(50000000)   # 다른 필드는 그대로
+
+
 def test_buyable_summary_as_length_one_list():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"output": [dict(_BUYABLE_OUTPUT)]})

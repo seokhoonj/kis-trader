@@ -337,6 +337,16 @@ def test_bond_valuations_maps_rows_and_sorts_oldest_first():
     }
 
 
+def test_bond_valuations_tolerates_blank_yield_with_present_price():
+    # 비거래 평가일: 가격은 있으나 평균수익률이 공란인 행 -- required 로 두면 전체가 크래시했다(P2).
+    rows = [{**_valuation_rows()[0], "evlu_dt": "20240410", "avg_evlu_erng_rt": ""}]
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": rows}))
+    valuations = _client(fake).domestic.bond("KR2033022D33").valuations(start="20240401", end="20240410")
+    assert len(valuations) == 1
+    assert valuations[0].average_price == Decimal("9801.70")
+    assert valuations[0].average_yield is None
+
+
 def test_bond_valuations_rejects_reversed_dates_before_transport():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):

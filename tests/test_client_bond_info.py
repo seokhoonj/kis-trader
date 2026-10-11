@@ -170,6 +170,19 @@ def test_bond_issuance_optional_dates_and_sparse_ratings():
     assert issuance.is_trade_suspended is True
 
 
+def test_bond_issuance_tolerates_blank_rate_and_period_fields():
+    # 이표채는 할인율, 할인채는 이자주기가 공란이다 -- required_* 로 두면 정상 입력에 크래시했다(P2).
+    output = _issuance_output(dsct_ec_rt="", int_dfrm_mcnt="", expd_asrc_erng_rt="")
+    fake = FakeTransport(
+        response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": output})
+    )
+    issuance = _client(fake).domestic.bond("KR6449111CB8").issuance()
+    assert issuance.discount_rate is None
+    assert issuance.interest_payment_months is None
+    assert issuance.yield_to_maturity is None
+    assert issuance.coupon_rate == Decimal("5.931")   # 준 값은 그대로
+
+
 def test_bond_issuance_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
