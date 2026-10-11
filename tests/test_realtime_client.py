@@ -74,6 +74,35 @@ def test_callback_receives_messages_and_subscription_sent():
         ["005930", "093001", "71600"],
     ]
     assert [m.data for m in streamed] == [m.data for m in received]
+
+
+def test_blocking_callback_does_not_stall_stream_delivery():
+    # on= 콜백이 블로킹해도 수신 루프/stream() 전달은 막히지 않는다 -- 콜백은 전용 워커 스레드에서
+    # 돌기 때문이다(과거엔 콜백이 이벤트루프 스레드에서 돌아 keepalive 응답을 고사시켰다).
+    ws = FakeWebSocket(incoming=[
+        "0|DUMMYTR0|001|005930^093000^71500",
+        "0|DUMMYTR0|001|005930^093001^71600",
+    ])
+    entered = threading.Event()
+    release = threading.Event()
+
+    def blocking(_message):
+        entered.set()
+        release.wait(2.0)
+
+    client = _client(ws)
+    client.subscribe("DUMMYTR0", "005930", on=blocking)
+    client.start()
+    # 콜백이 워커에서 블로킹 중이어도 stream() 은 두 틱을 모두 전달한다(루프 미차단).
+    streamed = list(client.stream(timeout=2.0))
+    assert [m.data for m in streamed] == [
+        ["005930", "093000", "71500"],
+        ["005930", "093001", "71600"],
+    ]
+    assert entered.wait(2.0)   # 콜백은 워커 스레드에서 이미 시작돼(블로킹) 있다
+    release.set()              # 풀어주면 워커가 나머지를 처리하고 종료한다
+    client.stop()
+    assert client._running is False
     # 구독 등록 메시지가 실제로 나갔는지
     sub = json.loads(ws.sent[0])
     assert sub["body"]["input"] == {"tr_id": "DUMMYTR0", "tr_key": "005930"}

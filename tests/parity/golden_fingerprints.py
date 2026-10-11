@@ -91,6 +91,13 @@ class _RecordingStore:
         self.fingerprints.append(fingerprint)
         return self._store.try_claim(key, fingerprint)
 
+    def try_claim_change(self, key: str, fingerprint: OrderFingerprint, *,
+                         original_client_order_id: str) -> object:
+        # 정정/취소 경로(submit_change)는 원자적 try_claim_change 를 쓴다 -- 지문 캡처는 동일.
+        self.fingerprints.append(fingerprint)
+        return self._store.try_claim_change(
+            key, fingerprint, original_client_order_id=original_client_order_id)
+
     def __getattr__(self, name: str) -> Any:
         return getattr(self._store, name)
 

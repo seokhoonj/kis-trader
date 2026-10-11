@@ -3,12 +3,19 @@ from __future__ import annotations
 import threading
 
 from kis_trader.realtime._connection import RealtimeMessage
-from kis_trader.realtime.client import RealtimeClient
+from kis_trader.realtime.client import _DISPATCH_SENTINEL, RealtimeClient
 
 
 def _client() -> RealtimeClient:
     # 연결 없이 dispatch/라우팅 단위테스트 (start() 안 함)
     return RealtimeClient("approval", "wss://example/ws", connect=None)
+
+
+def _pump(c: RealtimeClient) -> None:
+    # 콜백/타입드 구독 전달은 전용 워커 스레드가 한다(루프 비차단). start() 없이 단위테스트하려고
+    # 종료 sentinel 을 넣고 실제 워커 루프를 동기로 한 바퀴 돌려 큐를 비운다(실 코드 경로 그대로).
+    c._dispatch_queue.put(_DISPATCH_SENTINEL)
+    c._dispatch_worker()
 
 
 def test_open_typed_routes_only_matching_contract() -> None:
@@ -17,6 +24,7 @@ def test_open_typed_routes_only_matching_contract() -> None:
     other = c._open_typed("H0IFCNT0", "201W09")
     c._dispatch(RealtimeMessage("H0IFCNT0", "101W09", "A"))
     c._dispatch(RealtimeMessage("H0IFCNT0", "201W09", "B"))
+    _pump(c)
     fut.close()
     other.close()
     assert list(fut) == ["A"]
@@ -98,6 +106,7 @@ def test_raw_callback_keyed_by_tr_id_and_key_not_tr_id_only() -> None:
     c.subscribe("H0STCNT0", "005930", on=lambda m: got.append(m.tr_key))
     c._dispatch(RealtimeMessage("H0STCNT0", "005930", "mine"))   # 같은 tr_id+tr_key -> 호출
     c._dispatch(RealtimeMessage("H0STCNT0", "000660", "other"))  # 같은 tr_id, 다른 tr_key -> 호출 안 됨
+    _pump(c)
     assert got == ["005930"]
 
 

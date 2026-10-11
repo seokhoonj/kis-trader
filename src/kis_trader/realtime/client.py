@@ -46,6 +46,7 @@ class InstrumentResolver(Protocol):
 
 _logger = logging.getLogger("kis_trader.realtime")
 _STREAM_SENTINEL = object()  # stream() 종료 신호
+_DISPATCH_SENTINEL = object()  # 콜백 디스패치 워커 종료 신호
 _QUEUE_MAXSIZE = 10_000  # stream() 큐 상한(틱) -- 초과 시 오래된 것부터 드롭
 
 
@@ -104,6 +105,12 @@ class RealtimeClient:
         # 가득 차면 가장 오래된 틱을 버린다(시장데이터는 최신이 중요) -- 정책은 _dispatch 참고.
         self._queue: queue.Queue[Any] = queue.Queue(maxsize=_QUEUE_MAXSIZE)
         self._queue_overflow_warned = False
+        # 사용자 콜백(on=)은 수신 이벤트루프 스레드가 아니라 전용 디스패치 워커 스레드에서 돌린다 --
+        # 느리거나 블로킹하는 콜백이 루프를 고사시켜 KIS PINGPONG/keepalive 응답이 늦어지고 소켓이
+        # 끊기는 것을 막는다. stream() 큐와 같은 drop-oldest 상한 정책(시장데이터는 최신이 중요).
+        self._dispatch_queue: queue.Queue[Any] = queue.Queue(maxsize=_QUEUE_MAXSIZE)
+        self._dispatch_overflow_warned = False
+        self._dispatch_thread: threading.Thread | None = None
         self._running = False
         self._startup_error: BaseException | None = None  # start() 로 전달할 연결/구독 실패
         # 국내 실시간 지역 네임스페이스(공개 표면). 시세축이라 계좌 무관.
@@ -234,7 +241,14 @@ class RealtimeClient:
             self._stop_requested.clear()
             # 재시작: 이전 run 의 잔여 틱/센티넬이 새 stream() 에 낡은 데이터·즉시종료로 새지 않게 큐를 비운다.
             self._drain_queue()
+            self._drain_dispatch_queue()  # 재시작: 이전 run 의 잔여 틱/센티넬 제거
             self._queue_overflow_warned = False
+            self._dispatch_overflow_warned = False
+            # 콜백 워커를 수신 루프보다 먼저 띄운다(큐가 버퍼링하므로 순서는 무방하지만 준비 보장).
+            self._dispatch_thread = threading.Thread(
+                target=self._dispatch_worker, name="kis-realtime-dispatch", daemon=True
+            )
+            self._dispatch_thread.start()
             self._thread = threading.Thread(target=self._run, name="kis-realtime", daemon=True)
             self._thread.start()
             if not self._ready.wait(timeout=timeout):
@@ -289,6 +303,16 @@ class RealtimeClient:
                     raise RealtimeError(
                         f"실시간 백그라운드 스레드가 {timeout}s 내에 종료되지 않았습니다(연결/루프 미정리)."
                     )
+            if self._dispatch_thread is not None:
+                # 수신 루프가 finally 에서 디스패치 sentinel 을 넣었으므로 워커는 곧 끝난다. 단, on=
+                # 콜백이 영구 블로킹이면 join 이 안 풀릴 수 있다 -- 루프/소켓은 이미 정리됐으니 stop() 을
+                # 실패시키지 않고(데몬 스레드) 경고만 남긴다.
+                self._dispatch_thread.join(timeout=timeout)
+                if self._dispatch_thread.is_alive():
+                    _logger.warning(
+                        "realtime 콜백 디스패치 워커가 %ss 내에 종료되지 않았습니다 -- on= 콜백이 "
+                        "블로킹 중일 수 있습니다(루프/소켓은 정리됨)", timeout,
+                    )
             if stop_error is not None:
                 raise stop_error
 
@@ -307,7 +331,9 @@ class RealtimeClient:
         self._put_sentinel()
         self._shutdown_subscriptions()
         if self._thread is not None:
-            self._thread.join(timeout=timeout)
+            self._thread.join(timeout=timeout)   # 루프의 finally 가 디스패치 sentinel 을 넣는다
+        if self._dispatch_thread is not None:
+            self._dispatch_thread.join(timeout=timeout)
 
     def _drain_queue(self) -> None:
         """stream() 큐를 비운다(재시작 시 이전 run 의 잔여 틱/센티넬 제거)."""
@@ -375,6 +401,7 @@ class RealtimeClient:
             self._startup_error = exc
             await self._conn.close()  # 소켓 누수 방지
             self._put_sentinel()
+            self._dispatch_queue.put(_DISPATCH_SENTINEL)  # 콜백 워커 종료(단일 생산자 = 이 스레드)
             # 기동 실패 경로에서도 타입드 구독의 per-sub 큐에 종료 센티넬을 넣는다 -- 안 그러면
             # start() 전에 만든 구독의 `for tick in sub:` 가 영원히 멎는다.
             self._shutdown_subscriptions()
@@ -390,20 +417,69 @@ class RealtimeClient:
         finally:
             await self._conn.close()
             self._put_sentinel()
+            self._dispatch_queue.put(_DISPATCH_SENTINEL)  # 콜백 워커 종료(단일 생산자 = 이 스레드)
             self._shutdown_subscriptions()
 
     def _dispatch(self, message: RealtimeMessage) -> None:
-        with self._lock:
-            callbacks = list(self._callbacks.get((message.tr_id, message.tr_key), ()))
-            subs = list(self._subscriptions.get((message.tr_id, message.tr_key), ()))
-        for callback in callbacks:
-            try:
-                callback(message)
-            except Exception:
-                _logger.warning("realtime callback for %s raised", message.tr_id, exc_info=True)
-        for sub in subs:
-            sub._feed(message)
+        """수신 루프(이벤트루프 스레드)에서 호출. stream() 큐에는 즉시 적재해 신선도를 유지하고
+        (비블로킹), 사용자 콜백/타입드 구독 전달은 디스패치 워커 스레드로 넘긴다 -- 블로킹 콜백이
+        루프를 막아 keepalive 가 늦어지지 않게(소켓 teardown 방지)."""
         self._enqueue(message)
+        # 콜백/타입드 구독 스냅샷은 **수신 시점(루프 스레드)** 에 락 아래서 뜬다 -- 원래 의미(수신 시점
+        # 등록분에 전달)를 보존하고, 워커가 처리하기 전에 teardown 이 맵을 비워도 영향받지 않게.
+        with self._lock:
+            callbacks = tuple(self._callbacks.get((message.tr_id, message.tr_key), ()))
+            subs = tuple(self._subscriptions.get((message.tr_id, message.tr_key), ()))
+        if callbacks or subs:
+            self._submit_to_dispatch((message, callbacks, subs))
+
+    def _submit_to_dispatch(self, item: Any) -> None:
+        """콜백 디스패치 큐에 적재(비블로킹). 상한 도달 시 가장 오래된 것부터 드롭(_enqueue 와 동일
+        정책) -- 블로킹/느린 콜백이 무한정 메모리를 키우지 않게. ``item`` = (message, callbacks, subs)."""
+        try:
+            self._dispatch_queue.put_nowait(item)
+            return
+        except queue.Full:
+            pass
+        try:
+            self._dispatch_queue.get_nowait()  # 가장 오래된 것 드롭
+        except queue.Empty:
+            pass
+        try:
+            self._dispatch_queue.put_nowait(item)
+        except queue.Full:
+            pass
+        if not self._dispatch_overflow_warned:
+            self._dispatch_overflow_warned = True
+            _logger.warning(
+                "realtime 콜백 디스패치 큐가 상한(%d)에 도달 -- on= 콜백이 느리거나 블로킹해 오래된 "
+                "틱을 드롭합니다(콜백에서 블로킹 작업을 피하세요)", _QUEUE_MAXSIZE,
+            )
+
+    def _dispatch_worker(self) -> None:
+        """콜백 전용 워커 루프 -- 디스패치 큐를 FIFO(수신 순서 보존)로 비우며 (tr_id, tr_key) 매칭
+        콜백과 타입드 구독에 전달한다. 종료 sentinel 에서 멈춘다. 사용자 콜백 예외는 격리(로깅)한다.
+        이 스레드는 이벤트루프와 분리돼 있어, 콜백이 블로킹해도 루프의 keepalive 응답은 막히지 않는다."""
+        while True:
+            item = self._dispatch_queue.get()
+            if item is _DISPATCH_SENTINEL:
+                return
+            message, callbacks, subs = item
+            for callback in callbacks:
+                try:
+                    callback(message)
+                except Exception:
+                    _logger.warning("realtime callback for %s raised", message.tr_id, exc_info=True)
+            for sub in subs:
+                sub._feed(message)
+
+    def _drain_dispatch_queue(self) -> None:
+        """디스패치 큐를 비운다(재시작 시 이전 run 의 잔여 틱/센티넬 제거)."""
+        while True:
+            try:
+                self._dispatch_queue.get_nowait()
+            except queue.Empty:
+                return
 
     def _enqueue(self, message: RealtimeMessage) -> None:
         """stream() 큐에 적재. 상한 도달 시 가장 오래된 틱을 버리고 최신을 넣는다(콜백 전용/느린

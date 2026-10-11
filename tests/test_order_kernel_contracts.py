@@ -33,6 +33,7 @@ from kis_trader.store import (
     Conflict,
     InFlight,
     OrderStore,
+    PriorChangeInFlight,
 )
 
 # --- 지문 코덱 왕복 + 온-디스크 바이트 동결 ---------------------------------
@@ -283,8 +284,8 @@ def test_try_claim_in_flight_and_conflict_variants():
 
 
 def test_claim_result_variants_are_exhaustive():
-    """판별 유니온은 정확히 이 네 변형이다(패턴 매칭이 빠짐없이 처리되게)."""
-    assert set(ClaimResult.__args__) == {Claimed, Completed, InFlight, Conflict}
+    """판별 유니온은 정확히 이 다섯 변형이다(패턴 매칭이 빠짐없이 처리되게)."""
+    assert set(ClaimResult.__args__) == {Claimed, Completed, InFlight, Conflict, PriorChangeInFlight}
 
 
 # --- 공개 write 표면의 limit_price / 결과 타입의 order_price -------------------
