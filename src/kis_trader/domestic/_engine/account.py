@@ -671,6 +671,13 @@ def fetch_realized_profit_balance(
         tr_cont = "N"
     else:
         raise KISError("실현손익 잔고가 페이지 상한에 도달했으나 연속조회가 남아있다.")
+    if not summary:
+        # 요약(output2)이 한 페이지에서도 안 잡히면 전 필드 0 인 RealizedProfitBalance 가 성공으로
+        # 반환된다(0 = "실현손익 없음" 으로 읽히는 실값). 형제 파서들처럼 fail-closed 한다.
+        raise KISError(
+            "실현손익 잔고 응답에 계좌 요약(output2)이 없다 -- 전 필드 0 으로 조용히 반환하지 않는다.",
+            rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
+        )
     positions = tuple(
         RealizedProfitPosition(
             symbol=str(row.get("pdno", "")).strip(),

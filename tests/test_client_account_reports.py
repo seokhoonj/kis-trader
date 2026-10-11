@@ -134,6 +134,13 @@ def test_realized_balance_non_list_output1_fails_closed():
         _client(FakeTransport(response=resp)).account.domestic.realized_profit_balance()
 
 
+def test_realized_balance_missing_output2_fails_closed():
+    # 요약(output2)이 없으면 전 필드 0 인 RealizedProfitBalance 를 조용히 반환하지 않고 raise.
+    resp = _resp(output1=[_POS], output2=None)
+    with pytest.raises(KISError, match="output2"):
+        _client(FakeTransport(response=resp)).account.domestic.realized_profit_balance()
+
+
 def test_realized_balance_demo_rejected():
     fake = FakeTransport(response=_resp(output1=[_POS], output2=[_SUM]))
     with pytest.raises(KISUsageError):

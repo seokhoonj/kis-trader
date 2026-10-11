@@ -192,6 +192,9 @@ def test_pension_present_balance_tr():
     _client(fake).account.pension.present_balance()
     assert fake.calls[0]["tr_id"] == "TTTC2202R"
     assert fake.calls[0]["path"] == _PRESENT_PATH
+    # 공식 규격 파라미터: USER_DVSN_CD(필수). INQR_DVSN 은 이 엔드포인트 파라미터가 아니다.
+    assert fake.calls[0]["params"]["USER_DVSN_CD"] == "00"
+    assert "INQR_DVSN" not in fake.calls[0]["params"]
 
 
 def test_pension_present_balance_paper_rejected_before_io():

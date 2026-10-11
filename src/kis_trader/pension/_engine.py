@@ -116,7 +116,9 @@ def fetch_present_balance(
     _reject_demo(environment, what="퇴직연금 체결기준잔고(pension/inquire-present-balance)")
     rows, summary = _walk_holdings(
         transport, cano=cano, product_code=product_code, path=_PRESENT_BALANCE_PATH, tr_id=_PRESENT_BALANCE_TR,
-        extra={"INQR_DVSN": "00"}, label="체결기준잔고", summary_is_list=True,
+        # 공식 규격은 USER_DVSN_CD(상품번호, 필수, 예 "00")를 요구한다 -- INQR_DVSN 은 이 엔드포인트
+        # 파라미터가 아니다(잘못 보내면 거부 또는 다른 의미의 조회).
+        extra={"USER_DVSN_CD": "00"}, label="체결기준잔고", summary_is_list=True,
     )
     if summary is None:
         raise KISError("퇴직연금 체결기준잔고 응답에 요약(output2)이 없다.")
