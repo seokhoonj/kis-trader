@@ -40,7 +40,19 @@ from ._parse import _MARKETS, _MAX_PAGES, _decimal_or_zero, _money, _side_from_c
 
 _ORDER_PATH = "/uapi/overseas-stock/v1/trading/order"
 _CHANGE_PATH = "/uapi/overseas-stock/v1/trading/order-rvsecncl"
-_CHANGE_TR = {"real": "TTTT1004U", "paper": "VTTT1004U"}
+#: (시장 그룹, 실전/모의) -> 정정취소 tr_id. KIS 공식('해외주식 정정취소주문', v1_해외주식-003)은
+#: 거래소별로 다른 TR 을 쓴다 -- 미국만 단일 TTTT1004U 가 전 미국 거래소(NASD/NYSE/AMEX)를 포괄하고
+#: 아시아권은 거래소별로 나뉜다. 배치(`_ORDER_TR`)가 이미 시장별이라 정정취소도 같은 축으로 맞춘다.
+_CHANGE_TR: dict[tuple[str, Environment], str] = {
+    ("US", "real"): "TTTT1004U", ("US", "paper"): "VTTT1004U",
+    ("HK", "real"): "TTTS1003U", ("HK", "paper"): "VTTS1003U",
+    ("JP", "real"): "TTTS0309U", ("JP", "paper"): "VTTS0309U",
+    ("SH", "real"): "TTTS0302U", ("SH", "paper"): "VTTS0302U",
+    ("SZ", "real"): "TTTS0306U", ("SZ", "paper"): "VTTS0306U",
+    ("VN", "real"): "TTTS0312U", ("VN", "paper"): "VTTS0312U",
+}
+#: KIS 공식상 취소만 가능한 시장 그룹(정정 TR 없음) -- 상해/심천/베트남. 정정 요청은 fail-closed.
+_CHANGE_CANCEL_ONLY_MARKETS = frozenset({"SH", "SZ", "VN"})
 
 #: 시세 거래소코드(EXCD) -> (주문 거래소코드 OVRS_EXCG_CD, 시장 그룹). KIS 코드표.
 _ORDER_EXCHANGE: dict[str, tuple[str, str]] = {
@@ -266,17 +278,22 @@ def make_change_request(
     action: ChangeAction, quantity: Decimal, limit_price: Decimal | None,
     cano: str, product_code: str, environment: Environment,
 ) -> WireRequest:
-    """해외주식 정정·취소 요청을 공식 단일 TR 와이어로 조립한다."""
+    """해외주식 정정·취소 요청을 거래소별 공식 TR 와이어로 조립한다(KIS 공식: 시장별 TR)."""
     # 지정가 전용 자산이라 가격형상 규칙을 공유 헬퍼로 강제한다(정정=>가격>0, 취소=>가격 없음).
     reject_bad_change_price_shape(action, limit_price)
     try:
-        order_exchange = _ORDER_EXCHANGE[original_fingerprint.exchange][0]
+        order_exchange, market = _ORDER_EXCHANGE[original_fingerprint.exchange]
     except KeyError:
         raise KISUsageError(
             f"해외 정정·취소를 지원하지 않는 거래소코드: {original_fingerprint.exchange!r}."
         ) from None
     if original_fingerprint.order_type != "limit":
         raise KISUsageError("해외 정정·취소는 지정가 원주문만 지원한다.")
+    if action == "modify" and market in _CHANGE_CANCEL_ONLY_MARKETS:
+        raise KISUsageError(
+            f"{market} 시장({original_fingerprint.exchange})은 KIS 공식상 취소만 지원한다"
+            " -- 정정은 불가하니 취소 후 재주문하라."
+        )
     body = {
         "CANO": cano,
         "ACNT_PRDT_CD": product_code,
@@ -289,7 +306,7 @@ def make_change_request(
         "MGCO_APTM_ODNO": "",
         "ORD_SVR_DVSN_CD": "0",
     }
-    return WireRequest("POST", _CHANGE_PATH, _CHANGE_TR[environment], body)
+    return WireRequest("POST", _CHANGE_PATH, _CHANGE_TR[(market, environment)], body)
 
 
 # --- 재조회(해외 주문체결내역) ---------------------------------------------

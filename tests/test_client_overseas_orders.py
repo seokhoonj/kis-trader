@@ -141,11 +141,52 @@ def test_overseas_replace_uses_demo_tr_and_new_price():
     from kis_trader import OrderStatus
     assert report.status is OrderStatus.PENDING_REPLACE
     call = _posts(fake)[1]
-    assert call["tr_id"] == "VTTT1004U"
+    # 홍콩 정정은 홍콩 전용 TR(모의 VTTS1003U) -- 미국 TR(VTTT1004U)이 아니다(KIS 공식: 거래소별 TR).
+    assert call["tr_id"] == "VTTS1003U"
     assert call["body"]["OVRS_EXCG_CD"] == "SEHK"
     assert call["body"]["RVSE_CNCL_DVSN_CD"] == "01"
     assert call["body"]["ORD_QTY"] == "4"          # 잔량 전체(4)
     assert call["body"]["OVRS_ORD_UNPR"] == "412.50"
+
+
+# 거래소코드(EXCD) -> (취소 TR 실전, 모의). KIS 공식 '해외주식 정정취소주문'(v1_해외주식-003).
+# 미국만 단일 TTTT1004U 가 전 미국 거래소를 포괄하고 아시아권은 거래소별로 다르다.
+_CHANGE_TR_BY_EXCHANGE = {
+    "NAS": ("TTTT1004U", "VTTT1004U"), "NYS": ("TTTT1004U", "VTTT1004U"),
+    "HKS": ("TTTS1003U", "VTTS1003U"),
+    "TSE": ("TTTS0309U", "VTTS0309U"),
+    "SHS": ("TTTS0302U", "VTTS0302U"),
+    "SZS": ("TTTS0306U", "VTTS0306U"),
+    "HNX": ("TTTS0312U", "VTTS0312U"),
+}
+
+
+@pytest.mark.parametrize("environment,env_index", [("real", 0), ("paper", 1)])
+@pytest.mark.parametrize("exchange", list(_CHANGE_TR_BY_EXCHANGE))
+def test_overseas_cancel_uses_per_exchange_tr(exchange, environment, env_index):
+    """취소는 거래소별 공식 TR 로 나가야 한다 -- 비미국이 미국 TR 로 새면 리젝/오라우팅된다(과거 버그)."""
+    fake = FakeTransport(response=_ack())
+    kis = _client(fake, environment=environment)
+    kis.overseas.stock("SYM", exchange=exchange).buy(
+        quantity=2, limit_price="100.00", client_order_id=f"orig-{exchange}-{environment}"
+    )
+    kis.orders.cancel(f"orig-{exchange}-{environment}", request_id=f"cancel-{exchange}-{environment}")
+    call = _posts(fake)[1]
+    assert call["path"] == _ORDER_CHANGE
+    assert call["tr_id"] == _CHANGE_TR_BY_EXCHANGE[exchange][env_index]
+
+
+@pytest.mark.parametrize("exchange", ["SHS", "SZS", "HNX"])
+def test_overseas_modify_rejected_for_cancel_only_markets(exchange):
+    """상해/심천/베트남은 KIS 공식상 취소만 지원 -- 정정은 fail-closed(와이어로 나가지 않는다)."""
+    fake = FakeTransport(response=_ack())
+    kis = _client(fake)
+    kis.overseas.stock("SYM", exchange=exchange).buy(
+        quantity=2, limit_price="100.00", client_order_id=f"orig-mod-{exchange}"
+    )
+    with pytest.raises(KISUsageError, match="취소만"):
+        kis.orders.modify(f"orig-mod-{exchange}", limit_price="101.00", request_id=f"mod-{exchange}")
+    assert len(_posts(fake)) == 1   # 정정 시도는 접수(place) 외 추가 POST 가 없어야 한다
 
 
 def test_overseas_modify_rebinds_client_order_id_to_new_odno():
