@@ -503,9 +503,14 @@ def _parse_trades(
     """해외 체결 행 -> Trade. 시각 khms(한국기준시간 HHMMSS)에 조회일을 붙인다. 체결량은 evol.
 
     미국 정규장은 KST 자정을 넘기므로(22:30/23:30~05:00/06:00 KST) 자정~개장 사이에 조회하면 '오늘'
-    날짜를 붙인 전날 체결이 미래로 찍힌다 -- 결합 시각이 ``now`` 보다 미래면 전날 날짜로 롤백한다
-    (``now`` 를 주입받아 결정적으로 검증 가능)."""
-    yesterday = (datetime.strptime(today, "%Y%m%d") - timedelta(days=1)).strftime("%Y%m%d")  # noqa: DTZ007
+    날짜를 붙인 전날 체결이 미래로 찍힌다 -- 결합 시각이 ``now`` 보다 **한 시간 넘게** 미래면 전날
+    날짜로 롤백한다 (``now`` 를 주입받아 결정적으로 검증 가능).
+
+    1시간 슬랙이 핵심이다: 진짜 전날 체결은 늘 수 시간 미래(자정 조회 vs 22:30~06:00 세션)라 넉넉히
+    넘지만, 로컬 시계가 KIS 서버보다 몇 초 뒤처져 방금 체결이 ``now`` 를 1~2초 앞서는 경우는 롤백하지
+    않는다 -- 무-슬랙이면 그 신선 체결이 24시간 과거로 밀려 시계열이 조용히 오염된다.
+
+    ``now`` 는 tz-aware(KST) 여야 한다 -- 체결시각이 tz-aware 라, naive 를 주면 비교에서 TypeError."""
     trades: list[Trade] = []
     for row in rows:
         time_text = str(row.get("khms", "")).strip()
@@ -513,8 +518,8 @@ def _parse_trades(
         if not time_text or not price_text:  # 빈 체결 skip
             continue
         timestamp = _parse_minute_bar_timestamp(date_text=today, time_text=time_text)
-        if timestamp > now:  # KST 자정을 넘긴 전날 체결 -> 전날로 롤백
-            timestamp = _parse_minute_bar_timestamp(date_text=yesterday, time_text=time_text)
+        if timestamp - now > timedelta(hours=1):  # KST 자정을 넘긴 전날 체결 -> 전날로 롤백(시계편차 슬랙)
+            timestamp -= timedelta(days=1)
         sign = str(row.get("sign", "")).strip()
         trades.append(
             Trade(

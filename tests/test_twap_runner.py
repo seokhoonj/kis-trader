@@ -127,7 +127,7 @@ def test_reconcile_read_failure_keeps_submitted_slice():
     assert len(log) == 3                                        # 세 슬라이스 모두 발주됨
     assert all(o.report is not None for o in result.outcomes)   # 미확정이어도 report 유지(유실 아님)
     assert result.submitted_quantity == 100
-    # #13: 재조회 실패 슬라이스는 '확정 성공'으로 집계되면 안 된다 -- client_order_id 를 실어
+    # 재조회 실패 슬라이스는 '확정 성공'으로 집계되면 안 된다 -- client_order_id 를 실어
     # pending_reconcile_ids 에 넣어야 사후 재조회로 확인된다(안 그러면 미확정 물량 재주문 시 이중매수).
     assert len(result.pending_reconcile_ids) == 3
 
@@ -151,7 +151,11 @@ def test_run_partial_timeout_continues_and_reports_shortfall():
                           now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
     assert len(log) == 3
     assert result.submitted_quantity == 66               # 33 + 33 (timed-out 34 excluded)
-    assert result.shortfall == Decimal(34)
+    assert result.filled_quantity == Decimal(66)         # 확정 체결만
+    # 타임아웃 34주는 체결 불명이라 shortfall 이 아니라 pending 으로 분류된다 -- shortfall 을 재주문해도
+    # 아직 살아 있을 수 있는 그 34주를 이중매수하지 않는다(reconcile 로 먼저 확정하라).
+    assert result.pending_quantity == Decimal(34)
+    assert result.shortfall == Decimal(0)                # 66 확정 + 34 pending = 100(목표) -> 미설명 갭 0
     assert result.outcomes[0].report is None and "타임아웃" in result.outcomes[0].error
     # 타임아웃 슬라이스는 client_order_id 를 유실하지 않고 실어 재조회 가능해야 한다(예전엔 str 로 뭉갰다).
     assert result.outcomes[0].client_order_id == "c1"

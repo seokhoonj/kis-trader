@@ -63,14 +63,27 @@ class TWAPExecutionResult:
 
     @property
     def filled_quantity(self) -> Decimal:
-        """체결 수량 합(재조회 스냅샷의 filled_quantity)."""
-        return sum((o.report.filled_quantity for o in self.outcomes if o.report is not None),
+        """**확정된** 슬라이스의 체결 수량 합. 사후 재조회가 필요한(pending) 슬라이스는 체결 여부가
+        불명이라(발주 직후 스냅샷의 filled 은 보통 0) 여기 넣지 않는다 -- 넣으면 미확정 물량을 '0 체결'
+        로 단정해 shortfall 을 부풀린다. pending 물량은 :attr:`pending_quantity` 로 따로 센다."""
+        return sum((o.report.filled_quantity for o in self.outcomes
+                    if o.report is not None and o.client_order_id is None),
+                   Decimal(0))
+
+    @property
+    def pending_quantity(self) -> Decimal:
+        """사후 재조회가 필요한(체결 여부 불명) 슬라이스의 발주 수량 합 -- :attr:`pending_reconcile_ids`
+        와 같은 모집단. shortfall 에서 제외돼, 이 물량은 재주문이 아니라 reconcile 로 확정해야 한다."""
+        return sum((Decimal(o.quantity) for o in self.outcomes if o.client_order_id is not None),
                    Decimal(0))
 
     @property
     def shortfall(self) -> Decimal:
-        """목표 대비 미체결 수량(총 수량 - 체결 수량, 재조회 스냅샷 기준)."""
-        return Decimal(self.schedule.total_quantity) - self.filled_quantity
+        """목표 대비 미체결 수량 -- 총 수량에서 확정 체결과 **pending(불명) 물량을 함께 뺀다**.
+        pending 을 빼므로 이 값을 그대로 재주문해도 아직 살아 있을 수 있는 pending 슬라이스를
+        이중매수하지 않는다. pending 이 있으면(:attr:`pending_reconcile_ids` 비지 않음) 그 물량은
+        재주문이 아니라 ``kis.orders.reconcile`` 로 먼저 확정하라."""
+        return Decimal(self.schedule.total_quantity) - self.filled_quantity - self.pending_quantity
 
     @property
     def pending_reconcile_ids(self) -> tuple[str, ...]:
@@ -138,7 +151,7 @@ def execute_twap(
             except OrderRejectedError as error:
                 outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, None, str(error)))
                 continue
-            pending_id: str | None = None
+            pending_reconcile_id: str | None = None
             if reconcile:
                 try:
                     confirmed = kis.orders.reconcile(report.client_order_id)
@@ -148,10 +161,10 @@ def execute_twap(
                     # 안 그러면 미확정(체결 0 스냅샷) 슬라이스가 '확정 성공'으로 집계돼 사후 재조회
                     # 목록에서 빠지고, 사용자가 shortfall 을 재주문하면 이중매수가 날 수 있다.
                     confirmed = None
-                    pending_id = report.client_order_id
+                    pending_reconcile_id = report.client_order_id
                 if confirmed is not None:
                     report = confirmed
-            outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, report, None, client_order_id=pending_id))
+            outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, report, None, client_order_id=pending_reconcile_id))
     except KeyboardInterrupt:
         pass  # 남은 슬라이스 중단, 부분 결과 반환(이미 낸 시장가 주문은 체결됨)
     except Exception as error:

@@ -31,12 +31,17 @@ _SECRET = re.compile(
 )
 _BEARER = re.compile(r"\bBearer\s+(?P<value>[A-Za-z0-9._\-]{20,})")
 # 계좌번호(CANO)/HTS ID -- 토큰(20자+)보다 짧아 _SECRET 엔 안 걸리므로 라벨 기반으로 따로 잡는다.
-# 계좌는 8자리 종합계좌(선택적으로 -상품코드), HTS ID 는 영숫자 로그인 아이디. 라벨이 있어야
-# 매칭되므로(bare `account=` 는 제외) 테스트의 더미 `account="..."` 는 걸리지 않는다.
-_ACCOUNT_ID = re.compile(
+# 계좌는 8자리 종합계좌(선택적으로 -상품코드), HTS ID 는 영숫자 로그인 아이디. 값에 **숫자**를
+# 요구하는 lookahead 가 핵심이다: 안 그러면 `cano = resultvar` / `hts_id = username` 처럼 변수에서
+# 대입하는 일상 코드까지 deny 로 막는다(이 라이브러리가 상시 하는 일). 실제 타깃(12345678,
+# 12345678-01, mykisid01, trader2026)은 전부 숫자를 포함하므로 lookahead 후에도 잡힌다. 라벨이
+# 있어야 매칭되므로(bare `account=` 제외) 테스트의 더미 `account="..."` 는 걸리지 않는다. 트레이드오프:
+# (a) 숫자 든 변수명(`hts_id = arg1234`)은 여전히 오탐 가능 -- advisory 훅이라 수용, (b) 순수 알파벳
+# HTS ID 는 통과 -- KIS HTS ID 는 보통 숫자를 포함하나 보장은 아니다(의식적 수용).
+_ACCOUNT_OR_HTS_ID = re.compile(
     r"""(cano|account_?no|account_?number|htsid|hts_?id)
         ["']?\s*[:=]\s*["']?
-        (?P<value>[A-Za-z0-9][A-Za-z0-9\-]{4,})""",
+        (?P<value>(?=[A-Za-z0-9\-]*[0-9])[A-Za-z0-9][A-Za-z0-9\-]{4,})""",
     re.IGNORECASE | re.VERBOSE,
 )
 # 실제 값이 아니라 자리표시자면 면제(문서/예시). 밑줄(_)도 구분자로 취급해야
@@ -96,7 +101,7 @@ def main() -> int:
             _deny("Bearer 액세스 토큰으로 보이는 값이 포함되어 있습니다. 토큰을 파일/명령에 "
                   "하드코딩하지 마세요.")
             return 0
-    for match in _ACCOUNT_ID.finditer(text):
+    for match in _ACCOUNT_OR_HTS_ID.finditer(text):
         if _is_real_secret(match.group("value")):
             _deny("계좌번호(CANO) 또는 HTS ID 로 보이는 값이 포함되어 있습니다. 계좌/아이디는 "
                   "파일/명령에 하드코딩하지 말고 `kis config` 저장소나 환경변수로 관리하세요.")

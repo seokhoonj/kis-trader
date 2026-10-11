@@ -78,7 +78,7 @@ def test_overseas_trades_missing_output_fails_closed():
 
 
 def test_parse_trades_rolls_future_timestamp_back_a_day():
-    # #15: 미국 정규장은 KST 자정을 넘기므로(22:30~06:00 KST), 자정~개장 사이에 조회하면 '오늘' 날짜를
+    # 미국 정규장은 KST 자정을 넘기므로(22:30~06:00 KST), 자정~개장 사이에 조회하면 '오늘' 날짜를
     # 붙인 전날 체결이 미래로 찍힌다. 결합 시각이 now 보다 미래면 전날로 롤백해야 한다.
     from datetime import datetime
 
@@ -93,3 +93,17 @@ def test_parse_trades_rolls_future_timestamp_back_a_day():
     trades = _parse_trades(rows, symbol="AAPL", today="20260814", now=now)
     assert trades[0].timestamp == datetime(2026, 8, 13, 23, 30, tzinfo=_KST)   # 전날로 롤백
     assert trades[1].timestamp == datetime(2026, 8, 14, 2, 0, tzinfo=_KST)     # 미래 아님 -> 그대로
+
+
+def test_parse_trades_does_not_roll_back_on_seconds_of_clock_skew():
+    # 로컬 시계가 KIS 서버보다 몇 초 뒤처져 방금 체결이 now 를 1~2초 앞서는 경우는 롤백하면 안 된다 --
+    # 1시간 슬랙이 없으면 신선 체결이 24시간 과거로 밀려 시계열이 오염된다.
+    from datetime import datetime
+
+    from kis_trader._internal._datetime import _KST
+    from kis_trader.overseas._engine.market_data import _parse_trades
+
+    now = datetime(2026, 8, 14, 2, 58, 59, tzinfo=_KST)  # 로컬 시계가 서버보다 ~1초 lag
+    rows = [{"khms": "025900", "last": "231.0", "evol": "3", "diff": "1.0", "rate": "0.5", "sign": "2"}]
+    trades = _parse_trades(rows, symbol="AAPL", today="20260814", now=now)
+    assert trades[0].timestamp == datetime(2026, 8, 14, 2, 59, tzinfo=_KST)    # 오늘 그대로(롤백 금지)
