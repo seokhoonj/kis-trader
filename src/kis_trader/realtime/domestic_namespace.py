@@ -44,8 +44,12 @@ _FUTURES_ORDER_BOOK_TR: dict[str, str] = {
 }
 _OPTION_TRADES_TR: dict[str, str] = {"index": "H0IOCNT0", "stock": "H0ZOCNT0", "night": "H0EUCNT0"}
 _OPTION_ORDER_BOOK_TR: dict[str, str] = {"index": "H0IOASP0", "stock": "H0ZOASP0", "night": "H0EUASP0"}
-_DERIV_NOTICE_TR: dict[str, str] = {
-    "regular": "H0IFCNI0", "night_futures": "H0MFCNI0", "night_option": "H0EUCNI0"
+# 체결통보 TR 은 모의(paper)에서 다르다 -- 정규는 실전 H0IFCNI0 / 모의 H0IFCNI9(원장 명시). 야간
+# (night_futures/night_option)은 KIS 모의투자 미지원이라 실전 TR 만 둔다(모의 세션 구독은 fail-closed).
+_DERIV_NOTICE_TR: dict[tuple[str, str], str] = {
+    ("regular", "real"): "H0IFCNI0", ("regular", "paper"): "H0IFCNI9",
+    ("night_futures", "real"): "H0MFCNI0",
+    ("night_option", "real"): "H0EUCNI0",
 }
 _INDEX_TRADES_TR = "H0UPCNT0"
 _INDEX_EXPECTED_CONCLUSION_TR = "H0UPANC0"
@@ -290,7 +294,18 @@ class DomesticExecutionNotices:
         on: Callable[[DerivativeExecutionNotice], None] | None = None,
     ) -> RealtimeSubscription[DerivativeExecutionNotice]:
         """국내 파생 실시간 체결통보를 구독하고 RealtimeSubscription[DerivativeExecutionNotice] 을 반환한다. session: regular/night_futures/night_option."""
-        tr = _pick(_DERIV_NOTICE_TR, session, label="session")
+        environment = self._client._environment
+        try:
+            tr = _DERIV_NOTICE_TR[(session, environment)]
+        except KeyError:
+            if (session, "real") in _DERIV_NOTICE_TR:  # 야간 통보는 모의 미지원(실전만)
+                raise KISUsageError(
+                    f"야간 파생 체결통보(session={session!r})는 KIS 모의투자 미지원이다 -- 실전에서 구독하라."
+                ) from None
+            valid = sorted({sess for sess, _ in _DERIV_NOTICE_TR})
+            raise KISUsageError(
+                f"알 수 없는 체결통보 session '{session}' -- 가능한 값: {', '.join(valid)}"
+            ) from None
         return cast(
             "RealtimeSubscription[DerivativeExecutionNotice]", self._client._open_typed(tr, hts_id, on=on)
         )

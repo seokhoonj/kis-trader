@@ -8,6 +8,8 @@ from __future__ import annotations
 
 from decimal import Decimal
 
+import pytest
+
 from kis_trader.realtime import _registry
 from kis_trader.realtime.parsers import derivatives as der
 
@@ -382,10 +384,48 @@ def test_registry_shared_futures_tick_parser():
 
 
 def test_registry_execution_notices_marked_encrypted():
-    for tr_id in ("H0IFCNI0", "H0MFCNI0"):
+    for tr_id in ("H0IFCNI0", "H0IFCNI9", "H0MFCNI0"):
         spec = _registry.lookup(tr_id)
         assert spec is not None
         assert spec.encrypted is True
+
+
+def test_registry_regular_paper_notice_shares_real_parser():
+    # 선물옵션 체결통보 모의(H0IFCNI9)는 실전(H0IFCNI0)과 동일 22필드 레이아웃/파서를 공유한다.
+    spec = _registry.lookup("H0IFCNI9")
+    assert spec is not None
+    assert spec.field_count == 22
+    assert spec.parser is der.parse_execution_notice
+
+
+class _RecordingClient:
+    """체결통보 구독의 TR 라우팅만 확인하는 최소 가짜 RealtimeClient."""
+
+    def __init__(self, environment: str) -> None:
+        self._environment = environment
+        self.opened: list[tuple[str, str]] = []
+
+    def _open_typed(self, tr, key, *, on=None):
+        self.opened.append((tr, key))
+        return object()
+
+
+def test_derivative_notice_routes_regular_tr_by_environment():
+    from kis_trader.realtime.domestic_namespace import DomesticExecutionNotices
+    for environment, expected in (("real", "H0IFCNI0"), ("paper", "H0IFCNI9")):
+        client = _RecordingClient(environment)
+        DomesticExecutionNotices(client).derivative("HTS01", "regular")
+        assert client.opened == [(expected, "HTS01")]
+
+
+def test_derivative_notice_night_session_rejected_in_paper():
+    from kis_trader.errors import KISUsageError
+    from kis_trader.realtime.domestic_namespace import DomesticExecutionNotices
+    client = _RecordingClient("paper")
+    for session in ("night_futures", "night_option"):
+        with pytest.raises(KISUsageError, match="모의투자 미지원"):
+            DomesticExecutionNotices(client).derivative("HTS01", session)
+    assert client.opened == []   # 거부된 구독은 와이어로 나가지 않는다
 
 
 def test_registry_night_option_notice_reuses_night_parser():
