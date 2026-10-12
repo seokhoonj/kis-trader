@@ -3,6 +3,38 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## Unreleased
+
+Breaking redesign of the credential store toward a two-axis model (profile = account type,
+environment = a separate axis).
+
+### Changed
+
+- **`credentials.json` schema v2 (breaking).** Credentials now nest by environment then profile
+  (`real` / `paper` top-level blocks), so a profile names an account type and `environment`
+  selects which slot to open. A `schema: 2` marker distinguishes the format; flat files without it
+  keep their previous read semantics. Under a schema-2 file an omitted environment resolves to
+  `paper` (previously a stored per-profile value that defaulted to `real`), and `real` is reached
+  only when stated explicitly (call argument, `KIS_DEFAULT_ENVIRONMENT`, or a `default_environment`
+  marker) -- a profile present in one environment is never auto-promoted to the other.
+- `resolve_credentials` gains a keyword-only `environment` selector; `KISConfig` writes the nested
+  bundle (no `environment` field inside it) and defaults `environment` to `paper`. Environment
+  variables are two-axis: `KIS_<PROFILE>_<ENV>_<FIELD>`. Pure environment-variable use under a
+  schema-2 file requires `KIS_DEFAULT_PROFILE` (the implicit `main` fallback applies to flat files
+  only).
+- `KISClient(app_key=..., app_secret=...)` without `environment` now raises instead of defaulting
+  to `real`: a directly supplied credential must state its environment so it cannot be aimed at the
+  wrong server.
+- `kis config` becomes a command group -- `setup` / `show` / `set` / `set-default` / `set-hts-id` /
+  `migrate` -- with a global `--environment` selector. `kis config migrate` converts a flat file to
+  schema 2, asking before it merges profiles and refusing rather than overwriting on a name
+  collision.
+
+### Notes
+
+- On a schema-2 file an omitted environment runs at the paper rate limit (1 request/second) until
+  `real` is selected.
+
 ## 0.6.0 — 2026-10-12
 
 Additive release. The domestic account DATA records expose the full non-sensitive field set
