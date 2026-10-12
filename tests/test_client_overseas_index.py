@@ -39,7 +39,7 @@ class FakeTransport:
 
 def _client(response):
     fake = FakeTransport(response)
-    return KISClient(app_key="k", app_secret="s", transport=fake), fake
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=fake), fake
 
 
 def test_overseas_index_bars_routes_and_parses_ascending():

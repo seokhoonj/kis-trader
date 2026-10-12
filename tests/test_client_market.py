@@ -36,7 +36,7 @@ class FakeTransport:
 
 
 def _client(t):
-    return KISClient(app_key="k", app_secret="s", transport=t)
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=t)
 
 
 def _resp(rows):

@@ -124,12 +124,12 @@ def test_no_limiter_by_default_does_not_throttle(tmp_path: Any) -> None:
 
 
 def test_client_builds_rate_limiter_by_default(tmp_path: Any) -> None:
-    kis = KISClient(app_key="k", app_secret="s")
+    kis = KISClient(app_key="k", app_secret="s", environment="real")
     assert kis.transport._rate_limiter is not None       # 기본 on
 
 
 def test_client_throttle_false_disables_rate_limiter(tmp_path: Any) -> None:
-    kis = KISClient(app_key="k", app_secret="s", throttle=False)
+    kis = KISClient(app_key="k", app_secret="s", environment="real", throttle=False)
     assert kis.transport._rate_limiter is None
 
 
@@ -137,7 +137,7 @@ def test_client_requests_per_second_override(tmp_path: Any) -> None:
     # override 시 그 한도로 리미터를 구성한다(초당 3건 -> 4번째 대기).
     from kis_trader._internal._ratelimit import SlidingWindowRateLimiter
 
-    kis = KISClient(app_key="k", app_secret="s", requests_per_second=3)
+    kis = KISClient(app_key="k", app_secret="s", environment="real", requests_per_second=3)
     limiter = kis.transport._rate_limiter
     assert isinstance(limiter, SlidingWindowRateLimiter)
     assert limiter._max_requests == 3 and limiter._window_seconds == pytest.approx(1.0)
@@ -412,7 +412,7 @@ def test_write_500_is_not_retried(tmp_path: Any) -> None:
 
 
 def test_client_constructs_lazy_real_transport() -> None:
-    client = KISClient(app_key="k", app_secret="s")
+    client = KISClient(app_key="k", app_secret="s", environment="real")
     assert isinstance(client.transport, RequestsTransport)
 
 

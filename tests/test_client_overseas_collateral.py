@@ -38,7 +38,7 @@ def _response(*, tr_cont="", nk=""):
 
 def test_overseas_collateral_stocks_maps_summary_and_paginates():
     fake = FakeTransport([_response(tr_cont="M", nk="next"), _response()])
-    client = KISClient(app_key="k", app_secret="s", transport=fake)
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
     result = client.overseas.collateral_stocks("AMD", "840", loanable=True)
     assert isinstance(result, OverseasCollateralStockSearch)
     assert isinstance(result.stocks, tuple)
@@ -63,6 +63,6 @@ def test_overseas_collateral_stocks_missing_output2_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", tr_cont="",
                        body={"output1": [], "ctx_area_fk100": "", "ctx_area_nk100": ""})
     fake = FakeTransport([resp])
-    client = KISClient(app_key="k", app_secret="s", transport=fake)
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
     with pytest.raises(KISError):
         client.overseas.collateral_stocks("AMD", "840")

@@ -87,7 +87,7 @@ def test_stock_surfaces_are_asset_specific():
 def test_overseas_stock_auto_resolves_exchange():
     # market 자동: exchange 를 안 줘도 종목 마스터로 거래소가 채워진다.
     index = MasterIndex([InstrumentRecord("AAPL", "NAS", "USD", "stock", "애플", "APPLE", "NASAAPL")])
-    k = KISClient(app_key="k", app_secret="s", account="12345678-01",
+    k = KISClient(app_key="k", app_secret="s", environment="real", account="12345678-01",
                   transport=FakeTransport(), master_index=index)
     t = k.overseas.stock("AAPL")            # exchange 생략
     assert t.is_overseas

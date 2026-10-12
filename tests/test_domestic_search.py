@@ -213,7 +213,7 @@ def test_load_domestic_index_merges_both_markets_via_injected_fetch(tmp_path):
 
 # --- 파사드 + stock() 은 이름을 받지 않음(안전) ----------------------------
 def test_domestic_search_facade_uses_injected_index():
-    kis = KISClient(app_key="k", app_secret="s", account="12345678-01",
+    kis = KISClient(app_key="k", app_secret="s", environment="real", account="12345678-01",
                     transport=object(), domestic_index=_index())
     hits = kis.domestic.search_stocks("카카오")
     assert [h.symbol for h in hits] == ["035720"]
@@ -221,6 +221,6 @@ def test_domestic_search_facade_uses_injected_index():
 
 def test_stock_still_rejects_a_korean_name():
     # 검색은 이름을 받지만 stock()/주문 경로는 코드 전용(암묵 resolve 없음).
-    kis = KISClient(app_key="k", app_secret="s", account="12345678-01", transport=object())
+    kis = KISClient(app_key="k", app_secret="s", environment="real", account="12345678-01", transport=object())
     with pytest.raises(KISUsageError):
         kis.domestic.stock("삼성전자").quote()

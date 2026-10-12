@@ -56,7 +56,7 @@ def _resp(rows):
 
 
 def _client(transport):
-    return KISClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=transport)
 
 
 def test_by_change_gainers_uses_rise_sort_code():

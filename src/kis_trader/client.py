@@ -119,8 +119,10 @@ class OrdersNamespace:
 class KISClient:
     """KIS Open API 세션. ``transport`` 는 주입된 전송 구현(실제 HTTP 또는 테스트용 가짜)이다.
     주입한 전송이 ``environment`` 를 밝히면(Transport 계약), 세션 환경과 같은지 생성 시점에 fail-closed 로
-    검증한다 -- 주문 게이트는 세션 ``environment`` 로 판정하므로 둘이 어긋나면(게이트와 실제 소켓 목적지의
-    split-brain) 거부한다. 환경을 밝히지 않는 최소 전송(실 소켓 없음)은 통과시킨다."""
+    검증한다 -- 이는 **주입 전송 전용 가드**로, 주입된 소켓 목적지가 세션 환경과 어긋나는 경우만 잡는다
+    (환경을 밝히지 않는 최소 전송은 통과). 자격증명-환경 정합(앱키·계좌·호스트·토큰캐시·rate limit 이
+    환경과 한꺼번에 선택됨)은 이 단언이 아니라 ``(environment, profile)`` 슬롯이 주소를 고르는 속성이
+    전담한다."""
 
     def __init__(
         self,
@@ -168,17 +170,22 @@ class KISClient:
         를 주면 그 인덱스를 쓰고(테스트/고급), 없으면 첫 조회 때 마스터를 받아 캐시한다. ``master_fetch``
         로 다운로더를 바꿀 수 있다(기본은 KIS 배포 서버).
 
-        ``profile`` 이 어느 계좌 묶음으로 열지 정한다(사용자가 이름 붙이는 자유 프로필). 생략하면 기본
-        프로필을 연다 -- ``KIS_DEFAULT_PROFILE`` 환경변수 > ``credentials.json`` ``"default_profile"`` 마커
-        (:meth:`~kis_trader.config.KISConfig.set_default`) > 첫 항목 > ``"main"``.
+        ``profile`` 이 어느 계좌 묶음(계좌 종류)으로 열지 정한다(사용자가 이름 붙이는 자유 프로필).
+        생략하면 기본 프로필을 연다 -- ``KIS_DEFAULT_PROFILE`` 환경변수 > ``credentials.json``
+        ``"default_profile"`` 마커(:meth:`~kis_trader.config.KISConfig.set_default`) > 환경 블록들에
+        등장하는 첫 프로필 > 프로필을 하나도 못 찾으면 :class:`~kis_trader.errors.KISUsageError`.
         ``app_key``/``app_secret`` 을 생략하면 **그 프로필의 저장된 자격증명을 읽는다**(환경변수 ->
         ``~/.config/kis-trader/credentials.json``; :func:`~kis_trader.config.KISConfig.save` 로 저장). 즉
         설정만 해두면 ``KISClient(profile=...)`` 한 줄로 열린다. 앱키·시크릿을 직접 주면 파일을 읽지 않는다.
         ``hts_id`` 는 조건검색·관심종목 조회의 기본 ``user_id``(HTS 로그인 아이디, 사용자당 하나;
         인증엔 안 씀) -- 생략하면 최상위 저장분(:meth:`~kis_trader.config.KISConfig.set_hts_id`) 또는
         ``KIS_HTS_ID`` 환경변수에서 읽는다(앱키·시크릿을 직접 준 세션은 인자로 준 값만 쓴다).
-        ``environment`` (``"real"``/``"paper"``)는 프로필에 저장된 값을 쓰되, 직접 주면 그것으로 덮는다
-        (앱키·시크릿을 직접 준 경우 미지정이면 실전 기본). ``config_dir`` 로 설정·토큰캐시 위치를 바꾼다
+        ``environment`` (``"real"``/``"paper"``)는 열 슬롯을 고르는 **선택자**다 -- 프로필과 짝지어
+        ``(environment, profile)`` 묶음을 인덱싱하므로 앱키·계좌·호스트·토큰캐시·rate limit 이 함께
+        선택되어 자격증명과 모순될 수 없다. 생략하면 ``KIS_DEFAULT_ENVIRONMENT`` 환경변수 > 최상위
+        ``"default_environment"`` 마커 > ``"paper"`` (fail-safe)로 해석한다 -- 실전(``"real"``)은
+        어딘가에 명시해야만 닿는다. 앱키·시크릿을 **직접** 주면 ``environment`` 를 반드시 명시해야 한다
+        (미명시면 생성 시점 :class:`~kis_trader.errors.KISUsageError`). ``config_dir`` 로 설정·토큰캐시 위치를 바꾼다
         (테스트/특수 위치). ``token_cache_dir`` 로 토큰 캐시만 따로 바꾼다(기본은 XDG
         ``~/.cache/kis-trader/tokens``, ``config_dir`` 을 주면 그 아래 ``tokens``).
         """
@@ -195,10 +202,14 @@ class KISClient:
                 resolved.app_key, resolved.app_secret, resolved.account, resolved.environment,
                 resolved.hts_id, resolved.account_password)
         else:
-            # 앱키·시크릿을 직접 준 경우: 파일을 읽지 않는다. 환경 미지정이면 실전 기본, 주면 검증.
+            # 앱키·시크릿을 직접 준 경우: 파일을 읽지 않는다. 키와 환경이 한 단위로 움직이므로
+            # environment 를 반드시 명시해야 한다 -- 미명시면 생성 시점에 큰 소리로 막는다.
             if environment is None:
-                environment = "real"
-            elif environment not in _ENVIRONMENTS:
+                raise KISUsageError(
+                    "app_key/app_secret 를 직접 주면 environment 를 명시해야 한다('real' 또는 'paper') "
+                    "-- 키와 환경이 한 단위로 움직여 실전/모의 자격증명이 서버와 어긋나는 일을 막는다."
+                )
+            if environment not in _ENVIRONMENTS:
                 raise KISUsageError(f"environment 는 {_ENVIRONMENTS} 중 하나여야 한다: {environment!r}")
         if token_cache_dir is None and config_dir is not None:
             token_cache_dir = str(token_cache_path(config_dir))
@@ -242,10 +253,10 @@ class KISClient:
                 rate_limiter=rate_limiter,
             )
         else:
-            # 주입한 transport: 안전 게이트(environment)와 실제 소켓 목적지(transport)가 갈라지면
-            # 머니패스 split-brain 이다(paper 게이트를 통과한 주문이 real 소켓에 닿을 수 있다). 전송이
-            # 환경을 밝히면(Transport 계약) 세션 환경과 일치하는지 fail-closed 로 검증한다. 환경을
-            # 밝히지 않는 전송(구식/최소 가짜)은 실제 소켓이 없다고 보고 통과시킨다.
+            # 주입 전송 전용 가드: 주입한 transport 가 환경을 밝히면(Transport 계약) 세션 환경과
+            # 일치하는지 fail-closed 로 검증한다. 세션 환경과 주입 소켓 목적지가 갈라지는 경우
+            # (테스트/고급 주입)만 잡는다 -- 환경을 밝히지 않는 전송(구식/최소 가짜)은 실제 소켓이
+            # 없다고 보고 통과시킨다. 자격증명-환경 정합은 (environment, profile) 슬롯이 전담한다.
             transport_environment = getattr(transport, "environment", None)
             if transport_environment is not None and transport_environment != environment:
                 raise KISUsageError(

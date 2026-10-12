@@ -19,7 +19,7 @@ class _StubTransport:
 
 
 def _client(store):
-    return KISClient(app_key="k", app_secret="s", account="12345678-01",
+    return KISClient(app_key="k", app_secret="s", environment="real", account="12345678-01",
                      transport=_StubTransport(), store=store)
 
 

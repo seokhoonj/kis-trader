@@ -57,7 +57,7 @@ def _resp(rows):
 
 
 def _client(transport):
-    return KISClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=transport)
 
 
 def _daily_row(bsop="20240507", price="25", vrss="20", sign="5", ctrt="44.44",

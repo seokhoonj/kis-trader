@@ -289,7 +289,7 @@ def test_balance_unparseable_fails_closed():
 
 
 def test_balance_requires_account():
-    kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_balance_resp()))
+    kis = KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport(response=_balance_resp()))
     with pytest.raises(KISUsageError):
         kis.account.domestic.balance()
 
@@ -410,7 +410,7 @@ def test_ticker_sellable_demo_rejected_before_io():
 
 
 def test_ticker_buyable_requires_account():
-    kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_buyable_resp()))
+    kis = KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport(response=_buyable_resp()))
     with pytest.raises(KISUsageError):
         kis.domestic.stock("005930").buyable()
 

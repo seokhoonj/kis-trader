@@ -67,6 +67,7 @@ def _ack(odno="0000123456"):
 
 
 def _client(transport, **kw):
+    kw.setdefault("environment", "real")
     return KISClient(app_key="k", app_secret="s", account="12345678-01", transport=transport, **kw)
 
 

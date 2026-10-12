@@ -54,7 +54,7 @@ def _response(*, include_puts=True):
 
 
 def _client(fake):
-    return KISClient(app_key="k", app_secret="s", transport=fake)
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
 
 
 def test_option_board_maps_rows_and_default_params():

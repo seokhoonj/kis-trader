@@ -22,7 +22,7 @@ class FakeTransport:
 
 
 def _client(response):
-    return KISClient(app_key="k", app_secret="s", transport=FakeTransport(response))
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport(response))
 
 
 def _row():

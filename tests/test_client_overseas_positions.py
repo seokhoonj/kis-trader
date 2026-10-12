@@ -129,7 +129,7 @@ def test_overseas_positions_non_list_output1_fails_closed():
 
 def test_overseas_positions_requires_account():
     fake = FakeTransport(response=_resp([]))
-    client = KISClient(app_key="k", app_secret="s", transport=fake)  # 계좌 없음
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)  # 계좌 없음
     with pytest.raises(KISUsageError):
         client.account.overseas.positions(market="US")
 
@@ -188,7 +188,7 @@ def test_overseas_balance_all_markets_returns_list_per_market():
 
 def test_overseas_balance_all_markets_requires_account():
     fake = FakeTransport(response=_balance_resp(_summary()))
-    client = KISClient(app_key="k", app_secret="s", transport=fake)  # 계좌 없음
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)  # 계좌 없음
     with pytest.raises(KISUsageError):
         client.account.overseas.balance()
 

@@ -48,7 +48,7 @@ class FakeTransport:
 
 
 def _client(transport):
-    return KISClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=transport)
 
 
 def test_overseas_order_book_us_multiple_levels():

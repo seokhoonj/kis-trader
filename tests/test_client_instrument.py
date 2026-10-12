@@ -18,7 +18,7 @@ class FakeTransport:
 
 
 def _client(index):
-    return KISClient(app_key="k", app_secret="s", transport=FakeTransport(), master_index=index)
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport(), master_index=index)
 
 
 _INDEX = MasterIndex([
@@ -61,7 +61,7 @@ def test_instrument_does_not_download_when_index_injected():
     def exploding_fetch(url):
         raise AssertionError("주입 인덱스가 있으면 다운로드하면 안 된다")
 
-    client = KISClient(app_key="k", app_secret="s", transport=FakeTransport(),
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport(),
                        master_index=_INDEX, master_fetch=exploding_fetch)
     assert client.instrument("AAPL").exchange == "NAS"
 
@@ -88,7 +88,7 @@ def test_instrument_lazy_build_uses_master_fetch(tmp_path, monkeypatch):
             archive.writestr(member, ("\n".join(rows) + ("\n" if rows else "")).encode("cp949"))
         return buffer.getvalue()
 
-    client = KISClient(app_key="k", app_secret="s", transport=FakeTransport(), master_fetch=fetch)
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport(), master_fetch=fetch)
     record = client.instrument("NVDA")
     assert record.exchange == "NAS"
     assert record.currency == "USD"

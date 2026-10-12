@@ -35,7 +35,7 @@ def _response(symbol, *, excd="NAS", tr_cont=""):
 def test_overseas_search_maps_filters():
     # KIS 조건검색(HHDFS76410000)은 다음조회를 지원하지 않는다 -- 단일 응답(최대 100건)을 그대로 매핑한다.
     fake = FakeTransport([_response("AAPL")])
-    client = KISClient(app_key="k", app_secret="s", transport=fake)
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
     result = client.overseas.search_stocks(
         "NAS", price=(160, 200), per=(10, 30), volume=(1000, 100000)
     )
@@ -59,7 +59,7 @@ def test_overseas_search_us_fans_out_and_merges():
     # "US" 는 KIS 조건검색을 나스닥·뉴욕·아멕스에 각각 걸어 합친다(TR 이 거래소당 한 번이라).
     fake = FakeTransport([_response("AAPL", excd="NAS"), _response("KO", excd="NYS"),
                           _response("GME", excd="AMS")])
-    client = KISClient(app_key="k", app_secret="s", transport=fake)
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
     result = client.overseas.search_stocks("US", price=(10, 500))
     assert isinstance(result, OverseasStockSearch)
     assert result.exchange == "US"
@@ -73,7 +73,7 @@ def test_overseas_search_us_fans_out_and_merges():
 def test_overseas_search_us_lowercase_also_fans_out():
     fake = FakeTransport([_response("AAPL", excd="NAS"), _response("KO", excd="NYS"),
                           _response("GME", excd="AMS")])
-    client = KISClient(app_key="k", app_secret="s", transport=fake)
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
     result = client.overseas.search_stocks("us", price=(10, 500))   # 소문자도 동일
     assert [c["params"]["EXCD"] for c in fake.calls] == ["NAS", "NYS", "AMS"]
     assert len(result.matches) == 3
@@ -83,17 +83,17 @@ def test_overseas_search_us_partial_failure_propagates():
     # 뒤 거래소 조회가 실패하면 부분 결과를 내지 않고 전체가 실패한다(fail-closed).
     err = RawResponse(rt_cd="1", msg_cd="E", msg1="fail", tr_cont="", body={})
     fake = FakeTransport([_response("AAPL", excd="NAS"), err])
-    client = KISClient(app_key="k", app_secret="s", transport=fake)
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
     with pytest.raises(KISError):
         client.overseas.search_stocks("US", price=(10, 500))
 
 
 def test_overseas_search_rejects_blank_exchange():
     with pytest.raises(KISUsageError):
-        KISClient(app_key="k", app_secret="s", transport=FakeTransport([])).overseas.search_stocks("")
+        KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport([])).overseas.search_stocks("")
 
 
 def test_overseas_search_missing_output_fails_closed():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
     with pytest.raises(KISError):
-        KISClient(app_key="k", app_secret="s", transport=FakeTransport([response])).overseas.search_stocks("NAS")
+        KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport([response])).overseas.search_stocks("NAS")

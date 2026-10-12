@@ -42,7 +42,7 @@ class FakeTransport:
 
 
 def _client(transport):
-    return KISClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=transport)
 
 
 def _session(times):

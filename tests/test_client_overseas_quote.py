@@ -41,7 +41,7 @@ def _resp(output):
 
 
 def _client(transport):
-    return KISClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=transport)
 
 
 def test_overseas_quote_routes_and_maps():
@@ -135,7 +135,7 @@ def test_bare_symbol_auto_resolves_exchange():
     from kis_trader import InstrumentRecord, MasterIndex
     index = MasterIndex([InstrumentRecord("AAPL", "NAS", "USD", "stock", "애플", "APPLE", "NASAAPL")])
     fake = FakeTransport(response=_resp(_output()))
-    client = KISClient(app_key="k", app_secret="s", transport=fake, master_index=index)
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake, master_index=index)
     handle = client.overseas.stock("AAPL")                # exchange 없이 -> 마스터로 NAS 자동 해석
     assert handle.is_overseas is True
     assert handle.exchange == "NAS"
@@ -149,7 +149,7 @@ def test_bare_domestic_symbol_stays_domestic_without_master():
     def exploding_fetch(url):
         raise AssertionError("국내 심볼은 마스터를 받으면 안 된다")
 
-    client = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_resp(_output())),
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport(response=_resp(_output())),
                        master_fetch=exploding_fetch)
     handle = client.domestic.stock("005930")
     assert handle.is_overseas is False

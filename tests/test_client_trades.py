@@ -43,7 +43,7 @@ def _trades_resp(rows):
 
 
 def _client(transport):
-    return KISClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=transport)
 
 
 def test_trades_parses_rows_newest_first():

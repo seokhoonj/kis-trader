@@ -65,7 +65,7 @@ def _quote_resp(output=None):
 
 
 def _client(transport):
-    return KISClient(app_key="k", app_secret="s", account="12345678-01", transport=transport)
+    return KISClient(app_key="k", app_secret="s", environment="real", account="12345678-01", transport=transport)
 
 
 def test_ticker_quote_returns_unified_quote():
@@ -334,19 +334,19 @@ def test_bar_and_order_book_value_semantics_hashable():
 def test_default_http_transport_is_constructed_lazily():
     from kis_trader._internal._http import RequestsTransport
 
-    client = KISClient(app_key="k", app_secret="s", account="12345678-01")
+    client = KISClient(app_key="k", app_secret="s", environment="real", account="12345678-01")
     assert isinstance(client.transport, RequestsTransport)
 
 
 @pytest.mark.parametrize("account", ["12345678", "1-2-3", "12345678-", "-01"])
 def test_bad_account_format_rejected(account):
     with pytest.raises(KISUsageError):
-        KISClient(app_key="k", app_secret="s", account=account,
+        KISClient(app_key="k", app_secret="s", environment="real", account=account,
                   transport=FakeTransport(response=_quote_resp()))
 
 
 def test_account_optional_for_market_data():
-    kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_quote_resp()))
+    kis = KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport(response=_quote_resp()))
     assert kis.domestic.stock("005930").quote().current_price == Decimal(71500)   # 계좌 없이 시세 OK
 
 

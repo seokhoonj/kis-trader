@@ -72,7 +72,7 @@ def _credit_daily_row(*, odno="0001569138", symbol="009150", side_code="02", ord
 def test_credit_order_blocked_by_default():
     """신용주문은 기본 비활성 -- KISClient(allow_credit=True) 로 명시적으로 켜야 한다(와이어 전 거부)."""
     fake = FakeTransport(response=_ACCEPTED)
-    kis = KISClient(app_key="k", app_secret="s", account="12345678-01", transport=fake)  # allow_credit 미설정
+    kis = KISClient(app_key="k", app_secret="s", environment="real", account="12345678-01", transport=fake)  # allow_credit 미설정
     with pytest.raises(KISUsageError):
         kis.domestic.stock("009150").credit_buy(quantity=1, limit_price=130000, credit_type="26",
                                                 loan_date="20211103")

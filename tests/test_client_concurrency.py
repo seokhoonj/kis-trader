@@ -30,7 +30,7 @@ def test_instrument_lazy_load_runs_once_under_concurrent_first_calls(monkeypatch
         return sentinel
 
     monkeypatch.setattr(client_module, "load_overseas_index", counting_load)
-    kis = KISClient(app_key="k", app_secret="s", account="12345678-01", transport=_FakeTransport())
+    kis = KISClient(app_key="k", app_secret="s", environment="real", account="12345678-01", transport=_FakeTransport())
 
     threads_n = 8
     start = threading.Barrier(threads_n)  # 모든 스레드를 동시에 instrument() 로 진입시켜 락을 경합시킨다

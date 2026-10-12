@@ -19,7 +19,7 @@ class FakeTransport:
 
 
 def _client(*responses):
-    return KISClient(app_key="k", app_secret="s", transport=FakeTransport(responses))
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport(responses))
 
 
 def _news_response(*, tr_cont=""):

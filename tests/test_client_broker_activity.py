@@ -53,7 +53,7 @@ def _resp(output):
 
 
 def _client(transport):
-    return KISClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=transport)
 
 
 def test_broker_activity_maps_sellers_and_buyers():

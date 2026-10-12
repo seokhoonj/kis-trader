@@ -269,9 +269,18 @@ def test_client_reads_paper_environment_from_profile(tmp_path):
     assert kis.environment == "paper"
 
 
-def test_client_explicit_keys_default_real_without_file():
-    kis = KISClient(app_key="k", app_secret="s", transport=_FakeTransport())
-    assert kis.environment == "real"
+def test_client_explicit_keys_require_environment():
+    # 직접 주입(app_key/app_secret)은 environment 를 명시해야 한다 -- 미명시면 생성 시점 raise.
+    with pytest.raises(KISUsageError, match="environment 를 명시"):
+        KISClient(app_key="k", app_secret="s", account="12345678-01", transport=_FakeTransport())
+
+
+def test_client_explicit_keys_accept_both_environments():
+    # environment 를 주면 paper/real 둘 다 성립한다.
+    paper = KISClient(app_key="k", app_secret="s", environment="paper", transport=_FakeTransport())
+    assert paper.environment == "paper"
+    real = KISClient(app_key="k", app_secret="s", environment="real", transport=_FakeTransport())
+    assert real.environment == "real"
 
 
 def test_client_explicit_environment_overrides(tmp_path):

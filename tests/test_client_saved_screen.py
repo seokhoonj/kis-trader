@@ -26,7 +26,7 @@ class FakeTransport:
 
 
 def _client(*responses):
-    return KISClient(app_key="k", app_secret="s", transport=FakeTransport(responses))
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport(responses))
 
 
 def _response(rows):
@@ -157,13 +157,13 @@ def test_psearch_other_error_still_raises(method, args, kwargs):
 def test_saved_screens_defaults_user_id_from_session_hts_id():
     # 세션에 hts_id(최상위 공유)가 있으면 user_id 를 생략해도 그 값으로 조회한다.
     fake = FakeTransport([_response([])])
-    kis = KISClient(app_key="k", app_secret="s", hts_id="HTS123", transport=fake)
+    kis = KISClient(app_key="k", app_secret="s", environment="real", hts_id="HTS123", transport=fake)
     kis.domestic.saved_screens()
     assert "HTS123" in (fake.calls[0]["params"] or {}).values()
 
 
 def test_saved_screens_without_user_id_or_hts_id_raises():
     # hts_id 도 없고 user_id 도 안 주면 fail-closed(전송 전 KISUsageError).
-    kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport([]))
+    kis = KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport([]))
     with pytest.raises(KISUsageError):
         kis.domestic.saved_screens()

@@ -575,7 +575,7 @@ def test_retirement_account_blocked():
 
 
 def test_order_requires_account():
-    kis = KISClient(app_key="k", app_secret="s", transport=FakeTransport(response=_ACCEPTED_ORDER_RESPONSE))
+    kis = KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport(response=_ACCEPTED_ORDER_RESPONSE))
     with pytest.raises(KISUsageError):
         kis.domestic.stock("005930").buy(quantity=10, limit_price=70000)
 

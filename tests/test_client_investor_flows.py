@@ -48,7 +48,7 @@ def _resp(rows):
 
 
 def _client(transport):
-    return KISClient(app_key="k", app_secret="s", transport=transport)
+    return KISClient(app_key="k", app_secret="s", environment="real", transport=transport)
 
 
 def test_investor_flows_maps_nested_activity():
