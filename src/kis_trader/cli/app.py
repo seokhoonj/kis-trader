@@ -62,7 +62,9 @@ def _common_flags() -> argparse.ArgumentParser:
     앞·뒤 어디에 놓아도 동작한다."""
     common = argparse.ArgumentParser(add_help=False)
     common.add_argument("--profile", default=argparse.SUPPRESS,
-                        help="자격증명 프로필(자유 이름). 미지정 시 KIS_DEFAULT_PROFILE > default_profile 마커 > credentials.json 첫 항목 > main. 환경은 프로필에 저장된 값")
+                        help="자격증명 프로필(계좌 종류 이름). 미지정 시 KIS_DEFAULT_PROFILE > default_profile 마커 > credentials.json 첫 프로필. 환경은 별도 --environment 로 고른다")
+    common.add_argument("--environment", choices=list(get_args(Environment)), default=argparse.SUPPRESS,
+                        help="접속 환경 real(실전)/paper(모의). 미지정 시 KIS_DEFAULT_ENVIRONMENT > default_environment 마커 > paper")
     common.add_argument("--account", default=argparse.SUPPRESS, help="계좌번호(생략 시 프로필 계좌)")
     common.add_argument("--format", dest="fmt", choices=list(get_args(OutputFormat)),
                         default=argparse.SUPPRESS, help="출력 형식(기본 table)")
@@ -81,7 +83,9 @@ def build_parser() -> argparse.ArgumentParser:
     # 최상위는 실제 기본값을 직접 가진다. 하위 명령은 common(SUPPRESS)이라, 미지정 시 이 값을
     # 덮어쓰지 않고 그대로 유지한다 -- 그래서 전역 플래그를 하위 명령 앞뒤 어디에 놓아도 된다.
     parser.add_argument("--profile", default=None,
-                        help="자격증명 프로필(자유 이름). 미지정 시 KIS_DEFAULT_PROFILE > default_profile 마커 > credentials.json 첫 항목 > main. 환경은 프로필에 저장된 값")
+                        help="자격증명 프로필(계좌 종류 이름). 미지정 시 KIS_DEFAULT_PROFILE > default_profile 마커 > credentials.json 첫 프로필. 환경은 별도 --environment 로 고른다")
+    parser.add_argument("--environment", choices=list(get_args(Environment)), default=None,
+                        help="접속 환경 real(실전)/paper(모의). 미지정 시 KIS_DEFAULT_ENVIRONMENT > default_environment 마커 > paper")
     parser.add_argument("--account", default=None, help="계좌번호(생략 시 프로필 계좌)")
     parser.add_argument("--format", dest="fmt", choices=list(get_args(OutputFormat)), default="table",
                         help="출력 형식(기본 table)")
@@ -121,20 +125,50 @@ def build_parser() -> argparse.ArgumentParser:
     )
     bars_p.set_defaults(func=stock.cmd_bars)
 
-    # kis config -- 대화형 자격증명 저장(클라이언트 불필요). common 을 상속하지 않는다 -- --format
-    # 등 이 명령이 읽지 않는 플래그를 달지 않기 위해(폴리모픽 dispatch: 안 읽는 플래그 거부).
+    # kis config setup|show|set|set-default|set-hts-id|migrate -- 자격증명 설정(클라이언트 불필요).
+    # common 을 상속하지 않는다 -- --format 등 이 그룹이 읽지 않는 플래그를 달지 않기 위해(폴리모픽
+    # dispatch: 안 읽는 플래그 거부). 각 하위명령이 필요한 플래그만 직접 단다. 모두 needs_client=False.
     config_p = groups.add_parser(
-        "config", help="자격증명을 프로필로 저장(대화형; aws configure 와 같은 자리)")
-    # --profile/--account 는 SUPPRESS -- 최상위 전역 플래그 값을 덮어쓰지 않아 명령 앞뒤 어디든 둘 수 있다.
-    config_p.add_argument("--profile", default=argparse.SUPPRESS,
-                          help="저장할 프로필의 자유 이름(소문자/숫자/밑줄; 생략 시 프롬프트, 기본 main)")
-    config_p.add_argument("--environment", choices=list(get_args(Environment)), default=None,
-                          help="접속 환경(생략 시 프롬프트, 기본 paper). real 은 명시 확인 필요")
-    config_p.add_argument("--account", default=argparse.SUPPRESS,
-                          help="계좌번호 CANO-상품코드(생략 시 프롬프트; 빈 입력은 시세전용 프로필)")
-    config_p.add_argument("--set-default", dest="set_default", action="store_true",
-                          help="저장 후 이 프로필을 기본 프로필로 지정(이름 없이 열 때 여는 프로필)")
-    config_p.set_defaults(func=credentials.cmd_config, needs_client=False)
+        "config", help="자격증명 설정(대화형 저장·조회·수정·마이그레이션)")
+    config_p.set_defaults(func=credentials.cmd_config_setup, needs_client=False)  # bare `kis config` -> setup
+    config_sub = config_p.add_subparsers(dest="action")   # required=False: 생략 시 setup
+
+    # kis config setup -- 대화형 저장(aws configure 자리). 계좌 종류별로 real/paper 를 차례로 묻는다.
+    setup_p = config_sub.add_parser("setup", help="자격증명을 대화형으로 저장")
+    # --profile 은 SUPPRESS -- 최상위 전역 플래그 값을 덮어쓰지 않아 명령 앞뒤 어디든 둘 수 있다.
+    setup_p.add_argument("--profile", default=argparse.SUPPRESS,
+                         help="계좌 종류 이름(소문자/숫자/밑줄; 생략 시 프롬프트, 기본 general)")
+    setup_p.add_argument("--set-default", dest="set_default", action="store_true",
+                         help="저장 후 이 프로필을 기본 프로필로 지정(이름 없이 열 때 여는 프로필)")
+    setup_p.set_defaults(func=credentials.cmd_config_setup, needs_client=False)
+
+    # kis config show -- 저장분을 마스킹해 보여준다(시크릿 비노출).
+    show_p = config_sub.add_parser("show", help="저장된 설정을 마스킹해 보여준다")
+    show_p.set_defaults(func=credentials.cmd_config_show, needs_client=False)
+
+    # kis config set <profile>.<env>.<field> [VALUE] -- 한 필드 수정. 시크릿은 argv 로 받지 않는다.
+    set_p = config_sub.add_parser("set", help="한 필드 수정(예: kis config set general.paper.app_key)")
+    set_p.add_argument("address", help="profile.environment.field (예: general.paper.app_key)")
+    set_p.add_argument("value", nargs="?", default=None,
+                       help="비시크릿(account) 값. 시크릿(app_key/app_secret/account_password)은 argv 로 받지 않고 숨김 프롬프트로만 입력받는다")
+    set_p.set_defaults(func=credentials.cmd_config_set, needs_client=False)
+
+    # kis config set-default <profile> -- 기본 프로필 지정.
+    set_default_p = config_sub.add_parser("set-default", help="기본 프로필 지정")
+    # dest 는 'name' -- 전역 --profile(dest=profile)과 섞이지 않게 별도 위치인자로 받는다.
+    set_default_p.add_argument("name", help="기본으로 열 프로필(어느 환경 블록에든 저장돼 있어야 함)")
+    set_default_p.set_defaults(func=credentials.cmd_config_set_default, needs_client=False)
+
+    # kis config set-hts-id <hts_id> -- HTS 로그인 아이디(조건검색·관심종목용, 공유 최상위) 저장.
+    set_hts_p = config_sub.add_parser("set-hts-id", help="HTS 로그인 아이디 저장(조건검색·관심종목용)")
+    set_hts_p.add_argument("hts_id", help="HTS 로그인 아이디")
+    set_hts_p.set_defaults(func=credentials.cmd_config_set_hts_id, needs_client=False)
+
+    # kis config migrate -- 이전 형식(평평한) credentials.json 을 두 축 형식으로 변환.
+    migrate_p = config_sub.add_parser("migrate", help="이전 형식 credentials.json 을 두 축 형식으로 변환")
+    migrate_p.add_argument("--yes", action="store_true",
+                           help="비대화형(기본 병합을 자동 수락; 개명이 필요한 프로필이 있으면 거부)")
+    migrate_p.set_defaults(func=credentials.cmd_config_migrate, needs_client=False)
 
     # kis search
     search_p = leaf(groups, "search", help="이름/코드로 국내 종목 검색")

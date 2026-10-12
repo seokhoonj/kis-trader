@@ -371,6 +371,17 @@ def test_order_execute_environment_mismatch_is_rejected():
         order.cmd_buy(StubKis(), args, is_tty=False)
 
 
+def test_order_execute_real_without_environment_flag_is_rejected():
+    # --environment 를 생략하면 세션 환경은 기본 체인(paper)로 해석된다. --execute real 은 그 세션
+    # 환경과 달라 전송 전에 거부된다(두 축 모델에서 실주문은 --environment real 을 명시해야 닿는다).
+    args = _args(["order", "buy", "005930", "10", "--limit-price", "70000", "--execute", "real"])
+    assert getattr(args, "environment", None) is None    # 전역 --environment 미지정
+    kis = StubKis(account="12345678-01", environment="paper")   # 기본 체인 -> paper 세션
+    with pytest.raises(CliConfigError, match="세션 환경"):
+        order.cmd_buy(kis, args, is_tty=False)
+    assert kis.log == []                                 # 어느 경로로도 전송 없음
+
+
 def test_order_gate_uses_session_environment_not_profile_name():
     # 게이트는 세션(kis)이 해석한 실제 환경을 본다 -- 프로필 이름이 아니다.
     # 세션이 real 이면 프로필 이름이 paper 여도 --execute paper 는 막힌다.
@@ -2150,7 +2161,7 @@ def test_account_flags_table_matches_parser():
 
     table = {dest: sentinel for dest, sentinel, _cli in _ACCOUNT_FLAGS}
     account_cmds = _subchoices(_subchoices(build_parser())["account"])
-    common = {"help", "func", "profile", "account", "fmt", "no_header", "include_raw"}
+    common = {"help", "func", "profile", "environment", "account", "fmt", "no_header", "include_raw"}
     for cmd, leaf in account_cmds.items():
         for act in leaf._actions:
             if act.dest in common or not act.option_strings:

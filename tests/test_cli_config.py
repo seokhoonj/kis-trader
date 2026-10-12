@@ -1,8 +1,8 @@
-"""``kis config`` -- 대화형 자격증명 저장 명령.
+"""``kis config`` -- 두 축(프로필 x 환경) 자격증명 설정 명령 그룹.
 
-시크릿은 getpass 프롬프트 전용(플래그 금지), 비시크릿(profile/environment/account)은 플래그 또는
-프롬프트, 저장은 기존 :meth:`KISConfig.save` 재사용. 이 명령은 클라이언트를 만들지 않는다(자격증명이
-아직 없는 상태가 정상 시작점이므로).
+``setup``(대화형 저장) / ``show``(마스킹 조회) / ``set``(한 필드 수정) / ``set-default`` /
+``set-hts-id`` / ``migrate``(레거시 -> schema 2 변환). 시크릿은 getpass 전용(플래그 금지), 비시크릿은
+플래그 또는 프롬프트, 저장은 :meth:`KISConfig.save` 재사용. 이 그룹은 클라이언트를 만들지 않는다.
 """
 from __future__ import annotations
 
@@ -12,6 +12,7 @@ import os
 import pytest
 
 import kis_trader.cli.app as cli_main
+import kis_trader.cli.commands.credentials as cred
 
 
 @pytest.fixture(autouse=True)
@@ -25,19 +26,32 @@ def _isolate(tmp_path, monkeypatch):
     return tmp_path
 
 
+def _cfg_dir(tmp_path):
+    return tmp_path / "config" / "kis-trader"
+
+
 def _creds(tmp_path):
-    return json.loads((tmp_path / "config" / "kis-trader" / "credentials.json").read_text())
+    return json.loads((_cfg_dir(tmp_path) / "credentials.json").read_text())
 
 
-def _feed_secrets(monkeypatch, app_key="appkeyvalue", app_secret="appsecretvalue"):
-    """getpass 두 번 호출(app_key, app_secret)을 차례로 돌려준다."""
-    values = iter([app_key, app_secret])
-    monkeypatch.setattr("kis_trader.cli.commands.credentials.getpass",
-                        lambda prompt="": next(values))
+def _write_raw(tmp_path, data):
+    directory = _cfg_dir(tmp_path)
+    directory.mkdir(parents=True, exist_ok=True)
+    (directory / "credentials.json").write_text(json.dumps(data, ensure_ascii=False))
+
+
+def _getpass(monkeypatch, mapping, default=""):
+    """``getpass`` 를 프롬프트 문구의 부분 문자열로 분기해 답한다(호출 순서 무관)."""
+    def _g(prompt=""):
+        for needle, value in mapping.items():
+            if needle in prompt:
+                return value
+        return default
+    monkeypatch.setattr("kis_trader.cli.commands.credentials.getpass", _g)
 
 
 def _answer(monkeypatch, mapping, default=""):
-    """``input()`` 을 프롬프트 문구의 부분 문자열로 분기해 답한다(호출 순서에 무관)."""
+    """``input()`` 을 프롬프트 문구의 부분 문자열로 분기해 답한다(호출 순서 무관)."""
     def _input(prompt=""):
         for needle, value in mapping.items():
             if needle in prompt:
@@ -50,76 +64,110 @@ def _no_client(args):
     raise AssertionError("kis config 는 클라이언트를 만들면 안 된다")
 
 
-def test_config_writes_profile_without_building_a_client(tmp_path, monkeypatch):
+# --- 그룹 구조 ----------------------------------------------------------------
+
+def test_bare_config_routes_to_setup_and_needs_no_client():
+    args = cli_main.build_parser().parse_args(["config"])
+    assert args.func is cred.cmd_config_setup
+    assert args.needs_client is False
+
+
+@pytest.mark.parametrize("argv,func", [
+    (["config", "setup"], cred.cmd_config_setup),
+    (["config", "show"], cred.cmd_config_show),
+    (["config", "set", "general.paper.account", "1"], cred.cmd_config_set),
+    (["config", "set-default", "general"], cred.cmd_config_set_default),
+    (["config", "set-hts-id", "myid"], cred.cmd_config_set_hts_id),
+    (["config", "migrate"], cred.cmd_config_migrate),
+])
+def test_config_leaves_wire_to_handlers_without_client(argv, func):
+    args = cli_main.build_parser().parse_args(argv)
+    assert args.func is func
+    assert args.needs_client is False
+
+
+# --- setup --------------------------------------------------------------------
+
+def test_setup_writes_paper_only_when_real_declined(tmp_path, monkeypatch):
     monkeypatch.setattr(cli_main, "build_client", _no_client)
-    _feed_secrets(monkeypatch, "pk", "ps")
+    _getpass(monkeypatch, {"paper APP KEY": "pk", "paper APP SECRET": "ps"})  # paper account_password -> ""
+    _answer(monkeypatch, {"실전": "n", "account 계좌번호": "50001234-01"})
 
-    code = cli_main.main(["config", "--profile", "demo", "--environment", "paper",
-                          "--account", "50123456-01"])
-
-    assert code == 0
-    entry = _creds(tmp_path)["paper"]["demo"]   # v2: data[environment][profile]
-    assert entry["app_key"] == "pk"
-    assert entry["app_secret"] == "ps"
-    assert "environment" not in entry           # 환경은 바깥 블록 키로만
-    assert entry["account"] == "50123456-01"
-
-
-def test_config_prompts_when_flags_omitted(tmp_path, monkeypatch):
-    monkeypatch.setattr(cli_main, "build_client", _no_client)
-    _feed_secrets(monkeypatch, "pk", "ps")
-    # environment 는 비기본값(real)을 줘서 단언이 매처 배선을 실제로 검증하게 한다(real 은 확인 y 필요).
-    _answer(monkeypatch, {"profile": "irp", "environment": "real", "account": "12345678-22", "실전": "y"})
-
-    code = cli_main.main(["config"])
-
-    assert code == 0
-    entry = _creds(tmp_path)["real"]["irp"]     # v2: data[real][irp]
-    assert "environment" not in entry
-    assert entry["account"] == "12345678-22"
-
-
-def test_config_defaults_profile_main_and_environment_paper_on_empty_prompt(tmp_path, monkeypatch):
-    monkeypatch.setattr(cli_main, "build_client", _no_client)
-    _feed_secrets(monkeypatch, "pk", "ps")
-    _answer(monkeypatch, {}, default="")  # 모든 프롬프트 빈 입력 -> 기본값
-
-    code = cli_main.main(["config"])
+    code = cli_main.main(["config", "setup", "--profile", "demo"])
 
     assert code == 0
     data = _creds(tmp_path)
-    assert "main" in data["paper"]                    # 기본 프로필 main, 기본 환경 paper
-    assert "account" not in data["paper"]["main"]     # 빈 계좌 -> 저장 안 함(시세전용)
+    assert "real" not in data                       # real 거부 -> 블록 없음
+    entry = data["paper"]["demo"]
+    assert entry == {"app_key": "pk", "app_secret": "ps", "account": "50001234-01"}
+    assert "environment" not in entry               # 환경은 바깥 블록 키로만
 
 
-def _seed(tmp_path, monkeypatch, profile="demo", app_key="old_k", app_secret="old_s"):
+def test_setup_writes_both_real_and_paper(tmp_path, monkeypatch):
     monkeypatch.setattr(cli_main, "build_client", _no_client)
-    _feed_secrets(monkeypatch, app_key, app_secret)
-    assert cli_main.main(["config", "--profile", profile, "--environment", "paper",
-                          "--account", "50123456-01"]) == 0
+    _getpass(monkeypatch, {"real APP KEY": "rk", "real APP SECRET": "rs",
+                           "paper APP KEY": "pk", "paper APP SECRET": "ps"})
+    _answer(monkeypatch, {"실전": "y", "real account 계좌번호": "12345678-01",
+                          "paper account 계좌번호": "50001234-01"})
+
+    code = cli_main.main(["config", "setup", "--profile", "demo"])
+
+    assert code == 0
+    data = _creds(tmp_path)
+    assert data["real"]["demo"]["app_key"] == "rk"
+    assert data["real"]["demo"]["account"] == "12345678-01"
+    assert data["paper"]["demo"]["app_key"] == "pk"
+    assert data["paper"]["demo"]["account"] == "50001234-01"
 
 
-@pytest.mark.parametrize("answer,code,expected", [
-    # 거부 -> 기존 묶음 통째로 보존.
-    ("n", 3, {"app_key": "old_k", "app_secret": "old_s", "account": "50123456-01"}),
-    # 승인 -> 기존 묶음 통째로 교체(save 는 묶음 전체를 갈아끼운다).
-    ("y", 0, {"app_key": "new_k", "app_secret": "new_s", "account": "87654321-02"}),
-])
-def test_config_overwrite_confirmation_controls_the_whole_profile(
-        tmp_path, monkeypatch, answer, code, expected):
-    _seed(tmp_path, monkeypatch, app_key="old_k", app_secret="old_s")
-    _feed_secrets(monkeypatch, "new_k", "new_s")
-    _answer(monkeypatch, {"덮어": answer})
+def test_setup_stores_account_password_per_bundle(tmp_path, monkeypatch):
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    _getpass(monkeypatch, {"real APP KEY": "rk", "real APP SECRET": "rs",
+                           "real account_password": "1111"})
+    _answer(monkeypatch, {"실전": "y", "account 계좌번호": "12345678-22"})
 
-    result = cli_main.main(["config", "--profile", "demo", "--environment", "paper",
-                            "--account", "87654321-02"])
-
-    assert result == code
-    assert _creds(tmp_path)["paper"]["demo"] == expected
+    assert cli_main.main(["config", "setup", "--profile", "pension"]) == 0
+    assert _creds(tmp_path)["real"]["pension"]["account_password"] == "1111"
 
 
-def test_config_eoferror_aborts_cleanly_without_writing(tmp_path, monkeypatch):
-    # 비대화형/빈 stdin -- 첫 프롬프트에서 EOFError -> traceback 없이 깔끔히 종료(130), 저장 없음.
+def test_setup_soft_hints_paper_for_pension_but_still_prompts(tmp_path, monkeypatch, capsys):
+    # paper 미지원 추정은 하드 게이트가 아니라 힌트다 -- 프롬프트는 그대로 띄우고, 사용자가 APP KEY 를
+    # 비우고 Enter 로 건너뛴다(여기선 빈 입력 -> paper 블록 없음). 힌트 문구와 실제 프롬프트 둘 다 나온다.
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    seen = []
+
+    def _g(prompt=""):
+        seen.append(prompt)
+        return {"real APP KEY": "rk", "real APP SECRET": "rs"}.get(
+            next((n for n in ("real APP KEY", "real APP SECRET") if n in prompt), ""), "")
+    monkeypatch.setattr("kis_trader.cli.commands.credentials.getpass", _g)
+    _answer(monkeypatch, {"실전": "y", "account 계좌번호": "87654321-22"})
+
+    code = cli_main.main(["config", "setup", "--profile", "pension"])
+
+    assert code == 0
+    data = _creds(tmp_path)
+    assert "pension" in data["real"]
+    assert "paper" not in data                       # paper APP KEY 빈 입력 -> 블록 없음
+    assert any("paper APP KEY" in p for p in seen)   # 하드 생략 아님: paper 프롬프트는 떴다
+    out = capsys.readouterr().out
+    assert "모의투자가 없는 것이 보통입니다" in out      # 힌트는 보여준다
+    assert "모의투자에 없어 건너뜁니다" not in out       # 옛 하드 생략 문구는 없다
+
+
+def test_setup_real_affirmation_required(tmp_path, monkeypatch):
+    # real 거부 + paper APP KEY 미입력 -> 저장된 것이 없어 중단(130/3), 파일 없음.
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    _getpass(monkeypatch, {}, default="")            # 모든 getpass 빈 입력
+    _answer(monkeypatch, {"실전": "n"}, default="")
+
+    code = cli_main.main(["config", "setup", "--profile", "demo"])
+
+    assert code == 3                                 # CliAborted("저장된 자격증명이 없습니다.")
+    assert not (_cfg_dir(tmp_path) / "credentials.json").exists()
+
+
+def test_setup_eoferror_aborts_cleanly_without_writing(tmp_path, monkeypatch):
     monkeypatch.setattr(cli_main, "build_client", _no_client)
 
     def _eof(prompt=""):
@@ -127,36 +175,68 @@ def test_config_eoferror_aborts_cleanly_without_writing(tmp_path, monkeypatch):
     monkeypatch.setattr("builtins.input", _eof)
     monkeypatch.setattr("kis_trader.cli.commands.credentials.getpass", _eof)
 
-    code = cli_main.main(["config"])
+    code = cli_main.main(["config", "setup", "--profile", "demo"])
 
     assert code == 130
-    assert not (tmp_path / "config" / "kis-trader" / "credentials.json").exists()
+    assert not (_cfg_dir(tmp_path) / "credentials.json").exists()
 
 
-def test_config_rejects_invalid_prompted_environment_before_reading_secrets(tmp_path, monkeypatch):
+def test_setup_rejects_invalid_profile_name_before_secrets(tmp_path, monkeypatch):
+    # '_paper' 접미사는 v2 이름 규칙 위반 -> 시크릿 전에 거부(getpass 호출되면 실패).
     monkeypatch.setattr(cli_main, "build_client", _no_client)
-    _answer(monkeypatch, {"profile": "main", "environment": "production"})
+    _answer(monkeypatch, {})
     monkeypatch.setattr("kis_trader.cli.commands.credentials.getpass",
-                        lambda prompt="": pytest.fail("invalid environment 는 시크릿 전에 거부돼야 한다"))
+                        lambda prompt="": pytest.fail("이름 검증이 시크릿보다 먼저여야 한다"))
 
-    code = cli_main.main(["config"])
+    code = cli_main.main(["config", "setup", "--profile", "general_paper"])
 
-    assert code == 3  # CliAborted
-    assert not (tmp_path / "config" / "kis-trader" / "credentials.json").exists()
+    assert code == 4                                 # KISUsageError -> not_sent
+    assert not (_cfg_dir(tmp_path) / "credentials.json").exists()
 
 
-def test_config_never_echoes_secret_even_when_save_fails(tmp_path, monkeypatch, capsys):
+def test_setup_tells_migrate_first_on_legacy_file(tmp_path, monkeypatch, capsys):
+    # 레거시 파일이면 시크릿을 받기 전에 migrate 안내(getpass 호출되면 실패).
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    _write_raw(tmp_path, {"main": {"app_key": "k", "app_secret": "s", "environment": "real"}})
+    _answer(monkeypatch, {})
+    monkeypatch.setattr("kis_trader.cli.commands.credentials.getpass",
+                        lambda prompt="": pytest.fail("레거시 안내가 시크릿보다 먼저여야 한다"))
+
+    code = cli_main.main(["config", "setup", "--profile", "general"])
+
+    assert code == 3                                 # CliAborted
+    assert "migrate" in capsys.readouterr().err
+
+
+def test_setup_overwrite_guard_is_slot_accurate(tmp_path, monkeypatch):
+    # real.demo 를 미리 저장한 뒤 setup: real 덮어쓰기 거부 -> real 유지, paper.demo 는 신규 저장.
+    _write_raw(tmp_path, {"schema": 2,
+                          "real": {"demo": {"app_key": "OLD_RK", "app_secret": "OLD_RS",
+                                            "account": "12345678-01"}}})
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    _getpass(monkeypatch, {"paper APP KEY": "new_pk", "paper APP SECRET": "new_ps"})
+    _answer(monkeypatch, {"실전": "y", "덮어쓸까요": "n", "paper account 계좌번호": "50001234-01"})
+
+    code = cli_main.main(["config", "setup", "--profile", "demo"])
+
+    assert code == 0
+    data = _creds(tmp_path)
+    assert data["real"]["demo"]["app_key"] == "OLD_RK"   # real 슬롯 보존(덮어쓰기 거부)
+    assert data["paper"]["demo"]["app_key"] == "new_pk"  # paper 슬롯만 신규
+
+
+def test_setup_never_echoes_secret_even_when_save_fails(tmp_path, monkeypatch, capsys):
     from kis_trader.errors import KISError
 
     monkeypatch.setattr(cli_main, "build_client", _no_client)
-    _feed_secrets(monkeypatch, "SECRETKEY", "SECRETVAL")
+    _getpass(monkeypatch, {"paper APP KEY": "SECRETKEY", "paper APP SECRET": "SECRETVAL"})
+    _answer(monkeypatch, {"실전": "n", "account 계좌번호": "50001234-01"})
 
     def _fail_save(self):
         raise KISError("자격증명 쓰기 실패")
     monkeypatch.setattr("kis_trader.cli.commands.credentials.KISConfig.save", _fail_save)
 
-    code = cli_main.main(["config", "--profile", "demo", "--environment", "paper",
-                          "--account", "50123456-01"])
+    code = cli_main.main(["config", "setup", "--profile", "demo"])
 
     out, err = capsys.readouterr()
     assert code != 0
@@ -164,76 +244,399 @@ def test_config_never_echoes_secret_even_when_save_fails(tmp_path, monkeypatch, 
     assert "SECRETVAL" not in out and "SECRETVAL" not in err
 
 
-def test_config_real_environment_requires_affirmation(tmp_path, monkeypatch):
+def test_setup_summary_never_echoes_the_secret(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli_main, "build_client", _no_client)
-    _feed_secrets(monkeypatch, "rk", "rs")
-    _answer(monkeypatch, {"실전": "n"})
+    _getpass(monkeypatch, {"paper APP KEY": "SECRETKEY", "paper APP SECRET": "SECRETVAL"})
+    _answer(monkeypatch, {"실전": "n", "account 계좌번호": "50001234-01"})
 
-    code = cli_main.main(["config", "--profile", "main", "--environment", "real",
-                          "--account", "12345678-01"])
-
-    assert code == 3
-    assert not (tmp_path / "config" / "kis-trader" / "credentials.json").exists()
-
-
-def test_config_real_environment_written_when_affirmed(tmp_path, monkeypatch):
-    monkeypatch.setattr(cli_main, "build_client", _no_client)
-    _feed_secrets(monkeypatch, "rk", "rs")
-    _answer(monkeypatch, {"실전": "y"})
-
-    code = cli_main.main(["config", "--profile", "main", "--environment", "real",
-                          "--account", "12345678-01"])
-
-    assert code == 0
-    assert "main" in _creds(tmp_path)["real"]                 # real 블록에 기록
-    assert "environment" not in _creds(tmp_path)["real"]["main"]
-
-
-def test_config_summary_never_echoes_the_secret(tmp_path, monkeypatch, capsys):
-    monkeypatch.setattr(cli_main, "build_client", _no_client)
-    _feed_secrets(monkeypatch, "SECRETKEY", "SECRETVAL")
-
-    code = cli_main.main(["config", "--profile", "demo", "--environment", "paper",
-                          "--account", "50123456-01"])
+    code = cli_main.main(["config", "setup", "--profile", "demo"])
 
     assert code == 0
     out = capsys.readouterr().out
-    assert "paper" in out
-    assert "50123456-01" in out
-    assert "SECRETKEY" not in out
-    assert "SECRETVAL" not in out
+    assert "paper" in out and "50001234-01" in out
+    assert "SECRETKEY" not in out and "SECRETVAL" not in out
 
 
-def test_config_preserves_sibling_profiles(tmp_path, monkeypatch):
-    _seed(tmp_path, monkeypatch, profile="demo", app_key="pk")   # paper.demo
+def test_setup_set_default_marks_default_profile(tmp_path, monkeypatch):
     monkeypatch.setattr(cli_main, "build_client", _no_client)
-    _feed_secrets(monkeypatch, "mk", "ms")
-    _answer(monkeypatch, {"실전": "y"})
-    assert cli_main.main(["config", "--profile", "main", "--environment", "real",
-                          "--account", "12345678-01"]) == 0
+    _getpass(monkeypatch, {"paper APP KEY": "pk", "paper APP SECRET": "ps"})
+    _answer(monkeypatch, {"실전": "n", "account 계좌번호": "50001234-01"})
 
-    data = _creds(tmp_path)
-    assert data["paper"]["demo"]["app_key"] == "pk"   # 다른 환경 블록 보존
-    assert data["real"]["main"]["app_key"] == "mk"
-
-
-def test_config_set_default_marks_default_profile(tmp_path, monkeypatch):
-    monkeypatch.setattr(cli_main, "build_client", _no_client)
-    _feed_secrets(monkeypatch, "pk", "ps")
-
-    code = cli_main.main(["config", "--profile", "demo", "--environment", "paper",
-                          "--account", "50123456-01", "--set-default"])
+    code = cli_main.main(["config", "setup", "--profile", "demo", "--set-default"])
 
     assert code == 0
     assert _creds(tmp_path)["default_profile"] == "demo"
 
 
-def test_config_rejects_secret_flags():
+def test_setup_rejects_secret_flags():
     for flag in ("--app-key", "--app-secret"):
         with pytest.raises(SystemExit) as exc:
-            cli_main.main(["config", flag, "leak"])
-        assert exc.value.code == 2  # argparse usage error
+            cli_main.main(["config", "setup", flag, "leak"])
+        assert exc.value.code == 2                   # argparse usage error
 
+
+def test_setup_overwrite_approved_replaces_slot(tmp_path, monkeypatch):
+    # real.demo 를 미리 저장한 뒤 setup: 덮어쓰기 'y' -> 그 슬롯이 새 값으로 바뀐다.
+    _write_raw(tmp_path, {"schema": 2,
+                          "real": {"demo": {"app_key": "OLD_RK", "app_secret": "OLD_RS",
+                                            "account": "12345678-01"}}})
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    _getpass(monkeypatch, {"real APP KEY": "NEW_RK", "real APP SECRET": "NEW_RS"})
+    _answer(monkeypatch, {"실전": "y", "덮어쓸까요": "y", "real account 계좌번호": "99998888-02"})
+
+    code = cli_main.main(["config", "setup", "--profile", "demo"])
+
+    assert code == 0
+    bundle = _creds(tmp_path)["real"]["demo"]
+    assert bundle["app_key"] == "NEW_RK"             # 덮어쓰기 승인 -> 새 값
+    assert bundle["account"] == "99998888-02"
+
+
+def test_setup_prompts_for_profile_name_when_omitted(tmp_path, monkeypatch):
+    # --profile 생략 -> 이름을 프롬프트, 빈 입력이면 기본 'general' 로 저장된다.
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    _getpass(monkeypatch, {"paper APP KEY": "pk", "paper APP SECRET": "ps"})
+    _answer(monkeypatch, {"profile 계좌 종류": "", "실전": "n", "account 계좌번호": "50001234-01"})
+
+    code = cli_main.main(["config", "setup"])
+
+    assert code == 0
+    assert "general" in _creds(tmp_path)["paper"]
+
+
+def test_setup_quote_only_profile_omits_account_and_notes_quote_only(tmp_path, monkeypatch, capsys):
+    # 계좌 빈 입력(시세전용) -> 묶음에 account 키 없음 + 요약에 '시세전용' 주석.
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    _getpass(monkeypatch, {"paper APP KEY": "pk", "paper APP SECRET": "ps"})
+    _answer(monkeypatch, {"실전": "n", "account 계좌번호": ""})
+
+    code = cli_main.main(["config", "setup", "--profile", "demo"])
+
+    assert code == 0
+    assert "account" not in _creds(tmp_path)["paper"]["demo"]
+    assert "시세전용" in capsys.readouterr().out
+
+
+def test_setup_tells_migrate_first_on_meta_only_legacy_file(tmp_path, monkeypatch, capsys):
+    # 스키마 없는 메타 전용 레거시 파일({"hts_id": ...})도 시크릿 전에 migrate 안내로 막는다
+    # (가드와 writer 가 어긋나 시크릿 입력 후 저장 거부되는 막다른 길 방지).
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    _write_raw(tmp_path, {"hts_id": "x"})
+    _answer(monkeypatch, {})
+    monkeypatch.setattr("kis_trader.cli.commands.credentials.getpass",
+                        lambda prompt="": pytest.fail("레거시 안내가 시크릿보다 먼저여야 한다"))
+
+    code = cli_main.main(["config", "setup", "--profile", "general"])
+
+    assert code == 3                                 # CliAborted
+    assert "migrate" in capsys.readouterr().err
+
+
+# --- show ---------------------------------------------------------------------
+
+def test_show_masks_app_key_to_last_four(tmp_path, monkeypatch, capsys):
+    _write_raw(tmp_path, {"schema": 2, "account_password": "0000",
+                          "real": {"general": {"app_key": "SUPERSECRETKEY9999",
+                                               "app_secret": "SECRET", "account": "12345678-01",
+                                               "account_password": "1111"}}})
+    cli_main.main(["config", "show"])
+
+    out = capsys.readouterr().out
+    assert "****9999" in out                         # 끝 4자리만
+    assert "SUPERSECRETKEY9999" not in out           # 전체 앱키 비노출
+    assert "SECRET" not in out                       # 시크릿 비노출
+    assert "account_password: (설정됨)" in out        # 최상위 비번은 값 대신 (설정됨)
+    assert "account_password (설정됨)" in out          # 묶음별 비번도 값 대신 (설정됨)
+    assert "1111" not in out
+
+
+def test_show_legacy_banner_points_to_migrate(tmp_path, capsys):
+    _write_raw(tmp_path, {"main": {"app_key": "LEGACYKEY1234", "app_secret": "s",
+                                   "account": "12345678-01", "environment": "real"}})
+    cli_main.main(["config", "show"])
+
+    out = capsys.readouterr().out
+    assert "레거시 형식" in out and "migrate" in out
+    assert "****1234" in out and "LEGACYKEY1234" not in out
+
+
+def test_show_reports_empty_config(tmp_path, capsys):
+    cli_main.main(["config", "show"])
+    assert "설정된 자격증명이 없습니다" in capsys.readouterr().out
+
+
+# --- set ----------------------------------------------------------------------
+
+def _seed_v2(tmp_path):
+    _write_raw(tmp_path, {"schema": 2,
+                          "real": {"general": {"app_key": "RK", "app_secret": "RS",
+                                               "account": "12345678-01"}},
+                          "paper": {"general": {"app_key": "PK", "app_secret": "PS",
+                                                "account": "50001234-01"}}})
+
+
+def test_set_rejects_secret_value_in_argv(tmp_path, monkeypatch):
+    _seed_v2(tmp_path)
+    monkeypatch.setattr("kis_trader.cli.commands.credentials.getpass",
+                        lambda prompt="": pytest.fail("시크릿은 argv 를 거부해야 한다(getpass 미호출)"))
+
+    code = cli_main.main(["config", "set", "general.paper.app_key", "LEAKED_ON_CLI"])
+
+    assert code == 3                                 # CliAborted
+    assert _creds(tmp_path)["paper"]["general"]["app_key"] == "PK"   # 변경 없음
+
+
+def test_set_app_key_via_getpass_preserves_other_fields(tmp_path, monkeypatch):
+    _seed_v2(tmp_path)
+    _getpass(monkeypatch, {"general.paper.app_key": "NEWKEY"})
+
+    code = cli_main.main(["config", "set", "general.paper.app_key"])
+
+    assert code == 0
+    bundle = _creds(tmp_path)["paper"]["general"]
+    assert bundle["app_key"] == "NEWKEY"
+    assert bundle["app_secret"] == "PS"              # 나머지 필드 보존
+    assert bundle["account"] == "50001234-01"
+
+
+def test_set_account_accepts_argv_value(tmp_path):
+    _seed_v2(tmp_path)
+    code = cli_main.main(["config", "set", "general.real.account", "99998888-02"])
+    assert code == 0
+    assert _creds(tmp_path)["real"]["general"]["account"] == "99998888-02"
+
+
+def test_set_rejects_malformed_address(tmp_path):
+    _seed_v2(tmp_path)
+    assert cli_main.main(["config", "set", "general.paper"]) == 3
+
+
+def test_set_rejects_unknown_field(tmp_path):
+    _seed_v2(tmp_path)
+    assert cli_main.main(["config", "set", "general.paper.secret_sauce", "x"]) == 3
+
+
+def test_set_on_missing_slot_errors(tmp_path, monkeypatch):
+    _seed_v2(tmp_path)
+    _getpass(monkeypatch, {"absent.real.app_key": "K"})
+    code = cli_main.main(["config", "set", "absent.real.app_key"])
+    assert code == 3                                 # app_secret 없는 슬롯 -> 안내
+
+
+def test_set_tells_migrate_first_on_legacy_file(tmp_path, monkeypatch):
+    _write_raw(tmp_path, {"main": {"app_key": "k", "app_secret": "s", "environment": "real"}})
+    monkeypatch.setattr("kis_trader.cli.commands.credentials.getpass",
+                        lambda prompt="": pytest.fail("레거시면 migrate 안내가 먼저여야 한다"))
+    assert cli_main.main(["config", "set", "main.real.app_key"]) == 3
+
+
+def test_set_rejects_invalid_environment(tmp_path, monkeypatch):
+    _seed_v2(tmp_path)
+    monkeypatch.setattr("kis_trader.cli.commands.credentials.getpass",
+                        lambda prompt="": pytest.fail("환경 검증이 시크릿보다 먼저여야 한다"))
+    assert cli_main.main(["config", "set", "general.badenv.app_key"]) == 3   # CliAborted
+
+
+def test_set_account_password_via_getpass(tmp_path, monkeypatch):
+    _seed_v2(tmp_path)
+    _getpass(monkeypatch, {"general.real.account_password": "4321"})
+    code = cli_main.main(["config", "set", "general.real.account_password"])
+    assert code == 0
+    assert _creds(tmp_path)["real"]["general"]["account_password"] == "4321"
+
+
+def test_set_clears_account_with_empty_input(tmp_path, monkeypatch):
+    _seed_v2(tmp_path)
+    _answer(monkeypatch, {"general.real.account": ""})   # 빈 입력 -> account 제거
+    code = cli_main.main(["config", "set", "general.real.account"])
+    assert code == 0
+    bundle = _creds(tmp_path)["real"]["general"]
+    assert "account" not in bundle                        # 비운 필드는 묶음에서 사라진다
+    assert bundle["app_key"] == "RK"                      # 나머지 보존
+
+
+def test_mask_short_key_full_mask_and_absent():
+    assert cred._mask("abcde") == "****bcde"              # >4: 끝 4자리만
+    assert cred._mask("abcd") == "****"                   # <=4: 전부 가림
+    assert cred._mask(None) == "(없음)"                   # 없는 값
+    assert cred._mask("") == "(없음)"                     # 빈 값
+
+
+# --- set-default / set-hts-id -------------------------------------------------
+
+def test_set_default_marks_existing_profile(tmp_path):
+    _seed_v2(tmp_path)
+    assert cli_main.main(["config", "set-default", "general"]) == 0
+    assert _creds(tmp_path)["default_profile"] == "general"
+
+
+def test_set_default_rejects_unknown_profile(tmp_path):
+    _seed_v2(tmp_path)
+    assert cli_main.main(["config", "set-default", "ghost"]) == 4   # KISUsageError
+
+
+def test_set_hts_id_writes_top_level(tmp_path):
+    _seed_v2(tmp_path)
+    assert cli_main.main(["config", "set-hts-id", "myhtsid"]) == 0
+    assert _creds(tmp_path)["hts_id"] == "myhtsid"
+
+
+# --- migrate (레거시 -> schema 2) ---------------------------------------------
+
+def _legacy(tmp_path, **extra):
+    data = {"hts_id": "myhts", "account_password": "0000",
+            "main": {"app_key": "MAINKEY1234", "app_secret": "MAINSEC",
+                     "account": "12345678-01", "environment": "real"},
+            "paper": {"app_key": "PAPERKEY5678", "app_secret": "PAPERSEC",
+                      "account": "50001234-01", "environment": "paper"}}
+    data.update(extra)
+    _write_raw(tmp_path, data)
+
+
+def test_migrate_yes_merges_main_and_paper_into_general(tmp_path):
+    _legacy(tmp_path)
+    assert cli_main.main(["config", "migrate", "--yes"]) == 0
+    data = _creds(tmp_path)
+    assert data["schema"] == 2
+    assert data["real"]["general"]["app_key"] == "MAINKEY1234"
+    assert data["paper"]["general"]["app_key"] == "PAPERKEY5678"
+    assert "main" not in data and "paper" not in data.get("real", {})
+    assert "environment" not in data["real"]["general"]   # 묶음에 environment 필드 없음
+
+
+def test_migrate_writes_default_markers_explicitly(tmp_path):
+    _legacy(tmp_path)
+    cli_main.main(["config", "migrate", "--yes"])
+    data = _creds(tmp_path)
+    assert data["default_environment"] == "paper"     # fail-safe 기본 명시
+    assert data["default_profile"] == "general"
+    assert data["hts_id"] == "myhts"                  # 공유 최상위 이동
+    assert data["account_password"] == "0000"         # 선행 0 보존(문자열)
+
+
+def test_migrate_interactive_merge_yes(tmp_path, monkeypatch):
+    _legacy(tmp_path)
+    _answer(monkeypatch, {"합칠까요": "y", "합친 프로필 이름": "general"})
+    assert cli_main.main(["config", "migrate"]) == 0
+    assert "general" in _creds(tmp_path)["real"]
+
+
+def test_migrate_interactive_merge_declined_renames_paper(tmp_path, monkeypatch):
+    # 병합 거부 -> main(real) 은 자기 이름 유지, 'paper'(두 축 예약어) 는 개명을 묻는다.
+    _legacy(tmp_path)
+    _answer(monkeypatch, {"합칠까요": "n", "새 이름": "sim"})
+    assert cli_main.main(["config", "migrate"]) == 0
+    data = _creds(tmp_path)
+    assert data["real"]["main"]["app_key"] == "MAINKEY1234"
+    assert data["paper"]["sim"]["app_key"] == "PAPERKEY5678"
+
+
+def test_migrate_yes_refuses_when_rename_needed(tmp_path):
+    # 'paper' 만 있고 main 이 없으면 병합 분기 없음 -> 'paper' 는 개명 필요한데 --yes 는 못 물어본다.
+    _write_raw(tmp_path, {"paper": {"app_key": "K", "app_secret": "S",
+                                    "account": "50001234-01", "environment": "paper"}})
+    assert cli_main.main(["config", "migrate", "--yes"]) == 3   # CliAborted
+    assert "paper" in _creds(tmp_path)                 # 원본 그대로(변환 안 함)
+
+
+def test_migrate_moves_account_password_per_bundle_only_when_differs(tmp_path):
+    # 최상위 비번 0000, pension 이 자기 비번 1111(다름) -> pension 묶음에 per-bundle, 최상위 유지.
+    _legacy(tmp_path, pension={"app_key": "PENKEY", "app_secret": "PENSEC",
+                               "account": "87654321-22", "environment": "real",
+                               "account_password": "1111"})
+    cli_main.main(["config", "migrate", "--yes"])
+    data = _creds(tmp_path)
+    assert data["account_password"] == "0000"
+    assert data["real"]["pension"]["account_password"] == "1111"
+    assert "account_password" not in data["real"]["general"]   # 최상위와 같으면 묶음에 안 둠
+
+
+def test_migrate_rename_table_flags_only_live_keys(tmp_path, monkeypatch, capsys):
+    _legacy(tmp_path)
+    monkeypatch.setenv("KIS_APP_KEY", "liveval")       # 살아있는 bare 키 하나
+    cli_main.main(["config", "migrate", "--yes"])
+
+    out = capsys.readouterr().out
+    lines = out.splitlines()
+    live = next(line for line in lines if "KIS_APP_KEY ->" in line and "KIS_APP_SECRET" not in line)
+    secret = next(line for line in lines if "KIS_APP_SECRET ->" in line)
+    assert "현재 설정됨" in live                        # 설정된 키만 표시
+    assert "현재 설정됨" not in secret                  # 설정 안 된 키는 플래그 없음
+
+
+def test_migrate_yes_refuses_name_collision_without_losing_profiles(tmp_path):
+    # P0: 레거시 main(real)+paper(paper)+general(real). --yes 는 main+paper 를 'general' 로 합치는데
+    # 같은 이름의 독립 'general'(real) 이 있어, 막지 않으면 main 의 real 자격증명이 사라진다 -> 거부.
+    raw = {"main": {"app_key": "MAINKEY", "app_secret": "MAINSEC", "account": "11111111-01",
+                    "environment": "real"},
+           "paper": {"app_key": "PAPERKEY", "app_secret": "PAPERSEC", "account": "50001234-01",
+                     "environment": "paper"},
+           "general": {"app_key": "GENKEY", "app_secret": "GENSEC", "account": "22222222-01",
+                       "environment": "real"}}
+    _write_raw(tmp_path, raw)
+    before = _creds(tmp_path)
+    assert cli_main.main(["config", "migrate", "--yes"]) == 3   # CliAborted
+    assert _creds(tmp_path) == before                           # 원본 그대로(아무것도 쓰지 않음)
+
+
+def test_migrate_interactive_rename_avoids_collision(tmp_path, monkeypatch):
+    # 같은 충돌 시나리오를 대화형으로: 합친 이름을 'merged' 로 지정하면 독립 'general' 과 안 겹쳐 성공.
+    _write_raw(tmp_path, {"main": {"app_key": "MAINKEY", "app_secret": "MAINSEC",
+                                   "account": "11111111-01", "environment": "real"},
+                          "paper": {"app_key": "PAPERKEY", "app_secret": "PAPERSEC",
+                                    "account": "50001234-01", "environment": "paper"},
+                          "general": {"app_key": "GENKEY", "app_secret": "GENSEC",
+                                      "account": "22222222-01", "environment": "real"}})
+    _answer(monkeypatch, {"합칠까요": "y", "합친 프로필 이름": "merged"})
+
+    assert cli_main.main(["config", "migrate"]) == 0
+    data = _creds(tmp_path)
+    assert data["real"]["merged"]["app_key"] == "MAINKEY"       # 합친 real 슬롯
+    assert data["paper"]["merged"]["app_key"] == "PAPERKEY"     # 합친 paper 슬롯
+    assert data["real"]["general"]["app_key"] == "GENKEY"       # 독립 general 보존(유실 없음)
+
+
+def test_migrate_seeds_v2_for_meta_only_legacy_file(tmp_path):
+    # P2: 프로필 없이 메타키만 있는 레거시 파일은 막다른 길이 아니라 그 메타를 넘긴 schema 2 로 씨를 뿌린다.
+    _write_raw(tmp_path, {"hts_id": "myhts", "account_password": "0000"})
+    assert cli_main.main(["config", "migrate", "--yes"]) == 0
+    data = _creds(tmp_path)
+    assert data["schema"] == 2
+    assert data["hts_id"] == "myhts"
+    assert data["account_password"] == "0000"
+    assert data["default_environment"] == "paper"
+
+
+def test_migrate_honors_surviving_default_profile_marker(tmp_path):
+    # 기존 default_profile 마커가 변환 후에도 존재하면(여기선 pension) 그대로 존중한다.
+    _legacy(tmp_path, default_profile="pension",
+            pension={"app_key": "PENKEY", "app_secret": "PENSEC",
+                     "account": "87654321-22", "environment": "real"})
+    cli_main.main(["config", "migrate", "--yes"])
+    assert _creds(tmp_path)["default_profile"] == "pension"
+
+
+def test_migrate_default_profile_marker_falls_back_when_renamed(tmp_path):
+    # 마커가 변환 후 사라진 이름(main -> general 로 합쳐짐)을 가리키면 fallback(합친 이름)으로 간다.
+    _legacy(tmp_path, default_profile="main")
+    cli_main.main(["config", "migrate", "--yes"])
+    assert _creds(tmp_path)["default_profile"] == "general"
+
+
+def test_migrate_idempotent_on_v2_file(tmp_path, capsys):
+    _seed_v2(tmp_path)
+    before = _creds(tmp_path)
+    assert cli_main.main(["config", "migrate", "--yes"]) == 0
+    assert "이미 두 축 형식" in capsys.readouterr().out
+    assert _creds(tmp_path) == before                  # 변경 없음
+
+
+def test_migrate_empty_config_reports_nothing_to_do(tmp_path, capsys):
+    assert cli_main.main(["config", "migrate", "--yes"]) == 0
+    assert "변환할 내용이 없습니다" in capsys.readouterr().out
+
+
+# --- 버전/도움말 --------------------------------------------------------------
 
 def test_version_and_config_help_exit_zero():
     with pytest.raises(SystemExit) as version_exit:
