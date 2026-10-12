@@ -10,13 +10,24 @@ from __future__ import annotations
 
 from collections.abc import Mapping
 from dataclasses import dataclass, field
-from datetime import date, time
+from datetime import date, datetime, time
 from decimal import Decimal
 from types import MappingProxyType
 from typing import Any
 
 from ..._internal._freeze import freeze_vendor_payload
+from ...instrument import DomesticOrderExchange
 from ...order import Side
+
+
+@dataclass(frozen=True, slots=True)
+class StopTrigger:
+    """스톱지정가 주문의 트리거 정보(불변). 비-스톱 주문 체결에는 붙지 않는다(:class:`StockFill`
+    의 ``stop`` 은 그 경우 ``None``). ``trigger_price`` 조건가격, ``effective_datetime`` 효력발생
+    상세시각(아직 미발생이면 None)."""
+
+    trigger_price: Decimal            # 스톱지정가조건가격(stpm_cndt_pric)
+    effective_datetime: datetime | None  # 스톱지정가효력발생상세시각(stpm_efct_occr_dtmd)
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,7 +36,9 @@ class StockFill:
 
     ``order_quantity`` / ``order_price`` 는 주문, ``filled_quantity`` / ``average_price`` /
     ``filled_amount`` 는 체결, ``unfilled_quantity`` 는 잔여(미체결)수량, ``rejected_quantity`` 는
-    거부수량이다. ``canceled`` 는 취소여부. ``side`` 는 매수/매도.
+    거부수량이다. ``canceled`` 는 취소여부, ``canceled_quantity`` 는 취소 확인된 수량. ``side`` 는
+    매수/매도. ``exchange`` 는 체결 거래소(KRX/NXT/SOR; NXT 도입 전 주문은 미채움이라 None).
+    ``stop`` 은 스톱지정가 주문이면 트리거 정보, 아니면 None.
     """
 
     order_date: date | None           # 주문일자(ord_dt)
@@ -44,7 +57,17 @@ class StockFill:
     unfilled_quantity: Decimal        # 잔여수량(rmn_qty)
     rejected_quantity: Decimal        # 거부수량(rjct_qty)
     canceled: bool                    # 취소여부(cncl_yn)
+    canceled_quantity: Decimal        # 취소확인수량(cncl_cfrm_qty): 취소 체결된 수량
     branch_number: str                # 주문채번지점번호(ord_gno_brno)
+    exchange_division: str            # 거래소구분코드(excg_dvsn_cd): KIS 원코드(예 "02"/"12")
+    fill_condition_name: str          # 체결조건명(ccld_cndt_name): 예 IOC/FOK/"없음"
+    order_type_code: str              # 주문구분코드(ord_dvsn_cd): order_type_name 의 기계안정 코드
+    product_type_code: str            # 상품유형코드(prdt_type_cd)
+    order_organization_number: str    # 주문조직번호(ord_orgno)
+    exchange: DomesticOrderExchange | None  # 거래소ID구분(excg_id_dvsn_cd): KRX/NXT/SOR(미채움이면 None)
+    reservation_end_date: date | None  # 예약주문종료일자(rsvn_ord_end_dt)
+    loan_date: date | None            # 대출일자(loan_dt): 신용 주문 외엔 None
+    stop: StopTrigger | None          # 스톱지정가 트리거(비-스톱 주문이면 None)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

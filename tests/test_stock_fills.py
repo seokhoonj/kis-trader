@@ -46,7 +46,9 @@ def _fills(transport, *, environment="real"):
 
 
 def _row(*, odno="0001568197", pdno="005930", side="02", ord_qty="10", ord_unpr="70000",
-         filled="10", avg="70050", ccld_amt="700500", rmn="0", rjct="0", cncl=""):
+         filled="10", avg="70050", ccld_amt="700500", rmn="0", rjct="0", cncl="",
+         cncl_cfrm="0", exchange="KRX", excg_dvsn="02", ccld_cndt="없음",
+         stpm_pric="0", stpm_eff=""):
     return {
         "ord_dt": "20240216", "ord_gno_brno": "06010", "odno": odno, "orgn_odno": "",
         "ord_dvsn_name": "지정가", "sll_buy_dvsn_cd": side, "sll_buy_dvsn_cd_name": "매수",
@@ -54,6 +56,10 @@ def _row(*, odno="0001568197", pdno="005930", side="02", ord_qty="10", ord_unpr=
         "ord_tmd": "131438", "tot_ccld_qty": filled, "avg_prvs": avg, "cncl_yn": cncl,
         "tot_ccld_amt": ccld_amt, "loan_dt": "", "ord_dvsn_cd": "00",
         "rmn_qty": rmn, "rjct_qty": rjct,
+        # 0.6.0 보강 필드(원장 응답예시 기반; PII/운영 필드는 승격 안 함)
+        "cncl_cfrm_qty": cncl_cfrm, "excg_id_dvsn_cd": exchange, "excg_dvsn_cd": excg_dvsn,
+        "ccld_cndt_name": ccld_cndt, "prdt_type_cd": "", "ord_orgno": "06010",
+        "rsvn_ord_end_dt": "", "stpm_cndt_pric": stpm_pric, "stpm_efct_occr_dtmd": stpm_eff,
     }
 
 
@@ -126,6 +132,48 @@ def test_fills_older_paper_uses_demo_before_tr():
     _fills(fake, environment="paper")(start="20230101", end="20230331",
                                       older_than_three_months=True)
     assert fake.calls[0]["tr_id"] == "VTSC9215R"
+
+
+# --- 0.6.0 보강 필드 (라이브 응답예시로 키셋/타입 확정) -----------------------
+def test_fill_exposes_0_6_0_fields():
+    fake = FakeTransport(response=_resp(rows=[_row(cncl_cfrm="3", excg_dvsn="12", ccld_cndt="IOC")]))
+    fill = _fills(fake)(start="20240201", end="20240229").fills[0]
+    assert fill.canceled_quantity == Decimal(3)
+    assert fill.exchange_division == "12"
+    assert fill.fill_condition_name == "IOC"
+    assert fill.order_type_code == "00"
+
+
+def test_fill_exchange_is_typed_and_none_when_blank():
+    # excg_id_dvsn_cd 값이 그대로 타입드 거래소; NXT 도입 전 주문은 공란 -> None.
+    krx = _fills(FakeTransport(response=_resp(rows=[_row(exchange="KRX")])))(start="20240201", end="20240229")
+    assert krx.fills[0].exchange == "KRX"
+    sor = _fills(FakeTransport(response=_resp(rows=[_row(exchange="SOR")])))(start="20240201", end="20240229")
+    assert sor.fills[0].exchange == "SOR"
+    blank = _fills(FakeTransport(response=_resp(rows=[_row(exchange="")])))(start="20240201", end="20240229")
+    assert blank.fills[0].exchange is None
+
+
+def test_fill_exchange_unknown_code_fails_closed():
+    # 알 수 없는 거래소ID구분은 조용히 떨어뜨리지 않고 KISError 로 올린다.
+    fake = FakeTransport(response=_resp(rows=[_row(exchange="ZZZ")]))
+    with pytest.raises(KISError, match="excg_id_dvsn_cd"):
+        _fills(fake)(start="20240201", end="20240229")
+
+
+def test_fill_stop_is_none_for_non_stop_order():
+    # stpm_cndt_pric 가 0/공란이면 비-스톱 주문 -> stop 은 None(joint-presence).
+    fake = FakeTransport(response=_resp(rows=[_row(stpm_pric="0")]))
+    assert _fills(fake)(start="20240201", end="20240229").fills[0].stop is None
+
+
+def test_fill_stop_present_with_trigger_price():
+    fake = FakeTransport(response=_resp(rows=[_row(stpm_pric="71000", stpm_eff="20240216131500")]))
+    stop = _fills(fake)(start="20240201", end="20240229").fills[0].stop
+    assert stop is not None
+    assert stop.trigger_price == Decimal(71000)
+    assert stop.effective_datetime is not None
+    assert (stop.effective_datetime.year, stop.effective_datetime.month, stop.effective_datetime.day) == (2024, 2, 16)
 
 
 @pytest.mark.parametrize("side,code", [("all", "00"), ("sell", "01"), ("buy", "02")])

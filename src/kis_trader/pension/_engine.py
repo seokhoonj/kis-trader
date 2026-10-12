@@ -195,6 +195,24 @@ def _parse_position(row: Mapping[str, Any], *, sellable_key: str, pnl_rate_key: 
         market_value=_decimal_or_zero(row, "evlu_amt"),
         unrealized_pnl=_decimal_or_zero(row, "evlu_pfls_amt"),
         unrealized_pnl_percent=_decimal_or_zero(row, pnl_rate_key),
+        # 아래는 주식 잔고에만 있는 보강 필드다 -- 퇴직연금 응답엔 없으면 0/빈값으로 수렴한다
+        # (연금은 현금계좌라 신용/대주 lot 이 없어 loan/expiry 는 항상 None).
+        change=_decimal_or_zero(row, "bfdy_cprs_icdc"),
+        change_percent=_decimal_or_zero(row, "fltt_rt"),
+        evaluation_return_percent=_decimal_or_zero(row, "evlu_erng_rt"),
+        trade_type_name=str(row.get("trad_dvsn_name", "")).strip(),
+        substitute_price=_decimal_or_zero(row, "sbst_pric"),
+        margin_rate_name=str(row.get("item_mgna_rt_name", "")).strip(),
+        guarantee_rate_name=str(row.get("grta_rt_name", "")).strip(),
+        stock_loan_unit_price=_decimal_or_zero(row, "stck_loan_unpr"),
+        previous_day_buy_quantity=_decimal_or_zero(row, "bfdy_buy_qty"),
+        previous_day_sell_quantity=_decimal_or_zero(row, "bfdy_sll_qty"),
+        today_buy_quantity=_decimal_or_zero(row, "thdt_buyqty"),
+        today_sell_quantity=_decimal_or_zero(row, "thdt_sll_qty"),
+        loan_amount=_decimal_or_zero(row, "loan_amt"),
+        short_selling_charges=_decimal_or_zero(row, "stln_slng_chgs"),
+        loan_date=None,
+        expiry_date=None,
         _raw=row,
     )
 

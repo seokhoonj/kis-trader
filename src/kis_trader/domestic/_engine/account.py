@@ -13,10 +13,11 @@ KIS URL/TR-ID:
 from __future__ import annotations
 
 from collections.abc import Mapping
+from datetime import datetime
 from decimal import Decimal
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, cast, get_args
 
-from ..._internal._datetime import _parse_hhmmss
+from ..._internal._datetime import _KST, _parse_hhmmss
 from ..._internal._datetime import _parse_optional_date as _parse_date
 from ..._internal._response import (
     _advance_cursor,
@@ -26,6 +27,7 @@ from ..._internal._response import (
 )
 from ..._internal._wire import field_decimal_or_zero, format_wire_decimal, required_decimal
 from ...errors import KISError, KISUsageError
+from ...instrument import DomesticOrderExchange
 from ...open_order import DomesticOpenOrder
 from ...order import CreditType
 from ...orderable import DomesticBuyableAmount, SellableQuantity
@@ -37,7 +39,7 @@ from ..entities.account_reports import (
 )
 from ..entities.account_right import AccountRight
 from ..entities.balance import AccountAssets, DomesticBalance, DomesticPosition, Portfolio
-from ..entities.stock_fills import StockFill, StockFillHistory
+from ..entities.stock_fills import StockFill, StockFillHistory, StopTrigger
 from ..entities.trade_profit import (
     DailyProfit,
     DailyProfitHistory,
@@ -192,6 +194,22 @@ def _parse_positions(rows: list[Mapping[str, Any]]) -> list[DomesticPosition]:
                 market_value=field_decimal_or_zero(row.get("evlu_amt"), "evlu_amt"),
                 unrealized_pnl=field_decimal_or_zero(row.get("evlu_pfls_amt"), "evlu_pfls_amt"),
                 unrealized_pnl_percent=field_decimal_or_zero(row.get("evlu_pfls_rt"), "evlu_pfls_rt"),
+                change=field_decimal_or_zero(row.get("bfdy_cprs_icdc"), "bfdy_cprs_icdc"),
+                change_percent=field_decimal_or_zero(row.get("fltt_rt"), "fltt_rt"),
+                evaluation_return_percent=field_decimal_or_zero(row.get("evlu_erng_rt"), "evlu_erng_rt"),
+                trade_type_name=str(row.get("trad_dvsn_name", "")).strip(),
+                substitute_price=field_decimal_or_zero(row.get("sbst_pric"), "sbst_pric"),
+                margin_rate_name=str(row.get("item_mgna_rt_name", "")).strip(),
+                guarantee_rate_name=str(row.get("grta_rt_name", "")).strip(),
+                stock_loan_unit_price=field_decimal_or_zero(row.get("stck_loan_unpr"), "stck_loan_unpr"),
+                previous_day_buy_quantity=field_decimal_or_zero(row.get("bfdy_buy_qty"), "bfdy_buy_qty"),
+                previous_day_sell_quantity=field_decimal_or_zero(row.get("bfdy_sll_qty"), "bfdy_sll_qty"),
+                today_buy_quantity=field_decimal_or_zero(row.get("thdt_buyqty"), "thdt_buyqty"),
+                today_sell_quantity=field_decimal_or_zero(row.get("thdt_sll_qty"), "thdt_sll_qty"),
+                loan_amount=field_decimal_or_zero(row.get("loan_amt"), "loan_amt"),
+                short_selling_charges=field_decimal_or_zero(row.get("stln_slng_chgs"), "stln_slng_chgs"),
+                loan_date=_parse_date(row.get("loan_dt")),
+                expiry_date=_parse_date(row.get("expd_dt")),
                 _raw=row,
             )
         )
@@ -209,6 +227,22 @@ def _parse_balance(summary: Mapping[str, Any]) -> DomesticBalance:
         purchase_amount=required_decimal(summary.get("pchs_amt_smtl_amt"), "pchs_amt_smtl_amt"),
         market_value=required_decimal(summary.get("evlu_amt_smtl_amt"), "evlu_amt_smtl_amt"),
         unrealized_pnl=required_decimal(summary.get("evlu_pfls_smtl_amt"), "evlu_pfls_smtl_amt"),
+        securities_evaluation=field_decimal_or_zero(summary.get("scts_evlu_amt"), "scts_evlu_amt"),
+        total_loan_amount=field_decimal_or_zero(summary.get("tot_loan_amt"), "tot_loan_amt"),
+        previous_total_asset=field_decimal_or_zero(summary.get("bfdy_tot_asst_evlu_amt"), "bfdy_tot_asst_evlu_amt"),
+        asset_change_amount=field_decimal_or_zero(summary.get("asst_icdc_amt"), "asst_icdc_amt"),
+        asset_change_percent=field_decimal_or_zero(summary.get("asst_icdc_erng_rt"), "asst_icdc_erng_rt"),
+        cma_evaluation=field_decimal_or_zero(summary.get("cma_evlu_amt"), "cma_evlu_amt"),
+        previous_day_buy_amount=field_decimal_or_zero(summary.get("bfdy_buy_amt"), "bfdy_buy_amt"),
+        today_buy_amount=field_decimal_or_zero(summary.get("thdt_buy_amt"), "thdt_buy_amt"),
+        previous_day_sell_amount=field_decimal_or_zero(summary.get("bfdy_sll_amt"), "bfdy_sll_amt"),
+        today_sell_amount=field_decimal_or_zero(summary.get("thdt_sll_amt"), "thdt_sll_amt"),
+        previous_day_expenses=field_decimal_or_zero(summary.get("bfdy_tlex_amt"), "bfdy_tlex_amt"),
+        today_expenses=field_decimal_or_zero(summary.get("thdt_tlex_amt"), "thdt_tlex_amt"),
+        d2_auto_redemption_amount=field_decimal_or_zero(summary.get("d2_auto_rdpt_amt"), "d2_auto_rdpt_amt"),
+        next_day_auto_redemption_amount=field_decimal_or_zero(summary.get("nxdy_auto_rdpt_amt"), "nxdy_auto_rdpt_amt"),
+        total_short_sell_amount=field_decimal_or_zero(summary.get("tot_stln_slng_chgs"), "tot_stln_slng_chgs"),
+        financing_auto_redemption=str(summary.get("fncg_gld_auto_rdpt_yn", "")).strip().upper() == "Y",
         _raw=summary,
     )
 
@@ -536,6 +570,41 @@ def fetch_stock_fills(
     )
 
 
+_DOMESTIC_ORDER_EXCHANGES = frozenset(get_args(DomesticOrderExchange))
+
+
+def _parse_fill_exchange(value: object) -> DomesticOrderExchange | None:
+    """체결 거래소ID구분(excg_id_dvsn_cd)을 타입드 거래소로. NXT 도입 전 주문은 미채움(공란)->None.
+    공란도 KRX/NXT/SOR 도 아닌 값은 fail-closed(KISError) -- 조용히 떨어뜨리지 않는다."""
+    code = str(value or "").strip()
+    if not code:
+        return None
+    if code not in _DOMESTIC_ORDER_EXCHANGES:
+        raise KISError(f"알 수 없는 체결 거래소ID구분(excg_id_dvsn_cd): {code!r}")
+    return cast("DomesticOrderExchange", code)
+
+
+def _parse_stop_datetime(value: object) -> datetime | None:
+    """스톱지정가 효력발생시각(stpm_efct_occr_dtmd, YYYYMMDDHHMMSS). 미발생/공란/비규격이면 None."""
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        return datetime.strptime(text, "%Y%m%d%H%M%S").replace(tzinfo=_KST)
+    except ValueError:
+        return None
+
+
+def _parse_stop_trigger(row: Mapping[str, Any]) -> StopTrigger | None:
+    """스톱지정가 트리거. 조건가격(stpm_cndt_pric)이 0/공란이면 비-스톱 주문 -> None(joint-presence)."""
+    trigger = field_decimal_or_zero(row.get("stpm_cndt_pric"), "stpm_cndt_pric")
+    if trigger == 0:
+        return None
+    return StopTrigger(
+        trigger_price=trigger, effective_datetime=_parse_stop_datetime(row.get("stpm_efct_occr_dtmd"))
+    )
+
+
 def _parse_stock_fills(rows: list[Mapping[str, Any]]) -> list[StockFill]:
     # 행 배열의 매핑 여부는 상류 _require_mapping_rows 가 이미 fail-closed 로 보장한다.
     fills: list[StockFill] = []
@@ -561,7 +630,17 @@ def _parse_stock_fills(rows: list[Mapping[str, Any]]) -> list[StockFill]:
                 unfilled_quantity=field_decimal_or_zero(row.get("rmn_qty"), "rmn_qty"),
                 rejected_quantity=field_decimal_or_zero(row.get("rjct_qty"), "rjct_qty"),
                 canceled=str(row.get("cncl_yn", "")).strip().upper() == "Y",
+                canceled_quantity=field_decimal_or_zero(row.get("cncl_cfrm_qty"), "cncl_cfrm_qty"),
                 branch_number=str(row.get("ord_gno_brno", "")).strip(),
+                exchange_division=str(row.get("excg_dvsn_cd", "")).strip(),
+                fill_condition_name=str(row.get("ccld_cndt_name", "")).strip(),
+                order_type_code=str(row.get("ord_dvsn_cd", "")).strip(),
+                product_type_code=str(row.get("prdt_type_cd", "")).strip(),
+                order_organization_number=str(row.get("ord_orgno", "")).strip(),
+                exchange=_parse_fill_exchange(row.get("excg_id_dvsn_cd")),
+                reservation_end_date=_parse_date(row.get("rsvn_ord_end_dt")),
+                loan_date=_parse_date(row.get("loan_dt")),
+                stop=_parse_stop_trigger(row),
                 _raw=row,
             )
         )

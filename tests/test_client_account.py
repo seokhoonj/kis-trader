@@ -6,6 +6,7 @@
 from __future__ import annotations
 
 import threading
+from datetime import date
 from decimal import Decimal
 
 import pytest
@@ -57,6 +58,12 @@ _SUMMARY = {
     "dnca_tot_amt": "1000000", "nxdy_excc_amt": "1010000", "prvs_rcdl_excc_amt": "1020000",
     "tot_evlu_amt": "1500000", "nass_amt": "2520000", "pchs_amt_smtl_amt": "1400000",
     "evlu_amt_smtl_amt": "1500000", "evlu_pfls_smtl_amt": "100000",
+    # 0.6.0 보강 필드(라이브 응답예시 기반; asst_icdc_amt 는 음수로 부호 보존을 함께 못박는다)
+    "scts_evlu_amt": "1480000", "tot_loan_amt": "0", "bfdy_tot_asst_evlu_amt": "2530000",
+    "asst_icdc_amt": "-10000", "asst_icdc_erng_rt": "-0.39", "cma_evlu_amt": "0",
+    "bfdy_buy_amt": "0", "thdt_buy_amt": "700000", "bfdy_sll_amt": "0", "thdt_sll_amt": "0",
+    "bfdy_tlex_amt": "0", "thdt_tlex_amt": "118", "d2_auto_rdpt_amt": "0",
+    "nxdy_auto_rdpt_amt": "0", "tot_stln_slng_chgs": "0", "fncg_gld_auto_rdpt_yn": "N",
 }
 _BUYABLE_OUTPUT = {
     "ord_psbl_cash": "1000000", "ruse_psbl_amt": "0",
@@ -66,10 +73,17 @@ _BUYABLE_OUTPUT = {
 
 
 def _holding(pdno, *, name="삼성전자", hldg="10", sellable="10", avg="70000", pchs="700000",
-             prpr="71500", evlu="715000", pfls="15000", pfls_rt="2.14"):
+             prpr="71500", evlu="715000", pfls="15000", pfls_rt="2.14", change="-500",
+             trade_type="현금", loan_dt="", expd_dt=""):
     return {"pdno": pdno, "prdt_name": name, "hldg_qty": hldg, "ord_psbl_qty": sellable,
             "pchs_avg_pric": avg, "pchs_amt": pchs, "prpr": prpr, "evlu_amt": evlu,
-            "evlu_pfls_amt": pfls, "evlu_pfls_rt": pfls_rt}
+            "evlu_pfls_amt": pfls, "evlu_pfls_rt": pfls_rt,
+            # 0.6.0 보강(change 음수로 부호 보존 확인; 현금 lot 은 loan/expd 공란 -> None)
+            "bfdy_cprs_icdc": change, "fltt_rt": "-0.69", "evlu_erng_rt": "2.10",
+            "trad_dvsn_name": trade_type, "sbst_pric": "50000", "item_mgna_rt_name": "40%",
+            "grta_rt_name": "45%", "stck_loan_unpr": "0", "bfdy_buy_qty": "0",
+            "bfdy_sll_qty": "0", "thdt_buyqty": "10", "thdt_sll_qty": "0", "loan_amt": "0",
+            "stln_slng_chgs": "0", "loan_dt": loan_dt, "expd_dt": expd_dt}
 
 
 def _balance_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont=""):
@@ -108,6 +122,51 @@ def test_balance_parses_summary():
     assert balance.net_asset == Decimal(2520000)
     assert balance.market_value == Decimal(1500000)
     assert balance.unrealized_pnl == Decimal(100000)
+
+
+def test_balance_exposes_0_6_0_fields():
+    balance = _client(FakeTransport(response=_balance_resp())).account.domestic.balance()
+    assert balance.securities_evaluation == Decimal(1480000)
+    assert balance.total_loan_amount == Decimal(0)
+    assert balance.previous_total_asset == Decimal(2530000)
+    assert balance.asset_change_amount == Decimal(-10000)   # 부호 보존
+    assert balance.today_expenses == Decimal(118)
+    assert balance.financing_auto_redemption is False
+
+
+def test_balance_new_fields_default_to_zero_when_absent():
+    # 보강 필드는 관용 파싱(field_decimal_or_zero) -- 계좌유형 변이로 키가 없어도 크래시 없이 0.
+    bare = {"dnca_tot_amt": "1000000", "nxdy_excc_amt": "0", "prvs_rcdl_excc_amt": "0",
+            "tot_evlu_amt": "0", "nass_amt": "0", "pchs_amt_smtl_amt": "0",
+            "evlu_amt_smtl_amt": "0", "evlu_pfls_smtl_amt": "0"}
+    balance = _client(FakeTransport(response=_balance_resp(summary=bare))).account.domestic.balance()
+    assert balance.securities_evaluation == Decimal(0)
+    assert balance.cma_evaluation == Decimal(0)
+    assert balance.financing_auto_redemption is False
+
+
+def test_position_exposes_0_6_0_fields():
+    positions = _client(
+        FakeTransport(response=_balance_resp(rows=[_holding("005930")]))
+    ).account.domestic.positions()
+    pos = positions[0]
+    assert pos.change == Decimal(-500)              # 전일대비 음수 부호 보존
+    assert pos.change_percent == Decimal("-0.69")
+    assert pos.evaluation_return_percent == Decimal("2.10")
+    assert pos.trade_type_name == "현금"
+    assert pos.margin_rate_name == "40%"
+    assert pos.guarantee_rate_name == "45%"
+    assert pos.substitute_price == Decimal(50000)
+    assert pos.loan_amount == Decimal(0)
+    assert pos.loan_date is None                    # 현금 lot -> 공란 -> None
+    assert pos.expiry_date is None
+
+
+def test_position_credit_dates_parsed_when_present():
+    rows = [_holding("005930", loan_dt="20240216", expd_dt="20240916")]
+    pos = _client(FakeTransport(response=_balance_resp(rows=rows))).account.domestic.positions()[0]
+    assert pos.loan_date == date(2024, 2, 16)
+    assert pos.expiry_date == date(2024, 9, 16)
 
 
 def test_balance_real_and_demo_tr():
