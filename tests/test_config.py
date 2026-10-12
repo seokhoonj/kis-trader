@@ -417,12 +417,12 @@ def test_empty_credentials_file_falls_back_to_main(tmp_path, monkeypatch):
     assert resolve_credentials(config_dir=tmp_path).app_key == "main_k"   # -> main 폴백
 
 
-# --- 기본 프로필 마커 (KISConfig.set_default) ---------------------------------
+# --- 기본 프로필 마커 (KISConfig.set_default_profile) -------------------------
 
 def test_set_default_marks_and_resolution_uses_it(tmp_path):
     KISConfig(profile="main",    app_key="MK", app_secret="MS", config_dir=tmp_path).save()
     KISConfig(profile="pension", app_key="PK", app_secret="PS", config_dir=tmp_path).save()
-    KISConfig.set_default("pension", config_dir=tmp_path)
+    KISConfig.set_default_profile("pension", config_dir=tmp_path)
     # 첫 항목은 main 이지만 마커가 pension -> 미지정 해석은 pension
     assert resolve_credentials(config_dir=tmp_path).app_key == "PK"
     assert _creds(tmp_path)["default_profile"] == "pension"
@@ -431,7 +431,7 @@ def test_set_default_marks_and_resolution_uses_it(tmp_path):
 def test_default_marker_loses_to_env_var(tmp_path, monkeypatch):
     KISConfig(profile="main", app_key="MK", app_secret="MS", config_dir=tmp_path).save()
     KISConfig(profile="isa",  app_key="IK", app_secret="IS", config_dir=tmp_path).save()
-    KISConfig.set_default("isa", config_dir=tmp_path)
+    KISConfig.set_default_profile("isa", config_dir=tmp_path)
     monkeypatch.setenv("KIS_DEFAULT_PROFILE", "main")   # env 가 마커보다 우선
     assert resolve_credentials(config_dir=tmp_path).app_key == "MK"
 
@@ -439,13 +439,13 @@ def test_default_marker_loses_to_env_var(tmp_path, monkeypatch):
 def test_set_default_nonexistent_profile_rejected(tmp_path):
     KISConfig(profile="main", app_key="MK", app_secret="MS", config_dir=tmp_path).save()
     with pytest.raises(KISUsageError, match="없다"):
-        KISConfig.set_default("missing", config_dir=tmp_path)
+        KISConfig.set_default_profile("missing", config_dir=tmp_path)
 
 
 def test_set_default_preserves_other_profiles_and_is_owner_only(tmp_path):
     KISConfig(profile="main", app_key="MK", app_secret="MS", config_dir=tmp_path).save()
     KISConfig(profile="isa",  app_key="IK", app_secret="IS", config_dir=tmp_path).save()
-    path = KISConfig.set_default("isa", config_dir=tmp_path)
+    path = KISConfig.set_default_profile("isa", config_dir=tmp_path)
     data = _creds(tmp_path)["paper"]
     assert data["main"]["app_key"] == "MK" and data["isa"]["app_key"] == "IK"   # 다른 슬롯 보존
     assert (path.stat().st_mode & 0o777) == 0o600
@@ -541,7 +541,7 @@ def test_require_account_password_returns_resolved_value(tmp_path):
 def test_set_hts_id_preserves_profiles_and_orders_reserved_first(tmp_path):
     KISConfig(profile="main", app_key="MK", app_secret="MS", config_dir=tmp_path).save()
     KISConfig(profile="isa",  app_key="IK", app_secret="IS", config_dir=tmp_path).save()
-    KISConfig.set_default("isa", config_dir=tmp_path)
+    KISConfig.set_default_profile("isa", config_dir=tmp_path)
     path = KISConfig.set_hts_id("MY_HTS", config_dir=tmp_path)
     data = _creds(tmp_path)
     assert data["paper"]["main"]["app_key"] == "MK" and data["paper"]["isa"]["app_key"] == "IK"
@@ -785,6 +785,14 @@ def test_v2_account_password_two_axis_env_beats_per_bundle(tmp_path, monkeypatch
     assert resolve_credentials("general", config_dir=tmp_path).account_password == "ENV"
 
 
+def test_v2_account_password_top_level_env_tier(tmp_path, monkeypatch):
+    # tier 3: 두 축 env·묶음별 값 없이 최상위 KIS_ACCOUNT_PASSWORD 만 설정 -> 그 값으로 해석된다
+    # (_resolve_account_password_v2 의 최상위-env 단계).
+    _write_v2(tmp_path, paper={"general": {"app_key": "k", "app_secret": "s"}})
+    monkeypatch.setenv("KIS_ACCOUNT_PASSWORD", "TOPENV")
+    assert resolve_credentials("general", config_dir=tmp_path).account_password == "TOPENV"
+
+
 # --- writer ----------------------------------------------------------
 
 def test_v2_save_bundle_field_order(tmp_path):
@@ -805,7 +813,7 @@ def test_v2_top_level_write_order(tmp_path):
     KISConfig(profile="general", app_key="RK", app_secret="RS",
               environment="real", config_dir=tmp_path).save()
     KISConfig.set_hts_id("HTS", config_dir=tmp_path)
-    KISConfig.set_default("general", config_dir=tmp_path)
+    KISConfig.set_default_profile("general", config_dir=tmp_path)
     KISConfig.set_default_environment("real", config_dir=tmp_path)
     keys = list(_creds(tmp_path))
     assert keys == [k for k in _V2_TOP_LEVEL_ORDER if k in keys]
@@ -824,7 +832,7 @@ def test_v2_save_preserves_sibling_block(tmp_path):
 def test_v2_set_default_finds_profile_in_either_block(tmp_path):
     KISConfig(profile="general", app_key="RK", app_secret="RS",
               environment="real", config_dir=tmp_path).save()
-    KISConfig.set_default("general", config_dir=tmp_path)   # real 블록에만 있어도 OK
+    KISConfig.set_default_profile("general", config_dir=tmp_path)   # real 블록에만 있어도 OK
     assert _creds(tmp_path)["default_profile"] == "general"
 
 
@@ -838,7 +846,7 @@ def test_v2_set_default_environment_marker_and_resolution(tmp_path):
 
 @pytest.mark.parametrize("writer", [
     lambda d: KISConfig(profile="general", app_key="AK", app_secret="SK", config_dir=d).save(),
-    lambda d: KISConfig.set_default("general", config_dir=d),
+    lambda d: KISConfig.set_default_profile("general", config_dir=d),
     lambda d: KISConfig.set_hts_id("HTS", config_dir=d),
     lambda d: KISConfig.set_default_environment("real", config_dir=d),
 ])

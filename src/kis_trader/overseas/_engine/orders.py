@@ -183,7 +183,7 @@ def is_overseas_exchange(exchange: str) -> bool:
 #: 반드시 통화를 가진다(완전성은 테스트로 고정). 미지 거래소/시장 그룹은 resolve 가 None 을 돌려
 #: 호출자가 fail-closed 한다. 홍콩(HK)은 HKD 로 고정 매핑한다 -- HKD/CNY/USD 복수 카운터(스톡커넥트
 #: 등)는 주문 와이어에 통화 필드가 없어(KIS 가 PDNO 로 추론) 주문별 통화를 판별하지 않는다. 그래서
-#: 비-HKD 홍콩 카운터는 HKD 한도로 검사돼 과소보호된다(알려진 한계: dev/specs 의 백로그 참조 --
+#: 비-HKD 홍콩 카운터는 HKD 한도로 검사돼 과소보호된다(알려진 한계 --
 #: 설계상 해결책은 시세상세의 통화(curr/Quote.currency)로 결제통화를 판별하는 것). 상해/심천 B주식
 #: (SH=USD, SZ=HKD)도 주문 지원되면 같은 한계를 가진다.
 _MARKET_CURRENCY: dict[str, str] = {

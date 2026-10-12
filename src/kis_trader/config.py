@@ -29,7 +29,7 @@
 이름으로 쓸 수 없다.
 
 프로필 미지정 시 기본 프로필: ``KIS_DEFAULT_PROFILE`` 환경변수 > ``"default_profile"`` 마커
-(:meth:`KISConfig.set_default`) > 양 블록 키 합집합의 첫 삽입 키 > 에러. 환경 미지정 시: 인자 >
+(:meth:`KISConfig.set_default_profile`) > 양 블록 키 합집합의 첫 삽입 키 > 에러. 환경 미지정 시: 인자 >
 ``KIS_DEFAULT_ENVIRONMENT`` 환경변수 > ``"default_environment"`` 마커(:meth:`KISConfig.set_default_environment`)
 > ``paper``(fail-safe 기본 -- 실주문은 환경을 명시해야 닿는다; no-auto-promote). 선택 ``data[환경][프로필]``
 조합이 없으면 깔끔한 :class:`KISUsageError`(있는 프로필 나열, 다른 블록에 있으면 그 환경을 짚어줌).
@@ -92,7 +92,7 @@ _DEFAULT_PROFILE_ENV_VAR = "KIS_DEFAULT_PROFILE"
 
 #: credentials.json 최상위에서 기본 프로필 이름을 담는 예약 키(프로필 이름으로는 못 쓴다).
 #: 프로필 섹션은 객체, 이 마커는 문자열이라 값 타입으로 구분한다.
-_DEFAULT_MARKER_KEY = "default_profile"
+_DEFAULT_PROFILE_KEY = "default_profile"
 #: HTS 로그인 아이디를 담는 예약 최상위 키. HTS 아이디는 사용자당 하나라 프로필별이 아니라
 #: 최상위에 한 번 둔다(모든 프로필이 공유). 인증엔 안 쓰이고 조건검색·관심종목의 user_id 로 쓴다.
 _HTS_ID_KEY = "hts_id"
@@ -104,7 +104,7 @@ _ACCOUNT_PASSWORD_ENV_VAR = "KIS_ACCOUNT_PASSWORD"
 #: 프로필 이름으로 쓸 수 없는 예약 최상위 키(레거시). 레거시(schema 마커 없는) 파일에서만 쓰는 3종이다
 #: -- 이 집합을 넓히면 레거시 파일에서 ``KISClient(profile="paper")`` 가 깨지므로 3종으로 고정한다.
 #: v2 의 예약 키 집합은 아래 ``_V2_*`` 를 쓴다.
-_RESERVED_TOP_LEVEL_KEYS = frozenset({_HTS_ID_KEY, _ACCOUNT_PASSWORD_KEY, _DEFAULT_MARKER_KEY})
+_RESERVED_TOP_LEVEL_KEYS = frozenset({_HTS_ID_KEY, _ACCOUNT_PASSWORD_KEY, _DEFAULT_PROFILE_KEY})
 
 #: v2(env-outer) 스키마 마커 키와 버전. 최상위 ``"schema": 2`` 가 있으면 v2, 없으면 레거시로 판별한다.
 _SCHEMA_KEY = "schema"
@@ -112,13 +112,16 @@ _SCHEMA_VERSION = 2
 #: 묶음(bundle) 안에 둘 수 없는 금지 필드. 환경의 유일한 출처는 바깥 블록 키이므로, 묶음에 이 필드가
 #: 있으면 읽기/저장 모두 거부한다(어긋난 환경이 표현 불가능하도록).
 _ENVIRONMENT_FIELD = "environment"
+#: 한 (프로필, 환경) 묶음(bundle)을 이루는 필드 이름(저장 순서). 저장(:meth:`KISConfig.save`), v2 해석,
+#: CLI(``kis config``)가 공유하는 단일 출처 -- 세 곳이 필드 목록을 따로 나열하지 않도록.
+_BUNDLE_FIELDS = ("app_key", "app_secret", "account", _ACCOUNT_PASSWORD_KEY)
 #: v2 최상위에서 기본 환경을 담는 예약 키 + 그 환경변수. profile 미지정 시 환경 해석 체인에 쓴다.
 _DEFAULT_ENVIRONMENT_KEY = "default_environment"
 _DEFAULT_ENVIRONMENT_ENV_VAR = "KIS_DEFAULT_ENVIRONMENT"
 #: v2 최상위 키를 파일에서 배치하는 순서(env-outer: 환경 먼저, 프로필 다음).
 #: schema -> hts_id -> account_password -> default_environment -> default_profile -> real -> paper.
 _V2_TOP_LEVEL_ORDER = (
-    _SCHEMA_KEY, _HTS_ID_KEY, _ACCOUNT_PASSWORD_KEY, _DEFAULT_ENVIRONMENT_KEY, _DEFAULT_MARKER_KEY,
+    _SCHEMA_KEY, _HTS_ID_KEY, _ACCOUNT_PASSWORD_KEY, _DEFAULT_ENVIRONMENT_KEY, _DEFAULT_PROFILE_KEY,
     *_ENVIRONMENTS,
 )
 #: v2 에서 프로필(계좌 종류) 이름으로 쓸 수 없는 예약 최상위 키(환경 블록 real/paper 포함).
@@ -138,7 +141,7 @@ def _order_top_level(data: dict[str, object]) -> dict[str, object]:
 
 def _write_credentials(directory: Path, data: dict[str, object]) -> Path:
     """병합된 credentials 를 예약키 순서로 정렬해 ``directory/credentials.json`` 에 원자적(0600)으로
-    쓰고 경로를 돌려준다. 세 writer(:meth:`KISConfig.save`/:meth:`KISConfig.set_default`/
+    쓰고 경로를 돌려준다. 세 writer(:meth:`KISConfig.save`/:meth:`KISConfig.set_default_profile`/
     :meth:`KISConfig.set_hts_id`)가 공유한다 -- 병합(어느 키를 바꿀지)은 각 호출부가, 정렬·권한·
     원자성은 여기서 한 번만."""
     directory.mkdir(parents=True, exist_ok=True)
@@ -398,13 +401,13 @@ def _validate_legacy_shape(parsed: dict[str, object]) -> None:
 
 def _resolve_default_profile_name(loaded: dict[str, object]) -> str:
     """``profile`` 미지정 시 열 기본 프로필 이름. 해석 순서: ``KIS_DEFAULT_PROFILE`` 환경변수
-    (빈/공백은 미설정) > ``credentials.json`` 최상위 ``"default_profile"`` 마커(:meth:`KISConfig.set_default` 가
+    (빈/공백은 미설정) > ``credentials.json`` 최상위 ``"default_profile"`` 마커(:meth:`KISConfig.set_default_profile` 가
     기록) > 첫 프로필 항목(삽입 순서, ``"default_profile"`` 메타키는 제외) > ``"main"``(파일도 env 도 없을 때
     폴백 -- 접두어 없는 ``KIS_APP_KEY`` 로 여는 이름). 이름 형식 검증은 하위에서 한다."""
     override = os.environ.get(_DEFAULT_PROFILE_ENV_VAR)
     if override is not None and override.strip():
         return override.strip()
-    marker = loaded.get(_DEFAULT_MARKER_KEY)
+    marker = loaded.get(_DEFAULT_PROFILE_KEY)
     if isinstance(marker, str) and marker.strip():
         return marker.strip()
     return next((name for name in loaded if name not in _RESERVED_TOP_LEVEL_KEYS), "main")
@@ -538,7 +541,7 @@ def _resolve_default_profile_name_v2(loaded: dict[str, object], blocks: list[str
     override = os.environ.get(_DEFAULT_PROFILE_ENV_VAR)
     if override is not None and override.strip():
         return override.strip()
-    marker = loaded.get(_DEFAULT_MARKER_KEY)
+    marker = loaded.get(_DEFAULT_PROFILE_KEY)
     if isinstance(marker, str) and marker.strip():
         return marker.strip()
     if blocks:
@@ -770,11 +773,13 @@ class KISConfig:
         파일에는 저장하지 않는다(``_merge_base_v2`` 가 거부). 파일은 소유자만 읽게 ``0600``, 원자적으로
         쓴다(부분 파일/유출 방지).
         """
-        bundle: dict[str, str] = {"app_key": self.app_key, "app_secret": self.app_secret}
-        if self.account is not None:
-            bundle["account"] = self.account
-        if self.account_password is not None:
-            bundle[_ACCOUNT_PASSWORD_KEY] = self.account_password
+        # 묶음 필드를 단일 출처(_BUNDLE_FIELDS)로 순회한다. app_key/app_secret 은 필수라 항상 채워지고
+        # account/account_password 는 None 이면 건너뛴다(기존 동작 그대로).
+        bundle: dict[str, str] = {}
+        for name in _BUNDLE_FIELDS:
+            value = getattr(self, name)
+            if value is not None:
+                bundle[name] = value
         directory = _config_dir_path(self.config_dir)
         with _credentials_write_lock(directory):   # 동시 writer 가 남의 슬롯을 날리지 않게 RMW 직렬화
             data = _merge_base_v2(directory / "credentials.json")
@@ -786,7 +791,7 @@ class KISConfig:
             return _write_credentials(directory, data)
 
     @staticmethod
-    def set_default(profile: str, *, config_dir: str | Path | None = None) -> Path:
+    def set_default_profile(profile: str, *, config_dir: str | Path | None = None) -> Path:
         """이름 없이 :class:`~kis_trader.client.KISClient` 를 열 때 여는 **기본 프로필**을 못박는다.
         ``credentials.json`` 최상위 ``"default_profile"`` 마커에 이름을 기록하고 그 경로를 돌려준다.
 
@@ -803,7 +808,7 @@ class KISConfig:
                     f"기본으로 지정할 프로필 {profile!r} 가 credentials.json 에 없다 -- "
                     "먼저 'kis config' 로 저장하라."
                 )
-            data[_DEFAULT_MARKER_KEY] = profile
+            data[_DEFAULT_PROFILE_KEY] = profile
             return _write_credentials(directory, data)
 
     @staticmethod
@@ -825,7 +830,7 @@ class KISConfig:
         """조건검색·관심종목 조회에 쓰는 **HTS 로그인 아이디**를 저장하고 그 경로를 돌려준다.
 
         HTS 아이디는 사용자당 하나라 프로필별이 아니라 ``credentials.json`` 최상위 ``"hts_id"``
-        키에 한 번 기록한다(모든 슬롯이 공유). 프로필과 무관한 공유 값이라 :meth:`set_default` 와
+        키에 한 번 기록한다(모든 슬롯이 공유). 프로필과 무관한 공유 값이라 :meth:`set_default_profile` 와
         같은 최상위 메타 writer 다(슬롯은 :meth:`save`). 이후
         :class:`~kis_trader.client.KISClient` 조회에서 ``user_id`` 를 생략하면 이 값을 쓴다
         (``KIS_HTS_ID`` 환경변수가 있으면 그쪽이 우선). 인증엔 쓰이지 않는다. 다른 슬롯·마커는

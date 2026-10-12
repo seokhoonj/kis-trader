@@ -172,7 +172,7 @@ class KISClient:
 
         ``profile`` 이 어느 계좌 묶음(계좌 종류)으로 열지 정한다(사용자가 이름 붙이는 자유 프로필).
         생략하면 기본 프로필을 연다 -- ``KIS_DEFAULT_PROFILE`` 환경변수 > ``credentials.json``
-        ``"default_profile"`` 마커(:meth:`~kis_trader.config.KISConfig.set_default`) > 환경 블록들에
+        ``"default_profile"`` 마커(:meth:`~kis_trader.config.KISConfig.set_default_profile`) > 환경 블록들에
         등장하는 첫 프로필 > 프로필을 하나도 못 찾으면 :class:`~kis_trader.errors.KISUsageError`.
         ``app_key``/``app_secret`` 을 생략하면 **그 프로필의 저장된 자격증명을 읽는다**(환경변수 ->
         ``~/.config/kis-trader/credentials.json``; :func:`~kis_trader.config.KISConfig.save` 로 저장). 즉
@@ -191,7 +191,7 @@ class KISClient:
         """
         if app_key is None or app_secret is None:
             # 실제로 빠진 항목만 저장분에서 채운다 -- 사용자가 app_key 만 넘겼는데 '없다'고
-            # 오도하지 않도록(앱키·시크릿을 둘 다 넘겼으면 이 블록을 건너뛰어 파일을 아예 안 읽는다).
+            # 오도하지 않도록(앱키·시크릿을 둘 다 넘겼으면 이 분기를 건너뛰어 파일을 아예 안 읽는다).
             # 명시한 값(account/environment 포함)은 _fill_credentials 가 그대로 쓰고 나머지만 채운다.
             resolved = _fill_credentials(
                 profile, app_key=app_key, app_secret=app_secret, account=account,

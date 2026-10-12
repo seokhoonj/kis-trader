@@ -26,8 +26,9 @@ from typing import cast
 
 from ...config import (
     _ACCOUNT_PASSWORD_KEY,
+    _BUNDLE_FIELDS,
     _DEFAULT_ENVIRONMENT_KEY,
-    _DEFAULT_MARKER_KEY,
+    _DEFAULT_PROFILE_KEY,
     _ENVIRONMENTS,
     _HTS_ID_KEY,
     _RESERVED_TOP_LEVEL_KEYS,
@@ -56,8 +57,6 @@ from ..errors import CliAborted
 #: (하드 게이트가 아니라 힌트다 -- 그래도 프롬프트는 띄우고, 없으면 사용자가 Enter 로 건너뛴다.)
 _PAPER_UNSUPPORTED_PROFILES = frozenset({"isa", "pension", "irp", "overseas_derivatives"})
 
-#: 한 (프로필, 환경) 묶음(bundle)을 이루는 필드 이름(저장 순서). 아래 여러 집합·표의 단일 출처.
-_BUNDLE_FIELDS = ("app_key", "app_secret", "account", _ACCOUNT_PASSWORD_KEY)
 #: 시크릿 필드 -- 명령줄 인자로 받지 않고 getpass 로만 입력받는다(셸 기록/프로세스 목록 유출 방지).
 _SECRET_FIELDS = frozenset({"app_key", "app_secret", _ACCOUNT_PASSWORD_KEY})
 #: ``kis config set`` 으로 수정 가능한 묶음 필드.
@@ -109,11 +108,11 @@ def cmd_config_setup(args: argparse.Namespace) -> None:
     """한 계좌 종류(프로필)의 자격증명을 ``real``/``paper`` 별로 대화형 저장한다. 없는 환경은 APP KEY 를
     비우고 Enter 로 건너뛴다. 레거시 파일이면 시크릿을 받기 전에 migrate 를 안내한다."""
     loaded = _load_credentials(_config_dir_path())
-    _require_v2_or_fresh(loaded)                     # CARRY Fable #7: 레거시면 시크릿 전에 안내
+    _require_v2_or_fresh(loaded)                     # 레거시 파일이면 시크릿을 받기 전에 migrate 안내(막다른 길 방지)
 
     profile = getattr(args, "profile", None) or _prompt(
         "profile 계좌 종류 이름 (예: general, derivatives, pension)", "general")
-    _validate_profile_name_v2(profile)               # CARRY Fable #5: v2 이름 규칙으로 검증
+    _validate_profile_name_v2(profile)               # v2 이름 규칙으로 프로필명 검증(시크릿 입력 전)
 
     print("앱키·시크릿은 KIS 개발자포털에서 발급받은 값입니다(입력해도 화면에 보이지 않습니다).")
     print("환경(real/paper)별로 차례로 묻습니다 -- 없는 환경은 APP KEY 를 비우고 Enter 로 건너뜁니다.")
@@ -131,7 +130,7 @@ def cmd_config_setup(args: argparse.Namespace) -> None:
                 # 모의가 없으면 아래 APP KEY 를 비우고 Enter 로 건너뛰면 된다.
                 print(f"  참고: {profile} 계좌는 KIS 모의투자가 없는 것이 보통입니다 "
                       "-- 없으면 APP KEY 를 비우고 Enter 로 건너뛰세요.")
-        # CARRY A2/A3: 환경을 먼저 정하고 그 슬롯만 덮어쓰기 가드(어느 블록에나 있으면 묻는 기본 가드 아님).
+        # 환경을 먼저 정한 뒤 그 슬롯의 존재만 확인(슬롯 정확 덮어쓰기 가드).
         if _profile_exists(profile, environment=cast(Environment, environment)) and not _confirm(
                 f"  {environment}.{profile} 가 이미 있습니다. 덮어쓸까요?"):
             print("  건너뜀(기존 유지).")
@@ -155,7 +154,7 @@ def cmd_config_setup(args: argparse.Namespace) -> None:
 
     set_default = getattr(args, "set_default", False)
     if set_default:
-        KISConfig.set_default(profile)
+        KISConfig.set_default_profile(profile)
 
     print(f"저장됨: {_credentials_path()}")
     print(f"  profile: {profile}" + ("  (기본)" if set_default else ""))
@@ -196,7 +195,7 @@ def cmd_config_show(args: argparse.Namespace) -> None:
     default_environment = loaded.get(_DEFAULT_ENVIRONMENT_KEY)
     if isinstance(default_environment, str):
         print(f"  default_environment: {default_environment}")
-    default_profile = loaded.get(_DEFAULT_MARKER_KEY)
+    default_profile = loaded.get(_DEFAULT_PROFILE_KEY)
     if isinstance(default_profile, str):
         print(f"  default_profile: {default_profile}")
     for environment in _ENVIRONMENTS:
@@ -300,7 +299,7 @@ def cmd_config_set_default(args: argparse.Namespace) -> None:
     """이름 없이 세션을 열 때 여는 기본 프로필을 지정한다(최상위 ``default_profile`` 마커). 대상 프로필은
     전역 ``--profile`` 과 섞이지 않게 별도 위치인자(``args.name``)로 받는다."""
     _validate_profile_name_v2(args.name)
-    path = KISConfig.set_default(args.name)
+    path = KISConfig.set_default_profile(args.name)
     print(f"기본 프로필: {args.name} ({path})")
 
 
@@ -458,9 +457,9 @@ def cmd_config_migrate(args: argparse.Namespace) -> None:
     if top_password is not None:
         data[_ACCOUNT_PASSWORD_KEY] = top_password
     data[_DEFAULT_ENVIRONMENT_KEY] = "paper"         # fail-safe: 실주문은 명시해야 닿는다
-    chosen_default = _pick_default_profile(loaded.get(_DEFAULT_MARKER_KEY), blocks, default_profile_name)
+    chosen_default = _pick_default_profile(loaded.get(_DEFAULT_PROFILE_KEY), blocks, default_profile_name)
     if chosen_default is not None:
-        data[_DEFAULT_MARKER_KEY] = chosen_default
+        data[_DEFAULT_PROFILE_KEY] = chosen_default
     if blocks["real"]:
         data["real"] = blocks["real"]
     if blocks["paper"]:

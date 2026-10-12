@@ -13,6 +13,7 @@ import pytest
 
 import kis_trader.cli.app as cli_main
 import kis_trader.cli.commands.credentials as cred
+from kis_trader.config import resolve_credentials
 
 
 @pytest.fixture(autouse=True)
@@ -332,6 +333,23 @@ def test_setup_tells_migrate_first_on_meta_only_legacy_file(tmp_path, monkeypatc
     assert "migrate" in capsys.readouterr().err
 
 
+def test_setup_then_resolve_round_trip(tmp_path, monkeypatch):
+    # setup 으로 real/paper 슬롯을 저장한 뒤 각 환경을 해석하면 넣은 키·계좌가 그대로 돌아와야 한다
+    # (setup -> 저장 -> resolve 봉합; 환경이 슬롯을 정확히 인덱싱하는지).
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    _getpass(monkeypatch, {"real APP KEY": "RK", "real APP SECRET": "RS",
+                           "paper APP KEY": "PK", "paper APP SECRET": "PS"})
+    _answer(monkeypatch, {"실전": "y", "real account 계좌번호": "11111111-01",
+                          "paper account 계좌번호": "22222222-02"})
+
+    assert cli_main.main(["config", "setup", "--profile", "general"]) == 0
+
+    real = resolve_credentials("general", environment="real", config_dir=_cfg_dir(tmp_path))
+    assert (real.app_key, real.app_secret, real.account) == ("RK", "RS", "11111111-01")
+    paper = resolve_credentials("general", environment="paper", config_dir=_cfg_dir(tmp_path))
+    assert (paper.app_key, paper.app_secret, paper.account) == ("PK", "PS", "22222222-02")
+
+
 # --- show ---------------------------------------------------------------------
 
 def test_show_masks_app_key_to_last_four(tmp_path, monkeypatch, capsys):
@@ -512,6 +530,21 @@ def test_migrate_writes_default_markers_explicitly(tmp_path):
     assert data["default_profile"] == "general"
     assert data["hts_id"] == "myhts"                  # 공유 최상위 이동
     assert data["account_password"] == "0000"         # 선행 0 보존(문자열)
+
+
+def test_migrate_then_resolve_round_trip(tmp_path):
+    # 레거시 main(real)+paper(paper) 를 migrate 로 general 에 합친 뒤, 각 환경을 해석하면 원래 레거시
+    # 자격증명이 그대로 돌아와야 한다(legacy -> migrate -> v2 -> resolve; migrate 가 다른 writer 와 달리
+    # 왕복 테스트가 없던 유일 writer 라 여기서 닫는다).
+    _legacy(tmp_path)
+    assert cli_main.main(["config", "migrate", "--yes"]) == 0
+
+    real = resolve_credentials("general", environment="real", config_dir=_cfg_dir(tmp_path))
+    assert real.app_key == "MAINKEY1234"            # 구 main(real) 자격증명
+    assert real.account == "12345678-01"
+    paper = resolve_credentials("general", environment="paper", config_dir=_cfg_dir(tmp_path))
+    assert paper.app_key == "PAPERKEY5678"          # 구 paper(paper) 자격증명
+    assert paper.account == "50001234-01"
 
 
 def test_migrate_interactive_merge_yes(tmp_path, monkeypatch):
