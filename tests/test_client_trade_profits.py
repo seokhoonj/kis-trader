@@ -81,6 +81,36 @@ def test_trade_profits_parses_rows_and_totals():
     assert trade.realized_pnl == Decimal(0)
 
 
+def test_trade_profits_parse_complete_raw_record():
+    # 전체-레코드 계약: _ROW 의 16개 TradeProfit 필드 + history 6 총계를 한 번에 못박는다
+    # (실현손익은 마이그레이션 소비자 ingest_account_realized_pl 의 머니 경로).
+    h = _client(FakeTransport(response=_resp())).account.domestic.trade_profits(start="20240201", end="20240229")
+    assert h.total_realized_pnl == Decimal(22991)
+    assert h.total_return_percent == Decimal("31.29560057")
+    assert h.total_buy_amount == Decimal(116697331)
+    assert h.total_sell_amount == Decimal(96455)
+    assert h.total_fee == Decimal(0)
+    assert h.total_tax == Decimal(0)
+    assert len(h.trades) == 1
+    t = h.trades[0]
+    assert t.trade_date == date(2024, 2, 16)
+    assert t.symbol == "000J2552221D"
+    assert t.name == "SG 17WR"
+    assert t.trade_type_name == "현금"
+    assert t.holding_quantity == Decimal(2)
+    assert t.purchase_price == Decimal(135)
+    assert t.buy_quantity == Decimal(2)
+    assert t.buy_amount == Decimal(271)
+    assert t.sell_price == Decimal(0)
+    assert t.sell_quantity == Decimal(0)
+    assert t.sell_amount == Decimal(0)
+    assert t.realized_pnl == Decimal(0)
+    assert t.return_percent == Decimal("0.00000000")
+    assert t.fee == Decimal(0)
+    assert t.tax == Decimal(0)
+    assert t.loan_interest == Decimal(0)
+
+
 def test_trade_profits_tr_method_and_params():
     fake = FakeTransport(response=_resp())
     _client(fake).account.domestic.trade_profits(start="20240201", end="20240229", symbol="005930", sort="oldest")

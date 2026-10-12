@@ -39,7 +39,7 @@ class DomesticPosition:
     unrealized_pnl_percent: Decimal      # 평가손익율(evlu_pfls_rt) = 평가손익 / 매입금액
     change: Decimal                      # 전일대비(bfdy_cprs_icdc): 1주 가격의 전일 대비 증감(부호 포함)
     change_percent: Decimal              # 등락율(fltt_rt): 전일 대비 가격 등락 %(평가손익율과 별개)
-    evaluation_return_percent: Decimal   # 평가수익률(evlu_erng_rt): KIS 별도 수익률 키(평가손익율과 다름)
+    evaluation_return_percent: Decimal   # 평가수익률(evlu_erng_rt): KIS 제공 별도 수익률. unrealized_pnl_percent(평가손익율=평가손익/매입금액)와 값이 다르다(KIS 산정 기준 상이, 라이브 확인)
     trade_type_name: str                 # 매매구분명(trad_dvsn_name): 현금/신용 등 보유 lot 구분
     substitute_price: Decimal            # 대용가(sbst_pric): 대용증거금 산정 단가
     margin_rate_name: str                # 증거금율명(item_mgna_rt_name): 예 "40%"

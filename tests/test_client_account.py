@@ -188,6 +188,71 @@ def test_position_new_numeric_fields_default_to_zero_when_absent():
     assert pos.trade_type_name == ""
 
 
+def test_balance_parses_complete_raw_record():
+    # 전체-레코드 계약: 현실적 full output2 에서 DomesticBalance 의 모든 필드를 한 번에 못박는다
+    # (부분집합 테스트가 못 잡는 매핑 스왑/누락 방지).
+    b = _client(FakeTransport(response=_balance_resp())).account.domestic.balance()
+    assert b.currency == "KRW"
+    assert b.deposit == Decimal(1000000)
+    assert b.settlement_cash_d1 == Decimal(1010000)
+    assert b.settlement_cash_d2 == Decimal(1020000)
+    assert b.total_evaluation == Decimal(1500000)
+    assert b.net_asset == Decimal(2520000)
+    assert b.purchase_amount == Decimal(1400000)
+    assert b.market_value == Decimal(1500000)
+    assert b.unrealized_pnl == Decimal(100000)
+    assert b.securities_evaluation == Decimal(1480000)
+    assert b.total_loan_amount == Decimal(0)
+    assert b.previous_day_total_asset == Decimal(2530000)
+    assert b.asset_change_amount == Decimal(-10000)
+    assert b.asset_change_percent == Decimal("-0.39")
+    assert b.cma_evaluation == Decimal(0)
+    assert b.previous_day_buy_amount == Decimal(0)
+    assert b.today_buy_amount == Decimal(700000)
+    assert b.previous_day_sell_amount == Decimal(0)
+    assert b.today_sell_amount == Decimal(0)
+    assert b.previous_day_expenses == Decimal(0)
+    assert b.today_expenses == Decimal(118)
+    assert b.d2_auto_redemption_amount == Decimal(0)
+    assert b.next_day_auto_redemption_amount == Decimal(0)
+    assert b.total_short_sell_amount == Decimal(0)
+    assert b.financing_auto_redemption_enabled is False
+
+
+def test_positions_parse_complete_raw_record():
+    # 전체-레코드 계약: 한 종목 full output1 에서 DomesticPosition 의 모든 필드를 한 번에 못박는다.
+    pos = _client(
+        FakeTransport(response=_balance_resp(rows=[_holding("005930")]))
+    ).account.domestic.positions()[0]
+    assert pos.symbol == "005930"
+    assert pos.name == "삼성전자"
+    assert pos.currency == "KRW"
+    assert pos.quantity == Decimal(10)
+    assert pos.sellable_quantity == Decimal(10)
+    assert pos.average_purchase_price == Decimal(70000)
+    assert pos.purchase_amount == Decimal(700000)
+    assert pos.current_price == Decimal(71500)
+    assert pos.market_value == Decimal(715000)
+    assert pos.unrealized_pnl == Decimal(15000)
+    assert pos.unrealized_pnl_percent == Decimal("2.14")
+    assert pos.change == Decimal(-500)
+    assert pos.change_percent == Decimal("-0.69")
+    assert pos.evaluation_return_percent == Decimal("2.10")
+    assert pos.trade_type_name == "현금"
+    assert pos.substitute_price == Decimal(50000)
+    assert pos.margin_rate_name == "40%"
+    assert pos.guarantee_rate_name == "45%"
+    assert pos.stock_loan_unit_price == Decimal(0)
+    assert pos.previous_day_buy_quantity == Decimal(0)
+    assert pos.previous_day_sell_quantity == Decimal(0)
+    assert pos.today_buy_quantity == Decimal(10)
+    assert pos.today_sell_quantity == Decimal(0)
+    assert pos.loan_amount == Decimal(0)
+    assert pos.short_sell_amount == Decimal(0)
+    assert pos.loan_date is None
+    assert pos.expiry_date is None
+
+
 def test_balance_real_and_demo_tr():
     fake = FakeTransport(response=_balance_resp())
     _client(fake, environment="real").account.domestic.balance()

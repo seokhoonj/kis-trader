@@ -183,6 +183,51 @@ def test_fill_stop_present_with_trigger_price():
     assert et.tzinfo is not None                        # KST-aware
 
 
+def test_fills_parse_complete_raw_record():
+    # 전체-레코드 계약: 현실적 full row 에서 StockFill 전 필드 + StopTrigger + history 5 총계를
+    # 한 번에 못박는다(부분집합 테스트가 못 잡는 매핑 스왑/누락 방지).
+    row = _row(cncl_cfrm="3", exchange="SOR", excg_dvsn="12", ccld_cndt="IOC",
+               stpm_pric="71000", stpm_eff="20240216131500")
+    h = _fills(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229")
+    assert h.total_order_quantity == Decimal(10)
+    assert h.total_filled_quantity == Decimal(10)
+    assert h.total_filled_amount == Decimal(700500)
+    assert h.average_purchase_price == Decimal("70050.0000")
+    assert h.estimated_expenses == Decimal(118)
+    assert len(h.fills) == 1
+    f = h.fills[0]
+    assert f.order_date == date(2024, 2, 16)
+    assert f.order_id == "0001568197"
+    assert f.original_order_id == ""
+    assert f.order_type_name == "지정가"
+    assert f.side == "buy"
+    assert f.symbol == "005930"
+    assert f.name == "삼성전자"
+    assert f.order_quantity == Decimal(10)
+    assert f.order_price == Decimal(70000)
+    assert f.order_time == time(13, 14, 38)
+    assert f.filled_quantity == Decimal(10)
+    assert f.average_price == Decimal(70050)
+    assert f.filled_amount == Decimal(700500)
+    assert f.unfilled_quantity == Decimal(0)
+    assert f.rejected_quantity == Decimal(0)
+    assert f.canceled is False
+    assert f.canceled_quantity == Decimal(3)
+    assert f.branch_number == "06010"
+    assert f.exchange == "SOR"
+    assert f.exchange_division_code == "12"
+    assert f.fill_condition_name == "IOC"
+    assert f.order_type_code == "00"
+    assert f.product_type_code == ""
+    assert f.order_organization_number == "06010"
+    assert f.reservation_end_date is None
+    assert f.loan_date is None
+    assert f.stop is not None
+    assert f.stop.trigger_price == Decimal(71000)
+    et = f.stop.effective_datetime
+    assert (et.year, et.month, et.day, et.hour, et.minute, et.second) == (2024, 2, 16, 13, 15, 0)
+
+
 def test_fill_canceled_quantity_defaults_to_zero_when_absent():
     # 관용 파싱: cncl_cfrm_qty 키가 없어도 크래시 없이 0.
     row = _row()

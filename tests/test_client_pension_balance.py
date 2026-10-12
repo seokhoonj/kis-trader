@@ -110,6 +110,26 @@ def test_pension_balance_parses_positions_and_summary():
     assert p.currency == "KRW"
 
 
+def test_pension_balance_position_maps_the_new_domestic_fields():
+    # 연금은 DomesticPosition 을 재사용하므로, pension-side 에서 0.6.0 보강 필드의 키 매핑이
+    # 올바른지(단순 기본값이 아니라) 검증한다. 연금 응답에 실재하는 보강 키를 실은 행으로 확인.
+    row = {**_BAL_ROW, "bfdy_cprs_icdc": "-120", "fltt_rt": "-0.90", "trad_dvsn_name": "현금",
+           "sbst_pric": "9000", "item_mgna_rt_name": "100%", "grta_rt_name": "불가",
+           "loan_amt": "0", "stln_slng_chgs": "0", "loan_dt": "", "expd_dt": ""}
+    p = _client(FakeTransport(response=_resp2([row], _BAL_SUMMARY))).account.pension.balance().positions[0]
+    assert p.change == Decimal(-120)                 # 부호 보존(재사용 경로에서도)
+    assert p.change_percent == Decimal("-0.90")
+    assert p.trade_type_name == "현금"
+    assert p.substitute_price == Decimal(9000)
+    assert p.margin_rate_name == "100%"
+    assert p.guarantee_rate_name == "불가"
+    assert p.today_buy_quantity == Decimal(5)        # thdt_buyqty(_BAL_ROW)
+    # 연금 inquire-balance 경로는 pnl_rate_key=evlu_erng_rt -> 두 수익률 필드가 같은 키를 읽는다(문서화된 중복)
+    assert p.evaluation_return_percent == p.unrealized_pnl_percent == Decimal("0.00000000")
+    assert p.loan_amount == Decimal(0)
+    assert p.loan_date is None and p.expiry_date is None   # 퇴직연금=현금계좌, 신용 lot 없음
+
+
 def test_pension_balance_tr_and_params():
     fake = FakeTransport(response=_resp2([_BAL_ROW], _BAL_SUMMARY))
     _client(fake).account.pension.balance()
