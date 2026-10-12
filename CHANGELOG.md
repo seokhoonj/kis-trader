@@ -37,10 +37,24 @@ environment = a separate axis).
   `max_order_notional` never substitutes). Hong Kong orders are capped as HKD regardless of the
   instrument's actual trading counter (a documented limitation for non-HKD HK counters).
 
+### Added
+
+- MCP server: runtime account switching (`use_environment`, `use_profile`, `current_account`) so the
+  active account changes within a chat session without a restart; account-type-aware reads
+  (`balance`/`positions` take `region`, and `market` for overseas; the pension lens for IRP/연금저축)
+  and `quote(session="after_hours")` for 시간외; and overseas stock orders (`place_order`/
+  `order_preview` take `region` and `exchange`, with per-currency caps from
+  `KIS_MCP_MAX_ORDER_NOTIONAL_<CCY>`). Switching the active environment changes only the read/order
+  context -- a real order still requires the startup `KIS_MCP_ALLOW_REAL` + `KIS_MCP_REAL_CONFIRM`
+  gate, RiskLimits, the allowlist, and human confirmation, and is allowed only on the general
+  brokerage account (product code 01).
+
 ### Notes
 
 - On a schema-2 file an omitted environment runs at the paper rate limit (1 request/second) until
   `real` is selected.
+- The MCP `balance` tool returns the domestic stock balance; the unified balance (domestic + bonds +
+  overseas) stays on the Python API `kis.account.balance()`.
 
 ## 0.6.0 — 2026-10-12
 
