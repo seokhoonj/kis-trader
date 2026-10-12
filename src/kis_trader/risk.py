@@ -13,8 +13,10 @@
 
 from __future__ import annotations
 
+from collections.abc import Mapping
 from dataclasses import dataclass
 from decimal import Decimal, InvalidOperation
+from types import MappingProxyType
 from typing import TypeAlias, cast
 
 from .errors import KISUsageError, PreTradeRiskError
@@ -52,7 +54,16 @@ class RiskLimits:
     - ``max_order_quantity``: 1주문 최대 수량(초과 시 거부).
     - ``max_order_notional``: 1주문 최대 금액(단가 x 수량). 지정가는 지정가로, 시장가는
       현재가를 참조로 계산한다 -- 참조가를 얻지 못하거나 0이면 확인 불가로 보고 주문을 막는다
-      (fail-closed).
+      (fail-closed). 국내(KRW) 주문에만 적용한다.
+    - ``max_order_notional_by_currency``: 해외주식 1주문 최대 금액을 **통화별**로 둔 맵(예
+      ``{"USD": 10000, "JPY": 1500000}``). 한도는 주문 거래소의 결제통화에 맞춰 검사하되, 그 통화는
+      **거래소->통화 고정 매핑**으로 정한다(NAS/NYS/AMS->USD, TSE->JPY, HKS->HKD, SHS/SZS->CNY,
+      HNX/HSX->VND). **그 통화의 한도가 없으면 거부**한다(fail-closed -- 무한도 전송 금지, 환율
+      환산 없음). 주의 -- 홍콩(HKS)은 거래소 매핑상 **항상 HKD 로 검사**한다(상품의 실제 호가통화와
+      무관). 그래서 HKD 가 아닌 홍콩 카운터(USD/CNY 복수통화 상장·스톡커넥트 종목)는 과소보호된다:
+      USD 로 결제되는 홍콩 주문의 금액(USD 로 호가)이 환율 환산 없이 HKD 한도 숫자와 직접 비교돼,
+      실효 한도가 약 7.8배 느슨해진다(1 USD ~ 7.8 HKD). 국내(KRW) 한도는 ``max_order_notional``
+      그대로다.
     - ``price_collar_percent``: 지정가가 현재가에서 벗어날 수 있는 최대 %(예: ``10`` 이면
       +/-10%). KIS 상하한가(+/-30%) 안이라도 오타를 잡는 진짜 fat-finger 가드다. 지정가에만
       적용(시장가는 지정 가격이 없어 대상 아님).
@@ -64,6 +75,7 @@ class RiskLimits:
 
     max_order_quantity: int | None = None
     max_order_notional: DecimalInput | None = None
+    max_order_notional_by_currency: Mapping[str, DecimalInput] | None = None  # 해외: 결제통화별 캡
     price_collar_percent: DecimalInput | None = None
     enforce_tick_size: bool = False
 
@@ -85,21 +97,63 @@ class RiskLimits:
                 self, "price_collar_percent",
                 _as_positive_decimal(self.price_collar_percent, "price_collar_percent"),
             )
+        if self.max_order_notional_by_currency is not None:
+            raw = self.max_order_notional_by_currency
+            if not raw:
+                raise KISUsageError(
+                    "max_order_notional_by_currency 는 비어 있을 수 없다 -- 통화별 한도를 하나 이상 지정하라."
+                )
+            normalized: dict[str, Decimal] = {}
+            for code, limit in raw.items():
+                if not isinstance(code, str) or not code.strip():
+                    raise KISUsageError(
+                        f"max_order_notional_by_currency 의 통화 키는 비지 않은 문자열이어야 한다: {code!r}"
+                    )
+                key = code.strip().upper()
+                if key in normalized:
+                    raise KISUsageError(f"max_order_notional_by_currency 에 중복 통화 키: {key!r}")
+                normalized[key] = _as_positive_decimal(limit, f"max_order_notional_by_currency[{key}]")
+            object.__setattr__(self, "max_order_notional_by_currency", MappingProxyType(normalized))
 
     def needs_reference_price(self, order: Order) -> bool:
         """이 주문+한도 조합이 현재가 참조를 필요로 하는가 -- 지정가 collar, 또는 자체 가격이
         없는 주문(시장가)의 notional 한도. 필요할 때만 :meth:`check` 전에 시세를 조회하게 한다."""
-        return (
-            (self.price_collar_percent is not None and order.limit_price is not None)
-            or (self.max_order_notional is not None and _own_price(order) is None)
-        )
+        if self.price_collar_percent is not None and order.limit_price is not None:
+            return True
+        if _own_price(order) is None:  # 시장가 -- notional 계산에 현재가 필요
+            if order.region == "domestic":
+                return self.max_order_notional is not None
+            # 해외 주문 경로는 지정가 전용(시장가 미지원)이라 이 해외 시장가 분기는 방어적 --
+            # 와이어엔 닿지 않고 check()/단위 테스트에서만 평가된다.
+            return self.max_order_notional_by_currency is not None
+        return False
 
-    def check(self, order: Order, *, reference_price: Decimal | None = None) -> None:
+    def __hash__(self) -> int:
+        # MappingProxyType 필드가 frozen dataclass 의 자동 해시를 조건부로 깨뜨린다(맵 캡이 있으면
+        # unhashable 필드라 TypeError) -- 맵 없던 시절엔 해시 가능했으므로 명시 해시로 복원한다.
+        # __eq__ 는 내용 비교(MappingProxyType.__eq__)라 자동 생성본을 그대로 두고, 해시만 그 내용과
+        # 일치하게 맞춰 hash/eq 불변식(a == b => hash(a) == hash(b))을 유지한다.
+        by_currency = self.max_order_notional_by_currency
+        return hash((
+            self.max_order_quantity,
+            self.max_order_notional,
+            self.price_collar_percent,
+            self.enforce_tick_size,
+            None if by_currency is None else tuple(sorted(by_currency.items())),
+        ))
+
+    def check(
+        self, order: Order, *, reference_price: Decimal | None = None, currency: str | None = None
+    ) -> None:
         """주문이 한도를 지키는지 확인한다. 어기면 :class:`~kis_trader.errors.PreTradeRiskError`.
 
         ``reference_price`` 는 collar 비교와 자체 가격 없는 주문의 notional 계산에 쓰는 현재가다
         (:meth:`needs_reference_price` 가 True 면 호출자가 채워 준다). 검사에 참조가 필요한데
         없으면 확인 불가로 보고 거부한다(fail-closed -- 못 지킨 한도를 지킨 척하지 않는다).
+
+        ``currency`` 는 해외 주문의 결제통화(ISO, 예 ``"USD"``)로, 금액 한도를 어느 통화의 캡으로
+        볼지 고른다 -- 해외 lane 러너가 거래소에서 판별해 채워 준다. 국내 주문은 ``None``(기본)이라
+        KRW ``max_order_notional`` 경로를 탄다.
         """
         # 비유한(NaN/Infinity) 입력은 모든 비교를 fail-open 시킨다(NaN > x 는 False, abs(x-NaN)/NaN
         # 도 NaN) -- 한도를 확인할 수 없으므로 먼저 fail-closed 한다. order 의 수량/가격은 Order 생성 시
@@ -114,7 +168,25 @@ class RiskLimits:
             raise PreTradeRiskError(
                 f"수량 {order.quantity} 가 1주문 한도 {self.max_order_quantity} 를 초과한다."
             )
-        if self.max_order_notional is not None:
+        # notional -- 국내는 KRW 캡(max_order_notional, 옵션), 해외는 결제통화별 캡(필수, fail-closed).
+        if order.region == "domestic":
+            notional_cap = self.max_order_notional            # Decimal | None; None이면 미검사(현행 불변)
+        else:  # 해외: 그 통화의 한도가 없으면 거부 -- 무한도 전송 금지
+            if currency is None:
+                raise PreTradeRiskError(
+                    "해외 주문의 결제통화를 확인할 수 없어 금액 한도를 적용할 수 없다 -- 주문 중단."
+                )
+            if self.max_order_notional_by_currency is None:
+                raise PreTradeRiskError(
+                    f"해외 주문엔 통화별 금액 한도가 필요하다 -- {currency} 한도를 설정하라"
+                    "(RiskLimits.max_order_notional_by_currency). 주문 중단."
+                )
+            notional_cap = self.max_order_notional_by_currency.get(currency)
+            if notional_cap is None:
+                raise PreTradeRiskError(
+                    f"{currency} 금액 한도가 설정돼 있지 않다 -- {currency} 한도를 설정하라. 주문 중단."
+                )
+        if notional_cap is not None:
             own_price = _own_price(order)
             price = own_price if own_price is not None else reference_price
             if price is None or price <= 0:
@@ -123,9 +195,9 @@ class RiskLimits:
                 )
             notional = price * order.quantity
             # __post_init__ 이 Decimal 로 정규화한 값(입력형 DecimalInput 는 생성자 표면일 뿐).
-            if notional > cast(Decimal, self.max_order_notional):
+            if notional > cast(Decimal, notional_cap):
                 raise PreTradeRiskError(
-                    f"주문금액 {notional} 가 1주문 한도 {self.max_order_notional} 를 초과한다."
+                    f"주문금액 {notional} 가 1주문 한도 {notional_cap} 를 초과한다."
                 )
         if self.price_collar_percent is not None and order.limit_price is not None:
             if reference_price is None or reference_price <= 0:

@@ -424,9 +424,13 @@ def test_overseas_full_demo_tr_matrix():
         assert wire.tr_id == tr
 
 
-def test_overseas_order_with_risk_session_rejected():
+def test_overseas_order_with_risk_session_now_gated():
+    # 해외주식도 이제 사전 리스크 게이트를 탄다(수량·금액·collar). 결제통화별 금액 한도를 주면
+    # (NAS->USD) 통과해 와이어로 나간다 -- 예전의 "해외 risk 미지원 거부" 는 사라졌다.
     fake = FakeTransport(response=_ack())
-    client = _client(fake, risk=RiskLimits(max_order_quantity=10))
-    with pytest.raises(KISUsageError, match="리스크"):
-        client.overseas.stock("AAPL", exchange="NAS").buy(quantity=1, limit_price="150.00", client_order_id="r1")
-    assert len(fake.calls) == 0                         # 거부는 와이어 전
+    client = _client(fake, risk=RiskLimits(max_order_quantity=10,
+                                           max_order_notional_by_currency={"USD": 10_000}))
+    report = client.overseas.stock("AAPL", exchange="NAS").buy(
+        quantity=1, limit_price="150.00", client_order_id="r1")   # 150 <= 10000, 1 <= 10
+    assert isinstance(report, ExecutionReport)
+    assert [c["path"] for c in fake.calls] == [_ORDER]             # collar 없음 -> 참조 조회 없이 전송

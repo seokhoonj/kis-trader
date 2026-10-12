@@ -33,9 +33,11 @@ from ...order import (
     reject_bad_change_price_shape,
 )
 from ...report import ExecutionReport, OrderStatus
+from ...risk import RiskLimits
 from ...store import OrderStore
 from ...transport import Environment, Transport, TransportTimeoutError
 from ..entities.orders import OverseasAlgoExecution, OverseasAlgoOrder, OverseasOpenOrder
+from . import market_data
 from ._parse import _MARKETS, _MAX_PAGES, _decimal_or_zero, _money, _side_from_code
 
 _ORDER_PATH = "/uapi/overseas-stock/v1/trading/order"
@@ -174,6 +176,55 @@ def make_order_request_from_fields(
 def is_overseas_exchange(exchange: str) -> bool:
     """``exchange`` 가 해외 거래소코드(주문 지원)면 True. 안전 코어의 주문 라우팅에 쓴다."""
     return exchange in _ORDER_EXCHANGE
+
+
+# --- 거래소 -> 결제통화 (금액 한도 통화 판별) ----------------------------------
+#: 주문 시장 그룹 -> 결제통화. 그룹 축은 _ORDER_EXCHANGE 와 한 소스라, 주문 가능한 거래소는
+#: 반드시 통화를 가진다(완전성은 테스트로 고정). 미지 거래소/시장 그룹은 resolve 가 None 을 돌려
+#: 호출자가 fail-closed 한다. 홍콩(HK)은 HKD 로 고정 매핑한다 -- HKD/CNY/USD 복수 카운터(스톡커넥트
+#: 등)는 주문 와이어에 통화 필드가 없어(KIS 가 PDNO 로 추론) 주문별 통화를 판별하지 않는다. 그래서
+#: 비-HKD 홍콩 카운터는 HKD 한도로 검사돼 과소보호된다(알려진 한계: dev/specs 의 백로그 참조 --
+#: 설계상 해결책은 시세상세의 통화(curr/Quote.currency)로 결제통화를 판별하는 것). 상해/심천 B주식
+#: (SH=USD, SZ=HKD)도 주문 지원되면 같은 한계를 가진다.
+_MARKET_CURRENCY: dict[str, str] = {
+    "US": "USD", "HK": "HKD", "SH": "CNY", "SZ": "CNY", "JP": "JPY", "VN": "VND",
+}
+
+
+def resolve_order_currency(exchange: str) -> str | None:
+    """해외 주문 거래소코드(EXCD) -> 결제통화(ISO). 미지원 거래소/시장 그룹은 None(호출자가 거부)."""
+    entry = _ORDER_EXCHANGE.get(exchange)
+    if entry is None:
+        return None
+    _, market = entry
+    # 미래에 _ORDER_EXCHANGE 에 새 시장 그룹이 들어오고 _MARKET_CURRENCY 에 빠지면, 날 KeyError
+    # 대신 계약대로 None 으로 degrade 한다(호출자가 fail-closed 거부). 완전성은 테스트로 고정.
+    return _MARKET_CURRENCY.get(market)
+
+
+def run_pre_trade_risk(transport: Transport, order: Order, risk: RiskLimits) -> None:
+    """해외주식 사전 리스크 점검. 거래소로 결제통화를 판별해 그 통화의 금액 한도로 검사한다.
+
+    참조가가 필요한 한도(collar)는 주문 거래소의 해외 현재가를 조회한다 -- 조회 실패/빈 값은 잡지
+    않고 그대로 올린다(fail-closed: 한도를 확인 못 하면 주문을 보내지 않는다). place(발주)와
+    정정(modify) 양쪽이 쓴다."""
+    currency = resolve_order_currency(order.exchange)
+    if currency is None:
+        raise KISUsageError(
+            f"해외 거래소 {order.exchange!r} 의 결제통화를 판별할 수 없어 리스크 한도를 적용할 수 "
+            "없다 -- 지원 거래소로 주문하거나 risk 없는 세션에서 내라."
+        )
+    reference_price = None
+    if risk.needs_reference_price(order):
+        # 참조가(collar 등)가 필요해도, 적용할 통화 한도가 없으면 이 주문은 어차피 금액 한도
+        # 단계에서 거부된다(해외는 통화별 캡 필수, fail-closed). 그 경우 스로틀되는 현재가 조회를
+        # 낭비하지 않고, 조회 없이 check 로 같은 거부를 올린다(거부 결과는 바뀌지 않는다).
+        by_currency = risk.max_order_notional_by_currency
+        if by_currency is not None and currency in by_currency:
+            reference_price = market_data.fetch_current_price(
+                transport, symbol=order.symbol, exchange=order.exchange
+            ).current_price
+    risk.check(order, reference_price=reference_price, currency=currency)
 
 
 def make_order_request(

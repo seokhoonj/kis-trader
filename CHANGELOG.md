@@ -29,6 +29,13 @@ environment = a separate axis).
   `migrate` -- with a global `--environment` selector. `kis config migrate` converts a flat file to
   schema 2, asking before it merges profiles and refusing rather than overwriting on a name
   collision.
+- `RiskLimits` extends to overseas stock orders: a new `max_order_notional_by_currency` map
+  caps the per-order notional per settlement currency (for example `{"USD": 10000, "JPY":
+  1500000}`), the price-collar check applies to overseas orders against the exchange's current
+  price, and the quantity cap applies everywhere. An overseas order under a risk session without
+  a cap for its currency is refused (fail-closed; no FX conversion, and the domestic KRW
+  `max_order_notional` never substitutes). Hong Kong orders are capped as HKD regardless of the
+  instrument's actual trading counter (a documented limitation for non-HKD HK counters).
 
 ### Notes
 

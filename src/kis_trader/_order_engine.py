@@ -64,6 +64,17 @@ def _reject_unsupported_derivative_risk(risk: RiskLimits) -> None:
         )
 
 
+def _risk_runner_for_lane(
+    lane: tuple[str, str],
+) -> Callable[[Transport, Order, RiskLimits], None]:
+    """lane(region, asset_class) -> 그 lane 의 사전 리스크 러너. 해외주식은 거래소별 해외 현재가 +
+    결제통화별 금액 한도 러너, 그 외(국내 주식/파생)는 국내 시세 러너. 발주(place)와 정정(modify)이
+    같은 lane->러너 매핑을 공유하도록 한곳에 둔다(두 경로가 매핑을 따로 적지 않게)."""
+    if lane == ("overseas", "stock"):
+        return overseas_orders_engine.run_pre_trade_risk
+    return orders_engine.run_pre_trade_risk
+
+
 class OrderEngine:
     """세션이 쥔 전송·저장소·환경·주문가능·리스크·계좌해석으로 안전 주문 코어를 구동한다.
 
@@ -86,19 +97,16 @@ class OrderEngine:
         """주문을 안전 엔진에 넘겨 전송한다(종목 핸들 buy/sell 이 호출). 계좌 정보 필요.
 
         국내/해외 모두 같은 안전 코어(이중체결 방지·재시도 금지)를 쓰되, 와이어 요청 조립기만
-        시장별로 바꾼다. 해외 주문엔 아직 사전 리스크 게이트가 없어(참조가가 국내 시세 기반),
-        ``risk`` 를 켠 세션에서 해외 주문을 내면 명확히 거부한다."""
+        시장별로 바꾼다. 사전 리스크 게이트도 lane 별로 주입한다 -- 국내주식은 국내 시세 기반
+        runner, 해외주식은 거래소별 해외 현재가와 결제통화별 금액 한도 runner 를 타, 두 lane 모두
+        같은 fat-finger 보호(수량·금액·collar)를 받는다. 채권·파생(국내/해외)은 참조가 기반 검사가
+        의미 없어 risk 세션에서 거부한다."""
         cano, product_code = self._require_account()
         build_request: _order_core.PlaceRequestBuilder | None = None
         extract_output = None
         risk = self._risk
         match (order.region, order.asset_class):
             case ("overseas", "stock"):
-                if risk is not None:
-                    raise KISUsageError(
-                        "해외 주문엔 사전 리스크 게이트가 아직 미지원이다 -- risk 없는 세션에서 내거나 "
-                        "국내 주문에만 risk 를 쓰라."
-                    )
                 if order.algo_strategy is not None and self._environment == "paper":
                     raise KISUsageError("미국주식 algo(TWAP/VWAP) 주문은 모의투자 미지원 -- 실전에서만.")
                 build_request = (
@@ -144,12 +152,15 @@ class OrderEngine:
         # 비신용 lane 은 여기서 명시적으로 현금 빌더를 넘긴다(코어에 국내 기본값을 두지 않는다).
         if build_request is None:
             build_request = orders_engine._make_order_cash_request
-        # 사전 리스크 점검도 콜러블로 주입한다 -- 참조가 조회가 국내 시세 기반이라 run_pre_trade_risk 는
-        # domestic 엔진에 남는다(risk 는 국내 주식/파생 lane 에서만 non-None; 그 외는 위에서 이미 거부).
-        pre_trade_risk = (
-            (lambda checked_order: orders_engine.run_pre_trade_risk(self._transport, checked_order, risk))
-            if risk is not None else None
-        )
+        # 사전 리스크 점검을 lane 별 콜러블로 주입한다 -- 국내 lane 은 국내 시세 기반 runner,
+        # 해외주식 lane 은 거래소별 해외 현재가 + 결제통화별 한도 runner (그 외 lane 은 위에서 이미 거부).
+        if risk is None:
+            pre_trade_risk = None
+        else:
+            runner = _risk_runner_for_lane((order.region, order.asset_class))
+            pre_trade_risk = (
+                lambda checked_order: runner(self._transport, checked_order, risk)
+            )
         return _order_core.place(
             self._transport, self._store, order,
             cano=cano, product_code=product_code, environment=self._environment,
@@ -263,11 +274,12 @@ class OrderEngine:
             builder = overseas_deriv_orders_engine.make_change_request
         # 정정(modify)도 발주(place)와 같은 사전 리스크 게이트를 통과한다 -- 정정은 수량을 늘리거나
         # 가격을 밴드 밖으로 옮겨 익스포저를 키울 수 있어서다. 취소(cancel)는 익스포저를 줄이므로
-        # 게이트하지 않는다(위험한 주문을 못 지우면 오히려 위험). risk 세션은 국내주식(전 한도)과
-        # 국내파생(max_order_quantity 만, allowlist)을 지원한다 -- 두 lane 다 정정에서 수량을 키울 수
-        # 있으므로 게이트한다. 해외·채권은 같은 세션 place 가 거부하지만, 지속 store 를 공유하면 risk
-        # 없는 세션이 낸 주문을 risk 세션이 정정할 수 있으므로, 게이트 불가 lane 은 place 와 동일하게
-        # fail-closed 로 거부한다(조용히 ungated 통과 금지).
+        # 게이트하지 않는다(위험한 주문을 못 지우면 오히려 위험). risk 세션은 국내주식(전 한도)·
+        # 국내파생(max_order_quantity 만, allowlist)·해외주식(거래소별 현재가 + 결제통화별 금액 한도)
+        # 을 지원한다 -- 모두 정정에서 수량·가격으로 익스포저를 키울 수 있으므로 게이트한다. 채권·
+        # 해외선물옵션은 같은 세션 place 가 거부하지만, 지속 store 를 공유하면 risk 없는 세션이 낸
+        # 주문을 risk 세션이 정정할 수 있으므로, 게이트 불가 lane 은 place 와 동일하게 fail-closed 로
+        # 거부한다(조용히 ungated 통과 금지).
         if self._risk is not None and action == "modify" \
                 and isinstance(fingerprint, ImmediateOrderFingerprint):
             lane = (fingerprint.region, fingerprint.asset_class)
@@ -289,6 +301,7 @@ class OrderEngine:
                 risk_probe_order_type = fingerprint.order_type
                 risk_probe_stop_price = (coerce_decimal(fingerprint.stop_price, "stop_price")
                               if fingerprint.stop_price and fingerprint.stop_price != "0" else None)
+            risk_probe: Order
             if lane == ("domestic", "stock"):
                 # risk.check 는 symbol/quantity/limit_price/stop_price 와 region/asset_class(tick 게이트)를
                 # 읽는다. 국내주식 lane 이 의도값(Order 기본값).
@@ -297,7 +310,6 @@ class OrderEngine:
                     order_type=risk_probe_order_type, quantity=change_quantity,
                     limit_price=effective_price, stop_price=risk_probe_stop_price,
                 )
-                orders_engine.run_pre_trade_risk(self._transport, risk_probe, self._risk)
             elif lane == ("domestic", "derivative"):
                 # 파생은 max_order_quantity 만 지원(place 와 동일 allowlist) -- 나머지 한도가 켜져 있으면
                 # fail-closed 로 거부한다. reject 뒤엔 참조가가 필요한 한도가 없어(needs_reference_price
@@ -309,14 +321,25 @@ class OrderEngine:
                     limit_price=effective_price, stop_price=risk_probe_stop_price,
                     region="domestic", asset_class="derivative",
                 )
-                orders_engine.run_pre_trade_risk(self._transport, risk_probe, self._risk)
-            else:
-                # 해외/채권/해외선물옵션 lane -- place 와 동일하게 risk 세션에선 정정도 거부(참조가 기반
-                # 검사가 의미 없거나 국내 시세 기반이라 미지원). 타 세션 store 주문의 ungated 통과를 막는다.
-                raise KISUsageError(
-                    "해외·채권·해외선물옵션 주문엔 사전 리스크 게이트가 미지원이다 -- risk 없는 세션에서 "
-                    "정정하거나 국내 주식/파생 주문에만 risk 를 쓰라."
+            elif lane == ("overseas", "stock"):
+                # 해외주식 정정도 발주와 동일 게이트 -- 거래소별 해외 현재가 + 결제통화별 금액 한도.
+                # 지문의 거래소코드(EXCD)로 통화를 판별한다. 타 세션 store 주문의 ungated 통과도 막는다.
+                risk_probe = Order(
+                    symbol=fingerprint.symbol, side=fingerprint.side,
+                    order_type=risk_probe_order_type, quantity=change_quantity,
+                    limit_price=effective_price, stop_price=risk_probe_stop_price,
+                    region="overseas", asset_class="stock", exchange=fingerprint.exchange,
                 )
+            else:
+                # 채권·해외선물옵션 lane -- place 와 동일하게 risk 세션에선 정정도 거부(참조가 기반
+                # 검사가 의미 없어 미지원). 타 세션 store 주문의 ungated 통과를 막는다.
+                raise KISUsageError(
+                    "채권·해외선물옵션 주문엔 사전 리스크 게이트가 미지원이다 -- risk 없는 세션에서 "
+                    "정정하거나 국내 주식/파생·해외 주식 주문에만 risk 를 쓰라."
+                )
+            # place_order 와 같은 lane->러너 매핑을 공유한다(국내 시세 러너 vs 해외 현재가+통화별 한도
+            # 러너) -- 정정도 발주와 동일 게이트를 통과한다.
+            _risk_runner_for_lane(lane)(self._transport, risk_probe, self._risk)
         # 지역 중립 코어는 와이어 빌더 필수 -- 국내주식 정정취소 lane(builder 미설정)은 여기서 명시적으로
         # 국내 빌더를 넘긴다(코어에 국내 기본값을 두지 않는다).
         if builder is None:
