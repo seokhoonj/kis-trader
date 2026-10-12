@@ -16,16 +16,23 @@ from decimal import Decimal
 from typing import Any, cast
 
 from .._literals import Direction
-from ..account import StockAccount
+from ..account import _IRP_PRODUCT_CODE, StockAccount
 from ..client import KISClient
 from ..errors import KISUsageError
 from ..order import DomesticDivision, Side
+from ..overseas._engine.orders import resolve_order_currency
 from ._guardrails import (
     ModifyOrderPlan,
     RealOrderGate,
     StockOrderPlan,
     check_allowlist,
     make_stock_order_plan,
+)
+from ._policy import (
+    _COMMISSION_PRODUCT_CODE,
+    _ORDER_ENABLED_PROFILES,
+    _account_masked,
+    is_order_eligible_account,
 )
 
 #: 결과에 **절대** 실려선 안 되는 자격증명 키(방어적 denylist). 현재 직렬화 대상은 엔티티뿐이라
@@ -67,29 +74,58 @@ def _serialize(value: Any) -> Any:
     return value
 
 
-def _account_masked(kis: KISClient) -> str:
-    """계좌번호를 마지막 4자리만 남기고 마스킹(전체 계좌번호 비노출)."""
-    acct = str(getattr(kis, "_account", "") or "")
-    digits = "".join(ch for ch in acct if ch.isdigit())
-    return f"****{digits[-4:]}" if len(digits) >= 4 else "****"
-
-
-def _stock_account(kis: KISClient) -> StockAccount:
-    """잔고/보유/미체결 도구는 주식 계좌 뷰 전용 -- 파생 계좌면 명확히 거부(계좌 파사드는 다형)."""
+def _active_stock_account(kis: KISClient) -> StockAccount:
+    """잔고/보유/미체결 도구는 주식 계좌 뷰 전용 -- 주식 계좌(위탁 01/연금저축 22/IRP 29)가 아니면
+    명확히 거부한다(계좌 파사드는 다형이라 파생 뷰가 올 수 있다 -- 파생은 MCP 미노출). 전환 도구가
+    파생 프로필을 애초에 못 고르지만, 기동 프로필이 파생을 가리키는 경우를 위한 방어심층이다."""
     account = kis.account
     if not isinstance(account, StockAccount):
         raise KISUsageError(
-            f"이 도구는 주식 계좌 전용이다(현재 계좌 뷰: {type(account).__name__})."
+            f"이 도구는 주식 계좌(위탁/연금저축/IRP) 전용이다 -- 파생은 MCP 에 노출하지 않는다"
+            f"(현재 계좌 뷰: {type(account).__name__})."
         )
     return account
 
 
-def quote(kis: KISClient, symbol: str, *, region: str = "domestic") -> dict[str, Any]:
-    """종목 현재가 스냅샷. ``region="overseas"`` 면 해외(거래소 자동 판별)."""
+def _require_overseas_eligible(active_profile: str | None, kis: KISClient) -> StockAccount:
+    """해외 조회(``region="overseas"``)가 열리는지 확인하고 그 주식 계좌 뷰를 돌려준다 -- 위탁(general,
+    상품코드 01) + **실전만**. isa/pension/irp 는 거부하고(해외는 general 전용), 모의(paper)도 거부한다.
+    해외 조회가 실전 전용인 것은 **MCP 정책**이다(라이브러리가 금지하는 게 아니라, 이 서버가 모의 해외
+    데이터를 노출하지 않기로 한 것). 이름 게이트는 주문 게이트와 같은 기준(general)을 공유한다."""
+    if active_profile is not None and active_profile not in _ORDER_ENABLED_PROFILES:
+        raise KISUsageError(
+            f"해외 조회는 general 계좌 전용이다(현재 프로필: {active_profile}) -- "
+            "use_profile('general') 로 바꾸라."
+        )
+    account = _active_stock_account(kis)
+    if not is_order_eligible_account(account):
+        raise KISUsageError(
+            f"해외 조회는 위탁(상품코드 {_COMMISSION_PRODUCT_CODE}) 주식 계좌 전용이다 -- "
+            f"현재 상품코드 {account.product_code}."
+        )
+    if kis.environment != "real":
+        raise KISUsageError(
+            "해외 조회는 실전 전용이다(MCP 정책) -- use_environment('real') 로 환경을 바꾸라."
+        )
+    return account
+
+
+def quote(
+    kis: KISClient, symbol: str, *, region: str = "domestic", session: str = "regular"
+) -> dict[str, Any]:
+    """종목 현재가 스냅샷. ``region="overseas"`` 면 해외(거래소 자동 판별). ``session="after_hours"`` 면
+    국내 시간외 단일가(예상체결가·최우선호가) -- **국내 전용**이다. 검증 순서: region -> session -> 조합."""
     if region not in ("domestic", "overseas"):
         raise KISUsageError(f"region 은 'domestic'/'overseas' 만 (받은 값: {region!r}).")
+    if session not in ("regular", "after_hours"):
+        raise KISUsageError(f"session 은 'regular'/'after_hours' 만 (받은 값: {session!r}).")
+    if session == "after_hours":
+        if region != "domestic":
+            raise KISUsageError("시간외(after_hours)는 국내(domestic) 전용이다.")
+        out: dict[str, Any] = _serialize(kis.domestic.stock(symbol).after_hours_quote())
+        return out
     handle = kis.overseas.stock(symbol) if region == "overseas" else kis.domestic.stock(symbol)
-    out: dict[str, Any] = _serialize(handle.quote())
+    out = _serialize(handle.quote())
     return out
 
 
@@ -118,47 +154,88 @@ def ranking_change(kis: KISClient, *, direction: str = "gainers", limit: int = 1
     return out
 
 
-def balance(kis: KISClient) -> dict[str, Any]:
-    """계좌 잔고 요약(주식 계좌 뷰). 도메인 수치는 패키지가 만든다."""
-    out: dict[str, Any] = _serialize(_stock_account(kis).balance())
+def balance(
+    kis: KISClient, *, region: str = "domestic", market: str | None = None,
+    active_profile: str | None = None,
+) -> dict[str, Any] | list[dict[str, Any]]:
+    """계좌 잔고 요약. ``region="domestic"`` 은 활성 계좌 종류로 분기한다 -- 위탁/연금저축(상품코드
+    01/22)은 국내주식 잔고, IRP(29)는 퇴직연금 잔고 렌즈. ``region="overseas"`` 는 해외주식 잔고
+    (general·실전 전용, MCP 정책)로 ``market`` 생략 시 시장별 요약 리스트. 도메인 수치는 패키지가 만든다."""
+    if region == "overseas":
+        account = _require_overseas_eligible(active_profile, kis)
+        result = account.overseas.balance(market=market)  # market=None -> list, 지정 -> 단건
+        return cast("dict[str, Any] | list[dict[str, Any]]", _serialize(result))
+    if region != "domestic":
+        raise KISUsageError(f"region 은 'domestic'/'overseas' 만 (받은 값: {region!r}).")
+    account = _active_stock_account(kis)
+    if account.product_code == _IRP_PRODUCT_CODE:
+        out: dict[str, Any] = _serialize(account.pension.balance())
+        return out
+    out = _serialize(account.domestic.balance())
     return out
 
 
-def positions(kis: KISClient, *, limit: int = 100) -> list[dict[str, Any]]:
-    """보유 종목(국내 주식 계좌)."""
+def positions(
+    kis: KISClient, *, region: str = "domestic", market: str | None = None, limit: int = 100,
+    active_profile: str | None = None,
+) -> list[dict[str, Any]]:
+    """보유 종목. ``region="domestic"`` 은 활성 계좌 종류로 분기(위탁/연금저축=국내주식 보유,
+    IRP(29)=퇴직연금 잔고의 보유내역). ``region="overseas"`` 는 해외주식 보유(general·실전 전용)."""
     _require_positive_limit(limit)
-    rows = _stock_account(kis).domestic.positions()
+    if region == "overseas":
+        account = _require_overseas_eligible(active_profile, kis)
+        rows: Any = account.overseas.positions(market=market)
+    elif region == "domestic":
+        account = _active_stock_account(kis)
+        if account.product_code == _IRP_PRODUCT_CODE:
+            rows = account.pension.balance().positions  # 퇴직연금은 보유내역이 잔고에 실린다
+        else:
+            rows = account.domestic.positions()
+    else:
+        raise KISUsageError(f"region 은 'domestic'/'overseas' 만 (받은 값: {region!r}).")
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 
 
 def open_orders(kis: KISClient, *, limit: int = 100) -> list[dict[str, Any]]:
-    """미체결(정정/취소 가능) 주문(국내 주식 계좌)."""
+    """미체결(정정/취소 가능) 주문(국내 주식 계좌). 위탁(상품코드 01) 전용 -- 연금저축(22)/IRP(29)는
+    이 조회 대상이 아니라 거부한다(KIS 가 위탁 계좌의 국내주식 미체결만 이 경로로 준다)."""
     _require_positive_limit(limit)
-    rows = _stock_account(kis).domestic.open_orders()
+    account = _active_stock_account(kis)
+    if account.product_code != _COMMISSION_PRODUCT_CODE:
+        raise KISUsageError(
+            f"미체결(정정취소가능) 주문 조회는 위탁(상품코드 {_COMMISSION_PRODUCT_CODE}) 주식 계좌 "
+            f"전용이다 -- 현재 상품코드 {account.product_code}."
+        )
+    rows = account.domestic.open_orders()
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 
 
 def order_preview(
-    kis: KISClient, *, symbol: str, side: Side, quantity: int,
+    kis: KISClient, capped_currencies: frozenset[str], *, symbol: str, side: Side, quantity: int,
     limit_price: str | None = None, division: DomesticDivision | None = None,
+    region: str = "domestic", exchange: str | None = None,
 ) -> dict[str, Any]:
     """주문 **미리보기**(dry-run) -- 전송하지 않고 나갈 티켓만 되읽어 보여준다. 실제 전송은 ``place_order``
     가 가드레일(이중게이트+RiskLimits+allowlist+사람확인)을 거쳐 한다. 이 도구는 무엇이 나갈지 미리
-    확인하는 용도다(``sent: false``). 티켓은 ``place_order`` 와 **같은** 형상 검증(``make_stock_order_plan``:
-    symbol/side/quantity/division 형상 + taint 경계)을 거쳐 만든다 -- preview 가 통과시킨 주문은
-    place_order 도 같은 형상으로 받는다(형상 divergence 방지; 가격·구분 결합 등 깊은 검증은 집행 시
-    :class:`~kis_trader.order.Order` 가 한다)."""
+    확인하는 용도다(``sent: false``). 티켓은 ``place_order`` 와 **같은** 형상 검증(``make_stock_order_plan``)과
+    해외 실전의 통화별 한도 선검사를 거쳐 만든다 -- preview 가 통과시킨 주문은 place_order 도 같은
+    형상으로 받는다(형상/거부 divergence 방지; 가격·구분 결합 등 깊은 검증은 집행 시
+    :class:`~kis_trader.order.Order` 가 한다). 국내 티켓은 ``exchange`` 를 싣지 않고, 해외 티켓만 싣는다."""
     plan = make_stock_order_plan(
-        region="domestic", symbol=symbol, side=side, quantity=quantity,
-        limit_price=limit_price, division=division,
+        region=region, symbol=symbol, side=side, quantity=quantity,
+        limit_price=limit_price, division=division, exchange=exchange,
     )
-    return {
+    # place_order 와 같은 정직한 선거부: 해외 실전인데 결제통화 한도가 없으면 preview 도 거부한다
+    # (환경은 활성 슬롯 환경 = kis.environment; place 의 gate.is_real() 과 동치).
+    _require_overseas_currency_cap(plan, capped_currencies, is_real=kis.environment == "real")
+    ticket: dict[str, Any] = {
         "sent": False,
         "note": "미리보기 -- 전송되지 않았다. 실주문은 place_order 가 가드레일·사람확인을 거쳐 전송한다.",
         "environment": kis.environment,
         "account": _account_masked(kis),
+        "region": plan.region,
         "symbol": plan.symbol,
         "side": plan.side,
         "quantity": plan.quantity,
@@ -166,6 +243,9 @@ def order_preview(
         "limit_price": plan.limit_price,
         "division": plan.division,
     }
+    if plan.region == "overseas":
+        ticket["exchange"] = plan.exchange
+    return ticket
 
 
 def reconcile(kis: KISClient, *, client_order_id: str) -> dict[str, Any]:
@@ -181,24 +261,46 @@ def reconcile(kis: KISClient, *, client_order_id: str) -> dict[str, Any]:
 # --- 실주문 plan 핸들러(순수: 가드레일 선검증, 와이어 전) --------------------
 # server 가 이 plan 으로 elicitation 확인 뒤 라이브러리(buy/sell/cancel/modify)를 호출한다. 어떤 검사든
 # 어기면 여기서 KISUsageError 로 거부되어 주문은 전송되지 않는다(fail-closed, 사람/AI 에 의존 안 함).
+def _require_overseas_currency_cap(
+    plan: StockOrderPlan, capped_currencies: frozenset[str], *, is_real: bool
+) -> None:
+    """해외 **실전** 주문의 결제통화 금액 한도(통화별 캡) 선검사 -- 거래소로 결제통화를 판별해 그
+    통화의 MCP 캡(``KIS_MCP_MAX_ORDER_NOTIONAL_<CCY>``)이 없으면 와이어 전에 거부한다(early fail-closed,
+    정직한 preview). 안전 엔진(:meth:`~kis_trader.risk.RiskLimits.check`)의 해외 통화별 캡 강제가 와이어
+    backstop 이고, 이 선검사는 같은 거부를 더 일찍·명확히 올린다. 거래소->통화 표는 해외 엔진이 소유
+    한다(여기서 중복하지 않음). 모의(paper)/국내는 대상 아님."""
+    if plan.region != "overseas" or not is_real:
+        return
+    ccy = resolve_order_currency(plan.exchange) if plan.exchange is not None else None
+    if ccy is None or ccy not in capped_currencies:
+        raise KISUsageError(
+            f"해외 실전 주문엔 결제통화 금액 한도가 필요하다 -- 환경변수 "
+            f"KIS_MCP_MAX_ORDER_NOTIONAL_{ccy or '<통화>'} 를 설정하라(fail-closed -- 무한도 전송 금지)."
+        )
+
+
 def plan_place_order(
-    gate: RealOrderGate, allowlist: frozenset[str] | None, has_risk: bool, *,
+    gate: RealOrderGate, allowlist: frozenset[str] | None, has_risk: bool,
+    capped_currencies: frozenset[str] = frozenset(), *,
     region: str, symbol: str, side: str, quantity: int, limit_price: str | None = None,
-    division: str | None = None,
+    division: str | None = None, exchange: str | None = None,
 ) -> StockOrderPlan:
-    """매수/매도 주문 계획 -- 이중게이트 -> (실전) RiskLimits 필수 -> allowlist -> 티켓 빌드 순으로
-    검증한다. 실전에서 RiskLimits(fail-closed 캡)가 없으면 거부한다(관례: 캡은 사용자 설정, 미설정=거부)."""
+    """매수/매도 주문 계획 -- 이중게이트 -> (실전) RiskLimits 필수 -> 티켓 빌드 -> (해외 실전) 통화별
+    캡 선검사 -> allowlist 순으로 검증한다. 실전에서 RiskLimits(fail-closed 캡)가 없으면 거부한다
+    (관례: 캡은 사용자 설정, 미설정=거부). 해외 실전은 결제통화 한도가 없으면 와이어 전에 거부한다."""
     gate.require_executable()
     if gate.is_real() and not has_risk:
         raise KISUsageError(
             "실전 주문은 RiskLimits(fat-finger 캡) 설정이 필요하다 -- 미설정이면 전송하지 않는다"
             "(fail-closed). KISClient(risk=RiskLimits(...)) 또는 MCP 캡 환경변수로 설정."
         )
-    check_allowlist(symbol, allowlist, is_real=gate.is_real())
-    return make_stock_order_plan(
+    plan = make_stock_order_plan(
         region=region, symbol=symbol, side=side, quantity=quantity, limit_price=limit_price,
-        division=division,
+        division=division, exchange=exchange,
     )
+    _require_overseas_currency_cap(plan, capped_currencies, is_real=gate.is_real())
+    check_allowlist(symbol, allowlist, is_real=gate.is_real())
+    return plan
 
 
 def plan_cancel_order(gate: RealOrderGate, *, client_order_id: str) -> str:

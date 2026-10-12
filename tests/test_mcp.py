@@ -14,6 +14,8 @@ from typing import Any
 
 import pytest
 
+from kis_trader.account import StockAccount
+from kis_trader.errors import KISUsageError
 from kis_trader.mcp import handlers
 
 
@@ -23,6 +25,76 @@ class _FakeQuote:
     current_price: Decimal
     change_percent: Decimal
     _raw: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class _FakeBalance:
+    label: str
+    total: Decimal
+    _raw: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
+class _FakePosition:
+    symbol: str
+    quantity: int
+    _raw: dict[str, Any] = field(default_factory=dict)
+
+
+class _FakeStockAccount(StockAccount):
+    """isinstance(.., StockAccount) 를 만족하는 가짜 주식 계좌 뷰 -- product_code 분기와 시장별 뷰
+    (domestic/overseas/pension)를 제어한다(super().__init__ 건너뜀)."""
+
+    def __init__(self, *, product_code="01", domestic=None, overseas=None, pension=None):
+        self._product_code = product_code
+        self._domestic_view = domestic
+        self._overseas_view = overseas
+        self._pension_view = pension
+
+    @property
+    def product_code(self):
+        return self._product_code
+
+    @property
+    def domestic(self):
+        return self._domestic_view
+
+    @property
+    def overseas(self):
+        return self._overseas_view
+
+    @property
+    def pension(self):
+        if self._pension_view is None:
+            raise KISUsageError("pension 뷰 없음(테스트)")
+        return self._pension_view
+
+
+def _fake_stock_kis(*, product_code="01", environment="paper", account="12345678-01",
+                    domestic_balance=None, domestic_positions=None, domestic_open_orders=None,
+                    overseas_balance=None, overseas_positions=None, pension_balance=None,
+                    after_hours=None, quote=None):
+    """활성 주식 계좌(StockAccount)를 든 가짜 kis -- 읽기 디스패치(국내/해외/연금·시간외)를 테스트한다."""
+    domestic_view = SimpleNamespace(
+        balance=lambda: domestic_balance,
+        positions=lambda: domestic_positions or [],
+        open_orders=lambda: domestic_open_orders or [],
+    )
+    overseas_view = SimpleNamespace(
+        balance=lambda *, market=None: overseas_balance,
+        positions=lambda *, market=None: overseas_positions or [],
+    )
+    pension_view = SimpleNamespace(balance=lambda: pension_balance)
+    account_view = _FakeStockAccount(
+        product_code=product_code, domestic=domestic_view, overseas=overseas_view,
+        pension=pension_view,
+    )
+    domestic_ns = SimpleNamespace(
+        stock=lambda sym: SimpleNamespace(quote=lambda: quote, after_hours_quote=lambda: after_hours),
+    )
+    return SimpleNamespace(
+        domestic=domestic_ns, account=account_view, environment=environment, _account=account,
+    )
 
 
 @dataclass(frozen=True)
@@ -153,7 +225,7 @@ def test_list_handlers_reject_bad_limit(fn, bad):
 
 def test_order_preview_not_sent_and_masks_account():
     kis = _fake_kis(environment="real", account="12345678-01")
-    out = handlers.order_preview(kis, symbol="005930", side="buy", quantity=10, limit_price="70000")
+    out = handlers.order_preview(kis, frozenset(), symbol="005930", side="buy", quantity=10, limit_price="70000")
     assert out["sent"] is False
     assert out["environment"] == "real"
     assert out["account"] == "****7801"          # 마지막 4자리만
@@ -163,7 +235,7 @@ def test_order_preview_not_sent_and_masks_account():
 
 
 def test_order_preview_market_when_no_price():
-    out = handlers.order_preview(_fake_kis(), symbol="005930", side="sell", quantity=1)
+    out = handlers.order_preview(_fake_kis(), frozenset(), symbol="005930", side="sell", quantity=1)
     assert out["order_type"] == "market" and out["limit_price"] is None
 
 
@@ -175,7 +247,7 @@ def test_order_preview_market_when_no_price():
 def test_order_preview_rejects_bad_input(bad):
     from kis_trader.errors import KISUsageError
     with pytest.raises(KISUsageError):
-        handlers.order_preview(_fake_kis(), symbol="005930", **bad)
+        handlers.order_preview(_fake_kis(), frozenset(), symbol="005930", **bad)
 
 
 def test_reconcile_unresolved_returns_in_flight():
@@ -206,48 +278,165 @@ def test_ranking_rejects_bad_direction():
         handlers.ranking_change(_fake_kis(), direction="sideways")
 
 
+# --- 계좌종류-인식 읽기 디스패치 ---------------------------------------------
+
+
+def test_balance_domestic_product_01_uses_domestic_view():
+    kis = _fake_stock_kis(product_code="01", domestic_balance=_FakeBalance("domestic", Decimal(100)))
+    out = handlers.balance(kis, region="domestic", active_profile="general")
+    assert out == {"label": "domestic", "total": "100"}       # C8: domestic.balance() shape
+
+
+def test_balance_domestic_product_22_stays_domestic_not_pension():
+    # 연금저축(22)은 IRP 가 아니다 -- 국내주식 잔고 경로를 타야 한다(스펙의 pension 전제는 틀렸다).
+    kis = _fake_stock_kis(product_code="22", domestic_balance=_FakeBalance("dom22", Decimal(5)),
+                          pension_balance=SimpleNamespace(positions=()))
+    out = handlers.balance(kis, region="domestic", active_profile="pension")
+    assert out == {"label": "dom22", "total": "5"}
+
+
+def test_balance_domestic_product_29_uses_pension_lens():
+    kis = _fake_stock_kis(product_code="29", pension_balance=_FakeBalance("pension", Decimal(7)),
+                          domestic_balance=_FakeBalance("SHOULD_NOT", Decimal(0)))
+    out = handlers.balance(kis, region="domestic", active_profile="irp")
+    assert out == {"label": "pension", "total": "7"}
+
+
+def test_positions_product_29_from_pension_balance():
+    pos = _FakePosition("005930", 3, _raw={"secret": "x"})
+    kis = _fake_stock_kis(product_code="29",
+                          pension_balance=SimpleNamespace(positions=(pos,)))
+    out = handlers.positions(kis, region="domestic", active_profile="irp")
+    assert out == [{"symbol": "005930", "quantity": 3}]
+    assert "secret" not in str(out)
+
+
+def test_positions_product_01_from_domestic_view():
+    kis = _fake_stock_kis(product_code="01", domestic_positions=[_FakePosition("000660", 2)])
+    out = handlers.positions(kis, region="domestic", active_profile="general")
+    assert out == [{"symbol": "000660", "quantity": 2}]
+
+
+def test_overseas_balance_general_real_routes_to_overseas():
+    kis = _fake_stock_kis(product_code="01", environment="real",
+                          overseas_balance=[_FakeBalance("US", Decimal(42), _raw={"app_secret": "L"})])
+    out = handlers.balance(kis, region="overseas", market=None, active_profile="general")
+    assert out == [{"label": "US", "total": "42"}]
+    assert "app_secret" not in str(out) and "L" not in str(out)   # 방화벽 유지
+
+
+def test_overseas_positions_general_real_routes_to_overseas():
+    kis = _fake_stock_kis(product_code="01", environment="real",
+                          overseas_positions=[_FakePosition("AAPL", 1)])
+    out = handlers.positions(kis, region="overseas", market="US", active_profile="general")
+    assert out == [{"symbol": "AAPL", "quantity": 1}]
+
+
+def test_overseas_read_rejected_on_paper_mcp_policy():
+    kis = _fake_stock_kis(product_code="01", environment="paper")
+    with pytest.raises(KISUsageError, match="MCP 정책"):
+        handlers.balance(kis, region="overseas", active_profile="general")
+
+
+@pytest.mark.parametrize("profile", ["isa", "pension", "irp"])
+def test_overseas_read_rejected_for_non_general_profile(profile):
+    kis = _fake_stock_kis(product_code="01", environment="real")
+    with pytest.raises(KISUsageError, match="general"):
+        handlers.balance(kis, region="overseas", active_profile=profile)
+
+
+def test_open_orders_product_01_ok_but_22_and_29_refused():
+    ok = _fake_stock_kis(product_code="01", domestic_open_orders=[_FakePosition("005930", 1)])
+    assert handlers.open_orders(ok) == [{"symbol": "005930", "quantity": 1}]
+    for product in ("22", "29"):
+        with pytest.raises(KISUsageError, match="위탁"):
+            handlers.open_orders(_fake_stock_kis(product_code=product))
+
+
+def test_quote_after_hours_routes_to_after_hours_quote():
+    ah = _FakeQuote("005930", Decimal(71000), Decimal("0.1"), _raw={"secret": "x"})
+    kis = _fake_stock_kis(product_code="01", after_hours=ah)
+    out = handlers.quote(kis, "005930", region="domestic", session="after_hours")
+    assert out["symbol"] == "005930" and out["current_price"] == "71000"
+    assert "secret" not in str(out)
+
+
+def test_quote_after_hours_overseas_refused_region_wins():
+    kis = _fake_stock_kis(product_code="01")
+    with pytest.raises(KISUsageError, match="국내"):
+        handlers.quote(kis, "AAPL", region="overseas", session="after_hours")
+
+
+def test_quote_rejects_bad_session():
+    with pytest.raises(KISUsageError, match="session"):
+        handlers.quote(_fake_stock_kis(), "005930", session="premarket")
+
+
 # --- 서버(도구 등록) -- mcp 있을 때만 -----------------------------------------
 
 
-def test_server_registers_read_and_guarded_order_tools():
+def _build_test_server(kis=None, *, environment="paper", profile="general", allowlist=None,
+                       capped_currencies=frozenset()):
+    from kis_trader.mcp._guardrails import CircuitBreaker
+    from kis_trader.mcp._session import McpSession, _StartupAuthorization
+    from kis_trader.mcp.server import build_server
+
+    kis = kis if kis is not None else _fake_kis(environment=environment)
+    session = McpSession(profile=profile, environment=environment, startup_client=kis,
+                         auth=_StartupAuthorization(allow_real=False, confirmed=False),
+                         build=lambda p, e: kis)
+    return build_server(session, allowlist=allowlist, breaker=CircuitBreaker(),
+                        capped_currencies=capped_currencies)
+
+
+def test_server_registers_read_switch_and_guarded_order_tools():
     pytest.importorskip("mcp")
     import asyncio
 
-    from kis_trader.mcp._guardrails import CircuitBreaker, RealOrderGate
-    from kis_trader.mcp.server import build_server
-
-    server = build_server(_fake_kis(), gate=RealOrderGate.from_env({}, "paper"),
-                          allowlist=None, breaker=CircuitBreaker())
+    server = _build_test_server()
     tools = asyncio.run(server.list_tools())
     names = {t.name for t in tools}
     # 정확집합(==)으로 못박는다: subset(<=) 이면 의도치 않은 툴이 하나 더 등록돼도 통과해버린다.
     # 노출 표면이 늘면 이 테스트가 깨져 의식적 결정을 강제한다(실주문 안전 표면의 핵심 불변식).
     assert names == {"quote", "search", "ranking_change", "balance", "positions", "open_orders",
-                     "order_preview", "reconcile",
-                     "place_order", "cancel_order", "modify_order"}
+                     "reconcile",
+                     "use_environment", "use_profile", "current_account",
+                     "order_preview", "place_order", "cancel_order", "modify_order"}
     # 원시 매매 메서드(buy/sell/credit)는 직접 노출하지 않는다 -- 가드레일 통과하는 place_order 만.
     assert not (names & {"buy", "sell", "credit_buy", "credit_sell"})
 
 
-def test_order_tool_input_schemas_pin_0_5_0_shape():
-    # 0.5.0 스키마 변화를 고정: place_order 는 단일값 region 을 더 노출하지 않고(제거됨),
-    # division/side 를 유지하며 side enum 은 buy/sell 로 좁혀져 있다. order_preview 와 형상 일치.
+def test_order_tool_input_schemas_pin_switch_region_shape():
+    # 전환+해외 확장 스키마를 고정: place_order/order_preview 는 region(domestic/overseas)·exchange 를
+    # 노출하고 division/side 를 유지하며 side enum 은 buy/sell 로 좁혀져 있다. quote 는 session(regular/
+    # after_hours), balance/positions 는 region/market 을 노출한다.
     pytest.importorskip("mcp")
     import asyncio
 
-    from kis_trader.mcp._guardrails import CircuitBreaker, RealOrderGate
-    from kis_trader.mcp.server import build_server
-
-    server = build_server(_fake_kis(), gate=RealOrderGate.from_env({}, "paper"),
-                          allowlist=None, breaker=CircuitBreaker())
+    server = _build_test_server()
     tools = {t.name: t for t in asyncio.run(server.list_tools())}
+    # 주문 4도구는 정확집합(==)으로 못박는다: subset(<=) 이면 taint 운반 파라미터(예: account, dict 인자)가
+    # 주문 도구에 하나 더 붙어도 통과해버린다. 읽기 도구는 <= 로 둬(무해한 읽기 파라미터 추가에 안 깨짐).
+    _ORDER_PARAMS = {"symbol", "side", "quantity", "limit_price", "division", "region", "exchange"}
     place = tools["place_order"].input_schema["properties"]
-    assert "region" not in place                       # 단일값 region 파라미터 제거(회귀 방지)
-    assert {"symbol", "side", "quantity", "division"} <= set(place)
-    assert place["side"]["enum"] == ["buy", "sell"]     # Side 리터럴이 넓어지지 않게
+    assert set(place) == _ORDER_PARAMS
+    assert place["side"]["enum"] == ["buy", "sell"]            # Side 리터럴이 넓어지지 않게
+    assert place["region"]["enum"] == ["domestic", "overseas"]
     preview = tools["order_preview"].input_schema["properties"]
-    assert "region" not in preview                     # dry-run 쌍둥이와 형상 일치
-    assert {"symbol", "side", "quantity", "division"} <= set(preview)
+    assert set(preview) == _ORDER_PARAMS                       # dry-run 쌍둥이와 형상 일치
+    assert preview["region"]["enum"] == ["domestic", "overseas"]
+    assert set(tools["cancel_order"].input_schema["properties"]) == {"client_order_id"}
+    assert set(tools["modify_order"].input_schema["properties"]) == {
+        "client_order_id", "limit_price", "quantity"}
+    # use_profile 파라미터는 SwitchableProfile Literal 에서 파생한 enum 을 싣는다(스키마<->런타임 가드 단일 출처).
+    assert tools["use_profile"].input_schema["properties"]["profile"]["enum"] == [
+        "general", "isa", "pension", "irp"]
+    q = tools["quote"].input_schema["properties"]
+    assert {"region", "session"} <= set(q)
+    assert q["session"]["enum"] == ["regular", "after_hours"]
+    for read_tool in ("balance", "positions"):
+        props = tools[read_tool].input_schema["properties"]
+        assert {"region", "market"} <= set(props)
 
 
 def test_build_client_missing_credentials_gives_clear_error(monkeypatch):

@@ -13,6 +13,7 @@ from typing import Literal, cast, get_args
 
 from ..errors import KISUsageError
 from ..order import _GTP_DIVISIONS, DomesticDivision
+from ..overseas._engine.orders import is_overseas_exchange
 
 #: NXT 프리마켓 전용(GTP) 주문구분. MCP 실주문은 symbol 기본 거래소(KRX)로만 라우팅하고 거래소를
 #: 고를 수단이 없어 NXT 전용 ``gtp_*`` 는 와이어에서 항상 거부된다 -- taint 경계에서 선제 제외해
@@ -80,8 +81,8 @@ def check_allowlist(symbol: str, allowlist: frozenset[str] | None, *, is_real: b
 class CircuitBreaker:
     """세션 반복집행 서킷브레이커 -- 한 MCP 세션에서 실주문이 ``max_real_orders`` 를 넘으면 HALT 되고
     수동 재개(:meth:`reset`) 전까지 실주문을 거부한다(FIA 반복집행 한도). 모의는 세지 않는다
-    (server 가 실주문에만 :meth:`record_and_check` 를 부른다). 기본 10 은 방어적 기본(관례상 보편 합의된
-    숫자는 없다 -- 스펙 참조)."""
+    (server 가 실주문에만 :meth:`record_and_check` 를 부른다). 기본 10 은 방어적 기본이다(한 세션에 보편
+    합의된 한도 숫자는 없어 보수적으로 둔다 -- 사용자가 ``KIS_MCP_MAX_REAL_ORDERS`` 로 조정)."""
 
     def __init__(self, max_real_orders: int = 10) -> None:
         if isinstance(max_real_orders, bool) or max_real_orders <= 0:
@@ -110,15 +111,21 @@ class CircuitBreaker:
 @dataclass(frozen=True, slots=True)
 class StockOrderPlan:
     """검증된 주식 주문 티켓(elicitation echo + 집행용). 스칼라 입력만으로 만들어진다(taint 경계).
-    국내 주식만 지원하므로 ``region`` 은 ``"domestic"`` 고정."""
 
-    region: Literal["domestic"]
+    국내(domestic)와 해외(overseas) 주식을 모두 담는다. 해외는 **지정가 전용**(``limit_price`` 필수)·
+    ``exchange`` 필수(NAS/NYS/...)·국내 주문구분(``division``) 금지다. 국내는 종목 기본 거래소로
+    라우팅하므로 ``exchange`` 를 받지 않는다(``None`` 고정). 해외 실주문의 통화별 금액 한도는 안전
+    엔진이 거래소->결제통화로 판별해 fail-closed 로 건다(:class:`~kis_trader.risk.RiskLimits`
+    ``max_order_notional_by_currency``)."""
+
+    region: Literal["domestic", "overseas"]
     symbol: str
     side: Literal["buy", "sell"]
     order_type: Literal["market", "limit"]
     quantity: int
     limit_price: str | None
     division: DomesticDivision | None = None
+    exchange: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,22 +143,18 @@ class ModifyOrderPlan:
 
 def make_stock_order_plan(
     *, region: str, symbol: str, side: str, quantity: int, limit_price: str | None = None,
-    division: str | None = None,
+    division: str | None = None, exchange: str | None = None,
 ) -> StockOrderPlan:
     """스칼라 입력만으로 주문 티켓을 만든다(taint 경계 -- 읽기 도구의 dict/객체를 인자로 받지 않는다).
     깊은 검증(가격/수량 규칙)은 라이브러리 :class:`~kis_trader.order.Order` 가 집행 시 하고, 여기선 taint
     경계(스칼라만)와 표면 형상만 본다.
 
-    국내(domestic) 주식만 지원한다. 해외(overseas)는 거부한다 -- 안전코어(OrderEngine)가 해외 주문에
-    사전 리스크 게이트(RiskLimits)를 지원하지 않아, "실전은 fail-closed 캡 필수"라는 이 서버의 불변식을
-    해외에서 보장할 수 없기 때문이다."""
-    if region == "overseas":
-        raise KISUsageError(
-            "해외 실주문은 아직 미지원이다 -- 엔진이 해외 사전 리스크 게이트를 지원하지 않아 fail-closed "
-            "캡을 보장할 수 없다(후속). 지금은 국내(domestic) 주식만."
-        )
-    if region != "domestic":
-        raise KISUsageError(f"region 은 domestic 이어야 한다(해외는 미지원): {region!r}")
+    국내(domestic)와 해외(overseas) 주식을 지원한다. 해외는 **지정가 전용**(``limit_price`` 필수)·
+    ``exchange`` 필수(지원 거래소코드 NAS/NYS/...)·국내 주문구분(``division``) 금지다. 국내는 종목 기본
+    거래소(KRX)로 라우팅하므로 ``exchange`` 를 받지 않는다(주면 거부). 해외 실주문의 통화별 금액 한도는
+    안전 엔진이 거래소->결제통화로 판별해 fail-closed 로 건다."""
+    if region not in ("domestic", "overseas"):
+        raise KISUsageError(f"region 은 domestic/overseas 중 하나여야 한다: {region!r}")
     if side not in _SIDES:
         raise KISUsageError(f"side 는 buy/sell 중 하나여야 한다: {side!r}")
     if not isinstance(symbol, str) or not symbol:
@@ -161,21 +164,36 @@ def make_stock_order_plan(
         raise KISUsageError(f"quantity 는 양의 정수여야 한다: {quantity!r}")
     if limit_price is not None and not isinstance(limit_price, (str, int)):
         raise KISUsageError(f"limit_price 는 문자열/정수 스칼라여야 한다: {limit_price!r}")
-    if division is not None and division not in _DIVISIONS:
-        if division in _MCP_EXCLUDED_DIVISIONS:
+    if region == "overseas":
+        if limit_price is None:
+            raise KISUsageError("해외 주문은 지정가 전용이다 -- limit_price 를 지정하라(시장가 미지원).")
+        if division is not None:
+            raise KISUsageError("해외 주문은 국내 주문구분(division)을 받지 않는다(지정가 전용).")
+        if not isinstance(exchange, str) or not exchange:
+            raise KISUsageError("해외 주문은 거래소코드(exchange)가 필요하다(NAS/NYS/AMS/HKS/TSE/...).")
+        if not is_overseas_exchange(exchange):
+            raise KISUsageError(f"해외 주문을 지원하지 않는 거래소코드: {exchange!r}.")
+    else:  # domestic -- 종목 기본 거래소(KRX)로만 보낸다
+        if exchange is not None:
             raise KISUsageError(
-                f"division={division!r} 은 NXT 프리마켓(GTP) 전용이라 MCP 실주문에서 지원하지 않는다"
-                " -- MCP 는 종목 기본 거래소(KRX)로만 보낸다. 라이브러리 API 를 직접 쓰라."
+                f"국내 주문은 exchange 를 받지 않는다(종목 기본 거래소로 라우팅): {exchange!r}."
             )
-        raise KISUsageError(f"division 은 {sorted(_DIVISIONS)} 중 하나여야 한다: {division!r}")
+        if division is not None and division not in _DIVISIONS:
+            if division in _MCP_EXCLUDED_DIVISIONS:
+                raise KISUsageError(
+                    f"division={division!r} 은 NXT 프리마켓(GTP) 전용이라 MCP 실주문에서 지원하지 않는다"
+                    " -- MCP 는 종목 기본 거래소(KRX)로만 보낸다. 라이브러리 API 를 직접 쓰라."
+                )
+            raise KISUsageError(f"division 은 {sorted(_DIVISIONS)} 중 하나여야 한다: {division!r}")
     order_type: Literal["market", "limit"] = "limit" if limit_price is not None else "market"
     normalized_price = str(limit_price) if limit_price is not None else None
     return StockOrderPlan(
-        region="domestic",
+        region=cast("Literal['domestic', 'overseas']", region),  # 위에서 두 값으로 좁힘
         symbol=symbol,
         side=side,  # type: ignore[arg-type]  # 위에서 _SIDES 로 좁힘
         order_type=order_type,
         quantity=quantity,
         limit_price=normalized_price,
-        division=cast("DomesticDivision | None", division),  # 위에서 _DIVISIONS 로 좁힘
+        division=cast("DomesticDivision | None", division),  # 위에서 _DIVISIONS 로 좁힘(해외는 None)
+        exchange=exchange if region == "overseas" else None,
     )

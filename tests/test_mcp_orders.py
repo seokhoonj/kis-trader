@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import asyncio
 import threading
+from types import SimpleNamespace
 
 import pytest
 
@@ -20,6 +21,7 @@ from kis_trader.mcp._guardrails import (
     check_allowlist,
     make_stock_order_plan,
 )
+from kis_trader.mcp._session import McpSession, OrderSnapshot, _StartupAuthorization
 from kis_trader.mcp.handlers import plan_cancel_order, plan_modify_order, plan_place_order
 from kis_trader.risk import RiskLimits
 from kis_trader.transport import RawResponse
@@ -156,11 +158,41 @@ def test_build_rejects_nxt_gtp_divisions_at_boundary(division):
                               division=division)
 
 
-def test_build_rejects_overseas():
-    # MVP 는 국내만 -- 해외는 엔진이 사전 리스크 게이트를 지원 안 해 fail-closed 캡 보장 불가라 거부.
-    with pytest.raises(KISUsageError, match="해외"):
+def test_build_accepts_overseas_limit():
+    # 해외는 이제 지원된다(지정가 전용·exchange 필수·division 금지). 통화별 fail-closed 캡은 안전 엔진이 건다.
+    plan = make_stock_order_plan(region="overseas", symbol="AAPL", side="buy", quantity=10,
+                                 limit_price="150", exchange="NAS")
+    assert plan == StockOrderPlan(region="overseas", symbol="AAPL", side="buy", order_type="limit",
+                                  quantity=10, limit_price="150", exchange="NAS")
+
+
+def test_build_overseas_requires_limit_price():
+    with pytest.raises(KISUsageError, match="지정가"):
+        make_stock_order_plan(region="overseas", symbol="AAPL", side="buy", quantity=10, exchange="NAS")
+
+
+def test_build_overseas_requires_exchange():
+    with pytest.raises(KISUsageError, match="거래소"):
         make_stock_order_plan(region="overseas", symbol="AAPL", side="buy", quantity=10,
                               limit_price="150")
+
+
+def test_build_overseas_rejects_unknown_exchange():
+    with pytest.raises(KISUsageError, match="거래소"):
+        make_stock_order_plan(region="overseas", symbol="AAPL", side="buy", quantity=10,
+                              limit_price="150", exchange="XXX")
+
+
+def test_build_overseas_rejects_division():
+    with pytest.raises(KISUsageError, match="division"):
+        make_stock_order_plan(region="overseas", symbol="AAPL", side="buy", quantity=10,
+                              limit_price="150", exchange="NAS", division="immediate_limit")
+
+
+def test_build_domestic_rejects_exchange():
+    with pytest.raises(KISUsageError, match="exchange"):
+        make_stock_order_plan(region="domestic", symbol="005930", side="buy", quantity=1,
+                              limit_price="70000", exchange="NAS")
 
 
 def test_build_rejects_bad_inputs():
@@ -273,9 +305,9 @@ class _FakeTransport:
         return _ACCEPT
 
 
-def _order_client(environment="paper", risk=None):
+def _order_client(environment="paper", risk=None, account="12345678-01"):
     transport = _FakeTransport(environment)
-    kis = KISClient(app_key="k", app_secret="s", account="12345678-01",
+    kis = KISClient(app_key="k", app_secret="s", account=account,
                     environment=environment, transport=transport, risk=risk)
     return kis, transport
 
@@ -292,12 +324,18 @@ class _DeclineCtx:
         return DeclinedElicitation()
 
 
+def _snap(kis, gate, *, profile="general"):
+    """run_* 가 받는 OrderSnapshot 을 직접 조립한다(server.order_snapshot 을 거치지 않는 단위 경로).
+    주문 프로필 게이트(general + 상품코드 01)를 통과하도록 기본 profile='general'."""
+    return OrderSnapshot(profile=profile, environment=kis.environment, client=kis, gate=gate)
+
+
 def test_run_place_order_paper_executes():
     pytest.importorskip("mcp")
     from kis_trader.mcp.server import run_place_order
     kis, t = _order_client("paper")
     out = asyncio.run(run_place_order(
-        kis, RealOrderGate.from_env({}, "paper"), None, CircuitBreaker(), _AcceptCtx(),
+        _snap(kis, RealOrderGate.from_env({}, "paper")), None, CircuitBreaker(), _AcceptCtx(),
         region="domestic", symbol="005930", side="buy", quantity=1))
     assert out["sent"] is True and out["report"] is not None
     assert out["ticket"]["region"] == "domestic" and "venue" not in out["ticket"]
@@ -309,7 +347,7 @@ def test_run_place_order_real_accept_executes():
     from kis_trader.mcp.server import run_place_order
     kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
     out = asyncio.run(run_place_order(
-        kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), CircuitBreaker(),
+        _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"005930"}), CircuitBreaker(),
         _AcceptCtx(), region="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
     assert out["sent"] is True and len(t.calls) == 1
 
@@ -319,7 +357,7 @@ def test_run_place_order_real_decline_no_wire():
     from kis_trader.mcp.server import run_place_order
     kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
     out = asyncio.run(run_place_order(
-        kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), CircuitBreaker(),
+        _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"005930"}), CircuitBreaker(),
         _DeclineCtx(), region="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
     assert out["sent"] is False and t.calls == []      # 확인 거부 -> 전송 안 함
 
@@ -330,7 +368,7 @@ def test_run_place_order_real_gate_closed_raises():
     kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
     with pytest.raises(KISUsageError, match="KIS_MCP_ALLOW_REAL"):
         asyncio.run(run_place_order(
-            kis, RealOrderGate.from_env({}, "real"), frozenset({"005930"}), CircuitBreaker(),
+            _snap(kis, RealOrderGate.from_env({}, "real")), frozenset({"005930"}), CircuitBreaker(),
             _AcceptCtx(), region="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
     assert t.calls == []                               # 게이트 닫힘 -> 와이어 전 거부
 
@@ -341,7 +379,7 @@ def test_run_place_order_real_no_risk_raises():
     kis, t = _order_client("real", risk=None)          # 캡 미설정
     with pytest.raises(KISUsageError, match="RiskLimits"):
         asyncio.run(run_place_order(
-            kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), CircuitBreaker(),
+            _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"005930"}), CircuitBreaker(),
             _AcceptCtx(), region="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
     assert t.calls == []                               # fail-closed
 
@@ -355,7 +393,7 @@ def test_run_place_order_breaker_halted_refuses():
         breaker.record_and_check()                     # HALT
     kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
     out = asyncio.run(run_place_order(
-        kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), breaker,
+        _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"005930"}), breaker,
         _AcceptCtx(), region="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
     assert out["sent"] is False and "HALT" in out["reason"] and t.calls == []
 
@@ -422,7 +460,7 @@ def test_run_place_order_real_allowlist_miss_no_wire():
     kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
     with pytest.raises(KISUsageError, match="allowlist"):
         asyncio.run(run_place_order(
-            kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), CircuitBreaker(),
+            _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"005930"}), CircuitBreaker(),
             _AcceptCtx(), region="domestic", symbol="000660", side="buy", quantity=1, limit_price="100000"))
     assert t.calls == []
 
@@ -433,7 +471,7 @@ def test_run_cancel_order_real_decline_no_wire():
     from kis_trader.mcp.server import run_cancel_order
     kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
     out = asyncio.run(run_cancel_order(
-        kis, RealOrderGate.from_env(_REAL_ENV, "real"), CircuitBreaker(), _DeclineCtx(),
+        _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), CircuitBreaker(), _DeclineCtx(),
         client_order_id="20260101-abc"))
     assert out["sent"] is False and t.calls == []
 
@@ -446,19 +484,14 @@ def test_run_place_order_breaker_trips_this_order_no_wire():
     breaker.record_and_check()                         # count=1 (아직 halted 아님)
     kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
     out = asyncio.run(run_place_order(
-        kis, RealOrderGate.from_env(_REAL_ENV, "real"), frozenset({"005930"}), breaker,
+        _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"005930"}), breaker,
         _AcceptCtx(), region="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
     assert out["sent"] is False and "HALT" in out["reason"] and t.calls == []
 
 
-def test_build_server_rejects_env_mismatch():
-    # split-brain 차단: 게이트 환경 != 클라이언트 환경이면 서버 생성 거부(직접 조립 경로 방어).
-    pytest.importorskip("mcp")
-    from kis_trader.mcp.server import build_server
-    kis, _ = _order_client("paper")
-    with pytest.raises(KISUsageError, match="split-brain"):
-        build_server(kis, gate=RealOrderGate.from_env(_REAL_ENV, "real"),
-                     allowlist=frozenset({"005930"}), breaker=CircuitBreaker())
+# split-brain 차단(게이트 환경 != 클라이언트 환경)은 이제 McpSession.order_snapshot 생성 시점에
+# 재단언된다 -- test_mcp_session::test_s3_* 가 방문 슬롯마다 환경 일치를 전수 고정하고,
+# test_mcp_session::test_order_snapshot_rejects_env_mismatch 가 어긋난 build 를 거부함을 확인한다.
 
 
 # --- 통합: cancel/modify execute(paper, 주문 시드 후) -- 공유 _authorize_order 경로 집행 확인 ---
@@ -468,7 +501,7 @@ def test_run_cancel_order_paper_executes():
     kis, t = _order_client("paper")
     seed = kis.domestic.stock("005930").buy(quantity=1)        # 주문 1건 시드(store 기록)
     out = asyncio.run(run_cancel_order(
-        kis, RealOrderGate.from_env({}, "paper"), CircuitBreaker(), _AcceptCtx(),
+        _snap(kis, RealOrderGate.from_env({}, "paper")), CircuitBreaker(), _AcceptCtx(),
         client_order_id=seed.client_order_id))
     assert out["sent"] is True
     assert len(t.calls) >= 2                                   # place(시드) + cancel 와이어
@@ -480,10 +513,344 @@ def test_run_modify_order_paper_executes():
     kis, t = _order_client("paper")
     seed = kis.domestic.stock("005930").buy(quantity=1, limit_price="70000")
     out = asyncio.run(run_modify_order(
-        kis, RealOrderGate.from_env({}, "paper"), None, CircuitBreaker(), _AcceptCtx(),
+        _snap(kis, RealOrderGate.from_env({}, "paper")), None, CircuitBreaker(), _AcceptCtx(),
         client_order_id=seed.client_order_id, limit_price="71000"))
     assert out["sent"] is True
     assert len(t.calls) >= 2                                   # place(시드) + modify 와이어
     # 티켓이 원주문 종목/매수매도를 보여준다(사람이 '어느 종목 정정'인지 확인 가능).
     assert out["ticket"]["symbol"] == "005930"
     assert out["ticket"]["side"] == "buy"
+
+
+# --- 해외 주문 라우팅 + 통화 캡 (plan + e2e) --------------------------------
+def test_plan_place_overseas_real_requires_currency_cap():
+    # 해외 실전은 결제통화 한도가 없으면 와이어 전에 거부(통화 이름을 담아). 있으면 통과.
+    with pytest.raises(KISUsageError, match="KIS_MCP_MAX_ORDER_NOTIONAL_USD"):
+        plan_place_order(_REAL, frozenset({"AAPL"}), has_risk=True, capped_currencies=frozenset(),
+                         region="overseas", symbol="AAPL", side="buy", quantity=1,
+                         limit_price="150", exchange="NAS")
+    plan = plan_place_order(_REAL, frozenset({"AAPL"}), has_risk=True,
+                            capped_currencies=frozenset({"USD"}), region="overseas", symbol="AAPL",
+                            side="buy", quantity=1, limit_price="150", exchange="NAS")
+    assert plan.region == "overseas" and plan.exchange == "NAS"
+
+
+def test_plan_place_overseas_paper_needs_no_cap():
+    # 모의 해외는 캡 선검사 대상 아님(gate.is_real() False).
+    plan = plan_place_order(_PAPER, None, has_risk=False, capped_currencies=frozenset(),
+                            region="overseas", symbol="AAPL", side="buy", quantity=1,
+                            limit_price="150", exchange="NAS")
+    assert plan.region == "overseas"
+
+
+def test_run_place_order_overseas_paper_routes_to_overseas_buy():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("paper")
+    out = asyncio.run(run_place_order(
+        _snap(kis, RealOrderGate.from_env({}, "paper")), None, CircuitBreaker(), _AcceptCtx(),
+        frozenset(), region="overseas", symbol="AAPL", side="buy", quantity=1,
+        limit_price="1.00", exchange="NAS"))
+    assert out["sent"] is True
+    assert out["ticket"]["region"] == "overseas" and out["ticket"]["exchange"] == "NAS"
+    assert len(t.calls) == 1 and t.calls[0]["tr_id"] == "VTTT1002U"   # 미국 매수 모의 TR
+
+
+def test_run_place_order_overseas_real_full_gated_sends():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("real", risk=RiskLimits(max_order_notional_by_currency={"USD": "1000000"}))
+    out = asyncio.run(run_place_order(
+        _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"AAPL"}), CircuitBreaker(),
+        _AcceptCtx(), frozenset({"USD"}), region="overseas", symbol="AAPL", side="buy", quantity=1,
+        limit_price="1.00", exchange="NAS"))
+    assert out["sent"] is True
+    assert out["ticket"]["region"] == "overseas" and out["ticket"]["exchange"] == "NAS"
+    assert len(t.calls) == 1 and t.calls[0]["tr_id"] == "TTTT1002U"   # 미국 매수 실전 TR
+
+
+def test_run_place_order_overseas_real_missing_cap_no_wire():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("real", risk=RiskLimits(max_order_notional_by_currency={"JPY": "1000000"}))
+    with pytest.raises(KISUsageError, match="KIS_MCP_MAX_ORDER_NOTIONAL_USD"):
+        asyncio.run(run_place_order(
+            _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"AAPL"}),
+            CircuitBreaker(), _AcceptCtx(), frozenset({"JPY"}), region="overseas", symbol="AAPL",
+            side="buy", quantity=1, limit_price="1.00", exchange="NAS"))
+    assert t.calls == []                                   # early fail-closed -- 와이어 전 거부
+
+
+def test_run_place_order_overseas_real_no_risk_no_wire():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("real", risk=None)
+    with pytest.raises(KISUsageError, match="RiskLimits"):
+        asyncio.run(run_place_order(
+            _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"AAPL"}),
+            CircuitBreaker(), _AcceptCtx(), frozenset(), region="overseas", symbol="AAPL",
+            side="buy", quantity=1, limit_price="1.00", exchange="NAS"))
+    assert t.calls == []
+
+
+def test_run_place_order_overseas_real_allowlist_miss_no_wire():
+    # 해외도 국내와 같이 실전 allowlist 미스면 와이어 전 거부(통화캡은 통과시키고 allowlist 에서 막힘).
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("real", risk=RiskLimits(max_order_notional_by_currency={"USD": "1000000"}))
+    with pytest.raises(KISUsageError, match="allowlist"):
+        asyncio.run(run_place_order(
+            _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"AAPL"}),
+            CircuitBreaker(), _AcceptCtx(), frozenset({"USD"}), region="overseas", symbol="MSFT",
+            side="buy", quantity=1, limit_price="1.00", exchange="NAS"))
+    assert t.calls == []
+
+
+def test_run_place_order_overseas_real_decline_no_wire():
+    # 해외도 국내와 같이 사람 확인 거부면 미전송.
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("real", risk=RiskLimits(max_order_notional_by_currency={"USD": "1000000"}))
+    out = asyncio.run(run_place_order(
+        _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"AAPL"}),
+        CircuitBreaker(), _DeclineCtx(), frozenset({"USD"}), region="overseas", symbol="AAPL",
+        side="buy", quantity=1, limit_price="1.00", exchange="NAS"))
+    assert out["sent"] is False and t.calls == []
+
+
+# --- order_preview: 해외 + 정직한 선거부 ------------------------------------
+def test_order_preview_overseas_shows_region_exchange_not_sent():
+    from kis_trader.mcp.handlers import order_preview
+    kis = SimpleNamespace(environment="paper", _account="12345678-01")
+    out = order_preview(kis, frozenset(), symbol="AAPL", side="buy", quantity=1,
+                        limit_price="150", region="overseas", exchange="NAS")
+    assert out["sent"] is False and out["region"] == "overseas" and out["exchange"] == "NAS"
+    assert out["order_type"] == "limit" and out["division"] is None
+
+
+def test_order_preview_overseas_real_honest_early_cap_rejection():
+    from kis_trader.mcp.handlers import order_preview
+    kis = SimpleNamespace(environment="real", _account="12345678-01")
+    with pytest.raises(KISUsageError, match="KIS_MCP_MAX_ORDER_NOTIONAL_USD"):
+        order_preview(kis, frozenset(), symbol="AAPL", side="buy", quantity=1,
+                      limit_price="150", region="overseas", exchange="NAS")
+
+
+# --- 주문 프로필 게이트 (C7): 전환해도 general 아니면 주문 거부, 와이어 0 ----
+@pytest.mark.parametrize("profile", ["isa", "pension", "irp"])
+def test_order_refused_for_non_general_profile_no_wire(profile):
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_cancel_order, run_modify_order, run_place_order
+    kis, t = _order_client("paper")
+    snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile=profile)
+    with pytest.raises(KISUsageError, match="general"):
+        asyncio.run(run_place_order(snap, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
+                                    region="domestic", symbol="005930", side="buy", quantity=1))
+    with pytest.raises(KISUsageError, match="general"):
+        asyncio.run(run_cancel_order(snap, CircuitBreaker(), _AcceptCtx(), client_order_id="x"))
+    with pytest.raises(KISUsageError, match="general"):
+        asyncio.run(run_modify_order(snap, None, CircuitBreaker(), _AcceptCtx(),
+                                     client_order_id="x", limit_price="100"))
+    assert t.calls == []
+
+
+# --- 주문 상품코드 게이트 (C7 방어심층): general 이어도 상품코드 01 아니면 세 도구 거부, 와이어 0 ----
+def test_order_refused_for_general_but_wrong_product_no_wire():
+    # general 프로필이어도 계좌 상품코드가 01(위탁) 이 아니면(예: 연금저축 22) 세 주문 도구 모두 거부.
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_cancel_order, run_modify_order, run_place_order
+    kis, t = _order_client("paper", account="12345678-22")   # StockAccount 지만 상품코드 22
+    snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile="general")
+    with pytest.raises(KISUsageError, match="01"):
+        asyncio.run(run_place_order(snap, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
+                                    region="domestic", symbol="005930", side="buy", quantity=1))
+    with pytest.raises(KISUsageError, match="01"):
+        asyncio.run(run_cancel_order(snap, CircuitBreaker(), _AcceptCtx(), client_order_id="x"))
+    with pytest.raises(KISUsageError, match="01"):
+        asyncio.run(run_modify_order(snap, None, CircuitBreaker(), _AcceptCtx(),
+                                     client_order_id="x", limit_price="100"))
+    assert t.calls == []
+
+
+# --- 직접-자격증명 기동(profile=None): 이름 게이트 건너뛰고 상품코드 01 검사만 ------------
+def test_order_direct_cred_product_01_passes_name_gate():
+    # profile=None + 상품코드 01 + StockAccount -> 이름 게이트 건너뛰고 통상 게이트로 진행(모의 전송).
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("paper", account="12345678-01")
+    snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile=None)
+    out = asyncio.run(run_place_order(snap, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
+                                      region="domestic", symbol="005930", side="buy", quantity=1))
+    assert out["sent"] is True and len(t.calls) == 1
+
+
+def test_order_direct_cred_wrong_product_refused_no_wire():
+    # profile=None + 상품코드 29(IRP 조회전용) -> 이름 게이트는 건너뛰어도 상품코드 01 검사에서 거부.
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("paper", account="12345678-29")
+    snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile=None)
+    with pytest.raises(KISUsageError, match="01"):
+        asyncio.run(run_place_order(snap, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
+                                    region="domestic", symbol="005930", side="buy", quantity=1))
+    assert t.calls == []
+
+
+def test_order_direct_cred_non_stock_account_refused():
+    # profile=None + 비-StockAccount 뷰(파생) -> is_order_eligible_account False 로 거부(방어심층 isinstance 분기).
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+
+    class _NonStockClient:
+        environment = "paper"
+        _account = "12345678-03"
+
+        @property
+        def account(self):
+            return SimpleNamespace(product_code="03")    # StockAccount 아님
+
+    snap = OrderSnapshot(profile=None, environment="paper", client=_NonStockClient(),
+                         gate=RealOrderGate.from_env({}, "paper"))
+    with pytest.raises(KISUsageError, match="주문 대상"):
+        asyncio.run(run_place_order(snap, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
+                                    region="domestic", symbol="005930", side="buy", quantity=1))
+
+
+# --- order_preview 프로필 게이트 parity (place 와 같은 검증) ------------------
+def test_run_order_preview_refused_under_non_general_profile():
+    # preview 는 place_order 와 같은 주문 프로필 게이트를 거친다 -- general 아니면 미리보기도 거부.
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_order_preview
+    kis, _ = _order_client("paper")
+    snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile="pension")
+    with pytest.raises(KISUsageError, match="general"):
+        run_order_preview(snap, frozenset(), symbol="005930", side="buy", quantity=1, limit_price="100")
+
+
+# --- C9: 다른 슬롯에서 낸 cid 를 활성 슬롯에서 취소하면 깔끔한 에러, 와이어 0 --
+def test_cancel_unknown_cid_on_active_slot_clean_error_no_wire():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_cancel_order
+    kis, t = _order_client("paper")        # 이 슬롯 저장소엔 이 cid 가 없다(다른 슬롯에서 냈다고 가정)
+    with pytest.raises(KISUsageError):
+        asyncio.run(run_cancel_order(
+            _snap(kis, RealOrderGate.from_env({}, "paper")), CircuitBreaker(), _AcceptCtx(),
+            client_order_id="unknown-20260101-abc"))
+    assert t.calls == []                   # 저장소 미보유 cid -> 와이어 전 거부
+
+
+# --- 환경변수 통화별 캡 파싱(해외) -------------------------------------------
+def test_notional_by_currency_env_single_and_multi():
+    from kis_trader.mcp.server import _notional_by_currency_from_env
+    assert _notional_by_currency_from_env({"KIS_MCP_MAX_ORDER_NOTIONAL_USD": "10000"}) == {"USD": "10000"}
+    multi = _notional_by_currency_from_env(
+        {"KIS_MCP_MAX_ORDER_NOTIONAL_USD": "10000", "KIS_MCP_MAX_ORDER_NOTIONAL_JPY": "1500000"})
+    assert multi == {"USD": "10000", "JPY": "1500000"}
+
+
+def test_notional_by_currency_env_boundary_and_empty():
+    from kis_trader.mcp.server import _notional_by_currency_from_env
+    # 접두어 없는 국내(KRW) 한도는 통화 맵으로 새지 않는다(경계).
+    assert _notional_by_currency_from_env({"KIS_MCP_MAX_ORDER_NOTIONAL": "5000000"}) == {}
+    # 빈 값은 건너뛴다.
+    assert _notional_by_currency_from_env({"KIS_MCP_MAX_ORDER_NOTIONAL_USD": ""}) == {}
+
+
+def test_build_risk_from_env_wires_by_currency_and_keeps_krw():
+    from kis_trader.mcp.server import _build_risk_from_env
+    risk = _build_risk_from_env({"KIS_MCP_MAX_ORDER_NOTIONAL": "5000000",
+                                 "KIS_MCP_MAX_ORDER_NOTIONAL_USD": "10000"})
+    assert str(risk.max_order_notional) == "5000000"
+    assert set(risk.max_order_notional_by_currency) == {"USD"}
+
+
+def test_build_risk_from_env_empty_suffix_and_nonnumeric_reject():
+    from kis_trader.mcp.server import _build_risk_from_env
+    with pytest.raises(KISUsageError):      # 빈 통화 키 -> RiskLimits 거부
+        _build_risk_from_env({"KIS_MCP_MAX_ORDER_NOTIONAL_": "10000"})
+    with pytest.raises(KISUsageError):      # 비숫자 값 -> RiskLimits 거부
+        _build_risk_from_env({"KIS_MCP_MAX_ORDER_NOTIONAL_USD": "abc"})
+
+
+def test_build_risk_from_env_none_when_unset():
+    from kis_trader.mcp.server import _build_risk_from_env
+    assert _build_risk_from_env({}) is None
+
+
+# --- 안전 불변 e2e (S4-S7): 전환이 실주문 언락을 못 건드린다 -------------------
+def _slot_session(startup_env="paper", *, risk=None, flags=False, profile="general"):
+    """실제 McpSession(슬롯마다 KISClient+FakeTransport)를 만들고 (session, transports) 를 돌려준다.
+    flags=True 면 기동 언락(ALLOW_REAL+REAL_CONFIRM)이 켜진 상태로 얼린다."""
+    transports: dict[tuple, _FakeTransport] = {}
+
+    def build(p, e):
+        transport = _FakeTransport(e)
+        transports[(p, e)] = transport
+        kis = KISClient(app_key="k", app_secret="s", account="12345678-01",
+                        environment=e, transport=transport, risk=risk)
+        return kis
+
+    startup = build(profile, startup_env)
+    env = _REAL_ENV if flags else {}
+    auth = _StartupAuthorization.from_env(env)
+    session = McpSession(profile=profile, environment=startup_env, startup_client=startup,
+                         auth=auth, build=build)
+    return session, transports
+
+
+def test_s4_switch_to_real_without_flags_order_refused_zero_wire():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    session, transports = _slot_session("paper", flags=False)
+    session.use_environment("real")                        # 읽기 맥락만 real 로
+    assert session.read_client().environment == "real"     # 읽기는 열림(맥락 전환됨)
+    with pytest.raises(KISUsageError, match="KIS_MCP_ALLOW_REAL"):
+        asyncio.run(run_place_order(session.order_snapshot(), frozenset({"005930"}),
+                                    CircuitBreaker(), _AcceptCtx(), frozenset(), region="domestic",
+                                    symbol="005930", side="buy", quantity=1, limit_price="70000"))
+    assert transports[("general", "real")].calls == []     # 전환해도 실주문 와이어 0
+
+
+def test_s5_switch_to_real_with_flags_decline_zero_wire():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    session, transports = _slot_session("paper", flags=True,
+                                        risk=RiskLimits(max_order_quantity=1000))
+    session.use_environment("real")
+    out = asyncio.run(run_place_order(session.order_snapshot(), frozenset({"005930"}),
+                                      CircuitBreaker(), _DeclineCtx(), frozenset(), region="domestic",
+                                      symbol="005930", side="buy", quantity=1, limit_price="70000"))
+    assert out["sent"] is False and transports[("general", "real")].calls == []
+
+
+def test_s6_switch_to_real_with_flags_accept_sends():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    session, transports = _slot_session("paper", flags=True,
+                                        risk=RiskLimits(max_order_quantity=1000))
+    session.use_environment("real")
+    out = asyncio.run(run_place_order(session.order_snapshot(), frozenset({"005930"}),
+                                      CircuitBreaker(), _AcceptCtx(), frozenset(), region="domestic",
+                                      symbol="005930", side="buy", quantity=1, limit_price="70000"))
+    assert out["sent"] is True and len(transports[("general", "real")].calls) == 1
+
+
+def test_s7_switch_during_elicitation_executes_on_snapshotted_client():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    session, transports = _slot_session("real", flags=True,
+                                        risk=RiskLimits(max_order_quantity=1000))
+
+    class _SwitchDuringElicit:
+        async def elicit(self, message, schema):
+            from mcp.server.elicitation import AcceptedElicitation
+            session.use_environment("paper")               # 집행 중(elicitation) 동시 전환
+            return AcceptedElicitation(data=schema(confirm=True))
+
+    snap = session.order_snapshot()                        # real 슬롯을 얼려 든다
+    out = asyncio.run(run_place_order(snap, frozenset({"005930"}), CircuitBreaker(),
+                                      _SwitchDuringElicit(), frozenset(), region="domestic",
+                                      symbol="005930", side="buy", quantity=1, limit_price="70000"))
+    assert out["sent"] is True
+    assert len(transports[("general", "real")].calls) == 1  # 스냅샷의 real 클라이언트로 집행
+    assert ("general", "paper") not in transports or transports[("general", "paper")].calls == []

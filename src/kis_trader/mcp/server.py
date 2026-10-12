@@ -2,20 +2,26 @@
 
 ``mcp`` 패키지(선택 의존성)를 요구한다: ``pip install 'kis-trader[mcp]'``. 실행은 ``kis-mcp`` 콘솔
 스크립트 또는 ``python -m kis_trader.mcp.server``. 자격증명은 **환경변수/프로필에서만** 읽고 절대
-출력하지 않는다. 기본 환경은 ``paper`` -- ``real`` 은 ``KIS_MCP_ENVIRONMENT=real`` 로 명시할 때만.
+출력하지 않는다. 기동 환경은 ``paper`` 기본 -- ``real`` 은 ``KIS_MCP_ENVIRONMENT=real`` 로 명시할 때만.
 
-노출 도구: 읽기(``quote``·``search``·``ranking_change``·``balance``·``positions``·``open_orders``) +
-``order_preview``(dry-run) + ``reconcile`` + **실주문**(``place_order``·``cancel_order``·``modify_order``).
-실주문은 **모의 기본**이고, 실전은 이중게이트(``KIS_MCP_ALLOW_REAL`` + ``KIS_MCP_REAL_CONFIRM``) +
+노출 도구: 읽기(``quote``·``search``·``ranking_change``·``balance``·``positions``·``open_orders``·
+``reconcile``) + 런타임 전환(``use_environment``·``use_profile``·``current_account``) + ``order_preview``
+(dry-run) + **실주문**(``place_order``·``cancel_order``·``modify_order``). 읽기 도구는 활성
+``(profile, environment)`` 슬롯을 호출 시점에 쓴다 -- ``use_profile``/``use_environment`` 로 **재시작 없이**
+읽는 계좌/환경을 바꾼다(저장 프로필 기동일 때; 직접-자격증명 기동은 고정 슬롯이라 전환 도구가 거부한다).
+
+**안전 불변**: 런타임 전환은 **읽기 맥락만** 바꾼다. 활성 환경을 real 로 바꿔도 실주문은 열리지 않는다
+-- 실주문은 변함없이 **기동 시** 이중게이트(``KIS_MCP_ALLOW_REAL`` + ``KIS_MCP_REAL_CONFIRM``) +
 RiskLimits(fail-closed 캡) + 종목 allowlist + **사람 확인(elicitation)** + 세션 서킷브레이커를 전부
-통과해야 전송된다. 주문 파라미터는 사람이 직접 주고 확인한다(읽기 도구 결과를 인자로 받지 않는다 -- taint 경계).
+통과해야 전송된다. 주문은 또한 활성 프로필이 위탁(general·상품코드 01)일 때만 가능하다(연금/ISA/IRP/해외
+계좌는 조회만). 주문 파라미터는 사람이 직접 주고 확인한다(읽기 도구 결과를 인자로 받지 않는다 -- taint 경계).
 """
 
 from __future__ import annotations
 
 import os
 import sys
-from typing import Any
+from typing import Any, Literal
 
 import anyio
 from mcp.server.mcpserver import MCPServer
@@ -32,6 +38,21 @@ from . import handlers
 from ._elicit import SupportsElicit, confirm_order
 from ._guardrails import CircuitBreaker, RealOrderGate, StockOrderPlan
 from ._http_auth import BearerTokenMiddleware
+from ._policy import (
+    _ORDER_ENABLED_PROFILES,
+    SwitchableProfile,
+    _account_masked,
+    is_order_eligible_account,
+)
+from ._session import (
+    ClientBuilder,
+    McpSession,
+    OrderSnapshot,
+    _StartupAuthorization,
+)
+
+#: ``quote`` 의 세션 선택자 -- 정규장(regular)/시간외 단일가(after_hours, 국내 전용).
+Session = Literal["regular", "after_hours"]
 
 
 def _int_env(environ: dict[str, str], name: str, default: int) -> int:
@@ -52,6 +73,23 @@ def _access_token(environ: dict[str, str]) -> str | None:
     return token or None
 
 
+#: 해외 통화별 금액 한도 환경변수 접두어 -- ``KIS_MCP_MAX_ORDER_NOTIONAL_USD`` 처럼 뒤에 통화(ISO)를
+#: 붙인다. 국내(KRW) 한도 ``KIS_MCP_MAX_ORDER_NOTIONAL`` 은 이 접두어보다 **짧아**(끝 밑줄 없음)
+#: ``startswith`` 에 걸리지 않으므로 통화 맵으로 새지 않는다(경계 안전).
+_NOTIONAL_CCY_PREFIX = "KIS_MCP_MAX_ORDER_NOTIONAL_"
+
+
+def _notional_by_currency_from_env(environ: dict[str, str]) -> dict[str, str]:
+    """``KIS_MCP_MAX_ORDER_NOTIONAL_<CCY>`` 들을 ``{통화: 값}`` 으로 모은다(해외 주문 통화별 캡).
+    빈 값은 건너뛴다(미설정 취급). 통화 정규화(대문자)·양수·중복/빈 키 검증은 단일 출처인
+    :meth:`~kis_trader.risk.RiskLimits.__post_init__` 가 한다(여기선 원 맵만 모은다)."""
+    out: dict[str, str] = {}
+    for key, value in environ.items():
+        if key.startswith(_NOTIONAL_CCY_PREFIX) and value.strip():
+            out[key[len(_NOTIONAL_CCY_PREFIX):]] = value
+    return out
+
+
 def _build_risk_from_env(environ: dict[str, str]) -> RiskLimits | None:
     """MCP 캡 환경변수로 RiskLimits 를 만든다(하나도 없으면 None). 실전에서 None 이면 실주문은
     fail-closed 로 거부된다(관례: 캡은 사용자 설정, 미설정=거부)."""
@@ -60,6 +98,8 @@ def _build_risk_from_env(environ: dict[str, str]) -> RiskLimits | None:
         kwargs["max_order_quantity"] = _int_env(environ, "KIS_MCP_MAX_ORDER_QTY", 0)
     if value := environ.get("KIS_MCP_MAX_ORDER_NOTIONAL"):
         kwargs["max_order_notional"] = value
+    if by_ccy := _notional_by_currency_from_env(environ):
+        kwargs["max_order_notional_by_currency"] = by_ccy
     if value := environ.get("KIS_MCP_PRICE_COLLAR_PCT"):
         kwargs["price_collar_percent"] = value
     return RiskLimits(**kwargs) if kwargs else None
@@ -129,18 +169,42 @@ def build_client() -> KISClient:
     )
 
 
+def _require_order_profile(snapshot: OrderSnapshot) -> None:
+    """주문(place/cancel/modify)은 활성 프로필이 위탁(general) + 상품코드 01 주식 계좌일 때만 연다.
+    전환해 연 연금/ISA/IRP/해외 맥락에서는 주문 경로가 열리지 않는다(읽기 전용). 직접-자격증명 기동
+    (``profile=None``)은 기동 운영자 슬롯이라 이름 게이트는 건너뛰고 상품코드 01 검사만 한다. 파생
+    계좌는 ``kis.account`` 가 StockAccount 가 아니라 여기서 거부된다(방어심층)."""
+    profile = snapshot.profile
+    if profile is not None and profile not in _ORDER_ENABLED_PROFILES:
+        raise KISUsageError(
+            f"주문은 general(위탁) 계좌에서만 가능하다 -- 현재 프로필: {profile}. "
+            "연금/ISA/IRP/해외 계좌는 MCP 에서 조회만 된다(use_profile('general') 로 바꾸라)."
+        )
+    account = snapshot.client.account  # 파생 뷰면 StockAccount 가 아니다 -- 아래에서 거부(방어심층)
+    if not is_order_eligible_account(account):  # 위탁(상품코드 01) 주식 계좌만 -- 해외-조회 게이트와 공유
+        product = getattr(account, "product_code", type(account).__name__)
+        raise KISUsageError(
+            f"주문은 위탁(상품코드 01) 주식 계좌에서만 가능하다 -- 현재 계좌는 주문 대상이 아니다({product})."
+        )
+
+
 def _execute_stock_order(kis: KISClient, plan: StockOrderPlan) -> Any:
-    """검증된 plan 을 라이브러리 buy/sell 로 집행한다(동기). MVP 는 국내 주식만(plan.region=domestic)."""
-    handle = kis.domestic.stock(plan.symbol)
-    method = handle.buy if plan.side == "buy" else handle.sell
+    """검증된 plan 을 라이브러리 buy/sell 로 집행한다(동기). 국내는 종목 기본 거래소, 해외는 plan.exchange
+    로 라우팅한다(해외는 지정가 전용이라 limit_price 가 항상 있다)."""
+    if plan.region == "overseas":
+        handle = kis.overseas.stock(plan.symbol, exchange=plan.exchange)
+        method = handle.buy if plan.side == "buy" else handle.sell
+        return method(quantity=plan.quantity, limit_price=plan.limit_price)
+    domestic_handle = kis.domestic.stock(plan.symbol)
+    domestic_method = domestic_handle.buy if plan.side == "buy" else domestic_handle.sell
     if plan.limit_price is not None:
-        return method(quantity=plan.quantity, limit_price=plan.limit_price, division=plan.division)
-    return method(quantity=plan.quantity, division=plan.division)
+        return domestic_method(quantity=plan.quantity, limit_price=plan.limit_price, division=plan.division)
+    return domestic_method(quantity=plan.quantity, division=plan.division)
 
 
 def _order_ticket(kis: KISClient, **fields: Any) -> dict[str, Any]:
     """elicitation echo + 반환용 티켓(환경·마스킹 계좌 + 주문 필드)."""
-    return {"environment": kis.environment, "account": handlers._account_masked(kis), **fields}
+    return {"environment": kis.environment, "account": _account_masked(kis), **fields}
 
 
 def _order_identity(kis: KISClient, client_order_id: str) -> tuple[str, Side] | None:
@@ -174,18 +238,24 @@ async def _authorize_order(ctx: SupportsElicit, ticket: dict[str, Any], gate: Re
 
 
 async def run_place_order(
-    kis: KISClient, gate: RealOrderGate, allowlist: frozenset[str] | None, breaker: CircuitBreaker,
-    ctx: SupportsElicit, *, region: str, symbol: str, side: str, quantity: int,
-    limit_price: str | None = None, division: str | None = None,
+    snapshot: OrderSnapshot, allowlist: frozenset[str] | None, breaker: CircuitBreaker,
+    ctx: SupportsElicit, capped_currencies: frozenset[str] = frozenset(), *,
+    region: str, symbol: str, side: str, quantity: int,
+    limit_price: str | None = None, division: str | None = None, exchange: str | None = None,
 ) -> dict[str, Any]:
-    """place_order 본체(테스트 가능). 가드레일 선검증 -> (실전) 사람 확인 -> 집행. MVP 는 국내 주식만."""
+    """place_order 본체(테스트 가능). 주문 프로필 게이트 -> 가드레일 선검증(이중게이트·RiskLimits·
+    해외 통화캡·allowlist) -> (실전) 사람 확인 -> 집행. 활성 맥락은 호출부가 뜬 ``snapshot`` 에 얼려 들어
+    있어, 집행 중 동시 전환이 대상 계좌/환경을 바꾸지 못한다."""
+    _require_order_profile(snapshot)
+    kis, gate = snapshot.client, snapshot.gate
     plan = handlers.plan_place_order(
-        gate, allowlist, kis.has_risk_limits, region=region, symbol=symbol, side=side,
-        quantity=quantity, limit_price=limit_price, division=division,
+        gate, allowlist, kis.has_risk_limits, capped_currencies, region=region, symbol=symbol,
+        side=side, quantity=quantity, limit_price=limit_price, division=division, exchange=exchange,
     )
     ticket = _order_ticket(kis, action="place", region=plan.region, symbol=plan.symbol, side=plan.side,
                            order_type=plan.order_type, quantity=plan.quantity, limit_price=plan.limit_price,
-                           division=plan.division)
+                           division=plan.division,
+                           **({"exchange": plan.exchange} if plan.region == "overseas" else {}))
     refusal = await _authorize_order(ctx, ticket, gate, breaker)
     if refusal is not None:
         return refusal
@@ -194,9 +264,11 @@ async def run_place_order(
 
 
 async def run_cancel_order(
-    kis: KISClient, gate: RealOrderGate, breaker: CircuitBreaker, ctx: SupportsElicit, *,
+    snapshot: OrderSnapshot, breaker: CircuitBreaker, ctx: SupportsElicit, *,
     client_order_id: str,
 ) -> dict[str, Any]:
+    _require_order_profile(snapshot)
+    kis, gate = snapshot.client, snapshot.gate
     cid = handlers.plan_cancel_order(gate, client_order_id=client_order_id)
     identity = _order_identity(kis, cid)
     ticket = _order_ticket(kis, action="cancel", client_order_id=cid,
@@ -209,9 +281,11 @@ async def run_cancel_order(
 
 
 async def run_modify_order(
-    kis: KISClient, gate: RealOrderGate, allowlist: frozenset[str] | None, breaker: CircuitBreaker,
+    snapshot: OrderSnapshot, allowlist: frozenset[str] | None, breaker: CircuitBreaker,
     ctx: SupportsElicit, *, client_order_id: str, limit_price: str, quantity: int | None = None,
 ) -> dict[str, Any]:
+    _require_order_profile(snapshot)
+    kis, gate = snapshot.client, snapshot.gate
     identity = _order_identity(kis, client_order_id)
     plan = handlers.plan_modify_order(
         gate, kis.has_risk_limits, allowlist, client_order_id=client_order_id,
@@ -231,29 +305,50 @@ async def run_modify_order(
     return {"sent": True, "ticket": ticket, "report": handlers._serialize(report)}
 
 
+def run_order_preview(
+    snapshot: OrderSnapshot, capped_currencies: frozenset[str], *,
+    symbol: str, side: Side, quantity: int, limit_price: str | None = None,
+    division: DomesticDivision | None = None, region: Region = "domestic",
+    exchange: str | None = None,
+) -> dict[str, Any]:
+    """order_preview 본체(테스트 가능). place_order 와 같은 주문 프로필 게이트(general + 상품코드 01)를
+    먼저 적용해 -- place_order 라면 프로필 게이트에서 거부됐을 맥락(연금/ISA/IRP/해외/파생)에서는 미리보기도
+    성공하지 못하게 한다(preview 의 'place 와 같은 검증' 약속 준수). 전송은 하지 않는다(``sent: false``)."""
+    _require_order_profile(snapshot)
+    return handlers.order_preview(
+        snapshot.client, capped_currencies, symbol=symbol, side=side, quantity=quantity,
+        limit_price=limit_price, division=division, region=region, exchange=exchange,
+    )
+
+
 def build_server(
-    kis: KISClient, *, gate: RealOrderGate, allowlist: frozenset[str] | None, breaker: CircuitBreaker
+    account_session: McpSession, *, allowlist: frozenset[str] | None, breaker: CircuitBreaker,
+    capped_currencies: frozenset[str],
 ) -> MCPServer:
-    """주어진 KISClient·가드레일을 소비하는 MCP 서버(MCPServer)를 만들어 도구를 등록한다."""
-    if gate.environment != kis.environment:
-        raise KISUsageError(
-            f"게이트 환경({gate.environment!r})과 클라이언트 환경({kis.environment!r})이 어긋난다 -- "
-            "split-brain(모의 게이트 + 실전 소켓) 차단."
-        )
+    """주어진 :class:`~kis_trader.mcp._session.McpSession` 과 가드레일을 소비하는 MCP 서버를 만들어
+    도구를 등록한다. 읽기 도구는 호출 시점에 활성 슬롯(``account_session.read_client()``)을 쓰고, 주문
+    도구는 await 이전에 ``account_session.order_snapshot()`` 으로 활성 맥락을 한 번 얼려 든다(split-brain
+    가드가 그 스냅샷 생성 시점에 환경 일치를 재단언한다). ``capped_currencies`` 는 해외 실전 주문의
+    통화별 금액 한도 집합(:class:`~kis_trader.risk.RiskLimits` 에 설정된 통화들)으로, 해외 실전 주문/
+    미리보기의 선거부에 쓴다. (내부 변수명은 ``account_session`` -- ``quote`` 도구가 노출하는 ``session``
+    파라미터와 이름이 겹치지 않도록.)"""
     server = MCPServer(
         "kis-trader",
         instructions=(
-            "한국투자증권 계좌 조회·주문 미리보기·실주문 도구. 실주문(place/cancel/modify_order)은 모의"
-            " 기본이고 실전은 이중게이트+RiskLimits+allowlist+사람확인(elicitation)을 전부 통과해야 전송된다."
+            "한국투자증권 계좌 조회·주문 미리보기·실주문 도구. use_profile/use_environment 로 **읽는**"
+            " 계좌/환경을 재시작 없이 바꾼다 -- 이는 조회 맥락만 바꾼다. 실전으로 바꿔도 실주문은 열리지"
+            " 않는다: 실주문(place/cancel/modify_order)은 변함없이 기동 시 이중게이트+RiskLimits+allowlist"
+            "+사람확인(elicitation)을 전부 통과해야 하고, 활성 프로필이 general(위탁)일 때만 가능하다."
             " 주문 파라미터(종목/방향/수량/가격)는 사람이 직접 주고 확인한다 -- 조회 결과를 그대로 주문에"
             " 넣지 말 것. 도구가 준 숫자를 재계산하지 말 것."
         ),
     )
 
     @server.tool()
-    def quote(symbol: str, region: Region = "domestic") -> dict[str, Any]:
-        """종목 현재가 스냅샷. region='overseas' 면 해외."""
-        return handlers.quote(kis, symbol, region=region)
+    def quote(symbol: str, region: Region = "domestic", session: Session = "regular") -> dict[str, Any]:
+        """종목 현재가 스냅샷. region='overseas' 면 해외. session='after_hours' 면 국내 시간외 단일가
+        (정규장 마감 후 시세는 regular 가 아니라 after_hours 를 쓸 것; 시간외는 국내 전용)."""
+        return handlers.quote(account_session.read_client(), symbol, region=region, session=session)
 
     @server.tool()
     def search(query: str, limit: int = 20) -> list[dict[str, Any]]:
@@ -261,71 +356,127 @@ def build_server(
         # MCP 툴명은 `search` 로 고정한다(에이전트 설정 안정성). 라이브러리 메서드가
         # `search_stocks()`(해외 형제와 구별)인 것과 의도적으로 다르다 -- flat 한 MCP 네임스페이스엔
         # 구별할 형제가 없어 `search` 가 이 경계의 올바른 이름이다. 통일하려고 바꾸지 말 것.
-        return handlers.search(kis, query, limit=limit)
+        return handlers.search(account_session.read_client(), query, limit=limit)
 
     @server.tool()
     def ranking_change(direction: Direction = "gainers", limit: int = 10) -> list[dict[str, Any]]:
         """국내 등락률 순위(gainers/losers)."""
-        return handlers.ranking_change(kis, direction=direction, limit=limit)
+        return handlers.ranking_change(account_session.read_client(), direction=direction, limit=limit)
 
     @server.tool()
-    def balance() -> dict[str, Any]:
-        """계좌 잔고 요약."""
-        return handlers.balance(kis)
+    def balance(region: Region = "domestic", market: str | None = None) -> Any:
+        """계좌 잔고 요약. region='domestic' 은 활성 계좌 종류로 분기(위탁/연금저축=국내주식, IRP=퇴직연금).
+        region='overseas' 는 해외주식 잔고(general·실전 전용; market 생략 시 시장별 요약 리스트, 반환 shape 상이)."""
+        return handlers.balance(account_session.read_client(), region=region, market=market,
+                                active_profile=account_session.active_profile)
 
     @server.tool()
-    def positions(limit: int = 100) -> list[dict[str, Any]]:
-        """보유 종목(국내 주식 계좌)."""
-        return handlers.positions(kis, limit=limit)
+    def positions(region: Region = "domestic", market: str | None = None, limit: int = 100) -> list[dict[str, Any]]:
+        """보유 종목. region='domestic' 은 활성 계좌 종류로 분기, region='overseas' 는 해외주식 보유
+        (general·실전 전용; market 생략 시 전체 시장 합산)."""
+        return handlers.positions(account_session.read_client(), region=region, market=market, limit=limit,
+                                  active_profile=account_session.active_profile)
 
     @server.tool()
     def open_orders(limit: int = 100) -> list[dict[str, Any]]:
-        """미체결 주문(국내 주식 계좌)."""
-        return handlers.open_orders(kis, limit=limit)
-
-    @server.tool()
-    def order_preview(
-        symbol: str, side: Side, quantity: int,
-        limit_price: str | None = None, division: DomesticDivision | None = None,
-    ) -> dict[str, Any]:
-        """주문 미리보기(dry-run) -- 전송하지 않고 나갈 티켓만 보여준다(place_order 와 같은 검증을 거친다)."""
-        return handlers.order_preview(
-            kis, symbol=symbol, side=side, quantity=quantity,
-            limit_price=limit_price, division=division,
-        )
+        """미체결 주문(국내 위탁 주식 계좌 전용)."""
+        return handlers.open_orders(account_session.read_client(), limit=limit)
 
     @server.tool()
     def reconcile(client_order_id: str) -> dict[str, Any]:
-        """결과 불명 주문의 사후 확정."""
-        return handlers.reconcile(kis, client_order_id=client_order_id)
+        """결과 불명 주문의 사후 확정(활성 슬롯의 주문 저장소 기준)."""
+        return handlers.reconcile(account_session.read_client(), client_order_id=client_order_id)
+
+    @server.tool()
+    def use_environment(environment: Literal["real", "paper"]) -> dict[str, Any]:
+        """**읽는** 환경만 바꾼다(real/paper). 이는 조회 맥락만 바꾼다 -- 실전으로 바꿔도 실주문은 열리지
+        않는다(실주문 언락은 기동 환경변수에만 묶인다). 저장 프로필 기동일 때만 가능."""
+        return account_session.use_environment(environment)
+
+    @server.tool()
+    def use_profile(profile: SwitchableProfile) -> dict[str, Any]:
+        """**읽는** 계좌 종류만 바꾼다. {general, isa, pension, irp} 로 제한(파생은 선택 불가). 전환은
+        조회 맥락만 바꾸며, 주문은 여전히 general(위탁)에서만 가능하다. 저장 프로필 기동일 때만 가능."""
+        return account_session.use_profile(profile)
+
+    @server.tool()
+    def current_account() -> dict[str, Any]:
+        """지금 보는 중인 활성 (profile, environment) + 마스킹 계좌 + 계좌 종류."""
+        return account_session.current_account()
+
+    @server.tool()
+    def order_preview(
+        symbol: str, side: Side, quantity: int, limit_price: str | None = None,
+        division: DomesticDivision | None = None, region: Region = "domestic",
+        exchange: str | None = None,
+    ) -> dict[str, Any]:
+        """주문 미리보기(dry-run) -- 전송하지 않고 나갈 티켓만 보여준다(place_order 와 같은 주문 프로필
+        게이트 + 형상 검증 + 해외 실전 통화캡 선검사를 거친다). 해외(region='overseas')는 지정가 전용·
+        exchange 필수. 활성 프로필이 general(위탁·상품코드 01)이 아니면 place_order 와 똑같이 거부한다."""
+        snapshot = account_session.order_snapshot()
+        return run_order_preview(
+            snapshot, capped_currencies, symbol=symbol, side=side, quantity=quantity,
+            limit_price=limit_price, division=division, region=region, exchange=exchange,
+        )
 
     @server.tool()
     async def place_order(
-        ctx: Context, *, symbol: str, side: Side, quantity: int,
-        limit_price: str | None = None, division: DomesticDivision | None = None,
+        ctx: Context, *, symbol: str, side: Side, quantity: int, limit_price: str | None = None,
+        division: DomesticDivision | None = None, region: Region = "domestic",
+        exchange: str | None = None,
     ) -> dict[str, Any]:
-        """국내 주식 실주문(매수/매도). 모의 기본. 실전은 이중게이트+RiskLimits+allowlist+사람확인을 전부
-        통과해야 전송. 국내 주식만 지원하므로 region 파라미터는 노출하지 않고 내부에서 ``'domestic'`` 으로
-        고정한다(dry-run 쌍둥이 ``order_preview`` 와 같은 형상; make_stock_order_plan 이 런타임에서도 해외를
-        거부한다 -- 이중 방어). ``division`` 은 주문구분(예: 최유리지정가 ``immediate_limit``). 파라미터는
-        사람이 직접 준다(읽기결과 금지)."""
-        return await run_place_order(kis, gate, allowlist, breaker, ctx, region="domestic", symbol=symbol,
-                                     side=side, quantity=quantity, limit_price=limit_price, division=division)
+        """주식 실주문(매수/매도). 모의 기본. 실전은 이중게이트+RiskLimits+allowlist+사람확인을 전부
+        통과해야 전송되고, 활성 프로필이 general(위탁·상품코드 01)일 때만 가능하다. region='overseas' 는
+        해외주식 지정가 주문(``exchange`` 필수 NAS/NYS/..., ``division`` 불가, 통화별 금액캡 필수).
+        ``division`` 은 국내 주문구분(예: 최유리지정가 ``immediate_limit``). 파라미터는 사람이 직접 준다
+        (읽기결과 금지). 활성 맥락은 호출 즉시 스냅샷으로 얼려, 집행 중 전환이 대상을 바꾸지 못한다."""
+        snapshot = account_session.order_snapshot()
+        return await run_place_order(snapshot, allowlist, breaker, ctx, capped_currencies,
+                                     region=region, symbol=symbol, side=side, quantity=quantity,
+                                     limit_price=limit_price, division=division, exchange=exchange)
 
     @server.tool()
     async def cancel_order(ctx: Context, client_order_id: str) -> dict[str, Any]:
-        """접수된 주문 취소(client_order_id 지목). 실전은 사람 확인 필요."""
-        return await run_cancel_order(kis, gate, breaker, ctx, client_order_id=client_order_id)
+        """접수된 주문 취소(client_order_id 지목). 실전은 사람 확인 필요. general(위탁) 계좌에서만."""
+        snapshot = account_session.order_snapshot()
+        return await run_cancel_order(snapshot, breaker, ctx, client_order_id=client_order_id)
 
     @server.tool()
     async def modify_order(
         ctx: Context, client_order_id: str, limit_price: str, quantity: int | None = None
     ) -> dict[str, Any]:
-        """접수된 주문 가격/수량 정정. 실전은 이중게이트+RiskLimits+(원주문 종목의)allowlist+사람 확인+서킷브레이커."""
-        return await run_modify_order(kis, gate, allowlist, breaker, ctx, client_order_id=client_order_id,
+        """접수된 주문 가격/수량 정정. 실전은 이중게이트+RiskLimits+(원주문 종목의)allowlist+사람 확인+
+        서킷브레이커. general(위탁) 계좌에서만."""
+        snapshot = account_session.order_snapshot()
+        return await run_modify_order(snapshot, allowlist, breaker, ctx, client_order_id=client_order_id,
                                       limit_price=limit_price, quantity=quantity)
 
     return server
+
+
+def _client_for_slot(risk: RiskLimits | None) -> ClientBuilder:
+    """``(profile, environment)`` -> KISClient 팩토리 -- 전환 시 새 슬롯을 같은 risk(통화별 캡 포함)로
+    연다. ``KISClient(profile=, environment=)`` 가 저장된 자격증명에서 그 슬롯을 열며, 없는 조합은 즉시
+    fail-closed 로 거부한다(KISUsageError)."""
+    def build(profile: str, environment: str) -> KISClient:
+        return KISClient(profile=profile, environment=environment, risk=risk)  # type: ignore[arg-type]
+    return build
+
+
+def _build_session(environ: dict[str, str], environment: str, risk: RiskLimits | None) -> McpSession:
+    """기동 슬롯을 열고(실패 시 깔끔한 KISUsageError) :class:`McpSession` 을 만든다. ``KIS_MCP_PROFILE``
+    이 있으면 저장 프로필 기동(런타임 전환 가능), 없으면 직접-자격증명 고정 슬롯(전환 도구 거부)이다.
+    실주문 언락 비트는 여기서 한 번만 얼린다(:meth:`_StartupAuthorization.from_env`)."""
+    auth = _StartupAuthorization.from_env(environ)
+    profile = environ.get("KIS_MCP_PROFILE")
+    if profile:
+        build = _client_for_slot(risk)
+        startup_client = build(profile, environment)   # eager -- 잘못된 조합은 여기서 fail
+        return McpSession(profile=profile, environment=environment, startup_client=startup_client,
+                          auth=auth, build=build)
+    startup_client = build_client()                     # 직접-자격증명(없으면 깔끔한 안내 에러)
+    return McpSession(profile=None, environment=environment, startup_client=startup_client,
+                      auth=auth, build=None)
 
 
 def main() -> None:
@@ -333,16 +484,21 @@ def main() -> None:
     streamable-http(로컬 바인드) 선택."""
     environment = os.environ.get("KIS_MCP_ENVIRONMENT", "paper")
     try:
-        kis = build_client()
-        gate = RealOrderGate.from_env(dict(os.environ), environment)
-        allowlist = _build_allowlist_from_env(dict(os.environ))
-        breaker = _breaker_from_env(dict(os.environ))
-        transport, run_kwargs = _resolve_transport(dict(os.environ))
-        server = build_server(kis, gate=gate, allowlist=allowlist, breaker=breaker)
+        environ = dict(os.environ)
+        risk = _build_risk_from_env(environ)
+        session = _build_session(environ, environment, risk)
+        allowlist = _build_allowlist_from_env(environ)
+        breaker = _breaker_from_env(environ)
+        capped_currencies = (
+            frozenset(risk.max_order_notional_by_currency or {}) if risk is not None else frozenset()
+        )
+        transport, run_kwargs = _resolve_transport(environ)
+        server = build_server(session, allowlist=allowlist, breaker=breaker,
+                              capped_currencies=capped_currencies)
         if transport == "stdio":
             server.run("stdio")
         else:
-            _serve_http(server, transport, _access_token(dict(os.environ)), **run_kwargs)
+            _serve_http(server, transport, _access_token(environ), **run_kwargs)
     except KISError as exc:
         # 설정 오류는 트레이스백 대신 한 줄로. stderr 는 Claude Desktop 의 mcp 로그에 남는다.
         print(f"kis-mcp: {exc}", file=sys.stderr)
