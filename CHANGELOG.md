@@ -16,7 +16,8 @@ environment = a separate axis).
   keep their previous read semantics. Under a schema-2 file an omitted environment resolves to
   `paper` (previously a stored per-profile value that defaulted to `real`), and `real` is reached
   only when stated explicitly (call argument, `KIS_DEFAULT_ENVIRONMENT`, or a `default_environment`
-  marker) -- a profile present in one environment is never auto-promoted to the other.
+  marker written by the new static `KISConfig.set_default_environment`) -- a profile present in one
+  environment is never auto-promoted to the other.
 - `resolve_credentials` gains a keyword-only `environment` selector; `KISConfig` writes the nested
   bundle (no `environment` field inside it) and defaults `environment` to `paper`. Environment
   variables are two-axis: `KIS_<PROFILE>_<ENV>_<FIELD>`. Pure environment-variable use under a

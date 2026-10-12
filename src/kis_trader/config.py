@@ -845,6 +845,20 @@ class KISConfig:
             return _write_credentials(directory, data)
 
 
+def is_legacy_store(*, config_dir: str | Path | None = None) -> bool:
+    """저장된 ``credentials.json`` 이 스키마 마커 없는 **레거시** 저장소이면서 프로필이 하나 이상
+    들어 있는지. 레거시 저장소는 환경 블록(real/paper)이 분리돼 있지 않아, 실행 중 환경을 바꾸면
+    저장된 자격증명이 아니라 환경 오버라이드로 해석돼 엉뚱한 환경에 걸릴 수 있다 -- 그 경계를
+    호출자가 미리 알리도록 하는 판별기다. 빈/없는 파일은 프로필이 없으므로 ``False``(설정 전)."""
+    data = _load_credentials(_config_dir_path(config_dir))
+    if _detect_schema(data) != "legacy":
+        return False
+    return any(
+        name not in _RESERVED_TOP_LEVEL_KEYS and isinstance(section, dict)
+        for name, section in data.items()
+    )
+
+
 def _profile_exists(profile: str, *, environment: Environment | None = None,
                     config_dir: str | Path | None = None) -> bool:
     """``profile`` 이 이미 저장돼 있는지. ``environment`` 를 주면 그 환경 블록의 묶음 존재를
@@ -862,4 +876,4 @@ def _profile_exists(profile: str, *, environment: Environment | None = None,
     return isinstance(block, dict) and isinstance(block.get(profile), dict)
 
 
-__all__ = ["KISConfig", "ResolvedCredentials", "order_store_path", "resolve_credentials"]
+__all__ = ["KISConfig", "ResolvedCredentials", "is_legacy_store", "order_store_path", "resolve_credentials"]

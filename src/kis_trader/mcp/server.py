@@ -19,6 +19,7 @@ RiskLimits(fail-closed 캡) + 종목 allowlist + **사람 확인(elicitation)** 
 
 from __future__ import annotations
 
+import logging
 import os
 import sys
 from typing import Any, Literal
@@ -28,6 +29,7 @@ from mcp.server.mcpserver import MCPServer
 from mcp.server.mcpserver.context import Context
 from mcp.server.transport_security import TransportSecuritySettings
 
+from .. import config
 from .._literals import Direction
 from ..client import KISClient
 from ..errors import KISError, KISUsageError
@@ -50,6 +52,8 @@ from ._session import (
     OrderSnapshot,
     _StartupAuthorization,
 )
+
+_logger = logging.getLogger("kis_trader.mcp")
 
 #: ``quote`` 의 세션 선택자 -- 정규장(regular)/시간외 단일가(after_hours, 국내 전용).
 Session = Literal["regular", "after_hours"]
@@ -470,6 +474,13 @@ def _build_session(environ: dict[str, str], environment: str, risk: RiskLimits |
     auth = _StartupAuthorization.from_env(environ)
     profile = environ.get("KIS_MCP_PROFILE")
     if profile:
+        if config.is_legacy_store():
+            _logger.warning(
+                "credentials store has no schema marker (legacy): runtime account switching "
+                "(use_environment/use_profile) is only meaningful on a schema-2 store, and a "
+                "switch to the wrong environment may fail only at the wire. Run 'kis config "
+                "migrate' to convert the store."
+            )
         build = _client_for_slot(risk)
         startup_client = build(profile, environment)   # eager -- 잘못된 조합은 여기서 fail
         return McpSession(profile=profile, environment=environment, startup_client=startup_client,
