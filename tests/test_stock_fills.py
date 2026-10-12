@@ -199,10 +199,10 @@ def test_fill_keeps_pii_and_operator_fields_in_raw_only():
     row = _row()
     row.update({k: "SENSITIVE" for k in pii_keys})
     fill = _fills(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229").fills[0]
-    public = set(vars(fill)) if hasattr(fill, "__dict__") else set(fill.__slots__)
     for k in pii_keys:
-        assert k not in public, f"{k} must not be a public attribute"
-        assert k in fill._raw                           # 원본엔 보존(조회·감사용)
+        # hasattr 은 슬롯/속성뿐 아니라 @property 노출까지 잡는다(슬롯만 보면 property 를 놓침).
+        assert not hasattr(fill, k), f"{k} must not be publicly accessible"
+        assert fill._raw[k] == "SENSITIVE"              # 원본엔 보존(조회·감사용)
     # 값으로도 유출되지 않는다(어떤 공개 str 필드에도 'SENSITIVE' 가 없다)
     assert not any(getattr(fill, f) == "SENSITIVE" for f in fill.__slots__ if f != "_raw")
 

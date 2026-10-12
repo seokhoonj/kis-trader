@@ -573,20 +573,23 @@ def fetch_stock_fills(
     )
 
 
-def _parse_fill_exchange(value: object) -> DomesticOrderExchange | None:
+def _parse_fill_exchange(value: object, warned: set[str]) -> DomesticOrderExchange | None:
     """체결 거래소ID구분(excg_id_dvsn_cd)을 타입드 거래소로. NXT 도입 전 주문은 미채움(공란)->None.
 
     이건 조회(READ) 경로다 -- KIS 가 새 거래소(ATS) 코드를 추가하면(NXT 자체가 2025 신설) 모르는
     코드 한 건이 전체 체결내역 조회를 깨뜨려선 안 된다. 그래서 미지 코드는 경고를 남기고 None 으로
     저하한다(원본 코드는 ``_raw['excg_id_dvsn_cd']`` 에 보존 -- 조용한 손실 아님). 주문 생성 경로는
-    여전히 fail-closed(모르는 거래소로는 주문하지 않는다 -- Order.__post_init__ 가 거부)."""
+    여전히 fail-closed(모르는 거래소로는 주문하지 않는다 -- Order.__post_init__ 가 거부). ``warned``
+    는 한 조회 안에서 같은 미지 코드가 여러 행에 있어도 경고를 코드당 한 번만 내게 하는 집합이다."""
     code = str(value or "").strip()
     if not code:
         return None
     if code not in _DOMESTIC_ORDER_EXCHANGES:
-        _logger.warning(
-            "알 수 없는 체결 거래소ID구분 excg_id_dvsn_cd=%r -- None 으로 저하(원본은 _raw 에 보존)", code,
-        )
+        if code not in warned:
+            warned.add(code)
+            _logger.warning(
+                "알 수 없는 체결 거래소ID구분 excg_id_dvsn_cd=%r -- None 으로 저하(원본은 _raw 에 보존)", code,
+            )
         return None
     return cast("DomesticOrderExchange", code)
 
@@ -615,6 +618,7 @@ def _parse_stop_trigger(row: Mapping[str, Any]) -> StopTrigger | None:
 def _parse_stock_fills(rows: list[Mapping[str, Any]]) -> list[StockFill]:
     # 행 배열의 매핑 여부는 상류 _require_mapping_rows 가 이미 fail-closed 로 보장한다.
     fills: list[StockFill] = []
+    warned_exchanges: set[str] = set()  # 미지 거래소 코드 경고를 조회당 코드별 1회로 집약
     for row in rows:
         order_id = str(row.get("odno", "")).strip()
         if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
@@ -644,7 +648,7 @@ def _parse_stock_fills(rows: list[Mapping[str, Any]]) -> list[StockFill]:
                 order_type_code=str(row.get("ord_dvsn_cd", "")).strip(),
                 product_type_code=str(row.get("prdt_type_cd", "")).strip(),
                 order_organization_number=str(row.get("ord_orgno", "")).strip(),
-                exchange=_parse_fill_exchange(row.get("excg_id_dvsn_cd")),
+                exchange=_parse_fill_exchange(row.get("excg_id_dvsn_cd"), warned_exchanges),
                 reservation_end_date=_parse_date(row.get("rsvn_ord_end_dt")),
                 loan_date=_parse_date(row.get("loan_dt")),
                 stop=_parse_stop_trigger(row),

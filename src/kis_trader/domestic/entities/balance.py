@@ -34,25 +34,25 @@ class DomesticPosition:
     average_purchase_price: Decimal
     purchase_amount: Decimal
     current_price: Decimal
-    market_value: Decimal             # 평가금액 = 현재가 x 수량
+    market_value: Decimal                # 평가금액 = 현재가 x 수량
     unrealized_pnl: Decimal
-    unrealized_pnl_percent: Decimal   # 평가손익율(evlu_pfls_rt) = 평가손익 / 매입금액
-    change: Decimal                   # 전일대비(bfdy_cprs_icdc): 1주 가격의 전일 대비 증감(부호 포함)
-    change_percent: Decimal           # 등락율(fltt_rt): 전일 대비 가격 등락 %(평가손익율과 별개)
-    evaluation_return_percent: Decimal  # 평가수익률(evlu_erng_rt): KIS 별도 수익률 키(평가손익율과 다름)
-    trade_type_name: str              # 매매구분명(trad_dvsn_name): 현금/신용 등 보유 lot 구분
-    substitute_price: Decimal         # 대용가(sbst_pric): 대용증거금 산정 단가
-    margin_rate_name: str             # 증거금율명(item_mgna_rt_name): 예 "40%"
-    guarantee_rate_name: str          # 보증금율명(grta_rt_name): 예 "45%" / "불가"
-    stock_loan_unit_price: Decimal    # 대주단가(stck_loan_unpr)
+    unrealized_pnl_percent: Decimal      # 평가손익율(evlu_pfls_rt) = 평가손익 / 매입금액
+    change: Decimal                      # 전일대비(bfdy_cprs_icdc): 1주 가격의 전일 대비 증감(부호 포함)
+    change_percent: Decimal              # 등락율(fltt_rt): 전일 대비 가격 등락 %(평가손익율과 별개)
+    evaluation_return_percent: Decimal   # 평가수익률(evlu_erng_rt): KIS 별도 수익률 키(평가손익율과 다름)
+    trade_type_name: str                 # 매매구분명(trad_dvsn_name): 현금/신용 등 보유 lot 구분
+    substitute_price: Decimal            # 대용가(sbst_pric): 대용증거금 산정 단가
+    margin_rate_name: str                # 증거금율명(item_mgna_rt_name): 예 "40%"
+    guarantee_rate_name: str             # 보증금율명(grta_rt_name): 예 "45%" / "불가"
+    stock_loan_unit_price: Decimal       # 대주단가(stck_loan_unpr)
     previous_day_buy_quantity: Decimal   # 전일매수수량(bfdy_buy_qty)
     previous_day_sell_quantity: Decimal  # 전일매도수량(bfdy_sll_qty)
     today_buy_quantity: Decimal          # 금일매수수량(thdt_buyqty)
     today_sell_quantity: Decimal         # 금일매도수량(thdt_sll_qty)
-    loan_amount: Decimal              # 대출금액(loan_amt): 신용/대주 lot 에 걸린 대출 원금(비대출이면 0)
-    short_sell_amount: Decimal    # 대주매도대금(stln_slng_chgs): 대주 포지션 외엔 0
-    loan_date: date | None            # 대출일자(loan_dt): 신용/대주 lot 의 대출 개시일(없으면 None)
-    expiry_date: date | None          # 만기일자(expd_dt): 신용/대주 상환 만기(없으면 None)
+    loan_amount: Decimal                 # 대출금액(loan_amt): 신용/대주 lot 에 걸린 대출 원금(비대출이면 0)
+    short_sell_amount: Decimal           # 대주매도대금(stln_slng_chgs): 대주 포지션 외엔 0
+    loan_date: date | None               # 대출일자(loan_dt): 신용/대주 lot 의 대출 개시일(없으면 None)
+    expiry_date: date | None             # 만기일자(expd_dt): 신용/대주 상환 만기(없으면 None)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )
@@ -79,21 +79,21 @@ class DomesticBalance:
     purchase_amount: Decimal
     market_value: Decimal
     unrealized_pnl: Decimal
-    securities_evaluation: Decimal    # 유가증권평가금액(scts_evlu_amt): 현금 제외 보유 평가
-    total_loan_amount: Decimal        # 총대출금액(tot_loan_amt): 레버리지
-    previous_day_total_asset: Decimal     # 전일총자산평가금액(bfdy_tot_asst_evlu_amt)
-    asset_change_amount: Decimal      # 자산증감액(asst_icdc_amt): 전일 대비 총자산 변동(부호 포함)
-    asset_change_percent: Decimal     # 자산증감수익율(asst_icdc_erng_rt): 전일 대비 수익률 %
-    cma_evaluation: Decimal           # CMA평가금액(cma_evlu_amt): 비-CMA 계좌는 0
-    previous_day_buy_amount: Decimal  # 전일매수금액(bfdy_buy_amt)
-    today_buy_amount: Decimal         # 금일매수금액(thdt_buy_amt)
+    securities_evaluation: Decimal     # 유가증권평가금액(scts_evlu_amt): 현금 제외 보유 평가
+    total_loan_amount: Decimal         # 총대출금액(tot_loan_amt): 레버리지
+    previous_day_total_asset: Decimal  # 전일총자산평가금액(bfdy_tot_asst_evlu_amt)
+    asset_change_amount: Decimal       # 자산증감액(asst_icdc_amt): 전일 대비 총자산 변동(부호 포함)
+    asset_change_percent: Decimal      # 자산증감수익율(asst_icdc_erng_rt): 전일 대비 수익률 %
+    cma_evaluation: Decimal            # CMA평가금액(cma_evlu_amt): 비-CMA 계좌는 0
+    previous_day_buy_amount: Decimal   # 전일매수금액(bfdy_buy_amt)
+    today_buy_amount: Decimal          # 금일매수금액(thdt_buy_amt)
     previous_day_sell_amount: Decimal  # 전일매도금액(bfdy_sll_amt)
-    today_sell_amount: Decimal        # 금일매도금액(thdt_sll_amt)
-    previous_day_expenses: Decimal    # 전일제비용(bfdy_tlex_amt): 수수료+세금
-    today_expenses: Decimal           # 금일제비용(thdt_tlex_amt)
+    today_sell_amount: Decimal         # 금일매도금액(thdt_sll_amt)
+    previous_day_expenses: Decimal     # 전일제비용(bfdy_tlex_amt): 수수료+세금
+    today_expenses: Decimal            # 금일제비용(thdt_tlex_amt)
     d2_auto_redemption_amount: Decimal    # D+2자동상환금액(d2_auto_rdpt_amt)
     next_day_auto_redemption_amount: Decimal  # 익일자동상환금액(nxdy_auto_rdpt_amt)
-    total_short_sell_amount: Decimal  # 총대주매도대금(tot_stln_slng_chgs)
+    total_short_sell_amount: Decimal          # 총대주매도대금(tot_stln_slng_chgs)
     financing_auto_redemption_enabled: bool   # 융자자동상환여부(fncg_gld_auto_rdpt_yn)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
