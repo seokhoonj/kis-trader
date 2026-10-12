@@ -59,7 +59,7 @@ class StockFill:
     canceled: bool                    # 취소여부(cncl_yn)
     canceled_quantity: Decimal        # 취소확인수량(cncl_cfrm_qty): 취소 체결된 수량
     branch_number: str                # 주문채번지점번호(ord_gno_brno)
-    exchange_division: str            # 거래소구분코드(excg_dvsn_cd): KIS 원코드(예 "02"/"12")
+    exchange_division_code: str            # 거래소구분코드(excg_dvsn_cd): KIS 원코드(예 "02"/"12")
     fill_condition_name: str          # 체결조건명(ccld_cndt_name): 예 IOC/FOK/"없음"
     order_type_code: str              # 주문구분코드(ord_dvsn_cd): order_type_name 의 기계안정 코드
     product_type_code: str            # 상품유형코드(prdt_type_cd)

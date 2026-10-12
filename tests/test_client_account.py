@@ -128,10 +128,10 @@ def test_balance_exposes_0_6_0_fields():
     balance = _client(FakeTransport(response=_balance_resp())).account.domestic.balance()
     assert balance.securities_evaluation == Decimal(1480000)
     assert balance.total_loan_amount == Decimal(0)
-    assert balance.previous_total_asset == Decimal(2530000)
+    assert balance.previous_day_total_asset == Decimal(2530000)
     assert balance.asset_change_amount == Decimal(-10000)   # 부호 보존
     assert balance.today_expenses == Decimal(118)
-    assert balance.financing_auto_redemption is False
+    assert balance.financing_auto_redemption_enabled is False
 
 
 def test_balance_new_fields_default_to_zero_when_absent():
@@ -142,7 +142,7 @@ def test_balance_new_fields_default_to_zero_when_absent():
     balance = _client(FakeTransport(response=_balance_resp(summary=bare))).account.domestic.balance()
     assert balance.securities_evaluation == Decimal(0)
     assert balance.cma_evaluation == Decimal(0)
-    assert balance.financing_auto_redemption is False
+    assert balance.financing_auto_redemption_enabled is False
 
 
 def test_position_exposes_0_6_0_fields():
@@ -167,6 +167,25 @@ def test_position_credit_dates_parsed_when_present():
     pos = _client(FakeTransport(response=_balance_resp(rows=rows))).account.domestic.positions()[0]
     assert pos.loan_date == date(2024, 2, 16)
     assert pos.expiry_date == date(2024, 9, 16)
+
+
+def test_balance_financing_auto_redemption_yes_is_true():
+    summary = dict(_SUMMARY, fncg_gld_auto_rdpt_yn="Y")
+    balance = _client(FakeTransport(response=_balance_resp(summary=summary))).account.domestic.balance()
+    assert balance.financing_auto_redemption_enabled is True
+
+
+def test_position_new_numeric_fields_default_to_zero_when_absent():
+    # position 보강 숫자 필드도 관용 파싱 -- 레거시 필수 키만 있는 행도 크래시 없이 0.
+    bare = {"pdno": "005930", "prdt_name": "삼성전자", "hldg_qty": "10", "ord_psbl_qty": "10",
+            "pchs_avg_pric": "70000", "pchs_amt": "700000", "prpr": "71500",
+            "evlu_amt": "715000", "evlu_pfls_amt": "15000", "evlu_pfls_rt": "2.14"}
+    pos = _client(FakeTransport(response=_balance_resp(rows=[bare]))).account.domestic.positions()[0]
+    assert pos.change == Decimal(0)
+    assert pos.substitute_price == Decimal(0)
+    assert pos.loan_amount == Decimal(0)
+    assert pos.loan_date is None
+    assert pos.trade_type_name == ""
 
 
 def test_balance_real_and_demo_tr():

@@ -139,7 +139,7 @@ def test_fill_exposes_0_6_0_fields():
     fake = FakeTransport(response=_resp(rows=[_row(cncl_cfrm="3", excg_dvsn="12", ccld_cndt="IOC")]))
     fill = _fills(fake)(start="20240201", end="20240229").fills[0]
     assert fill.canceled_quantity == Decimal(3)
-    assert fill.exchange_division == "12"
+    assert fill.exchange_division_code == "12"
     assert fill.fill_condition_name == "IOC"
     assert fill.order_type_code == "00"
 
@@ -154,11 +154,16 @@ def test_fill_exchange_is_typed_and_none_when_blank():
     assert blank.fills[0].exchange is None
 
 
-def test_fill_exchange_unknown_code_fails_closed():
-    # 알 수 없는 거래소ID구분은 조용히 떨어뜨리지 않고 KISError 로 올린다.
+def test_fill_exchange_unknown_code_degrades_to_none(caplog):
+    # 조회(READ) 경로: 모르는 거래소 코드 한 건이 전체 체결내역 조회를 깨면 안 된다 -> None 으로
+    # 저하하고 경고를 남기며, 원본 코드는 _raw 에 보존한다(주문 경로는 Order 가 여전히 fail-closed).
     fake = FakeTransport(response=_resp(rows=[_row(exchange="ZZZ")]))
-    with pytest.raises(KISError, match="excg_id_dvsn_cd"):
-        _fills(fake)(start="20240201", end="20240229")
+    with caplog.at_level("WARNING"):
+        fills = _fills(fake)(start="20240201", end="20240229").fills
+    assert fills[0].exchange is None
+    assert fills[0].symbol == "005930"                  # 나머지 행은 정상 파싱(조회가 안 깨짐)
+    assert fills[0]._raw["excg_id_dvsn_cd"] == "ZZZ"    # 원본 코드 보존(조용한 손실 아님)
+    assert any("excg_id_dvsn_cd" in rec.message for rec in caplog.records)
 
 
 def test_fill_stop_is_none_for_non_stop_order():
@@ -173,7 +178,33 @@ def test_fill_stop_present_with_trigger_price():
     assert stop is not None
     assert stop.trigger_price == Decimal(71000)
     assert stop.effective_datetime is not None
-    assert (stop.effective_datetime.year, stop.effective_datetime.month, stop.effective_datetime.day) == (2024, 2, 16)
+    et = stop.effective_datetime
+    assert (et.year, et.month, et.day, et.hour, et.minute, et.second) == (2024, 2, 16, 13, 15, 0)
+    assert et.tzinfo is not None                        # KST-aware
+
+
+def test_fill_canceled_quantity_defaults_to_zero_when_absent():
+    # 관용 파싱: cncl_cfrm_qty 키가 없어도 크래시 없이 0.
+    row = _row()
+    del row["cncl_cfrm_qty"]
+    fill = _fills(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229").fills[0]
+    assert fill.canceled_quantity == Decimal(0)
+
+
+def test_fill_keeps_pii_and_operator_fields_in_raw_only():
+    # PII/운영-통보 키는 _raw 에만 남고 공개 속성으로 승격되지 않는다(실수 승격 회귀 가드).
+    pii_keys = ["ctac_tlno", "inqr_ip_addr", "ordr_empno", "cpbc_ordp_infm_mthd_dvsn_cd",
+                "cpbc_ordp_mtrl_dvsn_cd", "cpbc_ordp_ord_rcit_dvsn_cd", "infm_tmd",
+                "sll_buy_dvsn_cd_name"]
+    row = _row()
+    row.update({k: "SENSITIVE" for k in pii_keys})
+    fill = _fills(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229").fills[0]
+    public = set(vars(fill)) if hasattr(fill, "__dict__") else set(fill.__slots__)
+    for k in pii_keys:
+        assert k not in public, f"{k} must not be a public attribute"
+        assert k in fill._raw                           # 원본엔 보존(조회·감사용)
+    # 값으로도 유출되지 않는다(어떤 공개 str 필드에도 'SENSITIVE' 가 없다)
+    assert not any(getattr(fill, f) == "SENSITIVE" for f in fill.__slots__ if f != "_raw")
 
 
 @pytest.mark.parametrize("side,code", [("all", "00"), ("sell", "01"), ("buy", "02")])

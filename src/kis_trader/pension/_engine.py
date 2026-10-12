@@ -195,8 +195,12 @@ def _parse_position(row: Mapping[str, Any], *, sellable_key: str, pnl_rate_key: 
         market_value=_decimal_or_zero(row, "evlu_amt"),
         unrealized_pnl=_decimal_or_zero(row, "evlu_pfls_amt"),
         unrealized_pnl_percent=_decimal_or_zero(row, pnl_rate_key),
-        # 아래는 주식 잔고에만 있는 보강 필드다 -- 퇴직연금 응답엔 없으면 0/빈값으로 수렴한다
-        # (연금은 현금계좌라 신용/대주 lot 이 없어 loan/expiry 는 항상 None).
+        # 아래 보강 필드는 도메스틱 주식 잔고(inquire-balance)에서 실재가 확인된 값이다. 퇴직연금
+        # 엔드포인트(TTTC2208R/TTTC2202R) 응답에서의 실재는 미확인이라, 없으면 0/빈값으로 수렴한다
+        # (연금은 현금계좌라 신용/대주 lot 이 없어 loan/expiry 는 항상 None). 주의: pnl_rate_key 가
+        # "evlu_erng_rt" 인 조회에선 evaluation_return_percent 가 unrealized_pnl_percent 와 같은 키를
+        # 읽어 동일값이 된다(present-balance 경로는 pnl_rate_key=evlu_pfls_rt 라 분기) -- 공유 타입
+        # 재사용의 산물로, 연금 엔드포인트 프로브 후 재키잉을 검토한다.
         change=_decimal_or_zero(row, "bfdy_cprs_icdc"),
         change_percent=_decimal_or_zero(row, "fltt_rt"),
         evaluation_return_percent=_decimal_or_zero(row, "evlu_erng_rt"),
@@ -210,7 +214,7 @@ def _parse_position(row: Mapping[str, Any], *, sellable_key: str, pnl_rate_key: 
         today_buy_quantity=_decimal_or_zero(row, "thdt_buyqty"),
         today_sell_quantity=_decimal_or_zero(row, "thdt_sll_qty"),
         loan_amount=_decimal_or_zero(row, "loan_amt"),
-        short_selling_charges=_decimal_or_zero(row, "stln_slng_chgs"),
+        short_sell_amount=_decimal_or_zero(row, "stln_slng_chgs"),
         loan_date=None,
         expiry_date=None,
         _raw=row,

@@ -50,7 +50,7 @@ class DomesticPosition:
     today_buy_quantity: Decimal          # 금일매수수량(thdt_buyqty)
     today_sell_quantity: Decimal         # 금일매도수량(thdt_sll_qty)
     loan_amount: Decimal              # 대출금액(loan_amt): 신용/대주 lot 에 걸린 대출 원금(비대출이면 0)
-    short_selling_charges: Decimal    # 대주매도대금(stln_slng_chgs): 대주 포지션 외엔 0
+    short_sell_amount: Decimal    # 대주매도대금(stln_slng_chgs): 대주 포지션 외엔 0
     loan_date: date | None            # 대출일자(loan_dt): 신용/대주 lot 의 대출 개시일(없으면 None)
     expiry_date: date | None          # 만기일자(expd_dt): 신용/대주 상환 만기(없으면 None)
     _raw: Mapping[str, Any] = field(
@@ -81,7 +81,7 @@ class DomesticBalance:
     unrealized_pnl: Decimal
     securities_evaluation: Decimal    # 유가증권평가금액(scts_evlu_amt): 현금 제외 보유 평가
     total_loan_amount: Decimal        # 총대출금액(tot_loan_amt): 레버리지
-    previous_total_asset: Decimal     # 전일총자산평가금액(bfdy_tot_asst_evlu_amt)
+    previous_day_total_asset: Decimal     # 전일총자산평가금액(bfdy_tot_asst_evlu_amt)
     asset_change_amount: Decimal      # 자산증감액(asst_icdc_amt): 전일 대비 총자산 변동(부호 포함)
     asset_change_percent: Decimal     # 자산증감수익율(asst_icdc_erng_rt): 전일 대비 수익률 %
     cma_evaluation: Decimal           # CMA평가금액(cma_evlu_amt): 비-CMA 계좌는 0
@@ -94,7 +94,7 @@ class DomesticBalance:
     d2_auto_redemption_amount: Decimal    # D+2자동상환금액(d2_auto_rdpt_amt)
     next_day_auto_redemption_amount: Decimal  # 익일자동상환금액(nxdy_auto_rdpt_amt)
     total_short_sell_amount: Decimal  # 총대주매도대금(tot_stln_slng_chgs)
-    financing_auto_redemption: bool   # 융자자동상환여부(fncg_gld_auto_rdpt_yn)
+    financing_auto_redemption_enabled: bool   # 융자자동상환여부(fncg_gld_auto_rdpt_yn)
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

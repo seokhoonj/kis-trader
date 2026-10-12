@@ -7,26 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 Additive release. The domestic account DATA records expose the full non-sensitive field set
 of their KIS responses, so reading the account surface no longer needs `_raw`. Operator PII
-(contact phone, request IP, employee number, the computer-order notification channel codes,
-notification time) is deliberately never promoted and stays in `_raw`.
+(contact phone, request IP, employee number) and the computer-order notification metadata
+(channel / medium / receipt codes, notification time) are deliberately never promoted and
+stay in `_raw`.
 
 ### Added
 
 - `DomesticBalance`: `securities_evaluation` (유가증권평가금액), `total_loan_amount`,
-  `previous_total_asset`, `asset_change_amount` / `asset_change_percent` (전일 대비 총자산 증감,
+  `previous_day_total_asset`, `asset_change_amount` / `asset_change_percent` (전일 대비 총자산 증감,
   부호 포함), `cma_evaluation`, `previous_day_buy_amount` / `today_buy_amount` /
   `previous_day_sell_amount` / `today_sell_amount`, `previous_day_expenses` / `today_expenses`,
   `d2_auto_redemption_amount` / `next_day_auto_redemption_amount`, `total_short_sell_amount`,
-  and the `financing_auto_redemption` flag. Absent fields fold to `0` (tolerant parsing), so
+  and the `financing_auto_redemption_enabled` flag. Absent fields fold to `0` (tolerant parsing), so
   account-type variants that omit a field do not fail.
 - `DomesticPosition`: `change` / `change_percent` (전일대비·등락율, 부호 포함),
   `evaluation_return_percent`, `trade_type_name` (현금/신용), `substitute_price`,
-  `margin_rate_name` / `guarantee_rate_name`, `stock_loan_unit_price`, the per-day buy/sell
-  quantities, `loan_amount` / `short_selling_charges`, and `loan_date` / `expiry_date`
+  `margin_rate_name` / `guarantee_rate_name`, `stock_loan_unit_price`,
+  `previous_day_buy_quantity` / `previous_day_sell_quantity` / `today_buy_quantity` /
+  `today_sell_quantity`, `loan_amount` / `short_sell_amount`, and `loan_date` / `expiry_date`
   (`None` for a cash lot with no credit).
 - `StockFill`: `canceled_quantity` (취소확인수량), `exchange` typed as
-  `DomesticOrderExchange | None` (KRX/NXT/SOR; `None` for pre-NXT orders, fail-closed on an
-  unknown code), `exchange_division`, `fill_condition_name` (IOC/FOK/없음), `order_type_code`,
+  `DomesticOrderExchange | None` (KRX/NXT/SOR; `None` for a pre-NXT order or a venue code the
+  package does not yet model — the raw code stays in `_raw` and a warning is logged, so one
+  unknown code never voids a whole fills read), `exchange_division_code` (raw KIS code),
+  `fill_condition_name` (IOC/FOK/없음), `order_type_code`,
   `product_type_code`, `order_organization_number`, `reservation_end_date`, `loan_date`, and a
   `stop: StopTrigger | None` sub-record (`trigger_price` + `effective_datetime`) that is `None`
   for a non-stop order. New public type `StopTrigger`.
