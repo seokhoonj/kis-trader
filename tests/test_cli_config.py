@@ -54,14 +54,14 @@ def test_config_writes_profile_without_building_a_client(tmp_path, monkeypatch):
     monkeypatch.setattr(cli_main, "build_client", _no_client)
     _feed_secrets(monkeypatch, "pk", "ps")
 
-    code = cli_main.main(["config", "--profile", "paper", "--environment", "paper",
+    code = cli_main.main(["config", "--profile", "demo", "--environment", "paper",
                           "--account", "50123456-01"])
 
     assert code == 0
-    entry = _creds(tmp_path)["paper"]
+    entry = _creds(tmp_path)["paper"]["demo"]   # v2: data[environment][profile]
     assert entry["app_key"] == "pk"
     assert entry["app_secret"] == "ps"
-    assert entry["environment"] == "paper"
+    assert "environment" not in entry           # 환경은 바깥 블록 키로만
     assert entry["account"] == "50123456-01"
 
 
@@ -74,8 +74,8 @@ def test_config_prompts_when_flags_omitted(tmp_path, monkeypatch):
     code = cli_main.main(["config"])
 
     assert code == 0
-    entry = _creds(tmp_path)["irp"]
-    assert entry["environment"] == "real"
+    entry = _creds(tmp_path)["real"]["irp"]     # v2: data[real][irp]
+    assert "environment" not in entry
     assert entry["account"] == "12345678-22"
 
 
@@ -88,12 +88,11 @@ def test_config_defaults_profile_main_and_environment_paper_on_empty_prompt(tmp_
 
     assert code == 0
     data = _creds(tmp_path)
-    assert "main" in data
-    assert data["main"]["environment"] == "paper"
-    assert "account" not in data["main"]  # 빈 계좌 -> 저장 안 함(시세전용)
+    assert "main" in data["paper"]                    # 기본 프로필 main, 기본 환경 paper
+    assert "account" not in data["paper"]["main"]     # 빈 계좌 -> 저장 안 함(시세전용)
 
 
-def _seed(tmp_path, monkeypatch, profile="paper", app_key="old_k", app_secret="old_s"):
+def _seed(tmp_path, monkeypatch, profile="demo", app_key="old_k", app_secret="old_s"):
     monkeypatch.setattr(cli_main, "build_client", _no_client)
     _feed_secrets(monkeypatch, app_key, app_secret)
     assert cli_main.main(["config", "--profile", profile, "--environment", "paper",
@@ -101,12 +100,10 @@ def _seed(tmp_path, monkeypatch, profile="paper", app_key="old_k", app_secret="o
 
 
 @pytest.mark.parametrize("answer,code,expected", [
-    # 거부 -> 기존 프로필 통째로 보존.
-    ("n", 3, {"app_key": "old_k", "app_secret": "old_s",
-              "environment": "paper", "account": "50123456-01"}),
-    # 승인 -> 기존 프로필 통째로 교체(save 는 섹션 전체를 갈아끼운다).
-    ("y", 0, {"app_key": "new_k", "app_secret": "new_s",
-              "environment": "paper", "account": "87654321-02"}),
+    # 거부 -> 기존 묶음 통째로 보존.
+    ("n", 3, {"app_key": "old_k", "app_secret": "old_s", "account": "50123456-01"}),
+    # 승인 -> 기존 묶음 통째로 교체(save 는 묶음 전체를 갈아끼운다).
+    ("y", 0, {"app_key": "new_k", "app_secret": "new_s", "account": "87654321-02"}),
 ])
 def test_config_overwrite_confirmation_controls_the_whole_profile(
         tmp_path, monkeypatch, answer, code, expected):
@@ -114,11 +111,11 @@ def test_config_overwrite_confirmation_controls_the_whole_profile(
     _feed_secrets(monkeypatch, "new_k", "new_s")
     _answer(monkeypatch, {"덮어": answer})
 
-    result = cli_main.main(["config", "--profile", "paper", "--environment", "paper",
+    result = cli_main.main(["config", "--profile", "demo", "--environment", "paper",
                             "--account", "87654321-02"])
 
     assert result == code
-    assert _creds(tmp_path)["paper"] == expected
+    assert _creds(tmp_path)["paper"]["demo"] == expected
 
 
 def test_config_eoferror_aborts_cleanly_without_writing(tmp_path, monkeypatch):
@@ -158,7 +155,7 @@ def test_config_never_echoes_secret_even_when_save_fails(tmp_path, monkeypatch, 
         raise KISError("자격증명 쓰기 실패")
     monkeypatch.setattr("kis_trader.cli.commands.credentials.KISConfig.save", _fail_save)
 
-    code = cli_main.main(["config", "--profile", "paper", "--environment", "paper",
+    code = cli_main.main(["config", "--profile", "demo", "--environment", "paper",
                           "--account", "50123456-01"])
 
     out, err = capsys.readouterr()
@@ -188,14 +185,15 @@ def test_config_real_environment_written_when_affirmed(tmp_path, monkeypatch):
                           "--account", "12345678-01"])
 
     assert code == 0
-    assert _creds(tmp_path)["main"]["environment"] == "real"
+    assert "main" in _creds(tmp_path)["real"]                 # real 블록에 기록
+    assert "environment" not in _creds(tmp_path)["real"]["main"]
 
 
 def test_config_summary_never_echoes_the_secret(tmp_path, monkeypatch, capsys):
     monkeypatch.setattr(cli_main, "build_client", _no_client)
     _feed_secrets(monkeypatch, "SECRETKEY", "SECRETVAL")
 
-    code = cli_main.main(["config", "--profile", "paper", "--environment", "paper",
+    code = cli_main.main(["config", "--profile", "demo", "--environment", "paper",
                           "--account", "50123456-01"])
 
     assert code == 0
@@ -207,7 +205,7 @@ def test_config_summary_never_echoes_the_secret(tmp_path, monkeypatch, capsys):
 
 
 def test_config_preserves_sibling_profiles(tmp_path, monkeypatch):
-    _seed(tmp_path, monkeypatch, profile="paper", app_key="pk")
+    _seed(tmp_path, monkeypatch, profile="demo", app_key="pk")   # paper.demo
     monkeypatch.setattr(cli_main, "build_client", _no_client)
     _feed_secrets(monkeypatch, "mk", "ms")
     _answer(monkeypatch, {"실전": "y"})
@@ -215,19 +213,19 @@ def test_config_preserves_sibling_profiles(tmp_path, monkeypatch):
                           "--account", "12345678-01"]) == 0
 
     data = _creds(tmp_path)
-    assert data["paper"]["app_key"] == "pk"
-    assert data["main"]["app_key"] == "mk"
+    assert data["paper"]["demo"]["app_key"] == "pk"   # 다른 환경 블록 보존
+    assert data["real"]["main"]["app_key"] == "mk"
 
 
 def test_config_set_default_marks_default_profile(tmp_path, monkeypatch):
     monkeypatch.setattr(cli_main, "build_client", _no_client)
     _feed_secrets(monkeypatch, "pk", "ps")
 
-    code = cli_main.main(["config", "--profile", "paper", "--environment", "paper",
+    code = cli_main.main(["config", "--profile", "demo", "--environment", "paper",
                           "--account", "50123456-01", "--set-default"])
 
     assert code == 0
-    assert _creds(tmp_path)["default_profile"] == "paper"
+    assert _creds(tmp_path)["default_profile"] == "demo"
 
 
 def test_config_rejects_secret_flags():
@@ -266,6 +264,6 @@ def test_concurrent_saves_preserve_all_profiles(tmp_path):
         thread.start()
     for thread in threads:
         thread.join(timeout=5.0)
-    data = json.loads((cfg_dir / "credentials.json").read_text())
+    data = json.loads((cfg_dir / "credentials.json").read_text())["paper"]
     for i in range(8):
         assert f"prof{i}" in data, f"prof{i} 가 유실됨(동시 저장 레이스)"
