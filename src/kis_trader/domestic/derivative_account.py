@@ -17,8 +17,8 @@ from ._engine.derivative_account import (
     fetch_night_balance,
     fetch_night_margin,
     fetch_open_orders,
-    fetch_settlement_pl,
-    fetch_valuation_pl,
+    fetch_settlement_pnl,
+    fetch_valuation_pnl,
 )
 from .entities.derivative_account import (
     DomesticDerivativeBalance,
@@ -86,26 +86,26 @@ class DomesticDerivativesAccount:
             side=side, symbol=symbol,
         )
 
-    def valuation_pl(self) -> DomesticDerivativeValuationBalance:
+    def valuation_pnl(self) -> DomesticDerivativeValuationBalance:
         """선물옵션 잔고평가손익내역(보유내역 + 예수금·증거금·손익 요약).
 
         ``GET .../domestic-futureoption/v1/trading/inquire-balance-valuation-pl``
         (``CTFO6159R``). 보유내역은 종목별 평가/매매 손익을 함께 싣는다. **실전전용**(모의투자 미지원).
         """
         cano, product_code = self._client._require_account()
-        return fetch_valuation_pl(
+        return fetch_valuation_pnl(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment,
         )
 
-    def settlement_pl(self, *, base_date: str) -> DomesticDerivativeSettlementBalance:
+    def settlement_pnl(self, *, base_date: str) -> DomesticDerivativeSettlementBalance:
         """선물옵션 잔고정산손익내역(정산 보유내역 + 예수금·증거금·수수료 요약).
 
         ``base_date`` 는 조회 기준일자(YYYYMMDD, 8자리 숫자). ``GET .../domestic-futureoption/v1/
         trading/inquire-balance-settlement-pl`` (``CTFO6117R``). **실전전용**(모의투자 미지원).
         """
         cano, product_code = self._client._require_account()
-        return fetch_settlement_pl(
+        return fetch_settlement_pnl(
             self._client.transport, cano=cano, product_code=product_code,
             environment=self._client.environment, base_date=base_date,
         )

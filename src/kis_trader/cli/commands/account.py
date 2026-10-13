@@ -286,7 +286,7 @@ def cmd_valuation(kis: KISClient, args: Namespace) -> Any:
     view = _view(kis)
     if isinstance(view, DomesticDerivativesAccount):
         _reject_foreign_flags(args, allow=set())
-        return view.valuation_pl()
+        return view.valuation_pnl()
     raise CliConfigError("평가손익내역 조회는 국내선물옵션(03) 계좌 전용입니다.")
 
 
@@ -296,7 +296,7 @@ def cmd_settlement(kis: KISClient, args: Namespace) -> Any:
         _reject_foreign_flags(args, allow={"date"})
         if not args.date:
             raise CliConfigError("국내선물옵션 정산손익은 기준일자가 필요합니다(--date YYYYMMDD).")
-        return view.settlement_pl(base_date=args.date)
+        return view.settlement_pnl(base_date=args.date)
     if isinstance(view, OverseasDerivativesAccount):
         raise CliConfigError("해외선물옵션은 정산손익 조회를 제공하지 않습니다 -- deposit/margin/profits 를 쓰세요.")
     account = _stock_account(kis)

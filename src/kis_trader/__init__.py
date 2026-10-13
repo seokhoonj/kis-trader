@@ -270,7 +270,6 @@ from .domestic.ranking import (
     ProfitAssetMetric,
     QuoteBalanceMetric,
     ShortSaleWindow,
-    TradeSide,
     ValuationMetric,
     VolumeMetric,
 )
@@ -707,7 +706,6 @@ __all__ = [
     "TradeAmountBand",
     "TradeProfit",
     "TradeProfitHistory",
-    "TradeSide",
     "TradingDay",
     "Transport",
     "TransportTimeoutError",

@@ -584,7 +584,7 @@ class Order:
     #: 슬롯(BUY_SEQ)을 재사용한다(:meth:`fingerprint` 참고) -- 채권 매수·기타 주문은 둘 다 "" 라
     #: 온-디스크 인코딩이 바이트 동일하다. 채권 매수·기타 주문은 항상 "".
     bond_buy_date: str = ""
-    bond_buy_seq: str = ""
+    bond_buy_sequence: str = ""
     #: 미국주식 알고리즘 분할주문 전략(TWAP/VWAP; 비-algo 는 ``None``). 미국(NAS/NYS/AMS) 지정가
     #: 전용이며 ``ORD_DVSN`` 35/36 으로 나간다. 같은 종목·수량·가격이라도 일반주문 vs TWAP vs VWAP 는
     #: 서로 다른 주문이라 지문에 함께 실어 dedup 을 가른다.
@@ -769,14 +769,14 @@ class Order:
         # 정체성을 바꾸므로 생성 시점에 fail-closed. 채권 매도는 둘 다 있어야(부분 lot 은 무의미) 하고,
         # BUY_DT 는 실재하는 YYYYMMDD 여야 한다.
         is_bond = lane == ("domestic", "bond")
-        if self.bond_buy_date or self.bond_buy_seq:
+        if self.bond_buy_date or self.bond_buy_sequence:
             if not (is_bond and self.side == "sell"):
                 raise KISUsageError(
-                    "bond_buy_date/bond_buy_seq 는 장내채권(BOND) 매도 주문에만 줄 수 있다."
+                    "bond_buy_date/bond_buy_sequence 는 장내채권(BOND) 매도 주문에만 줄 수 있다."
                 )
-            if not (self.bond_buy_date and self.bond_buy_seq):
+            if not (self.bond_buy_date and self.bond_buy_sequence):
                 raise KISUsageError(
-                    "장내채권 매도는 매수 lot 의 bond_buy_date 와 bond_buy_seq 가 모두 필요하다."
+                    "장내채권 매도는 매수 lot 의 bond_buy_date 와 bond_buy_sequence 가 모두 필요하다."
                 )
         if self.bond_buy_date:
             validate_yyyymmdd(self.bond_buy_date, "bond_buy_date")
@@ -861,7 +861,7 @@ class Order:
             # 채권 매도는 상호 배타적이라(exchange 로 갈림) 값이 섞이지 않는다.
             loan_date=self.loan_date or self.bond_buy_date,
             session=self.session, division=self.division or "",
-            derivative_item=self.derivative_item or self.bond_buy_seq,
+            derivative_item=self.derivative_item or self.bond_buy_sequence,
             algo_strategy=self.algo_strategy or "",
             algo_start=self.algo_start, algo_end=self.algo_end,
         )

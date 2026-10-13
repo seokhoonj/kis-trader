@@ -90,8 +90,8 @@ class _BondHandle:
     def buy(self, *, quantity, limit_price, client_order_id=None):
         self._log.append(("bond_buy", self._code, quantity, limit_price)); return "REPORT"
 
-    def sell(self, *, quantity, limit_price, buy_date, buy_seq, client_order_id=None):
-        self._log.append(("bond_sell", self._code, quantity, limit_price, buy_date, buy_seq))
+    def sell(self, *, quantity, limit_price, buy_date, buy_sequence, client_order_id=None):
+        self._log.append(("bond_sell", self._code, quantity, limit_price, buy_date, buy_sequence))
         return "REPORT"
 
 
@@ -1394,11 +1394,11 @@ class _StubDeriv03(DomesticDerivativesAccount):
     def base_date_fills(self, *, order_date, start_time="000000", end_time="240000"):
         self._log.append(("d03_base_date_fills", order_date)); return "D03_FILLS"
 
-    def valuation_pl(self):
-        self._log.append(("d03_valuation_pl",)); return "D03_VAL"
+    def valuation_pnl(self):
+        self._log.append(("d03_valuation_pnl",)); return "D03_VAL"
 
-    def settlement_pl(self, *, base_date):
-        self._log.append(("d03_settlement_pl", base_date)); return "D03_SETTLE"
+    def settlement_pnl(self, *, base_date):
+        self._log.append(("d03_settlement_pnl", base_date)); return "D03_SETTLE"
 
     def commissions(self, *, start, end):
         self._log.append(("d03_commissions", start, end)); return "D03_COMM"
@@ -1874,7 +1874,7 @@ def test_account_margin_domestic_and_overseas(monkeypatch):
 def test_account_valuation_domestic_deriv_only(monkeypatch):
     log = _deriv(monkeypatch, _StubDeriv03)
     assert account.cmd_valuation(object(), _args(["account", "valuation"])) == "D03_VAL"
-    assert log == [("d03_valuation_pl",)]
+    assert log == [("d03_valuation_pnl",)]
 
 
 def test_account_valuation_stock_rejects(monkeypatch):
@@ -1886,7 +1886,7 @@ def test_account_valuation_stock_rejects(monkeypatch):
 def test_account_settlement_domestic_deriv(monkeypatch):
     log = _deriv(monkeypatch, _StubDeriv03)
     account.cmd_settlement(object(), _args(["account", "settlement", "--date", "20240102"]))
-    assert log == [("d03_settlement_pl", "20240102")]
+    assert log == [("d03_settlement_pnl", "20240102")]
 
 
 def test_account_settlement_domestic_deriv_requires_date(monkeypatch):
@@ -2188,11 +2188,11 @@ def test_order_bond_sell_dry_run_shows_lot_and_sends_nothing():
     kis = StubKis()
     dry = order.cmd_sell(kis, _args(
         ["order", "sell", "KR6449111CB8", "100", "--asset", "bond",
-         "--limit-price", "10130", "--buy-date", "20260814", "--buy-seq", "1"]),
+         "--limit-price", "10130", "--buy-date", "20260814", "--buy-sequence", "1"]),
         is_tty=False)
     assert dry["asset"] == "bond"
     assert dry["buy_date"] == "20260814"
-    assert dry["buy_seq"] == "1"
+    assert dry["buy_sequence"] == "1"
     assert kis.log == []
 
 
@@ -2242,14 +2242,14 @@ def test_order_bond_sell_requires_lot():
 
 def test_order_bond_buy_rejects_lot():
     args = _args(["order", "buy", "KR6449111CB8", "100", "--asset", "bond",
-                  "--limit-price", "10125", "--buy-date", "20260814", "--buy-seq", "1"])
+                  "--limit-price", "10125", "--buy-date", "20260814", "--buy-sequence", "1"])
     with pytest.raises(CliConfigError, match="buy-date"):
         order.cmd_buy(StubKis(), args, is_tty=False)
 
 
 def test_order_stock_rejects_bond_lot():
     args = _args(["order", "sell", "005930", "10",
-                  "--buy-date", "20260814", "--buy-seq", "1"])
+                  "--buy-date", "20260814", "--buy-sequence", "1"])
     with pytest.raises(CliConfigError, match="buy-date"):
         order.cmd_sell(StubKis(), args, is_tty=False)
 
@@ -2277,7 +2277,7 @@ def test_order_bond_sell_execute_forwards_lot():
     kis = StubKis(account="12345678-29", environment="real")
     args = _args(["--profile", "irp", "order", "sell", "KR6449111CB8", "100",
                   "--asset", "bond", "--limit-price", "10130",
-                  "--buy-date", "20260814", "--buy-seq", "1",
+                  "--buy-date", "20260814", "--buy-sequence", "1",
                   "--execute", "real", "--yes", "--confirm-account", "7829"])
     assert order.cmd_sell(kis, args, is_tty=False) == "REPORT"
     assert kis.log == [("bond_sell", "KR6449111CB8", 100, "10130", "20260814", "1")]

@@ -340,8 +340,8 @@ kis.account
 │   ├── balance()                             # 선물옵션 잔고(모의 지원)
 │   ├── open_orders()                         # 미체결 주문(모의 지원)
 │   ├── deposit()                             # 총자산현황
-│   ├── valuation_pl()                        # 잔고평가손익
-│   ├── settlement_pl(base_date)              # 잔고정산손익
+│   ├── valuation_pnl()                        # 잔고평가손익
+│   ├── settlement_pnl(base_date)              # 잔고정산손익
 │   ├── base_date_fills(order_date)           # 기준일체결내역
 │   ├── commissions(start, end)               # 기간약정수수료
 │   ├── night_balance()                       # 야간 잔고현황

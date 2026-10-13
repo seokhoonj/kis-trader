@@ -68,7 +68,7 @@ def _ticket(args: Namespace, *, side: Side, account: str | None, environment: st
             ticket["currency"] = getattr(args, "currency", None)
     if asset == "bond" and side == "sell":
         ticket["buy_date"] = getattr(args, "buy_date", None)
-        ticket["buy_seq"] = getattr(args, "buy_seq", None)
+        ticket["buy_sequence"] = getattr(args, "buy_sequence", None)
     if asset in _DERIVATIVE_ASSETS:
         if args.region == "overseas":
             ticket["stop_price"] = args.stop_price
@@ -134,8 +134,8 @@ def _validate_asset_args(args: Namespace, side: Side) -> None:
         raise CliConfigError("--algo-start/--algo-end 는 --algo(twap/vwap) 전용입니다.")
 
     # 자산에 무의미한 특수 플래그 거부(어느 플래그가 문제인지 지목).
-    if (args.buy_date or args.buy_seq) and not (asset == "bond" and side == "sell"):
-        raise CliConfigError("--buy-date/--buy-seq 는 채권 매도(--asset bond, sell) 전용입니다.")
+    if (args.buy_date or args.buy_sequence) and not (asset == "bond" and side == "sell"):
+        raise CliConfigError("--buy-date/--buy-sequence 는 채권 매도(--asset bond, sell) 전용입니다.")
     if args.right is not None and not (asset == "option" and domestic):
         raise CliConfigError("--right 는 국내 옵션(--asset option) 전용입니다.")
     if args.night and not (is_deriv and domestic):
@@ -189,9 +189,9 @@ def _validate_bond_required(args: Namespace, side: Side) -> None:
         raise CliConfigError("장내채권은 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
     # 매수에 실린 lot 인자는 상위 _validate_asset_args 의 공용 가드가 먼저 거부하므로
     # 여기서는 매도의 lot 필수만 확인한다.
-    if side == "sell" and not (args.buy_date and args.buy_seq):
+    if side == "sell" and not (args.buy_date and args.buy_sequence):
         raise CliConfigError(
-            "채권 매도는 매수 lot(--buy-date/--buy-seq)이 모두 필요합니다 -- "
+            "채권 매도는 매수 lot(--buy-date/--buy-sequence)이 모두 필요합니다 -- "
             "`kis account balance --asset bond` 로 lot 을 확인하세요."
         )
 
@@ -268,7 +268,7 @@ def _preview_or_submit_order(kis: KISClient, args: Namespace, *, side: Side, is_
         if side == "buy":
             return bond.buy(quantity=args.quantity, limit_price=args.limit_price)
         return bond.sell(quantity=args.quantity, limit_price=args.limit_price,
-                         buy_date=args.buy_date, buy_seq=args.buy_seq)
+                         buy_date=args.buy_date, buy_sequence=args.buy_sequence)
     if args.asset in _DERIVATIVE_ASSETS:
         # region 별로 전송 kwargs 가 달라(국내 division/night, 해외 stop_price) 각각 인라인 해석한다
         # -- 공용 변수로 묶으면 두 핸들의 buy 시그니처가 달라 정적 타입이 좁혀지지 않는다.

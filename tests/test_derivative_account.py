@@ -117,7 +117,7 @@ def test_derivative_position_side_is_normalized_to_side_literal():
     unknown = _client(FakeTransport(response=_balance_resp(rows=[_position(side="")]))).account.balance()
     assert unknown.positions[0].side is None  # 방향 없는 정산 잔여 lot 등
     val = _client(FakeTransport(response=_valuation_resp(rows=[_valuation_position(side="매도")])),
-                  environment="real").account.valuation_pl()  # 평가손익은 실전전용
+                  environment="real").account.valuation_pnl()  # 평가손익은 실전전용
     assert val.positions[0].side == "sell"
 
 
@@ -263,11 +263,11 @@ def _valuation_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont="D
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
 
 
-def test_valuation_pl_parses_and_routes():
+def test_valuation_pnl_parses_and_routes():
     from kis_trader.domestic.entities.derivative_account import DomesticDerivativeValuationBalance
 
     fake = FakeTransport(response=_valuation_resp(rows=[_valuation_position()]))
-    val = _client(fake, environment="real").account.valuation_pl()
+    val = _client(fake, environment="real").account.valuation_pnl()
     assert isinstance(val, DomesticDerivativeValuationBalance)
     assert val.positions[0].symbol == "101W09"          # shtn_pdno
     assert val.positions[0].quantity == Decimal(3)      # cblc_qty1
@@ -284,30 +284,30 @@ def test_valuation_pl_parses_and_routes():
     assert call["params"]["CTX_AREA_NK200"] == ""
 
 
-def test_valuation_pl_paper_fails_closed():
+def test_valuation_pnl_paper_fails_closed():
     fake = FakeTransport(response=_valuation_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").account.valuation_pl()
+        _client(fake, environment="paper").account.valuation_pnl()
     assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
 
 
-def test_valuation_pl_paginates():
+def test_valuation_pnl_paginates():
     page1 = _valuation_resp(rows=[_valuation_position("101W09")],
                             ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
     page2 = _valuation_resp(rows=[_valuation_position("201X12", pdno="KR4201RC0000")], tr_cont="D")
     fake = FakeTransport(by_path={_VALUATION_PL_PATH: [page1, page2]})
-    val = _client(fake, environment="real").account.valuation_pl()
+    val = _client(fake, environment="real").account.valuation_pnl()
     assert [p.symbol for p in val.positions] == ["101W09", "201X12"]
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
     assert fake.calls[1]["tr_cont"] == "N"    # 연속조회 헤더
 
 
-def test_valuation_pl_missing_output2_raises():
+def test_valuation_pnl_missing_output2_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"output1": [], "ctx_area_nk200": "", "ctx_area_fk200": ""})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp), environment="real").account.valuation_pl()
+        _client(FakeTransport(response=resp), environment="real").account.valuation_pnl()
 
 
 def test_derivative_valuation_entities_importable():
@@ -344,11 +344,11 @@ def _settlement_resp(*, rows=None, summary=None, ctx_nk="", ctx_fk="", tr_cont="
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
 
 
-def test_settlement_pl_parses_and_routes():
+def test_settlement_pnl_parses_and_routes():
     from kis_trader.domestic.entities.derivative_account import DomesticDerivativeSettlementBalance
 
     fake = FakeTransport(response=_settlement_resp(rows=[_settlement_position()]))
-    stl = _client(fake, environment="real").account.settlement_pl(base_date="20240216")
+    stl = _client(fake, environment="real").account.settlement_pnl(base_date="20240216")
     assert isinstance(stl, DomesticDerivativeSettlementBalance)
     assert stl.positions[0].symbol == "KR4101RC0000"        # pdno
     assert stl.positions[0].quantity == Decimal(3)          # cblc_qty
@@ -366,45 +366,45 @@ def test_settlement_pl_parses_and_routes():
     assert call["params"]["CANO"] == "12345678"
 
 
-def test_settlement_pl_paper_fails_closed():
+def test_settlement_pnl_paper_fails_closed():
     fake = FakeTransport(response=_settlement_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").account.settlement_pl(base_date="20240216")
+        _client(fake, environment="paper").account.settlement_pnl(base_date="20240216")
     assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
 
 
-def test_settlement_pl_bad_date_fails_closed():
+def test_settlement_pnl_bad_date_fails_closed():
     fake = FakeTransport(response=_settlement_resp())
     with pytest.raises(KISUsageError):
-        _client(fake, environment="real").account.settlement_pl(base_date="2024-02-16")
+        _client(fake, environment="real").account.settlement_pnl(base_date="2024-02-16")
     assert fake.calls == []  # 날짜 검증도 와이어 이전
 
 
-def test_settlement_pl_paginates():
+def test_settlement_pnl_paginates():
     page1 = _settlement_resp(rows=[_settlement_position("KR4101RC0000")],
                              ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
     page2 = _settlement_resp(rows=[_settlement_position("KR4201RC0000")], tr_cont="D")
     fake = FakeTransport(by_path={_SETTLEMENT_PATH: [page1, page2]})
-    stl = _client(fake, environment="real").account.settlement_pl(base_date="20240216")
+    stl = _client(fake, environment="real").account.settlement_pnl(base_date="20240216")
     assert [p.symbol for p in stl.positions] == ["KR4101RC0000", "KR4201RC0000"]
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK200"] == "FK"
     assert fake.calls[1]["tr_cont"] == "N"    # 연속조회 헤더
 
 
-def test_settlement_pl_skips_blank_symbol_row():
+def test_settlement_pnl_skips_blank_symbol_row():
     rows = [_settlement_position("KR4101RC0000"), _settlement_position("")]
     stl = _client(
         FakeTransport(response=_settlement_resp(rows=rows)), environment="real"
-    ).account.settlement_pl(base_date="20240216")
+    ).account.settlement_pnl(base_date="20240216")
     assert [p.symbol for p in stl.positions] == ["KR4101RC0000"]
 
 
-def test_settlement_pl_missing_output2_raises():
+def test_settlement_pnl_missing_output2_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"output1": [], "ctx_area_nk200": "", "ctx_area_fk200": ""})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp), environment="real").account.settlement_pl(base_date="20240216")
+        _client(FakeTransport(response=resp), environment="real").account.settlement_pnl(base_date="20240216")
 
 
 def test_derivative_settlement_entities_importable():
@@ -635,18 +635,18 @@ def test_derivative_balance_non_mapping_row_raises():
         _client(FakeTransport(response=_balance_resp(rows=[None]))).account.balance()
 
 
-def test_valuation_pl_non_mapping_row_raises():
+def test_valuation_pnl_non_mapping_row_raises():
     with pytest.raises(KISError):
         _client(
             FakeTransport(response=_valuation_resp(rows=[None])), environment="real"
-        ).account.valuation_pl()
+        ).account.valuation_pnl()
 
 
-def test_settlement_pl_non_mapping_row_raises():
+def test_settlement_pnl_non_mapping_row_raises():
     with pytest.raises(KISError):
         _client(
             FakeTransport(response=_settlement_resp(rows=[None])), environment="real"
-        ).account.settlement_pl(base_date="20240216")
+        ).account.settlement_pnl(base_date="20240216")
 
 
 def test_base_date_fills_non_mapping_row_raises():
@@ -664,18 +664,18 @@ def test_commissions_non_mapping_row_raises():
 
 
 # --- 페이지 상한 fail-closed (연속조회가 끝나지 않는 tr_cont="F"/"M") --------
-def test_valuation_pl_page_cap_fails_closed():
+def test_valuation_pnl_page_cap_fails_closed():
     pages = [_valuation_resp(rows=[_valuation_position()], ctx_nk=f"N{i}", ctx_fk="FK", tr_cont="F")
              for i in range(101)]
     with pytest.raises(KISError):
-        _client(FakeTransport(pages=pages), environment="real").account.valuation_pl()
+        _client(FakeTransport(pages=pages), environment="real").account.valuation_pnl()
 
 
-def test_settlement_pl_page_cap_fails_closed():
+def test_settlement_pnl_page_cap_fails_closed():
     pages = [_settlement_resp(rows=[_settlement_position()], ctx_nk=f"N{i}", ctx_fk="FK", tr_cont="M")
              for i in range(101)]
     with pytest.raises(KISError):
-        _client(FakeTransport(pages=pages), environment="real").account.settlement_pl(base_date="20240216")
+        _client(FakeTransport(pages=pages), environment="real").account.settlement_pnl(base_date="20240216")
 
 
 def test_base_date_fills_page_cap_fails_closed():
@@ -903,7 +903,7 @@ def test_account_date_args_are_keyword_only():
     # 동일 타입 날짜 인자를 순서로 넘겨 뒤바뀌는 사고를 막기 위해 keyword-only 여야 한다.
     account = _client(FakeTransport(response=_balance_resp(rows=[])), environment="real").account
     with pytest.raises(TypeError):
-        account.settlement_pl("20240216")            # type: ignore[misc]  # positional 금지
+        account.settlement_pnl("20240216")            # type: ignore[misc]  # positional 금지
     with pytest.raises(TypeError):
         account.base_date_fills("20240220")          # type: ignore[misc]
     with pytest.raises(TypeError):

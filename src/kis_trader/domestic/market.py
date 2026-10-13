@@ -19,6 +19,7 @@ if TYPE_CHECKING:
     from ..client import KISClient
     from ..instrument import DomesticMarket, DomesticMarketFilter
     from ..news import NewsHeadline
+    from ..order import Side
     from .entities.market import (
         BrokerOpinion,
         BrokerOpinionFilter,
@@ -38,7 +39,6 @@ if TYPE_CHECKING:
         TradingDay,
         VIEvent,
     )
-    from .ranking import TradeSide
 
 
 #: 시장 필터(전체/코스피/코스닥/코스피200) -- 신용주문 가능종목 조회 전용(KOSPI200 추가).
@@ -83,7 +83,7 @@ class MarketQueries:
 
     def investor_net_buy_stocks(
         self, *, market: DomesticMarketFilter = "all", basis: NetBuyBasis = "volume",
-        side: TradeSide = "buy", investor: InvestorType = "all",
+        side: Side = "buy", investor: InvestorType = "all",
     ) -> list[InvestorNetBuyStock]:
         """투자자 순매수·순매도 상위 종목 집계."""
         return market_api.fetch_investor_net_buy_stocks(

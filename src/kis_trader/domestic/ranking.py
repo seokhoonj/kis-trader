@@ -29,6 +29,7 @@ if TYPE_CHECKING:
     from datetime import date
 
     from ..client import KISClient
+    from ..order import Side
 
 #: 거래량 계열 순위 기준 -- 평균거래량(``"average_volume"``, KIS 소속구분코드 0) / 거래대금
 #: (``"cumulative_trading_amount"``) / 거래증가율(``"volume_growth"``) / 회전율(``"turnover"``).
@@ -39,9 +40,6 @@ DisparityExtreme = Literal["highest", "lowest"]
 
 #: 호가잔량 순위 기준 -- 순매수/순매도 잔량, 매수/매도 비율.
 QuoteBalanceMetric = Literal["net_buy", "net_sell", "buy_ratio", "sell_ratio"]
-
-#: 매매 방향 -- 매수(buy) 상위 / 매도(sell) 상위. 대량체결·당사매매 순위 공통.
-TradeSide = Literal["buy", "sell"]
 
 #: 재무비율 분석 축 -- 수익성/안정성/성장성/활동성.
 FinancialAnalysis = Literal["profitability", "stability", "growth", "activity"]
@@ -134,7 +132,7 @@ class DomesticRankingQueries:
         """체결강도 순위(최대 30건). 당일 체결강도는 각 항목의 ``_raw['tday_rltv']``."""
         return ranking_api.fetch_volume_power(self._client.transport, market="KRX")
 
-    def by_bulk_trades(self, *, side: TradeSide = "buy") -> list[DomesticRankedStock]:
+    def by_bulk_trades(self, *, side: Side = "buy") -> list[DomesticRankedStock]:
         """대량체결건수 순위. ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. 체결건수는 각 항목의
         ``_raw``(shnu_cntg_csnu/seln_cntg_csnu 등)(최대 30건)."""
         return ranking_api.fetch_bulk_trades(self._client.transport, side=side, market="KRX")
@@ -180,7 +178,7 @@ class DomesticRankingQueries:
         )
 
     def by_company_trades(
-        self, *, side: TradeSide = "buy", start: str | date, end: str | date
+        self, *, side: Side = "buy", start: str | date, end: str | date
     ) -> list[DomesticRankedStock]:
         """당사매매종목 순위(기간). ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. ``start``/``end`` 는
         조회 기간(YYYYMMDD 문자열 또는 ``date``). 당사 매수/매도/순매수 수량은 각 항목의

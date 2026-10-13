@@ -11,7 +11,7 @@ KIS URL/TR-ID (대표 예시 -- 전체는 각 함수의 경로/TR-ID 상수 참�
 - 매도: ``POST /uapi/domestic-bond/v1/trading/sell``, 실전 ``TTTC0958U`` (**모의투자 미지원**).
   채권은 지정가(채권단가 ``BOND_ORD_UNPR``) 전용이라 시장가가 없다. 수량은 액면(face) 단위,
   가격은 채권단가다. 매도는 종목별(``ORD_DVSN="01"``)로 특정 매수 lot(``BUY_DT``+``BUY_SEQ``)을
-  지목하며, 그 lot 은 :class:`~kis_trader.order.Order` 의 재사용 슬롯(bond_buy_date/bond_buy_seq)에서
+  지목하며, 그 lot 은 :class:`~kis_trader.order.Order` 의 재사용 슬롯(bond_buy_date/bond_buy_sequence)에서
   읽는다. 정정취소(TTTC0953U)는 매수/매도 공통이다.
 """
 
@@ -95,15 +95,15 @@ def _buy_body(order: Order, *, cano: str, product_code: str) -> dict[str, str]:
 
 def _sell_body(order: Order, *, cano: str, product_code: str) -> dict[str, str]:
     """장내채권 매도(``TTTC0958U``) 와이어 바디. 종목별(``ORD_DVSN="01"``)로 특정 매수 lot 을 지목하며,
-    매수일자(``BUY_DT``)·매수순번(``BUY_SEQ``)은 Order 의 재사용 슬롯(bond_buy_date/bond_buy_seq)에서
+    매수일자(``BUY_DT``)·매수순번(``BUY_SEQ``)은 Order 의 재사용 슬롯(bond_buy_date/bond_buy_sequence)에서
     읽는다 -- 둘 중 하나라도 비면 엉뚱한 lot 을 팔지 않도록 fail-closed. ``SPRX_YN="N"`` 은 분리과세
     미신청(v1 은 분리과세를 지원하지 않고 항상 "N"). ``SLL_AGCO_OPPS_SLL_YN``(대차반대매도 여부)·
     ``SAMT_MKET_PTCI_YN``(소액채권 시장참여)·``BOND_RTL_MKET_YN``(소매시장) 은 "N", 주문서버구분 "0" 는
     고정값이다."""
     assert order.limit_price is not None      # 호출부에서 이미 검증
-    if not (order.bond_buy_date and order.bond_buy_seq):
+    if not (order.bond_buy_date and order.bond_buy_sequence):
         raise KISUsageError(
-            "장내채권 매도는 매수 lot(buy_date/buy_seq)이 필요하다 -- "
+            "장내채권 매도는 매수 lot(buy_date/buy_sequence)이 필요하다 -- "
             "kis.account.domestic.bonds.balance() 의 BondPosition(buy_date/buy_sequence)."
         )
     return {
@@ -115,7 +115,7 @@ def _sell_body(order: Order, *, cano: str, product_code: str) -> dict[str, str]:
         "BOND_ORD_UNPR": format_wire_decimal(order.limit_price),
         "SPRX_YN": "N",                           # 분리과세 미신청(v1 미지원 -- 항상 N)
         "BUY_DT": order.bond_buy_date,
-        "BUY_SEQ": order.bond_buy_seq,
+        "BUY_SEQ": order.bond_buy_sequence,
         "SAMT_MKET_PTCI_YN": "N",                 # 일반시장(소액채권 시장참여 아님)
         "SLL_AGCO_OPPS_SLL_YN": "N",              # 대차반대매도 아님
         "BOND_RTL_MKET_YN": "N",                  # 소매시장 아님

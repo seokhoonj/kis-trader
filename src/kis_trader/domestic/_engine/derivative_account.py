@@ -279,7 +279,7 @@ def fetch_night_margin(
     )
 
 
-def fetch_valuation_pl(
+def fetch_valuation_pnl(
     transport: Transport, *, cano: str, product_code: str, environment: Environment
 ) -> DomesticDerivativeValuationBalance:
     """선물옵션 잔고평가손익내역(보유내역 output1 + 계좌 요약 output2). 연속조회로 보유내역을
@@ -324,7 +324,7 @@ def fetch_valuation_pl(
     )
 
 
-def fetch_settlement_pl(
+def fetch_settlement_pnl(
     transport: Transport, *, cano: str, product_code: str, environment: Environment, base_date: str
 ) -> DomesticDerivativeSettlementBalance:
     """선물옵션 잔고정산손익내역(정산 보유내역 output1 + 계좌 요약 output2). ``base_date`` (YYYYMMDD)

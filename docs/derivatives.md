@@ -85,8 +85,8 @@ for order in account.open_orders():  # 미체결(정정·취소 가능) 주문 -
 
 ```python
 account.deposit()                      # 총자산현황 (DomesticDerivativeDeposit)
-account.valuation_pl()                 # 잔고평가손익 (종목별 평가/매매 손익)
-account.settlement_pl(base_date="20240628")   # 잔고정산손익
+account.valuation_pnl()                 # 잔고평가손익 (종목별 평가/매매 손익)
+account.settlement_pnl(base_date="20240628")   # 잔고정산손익
 account.base_date_fills(order_date="20240628")  # 기준일 체결내역 (start_time/end_time 로 시각 구간)
 account.commissions(start="20240101", end="20240630")  # 기간약정수수료 일별
 account.night_margin(margin_division="consignment")  # 야간 증거금상세 (consignment/maintenance)

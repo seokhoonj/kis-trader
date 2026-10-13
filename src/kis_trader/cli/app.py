@@ -272,7 +272,7 @@ def build_parser() -> argparse.ArgumentParser:
                         default="stock", help="자산군: stock(기본)/bond(장내채권)/futures/option(파생)")
         sp.add_argument("--buy-date", dest="buy_date", default=None,
                         help="채권 매도 lot 매수일자 YYYYMMDD(bond sell 전용)")
-        sp.add_argument("--buy-seq", dest="buy_seq", default=None,
+        sp.add_argument("--buy-sequence", dest="buy_sequence", default=None,
                         help="채권 매도 lot 매수순번(bond sell 전용)")
         sp.add_argument("--right", choices=list(get_args(Right)), default=None,
                         help="옵션 콜/풋(국내 --asset option 전용)")

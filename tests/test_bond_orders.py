@@ -95,7 +95,7 @@ def test_make_order_request_paper_rejected():
 
 def test_make_order_request_sell_body():
     # 매도는 sell 엔드포인트/TR 로 라우팅하고 매수 lot(BUY_DT/BUY_SEQ)을 지문 재사용 슬롯에서 읽는다.
-    order = _bond_order(side="sell", bond_buy_date="20240215", bond_buy_seq="1")
+    order = _bond_order(side="sell", bond_buy_date="20240215", bond_buy_sequence="1")
     req = bond.make_order_request(order, cano="81012345", product_code="03", environment="real")
     assert req.method == "POST"
     assert req.path == bond._SELL_PATH
@@ -198,7 +198,7 @@ def test_bond_buy_rejects_risk_gate():
 def test_bond_sell_wire():
     fake = FakeTransport()
     report = _client(fake).domestic.bond("KR2033022D33").sell(
-        quantity=10, limit_price=10000, buy_date="20240215", buy_seq="1")
+        quantity=10, limit_price=10000, buy_date="20240215", buy_sequence="1")
     assert isinstance(report, ExecutionReport)
     assert report.order_id == "0001234567"
     assert fake.request_count == 1
@@ -222,9 +222,9 @@ def test_bond_sell_lot_in_fingerprint():
     store = OrderStore()
     fake = FakeTransport()
     handle = _client(fake, store=store).domestic.bond("KR2033022D33")
-    r1 = handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_seq="1")
-    r2 = handle.sell(quantity=10, limit_price=10000, buy_date="20240216", buy_seq="1")
-    r3 = handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_seq="2")
+    r1 = handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_sequence="1")
+    r2 = handle.sell(quantity=10, limit_price=10000, buy_date="20240216", buy_sequence="1")
+    r3 = handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_sequence="2")
     assert fake.request_count == 3              # 세 lot 모두 서로 다른 주문 -> 전부 전송
     assert r1.order_id == r2.order_id == r3.order_id  # 같은 고정 응답(구분은 지문에서)
 
@@ -235,22 +235,22 @@ def test_bond_sell_same_lot_dedups():
     fake = FakeTransport()
     cid = "20260819-bondsell0000001"
     handle = _client(fake, store=store).domestic.bond("KR2033022D33")
-    r1 = handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_seq="1",
+    r1 = handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_sequence="1",
                      client_order_id=cid)
-    r2 = handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_seq="1",
+    r2 = handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_sequence="1",
                      client_order_id=cid)
     assert r1.order_id == r2.order_id
     assert fake.request_count == 1
 
 
 def test_bond_sell_requires_lot():
-    # 빈 buy_date/buy_seq 로는 매도할 수 없다 -- 와이어에 닿기 전에 fail-closed.
+    # 빈 buy_date/buy_sequence 로는 매도할 수 없다 -- 와이어에 닿기 전에 fail-closed.
     fake = FakeTransport()
     handle = _client(fake).domestic.bond("KR2033022D33")
     with pytest.raises(KISUsageError):
-        handle.sell(quantity=10, limit_price=10000, buy_date="", buy_seq="1")
+        handle.sell(quantity=10, limit_price=10000, buy_date="", buy_sequence="1")
     with pytest.raises(KISUsageError):
-        handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_seq="")
+        handle.sell(quantity=10, limit_price=10000, buy_date="20240215", buy_sequence="")
     assert fake.request_count == 0
 
 
@@ -259,7 +259,7 @@ def test_bond_sell_paper_fails_closed():
     fake = FakeTransport()
     with pytest.raises(KISUsageError):
         _client(fake, environment="paper").domestic.bond("KR2033022D33").sell(
-            quantity=10, limit_price=10000, buy_date="20240215", buy_seq="1")
+            quantity=10, limit_price=10000, buy_date="20240215", buy_sequence="1")
     assert fake.request_count == 0
 
 
@@ -268,20 +268,20 @@ def test_bond_sell_lot_slots_are_bond_only():
     with pytest.raises(KISUsageError):
         Order(symbol="005930", side="sell", order_type="limit", quantity=Decimal(1),
               limit_price=Decimal(70000), bond_buy_date="20240215",
-              bond_buy_seq="1", client_order_id="c")
+              bond_buy_sequence="1", client_order_id="c")
 
 
 def test_bond_lot_slots_rejected_on_bond_buy():
     # lot 지목은 채권 **매도** 전용 -- 채권 매수에 lot 을 실으면 생성 시점에 거부.
     with pytest.raises(KISUsageError, match="매도"):
-        _bond_order(side="buy", bond_buy_date="20240215", bond_buy_seq="1")
+        _bond_order(side="buy", bond_buy_date="20240215", bond_buy_sequence="1")
 
 
 @pytest.mark.parametrize(
     "kw",
     [
-        {"bond_buy_date": "20240215", "bond_buy_seq": ""},   # 순번 없음
-        {"bond_buy_date": "", "bond_buy_seq": "1"},          # 매수일 없음
+        {"bond_buy_date": "20240215", "bond_buy_sequence": ""},   # 순번 없음
+        {"bond_buy_date": "", "bond_buy_sequence": "1"},          # 매수일 없음
     ],
 )
 def test_bond_sell_requires_both_lot_fields(kw):
@@ -294,7 +294,7 @@ def test_bond_forbids_stray_derivative_item():
     # BOND 지문은 derivative_item 슬롯을 BUY_SEQ 로 재사용한다 -- 독립 derivative_item 이 실리면
     # 서로 다른 lot 의 매도가 한 지문으로 붕괴하는 collision 이 나므로 생성 시점에 거부한다.
     with pytest.raises(KISUsageError, match="derivative_item"):
-        _bond_order(side="sell", bond_buy_date="20240215", bond_buy_seq="1",
+        _bond_order(side="sell", bond_buy_date="20240215", bond_buy_sequence="1",
                     derivative_item="02")
 
 
@@ -308,7 +308,7 @@ def test_fingerprint_byte_compat_unchanged_for_existing_orders():
     assert enc == ["KR2033022D33", "buy", "limit", "10", "10000", "", "day", "BOND",
                    "", "", "regular", "", "KRX", "", "", "HKD", "", "", ""]
     # 매도는 lot 슬롯에 BUY_DT/BUY_SEQ 를 실어 매수와 구분된다(idx9=BUY_DT, idx13=BUY_SEQ).
-    sell = _bond_order(side="sell", bond_buy_date="20240215", bond_buy_seq="1")
+    sell = _bond_order(side="sell", bond_buy_date="20240215", bond_buy_sequence="1")
     enc_sell = encode_fingerprint(sell.fingerprint)
     assert enc_sell[9] == "20240215"
     assert enc_sell[13] == "1"
