@@ -75,3 +75,28 @@ def test_real_slot_resolves_to_real_tr_and_account(tmp_path):
     assert call["tr_id"] == "TTTC0012U"            # 실전 매수 TR
     assert call["body"]["CANO"] == "11111111"      # 실전 슬롯 계좌(paper 로 새지 않음)
     assert call["body"]["ACNT_PRDT_CD"] == "01"
+
+
+def test_app_key_and_secret_isolated_between_real_and_paper(tmp_path, monkeypatch):
+    """real 슬롯과 paper 슬롯의 app_key/app_secret 이 서로 격리된다 -- auth 경계(TokenManager)에
+    닿는 자격증명을 기록하는 가짜를 주입해, real 세션이 쥔 app_key 가 paper 와 다르고(양방향) 그 반대도
+    참임을 확인한다. 시크릿 '값' 은 어디에도 출력하지 않고 동등/비동등만 단언한다."""
+    captured: dict[str, tuple[str, str]] = {}
+
+    class _RecordingTokenManager:
+        def __init__(self, *, app_key, app_secret, environment, cache_dir=None):
+            captured[environment] = (app_key, app_secret)
+
+    # auth 경계만 가짜로 -- 토큰은 app_key/app_secret 으로 발급되므로 여기서 짝을 기록한다(네트워크 없음).
+    monkeypatch.setattr("kis_trader._internal._auth.TokenManager", _RecordingTokenManager)
+    _save_both(tmp_path)
+    KISClient(profile="general", environment="real", config_dir=tmp_path)
+    KISClient(profile="general", environment="paper", config_dir=tmp_path)
+
+    assert set(captured) == {"real", "paper"}
+    real_key, real_secret = captured["real"]
+    paper_key, paper_secret = captured["paper"]
+    assert real_key != paper_key                     # app_key 격리(real != paper)
+    assert real_secret != paper_secret               # app_secret 격리
+    assert paper_key != real_key                     # 반대 방향(paper 가 real 로 새지 않는다)
+    assert captured["real"] != captured["paper"]      # 짝 전체가 슬롯별로 분리

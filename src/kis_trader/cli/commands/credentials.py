@@ -380,93 +380,93 @@ def cmd_config_migrate(args: argparse.Namespace) -> None:
     이미 두 축 형식이면 아무것도 바꾸지 않는다."""
     directory = _config_dir_path()
     path = _credentials_path()
-    loaded = _load_credentials(directory)
-    if not loaded or _detect_schema(loaded) == "v2":
-        print(f"이미 두 축 형식이거나 변환할 내용이 없습니다 ({path}).")
-        return
-    profiles = {name: section for name, section in loaded.items()
-                if name not in _RESERVED_TOP_LEVEL_KEYS and isinstance(section, dict)}
+    with _credentials_write_lock(directory):   # RMW: 읽기-판단-쓰기를 한 락 아래서 직렬화(동시 writer 의 쓰기 유실 방지)
+        loaded = _load_credentials(directory)
+        if not loaded or _detect_schema(loaded) == "v2":
+            print(f"이미 두 축 형식이거나 변환할 내용이 없습니다 ({path}).")
+            return
+        profiles = {name: section for name, section in loaded.items()
+                    if name not in _RESERVED_TOP_LEVEL_KEYS and isinstance(section, dict)}
 
-    yes = getattr(args, "yes", False)
-    top_password = _coerce_account_password(loaded.get(_ACCOUNT_PASSWORD_KEY))
-    blocks: dict[str, dict[str, dict[str, str]]] = {"real": {}, "paper": {}}
-    consumed: set[str] = set()
-    renames: list[tuple[str, str, str]] = []         # (old_name, new_name, environment)
-    default_profile_name: str | None = None
-    #: (환경, 대상이름) -> 그 슬롯을 차지한 레거시 프로필 이름. 충돌(두 프로필이 같은 슬롯)을 잡아,
-    #: 쓰기 전에 한쪽 자격증명이 조용히 사라지는 것을 막는다.
-    slot_source: dict[tuple[str, str], str] = {}
+        yes = getattr(args, "yes", False)
+        top_password = _coerce_account_password(loaded.get(_ACCOUNT_PASSWORD_KEY))
+        blocks: dict[str, dict[str, dict[str, str]]] = {"real": {}, "paper": {}}
+        consumed: set[str] = set()
+        renames: list[tuple[str, str, str]] = []         # (old_name, new_name, environment)
+        default_profile_name: str | None = None
+        #: (환경, 대상이름) -> 그 슬롯을 차지한 레거시 프로필 이름. 충돌(두 프로필이 같은 슬롯)을 잡아,
+        #: 쓰기 전에 한쪽 자격증명이 조용히 사라지는 것을 막는다.
+        slot_source: dict[tuple[str, str], str] = {}
 
-    def _claim(environment: str, target: str, source: str) -> None:
-        """``(environment, target)`` 슬롯을 ``source`` 레거시 프로필로 선점하고 그 묶음을 채운다.
-        이미 다른 프로필이 같은 슬롯에 매핑돼 있으면 거부한다 -- 그대로 두면 한쪽이 덮여 사라진다."""
-        key = (environment, target)
-        occupant = slot_source.get(key)
-        if occupant is not None:
-            raise CliAborted(
-                f"변환 충돌: 레거시 프로필 '{occupant}' 와 '{source}' 가 모두 {environment}.{target} "
-                "슬롯에 매핑됩니다 -- 그대로 두면 한쪽 자격증명이 사라집니다. 한쪽 이름을 바꾸거나 "
-                "'--yes' 없이 대화형으로 실행해 다른 이름을 지정하세요.")
-        slot_source[key] = source
-        blocks[environment][target] = _legacy_bundle(profiles[source], top_password)
-
-    # 병합: 구 main(real) + 구 paper(paper) -> 한 계좌 종류. 같은 종류인지는 사람 지식이라 물어본다.
-    if "main" in profiles and "paper" in profiles:
-        if yes:
-            do_merge, merged_name = True, "general"
-        elif _confirm("'general' 프로필로 합칠까요? real 슬롯 = 기존 'main', paper 슬롯 = 기존 'paper'"):
-            do_merge, merged_name = True, _prompt("합친 프로필 이름", "general")
-        else:
-            do_merge, merged_name = False, ""
-        if do_merge:
-            _validate_profile_name_v2(merged_name)
-            # 합친 이름이 이미 독립 레거시 프로필이면 합치는 순간 그 자격증명이 사라진다 -- 미리 막는다.
-            if merged_name in profiles and merged_name not in ("main", "paper"):
+        def _claim(environment: str, target: str, source: str) -> None:
+            """``(environment, target)`` 슬롯을 ``source`` 레거시 프로필로 선점하고 그 묶음을 채운다.
+            이미 다른 프로필이 같은 슬롯에 매핑돼 있으면 거부한다 -- 그대로 두면 한쪽이 덮여 사라진다."""
+            key = (environment, target)
+            occupant = slot_source.get(key)
+            if occupant is not None:
                 raise CliAborted(
-                    f"병합 이름 '{merged_name}' 이 이미 레거시 프로필로 있어 합치면 그 자격증명이 사라집니다 "
-                    "-- 다른 이름을 쓰거나 '--yes' 없이 실행해 지정하세요.")
-            _claim("real", merged_name, "main")
-            _claim("paper", merged_name, "paper")
-            consumed |= {"main", "paper"}
-            renames += [("main", merged_name, "real"), ("paper", merged_name, "paper")]
-            default_profile_name = merged_name
+                    f"변환 충돌: 레거시 프로필 '{occupant}' 와 '{source}' 가 모두 {environment}.{target} "
+                    "슬롯에 매핑됩니다 -- 그대로 두면 한쪽 자격증명이 사라집니다. 한쪽 이름을 바꾸거나 "
+                    "'--yes' 없이 대화형으로 실행해 다른 이름을 지정하세요.")
+            slot_source[key] = source
+            blocks[environment][target] = _legacy_bundle(profiles[source], top_password)
 
-    # 나머지 프로필: 저장된 환경 블록에 자기 이름으로. 두 축에서 못 쓰는 이름(paper 등)은 개명을 묻는다.
-    for name, section in profiles.items():
-        if name in consumed:
-            continue
-        environment = _legacy_environment(section)
-        target = name
-        try:
-            _validate_profile_name_v2(target)
-        except KISUsageError:
+        # 병합: 구 main(real) + 구 paper(paper) -> 한 계좌 종류. 같은 종류인지는 사람 지식이라 물어본다.
+        if "main" in profiles and "paper" in profiles:
             if yes:
-                raise CliAborted(
-                    f"'{name}' 은 두 축 형식에서 프로필 이름으로 쓸 수 없어 비대화형으로 변환할 수 없습니다 "
-                    "-- --yes 없이 실행해 새 이름을 지정하세요.") from None
-            target = _prompt(f"'{name}' 은 두 축 프로필 이름으로 쓸 수 없습니다. 새 이름", "")
-            _validate_profile_name_v2(target)
-        _claim(environment, target, name)
-        renames.append((name, target, environment))
-        if default_profile_name is None:
-            default_profile_name = target
+                do_merge, merged_name = True, "general"
+            elif _confirm("'general' 프로필로 합칠까요? real 슬롯 = 기존 'main', paper 슬롯 = 기존 'paper'"):
+                do_merge, merged_name = True, _prompt("합친 프로필 이름", "general")
+            else:
+                do_merge, merged_name = False, ""
+            if do_merge:
+                _validate_profile_name_v2(merged_name)
+                # 합친 이름이 이미 독립 레거시 프로필이면 합치는 순간 그 자격증명이 사라진다 -- 미리 막는다.
+                if merged_name in profiles and merged_name not in ("main", "paper"):
+                    raise CliAborted(
+                        f"병합 이름 '{merged_name}' 이 이미 레거시 프로필로 있어 합치면 그 자격증명이 사라집니다 "
+                        "-- 다른 이름을 쓰거나 '--yes' 없이 실행해 지정하세요.")
+                _claim("real", merged_name, "main")
+                _claim("paper", merged_name, "paper")
+                consumed |= {"main", "paper"}
+                renames += [("main", merged_name, "real"), ("paper", merged_name, "paper")]
+                default_profile_name = merged_name
 
-    data: dict[str, object] = {_SCHEMA_KEY: _SCHEMA_VERSION}
-    if isinstance(loaded.get(_HTS_ID_KEY), str) and cast(str, loaded[_HTS_ID_KEY]).strip():
-        data[_HTS_ID_KEY] = cast(str, loaded[_HTS_ID_KEY]).strip()
-    if top_password is not None:
-        data[_ACCOUNT_PASSWORD_KEY] = top_password
-    data[_DEFAULT_ENVIRONMENT_KEY] = "paper"         # fail-safe: 실주문은 명시해야 닿는다
-    chosen_default = _pick_default_profile(loaded.get(_DEFAULT_PROFILE_KEY), blocks, default_profile_name)
-    if chosen_default is not None:
-        data[_DEFAULT_PROFILE_KEY] = chosen_default
-    if blocks["real"]:
-        data["real"] = blocks["real"]
-    if blocks["paper"]:
-        data["paper"] = blocks["paper"]
+        # 나머지 프로필: 저장된 환경 블록에 자기 이름으로. 두 축에서 못 쓰는 이름(paper 등)은 개명을 묻는다.
+        for name, section in profiles.items():
+            if name in consumed:
+                continue
+            environment = _legacy_environment(section)
+            target = name
+            try:
+                _validate_profile_name_v2(target)
+            except KISUsageError:
+                if yes:
+                    raise CliAborted(
+                        f"'{name}' 은 두 축 형식에서 프로필 이름으로 쓸 수 없어 비대화형으로 변환할 수 없습니다 "
+                        "-- --yes 없이 실행해 새 이름을 지정하세요.") from None
+                target = _prompt(f"'{name}' 은 두 축 프로필 이름으로 쓸 수 없습니다. 새 이름", "")
+                _validate_profile_name_v2(target)
+            _claim(environment, target, name)
+            renames.append((name, target, environment))
+            if default_profile_name is None:
+                default_profile_name = target
 
-    _validate_v2_shape(data)                         # 쓰기 전에 형상 확인(묶음에 environment 없음 등)
-    with _credentials_write_lock(directory):
+        data: dict[str, object] = {_SCHEMA_KEY: _SCHEMA_VERSION}
+        if isinstance(loaded.get(_HTS_ID_KEY), str) and cast(str, loaded[_HTS_ID_KEY]).strip():
+            data[_HTS_ID_KEY] = cast(str, loaded[_HTS_ID_KEY]).strip()
+        if top_password is not None:
+            data[_ACCOUNT_PASSWORD_KEY] = top_password
+        data[_DEFAULT_ENVIRONMENT_KEY] = "paper"         # fail-safe: 실주문은 명시해야 닿는다
+        chosen_default = _pick_default_profile(loaded.get(_DEFAULT_PROFILE_KEY), blocks, default_profile_name)
+        if chosen_default is not None:
+            data[_DEFAULT_PROFILE_KEY] = chosen_default
+        if blocks["real"]:
+            data["real"] = blocks["real"]
+        if blocks["paper"]:
+            data["paper"] = blocks["paper"]
+
+        _validate_v2_shape(data)                         # 쓰기 전에 형상 확인(묶음에 environment 없음 등)
         _write_credentials(directory, data)
 
     print(f"변환됨: {path}")

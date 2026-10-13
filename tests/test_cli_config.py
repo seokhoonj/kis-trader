@@ -607,9 +607,12 @@ def test_migrate_yes_refuses_name_collision_without_losing_profiles(tmp_path):
            "general": {"app_key": "GENKEY", "app_secret": "GENSEC", "account": "22222222-01",
                        "environment": "real"}}
     _write_raw(tmp_path, raw)
+    path = _cfg_dir(tmp_path) / "credentials.json"
     before = _creds(tmp_path)
+    before_bytes = path.read_bytes()                            # T3: 중단 시 파일 바이트 불변 고정
     assert cli_main.main(["config", "migrate", "--yes"]) == 3   # CliAborted
     assert _creds(tmp_path) == before                           # 원본 그대로(아무것도 쓰지 않음)
+    assert path.read_bytes() == before_bytes                    # 바이트 단위로도 미변경(abort 원자성)
 
 
 def test_migrate_interactive_rename_avoids_collision(tmp_path, monkeypatch):
