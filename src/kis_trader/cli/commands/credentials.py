@@ -9,7 +9,7 @@
 - ``show``: 저장분을 마스킹해 보여준다(시크릿 비노출; 앱키는 끝 4자리만).
 - ``set <profile>.<env>.<field> [VALUE]``: 한 필드 수정. 시크릿(app_key/app_secret/account_password)은
   명령줄 인자로 받지 않고(프로세스 목록/셸 기록 유출 방지) ``getpass`` 숨김 프롬프트로만 입력받는다.
-- ``set-default``/``set-hts-id``: 최상위 메타(기본 프로필, HTS 로그인 아이디) 기록.
+- ``default``/``set-hts-id``: 최상위 메타(기본 프로필·환경, HTS 로그인 아이디) 기록.
 - ``migrate``: 이전 형식(평평한) ``credentials.json`` 을 두 축 형식(schema 2)으로 변환.
 
 KIS 앱키/시크릿은 개발자포털에서 미리 발급받아 **붙여넣는** 정적 자격증명이라, 브라우저/OAuth 로
@@ -299,14 +299,40 @@ def cmd_config_set(args: argparse.Namespace) -> None:
     print(f"수정됨: {profile}.{environment}.{field_name}")
 
 
-# --- set-default / set-hts-id -------------------------------------------------
+# --- default (기본 프로필/환경) / set-hts-id ----------------------------------
 
-def cmd_config_set_default(args: argparse.Namespace) -> None:
+def cmd_config_default(args: argparse.Namespace) -> None:
+    """``kis config default`` (하위 명령 없음) -- 현재 기본 프로필/환경 마커를 보여준다. 표시값은
+    저장된 마커이며, ``KIS_DEFAULT_PROFILE``/``KIS_DEFAULT_ENVIRONMENT`` 환경변수가 있으면 실제로는
+    그쪽이 우선한다(마커보다 위)."""
+    loaded = _load_credentials(_config_dir_path())
+    if loaded and _detect_schema(loaded) == "legacy":
+        # 레거시 파일엔 두 축 기본값 마커가 없다 -- v2 폴백을 "기본값"처럼 보여주지 말고 show 와
+        # 같은 배너로 변환을 안내한다.
+        print("[레거시 형식] 'kis config migrate' 로 두 축 형식으로 변환한 뒤 기본값을 지정하세요.")
+        return
+    default_profile = loaded.get(_DEFAULT_PROFILE_KEY)
+    default_environment = loaded.get(_DEFAULT_ENVIRONMENT_KEY)
+    profile_line = default_profile if isinstance(default_profile, str) else "(미설정 -- 첫 프로필)"
+    environment_line = default_environment if isinstance(default_environment, str) else "(미설정 -- paper)"
+    print(f"기본 프로필: {profile_line}")
+    print(f"기본 환경:   {environment_line}")
+    print("  (KIS_DEFAULT_PROFILE/KIS_DEFAULT_ENVIRONMENT 환경변수가 있으면 그쪽이 우선합니다)")
+
+
+def cmd_config_default_profile(args: argparse.Namespace) -> None:
     """이름 없이 세션을 열 때 여는 기본 프로필을 지정한다(최상위 ``default_profile`` 마커). 대상 프로필은
     전역 ``--profile`` 과 섞이지 않게 별도 위치인자(``args.name``)로 받는다."""
     _validate_profile_name_v2(args.name)
     path = KISConfig.set_default_profile(args.name)
     print(f"기본 프로필: {args.name} ({path})")
+
+
+def cmd_config_default_environment(args: argparse.Namespace) -> None:
+    """환경을 명시하지 않을 때 여는 기본 환경을 지정한다(최상위 ``default_environment`` 마커). ``real`` 은
+    실주문이 가능한 환경이라 생략 기본은 안전하게 ``paper`` 이며, 이 마커로만 바뀐다(환경변수 우선)."""
+    path = KISConfig.set_default_environment(cast(Environment, args.name))
+    print(f"기본 환경: {args.name} ({path})")
 
 
 def cmd_config_set_hts_id(args: argparse.Namespace) -> None:

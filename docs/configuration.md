@@ -128,7 +128,9 @@ export KIS_DEFAULT_PROFILE=general       # Linux·macOS (영구히 하려면 ~/.
 | `kis config setup` | 자격증명을 대화형으로 저장(`kis config` 와 같음) |
 | `kis config show` | 저장된 설정을 마스킹해 보여줌(시크릿 비노출) |
 | `kis config set <프로필>.<환경>.<필드> [값]` | 한 필드 수정(`app_key`·`app_secret`·`account`·`account_password`; 비밀 아닌 `account` 만 값을 바로 줄 수 있고 나머지는 숨김 프롬프트) |
-| `kis config set-default <프로필>` | 기본 프로필 지정 |
+| `kis config default` | 현재 기본 프로필·환경 조회 |
+| `kis config default profile <프로필>` | 기본 프로필 지정(이름 없이 열 때 여는 프로필) |
+| `kis config default environment <real\|paper>` | 기본 환경 지정(생략 시 여는 환경; `env` alias 가능) |
 | `kis config set-hts-id <hts_id>` | HTS 로그인 아이디 저장(조건검색·관심종목용) |
 | `kis config migrate [--yes]` | 이전 형식(평평한) `credentials.json` 을 두 축 형식으로 변환(`--yes` 는 비대화형으로 기본 병합 자동 승인; 이름 충돌이면 거부) |
 

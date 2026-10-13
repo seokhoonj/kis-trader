@@ -125,7 +125,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     bars_p.set_defaults(func=stock.cmd_bars)
 
-    # kis config setup|show|set|set-default|set-hts-id|migrate -- 자격증명 설정(클라이언트 불필요).
+    # kis config setup|show|set|default|set-hts-id|migrate -- 자격증명 설정(클라이언트 불필요).
     # common 을 상속하지 않는다 -- --format 등 이 그룹이 읽지 않는 플래그를 달지 않기 위해(폴리모픽
     # dispatch: 안 읽는 플래그 거부). 각 하위명령이 필요한 플래그만 직접 단다. 모두 needs_client=False.
     config_p = groups.add_parser(
@@ -153,11 +153,21 @@ def build_parser() -> argparse.ArgumentParser:
                        help="비시크릿(account) 값. 시크릿(app_key/app_secret/account_password)은 argv 로 받지 않고 숨김 프롬프트로만 입력받는다")
     set_p.set_defaults(func=credentials.cmd_config_set, needs_client=False)
 
-    # kis config set-default <profile> -- 기본 프로필 지정.
-    set_default_p = config_sub.add_parser("set-default", help="기본 프로필 지정")
-    # dest 는 'name' -- 전역 --profile(dest=profile)과 섞이지 않게 별도 위치인자로 받는다.
-    set_default_p.add_argument("name", help="기본으로 열 프로필(어느 환경 블록에든 저장돼 있어야 함)")
-    set_default_p.set_defaults(func=credentials.cmd_config_set_default, needs_client=False)
+    # kis config default [profile <name> | environment <env>] -- 두 축 기본값 조회·지정.
+    # 두 축(profile/environment)을 대칭으로 명시한다 -- Python set_default_profile/set_default_environment 과 짝.
+    default_p = config_sub.add_parser("default", help="기본 프로필/환경 조회·지정")
+    default_p.set_defaults(func=credentials.cmd_config_default, needs_client=False)  # 하위명령 생략 -> 현재값 표시
+    default_sub = default_p.add_subparsers(dest="default_axis")       # required=False: 생략 시 현재값 표시
+    # kis config default profile <name> -- 기본 프로필. dest 는 'name'(전역 --profile 과 안 섞이게 별도 위치인자).
+    default_profile_p = default_sub.add_parser("profile", help="기본 프로필 지정")
+    default_profile_p.add_argument("name", help="기본으로 열 프로필(어느 환경 블록에든 저장돼 있어야 함)")
+    default_profile_p.set_defaults(func=credentials.cmd_config_default_profile, needs_client=False)
+    # kis config default environment <env> (alias: env) -- 기본 환경. choices 는 Environment 리터럴에서 파생.
+    default_env_p = default_sub.add_parser("environment", aliases=["env"], help="기본 환경 지정(real/paper)")
+    # dest 는 'name' -- profile 브랜치와 동일하게, 전역 --environment(dest=environment)와 안 섞이게 별도
+    # 위치인자로 받는다(두 축 대칭). choices 가 usage 에 {real,paper} 로 표시된다.
+    default_env_p.add_argument("name", choices=list(get_args(Environment)), help="기본 접속 환경")
+    default_env_p.set_defaults(func=credentials.cmd_config_default_environment, needs_client=False)
 
     # kis config set-hts-id <hts_id> -- HTS 로그인 아이디(조건검색·관심종목용, 공유 최상위) 저장.
     set_hts_p = config_sub.add_parser("set-hts-id", help="HTS 로그인 아이디 저장(조건검색·관심종목용)")

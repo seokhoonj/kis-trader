@@ -1,6 +1,6 @@
 """``kis config`` -- 두 축(프로필 x 환경) 자격증명 설정 명령 그룹.
 
-``setup``(대화형 저장) / ``show``(마스킹 조회) / ``set``(한 필드 수정) / ``set-default`` /
+``setup``(대화형 저장) / ``show``(마스킹 조회) / ``set``(한 필드 수정) / ``default`` /
 ``set-hts-id`` / ``migrate``(레거시 -> schema 2 변환). 시크릿은 getpass 전용(플래그 금지), 비시크릿은
 플래그 또는 프롬프트, 저장은 :meth:`KISConfig.save` 재사용. 이 그룹은 클라이언트를 만들지 않는다.
 """
@@ -77,7 +77,10 @@ def test_bare_config_routes_to_setup_and_needs_no_client():
     (["config", "setup"], cred.cmd_config_setup),
     (["config", "show"], cred.cmd_config_show),
     (["config", "set", "general.paper.account", "1"], cred.cmd_config_set),
-    (["config", "set-default", "general"], cred.cmd_config_set_default),
+    (["config", "default"], cred.cmd_config_default),
+    (["config", "default", "profile", "general"], cred.cmd_config_default_profile),
+    (["config", "default", "environment", "real"], cred.cmd_config_default_environment),
+    (["config", "default", "env", "paper"], cred.cmd_config_default_environment),
     (["config", "set-hts-id", "myid"], cred.cmd_config_set_hts_id),
     (["config", "migrate"], cred.cmd_config_migrate),
 ])
@@ -480,17 +483,54 @@ def test_mask_short_key_full_mask_and_absent():
     assert cred._mask("") == "(없음)"                     # 빈 값
 
 
-# --- set-default / set-hts-id -------------------------------------------------
+# --- default (기본 프로필/환경) / set-hts-id ----------------------------------
 
-def test_set_default_marks_existing_profile(tmp_path):
+def test_default_profile_marks_existing_profile(tmp_path):
     _seed_v2(tmp_path)
-    assert cli_main.main(["config", "set-default", "general"]) == 0
+    assert cli_main.main(["config", "default", "profile", "general"]) == 0
     assert _creds(tmp_path)["default_profile"] == "general"
 
 
-def test_set_default_rejects_unknown_profile(tmp_path):
+def test_default_profile_rejects_unknown_profile(tmp_path):
     _seed_v2(tmp_path)
-    assert cli_main.main(["config", "set-default", "ghost"]) == 4   # KISUsageError
+    assert cli_main.main(["config", "default", "profile", "ghost"]) == 4   # KISUsageError
+
+
+def test_default_environment_writes_marker(tmp_path):
+    _seed_v2(tmp_path)
+    assert cli_main.main(["config", "default", "environment", "real"]) == 0
+    assert _creds(tmp_path)["default_environment"] == "real"
+
+
+def test_default_environment_env_alias_writes_marker(tmp_path):
+    _seed_v2(tmp_path)
+    assert cli_main.main(["config", "default", "env", "paper"]) == 0
+    assert _creds(tmp_path)["default_environment"] == "paper"
+
+
+def test_default_environment_rejects_invalid_value(tmp_path):
+    _seed_v2(tmp_path)
+    # argparse choices 가 real/paper 외 값을 거부(비정상 종료).
+    with pytest.raises(SystemExit):
+        cli_main.build_parser().parse_args(["config", "default", "environment", "demo"])
+
+
+def test_default_bare_shows_current_defaults(tmp_path, capsys):
+    _seed_v2(tmp_path)
+    cli_main.main(["config", "default", "environment", "real"])
+    cli_main.main(["config", "default", "profile", "general"])
+    capsys.readouterr()                      # setter 출력을 비워 bare 조회 출력만 단언한다
+    assert cli_main.main(["config", "default"]) == 0
+    out = capsys.readouterr().out
+    assert "기본 프로필: general" in out      # bare 조회만 찍는 라인 -- setter 출력과 안 섞인다
+    assert "기본 환경" in out and "real" in out
+
+
+def test_default_bare_on_legacy_store_points_to_migrate(tmp_path, capsys):
+    _write_raw(tmp_path, {"general": {"app_key": "k", "app_secret": "s", "environment": "real"}})
+    assert cli_main.main(["config", "default"]) == 0
+    out = capsys.readouterr().out
+    assert "레거시" in out and "migrate" in out     # v2 마커 폴백을 "기본값"처럼 보이지 않게
 
 
 def test_set_hts_id_writes_top_level(tmp_path):

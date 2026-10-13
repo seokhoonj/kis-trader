@@ -31,7 +31,8 @@ kis config setup --set-default              # 저장 후 기본 프로필로 지
 kis config show                             # 저장된 설정을 마스킹해 보기
 kis config set general.paper.app_key        # 한 필드 수정(값 없이 주면 프롬프트)
 kis config set general.real.account 12345678-01  # 비밀 아닌 account 만 값을 바로 줄 수 있음
-kis config set-default general              # 기본 프로필 지정
+kis config default profile general          # 기본 프로필 지정
+kis config default environment real         # 기본 환경 지정 (env alias 가능)
 kis config set-hts-id your_hts_id           # HTS 로그인 아이디 저장(조건검색·관심종목용)
 kis config migrate                          # 이전 형식 credentials.json 을 두 축 형식으로 변환
 kis config migrate --yes                    # 비대화형: 기본 병합을 자동 승인(이름 충돌이면 거부)
