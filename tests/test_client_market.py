@@ -282,6 +282,15 @@ def test_market_funds_maps_ledger_fields_signed_values_and_order():
     }
 
 
+def test_market_funds_undated_row_degrades_to_none_not_crash():
+    # date 는 date|None 계약 -- 무일자/센티넬 행이 와도 전체 자금추이 리스트를
+    # 깨뜨리지 않고 그 행의 date 만 None 으로 내려야 한다.
+    fake = FakeTransport(response=_resp([_funds_row(bsop_date="00000000"), _funds_row(bsop_date="")]))
+    funds = _client(fake).domestic.market.funds(as_of="20240430")
+    assert [item.date for item in funds] == [None, None]
+    assert funds[0].index_value == Decimal("2692.06")
+
+
 def test_market_funds_default_anchor_and_down_sign():
     fake = FakeTransport(response=_resp([_funds_row(prdy_vrss_sign="5")]))
     fund = _client(fake).domestic.market.funds()[0]

@@ -3,9 +3,8 @@
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import date
 
-from ..._internal._datetime import _parse_kst_date
+from ..._internal._datetime import parse_optional_kst_date
 from ..._internal._response import (
     _missing_block_error,
     _raise_if_error,
@@ -16,11 +15,6 @@ from ..entities.product import DomesticProductInfo
 
 _PRODUCT_INFO_PATH = "/uapi/domestic-stock/v1/quotations/search-info"
 _PRODUCT_INFO_TR = "CTPF1604R"
-
-
-def _optional_date(value: object) -> date | None:
-    text = str(value or "").strip()
-    return _parse_kst_date(text) if text else None
 
 
 def fetch_product_info(
@@ -54,11 +48,11 @@ def fetch_product_info(
         risk_grade_code=str(row.get("prdt_risk_grad_cd", "")).strip(),
         classification_code=str(row.get("prdt_clsf_cd", "")).strip(),
         classification_name=str(row.get("prdt_clsf_name", "")).strip(),
-        sale_start_date=_optional_date(row.get("sale_strt_dt")),
-        sale_end_date=_optional_date(row.get("sale_end_dt")),
+        sale_start_date=parse_optional_kst_date(row.get("sale_strt_dt")),
+        sale_end_date=parse_optional_kst_date(row.get("sale_end_dt")),
         wrap_asset_type_code=str(row.get("wrap_asst_type_cd", "")).strip(),
         investment_product_type_code=str(row.get("ivst_prdt_type_cd", "")).strip(),
         investment_product_type_name=str(row.get("ivst_prdt_type_cd_name", "")).strip(),
-        first_registered_date=_optional_date(row.get("frst_erlm_dt")),
+        first_registered_date=parse_optional_kst_date(row.get("frst_erlm_dt")),
         _raw=row,
     )

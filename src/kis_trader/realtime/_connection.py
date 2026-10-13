@@ -267,6 +267,7 @@ class RealtimeConnection:
         중 온 ``stop()`` 도 즉시 반영한다(스레드/소켓 누수 방지).
         """
         backoff = 1.0
+        connection_closed = _connection_closed_errors()
         # 재연결 churn 은 조용하면 진단 불가다(끊김/재등록이 로그에 전혀 안 남으면 "안정"인지
         # "40s마다 조용히 재접속 중"인지 구분 못 한다). 끊김·재시도·재등록을 로그로 드러낸다.
         _logger.warning("realtime 연결 끊김 -- 재연결을 시도합니다")
@@ -285,10 +286,20 @@ class RealtimeConnection:
                 return False
             # 스냅샷과 재등록을 락 안에서 -- 재등록 도중 unsubscribe 가 끼어들어 방금 해제한 키를
             # 되살리지(resurrect) 못하게 한다. connect await 는 락 밖이라 재접속이 구독을 안 막는다.
-            async with self._subscription_lock:
-                reregistered = list(self._subscriptions)
-                for tr_id, tr_key in reregistered:
-                    await self._send_subscription(tr_id, tr_key, subscribe=True)
+            # 재등록 송신도 끊길 수 있다(스로틀의 accept-후-즉시-close): 그 예외를 여기서 잡지
+            # 않으면 _messages 의 수신 try/except 밖으로 전파돼 백그라운드 루프가 죽고 reconnect=True
+            # 가 조용히 무효화된다. 송신 실패는 또 하나의 끊김으로 보고 backoff 후 재연결을 재시도한다.
+            try:
+                async with self._subscription_lock:
+                    reregistered = list(self._subscriptions)
+                    for tr_id, tr_key in reregistered:
+                        await self._send_subscription(tr_id, tr_key, subscribe=True)
+            except connection_closed:
+                _logger.warning("realtime 재등록 중 연결 끊김 -- %.1fs 후 재시도합니다", backoff)
+                self._ws = None
+                await self._sleep_or_stop(backoff)
+                backoff = min(backoff * 2, self._max_backoff)
+                continue
             _logger.info("realtime 재연결 완료 -- 구독 %d건 재등록", len(reregistered))
             return True
         return False

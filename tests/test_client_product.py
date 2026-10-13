@@ -55,6 +55,20 @@ def test_product_info_maps_common_fields_and_params():
     }
 
 
+def test_product_info_maps_no_date_sentinel_to_none():
+    # KIS 는 판매중이 아닌 상품의 일자 필드에 "00000000" 센티넬을 돌려준다 -- 전체 조회를
+    # 깨지 말고 None 으로 매핑해야 한다.
+    row = _row()
+    row["sale_strt_dt"] = "00000000"
+    row["sale_end_dt"] = "00000000"
+    row["frst_erlm_dt"] = "00000000"
+    response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": row})
+    info = _client(response).domestic.product_info("005930")
+    assert info.sale_start_date is None
+    assert info.sale_end_date is None
+    assert info.first_registered_date is None
+
+
 @pytest.mark.parametrize("symbol,product_type", [("", "300"), ("005930", "")])
 def test_product_info_rejects_blank_identifiers(symbol, product_type):
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output": _row()})

@@ -870,7 +870,9 @@ def fetch_market_funds(
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         funds.append(
             MarketFunds(
-                date=_parse_kst_date(str(row.get("bsop_date", "")).strip()),
+                # date|None 계약에 맞춰 fail-soft -- 무일자/센티넬 한 행이 전체 자금추이
+                # 리스트를 깨지 않도록 선택적 파서를 쓴다(strict 는 "00000000"에 예외).
+                date=parse_optional_kst_date(row.get("bsop_date")),
                 index_value=required_decimal(row.get("bstp_nmix_prpr"), "bstp_nmix_prpr"),
                 index_change=_apply_change_sign(
                     required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), sign

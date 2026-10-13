@@ -204,6 +204,45 @@ def test_reconnect_resubscribes_active_registrations():
     assert any("DUMMYTR0" in s for s in second.sent)
 
 
+def test_reconnect_survives_send_failure_on_fresh_socket():
+    # 재연결한 소켓이 재등록 send 에서 끊기면(스로틀의 accept-후-즉시-close) 그 예외가 수신
+    # 루프 밖으로 전파돼 백그라운드 루프를 죽이면 안 된다 -- backoff 후 다음 소켓으로 재시도해
+    # reconnect=True 계약을 지켜야 한다.
+    from websockets.exceptions import ConnectionClosed
+
+    class SendClosedWebSocket(FakeWebSocket):
+        async def send(self, message):
+            raise ConnectionClosed(None, None)
+
+    first = FakeWebSocket(incoming=[])                               # 즉시 소진(끊김 모사)
+    bad = SendClosedWebSocket(incoming=[])                           # 재등록 send 에서 끊김
+    good = FakeWebSocket(incoming=["0|DUMMYTR0|001|005930^1"])       # 세 번째에서 성공
+    sockets = [first, bad, good]
+
+    async def scenario():
+        async def connect(url):
+            return sockets.pop(0)
+
+        conn = RealtimeConnection("KEY", "ws://x", connect=connect, reconnect=True)
+
+        async def _no_sleep(seconds):  # backoff 대기 제거
+            return None
+
+        conn._sleep_or_stop = _no_sleep  # type: ignore[method-assign]
+        async with conn:
+            await conn.subscribe("DUMMYTR0", "005930")
+            out = []
+            async for m in conn:
+                out.append(m)
+                break
+            return out
+
+    out = asyncio.run(scenario())
+    assert len(out) == 1                       # 세 번째 소켓에서 정상 수신 -- 루프가 죽지 않았다
+    assert not sockets                         # 세 소켓 모두 소비
+    assert any("DUMMYTR0" in s for s in good.sent)  # 성공 소켓에 재등록됨
+
+
 def test_subscribe_unsubscribe_same_key_do_not_reorder():
     # 같은 키의 subscribe 가 `await send` 에서 양보한 사이 unsubscribe 가 끼어들 때, 락이 없으면
     # unsubscribe 가 (아직 add 전이라) 미등록으로 보고 조기 반환해 해제를 안 보낸다 -- 소켓은
