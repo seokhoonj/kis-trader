@@ -38,7 +38,7 @@ def _raw_field() -> Any:
 
 # 와이어 Response Body 필드 순서(인덱스 = ^ 위치). 헤더 11 + 10단계 x 6(PBID/PASK/VBID/VASK/DBID/DASK)
 # = 71. 라이브 프레임으로 검증(2026-10-08 미국장). DBIDn/DASKn 은 단계별 매수/매도 잔량대비(직전 대비 증감).
-_ORDERBOOK_FIELDS = (
+_ORDER_BOOK_FIELDS = (
     "RSYM", "SYMB", "ZDIV", "XYMD", "XHMS", "KYMD", "KHMS", "BVOL", "AVOL", "BDVL", "ADVL",
     "PBID1", "PASK1", "VBID1", "VASK1", "DBID1", "DASK1",
     "PBID2", "PASK2", "VBID2", "VASK2", "DBID2", "DASK2",
@@ -76,9 +76,9 @@ class OverseasOrderBook:
     _raw: Mapping[str, Any] = _raw_field()
 
 
-def parse_orderbook(fields: list[str]) -> OverseasOrderBook:
+def parse_order_book(fields: list[str]) -> OverseasOrderBook:
     """HDFSASP0 한 레코드 -> :class:`OverseasOrderBook`."""
-    raw = MappingProxyType(dict(zip(_ORDERBOOK_FIELDS, fields, strict=False)))
+    raw = MappingProxyType(dict(zip(_ORDER_BOOK_FIELDS, fields, strict=False)))
     return OverseasOrderBook(
         symbol=raw["SYMB"],
         realtime_symbol=raw["RSYM"],
@@ -288,7 +288,7 @@ def parse_futures_trade_tick(fields: list[str]) -> OverseasDerivativeTradeTick:
 # ---------------------------------------------------------------------------
 
 # KIS 공식 실시간 명세(HDFFF010) 기준. 라이브 미검증.
-_FUTURES_ORDERBOOK_FIELDS = (
+_FUTURES_ORDER_BOOK_FIELDS = (
     "SERIES_CD", "RECV_DATE", "RECV_TIME", "PREV_PRICE",
     "BID_QNTT_1", "BID_NUM_1", "BID_PRICE_1", "ASK_QNTT_1", "ASK_NUM_1", "ASK_PRICE_1",
     "BID_QNTT_2", "BID_NUM_2", "BID_PRICE_2", "ASK_QNTT_2", "ASK_NUM_2", "ASK_PRICE_2",
@@ -315,9 +315,9 @@ class OverseasDerivativeOrderBook:
     _raw: Mapping[str, Any] = _raw_field()
 
 
-def parse_futures_orderbook(fields: list[str]) -> OverseasDerivativeOrderBook:
+def parse_futures_order_book(fields: list[str]) -> OverseasDerivativeOrderBook:
     """HDFFF010 한 레코드 -> :class:`OverseasDerivativeOrderBook`."""
-    raw = MappingProxyType(dict(zip(_FUTURES_ORDERBOOK_FIELDS, fields, strict=False)))
+    raw = MappingProxyType(dict(zip(_FUTURES_ORDER_BOOK_FIELDS, fields, strict=False)))
     return OverseasDerivativeOrderBook(
         symbol=raw["SERIES_CD"],
         recv_date=raw["RECV_DATE"],
@@ -471,7 +471,7 @@ def parse_futures_execution_notice(fields: list[str]) -> OverseasDerivativeExecu
 
 # 공식 16컬럼 + 선두 RSYM = 17 로 도출(라이브 미검증). 형제 HDFSASP0 는 공식 문서 16 vs 라이브
 # 71 이었으니, 아시아 실프레임으로 확인 전까지 17 은 확정 아님(실프레임 71 이면 10단계로 확장).
-_ASIA_ORDERBOOK_FIELDS = (
+_ASIA_ORDER_BOOK_FIELDS = (
     "RSYM", "SYMB", "ZDIV", "XYMD", "XHMS", "KYMD", "KHMS", "BVOL", "AVOL", "BDVL", "ADVL",
     "PBID1", "PASK1", "VBID1", "VASK1", "DBID1", "DASK1",
 )
@@ -501,9 +501,9 @@ class OverseasAsiaDelayedOrderBook:
     _raw: Mapping[str, Any] = _raw_field()
 
 
-def parse_asia_orderbook(fields: list[str]) -> OverseasAsiaDelayedOrderBook:
+def parse_asia_order_book(fields: list[str]) -> OverseasAsiaDelayedOrderBook:
     """HDFSASP1 한 레코드(17필드) -> :class:`OverseasAsiaDelayedOrderBook`."""
-    raw = MappingProxyType(dict(zip(_ASIA_ORDERBOOK_FIELDS, fields, strict=False)))
+    raw = MappingProxyType(dict(zip(_ASIA_ORDER_BOOK_FIELDS, fields, strict=False)))
     return OverseasAsiaDelayedOrderBook(
         symbol=raw["SYMB"],
         realtime_symbol=raw["RSYM"],
@@ -526,8 +526,8 @@ def parse_asia_orderbook(fields: list[str]) -> OverseasAsiaDelayedOrderBook:
 # 레지스트리 등록
 # ---------------------------------------------------------------------------
 
-register(TRSpec("HDFSASP0", field_count=len(_ORDERBOOK_FIELDS), parser=parse_orderbook))
-register(TRSpec("HDFSASP1", field_count=len(_ASIA_ORDERBOOK_FIELDS), parser=parse_asia_orderbook))
+register(TRSpec("HDFSASP0", field_count=len(_ORDER_BOOK_FIELDS), parser=parse_order_book))
+register(TRSpec("HDFSASP1", field_count=len(_ASIA_ORDER_BOOK_FIELDS), parser=parse_asia_order_book))
 register(TRSpec("HDFSCNT0", field_count=len(_DELAYED_TRADE_FIELDS), parser=parse_delayed_trade_tick))
 for _tr_id in ("H0GSCNI0", "H0GSCNI9"):
     register(
@@ -539,7 +539,7 @@ for _tr_id in ("H0GSCNI0", "H0GSCNI9"):
         )
     )
 register(TRSpec("HDFFF020", field_count=len(_FUTURES_TRADE_FIELDS), parser=parse_futures_trade_tick))
-register(TRSpec("HDFFF010", field_count=len(_FUTURES_ORDERBOOK_FIELDS), parser=parse_futures_orderbook))
+register(TRSpec("HDFFF010", field_count=len(_FUTURES_ORDER_BOOK_FIELDS), parser=parse_futures_order_book))
 register(
     TRSpec(
         "HDFFF1C0",

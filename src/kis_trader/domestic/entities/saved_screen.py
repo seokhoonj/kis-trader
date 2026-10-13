@@ -73,7 +73,7 @@ class SavedScreenStock:
 class WatchlistGroup:
     """HTS 관심종목 그룹."""
 
-    date: date
+    base_date: date
     transmitted_at: time
     rank: int
     group_code: str

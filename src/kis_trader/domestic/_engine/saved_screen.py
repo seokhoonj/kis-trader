@@ -139,7 +139,7 @@ def fetch_watchlist_groups(
     _raise_if_error(resp)
     rows = _rows(resp.body.get("output2"), "output2", resp)
     return [WatchlistGroup(
-        date=_parse_kst_date(str(row.get("date", "")).strip()),
+        base_date=_parse_kst_date(str(row.get("date", "")).strip()),
         transmitted_at=_parse_kst_time(str(row.get("trnm_hour", "")).strip()),
         rank=required_int(row.get("data_rank"), "data_rank"),
         group_code=str(row.get("inter_grp_code", "")).strip(),

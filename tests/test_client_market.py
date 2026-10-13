@@ -263,7 +263,7 @@ def test_market_funds_maps_ledger_fields_signed_values_and_order():
     fake = FakeTransport(response=_resp([_funds_row(), older]))
     funds = _client(fake).domestic.market.funds(as_of="20240430")
     assert isinstance(funds[0], MarketFunds)
-    assert [item.date for item in funds] == [date(2024, 4, 30), date(2024, 4, 29)]
+    assert [item.trading_date for item in funds] == [date(2024, 4, 30), date(2024, 4, 29)]
     first = funds[0]
     assert first.index_value == Decimal("2692.06")
     assert first.index_change == Decimal("12.34")          # sign 2 -> 상승
@@ -287,7 +287,7 @@ def test_market_funds_undated_row_degrades_to_none_not_crash():
     # 깨뜨리지 않고 그 행의 date 만 None 으로 내려야 한다.
     fake = FakeTransport(response=_resp([_funds_row(bsop_date="00000000"), _funds_row(bsop_date="")]))
     funds = _client(fake).domestic.market.funds(as_of="20240430")
-    assert [item.date for item in funds] == [None, None]
+    assert [item.trading_date for item in funds] == [None, None]
     assert funds[0].index_value == Decimal("2692.06")
 
 

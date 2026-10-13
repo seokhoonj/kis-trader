@@ -235,7 +235,7 @@ class TradingDay:
     MarketQueries.trading_calendar` 가 기준일에서 앞으로 한 페이지를 돌려준다. ``date`` 는 순수 달력 날짜다.
     """
 
-    date: date                        # 기준일자(bass_dt; 순수 달력 날짜)
+    calendar_date: date                        # 기준일자(bass_dt; 순수 달력 날짜)
     weekday: str                      # 요일구분코드(wday_dvsn_cd)
     is_business_day: bool             # 영업일 여부(bzdy_yn)
     is_trading_day: bool              # 거래일 여부(tr_day_yn)
@@ -363,7 +363,7 @@ class CreditEligibleStock:
 class BrokerOpinion:
     """한 증권사가 한 종목에 낸 투자의견과 목표가격(불변)."""
 
-    date: date
+    trading_date: date
     symbol: str
     name: str
     broker: str
@@ -394,7 +394,7 @@ class MarketFunds:
     ``index_change`` 와 ``index_change_percent`` 는 전일대비 부호를 반영한 값이다.
     """
 
-    date: date | None
+    trading_date: date | None
     index_value: Decimal
     index_change: Decimal
     index_change_percent: Decimal

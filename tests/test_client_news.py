@@ -50,7 +50,7 @@ def test_news_maps_and_symbols():
 
 def test_news_symbol_and_date_filter():
     fake = FakeTransport(response=_resp([]))
-    _client(fake).domestic.market.news(symbol="005930", date="20240412")
+    _client(fake).domestic.market.news(symbol="005930", on_date="20240412")
     call = fake.calls[0]
     assert call["params"]["FID_INPUT_ISCD"] == "005930"
     assert call["params"]["FID_INPUT_DATE_1"] == "20240412"

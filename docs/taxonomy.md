@@ -226,7 +226,7 @@ kis.domestic
     ├── underlyings()                   # 상장 기초자산 목록
     ├── by_underlying(underlying)       # 한 기초자산 ELW 목록
     ├── comparables(underlying)         # 비교대상 ELW 목록
-    ├── newly_listed(date)              # 신규상장 ELW 목록
+    ├── newly_listed(base_date)              # 신규상장 ELW 목록
     ├── expiring(start, end)            # 만기예정 ELW 목록
     └── search()                        # 조건검색 ELW 목록
 ```

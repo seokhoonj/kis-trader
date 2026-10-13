@@ -106,7 +106,7 @@ def test_newly_listed_right_code_and_dates():
     rows = [{"elw_shrn_iscd": "57K924", "elw_kor_isnm": "한국K924HLB콜", "unas_isnm": "HLB",
              "stck_lstn_date": "20240320", "stck_last_tr_date": "20240613", "acpr": "78000.00"}]
     fake = FakeTransport(response=_resp(rows))
-    listings = _client(fake).domestic.elw_screener.newly_listed(date="20240410", right="call")
+    listings = _client(fake).domestic.elw_screener.newly_listed(base_date="20240410", right="call")
     row = listings[0]
     assert row.symbol == "57K924"
     assert row.listing_date is not None
@@ -126,7 +126,7 @@ def test_newly_listed_right_code_and_dates():
 def test_newly_listed_forwards_explicit_issuer():
     # 사용자가 준 발행사는 그대로 전달(파사드가 기본을 재기술하지 않고 준 값만 넘긴다).
     fake = FakeTransport(response=_resp([]))
-    _client(fake).domestic.elw_screener.newly_listed(date="20240410", issuer="00017")
+    _client(fake).domestic.elw_screener.newly_listed(base_date="20240410", issuer="00017")
     assert fake.calls[0]["params"]["FID_INPUT_ISCD_2"] == "00017"
 
 
@@ -164,7 +164,7 @@ def test_listings_skip_empty_rows():
 def test_screener_rejects_bad_right():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.elw_screener.newly_listed(date="20240410", right="both")
+        _client(fake).domestic.elw_screener.newly_listed(base_date="20240410", right="both")
 
 
 def test_underlyings_rejects_bad_sort():

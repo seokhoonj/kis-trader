@@ -288,7 +288,7 @@ def fetch_broker_opinions(
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         opinions.append(
             BrokerOpinion(
-                date=_parse_kst_date(str(row.get("stck_bsop_date", "")).strip()),
+                trading_date=_parse_kst_date(str(row.get("stck_bsop_date", "")).strip()),
                 symbol=str(row.get("stck_shrn_iscd", "")).strip(),
                 name=str(row.get("hts_kor_isnm", "")).strip(),
                 broker=str(row.get("mbcr_name", "")).strip(),
@@ -675,7 +675,7 @@ def fetch_trading_calendar(
             continue
         days.append(
             TradingDay(
-                date=_parse_kst_date(day),
+                calendar_date=_parse_kst_date(day),
                 weekday=str(row.get("wday_dvsn_cd", "")).strip(),
                 is_business_day=str(row.get("bzdy_yn", "")).strip() == "Y",
                 is_trading_day=str(row.get("tr_day_yn", "")).strip() == "Y",
@@ -872,7 +872,7 @@ def fetch_market_funds(
             MarketFunds(
                 # date|None 계약에 맞춰 fail-soft -- 무일자/센티넬 한 행이 전체 자금추이
                 # 리스트를 깨지 않도록 선택적 파서를 쓴다(strict 는 "00000000"에 예외).
-                date=parse_optional_kst_date(row.get("bsop_date")),
+                trading_date=parse_optional_kst_date(row.get("bsop_date")),
                 index_value=required_decimal(row.get("bstp_nmix_prpr"), "bstp_nmix_prpr"),
                 index_change=_apply_change_sign(
                     required_decimal(row.get("bstp_nmix_prdy_vrss"), "bstp_nmix_prdy_vrss"), sign

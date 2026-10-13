@@ -10,14 +10,14 @@ from decimal import Decimal
 
 from kis_trader.realtime import _registry
 from kis_trader.realtime.parsers.overseas import (
-    _ASIA_ORDERBOOK_FIELDS,
+    _ASIA_ORDER_BOOK_FIELDS,
     _DELAYED_TRADE_FIELDS,
     _EXECUTION_NOTICE_FIELDS,
     _FUTURES_EXECUTION_NOTICE_FIELDS,
+    _FUTURES_ORDER_BOOK_FIELDS,
     _FUTURES_ORDER_NOTICE_FIELDS,
-    _FUTURES_ORDERBOOK_FIELDS,
     _FUTURES_TRADE_FIELDS,
-    _ORDERBOOK_FIELDS,
+    _ORDER_BOOK_FIELDS,
     OverseasAsiaDelayedOrderBook,
     OverseasDelayedTradeTick,
     OverseasDerivativeExecutionNotice,
@@ -26,14 +26,14 @@ from kis_trader.realtime.parsers.overseas import (
     OverseasDerivativeTradeTick,
     OverseasExecutionNotice,
     OverseasOrderBook,
-    parse_asia_orderbook,
+    parse_asia_order_book,
     parse_delayed_trade_tick,
     parse_execution_notice,
     parse_futures_execution_notice,
+    parse_futures_order_book,
     parse_futures_order_notice,
-    parse_futures_orderbook,
     parse_futures_trade_tick,
-    parse_orderbook,
+    parse_order_book,
 )
 
 
@@ -46,8 +46,8 @@ def _blank(fields: tuple[str, ...]) -> list[str]:
 # ---------------------------------------------------------------------------
 
 
-def _orderbook_fields() -> list[str]:
-    fields = _blank(_ORDERBOOK_FIELDS)
+def _order_book_fields() -> list[str]:
+    fields = _blank(_ORDER_BOOK_FIELDS)
     fields[0] = "DNASAAPL"  # RSYM
     fields[1] = "AAPL"      # SYMB
     fields[2] = "4"         # ZDIV
@@ -64,8 +64,8 @@ def _orderbook_fields() -> list[str]:
     return fields
 
 
-def test_parse_orderbook_headline():
-    ob = parse_orderbook(_orderbook_fields())
+def test_parse_order_book_headline():
+    ob = parse_order_book(_order_book_fields())
     assert isinstance(ob, OverseasOrderBook)
     assert ob.symbol == "AAPL"
     assert ob.realtime_symbol == "DNASAAPL"
@@ -85,21 +85,21 @@ def test_parse_orderbook_headline():
     assert isinstance(ob.best_bid, Decimal) and isinstance(ob.best_ask, Decimal)
 
 
-def test_orderbook_71_unique_fields():
-    ob = parse_orderbook(_orderbook_fields())
+def test_order_book_71_unique_fields():
+    ob = parse_order_book(_order_book_fields())
     # 와이어 레이아웃은 71 유니크 필드(헤더 11 + 10단계 x 6), 2026-10-08 미국장 라이브 검증.
     # 리터럴로 고정 -- production 상수에 의존하면 중복 블록 재유입(77)도 통과해 회귀를 못 잡는다.
-    assert len(_ORDERBOOK_FIELDS) == len(set(_ORDERBOOK_FIELDS)) == 71
+    assert len(_ORDER_BOOK_FIELDS) == len(set(_ORDER_BOOK_FIELDS)) == 71
     assert len(ob._raw) == 71
     assert ob._raw["PBID10"] == "0"
     assert ob._raw["SYMB"] == "AAPL"
 
 
-def test_registry_orderbook():
+def test_registry_order_book():
     spec = _registry.lookup("HDFSASP0")
     assert spec is not None
     assert spec.field_count == 71
-    assert spec.parser is parse_orderbook
+    assert spec.parser is parse_order_book
     assert spec.encrypted is False
 
 
@@ -108,8 +108,8 @@ def test_registry_orderbook():
 # ---------------------------------------------------------------------------
 
 
-def _asia_orderbook_fields() -> list[str]:
-    fields = _blank(_ASIA_ORDERBOOK_FIELDS)
+def _asia_order_book_fields() -> list[str]:
+    fields = _blank(_ASIA_ORDER_BOOK_FIELDS)
     fields[0] = "TSE7203"   # RSYM
     fields[1] = "7203"      # SYMB
     fields[2] = "0"         # ZDIV
@@ -126,8 +126,8 @@ def _asia_orderbook_fields() -> list[str]:
     return fields
 
 
-def test_parse_asia_orderbook_headline():
-    ob = parse_asia_orderbook(_asia_orderbook_fields())
+def test_parse_asia_order_book_headline():
+    ob = parse_asia_order_book(_asia_order_book_fields())
     assert isinstance(ob, OverseasAsiaDelayedOrderBook)
     assert ob.symbol == "7203"
     assert ob.realtime_symbol == "TSE7203"
@@ -146,15 +146,15 @@ def test_parse_asia_orderbook_headline():
     assert isinstance(ob.best_bid, Decimal)
 
 
-def test_asia_orderbook_raw_and_registry():
-    ob = parse_asia_orderbook(_asia_orderbook_fields())
-    assert len(ob._raw) == len(_ASIA_ORDERBOOK_FIELDS) == 17
+def test_asia_order_book_raw_and_registry():
+    ob = parse_asia_order_book(_asia_order_book_fields())
+    assert len(ob._raw) == len(_ASIA_ORDER_BOOK_FIELDS) == 17
     assert ob._raw["DASK1"] == "0"
     assert ob._raw["SYMB"] == "7203"
     spec = _registry.lookup("HDFSASP1")
     assert spec is not None
-    assert spec.field_count == len(_ASIA_ORDERBOOK_FIELDS)
-    assert spec.parser is parse_asia_orderbook
+    assert spec.field_count == len(_ASIA_ORDER_BOOK_FIELDS)
+    assert spec.parser is parse_asia_order_book
     assert spec.encrypted is False
 
 
@@ -380,8 +380,8 @@ def test_futures_trade_tick_downtick_signs_both_change_fields():
 # ---------------------------------------------------------------------------
 
 
-def _futures_orderbook_fields() -> list[str]:
-    fields = _blank(_FUTURES_ORDERBOOK_FIELDS)
+def _futures_order_book_fields() -> list[str]:
+    fields = _blank(_FUTURES_ORDER_BOOK_FIELDS)
     fields[0] = "ESU26"     # SERIES_CD
     fields[1] = "20260814"  # RECV_DATE
     fields[2] = "223000"    # RECV_TIME
@@ -394,8 +394,8 @@ def _futures_orderbook_fields() -> list[str]:
     return fields
 
 
-def test_parse_futures_orderbook_headline():
-    ob = parse_futures_orderbook(_futures_orderbook_fields())
+def test_parse_futures_order_book_headline():
+    ob = parse_futures_order_book(_futures_order_book_fields())
     assert isinstance(ob, OverseasDerivativeOrderBook)
     assert ob.symbol == "ESU26"
     assert ob.recv_date == "20260814"
@@ -409,14 +409,14 @@ def test_parse_futures_orderbook_headline():
     assert ob.settlement_price == Decimal("5501.00")
 
 
-def test_futures_orderbook_raw_and_registry():
-    ob = parse_futures_orderbook(_futures_orderbook_fields())
-    assert len(ob._raw) == len(_FUTURES_ORDERBOOK_FIELDS)
+def test_futures_order_book_raw_and_registry():
+    ob = parse_futures_order_book(_futures_order_book_fields())
+    assert len(ob._raw) == len(_FUTURES_ORDER_BOOK_FIELDS)
     assert ob._raw["ASK_PRICE_1"] == "5510.50"
     spec = _registry.lookup("HDFFF010")
     assert spec is not None
-    assert spec.field_count == len(_FUTURES_ORDERBOOK_FIELDS) == 35  # 리터럴 고정(field_count=len 파생이라 tautology 방지; 라이브 미검증 레이아웃의 구조적 드리프트 포착)
-    assert spec.parser is parse_futures_orderbook
+    assert spec.field_count == len(_FUTURES_ORDER_BOOK_FIELDS) == 35  # 리터럴 고정(field_count=len 파생이라 tautology 방지; 라이브 미검증 레이아웃의 구조적 드리프트 포착)
+    assert spec.parser is parse_futures_order_book
     assert spec.encrypted is False
 
 
