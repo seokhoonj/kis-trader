@@ -140,9 +140,10 @@ def place(
         raise AccountNotOrderableError(
             "이 계좌는 API 주문이 불가하다(퇴직연금 IRP/DC 등 조회전용). 일반/연금저축 계좌를 쓰라."
         )
-    # 주식 주문은 주(株) 단위 정수 수량만 -- 소수 수량은 fat-finger(예: 10.5). 와이어 전에 막는다.
+    # 주문 수량은 정수만 -- KIS 국내/해외 주식·채권·파생 주문 경로에는 소수 수량이 없고, 소수는
+    # fat-finger(예: 10.5)다. (소수주식 보유/매도가능 수량은 조회 전용이라 이 주문 경로로 오지 않는다.)
     if order.quantity != order.quantity.to_integral_value():
-        raise KISUsageError(f"주식 주문 수량은 정수여야 한다(주 단위): {order.quantity}")
+        raise KISUsageError(f"주문 수량은 정수여야 한다: {order.quantity}")
     # 사전 리스크 한도(opt-in). 참조가가 필요하면 현재가를 조회한다 -- 조회 실패는 fail-closed
     # (한도 확인 불가 -> 주문 중단; 예외가 그대로 올라가 claim 전에 멈춘다).
     if pre_trade_risk is not None:

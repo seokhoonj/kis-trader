@@ -12,7 +12,7 @@ from dataclasses import dataclass
 from typing import Literal, cast, get_args
 
 from ..errors import KISUsageError
-from ..order import _GTP_DIVISIONS, DomesticDivision
+from ..order import _GTP_DIVISIONS, DomesticDivision, Side
 from ..overseas._engine.orders import is_overseas_exchange
 
 #: NXT 프리마켓 전용(GTP) 주문구분. MCP 실주문은 symbol 기본 거래소(KRX)로만 라우팅하고 거래소를
@@ -27,7 +27,7 @@ _DIVISIONS = frozenset(get_args(DomesticDivision)) - _MCP_EXCLUDED_DIVISIONS
 
 _TRUTHY = frozenset({"1", "true", "yes", "on"})
 _REAL_CONFIRM_PHRASE = "i-understand-real-money"
-_SIDES = frozenset({"buy", "sell"})
+_SIDES = frozenset(get_args(Side))  # 단일 출처: 리터럴 재선언은 멤버 추가 시 드리프트
 
 
 @dataclass(frozen=True, slots=True)
@@ -120,7 +120,7 @@ class StockOrderPlan:
 
     region: Literal["domestic", "overseas"]
     symbol: str
-    side: Literal["buy", "sell"]
+    side: Side
     order_type: Literal["market", "limit"]
     quantity: int
     limit_price: str | None
@@ -138,7 +138,7 @@ class ModifyOrderPlan:
     limit_price: str
     quantity: int | None
     symbol: str | None = None
-    side: Literal["buy", "sell"] | None = None
+    side: Side | None = None
 
 
 def make_stock_order_plan(

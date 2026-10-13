@@ -86,7 +86,7 @@ _NIGHT_ORDERABLE_TR = "STTN5105R"  # 야간 주문가능조회, 모의투자 미
 _OPEN_ORDERS_PATH = "/uapi/domestic-futureoption/v1/trading/inquire-ccnl"
 _OPEN_ORDERS_TR = {"real": "TTTO5201R", "paper": "VTTO5201R"}  # 주간(정규), 실전·모의 모두 지원
 #: 매도매수구분코드(SLL_BUY_DVSN_CD): 매수 02 / 매도 01.
-_SIDE_TO_SLL_BUY = {"buy": "02", "sell": "01"}
+_SIDE_CODE = {"buy": "02", "sell": "01"}
 
 
 def fetch_balance(
@@ -480,7 +480,7 @@ def fetch_derivative_orderable(
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
         "PDNO": symbol,
-        "SLL_BUY_DVSN_CD": _SIDE_TO_SLL_BUY[side],
+        "SLL_BUY_DVSN_CD": _SIDE_CODE[side],
         "UNIT_PRICE": _format_order_unit_price(limit_price),
         "ORD_DVSN_CD": "01" if limit_price is not None else "02",  # 지정가/시장가
     }
@@ -525,7 +525,7 @@ def fetch_derivative_night_orderable(
         "CANO": cano, "ACNT_PRDT_CD": product_code,
         "PDNO": symbol,
         "PRDT_TYPE_CD": "301",  # 상품유형코드 -- 301 선물옵션
-        "SLL_BUY_DVSN_CD": _SIDE_TO_SLL_BUY[side],
+        "SLL_BUY_DVSN_CD": _SIDE_CODE[side],
         "UNIT_PRICE": _format_order_unit_price(limit_price),
         "ORD_DVSN_CD": "01" if limit_price is not None else "02",  # 지정가/시장가
     }
@@ -815,7 +815,7 @@ def fetch_open_orders(
     _require_wire_date(order_date, "order_date")
     if side not in ("all", "buy", "sell"):
         raise KISUsageError(f"side 는 'all'/'buy'/'sell' 여야 한다: {side!r}")
-    sll_buy = "00" if side == "all" else _SIDE_TO_SLL_BUY[side]
+    sll_buy = "00" if side == "all" else _SIDE_CODE[side]
     rows: list[Mapping[str, Any]] = []
     ctx_fk, ctx_nk, tr_cont = "", "", ""
     for _page in range(_MAX_BALANCE_PAGES):

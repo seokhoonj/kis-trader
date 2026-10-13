@@ -70,7 +70,7 @@ _PERIOD_PNL_TR = "OTFM3118R"  # 해외선물옵션 기간손익, 모의투자 �
 _PERIOD_TRANS_PATH = "/uapi/overseas-futureoption/v1/trading/inquire-period-trans"
 _PERIOD_TRANS_TR = "OTFM3114R"  # 해외선물옵션 기간입출금내역, 모의투자 미지원
 #: 매도매수구분코드(SLL_BUY_DVSN_CD): 매수 02 / 매도 01.
-_SIDE_TO_SLL_BUY = {"buy": "02", "sell": "01"}
+_SIDE_CODE = {"buy": "02", "sell": "01"}
 
 
 def fetch_deposit(
@@ -659,7 +659,7 @@ def fetch_orderable(
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
         "OVRS_FUTR_FX_PDNO": symbol,
-        "SLL_BUY_DVSN_CD": _SIDE_TO_SLL_BUY[side],
+        "SLL_BUY_DVSN_CD": _SIDE_CODE[side],
         "FM_ORD_PRIC": _format_order_price(price),
         "ECIS_RSVN_ORD_YN": "Y" if exercise_reserved else "N",
     }

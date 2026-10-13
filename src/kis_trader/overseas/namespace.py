@@ -282,14 +282,14 @@ class OverseasNamespace:
     def futures_details(self, symbols: Sequence[str]) -> list[OverseasDerivativeDetail]:
         """여러 해외 선물 계약의 명세를 한 번에(최대 32개, 실전만)."""
         return overseas_derivatives_api.fetch_details(
-            self._client.transport, srs_codes=list(symbols), product="future",
+            self._client.transport, symbols=list(symbols), product="future",
             environment=self._client.environment,
         )
 
     def option_details(self, symbols: Sequence[str]) -> list[OverseasDerivativeDetail]:
         """여러 해외 옵션 계약의 명세를 한 번에(최대 30개, 실전만)."""
         return overseas_derivatives_api.fetch_details(
-            self._client.transport, srs_codes=list(symbols), product="option",
+            self._client.transport, symbols=list(symbols), product="option",
             environment=self._client.environment,
         )
 

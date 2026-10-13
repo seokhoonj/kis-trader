@@ -46,7 +46,7 @@ _COLLATERAL_STOCKS_PATH = "/uapi/overseas-price/v1/quotations/colable-by-company
 _COLLATERAL_STOCKS_TR = "CTLN4050R"
 
 
-def _YYYYMMDD(value: object) -> date | None:
+def _parse_yyyymmdd(value: object) -> date | None:
     text = str(value or "").strip()
     if len(text) != 8 or not text.isdigit():
         return None
@@ -86,13 +86,13 @@ def fetch_period_rights(
 
 def _parse_period_right(row: Mapping[str, Any]) -> OverseasRight:
     return OverseasRight(
-        base_date=_YYYYMMDD(row.get("bass_dt")), right_type_code=str(row.get("rght_type_cd", "")).strip(),
+        base_date=_parse_yyyymmdd(row.get("bass_dt")), right_type_code=str(row.get("rght_type_cd", "")).strip(),
         symbol=str(row.get("pdno", "")).strip(), name=str(row.get("prdt_name", "")).strip(),
         product_type=str(row.get("prdt_type_cd", "")).strip(),
         standard_symbol=str(row.get("std_pdno", "")).strip(),
-        local_base_date=_YYYYMMDD(row.get("acpl_bass_dt")),
-        subscription_start_date=_YYYYMMDD(row.get("sbsc_strt_dt")),
-        subscription_end_date=_YYYYMMDD(row.get("sbsc_end_dt")),
+        local_base_date=_parse_yyyymmdd(row.get("acpl_bass_dt")),
+        subscription_start_date=_parse_yyyymmdd(row.get("sbsc_strt_dt")),
+        subscription_end_date=_parse_yyyymmdd(row.get("sbsc_end_dt")),
         cash_allocation_rate=optional_decimal(row.get("cash_alct_rt"), "cash_alct_rt"),
         stock_allocation_rate=optional_decimal(row.get("stck_alct_rt"), "stck_alct_rt"),
         currencies=tuple(str(row.get(key, "")).strip() for key in ("crcy_cd", "crcy_cd2", "crcy_cd3", "crcy_cd4")),
@@ -124,13 +124,13 @@ def fetch_corporate_actions(
     if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
         raise _missing_block_error("output1", resp)
     return [OverseasCorporateAction(
-        announced_date=_YYYYMMDD(row.get("anno_dt")), title=str(row.get("ca_title", "")).strip(),
-        ex_dividend_date=_YYYYMMDD(row.get("div_lock_dt")), payment_date=_YYYYMMDD(row.get("pay_dt")),
-        record_date=_YYYYMMDD(row.get("record_dt")), validity_date=_YYYYMMDD(row.get("validity_dt")),
-        local_deadline=_YYYYMMDD(row.get("local_end_dt")), ex_rights_date=_YYYYMMDD(row.get("lock_dt")),
-        delisting_date=_YYYYMMDD(row.get("delist_dt")), redemption_date=_YYYYMMDD(row.get("redempt_dt")),
-        early_redemption_date=_YYYYMMDD(row.get("early_redempt_dt")),
-        effective_date=_YYYYMMDD(row.get("effective_dt")), _raw=row,
+        announced_date=_parse_yyyymmdd(row.get("anno_dt")), title=str(row.get("ca_title", "")).strip(),
+        ex_dividend_date=_parse_yyyymmdd(row.get("div_lock_dt")), payment_date=_parse_yyyymmdd(row.get("pay_dt")),
+        record_date=_parse_yyyymmdd(row.get("record_dt")), validity_date=_parse_yyyymmdd(row.get("validity_dt")),
+        local_deadline=_parse_yyyymmdd(row.get("local_end_dt")), ex_rights_date=_parse_yyyymmdd(row.get("lock_dt")),
+        delisting_date=_parse_yyyymmdd(row.get("delist_dt")), redemption_date=_parse_yyyymmdd(row.get("redempt_dt")),
+        early_redemption_date=_parse_yyyymmdd(row.get("early_redempt_dt")),
+        effective_date=_parse_yyyymmdd(row.get("effective_dt")), _raw=row,
     ) for row in rows]
 
 
@@ -264,7 +264,7 @@ def fetch_collateral_stocks(
         maintenance_ratio=optional_decimal(row.get("mgge_mntn_rt"), "mgge_mntn_rt"),
         collateral_ratio=optional_decimal(row.get("mgge_ensu_rt"), "mgge_ensu_rt"),
         is_loanable=str(row.get("loan_exec_psbl_yn", "")).strip() == "Y",
-        registered_date=_YYYYMMDD(row.get("erlm_dt")),
+        registered_date=_parse_yyyymmdd(row.get("erlm_dt")),
         market_name=str(row.get("tr_mket_name", "")).strip(), currency=str(row.get("crcy_cd", "")).strip(),
         country_name=str(row.get("natn_kor_name", "")).strip(),
         exchange=str(row.get("ovrs_excg_cd", "")).strip(), _raw=row,
@@ -337,7 +337,7 @@ def _parse_settlement_date(row: Mapping[str, Any]) -> OverseasSettlementDate:
         country_abbr=str(row.get("natn_eng_abrv_cd", "")).strip(),
         market_code=str(row.get("tr_mket_cd", "")).strip(),
         market_name=str(row.get("tr_mket_name", "")).strip(),
-        local_settlement_date=_YYYYMMDD(row.get("acpl_sttl_dt")),
-        domestic_settlement_date=_YYYYMMDD(row.get("dmst_sttl_dt")),
+        local_settlement_date=_parse_yyyymmdd(row.get("acpl_sttl_dt")),
+        domestic_settlement_date=_parse_yyyymmdd(row.get("dmst_sttl_dt")),
         _raw=row,
     )

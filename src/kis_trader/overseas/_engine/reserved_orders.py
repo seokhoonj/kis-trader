@@ -219,7 +219,7 @@ def place_overseas_reserved_order(
     if side not in _SIDE_CODE:
         raise KISUsageError(f"side 는 buy/sell 이어야 한다: {side!r}")
     try:
-        order_exchange, region = _ORDER_EXCHANGE[exchange]
+        order_exchange, order_market = _ORDER_EXCHANGE[exchange]
     except KeyError:
         raise KISUsageError(
             f"해외 예약주문을 지원하지 않는 거래소코드: {exchange!r}."
@@ -240,21 +240,21 @@ def place_overseas_reserved_order(
         # 아시아엔 algo 가 없고 모의는 미지원이라 라우팅 전에 fail-closed 한다.
         if algo_strategy not in _ORD_DVSN_ALGO:
             raise KISUsageError(f"지원하지 않는 algo 전략: {algo_strategy!r} (twap/vwap).")
-        if region != _US_MARKET:
+        if order_market != _US_MARKET:
             raise KISUsageError(
                 f"예약 algo(TWAP/VWAP)는 미국 거래소만 지원한다(아시아 algo 없음): {exchange!r}."
             )
         if environment == "paper":
             raise KISUsageError("예약 algo(TWAP/VWAP) 주문은 모의투자 미지원 -- 실전에서만.")
 
-    if region == _US_MARKET:
+    if order_market == _US_MARKET:
         return _place_us_reserved(
             transport, store, symbol=symbol, side=side, qty=qty, limit=limit,
             order_exchange=order_exchange, exchange=exchange, algo_strategy=algo_strategy,
             client_order_id=client_order_id, cano=cano, product_code=product_code,
             environment=environment,
         )
-    if region in _ASIA_MARKETS:
+    if order_market in _ASIA_MARKETS:
         return _place_asia_reserved(
             transport, store, symbol=symbol, side=side, qty=qty, limit=limit,
             order_exchange=order_exchange, exchange=exchange, currency=currency,
@@ -262,7 +262,7 @@ def place_overseas_reserved_order(
             environment=environment,
         )
     # _ORDER_EXCHANGE 전 항목이 미국/아시아라 현재는 도달 불가 -- 맵 확장 대비 fail-closed
-    raise KISUsageError(f"해외 예약주문을 지원하지 않는 시장이다: {exchange!r}({region}).")
+    raise KISUsageError(f"해외 예약주문을 지원하지 않는 시장이다: {exchange!r}({order_market}).")
 
 
 def _place_us_reserved(
@@ -588,16 +588,16 @@ def cancel_asia_reserved_order(
             f"kis.orders.reconcile({client_order_id!r}) 로 재조회한 뒤 다시 취소하라."
         )
     try:
-        order_exchange, region = _ORDER_EXCHANGE[fingerprint.overseas_exchange]
+        order_exchange, order_market = _ORDER_EXCHANGE[fingerprint.overseas_exchange]
     except KeyError:
         raise KISError(
             f"아시아 예약주문 {client_order_id!r} 지문의 거래소코드를 해석할 수 없다"
             f"({fingerprint.overseas_exchange!r}, 내부 상태 불일치)."
         ) from None
-    if region not in _ASIA_MARKETS:
+    if order_market not in _ASIA_MARKETS:
         raise KISError(
             f"아시아 예약주문 {client_order_id!r} 지문의 거래소가 아시아가 아니다"
-            f"({fingerprint.overseas_exchange!r} -> {region}, 내부 상태 불일치)."
+            f"({fingerprint.overseas_exchange!r} -> {order_market}, 내부 상태 불일치)."
         )
     body = {
         "CANO": cano, "ACNT_PRDT_CD": product_code, "PDNO": fingerprint.symbol,

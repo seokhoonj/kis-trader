@@ -92,26 +92,26 @@ _OPEN_INTEREST_TR = "HHDDB95030000"
 
 
 def fetch_quote(
-    transport: Transport, *, srs_cd: str, product: DerivativeProduct
+    transport: Transport, *, symbol: str, product: DerivativeProduct
 ) -> OverseasDerivativeQuote:
-    """해외 선물/옵션 계약 현재가. ``product`` 는 ``"future"``/``"option"``, ``srs_cd`` 는 시리즈코드."""
+    """해외 선물/옵션 계약 현재가. ``product`` 는 ``"future"``/``"option"``, ``symbol`` 는 시리즈코드."""
     path, tr = _QUOTE[product]
     resp = transport.request(
-        method="GET", path=path, tr_id=tr, params={"SRS_CD": srs_cd}, idempotent=True
+        method="GET", path=path, tr_id=tr, params={"SRS_CD": symbol}, idempotent=True
     )
     _raise_if_error(resp)
     output = resp.body.get("output1")
     if not isinstance(output, Mapping):        # 성공 응답인데 객체 아님 -> fail-closed
         raise _missing_block_error("output1", resp)
-    return _parse_quote(output, srs_cd=srs_cd, as_of=datetime.now(_KST))
+    return _parse_quote(output, symbol=symbol, as_of=datetime.now(_KST))
 
 
 def _parse_quote(
-    output: Mapping[str, Any], *, srs_cd: str, as_of: datetime
+    output: Mapping[str, Any], *, symbol: str, as_of: datetime
 ) -> OverseasDerivativeQuote:
     sign = str(output.get("prev_diff_flag", "")).strip()
     return OverseasDerivativeQuote(
-        symbol=srs_cd,
+        symbol=symbol,
         current_price=required_decimal(output.get("last_price"), "last_price"),
         open=required_decimal(output.get("open_price"), "open_price"),
         high=required_decimal(output.get("high_price"), "high_price"),
@@ -159,7 +159,7 @@ def _level(
 
 
 def fetch_order_book(
-    transport: Transport, *, srs_cd: str, product: DerivativeProduct
+    transport: Transport, *, symbol: str, product: DerivativeProduct
 ) -> OrderBook:
     """해외 선물/옵션 계약의 호가창(5단계 매수/매도 심도).
 
@@ -172,7 +172,7 @@ def fetch_order_book(
     """
     path, tr = _ORDER_BOOK[product]
     resp = transport.request(
-        method="GET", path=path, tr_id=tr, params={"SRS_CD": srs_cd}, idempotent=True
+        method="GET", path=path, tr_id=tr, params={"SRS_CD": symbol}, idempotent=True
     )
     _raise_if_error(resp)
     rows = _require_mapping_rows("output2", resp)
@@ -190,7 +190,7 @@ def fetch_order_book(
             asks.append(ask)
 
     return OrderBook(
-        symbol=srs_cd,
+        symbol=symbol,
         market=product,
         bids=tuple(bids),
         asks=tuple(asks),
@@ -204,7 +204,7 @@ def fetch_order_book(
 def fetch_bars(
     transport: Transport,
     *,
-    srs_cd: str,
+    symbol: str,
     product: DerivativeProduct,
     exchange: str,
     interval: Interval,
@@ -226,7 +226,7 @@ def fetch_bars(
         max(1, max_bars - 1) if product == "option" and interval == "1d" else max_bars
     )
     params = _history_params(
-        srs_cd=srs_cd, exchange=exchange, count=query_count,
+        symbol=symbol, exchange=exchange, count=query_count,
         gap="1" if interval == "1m" else "",
         close_date=_today_kst() if product == "future" else "",
     )
@@ -238,14 +238,14 @@ def fetch_bars(
     rows = resp.body.get("output1" if interval == "1m" else "output2")
     if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output1" if interval == "1m" else "output2", resp)
-    bars = _parse_history_bars(rows, symbol=srs_cd, intraday=interval == "1m", resp=resp)
+    bars = _parse_history_bars(rows, symbol=symbol, intraday=interval == "1m", resp=resp)
     return bars[-max_bars:]
 
 
 def fetch_trades(
     transport: Transport,
     *,
-    srs_cd: str,
+    symbol: str,
     product: DerivativeProduct,
     exchange: str,
     max_trades: int,
@@ -260,7 +260,7 @@ def fetch_trades(
         raise KISUsageError(f"max_trades 는 1..40: {max_trades}")
     endpoint, tr = _TRADES[product]
     params = _history_params(
-        srs_cd=srs_cd, exchange=exchange, count=max_trades, gap="",
+        symbol=symbol, exchange=exchange, count=max_trades, gap="",
         close_date=_today_kst() if product == "future" else "",
     )
     resp = transport.request(
@@ -281,7 +281,7 @@ def fetch_trades(
         sign = str(row.get("prev_diff_flag", "")).strip()
         trades.append(
             Trade(
-                symbol=srs_cd,
+                symbol=symbol,
                 timestamp=_parse_history_timestamp(date_text, time_text),
                 price=required_decimal(price_text, "last_price"),
                 quantity=required_int(row.get("last_qntt"), "last_qntt"),
@@ -299,10 +299,10 @@ def fetch_trades(
 
 
 def _history_params(
-    *, srs_cd: str, exchange: str, count: int, gap: str, close_date: str
+    *, symbol: str, exchange: str, count: int, gap: str, close_date: str
 ) -> dict[str, str]:
     return {
-        "SRS_CD": srs_cd,
+        "SRS_CD": symbol,
         "EXCH_CD": exchange.strip(),
         "START_DATE_TIME": "",
         "CLOSE_DATE_TIME": close_date,
@@ -446,35 +446,35 @@ _BATCH_DETAIL = {
 
 
 def fetch_detail(
-    transport: Transport, *, srs_cd: str, product: DerivativeProduct
+    transport: Transport, *, symbol: str, product: DerivativeProduct
 ) -> OverseasDerivativeDetail:
-    """해외 선물/옵션 계약 명세. ``product`` 는 ``"future"``/``"option"``, ``srs_cd`` 는 시리즈코드."""
+    """해외 선물/옵션 계약 명세. ``product`` 는 ``"future"``/``"option"``, ``symbol`` 는 시리즈코드."""
     path, tr = _DETAIL[product]
     resp = transport.request(
-        method="GET", path=path, tr_id=tr, params={"SRS_CD": srs_cd}, idempotent=True
+        method="GET", path=path, tr_id=tr, params={"SRS_CD": symbol}, idempotent=True
     )
     _raise_if_error(resp)
     output = resp.body.get("output1")
     if not isinstance(output, Mapping):
         raise _missing_block_error("output1", resp)
-    return _parse_detail(output, srs_cd=srs_cd)
+    return _parse_detail(output, symbol=symbol)
 
 
 def fetch_details(
-    transport: Transport, *, srs_codes: list[str], product: DerivativeProduct,
+    transport: Transport, *, symbols: list[str], product: DerivativeProduct,
     environment: Environment
 ) -> list[OverseasDerivativeDetail]:
     """해외 선물/옵션 계약 명세를 한 번에 조회한다(선물 32개, 옵션 30개 한도)."""
     if environment == "paper":
         raise KISUsageError("해외 선물/옵션 상품기본정보 조회는 모의투자 미지원이다(실전만).")
     path, tr, limit = _BATCH_DETAIL[product]
-    if not srs_codes:
+    if not symbols:
         raise KISUsageError("조회할 해외 선물/옵션 시리즈코드가 하나 이상 필요하다.")
-    if len(srs_codes) > limit:
-        raise KISUsageError(f"해외 {product} 상품기본정보는 최대 {limit}개: {len(srs_codes)}")
-    if any(not isinstance(code, str) or not code.strip() for code in srs_codes):
+    if len(symbols) > limit:
+        raise KISUsageError(f"해외 {product} 상품기본정보는 최대 {limit}개: {len(symbols)}")
+    if any(not isinstance(code, str) or not code.strip() for code in symbols):
         raise KISUsageError("해외 선물/옵션 시리즈코드는 비어 있지 않은 문자열이어야 한다.")
-    normalized_codes = [code.strip() for code in srs_codes]
+    normalized_codes = [code.strip() for code in symbols]
     params = {"QRY_CNT": str(len(normalized_codes))}
     params.update(
         {f"SRS_CD_{position:02d}": code for position, code in enumerate(normalized_codes, 1)}
@@ -492,16 +492,16 @@ def fetch_details(
             raw=resp.body,
         )
     return [
-        _parse_detail(row, srs_cd=code)
+        _parse_detail(row, symbol=code)
         for code, row in zip(normalized_codes, rows, strict=True)
     ]
 
 
 def _parse_detail(
-    output: Mapping[str, Any], *, srs_cd: str
+    output: Mapping[str, Any], *, symbol: str
 ) -> OverseasDerivativeDetail:
     return OverseasDerivativeDetail(
-        symbol=srs_cd,
+        symbol=symbol,
         exchange=str(output.get("exch_cd", "")).strip(),
         currency=str(output.get("crc_cd", "")).strip(),
         product_class=str(output.get("clas_cd", "")).strip(),
