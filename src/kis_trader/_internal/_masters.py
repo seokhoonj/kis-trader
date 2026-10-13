@@ -28,6 +28,7 @@ from ..instrument import (
     InstrumentRecord,
     MasterIndex,
     SecurityType,
+    is_domestic_symbol,
 )
 from ._fsutil import atomic_write_bytes, xdg_cache_subdir
 
@@ -210,7 +211,8 @@ def parse_domestic_master(data: bytes, *, market: DomesticMarket) -> list[Domest
     각 줄은 가변 part1 과 고정 part2(:data:`_DOMESTIC_PART2_WIDTH`)로 나뉜다. part1 은 단축코드(폭9)
     + 표준코드(12) + 한글종목명(나머지). KIS 공식 파서(kis_kospi_code_mst.py) 레이아웃. 레코드 경계는
     개행뿐이라 ``split("\\n")`` 으로 쪼갠다(``splitlines()`` 는 part2 의 제어문자에서 과분할될 수 있음).
-    코드가 6자리 숫자가 아니거나 이름이 빈 손상·헤더 줄은 건너뛴다.
+    코드가 6자리 대문자 영숫자 단축코드가 아니거나(주식·ETF 는 숫자 ``005930``, 신형 ETF·
+    ELW 등은 문자 섞인 ``0167A0``/``57LABS``) 이름이 빈 손상·헤더 줄은 건너뛴다.
 
     :raises KISUsageError: ``market`` 이 KOSPI/KOSDAQ 가 아니면.
     :raises KISError: 비지 않은 입력인데 유효 종목이 0건이면(part2 폭 변경 등 포맷 드리프트 fail-closed).
@@ -224,7 +226,7 @@ def parse_domestic_master(data: bytes, *, market: DomesticMarket) -> list[Domest
         part1 = line[:-part2_width]    # 고정 part2 를 떼면 가변 part1(단축코드+표준코드+이름)
         symbol = part1[0:9].strip()    # 단축코드(폭9, 우측 패딩) -> 6자리 코드
         name = part1[21:].strip()      # 한글종목명(표준코드 12자 다음 전부)
-        if not symbol.isdigit() or len(symbol) != 6 or not name:  # 손상/헤더/오정렬 줄 skip
+        if not is_domestic_symbol(symbol) or not name:  # 손상/헤더/오정렬 줄 skip
             continue
         listings.append(DomesticListing(symbol=symbol, name=name, market=market))
     if text.strip() and not listings:  # 비지 않은 입력에서 0건 -> 포맷 변경 fail-closed(해외 파서와 대칭)

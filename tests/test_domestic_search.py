@@ -64,6 +64,18 @@ def test_search_short_numeric_query_matches_code_prefix():
     assert {h.symbol for h in _index().search_stocks("0059")} == {"005930", "005935"}
 
 
+def test_search_by_alphanumeric_code_reverse_lookup():
+    # 신형 ETF/ELW 는 문자 섞인 6자리 단축코드(0167A0). 숫자만 코드로 보던 회귀 방지.
+    idx = DomesticListingIndex([DomesticListing("0167A0", "SOL AI반도체TOP2플러스", "KOSPI")])
+    assert [h.name for h in idx.search_stocks("0167A0")] == ["SOL AI반도체TOP2플러스"]
+
+
+def test_search_finds_listing_with_alphanumeric_code_by_name():
+    # 영숫자 코드 종목도 이름 검색으로 잡혀야 한다(인덱스에 들어 있다면).
+    idx = DomesticListingIndex([DomesticListing("0167A0", "SOL AI반도체TOP2플러스", "KOSPI")])
+    assert [h.symbol for h in idx.search_stocks("AI반도체TOP2")] == ["0167A0"]
+
+
 def test_search_orders_exact_then_prefix_then_substring():
     idx = DomesticListingIndex([
         DomesticListing("100000", "KODEX 삼성전자레버리지", "KOSPI"),  # 부분(이름 중간에 포함)
@@ -112,6 +124,19 @@ def test_parse_domestic_master_skips_short_or_blank_lines():
     master_bytes = f"\ntoo-short\n{good}\n".encode("cp949")
     assert parse_domestic_master(master_bytes, market="KOSPI") == [
         DomesticListing("005930", "삼성전자", "KOSPI")
+    ]
+
+
+def test_parse_domestic_master_keeps_alphanumeric_code():
+    # 신형 ETF/ELW 의 문자 섞인 6자리 단축코드(0167A0/57LABS)를 버리지 않는다(숫자-only 가정 회귀 방지).
+    lines = [
+        _mst_line("0167A0", "KR70167A0007", "SOL AI반도체TOP2플러스", market="KOSPI"),
+        _mst_line("57LABS", "KRA57LABS001", "ELW종목", market="KOSPI"),
+    ]
+    master_bytes = ("\n".join(lines) + "\n").encode("cp949")
+    assert parse_domestic_master(master_bytes, market="KOSPI") == [
+        DomesticListing("0167A0", "SOL AI반도체TOP2플러스", "KOSPI"),
+        DomesticListing("57LABS", "ELW종목", "KOSPI"),
     ]
 
 

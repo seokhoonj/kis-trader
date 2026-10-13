@@ -193,7 +193,9 @@ class DomesticListingIndex:
             raise KISUsageError("검색어(query)가 비어 있다.")
         if market not in ("all", "KOSPI", "KOSDAQ"):
             raise KISUsageError(f"market 은 all/KOSPI/KOSDAQ 중 하나: {market!r}")
-        is_code_query = text.isdigit()  # 숫자면 코드 역검색, 아니면 이름 검색
+        # 코드 역검색 판정: 숫자(길이 무관 -> 코드 접두검색, "0059"->005930) 또는 6자리 대문자
+        # 영숫자 완전 단축코드("0167A0" 등 신형 ETF/ELW). 그 밖은 이름 검색.
+        is_code_query = text.isdigit() or is_domestic_symbol(text)
         exact_matches: list[DomesticListing] = []
         prefix_matches: list[DomesticListing] = []
         substring_matches: list[DomesticListing] = []
