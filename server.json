@@ -75,7 +75,11 @@
         },
         {
           "name": "KIS_MCP_MAX_ORDER_NOTIONAL",
-          "description": "Fat-finger cap: maximum notional (price x quantity) per live order (RiskLimits)."
+          "description": "Fat-finger cap: maximum notional (price x quantity) per live DOMESTIC (KRW) order (RiskLimits). Overseas orders use the per-currency KIS_MCP_MAX_ORDER_NOTIONAL_<CCY> caps instead; a domestic real order requires one of the domestic caps (this or MAX_ORDER_QTY/PRICE_COLLAR_PCT)."
+        },
+        {
+          "name": "KIS_MCP_MAX_ORDER_NOTIONAL_<CCY>",
+          "description": "Fat-finger cap for overseas orders: maximum notional per live order in the exchange's risk-check currency (for example KIS_MCP_MAX_ORDER_NOTIONAL_USD). Required for any real overseas place/modify -- without the matching currency cap the order is refused fail-closed."
         },
         {
           "name": "KIS_MCP_PRICE_COLLAR_PCT",

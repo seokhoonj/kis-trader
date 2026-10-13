@@ -46,8 +46,8 @@ class OverseasStockSearchMatch:
 
 @dataclass(frozen=True, slots=True)
 class OverseasStockSearch:
-    """해외 조건검색 건수 요약과 거래소당 최대 100건의 단일 응답 결과(연속조회 미지원;
-    ``exchange="US"`` 집계는 NAS/NYS/AMS 합산 최대 300건)."""
+    """해외 조건검색 건수 요약과 결과 종목 -- 연속조회를 소진해 조건에 맞는 전 종목을 담는다
+    (``exchange="US"`` 집계는 NAS/NYS/AMS 합산)."""
 
     exchange: str
     decimal_places: int

@@ -194,11 +194,11 @@ kis-mcp
 | `quote` | 종목 현재가 스냅샷(`region="overseas"` 면 해외, `session="after_hours"` 면 국내 시간외 단일가) |
 | `search` | 이름·질의로 국내 종목 코드 후보 찾기 |
 | `ranking_change` | 국내 등락률 순위(`gainers`/`losers`) |
-| `balance` | 계좌 잔고 요약 -- `region` 으로 국내/해외를 고르며, 국내는 활성 계좌 종류로 분기(위탁·연금저축=국내주식, IRP=퇴직연금) |
+| `balance` | 계좌 잔고 요약 -- `region` 으로 국내/해외를 고르며, 국내는 활성 계좌 종류로 분기(위탁·ISA·연금저축=국내주식, IRP=퇴직연금) |
 | `positions` | 보유 종목 -- `region` 으로 국내/해외 |
-| `open_orders` | 미체결 주문(국내 위탁 주식 계좌 전용) |
+| `open_orders` | 미체결(정정취소가능) 주문 -- 주문 가능한 국내주식 계좌(위탁·ISA 01/연금저축 22) 전용, IRP(29) 거부 |
 | `use_environment` | 활성 환경을 real↔paper 로 전환(재시작 없이; 기동 시 준 실주문 언락 비트는 바꾸지 못함) |
-| `use_profile` | **보는** 계좌 종류 전환(`general`/`isa`/`pension`/`irp`) |
+| `use_profile` | 활성 계좌 종류 전환(조회·주문 대상이 함께 바뀜; `general`/`isa`/`pension`/`irp`) |
 | `current_account` | 지금 보는 중인 활성 계좌·환경 표시 |
 | `order_preview` | 주문 **미리보기** -- 보내지 않고 나갈 티켓만 보여 줌(`sent: false`) |
 | `reconcile` | 결과가 불분명한 주문을 사후 확정 |
@@ -214,7 +214,7 @@ kis-mcp
 | 도구 | 말투 | 하는 일 |
 |---|---|---|
 | `use_environment("real")` / `("paper")` | "실전으로 바꿔줘" | 활성 환경을 토글(언락 비트는 기동 시 고정) |
-| `use_profile("pension")` | "연금 계좌로 바꿔줘" | **보는** 계좌 종류 변경(`general`/`isa`/`pension`/`irp`) |
+| `use_profile("pension")` | "연금 계좌로 바꿔줘" | 활성 계좌 종류 변경(조회·주문 대상 함께; `general`/`isa`/`pension`/`irp`) |
 | `current_account()` | "지금 뭐 보는 중?" | 활성 `(계좌 종류, 환경)` + 마스킹 계좌 |
 
 전환은 활성 `(계좌 종류, 환경)` 맥락을 바꿀 뿐, **기동 시 정해진 실주문 언락 비트는 바꾸지 못합니다**
@@ -247,7 +247,7 @@ IRP(`29`)·파생은 조회 전용이라 주문이 나가지 않습니다. 해�
   명시했을 때만 씁니다.
 - **계좌 종류에 맞는 조회** -- `balance`·`positions` 는 활성 계좌 종류로 분기합니다(위탁·ISA·연금저축은
   국내주식, IRP 는 퇴직연금). 해외주식 잔고·보유는 `region="overseas"` 로 보며, 위탁(general) 계좌의
-  **실전 전용**입니다(모의 미지원). `open_orders`(정정취소가능주문조회)는 국내 위탁 주식 계좌 전용이고,
+  **실전 전용**입니다(모의 미지원). `open_orders`(정정취소가능주문조회)는 주문 가능한 국내주식 계좌(위탁·ISA·연금저축) 전용이고 IRP 는 거부되며,
   그 밖의 계좌에서는 분명히 거부합니다. 파생 계좌는 조회조차 노출하지 않습니다. MCP `balance` 는
   (위탁 계좌에서) 국내주식 잔고를 돌려줍니다 -- 국내·채권·해외를 합친 통합 잔고가 필요하면 파이썬 API
   `kis.account.balance()` 를 씁니다.

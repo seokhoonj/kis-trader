@@ -439,7 +439,7 @@ def build_server(
 
     @server.tool()
     def open_orders(limit: int = 100) -> list[dict[str, Any]]:
-        """미체결 주문(국내 위탁 주식 계좌 전용)."""
+        """미체결(정정취소가능) 주문 -- 주문 가능한 국내주식 계좌(위탁·ISA 01/연금저축 22) 전용, IRP(29) 거부."""
         return handlers.open_orders(account_session.read_client(), limit=limit)
 
     @server.tool()

@@ -34,7 +34,7 @@ pip install 'kis-trader[mcp]'
 ```python
 from kis_trader import KISClient
 
-kis = KISClient(app_key="…", app_secret="…", account="12345678-01", environment="real")
+kis = KISClient(app_key="…", app_secret="…", account="12345678-01", environment="paper")
 
 kis.domestic.stock("005930").quote()                 # Samsung Electronics quote
 kis.overseas.stock("AAPL").quote()                   # Apple (exchange resolved automatically)

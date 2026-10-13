@@ -43,7 +43,8 @@ environment = a separate axis).
   `KISConfig.set_default_environment(...)` writes the environment default (the `default_environment`
   marker). The old `set_default` name is removed.
 - `RiskLimits` extends to overseas stock orders: a new `max_order_notional_by_currency` map
-  caps the per-order notional per settlement currency (for example `{"USD": 10000, "JPY":
+  caps the per-order notional using each market group's fixed risk-check currency (not the
+  symbol's settlement currency; for example `{"USD": 10000, "JPY":
   1500000}`), the price-collar check applies to overseas orders against the exchange's current
   price, and the quantity cap applies everywhere. An overseas order under a risk session without
   a cap for its currency is refused (fail-closed; no FX conversion, and the domestic KRW

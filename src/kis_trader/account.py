@@ -56,7 +56,7 @@ class StockAccount:
     @property
     def orderable(self) -> bool:
         """이 계좌로 API 주문을 낼 수 있는지 -- 상품계좌종류(ACNT_PRDT_CD)의 주문 가능 여부 **그리고**
-        세션의 실효 ``orderable`` 킬스위치를 함께 반영한다. 위탁(01)/ISA(01)/RIA(01)/연금저축(22)은 상품
+        세션의 실효 ``orderable`` 킬스위치를 함께 반영한다. 위탁(01)/ISA(01)/연금저축(22)은 상품
         기준 주문 가능, IRP(29)는 조회전용이라 주문 불가(``False`` -- KIS 가 주문 엔드포인트를 APBK1744 로
         거부). 여기에 더해 세션을 ``KISClient(orderable=False)`` 로 열면 상품코드와 무관하게 주문을 막는다.
 

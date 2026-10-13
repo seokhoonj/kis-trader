@@ -152,8 +152,8 @@ kis account transactions --region overseas --start 20240101 --end 20240131 # 해
 ```bash
 kis --profile futures account balance                                     # 국내선물옵션 잔고(03 프로필)
 kis --profile futures account fills --date 20240102                       # 국내파생 기준일 체결내역
-kis --profile ovs-futures account profits --start 20240101 --end 20240131 # 해외파생 기간손익(08)
-kis --profile ovs-futures account margin --currency USD                   # 해외파생 증거금상세
+kis --profile ovs_futures account profits --start 20240101 --end 20240131 # 해외파생 기간손익(08)
+kis --profile ovs_futures account margin --currency USD                   # 해외파생 증거금상세
 ```
 
 ## 주문 — 기본은 dry-run
