@@ -1,17 +1,18 @@
 # Command Line (kis)
 
 패키지를 설치하면 `kis` 터미널 명령이 함께 설치됩니다. 파이썬 코드를 쓰지 않고도 조회·주문할 수
-있는 얇은 래퍼입니다(내부적으로 같은 공개 API를 호출합니다).
+있습니다. 조회·주문 명령은 같은 공개 API 를 호출하는 얇은 래퍼이고, `kis config` 는 자격증명 저장소를
+다루는 대화형 명령 그룹입니다(병합·편집 흐름을 자체적으로 처리합니다).
 
-자격증명과 환경은 **`--profile`** 로 정합니다. 프로필은 환경변수나 설정 파일에서 읽으며,
-환경(실전/모의)은 **그 프로필에 저장된 값**입니다(이름이 환경을 정하지는 않습니다). `--profile` 을 생략하면 기본
-프로필을 씁니다(`KIS_DEFAULT_PROFILE` 환경변수 > `credentials.json` 의 `default_profile` 마커 > 첫 항목 > `main`). 다른 계좌·모의는
-저장해 둔 프로필 이름을 `--profile` 로 고릅니다. 실전이 기본이어도 주문은 `--execute` 전까지 전송되지
-않아 안전합니다.
+자격증명은 **`--profile`**(계좌 종류), 환경(실전/모의)은 **`--environment`** 로 정합니다 -- 서로 다른 두
+축입니다. 프로필은 환경변수나 설정 파일에서 읽습니다. `--profile` 을 생략하면 기본 프로필
+(`KIS_DEFAULT_PROFILE` 환경변수 > `credentials.json` 의 `default_profile` 마커 > 해석된 환경 블록에서 먼저 나오는 프로필), `--environment`
+를 생략하면 기본 환경(`KIS_DEFAULT_ENVIRONMENT` > `default_environment` 마커 > **모의 `paper`**)을 씁니다.
+모의가 기본이어도, 주문은 `--execute` 전까지 전송되지 않아 안전합니다.
 
 ```bash
-kis --profile paper account balance # 모의 프로필(저장 시 environment=paper)
-kis --profile main  account balance # 실전 주계좌
+kis --profile general --environment paper account balance # 종합위탁, 모의
+kis --profile general --environment real  account balance # 종합위탁, 실전
 ```
 
 프로필별 변수 접두어·설정 파일 위치(Linux·macOS·Windows 공통)는 [자격증명과 프로필](configuration.md)
@@ -19,16 +20,32 @@ kis --profile main  account balance # 실전 주계좌
 
 ## 설정 (자격증명 저장)
 
-앱키·계좌를 처음 저장할 때는 `kis config` 를 실행합니다. 프로필 이름·환경·계좌를 차례로 묻고,
-앱키·앱시크릿은 화면에 보이지 않게 입력받아 프로필로 저장합니다(파이썬 코드 없이).
+`kis config` 는 자격증명을 다루는 명령 묶음입니다. 아무 하위명령 없이 실행하면 대화형 저장(`setup`)이
+시작돼, 계좌 종류별로 실전·모의 앱키를 차례로 묻습니다(없는 환경은 Enter 로 건너뜀). 앱키·앱시크릿은
+화면에 보이지 않게 입력받습니다(파이썬 코드 없이).
 
 ```bash
-kis config                                     # 대화형으로 자격증명 저장
-kis config --profile paper --environment paper # 일부를 플래그로 주면 나머지만 프롬프트
-kis config --set-default                       # 저장 후 기본 프로필로 지정
+kis config                                  # 대화형으로 자격증명 저장(= kis config setup)
+kis config setup --profile general          # 프로필 이름을 미리 주고 나머지만 프롬프트
+kis config setup --set-default              # 저장 후 기본 프로필로 지정
+kis config show                             # 저장된 설정을 마스킹해 보기
+kis config set general.paper.app_key        # 한 필드 수정(값 없이 주면 프롬프트)
+kis config set general.real.account 12345678-01  # 비밀 아닌 account 만 값을 바로 줄 수 있음
+kis config set-default general              # 기본 프로필 지정
+kis config set-hts-id your_hts_id           # HTS 로그인 아이디 저장(조건검색·관심종목용)
+kis config migrate                          # 이전 형식 credentials.json 을 두 축 형식으로 변환
+kis config migrate --yes                    # 비대화형: 기본 병합을 자동 승인(이름 충돌이면 거부)
 ```
 
-실전(real) 프로필은 저장 전 한 번 더 확인하고, 같은 이름이 이미 있으면 덮어쓸지 묻습니다. 다른 저장
+`kis config set <프로필>.<환경>.<필드>` 로 한 슬롯의 한 값을 고칩니다. 수정 가능한 필드는 `app_key`·
+`app_secret`·`account`·`account_password` 이며, 명령줄에 값을 직접 줄 수 있는 건 **비밀이 아닌
+`account`** 뿐이고 나머지(앱키·앱시크릿·계좌비밀번호)는 셸 기록에 남지 않도록 숨김 프롬프트로만
+받습니다.
+
+`kis config migrate` 는 기본적으로 병합 전에 확인을 묻습니다. `--yes` 를 주면 비대화형으로 기본 병합을
+자동 승인하되, 이름 충돌로 프로필을 새로 지어야 하는 경우에는 덮어쓰지 않고 거부합니다.
+
+실전(real) 슬롯은 저장 전 한 번 더 확인하고, 같은 자리가 이미 있으면 덮어쓸지 묻습니다. 다른 저장
 방법(환경변수·파이썬 코드)과 자세한 내용은 [자격증명과 프로필](configuration.md)을 참고하세요.
 
 ## 조회
@@ -145,7 +162,7 @@ kis --profile ovs-futures account margin --currency USD                   # 해�
 
 ```bash
 kis order buy 005930 10 --limit-price 70000                                 # dry-run (전송 안 됨)
-kis --profile paper order buy 005930 10 --limit-price 70000 --execute paper # 모의 전송(확인 후)
+kis --environment paper order buy 005930 10 --limit-price 70000 --execute paper # 모의 전송(확인 후)
 ```
 
 국내 현금주문은 `--division` 으로 KRX 주문구분을 고릅니다.
@@ -171,7 +188,7 @@ kis --profile paper order buy 005930 10 --limit-price 70000 --execute paper # �
 (`--region overseas`)엔 미지원입니다.
 
 ```bash
-kis --profile main order buy 005930 10 --division immediate_limit --execute real --yes --confirm-account 7801
+kis --profile general --environment real order buy 005930 10 --division immediate_limit --execute real --yes --confirm-account 7801
 ```
 
 국내 주식 스톱지정가는 `--stop-price` 로 트리거(조건가격)를 줍니다. 시장이 그 값에 닿으면 그때
@@ -233,12 +250,12 @@ kis order buy AAPL 10 --region overseas --limit-price 150 \
   --algo twap --algo-start 223000 --algo-end 235959 --execute real --yes                  # KST 같은 날 구간
 ```
 
-실제 전송하려면 `--execute` 값이 세션 환경(프로필에 저장된 실전/모의)과 같아야 합니다. 대화형에서는 확인을
+실제 전송하려면 `--execute` 값이 세션 환경(`--environment` 로 고른 실전/모의)과 같아야 합니다. 대화형에서는 확인을
 받습니다(모의는 y/N, 실전은 계좌 마지막 4자리 입력). 스크립트(비대화형)에서는 `--yes` 가
 필요하고, 실전은 `--confirm-account` 로 계좌 마지막 4자리를 한 번 더 맞춰야 합니다.
 
 ```bash
-kis --profile main order buy 005930 10 --limit-price 70000 \
+kis --profile general --environment real order buy 005930 10 --limit-price 70000 \
     --execute real --yes --confirm-account 7801
 ```
 

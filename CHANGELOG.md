@@ -29,7 +29,12 @@ environment = a separate axis).
 - `kis config` becomes a command group -- `setup` / `show` / `set` / `set-default` / `set-hts-id` /
   `migrate` -- with a global `--environment` selector. `kis config migrate` converts a flat file to
   schema 2, asking before it merges profiles and refusing rather than overwriting on a name
-  collision.
+  collision; `kis config migrate --yes` runs non-interactively, auto-accepting the default merge and
+  refusing on a collision that would need a rename.
+- **`KISConfig.set_default(...)` renamed to `KISConfig.set_default_profile(...)` (breaking).** Writing
+  the default profile marker now reads as the profile axis it sets, and a sibling
+  `KISConfig.set_default_environment(...)` writes the environment default (the `default_environment`
+  marker). The old `set_default` name is removed.
 - `RiskLimits` extends to overseas stock orders: a new `max_order_notional_by_currency` map
   caps the per-order notional per settlement currency (for example `{"USD": 10000, "JPY":
   1500000}`), the price-collar check applies to overseas orders against the exchange's current

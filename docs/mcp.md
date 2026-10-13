@@ -86,7 +86,7 @@ where kis-mcp     # Windows -- 예: C:\Users\나\...\kis-mcp.exe
     "kis-trader": {
       "command": "여기에-3단계에서-복사한-kis-mcp-경로",
       "env": {
-        "KIS_MCP_PROFILE": "main",
+        "KIS_MCP_PROFILE": "general",
         "KIS_MCP_ENVIRONMENT": "paper"
       }
     }
@@ -106,8 +106,11 @@ where kis-mcp     # Windows -- 예: C:\Users\나\...\kis-mcp.exe
 ::: {.callout-tip}
 **프로필(`KIS_MCP_PROFILE`)로 붙이는 걸 권합니다.** 설정 파일에 `KIS_APP_KEY`·`KIS_APP_SECRET` 을 직접
 적는 대신, 저장소(`~/.config/kis-trader/credentials.json`)에 둔 프로필 이름만 적으면 앱키가 설정 파일에
-드러나지 않습니다. 환경은 기본이 모의(`paper`)이고, 실전은 아래 [실주문 가드레일](#실주문-가드레일)을 모두
-갖춰 `KIS_MCP_ENVIRONMENT=real` 로 명시했을 때만 씁니다.
+드러나지 않습니다. `KIS_MCP_PROFILE` 은 **계좌 종류**(`general`·`isa`·`pension`·`irp`), `KIS_MCP_ENVIRONMENT`
+은 **환경**(real/paper)으로 서로 다른 축입니다 -- 둘이 같이 **그 환경 블록에 있는 계좌 종류**를 가리켜야
+하며(예 `general`+`paper`), 그 환경에 없는 계좌 종류를 고르면 분명한 에러로 거부합니다. 환경은 기본이
+모의(`paper`)이고, 실전은 아래 [실주문 가드레일](#실주문-가드레일)을 모두 갖춰 `KIS_MCP_ENVIRONMENT=real`
+로 명시했을 때만 씁니다.
 :::
 
 ::: {.callout-note collapse="true"}
@@ -150,6 +153,7 @@ Cursor 도 같은 방식입니다. `Settings → MCP Servers` 에서 Claude Desk
 
 ```bash
 export KIS_MCP_TRANSPORT=streamable-http   # 또는 sse
+export KIS_MCP_HOST=127.0.0.1               # bind host (기본 127.0.0.1, 로컬 전용)
 export KIS_MCP_PORT=8000                    # 기본 8000
 kis-mcp
 ```
@@ -160,8 +164,10 @@ kis-mcp
 1. **`KIS_MCP_ACCESS_TOKEN`** 을 설정하면 비-로컬 bind 가 열리고, 모든 HTTP 요청에
    `Authorization: Bearer <토큰>` 을 요구합니다(불일치/누락 → 401). 방어심층입니다.
 2. 그 앞에 **TLS·인증(OAuth 등)을 맡는 역프록시/터널**(Cloudflare Tunnel+Access, oauth2-proxy 등)을 두어
-   127.0.0.1 로 띄운 서버로 전달하는 것이 **권장 방식**입니다. 공개 host 로 직접 bind 한다면
-   `KIS_MCP_ALLOWED_HOSTS`(쉼표 구분, 예 `my.host:*`)로 허용 Host 를 지정하세요.
+   127.0.0.1 로 띄운 서버로 전달하는 것이 **권장 방식**입니다. bind host 는 `KIS_MCP_HOST`(기본
+   `127.0.0.1`)로 바꾸며, 공개 host 로 직접 bind 한다면 `KIS_MCP_ALLOWED_HOSTS`(쉼표 구분, 예
+   `my.host:*`)로 허용 Host 를, `KIS_MCP_ALLOWED_ORIGINS`(쉼표 구분)로 허용할 CORS Origin 을
+   지정하세요.
 
 실주문은 전송 방식과 무관하게 사람 확인(elicitation) 게이트를 그대로 거칩니다 -- 원격이라고 느슨해지지
 않습니다.
@@ -185,31 +191,66 @@ kis-mcp
 
 | 도구 | 하는 일 |
 |---|---|
-| `quote` | 종목 현재가 스냅샷(`region="overseas"` 면 해외) |
+| `quote` | 종목 현재가 스냅샷(`region="overseas"` 면 해외, `session="after_hours"` 면 국내 시간외 단일가) |
 | `search` | 이름·질의로 국내 종목 코드 후보 찾기 |
 | `ranking_change` | 국내 등락률 순위(`gainers`/`losers`) |
-| `balance` | 계좌 잔고 요약(주식 계좌) |
-| `positions` | 보유 종목 |
-| `open_orders` | 미체결 주문 |
+| `balance` | 계좌 잔고 요약 -- `region` 으로 국내/해외를 고르며, 국내는 활성 계좌 종류로 분기(위탁·연금저축=국내주식, IRP=퇴직연금) |
+| `positions` | 보유 종목 -- `region` 으로 국내/해외 |
+| `open_orders` | 미체결 주문(국내 위탁 주식 계좌 전용) |
+| `use_environment` | 활성 환경을 real↔paper 로 전환(재시작 없이; 기동 시 준 실주문 언락 비트는 바꾸지 못함) |
+| `use_profile` | **보는** 계좌 종류 전환(`general`/`isa`/`pension`/`irp`) |
+| `current_account` | 지금 보는 중인 활성 계좌·환경 표시 |
 | `order_preview` | 주문 **미리보기** -- 보내지 않고 나갈 티켓만 보여 줌(`sent: false`) |
 | `reconcile` | 결과가 불분명한 주문을 사후 확정 |
-| `place_order` | 국내 주식 **실주문**(매수·매도) -- `division`([주문](orders.md)의 division 표의 KRX 주문구분; 조건부지정가·애프터마켓 등. NXT 전용 `gtp_*` 는 KRX 기본 경로라 제외)을 받아 승인 티켓에 그대로 싣고, 안전장치·사람 확인을 거친 뒤 전송(해외는 추후) |
+| `place_order` | 주식 **실주문**(매수·매도). 국내는 `division`([주문](orders.md)의 division 표의 KRX 주문구분; 조건부지정가·애프터마켓 등. NXT 전용 `gtp_*` 는 KRX 기본 경로라 제외)을 받고, 해외는 `region="overseas"` + `exchange`(NAS/NYS/…)로 지정가 주문을 낸다. 안전장치·사람 확인을 거친 뒤 전송 |
 | `cancel_order` | 접수된 주문 취소(`client_order_id` 로 지정) |
 | `modify_order` | 접수된 주문의 가격·수량 정정 |
+
+## 계좌·환경 전환 (채팅에서)
+
+활성 계좌·환경을 채팅에서 바로 바꿀 수 있어, config 를 고치고 Claude Desktop 을 재시작할 필요가
+없습니다. `KIS_MCP_PROFILE`·`KIS_MCP_ENVIRONMENT` 는 **기동 시 초기값**일 뿐입니다.
+
+| 도구 | 말투 | 하는 일 |
+|---|---|---|
+| `use_environment("real")` / `("paper")` | "실전으로 바꿔줘" | 활성 환경을 토글(언락 비트는 기동 시 고정) |
+| `use_profile("pension")` | "연금 계좌로 바꿔줘" | **보는** 계좌 종류 변경(`general`/`isa`/`pension`/`irp`) |
+| `current_account()` | "지금 뭐 보는 중?" | 활성 `(계좌 종류, 환경)` + 마스킹 계좌 |
+
+전환은 활성 `(계좌 종류, 환경)` 맥락을 바꿀 뿐, **기동 시 정해진 실주문 언락 비트는 바꾸지 못합니다**
+(위 callout 참고). 없는 조합(예 모의가 없는 `pension` 을 `paper` 로)이나 지원하지 않는 계좌(파생은
+`use_profile` 대상 아님)는 전환 시점에 분명한 에러로 거부합니다(silent 전환 없음).
+
+::: {.callout-important}
+**환경을 real 로 바꾸는 것 자체는 실주문 언락 비트를 바꾸지 못합니다.** 실주문 권한은 **기동 시** 준
+가드(아래 [실주문 가드레일](#실주문-가드레일))에만 묶입니다. 하지만 서버가 기동 시
+`KIS_MCP_ALLOW_REAL=1` + `KIS_MCP_REAL_CONFIRM=i-understand-real-money` 와 함께 떠 있었다면,
+`KIS_MCP_ENVIRONMENT=paper` 로 기동했더라도 `use_environment("real")` 뒤에는 실주문이 나갈 수
+있습니다(사람 확인·RiskLimits·종목 허용목록은 여전히 적용). **실주문 의도가 없으면 기동 시
+`KIS_MCP_ALLOW_REAL` 을 설정하지 마십시오** -- 그러면 환경을 real 로 바꿔도 실주문은 끝까지
+막힙니다. 국내 주문은 주문 가능한 주식 계좌(위탁·ISA 는 상품코드 `01`, 연금저축은 `22`)에서 나가고,
+IRP(`29`)·파생은 조회 전용이라 주문이 나가지 않습니다. 해외 주문(`region="overseas"`)은
+위탁(general) 계좌 전용입니다.
+:::
 
 ## 안전 설계
 
 - **실주문은 안전장치를 거친 뒤에만** -- `place_order`·`cancel_order`·`modify_order` 는 아래 안전장치를
   거친 뒤에만 나갑니다(도구별로 적용되는 겹이 다릅니다 -- [적용 범위](#도구별-가드-적용-범위) 참고).
-  `order_preview` 는 아무것도 보내지 않고 주문 형상 검증만 거쳐 티켓만 보여 줍니다(실행 게이트·RiskLimits·
-  허용목록·사람 확인은 안 거칩니다).
+  `order_preview` 는 아무것도 전송하지 않지만, 주문 형상 검증에 더해 **발주와 동일한 계좌 권한 게이트**
+  와 **해외 실주문 통화별 금액 한도 사전점검**을 적용합니다. 다만 실주문 언락·사람 확인·서킷브레이커는
+  **발주 경로에서만** 수행하며 preview 에는 없습니다.
 - **정보 유출 차단** -- 응답은 frozen dataclass 에서 공개 필드만 골라 직렬화하고, `_raw`(벤더 원본 응답)와
   밑줄 필드는 떼어 냅니다. 계좌번호는 마지막 4자리만 남기고 가립니다(`****7801`). 자격증명은 환경변수
   또는 `KIS_MCP_PROFILE` 로 지정한 저장 프로필에서만 읽고 절대 출력하지 않습니다.
 - **기본은 모의** -- 환경은 기본이 모의투자이고, 실전은 `KIS_MCP_ENVIRONMENT=real` 과 이중 잠금을
   명시했을 때만 씁니다.
-- **주식 계좌 전용 도구** -- `balance`·`positions`·`open_orders` 는 주식 계좌에서만 동작하고, 다른 계좌
-  유형이면 분명히 거부합니다.
+- **계좌 종류에 맞는 조회** -- `balance`·`positions` 는 활성 계좌 종류로 분기합니다(위탁·ISA·연금저축은
+  국내주식, IRP 는 퇴직연금). 해외주식 잔고·보유는 `region="overseas"` 로 보며, 위탁(general) 계좌의
+  **실전 전용**입니다(모의 미지원). `open_orders`(정정취소가능주문조회)는 국내 위탁 주식 계좌 전용이고,
+  그 밖의 계좌에서는 분명히 거부합니다. 파생 계좌는 조회조차 노출하지 않습니다. MCP `balance` 는
+  (위탁 계좌에서) 국내주식 잔고를 돌려줍니다 -- 국내·채권·해외를 합친 통합 잔고가 필요하면 파이썬 API
+  `kis.account.balance()` 를 씁니다.
 
 ## 실주문 가드레일
 
@@ -219,7 +260,7 @@ kis-mcp
 | 겹 | 내용 | 환경변수 |
 |---|---|---|
 | 이중 잠금 | 실전 잠금 해제 두 가지가 **모두** 있어야 함 | `KIS_MCP_ALLOW_REAL=1` **그리고** `KIS_MCP_REAL_CONFIRM=i-understand-real-money` |
-| fat-finger 한도 | 실전은 RiskLimits **필수**(안 두면 거부) -- 1주문 최대 수량·금액, 가격 collar | `KIS_MCP_MAX_ORDER_QTY` · `KIS_MCP_MAX_ORDER_NOTIONAL` · `KIS_MCP_PRICE_COLLAR_PCT` |
+| fat-finger 한도 | 실전은 RiskLimits **필수**(안 두면 거부) -- 1주문 최대 수량·금액, 가격 collar. 해외주식 주문은 **통화별 금액 한도**로 검사하며, 그 통화의 한도가 없으면 거부(fail-closed) | `KIS_MCP_MAX_ORDER_QTY` · `KIS_MCP_MAX_ORDER_NOTIONAL`(국내 KRW) · `KIS_MCP_MAX_ORDER_NOTIONAL_<통화>`(예 `..._USD` 해외) · `KIS_MCP_PRICE_COLLAR_PCT` |
 | 종목 허용목록 | 실전은 허용목록을 명시해야 함(비어 있으면 실거래 안 함) | `KIS_MCP_SYMBOL_ALLOWLIST=005930,000660` |
 | 사람 확인 | elicitation 으로 주문 내용을 사람에게 그대로 보여 주고 승인받음 -- 모델이 사람 대신 승인할 수 없음. 앱이 이 기능을 지원 안 하면 실주문 거부 | (AI 앱이 elicitation 지원해야) |
 | 서킷브레이커 | 한 세션에서 실주문이 정한 횟수를 넘으면 멈추고, 사람이 다시 켜기 전까지 막음 | `KIS_MCP_MAX_REAL_ORDERS`(기본 10) |
@@ -252,12 +293,13 @@ kis-mcp
     "kis-trader": {
       "command": "kis-mcp",
       "env": {
-        "KIS_MCP_PROFILE": "main",
+        "KIS_MCP_PROFILE": "general",
         "KIS_MCP_ENVIRONMENT": "real",
         "KIS_MCP_ALLOW_REAL": "1",
         "KIS_MCP_REAL_CONFIRM": "i-understand-real-money",
         "KIS_MCP_MAX_ORDER_QTY": "100",
         "KIS_MCP_MAX_ORDER_NOTIONAL": "10000000",
+        "KIS_MCP_MAX_ORDER_NOTIONAL_USD": "10000",
         "KIS_MCP_SYMBOL_ALLOWLIST": "005930,000660"
       }
     }
@@ -274,9 +316,10 @@ kis-mcp
 `mcp` 는 선택 의존성입니다 -- `import kis_trader` 자체는 `mcp` 없이도 동작하고, MCP 서버를 쓸 때만
 `pip install 'kis-trader[mcp]'` 로 설치하면 됩니다(위 [쓰는 법](#쓰는-법-설치하고-연결하기) 참고).
 
-실주문은 위 [실주문 가드레일](#실주문-가드레일)을 거쳐 `place_order` 로 나갑니다. 지정가·시장가와 `division`
-주문구분(조건부지정가 등)은 `place_order` 로 되지만, 그 밖의 주문(파생·채권·해외·스톱(조건가) 등)은 아직
-MCP 에 없으니 [주문](orders.md)의 파이썬 API 로 사람이 직접 냅니다.
+실주문은 위 [실주문 가드레일](#실주문-가드레일)을 거쳐 `place_order` 로 나갑니다. 국내 주식의 지정가·
+시장가와 `division` 주문구분(조건부지정가 등), 그리고 `region="overseas"` 해외주식 지정가 주문이
+`place_order` 로 되지만, 그 밖의 주문(파생·채권·스톱(조건가) 등)은 아직 MCP 에 없으니 [주문](orders.md)의
+파이썬 API 로 사람이 직접 냅니다.
 
 ## 면책 · 책임 (꼭 읽어주세요)
 

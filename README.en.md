@@ -34,18 +34,19 @@ pip install 'kis-trader[mcp]'
 ```python
 from kis_trader import KISClient
 
-kis = KISClient(app_key="…", app_secret="…", account="12345678-01")
+kis = KISClient(app_key="…", app_secret="…", account="12345678-01", environment="real")
 
 kis.domestic.stock("005930").quote()                 # Samsung Electronics quote
 kis.overseas.stock("AAPL").quote()                   # Apple (exchange resolved automatically)
 kis.domestic.ranking.by_change(direction="gainers")  # today's top gainers
 ```
 
-Run `kis config` in the terminal to enter the app key and account interactively and store them, or
-save them as environment variables or with `KISConfig(...).save()`. Once saved, later `KISClient()`
-calls can omit the arguments. Both live and paper-trading accounts are supported, so you can
-rehearse the order flow on paper before switching to live. For issuing and storing credentials, see
-the [Credentials and profiles](https://seokhoonj.github.io/kis-trader/configuration.html) chapter.
+Run `kis config` in the terminal to enter each account type's app key and account interactively and
+store them, or save them as environment variables or with `KISConfig(...).save()`. Once saved, later
+`KISClient()` calls can omit the arguments. The profile (account type) and the environment (live or
+paper) are separate axes, so you open the same profile under either environment just by switching the
+environment — rehearse the order flow on paper before switching to live. For issuing and storing
+credentials, see the [Credentials and profiles](https://seokhoonj.github.io/kis-trader/configuration.html) chapter.
 
 ## 3. Structure
 
@@ -110,7 +111,8 @@ To manage an account through an AI tool such as Claude Code or Codex, use the
 
 For MCP-compatible agents (Claude Desktop, etc.), the `kis_trader.mcp` server
 (`pip install 'kis-trader[mcp]'`, then `kis-mcp`) exposes account-query, order-preview,
-and domestic-stock place/modify/cancel tools. Paper trading is the default; live orders go through a
+and domestic- and overseas-stock place/modify/cancel tools, and can switch the account and
+environment it reads without a restart. Paper trading is the default; live orders go through a
 double gate, human confirmation, and a session circuit breaker (place/modify also require RiskLimits
 and a symbol allowlist; cancel is exempt as it reduces exposure). See the
 [MCP Server](https://seokhoonj.github.io/kis-trader/mcp.html) chapter.

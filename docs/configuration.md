@@ -6,7 +6,8 @@
 ```python
 from kis_trader import KISClient
 
-kis = KISClient(app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET", account="12345678-01")
+kis = KISClient(app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET", account="12345678-01",
+                environment="real")
 ```
 
 하지만 이러면 **열 때마다 키를 다시 적어야 하고, 코드에 키가 그대로 남습니다.** 그래서 보통은 값을 한 번
@@ -15,65 +16,95 @@ kis = KISClient(app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET", account="1
 ```python
 from kis_trader import KISConfig
 
-KISConfig(profile="main", app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET", account="12345678-01").save()
+KISConfig(profile="general", app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET",
+          account="12345678-01", environment="real").save()
 
-KISClient(profile="main")   # 저장된 자격증명을 자동으로 읽어 세션을 엽니다
+KISClient(profile="general", environment="real")   # 저장된 자격증명을 자동으로 읽어 세션을 엽니다
 ```
 
-이 장은 그 **프로필**을 다룹니다 -- 프로필이 무엇인지, 자격증명을 어떻게 넣는지 차례로 봅니다.
+이 장은 그 **프로필**과 **환경**을 다룹니다 -- 각각이 무엇인지, 자격증명을 어떻게 넣는지 차례로 봅니다.
 
-## 프로필 = 계좌 하나
+## 두 축 -- 프로필(계좌 종류)과 환경(실전/모의)
 
-프로필은 **계좌 하나**를 여는 데 필요한 값을 한데 묶어 이름을 붙인 것입니다 -- 그 계좌의 앱키·
-앱시크릿·계좌번호, 그리고 실전이냐 모의냐(환경)까지. 이 이름으로 엽니다:
+세션은 **두 가지**로 정해집니다 -- **프로필**은 어떤 **계좌 종류**를 여는지, **환경**은 **실전이냐
+모의냐**를 고릅니다. 둘은 서로 다른 축이라, 같은 프로필을 환경만 바꿔 실전·모의로 각각 엽니다:
 
 ```python
-KISClient(profile="main")   # "main" 이라 저장해 둔 계좌로 세션을 엽니다
+KISClient(profile="general", environment="real")    # 종합위탁 실계좌
+KISClient(profile="general", environment="paper")   # 같은 종합위탁, 모의
 ```
 
-계좌마다 프로필을 따로 두는 이유 -- 앱키·앱시크릿이 종합계좌번호(CANO) 단위라 계좌마다 다르고, 같은
-유형 계좌도 여럿(연금저축 2개 등)일 수 있기 때문입니다. 이름은 소문자·숫자·밑줄로 짓습니다. 흔한 예:
+프로필은 **계좌 하나**를 여는 데 필요한 값을 묶은 것입니다 -- 그 계좌의 앱키·앱시크릿·계좌번호. 계좌마다
+프로필을 따로 두는 이유는 앱키·앱시크릿이 종합계좌번호(CANO) 단위라 계좌마다 다르고, 같은 유형 계좌도
+여럿(연금저축 2개 등)일 수 있기 때문입니다. 이름은 계좌 종류를 나타내도록 소문자·숫자·밑줄로 짓습니다.
+흔한 예:
 
 | 프로필 이름 (자유롭게) | 담는 계좌 |
 |---|---|
-| `main` | 메인계좌 |
+| `general` | 종합위탁(국내·해외 주식·채권) |
+| `derivatives` | 국내 선물옵션 |
 | `isa` | ISA(개인종합자산관리) |
 | `pension` | 연금저축 |
 | `irp` | IRP(개인형퇴직연금, 조회 전용) |
-| `paper` | 모의투자 |
+| `overseas_derivatives` | 해외 선물옵션 |
+
+실전·모의는 프로필 이름이 아니라 **환경**으로 고릅니다. 모의가 없는 계좌(연금저축·ISA·IRP·해외선물옵션)는
+모의 슬롯을 비워 두면 됩니다 -- 그 계좌는 실전으로만 엽니다.
+
+### 환경을 지정하지 않으면 (기본 환경)
+
+환경을 생략하면 이 순서로 정하며, 아무것도 없으면 **모의(`paper`)** 입니다 -- 실주문은 환경을 명시해야만
+닿습니다(fail-safe):
+
+1. 호출 인자 `environment=`
+2. `KIS_DEFAULT_ENVIRONMENT` **환경변수**
+3. `credentials.json` 에 기록한 `default_environment` 마커(`KISConfig.set_default_environment`)
+4. 그래도 없으면 -- `paper`(모의)
+
+```python
+from kis_trader import KISConfig
+
+KISConfig.set_default_environment("real")   # credentials.json 최상위에 "default_environment": "real" 기록
+```
+
+::: {.callout-note}
+기본 환경이 모의면 환경을 생략한 세션은 모의 rate limit(초당 1회)로 돕니다. 실전(초당 15회)은
+환경을 `real` 로 고를 때 적용됩니다.
+:::
 
 ### 이름을 지정하지 않으면 (기본 프로필)
 
 `KISClient()` 처럼 이름 없이 열면 **기본 프로필**이 열립니다. 무엇이 기본인지는 이 순서로 정합니다:
 
 1. `KIS_DEFAULT_PROFILE` **환경변수**가 있으면 그 이름
-2. 없으면 -- `credentials.json` 에 **기본으로 지정해 둔 프로필**(아래 `KISConfig.set_default`)
-3. 그것도 없으면 -- `credentials.json` 에 **맨 처음 저장한 프로필**
+2. 없으면 -- `credentials.json` 에 **기본으로 지정해 둔 프로필**(아래 `KISConfig.set_default_profile`)
+3. 그것도 없으면 -- `credentials.json` 의 **해석된 환경 블록에서 먼저 나오는 프로필**(`real` 블록을
+   먼저 병합하므로 `real` 쪽에 있는 이름이 앞섭니다)
 
-대부분은 **주로 쓰는 계좌를 맨 먼저 저장**해 두면 그게 기본이라 아무 설정도 필요 없습니다. 특정 프로필을
-기본으로 못박고 싶을 때만 아래 둘 중 하나를 씁니다.
+즉 `paper` 에 먼저 저장한 뒤 다른 프로필을 `real` 에 저장하면 그 `real` 프로필이 기본이 됩니다. 어느
+프로필이 기본인지 분명히 해 두려면 아래 둘 중 하나로 **기본 프로필을 명시**하세요.
 
 **파일에 영구 기록** (재시작해도 유지, 셸 설정 불필요) -- 저장된 프로필 하나를 기본으로 지정합니다:
 
 ```python
 from kis_trader import KISConfig
 
-KISConfig.set_default("main")   # credentials.json 최상위에 "default_profile": "main" 기록
+KISConfig.set_default_profile("general")   # credentials.json 최상위에 "default_profile": "general" 기록
 ```
 
 **환경변수** (그 셸 세션에서만, 파일보다 우선) -- `KIS_DEFAULT_PROFILE` 은 OS 환경변수라 셸에서 정합니다:
 
 ```bash
-export KIS_DEFAULT_PROFILE=main          # Linux·macOS (영구히 하려면 ~/.bashrc·~/.zshrc 에 추가)
-# $env:KIS_DEFAULT_PROFILE="main"        # Windows PowerShell
+export KIS_DEFAULT_PROFILE=general       # Linux·macOS (영구히 하려면 ~/.bashrc·~/.zshrc 에 추가)
+# $env:KIS_DEFAULT_PROFILE="general"     # Windows PowerShell
 ```
 
-### 이름은 라벨일 뿐
+### 이름은 계좌 종류, 환경은 별도
 
-프로필 이름은 그저 라벨입니다. 그 계좌가 실전인지 모의인지, 주문이 되는지는 **이름이 아니라 저장된
-값**이 정합니다 -- 환경은 프로필에 저장된 필드(기본 `real`, 모의는 `environment="paper"`), 주문 가능
-여부는 계좌의 **상품코드**([상품코드 표](#계좌번호와-상품코드)). 그래서 `main` 이라는 이름에 모의
-계좌를 담아도 되고, 연금저축을 담아도 됩니다.
+프로필 이름은 **계좌 종류**를 가리키는 라벨입니다. 그 계좌가 실전인지 모의인지는 이름이 아니라
+**환경**이 정하고, 주문 가능 여부는 계좌의 **상품코드**([상품코드 표](#계좌번호와-상품코드))가 정합니다.
+같은 프로필을 실전·모의 양쪽에 저장해 두고 환경만 바꿔 쓰면 되므로, 실전과 모의를 별도 이름으로
+나눌 필요가 없습니다.
 
 ## 자격증명 넣기 (세 가지)
 
@@ -82,78 +113,84 @@ export KIS_DEFAULT_PROFILE=main          # Linux·macOS (영구히 하려면 ~/.
 | 방법 | 언제 | 요약 |
 |---|---|---|
 | ① 파일에 저장 | **권장** | 터미널에서 `kis config`(대화형) 또는 코드로 `KISConfig(...).save()` -- 정해진 위치에 안전 저장(사용자만 읽게 잠금·병합) |
-| ② 환경변수 | CI·컨테이너 | `export KIS_APP_KEY=…`(명명 프로필은 `KIS_<이름대문자>_*`) |
-| ③ 직접 전달 | 일회성 | `KISClient(app_key=…, …)`(둘 다 직접 주면 파일 안 읽음) |
+| ② 환경변수 | CI·컨테이너 | `export KIS_<프로필>_<환경>_APP_KEY=…`(두 축 키) |
+| ③ 직접 전달 | 일회성 | `KISClient(app_key=…, environment=…, …)`(둘 다 직접 주면 파일 안 읽음) |
 
-**① 파일에 저장** (권장) -- 한 번 저장해 두면 이후 `KISClient(profile="...")` 로 엽니다. 터미널에서
-대화형으로 넣는 방법과 파이썬 코드로 넣는 방법이 있습니다.
+**① 파일에 저장** (권장) -- 한 번 저장해 두면 이후 `KISClient(profile="...", environment="...")` 로 엽니다.
+터미널에서 대화형으로 넣는 방법과 파이썬 코드로 넣는 방법이 있습니다.
 
-터미널에서 `kis config` 를 실행하면 프로필 이름·환경·계좌를 차례로 묻고, 앱키·앱시크릿은 화면에 보이지
-않게 입력받아 저장합니다(파이썬을 쓰지 않아도 됩니다).
+`kis config` 는 자격증명을 다루는 명령 묶음입니다. 아무 하위명령 없이 `kis config` 를 실행하면
+대화형 저장(`setup`)이 시작돼, 계좌 종류별로 실전·모의 앱키를 차례로 묻습니다(없는 환경은 Enter 로
+건너뜀). 앱키·앱시크릿은 화면에 보이지 않게 입력받습니다(파이썬을 쓰지 않아도 됩니다).
 
-```bash
-kis config
-# profile (예: main, paper, pension) [main]: paper
-# environment (real/paper) [paper]: paper
-# account (예: 50123456-01, 시세만 보면 Enter): 50123456-01
-# 앱키·시크릿은 KIS 개발자포털에서 발급받은 값입니다(입력해도 화면에 보이지 않습니다).
-# APP KEY:
-# APP SECRET:
-```
+| 하위명령 | 하는 일 |
+|---|---|
+| `kis config setup` | 자격증명을 대화형으로 저장(`kis config` 와 같음) |
+| `kis config show` | 저장된 설정을 마스킹해 보여줌(시크릿 비노출) |
+| `kis config set <프로필>.<환경>.<필드> [값]` | 한 필드 수정(`app_key`·`app_secret`·`account`·`account_password`; 비밀 아닌 `account` 만 값을 바로 줄 수 있고 나머지는 숨김 프롬프트) |
+| `kis config set-default <프로필>` | 기본 프로필 지정 |
+| `kis config set-hts-id <hts_id>` | HTS 로그인 아이디 저장(조건검색·관심종목용) |
+| `kis config migrate [--yes]` | 이전 형식(평평한) `credentials.json` 을 두 축 형식으로 변환(`--yes` 는 비대화형으로 기본 병합 자동 승인; 이름 충돌이면 거부) |
 
-실전(real) 프로필은 저장 전에 한 번 더 확인하고, 같은 이름이 이미 있으면 덮어쓸지 묻습니다.
-`--profile`·`--environment`·`--account` 를 플래그로 주면 그 항목은 묻지 않으며, `--set-default` 를
-붙이면 저장 후 기본 프로필로 지정합니다.
+실전(real) 슬롯은 저장 전에 한 번 더 확인하고, 같은 자리가 이미 있으면 덮어쓸지 묻습니다.
+`setup` 에 `--profile` 을 주면 그 항목은 묻지 않으며, `--set-default` 를 붙이면 저장 후 기본
+프로필로 지정합니다.
 
-여러 프로필을 한꺼번에 저장하거나 스크립트에 넣을 때는 파이썬 코드가 편합니다.
+여러 프로필을 한꺼번에 저장하거나 스크립트에 넣을 때는 파이썬 코드가 편합니다. `environment` 로
+실전·모의 슬롯을 고릅니다(생략 시 모의).
 
 ```python
 from kis_trader import KISConfig
 
-KISConfig(profile="main",    app_key="...", app_secret="...", account="12345678-01").save()
-KISConfig(profile="pension", app_key="...", app_secret="...", account="87654321-22").save()
-KISConfig(profile="paper",   app_key="...", app_secret="...", account="50123456-01", environment="paper").save()
+KISConfig(profile="general", app_key="...", app_secret="...", account="12345678-01", environment="real").save()
+KISConfig(profile="general", app_key="...", app_secret="...", account="50123456-01", environment="paper").save()
+KISConfig(profile="pension", app_key="...", app_secret="...", account="87654321-22", environment="real").save()
 ```
 
 ::: {.callout-note}
 `save()` 는 **한 번만** 실행하면 됩니다 -- 값을 `credentials.json` 에 영구히 기록하므로,
-그다음부터는 저 저장 코드 없이 `KISClient(profile="main")` 한 줄로 엽니다.
+그다음부터는 저 저장 코드 없이 `KISClient(profile="general", environment="real")` 한 줄로 엽니다.
 :::
 
-**② 환경변수** (터미널/셸 프롬프트에서 실행) -- `export` 해두면 `KISClient()` 가 자동으로 읽습니다.
+**② 환경변수** (터미널/셸 프롬프트에서 실행) -- `export` 해두면 세션이 자동으로 읽습니다. 환경변수 키는
+**프로필과 환경을 모두** 담습니다 -- `KIS_<프로필대문자>_<환경대문자>_<필드>`.
 
 ```bash
-export KIS_APP_KEY=YOUR_APP_KEY
-export KIS_APP_SECRET=YOUR_APP_SECRET
-export KIS_ACCOUNT=12345678-01        # 종합계좌번호-상품코드 (시세만 볼 거면 생략 가능)
-# export KIS_ENVIRONMENT=paper        # 모의 계좌면
+export KIS_GENERAL_REAL_APP_KEY=YOUR_APP_KEY
+export KIS_GENERAL_REAL_APP_SECRET=YOUR_APP_SECRET
+export KIS_GENERAL_REAL_ACCOUNT=12345678-01   # 종합계좌번호-상품코드 (시세만 볼 거면 생략 가능)
+export KIS_DEFAULT_PROFILE=general            # 환경변수만으로 열 때는 기본 프로필을 지정
+export KIS_DEFAULT_ENVIRONMENT=real           # (생략 시 모의)
 ```
 
-어느 방법이든 **키 이름 규칙은 하나** -- 환경변수에서 `KIS_` 를 떼고 소문자로 바꾸면 파일 안 키입니다.
+필드별 키의 모양과 공유·기본값 키:
 
-| 환경변수(셸) | `credentials.json` 안 | 뜻 |
-|---|---|---|
-| `KIS_APP_KEY` | `app_key` | 앱키 |
-| `KIS_APP_SECRET` | `app_secret` | 앱시크릿 |
-| `KIS_ACCOUNT` | `account` | 계좌번호 |
-| `KIS_ENVIRONMENT` | `environment` | 실전/모의 |
-| `KIS_HTS_ID` | `hts_id`(최상위) | HTS 로그인 아이디 (선택·사용자당 하나; 조건검색·관심종목용, 인증엔 안 씀) |
-| `KIS_ACCOUNT_PASSWORD` | `account_password`(최상위) | 계좌비밀번호 (선택; 야간 파생 잔고 등 일부 조회의 `ACNT_PWD` 로만 쓰임, 로그·`_raw` 에 안 담김) |
-| `KIS_DEFAULT_PROFILE` | `default_profile`(최상위) | 기본 프로필 |
+| 환경변수(셸) | 뜻 |
+|---|---|
+| `KIS_<프로필>_<환경>_APP_KEY` | 앱키 (예 `KIS_GENERAL_PAPER_APP_KEY`) |
+| `KIS_<프로필>_<환경>_APP_SECRET` | 앱시크릿 |
+| `KIS_<프로필>_<환경>_ACCOUNT` | 계좌번호 |
+| `KIS_<프로필>_<환경>_ACCOUNT_PASSWORD` | 계좌비밀번호(해당 슬롯) |
+| `KIS_HTS_ID` | HTS 로그인 아이디(공유·사용자당 하나; 조건검색·관심종목용, 인증엔 안 씀) |
+| `KIS_ACCOUNT_PASSWORD` | 계좌비밀번호 공유 fallback (일부 조회의 `ACNT_PWD`; 로그·`_raw` 에 안 담김) |
+| `KIS_DEFAULT_PROFILE` | 기본 프로필 |
+| `KIS_DEFAULT_ENVIRONMENT` | 기본 환경(real/paper) |
 
-접두어 없는 `KIS_APP_KEY` 는 `main` 프로필용이고, 다른 프로필은 이름을 끼웁니다 --
-`KIS_ISA_APP_KEY` ↔ `credentials.json` 의 `isa.app_key`.
+필드 하나하나가 독립이라 파일에 둔 슬롯의 한 값만 환경변수로 덮어쓸 수 있고, 키 이름이 슬롯을
+고정하므로 다른 (프로필, 환경) 조합으로 샐 수 없습니다.
 
-**③ 직접 전달** (파이썬 코드로 실행) -- 저장 없이 그때만 씁니다. (앱키·앱시크릿을 **둘 다** 주면 파일을 읽지 않음)
+**③ 직접 전달** (파이썬 코드로 실행) -- 저장 없이 그때만 씁니다. 앱키·앱시크릿을 **둘 다** 주면 파일을
+읽지 않으며, 이때는 어느 서버로 가는지 분명히 하도록 `environment` 를 **반드시** 줍니다.
 
 ```python
 from kis_trader import KISClient
 
-kis = KISClient(app_key="...", app_secret="...", account="12345678-01")
+kis = KISClient(app_key="...", app_secret="...", account="12345678-01", environment="real")
 ```
 
 ::: {.callout-note}
-CLI 에서도 `--profile` 로 계좌·환경을 고릅니다: `kis --profile isa account balance`
+CLI 에서는 `--profile` 로 계좌 종류를, `--environment` 로 실전/모의를 고릅니다:
+`kis --profile isa --environment real account balance`
 :::
 
 ## 계좌번호와 상품코드
@@ -218,21 +255,35 @@ IRP(`29`)는 세션이 주문을 자동으로 막고, DC가입자(`55`)는 세�
 
 ## credentials.json
 
-설정 파일 하나에 공유 최상위 필드와 프로필별 객체를 함께 담습니다. `KISConfig(...).save()` 가 아래
-형식으로 기록하고(손 편집도 가능), 저장할 때 **파일 소유자만 읽을 수 있게 잠급니다**:
+설정 파일 하나에 공유 최상위 필드와 환경별·프로필별 객체를 함께 담습니다. 자격증명은 **환경(`real`/
+`paper`) 아래에 프로필**로 묶여, 프로필이 계좌 종류를, 바깥 블록 키가 환경을 정합니다. `KISConfig(...).save()`
+가 아래 형식으로 기록하고(손 편집도 가능), 저장할 때 **파일 소유자만 읽을 수 있게 잠급니다**:
 
 ```json
 {
-  "hts_id":    "your_hts_id",
+  "schema": 2,
+  "hts_id": "your_hts_id",
   "account_password": "****",
-  "main":      {"app_key": "...", "app_secret": "...", "account": "12345678-01", "environment": "real"},
-  "pension":   {"app_key": "...", "app_secret": "...", "account": "87654321-22", "environment": "real"},
-  "paper":     {"app_key": "...", "app_secret": "...", "account": "50123456-01", "environment": "paper"}
+  "default_environment": "paper",
+  "default_profile": "general",
+  "real": {
+    "general": {"app_key": "...", "app_secret": "...", "account": "12345678-01"},
+    "pension": {"app_key": "...", "app_secret": "...", "account": "87654321-22"}
+  },
+  "paper": {
+    "general": {"app_key": "...", "app_secret": "...", "account": "50123456-01"}
+  }
 }
 ```
 
-최상위 `hts_id` 는 조건검색·관심종목 조회의 `user_id`(HTS 로그인 아이디)로, 사용자당 하나라 모든
-프로필이 공유합니다(인증엔 안 씀). `KISConfig.set_hts_id("your_hts_id")` 로 기록하거나 손 편집합니다.
+`schema: 2` 표시가 이 형식을 나타냅니다. 묶음 안에는 `environment` 필드를 두지 않습니다 -- 환경은
+오직 바깥 블록(`real`/`paper`) 키가 정합니다. 모의가 없는 계좌는 `paper` 블록에 넣지 않으면 됩니다
+(없음 = "그 계좌는 모의로 열 수 없음"). 최상위 `hts_id` 는 조건검색·관심종목 조회의 `user_id`(HTS
+로그인 아이디)로, 사용자당 하나라 모든 프로필이 공유합니다(인증엔 안 씀). `KISConfig.set_hts_id("your_hts_id")`
+로 기록하거나 손 편집합니다. 이전 형식(평평한) 파일은 그대로 읽히며, `kis config migrate` 로 두 축
+형식으로 변환할 수 있습니다. 다만 환경 기본값은 의도적으로 다릅니다 -- 변환 전(평평한) 파일은 환경을
+생략하면 옛 동작 그대로 실전(`real`)이 기본이고, schema-2 파일은 모의(`paper`)가 기본이므로, 안전한
+모의 기본값을 쓰려면 `migrate` 하세요.
 
 | OS | `credentials.json` 위치 | 잠금 |
 |---|---|---|
@@ -261,9 +312,9 @@ IRP(`29`)는 세션이 주문을 자동으로 막고, DC가입자(`55`)는 세�
 | 증상(실제 메시지 / 상황) | 원인 | 해결 |
 |---|---|---|
 | `command not found: kis` | 설치 안 됐거나 도구 경로가 PATH 밖 | `uv tool install kis-trader`(또는 `pipx install kis-trader`)로 설치. 이미 설치했는데 안 잡히면 셸을 새로 열기(`pipx` 는 `pipx ensurepath` 후) |
-| `KIS_APP_KEY 를 찾을 수 없다 …` | 자격증명 미설정·키 이름 오타 | 프로필 이름·필드명 확인, 또는 `KISConfig(...).save()` 로 저장 |
+| `… APP_KEY 를 찾을 수 없다 …`(예 `KIS_GENERAL_REAL_APP_KEY …`) | 자격증명 미설정·키 이름 오타 | 프로필·환경·필드명 확인, 또는 `kis config` / `KISConfig(...).save()` 로 저장 |
 | `… credentials.json 가 있으나 읽을 수 없다` | JSON 문법 오류(쉼표·따옴표) | 마지막 쉼표 제거, 모든 값 `"..."` 확인 |
 | `KIS HTTP 요청에 실패했다 (status 500)` | **호출 과속**(rate 제한) | 몰아 붙여넣지 말고 한 줄씩. 모의는 초당 1회 |
-| 잔고가 비거나 이상함 | 모의 계좌를 보고 있음 | 실전 프로필(`--profile main` 등)로 열기 |
+| 잔고가 비거나 이상함 | 모의 환경을 보고 있음 | 실전 환경(`--environment real`)으로 열기 |
 | `이 계좌는 API 주문이 불가하다 …`(주문 시) | IRP(상품코드 `29`) — 조회만 가능 | 주문은 위탁·ISA·연금저축 계좌에서 |
 | `상품계좌종류 55(DC가입자)는 … 이용이 불가하다`(세션 생성 시) | DC가입자(상품코드 `55`) | API 이용 자체 불가 |

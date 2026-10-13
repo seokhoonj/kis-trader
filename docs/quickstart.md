@@ -23,11 +23,13 @@ KIS 개발자센터에서 발급한 **앱키·앱시크릿**과 **계좌번호**
 ```python
 from kis_trader import KISClient
 
-kis = KISClient(app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET", account="12345678-01")
+kis = KISClient(app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET",
+                account="12345678-01", environment="real")
 ```
 
-매번 키를 넣기 번거로우면 **한 번 저장**해 두고 `KISClient(profile="main")` 한 줄로 열 수 있습니다.
-자격증명 저장·환경변수·프로필(실전/모의)·CLI 사용법은 **[자격증명과 프로필](configuration.md)**을 보세요.
+매번 키를 넣기 번거로우면 **한 번 저장**해 두고 `KISClient(profile="general", environment="real")`
+한 줄로 열 수 있습니다. 프로필은 계좌 종류, 환경(실전/모의)은 별도 축입니다 -- 자격증명 저장·환경변수·
+CLI 사용법은 **[자격증명과 프로필](configuration.md)**을 보세요.
 
 ## 첫 조회
 
@@ -65,7 +67,7 @@ kis.orders.cancel(report.client_order_id)   # 정정·취소는 이 키로 지�
 
 ::: {.callout-warning}
 조회와 달리 주문은 **실제로 돈이 오가는 실거래**입니다. `buy()`/`sell()` 은 즉시 전송되고 되돌릴 수
-없으니, 처음엔 **모의투자(`paper`) 프로필**로 연습하세요. 중복주문 방지·정정/취소·예약주문 같은
+없으니, 처음엔 **모의투자(`paper`) 환경**으로 연습하세요. 중복주문 방지·정정/취소·예약주문 같은
 안전장치는 **[주문](orders.md)** 에서 자세히 다룹니다(신용거래는 기본으로 막혀 있습니다).
 :::
 

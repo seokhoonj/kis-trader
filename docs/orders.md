@@ -329,7 +329,8 @@ kis = KISClient(…, store=OrderStore(path="orders.db"))  # 지문 기반 중복
 
 ## 사전 리스크 한도
 
-주문 나가기 전에 미리 걸러주는 안전망. 옵션입니다.
+주문 나가기 전에 미리 걸러주는 안전망. 옵션입니다. 국내·해외 주식 주문 모두 같은 게이트를 지나며,
+수량·괴리율 한도는 통화와 무관하게, 금액 한도만 통화별로 적용합니다.
 
 ```python
 from kis_trader import RiskLimits
@@ -337,10 +338,35 @@ from decimal import Decimal
 
 kis = KISClient(…, risk=RiskLimits(
     max_order_quantity=1000,                 # 한 주문 최대 수량
-    max_order_notional=Decimal("50000000"),  # 한 주문 최대 금액(원)
-    price_collar_percent=Decimal("5"),       # 현재가 대비 ±5% 벗어나면 거부
-    enforce_tick_size=True,                  # 호가단위 안 맞으면 거부
+    max_order_notional=Decimal("50000000"),  # 한 주문 최대 금액(원) -- 국내(KRW) 주문에 적용
+    max_order_notional_by_currency={          # 해외주식: 결제통화별 최대 금액
+        "USD": Decimal("10000"),
+        "JPY": Decimal("1500000"),
+    },
+    price_collar_percent=Decimal("5"),       # 현재가 대비 ±5% 벗어나면 거부(해외는 해외 현재가 참조)
+    enforce_tick_size=True,                  # 호가단위 안 맞으면 거부(KRX 전용)
 ))
 ```
 
-말도 안 되는 가격 주문을 미리 막는 용도입니다.
+말도 안 되는 가격 주문을 미리 막는 용도입니다. 해외주식 주문은 거래소 그룹으로 고정된 **시장별 검사
+통화**에 맞는 금액 한도로 검사하고, 그 통화의 한도가 없으면 거부합니다(fail-closed -- 환율 환산 없이
+통화마다 명시). 거래소별 검사 통화는 다음과 같습니다.
+
+| 거래소(코드) | 검사 통화 |
+|---|---|
+| 미국 -- 나스닥·뉴욕·아멕스(NAS/NYS/AMS) | USD |
+| 홍콩(HKS) | HKD |
+| 상해·심천(SHS/SZS) | CNY |
+| 일본(TSE) | JPY |
+| 베트남 -- 호치민·하노이(HSX/HNX) | VND |
+
+::: {.callout-note}
+검사 통화는 거래소 그룹으로 고정돼 있어 **주문의 실제 결제통화와 항상 일치하지는 않습니다.** 홍콩(HKS)
+거래소의 USD 결제 종목은 가격 숫자가 환산 없이 HKD 한도와 직접 비교되어 실효 한도가 약 7.8배 느슨해질
+수 있습니다(HKD 는 USD 에 7.75~7.85 밴드로 고정). 상해 B(USD)·심천 B(HKD) 종목도 같은 구조적 한계가
+있습니다. 보호는 항상 '느슨한' 방향(과소보호)이며, 정상 주문을 과도하게 거부하지는 않습니다.
+
+종목별 실제 결제통화는 상세호가의 `curr` 값으로 알 수 있으나, 이를 반영해 정확히 교정하려면 모든 해외
+지정가 주문마다 추가 조회(throttle 대상)를 강제하게 되어 현재는 적용하지 않습니다. 문서화된, 추적 중인
+한계입니다.
+:::

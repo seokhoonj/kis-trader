@@ -34,18 +34,18 @@ pip install 'kis-trader[mcp]'
 ```python
 from kis_trader import KISClient
 
-kis = KISClient(app_key="…", app_secret="…", account="12345678-01")
+kis = KISClient(app_key="…", app_secret="…", account="12345678-01", environment="real")
 
 kis.domestic.stock("005930").quote()                 # 삼성전자 현재가
 kis.overseas.stock("AAPL").quote()                   # 애플 (거래소 자동 판별)
 kis.domestic.ranking.by_change(direction="gainers")  # 오늘 상승률 순위
 ```
 
-터미널에서 `kis config` 를 실행하면 앱키와 계좌를 대화형으로 입력받아 저장합니다. 환경변수나
-`KISConfig(...).save()` 로 저장할 수도 있으며, 한 번 저장해 두면 이후 `KISClient()` 를 인자 없이
-열 수 있습니다. 실전 계좌와 모의투자 계좌를 모두 지원하므로, 먼저 모의투자로 주문 흐름을 확인한 뒤
-실전으로 옮겨도 됩니다. 발급과 저장은 [자격증명과 프로필](https://seokhoonj.github.io/kis-trader/configuration.html)
-문서를 참고하세요.
+터미널에서 `kis config` 를 실행하면 계좌 종류별로 앱키와 계좌를 대화형으로 입력받아 저장합니다.
+환경변수나 `KISConfig(...).save()` 로 저장할 수도 있으며, 한 번 저장해 두면 이후 `KISClient()` 를 인자
+없이 열 수 있습니다. 프로필(계좌 종류)과 환경(실전/모의)은 별도 축이라, 같은 프로필을 환경만 바꿔
+실전·모의로 각각 엽니다 -- 먼저 모의로 주문 흐름을 확인한 뒤 실전으로 옮겨도 됩니다. 발급과 저장은
+[자격증명과 프로필](https://seokhoonj.github.io/kis-trader/configuration.html) 문서를 참고하세요.
 
 ## 3. 구조
 
@@ -105,8 +105,9 @@ Claude Code·Codex 같은 AI 도구로 계좌를 다루려면 `plugins/kis-trade
 [Codex 스킬](https://seokhoonj.github.io/kis-trader/codex-skill.html) 문서를 참고하세요.
 
 MCP 호환 에이전트(Claude Desktop 등)에서는 `kis_trader.mcp` 서버(`pip install 'kis-trader[mcp]'` 후
-`kis-mcp`)로 계좌 조회·주문 미리보기와 국내 주식 주문·정정·취소 도구를 쓸 수 있습니다. 기본은
-모의투자이며, 실전 주문은 이중 잠금·사람 확인·세션 서킷브레이커를 거칩니다(신규·정정은 RiskLimits 와 종목 허용목록까지; 취소는 노출을 줄이므로 제외).
+`kis-mcp`)로 계좌 조회·주문 미리보기와 국내·해외 주식 주문·정정·취소 도구를 쓸 수 있습니다. 채팅에서
+보는 계좌·환경을 재시작 없이 바꿀 수 있고, 기본은 모의투자이며, 실전 주문은 이중 잠금·사람 확인·세션
+서킷브레이커를 거칩니다(신규·정정은 RiskLimits 와 종목 허용목록까지; 취소는 노출을 줄이므로 제외).
 [MCP 서버](https://seokhoonj.github.io/kis-trader/mcp.html) 문서를 참고하세요.
 
 ## 7. 문서

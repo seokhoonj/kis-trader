@@ -47,7 +47,7 @@
 - [명령줄 (kis)](https://seokhoonj.github.io/kis-trader/cli.html): 터미널에서 조회·주문, `--execute` 전까지 dry-run
 - [Claude 스킬](https://seokhoonj.github.io/kis-trader/claude-skill.html): AI 에이전트용 운전 플레이북
 - [Codex 스킬](https://seokhoonj.github.io/kis-trader/codex-skill.html)
-- [MCP 서버](https://seokhoonj.github.io/kis-trader/mcp.html): 조회·주문 미리보기와 게이트를 거친 국내 주식 주문
+- [MCP 서버](https://seokhoonj.github.io/kis-trader/mcp.html): 조회·주문 미리보기와 게이트를 거친 국내·해외 주식 주문, 계좌·환경 런타임 전환
 
 ## 참고
 
