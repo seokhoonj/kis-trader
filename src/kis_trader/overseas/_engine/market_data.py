@@ -150,11 +150,21 @@ def search_stocks(
         )
     if output1 is None:                      # 루프가 한 번도 안 돌 수는 없으나 타입 좁히기
         raise KISError("해외 조건검색 응답에 output1 이 없다.")
+    total_count = required_int(output1.get("trec"), "trec")
+    # 서버가 선언한 총건수(trec)보다 적게 모았으면 연속조회가 조용히 끊긴 것(빈 커서/빈 행 등) --
+    # 커서 의미가 아니라 서버 총건수로 절단을 판정해 fail-closed 한다. 라이브 확인(2026-10-14, 실서버
+    # 읽기전용 프로브, 단일/다중페이지 5질의 17/63/65/398/547 전부 trec==전달행수)으로 trec 이 신뢰
+    # 가능한 총건수임을 확정했다.
+    if len(accumulated) < total_count:
+        raise KISError(
+            f"해외 조건검색이 총건수({total_count})보다 적은 {len(accumulated)}건에서 멈췄다 "
+            "-- 부분 결과로 확정하지 않는다. 범위를 좁히거나 재시도하라."
+        )
     matches = [_parse_search_match(row) for row in accumulated]
     return OverseasStockSearch(
         exchange=exchange.strip(), decimal_places=required_int(output1.get("zdiv"), "zdiv"),
         status=str(output1.get("stat", "")).strip(),
-        total_count=required_int(output1.get("trec"), "trec"), matches=tuple(matches),
+        total_count=total_count, matches=tuple(matches),
         _raw=output1,
     )
 

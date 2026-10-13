@@ -22,7 +22,7 @@ class FakeTransport:
 
 def _response(symbol, *, excd="NAS", tr_cont=""):
     return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", tr_cont=tr_cont, body={
-        "output1": {"zdiv": "2", "stat": "Y", "crec": "1", "trec": "2", "nrec": "1"},
+        "output1": {"zdiv": "2", "stat": "Y", "crec": "1", "trec": "1", "nrec": "1"},
         "output2": [{"rsym": f"D{excd}{symbol}", "excd": excd, "name": symbol,
                      "ename": symbol, "symb": symbol, "last": "160.5", "shar": "1000",
                      "valx": "160500", "plow": "159", "phigh": "162", "popen": "160",
@@ -43,7 +43,7 @@ def test_overseas_search_maps_filters():
     assert len(result.matches) == 1
     assert result.matches[0].price == Decimal("160.5")
     assert result.matches[0].is_tradable   # e_ordyn "○" = 매매가능(라이브-프로브 확정; "O"/"Y" 아님)
-    assert result.total_count == 2
+    assert result.total_count == 1
     params = fake.calls[0]["params"]
     assert fake.calls[0]["tr_id"] == "HHDFS76410000"
     assert params["KEYB"] == ""                # 다음조회 미지원 -- KEYB 공백 고정
@@ -67,7 +67,7 @@ def test_overseas_search_us_fans_out_and_merges():
     assert [m.symbol for m in result.matches] == ["AAPL", "KO", "GME"]
     # 합쳐진 match 는 자기 원래 거래소를 유지한다(집계가 뭉개지 않는다).
     assert [m.exchange for m in result.matches] == ["NAS", "NYS", "AMS"]
-    assert result.total_count == 6                   # trec(2) x 3 거래소
+    assert result.total_count == 3                   # trec(1) x 3 거래소
 
 
 def test_overseas_search_us_lowercase_also_fans_out():
@@ -151,5 +151,15 @@ def test_overseas_search_stuck_cursor_fails_closed():
             return _page(count=100, first_rank=1, trec=99999, tr_cont="F")
 
     client = KISClient(app_key="k", app_secret="s", environment="real", transport=_StuckTransport())
+    with pytest.raises(KISError):
+        client.overseas.search_stocks("NAS", price=(10, 500))
+
+
+def test_overseas_search_incomplete_vs_trec_fails_closed():
+    # 종료(tr_cont="")인데 모은 행수(50)가 서버 선언 총건수(trec=100)보다 적으면 연속조회가 조용히
+    # 끊긴 것으로 보고 fail-closed -- 부분 결과를 완전한 것처럼 돌려주지 않는다. 라이브(2026-10-14)로
+    # 실서버는 trec==전달행수임을 확정해, trec 을 완성도 오라클로 쓴다.
+    fake = FakeTransport([_page(count=50, first_rank=1, trec=100, tr_cont="")])
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
     with pytest.raises(KISError):
         client.overseas.search_stocks("NAS", price=(10, 500))
