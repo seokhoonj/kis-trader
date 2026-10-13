@@ -19,20 +19,43 @@ from ..errors import KISUsageError
 SwitchableProfile = Literal["general", "isa", "pension", "irp"]
 _SWITCHABLE_PROFILES = frozenset(get_args(SwitchableProfile))
 
-#: 주문(place/cancel/modify)과 해외 조회가 열리는 프로필 -- 위탁(general)만. 연금/ISA/IRP 맥락은
-#: 전환해 **읽을** 수는 있어도 주문 경로/해외 조회는 열리지 않는다(한 상수, 한 의미 -- 주문 게이트와
-#: 해외-조회 게이트가 같은 기준을 공유한다).
-_ORDER_ENABLED_PROFILES = frozenset({"general"})
+#: 해외 조회(``region="overseas"``)가 열리는 프로필 -- 위탁(general)만. ISA 는 상품코드가 위탁과
+#: 같은 01 이라 상품코드로 구별할 수 없어 프로필 이름으로만 가른다(해외 조회가 위탁 전용인 것은 MCP
+#: 정책). 주문(place/cancel/modify)은 이 이름 게이트를 쓰지 않고 계좌의 주문 능력(orderable)으로 가른다.
+_OVERSEAS_ENABLED_PROFILES = frozenset({"general"})
 
-#: 위탁(일반 주식) 상품코드 -- 주문/해외조회가 열리는 유일한 상품코드(연금저축 22/IRP 29 는 조회만).
+#: 위탁(일반 주식) 상품코드 -- 해외조회·국내 미체결 조회가 열리는 상품코드(연금저축 22/IRP 29 는 제외).
 _COMMISSION_PRODUCT_CODE = "01"
 
 
-def is_order_eligible_account(account: object) -> bool:
-    """이 계좌 뷰가 주문/해외조회 대상인지 -- 위탁(상품코드 01) 주식 계좌만 ``True``. 파생 뷰(StockAccount
-    아님)·연금저축(22)·IRP(29) 는 ``False``. 주문 게이트와 해외-조회 게이트가 공유하는 단일 술어라
-    'general + 01' 합성이 두 곳에 각각 코딩되지 않는다."""
-    return isinstance(account, StockAccount) and account.product_code == _COMMISSION_PRODUCT_CODE
+def is_orderable_account(account: object) -> bool:
+    """이 계좌 뷰가 주문(place/cancel/modify) 대상인지 -- 주문 가능한 주식 계좌만 ``True``. 위탁(01)/
+    ISA(01)/연금저축(22)은 ``True``, IRP(29)는 조회전용이라 ``False``(KIS APBK1744), 파생 뷰
+    (StockAccount 아님)도 ``False``. 프로필 이름이 아니라 계좌의 주문 능력(:attr:`StockAccount.orderable`,
+    상품코드에서 유도)으로 가른다 -- 전환해 연 ISA/연금저축도 주문 가능하다. 계좌가 미설정이면
+    ``account.orderable`` 이 상품코드를 읽다가 :class:`~kis_trader.errors.KISUsageError` 를 전파한다
+    (StockAccount 인 경우; 그 자체가 계좌 없는 주문을 깔끔히 막는다)."""
+    return isinstance(account, StockAccount) and account.orderable
+
+
+def require_overseas_general_account(profile: str | None, account: StockAccount) -> None:
+    """해외(조회·주문 공통)는 위탁(general) 전용 축으로 가둔다 -- 프로필 이름 general + 상품코드 01.
+    ISA 는 상품코드가 위탁과 같은 01 이라 상품코드로는 못 가르므로 이름으로 ISA 를 막고, 상품코드 01
+    게이트로 연금저축(22)을 막는다. 실전 요건은 호출자가 별도로 건다(조회=실전 전용, 주문=모의도 허용).
+    직접-자격증명(``profile=None``)은 조회 경로와 동일하게 이름 게이트를 건너뛰고 상품코드 01 만 본다
+    (운영자 기동 슬롯; 직접-자격증명 ISA 는 상품 01 이라 구별 불가 -- 조회 경로와 같은 한계)."""
+    if profile is not None and profile not in _OVERSEAS_ENABLED_PROFILES:
+        raise KISUsageError(
+            f"해외 주문·조회는 general(위탁) 계좌 전용이다(현재 프로필: {profile}) -- "
+            "use_profile('general') 로 바꾸라(ISA/연금저축의 해외 주식 주문 가능 여부 미확인)."
+        )
+    # 상품코드 01 체크는 순수 계좌 능력(orderable)이 아니라 프로필 이름 + 상품코드를 결합한
+    # **MCP 정책**이라 StockAccount 속성으로 올리지 않고 이 leaf 에 둔다.
+    if account.product_code != _COMMISSION_PRODUCT_CODE:
+        raise KISUsageError(
+            f"해외 주문·조회는 위탁(상품코드 {_COMMISSION_PRODUCT_CODE}) 주식 계좌 전용이다 -- "
+            f"현재 상품코드 {account.product_code}."
+        )
 
 
 def _account_masked(kis: KISClient) -> str:

@@ -22,7 +22,7 @@ from ._internal._masters import (
     urlopen_fetch,
 )
 from ._order_engine import OrderEngine
-from .account import StockAccount
+from .account import _READ_ONLY_PRODUCT_CODES, StockAccount
 from .config import _ENVIRONMENTS, _fill_credentials, _split_account, token_cache_path
 from .domestic.derivative_account import DomesticDerivativesAccount
 from .domestic.namespace import DomesticNamespace
@@ -503,9 +503,6 @@ class KISClient:
 
 #: Open API 이용 자체가 불가한 상품계좌종류(ACNT_PRDT_CD). 공식 FAQ(2026-03-26): DC가입자(55).
 _API_UNAVAILABLE_PRODUCT_CODES = frozenset({"55"})
-#: 조회만 가능(주문 불가)한 상품계좌종류. IRP(29) -- KIS 가 주문 엔드포인트를 거부(APBK1744).
-#: 연금저축(22)은 주문 가능이므로 여기 없다(IRP 와 혼동 주의).
-_READ_ONLY_PRODUCT_CODES = frozenset({"29"})
 #: kis.account 가 국내주식 계좌 조회 뷰(StockAccount)로 다루는 상품계좌종류. 위탁(01)/연금저축(22)/
 #: IRP(29)/ISA 는 같은 국내주식 계좌 잔고/보유 엔드포인트를 공유한다(ISA 는 상품코드 자체가 01).
 #: IRP(29)는 조회전용 -- 주문은 orderable 게이트(_READ_ONLY_PRODUCT_CODES)가 별도로 막는다.

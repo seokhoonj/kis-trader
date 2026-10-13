@@ -19,11 +19,16 @@ from .pension.account import PensionAccount
 if TYPE_CHECKING:
     from .client import KISClient
 
-#: IRP(개인형 퇴직연금) 상품코드 -- ``.pension`` 렌즈가 붙는 유일한 계좌 종류.
-#: client.py 의 상품코드 frozenset 을 재사용하지 않는다(런타임 import 순환 회피, 또
-#: "조회전용"(_READ_ONLY_PRODUCT_CODES)과 "퇴직연금 대상"은 지금 우연히 {"29"} 로 겹칠 뿐
-#: 다른 개념이라 결합하면 안 된다).
+#: IRP(개인형 퇴직연금) 상품코드 -- ``.pension`` 렌즈가 붙는 유일한 계좌 종류. "퇴직연금 대상"과
+#: "조회전용"(_READ_ONLY_PRODUCT_CODES)은 지금 우연히 {"29"} 로 겹칠 뿐 다른 개념이라 결합하면 안
+#: 된다(퇴직연금 렌즈 판별 vs 주문 가능 여부 판별).
 _IRP_PRODUCT_CODE = "29"
+
+#: 조회만 가능(주문 불가)한 상품계좌종류(ACNT_PRDT_CD). IRP(29) -- KIS 가 주문 엔드포인트를
+#: APBK1744 로 거부한다. 연금저축(22)은 주문 가능이라 여기 없다(IRP 와 혼동 주의). 주문 가능
+#: 여부를 상품코드 한 곳에서만 판단하는 단일 출처다 -- :attr:`StockAccount.orderable` 과 세션
+#: 백스톱(주문 엔진의 orderable 파생)이 둘 다 이 집합을 쓴다.
+_READ_ONLY_PRODUCT_CODES = frozenset({"29"})
 
 
 class StockAccount:
@@ -47,6 +52,22 @@ class StockAccount:
         계좌 미설정 시 :class:`~kis_trader.errors.KISUsageError`."""
         _, product_code = self._client._require_account()
         return product_code
+
+    @property
+    def orderable(self) -> bool:
+        """이 계좌로 API 주문을 낼 수 있는지 -- 상품계좌종류(ACNT_PRDT_CD)의 주문 가능 여부 **그리고**
+        세션의 실효 ``orderable`` 킬스위치를 함께 반영한다. 위탁(01)/ISA(01)/RIA(01)/연금저축(22)은 상품
+        기준 주문 가능, IRP(29)는 조회전용이라 주문 불가(``False`` -- KIS 가 주문 엔드포인트를 APBK1744 로
+        거부). 여기에 더해 세션을 ``KISClient(orderable=False)`` 로 열면 상품코드와 무관하게 주문을 막는다.
+
+        명시적인 ``product_code not in _READ_ONLY_PRODUCT_CODES`` 항은 세션 ``_orderable`` 이 이미 그
+        상품-조회전용 판정을 접어(:data:`_READ_ONLY_PRODUCT_CODES`) 들고 있어 **중복**이지만, 조회전용
+        계좌 주문 거부가 세션 킬스위치 하나에만 의존하지 않도록 **의도적으로 둔 방어심층**이다(둘 중 어느
+        쪽이 바뀌어도 거부가 유지된다).
+
+        상품코드 읽기를 먼저 둬 계좌 미설정이면 :class:`~kis_trader.errors.KISUsageError` 가 난다
+        (조회전용 계좌의 문서화된 계약 유지)."""
+        return self.product_code not in _READ_ONLY_PRODUCT_CODES and self._client._orderable
 
     @property
     def domestic(self) -> DomesticAccount:

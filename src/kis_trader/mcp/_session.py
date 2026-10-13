@@ -1,4 +1,4 @@
-"""MCP 런타임 계좌 상태 -- :class:`McpSession` (활성 ``(profile, environment)`` + 슬롯 캐시) 와
+"""MCP 런타임 계좌 상태 -- :class:`MCPSession` (활성 ``(profile, environment)`` + 슬롯 캐시) 와
 주문 호출마다 뜨는 :class:`OrderSnapshot`.
 
 ``mcp`` 에 의존하지 않아 단독 테스트된다. 주입된 ``build`` 팩토리로 ``(profile, environment)`` 슬롯마다
@@ -7,7 +7,7 @@
 :class:`_StartupAuthorization` 에 고정되어 전환으로 바뀌지 않는다**(안전 불변 -- 읽기 전환은
 자유이되 실거래 언락은 기동 환경변수에만 묶인다).
 
-주문 경로는 호출 시점에 :meth:`McpSession.order_snapshot` 으로 활성 슬롯을 한 번 떠서(await 이전)
+주문 경로는 호출 시점에 :meth:`MCPSession.order_snapshot` 으로 활성 슬롯을 한 번 떠서(await 이전)
 in-flight 주문이 동시 전환에 흔들리지 않게 한다 -- 스냅샷이 client·gate 를 함께 얼려(frozen) 든다.
 슬롯 캐시는 **비우지 않는다** -- 다른 슬롯으로 갔다 돌아오면 그 슬롯의 주문 저장소(:class:`~kis_trader.
 store.OrderStore`)·토큰이 그대로 복원된다(정정/취소가 지목하는 주문 정체성 유지).
@@ -53,7 +53,8 @@ class _StartupAuthorization:
 class OrderSnapshot:
     """한 주문 호출의 얼린 맥락 -- 활성 슬롯의 client 와 그 환경의 gate 를 함께 든다. 주문 도구가
     await(사람 확인 elicitation) 이전에 한 번 떠서, 집행 중 동시 전환이 대상 계좌/환경을 바꾸지
-    못하게 한다. ``profile`` 은 주문 허용 게이트 판정에 쓴다(``None`` 은 직접-자격증명 고정 슬롯)."""
+    못하게 한다. ``profile`` 은 **해외** 주문 권한 게이트(위탁 전용)에 쓴다 -- 국내 주문 권한은 계좌의
+    orderable 로만 가르므로 profile 을 보지 않는다(``None`` 은 직접-자격증명 고정 슬롯)."""
 
     profile: str | None
     environment: str
@@ -61,7 +62,7 @@ class OrderSnapshot:
     gate: RealOrderGate
 
 
-class McpSession:
+class MCPSession:
     """MCP 서버의 런타임 계좌 상태. 활성 ``(profile, environment)`` 를 들고, 슬롯마다 KISClient 를
     캐시하며(비우지 않음), 읽기 맥락 전환과 주문 스냅샷을 제공한다. 모든 상태 전이·스냅샷은 락 아래서
     일어난다(도구 호출이 교차해도 레이스 없음)."""
@@ -114,6 +115,15 @@ class McpSession:
         """현재 활성 프로필 이름(직접-자격증명 기동은 ``None``). 해외-조회·주문 게이트가 쓴다."""
         return self._profile
 
+    def read_context(self) -> tuple[KISClient, str | None]:
+        """활성 슬롯의 (client, active_profile) 를 **한 락 아래서 함께** 떠서 돌려준다. client 와
+        profile 을 ``read_client()`` + ``active_profile`` 로 따로 읽으면 그 사이 동시 ``use_profile`` 가
+        general 프로필에 ISA(01) 클라이언트를 짝지어 해외-조회 게이트(:func:`require_overseas_general_
+        account`)를 잘못 통과시킬 수 있다(TOCTOU). 두 값을 함께 캡처해 읽기 핸들러가 일관된 짝을 쓰게
+        한다(읽기 전용이되 짝은 원자적)."""
+        with self._lock:
+            return self._get_or_build(self._profile, self._environment), self._profile
+
     def order_snapshot(self) -> OrderSnapshot:
         """활성 슬롯의 주문 맥락을 한 번 떠서 얼린다 -- client 와 그 환경의 gate 를 함께. gate 는
         기동 시 얼린 언락 비트(:class:`_StartupAuthorization`)로 만들어지므로, 활성 환경을 바꿔도 언락은
@@ -147,7 +157,8 @@ class McpSession:
     def use_profile(self, profile: str) -> dict[str, Any]:
         """활성 프로필(계좌 종류)만 바꾼다. {general, isa, pension, irp} 로 제한한다 -- 그 밖/파생이면
         지원 목록과 함께 거부(파생은 선택 불가). 대상 슬롯을 commit 전에 먼저 만들어 보고(atomic)
-        성공해야 확정한다. **읽기 맥락만** 바뀐다(주문 권한은 general 에서만 열리는 별개 게이트)."""
+        성공해야 확정한다. **읽기 맥락만** 바뀐다 -- 주문 권한은 별개 게이트다(국내 주문은 계좌의 주문
+        능력 orderable 로, 해외 주문은 위탁(general) 전용으로 가른다)."""
         if profile not in _SWITCHABLE_PROFILES:
             raise KISUsageError(
                 f"use_profile 로 바꿀 수 있는 프로필은 {sorted(_SWITCHABLE_PROFILES)} 뿐이다"

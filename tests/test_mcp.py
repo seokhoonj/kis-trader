@@ -58,6 +58,12 @@ class _FakeStockAccount(StockAccount):
         return self._product_code
 
     @property
+    def orderable(self):
+        # 실제 StockAccount.orderable 과 같은 상품-조회전용 판정(세션 킬스위치 없이): IRP(29)만 False.
+        from kis_trader.account import _READ_ONLY_PRODUCT_CODES
+        return self._product_code not in _READ_ONLY_PRODUCT_CODES
+
+    @property
     def domestic(self):
         return self._domestic_view
 
@@ -106,7 +112,7 @@ class _FakeHit:
     _raw: dict[str, Any] = field(default_factory=dict)
 
 
-def _fake_kis(*, quote=None, hits=None, ranking=None, balance=None,
+def _fake_kis(*, quote=None, overseas_quote=None, hits=None, ranking=None, balance=None,
               positions=None, open_orders=None, reconcile_report="__unset__",
               environment="paper", account="12345678-01"):
     ranking_ns = SimpleNamespace(by_change=lambda direction="gainers": ranking or [])
@@ -115,6 +121,7 @@ def _fake_kis(*, quote=None, hits=None, ranking=None, balance=None,
         search_stocks=lambda query: hits or [],
         ranking=ranking_ns,
     )
+    overseas = SimpleNamespace(stock=lambda sym: SimpleNamespace(quote=lambda: overseas_quote))
     account_ns = SimpleNamespace(
         balance=lambda: balance,
         domestic=SimpleNamespace(
@@ -126,7 +133,7 @@ def _fake_kis(*, quote=None, hits=None, ranking=None, balance=None,
         reconcile=lambda cid: (None if reconcile_report == "__unset__" else reconcile_report),
     )
     return SimpleNamespace(
-        domestic=domestic, account=account_ns, orders=orders_ns,
+        domestic=domestic, overseas=overseas, account=account_ns, orders=orders_ns,
         environment=environment, _account=account,
     )
 
@@ -319,6 +326,15 @@ def test_positions_product_01_from_domestic_view():
     assert out == [{"symbol": "000660", "quantity": 2}]
 
 
+def test_positions_product_22_from_domestic_view_not_pension():
+    # T6: 연금저축(22)은 IRP 가 아니라 국내주식 보유 경로를 탄다(pension 렌즈 아님).
+    kis = _fake_stock_kis(product_code="22", domestic_positions=[_FakePosition("005930", 4)],
+                          pension_balance=SimpleNamespace(positions=(_FakePosition("SHOULD_NOT", 9),)))
+    out = handlers.positions(kis, region="domestic", active_profile="pension")
+    assert out == [{"symbol": "005930", "quantity": 4}]
+    assert "SHOULD_NOT" not in str(out)
+
+
 def test_overseas_balance_general_real_routes_to_overseas():
     kis = _fake_stock_kis(product_code="01", environment="real",
                           overseas_balance=[_FakeBalance("US", Decimal(42), _raw={"app_secret": "L"})])
@@ -347,12 +363,15 @@ def test_overseas_read_rejected_for_non_general_profile(profile):
         handlers.balance(kis, region="overseas", active_profile=profile)
 
 
-def test_open_orders_product_01_ok_but_22_and_29_refused():
-    ok = _fake_stock_kis(product_code="01", domestic_open_orders=[_FakePosition("005930", 1)])
-    assert handlers.open_orders(ok) == [{"symbol": "005930", "quantity": 1}]
-    for product in ("22", "29"):
-        with pytest.raises(KISUsageError, match="위탁"):
-            handlers.open_orders(_fake_stock_kis(product_code=product))
+def test_open_orders_admits_orderable_01_and_22_but_refuses_irp_29():
+    # F1: 미체결 조회는 주문 능력(orderable)으로 가른다 -- 위탁(01)·연금저축(22)은 ADMIT(국내 미체결
+    # 행 반환), IRP(29)만 REFUSE(조회전용이라 미체결 주문이 없다).
+    for product in ("01", "22"):
+        ok = _fake_stock_kis(product_code=product,
+                             domestic_open_orders=[_FakePosition("005930", 1)])
+        assert handlers.open_orders(ok) == [{"symbol": "005930", "quantity": 1}]
+    with pytest.raises(KISUsageError, match="주문 가능"):
+        handlers.open_orders(_fake_stock_kis(product_code="29"))
 
 
 def test_quote_after_hours_routes_to_after_hours_quote():
@@ -374,17 +393,27 @@ def test_quote_rejects_bad_session():
         handlers.quote(_fake_stock_kis(), "005930", session="premarket")
 
 
+def test_quote_overseas_regular_routes_to_overseas_and_no_leak():
+    # T6: region='overseas' + session='regular' 은 해외 종목 뷰로 라우팅하고 _raw/자격증명을 새지 않는다.
+    oq = _FakeQuote("AAPL", Decimal("150.25"), Decimal("1.2"),
+                    _raw={"app_secret": "LEAK", "last": "150.25"})
+    kis = _fake_kis(overseas_quote=oq)
+    out = handlers.quote(kis, "AAPL", region="overseas", session="regular")
+    assert out == {"symbol": "AAPL", "current_price": "150.25", "change_percent": "1.2"}
+    assert "_raw" not in out and "app_secret" not in str(out) and "LEAK" not in str(out)
+
+
 # --- 서버(도구 등록) -- mcp 있을 때만 -----------------------------------------
 
 
 def _build_test_server(kis=None, *, environment="paper", profile="general", allowlist=None,
                        capped_currencies=frozenset()):
     from kis_trader.mcp._guardrails import CircuitBreaker
-    from kis_trader.mcp._session import McpSession, _StartupAuthorization
+    from kis_trader.mcp._session import MCPSession, _StartupAuthorization
     from kis_trader.mcp.server import build_server
 
     kis = kis if kis is not None else _fake_kis(environment=environment)
-    session = McpSession(profile=profile, environment=environment, startup_client=kis,
+    session = MCPSession(profile=profile, environment=environment, startup_client=kis,
                          auth=_StartupAuthorization(allow_real=False, confirmed=False),
                          build=lambda p, e: kis)
     return build_server(session, allowlist=allowlist, breaker=CircuitBreaker(),

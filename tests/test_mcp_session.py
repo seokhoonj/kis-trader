@@ -1,4 +1,4 @@
-"""MCP 런타임 계좌 상태 -- kis_trader.mcp._session (McpSession + OrderSnapshot).
+"""MCP 런타임 계좌 상태 -- kis_trader.mcp._session (MCPSession + OrderSnapshot).
 
 전환(use_environment/use_profile)이 활성 슬롯을 바꾸고 슬롯 캐시를 재사용하는지, 지원 외/파생 프로필과
 없는 조합을 거부하며 활성 상태를 불변으로 두는지(atomic), 직접-자격증명 기동이 전환을 거부하는지,
@@ -14,7 +14,7 @@ import pytest
 from kis_trader.account import StockAccount
 from kis_trader.errors import KISUsageError
 from kis_trader.mcp._session import (
-    McpSession,
+    MCPSession,
     OrderSnapshot,
     _StartupAuthorization,
 )
@@ -69,7 +69,7 @@ def _session(*, profile="general", environment="paper", auth=None, build=None,
     build = build if build is not None else _counting_build(product_by_profile)
     startup = _FakeClient(environment, product_code=(product_by_profile or {}).get(profile, "01"))
     auth = auth if auth is not None else _StartupAuthorization(allow_real=False, confirmed=False)
-    return McpSession(profile=profile, environment=environment, startup_client=startup,
+    return MCPSession(profile=profile, environment=environment, startup_client=startup,
                       auth=auth, build=build), build
 
 
@@ -124,7 +124,7 @@ def test_absent_target_slot_rejected_active_unchanged():
 
 def test_direct_cred_fixed_slot_rejects_switch():
     startup = _FakeClient("paper")
-    session = McpSession(profile=None, environment="paper", startup_client=startup,
+    session = MCPSession(profile=None, environment="paper", startup_client=startup,
                          auth=_StartupAuthorization(False, False), build=None)
     with pytest.raises(KISUsageError):
         session.use_profile("pension")
@@ -192,7 +192,7 @@ def test_s3_every_snapshot_gate_env_matches_client_env():
 def test_s10_switch_methods_never_read_unlock_env_vars():
     # S10(소스 검사 pin): use_environment/use_profile 본문에 KIS_MCP_ALLOW_REAL/REAL_CONFIRM 참조가
     # 없다(전환이 언락 환경변수를 건드리는 경로가 구조적으로 없음).
-    for method in (McpSession.use_environment, McpSession.use_profile):
+    for method in (MCPSession.use_environment, MCPSession.use_profile):
         src = inspect.getsource(method)
         assert "KIS_MCP_ALLOW_REAL" not in src
         assert "KIS_MCP_REAL_CONFIRM" not in src
@@ -204,11 +204,33 @@ def test_order_snapshot_rejects_env_mismatch():
     def wrong_build(profile: str, environment: str):
         return _FakeClient("paper")              # 요청 환경과 무관하게 항상 paper 클라이언트
     startup = _FakeClient("paper")
-    session = McpSession(profile="general", environment="paper", startup_client=startup,
+    session = MCPSession(profile="general", environment="paper", startup_client=startup,
                          auth=_StartupAuthorization(True, True), build=wrong_build)
     session.use_environment("real")              # 활성 환경=real, 하지만 build 는 paper 클라이언트
     with pytest.raises(KISUsageError, match="split-brain"):
         session.order_snapshot()
+
+
+def test_read_context_returns_consistent_pair_same_slot():
+    # F3: read_context 는 활성 슬롯의 (client, profile) 를 한 락 아래서 함께 떠 돌려준다 -- client 는
+    # 그 슬롯의 캐시된 KISClient 와 같은 객체이고 profile 은 활성 프로필이다(일관된 짝).
+    session, _ = _session(profile="general", environment="paper",
+                          product_by_profile={"general": "01", "pension": "29"})
+    client, profile = session.read_context()
+    assert profile == "general"
+    assert client is session.read_client()                   # 같은 슬롯 -- 캐시된 client 그대로
+
+
+def test_read_context_pair_unchanged_after_switch():
+    # F3: use_profile 전환 후에도 이미 돌려준 (client, profile) 짝은 섞이지 않는다(TOCTOU 방지) --
+    # 새 read_context 는 새 슬롯을 일관되게 짝지어 돌려준다(general↔pension 이 교차하지 않는다).
+    session, _ = _session(profile="general", environment="paper",
+                          product_by_profile={"general": "01", "pension": "29"})
+    client, profile = session.read_context()
+    session.use_profile("pension")
+    assert profile == "general" and client.environment == "paper"   # 이전 짝 불변
+    client2, profile2 = session.read_context()
+    assert profile2 == "pension" and client2 is not client          # 새 짝은 새 슬롯
 
 
 def test_order_snapshot_freezes_profile_and_client():

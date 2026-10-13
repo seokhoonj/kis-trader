@@ -64,15 +64,24 @@ def _reject_unsupported_derivative_risk(risk: RiskLimits) -> None:
         )
 
 
+#: 국내 시세 기반 사전 리스크 러너를 쓰는 lane(region, asset_class). 해외주식은 전용 러너(아래),
+#: 그 밖(채권·해외선물옵션)은 애초에 risk 세션에서 거부되어 러너를 요청하지 않는다.
+_DOMESTIC_RISK_LANES = frozenset({("domestic", "stock"), ("domestic", "derivative")})
+
+
 def _risk_runner_for_lane(
     lane: tuple[str, str],
 ) -> Callable[[Transport, Order, RiskLimits], None]:
     """lane(region, asset_class) -> 그 lane 의 사전 리스크 러너. 해외주식은 거래소별 해외 현재가 +
-    결제통화별 금액 한도 러너, 그 외(국내 주식/파생)는 국내 시세 러너. 발주(place)와 정정(modify)이
-    같은 lane->러너 매핑을 공유하도록 한곳에 둔다(두 경로가 매핑을 따로 적지 않게)."""
+    리스크 통화별 금액 한도 러너, 국내 주식/파생은 국내 시세 러너. 발주(place)와 정정(modify)이 같은
+    lane->러너 매핑을 공유하도록 한곳에 둔다(두 경로가 매핑을 따로 적지 않게). 알 수 없는 lane 은
+    조용히 국내 러너로 흘려보내지 않고 명확히 거부한다(미래 lane 이 엉뚱한 국내 참조가 검사를 받지
+    않도록 fail-closed)."""
     if lane == ("overseas", "stock"):
         return overseas_orders_engine.run_pre_trade_risk
-    return orders_engine.run_pre_trade_risk
+    if lane in _DOMESTIC_RISK_LANES:
+        return orders_engine.run_pre_trade_risk
+    raise KISUsageError(f"사전 리스크 러너가 없는 주문 lane: {lane}")
 
 
 class OrderEngine:

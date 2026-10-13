@@ -109,3 +109,21 @@ def test_product_code_distinguishes_irp_from_general():
     # 소비자는 .pension try/except 없이 상품코드로 연금/일반을 분기한다.
     assert _c("12345678-29").account.product_code == "29"
     assert _c("12345678-01").account.product_code == "01"
+
+
+@pytest.mark.parametrize(("product_code", "expected"), [("01", True), ("22", True), ("29", False)])
+def test_stock_account_orderable_derived_from_product_code(product_code, expected):
+    # orderable 은 상품코드에서 바로 유도: 위탁/ISA(01)·연금저축(22)=주문 가능, IRP(29)=조회전용.
+    view = _c(f"12345678-{product_code}").account
+    assert isinstance(view, StockAccount)
+    assert view.orderable is expected
+
+
+def test_stock_account_orderable_honors_kill_switch():
+    # orderable 은 상품코드 주문 가능 여부에 더해 세션 킬스위치(KISClient(orderable=False))도 반영한다 --
+    # 주문 가능한 상품코드(01)라도 세션을 조회전용으로 열면 False.
+    kis = KISClient(app_key="k", app_secret="s", account="12345678-01",
+                    environment="paper", orderable=False)
+    view = kis.account
+    assert isinstance(view, StockAccount)
+    assert view.orderable is False

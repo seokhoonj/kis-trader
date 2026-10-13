@@ -20,7 +20,7 @@ from ..account import _IRP_PRODUCT_CODE, StockAccount
 from ..client import KISClient
 from ..errors import KISUsageError
 from ..order import DomesticDivision, Side
-from ..overseas._engine.orders import resolve_order_currency
+from ..overseas._engine.orders import resolve_risk_currency
 from ._guardrails import (
     ModifyOrderPlan,
     RealOrderGate,
@@ -29,10 +29,9 @@ from ._guardrails import (
     make_stock_order_plan,
 )
 from ._policy import (
-    _COMMISSION_PRODUCT_CODE,
-    _ORDER_ENABLED_PROFILES,
     _account_masked,
-    is_order_eligible_account,
+    is_orderable_account,
+    require_overseas_general_account,
 )
 
 #: 결과에 **절대** 실려선 안 되는 자격증명 키(방어적 denylist). 현재 직렬화 대상은 엔티티뿐이라
@@ -91,18 +90,11 @@ def _require_overseas_eligible(active_profile: str | None, kis: KISClient) -> St
     """해외 조회(``region="overseas"``)가 열리는지 확인하고 그 주식 계좌 뷰를 돌려준다 -- 위탁(general,
     상품코드 01) + **실전만**. isa/pension/irp 는 거부하고(해외는 general 전용), 모의(paper)도 거부한다.
     해외 조회가 실전 전용인 것은 **MCP 정책**이다(라이브러리가 금지하는 게 아니라, 이 서버가 모의 해외
-    데이터를 노출하지 않기로 한 것). 이름 게이트는 주문 게이트와 같은 기준(general)을 공유한다."""
-    if active_profile is not None and active_profile not in _ORDER_ENABLED_PROFILES:
-        raise KISUsageError(
-            f"해외 조회는 general 계좌 전용이다(현재 프로필: {active_profile}) -- "
-            "use_profile('general') 로 바꾸라."
-        )
+    데이터를 노출하지 않기로 한 것). 'general(위탁) + 상품코드 01' 축은 해외 주문 게이트와 공유하는 단일
+    leaf(:func:`require_overseas_general_account`)로 가르고 -- ISA 는 상품코드가 위탁과 같은 01 이라
+    상품코드로 구별할 수 없어 이름으로 막는다 -- 실전 요건만 여기서 추가로 건다(주문은 모의도 허용)."""
     account = _active_stock_account(kis)
-    if not is_order_eligible_account(account):
-        raise KISUsageError(
-            f"해외 조회는 위탁(상품코드 {_COMMISSION_PRODUCT_CODE}) 주식 계좌 전용이다 -- "
-            f"현재 상품코드 {account.product_code}."
-        )
+    require_overseas_general_account(active_profile, account)
     if kis.environment != "real":
         raise KISUsageError(
             "해외 조회는 실전 전용이다(MCP 정책) -- use_environment('real') 로 환경을 바꾸라."
@@ -198,14 +190,17 @@ def positions(
 
 
 def open_orders(kis: KISClient, *, limit: int = 100) -> list[dict[str, Any]]:
-    """미체결(정정/취소 가능) 주문(국내 주식 계좌). 위탁(상품코드 01) 전용 -- 연금저축(22)/IRP(29)는
-    이 조회 대상이 아니라 거부한다(KIS 가 위탁 계좌의 국내주식 미체결만 이 경로로 준다)."""
+    """주문 가능한 국내주식 계좌(위탁 01·연금저축 22)의 미체결(정정취소가능) 주문. IRP(29)는 주문이
+    없어 조회 대상이 아니다(거부). 상품코드가 아니라 주문 능력(orderable)으로 가른다 -- 국내 미체결
+    엔드포인트(TTTC0084R)는 상품코드로 막히지 않고 라이브러리 ``account.domestic.open_orders()`` 경로에도
+    상품 게이트가 없어, 주문을 낼 수 있는 계좌의 취소 가능 주문을 상품코드로 숨기지 않는다."""
     _require_positive_limit(limit)
     account = _active_stock_account(kis)
-    if account.product_code != _COMMISSION_PRODUCT_CODE:
+    if not is_orderable_account(account):
         raise KISUsageError(
-            f"미체결(정정취소가능) 주문 조회는 위탁(상품코드 {_COMMISSION_PRODUCT_CODE}) 주식 계좌 "
-            f"전용이다 -- 현재 상품코드 {account.product_code}."
+            f"미체결(정정취소가능) 주문 조회는 주문 가능한 국내주식 계좌(위탁 01·연금저축 22) "
+            f"전용이다 -- 현재 계좌는 주문 대상이 아니다(상품코드 {account.product_code}). IRP(29)는 "
+            "조회전용이라 미체결 주문이 없다."
         )
     rows = account.domestic.open_orders()
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
@@ -264,14 +259,14 @@ def reconcile(kis: KISClient, *, client_order_id: str) -> dict[str, Any]:
 def _require_overseas_currency_cap(
     plan: StockOrderPlan, capped_currencies: frozenset[str], *, is_real: bool
 ) -> None:
-    """해외 **실전** 주문의 결제통화 금액 한도(통화별 캡) 선검사 -- 거래소로 결제통화를 판별해 그
-    통화의 MCP 캡(``KIS_MCP_MAX_ORDER_NOTIONAL_<CCY>``)이 없으면 와이어 전에 거부한다(early fail-closed,
+    """해외 **실전** 주문의 리스크 검사 통화 금액 한도(통화별 캡) 선검사 -- 거래소로 리스크 검사
+    통화를 판별해 그 통화의 MCP 캡(``KIS_MCP_MAX_ORDER_NOTIONAL_<CCY>``)이 없으면 와이어 전에 거부한다(early fail-closed,
     정직한 preview). 안전 엔진(:meth:`~kis_trader.risk.RiskLimits.check`)의 해외 통화별 캡 강제가 와이어
     backstop 이고, 이 선검사는 같은 거부를 더 일찍·명확히 올린다. 거래소->통화 표는 해외 엔진이 소유
     한다(여기서 중복하지 않음). 모의(paper)/국내는 대상 아님."""
     if plan.region != "overseas" or not is_real:
         return
-    ccy = resolve_order_currency(plan.exchange) if plan.exchange is not None else None
+    ccy = resolve_risk_currency(plan.exchange) if plan.exchange is not None else None
     if ccy is None or ccy not in capped_currencies:
         raise KISUsageError(
             f"해외 실전 주문엔 결제통화 금액 한도가 필요하다 -- 환경변수 "

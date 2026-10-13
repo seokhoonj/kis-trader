@@ -21,7 +21,7 @@ from kis_trader.mcp._guardrails import (
     check_allowlist,
     make_stock_order_plan,
 )
-from kis_trader.mcp._session import McpSession, OrderSnapshot, _StartupAuthorization
+from kis_trader.mcp._session import MCPSession, OrderSnapshot, _StartupAuthorization
 from kis_trader.mcp.handlers import plan_cancel_order, plan_modify_order, plan_place_order
 from kis_trader.risk import RiskLimits
 from kis_trader.transport import RawResponse
@@ -326,7 +326,8 @@ class _DeclineCtx:
 
 def _snap(kis, gate, *, profile="general"):
     """run_* 가 받는 OrderSnapshot 을 직접 조립한다(server.order_snapshot 을 거치지 않는 단위 경로).
-    주문 프로필 게이트(general + 상품코드 01)를 통과하도록 기본 profile='general'."""
+    주문 게이트는 계좌 orderable(상품코드 01/22=True, 29=False)로 가르며 프로필 이름은 보지 않는다
+    -- profile 라벨은 전환 맥락 표시일 뿐이다(기본값 'general')."""
     return OrderSnapshot(profile=profile, environment=kis.environment, client=kis, gate=gate)
 
 
@@ -489,7 +490,7 @@ def test_run_place_order_breaker_trips_this_order_no_wire():
     assert out["sent"] is False and "HALT" in out["reason"] and t.calls == []
 
 
-# split-brain 차단(게이트 환경 != 클라이언트 환경)은 이제 McpSession.order_snapshot 생성 시점에
+# split-brain 차단(게이트 환경 != 클라이언트 환경)은 이제 MCPSession.order_snapshot 생성 시점에
 # 재단언된다 -- test_mcp_session::test_s3_* 가 방문 슬롯마다 환경 일치를 전수 고정하고,
 # test_mcp_session::test_order_snapshot_rejects_env_mismatch 가 어긋난 build 를 거부함을 확인한다.
 
@@ -636,45 +637,152 @@ def test_order_preview_overseas_real_honest_early_cap_rejection():
                       limit_price="150", region="overseas", exchange="NAS")
 
 
-# --- 주문 프로필 게이트 (C7): 전환해도 general 아니면 주문 거부, 와이어 0 ----
-@pytest.mark.parametrize("profile", ["isa", "pension", "irp"])
-def test_order_refused_for_non_general_profile_no_wire(profile):
+# --- 주문 능력 게이트 (C7): 프로필 이름이 아니라 계좌 orderable 로 가른다 ----
+# ISA/연금저축 맥락(프로필 라벨)으로 전환해도 계좌가 주문 가능한 주식 계좌면 주문이 열린다 --
+# 과거의 'general 이름' 게이트는 폐지됐다(ISA·연금저축은 주문 가능이므로 막으면 안 된다).
+@pytest.mark.parametrize("profile", ["general", "isa", "pension"])
+def test_order_allowed_for_orderable_account_any_profile(profile):
     pytest.importorskip("mcp")
-    from kis_trader.mcp.server import run_cancel_order, run_modify_order, run_place_order
-    kis, t = _order_client("paper")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("paper", account="12345678-01")   # 주문 가능(위탁/ISA=01)
     snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile=profile)
-    with pytest.raises(KISUsageError, match="general"):
-        asyncio.run(run_place_order(snap, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
-                                    region="domestic", symbol="005930", side="buy", quantity=1))
-    with pytest.raises(KISUsageError, match="general"):
-        asyncio.run(run_cancel_order(snap, CircuitBreaker(), _AcceptCtx(), client_order_id="x"))
-    with pytest.raises(KISUsageError, match="general"):
-        asyncio.run(run_modify_order(snap, None, CircuitBreaker(), _AcceptCtx(),
-                                     client_order_id="x", limit_price="100"))
-    assert t.calls == []
+    out = asyncio.run(run_place_order(snap, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
+                                      region="domestic", symbol="005930", side="buy", quantity=1))
+    assert out["sent"] is True and len(t.calls) == 1
 
 
-# --- 주문 상품코드 게이트 (C7 방어심층): general 이어도 상품코드 01 아니면 세 도구 거부, 와이어 0 ----
-def test_order_refused_for_general_but_wrong_product_no_wire():
-    # general 프로필이어도 계좌 상품코드가 01(위탁) 이 아니면(예: 연금저축 22) 세 주문 도구 모두 거부.
+# --- DOMESTIC 주문 가능 계좌(위탁/ISA 01·연금저축 22): place/cancel/modify/preview 전부 통과 ----
+@pytest.mark.parametrize(("account", "profile"), [
+    ("12345678-01", "general"), ("12345678-01", "isa"), ("12345678-22", "pension"),
+])
+def test_domestic_order_tools_pass_gate_for_orderable_accounts(account, profile):
+    # 주문 가능 계좌(위탁/ISA=01, 연금저축=22)는 네 주문 도구(place/cancel/modify/order_preview)가
+    # 모두 주문 권한 게이트를 통과한다 -- 상품코드 orderable 로 가르므로 프로필 라벨은 무관하다.
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import (
+        run_cancel_order,
+        run_modify_order,
+        run_order_preview,
+        run_place_order,
+    )
+    kis, _t = _order_client("paper", account=account)
+    snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile=profile)
+    placed = asyncio.run(run_place_order(snap, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
+                                         region="domestic", symbol="005930", side="buy", quantity=1))
+    assert placed["sent"] is True
+    preview = run_order_preview(snap, frozenset(), symbol="005930", side="buy", quantity=1,
+                                limit_price="70000")
+    assert preview["sent"] is False                 # preview 는 게이트 통과하되 전송 0
+    cancel_seed = kis.domestic.stock("005930").buy(quantity=1, limit_price="70000")
+    cancelled = asyncio.run(run_cancel_order(snap, CircuitBreaker(), _AcceptCtx(),
+                                             client_order_id=cancel_seed.client_order_id))
+    assert cancelled["sent"] is True
+    modify_seed = kis.domestic.stock("005930").buy(quantity=2, limit_price="70000")
+    modified = asyncio.run(run_modify_order(snap, None, CircuitBreaker(), _AcceptCtx(),
+                                            client_order_id=modify_seed.client_order_id,
+                                            limit_price="71000"))
+    assert modified["sent"] is True
+    # 티켓에 활성 계좌 상품코드가 실려 사람이 어느 계좌 종류로 나가는지 확인한다(FIX 5).
+    assert placed["ticket"]["product_code"] == account.split("-")[1]
+
+
+# --- IRP(29)는 조회전용 -- orderable=False 라 세 주문 도구 모두 거부, 와이어 0 ----
+def test_order_refused_for_irp_product_29_no_wire():
     pytest.importorskip("mcp")
     from kis_trader.mcp.server import run_cancel_order, run_modify_order, run_place_order
-    kis, t = _order_client("paper", account="12345678-22")   # StockAccount 지만 상품코드 22
-    snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile="general")
-    with pytest.raises(KISUsageError, match="01"):
+    kis, t = _order_client("paper", account="12345678-29")   # StockAccount 지만 IRP(29)=조회전용
+    snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile="irp")
+    with pytest.raises(KISUsageError, match="주문 대상"):
         asyncio.run(run_place_order(snap, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
                                     region="domestic", symbol="005930", side="buy", quantity=1))
-    with pytest.raises(KISUsageError, match="01"):
+    with pytest.raises(KISUsageError, match="주문 대상"):
         asyncio.run(run_cancel_order(snap, CircuitBreaker(), _AcceptCtx(), client_order_id="x"))
-    with pytest.raises(KISUsageError, match="01"):
+    with pytest.raises(KISUsageError, match="주문 대상"):
         asyncio.run(run_modify_order(snap, None, CircuitBreaker(), _AcceptCtx(),
                                      client_order_id="x", limit_price="100"))
     assert t.calls == []
 
 
-# --- 직접-자격증명 기동(profile=None): 이름 게이트 건너뛰고 상품코드 01 검사만 ------------
-def test_order_direct_cred_product_01_passes_name_gate():
-    # profile=None + 상품코드 01 + StockAccount -> 이름 게이트 건너뛰고 통상 게이트로 진행(모의 전송).
+# --- OVERSEAS 주문은 위탁(general) 전용 -- 주문 가능 계좌라도 ISA/연금저축은 해외 거부(와이어 0) ----
+@pytest.mark.parametrize(("account", "profile"), [("12345678-01", "isa"), ("12345678-22", "pension")])
+def test_overseas_order_refused_for_non_general_profile_no_wire(account, profile):
+    # 국내는 주문 가능한 ISA(01)/연금저축(22)이라도 해외 주문/미리보기는 위탁(general) 전용 게이트에
+    # 걸려 거부된다(ISA/연금저축의 해외 주식 주문 가능 여부 미확인). 와이어 0.
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_order_preview, run_place_order
+    kis, t = _order_client("paper", account=account)
+    snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile=profile)
+    with pytest.raises(KISUsageError, match="해외 주문"):
+        asyncio.run(run_place_order(snap, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
+                                    region="overseas", symbol="AAPL", side="buy", quantity=1,
+                                    limit_price="1.00", exchange="NAS"))
+    with pytest.raises(KISUsageError, match="해외 주문"):
+        run_order_preview(snap, frozenset(), symbol="AAPL", side="buy", quantity=1,
+                          limit_price="1.00", region="overseas", exchange="NAS")
+    assert t.calls == []
+
+
+def test_overseas_order_allowed_for_general_product_01_paper():
+    # 반대편 고정(allow side): 위탁(general) + 상품코드 01 은 모의 해외 주문이 통과해 와이어에 닿는다.
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("paper", account="12345678-01")
+    snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile="general")
+    out = asyncio.run(run_place_order(snap, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
+                                      region="overseas", symbol="AAPL", side="buy", quantity=1,
+                                      limit_price="1.00", exchange="NAS"))
+    assert out["sent"] is True and out["ticket"]["region"] == "overseas"
+    assert len(t.calls) == 1
+
+
+# --- 직접-자격증명(profile=None) 해외: 상품코드 01 은 허용(운영자 슬롯), 22 는 거부 -------------
+def test_overseas_order_direct_cred_product_01_allowed_product_22_refused():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    # profile=None + 상품코드 01 -> 이름 게이트 건너뛰고 상품코드 01 통과 -> 해외 모의 전송.
+    kis01, t01 = _order_client("paper", account="12345678-01")
+    snap01 = _snap(kis01, RealOrderGate.from_env({}, "paper"), profile=None)
+    out = asyncio.run(run_place_order(snap01, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
+                                      region="overseas", symbol="AAPL", side="buy", quantity=1,
+                                      limit_price="1.00", exchange="NAS"))
+    assert out["sent"] is True and len(t01.calls) == 1
+    # profile=None + 상품코드 22 -> 이름 게이트는 건너뛰어도 상품코드 01 아님에서 거부(와이어 0).
+    kis22, t22 = _order_client("paper", account="12345678-22")
+    snap22 = _snap(kis22, RealOrderGate.from_env({}, "paper"), profile=None)
+    with pytest.raises(KISUsageError, match="해외 주문"):
+        asyncio.run(run_place_order(snap22, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
+                                    region="overseas", symbol="AAPL", side="buy", quantity=1,
+                                    limit_price="1.00", exchange="NAS"))
+    assert t22.calls == []
+
+
+# --- 파생(비-StockAccount) 계좌: 네 주문 도구 전부 거부, 와이어 0(기록 transport 로 단언) ----
+def test_order_tools_refused_for_derivatives_account_zero_wire():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import (
+        run_cancel_order,
+        run_modify_order,
+        run_order_preview,
+        run_place_order,
+    )
+    kis, t = _order_client("paper", account="12345678-03")   # product 03 -> DomesticDerivativesAccount
+    snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile=None)
+    with pytest.raises(KISUsageError, match="주문 대상"):
+        asyncio.run(run_place_order(snap, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
+                                    region="domestic", symbol="005930", side="buy", quantity=1))
+    with pytest.raises(KISUsageError, match="주문 대상"):
+        asyncio.run(run_cancel_order(snap, CircuitBreaker(), _AcceptCtx(), client_order_id="x"))
+    with pytest.raises(KISUsageError, match="주문 대상"):
+        asyncio.run(run_modify_order(snap, None, CircuitBreaker(), _AcceptCtx(),
+                                     client_order_id="x", limit_price="100"))
+    with pytest.raises(KISUsageError, match="주문 대상"):
+        run_order_preview(snap, frozenset(), symbol="005930", side="buy", quantity=1, limit_price="100")
+    assert t.calls == []
+
+
+# --- 직접-자격증명 기동(profile=None): 이름 게이트 없이 계좌 orderable 로만 가른다 ------------
+def test_order_direct_cred_orderable_account_passes():
+    # profile=None + 상품코드 01(주문 가능) + StockAccount -> 통상 게이트로 진행(모의 전송).
     pytest.importorskip("mcp")
     from kis_trader.mcp.server import run_place_order
     kis, t = _order_client("paper", account="12345678-01")
@@ -684,20 +792,20 @@ def test_order_direct_cred_product_01_passes_name_gate():
     assert out["sent"] is True and len(t.calls) == 1
 
 
-def test_order_direct_cred_wrong_product_refused_no_wire():
-    # profile=None + 상품코드 29(IRP 조회전용) -> 이름 게이트는 건너뛰어도 상품코드 01 검사에서 거부.
+def test_order_direct_cred_irp_product_29_refused_no_wire():
+    # profile=None + 상품코드 29(IRP 조회전용) -> orderable=False 라 거부(와이어 0).
     pytest.importorskip("mcp")
     from kis_trader.mcp.server import run_place_order
     kis, t = _order_client("paper", account="12345678-29")
     snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile=None)
-    with pytest.raises(KISUsageError, match="01"):
+    with pytest.raises(KISUsageError, match="주문 대상"):
         asyncio.run(run_place_order(snap, None, CircuitBreaker(), _AcceptCtx(), frozenset(),
                                     region="domestic", symbol="005930", side="buy", quantity=1))
     assert t.calls == []
 
 
 def test_order_direct_cred_non_stock_account_refused():
-    # profile=None + 비-StockAccount 뷰(파생) -> is_order_eligible_account False 로 거부(방어심층 isinstance 분기).
+    # profile=None + 비-StockAccount 뷰(파생) -> is_orderable_account False 로 거부(방어심층 isinstance 분기).
     pytest.importorskip("mcp")
     from kis_trader.mcp.server import run_place_order
 
@@ -716,14 +824,14 @@ def test_order_direct_cred_non_stock_account_refused():
                                     region="domestic", symbol="005930", side="buy", quantity=1))
 
 
-# --- order_preview 프로필 게이트 parity (place 와 같은 검증) ------------------
-def test_run_order_preview_refused_under_non_general_profile():
-    # preview 는 place_order 와 같은 주문 프로필 게이트를 거친다 -- general 아니면 미리보기도 거부.
+# --- order_preview 주문 게이트 parity (place 와 같은 검증) ------------------
+def test_run_order_preview_refused_on_non_orderable_account():
+    # preview 는 place_order 와 같은 주문 능력 게이트를 거친다 -- IRP(29)면 미리보기도 거부.
     pytest.importorskip("mcp")
     from kis_trader.mcp.server import run_order_preview
-    kis, _ = _order_client("paper")
-    snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile="pension")
-    with pytest.raises(KISUsageError, match="general"):
+    kis, _ = _order_client("paper", account="12345678-29")   # IRP(29)=조회전용
+    snap = _snap(kis, RealOrderGate.from_env({}, "paper"), profile="irp")
+    with pytest.raises(KISUsageError, match="주문 대상"):
         run_order_preview(snap, frozenset(), symbol="005930", side="buy", quantity=1, limit_price="100")
 
 
@@ -779,7 +887,7 @@ def test_build_risk_from_env_none_when_unset():
 
 # --- 안전 불변 e2e (S4-S7): 전환이 실주문 언락을 못 건드린다 -------------------
 def _slot_session(startup_env="paper", *, risk=None, flags=False, profile="general"):
-    """실제 McpSession(슬롯마다 KISClient+FakeTransport)를 만들고 (session, transports) 를 돌려준다.
+    """실제 MCPSession(슬롯마다 KISClient+FakeTransport)를 만들고 (session, transports) 를 돌려준다.
     flags=True 면 기동 언락(ALLOW_REAL+REAL_CONFIRM)이 켜진 상태로 얼린다."""
     transports: dict[tuple, _FakeTransport] = {}
 
@@ -793,7 +901,7 @@ def _slot_session(startup_env="paper", *, risk=None, flags=False, profile="gener
     startup = build(profile, startup_env)
     env = _REAL_ENV if flags else {}
     auth = _StartupAuthorization.from_env(env)
-    session = McpSession(profile=profile, environment=startup_env, startup_client=startup,
+    session = MCPSession(profile=profile, environment=startup_env, startup_client=startup,
                          auth=auth, build=build)
     return session, transports
 
@@ -854,3 +962,67 @@ def test_s7_switch_during_elicitation_executes_on_snapshotted_client():
     assert out["sent"] is True
     assert len(transports[("general", "real")].calls) == 1  # 스냅샷의 real 클라이언트로 집행
     assert ("general", "paper") not in transports or transports[("general", "paper")].calls == []
+
+
+# --- F2: 해외 정정·취소도 해외 전용(위탁) 게이트를 받는다 (T5) ------------------
+# run_cancel_order/run_modify_order 는 저장된 원주문의 거래소로 region 을 판별한다 -- 해외 원주문이면
+# 해외 전용(위탁 general) 게이트가 걸려, ISA/연금저축 슬롯에서의 해외 정정·취소는 거부된다(default
+# domestic 으로 흘러 게이트를 건너뛰지 않는다). 일반(general)에서는 통과한다.
+def _seed_overseas(kis, cid="os-f2"):
+    """해외(NAS) 주문 1건을 store 에 시드하고 그 client_order_id 를 돌려준다."""
+    report = kis.overseas.stock("AAPL", exchange="NAS").buy(
+        quantity=1, limit_price="1.00", client_order_id=cid)
+    return report.client_order_id
+
+
+@pytest.mark.parametrize("profile", ["isa", "pension"])
+def test_f2_overseas_cancel_refused_under_non_general_profile(profile):
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_cancel_order
+    kis, t = _order_client("paper")
+    cid = _seed_overseas(kis)
+    seeded = len(t.calls)                                   # 시드(place) 와이어
+    with pytest.raises(KISUsageError, match="general"):
+        asyncio.run(run_cancel_order(
+            _snap(kis, RealOrderGate.from_env({}, "paper"), profile=profile),
+            CircuitBreaker(), _AcceptCtx(), client_order_id=cid))
+    assert len(t.calls) == seeded                           # 시드 외 추가 와이어 0
+
+
+@pytest.mark.parametrize("profile", ["isa", "pension"])
+def test_f2_overseas_modify_refused_under_non_general_profile(profile):
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_modify_order
+    kis, t = _order_client("paper")
+    cid = _seed_overseas(kis)
+    seeded = len(t.calls)
+    with pytest.raises(KISUsageError, match="general"):
+        asyncio.run(run_modify_order(
+            _snap(kis, RealOrderGate.from_env({}, "paper"), profile=profile),
+            None, CircuitBreaker(), _AcceptCtx(), client_order_id=cid, limit_price="2.00"))
+    assert len(t.calls) == seeded
+
+
+def test_f2_overseas_cancel_allowed_under_general():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_cancel_order
+    kis, t = _order_client("paper")
+    cid = _seed_overseas(kis)
+    out = asyncio.run(run_cancel_order(
+        _snap(kis, RealOrderGate.from_env({}, "paper"), profile="general"),
+        CircuitBreaker(), _AcceptCtx(), client_order_id=cid))
+    assert out["sent"] is True                              # general 은 해외 게이트 통과 -> 집행
+    assert len(t.calls) >= 2                                # place(시드) + cancel 와이어
+
+
+def test_f2_overseas_modify_allowed_under_general():
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_modify_order
+    kis, t = _order_client("paper")
+    cid = _seed_overseas(kis)
+    out = asyncio.run(run_modify_order(
+        _snap(kis, RealOrderGate.from_env({}, "paper"), profile="general"),
+        None, CircuitBreaker(), _AcceptCtx(), client_order_id=cid, limit_price="2.00"))
+    assert out["sent"] is True
+    assert len(t.calls) >= 2                                # place(시드) + modify 와이어
+    assert out["ticket"]["symbol"] == "AAPL"               # 원주문 종목이 티켓에 보인다

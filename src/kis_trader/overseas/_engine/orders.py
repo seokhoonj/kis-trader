@@ -178,37 +178,43 @@ def is_overseas_exchange(exchange: str) -> bool:
     return exchange in _ORDER_EXCHANGE
 
 
-# --- 거래소 -> 결제통화 (금액 한도 통화 판별) ----------------------------------
-#: 주문 시장 그룹 -> 결제통화. 그룹 축은 _ORDER_EXCHANGE 와 한 소스라, 주문 가능한 거래소는
-#: 반드시 통화를 가진다(완전성은 테스트로 고정). 미지 거래소/시장 그룹은 resolve 가 None 을 돌려
-#: 호출자가 fail-closed 한다. 홍콩(HK)은 HKD 로 고정 매핑한다 -- HKD/CNY/USD 복수 카운터(스톡커넥트
-#: 등)는 주문 와이어에 통화 필드가 없어(KIS 가 PDNO 로 추론) 주문별 통화를 판별하지 않는다. 그래서
-#: 비-HKD 홍콩 카운터는 HKD 한도로 검사돼 과소보호된다(알려진 한계 --
-#: 설계상 해결책은 시세상세의 통화(curr/Quote.currency)로 결제통화를 판별하는 것). 상해/심천 B주식
-#: (SH=USD, SZ=HKD)도 주문 지원되면 같은 한계를 가진다.
-_MARKET_CURRENCY: dict[str, str] = {
+# --- 거래소 -> 리스크검사 통화 (금액 한도 통화 판별) ---------------------------
+#: 주문 시장 그룹 -> **리스크 검사용** 통화(결제통화 자체가 아니다). 시장 그룹 축으로 고정된 값이라,
+#: USD 로 결제되는 홍콩(HK) 카운터나 상해/심천 B주식(SH-B, SZ-B)도 그룹 통화로 검사된다 -- 그래서
+#: 그 종목들의 실효 한도는 느슨해질 수 있다(아래 리스크 docstring 참조). 그룹 축은 _ORDER_EXCHANGE 와
+#: 한 소스라, 주문 가능한 거래소는 반드시 통화를 가진다(완전성은 테스트로 고정). 미지 거래소/시장
+#: 그룹은 resolve 가 None 을 돌려 호출자가 fail-closed 한다. 종목별 실제 통화는 시세상세의 ``curr``
+#: 필드로 알 수 있으나, 주문마다 그것을 유도하는 것은 보류한다(비용: 모든 해외 지정가 주문에 스로틀되는
+#: 시세 조회가 한 번 더 붙는다). 홍콩(HK)은 HKD 로 고정 매핑한다 -- HKD/CNY/USD 복수 카운터(스톡커넥트
+#: 등)는 주문 와이어에 통화 필드가 없어(KIS 가 PDNO 로 추론) 주문별 통화를 판별하지 않는다.
+_RISK_CURRENCY_BY_MARKET: dict[str, str] = {
     "US": "USD", "HK": "HKD", "SH": "CNY", "SZ": "CNY", "JP": "JPY", "VN": "VND",
 }
 
 
-def resolve_order_currency(exchange: str) -> str | None:
-    """해외 주문 거래소코드(EXCD) -> 결제통화(ISO). 미지원 거래소/시장 그룹은 None(호출자가 거부)."""
+def resolve_risk_currency(exchange: str) -> str | None:
+    """해외 주문 거래소코드(EXCD) -> **리스크 검사용** 통화(ISO). 시장 그룹에 고정된 검사 통화로,
+    종목별 실제 결제통화가 아니다(USD 결제 HK 카운터·SH-B/SZ-B 는 그룹 통화로 검사돼 캡이 느슨할 수
+    있다). 미지원 거래소/시장 그룹은 None(호출자가 거부)."""
     entry = _ORDER_EXCHANGE.get(exchange)
     if entry is None:
         return None
     _, market = entry
-    # 미래에 _ORDER_EXCHANGE 에 새 시장 그룹이 들어오고 _MARKET_CURRENCY 에 빠지면, 날 KeyError
+    # 미래에 _ORDER_EXCHANGE 에 새 시장 그룹이 들어오고 _RISK_CURRENCY_BY_MARKET 에 빠지면, 날 KeyError
     # 대신 계약대로 None 으로 degrade 한다(호출자가 fail-closed 거부). 완전성은 테스트로 고정.
-    return _MARKET_CURRENCY.get(market)
+    return _RISK_CURRENCY_BY_MARKET.get(market)
 
 
 def run_pre_trade_risk(transport: Transport, order: Order, risk: RiskLimits) -> None:
-    """해외주식 사전 리스크 점검. 거래소로 결제통화를 판별해 그 통화의 금액 한도로 검사한다.
+    """해외주식 사전 리스크 점검(해외 리스크 진입점). 거래소로 리스크 검사 통화를 판별해 그 통화의
+    금액 한도로 검사한다.
 
     참조가가 필요한 한도(collar)는 주문 거래소의 해외 현재가를 조회한다 -- 조회 실패/빈 값은 잡지
     않고 그대로 올린다(fail-closed: 한도를 확인 못 하면 주문을 보내지 않는다). place(발주)와
-    정정(modify) 양쪽이 쓴다."""
-    currency = resolve_order_currency(order.exchange)
+    정정(modify) 양쪽이 쓴다. 거부는 두 종류다 -- 잘못된 입력/판별 불가 통화는
+    :class:`~kis_trader.errors.KISUsageError`, 한도 초과(캡 위반)는
+    :class:`~kis_trader.errors.PreTradeRiskError`."""
+    currency = resolve_risk_currency(order.exchange)
     if currency is None:
         raise KISUsageError(
             f"해외 거래소 {order.exchange!r} 의 결제통화를 판별할 수 없어 리스크 한도를 적용할 수 "

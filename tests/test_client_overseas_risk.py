@@ -17,9 +17,9 @@ from kis_trader import ExecutionReport, KISClient, Order, RiskLimits
 from kis_trader.errors import KISError, KISUsageError, PreTradeRiskError
 from kis_trader.overseas._engine._parse import _MARKETS
 from kis_trader.overseas._engine.orders import (
-    _MARKET_CURRENCY,
     _ORDER_EXCHANGE,
-    resolve_order_currency,
+    _RISK_CURRENCY_BY_MARKET,
+    resolve_risk_currency,
 )
 from kis_trader.store import OrderStore
 from kis_trader.transport import RawResponse
@@ -89,25 +89,25 @@ def _overseas(order_type="limit", *, quantity, limit_price=None, exchange="NAS",
     [("NAS", "USD"), ("NYS", "USD"), ("AMS", "USD"), ("HKS", "HKD"), ("SHS", "CNY"),
      ("SZS", "CNY"), ("TSE", "JPY"), ("HNX", "VND"), ("HSX", "VND")],
 )
-def test_resolve_order_currency_every_exchange(exchange, currency):  # T-U1
-    assert resolve_order_currency(exchange) == currency
+def test_resolve_risk_currency_every_exchange(exchange, currency):  # T-U1
+    assert resolve_risk_currency(exchange) == currency
 
 
 def test_market_currency_covers_every_order_exchange_group():  # T-U2 (완전성)
     # 주문 가능한 모든 거래소의 시장 그룹은 반드시 통화를 가진다 -- 새 거래소가 통화 없이 들어오면
     # 여기서 실패해 PR 시점에 잡힌다(런타임 KeyError 로 새지 않는다).
     groups = {market for _, market in _ORDER_EXCHANGE.values()}
-    assert groups <= set(_MARKET_CURRENCY), groups - set(_MARKET_CURRENCY)
+    assert groups <= set(_RISK_CURRENCY_BY_MARKET), groups - set(_RISK_CURRENCY_BY_MARKET)
     for exchange in _ORDER_EXCHANGE:
-        assert resolve_order_currency(exchange) is not None
+        assert resolve_risk_currency(exchange) is not None
 
 
-def test_resolve_order_currency_unknown_is_none():  # T-U3
-    assert resolve_order_currency("ZZZ") is None
-    assert resolve_order_currency("") is None
+def test_resolve_risk_currency_unknown_is_none():  # T-U3
+    assert resolve_risk_currency("ZZZ") is None
+    assert resolve_risk_currency("") is None
 
 
-#: 리스크 시장 그룹(_MARKET_CURRENCY 의 키) <-> 권한 소스인 _parse._MARKETS 의 시장명 브리지.
+#: 리스크 시장 그룹(_RISK_CURRENCY_BY_MARKET 의 키) <-> 권한 소스인 _parse._MARKETS 의 시장명 브리지.
 #: 두 계층이 시장명 어휘가 달라(그룹 SH vs 시장명 CN_SH, 그룹 VN vs CN/HCM 분할) 통화 값 비교 전에
 #: 이름을 연결한다.
 _GROUP_TO_PARSE_MARKETS = {
@@ -119,10 +119,10 @@ _GROUP_TO_PARSE_MARKETS = {
 def test_market_currency_values_agree_with_parse_markets():  # T-U5 (값 일치)
     # T-U2 가 그룹 완전성을 고정한다면, 여기선 통화 *값* 이 권한 소스(_parse._MARKETS 의 TR_CRCY_CD)와
     # 어긋나지 않게 고정한다 -- 리스크 맵과 파서 계층 사이에서 통화가 drift 하면 PR 시점에 잡힌다.
-    assert set(_GROUP_TO_PARSE_MARKETS) == set(_MARKET_CURRENCY)   # 브리지가 전 그룹 커버
+    assert set(_GROUP_TO_PARSE_MARKETS) == set(_RISK_CURRENCY_BY_MARKET)   # 브리지가 전 그룹 커버
     for group, markets in _GROUP_TO_PARSE_MARKETS.items():
         for market in markets:
-            assert _MARKETS[market][1] == _MARKET_CURRENCY[group], (group, market)
+            assert _MARKETS[market][1] == _RISK_CURRENCY_BY_MARKET[group], (group, market)
 
 
 # --- RiskLimits 통화맵 생성 검증 -------------------------------------------
@@ -474,3 +474,49 @@ def test_d3_domestic_derivative_with_by_currency_refused_by_allowlist():
     with pytest.raises(KISUsageError, match="max_order_notional_by_currency"):
         kis.domestic.futures("101W09").buy(quantity=1, limit_price="340.50")
     assert fake.calls == []
+
+
+# --- T1: 공개 주문 경로에서 거래소->통화 매트릭스(전 시장) ----------------------
+# 각 케이스는 그 거래소의 **매칭 통화에만** 캡을 둔다 -- 미스매핑(예: SHS->JPY)이면 under-cap 제출이
+# 깨져(order 는 CNY 로 검사되는데 캡이 JPY 에만 있어 거부) 테스트가 실패한다.
+_EXCHANGE_CURRENCY_MATRIX = [
+    ("NAS", "USD"), ("NYS", "USD"), ("AMS", "USD"), ("HKS", "HKD"),
+    ("SHS", "CNY"), ("SZS", "CNY"), ("TSE", "JPY"), ("HSX", "VND"), ("HNX", "VND"),
+]
+
+
+@pytest.mark.parametrize(("exchange", "currency"), _EXCHANGE_CURRENCY_MATRIX)
+def test_t1_over_cap_refuses_zero_wire(exchange, currency):
+    fake = FakeTransport(response=_ack())
+    kis = _client(fake, risk=RiskLimits(max_order_notional_by_currency={currency: "1000"}))
+    with pytest.raises(PreTradeRiskError):
+        kis.overseas.stock("SYM", exchange=exchange).buy(quantity=100, limit_price="150")  # 15000 > 1000
+    assert fake.calls == []                                 # 캡 초과 -- 와이어 0
+
+
+@pytest.mark.parametrize(("exchange", "currency"), _EXCHANGE_CURRENCY_MATRIX)
+def test_t1_under_cap_submits(exchange, currency):
+    fake = FakeTransport(response=_ack())
+    kis = _client(fake, risk=RiskLimits(max_order_notional_by_currency={currency: "1000"}))
+    kis.overseas.stock("SYM", exchange=exchange).buy(quantity=1, limit_price="10")          # 10 <= 1000
+    assert _paths(fake) == [_ORDER]                         # 매칭 통화 캡 아래 -- 제출(지정가라 시세 조회 없음)
+
+
+# --- T4: 홍콩 USD-카운터 ~7.8x 알려진 한계(현재 동작 고정) ----------------------
+def test_t4_hk_counter_checked_against_hkd_cap_known_loose():
+    # HKS 주문은 종목의 실제 결제통화와 무관하게 HKD 로 검사된다(resolve_risk_currency 가 그룹 HK->HKD
+    # 고정). 그래서 USD 결제 HK 카운터라도 USD 캡은 적용되지 않고, HKD 캡만 보인다 -- 1 USD~7.8 HKD 라
+    # USD 로 치면 넘을 금액도 HKD 기준으론 통과할 수 있다(과소보호, 알려진 한계). 미래에 종목별 통화
+    # 판별(시세상세 curr)이 들어오면 이 테스트를 의도적으로 바꾼다.
+    assert resolve_risk_currency("HKS") == "HKD"
+    # USD 캡만 있고 HKD 캡이 없으면 HK 주문은 HKD 로 검사되는데 캡이 없어 거부(USD 캡은 무시된다).
+    fake = FakeTransport(response=_ack())
+    kis = _client(fake, risk=RiskLimits(max_order_notional_by_currency={"USD": "10"}))
+    with pytest.raises(PreTradeRiskError, match="HKD"):
+        kis.overseas.stock("00700", exchange="HKS").buy(quantity=1, limit_price="100")
+    assert fake.calls == []
+    # HKD 캡을 넉넉히 두면 통과한다 -- USD 로 치면 작은 캡도 HKD 기준으론 느슨하게 통과(한계 고정).
+    fake2 = FakeTransport(response=_ack())
+    kis2 = _client(fake2, risk=RiskLimits(max_order_notional_by_currency={"HKD": "100000"}))
+    kis2.overseas.stock("00700", exchange="HKS").buy(quantity=100, limit_price="100")   # 10000 HKD
+    assert _paths(fake2) == [_ORDER]
