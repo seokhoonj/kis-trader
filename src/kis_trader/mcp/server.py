@@ -10,10 +10,12 @@
 ``(profile, environment)`` 슬롯을 호출 시점에 쓴다 -- ``use_profile``/``use_environment`` 로 **재시작 없이**
 읽는 계좌/환경을 바꾼다(저장 프로필 기동일 때; 직접-자격증명 기동은 고정 슬롯이라 전환 도구가 거부한다).
 
-**안전 불변**: 런타임 전환은 **읽기 맥락만** 바꾼다. 활성 환경을 real 로 바꿔도 실주문은 열리지 않는다
--- 실주문은 변함없이 **기동 시** 이중게이트(``KIS_MCP_ALLOW_REAL`` + ``KIS_MCP_REAL_CONFIRM``) +
-RiskLimits(fail-closed 캡) + 종목 allowlist + **사람 확인(elicitation)** + 세션 서킷브레이커를 전부
-통과해야 전송된다. 국내 주문은 주문 가능한 주식 계좌(위탁 01/ISA 01/연금저축 22)면 열리고 IRP(29)·
+**안전 불변**: 런타임 전환은 **기동 시 얼린 실주문 언락 비트**(``KIS_MCP_ALLOW_REAL`` +
+``KIS_MCP_REAL_CONFIRM``)를 바꾸지 못한다. 다만 기동 시 그 두 비트가 켜져 있었다면
+``use_environment("real")`` 뒤에는 실주문이 집행 가능해진다(**사람 확인(elicitation)** 은 여전히
+필요). 실주문 의도가 없으면 기동 시 두 비트를 설정하지 말 것 -- 그러면 환경을 real 로 바꿔도 실주문은
+끝까지 막힌다. 실주문은 변함없이 이중게이트 + RiskLimits(fail-closed 캡) + 종목 allowlist + 사람 확인 +
+세션 서킷브레이커를 전부 통과해야 전송된다. 국내 주문은 주문 가능한 주식 계좌(위탁 01/ISA 01/연금저축 22)면 열리고 IRP(29)·
 파생은 조회 전용이라 거부된다. 해외 주문은 위탁(general) 계좌 전용이다(ISA/연금저축의 해외 주식 주문
 가능 여부 미확인). 주문 파라미터는 사람이 직접 주고 확인한다(읽기 도구 결과를 인자로 받지 않는다 -- taint 경계).
 """
@@ -254,23 +256,30 @@ def _order_region(kis: KISClient, client_order_id: str) -> str:
 
 
 async def _authorize_order(ctx: SupportsElicit, ticket: dict[str, Any], gate: RealOrderGate,
-                           breaker: CircuitBreaker) -> dict[str, Any] | None:
+                           breaker: CircuitBreaker, *,
+                           count_toward_breaker: bool = True) -> dict[str, Any] | None:
     """실전 주문 사전 승인 -- 사람 확인(elicitation) + 서킷브레이커. 모의는 즉시 승인(돈 안 나감).
     승인되면 ``None``, 거부되면 호출자가 그대로 반환할 refusal dict 를 돌려준다(approved/refusal 이
     모순되게 동시에 존재할 수 없어 호출부의 type:ignore 가 사라진다). 서킷브레이커 HALT 는 (이미
-    HALT 든, 이 주문이 한도를 넘겨 trip 하든) **일관되게 refusal** 로 돌려준다(예외로 새지 않음)."""
+    HALT 든, 이 주문이 한도를 넘겨 trip 하든) **일관되게 refusal** 로 돌려준다(예외로 새지 않음).
+
+    ``count_toward_breaker=False`` 는 취소 전용이다 -- 노출을 **줄이는** 취소는 서킷브레이커 슬롯을
+    쓰지도, HALT 상태에 막히지도 않는다(위험한 주문을 지우지 못하는 것 자체가 위험이라, 라이브러리도
+    취소를 리스크 게이트에 걸지 않는다). 사람 확인(elicitation)과 실전 게이트는 그대로 유지한다."""
     if not gate.is_real():
         return None
-    halted = {"sent": False, "reason": "서킷브레이커 HALT -- 수동 재개 전까지 실주문 차단", "ticket": ticket}
-    if breaker.halted:
-        return halted
+    if count_toward_breaker and breaker.halted:
+        return {"sent": False, "reason": "서킷브레이커 HALT -- 수동 재개 전까지 실주문 차단",
+                "ticket": ticket}
     if not await confirm_order(ctx, ticket):
         return {"sent": False, "reason": "사람 확인 거부/미지원(elicitation) -- 전송하지 않음",
                 "ticket": ticket}
-    try:
-        breaker.record_and_check()
-    except KISUsageError:
-        return halted                              # 이 주문이 한도를 넘겨 trip -> 미전송(일관)
+    if count_toward_breaker:
+        try:
+            breaker.record_and_check()
+        except KISUsageError:
+            return {"sent": False, "reason": "서킷브레이커 HALT -- 수동 재개 전까지 실주문 차단",
+                    "ticket": ticket}            # 이 주문이 한도를 넘겨 trip -> 미전송(일관)
     return None
 
 
@@ -312,7 +321,9 @@ async def run_cancel_order(
     identity = _order_identity(kis, cid)
     ticket = _order_ticket(kis, action="cancel", client_order_id=cid,
                            **({"symbol": identity[0], "side": identity[1]} if identity else {}))
-    refusal = await _authorize_order(ctx, ticket, gate, breaker)
+    # 취소는 노출을 줄인다 -- 서킷브레이커 슬롯을 소모하지도, HALT 에 막히지도 않는다(HALT 뒤에도
+    # 포지션을 빠져나올 수 있어야 한다). 사람 확인과 실전 게이트는 그대로 유지된다.
+    refusal = await _authorize_order(ctx, ticket, gate, breaker, count_toward_breaker=False)
     if refusal is not None:
         return refusal
     report = await anyio.to_thread.run_sync(lambda: kis.orders.cancel(cid))
@@ -377,10 +388,12 @@ def build_server(
     server = MCPServer(
         "kis-trader",
         instructions=(
-            "한국투자증권 계좌 조회·주문 미리보기·실주문 도구. use_profile/use_environment 로 **읽는**"
-            " 계좌/환경을 재시작 없이 바꾼다 -- 이는 조회 맥락만 바꾼다. 실전으로 바꿔도 실주문은 열리지"
-            " 않는다: 실주문(place/cancel/modify_order)은 변함없이 기동 시 이중게이트+RiskLimits+allowlist"
-            "+사람확인(elicitation)을 전부 통과해야 한다. 국내 주문은 주문 가능한 주식 계좌(위탁·ISA·"
+            "한국투자증권 계좌 조회·주문 미리보기·실주문 도구. use_profile/use_environment 로 활성"
+            " 계좌/환경을 재시작 없이 바꾼다(조회·주문 대상이 함께 바뀐다). 전환은 기동 시 얼린 실주문 언락 비트(KIS_MCP_ALLOW_REAL+"
+            "KIS_MCP_REAL_CONFIRM)를 바꾸지 못한다 -- 다만 기동 시 그 둘이 켜져 있었다면 use_environment"
+            "('real') 뒤에는 실주문이 집행 가능해진다(사람 확인은 여전히 필요). 실주문 의도가 없으면 기동 "
+            "시 두 비트를 설정하지 말 것. 실주문(place/cancel/modify_order)은 변함없이 이중게이트+RiskLimits"
+            "+allowlist+사람확인(elicitation)을 전부 통과해야 한다. 국내 주문은 주문 가능한 주식 계좌(위탁·ISA·"
             "연금저축)면 되고 IRP·파생은 조회 전용이라 거부되며, 해외 주문은 위탁(general) 계좌 전용이다."
             " 주문 파라미터(종목/방향/수량/가격)는 사람이 직접 주고 확인한다 -- 조회 결과를 그대로 주문에"
             " 넣지 말 것. 도구가 준 숫자를 재계산하지 말 것."
@@ -435,14 +448,17 @@ def build_server(
 
     @server.tool()
     def use_environment(environment: Literal["real", "paper"]) -> dict[str, Any]:
-        """**읽는** 환경만 바꾼다(real/paper). 이는 조회 맥락만 바꾼다 -- 실전으로 바꿔도 실주문은 열리지
-        않는다(실주문 언락은 기동 환경변수에만 묶인다). 저장 프로필 기동일 때만 가능."""
+        """**읽는** 환경만 바꾼다(real/paper). 전환은 기동 시 얼린 실주문 언락 비트를 바꾸지 못한다 --
+        다만 기동 시 KIS_MCP_ALLOW_REAL+KIS_MCP_REAL_CONFIRM 이 켜져 있었다면 real 로 바꾼 뒤 실주문이
+        집행 가능해진다(사람 확인은 여전히 필요). 실주문 의도가 없으면 기동 시 두 비트를 설정하지 말 것.
+        저장 프로필 기동일 때만 가능."""
         return account_session.use_environment(environment)
 
     @server.tool()
     def use_profile(profile: SwitchableProfile) -> dict[str, Any]:
-        """**읽는** 계좌 종류만 바꾼다. {general, isa, pension, irp} 로 제한(파생은 선택 불가). 전환은
-        조회 맥락만 바꾼다. 국내 주문은 주문 가능한 주식 계좌(위탁/ISA/연금저축)면 되고 IRP 는 조회 전용,
+        """활성 계좌 종류를 바꾼다. {general, isa, pension, irp} 로 제한(파생은 선택 불가). 조회뿐 아니라
+        주문 대상 계좌도 함께 바뀐다 -- 실주문이 언락된 세션이면 이후 주문은 전환된 계좌로 나간다(사람
+        확인 필요). 국내 주문은 주문 가능한 주식 계좌(위탁/ISA/연금저축)면 되고 IRP 는 조회 전용,
         해외 주문은 위탁(general) 전용이다. 저장 프로필 기동일 때만 가능."""
         return account_session.use_profile(profile)
 

@@ -1026,3 +1026,44 @@ def test_f2_overseas_modify_allowed_under_general():
     assert out["sent"] is True
     assert len(t.calls) >= 2                                # place(시드) + modify 와이어
     assert out["ticket"]["symbol"] == "AAPL"               # 원주문 종목이 티켓에 보인다
+
+
+# --- FIX E: HALT 뒤에도 실전 취소는 열려 있다(노출 축소), place/modify 는 막힌다 -------------
+def test_run_cancel_order_breaker_halted_still_reaches_wire_real():
+    # 서킷브레이커가 HALT 된 뒤에도 실전 취소는 사람 확인 후 와이어에 닿는다 -- 취소는 노출을
+    # 줄이므로 브레이커 슬롯을 쓰지도, HALT 에 막히지도 않는다(위험한 주문을 지우지 못하는 것
+    # 자체가 위험이라, 라이브러리도 취소를 리스크 게이트에 걸지 않는 것과 일관).
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_cancel_order
+    breaker = CircuitBreaker(max_real_orders=1)
+    breaker.record_and_check()
+    with pytest.raises(KISUsageError):
+        breaker.record_and_check()                          # HALT
+    assert breaker.halted is True
+    kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
+    seed = kis.domestic.stock("005930").buy(quantity=1, limit_price="70000")   # 원주문 시드
+    wired = len(t.calls)
+    out = asyncio.run(run_cancel_order(
+        _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), breaker, _AcceptCtx(),
+        client_order_id=seed.client_order_id))
+    assert out["sent"] is True                              # HALT 뒤에도 취소는 열려 있다
+    assert len(t.calls) == wired + 1                        # 취소 와이어가 실제로 나갔다
+    assert breaker.halted is True                           # 취소는 브레이커 상태를 건드리지 않는다
+
+
+def test_run_modify_order_breaker_halted_refuses_no_wire():
+    # 정정은 노출을 늘릴 수 있어(재가격) HALT 상태에서 일관되게 거부되고 와이어 0 이다.
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_modify_order
+    breaker = CircuitBreaker(max_real_orders=1)
+    breaker.record_and_check()
+    with pytest.raises(KISUsageError):
+        breaker.record_and_check()                          # HALT
+    kis, t = _order_client("real", risk=RiskLimits(max_order_quantity=1000))
+    seed = kis.domestic.stock("005930").buy(quantity=1, limit_price="70000")
+    wired = len(t.calls)
+    out = asyncio.run(run_modify_order(
+        _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"005930"}), breaker,
+        _AcceptCtx(), client_order_id=seed.client_order_id, limit_price="71000"))
+    assert out["sent"] is False and "HALT" in out["reason"]
+    assert len(t.calls) == wired                            # 정정 와이어 0 -- place/modify 는 HALT 에 막힌다

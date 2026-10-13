@@ -47,6 +47,28 @@ class _RecordingLimiter:
         self.acquired += 1
 
 
+def test_credential_with_control_chars_rejected_without_leaking_secret(tmp_path: Any) -> None:
+    # FIX G 회귀: 자격증명/토큰에 CR/LF(또는 다른 제어문자)가 있으면 전송 전에 '값 없는' 에러로
+    # 막는다 -- 헤더 분할(CRLF injection)을 방지하고, 비밀 값이 예외 문자열에 섞여 나가지 않게 한다.
+    secret = "sec\r\nret-LEAK"
+
+    def send(method: str, url: str, **kwargs: Any) -> Any:
+        raise AssertionError("제어문자가 든 자격증명은 전송 전에 거부되어야 한다(송신 금지)")
+
+    transport = RequestsTransport(
+        app_key="key",
+        app_secret=secret,
+        environment="real",
+        token_manager=_token_manager(tmp_path, "real"),
+        send=send,
+        sleep=lambda delay: None,
+    )
+    with pytest.raises(KISError) as excinfo:
+        transport.request(method="GET", path="/uapi/x", tr_id="T", idempotent=True)
+    message = str(excinfo.value)
+    assert secret not in message and "LEAK" not in message   # 비밀 값이 노출되지 않는다
+
+
 def test_request_acquires_rate_limit_before_each_send(tmp_path: Any) -> None:
     events: list[str] = []
 

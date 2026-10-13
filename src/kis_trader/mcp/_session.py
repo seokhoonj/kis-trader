@@ -144,9 +144,10 @@ class MCPSession:
             return OrderSnapshot(profile=profile, environment=environment, client=client, gate=gate)
 
     def use_environment(self, environment: str) -> dict[str, Any]:
-        """활성 환경만 바꾼다(real/paper). **읽기 맥락만** 바뀌고 실주문 언락에는 영향이 없다. 대상
-        슬롯을 commit 전에 먼저 만들어 보고(atomic -- 없는 조합이면 활성 상태 불변으로 거부) 성공해야
-        전환을 확정한다."""
+        """활성 환경만 바꾼다(real/paper). 기동 시 얼린 실주문 언락 비트(:class:`_StartupAuthorization`)는
+        전환으로 바뀌지 않는다 -- 다만 기동 시 그 비트가 켜져 있었다면 real 로 바꾼 뒤 실주문이 집행
+        가능해진다(사람 확인은 여전히 필요). 대상 슬롯을 commit 전에 먼저 만들어 보고(atomic -- 없는
+        조합이면 활성 상태 불변으로 거부) 성공해야 전환을 확정한다."""
         if environment not in _ENVIRONMENTS:
             raise KISUsageError(f"environment 는 real/paper 중 하나여야 한다: {environment!r}")
         with self._lock:
@@ -157,8 +158,9 @@ class MCPSession:
     def use_profile(self, profile: str) -> dict[str, Any]:
         """활성 프로필(계좌 종류)만 바꾼다. {general, isa, pension, irp} 로 제한한다 -- 그 밖/파생이면
         지원 목록과 함께 거부(파생은 선택 불가). 대상 슬롯을 commit 전에 먼저 만들어 보고(atomic)
-        성공해야 확정한다. **읽기 맥락만** 바뀐다 -- 주문 권한은 별개 게이트다(국내 주문은 계좌의 주문
-        능력 orderable 로, 해외 주문은 위탁(general) 전용으로 가른다)."""
+        성공해야 확정한다. 조회뿐 아니라 **주문 대상 계좌**도 함께 바뀐다 -- 실주문이 언락된 세션이면
+        이후 주문은 전환된 계좌로 나간다(국내는 계좌의 주문 능력 orderable 로, 해외는 위탁(general)
+        전용으로 가르고, 사람 확인은 여전히 필요). 기동 시 얼린 실주문 언락 비트 자체는 바꾸지 못한다."""
         if profile not in _SWITCHABLE_PROFILES:
             raise KISUsageError(
                 f"use_profile 로 바꿀 수 있는 프로필은 {sorted(_SWITCHABLE_PROFILES)} 뿐이다"

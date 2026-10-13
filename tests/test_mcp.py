@@ -437,6 +437,30 @@ def test_server_registers_read_switch_and_guarded_order_tools():
     assert not (names & {"buy", "sell", "credit_buy", "credit_sell"})
 
 
+def test_environment_switch_safety_phrasing_is_conditional_not_absolute():
+    # FIX F 회귀: 서버 instructions 와 use_environment 도구 설명이 "환경을 real 로 바꿔도 실주문은
+    # 열리지 않는다" 같은 절대적(그리고 거짓인) 주장을 담지 않고, 기동 시 ALLOW_REAL+REAL_CONFIRM 이
+    # 켜져 있었다면 집행 가능해진다는 조건부 진실을 담는지 고정한다 -- 그 상태에서 use_environment
+    # ('real') 로 실주문이 실제로 열릴 수 있기 때문이다.
+    pytest.importorskip("mcp")
+    import asyncio
+
+    server = _build_test_server()
+    instructions = server.instructions or ""
+    tools = {t.name: t for t in asyncio.run(server.list_tools())}
+    use_env_desc = tools["use_environment"].description or ""
+    for text in (instructions, use_env_desc):
+        assert "열리지 않는다" not in text              # 절대적 거짓 주장 재발 방지
+        assert "집행 가능" in text                      # 조건부 진실이 들어 있다
+    # 프로필 축도 같은 거짓 주장("읽는 계좌만"/"조회 맥락만") 재발 방지: use_profile 로 전환하면
+    # 실주문이 언락된 세션에서 주문이 전환된 계좌로 나가므로 "읽기 전용 전환"은 거짓이다.
+    use_profile_desc = tools["use_profile"].description or ""
+    assert "읽는 계좌 종류만" not in use_profile_desc
+    assert "조회 맥락만" not in use_profile_desc
+    assert "주문 대상" in use_profile_desc              # 주문도 전환 계좌로 간다는 진실
+    assert "읽는 계좌/환경" not in instructions          # instructions 도 읽기-전용 표현 금지
+
+
 def test_order_tool_input_schemas_pin_switch_region_shape():
     # 전환+해외 확장 스키마를 고정: place_order/order_preview 는 region(domestic/overseas)·exchange 를
     # 노출하고 division/side 를 유지하며 side enum 은 buy/sell 로 좁혀져 있다. quote 는 session(regular/

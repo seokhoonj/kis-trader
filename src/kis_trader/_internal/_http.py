@@ -6,6 +6,7 @@
 
 from __future__ import annotations
 
+import re
 import threading
 import time
 from collections.abc import Callable, Mapping
@@ -21,6 +22,17 @@ from ._endpoints import base_url
 from ._ratelimit import SlidingWindowRateLimiter
 
 HTTPResult = tuple[int, Mapping[str, str], object]
+
+#: 헤더 값에 금지되는 제어문자(CR/LF 는 헤더 분할, 그 밖의 C0/DEL 은 비정상 자격증명 표지).
+_CONTROL_CHARS = re.compile(r"[\x00-\x1f\x7f]")
+
+
+def _reject_control_chars(label: str, value: str) -> None:
+    """자격증명/토큰에 제어문자(CR/LF 등)가 있으면 **값 없이** 거부한다. 메시지에는 어떤 필드인지
+    (label)만 담고 그 값은 절대 넣지 않아, 자격증명/토큰이 예외 문자열·로그에 노출되지 않게 한다.
+    또한 이런 값이 그대로 전송돼 헤더 분할(CRLF injection)로 번지는 것을 전송 전에 막는다."""
+    if _CONTROL_CHARS.search(value):
+        raise KISError(f"KIS 요청 {label} 에 허용되지 않는 제어문자가 있다.")
 
 
 class _HTTPSender(Protocol):
@@ -82,15 +94,19 @@ def _requests_send(
         )
     except (requests.Timeout, requests.ConnectionError) as err:
         raise TransportTimeoutError("KIS HTTP 요청의 결과를 확인할 수 없다.") from err
+    except requests.exceptions.InvalidHeader:
+        # 헤더 값이 유효하지 않다(대개 자격증명/토큰에 CR/LF 등 비정상 문자). requests 의 예외
+        # 메시지는 문제의 헤더 '값' 을 그대로 담으므로, 그 값을 KISError 에 끌고 들어오지 않도록
+        # 'from None' 으로 체인을 끊고 값 없는 메시지만 올린다(자격증명/토큰 유출 방지).
+        raise KISError("KIS HTTP 요청 헤더가 올바르지 않다.") from None
     except (
         requests.exceptions.URLRequired,
         requests.exceptions.MissingSchema,
         requests.exceptions.InvalidSchema,
         requests.exceptions.InvalidURL,
-        requests.exceptions.InvalidHeader,
     ) as err:
         # 요청 준비 단계 오류 -- 소켓에 닿기 전이라 'not sent' 가 확실하다. 결과 불명(no-retry)
-        # 신호를 실을 필요 없이 평범한 KISError 로 올린다(사실상 우리 URL/헤더 구성 버그).
+        # 신호를 실을 필요 없이 평범한 KISError 로 올린다(사실상 우리 URL 구성 버그, 값에 비밀 없음).
         raise KISError(f"KIS HTTP 요청을 구성하지 못했다: {err}") from err
     except requests.RequestException as err:
         # 그 밖의 전송 계층 오류 -- 여기엔 ChunkedEncodingError/ContentDecodingError(둘 다
@@ -165,9 +181,15 @@ class RequestsTransport:
         주의: GET+멱등 요청만 재시도하고 쓰기 요청의 타임아웃은 즉시 전파한다. ``tr_cont`` 는
         요청 헤더로 그대로 전달한다("" 초기, "N" 다음 페이지).
         """
+        token = self._token_manager.access_token()
+        # 자격증명/토큰에 CR/LF 등 제어문자가 있으면 전송 전에 값 없는 에러로 막는다 -- 헤더 분할
+        # (CRLF injection)과, requests 가 그 값을 담아 올릴 때의 유출을 둘 다 차단한다.
+        _reject_control_chars("app key", self._app_key)
+        _reject_control_chars("app secret", self._app_secret)
+        _reject_control_chars("access token", token)
         headers = {
             "content-type": "application/json; charset=utf-8",
-            "authorization": f"Bearer {self._token_manager.access_token()}",
+            "authorization": f"Bearer {token}",
             "appkey": self._app_key,
             "appsecret": self._app_secret,
             "tr_id": tr_id,
