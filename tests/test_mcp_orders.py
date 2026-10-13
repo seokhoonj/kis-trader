@@ -234,8 +234,17 @@ def test_plan_place_real_requires_risk():
 
 def test_plan_place_real_requires_allowlist():
     with pytest.raises(KISUsageError, match="allowlist"):
-        plan_place_order(_REAL, None, has_risk=True, region="domestic",
+        plan_place_order(_REAL, None, has_risk=True, region="domestic", has_domestic_cap=True,
                          symbol="005930", side="buy", quantity=1, limit_price="70000")
+
+
+def test_plan_place_domestic_real_requires_domestic_cap():
+    # 해외 통화캡만 있어(국내 적용 캡 없음) has_domestic_cap=False 이면 국내 실주문은 거부된다
+    # -- 아무 RiskLimits 존재(has_risk=True)만으로 국내가 무한도로 열리지 않는다(fail-closed).
+    with pytest.raises(KISUsageError, match="국내"):
+        plan_place_order(_REAL, frozenset({"005930"}), has_risk=True, region="domestic",
+                         has_domestic_cap=False, symbol="005930", side="buy", quantity=1,
+                         limit_price="70000")
 
 
 def test_plan_place_real_gate_closed():
@@ -247,7 +256,8 @@ def test_plan_place_real_gate_closed():
 
 def test_plan_place_real_all_pass():
     plan = plan_place_order(_REAL, frozenset({"005930"}), has_risk=True, region="domestic",
-                            symbol="005930", side="buy", quantity=10, limit_price="70000")
+                            has_domestic_cap=True, symbol="005930", side="buy", quantity=10,
+                            limit_price="70000")
     assert plan == StockOrderPlan(region="domestic", symbol="005930", side="buy",
                                   order_type="limit", quantity=10, limit_price="70000")
 
@@ -264,23 +274,24 @@ def test_plan_cancel_gate_and_id():
 def test_plan_modify_real_requires_risk():
     with pytest.raises(KISUsageError, match="RiskLimits"):
         plan_modify_order(_REAL, has_risk=False, client_order_id="x", limit_price="100")
-    out = plan_modify_order(_REAL, has_risk=True, client_order_id="x", limit_price="100", quantity=5)
+    out = plan_modify_order(_REAL, has_risk=True, has_domestic_cap=True,
+                            client_order_id="x", limit_price="100", quantity=5)
     assert out == ModifyOrderPlan(client_order_id="x", limit_price="100", quantity=5)
 
 
 def test_plan_modify_real_runs_allowlist_on_resolved_symbol():
     # 정정은 노출을 늘릴 수 있어(재가격) 원주문 종목이 실전 allowlist 를 통과해야 한다(place 와 동일).
     with pytest.raises(KISUsageError, match="allowlist"):
-        plan_modify_order(_REAL, has_risk=True, allowlist=frozenset({"000660"}),
+        plan_modify_order(_REAL, has_risk=True, has_domestic_cap=True, allowlist=frozenset({"000660"}),
                           client_order_id="x", limit_price="100", symbol="005930")
-    out = plan_modify_order(_REAL, has_risk=True, allowlist=frozenset({"005930"}),
+    out = plan_modify_order(_REAL, has_risk=True, has_domestic_cap=True, allowlist=frozenset({"005930"}),
                             client_order_id="x", limit_price="100", symbol="005930", side="buy")
     assert out.symbol == "005930" and out.side == "buy"
 
 
 def test_plan_modify_without_resolved_symbol_skips_allowlist():
     # 저장소에서 종목을 못 찾으면(symbol=None) allowlist 는 건너뛴다 -- 그 외 게이트/사람확인은 유지.
-    out = plan_modify_order(_REAL, has_risk=True, allowlist=frozenset({"000660"}),
+    out = plan_modify_order(_REAL, has_risk=True, has_domestic_cap=True, allowlist=frozenset({"000660"}),
                             client_order_id="x", limit_price="100")
     assert out.symbol is None
 
@@ -383,6 +394,19 @@ def test_run_place_order_real_no_risk_raises():
             _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"005930"}), CircuitBreaker(),
             _AcceptCtx(), region="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
     assert t.calls == []                               # fail-closed
+
+
+def test_run_place_order_domestic_real_refused_when_only_foreign_cap():
+    # 해외(USD)캡만 있고 국내 적용 캡이 없으면 국내 실주문은 와이어 전에 거부된다 -- RiskLimits 존재
+    # (has_risk=True)만으로 국내가 무한도로 열리지 않는다(region-적용 캡 fail-closed; 해외 통화캡의 국내 짝).
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("real", risk=RiskLimits(max_order_notional_by_currency={"USD": "1000000"}))
+    with pytest.raises(KISUsageError, match="국내"):
+        asyncio.run(run_place_order(
+            _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"005930"}), CircuitBreaker(),
+            _AcceptCtx(), region="domestic", symbol="005930", side="buy", quantity=1, limit_price="70000"))
+    assert t.calls == []                               # fail-closed -- 무한도 국내 전송 금지
 
 
 def test_run_place_order_breaker_halted_refuses():

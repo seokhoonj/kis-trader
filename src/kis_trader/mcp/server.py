@@ -295,6 +295,7 @@ async def run_place_order(
     plan = handlers.plan_place_order(
         gate, allowlist, kis.has_risk_limits, capped_currencies, region=region, symbol=symbol,
         side=side, quantity=quantity, limit_price=limit_price, division=division, exchange=exchange,
+        has_domestic_cap=kis.has_domestic_risk_cap,
     )
     ticket = _order_ticket(kis, action="place", region=plan.region, symbol=plan.symbol, side=plan.side,
                            order_type=plan.order_type, quantity=plan.quantity, limit_price=plan.limit_price,
@@ -335,12 +336,14 @@ async def run_modify_order(
     kis, gate = snapshot.client, snapshot.gate
     # 원주문의 거래소로 region 을 판별해 권한을 검사한다 -- 해외 원주문이면 해외 전용(위탁) 게이트가
     # 걸린다(ISA/연금저축의 해외 정정을 default domestic 으로 흘려보내지 않는다).
-    _require_order_authorization(snapshot, _order_region(kis, client_order_id))
+    region = _order_region(kis, client_order_id)
+    _require_order_authorization(snapshot, region)
     identity = _order_identity(kis, client_order_id)
     plan = handlers.plan_modify_order(
         gate, kis.has_risk_limits, allowlist, client_order_id=client_order_id,
         limit_price=limit_price, quantity=quantity,
         symbol=identity[0] if identity else None, side=identity[1] if identity else None,
+        region=region, has_domestic_cap=kis.has_domestic_risk_cap,
     )
     ticket = _order_ticket(kis, action="modify", client_order_id=plan.client_order_id,
                            limit_price=plan.limit_price, quantity=plan.quantity,

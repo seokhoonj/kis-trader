@@ -322,6 +322,19 @@ class KISClient:
         return self._risk is not None
 
     @property
+    def has_domestic_risk_cap(self) -> bool:
+        """국내(KRW) 주문에 적용되는 fat-finger 캡(수량/금액/가격collar 중 하나라도)이 설정됐는지.
+        해외 전용 통화캡(``max_order_notional_by_currency``)만 있고 국내 캡이 없는 :class:`~kis_trader.
+        risk.RiskLimits` 는 ``False`` -- MCP 실주문 게이트가 이 표면으로 국내 실주문을 가려, 해외 통화캡만
+        설정된 상태에서 국내 실주문이 무한도로 열리는 것을 막는다(``has_risk_limits`` 와 같은 캡슐화 규약)."""
+        risk = self._risk
+        return risk is not None and (
+            risk.max_order_quantity is not None
+            or risk.max_order_notional is not None
+            or risk.price_collar_percent is not None
+        )
+
+    @property
     def account(self) -> StockAccount | DomesticDerivativesAccount | OverseasDerivativesAccount:
         """세션이 연 계좌의 조회 뷰 -- 상품코드로 계좌 종류를 정한다. 위탁(01)/연금저축(22)/
         IRP(29)/ISA 는 같은 국내주식 계좌 엔드포인트를 쓰므로 :class:`~kis_trader.account.StockAccount`

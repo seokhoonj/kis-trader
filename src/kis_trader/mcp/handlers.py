@@ -283,21 +283,37 @@ def _require_overseas_currency_cap(
         )
 
 
+def _require_domestic_cap(*, is_real: bool, region: str, has_domestic_cap: bool) -> None:
+    """국내 실주문은 국내(KRW)에 적용되는 fat-finger 캡이 있어야 한다 -- 해외 통화별 캡만 있고 국내 캡이
+    없는 RiskLimits 로 국내 실주문이 무한도로 열리는 것을 막는다(해외 :func:`_require_overseas_currency_
+    cap` 의 국내 짝; 게이트의 '실전=캡 필수' 약속을 region 별로 참이 되게 한다). 모의/해외는 대상 아님."""
+    if is_real and region == "domestic" and not has_domestic_cap:
+        raise KISUsageError(
+            "국내 실전 주문엔 국내(KRW)에 적용되는 fat-finger 캡이 필요하다 -- 해외 통화캡만 설정하면 "
+            "국내 주문이 무한도로 열린다(fail-closed). 수량/금액/가격collar 캡을 설정하라"
+            "(RiskLimits.max_order_quantity/max_order_notional/price_collar_percent 또는 "
+            "KIS_MCP_MAX_ORDER_QTY/KIS_MCP_MAX_ORDER_NOTIONAL/KIS_MCP_PRICE_COLLAR_PCT)."
+        )
+
+
 def plan_place_order(
     gate: RealOrderGate, allowlist: frozenset[str] | None, has_risk: bool,
     capped_currencies: frozenset[str] = frozenset(), *,
     region: str, symbol: str, side: str, quantity: int, limit_price: str | None = None,
-    division: str | None = None, exchange: str | None = None,
+    division: str | None = None, exchange: str | None = None, has_domestic_cap: bool = False,
 ) -> StockOrderPlan:
-    """매수/매도 주문 계획 -- 이중게이트 -> (실전) RiskLimits 필수 -> 티켓 빌드 -> (해외 실전) 통화별
-    캡 선검사 -> allowlist 순으로 검증한다. 실전에서 RiskLimits(fail-closed 캡)가 없으면 거부한다
-    (관례: 캡은 사용자 설정, 미설정=거부). 해외 실전은 결제통화 한도가 없으면 와이어 전에 거부한다."""
+    """매수/매도 주문 계획 -- 이중게이트 -> (실전) RiskLimits 필수 -> 티켓 빌드 -> (실전) region 별 캡
+    선검사(국내 KRW 캡 / 해외 통화별 캡) -> allowlist 순으로 검증한다. 실전에서 RiskLimits(fail-closed
+    캡)가 없으면 거부한다(관례: 캡은 사용자 설정, 미설정=거부). 실전에선 **그 주문의 region 에 적용되는**
+    캡이 있어야 한다 -- 국내는 KRW 캡(``has_domestic_cap``), 해외는 결제통화 한도가 없으면 와이어 전에
+    거부한다(해외 통화캡만 있고 국내 캡이 없는 상태로 국내 실주문이 무한도로 새지 않게 한다)."""
     gate.require_executable()
     if gate.is_real() and not has_risk:
         raise KISUsageError(
             "실전 주문은 RiskLimits(fat-finger 캡) 설정이 필요하다 -- 미설정이면 전송하지 않는다"
             "(fail-closed). KISClient(risk=RiskLimits(...)) 또는 MCP 캡 환경변수로 설정."
         )
+    _require_domestic_cap(is_real=gate.is_real(), region=region, has_domestic_cap=has_domestic_cap)
     plan = make_stock_order_plan(
         region=region, symbol=symbol, side=side, quantity=quantity, limit_price=limit_price,
         division=division, exchange=exchange,
@@ -319,16 +335,20 @@ def plan_modify_order(
     gate: RealOrderGate, has_risk: bool, allowlist: frozenset[str] | None = None, *,
     client_order_id: str, limit_price: str, quantity: int | None = None,
     symbol: str | None = None, side: Side | None = None,
+    region: str = "domestic", has_domestic_cap: bool = False,
 ) -> ModifyOrderPlan:
     """정정 계획 -- 새 가격을 거는 변경이라 신규 주문처럼 (실전) RiskLimits 를 요구한다(fail-closed).
-    원주문 종목(``symbol``)이 저장소에서 해석되면 신규 주문과 같이 실전 allowlist 도 확인한다 -- 정정은
-    노출을 늘릴 수 있어(재가격·수량) place 와 같은 종목 통제를 받아야 한다. 종목을 모르면(저장소 미보유)
-    allowlist 는 건너뛴다(그 외 게이트/사람확인은 그대로)."""
+    원주문의 ``region`` 에 적용되는 캡이 있어야 한다(국내는 KRW 캡 ``has_domestic_cap`` -- place 와 같은
+    region 별 fail-closed; 해외 통화캡만으론 국내 정정이 무한도로 열리지 않게 한다. 해외 결제통화 캡은
+    와이어 backstop :meth:`~kis_trader.risk.RiskLimits.check` 가 강제한다). 원주문 종목(``symbol``)이
+    저장소에서 해석되면 신규 주문과 같이 실전 allowlist 도 확인한다 -- 정정은 노출을 늘릴 수 있어(재가격·
+    수량) place 와 같은 종목 통제를 받아야 한다. 종목을 모르면(저장소 미보유) allowlist 는 건너뛴다."""
     gate.require_executable()
     if gate.is_real() and not has_risk:
         raise KISUsageError(
             "실전 정정은 RiskLimits 설정이 필요하다(fail-closed) -- 새 가격이 캡을 통과해야 한다."
         )
+    _require_domestic_cap(is_real=gate.is_real(), region=region, has_domestic_cap=has_domestic_cap)
     if not isinstance(client_order_id, str) or not client_order_id:
         raise KISUsageError(f"client_order_id 는 비어 있지 않은 문자열이어야 한다: {client_order_id!r}")
     if not isinstance(limit_price, (str, int)):
