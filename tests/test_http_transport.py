@@ -417,6 +417,68 @@ def test_500_with_egw00201_raises_rate_limit_not_generic(tmp_path: Any) -> None:
     assert excinfo.value.msg_cd == "EGW00201"
 
 
+_APP_KEY_SENTINEL = "AK-SENTINEL-7f3a"
+_APP_SECRET_SENTINEL = "AS-SENTINEL-2b9c"
+_TOKEN_SENTINEL = "TOK-SENTINEL-9d1e"
+
+
+def _leak_probe_transport(tmp_path: Any, send: Any, **kwargs: Any) -> RequestsTransport:
+    token_manager = TokenManager(
+        app_key=_APP_KEY_SENTINEL, app_secret=_APP_SECRET_SENTINEL, environment="real",
+        post=lambda url, body: (200, {"access_token": _TOKEN_SENTINEL, "expires_in": 3600}),
+        clock=lambda: 1_000.0, cache_dir=str(tmp_path), refresh_margin=0,
+    )
+    return RequestsTransport(
+        app_key=_APP_KEY_SENTINEL, app_secret=_APP_SECRET_SENTINEL, environment="real",
+        token_manager=token_manager, send=send, sleep=lambda delay: None, **kwargs,
+    )
+
+
+def _assert_no_secret_in_chain(exc: BaseException) -> None:
+    seen: list[int] = []
+    current: BaseException | None = exc
+    while current is not None and id(current) not in seen:
+        seen.append(id(current))
+        text = str(current)
+        for sentinel in (_APP_KEY_SENTINEL, _APP_SECRET_SENTINEL, _TOKEN_SENTINEL):
+            assert sentinel not in text, (
+                f"credential leaked into {type(current).__name__}: {sentinel!r} in {text!r}"
+            )
+        current = current.__cause__ or current.__context__
+
+
+def _status_send(status: int) -> Any:
+    def send(method: str, url: str, **kwargs: Any) -> tuple[int, Mapping[str, str], Mapping[str, Any]]:
+        return status, {}, {}
+
+    return send
+
+
+def _raising_send(method: str, url: str, **kwargs: Any) -> tuple[int, Mapping[str, str], Mapping[str, Any]]:
+    raise TransportTimeoutError("transport failure")
+
+
+@pytest.mark.parametrize(
+    ("send", "error_type"),
+    [
+        (_status_send(401), KISAuthError),         # 인증 거부
+        (_status_send(403), KISError),             # 기타 4xx
+        (_status_send(429), KISRateLimitError),    # 유량 초과
+        (_status_send(500), KISError),             # 서버/스로틀 5xx (소진)
+        (_raising_send, TransportTimeoutError),    # 전송 실패
+    ],
+)
+def test_error_paths_never_leak_credentials(tmp_path: Any, send: Any, error_type: type[BaseException]) -> None:
+    # BOUNDARY Sec.12.2: 자격증명을 다루는 패키지는 모든 에러 경로에서 비밀 값이 예외 문자열에도,
+    # 그 __cause__/__context__ 연쇄에도 안 섞여 나오는지 회귀로 고정해야 한다. 고유 센티넬로
+    # app_key/app_secret/access_token 셋을 심고 전 경로에서 부재를 확인한다.
+    with pytest.raises(error_type) as excinfo:
+        _leak_probe_transport(tmp_path, send, max_attempts=1).request(
+            method="GET", path="/x", tr_id="TR", idempotent=True
+        )
+    _assert_no_secret_in_chain(excinfo.value)
+
+
 def test_write_500_is_not_retried(tmp_path: Any) -> None:
     # 쓰기(주문)는 500 이어도 재시도 금지(이중체결 방지) -- 1회만 시도하고 바로 오류.
     calls = 0

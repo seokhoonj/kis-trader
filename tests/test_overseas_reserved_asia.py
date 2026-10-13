@@ -458,7 +458,9 @@ def test_asia_reconcile_confirms_receipt_days_after_placement(monkeypatch):
 
 def test_asia_reconcile_zero_match_returns_none_keeps_in_flight(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
-    store = OrderStore()
+    # 반드시 엔진과 같은 frozen 시계로 store 를 만든다 -- wall-clock store 면 접수일자 창에서
+    # 먼저 걸러져 ft_ord_qty 수량 판별이 돌지 않아(이 테스트의 유일한 대상) 공허해진다.
+    store = OrderStore(now=_frozen_now)
     with pytest.raises(OrderTimeoutError):
         _place(_Fake(raises=TransportTimeoutError("t")), store)
     recon_t = _Fake(_list_resp([_list_row(ft_ord_qty="9")]))   # 수량 불일치 -> 매칭 0
