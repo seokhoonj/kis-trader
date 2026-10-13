@@ -260,7 +260,7 @@ IRP(`29`)·파생은 조회 전용이라 주문이 나가지 않습니다. 해�
 | 겹 | 내용 | 환경변수 |
 |---|---|---|
 | 이중 잠금 | 실전 잠금 해제 두 가지가 **모두** 있어야 함 | `KIS_MCP_ALLOW_REAL=1` **그리고** `KIS_MCP_REAL_CONFIRM=i-understand-real-money` |
-| fat-finger 한도 | 실전은 RiskLimits **필수**(안 두면 거부) -- 1주문 최대 수량·금액, 가격 collar. 해외주식 주문은 **통화별 금액 한도**로 검사하며, 그 통화의 한도가 없으면 거부(fail-closed) | `KIS_MCP_MAX_ORDER_QTY` · `KIS_MCP_MAX_ORDER_NOTIONAL`(국내 KRW) · `KIS_MCP_MAX_ORDER_NOTIONAL_<통화>`(예 `..._USD` 해외) · `KIS_MCP_PRICE_COLLAR_PCT` |
+| fat-finger 한도 | 실전은 RiskLimits **필수**(안 두면 거부) -- 국내는 **크기 캡(1주문 최대 수량 또는 금액)** 이 있어야 게이트를 통과하고(가격 collar 는 크기 캡이 아니라 단독으론 불충족), 해외주식 주문은 **통화별 금액 한도**로 검사하며 그 통화의 한도가 없으면 거부(fail-closed) | `KIS_MCP_MAX_ORDER_QTY` · `KIS_MCP_MAX_ORDER_NOTIONAL`(국내 KRW) · `KIS_MCP_MAX_ORDER_NOTIONAL_<통화>`(예 `..._USD` 해외) · `KIS_MCP_PRICE_COLLAR_PCT`(가격 편차 가드) |
 | 종목 허용목록 | 실전은 허용목록을 명시해야 함(비어 있으면 실거래 안 함) | `KIS_MCP_SYMBOL_ALLOWLIST=005930,000660` |
 | 사람 확인 | elicitation 으로 주문 내용을 사람에게 그대로 보여 주고 승인받음 -- 모델이 사람 대신 승인할 수 없음. 앱이 이 기능을 지원 안 하면 실주문 거부 | (AI 앱이 elicitation 지원해야) |
 | 서킷브레이커 | 한 세션에서 실주문이 정한 횟수를 넘으면 멈추고, 사람이 다시 켜기 전까지 막음 | `KIS_MCP_MAX_REAL_ORDERS`(기본 10) |

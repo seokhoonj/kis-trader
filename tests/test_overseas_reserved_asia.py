@@ -450,6 +450,8 @@ def test_asia_reconcile_confirms_receipt_days_after_placement(monkeypatch):
     recon_t = _Fake(_list_resp([_list_row(rsvn_ord_rcit_dt="20240530")]))
     rep = _client(recon_t, store).orders.reconcile("c1")
     assert rep is not None and rep.order_id == "0030138295"
+    # 조회 start 가 발주일(5/30)-7 = 5/23 로 co-anchor 됐는지 핀한다(호출일-7=5/27 로 되돌리면 깨짐).
+    assert recon_t.calls[0]["params"]["INQR_STRT_DT"] == "20240523"
 
 
 def test_asia_reconcile_zero_match_returns_none_keeps_in_flight(monkeypatch):

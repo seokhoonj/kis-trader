@@ -199,7 +199,7 @@ def positions(
 
 
 def open_orders(kis: KISClient, *, limit: int = 100) -> list[dict[str, Any]]:
-    """주문 가능한 국내주식 계좌(위탁 01·연금저축 22)의 미체결(정정취소가능) 주문. IRP(29)는 주문이
+    """주문 가능한 국내주식 계좌(위탁·ISA 01·연금저축 22)의 미체결(정정취소가능) 주문. IRP(29)는 주문이
     없어 조회 대상이 아니다(거부). 상품코드가 아니라 주문 능력(orderable)으로 가른다 -- 국내 미체결
     엔드포인트(TTTC0084R)는 상품코드로 막히지 않고 라이브러리 ``account.domestic.open_orders()`` 경로에도
     상품 게이트가 없어, 주문을 낼 수 있는 계좌의 취소 가능 주문을 상품코드로 숨기지 않는다."""
@@ -207,7 +207,7 @@ def open_orders(kis: KISClient, *, limit: int = 100) -> list[dict[str, Any]]:
     account = _active_stock_account(kis)
     if not is_orderable_account(account):
         raise KISUsageError(
-            f"미체결(정정취소가능) 주문 조회는 주문 가능한 국내주식 계좌(위탁 01·연금저축 22) "
+            f"미체결(정정취소가능) 주문 조회는 주문 가능한 국내주식 계좌(위탁·ISA 01·연금저축 22) "
             f"전용이다 -- 현재 계좌는 주문 대상이 아니다(상품코드 {account.product_code}). IRP(29)는 "
             "조회전용이라 미체결 주문이 없다."
         )
@@ -293,9 +293,9 @@ def _require_domestic_cap(*, is_real: bool, region: str, has_domestic_cap: bool)
     if is_real and region == "domestic" and not has_domestic_cap:
         raise KISUsageError(
             "국내 실전 주문엔 국내(KRW)에 적용되는 fat-finger 캡이 필요하다 -- 해외 통화캡만 설정하면 "
-            "국내 주문이 무한도로 열린다(fail-closed). 수량/금액/가격collar 캡을 설정하라"
-            "(RiskLimits.max_order_quantity/max_order_notional/price_collar_percent 또는 "
-            "KIS_MCP_MAX_ORDER_QTY/KIS_MCP_MAX_ORDER_NOTIONAL/KIS_MCP_PRICE_COLLAR_PCT)."
+            "국내 주문이 무한도로 열린다(fail-closed). 크기(size) 캡 -- 수량 또는 금액 -- 을 설정하라"
+            "(RiskLimits.max_order_quantity/max_order_notional 또는 KIS_MCP_MAX_ORDER_QTY/"
+            "KIS_MCP_MAX_ORDER_NOTIONAL). 가격 collar 는 크기 캡이 아니라 이 게이트를 만족하지 못한다."
         )
 
 

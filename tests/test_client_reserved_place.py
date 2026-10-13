@@ -437,6 +437,9 @@ def test_reserve_reconcile_confirms_receipt_days_after_placement(monkeypatch):
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
     report = _client(recon_t, store=store).orders.reconcile(cid)
     assert report is not None and report.order_id == "42402"
+    # 조회 start 가 발주일(5/30)-7 = 5/23 로 co-anchor 됐는지 핀한다 -- 호출일(6/3)-7 = 5/27 로 두던
+    # 과거 코드로 되돌리면 이 단언이 깨진다(쿼리창 widening 회귀 가드).
+    assert recon_t.calls[0]["params"]["RSVN_ORD_ORD_DT"] == "20240523"
 
 
 def test_reserve_reconcile_window_and_process_params(monkeypatch):
