@@ -468,6 +468,9 @@ def _reconcile_reserved(
     # 거부하므로(위 _RESERVED_QUERY_MAX_SPAN_DAYS) 국내처럼 넓게 못 쓴다. 접수일자(rsvn_ord_rcit_dt)는
     # 발주일 근처라, 발주일 하루 전부터 폭만큼 앞으로 긁으면 매칭창 {anchor-1,anchor,anchor+1} 을 덮으면서
     # 한도를 지킨다(발주일 미상이면 오늘 기준). 늦은 reconcile 도 발주일에 앵커해 그 행을 받아온다.
+    # 잔여 한계(needs-live-probe): KIS 가 INQR 기간을 어느 날짜(접수일 vs 집행예정일)로 거르는지 미확인
+    # 이라, 발주 후 >5일(폭-1) 뒤 집행되는 예약은 이 ≤6일창 밖으로 떨어져 reconcile 이 못 받아올 수 있다
+    # -- 7일 한도상 창을 더 넓힐 수 없는 구조적 잔여다(옵션 시리즈코드 확보 시 날짜필드 라이브 확정 권장).
     anchor = _claim_date(store.claim_time_for(client_order_id))
     anchored = anchor if anchor is not None else today
     start = f"{anchored - timedelta(days=1):%Y%m%d}"

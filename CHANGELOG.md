@@ -10,6 +10,13 @@ environment = a separate axis).
 
 ### Changed
 
+- **MCP `balance` tool always returns a dict.** The overseas no-market query previously returned a
+  bare list; it is now wrapped as `{"by_market": [...]}` so the tool has one response shape
+  (the library `account.overseas.balance()` list is unchanged).
+- **Overseas reserved-order queries are capped to KIS's 7-day range limit.** KIS rejects an
+  `order-resv-list` query spanning 7 days or more, so `kis.account.overseas.reserved_orders(start,
+  end)` now refuses a span over 6 days with a clear error (instead of an opaque server failure), and
+  reconcile queries a 6-day window anchored on the order's placement date.
 - **`credentials.json` schema v2 (breaking).** Credentials now nest by environment then profile
   (`real` / `paper` top-level blocks), so a profile names an account type and `environment`
   selects which slot to open. A `schema: 2` marker distinguishes the format; the runtime reads only

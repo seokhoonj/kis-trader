@@ -58,6 +58,16 @@ def _client(transport, *, environment="real", account="12345678-01"):
                      environment=environment, transport=transport)
 
 
+def test_overseas_reserved_orders_span_boundary():
+    # KIS 는 조회기간 7일 이상을 거부한다(라이브 2026-10-14). end-start=6일은 허용(가드 통과),
+    # 7일은 와이어 전 거부 -- 경계(6 허용 / 7 거부)를 핀한다.
+    _client(FakeTransport(pages=[_resp([]), _resp([])])).account.overseas.reserved_orders(
+        start="20250501", end="20250507")                       # 6일 -- 허용(US+ASIA 빈 결과)
+    with pytest.raises(KISUsageError, match="7일"):
+        _client(FakeTransport(pages=[])).account.overseas.reserved_orders(
+            start="20250501", end="20250508")                   # 7일 -- 거부(와이어 전)
+
+
 def test_overseas_reserved_parses_ledger_row():
     fake = FakeTransport(pages=[_resp(), _resp([])])   # 미국 1건, 아시아 빈 페이지
     orders = _client(fake).account.overseas.reserved_orders(
