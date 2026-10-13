@@ -236,7 +236,7 @@ class OrderEngine:
         elif isinstance(fingerprint, ImmediateOrderFingerprint) and \
                 (fingerprint.region, fingerprint.asset_class) == ("domestic", "derivative"):
             # 국내 파생(XKFE) 정정·취소는 파생 전용 와이어(order-rvsecncl, ORGN_ODNO only)로 조립한다.
-            if isinstance(fingerprint, ImmediateOrderFingerprint) and fingerprint.session == "night":
+            if fingerprint.session == "night":
                 # 야간(STTN)은 실전 전용 -- paper 야간 지문 도달은 손상 신호라 와이어 전에 fail-closed.
                 if self._environment == "paper":
                     raise KISUsageError(

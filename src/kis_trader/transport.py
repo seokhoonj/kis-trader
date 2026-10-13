@@ -62,14 +62,15 @@ class RawResponse:
 
 @runtime_checkable
 class Transport(Protocol):
-    """저수준 전송 계약. 실제 HTTP 세션과 테스트용 가짜 전송이 모두 구현한다."""
+    """저수준 전송 계약. 실제 HTTP 세션과 테스트용 가짜 전송이 모두 구현한다.
 
-    #: 이 전송이 향하는 KIS 환경("real"/"paper"). 세션의 안전 게이트가 실제 소켓 목적지와
-    #: 갈라지지 않았는지(split-brain) 확인하는 데 쓴다. 실제 전송은 반드시 밝힌다. 세션은 이 값을
-    #: **best-effort** 로 읽어(``getattr(transport, "environment", None)``), 이 필드가 없는 최소한의
-    #: 가짜 전송(실 소켓 없음)은 정렬된 것으로 보고 통과시킨다 -- 게이트가 막는 건 환경을 밝히면서
-    #: 세션과 어긋난 실 전송뿐이다.
-    environment: Environment
+    계약의 필수 멤버는 :meth:`request` 하나다. 구현체는 선택적으로 ``environment: Environment``
+    속성(이 전송이 향하는 KIS 환경 "real"/"paper")을 노출할 수 있다 -- 실제 HTTP 전송은 이를
+    밝히고, 세션의 안전 게이트가 실제 소켓 목적지와 갈라지지 않았는지(split-brain) 확인하는 데
+    쓴다. 세션은 이 값을 **best-effort** 로 읽어(``getattr(transport, "environment", None)``),
+    속성이 없는 최소한의 가짜 전송(실 소켓 없음)은 정렬된 것으로 보고 통과시킨다 -- 게이트가 막는
+    건 환경을 밝히면서 세션과 어긋난 실 전송뿐이다. 그래서 환경은 **계약의 필수 멤버가 아니다**.
+    """
 
     def request(
         self,

@@ -20,6 +20,8 @@ from ._literals import (
     Direction,
     Environment,
     FluctuationDirection,
+    JSONObject,
+    JSONValue,
     NightMarginDivision,
     Numeric,
     ProfitSort,
@@ -377,7 +379,7 @@ from .reserved_order import DomesticReservedOrder, ReservedProcess
 from .risk import RiskLimits
 from .store import OrderStore
 from .trade import Trade
-from .transport import RawResponse, Transport
+from .transport import RawResponse, Transport, TransportTimeoutError
 
 try:
     from importlib.metadata import PackageNotFoundError, version
@@ -559,6 +561,8 @@ __all__ = [
     "InvestorNetActivity",
     "InvestorNetBuyStock",
     "InvestorType",
+    "JSONObject",
+    "JSONValue",
     "KISClient",
     "KISConfig",
     "LendableStock",
@@ -706,6 +710,7 @@ __all__ = [
     "TradeSide",
     "TradingDay",
     "Transport",
+    "TransportTimeoutError",
     "TrendInterval",
     "UnderlyingQuote",
     "UnderlyingSort",

@@ -57,11 +57,9 @@ from ._session import (
     OrderSnapshot,
     _StartupAuthorization,
 )
+from .handlers import Session
 
 _logger = logging.getLogger("kis_trader.mcp")
-
-#: ``quote`` 의 세션 선택자 -- 정규장(regular)/시간외 단일가(after_hours, 국내 전용).
-Session = Literal["regular", "after_hours"]
 
 
 def _int_env(environ: dict[str, str], name: str, default: int) -> int:
@@ -420,7 +418,7 @@ def build_server(
         return handlers.ranking_change(account_session.read_client(), direction=direction, limit=limit)
 
     @server.tool()
-    def balance(region: Region = "domestic", market: str | None = None) -> Any:
+    def balance(region: Region = "domestic", market: str | None = None) -> dict[str, Any] | list[dict[str, Any]]:
         """계좌 잔고 요약. region='domestic' 은 활성 계좌 종류로 분기(위탁/연금저축=국내주식, IRP=퇴직연금).
         region='overseas' 는 해외주식 잔고(general·실전 전용; market 생략 시 시장별 요약 리스트, 반환 shape 상이)."""
         # client 와 active_profile 을 한 락 아래서 함께 떠(TOCTOU 방지) 해외 게이트가 일관된 짝을 보게 한다.

@@ -80,7 +80,7 @@ if TYPE_CHECKING:
 #: XDG 하위 디렉터리 이름(``~/.config/kis-trader`` / ``~/.cache/kis-trader``).
 _APP_DIR_NAME = "kis-trader"
 
-#: 접속 환경. 프로필별로 저장한다(기본 real). 모의계좌만 paper.
+#: 접속 환경. 자격증명은 환경 블록(바깥) 안에 프로필별로 중첩되고, 환경이 별개 축이다(기본 paper).
 _ENVIRONMENTS = ("real", "paper")
 
 #: 프로필 이름 규칙 -- 소문자/숫자/밑줄. 환경변수 키(``KIS_<이름대문자>_APP_KEY``)로 안전히 올릴 수

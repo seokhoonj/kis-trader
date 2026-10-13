@@ -35,7 +35,15 @@ def fetch_approval_key(
         "appkey": app_key,
         "secretkey": app_secret,
     }
-    status, data = poster(url, body)
+    try:
+        status, data = poster(url, body)
+    except (OSError, ValueError) as exc:
+        # 전송 오류(requests 예외는 OSError 계열)나 JSON 디코드 실패(ValueError)를 그대로 올리면
+        # 호출자가 raw 예외를 떠안는다 -- auth 계약에 맞춰 KISAuthError 로 승격한다(원문은 안 싣는다).
+        raise KISAuthError("실시간 접속키 발급 실패 -- 전송/응답 처리 오류.") from exc
+    if not isinstance(data, Mapping):
+        # 응답이 매핑이 아니면(예: JSON 배열) ``.get`` 이 AttributeError 를 낸다 -- 먼저 거부한다.
+        raise KISAuthError(f"실시간 접속키 발급 실패 (status={status}).") from None
     approval_key = data.get("approval_key")
     # data 는 Mapping[str, Any] 라 truthy 만으론 str 을 보장 못 한다 -- isinstance 로 좁혀야 반환 계약이 정직하다.
     if status != 200 or not isinstance(approval_key, str) or not approval_key:

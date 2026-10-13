@@ -13,12 +13,13 @@ from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Any, cast
+from typing import Any, Literal, cast, get_args
 
 from .._literals import Direction
 from ..account import _IRP_PRODUCT_CODE, StockAccount
 from ..client import KISClient
 from ..errors import KISUsageError
+from ..instrument import Region
 from ..order import DomesticDivision, Side
 from ..overseas._engine.orders import resolve_risk_currency
 from ._guardrails import (
@@ -33,6 +34,14 @@ from ._policy import (
     is_orderable_account,
     require_overseas_general_account,
 )
+
+#: ``quote`` 의 세션 선택자 -- 정규장(regular)/시간외 단일가(after_hours, 국내 전용). MCP 도구의
+#: 입력 스키마(:mod:`kis_trader.mcp.server`)와 아래 검증이 한 출처를 쓰도록 여기서 정의한다.
+Session = Literal["regular", "after_hours"]
+
+#: 검증 집합을 리터럴에서 파생한다(한 출처) -- 리터럴에 값이 추가되면 검증도 자동으로 따라간다.
+_REGIONS = frozenset(get_args(Region))
+_QUOTE_SESSIONS = frozenset(get_args(Session))
 
 #: 결과에 **절대** 실려선 안 되는 자격증명 키(방어적 denylist). 현재 직렬화 대상은 엔티티뿐이라
 #: 이 키들이 나올 일이 없지만, 미래에 raw 매핑을 돌려주는 핸들러가 생겨도 시크릿이 새지 않게 한다.
@@ -107,10 +116,10 @@ def quote(
 ) -> dict[str, Any]:
     """종목 현재가 스냅샷. ``region="overseas"`` 면 해외(거래소 자동 판별). ``session="after_hours"`` 면
     국내 시간외 단일가(예상체결가·최우선호가) -- **국내 전용**이다. 검증 순서: region -> session -> 조합."""
-    if region not in ("domestic", "overseas"):
-        raise KISUsageError(f"region 은 'domestic'/'overseas' 만 (받은 값: {region!r}).")
-    if session not in ("regular", "after_hours"):
-        raise KISUsageError(f"session 은 'regular'/'after_hours' 만 (받은 값: {session!r}).")
+    if region not in _REGIONS:
+        raise KISUsageError(f"region 은 {sorted(_REGIONS)} 중 하나여야 한다 (받은 값: {region!r}).")
+    if session not in _QUOTE_SESSIONS:
+        raise KISUsageError(f"session 은 {sorted(_QUOTE_SESSIONS)} 중 하나여야 한다 (받은 값: {session!r}).")
     if session == "after_hours":
         if region != "domestic":
             raise KISUsageError("시간외(after_hours)는 국내(domestic) 전용이다.")
@@ -158,7 +167,7 @@ def balance(
         result = account.overseas.balance(market=market)  # market=None -> list, 지정 -> 단건
         return cast("dict[str, Any] | list[dict[str, Any]]", _serialize(result))
     if region != "domestic":
-        raise KISUsageError(f"region 은 'domestic'/'overseas' 만 (받은 값: {region!r}).")
+        raise KISUsageError(f"region 은 {sorted(_REGIONS)} 중 하나여야 한다 (받은 값: {region!r}).")
     account = _active_stock_account(kis)
     if account.product_code == _IRP_PRODUCT_CODE:
         out: dict[str, Any] = _serialize(account.pension.balance())
@@ -184,7 +193,7 @@ def positions(
         else:
             rows = account.domestic.positions()
     else:
-        raise KISUsageError(f"region 은 'domestic'/'overseas' 만 (받은 값: {region!r}).")
+        raise KISUsageError(f"region 은 {sorted(_REGIONS)} 중 하나여야 한다 (받은 값: {region!r}).")
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 

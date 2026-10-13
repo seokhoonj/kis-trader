@@ -1,7 +1,7 @@
 """로컬 주문 멱등 저장소 -- :class:`OrderStore`.
 
-KIS Open API에는 네이티브 멱등키(서버 dedup)가 **없다**(하베스트로 검증). 따라서
-중복 전송 방지를 클라이언트가 책임진다. 각 ``client_order_id`` 는 세 상태를 가진다:
+KIS Open API 주문 엔드포인트에는 네이티브 멱등키(서버 dedup)가 **없다** -- 같은 주문을 두 번
+보내면 두 번 접수된다. 따라서 중복 전송 방지를 클라이언트가 책임지며, 이 저장소가 그 장벽이다. 각 ``client_order_id`` 는 세 상태를 가진다:
 
 - **미기록**: 처음 보는 주문 -> 전송 가능.
 - **in-flight**: 전송했으나 결과 미확인(타임아웃 등) -> **재전송 금지**, 재조회 필요.
@@ -135,6 +135,10 @@ class OrderStore:
     ``retention_days`` 는 완료(비-in-flight) 리포트를 저장에 유지할 일수다. 이보다 오래된
     완료 리포트만 정리되고 **in-flight 는 나이와 무관하게 절대 정리하지 않는다**(멱등 장벽
     유지). ``<= 0`` 이면 정리 자체를 끈다(무한 보존).
+
+    이 인스턴스는 ``KISClient(store=...)`` 로 세션에 넘겨 영속 dedup 을 켜는 용도다(권장).
+    claim 결과 타입(:class:`Claimed`/:class:`Completed`/:class:`InFlight`/:class:`Conflict`/
+    :class:`PriorChangeInFlight`)과 :class:`Binding` 은 내부용이라 공개 표면에 두지 않는다.
     """
 
     def __init__(

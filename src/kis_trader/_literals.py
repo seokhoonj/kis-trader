@@ -1,9 +1,11 @@
-"""닫힌 KIS 와이어 어휘 + 공용 타입 별칭의 단일 거주지.
+"""닫힌 KIS 와이어 어휘 + 자연스러운 도메인 소유자가 없는 공용 타입 별칭의 거주지.
 
 KIS 가 값을 고정된 코드 집합으로만 받는 자리(주문 방향·신용유형·접속 환경·파생
 시장/상품 구분 등)의 :class:`~typing.Literal` 별칭과, 여러 모듈이 공유하는 수치/JSON
 별칭을 한곳에 모은다. 목적은 **한 어휘 = 한 정의**: 같은 코드 집합이 모듈마다 재정의
-되어 어긋나는 일을 막는다.
+되어 어긋나는 일을 막는다. (어느 도메인 모듈이 자연스럽게 소유하는 별칭 -- 예:
+:data:`~kis_trader.instrument.Region`/:data:`~kis_trader.instrument.AssetClass` 은
+:mod:`.instrument` -- 은 거기서 정의하고 여기로 옮기지 않는다.)
 
 이 모듈은 표준 라이브러리만 쓰고, 이미 각 도메인 모듈이 소유한 별칭은 **재정의하지
 않고 재수출**한다(예: :data:`Side`/:data:`CreditType` 은 :mod:`.order`, :data:`Environment`

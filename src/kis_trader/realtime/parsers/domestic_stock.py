@@ -14,7 +14,7 @@ from collections.abc import Mapping
 from dataclasses import dataclass, field
 from decimal import Decimal
 from types import MappingProxyType
-from typing import Any
+from typing import Any, Literal, cast
 
 from ..._internal._wire import _apply_change_sign
 from .._registry import TRSpec, register
@@ -541,7 +541,7 @@ class StockExecutionNotice:
     account_number: str  # ACNT_NO
     order_id: str  # ODER_NO
     original_order_id: str  # OODER_NO
-    sell_buy: str  # SELN_BYOV_CLS 01 매도 02 매수
+    sell_buy: Literal["01", "02"]  # SELN_BYOV_CLS 01 매도 02 매수 (닫힌 2값 와이어 코드)
     symbol: str  # STCK_SHRN_ISCD
     filled_quantity: Decimal  # CNTG_QTY
     filled_price: Decimal  # CNTG_UNPR 체결단가
@@ -574,7 +574,7 @@ def parse_execution_notice(fields: list[str]) -> StockExecutionNotice:
         account_number=raw["ACNT_NO"],
         order_id=raw["ODER_NO"],
         original_order_id=raw["OODER_NO"],
-        sell_buy=raw["SELN_BYOV_CLS"],
+        sell_buy=cast('Literal["01", "02"]', raw["SELN_BYOV_CLS"]),
         symbol=raw["STCK_SHRN_ISCD"],
         filled_quantity=_decimal(raw["CNTG_QTY"]),
         filled_price=_decimal(raw["CNTG_UNPR"]),
