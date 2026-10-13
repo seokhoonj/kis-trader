@@ -6,18 +6,18 @@
 
 ```text
 kis  (KISClient 세션)
-├── domestic                           # 국내 시세·발주·시장·검색 → 아래 국내 트리
-├── overseas                           # 해외 시세·발주·순위 → 아래 해외 트리
-├── orders                             # 주문 수명주기 → 아래 주문 트리
-├── account                            # 계좌 조회 (상품코드로 분기) → 아래 계좌 트리
-├── instrument(symbol, exchange=None)  # 해외 심볼 마스터 조회
-├── realtime(...)                      # 실시간 웹소켓 → 아래 실시간 트리
-├── revoke_token()                     # 접근 토큰 폐기
-├── transport                          # 저수준 전송 계층
-├── environment                        # 실전/모의 환경
-├── has_risk_limits                    # 사전 리스크 한도 주입 여부
-├── hts_id                             # HTS 로그인 아이디
-└── close()                            # 세션/주문 저장소 닫기 (with KISClient(...) 로 자동)
+├── domestic                              # 국내 시세·발주·시장·검색 → 아래 국내 트리
+├── overseas                              # 해외 시세·발주·순위 → 아래 해외 트리
+├── orders                                # 주문 수명주기 → 아래 주문 트리
+├── account                               # 계좌 조회 (상품코드로 분기) → 아래 계좌 트리
+├── instrument(symbol, *, exchange=None)  # 해외 심볼 마스터 조회
+├── realtime(...)                         # 실시간 웹소켓 → 아래 실시간 트리
+├── revoke_token()                        # 접근 토큰 폐기
+├── transport                             # 저수준 전송 계층
+├── environment                           # 실전/모의 환경
+├── has_risk_limits                       # 사전 리스크 한도 주입 여부
+├── hts_id                                # HTS 로그인 아이디
+└── close()                               # 세션/주문 저장소 닫기 (with KISClient(...) 로 자동)
 ```
 
 ## `kis.domestic` — 국내 시세·발주·시장·검색
@@ -235,7 +235,7 @@ kis.domestic
 
 ```text
 kis.overseas
-├── stock(symbol, exchange=None)        # 해외 종목 핸들
+├── stock(symbol, *, exchange=None)     # 해외 종목 핸들
 │   ├── quote()                         # 현재가 스냅샷
 │   ├── current_price()                 # 현재체결가·누적 거래량
 │   ├── bars(interval='1d', ...)        # OHLCV 봉
@@ -247,7 +247,7 @@ kis.overseas
 │   ├── overnight_sell(...)             # 미국 오버나이트 매도
 │   ├── reserve_buy(...)                # 예약매수
 │   └── reserve_sell(...)               # 예약매도
-├── index(code, kind='index')           # 지수/환율/국채/금선물 핸들
+├── index(code, *, kind='index')        # 지수/환율/국채/금선물 핸들
 │   └── bars(interval='1d', ...)        # 지수류 기간봉
 ├── futures(symbol)                     # 해외 선물 계약 핸들
 │   ├── quote()                         # 계약 현재가
@@ -261,7 +261,7 @@ kis.overseas
 ├── futures_details(symbols)            # 선물 명세 배치(최대 32)
 ├── option_details(symbols)             # 옵션 명세 배치(최대 30)
 ├── derivatives_market_hours(...)       # 상품군별 장운영시간
-├── futures_open_interest(symbol)       # CFTC 미결제약정
+├── futures_open_interest(symbol, *, as_of, mode='quantity')  # CFTC 미결제약정
 ├── settlement_dates()                  # 각 시장 결제일자 참조표
 ├── quotes(symbols)                     # 여러 종목 현재가(최대 10)
 ├── search_stocks(exchange, ...)        # 조건검색(exchange='US'는 NAS/NYS/AMS 통합)
@@ -403,7 +403,7 @@ kis.realtime()
 │       ├── stock(hts_id)                    # → StockExecutionNotice
 │       └── derivative(hts_id, session=...)  # → DerivativeExecutionNotice
 └── overseas                                 # 해외 실시간
-    ├── stock(symbol, exchange=None)         # RSYM 은 종목마스터로 해석
+    ├── stock(symbol, *, exchange=None)      # RSYM 은 종목마스터로 해석
     │   ├── trades()                         # 지연체결 → OverseasDelayedTradeTick
     │   └── order_book(zone='global')        # 호가(global 10 / asia 1)
     ├── futures(symbol)                      # → OverseasDerivativeHandle

@@ -14,7 +14,7 @@ pip install kis-trader   # 파이썬 3.11+
 ```python
 from kis_trader import KISClient
 
-kis = KISClient(app_key="…", app_secret="…", account="12345678-01")   # 세션 열기
+kis = KISClient(app_key="…", app_secret="…", account="12345678-01", environment="paper")   # 세션 열기
 
 kis.domestic.stock("005930").quote()                 # 삼성전자 현재가
 kis.overseas.stock("AAPL").quote()                   # AAPL (거래소 자동)

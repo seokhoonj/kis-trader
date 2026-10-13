@@ -2,7 +2,7 @@
   "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
   "name": "io.github.seokhoonj/kis-trader",
   "title": "KIS Trader",
-  "description": "MCP server for the Korea Investment & Securities (KIS) Open API: account reads, order preview, and guarded order placement/modify/cancel (domestic stock); paper by default, with live orders behind explicit safety gates.",
+  "description": "MCP server for the Korea Investment & Securities (KIS) Open API with guarded live orders.",
   "version": "0.6.0",
   "websiteUrl": "https://seokhoonj.github.io/kis-trader/",
   "repository": {
@@ -31,20 +31,20 @@
       "environmentVariables": [
         {
           "name": "KIS_APP_KEY",
-          "description": "KIS Open API app key. Alternatively set KIS_MCP_PROFILE to a saved profile that already holds the credentials.",
-          "isRequired": true,
+          "description": "KIS Open API app key. Alternatively set KIS_MCP_PROFILE to a saved profile that already holds the credentials (then this is not needed).",
+          "isRequired": false,
           "isSecret": true
         },
         {
           "name": "KIS_APP_SECRET",
-          "description": "KIS Open API app secret.",
-          "isRequired": true,
+          "description": "KIS Open API app secret. Alternatively set KIS_MCP_PROFILE to a saved profile that already holds the credentials (then this is not needed).",
+          "isRequired": false,
           "isSecret": true
         },
         {
           "name": "KIS_ACCOUNT",
-          "description": "Account number in CANO-ACNT form, e.g. 12345678-01.",
-          "isRequired": true,
+          "description": "Account number in CANO-ACNT form, e.g. 12345678-01. Alternatively set KIS_MCP_PROFILE to a saved profile that already holds the account (then this is not needed).",
+          "isRequired": false,
           "placeholder": "12345678-01"
         },
         {

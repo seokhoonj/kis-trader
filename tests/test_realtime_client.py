@@ -178,6 +178,9 @@ class OpenWebSocket:
     def __init__(self):
         self.sent: list[str] = []
         self._closed = asyncio.Event()
+        # 송신이 일어날 때마다 set 되는 cross-thread 동기점. 메인 스레드가 벽시계 폴링 대신
+        # 이 이벤트에 블록해, 소켓 스레드가 프레임을 보내는 즉시 깨어난다(느린 CI 에서도 결정적).
+        self.sent_event = threading.Event()
 
     def __aiter__(self):
         return self
@@ -187,7 +190,8 @@ class OpenWebSocket:
         raise StopAsyncIteration
 
     async def send(self, message):
-        self.sent.append(message)
+        self.sent.append(message)   # append 를 먼저 -- 깨어난 대기자가 pred 로 리스트를 읽을 때 보이도록
+        self.sent_event.set()
 
     async def pong(self, data):
         pass
@@ -200,13 +204,18 @@ def _open_client(ws):
     return RealtimeClient("KEY", "ws://x", connect=_connector(ws), reconnect=False)
 
 
-def _wait_until(pred, timeout=2.0):
+def _wait_until(ws, pred, timeout=2.0):
+    # 소켓이 프레임을 보낼 때마다 set 되는 이벤트에 블록한다 -- 벽시계 sleep 폴링이 아니라
+    # 송신 즉시 깨어나 pred 를 재평가하므로 느린 CI 에서도 결정적이다. timeout 은 pred 가 끝내
+    # 참이 되지 않는 실패에서 테스트가 매달리지 않게 하는 안전망일 뿐이다(정상 경로에선 닿지 않음).
     deadline = time.monotonic() + timeout
-    while time.monotonic() < deadline:
-        if pred():
-            return True
-        time.sleep(0.01)
-    return pred()
+    while not pred():
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return pred()
+        ws.sent_event.wait(remaining)
+        ws.sent_event.clear()       # 다음 송신을 기다리기 위해 리셋(append 가 set 에 선행하므로 손실 없음)
+    return True
 
 
 def _frames_of(ws, tr_type, tr_id):
@@ -226,12 +235,12 @@ def test_typed_subscription_refcount_wire_first_subscribe_last_unsubscribe():
     client.start()
     s1 = client._open_typed("H0IFCNT0", "101W09")
     s2 = client._open_typed("H0IFCNT0", "101W09")
-    assert _wait_until(lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
+    assert _wait_until(ws, lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
     assert len(_frames_of(ws, "1", "H0IFCNT0")) == 1  # 첫 구독만 등록(중복 없음)
 
     s1.close()  # 마지막 아님 -> wire 해제 예약 안 함(코드상 last 에서만)
     s2.close()  # 마지막 -> 한 번 해제
-    assert _wait_until(lambda: len(_frames_of(ws, "2", "H0IFCNT0")) == 1)
+    assert _wait_until(ws, lambda: len(_frames_of(ws, "2", "H0IFCNT0")) == 1)
     client.stop()
     assert len(_frames_of(ws, "1", "H0IFCNT0")) == 1  # 등록 정확히 1
     assert len(_frames_of(ws, "2", "H0IFCNT0")) == 1  # 해제 정확히 1
@@ -463,7 +472,7 @@ def test_closing_typed_keeps_wire_while_raw_callback_shares_contract():
     client.start()
     client.subscribe("H0IFCNT0", "101W09", on=lambda _m: None)   # raw
     sub = client._open_typed("H0IFCNT0", "101W09")               # typed, 같은 계약
-    assert _wait_until(lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
+    assert _wait_until(ws, lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
     sub.close()                                                  # 타입드만 닫음 -- raw 는 남음
     assert ("H0IFCNT0", "101W09") in client._desired            # raw 가 여전히 원함
     assert client._callbacks.get(("H0IFCNT0", "101W09"))        # raw 콜백 유지
@@ -479,7 +488,7 @@ def test_raw_unsubscribe_keeps_wire_while_typed_subscription_shares_contract():
     client.start()
     client.subscribe("H0IFCNT0", "101W09", on=lambda _m: None)
     client._open_typed("H0IFCNT0", "101W09")
-    assert _wait_until(lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
+    assert _wait_until(ws, lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
     client.unsubscribe("H0IFCNT0", "101W09")                    # raw 만 해제 -- 타입드 남음
     assert ("H0IFCNT0", "101W09") in client._desired
     assert client._subscriptions.get(("H0IFCNT0", "101W09"))    # 타입드 구독 유지
@@ -497,7 +506,7 @@ def test_closing_typed_keeps_wire_while_callback_free_raw_shares_contract():
     client.start()
     client.subscribe("H0IFCNT0", "101W09")                       # raw, 콜백 없음(on=None)
     sub = client._open_typed("H0IFCNT0", "101W09")               # typed, 같은 계약
-    assert _wait_until(lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
+    assert _wait_until(ws, lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
     sub.close()                                                  # 타입드만 닫음 -- raw 는 남음
     assert ("H0IFCNT0", "101W09") in client._desired            # raw 가 여전히 원함(끊기면 안 됨)
     assert ("H0IFCNT0", "101W09") in client._raw_subscriptions  # 콜백 없어도 raw 소유권 추적
@@ -513,11 +522,11 @@ def test_callback_free_raw_unsubscribe_releases_wire_when_no_typed_remains():
     client = _open_client(ws)
     client.start()
     client.subscribe("H0IFCNT0", "101W09")                       # raw, 콜백 없음
-    assert _wait_until(lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
+    assert _wait_until(ws, lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
     client.unsubscribe("H0IFCNT0", "101W09")
     assert ("H0IFCNT0", "101W09") not in client._raw_subscriptions
     assert ("H0IFCNT0", "101W09") not in client._desired
-    assert _wait_until(lambda: len(_frames_of(ws, "2", "H0IFCNT0")) == 1)  # wire 해제 나감
+    assert _wait_until(ws, lambda: len(_frames_of(ws, "2", "H0IFCNT0")) == 1)  # wire 해제 나감
 
 
 class _DeadLoop:

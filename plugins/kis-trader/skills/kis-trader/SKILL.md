@@ -60,12 +60,13 @@ kis = KISClient(
     app_key=os.environ["KIS_APP_KEY"],
     app_secret=os.environ["KIS_APP_SECRET"],
     account=os.environ["KIS_ACCOUNT"],
-    environment="paper",            # 모의로 명시 고정. 생략하면 라이브러리 기본은 real 이니 반드시 적는다.
+    environment="paper",            # 앱키·시크릿을 직접 주면 environment 를 반드시 명시한다(생략하면 생성 시점에 거부).
 )
 ```
 
-- **기본은 paper.** `real` 은 사용자가 명시적으로 요청할 때만 쓴다 — 그리고 사용자가 지정한
-  환경을 조용히 다른 것으로 바꾸지도 않는다.
+- **저장된 프로필로 열면 기본은 paper** — 앱키·시크릿을 직접 주면 `environment` 를 반드시 명시한다
+  (생략 시 생성 시점에 거부). `real` 은 사용자가 명시적으로 요청할 때만 쓰고, 사용자가 지정한 환경을
+  조용히 다른 것으로 바꾸지 않는다.
 - **real 주문 세션은 영속 dedup 저장소를 준다:** `store=OrderStore(path="...")`. 프로세스가
   재시작돼도 이중체결 방지 지문이 유지된다(패키지가 실거래에 강력 권장).
 - 사용자가 수량·금액·가격이탈·틱 상한을 말하면 `risk=RiskLimits(...)` 로 주입한다. **스킬이

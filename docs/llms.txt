@@ -28,7 +28,7 @@
 
 - [순위·조건검색](https://seokhoonj.github.io/kis-trader/screening.html): 등락률·거래량·시가총액 순위, 조건검색
 - [시장·지수](https://seokhoonj.github.io/kis-trader/market.html): 지수·업종·시장 통계
-- [기업행위·일정](https://seokhoonj.github.io/kis-trader/corporate-actions.html): 배당·증자·거래정지, 휴장일
+- [기업행위·일정](https://seokhoonj.github.io/kis-trader/corporate-actions.html): 배당·공모주·증자·감자·합병·상장 등 기업행위 일정
 
 ## 해외·연금
 
