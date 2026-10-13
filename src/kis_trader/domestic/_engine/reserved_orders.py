@@ -311,7 +311,13 @@ def reconcile_reserved_order(
             f"({type(fingerprint).__name__}, 내부 상태 불일치)."
         )
     today = datetime.now(_KST).date()
-    start = f"{today - timedelta(days=_RECONCILE_LOOKBACK_DAYS):%Y%m%d}"
+    # 조회창과 매칭창을 **발주일**(store 의 claim 확보일)에 함께 앵커한다 -- 예약은 며칠 뒤 체결되므로
+    # 늦은 reconcile 이 정상인데, 호출일 고정창이면 발주 T+2 부터 접수일자가 매칭창 밖으로 떨어지고(영구
+    # 미확정->수동 재주문->이중체결 위험), 조회 start 가 호출일-7 에 묶이면 더 늦은 reconcile 은 발주일 행을
+    # 애초에 안 받아온다. start 를 발주일까지 뒤로 늘려 양 창을 일치시킨다(과거로의 확대라 안전).
+    anchor = _claim_date(store.claim_time_for(client_order_id))
+    query_from = min(anchor, today) if anchor is not None else today
+    start = f"{query_from - timedelta(days=_RECONCILE_LOOKBACK_DAYS):%Y%m%d}"
     end = f"{today + timedelta(days=_RECONCILE_FORWARD_DAYS):%Y%m%d}"
     try:
         # 처리/미처리 모두(all) -- 집행 완료된 예약도 '접수됐음' 은 확정할 수 있어야 한다(취소 제외는
@@ -326,10 +332,7 @@ def reconcile_reserved_order(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
-    # 접수일자 매칭 창은 reconcile 호출일이 아니라 예약을 **발주한 날**(store 의 claim 확보 시각)에
-    # 앵커한다 -- 예약은 며칠 뒤 체결되므로 늦은 reconcile 이 정상인데, 호출일 고정창이면 발주 T+2 부터
-    # 접수일자가 창 밖으로 떨어져 영구 미확정(None 반복)되어 수동 재주문->이중체결 위험을 만든다.
-    recent = _reconcile_recency_window(_claim_date(store.claim_time_for(client_order_id)), today)
+    recent = _reconcile_recency_window(anchor, today)
     matches = _filter_matching_reserved(rows, fingerprint, recent)
     if len(matches) > 1:
         raise KISError(

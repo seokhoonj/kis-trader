@@ -298,7 +298,7 @@ def test_overseas_reserve_reconcile_confirms_single_match(monkeypatch):
 
 def test_overseas_reserve_reconcile_ignores_canceled_mismatch_and_old_receipt(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
-    store = OrderStore()
+    store = OrderStore(now=_frozen_now)              # claim 시계를 프리즌 날짜(6/3)로 -- 창 위치 결정화
     cid = "20240101-ovsresv-rc02"
     place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):

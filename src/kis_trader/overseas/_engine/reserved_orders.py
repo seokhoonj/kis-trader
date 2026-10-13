@@ -452,7 +452,12 @@ def _reconcile_reserved(
             f"({type(fingerprint).__name__}, 내부 상태 불일치)."
         )
     today = (now or datetime.now(_KST)).date()
-    start = f"{today - timedelta(days=_RECONCILE_LOOKBACK_DAYS):%Y%m%d}"
+    # 조회창과 매칭창을 예약 발주일(store claim 확보일)에 함께 앵커한다 -- 국내 reserved 와 같은 규율
+    # (늦은 reconcile 에도 발주일 행이 조회·매칭에 들어 영구 미확정/이중체결 방지; start 를 발주일까지
+    # 과거로 늘리는 안전한 확대).
+    anchor = _claim_date(store.claim_time_for(client_order_id))
+    query_from = min(anchor, today) if anchor is not None else today
+    start = f"{query_from - timedelta(days=_RECONCILE_LOOKBACK_DAYS):%Y%m%d}"
     end = f"{today + timedelta(days=_RECONCILE_FORWARD_DAYS):%Y%m%d}"
     try:
         rows = _walk(transport, cano, product_code, start, end, market=market)
@@ -462,9 +467,7 @@ def _reconcile_reserved(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
-    # 접수일자 매칭 창을 reconcile 호출일이 아니라 예약 발주일(store claim 확보일)에 앵커한다 --
-    # 국내 reserved 와 같은 규율(늦은 reconcile 에도 접수일자가 창에 들어 영구 미확정/이중체결 방지).
-    recent = _reconcile_recency_window(_claim_date(store.claim_time_for(client_order_id)), today)
+    recent = _reconcile_recency_window(anchor, today)
     matches = _filter_matching(rows, fingerprint, recent)
     if len(matches) > 1:
         raise KISError(

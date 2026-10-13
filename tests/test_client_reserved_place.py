@@ -386,7 +386,7 @@ def test_reserve_reconcile_skips_stale_receipt_same_fingerprint(monkeypatch):
     # 넓은 조회창에 든 옛 접수일(rsvn_ord_rcit_dt)의 같은 지문 예약은 방금 발주분이 아니므로 제외.
     # -> None, in-flight 유지(미접수로 단정하지 않는다).
     monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
-    store = OrderStore()
+    store = OrderStore(now=_frozen_now)              # claim 시계를 프리즌 날짜(6/3)로 -- 창 위치 결정화
     cid = "20240101-reserved-sr01"
     place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):

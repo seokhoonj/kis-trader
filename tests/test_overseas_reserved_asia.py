@@ -436,6 +436,22 @@ def test_asia_reconcile_confirms_single_match_with_receipt_date(monkeypatch):
     assert rep.status is OrderStatus.PENDING_NEW
 
 
+def _placed_0530():
+    return _dt.datetime(2024, 5, 30, 10, 0, tzinfo=_dt.timezone(_dt.timedelta(hours=9)))
+
+
+def test_asia_reconcile_confirms_receipt_days_after_placement(monkeypatch):
+    # 해외(아시아) 예약도 발주(5/30) 후 늦게(6/3) reconcile 해도 접수일자(5/30)가 발주일 앵커 창에 들어
+    # 확정된다 -- 국내 reserved 와 같은 규율(호출일 고정창이면 5/30 이 빠져 영구 미확정되던 회귀의 해외 짝).
+    monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)  # 오늘=6/3
+    store = OrderStore(now=_placed_0530)                     # claim(발주) = 5/30
+    with pytest.raises(OrderTimeoutError):
+        _place(_Fake(raises=TransportTimeoutError("t")), store)
+    recon_t = _Fake(_list_resp([_list_row(rsvn_ord_rcit_dt="20240530")]))
+    rep = _client(recon_t, store).orders.reconcile("c1")
+    assert rep is not None and rep.order_id == "0030138295"
+
+
 def test_asia_reconcile_zero_match_returns_none_keeps_in_flight(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()

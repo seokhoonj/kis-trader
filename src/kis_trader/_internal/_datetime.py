@@ -89,9 +89,12 @@ def _claim_date(claim_iso: str | None) -> date | None:
     if not claim_iso:
         return None
     try:
-        return datetime.fromisoformat(claim_iso).astimezone(_KST).date()
+        parsed = datetime.fromisoformat(claim_iso)
     except ValueError:
         return None
+    if parsed.tzinfo is None:   # 저장 시 KST aware 로 썼으므로 naive 면 KST 로 간주(host-local 재해석 방지)
+        parsed = parsed.replace(tzinfo=_KST)
+    return parsed.astimezone(_KST).date()
 
 
 def _reconcile_recency_window(anchor: date | None, today: date) -> set[date]:
