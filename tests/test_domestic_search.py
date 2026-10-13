@@ -76,6 +76,13 @@ def test_search_finds_listing_with_alphanumeric_code_by_name():
     assert [h.symbol for h in idx.search_stocks("AI반도체TOP2")] == ["0167A0"]
 
 
+def test_search_six_char_uppercase_name_fragment_falls_back_to_name():
+    # 6자 전대문자 이름 조각("NVIDIA")은 코드 형태라 코드검색으로 가지만, 일치하는 코드가 없으면
+    # 이름검색으로 폴백한다 -- 코드검색 전용으로 삼켜 이름 매치를 잃지 않는다(코드 판정 회귀 방지).
+    idx = DomesticListingIndex([DomesticListing("005930", "NVIDIA코리아", "KOSPI")])
+    assert [h.symbol for h in idx.search_stocks("NVIDIA")] == ["005930"]
+
+
 def test_search_orders_exact_then_prefix_then_substring():
     idx = DomesticListingIndex([
         DomesticListing("100000", "KODEX 삼성전자레버리지", "KOSPI"),  # 부분(이름 중간에 포함)

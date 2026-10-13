@@ -196,6 +196,18 @@ class DomesticListingIndex:
         # 코드 역검색 판정: 숫자(길이 무관 -> 코드 접두검색, "0059"->005930) 또는 6자리 대문자
         # 영숫자 완전 단축코드("0167A0" 등 신형 ETF/ELW). 그 밖은 이름 검색.
         is_code_query = text.isdigit() or is_domestic_symbol(text)
+        matches = self._match_listings(text, is_code_query=is_code_query, market=market)
+        # 6자 대문자 영숫자는 코드 형태라 코드검색으로 가지만, 코드가 없으면 영문 이름 조각일 수 있어
+        # ("NVIDIA" 등) 이름검색으로 폴백한다. 순수 숫자 쿼리는 명백히 코드라 폴백하지 않는다.
+        if not matches and is_code_query and not text.isdigit():
+            matches = self._match_listings(text, is_code_query=False, market=market)
+        return matches
+
+    def _match_listings(
+        self, text: str, *, is_code_query: bool, market: DomesticMarketFilter
+    ) -> list[DomesticListing]:
+        """``text`` 를 코드(symbol) 또는 이름(name) 필드에 정확->접두->부분 순으로 매칭한다.
+        코드쿼리는 부분매칭을 쓰지 않는다(코드는 접두까지만 의미 있음)."""
         exact_matches: list[DomesticListing] = []
         prefix_matches: list[DomesticListing] = []
         substring_matches: list[DomesticListing] = []
