@@ -34,9 +34,11 @@
 > ``paper``(fail-safe 기본 -- 실주문은 환경을 명시해야 닿는다; no-auto-promote). 선택 ``data[환경][프로필]``
 조합이 없으면 깔끔한 :class:`KISUsageError`(있는 프로필 나열, 다른 블록에 있으면 그 환경을 짚어줌).
 
-**레거시 읽기 어댑터(비파괴)**: ``schema`` 마커가 없는 평평한 파일(``{"main": {..., "environment":
-"real"}}``)은 기존 의미 그대로 해석한다(프로필별 ``environment`` 필드, ``main`` 폴백, 접두어 키).
-정리는 ``kis config migrate``.
+**런타임은 두 축 schema 2 만 읽는다**: ``schema`` 마커가 없는 옛(0.7.0 이전) 평평한 파일
+(``{"main": {..., "environment": "real"}}``)은 런타임이 해석하지 않는다 -- 비어 있지 않은 그런 파일을
+만나면 조용히 오해석하거나 생략된 환경을 real 로 자동 승격하지 않고, ``'kis config migrate'`` 로 두 축
+형식(schema 2)으로 한 번 변환하라는 :class:`KISUsageError` 로 멈춘다. 변환기(``kis config migrate``)만
+옛 형식을 읽어 schema 2 로 옮긴다.
 
 ``hts_id`` 는 조건검색·관심종목 조회의 ``user_id`` 로 쓰는 HTS 로그인 아이디다(사용자당 하나, 최상위
 공유; 인증엔 안 씀). :meth:`KISConfig.set_hts_id` 로 기록하거나 손 편집한다.
@@ -101,9 +103,9 @@ _HTS_ID_ENV_VAR = "KIS_HTS_ID"
 #: 일부 조회(야간 파생 잔고 등)의 ``ACNT_PWD`` 로만 쓰인다. **비밀값** -- repr/로그에 절대 노출하지 않는다.
 _ACCOUNT_PASSWORD_KEY = "account_password"
 _ACCOUNT_PASSWORD_ENV_VAR = "KIS_ACCOUNT_PASSWORD"
-#: 프로필 이름으로 쓸 수 없는 예약 최상위 키(레거시). 레거시(schema 마커 없는) 파일에서만 쓰는 3종이다
-#: -- 이 집합을 넓히면 레거시 파일에서 ``KISClient(profile="paper")`` 가 깨지므로 3종으로 고정한다.
-#: v2 의 예약 키 집합은 아래 ``_V2_*`` 를 쓴다.
+#: 프로필 이름으로 쓸 수 없는 예약 최상위 키(레거시). 레거시(schema 마커 없는) 파일의 형상 검증과
+#: ``kis config migrate`` 의 읽기에서만 쓰는 3종이다 -- 이 집합을 넓히면 migrate 가 같은 이름의 레거시
+#: 프로필을 메타키로 오인해 건너뛰므로 3종으로 고정한다. v2 의 예약 키 집합은 아래 ``_V2_*`` 를 쓴다.
 _RESERVED_TOP_LEVEL_KEYS = frozenset({_HTS_ID_KEY, _ACCOUNT_PASSWORD_KEY, _DEFAULT_PROFILE_KEY})
 
 #: v2(env-outer) 스키마 마커 키와 버전. 최상위 ``"schema": 2`` 가 있으면 v2, 없으면 레거시로 판별한다.
@@ -201,8 +203,9 @@ def _validate_profile_name_v2(profile: str) -> None:
 
 
 def _env_var_prefix(profile: str) -> str:
-    """프로필 -> 환경변수 키 접두어. 기본 프로필 ``main`` 은 접두어 없이(``KIS_``), 나머지는
-    ``KIS_<이름대문자>_``. 예: ``pension`` -> ``KIS_PENSION_``. (레거시 어댑터 전용.)"""
+    """프로필 -> 옛 환경변수 키 접두어. 기본 프로필 ``main`` 은 접두어 없이(``KIS_``), 나머지는
+    ``KIS_<이름대문자>_``. 예: ``pension`` -> ``KIS_PENSION_``. 런타임 해석에는 쓰지 않고(런타임은 두
+    축 키만 읽는다), ``kis config migrate`` 가 옛 접두어 환경변수를 두 축 키로 바꾸라고 안내하는 표에만 쓴다."""
     return "KIS_" if profile == "main" else f"KIS_{profile.upper()}_"
 
 
@@ -320,17 +323,6 @@ def _load_credentials(directory: Path) -> dict[str, object]:
     return parsed
 
 
-def _select_profile_section(loaded: dict[str, object], profile: str) -> dict[str, object]:
-    """이미 파싱한 credentials 에서 한 프로필의 섹션(없으면 빈 dict). 객체가 아니면 fail-closed.
-    ``loaded`` 를 넘겨받아 resolution 당 파일을 한 번만 파싱하게 한다."""
-    section = loaded.get(profile)
-    if section is None:
-        return {}
-    if not isinstance(section, dict):
-        raise KISUsageError(f"credentials.json 의 프로필 {profile!r} 항목이 객체가 아니다.")
-    return cast("dict[str, object]", section)
-
-
 # --- 스키마 판별 + v2(env-outer) 형상 검증 ------------------------------------
 
 def _detect_schema(loaded: dict[str, object]) -> Literal["v2", "legacy"]:
@@ -399,20 +391,6 @@ def _validate_legacy_shape(parsed: dict[str, object]) -> None:
             raise KISUsageError(f"credentials.json 의 프로필 {name!r} 항목이 객체가 아니다.")
 
 
-def _resolve_default_profile_name(loaded: dict[str, object]) -> str:
-    """``profile`` 미지정 시 열 기본 프로필 이름. 해석 순서: ``KIS_DEFAULT_PROFILE`` 환경변수
-    (빈/공백은 미설정) > ``credentials.json`` 최상위 ``"default_profile"`` 마커(:meth:`KISConfig.set_default_profile` 가
-    기록) > 첫 프로필 항목(삽입 순서, ``"default_profile"`` 메타키는 제외) > ``"main"``(파일도 env 도 없을 때
-    폴백 -- 접두어 없는 ``KIS_APP_KEY`` 로 여는 이름). 이름 형식 검증은 하위에서 한다."""
-    override = os.environ.get(_DEFAULT_PROFILE_ENV_VAR)
-    if override is not None and override.strip():
-        return override.strip()
-    marker = loaded.get(_DEFAULT_PROFILE_KEY)
-    if isinstance(marker, str) and marker.strip():
-        return marker.strip()
-    return next((name for name in loaded if name not in _RESERVED_TOP_LEVEL_KEYS), "main")
-
-
 def _resolve_hts_id(loaded: dict[str, object]) -> str | None:
     """HTS 로그인 아이디. ``KIS_HTS_ID`` 환경변수 > ``credentials.json`` 최상위 ``"hts_id"`` 키.
     사용자당 하나라 프로필별이 아니라 최상위에서 한 번 읽는다(빈/공백은 미설정)."""
@@ -436,37 +414,6 @@ def _coerce_account_password(value: object) -> str | None:
     if isinstance(value, str) and value.strip():
         return value
     return None
-
-
-def _resolve_account_password(loaded: dict[str, object]) -> str | None:
-    """계좌비밀번호(레거시 경로). ``KIS_ACCOUNT_PASSWORD`` 환경변수 > ``credentials.json`` 최상위
-    ``"account_password"``. 야간 파생 잔고 등 일부 조회의 ``ACNT_PWD`` 로만 쓴다(사용자당 하나, 최상위
-    공유). **비밀값이라 값을 어디에도 출력/로그하지 않는다.**"""
-    env = os.environ.get(_ACCOUNT_PASSWORD_ENV_VAR)
-    if env is not None and env.strip():
-        return env
-    return _coerce_account_password(loaded.get(_ACCOUNT_PASSWORD_KEY))
-
-
-def _resolve_profile_field(field_name: str, *, profile: str, section: dict[str, object]) -> str | None:
-    """프로필의 한 필드를 환경변수 -> 파일 섹션 순으로 찾는다. 빈/공백 문자열은 유효한 자격증명이
-    아니므로 '없음'으로 취급한다(fail-closed). ``section`` 은 파일을 한 번만 파싱해 넘긴 값."""
-    value = os.environ.get(_env_var_prefix(profile) + field_name.upper())
-    if value is None:
-        value = _scalar_or_raise(profile, field_name, section.get(field_name))
-    if value is not None and not value.strip():
-        return None
-    return value
-
-
-def _require_profile_field(field_name: str, *, profile: str, section: dict[str, object]) -> str:
-    value = _resolve_profile_field(field_name, profile=profile, section=section)
-    if value is None:
-        raise KISUsageError(
-            f"{_env_var_prefix(profile)}{field_name.upper()} 를 찾을 수 없다 -- 환경변수 또는 "
-            "credentials.json 에 설정하라(KISConfig(...).save() 로 저장)."
-        )
-    return value
 
 
 # --- 읽기 v2(env-outer: 환경이 바깥 블록) -------------------------------------
@@ -620,42 +567,6 @@ def _resolve_v2(
     )
 
 
-def _resolve_legacy(
-    profile: str | None, loaded: dict[str, object], *, app_key: str | None, app_secret: str | None,
-    account: str | None, environment: Environment | None, hts_id: str | None, account_password: str | None,
-) -> ResolvedCredentials:
-    """레거시(schema 마커 없는 평평한) 파일 해석 -- 오늘과 바이트 동일한 의미. ``"main"`` 폴백, 저장된
-    ``environment or "real"``, 레거시 접두어(``KIS_``/``KIS_<이름>_``)를 그대로 지킨다. 읽기 어댑터의
-    유일 신뢰점이자 최중점 parity 대상이라 본문은 절대 손대지 않는다(비파괴)."""
-    if profile is None:
-        profile = _resolve_default_profile_name(loaded)
-        _validate_profile_name(profile)
-    section = _select_profile_section(loaded, profile)
-    resolved_environment = environment if environment is not None \
-        else _resolve_profile_field("environment", profile=profile, section=section) or "real"
-    if resolved_environment not in _ENVIRONMENTS:
-        raise KISUsageError(f"environment 는 {_ENVIRONMENTS} 중 하나여야 한다: {resolved_environment!r}")
-    resolved_account = account
-    if resolved_account is None:
-        resolved_account = _resolve_profile_field("account", profile=profile, section=section)
-        if resolved_account is not None:
-            _validate_account(resolved_account)   # 형식 검증(fail-closed) -- 세션이 쪼갤 수 있게
-    resolved_hts_id = hts_id if hts_id is not None else _resolve_hts_id(loaded)
-    resolved_account_password = (
-        account_password if account_password is not None else _resolve_account_password(loaded)
-    )
-    return ResolvedCredentials(
-        app_key=app_key if app_key is not None
-        else _require_profile_field("app_key", profile=profile, section=section),
-        app_secret=app_secret if app_secret is not None
-        else _require_profile_field("app_secret", profile=profile, section=section),
-        account=resolved_account,
-        environment=cast("Environment", resolved_environment),
-        hts_id=resolved_hts_id,
-        account_password=resolved_account_password,
-    )
-
-
 @dataclass(frozen=True, slots=True)
 class ResolvedCredentials:
     """한 프로필에서 읽어낸 자격증명(불변). 세션 생성에 쓰인다. 앱키/시크릿은 실제 값을 담으므로
@@ -677,8 +588,9 @@ def resolve_credentials(
 ) -> ResolvedCredentials:
     """프로필의 저장된 자격증명을 읽는다(환경변수 -> credentials.json). ``profile`` 이 ``None`` 이면
     기본 프로필로 해석한다. ``environment`` (``real``/``paper``)는 v2 에서 **selector** 다 -- (프로필, 환경)
-    조합의 슬롯을 고른다. 생략하면 해석 체인(v2 기본 ``paper``; 레거시 파일은 저장값 or ``real``)으로
-    정한다. 앱키/시크릿이 없으면 :class:`KISUsageError`(변수 이름만 담는다). 계좌번호는 없으면 ``None``."""
+    조합의 슬롯을 고른다. 생략하면 해석 체인(기본 ``paper``)으로 정한다. 런타임은 두 축 schema 2 만
+    읽는다 -- 비어 있지 않은 옛 평평한 파일은 ``'kis config migrate'`` 안내 에러로 멈춘다. 앱키/시크릿이
+    없으면 :class:`KISUsageError`(변수 이름만 담는다). 계좌번호는 없으면 ``None``."""
     return _fill_credentials(profile, app_key=None, app_secret=None, account=None,
                              environment=environment, config_dir=config_dir)
 
@@ -688,21 +600,23 @@ def _fill_credentials(
     environment: Environment | None, config_dir: str | Path | None, hts_id: str | None = None,
     account_password: str | None = None,
 ) -> ResolvedCredentials:
-    """명시된 값은 그대로 쓰고 ``None`` 인 것만 저장분에서 채운다(부분 해석). 파일을 한 번만 파싱하고
-    ``schema`` 마커로 v2/레거시를 판별해(:func:`_detect_schema`) 각 해석기로 보낸다 -- 빈/없는 파일은
-    레거시 경로(무접두 ``KIS_APP_KEY``->main/real 제로컨피그 보존). ``profile`` 이 ``None`` 이면 각
-    해석기가 기본 프로필로 해석한다. **키워드 시그니처·반환 형상 불변**(세션의 6필드 언팩이 그대로 동작)."""
+    """명시된 값은 그대로 쓰고 ``None`` 인 것만 저장분에서 채운다(부분 해석). 파일을 한 번만 파싱한다.
+    런타임은 **두 축 schema 2 만** 해석한다: 비어 있지 않은 옛(평평한) 파일은 조용히 오해석하거나 생략된
+    환경을 real 로 자동 승격하지 않고, ``'kis config migrate'`` 로 변환하라는 :class:`KISUsageError` 로
+    멈춘다. 빈/없는 파일은 v2 로 해석한다(프로필을 못 정하면 v2 해석기가 깔끔한 에러를 낸다). ``profile``
+    이 ``None`` 이면 v2 해석기가 기본 프로필로 해석한다. **키워드 시그니처·반환 형상 불변**(세션의 6필드
+    언팩이 그대로 동작)."""
     directory = _config_dir_path(config_dir)
     loaded = _load_credentials(directory)
-    schema = _detect_schema(loaded)
-    if profile is not None:                       # 명시 이름을 해당 스키마 규칙으로 검증(쓰기 경로와 대칭):
-        if schema == "v2":                        # v2 는 _real/_paper 접미사 + v2 예약 키까지 금지하고,
-            _validate_profile_name_v2(profile)
-        else:                                     # 레거시는 기본 형식 + 레거시 예약 키만 본다.
-            _validate_profile_name(profile)
-    resolver = _resolve_v2 if schema == "v2" else _resolve_legacy
-    return resolver(profile, loaded, app_key=app_key, app_secret=app_secret, account=account,
-                    environment=environment, hts_id=hts_id, account_password=account_password)
+    if loaded and _detect_schema(loaded) == "legacy":   # 비어있지 않은 옛 평평한 파일 -> 변환 안내 후 멈춤
+        raise KISUsageError(
+            "credentials.json 이 옛(0.7.0 이전) 평평한 형식입니다 -- "
+            "'kis config migrate' 로 두 축 형식(schema 2)으로 변환한 뒤 사용하세요."
+        )
+    if profile is not None:                       # 명시 이름을 v2 규칙으로 검증(쓰기 경로와 대칭):
+        _validate_profile_name_v2(profile)        # _real/_paper 접미사 + v2 예약 키 금지
+    return _resolve_v2(profile, loaded, app_key=app_key, app_secret=app_secret, account=account,
+                       environment=environment, hts_id=hts_id, account_password=account_password)
 
 
 # --- 쓰기 (KISConfig.save) ----------------------------------------------------

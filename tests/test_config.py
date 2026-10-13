@@ -165,60 +165,35 @@ def test_environment_variable_wins_over_file(tmp_path, monkeypatch):
     assert resolve_credentials("main", config_dir=tmp_path).app_key == "from_env"
 
 
-def test_environment_variables_use_profile_prefix(monkeypatch):
-    # 파일이 없으면 레거시 경로 -- 레거시 접두어 키(KIS_<이름>_...)가 그대로 동작한다.
-    monkeypatch.setenv("KIS_PENSION_A_APP_KEY", "k")
-    monkeypatch.setenv("KIS_PENSION_A_APP_SECRET", "s")
-    monkeypatch.setenv("KIS_PENSION_A_ACCOUNT", "87654321-22")
-    monkeypatch.setenv("KIS_PENSION_A_ENVIRONMENT", "paper")
-    resolved = resolve_credentials("pension_a")
-    assert resolved.account == "87654321-22" and resolved.environment == "paper"
+def test_resolve_account_none_when_absent(tmp_path):
+    # 묶음에 account 가 없으면 resolved.account 는 None(시세전용 계좌).
+    _write_v2(tmp_path, paper={"general": {"app_key": "k", "app_secret": "s"}})
+    assert resolve_credentials("general", config_dir=tmp_path).account is None
 
 
-def test_main_and_named_profile_env_vars_do_not_collide(monkeypatch):
-    # 파일 없음 -> 레거시: main 은 접두어 없이(KIS_APP_KEY), 명명 프로필은 KIS_<이름>_APP_KEY.
-    monkeypatch.setenv("KIS_APP_KEY", "main_k")
-    monkeypatch.setenv("KIS_APP_SECRET", "main_s")
-    monkeypatch.setenv("KIS_PENSION_A_APP_KEY", "pa_k")
-    monkeypatch.setenv("KIS_PENSION_A_APP_SECRET", "pa_s")
-    assert resolve_credentials("main").app_key == "main_k"
-    assert resolve_credentials("pension_a").app_key == "pa_k"
-
-
-def test_resolve_missing_credentials_names_the_variable():
-    # 파일 없음 -> 레거시 경로 -> 레거시 접두어 변수 이름을 짚는다.
-    with pytest.raises(KISUsageError) as excinfo:
-        resolve_credentials("pension_a")
-    assert "KIS_PENSION_A_APP_KEY" in str(excinfo.value)
-
-
-def test_resolve_account_none_when_absent(monkeypatch):
-    monkeypatch.setenv("KIS_APP_KEY", "k")
-    monkeypatch.setenv("KIS_APP_SECRET", "s")
-    assert resolve_credentials("main").account is None
-
-
-def test_resolve_malformed_account_fails_closed(monkeypatch):
-    monkeypatch.setenv("KIS_APP_KEY", "k")
-    monkeypatch.setenv("KIS_APP_SECRET", "s")
-    monkeypatch.setenv("KIS_ACCOUNT", "12345678-01-02")   # 여분 하이픈
+def test_resolve_malformed_account_fails_closed(tmp_path):
+    # 묶음의 account 형식이 틀리면 fail-closed(세션이 CANO-상품코드로 쪼갤 수 있게).
+    _write_v2(tmp_path, paper={"general": {"app_key": "k", "app_secret": "s",
+                                           "account": "12345678-01-02"}})   # 여분 하이픈
     with pytest.raises(KISUsageError):
-        resolve_credentials("main")
+        resolve_credentials("general", config_dir=tmp_path)
 
 
-def test_resolve_bad_environment_fails_closed(monkeypatch):
-    monkeypatch.setenv("KIS_APP_KEY", "k")
-    monkeypatch.setenv("KIS_APP_SECRET", "s")
-    monkeypatch.setenv("KIS_ENVIRONMENT", "prod")
-    with pytest.raises(KISUsageError):
-        resolve_credentials("main")
+def test_resolve_bad_environment_fails_closed(tmp_path, monkeypatch):
+    # 해석된 환경이 real/paper 가 아니면 자격증명 조립 전에 막는다.
+    _write_v2(tmp_path, paper={"general": {"app_key": "k", "app_secret": "s"}})
+    monkeypatch.setenv("KIS_DEFAULT_ENVIRONMENT", "prod")
+    with pytest.raises(KISUsageError, match="environment"):
+        resolve_credentials("general", config_dir=tmp_path)
 
 
 @pytest.mark.parametrize("blank", ["", "   "])
-def test_blank_value_is_absent(monkeypatch, blank):
-    monkeypatch.setenv("KIS_APP_KEY", blank)
-    with pytest.raises(KISUsageError):
-        resolve_credentials("main")
+def test_blank_value_is_absent(tmp_path, monkeypatch, blank):
+    # 두 축 환경변수의 빈/공백 값은 유효한 자격증명이 아니라 '없음'으로 취급 -> app_key 누락으로 막힌다.
+    _write_v2(tmp_path, paper={"general": {"app_secret": "s"}})
+    monkeypatch.setenv("KIS_GENERAL_PAPER_APP_KEY", blank)
+    with pytest.raises(KISUsageError, match="KIS_GENERAL_PAPER_APP_KEY"):
+        resolve_credentials("general", config_dir=tmp_path)
 
 
 def test_malformed_credentials_file_raises(tmp_path):
@@ -246,11 +221,13 @@ def test_save_does_not_clobber_non_object_block(tmp_path):
 
 # --- 환경 기본값(읽기 경로) ---------------------------------------------------
 
-def test_resolve_credentials_environment_defaults_real_when_absent(tmp_path):
-    # environment 필드가 없는 섹션(손 편집 등) -> real 로 폴백
+def test_legacy_file_does_not_auto_default_to_real(tmp_path):
+    # 예전엔 environment 필드가 없는 평평한 섹션이 real 로 폴백했다 -- 이제는 조용히 real 로 열지 않고
+    # 'kis config migrate' 안내 에러로 멈춘다(런타임은 두 축 schema 2 만 읽는다).
     (tmp_path / "credentials.json").write_text(
         '{"demo": {"app_key": "AK", "app_secret": "SK"}}', encoding="utf-8")
-    assert resolve_credentials("demo", config_dir=tmp_path).environment == "real"
+    with pytest.raises(KISUsageError, match="migrate"):
+        resolve_credentials("demo", config_dir=tmp_path)
 
 
 # --- KISClient(profile=) 세션 -------------------------------------------------
@@ -353,10 +330,13 @@ def test_default_profile_blank_env_is_ignored(tmp_path, monkeypatch):
     assert resolve_credentials(config_dir=tmp_path).app_key == "IK"
 
 
-def test_default_profile_falls_back_to_main_env_only(monkeypatch):
-    monkeypatch.setenv("KIS_APP_KEY", "main_k")                       # 파일 없음 + 접두어 없는 키
+def test_missing_store_errors_cleanly(monkeypatch):
+    # 파일도 설정도 없으면(빈 저장소) 두 축 해석기가 기본 프로필을 못 정해 깔끔한 KISUsageError 로 막는다
+    # (크래시 아님). 레거시의 무접두 KIS_APP_KEY->main 제로컨피그 폴백은 더 이상 없다.
+    monkeypatch.setenv("KIS_APP_KEY", "main_k")                      # 레거시 무접두 키는 런타임이 무시
     monkeypatch.setenv("KIS_APP_SECRET", "main_s")
-    assert resolve_credentials().app_key == "main_k"                 # -> main 폴백
+    with pytest.raises(KISUsageError):
+        resolve_credentials()
 
 
 def test_default_environment_defaults_to_paper(tmp_path):
@@ -410,11 +390,14 @@ def test_default_profile_env_strips_surrounding_whitespace(tmp_path, monkeypatch
     assert resolve_credentials(config_dir=tmp_path).app_key == "PK"
 
 
-def test_empty_credentials_file_falls_back_to_main(tmp_path, monkeypatch):
+def test_empty_credentials_file_errors_cleanly(tmp_path, monkeypatch):
+    # 빈 객체 파일({})도 비어있는 저장소라 '예전처럼' 깔끔한 에러를 낸다 -- migrate 안내가 아니라
+    # 두 축 해석기의 "프로필 없음" 에러(레거시 main 폴백 소멸).
     (tmp_path / "credentials.json").write_text("{}", encoding="utf-8")   # 빈 객체(파일 있음)
-    monkeypatch.setenv("KIS_APP_KEY", "main_k")
+    monkeypatch.setenv("KIS_APP_KEY", "main_k")                          # 레거시 무접두 키는 런타임이 무시
     monkeypatch.setenv("KIS_APP_SECRET", "main_s")
-    assert resolve_credentials(config_dir=tmp_path).app_key == "main_k"   # -> main 폴백
+    with pytest.raises(KISUsageError):
+        resolve_credentials(config_dir=tmp_path)
 
 
 # --- 기본 프로필 마커 (KISConfig.set_default_profile) -------------------------
@@ -458,8 +441,9 @@ def test_profile_named_default_profile_is_reserved():
 
 def test_first_entry_skips_default_meta_key(tmp_path):
     # "default_profile" 마커가 공백이라 무시될 때, 첫 항목 계산에서 "default_profile" 키 자체는 건너뛴다
-    (tmp_path / "credentials.json").write_text(
-        '{"default_profile": "  ", "isa": {"app_key": "IK", "app_secret": "IS"}}', encoding="utf-8")
+    # (v2: 환경 블록 안의 프로필만 후보).
+    _write_v2(tmp_path, default_profile="  ",
+              paper={"isa": {"app_key": "IK", "app_secret": "IS"}})
     assert resolve_credentials(config_dir=tmp_path).app_key == "IK"
 
 
@@ -485,55 +469,34 @@ def test_set_hts_id_env_var_overrides_file(tmp_path, monkeypatch):
 
 
 # --- 공유 계좌비밀번호 (account_password, 예약 최상위 키; 야간 파생 잔고 등의 ACNT_PWD) --------
-_AP_MAIN = {"app_key": "K", "app_secret": "S", "account": "12345678-01", "environment": "real"}
-
-
-def _write_creds_raw(tmp_path, data):
-    (tmp_path / "credentials.json").write_text(json.dumps(data), encoding="utf-8")
-
-
-def test_account_password_from_top_level_string(tmp_path):
-    _write_creds_raw(tmp_path, {"account_password": "0000", "main": _AP_MAIN})
-    assert resolve_credentials("main", config_dir=tmp_path).account_password == "0000"
-
-
-def test_account_password_coerces_unquoted_numeric(tmp_path):
-    # 숫자 비번을 따옴표 없이 쓰면 JSON int 가 되는데, 문자열로 강제해 준다(앞자리 0 없는 정수라 안전).
-    _write_creds_raw(tmp_path, {"account_password": 1234, "main": _AP_MAIN})
-    assert resolve_credentials("main", config_dir=tmp_path).account_password == "1234"
-
-
-def test_account_password_env_overrides_file(tmp_path, monkeypatch):
-    _write_creds_raw(tmp_path, {"account_password": "fromfile", "main": _AP_MAIN})
-    monkeypatch.setenv("KIS_ACCOUNT_PASSWORD", "fromenv")
-    assert resolve_credentials("main", config_dir=tmp_path).account_password == "fromenv"
+_AP_BUNDLE = {"app_key": "K", "app_secret": "S", "account": "12345678-01"}   # 묶음엔 environment 없음(v2)
 
 
 def test_account_password_absent_is_none(tmp_path):
-    _write_creds_raw(tmp_path, {"main": _AP_MAIN})
+    _write_v2(tmp_path, paper={"main": _AP_BUNDLE})
     assert resolve_credentials("main", config_dir=tmp_path).account_password is None
 
 
 def test_account_password_is_reserved_not_a_profile(tmp_path):
     # 최상위 account_password 는 예약 키라 기본(첫) 프로필로 뽑히지 않는다 -> main 이 해석된다.
-    _write_creds_raw(tmp_path, {"account_password": "0000", "main": _AP_MAIN})
+    _write_v2(tmp_path, account_password="0000", paper={"main": _AP_BUNDLE})
     assert resolve_credentials(config_dir=tmp_path).app_key == "K"
 
 
 def test_account_password_excluded_from_repr(tmp_path):
-    _write_creds_raw(tmp_path, {"account_password": "SECRETPW", "main": _AP_MAIN})
+    _write_v2(tmp_path, account_password="SECRETPW", paper={"main": _AP_BUNDLE})
     assert "SECRETPW" not in repr(resolve_credentials("main", config_dir=tmp_path))
 
 
 def test_require_account_password_raises_when_absent(tmp_path):
-    _write_creds_raw(tmp_path, {"main": _AP_MAIN})
+    _write_v2(tmp_path, paper={"main": _AP_BUNDLE})
     kis = KISClient(profile="main", config_dir=tmp_path, transport=_FakeTransport())
     with pytest.raises(KISUsageError, match="계좌비밀번호"):
         kis._require_account_password()
 
 
 def test_require_account_password_returns_resolved_value(tmp_path):
-    _write_creds_raw(tmp_path, {"account_password": "0000", "main": _AP_MAIN})
+    _write_v2(tmp_path, account_password="0000", paper={"main": _AP_BUNDLE})
     kis = KISClient(profile="main", config_dir=tmp_path, transport=_FakeTransport())
     assert kis._require_account_password() == "0000"
 
@@ -630,13 +593,14 @@ def test_v2_reserved_and_suffixed_names_rejected(bad):
         KISConfig(profile=bad, app_key="k", app_secret="s")
 
 
-def test_legacy_file_may_name_a_profile_paper(tmp_path):
-    # 레거시(schema 마커 없음) 파일은 'paper' 라는 프로필 이름을 그대로 연다(v2 예약 규칙 미적용).
+def test_legacy_file_named_paper_profile_still_requires_migrate(tmp_path):
+    # 레거시(schema 마커 없음) 파일은 런타임이 해석하지 않는다 -- 'paper' 라는 프로필 이름을 열어주던
+    # 옛 동작 대신 'kis config migrate' 안내 에러로 멈춘다.
     (tmp_path / "credentials.json").write_text(
         json.dumps({"paper": {"app_key": "PK", "app_secret": "PS", "environment": "paper"}}),
         encoding="utf-8")
-    resolved = resolve_credentials("paper", config_dir=tmp_path)
-    assert resolved.app_key == "PK" and resolved.environment == "paper"
+    with pytest.raises(KISUsageError, match="migrate"):
+        resolve_credentials("paper", config_dir=tmp_path)
 
 
 # --- v2 해석기(프로필/환경 체인, 선택 에러, no-auto-promote) ----------
@@ -867,39 +831,39 @@ def test_v2_profile_exists_by_block_and_any(tmp_path):
     assert _profile_exists("nope", config_dir=tmp_path) is False
 
 
-# --- 레거시 parity ---------------------------------------------------
+# --- 레거시 파일은 런타임이 해석하지 않고 migrate 로 안내한다 ---------------
 
-def test_legacy_byte_identical_resolution(tmp_path):
-    # 레거시 파일은 오늘과 동일하게: 저장된 environment, main 폴백, 레거시 접두어.
+def test_legacy_file_raises_migrate_error(tmp_path):
+    # 옛(평평한) 파일은 런타임이 바이트 그대로 해석하던 동작을 버리고, 변환하라는 명확한 에러로 막는다
+    # (조용한 오해석/자동 real 승격 없음; 정확한 명령 'kis config migrate' 를 짚어준다).
     (tmp_path / "credentials.json").write_text(json.dumps({
         "main": {"app_key": "MK", "app_secret": "MS", "account": "12345678-01", "environment": "real"},
         "demo": {"app_key": "DK", "app_secret": "DS", "environment": "paper"},
     }), encoding="utf-8")
-    main = resolve_credentials("main", config_dir=tmp_path)
-    assert main.app_key == "MK" and main.environment == "real" and main.account == "12345678-01"
-    assert resolve_credentials("demo", config_dir=tmp_path).environment == "paper"
-    # profile 미지정 -> 첫 항목 main (레거시 삽입순서)
-    assert resolve_credentials(config_dir=tmp_path).app_key == "MK"
+    for profile in ("main", "demo", None):
+        with pytest.raises(KISUsageError, match="migrate"):
+            resolve_credentials(profile, config_dir=tmp_path)
 
 
-def test_legacy_env_var_wins_over_stored_field(tmp_path, monkeypatch):
-    # 레거시 경로의 우선순위 env > file: 저장 필드가 있어도 접두어 환경변수가 이긴다.
+def test_legacy_env_vars_do_not_rescue_a_legacy_file(tmp_path, monkeypatch):
+    # 옛 접두어 환경변수가 설정돼 있어도 비어있지 않은 레거시 파일은 조용히 해석되지 않고 migrate 로 막힌다.
     (tmp_path / "credentials.json").write_text(json.dumps({
         "main": {"app_key": "from_file", "app_secret": "s",
                  "account": "12345678-01", "environment": "real"},
     }), encoding="utf-8")
-    monkeypatch.setenv("KIS_APP_KEY", "from_env")        # main 은 접두어 없는 레거시 키
+    monkeypatch.setenv("KIS_APP_KEY", "from_env")        # 옛 무접두 키 -- 런타임이 무시
     monkeypatch.setenv("KIS_ACCOUNT", "87654321-02")
-    resolved = resolve_credentials("main", config_dir=tmp_path)
-    assert resolved.app_key == "from_env" and resolved.account == "87654321-02"
+    with pytest.raises(KISUsageError, match="migrate"):
+        resolve_credentials("main", config_dir=tmp_path)
 
 
-def test_legacy_keeps_environment_override(tmp_path):
-    # 레거시 경로에서는 environment 가 여전히 override(저장 real 을 paper 로 덮는다).
+def test_legacy_file_environment_arg_does_not_bypass_migrate(tmp_path):
+    # environment 인자를 줘도 레거시 파일은 열리지 않는다 -- 저장 real 을 paper 로 덮던 옛 override 없음.
     (tmp_path / "credentials.json").write_text(json.dumps({
         "main": {"app_key": "MK", "app_secret": "MS", "environment": "real"},
     }), encoding="utf-8")
-    assert resolve_credentials("main", environment="paper", config_dir=tmp_path).environment == "paper"
+    with pytest.raises(KISUsageError, match="migrate"):
+        resolve_credentials("main", environment="paper", config_dir=tmp_path)
 
 
 def test_v2_absent_combo_is_clean_error_not_500(tmp_path):
@@ -908,3 +872,21 @@ def test_v2_absent_combo_is_clean_error_not_500(tmp_path):
     _write_v2(tmp_path, real={"general": {"app_key": "RK", "app_secret": "RS"}})
     with pytest.raises(KISUsageError, match="environment='real'"):
         resolve_credentials("general", environment="paper", config_dir=tmp_path)
+
+
+def test_runtime_requires_schema2_v2_resolves_legacy_raises_empty_errors(tmp_path):
+    # 세 경우를 한 자리에서 못박는다: v2 는 그대로 해석, 레거시는 migrate 안내 에러, 빈 저장소는
+    # 예전처럼 깔끔한 에러(크래시/조용한 오해석 없음).
+    path = tmp_path / "credentials.json"
+    # (1) v2 저장소 -> 그대로 해석된다
+    KISConfig(profile="general", app_key="AK", app_secret="SK", config_dir=tmp_path).save()
+    assert resolve_credentials("general", config_dir=tmp_path).app_key == "AK"
+    # (2) 레거시(평평한) 저장소 -> 'kis config migrate' 를 짚어주는 에러로 막힌다(real 로 자동 해석 안 함)
+    path.write_text(json.dumps({"main": {"app_key": "MK", "app_secret": "MS"}}), encoding="utf-8")
+    with pytest.raises(KISUsageError, match="migrate"):
+        resolve_credentials("main", config_dir=tmp_path)
+    # (3) 빈/없는 저장소 -> 예전처럼 깔끔한 KISUsageError(migrate 안내가 아니라 "프로필 없음")
+    path.unlink()
+    with pytest.raises(KISUsageError) as excinfo:
+        resolve_credentials("general", config_dir=tmp_path)
+    assert "migrate" not in str(excinfo.value)

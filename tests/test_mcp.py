@@ -515,38 +515,34 @@ def _isolate_config(monkeypatch, tmp_path):
         monkeypatch.delenv(var, raising=False)
 
 
-def test_build_session_warns_on_legacy_store_but_not_v2(monkeypatch, tmp_path, caplog):
-    """레거시(스키마 마커 없는) 저장소로 기동하면 런타임 전환 경계를 한 줄 경고로 알리고, schema-2
-    저장소로 기동하면 경고하지 않는다. 어느 쪽도 기동을 거부하지는 않는다(레거시도 계속 동작)."""
+def test_build_session_refuses_legacy_store_points_to_migrate_but_opens_v2(monkeypatch, tmp_path):
+    """레거시(스키마 마커 없는) 저장소로는 기동을 거부하고 'kis config migrate' 를 짚어준다 -- 런타임은
+    두 축 schema-2 만 읽기 때문이다(조용한 오해석/엉뚱한 환경 접속 대신 명확한 거부). schema-2 저장소로는
+    정상 기동한다."""
     pytest.importorskip("mcp")
-    import logging
 
     from kis_trader import KISConfig
+    from kis_trader.errors import KISUsageError
     from kis_trader.mcp.server import _build_session
 
     _isolate_config(monkeypatch, tmp_path)
     config_dir = tmp_path / "config" / "kis-trader"
     config_dir.mkdir(parents=True)
 
-    # 레거시: 스키마 마커 없이 프로필 섹션만.
+    # 레거시: 스키마 마커 없이 프로필 섹션만 -> 기동 거부 + migrate 안내.
     (config_dir / "credentials.json").write_text(
         json.dumps({"main": {"app_key": "k", "app_secret": "s", "account": "12345678-01"}}),
         encoding="utf-8",
     )
     environ = {"KIS_MCP_PROFILE": "main"}
-    with caplog.at_level(logging.WARNING, logger="kis_trader.mcp"):
+    with pytest.raises(KISUsageError, match="kis config migrate"):
         _build_session(environ, "paper", None)
-    assert any("legacy" in rec.message and "kis config migrate" in rec.message
-               for rec in caplog.records)
 
-    # v2(schema 2): 같은 프로필을 두 축 저장소로 다시 쓴다.
-    caplog.clear()
+    # v2(schema 2): 같은 프로필을 두 축 저장소로 다시 쓰면 정상 기동한다.
     (config_dir / "credentials.json").unlink()
     KISConfig(profile="main", app_key="k", app_secret="s",
               account="12345678-01", config_dir=config_dir).save()
-    with caplog.at_level(logging.WARNING, logger="kis_trader.mcp"):
-        _build_session(environ, "paper", None)
-    assert not caplog.records
+    _build_session(environ, "paper", None)
 
 
 def test_resolve_transport_defaults_to_stdio():

@@ -12,17 +12,24 @@ environment = a separate axis).
 
 - **`credentials.json` schema v2 (breaking).** Credentials now nest by environment then profile
   (`real` / `paper` top-level blocks), so a profile names an account type and `environment`
-  selects which slot to open. A `schema: 2` marker distinguishes the format; flat files without it
-  keep their previous read semantics. Under a schema-2 file an omitted environment resolves to
+  selects which slot to open. A `schema: 2` marker distinguishes the format; the runtime reads only
+  schema-2, and a pre-0.7.0 flat file must be converted once with `kis config migrate` (see below).
+  Under a schema-2 file an omitted environment resolves to
   `paper` (previously a stored per-profile value that defaulted to `real`), and `real` is reached
   only when stated explicitly (call argument, `KIS_DEFAULT_ENVIRONMENT`, or a `default_environment`
   marker written by the new static `KISConfig.set_default_environment`) -- a profile present in one
   environment is never auto-promoted to the other.
+- **The runtime now requires the two-axis schema-2 credential format (breaking).** A pre-0.7.0 flat
+  `credentials.json` is no longer read at session load; the legacy runtime adapter was removed, so a
+  flat file is refused with a clear error naming `kis config migrate` instead of being resolved
+  (previously an omitted environment on a flat file silently defaulted to `real`). Convert the file
+  once with `kis config migrate`; the converter still reads the old format. An empty or missing
+  store is unchanged -- it raises the same kind of clean "no credentials" error as before.
 - `resolve_credentials` gains a keyword-only `environment` selector; `KISConfig` writes the nested
   bundle (no `environment` field inside it) and defaults `environment` to `paper`. Environment
-  variables are two-axis: `KIS_<PROFILE>_<ENV>_<FIELD>`. Pure environment-variable use under a
-  schema-2 file requires `KIS_DEFAULT_PROFILE` (the implicit `main` fallback applies to flat files
-  only).
+  variables are two-axis: `KIS_<PROFILE>_<ENV>_<FIELD>` and override fields of an existing schema-2
+  bundle; legacy unprefixed (`KIS_APP_KEY`) and single-axis (`KIS_<NAME>_...`) keys are ignored by
+  the runtime, and there is no implicit `main` fallback.
 - `KISClient(app_key=..., app_secret=...)` without `environment` now raises instead of defaulting
   to `real`: a directly supplied credential must state its environment so it cannot be aimed at the
   wrong server.

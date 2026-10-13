@@ -159,17 +159,16 @@ def test_order_store_path_is_per_env_and_account(tmp_path):
 
 
 def test_cli_build_client_uses_persistent_store(monkeypatch, tmp_path):
+    from kis_trader import KISConfig
     from kis_trader.cli.context import build_client
     monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
     monkeypatch.setenv("XDG_CACHE_HOME", str(tmp_path / "cache"))
     monkeypatch.setenv("XDG_STATE_HOME", str(tmp_path / "state"))
     for var in [name for name in __import__("os").environ if name.startswith("KIS_")]:
         monkeypatch.delenv(var, raising=False)
-    monkeypatch.setenv("KIS_PAPER_APP_KEY", "k")
-    monkeypatch.setenv("KIS_PAPER_APP_SECRET", "s")
-    monkeypatch.setenv("KIS_PAPER_ACCOUNT", "12345678-01")
-    monkeypatch.setenv("KIS_PAPER_ENVIRONMENT", "paper")
-    kis = build_client(Namespace(profile="paper", account=None))
+    KISConfig(profile="general", app_key="k", app_secret="s",
+              account="12345678-01", environment="paper").save()
+    kis = build_client(Namespace(profile="general", account=None))
     assert kis._store._path is not None   # 영속(디스크) 저장소가 주입됐다
 
 

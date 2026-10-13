@@ -1261,24 +1261,23 @@ def test_table_aligns_columns_across_cjk_and_ascii_rows():
 
 # --- build_client: 프로필 -> 세션(계좌·환경 1회 해석) --------------------------
 
-def test_build_client_resolves_account_and_environment_from_profile(monkeypatch):
+def test_build_client_resolves_account_and_environment_from_profile():
+    from kis_trader import KISConfig
     from kis_trader.cli.context import build_client
-    monkeypatch.setenv("KIS_PAPER_APP_KEY", "k")
-    monkeypatch.setenv("KIS_PAPER_APP_SECRET", "s")
-    monkeypatch.setenv("KIS_PAPER_ACCOUNT", "12345678-01")
-    monkeypatch.setenv("KIS_PAPER_ENVIRONMENT", "paper")   # 환경은 프로필에 저장된 값이 정한다
-    kis = build_client(_args(["--profile", "paper", "stock", "quote", "005930"]))
+    # 저장된 두 축 프로필(general, paper 슬롯)에서 계좌와 환경을 읽어온다. 환경은 바깥 블록 키가 정한다.
+    KISConfig(profile="general", app_key="k", app_secret="s",
+              account="12345678-01", environment="paper").save()
+    kis = build_client(_args(["--profile", "general", "stock", "quote", "005930"]))
     assert kis._account == "12345678-01"
     assert kis.environment == "paper"
 
 
 def test_build_client_uses_default_profile_env_when_profile_unset(monkeypatch):
+    from kis_trader import KISConfig
     from kis_trader.cli.context import build_client
-    monkeypatch.setenv("KIS_DEFAULT_PROFILE", "paper")
-    monkeypatch.setenv("KIS_PAPER_APP_KEY", "k")
-    monkeypatch.setenv("KIS_PAPER_APP_SECRET", "s")
-    monkeypatch.setenv("KIS_PAPER_ACCOUNT", "12345678-01")
-    monkeypatch.setenv("KIS_PAPER_ENVIRONMENT", "paper")
+    KISConfig(profile="general", app_key="k", app_secret="s",
+              account="12345678-01", environment="paper").save()
+    monkeypatch.setenv("KIS_DEFAULT_PROFILE", "general")
     kis = build_client(_args(["stock", "quote", "005930"]))   # --profile 없음 -> 기본 프로필 env
     assert kis.environment == "paper"
 

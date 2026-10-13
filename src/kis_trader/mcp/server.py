@@ -538,11 +538,12 @@ def _build_session(environ: dict[str, str], environment: str, risk: RiskLimits |
     profile = environ.get("KIS_MCP_PROFILE")
     if profile:
         if config.is_legacy_store():
-            _logger.warning(
-                "credentials store has no schema marker (legacy): runtime account switching "
-                "(use_environment/use_profile) is only meaningful on a schema-2 store, and a "
-                "switch to the wrong environment may fail only at the wire. Run 'kis config "
-                "migrate' to convert the store."
+            # 런타임은 두 축 schema-2 만 읽는다 -- 옛(평평한) 저장소로는 기동하지 않고 변환을 안내한다
+            # (조용한 오해석/엉뚱한 환경 접속 대신 명확한 거부).
+            raise KISUsageError(
+                "credentials store has no schema marker (legacy): the runtime reads only the "
+                "two-axis schema-2 format. Run 'kis config migrate' to convert the store, then "
+                "start again."
             )
         build = _client_for_slot(risk)
         startup_client = build(profile, environment)   # eager -- 잘못된 조합은 여기서 fail
