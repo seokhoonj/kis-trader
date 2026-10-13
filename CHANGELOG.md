@@ -3,10 +3,10 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## Unreleased
+## 0.7.0 — 2026-10-14
 
 Breaking redesign of the credential store toward a two-axis model (profile = account type,
-environment = a separate axis).
+environment = a separate axis), plus a naming-consistency and safety pass across the public surface.
 
 ### Changed
 
@@ -57,6 +57,20 @@ environment = a separate axis).
   a cap for its currency is refused (fail-closed; no FX conversion, and the domestic KRW
   `max_order_notional` never substitutes). Hong Kong orders are capped as HKD regardless of the
   instrument's actual trading counter (a documented limitation for non-HKD HK counters).
+- **Swappable same-type arguments are now keyword-only.** Overseas lookups take the primary
+  identifier first with the scoping argument keyword-only -- `product_info(symbol, *, exchange)`,
+  `industry_stocks(exchange, *, industry_code, ...)`, `collateral_stocks(symbol, *, country, ...)`,
+  `corporate_actions(symbol, *, country, ...)` -- mirroring the domestic facade. The MCP order
+  kernel's risk-guard booleans are keyword-only and renamed to read like the `KISClient` properties
+  they carry (`has_risk_limits`, `has_domestic_risk_cap`).
+- **Public naming unified.** `TradeSide` is removed (use `Side`, which already annotates observed
+  fills and positions); the domestic derivative P/L methods are `valuation_pnl()` /
+  `settlement_pnl()` (matching the package-wide `pnl` term); the bond sell-lot selector is
+  `buy_sequence` end to end (`--buy-sequence`, `bond.sell(buy_sequence=...)`,
+  `Order.bond_buy_sequence`) to match `BondPosition.buy_sequence`.
+- **Bare `date` names now carry their reference point.** `BrokerOpinion.trading_date`,
+  `MarketFunds.trading_date`, `TradingDay.calendar_date`, `WatchlistGroup.base_date`; and the
+  facade filters `MarketQueries.news(on_date=...)` and `ELWScreenerQueries.newly_listed(base_date=...)`.
 
 ### Added
 
@@ -70,6 +84,20 @@ environment = a separate axis).
   gate, RiskLimits, the allowlist, and human confirmation. Domestic real orders are allowed on
   orderable stock accounts (general/ISA product 01, pension-savings 22); overseas orders are
   general-account-only.
+
+### Fixed
+
+- **Product info no longer crashes on the KIS "no date" sentinel.** `fetch_product_info` mapped the
+  `"00000000"` sentinel (returned for a product not on sale) through a strict parser and raised,
+  failing the whole lookup; optional dates now degrade to `None`.
+- **One undated market-funds row no longer fails the whole history.** `MarketFunds.trading_date` is
+  parsed fail-soft, matching its `date | None` contract.
+- **Realtime reconnect survives a send failure on the reopened socket.** A re-registration send that
+  hit an accept-then-close previously propagated out of the receive loop, killed the background
+  thread, and silently voided `reconnect=True`; it now backs off and retries.
+- **`kis-mcp` without the `mcp` extra fails gracefully.** A bare `pip install kis-trader` install
+  running `kis-mcp` now prints a `pip install 'kis-trader[mcp]'` hint and exits instead of crashing
+  with a raw `ModuleNotFoundError`.
 
 ### Notes
 
