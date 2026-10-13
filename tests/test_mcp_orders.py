@@ -409,6 +409,30 @@ def test_run_place_order_domestic_real_refused_when_only_foreign_cap():
     assert t.calls == []                               # fail-closed -- 무한도 국내 전송 금지
 
 
+def test_has_domestic_risk_cap_counts_only_size_caps():
+    # 국내 캡 판정은 크기(size) 캡만 센다 -- 수량/금액은 True, 가격collar·해외 통화캡·미설정은 False
+    # (collar 는 가격편차 가드라 크기를 안 막고 시장가엔 inert하므로 국내 size 캡으로 치면 안 된다).
+    assert _order_client("real", risk=RiskLimits(max_order_quantity=10))[0].has_domestic_risk_cap is True
+    assert _order_client("real", risk=RiskLimits(max_order_notional="1000000"))[0].has_domestic_risk_cap is True
+    assert _order_client("real", risk=RiskLimits(price_collar_percent=10))[0].has_domestic_risk_cap is False
+    assert _order_client(
+        "real", risk=RiskLimits(max_order_notional_by_currency={"USD": "1000000"}))[0].has_domestic_risk_cap is False
+    assert _order_client("real", risk=None)[0].has_domestic_risk_cap is False
+
+
+def test_run_place_order_domestic_real_refused_when_only_collar():
+    # collar 만 있으면(크기 캡 없음) 국내 실 **시장가** 주문이 무한도로 새던 구멍 -- 이제 거부된다.
+    # collar 는 시장가에 적용되지 않아(지정가 전용) 크기를 전혀 막지 못한다.
+    pytest.importorskip("mcp")
+    from kis_trader.mcp.server import run_place_order
+    kis, t = _order_client("real", risk=RiskLimits(price_collar_percent=10))
+    with pytest.raises(KISUsageError, match="국내"):
+        asyncio.run(run_place_order(
+            _snap(kis, RealOrderGate.from_env(_REAL_ENV, "real")), frozenset({"005930"}), CircuitBreaker(),
+            _AcceptCtx(), region="domestic", symbol="005930", side="buy", quantity=999999))  # 시장가(limit_price 없음)
+    assert t.calls == []                               # fail-closed -- 무한도 국내 시장가 전송 금지
+
+
 def test_run_place_order_breaker_halted_refuses():
     pytest.importorskip("mcp")
     from kis_trader.mcp.server import run_place_order

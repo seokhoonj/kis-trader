@@ -323,15 +323,19 @@ class KISClient:
 
     @property
     def has_domestic_risk_cap(self) -> bool:
-        """국내(KRW) 주문에 적용되는 fat-finger 캡(수량/금액/가격collar 중 하나라도)이 설정됐는지.
-        해외 전용 통화캡(``max_order_notional_by_currency``)만 있고 국내 캡이 없는 :class:`~kis_trader.
-        risk.RiskLimits` 는 ``False`` -- MCP 실주문 게이트가 이 표면으로 국내 실주문을 가려, 해외 통화캡만
-        설정된 상태에서 국내 실주문이 무한도로 열리는 것을 막는다(``has_risk_limits`` 와 같은 캡슐화 규약)."""
+        """국내(KRW) 주문에 적용되는 **크기(size) 캡**(수량 ``max_order_quantity`` 또는 금액
+        ``max_order_notional``)이 설정됐는지. MCP 실주문 게이트가 이 표면으로 국내 실주문을 가려, 국내
+        크기 캡 없이(예: 해외 통화캡만, 또는 가격collar만) 국내 실주문이 무한도로 열리는 것을 막는다.
+
+        ``price_collar_percent`` 는 **제외**한다 -- collar 는 지정가의 가격 편차만 제한하는 가드라 주문
+        **크기**를 한정하지 못하고(수량 무제한 통과), 시장가 주문엔 아예 적용되지 않는다(:meth:`~kis_trader.
+        risk.RiskLimits.check` 는 collar 를 지정가에만 건다). collar 만 있는 상태로 국내 실주문이 열리면
+        무한도 크기가 새므로 size 캡으로 치지 않는다. ``max_order_notional_by_currency``(해외 통화캡)도
+        국내엔 안 걸리므로 제외(``has_risk_limits`` 와 같은 캡슐화 규약)."""
         risk = self._risk
         return risk is not None and (
             risk.max_order_quantity is not None
             or risk.max_order_notional is not None
-            or risk.price_collar_percent is not None
         )
 
     @property
