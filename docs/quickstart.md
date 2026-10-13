@@ -24,7 +24,7 @@ KIS 개발자센터에서 발급한 **앱키·앱시크릿**과 **계좌번호**
 from kis_trader import KISClient
 
 kis = KISClient(app_key="YOUR_APP_KEY", app_secret="YOUR_APP_SECRET",
-                account="12345678-01", environment="real")
+                account="12345678-01", environment="paper")  # 연습은 모의투자부터
 ```
 
 매번 키를 넣기 번거로우면 **한 번 저장**해 두고 `KISClient(profile="general", environment="real")`

@@ -53,9 +53,9 @@ credentials, see the [Credentials and profiles](https://seokhoonj.github.io/kis-
 Under `KISClient`, asset classes and orders split into namespaces.
 
 ```python
-kis.domestic   # domestic: stocks, indices, ETFs, ELWs, futures/options, bonds, account, rankings, market, calendar
-kis.overseas   # overseas: stocks, indices, futures/options, account, rankings
-kis.account    # account queries (dispatched by product code; IRP adds .pension)
+kis.domestic   # domestic: stocks, indices, ETFs, ELWs, futures/options, bonds, rankings, market, calendar
+kis.overseas   # overseas: stocks, indices, futures/options, rankings
+kis.account    # account queries -- balances, P&L, positions, open orders (.domestic/.overseas market views, IRP adds .pension)
 kis.orders     # list (open), check, modify, and cancel submitted orders
 ```
 
@@ -128,7 +128,7 @@ The full documentation lives at **<https://seokhoonj.github.io/kis-trader/>** (s
 | **Market & search** | [Rankings & screens](https://seokhoonj.github.io/kis-trader/screening.html) · [Market & indices](https://seokhoonj.github.io/kis-trader/market.html) · [Corporate actions & calendar](https://seokhoonj.github.io/kis-trader/corporate-actions.html) |
 | **Overseas & pension** | [Overseas stocks](https://seokhoonj.github.io/kis-trader/overseas.html) · [Retirement pension](https://seokhoonj.github.io/kis-trader/pension.html) |
 | **Other products** | [ETF & ETN](https://seokhoonj.github.io/kis-trader/etf.html) · [ELW](https://seokhoonj.github.io/kis-trader/elw.html) · [Futures & options](https://seokhoonj.github.io/kis-trader/derivatives.html) · [Bonds](https://seokhoonj.github.io/kis-trader/bonds.html) |
-| **CLI & agents** | [Command Line](https://seokhoonj.github.io/kis-trader/cli.html) · [Claude Skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex Skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) · [MCP Server](https://seokhoonj.github.io/kis-trader/mcp.html) |
+| **CLI & agents** | [Command Line](https://seokhoonj.github.io/kis-trader/cli.html) · [Claude Code Skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex Skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) · [MCP Server](https://seokhoonj.github.io/kis-trader/mcp.html) |
 | **Reference** | [Realtime (WebSocket)](https://seokhoonj.github.io/kis-trader/realtime.html) · [Limits & gaps](https://seokhoonj.github.io/kis-trader/limits.html) |
 
 The arguments and return value of each method are available through Python's `help()` (e.g. `help(kis.domestic.stock)`).

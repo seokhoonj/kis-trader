@@ -52,9 +52,9 @@ kis.domestic.ranking.by_change(direction="gainers")  # 오늘 상승률 순위
 `KISClient` 아래에 자산군과 주문이 네임스페이스로 분리되어 있습니다.
 
 ```python
-kis.domestic   # 국내: 주식·지수·ETF·ELW·선물옵션·채권·계좌·순위·시장·일정
-kis.overseas   # 해외: 주식·지수·선물옵션·계좌·순위
-kis.account    # 계좌 조회 (상품코드 자동 분기; IRP는 .pension 퇴직연금 조회)
+kis.domestic   # 국내: 주식·지수·ETF·ELW·선물옵션·채권·순위·시장·일정
+kis.overseas   # 해외: 주식·지수·선물옵션·순위
+kis.account    # 계좌 조회 (잔고·손익·보유·미체결; .domestic/.overseas 시장별 뷰, IRP는 .pension 퇴직연금)
 kis.orders     # 접수한 주문의 조회(미체결)·확인·정정·취소
 ```
 
@@ -121,7 +121,7 @@ MCP 호환 에이전트(Claude Desktop 등)에서는 `kis_trader.mcp` 서버(`pi
 | **시장·검색** | [순위·조건검색](https://seokhoonj.github.io/kis-trader/screening.html) · [시장·지수](https://seokhoonj.github.io/kis-trader/market.html) · [기업행위·일정](https://seokhoonj.github.io/kis-trader/corporate-actions.html) |
 | **해외·연금** | [해외주식](https://seokhoonj.github.io/kis-trader/overseas.html) · [퇴직연금](https://seokhoonj.github.io/kis-trader/pension.html) |
 | **다른 상품** | [ETF·ETN](https://seokhoonj.github.io/kis-trader/etf.html) · [ELW](https://seokhoonj.github.io/kis-trader/elw.html) · [선물·옵션](https://seokhoonj.github.io/kis-trader/derivatives.html) · [채권](https://seokhoonj.github.io/kis-trader/bonds.html) |
-| **명령줄·에이전트** | [Command Line](https://seokhoonj.github.io/kis-trader/cli.html) · [Claude Skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex Skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) · [MCP Server](https://seokhoonj.github.io/kis-trader/mcp.html) |
+| **명령줄·에이전트** | [Command Line](https://seokhoonj.github.io/kis-trader/cli.html) · [Claude Code Skill](https://seokhoonj.github.io/kis-trader/claude-skill.html) · [Codex Skill](https://seokhoonj.github.io/kis-trader/codex-skill.html) · [MCP Server](https://seokhoonj.github.io/kis-trader/mcp.html) |
 | **참고** | [실시간(WebSocket)](https://seokhoonj.github.io/kis-trader/realtime.html) · [한계·미구현](https://seokhoonj.github.io/kis-trader/limits.html) |
 
 각 메서드의 인자와 반환값은 파이썬 `help()` 로 바로 확인할 수 있습니다 (예: `help(kis.domestic.stock)`).
