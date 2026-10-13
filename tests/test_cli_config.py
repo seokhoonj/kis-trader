@@ -659,6 +659,120 @@ def test_migrate_default_profile_marker_falls_back_when_renamed(tmp_path):
     assert _creds(tmp_path)["default_profile"] == "general"
 
 
+def test_migrate_yes_merges_same_type_real_paper_pairs(tmp_path):
+    # 일반화: main+paper -> general 뿐 아니라 '<X>'(real)+'paper_<X>'(paper) 쌍도 한 프로필 '<X>' 로.
+    # 실제 저장소 모양(계좌 종류 여럿, 모의는 derivatives 만)을 그대로 변환.
+    raw = {"hts_id": "myhts", "account_password": "0000",
+           "main": {"app_key": "MAINKEY", "app_secret": "MS", "account": "11111111-01",
+                    "environment": "real"},
+           "paper": {"app_key": "PAPERKEY", "app_secret": "PS", "account": "50001234-01",
+                     "environment": "paper"},
+           "isa": {"app_key": "ISAKEY", "app_secret": "IS", "account": "22222222-01",
+                   "environment": "real"},
+           "pension": {"app_key": "PENKEY", "app_secret": "PNS", "account": "33333333-22",
+                       "environment": "real"},
+           "irp": {"app_key": "IRPKEY", "app_secret": "IRS", "account": "44444444-22",
+                   "environment": "real"},
+           "derivatives": {"app_key": "DERIVKEY", "app_secret": "DS", "account": "55555555-03",
+                           "environment": "real"},
+           "overseas_derivatives": {"app_key": "OVDKEY", "app_secret": "OVS",
+                                     "account": "66666666-08", "environment": "real"},
+           "paper_derivatives": {"app_key": "PDERIVKEY", "app_secret": "PDS",
+                                 "account": "50009999-03", "environment": "paper"}}
+    _write_raw(tmp_path, raw)
+    assert cli_main.main(["config", "migrate", "--yes"]) == 0
+    data = _creds(tmp_path)
+    assert set(data["real"]) == {"general", "isa", "pension", "irp", "derivatives",
+                                 "overseas_derivatives"}
+    assert set(data["paper"]) == {"general", "derivatives"}
+    assert data["real"]["general"]["app_key"] == "MAINKEY"
+    assert data["paper"]["general"]["app_key"] == "PAPERKEY"
+    assert data["real"]["derivatives"]["app_key"] == "DERIVKEY"     # real 슬롯 <- 레거시 derivatives
+    assert data["paper"]["derivatives"]["app_key"] == "PDERIVKEY"   # paper 슬롯 <- 레거시 paper_derivatives
+    assert "paper_derivatives" not in data["paper"]                 # 접두어 이름은 남지 않는다
+    assert data["default_environment"] == "paper"
+    assert data["default_profile"] == "general"
+    # 합쳐진 derivatives 를 두 환경으로 해석하면 각 레거시 자격증명이 그대로 돌아온다.
+    real = resolve_credentials("derivatives", environment="real", config_dir=_cfg_dir(tmp_path))
+    paper = resolve_credentials("derivatives", environment="paper", config_dir=_cfg_dir(tmp_path))
+    assert real.app_key == "DERIVKEY" and paper.app_key == "PDERIVKEY"
+
+
+def test_migrate_paper_prefix_without_base_stays_put(tmp_path):
+    # 'paper_foo' 인데 짝 'foo' 가 없으면 쌍이 아니다 -> 자기 이름으로 paper 블록에 그대로(크래시 없음).
+    # paper_foo 는 '_real'/'_paper' 로 끝나지 않아 두 축 이름으로 유효하므로 개명을 묻지 않는다.
+    _write_raw(tmp_path, {"paper_foo": {"app_key": "K", "app_secret": "S",
+                                        "account": "50001234-01", "environment": "paper"}})
+    assert cli_main.main(["config", "migrate", "--yes"]) == 0
+    data = _creds(tmp_path)
+    assert data["paper"]["paper_foo"]["app_key"] == "K"
+    assert "real" not in data
+
+
+def test_migrate_pair_base_env_mismatch_is_not_a_pair(tmp_path):
+    # 'paper_x' 의 environment 가 paper 가 아니면(여기선 real) 같은 종류로 볼 수 없어 쌍이 아니다 ->
+    # 두 프로필 각자 real 블록에 자기 이름으로 남는다(강제로 합치지 않는다).
+    _write_raw(tmp_path, {"x": {"app_key": "XK", "app_secret": "XS", "account": "11111111-01",
+                                "environment": "real"},
+                          "paper_x": {"app_key": "PXK", "app_secret": "PXS",
+                                      "account": "22222222-01", "environment": "real"}})
+    assert cli_main.main(["config", "migrate", "--yes"]) == 0
+    data = _creds(tmp_path)
+    assert data["real"]["x"]["app_key"] == "XK"
+    assert data["real"]["paper_x"]["app_key"] == "PXK"   # 합쳐지지 않고 각자 유지
+    assert "paper" not in data
+
+
+def test_migrate_interactive_pair_merge_accepts_default_yes(tmp_path, monkeypatch):
+    # 대화형에서 쌍 질문의 기본값은 yes -- Enter(빈 입력)만으로 합쳐진다.
+    _write_raw(tmp_path, {"derivatives": {"app_key": "DK", "app_secret": "DS",
+                                          "account": "55555555-03", "environment": "real"},
+                          "paper_derivatives": {"app_key": "PDK", "app_secret": "PDS",
+                                                "account": "50009999-03", "environment": "paper"}})
+    _answer(monkeypatch, {}, default="")   # 모든 프롬프트에 빈 입력(Enter)
+    assert cli_main.main(["config", "migrate"]) == 0
+    data = _creds(tmp_path)
+    assert data["real"]["derivatives"]["app_key"] == "DK"
+    assert data["paper"]["derivatives"]["app_key"] == "PDK"
+
+
+def test_migrate_interactive_pair_decline_keeps_separate(tmp_path, monkeypatch):
+    # 쌍 병합을 거부하면 두 프로필이 각자 이름/환경으로 남는다(paper_derivatives 는 유효한 두 축 이름).
+    _write_raw(tmp_path, {"derivatives": {"app_key": "DK", "app_secret": "DS",
+                                          "account": "55555555-03", "environment": "real"},
+                          "paper_derivatives": {"app_key": "PDK", "app_secret": "PDS",
+                                                "account": "50009999-03", "environment": "paper"}})
+    _answer(monkeypatch, {"합칠까요": "n"})
+    assert cli_main.main(["config", "migrate"]) == 0
+    data = _creds(tmp_path)
+    assert data["real"]["derivatives"]["app_key"] == "DK"
+    assert data["paper"]["paper_derivatives"]["app_key"] == "PDK"   # 접두어 이름 그대로, 따로 유지
+    assert "derivatives" not in data.get("paper", {})
+
+
+def test_migrate_pair_present_still_aborts_collision_byte_unchanged(tmp_path):
+    # P0 회귀(일반화 후에도): main+paper 를 '--yes' 로 'general' 로 합치는데 독립 'general'(real) 이 있어
+    # 그대로 두면 main 의 real 자격증명이 사라진다 -> 거부. 쌍(derivatives/paper_derivatives)이 함께
+    # 있어도 변환 전체가 중단되고 파일은 바이트 단위로 불변이어야 한다.
+    raw = {"main": {"app_key": "MK", "app_secret": "MS", "account": "11111111-01",
+                    "environment": "real"},
+           "paper": {"app_key": "PK", "app_secret": "PS", "account": "50001234-01",
+                     "environment": "paper"},
+           "general": {"app_key": "GK", "app_secret": "GS", "account": "22222222-01",
+                       "environment": "real"},
+           "derivatives": {"app_key": "DK", "app_secret": "DS", "account": "55555555-03",
+                           "environment": "real"},
+           "paper_derivatives": {"app_key": "PDK", "app_secret": "PDS", "account": "50009999-03",
+                                 "environment": "paper"}}
+    _write_raw(tmp_path, raw)
+    path = _cfg_dir(tmp_path) / "credentials.json"
+    before = _creds(tmp_path)
+    before_bytes = path.read_bytes()
+    assert cli_main.main(["config", "migrate", "--yes"]) == 3   # CliAborted
+    assert _creds(tmp_path) == before
+    assert path.read_bytes() == before_bytes                    # abort 원자성: 바이트 불변
+
+
 def test_migrate_idempotent_on_v2_file(tmp_path, capsys):
     _seed_v2(tmp_path)
     before = _creds(tmp_path)

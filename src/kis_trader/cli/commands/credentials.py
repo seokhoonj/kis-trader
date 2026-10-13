@@ -72,9 +72,15 @@ def _prompt(label: str, default: str) -> str:
     return input(f"{label}{suffix}: ").strip() or default
 
 
-def _confirm(question: str) -> bool:
-    """``y``/``yes`` 만 참(기본 거부). 되돌리기 어려운 쓰기 전에 명시적 긍정을 요구한다."""
-    return input(f"{question} [y/N]: ").strip().lower() in ("y", "yes")
+def _confirm(question: str, default: bool = False) -> bool:
+    """예/아니오를 묻는다. ``default`` 가 거짓이면 ``y``/``yes`` 만 참(되돌리기 어려운 쓰기 전 기본
+    거부), 참이면 빈 입력(Enter)을 긍정으로 본다(규약을 따르는 질문의 기본값). 어느 쪽이든 묻기는
+    한다 -- 자동 추론이 아니라 사람에게 확인받는다."""
+    suffix = "[Y/n]" if default else "[y/N]"
+    answer = input(f"{question} {suffix}: ").strip().lower()
+    if not answer:
+        return default
+    return answer in ("y", "yes")
 
 
 def _mask(value: object) -> str:
@@ -358,6 +364,39 @@ def _print_env_rename_table(renames: list[tuple[str, str, str]]) -> None:
         print("  ⚠ 로 표시된 키가 현재 환경에 설정돼 있습니다 -- 위 두 축 키로 교체하세요.")
 
 
+#: 같은 계좌 종류의 paper 프로필을 가리키는 레거시 이름 접두어(예: ``paper_derivatives``).
+_PAPER_PREFIX = "paper_"
+
+
+def _paper_pairs(
+    profiles: dict[str, dict[str, object]], consumed: set[str],
+) -> list[tuple[str, str]]:
+    """같은 계좌 종류의 real/paper 쌍을 찾아 ``(base, paper_name)`` 목록으로 돌려준다. 레거시
+    ``paper_<X>`` (저장된 environment 가 실제로 ``paper``)와 그 짝 ``<X>`` (environment 가 ``real``)이
+    둘 다 있으면 한 쌍이다 -- 한 v2 프로필 ``<X>`` 로 합칠 후보. 양쪽 environment 는 저장된 값으로
+    확인한다(이름만으로 추정하지 않는다). ``paper_<X>`` 의 environment 가 paper 가 아니거나 ``<X>`` 가
+    real 이 아니면 같은 종류로 볼 수 없어 쌍이 아니다(각자 처리에 맡긴다). 합칠 대상 이름 ``<X>`` 가
+    두 축에서 프로필 이름으로 쓸 수 없으면 역시 쌍으로 접지 않는다."""
+    pairs: list[tuple[str, str]] = []
+    for name, section in profiles.items():
+        if name in consumed or name == _PAPER_PREFIX or not name.startswith(_PAPER_PREFIX):
+            continue
+        if _legacy_environment(section) != "paper":        # paper_<X> 가 실제 paper 가 아니면 같은 종류 아님
+            continue
+        base = name[len(_PAPER_PREFIX):]
+        base_section = profiles.get(base)
+        if base in consumed or not isinstance(base_section, dict):
+            continue
+        if _legacy_environment(base_section) != "real":     # 짝 <X> 가 real 이라야 real/paper 쌍
+            continue
+        try:
+            _validate_profile_name_v2(base)                 # 합친 이름이 두 축에서 유효해야
+        except KISUsageError:
+            continue
+        pairs.append((base, name))
+    return pairs
+
+
 def _pick_default_profile(
     legacy_default: object, blocks: dict[str, dict[str, dict[str, str]]], fallback: str | None,
 ) -> str | None:
@@ -372,8 +411,10 @@ def _pick_default_profile(
 
 def cmd_config_migrate(args: argparse.Namespace) -> None:
     """이전 형식(평평한) ``credentials.json`` 을 두 축 형식(schema 2)으로 변환한다. 구 ``main``(real)과
-    구 ``paper``(paper)를 한 계좌 종류로 합칠지 **물어본다**(사람 지식이라 자동 추론하지 않는다).
-    ``default_environment`` 는 fail-safe 로 ``paper`` 를, ``default_profile`` 은 합친/첫 프로필을 명시
+    구 ``paper``(paper)를 한 계좌 종류로 합칠지, 그리고 같은 계좌 종류의 레거시 ``<X>``(real)와
+    ``paper_<X>``(paper)를 한 v2 프로필 ``<X>`` 로 합칠지 **물어본다**(사람 지식이라 자동 추론하지
+    않는다; ``--yes`` 는 규약대로 자동 병합). ``default_environment`` 는 fail-safe 로 ``paper`` 를,
+    ``default_profile`` 은 합친/첫 프로필을 명시
     기록한다. 두 레거시 프로필이 같은 (환경, 이름) 슬롯으로 접히면(예: 합친 이름이 이미 독립 프로필)
     한쪽이 덮여 사라지므로 쓰기 전에 **거부**하고 해결법을 안내한다. 프로필 없이 메타키만 있는 레거시
     파일도 막다른 길이 아니라 그 메타를 넘긴 ``schema 2`` 파일로 씨를 뿌린다. 원자적(기존 write-lock)이고,
@@ -385,8 +426,9 @@ def cmd_config_migrate(args: argparse.Namespace) -> None:
         if not loaded or _detect_schema(loaded) == "v2":
             print(f"이미 두 축 형식이거나 변환할 내용이 없습니다 ({path}).")
             return
-        profiles = {name: section for name, section in loaded.items()
-                    if name not in _RESERVED_TOP_LEVEL_KEYS and isinstance(section, dict)}
+        profiles: dict[str, dict[str, object]] = {
+            name: section for name, section in loaded.items()
+            if name not in _RESERVED_TOP_LEVEL_KEYS and isinstance(section, dict)}
 
         yes = getattr(args, "yes", False)
         top_password = _coerce_account_password(loaded.get(_ACCOUNT_PASSWORD_KEY))
@@ -431,6 +473,29 @@ def cmd_config_migrate(args: argparse.Namespace) -> None:
                 consumed |= {"main", "paper"}
                 renames += [("main", merged_name, "real"), ("paper", merged_name, "paper")]
                 default_profile_name = merged_name
+
+        # 병합(일반화): 같은 계좌 종류의 레거시 '<X>'(real) + 'paper_<X>'(paper) -> 한 v2 프로필 '<X>'.
+        # real 슬롯 = '<X>', paper 슬롯 = 'paper_<X>'. 같은 종류인지는 사람 지식이라 쌍마다 물어본다
+        # (--yes 는 규약대로 자동 병합). 거부하면 각자 이름으로 남겨 아래 루프가 처리한다. 양쪽 환경은
+        # 저장된 값을 그대로 쓴다(_legacy_environment; _paper_pairs 가 real/paper 임을 이미 확인).
+        for base, paper_name in _paper_pairs(profiles, consumed):
+            if base in consumed or paper_name in consumed:   # 방어: 앞선 병합이 한쪽을 이미 가져갔으면 건너뜀
+                continue
+            if yes:
+                do_merge = True
+            else:
+                do_merge = _confirm(
+                    f"'{paper_name}' 를 '{base}' 의 paper 슬롯으로 합칠까요?", default=True)
+            if not do_merge:
+                continue
+            base_env = _legacy_environment(profiles[base])        # 쌍 조건상 real
+            paper_env = _legacy_environment(profiles[paper_name])  # 쌍 조건상 paper
+            _claim(base_env, base, base)
+            _claim(paper_env, base, paper_name)
+            consumed |= {base, paper_name}
+            renames += [(base, base, base_env), (paper_name, base, paper_env)]
+            if default_profile_name is None:
+                default_profile_name = base
 
         # 나머지 프로필: 저장된 환경 블록에 자기 이름으로. 두 축에서 못 쓰는 이름(paper 등)은 개명을 묻는다.
         for name, section in profiles.items():
