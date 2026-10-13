@@ -82,6 +82,28 @@ def _parse_optional_date(value: object) -> date | None:
         return None
 
 
+def _claim_date(claim_iso: str | None) -> date | None:
+    """저장소에 기록된 claim 확보 시각(ISO8601, :meth:`~kis_trader.store.OrderStore.claim_time_for`)을
+    KST 날짜로 바꾼다. 미상(``None``/빈 문자열, 레거시 저장소)이거나 파싱 불가면 ``None`` 을 돌려,
+    호출자가 reconcile 호출일 기준 창으로 폴백하게 한다(:func:`_reconcile_recency_window`)."""
+    if not claim_iso:
+        return None
+    try:
+        return datetime.fromisoformat(claim_iso).astimezone(_KST).date()
+    except ValueError:
+        return None
+
+
+def _reconcile_recency_window(anchor: date | None, today: date) -> set[date]:
+    """예약주문 reconcile 의 접수일자 매칭 창(KST 날짜 집합). 발주일(``anchor`` = claim 확보일)이 있으면
+    그 전후 하루(KST/서버 시차 여유)로 좁혀, 며칠 뒤 체결되는 예약을 늦게 reconcile 해도 접수일자가
+    창 안에 든다. ``anchor`` 가 없으면(레거시 claim 시각 미상) 종전처럼 reconcile 호출일(``today``)
+    기준으로 둔다. 국내·해외 예약 reconcile 이 공유해 같은 규율을 쓴다(쌍둥이 대칭)."""
+    if anchor is None:
+        return {today, today - timedelta(days=1)}
+    return {anchor - timedelta(days=1), anchor, anchor + timedelta(days=1)}
+
+
 def _parse_kst_time(time_text: str) -> time:
     """"HHMMSS" -> time. 전송 시각 등 날짜 없이 시각만 필요한 곳에서 쓴다."""
     try:

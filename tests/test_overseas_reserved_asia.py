@@ -415,9 +415,15 @@ def test_asia_reconcile_paper_fails_closed():
     assert fake.calls == []                          # 조회 와이어에 닿지 않는다
 
 
+def _frozen_now():
+    """store claim 시계를 reconcile 날짜창(_FrozenDatetime, 2024-06-03 KST)과 같은 날로 고정 --
+    예약 reconcile 의 접수일자 매칭 창이 claim 발주일에 앵커하므로 store 시각도 결정적이어야 한다."""
+    return _dt.datetime(2024, 6, 3, 10, 0, tzinfo=_dt.timezone(_dt.timedelta(hours=9)))
+
+
 def test_asia_reconcile_confirms_single_match_with_receipt_date(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
-    store = OrderStore()
+    store = OrderStore(now=_frozen_now)
     place_t = _Fake(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
         _place(place_t, store)
@@ -442,7 +448,7 @@ def test_asia_reconcile_zero_match_returns_none_keeps_in_flight(monkeypatch):
 
 def test_asia_reconcile_multi_match_raises(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
-    store = OrderStore()
+    store = OrderStore(now=_frozen_now)
     with pytest.raises(OrderTimeoutError):
         _place(_Fake(raises=TransportTimeoutError("t")), store)
     rows = [_list_row(), _list_row(ovrs_rsvn_odno="0030138299")]

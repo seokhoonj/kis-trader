@@ -31,6 +31,13 @@ class _FrozenDatetime(_dt.datetime):
     def now(cls, tz=None):
         return _dt.datetime(2024, 6, 3, 10, 0, tzinfo=tz)
 
+
+def _frozen_now():
+    """store claim 시계를 reconcile 날짜창(_FrozenDatetime)과 같은 날(2024-06-03 KST)로 고정 --
+    reconcile 의 접수일자 매칭 창이 claim 발주일에 앵커하므로 store 시각도 결정적이어야 한다."""
+    return _dt.datetime(2024, 6, 3, 10, 0, tzinfo=_dt.timezone(_dt.timedelta(hours=9)))
+
+
 _PLACE = "/uapi/domestic-stock/v1/trading/order-resv"
 _INQUIRE = "/uapi/domestic-stock/v1/trading/order-resv-ccnl"
 
@@ -396,7 +403,7 @@ def test_reserve_reconcile_skips_stale_receipt_same_fingerprint(monkeypatch):
 def test_reserve_reconcile_confirms_fresh_receipt(monkeypatch):
     # 접수일자가 최근(오늘)이고 취소되지 않은 예약은 종전처럼 확정된다(가드가 정상분을 막지 않음).
     monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
-    store = OrderStore()
+    store = OrderStore(now=_frozen_now)
     cid = "20240101-reserved-fr01"
     place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
@@ -409,6 +416,27 @@ def test_reserve_reconcile_confirms_fresh_receipt(monkeypatch):
     recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
     report = _client(recon_t, store=store).orders.reconcile(cid)
     assert report is not None and report.order_id == "42401"
+
+
+def test_reserve_reconcile_confirms_receipt_days_after_placement(monkeypatch):
+    # 예약은 며칠 뒤 체결된다 -- 발주(5/30) 후 늦게(6/3) reconcile 해도 접수일자(5/30)가 발주일(claim)
+    # 앵커 창에 들어 확정돼야 한다. reconcile 호출일 고정창({6/3, 6/2})이면 5/30 이 빠져 영구 미확정
+    # (None 반복->수동 재주문->이중체결)되던 회귀를 막는 가드다.
+    monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)  # 오늘=6/3
+    placed_at = lambda: _dt.datetime(2024, 5, 30, 10, 0, tzinfo=_dt.timezone(_dt.timedelta(hours=9)))
+    store = OrderStore(now=placed_at)                # claim(발주) 시각 = 5/30
+    cid = "20240101-reserved-late01"
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
+    with pytest.raises(OrderTimeoutError):
+        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
+            quantity=1, limit_price=70000, client_order_id=cid)
+    row = _reserved_row(seq="42402", qty="1", unpr="70000")
+    row["rsvn_ord_rcit_dt"] = "20240530"             # 발주일(5/30) 접수 -- reconcile 호출일(6/3) 창 밖
+    row["cncl_ord_dt"] = ""
+    body = {"output": [row], "ctx_area_nk200": "", "ctx_area_fk200": ""}
+    recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
+    report = _client(recon_t, store=store).orders.reconcile(cid)
+    assert report is not None and report.order_id == "42402"
 
 
 def test_reserve_reconcile_window_and_process_params(monkeypatch):

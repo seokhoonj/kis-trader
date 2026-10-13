@@ -271,9 +271,15 @@ def test_overseas_immediate_and_reserved_same_id_cross_lifecycle_conflict():
 
 
 # --- reconcile (예약주문조회 기반) -----------------------------------------
+def _frozen_now():
+    """store claim 시계를 reconcile 날짜창(_FrozenDatetime, 2024-06-03 KST)과 같은 날로 고정 --
+    예약 reconcile 의 접수일자 매칭 창이 claim 발주일에 앵커하므로 store 시각도 결정적이어야 한다."""
+    return _dt.datetime(2024, 6, 3, 10, 0, tzinfo=_dt.timezone(_dt.timedelta(hours=9)))
+
+
 def test_overseas_reserve_reconcile_confirms_single_match(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
-    store = OrderStore()
+    store = OrderStore(now=_frozen_now)
     cid = "20240101-ovsresv-rc01"
     place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
@@ -310,7 +316,7 @@ def test_overseas_reserve_reconcile_ignores_canceled_mismatch_and_old_receipt(mo
 
 def test_overseas_reserve_reconcile_multi_match_raises(monkeypatch):
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
-    store = OrderStore()
+    store = OrderStore(now=_frozen_now)
     cid = "20240101-ovsresv-rc03"
     place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):
@@ -330,7 +336,7 @@ def test_overseas_reserve_reconcile_scans_all_pages_before_confirming(monkeypatc
     # 스캔해야 둘째 페이지의 두 번째 일치를 본다. 그러지 않으면 ≥2 모호를 1건으로 오판해 접수 여부
     # 불명 주문을 잘못 확정한다(이중발주 위험). 국내 예약/즉시 재조회와 같은 보수적 종료.
     monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
-    store = OrderStore()
+    store = OrderStore(now=_frozen_now)
     cid = "20240101-ovsresv-pg01"
     place_t = FakeTransport(raises=TransportTimeoutError("t"))
     with pytest.raises(OrderTimeoutError):

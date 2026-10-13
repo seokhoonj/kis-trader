@@ -21,7 +21,13 @@ from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, Literal
 
-from ..._internal._datetime import _parse_optional_date as _parse_date
+from ..._internal._datetime import (
+    _claim_date,
+    _reconcile_recency_window,
+)
+from ..._internal._datetime import (
+    _parse_optional_date as _parse_date,
+)
 from ..._internal._response import _CONTINUATION_END, _require_mapping_rows
 from ..._internal._wire import decimal_or_zero, format_wire_decimal
 from ...errors import (
@@ -456,7 +462,10 @@ def _reconcile_reserved(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
-    matches = _filter_matching(rows, fingerprint, today)
+    # 접수일자 매칭 창을 reconcile 호출일이 아니라 예약 발주일(store claim 확보일)에 앵커한다 --
+    # 국내 reserved 와 같은 규율(늦은 reconcile 에도 접수일자가 창에 들어 영구 미확정/이중체결 방지).
+    recent = _reconcile_recency_window(_claim_date(store.claim_time_for(client_order_id)), today)
+    matches = _filter_matching(rows, fingerprint, recent)
     if len(matches) > 1:
         raise KISError(
             f"해외 예약주문 {client_order_id} 의 지문과 일치하는 예약이 {len(matches)}건이라 "
@@ -614,16 +623,19 @@ def cancel_asia_reserved_order(
 
 
 def _filter_matching(
-    rows: list[Mapping[str, Any]], fingerprint: ReservedOrderFingerprint, today: date
+    rows: list[Mapping[str, Any]], fingerprint: ReservedOrderFingerprint,
+    recent_receipt_dates: set[date],
 ) -> list[Mapping[str, Any]]:
     """예약주문조회 행 중 요청 지문과 맞는 것만(순수). 종목+매매구분+수량+단가에 더해 **접수일자**로
     좁힌다 -- 해외예약 지문엔 end_date 등 추가 판별자가 없어(국내와 달리) 같은 종목/수량/가격의 옛
-    pending 예약이 넓은 창에서 가짜 단일매칭될 수 있다. 방금 발주된 예약은 오늘(±1, KST/US 시차)
-    접수되므로 접수일자를 [today-1, today] 로 제한해 충돌창을 좁힌다. 예약번호 없는/취소된 행 제외."""
+    pending 예약이 넓은 창에서 가짜 단일매칭될 수 있다. ``recent_receipt_dates`` 는 발주일(claim 확보일)에
+    앵커한 창(:func:`~kis_trader._internal._datetime._reconcile_recency_window`, 국내 reserved 와 같은
+    규율)이라 며칠 뒤 체결되는 예약을 늦게 reconcile 해도 접수일자가 창에 든다. 판별자가 적은 해외는
+    국내와 달리 접수일자 파싱 불가 행도 제외한다(fail-closed -- 좁힐 근거가 없으면 매칭 대상에서 뺀다).
+    예약번호 없는/취소된 행 제외."""
     quantity = Decimal(fingerprint.quantity)
     limit_price = Decimal(fingerprint.limit_price) if fingerprint.limit_price else None
     want_side = _SIDE_CODE[fingerprint.side]
-    recent = {today, today - timedelta(days=1)}
     matched = []
     for row in rows:
         if not str(row.get("ovrs_rsvn_odno", "")).strip():  # 예약번호 없는 행 -- 매칭 불가
@@ -631,7 +643,7 @@ def _filter_matching(
         if str(row.get("cncl_yn", "")).strip().upper() == "Y":  # 취소된 예약은 제외
             continue
         receipt = _parse_date(row.get("rsvn_ord_rcit_dt"))
-        if receipt is None or receipt not in recent:  # 방금 발주(오늘±1 접수)만 -- 옛 동일지문 배제
+        if receipt is None or receipt not in recent_receipt_dates:  # 발주일창 접수분만(판별자 적어 None 제외)
             continue
         if str(row.get("pdno", "")).strip() != fingerprint.symbol:
             continue
