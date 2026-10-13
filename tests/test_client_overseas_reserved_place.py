@@ -79,6 +79,14 @@ def _client(transport, *, environment="real", account="12345678-01", store=None,
                      transport=transport, store=store, orderable=orderable)
 
 
+def test_overseas_reserved_orders_rejects_span_over_6_days():
+    # KIS 는 해외 예약조회 7일 이상을 거부한다("조회기간 7일 이상 불가", 라이브 확인 2026-10-14) --
+    # 7일 이상 기간은 서버에 보내 불투명 오류를 받기 전에 명확한 KISUsageError 로 거른다.
+    with pytest.raises(KISUsageError, match="7일"):
+        _client(FakeTransport(response=_ACCEPTED)).account.overseas.reserved_orders(
+            start="20240101", end="20240115")       # 14일 -- 한도 초과 -> 와이어 전 거부
+
+
 # --- 정상 전송 -------------------------------------------------------------
 def test_overseas_reserve_buy_wire():
     fake = FakeTransport(response=_ACCEPTED)
@@ -291,9 +299,9 @@ def test_overseas_reserve_reconcile_confirms_single_match(monkeypatch):
     assert report is not None
     assert report.order_id == "0031111234"
     assert all(c["method"] == "GET" for c in recon_t.calls)
-    # 고정된 오늘 20240603 기준 양방향 창(오늘-7 ~ 오늘+31)
-    assert recon_t.calls[0]["params"]["INQR_STRT_DT"] == "20240527"
-    assert recon_t.calls[0]["params"]["INQR_END_DT"] == "20240704"
+    # 발주일(claim=20240603)에 앵커한 ≤6일폭 창(KIS 7일-이상 금지): start=발주일-1=6/2, end=발주일+5=6/8
+    assert recon_t.calls[0]["params"]["INQR_STRT_DT"] == "20240602"
+    assert recon_t.calls[0]["params"]["INQR_END_DT"] == "20240608"
 
 
 def test_overseas_reserve_reconcile_ignores_canceled_mismatch_and_old_receipt(monkeypatch):

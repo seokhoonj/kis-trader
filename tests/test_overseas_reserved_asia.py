@@ -88,7 +88,7 @@ def _place_resp():
     # 원장 응답예시(TTTS3013U) 실값 -- output = 예약번호(OVRS_RSVN_ODNO) + 접수일자(RSVN_ORD_RCIT_DT).
     return RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="정상",
                        body={"output": {"OVRS_RSVN_ODNO": "0030138295",
-                                        "RSVN_ORD_RCIT_DT": "20260818"}})
+                                        "RSVN_ORD_RCIT_DT": "20260807"}})
 
 
 def _place(fake, store, **overrides):
@@ -136,7 +136,7 @@ def test_asia_place_builds_ttts3013u_body_and_stores_receipt_date():
     assert call["body"]["FT_ORD_QTY"] == "100"
     assert call["body"]["ORD_SVR_DVSN_CD"] == "0"
     assert rep.order_id == "0030138295"
-    assert rep.receipt_date == "20260818"
+    assert rep.receipt_date == "20260807"
     assert rep.status is OrderStatus.PENDING_NEW
     fp = store.fingerprint_for("c1")
     assert fp.exchange == "overseas-reserved-asia"
@@ -221,14 +221,14 @@ def test_asia_cancel_resends_full_order_with_rvse_cncl_02():
     assert call["tr_id"] == "TTTS3013U"
     assert body["RVSE_CNCL_DVSN_CD"] == "02"
     assert body["OVRS_RSVN_ODNO"] == "0030138295"
-    assert body["RSVN_ORD_RCIT_DT"] == "20260818"
+    assert body["RSVN_ORD_RCIT_DT"] == "20260807"
     assert body["OVRS_EXCG_CD"] == "SEHK"
     assert body["PRDT_TYPE_CD"] == "501"
     assert body["PDNO"] == "00700"
     assert body["FT_ORD_QTY"] == "100"
     assert body["SLL_BUY_DVSN_CD"] == "02"
     assert rep.status is OrderStatus.PENDING_CANCEL
-    assert rep.receipt_date == "20260818"
+    assert rep.receipt_date == "20260807"
 
 
 def test_asia_cancel_non_hk_rederives_exchange_prdt():
@@ -389,7 +389,7 @@ def test_asia_partial_cancel_rejected_before_wire():
 def test_asia_list_sends_ttts3014r():
     fake = _Fake(_list_resp([]))
     ro.fetch_reserved_orders(fake, cano="12345678", product_code="01", environment="real",
-                             start="20260801", end="20260818", market="ASIA")
+                             start="20260801", end="20260807", market="ASIA")
     call = fake.calls[0]
     assert call["tr_id"] == "TTTS3014R"
     assert call["path"] == _LIST
@@ -401,7 +401,7 @@ def test_asia_list_unknown_market_rejected_before_wire():
     fake = _Fake(_list_resp([]))
     with pytest.raises(KISUsageError):
         ro.fetch_reserved_orders(fake, cano="12345678", product_code="01", environment="real",
-                                 start="20260801", end="20260818", market="EU")
+                                 start="20260801", end="20260807", market="EU")
     assert fake.calls == []
 
 
@@ -450,8 +450,10 @@ def test_asia_reconcile_confirms_receipt_days_after_placement(monkeypatch):
     recon_t = _Fake(_list_resp([_list_row(rsvn_ord_rcit_dt="20240530")]))
     rep = _client(recon_t, store).orders.reconcile("c1")
     assert rep is not None and rep.order_id == "0030138295"
-    # 조회 start 가 발주일(5/30)-7 = 5/23 로 co-anchor 됐는지 핀한다(호출일-7=5/27 로 되돌리면 깨짐).
-    assert recon_t.calls[0]["params"]["INQR_STRT_DT"] == "20240523"
+    # 조회창이 발주일(5/30)에 앵커한 ≤6일폭인지 핀한다: start=발주일-1=5/29, end=발주일+5=6/4
+    # (KIS 7일-이상 금지 준수 + 매칭창 {5/29,5/30,5/31} 포함). 넓은 창으로 되돌리면 깨진다.
+    assert recon_t.calls[0]["params"]["INQR_STRT_DT"] == "20240529"
+    assert recon_t.calls[0]["params"]["INQR_END_DT"] == "20240604"
 
 
 def test_asia_reconcile_zero_match_returns_none_keeps_in_flight(monkeypatch):
@@ -491,7 +493,7 @@ def test_handle_routes_hk_symbol_to_asia_reserve():
     assert call["body"]["OVRS_EXCG_CD"] == "SEHK"
     assert call["body"]["PRDT_TYPE_CD"] == "501"      # currency 기본 HKD
     assert rep.order_id == "0030138295"
-    assert rep.receipt_date == "20260818"
+    assert rep.receipt_date == "20260807"
     assert rep.status is OrderStatus.PENDING_NEW
     assert store.fingerprint_for(rep.client_order_id).exchange == "overseas-reserved-asia"
 
@@ -571,7 +573,7 @@ def test_handle_report_cancels_via_orders_cancel():
     assert cancel_call["tr_id"] == "TTTS3013U"
     assert cancel_call["body"]["RVSE_CNCL_DVSN_CD"] == "02"
     assert cancel_call["body"]["OVRS_RSVN_ODNO"] == "0030138295"
-    assert cancel_call["body"]["RSVN_ORD_RCIT_DT"] == "20260818"
+    assert cancel_call["body"]["RSVN_ORD_RCIT_DT"] == "20260807"
     assert cancelled.status is OrderStatus.PENDING_CANCEL
 
 
@@ -579,7 +581,7 @@ def test_account_reserved_orders_unions_us_and_asia():
     # kis.account.overseas.reserved_orders 는 미국(TTTT3039R)과 아시아(TTTS3014R)를 모두 조회해 합친다.
     fake = _Fake(_list_resp([_list_row()]))
     kis = _client(fake, OrderStore())
-    rows = kis.account.overseas.reserved_orders(start="20260801", end="20260818")
+    rows = kis.account.overseas.reserved_orders(start="20260801", end="20260807")
     assert [call["tr_id"] for call in fake.calls] == ["TTTT3039R", "TTTS3014R"]
     assert len(rows) == 2                            # 시장별 1건씩 합쳐진다
 
@@ -588,5 +590,5 @@ def test_account_reserved_orders_paper_fails_closed():
     fake = _Fake(_list_resp([]))
     kis = _client(fake, OrderStore(), environment="paper")
     with pytest.raises(KISUsageError, match="실전"):
-        kis.account.overseas.reserved_orders(start="20260801", end="20260818")
+        kis.account.overseas.reserved_orders(start="20260801", end="20260807")
     assert fake.calls == []                          # 조회 와이어에 닿지 않는다

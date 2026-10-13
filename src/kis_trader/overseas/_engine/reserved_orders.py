@@ -80,9 +80,11 @@ _RESERVED_EXCHANGE = "overseas-reserved"
 #: 아시아 예약 지문의 exchange 네임스페이스 -- 미국과 분리해 취소/재조회를 아시아 경로(TTTS3013U/
 #: TTTS3014R)로 라우팅한다.
 _ASIA_RESERVED_EXCHANGE = "overseas-reserved-asia"
-#: reconcile 창(양방향). KIS 명세상 예약 조회일자 필드 의미가 모호해 앞뒤로 스캔한다(실 API 검증 후 축소).
-_RECONCILE_LOOKBACK_DAYS = 7
-_RECONCILE_FORWARD_DAYS = 31
+#: 해외 예약주문조회(order-resv-list)의 조회기간 최대 폭(일). KIS 는 start~end 가 7일 이상이면 거부한다
+#: ("조회기간 7일 이상 불가" -- 라이브 확인 2026-10-14). 그래서 reconcile 은 접수일자(발주일 근처)에
+#: 앵커한 이 폭의 창으로 질의하고, 공개 :func:`fetch_reserved_orders` 는 더 넓은 기간을 조용히 실패시키지
+#: 않고 미리 거른다. (end-start 가 6일이면 7일 미만이라 허용된다.)
+_RESERVED_QUERY_MAX_SPAN_DAYS = 6
 
 
 def _asia_prdt_type_cd(exchange: str, currency: str | None) -> str:
@@ -113,6 +115,16 @@ def fetch_reserved_orders(
         raise KISUsageError("해외 예약주문조회(order-resv-list)는 모의투자 미지원 -- 실전에서만.")
     validate_yyyymmdd(start, "start")   # 조회 기간은 실재하는 YYYYMMDD 8자리여야 한다
     validate_yyyymmdd(end, "end")
+    # KIS 는 조회기간 7일 이상을 거부한다("조회기간 7일 이상 불가") -- 넓은 기간을 서버에 보내 불투명
+    # 오류를 받기 전에, 여기서 명확히 거른다(라이브 확인 2026-10-14).
+    span = (datetime.strptime(end, "%Y%m%d") - datetime.strptime(start, "%Y%m%d")).days
+    if span < 0:
+        raise KISUsageError(f"end 가 start 보다 앞선다: start={start} end={end}")
+    if span > _RESERVED_QUERY_MAX_SPAN_DAYS:
+        raise KISUsageError(
+            f"해외 예약주문조회는 기간이 {_RESERVED_QUERY_MAX_SPAN_DAYS}일 이하여야 한다"
+            f"(KIS 가 7일 이상을 거부한다): start={start} end={end} (기간 {span}일). 기간을 좁혀라."
+        )
     rows = _walk(transport, cano, product_code, start, end, market=market)
     return [_parse(row) for row in rows if str(row.get("ovrs_rsvn_odno", "")).strip()]
 
@@ -452,13 +464,14 @@ def _reconcile_reserved(
             f"({type(fingerprint).__name__}, 내부 상태 불일치)."
         )
     today = (now or datetime.now(_KST)).date()
-    # 조회창과 매칭창을 예약 발주일(store claim 확보일)에 함께 앵커한다 -- 국내 reserved 와 같은 규율
-    # (늦은 reconcile 에도 발주일 행이 조회·매칭에 들어 영구 미확정/이중체결 방지; start 를 발주일까지
-    # 과거로 늘리는 안전한 확대).
+    # 조회창을 예약 발주일(store claim 확보일)에 앵커한 ≤6일폭으로 둔다 -- KIS 가 7일 이상 조회기간을
+    # 거부하므로(위 _RESERVED_QUERY_MAX_SPAN_DAYS) 국내처럼 넓게 못 쓴다. 접수일자(rsvn_ord_rcit_dt)는
+    # 발주일 근처라, 발주일 하루 전부터 폭만큼 앞으로 긁으면 매칭창 {anchor-1,anchor,anchor+1} 을 덮으면서
+    # 한도를 지킨다(발주일 미상이면 오늘 기준). 늦은 reconcile 도 발주일에 앵커해 그 행을 받아온다.
     anchor = _claim_date(store.claim_time_for(client_order_id))
-    query_from = min(anchor, today) if anchor is not None else today
-    start = f"{query_from - timedelta(days=_RECONCILE_LOOKBACK_DAYS):%Y%m%d}"
-    end = f"{today + timedelta(days=_RECONCILE_FORWARD_DAYS):%Y%m%d}"
+    anchored = anchor if anchor is not None else today
+    start = f"{anchored - timedelta(days=1):%Y%m%d}"
+    end = f"{anchored + timedelta(days=_RESERVED_QUERY_MAX_SPAN_DAYS - 1):%Y%m%d}"
     try:
         rows = _walk(transport, cano, product_code, start, end, market=market)
     except TransportTimeoutError as err:

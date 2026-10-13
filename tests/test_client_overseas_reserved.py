@@ -61,7 +61,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 def test_overseas_reserved_parses_ledger_row():
     fake = FakeTransport(pages=[_resp(), _resp([])])   # 미국 1건, 아시아 빈 페이지
     orders = _client(fake).account.overseas.reserved_orders(
-        start="20250501", end="20250531")
+        start="20250501", end="20250507")
     assert len(orders) == 1
     o = orders[0]
     assert isinstance(o, OverseasReservedOrder)
@@ -82,14 +82,14 @@ def test_overseas_reserved_parses_ledger_row():
 
 def test_overseas_reserved_tr_and_params():
     fake = FakeTransport(response=_resp())
-    _client(fake).account.overseas.reserved_orders(start="20250501", end="20250531")
+    _client(fake).account.overseas.reserved_orders(start="20250501", end="20250507")
     call = fake.calls[0]
     assert call["tr_id"] == "TTTT3039R"
     assert call["method"] == "GET"
     assert call["path"] == _PATH
     assert call["idempotent"] is True
     assert call["params"]["INQR_STRT_DT"] == "20250501"
-    assert call["params"]["INQR_END_DT"] == "20250531"
+    assert call["params"]["INQR_END_DT"] == "20250507"
     assert call["params"]["INQR_DVSN_CD"] == "00"
     assert call["params"]["OVRS_EXCG_CD"] == ""      # 공백 = 미국 전체
     assert call["params"]["PRDT_TYPE_CD"] == ""
@@ -105,7 +105,7 @@ def test_overseas_reserved_demo_rejected_before_io():
 
 def test_overseas_reserved_canceled_flag():
     orders = _client(FakeTransport(response=_resp([dict(_ROW, cncl_yn="Y")]))).account.overseas.reserved_orders(
-        start="20250501", end="20250531")
+        start="20250501", end="20250507")
     assert orders[0].canceled is True
 
 
@@ -113,19 +113,19 @@ def test_overseas_reserved_paginates():
     page1 = _resp([_ROW], nk="NEXT", fk="FK", tr_cont="M")
     page2 = _resp([dict(_ROW, ovrs_rsvn_odno="0031111299")], tr_cont="D")
     fake = FakeTransport(pages=[page1, page2, _resp([])])   # 마지막은 아시아 빈 페이지
-    orders = _client(fake).account.overseas.reserved_orders(start="20250501", end="20250531")
+    orders = _client(fake).account.overseas.reserved_orders(start="20250501", end="20250507")
     assert [o.reserved_order_id for o in orders] == ["0031111234", "0031111299"]
     assert fake.calls[1]["tr_cont"] == "N"
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
 
 
 def test_overseas_reserved_empty_ok():
-    assert _client(FakeTransport(response=_resp([]))).account.overseas.reserved_orders(start="20250501", end="20250531") == []
+    assert _client(FakeTransport(response=_resp([]))).account.overseas.reserved_orders(start="20250501", end="20250507") == []
 
 
 def test_overseas_reserved_skips_padding_row():
     fake = FakeTransport(pages=[_resp([dict(_ROW, ovrs_rsvn_odno=""), _ROW]), _resp([])])
-    orders = _client(fake).account.overseas.reserved_orders(start="20250501", end="20250531")
+    orders = _client(fake).account.overseas.reserved_orders(start="20250501", end="20250507")
     assert len(orders) == 1
 
 
@@ -151,14 +151,14 @@ def test_overseas_reserved_unknown_side_code_fails_closed(bad_code):
     """알 수 없는/빈 매매구분코드는 side="" 로 뭉개지 않고 fail-closed(KISError)."""
     fake = FakeTransport(response=_resp([dict(_ROW, sll_buy_dvsn_cd=bad_code)]))
     with pytest.raises(KISError):
-        _client(fake).account.overseas.reserved_orders(start="20250501", end="20250531")
+        _client(fake).account.overseas.reserved_orders(start="20250501", end="20250507")
 
 
 def test_overseas_reserved_known_side_codes_still_map():
     """알려진 01(매도)/02(매수)는 종전과 동일하게 매핑된다(회귀 방지)."""
     sell = _client(FakeTransport(response=_resp([dict(_ROW, sll_buy_dvsn_cd="01")]))).account.overseas.reserved_orders(
-        start="20250501", end="20250531")
+        start="20250501", end="20250507")
     buy = _client(FakeTransport(response=_resp([dict(_ROW, sll_buy_dvsn_cd="02")]))).account.overseas.reserved_orders(
-        start="20250501", end="20250531")
+        start="20250501", end="20250507")
     assert sell[0].side == "sell"
     assert buy[0].side == "buy"
