@@ -339,7 +339,7 @@ from decimal import Decimal
 kis = KISClient(…, risk=RiskLimits(
     max_order_quantity=1000,                 # 한 주문 최대 수량
     max_order_notional=Decimal("50000000"),  # 한 주문 최대 금액(원) -- 국내(KRW) 주문에 적용
-    max_order_notional_by_currency={          # 해외주식: 결제통화별 최대 금액
+    max_order_notional_by_currency={          # 해외주식: 거래소 그룹 검사통화별 최대 금액
         "USD": Decimal("10000"),
         "JPY": Decimal("1500000"),
     },
@@ -364,7 +364,7 @@ kis = KISClient(…, risk=RiskLimits(
 검사 통화는 거래소 그룹으로 고정돼 있어 **주문의 실제 결제통화와 항상 일치하지는 않습니다.** 홍콩(HKS)
 거래소의 USD 결제 종목은 가격 숫자가 환산 없이 HKD 한도와 직접 비교되어 실효 한도가 약 7.8배 느슨해질
 수 있습니다(HKD 는 USD 에 7.75~7.85 밴드로 고정). 상해 B(USD)·심천 B(HKD) 종목도 같은 구조적 한계가
-있습니다. 보호는 항상 '느슨한' 방향(과소보호)이며, 정상 주문을 과도하게 거부하지는 않습니다.
+있습니다. 통화가 다르면 환산 없이 숫자만 비교하므로 실효 보호 수준은 환율 방향에 따라 느슨해지거나(과소보호) 더 엄격해질(정상 주문 과도 거부) 수 있습니다.
 
 종목별 실제 결제통화는 상세호가의 `curr` 값으로 알 수 있으나, 이를 반영해 정확히 교정하려면 모든 해외
 지정가 주문마다 추가 조회(throttle 대상)를 강제하게 되어 현재는 적용하지 않습니다. 문서화된, 추적 중인

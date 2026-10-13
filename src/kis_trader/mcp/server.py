@@ -372,6 +372,7 @@ def run_order_preview(
     return handlers.order_preview(
         snapshot.client, capped_currencies, symbol=symbol, side=side, quantity=quantity,
         limit_price=limit_price, division=division, region=region, exchange=exchange,
+        has_domestic_cap=snapshot.client.has_domestic_risk_cap,
     )
 
 
@@ -422,7 +423,7 @@ def build_server(
 
     @server.tool()
     def balance(region: Region = "domestic", market: str | None = None) -> dict[str, Any] | list[dict[str, Any]]:
-        """계좌 잔고 요약. region='domestic' 은 활성 계좌 종류로 분기(위탁/연금저축=국내주식, IRP=퇴직연금).
+        """계좌 잔고 요약. region='domestic' 은 활성 계좌 종류로 분기(위탁·ISA·연금저축=국내주식, IRP=퇴직연금).
         region='overseas' 는 해외주식 잔고(general·실전 전용; market 생략 시 시장별 요약 리스트, 반환 shape 상이)."""
         # client 와 active_profile 을 한 락 아래서 함께 떠(TOCTOU 방지) 해외 게이트가 일관된 짝을 보게 한다.
         client, active_profile = account_session.read_context()

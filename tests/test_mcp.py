@@ -234,7 +234,8 @@ def test_list_handlers_reject_bad_limit(fn, bad):
 
 def test_order_preview_not_sent_and_masks_account():
     kis = _fake_kis(environment="real", account="12345678-01")
-    out = handlers.order_preview(kis, frozenset(), symbol="005930", side="buy", quantity=10, limit_price="70000")
+    out = handlers.order_preview(kis, frozenset(), symbol="005930", side="buy", quantity=10,
+                                 limit_price="70000", has_domestic_cap=True)
     assert out["sent"] is False
     assert out["environment"] == "real"
     assert out["account"] == "****7801"          # 마지막 4자리만
@@ -246,6 +247,14 @@ def test_order_preview_not_sent_and_masks_account():
 def test_order_preview_market_when_no_price():
     out = handlers.order_preview(_fake_kis(), frozenset(), symbol="005930", side="sell", quantity=1)
     assert out["order_type"] == "market" and out["limit_price"] is None
+
+
+def test_order_preview_domestic_real_refused_without_domestic_cap():
+    # preview 는 place 의 refusal 을 대칭으로 비춘다 -- 국내 실전인데 국내 캡이 없으면 미리보기도 거부
+    # (place 가 거부할 주문을 preview 가 통과시키지 않는다; has_domestic_cap 기본 False).
+    with pytest.raises(KISUsageError, match="국내"):
+        handlers.order_preview(_fake_kis(environment="real"), frozenset(), symbol="005930",
+                               side="buy", quantity=1, limit_price="70000")
 
 
 @pytest.mark.parametrize("bad", [

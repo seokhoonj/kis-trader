@@ -71,11 +71,11 @@
         },
         {
           "name": "KIS_MCP_MAX_ORDER_QTY",
-          "description": "Fat-finger cap: maximum quantity per live order (RiskLimits). At least one of the RiskLimits caps is required for any real place/modify; without it live orders are refused fail-closed."
+          "description": "Fat-finger cap: maximum quantity per live order (RiskLimits). A domestic real place/modify requires a domestic size cap (this or KIS_MCP_MAX_ORDER_NOTIONAL); an overseas real place/modify additionally requires the matching KIS_MCP_MAX_ORDER_NOTIONAL_<CCY>. Without the applicable cap the order is refused fail-closed."
         },
         {
           "name": "KIS_MCP_MAX_ORDER_NOTIONAL",
-          "description": "Fat-finger cap: maximum notional (price x quantity) per live DOMESTIC (KRW) order (RiskLimits). Overseas orders use the per-currency KIS_MCP_MAX_ORDER_NOTIONAL_<CCY> caps instead; a domestic real order requires one of the domestic caps (this or MAX_ORDER_QTY/PRICE_COLLAR_PCT)."
+          "description": "Fat-finger cap: maximum notional (price x quantity) per live DOMESTIC (KRW) order (RiskLimits). Overseas orders use the per-currency KIS_MCP_MAX_ORDER_NOTIONAL_<CCY> caps instead; a domestic real order requires one of the domestic SIZE caps (this or MAX_ORDER_QTY) -- the price collar is not a size cap and does not satisfy the gate."
         },
         {
           "name": "KIS_MCP_MAX_ORDER_NOTIONAL_<CCY>",
@@ -87,7 +87,7 @@
         },
         {
           "name": "KIS_MCP_MAX_REAL_ORDERS",
-          "description": "Session circuit breaker: maximum number of live orders per server session before it halts and refuses further live orders until restarted."
+          "description": "Session circuit breaker: maximum number of live orders per server session before it halts and refuses further live place/modify orders until restarted. Cancels are exempt -- they do not consume a slot and remain available while halted (so positions can be exited)."
         }
       ]
     }

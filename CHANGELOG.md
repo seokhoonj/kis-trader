@@ -55,13 +55,14 @@ environment = a separate axis).
 
 - MCP server: runtime account switching (`use_environment`, `use_profile`, `current_account`) so the
   active account changes within a chat session without a restart; account-type-aware reads
-  (`balance`/`positions` take `region`, and `market` for overseas; the pension lens for IRP/연금저축)
+  (`balance`/`positions` take `region`, and `market` for overseas; the pension lens is for IRP, while general/ISA/pension-savings read via the domestic-stock handlers)
   and `quote(session="after_hours")` for 시간외; and overseas stock orders (`place_order`/
   `order_preview` take `region` and `exchange`, with per-currency caps from
   `KIS_MCP_MAX_ORDER_NOTIONAL_<CCY>`). Switching the active environment changes only the read/order
   context -- a real order still requires the startup `KIS_MCP_ALLOW_REAL` + `KIS_MCP_REAL_CONFIRM`
-  gate, RiskLimits, the allowlist, and human confirmation, and is allowed only on the general
-  brokerage account (product code 01).
+  gate, RiskLimits, the allowlist, and human confirmation. Domestic real orders are allowed on
+  orderable stock accounts (general/ISA product 01, pension-savings 22); overseas orders are
+  general-account-only.
 
 ### Notes
 

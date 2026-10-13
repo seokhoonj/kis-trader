@@ -89,7 +89,7 @@ def _active_stock_account(kis: KISClient) -> StockAccount:
     account = kis.account
     if not isinstance(account, StockAccount):
         raise KISUsageError(
-            f"이 도구는 주식 계좌(위탁/연금저축/IRP) 전용이다 -- 파생은 MCP 에 노출하지 않는다"
+            f"이 도구는 주식 계좌(위탁·ISA/연금저축/IRP) 전용이다 -- 파생은 MCP 에 노출하지 않는다"
             f"(현재 계좌 뷰: {type(account).__name__})."
         )
     return account
@@ -159,7 +159,7 @@ def balance(
     kis: KISClient, *, region: str = "domestic", market: str | None = None,
     active_profile: str | None = None,
 ) -> dict[str, Any] | list[dict[str, Any]]:
-    """계좌 잔고 요약. ``region="domestic"`` 은 활성 계좌 종류로 분기한다 -- 위탁/연금저축(상품코드
+    """계좌 잔고 요약. ``region="domestic"`` 은 활성 계좌 종류로 분기한다 -- 위탁·ISA/연금저축(상품코드
     01/22)은 국내주식 잔고, IRP(29)는 퇴직연금 잔고 렌즈. ``region="overseas"`` 는 해외주식 잔고
     (general·실전 전용, MCP 정책)로 ``market`` 생략 시 시장별 요약 리스트. 도메인 수치는 패키지가 만든다."""
     if region == "overseas":
@@ -180,7 +180,7 @@ def positions(
     kis: KISClient, *, region: str = "domestic", market: str | None = None, limit: int = 100,
     active_profile: str | None = None,
 ) -> list[dict[str, Any]]:
-    """보유 종목. ``region="domestic"`` 은 활성 계좌 종류로 분기(위탁/연금저축=국내주식 보유,
+    """보유 종목. ``region="domestic"`` 은 활성 계좌 종류로 분기(위탁·ISA/연금저축=국내주식 보유,
     IRP(29)=퇴직연금 잔고의 보유내역). ``region="overseas"`` 는 해외주식 보유(general·실전 전용)."""
     _require_positive_limit(limit)
     if region == "overseas":
@@ -219,7 +219,7 @@ def open_orders(kis: KISClient, *, limit: int = 100) -> list[dict[str, Any]]:
 def order_preview(
     kis: KISClient, capped_currencies: frozenset[str], *, symbol: str, side: Side, quantity: int,
     limit_price: str | None = None, division: DomesticDivision | None = None,
-    region: str = "domestic", exchange: str | None = None,
+    region: str = "domestic", exchange: str | None = None, has_domestic_cap: bool = False,
 ) -> dict[str, Any]:
     """주문 **미리보기**(dry-run) -- 전송하지 않고 나갈 티켓만 되읽어 보여준다. 실제 전송은 ``place_order``
     가 가드레일(이중게이트+RiskLimits+allowlist+사람확인)을 거쳐 한다. 이 도구는 무엇이 나갈지 미리
@@ -231,8 +231,11 @@ def order_preview(
         region=region, symbol=symbol, side=side, quantity=quantity,
         limit_price=limit_price, division=division, exchange=exchange,
     )
-    # place_order 와 같은 정직한 선거부: 해외 실전인데 결제통화 한도가 없으면 preview 도 거부한다
-    # (환경은 활성 슬롯 환경 = kis.environment; place 의 gate.is_real() 과 동치).
+    # place_order 와 같은 정직한 선거부: 실전인데 그 region 의 캡이 없으면 preview 도 거부한다 -- 국내는
+    # 크기 캡, 해외는 결제통화 한도. place 의 refusal 을 preview 가 양 region 대칭으로 비춘다(환경은 활성
+    # 슬롯 환경 = kis.environment; place 의 gate.is_real() 과 동치).
+    _require_domestic_cap(
+        is_real=kis.environment == "real", region=plan.region, has_domestic_cap=has_domestic_cap)
     _require_overseas_currency_cap(plan, capped_currencies, is_real=kis.environment == "real")
     ticket: dict[str, Any] = {
         "sent": False,
