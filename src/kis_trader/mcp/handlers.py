@@ -224,7 +224,7 @@ def open_orders(kis: KISClient, *, limit: int = 100) -> list[dict[str, Any]]:
 def order_preview(
     kis: KISClient, capped_currencies: frozenset[str], *, symbol: str, side: Side, quantity: int,
     limit_price: str | None = None, division: DomesticDivision | None = None,
-    region: str = "domestic", exchange: str | None = None, has_domestic_cap: bool = False,
+    region: str = "domestic", exchange: str | None = None, has_domestic_risk_cap: bool = False,
 ) -> dict[str, Any]:
     """주문 **미리보기**(dry-run) -- 전송하지 않고 나갈 티켓만 되읽어 보여준다. 실제 전송은 ``place_order``
     가 가드레일(이중게이트+RiskLimits+allowlist+사람확인)을 거쳐 한다. 이 도구는 무엇이 나갈지 미리
@@ -240,7 +240,7 @@ def order_preview(
     # 크기 캡, 해외는 결제통화 한도. place 의 refusal 을 preview 가 양 region 대칭으로 비춘다(환경은 활성
     # 슬롯 환경 = kis.environment; place 의 gate.is_real() 과 동치).
     _require_domestic_cap(
-        is_real=kis.environment == "real", region=plan.region, has_domestic_cap=has_domestic_cap)
+        is_real=kis.environment == "real", region=plan.region, has_domestic_risk_cap=has_domestic_risk_cap)
     _require_overseas_currency_cap(plan, capped_currencies, is_real=kis.environment == "real")
     ticket: dict[str, Any] = {
         "sent": False,
@@ -291,11 +291,11 @@ def _require_overseas_currency_cap(
         )
 
 
-def _require_domestic_cap(*, is_real: bool, region: str, has_domestic_cap: bool) -> None:
+def _require_domestic_cap(*, is_real: bool, region: str, has_domestic_risk_cap: bool) -> None:
     """국내 실주문은 국내(KRW)에 적용되는 fat-finger 캡이 있어야 한다 -- 해외 통화별 캡만 있고 국내 캡이
     없는 RiskLimits 로 국내 실주문이 무한도로 열리는 것을 막는다(해외 :func:`_require_overseas_currency_
     cap` 의 국내 짝; 게이트의 '실전=캡 필수' 약속을 region 별로 참이 되게 한다). 모의/해외는 대상 아님."""
-    if is_real and region == "domestic" and not has_domestic_cap:
+    if is_real and region == "domestic" and not has_domestic_risk_cap:
         raise KISUsageError(
             "국내 실전 주문엔 국내(KRW)에 적용되는 fat-finger 캡이 필요하다 -- 해외 통화캡만 설정하면 "
             "국내 주문이 무한도로 열린다(fail-closed). 크기(size) 캡 -- 수량 또는 금액 -- 을 설정하라"
@@ -305,23 +305,24 @@ def _require_domestic_cap(*, is_real: bool, region: str, has_domestic_cap: bool)
 
 
 def plan_place_order(
-    gate: RealOrderGate, allowlist: frozenset[str] | None, has_risk: bool,
+    gate: RealOrderGate, allowlist: frozenset[str] | None,
     capped_currencies: frozenset[str] = frozenset(), *,
+    has_risk_limits: bool,
     region: str, symbol: str, side: str, quantity: int, limit_price: str | None = None,
-    division: str | None = None, exchange: str | None = None, has_domestic_cap: bool = False,
+    division: str | None = None, exchange: str | None = None, has_domestic_risk_cap: bool = False,
 ) -> StockOrderPlan:
     """매수/매도 주문 계획 -- 이중게이트 -> (실전) RiskLimits 필수 -> 티켓 빌드 -> (실전) region 별 캡
     선검사(국내 KRW 캡 / 해외 통화별 캡) -> allowlist 순으로 검증한다. 실전에서 RiskLimits(fail-closed
     캡)가 없으면 거부한다(관례: 캡은 사용자 설정, 미설정=거부). 실전에선 **그 주문의 region 에 적용되는**
-    캡이 있어야 한다 -- 국내는 KRW 캡(``has_domestic_cap``), 해외는 결제통화 한도가 없으면 와이어 전에
+    캡이 있어야 한다 -- 국내는 KRW 캡(``has_domestic_risk_cap``), 해외는 결제통화 한도가 없으면 와이어 전에
     거부한다(해외 통화캡만 있고 국내 캡이 없는 상태로 국내 실주문이 무한도로 새지 않게 한다)."""
     gate.require_executable()
-    if gate.is_real() and not has_risk:
+    if gate.is_real() and not has_risk_limits:
         raise KISUsageError(
             "실전 주문은 RiskLimits(fat-finger 캡) 설정이 필요하다 -- 미설정이면 전송하지 않는다"
             "(fail-closed). KISClient(risk=RiskLimits(...)) 또는 MCP 캡 환경변수로 설정."
         )
-    _require_domestic_cap(is_real=gate.is_real(), region=region, has_domestic_cap=has_domestic_cap)
+    _require_domestic_cap(is_real=gate.is_real(), region=region, has_domestic_risk_cap=has_domestic_risk_cap)
     plan = make_stock_order_plan(
         region=region, symbol=symbol, side=side, quantity=quantity, limit_price=limit_price,
         division=division, exchange=exchange,
@@ -340,23 +341,24 @@ def plan_cancel_order(gate: RealOrderGate, *, client_order_id: str) -> str:
 
 
 def plan_modify_order(
-    gate: RealOrderGate, has_risk: bool, allowlist: frozenset[str] | None = None, *,
+    gate: RealOrderGate, allowlist: frozenset[str] | None = None, *,
+    has_risk_limits: bool,
     client_order_id: str, limit_price: str, quantity: int | None = None,
     symbol: str | None = None, side: Side | None = None,
-    region: str = "domestic", has_domestic_cap: bool = False,
+    region: str = "domestic", has_domestic_risk_cap: bool = False,
 ) -> ModifyOrderPlan:
     """정정 계획 -- 새 가격을 거는 변경이라 신규 주문처럼 (실전) RiskLimits 를 요구한다(fail-closed).
-    원주문의 ``region`` 에 적용되는 캡이 있어야 한다(국내는 KRW 캡 ``has_domestic_cap`` -- place 와 같은
+    원주문의 ``region`` 에 적용되는 캡이 있어야 한다(국내는 KRW 캡 ``has_domestic_risk_cap`` -- place 와 같은
     region 별 fail-closed; 해외 통화캡만으론 국내 정정이 무한도로 열리지 않게 한다. 해외 결제통화 캡은
     와이어 backstop :meth:`~kis_trader.risk.RiskLimits.check` 가 강제한다). 원주문 종목(``symbol``)이
     저장소에서 해석되면 신규 주문과 같이 실전 allowlist 도 확인한다 -- 정정은 노출을 늘릴 수 있어(재가격·
     수량) place 와 같은 종목 통제를 받아야 한다. 종목을 모르면(저장소 미보유) allowlist 는 건너뛴다."""
     gate.require_executable()
-    if gate.is_real() and not has_risk:
+    if gate.is_real() and not has_risk_limits:
         raise KISUsageError(
             "실전 정정은 RiskLimits 설정이 필요하다(fail-closed) -- 새 가격이 캡을 통과해야 한다."
         )
-    _require_domestic_cap(is_real=gate.is_real(), region=region, has_domestic_cap=has_domestic_cap)
+    _require_domestic_cap(is_real=gate.is_real(), region=region, has_domestic_risk_cap=has_domestic_risk_cap)
     if not isinstance(client_order_id, str) or not client_order_id:
         raise KISUsageError(f"client_order_id 는 비어 있지 않은 문자열이어야 한다: {client_order_id!r}")
     if not isinstance(limit_price, (str, int)):

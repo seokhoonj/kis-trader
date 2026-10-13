@@ -221,42 +221,42 @@ _REAL = RealOrderGate.from_env(
 
 
 def test_plan_place_paper_no_caps_needed():
-    plan = plan_place_order(_PAPER, None, has_risk=False, region="domestic",
+    plan = plan_place_order(_PAPER, None, has_risk_limits=False, region="domestic",
                             symbol="005930", side="buy", quantity=1)
     assert plan.symbol == "005930" and plan.order_type == "market"
 
 
 def test_plan_place_real_requires_risk():
     with pytest.raises(KISUsageError, match="RiskLimits"):
-        plan_place_order(_REAL, frozenset({"005930"}), has_risk=False, region="domestic",
+        plan_place_order(_REAL, frozenset({"005930"}), has_risk_limits=False, region="domestic",
                          symbol="005930", side="buy", quantity=1, limit_price="70000")
 
 
 def test_plan_place_real_requires_allowlist():
     with pytest.raises(KISUsageError, match="allowlist"):
-        plan_place_order(_REAL, None, has_risk=True, region="domestic", has_domestic_cap=True,
+        plan_place_order(_REAL, None, has_risk_limits=True, region="domestic", has_domestic_risk_cap=True,
                          symbol="005930", side="buy", quantity=1, limit_price="70000")
 
 
 def test_plan_place_domestic_real_requires_domestic_cap():
-    # 해외 통화캡만 있어(국내 적용 캡 없음) has_domestic_cap=False 이면 국내 실주문은 거부된다
-    # -- 아무 RiskLimits 존재(has_risk=True)만으로 국내가 무한도로 열리지 않는다(fail-closed).
+    # 해외 통화캡만 있어(국내 적용 캡 없음) has_domestic_risk_cap=False 이면 국내 실주문은 거부된다
+    # -- 아무 RiskLimits 존재(has_risk_limits=True)만으로 국내가 무한도로 열리지 않는다(fail-closed).
     with pytest.raises(KISUsageError, match="국내"):
-        plan_place_order(_REAL, frozenset({"005930"}), has_risk=True, region="domestic",
-                         has_domestic_cap=False, symbol="005930", side="buy", quantity=1,
+        plan_place_order(_REAL, frozenset({"005930"}), has_risk_limits=True, region="domestic",
+                         has_domestic_risk_cap=False, symbol="005930", side="buy", quantity=1,
                          limit_price="70000")
 
 
 def test_plan_place_real_gate_closed():
     gate = RealOrderGate.from_env({}, "real")          # 이중게이트 미설정
     with pytest.raises(KISUsageError, match="KIS_MCP_ALLOW_REAL"):
-        plan_place_order(gate, frozenset({"005930"}), has_risk=True, region="domestic",
+        plan_place_order(gate, frozenset({"005930"}), has_risk_limits=True, region="domestic",
                          symbol="005930", side="buy", quantity=1, limit_price="70000")
 
 
 def test_plan_place_real_all_pass():
-    plan = plan_place_order(_REAL, frozenset({"005930"}), has_risk=True, region="domestic",
-                            has_domestic_cap=True, symbol="005930", side="buy", quantity=10,
+    plan = plan_place_order(_REAL, frozenset({"005930"}), has_risk_limits=True, region="domestic",
+                            has_domestic_risk_cap=True, symbol="005930", side="buy", quantity=10,
                             limit_price="70000")
     assert plan == StockOrderPlan(region="domestic", symbol="005930", side="buy",
                                   order_type="limit", quantity=10, limit_price="70000")
@@ -273,8 +273,8 @@ def test_plan_cancel_gate_and_id():
 
 def test_plan_modify_real_requires_risk():
     with pytest.raises(KISUsageError, match="RiskLimits"):
-        plan_modify_order(_REAL, has_risk=False, client_order_id="x", limit_price="100")
-    out = plan_modify_order(_REAL, has_risk=True, has_domestic_cap=True,
+        plan_modify_order(_REAL, has_risk_limits=False, client_order_id="x", limit_price="100")
+    out = plan_modify_order(_REAL, has_risk_limits=True, has_domestic_risk_cap=True,
                             client_order_id="x", limit_price="100", quantity=5)
     assert out == ModifyOrderPlan(client_order_id="x", limit_price="100", quantity=5)
 
@@ -282,16 +282,16 @@ def test_plan_modify_real_requires_risk():
 def test_plan_modify_real_runs_allowlist_on_resolved_symbol():
     # 정정은 노출을 늘릴 수 있어(재가격) 원주문 종목이 실전 allowlist 를 통과해야 한다(place 와 동일).
     with pytest.raises(KISUsageError, match="allowlist"):
-        plan_modify_order(_REAL, has_risk=True, has_domestic_cap=True, allowlist=frozenset({"000660"}),
+        plan_modify_order(_REAL, has_risk_limits=True, has_domestic_risk_cap=True, allowlist=frozenset({"000660"}),
                           client_order_id="x", limit_price="100", symbol="005930")
-    out = plan_modify_order(_REAL, has_risk=True, has_domestic_cap=True, allowlist=frozenset({"005930"}),
+    out = plan_modify_order(_REAL, has_risk_limits=True, has_domestic_risk_cap=True, allowlist=frozenset({"005930"}),
                             client_order_id="x", limit_price="100", symbol="005930", side="buy")
     assert out.symbol == "005930" and out.side == "buy"
 
 
 def test_plan_modify_without_resolved_symbol_skips_allowlist():
     # 저장소에서 종목을 못 찾으면(symbol=None) allowlist 는 건너뛴다 -- 그 외 게이트/사람확인은 유지.
-    out = plan_modify_order(_REAL, has_risk=True, has_domestic_cap=True, allowlist=frozenset({"000660"}),
+    out = plan_modify_order(_REAL, has_risk_limits=True, has_domestic_risk_cap=True, allowlist=frozenset({"000660"}),
                             client_order_id="x", limit_price="100")
     assert out.symbol is None
 
@@ -398,7 +398,7 @@ def test_run_place_order_real_no_risk_raises():
 
 def test_run_place_order_domestic_real_refused_when_only_foreign_cap():
     # 해외(USD)캡만 있고 국내 적용 캡이 없으면 국내 실주문은 와이어 전에 거부된다 -- RiskLimits 존재
-    # (has_risk=True)만으로 국내가 무한도로 열리지 않는다(region-적용 캡 fail-closed; 해외 통화캡의 국내 짝).
+    # (has_risk_limits=True)만으로 국내가 무한도로 열리지 않는다(region-적용 캡 fail-closed; 해외 통화캡의 국내 짝).
     pytest.importorskip("mcp")
     from kis_trader.mcp.server import run_place_order
     kis, t = _order_client("real", risk=RiskLimits(max_order_notional_by_currency={"USD": "1000000"}))
@@ -575,10 +575,10 @@ def test_run_modify_order_paper_executes():
 def test_plan_place_overseas_real_requires_currency_cap():
     # 해외 실전은 결제통화 한도가 없으면 와이어 전에 거부(통화 이름을 담아). 있으면 통과.
     with pytest.raises(KISUsageError, match="KIS_MCP_MAX_ORDER_NOTIONAL_USD"):
-        plan_place_order(_REAL, frozenset({"AAPL"}), has_risk=True, capped_currencies=frozenset(),
+        plan_place_order(_REAL, frozenset({"AAPL"}), has_risk_limits=True, capped_currencies=frozenset(),
                          region="overseas", symbol="AAPL", side="buy", quantity=1,
                          limit_price="150", exchange="NAS")
-    plan = plan_place_order(_REAL, frozenset({"AAPL"}), has_risk=True,
+    plan = plan_place_order(_REAL, frozenset({"AAPL"}), has_risk_limits=True,
                             capped_currencies=frozenset({"USD"}), region="overseas", symbol="AAPL",
                             side="buy", quantity=1, limit_price="150", exchange="NAS")
     assert plan.region == "overseas" and plan.exchange == "NAS"
@@ -586,7 +586,7 @@ def test_plan_place_overseas_real_requires_currency_cap():
 
 def test_plan_place_overseas_paper_needs_no_cap():
     # 모의 해외는 캡 선검사 대상 아님(gate.is_real() False).
-    plan = plan_place_order(_PAPER, None, has_risk=False, capped_currencies=frozenset(),
+    plan = plan_place_order(_PAPER, None, has_risk_limits=False, capped_currencies=frozenset(),
                             region="overseas", symbol="AAPL", side="buy", quantity=1,
                             limit_price="150", exchange="NAS")
     assert plan.region == "overseas"

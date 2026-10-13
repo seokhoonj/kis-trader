@@ -372,7 +372,7 @@ class OverseasNamespace:
             self._client.transport, exchange=exchange, **filters
         )
 
-    def product_info(self, exchange: str, symbol: str) -> OverseasProductInfo:
+    def product_info(self, symbol: str, *, exchange: str) -> OverseasProductInfo:
         """해외 종목의 상품기본정보(거래소·통화·상장주식수·SEDOL·블룸버그티커 등). exchange=NAS/NYS/AMS/TSE/HKS/..."""
         return overseas_market_data_api.fetch_product_info(
             self._client.transport, exchange=exchange, symbol=symbol
@@ -385,7 +385,7 @@ class OverseasNamespace:
         )
 
     def industry_stocks(
-        self, exchange: str, industry_code: str, *, min_volume: int = 0
+        self, exchange: str, *, industry_code: str, min_volume: int = 0
     ) -> list[OverseasIndustryStock]:
         """해외 거래소의 한 업종에 속한 종목 시세. 거래량 하한은 0·100·1천·1만·10만·100만·1천만."""
         return overseas_market_data_api.fetch_industry_stocks(
@@ -394,7 +394,7 @@ class OverseasNamespace:
         )
 
     def collateral_stocks(
-        self, symbol: str, country: str, *, sort: Literal["name", "symbol"] = "name", product_type: str = "",
+        self, symbol: str, *, country: str, sort: Literal["name", "symbol"] = "name", product_type: str = "",
         loanable: bool | None = None,
     ) -> OverseasCollateralStockSearch:
         """해외주식 담보대출 가능종목 목록(``.stocks``)과 조회 요약(``.summary``) -- 대출 가능 여부와
@@ -434,7 +434,7 @@ class OverseasNamespace:
         )
 
     def corporate_actions(
-        self, country: str, symbol: str, *, start: str | date | None = None,
+        self, symbol: str, *, country: str, start: str | date | None = None,
         end: str | date | None = None,
     ) -> list[OverseasCorporateAction]:
         """해외종목 권리·기업행사 종합 일정."""

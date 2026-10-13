@@ -54,7 +54,7 @@ def test_overseas_corporate_actions_maps_and_routes():
            "early_redempt_dt": "", "effective_dt": ""}
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": [row]})
     client = _client(response)
-    actions = client.overseas.corporate_actions("US", "AAPL")
+    actions = client.overseas.corporate_actions("AAPL", country="US")
     assert isinstance(actions[0], OverseasCorporateAction)
     assert actions[0].payment_date == date(2024, 5, 20)
     assert client.transport.calls[0] == {

@@ -27,10 +27,21 @@ import os
 import sys
 from typing import Any, Literal
 
-import anyio
-from mcp.server.mcpserver import MCPServer
-from mcp.server.mcpserver.context import Context
-from mcp.server.transport_security import TransportSecuritySettings
+try:  # `mcp`(및 pydantic/starlette) 는 선택 의존성. 콘솔 스크립트 kis-mcp 는 무조건 설치되므로,
+    import anyio  # 미설치 상태에서 실행돼도 raw ModuleNotFoundError 대신 main() 에서 친절한 설치 안내로 거른다.
+    from mcp.server.mcpserver import MCPServer
+    from mcp.server.mcpserver.context import Context
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    from ._elicit import SupportsElicit, confirm_order
+    from ._http_auth import BearerTokenMiddleware
+except ModuleNotFoundError as err:  # pragma: no cover - 선택 의존성 미설치 경로
+    _MCP_IMPORT_ERROR: ModuleNotFoundError | None = err
+    anyio = None  # type: ignore[assignment]
+    MCPServer = Context = TransportSecuritySettings = None  # type: ignore[assignment,misc]
+    SupportsElicit = confirm_order = BearerTokenMiddleware = None  # type: ignore[assignment,misc]
+else:
+    _MCP_IMPORT_ERROR = None
 
 from .. import config
 from .._literals import Direction
@@ -42,9 +53,7 @@ from ..order import DomesticDivision, ImmediateOrderFingerprint, Side
 from ..overseas._engine.orders import is_overseas_exchange
 from ..risk import RiskLimits
 from . import handlers
-from ._elicit import SupportsElicit, confirm_order
 from ._guardrails import CircuitBreaker, RealOrderGate, StockOrderPlan
-from ._http_auth import BearerTokenMiddleware
 from ._policy import (
     SwitchableProfile,
     _account_masked,
@@ -293,9 +302,10 @@ async def run_place_order(
     _require_order_authorization(snapshot, region)
     kis, gate = snapshot.client, snapshot.gate
     plan = handlers.plan_place_order(
-        gate, allowlist, kis.has_risk_limits, capped_currencies, region=region, symbol=symbol,
+        gate, allowlist, capped_currencies, has_risk_limits=kis.has_risk_limits,
+        region=region, symbol=symbol,
         side=side, quantity=quantity, limit_price=limit_price, division=division, exchange=exchange,
-        has_domestic_cap=kis.has_domestic_risk_cap,
+        has_domestic_risk_cap=kis.has_domestic_risk_cap,
     )
     ticket = _order_ticket(kis, action="place", region=plan.region, symbol=plan.symbol, side=plan.side,
                            order_type=plan.order_type, quantity=plan.quantity, limit_price=plan.limit_price,
@@ -340,10 +350,10 @@ async def run_modify_order(
     _require_order_authorization(snapshot, region)
     identity = _order_identity(kis, client_order_id)
     plan = handlers.plan_modify_order(
-        gate, kis.has_risk_limits, allowlist, client_order_id=client_order_id,
+        gate, allowlist, has_risk_limits=kis.has_risk_limits, client_order_id=client_order_id,
         limit_price=limit_price, quantity=quantity,
         symbol=identity[0] if identity else None, side=identity[1] if identity else None,
-        region=region, has_domestic_cap=kis.has_domestic_risk_cap,
+        region=region, has_domestic_risk_cap=kis.has_domestic_risk_cap,
     )
     ticket = _order_ticket(kis, action="modify", client_order_id=plan.client_order_id,
                            limit_price=plan.limit_price, quantity=plan.quantity,
@@ -372,7 +382,7 @@ def run_order_preview(
     return handlers.order_preview(
         snapshot.client, capped_currencies, symbol=symbol, side=side, quantity=quantity,
         limit_price=limit_price, division=division, region=region, exchange=exchange,
-        has_domestic_cap=snapshot.client.has_domestic_risk_cap,
+        has_domestic_risk_cap=snapshot.client.has_domestic_risk_cap,
     )
 
 
@@ -561,6 +571,11 @@ def _build_session(environ: dict[str, str], environment: str, risk: RiskLimits |
 def main() -> None:
     """MCP 서버 실행 진입점(콘솔 스크립트 ``kis-mcp``). 기본 stdio; ``KIS_MCP_TRANSPORT`` 로 sse/
     streamable-http(로컬 바인드) 선택."""
+    if _MCP_IMPORT_ERROR is not None:
+        # bare 설치(`pip install kis-trader`, [mcp] extra 없이)에서 kis-mcp 를 실행한 경우.
+        print("kis-mcp: MCP 서버에는 mcp 패키지가 필요합니다: pip install 'kis-trader[mcp]'.",
+              file=sys.stderr)
+        raise SystemExit(1) from _MCP_IMPORT_ERROR
     environment = os.environ.get("KIS_MCP_ENVIRONMENT", "paper")
     try:
         environ = dict(os.environ)
