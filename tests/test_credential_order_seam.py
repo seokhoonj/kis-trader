@@ -98,5 +98,4 @@ def test_app_key_and_secret_isolated_between_real_and_paper(tmp_path, monkeypatc
     paper_key, paper_secret = captured["paper"]
     assert real_key != paper_key                     # app_key 격리(real != paper)
     assert real_secret != paper_secret               # app_secret 격리
-    assert paper_key != real_key                     # 반대 방향(paper 가 real 로 새지 않는다)
     assert captured["real"] != captured["paper"]      # 짝 전체가 슬롯별로 분리

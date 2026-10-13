@@ -352,7 +352,7 @@ def _select_environment_block(loaded: dict[str, object], environment: str) -> di
     return cast("dict[str, object]", block)
 
 
-def _validate_bundle(environment: str, profile: str, bundle: object) -> dict[str, object]:
+def _validate_bundle(*, environment: str, profile: str, bundle: object) -> dict[str, object]:
     """v2 묶음(bundle) 하나를 검증하고 돌려준다. 객체가 아니면 fail-closed. 묶음 안에 ``environment``
     필드가 있으면 거부한다 -- 환경의 유일한 출처는 바깥 블록 키이므로(읽기/저장 양쪽에서 막는다)."""
     if not isinstance(bundle, dict):
@@ -378,7 +378,7 @@ def _validate_v2_shape(loaded: dict[str, object]) -> None:
         block = _select_environment_block(loaded, env_key)
         for profile, bundle in block.items():
             _validate_profile_name_v2(profile)
-            _validate_bundle(env_key, profile, bundle)
+            _validate_bundle(environment=env_key, profile=profile, bundle=bundle)
 
 
 def _validate_legacy_shape(parsed: dict[str, object]) -> None:

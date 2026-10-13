@@ -18,14 +18,17 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, get_args
 
 from ..client import KISClient
 from ..errors import KISUsageError
+from ..transport import Environment
 from ._guardrails import RealOrderGate
 from ._policy import _SWITCHABLE_PROFILES, _account_descriptor, _account_masked
 
-_ENVIRONMENTS = frozenset({"real", "paper"})
+#: 활성 환경 멤버십 -- 공개 :data:`~kis_trader.transport.Environment` Literal 에서 파생해 드리프트를
+#: 원천 차단한다(프로필 축이 _SWITCHABLE_PROFILES 를 SwitchableProfile 에서 파생하는 것과 평행).
+_ENVIRONMENTS = frozenset(get_args(Environment))
 
 #: ``(profile, environment)`` -> KISClient 팩토리. profile 은 저장 프로필 이름(``None`` 은 직접-자격증명
 #: 기동이라 전환 불가 -- 이 팩토리가 쓰이지 않는다).
@@ -80,6 +83,13 @@ class MCPSession:
             raise KISUsageError(
                 f"기동 클라이언트 환경({startup_client.environment!r})이 세션 환경({environment!r})과 "
                 "어긋난다 -- split-brain 차단."
+            )
+        if build is not None and profile is None:
+            # 전환 가능 세션(build 주입)은 기동 프로필이 있어야 한다 -- profile=None 은 직접-자격증명 고정
+            # 슬롯(build=None)이어야 한다. 이 불법 조합을 생성 시 거부해 _get_or_build 의 assert(-O 에서
+            # 소거됨)에 기대지 않는다(소거되면 build(None, env) 로 기본 프로필을 오해석할 수 있다).
+            raise KISUsageError(
+                "전환 가능 세션은 기동 프로필이 필요하다 -- profile=None(직접-자격증명)이면 build 를 주지 말라."
             )
         self._profile = profile
         # 위 가드(startup_client.environment != environment)가 environment 를 Literal 로 좁히지만, 활성

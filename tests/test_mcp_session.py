@@ -135,6 +135,15 @@ def test_direct_cred_fixed_slot_rejects_switch():
     assert acct["account"] == "****7801"                     # 마스킹(마지막 4자리)
 
 
+def test_direct_cred_session_rejects_switchable_build():
+    # profile=None(직접-자격증명)인데 build 를 주는 불법 조합은 생성 시 거부된다 -- _get_or_build 의
+    # assert(-O 에서 소거됨)에 기대지 않고 명시 KISUsageError 로 막아 build(None, env) 기본프로필 오해석을 차단.
+    startup = _FakeClient("paper")
+    with pytest.raises(KISUsageError):
+        MCPSession(profile=None, environment="paper", startup_client=startup,
+                   auth=_StartupAuthorization(False, False), build=_counting_build())
+
+
 def test_current_account_reports_product_code():
     session, _ = _session(profile="irp", environment="real", product_by_profile={"irp": "29"})
     out = session.current_account()

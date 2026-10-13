@@ -72,7 +72,7 @@ def _prompt(label: str, default: str) -> str:
     return input(f"{label}{suffix}: ").strip() or default
 
 
-def _confirm(question: str, default: bool = False) -> bool:
+def _confirm(question: str, *, default: bool = False) -> bool:
     """예/아니오를 묻는다. ``default`` 가 거짓이면 ``y``/``yes`` 만 참(되돌리기 어려운 쓰기 전 기본
     거부), 참이면 빈 입력(Enter)을 긍정으로 본다(규약을 따르는 질문의 기본값). 어느 쪽이든 묻기는
     한다 -- 자동 추론이 아니라 사람에게 확인받는다."""
@@ -231,7 +231,7 @@ def _parse_set_address(address: str) -> tuple[str, str, str]:
     return parts[0], parts[1], parts[2]
 
 
-def _existing_bundle(loaded: dict[str, object], profile: str, environment: str) -> dict[str, str]:
+def _existing_bundle(loaded: dict[str, object], *, profile: str, environment: str) -> dict[str, str]:
     """저장분에서 한 (환경, 프로필) 묶음의 필드를 문자열로 모아 돌려준다(없으면 빈 dict). 한 필드만
     바꿔 다시 저장할 수 있게 기존 값을 읽어온다 -- 해석기(환경변수 레이어링)를 거치지 않고 파일 값만 본다."""
     block = loaded.get(environment)
@@ -260,7 +260,7 @@ def cmd_config_set(args: argparse.Namespace) -> None:
 
     loaded = _load_credentials(_config_dir_path())
     _require_v2_or_fresh(loaded)
-    merged = _existing_bundle(loaded, profile, environment)
+    merged = _existing_bundle(loaded, profile=profile, environment=environment)
 
     argv_value = getattr(args, "value", None)
     if field_name in _SECRET_FIELDS:
@@ -329,7 +329,9 @@ def _legacy_bundle(section: dict[str, object], top_password: str | None) -> dict
     """레거시 섹션에서 묶음(app_key/app_secret/account)을 추려 돌려준다. 섹션에 자체
     ``account_password`` 가 있고 최상위 공유값과 **다를 때만** 묶음별로 둔다(같으면 최상위 공유)."""
     bundle: dict[str, str] = {}
-    for key in _BUNDLE_FIELDS[:3]:                   # account_password 는 아래에서 따로 처리
+    for key in _BUNDLE_FIELDS:
+        if key == _ACCOUNT_PASSWORD_KEY:             # account_password 는 아래에서 공유값과 비교해 따로 처리
+            continue
         value = section.get(key)
         if isinstance(value, str) and value.strip():
             bundle[key] = value
@@ -440,7 +442,7 @@ def cmd_config_migrate(args: argparse.Namespace) -> None:
         #: 쓰기 전에 한쪽 자격증명이 조용히 사라지는 것을 막는다.
         slot_source: dict[tuple[str, str], str] = {}
 
-        def _claim(environment: str, target: str, source: str) -> None:
+        def _claim(*, environment: str, target: str, source: str) -> None:
             """``(environment, target)`` 슬롯을 ``source`` 레거시 프로필로 선점하고 그 묶음을 채운다.
             이미 다른 프로필이 같은 슬롯에 매핑돼 있으면 거부한다 -- 그대로 두면 한쪽이 덮여 사라진다."""
             key = (environment, target)
@@ -468,8 +470,8 @@ def cmd_config_migrate(args: argparse.Namespace) -> None:
                     raise CliAborted(
                         f"병합 이름 '{merged_name}' 이 이미 레거시 프로필로 있어 합치면 그 자격증명이 사라집니다 "
                         "-- 다른 이름을 쓰거나 '--yes' 없이 실행해 지정하세요.")
-                _claim("real", merged_name, "main")
-                _claim("paper", merged_name, "paper")
+                _claim(environment="real", target=merged_name, source="main")
+                _claim(environment="paper", target=merged_name, source="paper")
                 consumed |= {"main", "paper"}
                 renames += [("main", merged_name, "real"), ("paper", merged_name, "paper")]
                 default_profile_name = merged_name
@@ -490,8 +492,8 @@ def cmd_config_migrate(args: argparse.Namespace) -> None:
                 continue
             base_env = _legacy_environment(profiles[base])        # 쌍 조건상 real
             paper_env = _legacy_environment(profiles[paper_name])  # 쌍 조건상 paper
-            _claim(base_env, base, base)
-            _claim(paper_env, base, paper_name)
+            _claim(environment=base_env, target=base, source=base)
+            _claim(environment=paper_env, target=base, source=paper_name)
             consumed |= {base, paper_name}
             renames += [(base, base, base_env), (paper_name, base, paper_env)]
             if default_profile_name is None:
@@ -512,7 +514,7 @@ def cmd_config_migrate(args: argparse.Namespace) -> None:
                         "-- --yes 없이 실행해 새 이름을 지정하세요.") from None
                 target = _prompt(f"'{name}' 은 두 축 프로필 이름으로 쓸 수 없습니다. 새 이름", "")
                 _validate_profile_name_v2(target)
-            _claim(environment, target, name)
+            _claim(environment=environment, target=target, source=name)
             renames.append((name, target, environment))
             if default_profile_name is None:
                 default_profile_name = target
