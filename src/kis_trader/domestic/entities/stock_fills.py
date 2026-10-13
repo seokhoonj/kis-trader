@@ -57,7 +57,7 @@ class StockFill:
     unfilled_quantity: Decimal              # 잔여수량(rmn_qty)
     rejected_quantity: Decimal              # 거부수량(rjct_qty)
     canceled: bool                          # 취소여부(cncl_yn)
-    canceled_quantity: Decimal              # 취소확인수량(cncl_cfrm_qty): 취소 체결된 수량
+    canceled_quantity: Decimal              # 취소확인수량(cnc_cfrm_qty): 취소 체결된 수량
     branch_number: str                      # 주문채번지점번호(ord_gno_brno)
     exchange_division_code: str             # 거래소구분코드(excg_dvsn_cd): KIS 원코드(예 "02"/"12")
     fill_condition_name: str                # 체결조건명(ccld_cndt_name): 예 IOC/FOK/"없음"

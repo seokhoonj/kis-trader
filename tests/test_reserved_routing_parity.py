@@ -20,6 +20,10 @@ class _Store:
     def report_for(self, client_order_id: str) -> object:
         return object()
 
+    def binding_for(self, client_order_id: str) -> tuple[object, ReservedOrderFingerprint]:
+        # change_order 는 (리포트, 지문)을 한 락으로 원자 스냅샷한다 -- 둘 다 있으면 쌍을 돌려준다.
+        return self.report_for(client_order_id), self._fingerprint
+
 
 def _reserved_fingerprint(token: str) -> ReservedOrderFingerprint:
     return ReservedOrderFingerprint(

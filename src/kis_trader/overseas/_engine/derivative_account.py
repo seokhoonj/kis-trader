@@ -230,9 +230,9 @@ def _parse_positions(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativePo
 def fetch_today_orders(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
 ) -> list[OverseasDerivativeOrder]:
-    """해외선물옵션 당일 주문내역(체결+미체결 전체, 연속조회 소진까지). v1 은 전체를 돌려주므로
-    체결여부/매매/선물옵션 구분은 모두 "00"(전체)으로 고정한다. 연속조회 커서는 200폭
-    (CTX_AREA_FK200/NK200)이다. 금액·가격은 각 계약 통화의 Decimal(원화 아님).
+    """해외선물옵션 당일 주문내역(체결+미체결 전체, 연속조회 소진까지). 체결여부는 "01"(전체),
+    매매구분은 "%%"(전체), 선물옵션구분은 "00"(전체)으로 고정해 전 주문을 받는다. 연속조회 커서는
+    200폭(CTX_AREA_FK200/NK200)이다. 금액·가격은 각 계약 통화의 Decimal(원화 아님).
     **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
         raise KISUsageError(
@@ -243,9 +243,9 @@ def fetch_today_orders(
         path=_TODAY_ORDERS_PATH, tr_id=_TODAY_ORDERS_TR,
         base_params={
             "CANO": cano, "ACNT_PRDT_CD": product_code,
-            "CCLD_NCCS_DVSN": "00",   # 체결미체결구분 -- 00 전체
-            "SLL_BUY_DVSN_CD": "00",  # 매도매수구분 -- 00 전체
-            "FUOP_DVSN": "00",        # 선물옵션구분 -- 00 전체
+            "CCLD_NCCS_DVSN": "01",   # 체결미체결구분 -- 01 전체(02 체결/03 미체결)
+            "SLL_BUY_DVSN_CD": "%%",  # 매도매수구분 -- %% 전체(01 매도/02 매수)
+            "FUOP_DVSN": "00",        # 선물옵션구분 -- 00 전체(01 선물/02 옵션)
             "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
         },
         output_key="output", max_pages=_MAX_PAGES, ctx_width=200,
@@ -291,7 +291,7 @@ def fetch_daily_orders(
     start: str, end: str,
 ) -> list[OverseasDerivativeDailyOrder]:
     """해외선물옵션 일별 주문내역(기간 주문 목록, 연속조회 소진까지). ``start``~``end``
-    (YYYYMMDD) 기간을 전체 매매("%%")·전체 체결미체결("00")로 조회한다. 연속조회 커서는 200폭
+    (YYYYMMDD) 기간을 전체 매매("%%")·전체 체결미체결("01")로 조회한다. 연속조회 커서는 200폭
     (CTX_AREA_FK200/NK200)이다. 금액·가격은 각 계약 통화의 Decimal(원화 아님).
     **모의투자 미지원**(paper면 사전 :class:`KISUsageError`)."""
     if environment == "paper":
@@ -307,9 +307,9 @@ def fetch_daily_orders(
             "CANO": cano, "ACNT_PRDT_CD": product_code,
             "STRT_DT": start, "END_DT": end,
             "FM_PDGR_CD": "",          # 상품군코드 -- 전체
-            "CCLD_NCCS_DVSN": "00",    # 체결미체결구분 -- 00 전체
-            "SLL_BUY_DVSN_CD": "%%",   # 매도매수구분 -- %% 전체
-            "FUOP_DVSN": "00",         # 선물옵션구분 -- 00 전체
+            "CCLD_NCCS_DVSN": "01",    # 체결미체결구분 -- 01 전체(02 체결/03 미체결)
+            "SLL_BUY_DVSN_CD": "%%",   # 매도매수구분 -- %% 전체(01 매도/02 매수)
+            "FUOP_DVSN": "00",         # 선물옵션구분 -- 00 전체(01 선물/02 옵션)
             "CTX_AREA_FK200": "", "CTX_AREA_NK200": "",
         },
         output_key="output", max_pages=_MAX_PAGES, ctx_width=200,
@@ -520,8 +520,11 @@ def fetch_period_pnl(
 def _require_pnl_block(
     block: object, name: str, resp: RawResponse
 ) -> Sequence[Mapping[str, Any]]:
-    """기간손익 집계 블록(output1/output2)을 배열로 검증한다. 빈 결과도 배열로 오므로
-    부재/비배열은 손상으로 보고 fail-closed(:class:`KISError`)."""
+    """기간손익 집계 블록(output1/output2)을 행 배열로 정규화한다. KIS 는 집계가 한 건이면 배열이
+    아니라 단일 객체로 돌려줄 수 있어(공식 예시도 list-or-dict 를 처리), 단일 매핑은 1행 배열로
+    감싼다. 배열은 그대로 통과, 그 밖(부재/스칼라 등)은 손상으로 보고 fail-closed(:class:`KISError`)."""
+    if isinstance(block, Mapping):   # 집계 1건 -> 단일 객체. 1행 배열로 정규화한다.
+        return [block]
     if not isinstance(block, (list, tuple)):
         raise KISError(
             f"해외선물옵션 기간손익 응답의 {name} 이 손익 배열이 아니다.",

@@ -97,3 +97,59 @@ def test_overseas_search_missing_output_fails_closed():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
     with pytest.raises(KISError):
         KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport([response])).overseas.search_stocks("NAS")
+
+
+def _page(*, count, first_rank, trec, tr_cont, excd="NAS"):
+    """연속조회 한 페이지 -- count 건을 first_rank 부터 증가하는 누적순위로 채운다."""
+    rows = [{"rsym": f"D{excd}S{rank}", "excd": excd, "name": f"S{rank}",
+             "ename": f"S{rank}", "symb": f"S{rank}", "last": "160.5", "shar": "1000",
+             "valx": "160500", "plow": "159", "phigh": "162", "popen": "160",
+             "tvol": "10000", "rate": "1.25", "diff": "2", "sign": "2",
+             "avol": "1600", "eps": "6.5", "per": "24.7", "rank": str(rank),
+             "e_ordyn": "○"}
+            for rank in range(first_rank, first_rank + count)]
+    return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", tr_cont=tr_cont, body={
+        "output1": {"zdiv": "2", "stat": "Y", "crec": str(count), "trec": str(trec),
+                    "nrec": str(count)},
+        "output2": rows,
+    })
+
+
+def test_overseas_search_paginates_with_rank_cursor():
+    # 조건검색은 100건/페이지 + tr_cont="F" 로 더 있음을 알린다. 다음 KEYB = 직전 페이지 마지막 행의
+    # 누적순위(rank), tr_cont="N". 3페이지(100/100/50)가 전부 모이고 커서가 올바른지 가드한다.
+    pages = [_page(count=100, first_rank=1, trec=250, tr_cont="F"),
+             _page(count=100, first_rank=101, trec=250, tr_cont="F"),
+             _page(count=50, first_rank=201, trec=250, tr_cont="")]
+    fake = FakeTransport(pages)
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
+    result = client.overseas.search_stocks("NAS", price=(10, 500))
+    assert len(result.matches) == 250                     # 전 페이지 누적
+    assert result.total_count == 250                       # output1.trec 그대로
+    assert [m.rank for m in result.matches[:3]] == [1, 2, 3]
+    assert result.matches[-1].rank == 250
+    assert len(fake.calls) == 3
+    # 1페이지: KEYB 공백 + tr_cont 공백.
+    assert fake.calls[0]["params"]["KEYB"] == ""
+    assert fake.calls[0]["tr_cont"] == ""
+    # 2·3페이지: 직전 페이지 마지막 rank 를 KEYB 로, tr_cont="N".
+    assert fake.calls[1]["params"]["KEYB"] == "100"
+    assert fake.calls[1]["tr_cont"] == "N"
+    assert fake.calls[2]["params"]["KEYB"] == "200"
+    assert fake.calls[2]["tr_cont"] == "N"
+
+
+def test_overseas_search_stuck_cursor_fails_closed():
+    # 서버가 계속 "더 있음"(tr_cont="F")만 돌려주면(커서가 진전 못 함) 상한에서 fail-closed --
+    # 부분 결과로 자르지 않고 KISError 를 던진다.
+    class _StuckTransport:
+        def __init__(self):
+            self.calls = 0
+
+        def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
+            self.calls += 1
+            return _page(count=100, first_rank=1, trec=99999, tr_cont="F")
+
+    client = KISClient(app_key="k", app_secret="s", environment="real", transport=_StuckTransport())
+    with pytest.raises(KISError):
+        client.overseas.search_stocks("NAS", price=(10, 500))

@@ -157,3 +157,39 @@ def _fetch_paginated_rows_with_summary(
     else:
         raise KISError(cap_message)
     return rows, summary
+
+
+def _fetch_tr_cont_pages(
+    transport: Transport,
+    *,
+    path: str,
+    tr_id: str,
+    params: Mapping[str, str],
+    max_pages: int,
+    cap_message: str,
+    idempotent: bool = True,
+) -> list[RawResponse]:
+    """``tr_cont`` 헤더만으로 페이지를 넘기는 조회를 소진까지 읽어 각 페이지 응답을 순서대로 돌려준다.
+
+    일부 계좌 조회(해외 체결기준/결제기준 잔고, 해외증거금)는 연속 커서(CTX_AREA_*)를 되먹이지
+    않고, 요청 파라미터를 그대로 둔 채 응답 헤더 ``tr_cont`` 가 F/M(더 있음)이면 다음 요청의 헤더
+    ``tr_cont`` 를 "N" 으로 보내 다음 페이지를 받는다. 이런 조회는 output1/output2/output3 가
+    페이지마다 쪼개져 올 수 있으므로, 커서 기반 :func:`_fetch_paginated_rows` 와 달리 각 페이지 응답을
+    그대로 돌려 호출자가 필요한 블록을 직접 누적하게 한다(여러 출력 블록을 한 페이지네이터가 가정하지
+    않도록). ``max_pages`` 상한에 닿았는데 아직 '더 있음'이면 부분 결과로 자르지 않고 ``cap_message``
+    로 fail-closed 한다(커서가 없어 진전 판정을 할 수 없으니 상한이 유일한 안전장치다)."""
+    pages: list[RawResponse] = []
+    tr_cont = ""
+    for _page in range(max_pages):
+        resp = transport.request(
+            method="GET", path=path, tr_id=tr_id,
+            params=dict(params), idempotent=idempotent, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        pages.append(resp)
+        if resp.tr_cont not in ("F", "M"):
+            break
+        tr_cont = "N"
+    else:
+        raise KISError(cap_message)
+    return pages

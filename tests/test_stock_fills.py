@@ -57,7 +57,7 @@ def _row(*, odno="0001568197", pdno="005930", side="02", ord_qty="10", ord_unpr=
         "tot_ccld_amt": ccld_amt, "loan_dt": "", "ord_dvsn_cd": "00",
         "rmn_qty": rmn, "rjct_qty": rjct,
         # 0.6.0 보강 필드(원장 응답예시 기반; PII/운영 필드는 승격 안 함)
-        "cncl_cfrm_qty": cncl_cfrm, "excg_id_dvsn_cd": exchange, "excg_dvsn_cd": excg_dvsn,
+        "cnc_cfrm_qty": cncl_cfrm, "excg_id_dvsn_cd": exchange, "excg_dvsn_cd": excg_dvsn,
         "ccld_cndt_name": ccld_cndt, "prdt_type_cd": "", "ord_orgno": "06010",
         "rsvn_ord_end_dt": "", "stpm_cndt_pric": stpm_pric, "stpm_efct_occr_dtmd": stpm_eff,
     }
@@ -229,10 +229,25 @@ def test_fills_parse_complete_raw_record():
 
 
 def test_fill_canceled_quantity_defaults_to_zero_when_absent():
-    # 관용 파싱: cncl_cfrm_qty 키가 없어도 크래시 없이 0.
+    # 관용 파싱: cnc_cfrm_qty 키가 없어도 크래시 없이 0.
     row = _row()
-    del row["cncl_cfrm_qty"]
+    del row["cnc_cfrm_qty"]
     fill = _fills(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229").fills[0]
+    assert fill.canceled_quantity == Decimal(0)
+
+
+def test_fill_canceled_quantity_reads_official_key_not_the_typo():
+    # 공식 응답 필드는 cnc_cfrm_qty(취소확인수량)다. 과거엔 cncl_cfrm_qty(오타 키)를 읽어
+    # 취소확인수량이 조용히 0 이 됐다. 실제 키로 값이 반영되고, 오타 키로는 반영되지 않음을 못박는다.
+    real = _row()
+    real["cnc_cfrm_qty"] = "7"
+    fill = _fills(FakeTransport(response=_resp(rows=[real])))(start="20240201", end="20240229").fills[0]
+    assert fill.canceled_quantity == Decimal(7)
+    # 오타 키만 채워진 행은 0 으로 읽혀야 한다(오타 키로의 회귀를 잡는 가드).
+    typo = _row()
+    typo["cnc_cfrm_qty"] = "0"
+    typo["cncl_cfrm_qty"] = "7"
+    fill = _fills(FakeTransport(response=_resp(rows=[typo])))(start="20240201", end="20240229").fills[0]
     assert fill.canceled_quantity == Decimal(0)
 
 

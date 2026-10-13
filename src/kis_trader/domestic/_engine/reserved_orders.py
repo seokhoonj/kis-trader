@@ -15,7 +15,7 @@ KIS URL/TR-ID (전부 모의투자 미지원):
 from __future__ import annotations
 
 from collections.abc import Mapping
-from datetime import datetime, timedelta, timezone
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from typing import TYPE_CHECKING, Any, NamedTuple, cast
 
@@ -320,7 +320,7 @@ def reconcile_reserved_order(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
-    matches = _filter_matching_reserved(rows, fingerprint)
+    matches = _filter_matching_reserved(rows, fingerprint, today)
     if len(matches) > 1:
         raise KISError(
             f"예약주문 {client_order_id} 의 지문과 일치하는 예약이 {len(matches)}건이라 "
@@ -447,18 +447,31 @@ def _send_change(
 
 
 def _filter_matching_reserved(
-    rows: list[Mapping[str, Any]], fingerprint: ReservedOrderFingerprint
+    rows: list[Mapping[str, Any]], fingerprint: ReservedOrderFingerprint, today: date
 ) -> list[Mapping[str, Any]]:
     """예약주문조회 행 중 요청 지문과 맞는 것만(순수). 종목+매매구분+주문구분+수량, 지정가면 단가,
-    지문에 종료일이 있으면 예약종료일(rsvn_end_dt)까지 비교한다. 순번 없는 행은 매칭 불가라 제외."""
+    지문에 종료일이 있으면 예약종료일(rsvn_end_dt)까지 비교한다. 순번 없는 행은 매칭 불가라 제외.
+
+    두 가지로 가짜 단일매칭을 막는다(해외 예약 매칭과 같은 규율): (1) 취소된 예약(취소주문일자
+    cncl_ord_dt 가 채워진 행)은 제외한다 -- 취소된 옛 예약이 같은 지문으로 재매칭되면 이후 취소가
+    엉뚱한 예약을 건드린다. (2) 접수일자(rsvn_ord_rcit_dt)가 최근(오늘 또는 어제, KST/서버 시차
+    여유)이 아닌 행은 제외한다 -- 넓은 조회창(오늘-7~오늘+31)에 든 같은 지문의 옛 pending 예약이
+    방금 발주분으로 오확정되는 것을 막는다. 단 접수일자가 없거나 파싱 불가한 행은 좁히지 않고 남겨
+    종전 확정 동작을 보존한다(fail-open)."""
     quantity = Decimal(fingerprint.quantity)
     limit_price = Decimal(fingerprint.limit_price) if fingerprint.limit_price else None
     want_side = _SIDE_CODE[fingerprint.side]
     want_dvsn = _ORD_DVSN_CD.get(fingerprint.order_type)
     want_end_date = fingerprint.end_date   # 예약 지문의 유효 종료일(없으면 "")
+    recent = {today, today - timedelta(days=1)}
     matched = []
     for row in rows:
         if not str(row.get("rsvn_ord_seq", "")).strip():  # 순번 없는 패딩 행 -- 매칭 불가
+            continue
+        if str(row.get("cncl_ord_dt", "")).strip():  # 취소주문일자가 있으면 취소된 예약 -- 제외
+            continue
+        receipt = _parse_date(row.get("rsvn_ord_rcit_dt"))
+        if receipt is not None and receipt not in recent:  # 접수일자가 있으면 최근분만(옛 동일지문 배제)
             continue
         if str(row.get("pdno", "")).strip() != fingerprint.symbol:
             continue

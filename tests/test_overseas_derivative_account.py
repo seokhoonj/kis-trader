@@ -507,9 +507,9 @@ def test_today_orders_parses_and_routes():
     call = fake.calls[0]
     assert call["tr_id"] == "OTFM3116R"
     assert call["path"].endswith("inquire-ccld")
-    assert call["params"]["CCLD_NCCS_DVSN"] == "00"       # 전체 체결+미체결
-    assert call["params"]["SLL_BUY_DVSN_CD"] == "00"      # 전체
-    assert call["params"]["FUOP_DVSN"] == "00"            # 전체
+    assert call["params"]["CCLD_NCCS_DVSN"] == "01"       # 전체 체결+미체결(02 체결/03 미체결)
+    assert call["params"]["SLL_BUY_DVSN_CD"] == "%%"      # 전체(01 매도/02 매수)
+    assert call["params"]["FUOP_DVSN"] == "00"            # 전체(01 선물/02 옵션)
     assert call["params"]["CTX_AREA_FK200"] == ""
     assert call["params"]["CTX_AREA_NK200"] == ""
     assert call["params"]["CANO"] == "12345678"
@@ -555,6 +555,19 @@ def test_today_orders_missing_output_raises():
 def test_today_orders_non_list_output_raises():
     with pytest.raises(KISError):  # 목록 조회는 output 이 배열이어야 -- 매핑은 손상
         _client(FakeTransport(response=_today_orders_resp(rows={}))).account.today_orders()
+
+
+def test_today_orders_filter_codes_are_in_spec():
+    # 공식 명세(OTFM3116R): CCLD_NCCS_DVSN 전체=01(02 체결/03 미체결, 00 없음),
+    # SLL_BUY_DVSN_CD 전체=%%(01 매도/02 매수, 00 없음). 범위 밖 "00" 으로 회귀하지 않도록 고정한다.
+    fake = FakeTransport(response=_today_orders_resp(rows=[_order()]))
+    _client(fake).account.today_orders()
+    params = fake.calls[0]["params"]
+    assert params["CCLD_NCCS_DVSN"] == "01"
+    assert params["CCLD_NCCS_DVSN"] != "00"
+    assert params["SLL_BUY_DVSN_CD"] == "%%"
+    assert params["SLL_BUY_DVSN_CD"] != "00"
+    assert params["FUOP_DVSN"] == "00"           # 선물옵션구분은 00 전체가 맞다
 
 
 def test_overseas_derivative_order_entity_importable():
@@ -772,8 +785,8 @@ def test_daily_orders_parses_and_routes():
     assert call["params"]["STRT_DT"] == "20240201"
     assert call["params"]["END_DT"] == "20240216"
     assert call["params"]["FM_PDGR_CD"] == ""
-    assert call["params"]["CCLD_NCCS_DVSN"] == "00"
-    assert call["params"]["SLL_BUY_DVSN_CD"] == "%%"          # 전체
+    assert call["params"]["CCLD_NCCS_DVSN"] == "01"           # 전체(02 체결/03 미체결)
+    assert call["params"]["SLL_BUY_DVSN_CD"] == "%%"          # 전체(01 매도/02 매수)
     assert call["params"]["FUOP_DVSN"] == "00"
     assert call["params"]["CTX_AREA_FK200"] == ""
     assert call["params"]["CTX_AREA_NK200"] == ""
@@ -826,6 +839,17 @@ def test_daily_orders_non_list_output_raises():
         _client(FakeTransport(response=_daily_orders_resp(rows={}))).account.daily_orders(
             start="20240201", end="20240216"
         )
+
+
+def test_daily_orders_filter_codes_are_in_spec():
+    # 공식 명세(OTFM3120R): CCLD_NCCS_DVSN 전체=01(02 체결/03 미체결, 00 없음). 범위 밖 "00" 으로
+    # 회귀하지 않도록 고정한다(SLL_BUY_DVSN_CD 는 이미 %% 전체).
+    fake = FakeTransport(response=_daily_orders_resp(rows=[_daily_order()]))
+    _client(fake).account.daily_orders(start="20240201", end="20240216")
+    params = fake.calls[0]["params"]
+    assert params["CCLD_NCCS_DVSN"] == "01"
+    assert params["CCLD_NCCS_DVSN"] != "00"
+    assert params["SLL_BUY_DVSN_CD"] == "%%"
 
 
 def test_overseas_derivative_daily_order_entity_importable():
@@ -948,17 +972,33 @@ def test_period_pnl_missing_output2_raises():
 
 
 def test_period_pnl_invalid_output1_block_raises():
-    with pytest.raises(KISError):  # output1 은 손익 배열이어야 -- 매핑은 손상
-        _client(FakeTransport(response=_period_pnl_resp(by_currency={}))).account.period_pnl(
+    with pytest.raises(KISError):  # output1 은 손익 배열(또는 단일 객체)이어야 -- 스칼라는 손상
+        _client(FakeTransport(response=_period_pnl_resp(by_currency=42))).account.period_pnl(
             start="20240201", end="20240216"
         )
 
 
 def test_period_pnl_invalid_output2_block_raises():
-    with pytest.raises(KISError):  # output2 는 손익 배열이어야 -- 매핑은 손상
-        _client(FakeTransport(response=_period_pnl_resp(by_symbol={}))).account.period_pnl(
+    with pytest.raises(KISError):  # output2 는 손익 배열(또는 단일 객체)이어야 -- 스칼라는 손상
+        _client(FakeTransport(response=_period_pnl_resp(by_symbol=42))).account.period_pnl(
             start="20240201", end="20240216"
         )
+
+
+def test_period_pnl_output1_as_single_object_normalized():
+    # KIS 는 집계가 한 건이면 output1 을 배열이 아니라 단일 객체로 돌려줄 수 있다(공식 코드도
+    # list-or-dict 처리). 단일 객체는 1행으로 정규화돼야 한다(종전엔 손상으로 오거부했다).
+    resp = _period_pnl_resp(by_currency=_pnl(crcy="USD"), by_symbol=[_pnl(pdno="6BZ22")])
+    hist = _client(FakeTransport(response=resp)).account.period_pnl(start="20240201", end="20240216")
+    assert [p.currency for p in hist.by_currency] == ["USD"]
+    assert [p.symbol for p in hist.by_symbol] == ["6BZ22"]
+
+
+def test_period_pnl_output2_as_single_object_normalized():
+    resp = _period_pnl_resp(by_currency=[_pnl(crcy="USD")], by_symbol=_pnl(pdno="6BZ22"))
+    hist = _client(FakeTransport(response=resp)).account.period_pnl(start="20240201", end="20240216")
+    assert [p.currency for p in hist.by_currency] == ["USD"]
+    assert [p.symbol for p in hist.by_symbol] == ["6BZ22"]
 
 
 def test_overseas_derivative_pnl_history_entity_importable():

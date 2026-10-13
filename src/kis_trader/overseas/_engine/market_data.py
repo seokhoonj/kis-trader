@@ -81,6 +81,7 @@ _MULTI_QUOTE_TR = "HHDFS76220000"
 _MAX_MULTI_QUOTE = 10           # KIS 명세: 슬롯 10개(EXCD_01 ~ _10, NREC 최대 10)
 _SEARCH_PATH = "/uapi/overseas-price/v1/quotations/inquire-search"
 _SEARCH_TR = "HHDFS76410000"
+_SEARCH_MAX_PAGES = 200           # 조건검색 연속조회 상한(100건/페이지 -> 약 2만 종목)
 
 
 def _range_params(name: str, value: tuple[object, object] | None) -> dict[str, str]:
@@ -103,50 +104,80 @@ def search_stocks(
     eps: tuple[object, object] | None = None,
     per: tuple[object, object] | None = None,
 ) -> OverseasStockSearch:
-    """해외 거래소 종목을 가격·등락률·규모·거래·밸류에이션 범위로 검색한다."""
+    """해외 거래소 종목을 가격·등락률·규모·거래·밸류에이션 범위로 검색한다. 결과가 많으면 연속조회로
+    전체를 모은다."""
     if not exchange.strip():
         raise KISUsageError("exchange 가 필요하다.")
-    params = {"AUTH": "", "EXCD": exchange.strip(), "KEYB": ""}
+    base_params = {"AUTH": "", "EXCD": exchange.strip()}
     for name, value in (("PRICECUR", price), ("RATE", change_percent), ("VALX", market_cap),
                         ("SHAR", shares), ("VOLUME", volume), ("AMT", trading_amount),
                         ("EPS", eps), ("PER", per)):
-        params.update(_range_params(name, value))
-    # KIS 조건검색(HHDFS76410000)은 다음조회를 지원하지 않는다(KEYB 공백 고정, 최대 100건 단일 응답).
-    resp = transport.request(
-        method="GET", path=_SEARCH_PATH, tr_id=_SEARCH_TR, params=params, idempotent=True,
-    )
-    _raise_if_error(resp)
-    output1, rows = resp.body.get("output1"), resp.body.get("output2")
-    if not isinstance(output1, Mapping):
-        raise _missing_block_error("output1", resp)
-    if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
-        raise _missing_block_error("output2", resp)
-    matches: list[OverseasStockSearchMatch] = []
-    for row in rows:
-        sign = str(row.get("sign", "")).strip()
-        matches.append(OverseasStockSearchMatch(
-            realtime_symbol=str(row.get("rsym", "")).strip(),
-            exchange=str(row.get("excd", "")).strip(), symbol=str(row.get("symb", "")).strip(),
-            name=str(row.get("name", "")).strip(), english_name=str(row.get("ename", "")).strip(),
-            price=required_decimal(row.get("last"), "last"),
-            change=_apply_change_sign(required_decimal(row.get("diff"), "diff"), sign),
-            change_percent=_apply_change_sign(required_decimal(row.get("rate"), "rate"), sign),
-            open=required_decimal(row.get("popen"), "popen"),
-            high=required_decimal(row.get("phigh"), "phigh"),
-            low=required_decimal(row.get("plow"), "plow"),
-            volume=required_int(row.get("tvol"), "tvol"),
-            trading_amount=required_decimal(row.get("avol"), "avol"),
-            shares=required_decimal(row.get("shar"), "shar"),
-            market_cap=required_decimal(row.get("valx"), "valx"),
-            eps=optional_decimal(row.get("eps"), "eps"), per=optional_decimal(row.get("per"), "per"),
-            rank=required_int(row.get("rank"), "rank"),
-            is_tradable=str(row.get("e_ordyn", "")).strip() == _TRADABLE_SENTINEL, _raw=row,
-        ))
+        base_params.update(_range_params(name, value))
+    # 조건검색(HHDFS76410000) 연속조회: 응답은 output1.trec(총건수)만 주고 한 페이지 100건씩,
+    # tr_cont="F" 로 더 있음을 알린다. 다음 페이지는 직전 페이지 마지막 output2 행의 누적순위(rank)를
+    # KEYB 로, tr_cont="N" 으로 요청한다(KEYB 를 공백/종목코드로 두면 1페이지가 반복된다). 헤더
+    # (zdiv/stat/trec)는 첫 페이지 값으로 고정하고, 행(output2)은 전부 모을 때까지 이어붙인다.
+    output1: Mapping[str, Any] | None = None
+    accumulated: list[Mapping[str, Any]] = []
+    keyb, tr_cont = "", ""
+    for _page in range(_SEARCH_MAX_PAGES):
+        params = {**base_params, "KEYB": keyb}
+        resp = transport.request(
+            method="GET", path=_SEARCH_PATH, tr_id=_SEARCH_TR, params=params,
+            idempotent=True, tr_cont=tr_cont,
+        )
+        _raise_if_error(resp)
+        page_output1, rows = resp.body.get("output1"), resp.body.get("output2")
+        if not isinstance(page_output1, Mapping):
+            raise _missing_block_error("output1", resp)
+        if not isinstance(rows, (list, tuple)) or not all(isinstance(row, Mapping) for row in rows):
+            raise _missing_block_error("output2", resp)
+        if output1 is None:                  # 헤더는 첫 페이지 값으로 고정
+            output1 = page_output1
+        accumulated.extend(rows)
+        if resp.tr_cont not in ("F", "M"):   # 더 없음 -> 종료
+            break
+        if not rows:                         # 더 있다는데 행이 비었다 -> 다음 커서 못 만든다, 종료
+            break
+        cursor = str(rows[-1].get("rank", "")).strip()   # 다음 KEYB = 마지막 행 누적순위
+        if not cursor:                       # 커서를 못 만들면 종료(무한 반복 방지)
+            break
+        keyb, tr_cont = cursor, "N"
+    else:
+        raise KISError(
+            f"해외 조건검색이 {_SEARCH_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
+            f"-- 부분 결과로 자르지 않는다. 범위를 좁히거나 재시도하라.",
+        )
+    if output1 is None:                      # 루프가 한 번도 안 돌 수는 없으나 타입 좁히기
+        raise KISError("해외 조건검색 응답에 output1 이 없다.")
+    matches = [_parse_search_match(row) for row in accumulated]
     return OverseasStockSearch(
         exchange=exchange.strip(), decimal_places=required_int(output1.get("zdiv"), "zdiv"),
         status=str(output1.get("stat", "")).strip(),
         total_count=required_int(output1.get("trec"), "trec"), matches=tuple(matches),
         _raw=output1,
+    )
+
+
+def _parse_search_match(row: Mapping[str, Any]) -> OverseasStockSearchMatch:
+    sign = str(row.get("sign", "")).strip()
+    return OverseasStockSearchMatch(
+        realtime_symbol=str(row.get("rsym", "")).strip(),
+        exchange=str(row.get("excd", "")).strip(), symbol=str(row.get("symb", "")).strip(),
+        name=str(row.get("name", "")).strip(), english_name=str(row.get("ename", "")).strip(),
+        price=required_decimal(row.get("last"), "last"),
+        change=_apply_change_sign(required_decimal(row.get("diff"), "diff"), sign),
+        change_percent=_apply_change_sign(required_decimal(row.get("rate"), "rate"), sign),
+        open=required_decimal(row.get("popen"), "popen"),
+        high=required_decimal(row.get("phigh"), "phigh"),
+        low=required_decimal(row.get("plow"), "plow"),
+        volume=required_int(row.get("tvol"), "tvol"),
+        trading_amount=required_decimal(row.get("avol"), "avol"),
+        shares=required_decimal(row.get("shar"), "shar"),
+        market_cap=required_decimal(row.get("valx"), "valx"),
+        eps=optional_decimal(row.get("eps"), "eps"), per=optional_decimal(row.get("per"), "per"),
+        rank=required_int(row.get("rank"), "rank"),
+        is_tradable=str(row.get("e_ordyn", "")).strip() == _TRADABLE_SENTINEL, _raw=row,
     )
 
 

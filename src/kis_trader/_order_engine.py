@@ -187,10 +187,12 @@ class OrderEngine:
         해외예약(취소 전용)을 모두 처리한다 -- ``fingerprint`` 의 거래소/세션으로 자산별 정정·취소 와이어
         빌더를 골라 공유 안전 코어(:func:`~kis_trader._order_core.submit_change`)에 넘긴다."""
         cano, product_code = self._require_account()
-        fingerprint = self._store.fingerprint_for(client_order_id)
-        report = self._store.report_for(client_order_id)
-        if fingerprint is None or report is None:
+        # (지문, 리포트)를 한 락으로 원자 스냅샷 -- 잔량 계산이 둘의 세대 일관성에 의존하므로, 따로
+        # 읽다 동시 정정/취소의 리바인드가 끼어들면 옛 지문 + 새 리포트로 잘못된 잔량이 나갈 수 있다.
+        binding = self._store.binding_for(client_order_id)
+        if binding is None:
             raise KISUsageError(f"확정된 원주문을 찾을 수 없다: {client_order_id!r}")
+        report, fingerprint = binding
         # 아시아 해외예약은 전용 정정·취소 엔드포인트가 없어 발주 TR 에 원주문 전체를 재전송하는
         # 취소만 가능하다 -- store 가 쥔 지문/리포트로 엔진이 body 를 복원하므로 여기서 위임한다.
         if isinstance(fingerprint, ReservedOrderFingerprint) and \

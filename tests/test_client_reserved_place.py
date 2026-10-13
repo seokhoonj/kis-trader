@@ -356,6 +356,61 @@ def test_reserve_reconcile_rejects_partial_match(changed):
     assert store.fingerprint_for(cid) is not None
 
 
+def test_reserve_reconcile_skips_cancelled_same_fingerprint(monkeypatch):
+    # 취소된 옛 예약(취소주문일자 cncl_ord_dt 채워짐)은 같은 지문이라도 매칭하지 않는다 -- 가짜 단일
+    # 매칭으로 확정하면 이후 취소가 엉뚱한(취소된) 예약을 지목한다. -> None, in-flight 유지.
+    monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
+    store = OrderStore()
+    cid = "20240101-reserved-cx01"
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
+    with pytest.raises(OrderTimeoutError):
+        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
+            quantity=1, limit_price=70000, client_order_id=cid)
+    row = _reserved_row(qty="1", unpr="70000")
+    row["cncl_ord_dt"] = "20240603"                  # 취소된 예약(접수가 오늘이어도)
+    row["rsvn_ord_rcit_dt"] = "20240603"
+    body = {"output": [row], "ctx_area_nk200": "", "ctx_area_fk200": ""}
+    recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
+    assert _client(recon_t, store=store).orders.reconcile(cid) is None
+    assert store.fingerprint_for(cid) is not None    # 여전히 in-flight
+
+
+def test_reserve_reconcile_skips_stale_receipt_same_fingerprint(monkeypatch):
+    # 넓은 조회창에 든 옛 접수일(rsvn_ord_rcit_dt)의 같은 지문 예약은 방금 발주분이 아니므로 제외.
+    # -> None, in-flight 유지(미접수로 단정하지 않는다).
+    monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
+    store = OrderStore()
+    cid = "20240101-reserved-sr01"
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
+    with pytest.raises(OrderTimeoutError):
+        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
+            quantity=1, limit_price=70000, client_order_id=cid)
+    row = _reserved_row(qty="1", unpr="70000")
+    row["rsvn_ord_rcit_dt"] = "20240101"             # 오늘(20240603)·어제가 아님 -> 옛 예약
+    body = {"output": [row], "ctx_area_nk200": "", "ctx_area_fk200": ""}
+    recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
+    assert _client(recon_t, store=store).orders.reconcile(cid) is None
+    assert store.fingerprint_for(cid) is not None
+
+
+def test_reserve_reconcile_confirms_fresh_receipt(monkeypatch):
+    # 접수일자가 최근(오늘)이고 취소되지 않은 예약은 종전처럼 확정된다(가드가 정상분을 막지 않음).
+    monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
+    store = OrderStore()
+    cid = "20240101-reserved-fr01"
+    place_t = FakeTransport(raises=TransportTimeoutError("t"))
+    with pytest.raises(OrderTimeoutError):
+        _client(place_t, store=store).domestic.stock("005930").reserve_buy(
+            quantity=1, limit_price=70000, client_order_id=cid)
+    row = _reserved_row(seq="42401", qty="1", unpr="70000")
+    row["rsvn_ord_rcit_dt"] = "20240603"             # 오늘 접수
+    row["cncl_ord_dt"] = ""
+    body = {"output": [row], "ctx_area_nk200": "", "ctx_area_fk200": ""}
+    recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
+    report = _client(recon_t, store=store).orders.reconcile(cid)
+    assert report is not None and report.order_id == "42401"
+
+
 def test_reserve_reconcile_window_and_process_params(monkeypatch):
     monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
     store = OrderStore()

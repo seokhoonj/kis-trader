@@ -641,7 +641,7 @@ def _parse_stock_fills(rows: list[Mapping[str, Any]]) -> list[StockFill]:
                 unfilled_quantity=field_decimal_or_zero(row.get("rmn_qty"), "rmn_qty"),
                 rejected_quantity=field_decimal_or_zero(row.get("rjct_qty"), "rjct_qty"),
                 canceled=str(row.get("cncl_yn", "")).strip().upper() == "Y",
-                canceled_quantity=field_decimal_or_zero(row.get("cncl_cfrm_qty"), "cncl_cfrm_qty"),
+                canceled_quantity=field_decimal_or_zero(row.get("cnc_cfrm_qty"), "cnc_cfrm_qty"),
                 branch_number=str(row.get("ord_gno_brno", "")).strip(),
                 exchange_division_code=str(row.get("excg_dvsn_cd", "")).strip(),
                 fill_condition_name=str(row.get("ccld_cndt_name", "")).strip(),

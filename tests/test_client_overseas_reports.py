@@ -58,15 +58,18 @@ _PROFIT_SUM = {
 
 
 class FakeTransport:
-    def __init__(self, *, response=None):
+    def __init__(self, *, response=None, pages=None):
         self.response = response
+        self.pages = pages          # tr_cont 연속조회 흉내(순차 응답)
         self.calls: list[dict] = []
         self._lock = threading.Lock()
 
     def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
         with self._lock:
             self.calls.append({"method": method, "path": path, "tr_id": tr_id,
-                               "params": params, "idempotent": idempotent})
+                               "params": params, "idempotent": idempotent, "tr_cont": tr_cont})
+        if self.pages is not None:
+            return self.pages.pop(0)
         assert self.response is not None
         return self.response
 
@@ -76,8 +79,8 @@ def _client(transport, *, environment="real", account="12345678-01"):
                      environment=environment, transport=transport)
 
 
-def _resp(body):
-    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont="")
+def _resp(body, *, tr_cont=""):
+    return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
 
 
 # --- 체결기준현재잔고 (CTRP6504R) -----------------------------------------
@@ -137,6 +140,33 @@ def test_present_balance_demo_uses_demo_tr():
     assert fake.calls[0]["tr_id"] == "VTRP6504R"
     assert bal.positions == ()          # 모의는 요약만
     assert bal.total_asset_amount == Decimal(5000000)
+
+
+def test_present_balance_accumulates_across_pages():
+    # tr_cont=M 이면 다음 페이지를 tr_cont=N 으로 받아 보유종목(output1)·통화별 예수금(output2)을
+    # 모두 누적한다. 요약(output3)은 계좌 단위라 한 번만. 단발 조회로 끊으면 다중 페이지가 잘린다.
+    page1 = _resp({"output1": [_POS], "output2": [_CRCY], "output3": _SUM3}, tr_cont="M")
+    pos2 = dict(_POS, pdno="MSFT")
+    crcy2 = dict(_CRCY, crcy_cd="HKD")
+    page2 = _resp({"output1": [pos2], "output2": [crcy2], "output3": {}}, tr_cont="D")
+    fake = FakeTransport(pages=[page1, page2])
+    bal = _client(fake).account.overseas.present_balance()
+    assert [p.symbol for p in bal.positions] == ["AAPL", "MSFT"]
+    assert [c.currency for c in bal.currencies] == ["USD", "HKD"]
+    assert bal.total_asset_amount == Decimal(5000000)       # output3(첫 페이지) 유지
+    assert fake.calls[1]["tr_cont"] == "N"                  # 연속조회 헤더
+    assert len(fake.calls) == 2
+
+
+def test_settlement_balance_accumulates_across_pages():
+    page1 = _resp({"output1": [_POS], "output2": [_CRCY], "output3": _SUM3}, tr_cont="F")
+    page2 = _resp({"output1": [dict(_POS, pdno="MSFT")], "output2": [], "output3": {}}, tr_cont="D")
+    fake = FakeTransport(pages=[page1, page2])
+    bal = _client(fake).account.overseas.settlement_balance(basis_date="20250523")
+    assert [p.symbol for p in bal.positions] == ["AAPL", "MSFT"]
+    assert bal.total_deposit == Decimal(300000)
+    assert fake.calls[1]["tr_cont"] == "N"
+    assert len(fake.calls) == 2
 
 
 def test_present_balance_summary_as_single_list():

@@ -19,6 +19,7 @@ from ..._internal._datetime import parse_optional_kst_date
 from ..._internal._response import (
     _advance_cursor,
     _fetch_paginated_rows,
+    _fetch_tr_cont_pages,
     _raise_if_error,
     _require_mapping_rows,
 )
@@ -250,12 +251,16 @@ def fetch_foreign_margin(
     if environment == "paper":
         raise KISUsageError("해외증거금 통화별조회(foreign-margin)는 모의투자 미지원 -- 실전에서만.")
     params = {"CANO": cano, "ACNT_PRDT_CD": product_code}
-    resp = transport.request(
-        method="GET", path=_FOREIGN_MARGIN_PATH, tr_id=_FOREIGN_MARGIN_TR,
-        params=params, idempotent=True,
+    # tr_cont 헤더로만 넘기는 연속조회(공식 예시 기준) -- 통화 행이 여러 페이지로 쪼개져 올 수 있다.
+    pages = _fetch_tr_cont_pages(
+        transport, path=_FOREIGN_MARGIN_PATH, tr_id=_FOREIGN_MARGIN_TR, params=params,
+        max_pages=_MAX_PAGES,
+        cap_message=(
+            f"해외증거금 통화별조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 남아있다 "
+            f"-- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        ),
     )
-    _raise_if_error(resp)
-    rows = _require_mapping_rows("output", resp)
+    rows = [row for resp in pages for row in _require_mapping_rows("output", resp)]
     margins: list[OverseasForeignMargin] = []
     for row in rows:
         currency = str(row.get("crcy_cd", "")).strip()
@@ -311,15 +316,21 @@ def fetch_present_balance(
         "NATN_CD": nation_code,
         "TR_MKET_CD": market_code, "INQR_DVSN_CD": inquiry_code,
     }
-    resp = transport.request(
-        method="GET", path=_PRESENT_BALANCE_PATH, tr_id=_PRESENT_BALANCE_TR[environment],
-        params=params, idempotent=True,
+    # tr_cont 헤더로만 넘기는 연속조회(공식 예시 기준) -- 보유종목(output1)·통화별 예수금(output2)이
+    # 여러 페이지로 쪼개져 올 수 있어 모든 페이지를 누적한다. 계좌 요약(output3)은 계좌 단위라
+    # 페이지 불변이므로 처음 발견한 비어있지 않은 것을 쓴다.
+    pages = _fetch_tr_cont_pages(
+        transport, path=_PRESENT_BALANCE_PATH, tr_id=_PRESENT_BALANCE_TR[environment],
+        params=params, max_pages=_MAX_PAGES,
+        cap_message=(
+            f"해외주식 체결기준현재잔고 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        ),
     )
-    _raise_if_error(resp)
-    summary = _first_object(resp.body.get("output3"))
+    summary = _summary_across(pages, "output3")
     return OverseasPresentBalance(
-        positions=tuple(_report_position(row) for row in _as_rows(resp.body.get("output1"))),
-        currencies=tuple(_currency_balance(row) for row in _as_rows(resp.body.get("output2"))),
+        positions=tuple(_report_position(row) for resp in pages for row in _as_rows(resp.body.get("output1"))),
+        currencies=tuple(_currency_balance(row) for resp in pages for row in _as_rows(resp.body.get("output2"))),
         total_purchase_amount=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
         total_evaluation_amount=_decimal_or_zero(summary, "evlu_amt_smtl_amt"),
         total_unrealized_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
@@ -351,15 +362,20 @@ def fetch_settlement_balance(
         "CANO": cano, "ACNT_PRDT_CD": product_code, "BASS_DT": basis_date,
         "WCRC_FRCR_DVSN_CD": "01" if won_basis else "02", "INQR_DVSN_CD": inquiry_code,
     }
-    resp = transport.request(
-        method="GET", path=_SETTLEMENT_BALANCE_PATH, tr_id=_SETTLEMENT_BALANCE_TR,
-        params=params, idempotent=True,
+    # tr_cont 헤더로만 넘기는 연속조회(공식 예시 기준) -- 보유종목·통화별 예수금이 여러 페이지로
+    # 쪼개져 올 수 있어 모두 누적하고, 요약(output3)은 계좌 단위라 처음 발견한 비어있지 않은 것을 쓴다.
+    pages = _fetch_tr_cont_pages(
+        transport, path=_SETTLEMENT_BALANCE_PATH, tr_id=_SETTLEMENT_BALANCE_TR,
+        params=params, max_pages=_MAX_PAGES,
+        cap_message=(
+            f"해외주식 결제기준잔고 조회가 {_MAX_PAGES}페이지 상한에 도달했으나 연속조회가 "
+            f"남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
+        ),
     )
-    _raise_if_error(resp)
-    summary = _first_object(resp.body.get("output3"))
+    summary = _summary_across(pages, "output3")
     return OverseasSettlementBalance(
-        positions=tuple(_report_position(row) for row in _as_rows(resp.body.get("output1"))),
-        currencies=tuple(_currency_balance(row) for row in _as_rows(resp.body.get("output2"))),
+        positions=tuple(_report_position(row) for resp in pages for row in _as_rows(resp.body.get("output1"))),
+        currencies=tuple(_currency_balance(row) for resp in pages for row in _as_rows(resp.body.get("output2"))),
         total_purchase_amount=_decimal_or_zero(summary, "pchs_amt_smtl_amt"),
         total_unrealized_pnl=_decimal_or_zero(summary, "tot_evlu_pfls_amt"),
         evaluation_return_percent=_decimal_or_zero(summary, "evlu_erng_rt1"),
@@ -464,6 +480,16 @@ def _first_object(block: object) -> Mapping[str, Any]:
         return block
     if isinstance(block, (list, tuple)) and block and isinstance(block[0], Mapping):
         return block[0]
+    return {}
+
+
+def _summary_across(pages: list[RawResponse], key: str) -> Mapping[str, Any]:
+    """여러 페이지에 걸쳐 계좌 요약 블록(output3)을 고른다 -- 계좌 단위라 페이지 불변이므로 처음
+    발견한 비어있지 않은 요약을 쓴다(요약이 어느 페이지에 실려와도 잡히게, 없으면 빈 dict)."""
+    for resp in pages:
+        summary = _first_object(resp.body.get(key))
+        if summary:
+            return summary
     return {}
 
 

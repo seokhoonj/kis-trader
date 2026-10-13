@@ -543,11 +543,14 @@ def cancel_asia_reserved_order(
     예약번호·접수일자가 리포트에 없으면 :class:`KISError`(재조회 유도), 거부는
     :class:`OrderRejectedError`, 타임아웃(처리 불명)은 :class:`OrderTimeoutError`(재전송 금지),
     정상 응답인데 취소 확인번호가 부재/불일치면 :class:`KISError`."""
-    report = store.report_for(client_order_id)
-    fingerprint = store.fingerprint_for(client_order_id)
+    # (리포트, 지문)을 한 락으로 원자 스냅샷 -- 아래 취소 와이어는 리포트(예약번호·접수일자)와
+    # 지문(종목·방향·수량·단가·거래소)을 함께 읽어 조립하므로 둘의 세대가 일치해야 한다.
+    binding = store.binding_for(client_order_id)
+    if binding is None:
+        raise KISUsageError(f"모르는 아시아 해외예약주문: {client_order_id!r}")
+    report, fingerprint = binding
     if (
-        report is None
-        or not isinstance(fingerprint, ReservedOrderFingerprint)
+        not isinstance(fingerprint, ReservedOrderFingerprint)
         or fingerprint.exchange != _ASIA_RESERVED_EXCHANGE
     ):
         raise KISUsageError(f"모르는 아시아 해외예약주문: {client_order_id!r}")

@@ -264,10 +264,13 @@ def submit_change(
     :class:`OrderRejectedError` -- 그중 '거래소 미접수'(원주문이 아직 거래소에 접수 전이라 정정취소가
     이른 경우)는 재시도 가능한 하위 타입 :class:`OrderNotAcceptedYetError`, 전송 타임아웃(처리 불명)은
     :class:`OrderTimeoutError`, 정정 접수인데 ODNO 없음/예상외 outcome 은 :class:`OrderError`."""
-    original_report = store.report_for(original_client_order_id)
-    original_fingerprint = store.fingerprint_for(original_client_order_id)
-    if original_report is None or original_fingerprint is None:
+    # (리포트, 지문)을 한 락으로 원자 스냅샷 -- 아래 빌더가 둘을 함께 읽어 잔량/와이어를 만든다.
+    # 따로 읽으면 그 사이 동시 정정/취소의 원자 리바인드가 끼어들어 세대가 어긋난 쌍(옛 지문 + 새
+    # 리포트)을 볼 수 있고, 그러면 잘못된 잔량이 와이어로 나간다.
+    binding = store.binding_for(original_client_order_id)
+    if binding is None:
         raise KISUsageError(f"확정된 원주문을 찾을 수 없다: {original_client_order_id!r}")
+    original_report, original_fingerprint = binding
     if not isinstance(original_fingerprint, ImmediateOrderFingerprint):
         # 정정·취소(order-rvsecncl)는 즉시체결 주문만 -- 예약주문은 예약 전용 정정취소(순번 지목)를 쓴다.
         raise KISUsageError(

@@ -336,7 +336,11 @@ def _capture_change(kwargs: dict[str, Any]) -> tuple[OrderFingerprint, WireReque
     except KeyError:
         raise ValueError(f"unknown change lane: {kwargs['lane']!r}") from None
 
-    with TemporaryDirectory() as tmp_dir, OrderStore(Path(tmp_dir) / "orders.json") as real_store:
+    # retention_days=0 로 시간 기반 정리를 끈다 -- 합성 원주문(_RECORDED_AT 고정일)이 벽시계 기준
+    # 보존창을 넘겨 조용히 정리되면 change 경로가 '원주문 없음'으로 터져 와이어 캡처가 날짜에 의존하게
+    # 된다(이 하네스는 와이어 바이트만 본다 -- 보존 정책과 무관해야 한다).
+    with TemporaryDirectory() as tmp_dir, \
+            OrderStore(Path(tmp_dir) / "orders.json", retention_days=0) as real_store:
         store = _RecordingStore(real_store)
         store.record(_synthetic_prior(original_order), original_order.fingerprint)
         transport = _CapturingTransport()

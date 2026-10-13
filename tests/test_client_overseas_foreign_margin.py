@@ -34,21 +34,24 @@ _HKD = {
 }
 
 
-def _resp(rows=None):
+def _resp(rows=None, *, tr_cont=""):
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
-                       body={"output": rows if rows is not None else [_USD, _HKD]}, tr_cont="")
+                       body={"output": rows if rows is not None else [_USD, _HKD]}, tr_cont=tr_cont)
 
 
 class FakeTransport:
-    def __init__(self, *, response=None):
+    def __init__(self, *, response=None, pages=None):
         self.response = response
+        self.pages = pages          # tr_cont 연속조회 흉내(순차 응답)
         self.calls: list[dict] = []
         self._lock = threading.Lock()
 
     def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
         with self._lock:
             self.calls.append({"method": method, "path": path, "tr_id": tr_id,
-                               "params": params, "idempotent": idempotent})
+                               "params": params, "idempotent": idempotent, "tr_cont": tr_cont})
+        if self.pages is not None:
+            return self.pages.pop(0)
         assert self.response is not None
         return self.response
 
@@ -116,6 +119,17 @@ def test_foreign_margin_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="E", msg1="실패", body={"output": []}, tr_cont="")
     with pytest.raises(KISError):
         _client(FakeTransport(response=resp)).account.overseas.foreign_margin()
+
+
+def test_foreign_margin_accumulates_across_pages():
+    # tr_cont=M 이면 다음 페이지를 tr_cont=N 으로 받아 통화 행을 모두 누적한다(단발 조회로 끊으면 잘림).
+    page1 = _resp([_USD], tr_cont="M")
+    page2 = _resp([_HKD], tr_cont="D")
+    fake = FakeTransport(pages=[page1, page2])
+    margins = _client(fake).account.overseas.foreign_margin()
+    assert [m.currency for m in margins] == ["USD", "HKD"]
+    assert fake.calls[1]["tr_cont"] == "N"
+    assert len(fake.calls) == 2
 
 
 def test_foreign_margin_requires_account():

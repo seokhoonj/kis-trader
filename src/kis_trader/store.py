@@ -248,6 +248,21 @@ class OrderStore:
         with self._lock:
             return self._fingerprints.get(client_order_id)
 
+    def binding_for(self, client_order_id: str) -> Binding | None:
+        """확정된 주문의 (리포트, 지문)을 **한 락**으로 원자 스냅샷한다 -- 둘이 항상 같은 세대다.
+
+        정정/취소는 잔량(지문 수량 - 리포트 체결량)을 이 쌍에서 계산해 와이어에 싣는다. 리포트와
+        지문을 각각 (:meth:`report_for` 후 :meth:`fingerprint_for`) 읽으면 그 사이 :meth:`record_change`
+        의 원자 리바인드가 끼어들어 옛 지문 + 새 리포트처럼 세대가 어긋난 쌍을 볼 수 있고, 그러면
+        잘못된 잔량이 취소/정정 와이어로 나간다. 둘 다 있을 때만 :class:`Binding`, 하나라도 없으면
+        ``None`` (확정 안 된 주문 -- in-flight 는 지문만 있어 여기선 ``None``, 호출자가 fail-closed)."""
+        with self._lock:
+            report = self._reports.get(client_order_id)
+            fingerprint = self._fingerprints.get(client_order_id)
+            if report is None or fingerprint is None:
+                return None
+            return Binding(report, fingerprint)
+
     def claim_time_for(self, client_order_id: str) -> str | None:
         """이 id 의 in-flight claim 확보 시각(ISO8601). in-flight 가 아니면 None,
         구 저장소에서 로드돼 시각 미상이면 ""(폴백 앵커)."""
