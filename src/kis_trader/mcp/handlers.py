@@ -158,14 +158,19 @@ def ranking_change(kis: KISClient, *, direction: str = "gainers", limit: int = 1
 def balance(
     kis: KISClient, *, region: str = "domestic", market: str | None = None,
     active_profile: str | None = None,
-) -> dict[str, Any] | list[dict[str, Any]]:
+) -> dict[str, Any]:
     """계좌 잔고 요약. ``region="domestic"`` 은 활성 계좌 종류로 분기한다 -- 위탁·ISA/연금저축(상품코드
     01/22)은 국내주식 잔고, IRP(29)는 퇴직연금 잔고 렌즈. ``region="overseas"`` 는 해외주식 잔고
-    (general·실전 전용, MCP 정책)로 ``market`` 생략 시 시장별 요약 리스트. 도메인 수치는 패키지가 만든다."""
+    (general·실전 전용, MCP 정책)로, ``market`` 생략 시 시장별 요약을 ``{"by_market": [...]}`` 로 감싸
+    돌려준다(단건 조회와 **같은 dict 종류** -- 호출자가 응답 shape 로 분기하지 않게). 도메인 수치는 패키지가 만든다."""
     if region == "overseas":
         account = _require_overseas_eligible(active_profile, kis)
-        result = account.overseas.balance(market=market)  # market=None -> list, 지정 -> 단건
-        return cast("dict[str, Any] | list[dict[str, Any]]", _serialize(result))
+        result = account.overseas.balance(market=market)  # market=None -> 시장별 리스트, 지정 -> 단건
+        serialized = _serialize(result)
+        # 항상 dict 로 통일 -- 시장별 집계(list)는 {by_market: [...]} 로 감싼다(한 가지 반환 종류).
+        if isinstance(serialized, list):
+            return {"by_market": serialized}
+        return cast("dict[str, Any]", serialized)
     if region != "domestic":
         raise KISUsageError(f"region 은 {sorted(_REGIONS)} 중 하나여야 한다 (받은 값: {region!r}).")
     account = _active_stock_account(kis)

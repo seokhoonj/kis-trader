@@ -348,7 +348,7 @@ def test_overseas_balance_general_real_routes_to_overseas():
     kis = _fake_stock_kis(product_code="01", environment="real",
                           overseas_balance=[_FakeBalance("US", Decimal(42), _raw={"app_secret": "L"})])
     out = handlers.balance(kis, region="overseas", market=None, active_profile="general")
-    assert out == [{"label": "US", "total": "42"}]
+    assert out == {"by_market": [{"label": "US", "total": "42"}]}   # 항상 dict (market 생략=by_market 래핑)
     assert "app_secret" not in str(out) and "L" not in str(out)   # 방화벽 유지
 
 
