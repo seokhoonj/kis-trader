@@ -3,6 +3,30 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.8.0 — 2026-10-14
+
+Adds a credential-config command group, read-only market-data tools over MCP and the CLI, and a
+client-setup documentation overhaul.
+
+### Added
+
+- `kis config default` subgroup (`profile` / `environment`, with an `env` alias) mirroring the Python
+  `set_default_profile` / `set_default_environment`, and `kis config mcp`, which prints a ready-to-paste
+  Claude Desktop configuration block with the `kis-mcp` path filled in, pure-JSON stdout, and a stderr
+  warning when the resolved profile/environment combination is not stored.
+- Read-only market-data MCP tools: `bars` (OHLCV), `stock_investor_flows`, `market_investor_flows`,
+  and `investor_net_buy_stocks`.
+- Investor-flow CLI commands: `kis stock investors`, and a `kis market` group with `investors` and
+  `net-buy`.
+
+### Changed
+
+- `kis config set-hts-id` is now `kis config hts-id` (with no argument it shows the current value), and
+  the former `set-default` command is replaced by the `default` subgroup.
+- Documentation: a beginner single-account walkthrough, the three directories the package writes
+  (configuration, cache, and the non-regenerable order-deduplication state store), and per-client MCP
+  connection guidance for Claude Desktop, Cursor, and ChatGPT (with each client's plan requirements).
+
 ## 0.7.0 — 2026-10-14
 
 Breaking redesign of the credential store toward a two-axis model (profile = account type,

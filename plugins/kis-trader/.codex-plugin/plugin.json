@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "kis-trader",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "Playbook skill for driving the kis_trader KIS Open API client under its safety-kernel discipline (search-before-trade, ticket confirmation, reconcile-not-resend).",
   "author": { "name": "seokhoonj", "url": "https://github.com/seokhoonj" },
   "homepage": "https://github.com/seokhoonj/kis-trader",
