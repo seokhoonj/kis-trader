@@ -224,7 +224,7 @@ def build_parser() -> argparse.ArgumentParser:
                     help="시장(생략 시 기본): all/KOSPI/KOSDAQ")
     mn.add_argument("--basis", choices=list(get_args(NetBuyBasis)), default=None,
                     help="기준(생략 시 기본): volume(수량)/amount(대금)")
-    mn.add_argument("--side", dest="side", choices=list(get_args(Side)), default=None,
+    mn.add_argument("--side", choices=list(get_args(Side)), default=None,
                     help="방향(생략 시 기본): buy(순매수)/sell(순매도)")
     mn.add_argument("--investor", choices=list(get_args(InvestorType)), default=None,
                     help="투자자(생략 시 기본): all/foreign/institutional/other")

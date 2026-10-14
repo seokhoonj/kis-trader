@@ -352,6 +352,28 @@ def test_market_net_buy_passes_given_flags():
     assert kis.log == [("net_buy", "KOSPI", "amount", "sell", "foreign")]
 
 
+# net_buy 로그 튜플 위치: (name, market, basis, side, investor). 스텁 기본 = (all, volume, buy, all).
+@pytest.mark.parametrize(("flag", "value", "expected"), [
+    (["--market", "KOSPI"],   None, ("net_buy", "KOSPI", "volume", "buy", "all")),
+    (["--basis", "amount"],   None, ("net_buy", "all", "amount", "buy", "all")),
+    (["--side", "sell"],      None, ("net_buy", "all", "volume", "sell", "all")),
+    (["--investor", "foreign"], None, ("net_buy", "all", "volume", "buy", "foreign")),
+])
+def test_market_net_buy_forwards_each_optional_independently(flag, value, expected):
+    # 플래그 하나만 줬을 때 그 축만 기본에서 벗어나야 한다 -- 교차게이팅 버그(예: market 줄 때만
+    # basis 전달)를 all-None/all-set 극단 테스트는 못 잡으므로 각 축을 독립 검증한다.
+    kis = StubKis()
+    args = _args(["market", "net-buy", *flag])
+    args.func(kis, args)
+    assert kis.log == [expected]
+
+
+def test_stock_investors_rejects_non_quote_exchange():
+    # cmd_investors 는 자기 복사본 거래소 가드(KRX/NXT/UN)를 가진다 -- SOR 같은 주문거래소는 거부.
+    with pytest.raises(CliConfigError, match="KRX/NXT/UN"):
+        stock.cmd_investors(StubKis(), _args(["stock", "investors", "005930", "--exchange", "SOR"]))
+
+
 def test_search_omitting_market_uses_library_default():
     # --market 를 생략하면 CLI 가 기본값을 재기술하지 않고 라이브러리 기본(스텁의 "all")이 적용된다.
     args = _args(["search", "삼성"])

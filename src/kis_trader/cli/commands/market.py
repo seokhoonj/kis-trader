@@ -1,4 +1,4 @@
-"""검색·순위 명령 -- 라이브러리 어휘(search/ranking)를 그대로 쓴다(경계 동의어 금지)."""
+"""검색·순위·시장 수급 명령 -- 라이브러리 어휘(search/ranking/market)를 그대로 쓴다(경계 동의어 금지)."""
 from __future__ import annotations
 
 from argparse import Namespace

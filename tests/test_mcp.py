@@ -227,17 +227,29 @@ def test_ranking_handler():
 
 def test_bars_handler_caps_serializes_and_validates_interval():
     bars = [_FakeHit(f"{i:06d}", f"n{i}", _raw={"secret": "x"}) for i in range(30)]
-    out = handlers.bars(_fake_kis(bars=bars), "005930", interval="1d", limit=5)
+    out = handlers.bars(_fake_kis(bars=bars), "005930", interval="1d", start="20250101", limit=5)
     assert len(out) == 5 and out[0] == {"symbol": "000000", "name": "n0"}
     assert "_raw" not in str(out) and "secret" not in str(out)
     with pytest.raises(KISUsageError):
-        handlers.bars(_fake_kis(bars=bars), "005930", interval="3d")   # 리터럴 밖
+        handlers.bars(_fake_kis(bars=bars), "005930", interval="3d", start="20250101")   # 리터럴 밖
+
+
+def test_bars_handler_requires_start_for_period_intervals():
+    # 기간봉(1d/1wk/1mo)은 start 없이 호출하면 라이브러리가 내부에서 터지므로 -- LLM 이 bars(symbol)
+    # 로 자연스럽게 부르는 실패를 MCP 경계에서 명확한 메시지로 fail-closed 한다. 분봉(1m)만 생략 허용.
+    kis = _fake_kis(bars=[_FakeHit("000000", "n0")])
+    for interval in ("1d", "1wk", "1mo"):
+        with pytest.raises(KISUsageError, match="start"):
+            handlers.bars(kis, "005930", interval=interval)   # start 없음 -> 거부
+    assert handlers.bars(kis, "005930", interval="1m") == [{"symbol": "000000", "name": "n0"}]  # 1m 은 OK
 
 
 def test_stock_investor_flows_handler_caps_and_serializes():
-    flows = [_FakeHit(f"{i:06d}", f"n{i}") for i in range(30)]
+    flows = [_FakeHit(f"{i:06d}", f"n{i}", _raw={"app_secret": "LEAK"}) for i in range(30)]
     out = handlers.stock_investor_flows(_fake_kis(stock_flows=flows), "005930", limit=7)
-    assert len(out) == 7 and out[0]["symbol"] == "000000"
+    assert len(out) == 7
+    assert out[0] == {"symbol": "000000", "name": "n0"}   # full dict -- _raw/시크릿 비노출
+    assert "LEAK" not in str(out)
 
 
 def test_market_investor_flows_handler_validates_market():
@@ -249,10 +261,11 @@ def test_market_investor_flows_handler_validates_market():
 
 
 def test_investor_net_buy_stocks_handler_validates_enums():
-    rows = [_FakeHit("005930", "삼성전자"), _FakeHit("000660", "SK하이닉스")]
+    rows = [_FakeHit("005930", "삼성전자", _raw={"token": "LEAK"}), _FakeHit("000660", "SK하이닉스")]
     out = handlers.investor_net_buy_stocks(
         _fake_kis(net_buy=rows), market="KOSPI", basis="amount", side="buy", investor="foreign", limit=10)
-    assert [r["symbol"] for r in out] == ["005930", "000660"]
+    assert out[0] == {"symbol": "005930", "name": "삼성전자"}   # full dict -- _raw/시크릿 비노출
+    assert [r["symbol"] for r in out] == ["005930", "000660"] and "LEAK" not in str(out)
     kis = _fake_kis(net_buy=rows)
     for kwargs in ({"market": "X"}, {"basis": "X"}, {"side": "X"}, {"investor": "X"}):
         with pytest.raises(KISUsageError):
@@ -272,7 +285,7 @@ def test_list_handlers_reject_bad_limit(fn, bad):
         "ranking_change": lambda: handlers.ranking_change(kis, direction="gainers", limit=bad),
         "positions": lambda: handlers.positions(kis, limit=bad),
         "open_orders": lambda: handlers.open_orders(kis, limit=bad),
-        "bars": lambda: handlers.bars(kis, "005930", limit=bad),
+        "bars": lambda: handlers.bars(kis, "005930", start="20250101", limit=bad),
         "stock_investor_flows": lambda: handlers.stock_investor_flows(kis, "005930", limit=bad),
         "market_investor_flows": lambda: handlers.market_investor_flows(kis, limit=bad),
         "investor_net_buy_stocks": lambda: handlers.investor_net_buy_stocks(kis, limit=bad),

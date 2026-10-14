@@ -436,11 +436,11 @@ def build_server(
 
     @server.tool()
     def bars(symbol: str, interval: Interval = "1d", start: str | None = None,
-                end: str | None = None, adjusted: bool = True, limit: int = 500) -> list[dict[str, Any]]:
-        """국내 종목 기간봉(OHLCV). interval 일(1d)/주(1wk)/월(1mo)/분(1m), start·end 는 YYYYMMDD.
-        과거 가격(YTD 수익률 등) 계산용 -- 현재가는 quote 를 쓸 것."""
+             end: str | None = None, adjusted: bool = True, limit: int = 500) -> list[dict[str, Any]]:
+        """국내 종목 기간봉(OHLCV). interval 일(1d)/주(1wk)/월(1mo)/분(1m). 기간봉(1d/1wk/1mo)은
+        start(YYYYMMDD) 필수, 분봉(1m)만 start/end 무시. 과거 가격(YTD 수익률 등) 계산용 -- 현재가는 quote."""
         return handlers.bars(account_session.read_client(), symbol, interval=interval,
-                                start=start, end=end, adjusted=adjusted, limit=limit)
+                             start=start, end=end, adjusted=adjusted, limit=limit)
 
     @server.tool()
     def stock_investor_flows(symbol: str, limit: int = 60) -> list[dict[str, Any]]:

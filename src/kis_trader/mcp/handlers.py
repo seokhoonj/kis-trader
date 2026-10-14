@@ -171,15 +171,18 @@ def bars(
     kis: KISClient, symbol: str, *, interval: str = "1d", start: str | None = None,
     end: str | None = None, adjusted: bool = True, limit: int = 500,
 ) -> list[dict[str, Any]]:
-    """국내 종목 기간봉(OHLCV). ``interval`` 일(1d)·주(1wk)·월(1mo)·분(1m). ``start``/``end`` 는 YYYYMMDD
-    (생략 시 라이브러리 기본 구간). 과거 가격(YTD 수익률 등) 계산용 -- 현재가는 ``quote`` 를 쓸 것.
-    최신 응답을 그대로 직렬화하며 최대 ``limit`` 행(기본 500)."""
+    """국내 종목 기간봉(OHLCV). ``interval`` 일(1d)·주(1wk)·월(1mo)·분(1m). 기간봉(1d/1wk/1mo)은
+    ``start`` 가 **필수**(YYYYMMDD), ``end`` 는 생략 시 당일까지; 분봉(1m)만 ``start``/``end``/``adjusted``
+    를 무시한다. 과거 가격(YTD 수익률 등) 계산용 -- 현재가는 ``quote`` 를 쓸 것. 최대 ``limit`` 행(기본 500)."""
     if interval not in _INTERVALS:
         raise KISUsageError(f"interval 은 {sorted(_INTERVALS)} 중 하나여야 한다 (받은 값: {interval!r}).")
+    if interval != "1m" and start is None:
+        raise KISUsageError(
+            f"기간봉(interval={interval!r})은 start(YYYYMMDD)가 필요하다 -- 분봉(1m)만 생략 가능.")
     _require_positive_limit(limit)
-    bars = kis.domestic.stock(symbol).bars(
+    rows = kis.domestic.stock(symbol).bars(
         cast(Interval, interval), start=start, end=end, adjusted=adjusted, max_bars=limit)
-    out: list[dict[str, Any]] = [_serialize(b) for b in list(bars)[:limit]]
+    out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 
 
