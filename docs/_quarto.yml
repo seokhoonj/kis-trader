@@ -29,6 +29,7 @@ book:
         - quickstart.md
         - appkey.md
         - configuration.md
+        - easy.md
     - part: "국내 주식"
       chapters:
         - quotes.md

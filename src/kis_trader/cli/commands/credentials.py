@@ -9,7 +9,7 @@
 - ``show``: 저장분을 마스킹해 보여준다(시크릿 비노출; 앱키는 끝 4자리만).
 - ``set <profile>.<env>.<field> [VALUE]``: 한 필드 수정. 시크릿(app_key/app_secret/account_password)은
   명령줄 인자로 받지 않고(프로세스 목록/셸 기록 유출 방지) ``getpass`` 숨김 프롬프트로만 입력받는다.
-- ``default``/``set-hts-id``: 최상위 메타(기본 프로필·환경, HTS 로그인 아이디) 기록.
+- ``default``/``hts-id``: 최상위 메타(기본 프로필·환경, HTS 로그인 아이디) 기록.
 - ``migrate``: 이전 형식(평평한) ``credentials.json`` 을 두 축 형식(schema 2)으로 변환.
 
 KIS 앱키/시크릿은 개발자포털에서 미리 발급받아 **붙여넣는** 정적 자격증명이라, 브라우저/OAuth 로
@@ -20,8 +20,12 @@ KIS 앱키/시크릿은 개발자포털에서 미리 발급받아 **붙여넣는
 from __future__ import annotations
 
 import argparse
+import json
 import os
+import shutil
+import sys
 from getpass import getpass
+from pathlib import Path
 from typing import cast
 
 from ...config import (
@@ -299,7 +303,7 @@ def cmd_config_set(args: argparse.Namespace) -> None:
     print(f"수정됨: {profile}.{environment}.{field_name}")
 
 
-# --- default (기본 프로필/환경) / set-hts-id ----------------------------------
+# --- default (기본 프로필/환경) / hts-id ----------------------------------
 
 def cmd_config_default(args: argparse.Namespace) -> None:
     """``kis config default`` (하위 명령 없음) -- 현재 기본 프로필/환경 마커를 보여준다. 표시값은
@@ -335,8 +339,81 @@ def cmd_config_default_environment(args: argparse.Namespace) -> None:
     print(f"기본 환경: {args.name} ({path})")
 
 
-def cmd_config_set_hts_id(args: argparse.Namespace) -> None:
-    """조건검색·관심종목 조회에 쓰는 HTS 로그인 아이디를 저장한다(최상위 공유, 인증엔 안 씀)."""
+def _resolve_kis_mcp_path() -> str | None:
+    """``kis-mcp`` 실행 파일의 전체 경로를 찾는다(Claude Desktop 설정에 넣을 값). PATH 에 있으면 그걸,
+    없으면 ``kis`` 와 같은 scripts 폴더의 형제를 본다. 못 찾으면 ``None``(호출자가 안내)."""
+    found = shutil.which("kis-mcp")
+    if found:
+        return found
+    kis = shutil.which("kis")
+    if kis:
+        sibling = Path(kis).resolve().parent / ("kis-mcp.exe" if os.name == "nt" else "kis-mcp")
+        if sibling.exists():
+            return str(sibling)
+    return None
+
+
+def _warn_if_mcp_combo_unsaved(loaded: dict[str, object], profile: str, environment: str) -> None:
+    """방출할 (프로필, 환경) 조합이 ``credentials.json`` 에 실제로 저장돼 있는지 보고, 아니면 stderr 로
+    경고한다. 저장 안 된 조합(오타난 ``--profile``, real 만 저장했는데 paper 로 떨어진 경우, 레거시
+    파일 등)을 가리키는 MCP 블록은 Claude Desktop 에서 ``HTTP 500("Error executing tool")`` 으로만
+    실패하므로(원인 메시지가 안 보임), 복붙 전에 미리 알린다. stdout 은 건드리지 않는다(순수 JSON 유지).
+    형제 ``set_default_profile`` 이 저장 시 강제하는 존재 검증을, 생성 명령에서도 동일하게 건다."""
+    if loaded and _detect_schema(loaded) == "legacy":
+        print("# (주의: 레거시 형식입니다 -- 'kis config migrate' 로 두 축 형식으로 변환한 뒤 다시 "
+              "실행하세요. 변환 전에는 Claude Desktop 에서 조회가 실패합니다.)", file=sys.stderr)
+        return
+    block = loaded.get(environment)
+    if not (isinstance(block, dict) and profile in block):
+        print(f"# (주의: '{profile}' + '{environment}' 조합이 credentials.json 에 저장돼 있지 "
+              "않습니다 -- 이대로 쓰면 Claude Desktop 에서 조회가 HTTP 500 으로 조용히 실패합니다. "
+              "먼저 'kis config' 로 저장하거나, --profile/--environment 로 저장된 조합을 고르세요.)",
+              file=sys.stderr)
+
+
+def cmd_config_mcp(args: argparse.Namespace) -> None:
+    """Claude Desktop 에 붙여넣을 MCP 설정 블록(``claude_desktop_config.json``)을 그대로 출력한다 --
+    ``kis-mcp`` 경로를 자동으로 채우고 JSON 으로 직렬화하므로(Windows 백슬래시도 자동 이스케이프),
+    사용자는 경로 탐색·JSON 손편집 없이 통째로 복사해 붙여넣으면 된다. 프로필/환경은 인자 > 기본값
+    마커 > ``general``/``paper`` 순으로 고른다. 저장돼 있지 않은 조합이면 방출 전에 stderr 로 경고한다
+    (stdout 은 순수 JSON 유지)."""
+    loaded = _load_credentials(_config_dir_path())
+    profile = args.profile
+    environment = args.environment
+    if profile is None:
+        marker = loaded.get(_DEFAULT_PROFILE_KEY)
+        profile = marker if isinstance(marker, str) else "general"
+    if environment is None:
+        marker = loaded.get(_DEFAULT_ENVIRONMENT_KEY)
+        environment = marker if isinstance(marker, str) else "paper"
+    command = _resolve_kis_mcp_path()
+    config = {
+        "mcpServers": {
+            "kis-trader": {
+                "command": command or "kis-mcp",
+                "env": {"KIS_MCP_PROFILE": profile, "KIS_MCP_ENVIRONMENT": environment},
+            }
+        }
+    }
+    # 안내·경고는 stderr 로, 설정 JSON 은 stdout 으로 -- stdout 이 순수 JSON 이라 화면을 통째로 복사해도,
+    # `kis config mcp > config.json` 으로 리다이렉트해도 유효한 JSON 만 들어간다('#' 줄이 안 섞인다).
+    print("# 아래 JSON 을 Claude Desktop 설정(Settings -> Developer -> Edit Config)에 붙여넣으세요 "
+          "(이 '#' 안내 줄은 넣지 마세요). 이미 다른 MCP 서버가 있으면 파일을 통째로 바꾸지 말고 "
+          "\"mcpServers\" 안에 \"kis-trader\" 항목만 추가하세요:", file=sys.stderr)
+    if command is None:
+        print("# (주의: kis-mcp 를 못 찾았습니다 -- \"uv tool install 'kis-trader[mcp]'\" 로 설치했는지 "
+              "확인하고, command 값을 kis-mcp 전체 경로로 바꾸세요.)", file=sys.stderr)
+    _warn_if_mcp_combo_unsaved(loaded, profile, environment)
+    print(json.dumps(config, indent=2, ensure_ascii=False))
+
+
+def cmd_config_hts_id(args: argparse.Namespace) -> None:
+    """``kis config hts-id`` -- 인자 없이 치면 현재 HTS 로그인 아이디를 보여주고, 값을 주면 저장한다
+    (조건검색·관심종목 조회에 쓰는 최상위 공유 값; 인증엔 안 씀). ``default`` 와 같은 조회/설정 패턴."""
+    if args.hts_id is None:
+        current = _load_credentials(_config_dir_path()).get(_HTS_ID_KEY)
+        print(f"hts_id: {current if isinstance(current, str) and current else '(미설정)'}")
+        return
     path = KISConfig.set_hts_id(args.hts_id)
     print(f"hts_id 저장됨: {path}")
 

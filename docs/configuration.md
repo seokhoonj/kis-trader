@@ -24,6 +24,29 @@ KISClient(profile="general", environment="real")   # 저장된 자격증명을 �
 
 이 장은 그 **프로필**과 **환경**을 다룹니다 -- 각각이 무엇인지, 자격증명을 어떻게 넣는지 차례로 봅니다.
 
+## 폴더 한눈에
+
+패키지가 쓰는 폴더는 셋입니다 -- 내가 저장한 **설정**, 자동으로 만들어지는 **캐시**, 그리고 주문을
+내면 생기는 **상태**(주문 중복방지 기록):
+
+```
+~/
+├── .config/kis-trader/credentials.json    # [설정] 내가 저장한 앱키·시크릿·계좌 (프로필별)
+├── .cache/kis-trader/
+│   ├── tokens/     # [캐시] 접속 토큰 -- 자동 발급·재사용 (real/paper 별로 생김)
+│   └── masters/    # [캐시] 종목마스터(이름↔코드) -- 처음 쓸 때 자동 다운로드
+└── .local/state/kis-trader/orders/         # [상태] 주문 중복방지 기록 -- 주문을 내야 생김, 지우지 마세요
+```
+
+- `.config` 는 **내가 넣은 값**(지우면 다시 저장), `.cache` 는 **자동 생성**(지워도 다음 실행에 다시 만듦).
+- `.local/state/.../orders` 는 주문을 처음 낼 때 생기는 **중복방지 기록**이라, `.cache` 와 달리
+  **지우면 안 됩니다**(지우면 프로세스 간 중복 주문 방지가 깨집니다; 재생성 불가).
+- Windows 는 `C:\Users\나\` 아래 같은 구조입니다.
+- **MCP(Claude Desktop)로 쓰면** Claude 쪽 설정 파일(`claude_desktop_config.json`)도 하나 더 씁니다 -- 이건
+  kis-trader 가 아니라 **Claude Desktop 이** 쓰는 파일이라 위치가 다릅니다(아래 [파일은 어디에 있나](#파일은-어디에-있나)).
+
+각 파일의 자세한 설명과 전체 트리는 [파일은 어디에 있나](#파일은-어디에-있나) 에 있습니다.
+
 ## 두 축 -- 프로필(계좌 종류)과 환경(실전/모의)
 
 세션은 **두 가지**로 정해집니다 -- **프로필**은 어떤 **계좌 종류**를 여는지, **환경**은 **실전이냐
@@ -39,17 +62,21 @@ KISClient(profile="general", environment="paper")   # 같은 종합위탁, 모�
 여럿(연금저축 2개 등)일 수 있기 때문입니다. 이름은 계좌 종류를 나타내도록 소문자·숫자·밑줄로 짓습니다.
 흔한 예:
 
-| 프로필 이름 (자유롭게) | 담는 계좌 |
-|---|---|
-| `general` | 종합위탁(국내·해외 주식·채권) |
-| `derivatives` | 국내 선물옵션 |
-| `isa` | ISA(개인종합자산관리) |
-| `pension` | 연금저축 |
-| `irp` | IRP(개인형퇴직연금, 조회 전용) |
-| `overseas_derivatives` | 해외 선물옵션 |
+| 프로필 이름 (자유롭게) | 담는 계좌 | 상품코드 | 실전 | 모의 | 주문 |
+|---|---|:--:|:--:|:--:|:--:|
+| `general` | 종합위탁(국내·해외 주식·채권) | 01 | O | O | O |
+| `derivatives` | 국내 선물옵션 | 03 | O | O | O |
+| `isa` | ISA(개인종합자산관리) | 01 | O | X | O |
+| `pension` | 연금저축 | 22 | O | X | O |
+| `irp` | IRP(개인형퇴직연금) | 29 | O | X | X |
+| `overseas_derivatives` | 해외 선물옵션 | 08 | O | X | O |
 
-실전·모의는 프로필 이름이 아니라 **환경**으로 고릅니다. 모의가 없는 계좌(연금저축·ISA·IRP·해외선물옵션)는
-모의 슬롯을 비워 두면 됩니다 -- 그 계좌는 실전으로만 엽니다.
+- **실전**은 모든 종류가 됩니다. **모의 X** 는 KIS가 그 계좌 종류의 모의투자를 제공하지 않는다는 뜻으로,
+  모의 슬롯을 비워 두고 실전으로만 엽니다.
+- **주문 X** 는 IRP(상품코드 `29`) -- 잔고·거래내역은 보되 주문은 막힙니다. DC가입자(`55`)는 세션 생성
+  자체가 거부됩니다([상품코드 표](#계좌번호와-상품코드)).
+- 실전·모의는 프로필 이름이 아니라 **환경**으로 고릅니다 -- 같은 프로필을 두 환경에 저장해 두고 환경만
+  바꿔 엽니다.
 
 ### 환경을 지정하지 않으면 (기본 환경)
 
@@ -78,7 +105,7 @@ KISConfig.set_default_environment("real")   # credentials.json 최상위에 "def
 
 1. `KIS_DEFAULT_PROFILE` **환경변수**가 있으면 그 이름
 2. 없으면 -- `credentials.json` 에 **기본으로 지정해 둔 프로필**(아래 `KISConfig.set_default_profile`)
-3. 그것도 없으면 -- `credentials.json` 의 **해석된 환경 블록에서 먼저 나오는 프로필**(`real` 블록을
+3. 그것도 없으면 -- `credentials.json` 의 **양 블록(real 먼저) 중 먼저 나오는 프로필**(`real` 블록을
    먼저 병합하므로 `real` 쪽에 있는 이름이 앞섭니다)
 
 즉 `paper` 에 먼저 저장한 뒤 다른 프로필을 `real` 에 저장하면 그 `real` 프로필이 기본이 됩니다. 어느
@@ -123,6 +150,12 @@ export KIS_DEFAULT_PROFILE=general       # Linux·macOS (영구히 하려면 ~/.
 대화형 저장(`setup`)이 시작돼, 계좌 종류별로 실전·모의 앱키를 차례로 묻습니다(없는 환경은 Enter 로
 건너뜀). 앱키·앱시크릿은 화면에 보이지 않게 입력받습니다(파이썬을 쓰지 않아도 됩니다).
 
+::: {.callout-note}
+`kis config` 는 **터미널에서** 치는 명령이라, 먼저 터미널을 열고 `kis` 도구가 깔려 있어야 합니다 --
+터미널 여는 법과 설치(`uv tool install 'kis-trader[mcp]'`)는 [빠른 시작](quickstart.md) 또는
+[MCP 서버](mcp.md)의 1~2단계를 참고하세요.
+:::
+
 | 하위명령 | 하는 일 |
 |---|---|
 | `kis config setup` | 자격증명을 대화형으로 저장(`kis config` 와 같음) |
@@ -130,8 +163,9 @@ export KIS_DEFAULT_PROFILE=general       # Linux·macOS (영구히 하려면 ~/.
 | `kis config set <프로필>.<환경>.<필드> [값]` | 한 필드 수정(`app_key`·`app_secret`·`account`·`account_password`; 비밀 아닌 `account` 만 값을 바로 줄 수 있고 나머지는 숨김 프롬프트) |
 | `kis config default` | 현재 기본 프로필·환경 조회 |
 | `kis config default profile <프로필>` | 기본 프로필 지정(이름 없이 열 때 여는 프로필) |
-| `kis config default environment <real\|paper>` | 기본 환경 지정(생략 시 여는 환경; `env` alias 가능) |
-| `kis config set-hts-id <hts_id>` | HTS 로그인 아이디 저장(조건검색·관심종목용) |
+| `kis config default environment real/paper` | 기본 환경 지정(생략 시 여는 환경; `env` alias 가능) |
+| `kis config mcp` | Claude Desktop 설정 블록(`claude_desktop_config.json`) 출력 -- `--profile`/`--environment` 로 선택, 경로 자동 채움([MCP 서버](mcp.md)) |
+| `kis config hts-id [hts_id]` | HTS 로그인 아이디 조회(인자 없음)·저장(조건검색·관심종목용) |
 | `kis config migrate [--yes]` | 이전 형식(평평한) `credentials.json` 을 두 축 형식으로 변환(`--yes` 는 비대화형으로 기본 병합 자동 승인; 이름 충돌이면 거부) |
 
 실전(real) 슬롯은 저장 전에 한 번 더 확인하고, 같은 자리가 이미 있으면 덮어쓸지 묻습니다.
@@ -195,10 +229,196 @@ CLI 에서는 `--profile` 로 계좌 종류를, `--environment` 로 실전/모�
 `kis --profile isa --environment real account balance`
 :::
 
+## 상황별 설정 레시피 (경우별 가이드)
+
+자격증명을 넣는 방법은 두 가지이고, 아래의 경우마다 **두 방법을 나란히** 적어 두었습니다. 편한 쪽
+하나만 따라 하면 됩니다.
+
+- **(A) `kis config`(대화형)** -- 권장. 묻는 대로 입력하면 올바른 형식으로 저장하고, 파일을 소유자만
+  읽게 잠그며, 기존 값과 안전하게 병합합니다. 앱키·시크릿은 화면에 보이지 않게 받습니다.
+- **(B) `credentials.json` 직접 편집** -- 에디터로 파일을 직접 씁니다. 형식(`schema: 2`)만 지키면 됩니다.
+  파일 위치는 [파일은 어디에 있나](#파일은-어디에-있나), 전체 형식은 [credentials.json](#credentials.json) 참고.
+
+**내 경우 고르기** -- 아래에서 맞는 번호 하나만 따라 하세요.
+
+| 내 상황 | 레시피 |
+|---|:--:|
+| 시세·검색만, 계좌번호 없음 | **1** |
+| 계좌 하나, **실전만** (연금·ISA 등) | **2** |
+| 계좌 하나, **모의만** (연습) | **3** |
+| 한 계좌의 실전 + 모의 둘 다 | **4** |
+| 계좌 종류 여러 개 | **5** |
+| 이름·환경 없이 바로 열리게 | **6** |
+| 예전(0.7.0 이전) 파일 변환 | **7** |
+
+직접 편집할 때 기본 구조는 항상 같습니다 -- `real`/`paper` 블록 **아래에 프로필(계좌 종류)** 을 두고,
+프로필마다 `app_key`·`app_secret`·`account` 를 둡니다(묶음 안에 `environment` 는 넣지 않습니다):
+
+```json
+{
+  "schema": 2,
+  "real":  { "<프로필>": { "app_key": "...", "app_secret": "...", "account": "종합계좌-상품코드" } },
+  "paper": { "<프로필>": { "app_key": "...", "app_secret": "...", "account": "..." } }
+}
+```
+
+::: {.callout-important}
+직접 편집 시: ① 맨 위 `"schema": 2` 는 **반드시** 있어야 합니다(없으면 옛 형식으로 보고 거부). ② 문법이
+깨지지 않게(마지막 쉼표 금지, 모든 값 `"..."`). ③ 저장 후 권한을 `chmod 600 ~/.config/kis-trader/credentials.json`
+로 잠그세요(Linux·macOS). ④ 앱키·시크릿이 든 파일이라 **깃·채팅·로그에 올리지 마세요**.
+:::
+
+### 실전(real)과 모의(paper)
+
+계좌가 실전인지 모의인지는 **환경**이 정합니다. 실전과 모의는 KIS에서 앱키·시크릿부터 따로 발급받습니다.
+
+| 구분 | 실전 (real) | 모의 (paper) |
+|---|---|---|
+| 무엇 | 실제 돈으로 매매 | 가상 자금으로 연습(체결·잔고 시뮬레이션) |
+| 앱키·시크릿 | 실전용 발급 | **별도 발급** -- 실전 키로 모의 접속 불가 |
+| 환경을 생략하면 | 열리지 않음 -- `real` 을 **명시**해야 함(실수 방지) | **기본으로 열림** |
+| 호출 한도(앱키 단위 합산) | 공식 초당 18건(패키지 기본 15로 여유; 과속 시 `status 500`) | 초당 1건 |
+| `credentials.json` 블록 | `"real": { … }` | `"paper": { … }` |
+
+**모의가 있는 계좌 종류는 정해져 있습니다** -- 일반 주식·국내선물옵션만 모의가 있고, 나머지는 실전만
+있습니다. 계좌 종류별 실전·모의·주문 가능 여부(O/X)는 이 페이지 위쪽 **프로필 표**(두 축 절)를 보세요. 모의가
+`X` 인 종류는 아래 레시피에서 모의 단계만 건너뛰고 실전만 저장하면 됩니다.
+
+### 1. 계좌가 아예 없을 때 -- 시세·검색만
+
+주문·잔고가 필요 없으면 **계좌번호를 넣지 않습니다**. 앱키·시크릿만 있으면 시세·검색·순위·종목정보가
+열립니다.
+
+- **(A) CLI** -- `account 계좌번호 ...:` 프롬프트에서 그냥 **Enter**(비움):
+  ```bash
+  kis config setup --profile general
+  # real 앱키·시크릿 입력, account 는 Enter 로 비움
+  ```
+- **(B) 파일** -- 묶음에서 `account` 를 뺍니다:
+  ```json
+  { "schema": 2, "real": { "general": { "app_key": "...", "app_secret": "..." } } }
+  ```
+
+### 2. 계좌 하나만 -- 실전만 (모의 없음)
+
+가장 흔한 경우입니다. 모의(`paper`)는 만들지 않습니다.
+
+- **(A) CLI** -- 모의 단계에서 **APP KEY 를 비우고 Enter** 로 건너뜁니다:
+  ```bash
+  kis config setup --profile isa
+  # [real]  실전 설정? → y, 앱키·시크릿·계좌번호 입력
+  # [paper] ... APP KEY (없으면 Enter): → Enter (건너뜀)
+  kis config default environment real    # 단일 실전 계좌를 인자 없이 열리게 (아래 6번)
+  ```
+- **(B) 파일** -- `real` 블록만 둡니다(`paper` 블록 자체를 넣지 않음):
+  ```json
+  {
+    "schema": 2,
+    "default_environment": "real",
+    "real": { "isa": { "app_key": "...", "app_secret": "...", "account": "12345678-01" } }
+  }
+  ```
+
+일반계좌는 `general`, 연금저축은 `pension`(계좌 `...-22`), IRP 는 `irp`(`...-29`, 조회 전용)로 바꾸면 됩니다.
+
+### 3. 계좌 하나만 -- 모의만 (실전 없음)
+
+연습용입니다. 기본 환경이 모의이므로 **인자 없이 바로** 열립니다.
+
+- **(A) CLI** -- 실전 단계에서 `N`(건너뜀), 모의만 입력:
+  ```bash
+  kis config setup --profile general
+  # [real] 실전 ...? → N
+  # [paper] 모의 앱키·시크릿·계좌 입력
+  ```
+- **(B) 파일** -- `paper` 블록만 둡니다(`default_environment` 불필요 -- 기본이 모의):
+  ```json
+  { "schema": 2, "paper": { "general": { "app_key": "...", "app_secret": "...", "account": "50123456-01" } } }
+  ```
+
+### 4. 한 계좌 종류의 실전 + 모의 둘 다
+
+평소에는 모의로 연습하다가(환경을 생략하면 모의), 실제 매매는 `--environment real` 로 지정할 때만 합니다.
+
+- **(A) CLI** -- 두 단계 다 입력:
+  ```bash
+  kis config setup --profile general
+  # [real]  → y, 실전 앱키·계좌
+  # [paper] → 모의 앱키·계좌
+  ```
+- **(B) 파일** -- 두 블록에 같은 프로필 이름:
+  ```json
+  {
+    "schema": 2,
+    "real":  { "general": { "app_key": "...", "app_secret": "...", "account": "12345678-01" } },
+    "paper": { "general": { "app_key": "...", "app_secret": "...", "account": "50123456-01" } }
+  }
+  ```
+
+### 5. 계좌 종류 여러 개 (일반 + ISA + 연금 …)
+
+계좌 종류마다 KIS 앱키가 다르므로 종류별로 넣습니다.
+
+- **(A) CLI** -- 종류마다 한 번씩:
+  ```bash
+  kis config setup --profile general
+  kis config setup --profile isa
+  kis config setup --profile pension
+  kis config default profile general    # 이름 없이 열 때 여는 기본 계좌
+  ```
+- **(B) 파일** -- 한 블록 안에 프로필을 나열:
+  ```json
+  {
+    "schema": 2,
+    "default_profile": "general",
+    "real": {
+      "general": { "app_key": "...", "app_secret": "...", "account": "12345678-01" },
+      "isa":     { "app_key": "...", "app_secret": "...", "account": "12345678-01" },
+      "pension": { "app_key": "...", "app_secret": "...", "account": "87654321-22" }
+    }
+  }
+  ```
+
+사용할 때 종류를 지정합니다: `kis --profile isa account balance`.
+
+### 6. 이름·환경 없이 바로 열리게 (기본값 지정)
+
+계좌가 하나뿐이어도 그 계좌가 **실전**이면, 실수로 실전 서버에 연결되지 않도록 환경을 한 번은
+지정해야 합니다(모의만 있으면 기본이 모의라 그대로 열립니다).
+
+- **(A) CLI**:
+  ```bash
+  kis config default profile general     # (여러 개일 때) 어느 걸 열지
+  kis config default environment real    # 실전을 인자 없이 열려면 한 번
+  kis config default                     # 현재 기본값 확인
+  ```
+- **(B) 파일** -- 최상위에 마커 두 줄:
+  ```json
+  { "schema": 2, "default_profile": "general", "default_environment": "real", "real": { "general": { "…": "…" } } }
+  ```
+- **(C) 환경변수** -- `export KIS_DEFAULT_PROFILE=general KIS_DEFAULT_ENVIRONMENT=real` (환경변수가 마커보다 우선).
+
+그러면 `kis account balance` / `KISClient()` 가 인자 없이 그 계좌로 열립니다.
+
+### 7. 예전(0.7.0 이전) 파일에서 올라온 경우
+
+`schema` 표시가 없는 평평한 옛 파일은 런타임이 읽지 않고, 세션을 열 때 변환을 안내하며 멈춥니다. 한 번만
+변환하세요. 손으로 고치는 것보다 변환기가 안전합니다(옛 형식을 읽어 블록 구조로 옮기고, 이름이 겹치면
+덮어쓰지 않고 멈춤):
+
+```bash
+kis config migrate         # 대화형: 병합을 확인
+kis config show            # 변환 결과 확인(비밀값 마스킹)
+```
+
 ## 계좌번호와 상품코드
 
 계좌번호 = **종합계좌번호(8자리)-상품코드(2자리)** (예: `12345678-01`). 같은 종합계좌라도 거래 상품마다
 상품코드가 다릅니다(해외 주식은 위탁 `01`, 해외 선물옵션은 `08`).
+
+**내 계좌번호 확인** -- 앞 8자리(종합계좌번호)는 HTS/MTS 또는 증권사 홈페이지의 계좌조회,
+그리고 KIS 개발자센터 **신청현황**(앱키를 복사한 그 화면)에서 볼 수 있습니다. 뒤 2자리 상품코드는 아래
+표에서 고릅니다(국내·해외 **주식**이면 `01`). 시세·검색만 할 거면 계좌번호는 없어도 됩니다.
 
 | 상품코드 | 상품 | 조회 | 주문 |
 |:--:|---|:--:|:--:|
@@ -214,36 +434,54 @@ IRP(`29`)는 세션이 주문을 자동으로 막고, DC가입자(`55`)는 세�
 
 ## 파일은 어디에 있나
 
-패키지는 홈 폴더 아래 두 곳을 씁니다 — **사용자가 만든 설정**(`.config`)과 **패키지가 자동으로 만드는
-캐시**(`.cache`):
+패키지는 홈 폴더 아래 세 곳을 씁니다 — **사용자가 만든 설정**(`.config`), **패키지가 자동으로 만드는
+캐시**(`.cache`), 그리고 **주문을 내면 생기는 상태**(`.local/state`, 주문 중복방지 기록):
 
 ```
 ~/
 ├── .config/kis-trader/
 │   └── credentials.json               # [설정] 사용자가 저장한 앱키·앱시크릿·계좌 (프로필별)
-└── .cache/kis-trader/
-    ├── tokens/                        # [캐시] 발급받은 접속 토큰 -- 유효한 동안 재사용
-    │   ├── real-<app-key-hash>.json   #   실전 계좌 토큰
-    │   └── paper-<app-key-hash>.json  #   모의 계좌 토큰
-    └── masters/                       # [캐시] 종목마스터(이름↔코드) -- 처음 받아 저장
-        ├── kospi_code.mst             #   국내 .mst -- 코스피(KOSPI)
-        ├── kosdaq_code.mst            #   국내 .mst -- 코스닥(KOSDAQ)
-        ├── nasmst.cod                 #   해외 .cod -- 나스닥(NASDAQ, 미국)
-        ├── nysmst.cod                 #   해외 .cod -- 뉴욕(NYSE, 미국)
-        ├── amsmst.cod                 #   해외 .cod -- 아멕스(AMEX, 미국)
-        ├── shsmst.cod                 #   해외 .cod -- 상하이 증권거래소
-        ├── shimst.cod                 #   해외 .cod -- 상하이 지수
-        ├── szsmst.cod                 #   해외 .cod -- 선전 증권거래소
-        ├── szimst.cod                 #   해외 .cod -- 선전 지수
-        ├── tsemst.cod                 #   해외 .cod -- 도쿄
-        ├── hksmst.cod                 #   해외 .cod -- 홍콩
-        ├── hnxmst.cod                 #   해외 .cod -- 하노이
-        └── hsxmst.cod                 #   해외 .cod -- 호치민
+├── .cache/kis-trader/
+│   ├── tokens/                        # [캐시] 발급받은 접속 토큰 -- 유효한 동안 재사용
+│   │   ├── real-<app-key-hash>.json   #   실전 계좌 토큰
+│   │   └── paper-<app-key-hash>.json  #   모의 계좌 토큰
+│   └── masters/                       # [캐시] 종목마스터(이름↔코드) -- 처음 받아 저장
+│       ├── kospi_code.mst             #   국내 .mst -- 코스피(KOSPI)
+│       ├── kosdaq_code.mst            #   국내 .mst -- 코스닥(KOSDAQ)
+│       ├── nasmst.cod                 #   해외 .cod -- 나스닥(NASDAQ, 미국)
+│       ├── nysmst.cod                 #   해외 .cod -- 뉴욕(NYSE, 미국)
+│       ├── amsmst.cod                 #   해외 .cod -- 아멕스(AMEX, 미국)
+│       ├── shsmst.cod                 #   해외 .cod -- 상하이 증권거래소
+│       ├── shimst.cod                 #   해외 .cod -- 상하이 지수
+│       ├── szsmst.cod                 #   해외 .cod -- 선전 증권거래소
+│       ├── szimst.cod                 #   해외 .cod -- 선전 지수
+│       ├── tsemst.cod                 #   해외 .cod -- 도쿄
+│       ├── hksmst.cod                 #   해외 .cod -- 홍콩
+│       ├── hnxmst.cod                 #   해외 .cod -- 하노이
+│       └── hsxmst.cod                 #   해외 .cod -- 호치민
+└── .local/state/kis-trader/
+    └── orders/                        # [상태] 주문 중복방지 기록 -- 주문을 내야 생김, 지우지 마세요
 ```
 
 - **`.config/` — 설정**: 사용자가 만든 값. 지우면 다시 만들어야 합니다.
 - **`.cache/` — 캐시**: 패키지가 알아서 만들고 재사용합니다. **지워도 안전** -- 다음 실행에 다시 만듭니다.
-- Windows 는 `C:\Users\<사용자>\` 아래 같은 `.config` / `.cache` 구조입니다.
+- **`.local/state/.../orders/` — 상태**: 주문을 처음 낼 때 생기는 **중복방지 기록**. `.cache` 와 달리
+  **지우면 안 됩니다** -- 지우면 프로세스 간 중복 주문 방지가 깨지고, 재생성되지 않습니다.
+- Windows 는 `C:\Users\나\` 아래 같은 `.config` / `.cache` / `.local\state` 구조입니다.
+
+**MCP(Claude Desktop)를 쓰면** 설정 파일이 하나 더 있습니다 -- 이건 kis-trader 가 아니라 **Claude Desktop 이**
+쓰는 파일이라 위치가 다릅니다([MCP 서버](mcp.md) 의 5~6단계에서 다룹니다):
+
+```
+# macOS
+~/Library/Application Support/Claude/claude_desktop_config.json   # Claude Desktop 이 읽는 MCP 설정
+
+# Windows
+%APPDATA%\Claude\claude_desktop_config.json
+```
+
+여기에 `kis-mcp` 를 연결하는 블록을 넣습니다 -- 그 블록은 `kis config mcp` 가 경로까지 채워 만들어 줍니다
+(앱키·시크릿은 이 파일에 안 들어가고, `.config/kis-trader/credentials.json` 의 프로필을 이름으로만 가리킵니다).
 
 **왜 캐시가 필요한가** — 두 가지를 처음 한 번만 받아 재사용합니다:
 
@@ -291,13 +529,13 @@ IRP(`29`)는 세션이 주문을 자동으로 막고, DC가입자(`55`)는 세�
 |---|---|---|
 | Linux | `~/.config/kis-trader/` | `600` — 소유자만 (자동) |
 | macOS | `~/.config/kis-trader/` | `600` — 소유자만 (자동) |
-| Windows | `C:\Users\<사용자>\.config\kis-trader\` | 사용자 폴더 보호에 의존 |
+| Windows | `C:\Users\나\.config\kis-trader\` | 사용자 폴더 보호에 의존 |
 
 이 파일에는 앱키·앱시크릿이 들어 있어, 패키지가 **사용자만 접근하게** 잠급니다(Linux·macOS는 자동, Windows는 폴더 보호에 의존 -- 아래).
 
 - **파일 잠금** — Linux·macOS 는 `600` 권한(소유자만 읽기·쓰기)으로 잠급니다(`600` = 파이썬 `0o600`,
   터미널 `chmod 600` 과 같은 값). Windows 는 이 권한 비트가 없어 파일 자체엔 안 걸리는 대신,
-  `C:\Users\<사용자>` 폴더가 계정별로 분리돼 있어 다른 사용자가 못 봅니다.
+  `C:\Users\나` 폴더가 계정별로 분리돼 있어 다른 사용자가 못 봅니다.
 - **로그에 안 새기** — 키를 화면·로그·예외 메시지에 찍지 않습니다(`repr` 이 값을 가림).
 - **명령줄로 안 받기** — 앱키·앱시크릿은 플래그(`--app-key ...`)로 받지 않습니다. 셸 기록과 `ps` 에
   남기 때문입니다. 저장 파일이나 환경변수로만 주세요.

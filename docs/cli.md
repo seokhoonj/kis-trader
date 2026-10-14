@@ -33,7 +33,8 @@ kis config set general.paper.app_key        # 한 필드 수정(값 없이 주�
 kis config set general.real.account 12345678-01  # 비밀 아닌 account 만 값을 바로 줄 수 있음
 kis config default profile general          # 기본 프로필 지정
 kis config default environment real         # 기본 환경 지정 (env alias 가능)
-kis config set-hts-id your_hts_id           # HTS 로그인 아이디 저장(조건검색·관심종목용)
+kis config hts-id your_hts_id               # HTS 로그인 아이디 저장(조건검색·관심종목용)
+kis config mcp                              # Claude Desktop 에 붙여넣을 MCP 설정 블록 출력
 kis config migrate                          # 이전 형식 credentials.json 을 두 축 형식으로 변환
 kis config migrate --yes                    # 비대화형: 기본 병합을 자동 승인(이름 충돌이면 거부)
 ```
@@ -151,10 +152,10 @@ kis account transactions --region overseas --start 20240101 --end 20240131 # 해
 모두 조회 전용입니다(대부분 실전 계좌 전용 -- 모의 지원 여부는 라이브러리가 정합니다).
 
 ```bash
-kis --profile futures account balance                                     # 국내선물옵션 잔고(03 프로필)
-kis --profile futures account fills --date 20240102                       # 국내파생 기준일 체결내역
-kis --profile ovs_futures account profits --start 20240101 --end 20240131 # 해외파생 기간손익(08)
-kis --profile ovs_futures account margin --currency USD                   # 해외파생 증거금상세
+kis --profile derivatives account balance                                     # 국내선물옵션 잔고(03 프로필)
+kis --profile derivatives account fills --date 20240102                       # 국내파생 기준일 체결내역
+kis --profile overseas_derivatives account profits --start 20240101 --end 20240131 # 해외파생 기간손익(08)
+kis --profile overseas_derivatives account margin --currency USD                   # 해외파생 증거금상세
 ```
 
 ## 주문 — 기본은 dry-run

@@ -1,7 +1,7 @@
 """``kis config`` -- 두 축(프로필 x 환경) 자격증명 설정 명령 그룹.
 
 ``setup``(대화형 저장) / ``show``(마스킹 조회) / ``set``(한 필드 수정) / ``default`` /
-``set-hts-id`` / ``migrate``(레거시 -> schema 2 변환). 시크릿은 getpass 전용(플래그 금지), 비시크릿은
+``hts-id`` / ``migrate``(레거시 -> schema 2 변환). 시크릿은 getpass 전용(플래그 금지), 비시크릿은
 플래그 또는 프롬프트, 저장은 :meth:`KISConfig.save` 재사용. 이 그룹은 클라이언트를 만들지 않는다.
 """
 from __future__ import annotations
@@ -81,7 +81,9 @@ def test_bare_config_routes_to_setup_and_needs_no_client():
     (["config", "default", "profile", "general"], cred.cmd_config_default_profile),
     (["config", "default", "environment", "real"], cred.cmd_config_default_environment),
     (["config", "default", "env", "paper"], cred.cmd_config_default_environment),
-    (["config", "set-hts-id", "myid"], cred.cmd_config_set_hts_id),
+    (["config", "mcp"], cred.cmd_config_mcp),
+    (["config", "hts-id"], cred.cmd_config_hts_id),
+    (["config", "hts-id", "myid"], cred.cmd_config_hts_id),
     (["config", "migrate"], cred.cmd_config_migrate),
 ])
 def test_config_leaves_wire_to_handlers_without_client(argv, func):
@@ -483,7 +485,7 @@ def test_mask_short_key_full_mask_and_absent():
     assert cred._mask("") == "(없음)"                     # 빈 값
 
 
-# --- default (기본 프로필/환경) / set-hts-id ----------------------------------
+# --- default (기본 프로필/환경) / hts-id ----------------------------------
 
 def test_default_profile_marks_existing_profile(tmp_path):
     _seed_v2(tmp_path)
@@ -533,10 +535,144 @@ def test_default_bare_on_legacy_store_points_to_migrate(tmp_path, capsys):
     assert "레거시" in out and "migrate" in out     # v2 마커 폴백을 "기본값"처럼 보이지 않게
 
 
-def test_set_hts_id_writes_top_level(tmp_path):
+def test_default_bare_without_markers_shows_safe_fallbacks(tmp_path, capsys):
+    # schema-2 이지만 마커가 하나도 없으면, 안전한 폴백 설명 문자열을 보여준다(둘 다).
+    _seed_v2(tmp_path)                               # 프로필만 저장, default_* 마커 없음
+    assert cli_main.main(["config", "default"]) == 0
+    out = capsys.readouterr().out
+    assert "(미설정 -- 첫 프로필)" in out
+    assert "(미설정 -- paper)" in out
+
+
+# --- config mcp (Claude Desktop 설정 스니펫) ---------------------------------
+
+def _mcp_json(capsys):
+    out = capsys.readouterr().out
+    return json.loads(out[out.index("{"):])          # 주석 줄 뒤 JSON 만 파싱
+
+
+def test_config_mcp_prints_pasteable_json_with_defaults(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cred, "_resolve_kis_mcp_path", lambda: "/home/u/.local/bin/kis-mcp")
+    assert cli_main.main(["config", "mcp"]) == 0
+    captured = capsys.readouterr()
+    # stdout 은 순수 JSON -- '#' 안내 줄이 안 섞여, 통째로 복사해도 유효 JSON(붙여넣기 함정 제거).
+    assert captured.out.lstrip().startswith("{")
+    server = json.loads(captured.out)["mcpServers"]["kis-trader"]
+    assert server["command"] == "/home/u/.local/bin/kis-mcp"
+    assert server["env"] == {"KIS_MCP_PROFILE": "general", "KIS_MCP_ENVIRONMENT": "paper"}
+    assert "붙여넣으세요" in captured.err            # 안내는 stderr 로
+
+
+def test_config_mcp_flags_override(tmp_path, monkeypatch, capsys):
+    monkeypatch.setattr(cred, "_resolve_kis_mcp_path", lambda: "/x/kis-mcp")
+    cli_main.main(["config", "mcp", "--profile", "isa", "--environment", "real"])
+    assert _mcp_json(capsys)["mcpServers"]["kis-trader"]["env"] == {
+        "KIS_MCP_PROFILE": "isa", "KIS_MCP_ENVIRONMENT": "real"}
+
+
+def test_config_mcp_uses_default_markers(tmp_path, monkeypatch, capsys):
+    # 마커 프로필을 fallback('general')과 다른 값('isa')으로 둬서, default_profile 을 무시하고
+    # 폴백만 쓰는 회귀도 잡는다(양 축 모두 마커에서 해석됨을 단언).
+    _write_raw(tmp_path, {"schema": 2,
+                          "real": {"isa": {"app_key": "K", "app_secret": "S", "account": "12345678-01"}},
+                          "default_profile": "isa", "default_environment": "real"})
+    monkeypatch.setattr(cred, "_resolve_kis_mcp_path", lambda: "/x/kis-mcp")
+    cli_main.main(["config", "mcp"])
+    assert _mcp_json(capsys)["mcpServers"]["kis-trader"]["env"] == {
+        "KIS_MCP_PROFILE": "isa", "KIS_MCP_ENVIRONMENT": "real"}
+
+
+def test_config_mcp_partial_override_profile_flag_env_marker(tmp_path, monkeypatch, capsys):
+    # 한 축은 플래그, 다른 축은 마커 -- 각 축이 올바른 출처에서 독립적으로 해석되는지.
+    _write_raw(tmp_path, {"schema": 2,
+                          "real": {"general": {"app_key": "K", "app_secret": "S", "account": "12345678-01"}},
+                          "default_environment": "real"})
+    monkeypatch.setattr(cred, "_resolve_kis_mcp_path", lambda: "/x/kis-mcp")
+    cli_main.main(["config", "mcp", "--profile", "general"])   # 환경은 마커(real)에서
+    assert _mcp_json(capsys)["mcpServers"]["kis-trader"]["env"] == {
+        "KIS_MCP_PROFILE": "general", "KIS_MCP_ENVIRONMENT": "real"}
+
+
+def test_config_mcp_warns_when_combo_not_saved(tmp_path, monkeypatch, capsys):
+    # 저장되지 않은 (프로필, 환경) 조합은 Claude Desktop 에서 HTTP 500 으로 조용히 실패하므로,
+    # 형제 set_default_profile 과 같은 존재 검증을 걸어 복붙 전에 stderr 로 경고한다.
+    _seed_v2(tmp_path)                               # real/general + paper/general 만 저장
+    monkeypatch.setattr(cred, "_resolve_kis_mcp_path", lambda: "/x/kis-mcp")
+    cli_main.main(["config", "mcp", "--profile", "isa", "--environment", "real"])  # real/isa 미저장
+    captured = capsys.readouterr()
+    assert "저장돼 있지 않습니다" in captured.err
+    assert json.loads(captured.out)["mcpServers"]["kis-trader"]["env"]["KIS_MCP_PROFILE"] == "isa"
+
+
+def test_config_mcp_no_warning_when_combo_saved(tmp_path, monkeypatch, capsys):
     _seed_v2(tmp_path)
-    assert cli_main.main(["config", "set-hts-id", "myhtsid"]) == 0
+    monkeypatch.setattr(cred, "_resolve_kis_mcp_path", lambda: "/x/kis-mcp")
+    cli_main.main(["config", "mcp", "--profile", "general", "--environment", "paper"])  # 저장된 조합
+    assert "저장돼 있지 않습니다" not in capsys.readouterr().err
+
+
+def test_config_mcp_on_legacy_store_points_to_migrate(tmp_path, monkeypatch, capsys):
+    _write_raw(tmp_path, {"general": {"app_key": "k", "app_secret": "s", "environment": "real"}})
+    monkeypatch.setattr(cred, "_resolve_kis_mcp_path", lambda: "/x/kis-mcp")
+    cli_main.main(["config", "mcp"])
+    captured = capsys.readouterr()
+    assert "레거시" in captured.err and "migrate" in captured.err
+    assert captured.out.lstrip().startswith("{")     # stdout 은 여전히 순수 JSON
+
+
+def test_config_mcp_windows_backslash_is_escaped(tmp_path, monkeypatch, capsys):
+    # Windows 경로의 역슬래시가 JSON 을 깨뜨리던 P0 -- json.dumps 가 \\ 로 이스케이프하므로
+    # 출력이 유효 JSON 이고, command 가 원래 Windows 경로로 round-trip 돼야 한다.
+    win = r"C:\Users\나\.local\bin\kis-mcp.exe"
+    monkeypatch.setattr(cred, "_resolve_kis_mcp_path", lambda: win)
+    assert cli_main.main(["config", "mcp"]) == 0
+    assert _mcp_json(capsys)["mcpServers"]["kis-trader"]["command"] == win
+
+
+def test_config_mcp_missing_executable_warns_but_still_prints(tmp_path, monkeypatch, capsys):
+    # 실제 경로해석(stub 아님): PATH 에 kis-mcp 도 kis 도 없으면 command 는 "kis-mcp" 로 떨어지고
+    # exe 못 찾음 경고가 stderr 로 뜨되 stdout 은 유효 JSON 이어야 한다. 조합은 저장돼 있어
+    # (general/paper) 조합 경고와 섞이지 않는다.
+    _seed_v2(tmp_path)
+    monkeypatch.setattr(cred.shutil, "which", lambda name: None)
+    assert cli_main.main(["config", "mcp", "--profile", "general", "--environment", "paper"]) == 0
+    captured = capsys.readouterr()
+    assert "kis-mcp 를 못 찾았습니다" in captured.err   # exe 전용 경고
+    assert json.loads(captured.out)["mcpServers"]["kis-trader"]["command"] == "kis-mcp"
+
+
+# --- _resolve_kis_mcp_path 경로해석 분기(실제 실행; stub 금지) --------------------
+
+def test_resolve_mcp_path_prefers_kis_mcp_on_path(monkeypatch):
+    monkeypatch.setattr(cred.shutil, "which", lambda name: "/bin/kis-mcp" if name == "kis-mcp" else None)
+    assert cred._resolve_kis_mcp_path() == "/bin/kis-mcp"
+
+
+def test_resolve_mcp_path_falls_back_to_sibling_of_kis(monkeypatch):
+    # kis-mcp 는 PATH 에 없고 kis 만 있으면, kis 와 같은 폴더의 형제 kis-mcp 를 본다.
+    monkeypatch.setattr(cred.shutil, "which", lambda name: "/opt/bin/kis" if name == "kis" else None)
+    monkeypatch.setattr(cred.Path, "exists", lambda self: True)   # 형제가 존재한다고 가정
+    resolved = cred._resolve_kis_mcp_path()
+    assert resolved == str(cred.Path("/opt/bin/kis").resolve().parent / "kis-mcp")
+
+
+def test_resolve_mcp_path_returns_none_when_nothing_found(monkeypatch):
+    monkeypatch.setattr(cred.shutil, "which", lambda name: None)
+    assert cred._resolve_kis_mcp_path() is None
+
+
+def test_hts_id_writes_top_level(tmp_path):
+    _seed_v2(tmp_path)
+    assert cli_main.main(["config", "hts-id", "myhtsid"]) == 0
     assert _creds(tmp_path)["hts_id"] == "myhtsid"
+
+
+def test_hts_id_bare_shows_current(tmp_path, capsys):
+    _seed_v2(tmp_path)
+    cli_main.main(["config", "hts-id", "myhtsid"])
+    capsys.readouterr()                              # setter 출력 비우기
+    assert cli_main.main(["config", "hts-id"]) == 0  # 인자 없음 -> 조회
+    assert "myhtsid" in capsys.readouterr().out
 
 
 # --- migrate (레거시 -> schema 2) ---------------------------------------------

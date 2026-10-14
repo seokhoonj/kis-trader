@@ -6,8 +6,11 @@
 ## 설치
 
 ```bash
-pip install kis-trader   # 파이썬 3.11+
+pip install kis-trader   # 파이썬에서 import 할 때 (파이썬 3.11+)
 ```
+
+명령줄 `kis` 도구나 **Claude Desktop MCP** 로 쓰려면 `uv tool install 'kis-trader[mcp]'` 가 편합니다
+([빠른 시작](quickstart.md) · [MCP 서버](mcp.md)).
 
 ## 예시
 

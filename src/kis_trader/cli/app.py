@@ -125,7 +125,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     bars_p.set_defaults(func=stock.cmd_bars)
 
-    # kis config setup|show|set|default|set-hts-id|migrate -- 자격증명 설정(클라이언트 불필요).
+    # kis config setup|show|set|default|hts-id|mcp|migrate -- 자격증명 설정(클라이언트 불필요).
     # common 을 상속하지 않는다 -- --format 등 이 그룹이 읽지 않는 플래그를 달지 않기 위해(폴리모픽
     # dispatch: 안 읽는 플래그 거부). 각 하위명령이 필요한 플래그만 직접 단다. 모두 needs_client=False.
     config_p = groups.add_parser(
@@ -169,10 +169,18 @@ def build_parser() -> argparse.ArgumentParser:
     default_env_p.add_argument("name", choices=list(get_args(Environment)), help="기본 접속 환경")
     default_env_p.set_defaults(func=credentials.cmd_config_default_environment, needs_client=False)
 
-    # kis config set-hts-id <hts_id> -- HTS 로그인 아이디(조건검색·관심종목용, 공유 최상위) 저장.
-    set_hts_p = config_sub.add_parser("set-hts-id", help="HTS 로그인 아이디 저장(조건검색·관심종목용)")
-    set_hts_p.add_argument("hts_id", help="HTS 로그인 아이디")
-    set_hts_p.set_defaults(func=credentials.cmd_config_set_hts_id, needs_client=False)
+    # kis config mcp -- Claude Desktop 에 붙여넣을 MCP 설정 블록을 출력(경로 자동 채움 + JSON 직렬화).
+    config_mcp_p = config_sub.add_parser("mcp", help="Claude Desktop MCP 설정 블록 출력(복붙용)")
+    config_mcp_p.add_argument("--profile", default=None,
+                              help="MCP 프로필(생략 시 default_profile 마커 또는 general)")
+    config_mcp_p.add_argument("--environment", choices=list(get_args(Environment)), default=None,
+                              help="MCP 환경(생략 시 default_environment 마커 또는 paper)")
+    config_mcp_p.set_defaults(func=credentials.cmd_config_mcp, needs_client=False)
+
+    # kis config hts-id [<hts_id>] -- 인자 없으면 현재값 조회, 값 주면 저장(조건검색·관심종목용, 공유 최상위).
+    hts_p = config_sub.add_parser("hts-id", help="HTS 로그인 아이디 조회·저장(조건검색·관심종목용)")
+    hts_p.add_argument("hts_id", nargs="?", default=None, help="저장할 HTS 로그인 아이디(생략 시 현재값 조회)")
+    hts_p.set_defaults(func=credentials.cmd_config_hts_id, needs_client=False)
 
     # kis config migrate -- 이전 형식(평평한) credentials.json 을 두 축 형식으로 변환.
     migrate_p = config_sub.add_parser("migrate", help="이전 형식 credentials.json 을 두 축 형식으로 변환")

@@ -15,6 +15,12 @@ uv tool install kis-trader    # kis 명령 설치 (또는: pipx install kis-trad
 kis --version
 ```
 
+**MCP 서버(`kis-mcp`, Claude Desktop 연결)까지** 쓰려면 `[mcp]` 를 붙여 설치합니다(설정은 [MCP 서버](mcp.md)):
+
+```bash
+uv tool install 'kis-trader[mcp]'   # kis + kis-mcp 둘 다 설치
+```
+
 ## 세션 만들기
 
 KIS 개발자센터에서 발급한 **앱키·앱시크릿**과 **계좌번호**로 세션을 엽니다(발급 과정은

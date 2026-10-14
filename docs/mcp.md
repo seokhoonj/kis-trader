@@ -39,60 +39,120 @@ MCP 는 있어도 되고 없어도 되는 **선택 기능**입니다. 파이썬�
 채팅창에서 뭘 내려받는 게 아닙니다. 아래를 **한 번** 해 두면, 그다음부터는 Claude Desktop 채팅창에서 말만
 하면 됩니다. 마우스와 복사·붙여넣기로 끝나니 순서대로만 따라 하면 됩니다.
 
+::: {.callout-tip}
+**계좌 하나만 쓰는 가장 짧은 길**은 [가장 쉽게 시작](easy.md) 에 직선으로 정리돼 있습니다. 거기서는 6단계의
+설정 블록을 `kis config mcp` 가 **경로까지 채워 통째로** 만들어 주므로 경로·JSON 을 직접 다룰 필요가
+없습니다. 아래는 각 단계를 자세히 보고 싶거나 여러 계좌를 쓸 때의 전체 설명입니다.
+:::
+
 ::: {.callout-note}
-**준비물 두 가지** -- (1) **Python** 3.11 이상, (2) **Claude Desktop** 앱. 없으면 먼저 깝니다 -- Python 은
-[python.org](https://www.python.org/downloads/)(설치할 때 "Add Python to PATH" 체크), Claude Desktop 은
-[claude.ai/download](https://claude.ai/download). 터미널에 `python --version` 을 쳐서 `3.11` 이상이 나오면
-준비된 겁니다.
+**준비물** -- **Claude Desktop** 앱([claude.ai/download](https://claude.ai/download))과 인터넷이면 됩니다.
+설치 도구로 쓰는 `uv` 는 다음 단계에서 깔고, 파이썬이 없어도 `uv` 가 알아서 받아 주므로 파이썬을 미리
+설치할 필요는 없습니다.
 :::
 
 **1. 터미널(명령 입력창)을 엽니다.** -- macOS 는 `⌘ + Space` 를 눌러 "터미널"을 검색해 실행, Windows 는 시작
 메뉴에서 "PowerShell"을 실행합니다. 까만(또는 하얀) 글자 입력창이 뜹니다.
 
-**2. 패키지를 깝니다.** -- 터미널에 아래 한 줄을 붙여넣고 Enter. (`pip` 이 없다고 하면 `pip3` 으로 해 보세요.)
+**2. 설치 도구 `uv` 를 깔고 패키지를 설치합니다.** -- 아래를 순서대로 붙여넣고 Enter 합니다. 먼저 `uv`
+(이미 있으면 "already installed" 라고만 뜨고 넘어갑니다):
 
 ```bash
-pip install 'kis-trader[mcp]'
+# macOS · Linux
+curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-**3. `kis-mcp` 가 어디 깔렸는지 알아 둡니다.** -- Claude Desktop 은 앱이라 터미널 설정을 모를 수 있어서,
-`kis-mcp` 의 **전체 경로**를 적어 줘야 안전합니다. 터미널에 아래를 치면 경로가 한 줄 나옵니다 -- 그걸
-복사해 둡니다(5단계에서 붙여넣습니다).
+```powershell
+# Windows (PowerShell)
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+`uv` 를 **처음 깔았으면 터미널을 새로 엽니다**(PATH 반영). 그다음 패키지를 설치합니다:
 
 ```bash
-which kis-mcp     # macOS·Linux -- 예: /usr/local/bin/kis-mcp 또는 .../.venv/bin/kis-mcp
-where kis-mcp     # Windows -- 예: C:\Users\나\...\kis-mcp.exe
+uv tool install 'kis-trader[mcp]'
 ```
 
-**4. 자격증명(앱키)을 프로필로 저장합니다.** -- 한 번 저장해 두면 다음 단계 설정 파일에 앱키를 적지 않아도
-됩니다. 저장 방법은 [앱키·자격증명](appkey.md)에 있습니다.
+::: {.callout-note}
+`pip` 이 아니라 `uv tool` 을 쓰는 이유: 요즘 macOS 의 `pip` 은 막혀 있고(`externally-managed-environment`
+오류), `uv tool` 은 실행 파일을 **한 폴더에 모아** 다음 단계에서 경로를 쉽게 찾을 수 있습니다
+(`uv tool dir --bin` 으로 그 폴더를 확인). `[mcp]` 를 빼면 MCP 서버가 안 깔리니 **따옴표째** 그대로 붙여넣으세요.
+:::
+
+**3. `kis-mcp` 경로를 확인합니다.** -- Claude Desktop 은 터미널 PATH 를 모를 수 있어 **전체 경로**로 적어
+줍니다. 가장 확실한 건 다음 단계에서 쓸 **`kis config mcp` 가 경로를 자동으로 채워 준 값**이고, 직접
+확인하려면 아래를 씁니다. `uv tool install` 로 깔았으면 경로는 **보통** 아래지만(`나` 는 사용자 이름),
+환경에 따라 달라질 수 있으니 `uv tool dir --bin` 으로 실제 폴더를 확인하세요:
+
+- **macOS · Linux**: `/Users/나/.local/bin/kis-mcp` (Linux 는 `/home/나/.local/bin/kis-mcp`)
+- **Windows**: `C:\Users\나\.local\bin\kis-mcp.exe`
+
+직접 확인하려면 `which kis-mcp`(macOS·Linux) 또는 `where.exe kis-mcp`(Windows PowerShell -- 그냥 `where`
+는 PowerShell 에서 다른 명령이라 안 됩니다; `Get-Command kis-mcp` 도 가능) 를 칩니다. **아무것도 안 나오면**
+설치가 안 됐거나 PATH 밖입니다 -- 터미널을 **새로 열어** 2단계를 다시 하세요.
+
+**4. 자격증명(앱키)을 저장합니다.** -- 터미널에 아래 한 줄을 치면 묻는 대로 입력합니다(앱키·시크릿은 화면에
+보이지 않게 받습니다). **모의만** 쓸 거면 실전 단계에서 그냥 Enter 로 건너뜁니다.
+
+```bash
+kis config
+```
+
+경우별 자세한 저장법(모의만·실전만·여러 계좌·계좌번호를 어디서 보는지)은
+[자격증명 설정 -- 상황별 레시피](configuration.md#상황별-설정-레시피-경우별-가이드) 참고.
 
 **5. Claude Desktop 설정 파일을 엽니다.** -- 전부 마우스로 합니다:
 
-1. 화면 맨 위 **메뉴 막대의 `Claude` 메뉴 → `Settings…`** 를 엽니다. (채팅 창 안의 설정이 아니라, **화면
-   맨 위 메뉴 막대**의 Claude 입니다.)
+1. Claude Desktop 의 **설정(Settings)** 을 엽니다 -- macOS 는 **화면 맨 위 메뉴 막대의 `Claude` → `Settings…`**,
+   Windows 는 **왼쪽 위 메뉴(또는 설정 아이콘) → `Settings`**. (채팅 창 안의 설정이 아닙니다.)
 2. 왼쪽에서 **`Developer`** 탭을 고르고, **`Edit Config`** 버튼을 누릅니다.
 3. 그러면 설정 파일(`claude_desktop_config.json`)이 열립니다. 없으면 자동으로 만들어 줍니다. (위치는 macOS
    `~/Library/Application Support/Claude/`, Windows `%APPDATA%\Claude\` 안입니다 -- 버튼이 알아서 열어 주니
    직접 찾아갈 필요는 없습니다.)
 
-**6. 아래 내용을 붙여넣고 저장합니다.** -- 파일 내용을 아래로 바꿉니다. `command` 에는 **3단계에서 복사한
-경로**를 그대로 넣고, `KIS_MCP_PROFILE` 에는 4단계에서 정한 프로필 이름을 넣습니다. 저장은 `⌘ + S`(Windows
-는 `Ctrl + S`).
+**6. 아래 내용을 붙여넣고 저장합니다.** -- 파일 내용을 아래로 바꿉니다(파일이 비어 있거나 처음 만든 경우).
+**이미 다른 MCP 서버가 있으면** 파일을 통째로 바꾸지 말고, 기존 `"mcpServers"` 안에 `"kis-trader"` 항목만
+추가하세요(통째로 바꾸면 기존 서버가 지워집니다). `command` 에는 **3단계 경로**를,
+`KIS_MCP_PROFILE` 에는 4단계에서 정한 프로필 이름(종합위탁이면 보통 `general`)을 넣습니다. OS에 맞는 쪽을
+쓰세요 -- `나` 는 본인 사용자 이름으로 바꾸고, 모르면 **3단계의 `which`/`where` 출력 줄을 그대로 복사**해
+넣으면 됩니다(Windows 는 역슬래시를 `\\`/`/` 로). 저장은 `⌘ + S`(Windows `Ctrl + S`).
+
+**macOS · Linux:**
 
 ```json
 {
   "mcpServers": {
     "kis-trader": {
-      "command": "여기에-3단계에서-복사한-kis-mcp-경로",
-      "env": {
-        "KIS_MCP_PROFILE": "general",
-        "KIS_MCP_ENVIRONMENT": "paper"
-      }
+      "command": "/Users/나/.local/bin/kis-mcp",
+      "env": { "KIS_MCP_PROFILE": "general", "KIS_MCP_ENVIRONMENT": "paper" }
     }
   }
 }
 ```
+
+**Windows:**
+
+```json
+{
+  "mcpServers": {
+    "kis-trader": {
+      "command": "C:\\Users\\나\\.local\\bin\\kis-mcp.exe",
+      "env": { "KIS_MCP_PROFILE": "general", "KIS_MCP_ENVIRONMENT": "paper" }
+    }
+  }
+}
+```
+
+::: {.callout-important}
+**Windows 경로는 역슬래시(`\`)를 두 번(`\\`) 쓰거나 슬래시(`/`)로 바꿔야 합니다.** `where` 가 준
+`C:\Users\...` 를 그대로 붙여넣으면 JSON 이 깨져(백슬래시가 특수문자) 서버가 조용히 안 뜹니다 --
+위 예처럼 `C:\\Users\\...\\kis-mcp.exe` 또는 `C:/Users/.../kis-mcp.exe` 로 적으세요.
+:::
+
+모의 키를 안 넣었고 **실전 키만** 저장했다면 `KIS_MCP_ENVIRONMENT` 을 `"real"` 로 바꿉니다(실주문은 아래
+[실주문 가드레일](#실주문-가드레일)을 추가로 갖춰야 열립니다). `KIS_MCP_PROFILE` 과 `KIS_MCP_ENVIRONMENT`
+은 **같은 환경 블록에 저장된 계좌**를 가리켜야 합니다 -- 저장하지 않은 조합을 가리키면 조회가 실패하니,
+그때는 9단계 뒤의 연결 팁(HTTP 500 진단·로그 위치)을 보세요.
 
 **7. Claude Desktop 을 완전히 껐다 켭니다.** -- 창만 닫지 말고 **완전히 종료**(macOS `⌘ + Q`, Windows 는 트레이
 아이콘에서 종료)한 뒤 다시 실행합니다. 설정은 켤 때 한 번만 읽습니다.
@@ -107,10 +167,12 @@ where kis-mcp     # Windows -- 예: C:\Users\나\...\kis-mcp.exe
 **프로필(`KIS_MCP_PROFILE`)로 붙이는 걸 권합니다.** 설정 파일에 `KIS_APP_KEY`·`KIS_APP_SECRET` 을 직접
 적는 대신, 저장소(`~/.config/kis-trader/credentials.json`)에 둔 프로필 이름만 적으면 앱키가 설정 파일에
 드러나지 않습니다. `KIS_MCP_PROFILE` 은 **계좌 종류**(`general`·`isa`·`pension`·`irp`), `KIS_MCP_ENVIRONMENT`
-은 **환경**(real/paper)으로 서로 다른 축입니다 -- 둘이 같이 **그 환경 블록에 있는 계좌 종류**를 가리켜야
-하며(예 `general`+`paper`), 그 환경에 없는 계좌 종류를 고르면 분명한 에러로 거부합니다. 환경은 기본이
-모의(`paper`)이고, 실전은 아래 [실주문 가드레일](#실주문-가드레일)을 모두 갖춰 `KIS_MCP_ENVIRONMENT=real`
-로 명시했을 때만 씁니다.
+은 **환경**(real/paper)으로 서로 다른 축입니다 -- 둘이 같이 **그 환경 블록에 저장된 계좌 종류**를
+가리켜야 하며(예 `general`+`paper`), 저장하지 않은 조합(예: 모의 키만 넣고 `real` 을 고름)을 가리키면 조회가
+**`HTTP 500`("Error executing tool")** 으로만 실패할 수 있습니다 -- 원인 메시지가 화면에 안 보이니, 그때는
+로그를 보세요: macOS `~/Library/Logs/Claude/mcp-server-kis-trader.log`, Windows
+`%APPDATA%\Claude\logs\mcp-server-kis-trader.log`. 환경은 기본이 모의(`paper`)이고, 실전은 아래
+[실주문 가드레일](#실주문-가드레일)을 모두 갖춰 `KIS_MCP_ENVIRONMENT=real` 로 명시했을 때만 씁니다.
 :::
 
 ::: {.callout-note collapse="true"}
@@ -120,12 +182,23 @@ where kis-mcp     # Windows -- 예: C:\Users\나\...\kis-mcp.exe
 실행합니다 -- `kis-mcp` 는 2단계에서 깐 명령으로, 이 줄이 서버를 띄웁니다.
 
 ```bash
+# macOS · Linux
 export KIS_APP_KEY=...
 export KIS_APP_SECRET=...
 export KIS_ACCOUNT=...
 export KIS_MCP_ENVIRONMENT=paper   # 실전은 real (명시할 때만)
 
 kis-mcp   # 서버 시작. 오류 없이 뜨면 정상 -- 연결을 기다리며 멈춰 있고, Ctrl-C 로 끕니다.
+```
+
+```powershell
+# Windows (PowerShell) -- export 가 아니라 $env: 로 설정합니다
+$env:KIS_APP_KEY="..."
+$env:KIS_APP_SECRET="..."
+$env:KIS_ACCOUNT="..."
+$env:KIS_MCP_ENVIRONMENT="paper"   # 실전은 real (명시할 때만)
+
+kis-mcp   # 서버 시작. 오류 없이 멈춰 있으면 정상 -- Ctrl-C 로 끕니다.
 ```
 
 오류 없이 멈춰 있으면 정상입니다. 이건 "제대로 뜨는지"만 보는 점검용이라, 이 상태로 사람이 직접 대화할
@@ -292,7 +365,7 @@ IRP(`29`)·파생은 조회 전용이라 주문이 나가지 않습니다. 해�
 {
   "mcpServers": {
     "kis-trader": {
-      "command": "kis-mcp",
+      "command": "/Users/나/.local/bin/kis-mcp",
       "env": {
         "KIS_MCP_PROFILE": "general",
         "KIS_MCP_ENVIRONMENT": "real",
@@ -315,7 +388,7 @@ IRP(`29`)·파생은 조회 전용이라 주문이 나가지 않습니다. 해�
 ## 설치는 선택 묶음
 
 `mcp` 는 선택 의존성입니다 -- `import kis_trader` 자체는 `mcp` 없이도 동작하고, MCP 서버를 쓸 때만
-`pip install 'kis-trader[mcp]'` 로 설치하면 됩니다(위 [쓰는 법](#쓰는-법-설치하고-연결하기) 참고).
+`uv tool install 'kis-trader[mcp]'` 로 설치하면 됩니다(위 [쓰는 법](#쓰는-법-설치하고-연결하기) 참고).
 
 실주문은 위 [실주문 가드레일](#실주문-가드레일)을 거쳐 `place_order` 로 나갑니다. 국내 주식의 지정가·
 시장가와 `division` 주문구분(조건부지정가 등), 그리고 `region="overseas"` 해외주식 지정가 주문이
