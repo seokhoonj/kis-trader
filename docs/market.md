@@ -69,6 +69,19 @@ index.expected_snapshot()  # 동시호가 대표 예상체결 지수 + 시장별
 index.expected_trend()     # 장 시작 전·마감 예상체결 지수 추이
 ```
 
+## 해외 지수·환율·국채·금
+
+해외 지수류는 `kis.overseas.index(코드, kind=...)` 로 봅니다 -- `kind` 는 `index`(지수)·`fx`(환율)·
+`bond`(국채)·`gold`(금선물). 지수·환율은 기간봉(일/주/월)과 분봉(`1m`)을, 국채·금은 기간봉만 줍니다.
+
+```python
+kis.overseas.index(".DJI").bars("1d", start="20240101")               # 해외 지수(다우)
+kis.overseas.index("FX@KRW", kind="fx").bars("1d", start="20240101")  # 환율(원/달러) 히스토리
+kis.overseas.index("FX@KRW", kind="fx").bars("1m", max_bars=100)      # 환율 당일 분봉
+```
+
+기간봉(`1d`/`1wk`/`1mo`)은 `start` 가 필요하고 `end` 는 생략 시 오늘까지입니다(분봉 `1m` 만 생략 가능).
+
 ::: {.callout-note}
 ## 알아두면 좋은 용어
 - **VI (변동성완화장치)** — 가격이 급변하면 2~10분 단일가로 전환하는 안전장치. `vi_events` 로 발동 현황.
