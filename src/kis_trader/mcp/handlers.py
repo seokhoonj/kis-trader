@@ -17,9 +17,11 @@ from typing import Any, Literal, cast, get_args
 
 from .._literals import Direction
 from ..account import _IRP_PRODUCT_CODE, StockAccount
+from ..bar import Interval
 from ..client import KISClient
+from ..domestic.market import InvestorType, NetBuyBasis
 from ..errors import KISUsageError
-from ..instrument import Region
+from ..instrument import DomesticMarket, DomesticMarketFilter, Region
 from ..order import DomesticDivision, Side
 from ..overseas._engine.orders import resolve_risk_currency
 from ._guardrails import (
@@ -151,6 +153,74 @@ def ranking_change(kis: KISClient, *, direction: str = "gainers", limit: int = 1
         raise KISUsageError(f"direction 은 'gainers'/'losers' 만 (받은 값: {direction!r}).")
     _require_positive_limit(limit)
     rows = kis.domestic.ranking.by_change(direction=cast(Direction, direction))
+    out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
+    return out
+
+
+# --- 시세·수급(투자자 매매동향) 조회 -- 읽기 전용, 계좌 불필요 ---------------------
+#: 검증 집합을 리터럴에서 파생한다(한 출처) -- 리터럴이 바뀌면 검증도 자동으로 따라간다.
+_INTERVALS = frozenset(get_args(Interval))
+_MARKETS = frozenset(get_args(DomesticMarket))
+_NET_BUY_MARKETS = frozenset(get_args(DomesticMarketFilter))
+_NET_BUY_BASES = frozenset(get_args(NetBuyBasis))
+_INVESTOR_TYPES = frozenset(get_args(InvestorType))
+_SIDES = frozenset(get_args(Side))
+
+
+def history(
+    kis: KISClient, symbol: str, *, interval: str = "1d", start: str | None = None,
+    end: str | None = None, adjusted: bool = True, limit: int = 500,
+) -> list[dict[str, Any]]:
+    """국내 종목 기간봉(OHLCV). ``interval`` 일(1d)·주(1wk)·월(1mo)·분(1m). ``start``/``end`` 는 YYYYMMDD
+    (생략 시 라이브러리 기본 구간). 과거 가격(YTD 수익률 등) 계산용 -- 현재가는 ``quote`` 를 쓸 것.
+    최신 응답을 그대로 직렬화하며 최대 ``limit`` 행(기본 500)."""
+    if interval not in _INTERVALS:
+        raise KISUsageError(f"interval 은 {sorted(_INTERVALS)} 중 하나여야 한다 (받은 값: {interval!r}).")
+    _require_positive_limit(limit)
+    bars = kis.domestic.stock(symbol).bars(
+        cast(Interval, interval), start=start, end=end, adjusted=adjusted, max_bars=limit)
+    out: list[dict[str, Any]] = [_serialize(b) for b in list(bars)[:limit]]
+    return out
+
+
+def investor_flows(kis: KISClient, symbol: str, *, limit: int = 60) -> list[dict[str, Any]]:
+    """국내 종목의 일자별 투자자 수급 -- 개인·외국인·기관 순매수(수량·대금). 최신순, 최대 ``limit`` 행."""
+    _require_positive_limit(limit)
+    rows = kis.domestic.stock(symbol).investor_flows()
+    out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
+    return out
+
+
+def market_investor_flows(
+    kis: KISClient, *, market: str = "KOSPI", limit: int = 60,
+) -> list[dict[str, Any]]:
+    """시장 전체(KOSPI/KOSDAQ) 투자자 수급 -- 외국인·개인·기관 순매수. 최신순, 최대 ``limit`` 행."""
+    if market not in _MARKETS:
+        raise KISUsageError(f"market 은 {sorted(_MARKETS)} 중 하나여야 한다 (받은 값: {market!r}).")
+    _require_positive_limit(limit)
+    rows = kis.domestic.market.investor_flows(market=cast(DomesticMarket, market))
+    out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
+    return out
+
+
+def investor_net_buy_stocks(
+    kis: KISClient, *, market: str = "all", basis: str = "volume", side: str = "buy",
+    investor: str = "all", limit: int = 30,
+) -> list[dict[str, Any]]:
+    """투자자별 순매수 상위 종목. ``market`` all/KOSPI/KOSDAQ, ``basis`` volume(수량)/amount(대금),
+    ``side`` buy(순매수)/sell(순매도), ``investor`` all/foreign/institutional/other. 최대 ``limit`` 행."""
+    if market not in _NET_BUY_MARKETS:
+        raise KISUsageError(f"market 은 {sorted(_NET_BUY_MARKETS)} 중 하나여야 한다 (받은 값: {market!r}).")
+    if basis not in _NET_BUY_BASES:
+        raise KISUsageError(f"basis 는 {sorted(_NET_BUY_BASES)} 중 하나여야 한다 (받은 값: {basis!r}).")
+    if side not in _SIDES:
+        raise KISUsageError(f"side 는 {sorted(_SIDES)} 중 하나여야 한다 (받은 값: {side!r}).")
+    if investor not in _INVESTOR_TYPES:
+        raise KISUsageError(f"investor 는 {sorted(_INVESTOR_TYPES)} 중 하나여야 한다 (받은 값: {investor!r}).")
+    _require_positive_limit(limit)
+    rows = kis.domestic.market.investor_net_buy_stocks(
+        market=cast(DomesticMarketFilter, market), basis=cast(NetBuyBasis, basis),
+        side=cast(Side, side), investor=cast(InvestorType, investor))
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 

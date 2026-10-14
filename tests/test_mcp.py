@@ -114,12 +114,22 @@ class _FakeHit:
 
 def _fake_kis(*, quote=None, overseas_quote=None, hits=None, ranking=None, balance=None,
               positions=None, open_orders=None, reconcile_report="__unset__",
+              bars=None, stock_flows=None, market_flows=None, net_buy=None,
               environment="paper", account="12345678-01"):
     ranking_ns = SimpleNamespace(by_change=lambda direction="gainers": ranking or [])
+    market_ns = SimpleNamespace(
+        investor_flows=lambda **k: market_flows or [],
+        investor_net_buy_stocks=lambda **k: net_buy or [],
+    )
     domestic = SimpleNamespace(
-        stock=lambda sym: SimpleNamespace(quote=lambda: quote),
+        stock=lambda sym: SimpleNamespace(
+            quote=lambda: quote,
+            bars=lambda *a, **k: bars or [],
+            investor_flows=lambda: stock_flows or [],
+        ),
         search_stocks=lambda query: hits or [],
         ranking=ranking_ns,
+        market=market_ns,
     )
     overseas = SimpleNamespace(stock=lambda sym: SimpleNamespace(quote=lambda: overseas_quote))
     account_ns = SimpleNamespace(
@@ -215,18 +225,57 @@ def test_ranking_handler():
     assert [r["symbol"] for r in out] == ["005930", "000660"]
 
 
+def test_history_handler_caps_serializes_and_validates_interval():
+    bars = [_FakeHit(f"{i:06d}", f"n{i}", _raw={"secret": "x"}) for i in range(30)]
+    out = handlers.history(_fake_kis(bars=bars), "005930", interval="1d", limit=5)
+    assert len(out) == 5 and out[0] == {"symbol": "000000", "name": "n0"}
+    assert "_raw" not in str(out) and "secret" not in str(out)
+    with pytest.raises(KISUsageError):
+        handlers.history(_fake_kis(bars=bars), "005930", interval="3d")   # 리터럴 밖
+
+
+def test_investor_flows_handler_caps_and_serializes():
+    flows = [_FakeHit(f"{i:06d}", f"n{i}") for i in range(30)]
+    out = handlers.investor_flows(_fake_kis(stock_flows=flows), "005930", limit=7)
+    assert len(out) == 7 and out[0]["symbol"] == "000000"
+
+
+def test_market_investor_flows_handler_validates_market():
+    rows = [_FakeHit("KOSPI", "x")]
+    out = handlers.market_investor_flows(_fake_kis(market_flows=rows), market="KOSPI", limit=10)
+    assert out == [{"symbol": "KOSPI", "name": "x"}]
+    with pytest.raises(KISUsageError):
+        handlers.market_investor_flows(_fake_kis(market_flows=rows), market="NASDAQ")
+
+
+def test_investor_net_buy_stocks_handler_validates_enums():
+    rows = [_FakeHit("005930", "삼성전자"), _FakeHit("000660", "SK하이닉스")]
+    out = handlers.investor_net_buy_stocks(
+        _fake_kis(net_buy=rows), market="KOSPI", basis="amount", side="buy", investor="foreign", limit=10)
+    assert [r["symbol"] for r in out] == ["005930", "000660"]
+    kis = _fake_kis(net_buy=rows)
+    for kwargs in ({"market": "X"}, {"basis": "X"}, {"side": "X"}, {"investor": "X"}):
+        with pytest.raises(KISUsageError):
+            handlers.investor_net_buy_stocks(kis, **kwargs)
+
+
 @pytest.mark.parametrize("bad", [-1, 0, True, "2"])
-@pytest.mark.parametrize("fn", ["search", "ranking_change", "positions", "open_orders"])
+@pytest.mark.parametrize("fn", ["search", "ranking_change", "positions", "open_orders",
+                                "history", "investor_flows", "market_investor_flows",
+                                "investor_net_buy_stocks"])
 def test_list_handlers_reject_bad_limit(fn, bad):
     # limit 검증은 API 호출 전에 돈다 -- bool(int 서브클래스)·비int·1 미만은 조용히 오답(음수는
     # [:limit] 가 마지막 행만 빼고 반환)하지 않고 KISUsageError 로 거부한다.
-    from kis_trader.errors import KISUsageError
     kis = _fake_kis(hits=[], ranking=[])
     call = {
         "search": lambda: handlers.search(kis, "x", limit=bad),
         "ranking_change": lambda: handlers.ranking_change(kis, direction="gainers", limit=bad),
         "positions": lambda: handlers.positions(kis, limit=bad),
         "open_orders": lambda: handlers.open_orders(kis, limit=bad),
+        "history": lambda: handlers.history(kis, "005930", limit=bad),
+        "investor_flows": lambda: handlers.investor_flows(kis, "005930", limit=bad),
+        "market_investor_flows": lambda: handlers.market_investor_flows(kis, limit=bad),
+        "investor_net_buy_stocks": lambda: handlers.investor_net_buy_stocks(kis, limit=bad),
     }[fn]
     with pytest.raises(KISUsageError):
         call()
@@ -438,8 +487,9 @@ def test_server_registers_read_switch_and_guarded_order_tools():
     names = {t.name for t in tools}
     # 정확집합(==)으로 못박는다: subset(<=) 이면 의도치 않은 툴이 하나 더 등록돼도 통과해버린다.
     # 노출 표면이 늘면 이 테스트가 깨져 의식적 결정을 강제한다(실주문 안전 표면의 핵심 불변식).
-    assert names == {"quote", "search", "ranking_change", "balance", "positions", "open_orders",
-                     "reconcile",
+    assert names == {"quote", "search", "ranking_change",
+                     "history", "investor_flows", "market_investor_flows", "investor_net_buy_stocks",
+                     "balance", "positions", "open_orders", "reconcile",
                      "use_environment", "use_profile", "current_account",
                      "order_preview", "place_order", "cancel_order", "modify_order"}
     # 원시 매매 메서드(buy/sell/credit)는 직접 노출하지 않는다 -- 가드레일 통과하는 place_order 만.

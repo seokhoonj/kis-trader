@@ -46,9 +46,11 @@ else:
 from .. import config
 from .._literals import Direction
 from ..account import StockAccount
+from ..bar import Interval
 from ..client import KISClient
+from ..domestic.market import InvestorType, NetBuyBasis
 from ..errors import KISError, KISUsageError
-from ..instrument import Region
+from ..instrument import DomesticMarket, DomesticMarketFilter, Region
 from ..order import DomesticDivision, ImmediateOrderFingerprint, Side
 from ..overseas._engine.orders import is_overseas_exchange
 from ..risk import RiskLimits
@@ -430,6 +432,33 @@ def build_server(
     def ranking_change(direction: Direction = "gainers", limit: int = 10) -> list[dict[str, Any]]:
         """국내 등락률 순위(gainers/losers)."""
         return handlers.ranking_change(account_session.read_client(), direction=direction, limit=limit)
+
+    @server.tool()
+    def history(symbol: str, interval: Interval = "1d", start: str | None = None,
+                end: str | None = None, adjusted: bool = True, limit: int = 500) -> list[dict[str, Any]]:
+        """국내 종목 기간봉(OHLCV). interval 일(1d)/주(1wk)/월(1mo)/분(1m), start·end 는 YYYYMMDD.
+        과거 가격(YTD 수익률 등) 계산용 -- 현재가는 quote 를 쓸 것."""
+        return handlers.history(account_session.read_client(), symbol, interval=interval,
+                                start=start, end=end, adjusted=adjusted, limit=limit)
+
+    @server.tool()
+    def investor_flows(symbol: str, limit: int = 60) -> list[dict[str, Any]]:
+        """국내 종목 투자자 수급 -- 일자별 개인·외국인·기관 순매수(수량·대금)."""
+        return handlers.investor_flows(account_session.read_client(), symbol, limit=limit)
+
+    @server.tool()
+    def market_investor_flows(market: DomesticMarket = "KOSPI", limit: int = 60) -> list[dict[str, Any]]:
+        """시장 전체(KOSPI/KOSDAQ) 투자자 수급 -- 외국인·개인·기관 순매수."""
+        return handlers.market_investor_flows(account_session.read_client(), market=market, limit=limit)
+
+    @server.tool()
+    def investor_net_buy_stocks(market: DomesticMarketFilter = "all", basis: NetBuyBasis = "volume",
+                                side: Side = "buy", investor: InvestorType = "all",
+                                limit: int = 30) -> list[dict[str, Any]]:
+        """투자자별 순매수 상위 종목. market all/KOSPI/KOSDAQ, basis 수량/대금, side 매수/매도,
+        investor all/외국인/기관/기타."""
+        return handlers.investor_net_buy_stocks(account_session.read_client(), market=market,
+                                                basis=basis, side=side, investor=investor, limit=limit)
 
     @server.tool()
     def balance(region: Region = "domestic", market: str | None = None) -> dict[str, Any]:
