@@ -126,7 +126,9 @@ def _fake_kis(*, quote=None, overseas_quote=None, hits=None, ranking=None, balan
         return f
 
     def _by_volume(**k):
-        rec.append(("by_volume", k.get("metric")))
+        # metric 생략(extra={})과 metric=None 을 구분해 기록 -- CLI/MCP 가 기본값을 재기술하지 않고
+        # 생략으로 넘기는지(라이브러리 기본 적용) 검증할 수 있게 한다.
+        rec.append(("by_volume", k.get("metric", "__omitted__")))
         return rank_volume or []
 
     ranking_ns = SimpleNamespace(
@@ -154,7 +156,9 @@ def _fake_kis(*, quote=None, overseas_quote=None, hits=None, ranking=None, balan
         market=market_ns,
     )
     overseas = SimpleNamespace(
-        stock=lambda sym: SimpleNamespace(quote=lambda: overseas_quote, bars=_bars("ovs_stock")),
+        stock=lambda sym: SimpleNamespace(
+            quote=lambda: overseas_quote, bars=_bars("ovs_stock"),
+            order_book=lambda: order_book, trades=lambda: trades or []),
         index=lambda code, *, kind="index": SimpleNamespace(bars=_bars(("ovs_index", kind))),
     )
     account_ns = SimpleNamespace(
@@ -294,14 +298,17 @@ def test_index_bars_handler_fx_and_validates_kind():
     assert kis2.rec[0][0] == "dom_index"
     with pytest.raises(KISUsageError):                               # 해외 kind 리터럴 밖
         handlers.index_bars(_fake_kis(bars=bars), "FX@KRW", kind="crypto", start="20250101")
+    with pytest.raises(KISUsageError, match="해외"):                  # 국내에 kind 주면 거부(조용히 무시 안 함)
+        handlers.index_bars(_fake_kis(bars=bars), "0001", region="domestic", kind="fx", start="20250101")
 
 
-def test_index_bars_kind_literal_matches_library():
-    # IndexKind(MCP 경계)가 라이브러리 해외 index accessor 의 kind 집합과 드리프트하지 않음을 고정.
+def test_overseas_index_kind_literal_matches_code_map():
+    # 단일 출처 OverseasIndexKind(Literal)와 _OVERSEAS_INDEX_KIND(코드 매핑 dict)가 드리프트하지 않음을 고정
+    # -- MCP·CLI 가 둘 다 이 하나에서 파생한다(재선언 없음).
     from typing import get_args
 
-    from kis_trader.overseas.namespace import _OVERSEAS_INDEX_KIND
-    assert set(get_args(handlers.IndexKind)) == set(_OVERSEAS_INDEX_KIND)
+    from kis_trader.overseas.namespace import _OVERSEAS_INDEX_KIND, OverseasIndexKind
+    assert set(get_args(OverseasIndexKind)) == set(_OVERSEAS_INDEX_KIND)
 
 
 def test_order_book_trades_status_handlers_serialize():
@@ -312,6 +319,13 @@ def test_order_book_trades_status_handlers_serialize():
     assert len(out) == 10 and "LEAK" not in str(out)
     st = _FakeHit("005930", "normal")
     assert handlers.status(_fake_kis(status=st), "005930") == {"symbol": "005930", "name": "normal"}
+    # region=overseas 도 라우팅(해외 종목 호가·체결) -- 해외 핸들로 분기해 돈다.
+    assert handlers.order_book(_fake_kis(order_book=ob), "AAPL", region="overseas") == {"symbol": "005930", "name": "book"}
+    assert handlers.trades(_fake_kis(trades=tr), "AAPL", region="overseas", limit=5) == [
+        {"symbol": str(i), "name": "t"} for i in range(5)]
+    for fn in (handlers.order_book, handlers.trades):               # region 리터럴 밖 거부
+        with pytest.raises(KISUsageError):
+            fn(_fake_kis(), "AAPL", region="mars")
 
 
 def test_ranking_volume_and_market_cap_handlers():
@@ -321,7 +335,10 @@ def test_ranking_volume_and_market_cap_handlers():
     # 유효 metric 이 라이브러리로 그대로 전달되는지(기본으로 조용히 떨어지지 않는지) 검증.
     kis = _fake_kis(rank_volume=rows)
     handlers.ranking_volume(kis, metric="turnover")
-    assert kis.rec == [("by_volume", "turnover")]
+    assert kis.rec == [("by_volume", "turnover")]                    # 유효 metric 은 그대로 전달
+    omit = _fake_kis(rank_volume=rows)
+    handlers.ranking_volume(omit)                                    # metric 생략 -> 재기술 않고 생략 전달
+    assert omit.rec == [("by_volume", "__omitted__")]
     with pytest.raises(KISUsageError):                               # metric 리터럴 밖
         handlers.ranking_volume(_fake_kis(rank_volume=rows), metric="nope")
 
@@ -652,6 +669,10 @@ def test_order_tool_input_schemas_pin_switch_region_shape():
     for read_tool in ("balance", "positions"):
         props = tools[read_tool].input_schema["properties"]
         assert {"region", "market"} <= set(props)
+    # 시세 bars/book/trades 의 region enum 을 고정 -- Region 이 str 로 넓어지면(검증 우회) 깨진다.
+    # (index_bars 의 kind 집합 드리프트는 test_overseas_index_kind_literal_matches_code_map 가 별도로 고정.)
+    for read_tool in ("stock_bars", "index_bars", "order_book", "trades"):
+        assert tools[read_tool].input_schema["properties"]["region"]["enum"] == ["domestic", "overseas"]
 
 
 def test_build_client_missing_credentials_gives_clear_error(monkeypatch):

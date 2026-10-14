@@ -12,7 +12,7 @@ if TYPE_CHECKING:
     from ...client import KISClient
 
 
-def cmd_index_bars(kis: KISClient, args: Namespace) -> Any:
+def cmd_bars(kis: KISClient, args: Namespace) -> Any:
     """지수·환율·국채·금 기간봉. ``--region overseas`` 는 ``--kind`` index/fx(환율, 예 code FX@KRW=
     원/달러)/bond/gold, ``--region domestic`` 은 국내 지수코드(kind 미적용)."""
     if args.region == "overseas":

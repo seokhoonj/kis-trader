@@ -56,6 +56,7 @@ from ..errors import KISError, KISUsageError
 from ..instrument import DomesticMarket, DomesticMarketFilter, Region
 from ..order import DomesticDivision, ImmediateOrderFingerprint, Side
 from ..overseas._engine.orders import is_overseas_exchange
+from ..overseas.namespace import OverseasIndexKind
 from ..risk import RiskLimits
 from . import handlers
 from ._guardrails import CircuitBreaker, RealOrderGate, StockOrderPlan
@@ -71,7 +72,7 @@ from ._session import (
     OrderSnapshot,
     _StartupAuthorization,
 )
-from .handlers import IndexKind, Session
+from .handlers import Session
 
 _logger = logging.getLogger("kis_trader.mcp")
 
@@ -456,27 +457,27 @@ def build_server(
                                    interval=interval, start=start, end=end, adjusted=adjusted, limit=limit)
 
     @server.tool()
-    def index_bars(code: str, region: Region = "overseas", kind: IndexKind = "index",
+    def index_bars(code: str, region: Region = "overseas", kind: OverseasIndexKind | None = None,
                    interval: Interval = "1d", start: str | None = None, end: str | None = None,
                    limit: int = 500) -> list[dict[str, Any]]:
-        """지수·환율·국채·금 기간봉. region=overseas는 kind(index/fx/bond/gold; fx=환율, 예 code FX@KRW=원/달러),
-        region=domestic은 지수만(kind 무시). 기간봉은 start 필수, 분봉(1m)은 지수·환율만."""
+        """지수·환율·국채·금 기간봉. region=overseas는 kind(index 기본/fx=환율 예 FX@KRW/bond/gold),
+        region=domestic은 국내 지수코드 전용(kind 는 해외 전용). 기간봉은 start 필수, 분봉(1m)은 지수·환율만."""
         return handlers.index_bars(account_session.read_client(), code, region=region, kind=kind,
                                    interval=interval, start=start, end=end, limit=limit)
 
     @server.tool()
-    def order_book(symbol: str) -> dict[str, Any]:
-        """국내 종목 호가창(매수/매도 호가·잔량)."""
-        return handlers.order_book(account_session.read_client(), symbol)
+    def order_book(symbol: str, region: Region = "domestic") -> dict[str, Any]:
+        """종목 호가창(매수/매도 호가·잔량). region domestic/overseas."""
+        return handlers.order_book(account_session.read_client(), symbol, region=region)
 
     @server.tool()
-    def trades(symbol: str, limit: int = 40) -> list[dict[str, Any]]:
-        """국내 종목 최근 체결 내역(time & sales; 체결가·수량·시각, 최신순)."""
-        return handlers.trades(account_session.read_client(), symbol, limit=limit)
+    def trades(symbol: str, region: Region = "domestic", limit: int = 40) -> list[dict[str, Any]]:
+        """종목 최근 체결 내역(time & sales; 체결가·수량·시각, 최신순). region domestic/overseas."""
+        return handlers.trades(account_session.read_client(), symbol, region=region, limit=limit)
 
     @server.tool()
     def status(symbol: str) -> dict[str, Any]:
-        """국내 종목 상태(거래정지·관리종목·투자경고 등)."""
+        """국내 종목 상태(거래정지·관리종목·투자경고 등) -- 국내 전용."""
         return handlers.status(account_session.read_client(), symbol)
 
     @server.tool()

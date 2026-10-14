@@ -246,7 +246,7 @@ def build_parser() -> argparse.ArgumentParser:
     ib.add_argument("--interval", required=True, help="1d/1wk/1mo/1m(지수·환율만); stock bars 와 동일하게 필수")
     ib.add_argument("--start", default=None, help="YYYYMMDD(기간봉 필수, 1m 은 생략 가능)")
     ib.add_argument("--end", default=None, help="YYYYMMDD(생략 시 오늘)")
-    ib.set_defaults(func=index.cmd_index_bars)
+    ib.set_defaults(func=index.cmd_bars)
 
     # kis account balance|positions|orders|fills|reserved|profits|transactions|
     #             deposit|margin|valuation|settlement|commissions|present|foreign-margin

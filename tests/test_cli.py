@@ -413,7 +413,7 @@ def test_index_bars_domestic_explicit_region_and_rejects_kind():
     assert kis.log[-1] == ("index_bars", "0001", "domestic", None, "1d", "20250101", None)
     # --kind 는 해외 전용 -- 국내에 주면 조용히 무시하지 않고 거부한다.
     with pytest.raises(CliConfigError, match="해외"):
-        index.cmd_index_bars(StubKis(), _args(
+        index.cmd_bars(StubKis(), _args(
             ["index", "bars", "0001", "--region", "domestic", "--kind", "fx",
              "--interval", "1d", "--start", "20250101"]))
 

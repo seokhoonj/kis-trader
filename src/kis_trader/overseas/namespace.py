@@ -64,8 +64,11 @@ if TYPE_CHECKING:
     from .entities.product import OverseasProductInfo
     from .entities.settlement import OverseasSettlementDate
 
-# 해외 지수류 kind -> FID_COND_MRKT_DIV_CODE. ``kis.overseas.index`` 가 쓴다.
-_OVERSEAS_INDEX_KIND = {"index": "N", "fx": "X", "bond": "I", "gold": "S"}
+#: 해외 지수류 분류(공개): index(지수)/fx(환율)/bond(국채)/gold(금선물). ``kis.overseas.index`` 의 kind
+#: 이자 CLI ``kis index bars --kind``·MCP ``index_bars`` 가 공유하는 단일 출처다.
+OverseasIndexKind = Literal["index", "fx", "bond", "gold"]
+# 해외 지수류 kind -> FID_COND_MRKT_DIV_CODE. ``kis.overseas.index`` 가 쓴다(키는 OverseasIndexKind 와 일치).
+_OVERSEAS_INDEX_KIND: dict[str, str] = {"index": "N", "fx": "X", "bond": "I", "gold": "S"}
 
 #: 체결기준현재잔고(present_balance) 국가 필터. 엔진이 국가코드(840 등)로 변환하며, 그 외 값은 거부한다.
 BalanceNation = Literal["all", "US", "HK", "CN", "JP", "VN"]
@@ -259,7 +262,7 @@ class OverseasNamespace:
             exchange = self._client.instrument(symbol).exchange
         return OverseasStock(self._client, symbol, exchange=exchange)
 
-    def index(self, code: str, *, kind: Literal["index", "fx", "bond", "gold"] = "index") -> OverseasIndex:
+    def index(self, code: str, *, kind: OverseasIndexKind = "index") -> OverseasIndex:
         """해외 지수/환율/국채/금선물 핸들. ``kind`` 는 ``index``/``fx``/``bond``/``gold`` 중 하나, ``code``
         는 지수코드(예: ``.DJI``; 지수=비거래 분류자라 ``code``). 국내
         :meth:`~kis_trader.domestic.namespace.DomesticNamespace.index` 의 해외판이다."""
