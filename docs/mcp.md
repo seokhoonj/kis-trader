@@ -24,7 +24,7 @@ MCP 를 켜 두면 Claude Desktop 채팅창에 이렇게 말하기만 하면 됩
 | 조각 | 무엇인가 | 여기서는 |
 |---|---|---|
 | **서버(server)** | 도구를 내주는 쪽. 내 PC 에서 돌며 KIS 와 통신합니다 | `kis-mcp`(이 프로젝트가 제공) |
-| **클라이언트(client)** | 그 도구를 쓰는 AI 앱 | ChatGPT · Claude Desktop · Cursor |
+| **클라이언트(client)** | 그 도구를 쓰는 AI 앱 | Claude Desktop · Cursor · ChatGPT Desktop(참고) |
 
 둘은 MCP 규격으로 주고받습니다. 설정 파일에 서버를 한 줄 등록해 두면(아래 [쓰는 법](#쓰는-법-설치하고-연결하기)),
 에이전트가 켜질 때 도구 목록을 받아 와 바로 씁니다.
@@ -37,8 +37,16 @@ MCP 는 있어도 되고 없어도 되는 **선택 기능**입니다. 파이썬�
 ## 쓰는 법 (설치하고 연결하기)
 
 채팅창에서 뭘 내려받는 게 아닙니다. 아래를 **한 번** 해 두면, 그다음부터는 AI 앱 채팅창에서 말만 하면
-됩니다. **설치는 세 앱(ChatGPT·Claude Desktop·Cursor)이 공통**이고, **연결 방법만 앱마다 다릅니다** --
-먼저 공통 설치를 끝내고, 쓰는 앱에 맞춰 아래 세 절 중 하나만 따라 하세요.
+됩니다. **설치는 세 앱(Claude Desktop·Cursor·ChatGPT Desktop)이 공통**이고, **연결 방법만 앱마다
+다릅니다** -- 먼저 공통 설치를 끝내고, 쓰는 앱에 맞춰 아래 절 중 하나만 따라 하세요.
+
+**플랜 조건이 앱마다 다릅니다**(개인이라면 Claude Desktop 이 가장 쉽습니다):
+
+| AI 앱 | 커스텀 MCP 플랜 조건 |
+|---|---|
+| **Claude Desktop** | 무료 포함 **전 플랜 OK**(무료는 시간당 도구 호출·컨텍스트 등 사용량만 제한) -- 장벽 가장 낮음 |
+| **Cursor** | **유료(Pro 이상) 필요** -- 무료 Hobby 는 커스텀 MCP 서버 추가 불가 |
+| **ChatGPT Desktop** | **Business·Enterprise/Edu 워크스페이스 전용** -- 개인 Plus·Pro·Free 전부 불가(그래서 맨 뒤 참고) |
 
 ::: {.callout-tip}
 **계좌 하나만 쓰는 가장 짧은 길**은 [가장 쉽게 시작](easy.md) 에 직선으로 정리돼 있습니다(Claude Desktop
@@ -47,9 +55,10 @@ MCP 는 있어도 되고 없어도 되는 **선택 기능**입니다. 파이썬�
 :::
 
 ::: {.callout-note}
-**준비물** -- 쓰려는 AI 앱 하나(**ChatGPT**, 또는 **Claude Desktop**
-[claude.ai/download](https://claude.ai/download), 또는 **Cursor**)와 인터넷이면 됩니다. 설치 도구로 쓰는
-`uv` 는 다음 단계에서 깔고, 파이썬이 없어도 `uv` 가 알아서 받아 주므로 파이썬을 미리 설치할 필요는 없습니다.
+**준비물** -- 쓰려는 AI 앱 하나(**Claude Desktop**
+[claude.ai/download](https://claude.ai/download), 또는 **Cursor**, 또는 **ChatGPT Desktop**)와 인터넷이면
+됩니다. 설치 도구로 쓰는 `uv` 는 다음 단계에서 깔고, 파이썬이 없어도 `uv` 가 알아서 받아 주므로 파이썬을
+미리 설치할 필요는 없습니다.
 :::
 
 ### 설치 (세 앱 공통)
@@ -94,45 +103,10 @@ kis config
 
 여기까지가 공통입니다. 이제 쓰는 앱에 맞춰 아래에서 **하나만** 따라 하세요.
 
-## ChatGPT 에 연결
-
-ChatGPT 는 뒤의 Claude Desktop·Cursor 와 **붙는 방식이 다릅니다.** 둘은 내 PC 에서 서버를 직접 띄우는
-stdio(표준 입출력) 로 붙지만, ChatGPT 의 커스텀 커넥터는 **원격 HTTPS 서버(SSE)만** 받습니다 -- 내 PC 의
-명령(`command`)을 가리킬 수 없고 **URL** 로 붙어야 합니다. 그래서 `kis-mcp` 를 **SSE 전송**으로 띄운 뒤,
-공개 URL 없이 ChatGPT 가 로컬 서버에 닿게 해주는 **Secure MCP Tunnel**(OpenAI 가 제공하는, 내 PC 에서
-바깥으로 연결을 여는 작은 클라이언트) 로 연결하는 것이 안전한 길입니다. 돈이 오가는 로컬 서버를 공개
-인터넷에 직접 노출하지 않아도 됩니다.
-
-커넥터는 특정 앱이 아니라 **ChatGPT 계정**에 등록됩니다 -- `chatgpt.com`(웹)에서 한 번 추가하면 로그인한
-곳 어디서나(웹·데스크톱 앱·모바일) 쓰입니다. (Claude 는 반대로 **데스크톱 앱**이 로컬에서 서버를 직접
-띄우는 방식이라 아래 절을 "Claude Desktop"으로 특정합니다. ChatGPT 데스크톱 앱도 로컬 stdio 가 아니라 이
-원격 커넥터를 그대로 씁니다.)
-
-준비물: **ChatGPT Plus·Pro·Business·Enterprise·Edu** 중 하나(Free 는 커스텀 커넥터 미지원). 순서:
-
-1. **`kis-mcp` 를 SSE 전송으로 띄웁니다** -- 기본은 로컬 전용(`127.0.0.1`) 이고, HTTP 로 열 때는 토큰을
-   요구합니다(아래 [전송 방식 바꾸기](#고급-전송-방식-바꾸기-stdio-sse-streamable-http) 의 fail-closed 규칙):
-
-   ```bash
-   export KIS_MCP_PROFILE=general
-   export KIS_MCP_ENVIRONMENT=paper          # 실전은 real (가드레일 갖췄을 때만)
-   export KIS_MCP_TRANSPORT=sse              # ChatGPT 는 SSE(원격 HTTPS)
-   export KIS_MCP_ACCESS_TOKEN=아무_긴_비밀문자열   # 비-로컬 노출 시 필수(Bearer 토큰)
-   kis-mcp                                    # http://127.0.0.1:8000/sse 로 뜸
-   ```
-
-2. **ChatGPT 에서 커넥터를 만듭니다** -- `chatgpt.com/plugins` → **`Add`** → **`Create MCP App`**.
-   **Connection** 에서 **`Tunnel`**(Secure MCP Tunnel)을 고르면 공개 URL 없이 위 로컬 서버(1단계)의 SSE
-   엔드포인트로 연결됩니다. 직접 URL 을 쓸 거면 **Server URL** 에 역프록시/터널이 내준 HTTPS 주소(`.../sse`)를 넣습니다.
-3. **`Scan Tools`** 를 눌러 도구 목록을 받아옵니다. 인증을 걸었으면(OAuth/토큰) 그 단계를 먼저 통과합니다.
-4. 연결되면 ChatGPT 대화에서 "내 KIS 잔고 보여줘" 처럼 말하면 됩니다.
-
-안전: `kis-mcp` 는 **조회·주문 미리보기·대조만** 내주고 실주문 도구는 노출하지 않습니다([안전 설계](#안전-설계)).
-HTTP 로 열 때도 비-로컬 bind 는 `KIS_MCP_ACCESS_TOKEN` 없이는 거부되고(fail-closed), 토큰 불일치 요청은
-`401` 로 막힙니다. 공개 URL 로 직접 bind 하기보다 **Secure MCP Tunnel 또는 역프록시**를 쓰는 편이
-안전합니다(자세한 env 설정은 [전송 방식 바꾸기](#고급-전송-방식-바꾸기-stdio-sse-streamable-http)).
-
 ## Claude Desktop 에 연결
+
+**플랜:** 무료 플랜 포함 **모든 플랜에서 됩니다**(커스텀 MCP 서버가 무료에도 열려 있음; 무료는 시간당
+도구 호출 횟수·컨텍스트 한도 같은 사용량만 제한). 개인이 추가 결제 없이 가장 쉽게 붙이는 길입니다.
 
 Claude Desktop 은 `kis-mcp` 를 **stdio** 로 직접 띄웁니다 -- 설정 파일에 실행 파일 경로만 적으면 됩니다.
 
@@ -255,6 +229,9 @@ kis-mcp   # 서버 시작. 오류 없이 멈춰 있으면 정상 -- Ctrl-C 로 �
 
 ## Cursor 에 연결
 
+**플랜:** **유료(Pro 이상) 필요** -- 무료 **Hobby** 플랜은 커스텀 MCP 서버를 추가할 수 없습니다. 무료로
+쓰려면 위 Claude Desktop 을 쓰세요.
+
 Cursor 도 Claude Desktop 과 같은 **stdio** 방식입니다. `Settings → MCP Servers` 에서 Claude Desktop 과
 **똑같은** 등록 내용을 넣으면 됩니다(위 [Claude Desktop 에 연결](#claude-desktop-에-연결)의 JSON 을 그대로).
 Cursor 도 stdio 를 지원하므로 `command` 에 `kis-mcp` 경로를 그대로 적습니다.
@@ -292,6 +269,49 @@ kis-mcp
 실주문은 전송 방식과 무관하게 사람 확인(elicitation) 게이트를 그대로 거칩니다 -- 원격이라고 느슨해지지
 않습니다.
 :::
+
+## (참고) ChatGPT Desktop 에 연결
+
+::: {.callout-important}
+**커스텀 MCP 커넥터는 현재 ChatGPT Business·Enterprise·Edu 워크스페이스 전용입니다.** OpenAI 도움말
+기준 개인 **Plus·Pro 는 커스텀 커넥터를 만들 수 없고**(디렉터리 앱 read/fetch 만 가능), Free 도 안 됩니다
+-- Developer mode 를 켜는 토글과 "Create" 버튼 자체가 개인 계정엔 나타나지 않습니다. 개인 계정이면 위
+**[Claude Desktop 에 연결](#claude-desktop-에-연결)**(로컬 stdio, 플랜 무관·바로 됨)이나
+**[Cursor 에 연결](#cursor-에-연결)**을 쓰세요. 이 절은 **Business·Enterprise/Edu 워크스페이스(관리자가
+Developer mode 활성화)** 에서만 유효합니다.
+:::
+
+ChatGPT Desktop 앱은 앞의 Claude Desktop·Cursor 와 **붙는 방식이 다릅니다.** 둘은 내 PC 에서 서버를 직접
+띄우는 stdio(표준 입출력) 로 붙지만, ChatGPT 는 앱이든 웹이든 **원격 HTTPS 커넥터(SSE)만** 받습니다 --
+내 PC 의 명령(`command`)을 가리킬 수 없고 **URL** 로 붙어야 합니다(커넥터는 ChatGPT 계정에 등록돼 웹·앱·
+모바일 어디서나 쓰입니다). 그래서 `kis-mcp` 를 **SSE 전송**으로 띄운 뒤, 공개 URL 없이 ChatGPT 가 로컬
+서버에 닿게 해주는 **Secure MCP Tunnel**(OpenAI 가 제공하는, 내 PC 에서 바깥으로 연결을 여는 작은
+클라이언트) 로 연결합니다. 돈이 오가는 로컬 서버를 공개 인터넷에 직접 노출하지 않아도 됩니다.
+
+준비물: **ChatGPT Business·Enterprise·Edu 워크스페이스**(관리자가 Developer mode 활성화). 개인 Plus·Pro·Free
+는 위 경고대로 불가합니다. 순서:
+
+1. **`kis-mcp` 를 SSE 전송으로 띄웁니다** -- 기본은 로컬 전용(`127.0.0.1`) 이고, HTTP 로 열 때는 토큰을
+   요구합니다(위 **(고급) 전송 방식 바꾸기** 항목의 fail-closed 규칙):
+
+   ```bash
+   export KIS_MCP_PROFILE=general
+   export KIS_MCP_ENVIRONMENT=paper          # 실전은 real (가드레일 갖췄을 때만)
+   export KIS_MCP_TRANSPORT=sse              # ChatGPT 는 SSE(원격 HTTPS)
+   export KIS_MCP_ACCESS_TOKEN=아무_긴_비밀문자열   # 비-로컬 노출 시 필수(Bearer 토큰)
+   kis-mcp                                    # http://127.0.0.1:8000/sse 로 뜸
+   ```
+
+2. **ChatGPT 에서 커넥터를 만듭니다** -- `chatgpt.com/plugins` → **`Add`** → **`Create MCP App`**.
+   **Connection** 에서 **`Tunnel`**(Secure MCP Tunnel)을 고르면 공개 URL 없이 위 로컬 서버(1단계)의 SSE
+   엔드포인트로 연결됩니다. 직접 URL 을 쓸 거면 **Server URL** 에 역프록시/터널이 내준 HTTPS 주소(`.../sse`)를 넣습니다.
+3. **`Scan Tools`** 를 눌러 도구 목록을 받아옵니다. 인증을 걸었으면(OAuth/토큰) 그 단계를 먼저 통과합니다.
+4. 연결되면 ChatGPT 대화에서 "내 KIS 잔고 보여줘" 처럼 말하면 됩니다.
+
+안전: `kis-mcp` 는 **조회·주문 미리보기·대조만** 내주고 실주문 도구는 노출하지 않습니다([안전 설계](#안전-설계)).
+HTTP 로 열 때도 비-로컬 bind 는 `KIS_MCP_ACCESS_TOKEN` 없이는 거부되고(fail-closed), 토큰 불일치 요청은
+`401` 로 막힙니다. 공개 URL 로 직접 bind 하기보다 **Secure MCP Tunnel 또는 역프록시**를 쓰는 편이
+안전합니다(자세한 env 설정은 위 **(고급) 전송 방식 바꾸기** 항목).
 
 ## 이 서버가 하는 일
 
