@@ -36,15 +36,6 @@ def cmd_market_investors(kis: KISClient, args: Namespace) -> Any:
     return kis.domestic.market.investor_flows(**extra)
 
 
-def cmd_index_bars(kis: KISClient, args: Namespace) -> Any:
-    """지수·환율·국채·금 기간봉. ``--region overseas`` 는 ``--kind`` index/fx(환율)/bond/gold(예 code
-    FX@KRW=원/달러), ``--region domestic`` 은 국내 지수코드(kind 무시)."""
-    if args.region == "overseas":
-        return kis.overseas.index(args.code, kind=args.kind).bars(
-            args.interval, start=args.start, end=args.end)
-    return kis.domestic.index(args.code).bars(args.interval, start=args.start, end=args.end)
-
-
 def cmd_market_net_buy(kis: KISClient, args: Namespace) -> Any:
     """투자자별 순매수 상위 종목. 미지정 플래그는 라이브러리 기본을 쓴다(준 것만 전달)."""
     extra = {}

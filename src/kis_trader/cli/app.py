@@ -31,7 +31,7 @@ from ..errors import KISError
 from ..order import Right, Side
 from ..overseas.namespace import _OVERSEAS_INDEX_KIND
 from ..transport import Environment
-from .commands import account, credentials, market, order, stock
+from .commands import account, credentials, index, market, order, stock
 from .context import account_suffix, build_client
 from .errors import CliAborted, CliConfigError, Translated, translate
 from .output import OutputFormat, render
@@ -237,13 +237,16 @@ def build_parser() -> argparse.ArgumentParser:
     index_sub = index_p.add_subparsers(dest="action", required=True)
     ib = leaf(index_sub, "bars")
     ib.add_argument("code", help="지수(.DJI)·환율(FX@KRW)·국내지수(0001) 등 코드")
-    _add_region(ib)
-    ib.add_argument("--kind", choices=list(_OVERSEAS_INDEX_KIND), default="index",
-                    help="해외 분류(region=overseas): index/fx(환율)/bond(국채)/gold(금)")
-    ib.add_argument("--interval", default="1d", help="1d/1wk/1mo/1m(지수·환율만)")
+    # 기본 해외 -- fx/bond/gold 는 해외 전용이고 지수도 해외가 주용도라, MCP index_bars 와 같은 기본.
+    # 국내 지수는 --region domestic 으로 명시한다(공유 _add_region 의 domestic 기본과 의도적으로 다름).
+    ib.add_argument("--region", dest="region", choices=list(get_args(Region)), default="overseas",
+                    help="해외(기본)/국내")
+    ib.add_argument("--kind", choices=list(_OVERSEAS_INDEX_KIND), default=None,
+                    help="해외 분류(region=overseas 전용): index/fx(환율)/bond(국채)/gold(금); 생략 시 index")
+    ib.add_argument("--interval", required=True, help="1d/1wk/1mo/1m(지수·환율만); stock bars 와 동일하게 필수")
     ib.add_argument("--start", default=None, help="YYYYMMDD(기간봉 필수, 1m 은 생략 가능)")
     ib.add_argument("--end", default=None, help="YYYYMMDD(생략 시 오늘)")
-    ib.set_defaults(func=market.cmd_index_bars)
+    ib.set_defaults(func=index.cmd_index_bars)
 
     # kis account balance|positions|orders|fills|reserved|profits|transactions|
     #             deposit|margin|valuation|settlement|commissions|present|foreign-margin

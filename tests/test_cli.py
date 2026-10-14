@@ -11,7 +11,7 @@ import pytest
 import kis_trader.cli.app as cli_main
 from kis_trader.account import StockAccount
 from kis_trader.cli.app import build_parser
-from kis_trader.cli.commands import account, order, stock
+from kis_trader.cli.commands import account, index, order, stock
 from kis_trader.cli.context import account_suffix
 from kis_trader.cli.errors import CliAborted, CliConfigError, translate
 from kis_trader.cli.output import _display_width, _pad, render, to_jsonable
@@ -389,14 +389,33 @@ def test_stock_investors_rejects_non_quote_exchange():
         stock.cmd_investors(StubKis(), _args(["stock", "investors", "005930", "--exchange", "SOR"]))
 
 
-def test_index_bars_domestic_default_and_overseas_fx():
+def test_index_bars_overseas_default_fx_forwards_args():
+    # 기본 region=overseas(MCP index_bars 와 대칭). --interval 은 stock bars 처럼 required.
     kis = StubKis()
-    a = _args(["index", "bars", "0001", "--start", "20250101"])          # 국내 지수(기본 domestic)
+    a = _args(["index", "bars", "FX@KRW", "--kind", "fx", "--interval", "1wk",
+               "--start", "20250101", "--end", "20250201"])
     assert a.func(kis, a) == "IBARS"
+    assert kis.log[-1] == ("index_bars", "FX@KRW", "overseas", "fx", "1wk", "20250101", "20250201")
+
+
+def test_index_bars_overseas_omitting_kind_uses_library_default():
+    # --kind 생략 -> CLI 가 기본("index")을 재기술하지 않고 라이브러리/스텁 기본이 적용된다.
+    kis = StubKis()
+    a = _args(["index", "bars", ".DJI", "--interval", "1d", "--start", "20250101"])
+    a.func(kis, a)
+    assert kis.log[-1] == ("index_bars", ".DJI", "overseas", "index", "1d", "20250101", None)
+
+
+def test_index_bars_domestic_explicit_region_and_rejects_kind():
+    kis = StubKis()
+    a = _args(["index", "bars", "0001", "--region", "domestic", "--interval", "1d", "--start", "20250101"])
+    a.func(kis, a)
     assert kis.log[-1] == ("index_bars", "0001", "domestic", None, "1d", "20250101", None)
-    a = _args(["index", "bars", "FX@KRW", "--region", "overseas", "--kind", "fx", "--start", "20250101"])
-    a.func(kis, a)                                                        # 해외 환율(fx)
-    assert kis.log[-1] == ("index_bars", "FX@KRW", "overseas", "fx", "1d", "20250101", None)
+    # --kind 는 해외 전용 -- 국내에 주면 조용히 무시하지 않고 거부한다.
+    with pytest.raises(CliConfigError, match="해외"):
+        index.cmd_index_bars(StubKis(), _args(
+            ["index", "bars", "0001", "--region", "domestic", "--kind", "fx",
+             "--interval", "1d", "--start", "20250101"]))
 
 
 def test_search_omitting_market_uses_library_default():

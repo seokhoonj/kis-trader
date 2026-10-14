@@ -338,7 +338,7 @@ HTTP 로 열 때도 비-로컬 bind 는 `KIS_MCP_ACCESS_TOKEN` 없이는 거부�
 | `ranking_market_cap` | 국내 시가총액 상위 순위 |
 | `stock_bars` | 국내/해외 종목 기간봉(OHLCV) -- `region`·`interval` 일/주/월/분. 기간봉(1d/1wk/1mo)은 `start`(YYYYMMDD) 필수, 1m만 생략. 연초 대비 수익률 등 |
 | `index_bars` | 지수·환율·국채·금 기간봉 -- `region="overseas"` + `kind` index/fx(환율, 예 `FX@KRW`=원/달러)/bond/gold, `region="domestic"` 은 국내 지수 |
-| `order_book` | 국내 종목 호가창(매수/매도 호가·잔량) |
+| `order_book` | 국내 종목 호가창(매수/매도 호가·잔량) -- 라이브러리 메서드명과 같게 `order_book`(CLI 에선 `kis stock book`) |
 | `trades` | 국내 종목 최근 체결 내역(time & sales; 체결가·수량·시각) |
 | `status` | 국내 종목 상태(거래정지·관리종목·투자경고 등) |
 | `stock_investor_flows` | 국내 종목 투자자 수급 -- 일자별 개인·외국인·기관 순매수(수량·대금) |

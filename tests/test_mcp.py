@@ -117,9 +117,21 @@ def _fake_kis(*, quote=None, overseas_quote=None, hits=None, ranking=None, balan
               bars=None, stock_flows=None, market_flows=None, net_buy=None,
               order_book=None, trades=None, status=None, rank_volume=None, rank_mktcap=None,
               environment="paper", account="12345678-01"):
+    rec: list = []                                   # 호출 기록 -- forwarding(인자 전달) 검증용
+
+    def _bars(tag):                                  # 어느 리시버에서 어떤 인자로 bars 가 불렸는지 기록
+        def f(interval="1d", *, start=None, end=None, adjusted="__unset__", max_bars=None):
+            rec.append((tag, interval, start, end, adjusted, max_bars))
+            return bars or []
+        return f
+
+    def _by_volume(**k):
+        rec.append(("by_volume", k.get("metric")))
+        return rank_volume or []
+
     ranking_ns = SimpleNamespace(
         by_change=lambda direction="gainers": ranking or [],
-        by_volume=lambda **k: rank_volume or [],
+        by_volume=_by_volume,
         by_market_cap=lambda: rank_mktcap or [],
     )
     market_ns = SimpleNamespace(
@@ -128,7 +140,7 @@ def _fake_kis(*, quote=None, overseas_quote=None, hits=None, ranking=None, balan
     )
     _stock = lambda sym: SimpleNamespace(
         quote=lambda: quote,
-        bars=lambda *a, **k: bars or [],
+        bars=_bars("dom_stock"),
         investor_flows=lambda: stock_flows or [],
         order_book=lambda: order_book,
         trades=lambda: trades or [],
@@ -136,15 +148,14 @@ def _fake_kis(*, quote=None, overseas_quote=None, hits=None, ranking=None, balan
     )
     domestic = SimpleNamespace(
         stock=_stock,
-        index=lambda code: SimpleNamespace(bars=lambda *a, **k: bars or []),
+        index=lambda code: SimpleNamespace(bars=_bars("dom_index")),
         search_stocks=lambda query: hits or [],
         ranking=ranking_ns,
         market=market_ns,
     )
     overseas = SimpleNamespace(
-        stock=lambda sym: SimpleNamespace(
-            quote=lambda: overseas_quote, bars=lambda *a, **k: bars or []),
-        index=lambda code, *, kind="index": SimpleNamespace(bars=lambda *a, **k: bars or []),
+        stock=lambda sym: SimpleNamespace(quote=lambda: overseas_quote, bars=_bars("ovs_stock")),
+        index=lambda code, *, kind="index": SimpleNamespace(bars=_bars(("ovs_index", kind))),
     )
     account_ns = SimpleNamespace(
         balance=lambda: balance,
@@ -158,7 +169,7 @@ def _fake_kis(*, quote=None, overseas_quote=None, hits=None, ranking=None, balan
     )
     return SimpleNamespace(
         domestic=domestic, overseas=overseas, account=account_ns, orders=orders_ns,
-        environment=environment, _account=account,
+        environment=environment, _account=account, rec=rec,
     )
 
 
@@ -249,10 +260,13 @@ def test_stock_bars_handler_caps_serializes_and_validates():
             handlers.stock_bars(_fake_kis(bars=bars), "005930", start="20250101", **kwargs)
 
 
-def test_stock_bars_handler_region_overseas():
-    bars = [_FakeHit("AAPL", "apple")]
-    out = handlers.stock_bars(_fake_kis(bars=bars), "AAPL", region="overseas", start="20250101", limit=3)
+def test_stock_bars_handler_region_overseas_forwards_args():
+    kis = _fake_kis(bars=[_FakeHit("AAPL", "apple")])
+    out = handlers.stock_bars(kis, "AAPL", region="overseas", interval="1wk",
+                              start="20250101", end="20250201", limit=3)
     assert out == [{"symbol": "AAPL", "name": "apple"}]
+    # 해외 리시버로 라우팅되고 interval/start/end/max_bars 가 그대로 전달됐는지(forwarding) 검증.
+    assert kis.rec == [("ovs_stock", "1wk", "20250101", "20250201", True, 3)]
 
 
 def test_bars_handlers_require_start_for_period_intervals():
@@ -270,10 +284,14 @@ def test_bars_handlers_require_start_for_period_intervals():
 
 def test_index_bars_handler_fx_and_validates_kind():
     bars = [_FakeHit("FX@KRW", "usdkrw")]
-    out = handlers.index_bars(_fake_kis(bars=bars), "FX@KRW", kind="fx", start="20250101", limit=3)
+    kis = _fake_kis(bars=bars)
+    out = handlers.index_bars(kis, "FX@KRW", kind="fx", interval="1wk", start="20250101", end="20250201")
     assert out == [{"symbol": "FX@KRW", "name": "usdkrw"}]
-    # 국내 지수는 kind 무시(바로 조회)
-    assert handlers.index_bars(_fake_kis(bars=bars), "0001", region="domestic", start="20250101") == out
+    # 해외 index 리시버로 kind=fx 가 accessor 에, interval/start/end 가 bars 에 전달됐는지 검증.
+    assert kis.rec == [(("ovs_index", "fx"), "1wk", "20250101", "20250201", "__unset__", 500)]
+    kis2 = _fake_kis(bars=bars)                                      # 국내 지수는 dom_index 로 라우팅
+    assert handlers.index_bars(kis2, "0001", region="domestic", start="20250101") == out
+    assert kis2.rec[0][0] == "dom_index"
     with pytest.raises(KISUsageError):                               # 해외 kind 리터럴 밖
         handlers.index_bars(_fake_kis(bars=bars), "FX@KRW", kind="crypto", start="20250101")
 
@@ -300,6 +318,10 @@ def test_ranking_volume_and_market_cap_handlers():
     rows = [_FakeHit("005930", "삼성전자")]
     assert handlers.ranking_volume(_fake_kis(rank_volume=rows), limit=5) == [{"symbol": "005930", "name": "삼성전자"}]
     assert handlers.ranking_market_cap(_fake_kis(rank_mktcap=rows), limit=5) == [{"symbol": "005930", "name": "삼성전자"}]
+    # 유효 metric 이 라이브러리로 그대로 전달되는지(기본으로 조용히 떨어지지 않는지) 검증.
+    kis = _fake_kis(rank_volume=rows)
+    handlers.ranking_volume(kis, metric="turnover")
+    assert kis.rec == [("by_volume", "turnover")]
     with pytest.raises(KISUsageError):                               # metric 리터럴 밖
         handlers.ranking_volume(_fake_kis(rank_volume=rows), metric="nope")
 

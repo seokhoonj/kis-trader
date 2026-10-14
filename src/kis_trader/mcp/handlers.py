@@ -235,14 +235,14 @@ def index_bars(
     if start is None:
         _require_start_for_period(interval)
     _require_positive_limit(limit)
-    iv = cast(Interval, interval)
     if region == "overseas":
         if kind not in _INDEX_KINDS:
             raise KISUsageError(f"kind 는 {sorted(_INDEX_KINDS)} 중 하나여야 한다 (받은 값: {kind!r}).")
         rows = kis.overseas.index(code, kind=cast(IndexKind, kind)).bars(
-            iv, start=start, end=end, max_bars=limit)
+            cast(Interval, interval), start=start, end=end, max_bars=limit)
     else:
-        rows = kis.domestic.index(code).bars(iv, start=start, end=end, max_bars=limit)
+        rows = kis.domestic.index(code).bars(
+            cast(Interval, interval), start=start, end=end, max_bars=limit)
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 
