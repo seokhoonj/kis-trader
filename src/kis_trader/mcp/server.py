@@ -4,7 +4,8 @@
 스크립트 또는 ``python -m kis_trader.mcp.server``. 자격증명은 **환경변수/프로필에서만** 읽고 절대
 출력하지 않는다. 기동 환경은 ``paper`` 기본 -- ``real`` 은 ``KIS_MCP_ENVIRONMENT=real`` 로 명시할 때만.
 
-노출 도구: 읽기(``quote``·``search``·``ranking_change``·``balance``·``positions``·``open_orders``·
+노출 도구: 읽기(``quote``·``search``·``ranking_change``·``bars``·``stock_investor_flows``·
+``market_investor_flows``·``investor_net_buy_stocks``·``balance``·``positions``·``open_orders``·
 ``reconcile``) + 런타임 전환(``use_environment``·``use_profile``·``current_account``) + ``order_preview``
 (dry-run) + **실주문**(``place_order``·``cancel_order``·``modify_order``). 읽기 도구는 활성
 ``(profile, environment)`` 슬롯을 호출 시점에 쓴다 -- ``use_profile``/``use_environment`` 로 **재시작 없이**
@@ -434,17 +435,17 @@ def build_server(
         return handlers.ranking_change(account_session.read_client(), direction=direction, limit=limit)
 
     @server.tool()
-    def history(symbol: str, interval: Interval = "1d", start: str | None = None,
+    def bars(symbol: str, interval: Interval = "1d", start: str | None = None,
                 end: str | None = None, adjusted: bool = True, limit: int = 500) -> list[dict[str, Any]]:
         """국내 종목 기간봉(OHLCV). interval 일(1d)/주(1wk)/월(1mo)/분(1m), start·end 는 YYYYMMDD.
         과거 가격(YTD 수익률 등) 계산용 -- 현재가는 quote 를 쓸 것."""
-        return handlers.history(account_session.read_client(), symbol, interval=interval,
+        return handlers.bars(account_session.read_client(), symbol, interval=interval,
                                 start=start, end=end, adjusted=adjusted, limit=limit)
 
     @server.tool()
-    def investor_flows(symbol: str, limit: int = 60) -> list[dict[str, Any]]:
+    def stock_investor_flows(symbol: str, limit: int = 60) -> list[dict[str, Any]]:
         """국내 종목 투자자 수급 -- 일자별 개인·외국인·기관 순매수(수량·대금)."""
-        return handlers.investor_flows(account_session.read_client(), symbol, limit=limit)
+        return handlers.stock_investor_flows(account_session.read_client(), symbol, limit=limit)
 
     @server.tool()
     def market_investor_flows(market: DomesticMarket = "KOSPI", limit: int = 60) -> list[dict[str, Any]]:

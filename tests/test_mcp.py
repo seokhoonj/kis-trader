@@ -225,18 +225,18 @@ def test_ranking_handler():
     assert [r["symbol"] for r in out] == ["005930", "000660"]
 
 
-def test_history_handler_caps_serializes_and_validates_interval():
+def test_bars_handler_caps_serializes_and_validates_interval():
     bars = [_FakeHit(f"{i:06d}", f"n{i}", _raw={"secret": "x"}) for i in range(30)]
-    out = handlers.history(_fake_kis(bars=bars), "005930", interval="1d", limit=5)
+    out = handlers.bars(_fake_kis(bars=bars), "005930", interval="1d", limit=5)
     assert len(out) == 5 and out[0] == {"symbol": "000000", "name": "n0"}
     assert "_raw" not in str(out) and "secret" not in str(out)
     with pytest.raises(KISUsageError):
-        handlers.history(_fake_kis(bars=bars), "005930", interval="3d")   # 리터럴 밖
+        handlers.bars(_fake_kis(bars=bars), "005930", interval="3d")   # 리터럴 밖
 
 
-def test_investor_flows_handler_caps_and_serializes():
+def test_stock_investor_flows_handler_caps_and_serializes():
     flows = [_FakeHit(f"{i:06d}", f"n{i}") for i in range(30)]
-    out = handlers.investor_flows(_fake_kis(stock_flows=flows), "005930", limit=7)
+    out = handlers.stock_investor_flows(_fake_kis(stock_flows=flows), "005930", limit=7)
     assert len(out) == 7 and out[0]["symbol"] == "000000"
 
 
@@ -261,7 +261,7 @@ def test_investor_net_buy_stocks_handler_validates_enums():
 
 @pytest.mark.parametrize("bad", [-1, 0, True, "2"])
 @pytest.mark.parametrize("fn", ["search", "ranking_change", "positions", "open_orders",
-                                "history", "investor_flows", "market_investor_flows",
+                                "bars", "stock_investor_flows", "market_investor_flows",
                                 "investor_net_buy_stocks"])
 def test_list_handlers_reject_bad_limit(fn, bad):
     # limit 검증은 API 호출 전에 돈다 -- bool(int 서브클래스)·비int·1 미만은 조용히 오답(음수는
@@ -272,8 +272,8 @@ def test_list_handlers_reject_bad_limit(fn, bad):
         "ranking_change": lambda: handlers.ranking_change(kis, direction="gainers", limit=bad),
         "positions": lambda: handlers.positions(kis, limit=bad),
         "open_orders": lambda: handlers.open_orders(kis, limit=bad),
-        "history": lambda: handlers.history(kis, "005930", limit=bad),
-        "investor_flows": lambda: handlers.investor_flows(kis, "005930", limit=bad),
+        "bars": lambda: handlers.bars(kis, "005930", limit=bad),
+        "stock_investor_flows": lambda: handlers.stock_investor_flows(kis, "005930", limit=bad),
         "market_investor_flows": lambda: handlers.market_investor_flows(kis, limit=bad),
         "investor_net_buy_stocks": lambda: handlers.investor_net_buy_stocks(kis, limit=bad),
     }[fn]
@@ -488,7 +488,7 @@ def test_server_registers_read_switch_and_guarded_order_tools():
     # 정확집합(==)으로 못박는다: subset(<=) 이면 의도치 않은 툴이 하나 더 등록돼도 통과해버린다.
     # 노출 표면이 늘면 이 테스트가 깨져 의식적 결정을 강제한다(실주문 안전 표면의 핵심 불변식).
     assert names == {"quote", "search", "ranking_change",
-                     "history", "investor_flows", "market_investor_flows", "investor_net_buy_stocks",
+                     "bars", "stock_investor_flows", "market_investor_flows", "investor_net_buy_stocks",
                      "balance", "positions", "open_orders", "reconcile",
                      "use_environment", "use_profile", "current_account",
                      "order_preview", "place_order", "cancel_order", "modify_order"}

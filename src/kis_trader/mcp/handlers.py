@@ -167,7 +167,7 @@ _INVESTOR_TYPES = frozenset(get_args(InvestorType))
 _SIDES = frozenset(get_args(Side))
 
 
-def history(
+def bars(
     kis: KISClient, symbol: str, *, interval: str = "1d", start: str | None = None,
     end: str | None = None, adjusted: bool = True, limit: int = 500,
 ) -> list[dict[str, Any]]:
@@ -183,7 +183,7 @@ def history(
     return out
 
 
-def investor_flows(kis: KISClient, symbol: str, *, limit: int = 60) -> list[dict[str, Any]]:
+def stock_investor_flows(kis: KISClient, symbol: str, *, limit: int = 60) -> list[dict[str, Any]]:
     """국내 종목의 일자별 투자자 수급 -- 개인·외국인·기관 순매수(수량·대금). 최신순, 최대 ``limit`` 행."""
     _require_positive_limit(limit)
     rows = kis.domestic.stock(symbol).investor_flows()
