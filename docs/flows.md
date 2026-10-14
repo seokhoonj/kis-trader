@@ -12,6 +12,23 @@ stock.program_trades()             # 장중 프로그램매매 흐름
 stock.daily_program_trades()       # 프로그램매매 일별 추이
 ```
 
+## 시장 전체 수급
+
+종목이 아니라 시장(KOSPI/KOSDAQ) 단위 투자자 매매동향은 `kis.domestic.market` 으로 봅니다.
+
+```python
+market = kis.domestic.market
+
+market.investor_flows(market="KOSPI")           # 시장 전체 개인/외국인/기관 순매수(일자별)
+market.investor_net_buy_stocks(investor="foreign", basis="amount")  # 외국인 순매수 상위 종목
+market.program_investor_trades(market="KOSPI")  # 투자자별 프로그램매매
+market.program_flow(market="KOSPI")             # 장중 프로그램매매 순매수 흐름
+```
+
+터미널에선 `kis stock investors <코드>`(종목)·`kis market investors`·`kis market net-buy`(시장)로,
+AI 채팅(MCP)에선 `stock_investor_flows`·`market_investor_flows`·`investor_net_buy_stocks` 도구로 같은
+수급을 조회합니다([명령줄](cli.md) · [MCP 서버](mcp.md)).
+
 ## 공매도·신용·대차
 
 ```python
