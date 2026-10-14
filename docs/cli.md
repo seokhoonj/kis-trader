@@ -59,13 +59,20 @@ kis stock bars 005930 --interval 1d --start 20240101
 kis stock book 005930                  # 호가
 kis stock trades 005930                # 최근 체결
 kis stock status 005930                # 거래정지·관리종목 등 상태
+kis stock investors 005930             # 종목 투자자 수급(개인·외국인·기관 순매수, 일자별)
 kis search 삼성전자 --market KOSPI
 kis ranking change --direction gainers # 상승률 상위
 kis ranking volume                     # 거래대금(기본)·거래량 등 상위
 kis ranking market-cap                 # 시가총액 상위
+kis market investors --market KOSPI    # 시장 전체 투자자 수급(외국인·개인·기관)
+kis market net-buy --investor foreign  # 투자자별 순매수 상위 종목
 kis account balance                    # 국내 잔고
 kis account positions --region overseas --market US
 ```
+
+`kis market` 는 시장 전체 투자자 수급입니다 -- `investors` 는 KOSPI/KOSDAQ 시장의 외국인·개인·기관
+순매수, `net-buy` 는 투자자별 순매수 상위 종목(`--basis` 수량/대금, `--side` 매수/매도, `--investor`
+전체/외국인/기관/기타; 생략 시 라이브러리 기본). 종목 단위 수급은 `kis stock investors <코드>` 입니다.
 
 `--exchange` 값은 하위 명령에 따라 다릅니다. 주문 명령은 KRX/NXT/SOR, 시세 조회 명령은
 KRX/NXT/UN을 쓰며, 해외 거래소 코드는 정해진 목록 없이 그대로 입력합니다.

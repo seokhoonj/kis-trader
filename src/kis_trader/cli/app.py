@@ -16,7 +16,10 @@ from .. import (
     AlgoStrategy,
     Direction,
     DomesticDivision,
+    DomesticMarket,
     DomesticMarketFilter,
+    InvestorType,
+    NetBuyBasis,
     ProfitSort,
     Region,
     ReservedCurrency,
@@ -100,11 +103,12 @@ def build_parser() -> argparse.ArgumentParser:
         )
         return subcommand_parser
 
-    # kis stock quote|bars|book|trades|status
+    # kis stock quote|bars|book|trades|status|investors
     stock_p = groups.add_parser("stock", help="종목 시세")
     stock_sub = stock_p.add_subparsers(dest="action", required=True)
     for name, func in [("quote", stock.cmd_quote), ("book", stock.cmd_book),
-                       ("trades", stock.cmd_trades), ("status", stock.cmd_status)]:
+                       ("trades", stock.cmd_trades), ("status", stock.cmd_status),
+                       ("investors", stock.cmd_investors)]:
         sp = leaf(stock_sub, name)
         sp.add_argument("identifier", help="종목코드(국내 6자리) 또는 심볼(해외)")
         _add_region(sp)
@@ -207,6 +211,24 @@ def build_parser() -> argparse.ArgumentParser:
                          "cumulative_trading_amount(거래대금)/volume_growth(거래증가율)/turnover(회전율)")
     rv.set_defaults(func=market.cmd_ranking_volume)
     leaf(ranking_sub, "market-cap").set_defaults(func=market.cmd_ranking_market_cap)
+
+    # kis market investors|net-buy  (투자자 수급 -- 시장 전체/순매수 상위)
+    market_p = groups.add_parser("market", help="시장 투자자 수급")
+    market_sub = market_p.add_subparsers(dest="action", required=True)
+    mi = leaf(market_sub, "investors")
+    mi.add_argument("--market", choices=list(get_args(DomesticMarket)), default=None,
+                    help="시장(생략 시 라이브러리 기본): KOSPI/KOSDAQ")
+    mi.set_defaults(func=market.cmd_market_investors)
+    mn = leaf(market_sub, "net-buy")
+    mn.add_argument("--market", choices=list(get_args(DomesticMarketFilter)), default=None,
+                    help="시장(생략 시 기본): all/KOSPI/KOSDAQ")
+    mn.add_argument("--basis", choices=list(get_args(NetBuyBasis)), default=None,
+                    help="기준(생략 시 기본): volume(수량)/amount(대금)")
+    mn.add_argument("--side", dest="side", choices=list(get_args(Side)), default=None,
+                    help="방향(생략 시 기본): buy(순매수)/sell(순매도)")
+    mn.add_argument("--investor", choices=list(get_args(InvestorType)), default=None,
+                    help="투자자(생략 시 기본): all/foreign/institutional/other")
+    mn.set_defaults(func=market.cmd_market_net_buy)
 
     # kis account balance|positions|orders|fills|reserved|profits|transactions|
     #             deposit|margin|valuation|settlement|commissions|present|foreign-margin

@@ -55,3 +55,15 @@ def cmd_status(kis: KISClient, args: Namespace) -> Any:
             f"지원하지 않는 국내 시세 거래소: {exchange!r} (KRX/NXT/UN)."
         )
     return kis.domestic.stock(args.identifier, exchange=exchange).status()
+
+
+def cmd_investors(kis: KISClient, args: Namespace) -> Any:
+    """종목 투자자 수급(일자별 개인·외국인·기관 순매수) -- 국내 전용."""
+    if args.region != "domestic":
+        raise CliConfigError("investors(투자자 수급)는 국내 종목만 지원합니다(--region domestic).")
+    exchange = getattr(args, "exchange", None)
+    if exchange is not None and exchange not in _DOMESTIC_QUOTE_EXCHANGES:
+        raise CliConfigError(
+            f"지원하지 않는 국내 시세 거래소: {exchange!r} (KRX/NXT/UN)."
+        )
+    return kis.domestic.stock(args.identifier, exchange=exchange).investor_flows()

@@ -65,6 +65,9 @@ class _Handle:
     def status(self):
         self._log.append(("status", self._code, self._exchange)); return "STATUS"
 
+    def investor_flows(self):
+        self._log.append(("investors", self._code, self._exchange)); return "INVESTORS"
+
     def buy(self, *, quantity, limit_price, division=None, stop_price=None,
             algo=None, algo_window=None):
         self._log.append(("buy", self._code, quantity, limit_price, division, stop_price,
@@ -131,10 +134,22 @@ class _Ranking:
         self._log.append(("by_volume", metric)); return ["RV"]
 
 
+class _Market:
+    def __init__(self, log):
+        self._log = log
+
+    def investor_flows(self, *, market="KOSPI"):   # 라이브러리 기본값(CLI 는 재기술 안 함)
+        self._log.append(("market_investors", market)); return ["MIF"]
+
+    def investor_net_buy_stocks(self, *, market="all", basis="volume", side="buy", investor="all"):
+        self._log.append(("net_buy", market, basis, side, investor)); return ["NB"]
+
+
 class _Domestic:
     def __init__(self, log):
         self._log = log
         self.ranking = _Ranking(log)
+        self.market = _Market(log)
 
     def stock(self, code, *, exchange=None):
         if exchange is not None:
@@ -244,6 +259,8 @@ def test_stock_quote_forwards_domestic_exchange_and_rejects_order_vocabulary():
      "BOOK", ("book", "005930", "NXT")),
     (["stock", "trades", "005930", "--exchange", "NXT"],
      "TRADES", ("trades", "005930", "NXT")),
+    (["stock", "investors", "005930", "--exchange", "NXT"],
+     "INVESTORS", ("investors", "005930", "NXT")),
 ])
 def test_stock_market_data_commands_forward_exchange_to_handle(argv, result, action_log):
     kis = StubKis()
@@ -293,6 +310,46 @@ def test_ranking_volume_omitting_metric_uses_library_default():
     kis = StubKis()
     args.func(kis, args)
     assert kis.log == [("by_volume", "cumulative_trading_amount")]
+
+
+def test_stock_investors_keeps_domestic_guard():
+    with pytest.raises(CliConfigError, match="--region domestic"):
+        stock.cmd_investors(
+            StubKis(), _args(["stock", "investors", "AAPL", "--region", "overseas"])
+        )
+
+
+def test_market_investors_omitting_market_uses_library_default():
+    # --market 생략 시 CLI 가 기본값을 재기술하지 않고 라이브러리 기본(스텁 investor_flows 의 기본)이 적용된다.
+    args = _args(["market", "investors"])
+    assert args.market is None                 # 파서 기본은 None
+    kis = StubKis()
+    assert args.func(kis, args) == ["MIF"]
+    assert kis.log == [("market_investors", "KOSPI")]
+
+
+def test_market_investors_passes_market():
+    args = _args(["market", "investors", "--market", "KOSDAQ"])
+    kis = StubKis()
+    args.func(kis, args)
+    assert kis.log == [("market_investors", "KOSDAQ")]
+
+
+def test_market_net_buy_omitting_flags_uses_library_defaults():
+    # 모든 플래그 생략 -> CLI 가 아무것도 재기술하지 않고 스텁(라이브러리) 기본이 적용된다.
+    args = _args(["market", "net-buy"])
+    assert (args.market, args.basis, args.side, args.investor) == (None, None, None, None)
+    kis = StubKis()
+    assert args.func(kis, args) == ["NB"]
+    assert kis.log == [("net_buy", "all", "volume", "buy", "all")]
+
+
+def test_market_net_buy_passes_given_flags():
+    args = _args(["market", "net-buy", "--market", "KOSPI", "--basis", "amount",
+                  "--side", "sell", "--investor", "foreign"])
+    kis = StubKis()
+    args.func(kis, args)
+    assert kis.log == [("net_buy", "KOSPI", "amount", "sell", "foreign")]
 
 
 def test_search_omitting_market_uses_library_default():
