@@ -29,6 +29,7 @@ from .. import (
 )
 from ..errors import KISError
 from ..order import Right, Side
+from ..overseas.namespace import _OVERSEAS_INDEX_KIND
 from ..transport import Environment
 from .commands import account, credentials, market, order, stock
 from .context import account_suffix, build_client
@@ -229,6 +230,20 @@ def build_parser() -> argparse.ArgumentParser:
     mn.add_argument("--investor", choices=list(get_args(InvestorType)), default=None,
                     help="투자자(생략 시 기본): all/foreign/institutional/other")
     mn.set_defaults(func=market.cmd_market_net_buy)
+
+    # kis index bars <code> -- 지수·환율·국채·금 기간봉(주식 bars 와 별도 리시버). region=overseas 는
+    # --kind(index/fx/bond/gold)로 환율(fx, 예 FX@KRW) 등을, domestic 은 국내 지수코드를 조회한다.
+    index_p = groups.add_parser("index", help="지수·환율·국채·금 기간봉")
+    index_sub = index_p.add_subparsers(dest="action", required=True)
+    ib = leaf(index_sub, "bars")
+    ib.add_argument("code", help="지수(.DJI)·환율(FX@KRW)·국내지수(0001) 등 코드")
+    _add_region(ib)
+    ib.add_argument("--kind", choices=list(_OVERSEAS_INDEX_KIND), default="index",
+                    help="해외 분류(region=overseas): index/fx(환율)/bond(국채)/gold(금)")
+    ib.add_argument("--interval", default="1d", help="1d/1wk/1mo/1m(지수·환율만)")
+    ib.add_argument("--start", default=None, help="YYYYMMDD(기간봉 필수, 1m 은 생략 가능)")
+    ib.add_argument("--end", default=None, help="YYYYMMDD(생략 시 오늘)")
+    ib.set_defaults(func=market.cmd_index_bars)
 
     # kis account balance|positions|orders|fills|reserved|profits|transactions|
     #             deposit|margin|valuation|settlement|commissions|present|foreign-margin

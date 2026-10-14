@@ -20,6 +20,7 @@ from ..account import _IRP_PRODUCT_CODE, StockAccount
 from ..bar import Interval
 from ..client import KISClient
 from ..domestic.market import InvestorType, NetBuyBasis
+from ..domestic.ranking import VolumeMetric
 from ..errors import KISUsageError
 from ..instrument import DomesticMarket, DomesticMarketFilter, Region
 from ..order import DomesticDivision, Side
@@ -157,6 +158,26 @@ def ranking_change(kis: KISClient, *, direction: str = "gainers", limit: int = 1
     return out
 
 
+def ranking_volume(kis: KISClient, *, metric: str | None = None, limit: int = 10) -> list[dict[str, Any]]:
+    """국내 거래량/거래대금 순위. ``metric`` average_volume/cumulative_trading_amount(거래대금)/
+    volume_growth/turnover; 생략 시 라이브러리 기본(거래대금)."""
+    if metric is not None and metric not in _VOLUME_METRICS:
+        raise KISUsageError(f"metric 은 {sorted(_VOLUME_METRICS)} 중 하나여야 한다 (받은 값: {metric!r}).")
+    _require_positive_limit(limit)
+    extra = {} if metric is None else {"metric": cast(VolumeMetric, metric)}
+    rows = kis.domestic.ranking.by_volume(**extra)
+    out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
+    return out
+
+
+def ranking_market_cap(kis: KISClient, *, limit: int = 10) -> list[dict[str, Any]]:
+    """국내 시가총액 상위 순위."""
+    _require_positive_limit(limit)
+    rows = kis.domestic.ranking.by_market_cap()
+    out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
+    return out
+
+
 # --- 시세·수급(투자자 매매동향) 조회 -- 읽기 전용, 계좌 불필요 ---------------------
 #: 검증 집합을 리터럴에서 파생한다(한 출처) -- 리터럴이 바뀌면 검증도 자동으로 따라간다.
 _INTERVALS = frozenset(get_args(Interval))
@@ -165,24 +186,84 @@ _NET_BUY_MARKETS = frozenset(get_args(DomesticMarketFilter))
 _NET_BUY_BASES = frozenset(get_args(NetBuyBasis))
 _INVESTOR_TYPES = frozenset(get_args(InvestorType))
 _SIDES = frozenset(get_args(Side))
+_VOLUME_METRICS = frozenset(get_args(VolumeMetric))
+
+#: index_bars 분류(해외지수): index/fx(환율)/bond(국채)/gold(금). 해외 index accessor(kind)와 같은 집합.
+IndexKind = Literal["index", "fx", "bond", "gold"]
+_INDEX_KINDS = frozenset(get_args(IndexKind))
 
 
-def bars(
-    kis: KISClient, symbol: str, *, interval: str = "1d", start: str | None = None,
-    end: str | None = None, adjusted: bool = True, limit: int = 500,
-) -> list[dict[str, Any]]:
-    """국내 종목 기간봉(OHLCV). ``interval`` 일(1d)·주(1wk)·월(1mo)·분(1m). 기간봉(1d/1wk/1mo)은
-    ``start`` 가 **필수**(YYYYMMDD), ``end`` 는 생략 시 당일까지; 분봉(1m)만 ``start``/``end``/``adjusted``
-    를 무시한다. 과거 가격(YTD 수익률 등) 계산용 -- 현재가는 ``quote`` 를 쓸 것. 최대 ``limit`` 행(기본 500)."""
-    if interval not in _INTERVALS:
-        raise KISUsageError(f"interval 은 {sorted(_INTERVALS)} 중 하나여야 한다 (받은 값: {interval!r}).")
-    if interval != "1m" and start is None:
+def _require_start_for_period(interval: str) -> None:
+    """기간봉(1d/1wk/1mo)은 라이브러리가 start 없으면 raise하므로(분봉 1m만 예외) MCP 경계에서 미리
+    막아 명확한 메시지를 준다 -- LLM이 bars(symbol)로 자연스럽게 부르는 실패를 차단."""
+    if interval != "1m":
         raise KISUsageError(
             f"기간봉(interval={interval!r})은 start(YYYYMMDD)가 필요하다 -- 분봉(1m)만 생략 가능.")
+
+
+def stock_bars(
+    kis: KISClient, symbol: str, *, region: str = "domestic", interval: str = "1d",
+    start: str | None = None, end: str | None = None, adjusted: bool = True, limit: int = 500,
+) -> list[dict[str, Any]]:
+    """국내/해외 종목 기간봉(OHLCV). ``region`` domestic/overseas. ``interval`` 일(1d)·주(1wk)·월(1mo)·분(1m).
+    기간봉(1d/1wk/1mo)은 ``start`` 가 **필수**(YYYYMMDD), ``end`` 는 생략 시 당일까지; 분봉(1m)만 생략 가능.
+    과거 가격(YTD 수익률 등) 계산용 -- 현재가는 ``quote`` 를 쓸 것. 최대 ``limit`` 행(기본 500)."""
+    if region not in _REGIONS:
+        raise KISUsageError(f"region 은 {sorted(_REGIONS)} 중 하나여야 한다 (받은 값: {region!r}).")
+    if interval not in _INTERVALS:
+        raise KISUsageError(f"interval 은 {sorted(_INTERVALS)} 중 하나여야 한다 (받은 값: {interval!r}).")
+    if start is None:
+        _require_start_for_period(interval)
     _require_positive_limit(limit)
-    rows = kis.domestic.stock(symbol).bars(
-        cast(Interval, interval), start=start, end=end, adjusted=adjusted, max_bars=limit)
+    handle = kis.overseas.stock(symbol) if region == "overseas" else kis.domestic.stock(symbol)
+    rows = handle.bars(cast(Interval, interval), start=start, end=end, adjusted=adjusted, max_bars=limit)
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
+    return out
+
+
+def index_bars(
+    kis: KISClient, code: str, *, region: str = "overseas", kind: str = "index",
+    interval: str = "1d", start: str | None = None, end: str | None = None, limit: int = 500,
+) -> list[dict[str, Any]]:
+    """지수·환율·국채·금 기간봉. ``region="overseas"`` 는 ``kind`` index/fx/bond/gold(fx=환율, 예 code
+    ``FX@KRW``=원/달러), ``region="domestic"`` 은 지수만(국내 지수코드; kind 무시). 기간봉(1d/1wk/1mo)은
+    ``start`` 필수, 분봉(1m)은 지수·환율만. 지수류는 ``adjusted`` 없음. 최대 ``limit`` 행(기본 500)."""
+    if region not in _REGIONS:
+        raise KISUsageError(f"region 은 {sorted(_REGIONS)} 중 하나여야 한다 (받은 값: {region!r}).")
+    if interval not in _INTERVALS:
+        raise KISUsageError(f"interval 은 {sorted(_INTERVALS)} 중 하나여야 한다 (받은 값: {interval!r}).")
+    if start is None:
+        _require_start_for_period(interval)
+    _require_positive_limit(limit)
+    iv = cast(Interval, interval)
+    if region == "overseas":
+        if kind not in _INDEX_KINDS:
+            raise KISUsageError(f"kind 는 {sorted(_INDEX_KINDS)} 중 하나여야 한다 (받은 값: {kind!r}).")
+        rows = kis.overseas.index(code, kind=cast(IndexKind, kind)).bars(
+            iv, start=start, end=end, max_bars=limit)
+    else:
+        rows = kis.domestic.index(code).bars(iv, start=start, end=end, max_bars=limit)
+    out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
+    return out
+
+
+def order_book(kis: KISClient, symbol: str) -> dict[str, Any]:
+    """국내 종목 호가창(매수/매도 호가·잔량 스냅샷)."""
+    out: dict[str, Any] = _serialize(kis.domestic.stock(symbol).order_book())
+    return out
+
+
+def trades(kis: KISClient, symbol: str, *, limit: int = 40) -> list[dict[str, Any]]:
+    """국내 종목 최근 체결 내역(time & sales; 체결가·수량·시각, 최신순). 최대 ``limit`` 행."""
+    _require_positive_limit(limit)
+    rows = kis.domestic.stock(symbol).trades()
+    out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
+    return out
+
+
+def status(kis: KISClient, symbol: str) -> dict[str, Any]:
+    """국내 종목 상태(거래정지·관리종목·투자경고 등 거래 가능 여부 플래그)."""
+    out: dict[str, Any] = _serialize(kis.domestic.stock(symbol).status())
     return out
 
 

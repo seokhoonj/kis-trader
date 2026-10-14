@@ -115,23 +115,37 @@ class _FakeHit:
 def _fake_kis(*, quote=None, overseas_quote=None, hits=None, ranking=None, balance=None,
               positions=None, open_orders=None, reconcile_report="__unset__",
               bars=None, stock_flows=None, market_flows=None, net_buy=None,
+              order_book=None, trades=None, status=None, rank_volume=None, rank_mktcap=None,
               environment="paper", account="12345678-01"):
-    ranking_ns = SimpleNamespace(by_change=lambda direction="gainers": ranking or [])
+    ranking_ns = SimpleNamespace(
+        by_change=lambda direction="gainers": ranking or [],
+        by_volume=lambda **k: rank_volume or [],
+        by_market_cap=lambda: rank_mktcap or [],
+    )
     market_ns = SimpleNamespace(
         investor_flows=lambda **k: market_flows or [],
         investor_net_buy_stocks=lambda **k: net_buy or [],
     )
+    _stock = lambda sym: SimpleNamespace(
+        quote=lambda: quote,
+        bars=lambda *a, **k: bars or [],
+        investor_flows=lambda: stock_flows or [],
+        order_book=lambda: order_book,
+        trades=lambda: trades or [],
+        status=lambda: status,
+    )
     domestic = SimpleNamespace(
-        stock=lambda sym: SimpleNamespace(
-            quote=lambda: quote,
-            bars=lambda *a, **k: bars or [],
-            investor_flows=lambda: stock_flows or [],
-        ),
+        stock=_stock,
+        index=lambda code: SimpleNamespace(bars=lambda *a, **k: bars or []),
         search_stocks=lambda query: hits or [],
         ranking=ranking_ns,
         market=market_ns,
     )
-    overseas = SimpleNamespace(stock=lambda sym: SimpleNamespace(quote=lambda: overseas_quote))
+    overseas = SimpleNamespace(
+        stock=lambda sym: SimpleNamespace(
+            quote=lambda: overseas_quote, bars=lambda *a, **k: bars or []),
+        index=lambda code, *, kind="index": SimpleNamespace(bars=lambda *a, **k: bars or []),
+    )
     account_ns = SimpleNamespace(
         balance=lambda: balance,
         domestic=SimpleNamespace(
@@ -225,23 +239,69 @@ def test_ranking_handler():
     assert [r["symbol"] for r in out] == ["005930", "000660"]
 
 
-def test_bars_handler_caps_serializes_and_validates_interval():
+def test_stock_bars_handler_caps_serializes_and_validates():
     bars = [_FakeHit(f"{i:06d}", f"n{i}", _raw={"secret": "x"}) for i in range(30)]
-    out = handlers.bars(_fake_kis(bars=bars), "005930", interval="1d", start="20250101", limit=5)
+    out = handlers.stock_bars(_fake_kis(bars=bars), "005930", interval="1d", start="20250101", limit=5)
     assert len(out) == 5 and out[0] == {"symbol": "000000", "name": "n0"}
     assert "_raw" not in str(out) and "secret" not in str(out)
-    with pytest.raises(KISUsageError):
-        handlers.bars(_fake_kis(bars=bars), "005930", interval="3d", start="20250101")   # 리터럴 밖
+    for kwargs in ({"interval": "3d"}, {"region": "mars"}):          # 리터럴 밖 interval/region
+        with pytest.raises(KISUsageError):
+            handlers.stock_bars(_fake_kis(bars=bars), "005930", start="20250101", **kwargs)
 
 
-def test_bars_handler_requires_start_for_period_intervals():
+def test_stock_bars_handler_region_overseas():
+    bars = [_FakeHit("AAPL", "apple")]
+    out = handlers.stock_bars(_fake_kis(bars=bars), "AAPL", region="overseas", start="20250101", limit=3)
+    assert out == [{"symbol": "AAPL", "name": "apple"}]
+
+
+def test_bars_handlers_require_start_for_period_intervals():
     # 기간봉(1d/1wk/1mo)은 start 없이 호출하면 라이브러리가 내부에서 터지므로 -- LLM 이 bars(symbol)
     # 로 자연스럽게 부르는 실패를 MCP 경계에서 명확한 메시지로 fail-closed 한다. 분봉(1m)만 생략 허용.
     kis = _fake_kis(bars=[_FakeHit("000000", "n0")])
     for interval in ("1d", "1wk", "1mo"):
         with pytest.raises(KISUsageError, match="start"):
-            handlers.bars(kis, "005930", interval=interval)   # start 없음 -> 거부
-    assert handlers.bars(kis, "005930", interval="1m") == [{"symbol": "000000", "name": "n0"}]  # 1m 은 OK
+            handlers.stock_bars(kis, "005930", interval=interval)
+        with pytest.raises(KISUsageError, match="start"):
+            handlers.index_bars(kis, "FX@KRW", kind="fx", interval=interval)
+    assert handlers.stock_bars(kis, "005930", interval="1m") == [{"symbol": "000000", "name": "n0"}]
+    assert handlers.index_bars(kis, ".DJI", interval="1m") == [{"symbol": "000000", "name": "n0"}]
+
+
+def test_index_bars_handler_fx_and_validates_kind():
+    bars = [_FakeHit("FX@KRW", "usdkrw")]
+    out = handlers.index_bars(_fake_kis(bars=bars), "FX@KRW", kind="fx", start="20250101", limit=3)
+    assert out == [{"symbol": "FX@KRW", "name": "usdkrw"}]
+    # 국내 지수는 kind 무시(바로 조회)
+    assert handlers.index_bars(_fake_kis(bars=bars), "0001", region="domestic", start="20250101") == out
+    with pytest.raises(KISUsageError):                               # 해외 kind 리터럴 밖
+        handlers.index_bars(_fake_kis(bars=bars), "FX@KRW", kind="crypto", start="20250101")
+
+
+def test_index_bars_kind_literal_matches_library():
+    # IndexKind(MCP 경계)가 라이브러리 해외 index accessor 의 kind 집합과 드리프트하지 않음을 고정.
+    from typing import get_args
+
+    from kis_trader.overseas.namespace import _OVERSEAS_INDEX_KIND
+    assert set(get_args(handlers.IndexKind)) == set(_OVERSEAS_INDEX_KIND)
+
+
+def test_order_book_trades_status_handlers_serialize():
+    ob = _FakeHit("005930", "book", _raw={"secret": "s"})            # _serialize 는 임의 dataclass OK
+    assert handlers.order_book(_fake_kis(order_book=ob), "005930") == {"symbol": "005930", "name": "book"}
+    tr = [_FakeHit(f"{i}", "t", _raw={"token": "LEAK"}) for i in range(60)]
+    out = handlers.trades(_fake_kis(trades=tr), "005930", limit=10)
+    assert len(out) == 10 and "LEAK" not in str(out)
+    st = _FakeHit("005930", "normal")
+    assert handlers.status(_fake_kis(status=st), "005930") == {"symbol": "005930", "name": "normal"}
+
+
+def test_ranking_volume_and_market_cap_handlers():
+    rows = [_FakeHit("005930", "삼성전자")]
+    assert handlers.ranking_volume(_fake_kis(rank_volume=rows), limit=5) == [{"symbol": "005930", "name": "삼성전자"}]
+    assert handlers.ranking_market_cap(_fake_kis(rank_mktcap=rows), limit=5) == [{"symbol": "005930", "name": "삼성전자"}]
+    with pytest.raises(KISUsageError):                               # metric 리터럴 밖
+        handlers.ranking_volume(_fake_kis(rank_volume=rows), metric="nope")
 
 
 def test_stock_investor_flows_handler_caps_and_serializes():
@@ -273,8 +333,9 @@ def test_investor_net_buy_stocks_handler_validates_enums():
 
 
 @pytest.mark.parametrize("bad", [-1, 0, True, "2"])
-@pytest.mark.parametrize("fn", ["search", "ranking_change", "positions", "open_orders",
-                                "bars", "stock_investor_flows", "market_investor_flows",
+@pytest.mark.parametrize("fn", ["search", "ranking_change", "ranking_volume", "ranking_market_cap",
+                                "positions", "open_orders", "stock_bars", "index_bars", "trades",
+                                "stock_investor_flows", "market_investor_flows",
                                 "investor_net_buy_stocks"])
 def test_list_handlers_reject_bad_limit(fn, bad):
     # limit 검증은 API 호출 전에 돈다 -- bool(int 서브클래스)·비int·1 미만은 조용히 오답(음수는
@@ -285,7 +346,11 @@ def test_list_handlers_reject_bad_limit(fn, bad):
         "ranking_change": lambda: handlers.ranking_change(kis, direction="gainers", limit=bad),
         "positions": lambda: handlers.positions(kis, limit=bad),
         "open_orders": lambda: handlers.open_orders(kis, limit=bad),
-        "bars": lambda: handlers.bars(kis, "005930", start="20250101", limit=bad),
+        "ranking_volume": lambda: handlers.ranking_volume(kis, limit=bad),
+        "ranking_market_cap": lambda: handlers.ranking_market_cap(kis, limit=bad),
+        "stock_bars": lambda: handlers.stock_bars(kis, "005930", start="20250101", limit=bad),
+        "index_bars": lambda: handlers.index_bars(kis, "FX@KRW", kind="fx", start="20250101", limit=bad),
+        "trades": lambda: handlers.trades(kis, "005930", limit=bad),
         "stock_investor_flows": lambda: handlers.stock_investor_flows(kis, "005930", limit=bad),
         "market_investor_flows": lambda: handlers.market_investor_flows(kis, limit=bad),
         "investor_net_buy_stocks": lambda: handlers.investor_net_buy_stocks(kis, limit=bad),
@@ -500,8 +565,9 @@ def test_server_registers_read_switch_and_guarded_order_tools():
     names = {t.name for t in tools}
     # 정확집합(==)으로 못박는다: subset(<=) 이면 의도치 않은 툴이 하나 더 등록돼도 통과해버린다.
     # 노출 표면이 늘면 이 테스트가 깨져 의식적 결정을 강제한다(실주문 안전 표면의 핵심 불변식).
-    assert names == {"quote", "search", "ranking_change",
-                     "bars", "stock_investor_flows", "market_investor_flows", "investor_net_buy_stocks",
+    assert names == {"quote", "search", "ranking_change", "ranking_volume", "ranking_market_cap",
+                     "stock_bars", "index_bars", "order_book", "trades", "status",
+                     "stock_investor_flows", "market_investor_flows", "investor_net_buy_stocks",
                      "balance", "positions", "open_orders", "reconcile",
                      "use_environment", "use_profile", "current_account",
                      "order_preview", "place_order", "cancel_order", "modify_order"}

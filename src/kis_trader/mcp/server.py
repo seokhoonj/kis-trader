@@ -4,7 +4,8 @@
 스크립트 또는 ``python -m kis_trader.mcp.server``. 자격증명은 **환경변수/프로필에서만** 읽고 절대
 출력하지 않는다. 기동 환경은 ``paper`` 기본 -- ``real`` 은 ``KIS_MCP_ENVIRONMENT=real`` 로 명시할 때만.
 
-노출 도구: 읽기(``quote``·``search``·``ranking_change``·``bars``·``stock_investor_flows``·
+노출 도구: 읽기(``quote``·``search``·``ranking_change``·``ranking_volume``·``ranking_market_cap``·
+``stock_bars``·``index_bars``·``order_book``·``trades``·``status``·``stock_investor_flows``·
 ``market_investor_flows``·``investor_net_buy_stocks``·``balance``·``positions``·``open_orders``·
 ``reconcile``) + 런타임 전환(``use_environment``·``use_profile``·``current_account``) + ``order_preview``
 (dry-run) + **실주문**(``place_order``·``cancel_order``·``modify_order``). 읽기 도구는 활성
@@ -50,6 +51,7 @@ from ..account import StockAccount
 from ..bar import Interval
 from ..client import KISClient
 from ..domestic.market import InvestorType, NetBuyBasis
+from ..domestic.ranking import VolumeMetric
 from ..errors import KISError, KISUsageError
 from ..instrument import DomesticMarket, DomesticMarketFilter, Region
 from ..order import DomesticDivision, ImmediateOrderFingerprint, Side
@@ -69,7 +71,7 @@ from ._session import (
     OrderSnapshot,
     _StartupAuthorization,
 )
-from .handlers import Session
+from .handlers import IndexKind, Session
 
 _logger = logging.getLogger("kis_trader.mcp")
 
@@ -435,12 +437,47 @@ def build_server(
         return handlers.ranking_change(account_session.read_client(), direction=direction, limit=limit)
 
     @server.tool()
-    def bars(symbol: str, interval: Interval = "1d", start: str | None = None,
-             end: str | None = None, adjusted: bool = True, limit: int = 500) -> list[dict[str, Any]]:
-        """국내 종목 기간봉(OHLCV). interval 일(1d)/주(1wk)/월(1mo)/분(1m). 기간봉(1d/1wk/1mo)은
-        start(YYYYMMDD) 필수, 분봉(1m)만 start/end 무시. 과거 가격(YTD 수익률 등) 계산용 -- 현재가는 quote."""
-        return handlers.bars(account_session.read_client(), symbol, interval=interval,
-                             start=start, end=end, adjusted=adjusted, limit=limit)
+    def ranking_volume(metric: VolumeMetric | None = None, limit: int = 10) -> list[dict[str, Any]]:
+        """국내 거래량/거래대금 순위(metric 생략 시 거래대금)."""
+        return handlers.ranking_volume(account_session.read_client(), metric=metric, limit=limit)
+
+    @server.tool()
+    def ranking_market_cap(limit: int = 10) -> list[dict[str, Any]]:
+        """국내 시가총액 상위 순위."""
+        return handlers.ranking_market_cap(account_session.read_client(), limit=limit)
+
+    @server.tool()
+    def stock_bars(symbol: str, region: Region = "domestic", interval: Interval = "1d",
+                   start: str | None = None, end: str | None = None, adjusted: bool = True,
+                   limit: int = 500) -> list[dict[str, Any]]:
+        """국내/해외 종목 기간봉(OHLCV). region domestic/overseas, interval 일(1d)/주(1wk)/월(1mo)/분(1m).
+        기간봉(1d/1wk/1mo)은 start(YYYYMMDD) 필수, 분봉(1m)만 생략. 과거 가격(YTD 등) 계산용 -- 현재가는 quote."""
+        return handlers.stock_bars(account_session.read_client(), symbol, region=region,
+                                   interval=interval, start=start, end=end, adjusted=adjusted, limit=limit)
+
+    @server.tool()
+    def index_bars(code: str, region: Region = "overseas", kind: IndexKind = "index",
+                   interval: Interval = "1d", start: str | None = None, end: str | None = None,
+                   limit: int = 500) -> list[dict[str, Any]]:
+        """지수·환율·국채·금 기간봉. region=overseas는 kind(index/fx/bond/gold; fx=환율, 예 code FX@KRW=원/달러),
+        region=domestic은 지수만(kind 무시). 기간봉은 start 필수, 분봉(1m)은 지수·환율만."""
+        return handlers.index_bars(account_session.read_client(), code, region=region, kind=kind,
+                                   interval=interval, start=start, end=end, limit=limit)
+
+    @server.tool()
+    def order_book(symbol: str) -> dict[str, Any]:
+        """국내 종목 호가창(매수/매도 호가·잔량)."""
+        return handlers.order_book(account_session.read_client(), symbol)
+
+    @server.tool()
+    def trades(symbol: str, limit: int = 40) -> list[dict[str, Any]]:
+        """국내 종목 최근 체결 내역(time & sales; 체결가·수량·시각, 최신순)."""
+        return handlers.trades(account_session.read_client(), symbol, limit=limit)
+
+    @server.tool()
+    def status(symbol: str) -> dict[str, Any]:
+        """국내 종목 상태(거래정지·관리종목·투자경고 등)."""
+        return handlers.status(account_session.read_client(), symbol)
 
     @server.tool()
     def stock_investor_flows(symbol: str, limit: int = 60) -> list[dict[str, Any]]:

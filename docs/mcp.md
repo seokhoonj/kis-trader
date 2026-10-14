@@ -334,7 +334,13 @@ HTTP 로 열 때도 비-로컬 bind 는 `KIS_MCP_ACCESS_TOKEN` 없이는 거부�
 | `quote` | 종목 현재가 스냅샷(`region="overseas"` 면 해외, `session="after_hours"` 면 국내 시간외 단일가) |
 | `search` | 이름·질의로 국내 종목 코드 후보 찾기 |
 | `ranking_change` | 국내 등락률 순위(`gainers`/`losers`) |
-| `bars` | 국내 종목 기간봉(OHLCV) -- `interval` 일/주/월/분. 기간봉(1d/1wk/1mo)은 `start`(YYYYMMDD) 필수, 1m만 생략 가능. 과거 가격(연초 대비 수익률 등) 계산용 |
+| `ranking_volume` | 국내 거래량/거래대금 순위(`metric` 생략 시 거래대금) |
+| `ranking_market_cap` | 국내 시가총액 상위 순위 |
+| `stock_bars` | 국내/해외 종목 기간봉(OHLCV) -- `region`·`interval` 일/주/월/분. 기간봉(1d/1wk/1mo)은 `start`(YYYYMMDD) 필수, 1m만 생략. 연초 대비 수익률 등 |
+| `index_bars` | 지수·환율·국채·금 기간봉 -- `region="overseas"` + `kind` index/fx(환율, 예 `FX@KRW`=원/달러)/bond/gold, `region="domestic"` 은 국내 지수 |
+| `order_book` | 국내 종목 호가창(매수/매도 호가·잔량) |
+| `trades` | 국내 종목 최근 체결 내역(time & sales; 체결가·수량·시각) |
+| `status` | 국내 종목 상태(거래정지·관리종목·투자경고 등) |
 | `stock_investor_flows` | 국내 종목 투자자 수급 -- 일자별 개인·외국인·기관 순매수(수량·대금) |
 | `market_investor_flows` | 시장 전체(KOSPI/KOSDAQ) 투자자 수급 |
 | `investor_net_buy_stocks` | 투자자별 순매수 상위 종목(`basis` 수량/대금, `side` 매수/매도, `investor` 전체/외국인/기관/기타) |

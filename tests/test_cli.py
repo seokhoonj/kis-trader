@@ -145,6 +145,15 @@ class _Market:
         self._log.append(("net_buy", market, basis, side, investor)); return ["NB"]
 
 
+class _IndexHandle:
+    def __init__(self, log, code, scope, kind):
+        self._log = log; self._code = code; self._scope = scope; self._kind = kind
+
+    def bars(self, interval="1d", *, start=None, end=None, max_bars=None):
+        self._log.append(("index_bars", self._code, self._scope, self._kind, interval, start, end))
+        return "IBARS"
+
+
 class _Domestic:
     def __init__(self, log):
         self._log = log
@@ -155,6 +164,9 @@ class _Domestic:
         if exchange is not None:
             self._log.append(("dom_stock", code, exchange))
         return _Handle(self._log, code, exchange)
+
+    def index(self, code):
+        return _IndexHandle(self._log, code, "domestic", None)
 
     def bond(self, code):
         return _BondHandle(self._log, code)
@@ -175,6 +187,9 @@ class _Overseas:
 
     def stock(self, symbol, *, exchange=None):
         self._log.append(("ovs_stock", symbol, exchange)); return _Handle(self._log, symbol)
+
+    def index(self, code, *, kind="index"):
+        return _IndexHandle(self._log, code, "overseas", kind)
 
     def futures(self, code):
         return _OverseasDerivHandle(self._log, "futures", code)
@@ -372,6 +387,16 @@ def test_stock_investors_rejects_non_quote_exchange():
     # cmd_investors 는 자기 복사본 거래소 가드(KRX/NXT/UN)를 가진다 -- SOR 같은 주문거래소는 거부.
     with pytest.raises(CliConfigError, match="KRX/NXT/UN"):
         stock.cmd_investors(StubKis(), _args(["stock", "investors", "005930", "--exchange", "SOR"]))
+
+
+def test_index_bars_domestic_default_and_overseas_fx():
+    kis = StubKis()
+    a = _args(["index", "bars", "0001", "--start", "20250101"])          # 국내 지수(기본 domestic)
+    assert a.func(kis, a) == "IBARS"
+    assert kis.log[-1] == ("index_bars", "0001", "domestic", None, "1d", "20250101", None)
+    a = _args(["index", "bars", "FX@KRW", "--region", "overseas", "--kind", "fx", "--start", "20250101"])
+    a.func(kis, a)                                                        # 해외 환율(fx)
+    assert kis.log[-1] == ("index_bars", "FX@KRW", "overseas", "fx", "1d", "20250101", None)
 
 
 def test_search_omitting_market_uses_library_default():

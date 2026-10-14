@@ -56,6 +56,10 @@ kis config migrate --yes                    # 비대화형: 기본 병합을 자
 kis stock quote 005930                 # 현재가
 kis stock quote AAPL --region overseas # 해외(거래소 자동)
 kis stock bars 005930 --interval 1d --start 20240101
+kis stock bars AAPL --region overseas --interval 1d --start 20240101  # 해외주식 기간봉
+kis index bars FX@KRW --region overseas --kind fx --start 20240101   # 원/달러 환율 히스토리
+kis index bars .DJI --region overseas --start 20240101               # 해외지수(다우 등)
+kis index bars 0001 --start 20240101   # 국내 지수(코스피)
 kis stock book 005930                  # 호가
 kis stock trades 005930                # 최근 체결
 kis stock status 005930                # 거래정지·관리종목 등 상태
