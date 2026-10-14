@@ -3,7 +3,7 @@
   "name": "io.github.seokhoonj/kis-trader",
   "title": "KIS Trader",
   "description": "MCP server for the Korea Investment & Securities (KIS) Open API with guarded live orders.",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "websiteUrl": "https://seokhoonj.github.io/kis-trader/",
   "repository": {
     "url": "https://github.com/seokhoonj/kis-trader",
@@ -15,7 +15,7 @@
       "registryType": "pypi",
       "registryBaseUrl": "https://pypi.org",
       "identifier": "kis-trader",
-      "version": "0.8.0",
+      "version": "0.9.0",
       "runtimeHint": "uvx",
       "runtimeArguments": [
         {

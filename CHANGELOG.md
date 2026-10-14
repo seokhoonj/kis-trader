@@ -3,6 +3,28 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.9.0 — 2026-10-15
+
+Expose the read-only market data the library already provides through the MCP server and the CLI, so
+an agent or the terminal can pull price history, exchange rates, and order-book / trade / status data.
+
+### Added
+
+- MCP read tools: `stock_bars` (domestic and overseas OHLCV), `index_bars` (index / FX / bond / gold
+  bars, e.g. `FX@KRW` for USD/KRW exchange-rate history), `order_book`, `trades`, `status`,
+  `ranking_volume`, and `ranking_market_cap`.
+- CLI `kis index bars` for index / FX / bond / gold bars (stock `bars` already accepted
+  `--region overseas`).
+- A single-source `OverseasIndexKind` literal (`index` / `fx` / `bond` / `gold`) typing the overseas
+  index accessor and feeding the CLI and MCP.
+- Docs: a 시장·지수 section documenting overseas index / FX / bond / gold bars.
+
+### Changed
+
+- The MCP OHLCV tool is now `stock_bars` (renamed from `bars` in 0.8.0) so the stock and index bar
+  tools read symmetrically; `index_bars` carries `region` and `kind`, and `order_book` / `trades`
+  gained a `region` parameter.
+
 ## 0.8.0 — 2026-10-14
 
 Adds a credential-config command group, read-only market-data tools over MCP and the CLI, and a
