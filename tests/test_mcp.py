@@ -155,10 +155,16 @@ def _fake_kis(*, quote=None, overseas_quote=None, hits=None, ranking=None, balan
         ranking=ranking_ns,
         market=market_ns,
     )
+    def _ovs_ob():                                   # 태그로 해외 분기 라우팅을 증명(domestic 과 구별)
+        rec.append(("order_book", "ovs")); return order_book
+
+    def _ovs_tr():
+        rec.append(("trades", "ovs")); return trades or []
+
     overseas = SimpleNamespace(
         stock=lambda sym: SimpleNamespace(
             quote=lambda: overseas_quote, bars=_bars("ovs_stock"),
-            order_book=lambda: order_book, trades=lambda: trades or []),
+            order_book=_ovs_ob, trades=_ovs_tr),
         index=lambda code, *, kind="index": SimpleNamespace(bars=_bars(("ovs_index", kind))),
     )
     account_ns = SimpleNamespace(
@@ -319,10 +325,14 @@ def test_order_book_trades_status_handlers_serialize():
     assert len(out) == 10 and "LEAK" not in str(out)
     st = _FakeHit("005930", "normal")
     assert handlers.status(_fake_kis(status=st), "005930") == {"symbol": "005930", "name": "normal"}
-    # region=overseas 도 라우팅(해외 종목 호가·체결) -- 해외 핸들로 분기해 돈다.
-    assert handlers.order_book(_fake_kis(order_book=ob), "AAPL", region="overseas") == {"symbol": "005930", "name": "book"}
-    assert handlers.trades(_fake_kis(trades=tr), "AAPL", region="overseas", limit=5) == [
+    # region=overseas 는 해외 핸들로 분기해 돈다 -- 태그로 라우팅을 증명(domestic 과 다른 리시버).
+    kob = _fake_kis(order_book=ob)
+    assert handlers.order_book(kob, "AAPL", region="overseas") == {"symbol": "005930", "name": "book"}
+    assert kob.rec == [("order_book", "ovs")]
+    ktr = _fake_kis(trades=tr)
+    assert handlers.trades(ktr, "AAPL", region="overseas", limit=5) == [
         {"symbol": str(i), "name": "t"} for i in range(5)]
+    assert ktr.rec == [("trades", "ovs")]
     for fn in (handlers.order_book, handlers.trades):               # region 리터럴 밖 거부
         with pytest.raises(KISUsageError):
             fn(_fake_kis(), "AAPL", region="mars")
