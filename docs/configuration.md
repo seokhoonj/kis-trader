@@ -470,7 +470,7 @@ IRP(`29`)는 세션이 주문을 자동으로 막고, DC가입자(`55`)는 세�
 - Windows 는 `C:\Users\나\` 아래 같은 `.config` / `.cache` / `.local\state` 구조입니다.
 
 **MCP(Claude Desktop)를 쓰면** 설정 파일이 하나 더 있습니다 -- 이건 kis-trader 가 아니라 **Claude Desktop 이**
-쓰는 파일이라 위치가 다릅니다([MCP 서버](mcp.md) 의 5~6단계에서 다룹니다):
+쓰는 파일이라 위치가 다릅니다([MCP 서버](mcp.md) 의 "Claude Desktop 에 연결" 단계에서 다룹니다):
 
 ```
 # macOS

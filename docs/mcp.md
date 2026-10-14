@@ -24,7 +24,7 @@ MCP 를 켜 두면 Claude Desktop 채팅창에 이렇게 말하기만 하면 됩
 | 조각 | 무엇인가 | 여기서는 |
 |---|---|---|
 | **서버(server)** | 도구를 내주는 쪽. 내 PC 에서 돌며 KIS 와 통신합니다 | `kis-mcp`(이 프로젝트가 제공) |
-| **클라이언트(client)** | 그 도구를 쓰는 AI 앱 | Claude Desktop · Cursor |
+| **클라이언트(client)** | 그 도구를 쓰는 AI 앱 | ChatGPT · Claude Desktop · Cursor |
 
 둘은 MCP 규격으로 주고받습니다. 설정 파일에 서버를 한 줄 등록해 두면(아래 [쓰는 법](#쓰는-법-설치하고-연결하기)),
 에이전트가 켜질 때 도구 목록을 받아 와 바로 씁니다.
@@ -36,20 +36,23 @@ MCP 는 있어도 되고 없어도 되는 **선택 기능**입니다. 파이썬�
 
 ## 쓰는 법 (설치하고 연결하기)
 
-채팅창에서 뭘 내려받는 게 아닙니다. 아래를 **한 번** 해 두면, 그다음부터는 Claude Desktop 채팅창에서 말만
-하면 됩니다. 마우스와 복사·붙여넣기로 끝나니 순서대로만 따라 하면 됩니다.
+채팅창에서 뭘 내려받는 게 아닙니다. 아래를 **한 번** 해 두면, 그다음부터는 AI 앱 채팅창에서 말만 하면
+됩니다. **설치는 세 앱(ChatGPT·Claude Desktop·Cursor)이 공통**이고, **연결 방법만 앱마다 다릅니다** --
+먼저 공통 설치를 끝내고, 쓰는 앱에 맞춰 아래 세 절 중 하나만 따라 하세요.
 
 ::: {.callout-tip}
-**계좌 하나만 쓰는 가장 짧은 길**은 [가장 쉽게 시작](easy.md) 에 직선으로 정리돼 있습니다. 거기서는 6단계의
-설정 블록을 `kis config mcp` 가 **경로까지 채워 통째로** 만들어 주므로 경로·JSON 을 직접 다룰 필요가
-없습니다. 아래는 각 단계를 자세히 보고 싶거나 여러 계좌를 쓸 때의 전체 설명입니다.
+**계좌 하나만 쓰는 가장 짧은 길**은 [가장 쉽게 시작](easy.md) 에 직선으로 정리돼 있습니다(Claude Desktop
+기준). 거기서는 설정 블록을 `kis config mcp` 가 **경로까지 채워 통째로** 만들어 주므로 경로·JSON 을 직접
+다룰 필요가 없습니다. 아래는 각 단계를 자세히 보고 싶거나 여러 계좌를 쓸 때의 전체 설명입니다.
 :::
 
 ::: {.callout-note}
-**준비물** -- **Claude Desktop** 앱([claude.ai/download](https://claude.ai/download))과 인터넷이면 됩니다.
-설치 도구로 쓰는 `uv` 는 다음 단계에서 깔고, 파이썬이 없어도 `uv` 가 알아서 받아 주므로 파이썬을 미리
-설치할 필요는 없습니다.
+**준비물** -- 쓰려는 AI 앱 하나(**ChatGPT**, 또는 **Claude Desktop**
+[claude.ai/download](https://claude.ai/download), 또는 **Cursor**)와 인터넷이면 됩니다. 설치 도구로 쓰는
+`uv` 는 다음 단계에서 깔고, 파이썬이 없어도 `uv` 가 알아서 받아 주므로 파이썬을 미리 설치할 필요는 없습니다.
 :::
+
+### 설치 (세 앱 공통)
 
 **1. 터미널(명령 입력창)을 엽니다.** -- macOS 는 `⌘ + Space` 를 눌러 "터미널"을 검색해 실행, Windows 는 시작
 메뉴에서 "PowerShell"을 실행합니다. 까만(또는 하얀) 글자 입력창이 뜹니다.
@@ -79,19 +82,7 @@ uv tool install 'kis-trader[mcp]'
 (`uv tool dir --bin` 으로 그 폴더를 확인). `[mcp]` 를 빼면 MCP 서버가 안 깔리니 **따옴표째** 그대로 붙여넣으세요.
 :::
 
-**3. `kis-mcp` 경로를 확인합니다.** -- Claude Desktop 은 터미널 PATH 를 모를 수 있어 **전체 경로**로 적어
-줍니다. 가장 확실한 건 다음 단계에서 쓸 **`kis config mcp` 가 경로를 자동으로 채워 준 값**이고, 직접
-확인하려면 아래를 씁니다. `uv tool install` 로 깔았으면 경로는 **보통** 아래지만(`나` 는 사용자 이름),
-환경에 따라 달라질 수 있으니 `uv tool dir --bin` 으로 실제 폴더를 확인하세요:
-
-- **macOS · Linux**: `/Users/나/.local/bin/kis-mcp` (Linux 는 `/home/나/.local/bin/kis-mcp`)
-- **Windows**: `C:\Users\나\.local\bin\kis-mcp.exe`
-
-직접 확인하려면 `which kis-mcp`(macOS·Linux) 또는 `where.exe kis-mcp`(Windows PowerShell -- 그냥 `where`
-는 PowerShell 에서 다른 명령이라 안 됩니다; `Get-Command kis-mcp` 도 가능) 를 칩니다. **아무것도 안 나오면**
-설치가 안 됐거나 PATH 밖입니다 -- 터미널을 **새로 열어** 2단계를 다시 하세요.
-
-**4. 자격증명(앱키)을 저장합니다.** -- 터미널에 아래 한 줄을 치면 묻는 대로 입력합니다(앱키·시크릿은 화면에
+**3. 자격증명(앱키)을 저장합니다.** -- 터미널에 아래 한 줄을 치면 묻는 대로 입력합니다(앱키·시크릿은 화면에
 보이지 않게 받습니다). **모의만** 쓸 거면 실전 단계에서 그냥 Enter 로 건너뜁니다.
 
 ```bash
@@ -101,7 +92,63 @@ kis config
 경우별 자세한 저장법(모의만·실전만·여러 계좌·계좌번호를 어디서 보는지)은
 [자격증명 설정 -- 상황별 레시피](configuration.md#상황별-설정-레시피-경우별-가이드) 참고.
 
-**5. Claude Desktop 설정 파일을 엽니다.** -- 전부 마우스로 합니다:
+여기까지가 공통입니다. 이제 쓰는 앱에 맞춰 아래에서 **하나만** 따라 하세요.
+
+## ChatGPT 에 연결
+
+ChatGPT 는 뒤의 Claude Desktop·Cursor 와 **붙는 방식이 다릅니다.** 둘은 내 PC 에서 서버를 직접 띄우는
+stdio(표준 입출력) 로 붙지만, ChatGPT 의 커스텀 커넥터는 **원격 HTTPS 서버(SSE)만** 받습니다 -- 내 PC 의
+명령(`command`)을 가리킬 수 없고 **URL** 로 붙어야 합니다. 그래서 `kis-mcp` 를 **SSE 전송**으로 띄운 뒤,
+공개 URL 없이 ChatGPT 가 로컬 서버에 닿게 해주는 **Secure MCP Tunnel**(OpenAI 가 제공하는, 내 PC 에서
+바깥으로 연결을 여는 작은 클라이언트) 로 연결하는 것이 안전한 길입니다. 돈이 오가는 로컬 서버를 공개
+인터넷에 직접 노출하지 않아도 됩니다.
+
+커넥터는 특정 앱이 아니라 **ChatGPT 계정**에 등록됩니다 -- `chatgpt.com`(웹)에서 한 번 추가하면 로그인한
+곳 어디서나(웹·데스크톱 앱·모바일) 쓰입니다. (Claude 는 반대로 **데스크톱 앱**이 로컬에서 서버를 직접
+띄우는 방식이라 아래 절을 "Claude Desktop"으로 특정합니다. ChatGPT 데스크톱 앱도 로컬 stdio 가 아니라 이
+원격 커넥터를 그대로 씁니다.)
+
+준비물: **ChatGPT Plus·Pro·Business·Enterprise·Edu** 중 하나(Free 는 커스텀 커넥터 미지원). 순서:
+
+1. **`kis-mcp` 를 SSE 전송으로 띄웁니다** -- 기본은 로컬 전용(`127.0.0.1`) 이고, HTTP 로 열 때는 토큰을
+   요구합니다(아래 [전송 방식 바꾸기](#고급-전송-방식-바꾸기-stdio-sse-streamable-http) 의 fail-closed 규칙):
+
+   ```bash
+   export KIS_MCP_PROFILE=general
+   export KIS_MCP_ENVIRONMENT=paper          # 실전은 real (가드레일 갖췄을 때만)
+   export KIS_MCP_TRANSPORT=sse              # ChatGPT 는 SSE(원격 HTTPS)
+   export KIS_MCP_ACCESS_TOKEN=아무_긴_비밀문자열   # 비-로컬 노출 시 필수(Bearer 토큰)
+   kis-mcp                                    # http://127.0.0.1:8000/sse 로 뜸
+   ```
+
+2. **ChatGPT 에서 커넥터를 만듭니다** -- `chatgpt.com/plugins` → **`Add`** → **`Create MCP App`**.
+   **Connection** 에서 **`Tunnel`**(Secure MCP Tunnel)을 고르면 공개 URL 없이 위 로컬 서버(1단계)의 SSE
+   엔드포인트로 연결됩니다. 직접 URL 을 쓸 거면 **Server URL** 에 역프록시/터널이 내준 HTTPS 주소(`.../sse`)를 넣습니다.
+3. **`Scan Tools`** 를 눌러 도구 목록을 받아옵니다. 인증을 걸었으면(OAuth/토큰) 그 단계를 먼저 통과합니다.
+4. 연결되면 ChatGPT 대화에서 "내 KIS 잔고 보여줘" 처럼 말하면 됩니다.
+
+안전: `kis-mcp` 는 **조회·주문 미리보기·대조만** 내주고 실주문 도구는 노출하지 않습니다([안전 설계](#안전-설계)).
+HTTP 로 열 때도 비-로컬 bind 는 `KIS_MCP_ACCESS_TOKEN` 없이는 거부되고(fail-closed), 토큰 불일치 요청은
+`401` 로 막힙니다. 공개 URL 로 직접 bind 하기보다 **Secure MCP Tunnel 또는 역프록시**를 쓰는 편이
+안전합니다(자세한 env 설정은 [전송 방식 바꾸기](#고급-전송-방식-바꾸기-stdio-sse-streamable-http)).
+
+## Claude Desktop 에 연결
+
+Claude Desktop 은 `kis-mcp` 를 **stdio** 로 직접 띄웁니다 -- 설정 파일에 실행 파일 경로만 적으면 됩니다.
+
+**1. `kis-mcp` 경로를 확인합니다.** -- Claude Desktop 은 터미널 PATH 를 모를 수 있어 **전체 경로**로 적어
+줍니다. 가장 확실한 건 다음 단계에서 쓸 **`kis config mcp` 가 경로를 자동으로 채워 준 값**이고, 직접
+확인하려면 아래를 씁니다. `uv tool install` 로 깔았으면 경로는 **보통** 아래지만(`나` 는 사용자 이름),
+환경에 따라 달라질 수 있으니 `uv tool dir --bin` 으로 실제 폴더를 확인하세요:
+
+- **macOS · Linux**: `/Users/나/.local/bin/kis-mcp` (Linux 는 `/home/나/.local/bin/kis-mcp`)
+- **Windows**: `C:\Users\나\.local\bin\kis-mcp.exe`
+
+직접 확인하려면 `which kis-mcp`(macOS·Linux) 또는 `where.exe kis-mcp`(Windows PowerShell -- 그냥 `where`
+는 PowerShell 에서 다른 명령이라 안 됩니다; `Get-Command kis-mcp` 도 가능) 를 칩니다. **아무것도 안 나오면**
+설치가 안 됐거나 PATH 밖입니다 -- 터미널을 **새로 열어** 공통 설치의 2단계를 다시 하세요.
+
+**2. Claude Desktop 설정 파일을 엽니다.** -- 전부 마우스로 합니다:
 
 1. Claude Desktop 의 **설정(Settings)** 을 엽니다 -- macOS 는 **화면 맨 위 메뉴 막대의 `Claude` → `Settings…`**,
    Windows 는 **왼쪽 위 메뉴(또는 설정 아이콘) → `Settings`**. (채팅 창 안의 설정이 아닙니다.)
@@ -110,11 +157,11 @@ kis config
    `~/Library/Application Support/Claude/`, Windows `%APPDATA%\Claude\` 안입니다 -- 버튼이 알아서 열어 주니
    직접 찾아갈 필요는 없습니다.)
 
-**6. 아래 내용을 붙여넣고 저장합니다.** -- 파일 내용을 아래로 바꿉니다(파일이 비어 있거나 처음 만든 경우).
+**3. 아래 내용을 붙여넣고 저장합니다.** -- 파일 내용을 아래로 바꿉니다(파일이 비어 있거나 처음 만든 경우).
 **이미 다른 MCP 서버가 있으면** 파일을 통째로 바꾸지 말고, 기존 `"mcpServers"` 안에 `"kis-trader"` 항목만
-추가하세요(통째로 바꾸면 기존 서버가 지워집니다). `command` 에는 **3단계 경로**를,
-`KIS_MCP_PROFILE` 에는 4단계에서 정한 프로필 이름(종합위탁이면 보통 `general`)을 넣습니다. OS에 맞는 쪽을
-쓰세요 -- `나` 는 본인 사용자 이름으로 바꾸고, 모르면 **3단계의 `which`/`where` 출력 줄을 그대로 복사**해
+추가하세요(통째로 바꾸면 기존 서버가 지워집니다). `command` 에는 **1단계에서 확인한 경로**를,
+`KIS_MCP_PROFILE` 에는 저장한 프로필 이름(종합위탁이면 보통 `general`)을 넣습니다. OS에 맞는 쪽을
+쓰세요 -- `나` 는 본인 사용자 이름으로 바꾸고, 모르면 **1단계의 `which`/`where` 출력 줄을 그대로 복사**해
 넣으면 됩니다(Windows 는 역슬래시를 `\\`/`/` 로). 저장은 `⌘ + S`(Windows `Ctrl + S`).
 
 **macOS · Linux:**
@@ -152,15 +199,15 @@ kis config
 모의 키를 안 넣었고 **실전 키만** 저장했다면 `KIS_MCP_ENVIRONMENT` 을 `"real"` 로 바꿉니다(실주문은 아래
 [실주문 가드레일](#실주문-가드레일)을 추가로 갖춰야 열립니다). `KIS_MCP_PROFILE` 과 `KIS_MCP_ENVIRONMENT`
 은 **같은 환경 블록에 저장된 계좌**를 가리켜야 합니다 -- 저장하지 않은 조합을 가리키면 조회가 실패하니,
-그때는 9단계 뒤의 연결 팁(HTTP 500 진단·로그 위치)을 보세요.
+그때는 아래 연결 팁(HTTP 500 진단·로그 위치)을 보세요.
 
-**7. Claude Desktop 을 완전히 껐다 켭니다.** -- 창만 닫지 말고 **완전히 종료**(macOS `⌘ + Q`, Windows 는 트레이
+**4. Claude Desktop 을 완전히 껐다 켭니다.** -- 창만 닫지 말고 **완전히 종료**(macOS `⌘ + Q`, Windows 는 트레이
 아이콘에서 종료)한 뒤 다시 실행합니다. 설정은 켤 때 한 번만 읽습니다.
 
-**8. 연결됐는지 봅니다.** -- 채팅 입력창 **왼쪽 아래의 `+`(파일·커넥터 추가) 아이콘**을 누르고 `Connectors`
+**5. 연결됐는지 봅니다.** -- 채팅 입력창 **왼쪽 아래의 `+`(파일·커넥터 추가) 아이콘**을 누르고 `Connectors`
 → `Manage connectors` 로 가면 `kis-trader` 와 그 도구들이 보입니다. 보이면 성공입니다.
 
-**9. 이제 채팅창에서 말만 하면 됩니다.** -- "삼성전자 현재가 알려줘", "내 KIS 잔고 보여줘"처럼 말하면 Claude
+**6. 이제 채팅창에서 말만 하면 됩니다.** -- "삼성전자 현재가 알려줘", "내 KIS 잔고 보여줘"처럼 말하면 Claude
 가 알아서 해당 도구를 불러 답합니다.
 
 ::: {.callout-tip}
@@ -179,7 +226,7 @@ kis config
 ## (선택) 서버가 잘 뜨는지 터미널에서 점검하기
 
 연결이 안 되면 서버가 혼자 잘 뜨는지 확인해 볼 수 있습니다. 자격증명을 환경변수로 주고 `kis-mcp` 를
-실행합니다 -- `kis-mcp` 는 2단계에서 깐 명령으로, 이 줄이 서버를 띄웁니다.
+실행합니다 -- `kis-mcp` 는 공통 설치 2단계에서 깐 명령으로, 이 줄이 서버를 띄웁니다.
 
 ```bash
 # macOS · Linux
@@ -206,11 +253,11 @@ kis-mcp   # 서버 시작. 오류 없이 멈춰 있으면 정상 -- Ctrl-C 로 �
 띄워 줍니다.
 :::
 
-## Cursor 에서 쓰기
+## Cursor 에 연결
 
-Cursor 도 같은 방식입니다. `Settings → MCP Servers` 에서 Claude Desktop 과 **똑같은** 등록 내용을 넣으면
-됩니다(위 [쓰는 법](#쓰는-법-설치하고-연결하기)의 JSON 을 그대로). Cursor 도 stdio 를 지원하므로 `command`
-에 `kis-mcp` 경로를 그대로 적습니다.
+Cursor 도 Claude Desktop 과 같은 **stdio** 방식입니다. `Settings → MCP Servers` 에서 Claude Desktop 과
+**똑같은** 등록 내용을 넣으면 됩니다(위 [Claude Desktop 에 연결](#claude-desktop-에-연결)의 JSON 을 그대로).
+Cursor 도 stdio 를 지원하므로 `command` 에 `kis-mcp` 경로를 그대로 적습니다.
 
 ::: {.callout-note collapse="true"}
 ## (고급) 전송 방식 바꾸기 -- stdio · sse · streamable-http
