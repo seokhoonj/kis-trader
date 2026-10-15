@@ -130,7 +130,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     bars_p.set_defaults(func=stock.cmd_bars)
 
-    # kis config setup|show|set|default|hts-id|mcp|migrate -- 자격증명 설정(클라이언트 불필요).
+    # kis config setup|show|list|set|default|hts-id|mcp|migrate -- 자격증명 설정(클라이언트 불필요).
     # common 을 상속하지 않는다 -- --format 등 이 그룹이 읽지 않는 플래그를 달지 않기 위해(폴리모픽
     # dispatch: 안 읽는 플래그 거부). 각 하위명령이 필요한 플래그만 직접 단다. 모두 needs_client=False.
     config_p = groups.add_parser(
@@ -150,6 +150,10 @@ def build_parser() -> argparse.ArgumentParser:
     # kis config show -- 저장분을 마스킹해 보여준다(시크릿 비노출).
     show_p = config_sub.add_parser("show", help="저장된 설정을 마스킹해 보여준다")
     show_p.set_defaults(func=credentials.cmd_config_show, needs_client=False)
+
+    # kis config list -- 저장된 프로필 이름만 real/paper 환경별로 보여준다(시크릿 비노출).
+    list_p = config_sub.add_parser("list", help="저장된 프로필 이름을 환경별로 보여준다")
+    list_p.set_defaults(func=credentials.cmd_config_list, needs_client=False)
 
     # kis config set <profile>.<env>.<field> [VALUE] -- 한 필드 수정. 시크릿은 argv 로 받지 않는다.
     set_p = config_sub.add_parser("set", help="한 필드 수정(예: kis config set general.paper.app_key)")

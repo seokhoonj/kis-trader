@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Any, Literal, cast, get_args
+from typing import Any, Literal, TypedDict, cast, get_args
 
 from .._literals import Direction
 from ..account import _IRP_PRODUCT_CODE, StockAccount
@@ -26,6 +26,7 @@ from ..instrument import DomesticMarket, DomesticMarketFilter, Region
 from ..order import DomesticDivision, Side
 from ..overseas._engine.orders import resolve_risk_currency
 from ..overseas.namespace import OverseasIndexKind
+from ..transport import Environment
 from ._guardrails import (
     ModifyOrderPlan,
     RealOrderGate,
@@ -34,6 +35,7 @@ from ._guardrails import (
     make_stock_order_plan,
 )
 from ._policy import (
+    _SWITCHABLE_PROFILES,
     _account_masked,
     is_orderable_account,
     require_overseas_general_account,
@@ -42,6 +44,16 @@ from ._policy import (
 #: ``quote`` 의 세션 선택자 -- 정규장(regular)/시간외 단일가(after_hours, 국내 전용). MCP 도구의
 #: 입력 스키마(:mod:`kis_trader.mcp.server`)와 아래 검증이 한 출처를 쓰도록 여기서 정의한다.
 Session = Literal["regular", "after_hours"]
+
+
+class ListProfilesResult(TypedDict):
+    """MCP ``list_profiles`` 도구의 JSON 응답 형상."""
+
+    profiles: list[str]
+    active_profile: str | None
+    environment: Environment
+    switching_enabled: bool
+
 
 #: 검증 집합을 리터럴에서 파생한다(한 출처) -- 리터럴에 값이 추가되면 검증도 자동으로 따라간다.
 _REGIONS = frozenset(get_args(Region))
@@ -139,6 +151,26 @@ def _require_positive_limit(limit: int) -> None:
     ``[:limit]`` 에서 마지막 행만 빼고 돌려주는(에러 아닌 오답) 함정이라 fail-closed 로 막는다."""
     if isinstance(limit, bool) or not isinstance(limit, int) or limit < 1:
         raise KISUsageError(f"limit 은 1 이상의 정수여야 한다: {limit!r}")
+
+
+def list_profiles(
+    stored_profiles: list[str], *, active_profile: str | None, environment: Environment,
+    switching_enabled: bool,
+) -> ListProfilesResult:
+    """현재 환경에 저장된 프로필 중 ``use_profile`` 로 전환 가능한 이름만 정렬해 돌려준다.
+
+    파생·사용자 정의 프로필은 저장돼 있어도 MCP 전환 정책 밖이므로 제외한다. 직접-자격증명 고정 슬롯처럼
+    전환 불가한 세션은 저장분과 무관하게 빈 목록을 돌려준다. 현재 활성 프로필·환경·전환 가능 여부를 함께
+    실어 에이전트가 목록과 현재 선택을 한 번에 확인하게 한다.
+    """
+    return {
+        "profiles": (
+            sorted(set(stored_profiles) & _SWITCHABLE_PROFILES) if switching_enabled else []
+        ),
+        "active_profile": active_profile,
+        "environment": environment,
+        "switching_enabled": switching_enabled,
+    }
 
 
 def search(kis: KISClient, query: str, *, limit: int = 20) -> list[dict[str, Any]]:

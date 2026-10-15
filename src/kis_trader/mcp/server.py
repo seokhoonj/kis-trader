@@ -7,7 +7,7 @@
 노출 도구: 읽기(``quote``·``search``·``ranking_change``·``ranking_volume``·``ranking_market_cap``·
 ``stock_bars``·``index_bars``·``order_book``·``trades``·``status``·``stock_investor_flows``·
 ``market_investor_flows``·``investor_net_buy_stocks``·``balance``·``positions``·``open_orders``·
-``reconcile``) + 런타임 전환(``use_environment``·``use_profile``·``current_account``) + ``order_preview``
+``reconcile``) + 런타임 전환(``use_environment``·``use_profile``·``list_profiles``·``current_account``) + ``order_preview``
 (dry-run) + **실주문**(``place_order``·``cancel_order``·``modify_order``). 읽기 도구는 활성
 ``(profile, environment)`` 슬롯을 호출 시점에 쓴다 -- ``use_profile``/``use_environment`` 로 **재시작 없이**
 읽는 계좌/환경을 바꾼다(저장 프로필 기동일 때; 직접-자격증명 기동은 고정 슬롯이라 전환 도구가 거부한다).
@@ -68,6 +68,7 @@ from ._policy import (
 )
 from ._session import (
     ClientBuilder,
+    CurrentAccountResult,
     MCPSession,
     OrderSnapshot,
     _StartupAuthorization,
@@ -527,7 +528,7 @@ def build_server(
         return handlers.reconcile(account_session.read_client(), client_order_id=client_order_id)
 
     @server.tool()
-    def use_environment(environment: Literal["real", "paper"]) -> dict[str, Any]:
+    def use_environment(environment: Literal["real", "paper"]) -> CurrentAccountResult:
         """**읽는** 환경만 바꾼다(real/paper). 전환은 기동 시 얼린 실주문 언락 비트를 바꾸지 못한다 --
         다만 기동 시 KIS_MCP_ALLOW_REAL+KIS_MCP_REAL_CONFIRM 이 켜져 있었다면 real 로 바꾼 뒤 실주문이
         집행 가능해진다(사람 확인은 여전히 필요). 실주문 의도가 없으면 기동 시 두 비트를 설정하지 말 것.
@@ -535,7 +536,7 @@ def build_server(
         return account_session.use_environment(environment)
 
     @server.tool()
-    def use_profile(profile: SwitchableProfile) -> dict[str, Any]:
+    def use_profile(profile: SwitchableProfile) -> CurrentAccountResult:
         """활성 계좌 종류를 바꾼다. {general, isa, pension, irp} 로 제한(파생은 선택 불가). 조회뿐 아니라
         주문 대상 계좌도 함께 바뀐다 -- 실주문이 언락된 세션이면 이후 주문은 전환된 계좌로 나간다(사람
         확인 필요). 국내 주문은 주문 가능한 주식 계좌(위탁/ISA/연금저축)면 되고 IRP 는 조회 전용,
@@ -543,7 +544,24 @@ def build_server(
         return account_session.use_profile(profile)
 
     @server.tool()
-    def current_account() -> dict[str, Any]:
+    def list_profiles() -> handlers.ListProfilesResult:
+        """현재 환경에서 실제 전환 가능한 프로필 + 활성 프로필·환경·전환 가능 여부를 조회한다.
+        직접-자격증명 고정 슬롯처럼 전환이 꺼진 세션은 ``profiles=[]`` 를 돌려준다."""
+        current = account_session.current_account()
+        switching_enabled = account_session.switching_enabled
+        stored_profiles = (
+            config.list_profiles(environment=current["environment"])
+            if switching_enabled else []
+        )
+        return handlers.list_profiles(
+            stored_profiles,
+            active_profile=current["profile"],
+            environment=current["environment"],
+            switching_enabled=switching_enabled,
+        )
+
+    @server.tool()
+    def current_account() -> CurrentAccountResult:
         """지금 보는 중인 활성 (profile, environment) + 마스킹 계좌 + 계좌 종류."""
         return account_session.current_account()
 

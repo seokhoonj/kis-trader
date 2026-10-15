@@ -14,6 +14,7 @@ from kis_trader.config import (
     _V2_TOP_LEVEL_ORDER,
     _detect_schema,
     _profile_exists,
+    list_profiles,
     resolve_credentials,
 )
 from kis_trader.errors import KISUsageError
@@ -532,6 +533,46 @@ def _write_v2(tmp_path, **top):
     """v2 credentials.json 을 날것으로 쓴다(schema 마커 포함). top=최상위 키(real=, paper=, 등)."""
     data = {"schema": 2, **top}
     (tmp_path / "credentials.json").write_text(json.dumps(data), encoding="utf-8")
+
+
+# --- 저장 프로필 목록 ------------------------------------------------
+
+def test_list_profiles_returns_sorted_union_and_environment_members(tmp_path):
+    _write_v2(
+        tmp_path,
+        hts_id="HTS_USER",
+        account_password="SECRET_PASSWORD",
+        default_environment="paper",
+        default_profile="general",
+        real={
+            "pension": {"app_key": "RK2", "app_secret": "RS2"},
+            "general": {"app_key": "RK1", "app_secret": "RS1"},
+        },
+        paper={
+            "isa": {"app_key": "PK2", "app_secret": "PS2"},
+            "general": {"app_key": "PK1", "app_secret": "PS1"},
+        },
+    )
+
+    assert list_profiles(config_dir=tmp_path) == ["general", "isa", "pension"]
+    assert list_profiles(environment="real", config_dir=tmp_path) == ["general", "pension"]
+    assert list_profiles(environment="paper", config_dir=tmp_path) == ["general", "isa"]
+
+
+@pytest.mark.parametrize("stored", [None, {}])
+def test_list_profiles_empty_store_returns_empty_list(tmp_path, stored):
+    if stored is not None:
+        (tmp_path / "credentials.json").write_text(json.dumps(stored), encoding="utf-8")
+    assert list_profiles(config_dir=tmp_path) == []
+
+
+def test_list_profiles_legacy_store_raises_runtime_migration_error(tmp_path):
+    (tmp_path / "credentials.json").write_text(
+        json.dumps({"general": {"app_key": "RK", "app_secret": "RS"}}),
+        encoding="utf-8",
+    )
+    with pytest.raises(KISUsageError, match="kis config migrate"):
+        list_profiles(config_dir=tmp_path)
 
 
 # --- 스키마 판별 -----------------------------------------------------

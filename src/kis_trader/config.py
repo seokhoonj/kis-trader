@@ -381,6 +381,16 @@ def _validate_v2_shape(loaded: dict[str, object]) -> None:
             _validate_bundle(environment=env_key, profile=profile, bundle=bundle)
 
 
+def _require_runtime_v2(loaded: dict[str, object]) -> None:
+    """런타임 reader 가 쓰는 schema-2 경계. 빈 저장소는 새 설정 전 상태라 통과시키고, 비어 있지 않은
+    레거시 저장소는 모두 같은 migrate 안내 :class:`KISUsageError` 로 거부한다."""
+    if loaded and _detect_schema(loaded) == "legacy":
+        raise KISUsageError(
+            "credentials.json 이 옛(0.7.0 이전) 평평한 형식입니다 -- "
+            "'kis config migrate' 로 두 축 형식(schema 2)으로 변환한 뒤 사용하세요."
+        )
+
+
 def _validate_legacy_shape(parsed: dict[str, object]) -> None:
     """레거시(schema 마커 없는) 파일의 형상을 검증한다. 예약 최상위 메타키(문자열)는 건너뛰고, 나머지
     프로필 섹션이 전부 객체인지 확인한다 -- 병합/해석이 비객체 섹션에서 깨지지 않도록 fail-closed."""
@@ -595,6 +605,38 @@ def resolve_credentials(
                              environment=environment, config_dir=config_dir)
 
 
+def list_profiles(
+    *, environment: Environment | None = None, config_dir: str | Path | None = None,
+) -> list[str]:
+    """schema-2 ``credentials.json`` 에 실제로 저장된 프로필 이름을 정렬해 돌려준다.
+
+    ``environment`` 를 주면 그 환경(``real``/``paper``) 블록만, 생략하면 두 환경의 합집합을 읽는다.
+    최상위 메타 키(schema/default/profile/HTS 아이디 등)는 환경 블록 밖에 있으므로 결과에 포함되지
+    않는다. 빈/없는 저장소는 빈 목록을 돌려준다.
+
+    :param environment: 조회할 환경(``real``/``paper``). ``None`` 이면 두 환경의 합집합.
+    :param config_dir: ``credentials.json`` 이 있는 디렉터리. ``None`` 이면 기본 XDG 설정 위치.
+    :return: 중복을 제거하고 이름순으로 정렬한 프로필 목록.
+    :raises KISUsageError: ``environment`` 가 잘못됐거나, 파일을 읽을 수 없거나 JSON 이 유효하지 않거나,
+        최상위 JSON 이 객체가 아니거나, 지원하지 않는 schema 값이거나, schema-2 형상이 잘못됐거나,
+        레거시 저장소라 ``kis config migrate`` 변환이 필요한 경우.
+    """
+    if environment is not None and environment not in _ENVIRONMENTS:
+        raise KISUsageError(f"environment 는 {_ENVIRONMENTS} 중 하나여야 한다: {environment!r}")
+    loaded = _load_credentials(_config_dir_path(config_dir))
+    _require_runtime_v2(loaded)
+    if not loaded:
+        return []
+    _validate_v2_shape(loaded)
+    environments = _ENVIRONMENTS if environment is None else (environment,)
+    names = {
+        profile
+        for env_key in environments
+        for profile in _select_environment_block(loaded, env_key)
+    }
+    return sorted(names)
+
+
 def _fill_credentials(
     profile: str | None, *, app_key: str | None, app_secret: str | None, account: str | None,
     environment: Environment | None, config_dir: str | Path | None, hts_id: str | None = None,
@@ -608,11 +650,7 @@ def _fill_credentials(
     언팩이 그대로 동작)."""
     directory = _config_dir_path(config_dir)
     loaded = _load_credentials(directory)
-    if loaded and _detect_schema(loaded) == "legacy":   # 비어있지 않은 옛 평평한 파일 -> 변환 안내 후 멈춤
-        raise KISUsageError(
-            "credentials.json 이 옛(0.7.0 이전) 평평한 형식입니다 -- "
-            "'kis config migrate' 로 두 축 형식(schema 2)으로 변환한 뒤 사용하세요."
-        )
+    _require_runtime_v2(loaded)                       # 비어있지 않은 옛 평평한 파일 -> 변환 안내 후 멈춤
     if profile is not None:                       # 명시 이름을 v2 규칙으로 검증(쓰기 경로와 대칭):
         _validate_profile_name_v2(profile)        # _real/_paper 접미사 + v2 예약 키 금지
     return _resolve_v2(profile, loaded, app_key=app_key, app_secret=app_secret, account=account,
@@ -792,4 +830,7 @@ def _profile_exists(profile: str, *, environment: Environment | None = None,
     return isinstance(block, dict) and isinstance(block.get(profile), dict)
 
 
-__all__ = ["KISConfig", "ResolvedCredentials", "is_legacy_store", "order_store_path", "resolve_credentials"]
+__all__ = [
+    "KISConfig", "ResolvedCredentials", "is_legacy_store", "list_profiles", "order_store_path",
+    "resolve_credentials",
+]

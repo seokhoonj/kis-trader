@@ -349,6 +349,7 @@ HTTP 로 열 때도 비-로컬 bind 는 `KIS_MCP_ACCESS_TOKEN` 없이는 거부�
 | `open_orders` | 미체결(정정취소가능) 주문 -- 주문 가능한 국내주식 계좌(위탁·ISA 01/연금저축 22) 전용, IRP(29) 거부 |
 | `use_environment` | 활성 환경을 real↔paper 로 전환(재시작 없이; 기동 시 준 실주문 언락 비트는 바꾸지 못함) |
 | `use_profile` | 활성 계좌 종류 전환(조회·주문 대상이 함께 바뀜; `general`/`isa`/`pension`/`irp`) |
+| `list_profiles` | 활성 환경에 저장됐고 현재 세션에서 전환 가능한 프로필 + 활성 프로필·환경·`switching_enabled` 반환(직접-자격증명 기동처럼 전환 불가면 빈 목록) |
 | `current_account` | 지금 보는 중인 활성 계좌·환경 표시 |
 | `order_preview` | 주문 **미리보기** -- 보내지 않고 나갈 티켓만 보여 줌(`sent: false`) |
 | `reconcile` | 결과가 불분명한 주문을 사후 확정 |
@@ -365,6 +366,7 @@ HTTP 로 열 때도 비-로컬 bind 는 `KIS_MCP_ACCESS_TOKEN` 없이는 거부�
 |---|---|---|
 | `use_environment("real")` / `("paper")` | "실전으로 바꿔줘" | 활성 환경을 토글(언락 비트는 기동 시 고정) |
 | `use_profile("pension")` | "연금 계좌로 바꿔줘" | 활성 계좌 종류 변경(조회·주문 대상 함께; `general`/`isa`/`pension`/`irp`) |
+| `list_profiles()` | "바꿀 수 있는 계좌를 보여줘" | 활성 환경의 저장·전환 가능 프로필 + 활성 프로필·환경·`switching_enabled`(`false` 면 빈 목록) |
 | `current_account()` | "지금 뭐 보는 중?" | 활성 `(계좌 종류, 환경)` + 마스킹 계좌 |
 
 전환은 활성 `(계좌 종류, 환경)` 맥락을 바꿀 뿐, **기동 시 정해진 실주문 언락 비트는 바꾸지 못합니다**

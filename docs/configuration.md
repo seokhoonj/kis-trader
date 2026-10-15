@@ -160,6 +160,7 @@ export KIS_DEFAULT_PROFILE=general       # Linux·macOS (영구히 하려면 ~/.
 |---|---|
 | `kis config setup` | 자격증명을 대화형으로 저장(`kis config` 와 같음) |
 | `kis config show` | 저장된 설정을 마스킹해 보여줌(시크릿 비노출) |
+| `kis config list` | 저장된 프로필 이름을 `real`/`paper` 환경별로 정렬해 보여줌(시크릿 비노출) |
 | `kis config set <프로필>.<환경>.<필드> [값]` | 한 필드 수정(`app_key`·`app_secret`·`account`·`account_password`; 비밀 아닌 `account` 만 값을 바로 줄 수 있고 나머지는 숨김 프롬프트) |
 | `kis config default` | 현재 기본 프로필·환경 조회 |
 | `kis config default profile <프로필>` | 기본 프로필 지정(이름 없이 열 때 여는 프로필) |
@@ -181,6 +182,16 @@ from kis_trader import KISConfig
 KISConfig(profile="general", app_key="...", app_secret="...", account="12345678-01", environment="real").save()
 KISConfig(profile="general", app_key="...", app_secret="...", account="50123456-01", environment="paper").save()
 KISConfig(profile="pension", app_key="...", app_secret="...", account="87654321-22", environment="real").save()
+```
+
+파이썬에서는 `kis_trader.config.list_profiles()` 로 저장된 프로필 이름만 읽을 수 있습니다. 환경을
+생략하면 두 환경의 합집합, 지정하면 그 환경에 저장된 이름만 중복 없이 정렬해 돌려줍니다.
+
+```python
+from kis_trader.config import list_profiles
+
+list_profiles()                    # 두 환경 합집합
+list_profiles(environment="real") # 실전 환경에 저장된 프로필만
 ```
 
 ::: {.callout-note}

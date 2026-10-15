@@ -1,6 +1,6 @@
 """``kis config`` -- 두 축(프로필 x 환경) 자격증명 설정 명령 그룹.
 
-``setup``(대화형 저장) / ``show``(마스킹 조회) / ``set``(한 필드 수정) / ``default`` /
+``setup``(대화형 저장) / ``show``(마스킹 조회) / ``list``(프로필 이름 조회) / ``set``(한 필드 수정) / ``default`` /
 ``hts-id`` / ``migrate``(레거시 -> schema 2 변환). 시크릿은 getpass 전용(플래그 금지), 비시크릿은
 플래그 또는 프롬프트, 저장은 :meth:`KISConfig.save` 재사용. 이 그룹은 클라이언트를 만들지 않는다.
 """
@@ -76,6 +76,7 @@ def test_bare_config_routes_to_setup_and_needs_no_client():
 @pytest.mark.parametrize("argv,func", [
     (["config", "setup"], cred.cmd_config_setup),
     (["config", "show"], cred.cmd_config_show),
+    (["config", "list"], cred.cmd_config_list),
     (["config", "set", "general.paper.account", "1"], cred.cmd_config_set),
     (["config", "default"], cred.cmd_config_default),
     (["config", "default", "profile", "general"], cred.cmd_config_default_profile),
@@ -386,6 +387,41 @@ def test_show_legacy_banner_points_to_migrate(tmp_path, capsys):
 def test_show_reports_empty_config(tmp_path, capsys):
     cli_main.main(["config", "show"])
     assert "설정된 자격증명이 없습니다" in capsys.readouterr().out
+
+
+# --- list ---------------------------------------------------------------------
+
+def test_list_prints_profiles_grouped_by_environment_without_secrets(
+    tmp_path, monkeypatch, capsys,
+):
+    monkeypatch.setattr(cli_main, "build_client", _no_client)
+    _write_raw(tmp_path, {
+        "schema": 2,
+        "hts_id": "HTS_USER",
+        "default_profile": "general",
+        "real": {
+            "pension": {"app_key": "REAL_KEY_2", "app_secret": "REAL_SECRET_2"},
+            "general": {"app_key": "REAL_KEY_1", "app_secret": "REAL_SECRET_1"},
+        },
+        "paper": {
+            "isa": {"app_key": "PAPER_KEY_2", "app_secret": "PAPER_SECRET_2"},
+            "general": {"app_key": "PAPER_KEY_1", "app_secret": "PAPER_SECRET_1"},
+        },
+    })
+
+    assert cli_main.main(["config", "list"]) == 0
+    output = capsys.readouterr().out
+    assert output == (
+        "저장된 프로필:\n"
+        "  [real]\n"
+        "    general\n"
+        "    pension\n"
+        "  [paper]\n"
+        "    general\n"
+        "    isa\n"
+    )
+    for secret in ("REAL_KEY_1", "REAL_SECRET_1", "PAPER_KEY_2", "PAPER_SECRET_2"):
+        assert secret not in output
 
 
 # --- set ----------------------------------------------------------------------

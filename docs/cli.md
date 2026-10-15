@@ -29,6 +29,7 @@ kis config                                  # 대화형으로 자격증명 저�
 kis config setup --profile general          # 프로필 이름을 미리 주고 나머지만 프롬프트
 kis config setup --set-default              # 저장 후 기본 프로필로 지정
 kis config show                             # 저장된 설정을 마스킹해 보기
+kis config list                             # 저장된 프로필 이름을 real/paper 환경별로 보기(시크릿 비노출)
 kis config set general.paper.app_key        # 한 필드 수정(값 없이 주면 프롬프트)
 kis config set general.real.account 12345678-01  # 비밀 아닌 account 만 값을 바로 줄 수 있음
 kis config default profile general          # 기본 프로필 지정

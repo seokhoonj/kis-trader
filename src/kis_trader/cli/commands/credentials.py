@@ -7,6 +7,7 @@
   (연금/IRP/ISA/해외선물옵션은 KIS 모의투자가 보통 없어 ``paper`` 에 참고 힌트를 보여주되,
   프롬프트는 그대로 띄운다 -- 하드 게이트가 아니라 이름 기준 힌트일 뿐).
 - ``show``: 저장분을 마스킹해 보여준다(시크릿 비노출; 앱키는 끝 4자리만).
+- ``list``: 저장된 프로필 이름만 환경별로 보여준다(자격증명 값 비노출).
 - ``set <profile>.<env>.<field> [VALUE]``: 한 필드 수정. 시크릿(app_key/app_secret/account_password)은
   명령줄 인자로 받지 않고(프로세스 목록/셸 기록 유출 방지) ``getpass`` 숨김 프롬프트로만 입력받는다.
 - ``default``/``hts-id``: 최상위 메타(기본 프로필·환경, HTS 로그인 아이디) 기록.
@@ -52,6 +53,7 @@ from ...config import (
     _validate_profile_name_v2,
     _validate_v2_shape,
     _write_credentials,
+    list_profiles,
 )
 from ...errors import KISUsageError
 from ...transport import Environment
@@ -222,6 +224,19 @@ def cmd_config_show(args: argparse.Namespace) -> None:
             if _ACCOUNT_PASSWORD_KEY in bundle:
                 line += ", account_password (설정됨)"
             print(line)
+
+
+def cmd_config_list(args: argparse.Namespace) -> None:
+    """저장된 프로필 이름을 real/paper 환경별로 정렬해 보여준다. 자격증명 값은 읽어 출력하지 않는다."""
+    print("저장된 프로필:")
+    for environment in _ENVIRONMENTS:
+        print(f"  [{environment}]")
+        profiles = list_profiles(environment=cast(Environment, environment))
+        if not profiles:
+            print("    (없음)")
+            continue
+        for profile in profiles:
+            print(f"    {profile}")
 
 
 # --- set ----------------------------------------------------------------------

@@ -600,7 +600,7 @@ def _build_test_server(kis=None, *, environment="paper", profile="general", allo
     kis = kis if kis is not None else _fake_kis(environment=environment)
     session = MCPSession(profile=profile, environment=environment, startup_client=kis,
                          auth=_StartupAuthorization(allow_real=False, confirmed=False),
-                         build=lambda p, e: kis)
+                         build=None if profile is None else lambda p, e: kis)
     return build_server(session, allowlist=allowlist, breaker=CircuitBreaker(),
                         capped_currencies=capped_currencies)
 
@@ -618,10 +618,57 @@ def test_server_registers_read_switch_and_guarded_order_tools():
                      "stock_bars", "index_bars", "order_book", "trades", "status",
                      "stock_investor_flows", "market_investor_flows", "investor_net_buy_stocks",
                      "balance", "positions", "open_orders", "reconcile",
-                     "use_environment", "use_profile", "current_account",
+                     "use_environment", "use_profile", "list_profiles", "current_account",
                      "order_preview", "place_order", "cancel_order", "modify_order"}
     # 원시 매매 메서드(buy/sell/credit)는 직접 노출하지 않는다 -- 가드레일 통과하는 place_order 만.
     assert not (names & {"buy", "sell", "credit_buy", "credit_sell"})
+
+
+def test_list_profiles_tool_returns_stored_switchable_profiles_for_active_environment(
+    tmp_path, monkeypatch,
+):
+    pytest.importorskip("mcp")
+
+    from kis_trader import KISConfig
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    for profile in ("pension", "custom_account", "general"):
+        KISConfig(profile=profile, app_key=f"{profile}_KEY", app_secret=f"{profile}_SECRET").save()
+
+    server = _build_test_server(profile="pension", environment="paper")
+    tool = server._tool_manager.get_tool("list_profiles")
+    assert tool is not None
+    result = tool.fn()
+
+    assert result == {
+        "profiles": ["general", "pension"],
+        "active_profile": "pension",
+        "environment": "paper",
+        "switching_enabled": True,
+    }
+
+
+def test_list_profiles_tool_direct_credentials_reports_no_switchable_profiles(
+    tmp_path, monkeypatch,
+):
+    pytest.importorskip("mcp")
+
+    from kis_trader import KISConfig
+
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(tmp_path / "config"))
+    KISConfig(profile="general", app_key="GENERAL_KEY", app_secret="GENERAL_SECRET").save()
+
+    server = _build_test_server(profile=None, environment="paper")
+    tool = server._tool_manager.get_tool("list_profiles")
+    assert tool is not None
+    result = tool.fn()
+
+    assert result == {
+        "profiles": [],
+        "active_profile": None,
+        "environment": "paper",
+        "switching_enabled": False,
+    }
 
 
 def test_environment_switch_safety_phrasing_is_conditional_not_absolute():

@@ -87,6 +87,7 @@ kis.orders.cancel(report.client_order_id)                      # 취소
 
 ```bash
 kis config                      # 자격증명을 대화형으로 입력받아 프로필에 저장
+kis config list                 # 저장된 프로필 이름을 실전/모의 환경별로 확인
 kis stock quote 005930
 kis search 삼성전자
 kis ranking change --direction gainers

@@ -18,7 +18,7 @@ from __future__ import annotations
 import threading
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, get_args
+from typing import NotRequired, TypedDict, cast, get_args
 
 from ..client import KISClient
 from ..errors import KISUsageError
@@ -33,6 +33,16 @@ _ENVIRONMENTS = frozenset(get_args(Environment))
 #: ``(profile, environment)`` -> KISClient 팩토리. profile 은 저장 프로필 이름(``None`` 은 직접-자격증명
 #: 기동이라 전환 불가 -- 이 팩토리가 쓰이지 않는다).
 ClientBuilder = Callable[[str, str], KISClient]
+
+
+class CurrentAccountResult(TypedDict):
+    """활성 MCP 슬롯의 공개 설명 형상. 계좌 상품코드를 알 수 있을 때만 ``product_code`` 가 붙는다."""
+
+    profile: str | None
+    environment: Environment
+    account: str
+    account_type: str | None
+    product_code: NotRequired[str]
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,6 +135,11 @@ class MCPSession:
         """현재 활성 프로필 이름(직접-자격증명 기동은 ``None``). 해외-조회·주문 게이트가 쓴다."""
         return self._profile
 
+    @property
+    def switching_enabled(self) -> bool:
+        """저장 프로필 팩토리가 있어 런타임 계좌·환경 전환이 가능한 세션인지."""
+        return self._build is not None
+
     def read_context(self) -> tuple[KISClient, str | None]:
         """활성 슬롯의 (client, active_profile) 를 **한 락 아래서 함께** 떠서 돌려준다. client 와
         profile 을 ``read_client()`` + ``active_profile`` 로 따로 읽으면 그 사이 동시 ``use_profile`` 가
@@ -153,7 +168,7 @@ class MCPSession:
                 )
             return OrderSnapshot(profile=profile, environment=environment, client=client, gate=gate)
 
-    def use_environment(self, environment: str) -> dict[str, Any]:
+    def use_environment(self, environment: str) -> CurrentAccountResult:
         """활성 환경만 바꾼다(real/paper). 기동 시 얼린 실주문 언락 비트(:class:`_StartupAuthorization`)는
         전환으로 바뀌지 않는다 -- 다만 기동 시 그 비트가 켜져 있었다면 real 로 바꾼 뒤 실주문이 집행
         가능해진다(사람 확인은 여전히 필요). 대상 슬롯을 commit 전에 먼저 만들어 보고(atomic -- 없는
@@ -165,7 +180,7 @@ class MCPSession:
             self._environment = environment
             return self._describe()
 
-    def use_profile(self, profile: str) -> dict[str, Any]:
+    def use_profile(self, profile: str) -> CurrentAccountResult:
         """활성 프로필(계좌 종류)만 바꾼다. {general, isa, pension, irp} 로 제한한다 -- 그 밖/파생이면
         지원 목록과 함께 거부(파생은 선택 불가). 대상 슬롯을 commit 전에 먼저 만들어 보고(atomic)
         성공해야 확정한다. 조회뿐 아니라 **주문 대상 계좌**도 함께 바뀐다 -- 실주문이 언락된 세션이면
@@ -181,18 +196,18 @@ class MCPSession:
             self._profile = profile
             return self._describe()
 
-    def current_account(self) -> dict[str, Any]:
+    def current_account(self) -> CurrentAccountResult:
         """지금 활성 ``(profile, environment)`` + 마스킹 계좌 + 계좌 종류(best-effort)."""
         with self._lock:
             return self._describe()
 
-    def _describe(self) -> dict[str, Any]:
+    def _describe(self) -> CurrentAccountResult:
         """활성 슬롯 설명 dict. **호출자가 락을 쥔다.** 계좌번호는 마지막 4자리만(마스킹)."""
         client = self._get_or_build(self._profile, self._environment)
         account_type, product_code = _account_descriptor(client)
-        out: dict[str, Any] = {
+        out: CurrentAccountResult = {
             "profile": self._profile,
-            "environment": self._environment,
+            "environment": cast("Environment", self._environment),
             "account": _account_masked(client),
             "account_type": account_type,
         }
