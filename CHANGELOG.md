@@ -3,6 +3,17 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.10.0 - 2026-10-15
+
+### Added
+
+- Public `kis_trader.config.list_profiles()` helper for listing the schema-2 credential profiles
+  stored across both environments or within one selected environment.
+- `kis config list`, which prints stored profile names grouped by `real` and `paper` without
+  exposing credential values.
+- Read-only MCP `list_profiles` tool, limited to stored profiles supported by `use_profile` and
+  annotated with the active profile, environment, and session switching capability.
+
 ## 0.9.0 — 2026-10-15
 
 Expose the read-only market data the library already provides through the MCP server and the CLI, so
