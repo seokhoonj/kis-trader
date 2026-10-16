@@ -50,17 +50,19 @@ _HIGHLOW_GUBN = {"high": "1", "low": "0"}
 def _parse_ranking(
     rows: Sequence[Mapping[str, Any]],
 ) -> list[OverseasRankedStock]:
+    # 엔드포인트별 스키마 차이 흡수(라이브 확인 2026-10-16): 일부 순위 TR(new-highlow·volume-surge·
+    # volume-power·price-fluct)은 명시적 ``rank`` 필드가 없어 순위=행 순서이고, 한글/영문명을
+    # ``knam``/``enam`` 로 준다(market-cap·updown-rate 는 ``rank``/``name``/``ename``). 응답 단위로
+    # 스키마를 한 번 정한다 -- 명시 rank 가 하나라도 있으면 전 행이 그 값을 써야 하고(혼재 시 누락행은
+    # required_int 가 fail-closed), 전무하면 유효행 순서(연속, 패딩 빈행은 건너뛰어 공백 없음).
+    has_explicit_rank = any(str(r.get("rank") or "").strip() for r in rows)
     ranked: list[OverseasRankedStock] = []
     for row in rows:
         symbol = str(row.get("symb", "")).strip()
         if not symbol:
             continue
         sign = str(row.get("sign", "")).strip()
-        # 엔드포인트별 스키마 차이 흡수(라이브 확인 2026-10-16): 일부 순위 TR(new-highlow·volume-surge·
-        # volume-power·price-fluct)은 명시적 ``rank`` 필드가 없어 순위=행 순서이고, 한글/영문명을
-        # ``knam``/``enam`` 로 준다(market-cap·updown-rate 는 ``rank``/``name``/``ename``).
-        raw_rank = row.get("rank")
-        rank = required_int(raw_rank, "rank") if raw_rank not in (None, "") else len(ranked) + 1
+        rank = required_int(row.get("rank"), "rank") if has_explicit_rank else len(ranked) + 1
         ranked.append(
             OverseasRankedStock(
                 rank=rank,
@@ -122,7 +124,8 @@ def fetch_by_market_cap(transport: Transport, *, exchange: str) -> list[Overseas
     """한 거래소의 시가총액 순위."""
     path, tr = _MARKET_CAP
     # CURR_GB(통화구분) 필수 -- 누락 시 'INPUT FIELD NOT FOUND [CURR_GB]'. "0" 로 조회 확인
-    # (2026-10-16 US 장중 라이브: rt_cd=0, 100 rows). 공식 예제는 CURR_GB 를 누락하나 라이브는 요구한다.
+    # (2026-10-16 US/NAS 장중 라이브: rt_cd=0, 100 rows). 공식 예제는 CURR_GB 를 누락하나 라이브는 요구한다.
+    # "0" 은 NAS 로만 검증 -- 비-US 거래소(HKS/SHS/TSE/HSX...)의 올바른 CURR_GB 값은 미검증(needs-probe).
     params = {"EXCD": exchange, "CURR_GB": "0", "VOL_RANG": "1",
               "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
     return _fetch_ranking(transport, path=path, tr=tr, params=params)
@@ -192,7 +195,8 @@ def fetch_by_new_highlow(
     path, tr = _NEW_HIGHLOW
     # 필수: EXCD/NDAY/MINX/VOL_RANG/GUBN(1 신고/0 신저)/GUBN2(1 유지/0 일시)/KEYB/AUTH.
     # NDAY·MINX 둘 다 필요 -- NDAY 누락 시 'INPUT FIELD NOT FOUND [NDAY]'. "0" 로 조회 확인
-    # (2026-10-16 US 장중 라이브: rt_cd=0, 100 rows). 공식 예제는 NDAY 를 누락하나 라이브는 요구한다.
+    # (2026-10-16 US/NAS 장중 라이브: rt_cd=0, 100 rows). 공식 예제는 NDAY 를 누락하나 라이브는 요구한다.
+    # "0" 은 NAS 로만 검증 -- 비-US 거래소의 올바른 NDAY 값은 미검증(needs-probe).
     params = {"EXCD": exchange, "NDAY": "0", "GUBN": gubn, "GUBN2": "1" if sustained else "0",
               "MINX": "0", "VOL_RANG": "0", "KEYB": "", "AUTH": ""}
     return _fetch_ranking(transport, path=path, tr=tr, params=params)

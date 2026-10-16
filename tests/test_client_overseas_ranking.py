@@ -73,6 +73,28 @@ def test_ranking_parses_rankless_knam_schema():
     assert ranked[1].change == Decimal(-2)              # sign 5 -> 하락
 
 
+def test_rankless_skips_blank_row_without_rank_gap():
+    # rank 없는 응답에 빈 symbol 패딩행이 중간에 끼어도 유효행은 연속 순위(공백 없음).
+    rows = [
+        {"excd": "NAS", "symb": "AAA", "knam": "에이", "last": "10", "sign": "2", "diff": "1", "rate": "1", "tvol": "5"},
+        {"excd": "NAS", "symb": "",    "knam": "",   "last": "",   "sign": "",  "diff": "",  "rate": "",  "tvol": ""},
+        {"excd": "NAS", "symb": "CCC", "knam": "씨이", "last": "30", "sign": "2", "diff": "1", "rate": "1", "tvol": "7"},
+    ]
+    ranked = _client(FakeTransport(response=_resp(rows))).overseas.ranking.by_new_highlow(exchange="NAS")
+    assert [r.rank for r in ranked] == [1, 2]             # 빈행 건너뛰고 1,2 연속 (3 아님)
+    assert [r.symbol for r in ranked] == ["AAA", "CCC"]
+
+
+def test_mixed_present_and_missing_rank_fails_closed():
+    # 명시 rank 가 하나라도 있으면 전 행이 그 값을 써야 한다 -- 누락행은 조용히 위치로 때우지 않고 fail-closed.
+    rows = [
+        {"rank": "1", "excd": "NAS", "symb": "AAA", "name": "에이", "last": "10", "sign": "2", "diff": "1", "rate": "1", "tvol": "5"},
+        {"excd": "NAS", "symb": "BBB", "name": "비이", "last": "20", "sign": "2", "diff": "1", "rate": "1", "tvol": "6"},
+    ]
+    with pytest.raises(KISError):
+        _client(FakeTransport(response=_resp(rows))).overseas.ranking.by_new_highlow(exchange="NAS")
+
+
 def test_by_volume_blank_tamt_reads_none():
     # 라이브에서 빈 tamt 가 와도 크래시하지 않고 trading_amount 는 None (optional 완화 회귀 고정).
     rows = [{"rank": "1", "excd": "NAS", "symb": "TSLA", "name": "테슬라", "ename": "TESLA",
