@@ -29,9 +29,13 @@ def _rows(result) -> list:
 def _anomalies(contract, rows: list) -> list[str]:
     flags = []
     if "no_trailing_zero_volume_padding" in contract.invariants:
-        zero = sum(1 for r in rows if getattr(r, "volume", None) == 0)
-        if zero:
-            flags.append(f"zero-volume bars: {zero}/{len(rows)}")
+        trailing = 0  # 꼬리에서부터 연속된 vol=0 봉만 센다(장중 저유동 0-vol 은 패딩 아님)
+        for r in reversed(rows):
+            if getattr(r, "volume", None) != 0:
+                break
+            trailing += 1
+        if trailing:
+            flags.append(f"trailing zero-volume bars: {trailing}/{len(rows)}")
     if "nonempty_when_market_open" in contract.invariants and not rows:
         flags.append("EMPTY (시장 열림 가정 시 이상; 닫혔으면 deferred)")
     return flags
