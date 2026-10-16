@@ -116,7 +116,9 @@ def fetch_by_trade_growth(transport: Transport, *, exchange: str) -> list[Overse
 def fetch_by_market_cap(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
     """한 거래소의 시가총액 순위."""
     path, tr = _MARKET_CAP
-    params = {"EXCD": exchange, "VOL_RANG": "1",
+    # CURR_GB(통화구분) 필수 -- 누락 시 'INPUT FIELD NOT FOUND [CURR_GB]'. "0" 로 조회 확인
+    # (2026-10-16 US 장중 라이브: rt_cd=0, 100 rows). 공식 예제는 CURR_GB 를 누락하나 라이브는 요구한다.
+    params = {"EXCD": exchange, "CURR_GB": "0", "VOL_RANG": "1",
               "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
     return _fetch_ranking(transport, path=path, tr=tr, params=params)
 
@@ -183,8 +185,9 @@ def fetch_by_new_highlow(
     except KeyError:
         raise KISUsageError(f"extreme 은 {sorted(_HIGHLOW_GUBN)} 중 하나: {extreme!r}") from None
     path, tr = _NEW_HIGHLOW
-    # 원장 new_highlow 필수 파라미터: EXCD/MINX(N분전콤보, 0=1분전)/VOL_RANG/GUBN/GUBN2/KEYB/AUTH.
-    # NDAY·PRC1·PRC2 는 이 엔드포인트에 없다(NDAY 는 updown_rate 파라미터라 혼입이었다) -- MINX 를 보낸다.
-    params = {"EXCD": exchange, "GUBN": gubn, "GUBN2": "1" if sustained else "0",
+    # 필수: EXCD/NDAY/MINX/VOL_RANG/GUBN(1 신고/0 신저)/GUBN2(1 유지/0 일시)/KEYB/AUTH.
+    # NDAY·MINX 둘 다 필요 -- NDAY 누락 시 'INPUT FIELD NOT FOUND [NDAY]'. "0" 로 조회 확인
+    # (2026-10-16 US 장중 라이브: rt_cd=0, 100 rows). 공식 예제는 NDAY 를 누락하나 라이브는 요구한다.
+    params = {"EXCD": exchange, "NDAY": "0", "GUBN": gubn, "GUBN2": "1" if sustained else "0",
               "MINX": "0", "VOL_RANG": "0", "KEYB": "", "AUTH": ""}
     return _fetch_ranking(transport, path=path, tr=tr, params=params)

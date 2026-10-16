@@ -65,12 +65,12 @@ impl            = "kis_trader.overseas._engine.ranking:fetch_by_market_cap"
 tr_id           = "HHDFS76350100"
 path            = "/uapi/overseas-stock/v1/ranking/market-cap"
 method          = "GET"
-required_params = ["EXCD", "VOL_RANG", "KEYB", "AUTH"]
+required_params = ["EXCD", "CURR_GB", "VOL_RANG", "KEYB", "AUTH"]
 optional_params = ["PRC1", "PRC2"]
 response_fields = []
 invariants      = ["nonempty_when_market_open"]
-source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/overseas_stock/market_cap"
-notes           = "시가총액 순위. 공식 예제에 CURR_GB 없음. 라이브(마감중) CURR_GB 에러는 재프로브로 확정."
+source_url      = "live-probe 2026-10-16 US open: CURR_GB required (official example omits it, now stale)"
+notes           = "시가총액 순위. CURR_GB(통화구분) 필수 -- US 장중 라이브로 확정(CURR_GB=0 -> rt_cd=0, 100 rows). 공식 koreainvestment 예제는 CURR_GB 를 누락(outdated)."
 
 [[endpoint]]
 name            = "overseas_ranking_volume_surge"
@@ -130,9 +130,9 @@ impl            = "kis_trader.overseas._engine.ranking:fetch_by_new_highlow"
 tr_id           = "HHDFS76300000"
 path            = "/uapi/overseas-stock/v1/ranking/new-highlow"
 method          = "GET"
-required_params = ["EXCD", "MINX", "VOL_RANG", "GUBN", "GUBN2", "KEYB", "AUTH"]
+required_params = ["EXCD", "NDAY", "MINX", "VOL_RANG", "GUBN", "GUBN2", "KEYB", "AUTH"]
 optional_params = []
 response_fields = []
 invariants      = ["nonempty_when_market_open"]
-source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/overseas_stock/new_highlow"
-notes           = "신고/신저가 순위. 공식 예제는 MINX 사용(NDAY 아님). 라이브(마감중) NDAY 에러는 재프로브로 확정."
+source_url      = "live-probe 2026-10-16 US open: NDAY required alongside MINX (official example omits NDAY, now stale)"
+notes           = "신고/신저가 순위. NDAY·MINX 둘 다 필수 -- US 장중 라이브로 확정(NDAY=0 -> rt_cd=0, 100 rows). 공식 예제는 NDAY 누락(outdated). GUBN 1=신고/0=신저, GUBN2 1=유지/0=일시."
