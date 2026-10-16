@@ -1,0 +1,14 @@
+# KIS 해외주식 랭킹 엔드포인트 계약. required_params/response_fields 는 공식 doc 기준.
+# 시드는 코드가 이미 필수 파라미터를 보내는 by_change 로 둔다(테스트 green).
+[[endpoint]]
+name            = "overseas_ranking_change"
+impl            = "kis_trader.overseas._engine.ranking:fetch_by_change"
+tr_id           = "HHDFS76290000"
+path            = "/uapi/overseas-stock/v1/ranking/updown-rate"
+method          = "GET"
+required_params = ["EXCD", "GUBN", "NDAY", "VOL_RANG"]
+optional_params = ["KEYB", "AUTH", "PRC1", "PRC2"]
+response_fields = []
+invariants      = ["nonempty_when_market_open"]
+source_url      = "https://apiportal.koreainvestment.com/apiservice-category"
+notes           = "updown-rate 랭킹. 정확한 필수셋은 후속 태스크에서 공식 doc 으로 확정."

@@ -83,7 +83,7 @@ ignore-vcs = true
 include = ["/src", "/tests", "/README.en.md", "/CHANGELOG.md"]
 
 [tool.pytest.ini_options]
-pythonpath = ["src"]
+pythonpath = ["src", "."]
 testpaths = ["tests"]
 
 [tool.ruff]
