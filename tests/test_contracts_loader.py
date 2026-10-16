@@ -8,7 +8,7 @@ def test_loads_change_contract():
     assert isinstance(c, Contract)
     assert c.impl == "kis_trader.overseas._engine.ranking:fetch_by_change"
     assert "GUBN" in c.required_params
-    assert c.required_params == ("EXCD", "GUBN", "NDAY", "VOL_RANG")
+    assert c.required_params == ("EXCD", "NDAY", "GUBN", "VOL_RANG", "AUTH", "KEYB")
 
 
 def test_area_none_merges_all_files():

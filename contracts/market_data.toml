@@ -1,0 +1,16 @@
+# KIS 국내주식 시세(market-data) 엔드포인트 계약.
+# stock_bars_1m 은 요청 파라미터보다 응답 invariant(패딩)가 핵심이라 required_params 는 비운다
+# (정적 테스트 자동 통과); 패딩은 라이브 probe 가 no_trailing_zero_volume_padding 로 검사한다.
+
+[[endpoint]]
+name            = "stock_bars_1m"
+impl            = "kis_trader.domestic._engine.market_data:fetch_bars"
+tr_id           = "FHKST03010200"
+path            = "/uapi/domestic-stock/v1/quotations/inquire-time-itemchartprice"
+method          = "GET"
+required_params = []
+optional_params = []
+response_fields = []
+invariants      = ["no_trailing_zero_volume_padding"]
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/inquire_time_itemchartprice"
+notes           = "당일 1분봉. 2026-10-16 라이브: 09:00-23:59 900봉 중 ~509 플랫 vol=0 패딩 관측(마감후). KIS 원본 패딩을 트림할지/문서화할지 Task 5 에서 결정."
