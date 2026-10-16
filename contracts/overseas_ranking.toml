@@ -3,9 +3,9 @@
 # examples_llm/overseas_stock/<name>)에서 확인한 1차증거. 우리 코드는 각 엔드포인트에서 이 필수셋의
 # 상위집합(+ PRC1/PRC2 또는 빈 KEYB/AUTH)을 전송하므로 정적 contract test 는 통과한다.
 # PRC1/PRC2 는 공식 일부 예제에만 있어 optional 로 둔다.
-# 주의(라이브↔doc): 2026-10-16 US 마감 중 by_market_cap/by_new_highlow 가
-# 'INPUT FIELD NOT FOUND [CURR_GB]/[NDAY]' 로 응답했으나, 공식 예제는 그 필드를 보내지 않고도 동작한다
-# (동일 TR). 마감 중 오도성 에러로 추정 -- US 개장(22:30 KST) 재프로브로 확정 전까지 맹목 수정 금지.
+# 라이브↔doc 교훈: by_market_cap(CURR_GB)·by_new_highlow(NDAY)는 US 장중 라이브 재프로브로 필수 확정
+# (CURR_GB=0/NDAY=0 -> rt_cd=0, 100 rows). 공식 koreainvestment 예제는 둘 다 누락(stale) -- 벤더 예제가
+# 아니라 라이브-장중이 최종 권위. "0" 값은 NAS 로만 검증, 비-US 거래소는 needs-probe(각 notes 참조).
 
 [[endpoint]]
 name            = "overseas_ranking_volume"
