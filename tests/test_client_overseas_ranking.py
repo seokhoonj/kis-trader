@@ -162,10 +162,12 @@ def test_price_fluct_and_new_highlow_gubn_codes():
     _client(fake).overseas.ranking.by_new_highlow(exchange="NAS")   # 기본 high/sustained
     assert fake.calls[0]["params"]["GUBN"] == "1"
     assert fake.calls[0]["params"]["GUBN2"] == "1"
-    # 원장 new_highlow 필수 파라미터는 MINX -- NDAY/PRC1/PRC2 는 이 엔드포인트에 없다(혼입이었다).
+    # new_highlow 는 NDAY 와 MINX 를 둘 다 요구한다 -- NDAY 누락 시 'INPUT FIELD NOT FOUND [NDAY]'
+    # (2026-10-16 US 장중 라이브로 확정). PRC1/PRC2 는 이 엔드포인트에 없다.
     params = fake.calls[0]["params"]
     assert params["MINX"] == "0"
-    assert "NDAY" not in params and "PRC1" not in params and "PRC2" not in params
+    assert params["NDAY"] == "0"
+    assert "PRC1" not in params and "PRC2" not in params
 
 
 def test_overseas_ranking_bad_direction_raises():
