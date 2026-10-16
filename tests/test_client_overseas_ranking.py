@@ -58,6 +58,21 @@ def test_by_volume_maps_and_params():
     assert call["params"]["EXCD"] == "NAS"
 
 
+def test_ranking_parses_rankless_knam_schema():
+    # new-highlow/volume-surge 류 응답: 명시 rank 없음(순위=행 순서), 이름은 knam/enam (라이브 2026-10-16).
+    rows = [
+        {"excd": "NAS", "symb": "AAA", "knam": "에이", "enam": "AAA Inc",
+         "last": "10", "sign": "2", "diff": "1", "rate": "1.0", "tvol": "5"},
+        {"excd": "NAS", "symb": "BBB", "knam": "비이", "enam": "BBB Inc",
+         "last": "20", "sign": "5", "diff": "2", "rate": "1.5", "tvol": "6"},
+    ]
+    ranked = _client(FakeTransport(response=_resp(rows))).overseas.ranking.by_new_highlow(exchange="NAS")
+    assert [r.rank for r in ranked] == [1, 2]             # rank 필드 없음 -> 행 순서
+    assert ranked[0].name == "에이" and ranked[0].english_name == "AAA Inc"
+    assert ranked[1].symbol == "BBB"
+    assert ranked[1].change == Decimal(-2)              # sign 5 -> 하락
+
+
 def test_by_volume_blank_tamt_reads_none():
     # 라이브에서 빈 tamt 가 와도 크래시하지 않고 trading_amount 는 None (optional 완화 회귀 고정).
     rows = [{"rank": "1", "excd": "NAS", "symb": "TSLA", "name": "테슬라", "ename": "TESLA",

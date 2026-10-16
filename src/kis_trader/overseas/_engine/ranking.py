@@ -56,13 +56,18 @@ def _parse_ranking(
         if not symbol:
             continue
         sign = str(row.get("sign", "")).strip()
+        # 엔드포인트별 스키마 차이 흡수(라이브 확인 2026-10-16): 일부 순위 TR(new-highlow·volume-surge·
+        # volume-power·price-fluct)은 명시적 ``rank`` 필드가 없어 순위=행 순서이고, 한글/영문명을
+        # ``knam``/``enam`` 로 준다(market-cap·updown-rate 는 ``rank``/``name``/``ename``).
+        raw_rank = row.get("rank")
+        rank = required_int(raw_rank, "rank") if raw_rank not in (None, "") else len(ranked) + 1
         ranked.append(
             OverseasRankedStock(
-                rank=required_int(row.get("rank"), "rank"),
+                rank=rank,
                 exchange=str(row.get("excd", "")).strip(),
                 symbol=symbol,
-                name=str(row.get("name", "")).strip(),
-                english_name=str(row.get("ename", "")).strip(),
+                name=str(row.get("name") or row.get("knam") or "").strip(),
+                english_name=str(row.get("ename") or row.get("enam") or "").strip(),
                 current_price=required_decimal(row.get("last"), "last"),
                 change=_apply_change_sign(required_decimal(row.get("diff"), "diff"), sign),
                 change_percent=_apply_change_sign(required_decimal(row.get("rate"), "rate"), sign),
