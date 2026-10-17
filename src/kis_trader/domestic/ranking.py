@@ -132,27 +132,27 @@ class DomesticRankingQueries:
         """체결강도 순위(최대 30건). 당일 체결강도는 각 항목의 ``_raw['tday_rltv']``."""
         return ranking_api.fetch_volume_power(self._client.transport, market="KRX")
 
-    def by_bulk_trades(self, *, side: Side = "buy") -> list[DomesticRankedStock]:
+    def by_bulk_trade_count(self, *, side: Side = "buy") -> list[DomesticRankedStock]:
         """대량체결건수 순위. ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. 체결건수는 각 항목의
         ``_raw``(shnu_cntg_csnu/seln_cntg_csnu 등)(최대 30건)."""
-        return ranking_api.fetch_bulk_trades(self._client.transport, side=side, market="KRX")
+        return ranking_api.fetch_bulk_trade_count(self._client.transport, side=side, market="KRX")
 
-    def by_interest(self) -> list[DomesticRankedStock]:
+    def by_watchlist_registrations(self) -> list[DomesticRankedStock]:
         """관심종목 등록상위 순위(최대 30건). 관심등록 건수는 각 항목의 ``_raw['inter_issu_reg_csnu']``."""
-        return ranking_api.fetch_interest(self._client.transport, market="KRX")
+        return ranking_api.fetch_watchlist_registrations(self._client.transport, market="KRX")
 
-    def by_preferred_disparity(self) -> list[DomesticRankedStock]:
+    def by_preferred_share_disparity(self) -> list[DomesticRankedStock]:
         """우선주 괴리율 순위(최대 30건). 공통필드는 본주 기준, 짝 우선주 시세와 괴리율은 각 항목의
         ``_raw``(prst_* / dprt 괴리율)."""
-        return ranking_api.fetch_preferred_disparity(self._client.transport, market="KRX")
+        return ranking_api.fetch_preferred_share_disparity(self._client.transport, market="KRX")
 
-    def by_finance_ratio(
+    def by_financial_ratio(
         self, *, analysis: FinancialAnalysis = "profitability", year: int, quarter: FiscalQuarter = "annual"
     ) -> list[DomesticRankedStock]:
         """재무비율 순위. ``analysis`` = ``"profitability"`` 수익성 / ``"stability"`` 안정성 /
         ``"growth"`` 성장성 / ``"activity"`` 활동성. ``year`` 회계연도(예: 2023), ``quarter`` =
         ``"q1"``/``"h1"``/``"q3"``/``"annual"``(결산). 비율값은 각 항목의 ``_raw``(최대 30건)."""
-        return ranking_api.fetch_finance_ratio(
+        return ranking_api.fetch_financial_ratio(
             self._client.transport, analysis=analysis, year=year, quarter=quarter, market="KRX"
         )
 
@@ -177,13 +177,13 @@ class DomesticRankingQueries:
             self._client.transport, metric=metric, year=year, quarter=quarter, market="KRX"
         )
 
-    def by_company_trades(
+    def by_house_trade_volume(
         self, *, side: Side = "buy", start: str | date, end: str | date
     ) -> list[DomesticRankedStock]:
         """당사매매종목 순위(기간). ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. ``start``/``end`` 는
         조회 기간(YYYYMMDD 문자열 또는 ``date``). 당사 매수/매도/순매수 수량은 각 항목의
         ``_raw``(shnu_cnqn_smtn/seln_cnqn_smtn/ntby_cnqn)(최대 30건)."""
-        return ranking_api.fetch_company_trades(
+        return ranking_api.fetch_house_trade_volume(
             self._client.transport, side=side, start=start, end=end, market="KRX"
         )
 

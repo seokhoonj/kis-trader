@@ -104,7 +104,7 @@ def fetch_by_volume(transport: Transport, *, exchange: str) -> list[OverseasRank
     return _fetch_ranking(transport, path=path, tr=tr, params=params)
 
 
-def fetch_by_amount(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
+def fetch_by_trading_amount(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
     """한 거래소의 거래대금 순위."""
     path, tr = _TRADE_AMOUNT
     params = {"EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
@@ -112,7 +112,7 @@ def fetch_by_amount(transport: Transport, *, exchange: str) -> list[OverseasRank
     return _fetch_ranking(transport, path=path, tr=tr, params=params)
 
 
-def fetch_by_trade_growth(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
+def fetch_by_volume_growth(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
     """한 거래소의 거래증가율 순위."""
     path, tr = _TRADE_GROWTH
     params = {"EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
@@ -183,7 +183,7 @@ def fetch_by_price_fluctuation(
     return _fetch_ranking(transport, path=path, tr=tr, params=params)
 
 
-def fetch_by_new_highlow(
+def fetch_by_new_high_low(
     transport: Transport, *, exchange: str, extreme: Literal["high", "low"] = "high", sustained: bool = True
 ) -> list[OverseasRankedStock]:
     """한 거래소의 신고가/신저가 순위. ``extreme="high"`` 신고 / ``"low"`` 신저(KIS 명세 GUBN 1/0).

@@ -156,23 +156,23 @@ kis.domestic
 │   ├── by_change()                     # 등락률 순위
 │   ├── by_near_high_low()              # 신고/신저 근접 순위
 │   ├── by_disparity()                  # 이격도 순위
-│   ├── by_preferred_disparity()        # 우선주 괴리율 순위
+│   ├── by_preferred_share_disparity()        # 우선주 괴리율 순위
 │   │  ── 거래·체결 ──────────────────────────────
 │   ├── by_volume()                     # 거래량 계열 순위
 │   ├── by_volume_power()               # 체결강도 순위
-│   ├── by_bulk_trades()                # 대량체결건수 순위
+│   ├── by_bulk_trade_count()                # 대량체결건수 순위
 │   ├── by_quote_balance()              # 호가잔량 순위
 │   │  ── 규모·밸류·재무 ───────────────────────────
 │   ├── by_market_cap()                 # 시가총액 순위
 │   ├── by_valuation(...)               # 밸류에이션 순위
-│   ├── by_finance_ratio(...)           # 재무비율 순위
+│   ├── by_financial_ratio(...)           # 재무비율 순위
 │   ├── by_profit_asset(...)            # 수익자산지표 순위
 │   ├── by_dividend(...)                # 배당률 순위
 │   │  ── 수급(공매도·신용·관심) ──────────────────────
 │   ├── by_short_sale()                 # 공매도 순위
 │   ├── by_credit_balance()             # 신용잔고 순위
-│   ├── by_company_trades(...)          # 당사매매종목 순위
-│   ├── by_interest()                   # 관심종목 등록상위
+│   ├── by_house_trade_volume(...)          # 당사매매종목 순위
+│   ├── by_watchlist_registrations()                   # 관심종목 등록상위
 │   ├── by_views()                      # HTS 조회 상위 종목
 │   │  ── 예상체결·시간외 ───────────────────────────
 │   ├── by_expected_execution_change()  # 장전 예상체결 등락
@@ -275,15 +275,15 @@ kis.overseas
 ├── corporate_actions(country, symbol)  # 기업행사 종합 일정
 └── ranking                             # 시장 순위 질의
     ├── by_volume(exchange)             # 거래량 순위
-    ├── by_amount(exchange)             # 거래대금 순위
-    ├── by_trade_growth(exchange)       # 거래증가율 순위
+    ├── by_trading_amount(exchange)             # 거래대금 순위
+    ├── by_volume_growth(exchange)       # 거래증가율 순위
     ├── by_market_cap(exchange)         # 시가총액 순위
     ├── by_change(exchange, ...)        # 등락률 순위
     ├── by_volume_surge(exchange)       # 거래량 급증 순위
     ├── by_buy_strength(exchange)       # 매수 체결강도 순위
     ├── by_turnover(exchange)           # 거래 회전율 순위
     ├── by_price_fluctuation(exchange)  # 가격 급등/급락 순위
-    └── by_new_highlow(exchange, ...)   # 신고가/신저가 순위
+    └── by_new_high_low(exchange, ...)   # 신고가/신저가 순위
 ```
 
 ## `kis.account` — 계좌 조회 (상품코드로 분기)

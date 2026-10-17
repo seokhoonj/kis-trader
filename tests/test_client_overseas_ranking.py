@@ -66,7 +66,7 @@ def test_ranking_parses_rankless_knam_schema():
         {"excd": "NAS", "symb": "BBB", "knam": "비이", "enam": "BBB Inc",
          "last": "20", "sign": "5", "diff": "2", "rate": "1.5", "tvol": "6"},
     ]
-    ranked = _client(FakeTransport(response=_resp(rows))).overseas.ranking.by_new_highlow(exchange="NAS")
+    ranked = _client(FakeTransport(response=_resp(rows))).overseas.ranking.by_new_high_low(exchange="NAS")
     assert [r.rank for r in ranked] == [1, 2]             # rank 필드 없음 -> 행 순서
     assert ranked[0].name == "에이" and ranked[0].english_name == "AAA Inc"
     assert ranked[1].symbol == "BBB"
@@ -80,7 +80,7 @@ def test_rankless_skips_blank_row_without_rank_gap():
         {"excd": "NAS", "symb": "",    "knam": "",   "last": "",   "sign": "",  "diff": "",  "rate": "",  "tvol": ""},
         {"excd": "NAS", "symb": "CCC", "knam": "씨이", "last": "30", "sign": "2", "diff": "1", "rate": "1", "tvol": "7"},
     ]
-    ranked = _client(FakeTransport(response=_resp(rows))).overseas.ranking.by_new_highlow(exchange="NAS")
+    ranked = _client(FakeTransport(response=_resp(rows))).overseas.ranking.by_new_high_low(exchange="NAS")
     assert [r.rank for r in ranked] == [1, 2]             # 빈행 건너뛰고 1,2 연속 (3 아님)
     assert [r.symbol for r in ranked] == ["AAA", "CCC"]
 
@@ -92,7 +92,7 @@ def test_mixed_present_and_missing_rank_fails_closed():
         {"excd": "NAS", "symb": "BBB", "name": "비이", "last": "20", "sign": "2", "diff": "1", "rate": "1", "tvol": "6"},
     ]
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_resp(rows))).overseas.ranking.by_new_highlow(exchange="NAS")
+        _client(FakeTransport(response=_resp(rows))).overseas.ranking.by_new_high_low(exchange="NAS")
 
 
 def test_by_volume_blank_tamt_reads_none():
@@ -130,8 +130,8 @@ def test_by_amount_growth_market_cap_route_correctly():
     row = [{"rank": "1", "excd": "NAS", "symb": "T", "name": "n", "ename": "N", "last": "1",
             "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
     cases = [
-        ("by_amount", "/uapi/overseas-stock/v1/ranking/trade-pbmn", "HHDFS76320010"),
-        ("by_trade_growth", "/uapi/overseas-stock/v1/ranking/trade-growth", "HHDFS76330000"),
+        ("by_trading_amount", "/uapi/overseas-stock/v1/ranking/trade-pbmn", "HHDFS76320010"),
+        ("by_volume_growth", "/uapi/overseas-stock/v1/ranking/trade-growth", "HHDFS76330000"),
         ("by_market_cap", "/uapi/overseas-stock/v1/ranking/market-cap", "HHDFS76350100"),
     ]
     for verb, path, tr in cases:
@@ -190,13 +190,13 @@ def test_price_fluct_and_new_highlow_gubn_codes():
     assert fake.calls[0]["params"]["GUBN"] == "1"
     # new-highlow: high/low -> GUBN 1/0, sustained -> GUBN2 1/0
     fake = FakeTransport(response=_one(row))
-    _client(fake).overseas.ranking.by_new_highlow(exchange="NAS", extreme="low", sustained=False)
+    _client(fake).overseas.ranking.by_new_high_low(exchange="NAS", extreme="low", sustained=False)
     assert fake.calls[0]["path"] == "/uapi/overseas-stock/v1/ranking/new-highlow"
     assert fake.calls[0]["tr_id"] == "HHDFS76300000"
     assert fake.calls[0]["params"]["GUBN"] == "0"
     assert fake.calls[0]["params"]["GUBN2"] == "0"
     fake = FakeTransport(response=_one(row))
-    _client(fake).overseas.ranking.by_new_highlow(exchange="NAS")   # 기본 high/sustained
+    _client(fake).overseas.ranking.by_new_high_low(exchange="NAS")   # 기본 high/sustained
     assert fake.calls[0]["params"]["GUBN"] == "1"
     assert fake.calls[0]["params"]["GUBN2"] == "1"
     # new_highlow 는 NDAY 와 MINX 를 둘 다 요구한다 -- NDAY 누락 시 'INPUT FIELD NOT FOUND [NDAY]'

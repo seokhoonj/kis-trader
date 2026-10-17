@@ -33,13 +33,13 @@ class OverseasRankingQueries:
         """한 거래소의 거래량 순위."""
         return overseas_ranking_api.fetch_by_volume(self._client.transport, exchange=exchange)
 
-    def by_amount(self, *, exchange: str) -> list[OverseasRankedStock]:
+    def by_trading_amount(self, *, exchange: str) -> list[OverseasRankedStock]:
         """한 거래소의 거래대금 순위."""
-        return overseas_ranking_api.fetch_by_amount(self._client.transport, exchange=exchange)
+        return overseas_ranking_api.fetch_by_trading_amount(self._client.transport, exchange=exchange)
 
-    def by_trade_growth(self, *, exchange: str) -> list[OverseasRankedStock]:
+    def by_volume_growth(self, *, exchange: str) -> list[OverseasRankedStock]:
         """한 거래소의 거래증가율 순위."""
-        return overseas_ranking_api.fetch_by_trade_growth(self._client.transport, exchange=exchange)
+        return overseas_ranking_api.fetch_by_volume_growth(self._client.transport, exchange=exchange)
 
     def by_market_cap(self, *, exchange: str) -> list[OverseasRankedStock]:
         """한 거래소의 시가총액 순위."""
@@ -73,11 +73,11 @@ class OverseasRankingQueries:
             self._client.transport, exchange=exchange, direction=direction
         )
 
-    def by_new_highlow(
+    def by_new_high_low(
         self, *, exchange: str, extreme: Literal["high", "low"] = "high", sustained: bool = True
     ) -> list[OverseasRankedStock]:
         """한 거래소의 신고가/신저가 순위. ``extreme="high"`` 신고 / ``"low"`` 신저,
         ``sustained=True`` 돌파유지 / ``False`` 일시돌파."""
-        return overseas_ranking_api.fetch_by_new_highlow(
+        return overseas_ranking_api.fetch_by_new_high_low(
             self._client.transport, exchange=exchange, extreme=extreme, sustained=sustained
         )

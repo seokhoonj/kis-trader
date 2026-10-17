@@ -315,7 +315,7 @@ def fetch_volume_power(transport: Transport, *, market: str) -> list[DomesticRan
     return _fetch_ranking(transport, path=_VOLUME_POWER_PATH, tr=_VOLUME_POWER_TR, params=params)
 
 
-def fetch_bulk_trades(transport: Transport, *, side: str, market: str) -> list[DomesticRankedStock]:
+def fetch_bulk_trade_count(transport: Transport, *, side: str, market: str) -> list[DomesticRankedStock]:
     """대량체결건수 순위. ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. 체결건수는 각 항목의
     ``_raw`` (shnu_cntg_csnu/seln_cntg_csnu/ntby_cnqn). 최대 30건(다음조회 없음)."""
     params = {
@@ -333,7 +333,7 @@ def fetch_bulk_trades(transport: Transport, *, side: str, market: str) -> list[D
     return _fetch_ranking(transport, path=_BULK_TRADES_PATH, tr=_BULK_TRADES_TR, params=params)
 
 
-def fetch_interest(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
+def fetch_watchlist_registrations(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
     """관심종목 등록상위 순위(정렬 없음). 관심등록 건수는 각 항목의 ``_raw['inter_issu_reg_csnu']``.
     최대 30건(다음조회 없음)."""
     params = {
@@ -350,7 +350,7 @@ def fetch_interest(transport: Transport, *, market: str) -> list[DomesticRankedS
     return _fetch_ranking(transport, path=_INTEREST_PATH, tr=_INTEREST_TR, params=params)
 
 
-def fetch_preferred_disparity(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
+def fetch_preferred_share_disparity(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
     """우선주 괴리율 순위(정렬 없음). 공통필드는 본주 기준, 짝이 되는 우선주와 괴리율은 각 항목의
     ``_raw`` (prst_* 우선주 시세, diff_prpr 가격차, dprt 괴리율). 최대 30건(다음조회 없음)."""
     params = {
@@ -367,7 +367,7 @@ def fetch_preferred_disparity(transport: Transport, *, market: str) -> list[Dome
     )
 
 
-def fetch_finance_ratio(
+def fetch_financial_ratio(
     transport: Transport, *, analysis: str, year: int, quarter: str, market: str
 ) -> list[DomesticRankedStock]:
     """재무비율 순위. ``analysis`` = profitability(수익성)/stability(안정성)/growth(성장성)/
@@ -404,7 +404,7 @@ def fetch_profit_asset(
     return _fetch_ranking(transport, path=_PROFIT_ASSET_PATH, tr=_PROFIT_ASSET_TR, params=params)
 
 
-def fetch_company_trades(
+def fetch_house_trade_volume(
     transport: Transport, *, side: str, start: str | date, end: str | date, market: str
 ) -> list[DomesticRankedStock]:
     """당사매매종목 순위(기간). ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. ``start``/``end`` 는

@@ -3,7 +3,7 @@
 # examples_llm/overseas_stock/<name>)에서 확인한 1차증거. 우리 코드는 각 엔드포인트에서 이 필수셋의
 # 상위집합(+ PRC1/PRC2 또는 빈 KEYB/AUTH)을 전송하므로 정적 contract test 는 통과한다.
 # PRC1/PRC2 는 공식 일부 예제에만 있어 optional 로 둔다.
-# 라이브↔doc 교훈: by_market_cap(CURR_GB)·by_new_highlow(NDAY)는 US 장중 라이브 재프로브로 필수 확정
+# 라이브↔doc 교훈: by_market_cap(CURR_GB)·by_new_high_low(NDAY)는 US 장중 라이브 재프로브로 필수 확정
 # (CURR_GB=0/NDAY=0 -> rt_cd=0, 100 rows). 공식 koreainvestment 예제는 둘 다 누락(stale) -- 벤더 예제가
 # 아니라 라이브-장중이 최종 권위. "0" 값은 NAS 로만 검증, 비-US 거래소는 needs-probe(각 notes 참조).
 
@@ -22,7 +22,7 @@ notes           = "거래량 순위."
 
 [[endpoint]]
 name            = "overseas_ranking_amount"
-impl            = "kis_trader.overseas._engine.ranking:fetch_by_amount"
+impl            = "kis_trader.overseas._engine.ranking:fetch_by_trading_amount"
 tr_id           = "HHDFS76320010"
 path            = "/uapi/overseas-stock/v1/ranking/trade-pbmn"
 method          = "GET"
@@ -48,7 +48,7 @@ notes           = "등락률 순위. GUBN 1=상승/0=하락."
 
 [[endpoint]]
 name            = "overseas_ranking_trade_growth"
-impl            = "kis_trader.overseas._engine.ranking:fetch_by_trade_growth"
+impl            = "kis_trader.overseas._engine.ranking:fetch_by_volume_growth"
 tr_id           = "HHDFS76330000"
 path            = "/uapi/overseas-stock/v1/ranking/trade-growth"
 method          = "GET"
@@ -126,7 +126,7 @@ notes           = "가격급등락 순위. GUBN 1=급등/0=급락."
 
 [[endpoint]]
 name            = "overseas_ranking_new_highlow"
-impl            = "kis_trader.overseas._engine.ranking:fetch_by_new_highlow"
+impl            = "kis_trader.overseas._engine.ranking:fetch_by_new_high_low"
 tr_id           = "HHDFS76300000"
 path            = "/uapi/overseas-stock/v1/ranking/new-highlow"
 method          = "GET"

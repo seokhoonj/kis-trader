@@ -78,7 +78,7 @@ kis.domestic.watchlist(group_code="…")      # 그룹 안 종목
 재무비율·밸류에이션으로 정렬된 순위도 있습니다.
 
 ```python
-ranking.by_finance_ratio(year=2024)  # 재무비율
+ranking.by_financial_ratio(year=2024)  # 재무비율
 ranking.by_valuation(year=2024)      # 밸류에이션(PER/PBR 등)
 ranking.by_profit_asset(year=2024)   # 수익성·자산
 ```
@@ -86,13 +86,13 @@ ranking.by_profit_asset(year=2024)   # 수익성·자산
 ## 시간외·예상·기타 순위
 
 ```python
-ranking.by_bulk_trades(side="buy")                     # 대량체결건수
+ranking.by_bulk_trade_count(side="buy")                     # 대량체결건수
 ranking.by_quote_balance(metric="net_buy")             # 호가잔량
-ranking.by_interest()                                  # 관심종목 등록상위
-ranking.by_preferred_disparity()                       # 우선주 괴리율
+ranking.by_watchlist_registrations()                                  # 관심종목 등록상위
+ranking.by_preferred_share_disparity()                       # 우선주 괴리율
 ranking.by_expected_close()                            # 장마감 예상체결
 ranking.by_expected_execution_change(direction="gainers")   # 장전 예상체결 등락
-ranking.by_company_trades(side="buy", start="20240101", end="20240131")  # 당사매매 종목
+ranking.by_house_trade_volume(side="buy", start="20240101", end="20240131")  # 당사매매 종목
 
 ranking.by_after_hours_balance(side="ask")              # 시간외 잔량
 ranking.by_after_hours_change(direction="gainers")          # 시간외 등락률
