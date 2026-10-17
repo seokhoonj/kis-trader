@@ -86,7 +86,7 @@ source_url      = "https://github.com/koreainvestment/open-trading-api examples_
 notes           = "거래량급증 순위."
 
 [[endpoint]]
-name            = "overseas_ranking_buy_strength"
+name            = "overseas_ranking_execution_strength"
 impl            = "kis_trader.overseas._engine.ranking:fetch_by_execution_strength"
 tr_id           = "HHDFS76280000"
 path            = "/uapi/overseas-stock/v1/ranking/volume-power"
@@ -112,7 +112,7 @@ source_url      = "https://github.com/koreainvestment/open-trading-api examples_
 notes           = "거래회전율 순위."
 
 [[endpoint]]
-name            = "overseas_ranking_price_fluctuation"
+name            = "overseas_ranking_sharp_change"
 impl            = "kis_trader.overseas._engine.ranking:fetch_by_sharp_change"
 tr_id           = "HHDFS76260000"
 path            = "/uapi/overseas-stock/v1/ranking/price-fluct"

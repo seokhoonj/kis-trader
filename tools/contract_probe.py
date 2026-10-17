@@ -12,8 +12,8 @@ RECIPES = {
     "overseas_ranking_change": lambda k: k.overseas.ranking.by_change(exchange="NAS"),
     "overseas_ranking_market_cap": lambda k: k.overseas.ranking.by_market_cap(exchange="NAS"),
     "overseas_ranking_new_highlow": lambda k: k.overseas.ranking.by_new_high_low(exchange="NAS"),
-    "overseas_ranking_buy_strength": lambda k: k.overseas.ranking.by_buy_strength(exchange="NAS"),
-    "overseas_ranking_price_fluctuation": lambda k: k.overseas.ranking.by_price_fluctuation(exchange="NAS"),
+    "overseas_ranking_execution_strength": lambda k: k.overseas.ranking.by_execution_strength(exchange="NAS"),
+    "overseas_ranking_sharp_change": lambda k: k.overseas.ranking.by_sharp_change(exchange="NAS"),
     "overseas_ranking_volume_surge": lambda k: k.overseas.ranking.by_volume_surge(exchange="NAS"),
     "stock_bars_1m": lambda k: k.domestic.stock("005930").bars(interval="1m"),
 }
