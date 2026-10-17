@@ -61,7 +61,10 @@ def test_expected_conclusion_maps_and_sort():
     assert ranked[0].expected_volume == 51683             # 예상체결량
     assert ranked[0].expected_trading_amount == Decimal(3933076300)
     assert ranked[0].base_price == Decimal(58600)         # 기준가(stck_sdpr)
-    # 라벨 모호한 잔량 키는 명명하지 않고 _raw 에 남긴다.
+    # 총매도/총매수 호가잔량은 자매 QuoteBalanceRanking 과 동일하게 타입드 필드로 명명한다.
+    assert ranked[0].total_ask_residual == 12000
+    assert ranked[0].total_bid_residual == 9000
+    # 원본 와이어 값도 _raw 에 그대로 남는다(명명해도 원본 보존).
     assert ranked[0]._raw["total_askp_rsqn"] == "12000"
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/ranking/exp-trans-updown"

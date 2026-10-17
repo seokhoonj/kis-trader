@@ -460,8 +460,10 @@ class ExpectedExecutionChangeRanking:
     """장 시작 전 예상체결 등락 순위 한 항목(불변). ``rank`` 는 응답 순서.
 
     ``price`` 는 예상체결가, ``expected_volume`` 은 예상체결량(주식 수), ``expected_trading_amount`` 는 예상
-    거래대금(원), ``base_price`` 는 기준가(전일 종가 등)이다. ``change`` / ``change_percent`` 는 하락이면
-    음수. 매도/매수 호가잔량 등 라벨이 모호한 값은 ``_raw`` 에 남겨둔다. 이 순위엔 누적 거래대금이 없다.
+    거래대금(원), ``base_price`` 는 기준가(전일 종가 등)이다. ``total_ask_residual`` / ``total_bid_residual``
+    은 총매도/총매수 호가잔량(주식 수, 자매 :class:`QuoteBalanceRanking` 과 동일 명명). ``change`` /
+    ``change_percent`` 는 하락이면 음수. 매도/매수 호가별 잔량(seln_rsqn/shnu_rsqn/askp/bidp)처럼 라벨이
+    모호한 값은 ``_raw`` 에 남겨둔다. 이 순위엔 누적 거래대금이 없다.
     """
 
     rank: int
@@ -473,6 +475,8 @@ class ExpectedExecutionChangeRanking:
     expected_volume: int              # 예상체결량(주식 수)
     expected_trading_amount: Decimal  # 예상거래대금(원)
     base_price: Decimal               # 기준가(전일 종가 등)
+    total_ask_residual: int           # 총매도 호가잔량(주식 수)
+    total_bid_residual: int           # 총매수 호가잔량(주식 수)
     _raw: Mapping[str, Any] = field(
         default_factory=_empty_raw, compare=False, hash=False, repr=False
     )

@@ -1037,8 +1037,9 @@ def _parse_expected_execution_change(
 ) -> list[ExpectedExecutionChangeRanking]:
     """예상체결 등락 행 -> ExpectedExecutionChangeRanking(순위는 응답 순서, 거래량=예상체결량).
 
-    매도/매수 호가잔량(seln_rsqn/shnu_rsqn/total_askp_rsqn/total_bidp_rsqn, askp/bidp) 등 라벨이
-    모호한 값은 명명하지 않고 _raw 에 남겨둔다."""
+    총매도/총매수 호가잔량(total_askp_rsqn/total_bidp_rsqn)은 자매 fetch_quote_balance 와 동일하게
+    total_ask_residual/total_bid_residual 로 명명한다. 매도/매수 호가별 잔량(seln_rsqn/shnu_rsqn,
+    askp/bidp) 등 라벨이 모호한 값은 명명하지 않고 _raw 에 남겨둔다."""
     ranked: list[ExpectedExecutionChangeRanking] = []
     for row in rows:
         symbol = str(row.get("stck_shrn_iscd", "")).strip()
@@ -1060,6 +1061,8 @@ def _parse_expected_execution_change(
                     row.get("antc_tr_pbmn"), "antc_tr_pbmn"
                 ),
                 base_price=required_decimal(row.get("stck_sdpr"), "stck_sdpr"),
+                total_ask_residual=required_int(row.get("total_askp_rsqn"), "total_askp_rsqn"),
+                total_bid_residual=required_int(row.get("total_bidp_rsqn"), "total_bidp_rsqn"),
                 _raw=row,
             )
         )
