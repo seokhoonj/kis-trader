@@ -13,7 +13,7 @@ from collections.abc import Mapping
 from dataclasses import fields, is_dataclass
 from datetime import date, datetime, time
 from decimal import Decimal
-from typing import Any, Literal, TypedDict, cast, get_args
+from typing import TYPE_CHECKING, Any, Literal, TypedDict, cast, get_args
 
 from .._literals import Direction
 from ..account import _IRP_PRODUCT_CODE, StockAccount
@@ -40,6 +40,10 @@ from ._policy import (
     is_orderable_account,
     require_overseas_general_account,
 )
+
+if TYPE_CHECKING:
+    from ..domestic.index import DomesticIndex
+    from ..overseas.index import OverseasIndex
 
 #: ``quote`` 의 세션 선택자 -- 정규장(regular)/시간외 단일가(after_hours, 국내 전용). MCP 도구의
 #: 입력 스키마(:mod:`kis_trader.mcp.server`)와 아래 검증이 한 출처를 쓰도록 여기서 정의한다.
@@ -253,6 +257,25 @@ def stock_bars(
     return out
 
 
+def _index_handle(
+    kis: KISClient, code: str, *, region: str, kind: str | None
+) -> DomesticIndex | OverseasIndex:
+    """region/kind 를 검증하고 지수 핸들을 돌려준다(index_bars/index_quote 공통 라우팅).
+
+    ``region="overseas"`` 는 ``kind`` index(기본)/fx/bond/gold, ``region="domestic"`` 은 국내 지수코드
+    전용이며 ``kind`` 를 주면 거부한다. kind 미지정이면 라이브러리 기본(index) -- MCP 가 재기술하지 않는다."""
+    if region not in _REGIONS:
+        raise KISUsageError(f"region 은 {sorted(_REGIONS)} 중 하나여야 한다 (받은 값: {region!r}).")
+    if region == "overseas":
+        if kind is not None and kind not in _INDEX_KINDS:
+            raise KISUsageError(f"kind 는 {sorted(_INDEX_KINDS)} 중 하나여야 한다 (받은 값: {kind!r}).")
+        extra = {} if kind is None else {"kind": cast(OverseasIndexKind, kind)}
+        return kis.overseas.index(code, **extra)
+    if kind is not None:
+        raise KISUsageError("kind 는 해외(region='overseas') 전용이다 -- 국내 지수엔 쓸 수 없다.")
+    return kis.domestic.index(code)
+
+
 def index_bars(
     kis: KISClient, code: str, *, region: str = "overseas", kind: str | None = None,
     interval: str = "1d", start: str | None = None, end: str | None = None, limit: int = 500,
@@ -260,25 +283,13 @@ def index_bars(
     """지수·환율·국채·금 기간봉. ``region="overseas"`` 는 ``kind`` index(기본)/fx(환율, 예 code
     ``FX@KRW``=원/달러)/bond/gold, ``region="domestic"`` 은 국내 지수코드 전용(``kind`` 는 해외 전용이라
     주면 거부). 기간봉(1d/1wk/1mo)은 ``start`` 필수, 분봉(1m)은 지수·환율만. 지수류는 ``adjusted`` 없음."""
-    if region not in _REGIONS:
-        raise KISUsageError(f"region 은 {sorted(_REGIONS)} 중 하나여야 한다 (받은 값: {region!r}).")
+    handle = _index_handle(kis, code, region=region, kind=kind)
     if interval not in _INTERVALS:
         raise KISUsageError(f"interval 은 {sorted(_INTERVALS)} 중 하나여야 한다 (받은 값: {interval!r}).")
     if start is None:
         _require_start_for_period(interval)
     _require_positive_limit(limit)
-    if region == "overseas":
-        if kind is not None and kind not in _INDEX_KINDS:
-            raise KISUsageError(f"kind 는 {sorted(_INDEX_KINDS)} 중 하나여야 한다 (받은 값: {kind!r}).")
-        # kind 미지정이면 라이브러리 기본(index)을 쓴다 -- MCP 가 기본값을 재기술하지 않는다.
-        extra = {} if kind is None else {"kind": cast(OverseasIndexKind, kind)}
-        rows = kis.overseas.index(code, **extra).bars(
-            cast(Interval, interval), start=start, end=end, max_bars=limit)
-    else:
-        if kind is not None:
-            raise KISUsageError("kind 는 해외(region='overseas') 전용이다 -- 국내 지수엔 쓸 수 없다.")
-        rows = kis.domestic.index(code).bars(
-            cast(Interval, interval), start=start, end=end, max_bars=limit)
+    rows = handle.bars(cast(Interval, interval), start=start, end=end, max_bars=limit)
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 
@@ -291,17 +302,7 @@ def index_quote(
     ``region="overseas"`` 는 ``kind`` index(기본)/fx/bond/gold, ``region="domestic"`` 은
     국내 지수코드 전용이며 ``kind`` 를 주면 거부한다.
     """
-    if region not in _REGIONS:
-        raise KISUsageError(f"region 은 {sorted(_REGIONS)} 중 하나여야 한다 (받은 값: {region!r}).")
-    if region == "overseas":
-        if kind is not None and kind not in _INDEX_KINDS:
-            raise KISUsageError(f"kind 는 {sorted(_INDEX_KINDS)} 중 하나여야 한다 (받은 값: {kind!r}).")
-        extra = {} if kind is None else {"kind": cast(OverseasIndexKind, kind)}
-        out: dict[str, Any] = _serialize(kis.overseas.index(code, **extra).quote())
-    else:
-        if kind is not None:
-            raise KISUsageError("kind 는 해외(region='overseas') 전용이다 -- 국내 지수엔 쓸 수 없다.")
-        out = _serialize(kis.domestic.index(code).quote())
+    out: dict[str, Any] = _serialize(_index_handle(kis, code, region=region, kind=kind).quote())
     return out
 
 
