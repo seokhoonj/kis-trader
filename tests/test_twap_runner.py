@@ -222,6 +222,40 @@ def test_run_reconcile_ambiguous_none_marks_slice_pending():
     assert len(result.pending_reconcile_ids) == 3
 
 
+def test_run_reconcile_nonterminal_report_marks_pending():
+    # refresh 재조회가 비종료(NEW) 리포트를 돌려주면 -- 주문이 아직 살아 있어 체결 불명 -- '확정'으로
+    # 집계하지 않고 pending 으로 돌린다. 집계하면 미체결 잔량이 shortfall 이 돼 재주문 시 이중매수.
+    stock = _Stock([])
+    new0 = _report("cX", 0, None, status=OrderStatus.NEW)
+    result = execute_twap(_Kis(stock, orders=_Orders(confirm=new0)), _sched(),
+                          now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
+    assert result.filled_quantity == Decimal(0)        # 비종료라 확정 체결로 세지 않는다
+    assert result.pending_quantity == Decimal(100)
+    assert len(result.pending_reconcile_ids) == 3
+
+
+def test_run_reconcile_partial_fill_marks_pending_not_shortfall():
+    # 부분체결(살아있는 잔량)도 종료가 아니므로 pending -- 미체결 잔량을 shortfall 로 집계하면 아직
+    # 체결될 수 있는 그 물량을 재주문해 이중매수한다.
+    stock = _Stock([])
+    partial = _report("cX", 5, 70000, status=OrderStatus.PARTIALLY_FILLED)
+    result = execute_twap(_Kis(stock, orders=_Orders(confirm=partial)), _sched(),
+                          now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
+    assert result.filled_quantity == Decimal(0)        # 부분체결은 확정 집계에서 제외
+    assert result.pending_quantity == Decimal(100)     # 슬라이스 전량 pending(잔량 재주문 금지)
+    assert result.shortfall == Decimal(0)
+
+
+def test_run_reconcile_terminal_rejected_counts_as_shortfall():
+    # 종료상태(거부)는 주문이 죽어 미체결 잔량이 '진짜' shortfall 이다(재주문 안전) -- pending 아님.
+    stock = _Stock([])
+    rejected = _report("cX", 0, None, status=OrderStatus.REJECTED)
+    result = execute_twap(_Kis(stock, orders=_Orders(confirm=rejected)), _sched(),
+                          now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
+    assert result.pending_reconcile_ids == ()          # 종료라 pending 아님
+    assert result.shortfall == Decimal(100)            # 죽은 주문 -> 전량 진짜 미달
+
+
 def test_run_systemic_error_propagates_with_partial_note():
     log = []
 

@@ -16,11 +16,17 @@ from typing import TYPE_CHECKING
 
 from .._internal._datetime import _KST
 from ..errors import KISError, KISUsageError, OrderRejectedError, OrderTimeoutError
+from ..report import OrderStatus
 from .schedule import TWAPSchedule
 
 if TYPE_CHECKING:
     from ..client import KISClient
     from ..report import ExecutionReport
+
+#: 종료(terminal) 주문상태 -- 더 체결될 잔량이 없다(체결 완료/취소/거부). 이 상태의 리포트만 '확정'으로
+#: 집계해 미체결 잔량을 진짜 shortfall 로 본다. 비종료(NEW/부분체결/pending)는 아직 살아 있어 체결 불명이라
+#: pending 으로 돌린다 -- 집계하면 체결될 잔량이 shortfall 이 돼 재주문 시 이중매수가 난다.
+_TERMINAL_STATUSES = frozenset({OrderStatus.FILLED, OrderStatus.CANCELED, OrderStatus.REJECTED})
 
 
 def _now_kst() -> datetime:
@@ -162,12 +168,12 @@ def execute_twap(
                     # 재조회(읽기) 실패(타임아웃/스로틀 등) -> 체결 불명.
                     confirmed = None
                 if confirmed is not None:
-                    report = confirmed
-                else:
-                    # 재조회가 모호(0건 -> None)하거나 실패 -> 체결 여부 불명. 이미 접수된 이 슬라이스를
-                    # 버리지 않고 client_order_id 를 실어 pending_reconcile_ids 에 넣는다. 미확정(체결 0
-                    # 스냅샷) 슬라이스를 '확정 성공'으로 집계하면 사후 재조회 목록에서 빠지고, 사용자가
-                    # shortfall 을 재주문하면 이중매수가 난다.
+                    report = confirmed      # 표시는 최신 브로커 스냅샷으로(참고용)
+                # 종료 상태(FILLED/CANCELED/REJECTED)만 '확정'으로 집계한다 -- 그 경우에만 미체결 잔량이
+                # 주문이 죽어 진짜 shortfall 이다. 모호(None)거나 비종료(NEW/부분체결/pending)면 주문이
+                # 아직 살아 있어 체결 불명이므로 pending 으로 돌린다 -- 확정 0/부분으로 집계하면 아직
+                # 체결될 잔량이 shortfall 이 돼 사용자가 재주문 시 이중매수가 난다.
+                if confirmed is None or confirmed.status not in _TERMINAL_STATUSES:
                     pending_reconcile_id = report.client_order_id
             else:
                 # reconcile 비활성: 접수 직후 스냅샷(NEW/체결 0)은 체결 불명이므로 pending 으로 돌린다
