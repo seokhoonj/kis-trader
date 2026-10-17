@@ -457,6 +457,17 @@ class OrderStore:
                 f"주문 dedup 저장소 스키마 버전 미지원: {version!r} "
                 f"(읽을 수 있는 버전 {sorted(_READABLE_SCHEMA_VERSIONS)}). {self._path}"
             )
+        # 현재 스키마(쓰기 버전)의 파일은 _save_locked 가 in_flight/fingerprints/reports 세 맵을
+        # **항상** 기록한다(비어도 {}). 그 버전인데 맵이 빠졌으면 이 라이브러리가 쓴 파일이 아니라
+        # 손상/수기편집이다 -- .get(key, {}) 로 조용히 빈 dedup 로 시작하면 중복 체결 장벽이 사라지므로
+        # (비-dict 루트·버전 미지원과 동일하게) fail-closed 한다. 레거시 버전은 맵 구성이 달라 관대하게 둔다.
+        if version == _SCHEMA_VERSION:
+            missing = [key for key in ("in_flight", "fingerprints", "reports") if key not in data]
+            if missing:
+                raise KISError(
+                    f"주문 dedup 저장소(v{version})에 필수 맵이 없다: {missing}. {self._path}. "
+                    f"자동 복구하지 않는다(빈 상태 시작은 중복 체결 위험). 파일을 점검한 뒤 재시작하라."
+                )
         try:
             raw_in_flight = data.get("in_flight", {})
             if isinstance(raw_in_flight, list):        # v1..v7: id 리스트 -> 시각 미상("")

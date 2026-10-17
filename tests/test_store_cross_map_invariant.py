@@ -82,12 +82,27 @@ def _report_symbol_null(data):                  # symbol null
     data["reports"][cid]["symbol"] = None
 
 
+def _missing_in_flight(data):                   # 필수 맵 in_flight 누락 -> 빈 dedup 로 조용히 시작 금지
+    del data["in_flight"]
+
+
+def _missing_fingerprints(data):                # dedup 장벽(지문 맵) 누락 -> 중복 체결 위험
+    del data["fingerprints"]
+
+
+def _missing_reports(data):                     # 리포트 맵 누락
+    del data["reports"]
+
+
 @pytest.mark.parametrize("mutate", [
     _rekey_report_mismatch,
     _report_also_in_flight,
     _fingerprint_extra,
     _report_cid_null,
     _report_symbol_null,
+    _missing_in_flight,
+    _missing_fingerprints,
+    _missing_reports,
 ])
 def test_corrupt_v10_cross_map_rejected(tmp_path, mutate):
     path = _valid_v10_file(tmp_path)

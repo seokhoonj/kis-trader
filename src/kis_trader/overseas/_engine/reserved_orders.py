@@ -542,6 +542,16 @@ def cancel_overseas_reserved_order(
             f"예약주문조회로 상태를 확인하라(예약번호 {reserved_order_id}).",
             client_order_id=str(reserved_order_id),   # 이 흐름엔 client_order_id 가 없어 예약번호를 넣는다
         ) from err
+    except KISAuthError:
+        raise      # 401: 취소 미적용 확실 -- 토큰 교정 후 재시도
+    except KISError as err:
+        # 스로틀(HTTP 500) 등 -- 처리 여부 불명. raw 로 올리면 재전송 이중취소 위험이라 타임아웃과
+        # 동일한 '재전송 금지 + 조회 확인' 계약으로 바꾼다.
+        raise OrderTimeoutError(
+            f"해외 예약주문 취소 요청 중 전송계층 오류 -- 처리 여부가 불명이다. 재전송하지 말고 "
+            f"예약주문조회로 상태를 확인하라(예약번호 {reserved_order_id}).",
+            client_order_id=str(reserved_order_id),
+        ) from err
     if not resp.ok:
         raise OrderRejectedError(
             f"해외 예약주문 취소 요청 거부: {resp.msg1}",
@@ -620,6 +630,14 @@ def cancel_asia_reserved_order(
     except TransportTimeoutError as err:
         raise OrderTimeoutError(
             f"아시아 예약주문 취소 요청 시간초과 -- 처리 여부가 불명이다. 재전송하지 말고 "
+            f"예약주문조회로 상태를 확인하라(예약번호 {report.order_id}).",
+            client_order_id=client_order_id,
+        ) from err
+    except KISAuthError:
+        raise      # 401: 취소 미적용 확실 -- 토큰 교정 후 재시도
+    except KISError as err:
+        raise OrderTimeoutError(
+            f"아시아 예약주문 취소 요청 중 전송계층 오류 -- 처리 여부가 불명이다. 재전송하지 말고 "
             f"예약주문조회로 상태를 확인하라(예약번호 {report.order_id}).",
             client_order_id=client_order_id,
         ) from err

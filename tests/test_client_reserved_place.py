@@ -15,6 +15,7 @@ import pytest
 from kis_trader import ExecutionReport, KISClient, OrderStatus, OrderStore
 from kis_trader.errors import (
     AccountNotOrderableError,
+    KISAuthError,
     KISError,
     KISUsageError,
     OrderError,
@@ -208,6 +209,32 @@ def test_reserve_timeout_no_retry_holds_in_flight():
             quantity=1, limit_price=70000, client_order_id=cid)
     assert len(fake.calls) == 1                      # 재전송 없음
     assert store.fingerprint_for(cid) is not None    # in-flight 유지
+
+
+def test_reserve_throttle_kiserror_becomes_timeout_and_holds_in_flight():
+    # KIS 는 스로틀을 HTTP 500(KISError)로 낸다. claim 뒤에 터졌고 접수 여부 불명이므로 raw 로 올리지
+    # 않고 OrderTimeoutError 로 바꿔 in-flight 를 유지한다 -- 안 그러면 호출자가 새 id 로 재예약해 이중예약.
+    store = OrderStore()
+    fake = FakeTransport(raises=KISError("스로틀", rt_cd="1", msg_cd="EGW00201", msg1="초당 거래건수 초과"))
+    cid = "20240101-reserved-th01"
+    with pytest.raises(OrderTimeoutError):
+        _client(fake, store=store).domestic.stock("005930").reserve_buy(
+            quantity=1, limit_price=70000, client_order_id=cid)
+    assert len(fake.calls) == 1                      # 재전송 없음
+    assert store.fingerprint_for(cid) is not None    # in-flight 유지(미접수 단정 금지)
+
+
+def test_reserve_auth_error_clears_in_flight_and_raises():
+    # 401(KISAuthError)은 인증 단계 거부 -- 예약이 접수되지 않았음이 확실하다. in-flight 를 해제하고
+    # 그대로 올려 토큰 교정 뒤 재시도하게 한다(해제 안 하면 그 id 가 영구 InFlight 로 막힌다).
+    store = OrderStore()
+    fake = FakeTransport(raises=KISAuthError("인증거부", rt_cd="1", msg_cd="EGW00123", msg1="token"))
+    cid = "20240101-reserved-au01"
+    with pytest.raises(KISAuthError):
+        _client(fake, store=store).domestic.stock("005930").reserve_buy(
+            quantity=1, limit_price=70000, client_order_id=cid)
+    assert len(fake.calls) == 1                      # 재전송 없음
+    assert store.fingerprint_for(cid) is None        # in-flight 해제됨(영구 유령 방지)
 
 
 def test_reserve_replay_same_id_returns_prior():

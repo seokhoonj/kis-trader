@@ -262,6 +262,14 @@ class OrderEngine:
                 )
                 builder = derivative_orders_engine.make_night_change_request
             else:
+                # 주간 파생 '취소' 와이어(order-rvsecncl, RVSE_CNCL=02)는 ORD_QTY=0(전량) 고정이라
+                # 부분취소 개념이 없다. 호출자가 명시 quantity 를 줬는데 로컬 잔량과 다르면(부분 의도)
+                # 조용히 전량취소하지 않고 와이어 전에 거부한다 -- 야간/OSFO/해외와 같은 fail-closed.
+                # (정정은 수량 변경을 지원하므로 취소에만 적용한다.)
+                if action == "cancel" and quantity is not None and change_quantity != remaining_quantity:
+                    raise KISUsageError(
+                        "파생 주간 취소는 부분취소 미지원 -- quantity 를 생략해 전량취소하라"
+                    )
                 builder = derivative_orders_engine.make_change_request
         elif isinstance(fingerprint, ImmediateOrderFingerprint) and \
                 (fingerprint.region, fingerprint.asset_class) == ("domestic", "bond"):

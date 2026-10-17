@@ -196,6 +196,19 @@ def test_cancel_routes_xkfe_through_derivative_builder():
     assert "KRX_FWDG_ORD_ORGNO" not in call["body"]
 
 
+def test_daytime_derivative_partial_cancel_rejected_before_wire():
+    # 주간 파생 취소 와이어는 ORD_QTY=0(전량) 고정이라 부분수량 개념이 없다. 부분 quantity 를 주면
+    # 조용히 전량취소하지 않고 와이어 전에 거부한다 -- 야간/OSFO/해외와 같은 fail-closed(안 그러면
+    # 사용자가 5 만 취소한 줄 알지만 전량이 소멸).
+    store = OrderStore()
+    place_t = FakeTransport()
+    _client(place_t, store=store)._place_order(_order(quantity=Decimal(2)))
+    change_t = FakeTransport()
+    with pytest.raises(KISUsageError):
+        _client(change_t, store=store).orders.cancel("c", quantity=1)
+    assert change_t.calls == []     # 와이어에 닿지 않음
+
+
 def test_modify_routes_xkfe_through_derivative_builder():
     store = OrderStore()
     place_t = FakeTransport()

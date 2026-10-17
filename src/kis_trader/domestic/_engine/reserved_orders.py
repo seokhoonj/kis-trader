@@ -30,6 +30,7 @@ from ..._internal._response import _CONTINUATION_END, _require_mapping_rows
 from ..._internal._wire import decimal_or_zero, field_decimal_or_zero, format_wire_decimal
 from ...errors import (
     AccountNotOrderableError,
+    KISAuthError,
     KISError,
     KISUsageError,
     OrderError,
@@ -270,6 +271,20 @@ def place_reserved_order(
             f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
             client_order_id=client_order_id,
         ) from err
+    except KISAuthError:
+        # 401 은 인증 단계 거부 -- 예약이 접수되지 않았음이 확실하다. in-flight 해제 후 그대로 올려
+        # 토큰 교정 뒤 재시도하게 한다(해외 예약·_order_core 의 401-clear 와 동일 규율).
+        store.clear_in_flight(client_order_id)
+        raise
+    except KISError as err:
+        # 비-200 전송계층 오류(KIS 는 스로틀을 HTTP 500 으로 낸다). claim 뒤에 터졌고 접수 여부가
+        # 불명이므로 타임아웃과 동일하게 in-flight 유지 + 재조회 요구 -- 그냥 올리면 호출자가 접수됐을
+        # 수도 있는 예약을 새 id 로 재전송해 이중 예약이 난다(중복 전송 방지 가드, 해외 예약과 동일).
+        raise OrderTimeoutError(
+            f"예약주문 전송 중 전송계층 오류 -- 접수 여부가 불명이다. 재전송하지 말고 "
+            f"kis.orders.reconcile({client_order_id!r}) 로 재조회하라.",
+            client_order_id=client_order_id,
+        ) from err
 
     if not resp.ok:
         store.clear_in_flight(client_order_id)
@@ -428,6 +443,16 @@ def _send_change(
             f"예약주문 {action} 요청 시간초과 -- 처리 여부가 불명이다. 재전송하지 말고 예약주문조회로 "
             f"상태를 확인하라(예약순번 {sequence}).",
             client_order_id=str(sequence),   # 이 흐름엔 client_order_id 가 없어 예약순번을 넣는다
+        ) from err
+    except KISAuthError:
+        raise      # 401: 변경/취소 미적용 확실 -- 토큰 교정 후 재시도(claim 한 in-flight 없음)
+    except KISError as err:
+        # 스로틀(HTTP 500) 등 전송계층 오류 -- 처리 여부 불명. raw 로 올리면 호출자가 재전송해 이중
+        # 정정/취소가 날 수 있으므로 타임아웃과 동일하게 '재전송 금지 + 조회 확인' 계약으로 바꾼다.
+        raise OrderTimeoutError(
+            f"예약주문 {action} 요청 중 전송계층 오류 -- 처리 여부가 불명이다. 재전송하지 말고 "
+            f"예약주문조회로 상태를 확인하라(예약순번 {sequence}).",
+            client_order_id=str(sequence),
         ) from err
     if not resp.ok:
         raise OrderRejectedError(
