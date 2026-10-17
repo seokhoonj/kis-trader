@@ -17,6 +17,9 @@ print(quote.current_price, quote.change_percent)  # 예: 71500  0.70
 
 | 필드 | 뜻 | 단위 |
 |---|---|---|
+| `symbol` | 종목코드 | str |
+| `exchange` | 종목(주식)이 속한 거래소 코드 (국내 `KRX`/`NXT`/`UN`, 해외 `NAS`/`NYS` 등; `Quote` 는 국내·해외 주식 현재가 전용) | str |
+| `currency` | 금액 통화 (국내 `KRW`) | str |
 | `current_price` | 현재가 | 원 |
 | `open` · `high` · `low` | 시가·고가·저가 | 원 |
 | `previous_close` | 전일 종가 | 원 |
@@ -24,7 +27,6 @@ print(quote.current_price, quote.change_percent)  # 예: 71500  0.70
 | `change_percent` | 등락률 (부호 포함) | % |
 | `volume` | 누적 거래량 | 주 |
 | `week_52_high` · `week_52_low` | 52주 최고·최저 (없으면 `None`) | 원 |
-| `market` | 종목(주식)이 속한 거래소/시장 코드 (`Quote` 는 국내·해외 주식 현재가 전용) | str |
 | `as_of` | 조회 시각 | datetime |
 
 ## 차트 (봉)

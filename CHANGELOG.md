@@ -20,7 +20,9 @@ full-package review. This is a breaking release (0.x minor).
 - Public naming normalized for consistency/symmetry (ranking methods and entities,
   `stock_fills` → `stock_orders`, trade-profit `rows` → `trades`, overseas screener
   `search_stocks` → `screen_stocks`, reserved-order `sequence` → `reserved_order_id`,
-  and related). No deprecation aliases — update call sites.
+  `Quote.market` → `Quote.exchange` (the field holds a venue code; `OrderBook.market`
+  is unchanged), execution-strength unified to `execution_strength` across realtime,
+  intraday and ranking surfaces, and related). No deprecation aliases — update call sites.
 - `credentials.json` profile bundles are a closed schema: an unknown field (e.g. a
   typo like `acount`) is now rejected instead of silently ignored.
 

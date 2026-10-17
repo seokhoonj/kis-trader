@@ -290,8 +290,10 @@ def test_stock_bars_handler_region_overseas_forwards_args():
     out = handlers.stock_bars(kis, "AAPL", region="overseas", interval="1wk",
                               start="20250101", end="20250201", limit=3)
     assert out == [{"symbol": "AAPL", "name": "apple"}]
-    # 해외 리시버로 라우팅되고 interval/start/end/max_bars 가 그대로 전달됐는지(forwarding) 검증.
-    assert kis.rec == [("ovs_stock", "1wk", "20250101", "20250201", True, 3)]
+    # 해외 리시버로 라우팅되고 사용자가 준 interval/start/end/max_bars 만 전달됐는지 검증. adjusted 는
+    # 주지 않았으므로 **전달되지 않아야**("__unset__") 한다 -- 라이브러리 기본(수정주가)을 MCP 가
+    # 재기술하지 않는다(소비자 경계).
+    assert kis.rec == [("ovs_stock", "1wk", "20250101", "20250201", "__unset__", 3)]
 
 
 def test_bars_handlers_require_start_for_period_intervals():

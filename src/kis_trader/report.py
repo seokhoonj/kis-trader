@@ -46,12 +46,6 @@ TERMINAL_ORDER_STATUSES = frozenset({
 })
 
 
-#: 더 이상 전이가 없는 종료 상태.
-TERMINAL_STATUSES = frozenset(
-    {OrderStatus.FILLED, OrderStatus.CANCELED, OrderStatus.REJECTED, OrderStatus.EXPIRED}
-)
-
-
 @dataclass(frozen=True, slots=True)
 class ExecutionReport:
     """한 주문의 상태 스냅샷(진실 원천).
@@ -97,5 +91,5 @@ class ExecutionReport:
 
     @property
     def is_terminal(self) -> bool:
-        """더 이상 상태 전이가 없는가."""
-        return self.status in TERMINAL_STATUSES
+        """더 이상 상태 전이가 없는가(종료 상태 = TERMINAL_ORDER_STATUSES)."""
+        return self.status in TERMINAL_ORDER_STATUSES

@@ -239,21 +239,26 @@ def _require_start_for_period(interval: str) -> None:
 
 
 def stock_bars(
-    kis: KISClient, symbol: str, *, region: str = "domestic", interval: str = "1d",
-    start: str | None = None, end: str | None = None, adjusted: bool = True, limit: int = 500,
+    kis: KISClient, symbol: str, *, region: str = "domestic", interval: str | None = None,
+    start: str | None = None, end: str | None = None, adjusted: bool | None = None, limit: int = 500,
 ) -> list[dict[str, Any]]:
-    """국내/해외 종목 기간봉(OHLCV). ``region`` domestic/overseas. ``interval`` 일(1d)·주(1wk)·월(1mo)·분(1m).
-    기간봉(1d/1wk/1mo)은 ``start`` 가 **필수**(YYYYMMDD), ``end`` 는 생략 시 당일까지; 분봉(1m)만 생략 가능.
-    과거 가격(YTD 수익률 등) 계산용 -- 현재가는 ``quote`` 를 쓸 것. 최대 ``limit`` 행(기본 500)."""
+    """국내/해외 종목 기간봉(OHLCV). ``region`` domestic/overseas. ``interval`` 일(1d)·주(1wk)·월(1mo)·분(1m),
+    생략 시 라이브러리 기본(1d). 기간봉(1d/1wk/1mo)은 ``start`` 가 **필수**(YYYYMMDD), ``end`` 는 생략 시
+    당일까지; 분봉(1m)만 생략 가능. ``adjusted`` 생략 시 기본(수정주가). 과거 가격(YTD 수익률 등) 계산용 --
+    현재가는 ``quote`` 를 쓸 것. 최대 ``limit`` 행(기본 500)."""
     if region not in _REGIONS:
         raise KISUsageError(f"region 은 {sorted(_REGIONS)} 중 하나여야 한다 (받은 값: {region!r}).")
-    if interval not in _INTERVALS:
+    if interval is not None and interval not in _INTERVALS:
         raise KISUsageError(f"interval 은 {sorted(_INTERVALS)} 중 하나여야 한다 (받은 값: {interval!r}).")
-    if start is None:
-        _require_start_for_period(interval)
+    if interval is not None and start is None:
+        _require_start_for_period(interval)   # interval 미지정이면 라이브러리가 기간봉 start 필수를 판단
     _require_positive_limit(limit)
     handle = kis.overseas.stock(symbol) if region == "overseas" else kis.domestic.stock(symbol)
-    rows = handle.bars(cast(Interval, interval), start=start, end=end, adjusted=adjusted, max_bars=limit)
+    # 사용자가 준 것만 전달 -- interval/adjusted 기본값은 라이브러리가 정한다(소비자 경계).
+    extra: dict[str, Any] = {"start": start, "end": end, "max_bars": limit}
+    if interval is not None: extra["interval"] = cast(Interval, interval)
+    if adjusted is not None: extra["adjusted"] = adjusted
+    rows = handle.bars(**extra)
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 
@@ -279,18 +284,21 @@ def _index_handle(
 
 def index_bars(
     kis: KISClient, code: str, *, region: str = "overseas", kind: str | None = None,
-    interval: str = "1d", start: str | None = None, end: str | None = None, limit: int = 500,
+    interval: str | None = None, start: str | None = None, end: str | None = None, limit: int = 500,
 ) -> list[dict[str, Any]]:
     """지수·환율·국채·금 기간봉. ``region="overseas"`` 는 ``kind`` index(기본)/fx(환율, 예 code
     ``FX@KRW``=원/달러)/bond/gold, ``region="domestic"`` 은 국내 지수코드 전용(``kind`` 는 해외 전용이라
-    주면 거부). 기간봉(1d/1wk/1mo)은 ``start`` 필수, 분봉(1m)은 지수·환율만. 지수류는 ``adjusted`` 없음."""
+    주면 거부). ``interval`` 생략 시 라이브러리 기본(1d); 기간봉(1d/1wk/1mo)은 ``start`` 필수, 분봉(1m)은
+    지수·환율만. 지수류는 ``adjusted`` 없음."""
     handle = _index_handle(kis, code, region=region, kind=kind)
-    if interval not in _INTERVALS:
+    if interval is not None and interval not in _INTERVALS:
         raise KISUsageError(f"interval 은 {sorted(_INTERVALS)} 중 하나여야 한다 (받은 값: {interval!r}).")
-    if start is None:
+    if interval is not None and start is None:
         _require_start_for_period(interval)
     _require_positive_limit(limit)
-    rows = handle.bars(cast(Interval, interval), start=start, end=end, max_bars=limit)
+    extra: dict[str, Any] = {"start": start, "end": end, "max_bars": limit}
+    if interval is not None: extra["interval"] = cast(Interval, interval)
+    rows = handle.bars(**extra)
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 

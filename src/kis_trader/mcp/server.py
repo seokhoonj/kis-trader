@@ -449,20 +449,22 @@ def build_server(
         return handlers.ranking_market_cap(account_session.read_client(), limit=limit)
 
     @server.tool()
-    def stock_bars(symbol: str, region: Region = "domestic", interval: Interval = "1d",
-                   start: str | None = None, end: str | None = None, adjusted: bool = True,
+    def stock_bars(symbol: str, region: Region = "domestic", interval: Interval | None = None,
+                   start: str | None = None, end: str | None = None, adjusted: bool | None = None,
                    limit: int = 500) -> list[dict[str, Any]]:
-        """국내/해외 종목 기간봉(OHLCV). region domestic/overseas, interval 일(1d)/주(1wk)/월(1mo)/분(1m).
-        기간봉(1d/1wk/1mo)은 start(YYYYMMDD) 필수, 분봉(1m)만 생략. 과거 가격(YTD 등) 계산용 -- 현재가는 quote."""
+        """국내/해외 종목 기간봉(OHLCV). region domestic/overseas, interval 일(1d)/주(1wk)/월(1mo)/분(1m)
+        생략 시 기본 1d. 기간봉(1d/1wk/1mo)은 start(YYYYMMDD) 필수, 분봉(1m)만 생략. adjusted 생략 시 기본
+        수정주가. 과거 가격(YTD 등) 계산용 -- 현재가는 quote."""
         return handlers.stock_bars(account_session.read_client(), symbol, region=region,
                                    interval=interval, start=start, end=end, adjusted=adjusted, limit=limit)
 
     @server.tool()
     def index_bars(code: str, region: Region = "overseas", kind: OverseasIndexKind | None = None,
-                   interval: Interval = "1d", start: str | None = None, end: str | None = None,
+                   interval: Interval | None = None, start: str | None = None, end: str | None = None,
                    limit: int = 500) -> list[dict[str, Any]]:
         """지수·환율·국채·금 기간봉. region=overseas는 kind(index 기본/fx=환율 예 FX@KRW/bond/gold),
-        region=domestic은 국내 지수코드 전용(kind 는 해외 전용). 기간봉은 start 필수, 분봉(1m)은 지수·환율만."""
+        region=domestic은 국내 지수코드 전용(kind 는 해외 전용). interval 생략 시 기본 1d; 기간봉은 start
+        필수, 분봉(1m)은 지수·환율만."""
         return handlers.index_bars(account_session.read_client(), code, region=region, kind=kind,
                                    interval=interval, start=start, end=end, limit=limit)
 
