@@ -1,4 +1,4 @@
-"""해외주식 매수가능금액 -- kis.account.overseas.buyable(symbol, exchange=, price=) (TTTS3007R).
+"""해외주식 매수가능금액 -- kis.account.overseas.buyable(symbol, exchange=, limit_price=) (TTTS3007R).
 
 EXCD->OVRS_EXCG_CD 매핑, 외화 금액을 Money(통화 포함)로, 실전/모의 TR, fail-closed 를
 네트워크 없이 검증한다. 픽스처는 원장 응답예시(inquire-psamount) 구조를 따른다.
@@ -57,7 +57,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
 
 def test_overseas_buyable_parses_ledger_output():
     result = _client(FakeTransport(response=_resp())).account.overseas.buyable(
-        "00011", exchange="HKS", price="133.200"
+        "00011", exchange="HKS", limit_price="133.200"
     )
     assert isinstance(result, OverseasBuyableAmount)
     assert result.symbol == "00011"
@@ -74,7 +74,7 @@ def test_overseas_buyable_parses_ledger_output():
 
 def test_overseas_buyable_tr_method_params_and_excg_mapping():
     fake = FakeTransport(response=_resp())
-    _client(fake).account.overseas.buyable("AAPL", exchange="NAS", price="150.25")
+    _client(fake).account.overseas.buyable("AAPL", exchange="NAS", limit_price="150.25")
     call = fake.calls[0]
     assert call["tr_id"] == "TTTS3007R"
     assert call["method"] == "GET"
@@ -87,35 +87,35 @@ def test_overseas_buyable_tr_method_params_and_excg_mapping():
 
 def test_overseas_buyable_demo_tr():
     fake = FakeTransport(response=_resp())
-    _client(fake, environment="paper").account.overseas.buyable("AAPL", exchange="NAS", price="1")
+    _client(fake, environment="paper").account.overseas.buyable("AAPL", exchange="NAS", limit_price="1")
     assert fake.calls[0]["tr_id"] == "VTTS3007R"
 
 
 def test_overseas_buyable_unknown_exchange_rejected_before_io():
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake).account.overseas.buyable("AAPL", exchange="XXX", price="1")
+        _client(fake).account.overseas.buyable("AAPL", exchange="XXX", limit_price="1")
     assert fake.calls == []
 
 
-@pytest.mark.parametrize("price", ["0", "-5", "nan", "abc"])
-def test_overseas_buyable_bad_price_rejected_before_io(price):
+@pytest.mark.parametrize("limit_price", ["0", "-5", "nan", "abc"])
+def test_overseas_buyable_bad_limit_price_rejected_before_io(limit_price):
     fake = FakeTransport(response=_resp())
     with pytest.raises(KISUsageError):
-        _client(fake).account.overseas.buyable("AAPL", exchange="NAS", price=price)
+        _client(fake).account.overseas.buyable("AAPL", exchange="NAS", limit_price=limit_price)
     assert fake.calls == []
 
 
 def test_overseas_buyable_missing_output_fails_closed():
     resp = RawResponse(rt_cd="0", msg_cd="M", msg1="", body={"output": []}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).account.overseas.buyable("AAPL", exchange="NAS", price="1")
+        _client(FakeTransport(response=resp)).account.overseas.buyable("AAPL", exchange="NAS", limit_price="1")
 
 
 def test_overseas_buyable_absent_amount_reads_zero():
     thin = {"tr_crcy_cd": "USD", "ovrs_ord_psbl_amt": "10.00"}
     result = _client(FakeTransport(response=_resp(thin))).account.overseas.buyable(
-        "AAPL", exchange="NAS", price="1"
+        "AAPL", exchange="NAS", limit_price="1"
     )
     assert result.orderable_amount == Money(Decimal("10.00"), "USD")
     assert result.max_orderable_quantity == Decimal(0)           # 부재 -> 0
@@ -126,18 +126,18 @@ def test_overseas_buyable_garbage_amount_fails_closed():
     bad = dict(_OUTPUT, ovrs_ord_psbl_amt="oops")
     with pytest.raises(KISError):
         _client(FakeTransport(response=_resp(bad))).account.overseas.buyable(
-            "AAPL", exchange="NAS", price="1"
+            "AAPL", exchange="NAS", limit_price="1"
         )
 
 
 def test_overseas_buyable_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="ERR", msg1="실패", body={"output": {}}, tr_cont="")
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).account.overseas.buyable("AAPL", exchange="NAS", price="1")
+        _client(FakeTransport(response=resp)).account.overseas.buyable("AAPL", exchange="NAS", limit_price="1")
 
 
 def test_overseas_buyable_requires_account():
     with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_resp()), account=None).account.overseas.buyable(
-            "AAPL", exchange="NAS", price="1"
+            "AAPL", exchange="NAS", limit_price="1"
         )

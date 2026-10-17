@@ -212,7 +212,7 @@ def cmd_profits(kis: KISClient, args: Namespace) -> Any:
             extra["currency"] = args.currency
         if args.won_basis:
             extra["won_basis"] = True
-        return account.overseas.period_profit(start=args.start, end=args.end, **extra)
+        return account.overseas.trade_profits(start=args.start, end=args.end, **extra)
     # 국내주식: --by symbol(종목별 실현손익) / day(일별 매매손익).
     if args.currency is not None:
         raise CliConfigError("--currency 는 해외 손익 전용입니다.")

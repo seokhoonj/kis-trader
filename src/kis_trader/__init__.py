@@ -310,8 +310,8 @@ from .overseas.derivative_account import OverseasDerivativesAccount
 from .overseas.entities.account import (
     OverseasBuyableAmount,
     OverseasForeignMargin,
-    OverseasPeriodProfit,
-    OverseasPeriodProfitRow,
+    OverseasTradeProfitHistory,
+    OverseasTradeProfitRow,
     OverseasTransaction,
 )
 from .overseas.entities.balance import (
@@ -335,6 +335,7 @@ from .overseas.entities.derivative import (
     OverseasFuturesOpenInterest,
 )
 from .overseas.entities.derivative_account import (
+    OverseasDerivativeCashTransaction,
     OverseasDerivativeDailyOrder,
     OverseasDerivativeDeposit,
     OverseasDerivativeFill,
@@ -345,7 +346,6 @@ from .overseas.entities.derivative_account import (
     OverseasDerivativePNL,
     OverseasDerivativePNLHistory,
     OverseasDerivativePosition,
-    OverseasDerivativeTransaction,
 )
 from .overseas.entities.index import OverseasIndexQuote
 from .overseas.entities.industry import OverseasIndustry, OverseasIndustryStock
@@ -607,6 +607,7 @@ __all__ = [
     "OverseasCurrencyBalance",
     "OverseasCurrentPrice",
     "OverseasDerivative",
+    "OverseasDerivativeCashTransaction",
     "OverseasDerivativeDailyOrder",
     "OverseasDerivativeDeposit",
     "OverseasDerivativeDetail",
@@ -620,7 +621,6 @@ __all__ = [
     "OverseasDerivativePNLHistory",
     "OverseasDerivativePosition",
     "OverseasDerivativeQuote",
-    "OverseasDerivativeTransaction",
     "OverseasDerivativesAccount",
     "OverseasForeignMargin",
     "OverseasFuturesOpenInterest",
@@ -630,8 +630,6 @@ __all__ = [
     "OverseasIndustryStock",
     "OverseasNewsHeadline",
     "OverseasOpenOrder",
-    "OverseasPeriodProfit",
-    "OverseasPeriodProfitRow",
     "OverseasPosition",
     "OverseasPresentBalance",
     "OverseasProductInfo",
@@ -644,6 +642,8 @@ __all__ = [
     "OverseasStock",
     "OverseasStockSearch",
     "OverseasStockSearchMatch",
+    "OverseasTradeProfitHistory",
+    "OverseasTradeProfitRow",
     "OverseasTransaction",
     "ParValueChange",
     "PensionAccount",

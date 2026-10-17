@@ -1506,8 +1506,8 @@ class _StubOverseasAccount:
     def cancel_reserved_order(self, reserved_order_id, *, receipt_date):
         self._log.append(("ovs_cancel_reserved_order", reserved_order_id, receipt_date))
 
-    def period_profit(self, *, start, end, **kwargs):
-        self._log.append(("ovs_period_profit", start, end, kwargs)); return "OVS_PROFIT"
+    def trade_profits(self, *, start, end, **kwargs):
+        self._log.append(("ovs_trade_profits", start, end, kwargs)); return "OVS_PROFIT"
 
     def transactions(self, *, start, end, **kwargs):
         self._log.append(("ovs_transactions", start, end, kwargs)); return ["OVS_TXN"]
@@ -1819,7 +1819,7 @@ def test_account_profits_overseas_routes_and_defers(monkeypatch):
     result = account.cmd_profits(object(), _args(
         ["account", "profits", "--region", "overseas", "--start", "20240101", "--end", "20240131"]))
     assert result == "OVS_PROFIT"
-    assert log == [("ovs_period_profit", "20240101", "20240131", {})]
+    assert log == [("ovs_trade_profits", "20240101", "20240131", {})]
 
 
 def test_account_profits_overseas_forwards_currency_and_won_basis(monkeypatch):
@@ -1828,7 +1828,7 @@ def test_account_profits_overseas_forwards_currency_and_won_basis(monkeypatch):
     account.cmd_profits(object(), _args(
         ["account", "profits", "--region", "overseas", "--start", "20240101", "--end", "20240131",
          "--symbol", "AAPL", "--currency", "USD", "--won-basis"]))
-    assert log == [("ovs_period_profit", "20240101", "20240131",
+    assert log == [("ovs_trade_profits", "20240101", "20240131",
                     {"symbol": "AAPL", "currency": "USD", "won_basis": True})]
 
 

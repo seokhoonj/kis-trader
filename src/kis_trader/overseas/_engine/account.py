@@ -34,8 +34,8 @@ from ...transport import Environment, RawResponse, Transport
 from ..entities.account import (
     OverseasBuyableAmount,
     OverseasForeignMargin,
-    OverseasPeriodProfit,
-    OverseasPeriodProfitRow,
+    OverseasTradeProfitHistory,
+    OverseasTradeProfitRow,
     OverseasTransaction,
 )
 from ..entities.balance import (
@@ -147,10 +147,10 @@ def _fetch_market_balance(
 
 def fetch_buyable_amount(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
-    symbol: str, exchange: str, price: Numeric,
+    symbol: str, exchange: str, limit_price: Numeric,
 ) -> OverseasBuyableAmount:
     """해외주식 매수가능금액. ``exchange`` 는 시세 거래소코드(NAS/NYS/AMS/HKS/SHS/SZS/TSE/HNX/HSX),
-    ``price`` 는 의도한 주문단가(0보다 큰 유한값). 단발 조회(다음조회 불가)."""
+    ``limit_price`` 는 의도한 주문단가(0보다 큰 유한값). 단발 조회(다음조회 불가)."""
     try:
         order_exchange = _ORDER_EXCHANGE[exchange][0]
     except KeyError:
@@ -160,7 +160,7 @@ def fetch_buyable_amount(
     params = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
         "OVRS_EXCG_CD": order_exchange,
-        "OVRS_ORD_UNPR": _format_order_unit_price(price),
+        "OVRS_ORD_UNPR": _format_order_unit_price(limit_price),
         "ITEM_CD": symbol,
     }
     resp = transport.request(
@@ -388,11 +388,11 @@ def fetch_settlement_balance(
 
 
 # --- 기간손익 (TTTS3039R) --------------------------------------------------
-def fetch_period_profit(
+def fetch_trade_profits(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     start: str, end: str, exchange: str = "", nation: str = "", currency: str = "",
     symbol: str = "", won_basis: bool = False,
-) -> OverseasPeriodProfit:
+) -> OverseasTradeProfitHistory:
     """해외주식 기간손익 -- ``start``~``end``(YYYYMMDD) 매도청산 종목별 실현손익(output1)과 총계(output2).
     **모의투자 미지원**. ``exchange`` 거래소(OVRS_EXCG_CD, 공란=전체), ``currency`` 통화(공란=전체),
     ``symbol`` 종목(공란=전체), ``won_basis`` 원화(True)/외화(False) 기준.
@@ -432,7 +432,7 @@ def fetch_period_profit(
     else:
         raise KISError("해외 기간손익이 페이지 상한에 도달했으나 연속조회가 남아있다.")
     profit_rows = tuple(
-        OverseasPeriodProfitRow(
+        OverseasTradeProfitRow(
             trade_day=parse_optional_kst_date(row.get("trad_day")),
             symbol=str(row.get("ovrs_pdno", "")).strip(),
             name=str(row.get("ovrs_item_name", "")).strip(),
@@ -451,7 +451,7 @@ def fetch_period_profit(
         )
         for row in rows
     )
-    return OverseasPeriodProfit(
+    return OverseasTradeProfitHistory(
         rows=profit_rows,
         total_sell_amount=_decimal_or_zero(summary, "stck_sll_amt_smtl"),
         total_buy_amount=_decimal_or_zero(summary, "stck_buy_amt_smtl"),

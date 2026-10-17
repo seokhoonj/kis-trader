@@ -38,7 +38,7 @@ if TYPE_CHECKING:
     from .entities.account import (
         OverseasBuyableAmount,
         OverseasForeignMargin,
-        OverseasPeriodProfit,
+        OverseasTradeProfitHistory,
         OverseasTransaction,
     )
     from .entities.balance import (
@@ -117,14 +117,14 @@ class OverseasAccount:
             environment=self._client.environment, market=market,
         )
 
-    def buyable(self, symbol: str, *, exchange: str, price: Numeric) -> OverseasBuyableAmount:
-        """매수가능금액. ``exchange`` 는 시세 거래소코드(NAS/NYS/AMS/HKS/SHS/SZS/TSE/HNX/HSX), ``price`` 는
+    def buyable(self, symbol: str, *, exchange: str, limit_price: Numeric) -> OverseasBuyableAmount:
+        """매수가능금액. ``exchange`` 는 시세 거래소코드(NAS/NYS/AMS/HKS/SHS/SZS/TSE/HNX/HSX), ``limit_price`` 는
         의도한 주문단가. 외화·통합 기준 주문가능금액·최대수량을 :class:`~kis_trader.money.Money` 로 준다.
         **매수 시 수량단위 절사가 필요**하다."""
         cano, product_code = self._client._require_account()
         return overseas_account.fetch_buyable_amount(
             self._client.transport, cano=cano, product_code=product_code,
-            environment=self._client.environment, symbol=symbol, exchange=exchange, price=price,
+            environment=self._client.environment, symbol=symbol, exchange=exchange, limit_price=limit_price,
         )
 
     def foreign_margin(self) -> list[OverseasForeignMargin]:
@@ -162,17 +162,17 @@ class OverseasAccount:
             basis_date=basis_date, won_basis=won_basis, inquiry=inquiry,
         )
 
-    def period_profit(
+    def trade_profits(
         self, *, start: str, end: str, exchange: str = "", nation: str = "", currency: str = "",
         symbol: str = "", won_basis: bool = False,
-    ) -> OverseasPeriodProfit:
+    ) -> OverseasTradeProfitHistory:
         """기간손익 -- ``start``~``end``(YYYYMMDD) 매도청산 종목별 실현손익과 총계. ``exchange`` 거래소
         (공란=전체), ``nation`` 국가코드(NATN_CD, 공란=전체), ``currency`` 통화(공란=전체), ``symbol`` 종목
         (공란=전체), ``won_basis`` 원화(True)/외화(False). **모의투자 미지원**.
 
         .. note:: KIS 예시가 비어 있어 필드는 레이아웃 기준이다 -- 전체 원본은 각 행/결과의 ``_raw``."""
         cano, product_code = self._client._require_account()
-        return overseas_account.fetch_period_profit(
+        return overseas_account.fetch_trade_profits(
             self._client.transport, cano=cano, product_code=product_code, environment=self._client.environment,
             start=start, end=end, exchange=exchange, nation=nation, currency=currency,
             symbol=symbol, won_basis=won_basis,

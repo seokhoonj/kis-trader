@@ -108,7 +108,7 @@ account = kis.account.overseas
 account.positions(market=None)                           # None = 전체 시장 합산
 account.balance(market="US")                             # 통화별 요약 (시장: US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
 account.present_balance()                                # 체결기준 현재잔고
-account.period_profit(start="20240101", end="20240630")  # 기간 실현손익
+account.trade_profits(start="20240101", end="20240630")  # 기간 실현손익
 account.transactions(start="20240101", end="20240630")   # 거래내역
 account.foreign_margin()                                 # 통화별 외화 증거금
 account.algo_orders()                                    # 미국 알고(twap/vwap) 주문 목록

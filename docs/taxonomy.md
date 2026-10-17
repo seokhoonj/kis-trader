@@ -316,11 +316,11 @@ kis.account
 │   ├── overseas                              # 해외주식 계좌 조회
 │   │   ├── positions()                       # 보유 종목(시장·통화별)
 │   │   ├── balance(market)                   # 계좌 손익 요약(시장별)
-│   │   ├── buyable(symbol, exchange, price)  # 매수가능금액
+│   │   ├── buyable(symbol, exchange, limit_price)  # 매수가능금액
 │   │   ├── foreign_margin()                  # 통화별 외화 예수금·증거금
 │   │   ├── present_balance()                 # 체결기준현재잔고
 │   │   ├── settlement_balance(basis_date)    # 결제기준잔고
-│   │   ├── period_profit(start, end)         # 기간손익
+│   │   ├── trade_profits(start, end)         # 기간손익
 │   │   ├── transactions(start, end)          # 일별 거래내역
 │   │   ├── open_orders()                     # 미체결 주문
 │   │   ├── algo_orders()                     # 알고주문 목록
@@ -357,7 +357,7 @@ kis.account
     ├── daily_fills(start, end)               # 일별 체결내역
     ├── daily_orders(start, end)              # 일별 주문내역
     ├── period_pnl(start, end)                # 기간 손익
-    └── transactions(start, end)              # 기간 입출금내역
+    └── cash_transactions(start, end)         # 기간 입출금내역
 ```
 
 ## `kis.orders` — 주문 라이프사이클

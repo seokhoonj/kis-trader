@@ -1,8 +1,8 @@
 """해외 잔고/손익 리포트 -- overseas_present_balance (CTRP6504R) / overseas_settlement_balance
-(CTRP6010R) / overseas_period_profit (TTTS3039R).
+(CTRP6010R) / overseas_trade_profits (TTTS3039R).
 
 체결기준(present)은 output1 만 원장 예시로 확증, 결제기준(settlement)은 3블록 전부 확증, 기간손익
-(period_profit)은 예시가 비어 레이아웃 기준. 값 확증 여부와 무관하게 매핑·TR·파라미터·fail-closed 검증.
+(trade_profits)은 예시가 비어 레이아웃 기준. 값 확증 여부와 무관하게 매핑·TR·파라미터·fail-closed 검증.
 FakeTransport 로 네트워크 없이.
 """
 
@@ -16,9 +16,9 @@ import pytest
 
 from kis_trader import (
     KISClient,
-    OverseasPeriodProfit,
     OverseasPresentBalance,
     OverseasSettlementBalance,
+    OverseasTradeProfitHistory,
 )
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.money import Money
@@ -207,11 +207,11 @@ def test_settlement_balance_demo_rejected():
 
 
 # --- 기간손익 (TTTS3039R) --------------------------------------------------
-def test_period_profit_parses():
+def test_trade_profits_parses():
     body = {"output1": [_PROFIT_ROW], "output2": _PROFIT_SUM}
-    pnl = _client(FakeTransport(response=_resp(body))).account.overseas.period_profit(
+    pnl = _client(FakeTransport(response=_resp(body))).account.overseas.trade_profits(
         start="20250501", end="20250523")
-    assert isinstance(pnl, OverseasPeriodProfit)
+    assert isinstance(pnl, OverseasTradeProfitHistory)
     row = pnl.rows[0]
     assert row.trade_day == date(2025, 5, 23)
     assert row.symbol == "AAPL"
@@ -223,9 +223,9 @@ def test_period_profit_parses():
     assert pnl.base_date == date(2025, 5, 23)
 
 
-def test_period_profit_tr_and_params():
+def test_trade_profits_tr_and_params():
     fake = FakeTransport(response=_resp({"output1": [_PROFIT_ROW], "output2": _PROFIT_SUM}))
-    _client(fake).account.overseas.period_profit(
+    _client(fake).account.overseas.trade_profits(
         start="20250501", end="20250523", exchange="NASD", currency="USD")
     call = fake.calls[0]
     assert call["tr_id"] == "TTTS3039R"
@@ -237,25 +237,25 @@ def test_period_profit_tr_and_params():
     assert call["params"]["WCRC_FRCR_DVSN_CD"] == "01"   # 외화기준 default
 
 
-def test_period_profit_empty_ok():
+def test_trade_profits_empty_ok():
     body = {"output1": [], "output2": {}}
-    pnl = _client(FakeTransport(response=_resp(body))).account.overseas.period_profit(
+    pnl = _client(FakeTransport(response=_resp(body))).account.overseas.trade_profits(
         start="20250501", end="20250523")
     assert pnl.rows == ()
     assert pnl.total_realized_pnl == Decimal(0)
 
 
-def test_period_profit_non_list_output1_fails_closed():
+def test_trade_profits_non_list_output1_fails_closed():
     body = {"output1": {"ovrs_pdno": "x"}, "output2": _PROFIT_SUM}
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_resp(body))).account.overseas.period_profit(
+        _client(FakeTransport(response=_resp(body))).account.overseas.trade_profits(
             start="20250501", end="20250523")
 
 
-def test_period_profit_demo_rejected():
+def test_trade_profits_demo_rejected():
     fake = FakeTransport(response=_resp({"output1": [_PROFIT_ROW], "output2": _PROFIT_SUM}))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").account.overseas.period_profit(start="20250501", end="20250523")
+        _client(fake, environment="paper").account.overseas.trade_profits(start="20250501", end="20250523")
     assert fake.calls == []
 
 

@@ -1,7 +1,7 @@
 """해외 계좌 DATA -- 외화 증거금·거래내역·매수가능·기간손익.
 
 해외 계좌 조회(``kis.account.overseas.foreign_margin`` / ``.transactions`` / ``.buyable`` /
-``.period_profit``)가 돌려준다. 금액은 거래/조회 통화라 :class:`~kis_trader.money.Money`."""
+``.trade_profits``)가 돌려준다. 금액은 거래/조회 통화라 :class:`~kis_trader.money.Money`."""
 
 from __future__ import annotations
 
@@ -108,7 +108,7 @@ class OverseasBuyableAmount:
 
 
 @dataclass(frozen=True, slots=True)
-class OverseasPeriodProfitRow:
+class OverseasTradeProfitRow:
     """해외주식 기간손익의 매도청산 한 줄(불변). 금액 기준통화는 조회 방식에 달렸다 -- 통화를 지정하면
     그 통화, ``won_basis=True`` 로 조회하면 원화(WCRC_FRCR_DVSN_CD 02), 아니면 외화(01)다("외화"로
     단정하지 않는다). 통화 지정 없이(전체) 조회하면 행마다 통화가 섞일 수 있으니 ``exchange``
@@ -137,14 +137,14 @@ class OverseasPeriodProfitRow:
 
 
 @dataclass(frozen=True, slots=True)
-class OverseasPeriodProfit:
+class OverseasTradeProfitHistory:
     """해외주식 기간손익(불변) -- 기간 내 매도청산 종목별 실현손익(``rows``)과 총계. **모의투자 미지원**.
 
     .. note:: KIS 응답예시가 비어 있어 필드는 레이아웃 기준이다 -- 실제 응답과 다를 수 있으므로 각
        행과 결과의 ``_raw`` 로 원본을 함께 노출한다.
     """
 
-    rows: tuple[OverseasPeriodProfitRow, ...]
+    rows: tuple[OverseasTradeProfitRow, ...]
     total_sell_amount: Decimal         # 주식매도금액합계(stck_sll_amt_smtl)
     total_buy_amount: Decimal          # 주식매수금액합계(stck_buy_amt_smtl)
     total_fee: Decimal                 # 합계수수료1(smtl_fee1)

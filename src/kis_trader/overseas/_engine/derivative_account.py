@@ -22,6 +22,7 @@ from ..._literals import DerivativeProductFilter
 from ...errors import KISError, KISUsageError
 from ...transport import Environment, RawResponse, Transport
 from ..entities.derivative_account import (
+    OverseasDerivativeCashTransaction,
     OverseasDerivativeDailyOrder,
     OverseasDerivativeDeposit,
     OverseasDerivativeFill,
@@ -32,7 +33,6 @@ from ..entities.derivative_account import (
     OverseasDerivativePNL,
     OverseasDerivativePNLHistory,
     OverseasDerivativePosition,
-    OverseasDerivativeTransaction,
 )
 from ._parse import _MAX_PAGES, _side_from_code
 
@@ -567,10 +567,10 @@ def _parse_pnl_rows(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativePNL
     return pnls
 
 
-def fetch_transactions(
+def fetch_cash_transactions(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     start: str, end: str,
-) -> list[OverseasDerivativeTransaction]:
+) -> list[OverseasDerivativeCashTransaction]:
     """해외선물옵션 기간 입출금내역(원장 목록, 연속조회 소진까지). ``start``~``end`` (YYYYMMDD)
     기간을 전체 거래유형("%%")·전체 통화("%%%")로 조회한다. 계좌 비밀번호는 확인하지 않는다
     (PWD_CHK_YN="N"). 연속조회 커서는 100폭(CTX_AREA_FK100/NK100)이다. 금액은 각 행 통화의
@@ -598,11 +598,11 @@ def fetch_transactions(
             f"남아있다 -- 부분 결과로 자르지 않는다. 재시도하거나 수동 확인하라."
         ),
     )
-    return _parse_transactions(rows)
+    return _parse_cash_transactions(rows)
 
 
-def _parse_transactions(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativeTransaction]:
-    transactions: list[OverseasDerivativeTransaction] = []
+def _parse_cash_transactions(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativeCashTransaction]:
+    transactions: list[OverseasDerivativeCashTransaction] = []
     for row in rows:
         ledger_sequence = str(row.get("fm_ldgr_inog_seq", "")).strip()
         base_date_text = str(row.get("bass_dt", "")).strip()
@@ -611,7 +611,7 @@ def _parse_transactions(rows: list[Mapping[str, Any]]) -> list[OverseasDerivativ
         transactions.append(
             # 금액은 빈 값을 0으로 읽되(외화 필드는 비어 올 수 있음), 값이 있는데 파싱 실패면
             # 여전히 예외로 fail-closed 한다.
-            OverseasDerivativeTransaction(
+            OverseasDerivativeCashTransaction(
                 base_date=_parse_date(base_date_text),
                 ledger_sequence=ledger_sequence,
                 transaction_type_name=str(row.get("acnt_tr_type_name", "")).strip(),

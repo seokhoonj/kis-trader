@@ -3,7 +3,7 @@
 ``kis.account`` (해외선물옵션 08)의 :class:`~kis_trader.overseas.derivative_account.
 OverseasDerivativesAccount` 뷰가 돌려준다. **금액·가격은 조회 통화(``currency``)의 Decimal 이고
 수량은 계약수(Decimal)다 -- 원화(KRW)가 아니다.** 통화별 조회 타입(Deposit/Position/Margin/Orderable/
-Fill/PNL/Transaction)은 ``currency`` 를 함께 담고, 주문-레코드 타입(Order/DailyOrder)은 통화 필드 없이
+Fill/PNL/CashTransaction)은 ``currency`` 를 함께 담고, 주문-레코드 타입(Order/DailyOrder)은 통화 필드 없이
 각 계약 통화 기준 가격·수량만 싣는다. 타입화하지 않은 벤더 필드는 ``_raw`` 로 노출한다. 모든 조회는 **실전 전용**이다.
 """
 
@@ -319,7 +319,7 @@ class OverseasDerivativePNLHistory:
 
 
 @dataclass(frozen=True, slots=True)
-class OverseasDerivativeTransaction:
+class OverseasDerivativeCashTransaction:
     """해외선물옵션 기간 입출금(원장) 한 건(불변).
 
     금액은 ``currency`` 통화의 Decimal(원화 아님). ``base_date`` 기준일자(bass_dt) -- 형식오류/

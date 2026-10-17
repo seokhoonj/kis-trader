@@ -75,20 +75,20 @@ kis.orders.cancel(report.client_order_id)                           # 아시아 
 ```python
 account = kis.account.overseas
 
-account.positions(market=None)                             # None = 전체 시장 합산
-account.balance(market="US")                               # 시장 하나의 통화별 요약 (US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
-account.balance()                                          # None = 전체 시장을 순회한 시장별 요약 리스트
-account.present_balance()                                  # 체결기준 잔고 (오늘 체결분 포함)
-account.settlement_balance(basis_date="20240630")          # 결제기준 잔고 (결제일 기준)
-account.buyable(symbol="AAPL", exchange="NAS", price=150)  # 매수가능 수량·금액 (해당 단가 기준)
-account.period_profit(start="20240101", end="20240630")    # 기간 실현손익 (매도청산 종목별)
-account.transactions(start="20240101", end="20240630")     # 거래내역
-account.foreign_margin()                                   # 통화별 외화 증거금
+account.positions(market=None)                                   # None = 전체 시장 합산
+account.balance(market="US")                                     # 시장 하나의 통화별 요약 (US/HK/CN_SH/CN_SZ/JP/VN_HN/VN_HCM)
+account.balance()                                                # None = 전체 시장을 순회한 시장별 요약 리스트
+account.present_balance()                                        # 체결기준 잔고 (오늘 체결분 포함)
+account.settlement_balance(basis_date="20240630")                # 결제기준 잔고 (결제일 기준)
+account.buyable(symbol="AAPL", exchange="NAS", limit_price=150)  # 매수가능 수량·금액 (해당 단가 기준)
+account.trade_profits(start="20240101", end="20240630")          # 기간 실현손익 (매도청산 종목별)
+account.transactions(start="20240101", end="20240630")           # 거래내역
+account.foreign_margin()                                         # 통화별 외화 증거금
 account.algo_orders()                                                # 미국 알고(twap/vwap) 주문 목록
 account.algo_executions(order_id, order_date="20240102")             # 한 알고주문의 체결내역
 ```
 
-이 중 `settlement_balance`·`period_profit`·`transactions`·`foreign_margin`·`algo_orders`·`algo_executions` 는 **실전 전용**(모의투자 미지원)이라 `paper` 세션에서 부르면 `KISUsageError` 입니다. `positions`·`balance`·`present_balance`·`buyable` 은 모의도 지원합니다.
+이 중 `settlement_balance`·`trade_profits`·`transactions`·`foreign_margin`·`algo_orders`·`algo_executions` 는 **실전 전용**(모의투자 미지원)이라 `paper` 세션에서 부르면 `KISUsageError` 입니다. `positions`·`balance`·`present_balance`·`buyable` 은 모의도 지원합니다.
 
 ::: {.callout-note}
 ## 체결기준 vs 결제기준
@@ -189,12 +189,12 @@ account.today_orders()                          # 당일 주문 (체결/미체�
 account.daily_fills(start="20240101", end="20240630")   # 일별 체결내역 + 기간 합계
 account.daily_orders(start="20240101", end="20240630")  # 일별 주문내역
 account.period_pnl(start="20240101", end="20240630")    # 기간 손익 (통화별 + 종목별)
-account.transactions(start="20240101", end="20240630")  # 기간 입출금(원장)
+account.cash_transactions(start="20240101", end="20240630")  # 기간 입출금(원장)
 ```
 
 - `daily_fills()` → `OverseasDerivativeFillHistory`: `fills`(`OverseasDerivativeFill`)와 합계(`total_filled_quantity`·`total_fee`).
 - `daily_orders()` → `OverseasDerivativeDailyOrder` 목록.
 - `period_pnl()` → `OverseasDerivativePNLHistory`: `by_currency`(통화별) · `by_symbol`(종목별) 두 벌, 각 행은 `realized_pnl`·`net_pnl`·`fee`·`unrealized_pnl`.
-- `transactions()` → `OverseasDerivativeTransaction` 목록: `base_date`·`transaction_type_name`·`amount`·`deposit`.
+- `cash_transactions()` → `OverseasDerivativeCashTransaction` 목록: `base_date`·`transaction_type_name`·`amount`·`deposit`.
 
 타입화하지 않은 벤더 필드는 각 결과의 `_raw` 로 접근합니다.

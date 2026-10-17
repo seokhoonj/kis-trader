@@ -15,6 +15,7 @@ from kis_trader import KISClient
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.overseas.derivative_account import OverseasDerivativesAccount
 from kis_trader.overseas.entities.derivative_account import (
+    OverseasDerivativeCashTransaction,
     OverseasDerivativeDailyOrder,
     OverseasDerivativeDeposit,
     OverseasDerivativeFill,
@@ -25,7 +26,6 @@ from kis_trader.overseas.entities.derivative_account import (
     OverseasDerivativePNL,
     OverseasDerivativePNLHistory,
     OverseasDerivativePosition,
-    OverseasDerivativeTransaction,
 )
 from kis_trader.transport import RawResponse
 
@@ -1031,14 +1031,14 @@ def _period_trans_resp(*, rows=None, ctx_nk="", ctx_fk="", tr_cont="D"):
 def test_period_trans_paper_fails_closed():
     fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
     with pytest.raises(KISUsageError):
-        _client(fake, environment="paper").account.transactions(start="20240201", end="20240216")
+        _client(fake, environment="paper").account.cash_transactions(start="20240201", end="20240216")
     assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
 
 
 def test_period_trans_bad_date_fails_closed():
     fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
     with pytest.raises(KISUsageError):
-        _client(fake).account.transactions(start="20240201", end="2024-02-16")
+        _client(fake).account.cash_transactions(start="20240201", end="2024-02-16")
     assert fake.calls == []  # 날짜 검증도 와이어 이전
 
 
@@ -1046,9 +1046,9 @@ def test_period_trans_parses_and_routes():
     from datetime import date
 
     fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
-    trans = _client(fake).account.transactions(start="20240201", end="20240216")
+    trans = _client(fake).account.cash_transactions(start="20240201", end="20240216")
     assert isinstance(trans, list)
-    assert isinstance(trans[0], OverseasDerivativeTransaction)
+    assert isinstance(trans[0], OverseasDerivativeCashTransaction)
     assert trans[0].base_date == date(2024, 2, 16)           # bass_dt
     assert trans[0].ledger_sequence == "0001"                # fm_ldgr_inog_seq
     assert trans[0].transaction_type_name == "입금"               # acnt_tr_type_name
@@ -1082,7 +1082,7 @@ def test_period_trans_paginates():
                                ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
     page2 = _period_trans_resp(rows=[_transaction(seq="0002")], tr_cont="D")
     fake = FakeTransport(by_path={_PERIOD_TRANS_PATH: [page1, page2]})
-    trans = _client(fake).account.transactions(start="20240201", end="20240216")
+    trans = _client(fake).account.cash_transactions(start="20240201", end="20240216")
     assert [t.ledger_sequence for t in trans] == ["0001", "0002"]
     assert fake.calls[1]["params"]["CTX_AREA_NK100"] == "NEXT"
     assert fake.calls[1]["params"]["CTX_AREA_FK100"] == "FK"
@@ -1091,7 +1091,7 @@ def test_period_trans_paginates():
 
 def test_period_trans_skips_blank_identifier_row():
     rows = [_transaction(seq="0001"), _transaction(seq="", bass_dt="")]
-    trans = _client(FakeTransport(response=_period_trans_resp(rows=rows))).account.transactions(
+    trans = _client(FakeTransport(response=_period_trans_resp(rows=rows))).account.cash_transactions(
         start="20240201", end="20240216"
     )
     assert [t.ledger_sequence for t in trans] == ["0001"]
@@ -1099,7 +1099,7 @@ def test_period_trans_skips_blank_identifier_row():
 
 def test_period_trans_non_mapping_row_raises():
     with pytest.raises(KISError):
-        _client(FakeTransport(response=_period_trans_resp(rows=[None]))).account.transactions(
+        _client(FakeTransport(response=_period_trans_resp(rows=[None]))).account.cash_transactions(
             start="20240201", end="20240216"
         )
 
@@ -1108,17 +1108,17 @@ def test_period_trans_missing_output_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"ctx_area_nk100": "", "ctx_area_fk100": ""})
     with pytest.raises(KISError):
-        _client(FakeTransport(response=resp)).account.transactions(start="20240201", end="20240216")
+        _client(FakeTransport(response=resp)).account.cash_transactions(start="20240201", end="20240216")
 
 
 def test_transactions_non_list_output_raises():
     with pytest.raises(KISError):  # 목록 조회는 output 이 배열이어야 -- 매핑은 손상
-        _client(FakeTransport(response=_period_trans_resp(rows={}))).account.transactions(
+        _client(FakeTransport(response=_period_trans_resp(rows={}))).account.cash_transactions(
             start="20240201", end="20240216"
         )
 
 
-def test_overseas_derivative_transaction_entity_importable():
-    from kis_trader import OverseasDerivativeTransaction as Exported
+def test_overseas_derivative_cash_transaction_entity_importable():
+    from kis_trader import OverseasDerivativeCashTransaction as Exported
 
-    assert Exported is OverseasDerivativeTransaction
+    assert Exported is OverseasDerivativeCashTransaction
