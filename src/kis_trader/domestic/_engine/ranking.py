@@ -72,12 +72,17 @@ from ...transport import Transport
 from ..entities.ranking import (
     AfterHoursBalanceRanking,
     AfterHoursRanking,
+    BulkTradeCountRanking,
     CreditBalanceRanking,
     DividendRanking,
+    DomesticExecutionStrengthRanking,
     DomesticRankedStock,
+    HouseTradeVolumeRanking,
     NearHighLowRanking,
     ShortSaleRanking,
     TopViewedStock,
+    TradingActivityRanking,
+    WatchlistRegistrationRanking,
 )
 from .market_data import _market_div
 
@@ -232,9 +237,12 @@ def fetch_fluctuation(transport: Transport, *, direction: str, market: str) -> l
     return _fetch_ranking(transport, path=_FLUCTUATION_PATH, tr=_FLUCTUATION_TR, params=params)
 
 
-def fetch_trading_activity(transport: Transport, *, metric: str = "cumulative_trading_amount", market: str) -> list[DomesticRankedStock]:
+def fetch_trading_activity(
+    transport: Transport, *, metric: str = "cumulative_trading_amount", market: str
+) -> list[TradingActivityRanking]:
     """거래량 계열 순위. ``metric``: average_volume 평균거래량 / cumulative_trading_amount 거래대금 /
-    volume_growth 거래증가율 / turnover 회전율. 최대 30건(다음조회 없음)."""
+    volume_growth 거래증가율 / turnover 회전율. 거래활동 지표를 담은 :class:`TradingActivityRanking`
+    로 돌려준다. 최대 30건(다음조회 없음)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _VOLUME_SCR,
@@ -247,7 +255,10 @@ def fetch_trading_activity(transport: Transport, *, metric: str = "cumulative_tr
         "FID_VOL_CNT": "",
         "FID_INPUT_DATE_1": "",
     }
-    return _fetch_ranking(transport, path=_VOLUME_PATH, tr=_VOLUME_TR, params=params)
+    rows = _fetch_rows(
+        transport, path=_VOLUME_PATH, tr=_VOLUME_TR, params=params, output_key="output"
+    )
+    return _parse_trading_activity(rows)
 
 
 def fetch_market_cap(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
@@ -301,8 +312,11 @@ def fetch_quote_balance(transport: Transport, *, metric: str, market: str) -> li
     return _fetch_ranking(transport, path=_QUOTE_BALANCE_PATH, tr=_QUOTE_BALANCE_TR, params=params)
 
 
-def fetch_execution_strength(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
-    """체결강도 순위(정렬 없음). 당일 체결강도는 각 항목의 ``_raw['tday_rltv']``. 최대 30건."""
+def fetch_execution_strength(
+    transport: Transport, *, market: str
+) -> list[DomesticExecutionStrengthRanking]:
+    """체결강도 순위(정렬 없음). 당일 체결강도와 매수/매도 체결량을 담은
+    :class:`DomesticExecutionStrengthRanking` 로 돌려준다. 최대 30건."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _VOLUME_POWER_SCR,
@@ -312,12 +326,17 @@ def fetch_execution_strength(transport: Transport, *, market: str) -> list[Domes
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
         "FID_VOL_CNT": "",
     }
-    return _fetch_ranking(transport, path=_VOLUME_POWER_PATH, tr=_VOLUME_POWER_TR, params=params)
+    rows = _fetch_rows(
+        transport, path=_VOLUME_POWER_PATH, tr=_VOLUME_POWER_TR, params=params, output_key="output"
+    )
+    return _parse_execution_strength(rows)
 
 
-def fetch_bulk_trade_count(transport: Transport, *, side: str, market: str) -> list[DomesticRankedStock]:
-    """대량체결건수 순위. ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. 체결건수는 각 항목의
-    ``_raw`` (shnu_cntg_csnu/seln_cntg_csnu/ntby_cnqn). 최대 30건(다음조회 없음)."""
+def fetch_bulk_trade_count(
+    transport: Transport, *, side: str, market: str
+) -> list[BulkTradeCountRanking]:
+    """대량체결건수 순위. ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. 매수/매도 체결건수와
+    순매수 체결수량을 담은 :class:`BulkTradeCountRanking` 로 돌려준다. 최대 30건(다음조회 없음)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _BULK_TRADES_SCR,
@@ -330,12 +349,17 @@ def fetch_bulk_trade_count(transport: Transport, *, side: str, market: str) -> l
         "FID_APLY_RANG_PRC_1": "", "FID_APLY_RANG_PRC_2": "",
         "FID_VOL_CNT": "",                      # 거래량 전체
     }
-    return _fetch_ranking(transport, path=_BULK_TRADES_PATH, tr=_BULK_TRADES_TR, params=params)
+    rows = _fetch_rows(
+        transport, path=_BULK_TRADES_PATH, tr=_BULK_TRADES_TR, params=params, output_key="output"
+    )
+    return _parse_bulk_trade_count(rows)
 
 
-def fetch_watchlist_registrations(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
-    """관심종목 등록상위 순위(정렬 없음). 관심등록 건수는 각 항목의 ``_raw['inter_issu_reg_csnu']``.
-    최대 30건(다음조회 없음)."""
+def fetch_watchlist_registrations(
+    transport: Transport, *, market: str
+) -> list[WatchlistRegistrationRanking]:
+    """관심종목 등록상위 순위(정렬 없음). 관심등록 건수를 담은 :class:`WatchlistRegistrationRanking`
+    로 돌려준다. 최대 30건(다음조회 없음)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _INTEREST_SCR,
@@ -347,7 +371,10 @@ def fetch_watchlist_registrations(transport: Transport, *, market: str) -> list[
         "FID_VOL_CNT": "",
         "FID_INPUT_CNT_1": "1",                # 1위부터
     }
-    return _fetch_ranking(transport, path=_INTEREST_PATH, tr=_INTEREST_TR, params=params)
+    rows = _fetch_rows(
+        transport, path=_INTEREST_PATH, tr=_INTEREST_TR, params=params, output_key="output"
+    )
+    return _parse_watchlist_registrations(rows)
 
 
 def fetch_preferred_share_disparity(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
@@ -406,10 +433,10 @@ def fetch_profit_asset(
 
 def fetch_house_trade_volume(
     transport: Transport, *, side: str, start: str | date, end: str | date, market: str
-) -> list[DomesticRankedStock]:
+) -> list[HouseTradeVolumeRanking]:
     """당사매매종목 순위(기간). ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. ``start``/``end`` 는
-    조회 기간(YYYYMMDD 또는 date). 당사 매수/매도/순매수 수량은 각 항목의 ``_raw`` (shnu_cnqn_smtn/
-    seln_cnqn_smtn/ntby_cnqn). 최대 30건(다음조회 없음)."""
+    조회 기간(YYYYMMDD 또는 date). 당사 매수/매도/순매수 수량을 담은
+    :class:`HouseTradeVolumeRanking` 로 돌려준다. 최대 30건(다음조회 없음)."""
     start_date = _to_yyyymmdd(start, "start")
     end_date = _to_yyyymmdd(end, "end")
     if start_date > end_date:                  # 뒤집힌 기간 -> I/O 전 fail-closed
@@ -426,9 +453,11 @@ def fetch_house_trade_volume(
         "FID_APLY_RANG_VOL": "0",              # 거래량 전체
         "FID_APLY_RANG_PRC_1": "", "FID_APLY_RANG_PRC_2": "",   # 가격 전체
     }
-    return _fetch_ranking(
-        transport, path=_COMPANY_TRADES_PATH, tr=_COMPANY_TRADES_TR, params=params
+    rows = _fetch_rows(
+        transport, path=_COMPANY_TRADES_PATH, tr=_COMPANY_TRADES_TR, params=params,
+        output_key="output",
     )
+    return _parse_house_trade_volume(rows)
 
 
 def fetch_dividend(
@@ -710,26 +739,146 @@ def _fetch_ranking(
     return _parse_ranked(rows)
 
 
+def _core_ranked_fields(row: Mapping[str, Any]) -> dict[str, Any] | None:
+    """순위 공통 코어 7필드(순위/종목/시세/거래량) 추출. 빈 행(종목코드·순위 누락)이면 None.
+
+    종목코드 필드는 순위마다 다름(mksc_shrn_iscd/stck_shrn_iscd) -> 흡수. :func:`_parse_ranked` 와
+    전용 파서(거래활동/체결강도/관심등록/대량체결/당사매매)가 공유한다."""
+    symbol = str(row.get("mksc_shrn_iscd") or row.get("stck_shrn_iscd") or "").strip()
+    rank_text = str(row.get("data_rank", "")).strip()
+    if not symbol or not rank_text:  # 빈 행 skip
+        return None
+    sign = str(row.get("prdy_vrss_sign", "")).strip()
+    return {
+        "rank": required_int(rank_text, "data_rank"),
+        "symbol": symbol,
+        "name": str(row.get("hts_kor_isnm", "")).strip(),
+        "price": required_decimal(row.get("stck_prpr"), "stck_prpr"),
+        "change": _apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+        "change_percent": _apply_change_sign(
+            required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+        ),
+        "volume": required_int(row.get("acml_vol"), "acml_vol"),
+    }
+
+
 def _parse_ranked(rows: Sequence[Mapping[str, Any]]) -> list[DomesticRankedStock]:
-    """순위 행 -> DomesticRankedStock. 종목코드 필드는 순위마다 다름(mksc_shrn_iscd/stck_shrn_iscd) -> 흡수."""
+    """순위 행 -> DomesticRankedStock(여러 순위가 공유하는 범용 행)."""
     ranked: list[DomesticRankedStock] = []
     for row in rows:
-        symbol = str(row.get("mksc_shrn_iscd") or row.get("stck_shrn_iscd") or "").strip()
-        rank_text = str(row.get("data_rank", "")).strip()
-        if not symbol or not rank_text:  # 빈 행 skip
+        core = _core_ranked_fields(row)
+        if core is None:  # 빈 행 skip
             continue
-        sign = str(row.get("prdy_vrss_sign", "")).strip()
         ranked.append(
             DomesticRankedStock(
-                rank=required_int(rank_text, "data_rank"),
-                symbol=symbol,
-                name=str(row.get("hts_kor_isnm", "")).strip(),
-                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
-                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
-                change_percent=_apply_change_sign(
-                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                **core,
+                cumulative_trading_amount=optional_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def _parse_trading_activity(rows: Sequence[Mapping[str, Any]]) -> list[TradingActivityRanking]:
+    ranked: list[TradingActivityRanking] = []
+    for row in rows:
+        core = _core_ranked_fields(row)
+        if core is None:  # 빈 행 skip
+            continue
+        ranked.append(
+            TradingActivityRanking(
+                **core,
+                average_volume=required_int(row.get("avrg_vol"), "avrg_vol"),
+                volume_growth_percent=required_decimal(row.get("vol_inrt"), "vol_inrt"),
+                volume_turnover_ratio=required_decimal(row.get("vol_tnrt"), "vol_tnrt"),
+                n_day_volume_turnover_ratio=required_decimal(
+                    row.get("nday_vol_tnrt"), "nday_vol_tnrt"
                 ),
-                volume=required_int(row.get("acml_vol"), "acml_vol"),
+                average_trading_amount=required_decimal(row.get("avrg_tr_pbmn"), "avrg_tr_pbmn"),
+                trading_amount_turnover_ratio=required_decimal(
+                    row.get("tr_pbmn_tnrt"), "tr_pbmn_tnrt"
+                ),
+                n_day_trading_amount_turnover_ratio=required_decimal(
+                    row.get("nday_tr_pbmn_tnrt"), "nday_tr_pbmn_tnrt"
+                ),
+                cumulative_trading_amount=optional_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def _parse_execution_strength(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[DomesticExecutionStrengthRanking]:
+    ranked: list[DomesticExecutionStrengthRanking] = []
+    for row in rows:
+        core = _core_ranked_fields(row)
+        if core is None:  # 빈 행 skip
+            continue
+        ranked.append(
+            DomesticExecutionStrengthRanking(
+                **core,
+                execution_strength=required_decimal(row.get("tday_rltv"), "tday_rltv"),
+                buy_execution_volume=required_int(row.get("shnu_cnqn_smtn"), "shnu_cnqn_smtn"),
+                sell_execution_volume=required_int(row.get("seln_cnqn_smtn"), "seln_cnqn_smtn"),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def _parse_watchlist_registrations(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[WatchlistRegistrationRanking]:
+    ranked: list[WatchlistRegistrationRanking] = []
+    for row in rows:
+        core = _core_ranked_fields(row)
+        if core is None:  # 빈 행 skip
+            continue
+        ranked.append(
+            WatchlistRegistrationRanking(
+                **core,
+                registration_count=required_int(
+                    row.get("inter_issu_reg_csnu"), "inter_issu_reg_csnu"
+                ),
+                cumulative_trading_amount=optional_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def _parse_bulk_trade_count(rows: Sequence[Mapping[str, Any]]) -> list[BulkTradeCountRanking]:
+    ranked: list[BulkTradeCountRanking] = []
+    for row in rows:
+        core = _core_ranked_fields(row)
+        if core is None:  # 빈 행 skip
+            continue
+        ranked.append(
+            BulkTradeCountRanking(
+                **core,
+                buy_trade_count=required_int(row.get("shnu_cntg_csnu"), "shnu_cntg_csnu"),
+                sell_trade_count=required_int(row.get("seln_cntg_csnu"), "seln_cntg_csnu"),
+                net_trade_volume=required_int(row.get("ntby_cnqn"), "ntby_cnqn"),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def _parse_house_trade_volume(rows: Sequence[Mapping[str, Any]]) -> list[HouseTradeVolumeRanking]:
+    ranked: list[HouseTradeVolumeRanking] = []
+    for row in rows:
+        core = _core_ranked_fields(row)
+        if core is None:  # 빈 행 skip
+            continue
+        ranked.append(
+            HouseTradeVolumeRanking(
+                **core,
+                buy_volume=required_int(row.get("shnu_cnqn_smtn"), "shnu_cnqn_smtn"),
+                sell_volume=required_int(row.get("seln_cnqn_smtn"), "seln_cnqn_smtn"),
+                net_volume=required_int(row.get("ntby_cnqn"), "ntby_cnqn"),
                 cumulative_trading_amount=optional_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
                 _raw=row,
             )

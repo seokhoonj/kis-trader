@@ -17,12 +17,17 @@ from ._engine import ranking as ranking_api
 from .entities.ranking import (
     AfterHoursBalanceRanking,
     AfterHoursRanking,
+    BulkTradeCountRanking,
     CreditBalanceRanking,
     DividendRanking,
+    DomesticExecutionStrengthRanking,
     DomesticRankedStock,
+    HouseTradeVolumeRanking,
     NearHighLowRanking,
     ShortSaleRanking,
     TopViewedStock,
+    TradingActivityRanking,
+    WatchlistRegistrationRanking,
 )
 
 if TYPE_CHECKING:
@@ -105,7 +110,7 @@ class DomesticRankingQueries:
             self._client.transport, direction=direction, market="KRX"
         )
 
-    def by_trading_activity(self, *, metric: TradingActivityMetric = "cumulative_trading_amount") -> list[DomesticRankedStock]:
+    def by_trading_activity(self, *, metric: TradingActivityMetric = "cumulative_trading_amount") -> list[TradingActivityRanking]:
         """거래량 계열 순위(최대 30건). ``metric`` 으로 기준을 고른다(기본 ``cumulative_trading_amount`` 거래대금 --
         저가주가 주식 수로 상위를 독식하지 않아 cross-stock 비교에 정확하다): ``average_volume`` 평균거래량
         (주식 수) / ``cumulative_trading_amount`` 거래대금(원) / ``volume_growth`` 거래증가율 / ``turnover`` 회전율.
@@ -128,17 +133,20 @@ class DomesticRankingQueries:
         ``"buy_ratio"`` 매수비율 / ``"sell_ratio"`` 매도비율. 잔량 지표는 ``_raw``(최대 30건)."""
         return ranking_api.fetch_quote_balance(self._client.transport, metric=metric, market="KRX")
 
-    def by_execution_strength(self) -> list[DomesticRankedStock]:
-        """체결강도 순위(최대 30건). 당일 체결강도는 각 항목의 ``_raw['tday_rltv']``."""
+    def by_execution_strength(self) -> list[DomesticExecutionStrengthRanking]:
+        """체결강도 순위(최대 30건). 당일 체결강도와 매수/매도 체결량을 담은
+        :class:`~kis_trader.domestic.entities.ranking.DomesticExecutionStrengthRanking` 를 돌려준다."""
         return ranking_api.fetch_execution_strength(self._client.transport, market="KRX")
 
-    def by_bulk_trade_count(self, *, side: Side = "buy") -> list[DomesticRankedStock]:
-        """대량체결건수 순위. ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. 체결건수는 각 항목의
-        ``_raw``(shnu_cntg_csnu/seln_cntg_csnu 등)(최대 30건)."""
+    def by_bulk_trade_count(self, *, side: Side = "buy") -> list[BulkTradeCountRanking]:
+        """대량체결건수 순위. ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. 매수/매도 체결건수와
+        순매수 체결수량을 담은 :class:`~kis_trader.domestic.entities.ranking.BulkTradeCountRanking`
+        를 돌려준다(최대 30건)."""
         return ranking_api.fetch_bulk_trade_count(self._client.transport, side=side, market="KRX")
 
-    def by_watchlist_registrations(self) -> list[DomesticRankedStock]:
-        """관심종목 등록상위 순위(최대 30건). 관심등록 건수는 각 항목의 ``_raw['inter_issu_reg_csnu']``."""
+    def by_watchlist_registrations(self) -> list[WatchlistRegistrationRanking]:
+        """관심종목 등록상위 순위(최대 30건). 관심등록 건수를 담은
+        :class:`~kis_trader.domestic.entities.ranking.WatchlistRegistrationRanking` 를 돌려준다."""
         return ranking_api.fetch_watchlist_registrations(self._client.transport, market="KRX")
 
     def by_preferred_share_disparity(self) -> list[DomesticRankedStock]:
@@ -179,10 +187,10 @@ class DomesticRankingQueries:
 
     def by_house_trade_volume(
         self, *, side: Side = "buy", start: str | date, end: str | date
-    ) -> list[DomesticRankedStock]:
+    ) -> list[HouseTradeVolumeRanking]:
         """당사매매종목 순위(기간). ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. ``start``/``end`` 는
-        조회 기간(YYYYMMDD 문자열 또는 ``date``). 당사 매수/매도/순매수 수량은 각 항목의
-        ``_raw``(shnu_cnqn_smtn/seln_cnqn_smtn/ntby_cnqn)(최대 30건)."""
+        조회 기간(YYYYMMDD 문자열 또는 ``date``). 당사 매수/매도/순매수 수량을 담은
+        :class:`~kis_trader.domestic.entities.ranking.HouseTradeVolumeRanking` 를 돌려준다(최대 30건)."""
         return ranking_api.fetch_house_trade_volume(
             self._client.transport, side=side, start=start, end=end, market="KRX"
         )

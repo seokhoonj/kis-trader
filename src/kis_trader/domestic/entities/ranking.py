@@ -162,6 +162,149 @@ class NearHighLowRanking:
 
 
 @dataclass(frozen=True, slots=True)
+class TradingActivityRanking:
+    """거래량 계열 순위 한 항목(불변). ``rank`` 는 1부터의 순위.
+
+    평균거래량/증가율/회전율 등 거래활동 지표를 담는다. ``*_percent`` 는 변화율(%),
+    ``*_ratio`` 는 회전율(회전 배수). ``change`` / ``change_percent`` 는 하락이면 음수.
+    ``cumulative_trading_amount`` 는 누적 거래대금(원)이며 응답에 없을 수 있다.
+    """
+
+    rank: int
+    symbol: str
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int                       # 누적 거래량(주식 수)
+    average_volume: int               # 평균거래량(주식 수)
+    volume_growth_percent: Decimal    # 거래량증가율(%)
+    volume_turnover_ratio: Decimal    # 거래량회전율(회전 배수)
+    n_day_volume_turnover_ratio: Decimal      # N일 거래량회전율
+    average_trading_amount: Decimal   # 평균거래대금(원)
+    trading_amount_turnover_ratio: Decimal    # 거래대금회전율
+    n_day_trading_amount_turnover_ratio: Decimal  # N일 거래대금회전율
+    #: 누적 거래대금(원) -- 거래대금 기준 정렬의 근거값(응답에 없으면 None).
+    cumulative_trading_amount: Decimal | None = None
+    _raw: Mapping[str, Any] = field(
+        default_factory=_empty_raw, compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class DomesticExecutionStrengthRanking:
+    """국내 체결강도 순위 한 항목(불변). ``rank`` 는 1부터의 순위.
+
+    ``execution_strength`` 는 당일 체결강도(매수체결량/매도체결량 x100, 100 초과면 매수 우위),
+    ``buy_execution_volume`` / ``sell_execution_volume`` 는 각각 누적 매수/매도 체결량(주식 수).
+    ``change`` / ``change_percent`` 는 하락이면 음수. 이 순위엔 누적 거래대금이 없다.
+    """
+
+    rank: int
+    symbol: str
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int                       # 누적 거래량(주식 수)
+    execution_strength: Decimal       # 당일 체결강도
+    buy_execution_volume: int         # 매수 체결량 합(주식 수)
+    sell_execution_volume: int        # 매도 체결량 합(주식 수)
+    _raw: Mapping[str, Any] = field(
+        default_factory=_empty_raw, compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class WatchlistRegistrationRanking:
+    """관심종목 등록상위 순위 한 항목(불변). ``rank`` 는 1부터의 순위.
+
+    ``registration_count`` 는 사용자들이 그 종목을 관심종목으로 등록한 건수(많이 등록될수록 상위).
+    ``change`` / ``change_percent`` 는 하락이면 음수. ``cumulative_trading_amount`` 는 누적 거래대금(원).
+    """
+
+    rank: int
+    symbol: str
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int                       # 누적 거래량(주식 수)
+    registration_count: int           # 관심종목 등록 건수
+    #: 누적 거래대금(원) -- 응답에 없으면 None.
+    cumulative_trading_amount: Decimal | None = None
+    _raw: Mapping[str, Any] = field(
+        default_factory=_empty_raw, compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class BulkTradeCountRanking:
+    """대량체결건수 순위 한 항목(불변). ``rank`` 는 1부터의 순위.
+
+    ``buy_trade_count`` / ``sell_trade_count`` 는 대량 매수/매도 체결 **건수**이고,
+    ``net_trade_volume`` 은 순매수 체결 **수량**(주식 수)이다 -- 와이어 키 ``ntby_cnqn`` 의
+    ``cnqn``(체결량)은 건수(``csnu``)가 아니라 수량이라 ``_volume`` 으로 이름 짓는다.
+    ``change`` / ``change_percent`` 는 하락이면 음수. 이 순위엔 누적 거래대금이 없다.
+    """
+
+    rank: int
+    symbol: str
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int                       # 누적 거래량(주식 수)
+    buy_trade_count: int              # 매수 체결 건수
+    sell_trade_count: int             # 매도 체결 건수
+    net_trade_volume: int             # 순매수 체결 수량(주식 수)
+    _raw: Mapping[str, Any] = field(
+        default_factory=_empty_raw, compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class HouseTradeVolumeRanking:
+    """당사매매종목 순위 한 항목(불변). ``rank`` 는 1부터의 순위.
+
+    ``buy_volume`` / ``sell_volume`` / ``net_volume`` 은 각각 당사(증권사 자기) 매수/매도/순매수
+    체결 수량(주식 수)이다. ``change`` / ``change_percent`` 는 하락이면 음수.
+    ``cumulative_trading_amount`` 는 누적 거래대금(원).
+    """
+
+    rank: int
+    symbol: str
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int                       # 누적 거래량(주식 수)
+    buy_volume: int                   # 당사 매수 체결 수량(주식 수)
+    sell_volume: int                  # 당사 매도 체결 수량(주식 수)
+    net_volume: int                   # 당사 순매수 체결 수량(주식 수)
+    #: 누적 거래대금(원) -- 응답에 없으면 None.
+    cumulative_trading_amount: Decimal | None = None
+    _raw: Mapping[str, Any] = field(
+        default_factory=_empty_raw, compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
 class AfterHoursRanking:
     """시간외 단일가 순위의 한 행(불변).
 

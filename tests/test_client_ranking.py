@@ -11,7 +11,15 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader import DomesticRankedStock, KISClient
+from kis_trader import (
+    BulkTradeCountRanking,
+    DomesticExecutionStrengthRanking,
+    DomesticRankedStock,
+    HouseTradeVolumeRanking,
+    KISClient,
+    TradingActivityRanking,
+    WatchlistRegistrationRanking,
+)
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 
@@ -30,11 +38,23 @@ _PROFIT_ASSET = "/uapi/domestic-stock/v1/ranking/profit-asset-index"
 _COMPANY_TRADES = "/uapi/domestic-stock/v1/ranking/traded-by-company"
 
 
+#: 전용 순위 엔티티(거래활동/체결강도/관심등록/대량체결/당사매매)가 요구하는 지표 필드 -- 라이브
+#: 응답은 이 키들을 모두 포함하므로 기본 행에 realistic 값을 심어, 코어만 검증하는 테스트도 유효한
+#: 전용 엔티티를 구성하도록 한다(개별 테스트는 **extra 로 덮어써 값 어서션).
+_CLUSTER_METRICS = {
+    "avrg_vol": "2500000", "vol_inrt": "152.3", "vol_tnrt": "4.21", "nday_vol_tnrt": "8.44",
+    "avrg_tr_pbmn": "180000000000", "tr_pbmn_tnrt": "3.15", "nday_tr_pbmn_tnrt": "6.30",
+    "tday_rltv": "128.5", "shnu_cnqn_smtn": "1850000", "seln_cnqn_smtn": "1620000",
+    "inter_issu_reg_csnu": "1523", "shnu_cntg_csnu": "42", "seln_cntg_csnu": "37",
+    "ntby_cnqn": "9800",
+}
+
+
 def _row(*, rank="1", symbol_field="mksc_shrn_iscd", symbol="005930", name="삼성전자",
          price="72700", change="400", sign="2", change_percent="0.55", volume="3686661", **extra):
     row = {symbol_field: symbol, "data_rank": rank, "hts_kor_isnm": name, "stck_prpr": price,
            "prdy_vrss": change, "prdy_vrss_sign": sign, "prdy_ctrt": change_percent,
-           "acml_vol": volume}
+           "acml_vol": volume, **_CLUSTER_METRICS}
     row.update(extra)
     return row
 
@@ -99,11 +119,27 @@ def test_by_trading_activity_uses_volume_endpoint():
     fake = FakeTransport(response=_resp([_row(rank="1"), _row(rank="2", symbol="000660")]))
     ranked = _client(fake).domestic.ranking.by_trading_activity()
     assert [r.symbol for r in ranked] == ["005930", "000660"]
+    assert isinstance(ranked[0], TradingActivityRanking)
     call = fake.calls[0]
     assert call["path"] == _VOLUME
     assert call["tr_id"] == "FHPST01710000"
     assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20171"
     assert call["params"]["FID_BLNG_CLS_CODE"] == "3"           # 기본 = cumulative_trading_amount(거래대금)
+
+
+def test_by_trading_activity_types_activity_metrics():
+    fake = FakeTransport(response=_resp([_row(
+        avrg_vol="2500000", vol_inrt="152.3", vol_tnrt="4.21", nday_vol_tnrt="8.44",
+        avrg_tr_pbmn="180000000000", tr_pbmn_tnrt="3.15", nday_tr_pbmn_tnrt="6.30",
+    )]))
+    first = _client(fake).domestic.ranking.by_trading_activity(metric="average_volume")[0]
+    assert first.average_volume == 2500000
+    assert first.volume_growth_percent == Decimal("152.3")
+    assert first.volume_turnover_ratio == Decimal("4.21")
+    assert first.n_day_volume_turnover_ratio == Decimal("8.44")
+    assert first.average_trading_amount == Decimal(180000000000)
+    assert first.trading_amount_turnover_ratio == Decimal("3.15")
+    assert first.n_day_trading_amount_turnover_ratio == Decimal("6.30")
 
 
 @pytest.mark.parametrize("metric, blng", [
@@ -206,7 +242,10 @@ def test_by_execution_strength_uses_endpoint_without_sort():
     assert call["tr_id"] == "FHPST01680000"
     assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20168"
     assert "FID_RANK_SORT_CLS_CODE" not in call["params"]        # 정렬 축 없음
-    assert ranked[0]._raw["tday_rltv"] == "128.5"
+    assert isinstance(ranked[0], DomesticExecutionStrengthRanking)
+    assert ranked[0].execution_strength == Decimal("128.5")
+    assert ranked[0].buy_execution_volume == 1850000
+    assert ranked[0].sell_execution_volume == 1620000
 
 
 def test_by_bulk_trade_count_defaults_to_buy():
@@ -217,7 +256,11 @@ def test_by_bulk_trade_count_defaults_to_buy():
     assert call["tr_id"] == "FHKST190900C0"
     assert call["params"]["FID_COND_SCR_DIV_CODE"] == "11909"
     assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "0"       # buy
-    assert ranked[0]._raw["shnu_cntg_csnu"] == "42"
+    assert isinstance(ranked[0], BulkTradeCountRanking)
+    assert ranked[0].buy_trade_count == 42
+    assert ranked[0].sell_trade_count == 37
+    # ntby_cnqn 의 cnqn(체결량)은 건수(csnu)가 아니라 수량 -> net_trade_volume(_volume) 로 노출.
+    assert ranked[0].net_trade_volume == 9800
 
 
 def test_by_bulk_trade_count_sell_and_bad_side():
@@ -236,7 +279,9 @@ def test_by_interest_uses_endpoint_without_sort():
     assert call["tr_id"] == "FHPST01800000"
     assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20180"
     assert "FID_RANK_SORT_CLS_CODE" not in call["params"]
-    assert ranked[0]._raw["inter_issu_reg_csnu"] == "1523"
+    assert isinstance(ranked[0], WatchlistRegistrationRanking)
+    assert ranked[0].registration_count == 1523
+    assert ranked[0].cumulative_trading_amount is None           # acml_tr_pbmn 없음 -> None
 
 
 def test_by_preferred_share_disparity_exposes_pair_in_raw():
@@ -308,7 +353,10 @@ def test_by_profit_asset_default_metric_is_net_income():
 
 
 def test_by_house_trade_volume_buy_with_date_range():
-    fake = FakeTransport(response=_resp([_row(ntby_cnqn="9800")]))
+    fake = FakeTransport(response=_resp([_row(
+        shnu_cnqn_smtn="55000", seln_cnqn_smtn="41000", ntby_cnqn="9800",
+        acml_tr_pbmn="7489699281000",
+    )]))
     ranked = _client(fake).domestic.ranking.by_house_trade_volume(
         side="buy", start="20240314", end="20240315"
     )
@@ -319,7 +367,11 @@ def test_by_house_trade_volume_buy_with_date_range():
     assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "1"       # buy = 매수상위
     assert call["params"]["FID_INPUT_DATE_1"] == "20240314"
     assert call["params"]["FID_INPUT_DATE_2"] == "20240315"
-    assert ranked[0]._raw["ntby_cnqn"] == "9800"
+    assert isinstance(ranked[0], HouseTradeVolumeRanking)
+    assert ranked[0].buy_volume == 55000
+    assert ranked[0].sell_volume == 41000
+    assert ranked[0].net_volume == 9800
+    assert ranked[0].cumulative_trading_amount == Decimal(7489699281000)
 
 
 def test_by_house_trade_volume_accepts_date_objects_and_sell():
