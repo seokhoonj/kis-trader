@@ -129,6 +129,14 @@ def test_by_change_rejects_bad_direction():
         _client(fake).domestic.ranking.by_change(direction="up")
 
 
+def test_ranking_non_mapping_row_fails_closed():
+    # output 배열에 매핑이 아닌 행(None 등)이 있으면 _parse_ranked 의 row.get 에서 AttributeError 가
+    # 새지 않고 도메인 예외(KISError)로 fail-closed 한다(형제 _fetch_rows 와 같은 엄정함).
+    fake = FakeTransport(response=_resp([None]))
+    with pytest.raises(KISError):
+        _client(fake).domestic.ranking.by_change(direction="gainers")
+
+
 def test_by_volume_uses_volume_endpoint():
     fake = FakeTransport(response=_resp([_row(rank="1"), _row(rank="2", symbol="000660")]))
     ranked = _client(fake).domestic.ranking.by_volume()

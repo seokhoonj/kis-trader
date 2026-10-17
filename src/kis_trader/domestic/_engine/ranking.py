@@ -756,10 +756,9 @@ def _fetch_ranking(
 ) -> list[DomesticRankedStock]:
     resp = transport.request(method="GET", path=path, tr_id=tr, params=params, idempotent=True)
     _raise_if_error(resp)
-    rows = resp.body.get("output")
-    if not isinstance(rows, (list, tuple)):  # 성공 응답인데 순위 배열 아님 -> fail-closed
-        raise _missing_block_error("output", resp)
-    return _parse_ranked(rows)
+    # 배열 여부뿐 아니라 각 행이 매핑인지까지 검증한다(형제 _fetch_rows 와 동일). output=[None] 같은
+    # 손상 응답을 _parse_ranked 로 넘기면 row.get 에서 AttributeError 가 새어 도메인 예외가 아니게 된다.
+    return _parse_ranked(_require_mapping_rows("output", resp))
 
 
 def _core_ranked_fields(row: Mapping[str, Any]) -> dict[str, Any] | None:

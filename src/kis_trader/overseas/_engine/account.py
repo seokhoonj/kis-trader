@@ -466,9 +466,14 @@ def fetch_trade_profits(
 
 
 def _as_rows(block: object) -> list[Mapping[str, Any]]:
-    """output 배열을 종목 dict 리스트로. 객체 하나면 1원소 리스트, 비면 빈 리스트(fail-soft)."""
+    """output 배열을 종목 dict 리스트로. 객체 하나면 1원소 리스트, 없으면(``None``/빈) 빈 리스트.
+    배열에 매핑이 아닌 원소가 섞여 있으면 조용히 버리지 않고 fail-closed(:class:`KISError`) -- 손상
+    행을 드롭하면 포트폴리오가 그럴듯하게 과소보고된다(형제 _require_mapping_rows 와 같은 엄정함)."""
     if isinstance(block, (list, tuple)):
-        return [r for r in block if isinstance(r, Mapping)]
+        for row in block:
+            if not isinstance(row, Mapping):
+                raise KISError(f"해외 잔고 응답 배열에 매핑이 아닌 행이 있다: {row!r}")
+        return list(block)
     if isinstance(block, Mapping):
         return [block]
     return []

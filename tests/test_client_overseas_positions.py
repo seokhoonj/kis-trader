@@ -127,6 +127,15 @@ def test_overseas_positions_non_list_output1_fails_closed():
         _client(fake).account.overseas.positions(market="US")
 
 
+def test_overseas_positions_non_mapping_row_fails_closed():
+    # output1 배열에 매핑이 아닌 행(None 등)이 섞이면 조용히 드롭하지 않고 fail-closed -- 손상 행을
+    # 버리면 보유가 그럴듯하게 과소보고된다.
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok",
+                                              body={"output1": [_holding(), None], "output2": {}}))
+    with pytest.raises(KISError):
+        _client(fake).account.overseas.positions(market="US")
+
+
 def test_overseas_positions_requires_account():
     fake = FakeTransport(response=_resp([]))
     client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)  # 계좌 없음
