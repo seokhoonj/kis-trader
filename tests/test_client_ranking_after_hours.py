@@ -1,8 +1,9 @@
 """마무리 순위 6종 -- 예상체결/시간외/조회상위.
 
-by_expected_execution_change(DomesticRankedStock) / by_after_hours_change·volume·expected_change(AfterHoursRanking,
-output2 vs output) / by_after_hours_balance(전용) / by_views(전용). 각 TR·URL·시장구분·정렬,
-전용 필드 매핑(시간외 가격/거래량, 잔량, 조회상위 코드+시장), fail-closed 를 검증한다.
+by_expected_execution_change(ExpectedExecutionChangeRanking) / by_expected_close(ExpectedCloseRanking) /
+by_after_hours_change·volume·expected_change(AfterHoursRanking, output2 vs output) / by_after_hours_balance(전용) /
+by_views(전용). 각 TR·URL·시장구분·정렬, 전용 필드 매핑(예상체결가/량/거래대금, 시간외 가격/거래량, 잔량,
+조회상위 코드+시장), fail-closed 를 검증한다.
 """
 
 from __future__ import annotations
@@ -15,7 +16,8 @@ import pytest
 from kis_trader import (
     AfterHoursBalanceRanking,
     AfterHoursRanking,
-    DomesticRankedStock,
+    ExpectedCloseRanking,
+    ExpectedExecutionChangeRanking,
     KISClient,
     TopViewedStock,
 )
@@ -43,19 +45,24 @@ def _resp(body):
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body)
 
 
-# --- exp-trans-updown -> DomesticRankedStock (예상체결량=volume) ---------------------
+# --- exp-trans-updown -> ExpectedExecutionChangeRanking (예상체결량=expected_volume) -----
 def test_expected_conclusion_maps_and_sort():
     rows = [{"stck_shrn_iscd": "199800", "hts_kor_isnm": "툴젠", "stck_prpr": "76100",
              "prdy_vrss": "17500", "prdy_vrss_sign": "1", "prdy_ctrt": "29.86",
-             "cntg_vol": "51683", "antc_tr_pbmn": "3933076300"}]
+             "cntg_vol": "51683", "antc_tr_pbmn": "3933076300", "stck_sdpr": "58600",
+             "total_askp_rsqn": "12000", "total_bidp_rsqn": "9000"}]
     fake = FakeTransport(response=_resp({"output": rows}))
     ranked = _client(fake).domestic.ranking.by_expected_execution_change(direction="gainers")
-    assert isinstance(ranked[0], DomesticRankedStock)
+    assert isinstance(ranked[0], ExpectedExecutionChangeRanking)
     assert ranked[0].rank == 1
     assert ranked[0].symbol == "199800"
     assert ranked[0].price == Decimal(76100)
     assert ranked[0].change == Decimal(17500)             # sign 1 -> 상승
-    assert ranked[0].volume == 51683                      # 예상체결량
+    assert ranked[0].expected_volume == 51683             # 예상체결량
+    assert ranked[0].expected_trading_amount == Decimal(3933076300)
+    assert ranked[0].base_price == Decimal(58600)         # 기준가(stck_sdpr)
+    # 라벨 모호한 잔량 키는 명명하지 않고 _raw 에 남긴다.
+    assert ranked[0]._raw["total_askp_rsqn"] == "12000"
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/ranking/exp-trans-updown"
     assert call["tr_id"] == "FHPST01820000"
@@ -191,11 +198,14 @@ def test_expected_close_maps_rows_and_filters():
         filter="upper_limit", market="KOSPI", extended_range=True
     )
 
+    assert isinstance(ranked[0], ExpectedCloseRanking)
     assert ranked[0].rank == 1
     assert ranked[0].symbol == "005930"
     assert ranked[0].price == Decimal(73000)
     assert ranked[0].change == Decimal(1200)
-    assert ranked[0].volume == 35000
+    assert ranked[0].expected_volume == 35000             # 예상체결량(cntg_vol)
+    assert ranked[0].base_price_vs_expected == Decimal(1500)
+    assert ranked[0].base_price_vs_expected_percent == Decimal("2.10")
     assert ranked[0]._raw["sdpr_vrss_prpr"] == "1500"
     assert fake.calls[0] == {
         "path": "/uapi/domestic-stock/v1/quotations/exp-closing-price",

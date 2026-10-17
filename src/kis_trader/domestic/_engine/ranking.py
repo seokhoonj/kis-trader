@@ -78,6 +78,8 @@ from ..entities.ranking import (
     DividendRanking,
     DomesticExecutionStrengthRanking,
     DomesticRankedStock,
+    ExpectedCloseRanking,
+    ExpectedExecutionChangeRanking,
     HouseTradeVolumeRanking,
     MarketCapRanking,
     NearHighLowRanking,
@@ -1029,11 +1031,45 @@ _EXPECTED_CLOSE_MARKET = {
 }
 
 
+def _parse_expected_execution_change(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[ExpectedExecutionChangeRanking]:
+    """예상체결 등락 행 -> ExpectedExecutionChangeRanking(순위는 응답 순서, 거래량=예상체결량).
+
+    매도/매수 호가잔량(seln_rsqn/shnu_rsqn/total_askp_rsqn/total_bidp_rsqn, askp/bidp) 등 라벨이
+    모호한 값은 명명하지 않고 _raw 에 남겨둔다."""
+    ranked: list[ExpectedExecutionChangeRanking] = []
+    for row in rows:
+        symbol = str(row.get("stck_shrn_iscd", "")).strip()
+        if not symbol:
+            continue
+        sign = str(row.get("prdy_vrss_sign", "")).strip()
+        ranked.append(
+            ExpectedExecutionChangeRanking(
+                rank=len(ranked) + 1,
+                symbol=symbol,
+                name=str(row.get("hts_kor_isnm", "")).strip(),
+                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
+                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change_percent=_apply_change_sign(
+                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
+                ),
+                expected_volume=required_int(row.get("cntg_vol"), "cntg_vol"),   # 예상체결량
+                expected_trading_amount=required_decimal(
+                    row.get("antc_tr_pbmn"), "antc_tr_pbmn"
+                ),
+                base_price=required_decimal(row.get("stck_sdpr"), "stck_sdpr"),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
 def fetch_expected_execution_change(
     transport: Transport, *, direction: str, market: str
-) -> list[DomesticRankedStock]:
-    """장 시작 전 예상체결 기준 상승/하락 상위. ``direction="gainers"`` 상승 / ``"losers"`` 하락. 예상체결가를
-    현재가로, 예상체결량(cntg_vol)을 거래량으로 담는다(:class:`DomesticRankedStock`, 순위는 응답 순서)."""
+) -> list[ExpectedExecutionChangeRanking]:
+    """장 시작 전 예상체결 기준 상승/하락 상위. ``direction="gainers"`` 상승 / ``"losers"`` 하락. 예상체결가·
+    예상체결량·예상거래대금을 담는다(:class:`ExpectedExecutionChangeRanking`, 순위는 응답 순서)."""
     params = {
         "FID_RANK_SORT_CLS_CODE": _lookup(_EXP_UPDOWN_TOP, key=direction, argname="direction"),
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
@@ -1046,23 +1082,36 @@ def fetch_expected_execution_change(
     rows = _fetch_rows(
         transport, path=_EXP_UPDOWN_PATH, tr=_EXP_UPDOWN_TR, params=params, output_key="output"
     )
-    ranked: list[DomesticRankedStock] = []
+    return _parse_expected_execution_change(rows)
+
+
+def _parse_expected_close(rows: Sequence[Mapping[str, Any]]) -> list[ExpectedCloseRanking]:
+    """장마감 예상체결 행 -> ExpectedCloseRanking(순위는 응답 순서, 예상체결량=expected_volume)."""
+    ranked: list[ExpectedCloseRanking] = []
     for row in rows:
         symbol = str(row.get("stck_shrn_iscd", "")).strip()
         if not symbol:
             continue
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         ranked.append(
-            DomesticRankedStock(
+            ExpectedCloseRanking(
                 rank=len(ranked) + 1,
                 symbol=symbol,
                 name=str(row.get("hts_kor_isnm", "")).strip(),
                 price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
-                change=_apply_change_sign(required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign),
+                change=_apply_change_sign(
+                    required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign
+                ),
                 change_percent=_apply_change_sign(
                     required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
                 ),
-                volume=required_int(row.get("cntg_vol"), "cntg_vol"),   # 예상체결량
+                expected_volume=required_int(row.get("cntg_vol"), "cntg_vol"),
+                base_price_vs_expected=required_decimal(
+                    row.get("sdpr_vrss_prpr"), "sdpr_vrss_prpr"
+                ),
+                base_price_vs_expected_percent=required_decimal(
+                    row.get("sdpr_vrss_prpr_rate"), "sdpr_vrss_prpr_rate"
+                ),
                 _raw=row,
             )
         )
@@ -1075,8 +1124,8 @@ def fetch_expected_close(
     filter_: str,
     market: str,
     extended_range: bool,
-) -> list[DomesticRankedStock]:
-    """장마감 예상체결 종목 목록과 직전·기준가 대비."""
+) -> list[ExpectedCloseRanking]:
+    """장마감 예상체결 종목 목록과 기준가 대비(:class:`ExpectedCloseRanking`, 순위는 응답 순서)."""
     filter_code = _lookup(_EXPECTED_CLOSE_FILTER, key=filter_, argname="filter")
     market_code = _lookup(_EXPECTED_CLOSE_MARKET, key=market, argname="market")
     rows = _fetch_rows(
@@ -1092,29 +1141,7 @@ def fetch_expected_close(
         },
         output_key="output",
     )
-    ranked: list[DomesticRankedStock] = []
-    for row in rows:
-        symbol = str(row.get("stck_shrn_iscd", "")).strip()
-        if not symbol:
-            continue
-        sign = str(row.get("prdy_vrss_sign", "")).strip()
-        ranked.append(
-            DomesticRankedStock(
-                rank=len(ranked) + 1,
-                symbol=symbol,
-                name=str(row.get("hts_kor_isnm", "")).strip(),
-                price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
-                change=_apply_change_sign(
-                    required_decimal(row.get("prdy_vrss"), "prdy_vrss"), sign
-                ),
-                change_percent=_apply_change_sign(
-                    required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
-                ),
-                volume=required_int(row.get("cntg_vol"), "cntg_vol"),
-                _raw=row,
-            )
-        )
-    return ranked
+    return _parse_expected_close(rows)
 
 
 # 시간외 순위 3종: 블록/필드 키/파라미터가 조금씩 다르다(KIS 요청예시 대조).

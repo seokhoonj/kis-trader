@@ -23,6 +23,8 @@ from .entities.ranking import (
     DividendRanking,
     DomesticExecutionStrengthRanking,
     DomesticRankedStock,
+    ExpectedCloseRanking,
+    ExpectedExecutionChangeRanking,
     HouseTradeVolumeRanking,
     MarketCapRanking,
     NearHighLowRanking,
@@ -244,9 +246,12 @@ class DomesticRankingQueries:
         근접 비율을 담은 :class:`~kis_trader.domestic.entities.ranking.NearHighLowRanking` 를 돌려준다(최대 30건)."""
         return ranking_api.fetch_near_high_low(self._client.transport, extreme=extreme, market="KRX")
 
-    def by_expected_execution_change(self, *, direction: Direction = "gainers") -> list[DomesticRankedStock]:
+    def by_expected_execution_change(
+        self, *, direction: Direction = "gainers"
+    ) -> list[ExpectedExecutionChangeRanking]:
         """장 시작 전 예상체결 기준 상승/하락 상위. ``direction="gainers"`` 상승 / ``"losers"`` 하락. 예상체결가·
-        예상체결량을 담은 :class:`~kis_trader.domestic.entities.ranking.DomesticRankedStock` 로 돌려준다(최대 30건)."""
+        예상체결량·예상거래대금을 담은
+        :class:`~kis_trader.domestic.entities.ranking.ExpectedExecutionChangeRanking` 로 돌려준다(최대 30건)."""
         return ranking_api.fetch_expected_execution_change(
             self._client.transport, direction=direction, market="KRX"
         )
@@ -257,8 +262,9 @@ class DomesticRankingQueries:
         filter: ExpectedCloseFilter = "all",
         market: ExpectedCloseMarket = "all",
         extended_range: bool = False,
-    ) -> list[DomesticRankedStock]:
-        """장마감 예상체결 종목. ``filter`` 는 전체·상한·하한·상승·하락 필터의 영문 코드."""
+    ) -> list[ExpectedCloseRanking]:
+        """장마감 예상체결 종목. ``filter`` 는 전체·상한·하한·상승·하락 필터의 영문 코드. 예상체결가·예상체결량·
+        기준가 대비를 담은 :class:`~kis_trader.domestic.entities.ranking.ExpectedCloseRanking` 로 돌려준다."""
         return ranking_api.fetch_expected_close(
             self._client.transport,
             filter_=filter,
