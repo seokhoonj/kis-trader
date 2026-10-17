@@ -24,7 +24,7 @@ from ..._internal._wire import (
     required_decimal,
     required_int,
 )
-from ..._literals import Direction, FluctuationDirection
+from ..._literals import Direction
 from ...errors import KISUsageError
 from ...transport import Transport
 from ..entities.ranking import OverseasRankedStock
@@ -41,8 +41,6 @@ _PRICE_FLUCT = ("/uapi/overseas-stock/v1/ranking/price-fluct", "HHDFS76260000")
 _NEW_HIGHLOW = ("/uapi/overseas-stock/v1/ranking/new-highlow", "HHDFS76300000")
 #: 상승/하락 구분(GUBN). KIS 명세: 0(하락율), 1(상승율).
 _UPDOWN_GUBN = {"gainers": "1", "losers": "0"}
-#: 급등/급락 구분(price-fluct GUBN). KIS 명세: 0(급락), 1(급등).
-_FLUCT_GUBN = {"risers": "1", "fallers": "0"}
 #: 신고/신저 구분(new-highlow GUBN). KIS 명세: 1(신고), 0(신저).
 _HIGHLOW_GUBN = {"high": "1", "low": "0"}
 
@@ -153,8 +151,8 @@ def fetch_by_volume_surge(transport: Transport, *, exchange: str) -> list[Overse
     return _fetch_ranking(transport, path=path, tr=tr, params=params)
 
 
-def fetch_by_buy_strength(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
-    """한 거래소의 매수 체결강도 순위."""
+def fetch_by_execution_strength(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
+    """한 거래소의 체결강도 순위."""
     path, tr = _BUY_STRENGTH
     params = {"EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
               "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
@@ -169,14 +167,14 @@ def fetch_by_turnover(transport: Transport, *, exchange: str) -> list[OverseasRa
     return _fetch_ranking(transport, path=path, tr=tr, params=params)
 
 
-def fetch_by_price_fluctuation(
-    transport: Transport, *, exchange: str, direction: FluctuationDirection = "risers"
+def fetch_by_sharp_change(
+    transport: Transport, *, exchange: str, direction: Direction = "gainers"
 ) -> list[OverseasRankedStock]:
-    """한 거래소의 가격 급등/급락 순위. ``direction="risers"`` 급등 / ``"fallers"`` 급락(KIS 명세 GUBN 1/0)."""
+    """한 거래소의 가격 급등/급락 순위. ``direction="gainers"`` 급등 / ``"losers"`` 급락(KIS 명세 GUBN 1/0)."""
     try:
-        gubn = _FLUCT_GUBN[direction]
+        gubn = _UPDOWN_GUBN[direction]
     except KeyError:
-        raise KISUsageError(f"direction 은 {sorted(_FLUCT_GUBN)} 중 하나: {direction!r}") from None
+        raise KISUsageError(f"direction 은 {sorted(_UPDOWN_GUBN)} 중 하나: {direction!r}") from None
     path, tr = _PRICE_FLUCT
     params = {"EXCD": exchange, "GUBN": gubn, "MINX": "0", "VOL_RANG": "0",
               "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}

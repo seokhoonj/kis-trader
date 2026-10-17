@@ -80,8 +80,8 @@ CreditBalanceMetric = Literal[
     "loan_ratio_increase", "loan_ratio_decrease",
 ]
 
-#: 신고/신저 근접 방향 -- 신고가(high)/신저가(low) 근접.
-NearHighLowSide = Literal["high", "low"]
+#: 신고/신저 근접 -- 신고가(high)/신저가(low) 근접.
+NearHighLowExtreme = Literal["high", "low"]
 
 #: 장마감 예상체결 필터 -- 전체/상한/하한/상승/하락.
 ExpectedCloseFilter = Literal["all", "upper_limit", "lower_limit", "up", "down"]
@@ -128,9 +128,9 @@ class DomesticRankingQueries:
         ``"buy_ratio"`` 매수비율 / ``"sell_ratio"`` 매도비율. 잔량 지표는 ``_raw``(최대 30건)."""
         return ranking_api.fetch_quote_balance(self._client.transport, metric=metric, market="KRX")
 
-    def by_volume_power(self) -> list[DomesticRankedStock]:
+    def by_execution_strength(self) -> list[DomesticRankedStock]:
         """체결강도 순위(최대 30건). 당일 체결강도는 각 항목의 ``_raw['tday_rltv']``."""
-        return ranking_api.fetch_volume_power(self._client.transport, market="KRX")
+        return ranking_api.fetch_execution_strength(self._client.transport, market="KRX")
 
     def by_bulk_trade_count(self, *, side: Side = "buy") -> list[DomesticRankedStock]:
         """대량체결건수 순위. ``side="buy"`` 매수상위 / ``"sell"`` 매도상위. 체결건수는 각 항목의
@@ -223,10 +223,10 @@ class DomesticRankingQueries:
             self._client.transport, metric=metric, days=days, market="KRX"
         )
 
-    def by_near_high_low(self, *, side: NearHighLowSide = "high") -> list[NearHighLowRanking]:
-        """신고/신저 근접 순위. ``side="high"`` 신고가 근접 / ``"low"`` 신저가 근접. 신 최고/최저가와
+    def by_near_high_low(self, *, extreme: NearHighLowExtreme = "high") -> list[NearHighLowRanking]:
+        """신고/신저 근접 순위. ``extreme="high"`` 신고가 근접 / ``"low"`` 신저가 근접. 신 최고/최저가와
         근접 비율을 담은 :class:`~kis_trader.domestic.entities.ranking.NearHighLowRanking` 를 돌려준다(최대 30건)."""
-        return ranking_api.fetch_near_high_low(self._client.transport, side=side, market="KRX")
+        return ranking_api.fetch_near_high_low(self._client.transport, extreme=extreme, market="KRX")
 
     def by_expected_execution_change(self, *, direction: Direction = "gainers") -> list[DomesticRankedStock]:
         """장 시작 전 예상체결 기준 상승/하락 상위. ``direction="gainers"`` 상승 / ``"losers"`` 하락. 예상체결가·

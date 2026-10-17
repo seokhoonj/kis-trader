@@ -165,7 +165,7 @@ def test_more_overseas_rankings_route():
             "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
     cases = [
         ("by_volume_surge", "/uapi/overseas-stock/v1/ranking/volume-surge", "HHDFS76270000", "MINX"),
-        ("by_buy_strength", "/uapi/overseas-stock/v1/ranking/volume-power", "HHDFS76280000", "NDAY"),
+        ("by_execution_strength", "/uapi/overseas-stock/v1/ranking/volume-power", "HHDFS76280000", "NDAY"),
         ("by_turnover", "/uapi/overseas-stock/v1/ranking/trade-turnover", "HHDFS76340000", "NDAY"),
     ]
     for verb, path, tr, key in cases:
@@ -179,14 +179,14 @@ def test_more_overseas_rankings_route():
 def test_price_fluct_and_new_highlow_gubn_codes():
     row = [{"rank": "1", "excd": "NAS", "symb": "T", "name": "n", "ename": "N", "last": "1",
             "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
-    # price-fluct: risers -> GUBN 1, fallers -> GUBN 0
+    # price-fluct: gainers -> GUBN 1, losers -> GUBN 0
     fake = FakeTransport(response=_one(row))
-    _client(fake).overseas.ranking.by_price_fluctuation(exchange="NAS", direction="fallers")
+    _client(fake).overseas.ranking.by_sharp_change(exchange="NAS", direction="losers")
     assert fake.calls[0]["path"] == "/uapi/overseas-stock/v1/ranking/price-fluct"
     assert fake.calls[0]["tr_id"] == "HHDFS76260000"
     assert fake.calls[0]["params"]["GUBN"] == "0"
     fake = FakeTransport(response=_one(row))
-    _client(fake).overseas.ranking.by_price_fluctuation(exchange="NAS", direction="risers")
+    _client(fake).overseas.ranking.by_sharp_change(exchange="NAS", direction="gainers")
     assert fake.calls[0]["params"]["GUBN"] == "1"
     # new-highlow: high/low -> GUBN 1/0, sustained -> GUBN2 1/0
     fake = FakeTransport(response=_one(row))
@@ -213,4 +213,4 @@ def test_overseas_ranking_bad_direction_raises():
     from kis_trader.errors import KISUsageError
     fake = FakeTransport(response=_one([]))
     with pytest.raises(KISUsageError):
-        _client(fake).overseas.ranking.by_price_fluctuation(exchange="NAS", direction="nope")
+        _client(fake).overseas.ranking.by_sharp_change(exchange="NAS", direction="nope")

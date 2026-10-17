@@ -74,10 +74,6 @@ ProfitSort: TypeAlias = Literal["recent", "oldest"]
 #: 순위가 공유한다(해외는 와이어 GUBN 1/0 으로 매핑). 같은 어휘라 한곳에 둔다.
 Direction: TypeAlias = Literal["gainers", "losers"]
 
-#: 가격 급등락 순위의 방향 -- ``"risers"``(급등 상위)/``"fallers"``(급락 상위). 등락률(:data:`Direction`)
-#: 과는 다른 도메인(순간 급등락)이라 값이 다르다. 해외 가격급등락 순위가 쓴다(와이어 GUBN 1/0).
-FluctuationDirection: TypeAlias = Literal["risers", "fallers"]
-
 #: ``kis.account`` 가 상품코드에 따라 돌려주는 계좌 뷰의 종류 판별자. 세 뷰(주식/국내파생/해외파생)는
 #: 공통 표면이 없어 호출자가 ``isinstance`` 대신 ``account.kind`` 로 ``match`` 해 분기할 수 있다.
 AccountKind: TypeAlias = Literal["stock", "domestic_derivatives", "overseas_derivatives"]
@@ -94,7 +90,6 @@ __all__ = [
     "DerivativeProductFilter",
     "Direction",
     "Environment",
-    "FluctuationDirection",
     "JSONObject",
     "JSONValue",
     "NightMarginDivision",

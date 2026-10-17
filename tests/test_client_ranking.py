@@ -198,9 +198,9 @@ def test_by_quote_balance_rejects_bad_metric():
         _client(fake).domestic.ranking.by_quote_balance(metric="bogus")
 
 
-def test_by_volume_power_uses_endpoint_without_sort():
+def test_by_execution_strength_uses_endpoint_without_sort():
     fake = FakeTransport(response=_resp([_row(symbol_field="stck_shrn_iscd", tday_rltv="128.5")]))
-    ranked = _client(fake).domestic.ranking.by_volume_power()
+    ranked = _client(fake).domestic.ranking.by_execution_strength()
     call = fake.calls[0]
     assert call["path"] == _VOLUME_POWER
     assert call["tr_id"] == "FHPST01680000"
@@ -546,7 +546,7 @@ def _near_row(symbol="003560", name="IHQ", price="10760", change="-100", sign="5
             "lwpr_near_rate": lo_rate}
 
 
-def test_by_near_high_low_high_side():
+def test_by_near_high_low_high_extreme():
     from kis_trader import NearHighLowRanking
     fake = FakeTransport(response=_resp([_near_row()]))
     ranked = _client(fake).domestic.ranking.by_near_high_low()
@@ -563,12 +563,12 @@ def test_by_near_high_low_high_side():
     assert call["params"]["FID_PRC_CLS_CODE"] == "0"             # high 기본
 
 
-def test_by_near_high_low_low_side_and_bad_side():
+def test_by_near_high_low_low_extreme_and_bad_extreme():
     fake = FakeTransport(response=_resp([_near_row()]))
-    _client(fake).domestic.ranking.by_near_high_low(side="low")
+    _client(fake).domestic.ranking.by_near_high_low(extreme="low")
     assert fake.calls[0]["params"]["FID_PRC_CLS_CODE"] == "1"    # low
     with pytest.raises(KISUsageError):
-        _client(FakeTransport(response=_resp([]))).domestic.ranking.by_near_high_low(side="middle")
+        _client(FakeTransport(response=_resp([]))).domestic.ranking.by_near_high_low(extreme="middle")
 
 
 def test_ranking_skips_empty_rows():

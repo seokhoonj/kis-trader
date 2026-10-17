@@ -301,7 +301,7 @@ def fetch_quote_balance(transport: Transport, *, metric: str, market: str) -> li
     return _fetch_ranking(transport, path=_QUOTE_BALANCE_PATH, tr=_QUOTE_BALANCE_TR, params=params)
 
 
-def fetch_volume_power(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
+def fetch_execution_strength(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
     """체결강도 순위(정렬 없음). 당일 체결강도는 각 항목의 ``_raw['tday_rltv']``. 최대 30건."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
@@ -615,9 +615,9 @@ def _parse_credit_balance(rows: Sequence[Mapping[str, Any]]) -> list[CreditBalan
 
 
 def fetch_near_high_low(
-    transport: Transport, *, side: str, market: str
+    transport: Transport, *, extreme: str, market: str
 ) -> list[NearHighLowRanking]:
-    """신고/신저 근접 순위. ``side="high"`` 신고근접 / ``"low"`` 신저근접. 신 최고/최저가와 근접
+    """신고/신저 근접 순위. ``extreme="high"`` 신고근접 / ``"low"`` 신저근접. 신 최고/최저가와 근접
     비율을 담은 :class:`NearHighLowRanking` 로 돌려준다(순위는 응답 순서). 최대 30건(다음조회 없음)."""
     params = {
         "FID_APLY_RANG_VOL": "0",              # 거래량 전체
@@ -627,7 +627,7 @@ def fetch_near_high_low(
         "FID_DIV_CLS_CODE": "0",               # 전체
         "FID_INPUT_CNT_1": "", "FID_INPUT_CNT_2": "",   # 근접범위 전체
         "FID_APLY_RANG_PRC_1": "", "FID_APLY_RANG_PRC_2": "",   # 가격 전체(필수)
-        "FID_PRC_CLS_CODE": _lookup(_NEAR_HIGH_LOW_SIDE, key=side, argname="side"),
+        "FID_PRC_CLS_CODE": _lookup(_NEAR_HIGH_LOW_SIDE, key=extreme, argname="extreme"),
         "FID_TRGT_CLS_CODE": "0", "FID_TRGT_EXLS_CLS_CODE": "0",
     }
     resp = transport.request(

@@ -87,7 +87,7 @@ notes           = "거래량급증 순위."
 
 [[endpoint]]
 name            = "overseas_ranking_buy_strength"
-impl            = "kis_trader.overseas._engine.ranking:fetch_by_buy_strength"
+impl            = "kis_trader.overseas._engine.ranking:fetch_by_execution_strength"
 tr_id           = "HHDFS76280000"
 path            = "/uapi/overseas-stock/v1/ranking/volume-power"
 method          = "GET"
@@ -113,7 +113,7 @@ notes           = "거래회전율 순위."
 
 [[endpoint]]
 name            = "overseas_ranking_price_fluctuation"
-impl            = "kis_trader.overseas._engine.ranking:fetch_by_price_fluctuation"
+impl            = "kis_trader.overseas._engine.ranking:fetch_by_sharp_change"
 tr_id           = "HHDFS76260000"
 path            = "/uapi/overseas-stock/v1/ranking/price-fluct"
 method          = "GET"
