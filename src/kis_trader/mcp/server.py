@@ -434,8 +434,8 @@ def build_server(
         return handlers.search(account_session.read_client(), query, limit=limit)
 
     @server.tool()
-    def ranking_change(direction: Direction = "gainers", limit: int = 10) -> list[dict[str, Any]]:
-        """국내 등락률 순위(gainers/losers)."""
+    def ranking_change(direction: Direction | None = None, limit: int = 10) -> list[dict[str, Any]]:
+        """국내 등락률 순위(gainers/losers). direction 생략 시 라이브러리 기본(gainers)."""
         return handlers.ranking_change(account_session.read_client(), direction=direction, limit=limit)
 
     @server.tool()
@@ -496,13 +496,14 @@ def build_server(
         return handlers.stock_investor_flows(account_session.read_client(), symbol, limit=limit)
 
     @server.tool()
-    def market_investor_flows(market: DomesticMarket = "KOSPI", limit: int = 60) -> list[dict[str, Any]]:
-        """시장 전체(KOSPI/KOSDAQ) 투자자 수급 -- 외국인·개인·기관 순매수."""
+    def market_investor_flows(market: DomesticMarket | None = None, limit: int = 60) -> list[dict[str, Any]]:
+        """시장 전체(KOSPI/KOSDAQ) 투자자 수급 -- 외국인·개인·기관 순매수. market 생략 시 기본(KOSPI)."""
         return handlers.market_investor_flows(account_session.read_client(), market=market, limit=limit)
 
     @server.tool()
-    def investor_net_buy_stocks(market: DomesticMarketFilter = "all", basis: NetBuyBasis = "volume",
-                                side: Side = "buy", investor: InvestorType = "all",
+    def investor_net_buy_stocks(market: DomesticMarketFilter | None = None,
+                                basis: NetBuyBasis | None = None, side: Side | None = None,
+                                investor: InvestorType | None = None,
                                 limit: int = 30) -> list[dict[str, Any]]:
         """투자자별 순매수 상위 종목. market all/KOSPI/KOSDAQ, basis 수량/대금, side 매수/매도,
         investor all/외국인/기관/기타."""

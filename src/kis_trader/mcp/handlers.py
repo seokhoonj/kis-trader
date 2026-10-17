@@ -185,12 +185,13 @@ def search(kis: KISClient, query: str, *, limit: int = 20) -> list[dict[str, Any
     return out
 
 
-def ranking_change(kis: KISClient, *, direction: str = "gainers", limit: int = 10) -> list[dict[str, Any]]:
-    """국내 등락률 순위. ``direction="gainers"`` 상승 / ``"losers"`` 하락."""
-    if direction not in ("gainers", "losers"):
+def ranking_change(kis: KISClient, *, direction: str | None = None, limit: int = 10) -> list[dict[str, Any]]:
+    """국내 등락률 순위. ``direction`` gainers(상승)/losers(하락); 생략 시 라이브러리 기본(상승)."""
+    if direction is not None and direction not in ("gainers", "losers"):
         raise KISUsageError(f"direction 은 'gainers'/'losers' 만 (받은 값: {direction!r}).")
     _require_positive_limit(limit)
-    rows = kis.domestic.ranking.by_change(direction=cast(Direction, direction))
+    extra = {} if direction is None else {"direction": cast(Direction, direction)}
+    rows = kis.domestic.ranking.by_change(**extra)
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 
@@ -341,35 +342,42 @@ def stock_investor_flows(kis: KISClient, symbol: str, *, limit: int = 60) -> lis
 
 
 def market_investor_flows(
-    kis: KISClient, *, market: str = "KOSPI", limit: int = 60,
+    kis: KISClient, *, market: str | None = None, limit: int = 60,
 ) -> list[dict[str, Any]]:
-    """시장 전체(KOSPI/KOSDAQ) 투자자 수급 -- 외국인·개인·기관 순매수. 최신순, 최대 ``limit`` 행."""
-    if market not in _MARKETS:
+    """시장 전체(KOSPI/KOSDAQ) 투자자 수급 -- 외국인·개인·기관 순매수. 최신순, 최대 ``limit`` 행.
+    ``market`` 생략 시 라이브러리 기본(KOSPI)."""
+    if market is not None and market not in _MARKETS:
         raise KISUsageError(f"market 은 {sorted(_MARKETS)} 중 하나여야 한다 (받은 값: {market!r}).")
     _require_positive_limit(limit)
-    rows = kis.domestic.market.investor_flows(market=cast(DomesticMarket, market))
+    extra = {} if market is None else {"market": cast(DomesticMarket, market)}
+    rows = kis.domestic.market.investor_flows(**extra)
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 
 
 def investor_net_buy_stocks(
-    kis: KISClient, *, market: str = "all", basis: str = "volume", side: str = "buy",
-    investor: str = "all", limit: int = 30,
+    kis: KISClient, *, market: str | None = None, basis: str | None = None, side: str | None = None,
+    investor: str | None = None, limit: int = 30,
 ) -> list[dict[str, Any]]:
     """투자자별 순매수 상위 종목. ``market`` all/KOSPI/KOSDAQ, ``basis`` volume(수량)/amount(대금),
-    ``side`` buy(순매수)/sell(순매도), ``investor`` all/foreign/institutional/other. 최대 ``limit`` 행."""
-    if market not in _NET_BUY_MARKETS:
+    ``side`` buy(순매수)/sell(순매도), ``investor`` all/foreign/institutional/other. 각 인자 생략 시
+    라이브러리 기본(all/volume/buy/all). 최대 ``limit`` 행."""
+    if market is not None and market not in _NET_BUY_MARKETS:
         raise KISUsageError(f"market 은 {sorted(_NET_BUY_MARKETS)} 중 하나여야 한다 (받은 값: {market!r}).")
-    if basis not in _NET_BUY_BASES:
+    if basis is not None and basis not in _NET_BUY_BASES:
         raise KISUsageError(f"basis 는 {sorted(_NET_BUY_BASES)} 중 하나여야 한다 (받은 값: {basis!r}).")
-    if side not in _SIDES:
+    if side is not None and side not in _SIDES:
         raise KISUsageError(f"side 는 {sorted(_SIDES)} 중 하나여야 한다 (받은 값: {side!r}).")
-    if investor not in _INVESTOR_TYPES:
+    if investor is not None and investor not in _INVESTOR_TYPES:
         raise KISUsageError(f"investor 는 {sorted(_INVESTOR_TYPES)} 중 하나여야 한다 (받은 값: {investor!r}).")
     _require_positive_limit(limit)
-    rows = kis.domestic.market.investor_net_buy_stocks(
-        market=cast(DomesticMarketFilter, market), basis=cast(NetBuyBasis, basis),
-        side=cast(Side, side), investor=cast(InvestorType, investor))
+    # 사용자가 준 것만 전달하고 기본값은 라이브러리가 정한다(소비자 경계: 패키지 기본값 재기술 금지).
+    extra: dict[str, Any] = {}
+    if market is not None: extra["market"] = cast(DomesticMarketFilter, market)
+    if basis is not None: extra["basis"] = cast(NetBuyBasis, basis)
+    if side is not None: extra["side"] = cast(Side, side)
+    if investor is not None: extra["investor"] = cast(InvestorType, investor)
+    rows = kis.domestic.market.investor_net_buy_stocks(**extra)
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 

@@ -29,7 +29,7 @@ from .. import (
 )
 from ..errors import KISError
 from ..order import Right, Side
-from ..overseas.namespace import _OVERSEAS_INDEX_KIND
+from ..overseas.namespace import OverseasIndexKind
 from ..transport import Environment
 from .commands import account, credentials, index, market, order, stock
 from .context import account_suffix, build_client
@@ -244,7 +244,7 @@ def build_parser() -> argparse.ArgumentParser:
     iq.add_argument("code", help="지수(SPX)·환율(FX@KRW)·국내지수(0001) 등 코드")
     iq.add_argument("--region", dest="region", choices=list(get_args(Region)), default="overseas",
                     help="해외(기본)/국내")
-    iq.add_argument("--kind", choices=list(_OVERSEAS_INDEX_KIND), default=None,
+    iq.add_argument("--kind", choices=list(get_args(OverseasIndexKind)), default=None,
                     help="해외 분류(region=overseas 전용): index/fx(환율)/bond(국채)/gold(금); 생략 시 index")
     iq.set_defaults(func=index.cmd_quote)
     ib = leaf(index_sub, "bars")
@@ -253,7 +253,7 @@ def build_parser() -> argparse.ArgumentParser:
     # 국내 지수는 --region domestic 으로 명시한다(공유 _add_region 의 domestic 기본과 의도적으로 다름).
     ib.add_argument("--region", dest="region", choices=list(get_args(Region)), default="overseas",
                     help="해외(기본)/국내")
-    ib.add_argument("--kind", choices=list(_OVERSEAS_INDEX_KIND), default=None,
+    ib.add_argument("--kind", choices=list(get_args(OverseasIndexKind)), default=None,
                     help="해외 분류(region=overseas 전용): index/fx(환율)/bond(국채)/gold(금); 생략 시 index")
     ib.add_argument("--interval", required=True, help="1d/1wk/1mo/1m(지수·환율만); stock bars 와 동일하게 필수")
     ib.add_argument("--start", default=None, help="YYYYMMDD(기간봉 필수, 1m 은 생략 가능)")
