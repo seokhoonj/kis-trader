@@ -202,6 +202,22 @@ def test_by_turnover_maps_dedicated_entity():
     assert fake.calls[0]["tr_id"] == "HHDFS76340000"
 
 
+def test_by_turnover_missing_output_fails_closed():
+    # 성공 응답인데 output2 배열이 없으면 fail-closed (자매 by_volume 과 동일 보장).
+    fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}}))
+    with pytest.raises(KISError):
+        _client(fake).overseas.ranking.by_turnover(exchange="NAS")
+
+
+def test_by_turnover_blank_required_value_fails_closed():
+    # 전용 지표 tover/shar 는 required -- 빈 값이면 0 으로 조작하지 않고 fail-closed.
+    rows = [{"rank": "1", "excd": "NAS", "symb": "TSLA", "name": "t", "ename": "T", "last": "250",
+             "sign": "2", "diff": "5", "rate": "2", "tvol": "1", "tover": "", "shar": "1"}]
+    fake = FakeTransport(response=_one(rows))
+    with pytest.raises(KISError):
+        _client(fake).overseas.ranking.by_turnover(exchange="NAS")
+
+
 def test_price_fluct_and_new_highlow_gubn_codes():
     row = [{"rank": "1", "excd": "NAS", "symb": "T", "name": "n", "ename": "N", "last": "1",
             "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]

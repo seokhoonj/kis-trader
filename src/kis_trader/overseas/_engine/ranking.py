@@ -2,8 +2,10 @@
 
 사용자면은 해외 순위 네임스페이스(:class:`~kis_trader.overseas.ranking.OverseasRankingQueries`,
 ``kis.overseas.ranking``)다. 모든 순위가 거래소(``EXCD``)를 받고 응답의 ``output2`` 배열이 순위
-목록이다(``output1`` 은 조회 요약). 공통 행(순위/코드/이름/현재가/전일대비/거래량/거래대금)만 매핑
-하고 순위별 고유 지표는 ``_raw`` 에 둔다.
+목록이다(``output1`` 은 조회 요약). 공통 행(순위/코드/이름/현재가/전일대비/거래량/거래대금)은 범용
+:class:`~kis_trader.overseas.entities.ranking.OverseasRankedStock` 으로, 고유 지표가 있는 순위는
+전용 타입(:class:`~kis_trader.overseas.entities.ranking.TurnoverRanking` 등)으로 그 값을 필드로
+노출한다. 의미가 확정되지 않은 키만 ``_raw`` 에 남긴다.
 
 KIS URL/TR-ID:
 - 거래량순위: ``GET .../overseas-stock/v1/ranking/trade-vol`` ``HHDFS76310010``.
@@ -108,9 +110,11 @@ def _parse_turnover(
     return ranked
 
 
-def _fetch_ranking(
+def _fetch_ranking_rows(
     transport: Transport, *, path: str, tr: str, params: Mapping[str, str]
-) -> list[OverseasRankedStock]:
+) -> Sequence[Mapping[str, Any]]:
+    """순위 엔드포인트의 output2 행을 가져온다(전송 + fail-closed). 파싱은 호출부가 정한다 --
+    범용 순위는 :func:`_parse_ranking`, 회전율은 :func:`_parse_turnover`."""
     resp = transport.request(
         method="GET", path=path, tr_id=tr, params=dict(params), idempotent=True
     )
@@ -118,7 +122,13 @@ def _fetch_ranking(
     rows = resp.body.get("output2")
     if not isinstance(rows, (list, tuple)):             # 성공 응답인데 배열 아님 -> fail-closed
         raise _missing_block_error("output2", resp)
-    return _parse_ranking(rows)
+    return rows
+
+
+def _fetch_ranking(
+    transport: Transport, *, path: str, tr: str, params: Mapping[str, str]
+) -> list[OverseasRankedStock]:
+    return _parse_ranking(_fetch_ranking_rows(transport, path=path, tr=tr, params=params))
 
 
 def fetch_by_volume(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
@@ -193,14 +203,7 @@ def fetch_by_turnover(transport: Transport, *, exchange: str) -> list[TurnoverRa
     path, tr = _TURNOVER
     params = {"EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
               "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
-    resp = transport.request(
-        method="GET", path=path, tr_id=tr, params=dict(params), idempotent=True
-    )
-    _raise_if_error(resp)
-    rows = resp.body.get("output2")
-    if not isinstance(rows, (list, tuple)):             # 성공 응답인데 배열 아님 -> fail-closed
-        raise _missing_block_error("output2", resp)
-    return _parse_turnover(rows)
+    return _parse_turnover(_fetch_ranking_rows(transport, path=path, tr=tr, params=params))
 
 
 def fetch_by_sharp_change(
