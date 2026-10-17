@@ -283,6 +283,28 @@ def index_bars(
     return out
 
 
+def index_quote(
+    kis: KISClient, code: str, *, region: str = "overseas", kind: str | None = None
+) -> dict[str, Any]:
+    """지수·환율·국채·금 현재가 스냅샷.
+
+    ``region="overseas"`` 는 ``kind`` index(기본)/fx/bond/gold, ``region="domestic"`` 은
+    국내 지수코드 전용이며 ``kind`` 를 주면 거부한다.
+    """
+    if region not in _REGIONS:
+        raise KISUsageError(f"region 은 {sorted(_REGIONS)} 중 하나여야 한다 (받은 값: {region!r}).")
+    if region == "overseas":
+        if kind is not None and kind not in _INDEX_KINDS:
+            raise KISUsageError(f"kind 는 {sorted(_INDEX_KINDS)} 중 하나여야 한다 (받은 값: {kind!r}).")
+        extra = {} if kind is None else {"kind": cast(OverseasIndexKind, kind)}
+        out: dict[str, Any] = _serialize(kis.overseas.index(code, **extra).quote())
+    else:
+        if kind is not None:
+            raise KISUsageError("kind 는 해외(region='overseas') 전용이다 -- 국내 지수엔 쓸 수 없다.")
+        out = _serialize(kis.domestic.index(code).quote())
+    return out
+
+
 def order_book(kis: KISClient, symbol: str, *, region: str = "domestic") -> dict[str, Any]:
     """종목 호가창(매수/매도 호가·잔량 스냅샷). ``region`` domestic/overseas."""
     if region not in _REGIONS:

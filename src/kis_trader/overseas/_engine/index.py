@@ -11,7 +11,7 @@ KIS URL/TR-ID (대표 예시 -- 전체는 각 함수의 경로/TR-ID 상수 참�
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
-from datetime import date
+from datetime import date, datetime
 from typing import Any
 
 from ..._bars import (
@@ -20,20 +20,64 @@ from ..._bars import (
     _period_code_for,
     collect_period_bars,
 )
-from ..._internal._datetime import _to_yyyymmdd, _today_kst
+from ..._internal._datetime import _KST, _to_yyyymmdd, _today_kst
 from ..._internal._response import (
     _missing_block_error,
     _raise_if_error,
 )
-from ..._internal._wire import required_decimal, required_int
+from ..._internal._wire import _apply_change_sign, optional_int, required_decimal, required_int
 from ...bar import Bar, Interval
-from ...errors import KISUsageError
+from ...errors import KISError, KISUsageError
 from ...transport import RawResponse, Transport
+from ..entities.index import OverseasIndexQuote
 
 _BARS_PATH = "/uapi/overseas-price/v1/quotations/inquire-daily-chartprice"
 _BARS_TR   = "FHKST03030100"
 _MINUTE_BARS_PATH = "/uapi/overseas-price/v1/quotations/inquire-time-indexchartprice"
 _MINUTE_BARS_TR = "FHKST03030200"
+
+
+def fetch_quote(
+    transport: Transport, *, symbol: str, market_division: str
+) -> OverseasIndexQuote:
+    """해외 지수류 현재가를 기간별시세 응답 ``output1`` 에서 조회한다.
+
+    기간봉과 같은 FHKST03030100 엔드포인트를 오늘 일봉 범위로 한 번 호출한다. ``output2`` 는
+    사용하지 않고, 현재가·전일대비·시고저가 담긴 ``output1`` 만 파싱한다.
+    """
+    today = _today_kst()
+    resp = transport.request(
+        method="GET",
+        path=_BARS_PATH,
+        tr_id=_BARS_TR,
+        params={
+            "FID_COND_MRKT_DIV_CODE": market_division,
+            "FID_INPUT_ISCD": symbol,
+            "FID_INPUT_DATE_1": today,
+            "FID_INPUT_DATE_2": today,
+            "FID_PERIOD_DIV_CODE": "D",
+        },
+        idempotent=True,
+    )
+    _raise_if_error(resp)
+    output = resp.body.get("output1")
+    if not isinstance(output, Mapping):
+        raise _missing_block_error("output1", resp)
+    return _parse_quote(output, code=symbol, as_of=datetime.now(_KST))
+
+
+def fetch_quotes(
+    transport: Transport, *, symbols: Sequence[str], market_division: str
+) -> list[OverseasIndexQuote]:
+    """여러 해외 지수류 코드를 요청 순서대로 조회한다.
+
+    KIS가 이 지수류에 멀티시세 엔드포인트를 제공하지 않으므로, 단일 조회를 코드마다 호출하되
+    호출자는 한 번의 배치 메서드로 결과를 받는다.
+    """
+    return [
+        fetch_quote(transport, symbol=symbol, market_division=market_division)
+        for symbol in symbols
+    ]
 
 
 def fetch_bars(
@@ -174,3 +218,36 @@ def _parse_bars(rows: Sequence[Mapping[str, Any]], *, symbol: str) -> list[Bar]:
             )
         )
     return bars
+
+
+def _parse_quote(
+    output: Mapping[str, Any], *, code: str, as_of: datetime
+) -> OverseasIndexQuote:
+    """FHKST03030100 ``output1`` 을 해외 지수류 스냅샷으로 바꾼다."""
+    if not str(output.get("stck_shrn_iscd", "")).strip():
+        raise KISError(
+            f"해외 지수류 현재가 응답의 stck_shrn_iscd 가 비어 있다 -- 코드 {code!r} 를 확인하라."
+        )
+    change_sign_code = str(output.get("prdy_vrss_sign", "")).strip()
+    return OverseasIndexQuote(
+        code=code,
+        name=str(output.get("hts_kor_isnm", "")).strip(),
+        value=required_decimal(output.get("ovrs_nmix_prpr"), "ovrs_nmix_prpr"),
+        open=required_decimal(output.get("ovrs_prod_oprc"), "ovrs_prod_oprc"),
+        high=required_decimal(output.get("ovrs_prod_hgpr"), "ovrs_prod_hgpr"),
+        low=required_decimal(output.get("ovrs_prod_lwpr"), "ovrs_prod_lwpr"),
+        previous_close=required_decimal(
+            output.get("ovrs_nmix_prdy_clpr"), "ovrs_nmix_prdy_clpr"
+        ),
+        change=_apply_change_sign(
+            required_decimal(output.get("ovrs_nmix_prdy_vrss"), "ovrs_nmix_prdy_vrss"),
+            change_sign_code,
+        ),
+        change_percent=_apply_change_sign(
+            required_decimal(output.get("prdy_ctrt"), "prdy_ctrt"), change_sign_code
+        ),
+        volume=required_int(output.get("acml_vol"), "acml_vol"),
+        previous_volume=optional_int(output.get("prdy_vol"), "prdy_vol"),
+        as_of=as_of,
+        _raw=output,
+    )

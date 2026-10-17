@@ -153,6 +153,10 @@ class _IndexHandle:
         self._log.append(("index_bars", self._code, self._scope, self._kind, interval, start, end))
         return "IBARS"
 
+    def quote(self):
+        self._log.append(("index_quote", self._code, self._scope, self._kind))
+        return "IQUOTE"
+
 
 class _Domestic:
     def __init__(self, log):
@@ -404,6 +408,28 @@ def test_index_bars_overseas_omitting_kind_uses_library_default():
     a = _args(["index", "bars", ".DJI", "--interval", "1d", "--start", "20250101"])
     a.func(kis, a)
     assert kis.log[-1] == ("index_bars", ".DJI", "overseas", "index", "1d", "20250101", None)
+
+
+def test_index_quote_overseas_default_and_kind_routing():
+    kis = StubKis()
+    default_args = _args(["index", "quote", "SPX"])
+    assert default_args.func(kis, default_args) == "IQUOTE"
+    assert kis.log[-1] == ("index_quote", "SPX", "overseas", "index")
+
+    fx_args = _args(["index", "quote", "FX@KRW", "--kind", "fx"])
+    assert fx_args.func(kis, fx_args) == "IQUOTE"
+    assert kis.log[-1] == ("index_quote", "FX@KRW", "overseas", "fx")
+
+
+def test_index_quote_domestic_region_and_kind_guard():
+    kis = StubKis()
+    args = _args(["index", "quote", "0001", "--region", "domestic"])
+    assert args.func(kis, args) == "IQUOTE"
+    assert kis.log[-1] == ("index_quote", "0001", "domestic", None)
+
+    with pytest.raises(CliConfigError, match="해외"):
+        bad = _args(["index", "quote", "0001", "--region", "domestic", "--kind", "fx"])
+        bad.func(kis, bad)
 
 
 def test_index_bars_domestic_explicit_region_and_rejects_kind():

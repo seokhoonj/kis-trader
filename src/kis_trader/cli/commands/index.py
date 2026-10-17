@@ -1,6 +1,8 @@
-"""지수·환율·국채·금 기간봉 명령 -- 공개 ``index(...)`` 핸들의 ``.bars()`` 를 그대로 운반한다
-(재계산·필터 없음). 종목 ``cmd_bars`` 의 지수류 형제다 -- 리시버가 ``stock`` 이 아니라 ``index`` 라
-별도 명령 그룹(``kis index``)을 쓴다."""
+"""지수·환율·국채·금 현재가/기간봉 명령 -- 공개 ``index(...)`` 핸들을 그대로 운반한다.
+
+종목 명령의 지수류 형제다 -- 리시버가 ``stock`` 이 아니라 ``index`` 라 별도 명령 그룹
+(``kis index``)을 쓴다.
+"""
 from __future__ import annotations
 
 from argparse import Namespace
@@ -10,6 +12,16 @@ from ..errors import CliConfigError
 
 if TYPE_CHECKING:
     from ...client import KISClient
+
+
+def cmd_quote(kis: KISClient, args: Namespace) -> Any:
+    """지수·환율·국채·금 현재가. 해외가 기본이고 국내는 ``--region domestic`` 으로 고른다."""
+    if args.region == "overseas":
+        extra = {} if args.kind is None else {"kind": args.kind}
+        return kis.overseas.index(args.code, **extra).quote()
+    if args.kind is not None:
+        raise CliConfigError("--kind 는 해외(--region overseas) 전용입니다.")
+    return kis.domestic.index(args.code).quote()
 
 
 def cmd_bars(kis: KISClient, args: Namespace) -> Any:

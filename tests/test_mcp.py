@@ -30,6 +30,15 @@ class _FakeQuote:
 
 
 @dataclass(frozen=True)
+class _FakeIndexQuote:
+    code: str
+    name: str
+    value: Decimal
+    change: Decimal
+    _raw: dict[str, Any] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class _FakeBalance:
     label: str
     total: Decimal
@@ -112,7 +121,7 @@ class _FakeHit:
     _raw: dict[str, Any] = field(default_factory=dict)
 
 
-def _fake_kis(*, quote=None, overseas_quote=None, hits=None, ranking=None, balance=None,
+def _fake_kis(*, quote=None, overseas_quote=None, index_quote=None, hits=None, ranking=None, balance=None,
               positions=None, open_orders=None, reconcile_report="__unset__",
               bars=None, stock_flows=None, market_flows=None, net_buy=None,
               order_book=None, trades=None, status=None, rank_volume=None, rank_mktcap=None,
@@ -148,9 +157,15 @@ def _fake_kis(*, quote=None, overseas_quote=None, hits=None, ranking=None, balan
         trades=lambda: trades or [],
         status=lambda: status,
     )
+    def _index(tag):
+        return SimpleNamespace(
+            bars=_bars(tag),
+            quote=lambda: (rec.append(("index_quote", tag)) or index_quote),
+        )
+
     domestic = SimpleNamespace(
         stock=_stock,
-        index=lambda code: SimpleNamespace(bars=_bars("dom_index")),
+        index=lambda code: _index("dom_index"),
         search_stocks=lambda query: hits or [],
         ranking=ranking_ns,
         market=market_ns,
@@ -165,7 +180,7 @@ def _fake_kis(*, quote=None, overseas_quote=None, hits=None, ranking=None, balan
         stock=lambda sym: SimpleNamespace(
             quote=lambda: overseas_quote, bars=_bars("ovs_stock"),
             order_book=_ovs_ob, trades=_ovs_tr),
-        index=lambda code, *, kind="index": SimpleNamespace(bars=_bars(("ovs_index", kind))),
+        index=lambda code, *, kind="index": _index(("ovs_index", kind)),
     )
     account_ns = SimpleNamespace(
         balance=lambda: balance,
@@ -306,6 +321,34 @@ def test_index_bars_handler_fx_and_validates_kind():
         handlers.index_bars(_fake_kis(bars=bars), "FX@KRW", kind="crypto", start="20250101")
     with pytest.raises(KISUsageError, match="해외"):                  # 국내에 kind 주면 거부(조용히 무시 안 함)
         handlers.index_bars(_fake_kis(bars=bars), "0001", region="domestic", kind="fx", start="20250101")
+
+
+def test_index_quote_handler_routes_validates_and_serializes_without_raw():
+    snapshot = _FakeIndexQuote(
+        "SPX", "S&P500", Decimal("7718.94"), Decimal("-86.51"),
+        _raw={"access_token": "LEAK"},
+    )
+    kis = _fake_kis(index_quote=snapshot)
+
+    out = handlers.index_quote(kis, "SPX")
+
+    assert out == {
+        "code": "SPX", "name": "S&P500", "value": "7718.94", "change": "-86.51",
+    }
+    assert kis.rec == [("index_quote", ("ovs_index", "index"))]
+    assert "LEAK" not in str(out)
+
+    domestic = _fake_kis(index_quote=snapshot)
+    assert handlers.index_quote(domestic, "0001", region="domestic") == out
+    assert domestic.rec == [("index_quote", "dom_index")]
+    with pytest.raises(KISUsageError):
+        handlers.index_quote(_fake_kis(index_quote=snapshot), "SPX", region="mars")
+    with pytest.raises(KISUsageError, match="해외"):
+        handlers.index_quote(
+            _fake_kis(index_quote=snapshot), "0001", region="domestic", kind="fx"
+        )
+    with pytest.raises(KISUsageError):
+        handlers.index_quote(_fake_kis(index_quote=snapshot), "SPX", kind="crypto")
 
 
 def test_overseas_index_kind_literal_matches_code_map():
@@ -615,7 +658,7 @@ def test_server_registers_read_switch_and_guarded_order_tools():
     # 정확집합(==)으로 못박는다: subset(<=) 이면 의도치 않은 툴이 하나 더 등록돼도 통과해버린다.
     # 노출 표면이 늘면 이 테스트가 깨져 의식적 결정을 강제한다(실주문 안전 표면의 핵심 불변식).
     assert names == {"quote", "search", "ranking_change", "ranking_volume", "ranking_market_cap",
-                     "stock_bars", "index_bars", "order_book", "trades", "status",
+                     "stock_bars", "index_bars", "index_quote", "order_book", "trades", "status",
                      "stock_investor_flows", "market_investor_flows", "investor_net_buy_stocks",
                      "balance", "positions", "open_orders", "reconcile",
                      "use_environment", "use_profile", "list_profiles", "current_account",
@@ -728,7 +771,7 @@ def test_order_tool_input_schemas_pin_switch_region_shape():
         assert {"region", "market"} <= set(props)
     # 시세 bars/book/trades 의 region enum 을 고정 -- Region 이 str 로 넓어지면(검증 우회) 깨진다.
     # (index_bars 의 kind 집합 드리프트는 test_overseas_index_kind_literal_matches_code_map 가 별도로 고정.)
-    for read_tool in ("stock_bars", "index_bars", "order_book", "trades"):
+    for read_tool in ("stock_bars", "index_bars", "index_quote", "order_book", "trades"):
         assert tools[read_tool].input_schema["properties"]["region"]["enum"] == ["domestic", "overseas"]
 
 

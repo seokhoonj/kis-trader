@@ -72,10 +72,13 @@ index.expected_trend()     # 장 시작 전·마감 예상체결 지수 추이
 ## 해외 지수·환율·국채·금
 
 해외 지수류는 `kis.overseas.index(코드, kind=...)` 로 봅니다 -- `kind` 는 `index`(지수)·`fx`(환율)·
-`bond`(국채)·`gold`(금선물). 지수·환율은 기간봉(일/주/월)과 분봉(`1m`)을, 국채·금은 기간봉만 줍니다.
+`bond`(국채)·`gold`(금선물). 모든 종류가 현재가 스냅샷을 주며, 지수·환율은 기간봉(일/주/월)과
+분봉(`1m`)을, 국채·금은 기간봉만 줍니다.
 
 ```python
-kis.overseas.index(".DJI").bars("1d", start="20240101")               # 해외 지수(다우)
+kis.overseas.index("SPX").quote()                                    # S&P500 현재가
+kis.overseas.index_quotes(["SPX", "NDX"])                           # 여러 해외지수 현재가
+kis.overseas.index("SPX").bars("1d", start="20240101")              # S&P500 기간봉
 kis.overseas.index("FX@KRW", kind="fx").bars("1d", start="20240101")  # 환율(원/달러) 히스토리
 kis.overseas.index("FX@KRW", kind="fx").bars("1m", max_bars=100)      # 환율 당일 분봉
 ```

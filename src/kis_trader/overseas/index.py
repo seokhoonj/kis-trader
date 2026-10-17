@@ -1,6 +1,6 @@
 """해외 지수/환율/국채/금선물 핸들 -- :class:`OverseasIndex`.
 
-한 해외 지수류 심볼의 분봉·기간봉을 조회하는 핸들이다: ``kis.overseas.index(".DJI").bars(...)`` 처럼.
+한 해외 지수류 심볼의 현재가·분봉·기간봉을 조회하는 핸들이다: ``kis.overseas.index("SPX").quote()`` 처럼.
 국내 :class:`~kis_trader.domestic.index.DomesticIndex` 와 대칭이다. 해외지수·환율은 분봉(``1m``)과
 기간봉을, 국채·금선물은 기간봉만 지원한다.
 
@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from ..bar import Bar, Interval
 from ._engine import index as overseas_index_api
+from .entities.index import OverseasIndexQuote
 
 if TYPE_CHECKING:
     from datetime import date
@@ -24,7 +25,7 @@ class OverseasIndex:
     """한 해외 지수류 코드의 조회 핸들. 세션·코드·시장구분을 안다.
 
     보통 직접 만들지 않고 ``kis.overseas.index`` 로 얻는다. ``code`` 는 지수코드(예:
-    ``.DJI``), 종류는 팩토리의 ``kind`` 로 선택한다 -- 지수는 거래 종목이 아니라 분류자라
+    ``SPX``), 종류는 팩토리의 ``kind`` 로 선택한다 -- 지수는 거래 종목이 아니라 분류자라
     :class:`~kis_trader.domestic.index.DomesticIndex` 와 같이 ``code`` 를 쓴다.
     """
 
@@ -34,6 +35,12 @@ class OverseasIndex:
         self._client          = client
         self.code             = code
         self._market_division = market_division
+
+    def quote(self) -> OverseasIndexQuote:
+        """해외 지수류 현재가 스냅샷(레벨·전일종가·시고저·전일대비)."""
+        return overseas_index_api.fetch_quote(
+            self._client.transport, symbol=self.code, market_division=self._market_division
+        )
 
     def bars(
         self,

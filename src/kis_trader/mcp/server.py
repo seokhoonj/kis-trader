@@ -5,7 +5,7 @@
 출력하지 않는다. 기동 환경은 ``paper`` 기본 -- ``real`` 은 ``KIS_MCP_ENVIRONMENT=real`` 로 명시할 때만.
 
 노출 도구: 읽기(``quote``·``search``·``ranking_change``·``ranking_volume``·``ranking_market_cap``·
-``stock_bars``·``index_bars``·``order_book``·``trades``·``status``·``stock_investor_flows``·
+``stock_bars``·``index_bars``·``index_quote``·``order_book``·``trades``·``status``·``stock_investor_flows``·
 ``market_investor_flows``·``investor_net_buy_stocks``·``balance``·``positions``·``open_orders``·
 ``reconcile``) + 런타임 전환(``use_environment``·``use_profile``·``list_profiles``·``current_account``) + ``order_preview``
 (dry-run) + **실주문**(``place_order``·``cancel_order``·``modify_order``). 읽기 도구는 활성
@@ -465,6 +465,15 @@ def build_server(
         region=domestic은 국내 지수코드 전용(kind 는 해외 전용). 기간봉은 start 필수, 분봉(1m)은 지수·환율만."""
         return handlers.index_bars(account_session.read_client(), code, region=region, kind=kind,
                                    interval=interval, start=start, end=end, limit=limit)
+
+    @server.tool()
+    def index_quote(code: str, region: Region = "overseas",
+                    kind: OverseasIndexKind | None = None) -> dict[str, Any]:
+        """지수·환율·국채·금 현재가 스냅샷. region=overseas는 kind(index 기본/fx/bond/gold),
+        region=domestic은 국내 지수코드 전용(kind 는 해외 전용). 계좌 없이 조회할 수 있다."""
+        return handlers.index_quote(
+            account_session.read_client(), code, region=region, kind=kind
+        )
 
     @server.tool()
     def order_book(symbol: str, region: Region = "domestic") -> dict[str, Any]:

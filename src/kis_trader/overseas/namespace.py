@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Literal, overload
 from ..errors import KISUsageError
 from ._engine import account as overseas_account
 from ._engine import derivatives as overseas_derivatives_api
+from ._engine import index as overseas_index_api
 from ._engine import market_data as overseas_market_data_api
 from ._engine import orders as overseas_orders_api
 from ._engine import reference as overseas_reference_api
@@ -53,6 +54,7 @@ if TYPE_CHECKING:
         OverseasDerivativeMarketHours,
         OverseasFuturesOpenInterest,
     )
+    from .entities.index import OverseasIndexQuote
     from .entities.industry import OverseasIndustry, OverseasIndustryStock
     from .entities.news import OverseasNewsHeadline
     from .entities.orders import (
@@ -264,7 +266,7 @@ class OverseasNamespace:
 
     def index(self, code: str, *, kind: OverseasIndexKind = "index") -> OverseasIndex:
         """해외 지수/환율/국채/금선물 핸들. ``kind`` 는 ``index``/``fx``/``bond``/``gold`` 중 하나, ``code``
-        는 지수코드(예: ``.DJI``; 지수=비거래 분류자라 ``code``). 국내
+        는 지수코드(예: ``SPX``; 지수=비거래 분류자라 ``code``). 국내
         :meth:`~kis_trader.domestic.namespace.DomesticNamespace.index` 의 해외판이다."""
         division = _OVERSEAS_INDEX_KIND.get(kind)
         if division is None:
@@ -272,6 +274,23 @@ class OverseasNamespace:
                 f"지원하지 않는 kind: {kind!r} ({'/'.join(_OVERSEAS_INDEX_KIND)})."
             )
         return OverseasIndex(self._client, code, market_division=division)
+
+    def index_quotes(
+        self, codes: Sequence[str], *, kind: OverseasIndexKind = "index"
+    ) -> list[OverseasIndexQuote]:
+        """여러 해외 지수/환율/국채/금선물 현재가를 요청 순서대로 조회한다.
+
+        ``kind`` 는 모든 ``codes`` 에 공통으로 적용된다. KIS에는 지수류 멀티시세 TR이 없어 내부적으로
+        코드마다 같은 기간별시세 TR의 현재가 블록을 조회한다.
+        """
+        division = _OVERSEAS_INDEX_KIND.get(kind)
+        if division is None:
+            raise KISUsageError(
+                f"지원하지 않는 kind: {kind!r} ({'/'.join(_OVERSEAS_INDEX_KIND)})."
+            )
+        return overseas_index_api.fetch_quotes(
+            self._client.transport, symbols=codes, market_division=division
+        )
 
     def futures(self, symbol: str) -> OverseasDerivative:
         """해외 선물 계약 핸들. ``symbol`` 는 시리즈코드(예: ESZ25 = E-mini S&P 2025.12)."""
@@ -451,5 +470,3 @@ class OverseasNamespace:
         """해외주식 시장 순위 질의 -- ``kis.overseas.ranking.by_volume(exchange="NAS")`` 등. 거래소별로
         조회한다(``exchange`` = NAS/NYS/HKS/...)."""
         return OverseasRankingQueries(self._client)
-
-

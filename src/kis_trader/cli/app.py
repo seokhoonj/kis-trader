@@ -235,12 +235,20 @@ def build_parser() -> argparse.ArgumentParser:
                     help="투자자(생략 시 기본): all/foreign/institutional/other")
     mn.set_defaults(func=market.cmd_market_net_buy)
 
-    # kis index bars <code> -- 지수·환율·국채·금 기간봉(주식 bars 와 별도 리시버). region=overseas 는
-    # --kind(index/fx/bond/gold)로 환율(fx, 예 FX@KRW) 등을, domestic 은 국내 지수코드를 조회한다.
-    index_p = groups.add_parser("index", help="지수·환율·국채·금 기간봉")
+    # kis index quote|bars <code> -- 지수·환율·국채·금 시세(주식 명령과 별도 리시버).
+    # region=overseas 는 --kind(index/fx/bond/gold)로 환율(fx, 예 FX@KRW) 등을,
+    # domestic 은 국내 지수코드를 조회한다.
+    index_p = groups.add_parser("index", help="지수·환율·국채·금 현재가·기간봉")
     index_sub = index_p.add_subparsers(dest="action", required=True)
+    iq = leaf(index_sub, "quote")
+    iq.add_argument("code", help="지수(SPX)·환율(FX@KRW)·국내지수(0001) 등 코드")
+    iq.add_argument("--region", dest="region", choices=list(get_args(Region)), default="overseas",
+                    help="해외(기본)/국내")
+    iq.add_argument("--kind", choices=list(_OVERSEAS_INDEX_KIND), default=None,
+                    help="해외 분류(region=overseas 전용): index/fx(환율)/bond(국채)/gold(금); 생략 시 index")
+    iq.set_defaults(func=index.cmd_quote)
     ib = leaf(index_sub, "bars")
-    ib.add_argument("code", help="지수(.DJI)·환율(FX@KRW)·국내지수(0001) 등 코드")
+    ib.add_argument("code", help="지수(SPX)·환율(FX@KRW)·국내지수(0001) 등 코드")
     # 기본 해외 -- fx/bond/gold 는 해외 전용이고 지수도 해외가 주용도라, MCP index_bars 와 같은 기본.
     # 국내 지수는 --region domestic 으로 명시한다(공유 _add_region 의 domestic 기본과 의도적으로 다름).
     ib.add_argument("--region", dest="region", choices=list(get_args(Region)), default="overseas",

@@ -58,8 +58,10 @@ kis stock quote 005930                 # 현재가
 kis stock quote AAPL --region overseas # 해외(거래소 자동)
 kis stock bars 005930 --interval 1d --start 20240101
 kis stock bars AAPL --region overseas --interval 1d --start 20240101  # 해외주식 기간봉
+kis index quote SPX                                                  # S&P500 현재가(기본 해외)
+kis index quote FX@KRW --kind fx                                    # 원/달러 환율 현재가
 kis index bars FX@KRW --kind fx --interval 1d --start 20240101        # 원/달러 환율(기본 해외)
-kis index bars .DJI --interval 1d --start 20240101                    # 해외지수(다우 등)
+kis index bars SPX --interval 1d --start 20240101                     # 해외지수(S&P500 등)
 kis index bars 0001 --region domestic --interval 1d --start 20240101  # 국내 지수(코스피)
 kis stock book 005930                  # 호가
 kis stock trades 005930                # 최근 체결
