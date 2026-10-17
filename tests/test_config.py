@@ -159,6 +159,29 @@ def test_resolve_reads_paper_environment(tmp_path):
     assert resolve_credentials("demo", config_dir=tmp_path).environment == "paper"
 
 
+def test_implicit_profile_follows_resolved_environment_not_real_first(tmp_path):
+    # real 전용 'work' 와 paper 전용 'test' 가 공존하고 default_profile 마커가 없으면, 환경 미지정은
+    # paper 로 기본값이다(no-auto-promote). 암시적 기본 프로필은 그 환경(paper)의 블록에서 골라야 한다
+    # -- real 우선으로 'work' 를 뽑으면 (work, paper) 슬롯 부재로 유효한 paper 설정이 하드에러가 났다.
+    KISConfig(profile="work", app_key="WK", app_secret="WS",
+              environment="real", config_dir=tmp_path).save()
+    KISConfig(profile="test", app_key="TK", app_secret="TS",
+              environment="paper", config_dir=tmp_path).save()
+    resolved = resolve_credentials(config_dir=tmp_path)   # profile/environment 둘 다 미지정
+    assert resolved.environment == "paper"
+    assert resolved.app_key == "TK"                       # paper 블록의 test -- real 전용 work 아님
+
+
+def test_resolve_rejects_unknown_bundle_field(tmp_path):
+    # 묶음은 닫힌 스키마 -- 오타('acount')를 조용히 수용하면 account 가 누락된 채 세션이 열리므로 거부.
+    (tmp_path / "credentials.json").write_text(json.dumps({
+        "schema": 2,
+        "paper": {"main": {"app_key": "K", "app_secret": "S", "acount": "12345678-01"}},
+    }), encoding="utf-8")
+    with pytest.raises(KISUsageError, match="알 수 없는 필드"):
+        resolve_credentials("main", config_dir=tmp_path)
+
+
 def test_environment_variable_wins_over_file(tmp_path, monkeypatch):
     # v2 두 축 키(KIS_<P>_<E>_APP_KEY)가 저장된 묶음 값을 이긴다.
     KISConfig(profile="main", app_key="from_file", app_secret="s", config_dir=tmp_path).save()

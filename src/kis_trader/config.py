@@ -362,6 +362,14 @@ def _validate_bundle(*, environment: str, profile: str, bundle: object) -> dict[
             f"credentials.json 의 {environment!r}.{profile!r} 묶음에 {_ENVIRONMENT_FIELD!r} 필드를 둘 수 없다 "
             "(환경은 바깥 블록 키로만 정한다)."
         )
+    unknown = [key for key in bundle if key not in _BUNDLE_FIELDS]
+    if unknown:
+        # 닫힌 스키마 -- 묶음은 _BUNDLE_FIELDS 만 가진다. 오타(예: 'acount')를 조용히 수용하면 실제
+        # 자격증명(account 등)이 누락된 채로 세션이 열리고 나중에야 인증 단계에서 터진다. 와이어 전에 거부.
+        raise KISUsageError(
+            f"credentials.json 의 {environment!r}.{profile!r} 묶음에 알 수 없는 필드: {sorted(unknown)} "
+            f"(허용 필드: {list(_BUNDLE_FIELDS)}). 오타가 아닌지 확인하라."
+        )
     return cast("dict[str, object]", bundle)
 
 
@@ -519,18 +527,23 @@ def _resolve_v2(
     _validate_v2_shape(loaded)
     real_block = _select_environment_block(loaded, "real")
     paper_block = _select_environment_block(loaded, "paper")
-    if profile is None:
-        names = list(real_block)
-        for name in paper_block:
-            if name not in names:
-                names.append(name)
-        profile = _resolve_default_profile_name_v2(loaded, names)
-        _validate_profile_name_v2(profile)    # 해석된 기본 이름 검증(env/마커에서 온 값) -- 쓰기 경로와 대칭
+    # 환경을 프로필보다 먼저 해석한다 -- 암시적 기본 프로필을 '해석된 환경의 블록'에서 골라야 하기
+    # 때문. real 우선 고정으로 고르면, 환경이 paper 로 기본값일 때 real 전용 프로필이 뽑혀 (프로필,
+    # paper) 슬롯 부재로 유효한 paper 설정이 하드에러가 난다(두 환경에 서로 다른 프로필이 있을 때).
     resolved_environment = _resolve_environment_v2(environment, loaded)
     if resolved_environment not in _ENVIRONMENTS:
         raise KISUsageError(
             f"environment 는 {_ENVIRONMENTS} 중 하나여야 한다: {resolved_environment!r}"
         )
+    if profile is None:
+        primary = real_block if resolved_environment == "real" else paper_block
+        fallback = paper_block if resolved_environment == "real" else real_block
+        names = list(primary)
+        for name in fallback:                 # 해석된 환경에 프로필이 없을 때만 타 환경 이름을 뒤에 둔다
+            if name not in names:
+                names.append(name)
+        profile = _resolve_default_profile_name_v2(loaded, names)
+        _validate_profile_name_v2(profile)    # 해석된 기본 이름 검증(env/마커에서 온 값) -- 쓰기 경로와 대칭
     selected = real_block if resolved_environment == "real" else paper_block
     other_env = "paper" if resolved_environment == "real" else "real"
     other = paper_block if resolved_environment == "real" else real_block
