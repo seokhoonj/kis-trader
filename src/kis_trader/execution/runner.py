@@ -38,8 +38,10 @@ class TWAPSliceOutcome:
     ``client_order_id`` 는 **결과 미확정** 슬라이스에만 실린다 -- 타임아웃(체결 불명)이거나, 접수는
     됐지만 발주 직후 재조회(reconcile)가 실패해 체결을 확정 못 한 경우다. 그 주문은 살아 있을 수 있어
     ``kis.orders.reconcile(client_order_id)`` 로 사후 확인해야 하므로 그 id 를 유실하지 않고 실어 둔다.
-    거부 슬라이스와 재조회로 확정된 성공 슬라이스는 ``None``(거부는 재조회 불필요, 확정 성공은 ``report``
-    에 id 가 있다)."""
+    ``client_order_id`` 가 실리는(= pending, shortfall 에서 제외) 경우: (1) 발주 타임아웃, (2) 재조회
+    읽기 실패, (3) 재조회가 모호(0건 -> ``None``), (4) 재조회가 **비종료** 리포트(NEW/부분체결 등 아직
+    살아있음), (5) ``reconcile=False``. 종료상태(체결/취소/거부/만료)로 확정된 슬라이스와 거부 슬라이스는
+    ``None``(거부는 재조회 불필요, 확정은 ``report`` 로 집계)."""
 
     at: datetime
     quantity: int

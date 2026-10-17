@@ -3,6 +3,42 @@
 The format follows [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## 0.11.0 (unreleased)
+
+Naming normalization across the public surface plus order-safety hardening from a
+full-package review. This is a breaking release (0.x minor).
+
+### Added
+
+- `kis.orders.reconcile(client_order_id, *, refresh=False)` — pass `refresh=True` to
+  re-scan the broker instead of returning a stored report. Fill-measuring callers
+  (TWAP `shortfall`, the CLI `kis order reconcile`, and the MCP `reconcile` tool) now
+  force a refresh; the default stays conservative for timeout recovery.
+
+### Changed (breaking)
+
+- Public naming normalized for consistency/symmetry (ranking methods and entities,
+  `stock_fills` → `stock_orders`, trade-profit `rows` → `trades`, overseas screener
+  `search_stocks` → `screen_stocks`, reserved-order `sequence` → `reserved_order_id`,
+  and related). No deprecation aliases — update call sites.
+- `credentials.json` profile bundles are a closed schema: an unknown field (e.g. a
+  typo like `acount`) is now rejected instead of silently ignored.
+
+### Fixed
+
+- `reconcile` no longer returns a stale place-time snapshot where a fill measurement
+  is needed, and matches the daily-execution row by the stored exchange order number
+  (not an ambiguous fingerprint), preventing a TWAP double-buy and sibling-order
+  misattribution.
+- Reserved-order writes convert a throttle (HTTP 500) to a no-resend timeout and clear
+  in-flight state on auth failure, matching the overseas discipline (no double
+  reservation / phantom in-flight).
+- Daytime derivative partial cancel is rejected before the wire instead of silently
+  cancelling the full quantity.
+- Ranking and overseas-balance parsers fail closed on a non-mapping row instead of
+  crashing or silently under-reporting; the order dedup store rejects a current-schema
+  file missing its required maps.
+
 ## 0.10.0 - 2026-10-15
 
 ### Added

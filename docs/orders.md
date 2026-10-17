@@ -144,6 +144,12 @@ kis.orders.reconcile(report.client_order_id)
 "상태 불명"으로 남깁니다(재전송 = 이중주문이니까). `reconcile` 은 그럴 때 **KIS 서버에 실제로
 조회**해서 접수/체결됐는지 상태를 확정합니다.
 
+기본(`refresh=False`)은 저장된 리포트가 있으면 그대로 돌려줍니다(타임아웃 복구용 보수적 기본값).
+**체결 수량을 측정**하려면(분할주문 shortfall 집계, 사후 확정) `reconcile(cid, refresh=True)` 로
+브로커를 다시 스캔해 **현재** 체결을 받아야 합니다 — 저장된 접수 직후 스냅샷(체결 0)을 그대로 쓰면
+미체결로 오인해 재주문 시 이중매수가 날 수 있습니다. CLI `kis order reconcile` 와 MCP `reconcile`
+도구는 항상 `refresh=True` 로 동작합니다.
+
 ## 예약·주간거래
 
 ```python

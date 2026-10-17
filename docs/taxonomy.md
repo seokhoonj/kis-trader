@@ -365,7 +365,7 @@ kis.account
 ```text
 kis.orders
 ├── open_orders()                 # 미체결 주문 통합 조회(계좌별 -> OpenOrders)
-├── reconcile(client_order_id)    # 미확정 주문 상태 재조회
+├── reconcile(client_order_id, *, refresh=False)  # 미확정 주문 상태 재조회(refresh=True 면 브로커 재스캔)
 ├── cancel(client_order_id, ...)  # 접수주문 취소(부분가능)
 └── modify(client_order_id, ...)  # 가격/수량 정정
 ```
