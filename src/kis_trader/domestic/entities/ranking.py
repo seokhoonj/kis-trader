@@ -305,6 +305,90 @@ class HouseTradeVolumeRanking:
 
 
 @dataclass(frozen=True, slots=True)
+class MarketCapRanking:
+    """시가총액 순위 한 항목(불변). ``rank`` 는 1부터의 순위.
+
+    ``market_cap`` 는 시가총액(KIS 단위 억원), ``listed_shares`` 는 상장주식수(주식 수),
+    ``market_cap_weight_ratio`` 는 전체 시가총액 중 그 종목의 비중(%)이다. ``change`` /
+    ``change_percent`` 는 하락이면 음수. 이 순위엔 누적 거래대금이 없다.
+    """
+
+    rank: int
+    symbol: str
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int                       # 누적 거래량(주식 수)
+    market_cap: Decimal               # 시가총액(억원)
+    listed_shares: int                # 상장주식수(주식 수)
+    market_cap_weight_ratio: Decimal  # 전체 시가총액 중 비중(%)
+    _raw: Mapping[str, Any] = field(
+        default_factory=_empty_raw, compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class DisparityRanking:
+    """이격도 순위 한 항목(불변). ``rank`` 는 1부터의 순위.
+
+    ``disparity_5`` / ``_10`` / ``_20`` / ``_60`` / ``_120`` 은 각각 5/10/20/60/120일 이동평균
+    대비 이격도(%)이다(현재가/이동평균 x100, 100 초과면 이동평균 위). 정렬 기준 일수와 상관없이
+    5개 이격도를 모두 담는다. ``change`` / ``change_percent`` 는 하락이면 음수. 이 순위엔 누적 거래대금이 없다.
+    """
+
+    rank: int
+    symbol: str
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int                       # 누적 거래량(주식 수)
+    disparity_5: Decimal              # 5일 이격도(%)
+    disparity_10: Decimal             # 10일 이격도(%)
+    disparity_20: Decimal             # 20일 이격도(%)
+    disparity_60: Decimal             # 60일 이격도(%)
+    disparity_120: Decimal            # 120일 이격도(%)
+    _raw: Mapping[str, Any] = field(
+        default_factory=_empty_raw, compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class QuoteBalanceRanking:
+    """호가잔량 순위 한 항목(불변). ``rank`` 는 1부터의 순위.
+
+    ``total_ask_residual`` / ``total_bid_residual`` 는 총매도/총매수 호가잔량(주식 수),
+    ``sell_residual_ratio`` / ``buy_residual_ratio`` 는 각각 매도/매수 잔량 비율(%)이다.
+    ``change`` / ``change_percent`` 는 하락이면 음수. 이 순위엔 누적 거래대금이 없다.
+    """
+
+    rank: int
+    symbol: str
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int                       # 누적 거래량(주식 수)
+    total_ask_residual: int           # 총매도 호가잔량(주식 수)
+    total_bid_residual: int           # 총매수 호가잔량(주식 수)
+    sell_residual_ratio: Decimal      # 매도잔량 비율(%)
+    buy_residual_ratio: Decimal       # 매수잔량 비율(%)
+    _raw: Mapping[str, Any] = field(
+        default_factory=_empty_raw, compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
 class AfterHoursRanking:
     """시간외 단일가 순위의 한 행(불변).
 

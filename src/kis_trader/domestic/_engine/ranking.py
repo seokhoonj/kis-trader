@@ -74,11 +74,14 @@ from ..entities.ranking import (
     AfterHoursRanking,
     BulkTradeCountRanking,
     CreditBalanceRanking,
+    DisparityRanking,
     DividendRanking,
     DomesticExecutionStrengthRanking,
     DomesticRankedStock,
     HouseTradeVolumeRanking,
+    MarketCapRanking,
     NearHighLowRanking,
+    QuoteBalanceRanking,
     ShortSaleRanking,
     TopViewedStock,
     TradingActivityRanking,
@@ -261,8 +264,9 @@ def fetch_trading_activity(
     return _parse_trading_activity(rows)
 
 
-def fetch_market_cap(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
-    """시가총액 순위. 최대 30건(다음조회 없음). 시가총액 값은 항목의 ``_raw['stck_avls']``."""
+def fetch_market_cap(transport: Transport, *, market: str) -> list[MarketCapRanking]:
+    """시가총액 순위. 시가총액/상장주식수/시총 비중을 담은 :class:`MarketCapRanking` 로 돌려준다.
+    최대 30건(다음조회 없음)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _MARKET_CAP_SCR,
@@ -272,14 +276,18 @@ def fetch_market_cap(transport: Transport, *, market: str) -> list[DomesticRanke
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
         "FID_VOL_CNT": "",
     }
-    return _fetch_ranking(transport, path=_MARKET_CAP_PATH, tr=_MARKET_CAP_TR, params=params)
+    rows = _fetch_rows(
+        transport, path=_MARKET_CAP_PATH, tr=_MARKET_CAP_TR, params=params, output_key="output"
+    )
+    return _parse_market_cap(rows)
 
 
 def fetch_disparity(
     transport: Transport, *, extreme: str, period: int, market: str
-) -> list[DomesticRankedStock]:
+) -> list[DisparityRanking]:
     """이격도 순위. ``extreme="highest"`` 이격도상위 / ``"lowest"`` 하위. ``period`` 이동평균 일수
-    (5/10/20/60/120). 이격도 값은 각 항목의 ``_raw['d{period}_dsrt']``(%). 최대 30건(다음조회 없음)."""
+    (5/10/20/60/120)는 정렬 기준일 뿐, 5/10/20/60/120일 이격도를 모두 담은 :class:`DisparityRanking`
+    으로 돌려준다. 최대 30건(다음조회 없음)."""
     if period not in _DISPARITY_PERIODS:
         raise KISUsageError(f"period 는 5/10/20/60/120 중 하나여야 한다: {period!r}")
     params = {
@@ -293,12 +301,16 @@ def fetch_disparity(
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",   # 가격 전체
         "FID_VOL_CNT": "",                      # 거래량 전체
     }
-    return _fetch_ranking(transport, path=_DISPARITY_PATH, tr=_DISPARITY_TR, params=params)
+    rows = _fetch_rows(
+        transport, path=_DISPARITY_PATH, tr=_DISPARITY_TR, params=params, output_key="output"
+    )
+    return _parse_disparity(rows)
 
 
-def fetch_quote_balance(transport: Transport, *, metric: str, market: str) -> list[DomesticRankedStock]:
+def fetch_quote_balance(transport: Transport, *, metric: str, market: str) -> list[QuoteBalanceRanking]:
     """호가잔량 순위. ``metric`` = net_buy(순매수잔량)/net_sell(순매도잔량)/buy_ratio(매수비율)/
-    sell_ratio(매도비율). 잔량 지표는 ``_raw`` (total_askp_rsqn/total_bidp_rsqn/...). 최대 30건."""
+    sell_ratio(매도비율). 총매도/총매수 잔량과 매도/매수 잔량비율을 담은 :class:`QuoteBalanceRanking`
+    으로 돌려준다. 최대 30건(다음조회 없음)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _QUOTE_BALANCE_SCR,
@@ -309,7 +321,10 @@ def fetch_quote_balance(transport: Transport, *, metric: str, market: str) -> li
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
         "FID_VOL_CNT": "",
     }
-    return _fetch_ranking(transport, path=_QUOTE_BALANCE_PATH, tr=_QUOTE_BALANCE_TR, params=params)
+    rows = _fetch_rows(
+        transport, path=_QUOTE_BALANCE_PATH, tr=_QUOTE_BALANCE_TR, params=params, output_key="output"
+    )
+    return _parse_quote_balance(rows)
 
 
 def fetch_execution_strength(
@@ -880,6 +895,66 @@ def _parse_house_trade_volume(rows: Sequence[Mapping[str, Any]]) -> list[HouseTr
                 sell_volume=required_int(row.get("seln_cnqn_smtn"), "seln_cnqn_smtn"),
                 net_volume=required_int(row.get("ntby_cnqn"), "ntby_cnqn"),
                 cumulative_trading_amount=optional_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def _parse_market_cap(rows: Sequence[Mapping[str, Any]]) -> list[MarketCapRanking]:
+    ranked: list[MarketCapRanking] = []
+    for row in rows:
+        core = _core_ranked_fields(row)
+        if core is None:  # 빈 행 skip
+            continue
+        ranked.append(
+            MarketCapRanking(
+                **core,
+                market_cap=required_decimal(row.get("stck_avls"), "stck_avls"),
+                listed_shares=required_int(row.get("lstn_stcn"), "lstn_stcn"),
+                market_cap_weight_ratio=required_decimal(
+                    row.get("mrkt_whol_avls_rlim"), "mrkt_whol_avls_rlim"
+                ),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def _parse_disparity(rows: Sequence[Mapping[str, Any]]) -> list[DisparityRanking]:
+    ranked: list[DisparityRanking] = []
+    for row in rows:
+        core = _core_ranked_fields(row)
+        if core is None:  # 빈 행 skip
+            continue
+        ranked.append(
+            DisparityRanking(
+                **core,
+                disparity_5=required_decimal(row.get("d5_dsrt"), "d5_dsrt"),
+                disparity_10=required_decimal(row.get("d10_dsrt"), "d10_dsrt"),
+                disparity_20=required_decimal(row.get("d20_dsrt"), "d20_dsrt"),
+                disparity_60=required_decimal(row.get("d60_dsrt"), "d60_dsrt"),
+                disparity_120=required_decimal(row.get("d120_dsrt"), "d120_dsrt"),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def _parse_quote_balance(rows: Sequence[Mapping[str, Any]]) -> list[QuoteBalanceRanking]:
+    ranked: list[QuoteBalanceRanking] = []
+    for row in rows:
+        core = _core_ranked_fields(row)
+        if core is None:  # 빈 행 skip
+            continue
+        # total_ntsl_bidp_rsqn 은 의미 불확실(순매도잔량?) -> 명명하지 않고 _raw 에 남겨둔다.
+        ranked.append(
+            QuoteBalanceRanking(
+                **core,
+                total_ask_residual=required_int(row.get("total_askp_rsqn"), "total_askp_rsqn"),
+                total_bid_residual=required_int(row.get("total_bidp_rsqn"), "total_bidp_rsqn"),
+                sell_residual_ratio=required_decimal(row.get("seln_rsqn_rate"), "seln_rsqn_rate"),
+                buy_residual_ratio=required_decimal(row.get("shnu_rsqn_rate"), "shnu_rsqn_rate"),
                 _raw=row,
             )
         )

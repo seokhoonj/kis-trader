@@ -13,10 +13,13 @@ import pytest
 
 from kis_trader import (
     BulkTradeCountRanking,
+    DisparityRanking,
     DomesticExecutionStrengthRanking,
     DomesticRankedStock,
     HouseTradeVolumeRanking,
     KISClient,
+    MarketCapRanking,
+    QuoteBalanceRanking,
     TradingActivityRanking,
     WatchlistRegistrationRanking,
 )
@@ -47,6 +50,12 @@ _CLUSTER_METRICS = {
     "tday_rltv": "128.5", "shnu_cnqn_smtn": "1850000", "seln_cnqn_smtn": "1620000",
     "inter_issu_reg_csnu": "1523", "shnu_cntg_csnu": "42", "seln_cntg_csnu": "37",
     "ntby_cnqn": "9800",
+    # 시장구조 클러스터(시총/이격도/호가잔량) 전용 지표 -- 라이브 응답에 모두 포함.
+    "stck_avls": "4340032", "lstn_stcn": "5969782550", "mrkt_whol_avls_rlim": "15.77",
+    "d5_dsrt": "101.20", "d10_dsrt": "102.50", "d20_dsrt": "103.42",
+    "d60_dsrt": "98.70", "d120_dsrt": "105.10",
+    "total_askp_rsqn": "54321", "total_bidp_rsqn": "12345",
+    "seln_rsqn_rate": "81.50", "shnu_rsqn_rate": "18.50", "total_ntsl_bidp_rsqn": "41976",
 }
 
 
@@ -168,18 +177,25 @@ def test_by_trading_activity_rejects_bad_metric():
         _client(fake).domestic.ranking.by_trading_activity(metric="bogus")  # type: ignore[arg-type]
 
 
-def test_by_market_cap_exposes_market_cap_in_raw():
-    fake = FakeTransport(response=_resp([_row(stck_avls="4340032", mrkt_whol_avls_rlim="15.77")]))
+def test_by_market_cap_types_market_cap_metrics():
+    fake = FakeTransport(response=_resp([_row(
+        stck_avls="4340032", lstn_stcn="5969782550", mrkt_whol_avls_rlim="15.77",
+    )]))
     ranked = _client(fake).domestic.ranking.by_market_cap()
     call = fake.calls[0]
     assert call["path"] == _MARKET_CAP
     assert call["tr_id"] == "FHPST01740000"
-    assert ranked[0]._raw["stck_avls"] == "4340032"            # 헤드라인 지표는 _raw
+    assert isinstance(ranked[0], MarketCapRanking)
     assert ranked[0].price == Decimal(72700)
+    assert ranked[0].market_cap == Decimal(4340032)            # 시가총액(억원)
+    assert ranked[0].listed_shares == 5969782550               # 상장주식수
+    assert ranked[0].market_cap_weight_ratio == Decimal("15.77")
 
 
 def test_by_disparity_defaults_to_highest_and_20day():
-    fake = FakeTransport(response=_resp([_row(d20_dsrt="103.42")]))
+    fake = FakeTransport(response=_resp([_row(
+        d5_dsrt="101.20", d10_dsrt="102.50", d20_dsrt="103.42", d60_dsrt="98.70", d120_dsrt="105.10",
+    )]))
     ranked = _client(fake).domestic.ranking.by_disparity()
     call = fake.calls[0]
     assert call["path"] == _DISPARITY
@@ -187,7 +203,13 @@ def test_by_disparity_defaults_to_highest_and_20day():
     assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20178"
     assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "0"       # highest
     assert call["params"]["FID_HOUR_CLS_CODE"] == "20"           # 기본 20일
-    assert ranked[0]._raw["d20_dsrt"] == "103.42"                # 이격도는 _raw
+    assert isinstance(ranked[0], DisparityRanking)
+    # 정렬 기준이 20일이어도 5개 이격도를 모두 담는다.
+    assert ranked[0].disparity_5 == Decimal("101.20")
+    assert ranked[0].disparity_10 == Decimal("102.50")
+    assert ranked[0].disparity_20 == Decimal("103.42")
+    assert ranked[0].disparity_60 == Decimal("98.70")
+    assert ranked[0].disparity_120 == Decimal("105.10")
 
 
 def test_by_disparity_lowest_and_period():
@@ -211,14 +233,23 @@ def test_by_disparity_rejects_bad_extreme():
 
 
 def test_by_quote_balance_defaults_to_net_buy():
-    fake = FakeTransport(response=_resp([_row(total_bidp_rsqn="12345")]))
+    fake = FakeTransport(response=_resp([_row(
+        total_askp_rsqn="54321", total_bidp_rsqn="12345",
+        seln_rsqn_rate="81.50", shnu_rsqn_rate="18.50", total_ntsl_bidp_rsqn="41976",
+    )]))
     ranked = _client(fake).domestic.ranking.by_quote_balance()
     call = fake.calls[0]
     assert call["path"] == _QUOTE_BALANCE
     assert call["tr_id"] == "FHPST01720000"
     assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20172"
     assert call["params"]["FID_RANK_SORT_CLS_CODE"] == "0"       # net_buy
-    assert ranked[0]._raw["total_bidp_rsqn"] == "12345"
+    assert isinstance(ranked[0], QuoteBalanceRanking)
+    assert ranked[0].total_ask_residual == 54321
+    assert ranked[0].total_bid_residual == 12345
+    assert ranked[0].sell_residual_ratio == Decimal("81.50")
+    assert ranked[0].buy_residual_ratio == Decimal("18.50")
+    # 의미 불확실한 total_ntsl_bidp_rsqn 은 명명하지 않고 _raw 에 남겨둔다.
+    assert ranked[0]._raw["total_ntsl_bidp_rsqn"] == "41976"
 
 
 def test_by_quote_balance_sort_variants():

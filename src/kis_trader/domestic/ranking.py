@@ -19,11 +19,14 @@ from .entities.ranking import (
     AfterHoursRanking,
     BulkTradeCountRanking,
     CreditBalanceRanking,
+    DisparityRanking,
     DividendRanking,
     DomesticExecutionStrengthRanking,
     DomesticRankedStock,
     HouseTradeVolumeRanking,
+    MarketCapRanking,
     NearHighLowRanking,
+    QuoteBalanceRanking,
     ShortSaleRanking,
     TopViewedStock,
     TradingActivityRanking,
@@ -117,20 +120,23 @@ class DomesticRankingQueries:
         각 항목의 ``cumulative_trading_amount`` 로 거래대금(원)을 함께 볼 수 있다."""
         return ranking_api.fetch_trading_activity(self._client.transport, metric=metric, market="KRX")
 
-    def by_market_cap(self) -> list[DomesticRankedStock]:
-        """시가총액 순위(최대 30건). 시가총액 값은 각 항목의 ``_raw['stck_avls']``."""
+    def by_market_cap(self) -> list[MarketCapRanking]:
+        """시가총액 순위(최대 30건). 시가총액(억원)·상장주식수·시총 비중을 담은
+        :class:`~kis_trader.domestic.entities.ranking.MarketCapRanking` 를 돌려준다."""
         return ranking_api.fetch_market_cap(self._client.transport, market="KRX")
 
-    def by_disparity(self, *, extreme: DisparityExtreme = "highest", period: int = 20) -> list[DomesticRankedStock]:
-        """이격도 순위. ``extreme="highest"`` 이격도 상위 / ``"lowest"`` 하위. ``period`` 는 이동평균
-        일수(5/10/20/60/120). 이격도 값은 각 항목의 ``_raw['d{period}_dsrt']``(%)(최대 30건)."""
+    def by_disparity(self, *, extreme: DisparityExtreme = "highest", period: int = 20) -> list[DisparityRanking]:
+        """이격도 순위. ``extreme="highest"`` 이격도 상위 / ``"lowest"`` 하위. ``period`` 는 정렬 기준
+        이동평균 일수(5/10/20/60/120)일 뿐, 5/10/20/60/120일 이격도(%)를 모두 담은
+        :class:`~kis_trader.domestic.entities.ranking.DisparityRanking` 를 돌려준다(최대 30건)."""
         return ranking_api.fetch_disparity(
             self._client.transport, extreme=extreme, period=period, market="KRX"
         )
 
-    def by_quote_balance(self, *, metric: QuoteBalanceMetric = "net_buy") -> list[DomesticRankedStock]:
+    def by_quote_balance(self, *, metric: QuoteBalanceMetric = "net_buy") -> list[QuoteBalanceRanking]:
         """호가잔량 순위. ``metric`` = ``"net_buy"`` 순매수잔량 / ``"net_sell"`` 순매도잔량 /
-        ``"buy_ratio"`` 매수비율 / ``"sell_ratio"`` 매도비율. 잔량 지표는 ``_raw``(최대 30건)."""
+        ``"buy_ratio"`` 매수비율 / ``"sell_ratio"`` 매도비율. 총매도/총매수 잔량과 매도/매수 잔량비율을
+        담은 :class:`~kis_trader.domestic.entities.ranking.QuoteBalanceRanking` 를 돌려준다(최대 30건)."""
         return ranking_api.fetch_quote_balance(self._client.transport, metric=metric, market="KRX")
 
     def by_execution_strength(self) -> list[DomesticExecutionStrengthRanking]:
