@@ -368,7 +368,7 @@ from .overseas.entities.orders import (
 )
 from .overseas.entities.product import OverseasProductInfo
 from .overseas.entities.quote import OverseasCurrentPrice
-from .overseas.entities.ranking import OverseasRankedStock
+from .overseas.entities.ranking import OverseasRankedStock, TurnoverRanking
 from .overseas.entities.search import OverseasStockScreen, OverseasStockScreenMatch
 from .overseas.entities.settlement import OverseasSettlementDate
 from .overseas.index import OverseasIndex
@@ -732,6 +732,7 @@ __all__ = [
     "Transport",
     "TransportTimeoutError",
     "TrendInterval",
+    "TurnoverRanking",
     "UnderlyingQuote",
     "UnderlyingSort",
     "VIEvent",

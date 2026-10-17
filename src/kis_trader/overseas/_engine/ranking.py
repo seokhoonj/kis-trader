@@ -27,7 +27,7 @@ from ..._internal._wire import (
 from ..._literals import Direction
 from ...errors import KISUsageError
 from ...transport import Transport
-from ..entities.ranking import OverseasRankedStock
+from ..entities.ranking import OverseasRankedStock, TurnoverRanking
 
 _TRADE_VOL = ("/uapi/overseas-stock/v1/ranking/trade-vol", "HHDFS76310010")
 _TRADE_AMOUNT = ("/uapi/overseas-stock/v1/ranking/trade-pbmn", "HHDFS76320010")
@@ -45,6 +45,27 @@ _UPDOWN_GUBN = {"gainers": "1", "losers": "0"}
 _HIGHLOW_GUBN = {"high": "1", "low": "0"}
 
 
+def _core_overseas_fields(row: Mapping[str, Any], rank: int) -> dict[str, Any]:
+    """순위 한 행의 공통 시세 필드(코드/이름/현재가/전일대비/거래량/거래대금)를 추출한다.
+
+    엔드포인트별 스키마 차이를 흡수한다 -- 이름은 ``name``/``ename`` 또는 ``knam``/``enam`` 로 오고,
+    거래대금(``tamt``)은 없을 수 있다. ``rank`` 는 호출부가 응답 단위로 정해(명시 rank 또는 행 순서) 넘긴다.
+    """
+    sign = str(row.get("sign", "")).strip()
+    return {
+        "rank": rank,
+        "exchange": str(row.get("excd", "")).strip(),
+        "symbol": str(row.get("symb", "")).strip(),
+        "name": str(row.get("name") or row.get("knam") or "").strip(),
+        "english_name": str(row.get("ename") or row.get("enam") or "").strip(),
+        "current_price": required_decimal(row.get("last"), "last"),
+        "change": _apply_change_sign(required_decimal(row.get("diff"), "diff"), sign),
+        "change_percent": _apply_change_sign(required_decimal(row.get("rate"), "rate"), sign),
+        "volume": required_int(row.get("tvol"), "tvol"),
+        "trading_amount": optional_decimal(row.get("tamt"), "tamt"),
+    }
+
+
 def _parse_ranking(
     rows: Sequence[Mapping[str, Any]],
 ) -> list[OverseasRankedStock]:
@@ -59,20 +80,28 @@ def _parse_ranking(
         symbol = str(row.get("symb", "")).strip()
         if not symbol:
             continue
-        sign = str(row.get("sign", "")).strip()
+        rank = required_int(row.get("rank"), "rank") if has_explicit_rank else len(ranked) + 1
+        ranked.append(OverseasRankedStock(**_core_overseas_fields(row, rank), _raw=row))
+    return ranked
+
+
+def _parse_turnover(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[TurnoverRanking]:
+    # 거래 회전율 순위(trade-turnover HHDFS76340000). 명시 rank 있음(라이브 확인 2026-10-16),
+    # 공통 시세 필드에 더해 거래회전율(tover)·상장주식수(shar). 거래대금(tamt)은 응답에 없어 None.
+    has_explicit_rank = any(str(r.get("rank") or "").strip() for r in rows)
+    ranked: list[TurnoverRanking] = []
+    for row in rows:
+        symbol = str(row.get("symb", "")).strip()
+        if not symbol:
+            continue
         rank = required_int(row.get("rank"), "rank") if has_explicit_rank else len(ranked) + 1
         ranked.append(
-            OverseasRankedStock(
-                rank=rank,
-                exchange=str(row.get("excd", "")).strip(),
-                symbol=symbol,
-                name=str(row.get("name") or row.get("knam") or "").strip(),
-                english_name=str(row.get("ename") or row.get("enam") or "").strip(),
-                current_price=required_decimal(row.get("last"), "last"),
-                change=_apply_change_sign(required_decimal(row.get("diff"), "diff"), sign),
-                change_percent=_apply_change_sign(required_decimal(row.get("rate"), "rate"), sign),
-                volume=required_int(row.get("tvol"), "tvol"),
-                trading_amount=optional_decimal(row.get("tamt"), "tamt"),
+            TurnoverRanking(
+                **_core_overseas_fields(row, rank),
+                turnover_ratio=required_decimal(row.get("tover"), "tover"),
+                shares_outstanding=required_int(row.get("shar"), "shar"),
                 _raw=row,
             )
         )
@@ -159,12 +188,19 @@ def fetch_by_execution_strength(transport: Transport, *, exchange: str) -> list[
     return _fetch_ranking(transport, path=path, tr=tr, params=params)
 
 
-def fetch_by_turnover(transport: Transport, *, exchange: str) -> list[OverseasRankedStock]:
+def fetch_by_turnover(transport: Transport, *, exchange: str) -> list[TurnoverRanking]:
     """한 거래소의 거래 회전율 순위."""
     path, tr = _TURNOVER
     params = {"EXCD": exchange, "NDAY": "0", "VOL_RANG": "0",
               "KEYB": "", "AUTH": "", "PRC1": "", "PRC2": ""}
-    return _fetch_ranking(transport, path=path, tr=tr, params=params)
+    resp = transport.request(
+        method="GET", path=path, tr_id=tr, params=dict(params), idempotent=True
+    )
+    _raise_if_error(resp)
+    rows = resp.body.get("output2")
+    if not isinstance(rows, (list, tuple)):             # 성공 응답인데 배열 아님 -> fail-closed
+        raise _missing_block_error("output2", resp)
+    return _parse_turnover(rows)
 
 
 def fetch_by_sharp_change(

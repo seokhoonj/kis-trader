@@ -42,3 +42,33 @@ class OverseasRankedStock:
 
     def __post_init__(self) -> None:
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
+class TurnoverRanking:
+    """해외주식 거래 회전율 순위의 한 행(불변). ``rank`` 는 KIS 가 준 순위.
+
+    :class:`OverseasRankedStock` 의 공통 시세 필드(거래소/코드/현재가/전일대비/거래량)에 더해 회전율
+    지표(``turnover_ratio`` 거래회전율 %, ``shares_outstanding`` 상장주식수)를 담는다. 이 순위 응답에는
+    거래대금(``tamt``)이 없어 ``trading_amount`` 는 항상 None. ``change`` / ``change_percent`` 는 하락이면
+    음수. :class:`~kis_trader.overseas.ranking.OverseasRankingQueries` (``kis.overseas.ranking``)가 돌려준다.
+    """
+
+    rank: int
+    exchange: str                     # 거래소코드(excd)
+    symbol: str                       # 종목코드(symb)
+    name: str                         # 종목명(name)
+    english_name: str                 # 영문 종목명(ename)
+    current_price: Decimal            # 현재가(last)
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int                       # 거래량(tvol)
+    trading_amount: Decimal | None    # 거래대금(tamt); 이 순위엔 없어 항상 None
+    turnover_ratio: Decimal           # 거래회전율 %(tover)
+    shares_outstanding: int           # 상장주식수(shar)
+    _raw: Mapping[str, Any] = field(
+        default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

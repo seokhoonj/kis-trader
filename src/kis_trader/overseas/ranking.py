@@ -16,7 +16,7 @@ from ._engine import ranking as overseas_ranking_api
 
 if TYPE_CHECKING:
     from ..client import KISClient
-    from .entities.ranking import OverseasRankedStock
+    from .entities.ranking import OverseasRankedStock, TurnoverRanking
 
 
 class OverseasRankingQueries:
@@ -61,7 +61,7 @@ class OverseasRankingQueries:
         """한 거래소의 체결강도 순위."""
         return overseas_ranking_api.fetch_by_execution_strength(self._client.transport, exchange=exchange)
 
-    def by_turnover(self, *, exchange: str) -> list[OverseasRankedStock]:
+    def by_turnover(self, *, exchange: str) -> list[TurnoverRanking]:
         """한 거래소의 거래 회전율 순위."""
         return overseas_ranking_api.fetch_by_turnover(self._client.transport, exchange=exchange)
 

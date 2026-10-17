@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader import KISClient, OverseasRankedStock, OverseasRankingQueries
+from kis_trader import KISClient, OverseasRankedStock, OverseasRankingQueries, TurnoverRanking
 from kis_trader.errors import KISError
 from kis_trader.transport import RawResponse
 
@@ -162,7 +162,8 @@ def test_by_change_gubn_and_bad_direction():
 
 def test_more_overseas_rankings_route():
     row = [{"rank": "1", "excd": "NAS", "symb": "T", "name": "n", "ename": "N", "last": "1",
-            "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
+            "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1",
+            "tover": "1", "shar": "1"}]   # tover/shar: turnover 전용 필드(그 외 순위는 무시)
     cases = [
         ("by_volume_surge", "/uapi/overseas-stock/v1/ranking/volume-surge", "HHDFS76270000", "MINX"),
         ("by_execution_strength", "/uapi/overseas-stock/v1/ranking/volume-power", "HHDFS76280000", "NDAY"),
@@ -174,6 +175,31 @@ def test_more_overseas_rankings_route():
         assert fake.calls[0]["path"] == path
         assert fake.calls[0]["tr_id"] == tr
         assert key in fake.calls[0]["params"]
+
+
+def test_by_turnover_maps_dedicated_entity():
+    # 거래 회전율 순위는 전용 엔티티(TurnoverRanking). _raw 실키: tover(회전율)·shar(상장주식수),
+    # tamt 없음 -> trading_amount None. 명시 rank 있음(라이브 2026-10-16 ranking-values.txt).
+    rows = [{"rank": "1", "excd": "NAS", "symb": "TSLA", "name": "테슬라", "ename": "TESLA",
+             "last": "250.5", "sign": "5", "diff": "5.5", "rate": "2.24", "tvol": "120000000",
+             "tover": "0.37", "shar": "3180000000"}]
+    fake = FakeTransport(response=_one(rows))
+    ranked = _client(fake).overseas.ranking.by_turnover(exchange="NAS")
+    assert isinstance(ranked[0], TurnoverRanking)
+    r = ranked[0]
+    assert r.rank == 1
+    assert r.exchange == "NAS"
+    assert r.symbol == "TSLA"
+    assert r.name == "테슬라" and r.english_name == "TESLA"
+    assert r.current_price == Decimal("250.5")
+    assert r.change == Decimal("-5.5")                   # sign 5 -> 하락
+    assert r.volume == 120000000
+    assert r.trading_amount is None                      # tamt 없음
+    assert r.turnover_ratio == Decimal("0.37")           # tover 거래회전율(%)
+    assert r.shares_outstanding == 3180000000            # shar 상장주식수
+    assert r._raw["tover"] == "0.37"
+    assert fake.calls[0]["path"] == "/uapi/overseas-stock/v1/ranking/trade-turnover"
+    assert fake.calls[0]["tr_id"] == "HHDFS76340000"
 
 
 def test_price_fluct_and_new_highlow_gubn_codes():
