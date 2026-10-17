@@ -190,7 +190,7 @@ def _fake_kis(*, quote=None, overseas_quote=None, index_quote=None, hits=None, r
         ),
     )
     orders_ns = SimpleNamespace(
-        reconcile=lambda cid: (None if reconcile_report == "__unset__" else reconcile_report),
+        reconcile=lambda cid, *, refresh=False: (None if reconcile_report == "__unset__" else reconcile_report),
     )
     return SimpleNamespace(
         domestic=domestic, overseas=overseas, account=account_ns, orders=orders_ns,

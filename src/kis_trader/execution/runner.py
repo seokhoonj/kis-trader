@@ -154,16 +154,25 @@ def execute_twap(
             pending_reconcile_id: str | None = None
             if reconcile:
                 try:
-                    confirmed = kis.orders.reconcile(report.client_order_id)
+                    # refresh=True: 접수 직후 저장된 NEW/체결 0 스냅샷을 단락 반환하지 않고 브로커
+                    # 일별체결을 재스캔해 **실제** 체결을 받는다. 안 그러면 체결을 0 으로 오인해
+                    # shortfall 이 전량이 되고, 사용자가 그걸 재주문하면 이중매수가 난다.
+                    confirmed = kis.orders.reconcile(report.client_order_id, refresh=True)
                 except KISError:
-                    # 재조회(읽기) 실패는 이미 접수된 이 슬라이스를 결과에서 버리지 않는다 -- 미확정
-                    # report 를 그대로 두되, client_order_id 를 실어 pending_reconcile_ids 에 넣는다.
-                    # 안 그러면 미확정(체결 0 스냅샷) 슬라이스가 '확정 성공'으로 집계돼 사후 재조회
-                    # 목록에서 빠지고, 사용자가 shortfall 을 재주문하면 이중매수가 날 수 있다.
+                    # 재조회(읽기) 실패(타임아웃/스로틀 등) -> 체결 불명.
                     confirmed = None
-                    pending_reconcile_id = report.client_order_id
                 if confirmed is not None:
                     report = confirmed
+                else:
+                    # 재조회가 모호(0건 -> None)하거나 실패 -> 체결 여부 불명. 이미 접수된 이 슬라이스를
+                    # 버리지 않고 client_order_id 를 실어 pending_reconcile_ids 에 넣는다. 미확정(체결 0
+                    # 스냅샷) 슬라이스를 '확정 성공'으로 집계하면 사후 재조회 목록에서 빠지고, 사용자가
+                    # shortfall 을 재주문하면 이중매수가 난다.
+                    pending_reconcile_id = report.client_order_id
+            else:
+                # reconcile 비활성: 접수 직후 스냅샷(NEW/체결 0)은 체결 불명이므로 pending 으로 돌린다
+                # (체결 0 으로 단정해 shortfall 을 부풀리지 않는다 -- 위와 같은 이중매수 방지).
+                pending_reconcile_id = report.client_order_id
             outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, report, None, client_order_id=pending_reconcile_id))
     except KeyboardInterrupt:
         pass  # 남은 슬라이스 중단, 부분 결과 반환(이미 낸 시장가 주문은 체결됨)

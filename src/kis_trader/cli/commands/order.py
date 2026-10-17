@@ -372,8 +372,11 @@ def cmd_twap(kis: KISClient, args: Namespace, *, is_tty: bool | None = None,
 
 
 def cmd_reconcile(kis: KISClient, args: Namespace) -> Any:
-    """접수 여부가 불확실한 주문의 실제 상태를 확정한다. 재전송하지 않는다."""
-    return kis.orders.reconcile(args.client_order_id)
+    """접수 여부가 불확실한 주문의 실제 상태를 확정한다. 재전송하지 않는다.
+
+    ``refresh=True`` 로 브로커를 실제로 재스캔한다 -- 저장된 접수 스냅샷(체결 0)이 아니라 현재 체결
+    상태를 돌려준다(그렇지 않으면 사용자가 체결된 주문을 미체결로 오인해 재주문할 수 있다)."""
+    return kis.orders.reconcile(args.client_order_id, refresh=True)
 
 
 def cmd_modify(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:

@@ -377,6 +377,28 @@ def test_cancel_survives_store_restart_via_persisted_org_number(tmp_path):
     assert call["body"]["ORGN_ODNO"] == "0000117057"
 
 
+def test_reconcile_refresh_rescans_broker_for_fills_but_default_short_circuits():
+    """P0 회귀 방지: place 는 NEW/filled=0 을 저장한다. 그 사이 브로커에서 체결되면, 체결을 측정하는
+    쪽(TWAP shortfall·MCP/CLI 사후확정)은 실제 체결을 봐야 한다. ``refresh`` 없이는 저장된 NEW/0 을
+    단락 반환하고(기본값 보존, 브로커 미조회), ``refresh=True`` 면 일별체결을 재스캔해 실제 체결을
+    돌려준다 -- 단락이 체결 0 을 영구 보고해 shortfall 전량 재주문(이중매수)을 유발하던 결함을 막는다."""
+    fake = FakeTransport(by_path={_ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
+                                  _DAILY_CCLD: _daily_orders_response([_daily_order_row()])})
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    placed = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="twap-1")
+    assert placed.status is OrderStatus.NEW and placed.filled_quantity == Decimal(0)
+    # 기본(refresh 생략): 저장 스냅샷 단락 -- 브로커(_DAILY_CCLD)를 조회하지 않는다.
+    cached = kis.orders.reconcile("twap-1")
+    assert cached is not None and cached.filled_quantity == Decimal(0)
+    assert not any(c["path"] == _DAILY_CCLD for c in fake.calls)
+    # refresh=True: 브로커 일별체결 재스캔 -> 실제 체결(10)을 돌려준다.
+    fresh = kis.orders.reconcile("twap-1", refresh=True)
+    assert any(c["path"] == _DAILY_CCLD for c in fake.calls)
+    assert fresh is not None and fresh.filled_quantity == Decimal(10)
+    assert fresh.order_id == placed.order_id
+
+
 def test_reconcile_of_change_queries_broker_fresh_then_clears_the_stuck_change():
     """변경(정정/취소)이 타임아웃·스로틀로 in-flight 로 박히면, 그 request_id 의 reconcile 은 원주문의
     **현재** 상태를 브로커에서 다시 조회해(저장된 낡은 리포트를 단락 반환하지 않는다) 1건으로 확정되면

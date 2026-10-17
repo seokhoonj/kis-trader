@@ -21,11 +21,19 @@ def _scheduled_at(hour, minute):
     return datetime(2026, 8, 31, hour, minute, tzinfo=_KST)
 
 
-def _report(cid, filled, price):
+def _report(cid, filled, price, *, status=OrderStatus.FILLED):
     return ExecutionReport(
         client_order_id=cid, order_id="O" + cid, symbol="005930", side="buy",
-        status=OrderStatus.FILLED, filled_quantity=Decimal(filled),
+        status=status, filled_quantity=Decimal(filled),
         average_price=None if price is None else Decimal(price), recorded_at=_scheduled_at(10, 0))
+
+
+def _placed(cid):
+    """place 현실: 접수(NEW)됐고 체결은 아직 0 -- 실제 체결은 이후 reconcile 로 확인한다."""
+    return _report(cid, 0, None, status=OrderStatus.NEW)
+
+
+_UNSET = object()
 
 
 class _Stock:
@@ -36,37 +44,53 @@ class _Stock:
         self._raise = raise_exc
         self._prices = prices                # per-slice fill price override (list) or None
         self._n = 0
+        self.placed: dict[str, tuple] = {}   # cid -> (체결수량, 단가) -- reconcile 가 읽는 '브로커 진실'
 
-    def buy(self, *, quantity):
+    def _place(self, action, quantity):
         self._n += 1
-        self._log.append(("buy", quantity))
+        self._log.append((action, quantity))
         if self._raise is not None:
             raise self._raise
         if self._n in self._reject:
             raise OrderRejectedError("거부", rt_cd="1", msg_cd="X", msg1="거부")
         if self._n in self._timeout:
             raise OrderTimeoutError("타임아웃", client_order_id=f"c{self._n}")
+        cid = f"c{self._n}"
         price = 70000 if self._prices is None else self._prices[self._n - 1]
-        return _report(f"c{self._n}", quantity, price)
+        self.placed[cid] = (Decimal(quantity), price)   # 브로커가 이 수량을 체결할 것(reconcile 가 확인)
+        return _placed(cid)                              # place 는 NEW/0 만 돌려준다(현실)
+
+    def buy(self, *, quantity):
+        return self._place("buy", quantity)
 
     def sell(self, *, quantity):
-        self._n += 1
-        self._log.append(("sell", quantity))
-        return _report(f"c{self._n}", quantity, 70000)
+        return self._place("sell", quantity)
 
 
 class _Orders:
-    def __init__(self, confirm=None):
-        self._confirm = confirm          # reconcile return value (None -> keep place report)
+    """가짜 주문 네임스페이스. 기본은 stock.placed 에서 브로커 체결을 재구성해 돌려준다(refresh 재스캔
+    모사). ``confirm`` 을 명시하면(``None`` 포함) 그 값을 돌려준다 -- None 은 '모호' 경로 테스트용."""
 
-    def reconcile(self, cid):
-        return self._confirm
+    def __init__(self, stock=None, *, confirm=_UNSET):
+        self._stock = stock
+        self._confirm = confirm
+
+    def reconcile(self, cid, *, refresh=False):
+        if self._confirm is not _UNSET:
+            return self._confirm
+        if self._stock is None:
+            return None
+        entry = self._stock.placed.get(cid)
+        if entry is None:
+            return None
+        qty, price = entry
+        return _report(cid, qty, price)
 
 
 class _Kis:
     def __init__(self, stock, *, orders=None):
         self._stock = stock
-        self.orders = orders or _Orders()
+        self.orders = orders if orders is not None else _Orders(stock)
 
     class _Dom:
         def __init__(self, stock):
@@ -118,7 +142,7 @@ def test_run_routes_sell_schedule_to_stock_sell():
 def test_reconcile_read_failure_keeps_submitted_slice():
     # 재조회(읽기)가 일시적 KISError 를 내도 이미 접수된 슬라이스는 결과에 남아야 한다(폐기/크래시 금지).
     class _RaisingOrders:
-        def reconcile(self, cid):
+        def reconcile(self, cid, *, refresh=False):
             raise KISUsageError("일시적 재조회 실패")
 
     log: list = []
@@ -174,6 +198,28 @@ def test_run_reconcile_replaces_place_report():
                                              duration="10m", slices=1, now=_scheduled_at(10, 0)),
                           now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
     assert result.outcomes[0].report is confirmed        # reconcile snapshot won over the place report
+
+
+def test_run_reconcile_disabled_marks_every_slice_pending():
+    # reconcile=False 면 접수 직후 NEW/0 스냅샷만 있고 체결은 불명 -> 모든 슬라이스를 pending 으로 돌려
+    # shortfall 에서 뺀다. '체결 0 확정'으로 집계하면 사용자가 shortfall(전량)을 재주문해 이중매수.
+    stock = _Stock([])
+    result = execute_twap(_Kis(stock), _sched(), reconcile=False,
+                          now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
+    assert result.filled_quantity == Decimal(0)              # 확정 체결 없음(전부 미확정)
+    assert result.pending_quantity == Decimal(100)
+    assert result.shortfall == Decimal(0)                    # 전량 pending -> 미설명 갭 0(재주문 유발 안 함)
+    assert len(result.pending_reconcile_ids) == 3
+
+
+def test_run_reconcile_ambiguous_none_marks_slice_pending():
+    # refresh 재조회가 0건(모호 -> None)이면 체결 여부 불명 -> pending(확정 0체결로 집계하지 않는다).
+    stock = _Stock([])
+    result = execute_twap(_Kis(stock, orders=_Orders(confirm=None)), _sched(),
+                          now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
+    assert result.filled_quantity == Decimal(0)
+    assert result.pending_quantity == Decimal(100)
+    assert len(result.pending_reconcile_ids) == 3
 
 
 def test_run_systemic_error_propagates_with_partial_note():

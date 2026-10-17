@@ -480,8 +480,11 @@ def order_preview(
 
 
 def reconcile(kis: KISClient, *, client_order_id: str) -> dict[str, Any]:
-    """결과 불명 주문의 사후 확정(유일한 사후 진실). 미해소면 in-flight 로 남긴다."""
-    report = kis.orders.reconcile(client_order_id)
+    """결과 불명 주문의 사후 확정(유일한 사후 진실). 미해소면 in-flight 로 남긴다.
+
+    ``refresh=True`` 로 브로커를 **실제로** 재스캔한다 -- 사후확정 도구는 저장된 접수 스냅샷(체결 0)을
+    진실로 돌려주면 안 된다(그걸 보고 재주문하면 이중매수)."""
+    report = kis.orders.reconcile(client_order_id, refresh=True)
     return {
         "client_order_id": client_order_id,
         "resolved": report is not None,

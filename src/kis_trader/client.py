@@ -59,9 +59,14 @@ class OrdersNamespace:
     def __init__(self, client: KISClient) -> None:
         self._client = client
 
-    def reconcile(self, client_order_id: str) -> ExecutionReport | None:
-        """접수 여부가 불확실한 주문을 KIS 서버에 실제로 조회해 상태를 확정한다(불확실하면 미확정 유지)."""
-        return self._client._reconcile(client_order_id)
+    def reconcile(self, client_order_id: str, *, refresh: bool = False) -> ExecutionReport | None:
+        """접수 여부가 불확실한 주문을 KIS 서버에 실제로 조회해 상태를 확정한다(불확실하면 미확정 유지).
+
+        ``refresh=True`` 면 저장된 리포트가 있어도(접수 직후 ``NEW``/체결 0 스냅샷이라도) 단락하지 않고
+        브로커를 다시 스캔해 **현재** 체결 상태를 돌려준다 -- 체결을 측정하는 쪽(분할주문 shortfall,
+        사후확정)은 이걸 써야 저장된 체결 0 을 진실로 오인해 재주문(이중매수)하지 않는다. 기본
+        ``refresh=False`` 는 저장 리포트를 단락 반환한다(타임아웃 복구용 보수적 기본값)."""
+        return self._client._reconcile(client_order_id, refresh=refresh)
 
     def cancel(
         self, client_order_id: str, *, quantity: Numeric | None = None, request_id: str | None = None
@@ -398,9 +403,9 @@ class KISClient:
                     self._domestic_index = load_domestic_index(fetch=self._master_fetch)
         return self._domestic_index
 
-    def _reconcile(self, client_order_id: str) -> ExecutionReport | None:
+    def _reconcile(self, client_order_id: str, *, refresh: bool = False) -> ExecutionReport | None:
         """미확인 주문(타임아웃 등)의 실제 상태를 재조회한다 -- 주문 엔진에 위임(``kis.orders.reconcile``)."""
-        return self._order_engine.reconcile(client_order_id)
+        return self._order_engine.reconcile(client_order_id, refresh=refresh)
 
     def _change_order(
         self, client_order_id: str, *, action: ChangeAction, quantity: Numeric | None,

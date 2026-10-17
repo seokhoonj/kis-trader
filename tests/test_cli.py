@@ -206,8 +206,8 @@ class _Orders:
     def __init__(self, log):
         self._log = log
 
-    def reconcile(self, client_order_id):
-        self._log.append(("reconcile", client_order_id))
+    def reconcile(self, client_order_id, *, refresh=False):
+        self._log.append(("reconcile", client_order_id, refresh))
 
     def modify(self, client_order_id, *, limit_price, quantity=None):
         self._log.append(("modify", client_order_id, limit_price, quantity)); return "REPORT"
@@ -1167,7 +1167,7 @@ def test_order_reconcile_never_resends():
     args = _args(["order", "reconcile", "abc-123"])
     kis = StubKis()
     assert args.func(kis, args) is None
-    assert kis.log == [("reconcile", "abc-123")]
+    assert kis.log == [("reconcile", "abc-123", True)]   # refresh=True: 브로커 재스캔(캐시 단락 금지)
 
 
 # --- 오류 번역 --------------------------------------------------------------

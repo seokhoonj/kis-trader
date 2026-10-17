@@ -368,7 +368,7 @@ class OrderEngine:
             build_request=builder,
         )
 
-    def reconcile(self, client_order_id: str, *, _force_refresh: bool = False) -> ExecutionReport | None:
+    def reconcile(self, client_order_id: str, *, refresh: bool = False) -> ExecutionReport | None:
         """미확인 주문(타임아웃 등)의 실제 상태를 브로커에 재조회한다 -- **보수적**. ``kis.orders.reconcile``.
 
         완료 리포트가 있으면 반환. in-flight 면 저장된 주문 종류에 따라 확인처를 고른다: 국내 즉시
@@ -382,7 +382,8 @@ class OrderEngine:
         반환, 모호(``None``)하거나 재조회 실패면 해제하지 않고 그대로 올린다(미확인을 확인으로
         둔갑시키지 않는다 -- 이 경우 변경은 in-flight 로 남으니 브로커에서 수동 확인하라). 원주문
         자산군이 reconcile 미지원(채권·해외선물옵션)이면 :class:`~kis_trader.errors.KISUsageError`.
-        (``_force_refresh`` 는 이 ChangeAction 경로가 캐시 단락을 건너뛰려고 쓰는 내부 플래그다.)
+        ``refresh=True`` 면 저장된 완료 리포트가 있어도 단락하지 않고 브로커를 다시 스캔해 **현재**
+        상태를 돌려준다(체결 측정·사후확정용; 아래 ChangeAction 경로도 이 플래그로 원주문을 재스캔한다).
         """
         cano, product_code = self._require_account()
         # 해외 주문의 미확인(in-flight) 재조회는 국내 일별체결조회가 아니라 해외 체결내역으로 확인해야
@@ -394,7 +395,7 @@ class OrderEngine:
             # 수량·가격 변경 또는 새 ODNO). 그래서 이 변경 request_id 가 아니라 원주문을 재조회한다 --
             # 단, 원주문엔 접수 당시 저장 리포트가 항상 있으므로(submit_change 가 확정 원주문만 허용)
             # 그냥 reconcile(원) 을 부르면 캐시가 단락 반환돼 낡은 상태를 진실로 돌려주고 만다.
-            # _force_refresh 로 캐시를 건너뛰고 브로커를 실제로 다시 스캔한다:
+            # refresh 로 캐시를 건너뛰고 브로커를 실제로 다시 스캔한다:
             #   - 1건으로 확정(ExecutionReport)되면 변경이 반영된 현재 진실이므로 이 변경의 in-flight
             #     를 해제하고(데드락 해소) 그 리포트를 돌려준다.
             #   - 모호(0건 None: 예를 들어 정정으로 수량·단가가 바뀌어 원 지문과 더 안 맞음)하거나 재조회
@@ -402,7 +403,7 @@ class OrderEngine:
             #     척하지 않는다(reconcile 이 유일한 사후 진실이고 캐시를 진실로 위장하지 않는다). 변경은
             #     in-flight 로 남고 사용자는 브로커(HTS/MTS)로 수동 확인한다.
             try:
-                fresh = self.reconcile(fingerprint.original_client_order_id, _force_refresh=True)
+                fresh = self.reconcile(fingerprint.original_client_order_id, refresh=True)
             except KISUsageError:
                 # 원주문 자산군(채권·해외선물옵션)이 reconcile 미지원 -> 변경 접수 여부도 자동 확인
                 # 불가. 조용히 해제하지 않고(미확인을 확인으로 둔갑 금지) 수동 확인 경로를 안내한다.
@@ -419,22 +420,25 @@ class OrderEngine:
                 return overseas_reserved_orders_api.reconcile_asia_reserved_order(
                     self._transport, self._store, client_order_id,
                     cano=cano, product_code=product_code, environment=self._environment,
+                    force_refresh=refresh,
                 )
             if fingerprint.exchange == "overseas-reserved":  # bare "overseas-reserved" 태그 = 미국 예약
                 return overseas_reserved_orders_api.reconcile_us_reserved_order(
                     self._transport, self._store, client_order_id,
                     cano=cano, product_code=product_code, environment=self._environment,
+                    force_refresh=refresh,
                 )
             return reserved_orders_api.reconcile_reserved_order(
                 self._transport, self._store, client_order_id,
                 cano=cano, product_code=product_code, environment=self._environment,
+                force_refresh=refresh,
             )
         if isinstance(fingerprint, ImmediateOrderFingerprint) and \
                 overseas_orders_engine.is_overseas_exchange(fingerprint.exchange):
             return overseas_orders_engine.reconcile(
                 self._transport, self._store, client_order_id,
                 cano=cano, product_code=product_code, environment=self._environment,
-                force_refresh=_force_refresh,
+                force_refresh=refresh,
             )
         if isinstance(fingerprint, ImmediateOrderFingerprint) and \
                 (fingerprint.region, fingerprint.asset_class) == ("domestic", "derivative"):
@@ -442,7 +446,7 @@ class OrderEngine:
             return derivative_orders_engine.reconcile(
                 self._transport, self._store, client_order_id,
                 cano=cano, product_code=product_code, environment=self._environment,
-                force_refresh=_force_refresh,
+                force_refresh=refresh,
             )
         if isinstance(fingerprint, ImmediateOrderFingerprint) and \
                 (fingerprint.region, fingerprint.asset_class) == ("domestic", "bond"):
@@ -465,7 +469,7 @@ class OrderEngine:
         return orders_engine.reconcile(
             self._transport, self._store, client_order_id,
             cano=cano, product_code=product_code, environment=self._environment,
-            force_refresh=_force_refresh,
+            force_refresh=refresh,
         )
 
     def place_reserved_order(

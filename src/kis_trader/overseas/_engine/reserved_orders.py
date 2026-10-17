@@ -411,6 +411,7 @@ def _extract_asia_reserved(body: Mapping[str, Any]) -> tuple[str, str | None]:
 def reconcile_us_reserved_order(
     transport: Transport, store: OrderStore, client_order_id: str, *,
     cano: str, product_code: str, environment: Environment, now: datetime | None = None,
+    force_refresh: bool = False,
 ) -> ExecutionReport | None:
     """미확인 미국 해외예약주문을 **예약주문조회**로 재조회한다 -- 보수적. 완료 리포트가 있으면 반환.
     in-flight 면 최근 창의 예약을 지문으로 매칭: 정확히 1건이면 확정, 0건이면 ``None``(재전송 금지 유지),
@@ -422,13 +423,14 @@ def reconcile_us_reserved_order(
         )
     return _reconcile_reserved(
         transport, store, client_order_id, cano=cano, product_code=product_code,
-        market="US", now=now,
+        market="US", now=now, force_refresh=force_refresh,
     )
 
 
 def reconcile_asia_reserved_order(
     transport: Transport, store: OrderStore, client_order_id: str, *,
     cano: str, product_code: str, environment: Environment, now: datetime | None = None,
+    force_refresh: bool = False,
 ) -> ExecutionReport | None:
     """미확인 아시아 해외예약주문을 아시아 예약주문조회(TTTS3014R)로 재조회한다 -- 매칭 규칙은
     :func:`reconcile_us_reserved_order` 와 같은 보수적 계약(정확히 1건 확정 / 0건 ``None`` /
@@ -440,18 +442,20 @@ def reconcile_asia_reserved_order(
         )
     return _reconcile_reserved(
         transport, store, client_order_id, cano=cano, product_code=product_code,
-        market="ASIA", now=now,
+        market="ASIA", now=now, force_refresh=force_refresh,
     )
 
 
 def _reconcile_reserved(
     transport: Transport, store: OrderStore, client_order_id: str, *,
     cano: str, product_code: str, market: Literal["US", "ASIA"], now: datetime | None,
+    force_refresh: bool = False,
 ) -> ExecutionReport | None:
     """미국/아시아 공용 예약 재조회 코어 -- 완료 리포트 우선, in-flight 면 최근 창을 지문 매칭.
-    확정 리포트엔 행의 접수일자(RSVN_ORD_RCIT_DT)를 실어 이후 취소(아시아)가 재조회 없이 가능하다."""
+    확정 리포트엔 행의 접수일자(RSVN_ORD_RCIT_DT)를 실어 이후 취소(아시아)가 재조회 없이 가능하다.
+    ``force_refresh`` 면 저장 리포트가 있어도 단락하지 않고 예약주문조회를 다시 스캔한다(사후확정)."""
     prior = store.report_for(client_order_id)
-    if prior is not None:
+    if prior is not None and not force_refresh:
         return prior
     fingerprint = store.fingerprint_for(client_order_id)
     if fingerprint is None:
