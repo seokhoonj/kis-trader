@@ -724,11 +724,11 @@ def fetch_futures_market_schedule(transport: Transport) -> FuturesMarketSchedule
 
 
 def fetch_news(
-    transport: Transport, *, symbol: str | None = None, date_: str | date | None = None
+    transport: Transport, *, symbol: str | None = None, on_date: str | date | None = None
 ) -> list[NewsHeadline]:
-    """시황/공시 뉴스 제목 피드(최신순). ``symbol`` 을 주면 그 종목 관련만, ``date_`` 를 주면 그 날짜.
+    """시황/공시 뉴스 제목 피드(최신순). ``symbol`` 을 주면 그 종목 관련만, ``on_date`` 를 주면 그 날짜.
     둘 다 없으면 전체 최근."""
-    input_date = "" if date_ is None else _to_yyyymmdd(date_, "date_")
+    input_date = "" if on_date is None else _to_yyyymmdd(on_date, "on_date")
     params = {
         "FID_NEWS_OFER_ENTP_CODE": "",
         "FID_COND_MRKT_CLS_CODE": "",

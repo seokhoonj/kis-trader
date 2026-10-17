@@ -146,10 +146,10 @@ def _news_timestamp(day: object, time: object) -> datetime:
 
 def fetch_news(
     transport: Transport, *, country: str = "", exchange: str = "", symbol: str = "",
-    date_: str | date | None = None, time: str = "", category: str = "",
+    on_date: str | date | None = None, time: str = "", category: str = "",
 ) -> list[OverseasNewsHeadline]:
     """해외뉴스 종합 제목 피드를 연속조회한다."""
-    input_date = "" if date_ is None else _to_yyyymmdd(date_, "date_")
+    input_date = "" if on_date is None else _to_yyyymmdd(on_date, "on_date")
     params = {"INFO_GB": "", "CLASS_CD": category, "NATION_CD": country,
               "EXCHANGE_CD": exchange, "SYMB": symbol, "DATA_DT": input_date,
               "DATA_TM": time, "CTS": ""}
@@ -186,10 +186,10 @@ def fetch_news(
 
 def fetch_breaking_news(
     transport: Transport, *, symbol: str = "", title: str = "",
-    date_: str | date | None = None, time: str = "",
+    on_date: str | date | None = None, time: str = "",
 ) -> list[NewsHeadline]:
     """해외속보 제목 피드(최대 100건)."""
-    input_date = "" if date_ is None else _to_yyyymmdd(date_, "date_")
+    input_date = "" if on_date is None else _to_yyyymmdd(on_date, "on_date")
     resp = transport.request(
         method="GET", path=_BREAKING_NEWS_PATH, tr_id=_BREAKING_NEWS_TR,
         params={"FID_NEWS_OFER_ENTP_CODE": "0", "FID_COND_SCR_DIV_CODE": "11801",

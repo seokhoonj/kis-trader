@@ -32,7 +32,7 @@ def _news_response(*, tr_cont=""):
 
 def test_overseas_news_maps_filters_and_paginates():
     client = _client(_news_response(tr_cont="M"), _news_response())
-    headlines = client.overseas.news(country="US", symbol="AAPL", date_="20240510")
+    headlines = client.overseas.news(country="US", symbol="AAPL", on_date="20240510")
     assert isinstance(headlines[0], OverseasNewsHeadline)
     assert headlines[0].timestamp.hour == 9
     assert headlines[0].title == "Headline"
@@ -48,7 +48,7 @@ def test_overseas_news_blank_timestamp_raises_kis_error_not_value_error():
            "exchange_cd": "NAS", "symb": "AAPL", "symb_name": "Apple", "title": "H"}
     client = _client(RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"outblock1": [row]}))
     with pytest.raises(KISError, match="게시시각"):
-        client.overseas.news(country="US", symbol="AAPL", date_="20240510")
+        client.overseas.news(country="US", symbol="AAPL", on_date="20240510")
 
 
 def test_overseas_breaking_news_reuses_news_item_and_routes():

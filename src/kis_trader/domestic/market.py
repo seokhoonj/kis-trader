@@ -173,7 +173,7 @@ class MarketQueries:
     def news(self, *, symbol: str | None = None, on_date: str | date | None = None) -> list[NewsHeadline]:
         """시황/공시 뉴스 제목 피드(최신순). ``symbol`` 을 주면 그 종목 관련만, ``on_date`` 를 주면 그
         날짜(없으면 최근 전체). 각 뉴스의 연관 종목은 ``NewsHeadline.symbols``."""
-        return market_api.fetch_news(self._client.transport, symbol=symbol, date_=on_date)
+        return market_api.fetch_news(self._client.transport, symbol=symbol, on_date=on_date)
 
     def foreign_broker_trades(self, *, sort: ForeignBrokerSort = "amount") -> list[ForeignBrokerFlow]:
         """외국계 창구 매매종목 가집계(전 시장). ``sort``: ``"amount"``(금액순)/``"volume"``(수량순).

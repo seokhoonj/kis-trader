@@ -429,20 +429,20 @@ class OverseasNamespace:
     # -- 뉴스/기업행위 --
     def news(
         self, *, country: str = "", exchange: str = "", symbol: str = "",
-        date_: str | date | None = None, time: str = "", category: str = "",
+        on_date: str | date | None = None, time: str = "", category: str = "",
     ) -> list[OverseasNewsHeadline]:
         """해외뉴스 종합 제목 피드."""
         return overseas_reference_api.fetch_news(
             self._client.transport, country=country, exchange=exchange, symbol=symbol,
-            date_=date_, time=time, category=category,
+            on_date=on_date, time=time, category=category,
         )
 
     def breaking_news(
-        self, *, symbol: str = "", title: str = "", date_: str | date | None = None, time: str = ""
+        self, *, symbol: str = "", title: str = "", on_date: str | date | None = None, time: str = ""
     ) -> list[NewsHeadline]:
         """해외속보 제목 피드(최대 100건)."""
         return overseas_reference_api.fetch_breaking_news(
-            self._client.transport, symbol=symbol, title=title, date_=date_, time=time
+            self._client.transport, symbol=symbol, title=title, on_date=on_date, time=time
         )
 
     def rights(
