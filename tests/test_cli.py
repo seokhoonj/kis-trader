@@ -1586,8 +1586,8 @@ class _StubDeriv08(OverseasDerivativesAccount):
     def period_pnl(self, *, start, end):
         self._log.append(("o08_period_pnl", start, end)); return "O08_PNL"
 
-    def transactions(self, *, start, end):
-        self._log.append(("o08_transactions", start, end)); return ["O08_TXN"]
+    def cash_transactions(self, *, start, end):
+        self._log.append(("o08_cash_transactions", start, end)); return ["O08_TXN"]
 
 
 def test_account_balance_bond_lists_lots(monkeypatch):
@@ -1984,7 +1984,7 @@ def test_account_transactions_overseas_deriv(monkeypatch):
     log = _deriv(monkeypatch, _StubDeriv08)
     account.cmd_transactions(object(), _args(
         ["account", "transactions", "--start", "20240101", "--end", "20240131"]))
-    assert log == [("o08_transactions", "20240101", "20240131")]
+    assert log == [("o08_cash_transactions", "20240101", "20240131")]
 
 
 # --- 파생 전용 신규 subcommand: deposit/margin/valuation/settlement/commissions/present ---

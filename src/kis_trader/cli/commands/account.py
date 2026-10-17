@@ -233,7 +233,7 @@ def cmd_transactions(kis: KISClient, args: Namespace) -> Any:
     if isinstance(view, OverseasDerivativesAccount):
         _reject_foreign_flags(args, allow={"start", "end"})
         _require_range(args, "해외선물옵션 거래내역")
-        return view.transactions(start=args.start, end=args.end)
+        return view.cash_transactions(start=args.start, end=args.end)
     if isinstance(view, DomesticDerivativesAccount):
         raise CliConfigError("국내선물옵션은 거래·입출금내역 조회를 제공하지 않습니다.")
     account = _stock_account(kis)
