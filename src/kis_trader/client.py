@@ -166,7 +166,7 @@ class KISClient:
         유량은 앱키(계좌) 단위라 **같은 앱키를 다른 프로세스/앱이 동시에 쓰면 이 리미터로 조율되지
         않는다** -- 그 경우 앱마다 별도 앱키를 신청해 쓰는 것을 권장한다.
 
-        해외 심볼 조회(:meth:`instrument`)는 KIS 종목 마스터로 심볼->거래소를 찾는다. ``master_index``
+        해외 심볼 조회(``kis.overseas.resolve_instrument``)는 KIS 종목 마스터로 심볼->거래소를 찾는다. ``master_index``
         를 주면 그 인덱스를 쓰고(테스트/고급), 없으면 첫 조회 때 마스터를 받아 캐시한다. ``master_fetch``
         로 다운로더를 바꿀 수 있다(기본은 KIS 배포 서버).
 
@@ -281,7 +281,7 @@ class KISClient:
         # 와이어에 닿는다. 조회(credit_buyable)는 읽기라 게이트하지 않는다.
         self._allow_credit = allow_credit
         self._risk = risk
-        # 해외 심볼->거래소 해석용 마스터 인덱스. 주입 없으면 첫 instrument() 호출 때 지연 로드.
+        # 해외 심볼->거래소 해석용 마스터 인덱스. 주입 없으면 첫 resolve_instrument() 호출 때 지연 로드.
         self._master_index = master_index
         self._master_fetch = master_fetch if master_fetch is not None else urlopen_fetch
         # 국내 이름->코드 검색 인덱스. 주입 없으면 첫 domestic.search_stocks() 때 지연 로드(같은 배포 서버).

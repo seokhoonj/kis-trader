@@ -220,7 +220,7 @@ kis order buy 005930 10 --limit-price 70000 --stop-price 69000 # dry-run (전송
 를 주어 냅니다 -- 국내 주식은 다음 영업일 동시호가에 집행되며 실전 전용이고 `--end-date YYYYMMDD`
 로 예약 유효 종료일을 지정합니다. 취소는
 `kis order cancel-reserved <순번>` 이며, 순번은 예약 발주 결과나 `kis account reserved` 목록의
-sequence 입니다. 정정은 `kis order modify-reserved <순번>` 이며,
+`reserved_order_id` 입니다. 정정은 `kis order modify-reserved <순번>` 이며,
 브로커 규격상 `--symbol`/`--side`/`--quantity` 로 종목·방향·수량을 **전체 재지정**합니다 --
 `--limit-price` 를 생략하면 기존 단가 유지가 아니라 시장가로 바뀌니 주의하세요(`--end-date`/
 `--order-date` 도 지정 가능). 정정 후 예약 순번이 재배정될 수 있어(응답은 새 순번을 주지 않음)

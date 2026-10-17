@@ -10,7 +10,6 @@ kis  (KISClient 세션)
 ├── overseas                              # 해외 시세·발주·순위 → 아래 해외 트리
 ├── orders                                # 주문 수명주기 → 아래 주문 트리
 ├── account                               # 계좌 조회 (상품코드로 분기) → 아래 계좌 트리
-├── instrument(symbol, *, exchange=None)  # 해외 심볼 마스터 조회
 ├── realtime(...)                         # 실시간 웹소켓 → 아래 실시간 트리
 ├── revoke_token()                        # 접근 토큰 폐기
 ├── transport                             # 저수준 전송 계층
@@ -264,7 +263,8 @@ kis.overseas
 ├── futures_open_interest(symbol, *, as_of, mode='quantity')  # CFTC 미결제약정
 ├── settlement_dates()                  # 각 시장 결제일자 참조표
 ├── quotes(symbols)                     # 여러 종목 현재가(최대 10)
-├── search_stocks(exchange, ...)        # 조건검색(exchange='US'는 NAS/NYS/AMS 통합)
+├── screen_stocks(exchange, ...)        # 조건검색(exchange='US'는 NAS/NYS/AMS 통합)
+├── resolve_instrument(symbol, *, exchange=None)  # 해외 심볼 마스터 조회(심볼->거래소)
 ├── product_info(exchange, symbol)      # 상품기본정보
 ├── industries(exchange)                # 업종(섹터) 코드 목록
 ├── industry_stocks(exchange, industry_code, *, min_volume=0)  # 업종 소속 종목 시세

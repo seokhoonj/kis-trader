@@ -158,7 +158,7 @@ kis.overseas.stock("00700").reserve_buy(quantity=100, limit_price=350) # 홍콩 
 `exchange=` 를 명시합니다. 홍콩은 결제통화(상품유형)를 `currency="CNY"`/`"USD"` 로 바꿀 수
 있습니다(생략 시 HKD). 통화 선택은 홍콩 전용이라 다른 거래소에 `currency` 를 주면 오류입니다.
 
-국내 예약주문 조회·정정·취소(순번 `sequence` 로 지목):
+국내 예약주문 조회·정정·취소(예약주문순번 `reserved_order_id` 로 지목):
 
 ```python
 account = kis.account.domestic
