@@ -209,7 +209,7 @@ def test_by_execution_strength_uses_endpoint_without_sort():
     assert ranked[0]._raw["tday_rltv"] == "128.5"
 
 
-def test_by_bulk_trades_defaults_to_buy():
+def test_by_bulk_trade_count_defaults_to_buy():
     fake = FakeTransport(response=_resp([_row(shnu_cntg_csnu="42")]))
     ranked = _client(fake).domestic.ranking.by_bulk_trade_count()
     call = fake.calls[0]
@@ -220,7 +220,7 @@ def test_by_bulk_trades_defaults_to_buy():
     assert ranked[0]._raw["shnu_cntg_csnu"] == "42"
 
 
-def test_by_bulk_trades_sell_and_bad_side():
+def test_by_bulk_trade_count_sell_and_bad_side():
     fake = FakeTransport(response=_resp([_row()]))
     _client(fake).domestic.ranking.by_bulk_trade_count(side="sell")
     assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "1"   # sell
@@ -239,7 +239,7 @@ def test_by_interest_uses_endpoint_without_sort():
     assert ranked[0]._raw["inter_issu_reg_csnu"] == "1523"
 
 
-def test_by_preferred_disparity_exposes_pair_in_raw():
+def test_by_preferred_share_disparity_exposes_pair_in_raw():
     fake = FakeTransport(response=_resp([_row(prst_prpr="61000", dprt="12.34")]))
     ranked = _client(fake).domestic.ranking.by_preferred_share_disparity()
     call = fake.calls[0]
@@ -250,7 +250,7 @@ def test_by_preferred_disparity_exposes_pair_in_raw():
     assert ranked[0]._raw["dprt"] == "12.34"                     # 괴리율은 _raw
 
 
-def test_by_finance_ratio_sort_year_quarter():
+def test_by_financial_ratio_sort_year_quarter():
     fake = FakeTransport(response=_resp([_row(cptl_op_prfi="12.3")]))
     ranked = _client(fake).domestic.ranking.by_financial_ratio(analysis="stability", year=2023, quarter="h1")
     call = fake.calls[0]
@@ -263,7 +263,7 @@ def test_by_finance_ratio_sort_year_quarter():
     assert ranked[0]._raw["cptl_op_prfi"] == "12.3"
 
 
-def test_by_finance_ratio_defaults_and_bad_analysis():
+def test_by_financial_ratio_defaults_and_bad_analysis():
     fake = FakeTransport(response=_resp([_row()]))
     _client(fake).domestic.ranking.by_financial_ratio(year=2024)
     call = fake.calls[0]
@@ -307,7 +307,7 @@ def test_by_profit_asset_default_metric_is_net_income():
     assert fake.calls[0]["params"]["FID_RANK_SORT_CLS_CODE"] == "3"   # net_income
 
 
-def test_by_company_trades_buy_with_date_range():
+def test_by_house_trade_volume_buy_with_date_range():
     fake = FakeTransport(response=_resp([_row(ntby_cnqn="9800")]))
     ranked = _client(fake).domestic.ranking.by_house_trade_volume(
         side="buy", start="20240314", end="20240315"
@@ -322,7 +322,7 @@ def test_by_company_trades_buy_with_date_range():
     assert ranked[0]._raw["ntby_cnqn"] == "9800"
 
 
-def test_by_company_trades_accepts_date_objects_and_sell():
+def test_by_house_trade_volume_accepts_date_objects_and_sell():
     from datetime import date
     fake = FakeTransport(response=_resp([_row()]))
     _client(fake).domestic.ranking.by_house_trade_volume(
@@ -333,14 +333,14 @@ def test_by_company_trades_accepts_date_objects_and_sell():
     assert call["params"]["FID_INPUT_DATE_1"] == "20240314"
 
 
-def test_by_company_trades_bad_side():
+def test_by_house_trade_volume_bad_side():
     with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_resp([]))).domestic.ranking.by_house_trade_volume(
             side="net", start="20240314", end="20240315"
         )
 
 
-def test_by_company_trades_rejects_inverted_range_before_transport():
+def test_by_house_trade_volume_rejects_inverted_range_before_transport():
     fake = FakeTransport(response=_resp([]))
     with pytest.raises(KISUsageError):
         _client(fake).domestic.ranking.by_house_trade_volume(
