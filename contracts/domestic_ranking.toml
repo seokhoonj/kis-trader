@@ -1,0 +1,322 @@
+# KIS 국내주식 순위(ranking) 엔드포인트 계약.
+# required_params 는 공식 KIS 예제(koreainvestment/open-trading-api,
+# examples_llm/domestic_stock/<name>)의 params={...} 딕셔너리에서 독립적으로 뽑은 1차증거다(예제는
+# 소문자 fid_* 키를 쓰지만 KIS 와이어/라이브러리는 대문자 FID_* 를 쓰므로 여기선 대문자로 정규화한다).
+# 우리 코드는 각 엔드포인트에서 이 필수셋과 같거나 그 상위집합을 전송하므로 정적 contract test
+# (tests/test_contracts.py: required_params ⊆ 코드가 보내는 키)는 통과한다.
+# 예외 -- finance-ratio/market-value/profit-asset-index 셋은 예제엔 13개 FID 키가 있으나 라이브러리가
+# 공유 헬퍼 _fundamentals_params() 안에서 params 를 조립해 정적 추출기(AST)가 fetch 본문에서 키를
+# 못 본다(extract_sent_param_keys -> 0 keys). 정적 대조가 불가능하므로 required_params=[] 로 두고
+# 각 notes 에 예제 근거를 남긴 뒤 라이브 프로브로 확정한다(param_extract.py 가 명시한 live-probe 경로).
+
+[[endpoint]]
+name            = "domestic_ranking_fluctuation"
+impl            = "kis_trader.domestic._engine.ranking:fetch_fluctuation"
+tr_id           = "FHPST01700000"
+path            = "/uapi/domestic-stock/v1/ranking/fluctuation"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_RANK_SORT_CLS_CODE", "FID_INPUT_CNT_1", "FID_PRC_CLS_CODE", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2", "FID_VOL_CNT", "FID_TRGT_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE", "FID_DIV_CLS_CODE", "FID_RSFL_RATE1", "FID_RSFL_RATE2"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/fluctuation"
+notes           = "등락률 순위. FID_RANK_SORT_CLS_CODE 0=상승율순/1=하락율순."
+
+[[endpoint]]
+name            = "domestic_ranking_volume"
+impl            = "kis_trader.domestic._engine.ranking:fetch_volume"
+tr_id           = "FHPST01710000"
+path            = "/uapi/domestic-stock/v1/quotations/volume-rank"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_DIV_CLS_CODE", "FID_BLNG_CLS_CODE", "FID_TRGT_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2", "FID_VOL_CNT", "FID_INPUT_DATE_1"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/volume_rank"
+notes           = "거래량 계열 순위. FID_BLNG_CLS_CODE 0=평균거래량/1=거래증가율/2=회전율/3=거래대금."
+
+[[endpoint]]
+name            = "domestic_ranking_market_cap"
+impl            = "kis_trader.domestic._engine.ranking:fetch_market_cap"
+tr_id           = "FHPST01740000"
+path            = "/uapi/domestic-stock/v1/ranking/market-cap"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_DIV_CLS_CODE", "FID_INPUT_ISCD", "FID_TRGT_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2", "FID_VOL_CNT"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/market_cap"
+notes           = "시가총액 순위."
+
+[[endpoint]]
+name            = "domestic_ranking_disparity"
+impl            = "kis_trader.domestic._engine.ranking:fetch_disparity"
+tr_id           = "FHPST01780000"
+path            = "/uapi/domestic-stock/v1/ranking/disparity"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_DIV_CLS_CODE", "FID_RANK_SORT_CLS_CODE", "FID_HOUR_CLS_CODE", "FID_INPUT_ISCD", "FID_TRGT_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2", "FID_VOL_CNT"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/disparity"
+notes           = "이격도 순위. FID_HOUR_CLS_CODE 이동평균 5/10/20/60/120일."
+
+[[endpoint]]
+name            = "domestic_ranking_quote_balance"
+impl            = "kis_trader.domestic._engine.ranking:fetch_quote_balance"
+tr_id           = "FHPST01720000"
+path            = "/uapi/domestic-stock/v1/ranking/quote-balance"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_RANK_SORT_CLS_CODE", "FID_DIV_CLS_CODE", "FID_TRGT_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2", "FID_VOL_CNT"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/quote_balance"
+notes           = "호가잔량 순위. FID_RANK_SORT_CLS_CODE 0=순매수/1=순매도/2=매수비율/3=매도비율."
+
+[[endpoint]]
+name            = "domestic_ranking_execution_strength"
+impl            = "kis_trader.domestic._engine.ranking:fetch_execution_strength"
+tr_id           = "FHPST01680000"
+path            = "/uapi/domestic-stock/v1/ranking/volume-power"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_DIV_CLS_CODE", "FID_TRGT_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2", "FID_VOL_CNT"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/volume_power"
+notes           = "체결강도 순위(정렬 없음)."
+
+[[endpoint]]
+name            = "domestic_ranking_bulk_trade_count"
+impl            = "kis_trader.domestic._engine.ranking:fetch_bulk_trade_count"
+tr_id           = "FHKST190900C0"
+path            = "/uapi/domestic-stock/v1/ranking/bulk-trans-num"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_RANK_SORT_CLS_CODE", "FID_DIV_CLS_CODE", "FID_INPUT_ISCD_2", "FID_TRGT_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE", "FID_INPUT_PRICE_1", "FID_APLY_RANG_PRC_1", "FID_APLY_RANG_PRC_2", "FID_VOL_CNT"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/bulk_trans_num"
+notes           = "대량체결건수 순위. FID_RANK_SORT_CLS_CODE 0=매수상위/1=매도상위."
+
+[[endpoint]]
+name            = "domestic_ranking_watchlist_registrations"
+impl            = "kis_trader.domestic._engine.ranking:fetch_watchlist_registrations"
+tr_id           = "FHPST01800000"
+path            = "/uapi/domestic-stock/v1/ranking/top-interest-stock"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_INPUT_ISCD_2", "FID_DIV_CLS_CODE", "FID_TRGT_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2", "FID_VOL_CNT", "FID_INPUT_CNT_1"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/top_interest_stock"
+notes           = "관심종목 등록상위 순위(정렬 없음)."
+
+[[endpoint]]
+name            = "domestic_ranking_preferred_share_disparity"
+impl            = "kis_trader.domestic._engine.ranking:fetch_preferred_share_disparity"
+tr_id           = "FHPST01770000"
+path            = "/uapi/domestic-stock/v1/ranking/prefer-disparate-ratio"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_DIV_CLS_CODE", "FID_INPUT_ISCD", "FID_TRGT_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2", "FID_VOL_CNT"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/prefer_disparate_ratio"
+notes           = "우선주 괴리율 순위(정렬 없음)."
+
+[[endpoint]]
+name            = "domestic_ranking_financial_ratio"
+impl            = "kis_trader.domestic._engine.ranking:fetch_financial_ratio"
+tr_id           = "FHPST01750000"
+path            = "/uapi/domestic-stock/v1/ranking/finance-ratio"
+method          = "GET"
+required_params = []
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/finance_ratio"
+notes           = "재무비율 순위. 예제는 13개 FID 키(FID_COND_MRKT_DIV_CODE/FID_RANK_SORT_CLS_CODE/FID_INPUT_OPTION_1/FID_INPUT_OPTION_2 등)를 보내나 코드가 공유 헬퍼 _fundamentals_params 에서 조립 -- 정적 추출 불가, 라이브 프로브로 확정 필요."
+
+[[endpoint]]
+name            = "domestic_ranking_valuation"
+impl            = "kis_trader.domestic._engine.ranking:fetch_valuation"
+tr_id           = "FHPST01790000"
+path            = "/uapi/domestic-stock/v1/ranking/market-value"
+method          = "GET"
+required_params = []
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/market_value"
+notes           = "시장가치(밸류에이션) 순위. 예제는 13개 FID 키를 보내나 코드가 공유 헬퍼 _fundamentals_params 에서 조립 -- 정적 추출 불가, 라이브 프로브로 확정 필요."
+
+[[endpoint]]
+name            = "domestic_ranking_profit_asset"
+impl            = "kis_trader.domestic._engine.ranking:fetch_profit_asset"
+tr_id           = "FHPST01730000"
+path            = "/uapi/domestic-stock/v1/ranking/profit-asset-index"
+method          = "GET"
+required_params = []
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/profit_asset_index"
+notes           = "수익자산지표 순위. 예제는 13개 FID 키를 보내나 코드가 공유 헬퍼 _fundamentals_params 에서 조립 -- 정적 추출 불가, 라이브 프로브로 확정 필요."
+
+[[endpoint]]
+name            = "domestic_ranking_house_trade_volume"
+impl            = "kis_trader.domestic._engine.ranking:fetch_house_trade_volume"
+tr_id           = "FHPST01860000"
+path            = "/uapi/domestic-stock/v1/ranking/traded-by-company"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_DIV_CLS_CODE", "FID_RANK_SORT_CLS_CODE", "FID_INPUT_DATE_1", "FID_INPUT_DATE_2", "FID_INPUT_ISCD", "FID_TRGT_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE", "FID_APLY_RANG_VOL", "FID_APLY_RANG_PRC_1", "FID_APLY_RANG_PRC_2"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/traded_by_company"
+notes           = "당사매매종목 순위(기간). FID_RANK_SORT_CLS_CODE 0=매도상위/1=매수상위."
+
+[[endpoint]]
+name            = "domestic_ranking_dividend"
+impl            = "kis_trader.domestic._engine.ranking:fetch_dividend"
+tr_id           = "HHKDB13470100"
+path            = "/uapi/domestic-stock/v1/ranking/dividend-rate"
+method          = "GET"
+required_params = ["CTS_AREA", "GB1", "UPJONG", "GB2", "GB3", "F_DT", "T_DT", "GB4"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/dividend_rate"
+notes           = "배당률 순위. FID_ 계열이 아니라 GB1 시장/GB3 종류/F_DT~T_DT 기준일/GB4 결산 파라미터."
+
+[[endpoint]]
+name            = "domestic_ranking_short_sale"
+impl            = "kis_trader.domestic._engine.ranking:fetch_short_sale"
+tr_id           = "FHPST04820000"
+path            = "/uapi/domestic-stock/v1/ranking/short-sale"
+method          = "GET"
+required_params = ["FID_APLY_RANG_VOL", "FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_PERIOD_DIV_CODE", "FID_INPUT_CNT_1", "FID_TRGT_EXLS_CLS_CODE", "FID_TRGT_CLS_CODE", "FID_APLY_RANG_PRC_1", "FID_APLY_RANG_PRC_2"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/short_sale"
+notes           = "공매도 순위. FID_PERIOD_DIV_CODE D=일/M=월 + FID_INPUT_CNT_1 조회기간."
+
+[[endpoint]]
+name            = "domestic_ranking_credit_balance"
+impl            = "kis_trader.domestic._engine.ranking:fetch_credit_balance"
+tr_id           = "FHKST17010000"
+path            = "/uapi/domestic-stock/v1/ranking/credit-balance"
+method          = "GET"
+required_params = ["FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_OPTION", "FID_COND_MRKT_DIV_CODE", "FID_RANK_SORT_CLS_CODE"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/credit_balance"
+notes           = "신용잔고 순위. FID_RANK_SORT_CLS_CODE 0~4=융자/5~9=대주, FID_OPTION 증가율기간."
+
+[[endpoint]]
+name            = "domestic_ranking_near_high_low"
+impl            = "kis_trader.domestic._engine.ranking:fetch_near_high_low"
+tr_id           = "FHPST01870000"
+path            = "/uapi/domestic-stock/v1/ranking/near-new-highlow"
+method          = "GET"
+required_params = ["FID_APLY_RANG_VOL", "FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_DIV_CLS_CODE", "FID_INPUT_CNT_1", "FID_INPUT_CNT_2", "FID_APLY_RANG_PRC_1", "FID_APLY_RANG_PRC_2", "FID_PRC_CLS_CODE", "FID_TRGT_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/near_new_highlow"
+notes           = "신고/신저 근접 순위. FID_PRC_CLS_CODE 0=신고근접/1=신저근접."
+
+[[endpoint]]
+name            = "domestic_ranking_expected_execution_change"
+impl            = "kis_trader.domestic._engine.ranking:fetch_expected_execution_change"
+tr_id           = "FHPST01820000"
+path            = "/uapi/domestic-stock/v1/ranking/exp-trans-updown"
+method          = "GET"
+required_params = ["FID_RANK_SORT_CLS_CODE", "FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_DIV_CLS_CODE", "FID_APLY_RANG_PRC_1", "FID_VOL_CNT", "FID_PBMN", "FID_BLNG_CLS_CODE", "FID_MKOP_CLS_CODE"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/exp_trans_updown"
+notes           = "장전 예상체결 등락 순위. FID_RANK_SORT_CLS_CODE 0=상승률/3=하락율."
+
+[[endpoint]]
+name            = "domestic_ranking_expected_close"
+impl            = "kis_trader.domestic._engine.ranking:fetch_expected_close"
+tr_id           = "FHKST117300C0"
+path            = "/uapi/domestic-stock/v1/quotations/exp-closing-price"
+method          = "GET"
+required_params = ["FID_RANK_SORT_CLS_CODE", "FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_BLNG_CLS_CODE"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/exp_closing_price"
+notes           = "장마감 예상체결 순위. FID_BLNG_CLS_CODE 0=일반/1=확장범위."
+
+[[endpoint]]
+name            = "domestic_ranking_after_hours_change"
+impl            = "kis_trader.domestic._engine.ranking:fetch_after_hours_change"
+tr_id           = "FHPST02340000"
+path            = "/uapi/domestic-stock/v1/ranking/overtime-fluctuation"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_MRKT_CLS_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_DIV_CLS_CODE", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2", "FID_VOL_CNT", "FID_TRGT_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/overtime_fluctuation"
+notes           = "시간외 단일가 등락률 순위. FID_DIV_CLS_CODE 2=상승률/5=하락률."
+
+[[endpoint]]
+name            = "domestic_ranking_after_hours_volume"
+impl            = "kis_trader.domestic._engine.ranking:fetch_after_hours_volume"
+tr_id           = "FHPST02350000"
+path            = "/uapi/domestic-stock/v1/ranking/overtime-volume"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_RANK_SORT_CLS_CODE", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2", "FID_VOL_CNT", "FID_TRGT_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/overtime_volume"
+notes           = "시간외 단일가 거래량 순위. FID_RANK_SORT_CLS_CODE 2=거래량."
+
+[[endpoint]]
+name            = "domestic_ranking_after_hours_expected_change"
+impl            = "kis_trader.domestic._engine.ranking:fetch_after_hours_expected_change"
+tr_id           = "FHKST11860000"
+path            = "/uapi/domestic-stock/v1/ranking/overtime-exp-trans-fluct"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_RANK_SORT_CLS_CODE", "FID_DIV_CLS_CODE", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2", "FID_INPUT_VOL_1"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/overtime_exp_trans_fluct"
+notes           = "시간외 예상체결 등락률 순위. FID_RANK_SORT_CLS_CODE 0=상승률/3=하락율."
+
+[[endpoint]]
+name            = "domestic_ranking_after_hours_balance"
+impl            = "kis_trader.domestic._engine.ranking:fetch_after_hours_balance"
+tr_id           = "FHPST01760000"
+path            = "/uapi/domestic-stock/v1/ranking/after-hour-balance"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_RANK_SORT_CLS_CODE", "FID_DIV_CLS_CODE", "FID_INPUT_ISCD", "FID_TRGT_EXLS_CLS_CODE", "FID_TRGT_CLS_CODE", "FID_VOL_CNT", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/after_hour_balance"
+notes           = "시간외 잔량 순위. FID_RANK_SORT_CLS_CODE 3=매도잔량/4=매수잔량."
+
+[[endpoint]]
+name            = "domestic_ranking_most_viewed"
+impl            = "kis_trader.domestic._engine.ranking:fetch_most_viewed"
+tr_id           = "HHMCM000100C0"
+path            = "/uapi/domestic-stock/v1/ranking/hts-top-view"
+method          = "GET"
+required_params = []
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/hts_top_view"
+notes           = "HTS 조회상위 종목. 요청 파라미터 없음(예제 params 비어있음)."
