@@ -515,7 +515,7 @@ def test_intraday_trades_maps_summary_points_and_params():
         "101501",
     ]
     assert executions.points[0].change == Decimal(-1100)
-    assert executions.points[-1].strength == Decimal("115.25")
+    assert executions.points[-1].execution_strength == Decimal("115.25")
     assert executions.points[-1].quantity == 150
     assert fake.calls[0]["path"] == (
         "/uapi/domestic-stock/v1/quotations/inquire-time-itemconclusion"

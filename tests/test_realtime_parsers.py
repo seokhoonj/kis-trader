@@ -29,7 +29,7 @@ def _sample_fields() -> list[str]:
     fields[12] = "50"          # trade_volume
     fields[13] = "1000000"     # accumulated_volume
     fields[14] = "71500000000" # accumulated_value
-    fields[18] = "120.5"       # conclusion_strength
+    fields[18] = "120.5"       # execution_strength
     fields[21] = "1"           # trade_sign (매수)
     fields[33] = "20260814"    # business_date
     fields[35] = "N"           # trading_halted -> False
@@ -55,7 +55,7 @@ def test_parse_trade_tick_maps_headline_fields():
     assert tick.trade_volume == Decimal(50)
     assert tick.accumulated_volume == Decimal(1000000)
     assert tick.accumulated_value == Decimal(71500000000)
-    assert tick.conclusion_strength == Decimal("120.5")
+    assert tick.execution_strength == Decimal("120.5")
     assert tick.trade_sign == "1"
     assert tick.business_date == "20260814"
     assert tick.trading_halted is False

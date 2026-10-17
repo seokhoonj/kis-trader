@@ -173,7 +173,7 @@ class FuturesTick:
     accumulated_value: Decimal
     theoretical_price: Decimal  # HTS 이론가
     market_basis: Decimal
-    conclusion_strength: Decimal  # 체결강도
+    execution_strength: Decimal  # 체결강도
     open_interest: int  # 미결제약정 수량
     best_ask: Decimal
     best_bid: Decimal
@@ -209,7 +209,7 @@ def _futures_tick(
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
         theoretical_price=_decimal(raw["HTS_THPR"]),
         market_basis=_decimal(raw["MRKT_BASIS"]),
-        conclusion_strength=_decimal(raw["CTTR"]),
+        execution_strength=_decimal(raw["CTTR"]),
         open_interest=_int(raw["HTS_OTST_STPL_QTY"]),
         best_ask=_decimal(raw[ask]),
         best_bid=_decimal(raw[bid]),
@@ -316,7 +316,7 @@ class OptionTick:
     theta: Decimal
     rho: Decimal
     implied_volatility: Decimal  # HTS 내재변동성
-    conclusion_strength: Decimal  # 체결강도
+    execution_strength: Decimal  # 체결강도
     best_ask: Decimal
     best_bid: Decimal
     _raw: Mapping[str, Any] = _raw_field()
@@ -346,7 +346,7 @@ def _option_tick(fields: list[str], layout: tuple[str, ...]) -> OptionTick:
         theta=_decimal(raw["THETA"]),
         rho=_decimal(raw["RHO"]),
         implied_volatility=_decimal(raw["HTS_INTS_VLTL"]),
-        conclusion_strength=_decimal(raw["CTTR"]),
+        execution_strength=_decimal(raw["CTTR"]),
         best_ask=_decimal(raw["OPTN_ASKP1"]),
         best_bid=_decimal(raw["OPTN_BIDP1"]),
         _raw=raw,

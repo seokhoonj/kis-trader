@@ -213,7 +213,7 @@ def fetch_intraday_trades(
                 ),
                 ask_price=required_decimal(row.get("askp"), "askp"),
                 bid_price=required_decimal(row.get("bidp"), "bidp"),
-                strength=required_decimal(row.get("tday_rltv"), "tday_rltv"),
+                execution_strength=required_decimal(row.get("tday_rltv"), "tday_rltv"),
                 cumulative_volume=required_int(row.get("acml_vol"), "acml_vol"),
                 quantity=required_int(row.get("cnqn"), "cnqn"),
                 _raw=row,

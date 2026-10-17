@@ -213,7 +213,7 @@ class IntradayTradePoint:
     change_percent: Decimal
     ask_price: Decimal
     bid_price: Decimal
-    strength: Decimal
+    execution_strength: Decimal
     cumulative_volume: int
     quantity: int
     _raw: Mapping[str, Any] = field(

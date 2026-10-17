@@ -208,7 +208,7 @@ def test_parse_delayed_trade_tick_headline():
     assert tick.accumulated_volume == Decimal(50000)
     assert isinstance(tick.trade_volume, int) and isinstance(tick.accumulated_volume, int)
     assert tick.accumulated_value == Decimal(11500000)
-    assert tick.conclusion_strength == Decimal("115.2")
+    assert tick.execution_strength == Decimal("115.2")
     assert tick.market_type == "1"
 
 

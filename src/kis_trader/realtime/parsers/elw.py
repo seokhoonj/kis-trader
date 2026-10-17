@@ -148,7 +148,7 @@ class ELWTick:
     trade_volume: int  # 이번 체결 수량
     accumulated_volume: int
     accumulated_value: Decimal  # 누적 거래대금
-    conclusion_strength: Decimal  # 체결강도
+    execution_strength: Decimal  # 체결강도
     trade_sign: str  # 체결구분코드
     business_date: str  # YYYYMMDD
     trading_halted: bool
@@ -198,7 +198,7 @@ class ELWExpectedConclusion:
     expected_volume: int  # 예상체결량
     accumulated_volume: int
     accumulated_value: Decimal  # 누적 거래대금
-    conclusion_strength: Decimal  # 체결강도
+    execution_strength: Decimal  # 체결강도
     trade_sign: str  # 체결구분코드
     business_date: str  # YYYYMMDD
     trading_halted: bool
@@ -272,7 +272,7 @@ def parse_elw_tick(fields: list[str]) -> ELWTick:
         trade_volume=_int(raw["CNTG_VOL"]),
         accumulated_volume=_int(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
-        conclusion_strength=_decimal(raw["CTTR"]),
+        execution_strength=_decimal(raw["CTTR"]),
         trade_sign=raw["CNTG_CLS_CODE"],
         business_date=raw["BSOP_DATE"],
         trading_halted=raw["TRHT_YN"] == "Y",
@@ -316,7 +316,7 @@ def parse_expected_conclusion(fields: list[str]) -> ELWExpectedConclusion:
         expected_volume=_int(raw["CNTG_VOL"]),
         accumulated_volume=_int(raw["ACML_VOL"]),
         accumulated_value=_decimal(raw["ACML_TR_PBMN"]),
-        conclusion_strength=_decimal(raw["CTTR"]),
+        execution_strength=_decimal(raw["CTTR"]),
         trade_sign=raw["CNTG_CLS_CODE"],
         business_date=raw["BSOP_DATE"],
         trading_halted=raw["TRHT_YN"] == "Y",

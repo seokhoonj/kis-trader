@@ -160,7 +160,7 @@ def test_parse_elw_tick_maps_headline_fields():
     assert tick.trade_volume == Decimal(10)
     assert tick.accumulated_volume == Decimal(500000)
     assert tick.accumulated_value == Decimal(62500000)
-    assert tick.conclusion_strength == Decimal("110.5")
+    assert tick.execution_strength == Decimal("110.5")
     assert tick.trade_sign == "1"
     assert tick.business_date == "20260814"
     assert tick.trading_halted is False
@@ -262,7 +262,7 @@ def test_parse_expected_conclusion_maps_headline_fields():
     assert ec.accumulated_volume == Decimal(12000)
     assert isinstance(ec.accumulated_volume, int)
     assert ec.accumulated_value == Decimal(1476000)
-    assert ec.conclusion_strength == Decimal("95.0")
+    assert ec.execution_strength == Decimal("95.0")
     assert ec.trade_sign == "5"
     assert ec.business_date == "20260814"
     assert ec.trading_halted is False

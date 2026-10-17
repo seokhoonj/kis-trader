@@ -130,7 +130,7 @@ class OverseasDelayedTradeTick:
     trade_volume: int  # 이번 체결량(EVOL)
     accumulated_volume: int
     accumulated_value: Decimal
-    conclusion_strength: Decimal
+    execution_strength: Decimal
     market_type: str  # 1:장중 2:장전 3:장후
     _raw: Mapping[str, Any] = _raw_field()
 
@@ -156,7 +156,7 @@ def parse_delayed_trade_tick(fields: list[str]) -> OverseasDelayedTradeTick:
         trade_volume=_int(raw["EVOL"]),
         accumulated_volume=_int(raw["TVOL"]),
         accumulated_value=_decimal(raw["TAMT"]),
-        conclusion_strength=_decimal(raw["STRN"]),
+        execution_strength=_decimal(raw["STRN"]),
         market_type=raw["MTYP"],
         _raw=raw,
     )

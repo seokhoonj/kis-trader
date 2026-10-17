@@ -119,7 +119,7 @@ def test_parse_futures_tick():
     assert tick.accumulated_value == Decimal(9500000000)
     assert tick.theoretical_price == Decimal("330.60")
     assert tick.market_basis == Decimal("0.85")
-    assert tick.conclusion_strength == Decimal("98.5")
+    assert tick.execution_strength == Decimal("98.5")
     assert tick.open_interest == Decimal(250000)
     assert isinstance(tick.open_interest, int) and isinstance(tick.trade_volume, int)
     assert tick.best_ask == Decimal("330.50")
@@ -211,7 +211,7 @@ def test_parse_index_option_tick_greeks():
     assert tick.theta == Decimal("-0.05")
     assert tick.rho == Decimal("0.01")
     assert tick.implied_volatility == Decimal("14.2")
-    assert tick.conclusion_strength == Decimal("88.0")
+    assert tick.execution_strength == Decimal("88.0")
     assert tick.best_ask == Decimal("2.35")
     assert tick.best_bid == Decimal("2.33")
     assert tick._raw["DSCS_LRQN_VOL"] == "0"
