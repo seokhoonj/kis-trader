@@ -66,7 +66,7 @@ import shutil
 from collections.abc import Iterator
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import TYPE_CHECKING, Literal, cast
+from typing import Literal, cast, get_args
 
 from ._internal._fsutil import (
     atomic_write_bytes,
@@ -75,15 +75,14 @@ from ._internal._fsutil import (
     xdg_state_subdir,
 )
 from .errors import KISUsageError
-
-if TYPE_CHECKING:
-    from .transport import Environment
+from .transport import Environment
 
 #: XDG 하위 디렉터리 이름(``~/.config/kis-trader`` / ``~/.cache/kis-trader``).
 _APP_DIR_NAME = "kis-trader"
 
 #: 접속 환경. 자격증명은 환경 블록(바깥) 안에 프로필별로 중첩되고, 환경이 별개 축이다(기본 paper).
-_ENVIRONMENTS = ("real", "paper")
+#: 소유자 Literal(:data:`kis_trader.transport.Environment`)에서 파생한다 -- 손복사 금지(단일 출처).
+_ENVIRONMENTS = get_args(Environment)
 
 #: 프로필 이름 규칙 -- 소문자/숫자/밑줄. 환경변수 키(``KIS_<이름대문자>_APP_KEY``)로 안전히 올릴 수
 #: 있고, 대문자로 접힐 때 서로 다른 이름이 같은 키로 aliasing 되지 않도록 소문자만 허용한다.
