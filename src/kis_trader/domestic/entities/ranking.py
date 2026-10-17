@@ -1,9 +1,10 @@
 """시장 전체 순위 항목(DATA) -- 한 행(row)을 나타내는 불변 데이터 타입 모음.
 
 :class:`~kis_trader.domestic.ranking.DomesticRankingQueries` (``kis.domestic.ranking.*``)가 돌려주는 순위 결과의 낱개
-항목들이다. 대부분의 순위는 공통 코어(순위·종목·시세·거래량)를 공유하므로 :class:`DomesticRankedStock`
-하나로 통일하고, 그 순위 고유의 지표는 ``_raw`` 로 접근한다. 코어가 맞지 않는 순위(시세가 없는
-배당률, 공매도 지표가 본질인 공매도)는 전용 타입을 둔다.
+항목들이다. 대부분의 순위는 그 endpoint 고유의 지표(거래량 계열·시가총액·이격도·체결강도 등)를 전용 타입의
+필드로 노출한다(:class:`TradingActivityRanking` · :class:`MarketCapRanking` · :class:`DisparityRanking` 등).
+순위 고유 지표가 없고 코어(순위·종목·시세·거래량)가 곧 payload 인 등락률 순위만 범용 :class:`DomesticRankedStock`
+를 돌려준다. 어느 타입이든 명명하지 않은 원본 값은 ``_raw`` 로 접근한다.
 
 네이밍 규칙(새 순위 항목을 추가할 때 따를 것): 여러 순위가 재사용하는 **범용** 행은 담고 있는
 payload 로 이름 짓는다(:class:`DomesticRankedStock` = 순위가 매겨진 종목 시세). 특정 endpoint **전용**

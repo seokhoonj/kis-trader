@@ -1,9 +1,10 @@
-"""해외주식 순위 항목(DATA) -- :class:`OverseasRankedStock`.
+"""해외주식 순위 항목(DATA) -- :class:`OverseasRankedStock` + endpoint 전용 타입.
 
-해외주식 시장 순위(거래량/등락률/시가총액 등)의 한 행이다. 국내 :class:`~kis_trader.domestic.entities.ranking.
-DomesticRankedStock` 의 해외 판으로, 거래소(``exchange``)와 통화 없는 원가격을 담는다(해외 시세는 거래소별
-통화라 금액은 거래소 통화 기준). :class:`~kis_trader.overseas.ranking.OverseasRankingQueries`
-(``kis.overseas.ranking``)가 돌려준다.
+해외주식 시장 순위(거래량/등락률/시가총액 등)의 한 행이다. 거래소(``exchange``)와 통화 없는 원가격을 담는
+공통 코어가 범용 :class:`OverseasRankedStock` 이고(국내 :class:`~kis_trader.domestic.entities.ranking.
+DomesticRankedStock` 의 해외 판; 해외 시세는 거래소별 통화라 금액은 거래소 통화 기준), 고유 지표가 있는 순위는
+전용 타입(:class:`TurnoverRanking` 등)으로 그 값을 필드로 노출한다. :class:`~kis_trader.overseas.ranking.
+OverseasRankingQueries` (``kis.overseas.ranking``)가 돌려준다.
 """
 
 from __future__ import annotations
