@@ -50,7 +50,7 @@ if TYPE_CHECKING:
     )
     from .entities.product import DomesticProductInfo
     from .entities.saved_screen import SavedScreen, SavedScreenStock, Watchlist, WatchlistGroup
-    from .entities.stock_fills import StockOrderHistory
+    from .entities.stock_orders import StockOrderHistory
     from .entities.trade_profit import DailyProfitHistory, TradeProfitHistory
 
 

@@ -241,8 +241,8 @@ from .domestic.entities.saved_screen import (
     WatchlistGroup,
     WatchlistStock,
 )
-from .domestic.entities.stock_fills import StockOrder, StockOrderHistory, StopTrigger
 from .domestic.entities.stock_info import StockProfile, StockStatus
+from .domestic.entities.stock_orders import StockOrder, StockOrderHistory, StopTrigger
 from .domestic.entities.trade_profit import (
     DailyProfit,
     DailyProfitHistory,

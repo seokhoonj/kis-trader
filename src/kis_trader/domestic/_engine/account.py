@@ -40,7 +40,7 @@ from ..entities.account_reports import (
 )
 from ..entities.account_right import AccountRight
 from ..entities.balance import AccountAssets, DomesticBalance, DomesticPosition, Portfolio
-from ..entities.stock_fills import StockOrder, StockOrderHistory, StopTrigger
+from ..entities.stock_orders import StockOrder, StockOrderHistory, StopTrigger
 from ..entities.trade_profit import (
     DailyProfit,
     DailyProfitHistory,
