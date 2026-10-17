@@ -87,7 +87,7 @@ from ..entities.ranking import (
     QuoteBalanceRanking,
     ShortSaleRanking,
     TopViewedStock,
-    TradingActivityRanking,
+    VolumeRanking,
     WatchlistRegistrationRanking,
 )
 from .market_data import _market_div
@@ -243,11 +243,11 @@ def fetch_fluctuation(transport: Transport, *, direction: str, market: str) -> l
     return _fetch_ranking(transport, path=_FLUCTUATION_PATH, tr=_FLUCTUATION_TR, params=params)
 
 
-def fetch_trading_activity(
+def fetch_volume(
     transport: Transport, *, metric: str = "cumulative_trading_amount", market: str
-) -> list[TradingActivityRanking]:
+) -> list[VolumeRanking]:
     """거래량 계열 순위. ``metric``: average_volume 평균거래량 / cumulative_trading_amount 거래대금 /
-    volume_growth 거래증가율 / turnover 회전율. 거래활동 지표를 담은 :class:`TradingActivityRanking`
+    volume_growth 거래증가율 / turnover 회전율. 거래활동 지표를 담은 :class:`VolumeRanking`
     로 돌려준다. 최대 30건(다음조회 없음)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
@@ -264,7 +264,7 @@ def fetch_trading_activity(
     rows = _fetch_rows(
         transport, path=_VOLUME_PATH, tr=_VOLUME_TR, params=params, output_key="output"
     )
-    return _parse_trading_activity(rows)
+    return _parse_volume(rows)
 
 
 def fetch_market_cap(transport: Transport, *, market: str) -> list[MarketCapRanking]:
@@ -801,14 +801,14 @@ def _parse_ranked(rows: Sequence[Mapping[str, Any]]) -> list[DomesticRankedStock
     return ranked
 
 
-def _parse_trading_activity(rows: Sequence[Mapping[str, Any]]) -> list[TradingActivityRanking]:
-    ranked: list[TradingActivityRanking] = []
+def _parse_volume(rows: Sequence[Mapping[str, Any]]) -> list[VolumeRanking]:
+    ranked: list[VolumeRanking] = []
     for row in rows:
         core = _core_ranked_fields(row)
         if core is None:  # 빈 행 skip
             continue
         ranked.append(
-            TradingActivityRanking(
+            VolumeRanking(
                 **core,
                 average_volume=required_int(row.get("avrg_vol"), "avrg_vol"),
                 volume_growth_percent=required_decimal(row.get("vol_inrt"), "vol_inrt"),

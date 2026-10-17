@@ -32,7 +32,7 @@ from .entities.ranking import (
     QuoteBalanceRanking,
     ShortSaleRanking,
     TopViewedStock,
-    TradingActivityRanking,
+    VolumeRanking,
     WatchlistRegistrationRanking,
 )
 
@@ -44,7 +44,7 @@ if TYPE_CHECKING:
 
 #: 거래량 계열 순위 기준 -- 평균거래량(``"average_volume"``, KIS 소속구분코드 0) / 거래대금
 #: (``"cumulative_trading_amount"``) / 거래증가율(``"volume_growth"``) / 회전율(``"turnover"``).
-TradingActivityMetric = Literal["average_volume", "cumulative_trading_amount", "volume_growth", "turnover"]
+VolumeMetric = Literal["average_volume", "cumulative_trading_amount", "volume_growth", "turnover"]
 
 #: 이격도 순위 극단 -- 이격도 상위(highest) / 하위(lowest).
 DisparityExtreme = Literal["highest", "lowest"]
@@ -116,12 +116,12 @@ class DomesticRankingQueries:
             self._client.transport, direction=direction, market="KRX"
         )
 
-    def by_trading_activity(self, *, metric: TradingActivityMetric = "cumulative_trading_amount") -> list[TradingActivityRanking]:
+    def by_volume(self, *, metric: VolumeMetric = "cumulative_trading_amount") -> list[VolumeRanking]:
         """거래량 계열 순위(최대 30건). ``metric`` 으로 기준을 고른다(기본 ``cumulative_trading_amount`` 거래대금 --
         저가주가 주식 수로 상위를 독식하지 않아 cross-stock 비교에 정확하다): ``average_volume`` 평균거래량
         (주식 수) / ``cumulative_trading_amount`` 거래대금(원) / ``volume_growth`` 거래증가율 / ``turnover`` 회전율.
         각 항목의 ``cumulative_trading_amount`` 로 거래대금(원)을 함께 볼 수 있다."""
-        return ranking_api.fetch_trading_activity(self._client.transport, metric=metric, market="KRX")
+        return ranking_api.fetch_volume(self._client.transport, metric=metric, market="KRX")
 
     def by_market_cap(self) -> list[MarketCapRanking]:
         """시가총액 순위(최대 30건). 시가총액(억원)·상장주식수·시총 비중을 담은

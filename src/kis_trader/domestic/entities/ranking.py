@@ -2,7 +2,7 @@
 
 :class:`~kis_trader.domestic.ranking.DomesticRankingQueries` (``kis.domestic.ranking.*``)가 돌려주는 순위 결과의 낱개
 항목들이다. 대부분의 순위는 그 endpoint 고유의 지표(거래량 계열·시가총액·이격도·체결강도 등)를 전용 타입의
-필드로 노출한다(:class:`TradingActivityRanking` · :class:`MarketCapRanking` · :class:`DisparityRanking` 등).
+필드로 노출한다(:class:`VolumeRanking` · :class:`MarketCapRanking` · :class:`DisparityRanking` 등).
 순위 고유 지표가 없고 코어(순위·종목·시세·거래량)가 곧 payload 인 등락률 순위만 범용 :class:`DomesticRankedStock`
 를 돌려준다. 어느 타입이든 명명하지 않은 원본 값은 ``_raw`` 로 접근한다.
 
@@ -163,7 +163,7 @@ class NearHighLowRanking:
 
 
 @dataclass(frozen=True, slots=True)
-class TradingActivityRanking:
+class VolumeRanking:
     """거래량 계열 순위 한 항목(불변). ``rank`` 는 1부터의 순위.
 
     평균거래량/증가율/회전율 등 거래활동 지표를 담는다. ``*_percent`` 는 변화율(%),

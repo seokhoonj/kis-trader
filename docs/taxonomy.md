@@ -158,7 +158,7 @@ kis.domestic
 │   ├── by_disparity()                  # 이격도 순위
 │   ├── by_preferred_share_disparity()        # 우선주 괴리율 순위
 │   │  ── 거래·체결 ──────────────────────────────
-│   ├── by_trading_activity()           # 거래량 계열 순위
+│   ├── by_volume()           # 거래량 계열 순위
 │   ├── by_execution_strength()               # 체결강도 순위
 │   ├── by_bulk_trade_count()                # 대량체결건수 순위
 │   ├── by_quote_balance()              # 호가잔량 순위

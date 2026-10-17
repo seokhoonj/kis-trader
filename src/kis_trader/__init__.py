@@ -231,7 +231,7 @@ from .domestic.entities.ranking import (
     QuoteBalanceRanking,
     ShortSaleRanking,
     TopViewedStock,
-    TradingActivityRanking,
+    VolumeRanking,
     WatchlistRegistrationRanking,
 )
 from .domestic.entities.saved_screen import (
@@ -280,8 +280,8 @@ from .domestic.ranking import (
     ProfitAssetMetric,
     QuoteBalanceMetric,
     ShortSaleWindow,
-    TradingActivityMetric,
     ValuationMetric,
+    VolumeMetric,
 )
 from .domestic.stock import DomesticStock
 from .execution import (
@@ -726,8 +726,6 @@ __all__ = [
     "TradeAmountBand",
     "TradeProfit",
     "TradeProfitHistory",
-    "TradingActivityMetric",
-    "TradingActivityRanking",
     "TradingDay",
     "Transport",
     "TransportTimeoutError",
@@ -738,7 +736,9 @@ __all__ = [
     "VIEvent",
     "ValuationMetric",
     "VolumeAtPrice",
+    "VolumeMetric",
     "VolumeProfile",
+    "VolumeRanking",
     "VolumeSort",
     "Watchlist",
     "WatchlistGroup",
