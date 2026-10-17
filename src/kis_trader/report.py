@@ -38,6 +38,14 @@ class OrderStatus(StrEnum):
     REPLACED = "replaced"
 
 
+#: 더 체결될 잔량이 없는 '종료' 상태 -- 주문이 끝났다(체결 완료/취소/거부/만료). reconcile 재스캔이나
+#: TWAP 집계에서 이 상태의 리포트만 '확정'으로 보고, 미체결 잔량을 진짜 shortfall 로 친다. 비종료
+#: (NEW/부분체결/pending_*/replaced)는 아직 살아 있어(또는 후속 주문이 살아 있어) 체결 불명으로 다룬다.
+TERMINAL_ORDER_STATUSES = frozenset({
+    OrderStatus.FILLED, OrderStatus.CANCELED, OrderStatus.REJECTED, OrderStatus.EXPIRED,
+})
+
+
 #: 더 이상 전이가 없는 종료 상태.
 TERMINAL_STATUSES = frozenset(
     {OrderStatus.FILLED, OrderStatus.CANCELED, OrderStatus.REJECTED, OrderStatus.EXPIRED}

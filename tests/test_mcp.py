@@ -500,6 +500,16 @@ def test_reconcile_resolved_serializes_report():
     assert "secret" not in str(out)
 
 
+def test_reconcile_forces_broker_refresh():
+    # 사후확정 도구는 저장 스냅샷(접수 직후 체결 0)이 아니라 브로커를 실제 재스캔해야 한다 --
+    # handlers.reconcile 이 refresh=True 를 넘기는지 고정(회귀로 캐시 단락 복귀 시 이중매수 재발).
+    seen: dict = {}
+    orders = SimpleNamespace(
+        reconcile=lambda cid, *, refresh=False: seen.update(cid=cid, refresh=refresh))
+    handlers.reconcile(SimpleNamespace(orders=orders), client_order_id="cid-x")
+    assert seen == {"cid": "cid-x", "refresh": True}
+
+
 def test_account_tools_reject_non_stock_account():
     """잔고/보유/미체결 도구는 주식 계좌 전용 -- 다른 계좌 뷰면 명확히 거부."""
     from kis_trader.errors import KISUsageError

@@ -16,17 +16,12 @@ from typing import TYPE_CHECKING
 
 from .._internal._datetime import _KST
 from ..errors import KISError, KISUsageError, OrderRejectedError, OrderTimeoutError
-from ..report import OrderStatus
+from ..report import TERMINAL_ORDER_STATUSES
 from .schedule import TWAPSchedule
 
 if TYPE_CHECKING:
     from ..client import KISClient
     from ..report import ExecutionReport
-
-#: 종료(terminal) 주문상태 -- 더 체결될 잔량이 없다(체결 완료/취소/거부). 이 상태의 리포트만 '확정'으로
-#: 집계해 미체결 잔량을 진짜 shortfall 로 본다. 비종료(NEW/부분체결/pending)는 아직 살아 있어 체결 불명이라
-#: pending 으로 돌린다 -- 집계하면 체결될 잔량이 shortfall 이 돼 재주문 시 이중매수가 난다.
-_TERMINAL_STATUSES = frozenset({OrderStatus.FILLED, OrderStatus.CANCELED, OrderStatus.REJECTED})
 
 
 def _now_kst() -> datetime:
@@ -106,7 +101,9 @@ class TWAPExecutionResult:
         priced = [
             (o.report.filled_quantity, o.report.average_price)
             for o in self.outcomes
-            if o.report is not None and o.report.average_price is not None
+            # filled_quantity 와 같은 모집단(확정 체결 = client_order_id 없는 비-pending 슬라이스)만 쓴다
+            # -- pending(비종결) 슬라이스의 부분체결 단가가 섞이면 두 집계가 다른 체결 집합을 말하게 된다.
+            if o.report is not None and o.client_order_id is None and o.report.average_price is not None
         ]
         quantity = sum((qty for qty, _ in priced), Decimal(0))
         if quantity <= 0:
@@ -173,7 +170,7 @@ def execute_twap(
                 # 주문이 죽어 진짜 shortfall 이다. 모호(None)거나 비종료(NEW/부분체결/pending)면 주문이
                 # 아직 살아 있어 체결 불명이므로 pending 으로 돌린다 -- 확정 0/부분으로 집계하면 아직
                 # 체결될 잔량이 shortfall 이 돼 사용자가 재주문 시 이중매수가 난다.
-                if confirmed is None or confirmed.status not in _TERMINAL_STATUSES:
+                if confirmed is None or confirmed.status not in TERMINAL_ORDER_STATUSES:
                     pending_reconcile_id = report.client_order_id
             else:
                 # reconcile 비활성: 접수 직후 스냅샷(NEW/체결 0)은 체결 불명이므로 pending 으로 돌린다

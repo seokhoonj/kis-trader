@@ -399,6 +399,45 @@ def test_reconcile_refresh_rescans_broker_for_fills_but_default_short_circuits()
     assert fresh.order_id == placed.order_id
 
 
+def test_reconcile_refresh_matches_own_odno_not_equal_quantity_sibling():
+    # force_refresh 재조회는 저장된 ODNO 로 자기 행만 집는다 -- 동일 종목·수량·가격의 형제 주문이
+    # 일별체결에 함께 있어도(균등분할 TWAP 의 표준 형상) 지문 다건매칭 KISError 로 빠지지 않는다.
+    own = _daily_order_row(odno="0000117057", filled_quantity="10")
+    sibling = _daily_order_row(odno="0000117058", filled_quantity="10")   # 같은 지문, 다른 ODNO
+    fake = FakeTransport(by_path={_ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
+                                  _DAILY_CCLD: _daily_orders_response([own, sibling])})
+    kis = _client(fake, store=OrderStore())
+    placed = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="s1")
+    fresh = kis.orders.reconcile("s1", refresh=True)
+    assert fresh is not None and fresh.order_id == placed.order_id        # 자기 ODNO 행만 집음
+    assert fresh.filled_quantity == Decimal(10)
+
+
+def test_reconcile_refresh_does_not_misattribute_sibling_when_own_row_absent():
+    # 반영 지연으로 자기 ODNO 행이 아직 조회에 안 잡히고 형제 행만 보여도, ODNO 불일치라 형제를 이
+    # 주문으로 오귀속(phantom 확정 + 이후 cancel 이 살아있는 형제 겨냥)하지 않는다 -- 비종료 prior 라 None.
+    sibling = _daily_order_row(odno="0000117058", filled_quantity="10")   # 형제만 존재
+    fake = FakeTransport(by_path={_ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
+                                  _DAILY_CCLD: _daily_orders_response([sibling])})
+    kis = _client(fake, store=OrderStore())
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="s1")
+    assert kis.orders.reconcile("s1", refresh=True) is None               # 형제 오귀속 금지
+
+
+def test_reconcile_refresh_returns_terminal_prior_when_rescan_empty():
+    # 종료(체결) 확정 후 당일창 밖(익일) 재조회가 0건이어도 저장된 종료 리포트를 돌려준다 -- 종료
+    # 상태는 재스캔으로 바뀌지 않으므로 '미해소'(None)로 퇴행시키지 않는다(CLI/MCP 상시 refresh 보호).
+    filled = _daily_orders_response([_daily_order_row(odno="0000117057", filled_quantity="10")])
+    empty = _daily_orders_response([])
+    fake = FakeTransport(by_path={_ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
+                                  _DAILY_CCLD: [filled, empty]})           # 1st 체결, 2nd 빈 응답
+    kis = _client(fake, store=OrderStore())
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="s1")
+    assert kis.orders.reconcile("s1", refresh=True).status is OrderStatus.FILLED
+    second = kis.orders.reconcile("s1", refresh=True)                      # 당일창 밖(0건)
+    assert second is not None and second.status is OrderStatus.FILLED
+
+
 def test_reconcile_of_change_queries_broker_fresh_then_clears_the_stuck_change():
     """변경(정정/취소)이 타임아웃·스로틀로 in-flight 로 박히면, 그 request_id 의 reconcile 은 원주문의
     **현재** 상태를 브로커에서 다시 조회해(저장된 낡은 리포트를 단락 반환하지 않는다) 1건으로 확정되면
