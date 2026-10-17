@@ -87,9 +87,9 @@ from .domestic.entities.bond import (
 )
 from .domestic.entities.bond_account import (
     BondBuyable,
-    BondFill,
-    BondFillHistory,
     BondOpenOrder,
+    BondOrder,
+    BondOrderHistory,
     BondPosition,
 )
 from .domestic.entities.broker import (
@@ -231,7 +231,7 @@ from .domestic.entities.saved_screen import (
     WatchlistGroup,
     WatchlistStock,
 )
-from .domestic.entities.stock_fills import StockFill, StockFillHistory, StopTrigger
+from .domestic.entities.stock_fills import StockOrder, StockOrderHistory, StopTrigger
 from .domestic.entities.stock_info import StockProfile, StockStatus
 from .domestic.entities.trade_profit import (
     DailyProfit,
@@ -414,10 +414,10 @@ __all__ = [
     "Bond",
     "BondBuyable",
     "BondDailyPrice",
-    "BondFill",
-    "BondFillHistory",
     "BondIssuance",
     "BondOpenOrder",
+    "BondOrder",
+    "BondOrderHistory",
     "BondPosition",
     "BondProfile",
     "BondQuote",
@@ -693,8 +693,8 @@ __all__ = [
     "SideFilter",
     "StabilityRatio",
     "StockAccount",
-    "StockFill",
-    "StockFillHistory",
+    "StockOrder",
+    "StockOrderHistory",
     "StockProfile",
     "StockStatus",
     "StopTrigger",

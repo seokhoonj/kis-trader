@@ -1449,7 +1449,7 @@ class _StubBonds:
     def open_orders(self, order_date):
         self._log.append(("bonds_open_orders", order_date)); return ["OPEN"]
 
-    def fills(self, *, start, end, **kwargs):
+    def order_history(self, *, start, end, **kwargs):
         self._log.append(("bonds_fills", start, end, kwargs))
         return ["FILLS"]
 
@@ -1468,7 +1468,7 @@ class _StubDomesticAccount:
     def open_orders(self):
         self._log.append(("dom_open_orders",)); return "STOCK_OPEN"
 
-    def fills(self, *, start, end, **kwargs):
+    def order_history(self, *, start, end, **kwargs):
         self._log.append(("stock_fills", start, end, kwargs)); return ["STOCK_FILLS"]
 
     def trade_profits(self, *, start, end, **kwargs):

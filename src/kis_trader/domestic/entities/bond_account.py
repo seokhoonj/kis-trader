@@ -1,5 +1,5 @@
 """장내채권 계좌 잔고/체결(DATA) -- :class:`BondPosition`, :class:`BondBuyable`,
-:class:`BondOpenOrder`, :class:`BondFill`, :class:`BondFillHistory`.
+:class:`BondOpenOrder`, :class:`BondOrder`, :class:`BondOrderHistory`.
 
 ``kis.account.domestic.bonds`` 뷰가 돌려주는 장내채권 계좌 조회 결과다. 채권은 위탁(01) 계좌를
 주식과 함께 쓰되 ``domestic-bond`` 전용 엔드포인트로 조회한다. 금액·수량은 KRW Decimal, 날짜는
@@ -104,7 +104,7 @@ class BondOpenOrder:
 
 
 @dataclass(frozen=True, slots=True)
-class BondFill:
+class BondOrder:
     """장내채권 일별 주문·체결 내역 한 건(불변).
 
     한 주문의 주문·체결 상태를 함께 담는다: ``order_quantity`` / ``order_price`` 주문, ``filled_quantity``
@@ -135,14 +135,14 @@ class BondFill:
 
 
 @dataclass(frozen=True, slots=True)
-class BondFillHistory:
+class BondOrderHistory:
     """장내채권 일별 주문·체결 내역과 기간 합계 요약(불변).
 
-    ``fills`` 는 개별 주문·체결 행(:class:`BondFill`)이고, ``total_*`` 은 조회 기간의 합계다.
+    ``orders`` 는 개별 주문·체결 행(:class:`BondOrder`)이고, ``total_*`` 은 조회 기간의 합계다.
     ``average_price`` 는 기간 전체 채권 체결평균단가. 금액·수량은 KRW Decimal.
     """
 
-    fills: tuple[BondFill, ...]     # 개별 주문·체결 내역(output1)
+    orders: tuple[BondOrder, ...]   # 개별 주문·체결 내역(output1)
     total_order_quantity: Decimal   # 총주문수량(tot_ord_qty)
     total_filled_quantity: Decimal  # 총체결수량합계(tot_ccld_qty_smtl)
     average_price: Decimal          # 총채권체결평균단가(tot_bond_ccld_avg_unpr)
@@ -152,5 +152,5 @@ class BondFillHistory:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "fills", tuple(self.fills))
+        object.__setattr__(self, "orders", tuple(self.orders))
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

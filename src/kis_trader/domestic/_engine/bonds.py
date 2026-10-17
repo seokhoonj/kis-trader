@@ -58,9 +58,9 @@ from ..entities.bond import (
 )
 from ..entities.bond_account import (
     BondBuyable,
-    BondFill,
-    BondFillHistory,
     BondOpenOrder,
+    BondOrder,
+    BondOrderHistory,
     BondPosition,
 )
 from ._parse import _side_from_code
@@ -650,11 +650,11 @@ def _parse_bond_open_orders(rows: list[Mapping[str, Any]]) -> list[BondOpenOrder
     return orders
 
 
-def fetch_bond_fills(
+def fetch_bond_order_history(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     start: str, end: str, side: SideFilter = "all", symbol: str | None = None,
     unfilled_only: bool = False,
-) -> BondFillHistory:
+) -> BondOrderHistory:
     """장내채권 일별 주문·체결 내역(개별 행 + 기간 합계 요약). ``start``~``end`` (YYYYMMDD) 기간,
     ``side`` = ``"all"``/``"sell"``/``"buy"``, ``symbol`` 없으면 전체, ``unfilled_only`` 면 미체결만.
 
@@ -678,7 +678,7 @@ def fetch_bond_fills(
     summary: Mapping[str, Any] | None = None
     ctx_fk, ctx_nk, tr_cont = "", "", ""
     for _page in range(_MAX_BOND_ACCOUNT_PAGES):
-        resp = _fetch_bond_fills_page(
+        resp = _fetch_bond_order_history_page(
             transport, cano=cano, product_code=product_code,
             start=start, end=end, side_code=side_code, symbol=symbol,
             unfilled_only=unfilled_only, ctx_fk=ctx_fk, ctx_nk=ctx_nk, tr_cont=tr_cont,
@@ -707,17 +707,17 @@ def fetch_bond_fills(
         )
     if summary is None:
         raise KISError("장내채권 일별 주문체결조회 응답에 합계 요약(output2)이 없다.")
-    return BondFillHistory(
+    return BondOrderHistory(
         total_order_quantity=required_decimal(summary.get("tot_ord_qty"), "tot_ord_qty"),
         total_filled_quantity=required_decimal(summary.get("tot_ccld_qty_smtl"), "tot_ccld_qty_smtl"),
         average_price=required_decimal(summary.get("tot_bond_ccld_avg_unpr"), "tot_bond_ccld_avg_unpr"),
         total_filled_amount=required_decimal(summary.get("tot_ccld_amt_smtl"), "tot_ccld_amt_smtl"),
-        fills=tuple(_parse_bond_fills(rows)),
+        orders=tuple(_parse_bond_orders(rows)),
         _raw=summary,
     )
 
 
-def _fetch_bond_fills_page(
+def _fetch_bond_order_history_page(
     transport: Transport, *, cano: str, product_code: str, start: str, end: str,
     side_code: str, symbol: str | None, unfilled_only: bool,
     ctx_fk: str, ctx_nk: str, tr_cont: str = "",
@@ -735,16 +735,16 @@ def _fetch_bond_fills_page(
     )
 
 
-def _parse_bond_fills(rows: list[Mapping[str, Any]]) -> list[BondFill]:
-    fills: list[BondFill] = []
+def _parse_bond_orders(rows: list[Mapping[str, Any]]) -> list[BondOrder]:
+    orders: list[BondOrder] = []
     for row in rows:
         if not isinstance(row, Mapping):  # output1=[None] 등 손상 -> fail-closed
             raise KISError("장내채권 일별 주문체결조회 응답 행이 매핑이 아니다.")
         order_id = str(row.get("odno", "")).strip()
         if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
             continue
-        fills.append(
-            BondFill(
+        orders.append(
+            BondOrder(
                 order_date=_parse_bond_date(row.get("ord_dt")),
                 order_id=order_id,
                 original_order_id=str(row.get("orgn_odno", "")).strip(),
@@ -763,7 +763,7 @@ def _parse_bond_fills(rows: list[Mapping[str, Any]]) -> list[BondFill]:
                 _raw=row,
             )
         )
-    return fills
+    return orders
 
 
 # --- 채권 계좌 공용 파서 ---------------------------------------------------

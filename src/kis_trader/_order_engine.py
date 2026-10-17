@@ -451,7 +451,7 @@ class OrderEngine:
             # fail-closed 한다 -- 이중체결 방지 장벽은 그대로다.
             raise KISUsageError(
                 "장내채권 주문 재조회(reconcile)는 아직 미지원 -- 체결은 "
-                "계좌 조회(kis.account.domestic.bonds.fills / open_orders)로 수동 확인하라."
+                "계좌 조회(kis.account.domestic.bonds.order_history / open_orders)로 수동 확인하라."
             )
         if isinstance(fingerprint, ImmediateOrderFingerprint) and \
                 (fingerprint.region, fingerprint.asset_class) == ("overseas", "derivative"):

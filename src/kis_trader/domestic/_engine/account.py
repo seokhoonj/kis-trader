@@ -40,7 +40,7 @@ from ..entities.account_reports import (
 )
 from ..entities.account_right import AccountRight
 from ..entities.balance import AccountAssets, DomesticBalance, DomesticPosition, Portfolio
-from ..entities.stock_fills import StockFill, StockFillHistory, StopTrigger
+from ..entities.stock_fills import StockOrder, StockOrderHistory, StopTrigger
 from ..entities.trade_profit import (
     DailyProfit,
     DailyProfitHistory,
@@ -519,11 +519,11 @@ def _parse_daily_profit(row: Mapping[str, Any]) -> DailyProfit:
     )
 
 
-def fetch_stock_fills(
+def fetch_stock_order_history(
     transport: Transport, *, cano: str, product_code: str, environment: Environment,
     start: str, end: str, side: SideFilter = "all", symbol: str | None = None,
     unfilled_only: bool = False, older_than_three_months: bool = False,
-) -> StockFillHistory:
+) -> StockOrderHistory:
     """국내주식 일별 주문·체결 내역(개별 행 + 기간 합계 요약). ``start``~``end`` (YYYYMMDD) 기간,
     ``side`` = ``"all"``/``"sell"``/``"buy"``, ``symbol`` 없으면 전체, ``unfilled_only`` 면 미체결만.
     ``older_than_three_months`` 면 3개월 **이전** 내역(그 외에는 3개월 **이내**). 두 구간은 상호
@@ -562,8 +562,8 @@ def fetch_stock_fills(
     )
     if summary is None:
         raise KISError("주식일별주문체결조회 응답에 합계 요약(output2)이 없다.")
-    return StockFillHistory(
-        fills=tuple(_parse_stock_fills(rows)),
+    return StockOrderHistory(
+        orders=tuple(_parse_stock_orders(rows)),
         total_order_quantity=required_decimal(summary.get("tot_ord_qty"), "tot_ord_qty"),
         total_filled_quantity=required_decimal(summary.get("tot_ccld_qty"), "tot_ccld_qty"),
         total_filled_amount=required_decimal(summary.get("tot_ccld_amt"), "tot_ccld_amt"),
@@ -615,16 +615,16 @@ def _parse_stop_trigger(row: Mapping[str, Any]) -> StopTrigger | None:
     )
 
 
-def _parse_stock_fills(rows: list[Mapping[str, Any]]) -> list[StockFill]:
+def _parse_stock_orders(rows: list[Mapping[str, Any]]) -> list[StockOrder]:
     # 행 배열의 매핑 여부는 상류 _require_mapping_rows 가 이미 fail-closed 로 보장한다.
-    fills: list[StockFill] = []
+    orders: list[StockOrder] = []
     warned_exchanges: set[str] = set()  # 미지 거래소 코드 경고를 조회당 코드별 1회로 집약
     for row in rows:
         order_id = str(row.get("odno", "")).strip()
         if not order_id:  # 주문번호 없는 패딩 행 -- 건너뜀
             continue
-        fills.append(
-            StockFill(
+        orders.append(
+            StockOrder(
                 order_date=_parse_date(row.get("ord_dt")),
                 order_id=order_id,
                 original_order_id=str(row.get("orgn_odno", "")).strip(),
@@ -655,7 +655,7 @@ def _parse_stock_fills(rows: list[Mapping[str, Any]]) -> list[StockFill]:
                 _raw=row,
             )
         )
-    return fills
+    return orders
 
 
 def fetch_account_rights(

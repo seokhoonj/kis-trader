@@ -304,7 +304,7 @@ kis.account
 │   │   ├── daily_profits(start, end)         # 일별 매매손익
 │   │   ├── rights(start, end)                # 계좌 권리 내역
 │   │   ├── open_orders()                     # 미체결 주문
-│   │   ├── fills(start, end)                 # 일별 주문·체결 내역
+│   │   ├── order_history(start, end)         # 일별 주문·체결 내역
 │   │   ├── reserved_orders(start, end)       # 예약주문 목록
 │   │   ├── cancel_reserved_order(seq)        # 예약주문 취소
 │   │   ├── modify_reserved_order(...)        # 예약주문 정정
@@ -312,7 +312,7 @@ kis.account
 │   │       ├── balance()                     # 채권 보유 잔고
 │   │       ├── buyable(symbol)               # 채권 매수가능
 │   │       ├── open_orders(order_date)       # 채권 미체결 주문
-│   │       └── fills(start, end)             # 채권 주문·체결 내역
+│   │       └── order_history(start, end)     # 채권 주문·체결 내역
 │   ├── overseas                              # 해외주식 계좌 조회
 │   │   ├── positions()                       # 보유 종목(시장·통화별)
 │   │   ├── balance(market)                   # 계좌 손익 요약(시장별)

@@ -1,7 +1,7 @@
-"""국내주식 일별 주문·체결 내역 DATA -- 개별 주문·체결 행(:class:`StockFill`)과 기간 합계
-요약(:class:`StockFillHistory`).
+"""국내주식 일별 주문·체결 내역 DATA -- 개별 주문·체결 행(:class:`StockOrder`)과 기간 합계
+요약(:class:`StockOrderHistory`).
 
-``kis.account.domestic.fills(start=, end=)`` 가 돌려주는 조회 전용 스냅샷이다. 한 행은 한 주문의
+``kis.account.domestic.order_history(start=, end=)`` 가 돌려주는 조회 전용 스냅샷이다. 한 행은 한 주문의
 주문·체결 상태를 함께 담는다(주문수량/단가, 체결수량/평균가/금액, 잔여·거부수량, 취소여부).
 금액·수량은 KRW Decimal. 실전·모의(``TTTC0081R``/``VTTC0081R``) 모두 지원한다.
 """
@@ -22,7 +22,7 @@ from ...order import Side
 
 @dataclass(frozen=True, slots=True)
 class StopTrigger:
-    """스톱지정가 주문의 트리거 정보(불변). 비-스톱 주문 체결에는 붙지 않는다(:class:`StockFill`
+    """스톱지정가 주문의 트리거 정보(불변). 비-스톱 주문 체결에는 붙지 않는다(:class:`StockOrder`
     의 ``stop`` 은 그 경우 ``None``). ``trigger_price`` 조건가격, ``effective_datetime`` 효력발생
     상세시각(아직 미발생이면 None)."""
 
@@ -31,7 +31,7 @@ class StopTrigger:
 
 
 @dataclass(frozen=True, slots=True)
-class StockFill:
+class StockOrder:
     """국내주식 일별 주문·체결 내역 한 건(불변).
 
     ``order_quantity`` / ``order_price`` 는 주문, ``filled_quantity`` / ``average_price`` /
@@ -77,15 +77,15 @@ class StockFill:
 
 
 @dataclass(frozen=True, slots=True)
-class StockFillHistory:
+class StockOrderHistory:
     """국내주식 일별 주문·체결 내역과 기간 합계 요약(불변).
 
-    ``fills`` 는 개별 주문·체결 행(:class:`StockFill`)이고, ``total_*`` 은 조회 기간의 합계다.
+    ``orders`` 는 개별 주문·체결 행(:class:`StockOrder`)이고, ``total_*`` 은 조회 기간의 합계다.
     ``average_purchase_price`` 는 기간 매입평균가격, ``estimated_expenses`` 는 추정제비용합계.
     금액·수량은 KRW Decimal.
     """
 
-    fills: tuple[StockFill, ...]     # 개별 주문·체결 내역(output1)
+    orders: tuple[StockOrder, ...]   # 개별 주문·체결 내역(output1)
     total_order_quantity: Decimal    # 총주문수량(tot_ord_qty)
     total_filled_quantity: Decimal   # 총체결수량(tot_ccld_qty)
     total_filled_amount: Decimal     # 총체결금액(tot_ccld_amt)
@@ -96,5 +96,5 @@ class StockFillHistory:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "fills", tuple(self.fills))
+        object.__setattr__(self, "orders", tuple(self.orders))
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))

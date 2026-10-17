@@ -93,7 +93,7 @@ class Bond:
         금지는 국내주식·파생과 같은 안전 엔진에서 자동 적용된다. 계좌 미설정은
         :class:`~kis_trader.errors.KISUsageError`, 접수 거부는 ``OrderRejectedError``, 타임아웃(체결
         불명)은 ``OrderTimeoutError`` 다. 채권 타임아웃은 ``kis.orders.reconcile`` 로 확인되지 않으니
-        (미지원, fail-closed) ``kis.account.domestic.bonds`` 의 체결/미체결(fills/open_orders) 조회로
+        (미지원, fail-closed) ``kis.account.domestic.bonds`` 의 체결/미체결(order_history/open_orders) 조회로
         직접 확인한다.
 
         일반시장(``SAMT_MKET_PTCI_YN="N"``)에서는 주문 수량이 액면 10단위의 배수여야 할 수 있다
@@ -130,7 +130,7 @@ class Bond:
         검증하기 전까지 프로덕션 사용에 앞서 실계좌 확인이 필요하다. 이중체결 방지·타임아웃 재시도
         금지는 국내주식·파생과 같은 안전 엔진에서 자동 적용된다. 채권 타임아웃은 ``kis.orders.reconcile``
         로 확인되지 않으니(미지원, fail-closed) ``kis.account.domestic.bonds`` 의 체결/미체결
-        (fills/open_orders) 조회로 직접 확인한다.
+        (order_history/open_orders) 조회로 직접 확인한다.
 
         분리과세(``SPRX_YN``)는 v1 에서 지원하지 않고 항상 미신청("N")으로 나간다.
 

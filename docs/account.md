@@ -83,13 +83,13 @@ account.realized_profit_balance()                        # 실현손익 포함 �
 
 ```python
 account.open_orders()                                    # 미체결 / 정정취소 가능 주문
-account.fills(start="20240101", end="20240229")          # 일별 주문·체결 내역(StockFillHistory)
+account.order_history(start="20240101", end="20240229")  # 일별 주문·체결 내역(StockOrderHistory)
 stock = kis.domestic.stock("005930")
 stock.buyable()                       # 매수 가능 수량·금액
 stock.sellable()                      # 매도 가능 수량
 ```
 
-`fills()` 의 각 `StockFill` 은 주문·체결 상태(수량·단가·평균가·거래소)를 담고, 스톱지정가 체결이면
+`order_history()` 의 각 `StockOrder` 는 주문·체결 상태(수량·단가·평균가·거래소)를 담고, 스톱지정가 체결이면
 `.stop` 에 `StopTrigger`(조건가격·효력발생시각)를 싣습니다.
 
 ## 권리·증거금

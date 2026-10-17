@@ -164,10 +164,10 @@ def cmd_fills(kis: KISClient, args: Namespace) -> Any:
         # --older-than-three-months 는 주식 일별주문체결(CTSC9215R) 전용; 채권 체결내역엔 없다.
         if args.older_than_three_months:
             raise CliConfigError("--older-than-three-months 는 주식 체결내역 전용입니다(채권 미지원).")
-        return account.domestic.bonds.fills(start=args.start, end=args.end, **filters)
+        return account.domestic.bonds.order_history(start=args.start, end=args.end, **filters)
     if args.older_than_three_months:
         filters["older_than_three_months"] = True
-    return account.domestic.fills(start=args.start, end=args.end, **filters)
+    return account.domestic.order_history(start=args.start, end=args.end, **filters)
 
 
 def cmd_reserved(kis: KISClient, args: Namespace) -> Any:

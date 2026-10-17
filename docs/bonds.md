@@ -39,11 +39,11 @@ for position in bonds.balance():
 ```python
 bonds.buyable("KR6095572D97", limit_price=10500)   # 매수가능 금액·수량
 bonds.open_orders(order_date="20240628")      # 정정·취소 가능한 미체결 주문
-bonds.fills(start="20240101", end="20240630") # 일별 주문·체결 (side/symbol/unfilled_only 필터)
+bonds.order_history(start="20240101", end="20240630") # 일별 주문·체결 (side/symbol/unfilled_only 필터)
 ```
 
 - `buyable()` → `BondBuyable`: `orderable_cash`(주문가능현금), `buyable_amount`·`buyable_quantity`(매수가능 금액·수량).
 - `open_orders()` → `BondOpenOrder` 목록: `order_id`(주문번호, 정정·취소로 지목), `cancelable_quantity`(정정·취소 가능 수량), `side`.
-- `fills(*, start, end, side="all", symbol=None, unfilled_only=False)` → `BondFillHistory`: 개별 행 `fills`(`BondFill`)와 기간 합계(`total_filled_quantity`·`total_filled_amount`·`average_price`).
+- `order_history(*, start, end, side="all", symbol=None, unfilled_only=False)` → `BondOrderHistory`: 개별 행 `orders`(`BondOrder`)와 기간 합계(`total_filled_quantity`·`total_filled_amount`·`average_price`).
 
 타입화하지 않은 벤더 필드는 각 결과의 `_raw` 로 접근합니다.
