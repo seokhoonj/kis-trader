@@ -34,8 +34,8 @@ from ...transport import Environment, RawResponse, Transport
 from ..entities.account import (
     OverseasBuyableAmount,
     OverseasForeignMargin,
+    OverseasTradeProfit,
     OverseasTradeProfitHistory,
-    OverseasTradeProfitRow,
     OverseasTransaction,
 )
 from ..entities.balance import (
@@ -432,7 +432,7 @@ def fetch_trade_profits(
     else:
         raise KISError("해외 기간손익이 페이지 상한에 도달했으나 연속조회가 남아있다.")
     profit_rows = tuple(
-        OverseasTradeProfitRow(
+        OverseasTradeProfit(
             trade_day=parse_optional_kst_date(row.get("trad_day")),
             symbol=str(row.get("ovrs_pdno", "")).strip(),
             name=str(row.get("ovrs_item_name", "")).strip(),
@@ -452,7 +452,7 @@ def fetch_trade_profits(
         for row in rows
     )
     return OverseasTradeProfitHistory(
-        rows=profit_rows,
+        trades=profit_rows,
         total_sell_amount=_decimal_or_zero(summary, "stck_sll_amt_smtl"),
         total_buy_amount=_decimal_or_zero(summary, "stck_buy_amt_smtl"),
         total_fee=_decimal_or_zero(summary, "smtl_fee1"),

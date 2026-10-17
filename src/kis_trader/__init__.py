@@ -320,8 +320,8 @@ from .overseas.derivative_account import OverseasDerivativesAccount
 from .overseas.entities.account import (
     OverseasBuyableAmount,
     OverseasForeignMargin,
+    OverseasTradeProfit,
     OverseasTradeProfitHistory,
-    OverseasTradeProfitRow,
     OverseasTransaction,
 )
 from .overseas.entities.balance import (
@@ -658,8 +658,8 @@ __all__ = [
     "OverseasStock",
     "OverseasStockScreen",
     "OverseasStockScreenMatch",
+    "OverseasTradeProfit",
     "OverseasTradeProfitHistory",
-    "OverseasTradeProfitRow",
     "OverseasTransaction",
     "ParValueChange",
     "PensionAccount",

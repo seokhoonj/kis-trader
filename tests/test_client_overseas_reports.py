@@ -212,7 +212,7 @@ def test_trade_profits_parses():
     pnl = _client(FakeTransport(response=_resp(body))).account.overseas.trade_profits(
         start="20250501", end="20250523")
     assert isinstance(pnl, OverseasTradeProfitHistory)
-    row = pnl.rows[0]
+    row = pnl.trades[0]
     assert row.trade_day == date(2025, 5, 23)
     assert row.symbol == "AAPL"
     assert row.sold_quantity == Decimal(5)
@@ -241,7 +241,7 @@ def test_trade_profits_empty_ok():
     body = {"output1": [], "output2": {}}
     pnl = _client(FakeTransport(response=_resp(body))).account.overseas.trade_profits(
         start="20250501", end="20250523")
-    assert pnl.rows == ()
+    assert pnl.trades == ()
     assert pnl.total_realized_pnl == Decimal(0)
 
 

@@ -108,7 +108,7 @@ class OverseasBuyableAmount:
 
 
 @dataclass(frozen=True, slots=True)
-class OverseasTradeProfitRow:
+class OverseasTradeProfit:
     """해외주식 기간손익의 매도청산 한 줄(불변). 금액 기준통화는 조회 방식에 달렸다 -- 통화를 지정하면
     그 통화, ``won_basis=True`` 로 조회하면 원화(WCRC_FRCR_DVSN_CD 02), 아니면 외화(01)다("외화"로
     단정하지 않는다). 통화 지정 없이(전체) 조회하면 행마다 통화가 섞일 수 있으니 ``exchange``
@@ -138,13 +138,13 @@ class OverseasTradeProfitRow:
 
 @dataclass(frozen=True, slots=True)
 class OverseasTradeProfitHistory:
-    """해외주식 기간손익(불변) -- 기간 내 매도청산 종목별 실현손익(``rows``)과 총계. **모의투자 미지원**.
+    """해외주식 기간손익(불변) -- 기간 내 매도청산 종목별 실현손익(``trades``)과 총계. **모의투자 미지원**.
 
     .. note:: KIS 응답예시가 비어 있어 필드는 레이아웃 기준이다 -- 실제 응답과 다를 수 있으므로 각
        행과 결과의 ``_raw`` 로 원본을 함께 노출한다.
     """
 
-    rows: tuple[OverseasTradeProfitRow, ...]
+    trades: tuple[OverseasTradeProfit, ...]
     total_sell_amount: Decimal         # 주식매도금액합계(stck_sll_amt_smtl)
     total_buy_amount: Decimal          # 주식매수금액합계(stck_buy_amt_smtl)
     total_fee: Decimal                 # 합계수수료1(smtl_fee1)
@@ -158,5 +158,5 @@ class OverseasTradeProfitHistory:
     )
 
     def __post_init__(self) -> None:
-        object.__setattr__(self, "rows", tuple(self.rows))
+        object.__setattr__(self, "trades", tuple(self.trades))
         object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
