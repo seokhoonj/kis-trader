@@ -48,7 +48,7 @@ from ...transport import Environment, Transport
 from ..entities.industry import OverseasIndustry, OverseasIndustryStock
 from ..entities.product import OverseasProductInfo
 from ..entities.quote import OverseasCurrentPrice
-from ..entities.search import OverseasStockSearch, OverseasStockSearchMatch
+from ..entities.search import OverseasStockScreen, OverseasStockScreenMatch
 
 _QUOTE_PATH = "/uapi/overseas-price/v1/quotations/price-detail"
 _QUOTE_TR = "HHDFS76200200"
@@ -93,7 +93,7 @@ def _range_params(name: str, value: tuple[object, object] | None) -> dict[str, s
     return {f"CO_YN_{name}": "1", f"CO_ST_{name}": start, f"CO_EN_{name}": end}
 
 
-def search_stocks(
+def screen_stocks(
     transport: Transport, *, exchange: str,
     price: tuple[object, object] | None = None,
     change_percent: tuple[object, object] | None = None,
@@ -103,7 +103,7 @@ def search_stocks(
     trading_amount: tuple[object, object] | None = None,
     eps: tuple[object, object] | None = None,
     per: tuple[object, object] | None = None,
-) -> OverseasStockSearch:
+) -> OverseasStockScreen:
     """해외 거래소 종목을 가격·등락률·규모·거래·밸류에이션 범위로 검색한다. 결과가 많으면 연속조회로
     전체를 모은다."""
     if not exchange.strip():
@@ -160,8 +160,8 @@ def search_stocks(
             f"해외 조건검색이 총건수({total_count})보다 적은 {len(accumulated)}건에서 멈췄다 "
             "-- 부분 결과로 확정하지 않는다. 범위를 좁히거나 재시도하라."
         )
-    matches = [_parse_search_match(row) for row in accumulated]
-    return OverseasStockSearch(
+    matches = [_parse_screen_match(row) for row in accumulated]
+    return OverseasStockScreen(
         exchange=exchange.strip(), decimal_places=required_int(output1.get("zdiv"), "zdiv"),
         status=str(output1.get("stat", "")).strip(),
         total_count=total_count, matches=tuple(matches),
@@ -169,9 +169,9 @@ def search_stocks(
     )
 
 
-def _parse_search_match(row: Mapping[str, Any]) -> OverseasStockSearchMatch:
+def _parse_screen_match(row: Mapping[str, Any]) -> OverseasStockScreenMatch:
     sign = str(row.get("sign", "")).strip()
-    return OverseasStockSearchMatch(
+    return OverseasStockScreenMatch(
         realtime_symbol=str(row.get("rsym", "")).strip(),
         exchange=str(row.get("excd", "")).strip(), symbol=str(row.get("symb", "")).strip(),
         name=str(row.get("name", "")).strip(), english_name=str(row.get("ename", "")).strip(),

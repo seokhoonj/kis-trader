@@ -36,10 +36,10 @@ MessageCallback = Callable[[RealtimeMessage], None]
 
 
 class InstrumentResolver(Protocol):
-    """심볼(과 선택적 거래소) -> 해외 종목 마스터 레코드. ``KISClient.instrument`` 이 이를 만족한다.
+    """심볼(과 선택적 거래소) -> 해외 종목 마스터 레코드. ``kis.overseas.resolve_instrument`` 이 이를 만족한다.
 
     해외주식 실시간 tr_key 는 RSYM 이라 심볼만으로는 부족하다 -- 마스터 조회로 ``realtime_symbol``
-    (RSYM)·``exchange`` 를 얻는다. ``kis.realtime()`` 이 이 seam 에 ``KISClient.instrument`` 을 주입한다.
+    (RSYM)·``exchange`` 를 얻는다. ``kis.realtime()`` 이 이 seam 에 ``kis.overseas.resolve_instrument`` 을 주입한다.
     """
 
     def __call__(self, symbol: str, *, exchange: str | None = None) -> InstrumentRecord: ...
@@ -76,7 +76,7 @@ class RealtimeClient:
         self._environment: Environment = environment
         self._connect = connect
         self._reconnect = reconnect
-        # 해외주식 RSYM 해석용 seam. ``kis.realtime()`` 이 KISClient.instrument 을 주입한다. 없으면
+        # 해외주식 RSYM 해석용 seam. ``kis.realtime()`` 이 kis.overseas.resolve_instrument 을 주입한다. 없으면
         # rt.overseas.stock(...) 이 fail-closed(직접 만든 클라이언트는 종목 마스터에 접근 못 함).
         self._instrument_resolver = instrument_resolver
         self._loop: asyncio.AbstractEventLoop | None = None
@@ -167,7 +167,7 @@ class RealtimeClient:
         """해외 심볼을 종목 마스터로 해석한다(RSYM tr_key·거래소의 원천). ``rt.overseas.stock`` 이 쓴다.
 
         주입된 resolver 가 없으면(KISClient 없이 만든 클라이언트) fail-closed. ``kis.realtime()`` 은
-        ``KISClient.instrument`` 을 resolver 로 주입하므로 이 경로가 정상 동작한다. ``exchange`` 를
+        ``kis.overseas.resolve_instrument`` 을 resolver 로 주입하므로 이 경로가 정상 동작한다. ``exchange`` 를
         생략하면 마스터가 자동 해석하고, 같은 심볼이 여러 거래소면 resolver 가
         :class:`~kis_trader.errors.KISUsageError` 를 던진다."""
         if self._instrument_resolver is None:

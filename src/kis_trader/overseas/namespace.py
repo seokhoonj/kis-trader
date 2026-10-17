@@ -18,13 +18,13 @@ from ._engine import orders as overseas_orders_api
 from ._engine import reference as overseas_reference_api
 from ._engine import reserved_orders as overseas_reserved_orders_api
 from .derivative import OverseasDerivative
-from .entities.search import OverseasStockSearch
+from .entities.search import OverseasStockScreen
 from .index import OverseasIndex
 from .ranking import OverseasRankingQueries
 from .stock import OverseasStock
 
 #: "US" 통합 검색이 훑는 미국 거래소코드(나스닥/뉴욕/아멕스) -- KIS 조건검색 TR 은 거래소당 한 번이라
-#: search_stocks("US") 가 이 셋을 각각 조회해 합친다.
+#: screen_stocks("US") 가 이 셋을 각각 조회해 합친다.
 _US_EXCHANGES = ("NAS", "NYS", "AMS")
 
 if TYPE_CHECKING:
@@ -33,6 +33,7 @@ if TYPE_CHECKING:
 
     from .._literals import DerivativeProductFilter, Numeric, SideFilter
     from ..client import KISClient
+    from ..instrument import InstrumentRecord
     from ..news import NewsHeadline
     from ..quote import Quote
     from .entities.account import (
@@ -255,13 +256,21 @@ class OverseasNamespace:
     def __init__(self, client: KISClient) -> None:
         self._client = client
 
+    # -- 심볼 해석 --
+    def resolve_instrument(self, symbol: str, *, exchange: str | None = None) -> InstrumentRecord:
+        """해외 심볼을 KIS 종목 마스터로 해석한다 -- 거래소코드/통화/종목유형/이름을 돌려준다.
+
+        같은 심볼이 여러 거래소에 있으면 ``exchange`` 를 명시해야 한다(:class:`~kis_trader.errors.
+        KISUsageError`). 첫 호출은 마스터를 받아 캐시하므로 느릴 수 있다(이후는 캐시)."""
+        return self._client._ensure_overseas_index().resolve(symbol, exchange=exchange)
+
     # -- 종목/상품 핸들 --
     def stock(self, symbol: str, *, exchange: str | None = None) -> OverseasStock:
         """해외 종목 핸들. ``exchange`` (거래소코드 NAS/NYS/AMS/TSE/HKS/...)를 생략하면 KIS 종목 마스터로
         거래소를 자동 해석한다(첫 조회는 마스터를 받아 캐시 -- 느릴 수 있다). 같은 심볼이 여러 거래소면
         ``exchange`` 를 명시해야 한다(:class:`~kis_trader.errors.KISUsageError`)."""
         if exchange is None:
-            exchange = self._client.instrument(symbol).exchange
+            exchange = self.resolve_instrument(symbol).exchange
         return OverseasStock(self._client, symbol, exchange=exchange)
 
     def index(self, code: str, *, kind: OverseasIndexKind = "index") -> OverseasIndex:
@@ -354,7 +363,7 @@ class OverseasNamespace:
             self._client.transport, requests=[(exchange, symbol) for exchange, symbol in symbols]
         )
 
-    def search_stocks(
+    def screen_stocks(
         self, exchange: str, *,
         price: tuple[Numeric, Numeric] | None = None,
         change_percent: tuple[Numeric, Numeric] | None = None,
@@ -364,7 +373,7 @@ class OverseasNamespace:
         trading_amount: tuple[Numeric, Numeric] | None = None,
         eps: tuple[Numeric, Numeric] | None = None,
         per: tuple[Numeric, Numeric] | None = None,
-    ) -> OverseasStockSearch:
+    ) -> OverseasStockScreen:
         """해외 종목을 가격·등락률·규모·거래·밸류에이션 범위로 검색한다. 각 필터는 (시작, 끝) 범위.
 
         ``exchange`` 는 단일 거래소코드(``"NAS"``/``"NYS"``/``"AMS"``/``"HKS"``/...) 또는
@@ -379,18 +388,18 @@ class OverseasNamespace:
         }
         if exchange.upper() == "US":
             parts = [
-                overseas_market_data_api.search_stocks(self._client.transport, exchange=exchange_code, **filters)
+                overseas_market_data_api.screen_stocks(self._client.transport, exchange=exchange_code, **filters)
                 for exchange_code in _US_EXCHANGES
             ]
             # 집계는 거래소별 메타(decimal_places=price zdiv, status)를 하나로 못 합친다 -- 각
             # match 는 자기 exchange 와 이미 파싱된 Decimal 가격을 들고 있으니, 대표값으로 첫
             # 거래소의 decimal_places 를 싣고 status 는 집계라 비운다.
-            return OverseasStockSearch(
+            return OverseasStockScreen(
                 exchange="US", decimal_places=parts[0].decimal_places, status="",
                 total_count=sum(p.total_count for p in parts),
                 matches=tuple(m for p in parts for m in p.matches),
             )
-        return overseas_market_data_api.search_stocks(
+        return overseas_market_data_api.screen_stocks(
             self._client.transport, exchange=exchange, **filters
         )
 

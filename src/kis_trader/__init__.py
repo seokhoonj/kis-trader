@@ -359,7 +359,7 @@ from .overseas.entities.orders import (
 from .overseas.entities.product import OverseasProductInfo
 from .overseas.entities.quote import OverseasCurrentPrice
 from .overseas.entities.ranking import OverseasRankedStock
-from .overseas.entities.search import OverseasStockSearch, OverseasStockSearchMatch
+from .overseas.entities.search import OverseasStockScreen, OverseasStockScreenMatch
 from .overseas.entities.settlement import OverseasSettlementDate
 from .overseas.index import OverseasIndex
 from .overseas.namespace import BalanceInquiry, BalanceNation, OverseasAccount
@@ -640,8 +640,8 @@ __all__ = [
     "OverseasSettlementBalance",
     "OverseasSettlementDate",
     "OverseasStock",
-    "OverseasStockSearch",
-    "OverseasStockSearchMatch",
+    "OverseasStockScreen",
+    "OverseasStockScreenMatch",
     "OverseasTradeProfitHistory",
     "OverseasTradeProfitRow",
     "OverseasTransaction",

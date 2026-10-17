@@ -1,6 +1,6 @@
 """해외 종목검색 DATA -- 조건검색 결과와 매칭 종목.
 
-해외 종목 조건검색(``kis.overseas.search_stocks``)이 돌려주는 매칭 목록."""
+해외 종목 조건검색(``kis.overseas.screen_stocks``)이 돌려주는 매칭 목록."""
 
 from __future__ import annotations
 
@@ -14,7 +14,7 @@ from ..._internal._freeze import freeze_vendor_payload
 
 
 @dataclass(frozen=True, slots=True)
-class OverseasStockSearchMatch:
+class OverseasStockScreenMatch:
     """해외 조건검색 결과 종목."""
 
     realtime_symbol: str
@@ -45,7 +45,7 @@ class OverseasStockSearchMatch:
 
 
 @dataclass(frozen=True, slots=True)
-class OverseasStockSearch:
+class OverseasStockScreen:
     """해외 조건검색 건수 요약과 결과 종목 -- 연속조회를 소진해 조건에 맞는 전 종목을 담는다
     (``exchange="US"`` 집계는 NAS/NYS/AMS 합산)."""
 
@@ -53,7 +53,7 @@ class OverseasStockSearch:
     decimal_places: int
     status: str
     total_count: int
-    matches: tuple[OverseasStockSearchMatch, ...]
+    matches: tuple[OverseasStockScreenMatch, ...]
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

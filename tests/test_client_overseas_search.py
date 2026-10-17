@@ -4,7 +4,7 @@ from decimal import Decimal
 
 import pytest
 
-from kis_trader import KISClient, OverseasStockSearch
+from kis_trader import KISClient, OverseasStockScreen
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 
@@ -36,10 +36,10 @@ def test_overseas_search_maps_filters():
     # KIS 조건검색(HHDFS76410000)은 다음조회를 지원하지 않는다 -- 단일 응답(최대 100건)을 그대로 매핑한다.
     fake = FakeTransport([_response("AAPL")])
     client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
-    result = client.overseas.search_stocks(
+    result = client.overseas.screen_stocks(
         "NAS", price=(160, 200), per=(10, 30), volume=(1000, 100000)
     )
-    assert isinstance(result, OverseasStockSearch)
+    assert isinstance(result, OverseasStockScreen)
     assert len(result.matches) == 1
     assert result.matches[0].price == Decimal("160.5")
     assert result.matches[0].is_tradable   # e_ordyn "○" = 매매가능(라이브-프로브 확정; "O"/"Y" 아님)
@@ -60,8 +60,8 @@ def test_overseas_search_us_fans_out_and_merges():
     fake = FakeTransport([_response("AAPL", excd="NAS"), _response("KO", excd="NYS"),
                           _response("GME", excd="AMS")])
     client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
-    result = client.overseas.search_stocks("US", price=(10, 500))
-    assert isinstance(result, OverseasStockSearch)
+    result = client.overseas.screen_stocks("US", price=(10, 500))
+    assert isinstance(result, OverseasStockScreen)
     assert result.exchange == "US"
     assert [c["params"]["EXCD"] for c in fake.calls] == ["NAS", "NYS", "AMS"]
     assert [m.symbol for m in result.matches] == ["AAPL", "KO", "GME"]
@@ -74,7 +74,7 @@ def test_overseas_search_us_lowercase_also_fans_out():
     fake = FakeTransport([_response("AAPL", excd="NAS"), _response("KO", excd="NYS"),
                           _response("GME", excd="AMS")])
     client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
-    result = client.overseas.search_stocks("us", price=(10, 500))   # 소문자도 동일
+    result = client.overseas.screen_stocks("us", price=(10, 500))   # 소문자도 동일
     assert [c["params"]["EXCD"] for c in fake.calls] == ["NAS", "NYS", "AMS"]
     assert len(result.matches) == 3
 
@@ -85,18 +85,18 @@ def test_overseas_search_us_partial_failure_propagates():
     fake = FakeTransport([_response("AAPL", excd="NAS"), err])
     client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
     with pytest.raises(KISError):
-        client.overseas.search_stocks("US", price=(10, 500))
+        client.overseas.screen_stocks("US", price=(10, 500))
 
 
 def test_overseas_search_rejects_blank_exchange():
     with pytest.raises(KISUsageError):
-        KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport([])).overseas.search_stocks("")
+        KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport([])).overseas.screen_stocks("")
 
 
 def test_overseas_search_missing_output_fails_closed():
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={})
     with pytest.raises(KISError):
-        KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport([response])).overseas.search_stocks("NAS")
+        KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport([response])).overseas.screen_stocks("NAS")
 
 
 def _page(*, count, first_rank, trec, tr_cont, excd="NAS"):
@@ -123,7 +123,7 @@ def test_overseas_search_paginates_with_rank_cursor():
              _page(count=50, first_rank=201, trec=250, tr_cont="")]
     fake = FakeTransport(pages)
     client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
-    result = client.overseas.search_stocks("NAS", price=(10, 500))
+    result = client.overseas.screen_stocks("NAS", price=(10, 500))
     assert len(result.matches) == 250                     # 전 페이지 누적
     assert result.total_count == 250                       # output1.trec 그대로
     assert [m.rank for m in result.matches[:3]] == [1, 2, 3]
@@ -152,7 +152,7 @@ def test_overseas_search_stuck_cursor_fails_closed():
 
     client = KISClient(app_key="k", app_secret="s", environment="real", transport=_StuckTransport())
     with pytest.raises(KISError):
-        client.overseas.search_stocks("NAS", price=(10, 500))
+        client.overseas.screen_stocks("NAS", price=(10, 500))
 
 
 def test_overseas_search_incomplete_vs_trec_fails_closed():
@@ -162,4 +162,4 @@ def test_overseas_search_incomplete_vs_trec_fails_closed():
     fake = FakeTransport([_page(count=50, first_rank=1, trec=100, tr_cont="")])
     client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)
     with pytest.raises(KISError):
-        client.overseas.search_stocks("NAS", price=(10, 500))
+        client.overseas.screen_stocks("NAS", price=(10, 500))

@@ -42,7 +42,7 @@ if TYPE_CHECKING:
     from pathlib import Path
 
     from ._literals import Numeric
-    from .instrument import DomesticListingIndex, InstrumentRecord, MasterIndex
+    from .instrument import DomesticListingIndex, MasterIndex
     from .realtime._protocol import CustomerType
     from .realtime.client import RealtimeClient
     from .report import ExecutionReport
@@ -381,16 +381,14 @@ class KISClient:
             return None
         return f"{self._cano}-{self._product_code}"
 
-    def instrument(self, symbol: str, *, exchange: str | None = None) -> InstrumentRecord:
-        """해외 심볼을 KIS 종목 마스터로 조회한다 -- 거래소코드/통화/종목유형/이름을 돌려준다.
-
-        같은 심볼이 여러 거래소에 있으면 ``exchange`` 를 명시해야 한다(:class:`~kis_trader.errors.
-        KISUsageError`). 첫 호출은 마스터를 받아 캐시하므로 느릴 수 있다(이후는 캐시)."""
+    def _ensure_overseas_index(self) -> MasterIndex:
+        """해외 심볼 해석용 마스터 인덱스(지연 로드). 첫 호출 때 해외 종목 마스터를 받아 캐시한다 --
+        해외 심볼 해석 파사드 ``kis.overseas.resolve_instrument`` 가 호출한다."""
         if self._master_index is None:
             with self._index_lock:  # double-checked: 동시 첫 호출이 마스터를 한 번만 받게
                 if self._master_index is None:
                     self._master_index = load_overseas_index(fetch=self._master_fetch)
-        return self._master_index.resolve(symbol, exchange=exchange)
+        return self._master_index
 
     def _ensure_domestic_index(self) -> DomesticListingIndex:
         """국내 이름검색 인덱스(지연 로드). 첫 호출 때 KOSPI/KOSDAQ 마스터를 받아 캐시한다."""
@@ -487,7 +485,7 @@ class KISClient:
         return RealtimeClient(
             approval_key, websocket_url(self._environment),
             customer_type=customer_type, environment=self._environment, reconnect=reconnect,
-            instrument_resolver=self.instrument,
+            instrument_resolver=self.overseas.resolve_instrument,
         )
 
     def _require_credit_enabled(self) -> None:

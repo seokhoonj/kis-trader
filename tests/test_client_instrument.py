@@ -1,4 +1,4 @@
-"""해외 심볼 조회 -- kis.instrument(symbol).
+"""해외 심볼 조회 -- kis.overseas.resolve_instrument(symbol).
 
 세션에 붙은 마스터 인덱스로 심볼->거래소/통화/유형을 해석한다. 인덱스를 주입해 실 네트워크 없이
 검증(거래소 자동 해석, 모호 시 exchange 요구, 미발견)한다.
@@ -30,7 +30,7 @@ _INDEX = MasterIndex([
 
 
 def test_instrument_resolves_exchange_and_currency():
-    record = _client(_INDEX).instrument("AAPL")
+    record = _client(_INDEX).overseas.resolve_instrument("AAPL")
     assert isinstance(record, InstrumentRecord)
     assert record.exchange == "NAS"
     assert record.currency == "USD"
@@ -39,7 +39,7 @@ def test_instrument_resolves_exchange_and_currency():
 
 
 def test_instrument_resolves_non_us_market():
-    record = _client(_INDEX).instrument("7203")
+    record = _client(_INDEX).overseas.resolve_instrument("7203")
     assert record.exchange == "TSE"
     assert record.currency == "JPY"
 
@@ -47,13 +47,13 @@ def test_instrument_resolves_non_us_market():
 def test_instrument_ambiguous_requires_exchange():
     client = _client(_INDEX)
     with pytest.raises(KISUsageError, match="여러 거래소"):
-        client.instrument("XYZ")
-    assert client.instrument("XYZ", exchange="HKS").currency == "HKD"
+        client.overseas.resolve_instrument("XYZ")
+    assert client.overseas.resolve_instrument("XYZ", exchange="HKS").currency == "HKD"
 
 
 def test_instrument_unknown_symbol_raises():
     with pytest.raises(KISUsageError, match="찾지 못"):
-        _client(_INDEX).instrument("MSFT")
+        _client(_INDEX).overseas.resolve_instrument("MSFT")
 
 
 def test_instrument_does_not_download_when_index_injected():
@@ -63,7 +63,7 @@ def test_instrument_does_not_download_when_index_injected():
 
     client = KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport(),
                        master_index=_INDEX, master_fetch=exploding_fetch)
-    assert client.instrument("AAPL").exchange == "NAS"
+    assert client.overseas.resolve_instrument("AAPL").exchange == "NAS"
 
 
 def test_instrument_lazy_build_uses_master_fetch(tmp_path, monkeypatch):
@@ -89,6 +89,6 @@ def test_instrument_lazy_build_uses_master_fetch(tmp_path, monkeypatch):
         return buffer.getvalue()
 
     client = KISClient(app_key="k", app_secret="s", environment="real", transport=FakeTransport(), master_fetch=fetch)
-    record = client.instrument("NVDA")
+    record = client.overseas.resolve_instrument("NVDA")
     assert record.exchange == "NAS"
     assert record.currency == "USD"

@@ -115,8 +115,8 @@ ranking.by_volume_surge(exchange="NAS")       # 거래량 급증
 ranking.by_new_highlow(exchange="NAS")        # 신고가/신저가
 ranking.by_price_fluctuation(exchange="NAS")  # 급등/급락
 
-kis.overseas.search_stocks("NAS", price=(10, 500), change_percent=(5, 30))  # 거래소 + 범위 조건
-kis.overseas.search_stocks("US", price=(10, 500))   # NAS/NYS/AMS 를 각각 조회해 합침
+kis.overseas.screen_stocks("NAS", price=(10, 500), change_percent=(5, 30))  # 거래소 + 범위 조건
+kis.overseas.screen_stocks("US", price=(10, 500))   # NAS/NYS/AMS 를 각각 조회해 합침
 kis.overseas.news(country="US")  # 미국 뉴스 헤드라인 (전체 피드는 kis.overseas.news())
 kis.overseas.industries("NAS")  # 업종
 ```

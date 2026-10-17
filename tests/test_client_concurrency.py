@@ -40,7 +40,7 @@ def test_instrument_lazy_load_runs_once_under_concurrent_first_calls(monkeypatch
     def worker():
         start.wait()
         try:
-            results.append(kis.instrument("AAPL", exchange="NAS"))
+            results.append(kis.overseas.resolve_instrument("AAPL", exchange="NAS"))
         except Exception as exc:  # noqa: BLE001 -- 스레드 예외를 메인에서 재현하려고 수집
             errors.append(exc)
 
