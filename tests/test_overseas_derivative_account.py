@@ -1028,21 +1028,21 @@ def _period_trans_resp(*, rows=None, ctx_nk="", ctx_fk="", tr_cont="D"):
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
 
 
-def test_period_trans_paper_fails_closed():
+def test_cash_transactions_paper_fails_closed():
     fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
     with pytest.raises(KISUsageError):
         _client(fake, environment="paper").account.cash_transactions(start="20240201", end="20240216")
     assert fake.calls == []  # 가드는 와이어 이전 -- 호출 없음
 
 
-def test_period_trans_bad_date_fails_closed():
+def test_cash_transactions_bad_date_fails_closed():
     fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
     with pytest.raises(KISUsageError):
         _client(fake).account.cash_transactions(start="20240201", end="2024-02-16")
     assert fake.calls == []  # 날짜 검증도 와이어 이전
 
 
-def test_period_trans_parses_and_routes():
+def test_cash_transactions_parses_and_routes():
     from datetime import date
 
     fake = FakeTransport(response=_period_trans_resp(rows=[_transaction()]))
@@ -1077,7 +1077,7 @@ def test_period_trans_parses_and_routes():
     assert call["params"]["ACNT_PRDT_CD"] == "08"
 
 
-def test_period_trans_paginates():
+def test_cash_transactions_paginates():
     page1 = _period_trans_resp(rows=[_transaction(seq="0001")],
                                ctx_nk="NEXT", ctx_fk="FK", tr_cont="F")
     page2 = _period_trans_resp(rows=[_transaction(seq="0002")], tr_cont="D")
@@ -1089,7 +1089,7 @@ def test_period_trans_paginates():
     assert fake.calls[1]["tr_cont"] == "N"                    # 연속조회 헤더
 
 
-def test_period_trans_skips_blank_identifier_row():
+def test_cash_transactions_skips_blank_identifier_row():
     rows = [_transaction(seq="0001"), _transaction(seq="", bass_dt="")]
     trans = _client(FakeTransport(response=_period_trans_resp(rows=rows))).account.cash_transactions(
         start="20240201", end="20240216"
@@ -1097,14 +1097,14 @@ def test_period_trans_skips_blank_identifier_row():
     assert [t.ledger_sequence for t in trans] == ["0001"]
 
 
-def test_period_trans_non_mapping_row_raises():
+def test_cash_transactions_non_mapping_row_raises():
     with pytest.raises(KISError):
         _client(FakeTransport(response=_period_trans_resp(rows=[None]))).account.cash_transactions(
             start="20240201", end="20240216"
         )
 
 
-def test_period_trans_missing_output_raises():
+def test_cash_transactions_missing_output_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"ctx_area_nk100": "", "ctx_area_fk100": ""})
     with pytest.raises(KISError):

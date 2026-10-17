@@ -967,7 +967,7 @@ def test_order_cancel_dry_run_then_executes_once():
     assert kis.log == [("cancel", "abc-123", None)]
 
 
-def test_order_cancel_reserved_dry_run_shows_sequence_without_calling(monkeypatch):
+def test_order_cancel_reserved_dry_run_shows_reserved_order_id_without_calling(monkeypatch):
     kis = StubKis()
     monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
     dry = order.cmd_cancel_reserved(kis, _args(

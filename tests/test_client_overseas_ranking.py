@@ -126,7 +126,7 @@ def _one(rows):
     return RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}, "output2": rows})
 
 
-def test_by_amount_growth_market_cap_route_correctly():
+def test_by_trading_amount_growth_market_cap_route_correctly():
     row = [{"rank": "1", "excd": "NAS", "symb": "T", "name": "n", "ename": "N", "last": "1",
             "sign": "2", "diff": "1", "rate": "1", "tvol": "1", "tamt": "1"}]
     cases = [

@@ -323,7 +323,7 @@ def _fills_resp(*, rows=None, totals=None, ctx_nk="", ctx_fk="", tr_cont=""):
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
 
 
-def test_fills_stops_on_repeated_cursor_no_double_count():
+def test_order_history_stops_on_repeated_cursor_no_double_count():
     # hand-rolled 연속조회 루프도 비진전 커서(같은 키 반복)에서 종료해야 한다 -- 안 그러면 같은 페이지를
     # 재요청해 체결이 이중집계되거나 상한까지 무한 재요청한다(공유 헬퍼와 같은 방어).
     pages = [_fills_resp(rows=[_fill(odno="1")], ctx_nk="SAME", tr_cont="F"),
@@ -334,7 +334,7 @@ def test_fills_stops_on_repeated_cursor_no_double_count():
     assert len(history.orders) == 2                     # 두 페이지 반영, 이중집계 없음(3페이지째 없음)
 
 
-def test_fills_parses_rows_and_totals():
+def test_order_history_parses_rows_and_totals():
     fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
     history = _bonds(fake).order_history(start="20240201", end="20240229")
     assert history.total_order_quantity == Decimal(3000)
@@ -360,7 +360,7 @@ def test_fills_parses_rows_and_totals():
     assert fill.branch_number == "12345"
 
 
-def test_fills_routes_with_params():
+def test_order_history_routes_with_params():
     fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
     _bonds(fake).order_history(start="20240201", end="20240229", side="buy", symbol="KR2033022D33",
                        unfilled_only=True)
@@ -375,7 +375,7 @@ def test_fills_routes_with_params():
     assert call["params"]["SORT_SQN_DVSN"] == "00"
 
 
-def test_fills_side_all_and_sell_codes():
+def test_order_history_side_all_and_sell_codes():
     fake_all = FakeTransport(response=_fills_resp(rows=[_fill()]))
     _bonds(fake_all).order_history(start="20240201", end="20240229")
     assert fake_all.calls[0]["params"]["SLL_BUY_DVSN_CD"] == "00"
@@ -386,46 +386,46 @@ def test_fills_side_all_and_sell_codes():
     assert fake_sell.calls[0]["params"]["SLL_BUY_DVSN_CD"] == "01"
 
 
-def test_fills_skips_blank_odno():
+def test_order_history_skips_blank_odno():
     fake = FakeTransport(response=_fills_resp(rows=[_fill(), {"odno": "  "}]))
     assert len(_bonds(fake).order_history(start="20240201", end="20240229").orders) == 1
 
 
-def test_fills_rejects_bad_side():
+def test_order_history_rejects_bad_side():
     fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
     with pytest.raises(KISUsageError):
         _bonds(fake).order_history(start="20240201", end="20240229", side="both")
     assert fake.calls == []
 
 
-def test_fills_rejects_bad_date():
+def test_order_history_rejects_bad_date():
     fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
     with pytest.raises(KISUsageError):
         _bonds(fake).order_history(start="2024", end="20240229")
     assert fake.calls == []
 
 
-def test_fills_paper_fails_closed():
+def test_order_history_paper_fails_closed():
     fake = FakeTransport(response=_fills_resp(rows=[_fill()]))
     with pytest.raises(KISUsageError):
         _bonds(fake, environment="paper").order_history(start="20240201", end="20240229")
     assert fake.calls == []
 
 
-def test_fills_missing_output1_raises():
+def test_order_history_missing_output1_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"output2": dict(_FILLS_TOTALS)})
     with pytest.raises(KISError):
         _bonds(FakeTransport(response=resp)).order_history(start="20240201", end="20240229")
 
 
-def test_fills_missing_totals_raises():
+def test_order_history_missing_totals_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body={"output1": []})
     with pytest.raises(KISError):
         _bonds(FakeTransport(response=resp)).order_history(start="20240201", end="20240229")
 
 
-def test_fills_paginates_two_pages():
+def test_order_history_paginates_two_pages():
     page1 = _fills_resp(rows=[_fill(odno="1")], ctx_nk="NK", ctx_fk="FK", tr_cont="F")
     page2 = _fills_resp(rows=[_fill(odno="2")], tr_cont="D")
     fake = FakeTransport(by_path={_FILLS_PATH: [page1, page2]})
@@ -448,7 +448,7 @@ def test_open_orders_non_mapping_row_raises():
         _bonds(FakeTransport(response=_open_orders_resp(rows=[None]))).open_orders("20240215")
 
 
-def test_fills_non_mapping_row_raises():
+def test_order_history_non_mapping_row_raises():
     with pytest.raises(KISError):
         _bonds(FakeTransport(response=_fills_resp(rows=[None]))).order_history(start="20240201", end="20240229")
 
@@ -469,7 +469,7 @@ def test_open_orders_page_cap_fails_closed():
         _bonds(FakeTransport(pages=pages)).open_orders("20240215")
 
 
-def test_fills_page_cap_fails_closed():
+def test_order_history_page_cap_fails_closed():
     # 매 페이지 연속키가 진전하며 끝나지 않는 상황 -- 상한에서 fail-closed(같은 키 반복은 이제 종료).
     pages = [_fills_resp(rows=[_fill()], ctx_nk=f"N{i}", ctx_fk="FK", tr_cont="F") for i in range(101)]
     with pytest.raises(KISError):
