@@ -389,6 +389,39 @@ class QuoteBalanceRanking:
 
 
 @dataclass(frozen=True, slots=True)
+class PreferredShareDisparityRanking:
+    """본주/우선주 괴리 순위 한 항목(불변). ``rank`` 는 1부터의 순위.
+
+    코어(``symbol`` / ``price`` / ``change`` / ... )는 **본주** 기준이고, ``preferred_*`` 는 짝이 되는
+    **우선주** 쪽 값(코드·이름·현재가·전일대비·거래량)이다. ``disparity_rate`` 는 본주/우선주
+    괴리율(%), ``price_difference`` 는 본주-우선주 가격차. ``change`` / ``change_percent`` 및
+    ``preferred_change`` / ``preferred_change_percent`` 는 하락이면 음수. 이 순위엔 누적 거래대금이 없다.
+    """
+
+    rank: int
+    symbol: str                       # 본주 종목코드
+    name: str
+    price: Decimal
+    change: Decimal                   # 전일대비(부호 포함)
+    change_percent: Decimal           # 전일대비율(부호 포함)
+    volume: int                       # 누적 거래량(주식 수)
+    disparity_rate: Decimal           # 본주/우선주 괴리율(%)
+    price_difference: Decimal         # 본주-우선주 가격차
+    preferred_symbol: str             # 우선주 종목코드
+    preferred_name: str               # 우선주명
+    preferred_price: Decimal          # 우선주 현재가
+    preferred_change: Decimal         # 우선주 전일대비(부호 포함)
+    preferred_change_percent: Decimal  # 우선주 전일대비율(부호 포함)
+    preferred_volume: int             # 우선주 누적 거래량(주식 수)
+    _raw: Mapping[str, Any] = field(
+        default_factory=_empty_raw, compare=False, hash=False, repr=False
+    )
+
+    def __post_init__(self) -> None:
+        object.__setattr__(self, "_raw", freeze_vendor_payload(self._raw))
+
+
+@dataclass(frozen=True, slots=True)
 class AfterHoursRanking:
     """시간외 단일가 순위의 한 행(불변).
 

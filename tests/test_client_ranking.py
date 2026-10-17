@@ -19,6 +19,7 @@ from kis_trader import (
     HouseTradeVolumeRanking,
     KISClient,
     MarketCapRanking,
+    PreferredShareDisparityRanking,
     QuoteBalanceRanking,
     TradingActivityRanking,
     WatchlistRegistrationRanking,
@@ -56,6 +57,10 @@ _CLUSTER_METRICS = {
     "d60_dsrt": "98.70", "d120_dsrt": "105.10",
     "total_askp_rsqn": "54321", "total_bidp_rsqn": "12345",
     "seln_rsqn_rate": "81.50", "shnu_rsqn_rate": "18.50", "total_ntsl_bidp_rsqn": "41976",
+    # 우선주 괴리 클러스터 전용 지표(본주/우선주 짝) -- 라이브 응답에 모두 포함.
+    "dprt": "12.34", "diff_prpr": "11700", "prst_iscd": "005935", "prst_kor_isnm": "삼성전자우",
+    "prst_prpr": "61000", "prst_prdy_vrss": "300", "prst_prdy_vrss_sign": "5",
+    "prst_prdy_ctrt": "0.49", "prst_acml_vol": "412300",
 }
 
 
@@ -315,15 +320,27 @@ def test_by_interest_uses_endpoint_without_sort():
     assert ranked[0].cumulative_trading_amount is None           # acml_tr_pbmn 없음 -> None
 
 
-def test_by_preferred_share_disparity_exposes_pair_in_raw():
-    fake = FakeTransport(response=_resp([_row(prst_prpr="61000", dprt="12.34")]))
+def test_by_preferred_share_disparity_types_main_and_preferred_legs():
+    fake = FakeTransport(response=_resp([_row()]))
     ranked = _client(fake).domestic.ranking.by_preferred_share_disparity()
     call = fake.calls[0]
     assert call["path"] == _PREFERRED_DISPARITY
     assert call["tr_id"] == "FHPST01770000"
     assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20177"
+    assert isinstance(ranked[0], PreferredShareDisparityRanking)
+    # 코어는 본주 기준
+    assert ranked[0].symbol == "005930"
     assert ranked[0].price == Decimal(72700)                     # 본주 현재가
-    assert ranked[0]._raw["dprt"] == "12.34"                     # 괴리율은 _raw
+    assert ranked[0].change == Decimal(400)                      # 본주 sign=2 -> 상승(+)
+    # 괴리/가격차/우선주 레그
+    assert ranked[0].disparity_rate == Decimal("12.34")
+    assert ranked[0].price_difference == Decimal(11700)
+    assert ranked[0].preferred_symbol == "005935"
+    assert ranked[0].preferred_name == "삼성전자우"
+    assert ranked[0].preferred_price == Decimal(61000)
+    assert ranked[0].preferred_change == Decimal(-300)           # prst sign=5 -> 하락(-)
+    assert ranked[0].preferred_change_percent == Decimal("-0.49")
+    assert ranked[0].preferred_volume == 412300
 
 
 def test_by_financial_ratio_sort_year_quarter():

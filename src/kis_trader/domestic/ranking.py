@@ -26,6 +26,7 @@ from .entities.ranking import (
     HouseTradeVolumeRanking,
     MarketCapRanking,
     NearHighLowRanking,
+    PreferredShareDisparityRanking,
     QuoteBalanceRanking,
     ShortSaleRanking,
     TopViewedStock,
@@ -155,9 +156,10 @@ class DomesticRankingQueries:
         :class:`~kis_trader.domestic.entities.ranking.WatchlistRegistrationRanking` 를 돌려준다."""
         return ranking_api.fetch_watchlist_registrations(self._client.transport, market="KRX")
 
-    def by_preferred_share_disparity(self) -> list[DomesticRankedStock]:
-        """우선주 괴리율 순위(최대 30건). 공통필드는 본주 기준, 짝 우선주 시세와 괴리율은 각 항목의
-        ``_raw``(prst_* / dprt 괴리율)."""
+    def by_preferred_share_disparity(self) -> list[PreferredShareDisparityRanking]:
+        """우선주 괴리율 순위(최대 30건). 코어 필드는 본주 기준, 짝 우선주 시세(``preferred_*``)와
+        괴리율(``disparity_rate``)·가격차(``price_difference``)를 담은
+        :class:`~kis_trader.domestic.entities.ranking.PreferredShareDisparityRanking` 를 돌려준다."""
         return ranking_api.fetch_preferred_share_disparity(self._client.transport, market="KRX")
 
     def by_financial_ratio(

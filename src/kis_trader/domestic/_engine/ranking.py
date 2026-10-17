@@ -81,6 +81,7 @@ from ..entities.ranking import (
     HouseTradeVolumeRanking,
     MarketCapRanking,
     NearHighLowRanking,
+    PreferredShareDisparityRanking,
     QuoteBalanceRanking,
     ShortSaleRanking,
     TopViewedStock,
@@ -392,9 +393,11 @@ def fetch_watchlist_registrations(
     return _parse_watchlist_registrations(rows)
 
 
-def fetch_preferred_share_disparity(transport: Transport, *, market: str) -> list[DomesticRankedStock]:
-    """우선주 괴리율 순위(정렬 없음). 공통필드는 본주 기준, 짝이 되는 우선주와 괴리율은 각 항목의
-    ``_raw`` (prst_* 우선주 시세, diff_prpr 가격차, dprt 괴리율). 최대 30건(다음조회 없음)."""
+def fetch_preferred_share_disparity(
+    transport: Transport, *, market: str
+) -> list[PreferredShareDisparityRanking]:
+    """우선주 괴리율 순위(정렬 없음). 코어 필드는 본주 기준, 짝이 되는 우선주 시세(``preferred_*``)와
+    괴리율(``disparity_rate``)·가격차(``price_difference``)는 전용 필드로 노출. 최대 30건(다음조회 없음)."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _PREFERRED_DISPARITY_SCR,
@@ -404,9 +407,11 @@ def fetch_preferred_share_disparity(transport: Transport, *, market: str) -> lis
         "FID_INPUT_PRICE_1": "", "FID_INPUT_PRICE_2": "",
         "FID_VOL_CNT": "",
     }
-    return _fetch_ranking(
-        transport, path=_PREFERRED_DISPARITY_PATH, tr=_PREFERRED_DISPARITY_TR, params=params
+    rows = _fetch_rows(
+        transport, path=_PREFERRED_DISPARITY_PATH, tr=_PREFERRED_DISPARITY_TR,
+        params=params, output_key="output",
     )
+    return _parse_preferred_share_disparity(rows)
 
 
 def fetch_financial_ratio(
@@ -955,6 +960,36 @@ def _parse_quote_balance(rows: Sequence[Mapping[str, Any]]) -> list[QuoteBalance
                 total_bid_residual=required_int(row.get("total_bidp_rsqn"), "total_bidp_rsqn"),
                 sell_residual_ratio=required_decimal(row.get("seln_rsqn_rate"), "seln_rsqn_rate"),
                 buy_residual_ratio=required_decimal(row.get("shnu_rsqn_rate"), "shnu_rsqn_rate"),
+                _raw=row,
+            )
+        )
+    return ranked
+
+
+def _parse_preferred_share_disparity(
+    rows: Sequence[Mapping[str, Any]],
+) -> list[PreferredShareDisparityRanking]:
+    ranked: list[PreferredShareDisparityRanking] = []
+    for row in rows:
+        core = _core_ranked_fields(row)
+        if core is None:  # 빈 행 skip
+            continue
+        prst_sign = str(row.get("prst_prdy_vrss_sign", "")).strip()
+        ranked.append(
+            PreferredShareDisparityRanking(
+                **core,
+                disparity_rate=required_decimal(row.get("dprt"), "dprt"),
+                price_difference=required_decimal(row.get("diff_prpr"), "diff_prpr"),
+                preferred_symbol=str(row.get("prst_iscd", "")).strip(),
+                preferred_name=str(row.get("prst_kor_isnm", "")).strip(),
+                preferred_price=required_decimal(row.get("prst_prpr"), "prst_prpr"),
+                preferred_change=_apply_change_sign(
+                    required_decimal(row.get("prst_prdy_vrss"), "prst_prdy_vrss"), prst_sign
+                ),
+                preferred_change_percent=_apply_change_sign(
+                    required_decimal(row.get("prst_prdy_ctrt"), "prst_prdy_ctrt"), prst_sign
+                ),
+                preferred_volume=required_int(row.get("prst_acml_vol"), "prst_acml_vol"),
                 _raw=row,
             )
         )
