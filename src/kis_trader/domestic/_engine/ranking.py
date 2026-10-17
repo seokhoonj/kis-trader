@@ -63,6 +63,7 @@ from ..._internal._response import (
 from ..._internal._wire import (
     _apply_change_sign,
     optional_decimal,
+    optional_int,
     required_decimal,
     required_int,
 )
@@ -710,10 +711,10 @@ def _parse_near_high_low(rows: Sequence[Mapping[str, Any]]) -> list[NearHighLowR
                     required_decimal(row.get("prdy_ctrt"), "prdy_ctrt"), sign
                 ),
                 volume=required_int(row.get("acml_vol"), "acml_vol"),
-                new_high=required_decimal(row.get("new_hgpr"), "new_hgpr"),
-                high_near_rate=required_decimal(row.get("hprc_near_rate"), "hprc_near_rate"),
-                new_low=required_decimal(row.get("new_lwpr"), "new_lwpr"),
-                low_near_rate=required_decimal(row.get("lwpr_near_rate"), "lwpr_near_rate"),
+                new_high=optional_decimal(row.get("new_hgpr"), "new_hgpr"),
+                high_near_rate=optional_decimal(row.get("hprc_near_rate"), "hprc_near_rate"),
+                new_low=optional_decimal(row.get("new_lwpr"), "new_lwpr"),
+                low_near_rate=optional_decimal(row.get("lwpr_near_rate"), "lwpr_near_rate"),
                 _raw=row,
             )
         )
@@ -810,17 +811,17 @@ def _parse_volume(rows: Sequence[Mapping[str, Any]]) -> list[VolumeRanking]:
         ranked.append(
             VolumeRanking(
                 **core,
-                average_volume=required_int(row.get("avrg_vol"), "avrg_vol"),
-                volume_growth_percent=required_decimal(row.get("vol_inrt"), "vol_inrt"),
+                average_volume=optional_int(row.get("avrg_vol"), "avrg_vol"),
+                volume_growth_percent=optional_decimal(row.get("vol_inrt"), "vol_inrt"),
                 volume_turnover_ratio=required_decimal(row.get("vol_tnrt"), "vol_tnrt"),
-                n_day_volume_turnover_ratio=required_decimal(
+                n_day_volume_turnover_ratio=optional_decimal(
                     row.get("nday_vol_tnrt"), "nday_vol_tnrt"
                 ),
-                average_trading_amount=required_decimal(row.get("avrg_tr_pbmn"), "avrg_tr_pbmn"),
+                average_trading_amount=optional_decimal(row.get("avrg_tr_pbmn"), "avrg_tr_pbmn"),
                 trading_amount_turnover_ratio=required_decimal(
                     row.get("tr_pbmn_tnrt"), "tr_pbmn_tnrt"
                 ),
-                n_day_trading_amount_turnover_ratio=required_decimal(
+                n_day_trading_amount_turnover_ratio=optional_decimal(
                     row.get("nday_tr_pbmn_tnrt"), "nday_tr_pbmn_tnrt"
                 ),
                 cumulative_trading_amount=optional_decimal(row.get("acml_tr_pbmn"), "acml_tr_pbmn"),
@@ -937,11 +938,11 @@ def _parse_disparity(rows: Sequence[Mapping[str, Any]]) -> list[DisparityRanking
         ranked.append(
             DisparityRanking(
                 **core,
-                disparity_5=required_decimal(row.get("d5_dsrt"), "d5_dsrt"),
-                disparity_10=required_decimal(row.get("d10_dsrt"), "d10_dsrt"),
-                disparity_20=required_decimal(row.get("d20_dsrt"), "d20_dsrt"),
-                disparity_60=required_decimal(row.get("d60_dsrt"), "d60_dsrt"),
-                disparity_120=required_decimal(row.get("d120_dsrt"), "d120_dsrt"),
+                disparity_5=optional_decimal(row.get("d5_dsrt"), "d5_dsrt"),
+                disparity_10=optional_decimal(row.get("d10_dsrt"), "d10_dsrt"),
+                disparity_20=optional_decimal(row.get("d20_dsrt"), "d20_dsrt"),
+                disparity_60=optional_decimal(row.get("d60_dsrt"), "d60_dsrt"),
+                disparity_120=optional_decimal(row.get("d120_dsrt"), "d120_dsrt"),
                 _raw=row,
             )
         )

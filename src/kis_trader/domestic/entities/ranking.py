@@ -140,7 +140,9 @@ class NearHighLowRanking:
     """신고/신저 근접 순위 한 항목(불변). ``rank`` 는 응답 순서.
 
     ``new_high`` / ``new_low`` 는 신 최고가 / 최저가, ``high_near_rate`` / ``low_near_rate`` 는 그
-    가격에 얼마나 근접했는지의 비율(%). ``change`` / ``change_percent`` 는 하락이면 음수.
+    가격에 얼마나 근접했는지의 비율(%). 조회하지 않은 반대 극(신고가 조회 시 신저가 계열,
+    또는 그 반대)이나 산출 불가한 경우 해당 값은 ``None`` 이다.
+    ``change`` / ``change_percent`` 는 하락이면 음수.
     """
 
     rank: int
@@ -150,10 +152,10 @@ class NearHighLowRanking:
     change: Decimal                   # 전일대비(부호 포함)
     change_percent: Decimal           # 전일대비율(부호 포함)
     volume: int                       # 누적 거래량
-    new_high: Decimal                 # 신 최고가
-    high_near_rate: Decimal           # 고가 근접 비율(%)
-    new_low: Decimal                  # 신 최저가
-    low_near_rate: Decimal            # 저가 근접 비율(%)
+    new_high: Decimal | None          # 신 최고가
+    high_near_rate: Decimal | None    # 고가 근접 비율(%)
+    new_low: Decimal | None           # 신 최저가
+    low_near_rate: Decimal | None     # 저가 근접 비율(%)
     _raw: Mapping[str, Any] = field(
         default_factory=_empty_raw, compare=False, hash=False, repr=False
     )
@@ -169,6 +171,9 @@ class VolumeRanking:
     평균거래량/증가율/회전율 등 거래활동 지표를 담는다. ``*_percent`` 는 변화율(%),
     ``*_ratio`` 는 회전율(회전 배수). ``change`` / ``change_percent`` 는 하락이면 음수.
     ``cumulative_trading_amount`` 는 누적 거래대금(원)이며 응답에 없을 수 있다.
+    평균/N일/증가율 지표(``average_volume`` · ``average_trading_amount`` ·
+    ``volume_growth_percent`` · ``n_day_*_turnover_ratio``)는 과거 이력이 필요해
+    신규/단기 상장주에선 ``None`` 일 수 있다(당일 산출 회전율은 항상 채워진다).
     """
 
     rank: int
@@ -178,13 +183,13 @@ class VolumeRanking:
     change: Decimal                   # 전일대비(부호 포함)
     change_percent: Decimal           # 전일대비율(부호 포함)
     volume: int                       # 누적 거래량(주식 수)
-    average_volume: int               # 평균거래량(주식 수)
-    volume_growth_percent: Decimal    # 거래량증가율(%)
+    average_volume: int | None        # 평균거래량(주식 수)
+    volume_growth_percent: Decimal | None  # 거래량증가율(%)
     volume_turnover_ratio: Decimal    # 거래량회전율(회전 배수)
-    n_day_volume_turnover_ratio: Decimal      # N일 거래량회전율
-    average_trading_amount: Decimal   # 평균거래대금(원)
+    n_day_volume_turnover_ratio: Decimal | None  # N일 거래량회전율
+    average_trading_amount: Decimal | None  # 평균거래대금(원)
     trading_amount_turnover_ratio: Decimal    # 거래대금회전율
-    n_day_trading_amount_turnover_ratio: Decimal  # N일 거래대금회전율
+    n_day_trading_amount_turnover_ratio: Decimal | None  # N일 거래대금회전율
     #: 누적 거래대금(원) -- 거래대금 기준 정렬의 근거값(응답에 없으면 None).
     cumulative_trading_amount: Decimal | None = None
     _raw: Mapping[str, Any] = field(
@@ -338,7 +343,9 @@ class DisparityRanking:
 
     ``disparity_5`` / ``_10`` / ``_20`` / ``_60`` / ``_120`` 은 각각 5/10/20/60/120일 이동평균
     대비 이격도(%)이다(현재가/이동평균 x100, 100 초과면 이동평균 위). 정렬 기준 일수와 상관없이
-    5개 이격도를 모두 담는다. ``change`` / ``change_percent`` 는 하락이면 음수. 이 순위엔 누적 거래대금이 없다.
+    5개 이격도를 모두 담는다. 상장 일수가 N일 미만이면 그 기간의 이격도는 미정의라
+    ``None`` 이다(예: 상장 30일 종목은 ``disparity_60`` / ``disparity_120`` 가 ``None``).
+    ``change`` / ``change_percent`` 는 하락이면 음수. 이 순위엔 누적 거래대금이 없다.
     """
 
     rank: int
@@ -348,11 +355,11 @@ class DisparityRanking:
     change: Decimal                   # 전일대비(부호 포함)
     change_percent: Decimal           # 전일대비율(부호 포함)
     volume: int                       # 누적 거래량(주식 수)
-    disparity_5: Decimal              # 5일 이격도(%)
-    disparity_10: Decimal             # 10일 이격도(%)
-    disparity_20: Decimal             # 20일 이격도(%)
-    disparity_60: Decimal             # 60일 이격도(%)
-    disparity_120: Decimal            # 120일 이격도(%)
+    disparity_5: Decimal | None       # 5일 이격도(%)
+    disparity_10: Decimal | None      # 10일 이격도(%)
+    disparity_20: Decimal | None      # 20일 이격도(%)
+    disparity_60: Decimal | None      # 60일 이격도(%)
+    disparity_120: Decimal | None     # 120일 이격도(%)
     _raw: Mapping[str, Any] = field(
         default_factory=_empty_raw, compare=False, hash=False, repr=False
     )

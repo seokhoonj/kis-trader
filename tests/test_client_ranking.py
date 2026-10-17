@@ -176,6 +176,23 @@ def test_by_volume_trading_value_is_none_when_absent():
     assert _client(fake).domestic.ranking.by_volume()[0].cumulative_trading_amount is None
 
 
+def test_by_volume_period_metrics_none_for_newly_listed():
+    # 신규/단기 상장주는 평균·N일·증가율 지표가 비어 온다 -- 한 행만 비어도 required 였을 땐
+    # by_volume 전체가 KISError 로 터졌다. optional 이라 그 행은 None 으로 담기고 순위는 성립.
+    fake = FakeTransport(response=_resp([_row(
+        avrg_vol="", vol_inrt="", nday_vol_tnrt="", avrg_tr_pbmn="", nday_tr_pbmn_tnrt="",
+    )]))
+    first = _client(fake).domestic.ranking.by_volume()[0]
+    assert first.average_volume is None
+    assert first.volume_growth_percent is None
+    assert first.n_day_volume_turnover_ratio is None
+    assert first.average_trading_amount is None
+    assert first.n_day_trading_amount_turnover_ratio is None
+    # 당일 산출 회전율은 비어 오지 않으므로 required 로 남아 그대로 채워진다.
+    assert first.volume_turnover_ratio == Decimal("4.21")
+    assert first.trading_amount_turnover_ratio == Decimal("3.15")
+
+
 def test_by_volume_rejects_bad_metric():
     fake = FakeTransport(response=_resp([_row()]))
     with pytest.raises(KISUsageError):
@@ -225,10 +242,14 @@ def test_by_disparity_lowest_and_period():
     assert call["params"]["FID_HOUR_CLS_CODE"] == "5"
 
 
-def test_by_disparity_rejects_bad_period():
-    fake = FakeTransport(response=_resp([]))
-    with pytest.raises(KISUsageError):
-        _client(fake).domestic.ranking.by_disparity(period=7)
+def test_by_disparity_short_listed_periods_none():
+    # 상장 일수가 N일 미만이면 그 기간 이격도는 미정의라 비어 온다(예: 상장 30일 -> d60/d120 공백).
+    # required 였을 땐 그런 종목이 순위에 들면 KISError 로 전체가 터졌다.
+    fake = FakeTransport(response=_resp([_row(d60_dsrt="", d120_dsrt="")]))
+    first = _client(fake).domestic.ranking.by_disparity()[0]
+    assert first.disparity_5 == Decimal("101.20")
+    assert first.disparity_60 is None
+    assert first.disparity_120 is None
 
 
 def test_by_disparity_rejects_bad_extreme():
@@ -669,6 +690,15 @@ def test_by_near_high_low_low_extreme_and_bad_extreme():
     assert fake.calls[0]["params"]["FID_PRC_CLS_CODE"] == "1"    # low
     with pytest.raises(KISUsageError):
         _client(FakeTransport(response=_resp([]))).domestic.ranking.by_near_high_low(extreme="middle")
+
+
+def test_by_near_high_low_opposite_extreme_none():
+    # 신고가 조회 시 반대 극(신저가 계열)이 비어 올 수 있다 -- required 였을 땐 그 행이 KISError.
+    fake = FakeTransport(response=_resp([_near_row(new_lo="", lo_rate="")]))
+    first = _client(fake).domestic.ranking.by_near_high_low()[0]
+    assert first.new_high == Decimal(11000)
+    assert first.new_low is None
+    assert first.low_near_rate is None
 
 
 def test_ranking_skips_empty_rows():
