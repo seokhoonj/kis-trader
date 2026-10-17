@@ -14,7 +14,7 @@ import pytest
 from kis_trader import (
     Bar,
     DomesticIndex,
-    IndexQuote,
+    DomesticIndexQuote,
     KISClient,
     RecentIndexPoint,
     RecentIndexPrices,
@@ -78,7 +78,7 @@ def test_resolve_index_code_strips_whitespace_on_numeric_fallback():
 def test_index_quote_maps_fields_and_params():
     fake = FakeTransport(response=_resp(_output()))
     quote = _client(fake).domestic.index("0001").quote()
-    assert isinstance(quote, IndexQuote)
+    assert isinstance(quote, DomesticIndexQuote)
     assert quote.code == "0001"
     assert quote.index_value == Decimal("2650.32")
     assert quote.open == Decimal("2640.10")
@@ -554,7 +554,7 @@ def _category_resp(rows, *, summary=None):
 
 
 def test_index_categories_maps_fields_summary_and_market_class():
-    from kis_trader import CategoryIndex, IndexCategories, IndexQuote
+    from kis_trader import CategoryIndex, DomesticIndexQuote, IndexCategories
     rows = [_category_row(), _category_row(code="0003", name="중형주")]
     fake = FakeTransport(response=_category_resp(rows))
     result = _client(fake).domestic.index("0001").categories()
@@ -572,8 +572,8 @@ def test_index_categories_maps_fields_summary_and_market_class():
     assert first.change_percent == Decimal("0.56")
     assert first.volume_share_percent == Decimal("23.4")
     assert first.amount_share_percent == Decimal("42.9")
-    # DELTA: the previously-discarded output1 market-index summary is now reachable, typed IndexQuote.
-    assert isinstance(result.summary, IndexQuote)
+    # DELTA: the previously-discarded output1 market-index summary is now reachable, typed DomesticIndexQuote.
+    assert isinstance(result.summary, DomesticIndexQuote)
     assert result.summary.code == "0001"
     assert result.summary.index_value == Decimal("2650.32")
     assert (result.summary.advances, result.summary.declines) == (480, 360)

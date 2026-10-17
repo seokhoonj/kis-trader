@@ -1,4 +1,4 @@
-"""국내 지수/업종 시세 조회 (내부) -- 지수 현재가 등을 :class:`IndexQuote` 로.
+"""국내 지수/업종 시세 조회 (내부) -- 지수 현재가 등을 :class:`DomesticIndexQuote` 로.
 
 사용자면(:class:`~kis_trader.domestic.index.DomesticIndex`, ``kis.domestic.index(code)``)이 호출한다. 지수/업종은 종목이
 아니라 시장구분 ``U`` + 업종코드(``FID_INPUT_ISCD``)로 조회한다. 업종코드는 포털의 업종코드표를
@@ -53,12 +53,12 @@ from ...errors import KISUsageError
 from ...transport import RawResponse, Transport
 from ..entities.index import (
     CategoryIndex,
+    DomesticIndexQuote,
     ExpectedIndexPoint,
     ExpectedIndexQuote,
     ExpectedIndexSnapshot,
     IndexCategories,
     IndexIntradayPoint,
-    IndexQuote,
     RecentIndexPoint,
     RecentIndexPrices,
 )
@@ -99,7 +99,7 @@ _INDEX_CATEGORY_SCR = "20214"
 _INDEX_CATEGORY_MARKET_CLASS = {"0001": "K", "1001": "Q", "2001": "K2"}
 
 
-def fetch_index_quote(transport: Transport, *, code: str) -> IndexQuote:
+def fetch_index_quote(transport: Transport, *, code: str) -> DomesticIndexQuote:
     """지수(업종) 현재가 스냅샷. ``code`` 는 업종코드(예: 0001 KOSPI)."""
     params = {"FID_COND_MRKT_DIV_CODE": _INDEX_MARKET_DIV, "FID_INPUT_ISCD": code}
     resp = transport.request(
@@ -547,7 +547,7 @@ def _parse_index_intraday(
 def fetch_index_categories(transport: Transport, *, code: str) -> IndexCategories:
     """시장(``code``)의 지수 요약과 하위 업종 지수 목록. ``code`` 는 시장 지수(0001 KOSPI/1001
     KOSDAQ/2001 KOSPI200)여야 하며 시장구분(K/Q/K2)을 여기서 추론한다. output1(시장 지수)을
-    :class:`IndexQuote` 로, output2(하위 업종)를 :class:`CategoryIndex` 튜플로 담은
+    :class:`DomesticIndexQuote` 로, output2(하위 업종)를 :class:`CategoryIndex` 튜플로 담은
     :class:`IndexCategories` 를 돌려준다. 두 블록 중 하나라도 없거나 형식이 어긋나면 fail-closed 한다."""
     market_class = _INDEX_CATEGORY_MARKET_CLASS.get(code)
     if market_class is None:
@@ -612,9 +612,9 @@ def _parse_index_categories(rows: Sequence[Mapping[str, Any]]) -> list[CategoryI
 
 def _parse_index_quote(
     output: Mapping[str, Any], *, code: str, as_of: datetime
-) -> IndexQuote:
+) -> DomesticIndexQuote:
     change_sign_code = str(output.get("prdy_vrss_sign", "")).strip()
-    return IndexQuote(
+    return DomesticIndexQuote(
         code=code,
         index_value=required_decimal(output.get("bstp_nmix_prpr"), "bstp_nmix_prpr"),
         open=required_decimal(output.get("bstp_nmix_oprc"), "bstp_nmix_oprc"),

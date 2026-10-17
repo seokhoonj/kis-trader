@@ -187,14 +187,14 @@ def test_by_underlying_bad_value_fails_closed():
 
 
 # --- search (조건검색, 60파라미터·풍부한 _raw) ------------------------------
-def test_search_maps_rich_row_and_sends_all_params():
+def test_screen_maps_rich_row_and_sends_all_params():
     rows = [{"bond_shrn_iscd": "57JAES", "hts_kor_isnm": "한국JAESKOSPI200콜",
              "rght_type_name": "CALL", "elw_prpr": "1560", "prdy_vrss": "0",
              "prdy_vrss_sign": "3", "prdy_ctrt": "0.00", "acml_vol": "0", "acpr": "325.00",
              "unas_isnm": "KOSPI200", "stck_lstn_date": "20231018",
              "stck_last_tr_date": "20240613", "delta_val": "1.000000", "lvrg_val": "24.22"}]
     fake = FakeTransport(response=_resp(rows))
-    listings = _client(fake).domestic.elw_screener.search(underlying="2001")
+    listings = _client(fake).domestic.elw_screener.screen(underlying="2001")
     assert all(isinstance(x, ELWListing) for x in listings)
     row = listings[0]
     assert row.symbol == "57JAES"                         # bond_shrn_iscd 폴백
@@ -214,7 +214,7 @@ def test_search_maps_rich_row_and_sends_all_params():
     assert len(call["params"]) == 57                      # 전체 파라미터 수
 
 
-def test_search_missing_output_fails_closed():
+def test_screen_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).domestic.elw_screener.search()
+        _client(fake).domestic.elw_screener.screen()

@@ -37,7 +37,7 @@ kis.domestic
 │   │  ── 호가·체결 ──────────────────────────────
 │   ├── order_book()                    # 호가창(10단계)
 │   ├── trades()                        # 최근 체결(time & sales)
-│   ├── intraday_executions()           # 당일 체결·최우선호가
+│   ├── intraday_trades()           # 당일 체결·최우선호가
 │   ├── daily_trade_volume()            # 일별 매수/매도 체결량
 │   ├── trade_amount_bands()            # 체결금액대별 매매비중
 │   ├── volume_profile()                # 가격대별 거래량(매물대)
@@ -52,7 +52,7 @@ kis.domestic
 │   ├── broker_trade_ticks(...)         # 회원사 실시간 체결 틱
 │   │  ── 시간외 거래 ─────────────────────────────
 │   ├── after_hours_quote()             # 시간외 단일가 스냅샷
-│   ├── after_hours_conclusions()       # 시간외 시간별 체결
+│   ├── after_hours_trades()       # 시간외 시간별 체결
 │   ├── after_hours_daily()             # 시간외 일자별 종가
 │   ├── after_hours_order_book()        # 시간외 10단계 호가
 │   │  ── 프로그램매매 ─────────────────────────────

@@ -519,7 +519,7 @@ def fetch_expiring(
     )
 
 
-def fetch_search(
+def fetch_screen(
     transport: Transport, *, underlying: str = "", issuer: str = ""
 ) -> list[ELWListing]:
     """조건검색으로 ELW 목록(그릭스·지표 포함 풍부한 행). ``underlying``/``issuer`` 로 좁힐 수 있고

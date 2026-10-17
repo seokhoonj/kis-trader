@@ -115,15 +115,15 @@ def _resp2(rows):
                        body={"output1": {}, "output2": rows})
 
 
-def test_after_hours_conclusions_maps_output2():
+def test_after_hours_trades_maps_output2():
     # 원장 응답 예시값(180025, 하락 sign=5).
     rows = [{"stck_cntg_hour": "180025", "stck_prpr": "2835", "prdy_vrss": "-70",
              "prdy_vrss_sign": "5", "prdy_ctrt": "-2.41", "askp": "2840", "bidp": "2835",
              "acml_vol": "68086", "cntg_vol": "12865"}]
     fake = FakeTransport(response=_resp2(rows))
-    from kis_trader import AfterHoursExecutionPoint
-    pts = _client(fake).domestic.stock("005930").after_hours_conclusions()
-    assert isinstance(pts[0], AfterHoursExecutionPoint)
+    from kis_trader import AfterHoursTrade
+    pts = _client(fake).domestic.stock("005930").after_hours_trades()
+    assert isinstance(pts[0], AfterHoursTrade)
     assert pts[0].price == Decimal(2835)
     assert pts[0].change == Decimal(-70)                 # sign 5 -> 음수
     assert pts[0].change_percent == Decimal("-2.41")
@@ -161,7 +161,7 @@ def test_after_hours_daily_maps_output2():
 def test_after_hours_history_missing_output2_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={"output1": {}}))
     with pytest.raises(KISError):
-        _client(fake).domestic.stock("005930").after_hours_conclusions()
+        _client(fake).domestic.stock("005930").after_hours_trades()
 
 
 def test_after_hours_order_book_maps_levels_and_totals():

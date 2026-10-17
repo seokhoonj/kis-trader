@@ -13,11 +13,11 @@ from typing import TYPE_CHECKING, Literal
 from ..bar import Bar, Interval, PeriodInterval
 from ._engine import index as index_api
 from .entities.index import (
+    DomesticIndexQuote,
     ExpectedIndexPoint,
     ExpectedIndexSnapshot,
     IndexCategories,
     IndexIntradayPoint,
-    IndexQuote,
     RecentIndexPrices,
 )
 
@@ -74,7 +74,7 @@ class DomesticIndex:
         self._client = client
         self.code = _resolve_index_code(code)
 
-    def quote(self) -> IndexQuote:
+    def quote(self) -> DomesticIndexQuote:
         """지수 현재가 스냅샷(레벨·시고저·등락종목수)."""
         return index_api.fetch_index_quote(self._client.transport, code=self.code)
 

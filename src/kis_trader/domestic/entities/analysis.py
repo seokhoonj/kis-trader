@@ -186,7 +186,7 @@ class RecentPricePoint:
 
 
 @dataclass(frozen=True, slots=True)
-class IntradayExecutionSummary:
+class IntradayTradeSummary:
     """당일 시간대별 체결 조회의 현재 종목 요약(불변)."""
 
     price: Decimal
@@ -204,7 +204,7 @@ class IntradayExecutionSummary:
 
 
 @dataclass(frozen=True, slots=True)
-class IntradayExecutionPoint:
+class IntradayTradePoint:
     """당일 한 시각의 체결·최우선호가·체결강도(불변)."""
 
     timestamp: datetime
@@ -225,12 +225,12 @@ class IntradayExecutionPoint:
 
 
 @dataclass(frozen=True, slots=True)
-class IntradayExecutions:
+class IntradayTrades:
     """현재 종목 요약과 기준시각 이전의 당일 체결 목록(불변)."""
 
     symbol: str
-    summary: IntradayExecutionSummary
-    points: tuple[IntradayExecutionPoint, ...]
+    summary: IntradayTradeSummary
+    points: tuple[IntradayTradePoint, ...]
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
     )

@@ -14,7 +14,7 @@ import pytest
 
 from kis_trader import (
     Bar,
-    IntradayExecutions,
+    IntradayTrades,
     KISClient,
     OrderBook,
     PriceLevel,
@@ -461,7 +461,7 @@ def test_stock_status_missing_output_fails_closed():
         _client(FakeTransport(response=response)).domestic.stock("005930").status()
 
 
-def test_intraday_executions_maps_summary_points_and_params():
+def test_intraday_trades_maps_summary_points_and_params():
     response = RawResponse(
         rt_cd="0",
         msg_cd="MCA00000",
@@ -505,9 +505,9 @@ def test_intraday_executions_maps_summary_points_and_params():
         },
     )
     fake = FakeTransport(response=response)
-    executions = _client(fake).domestic.stock("005930").intraday_executions(at="101501")
+    executions = _client(fake).domestic.stock("005930").intraday_trades(at="101501")
 
-    assert isinstance(executions, IntradayExecutions)
+    assert isinstance(executions, IntradayTrades)
     assert executions.summary.price == Decimal(73000)
     assert executions.summary.market_name == "코스피"
     assert [f"{point.timestamp:%H%M%S}" for point in executions.points] == [
@@ -529,15 +529,15 @@ def test_intraday_executions_maps_summary_points_and_params():
 
 
 @pytest.mark.parametrize("at", ["", "250000", "126060", "1015AA"])
-def test_intraday_executions_rejects_bad_time_before_transport(at):
+def test_intraday_trades_rejects_bad_time_before_transport(at):
     fake = FakeTransport(response=_quote_resp())
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.stock("005930").intraday_executions(at=at)
+        _client(fake).domestic.stock("005930").intraday_trades(at=at)
     assert fake.calls == []
 
 
 @pytest.mark.parametrize("body", [{}, {"output1": {}}, {"output1": {}, "output2": {}}])
-def test_intraday_executions_requires_both_blocks(body):
+def test_intraday_trades_requires_both_blocks(body):
     response = RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body=body)
     with pytest.raises(KISError):
-        _client(FakeTransport(response=response)).domestic.stock("005930").intraday_executions()
+        _client(FakeTransport(response=response)).domestic.stock("005930").intraday_trades()

@@ -1,7 +1,7 @@
-"""지수/업종 시세 DATA -- :class:`IndexQuote`, :class:`IndexIntradayPoint`, :class:`CategoryIndex`.
+"""지수/업종 시세 DATA -- :class:`DomesticIndexQuote`, :class:`IndexIntradayPoint`, :class:`CategoryIndex`.
 
 :class:`~kis_trader.domestic.index.DomesticIndex` 핸들(``kis.domestic.index(code)``)이 돌려주는 지수(업종) 시세 타입들이다.
-:class:`IndexQuote` 는 현재가 스냅샷(:meth:`~kis_trader.domestic.index.DomesticIndex.quote`), :class:`IndexIntradayPoint`
+:class:`DomesticIndexQuote` 는 현재가 스냅샷(:meth:`~kis_trader.domestic.index.DomesticIndex.quote`), :class:`IndexIntradayPoint`
 는 당일 시간대별 시계열(:meth:`~kis_trader.domestic.index.DomesticIndex.intraday`)의 한 점, :class:`CategoryIndex` 는
 시장 하위 업종 지수(:meth:`~kis_trader.domestic.index.DomesticIndex.categories`)의 한 항목이다. 종목의
 :class:`~kis_trader.quote.Quote` 와 달리 체결가가 아니라 **지수 레벨**(``index_value``)을 담는다.
@@ -20,7 +20,7 @@ from ..._internal._freeze import freeze_vendor_payload
 
 
 @dataclass(frozen=True, slots=True)
-class IndexQuote:
+class DomesticIndexQuote:
     """한 지수(업종)의 현재가 스냅샷(불변).
 
     ``index_value`` 는 지수 레벨(포인트), ``change`` / ``change_percent`` 는 전일대비로 하락이면 음수.
@@ -154,7 +154,7 @@ class RecentIndexPoint:
 class RecentIndexPrices:
     """조회 시점 지수 스냅샷과 최근 일·주·월 시세(:class:`RecentIndexPoint`) 목록(불변)."""
 
-    snapshot: IndexQuote
+    snapshot: DomesticIndexQuote
     points: tuple[RecentIndexPoint, ...]
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False
@@ -195,11 +195,11 @@ class CategoryIndex:
 class IndexCategories:
     """시장 지수 요약과 그 하위 업종 지수 목록(불변).
 
-    ``summary`` 는 시장 전체 지수 스냅샷(:class:`IndexQuote`), ``categories`` 는 그 시장의 하위 업종
+    ``summary`` 는 시장 전체 지수 스냅샷(:class:`DomesticIndexQuote`), ``categories`` 는 그 시장의 하위 업종
     지수(:class:`CategoryIndex`) 튜플이다.
     """
 
-    summary: IndexQuote
+    summary: DomesticIndexQuote
     categories: tuple[CategoryIndex, ...]
     _raw: Mapping[str, Any] = field(
         default_factory=lambda: MappingProxyType({}), compare=False, hash=False, repr=False

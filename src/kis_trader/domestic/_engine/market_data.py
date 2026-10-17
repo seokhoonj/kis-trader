@@ -47,11 +47,11 @@ from ...order_book import OrderBook
 from ...quote import Quote
 from ...trade import Trade
 from ...transport import Transport
-from ..entities.after_hours import AfterHoursDailyPrice, AfterHoursExecutionPoint, AfterHoursQuote
+from ..entities.after_hours import AfterHoursDailyPrice, AfterHoursQuote, AfterHoursTrade
 from ..entities.analysis import (
-    IntradayExecutionPoint,
-    IntradayExecutions,
-    IntradayExecutionSummary,
+    IntradayTradePoint,
+    IntradayTrades,
+    IntradayTradeSummary,
     RecentPricePoint,
 )
 from ..entities.broker import (
@@ -148,9 +148,9 @@ def fetch_stock_status(
     )
 
 
-def fetch_intraday_executions(
+def fetch_intraday_trades(
     transport: Transport, *, symbol: str, market: str, at: str
-) -> IntradayExecutions:
+) -> IntradayTrades:
     """기준시각 이전의 당일 체결·최우선호가·체결강도."""
     if (
         len(at) != 6
@@ -179,7 +179,7 @@ def fetch_intraday_executions(
     if not isinstance(rows, (list, tuple)):
         raise _missing_block_error("output2", resp)
     header_sign = str(header.get("prdy_vrss_sign", "")).strip()
-    summary = IntradayExecutionSummary(
+    summary = IntradayTradeSummary(
         price=required_decimal(header.get("stck_prpr"), "stck_prpr"),
         change=_apply_change_sign(
             required_decimal(header.get("prdy_vrss"), "prdy_vrss"), header_sign
@@ -193,7 +193,7 @@ def fetch_intraday_executions(
         _raw=header,
     )
     today = _today_kst()
-    points: list[IntradayExecutionPoint] = []
+    points: list[IntradayTradePoint] = []
     for row in rows:
         if not isinstance(row, Mapping):
             raise _missing_block_error("output2[]", resp)
@@ -202,7 +202,7 @@ def fetch_intraday_executions(
             continue
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
-            IntradayExecutionPoint(
+            IntradayTradePoint(
                 timestamp=_parse_minute_bar_timestamp(date_text=today, time_text=time_text),
                 price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
                 change=_apply_change_sign(
@@ -220,7 +220,7 @@ def fetch_intraday_executions(
             )
         )
     points.sort(key=lambda point: point.timestamp)
-    return IntradayExecutions(
+    return IntradayTrades(
         symbol=symbol, summary=summary, points=tuple(points), _raw=resp.body
     )
 
@@ -924,9 +924,9 @@ _AFTER_HOURS_DAILY_PATH = "/uapi/domestic-stock/v1/quotations/inquire-daily-over
 _AFTER_HOURS_DAILY_TR = "FHPST02320000"
 
 
-def fetch_after_hours_conclusions(
+def fetch_after_hours_trades(
     transport: Transport, *, symbol: str, market: str
-) -> list[AfterHoursExecutionPoint]:
+) -> list[AfterHoursTrade]:
     """시간외 단일가 세션의 시간별 체결(시각 리스트). 세션 밖이면 비어 올 수 있다. 응답 배열은 output2
     (output1 은 시간외 요약 스냅샷)."""
     params = {
@@ -941,14 +941,14 @@ def fetch_after_hours_conclusions(
     _raise_if_error(resp)
     rows = _require_mapping_rows("output2", resp)
     as_of = datetime.now(_KST)
-    points: list[AfterHoursExecutionPoint] = []
+    points: list[AfterHoursTrade] = []
     for row in rows:
         moment = str(row.get("stck_cntg_hour", "")).strip()
         if not moment:
             continue
         sign = str(row.get("prdy_vrss_sign", "")).strip()
         points.append(
-            AfterHoursExecutionPoint(
+            AfterHoursTrade(
                 symbol=symbol,
                 timestamp=_parse_intraday_timestamp(moment, as_of),
                 price=required_decimal(row.get("stck_prpr"), "stck_prpr"),
