@@ -354,10 +354,10 @@ def reconcile_reserved_order(
 
 # --- 예약주문 정정/취소 (뮤테이션) ----------------------------------------
 def cancel_reserved_order(
-    transport: Transport, *, sequence: str, order_date: str | None = None,
+    transport: Transport, *, reserved_order_id: str, order_date: str | None = None,
     cano: str, product_code: str, environment: Environment,
 ) -> None:
-    """예약주문을 취소한다 -- ``sequence`` 는 예약주문순번(:attr:`ExecutionReport.order_id`). 정상
+    """예약주문을 취소한다 -- ``reserved_order_id`` 는 예약주문순번(:attr:`ExecutionReport.order_id`). 정상
     처리(nrml_prcs_yn=Y)면 조용히 반환(정정취소 응답엔 리포트로 만들 값이 없어 반환값이 없다).
 
     취소는 순번 대상의 멱등적 연산(이미 취소/처리면 브로커가 거부)이라 즉시주문 dedup 스토어를 거치지
@@ -367,25 +367,25 @@ def cancel_reserved_order(
     :class:`KISError`(정상처리 아님)·:class:`OrderTimeoutError`(타임아웃)."""
     if environment == "paper":
         raise KISUsageError("예약주문 취소(order-resv-rvsecncl)는 모의투자 미지원 -- 실전에서만.")
-    if not str(sequence).strip():
-        raise KISUsageError("취소할 예약주문순번(sequence)이 필요하다.")
+    if not str(reserved_order_id).strip():
+        raise KISUsageError("취소할 예약주문순번(reserved_order_id)이 필요하다.")
     if order_date is not None:
         validate_yyyymmdd(order_date, "order_date")
     body = {
         "CANO": cano, "ACNT_PRDT_CD": product_code,
-        "RSVN_ORD_SEQ": str(sequence).strip(),
+        "RSVN_ORD_SEQ": str(reserved_order_id).strip(),
         "RSVN_ORD_ORGNO": "", "RSVN_ORD_ORD_DT": order_date or "",
     }
-    _send_change(transport, _CANCEL_TR, body, sequence, action="취소")
+    _send_change(transport, _CANCEL_TR, body, reserved_order_id, action="취소")
 
 
 def modify_reserved_order(
-    transport: Transport, *, sequence: str, symbol: str, side: Side, quantity: Numeric,
+    transport: Transport, *, reserved_order_id: str, symbol: str, side: Side, quantity: Numeric,
     limit_price: Numeric | None = None, end_date: str | None = None, order_date: str | None = None,
     cano: str, product_code: str, environment: Environment,
 ) -> None:
     """예약주문을 정정한다 -- 브로커 규격상 **전체 재지정**(종목/방향/수량/단가/종료일)을 요구한다.
-    ``sequence`` 로 대상을 지목한다. 정상 처리면 조용히 반환(응답에 새 순번/리포트가 없다), 아니면 예외.
+    ``reserved_order_id`` 로 대상을 지목한다. 정상 처리면 조용히 반환(응답에 새 순번/리포트가 없다), 아니면 예외.
     **모의투자 미지원**, 국내 현금 예약만.
 
     주의: ``limit_price`` 를 생략하면 **시장가**가 된다(기존 단가 유지가 아니라 시장가 전환). 정정 후
@@ -395,8 +395,8 @@ def modify_reserved_order(
     인자 검증(side/quantity/limit_price/end_date)은 :class:`KISUsageError`."""
     if environment == "paper":
         raise KISUsageError("예약주문 정정(order-resv-rvsecncl)은 모의투자 미지원 -- 실전에서만.")
-    if not str(sequence).strip():
-        raise KISUsageError("정정할 예약주문순번(sequence)이 필요하다.")
+    if not str(reserved_order_id).strip():
+        raise KISUsageError("정정할 예약주문순번(reserved_order_id)이 필요하다.")
     terms = _coerce_reserved_order_terms(
         side=side, quantity=quantity, limit_price=limit_price, end_date=end_date
     )
@@ -408,10 +408,10 @@ def modify_reserved_order(
     # 정정은 대상 예약을 지목하는 키(순번/조직번호/주문일자)와 연락처를 공통 바디 뒤에 삽입 순서대로 덧붙인다.
     body.update({
         "CTAC_TLNO": "",
-        "RSVN_ORD_SEQ": str(sequence).strip(),
+        "RSVN_ORD_SEQ": str(reserved_order_id).strip(),
         "RSVN_ORD_ORGNO": "", "RSVN_ORD_ORD_DT": order_date or "",
     })
-    _send_change(transport, _MODIFY_TR, body, sequence, action="정정")
+    _send_change(transport, _MODIFY_TR, body, reserved_order_id, action="정정")
 
 
 def _send_change(
@@ -541,7 +541,7 @@ def _extract_sequence(body: Mapping[str, Any]) -> str:
 
 def _parse_reserved(row: Mapping[str, Any]) -> DomesticReservedOrder:
     return DomesticReservedOrder(
-        sequence=str(row.get("rsvn_ord_seq", "")).strip(),
+        reserved_order_id=str(row.get("rsvn_ord_seq", "")).strip(),
         order_date=_parse_date(row.get("rsvn_ord_ord_dt")),
         receipt_date=_parse_date(row.get("rsvn_ord_rcit_dt")),
         symbol=str(row.get("pdno", "")).strip(),

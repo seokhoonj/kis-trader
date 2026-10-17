@@ -388,7 +388,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_order_gate(can)
     can.set_defaults(func=order.cmd_cancel)
     rcan = leaf(order_sub, "cancel-reserved")
-    rcan.add_argument("sequence", help="국내 예약순번 또는 해외(미국) 예약번호")
+    rcan.add_argument("reserved_order_id", help="국내 예약순번 또는 해외(미국) 예약번호")
     _add_region(rcan)
     rcan.add_argument("--order-date", dest="order_date", default=None,
                       help="예약집행 예정일 YYYYMMDD(국내 전용, 같은 순번 구분이 필요할 때)")
@@ -397,7 +397,7 @@ def build_parser() -> argparse.ArgumentParser:
     _add_order_gate(rcan)
     rcan.set_defaults(func=order.cmd_cancel_reserved)
     rmod = leaf(order_sub, "modify-reserved")
-    rmod.add_argument("sequence")
+    rmod.add_argument("reserved_order_id")
     rmod.add_argument("--symbol", required=True, help="정정할 종목코드(전체 재지정)")
     rmod.add_argument("--side", choices=list(get_args(Side)), required=True, help="매수/매도")
     rmod.add_argument("--quantity", type=int, required=True, help="정정 수량")

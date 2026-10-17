@@ -400,7 +400,7 @@ def cmd_cancel(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, p
 
 
 def cmd_cancel_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
-    """예약주문 취소 -- 국내는 ``sequence``(예약 발주 리포트의 order_id/예약주문순번, +선택 order_date),
+    """예약주문 취소 -- 국내는 ``reserved_order_id``(예약 발주 리포트의 order_id/예약주문순번, +선택 order_date),
     해외(미국)는 예약번호 + ``--receipt-date``(접수일자). 아시아 해외 예약은 전용 취소 엔드포인트가
     없어 이 경로가 아니라 `kis order cancel <client_order_id>` 로 취소한다. 기본 dry-run, --execute 로
     실제 취소. 국내는 실전전용, 해외 미국은 모의 허용."""
@@ -411,27 +411,27 @@ def cmd_cancel_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None 
         if args.receipt_date is None:
             raise CliConfigError("해외 예약 취소에는 --receipt-date(접수일자 YYYYMMDD)가 필요합니다.")
         if args.execute is None:
-            return {"reserved_order_id": args.sequence, "region": "overseas",
+            return {"reserved_order_id": args.reserved_order_id, "region": "overseas",
                     "receipt_date": args.receipt_date, "note": _DRY_RUN_NOTE}
         if is_tty is None:
             is_tty = sys.stdin.isatty()
         _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
-        account.overseas.cancel_reserved_order(args.sequence, receipt_date=args.receipt_date)
-        return {"reserved_order_id": args.sequence, "region": "overseas",
+        account.overseas.cancel_reserved_order(args.reserved_order_id, receipt_date=args.receipt_date)
+        return {"reserved_order_id": args.reserved_order_id, "region": "overseas",
                 "receipt_date": args.receipt_date, "canceled": True}
     # 국내 예약 취소(실전전용).
     if args.receipt_date is not None:
         raise CliConfigError("--receipt-date 는 해외 예약 취소 전용입니다(국내는 --order-date).")
     if args.execute is None:
-        return {"sequence": args.sequence, "order_date": args.order_date, "note": _DRY_RUN_NOTE}
+        return {"reserved_order_id": args.reserved_order_id, "order_date": args.order_date, "note": _DRY_RUN_NOTE}
     if args.execute == "paper":
         raise CliConfigError("국내 예약주문 취소는 실전전용입니다(모의투자 미지원) -- --execute paper 불가.")
     if is_tty is None:
         is_tty = sys.stdin.isatty()
     _authorize(args, account=kis._account, environment=kis.environment, is_tty=is_tty, prompt=prompt)
     extra = {} if args.order_date is None else {"order_date": args.order_date}
-    account.domestic.cancel_reserved_order(args.sequence, **extra)
-    return {"sequence": args.sequence, "order_date": args.order_date, "canceled": True}
+    account.domestic.cancel_reserved_order(args.reserved_order_id, **extra)
+    return {"reserved_order_id": args.reserved_order_id, "order_date": args.order_date, "canceled": True}
 
 
 def cmd_modify_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None = None, prompt: Callable[[str], str] = input) -> Any:
@@ -442,7 +442,7 @@ def cmd_modify_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None 
     account = _stock_account(kis)
     if args.execute is None:
         return {
-            "sequence": args.sequence, "symbol": args.symbol, "side": args.side,
+            "reserved_order_id": args.reserved_order_id, "symbol": args.symbol, "side": args.side,
             "quantity": args.quantity, "limit_price": args.limit_price,
             "end_date": args.end_date, "order_date": args.order_date,
             "note": _DRY_RUN_NOTE, "caution": _modify_reserved_cautions(limit_price=args.limit_price),
@@ -460,9 +460,9 @@ def cmd_modify_reserved(kis: KISClient, args: Namespace, *, is_tty: bool | None 
     if args.order_date is not None:
         extra["order_date"] = args.order_date
     account.domestic.modify_reserved_order(
-        args.sequence, symbol=args.symbol, side=args.side, quantity=args.quantity, **extra)
+        args.reserved_order_id, symbol=args.symbol, side=args.side, quantity=args.quantity, **extra)
     return {
-        "sequence": args.sequence, "symbol": args.symbol, "side": args.side,
+        "reserved_order_id": args.reserved_order_id, "symbol": args.symbol, "side": args.side,
         "quantity": args.quantity, "limit_price": args.limit_price,
         "end_date": args.end_date, "order_date": args.order_date, "modified": True,
         "caution": _modify_reserved_cautions(limit_price=args.limit_price),

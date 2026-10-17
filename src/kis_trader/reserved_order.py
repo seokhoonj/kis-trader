@@ -2,7 +2,7 @@
 
 예약주문은 정규장이 열리지 않는 시간에 미리 걸어두고 다음 영업일(또는 지정 기간) 아침 동시호가에
 집행되는 주문이다. 즉시체결 주문(:class:`~kis_trader.report.ExecutionReport`)과 라이프사이클이
-달라(예약순번 ``sequence`` 로 식별, 집행 전엔 체결번호 없음) 별도 타입으로 둔다.
+달라(예약순번 ``reserved_order_id`` 로 식별, 집행 전엔 체결번호 없음) 별도 타입으로 둔다.
 """
 
 from __future__ import annotations
@@ -25,12 +25,12 @@ ReservedProcess = Literal["all", "processed", "unprocessed"]
 class DomesticReservedOrder:
     """예약주문 한 건(불변).
 
-    ``sequence`` 예약주문순번(정정·취소 시 이 값으로 지목), ``order_date`` 예약집행 예정일,
+    ``reserved_order_id`` 예약주문순번(정정·취소 시 이 값으로 지목), ``order_date`` 예약집행 예정일,
     ``status`` 처리결과(예: "미처리"/"처리"), ``executed_order_id`` 집행됐다면 그 주문번호(미집행이면 ""),
     ``reservation_end_date`` 예약 유효 종료일. 금액/수량은 KRW·주(株) Decimal.
     """
 
-    sequence: str                     # 예약주문순번(rsvn_ord_seq)
+    reserved_order_id: str            # 예약주문순번(rsvn_ord_seq)
     order_date: date | None           # 예약주문주문일자(rsvn_ord_ord_dt) -- 집행 예정일
     receipt_date: date | None         # 예약주문접수일자(rsvn_ord_rcit_dt)
     symbol: str

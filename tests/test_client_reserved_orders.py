@@ -62,7 +62,7 @@ def test_reserved_orders_parses_ledger_row():
     assert len(orders) == 1
     o = orders[0]
     assert isinstance(o, DomesticReservedOrder)
-    assert o.sequence == "42401"
+    assert o.reserved_order_id == "42401"
     assert o.order_date == date(2022, 5, 23)
     assert o.receipt_date == date(2022, 5, 20)
     assert o.symbol == "005940"
@@ -117,7 +117,7 @@ def test_reserved_orders_paginates_and_merges():
     page2 = _resp([dict(_ROW, rsvn_ord_seq="42405")], tr_cont="D")
     fake = FakeTransport(pages=[page1, page2])
     orders = _client(fake).account.domestic.reserved_orders(start="20220501", end="20220523")
-    assert [o.sequence for o in orders] == ["42401", "42405"]
+    assert [o.reserved_order_id for o in orders] == ["42401", "42405"]
     assert fake.calls[1]["tr_cont"] == "N"
     assert fake.calls[1]["params"]["CTX_AREA_NK200"] == "NEXT"
 

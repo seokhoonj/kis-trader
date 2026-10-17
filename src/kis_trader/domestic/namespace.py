@@ -183,24 +183,24 @@ class DomesticAccount:
         self, *, start: str, end: str, process: ReservedProcess = "all"
     ) -> list[DomesticReservedOrder]:
         """예약주문 목록(다음 영업일 동시호가 등에 걸어둔 예약). ``process`` =
-        ``"all"``/``"processed"``/``"unprocessed"``. 각 건의 ``sequence`` 로 정정·취소한다. **모의투자 미지원**."""
+        ``"all"``/``"processed"``/``"unprocessed"``. 각 건의 ``reserved_order_id`` 로 정정·취소한다. **모의투자 미지원**."""
         cano, product_code = self._client._require_account()
         return reserved_orders_api.fetch_reserved_orders(
             self._client.transport, cano=cano, product_code=product_code, environment=self._client.environment,
             start=start, end=end, process=process,
         )
 
-    def cancel_reserved_order(self, sequence: str, *, order_date: str | None = None) -> None:
-        """예약주문을 취소한다 -- ``sequence`` 는 :meth:`~kis_trader.domestic.stock.DomesticStock.reserve_buy` 리포트의
+    def cancel_reserved_order(self, reserved_order_id: str, *, order_date: str | None = None) -> None:
+        """예약주문을 취소한다 -- ``reserved_order_id`` 는 :meth:`~kis_trader.domestic.stock.DomesticStock.reserve_buy` 리포트의
         ``order_id``(예약주문순번). 정상 처리면 조용히 반환, 아니면 예외. **모의투자 미지원**."""
         cano, product_code = self._client._require_account()
         reserved_orders_api.cancel_reserved_order(
-            self._client.transport, sequence=sequence, order_date=order_date,
+            self._client.transport, reserved_order_id=reserved_order_id, order_date=order_date,
             cano=cano, product_code=product_code, environment=self._client.environment,
         )
 
     def modify_reserved_order(
-        self, sequence: str, *, symbol: str, side: Side, quantity: Numeric,
+        self, reserved_order_id: str, *, symbol: str, side: Side, quantity: Numeric,
         limit_price: Numeric | None = None, end_date: str | None = None, order_date: str | None = None,
     ) -> None:
         """예약주문을 정정한다 -- 브로커 규격상 종목/방향/수량/단가/종료일을 **전체 재지정**한다.
@@ -209,7 +209,7 @@ class DomesticAccount:
         현금 예약만."""
         cano, product_code = self._client._require_account()
         reserved_orders_api.modify_reserved_order(
-            self._client.transport, sequence=sequence, symbol=symbol, side=side, quantity=quantity,
+            self._client.transport, reserved_order_id=reserved_order_id, symbol=symbol, side=side, quantity=quantity,
             limit_price=limit_price, end_date=end_date, order_date=order_date,
             cano=cano, product_code=product_code, environment=self._client.environment,
         )

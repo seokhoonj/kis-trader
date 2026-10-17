@@ -972,7 +972,7 @@ def test_order_cancel_reserved_dry_run_shows_sequence_without_calling(monkeypatc
     monkeypatch.setattr(order, "_stock_account", lambda k: _StubStockView(k.log))
     dry = order.cmd_cancel_reserved(kis, _args(
         ["order", "cancel-reserved", "SEQ7", "--order-date", "20240131"]), is_tty=False)
-    assert dry["sequence"] == "SEQ7"
+    assert dry["reserved_order_id"] == "SEQ7"
     assert dry["order_date"] == "20240131"
     assert kis.log == []
 
@@ -1059,7 +1059,7 @@ def test_order_modify_reserved_dry_run_shows_fields_without_calling(monkeypatch)
     dry = order.cmd_modify_reserved(kis, _args(
         ["order", "modify-reserved", "SEQ7", "--symbol", "005930", "--side", "buy",
          "--quantity", "10", "--limit-price", "70000"]), is_tty=False)
-    assert dry["sequence"] == "SEQ7" and dry["symbol"] == "005930"
+    assert dry["reserved_order_id"] == "SEQ7" and dry["symbol"] == "005930"
     assert dry["side"] == "buy" and dry["quantity"] == 10 and dry["limit_price"] == "70000"
     assert "note" in dry
     # 단가를 줬으므로 시장가 경고는 빠지고, 순번 재배정 안내는 항상 실린다.
@@ -1480,11 +1480,11 @@ class _StubDomesticAccount:
     def reserved_orders(self, *, start, end, **kwargs):
         self._log.append(("reserved_orders", start, end, kwargs)); return ["RESERVED"]
 
-    def cancel_reserved_order(self, sequence, **kwargs):
-        self._log.append(("cancel_reserved_order", sequence, kwargs))
+    def cancel_reserved_order(self, reserved_order_id, **kwargs):
+        self._log.append(("cancel_reserved_order", reserved_order_id, kwargs))
 
-    def modify_reserved_order(self, sequence, *, symbol, side, quantity, **kwargs):
-        self._log.append(("modify_reserved_order", sequence, symbol, side, quantity, kwargs))
+    def modify_reserved_order(self, reserved_order_id, *, symbol, side, quantity, **kwargs):
+        self._log.append(("modify_reserved_order", reserved_order_id, symbol, side, quantity, kwargs))
 
 
 class _StubOverseasAccount:
