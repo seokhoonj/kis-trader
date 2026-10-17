@@ -49,7 +49,7 @@ def test_overseas_quote_routes_and_maps():
     quote = _client(fake).overseas.stock("AAPL", exchange="NAS").quote()
     assert isinstance(quote, Quote)
     assert quote.symbol == "AAPL"
-    assert quote.market == "NAS"                  # 거래소코드
+    assert quote.exchange == "NAS"                  # 거래소코드
     assert quote.currency == "USD"
     assert quote.current_price == Decimal("150.25")
     assert quote.open == Decimal("149.00")
@@ -140,7 +140,7 @@ def test_bare_symbol_auto_resolves_exchange():
     assert handle.is_overseas is True
     assert handle.exchange == "NAS"
     quote = handle.quote()
-    assert quote.market == "NAS"
+    assert quote.exchange == "NAS"
     assert fake.calls[0]["params"]["EXCD"] == "NAS"
 
 

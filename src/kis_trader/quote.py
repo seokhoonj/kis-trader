@@ -26,9 +26,10 @@ class Quote:
     """
 
     symbol: str
-    #: 종목(주식)의 거래소/시장 코드. ``Quote`` 는 국내·해외 주식 현재가에만 쓰인다(파생·채권은
-    #: 자기 전용 quote 타입을 돌려준다). 주식 전용 핸들과 주문 계층은 더 정확한 이름인 ``exchange`` 를 쓴다.
-    market: str
+    #: 종목(주식)의 거래소 코드(국내 KRX/NXT/UN, 해외 NAS/NYS/...). ``Quote`` 는 국내·해외 주식
+    #: 현재가에만 쓰이고(파생·채권은 자기 전용 quote 타입) 저장값은 항상 거래소 코드라, 시장구분
+    #: (KOSPI/KOSDAQ)을 뜻하는 ``market`` 과 구별해 주식 핸들·주문 계층과 같은 ``exchange`` 로 통일한다.
+    exchange: str
     currency: str                     # 국내는 KRW
     current_price: Decimal            # 현재가
     open: Decimal

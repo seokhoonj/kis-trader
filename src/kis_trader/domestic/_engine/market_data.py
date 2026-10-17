@@ -352,7 +352,7 @@ def _parse_quote(output: Mapping[str, Any], *, symbol: str, market: str, as_of: 
     sign = str(output.get("prdy_vrss_sign", "")).strip()
     return Quote(
         symbol=symbol,
-        market=market,
+        exchange=market,
         currency="KRW",
         current_price=required_decimal(output.get("stck_prpr"), "stck_prpr"),
         open=required_decimal(output.get("stck_oprc"), "stck_oprc"),
@@ -1086,7 +1086,7 @@ def fetch_multi_quotes(
         quotes.append(
             Quote(
                 symbol=symbol,
-                market=exchange,
+                exchange=exchange,
                 currency="KRW",
                 current_price=required_decimal(row.get("inter2_prpr"), "inter2_prpr"),
                 open=required_decimal(row.get("inter2_oprc"), "inter2_oprc"),

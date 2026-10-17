@@ -50,7 +50,7 @@ def test_domestic_quotes_maps_and_slot_params():
     assert quotes[0].current_price == Decimal(71500)
     assert quotes[0].change == Decimal(500)              # sign 2 -> 양수
     assert quotes[1].change == Decimal(-300)             # sign 5 -> 음수
-    assert quotes[0].market == "KRX"                     # 기본 보드
+    assert quotes[0].exchange == "KRX"                     # 기본 보드
     call = fake.calls[0]
     assert call["path"] == "/uapi/domestic-stock/v1/quotations/intstock-multprice"
     assert call["tr_id"] == "FHKST11300006"
@@ -68,8 +68,8 @@ def test_domestic_quotes_mixed_boards_via_tuples():
                                               body={"output": rows}))
     quotes = _client(fake).domestic.quotes(["005930", ("NXT", "123456")])
     by_symbol = {q.symbol: q for q in quotes}
-    assert by_symbol["005930"].market == "KRX"
-    assert by_symbol["123456"].market == "NXT"           # 응답 코드로 보드 되짚음
+    assert by_symbol["005930"].exchange == "KRX"
+    assert by_symbol["123456"].exchange == "NXT"           # 응답 코드로 보드 되짚음
     call = fake.calls[0]
     assert call["params"]["FID_COND_MRKT_DIV_CODE_1"] == "J"    # KRX
     assert call["params"]["FID_COND_MRKT_DIV_CODE_2"] == "NX"   # NXT
@@ -112,13 +112,13 @@ def test_overseas_quotes_maps_and_mixed_exchanges():
     quotes = _client(fake).overseas.quotes([("NAS", "AAPL"), ("HKS", "00700")])
     by_symbol = {q.symbol: q for q in quotes}
     aapl = by_symbol["AAPL"]
-    assert aapl.market == "NAS"
+    assert aapl.exchange == "NAS"
     assert aapl.currency == "USD"
     assert aapl.current_price == Decimal("197.0")
     assert aapl.previous_close == Decimal("195.0")       # base
     assert aapl.change == Decimal("2.0")                 # last - base
     tencent = by_symbol["00700"]
-    assert tencent.market == "HKS"
+    assert tencent.exchange == "HKS"
     assert tencent.currency == "HKD"
     assert tencent.change == Decimal("-10.0")            # 300 - 310
     call = fake.calls[0]

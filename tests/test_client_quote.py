@@ -72,7 +72,7 @@ def test_ticker_quote_returns_unified_quote():
     quote = _client(FakeTransport(response=_quote_resp())).domestic.stock("005930").quote()
     assert isinstance(quote, Quote)
     assert quote.symbol == "005930"
-    assert quote.market == "KRX"
+    assert quote.exchange == "KRX"
     assert quote.currency == "KRW"
     assert quote.current_price == Decimal(71500)
     assert quote.open == Decimal(70800)
@@ -136,7 +136,7 @@ def test_quote_unparseable_price_fails_closed():
 def test_quote_value_semantics_ignore_raw_and_hashable():
     when = datetime(2024, 1, 2, tzinfo=timezone(timedelta(hours=9)))   # as_of 고정
     fields = {
-        "symbol": "005930", "market": "KRX", "currency": "KRW",
+        "symbol": "005930", "exchange": "KRX", "currency": "KRW",
         "current_price": Decimal(1), "open": Decimal(1), "high": Decimal(1), "low": Decimal(1),
         "previous_close": Decimal(1), "change": Decimal(0), "change_percent": Decimal(0),
         "volume": 1, "week_52_high": None, "week_52_low": None, "as_of": when,
@@ -282,7 +282,7 @@ def test_ticker_order_book_skips_gap_and_keeps_best_first():
 def test_ticker_market_override_to_unified_board():
     fake = FakeTransport(response=_quote_resp())
     quote = _client(fake).domestic.stock("005930", exchange="UN").quote()
-    assert quote.market == "UN"
+    assert quote.exchange == "UN"
     assert fake.calls[0]["params"]["FID_COND_MRKT_DIV_CODE"] == "UN"
 
 

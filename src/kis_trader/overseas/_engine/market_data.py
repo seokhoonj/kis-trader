@@ -590,7 +590,7 @@ def _parse_quote(
     )
     return Quote(
         symbol=symbol,
-        market=exchange,
+        exchange=exchange,
         currency=str(output.get("curr", "")).strip(),
         current_price=current_price,
         open=required_decimal(output.get("open"), "open"),
