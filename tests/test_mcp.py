@@ -134,15 +134,15 @@ def _fake_kis(*, quote=None, overseas_quote=None, index_quote=None, hits=None, r
             return bars or []
         return f
 
-    def _by_volume(**k):
+    def _by_trading_activity(**k):
         # metric 생략(extra={})과 metric=None 을 구분해 기록 -- CLI/MCP 가 기본값을 재기술하지 않고
         # 생략으로 넘기는지(라이브러리 기본 적용) 검증할 수 있게 한다.
-        rec.append(("by_volume", k.get("metric", "__omitted__")))
+        rec.append(("by_trading_activity", k.get("metric", "__omitted__")))
         return rank_volume or []
 
     ranking_ns = SimpleNamespace(
         by_change=lambda direction="gainers": ranking or [],
-        by_volume=_by_volume,
+        by_trading_activity=_by_trading_activity,
         by_market_cap=lambda: rank_mktcap or [],
     )
     market_ns = SimpleNamespace(
@@ -388,10 +388,10 @@ def test_ranking_volume_and_market_cap_handlers():
     # 유효 metric 이 라이브러리로 그대로 전달되는지(기본으로 조용히 떨어지지 않는지) 검증.
     kis = _fake_kis(rank_volume=rows)
     handlers.ranking_volume(kis, metric="turnover")
-    assert kis.rec == [("by_volume", "turnover")]                    # 유효 metric 은 그대로 전달
+    assert kis.rec == [("by_trading_activity", "turnover")]          # 유효 metric 은 그대로 전달
     omit = _fake_kis(rank_volume=rows)
     handlers.ranking_volume(omit)                                    # metric 생략 -> 재기술 않고 생략 전달
-    assert omit.rec == [("by_volume", "__omitted__")]
+    assert omit.rec == [("by_trading_activity", "__omitted__")]
     with pytest.raises(KISUsageError):                               # metric 리터럴 밖
         handlers.ranking_volume(_fake_kis(rank_volume=rows), metric="nope")
 

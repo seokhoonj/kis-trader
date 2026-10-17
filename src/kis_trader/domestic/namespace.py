@@ -349,7 +349,7 @@ class DomesticNamespace:
     # -- 하위 질의 네임스페이스 --
     @property
     def ranking(self) -> DomesticRankingQueries:
-        """시장 전체 순위 질의 -- ``kis.domestic.ranking.by_change()`` / ``by_volume()`` 등."""
+        """시장 전체 순위 질의 -- ``kis.domestic.ranking.by_change()`` / ``by_trading_activity()`` 등."""
         return DomesticRankingQueries(self._client)
 
     @property

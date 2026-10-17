@@ -25,7 +25,7 @@ from .. import (
     ReservedCurrency,
     ReservedProcess,
     SideFilter,
-    VolumeMetric,
+    TradingActivityMetric,
 )
 from ..errors import KISError
 from ..order import Right, Side
@@ -211,7 +211,7 @@ def build_parser() -> argparse.ArgumentParser:
     rc.add_argument("--direction", choices=list(get_args(Direction)), required=True)
     rc.set_defaults(func=market.cmd_ranking_change)
     rv = leaf(ranking_sub, "volume")
-    rv.add_argument("--metric", choices=list(get_args(VolumeMetric)), default=None,
+    rv.add_argument("--metric", choices=list(get_args(TradingActivityMetric)), default=None,
                     help="거래량 기준(생략 시 라이브러리 기본): average_volume(평균거래량)/"
                          "cumulative_trading_amount(거래대금)/volume_growth(거래증가율)/turnover(회전율)")
     rv.set_defaults(func=market.cmd_ranking_volume)

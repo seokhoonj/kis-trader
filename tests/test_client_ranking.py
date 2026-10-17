@@ -1,4 +1,4 @@
-"""시장 전체 순위 -- kis.domestic.ranking.by_change / by_volume / by_market_cap.
+"""시장 전체 순위 -- kis.domestic.ranking.by_change / by_trading_activity / by_market_cap.
 
 행위중심 네임스페이스(섹션 미러링 아님), 원장 검증 정렬코드(gainers=0/losers=1), 종목코드 필드
 차이 흡수(stck_shrn_iscd/mksc_shrn_iscd), 전일대비 부호 복원, fail-closed 파싱을 가짜 전송으로 검증.
@@ -95,9 +95,9 @@ def test_by_change_rejects_bad_direction():
         _client(fake).domestic.ranking.by_change(direction="up")
 
 
-def test_by_volume_uses_volume_endpoint():
+def test_by_trading_activity_uses_volume_endpoint():
     fake = FakeTransport(response=_resp([_row(rank="1"), _row(rank="2", symbol="000660")]))
-    ranked = _client(fake).domestic.ranking.by_volume()
+    ranked = _client(fake).domestic.ranking.by_trading_activity()
     assert [r.symbol for r in ranked] == ["005930", "000660"]
     call = fake.calls[0]
     assert call["path"] == _VOLUME
@@ -109,27 +109,27 @@ def test_by_volume_uses_volume_endpoint():
 @pytest.mark.parametrize("metric, blng", [
     ("average_volume", "0"), ("volume_growth", "1"), ("turnover", "2"), ("cumulative_trading_amount", "3"),
 ])
-def test_by_volume_metric_maps_to_blng_code(metric, blng):
+def test_by_trading_activity_metric_maps_to_blng_code(metric, blng):
     fake = FakeTransport(response=_resp([_row()]))
-    _client(fake).domestic.ranking.by_volume(metric=metric)
+    _client(fake).domestic.ranking.by_trading_activity(metric=metric)
     assert fake.calls[0]["params"]["FID_BLNG_CLS_CODE"] == blng
 
 
-def test_by_volume_reads_trading_value_from_acml_tr_pbmn():
+def test_by_trading_activity_reads_trading_value_from_acml_tr_pbmn():
     fake = FakeTransport(response=_resp([_row(acml_tr_pbmn="7489699281000")]))
-    ranked = _client(fake).domestic.ranking.by_volume(metric="cumulative_trading_amount")
+    ranked = _client(fake).domestic.ranking.by_trading_activity(metric="cumulative_trading_amount")
     assert ranked[0].cumulative_trading_amount == Decimal(7489699281000)
 
 
-def test_by_volume_trading_value_is_none_when_absent():
+def test_by_trading_activity_trading_value_is_none_when_absent():
     fake = FakeTransport(response=_resp([_row()]))  # acml_tr_pbmn 없음
-    assert _client(fake).domestic.ranking.by_volume()[0].cumulative_trading_amount is None
+    assert _client(fake).domestic.ranking.by_trading_activity()[0].cumulative_trading_amount is None
 
 
-def test_by_volume_rejects_bad_metric():
+def test_by_trading_activity_rejects_bad_metric():
     fake = FakeTransport(response=_resp([_row()]))
     with pytest.raises(KISUsageError):
-        _client(fake).domestic.ranking.by_volume(metric="bogus")  # type: ignore[arg-type]
+        _client(fake).domestic.ranking.by_trading_activity(metric="bogus")  # type: ignore[arg-type]
 
 
 def test_by_market_cap_exposes_market_cap_in_raw():
@@ -573,22 +573,22 @@ def test_by_near_high_low_low_extreme_and_bad_extreme():
 
 def test_ranking_skips_empty_rows():
     fake = FakeTransport(response=_resp([_row(), {"data_rank": "", "mksc_shrn_iscd": ""}]))
-    assert len(_client(fake).domestic.ranking.by_volume()) == 1
+    assert len(_client(fake).domestic.ranking.by_trading_activity()) == 1
 
 
 def test_ranking_missing_output_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="0", msg_cd="X", msg1="ok", body={}))
     with pytest.raises(KISError):
-        _client(fake).domestic.ranking.by_volume()
+        _client(fake).domestic.ranking.by_trading_activity()
 
 
 def test_ranking_error_response_fails_closed():
     fake = FakeTransport(response=RawResponse(rt_cd="1", msg_cd="X", msg1="실패", body={}))
     with pytest.raises(KISError):
-        _client(fake).domestic.ranking.by_volume()
+        _client(fake).domestic.ranking.by_trading_activity()
 
 
 def test_ranking_bad_price_fails_closed():
     fake = FakeTransport(response=_resp([_row(price="n/a")]))
     with pytest.raises(KISError):
-        _client(fake).domestic.ranking.by_volume()
+        _client(fake).domestic.ranking.by_trading_activity()

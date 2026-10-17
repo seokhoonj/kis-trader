@@ -22,7 +22,7 @@ def cmd_ranking_change(kis: KISClient, args: Namespace) -> Any:
 def cmd_ranking_volume(kis: KISClient, args: Namespace) -> Any:
     # --metric 미지정이면 라이브러리 기본을 쓴다(CLI 가 기본값을 재기술하지 않는다).
     extra = {} if args.metric is None else {"metric": args.metric}
-    return kis.domestic.ranking.by_volume(**extra)
+    return kis.domestic.ranking.by_trading_activity(**extra)
 
 
 def cmd_ranking_market_cap(kis: KISClient, args: Namespace) -> Any:

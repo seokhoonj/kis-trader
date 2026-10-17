@@ -51,7 +51,7 @@ from ..account import StockAccount
 from ..bar import Interval
 from ..client import KISClient
 from ..domestic.market import InvestorType, NetBuyBasis
-from ..domestic.ranking import VolumeMetric
+from ..domestic.ranking import TradingActivityMetric
 from ..errors import KISError, KISUsageError
 from ..instrument import DomesticMarket, DomesticMarketFilter, Region
 from ..order import DomesticDivision, ImmediateOrderFingerprint, Side
@@ -439,7 +439,7 @@ def build_server(
         return handlers.ranking_change(account_session.read_client(), direction=direction, limit=limit)
 
     @server.tool()
-    def ranking_volume(metric: VolumeMetric | None = None, limit: int = 10) -> list[dict[str, Any]]:
+    def ranking_volume(metric: TradingActivityMetric | None = None, limit: int = 10) -> list[dict[str, Any]]:
         """국내 거래량/거래대금 순위(metric 생략 시 거래대금)."""
         return handlers.ranking_volume(account_session.read_client(), metric=metric, limit=limit)
 

@@ -130,8 +130,8 @@ class _Ranking:
     def __init__(self, log):
         self._log = log
 
-    def by_volume(self, *, metric="cumulative_trading_amount"):  # 라이브러리 기본값(CLI 는 재기술 안 함)
-        self._log.append(("by_volume", metric)); return ["RV"]
+    def by_trading_activity(self, *, metric="cumulative_trading_amount"):  # 라이브러리 기본값(CLI 는 재기술 안 함)
+        self._log.append(("by_trading_activity", metric)); return ["RV"]
 
 
 class _Market:
@@ -323,12 +323,12 @@ def test_search_passes_market_and_returns_all_candidates():
 
 
 def test_ranking_volume_omitting_metric_uses_library_default():
-    # --metric 생략 시 CLI 가 기본값을 재기술하지 않고 라이브러리 기본(스텁 by_volume 의 기본)이 적용된다.
+    # --metric 생략 시 CLI 가 기본값을 재기술하지 않고 라이브러리 기본(스텁 by_trading_activity 의 기본)이 적용된다.
     args = _args(["ranking", "volume"])
     assert args.metric is None                 # 파서 기본은 None
     kis = StubKis()
     args.func(kis, args)
-    assert kis.log == [("by_volume", "cumulative_trading_amount")]
+    assert kis.log == [("by_trading_activity", "cumulative_trading_amount")]
 
 
 def test_stock_investors_keeps_domestic_guard():

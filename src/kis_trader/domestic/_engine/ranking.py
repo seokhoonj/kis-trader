@@ -232,7 +232,7 @@ def fetch_fluctuation(transport: Transport, *, direction: str, market: str) -> l
     return _fetch_ranking(transport, path=_FLUCTUATION_PATH, tr=_FLUCTUATION_TR, params=params)
 
 
-def fetch_volume(transport: Transport, *, metric: str = "cumulative_trading_amount", market: str) -> list[DomesticRankedStock]:
+def fetch_trading_activity(transport: Transport, *, metric: str = "cumulative_trading_amount", market: str) -> list[DomesticRankedStock]:
     """거래량 계열 순위. ``metric``: average_volume 평균거래량 / cumulative_trading_amount 거래대금 /
     volume_growth 거래증가율 / turnover 회전율. 최대 30건(다음조회 없음)."""
     params = {

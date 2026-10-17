@@ -20,7 +20,7 @@ from ..account import _IRP_PRODUCT_CODE, StockAccount
 from ..bar import Interval
 from ..client import KISClient
 from ..domestic.market import InvestorType, NetBuyBasis
-from ..domestic.ranking import VolumeMetric
+from ..domestic.ranking import TradingActivityMetric
 from ..errors import KISUsageError
 from ..instrument import DomesticMarket, DomesticMarketFilter, Region
 from ..order import DomesticDivision, Side
@@ -197,8 +197,8 @@ def ranking_volume(kis: KISClient, *, metric: str | None = None, limit: int = 10
     if metric is not None and metric not in _VOLUME_METRICS:
         raise KISUsageError(f"metric 은 {sorted(_VOLUME_METRICS)} 중 하나여야 한다 (받은 값: {metric!r}).")
     _require_positive_limit(limit)
-    extra = {} if metric is None else {"metric": cast(VolumeMetric, metric)}
-    rows = kis.domestic.ranking.by_volume(**extra)
+    extra = {} if metric is None else {"metric": cast(TradingActivityMetric, metric)}
+    rows = kis.domestic.ranking.by_trading_activity(**extra)
     out: list[dict[str, Any]] = [_serialize(r) for r in list(rows)[:limit]]
     return out
 
@@ -219,7 +219,7 @@ _NET_BUY_MARKETS = frozenset(get_args(DomesticMarketFilter))
 _NET_BUY_BASES = frozenset(get_args(NetBuyBasis))
 _INVESTOR_TYPES = frozenset(get_args(InvestorType))
 _SIDES = frozenset(get_args(Side))
-_VOLUME_METRICS = frozenset(get_args(VolumeMetric))
+_VOLUME_METRICS = frozenset(get_args(TradingActivityMetric))
 
 #: index_bars 의 해외 kind 검증 집합 -- 라이브러리 단일 출처 :data:`OverseasIndexKind` 에서 파생(재선언 금지).
 _INDEX_KINDS = frozenset(get_args(OverseasIndexKind))
