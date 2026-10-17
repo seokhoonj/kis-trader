@@ -47,7 +47,7 @@ ranking.by_credit_balance()                            # 신용잔고 상위
 ranking.by_near_high_low()                             # 신고가/신저가 근접
 ranking.by_dividend(start="20240101", end="20240630")  # 배당률 상위
 ranking.by_disparity()                                 # 이격도
-ranking.by_volume_power()                              # 체결강도
+ranking.by_execution_strength()                              # 체결강도
 ranking.by_views()                                     # HTS 조회 상위
 ```
 

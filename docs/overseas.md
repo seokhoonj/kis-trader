@@ -109,11 +109,11 @@ ranking.by_volume(exchange="NAS")
 ranking.by_trading_amount(exchange="NAS")
 ranking.by_market_cap(exchange="NAS")
 ranking.by_turnover(exchange="NAS")           # 거래회전율
-ranking.by_buy_strength(exchange="NAS")       # 매수 체결강도
+ranking.by_execution_strength(exchange="NAS")       # 매수 체결강도
 ranking.by_volume_growth(exchange="NAS")       # 거래증가율
 ranking.by_volume_surge(exchange="NAS")       # 거래량 급증
 ranking.by_new_high_low(exchange="NAS")        # 신고가/신저가
-ranking.by_price_fluctuation(exchange="NAS")  # 급등/급락
+ranking.by_sharp_change(exchange="NAS")  # 급등/급락
 
 kis.overseas.screen_stocks("NAS", price=(10, 500), change_percent=(5, 30))  # 거래소 + 범위 조건
 kis.overseas.screen_stocks("US", price=(10, 500))   # NAS/NYS/AMS 를 각각 조회해 합침

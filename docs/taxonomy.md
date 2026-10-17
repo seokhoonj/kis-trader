@@ -159,7 +159,7 @@ kis.domestic
 │   ├── by_preferred_share_disparity()        # 우선주 괴리율 순위
 │   │  ── 거래·체결 ──────────────────────────────
 │   ├── by_volume()                     # 거래량 계열 순위
-│   ├── by_volume_power()               # 체결강도 순위
+│   ├── by_execution_strength()               # 체결강도 순위
 │   ├── by_bulk_trade_count()                # 대량체결건수 순위
 │   ├── by_quote_balance()              # 호가잔량 순위
 │   │  ── 규모·밸류·재무 ───────────────────────────
@@ -280,9 +280,9 @@ kis.overseas
     ├── by_market_cap(exchange)         # 시가총액 순위
     ├── by_change(exchange, ...)        # 등락률 순위
     ├── by_volume_surge(exchange)       # 거래량 급증 순위
-    ├── by_buy_strength(exchange)       # 매수 체결강도 순위
+    ├── by_execution_strength(exchange)       # 매수 체결강도 순위
     ├── by_turnover(exchange)           # 거래 회전율 순위
-    ├── by_price_fluctuation(exchange)  # 가격 급등/급락 순위
+    ├── by_sharp_change(exchange)  # 가격 급등/급락 순위
     └── by_new_high_low(exchange, ...)   # 신고가/신저가 순위
 ```
 
