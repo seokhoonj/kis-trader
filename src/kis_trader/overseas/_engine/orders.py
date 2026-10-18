@@ -395,10 +395,9 @@ def reconcile(
 
     ``force_refresh`` 면 저장된 완료 리포트가 있어도 단락하지 않고 다시 스캔한다(ChangeAction
     재조회가 원주문의 현재 상태를 캐시가 아니라 브로커에서 확인하려고 쓴다)."""
-    prior = store.report_for(client_order_id)
+    prior, fingerprint = store.snapshot_for(client_order_id)  # 리포트+지문 원자 스냅샷(세대 일관)
     if prior is not None and not force_refresh:
         return prior
-    fingerprint = store.fingerprint_for(client_order_id)
     if fingerprint is None:
         raise KISUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
@@ -460,7 +459,8 @@ def reconcile(
     report = _ccnl_report(client_order_id, fingerprint, matches[0])
     if not report.is_terminal and normalize_order_number(str(matches[0].get("odno", ""))) == "":
         return None  # 비종료 + ODNO 없음 -> order_id=None 리포트는 refresh 교착 유발; 종료는 ODNO 없어도 확정
-    store.record(report, fingerprint)
+    if not store.record_if_unchanged(report, fingerprint, expected=(prior, fingerprint)):
+        return store.report_for(client_order_id)  # 읽기~기록 사이 동시 재바인딩 -> 옛 세대로 덮어쓰지 않음
     return report
 
 

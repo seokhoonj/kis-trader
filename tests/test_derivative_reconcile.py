@@ -399,6 +399,54 @@ def test_day_reconcile_blank_odno_terminal_fill_is_confirmed():
     assert not client._store.is_in_flight("blank-term")        # in-flight 해제
 
 
+def test_day_refresh_does_not_overwrite_concurrent_modify_rebind():
+    # reconcile 이 스냅샷을 읽은 뒤 조회(I/O) 중에 동시 modify 가 이 id 를 새 ODNO(B)로 재바인딩하면,
+    # reconcile 의 옛 세대(A) 스캔 결과가 그 B 바인딩을 덮어쓰지 않는다(CAS 실패 -> 현재 B 반환) --
+    # 안 그러면 이후 cancel 이 죽은 ODNO A 를 겨냥한다.
+    from kis_trader import ExecutionReport, OrderStatus
+    store = OrderStore()
+    order = _order(client_order_id="race")
+    _record_prior(store, order, status=OrderStatus.NEW, order_id="0000007045")   # 원 세대 A
+    rebound = ExecutionReport(
+        client_order_id="race", order_id="0000008888", symbol=order.symbol, side=order.side,
+        status=OrderStatus.NEW, filled_quantity=Decimal(0), average_price=None,
+        recorded_at=datetime(2024, 3, 15, 10, 0, tzinfo=_KST))
+
+    class _RebindOnGet:
+        def request(self, *, method, path, tr_id, params=None, body=None, idempotent, tr_cont=""):
+            if method == "GET":
+                store.record(rebound, order.fingerprint)          # 조회 중 동시 modify 재바인딩(B)
+                return _ccnl([_row(odno="0000007045")])           # 옛 세대 A 행
+            raise AssertionError(f"unexpected {method}")
+
+    result = fo.reconcile(_RebindOnGet(), store, "race", cano="1", product_code="03",
+                          environment="real", force_refresh=True,
+                          now=datetime(2024, 3, 15, 10, 0, tzinfo=_KST))
+    assert result is not None and result.order_id == "0000008888"        # 새 세대 B 반환
+    assert store.report_for("race").order_id == "0000008888"             # B 유지(A 로 롤백 안 함)
+
+
+def test_record_if_unchanged_rejects_stale_expected():
+    # store CAS 단위 검증: 기대 스냅샷과 현재 바인딩이 다르면 기록하지 않고 False.
+    from kis_trader import ExecutionReport, OrderStatus
+    store = OrderStore()
+    order = _order(client_order_id="cas")
+    _record_prior(store, order, status=OrderStatus.NEW, order_id="0000000001")   # 현재 = A
+    snap = store.snapshot_for("cas")                                             # (A, fp)
+    newer = ExecutionReport(client_order_id="cas", order_id="0000000002", symbol=order.symbol,
+                            side=order.side, status=OrderStatus.NEW, filled_quantity=Decimal(0),
+                            average_price=None, recorded_at=datetime(2024, 3, 15, tzinfo=_KST))
+    store.record(newer, order.fingerprint)                                       # 재바인딩 -> 현재 = B
+    stale = ExecutionReport(client_order_id="cas", order_id="0000000009", symbol=order.symbol,
+                            side=order.side, status=OrderStatus.NEW, filled_quantity=Decimal(0),
+                            average_price=None, recorded_at=datetime(2024, 3, 15, tzinfo=_KST))
+    assert store.record_if_unchanged(stale, order.fingerprint, expected=snap) is False
+    assert store.report_for("cas").order_id == "0000000002"                      # B 유지
+    assert store.record_if_unchanged(stale, order.fingerprint,
+                                     expected=(newer, order.fingerprint)) is True
+    assert store.report_for("cas").order_id == "0000000009"
+
+
 def test_day_reconcile_night_session_on_paper_fails_closed():
     # 야간은 실전 전용 -- paper 야간 지문 도달은 손상 신호라 KISUsageError(조회 미접촉).
     from kis_trader.errors import KISUsageError

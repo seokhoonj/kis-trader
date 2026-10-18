@@ -116,10 +116,9 @@ def reconcile(
     이때 prior 에 확정 거래소주문번호(ODNO)가 있으면 지문 대신 그 ODNO 로 자기 행을 집어 동일수량
     형제의 오귀속을 막는다(ODNO 가 없거나 전부-0/빈값인 타임아웃 복구에서만 지문으로 스캔한다).
     """
-    prior = store.report_for(client_order_id)
+    prior, fingerprint = store.snapshot_for(client_order_id)  # 리포트+지문 원자 스냅샷(세대 일관)
     if prior is not None and not force_refresh:
         return prior
-    fingerprint = store.fingerprint_for(client_order_id)
     if fingerprint is None:  # 완료도 in-flight 도 아님 -> 모르는 id
         raise KISUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
@@ -172,7 +171,10 @@ def reconcile(
         # 종료(체결/취소/거부/만료)는 ODNO 없어도 확정한다 -- 종료 prior 는 refresh 의 0건 분기가 그대로
         # 돌려주므로 교착이 없고, 진짜 체결을 미확정으로 버리면(재전송 유도) 이중체결 위험이 더 크다.
         return None
-    store.record(report, fingerprint)
+    if not store.record_if_unchanged(report, fingerprint, expected=(prior, fingerprint)):
+        # 읽기~기록 사이에 동시 정정/취소가 이 id 를 새 ODNO 로 재바인딩했다 -- 옛 세대 스캔으로 덮어쓰지
+        # 않고(그랬다간 취소가 죽은 ODNO 를 겨냥) 현재(새) 상태를 돌려준다.
+        return store.report_for(client_order_id)
     return report
 
 

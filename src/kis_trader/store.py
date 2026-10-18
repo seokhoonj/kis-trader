@@ -267,6 +267,34 @@ class OrderStore:
                 return None
             return Binding(report, fingerprint)
 
+    def snapshot_for(
+        self, client_order_id: str
+    ) -> tuple[ExecutionReport | None, Fingerprint | None]:
+        """(리포트, 지문)을 **한 락**으로 원자 스냅샷한다 -- :meth:`binding_for` 와 달리 **둘 중 하나가
+        없어도**(리포트 None 인 in-flight/타임아웃 복구 포함) 그대로 돌려준다. reconcile 이 리포트와 지문을
+        같은 세대로 읽고(:meth:`report_for` 후 :meth:`fingerprint_for` 로 따로 읽으면 그 사이 동시 정정/취소
+        재바인딩이 끼어들어 세대가 어긋난다), 이 스냅샷을 ``expected`` 로 :meth:`record_if_unchanged` 에
+        넘겨 읽기~기록 사이의 재바인딩을 덮어쓰지 않게 한다."""
+        with self._lock:
+            return self._reports.get(client_order_id), self._fingerprints.get(client_order_id)
+
+    def record_if_unchanged(
+        self, report: ExecutionReport, fingerprint: Fingerprint, *,
+        expected: tuple[ExecutionReport | None, Fingerprint | None],
+    ) -> bool:
+        """현재 (리포트, 지문)이 ``expected`` 스냅샷과 같을 때만 기록하고 ``True``. 다르면(읽기~기록 사이
+        동시 정정/취소가 이 id 를 새 ODNO 로 재바인딩함) 아무것도 안 하고 ``False`` -- reconcile 의 옛 세대
+        스캔 결과가 새 세대 바인딩을 덮어써 취소가 죽은 ODNO 를 겨냥하는 일을 막는다(compare-and-swap)."""
+        cid = report.client_order_id
+        with self._lock:
+            self._require_open()
+            current = (self._reports.get(cid), self._fingerprints.get(cid))
+            if current != expected:
+                return False
+            self._bind_locked(report, fingerprint)
+            self._save_locked()
+            return True
+
     def claim_time_for(self, client_order_id: str) -> str | None:
         """이 id 의 in-flight claim 확보 시각(ISO8601). in-flight 가 아니면 None,
         구 저장소에서 로드돼 시각 미상이면 ""(폴백 앵커)."""

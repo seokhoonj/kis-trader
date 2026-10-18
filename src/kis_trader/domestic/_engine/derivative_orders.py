@@ -321,10 +321,9 @@ def reconcile(
 
     야간(STTN) 주문은 주간 체결내역에 담기지 않아 여기서 확정하면 오확정이다 -- 야간 전용 조회
     (union 스캔)는 별도 경로라, 야간 지문이면 fail-closed 로 올려 수동 확인을 유도한다."""
-    prior = store.report_for(client_order_id)
+    prior, fingerprint = store.snapshot_for(client_order_id)  # 리포트+지문 원자 스냅샷(세대 일관)
     if prior is not None and not force_refresh:
         return prior
-    fingerprint = store.fingerprint_for(client_order_id)
     if fingerprint is None:
         raise KISUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
@@ -345,7 +344,7 @@ def reconcile(
         # 야간 체결은 06:10 경 주간 테이블로 이관되고 주문일자가 T+1 이라, 야간 테이블(STTN5201R)과
         # 주간 테이블(TTTO5201R)을 날짜창으로 함께 훑는 union 스캔으로 확인한다(:func:`_night_union_reconcile`).
         return _night_union_reconcile(
-            transport, store, client_order_id, fingerprint,
+            transport, store, client_order_id, fingerprint, prior=prior,
             cano=cano, product_code=product_code, environment=environment, now=now,
         )
     try:
@@ -392,7 +391,8 @@ def reconcile(
     report = _fo_report(client_order_id, fingerprint, matches[0])
     if not report.is_terminal and normalize_order_number(str(matches[0].get("odno", ""))) == "":
         return None  # 비종료 + ODNO 없음 -> order_id=None 리포트는 refresh 교착 유발; 종료는 ODNO 없어도 확정
-    store.record(report, fingerprint)
+    if not store.record_if_unchanged(report, fingerprint, expected=(prior, fingerprint)):
+        return store.report_for(client_order_id)  # 읽기~기록 사이 동시 재바인딩 -> 옛 세대로 덮어쓰지 않음
     return report
 
 
@@ -512,7 +512,7 @@ def _filter_matching_day_rows(
 # --- 야간(NIGHT) union 재조회 + 신선 잔량 --------------------------------
 def _night_union_reconcile(
     transport: Transport, store: OrderStore, client_order_id: str,
-    fingerprint: ImmediateOrderFingerprint, *,
+    fingerprint: ImmediateOrderFingerprint, *, prior: ExecutionReport | None,
     cano: str, product_code: str, environment: Environment, now: datetime | None,
 ) -> ExecutionReport | None:
     """야간(STTN) 주문을 두 테이블의 union 으로 재조회한다(:func:`reconcile` 의 야간 분기).
@@ -548,7 +548,6 @@ def _night_union_reconcile(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
-    prior = store.report_for(client_order_id)
     want_odno = normalize_order_number(prior.order_id) if prior is not None and prior.order_id else ""
     if want_odno:
         # 저장된 ODNO 가 있으면 두 테이블 모두 그 ODNO 로 집는다(지문 형제 오귀속 방지 -- 주간 경로와 대칭).
@@ -601,7 +600,8 @@ def _night_union_reconcile(
     report = _fo_report(client_order_id, fingerprint, row)
     if not report.is_terminal and normalize_order_number(str(row.get("odno", ""))) == "":
         return None  # 비종료 + ODNO 없음 -> refresh 교착 유발; 종료는 ODNO 없어도 확정
-    store.record(report, fingerprint)
+    if not store.record_if_unchanged(report, fingerprint, expected=(prior, fingerprint)):
+        return store.report_for(client_order_id)  # 읽기~기록 사이 동시 재바인딩 -> 옛 세대로 덮어쓰지 않음
     return report
 
 
