@@ -111,6 +111,8 @@ def reconcile(
 
     ``force_refresh`` 면 저장된 완료 리포트가 있어도 단락하지 않고 브로커를 다시 스캔한다 --
     정정·취소(ChangeAction) 재조회가 원주문의 **현재** 상태(캐시가 아니라)를 확인하려고 쓴다.
+    이때 prior 에 확정 거래소주문번호(ODNO)가 있으면 지문 대신 그 ODNO 로 자기 행을 집어 동일수량
+    형제의 오귀속을 막는다(ODNO 가 없거나 전부-0/빈값인 타임아웃 복구에서만 지문으로 스캔한다).
     """
     prior = store.report_for(client_order_id)
     if prior is not None and not force_refresh:
@@ -134,12 +136,14 @@ def reconcile(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
-    if prior is not None and prior.order_id:
+    want_odno = normalize_order_number(prior.order_id) if prior is not None and prior.order_id else ""
+    if want_odno:
         # force_refresh 재조회엔 place 가 실은 확정 거래소주문번호(ODNO)가 있다 -- 모호한 지문 대신
         # 그 ODNO 로 자기 행을 집는다. 지문 매칭은 동일수량 형제를 다건매칭하거나(균등분할 TWAP 에서
         # 측정 불능) 반영 지연 시 형제 행을 이 주문으로 오귀속해(형제 ODNO 가 store.record 돼 이후
-        # cancel 이 살아있는 형제를 겨냥) phantom 확정을 낸다. 지문 매칭은 prior 없는 타임아웃 복구 전용.
-        want_odno = normalize_order_number(prior.order_id)
+        # cancel 이 살아있는 형제를 겨냥) phantom 확정을 낸다. 저장 ODNO 가 전부-0/빈값(비정상)으로
+        # 정규화돼 비면 그 분기를 타지 않고 지문 매칭으로 내려가, 빈 odno 행을 오매칭하지 않는다.
+        # 지문 매칭은 prior ODNO 가 없는 타임아웃 복구 전용.
         matches = [row for row in rows if normalize_order_number(str(row.get("odno", ""))) == want_odno]
     else:
         matches = _filter_matching_daily_rows(rows, fingerprint)

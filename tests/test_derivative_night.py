@@ -392,6 +392,20 @@ def test_night_refresh_nonterminal_prior_both_zero_stays_none():
     assert _reconcile_refresh(fake, store) is None
 
 
+def test_night_refresh_merges_on_padding_normalized_odno():
+    # 두 테이블이 같은 주문을 자리수만 다르게("0000005605" vs "5605") 돌려줘도 정규화하면 동일하므로
+    # 모호(KISError)로 보지 않고 병합 확정한다 -- 원문자열 비교였다면 false 모호였다.
+    from kis_trader import OrderStatus
+    store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW)  # 비종료라야 refresh 가 재스캔
+    fake = FakeTransport()
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="0000005605", ord_dt="20220114")]))
+    fake.queue(_DAY_INQUIRY, _day_ccnl([_day_row(odno="5605", ord_dt="20220114")]))
+    report = _reconcile_refresh(fake, store)
+    # (odno, ord_dt) 동일로 병합 -> 주간(B) 행을 정본으로: order_id 는 그 행의 odno("5605").
+    assert report is not None and report.order_id == "5605"
+
+
 def test_night_refresh_matches_stored_odno_not_sibling():
     # prior ODNO(5605)가 있으면 두 테이블 모두 그 ODNO 로 집는다 -- 동일 지문의 형제 ODNO(9999) 행을
     # 이 주문으로 오귀속하지 않고, 종료 prior 를 그대로 유지한다(phantom 확정 방지).

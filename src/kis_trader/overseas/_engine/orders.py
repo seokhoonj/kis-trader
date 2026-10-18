@@ -386,8 +386,10 @@ def reconcile(
 
     완료 리포트가 있으면 반환. in-flight 면 체결내역을 지문으로 스캔해 정확히 1건이면 확정, 0건이면
     ``None``(재전송 금지 유지), 2건 이상이면 :class:`KISError`. **자동 해제는 절대 하지 않는다.**
-    ODNO 로는 검색이 안 돼(KIS 명세) 지문(종목/매매/수량/단가)으로 맞춘다. ``now`` 는 조회 날짜창의
-    기준시각(주입하면 결정적; 생략 시 현재 KST).
+    ODNO 로는 서버 **검색**이 안 돼(KIS 명세) 기본은 지문(종목/매매/수량/단가)으로 맞춘다. 단
+    ``force_refresh`` 재조회로 prior 에 확정 ODNO 가 있으면, 반환된 행의 ``odno`` 로 **로컬 필터링**해
+    그 ODNO(정정/취소 행 제외)로 자기 행을 집어 형제 오귀속을 막는다 -- 지문은 ODNO 없는 타임아웃
+    복구 전용. ``now`` 는 조회 날짜창의 기준시각(주입하면 결정적; 생략 시 현재 KST).
 
     ``force_refresh`` 면 저장된 완료 리포트가 있어도 단락하지 않고 다시 스캔한다(ChangeAction
     재조회가 원주문의 현재 상태를 캐시가 아니라 브로커에서 확인하려고 쓴다)."""
@@ -424,15 +426,18 @@ def reconcile(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
-    if prior is not None and prior.order_id:
+    want_odno = normalize_order_number(prior.order_id) if prior is not None and prior.order_id else ""
+    if want_odno:
         # 해외 ccnl 은 ODNO 로 **서버 조회**는 안 되지만 반환된 행에는 ``odno`` 가 실려, prior 의 확정
         # ODNO 로 **로컬 필터링**은 된다. force_refresh 재조회(ChangeAction 이 원주문 현재상태 확인에 씀)는
         # 그 ODNO 로 자기 행을 집어, 동일 종목·수량·가격의 형제 행을 이 주문으로 오귀속하지 않게 한다
-        # (형제 ODNO 가 store.record 돼 이후 cancel 이 살아있는 형제를 겨냥하는 phantom 확정 방지). 지문
+        # (형제 ODNO 가 store.record 돼 이후 cancel 이 살아있는 형제를 겨냥하는 phantom 확정 방지). ODNO 로
+        # 집더라도 정정/취소 행(rvse_cncl_dvsn 01/02)은 제외해 원주문 행만 매칭한다(같은 odno 로 돌아오는
+        # 변경 행 오확정 방지). 저장 ODNO 가 전부-0/빈값으로 정규화돼 비면 지문 매칭으로 내려간다. 지문
         # 매칭은 prior ODNO 가 없는 타임아웃 복구 전용(국내 reconcile 과 대칭).
-        want_odno = normalize_order_number(prior.order_id)
         matches = [row for row in rows
-                   if normalize_order_number(str(row.get("odno", ""))) == want_odno]
+                   if normalize_order_number(str(row.get("odno", ""))) == want_odno
+                   and str(row.get("rvse_cncl_dvsn", "")).strip() not in ("01", "02")]
     else:
         matches = _filter_matching_ccnl_rows(rows, fingerprint)
     if len(matches) > 1:

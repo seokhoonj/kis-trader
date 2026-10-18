@@ -281,6 +281,17 @@ def test_overseas_refresh_matches_stored_odno_not_sibling():
     assert client.orders.reconcile("sib", refresh=True) is None
 
 
+def test_overseas_refresh_excludes_cancel_row_with_same_odno():
+    # ODNO 로 집더라도 취소/정정 행(rvse_cncl_dvsn 01/02)이 같은 odno 로 오면 원주문 확정으로 오인하지
+    # 않는다 -- 그 행 제외 -> 0건 -> None(비종료 유지, phantom 확정 방지).
+    cancel_row = {**_ccnl_row(odno="0000123456"), "rvse_cncl_dvsn": "02"}
+    fake = FakeTransport(on_post=_ack("0000123456"), on_get=_ccnl([cancel_row]))
+    client = _client(fake)
+    client.overseas.stock("AAPL", exchange="NAS").buy(
+        quantity=1, limit_price="150.00", client_order_id="cxl")
+    assert client.orders.reconcile("cxl", refresh=True) is None
+
+
 def test_overseas_refresh_confirms_on_stored_odno():
     # prior ODNO 와 같은 ODNO 행이 있으면 그 행으로 현재 상태를 갱신한다(정상 refresh).
     fake = FakeTransport(on_post=_ack("0000123456"),

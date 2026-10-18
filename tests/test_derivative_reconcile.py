@@ -328,6 +328,36 @@ def test_day_refresh_confirms_on_stored_odno_match():
     assert report is not None and report.order_id == "0000007045"
 
 
+def test_day_refresh_blank_stored_odno_does_not_match_blank_row():
+    # 저장 ODNO 가 전부-0("0000000000")으로 정규화돼 비면, odno 가 빈 무관한 행("" -> "")을 이 주문으로
+    # 오매칭하지 않는다 -- 지문 매칭으로 내려가 pdno 불일치면 0건 -> 종료 prior 유지(빈값끼리 "" == "" 오매칭 방지).
+    from kis_trader import OrderStatus
+    store = OrderStore()
+    order = _order(client_order_id="rf-zero")
+    _record_prior(store, order, status=OrderStatus.FILLED, order_id="0000000000")
+    fake = FakeTransport(on_get=_ccnl([_row(odno="", pdno="201S03")]))  # 다른 종목 + 빈 odno
+    report = fo.reconcile(fake, store, "rf-zero", cano="1", product_code="03",
+                          environment="real", force_refresh=True,
+                          now=datetime(2024, 3, 15, 10, 0, tzinfo=_KST))
+    assert report is not None and report.order_id == "0000000000"  # 종료 prior 유지, 빈 행 오매칭 아님
+
+
+def test_day_refresh_excludes_modify_cancel_row_with_same_odno():
+    # ODNO 로 집더라도 정정/취소 행(orgn_odno != 0)이 같은 odno 로 돌아오면 원주문 체결로 오확정하지
+    # 않는다 -- 그 행 제외 -> 0건 -> 종료 prior 유지.
+    from kis_trader import OrderStatus
+    store = OrderStore()
+    order = _order(client_order_id="rf-mod")
+    _record_prior(store, order, status=OrderStatus.FILLED, order_id="0000007045")
+    # 같은 odno 이지만 정정/취소 행(orgn_odno != 0)이고 상태는 미체결(NEW) -- 이 행이 채택되면 종료
+    # prior(FILLED)가 NEW 로 뒤집혀 구별된다(오매칭이면 FILLED != NEW 로 드러난다).
+    fake = FakeTransport(on_get=_ccnl([_row(odno="0000007045", orgn_odno="0000007045", tot_ccld_qty="0")]))
+    report = fo.reconcile(fake, store, "rf-mod", cano="1", product_code="03",
+                          environment="real", force_refresh=True,
+                          now=datetime(2024, 3, 15, 10, 0, tzinfo=_KST))
+    assert report is not None and report.status is OrderStatus.FILLED  # 변경 행 제외 -> 종료 prior 유지
+
+
 def test_day_reconcile_night_session_on_paper_fails_closed():
     # 야간은 실전 전용 -- paper 야간 지문 도달은 손상 신호라 KISUsageError(조회 미접촉).
     from kis_trader.errors import KISUsageError

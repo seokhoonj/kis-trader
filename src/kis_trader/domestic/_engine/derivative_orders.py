@@ -306,7 +306,9 @@ def reconcile(
     1건이면 확정, 0건이면 ``None``(재전송 금지 유지), 2건 이상이면 :class:`KISError`. **자동 해제는
     절대 하지 않는다.** 매칭은 원장 output1 에 실재하는 ``nmpr_type_cd``(호가유형) 기반이다 -- 그
     행에는 ``ord_dvsn_cd`` 가 없어 발주와 같은 리졸버(:func:`_resolve_fo_codes`)의 NMPR_TYPE_CD 로
-    맞춘다. ``now`` 는 조회 날짜창의 기준시각(주입하면 결정적; 생략 시 현재 KST).
+    맞춘다. 단 ``force_refresh`` 재조회로 prior 에 확정 ODNO 가 있으면 지문 대신 그 ODNO(정정/취소 행
+    제외)로 자기 행을 집어 형제 오귀속을 막는다 -- 지문은 ODNO 없는 타임아웃 복구 전용. ``now`` 는
+    조회 날짜창의 기준시각(주입하면 결정적; 생략 시 현재 KST).
 
     주간 조회창은 기준시각(``now``)의 국내(KST) **당일 하루**뿐이라, 주간 주문을 그 이후의 다른
     달력일에 재조회하면 그 하루 창에 걸리지 않아 ``None``(재전송 금지의 in-flight 유지)이 된다 --
@@ -352,14 +354,17 @@ def reconcile(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
-    if prior is not None and prior.order_id:
+    want_odno = normalize_order_number(prior.order_id) if prior is not None and prior.order_id else ""
+    if want_odno:
         # force_refresh 재조회엔 place 가 실은 확정 거래소주문번호(ODNO)가 있다 -- 모호한 지문 대신
         # 그 ODNO 로 자기 행을 집는다. 지문 매칭은 동일 종목·수량·가격의 형제 행을 이 주문으로 오귀속해
         # (형제 ODNO 가 store.record 돼 이후 cancel/modify 가 살아있는 형제를 겨냥) phantom 확정을 낸다.
-        # 지문 매칭은 prior 없는 타임아웃 복구 전용(국내주식 orders.py 와 대칭).
-        want_odno = normalize_order_number(prior.order_id)
+        # ODNO 로 집더라도 정정/취소 행(orgn_odno != 0)은 제외한다 -- 그 행이 원주문과 같은 odno 로
+        # 돌아와도 원주문 체결로 오확정하지 않게(원주문 행만 매칭). 저장 ODNO 가 전부-0/빈값으로 정규화돼
+        # 비면 지문 매칭으로 내려간다. 지문 매칭은 prior ODNO 없는 타임아웃 복구 전용(국내주식과 대칭).
         matches = [row for row in rows
-                   if normalize_order_number(str(row.get("odno", ""))) == want_odno]
+                   if normalize_order_number(str(row.get("odno", ""))) == want_odno
+                   and _is_original_odno(row.get("orgn_odno"))]
     else:
         matches = _filter_matching_day_rows(rows, fingerprint)
     if len(matches) > 1:
@@ -530,14 +535,18 @@ def _night_union_reconcile(
             client_order_id=client_order_id,
         ) from err
     prior = store.report_for(client_order_id)
-    if prior is not None and prior.order_id:
+    want_odno = normalize_order_number(prior.order_id) if prior is not None and prior.order_id else ""
+    if want_odno:
         # 저장된 ODNO 가 있으면 두 테이블 모두 그 ODNO 로 집는다(지문 형제 오귀속 방지 -- 주간 경로와 대칭).
-        # 교차 테이블 ODNO 유일성이 미확정이라, 아래 (odno, ord_dt) 동시일치 검사로 모호 병합을 막는다.
-        want_odno = normalize_order_number(prior.order_id)
+        # 정정/취소 행(orgn_odno != 0)은 제외해 원주문 행만 매칭하고(같은 odno 로 돌아오는 변경 행 오확정
+        # 방지), 저장 ODNO 가 전부-0/빈값으로 정규화돼 비면 지문 매칭으로 내려간다. 교차 테이블 ODNO
+        # 유일성이 미확정이라, 아래 (odno, ord_dt) 동시일치 검사로 모호 병합을 막는다.
         matches_a = [row for row in rows_a
-                     if normalize_order_number(str(row.get("odno", ""))) == want_odno]
+                     if normalize_order_number(str(row.get("odno", ""))) == want_odno
+                     and _is_original_odno(row.get("orgn_odno"))]
         matches_b = [row for row in rows_b
-                     if normalize_order_number(str(row.get("odno", ""))) == want_odno]
+                     if normalize_order_number(str(row.get("odno", ""))) == want_odno
+                     and _is_original_odno(row.get("orgn_odno"))]
     else:
         matches_a = _filter_matching_night_rows(rows_a, fingerprint)
         matches_b = _filter_matching_day_rows(rows_b, fingerprint)
@@ -549,7 +558,10 @@ def _night_union_reconcile(
         )
     if matches_a and matches_b:
         row_a, row_b = matches_a[0], matches_b[0]
-        same = (str(row_a.get("odno")) == str(row_b.get("odno"))
+        # ODNO 는 정규화해 비교한다 -- 두 테이블이 같은 주문을 자리수만 다르게("0000005605" vs "5605")
+        # 돌려줘도 동일 주문으로 보게(원문자열 비교면 거짓 모호 -> false KISError). ord_dt 는 그대로.
+        same = (normalize_order_number(str(row_a.get("odno", "")))
+                == normalize_order_number(str(row_b.get("odno", "")))
                 and str(row_a.get("ord_dt")) == str(row_b.get("ord_dt")))
         if not same:
             raise KISError(
