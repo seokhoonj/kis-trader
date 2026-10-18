@@ -231,14 +231,6 @@ _VOLUME_METRICS = frozenset(get_args(VolumeMetric))
 _INDEX_KINDS = frozenset(get_args(OverseasIndexKind))
 
 
-def _require_start_for_period(interval: str) -> None:
-    """기간봉(1d/1wk/1mo)은 라이브러리가 start 없으면 raise하므로(분봉 1m만 예외) MCP 경계에서 미리
-    막아 명확한 메시지를 준다 -- LLM이 bars(symbol)로 자연스럽게 부르는 실패를 차단."""
-    if interval != "1m":
-        raise KISUsageError(
-            f"기간봉(interval={interval!r})은 start(YYYYMMDD)가 필요하다 -- 분봉(1m)만 생략 가능.")
-
-
 def stock_bars(
     kis: KISClient, symbol: str, *, region: str = "domestic", interval: str | None = None,
     start: str | None = None, end: str | None = None, adjusted: bool | None = None, limit: int = 500,
@@ -251,8 +243,6 @@ def stock_bars(
         raise KISUsageError(f"region 은 {sorted(_REGIONS)} 중 하나여야 한다 (받은 값: {region!r}).")
     if interval is not None and interval not in _INTERVALS:
         raise KISUsageError(f"interval 은 {sorted(_INTERVALS)} 중 하나여야 한다 (받은 값: {interval!r}).")
-    if interval is not None and start is None:
-        _require_start_for_period(interval)   # interval 미지정이면 라이브러리가 기간봉 start 필수를 판단
     _require_positive_limit(limit)
     handle = kis.overseas.stock(symbol) if region == "overseas" else kis.domestic.stock(symbol)
     # 사용자가 준 것만 전달 -- interval/adjusted 기본값은 라이브러리가 정한다(소비자 경계).
@@ -294,8 +284,6 @@ def index_bars(
     handle = _index_handle(kis, code, region=region, kind=kind)
     if interval is not None and interval not in _INTERVALS:
         raise KISUsageError(f"interval 은 {sorted(_INTERVALS)} 중 하나여야 한다 (받은 값: {interval!r}).")
-    if interval is not None and start is None:
-        _require_start_for_period(interval)
     _require_positive_limit(limit)
     extra: dict[str, Any] = {"start": start, "end": end, "max_bars": limit}
     if interval is not None: extra["interval"] = cast(Interval, interval)

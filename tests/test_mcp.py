@@ -131,6 +131,11 @@ def _fake_kis(*, quote=None, overseas_quote=None, index_quote=None, hits=None, r
     def _bars(tag):                                  # 어느 리시버에서 어떤 인자로 bars 가 불렸는지 기록
         def f(interval="1d", *, start=None, end=None, adjusted="__unset__", max_bars=None):
             rec.append((tag, interval, start, end, adjusted, max_bars))
+            # 라이브러리 bars() 의 '기간봉(1m 아님)엔 start 필수' 계약을 그대로 흉내 낸다 -- 핸들러는
+            # 이제 자체 가드 없이 이 검증을 라이브러리에 위임하므로(소비자 경계), 테스트는 그 위임이
+            # 에러를 삼키지 않고 전파하는지 본다(실제 market_data/index 의 KISUsageError 와 동일).
+            if interval != "1m" and start is None:
+                raise KISUsageError(f"interval={interval!r}(기간봉)에는 start 가 필요하다.")
             return bars or []
         return f
 
@@ -297,8 +302,9 @@ def test_stock_bars_handler_region_overseas_forwards_args():
 
 
 def test_bars_handlers_require_start_for_period_intervals():
-    # 기간봉(1d/1wk/1mo)은 start 없이 호출하면 라이브러리가 내부에서 터지므로 -- LLM 이 bars(symbol)
-    # 로 자연스럽게 부르는 실패를 MCP 경계에서 명확한 메시지로 fail-closed 한다. 분봉(1m)만 생략 허용.
+    # 기간봉(1d/1wk/1mo)은 start 없이 호출하면 라이브러리 bars() 가 KISUsageError 를 낸다. 핸들러는
+    # 그 검증을 재기술하지 않고 라이브러리에 위임하므로(소비자 경계 -- 가드 중복 제거), MCP 가 그
+    # 에러를 삼키지 않고 전파하는지 본다. 분봉(1m)만 start 생략 허용(라이브러리 계약).
     kis = _fake_kis(bars=[_FakeHit("000000", "n0")])
     for interval in ("1d", "1wk", "1mo"):
         with pytest.raises(KISUsageError, match="start"):
