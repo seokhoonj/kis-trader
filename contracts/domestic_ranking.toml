@@ -4,10 +4,11 @@
 # 소문자 fid_* 키를 쓰지만 KIS 와이어/라이브러리는 대문자 FID_* 를 쓰므로 여기선 대문자로 정규화한다).
 # 우리 코드는 각 엔드포인트에서 이 필수셋과 같거나 그 상위집합을 전송하므로 정적 contract test
 # (tests/test_contracts.py: required_params ⊆ 코드가 보내는 키)는 통과한다.
-# 예외 -- finance-ratio/market-value/profit-asset-index 셋은 예제엔 13개 FID 키가 있으나 라이브러리가
-# 공유 헬퍼 _fundamentals_params() 안에서 params 를 조립해 정적 추출기(AST)가 fetch 본문에서 키를
-# 못 본다(extract_sent_param_keys -> 0 keys). 정적 대조가 불가능하므로 required_params=[] 로 두고
-# 각 notes 에 예제 근거를 남긴 뒤 라이브 프로브로 확정한다(param_extract.py 가 명시한 live-probe 경로).
+# finance-ratio/market-value/profit-asset-index 셋은 라이브러리가 공유 헬퍼 _fundamentals_params()
+# 안에서 params 를 조립하지만, 정적 추출기가 `params = _fundamentals_params(...)` 패턴을 따라가 그
+# return dict 의 13개 FID 키를 본다(extract_sent_param_keys -> _collect_builder_keys). 그래서 이 셋도
+# required_params 에 13키를 적어 정적 대조한다. 단 이 13키는 **코드가 보내는 키**의 증거일 뿐 -- KIS 가
+# 그 전부를 요구/수락하는지(와이어 필수 여부)는 공식 문서나 라이브 응답으로 확정해야 한다(각 notes 참조).
 
 [[endpoint]]
 name            = "domestic_ranking_fluctuation"
@@ -137,7 +138,7 @@ optional_params = []
 response_fields = []
 invariants      = []
 source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/finance_ratio"
-notes           = "재무비율 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 정적 검증한다."
+notes           = "재무비율 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 코드 전송 키를 정적 검증한다. KIS 와이어 필수 여부는 라이브/공식 확정 대기."
 
 [[endpoint]]
 name            = "domestic_ranking_valuation"
@@ -150,7 +151,7 @@ optional_params = []
 response_fields = []
 invariants      = []
 source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/market_value"
-notes           = "시장가치(밸류에이션) 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 정적 검증한다."
+notes           = "시장가치(밸류에이션) 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 코드 전송 키를 정적 검증한다. KIS 와이어 필수 여부는 라이브/공식 확정 대기."
 
 [[endpoint]]
 name            = "domestic_ranking_profit_asset"
@@ -163,7 +164,7 @@ optional_params = []
 response_fields = []
 invariants      = []
 source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/profit_asset_index"
-notes           = "수익자산지표 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 정적 검증한다."
+notes           = "수익자산지표 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 코드 전송 키를 정적 검증한다. KIS 와이어 필수 여부는 라이브/공식 확정 대기."
 
 [[endpoint]]
 name            = "domestic_ranking_house_trade_volume"
