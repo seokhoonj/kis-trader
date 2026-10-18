@@ -415,6 +415,20 @@ def test_night_timeout_recovery_blank_odno_nonterminal_not_recorded():
     fake.queue(_DAY_INQUIRY, _day_ccnl([]))
     assert _reconcile(fake, store) is None
     assert store.report_for("n1") is None
+    assert store.is_in_flight("n1")                         # in-flight 유지
+
+
+def test_night_timeout_recovery_blank_odno_terminal_is_confirmed():
+    # 야간 union 타임아웃 복구가 odno 빈 **종료**(전량체결) 행을 물면 ODNO 없어도 확정·기록한다 --
+    # 종료는 refresh 교착이 없고, 진짜 체결을 버리면 이중체결 위험이 크다. A-only 승자.
+    from kis_trader import OrderStatus
+    store = _night_store()  # claim 만, report 없음 -> prior None
+    fake = FakeTransport()
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="", tot_ccld_qty="2")]))  # 전량체결 빈 odno
+    fake.queue(_DAY_INQUIRY, _day_ccnl([]))
+    report = _reconcile(fake, store)
+    assert report is not None and report.status is OrderStatus.FILLED and report.order_id is None
+    assert store.report_for("n1") is report and not store.is_in_flight("n1")
 
 
 def test_night_refresh_unusable_odno_prior_does_not_fingerprint_confirm_sibling():

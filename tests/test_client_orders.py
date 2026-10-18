@@ -310,6 +310,25 @@ def test_modify_with_all_zero_odno_fails_closed_and_does_not_rebind():
     assert store.report_for("modify-z") is None
 
 
+def test_cancel_of_terminal_order_without_odno_fails_closed_locally():
+    # 재조회가 ODNO 없는 종료(체결) 리포트를 확정했을 때(order_id=None), 그 주문의 취소/정정은 와이어·
+    # 조회 전에 로컬에서 KISUsageError 로 막는다 -- str(None)="None" 을 브로커에 조회·전송하지 않는다.
+    from datetime import UTC, datetime
+    store = OrderStore()
+    fake = FakeTransport(by_path={_ORDER_CASH: _ACCEPTED_ORDER_RESPONSE})
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="t-noid")
+    fp = store.fingerprint_for("t-noid")
+    store.record(ExecutionReport(  # 종료(FILLED) + order_id=None 리포트로 덮어쓴다
+        client_order_id="t-noid", order_id=None, symbol="005930", side="buy",
+        status=OrderStatus.FILLED, filled_quantity=Decimal(10), average_price=Decimal(70000),
+        recorded_at=datetime(2024, 1, 1, tzinfo=UTC)), fp)
+    calls_before = len(fake.calls)
+    with pytest.raises(KISUsageError):
+        kis.orders.cancel("t-noid")
+    assert len(fake.calls) == calls_before       # 와이어/조회에 닿지 않았다
+
+
 def test_modify_replay_same_request_id_returns_prior_not_conflict():
     """정정 성공 뒤 원 id 가 새 ODNO 로 재바인딩돼도, 같은 request_id 로 정정을 재요청하면
     (멱등 재시도) CONFLICT 가 아니라 그 결과를 replay 해야 한다. action 지문이 재바인딩된
@@ -455,6 +474,21 @@ def test_reconcile_timeout_recovery_blank_odno_nonterminal_not_recorded():
     assert kis.orders.reconcile("to-blank") is None
     assert store.report_for("to-blank") is None            # order_id=None 비종료 리포트 미기록
     assert store.is_in_flight("to-blank")                  # in-flight 유지
+
+
+def test_reconcile_timeout_recovery_blank_odno_terminal_is_confirmed():
+    # 반대로 odno 가 빈 **종료**(전량체결) 행은 ODNO 없어도 확정·기록한다 -- 종료는 refresh 교착이 없고,
+    # 진짜 체결을 버리면 재전송→이중체결 위험이 더 크다.
+    store = OrderStore()
+    fake = FakeTransport(by_path={
+        _ORDER_CASH: TransportTimeoutError(),
+        _DAILY_CCLD: _daily_orders_response([_daily_order_row(odno="", filled_quantity="10")])})
+    kis = _client(fake, store=store)
+    with pytest.raises(OrderTimeoutError):
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="to-term")
+    report = kis.orders.reconcile("to-term")
+    assert report is not None and report.status is OrderStatus.FILLED and report.order_id is None
+    assert store.report_for("to-term") is report and not store.is_in_flight("to-term")
 
 
 def test_reconcile_refresh_returns_terminal_prior_when_rescan_empty():

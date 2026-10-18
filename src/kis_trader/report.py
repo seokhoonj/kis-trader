@@ -52,7 +52,9 @@ class ExecutionReport:
 
     ``client_order_id`` (우리가 발행한 멱등키)로 요청과 리포트를 잇고, ``order_id`` 는 브로커가
     접수 시 부여한 식별자다 -- 즉시주문은 거래소 주문번호(KIS ``ODNO``), 예약주문은 예약 식별자
-    (국내 ``rsvn_ord_seq`` / 해외 ``ovrs_rsvn_odno``, 정정·취소 지목용)가 담긴다. 두 id를 모두 보관한다.
+    (국내 ``rsvn_ord_seq`` / 해외 ``ovrs_rsvn_odno``, 정정·취소 지목용)가 담긴다. 보통 두 id를 모두
+    보관하지만, 재조회로 확정한 **종료** 리포트는 체결 행에 쓸 수 있는 ODNO 가 없으면 ``order_id`` 가
+    ``None`` 일 수 있다 -- 그런 리포트는 상태 확인용이고 이후 정정·취소 대상으로는 쓸 수 없다(종료라 불필요).
     """
 
     client_order_id: str

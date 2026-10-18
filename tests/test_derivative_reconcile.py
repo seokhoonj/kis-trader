@@ -395,6 +395,8 @@ def test_day_reconcile_blank_odno_terminal_fill_is_confirmed():
     _place_timeout(client, "blank-term")
     report = client.orders.reconcile("blank-term")
     assert report is not None and report.status is OrderStatus.FILLED and report.order_id is None
+    assert client._store.report_for("blank-term") is report   # 기록됨
+    assert not client._store.is_in_flight("blank-term")        # in-flight 해제
 
 
 def test_day_reconcile_night_session_on_paper_fails_closed():

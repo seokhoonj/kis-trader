@@ -193,6 +193,13 @@ class OrderEngine:
         if binding is None:
             raise KISUsageError(f"확정된 원주문을 찾을 수 없다: {client_order_id!r}")
         report, fingerprint = binding
+        # 이미 종료된 주문(체결/취소/거부/만료)은 정정·취소 대상이 아니다 -- 와이어/조회 전에 거부한다.
+        # 특히 재조회로 확정된 종료 리포트는 쓸 수 있는 ODNO 가 없을 수 있어(order_id=None), 밑에서
+        # str(order_id) 로 "None" 을 조회·전송하는 대신 여기서 명확히 막는다.
+        if report.is_terminal:
+            raise KISUsageError(
+                f"이미 종료된 주문({report.status.value})은 정정·취소할 수 없다: {client_order_id!r}."
+            )
         # 아시아 해외예약은 전용 정정·취소 엔드포인트가 없어 발주 TR 에 원주문 전체를 재전송하는
         # 취소만 가능하다 -- store 가 쥔 지문/리포트로 엔진이 body 를 복원하므로 여기서 위임한다.
         if isinstance(fingerprint, ReservedOrderFingerprint) and \

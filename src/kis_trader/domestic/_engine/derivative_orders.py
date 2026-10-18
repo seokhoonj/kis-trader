@@ -524,7 +524,9 @@ def _night_union_reconcile(
     A만/B만 1건이면 확정, A 1건+B 1건이면 ``(odno, ord_dt)`` **둘 다** 같을 때만 "이관 중 동일 주문"
     으로 병합 확정(하나라도 다르면 모호 -> KISError), 어느 테이블이든 2건 이상이면 KISError, 양측
     0건이면 ``None``(이관 과도기의 일시 부재 가능 -- in-flight 유지). odno 단독으로는 절대 dedup 하지
-    않는다(교차 테이블 odno 유일성 미확정)."""
+    않는다(교차 테이블 odno 유일성 미확정). 확정(기록)은 승자 행에 쓸 수 있는 ODNO 가 있을 때만이다 --
+    **비종료** 승자 행의 odno 가 비면 ``None`` 유지(order_id=None 리포트의 refresh 교착 방지)이고,
+    **종료** 체결은 ODNO 없어도 확정한다(주간 경로와 동일)."""
     anchor = store.claim_time_for(client_order_id)
     start, end_inclusive = _night_date_window(anchor, now)
     fuop = _fuop_dvsn_from_symbol(fingerprint.symbol)

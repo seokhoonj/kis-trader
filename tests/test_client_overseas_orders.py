@@ -316,6 +316,22 @@ def test_overseas_timeout_recovery_blank_odno_nonterminal_not_recorded():
     assert store.is_in_flight("to-blank")
 
 
+def test_overseas_timeout_recovery_blank_odno_terminal_is_confirmed():
+    # odno 가 빈 **종료**(전량체결) 행은 ODNO 없어도 확정·기록한다(교착 없음; 체결 버리면 이중체결 위험).
+    from kis_trader import OrderStatus
+    from kis_trader.store import OrderStore
+    store = OrderStore()
+    fake = FakeTransport(on_post=TransportTimeoutError("t"),
+                         on_get=_ccnl([_ccnl_row(odno="", ccld_qty="1")]))  # 전량체결
+    client = _client(fake, store=store)
+    with pytest.raises(OrderTimeoutError):
+        client.overseas.stock("AAPL", exchange="NAS").buy(
+            quantity=1, limit_price="150.00", client_order_id="to-term")
+    report = client.orders.reconcile("to-term")
+    assert report is not None and report.status is OrderStatus.FILLED and report.order_id is None
+    assert store.report_for("to-term") is report and not store.is_in_flight("to-term")
+
+
 def test_overseas_refresh_excludes_cancel_row_with_same_odno():
     # ODNO 로 집더라도 취소/정정 행(rvse_cncl_dvsn 01/02)이 같은 odno 로 오면 원주문 확정으로 오인하지
     # 않는다 -- 그 행 제외 -> 0건 -> None(비종료 유지, phantom 확정 방지).

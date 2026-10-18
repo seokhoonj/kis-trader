@@ -1,10 +1,12 @@
 """예약 지문의 slot-7 네임스페이스별 reconcile 라우팅 회귀 테스트."""
 
+from datetime import UTC, datetime
+from decimal import Decimal
 from unittest.mock import Mock
 
 import pytest
 
-from kis_trader import _order_engine
+from kis_trader import ExecutionReport, OrderStatus, _order_engine
 from kis_trader._order_engine import OrderEngine
 from kis_trader.errors import KISUsageError
 from kis_trader.order import ReservedOrderFingerprint
@@ -17,8 +19,14 @@ class _Store:
     def fingerprint_for(self, client_order_id: str) -> ReservedOrderFingerprint:
         return self._fingerprint
 
-    def report_for(self, client_order_id: str) -> object:
-        return object()
+    def report_for(self, client_order_id: str) -> ExecutionReport:
+        # 라우팅만 보는 스텁이지만 change_order 의 종료-가드가 실제 리포트의 is_terminal 을 읽으므로
+        # 비종료(NEW) ExecutionReport 로 돌려준다(예약 식별자를 order_id 에).
+        return ExecutionReport(
+            client_order_id=client_order_id, order_id="R1", symbol="005930", side="buy",
+            status=OrderStatus.NEW, filled_quantity=Decimal(0), average_price=None,
+            recorded_at=datetime(2024, 1, 1, tzinfo=UTC),
+        )
 
     def binding_for(self, client_order_id: str) -> tuple[object, ReservedOrderFingerprint]:
         # change_order 는 (리포트, 지문)을 한 락으로 원자 스냅샷한다 -- 둘 다 있으면 쌍을 돌려준다.
