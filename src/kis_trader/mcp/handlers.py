@@ -187,8 +187,8 @@ def search(kis: KISClient, query: str, *, limit: int = 20) -> list[dict[str, Any
 
 def ranking_change(kis: KISClient, *, direction: str | None = None, limit: int = 10) -> list[dict[str, Any]]:
     """국내 등락률 순위. ``direction`` gainers(상승)/losers(하락); 생략 시 라이브러리 기본(상승)."""
-    if direction is not None and direction not in ("gainers", "losers"):
-        raise KISUsageError(f"direction 은 'gainers'/'losers' 만 (받은 값: {direction!r}).")
+    if direction is not None and direction not in _DIRECTIONS:
+        raise KISUsageError(f"direction 은 {sorted(_DIRECTIONS)} 중 하나여야 한다 (받은 값: {direction!r}).")
     _require_positive_limit(limit)
     extra = {} if direction is None else {"direction": cast(Direction, direction)}
     rows = kis.domestic.ranking.by_change(**extra)
@@ -224,6 +224,7 @@ _NET_BUY_MARKETS = frozenset(get_args(DomesticMarketFilter))
 _NET_BUY_BASES = frozenset(get_args(NetBuyBasis))
 _INVESTOR_TYPES = frozenset(get_args(InvestorType))
 _SIDES = frozenset(get_args(Side))
+_DIRECTIONS = frozenset(get_args(Direction))
 _VOLUME_METRICS = frozenset(get_args(VolumeMetric))
 
 #: index_bars 의 해외 kind 검증 집합 -- 라이브러리 단일 출처 :data:`OverseasIndexKind` 에서 파생(재선언 금지).
