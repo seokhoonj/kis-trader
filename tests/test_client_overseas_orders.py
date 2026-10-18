@@ -269,6 +269,29 @@ def test_overseas_reconcile_zero_matches_stays_none():
     assert client.orders.reconcile("z") is None
 
 
+def test_overseas_refresh_matches_stored_odno_not_sibling():
+    # 접수된 주문(ODNO 123456)을 refresh 재조회할 때 체결내역에 동일 지문의 형제 ODNO(9999999) 행만
+    # 있으면 그 형제로 재바인딩하지 않는다 -- prior ODNO 로 자기 행을 집으므로 0건 -> None(비종료 유지,
+    # phantom 확정 방지). 지문 매칭이면 형제를 이 주문으로 오귀속했을 것이다.
+    fake = FakeTransport(on_post=_ack("0000123456"),
+                         on_get=_ccnl([_ccnl_row(odno="0009999999")]))
+    client = _client(fake)
+    client.overseas.stock("AAPL", exchange="NAS").buy(
+        quantity=1, limit_price="150.00", client_order_id="sib")
+    assert client.orders.reconcile("sib", refresh=True) is None
+
+
+def test_overseas_refresh_confirms_on_stored_odno():
+    # prior ODNO 와 같은 ODNO 행이 있으면 그 행으로 현재 상태를 갱신한다(정상 refresh).
+    fake = FakeTransport(on_post=_ack("0000123456"),
+                         on_get=_ccnl([_ccnl_row(odno="0000123456", ccld_qty="1")]))
+    client = _client(fake)
+    client.overseas.stock("AAPL", exchange="NAS").buy(
+        quantity=1, limit_price="150.00", client_order_id="hit")
+    report = client.orders.reconcile("hit", refresh=True)
+    assert report is not None and report.order_id == "0000123456"
+
+
 def test_overseas_reconcile_two_matches_raises():
     # 지문과 맞는 체결이 2건이면 자동 확정하지 않고 에러(보수적 -- 오확정 방지).
     fake = FakeTransport(on_post=TransportTimeoutError("timeout"),

@@ -352,6 +352,59 @@ def test_night_reconcile_both_zero_returns_none():
     assert _reconcile(fake, store) is None
 
 
+def _record_night_prior(store, *, status, order_id="0000005605", cid="n1"):
+    """야간 store 에 종료/비종료 prior 리포트를 심는다(force_refresh union 재조회의 대상)."""
+    from kis_trader import ExecutionReport, OrderStatus
+    qty = Decimal(2) if status is OrderStatus.FILLED else Decimal(0)
+    report = ExecutionReport(
+        client_order_id=cid, order_id=order_id, symbol="101S03", side="buy", status=status,
+        filled_quantity=qty, average_price=None, recorded_at=_ANCHOR,
+    )
+    store.record(report, _fp())
+
+
+def _reconcile_refresh(fake, store, cid="n1"):
+    return fo.reconcile(fake, store, cid, cano="81012345", product_code="03",
+                        environment="real", now=_NOW, force_refresh=True)
+
+
+def test_night_refresh_terminal_prior_both_zero_returns_prior():
+    # force_refresh union 재조회가 이관 과도기/당일창 밖 완료 야간주문을 양측 0건으로 긁어도 종료
+    # prior 를 '미해소'로 퇴행시키지 않는다 -- FILLED prior + 양측 0건 -> 그 확정 리포트 그대로.
+    from kis_trader import OrderStatus
+    store = _night_store()
+    _record_night_prior(store, status=OrderStatus.FILLED)
+    fake = FakeTransport()
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([]))
+    fake.queue(_DAY_INQUIRY, _day_ccnl([]))
+    report = _reconcile_refresh(fake, store)
+    assert report is not None and report.status is OrderStatus.FILLED
+    assert report.order_id == "0000005605"
+
+
+def test_night_refresh_nonterminal_prior_both_zero_stays_none():
+    from kis_trader import OrderStatus
+    store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW)
+    fake = FakeTransport()
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([]))
+    fake.queue(_DAY_INQUIRY, _day_ccnl([]))
+    assert _reconcile_refresh(fake, store) is None
+
+
+def test_night_refresh_matches_stored_odno_not_sibling():
+    # prior ODNO(5605)가 있으면 두 테이블 모두 그 ODNO 로 집는다 -- 동일 지문의 형제 ODNO(9999) 행을
+    # 이 주문으로 오귀속하지 않고, 종료 prior 를 그대로 유지한다(phantom 확정 방지).
+    from kis_trader import OrderStatus
+    store = _night_store()
+    _record_night_prior(store, status=OrderStatus.FILLED)
+    fake = FakeTransport()
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="0000009999")]))
+    fake.queue(_DAY_INQUIRY, _day_ccnl([_day_row(odno="0000009999")]))
+    report = _reconcile_refresh(fake, store)
+    assert report is not None and report.order_id == "0000005605"
+
+
 def test_night_reconcile_two_in_night_table_raises():
     store = _night_store()
     fake = FakeTransport()

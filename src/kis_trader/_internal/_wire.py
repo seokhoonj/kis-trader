@@ -78,6 +78,14 @@ def format_wire_decimal(value: Decimal) -> str:
     return format(value, "f")
 
 
+def normalize_order_number(value: str) -> str:
+    """거래소주문번호(ODNO) 비교용 정규화 -- 선행 0 제거. place 리포트는 ``'0000117057'`` 로 보관하나
+    조회 행의 ``odno`` 표기는 자리수가 다를 수 있어, 양쪽을 **같은 규칙**으로 접어야 identity 비교가
+    맞는다. 재조회가 저장된 ODNO 로 자기 행을 집을 때(국내/해외/파생 reconcile 공통) 이 한 곳의 규칙을
+    써서 엔진별로 정규화가 갈리지 않게 한다. 빈 값은 빈 문자열."""
+    return value.strip().lstrip("0")
+
+
 #: KIS 대비기호(prdy_vrss_sign) 중 하락을 뜻하는 코드(4=하한, 5=하락).
 _DOWN_SIGNS = frozenset(("4", "5"))
 #: 상승을 뜻하는 코드(1=상한, 2=상승) -- 크기를 그대로(양수) 둔다.

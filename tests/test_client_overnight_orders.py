@@ -8,6 +8,8 @@ daytime-order TTTS6036U/6037U + daytime-order-rvsecncl TTTS6038U. 정규 해외�
 from __future__ import annotations
 
 import threading
+from datetime import UTC, datetime
+from decimal import Decimal
 
 import pytest
 
@@ -241,6 +243,25 @@ def test_daytime_reconcile_does_not_confirm_from_regular_ccnl():
     assert _client(recon_t, store=store).orders.reconcile(cid) is None   # 자동 확정 안 함
     assert store.fingerprint_for(cid) is not None                 # in-flight 유지
     assert recon_t.calls == []                                    # ccnl 조회조차 하지 않는다
+
+
+def test_daytime_refresh_terminal_prior_returns_prior_without_io():
+    # refresh 재조회가 완료된 오버나이트 주문을 '미해소'(None)로 퇴행시키지 않는다 -- 종료 prior 는
+    # 재스캔으로 안 바뀌므로 그 확정 리포트를 서버 접촉 없이 그대로 반환한다(이미 체결된 주문 재전송 방지).
+    store = OrderStore()
+    cid = "20240101-daytime-term"
+    place_t = FakeTransport(response=_ACCEPTED)
+    r = _client(place_t, store=store).overseas.stock("AAPL", exchange="NAS").overnight_buy(
+        quantity=1, limit_price="150", client_order_id=cid)
+    fp = store.fingerprint_for(cid)
+    store.record(ExecutionReport(
+        client_order_id=cid, order_id=r.order_id, symbol="AAPL", side="buy",
+        status=OrderStatus.FILLED, filled_quantity=Decimal(1), average_price=None,
+        recorded_at=datetime(2024, 1, 1, tzinfo=UTC)), fp)
+    recon_t = FakeTransport(response=_ACCEPTED)  # 호출되면 안 된다
+    report = _client(recon_t, store=store).orders.reconcile(cid, refresh=True)
+    assert report is not None and report.status is OrderStatus.FILLED
+    assert recon_t.calls == []   # 오버나이트 종료 prior: 서버 접촉 없이 즉시 반환
 
 
 def test_daytime_session_persists_across_store_reopen(tmp_path):

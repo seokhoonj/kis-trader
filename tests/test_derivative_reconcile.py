@@ -259,6 +259,75 @@ def test_day_reconcile_night_session_uses_union_scan():
     assert _INQUIRY in paths
 
 
+def _record_prior(store, order, *, status, order_id="0000007045"):
+    """저장소에 종료/비종료 prior 리포트를 심는다(force_refresh 재조회의 대상)."""
+    from kis_trader import ExecutionReport, OrderStatus
+    qty = Decimal(1) if status is OrderStatus.FILLED else Decimal(0)
+    store.try_claim(order.client_order_id, order.fingerprint)
+    report = ExecutionReport(
+        client_order_id=order.client_order_id, order_id=order_id, symbol=order.symbol,
+        side=order.side, status=status, filled_quantity=qty, average_price=None,
+        recorded_at=datetime(2024, 3, 15, 10, 0, tzinfo=_KST),
+    )
+    store.record(report, order.fingerprint)
+
+
+def test_day_refresh_terminal_prior_zero_match_returns_prior():
+    # force_refresh 재조회가 당일창 밖 완료주문을 0건으로 긁어도 종료 prior 를 '미해소'로 퇴행시키지
+    # 않는다 -- FILLED prior + 0건 -> 그 확정 리포트 그대로.
+    from kis_trader import OrderStatus
+    store = OrderStore()
+    order = _order(client_order_id="rf-term")
+    _record_prior(store, order, status=OrderStatus.FILLED, order_id="0000007045")
+    fake = FakeTransport(on_get=_ccnl([]))
+    report = fo.reconcile(fake, store, "rf-term", cano="1", product_code="03",
+                          environment="real", force_refresh=True,
+                          now=datetime(2024, 3, 15, 10, 0, tzinfo=_KST))
+    assert report is not None and report.status is OrderStatus.FILLED
+    assert report.order_id == "0000007045"
+
+
+def test_day_refresh_nonterminal_prior_zero_match_stays_none():
+    # 비종료(NEW) prior 는 0건이면 미확정 유지(None) -- 접수직후 스냅샷을 체결로 둔갑시키지 않는다.
+    from kis_trader import OrderStatus
+    store = OrderStore()
+    order = _order(client_order_id="rf-new")
+    _record_prior(store, order, status=OrderStatus.NEW, order_id="0000007045")
+    fake = FakeTransport(on_get=_ccnl([]))
+    assert fo.reconcile(fake, store, "rf-new", cano="1", product_code="03",
+                        environment="real", force_refresh=True,
+                        now=datetime(2024, 3, 15, 10, 0, tzinfo=_KST)) is None
+
+
+def test_day_refresh_matches_stored_odno_not_sibling_fingerprint():
+    # prior ODNO 가 있으면 force_refresh 는 지문이 아니라 그 ODNO 로 자기 행을 집는다 -- 동일 종목·
+    # 수량·가격의 형제 ODNO 행(9999)을 이 주문으로 오귀속하지 않는다(phantom 확정 방지).
+    from kis_trader import OrderStatus
+    store = OrderStore()
+    order = _order(client_order_id="rf-sib")
+    _record_prior(store, order, status=OrderStatus.FILLED, order_id="0000007045")
+    sibling = _row(odno="0000009999")  # 같은 지문, 다른 ODNO
+    fake = FakeTransport(on_get=_ccnl([sibling]))
+    report = fo.reconcile(fake, store, "rf-sib", cano="1", product_code="03",
+                          environment="real", force_refresh=True,
+                          now=datetime(2024, 3, 15, 10, 0, tzinfo=_KST))
+    # 형제(9999)로 재바인딩되지 않고, 종료 prior(7045)가 그대로 유지된다.
+    assert report is not None and report.order_id == "0000007045"
+
+
+def test_day_refresh_confirms_on_stored_odno_match():
+    # prior ODNO 와 같은 ODNO 행이 있으면 그 행으로 현재 상태를 갱신한다(정상 refresh).
+    from kis_trader import OrderStatus
+    store = OrderStore()
+    order = _order(client_order_id="rf-hit")
+    _record_prior(store, order, status=OrderStatus.NEW, order_id="0000007045")
+    fake = FakeTransport(on_get=_ccnl([_row(odno="0000007045", tot_ccld_qty="1")]))
+    report = fo.reconcile(fake, store, "rf-hit", cano="1", product_code="03",
+                          environment="real", force_refresh=True,
+                          now=datetime(2024, 3, 15, 10, 0, tzinfo=_KST))
+    assert report is not None and report.order_id == "0000007045"
+
+
 def test_day_reconcile_night_session_on_paper_fails_closed():
     # 야간은 실전 전용 -- paper 야간 지문 도달은 손상 신호라 KISUsageError(조회 미접촉).
     from kis_trader.errors import KISUsageError

@@ -24,7 +24,7 @@ from typing import TYPE_CHECKING, Any, Literal
 
 from ..._internal._datetime import _KST
 from ..._internal._response import _CONTINUATION_END
-from ..._internal._wire import format_wire_decimal
+from ..._internal._wire import format_wire_decimal, normalize_order_number
 from ...errors import KISError, KISUsageError, OrderError, OrderTimeoutError
 from ...order import (
     ChangeAction,
@@ -352,7 +352,16 @@ def reconcile(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
-    matches = _filter_matching_day_rows(rows, fingerprint)
+    if prior is not None and prior.order_id:
+        # force_refresh 재조회엔 place 가 실은 확정 거래소주문번호(ODNO)가 있다 -- 모호한 지문 대신
+        # 그 ODNO 로 자기 행을 집는다. 지문 매칭은 동일 종목·수량·가격의 형제 행을 이 주문으로 오귀속해
+        # (형제 ODNO 가 store.record 돼 이후 cancel/modify 가 살아있는 형제를 겨냥) phantom 확정을 낸다.
+        # 지문 매칭은 prior 없는 타임아웃 복구 전용(국내주식 orders.py 와 대칭).
+        want_odno = normalize_order_number(prior.order_id)
+        matches = [row for row in rows
+                   if normalize_order_number(str(row.get("odno", ""))) == want_odno]
+    else:
+        matches = _filter_matching_day_rows(rows, fingerprint)
     if len(matches) > 1:
         raise KISError(
             f"주문 {client_order_id} 의 지문과 일치하는 체결내역이 {len(matches)}건이라 자동 확정 "
@@ -520,8 +529,18 @@ def _night_union_reconcile(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
-    matches_a = _filter_matching_night_rows(rows_a, fingerprint)
-    matches_b = _filter_matching_day_rows(rows_b, fingerprint)
+    prior = store.report_for(client_order_id)
+    if prior is not None and prior.order_id:
+        # 저장된 ODNO 가 있으면 두 테이블 모두 그 ODNO 로 집는다(지문 형제 오귀속 방지 -- 주간 경로와 대칭).
+        # 교차 테이블 ODNO 유일성이 미확정이라, 아래 (odno, ord_dt) 동시일치 검사로 모호 병합을 막는다.
+        want_odno = normalize_order_number(prior.order_id)
+        matches_a = [row for row in rows_a
+                     if normalize_order_number(str(row.get("odno", ""))) == want_odno]
+        matches_b = [row for row in rows_b
+                     if normalize_order_number(str(row.get("odno", ""))) == want_odno]
+    else:
+        matches_a = _filter_matching_night_rows(rows_a, fingerprint)
+        matches_b = _filter_matching_day_rows(rows_b, fingerprint)
     if len(matches_a) > 1 or len(matches_b) > 1:
         raise KISError(
             f"야간 주문 {client_order_id} 의 지문과 일치하는 체결내역이 야간 {len(matches_a)}건/주간 "
@@ -546,7 +565,6 @@ def _night_union_reconcile(
         # 양측 0건 -- 미접수로 단정하지 않는다. 단 prior 가 종료상태면 재스캔으로 바뀔 수 없으니 그
         # 확정 리포트를 돌려준다(force_refresh 가 당일창 밖 완료 야간주문을 '미해소'로 퇴행시키지 않게
         # -- 주간/국내주식/해외 reconcile 과 대칭). 비종료 prior 는 in-flight 유지(None).
-        prior = store.report_for(client_order_id)
         if prior is not None and prior.status in TERMINAL_ORDER_STATUSES:
             return prior
         return None

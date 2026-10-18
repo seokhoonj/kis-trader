@@ -19,7 +19,7 @@ from typing import Any
 
 from ..._internal._datetime import _KST, _parse_hhmmss
 from ..._internal._response import _CONTINUATION_END, _fetch_paginated_rows
-from ..._internal._wire import format_wire_decimal
+from ..._internal._wire import format_wire_decimal, normalize_order_number
 from ...errors import KISError, KISUsageError, OrderTimeoutError
 from ...order import (
     AlgoStrategy,
@@ -407,7 +407,11 @@ def reconcile(
     if fingerprint.session == "overnight":
         # 미국 오버나이트 거래 체결은 정규 체결내역(inquire-ccnl)에 담기지 않으므로, 여기서 단일 매칭되는 행은
         # 반드시 '정규 세션' 주문이다 -> 주간 주문을 그 행으로 확정하면 오확정이다. 자동 확정하지 않고
-        # in-flight 를 유지한다(오버나이트 거래 전용 체결조회 미구현 -- 수동 확인 필요).
+        # in-flight 를 유지한다(오버나이트 거래 전용 체결조회 미구현 -- 수동 확인 필요). 단 prior 가
+        # 종료상태면 재스캔으로 바뀔 수 없으니 그 확정 리포트를 돌려준다 -- refresh 가 완료된 오버나이트
+        # 주문을 '미해소'로 퇴행시켜 이미 체결된 주문을 재전송하게 두지 않는다(주간 경로와 대칭).
+        if prior is not None and prior.status in TERMINAL_ORDER_STATUSES:
+            return prior
         return None
     try:
         rows = _fetch_ccnl(
@@ -420,14 +424,24 @@ def reconcile(
             f"in-flight 유지, 재전송 금지. 잠시 후 다시 reconcile 하라.",
             client_order_id=client_order_id,
         ) from err
-    matches = _filter_matching_ccnl_rows(rows, fingerprint)
+    if prior is not None and prior.order_id:
+        # 해외 ccnl 은 ODNO 로 **서버 조회**는 안 되지만 반환된 행에는 ``odno`` 가 실려, prior 의 확정
+        # ODNO 로 **로컬 필터링**은 된다. force_refresh 재조회(ChangeAction 이 원주문 현재상태 확인에 씀)는
+        # 그 ODNO 로 자기 행을 집어, 동일 종목·수량·가격의 형제 행을 이 주문으로 오귀속하지 않게 한다
+        # (형제 ODNO 가 store.record 돼 이후 cancel 이 살아있는 형제를 겨냥하는 phantom 확정 방지). 지문
+        # 매칭은 prior ODNO 가 없는 타임아웃 복구 전용(국내 reconcile 과 대칭).
+        want_odno = normalize_order_number(prior.order_id)
+        matches = [row for row in rows
+                   if normalize_order_number(str(row.get("odno", ""))) == want_odno]
+    else:
+        matches = _filter_matching_ccnl_rows(rows, fingerprint)
     if len(matches) > 1:
         raise KISError(
             f"주문 {client_order_id} 의 지문과 일치하는 체결내역이 {len(matches)}건이라 자동 확정 "
             f"불가하다(KIS가 client_order_id를 돌려주지 않음). 수동 확인이 필요하다."
         )
     if not matches:  # 0건: 미접수인지 반영 지연인지 당일창 밖인지 단정 불가.
-        # 해외 ccnl 은 ODNO 검색이 안 돼(위 docstring) 지문 매칭뿐이지만, prior 가 종료상태면 재스캔으로
+        # prior 가 종료상태면 재스캔으로
         # 바뀔 수 없으니 그 확정 리포트를 돌려준다 -- CLI/MCP 상시 refresh 가 당일창 밖 완료 주문을
         # '미해소'로 퇴행시키지 않게(국내 reconcile 과 대칭). 비종료 prior 는 미확정 유지(None).
         if prior is not None and prior.status in TERMINAL_ORDER_STATUSES:

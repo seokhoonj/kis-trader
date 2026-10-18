@@ -24,7 +24,7 @@ from decimal import Decimal
 from typing import Any
 
 from ..._internal._response import _CONTINUATION_END, _MAX_RECONCILE_PAGES
-from ..._internal._wire import decimal_or_zero, format_wire_decimal
+from ..._internal._wire import decimal_or_zero, format_wire_decimal, normalize_order_number
 from ..._order_core import _extract_organization_number, _extract_output_mapping
 from ...errors import (
     KISError,
@@ -139,8 +139,8 @@ def reconcile(
         # 그 ODNO 로 자기 행을 집는다. 지문 매칭은 동일수량 형제를 다건매칭하거나(균등분할 TWAP 에서
         # 측정 불능) 반영 지연 시 형제 행을 이 주문으로 오귀속해(형제 ODNO 가 store.record 돼 이후
         # cancel 이 살아있는 형제를 겨냥) phantom 확정을 낸다. 지문 매칭은 prior 없는 타임아웃 복구 전용.
-        want_odno = _normalize_odno(prior.order_id)
-        matches = [row for row in rows if _normalize_odno(str(row.get("odno", ""))) == want_odno]
+        want_odno = normalize_order_number(prior.order_id)
+        matches = [row for row in rows if normalize_order_number(str(row.get("odno", ""))) == want_odno]
     else:
         matches = _filter_matching_daily_rows(rows, fingerprint)
     if len(matches) > 1:
@@ -158,12 +158,6 @@ def reconcile(
     report = _execution_report_from_daily_row(client_order_id, fingerprint, matches[0])
     store.record(report, fingerprint)
     return report
-
-
-def _normalize_odno(value: str) -> str:
-    """거래소주문번호(ODNO) 비교용 정규화 -- 선행 0 제거(place 리포트는 '0000117057', 조회 행은
-    표기가 다를 수 있어 양쪽을 같은 규칙으로 접는다). 빈 값은 빈 문자열."""
-    return value.strip().lstrip("0")
 
 
 def _make_domestic_change_request(
