@@ -71,7 +71,7 @@ jobs:
           # Extract each requirement's bare name (before any version/marker/extra) and
           # normalize to PEP 503 form; the runtime set must be exactly the declared
           # three, so a fourth dependency slipping in fails here.
-          names = sorted(re.split(r'[<>=!~;\[\s]', r, 1)[0].replace('_', '-').lower() for r in runtime)
+          names = sorted(re.split(r'[<>=!~;\[\s]', r, maxsplit=1)[0].replace('_', '-').lower() for r in runtime)
           assert names == ['cryptography', 'requests', 'websockets'], f'unexpected runtime dependencies: {runtime}'
           import kis_trader
           print('kis_trader imports with only the declared runtime dependencies present')
