@@ -292,6 +292,24 @@ def test_modify_with_missing_odno_fails_closed_and_does_not_rebind():
     assert store.report_for("modify-1") is None
 
 
+def test_modify_with_all_zero_odno_fails_closed_and_does_not_rebind():
+    # 정정 접수(rt_cd=0)인데 새 ODNO 가 전부-0(정규화 시 "")이면 ODNO 없음과 같이 fail-closed -- 쓸 수
+    # 없는 ODNO 로 재바인딩하면 이후 refresh 재조회가 그 ODNO 로 자기 행을 못 집어 교착(None)에 빠진다.
+    place = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117057", "ORD_TMD": "090000"}})
+    modify_zero_odno = RawResponse(rt_cd="0", msg_cd="A", msg1="주문 전송 완료", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000000000", "ORD_TMD": "090100"}})  # 전부-0 ODNO
+    fake = FakeTransport(by_path={_ORDER_CASH: place, _ORDER_CHANGE: modify_zero_odno})
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-z")
+    with pytest.raises(OrderError):
+        kis.orders.modify("orig-z", limit_price=71000, request_id="modify-z")
+    assert store.report_for("orig-z").order_id == "0000117057"   # 쓸 수 없는 ODNO 에 재바인딩 안 함
+    assert store.is_in_flight("modify-z")
+    assert store.report_for("modify-z") is None
+
+
 def test_modify_replay_same_request_id_returns_prior_not_conflict():
     """정정 성공 뒤 원 id 가 새 ODNO 로 재바인딩돼도, 같은 request_id 로 정정을 재요청하면
     (멱등 재시도) CONFLICT 가 아니라 그 결과를 replay 해야 한다. action 지문이 재바인딩된
@@ -625,6 +643,19 @@ def test_accepted_without_odno_raises():
     resp = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="ok", body={"output": {}})
     with pytest.raises(KISError):
         _client(FakeTransport(response=resp)).domestic.stock("005930").buy(quantity=10, limit_price=70000)
+
+
+def test_accepted_with_all_zero_odno_fails_closed():
+    # 접수(rt_cd=0)인데 ODNO 가 전부-0(정규화 시 "")이면 ODNO 없음과 같이 fail-closed -- 쓸 수 없는
+    # ODNO 를 저장하면 reconcile 이 그 ODNO 로 자기 행을 못 집어 refresh 교착/지문 폴백 오확정을 부른다.
+    resp = RawResponse(rt_cd="0", msg_cd="APBK0013", msg1="ok", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000000000", "ORD_TMD": "090000"}})
+    store = OrderStore()
+    with pytest.raises(OrderError):
+        _client(FakeTransport(response=resp), store=store).domestic.stock("005930").buy(
+            quantity=10, limit_price=70000, client_order_id="zero-1")
+    assert store.report_for("zero-1") is None        # 쓸 수 없는 ODNO 리포트 미기록
+    assert store.is_in_flight("zero-1")              # in-flight 유지(재조회 요구)
 
 
 # --- 계좌 가드 -------------------------------------------------------------

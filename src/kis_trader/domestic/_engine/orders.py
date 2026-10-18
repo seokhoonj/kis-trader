@@ -142,8 +142,8 @@ def reconcile(
         # 그 ODNO 로 자기 행을 집는다. 지문 매칭은 동일수량 형제를 다건매칭하거나(균등분할 TWAP 에서
         # 측정 불능) 반영 지연 시 형제 행을 이 주문으로 오귀속해(형제 ODNO 가 store.record 돼 이후
         # cancel 이 살아있는 형제를 겨냥) phantom 확정을 낸다. 저장 ODNO 가 전부-0/빈값(비정상)으로
-        # 정규화돼 비면 그 분기를 타지 않고 지문 매칭으로 내려가, 빈 odno 행을 오매칭하지 않는다.
-        # 지문 매칭은 prior ODNO 가 없는 타임아웃 복구 전용.
+        # 정규화돼 비면 아래 elif/else 로 갈린다: prior 없으면 지문(타임아웃 복구), prior 있으면 0건
+        # 처리(지문 폴백 금지 -- 동일지문 형제 오확정 방지).
         matches = [row for row in rows if normalize_order_number(str(row.get("odno", ""))) == want_odno]
     elif prior is None:
         matches = _filter_matching_daily_rows(rows, fingerprint)  # prior 없는 타임아웃 복구 전용
@@ -162,6 +162,11 @@ def reconcile(
         # 미확정 유지(None) -- 접수직후 NEW 스냅샷을 체결로 둔갑시키지 않는다.
         if prior is not None and prior.status in TERMINAL_ORDER_STATUSES:
             return prior
+        return None
+    if normalize_order_number(str(matches[0].get("odno", ""))) == "":
+        # 매칭 행에 쓸 수 있는 ODNO 가 없으면 order_id=None 리포트를 만들지 않는다 -- 그런 리포트는
+        # 이후 refresh 재조회가 ODNO 로 자기 행을 못 집어 영구 교착(None)에 빠지므로, 확정하지 않고
+        # in-flight 유지(None, 수동 확인). 지문 폴백(타임아웃 복구)이 odno 없는 행을 물었을 때만 걸린다.
         return None
     report = _execution_report_from_daily_row(client_order_id, fingerprint, matches[0])
     store.record(report, fingerprint)

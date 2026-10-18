@@ -433,8 +433,8 @@ def reconcile(
         # 그 ODNO 로 자기 행을 집어, 동일 종목·수량·가격의 형제 행을 이 주문으로 오귀속하지 않게 한다
         # (형제 ODNO 가 store.record 돼 이후 cancel 이 살아있는 형제를 겨냥하는 phantom 확정 방지). ODNO 로
         # 집더라도 정정/취소 행(rvse_cncl_dvsn 01/02)은 제외해 원주문 행만 매칭한다(같은 odno 로 돌아오는
-        # 변경 행 오확정 방지). 저장 ODNO 가 전부-0/빈값으로 정규화돼 비면 지문 매칭으로 내려간다. 지문
-        # 매칭은 prior ODNO 가 없는 타임아웃 복구 전용(국내 reconcile 과 대칭).
+        # 변경 행 오확정 방지). 저장 ODNO 가 전부-0/빈값으로 정규화돼 비면 아래 elif/else: prior 없으면
+        # 지문(타임아웃 복구), prior 있으면 0건 처리(지문 폴백 금지 -- 국내 reconcile 과 대칭).
         matches = [row for row in rows
                    if normalize_order_number(str(row.get("odno", ""))) == want_odno
                    and str(row.get("rvse_cncl_dvsn", "")).strip() not in ("01", "02")]
@@ -455,6 +455,8 @@ def reconcile(
         if prior is not None and prior.status in TERMINAL_ORDER_STATUSES:
             return prior
         return None
+    if normalize_order_number(str(matches[0].get("odno", ""))) == "":
+        return None  # 매칭 행에 쓸 수 있는 ODNO 없음 -> order_id=None 리포트 안 만듦(향후 refresh 교착 방지)
     report = _ccnl_report(client_order_id, fingerprint, matches[0])
     store.record(report, fingerprint)
     return report

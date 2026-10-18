@@ -281,6 +281,26 @@ def test_overseas_refresh_matches_stored_odno_not_sibling():
     assert client.orders.reconcile("sib", refresh=True) is None
 
 
+def test_overseas_refresh_unusable_odno_prior_does_not_fingerprint_confirm_sibling():
+    # prior 는 있으나 쓸 수 있는 ODNO 가 없으면(order_id None) 지문 폴백으로 동일지문 형제를 오확정하지
+    # 않는다 -- 지문 폴백은 prior 없는 타임아웃 복구 전용, prior 손상 시 0건(None).
+    from datetime import UTC, datetime
+
+    from kis_trader import ExecutionReport, OrderStatus
+    from kis_trader.store import OrderStore
+    store = OrderStore()
+    fake = FakeTransport(on_post=_ack("0000123456"), on_get=_ccnl([_ccnl_row(odno="0009999999")]))
+    client = _client(fake, store=store)
+    client.overseas.stock("AAPL", exchange="NAS").buy(
+        quantity=1, limit_price="150.00", client_order_id="noid")
+    fp = store.fingerprint_for("noid")
+    store.record(ExecutionReport(  # prior 를 쓸 수 없는 ODNO(None) 비종료로 덮어쓴다
+        client_order_id="noid", order_id=None, symbol="AAPL", side="buy", status=OrderStatus.NEW,
+        filled_quantity=Decimal(0), average_price=None,
+        recorded_at=datetime(2024, 1, 1, tzinfo=UTC)), fp)
+    assert client.orders.reconcile("noid", refresh=True) is None  # 형제(9999999) 오확정 안 함
+
+
 def test_overseas_refresh_excludes_cancel_row_with_same_odno():
     # ODNO 로 집더라도 취소/정정 행(rvse_cncl_dvsn 01/02)이 같은 odno 로 오면 원주문 확정으로 오인하지
     # 않는다 -- 그 행 제외 -> 0건 -> None(비종료 유지, phantom 확정 방지).

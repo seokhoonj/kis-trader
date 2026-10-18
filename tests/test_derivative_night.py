@@ -406,6 +406,18 @@ def test_night_refresh_merges_on_padding_normalized_odno():
     assert report is not None and report.order_id == "5605"
 
 
+def test_night_refresh_unusable_odno_prior_does_not_fingerprint_confirm_sibling():
+    # 야간 union 도 prior 는 있으나 쓸 수 있는 ODNO 가 없으면(order_id None/전부-0) 지문 폴백으로 양측
+    # 형제를 오확정하지 않는다 -- 지문 폴백은 prior 없는 타임아웃 복구 전용, prior 손상 시 0건(None).
+    from kis_trader import OrderStatus
+    store = _night_store()
+    _record_night_prior(store, status=OrderStatus.NEW, order_id=None)  # 쓸 수 없는 ODNO
+    fake = FakeTransport()
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="0000009999")]))  # 같은 지문 형제
+    fake.queue(_DAY_INQUIRY, _day_ccnl([_day_row(odno="0000009999")]))
+    assert _reconcile_refresh(fake, store) is None
+
+
 def test_night_refresh_matches_stored_odno_not_sibling():
     # prior ODNO(5605)가 있으면 두 테이블 모두 그 ODNO 로 집는다 -- 동일 지문의 형제 ODNO(9999) 행을
     # 이 주문으로 오귀속하지 않고, 종료 prior 를 그대로 유지한다(phantom 확정 방지).

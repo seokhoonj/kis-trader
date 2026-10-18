@@ -373,6 +373,17 @@ def test_day_refresh_unusable_odno_prior_does_not_fingerprint_confirm_sibling():
                         now=datetime(2024, 3, 15, 10, 0, tzinfo=_KST)) is None
 
 
+def test_day_reconcile_blank_odno_row_is_not_recorded():
+    # 지문 폴백(타임아웃 복구)이 odno 가 빈 체결 행을 물어도 order_id=None 리포트를 만들지 않는다 --
+    # 그런 리포트는 이후 refresh 재조회가 ODNO 로 자기 행을 못 집어 영구 교착(None)에 빠지므로, 확정하지
+    # 않고 in-flight 유지(None, 저장소에 리포트 없음).
+    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=_ccnl([_row(odno="")]))
+    client = _client(fake)
+    _place_timeout(client, "blank-odno")
+    assert client.orders.reconcile("blank-odno") is None
+    assert client._store.report_for("blank-odno") is None  # order_id=None 리포트를 기록하지 않았다
+
+
 def test_day_reconcile_night_session_on_paper_fails_closed():
     # 야간은 실전 전용 -- paper 야간 지문 도달은 손상 신호라 KISUsageError(조회 미접촉).
     from kis_trader.errors import KISUsageError

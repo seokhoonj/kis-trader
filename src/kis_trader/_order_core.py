@@ -380,12 +380,13 @@ def submit_change(
         )
     output = _extract_output_mapping(resp.body)
     new_order_id = output.get("ODNO")
-    if action == "modify" and not new_order_id:
-        # 정정 접수(rt_cd=0)인데 새 ODNO 가 없다 -> 재조회 불가. place 와 같이 fail-closed:
-        # in-flight 유지(재조회 요구)하고, 원 id 를 낡은 ODNO 에 재바인딩하지 않는다. 원 ODNO 는
-        # 정정으로 무효화됐을 수 있어, 낡은 값에 재바인딩하면 이후 취소가 조용히 거부된다(은폐 금지).
+    if action == "modify" and (not new_order_id or normalize_order_number(str(new_order_id)) == ""):
+        # 정정 접수(rt_cd=0)인데 새 ODNO 가 없거나 전부-0(정규화 시 "") -> 재조회 불가. place 와 같이
+        # fail-closed: in-flight 유지(재조회 요구)하고, 원 id 를 낡은/쓸 수 없는 ODNO 에 재바인딩하지
+        # 않는다. 원 ODNO 는 정정으로 무효화됐을 수 있고, 쓸 수 없는 ODNO 로 재바인딩하면 이후 refresh
+        # 재조회가 그 ODNO 로 자기 행을 못 집어 교착(None)에 빠진다(은폐 금지).
         raise OrderError(
-            "정정 접수(rt_cd=0)에 새 거래소 주문번호(ODNO)가 없다 -- 재조회 불가.",
+            "정정 접수(rt_cd=0)에 쓸 수 있는 새 거래소 주문번호(ODNO)가 없다 -- 재조회 불가.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
     report = ExecutionReport(

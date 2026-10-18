@@ -364,7 +364,8 @@ def reconcile(
         # (형제 ODNO 가 store.record 돼 이후 cancel/modify 가 살아있는 형제를 겨냥) phantom 확정을 낸다.
         # ODNO 로 집더라도 정정/취소 행(orgn_odno != 0)은 제외한다 -- 그 행이 원주문과 같은 odno 로
         # 돌아와도 원주문 체결로 오확정하지 않게(원주문 행만 매칭). 저장 ODNO 가 전부-0/빈값으로 정규화돼
-        # 비면 지문 매칭으로 내려간다. 지문 매칭은 prior ODNO 없는 타임아웃 복구 전용(국내주식과 대칭).
+        # 비면 아래 elif/else: prior 없으면 지문(타임아웃 복구), prior 있으면 0건 처리(지문 폴백 금지,
+        # 국내주식과 대칭).
         matches = [row for row in rows
                    if normalize_order_number(str(row.get("odno", ""))) == want_odno
                    and _is_original_odno(row.get("orgn_odno"))]
@@ -386,6 +387,8 @@ def reconcile(
         if prior is not None and prior.status in TERMINAL_ORDER_STATUSES:
             return prior
         return None
+    if normalize_order_number(str(matches[0].get("odno", ""))) == "":
+        return None  # 매칭 행에 쓸 수 있는 ODNO 없음 -> order_id=None 리포트 안 만듦(향후 refresh 교착 방지)
     report = _fo_report(client_order_id, fingerprint, matches[0])
     store.record(report, fingerprint)
     return report
@@ -546,7 +549,8 @@ def _night_union_reconcile(
     if want_odno:
         # 저장된 ODNO 가 있으면 두 테이블 모두 그 ODNO 로 집는다(지문 형제 오귀속 방지 -- 주간 경로와 대칭).
         # 정정/취소 행(orgn_odno != 0)은 제외해 원주문 행만 매칭하고(같은 odno 로 돌아오는 변경 행 오확정
-        # 방지), 저장 ODNO 가 전부-0/빈값으로 정규화돼 비면 지문 매칭으로 내려간다. 교차 테이블 ODNO
+        # 방지), 저장 ODNO 가 전부-0/빈값으로 정규화돼 비면 아래 elif/else(prior 없으면 지문, 있으면 0건
+        # 처리로 지문 폴백 금지). 교차 테이블 ODNO
         # 유일성이 미확정이라, 아래 (odno, ord_dt) 동시일치 검사로 모호 병합을 막는다.
         matches_a = [row for row in rows_a
                      if normalize_order_number(str(row.get("odno", ""))) == want_odno
@@ -590,6 +594,8 @@ def _night_union_reconcile(
         if prior is not None and prior.status in TERMINAL_ORDER_STATUSES:
             return prior
         return None
+    if normalize_order_number(str(row.get("odno", ""))) == "":
+        return None  # 매칭 행에 쓸 수 있는 ODNO 없음 -> order_id=None 리포트 안 만듦(향후 refresh 교착 방지)
     report = _fo_report(client_order_id, fingerprint, row)
     store.record(report, fingerprint)
     return report
