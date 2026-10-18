@@ -32,7 +32,7 @@ from ...order import (
     Order,
     WireRequest,
 )
-from ...report import ExecutionReport, OrderStatus
+from ...report import TERMINAL_ORDER_STATUSES, ExecutionReport, OrderStatus
 from ...transport import TransportTimeoutError
 
 if TYPE_CHECKING:
@@ -358,7 +358,12 @@ def reconcile(
             f"주문 {client_order_id} 의 지문과 일치하는 체결내역이 {len(matches)}건이라 자동 확정 "
             f"불가하다(KIS가 client_order_id를 돌려주지 않음). 수동 확인이 필요하다."
         )
-    if not matches:  # 0건: 미접수인지 반영 지연인지 단정 불가 -> in-flight 유지
+    if not matches:  # 0건: 미접수인지 반영 지연인지 당일창 밖인지 단정 불가.
+        # prior 가 종료상태면 재스캔으로 바뀔 수 없으니 그 확정 리포트를 돌려준다(force_refresh 재조회가
+        # 당일창 밖 완료주문을 '미해소'로 퇴행시켜 변경을 in-flight 로 영구 방치하지 않게 -- 국내주식
+        # orders.py:155, 해외 orders.py:433 와 대칭). 비종료 prior 는 미확정 유지(None).
+        if prior is not None and prior.status in TERMINAL_ORDER_STATUSES:
+            return prior
         return None
     report = _fo_report(client_order_id, fingerprint, matches[0])
     store.record(report, fingerprint)
@@ -538,7 +543,13 @@ def _night_union_reconcile(
     elif matches_b:
         row = matches_b[0]                  # 이관 후(주간 테이블에만)
     else:
-        return None                         # 양측 0건 -- 미접수로 단정하지 않는다(in-flight 유지)
+        # 양측 0건 -- 미접수로 단정하지 않는다. 단 prior 가 종료상태면 재스캔으로 바뀔 수 없으니 그
+        # 확정 리포트를 돌려준다(force_refresh 가 당일창 밖 완료 야간주문을 '미해소'로 퇴행시키지 않게
+        # -- 주간/국내주식/해외 reconcile 과 대칭). 비종료 prior 는 in-flight 유지(None).
+        prior = store.report_for(client_order_id)
+        if prior is not None and prior.status in TERMINAL_ORDER_STATUSES:
+            return prior
+        return None
     report = _fo_report(client_order_id, fingerprint, row)
     store.record(report, fingerprint)
     return report
