@@ -7,8 +7,8 @@
 # finance-ratio/market-value/profit-asset-index 셋은 라이브러리가 공유 헬퍼 _fundamentals_params()
 # 안에서 params 를 조립하지만, 정적 추출기가 `params = _fundamentals_params(...)` 패턴을 따라가 그
 # return dict 의 13개 FID 키를 본다(extract_sent_param_keys -> _collect_builder_keys). 그래서 이 셋도
-# required_params 에 13키를 적어 정적 대조한다. 단 이 13키는 **코드가 보내는 키**의 증거일 뿐 -- KIS 가
-# 그 전부를 요구/수락하는지(와이어 필수 여부)는 공식 문서나 라이브 응답으로 확정해야 한다(각 notes 참조).
+# required_params 에 13키를 적어 정적 대조한다. 13키 전송이 실서버에서 수락됨을 라이브로 확인했다
+# (2026-10-18, contract_probe --area domestic_ranking: 세 엔드포인트 모두 rt_cd=0, n=30, 거부 없음).
 
 [[endpoint]]
 name            = "domestic_ranking_fluctuation"
@@ -138,7 +138,7 @@ optional_params = []
 response_fields = []
 invariants      = []
 source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/finance_ratio"
-notes           = "재무비율 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 코드 전송 키를 정적 검증한다. KIS 와이어 필수 여부는 라이브/공식 확정 대기."
+notes           = "재무비율 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 코드 전송 키를 정적 검증한다. 2026-10-18 라이브 확인: 13키 전송 수락(rt_cd=0, n=30)."
 
 [[endpoint]]
 name            = "domestic_ranking_valuation"
@@ -151,7 +151,7 @@ optional_params = []
 response_fields = []
 invariants      = []
 source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/market_value"
-notes           = "시장가치(밸류에이션) 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 코드 전송 키를 정적 검증한다. KIS 와이어 필수 여부는 라이브/공식 확정 대기."
+notes           = "시장가치(밸류에이션) 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 코드 전송 키를 정적 검증한다. 2026-10-18 라이브 확인: 13키 전송 수락(rt_cd=0, n=30)."
 
 [[endpoint]]
 name            = "domestic_ranking_profit_asset"
@@ -164,7 +164,7 @@ optional_params = []
 response_fields = []
 invariants      = []
 source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/profit_asset_index"
-notes           = "수익자산지표 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 코드 전송 키를 정적 검증한다. KIS 와이어 필수 여부는 라이브/공식 확정 대기."
+notes           = "수익자산지표 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 코드 전송 키를 정적 검증한다. 2026-10-18 라이브 확인: 13키 전송 수락(rt_cd=0, n=30)."
 
 [[endpoint]]
 name            = "domestic_ranking_house_trade_volume"
