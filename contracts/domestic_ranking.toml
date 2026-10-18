@@ -132,12 +132,12 @@ impl            = "kis_trader.domestic._engine.ranking:fetch_financial_ratio"
 tr_id           = "FHPST01750000"
 path            = "/uapi/domestic-stock/v1/ranking/finance-ratio"
 method          = "GET"
-required_params = []
+required_params = ["FID_TRGT_CLS_CODE", "FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_DIV_CLS_CODE", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2", "FID_VOL_CNT", "FID_INPUT_OPTION_1", "FID_INPUT_OPTION_2", "FID_RANK_SORT_CLS_CODE", "FID_BLNG_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE"]
 optional_params = []
 response_fields = []
 invariants      = []
 source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/finance_ratio"
-notes           = "재무비율 순위. 예제는 13개 FID 키(FID_COND_MRKT_DIV_CODE/FID_RANK_SORT_CLS_CODE/FID_INPUT_OPTION_1/FID_INPUT_OPTION_2 등)를 보내나 코드가 공유 헬퍼 _fundamentals_params 에서 조립 -- 정적 추출 불가, 라이브 프로브로 확정 필요."
+notes           = "재무비율 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 정적 검증한다."
 
 [[endpoint]]
 name            = "domestic_ranking_valuation"
@@ -145,12 +145,12 @@ impl            = "kis_trader.domestic._engine.ranking:fetch_valuation"
 tr_id           = "FHPST01790000"
 path            = "/uapi/domestic-stock/v1/ranking/market-value"
 method          = "GET"
-required_params = []
+required_params = ["FID_TRGT_CLS_CODE", "FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_DIV_CLS_CODE", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2", "FID_VOL_CNT", "FID_INPUT_OPTION_1", "FID_INPUT_OPTION_2", "FID_RANK_SORT_CLS_CODE", "FID_BLNG_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE"]
 optional_params = []
 response_fields = []
 invariants      = []
 source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/market_value"
-notes           = "시장가치(밸류에이션) 순위. 예제는 13개 FID 키를 보내나 코드가 공유 헬퍼 _fundamentals_params 에서 조립 -- 정적 추출 불가, 라이브 프로브로 확정 필요."
+notes           = "시장가치(밸류에이션) 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 정적 검증한다."
 
 [[endpoint]]
 name            = "domestic_ranking_profit_asset"
@@ -158,12 +158,12 @@ impl            = "kis_trader.domestic._engine.ranking:fetch_profit_asset"
 tr_id           = "FHPST01730000"
 path            = "/uapi/domestic-stock/v1/ranking/profit-asset-index"
 method          = "GET"
-required_params = []
+required_params = ["FID_TRGT_CLS_CODE", "FID_COND_MRKT_DIV_CODE", "FID_COND_SCR_DIV_CODE", "FID_INPUT_ISCD", "FID_DIV_CLS_CODE", "FID_INPUT_PRICE_1", "FID_INPUT_PRICE_2", "FID_VOL_CNT", "FID_INPUT_OPTION_1", "FID_INPUT_OPTION_2", "FID_RANK_SORT_CLS_CODE", "FID_BLNG_CLS_CODE", "FID_TRGT_EXLS_CLS_CODE"]
 optional_params = []
 response_fields = []
 invariants      = []
 source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/domestic_stock/profit_asset_index"
-notes           = "수익자산지표 순위. 예제는 13개 FID 키를 보내나 코드가 공유 헬퍼 _fundamentals_params 에서 조립 -- 정적 추출 불가, 라이브 프로브로 확정 필요."
+notes           = "수익자산지표 순위. 13개 FID 키를 공유 헬퍼 _fundamentals_params 에서 조립한다 -- test_contracts 가 그 헬퍼를 따라가 정적 검증한다."
 
 [[endpoint]]
 name            = "domestic_ranking_house_trade_volume"
