@@ -16,6 +16,11 @@ RECIPES = {
     "overseas_ranking_sharp_change": lambda k: k.overseas.ranking.by_sharp_change(exchange="NAS"),
     "overseas_ranking_volume_surge": lambda k: k.overseas.ranking.by_volume_surge(exchange="NAS"),
     "stock_bars_1m": lambda k: k.domestic.stock("005930").bars(interval="1m"),
+    # 재무·가치·수익자산 랭킹: 공유 헬퍼 _fundamentals_params 의 13개 FID 키가 실서버에서 수락되는지
+    # (rt_cd=0) 확인한다. 거부되면 ERROR(예: INPUT FIELD NOT FOUND). year 는 결산 완료된 최근 회계연도.
+    "domestic_ranking_financial_ratio": lambda k: k.domestic.ranking.by_financial_ratio(year=2024),
+    "domestic_ranking_valuation": lambda k: k.domestic.ranking.by_valuation(year=2024),
+    "domestic_ranking_profit_asset": lambda k: k.domestic.ranking.by_profit_asset(year=2024),
 }
 
 
