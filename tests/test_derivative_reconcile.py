@@ -358,6 +358,21 @@ def test_day_refresh_excludes_modify_cancel_row_with_same_odno():
     assert report is not None and report.status is OrderStatus.FILLED  # 변경 행 제외 -> 종료 prior 유지
 
 
+def test_day_refresh_unusable_odno_prior_does_not_fingerprint_confirm_sibling():
+    # prior 는 있으나 쓸 수 있는 ODNO 가 없으면(order_id None/전부-0) 지문 폴백으로 내려가 동일지문 형제를
+    # 오확정하지 않는다 -- 지문 폴백은 prior 없는 타임아웃 복구 전용이므로, prior 가 있는 손상 상태에선
+    # 0건 처리(비종료 -> None). 형제 행(같은 종목·수량·가격, 다른 ODNO)이 와도 확정하지 않는다.
+    from kis_trader import OrderStatus
+    store = OrderStore()
+    order = _order(client_order_id="rf-noid")
+    _record_prior(store, order, status=OrderStatus.NEW, order_id=None)  # 쓸 수 없는 ODNO
+    sibling = _row(odno="0000009999")  # 같은 지문의 형제 (지문 폴백이면 오매칭됐을 행)
+    fake = FakeTransport(on_get=_ccnl([sibling]))
+    assert fo.reconcile(fake, store, "rf-noid", cano="1", product_code="03",
+                        environment="real", force_refresh=True,
+                        now=datetime(2024, 3, 15, 10, 0, tzinfo=_KST)) is None
+
+
 def test_day_reconcile_night_session_on_paper_fails_closed():
     # 야간은 실전 전용 -- paper 야간 지문 도달은 손상 신호라 KISUsageError(조회 미접촉).
     from kis_trader.errors import KISUsageError

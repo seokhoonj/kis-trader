@@ -438,8 +438,11 @@ def reconcile(
         matches = [row for row in rows
                    if normalize_order_number(str(row.get("odno", ""))) == want_odno
                    and str(row.get("rvse_cncl_dvsn", "")).strip() not in ("01", "02")]
+    elif prior is None:
+        matches = _filter_matching_ccnl_rows(rows, fingerprint)  # prior 없는 타임아웃 복구 전용
     else:
-        matches = _filter_matching_ccnl_rows(rows, fingerprint)
+        # prior 는 있는데 쓸 수 있는 ODNO 가 없다 -- 지문 폴백 형제 오확정 방지, 0건 -> 종료-prior/None.
+        matches = []
     if len(matches) > 1:
         raise KISError(
             f"주문 {client_order_id} 의 지문과 일치하는 체결내역이 {len(matches)}건이라 자동 확정 "

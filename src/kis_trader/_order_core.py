@@ -25,7 +25,7 @@ from decimal import Decimal
 from typing import Any, Protocol
 
 from ._internal._datetime import _KST
-from ._internal._wire import format_wire_decimal
+from ._internal._wire import format_wire_decimal, normalize_order_number
 from .errors import (
     AccountNotOrderableError,
     KISAuthError,
@@ -200,10 +200,12 @@ def place(
 
     output = extract(resp.body)
     order_id = output.get("ODNO")
-    if not order_id:
-        # 접수(rt_cd=0)인데 거래소 주문번호 없음 -> 재조회 불가. in-flight 유지하고 raise.
+    if not order_id or normalize_order_number(str(order_id)) == "":
+        # 접수(rt_cd=0)인데 거래소 주문번호 없음/전부-0(정규화 시 "") -> 재조회 불가. in-flight 유지하고
+        # raise. 전부-0 ODNO 를 저장하면 reconcile 이 그 ODNO 로 자기 행을 못 집어(정규화하면 빈값)
+        # 지문 폴백으로 형제를 오확정할 수 있으므로, 쓸 수 없는 ODNO 는 아예 미접수(in-flight)로 둔다.
         raise OrderError(
-            "접수 응답(rt_cd=0)에 거래소 주문번호(ODNO)가 없다 -- 재조회 불가.",
+            "접수 응답(rt_cd=0)에 쓸 수 있는 거래소 주문번호(ODNO)가 없다 -- 재조회 불가.",
             rt_cd=resp.rt_cd, msg_cd=resp.msg_cd, msg1=resp.msg1, raw=resp.body,
         )
 

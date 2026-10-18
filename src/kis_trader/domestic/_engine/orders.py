@@ -145,8 +145,12 @@ def reconcile(
         # 정규화돼 비면 그 분기를 타지 않고 지문 매칭으로 내려가, 빈 odno 행을 오매칭하지 않는다.
         # 지문 매칭은 prior ODNO 가 없는 타임아웃 복구 전용.
         matches = [row for row in rows if normalize_order_number(str(row.get("odno", ""))) == want_odno]
+    elif prior is None:
+        matches = _filter_matching_daily_rows(rows, fingerprint)  # prior 없는 타임아웃 복구 전용
     else:
-        matches = _filter_matching_daily_rows(rows, fingerprint)
+        # prior 는 있는데 쓸 수 있는 ODNO 가 없다(order_id None/전부-0) -- 지문 폴백은 동일지문 형제를
+        # 오확정할 수 있으므로 쓰지 않고, 아래 0건 분기에서 종료-prior 폴백/None 으로 fail-closed 한다.
+        matches = []
     if len(matches) > 1:
         raise KISError(
             f"주문 {client_order_id} 의 지문과 일치하는 당일 주문이 {len(matches)}건이라 "

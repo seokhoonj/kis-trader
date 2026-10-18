@@ -300,7 +300,10 @@ def reconcile(
     cano: str, product_code: str, environment: Environment, now: datetime | None = None,
     force_refresh: bool = False,
 ) -> ExecutionReport | None:
-    """미확인 국내 파생(XKFE) 주간 주문의 실제 상태를 일별체결내역에서 재조회한다 -- **보수적**.
+    """미확인 국내 파생(XKFE) 주문의 실제 상태를 체결내역에서 재조회한다 -- **보수적**.
+
+    주간(DAY) 주문은 일별체결내역(inquire-ccnl)을, 야간(STTN) 주문은 야간·주간 두 테이블의 union 스캔
+    (:func:`_night_union_reconcile`)을 쓴다. 아래 설명은 주간 경로이고, 야간은 그 함수 docstring 참조.
 
     완료 리포트가 있으면 반환. in-flight 면 일별체결내역(inquire-ccnl)을 지문으로 스캔해 정확히
     1건이면 확정, 0건이면 ``None``(재전송 금지 유지), 2건 이상이면 :class:`KISError`. **자동 해제는
@@ -365,8 +368,12 @@ def reconcile(
         matches = [row for row in rows
                    if normalize_order_number(str(row.get("odno", ""))) == want_odno
                    and _is_original_odno(row.get("orgn_odno"))]
+    elif prior is None:
+        matches = _filter_matching_day_rows(rows, fingerprint)  # prior 없는 타임아웃 복구 전용
     else:
-        matches = _filter_matching_day_rows(rows, fingerprint)
+        # prior 는 있는데 쓸 수 있는 ODNO 가 없다 -- 지문 폴백은 형제 오확정 위험이라 쓰지 않고 0건 분기의
+        # 종료-prior 폴백/None 으로 fail-closed(국내주식과 대칭).
+        matches = []
     if len(matches) > 1:
         raise KISError(
             f"주문 {client_order_id} 의 지문과 일치하는 체결내역이 {len(matches)}건이라 자동 확정 "
@@ -547,9 +554,12 @@ def _night_union_reconcile(
         matches_b = [row for row in rows_b
                      if normalize_order_number(str(row.get("odno", ""))) == want_odno
                      and _is_original_odno(row.get("orgn_odno"))]
-    else:
-        matches_a = _filter_matching_night_rows(rows_a, fingerprint)
+    elif prior is None:
+        matches_a = _filter_matching_night_rows(rows_a, fingerprint)  # prior 없는 타임아웃 복구 전용
         matches_b = _filter_matching_day_rows(rows_b, fingerprint)
+    else:
+        # prior 는 있는데 쓸 수 있는 ODNO 가 없다 -- 지문 폴백 형제 오확정 방지, 양측 0건 -> 종료-prior/None.
+        matches_a = matches_b = []
     if len(matches_a) > 1 or len(matches_b) > 1:
         raise KISError(
             f"야간 주문 {client_order_id} 의 지문과 일치하는 체결내역이 야간 {len(matches_a)}건/주간 "
