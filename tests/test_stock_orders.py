@@ -16,7 +16,7 @@ from kis_trader import KISClient, StockOrderHistory
 from kis_trader.errors import KISError, KISUsageError
 from kis_trader.transport import RawResponse
 
-_FILLS_PATH = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
+_ORDER_HISTORY_PATH = "/uapi/domestic-stock/v1/trading/inquire-daily-ccld"
 
 
 class FakeTransport:
@@ -41,7 +41,7 @@ def _client(transport, *, environment="real", account="12345678-01"):
                      environment=environment, transport=transport)
 
 
-def _fills(transport, *, environment="real"):
+def _order_history(transport, *, environment="real"):
     return _client(transport, environment=environment).account.domestic.order_history
 
 
@@ -78,7 +78,7 @@ def _resp(*, rows=None, summary=None, tr_cont="", ctx_nk="", ctx_fk=""):
 
 def test_order_history_parses_rows_and_summary_and_routes():
     fake = FakeTransport(response=_resp(rows=[_row()]))
-    history = _fills(fake)(start="20240201", end="20240229")
+    history = _order_history(fake)(start="20240201", end="20240229")
     assert isinstance(history, StockOrderHistory)
     assert history.total_order_quantity == Decimal(10)
     assert history.total_filled_amount == Decimal(700500)
@@ -96,7 +96,7 @@ def test_order_history_parses_rows_and_summary_and_routes():
     assert fill.average_price == Decimal(70050)
     assert fill.canceled is False
     call = fake.calls[0]
-    assert call["path"] == _FILLS_PATH
+    assert call["path"] == _ORDER_HISTORY_PATH
     assert call["tr_id"] == "TTTC0081R"
     assert call["idempotent"] is True
     assert call["params"]["INQR_STRT_DT"] == "20240201"
@@ -108,7 +108,7 @@ def test_order_history_parses_rows_and_summary_and_routes():
 
 def test_order_history_paper_uses_demo_tr():
     fake = FakeTransport(response=_resp(rows=[_row()]))
-    _fills(fake, environment="paper")(start="20240201", end="20240229")
+    _order_history(fake, environment="paper")(start="20240201", end="20240229")
     assert fake.calls[0]["tr_id"] == "VTTC0081R"
 
 
@@ -118,8 +118,8 @@ def test_order_history_older_changes_only_the_tr_id():
     older = FakeTransport(response=_resp(rows=[_row()]))
     kwargs = {"start": "20230101", "end": "20230331", "side": "sell",
               "symbol": "005930", "unfilled_only": True}
-    _fills(recent)(**kwargs)
-    _fills(older)(**kwargs, older_than_three_months=True)
+    _order_history(recent)(**kwargs)
+    _order_history(older)(**kwargs, older_than_three_months=True)
     recent_call, older_call = recent.calls[0], older.calls[0]
     assert recent_call["tr_id"] == "TTTC0081R"
     assert older_call["tr_id"] == "CTSC9215R"
@@ -129,7 +129,7 @@ def test_order_history_older_changes_only_the_tr_id():
 
 def test_order_history_older_paper_uses_demo_before_tr():
     fake = FakeTransport(response=_resp(rows=[_row()]))
-    _fills(fake, environment="paper")(start="20230101", end="20230331",
+    _order_history(fake, environment="paper")(start="20230101", end="20230331",
                                       older_than_three_months=True)
     assert fake.calls[0]["tr_id"] == "VTSC9215R"
 
@@ -137,7 +137,7 @@ def test_order_history_older_paper_uses_demo_before_tr():
 # --- 0.6.0 보강 필드 (라이브 응답예시로 키셋/타입 확정) -----------------------
 def test_order_exposes_0_6_0_fields():
     fake = FakeTransport(response=_resp(rows=[_row(cncl_cfrm="3", excg_dvsn="12", ccld_cndt="IOC")]))
-    fill = _fills(fake)(start="20240201", end="20240229").orders[0]
+    fill = _order_history(fake)(start="20240201", end="20240229").orders[0]
     assert fill.canceled_quantity == Decimal(3)
     assert fill.exchange_division_code == "12"
     assert fill.fill_condition_name == "IOC"
@@ -146,11 +146,11 @@ def test_order_exposes_0_6_0_fields():
 
 def test_order_exchange_is_typed_and_none_when_blank():
     # excg_id_dvsn_cd 값이 그대로 타입드 거래소; NXT 도입 전 주문은 공란 -> None.
-    krx = _fills(FakeTransport(response=_resp(rows=[_row(exchange="KRX")])))(start="20240201", end="20240229")
+    krx = _order_history(FakeTransport(response=_resp(rows=[_row(exchange="KRX")])))(start="20240201", end="20240229")
     assert krx.orders[0].exchange == "KRX"
-    sor = _fills(FakeTransport(response=_resp(rows=[_row(exchange="SOR")])))(start="20240201", end="20240229")
+    sor = _order_history(FakeTransport(response=_resp(rows=[_row(exchange="SOR")])))(start="20240201", end="20240229")
     assert sor.orders[0].exchange == "SOR"
-    blank = _fills(FakeTransport(response=_resp(rows=[_row(exchange="")])))(start="20240201", end="20240229")
+    blank = _order_history(FakeTransport(response=_resp(rows=[_row(exchange="")])))(start="20240201", end="20240229")
     assert blank.orders[0].exchange is None
 
 
@@ -159,22 +159,22 @@ def test_order_exchange_unknown_code_degrades_to_none(caplog):
     # 저하하고 경고를 남기며, 원본 코드는 _raw 에 보존한다(주문 경로는 Order 가 여전히 fail-closed).
     fake = FakeTransport(response=_resp(rows=[_row(exchange="ZZZ")]))
     with caplog.at_level("WARNING"):
-        fills = _fills(fake)(start="20240201", end="20240229").orders
-    assert fills[0].exchange is None
-    assert fills[0].symbol == "005930"                  # 나머지 행은 정상 파싱(조회가 안 깨짐)
-    assert fills[0]._raw["excg_id_dvsn_cd"] == "ZZZ"    # 원본 코드 보존(조용한 손실 아님)
+        orders = _order_history(fake)(start="20240201", end="20240229").orders
+    assert orders[0].exchange is None
+    assert orders[0].symbol == "005930"                  # 나머지 행은 정상 파싱(조회가 안 깨짐)
+    assert orders[0]._raw["excg_id_dvsn_cd"] == "ZZZ"    # 원본 코드 보존(조용한 손실 아님)
     assert any("excg_id_dvsn_cd" in rec.message for rec in caplog.records)
 
 
 def test_order_stop_is_none_for_non_stop_order():
     # stpm_cndt_pric 가 0/공란이면 비-스톱 주문 -> stop 은 None(joint-presence).
     fake = FakeTransport(response=_resp(rows=[_row(stpm_pric="0")]))
-    assert _fills(fake)(start="20240201", end="20240229").orders[0].stop is None
+    assert _order_history(fake)(start="20240201", end="20240229").orders[0].stop is None
 
 
 def test_order_stop_present_with_trigger_price():
     fake = FakeTransport(response=_resp(rows=[_row(stpm_pric="71000", stpm_eff="20240216131500")]))
-    stop = _fills(fake)(start="20240201", end="20240229").orders[0].stop
+    stop = _order_history(fake)(start="20240201", end="20240229").orders[0].stop
     assert stop is not None
     assert stop.trigger_price == Decimal(71000)
     assert stop.effective_datetime is not None
@@ -188,43 +188,43 @@ def test_order_history_parse_complete_raw_record():
     # 한 번에 못박는다(부분집합 테스트가 못 잡는 매핑 스왑/누락 방지).
     row = _row(cncl_cfrm="3", exchange="SOR", excg_dvsn="12", ccld_cndt="IOC",
                stpm_pric="71000", stpm_eff="20240216131500")
-    h = _fills(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229")
-    assert h.total_order_quantity == Decimal(10)
-    assert h.total_filled_quantity == Decimal(10)
-    assert h.total_filled_amount == Decimal(700500)
-    assert h.average_purchase_price == Decimal("70050.0000")
-    assert h.estimated_expenses == Decimal(118)
-    assert len(h.orders) == 1
-    f = h.orders[0]
-    assert f.order_date == date(2024, 2, 16)
-    assert f.order_id == "0001568197"
-    assert f.original_order_id == ""
-    assert f.order_type_name == "지정가"
-    assert f.side == "buy"
-    assert f.symbol == "005930"
-    assert f.name == "삼성전자"
-    assert f.order_quantity == Decimal(10)
-    assert f.order_price == Decimal(70000)
-    assert f.order_time == time(13, 14, 38)
-    assert f.filled_quantity == Decimal(10)
-    assert f.average_price == Decimal(70050)
-    assert f.filled_amount == Decimal(700500)
-    assert f.unfilled_quantity == Decimal(0)
-    assert f.rejected_quantity == Decimal(0)
-    assert f.canceled is False
-    assert f.canceled_quantity == Decimal(3)
-    assert f.branch_number == "06010"
-    assert f.exchange == "SOR"
-    assert f.exchange_division_code == "12"
-    assert f.fill_condition_name == "IOC"
-    assert f.order_type_code == "00"
-    assert f.product_type_code == ""
-    assert f.order_organization_number == "06010"
-    assert f.reservation_end_date is None
-    assert f.loan_date is None
-    assert f.stop is not None
-    assert f.stop.trigger_price == Decimal(71000)
-    et = f.stop.effective_datetime
+    history = _order_history(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229")
+    assert history.total_order_quantity == Decimal(10)
+    assert history.total_filled_quantity == Decimal(10)
+    assert history.total_filled_amount == Decimal(700500)
+    assert history.average_purchase_price == Decimal("70050.0000")
+    assert history.estimated_expenses == Decimal(118)
+    assert len(history.orders) == 1
+    order = history.orders[0]
+    assert order.order_date == date(2024, 2, 16)
+    assert order.order_id == "0001568197"
+    assert order.original_order_id == ""
+    assert order.order_type_name == "지정가"
+    assert order.side == "buy"
+    assert order.symbol == "005930"
+    assert order.name == "삼성전자"
+    assert order.order_quantity == Decimal(10)
+    assert order.order_price == Decimal(70000)
+    assert order.order_time == time(13, 14, 38)
+    assert order.filled_quantity == Decimal(10)
+    assert order.average_price == Decimal(70050)
+    assert order.filled_amount == Decimal(700500)
+    assert order.unfilled_quantity == Decimal(0)
+    assert order.rejected_quantity == Decimal(0)
+    assert order.canceled is False
+    assert order.canceled_quantity == Decimal(3)
+    assert order.branch_number == "06010"
+    assert order.exchange == "SOR"
+    assert order.exchange_division_code == "12"
+    assert order.fill_condition_name == "IOC"
+    assert order.order_type_code == "00"
+    assert order.product_type_code == ""
+    assert order.order_organization_number == "06010"
+    assert order.reservation_end_date is None
+    assert order.loan_date is None
+    assert order.stop is not None
+    assert order.stop.trigger_price == Decimal(71000)
+    et = order.stop.effective_datetime
     assert (et.year, et.month, et.day, et.hour, et.minute, et.second) == (2024, 2, 16, 13, 15, 0)
 
 
@@ -232,7 +232,7 @@ def test_order_canceled_quantity_defaults_to_zero_when_absent():
     # 관용 파싱: cnc_cfrm_qty 키가 없어도 크래시 없이 0.
     row = _row()
     del row["cnc_cfrm_qty"]
-    fill = _fills(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229").orders[0]
+    fill = _order_history(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229").orders[0]
     assert fill.canceled_quantity == Decimal(0)
 
 
@@ -241,13 +241,13 @@ def test_order_canceled_quantity_reads_official_key_not_the_typo():
     # 취소확인수량이 조용히 0 이 됐다. 실제 키로 값이 반영되고, 오타 키로는 반영되지 않음을 못박는다.
     real = _row()
     real["cnc_cfrm_qty"] = "7"
-    fill = _fills(FakeTransport(response=_resp(rows=[real])))(start="20240201", end="20240229").orders[0]
+    fill = _order_history(FakeTransport(response=_resp(rows=[real])))(start="20240201", end="20240229").orders[0]
     assert fill.canceled_quantity == Decimal(7)
     # 오타 키만 채워진 행은 0 으로 읽혀야 한다(오타 키로의 회귀를 잡는 가드).
     typo = _row()
     typo["cnc_cfrm_qty"] = "0"
     typo["cncl_cfrm_qty"] = "7"
-    fill = _fills(FakeTransport(response=_resp(rows=[typo])))(start="20240201", end="20240229").orders[0]
+    fill = _order_history(FakeTransport(response=_resp(rows=[typo])))(start="20240201", end="20240229").orders[0]
     assert fill.canceled_quantity == Decimal(0)
 
 
@@ -258,7 +258,7 @@ def test_order_keeps_pii_and_operator_fields_in_raw_only():
                 "sll_buy_dvsn_cd_name"]
     row = _row()
     row.update({k: "SENSITIVE" for k in pii_keys})
-    fill = _fills(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229").orders[0]
+    fill = _order_history(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229").orders[0]
     for k in pii_keys:
         # hasattr 은 슬롯/속성뿐 아니라 @property 노출까지 잡는다(슬롯만 보면 property 를 놓침).
         assert not hasattr(fill, k), f"{k} must not be publicly accessible"
@@ -270,13 +270,13 @@ def test_order_keeps_pii_and_operator_fields_in_raw_only():
 @pytest.mark.parametrize("side,code", [("all", "00"), ("sell", "01"), ("buy", "02")])
 def test_order_history_side_maps_to_wire(side, code):
     fake = FakeTransport(response=_resp(rows=[]))
-    _fills(fake)(start="20240201", end="20240229", side=side)
+    _order_history(fake)(start="20240201", end="20240229", side=side)
     assert fake.calls[0]["params"]["SLL_BUY_DVSN_CD"] == code
 
 
 def test_order_history_symbol_and_unfilled_only_route():
     fake = FakeTransport(response=_resp(rows=[]))
-    _fills(fake)(start="20240201", end="20240229", symbol="005930", unfilled_only=True)
+    _order_history(fake)(start="20240201", end="20240229", symbol="005930", unfilled_only=True)
     params = fake.calls[0]["params"]
     assert params["PDNO"] == "005930"
     assert params["CCLD_DVSN"] == "02"  # 미체결만
@@ -285,13 +285,13 @@ def test_order_history_symbol_and_unfilled_only_route():
 def test_order_history_rejects_unknown_side():
     fake = FakeTransport(response=_resp(rows=[]))
     with pytest.raises(KISUsageError, match="side"):
-        _fills(fake)(start="20240201", end="20240229", side="both")
+        _order_history(fake)(start="20240201", end="20240229", side="both")
     assert fake.calls == []  # 와이어 전 거부
 
 
 def test_order_history_skips_blank_odno_padding_rows():
     fake = FakeTransport(response=_resp(rows=[_row(odno="0001"), _row(odno="  ")]))
-    history = _fills(fake)(start="20240201", end="20240229")
+    history = _order_history(fake)(start="20240201", end="20240229")
     assert [f.order_id for f in history.orders] == ["0001"]
 
 
@@ -299,27 +299,27 @@ def test_order_history_missing_summary_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"output1": [], "ctx_area_nk100": "", "ctx_area_fk100": ""})
     with pytest.raises(KISError, match="합계 요약"):
-        _fills(FakeTransport(response=resp))(start="20240201", end="20240229")
+        _order_history(FakeTransport(response=resp))(start="20240201", end="20240229")
 
 
 def test_order_history_non_list_output_raises():
     resp = RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상",
                        body={"output1": {"odno": "x"}, "output2": _SUMMARY})
     with pytest.raises(KISError):
-        _fills(FakeTransport(response=resp))(start="20240201", end="20240229")
+        _order_history(FakeTransport(response=resp))(start="20240201", end="20240229")
 
 
 def test_order_history_error_response_raises():
     resp = RawResponse(rt_cd="1", msg_cd="EGW00215", msg1="초당 거래건수 초과", body={})
     with pytest.raises(KISError):
-        _fills(FakeTransport(response=resp))(start="20240201", end="20240229")
+        _order_history(FakeTransport(response=resp))(start="20240201", end="20240229")
 
 
 def test_order_history_paginates_two_pages():
     page1 = _resp(rows=[_row(odno="1")], tr_cont="F", ctx_nk="NK", ctx_fk="FK")
     page2 = _resp(rows=[_row(odno="2")], tr_cont="D")
     fake = FakeTransport(pages=[page1, page2])
-    history = _fills(fake)(start="20240201", end="20240229")
+    history = _order_history(fake)(start="20240201", end="20240229")
     assert [f.order_id for f in history.orders] == ["1", "2"]
     assert fake.calls[1]["tr_cont"] == "N"
     assert fake.calls[1]["params"]["CTX_AREA_NK100"] == "NK"
@@ -328,5 +328,5 @@ def test_order_history_paginates_two_pages():
 
 def test_order_history_cancelled_flag():
     fake = FakeTransport(response=_resp(rows=[_row(cncl="Y")]))
-    history = _fills(fake)(start="20240201", end="20240229")
+    history = _order_history(fake)(start="20240201", end="20240229")
     assert history.orders[0].canceled is True

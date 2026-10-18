@@ -43,15 +43,15 @@ def test_by_volume_maps_and_params():
     fake = FakeTransport(response=_resp(rows))
     ranked = _client(fake).overseas.ranking.by_volume(exchange="NAS")
     assert isinstance(ranked[0], OverseasRankedStock)
-    r = ranked[0]
-    assert r.rank == 1
-    assert r.exchange == "NAS"
-    assert r.symbol == "TSLA"
-    assert r.current_price == Decimal("250.5")
-    assert r.change == Decimal("5.5")                    # sign 2 -> 상승
-    assert r.volume == 120000000
-    assert r.trading_amount == Decimal(30000000000)   # tamt 거래대금
-    assert r._raw["a_tvol"] == "90000000"                # 평균거래량은 _raw
+    ranked_stock = ranked[0]
+    assert ranked_stock.rank == 1
+    assert ranked_stock.exchange == "NAS"
+    assert ranked_stock.symbol == "TSLA"
+    assert ranked_stock.current_price == Decimal("250.5")
+    assert ranked_stock.change == Decimal("5.5")                    # sign 2 -> 상승
+    assert ranked_stock.volume == 120000000
+    assert ranked_stock.trading_amount == Decimal(30000000000)   # tamt 거래대금
+    assert ranked_stock._raw["a_tvol"] == "90000000"                # 평균거래량은 _raw
     call = fake.calls[0]
     assert call["path"] == "/uapi/overseas-stock/v1/ranking/trade-vol"
     assert call["tr_id"] == "HHDFS76310010"
@@ -186,18 +186,18 @@ def test_by_turnover_maps_dedicated_entity():
     fake = FakeTransport(response=_one(rows))
     ranked = _client(fake).overseas.ranking.by_turnover(exchange="NAS")
     assert isinstance(ranked[0], TurnoverRanking)
-    r = ranked[0]
-    assert r.rank == 1
-    assert r.exchange == "NAS"
-    assert r.symbol == "TSLA"
-    assert r.name == "테슬라" and r.english_name == "TESLA"
-    assert r.current_price == Decimal("250.5")
-    assert r.change == Decimal("-5.5")                   # sign 5 -> 하락
-    assert r.volume == 120000000
-    assert r.trading_amount is None                      # tamt 없음
-    assert r.turnover_ratio == Decimal("0.37")           # tover 거래회전율(%)
-    assert r.shares_outstanding == 3180000000            # shar 상장주식수
-    assert r._raw["tover"] == "0.37"
+    turnover_ranking = ranked[0]
+    assert turnover_ranking.rank == 1
+    assert turnover_ranking.exchange == "NAS"
+    assert turnover_ranking.symbol == "TSLA"
+    assert turnover_ranking.name == "테슬라" and turnover_ranking.english_name == "TESLA"
+    assert turnover_ranking.current_price == Decimal("250.5")
+    assert turnover_ranking.change == Decimal("-5.5")                   # sign 5 -> 하락
+    assert turnover_ranking.volume == 120000000
+    assert turnover_ranking.trading_amount is None                      # tamt 없음
+    assert turnover_ranking.turnover_ratio == Decimal("0.37")           # tover 거래회전율(%)
+    assert turnover_ranking.shares_outstanding == 3180000000            # shar 상장주식수
+    assert turnover_ranking._raw["tover"] == "0.37"
     assert fake.calls[0]["path"] == "/uapi/overseas-stock/v1/ranking/trade-turnover"
     assert fake.calls[0]["tr_id"] == "HHDFS76340000"
 
