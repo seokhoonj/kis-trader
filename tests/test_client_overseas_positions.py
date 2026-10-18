@@ -136,6 +136,22 @@ def test_overseas_positions_non_mapping_row_fails_closed():
         _client(fake).account.overseas.positions(market="US")
 
 
+def test_as_rows_scalar_block_fails_closed():
+    # output 블록이 배열/매핑/빈값이 아닌 스칼라(문자열/숫자)면 '보유 없음'(빈 리스트)으로 접지 않고
+    # fail-closed -- {"output1": "에러"} 같은 손상 응답을 빈 포트폴리오로 오인하면 보유가 통째로
+    # 과소보고된다(_as_rows 를 직접 검증 -- output2 결측에 가려지지 않게).
+    from kis_trader.overseas._engine.account import _as_rows
+    assert _as_rows(None) == []
+    assert _as_rows("") == []
+    assert _as_rows({"ovrs_pdno": "AAPL"}) == [{"ovrs_pdno": "AAPL"}]
+    assert _as_rows([{"ovrs_pdno": "AAPL"}]) == [{"ovrs_pdno": "AAPL"}]
+    for bad in ("에러", 42, 3.14):
+        with pytest.raises(KISError):
+            _as_rows(bad)
+    with pytest.raises(KISError):
+        _as_rows([{"ovrs_pdno": "AAPL"}, "not-a-mapping"])
+
+
 def test_overseas_positions_requires_account():
     fake = FakeTransport(response=_resp([]))
     client = KISClient(app_key="k", app_secret="s", environment="real", transport=fake)  # 계좌 없음
