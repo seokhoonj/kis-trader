@@ -76,8 +76,9 @@ def test_ticker_quote_returns_unified_quote():
     assert quote.currency == "KRW"
     assert quote.current_price == Decimal(71500)
     assert quote.open == Decimal(70800)
-    assert quote.previous_close == Decimal(70900)  # stck_sdpr(기준가) = 올바른 계약(단일시세엔 전일종가
-    #  필드 없음; 기준가라야 previous_close+change==current 성립 -- 재지적 금지, market_data._parse_quote 참조)
+    # previous_close 는 stck_sdpr(기준가): 단일시세엔 전일종가 필드가 없고, 기준가라야
+    # previous_close + change == current 가 성립한다(상세는 market_data._parse_quote 주석).
+    assert quote.previous_close == Decimal(70900)
     assert quote.change == Decimal(600)           # sign 2 상승 -> 양수
     assert quote.change_percent == Decimal("0.85")
     assert quote.volume == 12345678

@@ -349,11 +349,13 @@ def fetch_quote(transport: Transport, *, symbol: str, market: str) -> Quote:
 
 
 def _parse_quote(output: Mapping[str, Any], *, symbol: str, market: str, as_of: datetime) -> Quote:
-    # previous_close <- stck_sdpr(기준가)는 의도된 올바른 매핑이다(재지적 금지). 단일시세(FHKST01010100)
-    # 응답엔 전일종가(stck_prdy_clpr) 필드가 없고(2026-10-18 라이브 프로브 확인), KRX는 권리락/배당락일의
-    # 전일대비(prdy_vrss)·등락률(prdy_ctrt)을 기준가 대비로 낸다(공식 규정). 따라서 기준가를 써야
-    # previous_close + change == current, change_percent == change/previous_close 가 성립한다 -- raw
-    # 전일종가로 바꾸면 권리락일에 이 항등이 깨진다. 기준가는 정상일엔 전일종가와 같다(Quote docstring).
+    # previous_close 에 stck_sdpr(기준가)를 쓴다. 단일시세(FHKST01010100) 응답엔 전일종가(stck_prdy_clpr)
+    # 필드가 없고(라이브 확인 2026-10-18), change(prdy_vrss)·change_percent(prdy_ctrt)이 기준가 대비로
+    # 온다(KRX 유가증권시장 업무규정: 가격제한폭·등락률은 기준가격 대비). 그래서 기준가를 써야
+    # previous_close + change == current_price, change_percent == change/previous_close 가 성립한다 --
+    # 전일종가를 쓰면 권리락/배당락일에 이 항등이 깨진다. 기준가는 정상일엔 전일종가와 같다
+    # (Quote.previous_close docstring 참조). 멀티시세는 전일종가를 쓰므로 권리락/배당락일 거동이 단일시세와
+    # 갈릴 수 있다 -- 그 날 실데이터로 확인 필요(release 비차단 follow-up).
     sign = str(output.get("prdy_vrss_sign", "")).strip()
     return Quote(
         symbol=symbol,

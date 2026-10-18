@@ -22,7 +22,7 @@ print(quote.current_price, quote.change_percent)  # 예: 71500  0.70
 | `currency` | 금액 통화 (국내 `KRW`) | str |
 | `current_price` | 현재가 | 원 |
 | `open` · `high` · `low` | 시가·고가·저가 | 원 |
-| `previous_close` | 전일 종가 | 원 |
+| `previous_close` | 기준가 (등락 산정 기준; 정상일엔 전일 종가, 권리락·배당락일엔 조정 기준가) | 원 |
 | `change` | 전일대비 (부호 포함) | 원 |
 | `change_percent` | 등락률 (부호 포함) | % |
 | `volume` | 누적 거래량 | 주 |
