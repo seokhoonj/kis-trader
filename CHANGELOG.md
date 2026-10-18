@@ -23,6 +23,10 @@ full-package review. This is a breaking release (0.x minor).
   `Quote.market` → `Quote.exchange` (the field holds a venue code; `OrderBook.market`
   is unchanged), execution-strength unified to `execution_strength` across realtime,
   intraday and ranking surfaces, and related). No deprecation aliases — update call sites.
+- `DomesticExecutionStrengthRanking` → `ExecutionStrengthRanking`: domestic ranking
+  result entities carry no region prefix (matching `VolumeRanking` / `MarketCapRanking`),
+  and there is no dedicated overseas twin to distinguish from (the overseas
+  execution-strength ranking returns the generic `OverseasRankedStock`).
 - `credentials.json` profile bundles are a closed schema: an unknown field (e.g. a
   typo like `acount`) is now rejected instead of silently ignored.
 

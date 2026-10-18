@@ -21,8 +21,8 @@ from .entities.ranking import (
     CreditBalanceRanking,
     DisparityRanking,
     DividendRanking,
-    DomesticExecutionStrengthRanking,
     DomesticRankedStock,
+    ExecutionStrengthRanking,
     ExpectedCloseRanking,
     ExpectedExecutionChangeRanking,
     HouseTradeVolumeRanking,
@@ -142,9 +142,9 @@ class DomesticRankingQueries:
         담은 :class:`~kis_trader.domestic.entities.ranking.QuoteBalanceRanking` 를 돌려준다(최대 30건)."""
         return ranking_api.fetch_quote_balance(self._client.transport, metric=metric, market="KRX")
 
-    def by_execution_strength(self) -> list[DomesticExecutionStrengthRanking]:
+    def by_execution_strength(self) -> list[ExecutionStrengthRanking]:
         """체결강도 순위(최대 30건). 당일 체결강도와 매수/매도 체결량을 담은
-        :class:`~kis_trader.domestic.entities.ranking.DomesticExecutionStrengthRanking` 를 돌려준다."""
+        :class:`~kis_trader.domestic.entities.ranking.ExecutionStrengthRanking` 를 돌려준다."""
         return ranking_api.fetch_execution_strength(self._client.transport, market="KRX")
 
     def by_bulk_trade_count(self, *, side: Side = "buy") -> list[BulkTradeCountRanking]:

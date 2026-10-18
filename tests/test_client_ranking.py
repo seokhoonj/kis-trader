@@ -14,8 +14,8 @@ import pytest
 from kis_trader import (
     BulkTradeCountRanking,
     DisparityRanking,
-    DomesticExecutionStrengthRanking,
     DomesticRankedStock,
+    ExecutionStrengthRanking,
     HouseTradeVolumeRanking,
     KISClient,
     MarketCapRanking,
@@ -307,7 +307,7 @@ def test_by_execution_strength_uses_endpoint_without_sort():
     assert call["tr_id"] == "FHPST01680000"
     assert call["params"]["FID_COND_SCR_DIV_CODE"] == "20168"
     assert "FID_RANK_SORT_CLS_CODE" not in call["params"]        # 정렬 축 없음
-    assert isinstance(ranked[0], DomesticExecutionStrengthRanking)
+    assert isinstance(ranked[0], ExecutionStrengthRanking)
     assert ranked[0].execution_strength == Decimal("128.5")
     assert ranked[0].buy_execution_volume == 1850000
     assert ranked[0].sell_execution_volume == 1620000

@@ -201,7 +201,7 @@ class VolumeRanking:
 
 
 @dataclass(frozen=True, slots=True)
-class DomesticExecutionStrengthRanking:
+class ExecutionStrengthRanking:
     """국내 체결강도 순위 한 항목(불변). ``rank`` 는 1부터의 순위.
 
     ``execution_strength`` 는 당일 체결강도(매수체결량/매도체결량 x100, 100 초과면 매수 우위),

@@ -77,8 +77,8 @@ from ..entities.ranking import (
     CreditBalanceRanking,
     DisparityRanking,
     DividendRanking,
-    DomesticExecutionStrengthRanking,
     DomesticRankedStock,
+    ExecutionStrengthRanking,
     ExpectedCloseRanking,
     ExpectedExecutionChangeRanking,
     HouseTradeVolumeRanking,
@@ -333,9 +333,9 @@ def fetch_quote_balance(transport: Transport, *, metric: str, market: str) -> li
 
 def fetch_execution_strength(
     transport: Transport, *, market: str
-) -> list[DomesticExecutionStrengthRanking]:
+) -> list[ExecutionStrengthRanking]:
     """체결강도 순위(정렬 없음). 당일 체결강도와 매수/매도 체결량을 담은
-    :class:`DomesticExecutionStrengthRanking` 로 돌려준다. 최대 30건."""
+    :class:`ExecutionStrengthRanking` 로 돌려준다. 최대 30건."""
     params = {
         "FID_COND_MRKT_DIV_CODE": _market_div(market),
         "FID_COND_SCR_DIV_CODE": _VOLUME_POWER_SCR,
@@ -832,14 +832,14 @@ def _parse_volume(rows: Sequence[Mapping[str, Any]]) -> list[VolumeRanking]:
 
 def _parse_execution_strength(
     rows: Sequence[Mapping[str, Any]],
-) -> list[DomesticExecutionStrengthRanking]:
-    ranked: list[DomesticExecutionStrengthRanking] = []
+) -> list[ExecutionStrengthRanking]:
+    ranked: list[ExecutionStrengthRanking] = []
     for row in rows:
         core = _core_ranked_fields(row)
         if core is None:  # 빈 행 skip
             continue
         ranked.append(
-            DomesticExecutionStrengthRanking(
+            ExecutionStrengthRanking(
                 **core,
                 execution_strength=required_decimal(row.get("tday_rltv"), "tday_rltv"),
                 buy_execution_volume=required_int(row.get("shnu_cnqn_smtn"), "shnu_cnqn_smtn"),
