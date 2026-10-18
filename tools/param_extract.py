@@ -7,9 +7,10 @@ PASS 시킬 여지). 그런 impl 은 request 경로를 별도 함수로 분리�
 dict unpacking(``{**base}``)이 있으면 base 키를 정적으로 알 수 없어 ``resolved=False`` 로 떨군다.
 
 params 를 같은 모듈 헬퍼로 조립해 변수로만 넘기는 패턴(``params = _helper(...)`` 뒤
-``request(params=params)``)은 그 헬퍼까지 따라가되, **헬퍼는 return 으로 돌려주는 dict 리터럴의 키만**
-센다(:func:`_collect_builder_keys`). 헬퍼 본문의 로깅·룩업 등 무관한 dict 를 세면 보내지도 않는 키를
-거짓 PASS 시키므로, 반환 매핑만 전송 키로 본다(반환이 변수/조건식이면 ``resolved=False``)."""
+``request(params=params)``)은 그 헬퍼까지 따라가되, **헬퍼가 단 하나의 return 으로 돌려주는 dict
+리터럴의 키만** 센다(:func:`_collect_builder_keys`). 헬퍼 본문의 로깅·룩업 등 무관한 dict 를 세면 보내지도
+않는 키를 거짓 PASS 시키므로 반환 매핑만 전송 키로 본다. 반환이 하나의 dict 리터럴이 아니면(여러 갈래의
+조건부 return, 변수/조건식 반환) 어느 갈래가 실행될지 정적으로 모르므로 ``resolved=False`` 로 떨군다."""
 from __future__ import annotations
 
 import ast
@@ -61,18 +62,20 @@ def _collect_builder_keys(fn: ast.FunctionDef, keys: set[str]) -> bool:
     반환이 dict 리터럴이 아니거나(변수/조건식) 반환이 없으면 정적 추적 불가 -> ``False``(보수적 skip);
     unpack(``{**base}``)/비상수 키도 ``False``."""
     returns = _own_returns(fn)
-    if not returns:
+    if len(returns) != 1:
+        # 반환이 없거나 여러 갈래(조건부 return)면 실제로 어느 갈래가 실행될지 정적으로 모른다 --
+        # 갈래별 키를 union 하면 한 갈래에만 있는 키를 '항상 전송'으로 오인해 required 검사를 거짓
+        # PASS 시킨다. 보수적으로 resolved=False(스캔 전체가 skip 돼 live_required 로 넘어간다).
         return False
+    ret = returns[0]
+    if not isinstance(ret.value, ast.Dict):
+        return False  # 변수/조건식 반환은 정적 추적 불가
     resolved = True
-    for ret in returns:
-        if not isinstance(ret.value, ast.Dict):
-            resolved = False  # 변수/조건식 반환은 정적 추적 불가
-            continue
-        for k in ret.value.keys:
-            if k is None or not (isinstance(k, ast.Constant) and isinstance(k.value, str)):
-                resolved = False
-            else:
-                keys.add(k.value)
+    for k in ret.value.keys:
+        if k is None or not (isinstance(k, ast.Constant) and isinstance(k.value, str)):
+            resolved = False  # unpack({**base})/비상수 키
+        else:
+            keys.add(k.value)
     return resolved
 
 

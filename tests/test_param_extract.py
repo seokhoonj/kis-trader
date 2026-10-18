@@ -47,3 +47,30 @@ def test_builder_keys_unresolved_on_variable_return():
     fn = ast.parse(src).body[0]
     keys: set[str] = set()
     assert _collect_builder_keys(fn, keys) is False
+
+
+def test_builder_keys_unresolved_on_disjoint_conditional_returns():
+    # 조건부 두 갈래가 서로 다른 키를 돌려주면 union 하지 않는다 -- 한 갈래에만 있는 키를 '항상 전송'으로
+    # 오인해 required 검사를 거짓 PASS 시키므로, 여러 return 은 resolved=False(보수적 skip).
+    src = ("def helper(flag):\n"
+           "    if flag:\n"
+           "        return {'A': '1'}\n"
+           "    return {'B': '2'}\n")
+    fn = ast.parse(src).body[0]
+    keys: set[str] = set()
+    assert _collect_builder_keys(fn, keys) is False
+    assert keys == set()  # 어느 갈래 키도 수집하지 않는다(부분 union 금지)
+
+
+def test_builder_keys_ignore_nested_function_returns():
+    # 중첩 함수(동기/비동기)의 return 은 이 헬퍼의 반환이 아니다 -- 바깥 return dict 키만 센다.
+    src = ("def helper():\n"
+           "    def inner():\n"
+           "        return {'NESTED': 'x'}\n"
+           "    async def ainner():\n"
+           "        return {'ANESTED': 'y'}\n"
+           "    return {'SENT': '1'}\n")
+    fn = ast.parse(src).body[0]
+    keys: set[str] = set()
+    assert _collect_builder_keys(fn, keys) is True
+    assert keys == {"SENT"}
