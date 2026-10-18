@@ -442,6 +442,21 @@ def test_reconcile_refresh_does_not_misattribute_sibling_when_own_row_absent():
     assert kis.orders.reconcile("s1", refresh=True) is None               # 형제 오귀속 금지
 
 
+def test_reconcile_timeout_recovery_blank_odno_nonterminal_not_recorded():
+    # 타임아웃 복구(지문 폴백)가 odno 가 빈 **비종료**(미체결) 행을 물면 order_id=None 리포트를 만들지
+    # 않는다 -- 그런 비종료 리포트는 이후 refresh 가 ODNO 로 자기 행을 못 집어 교착(None)에 빠진다.
+    store = OrderStore()
+    fake = FakeTransport(by_path={
+        _ORDER_CASH: TransportTimeoutError(),
+        _DAILY_CCLD: _daily_orders_response([_daily_order_row(odno="", filled_quantity="0")])})
+    kis = _client(fake, store=store)
+    with pytest.raises(OrderTimeoutError):
+        kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="to-blank")
+    assert kis.orders.reconcile("to-blank") is None
+    assert store.report_for("to-blank") is None            # order_id=None 비종료 리포트 미기록
+    assert store.is_in_flight("to-blank")                  # in-flight 유지
+
+
 def test_reconcile_refresh_returns_terminal_prior_when_rescan_empty():
     # 종료(체결) 확정 후 당일창 밖(익일) 재조회가 0건이어도 저장된 종료 리포트를 돌려준다 -- 종료
     # 상태는 재스캔으로 바뀌지 않으므로 '미해소'(None)로 퇴행시키지 않는다(CLI/MCP 상시 refresh 보호).

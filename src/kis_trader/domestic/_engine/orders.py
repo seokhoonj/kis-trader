@@ -105,7 +105,9 @@ def reconcile(
     """미확인 주문의 실제 상태를 브로커에 재조회한다 -- **보수적**(모듈 docstring 참고).
 
     완료 리포트가 있으면 반환. in-flight 면 일별체결조회를 스캔해 지문과 맞는 주문을 찾는다:
-    정확히 1건이면 확정, 0건이면 미접수로 단정하지 않고 ``None``(재전송 금지 유지), 2건 이상이면
+    정확히 1건이면 확정(단 그 행에 쓸 수 있는 ODNO 가 없으면 **비종료**는 ``None`` 유지 -- order_id=None
+    리포트가 이후 refresh 를 교착시키지 않게; **종료** 체결은 ODNO 없어도 확정), 0건이면 미접수로 단정하지
+    않고 ``None``(재전송 금지 유지), 2건 이상이면
     :class:`KISError`(수동 확인). 스캔 실패(에러/타임아웃)는 in-flight 유지한 채 예외. 모르는 id면
     :class:`KISUsageError`. **자동 해제는 절대 하지 않는다.**
 
@@ -163,12 +165,13 @@ def reconcile(
         if prior is not None and prior.status in TERMINAL_ORDER_STATUSES:
             return prior
         return None
-    if normalize_order_number(str(matches[0].get("odno", ""))) == "":
-        # 매칭 행에 쓸 수 있는 ODNO 가 없으면 order_id=None 리포트를 만들지 않는다 -- 그런 리포트는
-        # 이후 refresh 재조회가 ODNO 로 자기 행을 못 집어 영구 교착(None)에 빠지므로, 확정하지 않고
-        # in-flight 유지(None, 수동 확인). 지문 폴백(타임아웃 복구)이 odno 없는 행을 물었을 때만 걸린다.
-        return None
     report = _execution_report_from_daily_row(client_order_id, fingerprint, matches[0])
+    if not report.is_terminal and normalize_order_number(str(matches[0].get("odno", ""))) == "":
+        # 비종료 리포트인데 매칭 행에 쓸 수 있는 ODNO 가 없으면 order_id=None 으로 기록되고, 이후 refresh
+        # 재조회가 그 ODNO 로 자기 행을 못 집어 영구 교착(None)에 빠진다 -> 기록하지 않고 in-flight 유지.
+        # 종료(체결/취소/거부/만료)는 ODNO 없어도 확정한다 -- 종료 prior 는 refresh 의 0건 분기가 그대로
+        # 돌려주므로 교착이 없고, 진짜 체결을 미확정으로 버리면(재전송 유도) 이중체결 위험이 더 크다.
+        return None
     store.record(report, fingerprint)
     return report
 

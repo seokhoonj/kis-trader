@@ -406,6 +406,17 @@ def test_night_refresh_merges_on_padding_normalized_odno():
     assert report is not None and report.order_id == "5605"
 
 
+def test_night_timeout_recovery_blank_odno_nonterminal_not_recorded():
+    # 야간 union 타임아웃 복구(지문 폴백, prior 없음)가 odno 빈 **비종료** 행을 물면 order_id=None
+    # 리포트를 안 만든다 -- 그 record 가드(row 경로)를 직접 실행한다. A-only 승자.
+    store = _night_store()  # claim 만, report 없음 -> prior None
+    fake = FakeTransport()
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="", tot_ccld_qty="0")]))  # 비종료 빈 odno
+    fake.queue(_DAY_INQUIRY, _day_ccnl([]))
+    assert _reconcile(fake, store) is None
+    assert store.report_for("n1") is None
+
+
 def test_night_refresh_unusable_odno_prior_does_not_fingerprint_confirm_sibling():
     # 야간 union 도 prior 는 있으나 쓸 수 있는 ODNO 가 없으면(order_id None/전부-0) 지문 폴백으로 양측
     # 형제를 오확정하지 않는다 -- 지문 폴백은 prior 없는 타임아웃 복구 전용, prior 손상 시 0건(None).

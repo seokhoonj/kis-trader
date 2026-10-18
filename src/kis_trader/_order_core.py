@@ -12,7 +12,7 @@
    충돌 거부, in-flight 면 재조회 요구, 새로 확보되면 전송.
 3. 전송. 타임아웃이면 재시도 없이 in-flight 유지 후 :class:`OrderTimeoutError`.
 4. 접수 거부(rt_cd!=0)면 in-flight 해제 후 :class:`OrderRejectedError`(체결 아님).
-5. 접수됐으나 ODNO 없으면 재조회 불가 -> in-flight 유지하고 raise.
+5. 접수됐으나 쓸 수 있는 ODNO 없으면(누락 또는 전부-0) 재조회 불가 -> in-flight 유지하고 raise.
 6. 성공이면 리포트(NEW)를 기록하고 반환.
 """
 
@@ -266,7 +266,8 @@ def submit_change(
     Raises: 미확정/종료/수량·가격 위반·경합 변경은 :class:`KISUsageError`, 접수 거부(rt_cd!=0)는
     :class:`OrderRejectedError` -- 그중 '거래소 미접수'(원주문이 아직 거래소에 접수 전이라 정정취소가
     이른 경우)는 재시도 가능한 하위 타입 :class:`OrderNotAcceptedYetError`, 전송 타임아웃(처리 불명)은
-    :class:`OrderTimeoutError`, 정정 접수인데 ODNO 없음/예상외 outcome 은 :class:`OrderError`."""
+    :class:`OrderTimeoutError`, 정정 접수인데 쓸 수 있는 ODNO 없음(누락 또는 전부-0)/예상외 outcome 은
+    :class:`OrderError`."""
     # (리포트, 지문)을 한 락으로 원자 스냅샷 -- 아래 빌더가 둘을 함께 읽어 잔량/와이어를 만든다.
     # 따로 읽으면 그 사이 동시 정정/취소의 원자 리바인드가 끼어들어 세대가 어긋난 쌍(옛 지문 + 새
     # 리포트)을 볼 수 있고, 그러면 잘못된 잔량이 와이어로 나간다.

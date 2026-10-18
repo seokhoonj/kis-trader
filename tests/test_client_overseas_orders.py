@@ -301,6 +301,21 @@ def test_overseas_refresh_unusable_odno_prior_does_not_fingerprint_confirm_sibli
     assert client.orders.reconcile("noid", refresh=True) is None  # 형제(9999999) 오확정 안 함
 
 
+def test_overseas_timeout_recovery_blank_odno_nonterminal_not_recorded():
+    # 타임아웃 복구(지문 폴백)가 odno 빈 비종료 행을 물면 order_id=None 리포트를 안 만든다 -> None + in-flight.
+    from kis_trader.store import OrderStore
+    store = OrderStore()
+    fake = FakeTransport(on_post=TransportTimeoutError("t"),
+                         on_get=_ccnl([_ccnl_row(odno="", ccld_qty="0")]))
+    client = _client(fake, store=store)
+    with pytest.raises(OrderTimeoutError):
+        client.overseas.stock("AAPL", exchange="NAS").buy(
+            quantity=1, limit_price="150.00", client_order_id="to-blank")
+    assert client.orders.reconcile("to-blank") is None
+    assert store.report_for("to-blank") is None
+    assert store.is_in_flight("to-blank")
+
+
 def test_overseas_refresh_excludes_cancel_row_with_same_odno():
     # ODNO 로 집더라도 취소/정정 행(rvse_cncl_dvsn 01/02)이 같은 odno 로 오면 원주문 확정으로 오인하지
     # 않는다 -- 그 행 제외 -> 0건 -> None(비종료 유지, phantom 확정 방지).

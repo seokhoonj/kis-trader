@@ -329,8 +329,8 @@ def test_day_refresh_confirms_on_stored_odno_match():
 
 
 def test_day_refresh_blank_stored_odno_does_not_match_blank_row():
-    # 저장 ODNO 가 전부-0("0000000000")으로 정규화돼 비면, odno 가 빈 무관한 행("" -> "")을 이 주문으로
-    # 오매칭하지 않는다 -- 지문 매칭으로 내려가 pdno 불일치면 0건 -> 종료 prior 유지(빈값끼리 "" == "" 오매칭 방지).
+    # 저장 ODNO 가 전부-0("0000000000")으로 정규화돼 비면 prior 가 있으므로 else 분기(matches=[])로 가
+    # (지문 폴백 금지), odno 가 빈 무관한 행("" -> "")을 이 주문으로 오매칭하지 않는다 -> 종료 prior 유지.
     from kis_trader import OrderStatus
     store = OrderStore()
     order = _order(client_order_id="rf-zero")
@@ -373,15 +373,28 @@ def test_day_refresh_unusable_odno_prior_does_not_fingerprint_confirm_sibling():
                         now=datetime(2024, 3, 15, 10, 0, tzinfo=_KST)) is None
 
 
-def test_day_reconcile_blank_odno_row_is_not_recorded():
-    # 지문 폴백(타임아웃 복구)이 odno 가 빈 체결 행을 물어도 order_id=None 리포트를 만들지 않는다 --
-    # 그런 리포트는 이후 refresh 재조회가 ODNO 로 자기 행을 못 집어 영구 교착(None)에 빠지므로, 확정하지
-    # 않고 in-flight 유지(None, 저장소에 리포트 없음).
-    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=_ccnl([_row(odno="")]))
+def test_day_reconcile_blank_odno_nonterminal_row_is_not_recorded():
+    # 지문 폴백(타임아웃 복구)이 odno 가 빈 **비종료**(미체결 NEW) 행을 물면 order_id=None 리포트를
+    # 만들지 않는다 -- 그런 비종료 리포트는 이후 refresh 재조회가 ODNO 로 자기 행을 못 집어 영구 교착
+    # (None)에 빠지므로, 확정하지 않고 in-flight 유지(None, 저장소에 리포트 없음).
+    fake = FakeTransport(on_post=TransportTimeoutError("t"), on_get=_ccnl([_row(odno="", tot_ccld_qty="0")]))
     client = _client(fake)
-    _place_timeout(client, "blank-odno")
-    assert client.orders.reconcile("blank-odno") is None
-    assert client._store.report_for("blank-odno") is None  # order_id=None 리포트를 기록하지 않았다
+    _place_timeout(client, "blank-nt")
+    assert client.orders.reconcile("blank-nt") is None
+    assert client._store.report_for("blank-nt") is None       # order_id=None 비종료 리포트 미기록
+    assert client._store.is_in_flight("blank-nt")             # in-flight 유지(수동 확인)
+
+
+def test_day_reconcile_blank_odno_terminal_fill_is_confirmed():
+    # 반대로 odno 가 빈 **종료**(전량체결) 행은 ODNO 없어도 확정한다 -- 종료 리포트는 refresh 의 0건
+    # 분기가 그대로 돌려줘 교착이 없고, 진짜 체결을 미확정으로 버리면 재전송 유도로 이중체결 위험이 크다.
+    from kis_trader import OrderStatus
+    fake = FakeTransport(on_post=TransportTimeoutError("t"),
+                         on_get=_ccnl([_row(odno="", tot_ccld_qty="1")]))  # 전량체결
+    client = _client(fake)
+    _place_timeout(client, "blank-term")
+    report = client.orders.reconcile("blank-term")
+    assert report is not None and report.status is OrderStatus.FILLED and report.order_id is None
 
 
 def test_day_reconcile_night_session_on_paper_fails_closed():

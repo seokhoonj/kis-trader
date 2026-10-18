@@ -384,7 +384,9 @@ def reconcile(
 ) -> ExecutionReport | None:
     """미확인 해외 주문의 실제 상태를 체결내역에서 재조회한다 -- **보수적**(도메스틱과 동형).
 
-    완료 리포트가 있으면 반환. in-flight 면 체결내역을 지문으로 스캔해 정확히 1건이면 확정, 0건이면
+    완료 리포트가 있으면 반환. in-flight 면 체결내역을 지문으로 스캔해 정확히 1건이면 확정(단 그 행에
+    쓸 수 있는 ODNO 가 없으면 비종료는 ``None`` 유지 -- order_id=None 리포트의 refresh 교착 방지; 종료
+    체결은 ODNO 없어도 확정), 0건이면
     ``None``(재전송 금지 유지), 2건 이상이면 :class:`KISError`. **자동 해제는 절대 하지 않는다.**
     ODNO 로는 서버 **검색**이 안 돼(KIS 명세) 기본은 지문(종목/매매/수량/단가)으로 맞춘다. 단
     ``force_refresh`` 재조회로 prior 에 확정 ODNO 가 있으면, 반환된 행의 ``odno`` 로 **로컬 필터링**해
@@ -455,9 +457,9 @@ def reconcile(
         if prior is not None and prior.status in TERMINAL_ORDER_STATUSES:
             return prior
         return None
-    if normalize_order_number(str(matches[0].get("odno", ""))) == "":
-        return None  # 매칭 행에 쓸 수 있는 ODNO 없음 -> order_id=None 리포트 안 만듦(향후 refresh 교착 방지)
     report = _ccnl_report(client_order_id, fingerprint, matches[0])
+    if not report.is_terminal and normalize_order_number(str(matches[0].get("odno", ""))) == "":
+        return None  # 비종료 + ODNO 없음 -> order_id=None 리포트는 refresh 교착 유발; 종료는 ODNO 없어도 확정
     store.record(report, fingerprint)
     return report
 
