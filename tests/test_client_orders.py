@@ -310,23 +310,52 @@ def test_modify_with_all_zero_odno_fails_closed_and_does_not_rebind():
     assert store.report_for("modify-z") is None
 
 
-def test_cancel_of_terminal_order_without_odno_fails_closed_locally():
-    # 재조회가 ODNO 없는 종료(체결) 리포트를 확정했을 때(order_id=None), 그 주문의 취소/정정은 와이어·
-    # 조회 전에 로컬에서 KISUsageError 로 막는다 -- str(None)="None" 을 브로커에 조회·전송하지 않는다.
+@pytest.mark.parametrize("action", ["cancel", "modify"])
+def test_terminal_order_with_valid_odno_rejects_change_before_transport(action):
+    # 쓸 수 있는 ODNO 가 있는 종료 주문도 terminal 가드가 취소/정정을 와이어 전에 막아야 한다.
+    # order_id=None 가드가 우연히 대신 막는 테스트로는 terminal 가드의 실효성을 증명하지 못한다.
     from datetime import UTC, datetime
     store = OrderStore()
     fake = FakeTransport(by_path={_ORDER_CASH: _ACCEPTED_ORDER_RESPONSE})
     kis = _client(fake, store=store)
-    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="t-noid")
-    fp = store.fingerprint_for("t-noid")
-    store.record(ExecutionReport(  # 종료(FILLED) + order_id=None 리포트로 덮어쓴다
-        client_order_id="t-noid", order_id=None, symbol="005930", side="buy",
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="terminal")
+    fp = store.fingerprint_for("terminal")
+    store.record(ExecutionReport(
+        client_order_id="terminal", order_id="0000117057", symbol="005930", side="buy",
         status=OrderStatus.FILLED, filled_quantity=Decimal(10), average_price=Decimal(70000),
         recorded_at=datetime(2024, 1, 1, tzinfo=UTC)), fp)
     calls_before = len(fake.calls)
-    with pytest.raises(KISUsageError):
-        kis.orders.cancel("t-noid")
+    kwargs = {"limit_price": 71000} if action == "modify" else {}
+    with pytest.raises(KISUsageError, match="종료"):
+        getattr(kis.orders, action)("terminal", **kwargs)
     assert len(fake.calls) == calls_before       # 와이어/조회에 닿지 않았다
+
+
+def test_place_returns_concurrent_filled_report_instead_of_overwriting_with_new():
+    # place 가 POST 응답을 기다리는 동안 reconcile 이 FILLED 를 기록하면, 늦게 온 접수 NEW/0 이
+    # 현재 체결을 덮어쓰지 않아야 한다. 반환값도 저장된 최신 체결이어야 한다.
+    from datetime import UTC, datetime
+
+    store = OrderStore(now=lambda: datetime(2024, 1, 1, tzinfo=UTC))
+
+    class ReconcileDuringPlaceTransport(FakeTransport):
+        def request(self, **kwargs):
+            fingerprint = store.fingerprint_for("place-race")
+            assert fingerprint is not None
+            store.record(ExecutionReport(
+                client_order_id="place-race", order_id="0000117057", symbol="005930", side="buy",
+                status=OrderStatus.FILLED, filled_quantity=Decimal(10), average_price=Decimal(70000),
+                recorded_at=datetime(2024, 1, 1, tzinfo=UTC)), fingerprint)
+            return super().request(**kwargs)
+
+    fake = ReconcileDuringPlaceTransport(response=_ACCEPTED_ORDER_RESPONSE)
+    report = _client(fake, store=store).domestic.stock("005930").buy(
+        quantity=10, limit_price=70000, client_order_id="place-race")
+    stored = store.report_for("place-race")
+    assert report.status is OrderStatus.FILLED
+    assert report.filled_quantity == Decimal(10)
+    assert stored is not None and stored.status is OrderStatus.FILLED
+    assert stored.filled_quantity == Decimal(10)
 
 
 def test_modify_replay_same_request_id_returns_prior_not_conflict():
@@ -371,6 +400,81 @@ def test_modify_quantity_rebinds_remaining_for_next_change():
     assert change_calls[1]["body"]["ORD_QTY"] == "4"          # 원 10 아닌 정정 후 4
     # 2차 정정 뒤에는 원 id 가 2차의 ODNO 를 가리킨다(재바인딩 연쇄).
     assert store.report_for("orig-1").order_id == "0000117062"
+
+
+def test_change_rejects_stale_original_generation_before_second_wire(monkeypatch):
+    # 2차 정정이 G1 잔량을 계산한 뒤 claim 전에 동시 정정이 G2 로 재바인딩하면, G1 수량을 G2 ODNO 에
+    # 보내지 않고 stale generation 으로 거부해야 한다. 끼어든 정정 한 건만 와이어에 닿는다.
+    place = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "01790", "ODNO": "0000117057", "ORD_TMD": "090000"}})
+    concurrent_modify = RawResponse(rt_cd="0", msg_cd="A", msg1="", body={"output": {
+        "KRX_FWDG_ORD_ORGNO": "02880", "ODNO": "0000117061", "ORD_TMD": "090100"}})
+    fake = FakeTransport(by_path={_ORDER_CASH: place, _ORDER_CHANGE: concurrent_modify})
+    store = OrderStore()
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-stale")
+
+    original_try_claim_change = store.try_claim_change
+    injected = False
+
+    def claim_after_concurrent_modify(request_id, fingerprint, **kwargs):
+        nonlocal injected
+        if not injected:
+            injected = True
+            kis.orders.modify(
+                "orig-stale", quantity=4, limit_price=71000, request_id="concurrent-modify")
+        return original_try_claim_change(request_id, fingerprint, **kwargs)
+
+    monkeypatch.setattr(store, "try_claim_change", claim_after_concurrent_modify)
+    with pytest.raises(KISUsageError, match="재바인딩"):
+        kis.orders.modify("orig-stale", limit_price=72000, request_id="stale-modify")
+    change_calls = [call for call in fake.calls if call["path"] == _ORDER_CHANGE]
+    assert len(change_calls) == 1
+    assert change_calls[0]["body"]["ORD_QTY"] == "4"
+    assert store.report_for("orig-stale").order_id == "0000117061"
+
+
+def test_change_rejects_fill_recorded_after_quantity_computation(monkeypatch):
+    # 변경 수량을 filled=0 에서 계산한 뒤 claim 전에 같은 ODNO/지문에 filled=5 가 기록되면,
+    # 낡은 잔량 10을 와이어로 보내지 않고 stale original 로 거부해야 한다.
+    from datetime import UTC, datetime
+
+    now = datetime(2024, 1, 1, tzinfo=UTC)
+    fake = FakeTransport(by_path={_ORDER_CASH: _ACCEPTED_ORDER_RESPONSE})
+    store = OrderStore(now=lambda: now)
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(
+        quantity=10, limit_price=70000, client_order_id="orig-fill-race")
+
+    original_try_claim_change = store.try_claim_change
+    injected = False
+
+    def claim_after_concurrent_fill(request_id, fingerprint, **kwargs):
+        nonlocal injected
+        if not injected:
+            injected = True
+            binding = store.binding_for("orig-fill-race")
+            assert binding is not None
+            store.record(
+                ExecutionReport(
+                    client_order_id="orig-fill-race",
+                    order_id=binding.report.order_id,
+                    symbol=binding.report.symbol,
+                    side=binding.report.side,
+                    status=OrderStatus.PARTIALLY_FILLED,
+                    filled_quantity=Decimal(5),
+                    average_price=Decimal(70000),
+                    recorded_at=now,
+                ),
+                binding.fingerprint,
+            )
+        return original_try_claim_change(request_id, fingerprint, **kwargs)
+
+    monkeypatch.setattr(store, "try_claim_change", claim_after_concurrent_fill)
+    with pytest.raises(KISUsageError, match="재바인딩"):
+        kis.orders.modify(
+            "orig-fill-race", limit_price=71000, request_id="fill-race-modify")
+    assert [call for call in fake.calls if call["path"] == _ORDER_CHANGE] == []
 
 
 def test_modify_rebind_persists_in_a_single_store_write(monkeypatch):
@@ -461,6 +565,38 @@ def test_reconcile_refresh_does_not_misattribute_sibling_when_own_row_absent():
     assert kis.orders.reconcile("s1", refresh=True) is None               # 형제 오귀속 금지
 
 
+def test_domestic_stock_refresh_returns_concurrent_rebind_generation():
+    # 국내주식 refresh 가 조회 중 동시 정정의 새 ODNO 로 재바인딩된 세대를 옛 조회행으로 덮지 않는다.
+    from dataclasses import replace
+    from datetime import UTC, datetime
+
+    store = OrderStore(now=lambda: datetime(2024, 1, 1, tzinfo=UTC))
+
+    class RebindDuringRefreshTransport(FakeTransport):
+        def request(self, **kwargs):
+            if kwargs["path"] == _DAILY_CCLD:
+                prior = store.report_for("stock-rebind")
+                fingerprint = store.fingerprint_for("stock-rebind")
+                assert prior is not None and fingerprint is not None
+                store.record(
+                    replace(prior, order_id="0000117999"),
+                    replace(fingerprint, limit_price="71000"),
+                )
+            return super().request(**kwargs)
+
+    fake = RebindDuringRefreshTransport(by_path={
+        _ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
+        _DAILY_CCLD: _daily_orders_response([_daily_order_row(filled_quantity="0")]),
+    })
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(
+        quantity=10, limit_price=70000, client_order_id="stock-rebind")
+    report = kis.orders.reconcile("stock-rebind", refresh=True)
+    assert report is not None and report.order_id == "0000117999"
+    stored = store.report_for("stock-rebind")
+    assert stored is not None and stored.order_id == "0000117999"
+
+
 def test_reconcile_timeout_recovery_blank_odno_nonterminal_not_recorded():
     # 타임아웃 복구(지문 폴백)가 odno 가 빈 **비종료**(미체결) 행을 물면 order_id=None 리포트를 만들지
     # 않는다 -- 그런 비종료 리포트는 이후 refresh 가 ODNO 로 자기 행을 못 집어 교착(None)에 빠진다.
@@ -505,26 +641,105 @@ def test_reconcile_refresh_returns_terminal_prior_when_rescan_empty():
     assert second is not None and second.status is OrderStatus.FILLED
 
 
-def test_reconcile_of_change_queries_broker_fresh_then_clears_the_stuck_change():
-    """변경(정정/취소)이 타임아웃·스로틀로 in-flight 로 박히면, 그 request_id 의 reconcile 은 원주문의
-    **현재** 상태를 브로커에서 다시 조회해(저장된 낡은 리포트를 단락 반환하지 않는다) 1건으로 확정되면
-    막혀 있던 변경 in-flight 를 해제한다 -- 변경이 박히면 pending 게이트가 새 변경을 전부 막고 reconcile
-    도 거부하던 과거엔 접수된 주문이 영영 정정·취소 불가(데드락)였다. **일별체결조회 fixture 가 없으면
-    실패해야 한다**(그게 바로 캐시 단락이 아니라 와이어를 탔다는 증거다)."""
+def test_reconcile_of_change_releases_only_after_original_becomes_terminal():
+    """타임아웃된 취소의 reconcile 이 아직 NEW 인 원주문만 보면 변경 in-flight 를 유지하고,
+    원주문 종료가 확인된 뒤에만 해제한다."""
     fake = FakeTransport(by_path={_ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
                                   _ORDER_CHANGE: TransportTimeoutError(),
-                                  _DAILY_CCLD: [_daily_orders_response([_daily_order_row()])]})
+                                  _DAILY_CCLD: [
+                                      _daily_orders_response([
+                                          _daily_order_row(filled_quantity="0", org="01790")]),
+                                      _daily_orders_response([
+                                          _daily_order_row(filled_quantity="10", org="01790")]),
+                                  ]})
     store = OrderStore()
     kis = _client(fake, store=store)
-    placed = kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-1")
+    kis.domestic.stock("005930").buy(quantity=10, limit_price=70000, client_order_id="orig-1")
     with pytest.raises(OrderTimeoutError):
-        kis.orders.modify("orig-1", limit_price=71000, request_id="modify-1")
-    assert store.is_in_flight("modify-1")
-    result = kis.orders.reconcile("modify-1")
-    assert any(c["path"] == _DAILY_CCLD for c in fake.calls)  # 캐시 단락이 아니라 브로커를 실제 조회함
-    assert result is not None and result.order_id == placed.order_id
-    assert not store.is_in_flight("modify-1")           # 막혔던 변경 해제됨
-    assert store.in_flight_change_for("orig-1") is None  # pending 게이트 열림 -> 새 변경 가능
+        kis.orders.cancel("orig-1", request_id="cancel-timeout")
+
+    fresh = kis.orders.reconcile("cancel-timeout")
+    assert fresh is not None and fresh.status is OrderStatus.NEW
+    assert store.is_in_flight("cancel-timeout")
+    with pytest.raises(KISUsageError, match="결과 미확인 변경"):
+        kis.orders.modify("orig-1", limit_price=71000, request_id="modify-blocked")
+    assert len([c for c in fake.calls if c["path"] == _ORDER_CHANGE]) == 1
+
+    terminal = kis.orders.reconcile("cancel-timeout")
+    assert terminal is not None and terminal.status is OrderStatus.FILLED
+    assert not store.is_in_flight("cancel-timeout")
+    assert store.in_flight_change_for("orig-1") is None
+
+
+def test_modify_reconcile_release_logic_releases_when_result_has_new_odno():
+    """타임아웃된 정정 뒤 reconcile 이 새 ODNO 세대를 관측하면 변경 in-flight 를 해제하고,
+    살아 있는 원주문에 후속 변경을 허용한다."""
+    from dataclasses import replace
+    from datetime import UTC, datetime
+
+    now = datetime(2024, 1, 1, tzinfo=UTC)
+    store = OrderStore(now=lambda: now)
+
+    class RebindDuringReconcileTransport(FakeTransport):
+        def request(self, **kwargs):
+            if kwargs["path"] == _DAILY_CCLD:
+                binding = store.binding_for("orig-modify-success")
+                assert binding is not None
+                store.record(
+                    replace(binding.report, order_id="0000117061", recorded_at=now),
+                    binding.fingerprint,
+                )
+            return super().request(**kwargs)
+
+    fake = RebindDuringReconcileTransport(by_path={
+        _ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
+        _ORDER_CHANGE: [TransportTimeoutError(), _ACCEPTED_ORDER_RESPONSE],
+        _DAILY_CCLD: _daily_orders_response([
+            _daily_order_row(odno="0000117057", filled_quantity="0", org="01790")]),
+    })
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(
+        quantity=10, limit_price=70000, client_order_id="orig-modify-success")
+    with pytest.raises(OrderTimeoutError):
+        kis.orders.modify(
+            "orig-modify-success", limit_price=71000, request_id="modify-timeout")
+
+    fresh = kis.orders.reconcile("modify-timeout")
+    # 새 ODNO를 이미 담은 결과에 대한 해제 로직 단위 테스트이며 브로커의 새 ID 탐색 능력은 증명하지 않는다.
+    assert fresh is not None and fresh.order_id == "0000117061"
+    assert not store.is_in_flight("modify-timeout")
+    kis.orders.cancel("orig-modify-success", request_id="cancel-after-modify")
+    assert len([call for call in fake.calls if call["path"] == _ORDER_CHANGE]) == 2
+
+
+def test_timed_out_modify_stays_in_flight_when_broker_scan_cannot_confirm():
+    """타임아웃된 정정 뒤에도 같은 비종료 ODNO만 보이면 변경 반영이 미확인이라 lock을 유지한다."""
+    from datetime import UTC, datetime
+
+    now = datetime(2024, 1, 1, tzinfo=UTC)
+    fake = FakeTransport(by_path={
+        _ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
+        _ORDER_CHANGE: TransportTimeoutError(),
+        _DAILY_CCLD: _daily_orders_response([
+            _daily_order_row(odno="0000117057", filled_quantity="0", org="01790")]),
+    })
+    store = OrderStore(now=lambda: now)
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(
+        quantity=10, limit_price=70000, client_order_id="orig-modify-unconfirmed")
+    with pytest.raises(OrderTimeoutError):
+        kis.orders.modify(
+            "orig-modify-unconfirmed", limit_price=71000, request_id="modify-unconfirmed")
+
+    fresh = kis.orders.reconcile("modify-unconfirmed")
+    assert fresh is not None and fresh.order_id == "0000117057"
+    assert store.is_in_flight("modify-unconfirmed")
+    with pytest.raises(KISUsageError, match="결과 미확인 변경"):
+        kis.orders.cancel("orig-modify-unconfirmed", request_id="cancel-blocked")
+    with pytest.raises(KISUsageError, match="결과 미확인 변경"):
+        kis.orders.modify(
+            "orig-modify-unconfirmed", limit_price=72000, request_id="modify-blocked")
+    assert len([call for call in fake.calls if call["path"] == _ORDER_CHANGE]) == 1
 
 
 def test_reconcile_of_change_keeps_in_flight_when_broker_is_ambiguous():

@@ -118,9 +118,16 @@ class PriorChangeInFlight:
     other_request_id: str
 
 
+@dataclass(frozen=True, slots=True)
+class StaleOriginal:
+    """원주문이 기대한 세대와 다르다 -- 새 바인딩 기준으로 다시 계산한 뒤 재시도해야 한다."""
+
+    current_fingerprint: Fingerprint | None
+
+
 #: :meth:`OrderStore.try_claim` / :meth:`try_claim_change` 의 판별 결과(주문 전송 여부를 가르는
 #: 결정) -- 변형별로 필요한 필드만 담아 "완료인데 리포트 없음" 같은 반쪽 상태를 표현 불가능하게 한다.
-ClaimResult = Claimed | Completed | InFlight | Conflict | PriorChangeInFlight
+ClaimResult = Claimed | Completed | InFlight | Conflict | PriorChangeInFlight | StaleOriginal
 
 
 class OrderStore:
@@ -186,14 +193,16 @@ class OrderStore:
     def try_claim_change(
         self, request_id: str, fingerprint: ChangeActionFingerprint,
         *, original_client_order_id: str,
+        expected_original: Binding | None = None,
     ) -> ClaimResult:
         """정정/취소 전용 원자 check-and-claim: "같은 원주문을 겨눈 다른 in-flight 변경이 있는가"
         검사와 request_id 확보를 **한 락** 안에서 함께 한다.
 
         두 연산을 별도 락으로 나누면(과거 구현: ``in_flight_change_for`` 후 ``try_claim``) 같은
         원주문에 대한 두 변경이 둘 다 각자의 검사를 통과해 둘 다 와이어로 나가는 TOCTOU 경합이 난다.
-        반환: :class:`PriorChangeInFlight` (다른 변경 미확인 -> 거부) / :class:`Claimed`/`Completed`/
-        `InFlight`/`Conflict` (:meth:`try_claim` 과 동일 의미, 같은 request_id 재시도 처리 포함)."""
+        반환: :class:`PriorChangeInFlight` (다른 변경 미확인 -> 거부) / :class:`StaleOriginal`
+        (원주문 세대 변경 -> 재계산 필요) / :class:`Claimed`/`Completed`/`InFlight`/`Conflict`
+        (:meth:`try_claim` 과 동일 의미, 같은 request_id 재시도 처리 포함)."""
         with self._lock:
             self._require_open()
             for cid in self._in_flight:
@@ -203,6 +212,14 @@ class OrderStore:
                 if isinstance(other, ChangeActionFingerprint) \
                         and other.original_client_order_id == original_client_order_id:
                     return PriorChangeInFlight(cid)
+            current_report = self._reports.get(original_client_order_id)
+            current_fingerprint = self._fingerprints.get(original_client_order_id)
+            if expected_original is not None and (
+                    current_fingerprint != expected_original.fingerprint
+                    or current_report is None
+                    or current_report.order_id != expected_original.report.order_id
+                    or current_report.filled_quantity != expected_original.report.filled_quantity):
+                return StaleOriginal(current_fingerprint)
             prior = self._classify_locked(request_id, fingerprint)
             if prior is not None:
                 return prior

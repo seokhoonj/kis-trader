@@ -42,7 +42,7 @@ from kis_trader.overseas._engine import derivative_orders as _ovs_fo
 from kis_trader.overseas._engine import orders as _ovs
 from kis_trader.overseas._engine import reserved_orders as _ovs_resv
 from kis_trader.report import ExecutionReport, OrderStatus
-from kis_trader.store import OrderStore
+from kis_trader.store import Binding, OrderStore
 
 # --- fixed capture inputs (deterministic; none affect the fingerprint) ------------------------
 _CANO = "12345678"
@@ -92,11 +92,14 @@ class _RecordingStore:
         return self._store.try_claim(key, fingerprint)
 
     def try_claim_change(self, key: str, fingerprint: OrderFingerprint, *,
-                         original_client_order_id: str) -> object:
+                         original_client_order_id: str,
+                         expected_original: Binding | None = None) -> object:
         # 정정/취소 경로(submit_change)는 원자적 try_claim_change 를 쓴다 -- 지문 캡처는 동일.
         self.fingerprints.append(fingerprint)
         return self._store.try_claim_change(
-            key, fingerprint, original_client_order_id=original_client_order_id)
+            key, fingerprint,
+            original_client_order_id=original_client_order_id,
+            expected_original=expected_original)
 
     def __getattr__(self, name: str) -> Any:
         return getattr(self._store, name)
@@ -357,6 +360,7 @@ def _capture_change(kwargs: dict[str, Any]) -> tuple[OrderFingerprint, WireReque
                 product_code=_PRODUCT,
                 environment=_ENV,
                 build_request=builder,
+                expected_original=store.binding_for(_ORIG_CID),
             )
         except _Captured:
             captured = True

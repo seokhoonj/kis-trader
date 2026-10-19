@@ -354,6 +354,40 @@ def test_overseas_refresh_confirms_on_stored_odno():
     assert report is not None and report.order_id == "0000123456"
 
 
+def test_overseas_stock_refresh_returns_concurrent_rebind_generation():
+    # 해외주식 refresh 도 조회 중 동시 정정의 새 ODNO 세대를 옛 체결행으로 덮지 않는다.
+    from dataclasses import replace
+    from datetime import UTC, datetime
+
+    from kis_trader import OrderStore
+
+    store = OrderStore(now=lambda: datetime(2024, 1, 1, tzinfo=UTC))
+
+    class RebindDuringRefreshTransport(FakeTransport):
+        def request(self, **kwargs):
+            if kwargs["method"] == "GET":
+                prior = store.report_for("overseas-rebind")
+                fingerprint = store.fingerprint_for("overseas-rebind")
+                assert prior is not None and fingerprint is not None
+                store.record(
+                    replace(prior, order_id="0009999999"),
+                    replace(fingerprint, limit_price="151.00"),
+                )
+            return super().request(**kwargs)
+
+    fake = RebindDuringRefreshTransport(
+        on_post=_ack("0000123456"),
+        on_get=_ccnl([_ccnl_row(odno="0000123456", ccld_qty="0")]),
+    )
+    client = _client(fake, store=store)
+    client.overseas.stock("AAPL", exchange="NAS").buy(
+        quantity=1, limit_price="150.00", client_order_id="overseas-rebind")
+    report = client.orders.reconcile("overseas-rebind", refresh=True)
+    assert report is not None and report.order_id == "0009999999"
+    stored = store.report_for("overseas-rebind")
+    assert stored is not None and stored.order_id == "0009999999"
+
+
 def test_overseas_reconcile_two_matches_raises():
     # 지문과 맞는 체결이 2건이면 자동 확정하지 않고 에러(보수적 -- 오확정 방지).
     fake = FakeTransport(on_post=TransportTimeoutError("timeout"),

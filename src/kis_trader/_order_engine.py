@@ -381,6 +381,7 @@ class OrderEngine:
             product_code=product_code,
             environment=self._environment,
             build_request=builder,
+            expected_original=binding,
         )
 
     def reconcile(self, client_order_id: str, *, refresh: bool = False) -> ExecutionReport | None:
@@ -393,12 +394,16 @@ class OrderEngine:
         시간초과면 :class:`~kis_trader.errors.OrderTimeoutError`(in-flight 유지, 잠시 후 재시도).
 
         정정·취소(ChangeAction) id 를 주면 원주문의 **현재** 상태를 브로커에서 다시 조회해(캐시가
-        아니라) 판단한다: 1건으로 확정되면 이 변경의 in-flight 를 해제하고 원주문의 현재 리포트를
-        반환, 모호(``None``)하거나 재조회 실패면 해제하지 않고 그대로 올린다(미확인을 확인으로
-        둔갑시키지 않는다 -- 이 경우 변경은 in-flight 로 남으니 브로커에서 수동 확인하라). 원주문
+        아니라) 판단한다: 종료 상태 또는 정정 뒤 새 ODNO 로 확정되면 이 변경의 in-flight 를 해제하고
+        원주문의 현재 리포트를 반환한다. 그 외 비종료 리포트, 모호(``None``), 재조회 실패는 해제하지
+        않고 그대로 올린다(미확인을 확인으로 둔갑시키지 않는다 -- 이 경우 변경은 in-flight 로 남으니
+        브로커에서 수동 확인하라). 원주문
         자산군이 reconcile 미지원(채권·해외선물옵션)이면 :class:`~kis_trader.errors.KISUsageError`.
         ``refresh=True`` 면 저장된 완료 리포트가 있어도 단락하지 않고 브로커를 다시 스캔해 **현재**
         상태를 돌려준다(체결 측정·사후확정용; 아래 ChangeAction 경로도 이 플래그로 원주문을 재스캔한다).
+        전송 시간초과로 실패한 정정이 실제로는 성공했더라도 재조회가 대체된 주문을 항상 자동으로 다시
+        확인할 수 없어 변경이 처리 중 상태로 남을 수 있으므로, HTS/MTS 또는 계좌 조회에서 확인하고
+        그곳에서 주문을 계속 관리할 수 있습니다.
         """
         cano, product_code = self._require_account()
         # 해외 주문의 미확인(in-flight) 재조회는 국내 일별체결조회가 아니라 해외 체결내역으로 확인해야
@@ -417,6 +422,9 @@ class OrderEngine:
             #     가 실패(타임아웃/다건 예외)하면 해제하지 않고 그대로 올린다 -- 확인 안 된 것을 확인된
             #     척하지 않는다(reconcile 이 유일한 사후 진실이고 캐시를 진실로 위장하지 않는다). 변경은
             #     in-flight 로 남고 사용자는 브로커(HTS/MTS)로 수동 확인한다.
+            action = fingerprint.action
+            pre_change_report = self._store.report_for(fingerprint.original_client_order_id)
+            pre_change_order_id = pre_change_report.order_id if pre_change_report is not None else None
             try:
                 fresh = self.reconcile(fingerprint.original_client_order_id, refresh=True)
             except KISUsageError:
@@ -427,7 +435,15 @@ class OrderEngine:
                     "reconcile 미지원이라 변경 접수 여부를 자동 확인할 수 없다 -- 계좌 조회로 수동 확인하라."
                 ) from None
             if fresh is not None:
-                self._store.clear_in_flight(client_order_id)
+                confirmed = fresh.is_terminal
+                if action == "modify" and not confirmed:
+                    # 정정 성공 시 KIS 는 원주문에 새 ODNO 를 부여한다. reconcile 가 그 새 세대를
+                    # 관측하면(order_id 변화) 정정 반영이 확정돼 해제한다. 재조회가 새 ODNO 행을
+                    # 집지 못하면(원 ODNO 로만 매칭돼 None/옛 행) 확정 불가이므로 보수적으로 유지한다
+                    # -- read-only 확인이라 와이어 동작을 바꾸지 않는다.
+                    confirmed = bool(fresh.order_id) and fresh.order_id != pre_change_order_id
+                if confirmed:
+                    self._store.clear_in_flight(client_order_id)
             return fresh
         if isinstance(fingerprint, ReservedOrderFingerprint):
             # 예약주문은 일별체결이 아니라 예약주문조회로 확인한다(국내/해외 예약 경로를 exchange 로 가른다).

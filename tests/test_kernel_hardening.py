@@ -61,7 +61,8 @@ def test_second_change_on_same_order_is_rejected(tmp_path):
             _FakeTransport(), store, original_client_order_id="orig", request_id="req-2",
             action="cancel", quantity=Decimal(1), limit_price=None,
             cano="12345678", product_code="01", environment="real",
-            build_request=orders_engine._make_domestic_change_request)
+            build_request=orders_engine._make_domestic_change_request,
+            expected_original=store.binding_for("orig"))
 
 
 def test_same_request_id_retry_is_not_treated_as_second_change(tmp_path):
@@ -80,7 +81,8 @@ def test_same_request_id_retry_is_not_treated_as_second_change(tmp_path):
             _FakeTransport(), store, original_client_order_id="orig", request_id="req-1",
             action="cancel", quantity=Decimal(1), limit_price=None,
             cano="12345678", product_code="01", environment="real",
-            build_request=orders_engine._make_domestic_change_request)
+            build_request=orders_engine._make_domestic_change_request,
+            expected_original=store.binding_for("orig"))
 
 
 def test_domestic_modify_still_requires_positive_limit(tmp_path):
@@ -94,7 +96,8 @@ def test_domestic_modify_still_requires_positive_limit(tmp_path):
             _FakeTransport(), store, original_client_order_id="orig", request_id="r",
             action="modify", quantity=Decimal(1), limit_price=None,   # 정정인데 가격 없음
             cano="12345678", product_code="01", environment="real",
-            build_request=orders_engine._make_domestic_change_request)
+            build_request=orders_engine._make_domestic_change_request,
+            expected_original=store.binding_for("orig"))
 
 
 def test_domestic_cancel_still_rejects_a_price(tmp_path):
@@ -108,7 +111,8 @@ def test_domestic_cancel_still_rejects_a_price(tmp_path):
             _FakeTransport(), store, original_client_order_id="orig", request_id="r",
             action="cancel", quantity=Decimal(1), limit_price=Decimal(70000),  # 취소인데 가격 있음
             cano="12345678", product_code="01", environment="real",
-            build_request=orders_engine._make_domestic_change_request)
+            build_request=orders_engine._make_domestic_change_request,
+            expected_original=store.binding_for("orig"))
 
 
 def test_overseas_engine_does_not_import_domestic_order_core():

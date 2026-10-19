@@ -90,7 +90,11 @@ class OrdersNamespace:
         **주의**: 정정 후 ``report_for(client_order_id).filled_quantity`` 는 **0 으로 리셋된다**
         -- 새 ODNO 는 정정 수량만큼의 신규 대기주문이라서다(이 값이 재바인딩된 지문 수량과 짝을
         이뤄 이후 잔량 계산이 맞는다). 원주문의 누적 체결량을 이 id 로만 읽으면 과소 집계되니,
-        정정 이전 체결은 정정이 반환한 리포트/기존 실행에서 확인하라."""
+        정정 이전 체결은 정정이 반환한 리포트/기존 실행에서 확인하라.
+
+        전송 시간초과로 실패한 정정이 실제로는 성공했더라도 재조회가 대체된 주문을 항상 자동으로 다시
+        확인할 수 없어 변경이 처리 중 상태로 남을 수 있으므로, HTS/MTS 또는 계좌 조회에서 확인하고
+        그곳에서 주문을 계속 관리할 수 있습니다."""
         return self._client._change_order(
             client_order_id, action="modify", quantity=quantity, limit_price=limit_price,
             request_id=request_id,

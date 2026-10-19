@@ -456,6 +456,41 @@ def test_night_refresh_matches_stored_odno_not_sibling():
     assert report is not None and report.order_id == "0000005605"
 
 
+def test_night_derivative_refresh_returns_concurrent_rebind_generation():
+    # 야간 파생 union refresh 도 첫 조회 중 동시 정정의 새 ODNO 세대를 옛 행으로 덮지 않는다.
+    from dataclasses import replace
+
+    from kis_trader import ExecutionReport, OrderStatus
+
+    store = OrderStore(now=lambda: _ANCHOR)
+
+    class RebindDuringNightRefreshTransport(FakeTransport):
+        def request(self, **kwargs):
+            if kwargs["path"] == _NIGHT_INQUIRY:
+                prior = store.report_for("night-rebind")
+                fingerprint = store.fingerprint_for("night-rebind")
+                assert prior is not None and fingerprint is not None
+                store.record(
+                    replace(prior, order_id="0000005999"),
+                    replace(fingerprint, limit_price="401.00"),
+                )
+            return super().request(**kwargs)
+
+    fake = RebindDuringNightRefreshTransport()
+    fake.queue(_PLACE, _PLACE_OK)
+    client = _real_client(fake, store=store)
+    placed = client.domestic.futures("101S03").buy(
+        quantity=2, limit_price=Decimal("400.00"), night=True,
+        client_order_id="night-rebind")
+    assert isinstance(placed, ExecutionReport) and placed.status is OrderStatus.NEW
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="0000005605", tot_ccld_qty="0")]))
+    fake.queue(_DAY_INQUIRY, _day_ccnl([]))
+    report = client.orders.reconcile("night-rebind", refresh=True)
+    assert report is not None and report.order_id == "0000005999"
+    stored = store.report_for("night-rebind")
+    assert stored is not None and stored.order_id == "0000005999"
+
+
 def test_night_reconcile_two_in_night_table_raises():
     store = _night_store()
     fake = FakeTransport()

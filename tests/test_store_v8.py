@@ -1,5 +1,6 @@
 import json
 import threading
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -7,7 +8,16 @@ import pytest
 
 from kis_trader.errors import KISError
 from kis_trader.order import ChangeActionFingerprint, Order
-from kis_trader.store import _SCHEMA_VERSION, Claimed, InFlight, OrderStore, PriorChangeInFlight
+from kis_trader.report import ExecutionReport, OrderStatus
+from kis_trader.store import (
+    _SCHEMA_VERSION,
+    Binding,
+    Claimed,
+    InFlight,
+    OrderStore,
+    PriorChangeInFlight,
+    StaleOriginal,
+)
 
 _KST = timezone(timedelta(hours=9))
 
@@ -94,6 +104,27 @@ def test_try_claim_change_allows_change_on_a_different_original(tmp_path):
                                                  original_client_order_id="orig-1"), Claimed)
         assert isinstance(store.try_claim_change("req-B", _change_fp(original="orig-2"),
                                                  original_client_order_id="orig-2"), Claimed)
+
+
+def test_try_claim_change_rejects_mismatched_original_generation(tmp_path):
+    with OrderStore(tmp_path / "s.json", now=_clock) as store:
+        original = _fp()
+        store.try_claim("orig-1", original)
+        report = ExecutionReport(
+            client_order_id="orig-1", order_id="0000117057", symbol=original.symbol,
+            side=original.side, status=OrderStatus.NEW, filled_quantity=Decimal(0),
+            average_price=None, recorded_at=_clock(),
+        )
+        store.record(report, original)
+        stale = store.try_claim_change(
+            "req-A",
+            _change_fp(original="orig-1"),
+            original_client_order_id="orig-1",
+            expected_original=Binding(report, replace(original, quantity="2")),
+        )
+        assert isinstance(stale, StaleOriginal)
+        assert stale.current_fingerprint == original
+        assert not store.is_in_flight("req-A")
 
 
 def test_try_claim_change_is_atomic_under_concurrency(tmp_path):

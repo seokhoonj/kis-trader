@@ -44,7 +44,16 @@ from .order import (
     WireRequest,
 )
 from .report import ExecutionReport, OrderStatus
-from .store import Binding, Claimed, Completed, Conflict, InFlight, OrderStore, PriorChangeInFlight
+from .store import (
+    Binding,
+    Claimed,
+    Completed,
+    Conflict,
+    InFlight,
+    OrderStore,
+    PriorChangeInFlight,
+    StaleOriginal,
+)
 from .transport import Environment, Transport, TransportTimeoutError
 
 #: 시장 중립 접수-일자 키. 시장별 extract_output 파서가 접수 응답의 자기 일자 필드(예: 해외선물옵션의
@@ -227,7 +236,13 @@ def place(
         receipt_date=str(receipt) if receipt else None,
         _raw=resp.body,
     )
-    store.record(report, fingerprint)
+    if not store.record_if_unchanged(report, fingerprint, expected=(None, fingerprint)):
+        # 접수 응답을 기록하려는 사이 동시 reconcile 가 이 주문의 현재 체결을 이미 기록했다.
+        # NEW/0 으로 덮지 않고(이중매수 방지) 그 현재 리포트를 반환한다.
+        current = store.report_for(client_order_id)
+        if current is not None:
+            return current
+        store.record(report, fingerprint)   # 도달 불가 방어(CAS 실패=현재!=기대): 기록 유지
     return report
 
 
@@ -244,6 +259,7 @@ def submit_change(
     product_code: str,
     environment: Environment,
     build_request: ChangeRequestBuilder,
+    expected_original: Binding,
 ) -> ExecutionReport:
     """접수된 주문을 정정하거나 취소한다. 변경 요청도 별도 멱등키(``request_id``)로 중복 전송을 막는다.
 
@@ -322,12 +338,19 @@ def submit_change(
         environment=environment,
     )
     claim = store.try_claim_change(
-        request_id, action_fingerprint, original_client_order_id=original_client_order_id
+        request_id, action_fingerprint,
+        original_client_order_id=original_client_order_id,
+        expected_original=expected_original,
     )
     if isinstance(claim, PriorChangeInFlight):
         raise KISUsageError(
             f"원주문 {original_client_order_id!r} 에 결과 미확인 변경 {claim.other_request_id!r} 이 있다 -- "
             f"kis.orders.reconcile({claim.other_request_id!r}) 로 해소한 뒤 재시도하라."
+        )
+    if isinstance(claim, StaleOriginal):
+        raise KISUsageError(
+            "원주문이 그 사이 정정/취소로 재바인딩됐다 -- kis.orders.reconcile 로 현재 상태를 "
+            "확인한 뒤 새 수량/가격으로 재시도하라."
         )
     if isinstance(claim, Completed):
         return claim.report
