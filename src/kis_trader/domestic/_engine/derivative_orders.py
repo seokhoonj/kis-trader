@@ -577,9 +577,9 @@ def _night_union_reconcile(
         row_a, row_b = matches_a[0], matches_b[0]
         # ODNO 는 정규화해 비교한다 -- 두 테이블이 같은 주문을 자리수만 다르게("0000005605" vs "5605")
         # 돌려줘도 동일 주문으로 보게(원문자열 비교면 거짓 모호 -> false KISError). ord_dt 는 그대로.
-        same = (normalize_order_number(str(row_a.get("odno", "")))
-                == normalize_order_number(str(row_b.get("odno", "")))
-                and str(row_a.get("ord_dt")) == str(row_b.get("ord_dt")))
+        odno_a = normalize_order_number(str(row_a.get("odno", "")))
+        odno_b = normalize_order_number(str(row_b.get("odno", "")))
+        same = bool(odno_a) and odno_a == odno_b and str(row_a.get("ord_dt")) == str(row_b.get("ord_dt"))
         if not same:
             raise KISError(
                 f"야간 주문 {client_order_id} 이 야간/주간 테이블에서 서로 다른 (odno, ord_dt) 로 "

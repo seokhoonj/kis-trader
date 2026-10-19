@@ -306,6 +306,15 @@ def test_night_reconcile_merges_on_equal_odno_and_ord_dt():
     assert report is not None and report.order_id == "0000005605"
 
 
+def test_night_reconcile_blank_odno_in_both_tables_raises():
+    store = _night_store()
+    fake = FakeTransport()
+    fake.queue(_NIGHT_INQUIRY, _ngt_ccnl([_night_row(odno="", tot_ccld_qty="2")]))
+    fake.queue(_DAY_INQUIRY, _day_ccnl([_day_row(odno="", tot_ccld_qty="2")]))
+    with pytest.raises(KISError):
+        _reconcile(fake, store)
+
+
 def test_night_reconcile_differing_odno_raises():
     store = _night_store()
     fake = FakeTransport()
