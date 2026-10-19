@@ -454,10 +454,9 @@ def _reconcile_reserved(
     """미국/아시아 공용 예약 재조회 코어 -- 완료 리포트 우선, in-flight 면 최근 창을 지문 매칭.
     확정 리포트엔 행의 접수일자(RSVN_ORD_RCIT_DT)를 실어 이후 취소(아시아)가 재조회 없이 가능하다.
     ``force_refresh`` 면 저장 리포트가 있어도 단락하지 않고 예약주문조회를 다시 스캔한다(사후확정)."""
-    prior = store.report_for(client_order_id)
+    prior, fingerprint = store.snapshot_for(client_order_id)
     if prior is not None and not force_refresh:
         return prior
-    fingerprint = store.fingerprint_for(client_order_id)
     if fingerprint is None:
         raise KISUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
@@ -488,7 +487,11 @@ def _reconcile_reserved(
             client_order_id=client_order_id,
         ) from err
     recent = _reconcile_recency_window(anchor, today)
-    matches = _filter_matching(rows, fingerprint, recent)
+    prior_seq = prior.order_id if prior is not None else None
+    if prior_seq:
+        matches = [r for r in rows if str(r.get("ovrs_rsvn_odno") or "").strip() == prior_seq]
+    else:
+        matches = _filter_matching(rows, fingerprint, recent)
     if len(matches) > 1:
         raise KISError(
             f"해외 예약주문 {client_order_id} 의 지문과 일치하는 예약이 {len(matches)}건이라 "
@@ -502,7 +505,8 @@ def _reconcile_reserved(
     receipt_date = str(matches[0].get("rsvn_ord_rcit_dt") or "").strip() or None
     report = _make_report(client_order_id, reserved_id, fingerprint.symbol, fingerprint.side,
                           matches[0], receipt_date=receipt_date)
-    store.record(report, fingerprint)
+    if not store.record_if_unchanged(report, fingerprint, expected=(prior, fingerprint)):
+        return store.report_for(client_order_id)
     return report
 
 

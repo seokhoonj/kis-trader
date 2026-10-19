@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import threading
+from dataclasses import replace
 from decimal import Decimal
 
 import pytest
@@ -276,6 +277,60 @@ def test_reserve_reconcile_confirms_single_match():
     assert report.order_id == "42401"
     assert report.status is OrderStatus.PENDING_NEW
     assert all(c["method"] == "GET" for c in recon_t.calls)   # 읽기만
+
+
+def test_reserve_refresh_does_not_rebind_identical_sibling(monkeypatch):
+    monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
+    store = OrderStore(now=_frozen_now)
+    cid = "20240101-reserved-refresh-sibling"
+    placed = _client(FakeTransport(response=_ACCEPTED), store=store).domestic.stock("005930").reserve_buy(
+        quantity=1, limit_price=70000, client_order_id=cid)
+    sibling = _reserved_row(seq="42402", qty="1", unpr="70000")
+    body = {"output": [sibling], "ctx_area_nk200": "", "ctx_area_fk200": ""}
+    recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
+
+    assert _client(recon_t, store=store).orders.reconcile(cid, refresh=True) is None
+    assert store.report_for(cid) is placed
+    assert store.report_for(cid).order_id == "42401"
+
+
+def test_reserve_refresh_confirms_stored_sequence(monkeypatch):
+    monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
+    store = OrderStore(now=_frozen_now)
+    cid = "20240101-reserved-refresh-same"
+    _client(FakeTransport(response=_ACCEPTED), store=store).domestic.stock("005930").reserve_buy(
+        quantity=1, limit_price=70000, client_order_id=cid)
+    body = {"output": [_reserved_row(seq="42401", qty="1", unpr="70000")],
+            "ctx_area_nk200": "", "ctx_area_fk200": ""}
+    recon_t = FakeTransport(by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
+
+    report = _client(recon_t, store=store).orders.reconcile(cid, refresh=True)
+    assert report is not None and report.order_id == "42401"
+
+
+def test_reserve_refresh_returns_concurrent_rebind_generation(monkeypatch):
+    monkeypatch.setattr("kis_trader.domestic._engine.reserved_orders.datetime", _FrozenDatetime)
+    store = OrderStore(now=_frozen_now)
+    cid = "20240101-reserved-refresh-cas"
+    _client(FakeTransport(response=_ACCEPTED), store=store).domestic.stock("005930").reserve_buy(
+        quantity=1, limit_price=70000, client_order_id=cid)
+
+    class RebindDuringRefreshTransport(FakeTransport):
+        def request(self, **kwargs):
+            prior = store.report_for(cid)
+            fingerprint = store.fingerprint_for(cid)
+            assert prior is not None and fingerprint is not None
+            store.record(replace(prior, order_id="42499"), fingerprint)
+            return super().request(**kwargs)
+
+    body = {"output": [_reserved_row(seq="42401", qty="1", unpr="70000")],
+            "ctx_area_nk200": "", "ctx_area_fk200": ""}
+    recon_t = RebindDuringRefreshTransport(
+        by_path={_INQUIRE: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
+
+    report = _client(recon_t, store=store).orders.reconcile(cid, refresh=True)
+    assert report is not None and report.order_id == "42499"
+    assert store.report_for(cid) is report
 
 
 def test_reserve_reconcile_no_match_stays_in_flight():

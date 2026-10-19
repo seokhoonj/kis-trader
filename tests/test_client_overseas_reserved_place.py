@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import datetime as _dt
 import threading
+from dataclasses import replace
 
 import pytest
 
@@ -302,6 +303,60 @@ def test_overseas_reserve_reconcile_confirms_single_match(monkeypatch):
     # 발주일(claim=20240603)에 앵커한 ≤6일폭 창(KIS 7일-이상 금지): start=발주일-1=6/2, end=발주일+5=6/8
     assert recon_t.calls[0]["params"]["INQR_STRT_DT"] == "20240602"
     assert recon_t.calls[0]["params"]["INQR_END_DT"] == "20240608"
+
+
+def test_overseas_reserve_refresh_does_not_rebind_identical_sibling(monkeypatch):
+    monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
+    store = OrderStore(now=_frozen_now)
+    cid = "20240101-ovsresv-refresh-sibling"
+    placed = _client(FakeTransport(response=_ACCEPTED), store=store).overseas.stock(
+        "AAPL", exchange="NAS").reserve_buy(quantity=1, limit_price="150", client_order_id=cid)
+    body = {"output": [_list_row(odno="0031111299", qty="1", unpr="150")],
+            "ctx_area_nk200": "", "ctx_area_fk200": ""}
+    recon_t = FakeTransport(by_path={_LIST: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
+
+    assert _client(recon_t, store=store).orders.reconcile(cid, refresh=True) is None
+    assert store.report_for(cid) is placed
+    assert store.report_for(cid).order_id == "0031111234"
+
+
+def test_overseas_reserve_refresh_confirms_stored_sequence(monkeypatch):
+    monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
+    store = OrderStore(now=_frozen_now)
+    cid = "20240101-ovsresv-refresh-same"
+    _client(FakeTransport(response=_ACCEPTED), store=store).overseas.stock(
+        "AAPL", exchange="NAS").reserve_buy(quantity=1, limit_price="150", client_order_id=cid)
+    body = {"output": [_list_row(odno="0031111234", qty="1", unpr="150")],
+            "ctx_area_nk200": "", "ctx_area_fk200": ""}
+    recon_t = FakeTransport(by_path={_LIST: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
+
+    report = _client(recon_t, store=store).orders.reconcile(cid, refresh=True)
+    assert report is not None and report.order_id == "0031111234"
+
+
+def test_overseas_reserve_refresh_returns_concurrent_rebind_generation(monkeypatch):
+    monkeypatch.setattr("kis_trader.overseas._engine.reserved_orders.datetime", _FrozenDatetime)
+    store = OrderStore(now=_frozen_now)
+    cid = "20240101-ovsresv-refresh-cas"
+    _client(FakeTransport(response=_ACCEPTED), store=store).overseas.stock(
+        "AAPL", exchange="NAS").reserve_buy(quantity=1, limit_price="150", client_order_id=cid)
+
+    class RebindDuringRefreshTransport(FakeTransport):
+        def request(self, **kwargs):
+            prior = store.report_for(cid)
+            fingerprint = store.fingerprint_for(cid)
+            assert prior is not None and fingerprint is not None
+            store.record(replace(prior, order_id="0031111299"), fingerprint)
+            return super().request(**kwargs)
+
+    body = {"output": [_list_row(odno="0031111234", qty="1", unpr="150")],
+            "ctx_area_nk200": "", "ctx_area_fk200": ""}
+    recon_t = RebindDuringRefreshTransport(
+        by_path={_LIST: RawResponse(rt_cd="0", msg_cd="M", msg1="", body=body)})
+
+    report = _client(recon_t, store=store).orders.reconcile(cid, refresh=True)
+    assert report is not None and report.order_id == "0031111299"
+    assert store.report_for(cid) is report
 
 
 def test_overseas_reserve_reconcile_ignores_canceled_mismatch_and_old_receipt(monkeypatch):

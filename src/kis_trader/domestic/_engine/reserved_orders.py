@@ -313,10 +313,9 @@ def reconcile_reserved_order(
     in-flight 면 최근 창의 (처리/미처리 모두) 유효 예약을 지문으로 매칭: 정확히 1건이면 확정, 0건이면
     미접수로 단정하지 않고 ``None``(재전송 금지 유지), 2건 이상이면 :class:`KISError`.
     ``force_refresh`` 면 저장 리포트가 있어도 단락하지 않고 예약주문조회를 다시 스캔한다(사후확정)."""
-    prior = store.report_for(client_order_id)
+    prior, fingerprint = store.snapshot_for(client_order_id)
     if prior is not None and not force_refresh:
         return prior
-    fingerprint = store.fingerprint_for(client_order_id)
     if fingerprint is None:
         raise KISUsageError(
             f"모르는 client_order_id: {client_order_id!r} (이 계좌로 전송한 적이 없다)."
@@ -349,7 +348,12 @@ def reconcile_reserved_order(
             client_order_id=client_order_id,
         ) from err
     recent = _reconcile_recency_window(anchor, today)
-    matches = _filter_matching_reserved(rows, fingerprint, recent)
+    prior_seq = prior.order_id if prior is not None else None
+    if prior_seq:
+        # 확정 원주문의 예약순번으로 정확히 매칭한다 -- 동일 형제 예약으로 재바인딩 방지(지문 폴백 금지).
+        matches = [r for r in rows if str(r.get("rsvn_ord_seq") or "").strip() == prior_seq]
+    else:
+        matches = _filter_matching_reserved(rows, fingerprint, recent)  # prior 없는 타임아웃 복구 전용
     if len(matches) > 1:
         raise KISError(
             f"예약주문 {client_order_id} 의 지문과 일치하는 예약이 {len(matches)}건이라 "
@@ -364,7 +368,8 @@ def reconcile_reserved_order(
         client_order_id, sequence=sequence, symbol=fingerprint.symbol, side=fingerprint.side,
         raw=matches[0],
     )
-    store.record(report, fingerprint)
+    if not store.record_if_unchanged(report, fingerprint, expected=(prior, fingerprint)):
+        return store.report_for(client_order_id)
     return report
 
 
