@@ -1,0 +1,15 @@
+# KIS 해외 지수류 현재가 엔드포인트 계약.
+# required_params 는 공식 koreainvestment/open-trading-api 예제에서 확인한 1차증거.
+
+[[endpoint]]
+name            = "overseas_index_quote"
+impl            = "kis_trader.overseas._engine.index:fetch_quote"
+tr_id           = "FHKST03030100"
+path            = "/uapi/overseas-price/v1/quotations/inquire-daily-chartprice"
+method          = "GET"
+required_params = ["FID_COND_MRKT_DIV_CODE", "FID_INPUT_ISCD", "FID_INPUT_DATE_1", "FID_INPUT_DATE_2", "FID_PERIOD_DIV_CODE"]
+optional_params = []
+response_fields = []
+invariants      = []
+source_url      = "https://github.com/koreainvestment/open-trading-api examples_llm/overseas_stock/inquire_daily_chartprice"
+notes           = "해외 지수류 현재가(기간별시세 output1; N:지수 X:환율 I:국채 S:금)."

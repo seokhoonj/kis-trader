@@ -9,6 +9,7 @@ from tools.contracts import load_contracts
 
 # 엔드포인트 name -> (세션에서 호출하는 recipe). 위험군만(YAGNI). 안전 샘플 인자.
 RECIPES = {
+    "overseas_index_quote": lambda k: k.overseas.index(".DJI", kind="index").quote(),
     "overseas_ranking_change": lambda k: k.overseas.ranking.by_change(exchange="NAS"),
     "overseas_ranking_market_cap": lambda k: k.overseas.ranking.by_market_cap(exchange="NAS"),
     "overseas_ranking_new_highlow": lambda k: k.overseas.ranking.by_new_high_low(exchange="NAS"),
