@@ -323,15 +323,15 @@ def _fills_resp(*, rows=None, totals=None, ctx_nk="", ctx_fk="", tr_cont=""):
     return RawResponse(rt_cd="0", msg_cd="MCA00000", msg1="정상", body=body, tr_cont=tr_cont)
 
 
-def test_order_history_stops_on_repeated_cursor_no_double_count():
-    # hand-rolled 연속조회 루프도 비진전 커서(같은 키 반복)에서 종료해야 한다 -- 안 그러면 같은 페이지를
-    # 재요청해 체결이 이중집계되거나 상한까지 무한 재요청한다(공유 헬퍼와 같은 방어).
+def test_order_history_raises_on_repeated_cursor_without_returning_partial_history():
     pages = [_fills_resp(rows=[_fill(odno="1")], ctx_nk="SAME", tr_cont="F"),
              _fills_resp(rows=[_fill(odno="2")], ctx_nk="SAME", tr_cont="F")]  # 두 번째는 같은 커서
     fake = FakeTransport(pages=pages)
-    history = _bonds(fake).order_history(start="20240201", end="20240229")
-    assert len(fake.calls) == 2                       # 반복 커서에서 종료(재요청 안 함)
-    assert len(history.orders) == 2                     # 두 페이지 반영, 이중집계 없음(3페이지째 없음)
+    history = None
+    with pytest.raises(KISError, match="진전하지 않았다"):
+        history = _bonds(fake).order_history(start="20240201", end="20240229")
+    assert history is None
+    assert len(fake.calls) == 2
 
 
 def test_order_history_parses_rows_and_totals():

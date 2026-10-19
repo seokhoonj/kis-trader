@@ -158,15 +158,15 @@ def test_pension_balance_page_cap_fails_closed(monkeypatch):
         _client(fake).account.pension.balance()
 
 
-def test_pension_balance_stops_when_continuation_key_repeats():
-    # KIS 가 tr_cont=M 를 유지한 채 같은 연속키를 반복하면(진전 없음) 무한 루프/상한 오류 없이
-    # 그 페이지까지 모아 종료한다. 두 페이지를 같은 nk 로 주면 2회 요청 후 멈춰야 한다.
+def test_pension_balance_raises_when_continuation_key_repeats():
+    # tr_cont=M(더 있음)인데 같은 연속키를 반복하면(진전 없음) 부분 결과를 완전인 척 반환하지 않고
+    # fail-closed(KISError)로 막는다 -- 연속조회 모순. 1페이지는 진전(""->SAME), 2페이지에서 반복 감지.
     pages = [_resp2([_BAL_ROW], _BAL_SUMMARY, nk="SAME", tr_cont="M"),
              _resp2([_BAL_ROW], _BAL_SUMMARY, nk="SAME", tr_cont="M")]
     fake = FakeTransport(pages=pages)
-    bal = _client(fake).account.pension.balance()
-    assert len(fake.calls) == 2                       # 반복 키에서 종료(재요청 안 함)
-    assert len(bal.positions) == 2                    # 두 페이지 모두 반영
+    with pytest.raises(KISError):
+        _client(fake).account.pension.balance()
+    assert len(fake.calls) == 2                       # 1페이지 진전 -> 2페이지 반복 감지(raise)
 
 
 def test_pension_balance_stops_on_continuation_end_sentinel():

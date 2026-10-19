@@ -1,8 +1,8 @@
 """공유 연속조회 상태기계(_internal._response) 직접 테스트 -- 비진전 커서 방어.
 
 국내/해외 계좌·잔고·주문 조회가 모두 이 헬퍼를 쓴다. KIS 가 tr_cont 를 F/M 로 유지한 채 연속키를
-진전시키지 않으면(빈 키/같은 키 반복/종료 센티널 "^^") 같은 페이지를 재요청해 행이 이중집계되거나
-페이지 상한까지 무한 재요청하므로, 헬퍼가 그 커서에서 종료해야 한다.
+진전시키지 않으면(빈 키/같은 키 반복) 같은 페이지를 재요청해 행이 이중집계되거나 페이지 상한까지
+무한 재요청할 수 있다. 종료 센티널 "^^"만 정상 종료하고, 모순된 커서는 부분 결과 없이 실패해야 한다.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from typing import Any
 import pytest
 
 from kis_trader._internal._response import (
+    _advance_cursor,
     _fetch_paginated_rows,
     _fetch_paginated_rows_with_summary,
 )
@@ -49,13 +50,17 @@ def _collect(transport: ScriptedTransport) -> list[dict]:
     )
 
 
-def test_repeated_cursor_terminates_without_cap_error():
-    # 커서가 진전 안 하고 반복되면(K1 -> K1) 무한 재요청/이중집계 대신 그 지점에서 종료한다.
-    # 가드가 없으면 max_pages 까지 돌아 cap 에러가 났다.
-    t = ScriptedTransport([_page("K1", [{"a": "1"}]), _page("K1", [{"a": "2"}])])
-    rows = _collect(t)
-    assert rows == [{"a": "1"}, {"a": "2"}]      # 유한 종료, cap 에러 없음
-    assert t.calls == 2                          # 반복 커서 감지 후 멈춤(100회 아님)
+@pytest.mark.parametrize("tr_cont", ["F", "M"])
+def test_repeated_cursor_raises_without_returning_partial_rows(tr_cont):
+    t = ScriptedTransport([
+        _page("K1", [{"a": "1"}], tr_cont=tr_cont),
+        _page("K1", [{"a": "2"}], tr_cont=tr_cont),
+    ])
+    rows = None
+    with pytest.raises(KISError, match="진전하지 않았다"):
+        rows = _collect(t)
+    assert rows is None
+    assert t.calls == 2
 
 
 def test_continuation_end_sentinel_terminates():
@@ -65,10 +70,13 @@ def test_continuation_end_sentinel_terminates():
     assert t.calls == 1
 
 
-def test_empty_cursor_terminates():
-    # 빈 연속키(F/M 인데 nk="")도 재요청하지 않는다(같은 처음 페이지 재조회 방지).
-    t = ScriptedTransport([_page("", [{"a": "1"}])])
-    assert _collect(t) == [{"a": "1"}]
+@pytest.mark.parametrize("tr_cont", ["F", "M"])
+def test_empty_cursor_raises_without_returning_partial_rows(tr_cont):
+    t = ScriptedTransport([_page("", [{"a": "1"}], tr_cont=tr_cont)])
+    rows = None
+    with pytest.raises(KISError, match="비어 있다"):
+        rows = _collect(t)
+    assert rows is None
     assert t.calls == 1
 
 
@@ -82,7 +90,7 @@ def test_advancing_cursor_still_paginates_normally():
     assert t.calls == 3
 
 
-def test_with_summary_variant_also_guards_repeated_cursor():
+def test_with_summary_variant_raises_on_repeated_cursor():
     def _sum(body): return body.get("output2")
     pages = [
         RawResponse(rt_cd="0", msg_cd="M", msg1="",
@@ -93,14 +101,47 @@ def test_with_summary_variant_also_guards_repeated_cursor():
                     tr_cont="F"),
     ]
     t = ScriptedTransport(pages)
-    rows, summary = _fetch_paginated_rows_with_summary(
-        t, path="/x", tr_id="T", base_params={"CTX_AREA_FK100": "", "CTX_AREA_NK100": ""},
-        output_key="output", max_pages=100, cap_message="페이지 상한 도달",
-        summary_from=_sum,
-    )
-    assert rows == [{"a": "1"}, {"a": "2"}]       # 유한 종료
-    assert summary == {"s": "x"}                  # 요약은 첫 페이지에서
+    result = None
+    with pytest.raises(KISError, match="진전하지 않았다"):
+        result = _fetch_paginated_rows_with_summary(
+            t, path="/x", tr_id="T",
+            base_params={"CTX_AREA_FK100": "", "CTX_AREA_NK100": ""},
+            output_key="output", max_pages=100, cap_message="페이지 상한 도달",
+            summary_from=_sum,
+        )
+    assert result is None
     assert t.calls == 2
+
+
+def test_advance_cursor_continuation_end_returns_none():
+    assert _advance_cursor(
+        {"ctx_area_fk100": "FK", "ctx_area_nk100": "^^"}, ctx_width=100, prev_nk="K1"
+    ) is None
+
+
+def test_advance_cursor_blank_raises():
+    with pytest.raises(KISError, match="비어 있다"):
+        _advance_cursor(
+            {"ctx_area_fk100": "FK", "ctx_area_nk100": "  "}, ctx_width=100, prev_nk="K1"
+        )
+
+
+def test_advance_cursor_missing_nk_raises_as_blank():
+    with pytest.raises(KISError, match="비어 있다"):
+        _advance_cursor({"ctx_area_fk100": "FK"}, ctx_width=100, prev_nk="K1")
+
+
+def test_advance_cursor_repeated_nonblank_raises():
+    with pytest.raises(KISError, match="진전하지 않았다"):
+        _advance_cursor(
+            {"ctx_area_fk100": "FK", "ctx_area_nk100": "K1"}, ctx_width=100, prev_nk="K1"
+        )
+
+
+def test_advance_cursor_advancing_returns_cursor_pair():
+    assert _advance_cursor(
+        {"ctx_area_fk100": " FK ", "ctx_area_nk100": " K2 "}, ctx_width=100, prev_nk="K1"
+    ) == ("FK", "K2")
 
 
 def test_genuine_cap_still_fails_closed():

@@ -26,16 +26,25 @@ _MAX_RECONCILE_PAGES = 100
 def _advance_cursor(
     body: Mapping[str, Any], *, ctx_width: int, prev_nk: str
 ) -> tuple[str, str] | None:
-    """연속조회 다음 페이지 커서 ``(fk, nk)`` 를 돌려준다. ``tr_cont`` 가 F/M(더 있음)인데 연속키가
-    진전하지 않으면(빈 키 / 직전과 같은 키 반복 / 종료 센티널 ``"^^"``) ``None`` 을 돌려 재요청을
-    멈춘다 -- 같은 페이지를 다시 받아 행이 이중집계되는 것을 막는다. 쿼리-tier 가드다: 공유
-    페이지네이터(:func:`_fetch_paginated_rows`)와 일부 hand-rolled 조회 루프가 공용으로 쓴다. 주문
-    재조회(reconcile)·예약 reconcile 루프는 부분 결과가 주문 확정에 영향을 주므로 이 함수를 쓰지 않고
-    더 보수적인 자체 종료를 둔다: F/M + 빈 키/반복 커서는 모순으로 보고 fail-closed raise 하되, 종료
-    센티널 ``"^^"`` 는 reconcile 에서도 정상 '더 없음' 종료로 그냥 break 한다."""
+    """연속조회 다음 페이지 커서 ``(fk, nk)`` 를 돌려준다.
+
+    호출자는 응답 ``tr_cont`` 가 F/M(더 있음)임을 먼저 확인해야 한다. 종료 센티널 ``"^^"`` 만
+    정상 종료로 보고 ``None`` 을 돌리며, 빈 키나 직전과 같은 반복 키는 연속조회 모순이므로
+    :class:`KISError` 로 fail-closed 한다. 주문 재조회(reconcile) 루프는 이 함수를 쓰지 않는다.
+    """
     next_nk = str(body.get(f"ctx_area_nk{ctx_width}") or "").strip()
-    if not next_nk or next_nk == prev_nk or next_nk == _CONTINUATION_END:
+    if next_nk == _CONTINUATION_END:
         return None
+    if not next_nk:
+        raise KISError(
+            f"연속조회(tr_cont=F/M)인데 CTX_AREA_NK{ctx_width} 가 비어 있다 -- "
+            "부분 결과 반환 금지(연속조회 모순)."
+        )
+    if next_nk == prev_nk:
+        raise KISError(
+            f"연속조회(tr_cont=F/M)인데 CTX_AREA_NK{ctx_width} 가 진전하지 않았다(반복 커서) -- "
+            "부분 결과 반환 금지."
+        )
     next_fk = str(body.get(f"ctx_area_fk{ctx_width}") or "").strip()
     return next_fk, next_nk
 

@@ -160,7 +160,10 @@ def _to_yyyymmdd(value: str | date, name: str) -> str:
 
     date/datetime, 또는 "YYYYMMDD"/"YYYY-MM-DD" 문자열만 받는다. 그 밖의 타입(int 등)이나
     달력에 실재하지 않는 날짜(예: "20230230")는 :class:`KISUsageError` 로 거부한다."""
-    if isinstance(value, date):  # datetime 도 date 하위형
+    if isinstance(value, datetime):
+        normalized = value.replace(tzinfo=_KST) if value.utcoffset() is None else value.astimezone(_KST)
+        return f"{normalized:%Y%m%d}"
+    if isinstance(value, date):
         return f"{value:%Y%m%d}"
     if not isinstance(value, str):
         raise KISUsageError(

@@ -231,6 +231,16 @@ def test_nav_history_negative_nav_change_and_date_objects():
     assert fake.calls[0]["params"]["FID_INPUT_DATE_1"] == "20240101"
 
 
+def test_nav_history_converts_aware_start_datetime_to_kst_date():
+    from datetime import UTC, datetime
+
+    fake = FakeTransport(response=_nav_hist_resp([]))
+    _client(fake).domestic.stock("069500").nav_history(
+        start=datetime(2026, 1, 1, 16, tzinfo=UTC), end="20260102"
+    )
+    assert fake.calls[0]["params"]["FID_INPUT_DATE_1"] == "20260102"
+
+
 def test_nav_history_start_after_end_raises():
     fake = FakeTransport(response=_nav_hist_resp([]))
     with pytest.raises(KISUsageError):

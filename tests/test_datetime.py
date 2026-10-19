@@ -1,7 +1,7 @@
 """날짜/시각 와이어 변환 헬퍼(:mod:`kis_trader._datetime`) 회귀 테스트."""
 from __future__ import annotations
 
-from datetime import date, datetime, timedelta, timezone
+from datetime import UTC, date, datetime, timedelta, timezone
 
 _KST = timezone(timedelta(hours=9))
 
@@ -50,6 +50,26 @@ def test_to_yyyymmdd_accepts_date_and_strings():
     assert _to_yyyymmdd(datetime(2020, 12, 10, 9, 30, tzinfo=_KST), "d") == "20201210"
     assert _to_yyyymmdd("20201210", "d") == "20201210"
     assert _to_yyyymmdd("2020-12-10", "d") == "20201210"
+
+
+def test_to_yyyymmdd_converts_aware_utc_datetime_crossing_kst_date():
+    value = datetime(2026, 1, 1, 16, tzinfo=UTC)
+    assert _to_yyyymmdd(value, "d") == "20260102"
+
+
+def test_to_yyyymmdd_converts_aware_utc_datetime_without_date_crossing():
+    value = datetime(2026, 1, 1, 3, tzinfo=UTC)
+    assert _to_yyyymmdd(value, "d") == "20260101"
+
+
+def test_to_yyyymmdd_keeps_aware_kst_datetime_date():
+    value = datetime(2026, 1, 1, 23, 30, tzinfo=_KST)
+    assert _to_yyyymmdd(value, "d") == "20260101"
+
+
+def test_to_yyyymmdd_keeps_naive_datetime_wall_clock_date():
+    value = datetime(2026, 1, 1, 23, 30)
+    assert _to_yyyymmdd(value, "d") == "20260101"
 
 
 def test_to_yyyymmdd_rejects_impossible_date():
