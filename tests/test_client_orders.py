@@ -26,6 +26,8 @@ from kis_trader.errors import (
     OrderTimeoutError,
     UnsupportedSchemaVersionError,
 )
+from kis_trader.order import ChangeActionFingerprint
+from kis_trader.store import PriorChangeInFlight
 from kis_trader.transport import RawResponse, TransportTimeoutError
 
 _ORDER_CASH = "/uapi/domestic-stock/v1/trading/order-cash"
@@ -739,6 +741,45 @@ def test_timed_out_modify_stays_in_flight_when_broker_scan_cannot_confirm():
     with pytest.raises(KISUsageError, match="결과 미확인 변경"):
         kis.orders.modify(
             "orig-modify-unconfirmed", limit_price=72000, request_id="modify-blocked")
+    assert len([call for call in fake.calls if call["path"] == _ORDER_CHANGE]) == 1
+
+
+def test_timed_out_modify_keeps_in_flight_when_old_odno_is_terminal():
+    """타임아웃된 정정의 구 ODNO가 종료돼도 새 ODNO 미관측이면 변경 claim을 유지한다."""
+    from datetime import UTC, datetime
+
+    now = datetime(2024, 1, 1, tzinfo=UTC)
+    fake = FakeTransport(by_path={
+        _ORDER_CASH: _ACCEPTED_ORDER_RESPONSE,
+        _ORDER_CHANGE: TransportTimeoutError(),
+        _DAILY_CCLD: _daily_orders_response([
+            _daily_order_row(
+                odno="0000117057", filled_quantity="0", canceled="Y", org="01790")]),
+    })
+    store = OrderStore(now=lambda: now)
+    kis = _client(fake, store=store)
+    kis.domestic.stock("005930").buy(
+        quantity=10, limit_price=70000, client_order_id="orig-modify-terminal")
+    with pytest.raises(OrderTimeoutError):
+        kis.orders.modify(
+            "orig-modify-terminal", limit_price=71000, request_id="modify-terminal")
+
+    fresh = kis.orders.reconcile("modify-terminal")
+    assert fresh is not None and fresh.status is OrderStatus.CANCELED
+    assert fresh.order_id == "0000117057"
+    assert store.is_in_flight("modify-terminal")
+    assert store.in_flight_change_for("orig-modify-terminal") == "modify-terminal"
+    binding = store.binding_for("orig-modify-terminal")
+    assert binding is not None and binding.report.order_id == "0000117057"
+    change_fingerprint = store.fingerprint_for("modify-terminal")
+    assert isinstance(change_fingerprint, ChangeActionFingerprint)
+    blocked = store.try_claim_change(
+        "modify-blocked",
+        change_fingerprint,
+        original_client_order_id="orig-modify-terminal",
+    )
+    assert isinstance(blocked, PriorChangeInFlight)
+    assert blocked.other_request_id == "modify-terminal"
     assert len([call for call in fake.calls if call["path"] == _ORDER_CHANGE]) == 1
 
 

@@ -214,15 +214,15 @@ class OrderStore:
                     return PriorChangeInFlight(cid)
             current_report = self._reports.get(original_client_order_id)
             current_fingerprint = self._fingerprints.get(original_client_order_id)
+            prior = self._classify_locked(request_id, fingerprint)
+            if prior is not None:
+                return prior
             if expected_original is not None and (
                     current_fingerprint != expected_original.fingerprint
                     or current_report is None
                     or current_report.order_id != expected_original.report.order_id
                     or current_report.filled_quantity != expected_original.report.filled_quantity):
                 return StaleOriginal(current_fingerprint)
-            prior = self._classify_locked(request_id, fingerprint)
-            if prior is not None:
-                return prior
             self._in_flight[request_id] = self._now().isoformat()
             self._fingerprints[request_id] = fingerprint
             self._save_locked()

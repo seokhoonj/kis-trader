@@ -394,10 +394,10 @@ class OrderEngine:
         시간초과면 :class:`~kis_trader.errors.OrderTimeoutError`(in-flight 유지, 잠시 후 재시도).
 
         정정·취소(ChangeAction) id 를 주면 원주문의 **현재** 상태를 브로커에서 다시 조회해(캐시가
-        아니라) 판단한다: 종료 상태 또는 정정 뒤 새 ODNO 로 확정되면 이 변경의 in-flight 를 해제하고
-        원주문의 현재 리포트를 반환한다. 그 외 비종료 리포트, 모호(``None``), 재조회 실패는 해제하지
-        않고 그대로 올린다(미확인을 확인으로 둔갑시키지 않는다 -- 이 경우 변경은 in-flight 로 남으니
-        브로커에서 수동 확인하라). 원주문
+        아니라) 판단한다: 취소는 원주문 종료 상태, 정정은 새 ODNO 관측으로 확정되면 이 변경의
+        in-flight 를 해제하고 원주문의 현재 리포트를 반환한다. 정정 전 ODNO 의 종료 상태만 보이거나,
+        비종료 리포트, 모호(``None``), 재조회 실패이면 해제하지 않고 그대로 올린다(미확인을 확인으로
+        둔갑시키지 않는다 -- 이 경우 변경은 in-flight 로 남으니 브로커에서 수동 확인하라). 원주문
         자산군이 reconcile 미지원(채권·해외선물옵션)이면 :class:`~kis_trader.errors.KISUsageError`.
         ``refresh=True`` 면 저장된 완료 리포트가 있어도 단락하지 않고 브로커를 다시 스캔해 **현재**
         상태를 돌려준다(체결 측정·사후확정용; 아래 ChangeAction 경로도 이 플래그로 원주문을 재스캔한다).
@@ -416,8 +416,8 @@ class OrderEngine:
             # 단, 원주문엔 접수 당시 저장 리포트가 항상 있으므로(submit_change 가 확정 원주문만 허용)
             # 그냥 reconcile(원) 을 부르면 캐시가 단락 반환돼 낡은 상태를 진실로 돌려주고 만다.
             # refresh 로 캐시를 건너뛰고 브로커를 실제로 다시 스캔한다:
-            #   - 1건으로 확정(ExecutionReport)되면 변경이 반영된 현재 진실이므로 이 변경의 in-flight
-            #     를 해제하고(데드락 해소) 그 리포트를 돌려준다.
+            #   - 취소는 1건의 종료 상태, 정정은 새 ODNO 세대로 확정되면 이 변경의 in-flight 를
+            #     해제하고(데드락 해소) 그 리포트를 돌려준다.
             #   - 모호(0건 None: 예를 들어 정정으로 수량·단가가 바뀌어 원 지문과 더 안 맞음)하거나 재조회
             #     가 실패(타임아웃/다건 예외)하면 해제하지 않고 그대로 올린다 -- 확인 안 된 것을 확인된
             #     척하지 않는다(reconcile 이 유일한 사후 진실이고 캐시를 진실로 위장하지 않는다). 변경은
@@ -435,15 +435,19 @@ class OrderEngine:
                     "reconcile 미지원이라 변경 접수 여부를 자동 확인할 수 없다 -- 계좌 조회로 수동 확인하라."
                 ) from None
             if fresh is not None:
-                confirmed = fresh.is_terminal
-                if action == "modify" and not confirmed:
-                    # 정정 성공 시 KIS 는 원주문에 새 ODNO 를 부여한다. reconcile 가 그 새 세대를
-                    # 관측하면(order_id 변화) 정정 반영이 확정돼 해제한다. 재조회가 새 ODNO 행을
-                    # 집지 못하면(원 ODNO 로만 매칭돼 None/옛 행) 확정 불가이므로 보수적으로 유지한다
-                    # -- read-only 확인이라 와이어 동작을 바꾸지 않는다.
-                    confirmed = bool(fresh.order_id) and fresh.order_id != pre_change_order_id
-                if confirmed:
-                    self._store.clear_in_flight(client_order_id)
+                if action == "cancel":
+                    # 취소 확정 = 원주문 종료(취소/체결). 종료가 관측될 때만 해제한다.
+                    if fresh.is_terminal:
+                        self._store.clear_in_flight(client_order_id)
+                else:  # modify
+                    # 정정 성공 시 KIS 는 새 ODNO 를 부여한다. reconcile 가 그 새 세대를 관측(order_id 가
+                    # 정정 전 ODNO 와 달라짐)할 때만 정정 반영을 확정해 해제한다. 구 ODNO 가 종료로 보여도
+                    # (정정이 구 ODNO 를 대체했을 수 있음) 새 ODNO 로 재바인딩하지 못한 채 해제하면 살아있는
+                    # 주문을 잃으므로, 종료만으로는 해제하지 않는다. 새 ODNO 미관측이면 보수적으로 유지한다
+                    # (문서화된 수동 확인 경로; 자동 복구는 reconcile 이 새 ODNO 를 집을 수 있을 때).
+                    if bool(fresh.order_id) and fresh.order_id != pre_change_order_id:
+                        self._store.clear_in_flight(client_order_id)
+                return fresh
             return fresh
         if isinstance(fingerprint, ReservedOrderFingerprint):
             # 예약주문은 일별체결이 아니라 예약주문조회로 확인한다(국내/해외 예약 경로를 exchange 로 가른다).

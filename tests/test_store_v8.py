@@ -13,6 +13,7 @@ from kis_trader.store import (
     _SCHEMA_VERSION,
     Binding,
     Claimed,
+    Completed,
     InFlight,
     OrderStore,
     PriorChangeInFlight,
@@ -125,6 +126,55 @@ def test_try_claim_change_rejects_mismatched_original_generation(tmp_path):
         assert isinstance(stale, StaleOriginal)
         assert stale.current_fingerprint == original
         assert not store.is_in_flight("req-A")
+
+
+def test_try_claim_change_completed_retry_precedes_stale_original_check(tmp_path):
+    with OrderStore(tmp_path / "s.json", now=_clock) as store:
+        original = _fp()
+        original_report = ExecutionReport(
+            client_order_id="orig-1", order_id="0000117057", symbol=original.symbol,
+            side=original.side, status=OrderStatus.NEW, filled_quantity=Decimal(0),
+            average_price=None, recorded_at=_clock(),
+        )
+        store.record(original_report, original)
+        expected_original = Binding(original_report, original)
+        change_fp = _change_fp(original="orig-1", action="modify")
+        assert isinstance(store.try_claim_change(
+            "req-A", change_fp,
+            original_client_order_id="orig-1",
+            expected_original=expected_original,
+        ), Claimed)
+
+        completed_report = replace(
+            original_report,
+            client_order_id="req-A",
+            order_id="0000117058",
+            status=OrderStatus.PENDING_REPLACE,
+        )
+        rebound_report = replace(original_report, order_id="0000117058")
+        rebound_fingerprint = replace(original, limit_price="410.00")
+        store.record_change(
+            completed_report,
+            change_fp,
+            rebind=Binding(rebound_report, rebound_fingerprint),
+        )
+
+        replay = store.try_claim_change(
+            "req-A", change_fp,
+            original_client_order_id="orig-1",
+            expected_original=expected_original,
+        )
+        assert isinstance(replay, Completed)
+        assert replay.report is completed_report
+
+        stale = store.try_claim_change(
+            "req-B", change_fp,
+            original_client_order_id="orig-1",
+            expected_original=expected_original,
+        )
+        assert isinstance(stale, StaleOriginal)
+        assert stale.current_fingerprint == rebound_fingerprint
+        assert not store.is_in_flight("req-B")
 
 
 def test_try_claim_change_is_atomic_under_concurrency(tmp_path):
