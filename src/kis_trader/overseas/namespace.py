@@ -292,6 +292,8 @@ class OverseasNamespace:
         ``kind`` 는 모든 ``codes`` 에 공통으로 적용된다. KIS에는 지수류 멀티시세 TR이 없어 내부적으로
         코드마다 같은 기간별시세 TR의 현재가 블록을 조회한다.
         """
+        if isinstance(codes, str):
+            raise KISUsageError("codes 에는 코드 문자열의 시퀀스를 전달하라 (단일은 index(code).quote()).")
         division = _OVERSEAS_INDEX_KIND.get(kind)
         if division is None:
             raise KISUsageError(

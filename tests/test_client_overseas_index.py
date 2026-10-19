@@ -85,7 +85,7 @@ def test_overseas_index_quote_maps_live_output1_and_reuses_bars_endpoint(monkeyp
     assert isinstance(quote, OverseasIndexQuote)
     assert quote.code == "SPX"
     assert quote.name == "S&P500"
-    assert quote.value == Decimal("7718.94")
+    assert quote.current_value == Decimal("7718.94")
     assert quote.previous_close == Decimal("7805.45")
     assert (quote.open, quote.high, quote.low) == (
         Decimal("7774.18"), Decimal("7789.15"), Decimal("7693.31"),
@@ -142,7 +142,7 @@ def test_overseas_index_quotes_preserves_order_and_kind(monkeypatch):
     quotes = client.overseas.index_quotes(["SPX", "NDX"])
 
     assert [quote.code for quote in quotes] == ["SPX", "NDX"]
-    assert [quote.value for quote in quotes] == [Decimal("7718.94"), Decimal("25510.20")]
+    assert [quote.current_value for quote in quotes] == [Decimal("7718.94"), Decimal("25510.20")]
     assert [call["params"]["FID_COND_MRKT_DIV_CODE"] for call in fake.calls] == ["N", "N"]
     assert [call["params"]["FID_INPUT_ISCD"] for call in fake.calls] == ["SPX", "NDX"]
 
@@ -151,6 +151,15 @@ def test_overseas_index_quotes_empty_input_does_not_call_transport():
     client, fake = _client(_quote_resp())
 
     assert client.overseas.index_quotes([]) == []
+    assert fake.calls == []
+
+
+def test_overseas_index_quotes_rejects_bare_string_without_calling_transport():
+    client, fake = _client(_quote_resp())
+
+    with pytest.raises(KISUsageError):
+        client.overseas.index_quotes("SPX")
+
     assert fake.calls == []
 
 

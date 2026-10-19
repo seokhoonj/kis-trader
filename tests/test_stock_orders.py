@@ -85,16 +85,16 @@ def test_order_history_parses_rows_and_summary_and_routes():
     assert history.average_purchase_price == Decimal("70050.0000")
     assert history.estimated_expenses == Decimal(118)
     assert len(history.orders) == 1
-    fill = history.orders[0]
-    assert fill.order_id == "0001568197"
-    assert fill.symbol == "005930"
-    assert fill.side == "buy"
-    assert fill.order_date == date(2024, 2, 16)
-    assert fill.order_time == time(13, 14, 38)
-    assert fill.order_quantity == Decimal(10)
-    assert fill.filled_quantity == Decimal(10)
-    assert fill.average_price == Decimal(70050)
-    assert fill.canceled is False
+    order = history.orders[0]
+    assert order.order_id == "0001568197"
+    assert order.symbol == "005930"
+    assert order.side == "buy"
+    assert order.order_date == date(2024, 2, 16)
+    assert order.order_time == time(13, 14, 38)
+    assert order.order_quantity == Decimal(10)
+    assert order.filled_quantity == Decimal(10)
+    assert order.average_price == Decimal(70050)
+    assert order.canceled is False
     call = fake.calls[0]
     assert call["path"] == _ORDER_HISTORY_PATH
     assert call["tr_id"] == "TTTC0081R"
@@ -137,11 +137,11 @@ def test_order_history_older_paper_uses_demo_before_tr():
 # --- 0.6.0 보강 필드 (라이브 응답예시로 키셋/타입 확정) -----------------------
 def test_order_exposes_0_6_0_fields():
     fake = FakeTransport(response=_resp(rows=[_row(cncl_cfrm="3", excg_dvsn="12", ccld_cndt="IOC")]))
-    fill = _order_history(fake)(start="20240201", end="20240229").orders[0]
-    assert fill.canceled_quantity == Decimal(3)
-    assert fill.exchange_division_code == "12"
-    assert fill.fill_condition_name == "IOC"
-    assert fill.order_type_code == "00"
+    order = _order_history(fake)(start="20240201", end="20240229").orders[0]
+    assert order.canceled_quantity == Decimal(3)
+    assert order.exchange_division_code == "12"
+    assert order.fill_condition_name == "IOC"
+    assert order.order_type_code == "00"
 
 
 def test_order_exchange_is_typed_and_none_when_blank():
@@ -232,8 +232,8 @@ def test_order_canceled_quantity_defaults_to_zero_when_absent():
     # 관용 파싱: cnc_cfrm_qty 키가 없어도 크래시 없이 0.
     row = _row()
     del row["cnc_cfrm_qty"]
-    fill = _order_history(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229").orders[0]
-    assert fill.canceled_quantity == Decimal(0)
+    order = _order_history(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229").orders[0]
+    assert order.canceled_quantity == Decimal(0)
 
 
 def test_order_canceled_quantity_reads_official_key_not_the_typo():
@@ -241,14 +241,14 @@ def test_order_canceled_quantity_reads_official_key_not_the_typo():
     # 취소확인수량이 조용히 0 이 됐다. 실제 키로 값이 반영되고, 오타 키로는 반영되지 않음을 못박는다.
     real = _row()
     real["cnc_cfrm_qty"] = "7"
-    fill = _order_history(FakeTransport(response=_resp(rows=[real])))(start="20240201", end="20240229").orders[0]
-    assert fill.canceled_quantity == Decimal(7)
+    order = _order_history(FakeTransport(response=_resp(rows=[real])))(start="20240201", end="20240229").orders[0]
+    assert order.canceled_quantity == Decimal(7)
     # 오타 키만 채워진 행은 0 으로 읽혀야 한다(오타 키로의 회귀를 잡는 가드).
     typo = _row()
     typo["cnc_cfrm_qty"] = "0"
     typo["cncl_cfrm_qty"] = "7"
-    fill = _order_history(FakeTransport(response=_resp(rows=[typo])))(start="20240201", end="20240229").orders[0]
-    assert fill.canceled_quantity == Decimal(0)
+    order = _order_history(FakeTransport(response=_resp(rows=[typo])))(start="20240201", end="20240229").orders[0]
+    assert order.canceled_quantity == Decimal(0)
 
 
 def test_order_keeps_pii_and_operator_fields_in_raw_only():
@@ -258,13 +258,13 @@ def test_order_keeps_pii_and_operator_fields_in_raw_only():
                 "sll_buy_dvsn_cd_name"]
     row = _row()
     row.update({k: "SENSITIVE" for k in pii_keys})
-    fill = _order_history(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229").orders[0]
+    order = _order_history(FakeTransport(response=_resp(rows=[row])))(start="20240201", end="20240229").orders[0]
     for k in pii_keys:
         # hasattr 은 슬롯/속성뿐 아니라 @property 노출까지 잡는다(슬롯만 보면 property 를 놓침).
-        assert not hasattr(fill, k), f"{k} must not be publicly accessible"
-        assert fill._raw[k] == "SENSITIVE"              # 원본엔 보존(조회·감사용)
+        assert not hasattr(order, k), f"{k} must not be publicly accessible"
+        assert order._raw[k] == "SENSITIVE"              # 원본엔 보존(조회·감사용)
     # 값으로도 유출되지 않는다(어떤 공개 str 필드에도 'SENSITIVE' 가 없다)
-    assert not any(getattr(fill, f) == "SENSITIVE" for f in fill.__slots__ if f != "_raw")
+    assert not any(getattr(order, f) == "SENSITIVE" for f in order.__slots__ if f != "_raw")
 
 
 @pytest.mark.parametrize("side,code", [("all", "00"), ("sell", "01"), ("buy", "02")])

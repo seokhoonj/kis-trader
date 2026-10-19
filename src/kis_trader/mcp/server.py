@@ -429,7 +429,7 @@ def build_server(
     def search(query: str, limit: int = 20) -> list[dict[str, Any]]:
         """이름/질의로 국내 종목 코드 후보를 찾는다."""
         # MCP 툴명은 `search` 로 고정한다(에이전트 설정 안정성). 라이브러리 메서드가
-        # `search_stocks()`(해외 형제와 구별)인 것과 의도적으로 다르다 -- flat 한 MCP 네임스페이스엔
+        # `screen_stocks()`(해외 형제와 구별)인 것과 의도적으로 다르다 -- flat 한 MCP 네임스페이스엔
         # 구별할 형제가 없어 `search` 가 이 경계의 올바른 이름이다. 통일하려고 바꾸지 말 것.
         return handlers.search(account_session.read_client(), query, limit=limit)
 

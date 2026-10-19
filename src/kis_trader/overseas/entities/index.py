@@ -19,13 +19,13 @@ from ..._internal._freeze import freeze_vendor_payload
 class OverseasIndexQuote:
     """한 해외 지수류 코드의 현재가 스냅샷(불변).
 
-    ``value`` 는 현재 값 -- 지수 레벨(kind=index) 또는 환율(fx)·국채 수익률(bond)·금선물 가격(gold)이다.
+    ``current_value`` 는 현재 값 -- 지수 레벨(kind=index) 또는 환율(fx)·국채 수익률(bond)·금선물 가격(gold)이다.
     ``change`` 와 ``change_percent`` 는 전일대비로 하락이면 음수이며, ``as_of`` 는 조회 시각이다.
     """
 
     code: str
     name: str
-    value: Decimal
+    current_value: Decimal
     open: Decimal
     high: Decimal
     low: Decimal

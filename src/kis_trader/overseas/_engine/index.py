@@ -232,7 +232,7 @@ def _parse_quote(
     return OverseasIndexQuote(
         code=code,
         name=str(output.get("hts_kor_isnm", "")).strip(),
-        value=required_decimal(output.get("ovrs_nmix_prpr"), "ovrs_nmix_prpr"),
+        current_value=required_decimal(output.get("ovrs_nmix_prpr"), "ovrs_nmix_prpr"),
         open=required_decimal(output.get("ovrs_prod_oprc"), "ovrs_prod_oprc"),
         high=required_decimal(output.get("ovrs_prod_hgpr"), "ovrs_prod_hgpr"),
         low=required_decimal(output.get("ovrs_prod_lwpr"), "ovrs_prod_lwpr"),

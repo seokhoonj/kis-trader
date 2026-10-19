@@ -16,6 +16,7 @@ from __future__ import annotations
 import ast
 import importlib.util
 from dataclasses import dataclass
+from functools import lru_cache
 from pathlib import Path
 
 
@@ -32,11 +33,11 @@ def _module_file(dotted: str) -> Path:
     return Path(spec.origin)
 
 
-def _func_node(tree: ast.Module, func: str) -> ast.FunctionDef:
-    for node in ast.walk(tree):
-        if isinstance(node, ast.FunctionDef) and node.name == func:
-            return node
-    raise LookupError(f"function not found: {func}")
+@lru_cache(maxsize=None)
+def _parse_module(module_path: Path) -> tuple[ast.Module, dict[str, ast.FunctionDef]]:
+    tree = ast.parse(module_path.read_text(encoding="utf-8"))
+    local_funcs = {node.name: node for node in ast.walk(tree) if isinstance(node, ast.FunctionDef)}
+    return tree, local_funcs
 
 
 def _own_returns(fn: ast.FunctionDef) -> list[ast.Return]:
@@ -81,9 +82,10 @@ def _collect_builder_keys(fn: ast.FunctionDef, keys: set[str]) -> bool:
 
 def extract_sent_param_keys(impl: str) -> ParamScan:
     mod, func = impl.split(":")
-    tree = ast.parse(_module_file(mod).read_text(encoding="utf-8"))
-    fn = _func_node(tree, func)
-    local_funcs = {n.name: n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)}
+    _, local_funcs = _parse_module(_module_file(mod))
+    fn = local_funcs.get(func)
+    if fn is None:
+        raise LookupError(f"function not found: {func}")
     # `params` 가 같은 모듈 헬퍼로 조립되는 패턴(``params = _helper(...)`` 뒤 ``request(params=params)``)을
     # 추적한다 -- thin fetch 가 params 를 변수로만 넘기면 전송 키가 impl 본문에 직접 안 보여, 그 헬퍼의
     # dict 리터럴 키를 따라가야 한다(예: 재무·가치 순위가 공유하는 _fundamentals_params).
