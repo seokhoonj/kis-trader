@@ -129,6 +129,13 @@ def test_run_places_each_slice_at_its_time_and_asserts_sleeps():
     assert result.shortfall == Decimal(0)
 
 
+def test_run_routes_buy_schedule_to_stock_buy():
+    log = []
+    execute_twap(_Kis(_Stock(log)), _sched(),
+                 now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
+    assert [action for action, _ in log] == ["buy", "buy", "buy"]
+
+
 def test_run_routes_sell_schedule_to_stock_sell():
     # 회귀: sell 스케줄은 모든 슬라이스를 stock.sell() 로 보낸다(buy 아님) -- runner 의 side 분기.
     log = []
@@ -137,6 +144,16 @@ def test_run_routes_sell_schedule_to_stock_sell():
     execute_twap(_Kis(_Stock(log)), schedule,
                  now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
     assert [action for action, _ in log] == ["sell", "sell", "sell"]
+
+
+def test_run_rejects_invalid_side_without_placing_order():
+    log = []
+    schedule = _sched()
+    object.__setattr__(schedule, "side", "hold")
+    with pytest.raises(KISUsageError, match="buy/sell"):
+        execute_twap(_Kis(_Stock(log)), schedule,
+                     now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
+    assert log == []
 
 
 def test_reconcile_read_failure_keeps_submitted_slice():

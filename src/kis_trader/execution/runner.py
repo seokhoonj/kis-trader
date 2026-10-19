@@ -132,7 +132,12 @@ def execute_twap(
     발주됐는지를 예외 노트로 덧붙인다. ``now_fn``/``sleep_fn`` 은 시각·대기 주입점(테스트 결정성)이며,
     ``sleep_fn`` 은 ``now_fn`` 을 전진시켜야 한다(멈춘 시계면 무한 대기를 막고자 오류로 올린다)."""
     stock = kis.domestic.stock(schedule.symbol)
-    place = stock.buy if schedule.side == "buy" else stock.sell
+    if schedule.side == "buy":
+        place = stock.buy
+    elif schedule.side == "sell":
+        place = stock.sell
+    else:
+        raise KISUsageError(f"side 는 buy/sell 여야 한다: {schedule.side!r}")
     outcomes: list[TWAPSliceOutcome] = []
     try:
         for entry in schedule.slices:

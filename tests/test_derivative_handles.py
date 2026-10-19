@@ -100,6 +100,14 @@ def test_option_order_without_right_is_rejected(fake_client, fake_transport):
     assert fake_transport.request_count == 0            # 와이어 미접촉(pre-wire 거부)
 
 
+def test_option_order_rejects_invalid_right_without_wire(fake_client, fake_transport):
+    with pytest.raises(KISUsageError, match="call.*put"):
+        fake_client.domestic.option("201S03370", right="Call").buy(
+            quantity=1, limit_price=Decimal("2.5"),
+        )
+    assert fake_transport.request_count == 0
+
+
 def test_option_query_handle_needs_no_right(fake_client):
     # 옵션 조회 핸들은 계약코드만으로 충분하다 -- right 를 강요하지 않는다(구성은 right 없이 가능).
     opt = fake_client.domestic.option("201W09335")
@@ -133,6 +141,14 @@ def test_option_call_sell_end_to_end(fake_client, fake_transport):
     assert call["path"] == _PLACE
     assert call["body"]["SHTN_PDNO"] == "201S03370"
     assert call["body"]["SLL_BUY_DVSN_CD"] == "01"     # 매도
+
+
+def test_option_call_buy_end_to_end(fake_client, fake_transport):
+    fake_client.domestic.option("201S03370", right="call").buy(
+        quantity=1, limit_price=Decimal("2.50"),
+    )
+    call = fake_transport.calls[0]
+    assert call["body"]["SLL_BUY_DVSN_CD"] == "02"
 
 
 def test_option_night_put_carries_derivative_item(fake_client, fake_transport):

@@ -9,6 +9,7 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 from datetime import datetime, time, timedelta
+from typing import get_args
 
 from .._internal._datetime import _KST
 from ..errors import KISUsageError
@@ -38,6 +39,10 @@ class TWAPSchedule:
     symbol: str
     side: Side
     slices: tuple[TWAPSlice, ...]
+
+    def __post_init__(self) -> None:
+        if self.side not in get_args(Side):
+            raise KISUsageError(f"side 는 buy/sell 여야 한다: {self.side!r}")
 
     @property
     def total_quantity(self) -> int:

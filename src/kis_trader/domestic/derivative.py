@@ -220,4 +220,8 @@ class OptionContract(_ContractBase):
             raise KISUsageError(
                 "옵션 발주에는 right(call/put)가 필요하다 -- kis.domestic.option(symbol, right=...) 로 지정하라."
             )
-        return "02" if self.right == "call" else "03"      # 콜 02 / 풋 03
+        if self.right == "call":
+            return "02"
+        if self.right == "put":
+            return "03"
+        raise KISUsageError(f"옵션 right 는 'call' 또는 'put' 여야 한다: {self.right!r}")

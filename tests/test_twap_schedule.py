@@ -74,6 +74,11 @@ def test_make_schedule_slice_times_and_quantities():
     assert schedule.slices[0] == TWAPSlice(at=_scheduled_at(10, 0), quantity=34)
 
 
+def test_twap_schedule_rejects_invalid_side():
+    with pytest.raises(KISUsageError, match="buy/sell"):
+        TWAPSchedule(symbol="005930", side="Buy", slices=())
+
+
 def test_make_schedule_start_overrides_now():
     schedule = make_twap_schedule(symbol="005930", side="sell", quantity=10, duration="10m",
                                   slices=2, start=_scheduled_at(13, 0), now=_scheduled_at(9, 30))
