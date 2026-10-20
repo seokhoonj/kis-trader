@@ -41,8 +41,9 @@ class TWAPSliceOutcome:
     ``kis.orders.reconcile(client_order_id)`` 로 사후 확인해야 하므로 그 id 를 유실하지 않고 실어 둔다.
     ``client_order_id`` 가 실리는(= pending, shortfall 에서 제외) 경우: (1) 발주 타임아웃, (2) 재조회
     읽기 실패, (3) 재조회가 모호(0건 -> ``None``), (4) 재조회가 **비종료** 리포트(NEW/부분체결 등 아직
-    살아있음), (5) ``reconcile=False``. 종료상태(체결/취소/거부/만료)로 확정된 슬라이스와 거부 슬라이스는
-    ``None``(거부는 재조회 불필요, 확정은 ``report`` 로 집계)."""
+    살아있음), (5) ``reconcile=False``, (6) 발주 호출 중 ``KeyboardInterrupt`` 로 접수 여부가 불명(살아
+    있을 수 있어 재전송 금지·사후 reconcile 대상). 종료상태(체결/취소/거부/만료)로 확정된 슬라이스와
+    거부 슬라이스는 ``None``(거부는 재조회 불필요, 확정은 ``report`` 로 집계)."""
 
     at: datetime
     quantity: int
@@ -143,6 +144,7 @@ def execute_twap(
     in_flight: TWAPSliceOutcome | None = None
     try:
         for entry in schedule.slices:
+            outcomes_before_slice = len(outcomes)   # 이 슬라이스가 아직 결과를 안 실었는지 판별용
             while True:
                 current = now_fn()
                 delay = (entry.at - current).total_seconds()
@@ -197,7 +199,10 @@ def execute_twap(
             outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, report, None, client_order_id=pending_reconcile_id))
             in_flight = None
     except KeyboardInterrupt:
-        if in_flight is not None:
+        # 발주 호출 중 중단이면 그 슬라이스는 접수됐을 수 있어 pending 으로 실어 둔다. 단 결과가 이미
+        # 커밋됐으면(append~in_flight=None 사이의 좁은 창에서 인터럽트) 같은 슬라이스를 두 번 세지 않게
+        # outcomes 길이로 확인한다(중복 집계 시 pending_quantity 과대 -> shortfall 과소 -> 미달주문).
+        if in_flight is not None and len(outcomes) == outcomes_before_slice:
             outcomes.append(in_flight)
     except Exception as error:
         # 조회전용/인증/스로틀 등 전파 오류: 이미 발주된 슬라이스가 유실로 보이지 않게 몇 개까지

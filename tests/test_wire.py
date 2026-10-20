@@ -129,8 +129,10 @@ def test_format_wire_decimal_rejects_non_finite(bad):
 
 
 # --- decimal_or_zero (재조회 경로) ----------------------------------
-@pytest.mark.parametrize("value", [None, ""])
+@pytest.mark.parametrize("value", [None, "", " ", "\t", "  "])
 def test_decimal_or_zero_blank_is_zero(value):
+    # 공백만 있는 문자열도 빈값으로 보고 0 으로 접는다(파생/해외 엔진이 쓰던 _parse_decimal 통합 시
+    # 공백->0 델타를 고정 -- 되돌려 공백을 KISError 로 만들면 이 테스트가 깨진다).
     assert decimal_or_zero(value) == Decimal(0)
 
 
