@@ -29,6 +29,9 @@ full-package review. This is a breaking release (0.x minor).
   execution-strength ranking returns the generic `OverseasRankedStock`).
 - `credentials.json` profile bundles are a closed schema: an unknown field (e.g. a
   typo like `acount`) is now rejected instead of silently ignored.
+- Realtime `RealtimeClient.subscribe` / `unsubscribe` take `tr_id` and `tr_key` as
+  keyword-only arguments — they were same-typed positional strings that could be
+  transposed. Pass them by name (`subscribe(tr_id=..., tr_key=...)`).
 
 ### Fixed
 
@@ -44,6 +47,14 @@ full-package review. This is a breaking release (0.x minor).
 - Ranking and overseas-balance parsers fail closed on a non-mapping row instead of
   crashing or silently under-reporting; the order dedup store rejects a current-schema
   file missing its required maps.
+- A TWAP slice interrupted mid-placement (Ctrl-C) is recorded as pending for reconcile
+  instead of being dropped, so a possibly-live order stays out of `shortfall` and cannot
+  be double-ordered; an interrupt landing right after a slice was recorded no longer
+  double-counts it.
+- The realtime client survives a malformed system frame (a non-mapping body/frame) instead
+  of terminating the receive loop, and `stop()` called from a realtime callback thread is
+  rejected with a clear error instead of raising a join failure.
+- `MarketFunds` money fields are documented as hundred-million won (values unchanged).
 
 ## 0.10.0 - 2026-10-15
 
