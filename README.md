@@ -92,6 +92,7 @@ kis stock quote 005930
 kis search 삼성전자
 kis ranking change --direction gainers
 kis account balance
+kis account buyable 005930      # 종목 매수가능 여력(주문가능현금·매수가능수량)
 kis order buy 005930 10 --limit-price 70000
 kis order buy 005930 10 --limit-price 70000 --execute paper --yes
 ```

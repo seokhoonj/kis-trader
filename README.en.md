@@ -96,6 +96,7 @@ kis stock quote 005930
 kis search 삼성전자
 kis ranking change --direction gainers
 kis account balance
+kis account buyable 005930      # buying power for a symbol (orderable cash, buyable qty)
 kis order buy 005930 10 --limit-price 70000
 kis order buy 005930 10 --limit-price 70000 --execute paper --yes
 ```

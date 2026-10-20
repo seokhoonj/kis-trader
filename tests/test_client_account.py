@@ -401,6 +401,46 @@ def test_cli_buyable_command_wires_symbol_and_limit_price():
     assert fake.calls[0]["params"]["ORD_UNPR"] == "75000"  # limit_price 가 와이어로 전달됨
 
 
+def test_cli_buyable_parser_registers_symbol_and_limit_price():
+    # 파서가 buyable·positional symbol·--limit-price 를 등록하고 cmd_buyable 로 라우팅하는지 고정.
+    from kis_trader.cli.app import build_parser
+    from kis_trader.cli.commands import account as account_cmd
+
+    args = build_parser().parse_args(["account", "buyable", "005930", "--limit-price", "75000"])
+    assert args.func is account_cmd.cmd_buyable
+    assert args.symbol == "005930"
+    assert args.limit_price == "75000"
+
+
+def test_cli_buyable_no_limit_price_uses_market_basis():
+    # --limit-price 생략 시 시장가 기준(ORD_DVSN=01, ORD_UNPR="")을 라이브러리에 위임(소비자가 기본값 재작성 안 함).
+    from argparse import Namespace
+
+    from kis_trader.cli.commands import account as account_cmd
+
+    fake = FakeTransport(response=_buyable_resp())
+    account_cmd.cmd_buyable(_client(fake), Namespace(symbol="005930", limit_price=None))
+    assert fake.calls[0]["params"]["ORD_DVSN"] == "01"
+    assert fake.calls[0]["params"]["ORD_UNPR"] == ""
+
+
+def test_cli_buyable_rejects_non_stock_account():
+    # 선물옵션 등 비주식 계좌면 와이어 닿기 전에 CliConfigError 로 거부(계좌 게이트 회귀 방지).
+    from argparse import Namespace
+
+    from kis_trader.cli.commands import account as account_cmd
+    from kis_trader.cli.errors import CliConfigError
+
+    class _NotStockAccount:
+        pass
+
+    class _Kis:
+        account = _NotStockAccount()
+
+    with pytest.raises(CliConfigError):
+        account_cmd.cmd_buyable(_Kis(), Namespace(symbol="005930", limit_price=None))
+
+
 # --- sellable (ticker, 모의 미지원) ----------------------------------------
 def test_ticker_sellable_parses():
     result = _client(FakeTransport(response=_sellable_resp())).domestic.stock("005930").sellable()

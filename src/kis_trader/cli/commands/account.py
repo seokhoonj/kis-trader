@@ -1,4 +1,4 @@
-"""계좌 조회 명령 -- 잔고/보유/미체결/체결/손익/증거금. ``kis.account`` 는 프로필 상품코드로
+"""계좌 조회 명령 -- 잔고/보유/매수가능/미체결/체결/손익/증거금. ``kis.account`` 는 프로필 상품코드로
 계좌 뷰(주식 01 / 국내선물옵션 03 / 해외선물옵션 08)를 정하므로, 각 명령은 그 뷰 타입에 맞게
 디스패치한다. 통화가 다른 해외 시장을 CLI 가 임의 합산하지 않는다."""
 from __future__ import annotations
@@ -13,6 +13,7 @@ from ..errors import CliConfigError
 
 if TYPE_CHECKING:
     from ...client import KISClient
+    from ...orderable import DomesticBuyableAmount
 
 
 def _view(kis: KISClient) -> StockAccount | DomesticDerivativesAccount | OverseasDerivativesAccount:
@@ -60,7 +61,7 @@ def _reject_foreign_flags(args: Namespace, *, allow: set[str]) -> None:
             raise CliConfigError(f"{cli} 는 이 계좌·명령에서 지원되지 않습니다.")
 
 
-def cmd_buyable(kis: KISClient, args: Namespace) -> Any:
+def cmd_buyable(kis: KISClient, args: Namespace) -> DomesticBuyableAmount:
     """종목 매수가능 여력 -- 주문가능현금과 현금/미수포함 최대 매수가능 수량·금액(국내 주식).
 
     ``--limit-price`` 없으면 시장가 기준. 선물옵션(03/08) 계좌면 거부."""

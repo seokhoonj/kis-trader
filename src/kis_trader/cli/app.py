@@ -260,7 +260,7 @@ def build_parser() -> argparse.ArgumentParser:
     ib.add_argument("--end", default=None, help="YYYYMMDD(생략 시 오늘)")
     ib.set_defaults(func=index.cmd_bars)
 
-    # kis account balance|positions|orders|fills|reserved|profits|transactions|
+    # kis account balance|positions|buyable|orders|fills|reserved|profits|transactions|
     #             deposit|margin|valuation|settlement|commissions|present|foreign-margin
     # kis.account 는 프로필 상품코드로 계좌 뷰(주식 01 / 국내선물옵션 03 / 해외선물옵션 08)를 정한다.
     # 아래 명령은 그 뷰 타입에 맞게 디스패치한다(--region 등은 그것을 읽는 명령에만 단다).
