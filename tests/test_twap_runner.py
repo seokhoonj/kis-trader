@@ -46,7 +46,7 @@ class _Stock:
         self._n = 0
         self.placed: dict[str, tuple] = {}   # cid -> (체결수량, 단가) -- reconcile 가 읽는 '브로커 진실'
 
-    def _place(self, action, quantity):
+    def _place(self, action, quantity, client_order_id=None):
         self._n += 1
         self._log.append((action, quantity))
         if self._raise is not None:
@@ -55,16 +55,16 @@ class _Stock:
             raise OrderRejectedError("거부", rt_cd="1", msg_cd="X", msg1="거부")
         if self._n in self._timeout:
             raise OrderTimeoutError("타임아웃", client_order_id=f"c{self._n}")
-        cid = f"c{self._n}"
+        cid = client_order_id or f"c{self._n}"
         price = 70000 if self._prices is None else self._prices[self._n - 1]
         self.placed[cid] = (Decimal(quantity), price)   # 브로커가 이 수량을 체결할 것(reconcile 가 확인)
         return _placed(cid)                              # place 는 NEW/0 만 돌려준다(현실)
 
-    def buy(self, *, quantity):
-        return self._place("buy", quantity)
+    def buy(self, *, quantity, client_order_id=None):
+        return self._place("buy", quantity, client_order_id)
 
-    def sell(self, *, quantity):
-        return self._place("sell", quantity)
+    def sell(self, *, quantity, client_order_id=None):
+        return self._place("sell", quantity, client_order_id)
 
 
 class _Orders:
@@ -277,10 +277,10 @@ def test_run_systemic_error_propagates_with_partial_note():
     log = []
 
     class _FailAfterFirst(_Stock):
-        def buy(self, *, quantity):
+        def buy(self, *, quantity, client_order_id=None):
             if self._n >= 1:
                 raise AccountNotOrderableError("조회전용")
-            return super().buy(quantity=quantity)
+            return super().buy(quantity=quantity, client_order_id=client_order_id)
 
     with pytest.raises(AccountNotOrderableError) as excinfo:
         execute_twap(_Kis(_FailAfterFirst(log)), _sched(),
@@ -292,15 +292,32 @@ def test_run_keyboard_interrupt_returns_partial():
     log = []
 
     class _Interrupting(_Stock):
-        def buy(self, *, quantity):
+        def buy(self, *, quantity, client_order_id=None):
             if self._n >= 1:                             # interrupt at the second slice
                 raise KeyboardInterrupt
-            return super().buy(quantity=quantity)
+            return super().buy(quantity=quantity, client_order_id=client_order_id)
 
     result = execute_twap(_Kis(_Interrupting(log)), _sched(),
                           now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
     assert result.submitted_quantity == 34               # first slice only
-    assert len(result.outcomes) == 1
+    assert len(result.outcomes) == 2                      # interrupted second slice is pending
+    assert result.pending_quantity == Decimal(33)
+
+
+def test_run_keyboard_interrupt_after_broker_acceptance_marks_slice_pending():
+    broker_live: list[tuple[str, int]] = []
+
+    class _InterruptAfterAcceptance(_Stock):
+        def buy(self, *, quantity, client_order_id=None):
+            assert client_order_id is not None
+            broker_live.append((client_order_id, quantity))
+            raise KeyboardInterrupt
+
+    result = execute_twap(_Kis(_InterruptAfterAcceptance([])), _sched(),
+                          now_fn=lambda: _scheduled_at(15, 0), sleep_fn=lambda d: None)
+    assert result.pending_reconcile_ids == (broker_live[0][0],)
+    assert result.pending_quantity == Decimal(34)
+    assert result.shortfall == Decimal(66)
 
 
 def test_run_raises_when_clock_does_not_advance():

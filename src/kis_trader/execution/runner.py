@@ -16,6 +16,7 @@ from typing import TYPE_CHECKING
 
 from .._internal._datetime import _KST
 from ..errors import KISError, KISUsageError, OrderRejectedError, OrderTimeoutError
+from ..order import mint_client_order_id
 from ..report import TERMINAL_ORDER_STATUSES
 from .schedule import TWAPSchedule
 
@@ -139,6 +140,7 @@ def execute_twap(
     else:
         raise KISUsageError(f"side 는 buy/sell 여야 한다: {schedule.side!r}")
     outcomes: list[TWAPSliceOutcome] = []
+    in_flight: TWAPSliceOutcome | None = None
     try:
         for entry in schedule.slices:
             while True:
@@ -151,15 +153,24 @@ def execute_twap(
                     raise KISUsageError(
                         "sleep_fn 이 now_fn 을 전진시키지 않았다 -- 시각/대기 주입이 일관돼야 한다."
                     )
+            slice_id = mint_client_order_id()
+            pending_interrupt = TWAPSliceOutcome(
+                entry.at, entry.quantity, None,
+                "실행 중단(KeyboardInterrupt) -- 이 슬라이스는 접수됐을 수 있다.",
+                client_order_id=slice_id,
+            )
+            in_flight = pending_interrupt
             try:
-                report = place(quantity=entry.quantity)
+                report = place(quantity=entry.quantity, client_order_id=slice_id)
             except OrderTimeoutError as error:
                 # 타임아웃 슬라이스는 살아 있을 수 있다 -- client_order_id 를 실어 사후 reconcile 가능하게.
                 outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, None, str(error),
                                                  client_order_id=error.client_order_id))
+                in_flight = None
                 continue
             except OrderRejectedError as error:
                 outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, None, str(error)))
+                in_flight = None
                 continue
             pending_reconcile_id: str | None = None
             if reconcile:
@@ -184,8 +195,10 @@ def execute_twap(
                 # (체결 0 으로 단정해 shortfall 을 부풀리지 않는다 -- 위와 같은 이중매수 방지).
                 pending_reconcile_id = report.client_order_id
             outcomes.append(TWAPSliceOutcome(entry.at, entry.quantity, report, None, client_order_id=pending_reconcile_id))
+            in_flight = None
     except KeyboardInterrupt:
-        pass  # 남은 슬라이스 중단, 부분 결과 반환(이미 낸 시장가 주문은 체결됨)
+        if in_flight is not None:
+            outcomes.append(in_flight)
     except Exception as error:
         # 조회전용/인증/스로틀 등 전파 오류: 이미 발주된 슬라이스가 유실로 보이지 않게 몇 개까지
         # 접수됐는지 노트를 남기고 재전파한다(발주분은 저장소에 기록돼 reconcile 로 사후 확인 가능).
