@@ -12,6 +12,7 @@ from dataclasses import dataclass
 from typing import Literal, cast, get_args
 
 from ..errors import KISUsageError
+from ..instrument import Region
 from ..order import _GTP_DIVISIONS, DomesticDivision, Side
 from ..overseas._engine.orders import is_overseas_exchange
 
@@ -118,7 +119,7 @@ class StockOrderPlan:
     엔진이 거래소->결제통화로 판별해 fail-closed 로 건다(:class:`~kis_trader.risk.RiskLimits`
     ``max_order_notional_by_currency``)."""
 
-    region: Literal["domestic", "overseas"]
+    region: Region
     symbol: str
     side: Side
     order_type: Literal["market", "limit"]
@@ -153,7 +154,7 @@ def make_stock_order_plan(
     ``exchange`` 필수(지원 거래소코드 NAS/NYS/...)·국내 주문구분(``division``) 금지다. 국내는 종목 기본
     거래소(KRX)로 라우팅하므로 ``exchange`` 를 받지 않는다(주면 거부). 해외 실주문의 통화별 금액 한도는
     안전 엔진이 거래소->결제통화로 판별해 fail-closed 로 건다."""
-    if region not in ("domestic", "overseas"):
+    if region not in get_args(Region):
         raise KISUsageError(f"region 은 domestic/overseas 중 하나여야 한다: {region!r}")
     if side not in _SIDES:
         raise KISUsageError(f"side 는 buy/sell 중 하나여야 한다: {side!r}")
@@ -188,7 +189,7 @@ def make_stock_order_plan(
     order_type: Literal["market", "limit"] = "limit" if limit_price is not None else "market"
     normalized_price = str(limit_price) if limit_price is not None else None
     return StockOrderPlan(
-        region=cast("Literal['domestic', 'overseas']", region),  # 위에서 두 값으로 좁힘
+        region=cast("Region", region),  # 위에서 두 값으로 좁힘
         symbol=symbol,
         side=side,  # type: ignore[arg-type]  # 위에서 _SIDES 로 좁힘
         order_type=order_type,

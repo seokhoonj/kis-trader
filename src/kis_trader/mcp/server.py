@@ -27,7 +27,7 @@ from __future__ import annotations
 import logging
 import os
 import sys
-from typing import Any, Literal
+from typing import Any
 
 try:  # `mcp`(및 pydantic/starlette) 는 선택 의존성. 콘솔 스크립트 kis-mcp 는 무조건 설치되므로,
     import anyio  # 미설치 상태에서 실행돼도 raw ModuleNotFoundError 대신 main() 에서 친절한 설치 안내로 거른다.
@@ -58,6 +58,7 @@ from ..order import DomesticDivision, ImmediateOrderFingerprint, Side
 from ..overseas._engine.orders import is_overseas_exchange
 from ..overseas.namespace import OverseasIndexKind
 from ..risk import RiskLimits
+from ..transport import Environment
 from . import handlers
 from ._guardrails import CircuitBreaker, RealOrderGate, StockOrderPlan
 from ._policy import (
@@ -540,7 +541,7 @@ def build_server(
         return handlers.reconcile(account_session.read_client(), client_order_id=client_order_id)
 
     @server.tool()
-    def use_environment(environment: Literal["real", "paper"]) -> CurrentAccountResult:
+    def use_environment(environment: Environment) -> CurrentAccountResult:
         """**읽는** 환경만 바꾼다(real/paper). 전환은 기동 시 얼린 실주문 언락 비트를 바꾸지 못한다 --
         다만 기동 시 KIS_MCP_ALLOW_REAL+KIS_MCP_REAL_CONFIRM 이 켜져 있었다면 real 로 바꾼 뒤 실주문이
         집행 가능해진다(사람 확인은 여전히 필요). 실주문 의도가 없으면 기동 시 두 비트를 설정하지 말 것.
