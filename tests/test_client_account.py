@@ -386,6 +386,21 @@ def test_ticker_buyable_amount_field_unparseable_fails_closed():
         _client(FakeTransport(response=_buyable_resp(output))).domestic.stock("005930").buyable()
 
 
+def test_cli_buyable_command_wires_symbol_and_limit_price():
+    # `kis account buyable <symbol> [--limit-price]` 가 종목 핸들 buyable 로 배선되는지(CLI 추가분).
+    from argparse import Namespace
+
+    from kis_trader.cli.commands import account as account_cmd
+
+    fake = FakeTransport(response=_buyable_resp(_BUYABLE_OUTPUT))
+    result = account_cmd.cmd_buyable(_client(fake), Namespace(symbol="005930", limit_price=75000))
+    assert isinstance(result, DomesticBuyableAmount)
+    assert result.symbol == "005930"
+    assert result.cash_buyable_quantity == Decimal(13)   # nrcvb_buy_qty
+    assert result.max_buyable_quantity == Decimal(27)    # max_buy_qty
+    assert fake.calls[0]["params"]["ORD_UNPR"] == "75000"  # limit_price 가 와이어로 전달됨
+
+
 # --- sellable (ticker, 모의 미지원) ----------------------------------------
 def test_ticker_sellable_parses():
     result = _client(FakeTransport(response=_sellable_resp())).domestic.stock("005930").sellable()

@@ -75,7 +75,13 @@ kis market investors --market KOSPI    # 시장 전체 투자자 수급(외국�
 kis market net-buy --investor foreign  # 투자자별 순매수 상위 종목
 kis account balance                    # 국내 잔고
 kis account positions --region overseas --market US
+kis account buyable 069500             # 종목 매수가능 여력(주문가능현금·매수가능수량)
 ```
+
+`kis account buyable <종목>` 는 그 종목을 **얼마나 살 수 있는지**를 돌려줍니다 -- 주문가능현금
+(`orderable_cash`)과 현금 기준(`cash_buyable_quantity`)·미수 포함 최대(`max_buyable_quantity`)
+매수가능 수량·금액. `--limit-price` 를 주면 그 지정가 기준, 없으면 시장가 기준입니다. 주식(위탁·연금·ISA)
+계좌 전용입니다.
 
 `kis market` 는 시장 전체 투자자 수급입니다 -- `investors` 는 KOSPI/KOSDAQ 시장의 외국인·개인·기관
 순매수, `net-buy` 는 투자자별 순매수 상위 종목(`--basis` 수량/대금, `--side` 매수/매도, `--investor`

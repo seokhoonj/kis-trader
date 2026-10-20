@@ -265,11 +265,12 @@ def build_parser() -> argparse.ArgumentParser:
     # kis.account 는 프로필 상품코드로 계좌 뷰(주식 01 / 국내선물옵션 03 / 해외선물옵션 08)를 정한다.
     # 아래 명령은 그 뷰 타입에 맞게 디스패치한다(--region 등은 그것을 읽는 명령에만 단다).
     account_p = groups.add_parser(
-        "account", help="계좌 잔고·보유·미체결·체결·예약·손익·거래·예수금·증거금(선물옵션 포함)")
+        "account", help="계좌 잔고·보유·매수가능·미체결·체결·예약·손익·거래·예수금·증거금(선물옵션 포함)")
     account_sub = account_p.add_subparsers(dest="action", required=True)
     _REGION_CMDS = {"balance", "positions", "orders", "fills", "reserved", "profits",
                     "transactions", "settlement"}
     for name, func in [("balance", account.cmd_balance), ("positions", account.cmd_positions),
+                       ("buyable", account.cmd_buyable),
                        ("orders", account.cmd_orders), ("fills", account.cmd_fills),
                        ("reserved", account.cmd_reserved), ("profits", account.cmd_profits),
                        ("transactions", account.cmd_transactions), ("deposit", account.cmd_deposit),
@@ -278,6 +279,10 @@ def build_parser() -> argparse.ArgumentParser:
                        ("present", account.cmd_present),
                        ("foreign-margin", account.cmd_foreign_margin)]:
         sp = leaf(account_sub, name)
+        if name == "buyable":  # 종목 매수가능 여력 -- 종목코드 필수, 지정가 선택
+            sp.add_argument("symbol", help="종목코드(6자리)")
+            sp.add_argument("--limit-price", dest="limit_price", default=None,
+                            help="지정가 기준 매수가능(생략 시 시장가 기준)")
         if name in _REGION_CMDS:
             _add_region(sp)
         if name in ("balance", "positions", "orders"):  # --market 를 실제로 읽는 명령에만

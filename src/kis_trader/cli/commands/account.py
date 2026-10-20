@@ -46,6 +46,7 @@ _ACCOUNT_FLAGS: tuple[tuple[str, object, str], ...] = (
     ("older_than_three_months", False, "--older-than-three-months"), ("process", None, "--process"),
     ("by", "symbol", "--by"), ("sort", None, "--sort"),
     ("currency", None, "--currency"), ("won_basis", False, "--won-basis"),
+    ("limit_price", None, "--limit-price"),
 )
 
 
@@ -57,6 +58,14 @@ def _reject_foreign_flags(args: Namespace, *, allow: set[str]) -> None:
             continue
         if getattr(args, dest, unset) != unset:
             raise CliConfigError(f"{cli} 는 이 계좌·명령에서 지원되지 않습니다.")
+
+
+def cmd_buyable(kis: KISClient, args: Namespace) -> Any:
+    """종목 매수가능 여력 -- 주문가능현금과 현금/미수포함 최대 매수가능 수량·금액(국내 주식).
+
+    ``--limit-price`` 없으면 시장가 기준. 선물옵션(03/08) 계좌면 거부."""
+    _stock_account(kis)  # 주식(위탁/연금/ISA 등) 계좌 전용 -- 선물옵션이면 명확히 거부
+    return kis.domestic.stock(args.symbol).buyable(limit_price=args.limit_price)
 
 
 def cmd_balance(kis: KISClient, args: Namespace) -> Any:
