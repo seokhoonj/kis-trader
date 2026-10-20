@@ -1,0 +1,176 @@
+name: platform and documentation checks
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  native-storage:
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: windows-latest
+            python: .venv/Scripts/python.exe
+          - os: macos-latest
+            python: .venv/bin/python
+    defaults:
+      run:
+        shell: bash
+    env:
+      PYTHONUTF8: "1"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - name: Install Python 3.13 and development dependencies
+        run: |
+          uv venv --python 3.13
+          uv pip install --python "${{ matrix.python }}" -e ".[dev]"
+          "${{ matrix.python }}" -c "import sys; assert sys.version_info[:2] == (3, 13); assert sys.version_info.releaselevel == 'final'; print(sys.version, sys.platform)"
+      - name: Native Windows normal-close and crash lock recovery
+        if: runner.os == 'Windows'
+        run: >-
+          "${{ matrix.python }}" -m pytest -q
+          tests/test_store_dir_fsync.py::test_native_windows_process_exclusion_and_recovery
+      - name: Portable refusal and root-isolation tests
+        run: >-
+          "${{ matrix.python }}" -m pytest -q
+          tests/test_order_live_findings.py::test_order_store_path_refuses_actual_legacy_directory
+          tests/test_order_live_findings.py::test_order_store_rejects_state_inside_cache_cleanup_tree
+          tests/test_order_live_findings.py::test_order_layout_rejects_cache_nested_inside_state_without_mutation
+          tests/test_order_live_findings.py::test_offline_migration_never_merges_independent_journals
+          tests/test_order_live_findings.py::test_offline_constructor_failure_leaves_bytes_and_releases_all_previous_locks
+      - name: Actual native layout and migration boundary
+        run: |
+          "${{ matrix.python }}" - <<'PY'
+          import importlib.util
+          import os
+          from pathlib import Path
+          import sys
+          import tempfile
+          from kis_trader import Order, OrderStore
+          from kis_trader import _order_store_layout as layout
+          from kis_trader.errors import KISError, KISUsageError
+
+          assert sys.version_info[:2] == (3, 13)
+          assert sys.platform in {'win32', 'darwin'}, 'This job must actually run on the native target'
+          windows = sys.platform == 'win32'
+          assert layout._requires_legacy_alias() is (not windows)
+
+          def contents(directory):
+              # Native Windows byte locks can forbid reading byte zero while held.
+              # JSON bytes remain strict; lock size is metadata evidence, not lock-byte proof.
+              return {entry.name: ('lock-size', entry.stat().st_size)
+                      if entry.name.endswith('.json.lock') else ('json-bytes', entry.read_bytes())
+                      for entry in directory.iterdir()}
+
+          with tempfile.TemporaryDirectory(prefix='kis-native-synthetic-') as temporary:
+              root = Path(temporary)
+              state = root/'fresh-state'/'kis-trader'/'orders'
+              cache = root/'fresh-cache'/'kis-trader'/'orders'
+              assert layout.ensure_order_store_directory(state, cache) == state
+              assert state.is_dir() and not state.is_symlink()
+              if windows:
+                  assert not os.path.lexists(cache)
+              else:
+                  assert cache.is_symlink() and cache.samefile(state)
+              with OrderStore(state/'synthetic.json', retention_days=0) as journal:
+                  journal.try_claim('synthetic-pending', Order.market('005930', side='buy', quantity=1).fingerprint)
+              with OrderStore(state/'synthetic.json', retention_days=0) as reopened:
+                  assert reopened.is_in_flight('synthetic-pending')
+
+              for case_name, lock_payload in [('empty', b''), ('nonempty', b'synthetic-lock-byte-zero')]:
+                  case_root = root/case_name
+                  state = case_root/'legacy-state'/'kis-trader'/'orders'
+                  cache = case_root/'legacy-cache'/'kis-trader'/'orders'
+                  cache.mkdir(parents=True)
+                  with OrderStore(cache/'synthetic.json', retention_days=0) as seed:
+                      seed.try_claim('synthetic-pending', Order.market('005930', side='buy', quantity=1).fingerprint)
+                  lock_path = cache/'synthetic.json.lock'
+                  lock_path.write_bytes(lock_payload)  # Closed fixture: include real nonempty byte-zero coverage.
+                  closed_lock_bytes = lock_path.read_bytes()
+                  with OrderStore(cache/'synthetic.json', retention_days=0) as held:
+                      before = contents(cache)
+                      try:
+                          layout.migrate_order_store_directory(state, cache, offline=True)
+                      except KISError:
+                          pass
+                      else:
+                          raise AssertionError('migration ignored a live native source lock')
+                      assert contents(cache) == before and not state.exists()
+                  assert lock_path.read_bytes() == closed_lock_bytes
+                  before = contents(cache)
+                  source_identity = (cache.stat().st_dev, cache.stat().st_ino)
+                  if windows:
+                      # Real Windows non-overwriting os.rename branch, with genuine msvcrt locks held.
+                      layout.migrate_order_store_directory(state, cache, offline=True)
+                      assert state.is_dir() and not state.is_symlink()
+                      assert not os.path.lexists(cache)
+                      assert contents(state) == before
+                      backups = list(cache.parent.glob('.orders-backup-*'))
+                      assert len(backups) == 1 and contents(backups[0]) == before
+                      # Component has released all descriptors; actual lock bytes must be preserved.
+                      assert (state/'synthetic.json.lock').read_bytes() == closed_lock_bytes
+                      assert (backups[0]/'synthetic.json.lock').read_bytes() == closed_lock_bytes
+                      assert not (state.parent/'.orders-migration.json').exists()
+                      with OrderStore(state/'synthetic.json', retention_days=0) as reopened:
+                          assert reopened.is_in_flight('synthetic-pending')
+                      print('native Windows: actual migration preserved pending JSON and closed lock bytes; payload size', len(lock_payload))
+                  else:
+                      # Current implementation supports renameat2 only on POSIX; macOS has no fallback.
+                      # A native unsupported result must preserve every original entry and inode.
+                      try:
+                          layout.migrate_order_store_directory(state, cache, offline=True)
+                      except KISUsageError as error:
+                          assert '배타적' in str(error)
+                      else:
+                          raise AssertionError('unexpected macOS migration success: review the primitive contract before changing this expectation')
+                      assert contents(cache) == before
+                      assert lock_path.read_bytes() == closed_lock_bytes
+                      assert (cache.stat().st_dev, cache.stat().st_ino) == source_identity
+                      assert not state.exists() and not cache.is_symlink()
+                      assert not list(cache.parent.glob('.orders-backup-*'))
+                      assert (state.parent/'.orders-migration.json').is_file()
+                      print('native macOS: unsupported migration preserved original JSON/closed lock bytes/inode; payload size', len(lock_payload))
+          PY
+
+  browser-docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
+      - uses: quarto-dev/quarto-actions/setup@8a96df13519ee81fd526f2dfca5962811136661b # v2, official setup action
+        with:
+          version: '1.5.57'
+      - name: Install isolated browser test dependencies
+        run: |
+          uv venv --python 3.12 .browser-venv
+          uv pip install --python .browser-venv/bin/python playwright PyYAML
+          .browser-venv/bin/python -m playwright install --with-deps chromium
+      - name: Render public documentation
+        run: quarto render docs
+      - name: Exercise desktop and mobile documentation
+        run: |
+          .browser-venv/bin/python tools/check_docs_browser.py \
+            --site docs/_site --project docs/_quarto.yml \
+            --artifacts browser-docs-artifacts
+      - name: Upload screenshots and check results for visual review
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: docs-desktop-mobile
+          path: browser-docs-artifacts
+          if-no-files-found: warn
+          retention-days: 7
