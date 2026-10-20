@@ -103,7 +103,7 @@ def test_raw_callback_keyed_by_tr_id_and_key_not_tr_id_only() -> None:
     # 콜백은 (tr_id, tr_key) 로 키 -- 같은 tr_id 의 다른 tr_key 틱이 남의 콜백을 호출하면 안 된다.
     c = _client()
     got: list[str] = []
-    c.subscribe("H0STCNT0", "005930", on=lambda m: got.append(m.tr_key))
+    c.subscribe(tr_id="H0STCNT0", tr_key="005930", on=lambda m: got.append(m.tr_key))
     c._dispatch(RealtimeMessage("H0STCNT0", "005930", "mine"))   # 같은 tr_id+tr_key -> 호출
     c._dispatch(RealtimeMessage("H0STCNT0", "000660", "other"))  # 같은 tr_id, 다른 tr_key -> 호출 안 됨
     _pump(c)
@@ -113,7 +113,7 @@ def test_raw_callback_keyed_by_tr_id_and_key_not_tr_id_only() -> None:
 def test_raw_callback_removed_on_unsubscribe() -> None:
     c = _client()
     got: list[str] = []
-    c.subscribe("H0STCNT0", "005930", on=lambda m: got.append(m.data))
-    c.unsubscribe("H0STCNT0", "005930")                          # 콜백도 제거돼야 한다
+    c.subscribe(tr_id="H0STCNT0", tr_key="005930", on=lambda m: got.append(m.data))
+    c.unsubscribe(tr_id="H0STCNT0", tr_key="005930")  # 콜백도 제거돼야 한다
     c._dispatch(RealtimeMessage("H0STCNT0", "005930", "late"))   # 해지 후 도착 -> 호출 안 됨
     assert got == []

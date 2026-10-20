@@ -480,7 +480,7 @@ class KISClient:
         """실시간(웹소켓) 클라이언트를 만든다.
 
         ``/oauth2/Approval`` 로 접속키를 발급받아 :class:`~kis_trader.realtime.client.RealtimeClient`
-        (동기 래퍼)를 돌려준다. ``ws.subscribe(tr_id, tr_key, on=콜백)`` 로 등록하고
+        (동기 래퍼)를 돌려준다. ``ws.subscribe(tr_id=tr_id, tr_key=tr_key, on=콜백)`` 로 등록하고
         ``ws.start()`` 후 콜백 또는 ``for msg in ws.stream()`` 로 실시간 시세·통보를 받는다.
         async 앱은 코어(:class:`~kis_trader.realtime._connection.RealtimeConnection`)를 직접 쓴다.
         REST 는 그대로 동기다. ``customer_type`` 은 구독 헤더의 고객타입 -- 개인 ``"P"``(기본),

@@ -119,7 +119,7 @@ class RealtimeClient:
         self.overseas = RealtimeOverseasNamespace(self)
 
     # -- 구독 (start 전/후 모두 가능) --
-    def subscribe(self, tr_id: str, tr_key: str, *, on: MessageCallback | None = None) -> None:
+    def subscribe(self, *, tr_id: str, tr_key: str, on: MessageCallback | None = None) -> None:
         """실시간 등록. ``on`` 콜백은 해당 ``(tr_id, tr_key)`` 계약 수신 시 호출된다(생략하면
         ``stream()`` 으로만 받는다). ``start()`` 전이면 보관해 연결 후 자동 전송한다."""
         key = (tr_id, tr_key)
@@ -196,7 +196,7 @@ class RealtimeClient:
                     if self._running and self._conn is not None:
                         self._schedule_wire(self._conn.unsubscribe(sub.tr_id, sub.tr_key))
 
-    def unsubscribe(self, tr_id: str, tr_key: str) -> None:
+    def unsubscribe(self, *, tr_id: str, tr_key: str) -> None:
         """실시간 해제. 이 계약의 콜백도 함께 제거한다(재구독 전까지 stale 콜백이 남지 않게).
 
         같은 (tr_id, tr_key) 계약에 타입드 구독이 남아 있으면 wire 계약을 그들이 아직 쓰므로 해제하지

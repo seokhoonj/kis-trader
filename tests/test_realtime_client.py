@@ -54,6 +54,15 @@ def _client(ws):
     return RealtimeClient("KEY", "ws://x", connect=_connector(ws), reconnect=False)
 
 
+def test_subscribe_and_unsubscribe_require_keyword_contract() -> None:
+    client = _client(FakeWebSocket(incoming=[]))
+
+    with pytest.raises(TypeError):
+        client.subscribe("DUMMYTR0", "005930")  # type: ignore[misc]
+    with pytest.raises(TypeError):
+        client.unsubscribe("DUMMYTR0", "005930")  # type: ignore[misc]
+
+
 def test_callback_receives_messages_and_subscription_sent():
     ws = FakeWebSocket(
         incoming=[
@@ -63,7 +72,7 @@ def test_callback_receives_messages_and_subscription_sent():
     )
     received = []
     client = _client(ws)
-    client.subscribe("DUMMYTR0", "005930", on=received.append)
+    client.subscribe(tr_id="DUMMYTR0", tr_key="005930", on=received.append)
     client.start()
     # 소비를 stream 으로 유도(백그라운드가 큐에 넣음), 스트림이 끝나면 프레임 소진됨.
     streamed = list(client.stream(timeout=2.0))
@@ -91,7 +100,7 @@ def test_blocking_callback_does_not_stall_stream_delivery():
         release.wait(2.0)
 
     client = _client(ws)
-    client.subscribe("DUMMYTR0", "005930", on=blocking)
+    client.subscribe(tr_id="DUMMYTR0", tr_key="005930", on=blocking)
     client.start()
     # 콜백이 워커에서 블로킹 중이어도 stream() 은 두 틱을 모두 전달한다(루프 미차단).
     streamed = list(client.stream(timeout=2.0))
@@ -112,7 +121,7 @@ def test_context_manager_starts_and_stops():
     ws = FakeWebSocket(incoming=["0|DUMMYTR0|001|005930^1"])
     got = []
     client = _client(ws)
-    client.subscribe("DUMMYTR0", "005930", on=got.append)
+    client.subscribe(tr_id="DUMMYTR0", tr_key="005930", on=got.append)
     with client:
         list(client.stream(timeout=2.0))
     assert len(got) == 1
@@ -163,7 +172,7 @@ def test_startup_failure_terminates_typed_subscription():
 def test_subscribe_before_start_is_deferred_then_sent():
     ws = FakeWebSocket(incoming=[])
     client = _client(ws)
-    client.subscribe("H0STASP0", "005930")  # start 전
+    client.subscribe(tr_id="H0STASP0", tr_key="005930")  # start 전
     assert ws.sent == []  # 아직 미전송
     client.start()
     list(client.stream(timeout=1.0))
@@ -251,7 +260,7 @@ def test_subscribe_after_start_sends_frame():
     ws = OpenWebSocket()
     client = _open_client(ws)
     client.start()
-    client.subscribe("H0STASP0", "005930")
+    client.subscribe(tr_id="H0STASP0", tr_key="005930")
     client.stop()
     assert any("H0STASP0" in s for s in ws.sent)
 
@@ -259,9 +268,9 @@ def test_subscribe_after_start_sends_frame():
 def test_unsubscribe_sends_unregister_frame_and_discards():
     ws = OpenWebSocket()
     client = _open_client(ws)
-    client.subscribe("H0STASP0", "005930")
+    client.subscribe(tr_id="H0STASP0", tr_key="005930")
     client.start()
-    client.unsubscribe("H0STASP0", "005930")
+    client.unsubscribe(tr_id="H0STASP0", tr_key="005930")
     client.stop()
     assert ("H0STASP0", "005930") not in client._desired
     frames = [json.loads(s) for s in ws.sent]
@@ -276,9 +285,9 @@ def test_subscribe_from_callback_does_not_deadlock():
     client = _client(ws)
 
     def on_msg(_message):
-        client.subscribe("H0STASP0", "000660")
+        client.subscribe(tr_id="H0STASP0", tr_key="000660")
 
-    client.subscribe("DUMMYTR0", "005930", on=on_msg)
+    client.subscribe(tr_id="DUMMYTR0", tr_key="005930", on=on_msg)
     client.start()
     list(client.stream(timeout=2.0))
     client.stop()
@@ -298,7 +307,7 @@ def test_stop_from_callback_raises_realtime_error_and_main_thread_can_stop():
         finally:
             callback_finished.set()
 
-    client.subscribe("DUMMYTR0", "005930", on=on_msg)
+    client.subscribe(tr_id="DUMMYTR0", tr_key="005930", on=on_msg)
     client._running = True
     client._dispatch_thread = threading.Thread(target=client._dispatch_worker, daemon=True)
     client._dispatch_thread.start()
@@ -415,7 +424,7 @@ def test_dispatch_worker_terminates_on_stop():
     # 수신 스레드가 teardown 에서 wedge 되지 않고 워커도 멎는다 -- 프로세스 내 재시작 가드가 안 막힌다).
     ws = FakeWebSocket(incoming=["0|DUMMYTR0|001|005930^093100^71800"])
     client = _client(ws)
-    client.subscribe("DUMMYTR0", "005930")
+    client.subscribe(tr_id="DUMMYTR0", tr_key="005930")
     client.start()
     list(client.stream(timeout=2.0))
     client.stop()
@@ -432,7 +441,7 @@ def test_restart_drains_stale_queue():
     client = _client(ws)
     client._queue.put(RealtimeMessage(tr_id="DUMMYTR0", tr_key="STALE", data=["old"]))
     client._queue.put(_STREAM_SENTINEL)               # 이전 run 이 남긴 종료 신호를 흉내
-    client.subscribe("DUMMYTR0", "005930")
+    client.subscribe(tr_id="DUMMYTR0", tr_key="005930")
     client.start()                                    # start() 가 큐를 비워야 한다
     streamed = list(client.stream(timeout=2.0))
     client.stop()
@@ -496,7 +505,7 @@ def test_closing_typed_keeps_wire_while_raw_callback_shares_contract():
     ws = OpenWebSocket()
     client = _open_client(ws)
     client.start()
-    client.subscribe("H0IFCNT0", "101W09", on=lambda _m: None)   # raw
+    client.subscribe(tr_id="H0IFCNT0", tr_key="101W09", on=lambda _m: None)  # raw
     sub = client._open_typed("H0IFCNT0", "101W09")               # typed, 같은 계약
     assert _wait_until(ws, lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
     sub.close()                                                  # 타입드만 닫음 -- raw 는 남음
@@ -512,10 +521,10 @@ def test_raw_unsubscribe_keeps_wire_while_typed_subscription_shares_contract():
     ws = OpenWebSocket()
     client = _open_client(ws)
     client.start()
-    client.subscribe("H0IFCNT0", "101W09", on=lambda _m: None)
+    client.subscribe(tr_id="H0IFCNT0", tr_key="101W09", on=lambda _m: None)
     client._open_typed("H0IFCNT0", "101W09")
     assert _wait_until(ws, lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
-    client.unsubscribe("H0IFCNT0", "101W09")                    # raw 만 해제 -- 타입드 남음
+    client.unsubscribe(tr_id="H0IFCNT0", tr_key="101W09")  # raw 만 해제 -- 타입드 남음
     assert ("H0IFCNT0", "101W09") in client._desired
     assert client._subscriptions.get(("H0IFCNT0", "101W09"))    # 타입드 구독 유지
     assert not client._callbacks.get(("H0IFCNT0", "101W09"))    # raw 콜백은 제거
@@ -530,7 +539,7 @@ def test_closing_typed_keeps_wire_while_callback_free_raw_shares_contract():
     ws = OpenWebSocket()
     client = _open_client(ws)
     client.start()
-    client.subscribe("H0IFCNT0", "101W09")                       # raw, 콜백 없음(on=None)
+    client.subscribe(tr_id="H0IFCNT0", tr_key="101W09")  # raw, 콜백 없음(on=None)
     sub = client._open_typed("H0IFCNT0", "101W09")               # typed, 같은 계약
     assert _wait_until(ws, lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
     sub.close()                                                  # 타입드만 닫음 -- raw 는 남음
@@ -547,9 +556,9 @@ def test_callback_free_raw_unsubscribe_releases_wire_when_no_typed_remains():
     ws = OpenWebSocket()
     client = _open_client(ws)
     client.start()
-    client.subscribe("H0IFCNT0", "101W09")                       # raw, 콜백 없음
+    client.subscribe(tr_id="H0IFCNT0", tr_key="101W09")  # raw, 콜백 없음
     assert _wait_until(ws, lambda: len(_frames_of(ws, "1", "H0IFCNT0")) == 1)
-    client.unsubscribe("H0IFCNT0", "101W09")
+    client.unsubscribe(tr_id="H0IFCNT0", tr_key="101W09")
     assert ("H0IFCNT0", "101W09") not in client._raw_subscriptions
     assert ("H0IFCNT0", "101W09") not in client._desired
     assert _wait_until(ws, lambda: len(_frames_of(ws, "2", "H0IFCNT0")) == 1)  # wire 해제 나감

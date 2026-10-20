@@ -52,8 +52,9 @@ def test_fetch_approval_key_transport_error_maps_to_auth_error():
     def poster(url, body):
         raise OSError("connection refused")
 
-    with pytest.raises(KISAuthError):
+    with pytest.raises(KISAuthError) as excinfo:
         fetch_approval_key("K", "S", "real", post=poster)
+    assert excinfo.value.__cause__ is None
 
 
 def test_fetch_approval_key_json_decode_error_maps_to_auth_error():
