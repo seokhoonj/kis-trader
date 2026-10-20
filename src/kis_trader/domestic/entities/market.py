@@ -390,8 +390,12 @@ class MarketFunds:
     """하루의 증시자금 종합 현황(불변).
 
     코스피 지수와 시가총액, 고객예탁금·신용융자잔고 및 유형별 펀드 잔고를 담는다.
-    금액 필드는 KIS 명세의 단위를 그대로 유지하며, 제공되지 않은 값은 ``None`` 이다.
-    ``index_change`` 와 ``index_change_percent`` 는 전일대비 부호를 반영한 값이다.
+    금액 필드(``market_cap``·``customer_deposits``·``receivables``·``credit_loan_balance``·
+    ``futures_deposits``·``equity_fund``·``mixed_fund``·``bond_fund``·``mmf``·
+    ``collateral_loan_balance`` 및 각 전일대비)는 모두 **억원** 단위다 -- 출처는 금융투자협회
+    (KIS 증시자금 종합, HTS [0470] 화면). ``index_value``·``index_change`` 는 지수 포인트,
+    ``index_change_percent`` 와 ``turnover_rate`` 는 퍼센트다. 제공되지 않은 값은 ``None`` 이고,
+    ``index_change``·``index_change_percent`` 는 전일대비 부호를 반영한다.
     """
 
     trading_date: date | None
